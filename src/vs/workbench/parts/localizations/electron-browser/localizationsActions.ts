@@ -22,10 +22,10 @@ export class ConfigureLocaleAction extends Action {
 
 	private static DEFAULT_CONTENT: string = [
 		'{',
-		`\t// ${localize('displayLanguage', 'Defines VSCode\'s display language.')}`,
+		`\t// ${localize('displayLanguage', 'Defines VS Code\'s display language.')}`,
 		`\t// ${localize('doc', 'See {0} for a list of supported languages.', 'https://go.microsoft.com/fwlink/?LinkId=761051')}`,
 		`\t`,
-		`\t"locale":"${language}" // ${localize('restart', 'Changes will not take effect until VSCode has been restarted.')}`,
+		`\t"locale":"${language}" // ${localize('restart', 'Changes will not take effect until VS Code has been restarted.')}`,
 		'}'
 	].join('\n');
 

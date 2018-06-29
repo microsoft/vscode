@@ -12,6 +12,7 @@ import { SnippetSession } from 'vs/editor/contrib/snippet/snippetSession';
 import { createTestCodeEditor } from 'vs/editor/test/browser/testCodeEditor';
 import { TextModel } from 'vs/editor/common/model/textModel';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
+import { SnippetParser } from 'vs/editor/contrib/snippet/snippetParser';
 
 suite('SnippetSession', function () {
 
@@ -41,8 +42,9 @@ suite('SnippetSession', function () {
 	test('normalize whitespace', function () {
 
 		function assertNormalized(position: IPosition, input: string, expected: string): void {
-			const actual = SnippetSession.adjustWhitespace(model, position, input);
-			assert.equal(actual, expected);
+			const snippet = new SnippetParser().parse(input);
+			SnippetSession.adjustWhitespace2(model, position, snippet);
+			assert.equal(snippet.toTextmateString(), expected);
 		}
 
 		assertNormalized(new Position(1, 1), 'foo', 'foo');
@@ -51,6 +53,9 @@ suite('SnippetSession', function () {
 		assertNormalized(new Position(2, 5), 'foo\r\tbar', 'foo\n        bar');
 		assertNormalized(new Position(2, 3), 'foo\r\tbar', 'foo\n      bar');
 		assertNormalized(new Position(2, 5), 'foo\r\tbar\nfoo', 'foo\n        bar\n    foo');
+
+		//Indentation issue with choice elements that span multiple lines #46266
+		assertNormalized(new Position(2, 5), 'a\nb${1|foo,\nbar|}', 'a\n    b${1|foo,\nbar|}');
 	});
 
 	test('adjust selection (overwrite[Before|After])', function () {
@@ -467,7 +472,7 @@ suite('SnippetSession', function () {
 	test('snippets, transform example', function () {
 		editor.getModel().setValue('');
 		editor.setSelection(new Selection(1, 1, 1, 1));
-		const session = new SnippetSession(editor, '${1:name} : ${2:type}${3: :=/\\s:=(.*)/${1:+ :=}${1}/};\n$0');
+		const session = new SnippetSession(editor, '${1:name} : ${2:type}${3/\\s:=(.*)/${1:+ :=}${1}/};\n$0');
 		session.insert();
 
 		assertSelections(editor, new Selection(1, 1, 1, 5));
@@ -478,7 +483,7 @@ suite('SnippetSession', function () {
 		editor.trigger('test', 'type', { text: 'std_logic' });
 		session.next();
 
-		assertSelections(editor, new Selection(1, 16, 1, 19));
+		assertSelections(editor, new Selection(1, 16, 1, 16));
 		session.next();
 
 		assert.equal(model.getValue(), 'clk : std_logic;\n');
@@ -529,7 +534,7 @@ suite('SnippetSession', function () {
 	test('snippets, transform example hit if', function () {
 		editor.getModel().setValue('');
 		editor.setSelection(new Selection(1, 1, 1, 1));
-		const session = new SnippetSession(editor, '${1:name} : ${2:type}${3: :=/\\s:=(.*)/${1:+ :=}${1}/};\n$0');
+		const session = new SnippetSession(editor, '${1:name} : ${2:type}${3/\\s:=(.*)/${1:+ :=}${1}/};\n$0');
 		session.insert();
 
 		assertSelections(editor, new Selection(1, 1, 1, 5));
@@ -540,7 +545,7 @@ suite('SnippetSession', function () {
 		editor.trigger('test', 'type', { text: 'std_logic' });
 		session.next();
 
-		assertSelections(editor, new Selection(1, 16, 1, 19));
+		assertSelections(editor, new Selection(1, 16, 1, 16));
 		editor.trigger('test', 'type', { text: ' := \'1\'' });
 		session.next();
 

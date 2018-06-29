@@ -513,9 +513,9 @@ export class HistoryInputBox extends InputBox implements IHistoryNavigationWidge
 		this.history = new HistoryNavigator<string>(options.history, 100);
 	}
 
-	public addToHistory(value: string): void {
-		if (value !== this.history.current()) {
-			this.history.add(value);
+	public addToHistory(): void {
+		if (this.value && this.value !== this.getCurrentValue()) {
+			this.history.add(this.value);
 		}
 	}
 
@@ -524,17 +524,26 @@ export class HistoryInputBox extends InputBox implements IHistoryNavigationWidge
 	}
 
 	public showNextValue(): void {
-		let next = this.history.next();
+		let next = this.getNextValue();
+		if (next) {
+			next = next === this.value ? this.getNextValue() : next;
+		}
+
 		if (next) {
 			this.value = next;
 		}
 	}
 
 	public showPreviousValue(): void {
-		if (this.value.length !== 0) {
-			this.history.addIfNotPresent(this.value);
+		if (!this.history.has(this.value)) {
+			this.addToHistory();
 		}
-		const previous = this.history.previous();
+
+		let previous = this.getPreviousValue();
+		if (previous) {
+			previous = previous === this.value ? this.getPreviousValue() : previous;
+		}
+
 		if (previous) {
 			this.value = previous;
 		}
@@ -542,5 +551,22 @@ export class HistoryInputBox extends InputBox implements IHistoryNavigationWidge
 
 	public clearHistory(): void {
 		this.history.clear();
+	}
+
+	private getCurrentValue(): string {
+		let currentValue = this.history.current();
+		if (!currentValue) {
+			currentValue = this.history.last();
+			this.history.next();
+		}
+		return currentValue;
+	}
+
+	private getPreviousValue(): string {
+		return this.history.previous() || this.history.first();
+	}
+
+	private getNextValue(): string {
+		return this.history.next() || this.history.last();
 	}
 }

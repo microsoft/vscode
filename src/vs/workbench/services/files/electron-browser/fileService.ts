@@ -899,7 +899,7 @@ export class FileService implements IFileService {
 					return TPromise.wrapError<boolean>(new Error(nls.localize('unableToMoveCopyError', "Unable to move/copy. File would replace folder it is contained in."))); // catch this corner case!
 				}
 
-				deleteTargetPromise = this.del(uri.file(targetPath));
+				deleteTargetPromise = this.del(uri.file(targetPath), { recursive: true });
 			}
 
 			return deleteTargetPromise.then(() => {
@@ -920,12 +920,12 @@ export class FileService implements IFileService {
 		});
 	}
 
-	public del(resource: uri, useTrash?: boolean): TPromise<void> {
-		if (useTrash) {
+	public del(resource: uri, options?: { useTrash?: boolean, recursive?: boolean }): TPromise<void> {
+		if (options && options.useTrash) {
 			return this.doMoveItemToTrash(resource);
 		}
 
-		return this.doDelete(resource);
+		return this.doDelete(resource, options && options.recursive);
 	}
 
 	private doMoveItemToTrash(resource: uri): TPromise<void> {
@@ -942,13 +942,34 @@ export class FileService implements IFileService {
 		return TPromise.as(void 0);
 	}
 
-	private doDelete(resource: uri): TPromise<void> {
+	private doDelete(resource: uri, recursive: boolean): TPromise<void> {
 		const absolutePath = this.toAbsolutePath(resource);
 
-		return pfs.del(absolutePath, os.tmpdir()).then(() => {
+		let assertNonRecursiveDelete: TPromise<void>;
+		if (!recursive) {
+			assertNonRecursiveDelete = pfs.stat(absolutePath).then(stat => {
+				if (!stat.isDirectory()) {
+					return TPromise.as(void 0);
+				}
 
-			// Events
-			this._onAfterOperation.fire(new FileOperationEvent(resource, FileOperation.DELETE));
+				return pfs.readdir(absolutePath).then(children => {
+					if (children.length === 0) {
+						return TPromise.as(void 0);
+					}
+
+					return TPromise.wrapError(new Error(nls.localize('deleteFailed', "Failed to delete non-empty folder '{0}'.", paths.basename(absolutePath))));
+				});
+			}, error => TPromise.as(void 0) /* ignore errors */);
+		} else {
+			assertNonRecursiveDelete = TPromise.as(void 0);
+		}
+
+		return assertNonRecursiveDelete.then(() => {
+			return pfs.del(absolutePath, os.tmpdir()).then(() => {
+
+				// Events
+				this._onAfterOperation.fire(new FileOperationEvent(resource, FileOperation.DELETE));
+			});
 		});
 	}
 

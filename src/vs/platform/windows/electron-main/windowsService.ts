@@ -13,7 +13,7 @@ import URI from 'vs/base/common/uri';
 import product from 'vs/platform/node/product';
 import { IWindowsService, OpenContext, INativeOpenDialogOptions, IEnterWorkspaceResult, IMessageBoxResult, IDevToolsOptions } from 'vs/platform/windows/common/windows';
 import { IEnvironmentService, ParsedArgs } from 'vs/platform/environment/common/environment';
-import { shell, crashReporter, app, Menu, clipboard } from 'electron';
+import { shell, crashReporter, app, Menu, clipboard, BrowserWindow } from 'electron';
 import { Event, fromNodeEventEmitter, mapEvent, filterEvent, anyEvent } from 'vs/base/common/event';
 import { IURLService, IURLHandler } from 'vs/platform/url/common/url';
 import { ILifecycleService } from 'vs/platform/lifecycle/electron-main/lifecycleMain';
@@ -41,6 +41,8 @@ export class WindowsService implements IWindowsService, IURLHandler, IDisposable
 	readonly onWindowBlur: Event<number> = filterEvent(fromNodeEventEmitter(app, 'browser-window-blur', (_, w: Electron.BrowserWindow) => w.id), id => !!this.windowsMainService.getWindowById(id));
 	readonly onWindowMaximize: Event<number> = filterEvent(fromNodeEventEmitter(app, 'browser-window-maximize', (_, w: Electron.BrowserWindow) => w.id), id => !!this.windowsMainService.getWindowById(id));
 	readonly onWindowUnmaximize: Event<number> = filterEvent(fromNodeEventEmitter(app, 'browser-window-unmaximize', (_, w: Electron.BrowserWindow) => w.id), id => !!this.windowsMainService.getWindowById(id));
+
+	readonly onRecentlyOpenedChange: Event<void> = this.historyService.onRecentlyOpenedChange;
 
 	constructor(
 		private sharedProcess: ISharedProcess,
@@ -465,6 +467,29 @@ export class WindowsService implements IWindowsService, IURLHandler, IDisposable
 	toggleSharedProcess(): TPromise<void> {
 		this.logService.trace('windowsService#toggleSharedProcess');
 		this.sharedProcess.toggle();
+		return TPromise.as(null);
+	}
+
+	openAccessibilityOptions(): TPromise<void> {
+		this.logService.trace('windowsService#openAccessibilityOptions');
+
+		const win = new BrowserWindow({
+			alwaysOnTop: true,
+			skipTaskbar: true,
+			resizable: false,
+			width: 450,
+			height: 300,
+			show: true,
+			title: nls.localize('accessibilityOptionsWindowTitle', "Accessibility Options"),
+			webPreferences: {
+				disableBlinkFeatures: 'Auxclick'
+			}
+		});
+
+		win.setMenuBarVisibility(false);
+
+		win.loadURL('chrome://accessibility');
+
 		return TPromise.as(null);
 	}
 

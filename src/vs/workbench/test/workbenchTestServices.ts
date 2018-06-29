@@ -850,7 +850,7 @@ export class TestFileService implements IFileService {
 		return resource.scheme === 'file';
 	}
 
-	del(resource: URI, useTrash?: boolean): TPromise<void> {
+	del(resource: URI, options?: { useTrash?: boolean, recursive?: boolean }): TPromise<void> {
 		return TPromise.as(null);
 	}
 
@@ -1123,6 +1123,7 @@ export class TestWindowsService implements IWindowsService {
 	onWindowBlur: Event<number>;
 	onWindowMaximize: Event<number>;
 	onWindowUnmaximize: Event<number>;
+	onRecentlyOpenedChange: Event<void>;
 
 	isFocused(windowId: number): TPromise<boolean> {
 		return TPromise.as(false);
@@ -1313,6 +1314,10 @@ export class TestWindowsService implements IWindowsService {
 	}
 
 	showOpenDialog(windowId: number, options: Electron.OpenDialogOptions): TPromise<string[]> {
+		return TPromise.as(void 0);
+	}
+
+	openAccessibilityOptions(): TPromise<void> {
 		return TPromise.as(void 0);
 	}
 

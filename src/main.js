@@ -27,8 +27,20 @@ function getApplicationPath() {
 	}
 }
 
-const portableDataName = product.portable || `${product.applicationName}-portable-data`;
-const portableDataPath = process.env['VSCODE_PORTABLE'] || path.join(path.dirname(getApplicationPath()), portableDataName);
+function getPortableDataPath() {
+	if (process.env['VSCODE_PORTABLE']) {
+		return process.env['VSCODE_PORTABLE'];
+	}
+
+	if (process.platform === 'win32' || process.platform === 'linux') {
+		return path.join(getApplicationPath(), 'data');
+	} else {
+		const portableDataName = product.portable || `${product.applicationName}-portable-data`;
+		return path.join(path.dirname(getApplicationPath()), portableDataName);
+	}
+}
+
+const portableDataPath = getPortableDataPath();
 const isPortable = fs.existsSync(portableDataPath);
 const portableTempPath = path.join(portableDataPath, 'tmp');
 const isTempPortable = isPortable && fs.existsSync(portableTempPath);
@@ -68,12 +80,6 @@ if (isTempPortable) {
 //#endregion
 
 const app = require('electron').app;
-
-// TODO@Ben Electron 2.0.x: prevent localStorage migration from SQLite to LevelDB due to issues
-app.commandLine.appendSwitch('disable-mojo-local-storage');
-
-// TODO@Ben Electron 2.0.x: force srgb color profile (for https://github.com/Microsoft/vscode/issues/51791)
-app.commandLine.appendSwitch('force-color-profile', 'srgb');
 
 const minimist = require('minimist');
 const paths = require('./paths');

@@ -106,15 +106,15 @@ export class Renderer implements IPagedRenderer<IExtension, ITemplateData> {
 
 		const maliciousStatusAction = this.instantiationService.createInstance(MaliciousStatusLabelAction, false);
 		const disabledStatusAction = this.instantiationService.createInstance(DisabledStatusLabelAction);
-		const installAction = this.extensionManagementServerService.extensionManagementServers.length === 1 ? this.instantiationService.createInstance(InstallAction, this.extensionManagementServerService.extensionManagementServers[0])
-			: this.instantiationService.createInstance(MultiServerInstallAction);
-		const updateAction = this.extensionManagementServerService.extensionManagementServers.length === 1 ? this.instantiationService.createInstance(UpdateAction, this.extensionManagementServerService.extensionManagementServers[0])
+		const installAction = this.extensionManagementServerService.extensionManagementServers.length === 1 ? this.instantiationService.createInstance(InstallAction)
+			: this.instantiationService.createInstance(MultiServerInstallAction, true);
+		const updateAction = this.extensionManagementServerService.extensionManagementServers.length === 1 ? this.instantiationService.createInstance(UpdateAction)
 			: this.instantiationService.createInstance(MultiServerUpdateAction);
 		const reloadAction = this.instantiationService.createInstance(ReloadAction);
 		const manageAction = this.instantiationService.createInstance(ManageExtensionAction);
 
 		actionbar.push([updateAction, reloadAction, installAction, disabledStatusAction, maliciousStatusAction, manageAction], actionOptions);
-		const disposables = [versionWidget, installCountWidget, ratingsWidget, maliciousStatusAction, disabledStatusAction, updateAction, reloadAction, manageAction, actionbar, bookmarkStyler];
+		const disposables = [versionWidget, installCountWidget, ratingsWidget, maliciousStatusAction, disabledStatusAction, updateAction, installAction, reloadAction, manageAction, actionbar, bookmarkStyler];
 
 		return {
 			root, element, icon, name, installCount, ratings, author, description, disposables,
@@ -154,7 +154,7 @@ export class Renderer implements IPagedRenderer<IExtension, ITemplateData> {
 		const installed = this.extensionsWorkbenchService.local.filter(e => e.id === extension.id)[0];
 
 		this.extensionService.getExtensions().then(runningExtensions => {
-			toggleClass(data.root, 'disabled', installed ? runningExtensions.every(e => !(installed.local.location.toString() === e.extensionLocation.toString() && areSameExtensions(e, extension))) : false);
+			toggleClass(data.root, 'disabled', installed && installed.local ? runningExtensions.every(e => !(installed.local.location.toString() === e.extensionLocation.toString() && areSameExtensions(e, extension))) : false);
 		});
 
 		const onError = once(domEvent(data.icon, 'error'));
@@ -170,7 +170,7 @@ export class Renderer implements IPagedRenderer<IExtension, ITemplateData> {
 
 		this.updateRecommendationStatus(extension, data);
 		data.extensionDisposables.push(this.extensionTipsService.onRecommendationChange(change => {
-			if (change.extensionId.toLowerCase() === extension.id.toLowerCase() && change.isRecommended === false) {
+			if (change.extensionId.toLowerCase() === extension.id.toLowerCase()) {
 				this.updateRecommendationStatus(extension, data);
 			}
 		}));

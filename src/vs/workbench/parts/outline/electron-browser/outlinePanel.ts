@@ -27,7 +27,6 @@ import { ITree } from 'vs/base/parts/tree/browser/tree';
 import 'vs/css!./outlinePanel';
 import { ICodeEditor, isCodeEditor, isDiffEditor } from 'vs/editor/browser/editorBrowser';
 import { ServicesAccessor } from 'vs/editor/browser/editorExtensions';
-import { CursorChangeReason } from 'vs/editor/common/controller/cursorEvents';
 import { Range } from 'vs/editor/common/core/range';
 import { Selection } from 'vs/editor/common/core/selection';
 import { IModelContentChangedEvent } from 'vs/editor/common/model/textModelEvents';
@@ -539,7 +538,9 @@ export class OutlinePanel extends ViewletPanel {
 				beforePatternState = undefined;
 			}
 		};
-		onInputValueChanged(this._input.value);
+		if (this._input.value) {
+			onInputValueChanged(this._input.value);
+		}
 		this._editorDisposables.push(this._input.onDidChange(onInputValueChanged));
 
 		this._editorDisposables.push({
@@ -573,8 +574,16 @@ export class OutlinePanel extends ViewletPanel {
 		}));
 
 		// feature: reveal editor selection in outline
-		this._editorDisposables.push(editor.onDidChangeCursorSelection(e => e.reason === CursorChangeReason.Explicit && this._revealEditorSelection(model, e.selection)));
 		this._revealEditorSelection(model, editor.getSelection());
+		const versionIdThen = model.textModel.getVersionId();
+		this._editorDisposables.push(editor.onDidChangeCursorSelection(e => {
+			// first check if the document has changed and stop revealing the
+			// cursor position iff it has -> we will update/recompute the
+			// outline view then anyways
+			if (!model.textModel.isDisposed() && model.textModel.getVersionId() === versionIdThen) {
+				this._revealEditorSelection(model, e.selection);
+			}
+		}));
 
 		// feature: show markers in outline
 		const updateMarker = (e: URI[], ignoreEmpty?: boolean) => {
@@ -647,8 +656,6 @@ export class OutlinePanel extends ViewletPanel {
 			await this._tree.reveal(item, .5);
 			this._tree.setFocus(item, this);
 			this._tree.setSelection([item], this);
-		} else {
-			this._tree.setSelection([], this);
 		}
 	}
 

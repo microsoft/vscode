@@ -39,6 +39,10 @@ export class MainThreadTerminalService implements MainThreadTerminalServiceShape
 			this._onTerminalOpened(t);
 			t.processReady.then(() => this._onTerminalProcessIdReady(t));
 		});
+		const activeInstance = this.terminalService.getActiveInstance();
+		if (activeInstance) {
+			this._proxy.$acceptActiveTerminalChanged(activeInstance.id);
+		}
 	}
 
 	public dispose(): void {

@@ -13,6 +13,7 @@ import { ModeServiceImpl } from 'vs/editor/common/services/modeServiceImpl';
 import { TextModel } from 'vs/editor/common/model/textModel';
 import { ISnippetsService } from 'vs/workbench/parts/snippets/electron-browser/snippets.contribution';
 import { Snippet } from 'vs/workbench/parts/snippets/electron-browser/snippetsFile';
+import { SuggestContext, SuggestTriggerKind } from 'vs/editor/common/modes';
 
 class SimpleSnippetService implements ISnippetsService {
 	_serviceBrand: any;
@@ -40,6 +41,7 @@ suite('SnippetsService', function () {
 
 	let modeService: ModeServiceImpl;
 	let snippetService: ISnippetsService;
+	let suggestContext: SuggestContext = { triggerKind: SuggestTriggerKind.Invoke };
 
 	setup(function () {
 		modeService = new ModeServiceImpl();
@@ -66,7 +68,7 @@ suite('SnippetsService', function () {
 		const provider = new SnippetSuggestProvider(modeService, snippetService);
 		const model = TextModel.createFromString('', undefined, modeService.getLanguageIdentifier('fooLang'));
 
-		return provider.provideCompletionItems(model, new Position(1, 1)).then(result => {
+		return provider.provideCompletionItems(model, new Position(1, 1), suggestContext).then(result => {
 			assert.equal(result.incomplete, undefined);
 			assert.equal(result.suggestions.length, 2);
 		});
@@ -77,7 +79,7 @@ suite('SnippetsService', function () {
 		const provider = new SnippetSuggestProvider(modeService, snippetService);
 		const model = TextModel.createFromString('bar', undefined, modeService.getLanguageIdentifier('fooLang'));
 
-		return provider.provideCompletionItems(model, new Position(1, 4)).then(result => {
+		return provider.provideCompletionItems(model, new Position(1, 4), suggestContext).then(result => {
 			assert.equal(result.incomplete, undefined);
 			assert.equal(result.suggestions.length, 1);
 			assert.equal(result.suggestions[0].label, 'bar');
@@ -98,18 +100,18 @@ suite('SnippetsService', function () {
 		const provider = new SnippetSuggestProvider(modeService, snippetService);
 
 		let model = TextModel.createFromString('\t<?php', undefined, modeService.getLanguageIdentifier('fooLang'));
-		return provider.provideCompletionItems(model, new Position(1, 7)).then(result => {
+		return provider.provideCompletionItems(model, new Position(1, 7), suggestContext).then(result => {
 			assert.equal(result.suggestions.length, 1);
 			model.dispose();
 
 			model = TextModel.createFromString('\t<?', undefined, modeService.getLanguageIdentifier('fooLang'));
-			return provider.provideCompletionItems(model, new Position(1, 4));
+			return provider.provideCompletionItems(model, new Position(1, 4), suggestContext);
 		}).then(result => {
 			assert.equal(result.suggestions.length, 1);
 			model.dispose();
 
 			model = TextModel.createFromString('a<?', undefined, modeService.getLanguageIdentifier('fooLang'));
-			return provider.provideCompletionItems(model, new Position(1, 4));
+			return provider.provideCompletionItems(model, new Position(1, 4), suggestContext);
 		}).then(result => {
 
 			assert.equal(result.suggestions.length, 0);
@@ -131,9 +133,9 @@ suite('SnippetsService', function () {
 		const provider = new SnippetSuggestProvider(modeService, snippetService);
 
 		let model = TextModel.createFromString('<head>\n\t\n>/head>', undefined, modeService.getLanguageIdentifier('fooLang'));
-		return provider.provideCompletionItems(model, new Position(1, 1)).then(result => {
+		return provider.provideCompletionItems(model, new Position(1, 1), suggestContext).then(result => {
 			assert.equal(result.suggestions.length, 1);
-			return provider.provideCompletionItems(model, new Position(2, 2));
+			return provider.provideCompletionItems(model, new Position(2, 2), suggestContext);
 		}).then(result => {
 			assert.equal(result.suggestions.length, 1);
 		});
@@ -161,7 +163,7 @@ suite('SnippetsService', function () {
 		const provider = new SnippetSuggestProvider(modeService, snippetService);
 
 		let model = TextModel.createFromString('', undefined, modeService.getLanguageIdentifier('fooLang'));
-		return provider.provideCompletionItems(model, new Position(1, 1)).then(result => {
+		return provider.provideCompletionItems(model, new Position(1, 1), suggestContext).then(result => {
 			assert.equal(result.suggestions.length, 2);
 			let [first, second] = result.suggestions;
 			assert.equal(first.label, 'first');

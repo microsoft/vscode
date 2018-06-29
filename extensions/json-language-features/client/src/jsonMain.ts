@@ -251,11 +251,22 @@ function getSettings(): Settings {
 				settings.json!.schemas!.push(schemaSetting);
 			}
 			let fileMatches = setting.fileMatch;
+			let resultingFileMatches = schemaSetting.fileMatch!;
 			if (Array.isArray(fileMatches)) {
 				if (fileMatchPrefix) {
-					fileMatches = fileMatches.map(m => fileMatchPrefix + m);
+					for (let fileMatch of fileMatches) {
+						if (fileMatch[0] === '/') {
+							resultingFileMatches.push(fileMatchPrefix + fileMatch);
+							resultingFileMatches.push(fileMatchPrefix + '/*' + fileMatch);
+						} else {
+							resultingFileMatches.push(fileMatchPrefix + '/' + fileMatch);
+							resultingFileMatches.push(fileMatchPrefix + '/*/' + fileMatch);
+						}
+					}
+				} else {
+					resultingFileMatches.push(...fileMatches);
 				}
-				schemaSetting.fileMatch!.push(...fileMatches);
+
 			}
 			if (setting.schema) {
 				schemaSetting.schema = setting.schema;
@@ -276,10 +287,10 @@ function getSettings(): Settings {
 			let folderSchemas = schemaConfigInfo!.workspaceFolderValue;
 			if (Array.isArray(folderSchemas)) {
 				let folderPath = folderUri.toString();
-				if (folderPath[folderPath.length - 1] !== '/') {
-					folderPath = folderPath + '/';
+				if (folderPath[folderPath.length - 1] === '/') {
+					folderPath = folderPath.substr(0, folderPath.length - 1);
 				}
-				collectSchemaSettings(folderSchemas, folderUri.fsPath, folderPath + '*');
+				collectSchemaSettings(folderSchemas, folderUri.fsPath, folderPath);
 			}
 		}
 	}

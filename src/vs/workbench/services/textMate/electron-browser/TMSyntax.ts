@@ -25,6 +25,7 @@ import { Color } from 'vs/base/common/color';
 import { INotificationService } from 'vs/platform/notification/common/notification';
 import URI from 'vs/base/common/uri';
 import { IFileService } from 'vs/platform/files/common/files';
+import { ILogService } from 'vs/platform/log/common/log';
 
 export class TMScopeRegistry {
 
@@ -139,6 +140,7 @@ export class TextMateService implements ITextMateService {
 	private _modeService: IModeService;
 	private _themeService: IWorkbenchThemeService;
 	private _fileService: IFileService;
+	private _logService: ILogService;
 	private _scopeRegistry: TMScopeRegistry;
 	private _injections: { [scopeName: string]: string[]; };
 	private _injectedEmbeddedLanguages: { [scopeName: string]: IEmbeddedLanguagesMap[]; };
@@ -155,13 +157,15 @@ export class TextMateService implements ITextMateService {
 		@IModeService modeService: IModeService,
 		@IWorkbenchThemeService themeService: IWorkbenchThemeService,
 		@IFileService fileService: IFileService,
-		@INotificationService notificationService: INotificationService
+		@INotificationService notificationService: INotificationService,
+		@ILogService logService: ILogService
 	) {
 		this._styleElement = dom.createStyleSheet();
 		this._styleElement.className = 'vscode-tokens-styles';
 		this._modeService = modeService;
 		this._themeService = themeService;
 		this._fileService = fileService;
+		this._logService = logService;
 		this._scopeRegistry = new TMScopeRegistry();
 		this.onDidEncounterLanguage = this._scopeRegistry.onDidEncounterLanguage;
 		this._injections = {};
@@ -211,8 +215,15 @@ export class TextMateService implements ITextMateService {
 				const grammarRegistry = new Registry({
 					loadGrammar: (scopeName: string) => {
 						const location = this._scopeRegistry.getGrammarLocation(scopeName);
+						if (!location) {
+							this._logService.info(`No grammar found for scope ${scopeName}`);
+							return null;
+						}
 						return this._fileService.resolveContent(location).then(content => {
 							return parseRawGrammar(content.value, location.path);
+						}, e => {
+							this._logService.error(`Unable to load and parse grammar for scope ${scopeName} from ${location}`, e);
+							return null;
 						});
 					},
 					getInjections: (scopeName: string) => {

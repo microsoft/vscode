@@ -128,10 +128,11 @@ export interface IFileService {
 	createFolder(resource: URI): TPromise<IFileStat>;
 
 	/**
-	 * Deletes the provided file.  The optional useTrash parameter allows to
-	 * move the file to trash.
+	 * Deletes the provided file. The optional useTrash parameter allows to
+	 * move the file to trash. The optional recursive parameter allows to delete
+	 * non-empty folders recursively.
 	 */
-	del(resource: URI, useTrash?: boolean): TPromise<void>;
+	del(resource: URI, options?: { useTrash?: boolean, recursive?: boolean }): TPromise<void>;
 
 	/**
 	 * Allows to start a watcher that reports file change events on the provided resource.
@@ -156,6 +157,10 @@ export interface FileOverwriteOptions {
 export interface FileWriteOptions {
 	overwrite: boolean;
 	create: boolean;
+}
+
+export interface FileDeleteOptions {
+	recursive: boolean;
 }
 
 export enum FileType {
@@ -196,7 +201,7 @@ export interface IFileSystemProvider {
 	stat(resource: URI): TPromise<IStat>;
 	mkdir(resource: URI): TPromise<void>;
 	readdir(resource: URI): TPromise<[string, FileType][]>;
-	delete(resource: URI): TPromise<void>;
+	delete(resource: URI, opts: FileDeleteOptions): TPromise<void>;
 
 	rename(from: URI, to: URI, opts: FileOverwriteOptions): TPromise<void>;
 	copy?(from: URI, to: URI, opts: FileOverwriteOptions): TPromise<void>;

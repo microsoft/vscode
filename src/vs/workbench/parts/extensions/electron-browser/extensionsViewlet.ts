@@ -83,7 +83,6 @@ export class ExtensionsViewletViewsContribution implements IWorkbenchContributio
 	private registerViews(): void {
 		let viewDescriptors = [];
 		viewDescriptors.push(this.createMarketPlaceExtensionsListViewDescriptor());
-		viewDescriptors.push(this.createInstalledExtensionsListViewDescriptor());
 		viewDescriptors.push(this.createEnabledExtensionsListViewDescriptor());
 		viewDescriptors.push(this.createDisabledExtensionsListViewDescriptor());
 		viewDescriptors.push(this.createSearchInstalledExtensionsListViewDescriptor());
@@ -114,23 +113,9 @@ export class ExtensionsViewletViewsContribution implements IWorkbenchContributio
 		};
 	}
 
-	private createInstalledExtensionsListViewDescriptor(): IViewDescriptor {
-		return {
-			id: 'extensions.installedExtensionsList',
-			name: localize('installedExtensions', "Installed"),
-			container: VIEW_CONTAINER,
-			ctor: InstalledExtensionsView,
-			when: ContextKeyExpr.not('searchExtensions'),
-			order: 1,
-			weight: 30,
-			canToggleVisibility: true,
-			hideByDefault: true
-		};
-	}
-
 	private createEnabledExtensionsListViewDescriptor(): IViewDescriptor {
 		return {
-			id: 'extensions.enabledExtensions',
+			id: 'extensions.enabledExtensionList',
 			name: localize('enabledExtensions', "Enabled"),
 			container: VIEW_CONTAINER,
 			ctor: EnabledExtensionsView,
@@ -143,14 +128,14 @@ export class ExtensionsViewletViewsContribution implements IWorkbenchContributio
 
 	private createDisabledExtensionsListViewDescriptor(): IViewDescriptor {
 		return {
-			id: 'extensions.disabledExtensions',
+			id: 'extensions.disabledExtensionList',
 			name: localize('disabledExtensions', "Disabled"),
 			container: VIEW_CONTAINER,
 			ctor: DisabledExtensionsView,
 			when: ContextKeyExpr.not('searchExtensions'),
-			weight: 30,
+			weight: 10,
 			canToggleVisibility: true,
-			order: 0,
+			order: 3,
 			collapsed: true
 		};
 	}

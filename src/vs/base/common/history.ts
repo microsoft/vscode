@@ -27,12 +27,6 @@ export class HistoryNavigator<T> implements INavigator<T> {
 		this._onChange();
 	}
 
-	public addIfNotPresent(t: T) {
-		if (!this._history.has(t)) {
-			this.add(t);
-		}
-	}
-
 	public next(): T {
 		return this._navigator.next();
 	}
@@ -55,6 +49,10 @@ export class HistoryNavigator<T> implements INavigator<T> {
 
 	public last(): T {
 		return this._navigator.last();
+	}
+
+	public has(t: T): boolean {
+		return this._history.has(t);
 	}
 
 	public clear(): void {

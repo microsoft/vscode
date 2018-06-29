@@ -34,7 +34,6 @@ import { IDisposable } from 'vs/base/common/lifecycle';
 
 const DEBUG_ACTIONS_WIDGET_POSITION_KEY = 'debug.actionswidgetposition';
 const DEBUG_ACTIONS_WIDGET_Y_KEY = 'debug.actionswidgety';
-const HEIGHT = 32;
 
 export const debugToolBarBackground = registerColor('debugToolBar.background', {
 	dark: '#333333',
@@ -159,7 +158,7 @@ export class DebugActionsWidget extends Themable implements IWorkbenchContributi
 				// Prevent default to stop editor selecting text #8524
 				mouseMoveEvent.preventDefault();
 				// Reduce x by width of drag handle to reduce jarring #16604
-				this.setCoordinates(mouseMoveEvent.posx - 14, mouseMoveEvent.posy);
+				this.setCoordinates(mouseMoveEvent.posx - 14, mouseMoveEvent.posy - this.partService.getTitleBarOffset());
 			}).once('mouseup', (e: MouseEvent) => {
 				this.storePosition();
 				this.dragArea.removeClass('dragged');
@@ -167,8 +166,8 @@ export class DebugActionsWidget extends Themable implements IWorkbenchContributi
 			});
 		});
 
-		this.toUnbind.push(this.partService.onTitleBarVisibilityChange(() => this.positionDebugWidget()));
-		this.toUnbind.push(browser.onDidChangeZoomLevel(() => this.positionDebugWidget()));
+		this.toUnbind.push(this.partService.onTitleBarVisibilityChange(() => this.setYCoordinate()));
+		this.toUnbind.push(browser.onDidChangeZoomLevel(() => this.setYCoordinate()));
 	}
 
 	private storePosition(): void {
@@ -199,10 +198,9 @@ export class DebugActionsWidget extends Themable implements IWorkbenchContributi
 		}
 	}
 
-	private positionDebugWidget(): void {
+	private setYCoordinate(y = 0): void {
 		const titlebarOffset = this.partService.getTitleBarOffset();
-
-		$(this.$el).style('top', `${titlebarOffset}px`);
+		this.$el.style('top', `${titlebarOffset + y}px`);
 	}
 
 	private setCoordinates(x?: number, y?: number): void {
@@ -221,10 +219,11 @@ export class DebugActionsWidget extends Themable implements IWorkbenchContributi
 		if (y === undefined) {
 			y = this.storageService.getInteger(DEBUG_ACTIONS_WIDGET_Y_KEY, StorageScope.GLOBAL, 0);
 		}
-		if ((y < HEIGHT / 2) || (y > HEIGHT + HEIGHT / 2)) {
-			const moveToTop = y < HEIGHT;
-			this.$el.style('top', moveToTop ? '0px' : `${HEIGHT}px`);
-			this.storageService.store(DEBUG_ACTIONS_WIDGET_Y_KEY, moveToTop ? 0 : 2 * HEIGHT, StorageScope.GLOBAL);
+		const titleAreaHeight = 35;
+		if ((y < titleAreaHeight / 2) || (y > titleAreaHeight + titleAreaHeight / 2)) {
+			const moveToTop = y < titleAreaHeight;
+			this.setYCoordinate(moveToTop ? 0 : titleAreaHeight);
+			this.storageService.store(DEBUG_ACTIONS_WIDGET_Y_KEY, moveToTop ? 0 : 2 * titleAreaHeight, StorageScope.GLOBAL);
 		}
 	}
 
@@ -236,6 +235,7 @@ export class DebugActionsWidget extends Themable implements IWorkbenchContributi
 
 	private show(): void {
 		if (this.isVisible) {
+			this.setCoordinates();
 			return;
 		}
 		if (!this.isBuilt) {

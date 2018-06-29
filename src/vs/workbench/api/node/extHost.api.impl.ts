@@ -116,7 +116,7 @@ export function createApiFactory(
 	const extHostDiagnostics = rpcProtocol.set(ExtHostContext.ExtHostDiagnostics, new ExtHostDiagnostics(rpcProtocol));
 	const extHostLanguageFeatures = rpcProtocol.set(ExtHostContext.ExtHostLanguageFeatures, new ExtHostLanguageFeatures(rpcProtocol, schemeTransformer, extHostDocuments, extHostCommands, extHostHeapService, extHostDiagnostics));
 	const extHostFileSystem = rpcProtocol.set(ExtHostContext.ExtHostFileSystem, new ExtHostFileSystem(rpcProtocol, extHostLanguageFeatures));
-	const extHostFileSystemEvent = rpcProtocol.set(ExtHostContext.ExtHostFileSystemEventService, new ExtHostFileSystemEventService());
+	const extHostFileSystemEvent = rpcProtocol.set(ExtHostContext.ExtHostFileSystemEventService, new ExtHostFileSystemEventService(rpcProtocol, extHostDocumentsAndEditors));
 	const extHostQuickOpen = rpcProtocol.set(ExtHostContext.ExtHostQuickOpen, new ExtHostQuickOpen(rpcProtocol, extHostWorkspace, extHostCommands));
 	const extHostTerminalService = rpcProtocol.set(ExtHostContext.ExtHostTerminalService, new ExtHostTerminalService(rpcProtocol, extHostConfiguration, extHostLogService));
 	const extHostDebugService = rpcProtocol.set(ExtHostContext.ExtHostDebugService, new ExtHostDebugService(rpcProtocol, extHostWorkspace, extensionService, extHostDocumentsAndEditors, extHostConfiguration, extHostTerminalService));
@@ -442,15 +442,15 @@ export function createApiFactory(
 			createTreeView(viewId: string, options: { treeDataProvider: vscode.TreeDataProvider<any> }): vscode.TreeView<any> {
 				return extHostTreeViews.createTreeView(viewId, options);
 			},
+			registerWebviewPanelSerializer: (viewType: string, serializer: vscode.WebviewPanelSerializer) => {
+				return extHostWebviews.registerWebviewPanelSerializer(viewType, serializer);
+			},
 			// proposed API
 			sampleFunction: proposedApiFunction(extension, () => {
 				return extHostMessageService.showMessage(extension, Severity.Info, 'Hello Proposed Api!', {}, []);
 			}),
 			registerDecorationProvider: proposedApiFunction(extension, (provider: vscode.DecorationProvider) => {
 				return extHostDecorations.registerDecorationProvider(provider, extension.id);
-			}),
-			registerWebviewPanelSerializer: proposedApiFunction(extension, (viewType: string, serializer: vscode.WebviewPanelSerializer) => {
-				return extHostWebviews.registerWebviewPanelSerializer(viewType, serializer);
 			}),
 			registerProtocolHandler: proposedApiFunction(extension, (handler: vscode.ProtocolHandler) => {
 				return extHostUrls.registerProtocolHandler(extension.id, handler);
@@ -580,7 +580,7 @@ export function createApiFactory(
 				return extHostFileSystemEvent.onDidRenameFile(listener, thisArg, disposables);
 			}),
 			onWillRenameFile: proposedApiFunction(extension, (listener, thisArg?, disposables?) => {
-				return extHostFileSystemEvent.onWillRenameFile(listener, thisArg, disposables);
+				return extHostFileSystemEvent.getOnWillRenameFileEvent(extension)(listener, thisArg, disposables);
 			})
 		};
 

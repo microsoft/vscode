@@ -19,6 +19,7 @@ export interface IWindowsChannel extends IChannel {
 	call(command: 'event:onWindowOpen'): TPromise<number>;
 	call(command: 'event:onWindowFocus'): TPromise<number>;
 	call(command: 'event:onWindowBlur'): TPromise<number>;
+	call(command: 'event:onRecentlyOpenedChange'): TPromise<void>;
 	call(command: 'pickFileFolderAndOpen', arg: INativeOpenDialogOptions): TPromise<void>;
 	call(command: 'pickFileAndOpen', arg: INativeOpenDialogOptions): TPromise<void>;
 	call(command: 'pickFolderAndOpen', arg: INativeOpenDialogOptions): TPromise<void>;
@@ -65,6 +66,7 @@ export interface IWindowsChannel extends IChannel {
 	call(command: 'showItemInFolder', arg: string): TPromise<void>;
 	call(command: 'openExternal', arg: string): TPromise<boolean>;
 	call(command: 'startCrashReporter', arg: CrashReporterStartOptions): TPromise<void>;
+	call(command: 'openAccessibilityOptions'): TPromise<void>;
 	call(command: 'openAboutDialog'): TPromise<void>;
 	call(command: string, arg?: any): TPromise<any>;
 }
@@ -76,6 +78,7 @@ export class WindowsChannel implements IWindowsChannel {
 	private onWindowBlur: Event<number>;
 	private onWindowMaximize: Event<number>;
 	private onWindowUnmaximize: Event<number>;
+	private onRecentlyOpenedChange: Event<void>;
 
 	constructor(private service: IWindowsService) {
 		this.onWindowOpen = buffer(service.onWindowOpen, true);
@@ -83,6 +86,7 @@ export class WindowsChannel implements IWindowsChannel {
 		this.onWindowBlur = buffer(service.onWindowBlur, true);
 		this.onWindowMaximize = buffer(service.onWindowMaximize, true);
 		this.onWindowUnmaximize = buffer(service.onWindowUnmaximize, true);
+		this.onRecentlyOpenedChange = buffer(service.onRecentlyOpenedChange, true);
 	}
 
 	call(command: string, arg?: any): TPromise<any> {
@@ -92,6 +96,7 @@ export class WindowsChannel implements IWindowsChannel {
 			case 'event:onWindowBlur': return eventToCall(this.onWindowBlur);
 			case 'event:onWindowMaximize': return eventToCall(this.onWindowMaximize);
 			case 'event:onWindowUnmaximize': return eventToCall(this.onWindowUnmaximize);
+			case 'event:onRecentlyOpenedChange': return eventToCall(this.onRecentlyOpenedChange);
 			case 'pickFileFolderAndOpen': return this.service.pickFileFolderAndOpen(arg);
 			case 'pickFileAndOpen': return this.service.pickFileAndOpen(arg);
 			case 'pickFolderAndOpen': return this.service.pickFolderAndOpen(arg);
@@ -152,6 +157,7 @@ export class WindowsChannel implements IWindowsChannel {
 			case 'showItemInFolder': return this.service.showItemInFolder(arg);
 			case 'openExternal': return this.service.openExternal(arg);
 			case 'startCrashReporter': return this.service.startCrashReporter(arg);
+			case 'openAccessibilityOptions': return this.service.openAccessibilityOptions();
 			case 'openAboutDialog': return this.service.openAboutDialog();
 		}
 		return undefined;
@@ -178,6 +184,9 @@ export class WindowsChannelClient implements IWindowsService {
 
 	private _onWindowUnmaximize: Event<number> = eventFromCall<number>(this.channel, 'event:onWindowUnmaximize');
 	get onWindowUnmaximize(): Event<number> { return this._onWindowUnmaximize; }
+
+	private _onRecentlyOpenedChange: Event<void> = eventFromCall<void>(this.channel, 'event:onRecentlyOpenedChange');
+	get onRecentlyOpenedChange(): Event<void> { return this._onRecentlyOpenedChange; }
 
 	pickFileFolderAndOpen(options: INativeOpenDialogOptions): TPromise<void> {
 		return this.channel.call('pickFileFolderAndOpen', options);
@@ -365,6 +374,10 @@ export class WindowsChannelClient implements IWindowsService {
 
 	updateTouchBar(windowId: number, items: ISerializableCommandAction[][]): TPromise<void> {
 		return this.channel.call('updateTouchBar', [windowId, items]);
+	}
+
+	openAccessibilityOptions(): TPromise<void> {
+		return this.channel.call('openAccessibilityOptions');
 	}
 
 	openAboutDialog(): TPromise<void> {

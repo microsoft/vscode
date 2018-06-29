@@ -4,21 +4,19 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as nls from 'vs/nls';
-import * as menubarCommands from 'vs/workbench/browser/parts/menubar/menubarCommands';
 import { MenuRegistry, MenuId } from 'vs/platform/actions/common/actions';
 import { isMacintosh } from 'vs/base/common/platform';
 
-// TODO: Add submenu support to remove layout, preferences, and recent top level
-menubarCommands.setup();
+recentMenuRegistration();
 fileMenuRegistration();
 editMenuRegistration();
-recentMenuRegistration();
 selectionMenuRegistration();
 viewMenuRegistration();
 layoutMenuRegistration();
 goMenuRegistration();
 debugMenuRegistration();
 tasksMenuRegistration();
+terminalMenuRegistration();
 
 if (isMacintosh) {
 	windowMenuRegistration();
@@ -75,6 +73,13 @@ function fileMenuRegistration() {
 	});
 
 	MenuRegistry.appendMenuItem(MenuId.MenubarFileMenu, {
+		title: nls.localize({ key: 'miOpenRecent', comment: ['&& denotes a mnemonic'] }, "Open &&Recent"),
+		submenu: MenuId.MenubarRecentMenu,
+		group: '2_open',
+		order: 4
+	});
+
+	MenuRegistry.appendMenuItem(MenuId.MenubarFileMenu, {
 		group: '3_workspace',
 		command: {
 			id: 'workbench.action.addRootFolder',
@@ -126,6 +131,13 @@ function fileMenuRegistration() {
 			title: nls.localize('miAutoSave', "Auto Save")
 		},
 		order: 1
+	});
+
+	MenuRegistry.appendMenuItem(MenuId.MenubarFileMenu, {
+		title: nls.localize({ key: 'miPreferences', comment: ['&& denotes a mnemonic'] }, "&&Preferences"),
+		submenu: MenuId.MenubarPreferencesMenu,
+		group: '5_autosave',
+		order: 2
 	});
 
 	MenuRegistry.appendMenuItem(MenuId.MenubarFileMenu, {
@@ -603,6 +615,13 @@ function viewMenuRegistration() {
 	});
 
 	// TODO: Editor Layout Submenu
+	MenuRegistry.appendMenuItem(MenuId.MenubarViewMenu, {
+		title: nls.localize({ key: 'miEditorLayout', comment: ['&& denotes a mnemonic'] }, "Editor &&Layout"),
+		submenu: MenuId.MenubarLayoutMenu,
+		group: '5_layout',
+		order: 1
+	});
+
 
 	// Workbench Layout
 	MenuRegistry.appendMenuItem(MenuId.MenubarViewMenu, {
@@ -1356,7 +1375,7 @@ function helpMenuRegistration() {
 	MenuRegistry.appendMenuItem(MenuId.MenubarHelpMenu, {
 		group: '1_welcome',
 		command: {
-			id: 'workbench.action.showCurrentReleaseNotes',
+			id: 'update.showCurrentReleaseNotes',
 			title: nls.localize({ key: 'miReleaseNotes', comment: ['&& denotes a mnemonic'] }, "&&Release Notes")
 		},
 		order: 4
@@ -1394,7 +1413,7 @@ function helpMenuRegistration() {
 	MenuRegistry.appendMenuItem(MenuId.MenubarHelpMenu, {
 		group: '3_feedback',
 		command: {
-			id: 'openTwitterUrl',
+			id: 'workbench.action.openTwitterUrl',
 			title: nls.localize({ key: 'miTwitter', comment: ['&& denotes a mnemonic'] }, "&&Join us on Twitter")
 		},
 		order: 1
@@ -1403,7 +1422,7 @@ function helpMenuRegistration() {
 	MenuRegistry.appendMenuItem(MenuId.MenubarHelpMenu, {
 		group: '3_feedback',
 		command: {
-			id: 'openUserVoiceUrl',
+			id: 'workbench.action.openRequestFeatureUrl',
 			title: nls.localize({ key: 'miUserVoice', comment: ['&& denotes a mnemonic'] }, "&&Search Feature Requests")
 		},
 		order: 2
@@ -1412,7 +1431,7 @@ function helpMenuRegistration() {
 	MenuRegistry.appendMenuItem(MenuId.MenubarHelpMenu, {
 		group: '3_feedback',
 		command: {
-			id: 'openReportIssues',
+			id: 'workbench.action.openIssueReporter',
 			title: nls.localize({ key: 'miReportIssue', comment: ['&& denotes a mnemonic', 'Translate this to "Report Issue in English" in all languages please!'] }, "Report &&Issue")
 		},
 		order: 3
@@ -1422,7 +1441,7 @@ function helpMenuRegistration() {
 	MenuRegistry.appendMenuItem(MenuId.MenubarHelpMenu, {
 		group: '4_legal',
 		command: {
-			id: 'openLicenseUrl',
+			id: 'workbench.action.openLicenseUrl',
 			title: nls.localize({ key: 'miLicense', comment: ['&& denotes a mnemonic'] }, "View &&License")
 		},
 		order: 1
@@ -1431,7 +1450,7 @@ function helpMenuRegistration() {
 	MenuRegistry.appendMenuItem(MenuId.MenubarHelpMenu, {
 		group: '4_legal',
 		command: {
-			id: 'openPrivacyStatement',
+			id: 'workbench.action.openPrivacyStatementUrl',
 			title: nls.localize({ key: 'miPrivacyStatement', comment: ['&& denotes a mnemonic'] }, "&&Privacy Statement")
 		},
 		order: 2
@@ -1459,7 +1478,7 @@ function helpMenuRegistration() {
 	MenuRegistry.appendMenuItem(MenuId.MenubarHelpMenu, {
 		group: '5_tools',
 		command: {
-			id: 'accessibilityOptions',
+			id: 'workbench.action.showAccessibilityOptions',
 			title: nls.localize({ key: 'miAccessibilityOptions', comment: ['&& denotes a mnemonic'] }, "Accessibility &&Options")
 		},
 		order: 3
@@ -1473,5 +1492,104 @@ function helpMenuRegistration() {
 			title: nls.localize({ key: 'miAbout', comment: ['&& denotes a mnemonic'] }, "&&About")
 		},
 		order: 1
+	});
+}
+
+function terminalMenuRegistration() {
+
+	// Manage
+
+	MenuRegistry.appendMenuItem(MenuId.MenubarTerminalMenu, {
+		group: '1_manage',
+		command: {
+			id: 'workbench.action.terminal.new',
+			title: nls.localize({ key: 'miNewTerminal', comment: ['&& denotes a mnemonic'] }, "&&New Terminal")
+		},
+		order: 1
+	});
+
+	MenuRegistry.appendMenuItem(MenuId.MenubarTerminalMenu, {
+		group: '1_manage',
+		command: {
+			id: 'workbench.action.terminal.split',
+			title: nls.localize({ key: 'miSplitTerminal', comment: ['&& denotes a mnemonic'] }, "&&Split Terminal")
+		},
+		order: 2
+	});
+
+	MenuRegistry.appendMenuItem(MenuId.MenubarTerminalMenu, {
+		group: '1_manage',
+		command: {
+			id: 'workbench.action.terminal.kill',
+			title: nls.localize({ key: 'miKillTerminal', comment: ['&& denotes a mnemonic'] }, "&&Kill Terminal")
+		},
+		order: 3
+	});
+
+	// Run
+
+	MenuRegistry.appendMenuItem(MenuId.MenubarTerminalMenu, {
+		group: '2_run',
+		command: {
+			id: 'workbench.action.terminal.clear',
+			title: nls.localize({ key: 'miClear', comment: ['&& denotes a mnemonic'] }, "&&Clear")
+		},
+		order: 1
+	});
+
+	MenuRegistry.appendMenuItem(MenuId.MenubarTerminalMenu, {
+		group: '2_run',
+		command: {
+			id: 'workbench.action.terminal.runActiveFile',
+			title: nls.localize({ key: 'miRunActiveFile', comment: ['&& denotes a mnemonic'] }, "Run &&Active File")
+		},
+		order: 2
+	});
+
+	MenuRegistry.appendMenuItem(MenuId.MenubarTerminalMenu, {
+		group: '2_run',
+		command: {
+			id: 'workbench.action.terminal.runSelectedFile',
+			title: nls.localize({ key: 'miRunSelectedText', comment: ['&& denotes a mnemonic'] }, "Run &&Selected Text")
+		},
+		order: 3
+	});
+
+	// Selection
+
+	MenuRegistry.appendMenuItem(MenuId.MenubarTerminalMenu, {
+		group: '3_selection',
+		command: {
+			id: 'workbench.action.terminal.scrollToPreviousCommand',
+			title: nls.localize({ key: 'miScrollToPreviousCommand', comment: ['&& denotes a mnemonic'] }, "Scroll To Previous Command")
+		},
+		order: 1
+	});
+
+	MenuRegistry.appendMenuItem(MenuId.MenubarTerminalMenu, {
+		group: '3_selection',
+		command: {
+			id: 'workbench.action.terminal.scrollToNextCommand',
+			title: nls.localize({ key: 'miScrollToNextCommand', comment: ['&& denotes a mnemonic'] }, "Scroll To Next Command")
+		},
+		order: 2
+	});
+
+	MenuRegistry.appendMenuItem(MenuId.MenubarTerminalMenu, {
+		group: '3_selection',
+		command: {
+			id: 'workbench.action.terminal.selectToPreviousCommand',
+			title: nls.localize({ key: 'miSelectToPreviousCommand', comment: ['&& denotes a mnemonic'] }, "Select To Previous Command")
+		},
+		order: 3
+	});
+
+	MenuRegistry.appendMenuItem(MenuId.MenubarTerminalMenu, {
+		group: '3_selection',
+		command: {
+			id: 'workbench.action.terminal.selectToNextCommand',
+			title: nls.localize({ key: 'miSelectToNextCommand', comment: ['&& denotes a mnemonic'] }, "Select To Next Command")
+		},
+		order: 4
 	});
 }
