@@ -125,7 +125,7 @@ export class TreeModel<T> {
 	}
 
 	private _setCollapsed(location: number[], collapsed?: boolean | undefined): void {
-		const { node, listIndex, visible } = this.findNode(location);
+		let { node, listIndex, visible } = this.findNode(location);
 
 		if (typeof collapsed === 'undefined') {
 			collapsed = !node.collapsed;
@@ -138,16 +138,23 @@ export class TreeModel<T> {
 		node.collapsed = collapsed;
 
 		if (visible) {
+			let visibleCountDiff: number;
+
 			if (collapsed) {
 				const deleteCount = getVisibleCount(node.children);
 
 				this.list.splice(listIndex, 1 + deleteCount, [node]);
-				node.visibleCount = 1;
+				visibleCountDiff = -deleteCount;
 			} else {
 				const toInsert = [node, ...getVisibleNodes(node.children)];
 
 				this.list.splice(listIndex, 1, toInsert);
-				node.visibleCount = toInsert.length;
+				visibleCountDiff = toInsert.length - 1;
+			}
+
+			while (node) {
+				node.visibleCount += visibleCountDiff;
+				node = node.parent;
 			}
 		}
 	}

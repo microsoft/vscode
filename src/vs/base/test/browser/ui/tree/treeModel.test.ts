@@ -16,16 +16,20 @@ function toSpliceable<T>(arr: T[]): ISpliceable<T> {
 	};
 }
 
-suite('TreeModel2', () => {
+function toArray<T>(list: ITreeNode<T>[]): T[] {
+	return list.map(i => i.element);
+}
 
-	test('ctor', () => {
+suite('TreeModel2', function () {
+
+	test('ctor', function () {
 		const list = [] as ITreeNode<number>[];
 		const model = new TreeModel<number>(toSpliceable(list));
 		assert(model);
 		assert.equal(list.length, 0);
 	});
 
-	test('insert', () => {
+	test('insert', function () {
 		const list = [] as ITreeNode<number>[];
 		const model = new TreeModel<number>(toSpliceable(list));
 
@@ -47,7 +51,7 @@ suite('TreeModel2', () => {
 		assert.deepEqual(list[2].depth, 1);
 	});
 
-	test('deep insert', () => {
+	test('deep insert', function () {
 		const list = [] as ITreeNode<number>[];
 		const model = new TreeModel<number>(toSpliceable(list));
 
@@ -84,7 +88,7 @@ suite('TreeModel2', () => {
 		assert.deepEqual(list[5].depth, 1);
 	});
 
-	test('deep insert collapsed', () => {
+	test('deep insert collapsed', function () {
 		const list = [] as ITreeNode<number>[];
 		const model = new TreeModel<number>(toSpliceable(list));
 
@@ -112,7 +116,7 @@ suite('TreeModel2', () => {
 		assert.deepEqual(list[2].depth, 1);
 	});
 
-	test('delete', () => {
+	test('delete', function () {
 		const list = [] as ITreeNode<number>[];
 		const model = new TreeModel<number>(toSpliceable(list));
 
@@ -137,7 +141,7 @@ suite('TreeModel2', () => {
 		assert.deepEqual(list.length, 0);
 	});
 
-	test('nested delete', () => {
+	test('nested delete', function () {
 		const list = [] as ITreeNode<number>[];
 		const model = new TreeModel<number>(toSpliceable(list));
 
@@ -171,7 +175,7 @@ suite('TreeModel2', () => {
 		assert.deepEqual(list[3].depth, 2);
 	});
 
-	test('deep delete', () => {
+	test('deep delete', function () {
 		const list = [] as ITreeNode<number>[];
 		const model = new TreeModel<number>(toSpliceable(list));
 
@@ -199,7 +203,7 @@ suite('TreeModel2', () => {
 		assert.deepEqual(list[1].depth, 1);
 	});
 
-	test('hidden delete', () => {
+	test('hidden delete', function () {
 		const list = [] as ITreeNode<number>[];
 		const model = new TreeModel<number>(toSpliceable(list));
 
@@ -224,7 +228,7 @@ suite('TreeModel2', () => {
 		assert.deepEqual(list.length, 3);
 	});
 
-	test('collapse', () => {
+	test('collapse', function () {
 		const list = [] as ITreeNode<number>[];
 		const model = new TreeModel<number>(toSpliceable(list));
 
@@ -255,7 +259,7 @@ suite('TreeModel2', () => {
 		assert.deepEqual(list[2].depth, 1);
 	});
 
-	test('expand', () => {
+	test('expand', function () {
 		const list = [] as ITreeNode<number>[];
 		const model = new TreeModel<number>(toSpliceable(list));
 
@@ -293,5 +297,38 @@ suite('TreeModel2', () => {
 		assert.deepEqual(list[5].element, 2);
 		assert.deepEqual(list[5].collapsed, false);
 		assert.deepEqual(list[5].depth, 1);
+	});
+
+	test('collapse should recursively adjust visible count', function () {
+		const list = [] as ITreeNode<number>[];
+		const model = new TreeModel<number>(toSpliceable(list));
+
+		model.splice([0], 0, iter([
+			{
+				element: 1, children: [
+					{
+						element: 11, children: [
+							{ element: 111 }
+						]
+					}
+				]
+			},
+			{
+				element: 2, children: [
+					{ element: 21 }
+				]
+			}
+		]));
+
+		assert.deepEqual(list.length, 5);
+		assert.deepEqual(toArray(list), [1, 11, 111, 2, 21]);
+
+		model.setCollapsed([0, 0], true);
+		assert.deepEqual(list.length, 4);
+		assert.deepEqual(toArray(list), [1, 11, 2, 21]);
+
+		model.setCollapsed([1], true);
+		assert.deepEqual(list.length, 3);
+		assert.deepEqual(toArray(list), [1, 11, 2]);
 	});
 });
