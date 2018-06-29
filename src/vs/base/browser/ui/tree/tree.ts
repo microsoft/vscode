@@ -4,12 +4,13 @@
  *--------------------------------------------------------------------------------------------*/
 
 import 'vs/css!./tree';
-import { IDisposable, dispose } from 'vs/base/common/lifecycle';
+import { IDisposable, dispose, empty as EmptyDisposable, toDisposable } from 'vs/base/common/lifecycle';
 import { IListOptions, List, IIdentityProvider, IMultipleSelectionController } from 'vs/base/browser/ui/list/listWidget';
 import { TreeModel, ITreeNode, ITreeElement } from 'vs/base/browser/ui/tree/treeModel';
 import { IIterator, empty } from 'vs/base/common/iterator';
 import { IDelegate, IRenderer, IListMouseEvent } from 'vs/base/browser/ui/list/list';
 import { append, $ } from 'vs/base/browser/dom';
+import { Event, Relay } from 'vs/base/common/event';
 
 function toTreeListOptions<T>(options?: IListOptions<T>): IListOptions<ITreeNode<T>> {
 	if (!options) {
@@ -56,15 +57,22 @@ class TreeDelegate<T> implements IDelegate<ITreeNode<T>> {
 
 interface ITreeListTemplateData<T> {
 	twistie: HTMLElement;
+	elementDisposable: IDisposable;
 	templateData: T;
 }
 
 class TreeRenderer<T, TTemplateData> implements IRenderer<ITreeNode<T>, ITreeListTemplateData<TTemplateData>> {
 
 	readonly templateId: string;
+	private renderedNodes = new Map<ITreeNode<T>, ITreeListTemplateData<TTemplateData>>();
+	private disposables: IDisposable[] = [];
 
-	constructor(private renderer: IRenderer<T, TTemplateData>) {
+	constructor(
+		private renderer: IRenderer<T, TTemplateData>,
+		onDidChangeCollapseState: Event<ITreeNode<T>>
+	) {
 		this.templateId = renderer.templateId;
+		onDidChangeCollapseState(this.onDidChangeCollapseState, this, this.disposables);
 	}
 
 	renderTemplate(container: HTMLElement): ITreeListTemplateData<TTemplateData> {
@@ -73,19 +81,38 @@ class TreeRenderer<T, TTemplateData> implements IRenderer<ITreeNode<T>, ITreeLis
 		const contents = append(el, $('.tl-contents'));
 		const templateData = this.renderer.renderTemplate(contents);
 
-		return { twistie, templateData };
+		return { twistie, elementDisposable: EmptyDisposable, templateData };
 	}
 
-	renderElement(element: ITreeNode<T>, index: number, templateData: ITreeListTemplateData<TTemplateData>): void {
-		const { twistie } = templateData;
-		twistie.innerText = element.children.length === 0 ? '' : (element.collapsed ? '▹' : '◢');
-		twistie.style.width = `${10 + element.depth * 10}px`;
+	renderElement(node: ITreeNode<T>, index: number, templateData: ITreeListTemplateData<TTemplateData>): void {
+		templateData.elementDisposable.dispose();
 
-		this.renderer.renderElement(element.element, index, templateData.templateData);
+		this.renderedNodes.set(node, templateData);
+		templateData.elementDisposable = toDisposable(() => this.renderedNodes.delete(node));
+
+		templateData.twistie.innerText = node.children.length === 0 ? '' : (node.collapsed ? '▹' : '◢');
+		templateData.twistie.style.width = `${10 + node.depth * 10}px`;
+
+		this.renderer.renderElement(node.element, index, templateData.templateData);
 	}
 
 	disposeTemplate(templateData: ITreeListTemplateData<TTemplateData>): void {
 		this.renderer.disposeTemplate(templateData.templateData);
+	}
+
+	private onDidChangeCollapseState(node: ITreeNode<T>): void {
+		const templateData = this.renderedNodes.get(node);
+
+		if (!templateData) {
+			return;
+		}
+
+		templateData.twistie.innerText = node.children.length === 0 ? '' : (node.collapsed ? '▹' : '◢');
+	}
+
+	dispose(): void {
+		this.renderedNodes.clear();
+		this.disposables = dispose(this.disposables);
 	}
 }
 
@@ -113,11 +140,16 @@ export class Tree<T> implements IDisposable {
 		options?: IListOptions<T>
 	) {
 		const treeDelegate = new TreeDelegate(delegate);
-		const treeRenderers = renderers.map(r => new TreeRenderer(r));
+
+		const onDidChangeCollapseStateRelay = new Relay<ITreeNode<T>>();
+		const treeRenderers = renderers.map(r => new TreeRenderer(r, onDidChangeCollapseStateRelay.event));
+		this.disposables.push(...treeRenderers);
+
 		const treeOptions = toTreeListOptions(options);
 
 		this.view = new List(container, treeDelegate, treeRenderers, treeOptions);
 		this.model = new TreeModel<T>(this.view);
+		onDidChangeCollapseStateRelay.input = this.model.onDidChangeCollapseState;
 
 		this.view.onMouseClick(this.onMouseClick, this, this.disposables);
 	}

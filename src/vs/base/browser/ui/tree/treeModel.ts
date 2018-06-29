@@ -8,6 +8,7 @@
 import { ISpliceable } from 'vs/base/common/sequence';
 import { IIterator, map, collect, iter, empty } from 'vs/base/common/iterator';
 import { last } from 'vs/base/common/arrays';
+import { Emitter, Event } from 'vs/base/common/event';
 
 export interface ITreeElement<T> {
 	readonly element: T;
@@ -93,6 +94,9 @@ export class TreeModel<T> {
 		visibleCount: 1
 	};
 
+	private _onDidChangeCollapseState = new Emitter<ITreeNode<T>>();
+	readonly onDidChangeCollapseState: Event<ITreeNode<T>> = this._onDidChangeCollapseState.event;
+
 	constructor(private list: ISpliceable<ITreeNode<T>>) { }
 
 	splice(location: number[], deleteCount: number, toInsert?: IIterator<ITreeElement<T>> | ITreeElement<T>[]): IIterator<ITreeElement<T>> {
@@ -125,7 +129,7 @@ export class TreeModel<T> {
 	}
 
 	private _setCollapsed(location: number[], collapsed?: boolean | undefined): void {
-		let { node, listIndex, visible } = this.findNode(location);
+		const { node, listIndex, visible } = this.findNode(location);
 
 		if (typeof collapsed === 'undefined') {
 			collapsed = !node.collapsed;
@@ -143,19 +147,23 @@ export class TreeModel<T> {
 			if (collapsed) {
 				const deleteCount = getVisibleCount(node.children);
 
-				this.list.splice(listIndex, 1 + deleteCount, [node]);
+				this.list.splice(listIndex + 1, deleteCount, []);
 				visibleCountDiff = -deleteCount;
 			} else {
-				const toInsert = [node, ...getVisibleNodes(node.children)];
+				const toInsert = getVisibleNodes(node.children);
 
-				this.list.splice(listIndex, 1, toInsert);
-				visibleCountDiff = toInsert.length - 1;
+				this.list.splice(listIndex + 1, 0, toInsert);
+				visibleCountDiff = toInsert.length;
 			}
 
-			while (node) {
-				node.visibleCount += visibleCountDiff;
-				node = node.parent;
+			let mutableNode = node;
+
+			while (mutableNode) {
+				mutableNode.visibleCount += visibleCountDiff;
+				mutableNode = mutableNode.parent;
 			}
+
+			this._onDidChangeCollapseState.fire(node);
 		}
 	}
 
