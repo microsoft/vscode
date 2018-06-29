@@ -141,6 +141,10 @@
 	box-shadow: none;
 }
 
+.hc-black .monaco-menu .monaco-action-bar.vertical .action-item {
+	border: 1px solid transparent; /* prevents jumpig behaviour on hover or focus */
+}
+
 .hc-black .monaco-menu .monaco-action-bar.vertical .action-item.focused {
 	background: none;
 	border: 1px dotted #f38518;
