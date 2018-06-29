@@ -278,7 +278,7 @@ export class EditorBreadcrumbs implements IEditorBreadcrumbs {
 							candidate = candidate.parent;
 						}
 
-						this._editorService.openEditor({ resource, options: { selection: Range.collapseToStart(data.symbol.identifierRange) } });
+						this._editorService.openEditor({ resource, options: { selection: Range.collapseToStart(data.symbol.selectionRange) } });
 
 					}
 				});
