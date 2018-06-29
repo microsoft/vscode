@@ -8,7 +8,7 @@ import { getDeepestNode, findNextWord, findPrevWord, getHtmlNode } from './util'
 import { HtmlNode } from 'EmmetNode';
 
 export function nextItemHTML(selectionStart: vscode.Position, selectionEnd: vscode.Position, editor: vscode.TextEditor, rootNode: HtmlNode): vscode.Selection | undefined {
-	let currentNode = getHtmlNode(editor.document, rootNode, selectionEnd);
+	let currentNode = getHtmlNode(editor.document, rootNode, selectionEnd, false);
 	let nextNode: HtmlNode | undefined = undefined;
 
 	if (!currentNode) {
@@ -54,7 +54,7 @@ export function nextItemHTML(selectionStart: vscode.Position, selectionEnd: vsco
 }
 
 export function prevItemHTML(selectionStart: vscode.Position, selectionEnd: vscode.Position, editor: vscode.TextEditor, rootNode: HtmlNode): vscode.Selection | undefined {
-	let currentNode = getHtmlNode(editor.document, rootNode, selectionStart);
+	let currentNode = getHtmlNode(editor.document, rootNode, selectionStart, false);
 	let prevNode: HtmlNode | undefined = undefined;
 
 	if (!currentNode) {
