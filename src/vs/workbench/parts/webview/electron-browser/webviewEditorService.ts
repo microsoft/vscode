@@ -12,6 +12,7 @@ import { IEditorGroupsService, IEditorGroup } from 'vs/workbench/services/group/
 import * as vscode from 'vscode';
 import { WebviewEditorInput } from './webviewEditorInput';
 import { GroupIdentifier } from 'vs/workbench/common/editor';
+import { equals } from 'vs/base/common/arrays';
 
 export const IWebviewEditorService = createDecorator<IWebviewEditorService>('webviewEditorService');
 
@@ -74,6 +75,15 @@ export interface WebviewEvents {
 
 export interface WebviewInputOptions extends vscode.WebviewOptions, vscode.WebviewPanelOptions {
 	tryRestoreScrollPosition?: boolean;
+}
+
+export function areWebviewInputOptionsEqual(a: WebviewInputOptions, b: WebviewInputOptions): boolean {
+	return a.enableCommandUris === b.enableCommandUris
+		&& a.enableFindWidget === b.enableFindWidget
+		&& a.enableScripts === b.enableScripts
+		&& a.retainContextWhenHidden === b.retainContextWhenHidden
+		&& a.tryRestoreScrollPosition === b.tryRestoreScrollPosition
+		&& (a.localResourceRoots === b.localResourceRoots || (Array.isArray(a.localResourceRoots) && Array.isArray(b.localResourceRoots) && equals(a.localResourceRoots, b.localResourceRoots, (a, b) => a.toString() === b.toString())));
 }
 
 export class WebviewEditorService implements IWebviewEditorService {

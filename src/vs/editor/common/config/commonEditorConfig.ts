@@ -61,6 +61,8 @@ export interface IEnvConfiguration {
 	accessibilitySupport: platform.AccessibilitySupport;
 }
 
+const hasOwnProperty = Object.hasOwnProperty;
+
 export abstract class CommonEditorConfiguration extends Disposable implements editorCommon.IConfiguration {
 
 	protected _rawOptions: editorOptions.IEditorOptions;
@@ -80,6 +82,7 @@ export abstract class CommonEditorConfiguration extends Disposable implements ed
 		this._rawOptions.scrollbar = objects.mixin({}, this._rawOptions.scrollbar || {});
 		this._rawOptions.minimap = objects.mixin({}, this._rawOptions.minimap || {});
 		this._rawOptions.find = objects.mixin({}, this._rawOptions.find || {});
+		this._rawOptions.hover = objects.mixin({}, this._rawOptions.hover || {});
 
 		this._validatedOptions = editorOptions.EditorOptionsValidator.validate(this._rawOptions, EDITOR_DEFAULTS);
 		this.editor = null;
@@ -135,7 +138,53 @@ export abstract class CommonEditorConfiguration extends Disposable implements ed
 		return editorOptions.InternalEditorOptionsFactory.createInternalEditorOptions(env, opts);
 	}
 
+	private static _primitiveArrayEquals(a: any[], b: any[]): boolean {
+		if (a.length !== b.length) {
+			return false;
+		}
+		for (let i = 0; i < a.length; i++) {
+			if (a[i] !== b[i]) {
+				return false;
+			}
+		}
+		return true;
+	}
+
+	private static _subsetEquals(base: object, subset: object): boolean {
+		for (let key in subset) {
+			if (hasOwnProperty.call(subset, key)) {
+				const subsetValue = subset[key];
+				const baseValue = base[key];
+
+				if (baseValue === subsetValue) {
+					continue;
+				}
+				if (Array.isArray(baseValue) && Array.isArray(subsetValue)) {
+					if (!this._primitiveArrayEquals(baseValue, subsetValue)) {
+						return false;
+					}
+					continue;
+				}
+				if (typeof baseValue === 'object' && typeof subsetValue === 'object') {
+					if (!this._subsetEquals(baseValue, subsetValue)) {
+						return false;
+					}
+					continue;
+				}
+
+				return false;
+			}
+		}
+		return true;
+	}
+
 	public updateOptions(newOptions: editorOptions.IEditorOptions): void {
+		if (typeof newOptions === 'undefined') {
+			return;
+		}
+		if (CommonEditorConfiguration._subsetEquals(this._rawOptions, newOptions)) {
+			return;
+		}
 		this._rawOptions = objects.mixin(this._rawOptions, newOptions || {});
 		this._validatedOptions = editorOptions.EditorOptionsValidator.validate(this._rawOptions, EDITOR_DEFAULTS);
 		this._recomputeOptions();
@@ -293,6 +342,21 @@ const editorConfiguration: IConfigurationNode = {
 			'type': 'number',
 			'default': EDITOR_DEFAULTS.viewInfo.minimap.maxColumn,
 			'description': nls.localize('minimap.maxColumn', "Limit the width of the minimap to render at most a certain number of columns")
+		},
+		'editor.hover.enabled': {
+			'type': 'boolean',
+			'default': EDITOR_DEFAULTS.contribInfo.hover.enabled,
+			'description': nls.localize('hover.enabled', "Controls if the hover is shown")
+		},
+		'editor.hover.delay': {
+			'type': 'number',
+			'default': EDITOR_DEFAULTS.contribInfo.hover.delay,
+			'description': nls.localize('hover.delay', "Controls the delay after which to show the hover")
+		},
+		'editor.hover.sticky': {
+			'type': 'boolean',
+			'default': EDITOR_DEFAULTS.contribInfo.hover.sticky,
+			'description': nls.localize('hover.sticky', "Controls if the hover should remain visible when mouse is moved over it")
 		},
 		'editor.find.seedSearchStringFromSelection': {
 			'type': 'boolean',
@@ -571,6 +635,11 @@ const editorConfiguration: IConfigurationNode = {
 			'type': 'boolean',
 			default: EDITOR_DEFAULTS.viewInfo.renderIndentGuides,
 			description: nls.localize('renderIndentGuides', "Controls whether the editor should render indent guides")
+		},
+		'editor.highlightActiveIndentGuide': {
+			'type': 'boolean',
+			default: EDITOR_DEFAULTS.viewInfo.highlightActiveIndentGuide,
+			description: nls.localize('highlightActiveIndentGuide', "Controls whether the editor should highlight the active indent guide")
 		},
 		'editor.renderLineHighlight': {
 			'type': 'string',

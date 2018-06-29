@@ -13,7 +13,10 @@ interface QuickPickExpected {
 	events: string[];
 	activeItems: string[][];
 	selectionItems: string[][];
-	acceptedItems: string[][];
+	acceptedItems: {
+		active: string[][];
+		selection: string[][];
+	};
 }
 
 suite('window namespace tests', function () {
@@ -31,8 +34,11 @@ suite('window namespace tests', function () {
 				events: ['active', 'active', 'selection', 'accept', 'hide'],
 				activeItems: [['eins'], ['zwei']],
 				selectionItems: [['zwei']],
-				acceptedItems: [['zwei']],
-			}, done);
+				acceptedItems: {
+					active: [['zwei']],
+					selection: [['zwei']]
+				},
+			}, (err?: any) => done(err));
 			quickPick.items = ['eins', 'zwei', 'drei'].map(label => ({ label }));
 			quickPick.show();
 
@@ -53,13 +59,45 @@ suite('window namespace tests', function () {
 				events: ['active', 'selection', 'accept', 'hide'],
 				activeItems: [['zwei']],
 				selectionItems: [['zwei']],
-				acceptedItems: [['zwei']],
-			}, done);
+				acceptedItems: {
+					active: [['zwei']],
+					selection: [['zwei']]
+				},
+			}, (err?: any) => done(err));
 			quickPick.items = ['eins', 'zwei', 'drei'].map(label => ({ label }));
 			quickPick.activeItems = [quickPick.items[1]];
 			quickPick.show();
 
 			(async () => {
+				await commands.executeCommand('workbench.action.acceptSelectedQuickOpenItem');
+			})()
+				.catch(err => done(err));
+		});
+
+		test('createQuickPick, select first and second', function (_done) {
+			let done = (err?: any) => {
+				done = () => {};
+				_done(err);
+			};
+
+			const quickPick = createQuickPick({
+				events: ['active', 'selection', 'active', 'selection', 'accept', 'hide'],
+				activeItems: [['eins'], ['zwei']],
+				selectionItems: [['eins'], ['eins', 'zwei']],
+				acceptedItems: {
+					active: [['zwei']],
+					selection: [['eins', 'zwei']]
+				},
+			}, (err?: any) => done(err));
+			quickPick.canSelectMany = true;
+			quickPick.items = ['eins', 'zwei', 'drei'].map(label => ({ label }));
+			quickPick.show();
+
+			(async () => {
+				await commands.executeCommand('workbench.action.quickOpenSelectNext');
+				await commands.executeCommand('workbench.action.quickPickManyToggle');
+				await commands.executeCommand('workbench.action.quickOpenSelectNext');
+				await commands.executeCommand('workbench.action.quickPickManyToggle');
 				await commands.executeCommand('workbench.action.acceptSelectedQuickOpenItem');
 			})()
 				.catch(err => done(err));
@@ -92,9 +130,10 @@ function createQuickPick(expected: QuickPickExpected, done: (err?: any) => void)
 	quickPick.onDidAccept(() => {
 		try {
 			assert.equal('accept', expected.events.shift());
-			const expectedItems = expected.acceptedItems.shift();
-			assert.deepEqual(quickPick.activeItems.map(item => item.label), expectedItems);
-			assert.deepEqual(quickPick.selectedItems.map(item => item.label), expectedItems);
+			const expectedActive = expected.acceptedItems.active.shift();
+			assert.deepEqual(quickPick.activeItems.map(item => item.label), expectedActive);
+			const expectedSelection = expected.acceptedItems.selection.shift();
+			assert.deepEqual(quickPick.selectedItems.map(item => item.label), expectedSelection);
 			quickPick.dispose();
 		} catch (err) {
 			done(err);

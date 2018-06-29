@@ -45,15 +45,11 @@ export class DebugStatus extends Themable implements IStatusbarItem {
 		this.toDispose.push(configurationService.onDidChangeConfiguration(e => {
 			if (e.affectsConfiguration('debug.showInStatusBar')) {
 				this.showInStatusBar = configurationService.getValue<IDebugConfiguration>('debug').showInStatusBar;
-				if (this.showInStatusBar === 'never' && this.statusBarItem) {
-					this.statusBarItem.hidden = true;
-				} else {
-					if (this.statusBarItem) {
-						this.statusBarItem.hidden = false;
-					}
-					if (this.showInStatusBar === 'always') {
-						this.doRender();
-					}
+				if (this.showInStatusBar === 'always') {
+					this.doRender();
+				}
+				if (this.statusBarItem) {
+					dom.toggleClass(this.statusBarItem, 'hidden', this.showInStatusBar === 'never');
 				}
 			}
 		}));
@@ -99,11 +95,10 @@ export class DebugStatus extends Themable implements IStatusbarItem {
 		if (this.label && this.statusBarItem) {
 			const manager = this.debugService.getConfigurationManager();
 			const name = manager.selectedConfiguration.name;
-			if (name && manager.selectedConfiguration.launch) {
-				this.statusBarItem.style.display = 'block';
+			const nameAndLaunchPresent = name && manager.selectedConfiguration.launch;
+			dom.toggleClass(this.statusBarItem, 'hidden', this.showInStatusBar === 'never' || !nameAndLaunchPresent);
+			if (nameAndLaunchPresent) {
 				this.label.textContent = manager.getLaunches().length > 1 ? `${name} (${manager.selectedConfiguration.launch.name})` : name;
-			} else {
-				this.statusBarItem.style.display = 'none';
 			}
 		}
 	}

@@ -52,7 +52,7 @@ export abstract class ViewletPanel extends Panel implements IView {
 	private _onDidBlur = new Emitter<void>();
 	readonly onDidBlur: Event<void> = this._onDidBlur.event;
 
-	private _onDidChangeTitleArea = new Emitter<void>();
+	protected _onDidChangeTitleArea = new Emitter<void>();
 	readonly onDidChangeTitleArea: Event<void> = this._onDidChangeTitleArea.event;
 
 	private _isVisible: boolean;

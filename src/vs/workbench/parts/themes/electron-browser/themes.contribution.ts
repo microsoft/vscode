@@ -26,6 +26,7 @@ import { Color } from 'vs/base/common/color';
 import { ConfigurationTarget } from 'vs/platform/configuration/common/configuration';
 import { LIGHT, DARK, HIGH_CONTRAST } from 'vs/platform/theme/common/themeService';
 import { schemaId } from 'vs/workbench/services/themes/common/colorThemeSchema';
+import { onUnexpectedError } from 'vs/base/common/errors';
 
 export class SelectColorThemeAction extends Action {
 
@@ -67,6 +68,7 @@ export class SelectColorThemeAction extends Action {
 
 				this.themeService.setColorTheme(theme.id, target).done(null,
 					err => {
+						onUnexpectedError(err);
 						this.themeService.setColorTheme(currentTheme.id, null);
 					}
 				);
@@ -125,6 +127,7 @@ class SelectIconThemeAction extends Action {
 				}
 				this.themeService.setFileIconTheme(theme && theme.id, target).done(null,
 					err => {
+						onUnexpectedError(err);
 						this.themeService.setFileIconTheme(currentTheme.id, null);
 					}
 				);

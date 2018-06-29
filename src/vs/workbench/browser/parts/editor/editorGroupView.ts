@@ -1309,14 +1309,15 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 		if (activeReplacement) {
 
 			// Open replacement as active editor
-			return this.doOpenEditor(activeReplacement.replacement, activeReplacement.options).then(() => {
+			const openEditorResult = this.doOpenEditor(activeReplacement.replacement, activeReplacement.options);
 
-				// Close previous active editor
-				this.doCloseInactiveEditor(activeReplacement.editor);
+			// Close previous active editor
+			this.doCloseInactiveEditor(activeReplacement.editor);
 
-				// Forward to title control
-				this.titleAreaControl.closeEditor(activeReplacement.editor);
-			});
+			// Forward to title control
+			this.titleAreaControl.closeEditor(activeReplacement.editor);
+
+			return openEditorResult;
 		}
 
 		return TPromise.as(void 0);

@@ -33,6 +33,7 @@ import { IInstantiationService } from 'vs/platform/instantiation/common/instanti
 import { IDisposable } from 'vs/base/common/lifecycle';
 
 const DEBUG_ACTIONS_WIDGET_POSITION_KEY = 'debug.actionswidgetposition';
+const DEBUG_ACTIONS_WIDGET_Y_KEY = 'debug.actionswidgety';
 
 export const debugToolBarBackground = registerColor('debugToolBar.background', {
 	dark: '#333333',
@@ -136,14 +137,14 @@ export class DebugActionsWidget extends Themable implements IWorkbenchContributi
 				this.telemetryService.publicLog('workbenchActionExecuted', { id: e.action.id, from: 'debugActionsWidget' });
 			}
 		}));
-		$(window).on(dom.EventType.RESIZE, () => this.setXCoordinate(), this.toUnbind);
+		$(window).on(dom.EventType.RESIZE, () => this.setCoordinates(), this.toUnbind);
 
 		this.dragArea.on(dom.EventType.MOUSE_UP, (event: MouseEvent) => {
 			const mouseClickEvent = new StandardMouseEvent(event);
 			if (mouseClickEvent.detail === 2) {
 				// double click on debug bar centers it again #8250
 				const widgetWidth = this.$el.getHTMLElement().clientWidth;
-				this.setXCoordinate(0.5 * window.innerWidth - 0.5 * widgetWidth);
+				this.setCoordinates(0.5 * window.innerWidth - 0.5 * widgetWidth, 0);
 				this.storePosition();
 			}
 		});
@@ -157,7 +158,7 @@ export class DebugActionsWidget extends Themable implements IWorkbenchContributi
 				// Prevent default to stop editor selecting text #8524
 				mouseMoveEvent.preventDefault();
 				// Reduce x by width of drag handle to reduce jarring #16604
-				this.setXCoordinate(mouseMoveEvent.posx - 14);
+				this.setCoordinates(mouseMoveEvent.posx - 14, mouseMoveEvent.posy - this.partService.getTitleBarOffset());
 			}).once('mouseup', (e: MouseEvent) => {
 				this.storePosition();
 				this.dragArea.removeClass('dragged');
@@ -165,13 +166,13 @@ export class DebugActionsWidget extends Themable implements IWorkbenchContributi
 			});
 		});
 
-		this.toUnbind.push(this.partService.onTitleBarVisibilityChange(() => this.positionDebugWidget()));
-		this.toUnbind.push(browser.onDidChangeZoomLevel(() => this.positionDebugWidget()));
+		this.toUnbind.push(this.partService.onTitleBarVisibilityChange(() => this.setYCoordinate()));
+		this.toUnbind.push(browser.onDidChangeZoomLevel(() => this.setYCoordinate()));
 	}
 
 	private storePosition(): void {
 		const position = parseFloat(this.$el.getComputedStyle().left) / window.innerWidth;
-		this.storageService.store(DEBUG_ACTIONS_WIDGET_POSITION_KEY, position, StorageScope.WORKSPACE);
+		this.storageService.store(DEBUG_ACTIONS_WIDGET_POSITION_KEY, position, StorageScope.GLOBAL);
 	}
 
 	protected updateStyles(): void {
@@ -197,24 +198,33 @@ export class DebugActionsWidget extends Themable implements IWorkbenchContributi
 		}
 	}
 
-	private positionDebugWidget(): void {
+	private setYCoordinate(y = 0): void {
 		const titlebarOffset = this.partService.getTitleBarOffset();
-
-		$(this.$el).style('top', `${titlebarOffset}px`);
+		this.$el.style('top', `${titlebarOffset + y}px`);
 	}
 
-	private setXCoordinate(x?: number): void {
+	private setCoordinates(x?: number, y?: number): void {
 		if (!this.isVisible) {
 			return;
 		}
 		const widgetWidth = this.$el.getHTMLElement().clientWidth;
 		if (x === undefined) {
-			const positionPercentage = this.storageService.get(DEBUG_ACTIONS_WIDGET_POSITION_KEY, StorageScope.WORKSPACE);
+			const positionPercentage = this.storageService.get(DEBUG_ACTIONS_WIDGET_POSITION_KEY, StorageScope.GLOBAL);
 			x = positionPercentage !== undefined ? parseFloat(positionPercentage) * window.innerWidth : (0.5 * window.innerWidth - 0.5 * widgetWidth);
 		}
 
 		x = Math.max(0, Math.min(x, window.innerWidth - widgetWidth)); // do not allow the widget to overflow on the right
 		this.$el.style('left', `${x}px`);
+
+		if (y === undefined) {
+			y = this.storageService.getInteger(DEBUG_ACTIONS_WIDGET_Y_KEY, StorageScope.GLOBAL, 0);
+		}
+		const titleAreaHeight = 35;
+		if ((y < titleAreaHeight / 2) || (y > titleAreaHeight + titleAreaHeight / 2)) {
+			const moveToTop = y < titleAreaHeight;
+			this.setYCoordinate(moveToTop ? 0 : titleAreaHeight);
+			this.storageService.store(DEBUG_ACTIONS_WIDGET_Y_KEY, moveToTop ? 0 : 2 * titleAreaHeight, StorageScope.GLOBAL);
+		}
 	}
 
 	private onDidConfigurationChange(event: IConfigurationChangeEvent): void {
@@ -225,6 +235,7 @@ export class DebugActionsWidget extends Themable implements IWorkbenchContributi
 
 	private show(): void {
 		if (this.isVisible) {
+			this.setCoordinates();
 			return;
 		}
 		if (!this.isBuilt) {
@@ -234,7 +245,7 @@ export class DebugActionsWidget extends Themable implements IWorkbenchContributi
 
 		this.isVisible = true;
 		this.$el.show();
-		this.setXCoordinate();
+		this.setCoordinates();
 	}
 
 	private hide(): void {

@@ -10,7 +10,7 @@ import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { Part } from 'vs/workbench/browser/part';
 import { Dimension, isAncestor, toggleClass, addClass, $ } from 'vs/base/browser/dom';
 import { Event, Emitter, once, Relay, anyEvent } from 'vs/base/common/event';
-import { contrastBorder, editorBackground } from 'vs/platform/theme/common/colorRegistry';
+import { contrastBorder, editorBackground, registerColor } from 'vs/platform/theme/common/colorRegistry';
 import { GroupDirection, IAddGroupOptions, GroupsArrangement, GroupOrientation, IMergeGroupOptions, MergeGroupMode, ICopyEditorOptions, GroupsOrder, GroupChangeKind, GroupLocation, IFindGroupScope, EditorGroupLayout, GroupLayoutArgument } from 'vs/workbench/services/group/common/editorGroupsService';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { Direction, SerializableGrid, Sizing, ISerializedGrid, Orientation, ISerializedNode, GridBranchNode, isGridBranchNode, GridNode, createSerializedGrid, Grid } from 'vs/base/browser/ui/grid/grid';
@@ -84,6 +84,12 @@ class GridWidgetView<T extends IView> implements IView {
 		this._onDidChange.dispose();
 	}
 }
+
+export const EDITOR_PANE_BACKGROUND = registerColor('editorPane.background', {
+	dark: editorBackground,
+	light: editorBackground,
+	hc: editorBackground
+}, localize('editorPaneBackground', "Background color of the editor pane visible on the left and right side of the centered editor layout."));
 
 export class EditorPart extends Part implements EditorGroupsServiceImpl, IEditorGroupsAccessor {
 
@@ -406,7 +412,10 @@ export class EditorPart extends Part implements EditorGroupsServiceImpl, IEditor
 
 		// Prepare grid descriptor to create new grid from
 		const gridDescriptor = createSerializedGrid({
-			orientation: this.toGridViewOrientation(layout.orientation, this.gridWidget.orientation),
+			orientation: this.toGridViewOrientation(
+				layout.orientation,
+				(this.gridWidget.orientation === Orientation.VERTICAL) ? Orientation.HORIZONTAL : Orientation.VERTICAL // fix https://github.com/Microsoft/vscode/issues/52975
+			),
 			groups: layout.groups
 		});
 
@@ -722,10 +731,10 @@ export class EditorPart extends Part implements EditorGroupsServiceImpl, IEditor
 
 	//#region Part
 
-	get minimumWidth(): number { return this.gridWidget ? this.gridWidget.minimumWidth : 0; }
-	get maximumWidth(): number { return this.gridWidget ? this.gridWidget.maximumWidth : Number.POSITIVE_INFINITY; }
-	get minimumHeight(): number { return this.gridWidget ? this.gridWidget.minimumHeight : 0; }
-	get maximumHeight(): number { return this.gridWidget ? this.gridWidget.maximumHeight : Number.POSITIVE_INFINITY; }
+	get minimumWidth(): number { return this.centeredLayoutWidget.minimumWidth; }
+	get maximumWidth(): number { return this.centeredLayoutWidget.maximumWidth; }
+	get minimumHeight(): number { return this.centeredLayoutWidget.minimumHeight; }
+	get maximumHeight(): number { return this.centeredLayoutWidget.maximumHeight; }
 
 	get preferredSize(): Dimension {
 		if (!this._preferredSize) {
@@ -751,7 +760,7 @@ export class EditorPart extends Part implements EditorGroupsServiceImpl, IEditor
 	protected updateStyles(): void {
 		this.container.style.backgroundColor = this.getColor(editorBackground);
 
-		const separatorBorderStyle = { separatorBorder: this.gridSeparatorBorder };
+		const separatorBorderStyle = { separatorBorder: this.gridSeparatorBorder, background: this.theme.getColor(EDITOR_PANE_BACKGROUND) || Color.transparent };
 		this.gridWidget.style(separatorBorderStyle);
 		this.centeredLayoutWidget.styles(separatorBorderStyle);
 	}

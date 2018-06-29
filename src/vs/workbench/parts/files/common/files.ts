@@ -50,12 +50,13 @@ const openEditorsVisibleId = 'openEditorsVisible';
 const openEditorsFocusId = 'openEditorsFocus';
 const explorerViewletFocusId = 'explorerViewletFocus';
 const explorerResourceIsFolderId = 'explorerResourceIsFolder';
-const explorerResourceIsReadonly = 'explorerResourceIsReadonly';
+const explorerResourceReadonly = 'explorerResourceReadonly';
 const explorerResourceIsRootId = 'explorerResourceIsRoot';
 
 export const ExplorerViewletVisibleContext = new RawContextKey<boolean>(explorerViewletVisibleId, true);
 export const ExplorerFolderContext = new RawContextKey<boolean>(explorerResourceIsFolderId, false);
-export const ExplorerResourceIsReadonlyContext = new RawContextKey<boolean>(explorerResourceIsReadonly, false);
+export const ExplorerResourceReadonlyContext = new RawContextKey<boolean>(explorerResourceReadonly, false);
+export const ExplorerResourceNotReadonlyContext = ExplorerResourceReadonlyContext.toNegated();
 export const ExplorerRootContext = new RawContextKey<boolean>(explorerResourceIsRootId, false);
 export const FilesExplorerFocusedContext = new RawContextKey<boolean>(filesExplorerFocusId, true);
 export const OpenEditorsVisibleContext = new RawContextKey<boolean>(openEditorsVisibleId, false);

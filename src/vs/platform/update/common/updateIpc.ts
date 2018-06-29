@@ -17,6 +17,7 @@ export interface IUpdateChannel extends IChannel {
 	call(command: 'applyUpdate'): TPromise<void>;
 	call(command: 'quitAndInstall'): TPromise<void>;
 	call(command: '_getInitialState'): TPromise<State>;
+	call(command: 'isLatestVersion'): TPromise<boolean>;
 	call(command: string, arg?: any): TPromise<any>;
 }
 
@@ -32,6 +33,7 @@ export class UpdateChannel implements IUpdateChannel {
 			case 'applyUpdate': return this.service.applyUpdate();
 			case 'quitAndInstall': return this.service.quitAndInstall();
 			case '_getInitialState': return TPromise.as(this.service.state);
+			case 'isLatestVersion': return this.service.isLatestVersion();
 		}
 		return undefined;
 	}
@@ -76,5 +78,9 @@ export class UpdateChannelClient implements IUpdateService {
 
 	quitAndInstall(): TPromise<void> {
 		return this.channel.call('quitAndInstall');
+	}
+
+	isLatestVersion(): TPromise<boolean> {
+		return this.channel.call('isLatestVersion');
 	}
 }

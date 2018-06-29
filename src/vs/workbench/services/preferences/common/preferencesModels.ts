@@ -189,7 +189,8 @@ export class SettingsEditorModel extends AbstractSettingsModel implements ISetti
 					settings: filteredSettings
 				}],
 				title: modelGroup.title,
-				titleRange: modelGroup.titleRange
+				titleRange: modelGroup.titleRange,
+				contributedByExtension: !!modelGroup.contributedByExtension
 			};
 		}
 
@@ -503,7 +504,7 @@ export class DefaultSettings extends Disposable {
 			if (!settingsGroup) {
 				settingsGroup = result.filter(g => g.title === title)[0];
 				if (!settingsGroup) {
-					settingsGroup = { sections: [{ settings: [] }], id: config.id, title: title, titleRange: null, range: null };
+					settingsGroup = { sections: [{ settings: [] }], id: config.id, title: title, titleRange: null, range: null, contributedByExtension: !!config.contributedByExtension };
 					result.push(settingsGroup);
 				}
 			} else {
@@ -512,7 +513,7 @@ export class DefaultSettings extends Disposable {
 		}
 		if (config.properties) {
 			if (!settingsGroup) {
-				settingsGroup = { sections: [{ settings: [] }], id: config.id, title: config.id, titleRange: null, range: null };
+				settingsGroup = { sections: [{ settings: [] }], id: config.id, title: config.id, titleRange: null, range: null, contributedByExtension: !!config.contributedByExtension };
 				result.push(settingsGroup);
 			}
 			const configurationSettings: ISetting[] = [...settingsGroup.sections[settingsGroup.sections.length - 1].settings, ...this.parseSettings(config.properties)];

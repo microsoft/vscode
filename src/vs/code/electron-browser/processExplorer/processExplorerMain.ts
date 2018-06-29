@@ -190,7 +190,7 @@ function showContextMenu(e) {
 		}));
 	}
 
-	menu.popup({ window: remote.getCurrentWindow() });
+	menu.popup(remote.getCurrentWindow());
 }
 
 export function startup(data: ProcessExplorerData): void {

@@ -5484,12 +5484,12 @@ declare module 'vscode' {
 		readonly viewColumn?: ViewColumn;
 
 		/**
-		 * Is the panel currently active?
+		 * Whether the panel is active (focused by the user).
 		 */
 		readonly active: boolean;
 
 		/**
-		 * Is the panel currently visible?
+		 * Whether the panel is visible.
 		 */
 		readonly visible: boolean;
 
@@ -5537,6 +5537,52 @@ declare module 'vscode' {
 		 * Webview panel whose view state changed.
 		 */
 		readonly webviewPanel: WebviewPanel;
+	}
+
+	/**
+	 * Restore webview panels that have been persisted when vscode shuts down.
+	 *
+	 * There are two types of webview persistence:
+	 *
+	 * - Persistence within a session.
+	 * - Persistence across sessions (across restarts of VS Code).
+	 *
+	 * A `WebviewPanelSerializer` is only required for the second case: persisting a webview across sessions.
+	 *
+	 * Persistence within a session allows a webview to save its state when it becomes hidden
+	 * and restore its content from this state when it becomes visible again. It is powered entirely
+	 * by the webview content itself. To save off a persisted state, call `acquireVsCodeApi().setState()` with
+	 * any json serializable object. To restore the state again, call `getState()`
+	 *
+	 * ```js
+	 * // Within the webview
+	 * const vscode = acquireVsCodeApi();
+	 *
+	 * // Get existing state
+	 * const oldState = vscode.getState() || { value: 0 };
+	 *
+	 * // Update state
+	 * setState({ value: oldState.value + 1 })
+	 * ```
+	 *
+	 * A `WebviewPanelSerializer` extends this persistence across restarts of VS Code. When the editor is shutdown,
+	 * VS Code will save off the state from `setState` of all webviews that have a serializer. When the
+	 * webview first becomes visible after the restart, this state is passed to `deserializeWebviewPanel`.
+	 * The extension can then restore the old `WebviewPanel` from this state.
+	 */
+	interface WebviewPanelSerializer {
+		/**
+		 * Restore a webview panel from its seriailzed `state`.
+		 *
+		 * Called when a serialized webview first becomes visible.
+		 *
+		 * @param webviewPanel Webview panel to restore. The serializer should take ownership of this panel. The
+		 * serializer must restore the webview's `.html` and hook up all webview events.
+		 * @param state Persisted state from the webview content.
+		 *
+		 * @return Thanble indicating that the webview has been fully restored.
+		 */
+		deserializeWebviewPanel(webviewPanel: WebviewPanel, state: any): Thenable<void>;
 	}
 
 	/**
@@ -6145,6 +6191,19 @@ declare module 'vscode' {
 		 * @returns a [TreeView](#TreeView).
 		 */
 		export function createTreeView<T>(viewId: string, options: { treeDataProvider: TreeDataProvider<T> }): TreeView<T>;
+
+		/**
+		 * Registers a webview panel serializer.
+		 *
+		 * Extensions that support reviving should have an `"onWebviewPanel:viewType"` activation event and
+		 * make sure that [registerWebviewPanelSerializer](#registerWebviewPanelSerializer) is called during activation.
+		 *
+		 * Only a single serializer may be registered at a time for a given `viewType`.
+		 *
+		 * @param viewType Type of the webview panel that can be serialized.
+		 * @param serializer Webview serializer.
+		 */
+		export function registerWebviewPanelSerializer(viewType: string, serializer: WebviewPanelSerializer): Disposable;
 	}
 
 	/**
@@ -6155,7 +6214,31 @@ declare module 'vscode' {
 		/**
 		 * Element that is expanded or collapsed.
 		 */
-		element: T;
+		readonly element: T;
+
+	}
+
+	/**
+	 * The event that is fired when there is a change in [tree view's selection](#TreeView.selection)
+	 */
+	export interface TreeViewSelectionChangeEvent<T> {
+
+		/**
+		 * Selected elements.
+		 */
+		readonly selection: T[];
+
+	}
+
+	/**
+	 * The event that is fired when there is a change in [tree view's visibility](#TreeView.visible)
+	 */
+	export interface TreeViewVisibilityChangeEvent {
+
+		/**
+		 * `true` if the [tree view](#TreeView) is visible otherwise `false`.
+		 */
+		readonly visible: boolean;
 
 	}
 
@@ -6177,18 +6260,35 @@ declare module 'vscode' {
 		/**
 		 * Currently selected elements.
 		 */
-		readonly selection: ReadonlyArray<T>;
+		readonly selection: T[];
 
 		/**
-		 * Reveal an element. By default revealed element is selected.
+		 * Event that is fired when the [selection](#TreeView.selection) has changed
+		 */
+		readonly onDidChangeSelection: Event<TreeViewSelectionChangeEvent<T>>;
+
+		/**
+		 * `true` if the [tree view](#TreeView) is visible otherwise `false`.
+		 */
+		readonly visible: boolean;
+
+		/**
+		 * Event that is fired when [visibility](TreeView.visible) has changed
+		 */
+		readonly onDidChangeVisibility: Event<TreeViewVisibilityChangeEvent>;
+
+		/**
+		 * Reveals the given element in the tree view.
+		 * If the tree view is not visible then the tree view is shown and element is revealed.
 		 *
+		 * By default revealed element is selected and not focused.
 		 * In order to not to select, set the option `select` to `false`.
+		 * In order to focus, set the option `focus` to `true`.
 		 *
 		 * **NOTE:** [TreeDataProvider](#TreeDataProvider) is required to implement [getParent](#TreeDataProvider.getParent) method to access this API.
 		 */
-		reveal(element: T, options?: { select?: boolean }): Thenable<void>;
+		reveal(element: T, options?: { select?: boolean, focus?: boolean }): Thenable<void>;
 	}
-
 
 	/**
 	 * A data provider that provides tree data
@@ -6263,7 +6363,7 @@ declare module 'vscode' {
 		tooltip?: string | undefined;
 
 		/**
-		 * The [command](#Command) which should be run when the tree item is selected.
+		 * The [command](#Command) that should be executed when the tree item is selected.
 		 */
 		command?: Command;
 

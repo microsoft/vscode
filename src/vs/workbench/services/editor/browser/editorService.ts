@@ -25,7 +25,7 @@ import { DiffEditorInput } from 'vs/workbench/common/editor/diffEditorInput';
 import { localize } from 'vs/nls';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { IEditorGroupsService, IEditorGroup, GroupsOrder, IEditorReplacement, GroupChangeKind, preferredSideBySideGroupDirection } from 'vs/workbench/services/group/common/editorGroupsService';
-import { IResourceEditor, ACTIVE_GROUP_TYPE, SIDE_GROUP_TYPE, SIDE_GROUP, ACTIVE_GROUP, IResourceEditorReplacement, IOpenEditorOverrideHandler } from 'vs/workbench/services/editor/common/editorService';
+import { IResourceEditor, ACTIVE_GROUP_TYPE, SIDE_GROUP_TYPE, SIDE_GROUP, IResourceEditorReplacement, IOpenEditorOverrideHandler } from 'vs/workbench/services/editor/common/editorService';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { Disposable, IDisposable, dispose, toDisposable } from 'vs/base/common/lifecycle';
 import { coalesce } from 'vs/base/common/arrays';
@@ -260,18 +260,13 @@ export class EditorService extends Disposable implements EditorServiceImpl {
 			return group;
 		}
 
-		// Group: Active Group
-		if (group === ACTIVE_GROUP) {
-			targetGroup = this.editorGroupService.activeGroup;
-		}
-
 		// Group: Side by Side
-		else if (group === SIDE_GROUP) {
+		if (group === SIDE_GROUP) {
 			targetGroup = this.findSideBySideGroup();
 		}
 
 		// Group: Specific Group
-		else if (typeof group === 'number') {
+		else if (typeof group === 'number' && group >= 0) {
 			targetGroup = this.editorGroupService.getGroup(group);
 		}
 

@@ -12,7 +12,7 @@ import { fuzzyScore, FuzzyScore } from 'vs/base/common/filters';
 import { IPosition } from 'vs/editor/common/core/position';
 import { Range, IRange } from 'vs/editor/common/core/range';
 import { first, size } from 'vs/base/common/collections';
-import { isFalsyOrEmpty, binarySearch } from 'vs/base/common/arrays';
+import { isFalsyOrEmpty, binarySearch, coalesce } from 'vs/base/common/arrays';
 import { commonPrefixLength } from 'vs/base/common/strings';
 import { IMarker, MarkerSeverity } from 'vs/platform/markers/common/markers';
 import { onUnexpectedExternalError } from 'vs/base/common/errors';
@@ -164,11 +164,12 @@ export class OutlineGroup extends TreeElement {
 		let myMarkers: IMarker[] = [];
 		let myTopSev: MarkerSeverity;
 
-		while (start < markers.length && Range.areIntersecting(markers[start], item.symbol.range)) {
+		for (; start < markers.length && Range.areIntersecting(item.symbol.range, markers[start]); start++) {
 			// remove markers intersecting with this outline element
 			// and store them in a 'private' array.
-			let marker = markers.splice(start, 1)[0];
+			let marker = markers[start];
 			myMarkers.push(marker);
+			markers[start] = undefined;
 			if (!myTopSev || marker.severity > myTopSev) {
 				myTopSev = marker.severity;
 			}
@@ -188,16 +189,41 @@ export class OutlineGroup extends TreeElement {
 				topSev: myTopSev
 			};
 		}
+
+		coalesce(markers, true);
 	}
 }
 
 export class OutlineModel extends TreeElement {
 
 	private static readonly _requests = new LRUCache<string, { promiseCnt: number, promise: TPromise<any>, model: OutlineModel }>(9, .75);
+	private static readonly _keys = new class {
+
+		private _counter = 1;
+		private _data = new WeakMap<DocumentSymbolProvider, number>();
+
+		for(textModel: ITextModel): string {
+			return `${textModel.id}/${textModel.getVersionId()}/${this._hash(DocumentSymbolProviderRegistry.all(textModel))}`;
+		}
+
+		private _hash(providers: DocumentSymbolProvider[]): string {
+			let result = '';
+			for (const provider of providers) {
+				let n = this._data.get(provider);
+				if (typeof n === 'undefined') {
+					n = this._counter++;
+					this._data.set(provider, n);
+				}
+				result += n;
+			}
+			return result;
+		}
+	};
+
 
 	static create(textModel: ITextModel): TPromise<OutlineModel> {
 
-		let key = `${textModel.id}/${textModel.getVersionId()}/${DocumentSymbolProviderRegistry.all(textModel).length}`;
+		let key = this._keys.for(textModel);
 		let data = OutlineModel._requests.get(key);
 
 		if (!data) {
@@ -311,10 +337,10 @@ export class OutlineModel extends TreeElement {
 	readonly id = 'root';
 	readonly parent = undefined;
 
-	private _groups: { [id: string]: OutlineGroup; } = Object.create(null);
+	protected _groups: { [id: string]: OutlineGroup; } = Object.create(null);
 	children: { [id: string]: OutlineGroup | OutlineElement; } = Object.create(null);
 
-	private constructor(readonly textModel: ITextModel) {
+	protected constructor(readonly textModel: ITextModel) {
 		super();
 	}
 
@@ -342,14 +368,28 @@ export class OutlineModel extends TreeElement {
 		return topMatch;
 	}
 
-	getItemEnclosingPosition(position: IPosition): OutlineElement {
-		for (const key in this._groups) {
-			let result = this._groups[key].getItemEnclosingPosition(position);
-			if (result) {
-				return result;
+	getItemEnclosingPosition(position: IPosition, context?: OutlineElement): OutlineElement {
+
+		let preferredGroup: OutlineGroup;
+		if (context) {
+			let candidate = context.parent;
+			while (candidate && !preferredGroup) {
+				if (candidate instanceof OutlineGroup) {
+					preferredGroup = candidate;
+				}
+				candidate = candidate.parent;
 			}
 		}
-		return undefined;
+
+		let result: OutlineElement = undefined;
+		for (const key in this._groups) {
+			const group = this._groups[key];
+			result = group.getItemEnclosingPosition(position);
+			if (result && (!preferredGroup || preferredGroup === group)) {
+				break;
+			}
+		}
+		return result;
 	}
 
 	getItemById(id: string): TreeElement {
@@ -362,7 +402,7 @@ export class OutlineModel extends TreeElement {
 		marker.sort(Range.compareRangesUsingStarts);
 
 		for (const key in this._groups) {
-			this._groups[key].updateMarker(marker);
+			this._groups[key].updateMarker(marker.slice(0));
 		}
 	}
 }

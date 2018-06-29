@@ -324,7 +324,7 @@ export interface ITextFileService extends IDisposable {
 	/**
 	 * Delete a file. If the file is dirty, it will get reverted and then deleted from disk.
 	 */
-	delete(resource: URI, useTrash?: boolean): TPromise<void>;
+	delete(resource: URI, options?: { useTrash?: boolean, recursive?: boolean }): TPromise<void>;
 
 	/**
 	 * Move a file. If the file is dirty, its contents will be preserved and restored.

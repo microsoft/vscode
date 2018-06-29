@@ -34,6 +34,7 @@ import { LIGHT, FileThemeIcon, FolderThemeIcon } from 'vs/platform/theme/common/
 import { FileKind } from 'vs/platform/files/common/files';
 import { WorkbenchTreeController } from 'vs/platform/list/browser/listService';
 import { ViewletPanel, IViewletPanelOptions } from 'vs/workbench/browser/parts/views/panelViewlet';
+import { IMouseEvent } from 'vs/base/browser/mouseEvent';
 
 export class CustomTreeViewPanel extends ViewletPanel {
 
@@ -192,6 +193,9 @@ export class CustomTreeViewer extends Disposable implements ITreeViewer {
 	private _onDidChangeSelection: Emitter<ITreeItem[]> = this._register(new Emitter<ITreeItem[]>());
 	readonly onDidChangeSelection: Event<ITreeItem[]> = this._onDidChangeSelection.event;
 
+	private _onDidChangeVisibility: Emitter<boolean> = this._register(new Emitter<boolean>());
+	readonly onDidChangeVisibility: Event<boolean> = this._onDidChangeVisibility.event;
+
 	constructor(
 		private id: string,
 		private container: ViewContainer,
@@ -238,7 +242,12 @@ export class CustomTreeViewer extends Disposable implements ITreeViewer {
 		return this._hasIconForLeafNode;
 	}
 
+	get visible(): boolean {
+		return this.isVisible;
+	}
+
 	setVisibility(isVisible: boolean): void {
+		isVisible = !!isVisible;
 		if (this.isVisible === isVisible) {
 			return;
 		}
@@ -266,6 +275,8 @@ export class CustomTreeViewer extends Disposable implements ITreeViewer {
 				this.elementsToRefresh = [];
 			}
 		}
+
+		this._onDidChangeVisibility.fire(this.isVisible);
 	}
 
 	focus(): void {
@@ -336,13 +347,15 @@ export class CustomTreeViewer extends Disposable implements ITreeViewer {
 		return TPromise.as(null);
 	}
 
-	reveal(item: ITreeItem, parentChain: ITreeItem[], options?: { select?: boolean }): TPromise<void> {
+	reveal(item: ITreeItem, parentChain: ITreeItem[], options?: { select?: boolean, focus?: boolean }): TPromise<void> {
 		if (this.tree && this.isVisible) {
-			options = options ? options : { select: true };
+			options = options ? options : { select: false, focus: false };
+			const select = isUndefinedOrNull(options.select) ? false : options.select;
+			const focus = isUndefinedOrNull(options.focus) ? false : options.focus;
+
 			const root: Root = this.tree.getInput();
 			const promise = root.children ? TPromise.as(null) : this.refresh(); // Refresh if root is not populated
 			return promise.then(() => {
-				const select = isUndefinedOrNull(options.select) ? true : options.select;
 				var result = TPromise.as(null);
 				parentChain.forEach((e) => {
 					result = result.then(() => this.tree.expand(e));
@@ -351,6 +364,10 @@ export class CustomTreeViewer extends Disposable implements ITreeViewer {
 					.then(() => {
 						if (select) {
 							this.tree.setSelection([item], { source: 'api' });
+						}
+						if (focus) {
+							this.focus();
+							this.tree.setFocus(item);
 						}
 					});
 			});
@@ -373,7 +390,7 @@ export class CustomTreeViewer extends Disposable implements ITreeViewer {
 	}
 
 	private onSelection({ payload }: any): void {
-		if (payload && payload.source === 'api') {
+		if (payload && (!!payload.didClickOnTwistie || payload.source === 'api')) {
 			return;
 		}
 		const selection: ITreeItem = this.tree.getSelection()[0];
@@ -584,6 +601,10 @@ class TreeController extends WorkbenchTreeController {
 		@IConfigurationService configurationService: IConfigurationService
 	) {
 		super({}, configurationService);
+	}
+
+	protected shouldToggleExpansion(element: ITreeItem, event: IMouseEvent, origin: string): boolean {
+		return element.command ? this.isClickOnTwistie(event) : super.shouldToggleExpansion(element, event, origin);
 	}
 
 	public onContextMenu(tree: ITree, node: ITreeItem, event: ContextMenuEvent): boolean {

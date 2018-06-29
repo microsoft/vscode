@@ -119,6 +119,10 @@ export class Tree implements _.ITree {
 		return this.view && this.view.onDOMBlur;
 	}
 
+	get onDidScroll(): Event<void> {
+		return this.view && this.view.onDidScroll;
+	}
+
 	public getHTMLElement(): HTMLElement {
 		return this.view.getHTMLElement();
 	}
@@ -207,6 +211,11 @@ export class Tree implements _.ITree {
 	public getRelativeTop(element: any): number {
 		let item = this.model.getItem(element);
 		return this.view.getRelativeTop(item);
+	}
+
+	public getFirstVisibleElement(): any {
+		return this.view.getFirstVisibleElement();
+
 	}
 
 	public getScrollPosition(): number {

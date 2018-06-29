@@ -333,11 +333,11 @@ export function compareIgnoreCase(a: string, b: string): number {
 	}
 }
 
-function isLowerAsciiLetter(code: number): boolean {
+export function isLowerAsciiLetter(code: number): boolean {
 	return code >= CharCode.a && code <= CharCode.z;
 }
 
-function isUpperAsciiLetter(code: number): boolean {
+export function isUpperAsciiLetter(code: number): boolean {
 	return code >= CharCode.A && code <= CharCode.Z;
 }
 

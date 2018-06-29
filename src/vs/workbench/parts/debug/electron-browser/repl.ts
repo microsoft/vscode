@@ -24,7 +24,7 @@ import { registerEditorAction, ServicesAccessor, EditorAction, EditorCommand, re
 import { IModelService } from 'vs/editor/common/services/modelService';
 import { MenuId } from 'vs/platform/actions/common/actions';
 import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
-import { IContextKeyService, ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
+import { IContextKeyService, ContextKeyExpr, IContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IInstantiationService, createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
@@ -84,6 +84,7 @@ export class Repl extends Panel implements IPrivateReplService, IHistoryNavigati
 	private dimension: dom.Dimension;
 	private replInputHeight: number;
 	private model: ITextModel;
+	private historyNavigationEnablement: IContextKey<boolean>;
 
 	constructor(
 		@IDebugService private debugService: IDebugService,
@@ -153,7 +154,7 @@ export class Repl extends Panel implements IPrivateReplService, IHistoryNavigati
 		if (!visible) {
 			dispose(this.model);
 		} else {
-			this.model = this.modelService.createModel('', null, uri.parse(`${DEBUG_SCHEME}:input`), true);
+			this.model = this.modelService.createModel('', null, uri.parse(`${DEBUG_SCHEME}:replinput`), true);
 			this.replInput.setModel(this.model);
 		}
 
@@ -164,6 +165,7 @@ export class Repl extends Panel implements IPrivateReplService, IHistoryNavigati
 		this.replInputContainer = dom.append(container, $('.repl-input-wrapper'));
 
 		const { scopedContextKeyService, historyNavigationEnablement } = createAndBindHistoryNavigationWidgetScopedContextKeyService(this.contextKeyService, { target: this.replInputContainer, historyNavigator: this });
+		this.historyNavigationEnablement = historyNavigationEnablement;
 		this.toUnbind.push(scopedContextKeyService);
 		CONTEXT_IN_DEBUG_REPL.bindTo(scopedContextKeyService).set(true);
 
@@ -171,9 +173,11 @@ export class Repl extends Panel implements IPrivateReplService, IHistoryNavigati
 			[IContextKeyService, scopedContextKeyService], [IPrivateReplService, this]));
 		this.replInput = scopedInstantiationService.createInstance(CodeEditorWidget, this.replInputContainer, SimpleDebugEditor.getEditorOptions(), SimpleDebugEditor.getCodeEditorWidgetOptions());
 
-		modes.SuggestRegistry.register({ scheme: DEBUG_SCHEME, hasAccessToAllModels: true }, {
+		modes.SuggestRegistry.register({ scheme: DEBUG_SCHEME, pattern: '**/replinput', hasAccessToAllModels: true }, {
 			triggerCharacters: ['.'],
 			provideCompletionItems: (model: ITextModel, position: Position, _context: modes.SuggestContext, token: CancellationToken): Thenable<modes.ISuggestResult> => {
+				// Disable history navigation because up and down are used to navigate through the suggest widget
+				this.historyNavigationEnablement.set(false);
 				const word = this.replInput.getModel().getWordAtPosition(position);
 				const overwriteBefore = word ? word.word.length : 0;
 				const text = this.replInput.getModel().getLineContent(position.lineNumber);
@@ -195,9 +199,8 @@ export class Repl extends Panel implements IPrivateReplService, IHistoryNavigati
 			this.layout(this.dimension);
 		}));
 		this.toUnbind.push(this.replInput.onDidChangeModelContent(() => {
-			historyNavigationEnablement.set(this.replInput.getModel().getLineCount() === 1);
+			this.historyNavigationEnablement.set(this.replInput.getModel().getValue() === '');
 		}));
-
 
 		this.toUnbind.push(dom.addStandardDisposableListener(this.replInputContainer, dom.EventType.FOCUS, () => dom.addClass(this.replInputContainer, 'synthetic-focus')));
 		this.toUnbind.push(dom.addStandardDisposableListener(this.replInputContainer, dom.EventType.BLUR, () => dom.removeClass(this.replInputContainer, 'synthetic-focus')));
@@ -209,6 +212,7 @@ export class Repl extends Panel implements IPrivateReplService, IHistoryNavigati
 			this.replInput.setValue(historyInput);
 			// always leave cursor at the end.
 			this.replInput.setPosition({ lineNumber: 1, column: historyInput.length + 1 });
+			this.historyNavigationEnablement.set(true);
 		}
 	}
 

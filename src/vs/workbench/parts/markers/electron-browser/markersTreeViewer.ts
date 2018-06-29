@@ -19,6 +19,8 @@ import { IInstantiationService } from 'vs/platform/instantiation/common/instanti
 import { attachBadgeStyler } from 'vs/platform/theme/common/styler';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { IDisposable } from 'vs/base/common/lifecycle';
+import { getPathLabel } from 'vs/base/common/labels';
+import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 
 interface IResourceMarkersTemplateData {
 	resourceLabel: ResourceLabel;
@@ -93,7 +95,8 @@ export class Renderer implements IRenderer {
 
 	constructor(
 		@IInstantiationService private instantiationService: IInstantiationService,
-		@IThemeService private themeService: IThemeService
+		@IThemeService private themeService: IThemeService,
+		@IEnvironmentService private environmentService: IEnvironmentService
 	) {
 	}
 
@@ -197,7 +200,7 @@ export class Renderer implements IRenderer {
 		if (templateData.resourceLabel instanceof FileLabel) {
 			templateData.resourceLabel.setFile(element.uri, { matches: element.uriMatches });
 		} else {
-			templateData.resourceLabel.setLabel({ name: element.name, description: element.uri.toString(), resource: element.uri }, { matches: element.uriMatches });
+			templateData.resourceLabel.setLabel({ name: element.name, description: getPathLabel(element.uri, this.environmentService), resource: element.uri }, { matches: element.uriMatches });
 		}
 		(<IResourceMarkersTemplateData>templateData).count.setCount(element.filteredCount);
 	}
@@ -217,7 +220,7 @@ export class Renderer implements IRenderer {
 
 	private renderRelatedInfoElement(tree: ITree, element: RelatedInformation, templateData: IRelatedInformationTemplateData) {
 		templateData.resourceLabel.set(paths.basename(element.raw.resource.fsPath), element.uriMatches);
-		templateData.resourceLabel.element.title = element.raw.resource.toString();
+		templateData.resourceLabel.element.title = getPathLabel(element.raw.resource, this.environmentService);
 		templateData.lnCol.textContent = Messages.MARKERS_PANEL_AT_LINE_COL_NUMBER(element.raw.startLineNumber, element.raw.startColumn);
 		templateData.description.set(element.raw.message, element.messageMatches);
 		templateData.description.element.title = element.raw.message;
@@ -266,4 +269,3 @@ export class MarkersTreeAccessibilityProvider implements IAccessibilityProvider 
 		return null;
 	}
 }
-

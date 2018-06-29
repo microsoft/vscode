@@ -43,6 +43,22 @@ export interface IMenuItem {
 	order?: number;
 }
 
+export interface ISubmenuItem {
+	title: string | ILocalizedString;
+	submenu: MenuId;
+	when?: ContextKeyExpr;
+	group?: 'navigation' | string;
+	order?: number;
+}
+
+export function isIMenuItem(item: IMenuItem | ISubmenuItem): item is IMenuItem {
+	return (item as IMenuItem).command !== undefined;
+}
+
+export function isISubmenuItem(item: IMenuItem | ISubmenuItem): item is ISubmenuItem {
+	return (item as ISubmenuItem).submenu !== undefined;
+}
+
 export class MenuId {
 
 	private static ID = 1;
@@ -81,6 +97,7 @@ export class MenuId {
 	static readonly MenubarWindowMenu = new MenuId();
 	static readonly MenubarPreferencesMenu = new MenuId();
 	static readonly MenubarHelpMenu = new MenuId();
+	static readonly MenubarTerminalMenu = new MenuId();
 
 	readonly id: string = String(MenuId.ID++);
 }
@@ -92,7 +109,7 @@ export interface IMenuActionOptions {
 
 export interface IMenu extends IDisposable {
 	onDidChange: Event<IMenu>;
-	getActions(options?: IMenuActionOptions): [string, MenuItemAction[]][];
+	getActions(options?: IMenuActionOptions): [string, (MenuItemAction | SubmenuItemAction)[]][];
 }
 
 export const IMenuService = createDecorator<IMenuService>('menuService');
@@ -107,15 +124,15 @@ export interface IMenuService {
 export interface IMenuRegistry {
 	addCommand(userCommand: ICommandAction): boolean;
 	getCommand(id: string): ICommandAction;
-	appendMenuItem(menu: MenuId, item: IMenuItem): IDisposable;
-	getMenuItems(loc: MenuId): IMenuItem[];
+	appendMenuItem(menu: MenuId, item: IMenuItem | ISubmenuItem): IDisposable;
+	getMenuItems(loc: MenuId): (IMenuItem | ISubmenuItem)[];
 }
 
 export const MenuRegistry: IMenuRegistry = new class implements IMenuRegistry {
 
 	private _commands: { [id: string]: ICommandAction } = Object.create(null);
 
-	private _menuItems: { [loc: string]: IMenuItem[] } = Object.create(null);
+	private _menuItems: { [loc: string]: (IMenuItem | ISubmenuItem)[] } = Object.create(null);
 
 	addCommand(command: ICommandAction): boolean {
 		const old = this._commands[command.id];
@@ -127,7 +144,7 @@ export const MenuRegistry: IMenuRegistry = new class implements IMenuRegistry {
 		return this._commands[id];
 	}
 
-	appendMenuItem({ id }: MenuId, item: IMenuItem): IDisposable {
+	appendMenuItem({ id }: MenuId, item: IMenuItem | ISubmenuItem): IDisposable {
 		let array = this._menuItems[id];
 		if (!array) {
 			this._menuItems[id] = array = [item];
@@ -144,7 +161,7 @@ export const MenuRegistry: IMenuRegistry = new class implements IMenuRegistry {
 		};
 	}
 
-	getMenuItems({ id }: MenuId): IMenuItem[] {
+	getMenuItems({ id }: MenuId): (IMenuItem | ISubmenuItem)[] {
 		const result = this._menuItems[id] || [];
 
 		if (id === MenuId.CommandPalette.id) {
@@ -155,9 +172,12 @@ export const MenuRegistry: IMenuRegistry = new class implements IMenuRegistry {
 		return result;
 	}
 
-	private _appendImplicitItems(result: IMenuItem[]) {
+	private _appendImplicitItems(result: (IMenuItem | ISubmenuItem)[]) {
 		const set = new Set<string>();
-		for (const { command, alt } of result) {
+
+		const temp = result.filter(item => { return isIMenuItem(item); }) as IMenuItem[];
+
+		for (const { command, alt } of temp) {
 			set.add(command.id);
 			if (alt) {
 				set.add(alt.id);
@@ -183,6 +203,16 @@ export class ExecuteCommandAction extends Action {
 
 	run(...args: any[]): TPromise<any> {
 		return this._commandService.executeCommand(this.id, ...args);
+	}
+}
+
+export class SubmenuItemAction extends Action {
+	// private _options: IMenuActionOptions;
+
+	readonly item: ISubmenuItem;
+	constructor(item: ISubmenuItem) {
+		typeof item.title === 'string' ? super('', item.title, 'submenu') : super('', item.title.value, 'submenu');
+		this.item = item;
 	}
 }
 

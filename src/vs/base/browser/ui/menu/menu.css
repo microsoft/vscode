@@ -5,6 +5,7 @@
 
 .monaco-menu .monaco-action-bar.vertical {
 	margin-left: 0;
+	overflow: visible;
 }
 
 .monaco-menu .monaco-action-bar.vertical .actions-container {
@@ -47,7 +48,8 @@
 	background: none;
 }
 
-.monaco-menu .monaco-action-bar.vertical .keybinding {
+.monaco-menu .monaco-action-bar.vertical .keybinding,
+.monaco-menu .monaco-action-bar.vertical .submenu-indicator {
 	display: inline-block;
 	-ms-flex: 2 1 auto;
 	flex: 2 1 auto;
@@ -57,7 +59,12 @@
 	text-align: right;
 }
 
-.monaco-menu .monaco-action-bar.vertical .action-item.disabled .keybinding {
+.monaco-menu .monaco-action-bar.vertical .submenu-indicator {
+	padding: 0.8em .5em;
+}
+
+.monaco-menu .monaco-action-bar.vertical .action-item.disabled .keybinding,
+.monaco-menu .monaco-action-bar.vertical .action-item.disabled .submenu-indicator {
 	opacity: 0.4;
 }
 

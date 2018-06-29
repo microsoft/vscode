@@ -410,9 +410,14 @@ suite('window namespace tests', () => {
 
 	test('showQuickPick, accept second', async function () {
 		const resolves: ((value: string) => void)[] = [];
+		let done: () => void;
+		const unexpected = new Promise((resolve, reject) => {
+			done = () => resolve();
+			resolves.push(reject);
+		});
 		const first = new Promise(resolve => resolves.push(resolve));
 		const pick = window.showQuickPick(['eins', 'zwei', 'drei'], {
-			onDidSelectItem: item => resolves.shift()!(item as string)
+			onDidSelectItem: item => resolves.pop()!(item as string)
 		});
 		assert.equal(await first, 'eins');
 		const second = new Promise(resolve => resolves.push(resolve));
@@ -420,12 +425,19 @@ suite('window namespace tests', () => {
 		assert.equal(await second, 'zwei');
 		await commands.executeCommand('workbench.action.acceptSelectedQuickOpenItem');
 		assert.equal(await pick, 'zwei');
+		done!();
+		return unexpected;
 	});
 
 	test('showQuickPick, select first two', async function () {
 		const resolves: ((value: string) => void)[] = [];
+		let done: () => void;
+		const unexpected = new Promise((resolve, reject) => {
+			done = () => resolve();
+			resolves.push(reject);
+		});
 		const picks = window.showQuickPick(['eins', 'zwei', 'drei'], {
-			onDidSelectItem: item => resolves.shift()!(item as string),
+			onDidSelectItem: item => resolves.pop()!(item as string),
 			canPickMany: true
 		});
 		const first = new Promise(resolve => resolves.push(resolve));
@@ -438,6 +450,8 @@ suite('window namespace tests', () => {
 		await commands.executeCommand('workbench.action.quickPickManyToggle');
 		await commands.executeCommand('workbench.action.acceptSelectedQuickOpenItem');
 		assert.deepStrictEqual(await picks, ['eins', 'zwei']);
+		done!();
+		return unexpected;
 	});
 
 	test('showQuickPick, keep selection (Microsoft/vscode-azure-account#67)', async function () {
@@ -646,7 +660,7 @@ suite('window namespace tests', () => {
 			});
 			const renderer = window.createTerminalRenderer('foo');
 			const reg2 = renderer.onDidChangeMaximumDimensions(dimensions => {
-				assert.ok(dimensions.cols > 0);
+				assert.ok(dimensions.columns > 0);
 				assert.ok(dimensions.rows > 0);
 				reg2.dispose();
 				const reg3 = window.onDidCloseTerminal(() => {
@@ -660,7 +674,7 @@ suite('window namespace tests', () => {
 		test('TerminalRenderer.write should fire Terminal.onData', (done) => {
 			const reg1 = window.onDidOpenTerminal(terminal => {
 				reg1.dispose();
-				const reg2 = terminal.onData(data => {
+				const reg2 = terminal.onDidWriteData(data => {
 					assert.equal(data, 'bar');
 					reg2.dispose();
 					const reg3 = window.onDidCloseTerminal(() => {
@@ -677,7 +691,7 @@ suite('window namespace tests', () => {
 		test('Terminal.sendText should fire Termnial.onInput', (done) => {
 			const reg1 = window.onDidOpenTerminal(terminal => {
 				reg1.dispose();
-				const reg2 = renderer.onInput(data => {
+				const reg2 = renderer.onDidAcceptInput(data => {
 					assert.equal(data, 'bar');
 					reg2.dispose();
 					const reg3 = window.onDidCloseTerminal(() => {

@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { localize } from 'vs/nls';
 import { ISetting } from 'vs/workbench/services/preferences/common/preferences';
 
 export interface ITOCEntry {
@@ -15,7 +16,7 @@ export interface ITOCEntry {
 
 export const commonlyUsedData: ITOCEntry = {
 	id: 'commonlyUsed',
-	label: 'Commonly Used',
+	label: localize('commonlyUsed', "Commonly Used"),
 	settings: ['files.autoSave', 'editor.fontSize', 'editor.fontFamily', 'editor.tabSize', 'editor.renderWhitespace', 'editor.cursorStyle', 'editor.multiCursorModifier', 'editor.insertSpaces', 'editor.wordWrap', 'files.exclude', 'files.associations']
 };
 
@@ -25,169 +26,169 @@ export const tocData: ITOCEntry = {
 	children: [
 		{
 			id: 'editor',
-			label: 'Text Editor',
+			label: localize('textEditor', "Text Editor"),
 			children: [
 				{
 					id: 'editor/cursor',
-					label: 'Cursor',
+					label: localize('cursor', "Cursor"),
 					settings: ['editor.cursor*']
 				},
 				{
 					id: 'editor/find',
-					label: 'Find',
+					label: localize('find', "Find"),
 					settings: ['editor.find.*']
 				},
 				{
 					id: 'editor/font',
-					label: 'Font',
+					label: localize('font', "Font"),
 					settings: ['editor.font*']
 				},
 				{
 					id: 'editor/format',
-					label: 'Format',
+					label: localize('format', "Format"),
 					settings: ['editor.format*']
 				},
 				{
 					id: 'editor/diffEditor',
-					label: 'Diff Editor',
+					label: localize('diffEditor', "Diff Editor"),
 					settings: ['diffEditor.*']
 				},
 				{
 					id: 'editor/minimap',
-					label: 'Minimap',
+					label: localize('minimap', "Minimap"),
 					settings: ['editor.minimap.*']
 				},
 				{
 					id: 'editor/suggestions',
-					label: 'Suggestions',
+					label: localize('suggestions', "Suggestions"),
 					settings: ['editor.*suggestion*']
 				},
 				{
 					id: 'editor/files',
-					label: 'Files',
+					label: localize('files', "Files"),
 					settings: ['files.*']
 				},
 				{
 					id: 'editor/editor',
-					label: 'Editor',
+					label: localize('textEditor', "Text Editor"),
 					settings: ['editor.*']
 				}
 			]
 		},
 		{
 			id: 'workbench',
-			label: 'Workbench',
+			label: localize('workbench', "Workbench"),
 			children: [
 				{
 					id: 'workbench/appearance',
-					label: 'Appearance',
+					label: localize('appearance', "Appearance"),
 					settings: ['workbench.activityBar.*', 'workbench.*color*', 'workbench.fontAliasing', 'workbench.iconTheme', 'workbench.sidebar.location', 'workbench.*.visible', 'workbench.tips.enabled', 'workbench.tree.*', 'workbench.view.*']
 				},
 				{
 					id: 'workbench/editor',
-					label: 'Editor Management',
+					label: localize('editorManagement', "Editor Management"),
 					settings: ['workbench.editor.*']
 				},
 				{
+					id: 'workbench/settings',
+					label: localize('settings', "Settings Editor"),
+					settings: ['workbench.settings.*']
+				},
+				{
 					id: 'workbench/zenmode',
-					label: 'Zen Mode',
+					label: localize('zenMode', "Zen Mode"),
 					settings: ['zenmode.*']
 				},
 				{
 					id: 'workbench/workbench',
-					label: 'Workbench',
+					label: localize('workbench', "Workbench"),
 					settings: ['workbench.*']
 				}
 			]
 		},
 		{
 			id: 'window',
-			label: 'Window',
+			label: localize('window', "Window"),
 			children: [
 				{
 					id: 'window/newWindow',
-					label: 'New Window',
+					label: localize('newWindow', "New Window"),
 					settings: ['window.*newwindow*']
 				},
 				{
 					id: 'window/window',
-					label: 'Window',
+					label: localize('window', "Window"),
 					settings: ['window.*']
 				}
 			]
 		},
 		{
 			id: 'features',
-			label: 'Features',
+			label: localize('features', "Features"),
 			children: [
 				{
 					id: 'features/explorer',
-					label: 'File Explorer',
+					label: localize('fileExplorer', "File Explorer"),
 					settings: ['explorer.*', 'outline.*']
 				},
 				{
 					id: 'features/search',
-					label: 'Search',
+					label: localize('search', "Search"),
 					settings: ['search.*']
 				}
 				,
 				{
 					id: 'features/debug',
-					label: 'Debug',
+					label: localize('debug', "Debug"),
 					settings: ['debug.*', 'launch']
 				},
 				{
 					id: 'features/scm',
-					label: 'SCM',
+					label: localize('scm', "SCM"),
 					settings: ['scm.*']
 				},
 				{
 					id: 'features/extensions',
-					label: 'Extension Viewlet',
+					label: localize('extensionViewlet', "Extension Viewlet"),
 					settings: ['extensions.*']
 				},
 				{
 					id: 'features/terminal',
-					label: 'Terminal',
+					label: localize('terminal', "Terminal"),
 					settings: ['terminal.*']
 				},
 				{
 					id: 'features/problems',
-					label: 'Problems',
+					label: localize('problems', "Problems"),
 					settings: ['problems.*']
 				}
 			]
 		},
 		{
 			id: 'application',
-			label: 'Application',
+			label: localize('application', "Application"),
 			children: [
 				{
 					id: 'application/http',
-					label: 'Proxy',
+					label: localize('proxy', "Proxy"),
 					settings: ['http.*']
 				},
 				{
 					id: 'application/keyboard',
-					label: 'Keyboard',
+					label: localize('keyboard', "Keyboard"),
 					settings: ['keyboard.*']
 				},
 				{
 					id: 'application/update',
-					label: 'Update',
+					label: localize('update', "Update"),
 					settings: ['update.*']
 				},
 				{
 					id: 'application/telemetry',
-					label: 'Telemetry',
+					label: localize('telemetry', "Telemetry"),
 					settings: ['telemetry.*']
 				}
 			]
-		},
-		{
-			id: 'extensions',
-			label: 'Extensions',
-			settings: ['*']
 		}
 	]
 };

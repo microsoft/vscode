@@ -179,6 +179,8 @@ export class WorkspaceStats implements IWorkbenchContribution {
 		this.reportCloudStats();
 	}
 
+	public static tags: Tags;
+
 	private searchArray(arr: string[], regEx: RegExp): boolean {
 		return arr.some(v => v.search(regEx) > -1) || undefined;
 	}
@@ -226,7 +228,7 @@ export class WorkspaceStats implements IWorkbenchContribution {
 			"workspace.reactNative" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true }
 		}
 	*/
-	private async getWorkspaceTags(configuration: IWindowConfiguration): TPromise<Tags> {
+	private getWorkspaceTags(configuration: IWindowConfiguration): TPromise<Tags> {
 		const tags: Tags = Object.create(null);
 
 		const state = this.contextService.getWorkbenchState();
@@ -256,9 +258,11 @@ export class WorkspaceStats implements IWorkbenchContribution {
 		tags['workspace.empty'] = isEmpty;
 
 		const folders = !isEmpty ? workspace.folders.map(folder => folder.uri) : this.environmentService.appQuality !== 'stable' && this.findFolders(configuration);
-		if (folders && folders.length && this.fileService) {
-			//return
-			const files: IResolveFileResult[] = await this.fileService.resolveFiles(folders.map(resource => ({ resource })));
+		if (!folders || !folders.length || !this.fileService) {
+			return TPromise.as(tags);
+		}
+
+		return this.fileService.resolveFiles(folders.map(resource => ({ resource }))).then((files: IResolveFileResult[]) => {
 			const names = (<IFileStat[]>[]).concat(...files.map(result => result.success ? (result.stat.children || []) : [])).map(c => c.name);
 			const nameSet = names.reduce((s, n) => s.add(n.toLowerCase()), new Set());
 
@@ -311,33 +315,36 @@ export class WorkspaceStats implements IWorkbenchContribution {
 				tags['workspace.android.cpp'] = true;
 			}
 
-			if (nameSet.has('package.json')) {
-				await TPromise.join(folders.map(async workspaceUri => {
-					const uri = workspaceUri.with({ path: `${workspaceUri.path !== '/' ? workspaceUri.path : ''}/package.json` });
-					try {
-						const content = await this.fileService.resolveContent(uri, { acceptTextOnly: true });
-						const packageJsonContents = JSON.parse(content.value);
-						if (packageJsonContents['dependencies']) {
-							for (let module of ModulesToLookFor) {
-								if ('react-native' === module) {
-									if (packageJsonContents['dependencies'][module]) {
-										tags['workspace.reactNative'] = true;
-									}
-								} else {
-									if (packageJsonContents['dependencies'][module]) {
-										tags['workspace.npm.' + module] = true;
+			const packageJsonPromises = !nameSet.has('package.json') ? [] : folders.map(workspaceUri => {
+				const uri = workspaceUri.with({ path: `${workspaceUri.path !== '/' ? workspaceUri.path : ''}/package.json` });
+				return this.fileService.resolveFile(uri).then(() => {
+					return this.fileService.resolveContent(uri, { acceptTextOnly: true }).then(content => {
+						try {
+							const packageJsonContents = JSON.parse(content.value);
+							if (packageJsonContents['dependencies']) {
+								for (let module of ModulesToLookFor) {
+									if ('react-native' === module) {
+										if (packageJsonContents['dependencies'][module]) {
+											tags['workspace.reactNative'] = true;
+										}
+									} else {
+										if (packageJsonContents['dependencies'][module]) {
+											tags['workspace.npm.' + module] = true;
+										}
 									}
 								}
 							}
 						}
-					}
-					catch (e) {
-						// Ignore errors when resolving file or parsing file contents
-					}
-				}));
-			}
-		}
-		return TPromise.as(tags);
+						catch (e) {
+							// Ignore errors when resolving file or parsing file contents
+						}
+					});
+				}, err => {
+					// Ignore missing file
+				});
+			});
+			return TPromise.join(packageJsonPromises).then(() => tags);
+		});
 	}
 
 	private findFolders(configuration: IWindowConfiguration): URI[] {
@@ -372,6 +379,7 @@ export class WorkspaceStats implements IWorkbenchContribution {
 				}
 			*/
 			this.telemetryService.publicLog('workspce.tags', tags);
+			WorkspaceStats.tags = tags;
 		}, error => onUnexpectedError(error));
 	}
 

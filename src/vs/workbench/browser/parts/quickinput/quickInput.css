@@ -18,16 +18,12 @@
 
 .quick-input-left-action-bar {
 	display: flex;
-	margin-left: 6px;
+	margin-left: 4px;
 	flex: 1;
 }
 
 .quick-input-left-action-bar.monaco-action-bar .actions-container {
 	justify-content: flex-start;
-}
-
-.quick-input-left-action-bar .action-label.icon {
-	margin: 0 5px 0 0;
 }
 
 .quick-input-title {
@@ -37,16 +33,13 @@
 
 .quick-input-right-action-bar {
 	display: flex;
-	margin-right: 6px;
+	margin-right: 4px;
 	flex: 1;
 }
 
-.quick-input-right-action-bar .action-label.icon {
-	margin: 0 0 0 5px;
-}
-
 .quick-input-titlebar .monaco-action-bar .action-label.icon {
-	width: 16px;
+	margin: 0;
+	width: 19px;
 	height: 100%;
 	background-position: center;
 	background-repeat: no-repeat;

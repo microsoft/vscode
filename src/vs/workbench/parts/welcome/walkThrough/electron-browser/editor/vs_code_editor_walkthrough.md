@@ -17,7 +17,7 @@ The core editor in VS Code is packed with features.  This page highlights a numb
 
 ### Multi-Cursor Editing
 Using multiple cursors allows you to edit multiple parts of the document at once, greatly improving your productivity.  Try the following actions in the code block below:
-1. Box Selection - press <span class="mac-only windows-only">any combination of kb(cursorColumnSelectDown), kb(cursorColumnSelectRight), kb(cursorColumnSelectUp), kb(cursorColumnSelectLeft) to select a block of text. You can also press</span> <span class="shortcut mac-only">`⇧⌥`</span><span class="shortcut windows-only linux-only">`Shift+Alt`</span> while selecting text with the mouse.
+1. Box Selection - press <span class="mac-only windows-only">any combination of kb(cursorColumnSelectDown), kb(cursorColumnSelectRight), kb(cursorColumnSelectUp), kb(cursorColumnSelectLeft) to select a block of text. You can also press</span> <span class="shortcut mac-only">`⇧⌥`</span><span class="shortcut windows-only linux-only">`Shift+Alt`</span> while selecting text with the mouse or drag-select using the middle mouse button.
 2. Add a cursor - press kb(editor.action.insertCursorAbove) to add a new cursor above, or kb(editor.action.insertCursorBelow) to add a new cursor below. You can also use your mouse with <span class="shortcut"><span class="multi-cursor-modifier"></span>+Click</span> to add a cursor anywhere.
 3. Create cursors on all occurrences of a string - select one instance of a string e.g. `background-color` and press kb(editor.action.selectHighlights).  Now you can replace all instances by simply typing.
 
@@ -137,7 +137,7 @@ In a large file it can often be useful to collapse sections of code to increase 
 >**Tip:** Folding is based on indentation and as a result can apply to all languages.  Simply indent your code to create a foldable section you can fold a certain number of levels with shortcuts like kb(editor.foldLevel1) through to kb(editor.foldLevel5).
 
 ### Errors and Warnings
-Errors and warnings are highlighted as you edit your code with squiggles.  In the sample below you can see a number of syntax errors.  By pressing kb(editor.action.marker.next) you can navigate across them in sequence and see the detailed error message.  As you correct them the squiggles and scrollbar indicators will update.
+Errors and warnings are highlighted as you edit your code with squiggles.  In the sample below you can see a number of syntax errors.  By pressing kb(editor.action.marker.nextInFiles) you can navigate across them in sequence and see the detailed error message.  As you correct them the squiggles and scrollbar indicators will update.
 
 ```js
 // This code has a few syntax errors
