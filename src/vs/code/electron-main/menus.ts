@@ -1015,7 +1015,7 @@ export class CodeMenu {
 		const w = this.windowsMainService.getFocusedWindow();
 		if (w && w.win) {
 			const contents = w.win.webContents;
-			if (w.hasHiddenTitleBarStyle() && !w.win.isFullScreen() && !contents.isDevToolsOpened()) {
+			if (isMacintosh && w.hasHiddenTitleBarStyle() && !w.win.isFullScreen() && !contents.isDevToolsOpened()) {
 				contents.openDevTools({ mode: 'undocked' }); // due to https://github.com/electron/electron/issues/3647
 			} else {
 				contents.toggleDevTools();
