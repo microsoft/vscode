@@ -30,11 +30,12 @@ function getTagDocumentation(tag: Proto.JSDocTagInfo): string | undefined {
 			const body = (tag.text || '').split(/^([\w\.]+)\s*/);
 			if (body && body.length === 3) {
 				const param = body[1];
-				const doc = body[2];
+				let doc = body[2];
 				const label = `*@${tag.name}* \`${param}\``;
 				if (!doc) {
 					return label;
 				}
+				doc = doc.replace(/^\s*-/, "");
 				return label + (doc.match(/\r\n|\n/g) ? '  \n' + doc : ` — ${doc}`);
 			}
 	}
