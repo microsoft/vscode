@@ -27,15 +27,14 @@ function getTagBodyText(tag: Proto.JSDocTagInfo): string | undefined {
 function getTagDocumentation(tag: Proto.JSDocTagInfo): string | undefined {
 	switch (tag.name) {
 		case 'param':
-			const body = (tag.text || '').split(/^([\w\.]+)\s*/);
+			const body = (tag.text || '').split(/^([\w\.]+)\s*-?\s*/);
 			if (body && body.length === 3) {
 				const param = body[1];
-				let doc = body[2];
+				const doc = body[2];
 				const label = `*@${tag.name}* \`${param}\``;
 				if (!doc) {
 					return label;
 				}
-				doc = doc.replace(/^\s*-/, "");
 				return label + (doc.match(/\r\n|\n/g) ? '  \n' + doc : ` — ${doc}`);
 			}
 	}
