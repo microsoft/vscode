@@ -83,6 +83,16 @@ export class UpdateImportsOnFileRenameHandler {
 		this.client.bufferSyncSupport.closeResource(targetResource);
 		this.client.bufferSyncSupport.openTextDocument(document);
 
+		// Workaround for https://github.com/Microsoft/vscode/issues/52967
+		// Never attempt to update import paths if the file does not contain something the looks like an export
+		const tree = await this.client.execute('navtree', { file: newFile });
+		const hasExport = (node: Proto.NavigationTree): boolean => {
+			return !!node.kindModifiers.match(/\bexport\b/g) || !!(node.childItems && node.childItems.some(hasExport));
+		};
+		if (!tree.body || !tree.body || !hasExport(tree.body)) {
+			return;
+		}
+
 		const edits = await this.getEditsForFileRename(targetFile, document, oldFile, newFile);
 		if (!edits || !edits.size) {
 			return;
@@ -201,7 +211,7 @@ export class UpdateImportsOnFileRenameHandler {
 			return files[0];
 		}
 
-		return this._handles(resource) ? resource : undefined;
+		return (await this._handles(resource)) ? resource : undefined;
 	}
 
 	private async getEditsForFileRename(
