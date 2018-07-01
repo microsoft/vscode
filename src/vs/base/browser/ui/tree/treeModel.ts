@@ -8,6 +8,7 @@
 import { ISpliceable } from 'vs/base/common/sequence';
 import { IIterator, map, collect, iter, empty } from 'vs/base/common/iterator';
 import { last } from 'vs/base/common/arrays';
+import { Emitter, Event } from 'vs/base/common/event';
 
 export interface ITreeElement<T> {
 	readonly element: T;
@@ -93,6 +94,9 @@ export class TreeModel<T> {
 		visibleCount: 1
 	};
 
+	private _onDidChangeCollapseState = new Emitter<ITreeNode<T>>();
+	readonly onDidChangeCollapseState: Event<ITreeNode<T>> = this._onDidChangeCollapseState.event;
+
 	constructor(private list: ISpliceable<ITreeNode<T>>) { }
 
 	splice(location: number[], deleteCount: number, toInsert?: IIterator<ITreeElement<T>> | ITreeElement<T>[]): IIterator<ITreeElement<T>> {
@@ -116,15 +120,15 @@ export class TreeModel<T> {
 		return map(iter(deletedNodes), treeNodeToElement);
 	}
 
-	setCollapsed(location: number[], collapsed: boolean): void {
-		this._setCollapsed(location, collapsed);
+	setCollapsed(location: number[], collapsed: boolean): boolean {
+		return this._setCollapsed(location, collapsed);
 	}
 
 	toggleCollapsed(location: number[]): void {
 		this._setCollapsed(location);
 	}
 
-	private _setCollapsed(location: number[], collapsed?: boolean | undefined): void {
+	private _setCollapsed(location: number[], collapsed?: boolean | undefined): boolean {
 		const { node, listIndex, visible } = this.findNode(location);
 
 		if (typeof collapsed === 'undefined') {
@@ -132,29 +136,41 @@ export class TreeModel<T> {
 		}
 
 		if (node.collapsed === collapsed) {
-			return;
+			return false;
 		}
 
 		node.collapsed = collapsed;
 
 		if (visible) {
+			let visibleCountDiff: number;
+
 			if (collapsed) {
 				const deleteCount = getVisibleCount(node.children);
 
-				this.list.splice(listIndex, 1 + deleteCount, [node]);
-				node.visibleCount = 1;
+				this.list.splice(listIndex + 1, deleteCount, []);
+				visibleCountDiff = -deleteCount;
 			} else {
-				const toInsert = [node, ...getVisibleNodes(node.children)];
+				const toInsert = getVisibleNodes(node.children);
 
-				this.list.splice(listIndex, 1, toInsert);
-				node.visibleCount = toInsert.length;
+				this.list.splice(listIndex + 1, 0, toInsert);
+				visibleCountDiff = toInsert.length;
 			}
+
+			let mutableNode = node;
+
+			while (mutableNode) {
+				mutableNode.visibleCount += visibleCountDiff;
+				mutableNode = mutableNode.parent;
+			}
+
+			this._onDidChangeCollapseState.fire(node);
 		}
+
+		return true;
 	}
 
 	isCollapsed(location: number[]): boolean {
-		const { node } = this.findNode(location);
-		return node.collapsed;
+		return this.findNode(location).node.collapsed;
 	}
 
 	private findNode(location: number[]): { node: IMutableTreeNode<T>, listIndex: number, visible: boolean } {
