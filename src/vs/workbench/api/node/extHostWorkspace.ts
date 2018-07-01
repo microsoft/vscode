@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import { posix, relative } from 'path';
+import { posix, relative, join } from 'path';
 import { delta as arrayDelta } from 'vs/base/common/arrays';
 import { Emitter, Event } from 'vs/base/common/event';
 import { TernarySearchTree } from 'vs/base/common/map';
@@ -375,15 +375,22 @@ export class ExtHostWorkspace implements ExtHostWorkspaceShape {
 
 		const requestId = ExtHostWorkspace._requestIdPool++;
 
+		const globPatternToString = (pattern: vscode.GlobPattern | string) => {
+			if (typeof pattern === 'string') {
+				return pattern;
+			}
+
+			return join(pattern.base, pattern.pattern);
+		};
+
 		const queryOptions: IQueryOptions = {
 			ignoreSymlinks: typeof options.followSymlinks === 'boolean' ? !options.followSymlinks : undefined,
 			disregardIgnoreFiles: typeof options.useIgnoreFiles === 'boolean' ? !options.useIgnoreFiles : undefined,
 			fileEncoding: options.encoding,
 			maxResults: options.maxResults,
 
-			// TODO
-			// includePattern: options.includes
-			// excludePattern: options.excludes
+			includePattern: options.includes && options.includes.map(include => globPatternToString(include)).join(', '),
+			excludePattern: options.excludes && options.excludes.map(exclude => globPatternToString(exclude)).join(', ')
 		};
 
 		this._activeSearchCallbacks[requestId] = p => {
