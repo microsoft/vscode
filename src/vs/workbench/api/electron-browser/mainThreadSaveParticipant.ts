@@ -174,8 +174,7 @@ export class TrimFinalNewLinesParticipant implements ISaveParticipantParticipant
 		let currentLineNumber = model.getLineCount();
 		let currentLine = model.getLineContent(currentLineNumber);
 		let currentLineIsEmptyOrWhitespace = strings.lastNonWhitespaceIndex(currentLine) === -1;
-		while (currentLineIsEmptyOrWhitespace) {
-			currentLineNumber--;
+		while (currentLineIsEmptyOrWhitespace && --currentLineNumber > 1) {
 			currentLine = model.getLineContent(currentLineNumber);
 			currentLineIsEmptyOrWhitespace = strings.lastNonWhitespaceIndex(currentLine) === -1;
 		}
