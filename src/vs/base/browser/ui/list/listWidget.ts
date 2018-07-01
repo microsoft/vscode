@@ -21,21 +21,11 @@ import { Color } from 'vs/base/common/color';
 import { mixin } from 'vs/base/common/objects';
 import { ScrollbarVisibility } from 'vs/base/common/scrollable';
 import { ISpliceable } from 'vs/base/common/sequence';
+import { CombinedSpliceable } from 'vs/base/browser/ui/list/splice';
 import { clamp } from 'vs/base/common/numbers';
 
 export interface IIdentityProvider<T> {
 	(element: T): string;
-}
-
-class CombinedSpliceable<T> implements ISpliceable<T> {
-
-	constructor(private spliceables: ISpliceable<T>[]) { }
-
-	splice(start: number, deleteCount: number, elements: T[]): void {
-		for (const spliceable of this.spliceables) {
-			spliceable.splice(start, deleteCount, elements);
-		}
-	}
 }
 
 interface ITraitChangeEvent {
