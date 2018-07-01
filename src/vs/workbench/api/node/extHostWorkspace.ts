@@ -386,6 +386,7 @@ export class ExtHostWorkspace implements ExtHostWorkspaceShape {
 		const queryOptions: IQueryOptions = {
 			ignoreSymlinks: typeof options.followSymlinks === 'boolean' ? !options.followSymlinks : undefined,
 			disregardIgnoreFiles: typeof options.useIgnoreFiles === 'boolean' ? !options.useIgnoreFiles : undefined,
+			disregardExcludeSettings: options.excludes === null,
 			fileEncoding: options.encoding,
 			maxResults: options.maxResults,
 

@@ -62,8 +62,6 @@ declare module 'vscode' {
 
 	export namespace workspace {
 		export function registerSearchProvider(scheme: string, provider: SearchProvider): Disposable;
-
-		// Maybe keep includes and excludes separate to mirror findFiles and make it more natural to pass 'null' to disable excludes
 		export function findTextInFiles(query: TextSearchQuery, options: FindTextInFilesOptions, callback: (result: TextSearchResult) => void, token?: CancellationToken): Thenable<void>;
 	}
 
