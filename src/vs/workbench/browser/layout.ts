@@ -32,7 +32,7 @@ import { MenubarPart } from 'vs/workbench/browser/parts/menubar/menubarPart';
 
 const TITLE_BAR_HEIGHT = isMacintosh ? 22 : 30;
 const STATUS_BAR_HEIGHT = 22;
-const ACTIVITY_BAR_WIDTH = 50;
+const ACTIVITY_BAR_WIDTH = 40;
 
 const MIN_SIDEBAR_PART_WIDTH = 170;
 const DEFAULT_SIDEBAR_PART_WIDTH = 300;
