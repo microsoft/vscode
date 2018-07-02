@@ -265,10 +265,10 @@ function packageTask(platform, arch, opts) {
 		const packageJsonStream = gulp.src(['package.json'], { base: '.' })
 			.pipe(json({ name, version }));
 
-		const settingsSearchBuildId = getSettingsSearchBuildId(packageJson);
+		// const settingsSearchBuildId = getSettingsSearchBuildId(packageJson);
 		const date = new Date().toISOString();
 		const productJsonStream = gulp.src(['product.json'], { base: '.' })
-			.pipe(json({ commit, date, checksums, settingsSearchBuildId }));
+			.pipe(json({ commit, date, checksums/* , settingsSearchBuildId  */ }));
 
 		const license = gulp.src(['LICENSES.chromium.html', 'LICENSE.txt', 'ThirdPartyNotices.txt', 'licenses/**'], { base: '.' });
 
