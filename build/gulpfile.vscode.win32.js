@@ -42,7 +42,11 @@ function packageInnoSetup(iss, options, cb) {
 	keys.forEach(key => assert(typeof definitions[key] === 'string', `Missing value for '${key}' in Inno Setup package step`));
 
 	const defs = keys.map(key => `/d${key}=${definitions[key]}`);
-	const args = [iss].concat(defs);
+	const args = [
+		iss,
+		'/Sesrp="powershell.exe build\tfs\win32\sign.ps1 $f"',
+		...defs
+	];
 
 	cp.spawn(innoSetupPath, args, { stdio: ['ignore', 'inherit', 'inherit'] })
 		.on('error', cb)
