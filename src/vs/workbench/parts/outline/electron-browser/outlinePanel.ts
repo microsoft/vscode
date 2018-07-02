@@ -510,7 +510,7 @@ export class OutlinePanel extends ViewletPanel {
 			}
 			await this._tree.setInput(model);
 			let state = this._treeStates.get(model.textModel.uri.toString());
-			OutlineTreeState.restore(this._tree, state, this);
+			await OutlineTreeState.restore(this._tree, state, this);
 		}
 
 		this._input.enable();
