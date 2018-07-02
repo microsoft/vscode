@@ -439,7 +439,7 @@ export class OutlinePanel extends ViewletPanel {
 		this._message.innerText = escape(message);
 	}
 
-	private async _doUpdate(editor: ICodeEditor, event: IModelContentChangedEvent): TPromise<void> {
+	private async _doUpdate(editor: ICodeEditor, event: IModelContentChangedEvent): Promise<void> {
 		dispose(this._editorDisposables);
 
 		this._editorDisposables = new Array();
@@ -641,13 +641,13 @@ export class OutlinePanel extends ViewletPanel {
 		}
 	}
 
-	private async _revealTreeSelection(model: OutlineModel, element: OutlineElement, focus: boolean, aside: boolean): TPromise<void> {
+	private async _revealTreeSelection(model: OutlineModel, element: OutlineElement, focus: boolean, aside: boolean): Promise<void> {
 
 		let input = this._editorService.createInput({ resource: model.textModel.uri });
 		await this._editorService.openEditor(input, { preserveFocus: !focus, selection: Range.collapseToStart(element.symbol.selectionRange), revealInCenterIfOutsideViewport: true, forceOpen: true }, aside ? SIDE_GROUP : ACTIVE_GROUP);
 	}
 
-	private async _revealEditorSelection(model: OutlineModel, selection: Selection): TPromise<void> {
+	private async _revealEditorSelection(model: OutlineModel, selection: Selection): Promise<void> {
 		if (!this._outlineViewState.followCursor || !this._tree.getInput() || !selection) {
 			return;
 		}
