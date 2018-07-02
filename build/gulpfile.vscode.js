@@ -268,8 +268,10 @@ function packageTask(platform, arch, opts) {
 		const date = new Date().toISOString();
 		const productJsonUpdate = { commit, date, checksums };
 
-		if (shouldSetupSettingsSearch()) {
+		try {
 			productJsonUpdate.settingsSearchBuildId = getSettingsSearchBuildId(packageJson);
+		} catch (err) {
+			console.warn(err);
 		}
 
 		const productJsonStream = gulp.src(['product.json'], { base: '.' })
@@ -468,9 +470,9 @@ gulp.task('upload-vscode-sourcemaps', ['minify-vscode'], () => {
 
 const allConfigDetailsPath = path.join(os.tmpdir(), 'configuration.json');
 gulp.task('upload-vscode-configuration', ['generate-vscode-configuration'], () => {
+	const branch = process.env.BUILD_SOURCEBRANCH;
 
-	if (!shouldSetupSettingsSearch()) {
-		const branch = process.env.BUILD_SOURCEBRANCH;
+	if (!/\/master$/.test(branch) && branch.indexOf('/release/') < 0) {
 		console.log(`Only runs on master and release branches, not ${branch}`);
 		return;
 	}
@@ -492,11 +494,6 @@ gulp.task('upload-vscode-configuration', ['generate-vscode-configuration'], () =
 			prefix: `${settingsSearchBuildId}/${commit}/`
 		}));
 });
-
-function shouldSetupSettingsSearch() {
-	const branch = process.env.BUILD_SOURCEBRANCH;
-	return typeof branch === 'string' && (/\/master$/.test(branch) || branch.indexOf('/release/') >= 0);
-}
 
 function getSettingsSearchBuildId(packageJson) {
 	const previous = util.getPreviousVersion(packageJson.version);
