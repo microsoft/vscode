@@ -2509,6 +2509,13 @@ declare namespace monaco.editor {
 		sticky?: boolean;
 	}
 
+	export interface ISuggestOptions {
+		/**
+		 * Enable graceful matching. Defaults to true.
+		 */
+		filterGraceful?: boolean;
+	}
+
 	/**
 	 * Configuration map for codeActionsOnSave
 	 */
@@ -2764,6 +2771,10 @@ declare namespace monaco.editor {
 		 * Defaults to 'auto'. It is best to leave this to 'auto'.
 		 */
 		accessibilitySupport?: 'auto' | 'off' | 'on';
+		/**
+		 * Suggest options.
+		 */
+		suggest?: ISuggestOptions;
 		/**
 		 * Enable quick suggestions (shadow suggestions)
 		 * Defaults to true.
@@ -3110,6 +3121,11 @@ declare namespace monaco.editor {
 		readonly sticky: boolean;
 	}
 
+	export interface InternalSuggestOptions {
+		readonly filterGraceful: boolean;
+		readonly snippets: 'top' | 'bottom' | 'inline' | 'none';
+	}
+
 	export interface EditorWrappingInfo {
 		readonly inDiffEditor: boolean;
 		readonly isDominatedByLongLines: boolean;
@@ -3181,11 +3197,11 @@ declare namespace monaco.editor {
 		readonly suggestOnTriggerCharacters: boolean;
 		readonly acceptSuggestionOnEnter: 'on' | 'smart' | 'off';
 		readonly acceptSuggestionOnCommitCharacter: boolean;
-		readonly snippetSuggestions: 'top' | 'bottom' | 'inline' | 'none';
 		readonly wordBasedSuggestions: boolean;
 		readonly suggestSelection: 'first' | 'recentlyUsed' | 'recentlyUsedByPrefix';
 		readonly suggestFontSize: number;
 		readonly suggestLineHeight: number;
+		readonly suggest: InternalSuggestOptions;
 		readonly selectionHighlight: boolean;
 		readonly occurrencesHighlight: boolean;
 		readonly codeLens: boolean;
@@ -5344,15 +5360,19 @@ declare namespace monaco.languages {
 		/**
 		 * attach this to every token class (by default '.' + name)
 		 */
-		tokenPostfix: string;
+		tokenPostfix?: string;
 	}
+
+	export type IShortMonarchLanguageRule1 = [RegExp, string | IMonarchLanguageAction];
+
+	export type IShortMonarchLanguageRule2 = [RegExp, string | IMonarchLanguageAction, string];
 
 	/**
 	 * A rule is either a regular expression and an action
 	 * 		shorthands: [reg,act] == { regex: reg, action: act}
 	 *		and       : [reg,act,nxt] == { regex: reg, action: act{ next: nxt }}
 	 */
-	export interface IMonarchLanguageRule {
+	export interface IExpandedMonarchLanguageRule {
 		/**
 		 * match tokens
 		 */
@@ -5366,6 +5386,8 @@ declare namespace monaco.languages {
 		 */
 		include?: string;
 	}
+
+	export type IMonarchLanguageRule = IShortMonarchLanguageRule1 | IShortMonarchLanguageRule2 | IExpandedMonarchLanguageRule;
 
 	/**
 	 * An action is either an array of actions...

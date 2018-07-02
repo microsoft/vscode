@@ -49,9 +49,9 @@ suite('MainThreadEditors', () => {
 		deletedResources.clear();
 
 		const fileService = new class extends TestFileService {
-			async createFile(uri: URI): TPromise<IFileStat> {
+			createFile(uri: URI): TPromise<IFileStat> {
 				createdResources.add(uri);
-				return createMockFileStat(uri);
+				return TPromise.wrap(createMockFileStat(uri));
 			}
 		};
 

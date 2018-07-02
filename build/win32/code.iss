@@ -32,6 +32,7 @@ VersionInfoVersion={#RawVersion}
 ShowLanguageDialog=auto
 ArchitecturesAllowed={#ArchitecturesAllowed}
 ArchitecturesInstallIn64BitMode={#ArchitecturesInstallIn64BitMode}
+SignTool=esrp
 
 #if "user" == InstallTarget
 DefaultDirName={userpf}\{#DirName}

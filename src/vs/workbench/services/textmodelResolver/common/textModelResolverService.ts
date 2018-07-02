@@ -36,6 +36,7 @@ class ResourceModelCollection extends ReferenceCollection<TPromise<ITextEditorMo
 		if (this.fileService.canHandleResource(resource)) {
 			return this.textFileService.models.loadOrCreate(resource);
 		}
+
 		return this.resolveTextModelContent(key).then(() => this.instantiationService.createInstance(ResourceEditorModel, resource));
 	}
 
@@ -115,14 +116,12 @@ export class TextModelResolverService implements ITextModelService {
 	private _createModelReference(resource: URI): TPromise<IReference<ITextEditorModel>> {
 
 		// Untitled Schema: go through cached input
-		// TODO ImmortalReference is a hack
 		if (resource.scheme === network.Schemas.untitled) {
 			return this.untitledEditorService.loadOrCreate({ resource }).then(model => new ImmortalReference(model));
 		}
 
 		// InMemory Schema: go through model service cache
-		// TODO ImmortalReference is a hack
-		if (resource.scheme === 'inmemory') {
+		if (resource.scheme === network.Schemas.inMemory) {
 			const cachedModel = this.modelService.getModel(resource);
 
 			if (!cachedModel) {

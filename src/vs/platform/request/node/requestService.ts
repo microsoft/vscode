@@ -40,18 +40,21 @@ export class RequestService implements IRequestService {
 		this.authorization = config.http && config.http.proxyAuthorization;
 	}
 
-	async request(options: IRequestOptions, requestFn: IRequestFunction = request): TPromise<IRequestContext> {
+	request(options: IRequestOptions, requestFn: IRequestFunction = request): TPromise<IRequestContext> {
 		this.logService.trace('RequestService#request', options.url);
 
 		const { proxyUrl, strictSSL } = this;
+		const agentPromise = options.agent ? TPromise.wrap(options.agent) : TPromise.wrap(getProxyAgent(options.url, { proxyUrl, strictSSL }));
 
-		options.agent = options.agent || await getProxyAgent(options.url, { proxyUrl, strictSSL });
-		options.strictSSL = strictSSL;
+		return agentPromise.then(agent => {
+			options.agent = agent;
+			options.strictSSL = strictSSL;
 
-		if (this.authorization) {
-			options.headers = assign(options.headers || {}, { 'Proxy-Authorization': this.authorization });
-		}
+			if (this.authorization) {
+				options.headers = assign(options.headers || {}, { 'Proxy-Authorization': this.authorization });
+			}
 
-		return requestFn(options);
+			return requestFn(options);
+		});
 	}
 }
