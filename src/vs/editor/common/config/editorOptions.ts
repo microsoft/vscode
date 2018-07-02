@@ -158,6 +158,13 @@ export interface IEditorHoverOptions {
 	sticky?: boolean;
 }
 
+export interface ISuggestOptions {
+	/**
+	 * Enable graceful matching. Defaults to true.
+	 */
+	filterGraceful?: boolean;
+}
+
 /**
  * Configuration map for codeActionsOnSave
  */
@@ -425,6 +432,10 @@ export interface IEditorOptions {
 	 * Defaults to 'auto'. It is best to leave this to 'auto'.
 	 */
 	accessibilitySupport?: 'auto' | 'off' | 'on';
+	/**
+	 * Suggest options.
+	 */
+	suggest?: ISuggestOptions;
 	/**
 	 * Enable quick suggestions (shadow suggestions)
 	 * Defaults to true.
@@ -830,6 +841,10 @@ export interface InternalEditorHoverOptions {
 	readonly sticky: boolean;
 }
 
+export interface InternalSuggestOptions {
+	readonly filterGraceful: boolean;
+}
+
 export interface EditorWrappingInfo {
 	readonly inDiffEditor: boolean;
 	readonly isDominatedByLongLines: boolean;
@@ -902,6 +917,7 @@ export interface EditorContribOptions {
 	readonly suggestSelection: 'first' | 'recentlyUsed' | 'recentlyUsedByPrefix';
 	readonly suggestFontSize: number;
 	readonly suggestLineHeight: number;
+	readonly suggest: InternalSuggestOptions;
 	readonly selectionHighlight: boolean;
 	readonly occurrencesHighlight: boolean;
 	readonly codeLens: boolean;
@@ -1229,6 +1245,19 @@ export class InternalEditorOptions {
 	/**
 	 * @internal
 	 */
+	private static _equalsSuggestOptions(a: ISuggestOptions, b: ISuggestOptions): any {
+		if (a === b) {
+			return true;
+		} else if (!a || !b) {
+			return false;
+		} else {
+			return a.filterGraceful === b.filterGraceful;
+		}
+	}
+
+	/**
+	 * @internal
+	 */
 	private static _equalsWrappingInfo(a: EditorWrappingInfo, b: EditorWrappingInfo): boolean {
 		return (
 			a.inDiffEditor === b.inDiffEditor
@@ -1266,6 +1295,7 @@ export class InternalEditorOptions {
 			&& a.suggestSelection === b.suggestSelection
 			&& a.suggestFontSize === b.suggestFontSize
 			&& a.suggestLineHeight === b.suggestLineHeight
+			&& this._equalsSuggestOptions(a.suggest, b.suggest)
 			&& a.selectionHighlight === b.selectionHighlight
 			&& a.occurrencesHighlight === b.occurrencesHighlight
 			&& a.codeLens === b.codeLens
@@ -1714,6 +1744,17 @@ export class EditorOptionsValidator {
 		};
 	}
 
+	private static _sanitizeSuggestOpts(opts: ISuggestOptions, defaults: InternalSuggestOptions): InternalSuggestOptions {
+		if (!opts) {
+			return defaults;
+		}
+		let { filterGraceful } = opts;
+		return {
+			filterGraceful: _boolean(filterGraceful, defaults.filterGraceful)
+		};
+	}
+
+
 	private static _sanitizeViewInfo(opts: IEditorOptions, defaults: InternalEditorViewOptions): InternalEditorViewOptions {
 
 		let rulers: number[] = [];
@@ -1849,6 +1890,7 @@ export class EditorOptionsValidator {
 			suggestSelection: _stringSet<'first' | 'recentlyUsed' | 'recentlyUsedByPrefix'>(opts.suggestSelection, defaults.suggestSelection, ['first', 'recentlyUsed', 'recentlyUsedByPrefix']),
 			suggestFontSize: _clampedInt(opts.suggestFontSize, defaults.suggestFontSize, 0, 1000),
 			suggestLineHeight: _clampedInt(opts.suggestLineHeight, defaults.suggestLineHeight, 0, 1000),
+			suggest: this._sanitizeSuggestOpts(opts.suggest, defaults.suggest),
 			selectionHighlight: _boolean(opts.selectionHighlight, defaults.selectionHighlight),
 			occurrencesHighlight: _boolean(opts.occurrencesHighlight, defaults.occurrencesHighlight),
 			codeLens: _boolean(opts.codeLens, defaults.codeLens),
@@ -1957,6 +1999,7 @@ export class InternalEditorOptionsFactory {
 				suggestSelection: opts.contribInfo.suggestSelection,
 				suggestFontSize: opts.contribInfo.suggestFontSize,
 				suggestLineHeight: opts.contribInfo.suggestLineHeight,
+				suggest: opts.contribInfo.suggest,
 				selectionHighlight: (accessibilityIsOn ? false : opts.contribInfo.selectionHighlight), // DISABLED WHEN SCREEN READER IS ATTACHED
 				occurrencesHighlight: (accessibilityIsOn ? false : opts.contribInfo.occurrencesHighlight), // DISABLED WHEN SCREEN READER IS ATTACHED
 				codeLens: (accessibilityIsOn ? false : opts.contribInfo.codeLens), // DISABLED WHEN SCREEN READER IS ATTACHED
@@ -2428,6 +2471,9 @@ export const EDITOR_DEFAULTS: IValidatedEditorOptions = {
 		suggestSelection: 'recentlyUsed',
 		suggestFontSize: 0,
 		suggestLineHeight: 0,
+		suggest: {
+			filterGraceful: true,
+		},
 		selectionHighlight: true,
 		occurrencesHighlight: true,
 		codeLens: true,

@@ -2509,6 +2509,13 @@ declare namespace monaco.editor {
 		sticky?: boolean;
 	}
 
+	export interface ISuggestOptions {
+		/**
+		 * Enable graceful matching. Defaults to true.
+		 */
+		filterGraceful?: boolean;
+	}
+
 	/**
 	 * Configuration map for codeActionsOnSave
 	 */
@@ -2764,6 +2771,10 @@ declare namespace monaco.editor {
 		 * Defaults to 'auto'. It is best to leave this to 'auto'.
 		 */
 		accessibilitySupport?: 'auto' | 'off' | 'on';
+		/**
+		 * Suggest options.
+		 */
+		suggest?: ISuggestOptions;
 		/**
 		 * Enable quick suggestions (shadow suggestions)
 		 * Defaults to true.
@@ -3110,6 +3121,10 @@ declare namespace monaco.editor {
 		readonly sticky: boolean;
 	}
 
+	export interface InternalSuggestOptions {
+		readonly filterGraceful: boolean;
+	}
+
 	export interface EditorWrappingInfo {
 		readonly inDiffEditor: boolean;
 		readonly isDominatedByLongLines: boolean;
@@ -3186,6 +3201,7 @@ declare namespace monaco.editor {
 		readonly suggestSelection: 'first' | 'recentlyUsed' | 'recentlyUsedByPrefix';
 		readonly suggestFontSize: number;
 		readonly suggestLineHeight: number;
+		readonly suggest: InternalSuggestOptions;
 		readonly selectionHighlight: boolean;
 		readonly occurrencesHighlight: boolean;
 		readonly codeLens: boolean;

@@ -568,6 +568,11 @@ const editorConfiguration: IConfigurationNode = {
 			'minimum': 0,
 			'description': nls.localize('suggestLineHeight', "Line height for the suggest widget")
 		},
+		'editor.suggest.filterGraceful': {
+			type: 'boolean',
+			default: true,
+			description: nls.localize('suggest.filterGraceful', "Controls whether filtering and sorting suggestions accounts for small typos.")
+		},
 		'editor.selectionHighlight': {
 			'type': 'boolean',
 			'default': EDITOR_DEFAULTS.contribInfo.selectionHighlight,
