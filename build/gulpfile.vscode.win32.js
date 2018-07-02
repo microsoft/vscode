@@ -26,6 +26,7 @@ const zipPath = arch => path.join(zipDir(arch), `VSCode-win32-${arch}.zip`);
 const setupDir = (arch, target) => path.join(repoPath, '.build', `win32-${arch}`, `${target}-setup`);
 const issPath = path.join(__dirname, 'win32', 'code.iss');
 const innoSetupPath = path.join(path.dirname(path.dirname(require.resolve('innosetup-compiler'))), 'bin', 'ISCC.exe');
+const signPS1 = path.join(repoPath, 'build', 'tfs', 'win32', 'sign.ps1');
 
 function packageInnoSetup(iss, options, cb) {
 	options = options || {};
@@ -44,8 +45,8 @@ function packageInnoSetup(iss, options, cb) {
 	const defs = keys.map(key => `/d${key}=${definitions[key]}`);
 	const args = [
 		iss,
-		'/Sesrp="powershell.exe build\tfs\win32\sign.ps1 $f"',
-		...defs
+		...defs,
+		`/sesrp=powershell.exe -ExecutionPolicy bypass ${signPS1} $f`
 	];
 
 	cp.spawn(innoSetupPath, args, { stdio: ['ignore', 'inherit', 'inherit'] })
