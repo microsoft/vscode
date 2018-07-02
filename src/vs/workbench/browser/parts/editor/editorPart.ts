@@ -35,7 +35,7 @@ import { EditorDropTarget } from 'vs/workbench/browser/parts/editor/editorDropTa
 import { localize } from 'vs/nls';
 import { Color } from 'vs/base/common/color';
 import { CenteredViewLayout } from 'vs/base/browser/ui/centered/centeredViewLayout';
-import { IView } from 'vs/base/browser/ui/grid/gridview';
+import { IView, orthogonal } from 'vs/base/browser/ui/grid/gridview';
 
 interface IEditorPartUIState {
 	serializedGrid: ISerializedGrid;
@@ -414,7 +414,9 @@ export class EditorPart extends Part implements EditorGroupsServiceImpl, IEditor
 		const gridDescriptor = createSerializedGrid({
 			orientation: this.toGridViewOrientation(
 				layout.orientation,
-				(this.gridWidget.orientation === Orientation.VERTICAL) ? Orientation.HORIZONTAL : Orientation.VERTICAL // fix https://github.com/Microsoft/vscode/issues/52975
+				this.isTwoDimensionalGrid() ?
+					this.gridWidget.orientation :			// preserve original orientation for 2-dimensional grids
+					orthogonal(this.gridWidget.orientation) // otherwise flip (fix https://github.com/Microsoft/vscode/issues/52975)
 			),
 			groups: layout.groups
 		});
@@ -442,6 +444,17 @@ export class EditorPart extends Part implements EditorGroupsServiceImpl, IEditor
 		if (gridHasFocus) {
 			this._activeGroup.focus();
 		}
+	}
+
+	private isTwoDimensionalGrid(): boolean {
+		const views = this.gridWidget.getViews();
+		if (isGridBranchNode(views)) {
+			// the grid is 2-dimensional if any children
+			// of the grid is a branch node
+			return views.children.some(child => isGridBranchNode(child));
+		}
+
+		return false;
 	}
 
 	addGroup(location: IEditorGroupView | GroupIdentifier, direction: GroupDirection, options?: IAddGroupOptions): IEditorGroupView {
