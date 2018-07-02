@@ -436,7 +436,10 @@ export class ReviewZoneWidget extends ZoneWidget {
 				}
 			});
 		} else {
-			dom.addClass(this._commentForm, 'expand');
+			if (!dom.hasClass(this._commentForm, 'expand')) {
+				dom.addClass(this._commentForm, 'expand');
+				this._commentEditor.focus();
+			}
 		}
 	}
 
