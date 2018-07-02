@@ -283,6 +283,7 @@ export class TerminalInstance implements ITerminalInstance {
 			bellStyle: config.enableBell ? 'sound' : 'none',
 			screenReaderMode: accessibilitySupport === 'on',
 			macOptionIsMeta: config.macOptionIsMeta,
+			macOptionClickForcesSelection: config.macOptionClickForcesSelection,
 			rightClickSelectsWord: config.rightClickBehavior === 'selectWord',
 			// TODO: Guess whether to use canvas or dom better
 			rendererType: config.rendererType === 'auto' ? 'canvas' : config.rendererType,
@@ -871,6 +872,7 @@ export class TerminalInstance implements ITerminalInstance {
 		this._setEnableBell(config.enableBell);
 		this._safeSetOption('scrollback', config.scrollback);
 		this._safeSetOption('macOptionIsMeta', config.macOptionIsMeta);
+		this._safeSetOption('macOptionClickForcesSelection', config.macOptionClickForcesSelection);
 		this._safeSetOption('rightClickSelectsWord', config.rightClickBehavior === 'selectWord');
 	}
 
