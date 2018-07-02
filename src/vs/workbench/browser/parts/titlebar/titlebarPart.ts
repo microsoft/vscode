@@ -259,9 +259,6 @@ export class TitlebarPart extends Part implements ITitleService {
 
 				this.windowService.closeWindow().then(null, errors.onUnexpectedError);
 			});
-
-			// Resizer
-			$(this.titleContainer).div({ class: 'resizer' });
 		}
 
 		// Title
@@ -316,6 +313,9 @@ export class TitlebarPart extends Part implements ITitleService {
 			const isMaximized = this.windowService.getConfiguration().maximized ? true : false;
 			this.onDidChangeMaximized(isMaximized);
 			this.windowService.onDidChangeMaximize(this.onDidChangeMaximized, this);
+
+			// Resizer
+			$(this.titleContainer).div({ class: 'resizer' });
 		}
 
 		// Since the title area is used to drag the window, we do not want to steal focus from the
