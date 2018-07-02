@@ -70,6 +70,7 @@ export abstract class BaseTextEditorModel extends EditorModel implements ITextEd
 	protected createTextEditorModel(value: ITextBufferFactory, resource?: URI, modeId?: string): TPromise<EditorModel> {
 		const firstLineText = this.getFirstLineText(value);
 		const mode = this.getOrCreateMode(this.modeService, modeId, firstLineText);
+
 		return TPromise.as(this.doCreateTextEditorModel(value, mode, resource));
 	}
 
@@ -138,7 +139,7 @@ export abstract class BaseTextEditorModel extends EditorModel implements ITextEd
 	}
 
 	public isReadonly(): boolean {
-		return false;
+		return true;
 	}
 
 	public dispose(): void {
