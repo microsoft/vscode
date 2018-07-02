@@ -40,6 +40,7 @@ import { isPromiseCanceledError } from 'vs/base/common/errors';
 import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
 import { CommandLineDialogService } from 'vs/platform/dialogs/node/dialogService';
 import { areSameExtensions, getGalleryExtensionIdFromLocal } from 'vs/platform/extensionManagement/common/extensionManagementUtil';
+import Severity from 'vs/base/common/severity';
 
 const notFound = (id: string) => localize('notFound', "Extension '{0}' not found.", id);
 const notInstalled = (id: string) => localize('notInstalled', "Extension '{0}' is not installed.", id);
@@ -60,7 +61,8 @@ class Main {
 	constructor(
 		@IEnvironmentService private environmentService: IEnvironmentService,
 		@IExtensionManagementService private extensionManagementService: IExtensionManagementService,
-		@IExtensionGalleryService private extensionGalleryService: IExtensionGalleryService
+		@IExtensionGalleryService private extensionGalleryService: IExtensionGalleryService,
+		@IDialogService private dialogService: IDialogService
 	) { }
 
 	run(argv: ParsedArgs): TPromise<any> {
@@ -114,8 +116,8 @@ class Main {
 		const galleryTasks: Task[] = extensions
 			.filter(e => !/\.vsix$/i.test(e))
 			.map(id => () => {
-				return this.extensionManagementService.getInstalled(LocalExtensionType.User).then(installed => {
-					return this.extensionGalleryService.query({ names: [id], source: 'cli' })
+				return this.extensionManagementService.getInstalled(LocalExtensionType.User)
+					.then(installed => this.extensionGalleryService.query({ names: [id], source: 'cli' })
 						.then<IPager<IGalleryExtension>>(null, err => {
 							if (err.responseText) {
 								try {
@@ -125,7 +127,6 @@ class Main {
 									// noop
 								}
 							}
-
 							return TPromise.wrapError(err);
 						})
 						.then(result => {
@@ -135,43 +136,48 @@ class Main {
 								return TPromise.wrapError(new Error(`${notFound(id)}\n${useId}`));
 							}
 
-							const isInstalled = installed.some(e => getId(e.manifest) === id);
-							if (isInstalled) {
-								const installedExtension = installed.filter(e => getId(e.manifest) === id)[0];
-								const installedVersion = installedExtension.manifest.version;
-								const newestVersion = extension.version;
-								const shouldUpdate = semver.gt(newestVersion, installedVersion);
+							const [installedExtension] = installed.filter(e => areSameExtensions({ id: getGalleryExtensionIdFromLocal(e) }, { id }));
+							if (installedExtension) {
+								const outdated = semver.gt(extension.version, installedExtension.manifest.version);
+								if (outdated) {
+									const updateMessage = localize('updateMessage', "Extension '{0}' v{1} is already installed, but a newer version {2} is available in the marketplace. Would you like to update?", id, installedExtension.manifest.version, extension.version);
+									return this.dialogService.show(Severity.Info, updateMessage, [localize('yes', "Yes"), localize('no', "No")])
+										.then(option => {
+											if (option === 0) {
+												return this.installFromGallery(id, extension);
+											}
+											console.log(localize('cancelInstall', "Cancelled installing Extension '{0}'.", id));
+											return TPromise.as(null);
+										});
 
-								if (shouldUpdate) {
-									console.log(localize('foundNewerVersion', "Installed version is '{0}', found newer version '{1}' in the marketplace.", installedVersion, newestVersion));
-									console.log(localize('updating', "Updating..."));
 								} else {
-									console.log(localize('alreadyUpdated', "Installed version is the latest version."));
+									console.log(localize('alreadyInstalled', "Extension '{0}' is already installed.", id));
 									return TPromise.as(null);
 								}
-							}
-
-							else {
+							} else {
 								console.log(localize('foundExtension', "Found '{0}' in the marketplace.", id));
-								console.log(localize('installing', "Installing..."));
+								return this.installFromGallery(id, extension);
 							}
 
-							return this.extensionManagementService.installFromGallery(extension)
-								.then(
-									() => console.log(localize('successInstall', "Extension '{0}' v{1} was successfully installed!", id, extension.version)),
-									error => {
-										if (isPromiseCanceledError(error)) {
-											console.log(localize('cancelVsixInstall', "Cancelled installing Extension '{0}'.", id));
-											return null;
-										} else {
-											return TPromise.wrapError(error);
-										}
-									});
-						});
-				});
+						}));
 			});
 
 		return sequence([...vsixTasks, ...galleryTasks]);
+	}
+
+	private installFromGallery(id: string, extension: IGalleryExtension): TPromise<void> {
+		console.log(localize('installing', "Installing..."));
+		return this.extensionManagementService.installFromGallery(extension)
+			.then(
+				() => console.log(localize('successInstall', "Extension '{0}' v{1} was successfully installed!", id, extension.version)),
+				error => {
+					if (isPromiseCanceledError(error)) {
+						console.log(localize('cancelVsixInstall', "Cancelled installing Extension '{0}'.", id));
+						return null;
+					} else {
+						return TPromise.wrapError(error);
+					}
+				});
 	}
 
 	private uninstallExtension(extensions: string[]): TPromise<any> {
