@@ -19,6 +19,25 @@ phases:
     inputs:
       versionSpec: "1.3.2"
 
+  - task: NuGetCommand@2
+    displayName: Install ESRPClient.exe
+    inputs:
+      restoreSolution: 'build\tfs\win32\ESRPClient\packages.config'
+      feedsToUse: config
+      nugetConfigPath: 'build\tfs\win32\ESRPClient\NuGet.config'
+      externalFeedCredentials: 3fc0b7f7-da09-4ae7-a9c8-d69824b1819b
+      restoreDirectory: packages
+
+  - task: ESRPImportCertTask@1
+    displayName: Import ESRP Request Signing Certificate
+    inputs:
+      ESRP: 'ESRP CodeSign'
+
+  - powershell: |
+      $ErrorActionPreference = "Stop"
+      .\build\tfs\win32\import-esrp-auth-cert.ps1 -AuthCertificateBase64 $(ESRP_AUTH_CERTIFICATE) -AuthCertificateKey $(ESRP_AUTH_CERTIFICATE_KEY)
+    displayName: Import ESRP Auth Certificate
+
   - powershell: |
       $ErrorActionPreference = "Stop"
       "machine monacotools.visualstudio.com password $(VSO_PAT)" | Out-File "$env:USERPROFILE\_netrc" -Encoding ASCII
@@ -124,25 +143,6 @@ phases:
   #         }
   #       ]
   #     SessionTimeout: 120
-
-  - task: NuGetCommand@2
-    displayName: Install ESRPClient.exe
-    inputs:
-      restoreSolution: 'build\tfs\win32\ESRPClient\packages.config'
-      feedsToUse: config
-      nugetConfigPath: 'build\tfs\win32\ESRPClient\NuGet.config'
-      externalFeedCredentials:
-      restoreDirectory: packages
-
-  - task: ESRPImportCertTask@1
-    displayName: Import ESRP Request Signing Certificate
-    inputs:
-      ESRP: 'ESRP CodeSign'
-
-  - powershell: |
-      $ErrorActionPreference = "Stop"
-      .\build\tfs\win32\import-esrp-auth-cert.ps1 -AuthCertificateBase64 $(ESRP_AUTH_CERTIFICATE) -AuthCertificateKey $(ESRP_AUTH_CERTIFICATE_KEY)
-    displayName: Import ESRP Auth Certificate
 
   - powershell: |
       $ErrorActionPreference = "Stop"
