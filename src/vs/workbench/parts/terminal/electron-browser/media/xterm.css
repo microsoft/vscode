@@ -166,5 +166,5 @@
 
 .xterm.xterm-cursor-crosshair {
 	/* Column selection mode */
-	cursor: crosshair;
+	cursor: crosshair !important;
 }
