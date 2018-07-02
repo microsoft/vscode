@@ -54,12 +54,12 @@ class MockMainThreadSearch implements MainThreadSearchShape {
 let mockExtfs: Partial<typeof extfs>;
 
 suite('ExtHostSearch', () => {
-	async function registerTestSearchProvider(provider: vscode.SearchProvider, scheme = 'file'): TPromise<void> {
+	async function registerTestSearchProvider(provider: vscode.SearchProvider, scheme = 'file'): Promise<void> {
 		disposables.push(extHostSearch.registerSearchProvider(scheme, provider));
 		await rpcProtocol.sync();
 	}
 
-	async function runFileSearch(query: IRawSearchQuery, cancel = false): TPromise<{ results: URI[]; stats: ISearchCompleteStats }> {
+	async function runFileSearch(query: IRawSearchQuery, cancel = false): Promise<{ results: URI[]; stats: ISearchCompleteStats }> {
 		let stats: ISearchCompleteStats;
 		try {
 			const p = extHostSearch.$provideFileSearchResults(mockMainThreadSearch.lastHandle, 0, query);
@@ -83,7 +83,7 @@ suite('ExtHostSearch', () => {
 		};
 	}
 
-	async function runTextSearch(pattern: IPatternInfo, query: IRawSearchQuery, cancel = false): TPromise<{ results: IFileMatch[], stats: ISearchCompleteStats }> {
+	async function runTextSearch(pattern: IPatternInfo, query: IRawSearchQuery, cancel = false): Promise<{ results: IFileMatch[], stats: ISearchCompleteStats }> {
 		let stats: ISearchCompleteStats;
 		try {
 			const p = extHostSearch.$provideTextSearchResults(mockMainThreadSearch.lastHandle, 0, pattern, query);
