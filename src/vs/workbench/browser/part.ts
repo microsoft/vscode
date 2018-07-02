@@ -47,7 +47,7 @@ export abstract class Part extends Component {
 	 *
 	 * Called to create title and content area of the part.
 	 */
-	public create(parent: HTMLElement): void {
+	create(parent: HTMLElement): void {
 		this.parent = parent;
 		this.titleArea = this.createTitleArea(parent);
 		this.contentArea = this.createContentArea(parent);
@@ -60,7 +60,7 @@ export abstract class Part extends Component {
 	/**
 	 * Returns the overall part container.
 	 */
-	public getContainer(): HTMLElement {
+	getContainer(): HTMLElement {
 		return this.parent;
 	}
 
@@ -95,7 +95,7 @@ export abstract class Part extends Component {
 	/**
 	 * Layout title and content area in the given dimension.
 	 */
-	public layout(dimension: Dimension): Dimension[] {
+	layout(dimension: Dimension): Dimension[] {
 		return this.partLayout.layout(dimension);
 	}
 }
@@ -106,7 +106,7 @@ export class PartLayout {
 
 	constructor(container: HTMLElement, private options: IPartOptions, titleArea: HTMLElement, private contentArea: HTMLElement) { }
 
-	public layout(dimension: Dimension): Dimension[] {
+	layout(dimension: Dimension): Dimension[] {
 		const { width, height } = dimension;
 
 		// Return the applied sizes to title and content

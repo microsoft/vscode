@@ -13,8 +13,8 @@ import { IPartService } from 'vs/workbench/services/part/common/partService';
 
 class ToggleCenteredLayout extends Action {
 
-	public static readonly ID = 'workbench.action.toggleCenteredLayout';
-	public static readonly LABEL = nls.localize('toggleCenteredLayout', "Toggle Centered Layout");
+	static readonly ID = 'workbench.action.toggleCenteredLayout';
+	static readonly LABEL = nls.localize('toggleCenteredLayout', "Toggle Centered Layout");
 
 	constructor(
 		id: string,
@@ -25,7 +25,7 @@ class ToggleCenteredLayout extends Action {
 		this.enabled = !!this.partService;
 	}
 
-	public run(): TPromise<any> {
+	run(): TPromise<any> {
 		this.partService.centerEditorLayout(!this.partService.isEditorLayoutCentered());
 
 		return TPromise.as(null);

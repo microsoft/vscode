@@ -39,7 +39,7 @@ import { IEditorGroupView } from 'vs/workbench/browser/parts/editor/editor';
  */
 export class TextFileEditor extends BaseTextEditor {
 
-	public static readonly ID = TEXT_FILE_EDITOR_ID;
+	static readonly ID = TEXT_FILE_EDITOR_ID;
 
 	constructor(
 		@ITelemetryService telemetryService: ITelemetryService,
@@ -59,7 +59,7 @@ export class TextFileEditor extends BaseTextEditor {
 		super(TextFileEditor.ID, telemetryService, instantiationService, storageService, configurationService, themeService, textFileService, editorService, editorGroupService);
 
 		// Clear view state for deleted files
-		this.toUnbind.push(this.fileService.onFileChanges(e => this.onFilesChanged(e)));
+		this._register(this.fileService.onFileChanges(e => this.onFilesChanged(e)));
 	}
 
 	private onFilesChanged(e: FileChangesEvent): void {
@@ -69,11 +69,11 @@ export class TextFileEditor extends BaseTextEditor {
 		}
 	}
 
-	public getTitle(): string {
+	getTitle(): string {
 		return this.input ? this.input.getName() : nls.localize('textFileEditor', "Text File Editor");
 	}
 
-	public get input(): FileEditorInput {
+	get input(): FileEditorInput {
 		return this._input as FileEditorInput;
 	}
 
@@ -83,21 +83,21 @@ export class TextFileEditor extends BaseTextEditor {
 		// React to editors closing to preserve view state. This needs to happen
 		// in the onWillCloseEditor because at that time the editor has not yet
 		// been disposed and we can safely persist the view state still.
-		this.toUnbind.push((group as IEditorGroupView).onWillCloseEditor(e => {
+		this._register((group as IEditorGroupView).onWillCloseEditor(e => {
 			if (e.editor === this.input) {
 				this.doSaveTextEditorViewState(this.input);
 			}
 		}));
 	}
 
-	public setOptions(options: EditorOptions): void {
+	setOptions(options: EditorOptions): void {
 		const textOptions = <TextEditorOptions>options;
 		if (textOptions && types.isFunction(textOptions.apply)) {
 			textOptions.apply(this.getControl(), ScrollType.Smooth);
 		}
 	}
 
-	public setInput(input: FileEditorInput, options: EditorOptions, token: CancellationToken): Thenable<void> {
+	setInput(input: FileEditorInput, options: EditorOptions, token: CancellationToken): Thenable<void> {
 
 		// Remember view settings if input changes
 		this.doSaveTextEditorViewState(this.input);
@@ -243,7 +243,7 @@ export class TextFileEditor extends BaseTextEditor {
 		return ariaLabel;
 	}
 
-	public clearInput(): void {
+	clearInput(): void {
 
 		// Keep editor view state in settings to restore when coming back
 		this.doSaveTextEditorViewState(this.input);
@@ -255,7 +255,7 @@ export class TextFileEditor extends BaseTextEditor {
 		super.clearInput();
 	}
 
-	public shutdown(): void {
+	shutdown(): void {
 
 		// Save View State
 		this.doSaveTextEditorViewState(this.input);

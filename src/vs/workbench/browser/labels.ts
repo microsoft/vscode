@@ -15,7 +15,6 @@ import { getPathLabel, IWorkspaceFolderProvider } from 'vs/base/common/labels';
 import { PLAINTEXT_MODE_ID } from 'vs/editor/common/modes/modesRegistry';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { IModelService } from 'vs/editor/common/services/modelService';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { IUntitledEditorService } from 'vs/workbench/services/untitled/common/untitledEditorService';
@@ -40,15 +39,14 @@ export interface IResourceLabelOptions extends IIconLabelValueOptions {
 
 export class ResourceLabel extends IconLabel {
 
-	private toDispose: IDisposable[];
+	private _onDidRender = this._register(new Emitter<void>());
+	get onDidRender(): Event<void> { return this._onDidRender.event; }
+
 	private label: IResourceLabel;
 	private options: IResourceLabelOptions;
 	private computedIconClasses: string[];
 	private lastKnownConfiguredLangId: string;
 	private computedPathLabel: string;
-
-	private _onDidRender = new Emitter<void>();
-	readonly onDidRender: Event<void> = this._onDidRender.event;
 
 	constructor(
 		container: HTMLElement,
@@ -64,27 +62,25 @@ export class ResourceLabel extends IconLabel {
 	) {
 		super(container, options);
 
-		this.toDispose = [];
-
 		this.registerListeners();
 	}
 
 	private registerListeners(): void {
 
 		// update when extensions are registered with potentially new languages
-		this.toDispose.push(this.extensionService.onDidRegisterExtensions(() => this.render(true /* clear cache */)));
+		this._register(this.extensionService.onDidRegisterExtensions(() => this.render(true /* clear cache */)));
 
 		// react to model mode changes
-		this.toDispose.push(this.modelService.onModelModeChanged(e => this.onModelModeChanged(e)));
+		this._register(this.modelService.onModelModeChanged(e => this.onModelModeChanged(e)));
 
 		// react to file decoration changes
-		this.toDispose.push(this.decorationsService.onDidChangeDecorations(this.onFileDecorationsChanges, this));
+		this._register(this.decorationsService.onDidChangeDecorations(this.onFileDecorationsChanges, this));
 
 		// react to theme changes
-		this.toDispose.push(this.themeService.onThemeChange(() => this.render(false)));
+		this._register(this.themeService.onThemeChange(() => this.render(false)));
 
 		// react to files.associations changes
-		this.toDispose.push(this.configurationService.onDidChangeConfiguration(e => {
+		this._register(this.configurationService.onDidChangeConfiguration(e => {
 			if (e.affectsConfiguration(FILES_ASSOCIATIONS_CONFIG)) {
 				this.render(true /* clear cache */);
 			}
@@ -121,7 +117,7 @@ export class ResourceLabel extends IconLabel {
 		}
 	}
 
-	public setLabel(label: IResourceLabel, options?: IResourceLabelOptions): void {
+	setLabel(label: IResourceLabel, options?: IResourceLabelOptions): void {
 		const hasResourceChanged = this.hasResourceChanged(label, options);
 
 		this.label = label;
@@ -156,7 +152,7 @@ export class ResourceLabel extends IconLabel {
 		return true;
 	}
 
-	public clear(): void {
+	clear(): void {
 		this.label = void 0;
 		this.options = void 0;
 		this.lastKnownConfiguredLangId = void 0;
@@ -239,10 +235,9 @@ export class ResourceLabel extends IconLabel {
 		this._onDidRender.fire();
 	}
 
-	public dispose(): void {
+	dispose(): void {
 		super.dispose();
 
-		this.toDispose = dispose(this.toDispose);
 		this.label = void 0;
 		this.options = void 0;
 		this.lastKnownConfiguredLangId = void 0;
@@ -253,7 +248,7 @@ export class ResourceLabel extends IconLabel {
 
 export class EditorLabel extends ResourceLabel {
 
-	public setEditor(editor: IEditorInput, options?: IResourceLabelOptions): void {
+	setEditor(editor: IEditorInput, options?: IResourceLabelOptions): void {
 		this.setLabel({
 			resource: toResource(editor, { supportSideBySide: true }),
 			name: editor.getName(),
@@ -286,7 +281,7 @@ export class FileLabel extends ResourceLabel {
 		super(container, options, extensionService, contextService, configurationService, modeService, modelService, environmentService, decorationsService, themeService);
 	}
 
-	public setFile(resource: uri, options?: IFileLabelOptions): void {
+	setFile(resource: uri, options?: IFileLabelOptions): void {
 		const hideLabel = options && options.hideLabel;
 		let name: string;
 		if (!hideLabel) {

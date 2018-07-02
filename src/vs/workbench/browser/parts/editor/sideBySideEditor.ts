@@ -44,9 +44,9 @@ export class SideBySideEditor extends BaseEditor {
 	get maximumHeight() { return this.maximumMasterHeight + this.maximumDetailsHeight; }
 
 	protected masterEditor: BaseEditor;
-	private masterEditorContainer: HTMLElement;
-
 	protected detailsEditor: BaseEditor;
+
+	private masterEditorContainer: HTMLElement;
 	private detailsEditorContainer: HTMLElement;
 
 	private splitview: SplitView;
@@ -54,7 +54,7 @@ export class SideBySideEditor extends BaseEditor {
 
 	private onDidCreateEditors = this._register(new Emitter<{ width: number; height: number; }>());
 	private _onDidSizeConstraintsChange = this._register(new Relay<{ width: number; height: number; }>());
-	readonly onDidSizeConstraintsChange: Event<{ width: number; height: number; }> = anyEvent(this.onDidCreateEditors.event, this._onDidSizeConstraintsChange.event);
+	get onDidSizeConstraintsChange(): Event<{ width: number; height: number; }> { return anyEvent(this.onDidCreateEditors.event, this._onDidSizeConstraintsChange.event); }
 
 	constructor(
 		@ITelemetryService telemetryService: ITelemetryService,
@@ -67,8 +67,7 @@ export class SideBySideEditor extends BaseEditor {
 	protected createEditor(parent: HTMLElement): void {
 		DOM.addClass(parent, 'side-by-side-editor');
 
-		this.splitview = new SplitView(parent, { orientation: Orientation.HORIZONTAL });
-		this._register(this.splitview);
+		this.splitview = this._register(new SplitView(parent, { orientation: Orientation.HORIZONTAL }));
 		this._register(this.splitview.onDidSashReset(() => this.splitview.distributeViewSizes()));
 
 		this.detailsEditorContainer = DOM.$('.details-editor-container');
@@ -158,9 +157,9 @@ export class SideBySideEditor extends BaseEditor {
 			}
 
 			return this.setNewInput(newInput, options, token);
-		} else {
-			return TPromise.join([this.detailsEditor.setInput(newInput.details, null, token), this.masterEditor.setInput(newInput.master, options, token)]).then(() => void 0);
 		}
+
+		return TPromise.join([this.detailsEditor.setInput(newInput.details, null, token), this.masterEditor.setInput(newInput.master, options, token)]).then(() => void 0);
 	}
 
 	private setNewInput(newInput: SideBySideEditorInput, options: EditorOptions, token: CancellationToken): Thenable<void> {

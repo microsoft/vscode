@@ -36,19 +36,19 @@ export class ViewEntry extends QuickOpenEntryGroup {
 		super();
 	}
 
-	public getLabel(): string {
+	getLabel(): string {
 		return this.label;
 	}
 
-	public getCategory(): string {
+	getCategory(): string {
 		return this.category;
 	}
 
-	public getAriaLabel(): string {
+	getAriaLabel(): string {
 		return nls.localize('entryAriaLabel', "{0}, view picker", this.getLabel());
 	}
 
-	public run(mode: Mode, context: IEntryRunContext): boolean {
+	run(mode: Mode, context: IEntryRunContext): boolean {
 		if (mode === Mode.OPEN) {
 			return this.runOpen(context);
 		}
@@ -67,7 +67,7 @@ export class ViewEntry extends QuickOpenEntryGroup {
 
 export class ViewPickerHandler extends QuickOpenHandler {
 
-	public static readonly ID = 'workbench.picker.views';
+	static readonly ID = 'workbench.picker.views';
 
 	constructor(
 		@IViewletService private viewletService: IViewletService,
@@ -80,7 +80,7 @@ export class ViewPickerHandler extends QuickOpenHandler {
 		super();
 	}
 
-	public getResults(searchValue: string): TPromise<QuickOpenModel> {
+	getResults(searchValue: string): TPromise<QuickOpenModel> {
 		searchValue = searchValue.trim();
 		const normalizedSearchValueLowercase = stripWildcards(searchValue).toLowerCase();
 
@@ -179,7 +179,7 @@ export class ViewPickerHandler extends QuickOpenHandler {
 		return viewEntries;
 	}
 
-	public getAutoFocus(searchValue: string, context: { model: IModel<QuickOpenEntry>, quickNavigateConfiguration?: IQuickNavigateConfiguration }): IAutoFocus {
+	getAutoFocus(searchValue: string, context: { model: IModel<QuickOpenEntry>, quickNavigateConfiguration?: IQuickNavigateConfiguration }): IAutoFocus {
 		return {
 			autoFocusFirstEntry: !!searchValue || !!context.quickNavigateConfiguration
 		};
@@ -188,8 +188,8 @@ export class ViewPickerHandler extends QuickOpenHandler {
 
 export class OpenViewPickerAction extends QuickOpenAction {
 
-	public static readonly ID = 'workbench.action.openView';
-	public static readonly LABEL = nls.localize('openView', "Open View");
+	static readonly ID = 'workbench.action.openView';
+	static readonly LABEL = nls.localize('openView', "Open View");
 
 	constructor(
 		id: string,
@@ -202,8 +202,8 @@ export class OpenViewPickerAction extends QuickOpenAction {
 
 export class QuickOpenViewPickerAction extends Action {
 
-	public static readonly ID = 'workbench.action.quickOpenView';
-	public static readonly LABEL = nls.localize('quickOpenView', "Quick Open View");
+	static readonly ID = 'workbench.action.quickOpenView';
+	static readonly LABEL = nls.localize('quickOpenView', "Quick Open View");
 
 	constructor(
 		id: string,
@@ -214,7 +214,7 @@ export class QuickOpenViewPickerAction extends Action {
 		super(id, label);
 	}
 
-	public run(): TPromise<boolean> {
+	run(): TPromise<boolean> {
 		const keys = this.keybindingService.lookupKeybindings(this.id);
 
 		this.quickOpenService.show(VIEW_PICKER_PREFIX, { quickNavigateConfiguration: { keybindings: keys } });

@@ -153,7 +153,7 @@ export class WindowsManager implements IWindowsMainService {
 		this.workspacesManager = new WorkspacesManager(workspacesMainService, backupMainService, environmentService, this);
 	}
 
-	public ready(initialUserEnv: IProcessEnvironment): void {
+	ready(initialUserEnv: IProcessEnvironment): void {
 		this.initialUserEnv = initialUserEnv;
 
 		this.registerListeners();
@@ -323,7 +323,7 @@ export class WindowsManager implements IWindowsMainService {
 		};
 	}
 
-	public open(openConfig: IOpenConfiguration): ICodeWindow[] {
+	open(openConfig: IOpenConfiguration): ICodeWindow[] {
 		openConfig = this.validateOpenConfig(openConfig);
 
 		let pathsToOpen = this.getPathsToOpen(openConfig);
@@ -1010,7 +1010,7 @@ export class WindowsManager implements IWindowsMainService {
 		return { openFolderInNewWindow, openFilesInNewWindow };
 	}
 
-	public openExtensionDevelopmentHostWindow(openConfig: IOpenConfiguration): void {
+	openExtensionDevelopmentHostWindow(openConfig: IOpenConfiguration): void {
 
 		// Reload an existing extension development host window on the same path
 		// We currently do not allow more than one extension development window
@@ -1286,7 +1286,7 @@ export class WindowsManager implements IWindowsMainService {
 		return state;
 	}
 
-	public reload(win: ICodeWindow, cli?: ParsedArgs): void {
+	reload(win: ICodeWindow, cli?: ParsedArgs): void {
 
 		// Only reload when the window has not vetoed this
 		this.lifecycleService.unload(win, UnloadReason.RELOAD).done(veto => {
@@ -1299,18 +1299,18 @@ export class WindowsManager implements IWindowsMainService {
 		});
 	}
 
-	public closeWorkspace(win: ICodeWindow): void {
+	closeWorkspace(win: ICodeWindow): void {
 		this.openInBrowserWindow({
 			cli: this.environmentService.args,
 			windowToUse: win
 		});
 	}
 
-	public saveAndEnterWorkspace(win: ICodeWindow, path: string): TPromise<IEnterWorkspaceResult> {
+	saveAndEnterWorkspace(win: ICodeWindow, path: string): TPromise<IEnterWorkspaceResult> {
 		return this.workspacesManager.saveAndEnterWorkspace(win, path).then(result => this.doEnterWorkspace(win, result));
 	}
 
-	public createAndEnterWorkspace(win: ICodeWindow, folders?: IWorkspaceFolderCreationData[], path?: string): TPromise<IEnterWorkspaceResult> {
+	createAndEnterWorkspace(win: ICodeWindow, folders?: IWorkspaceFolderCreationData[], path?: string): TPromise<IEnterWorkspaceResult> {
 		return this.workspacesManager.createAndEnterWorkspace(win, folders, path).then(result => this.doEnterWorkspace(win, result));
 	}
 
@@ -1325,7 +1325,7 @@ export class WindowsManager implements IWindowsMainService {
 		return result;
 	}
 
-	public pickWorkspaceAndOpen(options: INativeOpenDialogOptions): void {
+	pickWorkspaceAndOpen(options: INativeOpenDialogOptions): void {
 		this.workspacesManager.pickWorkspaceAndOpen(options);
 	}
 
@@ -1366,7 +1366,7 @@ export class WindowsManager implements IWindowsMainService {
 		}));
 	}
 
-	public focusLastActive(cli: ParsedArgs, context: OpenContext): ICodeWindow {
+	focusLastActive(cli: ParsedArgs, context: OpenContext): ICodeWindow {
 		const lastActive = this.getLastActiveWindow();
 		if (lastActive) {
 			lastActive.focus();
@@ -1378,15 +1378,15 @@ export class WindowsManager implements IWindowsMainService {
 		return this.open({ context, cli, forceEmpty: true })[0];
 	}
 
-	public getLastActiveWindow(): ICodeWindow {
+	getLastActiveWindow(): ICodeWindow {
 		return getLastActiveWindow(WindowsManager.WINDOWS);
 	}
 
-	public openNewWindow(context: OpenContext): ICodeWindow[] {
+	openNewWindow(context: OpenContext): ICodeWindow[] {
 		return this.open({ context, cli: this.environmentService.args, forceNewWindow: true, forceEmpty: true });
 	}
 
-	public waitForWindowCloseOrLoad(windowId: number): TPromise<void> {
+	waitForWindowCloseOrLoad(windowId: number): TPromise<void> {
 		return new TPromise<void>(c => {
 			function handler(id: number) {
 				if (id === windowId) {
@@ -1402,7 +1402,7 @@ export class WindowsManager implements IWindowsMainService {
 		});
 	}
 
-	public sendToFocused(channel: string, ...args: any[]): void {
+	sendToFocused(channel: string, ...args: any[]): void {
 		const focusedWindow = this.getFocusedWindow() || this.getLastActiveWindow();
 
 		if (focusedWindow) {
@@ -1410,7 +1410,7 @@ export class WindowsManager implements IWindowsMainService {
 		}
 	}
 
-	public sendToAll(channel: string, payload?: any, windowIdsToIgnore?: number[]): void {
+	sendToAll(channel: string, payload?: any, windowIdsToIgnore?: number[]): void {
 		WindowsManager.WINDOWS.forEach(w => {
 			if (windowIdsToIgnore && windowIdsToIgnore.indexOf(w.id) >= 0) {
 				return; // do not send if we are instructed to ignore it
@@ -1420,7 +1420,7 @@ export class WindowsManager implements IWindowsMainService {
 		});
 	}
 
-	public getFocusedWindow(): ICodeWindow {
+	getFocusedWindow(): ICodeWindow {
 		const win = BrowserWindow.getFocusedWindow();
 		if (win) {
 			return this.getWindowById(win.id);
@@ -1429,7 +1429,7 @@ export class WindowsManager implements IWindowsMainService {
 		return null;
 	}
 
-	public getWindowById(windowId: number): ICodeWindow {
+	getWindowById(windowId: number): ICodeWindow {
 		const res = WindowsManager.WINDOWS.filter(w => w.id === windowId);
 		if (res && res.length === 1) {
 			return res[0];
@@ -1438,11 +1438,11 @@ export class WindowsManager implements IWindowsMainService {
 		return null;
 	}
 
-	public getWindows(): ICodeWindow[] {
+	getWindows(): ICodeWindow[] {
 		return WindowsManager.WINDOWS;
 	}
 
-	public getWindowCount(): number {
+	getWindowCount(): number {
 		return WindowsManager.WINDOWS.length;
 	}
 
@@ -1510,15 +1510,15 @@ export class WindowsManager implements IWindowsMainService {
 		this._onWindowClose.fire(win.id);
 	}
 
-	public pickFileFolderAndOpen(options: INativeOpenDialogOptions): void {
+	pickFileFolderAndOpen(options: INativeOpenDialogOptions): void {
 		this.doPickAndOpen(options, true /* pick folders */, true /* pick files */);
 	}
 
-	public pickFolderAndOpen(options: INativeOpenDialogOptions): void {
+	pickFolderAndOpen(options: INativeOpenDialogOptions): void {
 		this.doPickAndOpen(options, true /* pick folders */, false /* pick files */);
 	}
 
-	public pickFileAndOpen(options: INativeOpenDialogOptions): void {
+	pickFileAndOpen(options: INativeOpenDialogOptions): void {
 		this.doPickAndOpen(options, false /* pick folders */, true /* pick files */);
 	}
 
@@ -1556,19 +1556,19 @@ export class WindowsManager implements IWindowsMainService {
 		this.dialogs.pickAndOpen(internalOptions);
 	}
 
-	public showMessageBox(options: Electron.MessageBoxOptions, win?: ICodeWindow): TPromise<IMessageBoxResult> {
+	showMessageBox(options: Electron.MessageBoxOptions, win?: ICodeWindow): TPromise<IMessageBoxResult> {
 		return this.dialogs.showMessageBox(options, win);
 	}
 
-	public showSaveDialog(options: Electron.SaveDialogOptions, win?: ICodeWindow): TPromise<string> {
+	showSaveDialog(options: Electron.SaveDialogOptions, win?: ICodeWindow): TPromise<string> {
 		return this.dialogs.showSaveDialog(options, win);
 	}
 
-	public showOpenDialog(options: Electron.OpenDialogOptions, win?: ICodeWindow): TPromise<string[]> {
+	showOpenDialog(options: Electron.OpenDialogOptions, win?: ICodeWindow): TPromise<string[]> {
 		return this.dialogs.showOpenDialog(options, win);
 	}
 
-	public quit(): void {
+	quit(): void {
 
 		// If the user selected to exit from an extension development host window, do not quit, but just
 		// close the window unless this is the last window that is opened.
@@ -1608,7 +1608,7 @@ class Dialogs {
 		this.noWindowDialogQueue = new Queue<any>();
 	}
 
-	public pickAndOpen(options: INativeOpenDialogOptions): void {
+	pickAndOpen(options: INativeOpenDialogOptions): void {
 		this.getFileOrFolderPaths(options).then(paths => {
 			const numberOfPaths = paths ? paths.length : 0;
 
@@ -1694,7 +1694,7 @@ class Dialogs {
 		return windowDialogQueue;
 	}
 
-	public showMessageBox(options: Electron.MessageBoxOptions, window?: ICodeWindow): TPromise<IMessageBoxResult> {
+	showMessageBox(options: Electron.MessageBoxOptions, window?: ICodeWindow): TPromise<IMessageBoxResult> {
 		return this.getDialogQueue(window).queue(() => {
 			return new TPromise((c, e) => {
 				dialog.showMessageBox(window ? window.win : void 0, options, (response: number, checkboxChecked: boolean) => {
@@ -1704,7 +1704,7 @@ class Dialogs {
 		});
 	}
 
-	public showSaveDialog(options: Electron.SaveDialogOptions, window?: ICodeWindow): TPromise<string> {
+	showSaveDialog(options: Electron.SaveDialogOptions, window?: ICodeWindow): TPromise<string> {
 
 		function normalizePath(path: string): string {
 			if (path && isMacintosh) {
@@ -1723,7 +1723,7 @@ class Dialogs {
 		});
 	}
 
-	public showOpenDialog(options: Electron.OpenDialogOptions, window?: ICodeWindow): TPromise<string[]> {
+	showOpenDialog(options: Electron.OpenDialogOptions, window?: ICodeWindow): TPromise<string[]> {
 
 		function normalizePaths(paths: string[]): string[] {
 			if (paths && paths.length > 0 && isMacintosh) {
@@ -1767,7 +1767,7 @@ class WorkspacesManager {
 	) {
 	}
 
-	public saveAndEnterWorkspace(window: ICodeWindow, path: string): TPromise<IEnterWorkspaceResult> {
+	saveAndEnterWorkspace(window: ICodeWindow, path: string): TPromise<IEnterWorkspaceResult> {
 		if (!window || !window.win || window.readyState !== ReadyState.READY || !window.openedWorkspace || !path || !this.isValidTargetWorkspacePath(window, path)) {
 			return TPromise.as(null); // return early if the window is not ready or disposed or does not have a workspace
 		}
@@ -1775,7 +1775,7 @@ class WorkspacesManager {
 		return this.doSaveAndOpenWorkspace(window, window.openedWorkspace, path);
 	}
 
-	public createAndEnterWorkspace(window: ICodeWindow, folders?: IWorkspaceFolderCreationData[], path?: string): TPromise<IEnterWorkspaceResult> {
+	createAndEnterWorkspace(window: ICodeWindow, folders?: IWorkspaceFolderCreationData[], path?: string): TPromise<IEnterWorkspaceResult> {
 		if (!window || !window.win || window.readyState !== ReadyState.READY) {
 			return TPromise.as(null); // return early if the window is not ready or disposed
 		}
@@ -1844,7 +1844,7 @@ class WorkspacesManager {
 		});
 	}
 
-	public pickWorkspaceAndOpen(options: INativeOpenDialogOptions): void {
+	pickWorkspaceAndOpen(options: INativeOpenDialogOptions): void {
 		const window = this.windowsMainService.getWindowById(options.windowId) || this.windowsMainService.getFocusedWindow() || this.windowsMainService.getLastActiveWindow();
 
 		this.windowsMainService.pickFileAndOpen({
@@ -1862,7 +1862,7 @@ class WorkspacesManager {
 		});
 	}
 
-	public promptToSaveUntitledWorkspace(window: ICodeWindow, workspace: IWorkspaceIdentifier): TPromise<boolean> {
+	promptToSaveUntitledWorkspace(window: ICodeWindow, workspace: IWorkspaceIdentifier): TPromise<boolean> {
 		enum ConfirmResult {
 			SAVE,
 			DONT_SAVE,

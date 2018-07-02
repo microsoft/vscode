@@ -30,7 +30,7 @@ import { IBadge } from 'vs/workbench/services/activity/common/activity';
 import { INotificationService } from 'vs/platform/notification/common/notification';
 import { Dimension } from 'vs/base/browser/dom';
 import { localize } from 'vs/nls';
-import { dispose, IDisposable } from 'vs/base/common/lifecycle';
+import { IDisposable } from 'vs/base/common/lifecycle';
 import { RawContextKey, IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 
 const ActivePanleContextId = 'activePanel';
@@ -38,18 +38,18 @@ export const ActivePanelContext = new RawContextKey<string>(ActivePanleContextId
 
 export class PanelPart extends CompositePart<Panel> implements IPanelService {
 
-	public static readonly activePanelSettingsKey = 'workbench.panelpart.activepanelid';
+	static readonly activePanelSettingsKey = 'workbench.panelpart.activepanelid';
+
 	private static readonly PINNED_PANELS = 'workbench.panel.pinnedPanels';
 	private static readonly MIN_COMPOSITE_BAR_WIDTH = 50;
 
-	public _serviceBrand: any;
+	_serviceBrand: any;
 
 	private activePanelContextKey: IContextKey<string>;
 	private blockOpeningPanel: boolean;
 	private compositeBar: CompositeBar;
-	private compositeActions: { [compositeId: string]: { activityAction: PanelActivityAction, pinnedAction: ToggleCompositePinnedAction } };
+	private compositeActions: { [compositeId: string]: { activityAction: PanelActivityAction, pinnedAction: ToggleCompositePinnedAction } } = Object.create(null);
 	private dimension: Dimension;
-	private disposables: IDisposable[] = [];
 
 	constructor(
 		id: string,
@@ -82,8 +82,7 @@ export class PanelPart extends CompositePart<Panel> implements IPanelService {
 			{ hasTitle: true }
 		);
 
-		this.compositeActions = Object.create(null);
-		this.compositeBar = this.instantiationService.createInstance(CompositeBar, {
+		this.compositeBar = this._register(this.instantiationService.createInstance(CompositeBar, {
 			icon: false,
 			storageId: PanelPart.PINNED_PANELS,
 			orientation: ActionsOrientation.HORIZONTAL,
@@ -102,31 +101,31 @@ export class PanelPart extends CompositePart<Panel> implements IPanelService {
 				badgeForeground,
 				dragAndDropBackground: PANEL_DRAG_AND_DROP_BACKGROUND
 			}
-		});
-		this.toUnbind.push(this.compositeBar);
+		}));
+
 		for (const panel of this.getPanels()) {
 			this.compositeBar.addComposite(panel);
 		}
+
 		this.activePanelContextKey = ActivePanelContext.bindTo(contextKeyService);
-		this.onDidPanelOpen(this._onDidPanelOpen, this, this.disposables);
-		this.onDidPanelClose(this._onDidPanelClose, this, this.disposables);
 
 		this.registerListeners();
 	}
 
 	private registerListeners(): void {
+		this._register(this.onDidPanelOpen(this._onDidPanelOpen, this));
+		this._register(this.onDidPanelClose(this._onDidPanelClose, this));
 
-		this.toUnbind.push(this.registry.onDidRegister(panelDescriptor => this.compositeBar.addComposite(panelDescriptor)));
+		this._register(this.registry.onDidRegister(panelDescriptor => this.compositeBar.addComposite(panelDescriptor)));
 
 		// Activate panel action on opening of a panel
-		this.toUnbind.push(this.onDidPanelOpen(panel => {
+		this._register(this.onDidPanelOpen(panel => {
 			this.compositeBar.activateComposite(panel.getId());
-			// Need to relayout composite bar since different panels have different action bar width
-			this.layoutCompositeBar();
+			this.layoutCompositeBar(); // Need to relayout composite bar since different panels have different action bar width
 		}));
 
 		// Deactivate panel action on close
-		this.toUnbind.push(this.onDidPanelClose(panel => this.compositeBar.deactivateComposite(panel.getId())));
+		this._register(this.onDidPanelClose(panel => this.compositeBar.deactivateComposite(panel.getId())));
 	}
 
 	private _onDidPanelOpen(panel: IPanel): void {
@@ -141,15 +140,15 @@ export class PanelPart extends CompositePart<Panel> implements IPanelService {
 		}
 	}
 
-	public get onDidPanelOpen(): Event<IPanel> {
+	get onDidPanelOpen(): Event<IPanel> {
 		return this._onDidCompositeOpen.event;
 	}
 
-	public get onDidPanelClose(): Event<IPanel> {
+	get onDidPanelClose(): Event<IPanel> {
 		return this._onDidCompositeClose.event;
 	}
 
-	public updateStyles(): void {
+	updateStyles(): void {
 		super.updateStyles();
 
 		const container = $(this.getContainer());
@@ -160,7 +159,7 @@ export class PanelPart extends CompositePart<Panel> implements IPanelService {
 		title.style('border-top-color', this.getColor(PANEL_BORDER) || this.getColor(contrastBorder));
 	}
 
-	public openPanel(id: string, focus?: boolean): TPromise<Panel> {
+	openPanel(id: string, focus?: boolean): TPromise<Panel> {
 		if (this.blockOpeningPanel) {
 			return TPromise.as(null); // Workaround against a potential race condition
 		}
@@ -179,7 +178,7 @@ export class PanelPart extends CompositePart<Panel> implements IPanelService {
 		return promise.then(() => this.openComposite(id, focus));
 	}
 
-	public showActivity(panelId: string, badge: IBadge, clazz?: string): IDisposable {
+	showActivity(panelId: string, badge: IBadge, clazz?: string): IDisposable {
 		return this.compositeBar.showActivity(panelId, badge, clazz);
 	}
 
@@ -187,13 +186,13 @@ export class PanelPart extends CompositePart<Panel> implements IPanelService {
 		return this.getPanels().filter(p => p.id === panelId).pop();
 	}
 
-	public getPanels(): PanelDescriptor[] {
+	getPanels(): PanelDescriptor[] {
 		return Registry.as<PanelRegistry>(PanelExtensions.Panels).getPanels()
 			.filter(p => p.enabled)
 			.sort((v1, v2) => v1.order - v2.order);
 	}
 
-	public setPanelEnablement(id: string, enabled: boolean): void {
+	setPanelEnablement(id: string, enabled: boolean): void {
 		const descriptor = Registry.as<PanelRegistry>(PanelExtensions.Panels).getPanels().filter(p => p.id === id).pop();
 		if (descriptor && descriptor.enabled !== enabled) {
 			descriptor.enabled = enabled;
@@ -213,15 +212,15 @@ export class PanelPart extends CompositePart<Panel> implements IPanelService {
 		];
 	}
 
-	public getActivePanel(): IPanel {
+	getActivePanel(): IPanel {
 		return this.getActiveComposite();
 	}
 
-	public getLastActivePanelId(): string {
+	getLastActivePanelId(): string {
 		return this.getLastActiveCompositetId();
 	}
 
-	public hideActivePanel(): TPromise<void> {
+	hideActivePanel(): TPromise<void> {
 		return this.hideActiveComposite().then(composite => void 0);
 	}
 
@@ -242,7 +241,7 @@ export class PanelPart extends CompositePart<Panel> implements IPanelService {
 		};
 	}
 
-	public layout(dimension: Dimension): Dimension[] {
+	layout(dimension: Dimension): Dimension[] {
 		if (!this.partService.isVisible(Parts.PANEL_PART)) {
 			return [dimension];
 		}
@@ -298,11 +297,6 @@ export class PanelPart extends CompositePart<Panel> implements IPanelService {
 			return 0;
 		}
 		return this.toolBar.getItemsWidth();
-	}
-
-	dispose(): void {
-		super.dispose();
-		this.disposables = dispose(this.disposables);
 	}
 }
 

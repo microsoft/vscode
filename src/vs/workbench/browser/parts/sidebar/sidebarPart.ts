@@ -32,9 +32,7 @@ import { StandardMouseEvent } from 'vs/base/browser/mouseEvent';
 
 export class SidebarPart extends CompositePart<Viewlet> {
 
-	public static readonly activeViewletSettingsKey = 'workbench.sidebar.activeviewletid';
-
-	public _serviceBrand: any;
+	static readonly activeViewletSettingsKey = 'workbench.sidebar.activeviewletid';
 
 	private blockOpeningViewlet: boolean;
 
@@ -69,22 +67,22 @@ export class SidebarPart extends CompositePart<Viewlet> {
 		);
 	}
 
-	public get onDidViewletOpen(): Event<IViewlet> {
+	get onDidViewletOpen(): Event<IViewlet> {
 		return this._onDidCompositeOpen.event as Event<IViewlet>;
 	}
 
-	public get onDidViewletClose(): Event<IViewlet> {
+	get onDidViewletClose(): Event<IViewlet> {
 		return this._onDidCompositeClose.event as Event<IViewlet>;
 	}
 
-	public createTitleArea(parent: HTMLElement): HTMLElement {
+	createTitleArea(parent: HTMLElement): HTMLElement {
 		const titleArea = super.createTitleArea(parent);
-		$(titleArea).on(EventType.CONTEXT_MENU, (e: MouseEvent) => this.onTitleAreaContextMenu(new StandardMouseEvent(e)));
+		$(titleArea).on(EventType.CONTEXT_MENU, (e: MouseEvent) => this.onTitleAreaContextMenu(new StandardMouseEvent(e)), this.toDispose);
 
 		return titleArea;
 	}
 
-	public updateStyles(): void {
+	updateStyles(): void {
 		super.updateStyles();
 
 		// Part container
@@ -103,7 +101,7 @@ export class SidebarPart extends CompositePart<Viewlet> {
 		container.style('border-left-color', !isPositionLeft ? borderColor : null);
 	}
 
-	public openViewlet(id: string, focus?: boolean): TPromise<Viewlet> {
+	openViewlet(id: string, focus?: boolean): TPromise<Viewlet> {
 		if (this.blockOpeningViewlet) {
 			return TPromise.as(null); // Workaround against a potential race condition
 		}
@@ -122,19 +120,19 @@ export class SidebarPart extends CompositePart<Viewlet> {
 		return promise.then(() => this.openComposite(id, focus)) as TPromise<Viewlet>;
 	}
 
-	public getActiveViewlet(): IViewlet {
+	getActiveViewlet(): IViewlet {
 		return <IViewlet>this.getActiveComposite();
 	}
 
-	public getLastActiveViewletId(): string {
+	getLastActiveViewletId(): string {
 		return this.getLastActiveCompositetId();
 	}
 
-	public hideActiveViewlet(): TPromise<void> {
+	hideActiveViewlet(): TPromise<void> {
 		return this.hideActiveComposite().then(composite => void 0);
 	}
 
-	public layout(dimension: Dimension): Dimension[] {
+	layout(dimension: Dimension): Dimension[] {
 		if (!this.partService.isVisible(Parts.SIDEBAR_PART)) {
 			return [dimension];
 		}
@@ -162,8 +160,8 @@ export class SidebarPart extends CompositePart<Viewlet> {
 
 class FocusSideBarAction extends Action {
 
-	public static readonly ID = 'workbench.action.focusSideBar';
-	public static readonly LABEL = nls.localize('focusSideBar', "Focus into Side Bar");
+	static readonly ID = 'workbench.action.focusSideBar';
+	static readonly LABEL = nls.localize('focusSideBar', "Focus into Side Bar");
 
 	constructor(
 		id: string,
@@ -174,7 +172,7 @@ class FocusSideBarAction extends Action {
 		super(id, label);
 	}
 
-	public run(): TPromise<any> {
+	run(): TPromise<any> {
 
 		// Show side bar
 		if (!this.partService.isVisible(Parts.SIDEBAR_PART)) {

@@ -57,7 +57,7 @@ export class HistoryMainService implements IHistoryMainService {
 		this.addRecentlyOpened([e.workspace], []);
 	}
 
-	public addRecentlyOpened(workspaces: (IWorkspaceIdentifier | ISingleFolderWorkspaceIdentifier)[], files: string[]): void {
+	addRecentlyOpened(workspaces: (IWorkspaceIdentifier | ISingleFolderWorkspaceIdentifier)[], files: string[]): void {
 		if ((workspaces && workspaces.length > 0) || (files && files.length > 0)) {
 			const mru = this.getRecentlyOpened();
 
@@ -100,7 +100,7 @@ export class HistoryMainService implements IHistoryMainService {
 		}
 	}
 
-	public removeFromRecentlyOpened(pathsToRemove: string[]): void {
+	removeFromRecentlyOpened(pathsToRemove: string[]): void {
 		const mru = this.getRecentlyOpened();
 		let update = false;
 
@@ -162,7 +162,7 @@ export class HistoryMainService implements IHistoryMainService {
 		}
 	}
 
-	public clearRecentlyOpened(): void {
+	clearRecentlyOpened(): void {
 		this.saveRecentlyOpened({ workspaces: [], files: [] });
 		app.clearRecentDocuments();
 
@@ -170,7 +170,7 @@ export class HistoryMainService implements IHistoryMainService {
 		this._onRecentlyOpenedChange.fire();
 	}
 
-	public getRecentlyOpened(currentWorkspace?: IWorkspaceIdentifier | ISingleFolderWorkspaceIdentifier, currentFiles?: IPath[]): IRecentlyOpened {
+	getRecentlyOpened(currentWorkspace?: IWorkspaceIdentifier | ISingleFolderWorkspaceIdentifier, currentFiles?: IPath[]): IRecentlyOpened {
 		let workspaces: (IWorkspaceIdentifier | ISingleFolderWorkspaceIdentifier)[];
 		let files: string[];
 
@@ -216,7 +216,7 @@ export class HistoryMainService implements IHistoryMainService {
 		this.stateService.setItem(HistoryMainService.recentlyOpenedStorageKey, recent);
 	}
 
-	public updateWindowsJumpList(): void {
+	updateWindowsJumpList(): void {
 		if (!isWindows) {
 			return; // only on windows
 		}

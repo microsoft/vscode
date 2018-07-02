@@ -36,7 +36,7 @@ import { IPartService } from 'vs/workbench/services/part/common/partService';
 
 export class TitlebarPart extends Part implements ITitleService {
 
-	public _serviceBrand: any;
+	_serviceBrand: any;
 
 	private static readonly NLS_UNSUPPORTED = nls.localize('patchedWindowTitle', "[Unsupported]");
 	private static readonly NLS_USER_IS_ADMIN = isWindows ? nls.localize('userIsAdmin', "[Administrator]") : nls.localize('userIsSudo', "[Superuser]");
@@ -87,14 +87,14 @@ export class TitlebarPart extends Part implements ITitleService {
 	}
 
 	private registerListeners(): void {
-		this.toUnbind.push(addDisposableListener(window, EventType.BLUR, () => this.onBlur()));
-		this.toUnbind.push(addDisposableListener(window, EventType.FOCUS, () => this.onFocus()));
-		this.toUnbind.push(this.configurationService.onDidChangeConfiguration(e => this.onConfigurationChanged(e)));
-		this.toUnbind.push(this.editorService.onDidActiveEditorChange(() => this.onActiveEditorChange()));
-		this.toUnbind.push(this.contextService.onDidChangeWorkspaceFolders(() => this.setTitle(this.getWindowTitle())));
-		this.toUnbind.push(this.contextService.onDidChangeWorkbenchState(() => this.setTitle(this.getWindowTitle())));
-		this.toUnbind.push(this.contextService.onDidChangeWorkspaceName(() => this.setTitle(this.getWindowTitle())));
-		this.toUnbind.push(this.partService.onMenubarVisibilityChange(this.onMenubarVisibilityChanged, this));
+		this._register(addDisposableListener(window, EventType.BLUR, () => this.onBlur()));
+		this._register(addDisposableListener(window, EventType.FOCUS, () => this.onFocus()));
+		this._register(this.configurationService.onDidChangeConfiguration(e => this.onConfigurationChanged(e)));
+		this._register(this.editorService.onDidActiveEditorChange(() => this.onActiveEditorChange()));
+		this._register(this.contextService.onDidChangeWorkspaceFolders(() => this.setTitle(this.getWindowTitle())));
+		this._register(this.contextService.onDidChangeWorkbenchState(() => this.setTitle(this.getWindowTitle())));
+		this._register(this.contextService.onDidChangeWorkspaceName(() => this.setTitle(this.getWindowTitle())));
+		this._register(this.partService.onMenubarVisibilityChange(this.onMenubarVisibilityChanged, this));
 	}
 
 	private onBlur(): void {
@@ -177,7 +177,7 @@ export class TitlebarPart extends Part implements ITitleService {
 		return title;
 	}
 
-	public updateProperties(properties: ITitleProperties): void {
+	updateProperties(properties: ITitleProperties): void {
 		const isAdmin = typeof properties.isAdmin === 'boolean' ? properties.isAdmin : this.properties.isAdmin;
 		const isPure = typeof properties.isPure === 'boolean' ? properties.isPure : this.properties.isPure;
 
@@ -246,7 +246,7 @@ export class TitlebarPart extends Part implements ITitleService {
 		});
 	}
 
-	public createContentArea(parent: HTMLElement): HTMLElement {
+	createContentArea(parent: HTMLElement): HTMLElement {
 		this.titleContainer = $(parent);
 
 		// App Icon (Windows/Linux)
@@ -417,7 +417,7 @@ export class TitlebarPart extends Part implements ITitleService {
 		return actions;
 	}
 
-	public setTitle(title: string): void {
+	setTitle(title: string): void {
 
 		// Always set the native window title to identify us properly to the OS
 		window.document.title = title;
@@ -506,8 +506,7 @@ export class TitlebarPart extends Part implements ITitleService {
 		}
 	}
 
-	public layout(dimension: Dimension): Dimension[] {
-
+	layout(dimension: Dimension): Dimension[] {
 		this.updateLayout();
 
 		return super.layout(dimension);
@@ -520,7 +519,7 @@ class ShowItemInFolderAction extends Action {
 		super('showItemInFolder.action.id', label);
 	}
 
-	public run(): TPromise<void> {
+	run(): TPromise<void> {
 		return this.windowsService.showItemInFolder(this.path);
 	}
 }

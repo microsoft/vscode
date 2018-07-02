@@ -15,7 +15,7 @@ import { ITextFileService, ITextFileEditorModel } from 'vs/workbench/services/te
 import { FileOperationEvent, FileOperation, IFileService, FileChangeType, FileChangesEvent } from 'vs/platform/files/common/files';
 import { FileEditorInput } from 'vs/workbench/parts/files/common/editors/fileEditorInput';
 import { ILifecycleService } from 'vs/platform/lifecycle/common/lifecycle';
-import { IDisposable, dispose } from 'vs/base/common/lifecycle';
+import { Disposable } from 'vs/base/common/lifecycle';
 import { distinct } from 'vs/base/common/arrays';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
@@ -30,11 +30,10 @@ import { BINARY_FILE_EDITOR_ID } from 'vs/workbench/parts/files/common/files';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IEditorGroupsService, IEditorGroup } from 'vs/workbench/services/group/common/editorGroupsService';
 
-export class FileEditorTracker implements IWorkbenchContribution {
+export class FileEditorTracker extends Disposable implements IWorkbenchContribution {
 
 	protected closeOnFileDelete: boolean;
 
-	private toUnbind: IDisposable[];
 	private modelLoadQueue: ResourceQueue;
 	private activeOutOfWorkspaceWatchers: ResourceMap<URI>;
 
@@ -49,7 +48,8 @@ export class FileEditorTracker implements IWorkbenchContribution {
 		@IWorkspaceContextService private contextService: IWorkspaceContextService,
 		@IWindowService private windowService: IWindowService
 	) {
-		this.toUnbind = [];
+		super();
+
 		this.modelLoadQueue = new ResourceQueue();
 		this.activeOutOfWorkspaceWatchers = new ResourceMap<URI>();
 
@@ -61,22 +61,22 @@ export class FileEditorTracker implements IWorkbenchContribution {
 	private registerListeners(): void {
 
 		// Update editors from operation changes
-		this.toUnbind.push(this.fileService.onAfterOperation(e => this.onFileOperation(e)));
+		this._register(this.fileService.onAfterOperation(e => this.onFileOperation(e)));
 
 		// Update editors from disk changes
-		this.toUnbind.push(this.fileService.onFileChanges(e => this.onFileChanges(e)));
+		this._register(this.fileService.onFileChanges(e => this.onFileChanges(e)));
 
 		// Editor changing
-		this.toUnbind.push(this.editorService.onDidVisibleEditorsChange(() => this.handleOutOfWorkspaceWatchers()));
+		this._register(this.editorService.onDidVisibleEditorsChange(() => this.handleOutOfWorkspaceWatchers()));
 
 		// Update visible editors when focus is gained
-		this.toUnbind.push(this.windowService.onDidChangeFocus(e => this.onWindowFocusChange(e)));
+		this._register(this.windowService.onDidChangeFocus(e => this.onWindowFocusChange(e)));
 
 		// Lifecycle
 		this.lifecycleService.onShutdown(this.dispose, this);
 
 		// Configuration
-		this.toUnbind.push(this.configurationService.onDidChangeConfiguration(e => this.onConfigurationUpdated(this.configurationService.getValue<IWorkbenchEditorConfiguration>())));
+		this._register(this.configurationService.onDidChangeConfiguration(e => this.onConfigurationUpdated(this.configurationService.getValue<IWorkbenchEditorConfiguration>())));
 	}
 
 	private onConfigurationUpdated(configuration: IWorkbenchEditorConfiguration): void {
@@ -363,8 +363,8 @@ export class FileEditorTracker implements IWorkbenchContribution {
 		});
 	}
 
-	public dispose(): void {
-		this.toUnbind = dispose(this.toUnbind);
+	dispose(): void {
+		super.dispose();
 
 		// Dispose watchers if any
 		this.activeOutOfWorkspaceWatchers.forEach(resource => this.fileService.unwatchFileChanges(resource));

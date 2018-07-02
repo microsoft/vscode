@@ -54,7 +54,7 @@ export const NullCrashReporterService: ICrashReporterService = {
 
 export class CrashReporterService implements ICrashReporterService {
 
-	public _serviceBrand: any;
+	_serviceBrand: any;
 
 	private options: Electron.CrashReporterStartOptions;
 	private isEnabled: boolean;
@@ -114,7 +114,7 @@ export class CrashReporterService implements ICrashReporterService {
 		return submitURL;
 	}
 
-	public getChildProcessStartOptions(name: string): Electron.CrashReporterStartOptions {
+	getChildProcessStartOptions(name: string): Electron.CrashReporterStartOptions {
 
 		// Experimental crash reporting support for child processes on Mac only for now
 		if (this.isEnabled && isMacintosh) {

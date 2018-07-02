@@ -73,7 +73,6 @@ export class ElectronWindow extends Themable {
 	private pendingFoldersToAdd: IAddFoldersRequest[];
 
 	constructor(
-		shellContainer: HTMLElement,
 		@IEditorService private editorService: EditorServiceImpl,
 		@IWindowsService private windowsService: IWindowsService,
 		@IWindowService private windowService: IWindowService,
@@ -97,8 +96,7 @@ export class ElectronWindow extends Themable {
 		this.touchBarDisposables = [];
 
 		this.pendingFoldersToAdd = [];
-		this.addFoldersScheduler = new RunOnceScheduler(() => this.doAddFolders(), 100);
-		this.toUnbind.push(this.addFoldersScheduler);
+		this.addFoldersScheduler = this._register(new RunOnceScheduler(() => this.doAddFolders(), 100));
 
 		this.registerListeners();
 		this.create();
@@ -107,7 +105,7 @@ export class ElectronWindow extends Themable {
 	private registerListeners(): void {
 
 		// React to editor input changes
-		this.toUnbind.push(this.editorService.onDidActiveEditorChange(() => this.updateTouchbarMenu()));
+		this._register(this.editorService.onDidActiveEditorChange(() => this.updateTouchbarMenu()));
 
 		// prevent opening a real URL inside the shell
 		[DOM.EventType.DRAG_OVER, DOM.EventType.DROP].forEach(event => {
@@ -232,7 +230,7 @@ export class ElectronWindow extends Themable {
 
 		// Zoom level changes
 		this.updateWindowZoomLevel();
-		this.toUnbind.push(this.configurationService.onDidChangeConfiguration(e => {
+		this._register(this.configurationService.onDidChangeConfiguration(e => {
 			if (e.affectsConfiguration('window.zoomLevel')) {
 				this.updateWindowZoomLevel();
 			}
@@ -526,7 +524,7 @@ export class ElectronWindow extends Themable {
 		this.configurationService.updateValue(ElectronWindow.AUTO_SAVE_SETTING, newAutoSaveValue, ConfigurationTarget.USER);
 	}
 
-	public dispose(): void {
+	dispose(): void {
 		this.touchBarDisposables = dispose(this.touchBarDisposables);
 
 		super.dispose();
