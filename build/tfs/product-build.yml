@@ -7,8 +7,8 @@ phases:
     matrix:
       x64:
         VSCODE_ARCH: x64
-      # ia32:
-      #   VSCODE_ARCH: ia32
+      ia32:
+        VSCODE_ARCH: ia32
 
   steps:
   - task: NodeTool@0
@@ -46,84 +46,84 @@ phases:
       # yarn smoketest -- --build "$(agent.builddirectory)\VSCode-win32-$(VSCODE_ARCH)"
     name: test
 
-  # - task: SFP.build-tasks.custom-build-task-1.EsrpCodeSigning@1
-  #   inputs:
-  #     ConnectedServiceName: 'ESRP CodeSign'
-  #     FolderPath: '$(agent.builddirectory)/VSCode-win32-$(VSCODE_ARCH)'
-  #     Pattern: '*.dll,*.exe,*.node'
-  #     signConfigType: inlineSignParams
-  #     inlineOperation: |
-  #       [
-  #         {
-  #           "keyCode": "CP-229803",
-  #           "operationSetCode": "SigntoolSign",
-  #           "parameters": [
-  #             {
-  #               "parameterName": "OpusName",
-  #               "parameterValue": "VS Code"
-  #             },
-  #             {
-  #               "parameterName": "OpusInfo",
-  #               "parameterValue": "https://code.visualstudio.com/"
-  #             },
-  #             {
-  #               "parameterName": "PageHash",
-  #               "parameterValue": "/NPH"
-  #             },
-  #             {
-  #               "parameterName": "TimeStamp",
-  #               "parameterValue": "/t \"http://ts4096.gtm.microsoft.com/TSS/AuthenticodeTS\""
-  #             }
-  #           ],
-  #           "toolName": "sign",
-  #           "toolVersion": "1.0"
-  #         },
-  #         {
-  #           "keyCode": "CP-230012",
-  #           "operationSetCode": "SigntoolSign",
-  #           "parameters": [
-  #             {
-  #               "parameterName": "OpusName",
-  #               "parameterValue": "VS Code"
-  #             },
-  #             {
-  #               "parameterName": "OpusInfo",
-  #               "parameterValue": "https://code.visualstudio.com/"
-  #             },
-  #             {
-  #               "parameterName": "Append",
-  #               "parameterValue": "/as"
-  #             },
-  #             {
-  #               "parameterName": "FileDigest",
-  #               "parameterValue": "/fd \"SHA256\""
-  #             },
-  #             {
-  #               "parameterName": "PageHash",
-  #               "parameterValue": "/NPH"
-  #             },
-  #             {
-  #               "parameterName": "TimeStamp",
-  #               "parameterValue": "/tr \"http://rfc3161.gtm.corp.microsoft.com/TSS/HttpTspServer\" /td sha256"
-  #             }
-  #           ],
-  #           "toolName": "sign",
-  #           "toolVersion": "1.0"
-  #         },
-  #         {
-  #           "keyCode": "CP-230012",
-  #           "operationSetCode": "SigntoolVerify",
-  #           "parameters": [
-  #             {
-  #               "parameterName": "VerifyAll",
-  #               "parameterValue": "/all"
-  #             }
-  #           ],
-  #           "toolName": "sign",
-  #           "toolVersion": "1.0"
-  #         }
-  #       ]
-  #     SessionTimeout: 120
+  - task: SFP.build-tasks.custom-build-task-1.EsrpCodeSigning@1
+    inputs:
+      ConnectedServiceName: 'ESRP CodeSign'
+      FolderPath: '$(agent.builddirectory)/VSCode-win32-$(VSCODE_ARCH)'
+      Pattern: '*.dll,*.exe,*.node'
+      signConfigType: inlineSignParams
+      inlineOperation: |
+        [
+          {
+            "keyCode": "CP-229803",
+            "operationSetCode": "SigntoolSign",
+            "parameters": [
+              {
+                "parameterName": "OpusName",
+                "parameterValue": "VS Code"
+              },
+              {
+                "parameterName": "OpusInfo",
+                "parameterValue": "https://code.visualstudio.com/"
+              },
+              {
+                "parameterName": "PageHash",
+                "parameterValue": "/NPH"
+              },
+              {
+                "parameterName": "TimeStamp",
+                "parameterValue": "/t \"http://ts4096.gtm.microsoft.com/TSS/AuthenticodeTS\""
+              }
+            ],
+            "toolName": "sign",
+            "toolVersion": "1.0"
+          },
+          {
+            "keyCode": "CP-230012",
+            "operationSetCode": "SigntoolSign",
+            "parameters": [
+              {
+                "parameterName": "OpusName",
+                "parameterValue": "VS Code"
+              },
+              {
+                "parameterName": "OpusInfo",
+                "parameterValue": "https://code.visualstudio.com/"
+              },
+              {
+                "parameterName": "Append",
+                "parameterValue": "/as"
+              },
+              {
+                "parameterName": "FileDigest",
+                "parameterValue": "/fd \"SHA256\""
+              },
+              {
+                "parameterName": "PageHash",
+                "parameterValue": "/NPH"
+              },
+              {
+                "parameterName": "TimeStamp",
+                "parameterValue": "/tr \"http://rfc3161.gtm.corp.microsoft.com/TSS/HttpTspServer\" /td sha256"
+              }
+            ],
+            "toolName": "sign",
+            "toolVersion": "1.0"
+          },
+          {
+            "keyCode": "CP-230012",
+            "operationSetCode": "SigntoolVerify",
+            "parameters": [
+              {
+                "parameterName": "VerifyAll",
+                "parameterValue": "/all"
+              }
+            ],
+            "toolName": "sign",
+            "toolVersion": "1.0"
+          }
+        ]
+      SessionTimeout: 120
 
   - task: NuGetCommand@2
     displayName: Install ESRPClient.exe
@@ -197,8 +197,8 @@ phases:
 
       echo "machine monacotools.visualstudio.com password $(VSO_PAT)" > ~/.netrc
       yarn
-      # npm run gulp -- hygiene
-      # npm run monaco-compile-check
+      npm run gulp -- hygiene
+      npm run monaco-compile-check
       VSCODE_MIXIN_PASSWORD="$(VSCODE_MIXIN_PASSWORD)" npm run gulp -- mixin
       node build/tfs/common/installDistro.js
       node build/lib/builtInExtensions.js
