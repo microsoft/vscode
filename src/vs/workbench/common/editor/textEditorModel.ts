@@ -14,6 +14,7 @@ import { IModeService } from 'vs/editor/common/services/modeService';
 import { IModelService } from 'vs/editor/common/services/modelService';
 import { IDisposable } from 'vs/base/common/lifecycle';
 import { ITextSnapshot } from 'vs/platform/files/common/files';
+import { Schemas } from 'vs/base/common/network';
 
 /**
  * The base text editor model leverages the code editor model. This class is only intended to be subclassed and not instantiated.
@@ -70,6 +71,7 @@ export abstract class BaseTextEditorModel extends EditorModel implements ITextEd
 	protected createTextEditorModel(value: ITextBufferFactory, resource?: URI, modeId?: string): TPromise<EditorModel> {
 		const firstLineText = this.getFirstLineText(value);
 		const mode = this.getOrCreateMode(this.modeService, modeId, firstLineText);
+
 		return TPromise.as(this.doCreateTextEditorModel(value, mode, resource));
 	}
 
@@ -137,8 +139,14 @@ export abstract class BaseTextEditorModel extends EditorModel implements ITextEd
 		return !!this.textEditorModelHandle;
 	}
 
-	public isReadonly(): boolean {
-		return false;
+	isReadonly(): boolean {
+		if (this.textEditorModelHandle && this.textEditorModelHandle.scheme === Schemas.untitled) {
+			// only this layer, we only know that untitled:// schemas are writeable
+			// any other resource that this model is about can only be readonly
+			return false;
+		}
+
+		return true;
 	}
 
 	public dispose(): void {
