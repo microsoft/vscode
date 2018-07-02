@@ -37,19 +37,19 @@ class HelpEntry extends QuickOpenEntryGroup {
 		this.openOnPreview = openOnPreview;
 	}
 
-	public getLabel(): string {
+	getLabel(): string {
 		return this.prefixLabel;
 	}
 
-	public getAriaLabel(): string {
+	getAriaLabel(): string {
 		return nls.localize('entryAriaLabel', "{0}, picker help", this.getLabel());
 	}
 
-	public getDescription(): string {
+	getDescription(): string {
 		return this.description;
 	}
 
-	public run(mode: Mode, context: IEntryRunContext): boolean {
+	run(mode: Mode, context: IEntryRunContext): boolean {
 		if (mode === Mode.OPEN || this.openOnPreview) {
 			this.quickOpenService.show(this.prefix);
 		}
@@ -60,13 +60,13 @@ class HelpEntry extends QuickOpenEntryGroup {
 
 export class HelpHandler extends QuickOpenHandler {
 
-	public static readonly ID = 'workbench.picker.help';
+	static readonly ID = 'workbench.picker.help';
 
 	constructor(@IQuickOpenService private quickOpenService: IQuickOpenService) {
 		super();
 	}
 
-	public getResults(searchValue: string): TPromise<QuickOpenModel> {
+	getResults(searchValue: string): TPromise<QuickOpenModel> {
 		searchValue = searchValue.trim();
 
 		const registry = (Registry.as<IQuickOpenRegistry>(Extensions.Quickopen));
@@ -124,7 +124,7 @@ export class HelpHandler extends QuickOpenHandler {
 		return TPromise.as(new QuickOpenModel([...workbenchScoped, ...editorScoped]));
 	}
 
-	public getAutoFocus(searchValue: string): IAutoFocus {
+	getAutoFocus(searchValue: string): IAutoFocus {
 		searchValue = searchValue.trim();
 		return {
 			autoFocusFirstEntry: searchValue.length > 0,

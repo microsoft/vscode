@@ -417,26 +417,26 @@ class TreeDataSource implements IDataSource {
 	) {
 	}
 
-	public getId(tree: ITree, node: ITreeItem): string {
+	getId(tree: ITree, node: ITreeItem): string {
 		return node.handle;
 	}
 
-	public hasChildren(tree: ITree, node: ITreeItem): boolean {
+	hasChildren(tree: ITree, node: ITreeItem): boolean {
 		return this.treeView.dataProvider && node.collapsibleState !== TreeItemCollapsibleState.None;
 	}
 
-	public getChildren(tree: ITree, node: ITreeItem): TPromise<any[]> {
+	getChildren(tree: ITree, node: ITreeItem): TPromise<any[]> {
 		if (this.treeView.dataProvider) {
 			return this.progressService.withProgress({ location: this.container }, () => this.treeView.dataProvider.getChildren(node));
 		}
 		return TPromise.as([]);
 	}
 
-	public shouldAutoexpand(tree: ITree, node: ITreeItem): boolean {
+	shouldAutoexpand(tree: ITree, node: ITreeItem): boolean {
 		return node.collapsibleState === TreeItemCollapsibleState.Expanded;
 	}
 
-	public getParent(tree: ITree, node: any): TPromise<any> {
+	getParent(tree: ITree, node: any): TPromise<any> {
 		return TPromise.as(null);
 	}
 }
@@ -463,15 +463,15 @@ class TreeRenderer implements IRenderer {
 	) {
 	}
 
-	public getHeight(tree: ITree, element: any): number {
+	getHeight(tree: ITree, element: any): number {
 		return TreeRenderer.ITEM_HEIGHT;
 	}
 
-	public getTemplateId(tree: ITree, element: any): string {
+	getTemplateId(tree: ITree, element: any): string {
 		return TreeRenderer.TREE_TEMPLATE_ID;
 	}
 
-	public renderTemplate(tree: ITree, templateId: string, container: HTMLElement): ITreeExplorerTemplateData {
+	renderTemplate(tree: ITree, templateId: string, container: HTMLElement): ITreeExplorerTemplateData {
 		DOM.addClass(container, 'custom-view-tree-node-item');
 
 		const icon = DOM.append(container, DOM.$('.custom-view-tree-node-item-icon'));
@@ -486,7 +486,7 @@ class TreeRenderer implements IRenderer {
 		return { label, resourceLabel, icon, actionBar, aligner: new Aligner(container, tree, this.themeService) };
 	}
 
-	public renderElement(tree: ITree, node: ITreeItem, templateId: string, templateData: ITreeExplorerTemplateData): void {
+	renderElement(tree: ITree, node: ITreeItem, templateId: string, templateData: ITreeExplorerTemplateData): void {
 		const resource = node.resourceUri ? URI.revive(node.resourceUri) : null;
 		const label = node.label ? node.label : resource ? basename(resource.path) : '';
 		const icon = this.themeService.getTheme().type === LIGHT ? node.icon : node.iconDark;
@@ -528,7 +528,7 @@ class TreeRenderer implements IRenderer {
 		return node.collapsibleState === TreeItemCollapsibleState.Collapsed || node.collapsibleState === TreeItemCollapsibleState.Expanded ? FileKind.FOLDER : FileKind.FILE;
 	}
 
-	public disposeTemplate(tree: ITree, templateId: string, templateData: ITreeExplorerTemplateData): void {
+	disposeTemplate(tree: ITree, templateId: string, templateData: ITreeExplorerTemplateData): void {
 		templateData.resourceLabel.dispose();
 		templateData.actionBar.dispose();
 		templateData.aligner.dispose();
@@ -607,7 +607,7 @@ class TreeController extends WorkbenchTreeController {
 		return element.command ? this.isClickOnTwistie(event) : super.shouldToggleExpansion(element, event, origin);
 	}
 
-	public onContextMenu(tree: ITree, node: ITreeItem, event: ContextMenuEvent): boolean {
+	onContextMenu(tree: ITree, node: ITreeItem, event: ContextMenuEvent): boolean {
 		event.preventDefault();
 		event.stopPropagation();
 

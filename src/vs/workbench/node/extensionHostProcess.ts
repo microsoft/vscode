@@ -13,7 +13,7 @@ import { Protocol } from 'vs/base/parts/ipc/node/ipc.net';
 import { createConnection } from 'net';
 import { Event, filterEvent } from 'vs/base/common/event';
 
-// TODO@ben: with Electron 2.x and node.js 8.x the "natives" module
+// With Electron 2.x and node.js 8.x the "natives" module
 // can cause a native crash (see https://github.com/nodejs/node/issues/19891 and
 // https://github.com/electron/electron/issues/10905). To prevent this from
 // happening we essentially blocklist this module from getting loaded in any

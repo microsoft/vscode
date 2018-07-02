@@ -104,6 +104,7 @@ const copyrightFilter = [
 	'!**/*.code-workspace',
 	'!build/**/*.init',
 	'!resources/linux/snap/snapcraft.yaml',
+	'!resources/linux/snap/electron-launch',
 	'!resources/win32/bin/code.js',
 	'!extensions/markdown-language-features/media/highlight.css',
 	'!extensions/html-language-features/server/src/modes/typescript/*',

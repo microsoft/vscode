@@ -72,8 +72,7 @@ export class MarkersPanel extends Panel {
 	public create(parent: HTMLElement): TPromise<void> {
 		super.create(parent);
 
-		this.rangeHighlightDecorations = this.instantiationService.createInstance(RangeHighlightDecorations);
-		this.toUnbind.push(this.rangeHighlightDecorations);
+		this.rangeHighlightDecorations = this._register(this.instantiationService.createInstance(RangeHighlightDecorations));
 
 		dom.addClass(parent, 'markers-panel');
 
@@ -230,11 +229,11 @@ export class MarkersPanel extends Panel {
 	}
 
 	private createListeners(): void {
-		this.toUnbind.push(this.markersWorkbenchService.onDidChange(resources => this.onDidChange(resources)));
-		this.toUnbind.push(this.editorService.onDidActiveEditorChange(this.onActiveEditorChanged, this));
-		this.toUnbind.push(this.tree.onDidChangeSelection(() => this.onSelected()));
-		this.toUnbind.push(this.filterInputActionItem.onDidChange(() => this.updateFilter()));
-		this.actions.forEach(a => this.toUnbind.push(a));
+		this._register(this.markersWorkbenchService.onDidChange(resources => this.onDidChange(resources)));
+		this._register(this.editorService.onDidActiveEditorChange(this.onActiveEditorChanged, this));
+		this._register(this.tree.onDidChangeSelection(() => this.onSelected()));
+		this._register(this.filterInputActionItem.onDidChange(() => this.updateFilter()));
+		this.actions.forEach(a => this._register(a));
 	}
 
 	private onDidChange(resources: URI[]) {

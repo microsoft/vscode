@@ -8,15 +8,14 @@
 import { alert } from 'vs/base/browser/ui/aria/aria';
 import { localize } from 'vs/nls';
 import { INotificationViewItem, INotificationsModel, NotificationChangeType, INotificationChangeEvent } from 'vs/workbench/common/notifications';
-import { IDisposable, dispose } from 'vs/base/common/lifecycle';
+import { Disposable } from 'vs/base/common/lifecycle';
 import { toErrorMessage } from 'vs/base/common/errorMessage';
 import { Severity } from 'vs/platform/notification/common/notification';
 
-export class NotificationsAlerts {
-	private toDispose: IDisposable[];
+export class NotificationsAlerts extends Disposable {
 
 	constructor(private model: INotificationsModel) {
-		this.toDispose = [];
+		super();
 
 		// Alert initial notifications if any
 		model.notifications.forEach(n => this.ariaAlert(n));
@@ -25,7 +24,7 @@ export class NotificationsAlerts {
 	}
 
 	private registerListeners(): void {
-		this.toDispose.push(this.model.onDidNotificationChange(e => this.onDidNotificationChange(e)));
+		this._register(this.model.onDidNotificationChange(e => this.onDidNotificationChange(e)));
 	}
 
 	private onDidNotificationChange(e: INotificationChangeEvent): void {
@@ -56,9 +55,5 @@ export class NotificationsAlerts {
 		}
 
 		alert(alertText);
-	}
-
-	public dispose(): void {
-		this.toDispose = dispose(this.toDispose);
 	}
 }

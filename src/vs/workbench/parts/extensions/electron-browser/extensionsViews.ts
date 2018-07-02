@@ -795,6 +795,6 @@ export class WorkspaceRecommendedExtensionsView extends ExtensionsListView {
 
 	private getRecommendationsToInstall(): TPromise<IExtensionRecommendation[]> {
 		return this.tipsService.getWorkspaceRecommendations()
-			.then(recommendations => recommendations.filter(({ extensionId }) => this.extensionsWorkbenchService.local.some(i => areSameExtensions({ id: extensionId }, { id: i.id }))));
+			.then(recommendations => recommendations.filter(({ extensionId }) => !this.extensionsWorkbenchService.local.some(i => areSameExtensions({ id: extensionId }, { id: i.id }))));
 	}
 }

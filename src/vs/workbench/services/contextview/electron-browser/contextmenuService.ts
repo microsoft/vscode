@@ -12,31 +12,30 @@ import * as dom from 'vs/base/browser/dom';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
-
 import { remote, webFrame } from 'electron';
 import { unmnemonicLabel } from 'vs/base/common/labels';
 import { Event, Emitter } from 'vs/base/common/event';
 import { INotificationService } from 'vs/platform/notification/common/notification';
 import { IContextMenuDelegate, ContextSubMenu, IEvent } from 'vs/base/browser/contextmenu';
 import { once } from 'vs/base/common/functional';
+import { Disposable } from 'vs/base/common/lifecycle';
 
-export class ContextMenuService implements IContextMenuService {
+export class ContextMenuService extends Disposable implements IContextMenuService {
 
-	public _serviceBrand: any;
-	private _onDidContextMenu = new Emitter<void>();
+	_serviceBrand: any;
+
+	private _onDidContextMenu = this._register(new Emitter<void>());
+	get onDidContextMenu(): Event<void> { return this._onDidContextMenu.event; }
 
 	constructor(
 		@INotificationService private notificationService: INotificationService,
 		@ITelemetryService private telemetryService: ITelemetryService,
 		@IKeybindingService private keybindingService: IKeybindingService
 	) {
+		super();
 	}
 
-	public get onDidContextMenu(): Event<void> {
-		return this._onDidContextMenu.event;
-	}
-
-	public showContextMenu(delegate: IContextMenuDelegate): void {
+	showContextMenu(delegate: IContextMenuDelegate): void {
 		delegate.getActions().then(actions => {
 			if (!actions.length) {
 				return TPromise.as(null);

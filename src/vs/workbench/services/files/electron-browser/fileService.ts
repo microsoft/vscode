@@ -22,7 +22,7 @@ import { nfcall, ThrottledDelayer, asWinJSImport } from 'vs/base/common/async';
 import uri from 'vs/base/common/uri';
 import * as nls from 'vs/nls';
 import { isWindows, isLinux, isMacintosh } from 'vs/base/common/platform';
-import { dispose, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
+import { IDisposable, toDisposable, Disposable } from 'vs/base/common/lifecycle';
 import { IWorkspaceContextService, WorkbenchState } from 'vs/platform/workspace/common/workspace';
 import * as pfs from 'vs/base/node/pfs';
 import * as encoding from 'vs/base/node/encoding';
@@ -76,9 +76,9 @@ export interface IFileServiceTestOptions {
 	encodingOverride?: IEncodingOverride[];
 }
 
-export class FileService implements IFileService {
+export class FileService extends Disposable implements IFileService {
 
-	public _serviceBrand: any;
+	_serviceBrand: any;
 
 	private static readonly FS_EVENT_DELAY = 50; // aggregate and only emit events when changes have stopped for this duration (in ms)
 	private static readonly FS_REWATCH_DELAY = 300; // delay to rewatch a file that was renamed or deleted (in ms)
@@ -89,11 +89,14 @@ export class FileService implements IFileService {
 	private static readonly ENOSPC_ERROR = 'ENOSPC';
 	private static readonly ENOSPC_ERROR_IGNORE_KEY = 'ignoreEnospcError';
 
-	protected readonly _onFileChanges: Emitter<FileChangesEvent>;
-	protected readonly _onAfterOperation: Emitter<FileOperationEvent>;
-	protected readonly _onDidChangeFileSystemProviderRegistrations = new Emitter<IFileSystemProviderRegistrationEvent>();
+	protected readonly _onFileChanges: Emitter<FileChangesEvent> = this._register(new Emitter<FileChangesEvent>());
+	get onFileChanges(): Event<FileChangesEvent> { return this._onFileChanges.event; }
 
-	protected toDispose: IDisposable[];
+	protected readonly _onAfterOperation: Emitter<FileOperationEvent> = this._register(new Emitter<FileOperationEvent>());
+	get onAfterOperation(): Event<FileOperationEvent> { return this._onAfterOperation.event; }
+
+	protected readonly _onDidChangeFileSystemProviderRegistrations = this._register(new Emitter<IFileSystemProviderRegistrationEvent>());
+	get onDidChangeFileSystemProviderRegistrations(): Event<IFileSystemProviderRegistrationEvent> { return this._onDidChangeFileSystemProviderRegistrations.event; }
 
 	private activeWorkspaceFileChangeWatcher: IDisposable;
 	private activeFileChangesWatchers: ResourceMap<fs.FSWatcher>;
@@ -112,13 +115,7 @@ export class FileService implements IFileService {
 		private notificationService: INotificationService,
 		private options: IFileServiceTestOptions = Object.create(null)
 	) {
-		this.toDispose = [];
-
-		this._onFileChanges = new Emitter<FileChangesEvent>();
-		this.toDispose.push(this._onFileChanges);
-
-		this._onAfterOperation = new Emitter<FileOperationEvent>();
-		this.toDispose.push(this._onAfterOperation);
+		super();
 
 		this.activeFileChangesWatchers = new ResourceMap<fs.FSWatcher>();
 		this.fileChangesWatchDelayer = new ThrottledDelayer<void>(FileService.FS_EVENT_DELAY);
@@ -129,7 +126,7 @@ export class FileService implements IFileService {
 		this.registerListeners();
 	}
 
-	public get encoding(): ResourceEncodings {
+	get encoding(): ResourceEncodings {
 		return this._encoding;
 	}
 
@@ -141,7 +138,7 @@ export class FileService implements IFileService {
 		});
 
 		// Workbench State Change
-		this.toDispose.push(this.contextService.onDidChangeWorkbenchState(() => {
+		this._register(this.contextService.onDidChangeWorkbenchState(() => {
 			if (this.lifecycleService.phase >= LifecyclePhase.Running) {
 				this.setupFileWatching();
 			}
@@ -195,14 +192,6 @@ export class FileService implements IFileService {
 		}
 	}
 
-	public get onFileChanges(): Event<FileChangesEvent> {
-		return this._onFileChanges.event;
-	}
-
-	public get onAfterOperation(): Event<FileOperationEvent> {
-		return this._onAfterOperation.event;
-	}
-
 	private setupFileWatching(): void {
 
 		// dispose old if any
@@ -240,30 +229,28 @@ export class FileService implements IFileService {
 		}
 	}
 
-	public readonly onDidChangeFileSystemProviderRegistrations: Event<IFileSystemProviderRegistrationEvent> = this._onDidChangeFileSystemProviderRegistrations.event;
-
-	public registerProvider(scheme: string, provider: IFileSystemProvider): IDisposable {
+	registerProvider(scheme: string, provider: IFileSystemProvider): IDisposable {
 		throw new Error('not implemented');
 	}
 
-	public canHandleResource(resource: uri): boolean {
+	canHandleResource(resource: uri): boolean {
 		return resource.scheme === Schemas.file;
 	}
 
-	public resolveFile(resource: uri, options?: IResolveFileOptions): TPromise<IFileStat> {
+	resolveFile(resource: uri, options?: IResolveFileOptions): TPromise<IFileStat> {
 		return this.resolve(resource, options);
 	}
 
-	public resolveFiles(toResolve: { resource: uri, options?: IResolveFileOptions }[]): TPromise<IResolveFileResult[]> {
+	resolveFiles(toResolve: { resource: uri, options?: IResolveFileOptions }[]): TPromise<IResolveFileResult[]> {
 		return TPromise.join(toResolve.map(resourceAndOptions => this.resolve(resourceAndOptions.resource, resourceAndOptions.options)
 			.then(stat => ({ stat, success: true }), error => ({ stat: void 0, success: false }))));
 	}
 
-	public existsFile(resource: uri): TPromise<boolean> {
+	existsFile(resource: uri): TPromise<boolean> {
 		return this.resolveFile(resource).then(() => true, () => false);
 	}
 
-	public resolveContent(resource: uri, options?: IResolveContentOptions): TPromise<IContent> {
+	resolveContent(resource: uri, options?: IResolveContentOptions): TPromise<IContent> {
 		return this.resolveStreamContent(resource, options).then(streamContent => {
 			return new TPromise<IContent>((resolve, reject) => {
 
@@ -286,7 +273,7 @@ export class FileService implements IFileService {
 		});
 	}
 
-	public resolveStreamContent(resource: uri, options?: IResolveContentOptions): TPromise<IStreamContent> {
+	resolveStreamContent(resource: uri, options?: IResolveContentOptions): TPromise<IStreamContent> {
 
 		// Guard early against attempts to resolve an invalid file path
 		if (resource.scheme !== Schemas.file || !resource.fsPath) {
@@ -577,7 +564,7 @@ export class FileService implements IFileService {
 		});
 	}
 
-	public updateContent(resource: uri, value: string | ITextSnapshot, options: IUpdateContentOptions = Object.create(null)): TPromise<IFileStat> {
+	updateContent(resource: uri, value: string | ITextSnapshot, options: IUpdateContentOptions = Object.create(null)): TPromise<IFileStat> {
 		if (options.writeElevated) {
 			return this.doUpdateContentElevated(resource, value, options);
 		}
@@ -739,7 +726,7 @@ export class FileService implements IFileService {
 		});
 	}
 
-	public createFile(resource: uri, content: string = '', options: ICreateFileOptions = Object.create(null)): TPromise<IFileStat> {
+	createFile(resource: uri, content: string = '', options: ICreateFileOptions = Object.create(null)): TPromise<IFileStat> {
 		const absolutePath = this.toAbsolutePath(resource);
 
 		let checkFilePromise: TPromise<boolean>;
@@ -770,7 +757,7 @@ export class FileService implements IFileService {
 		});
 	}
 
-	public createFolder(resource: uri): TPromise<IFileStat> {
+	createFolder(resource: uri): TPromise<IFileStat> {
 
 		// 1.) Create folder
 		const absolutePath = this.toAbsolutePath(resource);
@@ -849,11 +836,11 @@ export class FileService implements IFileService {
 		));
 	}
 
-	public moveFile(source: uri, target: uri, overwrite?: boolean): TPromise<IFileStat> {
+	moveFile(source: uri, target: uri, overwrite?: boolean): TPromise<IFileStat> {
 		return this.moveOrCopyFile(source, target, false, overwrite);
 	}
 
-	public copyFile(source: uri, target: uri, overwrite?: boolean): TPromise<IFileStat> {
+	copyFile(source: uri, target: uri, overwrite?: boolean): TPromise<IFileStat> {
 		return this.moveOrCopyFile(source, target, true, overwrite);
 	}
 
@@ -920,7 +907,7 @@ export class FileService implements IFileService {
 		});
 	}
 
-	public del(resource: uri, options?: { useTrash?: boolean, recursive?: boolean }): TPromise<void> {
+	del(resource: uri, options?: { useTrash?: boolean, recursive?: boolean }): TPromise<void> {
 		if (options && options.useTrash) {
 			return this.doMoveItemToTrash(resource);
 		}
@@ -1000,7 +987,7 @@ export class FileService implements IFileService {
 		});
 	}
 
-	public watchFileChanges(resource: uri): void {
+	watchFileChanges(resource: uri): void {
 		assert.ok(resource && resource.scheme === Schemas.file, `Invalid resource for watching: ${resource}`);
 
 		// Create or get watcher for provided path
@@ -1089,7 +1076,7 @@ export class FileService implements IFileService {
 		});
 	}
 
-	public unwatchFileChanges(resource: uri): void {
+	unwatchFileChanges(resource: uri): void {
 		const watcher = this.activeFileChangesWatchers.get(resource);
 		if (watcher) {
 			watcher.close();
@@ -1097,8 +1084,8 @@ export class FileService implements IFileService {
 		}
 	}
 
-	public dispose(): void {
-		this.toDispose = dispose(this.toDispose);
+	dispose(): void {
+		super.dispose();
 
 		if (this.activeWorkspaceFileChangeWatcher) {
 			this.activeWorkspaceFileChangeWatcher.dispose();
@@ -1144,7 +1131,7 @@ export class StatResolver {
 		this.etag = etag(size, mtime);
 	}
 
-	public resolve(options: IResolveFileOptions): TPromise<IFileStat> {
+	resolve(options: IResolveFileOptions): TPromise<IFileStat> {
 
 		// General Data
 		const fileStat: IFileStat = {

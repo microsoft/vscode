@@ -261,7 +261,7 @@ export class CodeApplication {
 		}
 	}
 
-	public startup(): TPromise<void> {
+	startup(): TPromise<void> {
 		this.logService.debug('Starting VS Code');
 		this.logService.debug(`from: ${this.environmentService.appRoot}`);
 		this.logService.debug('args:', this.environmentService.args);

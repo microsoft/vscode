@@ -45,7 +45,7 @@ export class Component extends Themable implements IWorkbenchComponent {
 		this.componentMemento = new Memento(this.id);
 	}
 
-	public getId(): string {
+	getId(): string {
 		return this.id;
 	}
 
@@ -73,7 +73,7 @@ export class Component extends Themable implements IWorkbenchComponent {
 		this.componentMemento.saveMemento();
 	}
 
-	public shutdown(): void {
+	shutdown(): void {
 
 		// Save Memento
 		this.saveMemento();

@@ -21,7 +21,7 @@ import { ColorPickerModel } from 'vs/editor/contrib/colorPicker/colorPickerModel
 import { ColorPickerWidget } from 'vs/editor/contrib/colorPicker/colorPickerWidget';
 import { ColorDetector } from 'vs/editor/contrib/colorPicker/colorDetector';
 import { Color, RGBA } from 'vs/base/common/color';
-import { IDisposable, empty as EmptyDisposable, dispose, combinedDisposable } from 'vs/base/common/lifecycle';
+import { IDisposable, empty as EmptyDisposable, combinedDisposable } from 'vs/base/common/lifecycle';
 import { getColorPresentations } from 'vs/editor/contrib/colorPicker/color';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 const $ = dom.$;
@@ -168,7 +168,6 @@ export class ModesContentHoverWidget extends ContentHoverWidget {
 	private _colorPicker: ColorPickerWidget;
 
 	private renderDisposable: IDisposable = EmptyDisposable;
-	private toDispose: IDisposable[] = [];
 
 	constructor(
 		editor: ICodeEditor,
@@ -182,7 +181,7 @@ export class ModesContentHoverWidget extends ContentHoverWidget {
 		this._isChangingDecorations = false;
 
 		this._markdownRenderer = markdownRenderer;
-		markdownRenderer.onDidRenderCodeBlock(this.onContentsChange, this, this.toDispose);
+		this._register(markdownRenderer.onDidRenderCodeBlock(this.onContentsChange, this));
 
 		this._hoverOperation = new HoverOperation(
 			this._computer,
@@ -191,15 +190,15 @@ export class ModesContentHoverWidget extends ContentHoverWidget {
 			result => this._withResult(result, false)
 		);
 
-		this.toDispose.push(dom.addStandardDisposableListener(this.getDomNode(), dom.EventType.FOCUS, () => {
+		this._register(dom.addStandardDisposableListener(this.getDomNode(), dom.EventType.FOCUS, () => {
 			if (this._colorPicker) {
 				dom.addClass(this.getDomNode(), 'colorpicker-hover');
 			}
 		}));
-		this.toDispose.push(dom.addStandardDisposableListener(this.getDomNode(), dom.EventType.BLUR, () => {
+		this._register(dom.addStandardDisposableListener(this.getDomNode(), dom.EventType.BLUR, () => {
 			dom.removeClass(this.getDomNode(), 'colorpicker-hover');
 		}));
-		this.toDispose.push(editor.onDidChangeConfiguration((e) => {
+		this._register(editor.onDidChangeConfiguration((e) => {
 			this._hoverOperation.setHoverTime(this._editor.getConfiguration().contribInfo.hover.delay);
 		}));
 	}
@@ -208,7 +207,6 @@ export class ModesContentHoverWidget extends ContentHoverWidget {
 		this.renderDisposable.dispose();
 		this.renderDisposable = EmptyDisposable;
 		this._hoverOperation.cancel();
-		this.toDispose = dispose(this.toDispose);
 		super.dispose();
 	}
 

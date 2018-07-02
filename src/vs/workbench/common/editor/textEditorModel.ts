@@ -19,8 +19,10 @@ import { ITextSnapshot } from 'vs/platform/files/common/files';
  * The base text editor model leverages the code editor model. This class is only intended to be subclassed and not instantiated.
  */
 export abstract class BaseTextEditorModel extends EditorModel implements ITextEditorModel {
-	private textEditorModelHandle: URI;
+
 	protected createdEditorModel: boolean;
+
+	private textEditorModelHandle: URI;
 	private modelDisposeListener: IDisposable;
 
 	constructor(
@@ -60,7 +62,7 @@ export abstract class BaseTextEditorModel extends EditorModel implements ITextEd
 		});
 	}
 
-	public get textEditorModel(): ITextModel {
+	get textEditorModel(): ITextModel {
 		return this.textEditorModelHandle ? this.modelService.getModel(this.textEditorModelHandle) : null;
 	}
 
@@ -124,7 +126,7 @@ export abstract class BaseTextEditorModel extends EditorModel implements ITextEd
 		this.modelService.updateModel(this.textEditorModel, newValue);
 	}
 
-	public createSnapshot(): ITextSnapshot {
+	createSnapshot(): ITextSnapshot {
 		const model = this.textEditorModel;
 		if (model) {
 			return model.createSnapshot(true /* Preserve BOM */);
@@ -133,15 +135,15 @@ export abstract class BaseTextEditorModel extends EditorModel implements ITextEd
 		return null;
 	}
 
-	public isResolved(): boolean {
+	isResolved(): boolean {
 		return !!this.textEditorModelHandle;
 	}
 
-	public isReadonly(): boolean {
+	isReadonly(): boolean {
 		return false;
 	}
 
-	public dispose(): void {
+	dispose(): void {
 		if (this.modelDisposeListener) {
 			this.modelDisposeListener.dispose(); // dispose this first because it will trigger another dispose() otherwise
 			this.modelDisposeListener = null;

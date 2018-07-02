@@ -105,7 +105,7 @@ export class DebugViewlet extends ViewContainerViewlet {
 			return [this.startAction, this.configureAction, this.toggleReplAction];
 		}
 
-		return DebugActionsWidget.getActions(this.allActions, this.toUnbind, this.debugService, this.keybindingService, this.instantiationService);
+		return DebugActionsWidget.getActions(this.allActions, this.toDispose, this.debugService, this.keybindingService, this.instantiationService);
 	}
 
 	public get showInitialDebugActions(): boolean {

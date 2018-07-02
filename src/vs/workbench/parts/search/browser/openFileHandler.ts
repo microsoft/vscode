@@ -59,41 +59,41 @@ export class FileEntry extends EditorQuickOpenEntry {
 		super(editorService);
 	}
 
-	public getLabel(): string {
+	getLabel(): string {
 		return this.name;
 	}
 
-	public getLabelOptions(): IIconLabelValueOptions {
+	getLabelOptions(): IIconLabelValueOptions {
 		return {
 			extraClasses: getIconClasses(this.modelService, this.modeService, this.resource)
 		};
 	}
 
-	public getAriaLabel(): string {
+	getAriaLabel(): string {
 		return nls.localize('entryAriaLabel', "{0}, file picker", this.getLabel());
 	}
 
-	public getDescription(): string {
+	getDescription(): string {
 		return this.description;
 	}
 
-	public getIcon(): string {
+	getIcon(): string {
 		return this.icon;
 	}
 
-	public getResource(): URI {
+	getResource(): URI {
 		return this.resource;
 	}
 
-	public setRange(range: IRange): void {
+	setRange(range: IRange): void {
 		this.range = range;
 	}
 
-	public mergeWithEditorHistory(): boolean {
+	mergeWithEditorHistory(): boolean {
 		return true;
 	}
 
-	public getInput(): IResourceInput | EditorInput {
+	getInput(): IResourceInput | EditorInput {
 		const input: IResourceInput = {
 			resource: this.resource,
 			options: {
@@ -132,11 +132,11 @@ export class OpenFileHandler extends QuickOpenHandler {
 		this.queryBuilder = this.instantiationService.createInstance(QueryBuilder);
 	}
 
-	public setOptions(options: IOpenFileOptions) {
+	setOptions(options: IOpenFileOptions) {
 		this.options = options;
 	}
 
-	public getResults(searchValue: string, maxSortedResults?: number): TPromise<FileQuickOpenModel> {
+	getResults(searchValue: string, maxSortedResults?: number): TPromise<FileQuickOpenModel> {
 		const query = prepareQuery(searchValue);
 
 		// Respond directly to empty search
@@ -204,11 +204,11 @@ export class OpenFileHandler extends QuickOpenHandler {
 		return queryOptions;
 	}
 
-	public hasShortResponseTime(): boolean {
+	hasShortResponseTime(): boolean {
 		return this.isCacheLoaded;
 	}
 
-	public onOpen(): void {
+	onOpen(): void {
 		this.cacheState = new CacheState(cacheKey => this.cacheQuery(cacheKey), query => this.searchService.search(query), cacheKey => this.searchService.clearCache(cacheKey), this.cacheState);
 		this.cacheState.load();
 	}
@@ -228,15 +228,15 @@ export class OpenFileHandler extends QuickOpenHandler {
 		return query;
 	}
 
-	public get isCacheLoaded(): boolean {
+	get isCacheLoaded(): boolean {
 		return this.cacheState && this.cacheState.isLoaded;
 	}
 
-	public getGroupLabel(): string {
+	getGroupLabel(): string {
 		return nls.localize('searchResults', "search results");
 	}
 
-	public getAutoFocus(searchValue: string): IAutoFocus {
+	getAutoFocus(searchValue: string): IAutoFocus {
 		return {
 			autoFocusFirstEntry: true
 		};
@@ -274,21 +274,21 @@ export class CacheState {
 		}
 	}
 
-	public get cacheKey(): string {
+	get cacheKey(): string {
 		return this.loadingPhase === LoadingPhase.Loaded || !this.previous ? this._cacheKey : this.previous.cacheKey;
 	}
 
-	public get isLoaded(): boolean {
+	get isLoaded(): boolean {
 		const isLoaded = this.loadingPhase === LoadingPhase.Loaded;
 		return isLoaded || !this.previous ? isLoaded : this.previous.isLoaded;
 	}
 
-	public get isUpdating(): boolean {
+	get isUpdating(): boolean {
 		const isUpdating = this.loadingPhase === LoadingPhase.Loading;
 		return isUpdating || !this.previous ? isUpdating : this.previous.isUpdating;
 	}
 
-	public load(): void {
+	load(): void {
 		if (this.isUpdating) {
 			return;
 		}
@@ -306,7 +306,7 @@ export class CacheState {
 			});
 	}
 
-	public dispose(): void {
+	dispose(): void {
 		if (this.promise) {
 			this.promise.then(null, () => { })
 				.then(() => {

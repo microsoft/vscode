@@ -987,8 +987,8 @@ export class DefaultPreferencesEditor extends BaseTextEditor {
 		const editor = this.instantiationService.createInstance(CodeEditorWidget, parent, configuration, { contributions: DefaultPreferencesEditor._getContributions() });
 
 		// Inform user about editor being readonly if user starts type
-		this.toUnbind.push(editor.onDidType(() => this.showReadonlyHint(editor)));
-		this.toUnbind.push(editor.onDidPaste(() => this.showReadonlyHint(editor)));
+		this._register(editor.onDidType(() => this.showReadonlyHint(editor)));
+		this._register(editor.onDidPaste(() => this.showReadonlyHint(editor)));
 
 		return editor;
 	}

@@ -27,14 +27,6 @@ export interface IView {
 	layout(width: number, height: number): void;
 }
 
-/*
-TODO:
-	- NEW: 	add a color to show a border where the sash is, similar to how other
-			widgets have a color (e.g. Button, with applyStyles). Challenge is that this
-			color has to be applied via JS and not CSS to not apply it to all views
-			NOT CSS
-*/
-
 export function orthogonal(orientation: Orientation): Orientation {
 	return orientation === Orientation.VERTICAL ? Orientation.HORIZONTAL : Orientation.VERTICAL;
 }

@@ -56,9 +56,29 @@ suite('Tests for Emmet: Reflect CSS Value command', () => {
 		});
 	});
 
+	test('Reflect Css Value in css file, selecting entire property', function (): any {
+		return withRandomFileEditor(cssContents, '.css', (editor, doc) => {
+			editor.selections = [new Selection(5, 2, 5, 32)];
+			return reflectCssValue().then(() => {
+				assert.equal(doc.getText(), cssContents.replace(/\(50deg\)/g, '(20deg)'));
+				return Promise.resolve();
+			});
+		});
+	});
+
 	test('Reflect Css Value in html file', function (): any {
 		return withRandomFileEditor(htmlContents, '.html', (editor, doc) => {
 			editor.selections = [new Selection(7, 20, 7, 20)];
+			return reflectCssValue().then(() => {
+				assert.equal(doc.getText(), htmlContents.replace(/\(50deg\)/g, '(20deg)'));
+				return Promise.resolve();
+			});
+		});
+	});
+
+	test('Reflect Css Value in html file, selecting entire property', function (): any {
+		return withRandomFileEditor(htmlContents, '.html', (editor, doc) => {
+			editor.selections = [new Selection(7, 4, 7, 34)];
 			return reflectCssValue().then(() => {
 				assert.equal(doc.getText(), htmlContents.replace(/\(50deg\)/g, '(20deg)'));
 				return Promise.resolve();
