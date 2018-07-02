@@ -228,6 +228,10 @@ export class UntitledEditorModel extends BaseTextEditorModel implements IEncodin
 		this.contentChangeEventScheduler.schedule();
 	}
 
+	public isReadonly(): boolean {
+		return false;
+	}
+
 	public dispose(): void {
 		super.dispose();
 

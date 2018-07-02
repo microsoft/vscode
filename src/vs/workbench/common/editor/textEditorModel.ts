@@ -14,7 +14,6 @@ import { IModeService } from 'vs/editor/common/services/modeService';
 import { IModelService } from 'vs/editor/common/services/modelService';
 import { IDisposable } from 'vs/base/common/lifecycle';
 import { ITextSnapshot } from 'vs/platform/files/common/files';
-import { Schemas } from 'vs/base/common/network';
 
 /**
  * The base text editor model leverages the code editor model. This class is only intended to be subclassed and not instantiated.
@@ -139,13 +138,7 @@ export abstract class BaseTextEditorModel extends EditorModel implements ITextEd
 		return !!this.textEditorModelHandle;
 	}
 
-	isReadonly(): boolean {
-		if (this.textEditorModelHandle && this.textEditorModelHandle.scheme === Schemas.untitled) {
-			// only this layer, we only know that untitled:// schemas are writeable
-			// any other resource that this model is about can only be readonly
-			return false;
-		}
-
+	public isReadonly(): boolean {
 		return true;
 	}
 
