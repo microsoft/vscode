@@ -18,5 +18,9 @@
 		"typeRoots": [
 			"typings"
 		]
-	}
+	},
+	"exclude": [
+		"./typings/lib.ie11_safe_es6.d.ts",
+		"./src/vs/base/common/winjs.polyfill.promise.ts"
+	]
 }
