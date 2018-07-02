@@ -160,7 +160,7 @@ export class ReleaseNotesManager {
 		return body;
 	}
 
-	private async renderContent(text: string): TPromise<string> {
+	private async renderContent(text: string): Promise<string> {
 		const renderer = await this.getRenderer(text);
 		return marked(text, { renderer });
 	}

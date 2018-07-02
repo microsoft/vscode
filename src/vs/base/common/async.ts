@@ -442,13 +442,13 @@ export function sequence<T>(promiseFactories: ITask<Thenable<T>>[]): TPromise<T[
 	return TPromise.as(null).then(thenHandler);
 }
 
-export function first<T>(promiseFactories: ITask<TPromise<T>>[], shouldStop: (t: T) => boolean = t => !!t): TPromise<T> {
+export function first<T>(promiseFactories: ITask<TPromise<T>>[], shouldStop: (t: T) => boolean = t => !!t, defaultValue: T = null): TPromise<T> {
 	let index = 0;
 	const len = promiseFactories.length;
 
 	const loop: () => TPromise<T> = () => {
 		if (index >= len) {
-			return TPromise.as(null);
+			return TPromise.as(defaultValue);
 		}
 
 		const factory = promiseFactories[index++];

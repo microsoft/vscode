@@ -66,10 +66,10 @@ export class DebugViewlet extends ViewContainerViewlet {
 		}));
 	}
 
-	async create(parent: HTMLElement): TPromise<void> {
-		await super.create(parent);
-
-		DOM.addClass(parent, 'debug-viewlet');
+	create(parent: HTMLElement): TPromise<void> {
+		return super.create(parent).then(() => {
+			DOM.addClass(parent, 'debug-viewlet');
+		});
 	}
 
 	public focus(): void {
