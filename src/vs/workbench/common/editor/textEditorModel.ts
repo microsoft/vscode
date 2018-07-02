@@ -66,6 +66,8 @@ export abstract class BaseTextEditorModel extends EditorModel implements ITextEd
 		return this.textEditorModelHandle ? this.modelService.getModel(this.textEditorModelHandle) : null;
 	}
 
+	abstract isReadonly(): boolean;
+
 	/**
 	 * Creates the text editor model with the provided value, modeId (can be comma separated for multiple values) and optional resource URL.
 	 */
@@ -137,10 +139,6 @@ export abstract class BaseTextEditorModel extends EditorModel implements ITextEd
 
 	isResolved(): boolean {
 		return !!this.textEditorModelHandle;
-	}
-
-	isReadonly(): boolean {
-		return false;
 	}
 
 	dispose(): void {

@@ -204,4 +204,8 @@ export class UntitledEditorModel extends BaseTextEditorModel implements IEncodin
 		// Handle content change event buffered
 		this.contentChangeEventScheduler.schedule();
 	}
+
+	isReadonly(): boolean {
+		return false;
+	}
 }

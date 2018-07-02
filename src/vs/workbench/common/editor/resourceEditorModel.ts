@@ -24,4 +24,8 @@ export class ResourceEditorModel extends BaseTextEditorModel {
 		// TODO@Joao: force this class to dispose the underlying model
 		this.createdEditorModel = true;
 	}
+
+	isReadonly(): boolean {
+		return true;
+	}
 }
