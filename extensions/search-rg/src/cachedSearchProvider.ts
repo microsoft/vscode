@@ -5,9 +5,9 @@
 
 import * as path from 'path';
 import * as vscode from 'vscode';
-import * as arrays from './arrays';
-import { compareItemsByScore, IItemAccessor, prepareQuery, ScorerCache } from './fileSearchScorer';
-import * as strings from './strings';
+import * as arrays from './common/arrays';
+import { compareItemsByScore, IItemAccessor, prepareQuery, ScorerCache } from './common/fileSearchScorer';
+import * as strings from './common/strings';
 
 interface IProviderArgs {
 	query: vscode.FileSearchQuery;
@@ -119,7 +119,7 @@ export class CachedSearchProvider {
 		const preparedQuery = prepareQuery(args.query.pattern);
 		const compare = (matchA: IInternalFileMatch, matchB: IInternalFileMatch) => compareItemsByScore(matchA, matchB, preparedQuery, true, FileMatchItemAccessor, scorerCache);
 
-		return arrays.topAsync(results, compare, args.options.maxResults, 10000);
+		return arrays.topAsync(results, compare, args.options.maxResults || 10000, 10000);
 	}
 
 	private getResultsFromCache(cache: Cache, searchValue: string, onResult: (results: IInternalFileMatch) => void): Promise<[IInternalFileMatch[], CacheStats]> {
@@ -199,7 +199,7 @@ export class CachedSearchProvider {
 				}
 			};
 
-			provider.provideFileSearchResults(args.query, args.options, { report: onProviderResult },  args.token).then(() => {
+			provider.provideFileSearchResults(args.query, args.options, { report: onProviderResult }, args.token).then(() => {
 				if (batch.length) {
 					onResult(batch);
 				}

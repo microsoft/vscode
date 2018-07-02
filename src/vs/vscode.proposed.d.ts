@@ -28,7 +28,7 @@ declare module 'vscode' {
 		excludes: string[];
 		useIgnoreFiles?: boolean;
 		followSymlinks?: boolean;
-		maxResults: number;
+		maxResults?: number;
 	}
 
 	export interface TextSearchOptions extends SearchOptions {

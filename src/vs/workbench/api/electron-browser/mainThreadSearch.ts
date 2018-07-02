@@ -42,7 +42,11 @@ export class MainThreadSearch implements MainThreadSearchShape {
 		this._searchProvider.delete(handle);
 	}
 
-	$handleFindMatch(handle: number, session, data: UriComponents | IRawFileMatch2[]): void {
+	$handleFileMatch(handle: number, session, data: UriComponents[]): void {
+		this._searchProvider.get(handle).handleFindMatch(session, data);
+	}
+
+	$handleTextMatch(handle: number, session, data: IRawFileMatch2[]): void {
 		this._searchProvider.get(handle).handleFindMatch(session, data);
 	}
 
@@ -134,22 +138,24 @@ class RemoteSearchProvider implements ISearchResultProvider {
 		});
 	}
 
-	handleFindMatch(session: number, dataOrUri: UriComponents | IRawFileMatch2[]): void {
+	handleFindMatch(session: number, dataOrUri: (UriComponents | IRawFileMatch2)[]): void {
 		if (!this._searches.has(session)) {
 			// ignore...
 			return;
 		}
 
 		const searchOp = this._searches.get(session);
-		if (Array.isArray(dataOrUri)) {
-			dataOrUri.forEach(m => {
+		dataOrUri.forEach(result => {
+			if ((<IRawFileMatch2>result).lineMatches) {
 				searchOp.addMatch({
-					resource: URI.revive(m.resource),
-					lineMatches: m.lineMatches
+					resource: URI.revive((<IRawFileMatch2>result).resource),
+					lineMatches: (<IRawFileMatch2>result).lineMatches
 				});
-			});
-		} else {
-			searchOp.addMatch({ resource: URI.revive(dataOrUri) });
-		}
+			} else {
+				searchOp.addMatch({
+					resource: URI.revive(result)
+				});
+			}
+		});
 	}
 }

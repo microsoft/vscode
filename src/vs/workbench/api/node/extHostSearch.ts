@@ -18,8 +18,6 @@ import { IFileMatch, IFolderQuery, IPatternInfo, IRawFileMatch2, IRawSearchQuery
 import * as vscode from 'vscode';
 import { ExtHostSearchShape, IMainContext, MainContext, MainThreadSearchShape } from './extHost.protocol';
 
-type OneOrMore<T> = T | T[];
-
 export interface ISchemeTransformer {
 	transformOutgoing(scheme: string): string;
 }
@@ -67,13 +65,7 @@ export class ExtHostSearch implements ExtHostSearchShape {
 			null,
 			null,
 			progress => {
-				if (Array.isArray(progress)) {
-					progress.forEach(p => {
-						this._proxy.$handleFindMatch(handle, session, p.resource);
-					});
-				} else {
-					this._proxy.$handleFindMatch(handle, session, progress.resource);
-				}
+				this._proxy.$handleFileMatch(handle, session, progress.map(p => p.resource));
 			});
 	}
 
@@ -89,7 +81,7 @@ export class ExtHostSearch implements ExtHostSearchShape {
 			null,
 			null,
 			progress => {
-				this._proxy.$handleFindMatch(handle, session, progress);
+				this._proxy.$handleTextMatch(handle, session, progress);
 			});
 	}
 }
@@ -512,15 +504,11 @@ class FileSearchEngine {
 	private includePattern: glob.ParsedExpression;
 	private maxResults: number;
 	private exists: boolean;
-	// private maxFilesize: number;
 	private isLimitHit: boolean;
 	private resultCount: number;
 	private isCanceled: boolean;
 
 	private activeCancellationTokens: Set<CancellationTokenSource>;
-
-	// private filesWalked: number;
-	// private directoriesWalked: number;
 
 	private globalExcludePattern: glob.ParsedExpression;
 
@@ -529,13 +517,9 @@ class FileSearchEngine {
 		this.includePattern = config.includePattern && glob.parse(config.includePattern);
 		this.maxResults = config.maxResults || null;
 		this.exists = config.exists;
-		// this.maxFilesize = config.maxFileSize || null;
 		this.resultCount = 0;
 		this.isLimitHit = false;
 		this.activeCancellationTokens = new Set<CancellationTokenSource>();
-
-		// this.filesWalked = 0;
-		// this.directoriesWalked = 0;
 
 		if (this.filePattern) {
 			this.normalizedFilePatternLowercase = strings.stripWildcards(this.filePattern).toLowerCase();
@@ -644,7 +628,7 @@ class FileSearchEngine {
 				.then(() => {
 					this.activeCancellationTokens.add(cancellation);
 					return this.provider.provideFileSearchResults(
-						{ cacheKey: this.config.cacheKey, pattern: this.config.filePattern },
+						{ cacheKey: this.config.cacheKey, pattern: this.config.filePattern || '' },
 						options,
 						{ report: onProviderResult },
 						cancellation.token);
@@ -736,7 +720,6 @@ class FileSearchEngine {
 		const self = this;
 		const filePattern = this.filePattern;
 		function matchDirectory(entries: IDirectoryEntry[]) {
-			// self.directoriesWalked++;
 			for (let i = 0, n = entries.length; i < n; i++) {
 				const entry = entries[i];
 				const { relativePath, basename } = entry;
@@ -753,7 +736,6 @@ class FileSearchEngine {
 				if (sub) {
 					matchDirectory(sub);
 				} else {
-					// self.filesWalked++;
 					if (relativePath === filePattern) {
 						continue; // ignore file if its path matches with the file pattern because that is already matched above
 					}
@@ -769,25 +751,9 @@ class FileSearchEngine {
 		matchDirectory(rootEntries);
 	}
 
-	public getStats(): any {
-		return null;
-		// return {
-		// 	fromCache: false,
-		// 	traversal: Traversal[this.traversal],
-		// 	errors: this.errors,
-		// 	fileWalkStartTime: this.fileWalkStartTime,
-		// 	fileWalkResultTime: Date.now(),
-		// 	directoriesWalked: this.directoriesWalked,
-		// 	filesWalked: this.filesWalked,
-		// 	resultCount: this.resultCount,
-		// 	cmdForkResultTime: this.cmdForkResultTime,
-		// 	cmdResultCount: this.cmdResultCount
-		// };
-	}
-
 	/**
 	 * Return whether the file pattern is an absolute path to a file that exists.
-	 * TODO@roblou should use FS provider?
+	 * TODO@roblou delete to match fileSearch.ts
 	 */
 	private checkFilePatternAbsoluteMatch(): TPromise<{ exists: boolean, size?: number }> {
 		if (!this.filePattern || !path.isAbsolute(this.filePattern)) {
@@ -859,16 +825,12 @@ class FileSearchManager {
 
 	constructor(private _pfs: typeof pfs) { }
 
-	public fileSearch(config: ISearchQuery, provider: vscode.SearchProvider): PPromise<ISearchCompleteStats, OneOrMore<IFileMatch>> {
+	public fileSearch(config: ISearchQuery, provider: vscode.SearchProvider): PPromise<ISearchCompleteStats, IFileMatch[]> {
 		let searchP: PPromise;
-		return new PPromise<ISearchCompleteStats, OneOrMore<IFileMatch>>((c, e, p) => {
+		return new PPromise<ISearchCompleteStats, IFileMatch[]>((c, e, p) => {
 			const engine = new FileSearchEngine(config, provider, this._pfs);
 			searchP = this.doSearch(engine, provider, FileSearchManager.BATCH_SIZE).then(c, e, progress => {
-				if (Array.isArray(progress)) {
-					p(progress.map(m => this.rawMatchToSearchItem(m)));
-				} else if ((<IInternalFileMatch>progress).relativePath) {
-					p(this.rawMatchToSearchItem(<IInternalFileMatch>progress));
-				}
+				p(progress.map(m => this.rawMatchToSearchItem(m)));
 			});
 		}, () => {
 			if (searchP) {
@@ -883,8 +845,8 @@ class FileSearchManager {
 		};
 	}
 
-	private doSearch(engine: FileSearchEngine, provider: vscode.SearchProvider, batchSize?: number): PPromise<ISearchCompleteStats, OneOrMore<IInternalFileMatch>> {
-		return new PPromise<ISearchCompleteStats, OneOrMore<IInternalFileMatch>>((c, e, p) => {
+	private doSearch(engine: FileSearchEngine, provider: vscode.SearchProvider, batchSize: number): PPromise<ISearchCompleteStats, IInternalFileMatch[]> {
+		return new PPromise<ISearchCompleteStats, IInternalFileMatch[]>((c, e, p) => {
 			let batch: IInternalFileMatch[] = [];
 			engine.search().then(result => {
 				if (batch.length) {
@@ -892,8 +854,7 @@ class FileSearchManager {
 				}
 
 				c({
-					limitHit: result.isLimitHit,
-					stats: engine.getStats() // TODO@roblou
+					limitHit: result.isLimitHit
 				});
 			}, error => {
 				if (batch.length) {
@@ -903,14 +864,10 @@ class FileSearchManager {
 				e(error);
 			}, match => {
 				if (match) {
-					if (batchSize) {
-						batch.push(match);
-						if (batchSize > 0 && batch.length >= batchSize) {
-							p(batch);
-							batch = [];
-						}
-					} else {
-						p(match);
+					batch.push(match);
+					if (batchSize > 0 && batch.length >= batchSize) {
+						p(batch);
+						batch = [];
 					}
 				}
 			});

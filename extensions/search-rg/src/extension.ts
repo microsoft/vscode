@@ -17,7 +17,10 @@ export function activate(): void {
 }
 
 class RipgrepSearchProvider implements vscode.SearchProvider {
+	private cachedProvider: CachedSearchProvider;
+
 	constructor(private outputChannel: vscode.OutputChannel) {
+		this.cachedProvider = new CachedSearchProvider(this.outputChannel);
 	}
 
 	provideTextSearchResults(query: vscode.TextSearchQuery, options: vscode.TextSearchOptions, progress: vscode.Progress<vscode.TextSearchResult>, token: vscode.CancellationToken): Thenable<void> {
@@ -26,8 +29,7 @@ class RipgrepSearchProvider implements vscode.SearchProvider {
 	}
 
 	provideFileSearchResults(query: vscode.FileSearchQuery, options: vscode.SearchOptions, progress: vscode.Progress<string>, token: vscode.CancellationToken): Thenable<void> {
-		const cachedProvider = new CachedSearchProvider(this.outputChannel);
 		const engine = new RipgrepFileSearch(this.outputChannel);
-		return cachedProvider.provideFileSearchResults(engine, query, options, progress, token);
+		return this.cachedProvider.provideFileSearchResults(engine, query, options, progress, token);
 	}
 }

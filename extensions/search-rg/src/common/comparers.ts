@@ -9,6 +9,13 @@ import * as strings from './strings';
 let intlFileNameCollator: Intl.Collator;
 let intlFileNameCollatorIsNumeric: boolean;
 
+setFileNameComparer(new Intl.Collator(undefined, { numeric: true, sensitivity: 'base' }));
+
+export function setFileNameComparer(collator: Intl.Collator): void {
+	intlFileNameCollator = collator;
+	intlFileNameCollatorIsNumeric = collator.resolvedOptions().numeric;
+}
+
 export function compareFileNames(one: string, other: string, caseSensitive = false): number {
 	if (intlFileNameCollator) {
 		const a = one || '';
