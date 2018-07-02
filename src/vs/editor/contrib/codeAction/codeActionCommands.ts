@@ -139,8 +139,8 @@ export class QuickFixController implements IEditorContribution {
 		this._lightBulbWidget.title = title;
 	}
 
-	private async _onApplyCodeAction(action: CodeAction): TPromise<void> {
-		await applyCodeAction(action, this._bulkEditService, this._commandService, this._editor);
+	private _onApplyCodeAction(action: CodeAction): TPromise<void> {
+		return TPromise.wrap(applyCodeAction(action, this._bulkEditService, this._commandService, this._editor));
 	}
 }
 
@@ -149,7 +149,7 @@ export async function applyCodeAction(
 	bulkEditService: IBulkEditService,
 	commandService: ICommandService,
 	editor?: ICodeEditor,
-) {
+): Promise<void> {
 	if (action.edit) {
 		await bulkEditService.apply(action.edit, { editor });
 	}
