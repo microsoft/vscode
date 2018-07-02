@@ -197,8 +197,8 @@ phases:
 
       echo "machine monacotools.visualstudio.com password $(VSO_PAT)" > ~/.netrc
       yarn
-      npm run gulp -- hygiene
-      npm run monaco-compile-check
+      # npm run gulp -- hygiene
+      # npm run monaco-compile-check
       VSCODE_MIXIN_PASSWORD="$(VSCODE_MIXIN_PASSWORD)" npm run gulp -- mixin
       node build/tfs/common/installDistro.js
       node build/lib/builtInExtensions.js
