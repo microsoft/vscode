@@ -349,7 +349,7 @@ export class ReviewZoneWidget extends ZoneWidget {
 		this.setCommentEditorDecorations();
 
 		// Only add the additional step of clicking a reply button to expand the textarea when there are existing comments
-		this.createCommentButton();
+		this.createReplyButton();
 
 		this._localToDispose.push(this._commentEditor.onKeyDown((ev: IKeyboardEvent) => {
 			const hasExistingComments = this._commentThread.comments.length > 0;
@@ -383,6 +383,8 @@ export class ReviewZoneWidget extends ZoneWidget {
 					new Range(lineNumber, 1, lineNumber, 1),
 					this._commentEditor.getValue()
 				);
+
+				this.createReplyButton();
 			}
 
 			this._commentEditor.setValue('');
@@ -414,7 +416,7 @@ export class ReviewZoneWidget extends ZoneWidget {
 		}
 	}
 
-	createCommentButton() {
+	createReplyButton() {
 		const hasExistingComments = this._commentThread.comments.length > 0;
 		if (hasExistingComments) {
 			this._reviewThreadReplyButton = <HTMLButtonElement>$('button.review-thread-reply-button').appendTo(this._commentForm).getHTMLElement();
