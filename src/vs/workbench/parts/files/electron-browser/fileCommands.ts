@@ -85,8 +85,15 @@ export const openWindowCommand = (accessor: ServicesAccessor, paths: string[], f
 	windowService.openWindow(paths, { forceNewWindow });
 };
 
-function save(resource: URI, isSaveAs: boolean, editorService: IEditorService, fileService: IFileService, untitledEditorService: IUntitledEditorService,
-	textFileService: ITextFileService, editorGroupService: IEditorGroupsService): TPromise<any> {
+function save(
+	resource: URI,
+	isSaveAs: boolean,
+	editorService: IEditorService,
+	fileService: IFileService,
+	untitledEditorService: IUntitledEditorService,
+	textFileService: ITextFileService,
+	editorGroupService: IEditorGroupsService
+): TPromise<any> {
 
 	if (resource && (fileService.canHandleResource(resource) || resource.scheme === Schemas.untitled)) {
 
@@ -355,6 +362,7 @@ function revealResourcesInOS(resources: URI[], windowsService: IWindowsService, 
 		notificationService.info(nls.localize('openFileToReveal', "Open a file first to reveal"));
 	}
 }
+
 KeybindingsRegistry.registerCommandAndKeybindingRule({
 	id: REVEAL_IN_OS_COMMAND_ID,
 	weight: KeybindingsRegistry.WEIGHT.workbenchContrib(),
@@ -368,6 +376,7 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 		revealResourcesInOS(resources, accessor.get(IWindowsService), accessor.get(INotificationService), accessor.get(IWorkspaceContextService));
 	}
 });
+
 KeybindingsRegistry.registerCommandAndKeybindingRule({
 	weight: KeybindingsRegistry.WEIGHT.workbenchContrib(),
 	when: undefined,
@@ -408,6 +417,7 @@ function resourcesToClipboard(resources: URI[], clipboardService: IClipboardServ
 		notificationService.info(nls.localize('openFileToCopy', "Open a file first to copy its path"));
 	}
 }
+
 KeybindingsRegistry.registerCommandAndKeybindingRule({
 	weight: KeybindingsRegistry.WEIGHT.workbenchContrib(),
 	when: EditorContextKeys.focus.toNegated(),
