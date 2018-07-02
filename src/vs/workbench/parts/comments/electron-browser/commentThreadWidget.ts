@@ -64,7 +64,6 @@ export class CommentNode {
 
 		this._domNode.setAttribute('aria-label', `${comment.userName}, ${comment.body.value}`);
 		this._domNode.setAttribute('role', 'treeitem');
-		this._domNode.title = `${comment.userName}, ${comment.body.value}`;
 		this._clearTimeout = null;
 	}
 
