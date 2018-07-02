@@ -14,6 +14,7 @@ import { parse as parseUrl } from 'url';
 import { createWriteStream } from 'fs';
 import { assign } from 'vs/base/common/objects';
 import { createGunzip } from 'zlib';
+import { winJSRequire } from 'vs/base/common/async';
 
 export type Agent = any;
 
@@ -51,7 +52,7 @@ export interface IRequestFunction {
 
 async function getNodeRequest(options: IRequestOptions): TPromise<IRawRequestFunction> {
 	const endpoint = parseUrl(options.url);
-	const module = endpoint.protocol === 'https:' ? await import('https') : await import('http');
+	const module = endpoint.protocol === 'https:' ? await winJSRequire<typeof import('https')>('https') : await winJSRequire<typeof import('http')>('http');
 	return module.request;
 }
 

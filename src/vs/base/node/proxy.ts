@@ -9,6 +9,7 @@ import { Url, parse as parseUrl } from 'url';
 import { isBoolean } from 'vs/base/common/types';
 import { Agent } from './request';
 import { TPromise } from 'vs/base/common/winjs.base';
+import { winJSRequire } from 'vs/base/common/async';
 
 
 function getSystemProxyURI(requestURL: Url): string {
@@ -48,8 +49,8 @@ export async function getProxyAgent(rawRequestURL: string, options: IOptions = {
 	};
 
 	const Ctor = requestURL.protocol === 'http:'
-		? await import('http-proxy-agent')
-		: await import('https-proxy-agent');
+		? await winJSRequire<typeof import('http-proxy-agent')>('http-proxy-agent')
+		: await winJSRequire<typeof import('https-proxy-agent')>('https-proxy-agent');
 
 	return new Ctor(opts);
 }

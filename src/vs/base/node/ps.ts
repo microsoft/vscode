@@ -7,6 +7,7 @@
 
 import { exec } from 'child_process';
 import URI from 'vs/base/common/uri';
+import { winJSRequire } from 'vs/base/common/async';
 
 export interface ProcessItem {
 	name: string;
@@ -133,7 +134,7 @@ export function listProcesses(rootPid: number): Promise<ProcessItem> {
 				}
 			};
 
-			(import('windows-process-tree')).then(windowsProcessTree => {
+			(winJSRequire<typeof import('windows-process-tree')>('windows-process-tree')).then(windowsProcessTree => {
 				windowsProcessTree.getProcessList(rootPid, (processList) => {
 					windowsProcessTree.getProcessCpuUsage(processList, (completeProcessList) => {
 						const processItems: Map<number, ProcessItem> = new Map();

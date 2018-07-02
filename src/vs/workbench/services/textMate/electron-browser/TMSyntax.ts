@@ -25,6 +25,7 @@ import { Color } from 'vs/base/common/color';
 import { INotificationService } from 'vs/platform/notification/common/notification';
 import URI from 'vs/base/common/uri';
 import { IFileService } from 'vs/platform/files/common/files';
+import { winJSRequire } from 'vs/base/common/async';
 import { ILogService } from 'vs/platform/log/common/log';
 
 export class TMScopeRegistry {
@@ -211,7 +212,7 @@ export class TextMateService implements ITextMateService {
 
 	private _getOrCreateGrammarRegistry(): TPromise<[Registry, StackElement]> {
 		if (!this._grammarRegistry) {
-			this._grammarRegistry = TPromise.wrap(import('vscode-textmate')).then(({ Registry, INITIAL, parseRawGrammar }) => {
+			this._grammarRegistry = winJSRequire<typeof import('vscode-textmate')>('vscode-textmate').then(({ Registry, INITIAL, parseRawGrammar }) => {
 				const grammarRegistry = new Registry({
 					loadGrammar: (scopeName: string) => {
 						const location = this._scopeRegistry.getGrammarLocation(scopeName);
