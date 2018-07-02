@@ -58,7 +58,7 @@ export class LineDecoration {
 				continue;
 			}
 
-			if (range.isEmpty() && d.type === InlineDecorationType.Regular) {
+			if (range.isEmpty() && (d.type === InlineDecorationType.Regular || d.type === InlineDecorationType.RegularAffectingLetterSpacing)) {
 				// Ignore empty range decorations
 				continue;
 			}

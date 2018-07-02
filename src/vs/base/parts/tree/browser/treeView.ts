@@ -445,6 +445,9 @@ export class TreeView extends HeightMap {
 	private readonly _onDOMBlur: Emitter<void> = new Emitter<void>();
 	get onDOMBlur(): Event<void> { return this._onDOMBlur.event; }
 
+	private readonly _onDidScroll: Emitter<void> = new Emitter<void>();
+	get onDidScroll(): Event<void> { return this._onDidScroll.event; }
+
 	constructor(context: _.ITreeContext, container: HTMLElement) {
 		super();
 
@@ -510,6 +513,7 @@ export class TreeView extends HeightMap {
 		});
 		this.scrollableElement.onScroll((e) => {
 			this.render(e.scrollTop, e.height, e.scrollLeft, e.width, e.scrollWidth);
+			this._onDidScroll.fire();
 		});
 
 		if (Browser.isIE) {
@@ -647,6 +651,11 @@ export class TreeView extends HeightMap {
 		if (this.horizontalScrolling) {
 			this.viewWidth = width || DOM.getContentWidth(this.wrapper);
 		}
+	}
+
+	public getFirstVisibleElement(): any {
+		const item = this.itemAtIndex(this.indexAt(this.lastRenderTop));
+		return item && item.model.getElement();
 	}
 
 	private render(scrollTop: number, viewHeight: number, scrollLeft: number, viewWidth: number, scrollWidth: number): void {
@@ -867,7 +876,7 @@ export class TreeView extends HeightMap {
 		var item = <Model.Item>e.item;
 		var viewItem = this.items[item.id];
 
-		if (viewItem) {
+		if (viewItem && this.context.options.showLoading) {
 			viewItem.loadingTimer = setTimeout(() => {
 				viewItem.loadingTimer = 0;
 				viewItem.loading = true;
@@ -915,13 +924,16 @@ export class TreeView extends HeightMap {
 			let doToInsertItemsAlreadyExist: boolean;
 
 			if (!skipDiff) {
-				const lcs = new Diff.LcsDiff({
-					getLength: () => previousChildrenIds.length,
-					getElementHash: (i: number) => previousChildrenIds[i]
-				}, {
+				const lcs = new Diff.LcsDiff(
+					{
+						getLength: () => previousChildrenIds.length,
+						getElementAtIndex: (i: number) => previousChildrenIds[i]
+					}, {
 						getLength: () => afterModelItems.length,
-						getElementHash: (i: number) => afterModelItems[i].id
-					}, null);
+						getElementAtIndex: (i: number) => afterModelItems[i].id
+					},
+					null
+				);
 
 				diff = lcs.ComputeDiff(false);
 

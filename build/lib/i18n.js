@@ -1083,7 +1083,7 @@ function prepareI18nPackFiles(externalExtensions, resultingTranslationPaths, pse
                         extPack = extensionsPacks[resource] = { version: i18nPackVersion, contents: {} };
                     }
                     var externalId = externalExtensions[resource];
-                    if (!externalId) {
+                    if (!externalId) { // internal extension: remove 'extensions/extensionId/' segnent
                         var secondSlash = path.indexOf('/', firstSlash + 1);
                         extPack.contents[path.substr(secondSlash + 1)] = file.messages;
                     }

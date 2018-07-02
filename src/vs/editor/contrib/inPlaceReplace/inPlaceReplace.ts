@@ -10,7 +10,6 @@ import { TPromise } from 'vs/base/common/winjs.base';
 import { Range } from 'vs/editor/common/core/range';
 import { Selection } from 'vs/editor/common/core/selection';
 import { IEditorContribution } from 'vs/editor/common/editorCommon';
-import { IModelDecorationsChangeAccessor } from 'vs/editor/common/model';
 import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
 import { registerEditorAction, ServicesAccessor, EditorAction, registerEditorContribution } from 'vs/editor/browser/editorExtensions';
 import { IInplaceReplaceSupportResult } from 'vs/editor/common/modes';
@@ -63,16 +62,16 @@ class InPlaceReplaceController implements IEditorContribution {
 		// cancel any pending request
 		this.currentRequest.cancel();
 
-		var selection = this.editor.getSelection(),
-			model = this.editor.getModel(),
-			modelURI = model.uri;
+		let selection = this.editor.getSelection();
+		const model = this.editor.getModel();
+		const modelURI = model.uri;
 
 		if (selection.startLineNumber !== selection.endLineNumber) {
 			// Can't accept multiline selection
 			return null;
 		}
 
-		var state = new EditorState(this.editor, CodeEditorStateFlag.Value | CodeEditorStateFlag.Position);
+		const state = new EditorState(this.editor, CodeEditorStateFlag.Value | CodeEditorStateFlag.Position);
 
 		if (!this.editorWorkerService.canNavigateValueSet(modelURI)) {
 			this.currentRequest = TPromise.as(null);
@@ -99,9 +98,9 @@ class InPlaceReplaceController implements IEditorContribution {
 			}
 
 			// Selection
-			var editRange = Range.lift(result.range),
-				highlightRange = result.range,
-				diff = result.value.length - (selection.endColumn - selection.startColumn);
+			let editRange = Range.lift(result.range);
+			let highlightRange = result.range;
+			let diff = result.value.length - (selection.endColumn - selection.startColumn);
 
 			// highlight
 			highlightRange = {
@@ -115,7 +114,7 @@ class InPlaceReplaceController implements IEditorContribution {
 			}
 
 			// Insert new text
-			var command = new InPlaceReplaceCommand(editRange, selection, result.value);
+			const command = new InPlaceReplaceCommand(editRange, selection, result.value);
 
 			this.editor.pushUndoStop();
 			this.editor.executeCommand(source, command);
@@ -131,9 +130,7 @@ class InPlaceReplaceController implements IEditorContribution {
 			this.decorationRemover.cancel();
 			this.decorationRemover = TPromise.timeout(350);
 			this.decorationRemover.then(() => {
-				this.editor.changeDecorations((accessor: IModelDecorationsChangeAccessor) => {
-					this.decorationIds = accessor.deltaDecorations(this.decorationIds, []);
-				});
+				this.decorationIds = this.editor.deltaDecorations(this.decorationIds, []);
 			});
 		});
 	}

@@ -74,6 +74,13 @@ export default class Tracer {
 		this.logTrace(`Response received: ${response.command} (${response.request_seq}). Request took ${Date.now() - startTime} ms. Success: ${response.success} ${!response.success ? '. Message: ' + response.message : ''}`, data);
 	}
 
+	public traceRequestCompleted(command: string, request_seq: number, startTime: number): any {
+		if (this.trace === Trace.Off) {
+			return;
+		}
+		this.logTrace(`Async response received: ${command} (${request_seq}). Request took ${Date.now() - startTime} ms.`);
+	}
+
 	public traceEvent(event: Proto.Event): void {
 		if (this.trace === Trace.Off) {
 			return;

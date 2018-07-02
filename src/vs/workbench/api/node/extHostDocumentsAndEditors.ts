@@ -95,10 +95,10 @@ export class ExtHostDocumentsAndEditors implements ExtHostDocumentsAndEditorsSha
 					this._mainContext.getProxy(MainContext.MainThreadTextEditors),
 					data.id,
 					documentData,
-					data.selections.map(typeConverters.toSelection),
+					data.selections.map(typeConverters.Selection.to),
 					data.options,
-					data.visibleRanges.map(typeConverters.toRange),
-					typeConverters.toViewColumn(data.editorPosition)
+					data.visibleRanges.map(typeConverters.Range.to),
+					typeConverters.ViewColumn.to(data.editorPosition)
 				);
 				this._editors.set(data.id, editor);
 			}

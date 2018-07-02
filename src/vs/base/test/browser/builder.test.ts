@@ -5,11 +5,24 @@
 'use strict';
 
 import * as assert from 'assert';
-import { Build, Builder, MultiBuilder, $, bindElement, withElement, setPropertyOnElement, getPropertyFromElement } from 'vs/base/browser/builder';
+import { Builder, MultiBuilder, $, bindElement, withElement, setPropertyOnElement, getPropertyFromElement } from 'vs/base/browser/builder';
 import * as Types from 'vs/base/common/types';
 import * as DomUtils from 'vs/base/browser/dom';
 import { IDisposable } from 'vs/base/common/lifecycle';
 import { timeout } from 'vs/base/common/async';
+
+function withElementById(id: string, offdom?: boolean): Builder {
+	let element = document.getElementById(id);
+	if (element) {
+		return new Builder(element, offdom);
+	}
+
+	return null;
+}
+
+const Build = {
+	withElementById: withElementById
+};
 
 let withElementsBySelector = function (selector: string, offdom: boolean = false) {
 	let elements = window.document.querySelectorAll(selector);
@@ -623,7 +636,6 @@ suite('Builder', () => {
 		assert(!b.isHidden());
 		b.hide();
 		assert(b.isHidden());
-		assert(!b.hasClass('monaco-builder-visible'));
 		b.show();
 		b.hide();
 		assert(b.hasClass('monaco-builder-hidden'));

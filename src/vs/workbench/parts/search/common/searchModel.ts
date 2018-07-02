@@ -95,6 +95,7 @@ export class FileMatch extends Disposable {
 
 	private static readonly _CURRENT_FIND_MATCH = ModelDecorationOptions.register({
 		stickiness: TrackedRangeStickiness.NeverGrowsWhenTypingAtEdges,
+		zIndex: 13,
 		className: 'currentFindMatch',
 		overviewRuler: {
 			color: themeColorFromId(overviewRulerFindMatchForeground),
@@ -393,13 +394,15 @@ export class FolderMatch extends Disposable {
 	public add(raw: IFileMatch[], silent: boolean): void {
 		let changed: FileMatch[] = [];
 		raw.forEach((rawFileMatch) => {
-			if (!this._fileMatches.has(rawFileMatch.resource)) {
-				let fileMatch = this.instantiationService.createInstance(FileMatch, this._query.contentPattern, this._query.maxResults, this, rawFileMatch);
-				this.doAdd(fileMatch);
-				changed.push(fileMatch);
-				let disposable = fileMatch.onChange(() => this.onFileChange(fileMatch));
-				fileMatch.onDispose(() => disposable.dispose());
+			if (this._fileMatches.has(rawFileMatch.resource)) {
+				this._fileMatches.get(rawFileMatch.resource).dispose();
 			}
+
+			let fileMatch = this.instantiationService.createInstance(FileMatch, this._query.contentPattern, this._query.maxResults, this, rawFileMatch);
+			this.doAdd(fileMatch);
+			changed.push(fileMatch);
+			let disposable = fileMatch.onChange(() => this.onFileChange(fileMatch));
+			fileMatch.onDispose(() => disposable.dispose());
 		});
 		if (!silent && changed.length) {
 			this._onChange.fire({ elements: changed, added: true });
@@ -494,6 +497,26 @@ export class FolderMatch extends Disposable {
 		this._onDispose.fire();
 		super.dispose();
 	}
+}
+
+/**
+ * Compares instances of the same match type. Different match types should not be siblings
+ * and their sort order is undefined.
+ */
+export function searchMatchComparer(elementA: RenderableMatch, elementB: RenderableMatch): number {
+	if (elementA instanceof FolderMatch && elementB instanceof FolderMatch) {
+		return elementA.index() - elementB.index();
+	}
+
+	if (elementA instanceof FileMatch && elementB instanceof FileMatch) {
+		return elementA.resource().fsPath.localeCompare(elementB.resource().fsPath) || elementA.name().localeCompare(elementB.name());
+	}
+
+	if (elementA instanceof Match && elementB instanceof Match) {
+		return Range.compareRangesUsingStarts(elementA.range(), elementB.range());
+	}
+
+	return undefined;
 }
 
 export class SearchResult extends Disposable {
@@ -768,9 +791,6 @@ export class SearchModel extends Disposable {
 	private onSearchCompleted(completed: ISearchComplete, duration: number): ISearchComplete {
 		this.currentRequest = null;
 
-		if (completed) {
-			this._searchResult.add(completed.results, false);
-		}
 		const options: IPatternInfo = objects.assign({}, this._searchQuery.contentPattern);
 		delete options.pattern;
 		/* __GDPR__

@@ -5,8 +5,74 @@
 
 'use strict';
 
-export interface IIterator<E> {
-	next(): { readonly done: boolean, readonly value: E };
+export interface IIteratorResult<T> {
+	readonly done: boolean;
+	readonly value: T | undefined;
+}
+
+export interface IIterator<T> {
+	next(): IIteratorResult<T>;
+}
+
+const _empty: IIterator<any> = {
+	next() {
+		return { done: true, value: undefined };
+	}
+};
+
+export function empty<T>(): IIterator<T> {
+	return _empty;
+}
+
+export function iter<T>(array: T[], index = 0, length = array.length): IIterator<T> {
+	return {
+		next(): IIteratorResult<T> {
+			if (index >= length) {
+				return { done: true, value: undefined };
+			}
+
+			return { done: false, value: array[index++] };
+		}
+	};
+}
+
+export function map<T, R>(iterator: IIterator<T>, fn: (t: T) => R): IIterator<R> {
+	return {
+		next() {
+			const { done, value } = iterator.next();
+			return { done, value: done ? undefined : fn(value) };
+		}
+	};
+}
+
+export function filter<T>(iterator: IIterator<T>, fn: (t: T) => boolean): IIterator<T> {
+	return {
+		next() {
+			while (true) {
+				const { done, value } = iterator.next();
+
+				if (done) {
+					return { done, value: undefined };
+				}
+
+				if (fn(value)) {
+					return { done, value };
+				}
+			}
+		}
+	};
+}
+
+export function forEach<T>(iterator: IIterator<T>, fn: (t: T) => void): void {
+	for (let next = iterator.next(); !next.done; next = iterator.next()) {
+		fn(next.value);
+	}
+}
+
+export function collect<T>(iterator: IIterator<T>): T[] {
+	const result: T[] = [];
+	forEach(iterator, value => result.push(value));
+	return result;
 }
 
 export interface INextIterator<T> {
@@ -20,11 +86,11 @@ export class ArrayIterator<T> implements INextIterator<T> {
 	protected end: number;
 	protected index: number;
 
-	constructor(items: T[], start: number = 0, end: number = items.length) {
+	constructor(items: T[], start: number = 0, end: number = items.length, index = start - 1) {
 		this.items = items;
 		this.start = start;
 		this.end = end;
-		this.index = start - 1;
+		this.index = index;
 	}
 
 	public first(): T {
@@ -48,8 +114,8 @@ export class ArrayIterator<T> implements INextIterator<T> {
 
 export class ArrayNavigator<T> extends ArrayIterator<T> implements INavigator<T> {
 
-	constructor(items: T[], start: number = 0, end: number = items.length) {
-		super(items, start, end);
+	constructor(items: T[], start: number = 0, end: number = items.length, index = start - 1) {
+		super(items, start, end, index);
 	}
 
 	public current(): T {

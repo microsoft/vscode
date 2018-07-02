@@ -12,15 +12,23 @@ import { isLinux } from 'vs/base/common/platform';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { Event } from 'vs/base/common/event';
 import { startsWithIgnoreCase } from 'vs/base/common/strings';
-import { IProgress } from 'vs/platform/progress/common/progress';
 import { IDisposable } from 'vs/base/common/lifecycle';
 import { isEqualOrParent, isEqual } from 'vs/base/common/resources';
 import { isUndefinedOrNull } from 'vs/base/common/types';
 
 export const IFileService = createDecorator<IFileService>('fileService');
 
+export interface IResourceEncodings {
+	getWriteEncoding(resource: URI, preferredEncoding?: string): string;
+}
+
 export interface IFileService {
 	_serviceBrand: any;
+
+	/**
+	 * Helper to determine read/write encoding for resources.
+	 */
+	encoding: IResourceEncodings;
 
 	/**
 	 * Allows to listen for file changes. The event will fire for every file within the opened workspace
@@ -34,14 +42,19 @@ export interface IFileService {
 	onAfterOperation: Event<FileOperationEvent>;
 
 	/**
+	 * An event that is fired when a file system provider is added or removed
+	 */
+	onDidChangeFileSystemProviderRegistrations: Event<IFileSystemProviderRegistrationEvent>;
+
+	/**
 	 * Registeres a file system provider for a certain scheme.
 	 */
-	registerProvider?(scheme: string, provider: IFileSystemProvider): IDisposable;
+	registerProvider(scheme: string, provider: IFileSystemProvider): IDisposable;
 
 	/**
 	 * Checks if this file service can handle the given resource.
 	 */
-	canHandleResource?(resource: URI): boolean;
+	canHandleResource(resource: URI): boolean;
 
 	/**
 	 * Resolve the properties of a file identified by the resource.
@@ -115,27 +128,11 @@ export interface IFileService {
 	createFolder(resource: URI): TPromise<IFileStat>;
 
 	/**
-	 * Renames the provided file to use the new name. The returned promise
-	 * will have the stat model object as a result.
+	 * Deletes the provided file. The optional useTrash parameter allows to
+	 * move the file to trash. The optional recursive parameter allows to delete
+	 * non-empty folders recursively.
 	 */
-	rename(resource: URI, newName: string): TPromise<IFileStat>;
-
-	/**
-	 * Creates a new empty file if the given path does not exist and otherwise
-	 * will set the mtime and atime of the file to the current date.
-	 */
-	touchFile(resource: URI): TPromise<IFileStat>;
-
-	/**
-	 * Deletes the provided file.  The optional useTrash parameter allows to
-	 * move the file to trash.
-	 */
-	del(resource: URI, useTrash?: boolean): TPromise<void>;
-
-	/**
-	 * Imports the file to the parent identified by the resource.
-	 */
-	importFile(source: URI, targetFolder: URI): TPromise<IImportResult>;
+	del(resource: URI, options?: { useTrash?: boolean, recursive?: boolean }): TPromise<void>;
 
 	/**
 	 * Allows to start a watcher that reports file change events on the provided resource.
@@ -148,58 +145,87 @@ export interface IFileService {
 	unwatchFileChanges(resource: URI): void;
 
 	/**
-	 * Configures the file service with the provided options.
-	 */
-	updateOptions(options: object): void;
-
-	/**
-	 * Returns the preferred encoding to use for a given resource.
-	 */
-	getEncoding(resource: URI, preferredEncoding?: string): string;
-
-	/**
 	 * Frees up any resources occupied by this service.
 	 */
 	dispose(): void;
 }
 
+export interface FileOverwriteOptions {
+	overwrite: boolean;
+}
+
+export interface FileWriteOptions {
+	overwrite: boolean;
+	create: boolean;
+}
+
+export interface FileDeleteOptions {
+	recursive: boolean;
+}
 
 export enum FileType {
-	File = 0,
-	Dir = 1,
-	Symlink = 2
+	Unknown = 0,
+	File = 1,
+	Directory = 2,
+	SymbolicLink = 64
 }
+
 export interface IStat {
-	id: number | string;
-	mtime: number;
-	size: number;
 	type: FileType;
+	mtime: number;
+	ctime: number;
+	size: number;
+}
+
+export interface IWatchOptions {
+	recursive: boolean;
+	excludes: string[];
+}
+
+export enum FileSystemProviderCapabilities {
+	FileReadWrite = 1 << 1,
+	FileOpenReadWriteClose = 1 << 2,
+	FileFolderCopy = 1 << 3,
+
+	PathCaseSensitive = 1 << 10,
+	Readonly = 1 << 11
 }
 
 export interface IFileSystemProvider {
 
-	onDidChange?: Event<IFileChange[]>;
+	readonly capabilities: FileSystemProviderCapabilities;
 
-	// more...
-	//
-	utimes(resource: URI, mtime: number, atime: number): TPromise<IStat>;
+	onDidChangeFile: Event<IFileChange[]>;
+	watch(resource: URI, opts: IWatchOptions): IDisposable;
+
 	stat(resource: URI): TPromise<IStat>;
-	read(resource: URI, offset: number, count: number, progress: IProgress<Uint8Array>): TPromise<number>;
-	write(resource: URI, content: Uint8Array): TPromise<void>;
-	move(from: URI, to: URI): TPromise<IStat>;
-	mkdir(resource: URI): TPromise<IStat>;
-	readdir(resource: URI): TPromise<[URI, IStat][]>;
-	rmdir(resource: URI): TPromise<void>;
-	unlink(resource: URI): TPromise<void>;
+	mkdir(resource: URI): TPromise<void>;
+	readdir(resource: URI): TPromise<[string, FileType][]>;
+	delete(resource: URI, opts: FileDeleteOptions): TPromise<void>;
+
+	rename(from: URI, to: URI, opts: FileOverwriteOptions): TPromise<void>;
+	copy?(from: URI, to: URI, opts: FileOverwriteOptions): TPromise<void>;
+
+	readFile?(resource: URI): TPromise<Uint8Array>;
+	writeFile?(resource: URI, content: Uint8Array, opts: FileWriteOptions): TPromise<void>;
+
+	open?(resource: URI): TPromise<number>;
+	close?(fd: number): TPromise<void>;
+	read?(fd: number, pos: number, data: Uint8Array, offset: number, length: number): TPromise<number>;
+	write?(fd: number, pos: number, data: Uint8Array, offset: number, length: number): TPromise<number>;
 }
 
+export interface IFileSystemProviderRegistrationEvent {
+	added: boolean;
+	scheme: string;
+	provider?: IFileSystemProvider;
+}
 
 export enum FileOperation {
 	CREATE,
 	DELETE,
 	MOVE,
-	COPY,
-	IMPORT
+	COPY
 }
 
 export class FileOperationEvent {
@@ -207,15 +233,15 @@ export class FileOperationEvent {
 	constructor(private _resource: URI, private _operation: FileOperation, private _target?: IFileStat) {
 	}
 
-	public get resource(): URI {
+	get resource(): URI {
 		return this._resource;
 	}
 
-	public get target(): IFileStat {
+	get target(): IFileStat {
 		return this._target;
 	}
 
-	public get operation(): FileOperation {
+	get operation(): FileOperation {
 		return this._operation;
 	}
 }
@@ -253,7 +279,7 @@ export class FileChangesEvent {
 		this._changes = changes;
 	}
 
-	public get changes() {
+	get changes() {
 		return this._changes;
 	}
 
@@ -262,7 +288,7 @@ export class FileChangesEvent {
 	 * type DELETED, this method will also return true if a folder got deleted that is the parent of the
 	 * provided file path.
 	 */
-	public contains(resource: URI, type: FileChangeType): boolean {
+	contains(resource: URI, type: FileChangeType): boolean {
 		if (!resource) {
 			return false;
 		}
@@ -284,42 +310,42 @@ export class FileChangesEvent {
 	/**
 	 * Returns the changes that describe added files.
 	 */
-	public getAdded(): IFileChange[] {
+	getAdded(): IFileChange[] {
 		return this.getOfType(FileChangeType.ADDED);
 	}
 
 	/**
 	 * Returns if this event contains added files.
 	 */
-	public gotAdded(): boolean {
+	gotAdded(): boolean {
 		return this.hasType(FileChangeType.ADDED);
 	}
 
 	/**
 	 * Returns the changes that describe deleted files.
 	 */
-	public getDeleted(): IFileChange[] {
+	getDeleted(): IFileChange[] {
 		return this.getOfType(FileChangeType.DELETED);
 	}
 
 	/**
 	 * Returns if this event contains deleted files.
 	 */
-	public gotDeleted(): boolean {
+	gotDeleted(): boolean {
 		return this.hasType(FileChangeType.DELETED);
 	}
 
 	/**
 	 * Returns the changes that describe updated files.
 	 */
-	public getUpdated(): IFileChange[] {
+	getUpdated(): IFileChange[] {
 		return this.getOfType(FileChangeType.UPDATED);
 	}
 
 	/**
 	 * Returns if this event contains updated files.
 	 */
-	public gotUpdated(): boolean {
+	gotUpdated(): boolean {
 		return this.hasType(FileChangeType.UPDATED);
 	}
 
@@ -378,6 +404,11 @@ export interface IBaseStat {
 	 * current state of the file or directory.
 	 */
 	etag: string;
+
+	/**
+	 * The resource is readonly.
+	 */
+	isReadonly?: boolean;
 }
 
 /**
@@ -455,6 +486,14 @@ export interface ITextSnapshot {
 	read(): string;
 }
 
+export class StringSnapshot implements ITextSnapshot {
+	constructor(private _value: string) { }
+	read(): string {
+		let ret = this._value;
+		this._value = null;
+		return ret;
+	}
+}
 /**
  * Helper method to convert a snapshot into its full string form.
  */
@@ -550,6 +589,11 @@ export interface IUpdateContentOptions {
 	 * The etag of the file. This can be used to prevent dirty writes.
 	 */
 	etag?: string;
+
+	/**
+	 * Run mkdirp before saving.
+	 */
+	mkdirp?: boolean;
 }
 
 export interface IResolveFileOptions {
@@ -564,11 +608,6 @@ export interface ICreateFileOptions {
 	 * an error will be thrown (FILE_MODIFIED_SINCE).
 	 */
 	overwrite?: boolean;
-}
-
-export interface IImportResult {
-	stat: IFileStat;
-	isNew: boolean;
 }
 
 export class FileOperationError extends Error {
@@ -800,12 +839,12 @@ export const SUPPORTED_ENCODINGS: { [encoding: string]: { labelLong: string; lab
 		order: 33
 	},
 	gbk: {
-		labelLong: 'Chinese (GBK)',
+		labelLong: 'Simplified Chinese (GBK)',
 		labelShort: 'GBK',
 		order: 34
 	},
 	gb18030: {
-		labelLong: 'Chinese (GB18030)',
+		labelLong: 'Simplified Chinese (GB18030)',
 		labelShort: 'GB18030',
 		order: 35
 	},
@@ -876,3 +915,6 @@ export enum FileKind {
 	FOLDER,
 	ROOT_FOLDER
 }
+
+export const MIN_MAX_MEMORY_SIZE_MB = 2048;
+export const FALLBACK_MAX_MEMORY_SIZE_MB = 4096;

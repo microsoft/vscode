@@ -11,7 +11,7 @@ import { MarkdownString } from 'vs/base/common/htmlContent';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import URI from 'vs/base/common/uri';
 import { TPromise } from 'vs/base/common/winjs.base';
-import { IMarker, IMarkerService, MarkerSeverity } from 'vs/platform/markers/common/markers';
+import { IMarker, IMarkerService, MarkerSeverity, MarkerTag } from 'vs/platform/markers/common/markers';
 import { Range } from 'vs/editor/common/core/range';
 import { TextModel, createTextBuffer } from 'vs/editor/common/model/textModel';
 import { IMode, LanguageIdentifier } from 'vs/editor/common/modes';
@@ -82,15 +82,23 @@ class ModelMarkerHandler {
 	}
 
 	private static _createDecorationRange(model: ITextModel, rawMarker: IMarker): Range {
-		let marker = model.validateRange(new Range(rawMarker.startLineNumber, rawMarker.startColumn, rawMarker.endLineNumber, rawMarker.endColumn));
-		let ret: Range = new Range(marker.startLineNumber, marker.startColumn, marker.endLineNumber, marker.endColumn);
+
+		let ret = Range.lift(rawMarker);
+
+		if (rawMarker.severity === MarkerSeverity.Hint && Range.spansMultipleLines(ret)) {
+			// never render hints on multiple lines
+			ret = ret.setEndPosition(ret.startLineNumber, ret.startColumn);
+		}
+
+		ret = model.validateRange(ret);
+
 		if (ret.isEmpty()) {
 			let word = model.getWordAtPosition(ret.getStartPosition());
 			if (word) {
 				ret = new Range(ret.startLineNumber, word.startColumn, ret.endLineNumber, word.endColumn);
 			} else {
-				let maxColumn = model.getLineLastNonWhitespaceColumn(marker.startLineNumber) ||
-					model.getLineMaxColumn(marker.startLineNumber);
+				let maxColumn = model.getLineLastNonWhitespaceColumn(ret.startLineNumber) ||
+					model.getLineMaxColumn(ret.startLineNumber);
 
 				if (maxColumn === 1) {
 					// empty line
@@ -118,27 +126,43 @@ class ModelMarkerHandler {
 		let className: string;
 		let color: ThemeColor;
 		let darkColor: ThemeColor;
+		let zIndex: number;
+		let inlineClassName: string;
 
 		switch (marker.severity) {
 			case MarkerSeverity.Hint:
-				className = ClassName.EditorHintDecoration;
+				if (marker.tags && marker.tags.indexOf(MarkerTag.Unnecessary) >= 0) {
+					className = ClassName.EditorUnnecessaryDecoration;
+				} else {
+					className = ClassName.EditorHintDecoration;
+				}
+				zIndex = 0;
 				break;
 			case MarkerSeverity.Warning:
 				className = ClassName.EditorWarningDecoration;
 				color = themeColorFromId(overviewRulerWarning);
 				darkColor = themeColorFromId(overviewRulerWarning);
+				zIndex = 20;
 				break;
 			case MarkerSeverity.Info:
 				className = ClassName.EditorInfoDecoration;
 				color = themeColorFromId(overviewRulerInfo);
 				darkColor = themeColorFromId(overviewRulerInfo);
+				zIndex = 10;
 				break;
 			case MarkerSeverity.Error:
 			default:
 				className = ClassName.EditorErrorDecoration;
 				color = themeColorFromId(overviewRulerError);
 				darkColor = themeColorFromId(overviewRulerError);
+				zIndex = 30;
 				break;
+		}
+
+		if (marker.tags) {
+			if (marker.tags.indexOf(MarkerTag.Unnecessary) !== -1) {
+				inlineClassName = ClassName.EditorUnnecessaryInlineDecoration;
+			}
 		}
 
 		let hoverMessage: MarkdownString = null;
@@ -161,8 +185,10 @@ class ModelMarkerHandler {
 				hoverMessage.appendMarkdown('\n');
 				for (const { message, resource, startLineNumber, startColumn } of relatedInformation) {
 					hoverMessage.appendMarkdown(
-						`* [${basename(resource.path)}(${startLineNumber}, ${startColumn})](${resource.toString(false)}#${startLineNumber},${startColumn}): \`${message}\` \n`
+						`* [${basename(resource.path)}(${startLineNumber}, ${startColumn})](${resource.toString(false)}#${startLineNumber},${startColumn}): `
 					);
+					hoverMessage.appendText(`${message}`);
+					hoverMessage.appendMarkdown('\n');
 				}
 				hoverMessage.appendMarkdown('\n');
 			}
@@ -177,7 +203,9 @@ class ModelMarkerHandler {
 				color,
 				darkColor,
 				position: OverviewRulerLane.Right
-			}
+			},
+			zIndex,
+			inlineClassName,
 		};
 	}
 }
@@ -191,6 +219,8 @@ interface IRawConfig {
 		insertSpaces?: any;
 		detectIndentation?: any;
 		trimAutoWhitespace?: any;
+		creationOptions?: any;
+		largeFileOptimizations?: any;
 	};
 }
 
@@ -244,6 +274,9 @@ export class ModelServiceImpl implements IModelService {
 			if (!isNaN(parsedTabSize)) {
 				tabSize = parsedTabSize;
 			}
+			if (tabSize < 1) {
+				tabSize = 1;
+			}
 		}
 
 		let insertSpaces = EDITOR_MODEL_DEFAULTS.insertSpaces;
@@ -269,13 +302,19 @@ export class ModelServiceImpl implements IModelService {
 			detectIndentation = (config.editor.detectIndentation === 'false' ? false : Boolean(config.editor.detectIndentation));
 		}
 
+		let largeFileOptimizations = EDITOR_MODEL_DEFAULTS.largeFileOptimizations;
+		if (config.editor && typeof config.editor.largeFileOptimizations !== 'undefined') {
+			largeFileOptimizations = (config.editor.largeFileOptimizations === 'false' ? false : Boolean(config.editor.largeFileOptimizations));
+		}
+
 		return {
 			isForSimpleWidget: isForSimpleWidget,
 			tabSize: tabSize,
 			insertSpaces: insertSpaces,
 			detectIndentation: detectIndentation,
 			defaultEOL: newDefaultEOL,
-			trimAutoWhitespace: trimAutoWhitespace
+			trimAutoWhitespace: trimAutoWhitespace,
+			largeFileOptimizations: largeFileOptimizations
 		};
 	}
 
@@ -395,12 +434,14 @@ export class ModelServiceImpl implements IModelService {
 		}
 
 		// Otherwise find a diff between the values and update model
-		model.setEOL(textBuffer.getEOL() === '\r\n' ? EndOfLineSequence.CRLF : EndOfLineSequence.LF);
+		model.pushStackElement();
+		model.pushEOL(textBuffer.getEOL() === '\r\n' ? EndOfLineSequence.CRLF : EndOfLineSequence.LF);
 		model.pushEditOperations(
 			[],
 			ModelServiceImpl._computeEdits(model, textBuffer),
 			(inverseEditOperations: IIdentifiedSingleEditOperation[]) => []
 		);
+		model.pushStackElement();
 	}
 
 	private static _commonPrefix(a: ILineSequence, aLen: number, aDelta: number, b: ILineSequence, bLen: number, bDelta: number): number {

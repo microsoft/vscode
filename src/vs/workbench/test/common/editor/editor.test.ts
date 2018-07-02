@@ -40,7 +40,7 @@ class FileEditorInput extends EditorInput {
 	}
 }
 
-suite('Workbench - Editor', () => {
+suite('Workbench editor', () => {
 
 	let instantiationService: IInstantiationService;
 	let accessor: ServiceAccessor;

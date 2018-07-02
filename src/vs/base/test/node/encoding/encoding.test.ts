@@ -6,9 +6,10 @@
 'use strict';
 
 import * as assert from 'assert';
-
+import * as fs from 'fs';
 import * as encoding from 'vs/base/node/encoding';
 import { readExactlyByFile } from 'vs/base/node/stream';
+import { Readable } from 'stream';
 
 suite('Encoding', () => {
 	test('detectBOM UTF-8', () => {
@@ -149,5 +150,116 @@ suite('Encoding', () => {
 				assert.equal(mimes.encoding, 'windows1252');
 			});
 		});
+	});
+
+	async function readAndDecodeFromDisk(path, _encoding) {
+		return new Promise<string>((resolve, reject) => {
+			fs.readFile(path, (err, data) => {
+				if (err) {
+					reject(err);
+				} else {
+					resolve(encoding.decode(data, _encoding));
+				}
+			});
+		});
+	}
+
+	async function readAllAsString(stream: NodeJS.ReadableStream) {
+		return new Promise<string>((resolve, reject) => {
+			let all = '';
+			stream.on('data', chunk => {
+				all += chunk;
+				assert.equal(typeof chunk, 'string');
+			});
+			stream.on('end', () => {
+				resolve(all);
+			});
+			stream.on('error', reject);
+		});
+	}
+
+	test('toDecodeStream - some stream', async function () {
+
+		let source = new Readable({
+			read(size) {
+				this.push(Buffer.from([65, 66, 67]));
+				this.push(Buffer.from([65, 66, 67]));
+				this.push(Buffer.from([65, 66, 67]));
+				this.push(null);
+			}
+		});
+
+		let { detected, stream } = await encoding.toDecodeStream(source, { minBytesRequiredForDetection: 4 });
+
+		assert.ok(detected);
+		assert.ok(stream);
+
+		const content = await readAllAsString(stream);
+		assert.equal(content, 'ABCABCABC');
+	});
+
+	test('toDecodeStream - some stream, expect too much data', async function () {
+
+		let source = new Readable({
+			read(size) {
+				this.push(Buffer.from([65, 66, 67]));
+				this.push(Buffer.from([65, 66, 67]));
+				this.push(Buffer.from([65, 66, 67]));
+				this.push(null);
+			}
+		});
+
+		let { detected, stream } = await encoding.toDecodeStream(source, { minBytesRequiredForDetection: 64 });
+
+		assert.ok(detected);
+		assert.ok(stream);
+
+		const content = await readAllAsString(stream);
+		assert.equal(content, 'ABCABCABC');
+	});
+
+	test('toDecodeStream - some stream, no data', async function () {
+
+		let source = new Readable({
+			read(size) {
+				this.push(null); // empty
+			}
+		});
+
+		let { detected, stream } = await encoding.toDecodeStream(source, { minBytesRequiredForDetection: 512 });
+
+		assert.ok(detected);
+		assert.ok(stream);
+
+		const content = await readAllAsString(stream);
+		assert.equal(content, '');
+	});
+
+
+	test('toDecodeStream - encoding, utf16be', async function () {
+
+		let path = require.toUrl('./fixtures/some_utf16be.css');
+		let source = fs.createReadStream(path);
+
+		let { detected, stream } = await encoding.toDecodeStream(source, { minBytesRequiredForDetection: 64 });
+
+		assert.equal(detected.encoding, 'utf16be');
+		assert.equal(detected.seemsBinary, false);
+
+		let expected = await readAndDecodeFromDisk(path, detected.encoding);
+		let actual = await readAllAsString(stream);
+		assert.equal(actual, expected);
+	});
+
+
+	test('toDecodeStream - empty file', async function () {
+
+		let path = require.toUrl('./fixtures/empty.txt');
+		let source = fs.createReadStream(path);
+		let { detected, stream } = await encoding.toDecodeStream(source, {});
+
+		let expected = await readAndDecodeFromDisk(path, detected.encoding);
+		let actual = await readAllAsString(stream);
+		assert.equal(actual, expected);
 	});
 });

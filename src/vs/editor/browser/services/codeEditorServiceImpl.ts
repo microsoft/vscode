@@ -12,8 +12,11 @@ import { IModelDecorationOptions, IModelDecorationOverviewRulerOptions, Overview
 import { AbstractCodeEditorService } from 'vs/editor/browser/services/abstractCodeEditorService';
 import { IDisposable, dispose as disposeAll } from 'vs/base/common/lifecycle';
 import { IThemeService, ITheme, ThemeColor } from 'vs/platform/theme/common/themeService';
+import { IResourceInput } from 'vs/platform/editor/common/editor';
+import { TPromise } from 'vs/base/common/winjs.base';
+import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 
-export class CodeEditorServiceImpl extends AbstractCodeEditorService {
+export abstract class CodeEditorServiceImpl extends AbstractCodeEditorService {
 
 	private _styleSheet: HTMLStyleElement;
 	private _decorationOptionProviders: { [key: string]: IModelDecorationOptionsProvider };
@@ -65,6 +68,8 @@ export class CodeEditorServiceImpl extends AbstractCodeEditorService {
 		return provider.getOptions(this, writable);
 	}
 
+	abstract getActiveCodeEditor(): ICodeEditor;
+	abstract openCodeEditor(input: IResourceInput, source: ICodeEditor, sideBySide?: boolean): TPromise<ICodeEditor>;
 }
 
 interface IModelDecorationOptionsProvider extends IDisposable {
@@ -126,6 +131,7 @@ class DecorationTypeOptionsProvider implements IModelDecorationOptionsProvider {
 
 	public className: string;
 	public inlineClassName: string;
+	public inlineClassNameAffectsLetterSpacing: boolean;
 	public beforeContentClassName: string;
 	public afterContentClassName: string;
 	public glyphMarginClassName: string;
@@ -145,9 +151,21 @@ class DecorationTypeOptionsProvider implements IModelDecorationOptionsProvider {
 			}
 			return void 0;
 		};
+		let createInlineCSSRules = (type: ModelDecorationCSSRuleType) => {
+			let rules = new DecorationCSSRules(type, providerArgs, themeService);
+			if (rules.hasContent) {
+				this._disposables.push(rules);
+				return { className: rules.className, hasLetterSpacing: rules.hasLetterSpacing };
+			}
+			return null;
+		};
 
 		this.className = createCSSRules(ModelDecorationCSSRuleType.ClassName);
-		this.inlineClassName = createCSSRules(ModelDecorationCSSRuleType.InlineClassName);
+		const inlineData = createInlineCSSRules(ModelDecorationCSSRuleType.InlineClassName);
+		if (inlineData) {
+			this.inlineClassName = inlineData.className;
+			this.inlineClassNameAffectsLetterSpacing = inlineData.hasLetterSpacing;
+		}
 		this.beforeContentClassName = createCSSRules(ModelDecorationCSSRuleType.BeforeContentClassName);
 		this.afterContentClassName = createCSSRules(ModelDecorationCSSRuleType.AfterContentClassName);
 		this.glyphMarginClassName = createCSSRules(ModelDecorationCSSRuleType.GlyphMarginClassName);
@@ -192,8 +210,9 @@ class DecorationTypeOptionsProvider implements IModelDecorationOptionsProvider {
 }
 
 
-const _CSS_MAP = {
+const _CSS_MAP: { [prop: string]: string; } = {
 	color: 'color:{0} !important;',
+	opacity: 'opacity:{0};',
 	backgroundColor: 'background-color:{0};',
 
 	outline: 'outline:{0};',
@@ -231,6 +250,7 @@ class DecorationCSSRules {
 	private _className: string;
 	private _unThemedSelector: string;
 	private _hasContent: boolean;
+	private _hasLetterSpacing: boolean;
 	private _ruleType: ModelDecorationCSSRuleType;
 	private _themeListener: IDisposable;
 	private _providerArgs: ProviderArguments;
@@ -242,6 +262,7 @@ class DecorationCSSRules {
 		this._providerArgs = providerArgs;
 		this._usesThemeColors = false;
 		this._hasContent = false;
+		this._hasLetterSpacing = false;
 
 		let className = CSSNameHelper.getClassName(this._providerArgs.key, ruleType);
 		if (this._providerArgs.parentTypeKey) {
@@ -275,6 +296,10 @@ class DecorationCSSRules {
 
 	public get hasContent(): boolean {
 		return this._hasContent;
+	}
+
+	public get hasLetterSpacing(): boolean {
+		return this._hasLetterSpacing;
 	}
 
 	public get className(): string {
@@ -357,7 +382,10 @@ class DecorationCSSRules {
 			return '';
 		}
 		let cssTextArr: string[] = [];
-		this.collectCSSText(opts, ['fontStyle', 'fontWeight', 'textDecoration', 'cursor', 'color', 'letterSpacing'], cssTextArr);
+		this.collectCSSText(opts, ['fontStyle', 'fontWeight', 'textDecoration', 'cursor', 'color', 'opacity', 'letterSpacing'], cssTextArr);
+		if (opts.letterSpacing) {
+			this._hasLetterSpacing = true;
+		}
 		return cssTextArr.join('');
 	}
 
@@ -385,7 +413,7 @@ class DecorationCSSRules {
 
 				cssTextArr.push(strings.format(_CSS_MAP.contentText, escaped));
 			}
-			this.collectCSSText(opts, ['fontStyle', 'fontWeight', 'textDecoration', 'color', 'backgroundColor', 'margin'], cssTextArr);
+			this.collectCSSText(opts, ['fontStyle', 'fontWeight', 'textDecoration', 'color', 'opacity', 'backgroundColor', 'margin'], cssTextArr);
 			if (this.collectCSSText(opts, ['width', 'height'], cssTextArr)) {
 				cssTextArr.push('display:inline-block;');
 			}

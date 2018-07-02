@@ -10,9 +10,13 @@ import { TPromise } from 'vs/base/common/winjs.base';
 export interface IWatcherRequest {
 	basePath: string;
 	ignored: string[];
+}
+
+export interface IWatcherOptions {
 	verboseLogging: boolean;
 }
 
 export interface IWatcherService {
-	watch(request: IWatcherRequest): TPromise<void>;
+	initialize(options: IWatcherOptions): TPromise<void>;
+	setRoots(roots: IWatcherRequest[]): TPromise<void>;
 }

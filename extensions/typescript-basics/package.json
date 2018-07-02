@@ -36,6 +36,17 @@
           ".tsx"
         ],
         "configuration": "./language-configuration.json"
+      },
+      {
+        "id": "jsonc",
+        "filenames": [
+          "tsconfig.json",
+          "jsconfig.json"
+        ],
+        "filenamePatterns": [
+          "tsconfig.*.json",
+          "tsconfig-*.json"
+        ]
       }
     ],
     "grammars": [
@@ -46,7 +57,8 @@
         "tokenTypes": {
           "entity.name.type.instance.jsdoc": "other",
           "entity.name.function.tagged-template": "other",
-          "meta.import string.quoted": "other"
+          "meta.import string.quoted": "other",
+          "variable.other.jsdoc": "other"
         }
       },
       {
@@ -62,7 +74,8 @@
         "tokenTypes": {
           "entity.name.type.instance.jsdoc": "other",
           "entity.name.function.tagged-template": "other",
-          "meta.import string.quoted": "other"
+          "meta.import string.quoted": "other",
+          "variable.other.jsdoc": "other"
         }
       }
     ],
@@ -87,6 +100,14 @@
       },
       {
         "fileMatch": "tsconfig.*.json",
+        "url": "https://schemastore.azurewebsites.net/schemas/json/tsconfig.json"
+      },
+      {
+        "fileMatch": "tsconfig-*.json",
+        "url": "./schemas/tsconfig.schema.json"
+      },
+      {
+        "fileMatch": "tsconfig-*.json",
         "url": "https://schemastore.azurewebsites.net/schemas/json/tsconfig.json"
       },
       {

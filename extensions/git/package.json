@@ -878,7 +878,7 @@
           ],
           "description": "%config.path%",
           "default": null,
-          "isExecutable": true
+          "scope": "application"
         },
         "git.autoRepositoryDetection": {
           "type": "boolean",
@@ -992,6 +992,15 @@
     },
     "colors": [
       {
+        "id": "gitDecoration.addedResourceForeground",
+        "description": "%colors.added%",
+        "defaults": {
+          "light": "#587c0c",
+          "dark": "#81b88b",
+          "highContrast": "#1b5225"
+        }
+      },
+      {
         "id": "gitDecoration.modifiedResourceForeground",
         "description": "%colors.modified%",
         "defaults": {
@@ -1082,6 +1091,17 @@
           ".rej"
         ],
         "configuration": "./languages/diff.language-configuration.json"
+      },
+      {
+        "id": "ignore",
+        "aliases": [
+          "Ignore",
+          "ignore"
+        ],
+        "filenames": [
+          ".gitignore"
+        ],
+        "configuration": "./languages/ignore.language-configuration.json"
       }
     ],
     "grammars": [
@@ -1099,6 +1119,11 @@
         "language": "diff",
         "scopeName": "source.diff",
         "path": "./syntaxes/diff.tmLanguage.json"
+      },
+      {
+        "language": "ignore",
+        "scopeName": "source.ignore",
+        "path": "./syntaxes/ignore.tmLanguage.json"
       }
     ],
     "configurationDefaults": {
@@ -1114,7 +1139,7 @@
     "file-type": "^7.2.0",
     "iconv-lite": "0.4.19",
     "jschardet": "^1.6.0",
-    "vscode-extension-telemetry": "0.0.15",
+    "vscode-extension-telemetry": "0.0.17",
     "vscode-nls": "^3.2.1",
     "which": "^1.3.0"
   },

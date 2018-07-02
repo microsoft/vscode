@@ -11,6 +11,7 @@ import { IDecorationsProvider, IDecorationData } from 'vs/workbench/services/dec
 import URI from 'vs/base/common/uri';
 import { Event, toPromise, Emitter } from 'vs/base/common/event';
 import { TestThemeService } from 'vs/platform/theme/test/common/testThemeService';
+import { TPromise } from 'vs/base/common/winjs.base';
 
 suite('DecorationsService', function () {
 
@@ -33,7 +34,7 @@ suite('DecorationsService', function () {
 			readonly onDidChange: Event<URI[]> = Event.None;
 			provideDecorations(uri: URI) {
 				callCounter += 1;
-				return new Promise<IDecorationData>(resolve => {
+				return new TPromise<IDecorationData>(resolve => {
 					setTimeout(() => resolve({
 						color: 'someBlue',
 						tooltip: 'T'
@@ -170,38 +171,68 @@ suite('DecorationsService', function () {
 		reg.dispose();
 	});
 
-	test('Avoid unnecessary decoration change events #46938', async function () {
+	test('Decorations not showing up for second root folder #48502', async function () {
 
-		let uri1 = URI.parse('file:///uri1.txt');
-		let uri2 = URI.parse('file:///uri2.txt');
+		let cancelCount = 0;
+		let callCount = 0;
 
-		let emitter = new Emitter<URI[]>();
+		let provider = new class implements IDecorationsProvider {
 
-		let asked = new Set<string>();
+			_onDidChange = new Emitter<URI[]>();
+			onDidChange: Event<URI[]> = this._onDidChange.event;
 
+			label: string = 'foo';
+
+			provideDecorations(uri: URI): TPromise<IDecorationData> {
+				return new TPromise(resolve => {
+					callCount += 1;
+					setTimeout(() => {
+						resolve({ letter: 'foo' });
+					}, 10);
+				}, () => {
+					cancelCount += 1;
+				});
+			}
+		};
+
+		let reg = service.registerDecorationsProvider(provider);
+
+		const uri = URI.parse('foo://bar');
+		service.getDecoration(uri, false);
+
+		provider._onDidChange.fire([uri]);
+		service.getDecoration(uri, false);
+
+		assert.equal(cancelCount, 1);
+		assert.equal(callCount, 2);
+
+		reg.dispose();
+	});
+
+	test('Decorations not bubbling... #48745', function () {
+
+		let resolve: Function;
 		let reg = service.registerDecorationsProvider({
 			label: 'Test',
-			onDidChange: emitter.event,
+			onDidChange: Event.None,
 			provideDecorations(uri: URI) {
-				asked.add(uri.toString());
-				return { tooltip: uri.path, source: 'foo' };
+				if (uri.path.match(/hello$/)) {
+					return { tooltip: 'FOO', weight: 17, bubble: true };
+				} else {
+					return new TPromise<IDecorationData>(_resolve => resolve = _resolve);
+				}
 			}
 		});
 
-		let deco = service.getDecoration(uri1, false);
-		assert.equal(deco.tooltip, '/uri1.txt');
-		assert.equal(asked.size, 1);
-		assert.ok(asked.has(uri1.toString()));
+		let data1 = service.getDecoration(URI.parse('a:b/'), true);
+		assert.ok(!data1);
 
-		let didChange = toPromise(service.onDidChangeDecorations);
-		emitter.fire([uri1, uri2]);
+		let data2 = service.getDecoration(URI.parse('a:b/c.hello'), false);
+		assert.ok(data2.tooltip);
 
-		let e = await didChange;
+		let data3 = service.getDecoration(URI.parse('a:b/'), true);
+		assert.ok(data3);
 
-		assert.equal(e.affectsResource(uri1), true);
-		assert.equal(e.affectsResource(uri2), false);
-		assert.equal(asked.size, 1);
-		assert.ok(asked.has(uri1.toString()));
 
 		reg.dispose();
 	});

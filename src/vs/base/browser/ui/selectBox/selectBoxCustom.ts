@@ -17,7 +17,7 @@ import { List } from 'vs/base/browser/ui/list/listWidget';
 import { IDelegate, IRenderer } from 'vs/base/browser/ui/list/list';
 import { domEvent } from 'vs/base/browser/event';
 import { ScrollbarVisibility } from 'vs/base/common/scrollable';
-import { ISelectBoxDelegate, ISelectBoxStyles, ISelectData } from 'vs/base/browser/ui/selectBox/selectBox';
+import { ISelectBoxDelegate, ISelectBoxOptions, ISelectBoxStyles, ISelectData } from 'vs/base/browser/ui/selectBox/selectBox';
 import { isMacintosh } from 'vs/base/common/platform';
 
 const $ = dom.$;
@@ -74,9 +74,10 @@ class SelectListRenderer implements IRenderer<ISelectOptionItem, ISelectListTemp
 
 export class SelectBoxList implements ISelectBoxDelegate, IDelegate<ISelectOptionItem> {
 
-	private static SELECT_DROPDOWN_BOTTOM_MARGIN = 10;
+	private static readonly DEFAULT_DROPDOWN_MINIMUM_BOTTOM_MARGIN = 32;
 
 	private _isVisible: boolean;
+	private selectBoxOptions: ISelectBoxOptions;
 	private selectElement: HTMLSelectElement;
 	private options: string[];
 	private selected: number;
@@ -93,10 +94,17 @@ export class SelectBoxList implements ISelectBoxDelegate, IDelegate<ISelectOptio
 	private widthControlElement: HTMLElement;
 	private _currentSelection: number;
 
-	constructor(options: string[], selected: number, contextViewProvider: IContextViewProvider, styles: ISelectBoxStyles) {
+	constructor(options: string[], selected: number, contextViewProvider: IContextViewProvider, styles: ISelectBoxStyles, selectBoxOptions?: ISelectBoxOptions) {
 
 		this.toDispose = [];
 		this._isVisible = false;
+		this.selectBoxOptions = selectBoxOptions || Object.create(null);
+
+		if (typeof this.selectBoxOptions.minBottomMargin !== 'number') {
+			this.selectBoxOptions.minBottomMargin = SelectBoxList.DEFAULT_DROPDOWN_MINIMUM_BOTTOM_MARGIN;
+		} else if (this.selectBoxOptions.minBottomMargin < 0) {
+			this.selectBoxOptions.minBottomMargin = 0;
+		}
 
 		this.selectElement = document.createElement('select');
 		this.selectElement.className = 'monaco-select-box';
@@ -237,6 +245,10 @@ export class SelectBoxList implements ISelectBoxDelegate, IDelegate<ISelectOptio
 
 		if (index >= 0 && index < this.options.length) {
 			this.selected = index;
+		} else if (index > this.options.length - 1) {
+			// Adjust index to end of list
+			// This could make client out of sync with the select
+			this.select(this.options.length - 1);
 		} else if (this.selected < 0) {
 			this.selected = 0;
 		}
@@ -400,9 +412,12 @@ export class SelectBoxList implements ISelectBoxDelegate, IDelegate<ISelectOptio
 		const selectWidth = dom.getTotalWidth(this.selectElement);
 		const selectPosition = dom.getDomNodePagePosition(this.selectElement);
 
-		// Set container height to max from select bottom to margin above status bar
-		const statusBarHeight = dom.getTotalHeight(document.getElementById('workbench.parts.statusbar'));
-		const maxSelectDropDownHeight = (window.innerHeight - selectPosition.top - selectPosition.height - statusBarHeight - SelectBoxList.SELECT_DROPDOWN_BOTTOM_MARGIN);
+		// Set container height to max from select bottom to margin (default/minBottomMargin)
+		let maxSelectDropDownHeight = (window.innerHeight - selectPosition.top - selectPosition.height - this.selectBoxOptions.minBottomMargin);
+
+		if (maxSelectDropDownHeight < 0) {
+			maxSelectDropDownHeight = 0;
+		}
 
 		// SetUp list dimensions and layout - account for container padding
 		if (this.selectList) {
@@ -420,8 +435,10 @@ export class SelectBoxList implements ISelectBoxDelegate, IDelegate<ISelectOptio
 			this.selectList.domFocus();
 
 			// Finally set focus on selected item
-			this.selectList.setFocus([this.selected]);
-			this.selectList.reveal(this.selectList.getFocus()[0]);
+			if (this.selectList.length > 0) {
+				this.selectList.setFocus([this.selected || 0]);
+				this.selectList.reveal(this.selectList.getFocus()[0] || 0);
+			}
 
 			// Set final container height after adjustments
 			this.selectDropDownContainer.style.height = (listHeight + totalVerticalListPadding) + 'px';

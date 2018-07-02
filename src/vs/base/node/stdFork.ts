@@ -19,7 +19,7 @@ export interface IForkOpts {
 }
 
 function makeRandomHexString(length: number): string {
-	let chars = ['0', '1', '2', '3', '4', '5', '6', '6', '7', '8', '9', 'a', 'b', 'c', 'd', 'e', 'f'];
+	let chars = ['0', '1', '2', '3', '4', '5', '6', '7', '8', '9', 'a', 'b', 'c', 'd', 'e', 'f'];
 	let result = '';
 	for (let i = 0; i < length; i++) {
 		let idx = Math.floor(chars.length * Math.random());
@@ -29,7 +29,7 @@ function makeRandomHexString(length: number): string {
 }
 
 function generatePipeName(): string {
-	let randomName = 'vscode-' + makeRandomHexString(40);
+	let randomName = 'vscode-std-' + makeRandomHexString(40);
 	if (process.platform === 'win32') {
 		return '\\\\.\\pipe\\' + randomName + '-sock';
 	}

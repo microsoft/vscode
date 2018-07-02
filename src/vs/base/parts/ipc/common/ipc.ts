@@ -152,7 +152,7 @@ export class ChannelServer implements IChannelServer, IDisposable {
 					id, data: {
 						message: data.message,
 						name: data.name,
-						stack: data.stack ? data.stack.split('\n') : void 0
+						stack: data.stack ? (data.stack.split ? data.stack.split('\n') : data.stack) : void 0
 					}, type: MessageType.ResponseError
 				});
 			} else {

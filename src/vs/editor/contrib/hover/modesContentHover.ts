@@ -12,7 +12,7 @@ import { Position } from 'vs/editor/common/core/position';
 import { HoverProviderRegistry, Hover, IColor, DocumentColorProvider } from 'vs/editor/common/modes';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { getHover } from 'vs/editor/contrib/hover/getHover';
-import { HoverOperation, IHoverComputer } from './hoverOperation';
+import { HoverOperation, IHoverComputer, HoverStartMode } from './hoverOperation';
 import { ContentHoverWidget } from './hoverWidgets';
 import { IMarkdownString, MarkdownString, isEmptyMarkdownString, markedStringsEquals } from 'vs/base/common/htmlContent';
 import { MarkdownRenderer } from 'vs/editor/contrib/markdown/markdownRenderer';
@@ -21,8 +21,9 @@ import { ColorPickerModel } from 'vs/editor/contrib/colorPicker/colorPickerModel
 import { ColorPickerWidget } from 'vs/editor/contrib/colorPicker/colorPickerWidget';
 import { ColorDetector } from 'vs/editor/contrib/colorPicker/colorDetector';
 import { Color, RGBA } from 'vs/base/common/color';
-import { IDisposable, empty as EmptyDisposable, dispose, combinedDisposable } from 'vs/base/common/lifecycle';
+import { IDisposable, empty as EmptyDisposable, combinedDisposable } from 'vs/base/common/lifecycle';
 import { getColorPresentations } from 'vs/editor/contrib/colorPicker/color';
+import { IThemeService } from 'vs/platform/theme/common/themeService';
 const $ = dom.$;
 
 class ColorHover {
@@ -167,17 +168,20 @@ export class ModesContentHoverWidget extends ContentHoverWidget {
 	private _colorPicker: ColorPickerWidget;
 
 	private renderDisposable: IDisposable = EmptyDisposable;
-	private toDispose: IDisposable[] = [];
 
-	constructor(editor: ICodeEditor, markdownRenderner: MarkdownRenderer) {
+	constructor(
+		editor: ICodeEditor,
+		markdownRenderer: MarkdownRenderer,
+		private readonly _themeService: IThemeService
+	) {
 		super(ModesContentHoverWidget.ID, editor);
 
 		this._computer = new ModesContentComputer(this._editor);
 		this._highlightDecorations = [];
 		this._isChangingDecorations = false;
 
-		this._markdownRenderer = markdownRenderner;
-		markdownRenderner.onDidRenderCodeBlock(this.onContentsChange, this, this.toDispose);
+		this._markdownRenderer = markdownRenderer;
+		this._register(markdownRenderer.onDidRenderCodeBlock(this.onContentsChange, this));
 
 		this._hoverOperation = new HoverOperation(
 			this._computer,
@@ -186,13 +190,16 @@ export class ModesContentHoverWidget extends ContentHoverWidget {
 			result => this._withResult(result, false)
 		);
 
-		this.toDispose.push(dom.addStandardDisposableListener(this.getDomNode(), dom.EventType.FOCUS, () => {
+		this._register(dom.addStandardDisposableListener(this.getDomNode(), dom.EventType.FOCUS, () => {
 			if (this._colorPicker) {
 				dom.addClass(this.getDomNode(), 'colorpicker-hover');
 			}
 		}));
-		this.toDispose.push(dom.addStandardDisposableListener(this.getDomNode(), dom.EventType.BLUR, () => {
+		this._register(dom.addStandardDisposableListener(this.getDomNode(), dom.EventType.BLUR, () => {
 			dom.removeClass(this.getDomNode(), 'colorpicker-hover');
+		}));
+		this._register(editor.onDidChangeConfiguration((e) => {
+			this._hoverOperation.setHoverTime(this._editor.getConfiguration().contribInfo.hover.delay);
 		}));
 	}
 
@@ -200,7 +207,6 @@ export class ModesContentHoverWidget extends ContentHoverWidget {
 		this.renderDisposable.dispose();
 		this.renderDisposable = EmptyDisposable;
 		this._hoverOperation.cancel();
-		this.toDispose = dispose(this.toDispose);
 		super.dispose();
 	}
 
@@ -215,12 +221,12 @@ export class ModesContentHoverWidget extends ContentHoverWidget {
 			this._computer.clearResult();
 
 			if (!this._colorPicker) { // TODO@Michel ensure that displayed text for other decorations is computed even if color picker is in place
-				this._hoverOperation.start();
+				this._hoverOperation.start(HoverStartMode.Delayed);
 			}
 		}
 	}
 
-	startShowingAt(range: Range, focus: boolean): void {
+	startShowingAt(range: Range, mode: HoverStartMode, focus: boolean): void {
 		if (this._lastRange && this._lastRange.equalsRange(range)) {
 			// We have to show the widget at the exact same range as before, so no work is needed
 			return;
@@ -235,10 +241,10 @@ export class ModesContentHoverWidget extends ContentHoverWidget {
 			if (this._showAtPosition.lineNumber !== range.startLineNumber) {
 				this.hide();
 			} else {
-				var filteredMessages: HoverPart[] = [];
-				for (var i = 0, len = this._messages.length; i < len; i++) {
-					var msg = this._messages[i];
-					var rng = msg.range;
+				let filteredMessages: HoverPart[] = [];
+				for (let i = 0, len = this._messages.length; i < len; i++) {
+					const msg = this._messages[i];
+					const rng = msg.range;
 					if (rng.startColumn <= range.startColumn && rng.endColumn >= range.endColumn) {
 						filteredMessages.push(msg);
 					}
@@ -257,7 +263,7 @@ export class ModesContentHoverWidget extends ContentHoverWidget {
 		this._lastRange = range;
 		this._computer.setRange(range);
 		this._shouldFocus = focus;
-		this._hoverOperation.start();
+		this._hoverOperation.start(mode);
 	}
 
 	hide(): void {
@@ -294,10 +300,10 @@ export class ModesContentHoverWidget extends ContentHoverWidget {
 		this._colorPicker = null;
 
 		// update column from which to show
-		var renderColumn = Number.MAX_VALUE,
-			highlightRange = messages[0].range,
-			fragment = document.createDocumentFragment(),
-			isEmptyHoverContent = true;
+		let renderColumn = Number.MAX_VALUE;
+		let highlightRange = messages[0].range;
+		let fragment = document.createDocumentFragment();
+		let isEmptyHoverContent = true;
 
 		let containColorPicker = false;
 		let markdownDisposeable: IDisposable;
@@ -331,7 +337,7 @@ export class ModesContentHoverWidget extends ContentHoverWidget {
 
 				// create blank olor picker model and widget first to ensure it's positioned correctly.
 				const model = new ColorPickerModel(color, [], 0);
-				const widget = new ColorPickerWidget(fragment, model, this._editor.getConfiguration().pixelRatio);
+				const widget = new ColorPickerWidget(fragment, model, this._editor.getConfiguration().pixelRatio, this._themeService);
 
 				getColorPresentations(editorModel, colorInfo, msg.provider).then(colorPresentations => {
 					model.colorPresentations = colorPresentations;

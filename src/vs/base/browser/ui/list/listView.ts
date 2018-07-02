@@ -29,15 +29,6 @@ function canUseTranslate3d(): boolean {
 		return false;
 	}
 
-	// see https://github.com/Microsoft/vscode/issues/24483
-	if (browser.isChromev56) {
-		const pixelRatio = browser.getPixelRatio();
-		if (Math.floor(pixelRatio) !== pixelRatio) {
-			// Not an integer
-			return false;
-		}
-	}
-
 	return true;
 }
 
@@ -493,7 +484,17 @@ export class ListView<T> implements ISpliceable<T>, IDisposable {
 	// Dispose
 
 	dispose() {
-		this.items = null;
+		if (this.items) {
+			for (const item of this.items) {
+				if (item.row) {
+					const renderer = this.renderers.get(item.row.templateId);
+					renderer.disposeTemplate(item.row.templateData);
+					item.row = null;
+				}
+			}
+
+			this.items = null;
+		}
 
 		if (this._domNode && this._domNode.parentElement) {
 			this._domNode.parentNode.removeChild(this._domNode);

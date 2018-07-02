@@ -5,255 +5,13 @@
 
 // This is the place for API experiments and proposal.
 
+import { QuickPickItem } from 'vscode';
+
 declare module 'vscode' {
 
 	export namespace window {
 		export function sampleFunction(): Thenable<any>;
 	}
-
-	//#region Joh: readable diagnostics
-
-	export interface DiagnosticChangeEvent {
-		uris: Uri[];
-	}
-
-	export namespace languages {
-
-		/**
-		 *
-		 */
-		export const onDidChangeDiagnostics: Event<DiagnosticChangeEvent>;
-
-		/**
-		 *
-		 */
-		export function getDiagnostics(resource: Uri): Diagnostic[];
-
-		/**
-		 *
-		 */
-		export function getDiagnostics(): [Uri, Diagnostic[]][];
-	}
-
-	//#endregion
-
-	//#region Aeschli: folding
-
-	export class FoldingRangeList {
-
-		/**
-		 * The folding ranges.
-		 */
-		ranges: FoldingRange[];
-
-		/**
-		 * Creates mew folding range list.
-		 *
-		 * @param ranges The folding ranges
-		 */
-		constructor(ranges: FoldingRange[]);
-	}
-
-
-	export class FoldingRange {
-
-		/**
-		 * The start line number (zero-based) of the range to fold. The hidden area starts after the last character of that line.
-		 */
-		startLine: number;
-
-		/**
-		 * The end line number (0-based) of the range to fold. The hidden area ends at the last character of that line.
-		 */
-		endLine: number;
-
-		/**
-		 * The actual color value for this color range.
-		 */
-		type?: FoldingRangeType | string;
-
-		/**
-		 * Creates a new folding range.
-		 *
-		 * @param startLineNumber The first line of the fold
-		 * @param type The last line of the fold
-		 */
-		constructor(startLineNumber: number, endLineNumber: number, type?: FoldingRangeType | string);
-	}
-
-	export enum FoldingRangeType {
-		/**
-		 * Folding range for a comment
-		 */
-		Comment = 'comment',
-		/**
-		 * Folding range for a imports or includes
-		 */
-		Imports = 'imports',
-		/**
-		 * Folding range for a region (e.g. `#region`)
-		 */
-		Region = 'region'
-	}
-
-	export namespace languages {
-
-		/**
-		 * Register a folding provider.
-		 *
-		 * Multiple folding can be registered for a language. In that case providers are sorted
-		 * by their [score](#languages.match) and the best-matching provider is used. Failure
-		 * of the selected provider will cause a failure of the whole operation.
-		 *
-		 * @param selector A selector that defines the documents this provider is applicable to.
-		 * @param provider A folding provider.
-		 * @return A [disposable](#Disposable) that unregisters this provider when being disposed.
-		 */
-		export function registerFoldingProvider(selector: DocumentSelector, provider: FoldingProvider): Disposable;
-	}
-
-	export interface FoldingContext {
-		maxRanges?: number;
-	}
-
-	export interface FoldingProvider {
-		/**
-		 * Returns a list of folding ranges or null if the provider does not want to participate or was cancelled.
-		 */
-		provideFoldingRanges(document: TextDocument, context: FoldingContext, token: CancellationToken): ProviderResult<FoldingRangeList>;
-	}
-
-	//#endregion
-
-	//#region Joh: file system provider
-
-	// export enum FileErrorCodes {
-	// 	/**
-	// 	 * Not owner.
-	// 	 */
-	// 	EPERM = 1,
-	// 	/**
-	// 	 * No such file or directory.
-	// 	 */
-	// 	ENOENT = 2,
-	// 	/**
-	// 	 * I/O error.
-	// 	 */
-	// 	EIO = 5,
-	// 	/**
-	// 	 * Permission denied.
-	// 	 */
-	// 	EACCES = 13,
-	// 	/**
-	// 	 * File exists.
-	// 	 */
-	// 	EEXIST = 17,
-	// 	/**
-	// 	 * Not a directory.
-	// 	 */
-	// 	ENOTDIR = 20,
-	// 	/**
-	// 	 * Is a directory.
-	// 	 */
-	// 	EISDIR = 21,
-	// 	/**
-	// 	 *  File too large.
-	// 	 */
-	// 	EFBIG = 27,
-	// 	/**
-	// 	 * No space left on device.
-	// 	 */
-	// 	ENOSPC = 28,
-	// 	/**
-	// 	 * Directory is not empty.
-	// 	 */
-	// 	ENOTEMPTY = 66,
-	// 	/**
-	// 	 * Invalid file handle.
-	// 	 */
-	// 	ESTALE = 70,
-	// 	/**
-	// 	 * Illegal NFS file handle.
-	// 	 */
-	// 	EBADHANDLE = 10001,
-	// }
-
-	export enum FileChangeType {
-		Updated = 0,
-		Added = 1,
-		Deleted = 2
-	}
-
-	export interface FileChange {
-		type: FileChangeType;
-		resource: Uri;
-	}
-
-	export enum FileType {
-		File = 0,
-		Dir = 1,
-		Symlink = 2
-	}
-
-	export interface FileStat {
-		id: number | string;
-		mtime: number;
-		// atime: number;
-		size: number;
-		type: FileType;
-	}
-
-	// todo@joh discover files etc
-	// todo@joh CancellationToken everywhere
-	// todo@joh add open/close calls?
-	export interface FileSystemProvider {
-
-		readonly onDidChange?: Event<FileChange[]>;
-
-		// more...
-		//
-		utimes(resource: Uri, mtime: number, atime: number): Thenable<FileStat>;
-
-		stat(resource: Uri): Thenable<FileStat>;
-
-		read(resource: Uri, offset: number, length: number, progress: Progress<Uint8Array>): Thenable<number>;
-
-		// todo@joh - have an option to create iff not exist
-		// todo@remote
-		// offset - byte offset to start
-		// count - number of bytes to write
-		// Thenable<number> - number of bytes actually written
-		write(resource: Uri, content: Uint8Array): Thenable<void>;
-
-		// todo@remote
-		// Thenable<FileStat>
-		move(resource: Uri, target: Uri): Thenable<FileStat>;
-
-		// todo@remote
-		// helps with performance bigly
-		// copy?(from: Uri, to: Uri): Thenable<void>;
-
-		// todo@remote
-		// Thenable<FileStat>
-		mkdir(resource: Uri): Thenable<FileStat>;
-
-		readdir(resource: Uri): Thenable<[Uri, FileStat][]>;
-
-		// todo@remote
-		// ? merge both
-		// ? recursive del
-		rmdir(resource: Uri): Thenable<void>;
-		unlink(resource: Uri): Thenable<void>;
-
-		// todo@remote
-		// create(resource: Uri): Thenable<FileStat>;
-	}
-
-	export namespace workspace {
-		export function registerFileSystemProvider(scheme: string, provider: FileSystemProvider): Disposable;
-	}
-
-	//#endregion
 
 	//#region Joh: remote, search provider
 
@@ -264,24 +22,47 @@ declare module 'vscode' {
 		isWordMatch?: boolean;
 	}
 
-	export interface TextSearchOptions {
-		includes: GlobPattern[];
-		excludes: GlobPattern[];
+	export interface SearchOptions {
+		folder: Uri;
+		includes: string[]; // paths relative to folder
+		excludes: string[];
+		useIgnoreFiles?: boolean;
+		followSymlinks?: boolean;
 	}
 
+	export interface TextSearchOptions extends SearchOptions {
+		previewOptions?: any; // total length? # of context lines? leading and trailing # of chars?
+		maxFileSize?: number;
+		encoding?: string;
+	}
+
+	export interface FileSearchOptions extends SearchOptions { }
+
 	export interface TextSearchResult {
-		uri: Uri;
+		path: string;
 		range: Range;
-		preview: { leading: string, matching: string, trailing: string };
+
+		// For now, preview must be a single line of text
+		preview: { text: string, match: Range };
 	}
 
 	export interface SearchProvider {
-		provideFileSearchResults?(query: string, progress: Progress<Uri>, token: CancellationToken): Thenable<void>;
+		provideFileSearchResults?(options: FileSearchOptions, progress: Progress<string>, token: CancellationToken): Thenable<void>;
 		provideTextSearchResults?(query: TextSearchQuery, options: TextSearchOptions, progress: Progress<TextSearchResult>, token: CancellationToken): Thenable<void>;
+	}
+
+	export interface FindTextInFilesOptions {
+		includes?: GlobPattern[];
+		excludes?: GlobPattern[];
+		maxResults?: number;
+		useIgnoreFiles?: boolean;
+		followSymlinks?: boolean;
+		encoding?: string;
 	}
 
 	export namespace workspace {
 		export function registerSearchProvider(scheme: string, provider: SearchProvider): Disposable;
+		export function findTextInFiles(query: TextSearchQuery, options: FindTextInFilesOptions, callback: (result: TextSearchResult) => void, token?: CancellationToken): Thenable<void>;
 	}
 
 	//#endregion
@@ -374,7 +155,7 @@ declare module 'vscode' {
 
 	export interface DebugConfigurationProvider {
 		/**
-		 * This optional method is called just before a debug adapter is started to determine its excutable path and arguments.
+		 * This optional method is called just before a debug adapter is started to determine its executable path and arguments.
 		 * Registering more than one debugAdapterExecutable for a type results in an error.
 		 * @param folder The workspace folder from which the configuration originates from or undefined for a folderless setup.
 		 * @param token A cancellation token.
@@ -437,25 +218,6 @@ declare module 'vscode' {
 
 	//#endregion
 
-	//#region Joh: rename context
-
-	export interface RenameProvider2 extends RenameProvider {
-
-		/**
-		 * Optional function for resolving and validating a position at which rename is
-		 * being carried out.
-		 *
-		 * @param document The document in which rename will be invoked.
-		 * @param position The position at which rename will be invoked.
-		 * @param token A cancellation token.
-		 * @return The range of the identifier that is to be renamed. The lack of a result can signaled by returning `undefined` or `null`.
-		 */
-		resolveRenameLocation?(document: TextDocument, position: Position, token: CancellationToken): ProviderResult<Range>;
-
-	}
-
-	//#endregion
-
 	//#region Joao: SCM validation
 
 	/**
@@ -506,220 +268,659 @@ declare module 'vscode' {
 
 	//#endregion
 
-	//#region Matt: WebView
+	//#region Comments
+	/**
+	 * Comments provider related APIs are still in early stages, they may be changed significantly during our API experiments.
+	 */
+
+	interface CommentInfo {
+		threads: CommentThread[];
+		commentingRanges?: Range[];
+	}
+
+	export enum CommentThreadCollapsibleState {
+		/**
+		 * Determines an item is collapsed
+		 */
+		Collapsed = 0,
+		/**
+		 * Determines an item is expanded
+		 */
+		Expanded = 1
+	}
+
+	interface CommentThread {
+		threadId: string;
+		resource: Uri;
+		range: Range;
+		comments: Comment[];
+		collapsibleState?: CommentThreadCollapsibleState;
+	}
+
+	interface Comment {
+		commentId: string;
+		body: MarkdownString;
+		userName: string;
+		gravatar: string;
+		command?: Command;
+	}
+
+	export interface CommentThreadChangedEvent {
+		/**
+		 * Added comment threads.
+		 */
+		readonly added: CommentThread[];
+
+		/**
+		 * Removed comment threads.
+		 */
+		readonly removed: CommentThread[];
+
+		/**
+		 * Changed comment threads.
+		 */
+		readonly changed: CommentThread[];
+	}
+
+	interface DocumentCommentProvider {
+		provideDocumentComments(document: TextDocument, token: CancellationToken): Promise<CommentInfo>;
+		createNewCommentThread?(document: TextDocument, range: Range, text: string, token: CancellationToken): Promise<CommentThread>;
+		replyToCommentThread?(document: TextDocument, range: Range, commentThread: CommentThread, text: string, token: CancellationToken): Promise<CommentThread>;
+		onDidChangeCommentThreads?: Event<CommentThreadChangedEvent>;
+	}
+
+	interface WorkspaceCommentProvider {
+		provideWorkspaceComments(token: CancellationToken): Promise<CommentThread[]>;
+		createNewCommentThread?(document: TextDocument, range: Range, text: string, token: CancellationToken): Promise<CommentThread>;
+		replyToCommentThread?(document: TextDocument, range: Range, commentThread: CommentThread, text: string, token: CancellationToken): Promise<CommentThread>;
+
+		onDidChangeCommentThreads?: Event<CommentThreadChangedEvent>;
+	}
+
+	namespace workspace {
+		export function registerDocumentCommentProvider(provider: DocumentCommentProvider): Disposable;
+		export function registerWorkspaceCommentProvider(provider: WorkspaceCommentProvider): Disposable;
+	}
+	//#endregion
+
+	//#region Terminal
+
+	export interface Terminal {
+		/**
+		 * Fires when the terminal's pty slave pseudo-device is written to. In other words, this
+		 * provides access to the raw data stream from the process running within the terminal,
+		 * including VT sequences.
+		 */
+		onDidWriteData: Event<string>;
+	}
 
 	/**
-	 * Content settings for a webview.
+	 * Represents the dimensions of a terminal.
 	 */
-	export interface WebviewOptions {
+	export interface TerminalDimensions {
 		/**
-		 * Should scripts be enabled in the webview content?
-		 *
-		 * Defaults to false (scripts-disabled).
+		 * The number of columns in the terminal.
 		 */
-		readonly enableScripts?: boolean;
+		readonly columns: number;
 
 		/**
-		 * Should command uris be enabled in webview content?
-		 *
-		 * Defaults to false.
+		 * The number of rows in the terminal.
 		 */
-		readonly enableCommandUris?: boolean;
-
-		/**
-		 * Should the find widget be enabled in the webview?
-		 *
-		 * Defaults to false.
-		 */
-		readonly enableFindWidget?: boolean;
-
-		/**
-		 * Should the webview's context be kept around even when the webview is no longer visible?
-		 *
-		 * Normally a webview's context is created when the webview becomes visible
-		 * and destroyed when the webview is hidden. Apps that have complex state
-		 * or UI can set the `retainContextWhenHidden` to make VS Code keep the webview
-		 * context around, even when the webview moves to a background tab. When
-		 * the webview becomes visible again, the context is automatically restored
-		 * in the exact same state it was in originally.
-		 *
-		 * `retainContextWhenHidden` has a high memory overhead and should only be used if
-		 * your webview's context cannot be quickly saved and restored.
-		 */
-		readonly retainContextWhenHidden?: boolean;
-
-		/**
-		 * Root paths from which the webview can load local (filesystem) resources using the `vscode-resource:` scheme.
-		 *
-		 * Default to the root folders of the current workspace plus the extension's install directory.
-		 *
-		 * Pass in an empty array to disallow access to any local resources.
-		 */
-		readonly localResourceRoots?: Uri[];
-	}
-
-	export interface WebViewOnDidChangeViewStateEvent {
-		readonly viewColumn: ViewColumn;
-		readonly active: boolean;
+		readonly rows: number;
 	}
 
 	/**
-	 * A webview displays html content, like an iframe.
+	 * Represents a terminal without a process where all interaction and output in the terminal is
+	 * controlled by an extension. This is similar to an output window but has the same VT sequence
+	 * compatility as the regular terminal.
+	 *
+	 * Note that an instance of [Terminal](#Terminal) will be created when a TerminalRenderer is
+	 * created with all its APIs available for use by extensions. When using the Terminal object
+	 * of a TerminalRenderer it acts just like normal only the extension that created the
+	 * TerminalRenderer essentially acts as a process. For example when an
+	 * [Terminal.onDidWriteData](#Terminal.onDidWriteData) listener is registered, that will fire
+	 * when [TerminalRenderer.write](#TerminalRenderer.write) is called. Similarly when
+	 * [Terminal.sendText](#Terminal.sendText) is triggered that will fire the
+	 * [TerminalRenderer.onDidAcceptInput](#TerminalRenderer.onDidAcceptInput) event.
+	 *
+	 * **Example:** Create a terminal renderer, show it and write hello world in red
+	 * ```typescript
+	 * const renderer = window.createTerminalRenderer('foo');
+	 * renderer.terminal.then(t => t.show());
+	 * renderer.write('\x1b[31mHello world\x1b[0m');
+	 * ```
 	 */
-	export interface Webview {
+	export interface TerminalRenderer {
 		/**
-		 * The type of the webview, such as `'markdownw.preview'`
+		 * The name of the terminal, this will appear in the terminal selector.
 		 */
-		readonly viewType: string;
+		name: string;
 
 		/**
-		 * Content settings for the webview.
-		 */
-		readonly options: WebviewOptions;
-
-		/**
-		 * Title of the webview shown in UI.
-		 */
-		title: string;
-
-		/**
-		 * Contents of the webview.
+		 * The dimensions of the terminal, the rows and columns of the terminal can only be set to
+		 * a value smaller than the maximum value, if this is undefined the terminal will auto fit
+		 * to the maximum value [maximumDimensions](TerminalRenderer.maximumDimensions).
 		 *
-		 * Should be a complete html document.
+		 * **Example:** Override the dimensions of a TerminalRenderer to 20 columns and 10 rows
+		 * ```typescript
+		 * terminalRenderer.dimensions = {
+		 *   cols: 20,
+		 *   rows: 10
+		 * };
+		 * ```
 		 */
-		html: string;
+		dimensions: TerminalDimensions | undefined;
 
 		/**
-		 * The column in which the webview is showing.
+		 * The maximum dimensions of the terminal, this will be undefined immediately after a
+		 * terminal renderer is created and also until the terminal becomes visible in the UI.
+		 * Listen to [onDidChangeMaximumDimensions](TerminalRenderer.onDidChangeMaximumDimensions)
+		 * to get notified when this value changes.
 		 */
-		readonly viewColumn?: ViewColumn;
+		readonly maximumDimensions: TerminalDimensions | undefined;
 
 		/**
-		 * Fired when the webview content posts a message.
+		 * The corressponding [Terminal](#Terminal) for this TerminalRenderer.
 		 */
-		readonly onDidReceiveMessage: Event<any>;
+		readonly terminal: Terminal;
 
 		/**
-		 * Fired when the webview is disposed.
-		 */
-		readonly onDidDispose: Event<void>;
-
-		/**
-		 * Fired when the webview's view state changes.
-		 */
-		readonly onDidChangeViewState: Event<WebViewOnDidChangeViewStateEvent>;
-
-		/**
-		 * Post a message to the webview content.
+		 * Write text to the terminal. Unlike [Terminal.sendText](#Terminal.sendText) which sends
+		 * text to the underlying _process_, this will write the text to the terminal itself.
 		 *
-		 * Messages are only develivered if the webview is visible.
+		 * **Example:** Write red text to the terminal
+		 * ```typescript
+		 * terminalRenderer.write('\x1b[31mHello world\x1b[0m');
+		 * ```
 		 *
-		 * @param message Body of the message.
+		 * **Example:** Move the cursor to the 10th row and 20th column and write an asterisk
+		 * ```typescript
+		 * terminalRenderer.write('\x1b[10;20H*');
+		 * ```
+		 *
+		 * @param text The text to write.
 		 */
-		postMessage(message: any): Thenable<boolean>;
+		write(text: string): void;
 
 		/**
-		 * Shows the webview in a given column.
+		 * An event which fires on keystrokes in the terminal or when an extension calls
+		 * [Terminal.sendText](#Terminal.sendText). Keystrokes are converted into their
+		 * corresponding VT sequence representation.
 		 *
-		 * A webview may only be in a single column at a time. If it is already showing, this
-		 * command moves it to a new column.
+		 * **Example:** Simulate interaction with the terminal from an outside extension or a
+		 * workbench command such as `workbench.action.terminal.runSelectedText`
+		 * ```typescript
+		 * const terminalRenderer = window.createTerminalRenderer('test');
+		 * terminalRenderer.onDidAcceptInput(data => {
+		 *   cosole.log(data); // 'Hello world'
+		 * });
+		 * terminalRenderer.terminal.then(t => t.sendText('Hello world'));
+		 * ```
 		 */
-		reveal(viewColumn: ViewColumn): void;
+		readonly onDidAcceptInput: Event<string>;
 
 		/**
-		 * Dispose of the the webview.
-		 *
-		 * This closes the webview if it showing and disposes of the resources owned by the webview.
-		 * Webview are also disposed when the user closes the webview editor. Both cases fire `onDispose`
-		 * event. Trying to use the webview after it has been disposed throws an exception.
+		 * An event which fires when the [maximum dimensions](#TerminalRenderer.maimumDimensions) of
+		 * the terminal renderer change.
 		 */
-		dispose(): any;
+		readonly onDidChangeMaximumDimensions: Event<TerminalDimensions>;
 	}
 
-	namespace window {
+	export namespace window {
 		/**
-		 * Create and show a new webview.
-		 *
-		 * @param viewType Identifier the type of the webview.
-		 * @param title Title of the webview.
-		 * @param column Editor column to show the new webview in.
-		 * @param options Content settings for the webview.
+		 * The currently opened terminals or an empty array.
 		 */
-		export function createWebview(viewType: string, title: string, column: ViewColumn, options: WebviewOptions): Webview;
+		export const terminals: ReadonlyArray<Terminal>;
+
+		/**
+		 * The currently active terminal or `undefined`. The active terminal is the one that
+		 * currently has focus or most recently had focus.
+		 */
+		export const activeTerminal: Terminal | undefined;
+
+		/**
+		 * An [event](#Event) which fires when the [active terminal](#window.activeTerminal)
+		 * has changed. *Note* that the event also fires when the active terminal changes
+		 * to `undefined`.
+		 */
+		export const onDidChangeActiveTerminal: Event<Terminal | undefined>;
+
+		/**
+		 * An [event](#Event) which fires when a terminal has been created, either through the
+		 * [createTerminal](#window.createTerminal) API or commands.
+		 */
+		export const onDidOpenTerminal: Event<Terminal>;
+
+		/**
+		 * Create a [TerminalRenderer](#TerminalRenderer).
+		 *
+		 * @param name The name of the terminal renderer, this shows up in the terminal selector.
+		 */
+		export function createTerminalRenderer(name: string): TerminalRenderer;
 	}
 
 	//#endregion
 
-	//#region Tasks
+	//#region URLs
 
-	/**
-	 * An object representing an executed Task. It can be used
-	 * to terminate a task.
-	 *
-	 * This interface is not intended to be implemented.
-	 */
-	export interface TaskExecution {
-		/**
-		 * The task that got started.
-		 */
-		task: Task;
+	export interface ProtocolHandler {
+		handleUri(uri: Uri): void;
+	}
+
+	export namespace window {
 
 		/**
-		 * Terminates the task execution.
+		 * Registers a protocol handler capable of handling system-wide URIs.
 		 */
-		terminate(): void;
+		export function registerProtocolHandler(handler: ProtocolHandler): Disposable;
+	}
+
+	//#endregion
+
+	//#region Joh -> exclusive document filters
+
+	export interface DocumentFilter {
+		exclusive?: boolean;
+	}
+
+	//#endregion
+
+	//#region QuickInput API
+
+	export namespace window {
+
+		/**
+		 * A back button for [QuickPick](#QuickPick) and [InputBox](#InputBox).
+		 *
+		 * When a navigation 'back' button is needed this one should be used for consistency.
+		 * It comes with a predefined icon, tooltip and location.
+		 */
+		export const quickInputBackButton: QuickInputButton;
+
+		/**
+		 * Creates a [QuickPick](#QuickPick) to let the user pick an item from a list
+		 * of items of type T.
+		 *
+		 * Note that in many cases the more convenient [window.showQuickPick](#window.showQuickPick)
+		 * is easier to use. [window.createQuickPick](#window.createQuickPick) should be used,
+		 * when [window.showQuickPick](#window.showQuickPick) does not offer the required flexibility.
+		 *
+		 * @return A new [QuickPick](#QuickPick).
+		 */
+		export function createQuickPick<T extends QuickPickItem>(): QuickPick<T>;
+
+		/**
+		 * Creates a [InputBox](#InputBox) to let the user enter some text input.
+		 *
+		 * Note that in many cases the more convenient [window.showInputBox](#window.showInputBox)
+		 * is easier to use. [window.createInputBox](#window.createInputBox) should be used,
+		 * when [window.showInputBox](#window.showInputBox) does not offer the required flexibility.
+		 *
+		 * @return A new [InputBox](#InputBox).
+		 */
+		export function createInputBox(): InputBox;
 	}
 
 	/**
-	 * An event signaling the start of a task execution.
+	 * A light-weight user input UI that is intially not visible. After
+	 * configuring it through its properties the extension can make it
+	 * visible by calling [QuickInput.show](#QuickInput.show).
 	 *
-	 * This interface is not intended to be implemented.
+	 * There are several reasons why this UI might have to be hidden and
+	 * the extension will be notified through [QuickInput.onDidHide](#QuickInput.onDidHide).
+	 * (Examples include: an explict call to [QuickInput.hide](#QuickInput.hide),
+	 * the user pressing Esc, some other input UI opening, etc.)
+	 *
+	 * A user pressing Enter or some other gesture implying acceptance
+	 * of the current state does not automatically hide this UI component.
+	 * It is up to the extension to decide whether to accept the user's input
+	 * and if the UI should indeed be hidden through a call to [QuickInput.hide](#QuickInput.hide).
+	 *
+	 * When the extension no longer needs this input UI, it should
+	 * [QuickInput.dispose](#QuickInput.dispose) it to allow for freeing up
+	 * any resources associated with it.
+	 *
+	 * See [QuickPick](#QuickPick) and [InputBox](#InputBox) for concrete UIs.
 	 */
-	interface TaskStartEvent {
+	export interface QuickInput {
+
 		/**
-		 * The task item representing the task that got started.
+		 * An optional title.
 		 */
-		execution: TaskExecution;
+		title: string | undefined;
+
+		/**
+		 * An optional current step count.
+		 */
+		step: number | undefined;
+
+		/**
+		 * An optional total step count.
+		 */
+		totalSteps: number | undefined;
+
+		/**
+		 * If the UI should allow for user input. Defaults to true.
+		 *
+		 * Change this to false, e.g., while validating user input or
+		 * loading data for the next step in user input.
+		 */
+		enabled: boolean;
+
+		/**
+		 * If the UI should show a progress indicator. Defaults to false.
+		 *
+		 * Change this to true, e.g., while loading more data or validating
+		 * user input.
+		 */
+		busy: boolean;
+
+		/**
+		 * If the UI should stay open even when loosing UI focus. Defaults to false.
+		 */
+		ignoreFocusOut: boolean;
+
+		/**
+		 * Makes the input UI visible in its current configuration. Any other input
+		 * UI will first fire an [QuickInput.onDidHide](#QuickInput.onDidHide) event.
+		 */
+		show(): void;
+
+		/**
+		 * Hides this input UI. This will also fire an [QuickInput.onDidHide](#QuickInput.onDidHide)
+		 * event.
+		 */
+		hide(): void;
+
+		/**
+		 * An event signaling when this input UI is hidden.
+		 *
+		 * There are several reasons why this UI might have to be hidden and
+		 * the extension will be notified through [QuickInput.onDidHide](#QuickInput.onDidHide).
+		 * (Examples include: an explict call to [QuickInput.hide](#QuickInput.hide),
+		 * the user pressing Esc, some other input UI opening, etc.)
+		 */
+		onDidHide: Event<void>;
+
+		/**
+		 * Dispose of this input UI and any associated resources. If it is still
+		 * visible, it is first hidden. After this call the input UI is no longer
+		 * functional and no additional methods or properties on it should be
+		 * accessed. Instead a new input UI should be created.
+		 */
+		dispose(): void;
 	}
 
 	/**
-	 * An event signaling the end of an executed task.
+	 * A concrete [QuickInput](#QuickInput) to let the user pick an item from a
+	 * list of items of type T. The items can be filtered through a filter text field and
+	 * there is an option [canSelectMany](#QuickPick.canSelectMany) to allow for
+	 * selecting multiple items.
 	 *
-	 * This interface is not intended to be implemented.
+	 * Note that in many cases the more convenient [window.showQuickPick](#window.showQuickPick)
+	 * is easier to use. [window.createQuickPick](#window.createQuickPick) should be used,
+	 * when [window.showQuickPick](#window.showQuickPick) does not offer the required flexibility.
 	 */
-	interface TaskEndEvent {
+	export interface QuickPick<T extends QuickPickItem> extends QuickInput {
+
 		/**
-		 * The task item representing the task that finished.
+		 * Current value of the filter text.
 		 */
-		execution: TaskExecution;
+		value: string;
+
+		/**
+		 * Optional placeholder in the filter text.
+		 */
+		placeholder: string | undefined;
+
+		/**
+		 * An event signaling when the value of the filter text has changed.
+		 */
+		readonly onDidChangeValue: Event<string>;
+
+		/**
+		 * An event signaling when the user indicated acceptance of the selected item(s).
+		 */
+		readonly onDidAccept: Event<void>;
+
+		/**
+		 * Buttons for actions in the UI.
+		 */
+		buttons: ReadonlyArray<QuickInputButton>;
+
+		/**
+		 * An event signaling when a button was triggered.
+		 */
+		readonly onDidTriggerButton: Event<QuickInputButton>;
+
+		/**
+		 * Items to pick from.
+		 */
+		items: ReadonlyArray<T>;
+
+		/**
+		 * If multiple items can be selected at the same time. Defaults to false.
+		 */
+		canSelectMany: boolean;
+
+		/**
+		 * If the filter text should also be matched against the description of the items. Defaults to false.
+		 */
+		matchOnDescription: boolean;
+
+		/**
+		 * If the filter text should also be matched against the detail of the items. Defaults to false.
+		 */
+		matchOnDetail: boolean;
+
+		/**
+		 * Active items. This can be read and updated by the extension.
+		 */
+		activeItems: ReadonlyArray<T>;
+
+		/**
+		 * An event signaling when the active items have changed.
+		 */
+		readonly onDidChangeActive: Event<T[]>;
+
+		/**
+		 * Selected items. This can be read and updated by the extension.
+		 */
+		selectedItems: ReadonlyArray<T>;
+
+		/**
+		 * An event signaling when the selected items have changed.
+		 */
+		readonly onDidChangeSelection: Event<T[]>;
+	}
+
+	/**
+	 * A concrete [QuickInput](#QuickInput) to let the user input a text value.
+	 *
+	 * Note that in many cases the more convenient [window.showInputBox](#window.showInputBox)
+	 * is easier to use. [window.createInputBox](#window.createInputBox) should be used,
+	 * when [window.showInputBox](#window.showInputBox) does not offer the required flexibility.
+	 */
+	export interface InputBox extends QuickInput {
+
+		/**
+		 * Current input value.
+		 */
+		value: string;
+
+		/**
+		 * Optional placeholder in the filter text.
+		 */
+		placeholder: string | undefined;
+
+		/**
+		 * If the input value should be hidden. Defaults to false.
+		 */
+		password: boolean;
+
+		/**
+		 * An event signaling when the value has changed.
+		 */
+		readonly onDidChangeValue: Event<string>;
+
+		/**
+		 * An event signaling when the user indicated acceptance of the input value.
+		 */
+		readonly onDidAccept: Event<void>;
+
+		/**
+		 * Buttons for actions in the UI.
+		 */
+		buttons: ReadonlyArray<QuickInputButton>;
+
+		/**
+		 * An event signaling when a button was triggered.
+		 */
+		readonly onDidTriggerButton: Event<QuickInputButton>;
+
+		/**
+		 * An optional prompt text providing some ask or explanation to the user.
+		 */
+		prompt: string | undefined;
+
+		/**
+		 * An optional validation message indicating a problem with the current input value.
+		 */
+		validationMessage: string | undefined;
+	}
+
+	/**
+	 * Button for an action in a [QuickPick](#QuickPick) or [InputBox](#InputBox).
+	 */
+	export interface QuickInputButton {
+
+		/**
+		 * Icon for the button.
+		 */
+		readonly iconPath: string | Uri | { light: string | Uri; dark: string | Uri } | ThemeIcon;
+
+		/**
+		 * An optional tooltip.
+		 */
+		readonly tooltip?: string | undefined;
+	}
+
+	//#endregion
+
+	//#region joh: https://github.com/Microsoft/vscode/issues/10659
+
+	/**
+	 * A workspace edit is a collection of textual and files changes for
+	 * multiple resources and documents. Use the [applyEdit](#workspace.applyEdit)-function
+	 * to apply a workspace edit. Note that all changes are applied in the same order in which
+	 * they have been added and that invalid sequences like 'delete file a' -> 'insert text in
+	 * file a' causes failure of the operation.
+	 */
+	export interface WorkspaceEdit {
+
+		/**
+		 * Create a regular file.
+		 *
+		 * @param uri Uri of the new file..
+		 * @param options Defines if an existing file should be overwritten or be ignored.
+		 */
+		createFile(uri: Uri, options?: { overwrite?: boolean, ignoreIfExists?: boolean }): void;
+
+		/**
+		 * Delete a file or folder.
+		 *
+		 * @param uri The uri of the file that is to be deleted.
+		 */
+		deleteFile(uri: Uri, options?: { recursive?: boolean }): void;
+
+		/**
+		 * Rename a file or folder.
+		 *
+		 * @param oldUri The existing file.
+		 * @param newUri The new location.
+		 * @param options Defines if existing files should be overwritten.
+		 */
+		renameFile(oldUri: Uri, newUri: Uri, options?: { overwrite?: boolean }): void;
+
+		// replaceText(uri: Uri, range: Range, newText: string): void;
+		// insertText(uri: Uri, position: Position, newText: string): void;
+		// deleteText(uri: Uri, range: Range): void;
 	}
 
 	export namespace workspace {
-
 		/**
-		 * Fetches all task available in the systems. This includes tasks
-		 * from `tasks.json` files as well as tasks from task providers
-		 * contributed through extensions.
-		 */
-		export function fetchTasks(): Thenable<Task[]>;
-
-		/**
-		 * Executes a task that is managed by VS Code. The returned
-		 * task execution can be used to terminate the task.
+		 * Make changes to one or many resources as defined by the given
+		 * [workspace edit](#WorkspaceEdit).
 		 *
-		 * @param task the task to execute
+		 * The editor implements an 'all-or-nothing'-strategy and that means failure to modify,
+		 * delete, rename, or create one file will abort the operation. In that case, the thenable returned
+		 * by this function resolves to `false`.
+		 *
+		 * @param edit A workspace edit.
+		 * @return A thenable that resolves when the edit could be applied.
 		 */
-		export function executeTask(task: Task): Thenable<TaskExecution>;
+		export function applyEdit(edit: WorkspaceEdit): Thenable<boolean>;
+	}
+
+	//#endregion
+
+	//#region mjbvz,joh: https://github.com/Microsoft/vscode/issues/43768
+	export interface FileRenameEvent {
+		readonly oldUri: Uri;
+		readonly newUri: Uri;
+	}
+
+	export interface FileWillRenameEvent {
+		readonly oldUri: Uri;
+		readonly newUri: Uri;
+		waitUntil(thenable: Thenable<WorkspaceEdit>): void;
+	}
+
+	export namespace workspace {
+		export const onWillRenameFile: Event<FileWillRenameEvent>;
+		export const onDidRenameFile: Event<FileRenameEvent>;
+	}
+	//#endregion
+
+	//#region Matt: Deinition range
+
+	/**
+	 * Information about where a symbol is defined.
+	 *
+	 * Provides additional metadata over normal [location](#Location) definitions, including the range of
+	 * the defining symbol
+	 */
+	export interface DefinitionLink {
+		/**
+		 * Span of the symbol being defined in the source file.
+		 *
+		 * Used as the underlined span for mouse definition hover. Defaults to the word range at
+		 * the definition position.
+		 */
+		origin?: Range;
 
 		/**
-		 * Fires when a task starts.
+		 * The resource identifier of the definition.
 		 */
-		export const onDidStartTask: Event<TaskStartEvent>;
+		uri: Uri;
 
 		/**
-		 * Fires when a task ends.
+		 * The full range of the definition.
+		 *
+		 * For a class definition for example, this would be the entire body of the class definition.
 		 */
-		export const onDidEndTask: Event<TaskEndEvent>;
+		range: Range;
+
+		/**
+		 * The span of the symbol definition.
+		 *
+		 * For a class definition, this would be the class name itself in the class definition.
+		 */
+		selectionRange?: Range;
+	}
+
+	export interface DefinitionProvider {
+		provideDefinition2?(document: TextDocument, position: Position, token: CancellationToken): ProviderResult<Definition | DefinitionLink[]>;
 	}
 
 	//#endregion

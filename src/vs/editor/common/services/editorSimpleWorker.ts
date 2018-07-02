@@ -156,7 +156,7 @@ class MirrorModel extends BaseMirrorModel implements ICommonModel {
 		let lineText: string;
 		let wordRangesIdx = 0;
 		let wordRanges: IWordRange[] = [];
-		let next = () => {
+		let next = (): { done: boolean; value: string } => {
 
 			if (wordRangesIdx < wordRanges.length) {
 				obj.done = false;
@@ -303,7 +303,7 @@ export interface IForeignModuleFactory {
 	(ctx: IWorkerContext, createData: any): any;
 }
 
-declare var require;
+declare var require: any;
 
 /**
  * @internal
@@ -332,6 +332,7 @@ export abstract class BaseEditorSimpleWorker {
 		let originalLines = original.getLinesContent();
 		let modifiedLines = modified.getLinesContent();
 		let diffComputer = new DiffComputer(originalLines, modifiedLines, {
+			shouldComputeCharChanges: true,
 			shouldPostProcessCharChanges: true,
 			shouldIgnoreTrimWhitespace: ignoreTrimWhitespace,
 			shouldMakePrettyDiff: true
@@ -349,6 +350,7 @@ export abstract class BaseEditorSimpleWorker {
 		let originalLines = original.getLinesContent();
 		let modifiedLines = modified.getLinesContent();
 		let diffComputer = new DiffComputer(originalLines, modifiedLines, {
+			shouldComputeCharChanges: false,
 			shouldPostProcessCharChanges: false,
 			shouldIgnoreTrimWhitespace: ignoreTrimWhitespace,
 			shouldMakePrettyDiff: true

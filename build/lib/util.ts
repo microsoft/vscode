@@ -17,6 +17,7 @@ import * as git from './git';
 import * as VinylFile from 'vinyl';
 import { ThroughStream } from 'through';
 import * as sm from 'source-map';
+import * as cp from 'child_process';
 
 export interface ICancellationToken {
 	isCancellationRequested(): boolean;
@@ -268,4 +269,74 @@ export function filter(fn: (data: any) => boolean): FilterStream {
 
 	result.restore = es.through();
 	return result;
+}
+
+function tagExists(tagName: string): boolean {
+	try {
+		cp.execSync(`git rev-parse ${tagName}`, { stdio: 'ignore' });
+		return true;
+	} catch (e) {
+		return false;
+	}
+}
+
+/**
+ * Returns the version previous to the given version. Throws if a git tag for that version doesn't exist.
+ * Given 1.17.2, return 1.17.1
+ * 1.18.0 => 1.17.2. (or the highest 1.17.x)
+ * 2.0.0 => 1.18.0 (or the highest 1.x)
+ */
+export function getPreviousVersion(versionStr: string, _tagExists = tagExists) {
+	function getLatestTagFromBase(semverArr: number[], componentToTest: number): string {
+		const baseVersion = semverArr.join('.');
+		if (!_tagExists(baseVersion)) {
+			throw new Error('Failed to find git tag for base version, ' + baseVersion);
+		}
+
+		let goodTag;
+		do {
+			goodTag = semverArr.join('.');
+			semverArr[componentToTest]++;
+		} while (_tagExists(semverArr.join('.')));
+
+		return goodTag;
+	}
+
+	const semverArr = versionStringToNumberArray(versionStr);
+	if (semverArr[2] > 0) {
+		semverArr[2]--;
+		const previous = semverArr.join('.');
+		if (!_tagExists(previous)) {
+			throw new Error('Failed to find git tag for previous version, ' + previous);
+		}
+
+		return previous;
+	} else if (semverArr[1] > 0) {
+		semverArr[1]--;
+		return getLatestTagFromBase(semverArr, 2);
+	} else {
+		semverArr[0]--;
+
+		// Find 1.x.0 for latest x
+		const latestMinorVersion = getLatestTagFromBase(semverArr, 1);
+
+		// Find 1.x.y for latest y
+		return getLatestTagFromBase(versionStringToNumberArray(latestMinorVersion), 2);
+	}
+}
+
+function versionStringToNumberArray(versionStr: string): number[] {
+	return versionStr
+		.split('.')
+		.map(s => parseInt(s));
+}
+
+export function versionStringToNumber(versionStr: string) {
+	const semverRegex = /(\d+)\.(\d+)\.(\d+)/;
+	const match = versionStr.match(semverRegex);
+	if (!match) {
+		throw new Error('Version string is not properly formatted: ' + versionStr);
+	}
+
+	return parseInt(match[1], 10) * 1e4 + parseInt(match[2], 10) * 1e2 + parseInt(match[3], 10);
 }

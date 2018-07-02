@@ -6,6 +6,7 @@
 
 import { PPromise, TPromise } from 'vs/base/common/winjs.base';
 import uri from 'vs/base/common/uri';
+import * as arrays from 'vs/base/common/arrays';
 import * as objects from 'vs/base/common/objects';
 import * as strings from 'vs/base/common/strings';
 import { getNextTickChannel } from 'vs/base/parts/ipc/common/ipc';
@@ -24,12 +25,14 @@ import { onUnexpectedError } from 'vs/base/common/errors';
 import { Schemas } from 'vs/base/common/network';
 import * as pfs from 'vs/base/node/pfs';
 import { ILogService } from 'vs/platform/log/common/log';
+import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
 
 export class SearchService implements ISearchService {
 	public _serviceBrand: any;
 
 	private diskSearch: DiskSearch;
-	private readonly searchProvider: ISearchResultProvider[] = [];
+	private readonly searchProviders: ISearchResultProvider[] = [];
+	private fileSearchProvider: ISearchResultProvider;
 	private forwardingTelemetry: PPromise<void, ITelemetryEvent>;
 
 	constructor(
@@ -38,19 +41,28 @@ export class SearchService implements ISearchService {
 		@IEnvironmentService environmentService: IEnvironmentService,
 		@ITelemetryService private telemetryService: ITelemetryService,
 		@IConfigurationService private configurationService: IConfigurationService,
-		@ILogService private logService: ILogService
+		@ILogService private logService: ILogService,
+		@IExtensionService private extensionService: IExtensionService
 	) {
 		this.diskSearch = new DiskSearch(!environmentService.isBuilt || environmentService.verbose, /*timeout=*/undefined, environmentService.debugSearch);
-		this.registerSearchResultProvider(this.diskSearch);
 	}
 
-	public registerSearchResultProvider(provider: ISearchResultProvider): IDisposable {
-		this.searchProvider.push(provider);
+	public registerSearchResultProvider(scheme: string, provider: ISearchResultProvider): IDisposable {
+		if (scheme === 'file') {
+			this.fileSearchProvider = provider;
+		} else {
+			this.searchProviders.push(provider);
+		}
+
 		return {
 			dispose: () => {
-				const idx = this.searchProvider.indexOf(provider);
-				if (idx >= 0) {
-					this.searchProvider.splice(idx, 1);
+				if (scheme === 'file') {
+					this.fileSearchProvider = null;
+				} else {
+					const idx = this.searchProviders.indexOf(provider);
+					if (idx >= 0) {
+						this.searchProviders.splice(idx, 1);
+					}
 				}
 			}
 		};
@@ -92,12 +104,10 @@ export class SearchService implements ISearchService {
 			process.nextTick(() => localResults.values().filter((res) => !!res).forEach(onProgress));
 
 			this.logService.trace('SearchService#search', JSON.stringify(query));
-			const providerPromises = this.searchProvider.map(provider => TPromise.wrap(provider.search(query)).then(e => e,
-				err => {
-					// TODO@joh
-					// single provider fail. fail all?
-					onError(err);
-				},
+
+			const startTime = Date.now();
+			const searchWithProvider = (provider: ISearchResultProvider) => TPromise.wrap(provider.search(query)).then(e => e,
+				null,
 				progress => {
 					if (progress.resource) {
 						// Match
@@ -112,10 +122,40 @@ export class SearchService implements ISearchService {
 					if (progress.message) {
 						this.logService.debug('SearchService#search', progress.message);
 					}
-				}
-			));
+				});
 
-			combinedPromise = TPromise.join(providerPromises).then(values => {
+			const providerPromise = this.extensionService.whenInstalledExtensionsRegistered().then(() => {
+				// TODO@roblou this is not properly waiting for search-rg to finish registering itself
+				// If no search provider has been registered for the 'file' schema, fall back on DiskSearch
+				const providers = [
+					this.fileSearchProvider || this.diskSearch,
+					...this.searchProviders
+				];
+				return TPromise.join(providers.map(p => searchWithProvider(p)))
+					.then(completes => {
+						completes = completes.filter(c => !!c);
+						if (!completes.length) {
+							return null;
+						}
+
+						return <ISearchComplete>{
+							limitHit: completes[0] && completes[0].limitHit,
+							stats: completes[0].stats,
+							results: arrays.flatten(completes.map(c => c.results))
+						};
+					}, errs => {
+						if (!Array.isArray(errs)) {
+							errs = [errs];
+						}
+
+						errs = errs.filter(e => !!e);
+						return TPromise.wrapError(errs[0]);
+					});
+			});
+
+			combinedPromise = providerPromise.then(value => {
+				this.logService.debug(`SearchService#search: ${Date.now() - startTime}ms`);
+				const values = [value];
 
 				const result: ISearchComplete = {
 					limitHit: false,

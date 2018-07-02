@@ -32,6 +32,10 @@ declare namespace monaco {
 		Error = 3,
 	}
 
+	export enum MarkerTag {
+		Unnecessary = 1,
+	}
+
 	export enum MarkerSeverity {
 		Hint = 1,
 		Info = 2,

@@ -74,7 +74,7 @@ suite('Editor Contrib - Line Comment Command', () => {
 
 	function createBasicLinePreflightData(commentTokens: string[]): ILinePreflightData[] {
 		return commentTokens.map((commentString) => {
-			var r: ILinePreflightData = {
+			const r: ILinePreflightData = {
 				ignore: false,
 				commentStr: commentString,
 				commentStrOffset: 0,
@@ -85,7 +85,7 @@ suite('Editor Contrib - Line Comment Command', () => {
 	}
 
 	test('_analyzeLines', function () {
-		var r: IPreflightData;
+		let r: IPreflightData;
 
 		r = LineCommentCommand._analyzeLines(Type.Toggle, createSimpleModel([
 			'\t\t',
@@ -151,16 +151,16 @@ suite('Editor Contrib - Line Comment Command', () => {
 
 	test('_normalizeInsertionPoint', function () {
 
-		var runTest = (mixedArr: any[], tabSize: number, expected: number[], testName: string) => {
-			var model = createSimpleModel(mixedArr.filter((item, idx) => idx % 2 === 0));
-			var offsets = mixedArr.filter((item, idx) => idx % 2 === 1).map(offset => {
+		const runTest = (mixedArr: any[], tabSize: number, expected: number[], testName: string) => {
+			const model = createSimpleModel(mixedArr.filter((item, idx) => idx % 2 === 0));
+			const offsets = mixedArr.filter((item, idx) => idx % 2 === 1).map(offset => {
 				return {
 					commentStrOffset: offset,
 					ignore: false
 				};
 			});
 			LineCommentCommand._normalizeInsertionPoint(model, offsets, 1, tabSize);
-			var actual = offsets.map(item => item.commentStrOffset);
+			const actual = offsets.map(item => item.commentStrOffset);
 			assert.deepEqual(actual, expected, testName);
 		};
 
@@ -256,7 +256,7 @@ suite('Editor Contrib - Line Comment Command', () => {
 				'\t!@# some text',
 				'\t!@# some more text'
 			],
-			new Selection(1, 1, 2, 2)
+			new Selection(2, 2, 1, 1)
 		);
 	});
 
@@ -271,7 +271,7 @@ suite('Editor Contrib - Line Comment Command', () => {
 				'\t!@# some text',
 				'    !@# some more text'
 			],
-			new Selection(1, 1, 2, 2)
+			new Selection(2, 2, 1, 1)
 		);
 	});
 
@@ -290,7 +290,7 @@ suite('Editor Contrib - Line Comment Command', () => {
 				'',
 				'\t!@# some more text'
 			],
-			new Selection(1, 1, 4, 2)
+			new Selection(4, 2, 1, 1)
 		);
 	});
 
@@ -307,7 +307,7 @@ suite('Editor Contrib - Line Comment Command', () => {
 				'\t   ',
 				'\t\tsome more text'
 			],
-			new Selection(1, 1, 3, 2)
+			new Selection(3, 2, 1, 1)
 		);
 	});
 
@@ -324,7 +324,7 @@ suite('Editor Contrib - Line Comment Command', () => {
 				'\t!@# ',
 				'\t\tsome more text'
 			],
-			new Selection(1, 1, 3, 1)
+			new Selection(3, 1, 1, 1)
 		);
 	});
 
@@ -369,7 +369,7 @@ suite('Editor Contrib - Line Comment Command', () => {
 				'first!@#',
 				'\t!@# second line'
 			],
-			new Selection(2, 1, 2, 7)
+			new Selection(2, 7, 2, 1)
 		);
 	});
 
@@ -390,7 +390,7 @@ suite('Editor Contrib - Line Comment Command', () => {
 				'fourth line',
 				'fifth'
 			],
-			new Selection(1, 5, 2, 1)
+			new Selection(2, 1, 1, 5)
 		);
 	});
 
@@ -411,7 +411,7 @@ suite('Editor Contrib - Line Comment Command', () => {
 				'fourth line',
 				'fifth'
 			],
-			new Selection(1, 5, 2, 8)
+			new Selection(2, 8, 1, 5)
 		);
 	});
 
@@ -432,7 +432,7 @@ suite('Editor Contrib - Line Comment Command', () => {
 				'!@# fourth line',
 				'fifth'
 			],
-			new Selection(3, 5, 4, 8)
+			new Selection(4, 8, 3, 5)
 		);
 	});
 
@@ -493,7 +493,7 @@ suite('Editor Contrib - Line Comment Command', () => {
 				'fourth line',
 				'fifth'
 			],
-			new Selection(1, 5, 2, 8)
+			new Selection(2, 8, 1, 5)
 		);
 
 		testLineCommentCommand(
@@ -512,7 +512,7 @@ suite('Editor Contrib - Line Comment Command', () => {
 				'fourth line',
 				'fifth'
 			],
-			new Selection(1, 1, 2, 3)
+			new Selection(2, 3, 1, 1)
 		);
 	});
 
@@ -607,6 +607,21 @@ suite('Editor Contrib - Line Comment Command', () => {
 			new Selection(1, 1, 8, 60)
 		);
 	});
+
+	test('issue #47004: Toggle comments shouldn\'t move cursor', () => {
+		testAddLineCommentCommand(
+			[
+				'    A line',
+				'    Another line'
+			],
+			new Selection(2, 7, 1, 1),
+			[
+				'    !@# A line',
+				'    !@# Another line'
+			],
+			new Selection(2, 11, 1, 1)
+		);
+	});
 });
 
 suite('Editor Contrib - Line Comment As Block Comment', () => {
@@ -655,7 +670,7 @@ suite('Editor Contrib - Line Comment As Block Comment', () => {
 				'fourth line',
 				'fifth'
 			],
-			new Selection(1, 1, 1, 6)
+			new Selection(1, 6, 1, 1)
 		);
 	});
 
@@ -697,7 +712,7 @@ suite('Editor Contrib - Line Comment As Block Comment', () => {
 				'fourth line',
 				'fifth'
 			],
-			new Selection(1, 5, 3, 2)
+			new Selection(3, 2, 1, 5)
 		);
 
 		testLineCommentCommand(
@@ -716,7 +731,7 @@ suite('Editor Contrib - Line Comment As Block Comment', () => {
 				'fourth line',
 				'fifth'
 			],
-			new Selection(1, 1, 3, 11)
+			new Selection(3, 11, 1, 1)
 		);
 	});
 });
@@ -842,7 +857,7 @@ suite('Editor Contrib - Line Comment As Block Comment 2', () => {
 				'fourth line',
 				'\t\tfifth\t\t'
 			],
-			new Selection(5, 3, 5, 8)
+			new Selection(5, 8, 5, 3)
 		);
 
 		testLineCommentCommand(
@@ -861,7 +876,7 @@ suite('Editor Contrib - Line Comment As Block Comment 2', () => {
 				'fourth line',
 				'\t\tfifth\t\t'
 			],
-			new Selection(5, 3, 5, 8)
+			new Selection(5, 8, 5, 3)
 		);
 
 		testLineCommentCommand(

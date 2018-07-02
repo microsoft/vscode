@@ -4,11 +4,11 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as vscode from 'vscode';
-import { getDeepestNode, findNextWord, findPrevWord, getNode } from './util';
+import { getDeepestNode, findNextWord, findPrevWord, getHtmlNode } from './util';
 import { HtmlNode } from 'EmmetNode';
 
 export function nextItemHTML(selectionStart: vscode.Position, selectionEnd: vscode.Position, editor: vscode.TextEditor, rootNode: HtmlNode): vscode.Selection | undefined {
-	let currentNode = <HtmlNode>getNode(rootNode, selectionEnd);
+	let currentNode = getHtmlNode(editor.document, rootNode, selectionEnd, false);
 	let nextNode: HtmlNode | undefined = undefined;
 
 	if (!currentNode) {
@@ -31,7 +31,7 @@ export function nextItemHTML(selectionStart: vscode.Position, selectionEnd: vsco
 
 		// Get the first child of current node which is right after the cursor and is not a comment
 		nextNode = currentNode.firstChild;
-		while (nextNode && (selectionEnd.isAfterOrEqual(nextNode.start) || nextNode.type === 'comment')) {
+		while (nextNode && (selectionEnd.isAfterOrEqual(nextNode.end) || nextNode.type === 'comment')) {
 			nextNode = nextNode.nextSibling;
 		}
 	}
@@ -54,7 +54,7 @@ export function nextItemHTML(selectionStart: vscode.Position, selectionEnd: vsco
 }
 
 export function prevItemHTML(selectionStart: vscode.Position, selectionEnd: vscode.Position, editor: vscode.TextEditor, rootNode: HtmlNode): vscode.Selection | undefined {
-	let currentNode = <HtmlNode>getNode(rootNode, selectionStart);
+	let currentNode = getHtmlNode(editor.document, rootNode, selectionStart, false);
 	let prevNode: HtmlNode | undefined = undefined;
 
 	if (!currentNode) {
@@ -63,7 +63,7 @@ export function prevItemHTML(selectionStart: vscode.Position, selectionEnd: vsco
 
 	if (currentNode.type !== 'comment' && selectionStart.translate(0, -1).isAfter(currentNode.open.start)) {
 
-		if (selectionStart.isBefore(currentNode.open.end) || !currentNode.firstChild) {
+		if (selectionStart.isBefore(currentNode.open.end) || !currentNode.firstChild || selectionEnd.isBeforeOrEqual(currentNode.firstChild.start)) {
 			prevNode = currentNode;
 		} else {
 			// Select the child that appears just before the cursor and is not a comment

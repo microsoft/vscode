@@ -26,7 +26,7 @@
 	"terminal.integrated.cursorStyle": "Terminaldeki imlecin stilini denetler.",
 	"terminal.integrated.scrollback": "Terminalin tamponunda tuttuğu maksimum satır sayısını denetler.",
 	"terminal.integrated.setLocaleVariables": "Terminal başlangıcında yereli içeren değişkenlerin ayarlanıp ayarlanmayacağını denetler; bu, OS X'de varsayılan olarak açıktır, diğer platformlarda kapalıdır.",
-	"terminal.integrated.rightClickBehavior": "Terminalin sağ tıklamaya nasıl tepki vereceğini denetler, olası değerler 'default', 'copyPaste' ve 'selectWord'dür. 'default' bağlam menüsünü gösterir, 'copyPaste' bir seçim varsa kopyalar yoksa yapıştırır, 'selectWord' imlecin altındaki sözcüğü seçer ve bağlam menüsünü gösterir.",
+	"terminal.integrated.rightClickBehavior": "Terminalin sağ tıklamaya nasıl tepki vereceğini denetler, olası değerler \"default\", \"copyPaste\" ve \"selectWord\"dür. \"default\" bağlam menüsünü gösterir, \"copyPaste\" bir seçim varsa kopyalar yoksa yapıştırır, \"selectWord\" imlecin altındaki sözcüğü seçer ve bağlam menüsünü gösterir.",
 	"terminal.integrated.cwd": "Terminalin nerede başlatılacağına ait açık bir yol; bu, kabuk işlemleri için geçerli çalışma klasörü (cwd) olarak kullanılır. Bu, çalışma alanı ayarlarında kök dizini uygun bir cwd değilse özellikle yararlı olabilir.",
 	"terminal.integrated.confirmOnExit": "Aktif terminal oturumları varken çıkışta onay istenip istenmeyeceği.",
 	"terminal.integrated.enableBell": "Terminal zilinin etkin olup olmadığı.",

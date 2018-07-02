@@ -17,17 +17,17 @@ import { keys } from 'vs/base/common/map';
 
 export class DiagnosticCollection implements vscode.DiagnosticCollection {
 
-	private static readonly _maxDiagnosticsPerFile: number = 250;
-
 	private readonly _name: string;
+	private readonly _maxDiagnosticsPerFile: number;
 	private readonly _onDidChangeDiagnostics: Emitter<(vscode.Uri | string)[]>;
 
 	private _proxy: MainThreadDiagnosticsShape;
 	private _isDisposed = false;
 	private _data = new Map<string, vscode.Diagnostic[]>();
 
-	constructor(name: string, proxy: MainThreadDiagnosticsShape, onDidChangeDiagnostics: Emitter<(vscode.Uri | string)[]>) {
+	constructor(name: string, maxDiagnosticsPerFile: number, proxy: MainThreadDiagnosticsShape, onDidChangeDiagnostics: Emitter<(vscode.Uri | string)[]>) {
 		this._name = name;
+		this._maxDiagnosticsPerFile = maxDiagnosticsPerFile;
 		this._proxy = proxy;
 		this._onDidChangeDiagnostics = onDidChangeDiagnostics;
 	}
@@ -109,15 +109,15 @@ export class DiagnosticCollection implements vscode.DiagnosticCollection {
 			let diagnostics = this._data.get(uri.toString());
 			if (diagnostics) {
 
-				// no more than 250 diagnostics per file
-				if (diagnostics.length > DiagnosticCollection._maxDiagnosticsPerFile) {
+				// no more than N diagnostics per file
+				if (diagnostics.length > this._maxDiagnosticsPerFile) {
 					marker = [];
 					const order = [DiagnosticSeverity.Error, DiagnosticSeverity.Warning, DiagnosticSeverity.Information, DiagnosticSeverity.Hint];
 					orderLoop: for (let i = 0; i < 4; i++) {
 						for (let diagnostic of diagnostics) {
 							if (diagnostic.severity === order[i]) {
-								const len = marker.push(converter.fromDiagnostic(diagnostic));
-								if (len === DiagnosticCollection._maxDiagnosticsPerFile) {
+								const len = marker.push(converter.Diagnostic.from(diagnostic));
+								if (len === this._maxDiagnosticsPerFile) {
 									break orderLoop;
 								}
 							}
@@ -126,15 +126,15 @@ export class DiagnosticCollection implements vscode.DiagnosticCollection {
 
 					// add 'signal' marker for showing omitted errors/warnings
 					marker.push({
-						severity: MarkerSeverity.Error,
-						message: localize({ key: 'limitHit', comment: ['amount of errors/warning skipped due to limits'] }, "Not showing {0} further errors and warnings.", diagnostics.length - DiagnosticCollection._maxDiagnosticsPerFile),
+						severity: MarkerSeverity.Info,
+						message: localize({ key: 'limitHit', comment: ['amount of errors/warning skipped due to limits'] }, "Not showing {0} further errors and warnings.", diagnostics.length - this._maxDiagnosticsPerFile),
 						startLineNumber: marker[marker.length - 1].startLineNumber,
 						startColumn: marker[marker.length - 1].startColumn,
 						endLineNumber: marker[marker.length - 1].endLineNumber,
 						endColumn: marker[marker.length - 1].endColumn
 					});
 				} else {
-					marker = diagnostics.map(converter.fromDiagnostic);
+					marker = diagnostics.map(converter.Diagnostic.from);
 				}
 			}
 
@@ -147,6 +147,7 @@ export class DiagnosticCollection implements vscode.DiagnosticCollection {
 
 	delete(uri: vscode.Uri): void {
 		this._checkDisposed();
+		this._onDidChangeDiagnostics.fire([uri]);
 		this._data.delete(uri.toString());
 		this._proxy.$changeMany(this.name, [[uri, undefined]]);
 	}
@@ -200,6 +201,7 @@ export class DiagnosticCollection implements vscode.DiagnosticCollection {
 export class ExtHostDiagnostics implements ExtHostDiagnosticsShape {
 
 	private static _idPool: number = 0;
+	private static readonly _maxDiagnosticsPerFile: number = 1000;
 
 	private readonly _proxy: MainThreadDiagnosticsShape;
 	private readonly _collections: DiagnosticCollection[] = [];
@@ -229,6 +231,7 @@ export class ExtHostDiagnostics implements ExtHostDiagnosticsShape {
 				}
 			}
 		}
+		Object.freeze(uris);
 		return { uris };
 	}
 
@@ -246,7 +249,7 @@ export class ExtHostDiagnostics implements ExtHostDiagnosticsShape {
 		const { _collections, _proxy, _onDidChangeDiagnostics } = this;
 		const result = new class extends DiagnosticCollection {
 			constructor() {
-				super(name, _proxy, _onDidChangeDiagnostics);
+				super(name, ExtHostDiagnostics._maxDiagnosticsPerFile, _proxy, _onDidChangeDiagnostics);
 				_collections.push(this);
 			}
 			dispose() {

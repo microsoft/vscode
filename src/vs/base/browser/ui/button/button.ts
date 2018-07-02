@@ -13,7 +13,7 @@ import { KeyCode } from 'vs/base/common/keyCodes';
 import { Color } from 'vs/base/common/color';
 import { mixin } from 'vs/base/common/objects';
 import { Event as BaseEvent, Emitter } from 'vs/base/common/event';
-import { dispose, IDisposable } from 'vs/base/common/lifecycle';
+import { Disposable } from 'vs/base/common/lifecycle';
 import { Gesture, EventType } from 'vs/base/browser/touch';
 
 export interface IButtonOptions extends IButtonStyles {
@@ -33,7 +33,7 @@ const defaultOptions: IButtonStyles = {
 	buttonForeground: Color.white
 };
 
-export class Button {
+export class Button extends Disposable {
 
 	private $el: Builder;
 	private options: IButtonOptions;
@@ -43,14 +43,14 @@ export class Button {
 	private buttonForeground: Color;
 	private buttonBorder: Color;
 
-	private _onDidClick = new Emitter<any>();
-	readonly onDidClick: BaseEvent<Event> = this._onDidClick.event;
+	private _onDidClick = this._register(new Emitter<any>());
+	get onDidClick(): BaseEvent<Event> { return this._onDidClick.event; }
 
 	private focusTracker: DOM.IFocusTracker;
 
-	constructor(container: Builder, options?: IButtonOptions);
-	constructor(container: HTMLElement, options?: IButtonOptions);
-	constructor(container: any, options?: IButtonOptions) {
+	constructor(container: HTMLElement, options?: IButtonOptions) {
+		super();
+
 		this.options = options || Object.create(null);
 		mixin(this.options, defaultOptions, false);
 
@@ -59,10 +59,10 @@ export class Button {
 		this.buttonForeground = this.options.buttonForeground;
 		this.buttonBorder = this.options.buttonBorder;
 
-		this.$el = $('a.monaco-button').attr({
+		this.$el = this._register($('a.monaco-button').attr({
 			'tabIndex': '0',
 			'role': 'button'
-		}).appendTo(container);
+		}).appendTo(container));
 
 		Gesture.addTarget(this.$el.getHTMLElement());
 
@@ -76,7 +76,7 @@ export class Button {
 		});
 
 		this.$el.on(DOM.EventType.KEY_DOWN, e => {
-			let event = new StandardKeyboardEvent(e as KeyboardEvent);
+			const event = new StandardKeyboardEvent(e as KeyboardEvent);
 			let eventHandled = false;
 			if (this.enabled && event.equals(KeyCode.Enter) || event.equals(KeyCode.Space)) {
 				this._onDidClick.fire(e);
@@ -102,9 +102,9 @@ export class Button {
 		});
 
 		// Also set hover background when button is focused for feedback
-		this.focusTracker = DOM.trackFocus(this.$el.getHTMLElement());
-		this.focusTracker.onDidFocus(() => this.setHoverBackground());
-		this.focusTracker.onDidBlur(() => this.applyStyles()); // restore standard styles
+		this.focusTracker = this._register(DOM.trackFocus(this.$el.getHTMLElement()));
+		this._register(this.focusTracker.onDidFocus(() => this.setHoverBackground()));
+		this._register(this.focusTracker.onDidBlur(() => this.applyStyles())); // restore standard styles
 
 		this.applyStyles();
 	}
@@ -179,29 +179,13 @@ export class Button {
 	focus(): void {
 		this.$el.domFocus();
 	}
-
-	dispose(): void {
-		if (this.$el) {
-			this.$el.dispose();
-			this.$el = null;
-
-			this.focusTracker.dispose();
-			this.focusTracker = null;
-		}
-
-		this._onDidClick.dispose();
-	}
 }
 
-export class ButtonGroup {
-	private _buttons: Button[];
-	private toDispose: IDisposable[];
+export class ButtonGroup extends Disposable {
+	private _buttons: Button[] = [];
 
-	constructor(container: Builder, count: number, options?: IButtonOptions);
-	constructor(container: HTMLElement, count: number, options?: IButtonOptions);
-	constructor(container: any, count: number, options?: IButtonOptions) {
-		this._buttons = [];
-		this.toDispose = [];
+	constructor(container: HTMLElement, count: number, options?: IButtonOptions) {
+		super();
 
 		this.create(container, count, options);
 	}
@@ -210,13 +194,10 @@ export class ButtonGroup {
 		return this._buttons;
 	}
 
-	private create(container: Builder, count: number, options?: IButtonOptions): void;
-	private create(container: HTMLElement, count: number, options?: IButtonOptions): void;
-	private create(container: any, count: number, options?: IButtonOptions): void {
+	private create(container: HTMLElement, count: number, options?: IButtonOptions): void {
 		for (let index = 0; index < count; index++) {
-			const button = new Button(container, options);
+			const button = this._register(new Button(container, options));
 			this._buttons.push(button);
-			this.toDispose.push(button);
 
 			// Implement keyboard access in buttons if there are multiple
 			if (count > 1) {
@@ -241,9 +222,5 @@ export class ButtonGroup {
 				}, this.toDispose);
 			}
 		}
-	}
-
-	dispose(): void {
-		this.toDispose = dispose(this.toDispose);
 	}
 }

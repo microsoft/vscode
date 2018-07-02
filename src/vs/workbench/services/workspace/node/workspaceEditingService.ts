@@ -31,7 +31,7 @@ import { INotificationService, Severity } from 'vs/platform/notification/common/
 
 export class WorkspaceEditingService implements IWorkspaceEditingService {
 
-	public _serviceBrand: any;
+	_serviceBrand: any;
 
 	constructor(
 		@IJSONEditingService private jsonEditingService: IJSONEditingService,
@@ -46,7 +46,7 @@ export class WorkspaceEditingService implements IWorkspaceEditingService {
 	) {
 	}
 
-	public updateFolders(index: number, deleteCount?: number, foldersToAdd?: IWorkspaceFolderCreationData[], donotNotifyError?: boolean): TPromise<void> {
+	updateFolders(index: number, deleteCount?: number, foldersToAdd?: IWorkspaceFolderCreationData[], donotNotifyError?: boolean): TPromise<void> {
 		const folders = this.contextService.getWorkspace().folders;
 
 		let foldersToDelete: URI[] = [];
@@ -96,7 +96,7 @@ export class WorkspaceEditingService implements IWorkspaceEditingService {
 			.then(() => null, error => donotNotifyError ? TPromise.wrapError(error) : this.handleWorkspaceConfigurationEditingError(error));
 	}
 
-	public addFolders(foldersToAdd: IWorkspaceFolderCreationData[], donotNotifyError: boolean = false): TPromise<void> {
+	addFolders(foldersToAdd: IWorkspaceFolderCreationData[], donotNotifyError: boolean = false): TPromise<void> {
 		return this.doAddFolders(foldersToAdd, void 0, donotNotifyError);
 	}
 
@@ -122,7 +122,7 @@ export class WorkspaceEditingService implements IWorkspaceEditingService {
 			.then(() => null, error => donotNotifyError ? TPromise.wrapError(error) : this.handleWorkspaceConfigurationEditingError(error));
 	}
 
-	public removeFolders(foldersToRemove: URI[], donotNotifyError: boolean = false): TPromise<void> {
+	removeFolders(foldersToRemove: URI[], donotNotifyError: boolean = false): TPromise<void> {
 
 		// If we are in single-folder state and the opened folder is to be removed,
 		// we create an empty workspace and enter it.
@@ -144,42 +144,44 @@ export class WorkspaceEditingService implements IWorkspaceEditingService {
 		return false;
 	}
 
-	public createAndEnterWorkspace(folders?: IWorkspaceFolderCreationData[], path?: string): TPromise<void> {
+	createAndEnterWorkspace(folders?: IWorkspaceFolderCreationData[], path?: string): TPromise<void> {
 		return this.doEnterWorkspace(() => this.windowService.createAndEnterWorkspace(folders, path));
 	}
 
-	public saveAndEnterWorkspace(path: string): TPromise<void> {
+	saveAndEnterWorkspace(path: string): TPromise<void> {
 		return this.doEnterWorkspace(() => this.windowService.saveAndEnterWorkspace(path));
 	}
 
 	private handleWorkspaceConfigurationEditingError(error: JSONEditingError): TPromise<void> {
 		switch (error.code) {
 			case JSONEditingErrorCode.ERROR_INVALID_FILE:
-				return this.onInvalidWorkspaceConfigurationFileError();
+				this.onInvalidWorkspaceConfigurationFileError();
+				return TPromise.as(void 0);
 			case JSONEditingErrorCode.ERROR_FILE_DIRTY:
-				return this.onWorkspaceConfigurationFileDirtyError();
+				this.onWorkspaceConfigurationFileDirtyError();
+				return TPromise.as(void 0);
 		}
 		this.notificationService.error(error.message);
 		return TPromise.as(void 0);
 	}
 
-	private onInvalidWorkspaceConfigurationFileError(): TPromise<void> {
+	private onInvalidWorkspaceConfigurationFileError(): void {
 		const message = nls.localize('errorInvalidTaskConfiguration', "Unable to write into workspace configuration file. Please open the file to correct errors/warnings in it and try again.");
-		return this.askToOpenWorkspaceConfigurationFile(message);
+		this.askToOpenWorkspaceConfigurationFile(message);
 	}
 
-	private onWorkspaceConfigurationFileDirtyError(): TPromise<void> {
+	private onWorkspaceConfigurationFileDirtyError(): void {
 		const message = nls.localize('errorWorkspaceConfigurationFileDirty', "Unable to write into workspace configuration file because the file is dirty. Please save it and try again.");
-		return this.askToOpenWorkspaceConfigurationFile(message);
+		this.askToOpenWorkspaceConfigurationFile(message);
 	}
 
-	private askToOpenWorkspaceConfigurationFile(message: string): TPromise<void> {
-		return this.notificationService.prompt(Severity.Error, message, [nls.localize('openWorkspaceConfigurationFile', "Open Workspace Configuration")])
-			.then(option => {
-				if (option === 0) {
-					this.commandService.executeCommand('workbench.action.openWorkspaceConfigFile');
-				}
-			});
+	private askToOpenWorkspaceConfigurationFile(message: string): void {
+		this.notificationService.prompt(Severity.Error, message,
+			[{
+				label: nls.localize('openWorkspaceConfigurationFile', "Open Workspace Configuration"),
+				run: () => this.commandService.executeCommand('workbench.action.openWorkspaceConfigFile')
+			}]
+		);
 	}
 
 	private doEnterWorkspace(mainSidePromise: () => TPromise<IEnterWorkspaceResult>): TPromise<void> {
@@ -197,11 +199,10 @@ export class WorkspaceEditingService implements IWorkspaceEditingService {
 			if (result) {
 				return this.migrate(result.workspace).then(() => {
 
-					// TODO@Ben TODO@Sandeep the following requires ugly casts and should probably have a service interface
-
 					// Reinitialize backup service
-					const backupFileService = this.backupFileService as BackupFileService;
-					backupFileService.initialize(result.backupPath);
+					if (this.backupFileService instanceof BackupFileService) {
+						this.backupFileService.initialize(result.backupPath);
+					}
 
 					// Reinitialize configuration service
 					const workspaceImpl = this.contextService as WorkspaceService;
@@ -238,7 +239,7 @@ export class WorkspaceEditingService implements IWorkspaceEditingService {
 		storageImpl.setWorkspaceId(newWorkspaceId);
 	}
 
-	public copyWorkspaceSettings(toWorkspace: IWorkspaceIdentifier): TPromise<void> {
+	copyWorkspaceSettings(toWorkspace: IWorkspaceIdentifier): TPromise<void> {
 		const configurationProperties = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).getConfigurationProperties();
 		const targetWorkspaceConfiguration = {};
 		for (const key of this.workspaceConfigurationService.keys().workspace) {

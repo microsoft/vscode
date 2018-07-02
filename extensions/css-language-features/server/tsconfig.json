@@ -6,7 +6,8 @@
 		"noUnusedLocals": true,
 		"lib": [
 			"es5", "es2015.promise"
-		]
+		],
+		"strict": true
 	},
 	"include": [
 		"src/**/*"

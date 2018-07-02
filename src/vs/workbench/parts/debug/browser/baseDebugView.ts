@@ -16,7 +16,7 @@ import { once } from 'vs/base/common/functional';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IMenuService, MenuId, IMenu } from 'vs/platform/actions/common/actions';
 import { IControllerOptions } from 'vs/base/parts/tree/browser/treeDefaults';
-import { fillInActions } from 'vs/platform/actions/browser/menuItemActionItem';
+import { fillInContextMenuActions } from 'vs/platform/actions/browser/menuItemActionItem';
 import { KeyCode } from 'vs/base/common/keyCodes';
 import { IKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { onUnexpectedError } from 'vs/base/common/errors';
@@ -50,7 +50,7 @@ export function renderViewTree(container: HTMLElement): HTMLElement {
 	return treeContainer;
 }
 
-function replaceWhitespace(value: string): string {
+export function replaceWhitespace(value: string): string {
 	const map: { [x: string]: string } = { '\n': '\\n', '\r': '\\r', '\t': '\\t' };
 	return value.replace(/[\n\r\t]/g, char => map[char]);
 }
@@ -66,6 +66,9 @@ export function renderExpressionValue(expressionOrValue: IExpression | string, c
 		if (value !== Expression.DEFAULT_VALUE) {
 			dom.addClass(container, 'error');
 		}
+	} else if (options.showChanged && (<any>expressionOrValue).valueChanged && value !== Expression.DEFAULT_VALUE) {
+		// value changed color has priority over other colors.
+		container.className = 'value changed';
 	}
 
 	if (options.colorize && typeof expressionOrValue !== 'string') {
@@ -78,11 +81,6 @@ export function renderExpressionValue(expressionOrValue: IExpression | string, c
 		} else if (stringRegex.test(value)) {
 			dom.addClass(container, 'string');
 		}
-	}
-
-	if (options.showChanged && (<any>expressionOrValue).valueChanged && value !== Expression.DEFAULT_VALUE) {
-		// value changed color has priority over other colors.
-		container.className = 'value changed';
 	}
 
 	if (options.maxValueLength && value.length > options.maxValueLength) {
@@ -98,7 +96,7 @@ export function renderExpressionValue(expressionOrValue: IExpression | string, c
 	}
 }
 
-export function renderVariable(tree: ITree, variable: Variable, data: IVariableTemplateData, showChanged: boolean): void {
+export function renderVariable(variable: Variable, data: IVariableTemplateData, showChanged: boolean): void {
 	if (variable.available) {
 		data.name.textContent = replaceWhitespace(variable.name);
 		data.name.title = variable.type ? variable.type : variable.name;
@@ -106,7 +104,7 @@ export function renderVariable(tree: ITree, variable: Variable, data: IVariableT
 	}
 
 	if (variable.value) {
-		data.name.textContent += variable.name ? ':' : '';
+		data.name.textContent += (typeof variable.name === 'string') ? ':' : '';
 		renderExpressionValue(variable, data.value, {
 			showChanged,
 			maxValueLength: MAX_VALUE_RENDER_LENGTH_IN_VIEWLET,
@@ -223,7 +221,7 @@ export class BaseDebugController extends WorkbenchTreeController {
 			this.contextMenuService.showContextMenu({
 				getAnchor: () => anchor,
 				getActions: () => this.actionProvider.getSecondaryActions(tree, element).then(actions => {
-					fillInActions(this.contributedContextMenu, { arg: this.getContext(element) }, actions, this.contextMenuService);
+					fillInContextMenuActions(this.contributedContextMenu, { arg: this.getContext(element) }, actions, this.contextMenuService);
 					return actions;
 				}),
 				onHide: (wasCancelled?: boolean) => {

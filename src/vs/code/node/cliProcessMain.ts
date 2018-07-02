@@ -7,6 +7,7 @@ import { localize } from 'vs/nls';
 import product from 'vs/platform/node/product';
 import pkg from 'vs/platform/node/package';
 import * as path from 'path';
+import * as semver from 'semver';
 
 import { TPromise } from 'vs/base/common/winjs.base';
 import { sequence } from 'vs/base/common/async';
@@ -38,6 +39,7 @@ import { ILogService, getLogLevel } from 'vs/platform/log/common/log';
 import { isPromiseCanceledError } from 'vs/base/common/errors';
 import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
 import { CommandLineDialogService } from 'vs/platform/dialogs/node/dialogService';
+import { areSameExtensions, getGalleryExtensionIdFromLocal } from 'vs/platform/extensionManagement/common/extensionManagementUtil';
 
 const notFound = (id: string) => localize('notFound', "Extension '{0}' not found.", id);
 const notInstalled = (id: string) => localize('notInstalled', "Extension '{0}' is not installed.", id);
@@ -64,20 +66,21 @@ class Main {
 	run(argv: ParsedArgs): TPromise<any> {
 		// TODO@joao - make this contributable
 
+		let returnPromise: TPromise<any>;
 		if (argv['install-source']) {
-			return this.setInstallSource(argv['install-source']);
+			returnPromise = this.setInstallSource(argv['install-source']);
 		} else if (argv['list-extensions']) {
-			return this.listExtensions(argv['show-versions']);
+			returnPromise = this.listExtensions(argv['show-versions']);
 		} else if (argv['install-extension']) {
 			const arg = argv['install-extension'];
 			const args: string[] = typeof arg === 'string' ? [arg] : arg;
-			return this.installExtension(args);
+			returnPromise = this.installExtension(args);
 		} else if (argv['uninstall-extension']) {
 			const arg = argv['uninstall-extension'];
 			const ids: string[] = typeof arg === 'string' ? [arg] : arg;
-			return this.uninstallExtension(ids);
+			returnPromise = this.uninstallExtension(ids);
 		}
-		return undefined;
+		return returnPromise || TPromise.as(null);
 	}
 
 	private setInstallSource(installSource: string): TPromise<any> {
@@ -112,13 +115,6 @@ class Main {
 			.filter(e => !/\.vsix$/i.test(e))
 			.map(id => () => {
 				return this.extensionManagementService.getInstalled(LocalExtensionType.User).then(installed => {
-					const isInstalled = installed.some(e => getId(e.manifest) === id);
-
-					if (isInstalled) {
-						console.log(localize('alreadyInstalled', "Extension '{0}' is already installed.", id));
-						return TPromise.as(null);
-					}
-
 					return this.extensionGalleryService.query({ names: [id], source: 'cli' })
 						.then<IPager<IGalleryExtension>>(null, err => {
 							if (err.responseText) {
@@ -139,8 +135,26 @@ class Main {
 								return TPromise.wrapError(new Error(`${notFound(id)}\n${useId}`));
 							}
 
-							console.log(localize('foundExtension', "Found '{0}' in the marketplace.", id));
-							console.log(localize('installing', "Installing..."));
+							const isInstalled = installed.some(e => getId(e.manifest) === id);
+							if (isInstalled) {
+								const installedExtension = installed.filter(e => getId(e.manifest) === id)[0];
+								const installedVersion = installedExtension.manifest.version;
+								const newestVersion = extension.version;
+								const shouldUpdate = semver.gt(newestVersion, installedVersion);
+
+								if (shouldUpdate) {
+									console.log(localize('foundNewerVersion', "Installed version is '{0}', found newer version '{1}' in the marketplace.", installedVersion, newestVersion));
+									console.log(localize('updating', "Updating..."));
+								} else {
+									console.log(localize('alreadyUpdated', "Installed version is the latest version."));
+									return TPromise.as(null);
+								}
+							}
+
+							else {
+								console.log(localize('foundExtension', "Found '{0}' in the marketplace.", id));
+								console.log(localize('installing', "Installing..."));
+							}
 
 							return this.extensionManagementService.installFromGallery(extension)
 								.then(
@@ -174,7 +188,7 @@ class Main {
 		return sequence(extensions.map(extension => () => {
 			return getExtensionId(extension).then(id => {
 				return this.extensionManagementService.getInstalled(LocalExtensionType.User).then(installed => {
-					const [extension] = installed.filter(e => getId(e.manifest) === id);
+					const [extension] = installed.filter(e => areSameExtensions({ id: getGalleryExtensionIdFromLocal(e) }, { id }));
 
 					if (!extension) {
 						return TPromise.wrapError(new Error(`${notInstalled(id)}\n${useId}`));
@@ -221,16 +235,12 @@ export function main(argv: ParsedArgs): TPromise<void> {
 			services.set(IExtensionGalleryService, new SyncDescriptor(ExtensionGalleryService));
 			services.set(IDialogService, new SyncDescriptor(CommandLineDialogService));
 
+			const appenders: AppInsightsAppender[] = [];
 			if (isBuilt && !extensionDevelopmentPath && !envService.args['disable-telemetry'] && product.enableTelemetry) {
-				const appenders: AppInsightsAppender[] = [];
 
 				if (product.aiConfig && product.aiConfig.asimovKey) {
 					appenders.push(new AppInsightsAppender(eventPrefix, null, product.aiConfig.asimovKey));
 				}
-
-				// It is important to dispose the AI adapter properly because
-				// only then they flush remaining data.
-				process.once('exit', () => appenders.forEach(a => a.dispose()));
 
 				const config: ITelemetryServiceConfig = {
 					appender: combinedAppender(...appenders),
@@ -246,7 +256,10 @@ export function main(argv: ParsedArgs): TPromise<void> {
 			const instantiationService2 = instantiationService.createChild(services);
 			const main = instantiationService2.createInstance(Main);
 
-			return main.run(argv);
+			return main.run(argv).then(() => {
+				// Dispose the AI adapter so that remaining data gets flushed.
+				return combinedAppender(...appenders).dispose();
+			});
 		});
 	});
 }

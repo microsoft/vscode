@@ -26,7 +26,7 @@
 	"command.unstageSelectedRanges": "取消暂存所选范围",
 	"command.clean": "放弃更改",
 	"command.cleanAll": "放弃所有更改",
-	"command.commit": "Commit",
+	"command.commit": "提交",
 	"command.commitStaged": "提交已暂存文件",
 	"command.commitStagedSigned": "提交已暂存文件(已签名)",
 	"command.commitStagedAmend": "已暂存提交(修改)",

@@ -2,11 +2,10 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-'use strict';
 
 import * as nls from 'vs/nls';
 
-import { sequence, asWinJsPromise } from 'vs/base/common/async';
+import { asWinJsPromise, first } from 'vs/base/common/async';
 import { onUnexpectedExternalError } from 'vs/base/common/errors';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { Range } from 'vs/editor/common/core/range';
@@ -23,7 +22,7 @@ import { IContextKey, IContextKeyService, RawContextKey } from 'vs/platform/cont
 import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
 import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
-import { firstIndex } from 'vs/base/common/arrays';
+import { firstIndex, isFalsyOrEmpty } from 'vs/base/common/arrays';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { ITextModel, TrackedRangeStickiness, OverviewRulerLane, IModelDeltaDecoration } from 'vs/editor/common/model';
 
@@ -40,32 +39,14 @@ export const ctxHasWordHighlights = new RawContextKey<boolean>('hasWordHighlight
 export function getOccurrencesAtPosition(model: ITextModel, position: Position): TPromise<DocumentHighlight[]> {
 
 	const orderedByScore = DocumentHighlightProviderRegistry.ordered(model);
-	let foundResult = false;
 
 	// in order of score ask the occurrences provider
 	// until someone response with a good result
 	// (good = none empty array)
-	return sequence(orderedByScore.map(provider => {
-		return (): TPromise<DocumentHighlight[]> => {
-			if (!foundResult) {
-				return asWinJsPromise((token) => {
-					return provider.provideDocumentHighlights(model, position, token);
-				}).then(data => {
-					if (Array.isArray(data) && data.length > 0) {
-						foundResult = true;
-						return data;
-					}
-					return undefined;
-				}, err => {
-					onUnexpectedExternalError(err);
-					return undefined;
-				});
-			}
-			return undefined;
-		};
-	})).then(values => {
-		return values[0];
-	});
+	return first(orderedByScore.map(provider => () => {
+		return asWinJsPromise(token => provider.provideDocumentHighlights(model, position, token))
+			.then(undefined, onUnexpectedExternalError);
+	}), result => !isFalsyOrEmpty(result));
 }
 
 registerDefaultLanguageCommand('_executeDocumentHighlights', getOccurrencesAtPosition);
@@ -239,7 +220,7 @@ class WordHighlighter {
 			return;
 		}
 
-		var editorSelection = this.editor.getSelection();
+		let editorSelection = this.editor.getSelection();
 
 		// ignore multiline selection
 		if (editorSelection.startLineNumber !== editorSelection.endLineNumber) {
@@ -247,11 +228,11 @@ class WordHighlighter {
 			return;
 		}
 
-		var lineNumber = editorSelection.startLineNumber;
-		var startColumn = editorSelection.startColumn;
-		var endColumn = editorSelection.endColumn;
+		let lineNumber = editorSelection.startLineNumber;
+		let startColumn = editorSelection.startColumn;
+		let endColumn = editorSelection.endColumn;
 
-		var word = this.model.getWordAtPosition({
+		let word = this.model.getWordAtPosition({
 			lineNumber: lineNumber,
 			column: startColumn
 		});
@@ -267,14 +248,14 @@ class WordHighlighter {
 		// - 250ms later after the last cursor move event, render the occurrences
 		// - no flickering!
 
-		var currentWordRange = new Range(lineNumber, word.startColumn, lineNumber, word.endColumn);
+		let currentWordRange = new Range(lineNumber, word.startColumn, lineNumber, word.endColumn);
 
-		var workerRequestIsValid = this._lastWordRange && this._lastWordRange.equalsRange(currentWordRange);
+		let workerRequestIsValid = this._lastWordRange && this._lastWordRange.equalsRange(currentWordRange);
 
 		// Even if we are on a different word, if that word is in the decorations ranges, the request is still valid
 		// (Same symbol)
-		for (var i = 0, len = this._decorationIds.length; !workerRequestIsValid && i < len; i++) {
-			var range = this.model.getDecorationRange(this._decorationIds[i]);
+		for (let i = 0, len = this._decorationIds.length; !workerRequestIsValid && i < len; i++) {
+			let range = this.model.getDecorationRange(this._decorationIds[i]);
 			if (range && range.startLineNumber === lineNumber) {
 				if (range.startColumn <= startColumn && range.endColumn >= endColumn) {
 					workerRequestIsValid = true;
@@ -307,7 +288,7 @@ class WordHighlighter {
 			// Stop all previous actions and start fresh
 			this._stopAll();
 
-			var myRequestId = ++this.workerRequestTokenId;
+			let myRequestId = ++this.workerRequestTokenId;
 			this.workerRequestCompleted = false;
 
 			this.workerRequest = getOccurrencesAtPosition(this.model, this.editor.getPosition());
@@ -325,8 +306,8 @@ class WordHighlighter {
 	}
 
 	private _beginRenderDecorations(): void {
-		var currentTime = (new Date()).getTime();
-		var minimumRenderTime = this.lastCursorPositionChangeTime + 250;
+		let currentTime = (new Date()).getTime();
+		let minimumRenderTime = this.lastCursorPositionChangeTime + 250;
 
 		if (currentTime >= minimumRenderTime) {
 			// Synchronous
@@ -342,9 +323,9 @@ class WordHighlighter {
 
 	private renderDecorations(): void {
 		this.renderDecorationsTimer = -1;
-		var decorations: IModelDeltaDecoration[] = [];
-		for (var i = 0, len = this.workerRequestValue.length; i < len; i++) {
-			var info = this.workerRequestValue[i];
+		let decorations: IModelDeltaDecoration[] = [];
+		for (let i = 0, len = this.workerRequestValue.length; i < len; i++) {
+			let info = this.workerRequestValue[i];
 			decorations.push({
 				range: info.range,
 				options: WordHighlighter._getDecorationOptions(info.kind)
@@ -504,42 +485,34 @@ registerEditorAction(NextWordHighlightAction);
 registerEditorAction(PrevWordHighlightAction);
 
 registerThemingParticipant((theme, collector) => {
-	let selectionHighlight = theme.getColor(editorSelectionHighlight);
+	const selectionHighlight = theme.getColor(editorSelectionHighlight);
 	if (selectionHighlight) {
 		collector.addRule(`.monaco-editor .focused .selectionHighlight { background-color: ${selectionHighlight}; }`);
 		collector.addRule(`.monaco-editor .selectionHighlight { background-color: ${selectionHighlight.transparent(0.5)}; }`);
 	}
-	let wordHighlight = theme.getColor(editorWordHighlight);
+
+	const wordHighlight = theme.getColor(editorWordHighlight);
 	if (wordHighlight) {
 		collector.addRule(`.monaco-editor .wordHighlight { background-color: ${wordHighlight}; }`);
 	}
-	let wordHighlightStrong = theme.getColor(editorWordHighlightStrong);
+
+	const wordHighlightStrong = theme.getColor(editorWordHighlightStrong);
 	if (wordHighlightStrong) {
 		collector.addRule(`.monaco-editor .wordHighlightStrong { background-color: ${wordHighlightStrong}; }`);
 	}
-	let selectionHighlightBorder = theme.getColor(editorSelectionHighlightBorder);
+
+	const selectionHighlightBorder = theme.getColor(editorSelectionHighlightBorder);
 	if (selectionHighlightBorder) {
-		if (theme.type === 'hc') {
-			collector.addRule(`.monaco-editor .selectionHighlight { border: 1px dotted ${selectionHighlightBorder}; box-sizing: border-box; }`);
-		} else {
-			collector.addRule(`.monaco-editor .selectionHighlight { border: 1px solid ${selectionHighlightBorder}; box-sizing: border-box; }`);
-		}
-	}
-	let wordHighlightBorder = theme.getColor(editorWordHighlightBorder);
-	if (wordHighlightBorder) {
-		if (theme.type === 'hc') {
-			collector.addRule(`.monaco-editor .wordHighlight { border: 1px dashed ${wordHighlightBorder}; box-sizing: border-box; }`);
-		} else {
-			collector.addRule(`.monaco-editor .wordHighlight { border: 1px solid ${wordHighlightBorder}; box-sizing: border-box; }`);
-		}
-	}
-	let wordHighlightStrongBorder = theme.getColor(editorWordHighlightStrongBorder);
-	if (wordHighlightStrongBorder) {
-		if (theme.type === 'hc') {
-			collector.addRule(`.monaco-editor .wordHighlightStrong { border: 1px dashed ${wordHighlightStrongBorder}; box-sizing: border-box; }`);
-		} else {
-			collector.addRule(`.monaco-editor .wordHighlightStrong { border: 1px solid ${wordHighlightStrongBorder}; box-sizing: border-box; }`);
-		}
+		collector.addRule(`.monaco-editor .selectionHighlight { border: 1px ${theme.type === 'hc' ? 'dotted' : 'solid'} ${selectionHighlightBorder}; box-sizing: border-box; }`);
 	}
 
+	const wordHighlightBorder = theme.getColor(editorWordHighlightBorder);
+	if (wordHighlightBorder) {
+		collector.addRule(`.monaco-editor .wordHighlight { border: 1px ${theme.type === 'hc' ? 'dashed' : 'solid'} ${wordHighlightBorder}; box-sizing: border-box; }`);
+	}
+
+	const wordHighlightStrongBorder = theme.getColor(editorWordHighlightStrongBorder);
+	if (wordHighlightStrongBorder) {
+		collector.addRule(`.monaco-editor .wordHighlightStrong { border: 1px ${theme.type === 'hc' ? 'dashed' : 'solid'} ${wordHighlightStrongBorder}; box-sizing: border-box; }`);
+	}
 });

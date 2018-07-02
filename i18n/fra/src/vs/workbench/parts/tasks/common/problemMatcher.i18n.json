@@ -45,6 +45,7 @@
 	"PatternTypeSchema.description": "Modèle de problème ou bien nom d'un modèle de problème faisant l'objet d'une contribution ou prédéfini. Peut être omis si base est spécifié.",
 	"ProblemMatcherSchema.base": "Nom d'un détecteur de problèmes de correspondance de base à utiliser.",
 	"ProblemMatcherSchema.owner": "Propriétaire du problème dans Code. Peut être omis si base est spécifié. Prend la valeur 'external' par défaut en cas d'omission et si base n'est pas spécifié.",
+	"ProblemMatcherSchema.source": "Une chaîne lisible par humain qui décrit la source de ce diagnostic, par exemple 'typescript' ou 'super lint'.",
 	"ProblemMatcherSchema.severity": "Gravité par défaut des problèmes de capture. Est utilisé si le modèle ne définit aucun groupe de correspondance pour la gravité.",
 	"ProblemMatcherSchema.applyTo": "Contrôle si un problème signalé pour un document texte s'applique uniquement aux documents ouverts ou fermés, ou bien à l'ensemble des documents.",
 	"ProblemMatcherSchema.fileLocation": "Définit la façon dont les noms de fichiers signalés dans un modèle de problème doivent être interprétés.",

@@ -16,23 +16,29 @@ export class SearchViewLocationUpdater implements IWorkbenchContribution {
 		@IPanelService panelService: IPanelService,
 		@IConfigurationService configurationService: IConfigurationService
 	) {
-		const updateSearchViewLocation = () => {
+		const updateSearchViewLocation = (open: boolean) => {
 			const config = configurationService.getValue<ISearchConfiguration>();
 			if (config.search.location === 'panel') {
 				viewletService.setViewletEnablement(VIEW_ID, false);
 				panelService.setPanelEnablement(VIEW_ID, true);
+				if (open) {
+					panelService.openPanel(VIEW_ID);
+				}
 			} else {
 				panelService.setPanelEnablement(VIEW_ID, false);
 				viewletService.setViewletEnablement(VIEW_ID, true);
+				if (open) {
+					viewletService.openViewlet(VIEW_ID);
+				}
 			}
 		};
 
 		configurationService.onDidChangeConfiguration(e => {
 			if (e.affectsConfiguration('search.location')) {
-				updateSearchViewLocation();
+				updateSearchViewLocation(true);
 			}
 		});
 
-		updateSearchViewLocation();
+		updateSearchViewLocation(false);
 	}
 }

@@ -2861,7 +2861,7 @@
 	},
 	{
 		"c": " ",
-		"t": "source.js",
+		"t": "source.js meta.array.literal.js",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -3169,7 +3169,7 @@
 	},
 	{
 		"c": " ",
-		"t": "source.js meta.function.js meta.block.js meta.var.expr.js",
+		"t": "source.js meta.function.js meta.block.js meta.var.expr.js meta.array.literal.js",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",

@@ -4,27 +4,20 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as nls from 'vs/nls';
-import * as cp from 'child_process';
-import * as net from 'net';
 import { Event, Emitter } from 'vs/base/common/event';
-import * as platform from 'vs/base/common/platform';
 import * as objects from 'vs/base/common/objects';
 import { Action } from 'vs/base/common/actions';
 import * as errors from 'vs/base/common/errors';
 import { TPromise } from 'vs/base/common/winjs.base';
-import * as stdfork from 'vs/base/node/stdFork';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { ITerminalService } from 'vs/workbench/parts/terminal/common/terminal';
-import { ITerminalService as IExternalTerminalService } from 'vs/workbench/parts/execution/common/execution';
 import * as debug from 'vs/workbench/parts/debug/common/debug';
-import { Adapter } from 'vs/workbench/parts/debug/node/debugAdapter';
-import { V8Protocol } from 'vs/workbench/parts/debug/node/v8Protocol';
+import { Debugger } from 'vs/workbench/parts/debug/node/debugger';
 import { IOutputService } from 'vs/workbench/parts/output/common/output';
 import { IWorkspaceFolder } from 'vs/platform/workspace/common/workspace';
-import { ExtensionsChannelId } from 'vs/platform/extensionManagement/common/extensionManagement';
-import { TerminalSupport } from 'vs/workbench/parts/debug/electron-browser/terminalSupport';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { INotificationService } from 'vs/platform/notification/common/notification';
+import { formatPII } from 'vs/workbench/parts/debug/common/debugUtils';
+import { SocketDebugAdapter } from 'vs/workbench/parts/debug/node/debugAdapter';
+
 
 export interface SessionExitedEvent extends debug.DebugEvent {
 	body: {
@@ -40,14 +33,14 @@ export interface SessionTerminatedEvent extends debug.DebugEvent {
 	};
 }
 
-export class RawDebugSession extends V8Protocol implements debug.ISession {
+export class RawDebugSession implements debug.IRawSession {
+
+	private debugAdapter: debug.IDebugAdapter;
 
 	public emittedStopped: boolean;
 	public readyForBreakpoints: boolean;
 
-	private serverProcess: cp.ChildProcess;
-	private socket: net.Socket = null;
-	private cachedInitServer: TPromise<void>;
+	private cachedInitServerP: TPromise<void>;
 	private startTime: number;
 	public disconnected: boolean;
 	private sentPromises: TPromise<DebugProtocol.Response>[];
@@ -58,7 +51,8 @@ export class RawDebugSession extends V8Protocol implements debug.ISession {
 	private readonly _onDidStop: Emitter<DebugProtocol.StoppedEvent>;
 	private readonly _onDidContinued: Emitter<DebugProtocol.ContinuedEvent>;
 	private readonly _onDidTerminateDebugee: Emitter<SessionTerminatedEvent>;
-	private readonly _onDidExitAdapter: Emitter<SessionExitedEvent>;
+	private readonly _onDidExitDebugee: Emitter<DebugProtocol.ExitedEvent>;
+	private readonly _onDidExitAdapter: Emitter<{ sessionId: string }>;
 	private readonly _onDidThread: Emitter<DebugProtocol.ThreadEvent>;
 	private readonly _onDidOutput: Emitter<DebugProtocol.OutputEvent>;
 	private readonly _onDidBreakpoint: Emitter<DebugProtocol.BreakpointEvent>;
@@ -66,19 +60,15 @@ export class RawDebugSession extends V8Protocol implements debug.ISession {
 	private readonly _onDidEvent: Emitter<DebugProtocol.Event>;
 
 	constructor(
-		id: string,
+		private id: string,
 		private debugServerPort: number,
-		private adapter: Adapter,
+		private _debugger: Debugger,
 		public customTelemetryService: ITelemetryService,
 		public root: IWorkspaceFolder,
 		@INotificationService private notificationService: INotificationService,
 		@ITelemetryService private telemetryService: ITelemetryService,
-		@IOutputService private outputService: IOutputService,
-		@ITerminalService private terminalService: ITerminalService,
-		@IExternalTerminalService private nativeTerminalService: IExternalTerminalService,
-		@IConfigurationService private configurationService: IConfigurationService
+		@IOutputService private outputService: IOutputService
 	) {
-		super(id);
 		this.emittedStopped = false;
 		this.readyForBreakpoints = false;
 		this.allThreadsContinued = true;
@@ -88,12 +78,17 @@ export class RawDebugSession extends V8Protocol implements debug.ISession {
 		this._onDidStop = new Emitter<DebugProtocol.StoppedEvent>();
 		this._onDidContinued = new Emitter<DebugProtocol.ContinuedEvent>();
 		this._onDidTerminateDebugee = new Emitter<SessionTerminatedEvent>();
-		this._onDidExitAdapter = new Emitter<SessionExitedEvent>();
+		this._onDidExitDebugee = new Emitter<DebugProtocol.ExitedEvent>();
+		this._onDidExitAdapter = new Emitter<{ sessionId: string }>();
 		this._onDidThread = new Emitter<DebugProtocol.ThreadEvent>();
 		this._onDidOutput = new Emitter<DebugProtocol.OutputEvent>();
 		this._onDidBreakpoint = new Emitter<DebugProtocol.BreakpointEvent>();
 		this._onDidCustomEvent = new Emitter<debug.DebugEvent>();
 		this._onDidEvent = new Emitter<DebugProtocol.Event>();
+	}
+
+	public getId(): string {
+		return this.id;
 	}
 
 	public get onDidInitialize(): Event<DebugProtocol.InitializedEvent> {
@@ -112,7 +107,11 @@ export class RawDebugSession extends V8Protocol implements debug.ISession {
 		return this._onDidTerminateDebugee.event;
 	}
 
-	public get onDidExitAdapter(): Event<SessionExitedEvent> {
+	public get onDidExitDebugee(): Event<DebugProtocol.ExitedEvent> {
+		return this._onDidExitDebugee.event;
+	}
+
+	public get onDidExitAdapter(): Event<{ sessionId: string }> {
 		return this._onDidExitAdapter.event;
 	}
 
@@ -137,31 +136,48 @@ export class RawDebugSession extends V8Protocol implements debug.ISession {
 	}
 
 	private initServer(): TPromise<void> {
-		if (this.cachedInitServer) {
-			return this.cachedInitServer;
+
+		if (this.cachedInitServerP) {
+			return this.cachedInitServerP;
 		}
 
-		const serverPromise = this.debugServerPort ? this.connectServer(this.debugServerPort) : this.startServer();
-		this.cachedInitServer = serverPromise.then(() => {
+		const startSessionP = this.startSession();
+
+		this.cachedInitServerP = startSessionP.then(() => {
 			this.startTime = new Date().getTime();
 		}, err => {
-			this.cachedInitServer = null;
+			this.cachedInitServerP = null;
 			return TPromise.wrapError(err);
 		});
 
-		return this.cachedInitServer;
+		return this.cachedInitServerP;
+	}
+
+	private startSession(): TPromise<void> {
+
+		return this._debugger.createDebugAdapter(this.root, this.outputService, this.debugServerPort).then(debugAdapter => {
+
+			this.debugAdapter = debugAdapter;
+
+			this.debugAdapter.onError(err => this.onDebugAdapterError(err));
+			this.debugAdapter.onEvent(event => this.onDapEvent(event));
+			this.debugAdapter.onRequest(request => this.dispatchRequest(request));
+			this.debugAdapter.onExit(code => this.onDebugAdapterExit());
+
+			return this.debugAdapter.startSession();
+		});
 	}
 
 	public custom(request: string, args: any): TPromise<DebugProtocol.Response> {
 		return this.send(request, args);
 	}
 
-	protected send<R extends DebugProtocol.Response>(command: string, args: any, cancelOnDisconnect = true): TPromise<R> {
+	private send<R extends DebugProtocol.Response>(command: string, args: any, cancelOnDisconnect = true): TPromise<R> {
 		return this.initServer().then(() => {
-			const promise = super.send<R>(command, args).then(response => response, (errorResponse: DebugProtocol.ErrorResponse) => {
+			const promise = this.internalSend<R>(command, args).then(response => response, (errorResponse: DebugProtocol.ErrorResponse) => {
 				const error = errorResponse && errorResponse.body ? errorResponse.body.error : null;
 				const errorMessage = errorResponse ? errorResponse.message : '';
-				const telemetryMessage = error ? debug.formatPII(error.format, true, error.variables) : errorMessage;
+				const telemetryMessage = error ? formatPII(error.format, true, error.variables) : errorMessage;
 				if (error && error.sendTelemetry) {
 					/* __GDPR__
 						"debugProtocolErrorResponse" : {
@@ -178,7 +194,7 @@ export class RawDebugSession extends V8Protocol implements debug.ISession {
 					}
 				}
 
-				const userMessage = error ? debug.formatPII(error.format, false, error.variables) : errorMessage;
+				const userMessage = error ? formatPII(error.format, false, error.variables) : errorMessage;
 				if (error && error.url) {
 					const label = error.urlLabel ? error.urlLabel : nls.localize('moreInfo', "More Info");
 					return TPromise.wrapError<R>(errors.create(userMessage, {
@@ -199,8 +215,22 @@ export class RawDebugSession extends V8Protocol implements debug.ISession {
 		});
 	}
 
-	protected onEvent(event: debug.DebugEvent): void {
-		event.sessionId = this.getId();
+	private internalSend<R extends DebugProtocol.Response>(command: string, args: any): TPromise<R> {
+		let errorCallback: (error: Error) => void;
+		return new TPromise<R>((completeDispatch, errorDispatch) => {
+			errorCallback = errorDispatch;
+			this.debugAdapter.sendRequest(command, args, (result: R) => {
+				if (result.success) {
+					completeDispatch(result);
+				} else {
+					errorDispatch(result);
+				}
+			});
+		}, () => errorCallback(errors.canceled()));
+	}
+
+	private onDapEvent(event: debug.DebugEvent): void {
+		event.sessionId = this.id;
 
 		if (event.event === 'initialized') {
 			this.readyForBreakpoints = true;
@@ -223,7 +253,7 @@ export class RawDebugSession extends V8Protocol implements debug.ISession {
 		} else if (event.event === 'terminated') {
 			this._onDidTerminateDebugee.fire(<SessionTerminatedEvent>event);
 		} else if (event.event === 'exit') {
-			this._onDidExitAdapter.fire(<SessionExitedEvent>event);
+			this._onDidExitDebugee.fire(<SessionExitedEvent>event);
 		} else {
 			this._onDidCustomEvent.fire(event);
 		}
@@ -290,6 +320,10 @@ export class RawDebugSession extends V8Protocol implements debug.ISession {
 		return this.send('pause', args);
 	}
 
+	public terminateThreads(args: DebugProtocol.TerminateThreadsArguments): TPromise<DebugProtocol.TerminateThreadsResponse> {
+		return this.send('terminateThreads', args);
+	}
+
 	public setVariable(args: DebugProtocol.SetVariableArguments): TPromise<DebugProtocol.SetVariableResponse> {
 		return this.send<DebugProtocol.SetVariableResponse>('setVariable', args);
 	}
@@ -317,7 +351,7 @@ export class RawDebugSession extends V8Protocol implements debug.ISession {
 			this.sentPromises = [];
 		}, 1000);
 
-		if ((this.serverProcess || this.socket) && !this.disconnected) {
+		if (this.debugAdapter && !this.disconnected) {
 			// point of no return: from now on don't report any errors
 			this.disconnected = true;
 			return this.send('disconnect', { restart: restart }, false).then(() => this.stopServer(), () => this.stopServer());
@@ -392,17 +426,27 @@ export class RawDebugSession extends V8Protocol implements debug.ISession {
 		return (new Date().getTime() - this.startTime) / 1000;
 	}
 
-	protected dispatchRequest(request: DebugProtocol.Request, response: DebugProtocol.Response): void {
+	private dispatchRequest(request: DebugProtocol.Request): void {
+
+		const response: DebugProtocol.Response = {
+			type: 'response',
+			seq: 0,
+			command: request.command,
+			request_seq: request.seq,
+			success: true
+		};
 
 		if (request.command === 'runInTerminal') {
 
-			TerminalSupport.runInTerminal(this.terminalService, this.nativeTerminalService, this.configurationService, <DebugProtocol.RunInTerminalRequestArguments>request.arguments, <DebugProtocol.RunInTerminalResponse>response).then(() => {
-				this.sendResponse(response);
-			}, e => {
+			this._debugger.runInTerminal(<DebugProtocol.RunInTerminalRequestArguments>request.arguments).then(_ => {
+				response.body = {};
+				this.debugAdapter.sendResponse(response);
+			}, err => {
 				response.success = false;
-				response.message = e.message;
-				this.sendResponse(response);
+				response.message = err.message;
+				this.debugAdapter.sendResponse(response);
 			});
+
 		} else if (request.command === 'handshake') {
 			try {
 				const vsda = <any>require.__$__nodeRequire('vsda');
@@ -411,16 +455,16 @@ export class RawDebugSession extends V8Protocol implements debug.ISession {
 				response.body = {
 					signature: sig
 				};
-				this.sendResponse(response);
+				this.debugAdapter.sendResponse(response);
 			} catch (e) {
 				response.success = false;
 				response.message = e.message;
-				this.sendResponse(response);
+				this.debugAdapter.sendResponse(response);
 			}
 		} else {
 			response.success = false;
 			response.message = `unknown request '${request.command}'`;
-			this.sendResponse(response);
+			this.debugAdapter.sendResponse(response);
 		}
 	}
 
@@ -436,111 +480,35 @@ export class RawDebugSession extends V8Protocol implements debug.ISession {
 		});
 	}
 
-	private connectServer(port: number): TPromise<void> {
-		return new TPromise<void>((c, e) => {
-			this.socket = net.createConnection(port, '127.0.0.1', () => {
-				this.connect(this.socket, <any>this.socket);
-				c(null);
-			});
-			this.socket.on('error', (err: any) => {
-				e(err);
-			});
-			this.socket.on('close', () => this.onServerExit());
-		});
-	}
-
-	private startServer(): TPromise<any> {
-		return this.adapter.getAdapterExecutable(this.root).then(ae => this.launchServer(ae).then(() => {
-			this.serverProcess.on('error', (err: Error) => this.onServerError(err));
-			this.serverProcess.on('exit', (code: number, signal: string) => this.onServerExit());
-
-			const sanitize = (s: string) => s.toString().replace(/\r?\n$/mg, '');
-			// this.serverProcess.stdout.on('data', (data: string) => {
-			// 	console.log('%c' + sanitize(data), 'background: #ddd; font-style: italic;');
-			// });
-			this.serverProcess.stderr.on('data', (data: string) => {
-				this.outputService.getChannel(ExtensionsChannelId).append(sanitize(data));
-			});
-
-			this.connect(this.serverProcess.stdout, this.serverProcess.stdin);
-		}));
-	}
-
-	private launchServer(launch: debug.IAdapterExecutable): TPromise<void> {
-		return new TPromise<void>((c, e) => {
-			if (launch.command === 'node') {
-				if (Array.isArray(launch.args) && launch.args.length > 0) {
-					stdfork.fork(launch.args[0], launch.args.slice(1), {}, (err, child) => {
-						if (err) {
-							e(new Error(nls.localize('unableToLaunchDebugAdapter', "Unable to launch debug adapter from '{0}'.", launch.args[0])));
-						}
-						this.serverProcess = child;
-						c(null);
-					});
-				} else {
-					e(new Error(nls.localize('unableToLaunchDebugAdapterNoArgs', "Unable to launch debug adapter.")));
-				}
-			} else {
-				this.serverProcess = cp.spawn(launch.command, launch.args, {
-					stdio: [
-						'pipe', 	// stdin
-						'pipe', 	// stdout
-						'pipe'		// stderr
-					],
-				});
-				c(null);
-			}
-		});
-	}
-
 	private stopServer(): TPromise<any> {
 
-		if (this.socket !== null) {
-			this.socket.end();
-			this.cachedInitServer = null;
+		if (/* this.socket !== null */ this.debugAdapter instanceof SocketDebugAdapter) {
+			this.debugAdapter.stopSession();
+			this.cachedInitServerP = null;
 		}
 
-		this.onEvent({ event: 'exit', type: 'event', seq: 0 });
-		if (!this.serverProcess) {
+		this._onDidExitAdapter.fire({ sessionId: this.getId() });
+		this.disconnected = true;
+		if (!this.debugAdapter || this.debugAdapter instanceof SocketDebugAdapter) {
 			return TPromise.as(null);
 		}
 
-		this.disconnected = true;
 
-		let ret: TPromise<void>;
-		// when killing a process in windows its child
-		// processes are *not* killed but become root
-		// processes. Therefore we use TASKKILL.EXE
-		if (platform.isWindows) {
-			ret = new TPromise<void>((c, e) => {
-				const killer = cp.exec(`taskkill /F /T /PID ${this.serverProcess.pid}`, function (err, stdout, stderr) {
-					if (err) {
-						return e(err);
-					}
-				});
-				killer.on('exit', c);
-				killer.on('error', e);
-			});
-		} else {
-			this.serverProcess.kill('SIGTERM');
-			ret = TPromise.as(null);
-		}
-
-		return ret;
+		return this.debugAdapter.stopSession();
 	}
 
-	protected onServerError(err: Error): void {
-		this.notificationService.error(nls.localize('stoppingDebugAdapter', "{0}. Stopping the debug adapter.", err.message));
+	private onDebugAdapterError(err: Error): void {
+		this.notificationService.error(err.message || err.toString());
 		this.stopServer().done(null, errors.onUnexpectedError);
 	}
 
-	private onServerExit(): void {
-		this.serverProcess = null;
-		this.cachedInitServer = null;
+	private onDebugAdapterExit(): void {
+		this.debugAdapter = null;
+		this.cachedInitServerP = null;
 		if (!this.disconnected) {
 			this.notificationService.error(nls.localize('debugAdapterCrash', "Debug adapter process has terminated unexpectedly"));
 		}
-		this.onEvent({ event: 'exit', type: 'event', seq: 0 });
+		this._onDidExitAdapter.fire({ sessionId: this.getId() });
 	}
 
 	public dispose(): void {

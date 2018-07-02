@@ -134,6 +134,7 @@ export interface ProblemMatcher {
 	pattern: ProblemPattern | ProblemPattern[];
 	severity?: Severity;
 	watching?: WatchingMatcher;
+	uriProvider?: (path: string) => URI;
 }
 
 export interface NamedProblemMatcher extends ProblemMatcher {
@@ -195,7 +196,11 @@ export function getResource(filename: string, matcher: ProblemMatcher): URI {
 	if (fullPath[0] !== '/') {
 		fullPath = '/' + fullPath;
 	}
-	return URI.parse('file://' + fullPath);
+	if (matcher.uriProvider !== void 0) {
+		return matcher.uriProvider(fullPath);
+	} else {
+		return URI.file(fullPath);
+	}
 }
 
 export interface ILineMatcher {
@@ -260,10 +265,12 @@ abstract class AbstractLineMatcher implements ILineMatcher {
 	private fillProperty(data: ProblemData, property: keyof ProblemData, pattern: ProblemPattern, matches: RegExpExecArray, trim: boolean = false): void {
 		if (Types.isUndefined(data[property]) && !Types.isUndefined(pattern[property]) && pattern[property] < matches.length) {
 			let value = matches[pattern[property]];
-			if (trim) {
-				value = Strings.trim(value);
+			if (value !== void 0) {
+				if (trim) {
+					value = Strings.trim(value);
+				}
+				data[property] = value;
 			}
-			data[property] = value;
 		}
 	}
 
@@ -302,6 +309,9 @@ abstract class AbstractLineMatcher implements ILineMatcher {
 	}
 
 	private getLocation(data: ProblemData): Location {
+		if (data.kind === ProblemLocationKind.File) {
+			return this.createLocation(0, 0, 0, 0);
+		}
 		if (data.location) {
 			return this.parseLocationInfo(data.location);
 		}
@@ -383,7 +393,7 @@ class SingleLineMatcher extends AbstractLineMatcher {
 	public handle(lines: string[], start: number = 0): HandleResult {
 		Assert.ok(lines.length - start === 1);
 		let data: ProblemData = Object.create(null);
-		if (this.pattern.kind) {
+		if (this.pattern.kind !== void 0) {
 			data.kind = this.pattern.kind;
 		}
 		let matches = this.pattern.regexp.exec(lines[start]);
@@ -1188,7 +1198,7 @@ class ProblemPatternRegistryImpl implements IProblemPatternRegistry {
 				file: 1
 			},
 			{
-				regexp: /^\s+(\d+):(\d+)\s+(error|warning|info)\s+(.+?)\s\s+(.*)$/,
+				regexp: /^\s+(\d+):(\d+)\s+(error|warning|info)\s+(.+?)(?:\s\s+(.*))?$/,
 				line: 1,
 				character: 2,
 				severity: 3,

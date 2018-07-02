@@ -5,18 +5,20 @@
 
 'use strict';
 
-import { $ } from 'vs/base/browser/builder';
+import { Disposable } from 'vs/base/common/lifecycle';
+import { addDisposableListener } from 'vs/base/browser/dom';
 
 /**
  * A helper that will execute a provided function when the provided HTMLElement receives
  *  dragover event for 800ms. If the drag is aborted before, the callback will not be triggered.
  */
-export class DelayedDragHandler {
-
+export class DelayedDragHandler extends Disposable {
 	private timeout: number;
 
 	constructor(container: HTMLElement, callback: () => void) {
-		$(container).on('dragover', () => {
+		super();
+
+		this._register(addDisposableListener(container, 'dragover', () => {
 			if (!this.timeout) {
 				this.timeout = setTimeout(() => {
 					callback();
@@ -24,9 +26,13 @@ export class DelayedDragHandler {
 					this.timeout = null;
 				}, 800);
 			}
-		});
+		}));
 
-		$(container).on(['dragleave', 'drop', 'dragend'], () => this.clearDragTimeout());
+		['dragleave', 'drop', 'dragend'].forEach(type => {
+			this._register(addDisposableListener(container, type, () => {
+				this.clearDragTimeout();
+			}));
+		});
 	}
 
 	private clearDragTimeout(): void {
@@ -36,7 +42,9 @@ export class DelayedDragHandler {
 		}
 	}
 
-	public dispose(): void {
+	dispose(): void {
+		super.dispose();
+
 		this.clearDragTimeout();
 	}
 }
@@ -64,3 +72,15 @@ export const DataTransfers = {
 	 */
 	TEXT: 'text/plain'
 };
+
+export function applyDragImage(event: DragEvent, label: string, clazz: string): void {
+	const dragImage = document.createElement('div');
+	dragImage.className = clazz;
+	dragImage.textContent = label;
+
+	document.body.appendChild(dragImage);
+	event.dataTransfer.setDragImage(dragImage, -10, -10);
+
+	// Removes the element when the DND operation is done
+	setTimeout(() => document.body.removeChild(dragImage), 0);
+}

@@ -13,5 +13,6 @@
 	"indentUsingTabs": "Sekme Kullanarak Girintile",
 	"indentUsingSpaces": "Boşluk Kullanarak Girintile",
 	"detectIndentation": "Girintiyi, İçeriği Kontrol Ederek Algıla",
-	"editor.reindentlines": "Satır Girintilerini Yeniden Ayarla"
+	"editor.reindentlines": "Satır Girintilerini Yeniden Ayarla",
+	"editor.reindentselectedlines": "Seçili Satırların Girintilerini Yeniden Ayarla"
 }

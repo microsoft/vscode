@@ -5,7 +5,7 @@
 
 'use strict';
 
-import { IDisposable, dispose } from 'vs/base/common/lifecycle';
+import { IDisposable, dispose, Disposable } from 'vs/base/common/lifecycle';
 import { IWorkbenchContributionsRegistry, IWorkbenchContribution, Extensions as WorkbenchExtensions } from 'vs/workbench/common/contributions';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { IWindowsService, IWindowService, IWindowsConfiguration } from 'vs/platform/windows/common/windows';
@@ -20,17 +20,17 @@ import { isEqual } from 'vs/base/common/resources';
 import { isLinux, isMacintosh, isWindows } from 'vs/base/common/platform';
 import { LifecyclePhase } from 'vs/platform/lifecycle/common/lifecycle';
 import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
+import { equals } from 'vs/base/common/objects';
 
 interface IConfiguration extends IWindowsConfiguration {
 	update: { channel: string; };
 	telemetry: { enableCrashReporter: boolean };
 	keyboard: { touchbar: { enabled: boolean } };
 	workbench: { tree: { horizontalScrolling: boolean } };
+	files: { useExperimentalFileWatcher: boolean, watcherExclude: object };
 }
 
-export class SettingsChangeRelauncher implements IWorkbenchContribution {
-
-	private toDispose: IDisposable[] = [];
+export class SettingsChangeRelauncher extends Disposable implements IWorkbenchContribution {
 
 	private titleBarStyle: 'native' | 'custom';
 	private nativeTabs: boolean;
@@ -40,6 +40,8 @@ export class SettingsChangeRelauncher implements IWorkbenchContribution {
 	private touchbarEnabled: boolean;
 	private treeHorizontalScrolling: boolean;
 	private windowsSmoothScrollingWorkaround: boolean;
+	private experimentalFileWatcher: boolean;
+	private fileWatcherExclude: object;
 
 	private firstFolderResource: URI;
 	private extensionHostRestarter: RunOnceScheduler;
@@ -55,6 +57,8 @@ export class SettingsChangeRelauncher implements IWorkbenchContribution {
 		@IWorkspaceContextService private contextService: IWorkspaceContextService,
 		@IExtensionService private extensionService: IExtensionService
 	) {
+		super();
+
 		const workspace = this.contextService.getWorkspace();
 		this.firstFolderResource = workspace.folders.length > 0 ? workspace.folders[0].uri : void 0;
 		this.extensionHostRestarter = new RunOnceScheduler(() => this.extensionService.restartExtensionHost(), 10);
@@ -66,15 +70,15 @@ export class SettingsChangeRelauncher implements IWorkbenchContribution {
 	}
 
 	private registerListeners(): void {
-		this.toDispose.push(this.configurationService.onDidChangeConfiguration(e => this.onConfigurationChange(this.configurationService.getValue<IConfiguration>(), true)));
-		this.toDispose.push(this.contextService.onDidChangeWorkbenchState(() => setTimeout(() => this.handleWorkbenchState())));
+		this._register(this.configurationService.onDidChangeConfiguration(e => this.onConfigurationChange(this.configurationService.getValue<IConfiguration>(), true)));
+		this._register(this.contextService.onDidChangeWorkbenchState(() => setTimeout(() => this.handleWorkbenchState())));
 	}
 
 	private onConfigurationChange(config: IConfiguration, notify: boolean): void {
 		let changed = false;
 
-		// macOS: Titlebar style
-		if (isMacintosh && config.window && config.window.titleBarStyle !== this.titleBarStyle && (config.window.titleBarStyle === 'native' || config.window.titleBarStyle === 'custom')) {
+		// Titlebar style
+		if (config.window && config.window.titleBarStyle !== this.titleBarStyle && (config.window.titleBarStyle === 'native' || config.window.titleBarStyle === 'custom')) {
 			this.titleBarStyle = config.window.titleBarStyle;
 			changed = true;
 		}
@@ -101,6 +105,20 @@ export class SettingsChangeRelauncher implements IWorkbenchContribution {
 		if (config.telemetry && typeof config.telemetry.enableCrashReporter === 'boolean' && config.telemetry.enableCrashReporter !== this.enableCrashReporter) {
 			this.enableCrashReporter = config.telemetry.enableCrashReporter;
 			changed = true;
+		}
+
+		// Experimental File Watcher
+		if (config.files && typeof config.files.useExperimentalFileWatcher === 'boolean' && config.files.useExperimentalFileWatcher !== this.experimentalFileWatcher) {
+			this.experimentalFileWatcher = config.files.useExperimentalFileWatcher;
+			changed = true;
+		}
+
+		// File Watcher Excludes (only if in folder workspace mode)
+		if (!this.experimentalFileWatcher && this.contextService.getWorkbenchState() === WorkbenchState.FOLDER) {
+			if (config.files && typeof config.files.watcherExclude === 'object' && !equals(config.files.watcherExclude, this.fileWatcherExclude)) {
+				this.fileWatcherExclude = config.files.watcherExclude;
+				changed = true;
+			}
 		}
 
 		// macOS: Touchbar config
@@ -182,10 +200,6 @@ export class SettingsChangeRelauncher implements IWorkbenchContribution {
 
 			return void 0;
 		});
-	}
-
-	public dispose(): void {
-		this.toDispose = dispose(this.toDispose);
 	}
 }
 

@@ -16,7 +16,7 @@ import { TextDiffEditorModel } from 'vs/workbench/common/editor/textDiffEditorMo
  */
 export class DiffEditorInput extends SideBySideEditorInput {
 
-	public static readonly ID = 'workbench.editors.diffEditorInput';
+	static readonly ID = 'workbench.editors.diffEditorInput';
 
 	private cachedModel: DiffEditorModel;
 
@@ -24,7 +24,7 @@ export class DiffEditorInput extends SideBySideEditorInput {
 		super(name, description, original, modified);
 	}
 
-	public getTypeId(): string {
+	getTypeId(): string {
 		return DiffEditorInput.ID;
 	}
 
@@ -36,7 +36,7 @@ export class DiffEditorInput extends SideBySideEditorInput {
 		return this.master;
 	}
 
-	public resolve(refresh?: boolean): TPromise<EditorModel> {
+	resolve(refresh?: boolean): TPromise<EditorModel> {
 		let modelPromise: TPromise<EditorModel>;
 
 		// Use Cached Model
@@ -63,7 +63,7 @@ export class DiffEditorInput extends SideBySideEditorInput {
 		});
 	}
 
-	public getPreferredEditorId(candidates: string[]): string {
+	getPreferredEditorId(candidates: string[]): string {
 		return this.forceOpenAsBinary ? BINARY_DIFF_EDITOR_ID : TEXT_DIFF_EDITOR_ID;
 	}
 
@@ -87,7 +87,7 @@ export class DiffEditorInput extends SideBySideEditorInput {
 		});
 	}
 
-	public dispose(): void {
+	dispose(): void {
 
 		// Free the diff editor model but do not propagate the dispose() call to the two inputs
 		// We never created the two inputs (original and modified) so we can not dispose

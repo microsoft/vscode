@@ -54,6 +54,11 @@ export interface IViewZone {
 	 */
 	heightInPx?: number;
 	/**
+	 * The minimum width in px of the view zone.
+	 * If this is set, the editor will ensure that the scroll width is >= than this value.
+	 */
+	minWidthInPx?: number;
+	/**
 	 * The dom node of the view zone
 	 */
 	domNode: HTMLElement;
@@ -360,12 +365,12 @@ export interface ICodeEditor extends editorCommon.IEditor {
 	 */
 	onDidChangeModelDecorations(listener: (e: IModelDecorationsChangedEvent) => void): IDisposable;
 	/**
-	 * An event emitted when the text inside this editor gained focus (i.e. cursor blinking).
+	 * An event emitted when the text inside this editor gained focus (i.e. cursor starts blinking).
 	 * @event
 	 */
 	onDidFocusEditorText(listener: () => void): IDisposable;
 	/**
-	 * An event emitted when the text inside this editor lost focus.
+	 * An event emitted when the text inside this editor lost focus (i.e. cursor stops blinking).
 	 * @event
 	 */
 	onDidBlurEditorText(listener: () => void): IDisposable;
@@ -373,12 +378,12 @@ export interface ICodeEditor extends editorCommon.IEditor {
 	 * An event emitted when the text inside this editor or an editor widget gained focus.
 	 * @event
 	 */
-	onDidFocusEditor(listener: () => void): IDisposable;
+	onDidFocusEditorWidget(listener: () => void): IDisposable;
 	/**
 	 * An event emitted when the text inside this editor or an editor widget lost focus.
 	 * @event
 	 */
-	onDidBlurEditor(listener: () => void): IDisposable;
+	onDidBlurEditorWidget(listener: () => void): IDisposable;
 	/**
 	 * An event emitted before interpreting typed characters (on the keyboard).
 	 * @event
@@ -391,6 +396,12 @@ export interface ICodeEditor extends editorCommon.IEditor {
 	 * @internal
 	 */
 	onDidType(listener: (text: string) => void): IDisposable;
+	/**
+	 * An event emitted when editing failed because the editor is read-only.
+	 * @event
+	 * @internal
+	 */
+	onDidAttemptReadOnlyEdit(listener: () => void): IDisposable;
 	/**
 	 * An event emitted when users paste text in the editor.
 	 * @event
@@ -466,7 +477,7 @@ export interface ICodeEditor extends editorCommon.IEditor {
 	restoreViewState(state: editorCommon.ICodeEditorViewState): void;
 
 	/**
-	 * Returns true if this editor or one of its widgets has keyboard focus.
+	 * Returns true if the text inside this editor or an editor widget has focus.
 	 */
 	hasWidgetFocus(): boolean;
 
@@ -618,11 +629,6 @@ export interface ICodeEditor extends editorCommon.IEditor {
 	 * Get the layout info for the editor.
 	 */
 	getLayoutInfo(): editorOptions.EditorLayoutInfo;
-
-	/**
-	 * Returns the range that is currently centered in the view port.
-	 */
-	getCenteredRangeInViewport(): Range;
 
 	/**
 	 * Returns the ranges that are currently visible.
@@ -832,4 +838,19 @@ export function isDiffEditor(thing: any): thing is IDiffEditor {
 	} else {
 		return false;
 	}
+}
+
+/**
+ *@internal
+ */
+export function getCodeEditor(thing: any): ICodeEditor {
+	if (isCodeEditor(thing)) {
+		return thing;
+	}
+
+	if (isDiffEditor(thing)) {
+		return thing.getModifiedEditor();
+	}
+
+	return null;
 }

@@ -13,14 +13,13 @@ import { IDisposable, dispose, toDisposable, empty as EmptyDisposable, combinedD
 import { TPromise } from 'vs/base/common/winjs.base';
 import { Event, Emitter, anyEvent as anyEvent, filterEvent, once } from 'vs/base/common/event';
 import * as ext from 'vs/workbench/common/contributions';
-import { CodeEditor } from 'vs/editor/browser/codeEditor';
+import { CodeEditorWidget } from 'vs/editor/browser/widget/codeEditorWidget';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { ITextModelService } from 'vs/editor/common/services/resolverService';
-import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
+import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IEditorWorkerService } from 'vs/editor/common/services/editorWorkerService';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import URI from 'vs/base/common/uri';
-import { IEditorGroupService } from 'vs/workbench/services/group/common/groupService';
 import { ISCMService, ISCMRepository } from 'vs/workbench/services/scm/common/scm';
 import { ModelDecorationOptions } from 'vs/editor/common/model/textModel';
 import { registerThemingParticipant, ITheme, ICssStyleCollector, themeColorFromId, IThemeService } from 'vs/platform/theme/common/themeService';
@@ -43,7 +42,7 @@ import { IActionBarOptions, ActionsOrientation, IActionItem } from 'vs/base/brow
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { basename } from 'vs/base/common/paths';
 import { MenuId, IMenuService, IMenu, MenuItemAction } from 'vs/platform/actions/common/actions';
-import { fillInActions, MenuItemActionItem } from 'vs/platform/actions/browser/menuItemActionItem';
+import { MenuItemActionItem, fillInActionBarActions } from 'vs/platform/actions/browser/menuItemActionItem';
 import { IChange, IEditorModel, ScrollType, IEditorContribution } from 'vs/editor/common/editorCommon';
 import { OverviewRulerLane, ITextModel, IModelDecorationOptions } from 'vs/editor/common/model';
 import { sortedDiff, firstIndex } from 'vs/base/common/arrays';
@@ -172,7 +171,7 @@ function getOuterEditorFromDiffEditor(accessor: ServicesAccessor): ICodeEditor {
 	const diffEditors = accessor.get(ICodeEditorService).listDiffEditors();
 
 	for (const diffEditor of diffEditors) {
-		if (diffEditor.isFocused() && diffEditor instanceof EmbeddedDiffEditorWidget) {
+		if (diffEditor.hasTextFocus() && diffEditor instanceof EmbeddedDiffEditorWidget) {
 			return diffEditor.getParentEditor();
 		}
 	}
@@ -273,7 +272,7 @@ class DirtyDiffWidget extends PeekViewWidget {
 		this._actionbarWidget.push([previous, next], { label: false, icon: true });
 
 		const actions: IAction[] = [];
-		fillInActions(this.menu, { shouldForwardArgs: true }, actions, this.contextMenuService);
+		fillInActionBarActions(this.menu, { shouldForwardArgs: true }, actions);
 		this._actionbarWidget.push(actions, { label: false, icon: true });
 	}
 
@@ -705,7 +704,7 @@ export class DirtyDiffController implements IEditorContribution {
 		}
 
 		const data = e.target.detail as IMarginData;
-		const gutterOffsetX = data.offsetX - data.glyphMarginWidth - data.lineNumbersWidth;
+		const gutterOffsetX = data.offsetX - data.glyphMarginWidth - data.lineNumbersWidth - data.glyphMarginLeft;
 
 		// TODO@joao TODO@alex TODO@martin this is such that we don't collide with folding
 		if (gutterOffsetX > 10) {
@@ -1121,8 +1120,7 @@ export class DirtyDiffWorkbenchController implements ext.IWorkbenchContribution,
 	private disposables: IDisposable[] = [];
 
 	constructor(
-		@IWorkbenchEditorService private editorService: IWorkbenchEditorService,
-		@IEditorGroupService private editorGroupService: IEditorGroupService,
+		@IEditorService private editorService: IEditorService,
 		@IInstantiationService private instantiationService: IInstantiationService,
 		@IConfigurationService private configurationService: IConfigurationService
 	) {
@@ -1163,7 +1161,7 @@ export class DirtyDiffWorkbenchController implements ext.IWorkbenchContribution,
 			this.disable();
 		}
 
-		this.transientDisposables.push(this.editorGroupService.onEditorsChanged(() => this.onEditorsChanged()));
+		this.transientDisposables.push(this.editorService.onDidVisibleEditorsChange(() => this.onEditorsChanged()));
 		this.onEditorsChanged();
 		this.enabled = true;
 	}
@@ -1184,17 +1182,14 @@ export class DirtyDiffWorkbenchController implements ext.IWorkbenchContribution,
 	// or not. Needs context from the editor, to know whether it is a diff editor, in place editor
 	// etc.
 	private onEditorsChanged(): void {
-		const models = this.editorService.getVisibleEditors()
-
-			// map to the editor controls
-			.map(e => e.getControl())
+		const models = this.editorService.visibleTextEditorWidgets
 
 			// only interested in code editor widgets
-			.filter(c => c instanceof CodeEditor)
+			.filter(c => c instanceof CodeEditorWidget)
 
 			// set model registry and map to models
 			.map(editor => {
-				const codeEditor = editor as CodeEditor;
+				const codeEditor = editor as CodeEditorWidget;
 				const controller = DirtyDiffController.get(codeEditor);
 				controller.modelRegistry = this;
 				return codeEditor.getModel();

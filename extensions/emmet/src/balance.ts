@@ -5,7 +5,11 @@
 
 import * as vscode from 'vscode';
 import { HtmlNode } from 'EmmetNode';
-import { getNode, parseDocument, validate } from './util';
+import { getHtmlNode, parseDocument, validate } from './util';
+
+let balanceOutStack: Array<vscode.Selection[]> = [];
+let lastOut = false;
+let lastBalancedSelections: vscode.Selection[] = [];
 
 export function balanceOut() {
 	balance(true);
@@ -32,12 +36,32 @@ function balance(out: boolean) {
 		newSelections.push(range);
 	});
 
-	editor.selection = newSelections[0];
-	editor.selections = newSelections;
+	if (areSameSelections(newSelections, editor.selections)) {
+		return;
+	}
+
+	if (areSameSelections(lastBalancedSelections, editor.selections)) {
+		if (out) {
+			if (!balanceOutStack.length) {
+				balanceOutStack.push(editor.selections);
+			}
+			balanceOutStack.push(newSelections);
+		} else {
+			if (lastOut) {
+				balanceOutStack.pop();
+			}
+			newSelections = balanceOutStack.pop() || newSelections;
+		}
+	} else {
+		balanceOutStack = out ? [editor.selections, newSelections] : [];
+	}
+
+	lastOut = out;
+	lastBalancedSelections = editor.selections = newSelections;
 }
 
 function getRangeToBalanceOut(document: vscode.TextDocument, selection: vscode.Selection, rootNode: HtmlNode): vscode.Selection {
-	let nodeToBalance = <HtmlNode>getNode(rootNode, selection.start);
+	let nodeToBalance = getHtmlNode(document, rootNode, selection.start, false);
 	if (!nodeToBalance) {
 		return selection;
 	}
@@ -58,7 +82,7 @@ function getRangeToBalanceOut(document: vscode.TextDocument, selection: vscode.S
 }
 
 function getRangeToBalanceIn(document: vscode.TextDocument, selection: vscode.Selection, rootNode: HtmlNode): vscode.Selection {
-	let nodeToBalance = <HtmlNode>getNode(rootNode, selection.start, true);
+	let nodeToBalance = getHtmlNode(document, rootNode, selection.start, true);
 	if (!nodeToBalance) {
 		return selection;
 	}
@@ -83,3 +107,14 @@ function getRangeToBalanceIn(document: vscode.TextDocument, selection: vscode.Se
 
 }
 
+function areSameSelections(a: vscode.Selection[], b: vscode.Selection[]): boolean {
+	if (a.length !== b.length) {
+		return false;
+	}
+	for (let i = 0; i < a.length; i++) {
+		if (!a[i].isEqual(b[i])) {
+			return false;
+		}
+	}
+	return true;
+}

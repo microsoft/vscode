@@ -11,6 +11,6 @@
 	"TerminalTaskSystem.terminalName": "Aufgabe - {0}",
 	"closeTerminal": "Betätigen Sie eine beliebige Taste, um das Terminal zu schließen.",
 	"reuseTerminal": "Das Terminal wird von Aufgaben wiederverwendet, drücken Sie zum Schließen eine beliebige Taste.",
-	"TerminalTaskSystem": "Ein Shell-Befehl kann nicht auf einem UNC-Laufwerk ausgeführt werden.",
+	"TerminalTaskSystem": "Ein Shell-Befehl kann nicht mithilfe von cmd.exe auf einem UNC-Laufwerk ausgeführt werden.",
 	"unkownProblemMatcher": "Der Problemabgleicher {0} kann nicht aufgelöst werden. Der Abgleicher wird ignoriert."
 }

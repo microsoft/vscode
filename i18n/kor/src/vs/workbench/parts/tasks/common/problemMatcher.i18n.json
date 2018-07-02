@@ -45,6 +45,7 @@
 	"PatternTypeSchema.description": "문제 패턴 또는 제공되거나 미리 정의된 문제 패턴의 이름입니다. 기본이 지정된 경우 생략할 수 있습니다.",
 	"ProblemMatcherSchema.base": "사용할 기본 문제 선택기의 이름입니다.",
 	"ProblemMatcherSchema.owner": "Code 내부의 문제 소유자입니다. 기본값을 지정한 경우 생략할 수 있습니다. 기본값을 지정하지 않고 생략한 경우 기본값은 '외부'입니다.",
+	"ProblemMatcherSchema.source": "이 진단의 소스를 설명하는 사람이 읽을 수 있는 문자열입니다(예: 'typescript' 또는 'super lint').",
 	"ProblemMatcherSchema.severity": "캡처 문제에 대한 기본 심각도입니다. 패턴에서 심각도에 대한 일치 그룹을 정의하지 않은 경우에 사용됩니다.",
 	"ProblemMatcherSchema.applyTo": "텍스트 문서에 복된 문제가 열린 문서, 닫힌 문서 또는 모든 문서에 적용되는지를 제어합니다.",
 	"ProblemMatcherSchema.fileLocation": "문제 패턴에 보고된 파일 이름을 해석하는 방법을 정의합니다.",

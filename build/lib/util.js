@@ -14,6 +14,7 @@ var fs = require("fs");
 var _rimraf = require("rimraf");
 var git = require("./git");
 var VinylFile = require("vinyl");
+var cp = require("child_process");
 var NoCancellationToken = { isCancellationRequested: function () { return false; } };
 function incremental(streamProvider, initial, supportsCancellation) {
     var input = es.through();
@@ -210,3 +211,68 @@ function filter(fn) {
     return result;
 }
 exports.filter = filter;
+function tagExists(tagName) {
+    try {
+        cp.execSync("git rev-parse " + tagName, { stdio: 'ignore' });
+        return true;
+    }
+    catch (e) {
+        return false;
+    }
+}
+/**
+ * Returns the version previous to the given version. Throws if a git tag for that version doesn't exist.
+ * Given 1.17.2, return 1.17.1
+ * 1.18.0 => 1.17.2. (or the highest 1.17.x)
+ * 2.0.0 => 1.18.0 (or the highest 1.x)
+ */
+function getPreviousVersion(versionStr, _tagExists) {
+    if (_tagExists === void 0) { _tagExists = tagExists; }
+    function getLatestTagFromBase(semverArr, componentToTest) {
+        var baseVersion = semverArr.join('.');
+        if (!_tagExists(baseVersion)) {
+            throw new Error('Failed to find git tag for base version, ' + baseVersion);
+        }
+        var goodTag;
+        do {
+            goodTag = semverArr.join('.');
+            semverArr[componentToTest]++;
+        } while (_tagExists(semverArr.join('.')));
+        return goodTag;
+    }
+    var semverArr = versionStringToNumberArray(versionStr);
+    if (semverArr[2] > 0) {
+        semverArr[2]--;
+        var previous = semverArr.join('.');
+        if (!_tagExists(previous)) {
+            throw new Error('Failed to find git tag for previous version, ' + previous);
+        }
+        return previous;
+    }
+    else if (semverArr[1] > 0) {
+        semverArr[1]--;
+        return getLatestTagFromBase(semverArr, 2);
+    }
+    else {
+        semverArr[0]--;
+        // Find 1.x.0 for latest x
+        var latestMinorVersion = getLatestTagFromBase(semverArr, 1);
+        // Find 1.x.y for latest y
+        return getLatestTagFromBase(versionStringToNumberArray(latestMinorVersion), 2);
+    }
+}
+exports.getPreviousVersion = getPreviousVersion;
+function versionStringToNumberArray(versionStr) {
+    return versionStr
+        .split('.')
+        .map(function (s) { return parseInt(s); });
+}
+function versionStringToNumber(versionStr) {
+    var semverRegex = /(\d+)\.(\d+)\.(\d+)/;
+    var match = versionStr.match(semverRegex);
+    if (!match) {
+        throw new Error('Version string is not properly formatted: ' + versionStr);
+    }
+    return parseInt(match[1], 10) * 1e4 + parseInt(match[2], 10) * 1e2 + parseInt(match[3], 10);
+}
+exports.versionStringToNumber = versionStringToNumber;

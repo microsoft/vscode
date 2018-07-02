@@ -36,7 +36,6 @@ export class ExtensionMessageCollector {
 		this._messageHandler({
 			type: type,
 			message: message,
-			source: this._extension.extensionFolderPath,
 			extensionId: this._extension.id,
 			extensionPointId: this._extensionPointId
 		});
@@ -130,7 +129,7 @@ const schema: IJSONSchema = {
 				'vscode': {
 					type: 'string',
 					description: nls.localize('vscode.extension.engines.vscode', 'For VS Code extensions, specifies the VS Code version that the extension is compatible with. Cannot be *. For example: ^0.10.5 indicates compatibility with a minimum VS Code version of 0.10.5.'),
-					default: '^0.10.0',
+					default: '^1.22.0',
 				}
 			}
 		},
@@ -147,8 +146,15 @@ const schema: IJSONSchema = {
 			type: 'array',
 			uniqueItems: true,
 			items: {
-				type: 'string',
-				enum: ['Programming Languages', 'Snippets', 'Linters', 'Themes', 'Debuggers', 'Other', 'Keymaps', 'Formatters', 'Extension Packs', 'SCM Providers', 'Azure', 'Language Packs']
+				oneOf: [{
+					type: 'string',
+					enum: ['Programming Languages', 'Snippets', 'Linters', 'Themes', 'Debuggers', 'Other', 'Keymaps', 'Formatters', 'Extension Packs', 'SCM Providers', 'Azure', 'Language Packs'],
+				},
+				{
+					type: 'string',
+					const: 'Languages',
+					deprecationMessage: nls.localize('vscode.extension.category.languages.deprecated', 'Use \'Programming  Languages\' instead'),
+				}]
 			}
 		},
 		galleryBanner: {
@@ -218,6 +224,11 @@ const schema: IJSONSchema = {
 						label: 'onView',
 						body: 'onView:${5:viewId}',
 						description: nls.localize('vscode.extension.activationEvents.onView', 'An activation event emitted whenever the specified view is expanded.'),
+					},
+					{
+						label: 'onUri',
+						body: 'onUri',
+						description: nls.localize('vscode.extension.activationEvents.onUri', 'An activation event emitted whenever a system-wide Uri directed towards this extension is open.'),
 					},
 					{
 						label: '*',

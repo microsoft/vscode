@@ -21,7 +21,7 @@
 	"schema.languageId": "A társításhoz tartozó ikondefiníció azonosítója. ",
 	"schema.fonts": "Az ikondefiníciókban használt betűkészletek.",
 	"schema.id": "A betűkészlet azonosítója.",
-	"schema.src": "A betűkészlet elérési útjai.",
+	"schema.src": "A betűkészlet elérési útja.",
 	"schema.font-path": "A betűkészlet elérési útja, relatívan az aktuális ikontémafájlhoz képest.",
 	"schema.font-format": "A betűkészlet formátuma.",
 	"schema.font-weight": "A betűkészlet betűvastagsága.",

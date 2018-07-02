@@ -22,7 +22,8 @@
 		"onCommand:markdown.showPreviewToSide",
 		"onCommand:markdown.showLockedPreviewToSide",
 		"onCommand:markdown.showSource",
-		"onCommand:markdown.showPreviewSecuritySelector"
+		"onCommand:markdown.showPreviewSecuritySelector",
+		"onWebviewPanel:markdown.preview"
 	],
 	"contributes": {
 		"commands": [
@@ -108,6 +109,13 @@
 				}
 			],
 			"explorer/context": [
+				{
+					"command": "markdown.showPreview",
+					"when": "resourceLangId == markdown",
+					"group": "navigation"
+				}
+			],
+			"editor/title/context": [
 				{
 					"command": "markdown.showPreview",
 					"when": "resourceLangId == markdown",
@@ -270,7 +278,7 @@
 		],
 		"markdown.previewStyles": [
 			"./media/markdown.css",
-			"./media/tomorrow.css"
+			"./media/highlight.css"
 		],
 		"markdown.previewScripts": [
 			"./media/index.js"
@@ -284,10 +292,10 @@
 		"build-preview": "webpack --mode development"
 	},
 	"dependencies": {
-		"highlight.js": "9.5.0",
-		"markdown-it": "^8.4.0",
+		"highlight.js": "9.12.0",
+		"markdown-it": "^8.4.1",
 		"markdown-it-named-headers": "0.0.4",
-		"vscode-extension-telemetry": "0.0.15",
+		"vscode-extension-telemetry": "0.0.17",
 		"vscode-nls": "^3.2.1"
 	},
 	"devDependencies": {
@@ -296,6 +304,8 @@
 		"@types/markdown-it": "0.0.2",
 		"@types/node": "7.0.43",
 		"lodash.throttle": "^4.1.1",
+		"mocha-junit-reporter": "^1.17.0",
+		"mocha-multi-reporters": "^1.1.7",
 		"ts-loader": "^4.0.1",
 		"typescript": "^2.7.2",
 		"vscode": "^1.1.10",

@@ -76,7 +76,7 @@ export function testCompletionFor(value: string, expected: { count?: number, ite
 }
 
 suite('HTML Completion', () => {
-	test('HTML Javascript Completions', function (): any {
+	test('HTML JavaScript Completions', function (): any {
 		testCompletionFor('<html><script>window.|</script></html>', {
 			items: [
 				{ label: 'location', resultText: '<html><script>window.location</script></html>' },

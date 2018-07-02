@@ -151,13 +151,6 @@ function setupIPC(accessor: ServicesAccessor): TPromise<Server> {
 				app.dock.show();
 			}
 
-			// Disable the GTK3 emoji picker as it intercepts ctrl+shift+e (and
-			// doesn't work)
-			if (platform.isLinux) {
-				process.env['GTK_IM_MODULE'] = 'gtk-im-context-simple';
-				process.env['XMODIFIERS'] = '@im=none';
-			}
-
 			// Set the VSCODE_PID variable here when we are sure we are the first
 			// instance to startup. Otherwise we would wrongly overwrite the PID
 			process.env['VSCODE_PID'] = String(process.pid);
@@ -330,6 +323,11 @@ function main() {
 			VSCODE_NLS_CONFIG: process.env['VSCODE_NLS_CONFIG'],
 			VSCODE_LOGS: process.env['VSCODE_LOGS']
 		};
+
+		if (process.env['VSCODE_PORTABLE']) {
+			instanceEnv['VSCODE_PORTABLE'] = process.env['VSCODE_PORTABLE'];
+		}
+
 		assign(process.env, instanceEnv);
 
 		// Startup

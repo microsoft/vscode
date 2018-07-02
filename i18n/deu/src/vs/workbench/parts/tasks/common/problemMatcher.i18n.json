@@ -45,6 +45,7 @@
 	"PatternTypeSchema.description": "Ein Problemmuster oder der Name eines beigetragenen oder vordefinierten Problemmusters. Kann ausgelassen werden, wenn die Basis angegeben ist.",
 	"ProblemMatcherSchema.base": "Der Name eines zu verwendenden Basisproblemabgleichers.",
 	"ProblemMatcherSchema.owner": "Der Besitzer des Problems im Code. Kann ausgelassen werden, wenn \"base\" angegeben wird. Der Standardwert ist \"external\", wenn keine Angabe erfolgt und \"base\" nicht angegeben wird.",
+	"ProblemMatcherSchema.source": "Eine visuell lesbare Zeichenfolge, die die Quelle dieser Diagnose beschreibt, z. B. \"typescript\" oder \"super lint\".",
 	"ProblemMatcherSchema.severity": "Der Standardschweregrad für Erfassungsprobleme. Dieser wird verwendet, wenn das Muster keine Übereinstimmungsgruppe für den Schweregrad definiert.",
 	"ProblemMatcherSchema.applyTo": "Steuert, ob ein für ein Textdokument gemeldetes Problem nur auf geöffnete, geschlossene oder alle Dokumente angewendet wird.",
 	"ProblemMatcherSchema.fileLocation": "Definiert, wie Dateinamen interpretiert werden sollen, die in einem Problemmuster gemeldet werden.",

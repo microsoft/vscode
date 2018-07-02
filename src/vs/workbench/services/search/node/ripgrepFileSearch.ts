@@ -8,7 +8,8 @@ import { rgPath } from 'vscode-ripgrep';
 
 import { isMacintosh as isMac } from 'vs/base/common/platform';
 import * as glob from 'vs/base/common/glob';
-import { normalizeNFD, startsWith } from 'vs/base/common/strings';
+import { startsWith } from 'vs/base/common/strings';
+import { normalizeNFD } from 'vs/base/common/normalization';
 
 import { IFolderSearch, IRawSearch } from './search';
 import { foldersToIncludeGlobs, foldersToRgExcludeGlobs } from './ripgrepTextSearch';

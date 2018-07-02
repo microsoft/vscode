@@ -31,14 +31,13 @@ interface IMassagedMessageBoxOptions {
 
 export class DialogService implements IDialogService {
 
-	public _serviceBrand: any;
+	_serviceBrand: any;
 
 	constructor(
 		@IWindowService private windowService: IWindowService
-	) {
-	}
+	) { }
 
-	public confirm(confirmation: IConfirmation): TPromise<IConfirmationResult> {
+	confirm(confirmation: IConfirmation): TPromise<IConfirmationResult> {
 		const { options, buttonIndexMap } = this.massageMessageBoxOptions(this.getConfirmOptions(confirmation));
 
 		return this.windowService.showMessageBox(options).then(result => {
@@ -86,7 +85,7 @@ export class DialogService implements IDialogService {
 		return opts;
 	}
 
-	public show(severity: Severity, message: string, buttons: string[], dialogOptions?: IDialogOptions): TPromise<number> {
+	show(severity: Severity, message: string, buttons: string[], dialogOptions?: IDialogOptions): TPromise<number> {
 		const { options, buttonIndexMap } = this.massageMessageBoxOptions({
 			message,
 			buttons,

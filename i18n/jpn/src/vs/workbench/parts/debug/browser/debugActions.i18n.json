@@ -21,6 +21,7 @@
 	"disconnectDebug": "切断",
 	"continueDebug": "続行",
 	"pauseDebug": "一時停止",
+	"terminateThread": "スレッドを終了",
 	"restartFrame": "フレームの再起動",
 	"removeBreakpoint": "ブレークポイントの削除",
 	"removeAllBreakpoints": "すべてのブレークポイントを削除する",
@@ -40,7 +41,7 @@
 	"debugConsoleAction": "デバッグ コンソール",
 	"unreadOutput": "デバッグ コンソールでの新しい出力",
 	"debugFocusConsole": "デバッグ コンソールにフォーカスを移動",
-	"focusProcess": "フォーカスのプロセス",
+	"focusSession": "セッションにフォーカス",
 	"stepBackDebug": "1 つ戻る",
 	"reverseContinue": "反転"
 }

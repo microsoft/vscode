@@ -18,6 +18,7 @@ import * as objects from 'vs/base/common/objects';
 import * as arrays from 'vs/base/common/arrays';
 import * as platform from 'vs/base/common/platform';
 import * as strings from 'vs/base/common/strings';
+import * as normalization from 'vs/base/common/normalization';
 import * as types from 'vs/base/common/types';
 import * as glob from 'vs/base/common/glob';
 import { IProgress, IUncachedSearchStats } from 'vs/platform/search/common/search';
@@ -122,78 +123,61 @@ export class FileWalker {
 		this.fileWalkStartTime = Date.now();
 
 		// Support that the file pattern is a full path to a file that exists
-		this.checkFilePatternAbsoluteMatch((exists, size) => {
-			if (this.isCanceled) {
-				return done(null, this.isLimitHit);
-			}
+		if (this.isCanceled) {
+			return done(null, this.isLimitHit);
+		}
 
-			// Report result from file pattern if matching
-			if (exists) {
-				this.resultCount++;
-				onResult({
-					relativePath: this.filePattern,
-					basename: path.basename(this.filePattern),
-					size
-				});
-
-				// Optimization: a match on an absolute path is a good result and we do not
-				// continue walking the entire root paths array for other matches because
-				// it is very unlikely that another file would match on the full absolute path
-				return done(null, this.isLimitHit);
-			}
-
-			// For each extra file
-			if (extraFiles) {
-				extraFiles.forEach(extraFilePath => {
-					const basename = path.basename(extraFilePath);
-					if (this.globalExcludePattern && this.globalExcludePattern(extraFilePath, basename)) {
-						return; // excluded
-					}
-
-					// File: Check for match on file pattern and include pattern
-					this.matchFile(onResult, { relativePath: extraFilePath /* no workspace relative path */, basename });
-				});
-			}
-
-			let traverse = this.nodeJSTraversal;
-			if (!this.maxFilesize) {
-				if (this.useRipgrep) {
-					this.traversal = Traversal.Ripgrep;
-					traverse = this.cmdTraversal;
-				} else if (platform.isMacintosh) {
-					this.traversal = Traversal.MacFind;
-					traverse = this.cmdTraversal;
-					// Disable 'dir' for now (#11181, #11179, #11183, #11182).
-				} /* else if (platform.isWindows) {
-					this.traversal = Traversal.WindowsDir;
-					traverse = this.windowsDirTraversal;
-				} */ else if (platform.isLinux) {
-					this.traversal = Traversal.LinuxFind;
-					traverse = this.cmdTraversal;
+		// For each extra file
+		if (extraFiles) {
+			extraFiles.forEach(extraFilePath => {
+				const basename = path.basename(extraFilePath);
+				if (this.globalExcludePattern && this.globalExcludePattern(extraFilePath, basename)) {
+					return; // excluded
 				}
-			}
 
-			const isNodeTraversal = traverse === this.nodeJSTraversal;
-			if (!isNodeTraversal) {
-				this.cmdForkStartTime = Date.now();
-			}
-
-			// For each root folder
-			flow.parallel<IFolderSearch, void>(folderQueries, (folderQuery: IFolderSearch, rootFolderDone: (err: Error, result: void) => void) => {
-				this.call(traverse, this, folderQuery, onResult, onMessage, (err?: Error) => {
-					if (err) {
-						const errorMessage = toErrorMessage(err);
-						console.error(errorMessage);
-						this.errors.push(errorMessage);
-						rootFolderDone(err, undefined);
-					} else {
-						rootFolderDone(undefined, undefined);
-					}
-				});
-			}, (errors, result) => {
-				const err = errors ? errors.filter(e => !!e)[0] : null;
-				done(err, this.isLimitHit);
+				// File: Check for match on file pattern and include pattern
+				this.matchFile(onResult, { relativePath: extraFilePath /* no workspace relative path */, basename });
 			});
+		}
+
+		let traverse = this.nodeJSTraversal;
+		if (!this.maxFilesize) {
+			if (this.useRipgrep) {
+				this.traversal = Traversal.Ripgrep;
+				traverse = this.cmdTraversal;
+			} else if (platform.isMacintosh) {
+				this.traversal = Traversal.MacFind;
+				traverse = this.cmdTraversal;
+				// Disable 'dir' for now (#11181, #11179, #11183, #11182).
+			} /* else if (platform.isWindows) {
+				this.traversal = Traversal.WindowsDir;
+				traverse = this.windowsDirTraversal;
+			} */ else if (platform.isLinux) {
+				this.traversal = Traversal.LinuxFind;
+				traverse = this.cmdTraversal;
+			}
+		}
+
+		const isNodeTraversal = traverse === this.nodeJSTraversal;
+		if (!isNodeTraversal) {
+			this.cmdForkStartTime = Date.now();
+		}
+
+		// For each root folder
+		flow.parallel<IFolderSearch, void>(folderQueries, (folderQuery: IFolderSearch, rootFolderDone: (err: Error, result: void) => void) => {
+			this.call(traverse, this, folderQuery, onResult, onMessage, (err?: Error) => {
+				if (err) {
+					const errorMessage = toErrorMessage(err);
+					console.error(errorMessage);
+					this.errors.push(errorMessage);
+					rootFolderDone(err, undefined);
+				} else {
+					rootFolderDone(undefined, undefined);
+				}
+			});
+		}, (errors, result) => {
+			const err = errors ? errors.filter(e => !!e)[0] : null;
+			done(err, this.isLimitHit);
 		});
 	}
 
@@ -244,7 +228,7 @@ export class FileWalker {
 		}
 
 		process.on('exit', killCmd);
-		this.collectStdout(cmd, 'utf8', useRipgrep, (err: Error, stdout?: string, last?: boolean) => {
+		this.collectStdout(cmd, 'utf8', useRipgrep, onMessage, (err: Error, stdout?: string, last?: boolean) => {
 			if (err) {
 				done(err);
 				return;
@@ -255,7 +239,7 @@ export class FileWalker {
 			}
 
 			// Mac: uses NFD unicode form on disk, but we want NFC
-			const normalized = leftover + (isMac ? strings.normalizeNFC(stdout) : stdout);
+			const normalized = leftover + (isMac ? normalization.normalizeNFC(stdout) : stdout);
 			const relativeFiles = normalized.split(useRipgrep ? '\n' : '\n./');
 			if (!useRipgrep && first && normalized.length >= 2) {
 				first = false;
@@ -378,7 +362,7 @@ export class FileWalker {
 	 */
 	public readStdout(cmd: childProcess.ChildProcess, encoding: string, isRipgrep: boolean, cb: (err: Error, stdout?: string) => void): void {
 		let all = '';
-		this.collectStdout(cmd, encoding, isRipgrep, (err: Error, stdout?: string, last?: boolean) => {
+		this.collectStdout(cmd, encoding, isRipgrep, () => { }, (err: Error, stdout?: string, last?: boolean) => {
 			if (err) {
 				cb(err);
 				return;
@@ -391,35 +375,41 @@ export class FileWalker {
 		});
 	}
 
-	private collectStdout(cmd: childProcess.ChildProcess, encoding: string, isRipgrep: boolean, cb: (err: Error, stdout?: string, last?: boolean) => void): void {
-		let done = (err: Error, stdout?: string, last?: boolean) => {
+	private collectStdout(cmd: childProcess.ChildProcess, encoding: string, isRipgrep: boolean, onMessage: (message: IProgress) => void, cb: (err: Error, stdout?: string, last?: boolean) => void): void {
+		let onData = (err: Error, stdout?: string, last?: boolean) => {
 			if (err || last) {
-				done = () => { };
+				onData = () => { };
 				this.cmdForkResultTime = Date.now();
 			}
 			cb(err, stdout, last);
 		};
 
-		this.forwardData(cmd.stdout, encoding, done);
+		if (cmd.stdout) {
+			// Should be non-null, but #38195
+			this.forwardData(cmd.stdout, encoding, onData);
+		} else {
+			onMessage({ message: 'stdout is null' });
+		}
+
 		const stderr = this.collectData(cmd.stderr);
 
 		let gotData = false;
 		cmd.stdout.once('data', () => gotData = true);
 
 		cmd.on('error', (err: Error) => {
-			done(err);
+			onData(err);
 		});
 
 		cmd.on('close', (code: number) => {
 			// ripgrep returns code=1 when no results are found
 			let stderrText, displayMsg: string;
 			if (isRipgrep ? (!gotData && (stderrText = this.decodeData(stderr, encoding)) && (displayMsg = rgErrorMsgForDisplay(stderrText))) : code !== 0) {
-				done(new Error(`command failed with error code ${code}: ${this.decodeData(stderr, encoding)}`));
+				onData(new Error(`command failed with error code ${code}: ${this.decodeData(stderr, encoding)}`));
 			} else {
 				if (isRipgrep && this.exists && code === 0) {
 					this.isLimitHit = true;
 				}
-				done(null, '', true);
+				onData(null, '', true);
 			}
 		});
 	}
@@ -559,16 +549,6 @@ export class FileWalker {
 			cmdForkResultTime: this.cmdForkResultTime,
 			cmdResultCount: this.cmdResultCount
 		};
-	}
-
-	private checkFilePatternAbsoluteMatch(clb: (exists: boolean, size?: number) => void): void {
-		if (!this.filePattern || !path.isAbsolute(this.filePattern)) {
-			return clb(false);
-		}
-
-		return fs.stat(this.filePattern, (error, stat) => {
-			return clb(!error && !stat.isDirectory(), stat && stat.size); // only existing files
-		});
 	}
 
 	private checkFilePatternRelativeMatch(basePath: string, clb: (matchPath: string, size?: number) => void): void {
