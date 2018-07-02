@@ -181,7 +181,7 @@ class Main {
 	}
 
 	private uninstallExtension(extensions: string[]): TPromise<any> {
-		async function getExtensionId(extensionDescription: string): TPromise<string> {
+		async function getExtensionId(extensionDescription: string): Promise<string> {
 			if (!/\.vsix$/i.test(extensionDescription)) {
 				return extensionDescription;
 			}

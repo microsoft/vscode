@@ -687,7 +687,7 @@ export class ExtensionManagementService extends Disposable implements IExtension
 		return promise;
 	}
 
-	private async postUninstallExtension(extension: ILocalExtension, error?: Error): TPromise<void> {
+	private async postUninstallExtension(extension: ILocalExtension, error?: Error): Promise<void> {
 		if (error) {
 			this.logService.error('Failed to uninstall extension:', extension.identifier.id, error.message);
 		} else {
