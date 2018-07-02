@@ -31,7 +31,7 @@ import { isMacintosh, isWindows, isLinux } from 'vs/base/common/platform';
 import URI from 'vs/base/common/uri';
 import { Color } from 'vs/base/common/color';
 import { trim } from 'vs/base/common/strings';
-import { addDisposableListener, EventType, EventHelper, Dimension, addClass, removeClass } from 'vs/base/browser/dom';
+import { addDisposableListener, EventType, EventHelper, Dimension } from 'vs/base/browser/dom';
 import { IPartService } from 'vs/workbench/services/part/common/partService';
 
 export class TitlebarPart extends Part implements ITitleService {
@@ -47,6 +47,7 @@ export class TitlebarPart extends Part implements ITitleService {
 	private titleContainer: Builder;
 	private title: Builder;
 	private windowControls: Builder;
+	private maxRestoreControl: Builder;
 	private appIcon: Builder;
 
 	private pendingTitle: string;
@@ -297,7 +298,7 @@ export class TitlebarPart extends Part implements ITitleService {
 			});
 
 			// Restore
-			$(this.windowControls).div({ class: 'window-icon window-max-restore' }).on(EventType.CLICK, () => {
+			this.maxRestoreControl = $(this.windowControls).div({ class: 'window-icon window-max-restore' }).on(EventType.CLICK, () => {
 				this.windowService.isMaximized().then((maximized) => {
 					if (maximized) {
 						return this.windowService.unmaximizeWindow();
@@ -332,17 +333,16 @@ export class TitlebarPart extends Part implements ITitleService {
 	}
 
 	private onDidChangeMaximized(maximized: boolean) {
-		const element = $(this.titleContainer).getHTMLElement().querySelector('.window-max-restore') as HTMLElement;
-		if (!element) {
+		if (!this.maxRestoreControl) {
 			return;
 		}
 
 		if (maximized) {
-			removeClass(element, 'window-maximize');
-			addClass(element, 'window-unmaximize');
+			this.maxRestoreControl.removeClass('window-maximize');
+			this.maxRestoreControl.addClass('window-unmaximize');
 		} else {
-			removeClass(element, 'window-unmaximize');
-			addClass(element, 'window-maximize');
+			this.maxRestoreControl.removeClass('window-unmaximize');
+			this.maxRestoreControl.addClass('window-maximize');
 		}
 	}
 
