@@ -357,7 +357,7 @@ export class SuggestModel implements IDisposable {
 		}
 
 		this._requestPromise = provideSuggestionItems(model, this._editor.getPosition(),
-			this._editor.getConfiguration().contribInfo.snippetSuggestions,
+			this._editor.getConfiguration().contribInfo.suggest.snippets,
 			onlyFrom,
 			suggestCtx
 		).then(items => {
@@ -372,7 +372,7 @@ export class SuggestModel implements IDisposable {
 			}
 
 			if (!isFalsyOrEmpty(existingItems)) {
-				const cmpFn = getSuggestionComparator(this._editor.getConfiguration().contribInfo.snippetSuggestions);
+				const cmpFn = getSuggestionComparator(this._editor.getConfiguration().contribInfo.suggest.snippets);
 				items = items.concat(existingItems).sort(cmpFn);
 			}
 
@@ -382,8 +382,7 @@ export class SuggestModel implements IDisposable {
 				leadingLineContent: ctx.leadingLineContent,
 				characterCountDelta: this._context ? ctx.column - this._context.column : 0
 			},
-				this._editor.getConfiguration().contribInfo.suggest,
-				this._editor.getConfiguration().contribInfo.snippetSuggestions
+				this._editor.getConfiguration().contribInfo.suggest
 			);
 			this._onNewContext(ctx);
 

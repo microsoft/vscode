@@ -167,7 +167,7 @@ suite('CompletionModel', function () {
 		], 1, {
 				leadingLineContent: 's',
 				characterCountDelta: 0
-			}, undefined, 'top');
+			}, { snippets: 'top', filterGraceful: true });
 
 		assert.equal(model.items.length, 2);
 		const [a, b] = model.items;
@@ -186,7 +186,7 @@ suite('CompletionModel', function () {
 		], 1, {
 				leadingLineContent: 's',
 				characterCountDelta: 0
-			}, undefined, 'bottom');
+			}, { snippets: 'bottom', filterGraceful: true });
 
 		assert.equal(model.items.length, 2);
 		const [a, b] = model.items;
@@ -204,7 +204,7 @@ suite('CompletionModel', function () {
 		], 1, {
 				leadingLineContent: 's',
 				characterCountDelta: 0
-			}, undefined, 'inline');
+			}, { snippets: 'inline', filterGraceful: true });
 
 		assert.equal(model.items.length, 2);
 		const [a, b] = model.items;
@@ -267,7 +267,7 @@ suite('CompletionModel', function () {
 		], 1, {
 				leadingLineContent: '',
 				characterCountDelta: 0
-			}, undefined, 'inline');
+			});
 
 		assert.equal(model.items.length, 5);
 
@@ -294,7 +294,7 @@ suite('CompletionModel', function () {
 		], 1, {
 				leadingLineContent: '',
 				characterCountDelta: 0
-			}, undefined, 'inline');
+			});
 
 		// query gets longer, narrow down the narrow-down'ed-set from before
 		model.lineContext = { leadingLineContent: 'rlut', characterCountDelta: 4 };
@@ -316,7 +316,7 @@ suite('CompletionModel', function () {
 		], 1, {
 				leadingLineContent: '',
 				characterCountDelta: 0
-			}, undefined, 'inline');
+			});
 
 		model.lineContext = { leadingLineContent: 'form', characterCountDelta: 4 };
 		assert.equal(model.items.length, 5);

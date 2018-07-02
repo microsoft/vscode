@@ -8,8 +8,8 @@
 import { fuzzyScore, fuzzyScoreGracefulAggressive, anyScore } from 'vs/base/common/filters';
 import { isDisposable } from 'vs/base/common/lifecycle';
 import { ISuggestResult, ISuggestSupport } from 'vs/editor/common/modes';
-import { ISuggestionItem, SnippetConfig } from './suggest';
-import { ISuggestOptions } from 'vs/editor/common/config/editorOptions';
+import { ISuggestionItem } from './suggest';
+import { InternalSuggestOptions } from 'vs/editor/common/config/editorOptions';
 
 export interface ICompletionItem extends ISuggestionItem {
 	matches?: number[];
@@ -49,7 +49,7 @@ export class CompletionModel {
 
 	private readonly _items: ICompletionItem[];
 	private readonly _column: number;
-	private readonly _options: ISuggestOptions;
+	private readonly _options: InternalSuggestOptions;
 	private readonly _snippetCompareFn = CompletionModel._compareCompletionItems;
 
 	private _lineContext: LineContext;
@@ -58,16 +58,16 @@ export class CompletionModel {
 	private _isIncomplete: Set<ISuggestSupport>;
 	private _stats: ICompletionStats;
 
-	constructor(items: ISuggestionItem[], column: number, lineContext: LineContext, options: ISuggestOptions = { filterGraceful: true }, snippetConfig?: SnippetConfig) {
+	constructor(items: ISuggestionItem[], column: number, lineContext: LineContext, options: InternalSuggestOptions = { filterGraceful: true, snippets: 'inline' }) {
 		this._items = items;
 		this._column = column;
 		this._options = options;
 		this._refilterKind = Refilter.All;
 		this._lineContext = lineContext;
 
-		if (snippetConfig === 'top') {
+		if (options.snippets === 'top') {
 			this._snippetCompareFn = CompletionModel._compareCompletionItemsSnippetsUp;
-		} else if (snippetConfig === 'bottom') {
+		} else if (options.snippets === 'bottom') {
 			this._snippetCompareFn = CompletionModel._compareCompletionItemsSnippetsDown;
 		}
 	}

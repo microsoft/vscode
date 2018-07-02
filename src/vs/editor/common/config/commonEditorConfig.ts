@@ -532,7 +532,7 @@ const editorConfiguration: IConfigurationNode = {
 				nls.localize('snippetSuggestions.inline', "Show snippets suggestions with other suggestions."),
 				nls.localize('snippetSuggestions.none', "Do not show snippet suggestions."),
 			],
-			'default': EDITOR_DEFAULTS.contribInfo.snippetSuggestions,
+			'default': EDITOR_DEFAULTS.contribInfo.suggest.snippets,
 			'description': nls.localize('snippetSuggestions', "Controls whether snippets are shown with other suggestions and how they are sorted.")
 		},
 		'editor.emptySelectionClipboard': {

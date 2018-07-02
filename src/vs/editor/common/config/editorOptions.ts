@@ -843,6 +843,7 @@ export interface InternalEditorHoverOptions {
 
 export interface InternalSuggestOptions {
 	readonly filterGraceful: boolean;
+	readonly snippets: 'top' | 'bottom' | 'inline' | 'none';
 }
 
 export interface EditorWrappingInfo {
@@ -912,7 +913,7 @@ export interface EditorContribOptions {
 	readonly suggestOnTriggerCharacters: boolean;
 	readonly acceptSuggestionOnEnter: 'on' | 'smart' | 'off';
 	readonly acceptSuggestionOnCommitCharacter: boolean;
-	readonly snippetSuggestions: 'top' | 'bottom' | 'inline' | 'none';
+	// readonly snippetSuggestions: 'top' | 'bottom' | 'inline' | 'none';
 	readonly wordBasedSuggestions: boolean;
 	readonly suggestSelection: 'first' | 'recentlyUsed' | 'recentlyUsedByPrefix';
 	readonly suggestFontSize: number;
@@ -1245,13 +1246,13 @@ export class InternalEditorOptions {
 	/**
 	 * @internal
 	 */
-	private static _equalsSuggestOptions(a: ISuggestOptions, b: ISuggestOptions): any {
+	private static _equalsSuggestOptions(a: InternalSuggestOptions, b: InternalSuggestOptions): any {
 		if (a === b) {
 			return true;
 		} else if (!a || !b) {
 			return false;
 		} else {
-			return a.filterGraceful === b.filterGraceful;
+			return a.filterGraceful === b.filterGraceful && a.snippets === b.snippets;
 		}
 	}
 
@@ -1290,7 +1291,6 @@ export class InternalEditorOptions {
 			&& a.suggestOnTriggerCharacters === b.suggestOnTriggerCharacters
 			&& a.acceptSuggestionOnEnter === b.acceptSuggestionOnEnter
 			&& a.acceptSuggestionOnCommitCharacter === b.acceptSuggestionOnCommitCharacter
-			&& a.snippetSuggestions === b.snippetSuggestions
 			&& a.wordBasedSuggestions === b.wordBasedSuggestions
 			&& a.suggestSelection === b.suggestSelection
 			&& a.suggestFontSize === b.suggestFontSize
@@ -1744,13 +1744,13 @@ export class EditorOptionsValidator {
 		};
 	}
 
-	private static _sanitizeSuggestOpts(opts: ISuggestOptions, defaults: InternalSuggestOptions): InternalSuggestOptions {
-		if (!opts) {
+	private static _sanitizeSuggestOpts(opts: IEditorOptions, defaults: InternalSuggestOptions): InternalSuggestOptions {
+		if (!opts.suggest) {
 			return defaults;
 		}
-		let { filterGraceful } = opts;
 		return {
-			filterGraceful: _boolean(filterGraceful, defaults.filterGraceful)
+			filterGraceful: _boolean(opts.suggest.filterGraceful, defaults.filterGraceful),
+			snippets: _stringSet<'top' | 'bottom' | 'inline' | 'none'>(opts.snippetSuggestions, defaults.snippets, ['top', 'bottom', 'inline', 'none']),
 		};
 	}
 
@@ -1885,12 +1885,11 @@ export class EditorOptionsValidator {
 			suggestOnTriggerCharacters: _boolean(opts.suggestOnTriggerCharacters, defaults.suggestOnTriggerCharacters),
 			acceptSuggestionOnEnter: _stringSet<'on' | 'smart' | 'off'>(opts.acceptSuggestionOnEnter, defaults.acceptSuggestionOnEnter, ['on', 'smart', 'off']),
 			acceptSuggestionOnCommitCharacter: _boolean(opts.acceptSuggestionOnCommitCharacter, defaults.acceptSuggestionOnCommitCharacter),
-			snippetSuggestions: _stringSet<'top' | 'bottom' | 'inline' | 'none'>(opts.snippetSuggestions, defaults.snippetSuggestions, ['top', 'bottom', 'inline', 'none']),
 			wordBasedSuggestions: _boolean(opts.wordBasedSuggestions, defaults.wordBasedSuggestions),
 			suggestSelection: _stringSet<'first' | 'recentlyUsed' | 'recentlyUsedByPrefix'>(opts.suggestSelection, defaults.suggestSelection, ['first', 'recentlyUsed', 'recentlyUsedByPrefix']),
 			suggestFontSize: _clampedInt(opts.suggestFontSize, defaults.suggestFontSize, 0, 1000),
 			suggestLineHeight: _clampedInt(opts.suggestLineHeight, defaults.suggestLineHeight, 0, 1000),
-			suggest: this._sanitizeSuggestOpts(opts.suggest, defaults.suggest),
+			suggest: this._sanitizeSuggestOpts(opts, defaults.suggest),
 			selectionHighlight: _boolean(opts.selectionHighlight, defaults.selectionHighlight),
 			occurrencesHighlight: _boolean(opts.occurrencesHighlight, defaults.occurrencesHighlight),
 			codeLens: _boolean(opts.codeLens, defaults.codeLens),
@@ -1994,7 +1993,6 @@ export class InternalEditorOptionsFactory {
 				suggestOnTriggerCharacters: opts.contribInfo.suggestOnTriggerCharacters,
 				acceptSuggestionOnEnter: opts.contribInfo.acceptSuggestionOnEnter,
 				acceptSuggestionOnCommitCharacter: opts.contribInfo.acceptSuggestionOnCommitCharacter,
-				snippetSuggestions: opts.contribInfo.snippetSuggestions,
 				wordBasedSuggestions: opts.contribInfo.wordBasedSuggestions,
 				suggestSelection: opts.contribInfo.suggestSelection,
 				suggestFontSize: opts.contribInfo.suggestFontSize,
@@ -2466,13 +2464,13 @@ export const EDITOR_DEFAULTS: IValidatedEditorOptions = {
 		suggestOnTriggerCharacters: true,
 		acceptSuggestionOnEnter: 'on',
 		acceptSuggestionOnCommitCharacter: true,
-		snippetSuggestions: 'inline',
 		wordBasedSuggestions: true,
 		suggestSelection: 'recentlyUsed',
 		suggestFontSize: 0,
 		suggestLineHeight: 0,
 		suggest: {
 			filterGraceful: true,
+			snippets: 'inline'
 		},
 		selectionHighlight: true,
 		occurrencesHighlight: true,
