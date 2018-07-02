@@ -971,12 +971,15 @@ export class TerminalInstance implements ITerminalInstance {
 
 			this._xterm.resize(cols, rows);
 			if (this._isVisible) {
-				// Force the renderer to unpause by simulating an IntersectionObserver event. This
-				// is to fix an issue where dragging the window to the top of the screen to maximize
-				// on Winodws/Linux would fire an event saying that the terminal was not visible.
-				// This should only force a refresh if one is needed.
+				// HACK: Force the renderer to unpause by simulating an IntersectionObserver event.
+				// This is to fix an issue where dragging the window to the top of the screen to
+				// maximize on Windows/Linux would fire an event saying that the terminal was not
+				// visible.
 				if (this._xterm.getOption('rendererType') === 'canvas') {
 					this._xterm._core.renderer.onIntersectionChange({ intersectionRatio: 1 });
+					// HACK: Force a refresh of the screen to ensure links are refresh corrected.
+					// This can probably be removed when the above hack is fixed in Chromium.
+					this._xterm.refresh(0, this._xterm.rows - 1);
 				}
 			}
 		}
