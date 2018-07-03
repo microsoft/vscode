@@ -15,8 +15,8 @@ import { KeyMod, KeyCode } from 'vs/base/common/keyCodes';
 
 export class ToggleSidebarVisibilityAction extends Action {
 
-	public static readonly ID = 'workbench.action.toggleSidebarVisibility';
-	public static readonly LABEL = nls.localize('toggleSidebar', "Toggle Side Bar Visibility");
+	static readonly ID = 'workbench.action.toggleSidebarVisibility';
+	static readonly LABEL = nls.localize('toggleSidebar', "Toggle Side Bar Visibility");
 
 	constructor(
 		id: string,
@@ -28,7 +28,7 @@ export class ToggleSidebarVisibilityAction extends Action {
 		this.enabled = !!this.partService;
 	}
 
-	public run(): TPromise<any> {
+	run(): TPromise<any> {
 		const hideSidebar = this.partService.isVisible(Parts.SIDEBAR_PART);
 		return this.partService.setSideBarHidden(hideSidebar);
 	}

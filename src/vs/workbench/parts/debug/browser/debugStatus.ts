@@ -6,7 +6,7 @@
 import * as nls from 'vs/nls';
 import * as dom from 'vs/base/browser/dom';
 import * as errors from 'vs/base/common/errors';
-import { IDisposable, dispose } from 'vs/base/common/lifecycle';
+import { IDisposable } from 'vs/base/common/lifecycle';
 import { IQuickOpenService } from 'vs/platform/quickOpen/common/quickOpen';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { IStatusbarItem } from 'vs/workbench/browser/parts/statusbar/statusbar';
@@ -18,7 +18,6 @@ import { STATUS_BAR_DEBUGGING_FOREGROUND, isStatusbarInDebugMode } from 'vs/work
 const $ = dom.$;
 
 export class DebugStatus extends Themable implements IStatusbarItem {
-	private toDispose: IDisposable[];
 	private container: HTMLElement;
 	private statusBarItem: HTMLElement;
 	private label: HTMLElement;
@@ -32,17 +31,16 @@ export class DebugStatus extends Themable implements IStatusbarItem {
 		@IConfigurationService configurationService: IConfigurationService
 	) {
 		super(themeService);
-		this.toDispose = [];
-		this.toDispose.push(this.debugService.getConfigurationManager().onDidSelectConfiguration(e => {
+		this._register(this.debugService.getConfigurationManager().onDidSelectConfiguration(e => {
 			this.setLabel();
 		}));
-		this.toDispose.push(this.debugService.onDidChangeState(state => {
+		this._register(this.debugService.onDidChangeState(state => {
 			if (state !== State.Inactive && this.showInStatusBar === 'onFirstSessionStart') {
 				this.doRender();
 			}
 		}));
 		this.showInStatusBar = configurationService.getValue<IDebugConfiguration>('debug').showInStatusBar;
-		this.toDispose.push(configurationService.onDidChangeConfiguration(e => {
+		this._register(configurationService.onDidChangeConfiguration(e => {
 			if (e.affectsConfiguration('debug.showInStatusBar')) {
 				this.showInStatusBar = configurationService.getValue<IDebugConfiguration>('debug').showInStatusBar;
 				if (this.showInStatusBar === 'always') {
@@ -101,10 +99,5 @@ export class DebugStatus extends Themable implements IStatusbarItem {
 				this.label.textContent = manager.getLaunches().length > 1 ? `${name} (${manager.selectedConfiguration.launch.name})` : name;
 			}
 		}
-	}
-
-	public dispose(): void {
-		super.dispose();
-		this.toDispose = dispose(this.toDispose);
 	}
 }

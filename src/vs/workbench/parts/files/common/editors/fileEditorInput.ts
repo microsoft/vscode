@@ -18,7 +18,7 @@ import { FileOperationError, FileOperationResult } from 'vs/platform/files/commo
 import { ITextFileService, AutoSaveMode, ModelState, TextFileModelChangeEvent } from 'vs/workbench/services/textfile/common/textfiles';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { IDisposable, dispose, IReference } from 'vs/base/common/lifecycle';
+import { IReference } from 'vs/base/common/lifecycle';
 import { telemetryURIDescriptor } from 'vs/platform/telemetry/common/telemetryUtils';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { ITextModelService } from 'vs/editor/common/services/resolverService';
@@ -35,7 +35,6 @@ export class FileEditorInput extends EditorInput implements IFileEditorInput {
 	private forceOpenAsText: boolean;
 	private textModelReference: TPromise<IReference<ITextEditorModel>>;
 	private name: string;
-	private toUnbind: IDisposable[];
 
 	/**
 	 * An editor input who's contents are retrieved from file services.
@@ -52,8 +51,6 @@ export class FileEditorInput extends EditorInput implements IFileEditorInput {
 	) {
 		super();
 
-		this.toUnbind = [];
-
 		this.setPreferredEncoding(preferredEncoding);
 
 		this.registerListeners();
@@ -62,11 +59,11 @@ export class FileEditorInput extends EditorInput implements IFileEditorInput {
 	private registerListeners(): void {
 
 		// Model changes
-		this.toUnbind.push(this.textFileService.models.onModelDirty(e => this.onDirtyStateChange(e)));
-		this.toUnbind.push(this.textFileService.models.onModelSaveError(e => this.onDirtyStateChange(e)));
-		this.toUnbind.push(this.textFileService.models.onModelSaved(e => this.onDirtyStateChange(e)));
-		this.toUnbind.push(this.textFileService.models.onModelReverted(e => this.onDirtyStateChange(e)));
-		this.toUnbind.push(this.textFileService.models.onModelOrphanedChanged(e => this.onModelOrphanedChanged(e)));
+		this._register(this.textFileService.models.onModelDirty(e => this.onDirtyStateChange(e)));
+		this._register(this.textFileService.models.onModelSaveError(e => this.onDirtyStateChange(e)));
+		this._register(this.textFileService.models.onModelSaved(e => this.onDirtyStateChange(e)));
+		this._register(this.textFileService.models.onModelReverted(e => this.onDirtyStateChange(e)));
+		this._register(this.textFileService.models.onModelOrphanedChanged(e => this.onModelOrphanedChanged(e)));
 	}
 
 	private onDirtyStateChange(e: TextFileModelChangeEvent): void {
@@ -81,11 +78,11 @@ export class FileEditorInput extends EditorInput implements IFileEditorInput {
 		}
 	}
 
-	public getResource(): URI {
+	getResource(): URI {
 		return this.resource;
 	}
 
-	public setPreferredEncoding(encoding: string): void {
+	setPreferredEncoding(encoding: string): void {
 		this.preferredEncoding = encoding;
 
 		if (encoding) {
@@ -93,7 +90,7 @@ export class FileEditorInput extends EditorInput implements IFileEditorInput {
 		}
 	}
 
-	public getEncoding(): string {
+	getEncoding(): string {
 		const textModel = this.textFileService.models.get(this.resource);
 		if (textModel) {
 			return textModel.getEncoding();
@@ -102,11 +99,11 @@ export class FileEditorInput extends EditorInput implements IFileEditorInput {
 		return this.preferredEncoding;
 	}
 
-	public getPreferredEncoding(): string {
+	getPreferredEncoding(): string {
 		return this.preferredEncoding;
 	}
 
-	public setEncoding(encoding: string, mode: EncodingMode): void {
+	setEncoding(encoding: string, mode: EncodingMode): void {
 		this.preferredEncoding = encoding;
 
 		const textModel = this.textFileService.models.get(this.resource);
@@ -115,21 +112,21 @@ export class FileEditorInput extends EditorInput implements IFileEditorInput {
 		}
 	}
 
-	public setForceOpenAsText(): void {
+	setForceOpenAsText(): void {
 		this.forceOpenAsText = true;
 		this.forceOpenAsBinary = false;
 	}
 
-	public setForceOpenAsBinary(): void {
+	setForceOpenAsBinary(): void {
 		this.forceOpenAsBinary = true;
 		this.forceOpenAsText = false;
 	}
 
-	public getTypeId(): string {
+	getTypeId(): string {
 		return FILE_EDITOR_INPUT_ID;
 	}
 
-	public getName(): string {
+	getName(): string {
 		if (!this.name) {
 			this.name = resources.basenameOrAuthority(this.resource);
 		}
@@ -153,7 +150,7 @@ export class FileEditorInput extends EditorInput implements IFileEditorInput {
 		return labels.getPathLabel(resources.dirname(this.resource), this.environmentService, rootProvider);
 	}
 
-	public getDescription(verbosity: Verbosity = Verbosity.MEDIUM): string {
+	getDescription(verbosity: Verbosity = Verbosity.MEDIUM): string {
 		let description: string;
 		switch (verbosity) {
 			case Verbosity.SHORT:
@@ -187,7 +184,7 @@ export class FileEditorInput extends EditorInput implements IFileEditorInput {
 		return labels.getPathLabel(this.resource, this.environmentService, rootProvider);
 	}
 
-	public getTitle(verbosity: Verbosity): string {
+	getTitle(verbosity: Verbosity): string {
 		let title: string;
 		switch (verbosity) {
 			case Verbosity.SHORT:
@@ -213,7 +210,7 @@ export class FileEditorInput extends EditorInput implements IFileEditorInput {
 		return label;
 	}
 
-	public isDirty(): boolean {
+	isDirty(): boolean {
 		const model = this.textFileService.models.get(this.resource);
 		if (!model) {
 			return false;
@@ -230,23 +227,23 @@ export class FileEditorInput extends EditorInput implements IFileEditorInput {
 		return model.isDirty();
 	}
 
-	public confirmSave(): TPromise<ConfirmResult> {
+	confirmSave(): TPromise<ConfirmResult> {
 		return this.textFileService.confirmSave([this.resource]);
 	}
 
-	public save(): TPromise<boolean> {
+	save(): TPromise<boolean> {
 		return this.textFileService.save(this.resource);
 	}
 
-	public revert(options?: IRevertOptions): TPromise<boolean> {
+	revert(options?: IRevertOptions): TPromise<boolean> {
 		return this.textFileService.revert(this.resource, options);
 	}
 
-	public getPreferredEditorId(candidates: string[]): string {
+	getPreferredEditorId(candidates: string[]): string {
 		return this.forceOpenAsBinary ? BINARY_FILE_EDITOR_ID : TEXT_FILE_EDITOR_ID;
 	}
 
-	public resolve(refresh?: boolean): TPromise<TextFileEditorModel | BinaryEditorModel> {
+	resolve(refresh?: boolean): TPromise<TextFileEditorModel | BinaryEditorModel> {
 
 		// Resolve as binary
 		if (this.forceOpenAsBinary) {
@@ -287,11 +284,11 @@ export class FileEditorInput extends EditorInput implements IFileEditorInput {
 		return this.instantiationService.createInstance(BinaryEditorModel, this.resource, this.getName()).load().then(m => m as BinaryEditorModel);
 	}
 
-	public isResolved(): boolean {
+	isResolved(): boolean {
 		return !!this.textFileService.models.get(this.resource);
 	}
 
-	public getTelemetryDescriptor(): object {
+	getTelemetryDescriptor(): object {
 		const descriptor = super.getTelemetryDescriptor();
 		descriptor['resource'] = telemetryURIDescriptor(this.getResource(), path => this.hashService.createSHA1(path));
 
@@ -303,7 +300,7 @@ export class FileEditorInput extends EditorInput implements IFileEditorInput {
 		return descriptor;
 	}
 
-	public dispose(): void {
+	dispose(): void {
 
 		// Model reference
 		if (this.textModelReference) {
@@ -311,13 +308,10 @@ export class FileEditorInput extends EditorInput implements IFileEditorInput {
 			this.textModelReference = null;
 		}
 
-		// Listeners
-		this.toUnbind = dispose(this.toUnbind);
-
 		super.dispose();
 	}
 
-	public matches(otherInput: any): boolean {
+	matches(otherInput: any): boolean {
 		if (super.matches(otherInput) === true) {
 			return true;
 		}

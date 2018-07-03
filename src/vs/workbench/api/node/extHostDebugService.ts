@@ -123,7 +123,7 @@ export class ExtHostDebugService implements ExtHostDebugServiceShape {
 		}
 	}
 
-	public async $runInTerminal(args: DebugProtocol.RunInTerminalRequestArguments, config: ITerminalSettings): TPromise<void> {
+	public $runInTerminal(args: DebugProtocol.RunInTerminalRequestArguments, config: ITerminalSettings): TPromise<void> {
 
 		if (args.kind === 'integrated') {
 
@@ -136,20 +136,31 @@ export class ExtHostDebugService implements ExtHostDebugServiceShape {
 				});
 			}
 
-			let t = this._integratedTerminalInstance;
+			return new TPromise(resolve => {
+				if (this._integratedTerminalInstance) {
+					this._integratedTerminalInstance.processId.then(pid => {
+						resolve(hasChildprocesses(pid));
+					}, err => {
+						resolve(true);
+					});
+				} else {
+					resolve(true);
+				}
+			}).then(needNewTerminal => {
 
-			if ((t && hasChildprocesses(await t.processId)) || !t) {
-				t = this._terminalService.createTerminal(args.title || nls.localize('debug.terminal.title', "debuggee"));
-				this._integratedTerminalInstance = t;
-			}
-			t.show();
+				if (needNewTerminal) {
+					this._integratedTerminalInstance = this._terminalService.createTerminal(args.title || nls.localize('debug.terminal.title', "debuggee"));
+				}
 
-			return new TPromise((resolve, error) => {
-				setTimeout(_ => {
-					const command = prepareCommand(args, config);
-					t.sendText(command, true);
-					resolve(void 0);
-				}, 500);
+				this._integratedTerminalInstance.show();
+
+				return new TPromise((resolve, error) => {
+					setTimeout(_ => {
+						const command = prepareCommand(args, config);
+						this._integratedTerminalInstance.sendText(command, true);
+						resolve(void 0);
+					}, 500);
+				});
 			});
 
 		} else if (args.kind === 'external') {
@@ -415,9 +426,9 @@ export class ExtHostDebugService implements ExtHostDebugServiceShape {
 	private fireBreakpointChanges(added: vscode.Breakpoint[], removed: vscode.Breakpoint[], changed: vscode.Breakpoint[]) {
 		if (added.length > 0 || removed.length > 0 || changed.length > 0) {
 			this._onDidChangeBreakpoints.fire(Object.freeze({
-				added: Object.freeze<vscode.Breakpoint[]>(added),
-				removed: Object.freeze<vscode.Breakpoint[]>(removed),
-				changed: Object.freeze<vscode.Breakpoint[]>(changed)
+				added,
+				removed,
+				changed,
 			}));
 		}
 	}

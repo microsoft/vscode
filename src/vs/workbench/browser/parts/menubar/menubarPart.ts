@@ -489,7 +489,7 @@ export class MenubarPart extends Part {
 			menu.onDidChange(() => updateActions(menu, this.customMenus[menuIndex].actions));
 			updateActions(menu, this.customMenus[menuIndex].actions);
 
-			this.customMenus[menuIndex].titleElement.on(EventType.CLICK, (event) => {
+			this.customMenus[menuIndex].titleElement.on(EventType.CLICK, () => {
 				if (this._modifierKeyStatus && (this._modifierKeyStatus.shiftKey || this._modifierKeyStatus.ctrlKey)) {
 					return; // supress keyboard shortcuts that shouldn't conflict
 				}
@@ -498,21 +498,21 @@ export class MenubarPart extends Part {
 				this.isFocused = !this.isFocused;
 			});
 
-			this.customMenus[menuIndex].titleElement.getHTMLElement().onmouseenter = () => {
+			this.customMenus[menuIndex].titleElement.on(EventType.MOUSE_ENTER, () => {
 				if (this.isFocused && !this.isCurrentMenu(menuIndex)) {
 					this.toggleCustomMenu(menuIndex);
 				}
-			};
+			});
 
-			this.customMenus[menuIndex].titleElement.getHTMLElement().onmouseleave = () => {
+			this.customMenus[menuIndex].titleElement.on(EventType.MOUSE_LEAVE, () => {
 				if (!this.isFocused) {
 					this.cleanupCustomMenu();
 				}
-			};
+			});
 
-			this.customMenus[menuIndex].titleElement.getHTMLElement().onblur = () => {
+			this.customMenus[menuIndex].titleElement.on(EventType.BLUR, () => {
 				this.cleanupCustomMenu();
-			};
+			});
 		}
 
 		this.container.off(EventType.KEY_DOWN);

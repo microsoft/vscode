@@ -123,6 +123,10 @@ const exists = file => new Promise(c => fs.exists(file, c));
 const readFile = file => new Promise((c, e) => fs.readFile(file, 'utf8', (err, data) => err ? e(err) : c(data)));
 const writeFile = (file, content) => new Promise((c, e) => fs.writeFile(file, content, 'utf8', err => err ? e(err) : c()));
 const touch = file => new Promise((c, e) => { const d = new Date(); fs.utimes(file, d, d, err => err ? e(err) : c()); });
+const lstat = file => new Promise((c, e) => fs.lstat(file, (err, stats) => err ? e(err) : c(stats)));
+const readdir = dir => new Promise((c, e) => fs.readdir(dir, (err, files) => err ? e(err) : c(files)));
+const rmdir = dir => new Promise((c, e) => fs.rmdir(dir, err => err ? e(err) : c(undefined)));
+const unlink = file => new Promise((c, e) => fs.unlink(file, err => err ? e(err) : c(undefined)));
 
 function mkdirp(dir) {
 	return mkdir(dir).then(null, err => {
@@ -134,6 +138,23 @@ function mkdirp(dir) {
 			}
 		}
 
+		throw err;
+	});
+}
+
+function rimraf(location) {
+	return lstat(location).then(stat => {
+		if (stat.isDirectory() && !stat.isSymbolicLink()) {
+			return readdir(location)
+				.then(children => Promise.all(children.map(child => rimraf(path.join(location, child)))))
+				.then(() => rmdir(location));
+		} else {
+			return unlink(location);
+		}
+	}, (err) => {
+		if (err.code === 'ENOENT') {
+			return void 0;
+		}
 		throw err;
 	});
 }
@@ -267,62 +288,75 @@ function getNLSConfiguration(locale) {
 			let cacheRoot = path.join(userData, 'clp', packId);
 			let coreLocation = path.join(cacheRoot, commit);
 			let translationsConfigFile = path.join(cacheRoot, 'tcf.json');
+			let corruptedFile = path.join(cacheRoot, 'corrupted.info');
 			let result = {
 				locale: initialLocale,
 				availableLanguages: { '*': locale },
 				_languagePackId: packId,
 				_translationsConfigFile: translationsConfigFile,
 				_cacheRoot: cacheRoot,
-				_resolvedLanguagePackCoreLocation: coreLocation
+				_resolvedLanguagePackCoreLocation: coreLocation,
+				_corruptedFile: corruptedFile
 			};
-			return exists(coreLocation).then((fileExists) => {
-				if (fileExists) {
-					// We don't wait for this. No big harm if we can't touch
-					touch(coreLocation).catch(() => { });
-					perf.mark('nlsGeneration:end');
-					return result;
+			return exists(corruptedFile).then((corrupted) => {
+				// The nls cache directory is corrupted.
+				let toDelete;
+				if (corrupted) {
+					toDelete = rimraf(cacheRoot);
+				} else {
+					toDelete = Promise.resolve(undefined);
 				}
-				return mkdirp(coreLocation).then(() => {
-					return Promise.all([readFile(path.join(__dirname, 'nls.metadata.json')), readFile(mainPack)]);
-				}).then((values) => {
-					let metadata = JSON.parse(values[0]);
-					let packData = JSON.parse(values[1]).contents;
-					let bundles = Object.keys(metadata.bundles);
-					let writes = [];
-					for (let bundle of bundles) {
-						let modules = metadata.bundles[bundle];
-						let target = Object.create(null);
-						for (let module of modules) {
-							let keys = metadata.keys[module];
-							let defaultMessages = metadata.messages[module];
-							let translations = packData[module];
-							let targetStrings;
-							if (translations) {
-								targetStrings = [];
-								for (let i = 0; i < keys.length; i++) {
-									let elem = keys[i];
-									let key = typeof elem === 'string' ? elem : elem.key;
-									let translatedMessage = translations[key];
-									if (translatedMessage === undefined) {
-										translatedMessage = defaultMessages[i];
-									}
-									targetStrings.push(translatedMessage);
-								}
-							} else {
-								targetStrings = defaultMessages;
-							}
-							target[module] = targetStrings;
+				return toDelete.then(() => {
+					return exists(coreLocation).then((fileExists) => {
+						if (fileExists) {
+							// We don't wait for this. No big harm if we can't touch
+							touch(coreLocation).catch(() => { });
+							perf.mark('nlsGeneration:end');
+							return result;
 						}
-						writes.push(writeFile(path.join(coreLocation, bundle.replace(/\//g, '!') + '.nls.json'), JSON.stringify(target)));
-					}
-					writes.push(writeFile(translationsConfigFile, JSON.stringify(packConfig.translations)));
-					return Promise.all(writes);
-				}).then(() => {
-					perf.mark('nlsGeneration:end');
-					return result;
-				}).catch((err) => {
-					console.error('Generating translation files failed.', err);
-					return defaultResult(locale);
+						return mkdirp(coreLocation).then(() => {
+							return Promise.all([readFile(path.join(__dirname, 'nls.metadata.json')), readFile(mainPack)]);
+						}).then((values) => {
+							let metadata = JSON.parse(values[0]);
+							let packData = JSON.parse(values[1]).contents;
+							let bundles = Object.keys(metadata.bundles);
+							let writes = [];
+							for (let bundle of bundles) {
+								let modules = metadata.bundles[bundle];
+								let target = Object.create(null);
+								for (let module of modules) {
+									let keys = metadata.keys[module];
+									let defaultMessages = metadata.messages[module];
+									let translations = packData[module];
+									let targetStrings;
+									if (translations) {
+										targetStrings = [];
+										for (let i = 0; i < keys.length; i++) {
+											let elem = keys[i];
+											let key = typeof elem === 'string' ? elem : elem.key;
+											let translatedMessage = translations[key];
+											if (translatedMessage === undefined) {
+												translatedMessage = defaultMessages[i];
+											}
+											targetStrings.push(translatedMessage);
+										}
+									} else {
+										targetStrings = defaultMessages;
+									}
+									target[module] = targetStrings;
+								}
+								writes.push(writeFile(path.join(coreLocation, bundle.replace(/\//g, '!') + '.nls.json'), JSON.stringify(target)));
+							}
+							writes.push(writeFile(translationsConfigFile, JSON.stringify(packConfig.translations)));
+							return Promise.all(writes);
+						}).then(() => {
+							perf.mark('nlsGeneration:end');
+							return result;
+						}).catch((err) => {
+							console.error('Generating translation files failed.', err);
+							return defaultResult(locale);
+						});
+					});
 				});
 			});
 		});

@@ -131,7 +131,7 @@ export class WebviewElement extends Disposable {
 			}));
 		}
 
-		this._toDispose.push(
+		this.toDispose.push(
 			addDisposableListener(this._webview, 'console-message', function (e: { level: number; message: string; line: number; sourceId: string; }) {
 				console.log(`[Embedded Page] ${e.message}`);
 			}),
@@ -195,7 +195,7 @@ export class WebviewElement extends Disposable {
 		this._webviewFindWidget = this._register(instantiationService.createInstance(WebviewFindWidget, this));
 
 		this.style(this._themeService.getTheme());
-		this._themeService.onThemeChange(this.style, this, this._toDispose);
+		this._themeService.onThemeChange(this.style, this, this.toDispose);
 	}
 
 	public mountTo(parent: HTMLElement) {

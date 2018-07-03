@@ -61,7 +61,7 @@ function balance(out: boolean) {
 }
 
 function getRangeToBalanceOut(document: vscode.TextDocument, selection: vscode.Selection, rootNode: HtmlNode): vscode.Selection {
-	let nodeToBalance = getHtmlNode(document, rootNode, selection.start);
+	let nodeToBalance = getHtmlNode(document, rootNode, selection.start, false);
 	if (!nodeToBalance) {
 		return selection;
 	}

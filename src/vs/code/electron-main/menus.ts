@@ -385,7 +385,8 @@ export class CodeMenu {
 		const saveAllFiles = this.createMenuItem(nls.localize({ key: 'miSaveAll', comment: ['&& denotes a mnemonic'] }, "Save A&&ll"), 'workbench.action.files.saveAll');
 
 		const autoSaveEnabled = [AutoSaveConfiguration.AFTER_DELAY, AutoSaveConfiguration.ON_FOCUS_CHANGE, AutoSaveConfiguration.ON_WINDOW_CHANGE].some(s => this.currentAutoSaveSetting === s);
-		const autoSave = new MenuItem(this.likeAction('vscode.toggleAutoSave', { label: this.mnemonicLabel(nls.localize('miAutoSave', "Auto Save")), type: 'checkbox', checked: autoSaveEnabled, enabled: this.windowsMainService.getWindowCount() > 0, click: () => this.windowsMainService.sendToFocused('vscode.toggleAutoSave') }, false));
+
+		const autoSave = this.createMenuItem(this.mnemonicLabel(nls.localize('miAutoSave', "Auto Save")), 'workbench.action.toggleAutoSave', this.windowsMainService.getWindowCount() > 0, autoSaveEnabled);
 
 		const preferences = this.getPreferencesMenu();
 
@@ -1015,7 +1016,7 @@ export class CodeMenu {
 		const w = this.windowsMainService.getFocusedWindow();
 		if (w && w.win) {
 			const contents = w.win.webContents;
-			if (w.hasHiddenTitleBarStyle() && !w.win.isFullScreen() && !contents.isDevToolsOpened()) {
+			if (isMacintosh && w.hasHiddenTitleBarStyle() && !w.win.isFullScreen() && !contents.isDevToolsOpened()) {
 				contents.openDevTools({ mode: 'undocked' }); // due to https://github.com/electron/electron/issues/3647
 			} else {
 				contents.toggleDevTools();

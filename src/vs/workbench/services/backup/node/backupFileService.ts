@@ -32,10 +32,9 @@ export interface IBackupFilesModel {
 export class BackupSnapshot implements ITextSnapshot {
 	private preambleHandled: boolean;
 
-	constructor(private snapshot: ITextSnapshot, private preamble: string) {
-	}
+	constructor(private snapshot: ITextSnapshot, private preamble: string) { }
 
-	public read(): string {
+	read(): string {
 		let value = this.snapshot.read();
 		if (!this.preambleHandled) {
 			this.preambleHandled = true;
@@ -54,7 +53,7 @@ export class BackupSnapshot implements ITextSnapshot {
 export class BackupFilesModel implements IBackupFilesModel {
 	private cache: { [resource: string]: number /* version ID */ } = Object.create(null);
 
-	public resolve(backupRoot: string): TPromise<IBackupFilesModel> {
+	resolve(backupRoot: string): TPromise<IBackupFilesModel> {
 		return pfs.readDirsInDir(backupRoot).then(backupSchemas => {
 
 			// For all supported schemas
@@ -74,15 +73,15 @@ export class BackupFilesModel implements IBackupFilesModel {
 		}).then(() => this, error => this);
 	}
 
-	public add(resource: Uri, versionId = 0): void {
+	add(resource: Uri, versionId = 0): void {
 		this.cache[resource.toString()] = versionId;
 	}
 
-	public count(): number {
+	count(): number {
 		return Object.keys(this.cache).length;
 	}
 
-	public has(resource: Uri, versionId?: number): boolean {
+	has(resource: Uri, versionId?: number): boolean {
 		const cachedVersionId = this.cache[resource.toString()];
 		if (typeof cachedVersionId !== 'number') {
 			return false; // unknown resource
@@ -95,15 +94,15 @@ export class BackupFilesModel implements IBackupFilesModel {
 		return true;
 	}
 
-	public get(): Uri[] {
+	get(): Uri[] {
 		return Object.keys(this.cache).map(k => Uri.parse(k));
 	}
 
-	public remove(resource: Uri): void {
+	remove(resource: Uri): void {
 		delete this.cache[resource.toString()];
 	}
 
-	public clear(): void {
+	clear(): void {
 		this.cache = Object.create(null);
 	}
 }
@@ -112,7 +111,7 @@ export class BackupFileService implements IBackupFileService {
 
 	private static readonly META_MARKER = '\n';
 
-	public _serviceBrand: any;
+	_serviceBrand: any;
 
 	private backupWorkspacePath: string;
 
@@ -130,7 +129,7 @@ export class BackupFileService implements IBackupFileService {
 		this.initialize(backupWorkspacePath);
 	}
 
-	public initialize(backupWorkspacePath: string): void {
+	initialize(backupWorkspacePath: string): void {
 		this.backupWorkspacePath = backupWorkspacePath;
 
 		this.ready = this.init();
@@ -142,13 +141,13 @@ export class BackupFileService implements IBackupFileService {
 		return model.resolve(this.backupWorkspacePath);
 	}
 
-	public hasBackups(): TPromise<boolean> {
+	hasBackups(): TPromise<boolean> {
 		return this.ready.then(model => {
 			return model.count() > 0;
 		});
 	}
 
-	public loadBackupResource(resource: Uri): TPromise<Uri> {
+	loadBackupResource(resource: Uri): TPromise<Uri> {
 		return this.ready.then(model => {
 
 			// Return directly if we have a known backup with that resource
@@ -161,7 +160,7 @@ export class BackupFileService implements IBackupFileService {
 		});
 	}
 
-	public backupResource(resource: Uri, content: ITextSnapshot, versionId?: number): TPromise<void> {
+	backupResource(resource: Uri, content: ITextSnapshot, versionId?: number): TPromise<void> {
 		if (this.isShuttingDown) {
 			return TPromise.as(void 0);
 		}
@@ -181,7 +180,7 @@ export class BackupFileService implements IBackupFileService {
 		});
 	}
 
-	public discardResourceBackup(resource: Uri): TPromise<void> {
+	discardResourceBackup(resource: Uri): TPromise<void> {
 		return this.ready.then(model => {
 			const backupResource = this.toBackupResource(resource);
 
@@ -191,7 +190,7 @@ export class BackupFileService implements IBackupFileService {
 		});
 	}
 
-	public discardAllWorkspaceBackups(): TPromise<void> {
+	discardAllWorkspaceBackups(): TPromise<void> {
 		this.isShuttingDown = true;
 
 		return this.ready.then(model => {
@@ -199,7 +198,7 @@ export class BackupFileService implements IBackupFileService {
 		});
 	}
 
-	public getWorkspaceFileBackups(): TPromise<Uri[]> {
+	getWorkspaceFileBackups(): TPromise<Uri[]> {
 		return this.ready.then(model => {
 			const readPromises: TPromise<Uri>[] = [];
 
@@ -213,7 +212,7 @@ export class BackupFileService implements IBackupFileService {
 		});
 	}
 
-	public resolveBackupContent(backup: Uri): TPromise<ITextBufferFactory> {
+	resolveBackupContent(backup: Uri): TPromise<ITextBufferFactory> {
 		return this.fileService.resolveStreamContent(backup, BACKUP_FILE_RESOLVE_OPTIONS).then(content => {
 
 			// Add a filter method to filter out everything until the meta marker
@@ -236,7 +235,7 @@ export class BackupFileService implements IBackupFileService {
 		});
 	}
 
-	public toBackupResource(resource: Uri): Uri {
+	toBackupResource(resource: Uri): Uri {
 		return Uri.file(path.join(this.backupWorkspacePath, resource.scheme, this.hashPath(resource)));
 	}
 
@@ -247,7 +246,7 @@ export class BackupFileService implements IBackupFileService {
 
 export class InMemoryBackupFileService implements IBackupFileService {
 
-	public _serviceBrand: any;
+	_serviceBrand: any;
 
 	private backups: Map<string, ITextSnapshot> = new Map();
 

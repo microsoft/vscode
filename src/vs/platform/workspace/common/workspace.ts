@@ -141,7 +141,7 @@ export class Workspace implements IWorkspace {
 		this.folders = folders;
 	}
 
-	public update(workspace: Workspace) {
+	update(workspace: Workspace) {
 		this._id = workspace.id;
 		this._name = workspace.name;
 		this._configuration = workspace.configuration;
@@ -149,40 +149,40 @@ export class Workspace implements IWorkspace {
 		this.folders = workspace.folders;
 	}
 
-	public get folders(): WorkspaceFolder[] {
+	get folders(): WorkspaceFolder[] {
 		return this._folders;
 	}
 
-	public set folders(folders: WorkspaceFolder[]) {
+	set folders(folders: WorkspaceFolder[]) {
 		this._folders = folders;
 		this.updateFoldersMap();
 	}
 
-	public get id(): string {
+	get id(): string {
 		return this._id;
 	}
 
-	public get ctime(): number {
+	get ctime(): number {
 		return this._ctime;
 	}
 
-	public get name(): string {
+	get name(): string {
 		return this._name;
 	}
 
-	public set name(name: string) {
+	set name(name: string) {
 		this._name = name;
 	}
 
-	public get configuration(): URI {
+	get configuration(): URI {
 		return this._configuration;
 	}
 
-	public set configuration(configuration: URI) {
+	set configuration(configuration: URI) {
 		this._configuration = configuration;
 	}
 
-	public getFolder(resource: URI): IWorkspaceFolder {
+	getFolder(resource: URI): IWorkspaceFolder {
 		if (!resource) {
 			return null;
 		}
@@ -197,7 +197,7 @@ export class Workspace implements IWorkspace {
 		}
 	}
 
-	public toJSON(): IWorkspace {
+	toJSON(): IWorkspace {
 		return { id: this.id, folders: this.folders, name: this.name, configuration: this.configuration };
 	}
 }

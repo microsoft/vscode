@@ -109,10 +109,9 @@ class UntitledEditorInputFactory implements IEditorInputFactory {
 
 	constructor(
 		@ITextFileService private textFileService: ITextFileService
-	) {
-	}
+	) { }
 
-	public serialize(editorInput: EditorInput): string {
+	serialize(editorInput: EditorInput): string {
 		if (!this.textFileService.isHotExitEnabled) {
 			return null; // never restore untitled unless hot exit is enabled
 		}
@@ -134,7 +133,7 @@ class UntitledEditorInputFactory implements IEditorInputFactory {
 		return JSON.stringify(serialized);
 	}
 
-	public deserialize(instantiationService: IInstantiationService, serializedEditorInput: string): UntitledEditorInput {
+	deserialize(instantiationService: IInstantiationService, serializedEditorInput: string): UntitledEditorInput {
 		return instantiationService.invokeFunction<UntitledEditorInput>(accessor => {
 			const deserialized: ISerializedUntitledEditorInput = JSON.parse(serializedEditorInput);
 			const resource = !!deserialized.resourceJSON ? URI.revive(deserialized.resourceJSON) : URI.parse(deserialized.resource);
@@ -163,7 +162,7 @@ interface ISerializedSideBySideEditorInput {
 // Register Side by Side Editor Input Factory
 class SideBySideEditorInputFactory implements IEditorInputFactory {
 
-	public serialize(editorInput: EditorInput): string {
+	serialize(editorInput: EditorInput): string {
 		const input = <SideBySideEditorInput>editorInput;
 
 		if (input.details && input.master) {
@@ -191,7 +190,7 @@ class SideBySideEditorInputFactory implements IEditorInputFactory {
 		return null;
 	}
 
-	public deserialize(instantiationService: IInstantiationService, serializedEditorInput: string): EditorInput {
+	deserialize(instantiationService: IInstantiationService, serializedEditorInput: string): EditorInput {
 		const deserialized: ISerializedSideBySideEditorInput = JSON.parse(serializedEditorInput);
 
 		const registry = Registry.as<IEditorInputFactoryRegistry>(EditorInputExtensions.EditorInputFactories);
@@ -230,13 +229,13 @@ export class QuickOpenActionContributor extends ActionBarContributor {
 		super();
 	}
 
-	public hasActions(context: any): boolean {
+	hasActions(context: any): boolean {
 		const entry = this.getEntry(context);
 
 		return !!entry;
 	}
 
-	public getActions(context: any): IAction[] {
+	getActions(context: any): IAction[] {
 		const actions: Action[] = [];
 
 		const entry = this.getEntry(context);

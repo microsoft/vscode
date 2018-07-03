@@ -167,7 +167,7 @@ export class AsyncEmitter<T extends IWaitUntil> extends Emitter<T> {
 
 	private _asyncDeliveryQueue: [Listener, T, Thenable<any>[]][];
 
-	async fireAsync(eventFn: (thenables: Thenable<any>[], listener: Function) => T): TPromise<void> {
+	async fireAsync(eventFn: (thenables: Thenable<any>[], listener: Function) => T): Promise<void> {
 		if (!this._listeners) {
 			return;
 		}
@@ -200,7 +200,7 @@ export class AsyncEmitter<T extends IWaitUntil> extends Emitter<T> {
 			// freeze thenables-collection to enforce sync-calls to
 			// wait until and then wait for all thenables to resolve
 			Object.freeze(thenables);
-			await TPromise.join(thenables);
+			await Promise.all(thenables);
 		}
 	}
 }

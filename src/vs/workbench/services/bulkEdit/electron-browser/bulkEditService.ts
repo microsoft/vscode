@@ -197,7 +197,7 @@ class BulkEditModel implements IDisposable {
 		array.push(edit);
 	}
 
-	async prepare(): TPromise<BulkEditModel> {
+	async prepare(): Promise<BulkEditModel> {
 
 		if (this._tasks) {
 			throw new Error('illegal state - already prepared');
@@ -287,7 +287,7 @@ export class BulkEdit {
 		}
 	}
 
-	async perform(): TPromise<Selection> {
+	async perform(): Promise<Selection> {
 
 		let seen = new Set<string>();
 		let total = 0;
@@ -349,7 +349,7 @@ export class BulkEdit {
 		}
 	}
 
-	private async _performTextEdits(edits: ResourceTextEdit[], progress: IProgress<void>): TPromise<Selection> {
+	private async _performTextEdits(edits: ResourceTextEdit[], progress: IProgress<void>): Promise<Selection> {
 		this._logService.debug('_performTextEdits', JSON.stringify(edits));
 
 		const recording = Recording.start(this._fileService);
@@ -420,14 +420,14 @@ export class BulkEditService implements IBulkEditService {
 		const bulkEdit = new BulkEdit(options.editor, options.progress, this._logService, this._textModelService, this._fileService, this._textFileService, this._environmentService, this._contextService);
 		bulkEdit.add(edits);
 
-		return bulkEdit.perform().then(selection => {
+		return TPromise.wrap(bulkEdit.perform().then(selection => {
 			return { selection, ariaSummary: bulkEdit.ariaMessage() };
 		}, err => {
 			// console.log('apply FAILED');
 			// console.log(err);
 			this._logService.error(err);
 			throw err;
-		});
+		}));
 	}
 }
 

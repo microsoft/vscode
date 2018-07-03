@@ -52,10 +52,15 @@ export interface ICompositeBar {
 }
 
 export class ActivityAction extends Action {
+
+	private _onDidChangeActivity = new Emitter<this>();
+	get onDidChangeActivity(): Event<this> { return this._onDidChangeActivity.event; }
+
+	private _onDidChangeBadge = new Emitter<this>();
+	get onDidChangeBadge(): Event<this> { return this._onDidChangeBadge.event; }
+
 	private badge: IBadge;
 	private clazz: string | undefined;
-	private _onDidChangeActivity = new Emitter<this>();
-	private _onDidChangeBadge = new Emitter<this>();
 
 	constructor(private _activity: IActivity) {
 		super(_activity.id, _activity.name, _activity.cssClass);
@@ -63,47 +68,46 @@ export class ActivityAction extends Action {
 		this.badge = null;
 	}
 
-	public get activity(): IActivity {
+	get activity(): IActivity {
 		return this._activity;
 	}
 
-	public set activity(activity: IActivity) {
+	set activity(activity: IActivity) {
 		this._activity = activity;
 		this._onDidChangeActivity.fire(this);
 	}
 
-	public get onDidChangeActivity(): Event<this> {
-		return this._onDidChangeActivity.event;
-	}
-
-	public get onDidChangeBadge(): Event<this> {
-		return this._onDidChangeBadge.event;
-	}
-
-	public activate(): void {
+	activate(): void {
 		if (!this.checked) {
 			this._setChecked(true);
 		}
 	}
 
-	public deactivate(): void {
+	deactivate(): void {
 		if (this.checked) {
 			this._setChecked(false);
 		}
 	}
 
-	public getBadge(): IBadge {
+	getBadge(): IBadge {
 		return this.badge;
 	}
 
-	public getClass(): string | undefined {
+	getClass(): string | undefined {
 		return this.clazz;
 	}
 
-	public setBadge(badge: IBadge, clazz?: string): void {
+	setBadge(badge: IBadge, clazz?: string): void {
 		this.badge = badge;
 		this.clazz = clazz;
 		this._onDidChangeBadge.fire(this);
+	}
+
+	dispose(): void {
+		this._onDidChangeActivity.dispose();
+		this._onDidChangeBadge.dispose();
+
+		super.dispose();
 	}
 }
 
@@ -170,7 +174,7 @@ export class ActivityActionItem extends BaseActionItem {
 		}
 	}
 
-	public render(container: HTMLElement): void {
+	render(container: HTMLElement): void {
 		super.render(container);
 
 		// Make the container tab-able for keyboard navigation
@@ -301,7 +305,7 @@ export class ActivityActionItem extends BaseActionItem {
 		});
 	}
 
-	public dispose(): void {
+	dispose(): void {
 		super.dispose();
 
 		if (this.mouseUpTimeout) {
@@ -324,7 +328,7 @@ export class CompositeOverflowActivityAction extends ActivityAction {
 		});
 	}
 
-	public run(event: any): TPromise<any> {
+	run(event: any): TPromise<any> {
 		this.showMenu();
 
 		return TPromise.as(true);
@@ -347,7 +351,7 @@ export class CompositeOverflowActivityActionItem extends ActivityActionItem {
 		super(action, { icon: true, colors }, themeService);
 	}
 
-	public showMenu(): void {
+	showMenu(): void {
 		if (this.actions) {
 			dispose(this.actions);
 		}
@@ -384,7 +388,7 @@ export class CompositeOverflowActivityActionItem extends ActivityActionItem {
 		});
 	}
 
-	public dispose(): void {
+	dispose(): void {
 		super.dispose();
 
 		this.actions = dispose(this.actions);
@@ -399,7 +403,7 @@ class ManageExtensionAction extends Action {
 		super('activitybar.manage.extension', nls.localize('manageExtension', "Manage Extension"));
 	}
 
-	public run(id: string): TPromise<any> {
+	run(id: string): TPromise<any> {
 		return this.commandService.executeCommand('_extensions.manage', id);
 	}
 }
@@ -463,7 +467,7 @@ export class CompositeActionItem extends ActivityActionItem {
 		return null;
 	}
 
-	public render(container: HTMLElement): void {
+	render(container: HTMLElement): void {
 		super.render(container);
 
 		this._updateChecked();
@@ -548,7 +552,7 @@ export class CompositeActionItem extends ActivityActionItem {
 		element.style.backgroundColor = isDragging && dragBackground ? dragBackground.toString() : null;
 	}
 
-	public static getDraggedCompositeId(): string {
+	static getDraggedCompositeId(): string {
 		return CompositeActionItem.draggedCompositeId;
 	}
 
@@ -556,7 +560,7 @@ export class CompositeActionItem extends ActivityActionItem {
 		CompositeActionItem.draggedCompositeId = compositeId;
 	}
 
-	public static clearDraggedComposite(): void {
+	static clearDraggedComposite(): void {
 		CompositeActionItem.draggedCompositeId = void 0;
 	}
 
@@ -582,7 +586,7 @@ export class CompositeActionItem extends ActivityActionItem {
 		});
 	}
 
-	public focus(): void {
+	focus(): void {
 		this.$container.domFocus();
 	}
 
@@ -613,7 +617,7 @@ export class CompositeActionItem extends ActivityActionItem {
 		}
 	}
 
-	public dispose(): void {
+	dispose(): void {
 		super.dispose();
 
 		CompositeActionItem.clearDraggedComposite();
@@ -633,7 +637,7 @@ export class ToggleCompositePinnedAction extends Action {
 		this.checked = this.activity && this.compositeBar.isPinned(this.activity.id);
 	}
 
-	public run(context: string): TPromise<any> {
+	run(context: string): TPromise<any> {
 		const id = this.activity ? this.activity.id : context;
 
 		if (this.compositeBar.isPinned(id)) {

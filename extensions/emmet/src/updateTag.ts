@@ -30,7 +30,7 @@ export function updateTag(tagName: string): Thenable<boolean> | undefined {
 }
 
 function getRangesToUpdate(editor: vscode.TextEditor, selection: vscode.Selection, rootNode: HtmlNode): vscode.Range[] {
-	let nodeToUpdate = getHtmlNode(editor.document, rootNode, selection.start);
+	let nodeToUpdate = getHtmlNode(editor.document, rootNode, selection.start, true);
 	if (!nodeToUpdate) {
 		return [];
 	}

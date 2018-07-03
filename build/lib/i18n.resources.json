@@ -79,6 +79,10 @@
 			"project": "vscode-workbench"
 		},
 		{
+			"name": "vs/workbench/parts/navigation",
+			"project": "vscode-workbench"
+		},
+		{
 			"name": "vs/workbench/parts/output",
 			"project": "vscode-workbench"
 		},

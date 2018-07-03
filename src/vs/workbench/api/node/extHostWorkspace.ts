@@ -4,22 +4,25 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import URI from 'vs/base/common/uri';
-import { Event, Emitter } from 'vs/base/common/event';
-import { normalize } from 'vs/base/common/paths';
+import { posix, relative, join } from 'path';
 import { delta as arrayDelta } from 'vs/base/common/arrays';
-import { relative, posix } from 'path';
-import { Workspace, WorkspaceFolder } from 'vs/platform/workspace/common/workspace';
-import { IWorkspaceData, ExtHostWorkspaceShape, MainContext, MainThreadWorkspaceShape, IMainContext, MainThreadMessageServiceShape } from './extHost.protocol';
-import * as vscode from 'vscode';
-import { compare } from 'vs/base/common/strings';
+import { Emitter, Event } from 'vs/base/common/event';
 import { TernarySearchTree } from 'vs/base/common/map';
-import { basenameOrAuthority, isEqual } from 'vs/base/common/resources';
+import { normalize } from 'vs/base/common/paths';
 import { isLinux } from 'vs/base/common/platform';
-import { IExtensionDescription } from 'vs/workbench/services/extensions/common/extensions';
+import { basenameOrAuthority, isEqual } from 'vs/base/common/resources';
+import { compare } from 'vs/base/common/strings';
+import URI from 'vs/base/common/uri';
+import { TPromise } from 'vs/base/common/winjs.base';
 import { localize } from 'vs/nls';
-import { Severity } from 'vs/platform/notification/common/notification';
 import { ILogService } from 'vs/platform/log/common/log';
+import { Severity } from 'vs/platform/notification/common/notification';
+import { IQueryOptions, IRawFileMatch2 } from 'vs/platform/search/common/search';
+import { Workspace, WorkspaceFolder } from 'vs/platform/workspace/common/workspace';
+import { Range } from 'vs/workbench/api/node/extHostTypes';
+import { IExtensionDescription } from 'vs/workbench/services/extensions/common/extensions';
+import * as vscode from 'vscode';
+import { ExtHostWorkspaceShape, IMainContext, IWorkspaceData, MainContext, MainThreadMessageServiceShape, MainThreadWorkspaceShape } from './extHost.protocol';
 
 function isFolderEqual(folderA: URI, folderB: URI): boolean {
 	return isEqual(folderA, folderB, !isLinux);
@@ -144,6 +147,8 @@ export class ExtHostWorkspace implements ExtHostWorkspaceShape {
 	private _messageService: MainThreadMessageServiceShape;
 
 	readonly onDidChangeWorkspace: Event<vscode.WorkspaceFoldersChangeEvent> = this._onDidChangeWorkspace.event;
+
+	private readonly _activeSearchCallbacks = [];
 
 	constructor(
 		mainContext: IMainContext,
@@ -324,8 +329,8 @@ export class ExtHostWorkspace implements ExtHostWorkspaceShape {
 
 		// Events
 		this._onDidChangeWorkspace.fire(Object.freeze({
-			added: Object.freeze<vscode.WorkspaceFolder[]>(added),
-			removed: Object.freeze<vscode.WorkspaceFolder[]>(removed)
+			added,
+			removed,
 		}));
 	}
 
@@ -358,11 +363,68 @@ export class ExtHostWorkspace implements ExtHostWorkspaceShape {
 			}
 		}
 
-		const result = this._proxy.$startSearch(includePattern, includeFolder, excludePatternOrDisregardExcludes, maxResults, requestId);
+		const result = this._proxy.$startFileSearch(includePattern, includeFolder, excludePatternOrDisregardExcludes, maxResults, requestId);
 		if (token) {
 			token.onCancellationRequested(() => this._proxy.$cancelSearch(requestId));
 		}
 		return result.then(data => Array.isArray(data) ? data.map(URI.revive) : []);
+	}
+
+	findTextInFiles(query: vscode.TextSearchQuery, options: vscode.FindTextInFilesOptions, callback: (result: vscode.TextSearchResult) => void, extensionId: string, token?: vscode.CancellationToken) {
+		this._logService.trace(`extHostWorkspace#findTextInFiles: textSearch, extension: ${extensionId}, entryPoint: findTextInFiles`);
+
+		const requestId = ExtHostWorkspace._requestIdPool++;
+
+		const globPatternToString = (pattern: vscode.GlobPattern | string) => {
+			if (typeof pattern === 'string') {
+				return pattern;
+			}
+
+			return join(pattern.base, pattern.pattern);
+		};
+
+		const queryOptions: IQueryOptions = {
+			ignoreSymlinks: typeof options.followSymlinks === 'boolean' ? !options.followSymlinks : undefined,
+			disregardIgnoreFiles: typeof options.useIgnoreFiles === 'boolean' ? !options.useIgnoreFiles : undefined,
+			disregardExcludeSettings: options.excludes === null,
+			fileEncoding: options.encoding,
+			maxResults: options.maxResults,
+
+			includePattern: options.includes && options.includes.map(include => globPatternToString(include)).join(', '),
+			excludePattern: options.excludes && options.excludes.map(exclude => globPatternToString(exclude)).join(', ')
+		};
+
+		this._activeSearchCallbacks[requestId] = p => {
+			p.lineMatches.forEach(lineMatch => {
+				lineMatch.offsetAndLengths.forEach(offsetAndLength => {
+					const range = new Range(lineMatch.lineNumber, offsetAndLength[0], lineMatch.lineNumber, offsetAndLength[0] + offsetAndLength[1]);
+					callback({
+						uri: URI.revive(p.resource),
+						preview: { text: lineMatch.preview, match: range },
+						range
+					});
+				});
+			});
+		};
+
+		if (token) {
+			token.onCancellationRequested(() => this._proxy.$cancelSearch(requestId));
+		}
+
+		return this._proxy.$startTextSearch(query, queryOptions, requestId).then(
+			() => {
+				delete this._activeSearchCallbacks[requestId];
+			},
+			err => {
+				delete this._activeSearchCallbacks[requestId];
+				return TPromise.wrapError(err);
+			});
+	}
+
+	$handleTextSearchResult(result: IRawFileMatch2, requestId: number): void {
+		if (this._activeSearchCallbacks[requestId]) {
+			this._activeSearchCallbacks[requestId](result);
+		}
 	}
 
 	saveAll(includeUntitled?: boolean): Thenable<boolean> {

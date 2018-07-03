@@ -233,9 +233,9 @@ export class ProcessTaskSystem implements ITaskSystem {
 		}
 		if (task.isBackground) {
 			let watchingProblemMatcher = new WatchingProblemCollector(this.resolveMatchers(task, task.problemMatchers), this.markerService, this.modelService);
-			let toUnbind: IDisposable[] = [];
+			let toDispose: IDisposable[] = [];
 			let eventCounter: number = 0;
-			toUnbind.push(watchingProblemMatcher.onDidStateChange((event) => {
+			toDispose.push(watchingProblemMatcher.onDidStateChange((event) => {
 				if (event.kind === ProblemCollectorEventKind.BackgroundProcessingBegins) {
 					eventCounter++;
 					this._onDidStateChange.fire(TaskEvent.create(TaskEventKind.Active, task));
@@ -263,8 +263,8 @@ export class ProcessTaskSystem implements ITaskSystem {
 				if (processStartedSignaled) {
 					this._onDidStateChange.fire(TaskEvent.create(TaskEventKind.ProcessEnded, task, success.cmdCode));
 				}
-				toUnbind = dispose(toUnbind);
-				toUnbind = null;
+				toDispose = dispose(toDispose);
+				toDispose = null;
 				for (let i = 0; i < eventCounter; i++) {
 					this._onDidStateChange.fire(inactiveEvent);
 				}
@@ -280,8 +280,8 @@ export class ProcessTaskSystem implements ITaskSystem {
 			}, (error: ErrorData) => {
 				this.childProcessEnded();
 				watchingProblemMatcher.dispose();
-				toUnbind = dispose(toUnbind);
-				toUnbind = null;
+				toDispose = dispose(toDispose);
+				toDispose = null;
 				for (let i = 0; i < eventCounter; i++) {
 					this._onDidStateChange.fire(inactiveEvent);
 				}

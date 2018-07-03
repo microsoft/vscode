@@ -80,11 +80,11 @@ export class TextFileModelChangeEvent {
 		this._kind = kind;
 	}
 
-	public get resource(): URI {
+	get resource(): URI {
 		return this._resource;
 	}
 
-	public get kind(): StateChange {
+	get kind(): StateChange {
 		return this._kind;
 	}
 }

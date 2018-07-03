@@ -12,6 +12,7 @@ import { IStorageService, StorageScope } from 'vs/platform/storage/common/storag
 import { localize } from 'vs/nls';
 import { IPreferencesService } from 'vs/workbench/services/preferences/common/preferences';
 
+// TODO@Sandeep remove me after a while
 export class HistoryNavigationKeybindingsChangedContribution implements IWorkbenchContribution {
 
 	private previousCommands: string[] = [

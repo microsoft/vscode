@@ -127,6 +127,10 @@
 	display: none;
 }
 
+.settings-editor.search-mode > .settings-body .settings-tree-container {
+	max-width: 1100px;
+}
+
 .settings-editor.narrow > .settings-body .settings-toc-container {
 	display: none;
 }

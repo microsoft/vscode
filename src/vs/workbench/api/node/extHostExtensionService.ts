@@ -68,7 +68,7 @@ class ExtensionStoragePath {
 	private readonly _workspace: IWorkspaceData;
 	private readonly _environment: IEnvironment;
 
-	private readonly _ready: TPromise<string>;
+	private readonly _ready: Promise<string>;
 	private _value: string;
 
 	constructor(workspace: IWorkspaceData, environment: IEnvironment) {
@@ -77,7 +77,7 @@ class ExtensionStoragePath {
 		this._ready = this._getOrCreateWorkspaceStoragePath().then(value => this._value = value);
 	}
 
-	get whenReady(): TPromise<any> {
+	get whenReady(): Promise<any> {
 		return this._ready;
 	}
 
@@ -88,7 +88,7 @@ class ExtensionStoragePath {
 		return undefined;
 	}
 
-	private async _getOrCreateWorkspaceStoragePath(): TPromise<string> {
+	private async _getOrCreateWorkspaceStoragePath(): Promise<string> {
 		if (!this._workspace) {
 			return TPromise.as(undefined);
 		}

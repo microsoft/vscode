@@ -261,7 +261,7 @@ export class CodeApplication {
 		}
 	}
 
-	public startup(): TPromise<void> {
+	startup(): TPromise<void> {
 		this.logService.debug('Starting VS Code');
 		this.logService.debug(`from: ${this.environmentService.appRoot}`);
 		this.logService.debug('args:', this.environmentService.args);
@@ -434,7 +434,7 @@ export class CodeApplication {
 			const environmentService = accessor.get(IEnvironmentService);
 
 			urlService.registerHandler({
-				async handleURL(uri: URI): TPromise<boolean> {
+				handleURL(uri: URI): TPromise<boolean> {
 					if (windowsMainService.getWindowCount() === 0) {
 						const cli = { ...environmentService.args, goto: true };
 						const [window] = windowsMainService.open({ context: OpenContext.API, cli, forceEmpty: true });
@@ -442,7 +442,7 @@ export class CodeApplication {
 						return window.ready().then(() => urlService.open(uri));
 					}
 
-					return false;
+					return TPromise.as(false);
 				}
 			});
 		}

@@ -6,7 +6,7 @@
 
 import { posix } from 'path';
 import { flatten, isFalsyOrEmpty } from 'vs/base/common/arrays';
-import { IDisposable, dispose } from 'vs/base/common/lifecycle';
+import { IDisposable, dispose, Disposable } from 'vs/base/common/lifecycle';
 import { TernarySearchTree, keys } from 'vs/base/common/map';
 import { Schemas } from 'vs/base/common/network';
 import URI from 'vs/base/common/uri';
@@ -86,9 +86,8 @@ export function toDeepIFileStat(provider: IFileSystemProvider, tuple: [URI, ISta
 	});
 }
 
-class WorkspaceWatchLogic {
+class WorkspaceWatchLogic extends Disposable {
 
-	private _disposables: IDisposable[] = [];
 	private _watches = new Map<string, URI>();
 
 	constructor(
@@ -96,9 +95,11 @@ class WorkspaceWatchLogic {
 		@IConfigurationService private _configurationService: IConfigurationService,
 		@IWorkspaceContextService private _contextService: IWorkspaceContextService,
 	) {
+		super();
+
 		this._refresh();
 
-		this._disposables.push(this._contextService.onDidChangeWorkspaceFolders(e => {
+		this._register(this._contextService.onDidChangeWorkspaceFolders(e => {
 			for (const removed of e.removed) {
 				this._unwatchWorkspace(removed.uri);
 			}
@@ -106,10 +107,10 @@ class WorkspaceWatchLogic {
 				this._watchWorkspace(added.uri);
 			}
 		}));
-		this._disposables.push(this._contextService.onDidChangeWorkbenchState(e => {
+		this._register(this._contextService.onDidChangeWorkbenchState(e => {
 			this._refresh();
 		}));
-		this._disposables.push(this._configurationService.onDidChangeConfiguration(e => {
+		this._register(this._configurationService.onDidChangeConfiguration(e => {
 			if (e.affectsConfiguration('files.watcherExclude')) {
 				this._refresh();
 			}
@@ -118,7 +119,7 @@ class WorkspaceWatchLogic {
 
 	dispose(): void {
 		this._unwatchWorkspaces();
-		this._disposables = dispose(this._disposables);
+		super.dispose();
 	}
 
 	private _refresh(): void {
@@ -184,7 +185,7 @@ export class RemoteFileService extends FileService {
 
 		this._provider = new Map<string, IFileSystemProvider>();
 		this._lastKnownSchemes = JSON.parse(this._storageService.get('remote_schemes', undefined, '[]'));
-		this.toDispose.push(new WorkspaceWatchLogic(this, configurationService, contextService));
+		this._register(new WorkspaceWatchLogic(this, configurationService, contextService));
 	}
 
 	registerProvider(scheme: string, provider: IFileSystemProvider): IDisposable {
@@ -650,7 +651,7 @@ export class RemoteFileService extends FileService {
 
 	private _activeWatches = new Map<string, { unwatch: Thenable<IDisposable>, count: number }>();
 
-	public watchFileChanges(resource: URI, opts?: IWatchOptions): void {
+	watchFileChanges(resource: URI, opts?: IWatchOptions): void {
 		if (resource.scheme === Schemas.file) {
 			return super.watchFileChanges(resource);
 		}
@@ -676,7 +677,7 @@ export class RemoteFileService extends FileService {
 		});
 	}
 
-	public unwatchFileChanges(resource: URI): void {
+	unwatchFileChanges(resource: URI): void {
 		if (resource.scheme === Schemas.file) {
 			return super.unwatchFileChanges(resource);
 		}

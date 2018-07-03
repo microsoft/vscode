@@ -45,7 +45,7 @@ export class WorkbenchContributionsRegistry implements IWorkbenchContributionsRe
 
 	private toBeInstantiated: Map<LifecyclePhase, IConstructorSignature0<IWorkbenchContribution>[]> = new Map<LifecyclePhase, IConstructorSignature0<IWorkbenchContribution>[]>();
 
-	public registerWorkbenchContribution(ctor: IWorkbenchContributionSignature, phase: LifecyclePhase = LifecyclePhase.Starting): void {
+	registerWorkbenchContribution(ctor: IWorkbenchContributionSignature, phase: LifecyclePhase = LifecyclePhase.Starting): void {
 
 		// Instantiate directly if we are already matching the provided phase
 		if (this.instantiationService && this.lifecycleService && this.lifecycleService.phase >= phase) {
@@ -64,7 +64,7 @@ export class WorkbenchContributionsRegistry implements IWorkbenchContributionsRe
 		}
 	}
 
-	public start(instantiationService: IInstantiationService, lifecycleService: ILifecycleService): void {
+	start(instantiationService: IInstantiationService, lifecycleService: ILifecycleService): void {
 		this.instantiationService = instantiationService;
 		this.lifecycleService = lifecycleService;
 

@@ -5913,9 +5913,9 @@ typescript-formatter@7.1.0:
     commandpost "^1.0.0"
     editorconfig "^0.15.0"
 
-typescript@2.9.1:
-  version "2.9.1"
-  resolved "https://registry.yarnpkg.com/typescript/-/typescript-2.9.1.tgz#fdb19d2c67a15d11995fd15640e373e09ab09961"
+typescript@2.9.2:
+  version "2.9.2"
+  resolved "https://registry.yarnpkg.com/typescript/-/typescript-2.9.2.tgz#1cbf61d05d6b96269244eb6a3bce4bd914e0f00c"
 
 typescript@^2.6.2:
   version "2.6.2"
@@ -6256,9 +6256,9 @@ vscode-textmate@^4.0.1:
   dependencies:
     oniguruma "^7.0.0"
 
-vscode-xterm@3.5.0-beta17:
-  version "3.5.0-beta17"
-  resolved "https://registry.yarnpkg.com/vscode-xterm/-/vscode-xterm-3.5.0-beta17.tgz#9a7dd13cdd9a45257aacb815501f71ed788c2e48"
+vscode-xterm@3.6.0-beta1:
+  version "3.6.0-beta1"
+  resolved "https://registry.yarnpkg.com/vscode-xterm/-/vscode-xterm-3.6.0-beta1.tgz#6ce8b79d33f7506ac3571d92c15f9d65e8b856ca"
 
 vso-node-api@^6.1.2-preview:
   version "6.1.2-preview"

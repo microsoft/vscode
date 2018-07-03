@@ -78,8 +78,10 @@ export class IssueService implements IIssueService {
 			this._issueWindow.on('close', () => this._issueWindow = null);
 
 			this._issueParentWindow.on('closed', () => {
-				this._issueWindow.close();
-				this._issueWindow = null;
+				if (this._issueWindow) {
+					this._issueWindow.close();
+					this._issueWindow = null;
+				}
 			});
 		}
 
@@ -139,8 +141,10 @@ export class IssueService implements IIssueService {
 			this._processExplorerWindow.on('close', () => this._processExplorerWindow = void 0);
 
 			parentWindow.on('close', () => {
-				this._processExplorerWindow.close();
-				this._processExplorerWindow = null;
+				if (this._processExplorerWindow) {
+					this._processExplorerWindow.close();
+					this._processExplorerWindow = null;
+				}
 			});
 		}
 

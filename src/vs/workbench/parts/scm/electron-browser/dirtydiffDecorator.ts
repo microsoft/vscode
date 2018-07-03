@@ -8,7 +8,7 @@
 import * as nls from 'vs/nls';
 
 import 'vs/css!./media/dirtydiffDecorator';
-import { ThrottledDelayer, always } from 'vs/base/common/async';
+import { ThrottledDelayer, always, first } from 'vs/base/common/async';
 import { IDisposable, dispose, toDisposable, empty as EmptyDisposable, combinedDisposable } from 'vs/base/common/lifecycle';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { Event, Emitter, anyEvent as anyEvent, filterEvent, once } from 'vs/base/common/event';
@@ -1032,20 +1032,13 @@ export class DirtyDiffModel {
 		});
 	}
 
-	private async getOriginalResource(): TPromise<URI> {
+	private getOriginalResource(): TPromise<URI> {
 		if (!this._editorModel) {
 			return null;
 		}
 
-		for (const repository of this.scmService.repositories) {
-			const result = repository.provider.getOriginalResource(this._editorModel.uri);
-
-			if (result) {
-				return result;
-			}
-		}
-
-		return null;
+		const uri = this._editorModel.uri;
+		return first(this.scmService.repositories.map(r => () => r.provider.getOriginalResource(uri)));
 	}
 
 	findNextClosestChange(lineNumber: number, inclusive = true): number {

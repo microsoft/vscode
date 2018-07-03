@@ -133,12 +133,12 @@ suite('Workbench - TextModelResolverService', () => {
 		let waitForIt = new TPromise(c => resolveModel = c);
 
 		const disposable = accessor.textModelResolverService.registerTextModelContentProvider('test', {
-			provideTextContent: async (resource: URI): TPromise<ITextModel> => {
-				await waitForIt;
-
-				let modelContent = 'Hello Test';
-				let mode = accessor.modeService.getOrCreateMode('json');
-				return accessor.modelService.createModel(modelContent, mode, resource);
+			provideTextContent: (resource: URI): TPromise<ITextModel> => {
+				return waitForIt.then(_ => {
+					let modelContent = 'Hello Test';
+					let mode = accessor.modeService.getOrCreateMode('json');
+					return accessor.modelService.createModel(modelContent, mode, resource);
+				});
 			}
 		});
 

@@ -55,14 +55,14 @@ import { INotificationService } from 'vs/platform/notification/common/notificati
 
 export class CloseCurrentWindowAction extends Action {
 
-	public static readonly ID = 'workbench.action.closeWindow';
-	public static readonly LABEL = nls.localize('closeWindow', "Close Window");
+	static readonly ID = 'workbench.action.closeWindow';
+	static readonly LABEL = nls.localize('closeWindow', "Close Window");
 
 	constructor(id: string, label: string, @IWindowService private windowService: IWindowService) {
 		super(id, label);
 	}
 
-	public run(): TPromise<boolean> {
+	run(): TPromise<boolean> {
 		this.windowService.closeWindow();
 
 		return TPromise.as(true);
@@ -142,7 +142,7 @@ export class ToggleMenuBarAction extends Action {
 		super(id, label);
 	}
 
-	public run(): TPromise<void> {
+	run(): TPromise<void> {
 		let currentVisibilityValue = this.configurationService.getValue<MenuBarVisibility>(ToggleMenuBarAction.menuBarVisibilityKey);
 		if (typeof currentVisibilityValue !== 'string') {
 			currentVisibilityValue = 'default';
@@ -170,7 +170,7 @@ export class ToggleDevToolsAction extends Action {
 		super(id, label);
 	}
 
-	public run(): TPromise<void> {
+	run(): TPromise<void> {
 		return this.windowsService.toggleDevTools();
 	}
 }
@@ -204,8 +204,8 @@ export abstract class BaseZoomAction extends Action {
 
 export class ZoomInAction extends BaseZoomAction {
 
-	public static readonly ID = 'workbench.action.zoomIn';
-	public static readonly LABEL = nls.localize('zoomIn', "Zoom In");
+	static readonly ID = 'workbench.action.zoomIn';
+	static readonly LABEL = nls.localize('zoomIn', "Zoom In");
 
 	constructor(
 		id: string,
@@ -215,7 +215,7 @@ export class ZoomInAction extends BaseZoomAction {
 		super(id, label, configurationService);
 	}
 
-	public run(): TPromise<boolean> {
+	run(): TPromise<boolean> {
 		this.setConfiguredZoomLevel(webFrame.getZoomLevel() + 1);
 
 		return TPromise.as(true);
@@ -224,8 +224,8 @@ export class ZoomInAction extends BaseZoomAction {
 
 export class ZoomOutAction extends BaseZoomAction {
 
-	public static readonly ID = 'workbench.action.zoomOut';
-	public static readonly LABEL = nls.localize('zoomOut', "Zoom Out");
+	static readonly ID = 'workbench.action.zoomOut';
+	static readonly LABEL = nls.localize('zoomOut', "Zoom Out");
 
 	constructor(
 		id: string,
@@ -235,7 +235,7 @@ export class ZoomOutAction extends BaseZoomAction {
 		super(id, label, configurationService);
 	}
 
-	public run(): TPromise<boolean> {
+	run(): TPromise<boolean> {
 		this.setConfiguredZoomLevel(webFrame.getZoomLevel() - 1);
 
 		return TPromise.as(true);
@@ -244,8 +244,8 @@ export class ZoomOutAction extends BaseZoomAction {
 
 export class ZoomResetAction extends BaseZoomAction {
 
-	public static readonly ID = 'workbench.action.zoomReset';
-	public static readonly LABEL = nls.localize('zoomReset', "Reset Zoom");
+	static readonly ID = 'workbench.action.zoomReset';
+	static readonly LABEL = nls.localize('zoomReset', "Reset Zoom");
 
 	constructor(
 		id: string,
@@ -255,7 +255,7 @@ export class ZoomResetAction extends BaseZoomAction {
 		super(id, label, configurationService);
 	}
 
-	public run(): TPromise<boolean> {
+	run(): TPromise<boolean> {
 		this.setConfiguredZoomLevel(0);
 
 		return TPromise.as(true);
@@ -288,8 +288,8 @@ interface ILoaderEvent {
 
 export class ShowStartupPerformance extends Action {
 
-	public static readonly ID = 'workbench.action.appPerf';
-	public static readonly LABEL = nls.localize('appPerf', "Startup Performance");
+	static readonly ID = 'workbench.action.appPerf';
+	static readonly LABEL = nls.localize('appPerf', "Startup Performance");
 
 	constructor(
 		id: string,
@@ -302,7 +302,7 @@ export class ShowStartupPerformance extends Action {
 		super(id, label);
 	}
 
-	public run(): TPromise<boolean> {
+	run(): TPromise<boolean> {
 
 		// Show dev tools
 		this.windowService.openDevTools();
@@ -444,10 +444,10 @@ export class ShowStartupPerformance extends Action {
 
 		class Tick {
 
-			public readonly duration: number;
-			public readonly detail: string;
+			readonly duration: number;
+			readonly detail: string;
 
-			constructor(public readonly start: ILoaderEvent, public readonly end: ILoaderEvent) {
+			constructor(private readonly start: ILoaderEvent, private readonly end: ILoaderEvent) {
 				console.assert(start.detail === end.detail);
 
 				this.duration = this.end.timestamp - this.start.timestamp;
@@ -591,7 +591,7 @@ export abstract class BaseSwitchWindow extends Action {
 
 	protected abstract isQuickNavigate(): boolean;
 
-	public run(): TPromise<void> {
+	run(): TPromise<void> {
 		const currentWindowId = this.windowService.getCurrentWindowId();
 
 		return this.windowsService.getWindows().then(windows => {
@@ -621,7 +621,7 @@ export abstract class BaseSwitchWindow extends Action {
 		});
 	}
 
-	public dispose(): void {
+	dispose(): void {
 		super.dispose();
 
 		this.closeWindowAction.dispose();
@@ -630,8 +630,8 @@ export abstract class BaseSwitchWindow extends Action {
 
 class CloseWindowAction extends Action implements IPickOpenAction {
 
-	public static readonly ID = 'workbench.action.closeWindow';
-	public static readonly LABEL = nls.localize('close', "Close Window");
+	static readonly ID = 'workbench.action.closeWindow';
+	static readonly LABEL = nls.localize('close', "Close Window");
 
 	constructor(
 		@IWindowsService private windowsService: IWindowsService
@@ -641,7 +641,7 @@ class CloseWindowAction extends Action implements IPickOpenAction {
 		this.class = 'action-remove-from-recently-opened';
 	}
 
-	public run(item: IPickOpenItem): TPromise<boolean> {
+	run(item: IPickOpenItem): TPromise<boolean> {
 		return this.windowsService.closeWindow(item.getPayload()).then(() => {
 			item.remove();
 
@@ -716,7 +716,7 @@ export abstract class BaseOpenRecentAction extends Action {
 
 	protected abstract isQuickNavigate(): boolean;
 
-	public run(): TPromise<void> {
+	run(): TPromise<void> {
 		return this.windowService.getRecentlyOpened()
 			.then(({ workspaces, files }) => this.openRecent(workspaces, files));
 	}
@@ -774,7 +774,7 @@ export abstract class BaseOpenRecentAction extends Action {
 		}).done(null, errors.onUnexpectedError);
 	}
 
-	public dispose(): void {
+	dispose(): void {
 		super.dispose();
 
 		this.removeAction.dispose();
@@ -783,8 +783,8 @@ export abstract class BaseOpenRecentAction extends Action {
 
 class RemoveFromRecentlyOpened extends Action implements IPickOpenAction {
 
-	public static readonly ID = 'workbench.action.removeFromRecentlyOpened';
-	public static readonly LABEL = nls.localize('remove', "Remove from Recently Opened");
+	static readonly ID = 'workbench.action.removeFromRecentlyOpened';
+	static readonly LABEL = nls.localize('remove', "Remove from Recently Opened");
 
 	constructor(
 		@IWindowsService private windowsService: IWindowsService
@@ -794,7 +794,7 @@ class RemoveFromRecentlyOpened extends Action implements IPickOpenAction {
 		this.class = 'action-remove-from-recently-opened';
 	}
 
-	public run(item: IPickOpenItem): TPromise<boolean> {
+	run(item: IPickOpenItem): TPromise<boolean> {
 		return this.windowsService.removeFromRecentlyOpened([item.getResource().fsPath]).then(() => {
 			item.remove();
 
@@ -805,8 +805,8 @@ class RemoveFromRecentlyOpened extends Action implements IPickOpenAction {
 
 export class OpenRecentAction extends BaseOpenRecentAction {
 
-	public static readonly ID = 'workbench.action.openRecent';
-	public static readonly LABEL = nls.localize('openRecent', "Open Recent...");
+	static readonly ID = 'workbench.action.openRecent';
+	static readonly LABEL = nls.localize('openRecent', "Open Recent...");
 
 	constructor(
 		id: string,
@@ -828,8 +828,8 @@ export class OpenRecentAction extends BaseOpenRecentAction {
 
 export class QuickOpenRecentAction extends BaseOpenRecentAction {
 
-	public static readonly ID = 'workbench.action.quickOpenRecent';
-	public static readonly LABEL = nls.localize('quickOpenRecent', "Quick Open Recent...");
+	static readonly ID = 'workbench.action.quickOpenRecent';
+	static readonly LABEL = nls.localize('quickOpenRecent', "Quick Open Recent...");
 
 	constructor(
 		id: string,
@@ -850,8 +850,8 @@ export class QuickOpenRecentAction extends BaseOpenRecentAction {
 }
 
 export class OpenIssueReporterAction extends Action {
-	public static readonly ID = 'workbench.action.openIssueReporter';
-	public static readonly LABEL = nls.localize({ key: 'reportIssueInEnglish', comment: ['Translate this to "Report Issue in English" in all languages please!'] }, "Report Issue");
+	static readonly ID = 'workbench.action.openIssueReporter';
+	static readonly LABEL = nls.localize({ key: 'reportIssueInEnglish', comment: ['Translate this to "Report Issue in English" in all languages please!'] }, "Report Issue");
 
 	constructor(
 		id: string,
@@ -861,15 +861,15 @@ export class OpenIssueReporterAction extends Action {
 		super(id, label);
 	}
 
-	public run(): TPromise<boolean> {
+	run(): TPromise<boolean> {
 		return this.issueService.openReporter()
 			.then(() => true);
 	}
 }
 
 export class OpenProcessExplorer extends Action {
-	public static readonly ID = 'workbench.action.openProcessExplorer';
-	public static readonly LABEL = nls.localize('openProcessExplorer', "Open Process Explorer");
+	static readonly ID = 'workbench.action.openProcessExplorer';
+	static readonly LABEL = nls.localize('openProcessExplorer', "Open Process Explorer");
 
 	constructor(
 		id: string,
@@ -879,15 +879,15 @@ export class OpenProcessExplorer extends Action {
 		super(id, label);
 	}
 
-	public run(): TPromise<boolean> {
+	run(): TPromise<boolean> {
 		return this.issueService.openProcessExplorer()
 			.then(() => true);
 	}
 }
 
 export class ReportPerformanceIssueUsingReporterAction extends Action {
-	public static readonly ID = 'workbench.action.reportPerformanceIssueUsingReporter';
-	public static readonly LABEL = nls.localize('reportPerformanceIssue', "Report Performance Issue");
+	static readonly ID = 'workbench.action.reportPerformanceIssueUsingReporter';
+	static readonly LABEL = nls.localize('reportPerformanceIssue', "Report Performance Issue");
 
 	constructor(
 		id: string,
@@ -897,7 +897,7 @@ export class ReportPerformanceIssueUsingReporterAction extends Action {
 		super(id, label);
 	}
 
-	public run(): TPromise<boolean> {
+	run(): TPromise<boolean> {
 		// TODO: Reporter should send timings table as well
 		return this.issueService.openReporter({ issueType: IssueType.PerformanceIssue })
 			.then(() => true);
@@ -907,8 +907,8 @@ export class ReportPerformanceIssueUsingReporterAction extends Action {
 // NOTE: This is still used when running --prof-startup, which already opens a dialog, so the reporter is not used.
 export class ReportPerformanceIssueAction extends Action {
 
-	public static readonly ID = 'workbench.action.reportPerformanceIssue';
-	public static readonly LABEL = nls.localize('reportPerformanceIssue', "Report Performance Issue");
+	static readonly ID = 'workbench.action.reportPerformanceIssue';
+	static readonly LABEL = nls.localize('reportPerformanceIssue', "Report Performance Issue");
 
 	constructor(
 		id: string,
@@ -920,7 +920,7 @@ export class ReportPerformanceIssueAction extends Action {
 		super(id, label);
 	}
 
-	public run(appendix?: string): TPromise<boolean> {
+	run(appendix?: string): TPromise<boolean> {
 		this.integrityService.isPure().then(res => {
 			const issueUrl = this.generatePerformanceIssueUrl(product.reportIssueUrl, pkg.name, pkg.version, product.commit, product.date, res.isPure, appendix);
 
@@ -1027,11 +1027,11 @@ ${appendix}`
 
 export class KeybindingsReferenceAction extends Action {
 
-	public static readonly ID = 'workbench.action.keybindingsReference';
-	public static readonly LABEL = nls.localize('keybindingsReference', "Keyboard Shortcuts Reference");
+	static readonly ID = 'workbench.action.keybindingsReference';
+	static readonly LABEL = nls.localize('keybindingsReference', "Keyboard Shortcuts Reference");
 
 	private static readonly URL = isLinux ? product.keyboardShortcutsUrlLinux : isMacintosh ? product.keyboardShortcutsUrlMac : product.keyboardShortcutsUrlWin;
-	public static readonly AVAILABLE = !!KeybindingsReferenceAction.URL;
+	static readonly AVAILABLE = !!KeybindingsReferenceAction.URL;
 
 	constructor(
 		id: string,
@@ -1040,7 +1040,7 @@ export class KeybindingsReferenceAction extends Action {
 		super(id, label);
 	}
 
-	public run(): TPromise<void> {
+	run(): TPromise<void> {
 		window.open(KeybindingsReferenceAction.URL);
 		return null;
 	}
@@ -1048,11 +1048,11 @@ export class KeybindingsReferenceAction extends Action {
 
 export class OpenDocumentationUrlAction extends Action {
 
-	public static readonly ID = 'workbench.action.openDocumentationUrl';
-	public static readonly LABEL = nls.localize('openDocumentationUrl', "Documentation");
+	static readonly ID = 'workbench.action.openDocumentationUrl';
+	static readonly LABEL = nls.localize('openDocumentationUrl', "Documentation");
 
 	private static readonly URL = product.documentationUrl;
-	public static readonly AVAILABLE = !!OpenDocumentationUrlAction.URL;
+	static readonly AVAILABLE = !!OpenDocumentationUrlAction.URL;
 
 	constructor(
 		id: string,
@@ -1061,7 +1061,7 @@ export class OpenDocumentationUrlAction extends Action {
 		super(id, label);
 	}
 
-	public run(): TPromise<void> {
+	run(): TPromise<void> {
 		window.open(OpenDocumentationUrlAction.URL);
 		return null;
 	}
@@ -1069,11 +1069,11 @@ export class OpenDocumentationUrlAction extends Action {
 
 export class OpenIntroductoryVideosUrlAction extends Action {
 
-	public static readonly ID = 'workbench.action.openIntroductoryVideosUrl';
-	public static readonly LABEL = nls.localize('openIntroductoryVideosUrl', "Introductory Videos");
+	static readonly ID = 'workbench.action.openIntroductoryVideosUrl';
+	static readonly LABEL = nls.localize('openIntroductoryVideosUrl', "Introductory Videos");
 
 	private static readonly URL = product.introductoryVideosUrl;
-	public static readonly AVAILABLE = !!OpenIntroductoryVideosUrlAction.URL;
+	static readonly AVAILABLE = !!OpenIntroductoryVideosUrlAction.URL;
 
 	constructor(
 		id: string,
@@ -1082,7 +1082,7 @@ export class OpenIntroductoryVideosUrlAction extends Action {
 		super(id, label);
 	}
 
-	public run(): TPromise<void> {
+	run(): TPromise<void> {
 		window.open(OpenIntroductoryVideosUrlAction.URL);
 		return null;
 	}
@@ -1090,11 +1090,11 @@ export class OpenIntroductoryVideosUrlAction extends Action {
 
 export class OpenTipsAndTricksUrlAction extends Action {
 
-	public static readonly ID = 'workbench.action.openTipsAndTricksUrl';
-	public static readonly LABEL = nls.localize('openTipsAndTricksUrl', "Tips and Tricks");
+	static readonly ID = 'workbench.action.openTipsAndTricksUrl';
+	static readonly LABEL = nls.localize('openTipsAndTricksUrl', "Tips and Tricks");
 
 	private static readonly URL = product.tipsAndTricksUrl;
-	public static readonly AVAILABLE = !!OpenTipsAndTricksUrlAction.URL;
+	static readonly AVAILABLE = !!OpenTipsAndTricksUrlAction.URL;
 
 	constructor(
 		id: string,
@@ -1103,7 +1103,7 @@ export class OpenTipsAndTricksUrlAction extends Action {
 		super(id, label);
 	}
 
-	public run(): TPromise<void> {
+	run(): TPromise<void> {
 		window.open(OpenTipsAndTricksUrlAction.URL);
 		return null;
 	}
@@ -1141,7 +1141,7 @@ export abstract class BaseNavigationAction extends Action {
 		super(id, label);
 	}
 
-	public run(): TPromise<any> {
+	run(): TPromise<any> {
 		const isEditorFocus = this.partService.hasFocus(Parts.EDITOR_PART);
 		const isPanelFocus = this.partService.hasFocus(Parts.PANEL_PART);
 		const isSidebarFocus = this.partService.hasFocus(Parts.SIDEBAR_PART);
@@ -1218,8 +1218,8 @@ export abstract class BaseNavigationAction extends Action {
 
 export class NavigateLeftAction extends BaseNavigationAction {
 
-	public static readonly ID = 'workbench.action.navigateLeft';
-	public static readonly LABEL = nls.localize('navigateLeft', "Navigate to the View on the Left");
+	static readonly ID = 'workbench.action.navigateLeft';
+	static readonly LABEL = nls.localize('navigateLeft', "Navigate to the View on the Left");
 
 	constructor(
 		id: string,
@@ -1270,8 +1270,8 @@ export class NavigateLeftAction extends BaseNavigationAction {
 
 export class NavigateRightAction extends BaseNavigationAction {
 
-	public static readonly ID = 'workbench.action.navigateRight';
-	public static readonly LABEL = nls.localize('navigateRight', "Navigate to the View on the Right");
+	static readonly ID = 'workbench.action.navigateRight';
+	static readonly LABEL = nls.localize('navigateRight', "Navigate to the View on the Right");
 
 	constructor(
 		id: string,
@@ -1322,8 +1322,8 @@ export class NavigateRightAction extends BaseNavigationAction {
 
 export class NavigateUpAction extends BaseNavigationAction {
 
-	public static readonly ID = 'workbench.action.navigateUp';
-	public static readonly LABEL = nls.localize('navigateUp', "Navigate to the View Above");
+	static readonly ID = 'workbench.action.navigateUp';
+	static readonly LABEL = nls.localize('navigateUp', "Navigate to the View Above");
 
 	constructor(
 		id: string,
@@ -1351,8 +1351,8 @@ export class NavigateUpAction extends BaseNavigationAction {
 
 export class NavigateDownAction extends BaseNavigationAction {
 
-	public static readonly ID = 'workbench.action.navigateDown';
-	public static readonly LABEL = nls.localize('navigateDown', "Navigate to the View Below");
+	static readonly ID = 'workbench.action.navigateDown';
+	static readonly LABEL = nls.localize('navigateDown', "Navigate to the View Below");
 
 	constructor(
 		id: string,
@@ -1417,8 +1417,8 @@ export abstract class BaseResizeViewAction extends Action {
 
 export class IncreaseViewSizeAction extends BaseResizeViewAction {
 
-	public static readonly ID = 'workbench.action.increaseViewSize';
-	public static readonly LABEL = nls.localize('increaseViewSize', "Increase Current View Size");
+	static readonly ID = 'workbench.action.increaseViewSize';
+	static readonly LABEL = nls.localize('increaseViewSize', "Increase Current View Size");
 
 	constructor(
 		id: string,
@@ -1428,7 +1428,7 @@ export class IncreaseViewSizeAction extends BaseResizeViewAction {
 		super(id, label, partService);
 	}
 
-	public run(): TPromise<boolean> {
+	run(): TPromise<boolean> {
 		this.resizePart(BaseResizeViewAction.RESIZE_INCREMENT);
 		return TPromise.as(true);
 	}
@@ -1436,8 +1436,8 @@ export class IncreaseViewSizeAction extends BaseResizeViewAction {
 
 export class DecreaseViewSizeAction extends BaseResizeViewAction {
 
-	public static readonly ID = 'workbench.action.decreaseViewSize';
-	public static readonly LABEL = nls.localize('decreaseViewSize', "Decrease Current View Size");
+	static readonly ID = 'workbench.action.decreaseViewSize';
+	static readonly LABEL = nls.localize('decreaseViewSize', "Decrease Current View Size");
 
 	constructor(
 		id: string,
@@ -1448,7 +1448,7 @@ export class DecreaseViewSizeAction extends BaseResizeViewAction {
 		super(id, label, partService);
 	}
 
-	public run(): TPromise<boolean> {
+	run(): TPromise<boolean> {
 		this.resizePart(-BaseResizeViewAction.RESIZE_INCREMENT);
 		return TPromise.as(true);
 	}
@@ -1456,8 +1456,8 @@ export class DecreaseViewSizeAction extends BaseResizeViewAction {
 
 export class ShowPreviousWindowTab extends Action {
 
-	public static readonly ID = 'workbench.action.showPreviousWindowTab';
-	public static readonly LABEL = nls.localize('showPreviousTab', "Show Previous Window Tab");
+	static readonly ID = 'workbench.action.showPreviousWindowTab';
+	static readonly LABEL = nls.localize('showPreviousTab', "Show Previous Window Tab");
 
 	constructor(
 		id: string,
@@ -1467,15 +1467,15 @@ export class ShowPreviousWindowTab extends Action {
 		super(ShowPreviousWindowTab.ID, ShowPreviousWindowTab.LABEL);
 	}
 
-	public run(): TPromise<boolean> {
+	run(): TPromise<boolean> {
 		return this.windowsService.showPreviousWindowTab().then(() => true);
 	}
 }
 
 export class ShowNextWindowTab extends Action {
 
-	public static readonly ID = 'workbench.action.showNextWindowTab';
-	public static readonly LABEL = nls.localize('showNextWindowTab', "Show Next Window Tab");
+	static readonly ID = 'workbench.action.showNextWindowTab';
+	static readonly LABEL = nls.localize('showNextWindowTab', "Show Next Window Tab");
 
 	constructor(
 		id: string,
@@ -1485,15 +1485,15 @@ export class ShowNextWindowTab extends Action {
 		super(ShowNextWindowTab.ID, ShowNextWindowTab.LABEL);
 	}
 
-	public run(): TPromise<boolean> {
+	run(): TPromise<boolean> {
 		return this.windowsService.showNextWindowTab().then(() => true);
 	}
 }
 
 export class MoveWindowTabToNewWindow extends Action {
 
-	public static readonly ID = 'workbench.action.moveWindowTabToNewWindow';
-	public static readonly LABEL = nls.localize('moveWindowTabToNewWindow', "Move Window Tab to New Window");
+	static readonly ID = 'workbench.action.moveWindowTabToNewWindow';
+	static readonly LABEL = nls.localize('moveWindowTabToNewWindow', "Move Window Tab to New Window");
 
 	constructor(
 		id: string,
@@ -1503,15 +1503,15 @@ export class MoveWindowTabToNewWindow extends Action {
 		super(MoveWindowTabToNewWindow.ID, MoveWindowTabToNewWindow.LABEL);
 	}
 
-	public run(): TPromise<boolean> {
+	run(): TPromise<boolean> {
 		return this.windowsService.moveWindowTabToNewWindow().then(() => true);
 	}
 }
 
 export class MergeAllWindowTabs extends Action {
 
-	public static readonly ID = 'workbench.action.mergeAllWindowTabs';
-	public static readonly LABEL = nls.localize('mergeAllWindowTabs', "Merge All Windows");
+	static readonly ID = 'workbench.action.mergeAllWindowTabs';
+	static readonly LABEL = nls.localize('mergeAllWindowTabs', "Merge All Windows");
 
 	constructor(
 		id: string,
@@ -1521,15 +1521,15 @@ export class MergeAllWindowTabs extends Action {
 		super(MergeAllWindowTabs.ID, MergeAllWindowTabs.LABEL);
 	}
 
-	public run(): TPromise<boolean> {
+	run(): TPromise<boolean> {
 		return this.windowsService.mergeAllWindowTabs().then(() => true);
 	}
 }
 
 export class ToggleWindowTabsBar extends Action {
 
-	public static readonly ID = 'workbench.action.toggleWindowTabsBar';
-	public static readonly LABEL = nls.localize('toggleWindowTabsBar', "Toggle Window Tabs Bar");
+	static readonly ID = 'workbench.action.toggleWindowTabsBar';
+	static readonly LABEL = nls.localize('toggleWindowTabsBar', "Toggle Window Tabs Bar");
 
 	constructor(
 		id: string,
@@ -1539,15 +1539,15 @@ export class ToggleWindowTabsBar extends Action {
 		super(ToggleWindowTabsBar.ID, ToggleWindowTabsBar.LABEL);
 	}
 
-	public run(): TPromise<boolean> {
+	run(): TPromise<boolean> {
 		return this.windowsService.toggleWindowTabsBar().then(() => true);
 	}
 }
 
 export class OpenTwitterUrlAction extends Action {
 
-	public static readonly ID = 'workbench.action.openTwitterUrl';
-	public static LABEL = nls.localize('openTwitterUrl', "Join us on Twitter", product.applicationName);
+	static readonly ID = 'workbench.action.openTwitterUrl';
+	static LABEL = nls.localize('openTwitterUrl', "Join us on Twitter", product.applicationName);
 
 	constructor(
 		id: string,
@@ -1567,8 +1567,8 @@ export class OpenTwitterUrlAction extends Action {
 
 export class OpenRequestFeatureUrlAction extends Action {
 
-	public static readonly ID = 'workbench.action.openRequestFeatureUrl';
-	public static LABEL = nls.localize('openUserVoiceUrl', "Search Feature Requests");
+	static readonly ID = 'workbench.action.openRequestFeatureUrl';
+	static LABEL = nls.localize('openUserVoiceUrl', "Search Feature Requests");
 
 	constructor(
 		id: string,
@@ -1588,8 +1588,8 @@ export class OpenRequestFeatureUrlAction extends Action {
 
 export class OpenLicenseUrlAction extends Action {
 
-	public static readonly ID = 'workbench.action.openLicenseUrl';
-	public static LABEL = nls.localize('openLicenseUrl', "View License");
+	static readonly ID = 'workbench.action.openLicenseUrl';
+	static LABEL = nls.localize('openLicenseUrl', "View License");
 
 	constructor(
 		id: string,
@@ -1615,8 +1615,8 @@ export class OpenLicenseUrlAction extends Action {
 
 export class OpenPrivacyStatementUrlAction extends Action {
 
-	public static readonly ID = 'workbench.action.openPrivacyStatementUrl';
-	public static LABEL = nls.localize('openPrivacyStatement', "Privacy Statement");
+	static readonly ID = 'workbench.action.openPrivacyStatementUrl';
+	static LABEL = nls.localize('openPrivacyStatement', "Privacy Statement");
 
 	constructor(
 		id: string,
@@ -1642,8 +1642,8 @@ export class OpenPrivacyStatementUrlAction extends Action {
 
 export class ShowAccessibilityOptionsAction extends Action {
 
-	public static readonly ID = 'workbench.action.showAccessibilityOptions';
-	public static LABEL = nls.localize('accessibilityOptions', "Accessibility Options");
+	static readonly ID = 'workbench.action.showAccessibilityOptions';
+	static LABEL = nls.localize('accessibilityOptions', "Accessibility Options");
 
 	constructor(
 		id: string,
@@ -1661,8 +1661,8 @@ export class ShowAccessibilityOptionsAction extends Action {
 
 export class ShowAboutDialogAction extends Action {
 
-	public static readonly ID = 'workbench.action.showAboutDialog';
-	public static LABEL = nls.localize('about', "About {0}", product.applicationName);
+	static readonly ID = 'workbench.action.showAboutDialog';
+	static LABEL = nls.localize('about', "About {0}", product.applicationName);
 
 	constructor(
 		id: string,
@@ -1679,8 +1679,8 @@ export class ShowAboutDialogAction extends Action {
 
 export class InspectContextKeysAction extends Action {
 
-	public static readonly ID = 'workbench.action.inspectContextKeys';
-	public static LABEL = nls.localize('inspect context keys', "Inspect Context Keys");
+	static readonly ID = 'workbench.action.inspectContextKeys';
+	static LABEL = nls.localize('inspect context keys', "Inspect Context Keys");
 
 	constructor(
 		id: string,

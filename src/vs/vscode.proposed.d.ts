@@ -17,9 +17,9 @@ declare module 'vscode' {
 
 	export interface TextSearchQuery {
 		pattern: string;
-		isRegExp: boolean;
-		isCaseSensitive: boolean;
-		isWordMatch: boolean;
+		isRegExp?: boolean;
+		isCaseSensitive?: boolean;
+		isWordMatch?: boolean;
 	}
 
 	export interface SearchOptions {
@@ -28,6 +28,7 @@ declare module 'vscode' {
 		excludes: string[];
 		useIgnoreFiles?: boolean;
 		followSymlinks?: boolean;
+		maxResults?: number;
 	}
 
 	export interface TextSearchOptions extends SearchOptions {
@@ -36,10 +37,15 @@ declare module 'vscode' {
 		encoding?: string;
 	}
 
+	export interface FileSearchQuery {
+		pattern: string;
+		cacheKey?: string;
+	}
+
 	export interface FileSearchOptions extends SearchOptions { }
 
 	export interface TextSearchResult {
-		path: string;
+		uri: Uri;
 		range: Range;
 
 		// For now, preview must be a single line of text
@@ -47,12 +53,22 @@ declare module 'vscode' {
 	}
 
 	export interface SearchProvider {
-		provideFileSearchResults?(options: FileSearchOptions, progress: Progress<string>, token: CancellationToken): Thenable<void>;
+		provideFileSearchResults?(query: FileSearchQuery, options: FileSearchOptions, progress: Progress<Uri>, token: CancellationToken): Thenable<void>;
 		provideTextSearchResults?(query: TextSearchQuery, options: TextSearchOptions, progress: Progress<TextSearchResult>, token: CancellationToken): Thenable<void>;
+	}
+
+	export interface FindTextInFilesOptions {
+		includes?: GlobPattern[];
+		excludes?: GlobPattern[];
+		maxResults?: number;
+		useIgnoreFiles?: boolean;
+		followSymlinks?: boolean;
+		encoding?: string;
 	}
 
 	export namespace workspace {
 		export function registerSearchProvider(scheme: string, provider: SearchProvider): Disposable;
+		export function findTextInFiles(query: TextSearchQuery, options: FindTextInFilesOptions, callback: (result: TextSearchResult) => void, token?: CancellationToken): Thenable<void>;
 	}
 
 	//#endregion
