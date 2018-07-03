@@ -2320,7 +2320,12 @@ export class AddToWorkspaceFolderRecommendationsAction extends AbstractConfigure
 						}
 
 						return this.addExtensionToWorkspaceFolderConfig(configurationFile, extensionId, shouldRecommend).then(() => {
-							this.notificationService.info(localize('AddToWorkspaceFolderRecommendations.success', 'The extension was successfully added to this workspace folder\'s recommendations.'));
+							this.notificationService.prompt(Severity.Info,
+								localize('AddToWorkspaceFolderRecommendations.success', 'The extension was successfully added to this workspace folder\'s recommendations.'),
+								[{
+									label: localize('viewChanges', "View Changes"),
+									run: () => this.openExtensionsFile(configurationFile)
+								}]);
 						}, err => {
 							this.notificationService.error(localize('AddToWorkspaceFolderRecommendations.failure', 'Failed to write to extensions.json. {0}', err));
 						});
@@ -2332,7 +2337,12 @@ export class AddToWorkspaceFolderRecommendationsAction extends AbstractConfigure
 						}
 
 						return this.addExtensionToWorkspaceFolderConfig(configurationFile, extensionId, shouldRecommend).then(() => {
-							this.notificationService.info(localize('AddToWorkspaceFolderIgnoredRecommendations.success', 'The extension was successfully added to this workspace folder\'s unwanted recommendations.'));
+							this.notificationService.prompt(Severity.Info,
+								localize('AddToWorkspaceFolderIgnoredRecommendations.success', 'The extension was successfully added to this workspace folder\'s unwanted recommendations.'),
+								[{
+									label: localize('viewChanges', "View Changes"),
+									run: () => this.openExtensionsFile(configurationFile)
+								}]);
 						}, err => {
 							this.notificationService.error(localize('AddToWorkspaceFolderRecommendations.failure', 'Failed to write to extensions.json. {0}', err));
 						});
@@ -2380,7 +2390,13 @@ export class AddToWorkspaceRecommendationsAction extends AbstractConfigureRecomm
 				}
 
 				return this.addExtensionToWorkspaceConfig(workspaceConfig, extensionId, shouldRecommend).then(() => {
-					this.notificationService.info(localize('AddToWorkspaceRecommendations.success', 'The extension was successfully added to this workspace\'s recommendations.'));
+					this.notificationService.prompt(Severity.Info,
+						localize('AddToWorkspaceRecommendations.success', 'The extension was successfully added to this workspace\'s recommendations.'),
+						[{
+							label: localize('viewChanges', "View Changes"),
+							run: () => this.openWorkspaceConfigurationFile(workspaceConfig)
+						}]);
+
 				}, err => {
 					this.notificationService.error(localize('AddToWorkspaceRecommendations.failure', 'Failed to write. {0}', err));
 				});
@@ -2391,7 +2407,12 @@ export class AddToWorkspaceRecommendationsAction extends AbstractConfigureRecomm
 				}
 
 				return this.addExtensionToWorkspaceConfig(workspaceConfig, extensionId, shouldRecommend).then(() => {
-					this.notificationService.info(localize('AddToWorkspaceUnwantedRecommendations.success', 'The extension was successfully added to this workspace\'s unwanted recommendations.'));
+					this.notificationService.prompt(Severity.Info,
+						localize('AddToWorkspaceUnwantedRecommendations.success', 'The extension was successfully added to this workspace\'s unwanted recommendations.'),
+						[{
+							label: localize('viewChanges', "View Changes"),
+							run: () => this.openWorkspaceConfigurationFile(workspaceConfig)
+						}]);
 				}, err => {
 					this.notificationService.error(localize('AddToWorkspaceRecommendations.failure', 'Failed to write. {0}', err));
 				});
