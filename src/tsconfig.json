@@ -6,6 +6,13 @@
 		"removeComments": false,
 		"preserveConstEnums": true,
 		"target": "es6",
+		"lib": [
+			"dom",
+			"es5",
+			"es2015.promise",
+			"es2015.iterable",
+			"es2015.collection"
+		],
 		"sourceMap": false,
 		"experimentalDecorators": true,
 		"declaration": true,
@@ -14,7 +21,7 @@
 		"noImplicitThis": true,
 		"alwaysStrict": true,
 		"baseUrl": ".",
-		"outDir": "../out",
+		"outDir": "../out/vs",
 		"typeRoots": [
 			"typings"
 		]
