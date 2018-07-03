@@ -86,6 +86,7 @@ export class ExtensionTipsService extends Disposable implements IExtensionTipsSe
 
 	private readonly _onRecommendationChange: Emitter<RecommendationChangeNotification> = new Emitter<RecommendationChangeNotification>();
 	onRecommendationChange: Event<RecommendationChangeNotification> = this._onRecommendationChange.event;
+	private sessionSeed: number;
 
 	constructor(
 		@IExtensionGalleryService private readonly _galleryService: IExtensionGalleryService,
@@ -108,7 +109,6 @@ export class ExtensionTipsService extends Disposable implements IExtensionTipsSe
 	) {
 		super();
 
-
 		if (!this.isEnabled()) {
 			return;
 		}
@@ -116,6 +116,8 @@ export class ExtensionTipsService extends Disposable implements IExtensionTipsSe
 		if (product.extensionsGallery && product.extensionsGallery.recommendationsUrl) {
 			this._extensionsRecommendationsUrl = product.extensionsGallery.recommendationsUrl;
 		}
+
+		this.sessionSeed = +new Date();
 
 		let globallyIgnored = <string[]>JSON.parse(this.storageService.get('extensionsAssistant/ignored_recommendations', StorageScope.GLOBAL, '[]'));
 		this._globallyIgnoredRecommendations = globallyIgnored.map(id => id.toLowerCase());
@@ -405,7 +407,7 @@ export class ExtensionTipsService extends Disposable implements IExtensionTipsSe
 				...this._dynamicWorkspaceRecommendations,
 				...Object.keys(this._experimentalRecommendations),
 			]).filter(extensionId => this.isExtensionAllowedToBeRecommended(extensionId));
-			shuffle(others);
+			shuffle(others, this.sessionSeed);
 			return others.map(extensionId => {
 				const sources: ExtensionRecommendationSource[] = [];
 				if (this._exeBasedRecommendations[extensionId]) {
