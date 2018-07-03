@@ -65,7 +65,7 @@ export class TerminalInstance implements ITerminalInstance {
 	private _rows: number;
 	private _dimensionsOverride: ITerminalDimensions;
 	private _windowsShellHelper: WindowsShellHelper;
-	private _xtermReadyPromise: TPromise<void>;
+	private _xtermReadyPromise: Promise<void>;
 
 	private _disposables: lifecycle.IDisposable[];
 	private _messageTitleDisposable: lifecycle.IDisposable;
@@ -255,7 +255,7 @@ export class TerminalInstance implements ITerminalInstance {
 	/**
 	 * Create xterm.js instance and attach data listeners.
 	 */
-	protected async _createXterm(): TPromise<void> {
+	protected async _createXterm(): Promise<void> {
 		if (!Terminal) {
 			Terminal = (await import('vscode-xterm')).Terminal;
 			// Enable xterm.js addons
