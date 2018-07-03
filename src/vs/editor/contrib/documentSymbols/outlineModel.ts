@@ -6,8 +6,6 @@
 
 import { DocumentSymbolProviderRegistry, DocumentSymbolProvider, DocumentSymbol } from 'vs/editor/common/modes';
 import { ITextModel } from 'vs/editor/common/model';
-import { asWinJsPromise } from 'vs/base/common/async';
-import { TPromise } from 'vs/base/common/winjs.base';
 import { fuzzyScore, FuzzyScore } from 'vs/base/common/filters';
 import { IPosition } from 'vs/editor/common/core/position';
 import { Range, IRange } from 'vs/editor/common/core/range';
@@ -17,6 +15,7 @@ import { commonPrefixLength } from 'vs/base/common/strings';
 import { IMarker, MarkerSeverity } from 'vs/platform/markers/common/markers';
 import { onUnexpectedExternalError } from 'vs/base/common/errors';
 import { LRUCache } from 'vs/base/common/map';
+import { CancellationToken, CancellationTokenSource } from 'vs/base/common/cancellation';
 
 export abstract class TreeElement {
 	abstract id: string;
@@ -196,7 +195,7 @@ export class OutlineGroup extends TreeElement {
 
 export class OutlineModel extends TreeElement {
 
-	private static readonly _requests = new LRUCache<string, { promiseCnt: number, promise: TPromise<any>, model: OutlineModel }>(9, .75);
+	private static readonly _requests = new LRUCache<string, { promiseCnt: number, source: CancellationTokenSource, promise: Promise<any>, model: OutlineModel }>(9, .75);
 	private static readonly _keys = new class {
 
 		private _counter = 1;
@@ -221,15 +220,17 @@ export class OutlineModel extends TreeElement {
 	};
 
 
-	static create(textModel: ITextModel): TPromise<OutlineModel> {
+	static create(textModel: ITextModel, token: CancellationToken): Promise<OutlineModel> {
 
 		let key = this._keys.for(textModel);
 		let data = OutlineModel._requests.get(key);
 
 		if (!data) {
+			let source = new CancellationTokenSource();
 			data = {
 				promiseCnt: 0,
-				promise: OutlineModel._create(textModel),
+				source,
+				promise: OutlineModel._create(textModel, source.token),
 				model: undefined,
 			};
 			OutlineModel._requests.set(key, data);
@@ -237,13 +238,21 @@ export class OutlineModel extends TreeElement {
 
 		if (data.model) {
 			// resolved -> return data
-			return TPromise.as(data.model);
+			return Promise.resolve(data.model);
 		}
 
 		// increase usage counter
 		data.promiseCnt += 1;
 
-		return new TPromise((resolve, reject) => {
+		token.onCancellationRequested(() => {
+			// last -> cancel provider request, remove cached promise
+			if (--data.promiseCnt === 0) {
+				data.source.cancel();
+				OutlineModel._requests.delete(key);
+			}
+		});
+
+		return new Promise((resolve, reject) => {
 			data.promise.then(model => {
 				data.model = model;
 				resolve(model);
@@ -251,16 +260,10 @@ export class OutlineModel extends TreeElement {
 				OutlineModel._requests.delete(key);
 				reject(err);
 			});
-		}, () => {
-			// last -> cancel provider request, remove cached promise
-			if (--data.promiseCnt === 0) {
-				data.promise.cancel();
-				OutlineModel._requests.delete(key);
-			}
 		});
 	}
 
-	static _create(textModel: ITextModel): TPromise<OutlineModel> {
+	static _create(textModel: ITextModel, token: CancellationToken): Promise<OutlineModel> {
 
 		let result = new OutlineModel(textModel);
 		let promises = DocumentSymbolProviderRegistry.ordered(textModel).map((provider, index) => {
@@ -268,7 +271,7 @@ export class OutlineModel extends TreeElement {
 			let id = TreeElement.findId(`provider_${index}`, result);
 			let group = new OutlineGroup(id, result, provider, index);
 
-			return asWinJsPromise(token => provider.provideDocumentSymbols(result.textModel, token)).then(result => {
+			return Promise.resolve(provider.provideDocumentSymbols(result.textModel, token)).then(result => {
 				if (!isFalsyOrEmpty(result)) {
 					for (const info of result) {
 						OutlineModel._makeOutlineElement(info, group);
@@ -283,7 +286,7 @@ export class OutlineModel extends TreeElement {
 			});
 		});
 
-		return TPromise.join(promises).then(() => {
+		return Promise.all(promises).then(() => {
 
 			let count = 0;
 			for (const key in result._groups) {
