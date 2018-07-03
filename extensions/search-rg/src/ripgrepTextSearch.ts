@@ -7,6 +7,7 @@
 
 import * as cp from 'child_process';
 import { EventEmitter } from 'events';
+import * as path from 'path';
 import { NodeStringDecoder, StringDecoder } from 'string_decoder';
 import * as vscode from 'vscode';
 import { rgPath } from './ripgrep';
@@ -291,7 +292,7 @@ export class RipgrepParser extends EventEmitter {
 		lineMatches
 			.map(range => {
 				return <vscode.TextSearchResult>{
-					path: this.currentFile,
+					uri: vscode.Uri.file(path.join(this.rootFolder, this.currentFile)),
 					range,
 					preview: {
 						text: preview,

@@ -399,7 +399,7 @@ export class ExtHostWorkspace implements ExtHostWorkspaceShape {
 				lineMatch.offsetAndLengths.forEach(offsetAndLength => {
 					const range = new Range(lineMatch.lineNumber, offsetAndLength[0], lineMatch.lineNumber, offsetAndLength[0] + offsetAndLength[1]);
 					callback({
-						path: URI.revive(p.resource).fsPath,
+						uri: URI.revive(p.resource),
 						preview: { text: lineMatch.preview, match: range },
 						range
 					});
