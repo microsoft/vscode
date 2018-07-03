@@ -259,6 +259,11 @@ configurationRegistry.registerConfiguration({
 			'description': nls.localize('openDefaultSettings', "Controls if opening settings also opens an editor showing all default settings."),
 			'default': true
 		},
+		'workbench.settings.openDefaultKeybindings': {
+			'type': 'boolean',
+			'description': nls.localize('openDefaultKeybindings', "Controls if opening keybinding settings also opens an editor showing all default keybindings."),
+			'default': true
+		},
 		'workbench.sideBar.location': {
 			'type': 'string',
 			'enum': ['left', 'right'],
