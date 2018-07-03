@@ -141,8 +141,8 @@ export class LocalizationWorkbenchContribution extends Disposable implements IWo
 					return;
 				}
 
-				const extensionIdPrefix = this.getPossibleChineseMapping(locale);
-				const ceintlExtensionSearch = this.galleryService.query({ names: [`MS-CEINTL.vscode-language-pack-${extensionIdPrefix}`], pageSize: 1 });
+				const extensionIdPostfix = this.getPossibleChineseMapping(locale);
+				const ceintlExtensionSearch = this.galleryService.query({ names: [`MS-CEINTL.vscode-language-pack-${extensionIdPostfix}`], pageSize: 1 });
 				const tagSearch = this.galleryService.query({ text: `tag:lp-${locale}`, pageSize: 1 });
 
 				TPromise.join([ceintlExtensionSearch, tagSearch]).then(([ceintlResult, tagResult]) => {
