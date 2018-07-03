@@ -352,7 +352,7 @@ export class Barrier {
 
 	constructor() {
 		this._isOpen = false;
-		this._promise = new TPromise<boolean>((c, e, p) => {
+		this._promise = new TPromise<boolean>((c, e) => {
 			this._completePromise = c;
 		}, () => {
 			console.warn('You should really not try to cancel this ready promise!');

@@ -208,7 +208,7 @@ class ExtensionManifestNLSReplacer extends ExtensionManifestHandler {
 	 * Parses original message bundle, returns null if the original message bundle is null.
 	 */
 	private static resolveOriginalMessageBundle(originalMessageBundle: string, errors: json.ParseError[]) {
-		return new TPromise<{ [key: string]: string; }>((c, e, p) => {
+		return new TPromise<{ [key: string]: string; }>((c, e) => {
 			if (originalMessageBundle) {
 				pfs.readFile(originalMessageBundle).then(originalBundleContent => {
 					c(json.parse(originalBundleContent.toString(), errors));
@@ -226,7 +226,7 @@ class ExtensionManifestNLSReplacer extends ExtensionManifestHandler {
 	 * If the localized file is not present, returns null for the original and marks original as localized.
 	 */
 	private static findMessageBundles(nlsConfig: NlsConfiguration, basename: string): TPromise<{ localized: string, original: string }> {
-		return new TPromise<{ localized: string, original: string }>((c, e, p) => {
+		return new TPromise<{ localized: string, original: string }>((c, e) => {
 			function loop(basename: string, locale: string): void {
 				let toCheck = `${basename}.nls.${locale}.json`;
 				pfs.fileExists(toCheck).then(exists => {
