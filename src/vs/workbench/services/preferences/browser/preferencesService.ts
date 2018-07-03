@@ -91,6 +91,10 @@ export class PreferencesService extends Disposable implements IPreferencesServic
 		return this.getEditableSettingsURI(ConfigurationTarget.USER);
 	}
 
+	get userKeybindingsResource(): URI {
+		return this.getEditableSettingsURI(ConfigurationTarget.USER);
+	}
+
 	get workspaceSettingsResource(): URI {
 		return this.getEditableSettingsURI(ConfigurationTarget.WORKSPACE);
 	}
@@ -217,23 +221,41 @@ export class PreferencesService extends Disposable implements IPreferencesServic
 				"textual" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true }
 			}
 		*/
+		const openDefaultKeybindings = !!this.configurationService.getValue('workbench.settings.openDefaultKeybindings');
 		this.telemetryService.publicLog('openKeybindings', { textual });
 		if (textual) {
 			const emptyContents = '// ' + nls.localize('emptyKeybindingsHeader', "Place your key bindings in this file to overwrite the defaults") + '\n[\n]';
 			const editableKeybindings = URI.file(this.environmentService.appKeybindingsPath);
 
 			// Create as needed and open in editor
-			return this.createIfNotExists(editableKeybindings, emptyContents).then(() => {
-				const activeEditorGroup = this.editorGroupService.activeGroup;
-				const sideEditorGroup = this.editorGroupService.addGroup(activeEditorGroup.id, GroupDirection.RIGHT);
+			if (openDefaultKeybindings) {
+				return this.createIfNotExists(editableKeybindings, emptyContents).then(() => {
+					const activeEditorGroup = this.editorGroupService.activeGroup;
+					const sideEditorGroup = this.editorGroupService.addGroup(activeEditorGroup.id, GroupDirection.RIGHT);
 
-				return TPromise.join([
-					this.editorService.openEditor({ resource: this.defaultKeybindingsResource, options: { pinned: true, preserveFocus: true }, label: nls.localize('defaultKeybindings', "Default Keybindings"), description: '' }),
-					this.editorService.openEditor({ resource: editableKeybindings, options: { pinned: true } }, sideEditorGroup.id)
-				]).then(editors => void 0);
+					return TPromise.join([
+						this.editorService.openEditor({ resource: this.defaultKeybindingsResource, options: { pinned: true, preserveFocus: true }, label: nls.localize('defaultKeybindings', "Default Keybindings"), description: '' }),
+						this.editorService.openEditor({ resource: editableKeybindings, options: { pinned: true } }, sideEditorGroup.id)
+					]).then(editors => void 0);
+				});
+			}
+			return this.createIfNotExists(editableKeybindings, emptyContents).then(() => {
+				return this.editorService.openEditor({ resource: editableKeybindings, options: { pinned: true } }).then(editors => void 0);
 			});
 		}
 		return this.editorService.openEditor(this.instantiationService.createInstance(KeybindingsEditorInput), { pinned: true }).then(() => null);
+	}
+
+	openRawDefaultKeybindings(): TPromise<IEditor> {
+		return this.editorService.openEditor({ resource: this.defaultKeybindingsResource });
+	}
+
+	openRawUserKeybindings(): TPromise<IEditor> {
+		const emptyContents = '// ' + nls.localize('emptyKeybindingsHeader', "Place your key bindings in this file to overwrite the defaults") + '\n[\n]';
+		const editableKeybindings = URI.file(this.environmentService.appKeybindingsPath);
+		return this.createIfNotExists(editableKeybindings, emptyContents).then(() => {
+			return this.editorService.openEditor({ resource: editableKeybindings, options: { pinned: true } }).then(editors => void 0);
+		});
 	}
 
 	configureSettingsForLanguage(language: string): void {
