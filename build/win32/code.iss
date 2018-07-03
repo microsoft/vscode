@@ -946,7 +946,7 @@ Root: {#SoftwareClassesRootKey}; Subkey: "Software\Classes\Drive\shell\{#RegValu
 #define Uninstall64RootKey "HKCU64"
 #define Uninstall32RootKey "HKCU32"
 #else
-#define EnvironmentRootKey "HKCR"
+#define EnvironmentRootKey "HKLM"
 #define EnvironmentKey "System\CurrentControlSet\Control\Session Manager\Environment"
 #define Uninstall64RootKey "HKLM64"
 #define Uninstall32RootKey "HKLM32"
