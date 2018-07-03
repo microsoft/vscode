@@ -329,8 +329,8 @@ export class ExtHostWorkspace implements ExtHostWorkspaceShape {
 
 		// Events
 		this._onDidChangeWorkspace.fire(Object.freeze({
-			added: Object.freeze<vscode.WorkspaceFolder[]>(added),
-			removed: Object.freeze<vscode.WorkspaceFolder[]>(removed)
+			added,
+			removed,
 		}));
 	}
 
