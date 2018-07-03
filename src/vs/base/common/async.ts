@@ -32,6 +32,40 @@ export function toWinJsPromise<T>(arg: Thenable<T> | TPromise<T>): TPromise<T> {
 	return new TPromise((resolve, reject) => arg.then(resolve, reject));
 }
 
+export interface CancelablePromise<T> extends Promise<T> {
+	cancel(): void;
+}
+
+export function createCancelablePromise<T>(callback: (token: CancellationToken) => Thenable<T>): CancelablePromise<T> {
+	const source = new CancellationTokenSource();
+
+	const thenable = callback(source.token);
+	const promise = new Promise<T>((resolve, reject) => {
+		source.token.onCancellationRequested(() => {
+			reject(errors.canceled());
+		});
+		Promise.resolve(thenable).then(value => {
+			source.dispose();
+			resolve(value);
+		}, err => {
+			source.dispose();
+			reject(err);
+		});
+	});
+
+	return new class implements CancelablePromise<T> {
+		cancel() {
+			source.cancel();
+		}
+		then(resolve, reject) {
+			return promise.then(resolve, reject);
+		}
+		catch(reject) {
+			return this.then(undefined, reject);
+		}
+	};
+}
+
 export function asWinJsPromise<T>(callback: (token: CancellationToken) => T | TPromise<T> | Thenable<T>): TPromise<T> {
 	let source = new CancellationTokenSource();
 	return new TPromise<T>((resolve, reject, progress) => {
@@ -364,8 +398,16 @@ export class ShallowCancelThenPromise<T> extends TPromise<T> {
 /**
  * Replacement for `WinJS.TPromise.timeout`.
  */
-export function timeout(n: number): Thenable<void> {
-	return new TPromise(resolve => setTimeout(resolve, n));
+export function timeout(n: number): CancelablePromise<void> {
+	return createCancelablePromise(token => {
+		return new Promise((resolve, reject) => {
+			const handle = setTimeout(resolve, n);
+			token.onCancellationRequested(_ => {
+				clearTimeout(handle);
+				reject(errors.canceled());
+			});
+		});
+	});
 }
 
 function isWinJSPromise(candidate: any): candidate is TPromise {

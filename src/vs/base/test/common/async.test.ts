@@ -8,8 +8,47 @@ import * as assert from 'assert';
 import { TPromise } from 'vs/base/common/winjs.base';
 import * as Async from 'vs/base/common/async';
 import URI from 'vs/base/common/uri';
+import { isPromiseCanceledError } from 'vs/base/common/errors';
 
 suite('Async', () => {
+
+	test('cancelablePromise - set token, don\'t wait for inner promise', function () {
+		let canceled = 0;
+		let promise = Async.createCancelablePromise(token => {
+			token.onCancellationRequested(_ => { canceled += 1; });
+			return new Promise(resolve => { /*never*/ });
+		});
+		let result = promise.then(_ => assert.ok(false), err => {
+			assert.equal(canceled, 1);
+			assert.ok(isPromiseCanceledError(err));
+		});
+		promise.cancel();
+		promise.cancel(); // cancel only once
+		return result;
+	});
+
+	test('cancelablePromise - cancel despite inner promise being resolved', function () {
+		let canceled = 0;
+		let promise = Async.createCancelablePromise(token => {
+			token.onCancellationRequested(_ => { canceled += 1; });
+			return Promise.resolve(1234);
+		});
+		let result = promise.then(_ => assert.ok(false), err => {
+			assert.equal(canceled, 1);
+			assert.ok(isPromiseCanceledError(err));
+		});
+		promise.cancel();
+		return result;
+	});
+
+	test('cancelablePromise - get inner result', async function () {
+		let promise = Async.createCancelablePromise(token => {
+			return Async.timeout(12).then(_ => 1234);
+		});
+
+		let result = await promise;
+		assert.equal(result, 1234);
+	});
 
 	test('asDisposablePromise', async function () {
 		let value = await Async.asDisposablePromise(TPromise.as(1)).promise;
