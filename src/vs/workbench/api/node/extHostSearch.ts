@@ -621,7 +621,10 @@ class FileSearchEngine {
 				.then(() => {
 					this.activeCancellationTokens.add(cancellation);
 					return this.provider.provideFileSearchResults(
-						{ cacheKey: this.config.cacheKey, pattern: this.config.filePattern || '' },
+						{
+							pattern: this.config.filePattern || '',
+							cacheKey: this.config.cacheKey + '_' + fq.folder.fsPath
+						},
 						options,
 						{ report: onProviderResult },
 						cancellation.token);
