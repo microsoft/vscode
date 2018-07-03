@@ -14,6 +14,7 @@ import { ITimerService } from 'vs/workbench/services/timer/common/timerService';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { nfcall } from 'vs/base/common/async';
 import { appendFile } from 'fs';
+import product from 'vs/platform/node/product';
 
 class StartupTimingsAppender implements IWorkbenchContribution {
 
@@ -35,7 +36,7 @@ class StartupTimingsAppender implements IWorkbenchContribution {
 			extensionService.whenInstalledExtensionsRegistered()
 		]).then(() => {
 			const { startupMetrics } = timerService;
-			return nfcall(appendFile, appendTo, `${Date.now()}\t${startupMetrics.ellapsed}\n`);
+			return nfcall(appendFile, appendTo, `${product.nameShort}\t${product.commit || '0000000'}\t${Date.now()}\t${startupMetrics.ellapsed}\n`);
 		}).then(() => {
 			windowsService.quit();
 		}).catch(err => {
