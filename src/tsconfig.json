@@ -20,7 +20,9 @@
 		]
 	},
 	"exclude": [
-		"./typings/lib.ie11_safe_es6.d.ts",
-		"./src/vs/base/common/winjs.polyfill.promise.ts"
+		"typings/es6-promise.d.ts",
+		"typings/lib.ie11_safe_es6.d.ts",
+		"src/vs/base/common/winjs.polyfill.promise.ts",
+		"src/vs/base/test/common/winjs.polyfill.promise.test.ts"
 	]
 }
