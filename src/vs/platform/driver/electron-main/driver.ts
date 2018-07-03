@@ -216,7 +216,7 @@ export async function serve(
 	handle: string,
 	environmentService: IEnvironmentService,
 	instantiationService: IInstantiationService
-): TPromise<IDisposable> {
+): Promise<IDisposable> {
 	const verbose = environmentService.driverVerbose;
 	const driver = instantiationService.createInstance(Driver, windowServer, { verbose });
 

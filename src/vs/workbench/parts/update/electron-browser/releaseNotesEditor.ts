@@ -77,7 +77,7 @@ export class ReleaseNotesManager {
 	public async show(
 		accessor: ServicesAccessor,
 		version: string
-	): TPromise<boolean> {
+	): Promise<boolean> {
 		const releaseNoteText = await this.loadReleaseNotes(version);
 		this._lastText = releaseNoteText;
 		const html = await this.renderBody(releaseNoteText);

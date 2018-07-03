@@ -220,7 +220,7 @@ export async function registerWindowDriver(
 	client: IPCClient,
 	windowId: number,
 	instantiationService: IInstantiationService
-): TPromise<IDisposable> {
+): Promise<IDisposable> {
 	const windowDriver = instantiationService.createInstance(WindowDriver);
 	const windowDriverChannel = new WindowDriverChannel(windowDriver);
 	client.registerChannel('windowDriver', windowDriverChannel);
