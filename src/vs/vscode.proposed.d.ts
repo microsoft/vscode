@@ -13,48 +13,173 @@ declare module 'vscode' {
 		export function sampleFunction(): Thenable<any>;
 	}
 
-	//#region Joh: remote, search provider
+	//#region Rob: search provider
 
+	/**
+	 * The parameters of a query for text search.
+	 */
 	export interface TextSearchQuery {
+		/**
+		 * The text pattern to search for.
+		 */
 		pattern: string;
+
+		/**
+		 * Whether or not `pattern` should be interpreted as a regular expression.
+		 */
 		isRegExp?: boolean;
+
+		/**
+		 * Whether or not the search should be case-sensitive.
+		 */
 		isCaseSensitive?: boolean;
+
+		/**
+		 * Whether or not to search for whole word matches only.
+		 */
 		isWordMatch?: boolean;
 	}
 
+	/**
+	 * A file glob pattern to match file paths against.
+	 * TODO@roblou - merge this with the GlobPattern docs/definition in vscode.d.ts.
+	 * @see [GlobPattern](#GlobPattern)
+	 */
+	export type GlobString = string;
+
+	/**
+	 * Options common to file and text search
+	 */
 	export interface SearchOptions {
+		/**
+		 * The root folder to search within.
+		 */
 		folder: Uri;
-		includes: string[]; // paths relative to folder
-		excludes: string[];
+
+		/**
+		 * Files that match an `includes` glob pattern should be included in the search.
+		 */
+		includes: GlobString[];
+
+		/**
+		 * Files that match an `excludes` glob pattern should be excluded from the search.
+		 */
+		excludes: GlobString[];
+
+		/**
+		 * Whether external files that exclude files, like .gitignore, should be respected.
+		 * See the vscode setting `"search.useIgnoreFiles"`.
+		 */
 		useIgnoreFiles?: boolean;
+
+		/**
+		 * Whether symlinks should be followed while searching.
+		 * See the vscode setting `"search.followSymlinks"`.
+		 */
 		followSymlinks?: boolean;
+
+		/**
+		 * The maximum number of results to be returned.
+		 */
 		maxResults?: number;
 	}
 
+	/**
+	 * Options that apply to text search.
+	 */
 	export interface TextSearchOptions extends SearchOptions {
-		previewOptions?: any; // total length? # of context lines? leading and trailing # of chars?
+		/**
+		 *  TODO@roblou - total length? # of context lines? leading and trailing # of chars?
+		 */
+		previewOptions?: any;
+
+		/**
+		 * Exclude files larger than `maxFileSize` in bytes.
+		 */
 		maxFileSize?: number;
+
+		/**
+		 * Interpret files using this encoding.
+		 * See the vscode setting `"files.encoding"`
+		 */
 		encoding?: string;
 	}
 
+	/**
+	 * The parameters of a query for file search.
+	 */
 	export interface FileSearchQuery {
+		/**
+		 * The search pattern to match against file paths.
+		 */
 		pattern: string;
+
+		/**
+		 * `cacheKey` has the same value when `provideFileSearchResults` is invoked multiple times during a single quickopen session.
+		 * Providers can optionally use this to cache results at the beginning of a quickopen session and filter results as the user types.
+		 */
 		cacheKey?: string;
 	}
 
+	/**
+	 * Options that apply to file search.
+	 */
 	export interface FileSearchOptions extends SearchOptions { }
 
-	export interface TextSearchResult {
-		uri: Uri;
-		range: Range;
+	export interface TextSearchResultPreview {
+		/**
+		 * The matching line of text, or a portion of the matching line that contains the match.
+		 * For now, this can only be a single line.
+		 */
+		text: string;
 
-		// For now, preview must be a single line of text
-		preview: { text: string, match: Range };
+		/**
+		 * The Range within `text` corresponding to the text of the match.
+		 */
+		match: Range;
 	}
 
+	/**
+	 * A match from a text search
+	 */
+	export interface TextSearchResult {
+		/**
+		 * The uri for the matching document.
+		 */
+		uri: Uri;
+
+		/**
+		 * The range of the match within the document.
+		 */
+		range: Range;
+
+		/**
+		 * A preview of the matching line
+		 */
+		preview: TextSearchResultPreview;
+	}
+
+	/**
+	 * A SearchProvider provides search results for files or text in files. It can be invoked by quickopen, the search viewlet, and other extensions.
+	 */
 	export interface SearchProvider {
-		provideFileSearchResults?(query: FileSearchQuery, options: FileSearchOptions, progress: Progress<Uri>, token: CancellationToken): Thenable<void>;
-		provideTextSearchResults?(query: TextSearchQuery, options: TextSearchOptions, progress: Progress<TextSearchResult>, token: CancellationToken): Thenable<void>;
+		/**
+		 * Provide the set of files that match a certain file path pattern.
+		 * @param query The parameters for this query.
+		 * @param options A set of options to consider while searching files.
+		 * @param progress A progress callback that must be invoked for all results.
+		 * @param token A cancellation token.
+		 */
+		provideFileSearchResults(query: FileSearchQuery, options: FileSearchOptions, progress: Progress<Uri>, token: CancellationToken): Thenable<void>;
+
+		/**
+		 * Provide results that match the given text pattern.
+		 * @param query The parameters for this query.
+		 * @param options A set of options to consider while searching.
+		 * @param progress A progress callback that must be invoked for all results.
+		 * @param token A cancellation token.
+		 */
+		provideTextSearchResults(query: TextSearchQuery, options: TextSearchOptions, progress: Progress<TextSearchResult>, token: CancellationToken): Thenable<void>;
 	}
 
 	export interface FindTextInFilesOptions {
