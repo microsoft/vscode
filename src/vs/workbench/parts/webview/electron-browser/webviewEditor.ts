@@ -163,22 +163,22 @@ export class WebviewEditor extends BaseWebviewEditor {
 		super.clearInput();
 	}
 
-	async setInput(input: WebviewEditorInput, options: EditorOptions, token: CancellationToken): TPromise<void> {
+	setInput(input: WebviewEditorInput, options: EditorOptions, token: CancellationToken): Thenable<void> {
 		if (this.input) {
 			(this.input as WebviewEditorInput).releaseWebview(this);
 			this._webview = undefined;
 			this._webviewContent = undefined;
 		}
-		await super.setInput(input, options, token);
+		return super.setInput(input, options, token)
+			.then(() => input.resolve())
+			.then(() => {
+				if (token.isCancellationRequested) {
+					return;
+				}
 
-		await input.resolve();
-
-		if (token.isCancellationRequested) {
-			return;
-		}
-
-		input.updateGroup(this.group.id);
-		this.updateWebview(input);
+				input.updateGroup(this.group.id);
+				this.updateWebview(input);
+			});
 	}
 
 	private updateWebview(input: WebviewEditorInput) {
