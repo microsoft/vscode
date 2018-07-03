@@ -2044,7 +2044,6 @@ export abstract class AbstractConfigureRecommendedExtensionsAction extends Actio
 					.then(selection => this.editorService.openEditor({
 						resource: extensionsFileResource,
 						options: {
-							forceOpen: true,
 							pinned: created,
 							selection
 						}
@@ -2058,7 +2057,6 @@ export abstract class AbstractConfigureRecommendedExtensionsAction extends Actio
 			.then(selection => this.editorService.openEditor({
 				resource: workspaceConfigurationFile,
 				options: {
-					forceOpen: true,
 					selection
 				}
 			}));

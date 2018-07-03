@@ -661,8 +661,7 @@ export class OutlinePanel extends ViewletPanel {
 			options: {
 				preserveFocus: !focus,
 				selection: Range.collapseToStart(element.symbol.selectionRange),
-				revealInCenterIfOutsideViewport: true,
-				forceOpen: true
+				revealInCenterIfOutsideViewport: true
 			}
 		} as IResourceInput, aside ? SIDE_GROUP : ACTIVE_GROUP);
 	}

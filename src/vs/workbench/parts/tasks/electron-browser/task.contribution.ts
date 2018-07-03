@@ -1062,7 +1062,6 @@ class TaskService implements ITaskService {
 				this.editorService.openEditor({
 					resource,
 					options: {
-						forceOpen: true,
 						pinned: false
 					}
 				});
@@ -1085,7 +1084,6 @@ class TaskService implements ITaskService {
 		return this.editorService.openEditor({
 			resource,
 			options: {
-				forceOpen: true,
 				pinned: false
 			}
 		}).then(() => undefined);
@@ -2229,7 +2227,6 @@ class TaskService implements ITaskService {
 				this.editorService.openEditor({
 					resource,
 					options: {
-						forceOpen: true,
 						pinned: configFileCreated // pin only if config file is created #8727
 					}
 				});
