@@ -46,6 +46,7 @@ import { ContextSubMenu } from 'vs/base/browser/contextmenu';
 import { memoize } from 'vs/base/common/decorators';
 import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
 import { getHover } from 'vs/editor/contrib/hover/getHover';
+import { IEditorHoverOptions } from 'vs/editor/common/config/editorOptions';
 
 const HOVER_DELAY = 300;
 const LAUNCH_JSON_REGEX = /launch\.json$/;
@@ -281,7 +282,9 @@ export class DebugEditorContribution implements IDebugEditorContribution {
 	private _applyHoverConfiguration(model: ITextModel, stackFrame: IStackFrame): void {
 		if (stackFrame && model && model.uri.toString() === stackFrame.source.uri.toString()) {
 			this.editor.updateOptions({
-				hover: !stackFrame || !model || model.uri.toString() !== stackFrame.source.uri.toString()
+				hover: {
+					enabled: !stackFrame || !model || model.uri.toString() !== stackFrame.source.uri.toString()
+				}
 			});
 		} else {
 			let overrides: IConfigurationOverrides;
@@ -291,9 +294,13 @@ export class DebugEditorContribution implements IDebugEditorContribution {
 					overrideIdentifier: model.getLanguageIdentifier().language
 				};
 			}
-			const defaultConfiguration = this.configurationService.getValue('editor.hover', overrides);
+			const defaultConfiguration = this.configurationService.getValue<IEditorHoverOptions>('editor.hover', overrides);
 			this.editor.updateOptions({
-				hover: defaultConfiguration
+				hover: {
+					enabled: defaultConfiguration.enabled,
+					delay: defaultConfiguration.delay,
+					sticky: defaultConfiguration.sticky
+				}
 			});
 		}
 	}
