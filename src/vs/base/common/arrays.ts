@@ -474,7 +474,7 @@ export function shuffle<T>(array: T[], seed?: number): void {
 	// Seeded random number generator in JS. Modified from:
 	// https://stackoverflow.com/questions/521295/seeding-the-random-number-generator-in-javascript
 	const random = () => {
-		var x = Math.sin(seed++) * 179426549; // big ol' prime
+		var x = Math.sin(seed++) * 179426549; // throw away most significant digits and reduce any potential bias
 		return x - Math.floor(x);
 	};
 
