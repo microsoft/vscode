@@ -263,6 +263,8 @@ export class MainThreadSCM implements MainThreadSCMShape {
 	private _proxy: ExtHostSCMShape;
 	private _repositories: { [handle: number]: ISCMRepository; } = Object.create(null);
 	private _inputDisposables: { [handle: number]: IDisposable; } = Object.create(null);
+	private _focusDisposables: { [handle: number]: IDisposable; } = Object.create(null);
+	private _focusedRepository: ISCMRepository | undefined;
 	private _disposables: IDisposable[] = [];
 
 	constructor(
@@ -281,6 +283,10 @@ export class MainThreadSCM implements MainThreadSCMShape {
 			.forEach(id => this._inputDisposables[id].dispose());
 		this._inputDisposables = Object.create(null);
 
+		Object.keys(this._focusDisposables)
+			.forEach(id => this._focusDisposables[id].dispose());
+		this._focusDisposables = Object.create(null);
+
 		this._disposables = dispose(this._disposables);
 	}
 
@@ -289,8 +295,21 @@ export class MainThreadSCM implements MainThreadSCMShape {
 		const repository = this.scmService.registerSCMProvider(provider);
 		this._repositories[handle] = repository;
 
+		if (!this._focusedRepository) {
+			this._focusedRepository = repository;
+			this._proxy.$acceptActiveSourceControlChange(handle);
+		}
+
 		const inputDisposable = repository.input.onDidChange(value => this._proxy.$onInputBoxValueChange(handle, value));
 		this._inputDisposables[handle] = inputDisposable;
+
+		const focusDisposable = repository.onDidFocus(_ => this.onDidFocus(handle, repository));
+		this._focusDisposables[handle] = focusDisposable;
+	}
+
+	onDidFocus(handle: number, repository: ISCMRepository) {
+		this._focusedRepository = repository;
+		this._proxy.$acceptActiveSourceControlChange(handle);
 	}
 
 	$updateSourceControl(handle: number, features: SCMProviderFeatures): void {
@@ -313,6 +332,9 @@ export class MainThreadSCM implements MainThreadSCMShape {
 
 		this._inputDisposables[handle].dispose();
 		delete this._inputDisposables[handle];
+
+		this._focusDisposables[handle].dispose();
+		delete this._focusDisposables[handle];
 
 		repository.dispose();
 		delete this._repositories[handle];

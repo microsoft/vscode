@@ -467,9 +467,12 @@ export class ExtHostSCM implements ExtHostSCMShape {
 	private _proxy: MainThreadSCMShape;
 	private _sourceControls: Map<ProviderHandle, ExtHostSourceControl> = new Map<ProviderHandle, ExtHostSourceControl>();
 	private _sourceControlsByExtension: Map<string, ExtHostSourceControl[]> = new Map<string, ExtHostSourceControl[]>();
-
-	private _onDidChangeActiveProvider = new Emitter<vscode.SourceControl>();
-	get onDidChangeActiveProvider(): Event<vscode.SourceControl> { return this._onDidChangeActiveProvider.event; }
+	private _activeSourceControl: vscode.SourceControl | undefined;
+	get activeSourceControl(): vscode.SourceControl | undefined {
+		return this._activeSourceControl;
+	}
+	private _onDidChangeActiveSourceControl = new Emitter<vscode.SourceControl>();
+	get onDidChangeActiveSourceControl(): Event<vscode.SourceControl> { return this._onDidChangeActiveSourceControl.event; }
 
 	constructor(
 		mainContext: IMainContext,
@@ -565,6 +568,22 @@ export class ExtHostSCM implements ExtHostSCMShape {
 		}
 
 		sourceControl.inputBox.$onInputBoxValueChange(value);
+		return TPromise.as(null);
+	}
+
+	$acceptActiveSourceControlChange(sourceControlHandle: number): TPromise<void> {
+		this.logService.trace('ExtHostSCM#$acceptActiveSourceControlChange', sourceControlHandle);
+		const sourceControl = this._sourceControls.get(sourceControlHandle);
+
+		if (!sourceControl) {
+			return TPromise.as(null);
+		}
+
+		if (this._activeSourceControl !== sourceControl) {
+			this._activeSourceControl = sourceControl;
+			this._onDidChangeActiveSourceControl.fire(this.activeSourceControl);
+		}
+
 		return TPromise.as(null);
 	}
 
