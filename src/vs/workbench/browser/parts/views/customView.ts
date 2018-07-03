@@ -5,7 +5,7 @@
 
 import 'vs/css!./media/views';
 import { Event, Emitter } from 'vs/base/common/event';
-import { IDisposable, dispose, empty as EmptyDisposable, toDisposable, Disposable } from 'vs/base/common/lifecycle';
+import { IDisposable, dispose, Disposable, toDisposable } from 'vs/base/common/lifecycle';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { IAction, IActionItem, ActionRunner } from 'vs/base/common/actions';
@@ -109,7 +109,7 @@ export class CustomTreeViewPanel extends ViewletPanel {
 class TitleMenus implements IDisposable {
 
 	private disposables: IDisposable[] = [];
-	private titleDisposable: IDisposable = EmptyDisposable;
+	private titleDisposable: IDisposable = Disposable.None;
 	private titleActions: IAction[] = [];
 	private titleSecondaryActions: IAction[] = [];
 
@@ -123,7 +123,7 @@ class TitleMenus implements IDisposable {
 	) {
 		if (this.titleDisposable) {
 			this.titleDisposable.dispose();
-			this.titleDisposable = EmptyDisposable;
+			this.titleDisposable = Disposable.None;
 		}
 
 		const _contextKeyService = this.contextKeyService.createScoped();

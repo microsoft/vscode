@@ -7,10 +7,6 @@
 
 import { once } from 'vs/base/common/functional';
 
-export const empty: IDisposable = Object.freeze<IDisposable>({
-	dispose() { }
-});
-
 export interface IDisposable {
 	dispose(): void;
 }
@@ -56,6 +52,8 @@ export function toDisposable(...fns: (() => void)[]): IDisposable {
 }
 
 export abstract class Disposable implements IDisposable {
+
+	static None = Object.freeze<IDisposable>({ dispose() { } });
 
 	protected _toDispose: IDisposable[] = [];
 	protected get toDispose(): IDisposable[] { return this._toDispose; }

@@ -21,7 +21,7 @@ import { ColorPickerModel } from 'vs/editor/contrib/colorPicker/colorPickerModel
 import { ColorPickerWidget } from 'vs/editor/contrib/colorPicker/colorPickerWidget';
 import { ColorDetector } from 'vs/editor/contrib/colorPicker/colorDetector';
 import { Color, RGBA } from 'vs/base/common/color';
-import { IDisposable, empty as EmptyDisposable, combinedDisposable } from 'vs/base/common/lifecycle';
+import { IDisposable, Disposable, combinedDisposable } from 'vs/base/common/lifecycle';
 import { getColorPresentations } from 'vs/editor/contrib/colorPicker/color';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 const $ = dom.$;
@@ -167,7 +167,7 @@ export class ModesContentHoverWidget extends ContentHoverWidget {
 	private _shouldFocus: boolean;
 	private _colorPicker: ColorPickerWidget;
 
-	private renderDisposable: IDisposable = EmptyDisposable;
+	private renderDisposable: IDisposable = Disposable.None;
 
 	constructor(
 		editor: ICodeEditor,
@@ -205,7 +205,7 @@ export class ModesContentHoverWidget extends ContentHoverWidget {
 
 	dispose(): void {
 		this.renderDisposable.dispose();
-		this.renderDisposable = EmptyDisposable;
+		this.renderDisposable = Disposable.None;
 		this._hoverOperation.cancel();
 		super.dispose();
 	}
@@ -274,7 +274,7 @@ export class ModesContentHoverWidget extends ContentHoverWidget {
 		this._highlightDecorations = this._editor.deltaDecorations(this._highlightDecorations, []);
 		this._isChangingDecorations = false;
 		this.renderDisposable.dispose();
-		this.renderDisposable = EmptyDisposable;
+		this.renderDisposable = Disposable.None;
 		this._colorPicker = null;
 	}
 
