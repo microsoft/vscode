@@ -135,7 +135,7 @@ export class WebviewEditorService implements IWebviewEditorService {
 				return true;
 			},
 			reviveWebview: (webview: WebviewEditorInput): TPromise<void> => {
-				return this.tryRevive(webview).then(didRevive => {
+				return TPromise.wrap(this.tryRevive(webview)).then(didRevive => {
 					if (didRevive) {
 						return TPromise.as(void 0);
 					}
@@ -185,7 +185,7 @@ export class WebviewEditorService implements IWebviewEditorService {
 
 	private async tryRevive(
 		webview: WebviewEditorInput
-	): TPromise<boolean> {
+	): Promise<boolean> {
 		const revivers = this._revivers.get(webview.viewType);
 		if (!revivers) {
 			return false;
