@@ -530,21 +530,21 @@ export class WindowsService implements IWindowsService, IURLHandler, IDisposable
 		return TPromise.as(null);
 	}
 
-	async handleURL(uri: URI): TPromise<boolean> {
+	handleURL(uri: URI): TPromise<boolean> {
 		// Catch file URLs
 		if (uri.authority === Schemas.file && !!uri.path) {
-			return this.openFileForURI(URI.file(uri.fsPath));
+			this.openFileForURI(URI.file(uri.fsPath));
+			return TPromise.as(true);
 		}
 
-		return false;
+		return TPromise.as(false);
 	}
 
-	private async openFileForURI(uri: URI): TPromise<boolean> {
+	private openFileForURI(uri: URI): void {
 		const cli = assign(Object.create(null), this.environmentService.args, { goto: true });
 		const pathsToOpen = [uri.fsPath];
 
 		this.windowsMainService.open({ context: OpenContext.API, cli, pathsToOpen });
-		return true;
 	}
 
 	dispose(): void {
