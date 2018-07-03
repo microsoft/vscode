@@ -8,12 +8,17 @@ import * as vscode from 'vscode';
 import * as arrays from './common/arrays';
 import { compareItemsByScore, IItemAccessor, prepareQuery, ScorerCache } from './common/fileSearchScorer';
 import * as strings from './common/strings';
+import { joinPath } from './ripgrepHelpers';
 
 interface IProviderArgs {
 	query: vscode.FileSearchQuery;
 	options: vscode.FileSearchOptions;
-	progress: vscode.Progress<string>;
+	progress: vscode.Progress<vscode.Uri>;
 	token: vscode.CancellationToken;
+}
+
+export interface IInternalFileSearchProvider {
+	provideFileSearchResults(options: vscode.FileSearchOptions, progress: vscode.Progress<string>, token: vscode.CancellationToken): Thenable<void>;
 }
 
 export class CachedSearchProvider {
@@ -25,12 +30,12 @@ export class CachedSearchProvider {
 	constructor(private outputChannel: vscode.OutputChannel) {
 	}
 
-	provideFileSearchResults(provider: vscode.SearchProvider, query: vscode.FileSearchQuery, options: vscode.FileSearchOptions, progress: vscode.Progress<string>, token: vscode.CancellationToken): Thenable<void> {
+	provideFileSearchResults(provider: IInternalFileSearchProvider, query: vscode.FileSearchQuery, options: vscode.FileSearchOptions, progress: vscode.Progress<vscode.Uri>, token: vscode.CancellationToken): Thenable<void> {
 		const onResult = (result: IInternalFileMatch) => {
-			progress.report(result.relativePath);
+			progress.report(joinPath(options.folder, result.relativePath));
 		};
 
-		const providerArgs = {
+		const providerArgs: IProviderArgs = {
 			query, options, progress, token
 		};
 
@@ -52,23 +57,14 @@ export class CachedSearchProvider {
 		});
 	}
 
-	private doSortedSearch(args: IProviderArgs, provider: vscode.SearchProvider): Promise<IInternalFileMatch[]> {
-		let searchPromise: Promise<void>;
+	private doSortedSearch(args: IProviderArgs, provider: IInternalFileSearchProvider): Promise<IInternalFileMatch[]> {
 		let allResultsPromise = new Promise<IInternalFileMatch[]>((c, e) => {
-			let results: IInternalFileMatch[] = [];
+			const results: IInternalFileMatch[] = [];
+			const onResult = (progress: IInternalFileMatch[]) => results.push(...progress);
 
-			const onResult = (progress: OneOrMore<IInternalFileMatch>) => {
-				if (Array.isArray(progress)) {
-					results.push(...progress);
-				} else {
-					results.push(progress);
-				}
-			};
-
-			searchPromise = this.doSearch(args, provider, onResult, CachedSearchProvider.BATCH_SIZE)
-				.then(() => {
-					c(results);
-				}, e);
+			// set maxResult = null
+			this.doSearch(args, provider, onResult, CachedSearchProvider.BATCH_SIZE)
+				.then(() => c(results), e);
 		});
 
 		let cache: Cache;
@@ -80,12 +76,9 @@ export class CachedSearchProvider {
 			});
 		}
 
-		return new Promise<IInternalFileMatch[]>((c, e) => {
-			allResultsPromise.then(results => {
-				const scorerCache: ScorerCache = cache ? cache.scorerCache : Object.create(null);
-				return this.sortResults(args, results, scorerCache)
-					.then(c);
-			}, e);
+		return allResultsPromise.then(results => {
+			const scorerCache: ScorerCache = cache ? cache.scorerCache : Object.create(null);
+			return this.sortResults(args, results, scorerCache);
 		});
 	}
 
@@ -119,7 +112,7 @@ export class CachedSearchProvider {
 		const preparedQuery = prepareQuery(args.query.pattern);
 		const compare = (matchA: IInternalFileMatch, matchB: IInternalFileMatch) => compareItemsByScore(matchA, matchB, preparedQuery, true, FileMatchItemAccessor, scorerCache);
 
-		return arrays.topAsync(results, compare, args.options.maxResults || 10000, 10000);
+		return arrays.topAsync(results, compare, args.options.maxResults || 0, 10000);
 	}
 
 	private getResultsFromCache(cache: Cache, searchValue: string, onResult: (results: IInternalFileMatch) => void): Promise<[IInternalFileMatch[], CacheStats]> {
@@ -177,7 +170,7 @@ export class CachedSearchProvider {
 		});
 	}
 
-	private doSearch(args: IProviderArgs, provider: vscode.SearchProvider, onResult: (result: OneOrMore<IInternalFileMatch>) => void, batchSize?: number): Promise<void> {
+	private doSearch(args: IProviderArgs, provider: IInternalFileSearchProvider, onResult: (result: IInternalFileMatch[]) => void, batchSize: number): Promise<void> {
 		return new Promise<void>((c, e) => {
 			let batch: IInternalFileMatch[] = [];
 			const onProviderResult = (match: string) => {
@@ -187,19 +180,15 @@ export class CachedSearchProvider {
 						basename: path.basename(match)
 					};
 
-					if (batchSize) {
-						batch.push(internalMatch);
-						if (batchSize > 0 && batch.length >= batchSize) {
-							onResult(batch);
-							batch = [];
-						}
-					} else {
-						onResult(internalMatch);
+					batch.push(internalMatch);
+					if (batchSize > 0 && batch.length >= batchSize) {
+						onResult(batch);
+						batch = [];
 					}
 				}
 			};
 
-			provider.provideFileSearchResults(args.query, args.options, { report: onProviderResult }, args.token).then(() => {
+			provider.provideFileSearchResults(args.options, { report: onProviderResult }, args.token).then(() => {
 				if (batch.length) {
 					onResult(batch);
 				}
@@ -221,13 +210,6 @@ export class CachedSearchProvider {
 	}
 }
 
-function joinPath(resource: vscode.Uri, pathFragment: string): vscode.Uri {
-	const joinedPath = path.join(resource.path || '/', pathFragment);
-	return resource.with({
-		path: joinedPath
-	});
-}
-
 interface IInternalFileMatch {
 	relativePath?: string; // Not present for extraFiles or absolute path matches
 	basename: string;
@@ -245,8 +227,6 @@ interface CacheEntry<T> {
 	finished: Promise<T[]>;
 	onResult?: Event<T>;
 }
-
-type OneOrMore<T> = T | T[];
 
 class Cache {
 	public resultsToSearchCache: { [searchValue: string]: CacheEntry<IInternalFileMatch> } = Object.create(null);

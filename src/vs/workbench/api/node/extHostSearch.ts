@@ -8,13 +8,13 @@ import * as path from 'path';
 import { CancellationTokenSource } from 'vs/base/common/cancellation';
 import { toErrorMessage } from 'vs/base/common/errorMessage';
 import * as glob from 'vs/base/common/glob';
-import { joinPath } from 'vs/base/common/resources';
+import * as resources from 'vs/base/common/resources';
 import * as strings from 'vs/base/common/strings';
 import URI, { UriComponents } from 'vs/base/common/uri';
 import { PPromise, TPromise } from 'vs/base/common/winjs.base';
 import * as extfs from 'vs/base/node/extfs';
 import * as pfs from 'vs/base/node/pfs';
-import { IFileMatch, IFolderQuery, IPatternInfo, IRawFileMatch2, IRawSearchQuery, ISearchCompleteStats, ISearchQuery } from 'vs/platform/search/common/search';
+import { IFileMatch, IFolderQuery, IPatternInfo, IRawSearchQuery, ISearchCompleteStats, ISearchQuery } from 'vs/platform/search/common/search';
 import * as vscode from 'vscode';
 import { ExtHostSearchShape, IMainContext, MainContext, MainThreadSearchShape } from './extHost.protocol';
 
@@ -120,29 +120,28 @@ function reviveFolderQuery(rawFolderQuery: IFolderQuery<UriComponents>): IFolder
 }
 
 class TextSearchResultsCollector {
-	private _batchedCollector: BatchedCollector<IRawFileMatch2>;
+	private _batchedCollector: BatchedCollector<IFileMatch>;
 
 	private _currentFolderIdx: number;
-	private _currentRelativePath: string;
-	private _currentFileMatch: IRawFileMatch2;
+	private _currentUri: URI;
+	private _currentFileMatch: IFileMatch;
 
-	constructor(private folderQueries: IFolderQuery[], private _onResult: (result: IRawFileMatch2[]) => void) {
-		this._batchedCollector = new BatchedCollector<IRawFileMatch2>(512, items => this.sendItems(items));
+	constructor(private _onResult: (result: IFileMatch[]) => void) {
+		this._batchedCollector = new BatchedCollector<IFileMatch>(512, items => this.sendItems(items));
 	}
 
 	add(data: vscode.TextSearchResult, folderIdx: number): void {
 		// Collects TextSearchResults into IInternalFileMatches and collates using BatchedCollector.
 		// This is efficient for ripgrep which sends results back one file at a time. It wouldn't be efficient for other search
 		// providers that send results in random order. We could do this step afterwards instead.
-		if (this._currentFileMatch && (this._currentFolderIdx !== folderIdx || this._currentRelativePath !== data.path)) {
+		if (this._currentFileMatch && (this._currentFolderIdx !== folderIdx || resources.isEqual(this._currentUri, data.uri))) {
 			this.pushToCollector();
 			this._currentFileMatch = null;
 		}
 
 		if (!this._currentFileMatch) {
-			const resource = joinPath(this.folderQueries[folderIdx].folder, data.path);
 			this._currentFileMatch = {
-				resource,
+				resource: data.uri,
 				lineMatches: []
 			};
 		}
@@ -168,8 +167,8 @@ class TextSearchResultsCollector {
 		this._batchedCollector.flush();
 	}
 
-	private sendItems(items: IRawFileMatch2 | IRawFileMatch2[]): void {
-		this._onResult(Array.isArray(items) ? items : [items]);
+	private sendItems(items: IFileMatch[]): void {
+		this._onResult(items);
 	}
 }
 
@@ -190,7 +189,7 @@ class BatchedCollector<T> {
 	private batchSize = 0;
 	private timeoutHandle: number;
 
-	constructor(private maxBatchSize: number, private cb: (items: T | T[]) => void) {
+	constructor(private maxBatchSize: number, private cb: (items: T[]) => void) {
 	}
 
 	addItem(item: T, size: number): void {
@@ -198,11 +197,7 @@ class BatchedCollector<T> {
 			return;
 		}
 
-		if (this.maxBatchSize > 0) {
-			this.addItemToBatch(item, size);
-		} else {
-			this.cb(item);
-		}
+		this.addItemToBatch(item, size);
 	}
 
 	addItems(items: T[], size: number): void {
@@ -378,11 +373,11 @@ class TextSearchEngine {
 		this.activeCancellationTokens = new Set();
 	}
 
-	public search(): PPromise<{ limitHit: boolean }, IRawFileMatch2[]> {
+	public search(): PPromise<{ limitHit: boolean }, IFileMatch[]> {
 		const folderQueries = this.config.folderQueries;
 
-		return new PPromise<{ limitHit: boolean }, IRawFileMatch2[]>((resolve, reject, _onResult) => {
-			this.collector = new TextSearchResultsCollector(this.config.folderQueries, _onResult);
+		return new PPromise<{ limitHit: boolean }, IFileMatch[]>((resolve, reject, _onResult) => {
+			this.collector = new TextSearchResultsCollector(_onResult);
 
 			const onResult = (match: vscode.TextSearchResult, folderIdx: number) => {
 				if (this.isCanceled) {
@@ -425,11 +420,12 @@ class TextSearchEngine {
 			const progress = {
 				report: (result: vscode.TextSearchResult) => {
 					const siblingFn = folderQuery.folder.scheme === 'file' && (() => {
-						return this.readdir(path.dirname(path.join(folderQuery.folder.fsPath, result.path)));
+						return this.readdir(path.dirname(result.uri.fsPath));
 					});
 
+					const relativePath = path.relative(folderQuery.folder.fsPath, result.uri.fsPath);
 					testingPs.push(
-						queryTester.includedInQuery(result.path, path.basename(result.path), siblingFn)
+						queryTester.includedInQuery(relativePath, path.basename(relativePath), siblingFn)
 							.then(included => {
 								if (included) {
 									onResult(result);
@@ -598,23 +594,20 @@ class FileSearchEngine {
 		let cancellation = new CancellationTokenSource();
 		return new PPromise((resolve, reject, onResult) => {
 			const options = this.getSearchOptionsForFolder(fq);
-			let filePatternSeen = false;
 			const tree = this.initDirectoryTree();
 
 			const queryTester = new QueryGlobTester(this.config, fq);
 			const noSiblingsClauses = !queryTester.hasSiblingExcludeClauses();
 
-			const onProviderResult = (relativePath: string) => {
+			const onProviderResult = (result: URI) => {
 				if (this.isCanceled) {
 					return;
 				}
 
-				if (noSiblingsClauses) {
-					if (relativePath === this.filePattern) {
-						filePatternSeen = true;
-					}
+				const relativePath = path.relative(fq.folder.fsPath, result.fsPath);
 
-					const basename = path.basename(relativePath);
+				if (noSiblingsClauses) {
+					const basename = path.basename(result.fsPath);
 					this.matchFile(onResult, { base: fq.folder, relativePath, basename });
 
 					return;
@@ -640,18 +633,16 @@ class FileSearchEngine {
 					}
 
 					if (noSiblingsClauses && this.isLimitHit) {
-						if (!filePatternSeen) {
-							// If the limit was hit, check whether filePattern is an exact relative match because it must be included
-							return this.checkFilePatternRelativeMatch(fq.folder).then(({ exists, size }) => {
-								if (exists) {
-									onResult({
-										base: fq.folder,
-										relativePath: this.filePattern,
-										basename: path.basename(this.filePattern),
-									});
-								}
-							});
-						}
+						// If the limit was hit, check whether filePattern is an exact relative match because it must be included
+						return this.checkFilePatternRelativeMatch(fq.folder).then(({ exists, size }) => {
+							if (exists) {
+								onResult({
+									base: fq.folder,
+									relativePath: this.filePattern,
+									basename: path.basename(this.filePattern),
+								});
+							}
+						});
 					}
 
 					this.matchDirectoryTree(tree, queryTester, onResult);
@@ -841,7 +832,7 @@ class FileSearchManager {
 
 	private rawMatchToSearchItem(match: IInternalFileMatch): IFileMatch {
 		return {
-			resource: joinPath(match.base, match.relativePath)
+			resource: resources.joinPath(match.base, match.relativePath)
 		};
 	}
 

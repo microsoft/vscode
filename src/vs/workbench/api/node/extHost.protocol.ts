@@ -483,7 +483,7 @@ export interface MainThreadFileSystemShape extends IDisposable {
 export interface MainThreadSearchShape extends IDisposable {
 	$registerSearchProvider(handle: number, scheme: string): void;
 	$unregisterProvider(handle: number): void;
-	$handleFileMatch(handle: number, session: number, data: UriComponents | UriComponents[]): void;
+	$handleFileMatch(handle: number, session: number, data: UriComponents[]): void;
 	$handleTextMatch(handle: number, session: number, data: IRawFileMatch2[]): void;
 	$handleTelemetry(eventName: string, data: any): void;
 }
