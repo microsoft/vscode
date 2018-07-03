@@ -176,7 +176,7 @@ export class OpenEditorsView extends ViewletPanel {
 	}
 
 	protected renderHeaderTitle(container: HTMLElement): void {
-		const title = dom.append(container, $('.title'));
+		const title = dom.append(container, $('h3.title'));
 		dom.append(title, $('span', null, this.title));
 
 		const count = dom.append(container, $('.count'));

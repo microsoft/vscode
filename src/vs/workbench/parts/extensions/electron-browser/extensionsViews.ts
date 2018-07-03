@@ -72,7 +72,7 @@ export class ExtensionsListView extends ViewletPanel {
 	}
 
 	renderHeader(container: HTMLElement): void {
-		const titleDiv = append(container, $('div.title'));
+		const titleDiv = append(container, $('h3.title'));
 		append(titleDiv, $('span')).textContent = this.options.title;
 
 		this.badgeContainer = append(container, $('.count-badge-wrapper'));

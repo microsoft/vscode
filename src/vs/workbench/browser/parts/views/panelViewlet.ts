@@ -120,7 +120,7 @@ export abstract class ViewletPanel extends Panel implements IView {
 	}
 
 	protected renderHeaderTitle(container: HTMLElement): void {
-		append(container, $('.title', null, this.title));
+		append(container, $('h3.title', null, this.title));
 	}
 
 	focus(): void {

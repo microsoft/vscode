@@ -765,7 +765,7 @@ export class RepositoryPanel extends ViewletPanel {
 	}
 
 	protected renderHeaderTitle(container: HTMLElement): void {
-		const header = append(container, $('.title.scm-provider'));
+		const header = append(container, $('h3.title.scm-provider'));
 		const name = append(header, $('.name'));
 		const title = append(name, $('span.title'));
 		const type = append(name, $('span.type'));
