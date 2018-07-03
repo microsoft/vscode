@@ -113,10 +113,6 @@ export class CachedSearchProvider {
 	}
 
 	private getResultsFromCache(cache: Cache, searchValue: string, onResult: (results: IInternalFileMatch) => void): Promise<[IInternalFileMatch[], CacheStats]> {
-		if (path.isAbsolute(searchValue)) {
-			return null; // bypass cache if user looks up an absolute path where matching goes directly on disk
-		}
-
 		// Find cache entries by prefix of search value
 		const hasPathSep = searchValue.indexOf(path.sep) >= 0;
 		let cached: CacheEntry<IInternalFileMatch>;

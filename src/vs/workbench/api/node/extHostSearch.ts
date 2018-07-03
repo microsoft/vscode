@@ -540,52 +540,36 @@ class FileSearchEngine {
 			};
 
 			// Support that the file pattern is a full path to a file that exists
-			this.checkFilePatternAbsoluteMatch().then(({ exists, size }) => {
-				if (this.isCanceled) {
-					return resolve({ isLimitHit: this.isLimitHit });
-				}
+			if (this.isCanceled) {
+				return resolve({ isLimitHit: this.isLimitHit });
+			}
 
-				// Report result from file pattern if matching
-				if (exists) {
-					onResult({
-						base: URI.file(this.filePattern),
-						basename: path.basename(this.filePattern),
-						size
+			// For each extra file
+			if (this.config.extraFileResources) {
+				this.config.extraFileResources
+					.forEach(extraFile => {
+						const extraFileStr = extraFile.toString(); // ?
+						const basename = path.basename(extraFileStr);
+						if (this.globalExcludePattern && this.globalExcludePattern(extraFileStr, basename)) {
+							return; // excluded
+						}
+
+						// File: Check for match on file pattern and include pattern
+						this.matchFile(onResult, { base: extraFile, basename });
 					});
+			}
 
-					// Optimization: a match on an absolute path is a good result and we do not
-					// continue walking the entire root paths array for other matches because
-					// it is very unlikely that another file would match on the full absolute path
-					return resolve({ isLimitHit: this.isLimitHit });
-				}
+			// For each root folder
+			PPromise.join(folderQueries.map(fq => {
+				return this.searchInFolder(fq).then(null, null, onResult);
+			})).then(() => {
+				resolve({ isLimitHit: this.isLimitHit });
+			}, (errs: Error[]) => {
+				const errMsg = errs
+					.map(err => toErrorMessage(err))
+					.filter(msg => !!msg)[0];
 
-				// For each extra file
-				if (this.config.extraFileResources) {
-					this.config.extraFileResources
-						.forEach(extraFile => {
-							const extraFileStr = extraFile.toString(); // ?
-							const basename = path.basename(extraFileStr);
-							if (this.globalExcludePattern && this.globalExcludePattern(extraFileStr, basename)) {
-								return; // excluded
-							}
-
-							// File: Check for match on file pattern and include pattern
-							this.matchFile(onResult, { base: extraFile, basename });
-						});
-				}
-
-				// For each root folder
-				PPromise.join(folderQueries.map(fq => {
-					return this.searchInFolder(fq).then(null, null, onResult);
-				})).then(() => {
-					resolve({ isLimitHit: this.isLimitHit });
-				}, (errs: Error[]) => {
-					const errMsg = errs
-						.map(err => toErrorMessage(err))
-						.filter(msg => !!msg)[0];
-
-					reject(new Error(errMsg));
-				});
+				reject(new Error(errMsg));
 			});
 		});
 	}
@@ -743,28 +727,6 @@ class FileSearchEngine {
 			}
 		}
 		matchDirectory(rootEntries);
-	}
-
-	/**
-	 * Return whether the file pattern is an absolute path to a file that exists.
-	 * TODO@roblou delete to match fileSearch.ts
-	 */
-	private checkFilePatternAbsoluteMatch(): TPromise<{ exists: boolean, size?: number }> {
-		if (!this.filePattern || !path.isAbsolute(this.filePattern)) {
-			return TPromise.wrap({ exists: false });
-		}
-
-		return this._pfs.stat(this.filePattern)
-			.then(stat => {
-				return {
-					exists: !stat.isDirectory(),
-					size: stat.size
-				};
-			}, err => {
-				return {
-					exists: false
-				};
-			});
 	}
 
 	private checkFilePatternRelativeMatch(base: URI): TPromise<{ exists: boolean, size?: number }> {
