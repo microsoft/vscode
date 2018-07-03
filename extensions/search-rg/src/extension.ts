@@ -5,7 +5,7 @@
 
 import * as vscode from 'vscode';
 import { RipgrepTextSearchEngine } from './ripgrepTextSearch';
-import { RipgrepFileSearch } from './ripgrepFileSearch';
+import { RipgrepFileSearchEngine } from './ripgrepFileSearch';
 import { CachedSearchProvider } from './cachedSearchProvider';
 
 export function activate(): void {
@@ -16,20 +16,35 @@ export function activate(): void {
 	}
 }
 
+type SearchEngine = RipgrepFileSearchEngine | RipgrepTextSearchEngine;
+
 class RipgrepSearchProvider implements vscode.SearchProvider {
 	private cachedProvider: CachedSearchProvider;
+	private inProgress: Set<SearchEngine> = new Set();
 
 	constructor(private outputChannel: vscode.OutputChannel) {
-		this.cachedProvider = new CachedSearchProvider(this.outputChannel);
+		this.cachedProvider = new CachedSearchProvider();
+		process.once('exit', () => this.dispose());
 	}
 
 	provideTextSearchResults(query: vscode.TextSearchQuery, options: vscode.TextSearchOptions, progress: vscode.Progress<vscode.TextSearchResult>, token: vscode.CancellationToken): Thenable<void> {
 		const engine = new RipgrepTextSearchEngine(this.outputChannel);
-		return engine.provideTextSearchResults(query, options, progress, token);
+		return this.withEngine(engine, () => engine.provideTextSearchResults(query, options, progress, token));
 	}
 
 	provideFileSearchResults(query: vscode.FileSearchQuery, options: vscode.SearchOptions, progress: vscode.Progress<vscode.Uri>, token: vscode.CancellationToken): Thenable<void> {
-		const engine = new RipgrepFileSearch(this.outputChannel);
-		return this.cachedProvider.provideFileSearchResults(engine, query, options, progress, token);
+		const engine = new RipgrepFileSearchEngine(this.outputChannel);
+		return this.withEngine(engine, () => this.cachedProvider.provideFileSearchResults(engine, query, options, progress, token));
+	}
+
+	private withEngine(engine: SearchEngine, fn: () => Thenable<void>): Thenable<void> {
+		this.inProgress.add(engine);
+		return fn().then(() => {
+			this.inProgress.delete(engine);
+		});
+	}
+
+	private dispose() {
+		this.inProgress.forEach(engine => engine.cancel());
 	}
 }
