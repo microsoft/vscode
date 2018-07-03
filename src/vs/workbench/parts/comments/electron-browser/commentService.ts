@@ -115,7 +115,7 @@ export class CommentService extends Disposable implements ICommentService {
 		return null;
 	}
 
-	async getComments(resource: URI): TPromise<CommentInfo[]> {
+	getComments(resource: URI): TPromise<CommentInfo[]> {
 		const result = [];
 		for (const handle of keys(this._commentProviders)) {
 			const provider = this._commentProviders.get(handle);

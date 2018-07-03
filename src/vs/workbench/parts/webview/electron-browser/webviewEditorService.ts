@@ -134,16 +134,18 @@ export class WebviewEditorService implements IWebviewEditorService {
 			canRevive: (_webview) => {
 				return true;
 			},
-			reviveWebview: async (webview: WebviewEditorInput): TPromise<void> => {
-				const didRevive = await this.tryRevive(webview);
-				if (didRevive) {
-					return;
-				}
-				// A reviver may not be registered yet. Put into queue and resolve promise when we can revive
-				let resolve: (value: void) => void;
-				const promise = new TPromise<void>(r => { resolve = r; });
-				this._awaitingRevival.push({ input: webview, resolve });
-				return promise;
+			reviveWebview: (webview: WebviewEditorInput): TPromise<void> => {
+				return this.tryRevive(webview).then(didRevive => {
+					if (didRevive) {
+						return TPromise.as(void 0);
+					}
+
+					// A reviver may not be registered yet. Put into queue and resolve promise when we can revive
+					let resolve: (value: void) => void;
+					const promise = new TPromise<void>(r => { resolve = r; });
+					this._awaitingRevival.push({ input: webview, resolve });
+					return promise;
+				});
 			}
 		});
 

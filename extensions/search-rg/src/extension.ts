@@ -5,7 +5,8 @@
 
 import * as vscode from 'vscode';
 import { RipgrepTextSearchEngine } from './ripgrepTextSearch';
-import { RipgrepFileSearchEngine } from './ripgrepFileSearch';
+import { RipgrepFileSearch } from './ripgrepFileSearch';
+import { CachedSearchProvider } from './cachedSearchProvider';
 
 export function activate(): void {
 	if (vscode.workspace.getConfiguration('searchRipgrep').get('enable')) {
@@ -16,7 +17,10 @@ export function activate(): void {
 }
 
 class RipgrepSearchProvider implements vscode.SearchProvider {
+	private cachedProvider: CachedSearchProvider;
+
 	constructor(private outputChannel: vscode.OutputChannel) {
+		this.cachedProvider = new CachedSearchProvider(this.outputChannel);
 	}
 
 	provideTextSearchResults(query: vscode.TextSearchQuery, options: vscode.TextSearchOptions, progress: vscode.Progress<vscode.TextSearchResult>, token: vscode.CancellationToken): Thenable<void> {
@@ -24,8 +28,8 @@ class RipgrepSearchProvider implements vscode.SearchProvider {
 		return engine.provideTextSearchResults(query, options, progress, token);
 	}
 
-	provideFileSearchResults(options: vscode.SearchOptions, progress: vscode.Progress<string>, token: vscode.CancellationToken): Thenable<void> {
-		const engine = new RipgrepFileSearchEngine(this.outputChannel);
-		return engine.provideFileSearchResults(options, progress, token);
+	provideFileSearchResults(query: vscode.FileSearchQuery, options: vscode.SearchOptions, progress: vscode.Progress<vscode.Uri>, token: vscode.CancellationToken): Thenable<void> {
+		const engine = new RipgrepFileSearch(this.outputChannel);
+		return this.cachedProvider.provideFileSearchResults(engine, query, options, progress, token);
 	}
 }

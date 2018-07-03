@@ -46,6 +46,7 @@ import { IInstantiationService } from 'vs/platform/instantiation/common/instanti
 import { NullLogService } from 'vs/platform/log/common/log';
 import { ITextModel, EndOfLineSequence } from 'vs/editor/common/model';
 import { getColors } from 'vs/editor/contrib/colorPicker/color';
+import { CancellationToken } from 'vs/base/common/cancellation';
 
 const defaultSelector = { scheme: 'far' };
 const model: ITextModel = EditorModel.createFromString(
@@ -1151,7 +1152,7 @@ suite('ExtHostLanguageFeatures', function () {
 		}));
 
 		return rpcProtocol.sync().then(() => {
-			return getLinks(model).then(value => {
+			return getLinks(model, CancellationToken.None).then(value => {
 				assert.equal(value.length, 1);
 				let [first] = value;
 
@@ -1176,7 +1177,7 @@ suite('ExtHostLanguageFeatures', function () {
 		}));
 
 		return rpcProtocol.sync().then(() => {
-			return getLinks(model).then(value => {
+			return getLinks(model, CancellationToken.None).then(value => {
 				assert.equal(value.length, 1);
 				let [first] = value;
 

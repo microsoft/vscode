@@ -243,7 +243,9 @@ function _resolveSettingsTree(tocData: ITOCEntry, allSettings: Set<ISetting>): I
 		return <ITOCEntry>{
 			id: tocData.id,
 			label: tocData.label,
-			children: tocData.children.map(child => _resolveSettingsTree(child, allSettings))
+			children: tocData.children
+				.map(child => _resolveSettingsTree(child, allSettings))
+				.filter(child => (child.children && child.children.length) || (child.settings && child.settings.length))
 		};
 	}
 

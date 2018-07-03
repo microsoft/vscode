@@ -3948,9 +3948,9 @@ declare module 'vscode' {
 		 *
 		 * Diagnostics with this tag are rendered faded out. The amount of fading
 		 * is controlled by the `"editorUnnecessaryCode.opacity"` theme color. For
-		 * example, `"editorUnnecessaryCode.opacity": "#000000c0" will render the
+		 * example, `"editorUnnecessaryCode.opacity": "#000000c0"` will render the
 		 * code with 75% opacity. For high contrast themes, use the
-		 * `"editorUnnecessaryCode.border"` the color to underline unnecessary code
+		 * `"editorUnnecessaryCode.border"` theme color to underline unnecessary code
 		 * instead of fading it out.
 		 */
 		Unnecessary = 1,

@@ -81,7 +81,7 @@ function createServices(args: ParsedArgs, bufferLogService: BufferLogService): I
 /**
  * Cleans up older logs, while keeping the 10 most recent ones.
 */
-async function cleanupOlderLogs(environmentService: EnvironmentService): TPromise<void> {
+async function cleanupOlderLogs(environmentService: EnvironmentService): Promise<void> {
 	const currentLog = path.basename(environmentService.logsPath);
 	const logsRoot = path.dirname(environmentService.logsPath);
 	const children = await readdir(logsRoot);

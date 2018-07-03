@@ -964,13 +964,13 @@ export class ExtensionsWorkbenchService implements IExtensionsWorkbenchService, 
 		this.notificationService.error(err);
 	}
 
-	async handleURL(uri: URI): TPromise<boolean> {
+	handleURL(uri: URI): TPromise<boolean> {
 		if (!/^extension/.test(uri.path)) {
-			return false;
+			return TPromise.as(false);
 		}
 
 		this.onOpenExtensionUrl(uri);
-		return true;
+		return TPromise.as(true);
 	}
 
 	private onOpenExtensionUrl(uri: URI): void {

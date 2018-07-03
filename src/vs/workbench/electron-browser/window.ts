@@ -8,14 +8,13 @@
 import * as nls from 'vs/nls';
 import URI from 'vs/base/common/uri';
 import * as errors from 'vs/base/common/errors';
-import * as types from 'vs/base/common/types';
 import { TPromise } from 'vs/base/common/winjs.base';
 import * as arrays from 'vs/base/common/arrays';
 import * as objects from 'vs/base/common/objects';
 import * as DOM from 'vs/base/browser/dom';
 import { Separator } from 'vs/base/browser/ui/actionbar/actionbar';
 import { IAction, Action } from 'vs/base/common/actions';
-import { AutoSaveConfiguration, IFileService } from 'vs/platform/files/common/files';
+import { IFileService } from 'vs/platform/files/common/files';
 import { toResource, IUntitledResourceInput } from 'vs/workbench/common/editor';
 import { IEditorService, IResourceEditor } from 'vs/workbench/services/editor/common/editorService';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
@@ -38,7 +37,6 @@ import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { fillInActionBarActions } from 'vs/platform/actions/browser/menuItemActionItem';
 import { RunOnceScheduler } from 'vs/base/common/async';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
-import { ConfigurationTarget } from 'vs/platform/configuration/common/configuration';
 import { LifecyclePhase, ILifecycleService } from 'vs/platform/lifecycle/common/lifecycle';
 import { IWorkspaceFolderCreationData } from 'vs/platform/workspaces/common/workspaces';
 import { IIntegrityService } from 'vs/platform/integrity/common/integrity';
@@ -59,8 +57,6 @@ const TextInputActions: IAction[] = [
 ];
 
 export class ElectronWindow extends Themable {
-
-	private static readonly AUTO_SAVE_SETTING = 'files.autoSave';
 
 	private touchBarMenu: IMenu;
 	private touchBarUpdater: RunOnceScheduler;
@@ -179,11 +175,6 @@ export class ElectronWindow extends Themable {
 		// Message support
 		ipc.on('vscode:showInfoMessage', (event: any, message: string) => {
 			this.notificationService.info(message);
-		});
-
-		// Support toggling auto save
-		ipc.on('vscode.toggleAutoSave', () => {
-			this.toggleAutoSave();
 		});
 
 		// Fullscreen Events
@@ -505,23 +496,6 @@ export class ElectronWindow extends Themable {
 
 			return input;
 		});
-	}
-
-	private toggleAutoSave(): void {
-		const setting = this.configurationService.inspect(ElectronWindow.AUTO_SAVE_SETTING);
-		let userAutoSaveConfig = setting.user;
-		if (types.isUndefinedOrNull(userAutoSaveConfig)) {
-			userAutoSaveConfig = setting.default; // use default if setting not defined
-		}
-
-		let newAutoSaveValue: string;
-		if ([AutoSaveConfiguration.AFTER_DELAY, AutoSaveConfiguration.ON_FOCUS_CHANGE, AutoSaveConfiguration.ON_WINDOW_CHANGE].some(s => s === userAutoSaveConfig)) {
-			newAutoSaveValue = AutoSaveConfiguration.OFF;
-		} else {
-			newAutoSaveValue = AutoSaveConfiguration.AFTER_DELAY;
-		}
-
-		this.configurationService.updateValue(ElectronWindow.AUTO_SAVE_SETTING, newAutoSaveValue, ConfigurationTarget.USER);
 	}
 
 	dispose(): void {

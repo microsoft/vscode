@@ -123,7 +123,7 @@ export class ExtHostDebugService implements ExtHostDebugServiceShape {
 		}
 	}
 
-	public async $runInTerminal(args: DebugProtocol.RunInTerminalRequestArguments, config: ITerminalSettings): TPromise<void> {
+	public $runInTerminal(args: DebugProtocol.RunInTerminalRequestArguments, config: ITerminalSettings): TPromise<void> {
 
 		if (args.kind === 'integrated') {
 
@@ -136,20 +136,31 @@ export class ExtHostDebugService implements ExtHostDebugServiceShape {
 				});
 			}
 
-			let t = this._integratedTerminalInstance;
+			return new TPromise(resolve => {
+				if (this._integratedTerminalInstance) {
+					this._integratedTerminalInstance.processId.then(pid => {
+						resolve(hasChildprocesses(pid));
+					}, err => {
+						resolve(true);
+					});
+				} else {
+					resolve(true);
+				}
+			}).then(needNewTerminal => {
 
-			if ((t && hasChildprocesses(await t.processId)) || !t) {
-				t = this._terminalService.createTerminal(args.title || nls.localize('debug.terminal.title', "debuggee"));
-				this._integratedTerminalInstance = t;
-			}
-			t.show();
+				if (needNewTerminal) {
+					this._integratedTerminalInstance = this._terminalService.createTerminal(args.title || nls.localize('debug.terminal.title', "debuggee"));
+				}
 
-			return new TPromise((resolve, error) => {
-				setTimeout(_ => {
-					const command = prepareCommand(args, config);
-					t.sendText(command, true);
-					resolve(void 0);
-				}, 500);
+				this._integratedTerminalInstance.show();
+
+				return new TPromise((resolve, error) => {
+					setTimeout(_ => {
+						const command = prepareCommand(args, config);
+						this._integratedTerminalInstance.sendText(command, true);
+						resolve(void 0);
+					}, 500);
+				});
 			});
 
 		} else if (args.kind === 'external') {
