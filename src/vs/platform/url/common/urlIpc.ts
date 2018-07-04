@@ -39,7 +39,7 @@ export class URLServiceChannelClient implements IURLService {
 
 	constructor(private channel: IChannel) { }
 
-	open(url: URI): TPromise<boolean, any> {
+	open(url: URI): TPromise<boolean> {
 		return this.channel.call('open', url.toJSON());
 	}
 

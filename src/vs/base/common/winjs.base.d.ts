@@ -53,7 +53,6 @@ export type TValueCallback<T = any> = (value: T | PromiseLike<T>) => void;
 
 export {
 	Promise as TPromise,
-	Promise as PPromise,
 	TValueCallback as ValueCallback
 };
 

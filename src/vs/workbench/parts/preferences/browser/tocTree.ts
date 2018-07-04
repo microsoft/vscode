@@ -83,7 +83,7 @@ export class TOCDataSource implements IDataSource {
 			(element instanceof SettingsTreeGroupElement && element.children && element.children.every(child => child instanceof SettingsTreeGroupElement));
 	}
 
-	getChildren(tree: ITree, element: TOCTreeElement): TPromise<SettingsTreeElement[], any> {
+	getChildren(tree: ITree, element: TOCTreeElement): TPromise<SettingsTreeElement[]> {
 		return TPromise.as(this._getChildren(element));
 	}
 
@@ -99,7 +99,7 @@ export class TOCDataSource implements IDataSource {
 		return element.children;
 	}
 
-	getParent(tree: ITree, element: TOCTreeElement): TPromise<any, any> {
+	getParent(tree: ITree, element: TOCTreeElement): TPromise<any> {
 		return TPromise.wrap(element instanceof SettingsTreeGroupElement && element.parent);
 	}
 
