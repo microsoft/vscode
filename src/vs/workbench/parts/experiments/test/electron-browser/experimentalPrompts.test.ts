@@ -31,26 +31,26 @@ suite('Experimental Prompts', () => {
 	let storageData = {};
 	const promptText = 'Hello there! Can you see this?';
 	const experiment: IExperiment =
-		{
-			id: 'experiment1',
-			enabled: true,
-			state: ExperimentState.Run,
-			action: {
-				type: ExperimentActionType.Prompt,
-				properties: {
-					promptText,
-					commands: [
-						{
-							text: 'Yes',
-							dontShowAgain: true
-						},
-						{
-							text: 'No'
-						}
-					]
-				}
+	{
+		id: 'experiment1',
+		enabled: true,
+		state: ExperimentState.Run,
+		action: {
+			type: ExperimentActionType.Prompt,
+			properties: {
+				promptText,
+				commands: [
+					{
+						text: 'Yes',
+						dontShowAgain: true
+					},
+					{
+						text: 'No'
+					}
+				]
 			}
-		};
+		}
+	};
 
 	suiteSetup(() => {
 		instantiationService = new TestInstantiationService();
