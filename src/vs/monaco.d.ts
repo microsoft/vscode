@@ -83,7 +83,6 @@ declare namespace monaco {
 
 		public static join<T1, T2>(promises: [T1 | PromiseLike<T1>, T2 | PromiseLike<T2>]): Promise<[T1, T2]>;
 		public static join<T>(promises: (T | PromiseLike<T>)[]): Promise<T[]>;
-		public static join<T>(promises: { [n: string]: T | PromiseLike<T> }): Promise<{ [n: string]: T }>;
 
 		public static any<T>(promises: (T | PromiseLike<T>)[]): Promise<{ key: string; value: Promise<T>; }>;
 
