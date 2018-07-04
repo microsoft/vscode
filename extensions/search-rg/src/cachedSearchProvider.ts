@@ -95,7 +95,7 @@ export class CachedSearchProvider {
 
 		const cached = this.getResultsFromCache(cache, args.query.pattern, onResult);
 		if (cached) {
-			return cached.then(([results, cacheStats]) => this.sortResults(args, results, cache.scorerCache));
+			return cached.then((results) => this.sortResults(args, results, cache.scorerCache));
 		}
 
 		return undefined;
@@ -112,7 +112,7 @@ export class CachedSearchProvider {
 		return arrays.topAsync(results, compare, args.options.maxResults || 0, 10000);
 	}
 
-	private getResultsFromCache(cache: Cache, searchValue: string, onResult: (results: IInternalFileMatch) => void): Promise<[IInternalFileMatch[], CacheStats]> {
+	private getResultsFromCache(cache: Cache, searchValue: string, onResult: (results: IInternalFileMatch) => void): Promise<IInternalFileMatch[]> {
 		// Find cache entries by prefix of search value
 		const hasPathSep = searchValue.indexOf(path.sep) >= 0;
 		let cached: CacheEntry<IInternalFileMatch>;
@@ -154,11 +154,7 @@ export class CachedSearchProvider {
 					results.push(entry);
 				}
 
-				c([results, {
-					cacheWasResolved: wasResolved,
-					cacheFilterStartTime: cacheFilterStartTime,
-					cacheFilterResultCount: cachedEntries.length
-				}]);
+				c(results);
 			}, e);
 		});
 	}
@@ -231,9 +227,3 @@ const FileMatchItemAccessor = new class implements IItemAccessor<IInternalFileMa
 		return match.relativePath; // e.g. some/path/to/file/myFile.txt
 	}
 };
-
-interface CacheStats {
-	cacheWasResolved: boolean;
-	cacheFilterStartTime: number;
-	cacheFilterResultCount: number;
-}
