@@ -74,7 +74,7 @@ export class RipgrepTextSearchEngine {
 			});
 
 			this.ripgrepParser.on('hitLimit', () => {
-				cancel();
+				this.cancel();
 			});
 
 			this.rgProc.stdout.on('data', data => {
