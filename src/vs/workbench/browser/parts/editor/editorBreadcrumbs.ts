@@ -39,6 +39,7 @@ import { first } from 'vs/base/common/collections';
 import { DocumentSymbolProviderRegistry } from 'vs/editor/common/modes';
 import { Range } from 'vs/editor/common/core/range';
 import { OutlineDataSource, OutlineRenderer, OutlineItemComparator, OutlineController } from 'vs/editor/contrib/documentSymbols/outlineTree';
+import { CancellationToken } from 'vs/base/common/cancellation';
 
 class FileElement {
 	constructor(
@@ -179,7 +180,7 @@ export class EditorBreadcrumbs implements IEditorBreadcrumbs {
 		this._editorDisposables.push(oracle);
 
 		oracle.event(async _ => {
-			let model = await asDisposablePromise(OutlineModel.create(control.getModel()), undefined, this._editorDisposables).promise;
+			let model = await asDisposablePromise(OutlineModel.create(control.getModel(), CancellationToken.None), undefined, this._editorDisposables).promise;
 			if (!model) {
 				return;
 			}
