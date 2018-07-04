@@ -25,7 +25,7 @@ import { IProgress, IUncachedSearchStats } from 'vs/platform/search/common/searc
 
 import * as extfs from 'vs/base/node/extfs';
 import * as flow from 'vs/base/node/flow';
-import { IRawFileMatch, ISerializedSearchComplete, IRawSearch, ISearchEngine, IFolderSearch } from './search';
+import { IRawFileMatch, IRawSearch, ISearchEngine, IFolderSearch, ISerializedSearchSuccess } from './search';
 import { spawnRipgrepCmd } from './ripgrepFileSearch';
 import { rgErrorMsgForDisplay } from './ripgrepTextSearch';
 
@@ -721,9 +721,10 @@ export class Engine implements ISearchEngine<IRawFileMatch> {
 		this.walker = new FileWalker(config);
 	}
 
-	public search(onResult: (result: IRawFileMatch) => void, onProgress: (progress: IProgress) => void, done: (error: Error, complete: ISerializedSearchComplete) => void): void {
+	public search(onResult: (result: IRawFileMatch) => void, onProgress: (progress: IProgress) => void, done: (error: Error, complete: ISerializedSearchSuccess) => void): void {
 		this.walker.walk(this.folderQueries, this.extraFiles, onResult, onProgress, (err: Error, isLimitHit: boolean) => {
 			done(err, {
+				type: 'success',
 				limitHit: isLimitHit,
 				stats: this.walker.getStats()
 			});
