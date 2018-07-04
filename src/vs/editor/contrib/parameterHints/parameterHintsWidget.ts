@@ -50,7 +50,7 @@ export class ParameterHintsModel extends Disposable {
 	private triggerCharactersListeners: IDisposable[];
 	private active: boolean;
 	private throttledDelayer: RunOnceScheduler;
-	private provideSignatureHelpRequest?: TPromise<boolean, any>;
+	private provideSignatureHelpRequest?: TPromise<boolean>;
 
 	constructor(editor: ICodeEditor) {
 		super();

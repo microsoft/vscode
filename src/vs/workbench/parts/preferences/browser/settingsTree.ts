@@ -307,7 +307,7 @@ export class SettingsDataSource implements IDataSource {
 		return false;
 	}
 
-	getChildren(tree: ITree, element: SettingsTreeElement): TPromise<any, any> {
+	getChildren(tree: ITree, element: SettingsTreeElement): TPromise<any> {
 		return TPromise.as(this._getChildren(element));
 	}
 
@@ -322,7 +322,7 @@ export class SettingsDataSource implements IDataSource {
 		}
 	}
 
-	getParent(tree: ITree, element: SettingsTreeElement): TPromise<any, any> {
+	getParent(tree: ITree, element: SettingsTreeElement): TPromise<any> {
 		return TPromise.wrap(element.parent);
 	}
 

@@ -26,7 +26,7 @@ export class NoProviderError extends Error {
 	}
 }
 
-export function getDocumentRangeFormattingEdits(model: ITextModel, range: Range, options: FormattingOptions): TPromise<TextEdit[], NoProviderError> {
+export function getDocumentRangeFormattingEdits(model: ITextModel, range: Range, options: FormattingOptions): TPromise<TextEdit[]> {
 
 	const providers = DocumentRangeFormattingEditProviderRegistry.ordered(model);
 
