@@ -40,6 +40,7 @@ import { DocumentSymbolProviderRegistry } from 'vs/editor/common/modes';
 import { Range } from 'vs/editor/common/core/range';
 import { OutlineDataSource, OutlineRenderer, OutlineItemComparator, OutlineController } from 'vs/editor/contrib/documentSymbols/outlineTree';
 import { CancellationToken } from 'vs/base/common/cancellation';
+import { EditorBreadcrumbsModel } from 'vs/workbench/browser/parts/editor/editorBreadcrumbsModel';
 
 class FileElement {
 	constructor(
@@ -148,6 +149,13 @@ export class EditorBreadcrumbs implements IEditorBreadcrumbs {
 		this._widget.splice(0, this._widget.items().length, fileItems);
 
 		let control = this._editorGroup.activeControl.getControl() as ICodeEditor;
+
+		let model = new EditorBreadcrumbsModel(input.getResource(), isCodeEditor(control) ? control : undefined, this._workspaceService);
+		let listener = model.onDidUpdate(_ => {
+			console.log(model.getElements());
+		});
+		this._editorDisposables.push(model, listener);
+
 		if (!isCodeEditor(control)) {
 			return;
 		}
