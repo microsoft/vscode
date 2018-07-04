@@ -12,7 +12,11 @@ export interface IWatcherRequest {
 	ignored: string[];
 }
 
+export interface IWatcherOptions {
+	verboseLogging: boolean;
+}
+
 export interface IWatcherService {
-	initialize(verboseLogging: boolean): TPromise<void>;
+	initialize(options: IWatcherOptions): TPromise<void>;
 	setRoots(roots: IWatcherRequest[]): TPromise<void>;
 }
