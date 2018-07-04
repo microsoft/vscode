@@ -117,7 +117,8 @@ function cleanEnv() {
 		'PTYROWS',
 		'PTYSHELLCMDLINE',
 		'VSCODE_LOGS',
-		'VSCODE_PORTABLE'
+		'VSCODE_PORTABLE',
+		'VSCODE_PID',
 	];
 	keys.forEach(function (key) {
 		if (process.env[key]) {
