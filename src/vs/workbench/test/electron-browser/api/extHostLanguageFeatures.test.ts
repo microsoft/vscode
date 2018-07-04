@@ -204,7 +204,7 @@ suite('ExtHostLanguageFeatures', function () {
 		}));
 
 		return rpcProtocol.sync().then(() => {
-			return getCodeLensData(model).then(value => {
+			return getCodeLensData(model, CancellationToken.None).then(value => {
 				assert.equal(value.length, 1);
 			});
 		});
@@ -225,7 +225,7 @@ suite('ExtHostLanguageFeatures', function () {
 
 		return rpcProtocol.sync().then(() => {
 
-			return getCodeLensData(model).then(value => {
+			return getCodeLensData(model, CancellationToken.None).then(value => {
 				assert.equal(value.length, 1);
 				let data = value[0];
 
@@ -249,7 +249,7 @@ suite('ExtHostLanguageFeatures', function () {
 
 		return rpcProtocol.sync().then(() => {
 
-			return getCodeLensData(model).then(value => {
+			return getCodeLensData(model, CancellationToken.None).then(value => {
 				assert.equal(value.length, 1);
 
 				let data = value[0];
