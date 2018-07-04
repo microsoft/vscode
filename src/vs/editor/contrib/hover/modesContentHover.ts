@@ -339,7 +339,7 @@ export class ModesContentHoverWidget extends ContentHoverWidget {
 				const model = new ColorPickerModel(color, [], 0);
 				const widget = new ColorPickerWidget(fragment, model, this._editor.getConfiguration().pixelRatio, this._themeService);
 
-				getColorPresentations(editorModel, colorInfo, msg.provider).then(colorPresentations => {
+				getColorPresentations(editorModel, colorInfo, msg.provider, CancellationToken.None).then(colorPresentations => {
 					model.colorPresentations = colorPresentations;
 					const originalText = this._editor.getModel().getValueInRange(msg.range);
 					model.guessColorPresentation(color, originalText);
@@ -381,7 +381,7 @@ export class ModesContentHoverWidget extends ContentHoverWidget {
 								blue: color.rgba.b / 255,
 								alpha: color.rgba.a
 							}
-						}, msg.provider).then((colorPresentations) => {
+						}, msg.provider, CancellationToken.None).then((colorPresentations) => {
 							model.colorPresentations = colorPresentations;
 						});
 					};

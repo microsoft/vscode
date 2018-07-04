@@ -1199,7 +1199,7 @@ suite('ExtHostLanguageFeatures', function () {
 		}));
 
 		return rpcProtocol.sync().then(() => {
-			return getColors(model).then(value => {
+			return getColors(model, CancellationToken.None).then(value => {
 				assert.equal(value.length, 1);
 				let [first] = value;
 

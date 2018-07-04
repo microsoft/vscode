@@ -6,7 +6,6 @@
 import { RGBA } from 'vs/base/common/color';
 import { hash } from 'vs/base/common/hash';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
-import { TPromise } from 'vs/base/common/winjs.base';
 import { IEditorContribution } from 'vs/editor/common/editorCommon';
 import { registerEditorContribution } from 'vs/editor/browser/editorExtensions';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
@@ -17,7 +16,7 @@ import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService
 import { getColors, IColorData } from 'vs/editor/contrib/colorPicker/color';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { ModelDecorationOptions } from 'vs/editor/common/model/textModel';
-import { TimeoutTimer } from 'vs/base/common/async';
+import { TimeoutTimer, CancelablePromise, createCancelablePromise } from 'vs/base/common/async';
 
 const MAX_DECORATORS = 500;
 
@@ -29,7 +28,7 @@ export class ColorDetector implements IEditorContribution {
 
 	private _globalToDispose: IDisposable[] = [];
 	private _localToDispose: IDisposable[] = [];
-	private _computePromise: TPromise<void>;
+	private _computePromise: CancelablePromise<void>;
 	private _timeoutTimer: TimeoutTimer;
 
 	private _decorationsIds: string[] = [];
@@ -128,10 +127,12 @@ export class ColorDetector implements IEditorContribution {
 	}
 
 	private beginCompute(): void {
-		this._computePromise = getColors(this._editor.getModel()).then(colorInfos => {
-			this.updateDecorations(colorInfos);
-			this.updateColorDecorators(colorInfos);
-			this._computePromise = null;
+		this._computePromise = createCancelablePromise(token => {
+			return getColors(this._editor.getModel(), token).then(colorInfos => {
+				this.updateDecorations(colorInfos);
+				this.updateColorDecorators(colorInfos);
+				this._computePromise = null;
+			});
 		});
 	}
 
