@@ -443,7 +443,7 @@ export class RuntimeExtensionsInput extends EditorInput {
 		return true;
 	}
 
-	resolve(refresh?: boolean): TPromise<any> {
+	resolve(): TPromise<any> {
 		return TPromise.as(null);
 	}
 

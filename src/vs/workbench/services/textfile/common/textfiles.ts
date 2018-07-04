@@ -147,9 +147,16 @@ export interface IModelLoadOrCreateOptions {
 	encoding?: string;
 
 	/**
-	 * Wether to reload the model if it already exists.
+	 * If the model was already loaded before, allows to trigger
+	 * a reload of it to fetch the latest contents:
+	 * - async: loadOrCreate() will return immediately and trigger
+	 * a reload that will run in the background.
+	 * - sync: loadOrCreate() will only return resolved when the
+	 * model has finished reloading.
 	 */
-	reload?: boolean;
+	reload?: {
+		async: boolean
+	};
 
 	/**
 	 * Allow to load a model even if we think it is a binary file.
@@ -179,6 +186,7 @@ export interface ITextFileEditorModelManager {
 	getAll(resource?: URI): ITextFileEditorModel[];
 
 	loadOrCreate(resource: URI, options?: IModelLoadOrCreateOptions): TPromise<ITextFileEditorModel>;
+	reload(model: ITextFileEditorModel): void;
 
 	disposeModel(model: ITextFileEditorModel): void;
 }

@@ -395,11 +395,9 @@ export abstract class EditorInput extends Disposable implements IEditorInput {
 
 	/**
 	 * Returns a type of EditorModel that represents the resolved input. Subclasses should
-	 * override to provide a meaningful model. The optional second argument allows to specify
-	 * if the EditorModel should be refreshed before returning it. Depending on the implementation
-	 * this could mean to refresh the editor model contents with the version from disk.
+	 * override to provide a meaningful model.
 	 */
-	abstract resolve(refresh?: boolean): TPromise<IEditorModel>;
+	abstract resolve(): TPromise<IEditorModel>;
 
 	/**
 	 * An editor that is dirty will be asked to be saved once it closes.
@@ -582,7 +580,7 @@ export class SideBySideEditorInput extends EditorInput {
 		this._register(this.master.onDidChangeLabel(() => this._onDidChangeLabel.fire()));
 	}
 
-	resolve(refresh?: boolean): TPromise<EditorModel> {
+	resolve(): TPromise<EditorModel> {
 		return TPromise.as(null);
 	}
 

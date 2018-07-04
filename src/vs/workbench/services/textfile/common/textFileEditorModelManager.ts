@@ -13,6 +13,8 @@ import { ITextFileEditorModel, ITextFileEditorModelManager, TextFileModelChangeE
 import { ILifecycleService } from 'vs/platform/lifecycle/common/lifecycle';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { ResourceMap } from 'vs/base/common/map';
+import { onUnexpectedError } from 'vs/base/common/errors';
+import { ResourceQueue } from 'vs/base/common/async';
 
 export class TextFileEditorModelManager extends Disposable implements ITextFileEditorModelManager {
 
@@ -50,6 +52,8 @@ export class TextFileEditorModelManager extends Disposable implements ITextFileE
 	private mapResourceToModelContentChangeListener: ResourceMap<IDisposable>;
 	private mapResourceToModel: ResourceMap<ITextFileEditorModel>;
 	private mapResourceToPendingModelLoaders: ResourceMap<TPromise<ITextFileEditorModel>>;
+
+	private modelReloadQueue: ResourceQueue = new ResourceQueue();
 
 	constructor(
 		@ILifecycleService private lifecycleService: ILifecycleService,
@@ -142,7 +146,17 @@ export class TextFileEditorModelManager extends Disposable implements ITextFileE
 		let model = this.get(resource);
 		if (model) {
 			if (options && options.reload) {
-				modelPromise = model.load(modelLoadOptions);
+
+				// async reload: trigger a reload but return immediately
+				if (options.reload.async) {
+					modelPromise = TPromise.as(model);
+					this.reload(model);
+				}
+
+				// sync reload: do not return until model reloaded
+				else {
+					modelPromise = model.load(modelLoadOptions);
+				}
 			} else {
 				modelPromise = TPromise.as(model);
 			}
@@ -211,6 +225,17 @@ export class TextFileEditorModelManager extends Disposable implements ITextFileE
 
 			return TPromise.wrapError<ITextFileEditorModel>(error);
 		});
+	}
+
+	reload(model: ITextFileEditorModel): void {
+
+		// Load model to reload (use a queue to prevent accumulation of loads
+		// when the load actually takes long. At most we only want the queue
+		// to have a size of 2 (1 running load and 1 queued load).
+		const queue = this.modelReloadQueue.queueFor(model.getResource());
+		if (queue.size <= 1) {
+			queue.queue(() => model.load().then(null, onUnexpectedError));
+		}
 	}
 
 	getAll(resource?: URI, filter?: (model: ITextFileEditorModel) => boolean): ITextFileEditorModel[] {
