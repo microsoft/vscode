@@ -76,7 +76,7 @@ export class DebugStatus extends Themable implements IStatusbarItem {
 	private doRender(): void {
 		if (!this.statusBarItem && this.container) {
 			this.statusBarItem = dom.append(this.container, $('.debug-statusbar-item'));
-			this.toDispose.push(dom.addDisposableListener(this.statusBarItem, 'click', () => {
+			this._register(dom.addDisposableListener(this.statusBarItem, 'click', () => {
 				this.quickOpenService.show('debug ').done(undefined, errors.onUnexpectedError);
 			}));
 			this.statusBarItem.title = nls.localize('selectAndStartDebug', "Select and start debug configuration");

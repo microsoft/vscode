@@ -25,6 +25,7 @@ import { Position } from 'vs/editor/common/core/position';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { Location } from 'vs/editor/common/modes';
 import { INotificationService } from 'vs/platform/notification/common/notification';
+import { CancelablePromise } from 'vs/base/common/async';
 
 export const ctxReferenceSearchVisible = new RawContextKey<boolean>('referenceSearchVisible', false);
 
@@ -82,7 +83,7 @@ export abstract class ReferencesController implements editorCommon.IEditorContri
 		this._editor = null;
 	}
 
-	public toggleWidget(range: Range, modelPromise: TPromise<ReferencesModel>, options: RequestOptions): void {
+	public toggleWidget(range: Range, modelPromise: CancelablePromise<ReferencesModel>, options: RequestOptions): void {
 
 		// close current widget and return early is position didn't change
 		let widgetPosition: Position;

@@ -29,7 +29,7 @@ export class MainThreadSearch implements MainThreadSearchShape {
 	}
 
 	dispose(): void {
-		this._searchProvider.forEach(value => dispose());
+		this._searchProvider.forEach(value => value.dispose());
 		this._searchProvider.clear();
 	}
 
@@ -79,7 +79,7 @@ class SearchOperation {
 	}
 }
 
-class RemoteSearchProvider implements ISearchResultProvider {
+class RemoteSearchProvider implements ISearchResultProvider, IDisposable {
 
 	private readonly _registrations: IDisposable[];
 	private readonly _searches = new Map<number, SearchOperation>();
@@ -136,6 +136,10 @@ class RemoteSearchProvider implements ISearchResultProvider {
 				outer.cancel();
 			}
 		});
+	}
+
+	clearCache(cacheKey: string): TPromise<void> {
+		return this._proxy.$clearCache(this._handle, cacheKey);
 	}
 
 	handleFindMatch(session: number, dataOrUri: (UriComponents | IRawFileMatch2)[]): void {

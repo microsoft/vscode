@@ -8,7 +8,7 @@ import * as vscode from 'vscode';
 import * as arrays from './common/arrays';
 import { compareItemsByScore, IItemAccessor, prepareQuery, ScorerCache } from './common/fileSearchScorer';
 import * as strings from './common/strings';
-import { joinPath } from './ripgrepHelpers';
+import { joinPath } from './utils';
 
 interface IProviderArgs {
 	query: vscode.FileSearchQuery;
@@ -26,9 +26,6 @@ export class CachedSearchProvider {
 	private static readonly BATCH_SIZE = 512;
 
 	private caches: { [cacheKey: string]: Cache; } = Object.create(null);
-
-	constructor(private outputChannel: vscode.OutputChannel) {
-	}
 
 	provideFileSearchResults(provider: IInternalFileSearchProvider, query: vscode.FileSearchQuery, options: vscode.FileSearchOptions, progress: vscode.Progress<vscode.Uri>, token: vscode.CancellationToken): Thenable<void> {
 		const onResult = (result: IInternalFileMatch) => {
@@ -58,11 +55,11 @@ export class CachedSearchProvider {
 	}
 
 	private doSortedSearch(args: IProviderArgs, provider: IInternalFileSearchProvider): Promise<IInternalFileMatch[]> {
-		let allResultsPromise = new Promise<IInternalFileMatch[]>((c, e) => {
+		const allResultsPromise = new Promise<IInternalFileMatch[]>((c, e) => {
 			const results: IInternalFileMatch[] = [];
 			const onResult = (progress: IInternalFileMatch[]) => results.push(...progress);
 
-			// set maxResult = null
+			// TODO@roblou set maxResult = null
 			this.doSearch(args, provider, onResult, CachedSearchProvider.BATCH_SIZE)
 				.then(() => c(results), e);
 		});
@@ -98,7 +95,7 @@ export class CachedSearchProvider {
 
 		const cached = this.getResultsFromCache(cache, args.query.pattern, onResult);
 		if (cached) {
-			return cached.then(([results, cacheStats]) => this.sortResults(args, results, cache.scorerCache));
+			return cached.then((results) => this.sortResults(args, results, cache.scorerCache));
 		}
 
 		return undefined;
@@ -115,11 +112,7 @@ export class CachedSearchProvider {
 		return arrays.topAsync(results, compare, args.options.maxResults || 0, 10000);
 	}
 
-	private getResultsFromCache(cache: Cache, searchValue: string, onResult: (results: IInternalFileMatch) => void): Promise<[IInternalFileMatch[], CacheStats]> {
-		if (path.isAbsolute(searchValue)) {
-			return null; // bypass cache if user looks up an absolute path where matching goes directly on disk
-		}
-
+	private getResultsFromCache(cache: Cache, searchValue: string, onResult: (results: IInternalFileMatch) => void): Promise<IInternalFileMatch[]> {
 		// Find cache entries by prefix of search value
 		const hasPathSep = searchValue.indexOf(path.sep) >= 0;
 		let cached: CacheEntry<IInternalFileMatch>;
@@ -161,11 +154,7 @@ export class CachedSearchProvider {
 					results.push(entry);
 				}
 
-				c([results, {
-					cacheWasResolved: wasResolved,
-					cacheFilterStartTime: cacheFilterStartTime,
-					cacheFilterResultCount: cachedEntries.length
-				}]);
+				c(results);
 			}, e);
 		});
 	}
@@ -193,7 +182,7 @@ export class CachedSearchProvider {
 					onResult(batch);
 				}
 
-				c(); // TODO limitHit
+				c();
 			}, error => {
 				if (batch.length) {
 					onResult(batch);
@@ -215,17 +204,8 @@ interface IInternalFileMatch {
 	basename: string;
 }
 
-export interface IDisposable {
-	dispose(): void;
-}
-
-export interface Event<T> {
-	(listener: (e: T) => any): IDisposable;
-}
-
 interface CacheEntry<T> {
 	finished: Promise<T[]>;
-	onResult?: Event<T>;
 }
 
 class Cache {
@@ -247,9 +227,3 @@ const FileMatchItemAccessor = new class implements IItemAccessor<IInternalFileMa
 		return match.relativePath; // e.g. some/path/to/file/myFile.txt
 	}
 };
-
-interface CacheStats {
-	cacheWasResolved: boolean;
-	cacheFilterStartTime: number;
-	cacheFilterResultCount: number;
-}

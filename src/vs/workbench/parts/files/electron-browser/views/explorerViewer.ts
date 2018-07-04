@@ -20,7 +20,7 @@ import { InputBox, MessageType } from 'vs/base/browser/ui/inputbox/inputBox';
 import { isMacintosh, isLinux } from 'vs/base/common/platform';
 import * as glob from 'vs/base/common/glob';
 import { FileLabel, IFileLabelOptions } from 'vs/workbench/browser/labels';
-import { IDisposable, dispose, empty as EmptyDisposable } from 'vs/base/common/lifecycle';
+import { IDisposable, dispose, Disposable } from 'vs/base/common/lifecycle';
 import { IFilesConfiguration, SortOrder } from 'vs/workbench/parts/files/common/files';
 import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
 import { FileOperationError, FileOperationResult, IFileService, FileKind } from 'vs/platform/files/common/files';
@@ -233,7 +233,7 @@ export class FileRenderer implements IRenderer {
 	}
 
 	public renderTemplate(tree: ITree, templateId: string, container: HTMLElement): IFileTemplateData {
-		const elementDisposable = EmptyDisposable;
+		const elementDisposable = Disposable.None;
 		const label = this.instantiationService.createInstance(FileLabel, container, void 0);
 
 		return { elementDisposable, label, container };
@@ -264,7 +264,7 @@ export class FileRenderer implements IRenderer {
 		else {
 			templateData.label.element.style.display = 'none';
 			this.renderInputBox(templateData.container, tree, stat, editableData);
-			templateData.elementDisposable = EmptyDisposable;
+			templateData.elementDisposable = Disposable.None;
 		}
 	}
 

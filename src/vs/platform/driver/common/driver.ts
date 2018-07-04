@@ -8,6 +8,7 @@
 import { TPromise } from 'vs/base/common/winjs.base';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { IChannel } from 'vs/base/parts/ipc/common/ipc';
+import { Event } from 'vs/base/common/event';
 
 export const ID = 'driverService';
 export const IDriver = createDecorator<IDriver>(ID);
@@ -64,6 +65,10 @@ export interface IDriverChannel extends IChannel {
 export class DriverChannel implements IDriverChannel {
 
 	constructor(private driver: IDriver) { }
+
+	listen<T>(event: string): Event<T> {
+		throw new Error('No event found');
+	}
 
 	call(command: string, arg?: any): TPromise<any> {
 		switch (command) {
@@ -164,6 +169,10 @@ export class WindowDriverRegistryChannel implements IWindowDriverRegistryChannel
 
 	constructor(private registry: IWindowDriverRegistry) { }
 
+	listen<T>(event: string): Event<T> {
+		throw new Error('No event found');
+	}
+
 	call(command: string, arg?: any): TPromise<any> {
 		switch (command) {
 			case 'registerWindowDriver': return this.registry.registerWindowDriver(arg);
@@ -217,6 +226,10 @@ export interface IWindowDriverChannel extends IChannel {
 export class WindowDriverChannel implements IWindowDriverChannel {
 
 	constructor(private driver: IWindowDriver) { }
+
+	listen<T>(event: string): Event<T> {
+		throw new Error('No event found');
+	}
 
 	call(command: string, arg?: any): TPromise<any> {
 		switch (command) {

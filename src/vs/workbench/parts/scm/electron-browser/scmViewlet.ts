@@ -12,7 +12,7 @@ import { Event, Emitter, chain, mapEvent, anyEvent, filterEvent, latch } from 'v
 import { domEvent, stop } from 'vs/base/browser/event';
 import { basename } from 'vs/base/common/paths';
 import { onUnexpectedError } from 'vs/base/common/errors';
-import { IDisposable, dispose, combinedDisposable, empty as EmptyDisposable, toDisposable } from 'vs/base/common/lifecycle';
+import { IDisposable, dispose, combinedDisposable, Disposable, toDisposable } from 'vs/base/common/lifecycle';
 import { PanelViewlet, ViewletPanel, IViewletPanelOptions } from 'vs/workbench/browser/parts/views/panelViewlet';
 import { append, $, addClass, toggleClass, trackFocus, Dimension, addDisposableListener } from 'vs/base/browser/dom';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
@@ -142,7 +142,7 @@ class ProviderRenderer implements IRenderer<ISCMRepository, RepositoryTemplateDa
 		const count = new CountBadge(countContainer);
 		const badgeStyler = attachBadgeStyler(count, this.themeService);
 		const actionBar = new ActionBar(provider, { actionItemProvider: a => new StatusBarActionItem(a as StatusBarAction) });
-		const disposable = EmptyDisposable;
+		const disposable = Disposable.None;
 		const templateDisposable = combinedDisposable([actionBar, badgeStyler]);
 
 		return { title, type, countContainer, count, actionBar, disposable, templateDisposable };
@@ -389,7 +389,7 @@ class ResourceGroupRenderer implements IRenderer<ISCMResourceGroup, ResourceGrou
 		const countContainer = append(element, $('.count'));
 		const count = new CountBadge(countContainer);
 		const styler = attachBadgeStyler(count, this.themeService);
-		const elementDisposable = EmptyDisposable;
+		const elementDisposable = Disposable.None;
 
 		return {
 			name, count, actionBar, elementDisposable, dispose: () => {
@@ -501,7 +501,7 @@ class ResourceRenderer implements IRenderer<ISCMResource, ResourceTemplate> {
 		const decorationIcon = append(element, $('.decoration-icon'));
 
 		return {
-			element, name, fileLabel, decorationIcon, actionBar, elementDisposable: EmptyDisposable, dispose: () => {
+			element, name, fileLabel, decorationIcon, actionBar, elementDisposable: Disposable.None, dispose: () => {
 				actionBar.dispose();
 				fileLabel.dispose();
 			}
@@ -1019,10 +1019,10 @@ export class SCMViewlet extends PanelViewlet implements IViewModel, IViewsViewle
 	private menus: SCMMenus;
 	private mainPanel: MainPanel | null = null;
 	private cachedMainPanelHeight: number | undefined;
-	private mainPanelDisposable: IDisposable = EmptyDisposable;
+	private mainPanelDisposable: IDisposable = Disposable.None;
 	private _repositories: ISCMRepository[] = [];
 	private repositoryPanels: RepositoryPanel[] = [];
-	private singlePanelTitleActionsDisposable: IDisposable = EmptyDisposable;
+	private singlePanelTitleActionsDisposable: IDisposable = Disposable.None;
 	private disposables: IDisposable[] = [];
 	private lastFocusedRepository: ISCMRepository | undefined;
 
@@ -1152,7 +1152,7 @@ export class SCMViewlet extends PanelViewlet implements IViewModel, IViewsViewle
 			});
 		} else {
 			this.mainPanelDisposable.dispose();
-			this.mainPanelDisposable = EmptyDisposable;
+			this.mainPanelDisposable = Disposable.None;
 			this.mainPanel = null;
 		}
 	}

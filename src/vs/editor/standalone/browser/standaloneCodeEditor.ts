@@ -5,7 +5,7 @@
 
 'use strict';
 
-import { empty as emptyDisposable, IDisposable, combinedDisposable } from 'vs/base/common/lifecycle';
+import { Disposable, IDisposable, combinedDisposable } from 'vs/base/common/lifecycle';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { IContextViewService } from 'vs/platform/contextview/browser/contextView';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
@@ -206,7 +206,7 @@ export class StandaloneCodeEditor extends CodeEditorWidget implements IStandalon
 		}
 		if (!this._standaloneKeybindingService) {
 			console.warn('Cannot add keybinding because the editor is configured with an unrecognized KeybindingService');
-			return emptyDisposable;
+			return Disposable.None;
 		}
 
 		// Read descriptor options

@@ -69,6 +69,16 @@ export class ExtHostSearch implements ExtHostSearchShape {
 			});
 	}
 
+	$clearCache(handle: number, cacheKey: string): TPromise<void> {
+		const provider = this._searchProvider.get(handle);
+		if (!provider.clearCache) {
+			return TPromise.as(undefined);
+		}
+
+		return TPromise.as(
+			this._fileSearchManager.clearCache(cacheKey, provider));
+	}
+
 	$provideTextSearchResults(handle: number, session: number, pattern: IPatternInfo, rawQuery: IRawSearchQuery): TPromise<ISearchCompleteStats> {
 		const provider = this._searchProvider.get(handle);
 		if (!provider.provideTextSearchResults) {
@@ -530,67 +540,51 @@ class FileSearchEngine {
 		this.activeCancellationTokens = new Set();
 	}
 
-	public search(): PPromise<{ isLimitHit: boolean }, IInternalFileMatch> {
+	public search(): PPromise<IInternalSearchComplete, IInternalFileMatch> {
 		const folderQueries = this.config.folderQueries;
 
-		return new PPromise<{ isLimitHit: boolean }, IInternalFileMatch>((resolve, reject, _onResult) => {
+		return new PPromise((resolve, reject, _onResult) => {
 			const onResult = (match: IInternalFileMatch) => {
 				this.resultCount++;
 				_onResult(match);
 			};
 
 			// Support that the file pattern is a full path to a file that exists
-			this.checkFilePatternAbsoluteMatch().then(({ exists, size }) => {
-				if (this.isCanceled) {
-					return resolve({ isLimitHit: this.isLimitHit });
-				}
+			if (this.isCanceled) {
+				return resolve({ limitHit: this.isLimitHit, cacheKeys: [] });
+			}
 
-				// Report result from file pattern if matching
-				if (exists) {
-					onResult({
-						base: URI.file(this.filePattern),
-						basename: path.basename(this.filePattern),
-						size
+			// For each extra file
+			if (this.config.extraFileResources) {
+				this.config.extraFileResources
+					.forEach(extraFile => {
+						const extraFileStr = extraFile.toString(); // ?
+						const basename = path.basename(extraFileStr);
+						if (this.globalExcludePattern && this.globalExcludePattern(extraFileStr, basename)) {
+							return; // excluded
+						}
+
+						// File: Check for match on file pattern and include pattern
+						this.matchFile(onResult, { base: extraFile, basename });
 					});
+			}
 
-					// Optimization: a match on an absolute path is a good result and we do not
-					// continue walking the entire root paths array for other matches because
-					// it is very unlikely that another file would match on the full absolute path
-					return resolve({ isLimitHit: this.isLimitHit });
-				}
+			// For each root folder
+			PPromise.join(folderQueries.map(fq => {
+				return this.searchInFolder(fq).then(null, null, onResult);
+			})).then(cacheKeys => {
+				resolve({ limitHit: this.isLimitHit, cacheKeys });
+			}, (errs: Error[]) => {
+				const errMsg = errs
+					.map(err => toErrorMessage(err))
+					.filter(msg => !!msg)[0];
 
-				// For each extra file
-				if (this.config.extraFileResources) {
-					this.config.extraFileResources
-						.forEach(extraFile => {
-							const extraFileStr = extraFile.toString(); // ?
-							const basename = path.basename(extraFileStr);
-							if (this.globalExcludePattern && this.globalExcludePattern(extraFileStr, basename)) {
-								return; // excluded
-							}
-
-							// File: Check for match on file pattern and include pattern
-							this.matchFile(onResult, { base: extraFile, basename });
-						});
-				}
-
-				// For each root folder
-				PPromise.join(folderQueries.map(fq => {
-					return this.searchInFolder(fq).then(null, null, onResult);
-				})).then(() => {
-					resolve({ isLimitHit: this.isLimitHit });
-				}, (errs: Error[]) => {
-					const errMsg = errs
-						.map(err => toErrorMessage(err))
-						.filter(msg => !!msg)[0];
-
-					reject(new Error(errMsg));
-				});
+				reject(new Error(errMsg));
 			});
 		});
 	}
 
-	private searchInFolder(fq: IFolderQuery<URI>): PPromise<void, IInternalFileMatch> {
+	private searchInFolder(fq: IFolderQuery<URI>): PPromise<string, IInternalFileMatch> {
 		let cancellation = new CancellationTokenSource();
 		return new PPromise((resolve, reject, onResult) => {
 			const options = this.getSearchOptionsForFolder(fq);
@@ -617,11 +611,18 @@ class FileSearchEngine {
 				this.addDirectoryEntries(tree, fq.folder, relativePath, onResult);
 			};
 
-			new TPromise(resolve => process.nextTick(resolve))
+			let folderCacheKey: string;
+			new TPromise(_resolve => process.nextTick(_resolve))
 				.then(() => {
 					this.activeCancellationTokens.add(cancellation);
+
+					folderCacheKey = this.config.cacheKey && (this.config.cacheKey + '_' + fq.folder.fsPath);
+
 					return this.provider.provideFileSearchResults(
-						{ cacheKey: this.config.cacheKey, pattern: this.config.filePattern || '' },
+						{
+							pattern: this.config.filePattern || '',
+							cacheKey: folderCacheKey
+						},
 						options,
 						{ report: onProviderResult },
 						cancellation.token);
@@ -650,7 +651,7 @@ class FileSearchEngine {
 				}).then(
 					() => {
 						cancellation.dispose();
-						resolve(undefined);
+						resolve(folderCacheKey);
 					},
 					err => {
 						cancellation.dispose();
@@ -742,28 +743,6 @@ class FileSearchEngine {
 		matchDirectory(rootEntries);
 	}
 
-	/**
-	 * Return whether the file pattern is an absolute path to a file that exists.
-	 * TODO@roblou delete to match fileSearch.ts
-	 */
-	private checkFilePatternAbsoluteMatch(): TPromise<{ exists: boolean, size?: number }> {
-		if (!this.filePattern || !path.isAbsolute(this.filePattern)) {
-			return TPromise.wrap({ exists: false });
-		}
-
-		return this._pfs.stat(this.filePattern)
-			.then(stat => {
-				return {
-					exists: !stat.isDirectory(),
-					size: stat.size
-				};
-			}, err => {
-				return {
-					exists: false
-				};
-			});
-	}
-
 	private checkFilePatternRelativeMatch(base: URI): TPromise<{ exists: boolean, size?: number }> {
 		if (!this.filePattern || path.isAbsolute(this.filePattern) || base.scheme !== 'file') {
 			return TPromise.wrap({ exists: false });
@@ -810,24 +789,52 @@ class FileSearchEngine {
 	}
 }
 
+interface IInternalSearchComplete {
+	limitHit: boolean;
+	cacheKeys: string[];
+}
+
 class FileSearchManager {
 
 	private static readonly BATCH_SIZE = 512;
 
+	private readonly expandedCacheKeys = new Map<string, string[]>();
+
 	constructor(private _pfs: typeof pfs) { }
 
-	public fileSearch(config: ISearchQuery, provider: vscode.SearchProvider): PPromise<ISearchCompleteStats, IFileMatch[]> {
+	fileSearch(config: ISearchQuery, provider: vscode.SearchProvider): PPromise<ISearchCompleteStats, IFileMatch[]> {
 		let searchP: PPromise;
 		return new PPromise<ISearchCompleteStats, IFileMatch[]>((c, e, p) => {
 			const engine = new FileSearchEngine(config, provider, this._pfs);
-			searchP = this.doSearch(engine, provider, FileSearchManager.BATCH_SIZE).then(c, e, progress => {
-				p(progress.map(m => this.rawMatchToSearchItem(m)));
-			});
+
+			searchP = this.doSearch(engine, FileSearchManager.BATCH_SIZE).then(
+				result => {
+					if (config.cacheKey) {
+						this.expandedCacheKeys.set(config.cacheKey, result.cacheKeys);
+					}
+
+					c({
+						limitHit: result.limitHit
+					});
+				},
+				e,
+				progress => {
+					p(progress.map(m => this.rawMatchToSearchItem(m)));
+				});
 		}, () => {
 			if (searchP) {
 				searchP.cancel();
 			}
 		});
+	}
+
+	clearCache(cacheKey: string, provider: vscode.SearchProvider): void {
+		if (!this.expandedCacheKeys.has(cacheKey)) {
+			return;
+		}
+
+		this.expandedCacheKeys.get(cacheKey).forEach(key => provider.clearCache(key));
+		this.expandedCacheKeys.delete(cacheKey);
 	}
 
 	private rawMatchToSearchItem(match: IInternalFileMatch): IFileMatch {
@@ -836,17 +843,15 @@ class FileSearchManager {
 		};
 	}
 
-	private doSearch(engine: FileSearchEngine, provider: vscode.SearchProvider, batchSize: number): PPromise<ISearchCompleteStats, IInternalFileMatch[]> {
-		return new PPromise<ISearchCompleteStats, IInternalFileMatch[]>((c, e, p) => {
+	private doSearch(engine: FileSearchEngine, batchSize: number): PPromise<IInternalSearchComplete, IInternalFileMatch[]> {
+		return new PPromise((c, e, p) => {
 			let batch: IInternalFileMatch[] = [];
 			engine.search().then(result => {
 				if (batch.length) {
 					p(batch);
 				}
 
-				c({
-					limitHit: result.isLimitHit
-				});
+				c(result);
 			}, error => {
 				if (batch.length) {
 					p(batch);

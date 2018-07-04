@@ -511,6 +511,16 @@ suite('workspace-namespace', () => {
 	// 	});
 	// });
 
+	test('findTextInFiles', async () => {
+		const results: vscode.TextSearchResult[] = [];
+		await vscode.workspace.findTextInFiles({ pattern: 'foo' }, { include: '*.ts' }, result => {
+			results.push(result);
+		});
+
+		assert.equal(results.length, 1);
+		assert.equal(vscode.workspace.asRelativePath(results[0].uri), '10linefile.ts');
+	});
+
 	test('applyEdit', () => {
 
 		return vscode.workspace.openTextDocument(vscode.Uri.parse('untitled:' + join(vscode.workspace.rootPath || '', './new2.txt'))).then(doc => {

@@ -10,14 +10,14 @@ import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { ExtHostContext, MainContext, IExtHostContext, MainThreadDecorationsShape, ExtHostDecorationsShape, DecorationData, DecorationRequest } from '../node/extHost.protocol';
 import { extHostNamedCustomer } from 'vs/workbench/api/electron-browser/extHostCustomers';
 import { IDecorationsService, IDecorationData } from 'vs/workbench/services/decorations/browser/decorations';
-import { TPromise } from 'vs/base/common/winjs.base';
 import { values } from 'vs/base/common/collections';
+import { CancellationToken } from 'vs/base/common/cancellation';
 
 class DecorationRequestsQueue {
 
 	private _idPool = 0;
 	private _requests: { [id: number]: DecorationRequest } = Object.create(null);
-	private _resolver: { [id: number]: Function } = Object.create(null);
+	private _resolver: { [id: number]: (data: DecorationData) => any } = Object.create(null);
 
 	private _timer: number;
 
@@ -27,16 +27,18 @@ class DecorationRequestsQueue {
 		//
 	}
 
-	enqueue(handle: number, uri: URI): TPromise<DecorationData> {
+	enqueue(handle: number, uri: URI, token: CancellationToken): Promise<DecorationData> {
 		const id = ++this._idPool;
-		return new TPromise((resolve, reject) => {
+		const result = new Promise<DecorationData>(resolve => {
 			this._requests[id] = { id, handle, uri };
 			this._resolver[id] = resolve;
 			this._processQueue();
-		}, () => {
+		});
+		token.onCancellationRequested(() => {
 			delete this._requests[id];
 			delete this._resolver[id];
 		});
+		return result;
 	}
 
 	private _processQueue(): void {
@@ -87,8 +89,8 @@ export class MainThreadDecorations implements MainThreadDecorationsShape {
 		const registration = this._decorationsService.registerDecorationsProvider({
 			label,
 			onDidChange: emitter.event,
-			provideDecorations: (uri) => {
-				return this._requestQueue.enqueue(handle, uri).then(data => {
+			provideDecorations: (uri, token) => {
+				return this._requestQueue.enqueue(handle, uri, token).then(data => {
 					if (!data) {
 						return undefined;
 					}

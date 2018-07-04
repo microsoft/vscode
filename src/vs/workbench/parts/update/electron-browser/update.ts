@@ -9,7 +9,7 @@ import * as nls from 'vs/nls';
 import severity from 'vs/base/common/severity';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { IAction, Action } from 'vs/base/common/actions';
-import { IDisposable, dispose, empty as EmptyDisposable } from 'vs/base/common/lifecycle';
+import { IDisposable, dispose, Disposable } from 'vs/base/common/lifecycle';
 import { Separator } from 'vs/base/browser/ui/actionbar/actionbar';
 import pkg from 'vs/platform/node/package';
 import product from 'vs/platform/node/product';
@@ -235,7 +235,7 @@ export class UpdateContribution implements IGlobalActivity {
 	get cssClass() { return 'update-activity'; }
 
 	private state: UpdateState;
-	private badgeDisposable: IDisposable = EmptyDisposable;
+	private badgeDisposable: IDisposable = Disposable.None;
 	private disposables: IDisposable[] = [];
 
 	constructor(

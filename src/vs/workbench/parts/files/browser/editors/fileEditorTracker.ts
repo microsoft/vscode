@@ -6,12 +6,11 @@
 
 import { TPromise } from 'vs/base/common/winjs.base';
 import { IWorkbenchContribution } from 'vs/workbench/common/contributions';
-import * as errors from 'vs/base/common/errors';
 import URI from 'vs/base/common/uri';
 import * as paths from 'vs/base/common/paths';
 import { IEditorViewState } from 'vs/editor/common/editorCommon';
 import { toResource, SideBySideEditorInput, IWorkbenchEditorConfiguration } from 'vs/workbench/common/editor';
-import { ITextFileService, ITextFileEditorModel } from 'vs/workbench/services/textfile/common/textfiles';
+import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
 import { FileOperationEvent, FileOperation, IFileService, FileChangeType, FileChangesEvent } from 'vs/platform/files/common/files';
 import { FileEditorInput } from 'vs/workbench/parts/files/common/editors/fileEditorInput';
 import { ILifecycleService } from 'vs/platform/lifecycle/common/lifecycle';
@@ -20,7 +19,6 @@ import { distinct } from 'vs/base/common/arrays';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { isLinux } from 'vs/base/common/platform';
-import { ResourceQueue } from 'vs/base/common/async';
 import { ResourceMap } from 'vs/base/common/map';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { isCodeEditor } from 'vs/editor/browser/editorBrowser';
@@ -34,7 +32,6 @@ export class FileEditorTracker extends Disposable implements IWorkbenchContribut
 
 	protected closeOnFileDelete: boolean;
 
-	private modelLoadQueue: ResourceQueue;
 	private activeOutOfWorkspaceWatchers: ResourceMap<URI>;
 
 	constructor(
@@ -50,7 +47,6 @@ export class FileEditorTracker extends Disposable implements IWorkbenchContribut
 	) {
 		super();
 
-		this.modelLoadQueue = new ResourceQueue();
 		this.activeOutOfWorkspaceWatchers = new ResourceMap<URI>();
 
 		this.onConfigurationUpdated(configurationService.getValue<IWorkbenchEditorConfiguration>());
@@ -101,7 +97,7 @@ export class FileEditorTracker extends Disposable implements IWorkbenchContribut
 					})
 					.filter(model => model && !model.isDirty()),
 				m => m.getResource().toString()
-			).forEach(model => this.queueModelLoad(model));
+			).forEach(model => this.textFileService.models.reload(model));
 		}
 	}
 
@@ -125,7 +121,9 @@ export class FileEditorTracker extends Disposable implements IWorkbenchContribut
 	private onFileChanges(e: FileChangesEvent): void {
 
 		// Handle updates
-		this.handleUpdates(e);
+		if (e.gotAdded() || e.gotUpdated()) {
+			this.handleUpdates(e);
+		}
 
 		// Handle deletes
 		if (e.gotDeleted()) {
@@ -286,11 +284,23 @@ export class FileEditorTracker extends Disposable implements IWorkbenchContribut
 
 	private handleUpdates(e: FileChangesEvent): void {
 
-		// Handle updates to visible binary editors
-		this.handleUpdatesToVisibleBinaryEditors(e);
-
 		// Handle updates to text models
 		this.handleUpdatesToTextModels(e);
+
+		// Handle updates to visible binary editors
+		this.handleUpdatesToVisibleBinaryEditors(e);
+	}
+
+	private handleUpdatesToTextModels(e: FileChangesEvent): void {
+
+		// Collect distinct (saved) models to update.
+		//
+		// Note: we also consider the added event because it could be that a file was added
+		// and updated right after.
+		distinct([...e.getUpdated(), ...e.getAdded()]
+			.map(u => this.textFileService.models.get(u.resource))
+			.filter(model => model && !model.isDirty()), m => m.getResource().toString())
+			.forEach(model => this.textFileService.models.reload(model));
 	}
 
 	private handleUpdatesToVisibleBinaryEditors(e: FileChangesEvent): void {
@@ -308,32 +318,9 @@ export class FileEditorTracker extends Disposable implements IWorkbenchContribut
 
 			// Binary editor that should reload from event
 			if (resource && isBinaryEditor && (e.contains(resource, FileChangeType.UPDATED) || e.contains(resource, FileChangeType.ADDED))) {
-				this.editorService.openEditor(editor.input, { forceOpen: true, preserveFocus: true }, editor.group);
+				this.editorService.openEditor(editor.input, { forceReload: true, preserveFocus: true }, editor.group);
 			}
 		});
-	}
-
-	private handleUpdatesToTextModels(e: FileChangesEvent): void {
-
-		// Collect distinct (saved) models to update.
-		//
-		// Note: we also consider the added event because it could be that a file was added
-		// and updated right after.
-		distinct([...e.getUpdated(), ...e.getAdded()]
-			.map(u => this.textFileService.models.get(u.resource))
-			.filter(model => model && !model.isDirty()), m => m.getResource().toString())
-			.forEach(model => this.queueModelLoad(model));
-	}
-
-	private queueModelLoad(model: ITextFileEditorModel): void {
-
-		// Load model to update (use a queue to prevent accumulation of loads
-		// when the load actually takes long. At most we only want the queue
-		// to have a size of 2 (1 running load and 1 queued load).
-		const queue = this.modelLoadQueue.queueFor(model.getResource());
-		if (queue.size <= 1) {
-			queue.queue(() => model.load().then(null, errors.onUnexpectedError));
-		}
 	}
 
 	private handleOutOfWorkspaceWatchers(): void {

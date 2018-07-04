@@ -9,7 +9,7 @@ import * as nls from 'vs/nls';
 
 import 'vs/css!./media/dirtydiffDecorator';
 import { ThrottledDelayer, always, first } from 'vs/base/common/async';
-import { IDisposable, dispose, toDisposable, empty as EmptyDisposable, combinedDisposable } from 'vs/base/common/lifecycle';
+import { IDisposable, dispose, toDisposable, Disposable, combinedDisposable } from 'vs/base/common/lifecycle';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { Event, Emitter, anyEvent as anyEvent, filterEvent, once } from 'vs/base/common/event';
 import * as ext from 'vs/workbench/common/contributions';
@@ -553,7 +553,7 @@ export class DirtyDiffController implements IEditorContribution {
 	private widget: DirtyDiffWidget | null = null;
 	private currentIndex: number = -1;
 	private readonly isDirtyDiffVisible: IContextKey<boolean>;
-	private session: IDisposable = EmptyDisposable;
+	private session: IDisposable = Disposable.None;
 	private mouseDownInfo: { lineNumber: number } | null = null;
 	private enabled = false;
 	private disposables: IDisposable[] = [];
@@ -611,7 +611,7 @@ export class DirtyDiffController implements IEditorContribution {
 
 	close(): void {
 		this.session.dispose();
-		this.session = EmptyDisposable;
+		this.session = Disposable.None;
 	}
 
 	private assertWidget(): boolean {
@@ -1034,7 +1034,7 @@ export class DirtyDiffModel {
 
 	private getOriginalResource(): TPromise<URI> {
 		if (!this._editorModel) {
-			return null;
+			return TPromise.as(null);
 		}
 
 		const uri = this._editorModel.uri;

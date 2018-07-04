@@ -11,7 +11,7 @@ import { DiffEditorInput } from 'vs/workbench/common/editor/diffEditorInput';
 
 class MyEditorInput extends EditorInput {
 	getTypeId(): string { return ''; }
-	resolve(refresh?: boolean): any { return null; }
+	resolve(): any { return null; }
 }
 
 suite('Workbench editor input', () => {

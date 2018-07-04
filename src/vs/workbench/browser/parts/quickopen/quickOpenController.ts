@@ -34,7 +34,7 @@ import { Event, Emitter } from 'vs/base/common/event';
 import { IPartService } from 'vs/workbench/services/part/common/partService';
 import { QuickOpenHandler, QuickOpenHandlerDescriptor, IQuickOpenRegistry, Extensions, EditorQuickOpenEntry, CLOSE_ON_FOCUS_LOST_CONFIG } from 'vs/workbench/browser/quickopen';
 import * as errors from 'vs/base/common/errors';
-import { IPickOpenEntry, IFilePickOpenEntry, IQuickOpenService, IPickOptions, IShowOptions, IPickOpenItem } from 'vs/platform/quickOpen/common/quickOpen';
+import { IPickOpenEntry, IFilePickOpenEntry, IQuickOpenService, IShowOptions, IPickOpenItem, IStringPickOptions, ITypedPickOptions } from 'vs/platform/quickOpen/common/quickOpen';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
@@ -73,6 +73,7 @@ interface IInternalPickOptions {
 	ignoreFocusLost?: boolean;
 	quickNavigateConfiguration?: IQuickNavigateConfiguration;
 	onDidType?: (value: string) => any;
+	onDidFocus?: (item: any) => void;
 }
 
 export class QuickOpenController extends Component implements IQuickOpenService {
@@ -145,11 +146,11 @@ export class QuickOpenController extends Component implements IQuickOpenService 
 		}
 	}
 
-	pick(picks: TPromise<string[]>, options?: IPickOptions, token?: CancellationToken): TPromise<string>;
-	pick<T extends IPickOpenEntry>(picks: TPromise<T[]>, options?: IPickOptions, token?: CancellationToken): TPromise<string>;
-	pick(picks: string[], options?: IPickOptions, token?: CancellationToken): TPromise<string>;
-	pick<T extends IPickOpenEntry>(picks: T[], options?: IPickOptions, token?: CancellationToken): TPromise<T>;
-	pick(arg1: string[] | TPromise<string[]> | IPickOpenEntry[] | TPromise<IPickOpenEntry[]>, options?: IPickOptions, token?: CancellationToken): TPromise<string | IPickOpenEntry> {
+	pick(picks: TPromise<string[]>, options?: IStringPickOptions, token?: CancellationToken): TPromise<string>;
+	pick<T extends IPickOpenEntry>(picks: TPromise<T[]>, options?: ITypedPickOptions<T>, token?: CancellationToken): TPromise<string>;
+	pick(picks: string[], options?: IStringPickOptions, token?: CancellationToken): TPromise<string>;
+	pick<T extends IPickOpenEntry>(picks: T[], options?: ITypedPickOptions<T>, token?: CancellationToken): TPromise<T>;
+	pick(arg1: string[] | TPromise<string[]> | IPickOpenEntry[] | TPromise<IPickOpenEntry[]>, options?: IStringPickOptions | ITypedPickOptions<IPickOpenEntry>, token?: CancellationToken): TPromise<string | IPickOpenEntry> {
 		if (!options) {
 			options = Object.create(null);
 		}
@@ -279,7 +280,16 @@ export class QuickOpenController extends Component implements IQuickOpenService 
 
 				// Model
 				const model = new QuickOpenModel([], new PickOpenActionProvider());
-				const entries = picks.map((e, index) => this.instantiationService.createInstance(PickOpenEntry, e, index, () => progress(e), () => this.pickOpenWidget.refresh()));
+				const entries = picks.map((e, index) => {
+					const onPreview = () => {
+						if (options.onDidFocus) {
+							options.onDidFocus(e);
+						}
+
+						progress(e);
+					};
+					return this.instantiationService.createInstance(PickOpenEntry, e, index, onPreview, () => this.pickOpenWidget.refresh());
+				});
 				if (picks.length === 0) {
 					entries.push(this.instantiationService.createInstance(PickOpenEntry, { label: nls.localize('emptyPicks', "There are no entries to pick from") }, 0, null, null));
 				}

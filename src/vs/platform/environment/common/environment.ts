@@ -25,6 +25,7 @@ export interface ParsedArgs {
 	performance?: boolean;
 	'prof-startup'?: string;
 	'prof-startup-prefix'?: string;
+	'prof-append-timers'?: string;
 	verbose?: boolean;
 	log?: string;
 	logExtensionHostCommunication?: boolean;

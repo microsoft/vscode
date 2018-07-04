@@ -7,7 +7,7 @@
 
 import { TPromise } from 'vs/base/common/winjs.base';
 import { Event, buffer } from 'vs/base/common/event';
-import { IChannel, eventToCall, eventFromCall } from 'vs/base/parts/ipc/common/ipc';
+import { IChannel } from 'vs/base/parts/ipc/common/ipc';
 import { IWindowsService, INativeOpenDialogOptions, IEnterWorkspaceResult, CrashReporterStartOptions, IMessageBoxResult, MessageBoxOptions, SaveDialogOptions, OpenDialogOptions, IDevToolsOptions } from 'vs/platform/windows/common/windows';
 import { IWorkspaceIdentifier, ISingleFolderWorkspaceIdentifier, IWorkspaceFolderCreationData } from 'vs/platform/workspaces/common/workspaces';
 import { IRecentlyOpened } from 'vs/platform/history/common/history';
@@ -16,10 +16,14 @@ import URI from 'vs/base/common/uri';
 import { ParsedArgs } from 'vs/platform/environment/common/environment';
 
 export interface IWindowsChannel extends IChannel {
-	call(command: 'event:onWindowOpen'): TPromise<number>;
-	call(command: 'event:onWindowFocus'): TPromise<number>;
-	call(command: 'event:onWindowBlur'): TPromise<number>;
-	call(command: 'event:onRecentlyOpenedChange'): TPromise<void>;
+	listen(event: 'onWindowOpen'): Event<number>;
+	listen(event: 'onWindowFocus'): Event<number>;
+	listen(event: 'onWindowBlur'): Event<number>;
+	listen(event: 'onWindowMaximize'): Event<number>;
+	listen(event: 'onWindowUnmaximize'): Event<number>;
+	listen(event: 'onRecentlyOpenedChange'): Event<void>;
+	listen<T>(event: string, arg?: any): Event<T>;
+
 	call(command: 'pickFileFolderAndOpen', arg: INativeOpenDialogOptions): TPromise<void>;
 	call(command: 'pickFileAndOpen', arg: INativeOpenDialogOptions): TPromise<void>;
 	call(command: 'pickFolderAndOpen', arg: INativeOpenDialogOptions): TPromise<void>;
@@ -89,14 +93,21 @@ export class WindowsChannel implements IWindowsChannel {
 		this.onRecentlyOpenedChange = buffer(service.onRecentlyOpenedChange, true);
 	}
 
+	listen<T>(event: string, arg?: any): Event<any> {
+		switch (event) {
+			case 'onWindowOpen': return this.onWindowOpen;
+			case 'onWindowFocus': return this.onWindowFocus;
+			case 'onWindowBlur': return this.onWindowBlur;
+			case 'onWindowMaximize': return this.onWindowMaximize;
+			case 'onWindowUnmaximize': return this.onWindowUnmaximize;
+			case 'onRecentlyOpenedChange': return this.onRecentlyOpenedChange;
+		}
+
+		throw new Error('No event found');
+	}
+
 	call(command: string, arg?: any): TPromise<any> {
 		switch (command) {
-			case 'event:onWindowOpen': return eventToCall(this.onWindowOpen);
-			case 'event:onWindowFocus': return eventToCall(this.onWindowFocus);
-			case 'event:onWindowBlur': return eventToCall(this.onWindowBlur);
-			case 'event:onWindowMaximize': return eventToCall(this.onWindowMaximize);
-			case 'event:onWindowUnmaximize': return eventToCall(this.onWindowUnmaximize);
-			case 'event:onRecentlyOpenedChange': return eventToCall(this.onRecentlyOpenedChange);
 			case 'pickFileFolderAndOpen': return this.service.pickFileFolderAndOpen(arg);
 			case 'pickFileAndOpen': return this.service.pickFileAndOpen(arg);
 			case 'pickFolderAndOpen': return this.service.pickFolderAndOpen(arg);
@@ -170,23 +181,12 @@ export class WindowsChannelClient implements IWindowsService {
 
 	constructor(private channel: IWindowsChannel) { }
 
-	private _onWindowOpen: Event<number> = eventFromCall<number>(this.channel, 'event:onWindowOpen');
-	get onWindowOpen(): Event<number> { return this._onWindowOpen; }
-
-	private _onWindowFocus: Event<number> = eventFromCall<number>(this.channel, 'event:onWindowFocus');
-	get onWindowFocus(): Event<number> { return this._onWindowFocus; }
-
-	private _onWindowBlur: Event<number> = eventFromCall<number>(this.channel, 'event:onWindowBlur');
-	get onWindowBlur(): Event<number> { return this._onWindowBlur; }
-
-	private _onWindowMaximize: Event<number> = eventFromCall<number>(this.channel, 'event:onWindowMaximize');
-	get onWindowMaximize(): Event<number> { return this._onWindowMaximize; }
-
-	private _onWindowUnmaximize: Event<number> = eventFromCall<number>(this.channel, 'event:onWindowUnmaximize');
-	get onWindowUnmaximize(): Event<number> { return this._onWindowUnmaximize; }
-
-	private _onRecentlyOpenedChange: Event<void> = eventFromCall<void>(this.channel, 'event:onRecentlyOpenedChange');
-	get onRecentlyOpenedChange(): Event<void> { return this._onRecentlyOpenedChange; }
+	get onWindowOpen(): Event<number> { return this.channel.listen('onWindowOpen'); }
+	get onWindowFocus(): Event<number> { return this.channel.listen('onWindowFocus'); }
+	get onWindowBlur(): Event<number> { return this.channel.listen('onWindowBlur'); }
+	get onWindowMaximize(): Event<number> { return this.channel.listen('onWindowMaximize'); }
+	get onWindowUnmaximize(): Event<number> { return this.channel.listen('onWindowUnmaximize'); }
+	get onRecentlyOpenedChange(): Event<void> { return this.channel.listen('onRecentlyOpenedChange'); }
 
 	pickFileFolderAndOpen(options: INativeOpenDialogOptions): TPromise<void> {
 		return this.channel.call('pickFileFolderAndOpen', options);

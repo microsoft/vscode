@@ -120,33 +120,33 @@ export class MenubarPart extends Part {
 		super(id, { hasTitle: false }, themeService);
 
 		this.topLevelMenus = {
-			'File': this.menuService.createMenu(MenuId.MenubarFileMenu, this.contextKeyService),
-			'Edit': this.menuService.createMenu(MenuId.MenubarEditMenu, this.contextKeyService),
-			'Selection': this.menuService.createMenu(MenuId.MenubarSelectionMenu, this.contextKeyService),
-			'View': this.menuService.createMenu(MenuId.MenubarViewMenu, this.contextKeyService),
-			'Go': this.menuService.createMenu(MenuId.MenubarGoMenu, this.contextKeyService),
-			'Terminal': this.menuService.createMenu(MenuId.MenubarTerminalMenu, this.contextKeyService),
-			'Debug': this.menuService.createMenu(MenuId.MenubarDebugMenu, this.contextKeyService),
-			'Tasks': this.menuService.createMenu(MenuId.MenubarTasksMenu, this.contextKeyService),
-			'Help': this.menuService.createMenu(MenuId.MenubarHelpMenu, this.contextKeyService)
+			'File': this._register(this.menuService.createMenu(MenuId.MenubarFileMenu, this.contextKeyService)),
+			'Edit': this._register(this.menuService.createMenu(MenuId.MenubarEditMenu, this.contextKeyService)),
+			'Selection': this._register(this.menuService.createMenu(MenuId.MenubarSelectionMenu, this.contextKeyService)),
+			'View': this._register(this.menuService.createMenu(MenuId.MenubarViewMenu, this.contextKeyService)),
+			'Go': this._register(this.menuService.createMenu(MenuId.MenubarGoMenu, this.contextKeyService)),
+			'Terminal': this._register(this.menuService.createMenu(MenuId.MenubarTerminalMenu, this.contextKeyService)),
+			'Debug': this._register(this.menuService.createMenu(MenuId.MenubarDebugMenu, this.contextKeyService)),
+			'Tasks': this._register(this.menuService.createMenu(MenuId.MenubarTasksMenu, this.contextKeyService)),
+			'Help': this._register(this.menuService.createMenu(MenuId.MenubarHelpMenu, this.contextKeyService))
 		};
 
 		if (isMacintosh) {
-			this.topLevelMenus['Window'] = this.menuService.createMenu(MenuId.MenubarWindowMenu, this.contextKeyService);
+			this.topLevelMenus['Window'] = this._register(this.menuService.createMenu(MenuId.MenubarWindowMenu, this.contextKeyService));
 		}
 
-		this.actionRunner = new ActionRunner();
-		this.actionRunner.onDidBeforeRun(() => {
+		this.actionRunner = this._register(new ActionRunner());
+		this._register(this.actionRunner.onDidBeforeRun(() => {
 			if (this.focusedMenu && this.focusedMenu.holder) {
 				this.focusedMenu.holder.hide();
 			}
-		});
+		}));
 
-		this._onVisibilityChange = new Emitter<Dimension>();
+		this._onVisibilityChange = this._register(new Emitter<Dimension>());
 
 		if (isMacintosh || this.currentTitlebarStyleSetting !== 'custom') {
 			for (let topLevelMenuName of Object.keys(this.topLevelMenus)) {
-				this.topLevelMenus[topLevelMenuName].onDidChange(() => this.setupMenubar());
+				this._register(this.topLevelMenus[topLevelMenuName].onDidChange(() => this.setupMenubar()));
 			}
 			this.setupMenubar();
 		}
@@ -274,21 +274,21 @@ export class MenubarPart extends Part {
 	}
 
 	private registerListeners(): void {
-		browser.onDidChangeFullscreen(() => this.onDidChangeFullscreen());
+		this._register(browser.onDidChangeFullscreen(() => this.onDidChangeFullscreen()));
 
 		// Update when config changes
-		this.configurationService.onDidChangeConfiguration(e => this.onConfigurationUpdated(e));
+		this._register(this.configurationService.onDidChangeConfiguration(e => this.onConfigurationUpdated(e)));
 
 		// Listen to update service
 		// this.updateService.onStateChange(() => this.setupMenubar());
 
 		// Listen for changes in recently opened menu
-		this.windowsService.onRecentlyOpenedChange(() => { this.onRecentlyOpenedChange(); });
+		this._register(this.windowsService.onRecentlyOpenedChange(() => { this.onRecentlyOpenedChange(); }));
 
 		// Listen to keybindings change
-		this.keybindingService.onDidUpdateKeybindings(() => this.setupMenubar());
+		this._register(this.keybindingService.onDidUpdateKeybindings(() => this.setupMenubar()));
 
-		ModifierKeyEmitter.getInstance().event(this.onModifierKeyToggled, this);
+		this._register(ModifierKeyEmitter.getInstance().event(this.onModifierKeyToggled, this));
 	}
 
 	private setupMenubar(): void {
@@ -486,7 +486,7 @@ export class MenubarPart extends Part {
 			};
 
 			this.customMenus[menuIndex].actions = [];
-			menu.onDidChange(() => updateActions(menu, this.customMenus[menuIndex].actions));
+			this._register(menu.onDidChange(() => updateActions(menu, this.customMenus[menuIndex].actions)));
 			updateActions(menu, this.customMenus[menuIndex].actions);
 
 			this.customMenus[menuIndex].titleElement.on(EventType.CLICK, () => {
@@ -662,19 +662,19 @@ export class MenubarPart extends Part {
 			// actionItemProvider: (action) => { return this._getActionItem(action); }
 		};
 
-		let menuWidget = new Menu(menuHolder.getHTMLElement(), customMenu.actions, menuOptions);
+		let menuWidget = this._register(new Menu(menuHolder.getHTMLElement(), customMenu.actions, menuOptions));
 
-		menuWidget.onDidCancel(() => {
+		this._register(menuWidget.onDidCancel(() => {
 			this.cleanupCustomMenu();
 			this.isFocused = false;
-		});
+		}));
 
-		menuWidget.onDidBlur(() => {
+		this._register(menuWidget.onDidBlur(() => {
 			setTimeout(() => {
 				this.cleanupCustomMenu();
 				this.isFocused = false;
 			}, 100);
-		});
+		}));
 
 		menuWidget.focus();
 

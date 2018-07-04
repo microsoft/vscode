@@ -9,7 +9,7 @@ import 'vs/css!./gridview';
 import { Event, anyEvent, Emitter, mapEvent, Relay } from 'vs/base/common/event';
 import { Orientation, Sash } from 'vs/base/browser/ui/sash/sash';
 import { SplitView, IView as ISplitView, Sizing, ISplitViewStyles } from 'vs/base/browser/ui/splitview/splitview';
-import { empty as EmptyDisposable, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
+import { Disposable, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
 import { $ } from 'vs/base/browser/dom';
 import { tail2 as tail } from 'vs/base/common/arrays';
 import { Color } from 'vs/base/common/color';
@@ -122,12 +122,12 @@ class BranchNode implements ISplitView, IDisposable {
 	private _onDidChange = new Emitter<number | undefined>();
 	readonly onDidChange: Event<number | undefined> = this._onDidChange.event;
 
-	private childrenChangeDisposable: IDisposable = EmptyDisposable;
+	private childrenChangeDisposable: IDisposable = Disposable.None;
 
 	private _onDidSashReset = new Emitter<number[]>();
 	readonly onDidSashReset: Event<number[]> = this._onDidSashReset.event;
-	private splitviewSashResetDisposable: IDisposable = EmptyDisposable;
-	private childrenSashResetDisposable: IDisposable = EmptyDisposable;
+	private splitviewSashResetDisposable: IDisposable = Disposable.None;
+	private childrenSashResetDisposable: IDisposable = Disposable.None;
 
 	get orthogonalStartSash(): Sash | undefined { return this.splitview.orthogonalStartSash; }
 	set orthogonalStartSash(sash: Sash | undefined) { this.splitview.orthogonalStartSash = sash; }
@@ -280,22 +280,22 @@ class BranchNode implements ISplitView, IDisposable {
 
 	trySet2x2(other: BranchNode): IDisposable {
 		if (this.children.length !== 2 || other.children.length !== 2) {
-			return EmptyDisposable;
+			return Disposable.None;
 		}
 
 		if (this.getChildSize(0) !== other.getChildSize(0)) {
-			return EmptyDisposable;
+			return Disposable.None;
 		}
 
 		const [firstChild, secondChild] = this.children;
 		const [otherFirstChild, otherSecondChild] = other.children;
 
 		if (!(firstChild instanceof LeafNode) || !(secondChild instanceof LeafNode)) {
-			return EmptyDisposable;
+			return Disposable.None;
 		}
 
 		if (!(otherFirstChild instanceof LeafNode) || !(otherSecondChild instanceof LeafNode)) {
-			return EmptyDisposable;
+			return Disposable.None;
 		}
 
 		if (this.orientation === Orientation.VERTICAL) {
@@ -485,7 +485,7 @@ export class GridView implements IDisposable {
 	private onDidSashResetRelay = new Relay<number[]>();
 	readonly onDidSashReset: Event<number[]> = this.onDidSashResetRelay.event;
 
-	private disposable2x2: IDisposable = EmptyDisposable;
+	private disposable2x2: IDisposable = Disposable.None;
 
 	private get root(): BranchNode {
 		return this._root;
@@ -550,7 +550,7 @@ export class GridView implements IDisposable {
 
 	addView(view: IView, size: number | Sizing, location: number[]): void {
 		this.disposable2x2.dispose();
-		this.disposable2x2 = EmptyDisposable;
+		this.disposable2x2 = Disposable.None;
 
 		const [rest, index] = tail(location);
 		const [pathToParent, parent] = this.getNode(rest);
@@ -582,7 +582,7 @@ export class GridView implements IDisposable {
 
 	removeView(location: number[], sizing?: Sizing): IView {
 		this.disposable2x2.dispose();
-		this.disposable2x2 = EmptyDisposable;
+		this.disposable2x2 = Disposable.None;
 
 		const [rest, index] = tail(location);
 		const [pathToParent, parent] = this.getNode(rest);
@@ -783,7 +783,7 @@ export class GridView implements IDisposable {
 
 	trySet2x2(): void {
 		this.disposable2x2.dispose();
-		this.disposable2x2 = EmptyDisposable;
+		this.disposable2x2 = Disposable.None;
 
 		if (this.root.children.length !== 2) {
 			return;
