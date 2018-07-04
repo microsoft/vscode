@@ -17,6 +17,7 @@ import { IMarkerService } from 'vs/platform/markers/common/markers';
 import { getCodeActions } from './codeAction';
 import { CodeActionTrigger } from './codeActionTrigger';
 import { IProgressService } from 'vs/platform/progress/common/progress';
+import { createCancelablePromise, CancelablePromise } from 'vs/base/common/async';
 
 export const SUPPORTED_CODE_ACTIONS = new RawContextKey<string>('supportedCodeAction', '');
 
@@ -99,7 +100,7 @@ export class CodeActionOracle {
 		return selection;
 	}
 
-	private _createEventAndSignalChange(trigger: CodeActionTrigger, selection: Selection | undefined): TPromise<CodeAction[] | undefined> {
+	private _createEventAndSignalChange(trigger: CodeActionTrigger, selection: Selection | undefined): Thenable<CodeAction[] | undefined> {
 		if (!selection) {
 			// cancel
 			this._signalChange({
@@ -113,10 +114,10 @@ export class CodeActionOracle {
 			const model = this._editor.getModel();
 			const markerRange = this._getRangeOfMarker(selection);
 			const position = markerRange ? markerRange.getStartPosition() : selection.getStartPosition();
-			const actions = getCodeActions(model, selection, trigger);
+			const actions = createCancelablePromise(token => getCodeActions(model, selection, trigger, token));
 
 			if (this._progressService && trigger.type === 'manual') {
-				this._progressService.showWhile(actions, 250);
+				this._progressService.showWhile(TPromise.wrap(actions), 250);
 			}
 
 			this._signalChange({
@@ -134,7 +135,7 @@ export interface CodeActionsComputeEvent {
 	trigger: CodeActionTrigger;
 	rangeOrSelection: Range | Selection;
 	position: Position;
-	actions: TPromise<CodeAction[]>;
+	actions: CancelablePromise<CodeAction[]>;
 }
 
 export class CodeActionModel {
@@ -196,7 +197,7 @@ export class CodeActionModel {
 		}
 	}
 
-	trigger(trigger: CodeActionTrigger): TPromise<CodeAction[] | undefined> {
+	trigger(trigger: CodeActionTrigger): Thenable<CodeAction[] | undefined> {
 		if (this._codeActionOracle) {
 			return this._codeActionOracle.trigger(trigger);
 		}
