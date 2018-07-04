@@ -455,6 +455,15 @@ export class WorkbenchShell extends Disposable {
 
 	open(): void {
 
+		// Listen on unhandled rejection events
+		window.addEventListener('unhandledrejection', (event) => {
+			// See https://developer.mozilla.org/en-US/docs/Web/API/PromiseRejectionEvent
+			errors.onUnexpectedError((<any>event).reason);
+
+			// Prevent the printing of this event to the console
+			event.preventDefault();
+		});
+
 		// Listen on unexpected errors
 		errors.setUnexpectedErrorHandler((error: any) => {
 			this.onUnexpectedError(error);
