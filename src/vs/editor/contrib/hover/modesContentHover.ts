@@ -6,7 +6,6 @@
 
 import * as nls from 'vs/nls';
 import * as dom from 'vs/base/browser/dom';
-import { TPromise } from 'vs/base/common/winjs.base';
 import { IRange, Range } from 'vs/editor/common/core/range';
 import { Position } from 'vs/editor/common/core/position';
 import { HoverProviderRegistry, Hover, IColor, DocumentColorProvider } from 'vs/editor/common/modes';
@@ -24,6 +23,7 @@ import { Color, RGBA } from 'vs/base/common/color';
 import { IDisposable, Disposable, combinedDisposable } from 'vs/base/common/lifecycle';
 import { getColorPresentations } from 'vs/editor/contrib/colorPicker/color';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
+import { CancellationToken } from 'vs/base/common/cancellation';
 const $ = dom.$;
 
 class ColorHover {
@@ -57,17 +57,17 @@ class ModesContentComputer implements IHoverComputer<HoverPart[]> {
 		this._result = [];
 	}
 
-	computeAsync(): TPromise<HoverPart[]> {
+	computeAsync(token: CancellationToken): Promise<HoverPart[]> {
 		const model = this._editor.getModel();
 
 		if (!HoverProviderRegistry.has(model)) {
-			return TPromise.as(null);
+			return Promise.resolve(null);
 		}
 
 		return getHover(model, new Position(
 			this._range.startLineNumber,
 			this._range.startColumn
-		));
+		), token);
 	}
 
 	computeSync(): HoverPart[] {
