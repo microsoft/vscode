@@ -386,12 +386,12 @@ export class ExtHostWorkspace implements ExtHostWorkspaceShape {
 		const queryOptions: IQueryOptions = {
 			ignoreSymlinks: typeof options.followSymlinks === 'boolean' ? !options.followSymlinks : undefined,
 			disregardIgnoreFiles: typeof options.useIgnoreFiles === 'boolean' ? !options.useIgnoreFiles : undefined,
-			disregardExcludeSettings: options.excludes === null,
+			disregardExcludeSettings: options.exclude === null,
 			fileEncoding: options.encoding,
 			maxResults: options.maxResults,
 
-			includePattern: options.includes && options.includes.map(include => globPatternToString(include)).join(', '),
-			excludePattern: options.excludes && options.excludes.map(exclude => globPatternToString(exclude)).join(', ')
+			includePattern: options.include && globPatternToString(options.include),
+			excludePattern: options.exclude && globPatternToString(options.exclude)
 		};
 
 		this._activeSearchCallbacks[requestId] = p => {

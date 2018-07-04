@@ -190,8 +190,8 @@ declare module 'vscode' {
 	}
 
 	export interface FindTextInFilesOptions {
-		includes?: GlobPattern[];
-		excludes?: GlobPattern[];
+		include?: GlobPattern;
+		exclude?: GlobPattern;
 		maxResults?: number;
 		useIgnoreFiles?: boolean;
 		followSymlinks?: boolean;
