@@ -79,6 +79,9 @@ export class Client implements IChannelClient, IDisposable {
 	private _client: IPCClient;
 	private channels: { [name: string]: IChannel };
 
+	private _onDidProcessExit = new Emitter<{ code: number, signal: string }>();
+	readonly onDidProcessExit = this._onDidProcessExit.event;
+
 	constructor(private modulePath: string, private options: IIPCOptions) {
 		const timeout = options && options.timeout ? options.timeout : 60000;
 		this.disposeDelayer = new Delayer<void>(timeout);
@@ -221,6 +224,8 @@ export class Client implements IChannelClient, IDisposable {
 					this.disposeDelayer.cancel();
 					this.disposeClient();
 				}
+
+				this._onDidProcessExit.fire({ code, signal });
 			});
 		}
 

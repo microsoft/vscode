@@ -6,6 +6,8 @@
 'use strict';
 
 import { TPromise } from 'vs/base/common/winjs.base';
+import { Event } from 'vs/base/common/event';
+import { IRawFileChange } from 'vs/workbench/services/files/node/watcher/common';
 
 export interface IWatcherRequest {
 	basePath: string;
@@ -17,6 +19,6 @@ export interface IWatcherOptions {
 }
 
 export interface IWatcherService {
-	initialize(options: IWatcherOptions): TPromise<void>;
+	watch(options: IWatcherOptions): Event<IRawFileChange[] | Error>;
 	setRoots(roots: IWatcherRequest[]): TPromise<void>;
 }
