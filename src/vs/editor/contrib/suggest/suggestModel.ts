@@ -5,12 +5,11 @@
 'use strict';
 
 import { isFalsyOrEmpty } from 'vs/base/common/arrays';
-import { TimeoutTimer } from 'vs/base/common/async';
+import { TimeoutTimer, CancelablePromise, createCancelablePromise } from 'vs/base/common/async';
 import { onUnexpectedError } from 'vs/base/common/errors';
 import { Emitter, Event } from 'vs/base/common/event';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { values } from 'vs/base/common/map';
-import { TPromise } from 'vs/base/common/winjs.base';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { CursorChangeReason, ICursorSelectionChangedEvent } from 'vs/editor/common/controller/cursorEvents';
 import { Position } from 'vs/editor/common/core/position';
@@ -93,7 +92,7 @@ export class SuggestModel implements IDisposable {
 	private readonly _triggerRefilter = new TimeoutTimer();
 	private _state: State;
 
-	private _requestPromise: TPromise<void>;
+	private _requestPromise: CancelablePromise<ISuggestionItem[]>;
 	private _context: LineContext;
 	private _currentSelection: Selection;
 
@@ -356,11 +355,16 @@ export class SuggestModel implements IDisposable {
 			suggestCtx = { triggerKind: SuggestTriggerKind.Invoke };
 		}
 
-		this._requestPromise = provideSuggestionItems(model, this._editor.getPosition(),
+		this._requestPromise = createCancelablePromise(token => provideSuggestionItems(
+			model,
+			this._editor.getPosition(),
 			this._editor.getConfiguration().contribInfo.suggest.snippets,
 			onlyFrom,
-			suggestCtx
-		).then(items => {
+			suggestCtx,
+			token
+		));
+
+		this._requestPromise.then(items => {
 
 			this._requestPromise = null;
 			if (this._state === State.Idle) {
@@ -386,7 +390,7 @@ export class SuggestModel implements IDisposable {
 			);
 			this._onNewContext(ctx);
 
-		}).then(null, onUnexpectedError);
+		}).catch(onUnexpectedError);
 	}
 
 	private _onNewContext(ctx: LineContext): void {
