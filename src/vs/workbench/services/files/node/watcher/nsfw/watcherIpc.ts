@@ -8,6 +8,7 @@
 import { TPromise } from 'vs/base/common/winjs.base';
 import { IChannel } from 'vs/base/parts/ipc/common/ipc';
 import { IWatcherRequest, IWatcherService } from './watcher';
+import { Event } from 'vs/base/common/event';
 
 export interface IWatcherChannel extends IChannel {
 	call(command: 'initialize', verboseLogging: boolean): TPromise<void>;
@@ -18,6 +19,10 @@ export interface IWatcherChannel extends IChannel {
 export class WatcherChannel implements IWatcherChannel {
 
 	constructor(private service: IWatcherService) { }
+
+	listen<T>(event: string, arg?: any): Event<T> {
+		throw new Error('No events');
+	}
 
 	call(command: string, arg: any): TPromise<any> {
 		switch (command) {
