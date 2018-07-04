@@ -284,7 +284,7 @@ export class FileServiceBasedFolderConfiguration extends AbstractFolderConfigura
 				}
 			}).then(null, err => [] /* never fail this call */);
 
-		return bulkContentFetchromise.then(() => TPromise.join(workspaceFilePathToConfiguration).then(result => collections.values(result)));
+		return bulkContentFetchromise.then(() => TPromise.join(collections.values(workspaceFilePathToConfiguration)));
 	}
 
 	private handleWorkspaceFileEvents(event: FileChangesEvent): void {

@@ -61,7 +61,7 @@ export class AbstractTextResourceEditor extends BaseTextEditor {
 
 		// Set input and resolve
 		return super.setInput(input, options, token).then(() => {
-			return input.resolve(true).then((resolvedModel: EditorModel) => {
+			return input.resolve().then((resolvedModel: EditorModel) => {
 
 				// Check for cancellation
 				if (token.isCancellationRequested) {

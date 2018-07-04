@@ -1062,7 +1062,8 @@ class TaskService implements ITaskService {
 				this.editorService.openEditor({
 					resource,
 					options: {
-						pinned: false
+						pinned: false,
+						forceReload: true // because content might have changed
 					}
 				});
 			}

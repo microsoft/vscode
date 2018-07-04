@@ -2057,7 +2057,8 @@ export abstract class AbstractConfigureRecommendedExtensionsAction extends Actio
 			.then(selection => this.editorService.openEditor({
 				resource: workspaceConfigurationFile,
 				options: {
-					selection
+					selection,
+					forceReload: true // because content has changed
 				}
 			}));
 	}

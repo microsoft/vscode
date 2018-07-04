@@ -71,7 +71,7 @@ class MyInput extends EditorInput {
 		return '';
 	}
 
-	resolve(refresh?: boolean): any {
+	resolve(): any {
 		return null;
 	}
 }
@@ -81,7 +81,7 @@ class MyOtherInput extends EditorInput {
 		return '';
 	}
 
-	resolve(refresh?: boolean): any {
+	resolve(): any {
 		return null;
 	}
 }

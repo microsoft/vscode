@@ -99,6 +99,7 @@ export class CodeApplication {
 		// We handle uncaught exceptions here to prevent electron from opening a dialog to the user
 		errors.setUnexpectedErrorHandler(err => this.onUnexpectedError(err));
 		process.on('uncaughtException', err => this.onUnexpectedError(err));
+		process.on('unhandledRejection', (reason: any, promise: Promise<any>) => errors.onUnexpectedError(reason));
 
 		app.on('will-quit', () => {
 			this.logService.trace('App#will-quit: disposing resources');

@@ -7,22 +7,19 @@
 
 import { coalesce } from 'vs/base/common/arrays';
 import { onUnexpectedExternalError } from 'vs/base/common/errors';
-import { TPromise } from 'vs/base/common/winjs.base';
 import { ITextModel } from 'vs/editor/common/model';
 import { registerDefaultLanguageCommand } from 'vs/editor/browser/editorExtensions';
 import { Hover, HoverProviderRegistry } from 'vs/editor/common/modes';
-import { asWinJsPromise } from 'vs/base/common/async';
 import { Position } from 'vs/editor/common/core/position';
+import { CancellationToken } from 'vs/base/common/cancellation';
 
-export function getHover(model: ITextModel, position: Position): TPromise<Hover[]> {
+export function getHover(model: ITextModel, position: Position, token: CancellationToken = CancellationToken.None): Promise<Hover[]> {
 
 	const supports = HoverProviderRegistry.ordered(model);
 	const values: Hover[] = [];
 
 	const promises = supports.map((support, idx) => {
-		return asWinJsPromise((token) => {
-			return support.provideHover(model, position, token);
-		}).then((result) => {
+		return Promise.resolve(support.provideHover(model, position, token)).then((result) => {
 			if (result) {
 				let hasRange = (typeof result.range !== 'undefined');
 				let hasHtmlContent = typeof result.contents !== 'undefined' && result.contents && result.contents.length > 0;
@@ -35,7 +32,7 @@ export function getHover(model: ITextModel, position: Position): TPromise<Hover[
 		});
 	});
 
-	return TPromise.join(promises).then(() => coalesce(values));
+	return Promise.all(promises).then(() => coalesce(values));
 }
 
 registerDefaultLanguageCommand('_executeHoverProvider', getHover);

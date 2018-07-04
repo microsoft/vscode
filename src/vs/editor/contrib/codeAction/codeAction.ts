@@ -7,7 +7,6 @@ import { isFalsyOrEmpty, mergeSort, flatten } from 'vs/base/common/arrays';
 import { asWinJsPromise } from 'vs/base/common/async';
 import { illegalArgument, onUnexpectedExternalError, isPromiseCanceledError } from 'vs/base/common/errors';
 import URI from 'vs/base/common/uri';
-import { TPromise } from 'vs/base/common/winjs.base';
 import { registerLanguageCommand } from 'vs/editor/browser/editorExtensions';
 import { Range } from 'vs/editor/common/core/range';
 import { ITextModel } from 'vs/editor/common/model';
@@ -15,8 +14,9 @@ import { CodeAction, CodeActionProviderRegistry, CodeActionContext, CodeActionTr
 import { IModelService } from 'vs/editor/common/services/modelService';
 import { CodeActionFilter, CodeActionKind, CodeActionTrigger } from './codeActionTrigger';
 import { Selection } from 'vs/editor/common/core/selection';
+import { CancellationToken } from 'vs/base/common/cancellation';
 
-export function getCodeActions(model: ITextModel, rangeOrSelection: Range | Selection, trigger?: CodeActionTrigger): TPromise<CodeAction[]> {
+export function getCodeActions(model: ITextModel, rangeOrSelection: Range | Selection, trigger?: CodeActionTrigger, token: CancellationToken = CancellationToken.None): Promise<CodeAction[]> {
 	const codeActionContext: CodeActionContext = {
 		only: trigger && trigger.filter && trigger.filter.kind ? trigger.filter.kind.value : undefined,
 		trigger: trigger && trigger.type === 'manual' ? CodeActionTriggerKind.Manual : CodeActionTriggerKind.Automatic
@@ -38,7 +38,7 @@ export function getCodeActions(model: ITextModel, rangeOrSelection: Range | Sele
 		});
 	});
 
-	return TPromise.join(promises)
+	return Promise.all(promises)
 		.then(flatten)
 		.then(allCodeActions => mergeSort(allCodeActions, codeActionsComparator));
 }

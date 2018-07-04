@@ -3,12 +3,11 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { asWinJsPromise, first } from 'vs/base/common/async';
+import { first2 } from 'vs/base/common/async';
 import { isFalsyOrEmpty } from 'vs/base/common/arrays';
 import { compareIgnoreCase } from 'vs/base/common/strings';
 import { assign } from 'vs/base/common/objects';
 import { onUnexpectedExternalError } from 'vs/base/common/errors';
-import { TPromise } from 'vs/base/common/winjs.base';
 import { IEditorContribution } from 'vs/editor/common/editorCommon';
 import { ITextModel } from 'vs/editor/common/model';
 import { registerDefaultLanguageCommand } from 'vs/editor/browser/editorExtensions';
@@ -16,6 +15,7 @@ import { ISuggestResult, ISuggestSupport, ISuggestion, SuggestRegistry, SuggestC
 import { Position, IPosition } from 'vs/editor/common/core/position';
 import { RawContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
+import { CancellationToken } from 'vs/base/common/cancellation';
 
 export const Context = {
 	Visible: new RawContextKey<boolean>('suggestWidgetVisible', false),
@@ -30,7 +30,7 @@ export interface ISuggestionItem {
 	suggestion: ISuggestion;
 	container: ISuggestResult;
 	support: ISuggestSupport;
-	resolve(): TPromise<void>;
+	resolve(token: CancellationToken): Thenable<void>;
 }
 
 export type SnippetConfig = 'top' | 'bottom' | 'inline' | 'none';
@@ -47,7 +47,14 @@ export function setSnippetSuggestSupport(support: ISuggestSupport): ISuggestSupp
 	return old;
 }
 
-export function provideSuggestionItems(model: ITextModel, position: Position, snippetConfig: SnippetConfig = 'bottom', onlyFrom?: ISuggestSupport[], context?: SuggestContext): TPromise<ISuggestionItem[]> {
+export function provideSuggestionItems(
+	model: ITextModel,
+	position: Position,
+	snippetConfig: SnippetConfig = 'bottom',
+	onlyFrom?: ISuggestSupport[],
+	context?: SuggestContext,
+	token: CancellationToken = CancellationToken.None
+): Promise<ISuggestionItem[]> {
 
 	const allSuggestions: ISuggestionItem[] = [];
 	const acceptSuggestion = createSuggesionFilter(snippetConfig);
@@ -69,13 +76,13 @@ export function provideSuggestionItems(model: ITextModel, position: Position, sn
 	let hasResult = false;
 	const factory = supports.map(supports => () => {
 		// for each support in the group ask for suggestions
-		return TPromise.join(supports.map(support => {
+		return Promise.all(supports.map(support => {
 
 			if (!isFalsyOrEmpty(onlyFrom) && onlyFrom.indexOf(support) < 0) {
 				return undefined;
 			}
 
-			return asWinJsPromise(token => support.provideCompletionItems(model, position, suggestConext, token)).then(container => {
+			return Promise.resolve(support.provideCompletionItems(model, position, suggestConext, token)).then(container => {
 
 				const len = allSuggestions.length;
 
@@ -104,7 +111,7 @@ export function provideSuggestionItems(model: ITextModel, position: Position, sn
 		}));
 	});
 
-	const result = first(factory, () => hasResult).then(() => allSuggestions.sort(getSuggestionComparator(snippetConfig)));
+	const result = first2(factory, () => hasResult).then(() => allSuggestions.sort(getSuggestionComparator(snippetConfig)));
 
 	// result.then(items => {
 	// 	console.log(model.getWordUntilPosition(position), items.map(item => `${item.suggestion.label}, type=${item.suggestion.type}, incomplete?${item.container.incomplete}, overwriteBefore=${item.suggestion.overwriteBefore}`));
@@ -125,13 +132,13 @@ function fixOverwriteBeforeAfter(suggestion: ISuggestion, container: ISuggestRes
 	}
 }
 
-function createSuggestionResolver(provider: ISuggestSupport, suggestion: ISuggestion, model: ITextModel, position: Position): () => TPromise<void> {
-	return () => {
+function createSuggestionResolver(provider: ISuggestSupport, suggestion: ISuggestion, model: ITextModel, position: Position): (token: CancellationToken) => Promise<void> {
+	return (token) => {
 		if (typeof provider.resolveCompletionItem === 'function') {
-			return asWinJsPromise(token => provider.resolveCompletionItem(model, position, suggestion, token))
-				.then(value => { assign(suggestion, value); });
+			return Promise.resolve(provider.resolveCompletionItem(model, position, suggestion, token)).then(value => { assign(suggestion, value); });
+		} else {
+			return Promise.resolve(void 0);
 		}
-		return TPromise.as(void 0);
 	};
 }
 
@@ -213,13 +220,13 @@ registerDefaultLanguageCommand('_executeCompletionItemProvider', (model, positio
 	return provideSuggestionItems(model, position).then(items => {
 		for (const item of items) {
 			if (resolving.length < maxItemsToResolve) {
-				resolving.push(item.resolve());
+				resolving.push(item.resolve(CancellationToken.None));
 			}
 			result.incomplete = result.incomplete || item.container.incomplete;
 			result.suggestions.push(item.suggestion);
 		}
 	}).then(() => {
-		return TPromise.join(resolving);
+		return Promise.all(resolving);
 	}).then(() => {
 		return result;
 	});

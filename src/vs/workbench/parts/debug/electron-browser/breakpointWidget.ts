@@ -27,9 +27,7 @@ import uri from 'vs/base/common/uri';
 import { SuggestRegistry, ISuggestResult, SuggestContext } from 'vs/editor/common/modes';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { ITextModel } from 'vs/editor/common/model';
-import { wireCancellationToken } from 'vs/base/common/async';
 import { provideSuggestionItems } from 'vs/editor/contrib/suggest/suggest';
-import { TPromise } from 'vs/base/common/winjs.base';
 import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
 import { transparent, editorForeground } from 'vs/platform/theme/common/colorRegistry';
 import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
@@ -218,9 +216,9 @@ export class BreakpointWidget extends ZoneWidget implements IPrivateBreakpointWi
 
 		this.toDispose.push(SuggestRegistry.register({ scheme: DEBUG_SCHEME, hasAccessToAllModels: true }, {
 			provideCompletionItems: (model: ITextModel, position: Position, _context: SuggestContext, token: CancellationToken): Thenable<ISuggestResult> => {
-				let suggestionsPromise: TPromise<ISuggestResult>;
+				let suggestionsPromise: Promise<ISuggestResult>;
 				if (this.context === Context.CONDITION || this.context === Context.LOG_MESSAGE && this.isCurlyBracketOpen()) {
-					suggestionsPromise = provideSuggestionItems(this.editor.getModel(), new Position(this.lineNumber, 1), 'none', undefined, _context).then(suggestions => {
+					suggestionsPromise = provideSuggestionItems(this.editor.getModel(), new Position(this.lineNumber, 1), 'none', undefined, _context, token).then(suggestions => {
 
 						let overwriteBefore = 0;
 						if (this.context === Context.CONDITION) {
@@ -242,10 +240,10 @@ export class BreakpointWidget extends ZoneWidget implements IPrivateBreakpointWi
 						};
 					});
 				} else {
-					suggestionsPromise = TPromise.as({ suggestions: [] });
+					suggestionsPromise = Promise.resolve({ suggestions: [] });
 				}
 
-				return wireCancellationToken(token, suggestionsPromise);
+				return suggestionsPromise;
 			}
 		}));
 	}
