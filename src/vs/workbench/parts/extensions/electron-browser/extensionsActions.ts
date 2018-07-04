@@ -1290,6 +1290,7 @@ export class ReloadAction extends Action {
 		@IWindowService private windowService: IWindowService,
 		@IExtensionService private extensionService: IExtensionService,
 		@IExtensionEnablementService private extensionEnablementService: IExtensionEnablementService,
+		@IExtensionManagementServerService private extensionManagementServerService: IExtensionManagementServerService
 	) {
 		super('extensions.reload', localize('reloadAction', "Reload"), ReloadAction.DisabledClass, false);
 		this.throttler = new Throttler();
@@ -1325,7 +1326,9 @@ export class ReloadAction extends Action {
 
 		if (installed && installed.local) {
 			if (runningExtension) {
-				const isSameLocation = runningExtension.extensionLocation.toString() === installed.local.location.toString();
+				const runningExtensionServer = this.extensionManagementServerService.getExtensionManagementServer(runningExtension.extensionLocation);
+				const installedExtensionServer = this.extensionManagementServerService.getExtensionManagementServer(installed.local.location);
+				const isSameLocation = runningExtensionServer.location.toString() === installedExtensionServer.location.toString();
 				if (isSameLocation) {
 					const isDifferentVersionRunning = this.extension.version !== runningExtension.version;
 					if (isDifferentVersionRunning && !isDisabled) {
@@ -2041,7 +2044,6 @@ export abstract class AbstractConfigureRecommendedExtensionsAction extends Actio
 					.then(selection => this.editorService.openEditor({
 						resource: extensionsFileResource,
 						options: {
-							forceOpen: true,
 							pinned: created,
 							selection
 						}
@@ -2055,7 +2057,6 @@ export abstract class AbstractConfigureRecommendedExtensionsAction extends Actio
 			.then(selection => this.editorService.openEditor({
 				resource: workspaceConfigurationFile,
 				options: {
-					forceOpen: true,
 					selection
 				}
 			}));

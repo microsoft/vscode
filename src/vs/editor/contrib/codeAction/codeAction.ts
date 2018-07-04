@@ -88,5 +88,5 @@ registerLanguageCommand('_executeCodeActionProvider', function (accessor, args) 
 		throw illegalArgument();
 	}
 
-	return getCodeActions(model, model.validateRange(range), undefined);
+	return getCodeActions(model, model.validateRange(range), { type: 'manual', filter: { includeSourceActions: true } });
 });

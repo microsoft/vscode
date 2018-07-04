@@ -677,7 +677,7 @@ export class EditorOptions implements IEditorOptions {
 		const options = new EditorOptions();
 
 		options.preserveFocus = settings.preserveFocus;
-		options.forceOpen = settings.forceOpen;
+		options.forceReload = settings.forceReload;
 		options.revealIfVisible = settings.revealIfVisible;
 		options.revealIfOpened = settings.revealIfOpened;
 		options.pinned = settings.pinned;
@@ -694,11 +694,11 @@ export class EditorOptions implements IEditorOptions {
 	preserveFocus: boolean;
 
 	/**
-	 * Tells the editor to replace the editor input in the editor even if it is identical to the one
-	 * already showing. By default, the editor will not replace the input if it is identical to the
+	 * Tells the editor to reload the editor input in the editor even if it is identical to the one
+	 * already showing. By default, the editor will not reload the input if it is identical to the
 	 * one showing.
 	 */
-	forceOpen: boolean;
+	forceReload: boolean;
 
 	/**
 	 * Will reveal the editor if it is already opened and visible in any of the opened editor groups.
@@ -763,8 +763,8 @@ export class TextEditorOptions extends EditorOptions {
 			textEditorOptions.editorViewState = options.viewState as IEditorViewState;
 		}
 
-		if (options.forceOpen) {
-			textEditorOptions.forceOpen = true;
+		if (options.forceReload) {
+			textEditorOptions.forceReload = true;
 		}
 
 		if (options.revealIfVisible) {

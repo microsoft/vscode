@@ -77,13 +77,11 @@ export class SelectColorThemeAction extends Action {
 			const placeHolder = localize('themes.selectTheme', "Select Color Theme (Up/Down Keys to Preview)");
 			const autoFocusIndex = firstIndex(picks, p => p.id === currentTheme.id);
 			const delayer = new Delayer<void>(100);
+			const chooseTheme = theme => delayer.trigger(() => selectTheme(theme || currentTheme, true), 0);
+			const tryTheme = theme => delayer.trigger(() => selectTheme(theme, false));
 
-			return this.quickOpenService.pick(picks, { placeHolder, autoFocus: { autoFocusIndex } })
-				.then(
-					theme => delayer.trigger(() => selectTheme(theme || currentTheme, true), 0),
-					null,
-					theme => delayer.trigger(() => selectTheme(theme, false))
-				);
+			return this.quickOpenService.pick(picks, { placeHolder, autoFocus: { autoFocusIndex }, onDidFocus: tryTheme })
+				.then(chooseTheme);
 		});
 	}
 }

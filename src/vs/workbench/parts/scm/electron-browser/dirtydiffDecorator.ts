@@ -1034,7 +1034,7 @@ export class DirtyDiffModel {
 
 	private getOriginalResource(): TPromise<URI> {
 		if (!this._editorModel) {
-			return null;
+			return TPromise.as(null);
 		}
 
 		const uri = this._editorModel.uri;

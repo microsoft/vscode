@@ -27,7 +27,11 @@ class WindowRouter implements IClientRouter {
 
 	constructor(private windowId: number) { }
 
-	route(command: string, arg: any): string {
+	routeCall(): string {
+		return `window:${this.windowId}`;
+	}
+
+	routeEvent(): string {
 		return `window:${this.windowId}`;
 	}
 }

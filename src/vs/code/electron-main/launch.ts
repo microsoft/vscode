@@ -20,6 +20,7 @@ import { Schemas } from 'vs/base/common/network';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import URI from 'vs/base/common/uri';
 import { BrowserWindow } from 'electron';
+import { Event } from 'vs/base/common/event';
 
 export const ID = 'launchService';
 export const ILaunchService = createDecorator<ILaunchService>(ID);
@@ -78,6 +79,10 @@ export interface ILaunchChannel extends IChannel {
 export class LaunchChannel implements ILaunchChannel {
 
 	constructor(private service: ILaunchService) { }
+
+	listen<T>(event: string): Event<T> {
+		throw new Error('No event found');
+	}
 
 	call(command: string, arg: any): TPromise<any> {
 		switch (command) {

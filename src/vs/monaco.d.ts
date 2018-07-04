@@ -2736,7 +2736,7 @@ declare namespace monaco.editor {
 		/**
 		 * Configure the editor's hover.
 		 */
-		hover?: boolean | IEditorHoverOptions;
+		hover?: IEditorHoverOptions;
 		/**
 		 * Enable detecting links and making them clickable.
 		 * Defaults to true.

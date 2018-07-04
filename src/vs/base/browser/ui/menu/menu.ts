@@ -260,4 +260,13 @@ class SubmenuActionItem extends MenuActionItem {
 			this.mysubmenu = this.parentData.submenu;
 		}
 	}
+
+	public dispose() {
+		super.dispose();
+
+		if (this.mysubmenu) {
+			this.mysubmenu.dispose();
+			this.mysubmenu = null;
+		}
+	}
 }

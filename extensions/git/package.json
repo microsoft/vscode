@@ -1140,7 +1140,7 @@
     "iconv-lite": "0.4.19",
     "jschardet": "^1.6.0",
     "vscode-extension-telemetry": "0.0.17",
-    "vscode-nls": "^3.2.1",
+    "vscode-nls": "^3.2.4",
     "which": "^1.3.0"
   },
   "devDependencies": {

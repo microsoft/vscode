@@ -141,9 +141,9 @@ export class LocalizationWorkbenchContribution extends Disposable implements IWo
 					return;
 				}
 
-				const currentLocale = this.getPossibleChineseMapping(locale);
-				const ceintlExtensionSearch = this.galleryService.query({ names: [`MS-CEINTL.vscode-language-pack-${currentLocale}`], pageSize: 1 });
-				const tagSearch = this.galleryService.query({ text: `tag:lp-${currentLocale}`, pageSize: 1 });
+				const extensionIdPostfix = this.getPossibleChineseMapping(locale);
+				const ceintlExtensionSearch = this.galleryService.query({ names: [`MS-CEINTL.vscode-language-pack-${extensionIdPostfix}`], pageSize: 1 });
+				const tagSearch = this.galleryService.query({ text: `tag:lp-${locale}`, pageSize: 1 });
 
 				TPromise.join([ceintlExtensionSearch, tagSearch]).then(([ceintlResult, tagResult]) => {
 					if (ceintlResult.total === 0 && tagResult.total === 0) {
@@ -157,11 +157,11 @@ export class LocalizationWorkbenchContribution extends Disposable implements IWo
 						return;
 					}
 
-					TPromise.join([this.galleryService.getManifest(extensionToFetchTranslationsFrom), this.galleryService.getCoreTranslation(extensionToFetchTranslationsFrom, currentLocale)])
+					TPromise.join([this.galleryService.getManifest(extensionToFetchTranslationsFrom), this.galleryService.getCoreTranslation(extensionToFetchTranslationsFrom, locale)])
 						.then(([manifest, translation]) => {
-							const loc = manifest && manifest.contributes && manifest.contributes.localizations && manifest.contributes.localizations.filter(x => this.getPossibleChineseMapping(x.languageId) === currentLocale)[0];
-							const languageName = loc ? (loc.languageName || currentLocale) : currentLocale;
-							const languageDisplayName = loc ? (loc.localizedLanguageName || loc.languageName || currentLocale) : currentLocale;
+							const loc = manifest && manifest.contributes && manifest.contributes.localizations && manifest.contributes.localizations.filter(x => x.languageId.toLowerCase() === locale)[0];
+							const languageName = loc ? (loc.languageName || locale) : locale;
+							const languageDisplayName = loc ? (loc.localizedLanguageName || loc.languageName || locale) : locale;
 							const translationsFromPack = translation && translation.contents ? translation.contents['vs/platform/node/minimalTranslations'] : {};
 							const promptMessageKey = extensionToInstall ? 'installAndRestartMessage' : 'showLanguagePackExtensions';
 							const useEnglish = !translationsFromPack[promptMessageKey];
@@ -192,7 +192,7 @@ export class LocalizationWorkbenchContribution extends Disposable implements IWo
 									this.viewletService.openViewlet(EXTENSIONS_VIEWLET_ID, true)
 										.then(viewlet => viewlet as IExtensionsViewlet)
 										.then(viewlet => {
-											viewlet.search(`tag:lp-${currentLocale}`);
+											viewlet.search(`tag:lp-${locale}`);
 											viewlet.focus();
 										});
 								}

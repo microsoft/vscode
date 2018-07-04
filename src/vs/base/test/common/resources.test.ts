@@ -5,9 +5,9 @@
 'use strict';
 
 import * as assert from 'assert';
-import URI from 'vs/base/common/uri';
-import { distinctParents, dirname } from 'vs/base/common/resources';
 import { normalize } from 'vs/base/common/paths';
+import { dirname, distinctParents, joinPath } from 'vs/base/common/resources';
+import URI from 'vs/base/common/uri';
 
 suite('Resources', () => {
 
@@ -49,5 +49,23 @@ suite('Resources', () => {
 
 		// does not explode (https://github.com/Microsoft/vscode/issues/41987)
 		dirname(URI.from({ scheme: 'file', authority: '/users/someone/portal.h' }));
+	});
+
+	test('joinPath', () => {
+		assert.equal(
+			joinPath(URI.file('/foo/bar'), '/file.js').toString(),
+			'file:///foo/bar/file.js');
+
+		assert.equal(
+			joinPath(URI.file('/foo/bar/'), '/file.js').toString(),
+			'file:///foo/bar/file.js');
+
+		assert.equal(
+			joinPath(URI.file('/'), '/file.js').toString(),
+			'file:///file.js');
+
+		assert.equal(
+			joinPath(URI.from({ scheme: 'myScheme', authority: 'authority', path: '/path', query: 'query', fragment: 'fragment' }), '/file.js').toString(),
+			'myScheme://authority/path/file.js?query#fragment');
 	});
 });
