@@ -89,8 +89,8 @@ export class SuggestModel implements IDisposable {
 	private _toDispose: IDisposable[] = [];
 	private _quickSuggestDelay: number;
 	private _triggerCharacterListener: IDisposable;
-	private _triggerAutoSuggestPromise: TPromise<void>;
-	private _triggerRefilter = new TimeoutTimer();
+	private readonly _triggerQuickSuggest = new TimeoutTimer();
+	private readonly _triggerRefilter = new TimeoutTimer();
 	private _state: State;
 
 	private _requestPromise: TPromise<void>;
@@ -109,7 +109,6 @@ export class SuggestModel implements IDisposable {
 	constructor(editor: ICodeEditor) {
 		this._editor = editor;
 		this._state = State.Idle;
-		this._triggerAutoSuggestPromise = null;
 		this._requestPromise = null;
 		this._completionModel = null;
 		this._context = null;
@@ -144,7 +143,7 @@ export class SuggestModel implements IDisposable {
 	}
 
 	dispose(): void {
-		dispose([this._onDidCancel, this._onDidSuggest, this._onDidTrigger, this._triggerCharacterListener, this._triggerRefilter]);
+		dispose([this._onDidCancel, this._onDidSuggest, this._onDidTrigger, this._triggerCharacterListener, this._triggerQuickSuggest, this._triggerRefilter]);
 		this._toDispose = dispose(this._toDispose);
 		dispose(this._completionModel);
 		this.cancel();
@@ -209,9 +208,9 @@ export class SuggestModel implements IDisposable {
 
 		this._triggerRefilter.cancel();
 
-		if (this._triggerAutoSuggestPromise) {
-			this._triggerAutoSuggestPromise.cancel();
-			this._triggerAutoSuggestPromise = null;
+		if (this._triggerQuickSuggest) {
+			this._triggerQuickSuggest.cancel();
+
 		}
 
 		if (this._requestPromise) {
@@ -273,39 +272,40 @@ export class SuggestModel implements IDisposable {
 			) {
 				this.cancel();
 
-				this._triggerAutoSuggestPromise = TPromise.timeout(this._quickSuggestDelay);
-				this._triggerAutoSuggestPromise.then(() => {
-					if (LineContext.shouldAutoTrigger(this._editor)) {
-						const model = this._editor.getModel();
-						const pos = this._editor.getPosition();
-
-						if (!model) {
-							return;
-						}
-						// validate enabled now
-						const { quickSuggestions } = this._editor.getConfiguration().contribInfo;
-						if (quickSuggestions === false) {
-							return;
-						} else if (quickSuggestions === true) {
-							// all good
-						} else {
-							// Check the type of the token that triggered this
-							model.tokenizeIfCheap(pos.lineNumber);
-							const lineTokens = model.getLineTokens(pos.lineNumber);
-							const tokenType = lineTokens.getStandardTokenType(lineTokens.findTokenIndexAtOffset(Math.max(pos.column - 1 - 1, 0)));
-							const inValidScope = quickSuggestions.other && tokenType === StandardTokenType.Other
-								|| quickSuggestions.comments && tokenType === StandardTokenType.Comment
-								|| quickSuggestions.strings && tokenType === StandardTokenType.String;
-
-							if (!inValidScope) {
-								return;
-							}
-						}
-
-						this.trigger({ auto: true });
+				this._triggerQuickSuggest.cancelAndSet(() => {
+					if (!LineContext.shouldAutoTrigger(this._editor)) {
+						return;
 					}
-					this._triggerAutoSuggestPromise = null;
-				});
+
+					const model = this._editor.getModel();
+					const pos = this._editor.getPosition();
+					if (!model) {
+						return;
+					}
+					// validate enabled now
+					const { quickSuggestions } = this._editor.getConfiguration().contribInfo;
+					if (quickSuggestions === false) {
+						return;
+					} else if (quickSuggestions === true) {
+						// all good
+					} else {
+						// Check the type of the token that triggered this
+						model.tokenizeIfCheap(pos.lineNumber);
+						const lineTokens = model.getLineTokens(pos.lineNumber);
+						const tokenType = lineTokens.getStandardTokenType(lineTokens.findTokenIndexAtOffset(Math.max(pos.column - 1 - 1, 0)));
+						const inValidScope = quickSuggestions.other && tokenType === StandardTokenType.Other
+							|| quickSuggestions.comments && tokenType === StandardTokenType.Comment
+							|| quickSuggestions.strings && tokenType === StandardTokenType.String;
+
+						if (!inValidScope) {
+							return;
+						}
+					}
+
+					// we made it till here -> trigger now
+					this.trigger({ auto: true });
+
+				}, this._quickSuggestDelay);
 			}
 		}
 	}
