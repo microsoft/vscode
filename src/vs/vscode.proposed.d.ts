@@ -117,6 +117,7 @@ declare module 'vscode' {
 		/**
 		 * `cacheKey` has the same value when `provideFileSearchResults` is invoked multiple times during a single quickopen session.
 		 * Providers can optionally use this to cache results at the beginning of a quickopen session and filter results as the user types.
+		 * It will have a different value for each folder searched.
 		 */
 		cacheKey?: string;
 	}
@@ -171,6 +172,12 @@ declare module 'vscode' {
 		 * @param token A cancellation token.
 		 */
 		provideFileSearchResults?(query: FileSearchQuery, options: FileSearchOptions, progress: Progress<Uri>, token: CancellationToken): Thenable<void>;
+
+		/**
+		 * Optional - if the provider makes use of `query.cacheKey`, it can implement this method which is invoked when the cache can be cleared.
+		 * @param cacheKey The same key that was passed as `query.cacheKey`.
+		 */
+		clearCache?(cacheKey: string): void;
 
 		/**
 		 * Provide results that match the given text pattern.

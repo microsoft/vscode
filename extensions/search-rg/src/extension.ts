@@ -37,6 +37,10 @@ class RipgrepSearchProvider implements vscode.SearchProvider {
 		return this.withEngine(engine, () => this.cachedProvider.provideFileSearchResults(engine, query, options, progress, token));
 	}
 
+	clearCache(cacheKey: string): void {
+		this.cachedProvider.clearCache(cacheKey);
+	}
+
 	private withEngine(engine: SearchEngine, fn: () => Thenable<void>): Thenable<void> {
 		this.inProgress.add(engine);
 		return fn().then(() => {
