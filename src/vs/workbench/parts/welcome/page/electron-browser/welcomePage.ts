@@ -38,6 +38,7 @@ import { IWorkspaceIdentifier, getWorkspaceLabel, ISingleFolderWorkspaceIdentifi
 import { IEditorInputFactory, EditorInput } from 'vs/workbench/common/editor';
 import { getIdAndVersionFromLocalExtensionId } from 'vs/platform/extensionManagement/node/extensionManagementUtil';
 import { INotificationService, Severity } from 'vs/platform/notification/common/notification';
+import { TimeoutTimer } from 'vs/base/common/async';
 
 used();
 
@@ -431,10 +432,10 @@ class WelcomePage {
 				[{
 					label: localize('ok', "OK"),
 					run: () => {
-						const messageDelay = TPromise.timeout(300);
-						messageDelay.then(() => {
+						const messageDelay = new TimeoutTimer();
+						messageDelay.cancelAndSet(() => {
 							this.notificationService.info(strings.installing.replace('{0}', extensionSuggestion.name));
-						});
+						}, 300);
 						TPromise.join(extensionSuggestion.isKeymap ? extensions.filter(extension => isKeymapExtension(this.tipsService, extension) && extension.globallyEnabled)
 							.map(extension => {
 								return this.extensionEnablementService.setEnablement(extension.local, EnablementState.Disabled);
