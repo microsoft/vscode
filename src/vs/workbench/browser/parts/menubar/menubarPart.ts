@@ -664,17 +664,17 @@ export class MenubarPart extends Part {
 
 		let menuWidget = this._register(new Menu(menuHolder.getHTMLElement(), customMenu.actions, menuOptions));
 
-		menuWidget.onDidCancel(() => {
+		this._register(menuWidget.onDidCancel(() => {
 			this.cleanupCustomMenu();
 			this.isFocused = false;
-		});
+		}));
 
-		menuWidget.onDidBlur(() => {
+		this._register(menuWidget.onDidBlur(() => {
 			setTimeout(() => {
 				this.cleanupCustomMenu();
 				this.isFocused = false;
 			}, 100);
-		});
+		}));
 
 		menuWidget.focus();
 
