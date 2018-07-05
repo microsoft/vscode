@@ -16,7 +16,7 @@ import { IConfigurationService } from 'vs/platform/configuration/common/configur
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { Schemas } from 'vs/base/common/network';
 import { filterEvent } from 'vs/base/common/event';
-import { isError } from 'vs/base/common/errors';
+import { IWatchError } from 'vs/workbench/services/files/node/watcher/nsfw/watcher';
 
 export class FileWatcher {
 	private static readonly MAX_RESTARTS = 5;
@@ -73,8 +73,8 @@ export class FileWatcher {
 		const options = { verboseLogging: this.verboseLogging };
 		const onWatchEvent = filterEvent(this.service.watch(options), () => !this.isDisposed);
 
-		const onError = filterEvent<any, Error>(onWatchEvent, isError);
-		onError(err => this.errorLogger(err.stack), null, this.toDispose);
+		const onError = filterEvent<any, IWatchError>(onWatchEvent, (e): e is IWatchError => typeof e.message === 'string');
+		onError(err => this.errorLogger(err.message), null, this.toDispose);
 
 		const onFileChanges = filterEvent<any, IRawFileChange[]>(onWatchEvent, (e): e is IRawFileChange[] => Array.isArray(e) && e.length > 0);
 		onFileChanges(e => this.onFileChanges(toFileChangesEvent(e)), null, this.toDispose);

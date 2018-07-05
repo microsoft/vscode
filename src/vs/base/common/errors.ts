@@ -242,10 +242,6 @@ export interface IErrorWithActions {
 	actions?: IAction[];
 }
 
-export function isError(obj: any): obj is Error {
-	return obj instanceof Error;
-}
-
 export function isErrorWithActions(obj: any): obj is IErrorWithActions {
 	return obj instanceof Error && Array.isArray((obj as IErrorWithActions).actions);
 }

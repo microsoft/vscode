@@ -18,7 +18,11 @@ export interface IWatcherOptions {
 	verboseLogging: boolean;
 }
 
+export interface IWatchError {
+	message: string;
+}
+
 export interface IWatcherService {
-	watch(options: IWatcherOptions): Event<IRawFileChange[] | Error>;
+	watch(options: IWatcherOptions): Event<IRawFileChange[] | IWatchError>;
 	setRoots(roots: IWatcherRequest[]): TPromise<void>;
 }

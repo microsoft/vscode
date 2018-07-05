@@ -9,7 +9,7 @@ import * as path from 'path';
 import * as platform from 'vs/base/common/platform';
 import * as watcher from 'vs/workbench/services/files/node/watcher/common';
 import * as nsfw from 'vscode-nsfw';
-import { IWatcherService, IWatcherRequest, IWatcherOptions } from 'vs/workbench/services/files/node/watcher/nsfw/watcher';
+import { IWatcherService, IWatcherRequest, IWatcherOptions, IWatchError } from 'vs/workbench/services/files/node/watcher/nsfw/watcher';
 import { TPromise, TValueCallback } from 'vs/base/common/winjs.base';
 import { ThrottledDelayer } from 'vs/base/common/async';
 import { FileChangeType } from 'vs/platform/files/common/files';
@@ -39,10 +39,10 @@ export class NsfwWatcherService implements IWatcherService {
 	private _verboseLogging: boolean;
 	private enospcErrorLogged: boolean;
 
-	private _onWatchEvent = new Emitter<watcher.IRawFileChange[] | Error>();
+	private _onWatchEvent = new Emitter<watcher.IRawFileChange[] | IWatchError>();
 	readonly onWatchEvent = this._onWatchEvent.event;
 
-	watch(options: IWatcherOptions): Event<watcher.IRawFileChange[] | Error> {
+	watch(options: IWatcherOptions): Event<watcher.IRawFileChange[] | IWatchError> {
 		this._verboseLogging = options.verboseLogging;
 		return this.onWatchEvent;
 	}
@@ -66,7 +66,7 @@ export class NsfwWatcherService implements IWatcherService {
 			// See https://github.com/Microsoft/vscode/issues/7950
 			if (e === 'Inotify limit reached' && !this.enospcErrorLogged) {
 				this.enospcErrorLogged = true;
-				this._onWatchEvent.fire(new Error('Inotify limit reached (ENOSPC)'));
+				this._onWatchEvent.fire({ message: 'Inotify limit reached (ENOSPC)' });
 			}
 		});
 

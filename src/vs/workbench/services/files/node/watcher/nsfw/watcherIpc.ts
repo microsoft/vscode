@@ -7,7 +7,7 @@
 
 import { TPromise } from 'vs/base/common/winjs.base';
 import { IChannel } from 'vs/base/parts/ipc/common/ipc';
-import { IWatcherRequest, IWatcherService, IWatcherOptions } from './watcher';
+import { IWatcherRequest, IWatcherService, IWatcherOptions, IWatchError } from './watcher';
 import { Event } from 'vs/base/common/event';
 import { IRawFileChange } from 'vs/workbench/services/files/node/watcher/common';
 
@@ -42,7 +42,7 @@ export class WatcherChannelClient implements IWatcherService {
 
 	constructor(private channel: IWatcherChannel) { }
 
-	watch(options: IWatcherOptions): Event<IRawFileChange[] | Error> {
+	watch(options: IWatcherOptions): Event<IRawFileChange[] | IWatchError> {
 		return this.channel.listen('watch', options);
 	}
 
