@@ -616,11 +616,6 @@ declare module 'vscode' {
 
 	export namespace window {
 		/**
-		 * The currently opened terminals or an empty array.
-		 */
-		export const terminals: ReadonlyArray<Terminal>;
-
-		/**
 		 * The currently active terminal or `undefined`. The active terminal is the one that
 		 * currently has focus or most recently had focus.
 		 */
@@ -632,12 +627,6 @@ declare module 'vscode' {
 		 * to `undefined`.
 		 */
 		export const onDidChangeActiveTerminal: Event<Terminal | undefined>;
-
-		/**
-		 * An [event](#Event) which fires when a terminal has been created, either through the
-		 * [createTerminal](#window.createTerminal) API or commands.
-		 */
-		export const onDidOpenTerminal: Event<Terminal>;
 
 		/**
 		 * Create a [TerminalRenderer](#TerminalRenderer).
