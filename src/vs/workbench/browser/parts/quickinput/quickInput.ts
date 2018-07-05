@@ -891,8 +891,8 @@ export class QuickInputService extends Component implements IQuickInputService {
 		this.updateStyles();
 	}
 
-	pick<T extends IQuickPickItem, O extends IPickOptions>(picks: TPromise<T[]>, options: O = <O>{}, token: CancellationToken = CancellationToken.None): TPromise<O extends { canPickMany: true } ? T[] : T> {
-		return new TPromise<O extends { canPickMany: true } ? T[] : T>((resolve, reject, progress) => {
+	pick<T extends IQuickPickItem, O extends IPickOptions<T>>(picks: TPromise<T[]>, options: O = <O>{}, token: CancellationToken = CancellationToken.None): TPromise<O extends { canPickMany: true } ? T[] : T> {
+		return new TPromise<O extends { canPickMany: true } ? T[] : T>((resolve, reject) => {
 			if (token.isCancellationRequested) {
 				resolve(undefined);
 				return;
@@ -914,8 +914,8 @@ export class QuickInputService extends Component implements IQuickInputService {
 				}),
 				input.onDidChangeActive(items => {
 					const focused = items[0];
-					if (focused) {
-						progress(focused);
+					if (focused && options.onDidFocus) {
+						options.onDidFocus(focused);
 					}
 				}),
 				input.onDidChangeSelection(items => {
