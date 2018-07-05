@@ -32,6 +32,7 @@ import { IHashService } from 'vs/workbench/services/hash/common/hashService';
 import { createTextBufferFactory } from 'vs/editor/common/model/textModel';
 import { INotificationService } from 'vs/platform/notification/common/notification';
 import { isLinux } from 'vs/base/common/platform';
+import { IDisposable, toDisposable } from 'vs/base/common/lifecycle';
 
 /**
  * The text file editor model listens to changes to its underlying code editor model and saves these changes through the file service back to the disk.
@@ -63,7 +64,7 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 	private blockModelContentChange: boolean;
 	private autoSaveAfterMillies: number;
 	private autoSaveAfterMilliesEnabled: boolean;
-	private autoSavePromise: TPromise<void>;
+	private autoSaveDisposable: IDisposable;
 	private contentChangeEventScheduler: RunOnceScheduler;
 	private orphanedChangeEventScheduler: RunOnceScheduler;
 	private saveSequentializer: SaveSequentializer;
@@ -208,7 +209,7 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 		}
 
 		// Cancel any running auto-save
-		this.cancelAutoSavePromise();
+		this.cancelPendingAutoSave();
 
 		// Unset flags
 		const undo = this.setDirty(false);
@@ -552,28 +553,28 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 		}
 	}
 
-	private doAutoSave(versionId: number): TPromise<void> {
+	private doAutoSave(versionId: number): void {
 		diag(`doAutoSave() - enter for versionId ${versionId}`, this.resource, new Date());
 
 		// Cancel any currently running auto saves to make this the one that succeeds
-		this.cancelAutoSavePromise();
+		this.cancelPendingAutoSave();
 
-		// Create new save promise and keep it
-		this.autoSavePromise = TPromise.timeout(this.autoSaveAfterMillies).then(() => {
+		// Create new save timer and store it for disposal as needed
+		const handle = setTimeout(() => {
 
 			// Only trigger save if the version id has not changed meanwhile
 			if (versionId === this.versionId) {
 				this.doSave(versionId, { reason: SaveReason.AUTO }).done(null, onUnexpectedError); // Very important here to not return the promise because if the timeout promise is canceled it will bubble up the error otherwise - do not change
 			}
-		});
+		}, this.autoSaveAfterMillies);
 
-		return this.autoSavePromise;
+		this.autoSaveDisposable = toDisposable(() => clearTimeout(handle));
 	}
 
-	private cancelAutoSavePromise(): void {
-		if (this.autoSavePromise) {
-			this.autoSavePromise.cancel();
-			this.autoSavePromise = void 0;
+	private cancelPendingAutoSave(): void {
+		if (this.autoSaveDisposable) {
+			this.autoSaveDisposable.dispose();
+			this.autoSaveDisposable = void 0;
 		}
 	}
 
@@ -585,7 +586,7 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 		diag('save() - enter', this.resource, new Date());
 
 		// Cancel any currently running auto saves to make this the one that succeeds
-		this.cancelAutoSavePromise();
+		this.cancelPendingAutoSave();
 
 		return this.doSave(this.versionId, options);
 	}
@@ -966,7 +967,7 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 
 		this.createTextEditorModelPromise = null;
 
-		this.cancelAutoSavePromise();
+		this.cancelPendingAutoSave();
 
 		super.dispose();
 	}
