@@ -226,8 +226,10 @@ class SubmenuActionItem extends MenuActionItem {
 			this.parentData.submenu.dispose();
 			this.parentData.submenu = null;
 
-			this.submenuContainer.dispose();
-			this.submenuContainer = null;
+			if (this.submenuContainer) {
+				this.submenuContainer.dispose();
+				this.submenuContainer = null;
+			}
 		}
 	}
 
