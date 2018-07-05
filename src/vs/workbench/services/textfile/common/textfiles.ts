@@ -186,7 +186,6 @@ export interface ITextFileEditorModelManager {
 	getAll(resource?: URI): ITextFileEditorModel[];
 
 	loadOrCreate(resource: URI, options?: IModelLoadOrCreateOptions): TPromise<ITextFileEditorModel>;
-	reload(model: ITextFileEditorModel): void;
 
 	disposeModel(model: ITextFileEditorModel): void;
 }
