@@ -5,18 +5,21 @@
 
 'use strict';
 
-import { OutlineModel, OutlineGroup, OutlineElement } from 'vs/editor/contrib/documentSymbols/outlineModel';
-import URI from 'vs/base/common/uri';
-import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
-import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
+import { equals } from 'vs/base/common/arrays';
+import { TimeoutTimer } from 'vs/base/common/async';
+import { CancellationTokenSource } from 'vs/base/common/cancellation';
+import { size } from 'vs/base/common/collections';
+import { onUnexpectedError } from 'vs/base/common/errors';
+import { debounceEvent, Emitter, Event } from 'vs/base/common/event';
+import { dispose, IDisposable } from 'vs/base/common/lifecycle';
 import * as paths from 'vs/base/common/paths';
 import { isEqual } from 'vs/base/common/resources';
+import URI from 'vs/base/common/uri';
+import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
+import { IPosition } from 'vs/editor/common/core/position';
 import { DocumentSymbolProviderRegistry } from 'vs/editor/common/modes';
-import { CancellationTokenSource } from 'vs/base/common/cancellation';
-import { IDisposable, dispose } from 'vs/base/common/lifecycle';
-import { onUnexpectedError } from 'vs/base/common/errors';
-import { debounceEvent, Event, Emitter } from 'vs/base/common/event';
-import { size } from 'vs/base/common/collections';
+import { OutlineElement, OutlineGroup, OutlineModel } from 'vs/editor/contrib/documentSymbols/outlineModel';
+import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 
 export class FileElement {
 	constructor(
@@ -31,8 +34,9 @@ export class EditorBreadcrumbsModel {
 
 	private readonly _disposables: IDisposable[] = [];
 	private readonly _fileElements: FileElement[] = [];
+
+	private _outlineElements: (OutlineGroup | OutlineElement)[] = [];
 	private _outlineDisposables: IDisposable[] = [];
-	private _outlineModel: OutlineModel;
 
 	private _onDidUpdate = new Emitter<this>();
 	readonly onDidUpdate: Event<this> = this._onDidUpdate.event;
@@ -52,25 +56,7 @@ export class EditorBreadcrumbsModel {
 	}
 
 	getElements(): ReadonlyArray<BreadcrumbElement> {
-		if (!this._editor || !this._outlineModel) {
-			return this._fileElements;
-		}
-
-		let item: OutlineGroup | OutlineElement = this._outlineModel.getItemEnclosingPosition(this._editor.getPosition());
-		let items: (OutlineGroup | OutlineElement)[] = [];
-		while (item) {
-			items.push(item);
-			let parent = item.parent;
-			if (parent instanceof OutlineModel) {
-				break;
-			}
-			if (parent instanceof OutlineGroup && size(parent.parent.children) === 1) {
-				break;
-			}
-			item = parent;
-		}
-
-		return (this._fileElements as BreadcrumbElement[]).concat(items.reverse());
+		return [].concat(this._fileElements, this._outlineElements);
 	}
 
 	private static _getFileElements(uri: URI, workspaceService: IWorkspaceContextService): FileElement[] {
@@ -96,15 +82,18 @@ export class EditorBreadcrumbsModel {
 		this._disposables.push(DocumentSymbolProviderRegistry.onDidChange(_ => this._updateOutline()));
 		this._disposables.push(this._editor.onDidChangeModel(_ => this._updateOutline()));
 		this._disposables.push(this._editor.onDidChangeModelLanguage(_ => this._updateOutline()));
-		this._disposables.push(debounceEvent(this._editor.onDidChangeModelContent, _ => _, 350)(_ => this._updateOutline()));
+		this._disposables.push(debounceEvent(this._editor.onDidChangeModelContent, _ => _, 350)(_ => this._updateOutline(true)));
 	}
 
-	private _updateOutline(): void {
+	private _updateOutline(didChangeContent?: boolean): void {
 
 		this._outlineDisposables = dispose(this._outlineDisposables);
+		if (!didChangeContent) {
+			this._updateOutlineElements([]);
+		}
 
-		const model = this._editor.getModel();
-		if (!model || !DocumentSymbolProviderRegistry.has(model) || !isEqual(model.uri, this._uri)) {
+		const buffer = this._editor.getModel();
+		if (!buffer || !DocumentSymbolProviderRegistry.has(buffer) || !isEqual(buffer.uri, this._uri)) {
 			return;
 		}
 
@@ -116,14 +105,58 @@ export class EditorBreadcrumbsModel {
 				source.dispose();
 			}
 		});
-		OutlineModel.create(model, source.token).then(model => {
-			this._outlineModel = model;
-			this._onDidUpdate.fire(this);
-			this._outlineDisposables.push(debounceEvent(this._editor.onDidChangeCursorPosition, _ => _, 250)(_ => this._onDidUpdate.fire(this)));
+		OutlineModel.create(buffer, source.token).then(model => {
+			this._updateOutlineElements(this._getOutlineElements(model, this._editor.getPosition()));
+			const timeout = new TimeoutTimer();
+			const lastVersionId = buffer.getVersionId();
+			this._outlineDisposables.push(this._editor.onDidChangeCursorPosition(_ => {
+				timeout.cancelAndSet(() => {
+					if (lastVersionId === buffer.getVersionId()) {
+						this._updateOutlineElements(this._getOutlineElements(model, this._editor.getPosition()));
+					}
+				}, 150);
+			}));
+			this._outlineDisposables.push(timeout);
 		}).catch(err => {
-			this._outlineModel = undefined;
-			this._onDidUpdate.fire(this);
+			this._updateOutlineElements([]);
 			onUnexpectedError(err);
 		});
+	}
+
+	private _getOutlineElements(model: OutlineModel, position: IPosition): (OutlineGroup | OutlineElement)[] {
+		if (!model) {
+			return [];
+		}
+		let item: OutlineGroup | OutlineElement = model.getItemEnclosingPosition(position);
+		let chain: (OutlineGroup | OutlineElement)[] = [];
+		while (item) {
+			chain.push(item);
+			let parent = item.parent;
+			if (parent instanceof OutlineModel) {
+				break;
+			}
+			if (parent instanceof OutlineGroup && size(parent.parent.children) === 1) {
+				break;
+			}
+			item = parent;
+		}
+		return chain;
+	}
+
+	private _updateOutlineElements(elements: (OutlineGroup | OutlineElement)[]): void {
+		if (!equals(elements, this._outlineElements, EditorBreadcrumbsModel.outlineElementEquals)) {
+			this._outlineElements = elements;
+			this._onDidUpdate.fire(this);
+		}
+	}
+
+	private static outlineElementEquals(a: OutlineGroup | OutlineElement, b: OutlineGroup | OutlineElement): boolean {
+		if (a === b) {
+			return true;
+		} else if (!a || !b) {
+			return false;
+		} else {
+			return a.id === b.id;
+		}
 	}
 }
