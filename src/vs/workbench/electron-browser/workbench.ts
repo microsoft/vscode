@@ -1205,7 +1205,7 @@ export class Workbench extends Disposable implements IPartService {
 	getTitleBarOffset(): number {
 		let offset = 0;
 		if (this.isVisible(Parts.TITLEBAR_PART)) {
-			offset = this.getContainer(Parts.TITLEBAR_PART).getBoundingClientRect().height;
+			offset = this.workbenchLayout.partLayoutInfo.titlebar.height;
 		}
 
 		return offset;
