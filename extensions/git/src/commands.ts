@@ -140,6 +140,7 @@ const ImageMimetypes = [
 export class CommandCenter {
 
 	private disposables: Disposable[];
+	private checkoutItemsUsageList: Map<string, number>;
 
 	constructor(
 		private git: Git,
@@ -156,6 +157,7 @@ export class CommandCenter {
 				return commands.registerCommand(commandId, command);
 			}
 		});
+		this.checkoutItemsUsageList = new Map();
 	}
 
 	@command('git.refresh', { repository: true })
@@ -1140,6 +1142,30 @@ export class CommandCenter {
 		repository.inputBox.value = commit.message;
 	}
 
+	private sortCheckoutItemsByUsage(items: CheckoutItem[]): CheckoutItem[] {
+		return [...items].sort((a, b) => {
+			const getLastUsed = (item: string): number =>
+				this.checkoutItemsUsageList.get(item) || -Infinity;
+
+			const aLastUsed = getLastUsed(a.label);
+			const bLastUsed = getLastUsed(b.label);
+
+			if (aLastUsed > bLastUsed) {
+				return -1;
+			} else if (bLastUsed > aLastUsed) {
+				return 1;
+			}
+
+			return 0;
+		});
+	}
+
+	private updateCheckoutUsage(choice: CheckoutItem | CreateBranchItem) {
+		if (choice instanceof CheckoutItem) {
+			this.checkoutItemsUsageList.set(choice.label, Date.now());
+		}
+	}
+
 	@command('git.checkout', { repository: true })
 	async checkout(repository: Repository, treeish: string): Promise<void> {
 		if (typeof treeish === 'string') {
@@ -1162,13 +1188,18 @@ export class CommandCenter {
 		const remoteHeads = (includeRemotes ? repository.refs.filter(ref => ref.type === RefType.RemoteHead) : [])
 			.map(ref => new CheckoutRemoteHeadItem(ref));
 
-		const picks = [createBranch, ...heads, ...tags, ...remoteHeads];
+		const allCheckoutItems = [...heads, ...tags, ...remoteHeads];
+		const sortedCheckoutItems = this.sortCheckoutItemsByUsage(allCheckoutItems);
+
+		const picks = [createBranch, ...sortedCheckoutItems];
 		const placeHolder = localize('select a ref to checkout', 'Select a ref to checkout');
 		const choice = await window.showQuickPick(picks, { placeHolder });
 
 		if (!choice) {
 			return;
 		}
+
+		this.updateCheckoutUsage(choice);
 
 		await choice.run(repository);
 	}
