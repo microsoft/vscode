@@ -689,8 +689,7 @@ suite('workspace-namespace', () => {
 		we = new vscode.WorkspaceEdit();
 		we.createFile(docUri, { overwrite: true });
 		assert.ok(await vscode.workspace.applyEdit(we));
-		// todo@ben
-		// assert.equal((await vscode.workspace.openTextDocument(docUri)).getText(), '');
+		assert.equal((await vscode.workspace.openTextDocument(docUri)).getText(), '');
 	});
 
 	test('WorkspaceEdit: create & ignoreIfExists', async function () {
