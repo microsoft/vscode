@@ -539,14 +539,18 @@ export function getNextTickChannel<T extends IChannel>(channel: T): T {
 			.then(() => channel.call(command, arg));
 	};
 
-	const listen = (event: string, arg: any) => {
+	const listen = (event: string, arg: any): Event<any> => {
 		if (didTick) {
 			return channel.listen(event, arg);
 		}
 
-		return TPromise.timeout(0)
+		const relay = new Relay();
+
+		TPromise.timeout(0)
 			.then(() => didTick = true)
-			.then(() => channel.listen(event, arg));
+			.then(() => relay.input = channel.listen(event, arg));
+
+		return relay.event;
 	};
 
 	return { call, listen } as T;
