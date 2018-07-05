@@ -295,9 +295,9 @@ export class WorkspaceService extends Disposable implements IWorkspaceConfigurat
 		return this._configuration.keys();
 	}
 
-	initialize(arg: IWorkspaceIdentifier | ISingleFolderWorkspaceIdentifier | IWindowConfiguration): TPromise<any> {
+	initialize(arg: IWorkspaceIdentifier | ISingleFolderWorkspaceIdentifier | IWindowConfiguration, postInitialisation: () => void = () => null): TPromise<any> {
 		return this.createWorkspace(arg)
-			.then(workspace => this.updateWorkspaceAndInitializeConfiguration(workspace));
+			.then(workspace => this.updateWorkspaceAndInitializeConfiguration(workspace, postInitialisation));
 	}
 
 	acquireFileService(fileService: IFileService): void {
@@ -361,7 +361,7 @@ export class WorkspaceService extends Disposable implements IWorkspaceConfigurat
 		return TPromise.as(new Workspace(id));
 	}
 
-	private updateWorkspaceAndInitializeConfiguration(workspace: Workspace): TPromise<void> {
+	private updateWorkspaceAndInitializeConfiguration(workspace: Workspace, postInitialisation: () => void): TPromise<void> {
 		const hasWorkspaceBefore = !!this.workspace;
 		let previousState: WorkbenchState;
 		let previousWorkspacePath: string;
@@ -377,6 +377,9 @@ export class WorkspaceService extends Disposable implements IWorkspaceConfigurat
 		}
 
 		return this.initializeConfiguration().then(() => {
+
+			postInitialisation();
+
 			// Trigger changes after configuration initialization so that configuration is up to date.
 			if (hasWorkspaceBefore) {
 				const newState = this.getWorkbenchState();
