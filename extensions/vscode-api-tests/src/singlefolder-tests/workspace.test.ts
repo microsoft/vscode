@@ -613,8 +613,8 @@ suite('workspace-namespace', () => {
 
 		let newDoc = await vscode.workspace.openTextDocument(newUri);
 		assert.equal(newDoc.getText(), 'HelloFoo');
-		// let doc = await vscode.workspace.openTextDocument(docUri);
-		// assert.equal(doc.getText(), 'Bar');
+		let doc = await vscode.workspace.openTextDocument(docUri);
+		assert.equal(doc.getText(), 'Bar');
 	});
 
 	test('WorkspaceEdit api - after saving a deleted file, it still shows up as deleted. #42667', async function () {
