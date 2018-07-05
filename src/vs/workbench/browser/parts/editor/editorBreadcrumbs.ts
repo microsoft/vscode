@@ -130,6 +130,10 @@ export class EditorBreadcrumbs implements IEditorBreadcrumbs {
 		this._ckBreadcrumbsVisible.reset();
 	}
 
+	getPreferredHeight(): number {
+		return 25;
+	}
+
 	layout(dim: dom.Dimension): void {
 		this._domNode.style.width = `${dim.width}px`;
 		this._domNode.style.height = `${dim.height}px`;
