@@ -42,7 +42,10 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 	static DEFAULT_ORPHANED_CHANGE_BUFFER_DELAY = 100;
 
 	private static saveErrorHandler: ISaveErrorHandler;
+	static setSaveErrorHandler(handler: ISaveErrorHandler): void { TextFileEditorModel.saveErrorHandler = handler; }
+
 	private static saveParticipant: ISaveParticipant;
+	static setSaveParticipant(handler: ISaveParticipant): void { TextFileEditorModel.saveParticipant = handler; }
 
 	private readonly _onDidContentChange: Emitter<StateChange> = this._register(new Emitter<StateChange>());
 	get onDidContentChange(): Event<StateChange> { return this._onDidContentChange.event; }
@@ -87,6 +90,7 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 		@IHashService private hashService: IHashService
 	) {
 		super(modelService, modeService);
+
 		this.resource = resource;
 		this.preferredEncoding = preferredEncoding;
 		this.inOrphanMode = false;
@@ -177,56 +181,27 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 	}
 
 	private updateAutoSaveConfiguration(config: IAutoSaveConfiguration): void {
-		if (typeof config.autoSaveDelay === 'number' && config.autoSaveDelay > 0) {
-			this.autoSaveAfterMillies = config.autoSaveDelay;
-			this.autoSaveAfterMilliesEnabled = true;
-		} else {
-			this.autoSaveAfterMillies = void 0;
-			this.autoSaveAfterMilliesEnabled = false;
-		}
+		const autoSaveAfterMilliesEnabled = (typeof config.autoSaveDelay === 'number') && config.autoSaveDelay > 0;
+
+		this.autoSaveAfterMilliesEnabled = autoSaveAfterMilliesEnabled;
+		this.autoSaveAfterMillies = autoSaveAfterMilliesEnabled ? config.autoSaveDelay : void 0;
 	}
 
 	private onFilesAssociationChange(): void {
-		this.updateTextEditorModelMode();
-	}
-
-	private updateTextEditorModelMode(modeId?: string): void {
 		if (!this.textEditorModel) {
 			return;
 		}
 
 		const firstLineText = this.getFirstLineText(this.textEditorModel);
-		const mode = this.getOrCreateMode(this.modeService, modeId, firstLineText);
+		const mode = this.getOrCreateMode(this.modeService, void 0, firstLineText);
 
 		this.modelService.setMode(this.textEditorModel, mode);
 	}
 
-	/**
-	 * The current version id of the model.
-	 */
 	getVersionId(): number {
 		return this.versionId;
 	}
 
-	/**
-	 * Set a save error handler to install code that executes when save errors occur.
-	 */
-	static setSaveErrorHandler(handler: ISaveErrorHandler): void {
-		TextFileEditorModel.saveErrorHandler = handler;
-	}
-
-	/**
-	 * Set a save participant handler to react on models getting saved.
-	 */
-	static setSaveParticipant(handler: ISaveParticipant): void {
-		TextFileEditorModel.saveParticipant = handler;
-	}
-
-	/**
-	 * Discards any local changes and replaces the model with the contents of the version on disk.
-	 *
-	 * @param if the parameter soft is true, will not attempt to load the contents from disk.
-	 */
 	revert(soft?: boolean): TPromise<void> {
 		if (!this.isResolved()) {
 			return TPromise.wrap<void>(null);
@@ -261,9 +236,9 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 	load(options?: ILoadOptions): TPromise<TextFileEditorModel> {
 		diag('load() - enter', this.resource, new Date());
 
-		// It is very important to not reload the model when the model is dirty. We only want to reload the model from the disk
-		// if no save is pending to avoid data loss. This might cause a save conflict in case the file has been modified on the disk
-		// meanwhile, but this is a very low risk.
+		// It is very important to not reload the model when the model is dirty.
+		// We also only want to reload the model from the disk if no save is pending
+		// to avoid data loss.
 		if (this.dirty || this.saveSequentializer.hasPendingSave()) {
 			diag('load() - exit - without loading because model is dirty or being saved', this.resource, new Date());
 
@@ -272,14 +247,14 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 
 		// Only for new models we support to load from backup
 		if (!this.textEditorModel && !this.createTextEditorModelPromise) {
-			return this.loadWithBackup(options);
+			return this.loadFromBackup(options);
 		}
 
 		// Otherwise load from file resource
 		return this.loadFromFile(options);
 	}
 
-	private loadWithBackup(options?: ILoadOptions): TPromise<TextFileEditorModel> {
+	private loadFromBackup(options?: ILoadOptions): TPromise<TextFileEditorModel> {
 		return this.backupFileService.loadBackupResource(this.resource).then(backup => {
 
 			// Make sure meanwhile someone else did not suceed or start loading
@@ -602,9 +577,6 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 		}
 	}
 
-	/**
-	 * Saves the current versionId of this editor model if it is dirty.
-	 */
 	save(options: ISaveOptions = Object.create(null)): TPromise<void> {
 		if (!this.isResolved()) {
 			return TPromise.wrap<void>(null);
@@ -873,30 +845,18 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 		TextFileEditorModel.saveErrorHandler.onSaveError(error, this);
 	}
 
-	/**
-	 * Returns true if the content of this model has changes that are not yet saved back to the disk.
-	 */
 	isDirty(): boolean {
 		return this.dirty;
 	}
 
-	/**
-	 * Returns the time in millies when this working copy was attempted to be saved.
-	 */
 	getLastSaveAttemptTime(): number {
 		return this.lastSaveAttemptTime;
 	}
 
-	/**
-	 * Returns the time in millies when this working copy was last modified by the user or some other program.
-	 */
 	getETag(): string {
 		return this.lastResolvedDiskStat ? this.lastResolvedDiskStat.etag : null;
 	}
 
-	/**
-	 * Answers if this model is in a specific state.
-	 */
 	hasState(state: ModelState): boolean {
 		switch (state) {
 			case ModelState.CONFLICT:
@@ -986,23 +946,14 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 		return this.lastResolvedDiskStat && this.lastResolvedDiskStat.isReadonly;
 	}
 
-	/**
-	 * Returns true if the dispose() method of this model has been called.
-	 */
 	isDisposed(): boolean {
 		return this.disposed;
 	}
 
-	/**
-	 * Returns the full resource URI of the file this text file editor model is about.
-	 */
 	getResource(): URI {
 		return this.resource;
 	}
 
-	/**
-	 * Stat accessor only used by tests.
-	 */
 	getStat(): IFileStat {
 		return this.lastResolvedDiskStat;
 	}
