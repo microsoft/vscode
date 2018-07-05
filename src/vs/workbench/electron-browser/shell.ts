@@ -19,7 +19,7 @@ import pkg from 'vs/platform/node/package';
 import { ContextViewService } from 'vs/platform/contextview/browser/contextViewService';
 import { Workbench, IWorkbenchStartedInfo } from 'vs/workbench/electron-browser/workbench';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { NullTelemetryService, configurationTelemetry } from 'vs/platform/telemetry/common/telemetryUtils';
+import { NullTelemetryService, configurationTelemetry, combinedAppender, LogAppender } from 'vs/platform/telemetry/common/telemetryUtils';
 import { ITelemetryAppenderChannel, TelemetryAppenderClient } from 'vs/platform/telemetry/common/telemetryIpc';
 import { TelemetryService, ITelemetryServiceConfig } from 'vs/platform/telemetry/common/telemetryService';
 import ErrorTelemetry from 'vs/platform/telemetry/browser/errorTelemetry';
@@ -362,21 +362,27 @@ export class WorkbenchShell extends Disposable {
 		serviceCollection.set(IHashService, new SyncDescriptor(HashService));
 
 		// Telemetry
-		if (this.environmentService.isBuilt && !this.environmentService.isExtensionDevelopment && !this.environmentService.args['disable-telemetry'] && !!product.enableTelemetry) {
-			const channel = getDelayedChannel<ITelemetryAppenderChannel>(sharedProcess.then(c => c.getChannel('telemetryAppender')));
-			const commit = product.commit;
-			const version = pkg.version;
 
+		if (this.environmentService.isExtensionDevelopment || this.environmentService.args['disable-telemetry'] || !product.enableTelemetry) {
+			// disabled
+			this.telemetryService = NullTelemetryService;
+
+		} else {
+			// appender-based telemetry
 			const config: ITelemetryServiceConfig = {
-				appender: new TelemetryAppenderClient(channel),
-				commonProperties: resolveWorkbenchCommonProperties(this.storageService, commit, version, this.configuration.machineId, this.environmentService.installSourcePath),
+				appender: undefined,
+				commonProperties: resolveWorkbenchCommonProperties(this.storageService, product.commit, pkg.version, this.configuration.machineId, this.environmentService.installSourcePath),
 				piiPaths: [this.environmentService.appRoot, this.environmentService.extensionsPath]
 			};
 
+			if (this.environmentService.isBuilt) {
+				const channel = getDelayedChannel<ITelemetryAppenderChannel>(sharedProcess.then(c => c.getChannel('telemetryAppender')));
+				config.appender = combinedAppender(new TelemetryAppenderClient(channel), new LogAppender(this.logService));
+			} else {
+				config.appender = new LogAppender(this.logService);
+			}
 			this.telemetryService = this._register(instantiationService.createInstance(TelemetryService, config));
 			this._register(new ErrorTelemetry(this.telemetryService));
-		} else {
-			this.telemetryService = NullTelemetryService;
 		}
 
 		serviceCollection.set(ITelemetryService, this.telemetryService);
