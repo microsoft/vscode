@@ -249,7 +249,7 @@ export class QuickOpenController extends Component implements IQuickOpenService 
 			this.pickOpenWidget.layout(this.layoutDimensions);
 		}
 
-		return new TPromise<IPickOpenEntry>((complete, error, progress) => {
+		return new TPromise<IPickOpenEntry>((complete, error) => {
 
 			// Detect cancellation while pick promise is loading
 			this.pickOpenWidget.setCallbacks({
@@ -285,8 +285,6 @@ export class QuickOpenController extends Component implements IQuickOpenService 
 						if (options.onDidFocus) {
 							options.onDidFocus(e);
 						}
-
-						progress(e);
 					};
 					return this.instantiationService.createInstance(PickOpenEntry, e, index, onPreview, () => this.pickOpenWidget.refresh());
 				});
