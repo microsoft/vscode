@@ -487,8 +487,14 @@ export class EditorService extends Disposable implements EditorServiceImpl {
 			const leftInput = this.createInput({ resource: resourceDiffInput.leftResource, forceFile: resourceDiffInput.forceFile });
 			const rightInput = this.createInput({ resource: resourceDiffInput.rightResource, forceFile: resourceDiffInput.forceFile });
 			const label = resourceDiffInput.label || localize('compareLabels', "{0} ↔ {1}", this.toDiffLabel(leftInput), this.toDiffLabel(rightInput));
+			const leftLabel = this.toDiffLabel(leftInput, this.workspaceContextService, this.environmentService);
+			const rightLabel = this.toDiffLabel(rightInput, this.workspaceContextService, this.environmentService);
+			const commonPrefix = [leftLabel, rightLabel].join('|').match(/^([^|]*)[^|]*(?:\|\1.*)*$/)[1];
+			const leftSlice = leftLabel.slice(commonPrefix.length);
+			const rightSlice = rightLabel.slice(commonPrefix.length);
+			const label = resourceDiffInput.label || localize('compareLabels', "{0} ↔ {1}", leftSlice, rightSlice);
 
-			return new DiffEditorInput(label, resourceDiffInput.description, leftInput, rightInput);
+			return new DiffEditorInput(label, commonPrefix, leftInput, rightInput);
 		}
 
 		// Untitled file support
