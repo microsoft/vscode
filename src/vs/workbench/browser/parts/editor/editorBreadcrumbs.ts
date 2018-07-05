@@ -5,52 +5,88 @@
 
 'use strict';
 
-import 'vs/css!./media/editorbreadcrumbs';
 import * as dom from 'vs/base/browser/dom';
-import { BreadcrumbsWidget, RenderedBreadcrumbsItem } from 'vs/base/browser/ui/breadcrumbs/breadcrumbsWidget';
+import { BreadcrumbsItem, BreadcrumbsWidget } from 'vs/base/browser/ui/breadcrumbs/breadcrumbsWidget';
+import { IconLabel } from 'vs/base/browser/ui/iconLabel/iconLabel';
+import { compareFileNames } from 'vs/base/common/comparers';
+import { debounceEvent, Emitter, Event } from 'vs/base/common/event';
 import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
 import { dispose, IDisposable } from 'vs/base/common/lifecycle';
-import * as paths from 'vs/base/common/paths';
+import { isEqual } from 'vs/base/common/resources';
 import URI from 'vs/base/common/uri';
-import { IContextKey, IContextKeyService, RawContextKey, ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
-import { FileKind, IFileService, IFileStat } from 'vs/platform/files/common/files';
-import { IInstantiationService, IConstructorSignature2 } from 'vs/platform/instantiation/common/instantiation';
-import { KeybindingsRegistry } from 'vs/platform/keybinding/common/keybindingsRegistry';
-import { FileLabel } from 'vs/workbench/browser/labels';
-import { EditorInput } from 'vs/workbench/common/editor';
-import { IEditorBreadcrumbs, IEditorGroupsService, IEditorGroup } from 'vs/workbench/services/group/common/editorGroupsService';
-import { ITreeConfiguration, IDataSource, IRenderer, ISelectionEvent, ISorter, ITree } from 'vs/base/parts/tree/browser/tree';
 import { TPromise } from 'vs/base/common/winjs.base';
+import { IDataSource, IRenderer, ISelectionEvent, ISorter, ITree, ITreeConfiguration } from 'vs/base/parts/tree/browser/tree';
+import 'vs/css!./media/editorbreadcrumbs';
+import { ICodeEditor, isCodeEditor } from 'vs/editor/browser/editorBrowser';
+import { OutlineElement, OutlineGroup, TreeElement } from 'vs/editor/contrib/documentSymbols/outlineModel';
+import { OutlineController, OutlineDataSource, OutlineItemComparator, OutlineRenderer } from 'vs/editor/contrib/documentSymbols/outlineTree';
+import { ContextKeyExpr, IContextKey, IContextKeyService, RawContextKey } from 'vs/platform/contextkey/common/contextkey';
+import { FileKind, IFileService, IFileStat } from 'vs/platform/files/common/files';
+import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
+import { KeybindingsRegistry } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { WorkbenchTree } from 'vs/platform/list/browser/listService';
-import { IThemeService } from 'vs/platform/theme/common/themeService';
-import { debounceEvent, Emitter, Event } from 'vs/base/common/event';
-import { IContextViewService } from 'vs/platform/contextview/browser/contextView';
-import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
-import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
-import { isEqual, dirname } from 'vs/base/common/resources';
-import { SIDE_BAR_BACKGROUND } from 'vs/workbench/common/theme';
 import { attachBreadcrumbsStyler } from 'vs/platform/theme/common/styler';
-import { compareFileNames } from 'vs/base/common/comparers';
-import { isCodeEditor, ICodeEditor } from 'vs/editor/browser/editorBrowser';
-import { OutlineModel, OutlineGroup, OutlineElement, TreeElement } from 'vs/editor/contrib/documentSymbols/outlineModel';
-import { asDisposablePromise, setDisposableTimeout } from 'vs/base/common/async';
-import { IPosition } from 'vs/editor/common/core/position';
-import { first } from 'vs/base/common/collections';
-import { DocumentSymbolProviderRegistry } from 'vs/editor/common/modes';
-import { Range } from 'vs/editor/common/core/range';
-import { OutlineDataSource, OutlineRenderer, OutlineItemComparator, OutlineController } from 'vs/editor/contrib/documentSymbols/outlineTree';
-import { CancellationToken } from 'vs/base/common/cancellation';
-import { EditorBreadcrumbsModel } from 'vs/workbench/browser/parts/editor/editorBreadcrumbsModel';
+import { IThemeService } from 'vs/platform/theme/common/themeService';
+import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
+import { FileLabel } from 'vs/workbench/browser/labels';
+import { BreadcrumbElement, EditorBreadcrumbsModel, FileElement } from 'vs/workbench/browser/parts/editor/editorBreadcrumbsModel';
+import { EditorInput } from 'vs/workbench/common/editor';
+import { SIDE_BAR_BACKGROUND } from 'vs/workbench/common/theme';
+import { IEditorBreadcrumbs, IEditorGroup, IEditorGroupsService } from 'vs/workbench/services/group/common/editorGroupsService';
 
-class FileElement {
+
+class Item extends BreadcrumbsItem {
+
+	private readonly _disposables: IDisposable[] = [];
+
 	constructor(
-		readonly name: string,
-		readonly kind: FileKind,
-		readonly uri: URI,
-	) { }
-}
+		readonly element: BreadcrumbElement,
+		@IInstantiationService private readonly _instantiationService: IInstantiationService
+	) {
+		super();
+	}
 
-type BreadcrumbElement = FileElement | OutlineGroup | OutlineElement;
+	dispose(): void {
+		dispose(this._disposables);
+	}
+
+	equals(other: BreadcrumbsItem): boolean {
+		if (!(other instanceof Item)) {
+			return false;
+		}
+		if (this.element instanceof FileElement && other.element instanceof FileElement) {
+			return isEqual(this.element.uri, other.element.uri);
+		}
+		if (this.element instanceof TreeElement && other.element instanceof TreeElement) {
+			return this.element.id === other.element.id;
+		}
+		return false;
+	}
+
+	render(container: HTMLElement): void {
+		if (this.element instanceof FileElement) {
+			// file/folder
+			let label = this._instantiationService.createInstance(FileLabel, container, {});
+			label.setFile(this.element.uri, {
+				hidePath: true,
+				fileKind: this.element.isFile ? FileKind.FILE : FileKind.FOLDER
+			});
+			this._disposables.push(label);
+
+		} else if (this.element instanceof OutlineGroup) {
+			// provider
+			let label = new IconLabel(container);
+			label.setValue(this.element.provider.displayName);
+			this._disposables.push(label);
+
+		} else if (this.element instanceof OutlineElement) {
+			// symbol
+			let label = new IconLabel(container);
+			label.setValue(this.element.symbol.name);
+			this._disposables.push(label);
+		}
+	}
+}
 
 export class EditorBreadcrumbs implements IEditorBreadcrumbs {
 
@@ -64,15 +100,13 @@ export class EditorBreadcrumbs implements IEditorBreadcrumbs {
 	private readonly _domNode: HTMLDivElement;
 	private readonly _widget: BreadcrumbsWidget;
 
-	private _editorDisposables = new Array<IDisposable>();
+	private _breadcrumbsDisposables = new Array<IDisposable>();
 
 	constructor(
 		container: HTMLElement,
 		private readonly _editorGroup: IEditorGroup,
 		@IContextKeyService private readonly _contextKeyService: IContextKeyService,
 		@IFileService private readonly _fileService: IFileService,
-		@IContextViewService private readonly _contextViewService: IContextViewService,
-		@IEditorService private readonly _editorService: IEditorService,
 		@IWorkspaceContextService private readonly _workspaceService: IWorkspaceContextService,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 		@IThemeService private readonly _themeService: IThemeService,
@@ -108,116 +142,123 @@ export class EditorBreadcrumbs implements IEditorBreadcrumbs {
 
 	openEditor(input: EditorInput): void {
 
-		this._editorDisposables = dispose(this._editorDisposables);
+		this._breadcrumbsDisposables = dispose(this._breadcrumbsDisposables);
 
 		let uri = input.getResource();
 		if (!uri || !this._fileService.canHandleResource(uri)) {
 			return this.closeEditor(undefined);
 		}
 
-		this._ckBreadcrumbsVisible.set(true);
 		dom.toggleClass(this._domNode, 'hidden', false);
-
-		const render = (element: FileElement, target: HTMLElement, disposables: IDisposable[]) => {
-			let label = this._instantiationService.createInstance(FileLabel, target, {});
-			label.setFile(element.uri, { fileKind: element.kind, hidePath: true, fileDecorations: { colors: false, badges: false } });
-			disposables.push(label);
-		};
-
-		let fileItems: RenderedBreadcrumbsItem<FileElement>[] = [];
-		let workspace = this._workspaceService.getWorkspaceFolder(uri);
-		let path = uri.path;
-
-		while (true) {
-			let first = fileItems.length === 0;
-			let name = paths.basename(path);
-			uri = uri.with({ path });
-			if (workspace && isEqual(workspace.uri, uri, true)) {
-				break;
-			}
-			fileItems.unshift(new RenderedBreadcrumbsItem<FileElement>(
-				render,
-				new FileElement(name, first ? FileKind.FILE : FileKind.FOLDER, uri),
-				!first
-			));
-			path = paths.dirname(path);
-			if (path === '/') {
-				break;
-			}
-		}
-
-		this._widget.splice(0, this._widget.items().length, fileItems);
+		this._ckBreadcrumbsVisible.set(true);
 
 		let control = this._editorGroup.activeControl.getControl() as ICodeEditor;
-
 		let model = new EditorBreadcrumbsModel(input.getResource(), isCodeEditor(control) ? control : undefined, this._workspaceService);
-		let listener = model.onDidUpdate(_ => {
-			console.log(model.getElements());
-		});
-		this._editorDisposables.push(model, listener);
+		let listener = model.onDidUpdate(_ => this._widget.setItems(model.getElements().map(element => new Item(element, this._instantiationService))));
+		this._widget.setItems(model.getElements().map(element => new Item(element, this._instantiationService)));
 
-		if (!isCodeEditor(control)) {
-			return;
-		}
+		this._breadcrumbsDisposables.push(model, listener);
 
 
-		let oracle = new class extends Emitter<void> {
+		// const render = (element: FileElement, target: HTMLElement, disposables: IDisposable[]) => {
+		// 	let label = this._instantiationService.createInstance(FileLabel, target, {});
+		// 	label.setFile(element.uri, { fileKind: element.kind, hidePath: true, fileDecorations: { colors: false, badges: false } });
+		// 	disposables.push(label);
+		// };
 
-			private readonly _listener: IDisposable[] = [];
+		// let fileItems: RenderedBreadcrumbsItem<FileElement>[] = [];
+		// let workspace = this._workspaceService.getWorkspaceFolder(uri);
+		// let path = uri.path;
 
-			constructor() {
-				super();
-				DocumentSymbolProviderRegistry.onDidChange(_ => this.fire());
-				this._listener.push(control.onDidChangeModel(_ => this._checkModel()));
-				this._listener.push(control.onDidChangeModelLanguage(_ => this._checkModel()));
-				this._listener.push(setDisposableTimeout(_ => this._checkModel(), 0));
-			}
+		// while (true) {
+		// 	let first = fileItems.length === 0;
+		// 	let name = paths.basename(path);
+		// 	uri = uri.with({ path });
+		// 	if (workspace && isEqual(workspace.uri, uri, true)) {
+		// 		break;
+		// 	}
+		// 	fileItems.unshift(new RenderedBreadcrumbsItem<FileElement>(
+		// 		render,
+		// 		new FileElement(name, first ? FileKind.FILE : FileKind.FOLDER, uri),
+		// 		!first
+		// 	));
+		// 	path = paths.dirname(path);
+		// 	if (path === '/') {
+		// 		break;
+		// 	}
+		// }
 
-			private _checkModel() {
-				if (control.getModel() && isEqual(control.getModel().uri, input.getResource())) {
-					this.fire();
-				}
-			}
+		// this._widget.splice(0, this._widget.items().length, fileItems);
 
-			dispose(): void {
-				dispose(this._listener);
-				super.dispose();
-			}
-		};
+		// let control = this._editorGroup.activeControl.getControl() as ICodeEditor;
 
-		this._editorDisposables.push(oracle);
+		// let model = new EditorBreadcrumbsModel(input.getResource(), isCodeEditor(control) ? control : undefined, this._workspaceService);
+		// let listener = model.onDidUpdate(_ => console.log(model.getElements()));
+		// console.log(model.getElements());
+		// this._breadcrumbsDisposables.push(model, listener);
 
-		oracle.event(async _ => {
-			let model = await asDisposablePromise(OutlineModel.create(control.getModel(), CancellationToken.None), undefined, this._editorDisposables).promise;
-			if (!model) {
-				return;
-			}
-			type OutlineItem = OutlineElement | OutlineGroup;
+		// if (!isCodeEditor(control)) {
+		// 	return;
+		// }
 
-			let render = (element: OutlineItem, target: HTMLElement, disposables: IDisposable[]) => {
-				let label = this._instantiationService.createInstance(FileLabel, target, {});
-				if (element instanceof OutlineElement) {
-					label.setLabel({ name: element.symbol.name });
-				} else {
-					label.setLabel({ name: element.provider.displayName });
-				}
-				disposables.push(label);
-			};
 
-			let showOutlineForPosition = (position: IPosition) => {
-				let element = model.getItemEnclosingPosition(position) as TreeElement;
-				let outlineItems: RenderedBreadcrumbsItem<OutlineItem>[] = [];
-				while (element instanceof OutlineGroup || element instanceof OutlineElement) {
-					outlineItems.unshift(new RenderedBreadcrumbsItem<OutlineItem>(render, element, !!first(element.children)));
-					element = element.parent;
-				}
-				// todo@joh compare items for equality and only update changed...
-				this._widget.splice(fileItems.length, this._widget.items().length - fileItems.length, outlineItems);
-			};
+		// let oracle = new class extends Emitter<void> {
 
-			showOutlineForPosition(control.getPosition());
-			debounceEvent(control.onDidChangeCursorPosition, (last, cur) => cur, 100)(_ => showOutlineForPosition(control.getPosition()), undefined, this._editorDisposables);
-		});
+		// 	private readonly _listener: IDisposable[] = [];
+
+		// 	constructor() {
+		// 		super();
+		// 		DocumentSymbolProviderRegistry.onDidChange(_ => this.fire());
+		// 		this._listener.push(control.onDidChangeModel(_ => this._checkModel()));
+		// 		this._listener.push(control.onDidChangeModelLanguage(_ => this._checkModel()));
+		// 		this._listener.push(setDisposableTimeout(_ => this._checkModel(), 0));
+		// 	}
+
+		// 	private _checkModel() {
+		// 		if (control.getModel() && isEqual(control.getModel().uri, input.getResource())) {
+		// 			this.fire();
+		// 		}
+		// 	}
+
+		// 	dispose(): void {
+		// 		dispose(this._listener);
+		// 		super.dispose();
+		// 	}
+		// };
+
+		// this._breadcrumbsDisposables.push(oracle);
+
+		// oracle.event(async _ => {
+		// 	let model = await asDisposablePromise(OutlineModel.create(control.getModel(), CancellationToken.None), undefined, this._breadcrumbsDisposables).promise;
+		// 	if (!model) {
+		// 		return;
+		// 	}
+		// 	type OutlineItem = OutlineElement | OutlineGroup;
+
+		// 	let render = (element: OutlineItem, target: HTMLElement, disposables: IDisposable[]) => {
+		// 		let label = this._instantiationService.createInstance(FileLabel, target, {});
+		// 		if (element instanceof OutlineElement) {
+		// 			label.setLabel({ name: element.symbol.name });
+		// 		} else {
+		// 			label.setLabel({ name: element.provider.displayName });
+		// 		}
+		// 		disposables.push(label);
+		// 	};
+
+		// 	let showOutlineForPosition = (position: IPosition) => {
+		// 		let element = model.getItemEnclosingPosition(position) as TreeElement;
+		// 		let outlineItems: RenderedBreadcrumbsItem<OutlineItem>[] = [];
+		// 		while (element instanceof OutlineGroup || element instanceof OutlineElement) {
+		// 			outlineItems.unshift(new RenderedBreadcrumbsItem<OutlineItem>(render, element, !!first(element.children)));
+		// 			element = element.parent;
+		// 		}
+		// 		// todo@joh compare items for equality and only update changed...
+		// 		this._widget.splice(fileItems.length, this._widget.items().length - fileItems.length, outlineItems);
+		// 	};
+
+		// 	showOutlineForPosition(control.getPosition());
+		// 	debounceEvent(control.onDidChangeCursorPosition, (last, cur) => cur, 100)(_ => showOutlineForPosition(control.getPosition()), undefined, this._breadcrumbsDisposables);
+		// });
 	}
 
 	closeEditor(input: EditorInput): void {
@@ -244,56 +285,56 @@ export class EditorBreadcrumbs implements IEditorBreadcrumbs {
 		}
 	}
 
-	private _onDidSelectItem(item: RenderedBreadcrumbsItem<BreadcrumbElement>): void {
+	private _onDidSelectItem(item: Item): void {
 		this._editorGroup.focus();
 
-		let ctor: IConstructorSignature2<HTMLElement, any, BreadcrumbsPicker>;
-		let input: any;
-		if (item.element instanceof FileElement) {
-			ctor = BreadcrumbsFilePicker;
-			input = dirname(item.element.uri);
-		} else {
-			ctor = BreadcrumbsOutlinePicker;
-			input = item.element.parent;
-		}
+		// let ctor: IConstructorSignature2<HTMLElement, any, BreadcrumbsPicker>;
+		// let input: any;
+		// if (item.element instanceof FileElement) {
+		// 	ctor = BreadcrumbsFilePicker;
+		// 	input = dirname(item.element.uri);
+		// } else {
+		// 	ctor = BreadcrumbsOutlinePicker;
+		// 	input = item.element.parent;
+		// }
 
-		this._contextViewService.showContextView({
-			getAnchor() {
-				return item.node;
-			},
-			render: (container: HTMLElement) => {
-				dom.addClasses(container, 'show-file-icons');
-				let res = this._instantiationService.createInstance(ctor, container, input);
-				res.layout({ width: 250, height: 300 });
-				res.onDidPickElement(data => {
-					this._contextViewService.hideContextView();
-					this._widget.select(undefined);
-					if (!data) {
-						return;
-					}
-					if (URI.isUri(data)) {
-						// open new editor
-						this._editorService.openEditor({ resource: data });
+		// this._contextViewService.showContextView({
+		// 	getAnchor() {
+		// 		return item.node;
+		// 	},
+		// 	render: (container: HTMLElement) => {
+		// 		dom.addClasses(container, 'show-file-icons');
+		// 		let res = this._instantiationService.createInstance(ctor, container, input);
+		// 		res.layout({ width: 250, height: 300 });
+		// 		res.onDidPickElement(data => {
+		// 			this._contextViewService.hideContextView();
+		// 			this._widget.select(undefined);
+		// 			if (!data) {
+		// 				return;
+		// 			}
+		// 			if (URI.isUri(data)) {
+		// 				// open new editor
+		// 				this._editorService.openEditor({ resource: data });
 
-					} else if (data instanceof OutlineElement) {
+		// 			} else if (data instanceof OutlineElement) {
 
-						let resource: URI;
-						let candidate = data.parent;
-						while (candidate) {
-							if (candidate instanceof OutlineModel) {
-								resource = candidate.textModel.uri;
-								break;
-							}
-							candidate = candidate.parent;
-						}
+		// 				let resource: URI;
+		// 				let candidate = data.parent;
+		// 				while (candidate) {
+		// 					if (candidate instanceof OutlineModel) {
+		// 						resource = candidate.textModel.uri;
+		// 						break;
+		// 					}
+		// 					candidate = candidate.parent;
+		// 				}
 
-						this._editorService.openEditor({ resource, options: { selection: Range.collapseToStart(data.symbol.selectionRange) } });
+		// 				this._editorService.openEditor({ resource, options: { selection: Range.collapseToStart(data.symbol.selectionRange) } });
 
-					}
-				});
-				return res;
-			},
-		});
+		// 			}
+		// 		});
+		// 		return res;
+		// 	},
+		// });
 	}
 }
 

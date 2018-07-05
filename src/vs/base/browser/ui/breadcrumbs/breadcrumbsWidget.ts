@@ -13,44 +13,32 @@ import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { IMouseEvent } from 'vs/base/browser/mouseEvent';
 import { Event, Emitter } from 'vs/base/common/event';
 import { Color } from 'vs/base/common/color';
+import { commonPrefixLength } from 'vs/base/common/arrays';
 
-export class BreadcrumbsItem {
-
-	constructor(
-		readonly node: HTMLElement,
-		readonly more: boolean
-	) {
-
-	}
-
-	dispose(): void {
-		//
-	}
+export abstract class BreadcrumbsItem {
+	dispose(): void { }
+	abstract equals(other: BreadcrumbsItem): boolean;
+	abstract render(container: HTMLElement): void;
 }
 
 export class SimpleBreadcrumbsItem extends BreadcrumbsItem {
 
-	constructor(text: string, title: string = text, more: boolean = true) {
-		super(document.createElement('div'), more);
-		this.node.innerText = text;
-		this.node.title = title;
-	}
-}
-
-export class RenderedBreadcrumbsItem<E> extends BreadcrumbsItem {
-
-	readonly element: E;
-	private _disposables: IDisposable[] = [];
-
-	constructor(render: (element: E, container: HTMLDivElement, bucket: IDisposable[]) => any, element: E, more: boolean) {
-		super(document.createElement('div'), more);
-		this.element = element;
-		render(element, this.node as HTMLDivElement, this._disposables);
+	constructor(
+		readonly text: string,
+		readonly title: string = text
+	) {
+		super();
 	}
 
-	dispose() {
-		dispose(this._disposables);
-		super.dispose();
+	equals(other: this) {
+		return other === this || other instanceof SimpleBreadcrumbsItem && other.text === this.text && other.title === this.title;
+	}
+
+	render(container: HTMLElement): void {
+		let node = document.createElement('div');
+		node.title = this.title;
+		node.innerText = this.text;
+		container.appendChild(node);
 	}
 }
 
@@ -214,13 +202,10 @@ export class BreadcrumbsWidget {
 		this._onDidSelectItem.fire(this._items[this._selectedItemIdx]);
 	}
 
-	items(): ReadonlyArray<BreadcrumbsItem> {
-		return this._items;
-	}
-
-	splice(start: number, deleteCount: number, items: BreadcrumbsItem[]): void {
-		let removed = this._items.splice(start, deleteCount, ...items);
-		this._render(start);
+	setItems(items: BreadcrumbsItem[]): void {
+		let prefix = commonPrefixLength(this._items, items, (a, b) => a.equals(b));
+		let removed = this._items.splice(prefix, this._items.length - prefix, ...items.slice(prefix));
+		this._render(prefix);
 		dispose(removed);
 	}
 
@@ -251,9 +236,9 @@ export class BreadcrumbsWidget {
 
 	private _renderItem(item: BreadcrumbsItem, container: HTMLDivElement): void {
 		dom.clearNode(container);
-		dom.append(container, item.node);
+		item.render(container);
+		dom.append(container);
 		dom.addClass(container, 'monaco-breadcrumb-item');
-		dom.toggleClass(container, 'monaco-breadcrumb-item-more', item.more);
 	}
 
 	private _onClick(event: IMouseEvent): void {

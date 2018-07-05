@@ -140,7 +140,7 @@ export class EditorBreadcrumbsModel {
 			}
 			item = parent;
 		}
-		return chain;
+		return chain.reverse();
 	}
 
 	private _updateOutlineElements(elements: (OutlineGroup | OutlineElement)[]): void {
