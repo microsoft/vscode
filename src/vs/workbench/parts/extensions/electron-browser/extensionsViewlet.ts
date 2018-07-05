@@ -365,10 +365,6 @@ export class ExtensionsViewlet extends ViewContainerViewlet implements IExtensio
 		this.searchBox.focus();
 	}
 
-	focusListView(): void {
-		this.panels[0].focus();
-	}
-
 	layout(dimension: Dimension): void {
 		toggleClass(this.root, 'narrow', dimension.width <= 300);
 		super.layout(new Dimension(dimension.width, dimension.height - 38));
@@ -479,6 +475,10 @@ export class ExtensionsViewlet extends ViewContainerViewlet implements IExtensio
 
 	private onEnter(): void {
 		(<ExtensionsListView>this.panels[0]).select();
+	}
+
+	private focusListView(): void {
+		this.panels[0].focus();
 	}
 
 	private onViewletOpen(viewlet: IViewlet): void {
