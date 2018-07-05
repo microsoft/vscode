@@ -942,11 +942,11 @@ export class SearchResultModel {
 }
 
 export class NonExpandableTree extends WorkbenchTree {
-	expand(): TPromise<any, any> {
+	expand(): TPromise<any> {
 		return TPromise.wrap(null);
 	}
 
-	collapse(): TPromise<any, any> {
+	collapse(): TPromise<any> {
 		return TPromise.wrap(null);
 	}
 }
