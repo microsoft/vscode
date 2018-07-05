@@ -693,13 +693,16 @@ export abstract class TextFileService extends Disposable implements ITextFileSer
 	}
 
 	create(resource: URI, contents?: string, options?: { overwrite?: boolean }): TPromise<void> {
+		const existingModel = this.models.get(resource);
+
 		return this.fileService.createFile(resource, contents, options).then(() => {
 
 			// If we had an existing model for the given resource, load
 			// it again to make sure it is up to date with the contents
-			// we just wrote into the underlying resource.
-			if (!!this.models.get(resource)) {
-				return this.models.loadOrCreate(resource, { reload: { async: false } }).then(() => void 0);
+			// we just wrote into the underlying resource by calling
+			// revert()
+			if (existingModel && !existingModel.isDisposed()) {
+				return existingModel.revert();
 			}
 
 			return void 0;
