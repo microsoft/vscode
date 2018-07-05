@@ -478,7 +478,7 @@ export class ExtensionsViewlet extends ViewContainerViewlet implements IExtensio
 	}
 
 	private focusListView(): void {
-		this.panels[0].focus();
+		(<ExtensionsListView>this.panels[0]).focus();
 	}
 
 	private onViewletOpen(viewlet: IViewlet): void {

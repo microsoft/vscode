@@ -904,7 +904,7 @@ export class List<T> implements ISpliceable<T>, IDisposable {
 
 		this.onDidFocus = mapEvent(domEvent(this.view.domNode, 'focus', true), () => null);
 		this.onDidBlur = mapEvent(domEvent(this.view.domNode, 'blur', true), () => null);
-
+		this.onDidFocus(() => this.focusFirstItemIfNothingFocused(), this, this.disposables);
 		this.disposables.push(new DOMFocusController(this, this.view));
 
 		if (typeof options.keyboardSupport !== 'boolean' || options.keyboardSupport) {
@@ -950,6 +950,12 @@ export class List<T> implements ISpliceable<T>, IDisposable {
 
 	set scrollTop(scrollTop: number) {
 		this.view.setScrollTop(scrollTop);
+	}
+
+	private focusFirstItemIfNothingFocused() {
+		if (this.getSelection().length === 0 && this.getFocus().length === 0) {
+			this.focusFirst();
+		}
 	}
 
 	domFocus(): void {

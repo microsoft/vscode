@@ -645,9 +645,6 @@ export class ExtensionsListView extends ViewletPanel {
 	focus(): void {
 		super.focus();
 		this.list.domFocus();
-		if (this.list.getSelection().length === 0 && this.list.getFocus().length === 0) {
-			this.list.focusNext();
-		}
 	}
 }
 
