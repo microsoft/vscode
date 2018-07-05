@@ -319,42 +319,55 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 			etag = this.lastResolvedDiskStat.etag; // otherwise respect etag to support caching
 		}
 
+		// Ensure to track the versionId before doing a long running operation
+		// to make sure the model was not changed in the meantime which would
+		// indicate that the user or program has made edits. If we would ignore
+		// this, we could potentially loose the changes that were made because
+		// after resolving the content we update the model and reset the dirty
+		// flag.
+		const currentVersionId = this.versionId;
+
 		// Resolve Content
 		return this.textFileService
 			.resolveTextContent(this.resource, { acceptTextOnly: !allowBinary, etag, encoding: this.preferredEncoding })
-			.then(content => this.handleLoadSuccess(content), error => this.handleLoadError(error));
-	}
+			.then(content => {
 
-	private handleLoadSuccess(content: IRawTextContent): TPromise<TextFileEditorModel> {
+				// Clear orphaned state when loading was successful
+				this.setOrphaned(false);
 
-		// Clear orphaned state when load was successful
-		this.setOrphaned(false);
+				// Guard against the model having changed in the meantime
+				if (currentVersionId === this.versionId) {
+					return this.loadWithContent(content);
+				}
 
-		return this.loadWithContent(content);
-	}
+				return this;
+			}, error => {
+				const result = error.fileOperationResult;
 
-	private handleLoadError(error: FileOperationError): TPromise<TextFileEditorModel> {
-		const result = error.fileOperationResult;
+				// Apply orphaned state based on error code
+				this.setOrphaned(result === FileOperationResult.FILE_NOT_FOUND);
 
-		// Apply orphaned state based on error code
-		this.setOrphaned(result === FileOperationResult.FILE_NOT_FOUND);
+				// NotModified status is expected and can be handled gracefully
+				if (result === FileOperationResult.FILE_NOT_MODIFIED_SINCE) {
 
-		// NotModified status is expected and can be handled gracefully
-		if (result === FileOperationResult.FILE_NOT_MODIFIED_SINCE) {
-			this.setDirty(false); // Ensure we are not tracking a stale state
+					// Guard against the model having changed in the meantime
+					if (currentVersionId === this.versionId) {
+						this.setDirty(false); // Ensure we are not tracking a stale state
+					}
 
-			return TPromise.as<TextFileEditorModel>(this);
-		}
+					return TPromise.as<TextFileEditorModel>(this);
+				}
 
-		// Ignore when a model has been resolved once and the file was deleted meanwhile. Since
-		// we already have the model loaded, we can return to this state and update the orphaned
-		// flag to indicate that this model has no version on disk anymore.
-		if (this.isResolved() && result === FileOperationResult.FILE_NOT_FOUND) {
-			return TPromise.as<TextFileEditorModel>(this);
-		}
+				// Ignore when a model has been resolved once and the file was deleted meanwhile. Since
+				// we already have the model loaded, we can return to this state and update the orphaned
+				// flag to indicate that this model has no version on disk anymore.
+				if (this.isResolved() && result === FileOperationResult.FILE_NOT_FOUND) {
+					return TPromise.as<TextFileEditorModel>(this);
+				}
 
-		// Otherwise bubble up the error
-		return TPromise.wrapError<TextFileEditorModel>(error);
+				// Otherwise bubble up the error
+				return TPromise.wrapError<TextFileEditorModel>(error);
+			});
 	}
 
 	private loadWithContent(content: IRawTextContent, backup?: URI): TPromise<TextFileEditorModel> {
@@ -385,7 +398,7 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 		diag('load() - resolved content', this.resource, new Date());
 
 		// Update our resolved disk stat model
-		const resolvedStat: IFileStat = {
+		this.updateLastResolvedDiskStat({
 			resource: this.resource,
 			name: content.name,
 			mtime: content.mtime,
@@ -394,8 +407,7 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 			isSymbolicLink: false,
 			children: void 0,
 			isReadonly: content.isReadonly
-		};
-		this.updateLastResolvedDiskStat(resolvedStat);
+		} as IFileStat);
 
 		// Keep the original encoding to not loose it when saving
 		const oldEncoding = this.contentEncoding;

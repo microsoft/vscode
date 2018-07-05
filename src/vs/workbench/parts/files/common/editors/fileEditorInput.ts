@@ -259,7 +259,7 @@ export class FileEditorInput extends EditorInput implements IFileEditorInput {
 		// Resolve as text
 		return this.textFileService.models.loadOrCreate(this.resource, {
 			encoding: this.preferredEncoding,
-			reload: { async: false }, // trigger a reload of the model if it exists already but do not wait to show the model
+			reload: { async: true }, // trigger a reload of the model if it exists already but do not wait to show the model
 			allowBinary: this.forceOpenAsText
 		}).then(model => {
 
