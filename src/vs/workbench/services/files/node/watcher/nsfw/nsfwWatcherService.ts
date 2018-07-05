@@ -9,7 +9,7 @@ import * as path from 'path';
 import * as platform from 'vs/base/common/platform';
 import * as watcher from 'vs/workbench/services/files/node/watcher/common';
 import * as nsfw from 'vscode-nsfw';
-import { IWatcherService, IWatcherRequest } from 'vs/workbench/services/files/node/watcher/nsfw/watcher';
+import { IWatcherService, IWatcherRequest, IWatcherOptions } from 'vs/workbench/services/files/node/watcher/nsfw/watcher';
 import { TPromise, ProgressCallback, TValueCallback, ErrorCallback } from 'vs/base/common/winjs.base';
 import { ThrottledDelayer } from 'vs/base/common/async';
 import { FileChangeType } from 'vs/platform/files/common/files';
@@ -41,7 +41,7 @@ export class NsfwWatcherService implements IWatcherService {
 	private _verboseLogging: boolean;
 	private enospcErrorLogged: boolean;
 
-	public initialize(verboseLogging: boolean): TPromise<void> {
+	public initialize(options: IWatcherOptions): TPromise<void> {
 		this._verboseLogging = true;
 		this._watcherPromise = new TPromise<void>((c, e, p) => {
 			this._errorCallback = e;

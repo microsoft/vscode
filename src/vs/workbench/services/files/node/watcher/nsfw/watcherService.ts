@@ -55,10 +55,14 @@ export class FileWatcher {
 		);
 		this.toDispose.push(client);
 
+		const options = {
+			verboseLogging: this.verboseLogging
+		};
+
 		// Initialize watcher
 		const channel = getNextTickChannel(client.getChannel<IWatcherChannel>('watcher'));
 		this.service = new WatcherChannelClient(channel);
-		this.service.initialize(this.verboseLogging).then(null, err => {
+		this.service.initialize(options).then(null, err => {
 			if (!this.isDisposed && !isPromiseCanceledError(err)) {
 				return TPromise.wrapError(err); // the service lib uses the promise cancel error to indicate the process died, we do not want to bubble this up
 			}

@@ -23,7 +23,7 @@ export interface IQuickNavigateConfiguration {
 	keybindings: ResolvedKeybinding[];
 }
 
-export interface IPickOptions {
+export interface IPickOptions<T extends IQuickPickItem> {
 
 	/**
 	 * an optional string to show as place holder in the input box to guide the user what she picks on
@@ -49,6 +49,8 @@ export interface IPickOptions {
 	 * an optional flag to make this picker multi-select
 	 */
 	canPickMany?: boolean;
+
+	onDidFocus?: (entry: T) => void;
 }
 
 export interface IInputOptions {
@@ -177,7 +179,7 @@ export interface IQuickInputService {
 	/**
 	 * Opens the quick input box for selecting items and returns a promise with the user selected item(s) if any.
 	 */
-	pick<T extends IQuickPickItem, O extends IPickOptions>(picks: TPromise<T[]>, options?: O, token?: CancellationToken): TPromise<O extends { canPickMany: true } ? T[] : T>;
+	pick<T extends IQuickPickItem, O extends IPickOptions<T>>(picks: TPromise<T[]>, options?: O, token?: CancellationToken): TPromise<O extends { canPickMany: true } ? T[] : T>;
 
 	/**
 	 * Opens the quick input box for text input and returns a promise with the user typed value if any.

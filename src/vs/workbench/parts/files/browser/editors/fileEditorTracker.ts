@@ -10,7 +10,7 @@ import URI from 'vs/base/common/uri';
 import * as paths from 'vs/base/common/paths';
 import { IEditorViewState } from 'vs/editor/common/editorCommon';
 import { toResource, SideBySideEditorInput, IWorkbenchEditorConfiguration } from 'vs/workbench/common/editor';
-import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
+import { ITextFileService, ITextFileEditorModel } from 'vs/workbench/services/textfile/common/textfiles';
 import { FileOperationEvent, FileOperation, IFileService, FileChangeType, FileChangesEvent } from 'vs/platform/files/common/files';
 import { FileEditorInput } from 'vs/workbench/parts/files/common/editors/fileEditorInput';
 import { ILifecycleService } from 'vs/platform/lifecycle/common/lifecycle';
@@ -27,11 +27,14 @@ import { IWindowService } from 'vs/platform/windows/common/windows';
 import { BINARY_FILE_EDITOR_ID } from 'vs/workbench/parts/files/common/files';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IEditorGroupsService, IEditorGroup } from 'vs/workbench/services/group/common/editorGroupsService';
+import { ResourceQueue } from 'vs/base/common/async';
+import { onUnexpectedError } from 'vs/base/common/errors';
 
 export class FileEditorTracker extends Disposable implements IWorkbenchContribution {
 
 	protected closeOnFileDelete: boolean;
 
+	private modelLoadQueue: ResourceQueue;
 	private activeOutOfWorkspaceWatchers: ResourceMap<URI>;
 
 	constructor(
@@ -47,6 +50,7 @@ export class FileEditorTracker extends Disposable implements IWorkbenchContribut
 	) {
 		super();
 
+		this.modelLoadQueue = new ResourceQueue();
 		this.activeOutOfWorkspaceWatchers = new ResourceMap<URI>();
 
 		this.onConfigurationUpdated(configurationService.getValue<IWorkbenchEditorConfiguration>());
@@ -97,7 +101,7 @@ export class FileEditorTracker extends Disposable implements IWorkbenchContribut
 					})
 					.filter(model => model && !model.isDirty()),
 				m => m.getResource().toString()
-			).forEach(model => this.textFileService.models.reload(model));
+			).forEach(model => this.queueModelLoad(model));
 		}
 	}
 
@@ -300,7 +304,18 @@ export class FileEditorTracker extends Disposable implements IWorkbenchContribut
 		distinct([...e.getUpdated(), ...e.getAdded()]
 			.map(u => this.textFileService.models.get(u.resource))
 			.filter(model => model && !model.isDirty()), m => m.getResource().toString())
-			.forEach(model => this.textFileService.models.reload(model));
+			.forEach(model => this.queueModelLoad(model));
+	}
+
+	private queueModelLoad(model: ITextFileEditorModel): void {
+
+		// Load model to update (use a queue to prevent accumulation of loads
+		// when the load actually takes long. At most we only want the queue
+		// to have a size of 2 (1 running load and 1 queued load).
+		const queue = this.modelLoadQueue.queueFor(model.getResource());
+		if (queue.size <= 1) {
+			queue.queue(() => model.load().then(null, onUnexpectedError));
+		}
 	}
 
 	private handleUpdatesToVisibleBinaryEditors(e: FileChangesEvent): void {
