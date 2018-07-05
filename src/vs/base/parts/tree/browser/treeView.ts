@@ -1569,7 +1569,9 @@ export class TreeView extends HeightMap {
 		if (!this.context.options.alwaysFocused) {
 			DOM.addClass(this.domNode, 'focused');
 		}
-
+		if (this.model && !this.model.getFocus()) {
+			this.focusPreviousPage();
+		}
 		this._onDOMFocus.fire();
 	}
 
