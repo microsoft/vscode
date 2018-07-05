@@ -16,7 +16,7 @@ import { IConfigurationService } from 'vs/platform/configuration/common/configur
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { Schemas } from 'vs/base/common/network';
 import { filterEvent } from 'vs/base/common/event';
-import { isError } from 'util';
+import { isError } from 'vs/base/common/errors';
 
 export class FileWatcher {
 	private static readonly MAX_RESTARTS = 5;

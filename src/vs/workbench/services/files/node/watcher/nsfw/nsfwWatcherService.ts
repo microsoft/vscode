@@ -43,7 +43,7 @@ export class NsfwWatcherService implements IWatcherService {
 	readonly onWatchEvent = this._onWatchEvent.event;
 
 	watch(options: IWatcherOptions): Event<watcher.IRawFileChange[] | Error> {
-		this._verboseLogging = true;
+		this._verboseLogging = options.verboseLogging;
 		return this.onWatchEvent;
 	}
 
