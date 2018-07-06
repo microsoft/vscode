@@ -878,7 +878,7 @@ export interface ExtHostSCMShape {
 }
 
 export interface ExtHostTaskShape {
-	$provideTasks(handle: number): TPromise<TaskSet>;
+	$provideTasks(handle: number, validTypes: { [key: string]: boolean; }): TPromise<TaskSet>;
 	$onDidStartTask(execution: TaskExecutionDTO): void;
 	$onDidStartTaskProcess(value: TaskProcessStartedDTO): void;
 	$onDidEndTaskProcess(value: TaskProcessEndedDTO): void;
