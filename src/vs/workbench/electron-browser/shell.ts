@@ -548,6 +548,8 @@ export class WorkbenchShell extends Disposable {
 	}
 
 	private _savePartsSplash() {
+
+		// capture html-structure
 		let html = '<div id="monaco-parts-splash">';
 		let parts = this.container.querySelectorAll('.part');
 		for (let i = 0; i < parts.length; i++) {
@@ -558,7 +560,14 @@ export class WorkbenchShell extends Disposable {
 			html += `<div style="position: absolute; top: ${pos.top}px; left: ${pos.left}px; height: ${pos.height}px; width: ${pos.width}px; background-color: ${backgroundColor};"></div>`;
 		}
 		html += '</div>';
-		this.storageService.store('_splash_', html, StorageScope.WORKSPACE);
+
+		// store per workspace or globally
+		let state = this.contextService.getWorkbenchState();
+		if (state === WorkbenchState.EMPTY) {
+			this.storageService.store('parts-splash', html, StorageScope.GLOBAL);
+		} else {
+			this.storageService.store('parts-splash', html, StorageScope.WORKSPACE);
+		}
 	}
 
 	private _removePartsSplash(): void {

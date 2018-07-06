@@ -81,14 +81,23 @@ function readFile(file) {
 	});
 }
 
-function showPartsSplash(folder) {
-	const storageKey = `storage://workspace${folder}/_splash_`;
-	const structure = window.localStorage.getItem(storageKey);
+function showPartsSplash(configuration) {
+
+	let key;
+	if (configuration.folderPath) {
+		key = `storage://workspace/${configuration.folderPath.replace(/^\//, '')}/parts-splash`;
+	} else if (configuration.workspace) {
+		key = `storage://workspace/root:${configuration.workspace.id}/parts-splash`;
+	} else {
+		key = `storage://global/parts-splash`;
+	}
+
+	let structure = window.localStorage.getItem(key);
 	if (structure) {
 		let splash = document.createElement('div');
 		splash.innerHTML = structure;
 		document.body.appendChild(splash);
-		window.localStorage.removeItem(storageKey);
+		window.localStorage.removeItem(key);
 	}
 }
 
@@ -170,7 +179,7 @@ function main() {
 	assign(process.env, configuration.userEnv);
 	perf.importEntries(configuration.perfEntries);
 
-	showPartsSplash(configuration.folderPath);
+	showPartsSplash(configuration);
 
 	// Get the nls configuration into the process.env as early as possible.
 	var nlsConfig = { availableLanguages: {} };
