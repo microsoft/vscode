@@ -99,7 +99,7 @@ import { OpenerService } from 'vs/editor/browser/services/openerService';
 import { SearchHistoryService } from 'vs/workbench/services/search/node/searchHistoryService';
 import { MulitExtensionManagementService } from 'vs/platform/extensionManagement/common/multiExtensionManagement';
 import { ExtensionManagementServerService } from 'vs/workbench/services/extensions/node/extensionManagementServerService';
-import { Parts } from 'vs/workbench/services/part/common/partService';
+import { Parts, Position } from 'vs/workbench/services/part/common/partService';
 
 /**
  * Services that we require for the Shell
@@ -552,20 +552,35 @@ export class WorkbenchShell extends Disposable {
 
 		// capture html-structure
 		let html = '<div id="monaco-parts-splash">';
-		let parts = [Parts.ACTIVITYBAR_PART, Parts.EDITOR_PART, Parts.MENUBAR_PART, Parts.PANEL_PART, Parts.SIDEBAR_PART, Parts.STATUSBAR_PART, Parts.TITLEBAR_PART];
-		for (const part of parts) {
-			let container = this.workbench.getContainer(part);
-			let pos = getDomNodePagePosition(container);
-			let bg = container.style.backgroundColor || 'inhert';
 
-			if (part === Parts.STATUSBAR_PART) {
-				// status bar get special treatment because we want to
-				// be at the bottom on the page
-				html += `\n<div style="position: absolute; background-color: ${bg}; height:${pos.height}px; width:${pos.width}px; bottom:0; left:${pos.left}px;"></div>`;
-			} else {
-				html += `\n<div style="position: absolute; background-color: ${bg}; height:${pos.height}px; width:${pos.width}px; top:${pos.top}px; left:${pos.left}px;"></div>`;
-			}
+		// activitybar-part
+		let left = this.workbench.getSideBarPosition() === Position.LEFT;
+		let activityPartWidth: number;
+		{
+			let part = this.workbench.getContainer(Parts.ACTIVITYBAR_PART);
+			let pos = getDomNodePagePosition(part);
+			let bg = part.style.backgroundColor || 'inhert';
+			html += `<div style="position: absolute; height: 100%; top: 0; ${left ? 'left' : 'right'}: 0; width: ${pos.width}px; background-color: ${bg};"></div>`;
+			activityPartWidth = pos.width;
 		}
+
+		// sidebar-part
+		{
+			let part = this.workbench.getContainer(Parts.SIDEBAR_PART);
+			let pos = getDomNodePagePosition(part);
+			let bg = part.style.backgroundColor || 'inhert';
+			html += `<div style="position: absolute; height: 100%; top: 0; ${left ? 'left' : 'right'}: ${activityPartWidth}px; width: ${pos.width}px; background-color: ${bg};"></div>`;
+		}
+
+		// statusbar-part
+		{
+			let part = this.workbench.getContainer(Parts.STATUSBAR_PART);
+			let pos = getDomNodePagePosition(part);
+			let bg = part.style.backgroundColor || 'inhert';
+
+			html += `<div style="position: absolute; width: 100%; bottom: 0; left: 0; height: ${pos.height}px; background-color: ${bg};"></div>`;
+		}
+
 		html += '\n</div>';
 
 		// store per workspace or globally

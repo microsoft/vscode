@@ -84,12 +84,14 @@ function readFile(file) {
 function showPartsSplash(configuration) {
 
 	let key;
+	let keep = false;
 	if (configuration.folderPath) {
 		key = `storage://workspace/${configuration.folderPath.replace(/^\//, '')}/parts-splash`;
 	} else if (configuration.workspace) {
 		key = `storage://workspace/root:${configuration.workspace.id}/parts-splash`;
 	} else {
 		key = `storage://global/parts-splash`;
+		keep = true;
 	}
 
 	let structure = window.localStorage.getItem(key);
@@ -97,6 +99,8 @@ function showPartsSplash(configuration) {
 		let splash = document.createElement('div');
 		splash.innerHTML = structure;
 		document.body.appendChild(splash);
+	}
+	if (!keep) {
 		window.localStorage.removeItem(key);
 	}
 }
