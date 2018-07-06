@@ -882,6 +882,11 @@ export class RepositoryPanel extends ViewletPanel {
 			.filter(e => !!e && isSCMResource(e))
 			.on(this.pin, this, this.disposables);
 
+		this.disposables.push(this.list.onDidFocus(() => {
+			if (this.list.getFocusedElements().length === 0) {
+				this.list.setFocus([1]);
+			}
+		}));
 		this.list.onContextMenu(this.onListContextMenu, this, this.disposables);
 		this.disposables.push(this.list);
 
