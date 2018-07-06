@@ -15,7 +15,6 @@
 
 .scm-viewlet .empty-message {
 	padding: 10px 22px 0 22px;
-	opacity: 0.5;
 }
 
 .scm-viewlet:not(.empty) .empty-message,
