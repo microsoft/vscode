@@ -3,9 +3,13 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+.editor-instance#workbench\.editor\.settings2:focus {
+	outline: none;
+}
+
 .settings-editor {
 	padding-top: 11px;
-	max-width: 1000px;
+	max-width: 1100px;
 	margin: auto;
 }
 
@@ -35,7 +39,7 @@
 
 .settings-editor > .settings-header > .settings-advanced-customization {
 	opacity: .7;
-	margin-top: 10px;
+	margin-top: 8px;
 }
 
 .settings-editor > .settings-header > .settings-preview-header > .settings-preview-warning {
@@ -67,7 +71,7 @@
 }
 
 .settings-editor > .settings-header > .settings-header-controls {
-	margin-top: 2px;
+	margin-top: 3px;
 	height: 30px;
 	display: flex;
 }
@@ -101,7 +105,8 @@
 .settings-editor > .settings-body {
 	display: flex;
 	margin: auto;
-	max-width: 1000px;
+	max-width: 1100px;
+	justify-content: space-between;
 }
 
 .settings-editor > .settings-body .settings-tree-container .monaco-tree::before {
@@ -111,13 +116,22 @@
 .settings-editor > .settings-body .settings-toc-container {
 	width: 175px;
 	margin-right: 5px;
-}
-
-.settings-editor > .settings-body .settings-toc-container {
 	padding-top: 5px;
 }
 
-.search-mode .settings-toc-container {
+.settings-editor > .settings-body .settings-toc-container.hidden {
+	display: none;
+}
+
+.settings-editor.search-mode .settings-toc-container {
+	display: none;
+}
+
+.settings-editor.search-mode > .settings-body .settings-tree-container {
+	max-width: 1100px;
+}
+
+.settings-editor.narrow > .settings-body .settings-toc-container {
 	display: none;
 }
 
@@ -133,6 +147,8 @@
 
 .settings-editor > .settings-body .settings-tree-container {
 	flex: 1;
+	max-width: 875px;
+	margin-right: 1px; /* So the item doesn't blend into the edge of the view container  */
 	border-spacing: 0;
 	border-collapse: separate;
 	position: relative;
@@ -201,15 +217,6 @@
 	display: flex;
 }
 
-.settings-editor > .settings-body > .settings-tree-container .setting-item-bool > .reset-button-container {
-	margin-top: 5px;
-}
-
-.settings-editor > .settings-body > .settings-tree-container .setting-item-bool > .reset-button-container > .setting-reset-button {
-	width: initial;
-	padding-left: 0px;
-}
-
 .settings-editor > .settings-body > .settings-tree-container .setting-item-bool .setting-value-checkbox {
 	height: 16px;
 	width: 16px;
@@ -257,32 +264,16 @@
 	padding-left: 0px;
 }
 
-.settings-editor > .settings-body > .settings-tree-container .setting-item .setting-item-value > .setting-type-complex + .reset-button-container > .setting-reset-button.monaco-button {
-	display: none;
-}
-
 .settings-editor > .settings-body > .settings-tree-container .setting-item .monaco-select-box {
 	width: initial;
 	font: inherit;
 	height: 26px;
 }
 
-.settings-editor > .settings-body > .settings-tree-container .setting-item .setting-reset-button.monaco-button {
-	text-align: left;
-	display: inline-block;
-	visibility: hidden;
-	width: initial;
-
-	padding-top: 2px;
-}
-
-.settings-editor > .settings-body > .settings-tree-container .setting-item.is-configured .setting-reset-button.monaco-button {
-	visibility: visible;
-}
-
 .settings-editor > .settings-body > .settings-tree-container .group-title,
 .settings-editor > .settings-body > .settings-tree-container .setting-item {
 	padding-left: 10px;
+	padding-right: 10px;
 }
 
 .settings-editor > .settings-body > .settings-tree-container .group-title {
@@ -302,6 +293,10 @@
 .settings-editor > .settings-body > .settings-tree-container .settings-group-level-2 {
 	padding-top: 27px;
 	font-size: 20px;
+}
+
+.settings-editor > .settings-body > .settings-tree-container .settings-group-level-1.settings-group-first {
+	padding-top: 7px;
 }
 
 .settings-editor > .settings-body .settings-feedback-button {

@@ -472,7 +472,7 @@ class Launch implements ILaunch {
 				});
 			}).then(content => {
 				if (!content) {
-					return undefined;
+					return { editor: undefined, created: false };
 				}
 				const index = content.indexOf(`"${this.configurationManager.selectedConfiguration.name}"`);
 				let startLineNumber = 1;
@@ -486,7 +486,6 @@ class Launch implements ILaunch {
 				return this.editorService.openEditor({
 					resource: resource,
 					options: {
-						forceOpen: true,
 						selection,
 						pinned: created,
 						revealIfVisible: true

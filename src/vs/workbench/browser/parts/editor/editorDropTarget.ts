@@ -57,8 +57,14 @@ class DropOverlay extends Themable {
 		this.container = document.createElement('div');
 		this.container.id = DropOverlay.OVERLAY_ID;
 		this.container.style.top = `${overlayOffsetHeight}px`;
+
+		// Parent
 		this.groupView.element.appendChild(this.container);
-		this._register(toDisposable(() => this.groupView.element.removeChild(this.container)));
+		addClass(this.groupView.element, 'dragged-over');
+		this._register(toDisposable(() => {
+			this.groupView.element.removeChild(this.container);
+			removeClass(this.groupView.element, 'dragged-over');
+		}));
 
 		// Overlay
 		this.overlay = document.createElement('div');
@@ -111,7 +117,7 @@ class DropOverlay extends Themable {
 				}
 
 				// Position overlay
-				this.positionOverlay(e.offsetX, e.offsetY);
+				this.positionOverlay(e.offsetX, e.offsetY, isDraggingGroup);
 			},
 
 			onDragLeave: e => this.dispose(),
@@ -248,21 +254,46 @@ class DropOverlay extends Themable {
 		return (e.ctrlKey && !isMacintosh) || (e.altKey && isMacintosh);
 	}
 
-	private positionOverlay(mousePosX: number, mousePosY: number): void {
-		const groupViewWidth = this.groupView.element.clientWidth;
-		const groupViewHeight = this.groupView.element.clientHeight;
+	private positionOverlay(mousePosX: number, mousePosY: number, isDraggingGroup: boolean): void {
+		const preferSplitVertically = this.accessor.partOptions.openSideBySideDirection === 'right';
 
-		const edgeWidthThreshold = groupViewWidth * 0.2; 	// offer to split 20% around center width
-		const edgeHeightThreshold = groupViewHeight * 0.2; 	// offer to split 20% around center height
+		const editorControlWidth = this.groupView.element.clientWidth;
+		const editorControlHeight = this.groupView.element.clientHeight - this.getOverlayOffsetHeight();
 
-		const splitWidthThreshold = groupViewWidth / 3;		// offer to split left/right at 33%
-		const splitHeightThreshold = groupViewHeight / 3;	// offer to split up/down at 33%
+		let edgeWidthThresholdFactor: number;
+		if (isDraggingGroup) {
+			edgeWidthThresholdFactor = preferSplitVertically ? 0.3 : 0.1; // give larger threshold when dragging group depending on preferred split direction
+		} else {
+			edgeWidthThresholdFactor = 0.1; // 10% threshold to split if dragging editors
+		}
+
+		let edgeHeightThresholdFactor: number;
+		if (isDraggingGroup) {
+			edgeHeightThresholdFactor = preferSplitVertically ? 0.1 : 0.3; // give larger threshold when dragging group depending on preferred split direction
+		} else {
+			edgeHeightThresholdFactor = 0.1; // 10% threshold to split if dragging editors
+		}
+
+		const edgeWidthThreshold = editorControlWidth * edgeWidthThresholdFactor;
+		const edgeHeightThreshold = editorControlHeight * edgeHeightThresholdFactor;
+
+		const splitWidthThreshold = editorControlWidth / 3;		// offer to split left/right at 33%
+		const splitHeightThreshold = editorControlHeight / 3;	// offer to split up/down at 33%
+
+		// Enable to debug the drop threshold square
+		// let child = this.overlay.children.item(0) as HTMLElement || this.overlay.appendChild(document.createElement('div'));
+		// child.style.backgroundColor = 'red';
+		// child.style.position = 'absolute';
+		// child.style.width = (groupViewWidth - (2 * edgeWidthThreshold)) + 'px';
+		// child.style.height = (groupViewHeight - (2 * edgeHeightThreshold)) + 'px';
+		// child.style.left = edgeWidthThreshold + 'px';
+		// child.style.top = edgeHeightThreshold + 'px';
 
 		// No split if mouse is above certain threshold in the center of the view
 		let splitDirection: GroupDirection;
 		if (
-			mousePosX > edgeWidthThreshold && mousePosX < groupViewWidth - edgeWidthThreshold &&
-			mousePosY > edgeHeightThreshold && mousePosY < groupViewHeight - edgeHeightThreshold
+			mousePosX > edgeWidthThreshold && mousePosX < editorControlWidth - edgeWidthThreshold &&
+			mousePosY > edgeHeightThreshold && mousePosY < editorControlHeight - edgeHeightThreshold
 		) {
 			splitDirection = void 0;
 		}
@@ -279,13 +310,12 @@ class DropOverlay extends Themable {
 			// | LEFT	|-----------------------|	RIGHT	|
 			// |		|		SPLIT DOWN		|			|
 			// ----------------------------------------------
-			const preferSplitVertically = this.accessor.partOptions.openSideBySideDirection === 'right';
 			if (preferSplitVertically) {
 				if (mousePosX < splitWidthThreshold) {
 					splitDirection = GroupDirection.LEFT;
 				} else if (mousePosX > splitWidthThreshold * 2) {
 					splitDirection = GroupDirection.RIGHT;
-				} else if (mousePosY < groupViewHeight / 2) {
+				} else if (mousePosY < editorControlHeight / 2) {
 					splitDirection = GroupDirection.UP;
 				} else {
 					splitDirection = GroupDirection.DOWN;
@@ -306,7 +336,7 @@ class DropOverlay extends Themable {
 					splitDirection = GroupDirection.UP;
 				} else if (mousePosY > splitHeightThreshold * 2) {
 					splitDirection = GroupDirection.DOWN;
-				} else if (mousePosX < groupViewWidth / 2) {
+				} else if (mousePosX < editorControlWidth / 2) {
 					splitDirection = GroupDirection.LEFT;
 				} else {
 					splitDirection = GroupDirection.RIGHT;

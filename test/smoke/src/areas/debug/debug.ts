@@ -130,7 +130,7 @@ export class Debug extends Viewlet {
 		await this.code.waitForSetValue(REPL_FOCUSED, text);
 
 		// Wait for the keys to be picked up by the editor model such that repl evalutes what just got typed
-		await this.editor.waitForEditorContents('debug:input', s => s.indexOf(text) >= 0);
+		await this.editor.waitForEditorContents('debug:replinput', s => s.indexOf(text) >= 0);
 		await this.code.dispatchKeybinding('enter');
 		await this.code.waitForElement(CONSOLE_INPUT_OUTPUT);
 		await this.waitForOutput(output => accept(output[output.length - 1] || ''));

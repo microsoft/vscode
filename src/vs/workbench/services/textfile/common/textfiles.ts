@@ -80,11 +80,11 @@ export class TextFileModelChangeEvent {
 		this._kind = kind;
 	}
 
-	public get resource(): URI {
+	get resource(): URI {
 		return this._resource;
 	}
 
-	public get kind(): StateChange {
+	get kind(): StateChange {
 		return this._kind;
 	}
 }
@@ -147,9 +147,16 @@ export interface IModelLoadOrCreateOptions {
 	encoding?: string;
 
 	/**
-	 * Wether to reload the model if it already exists.
+	 * If the model was already loaded before, allows to trigger
+	 * a reload of it to fetch the latest contents:
+	 * - async: loadOrCreate() will return immediately and trigger
+	 * a reload that will run in the background.
+	 * - sync: loadOrCreate() will only return resolved when the
+	 * model has finished reloading.
 	 */
-	reload?: boolean;
+	reload?: {
+		async: boolean
+	};
 
 	/**
 	 * Allow to load a model even if we think it is a binary file.
@@ -322,9 +329,15 @@ export interface ITextFileService extends IDisposable {
 	revertAll(resources?: URI[], options?: IRevertOptions): TPromise<ITextFileOperationResult>;
 
 	/**
+	 * Create a file. If the file exists it will be overwritten with the contents if
+	 * the options enable to overwrite.
+	 */
+	create(resource: URI, contents?: string, options?: { overwrite?: boolean }): TPromise<void>;
+
+	/**
 	 * Delete a file. If the file is dirty, it will get reverted and then deleted from disk.
 	 */
-	delete(resource: URI, useTrash?: boolean): TPromise<void>;
+	delete(resource: URI, options?: { useTrash?: boolean, recursive?: boolean }): TPromise<void>;
 
 	/**
 	 * Move a file. If the file is dirty, its contents will be preserved and restored.

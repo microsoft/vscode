@@ -40,7 +40,8 @@
 			"name": "Comments: Documentation",
 			"scope": [
 				"comment.documentation",
-				"comment.block.documentation"
+				"comment.block.documentation",
+				"comment.block.documentation punctuation.definition.comment "
 			],
 			"settings": {
 				"foreground": "#448C27"

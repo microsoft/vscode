@@ -98,10 +98,12 @@ export class OneSnippet {
 					const range = this._editor.getModel().getDecorationRange(id);
 					const currentValue = this._editor.getModel().getValueInRange(range);
 
-					operations.push({ range: range, text: placeholder.transform.resolve(currentValue) });
+					operations.push(EditOperation.replaceMove(range, placeholder.transform.resolve(currentValue)));
 				}
 			}
-			this._editor.getModel().applyEdits(operations);
+			if (operations.length > 0) {
+				this._editor.executeEdits('snippet.placeholderTransform', operations);
+			}
 		}
 
 		if (fwd === true && this._placeholderGroupsIdx < this._placeholderGroups.length - 1) {
@@ -182,6 +184,14 @@ export class OneSnippet {
 
 				const id = this._placeholderDecorations.get(placeholder);
 				const range = this._editor.getModel().getDecorationRange(id);
+				if (!range) {
+					// one of the placeholder lost its decoration and
+					// therefore we bail out and pretend the placeholder
+					// (with its mirrors) doesn't exist anymore.
+					result.delete(placeholder.index);
+					break;
+				}
+
 				ranges.push(range);
 			}
 		}

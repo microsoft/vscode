@@ -321,6 +321,10 @@ export class DebugAdapter extends StreamDebugAdapter {
 
 	stopSession(): TPromise<void> {
 
+		if (!this.serverProcess) {
+			return TPromise.as(null);
+		}
+
 		// when killing a process in windows its child
 		// processes are *not* killed but become root
 		// processes. Therefore we use TASKKILL.EXE

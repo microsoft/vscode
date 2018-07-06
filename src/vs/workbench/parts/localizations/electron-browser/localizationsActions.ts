@@ -22,10 +22,10 @@ export class ConfigureLocaleAction extends Action {
 
 	private static DEFAULT_CONTENT: string = [
 		'{',
-		`\t// ${localize('displayLanguage', 'Defines VSCode\'s display language.')}`,
+		`\t// ${localize('displayLanguage', 'Defines VS Code\'s display language.')}`,
 		`\t// ${localize('doc', 'See {0} for a list of supported languages.', 'https://go.microsoft.com/fwlink/?LinkId=761051')}`,
 		`\t`,
-		`\t"locale":"${language}" // ${localize('restart', 'Changes will not take effect until VSCode has been restarted.')}`,
+		`\t"locale":"${language}" // ${localize('restart', 'Changes will not take effect until VS Code has been restarted.')}`,
 		'}'
 	].join('\n');
 
@@ -47,10 +47,7 @@ export class ConfigureLocaleAction extends Action {
 				return undefined;
 			}
 			return this.editorService.openEditor({
-				resource: stat.resource,
-				options: {
-					forceOpen: true
-				}
+				resource: stat.resource
 			});
 		}, (error) => {
 			throw new Error(localize('fail.createSettings', "Unable to create '{0}' ({1}).", getPathLabel(file, this.environmentService, this.contextService), error));

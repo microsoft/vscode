@@ -247,8 +247,12 @@ export class KeybindingsEditor extends BaseEditor implements IKeybindingsEditor 
 		return TPromise.as(null);
 	}
 
-	search(filter: string): void {
+	focusSearch(): void {
 		this.searchWidget.focus();
+	}
+
+	search(filter: string): void {
+		this.focusSearch();
 		this.searchWidget.setValue(filter);
 	}
 

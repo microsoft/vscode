@@ -5,7 +5,7 @@
 
 'use strict';
 
-import { app, ipcMain as ipc } from 'electron';
+import { app, ipcMain as ipc, systemPreferences } from 'electron';
 import * as platform from 'vs/base/common/platform';
 import { WindowsManager } from 'vs/code/electron-main/windows';
 import { IWindowsService, OpenContext, ActiveWindowManager } from 'vs/platform/windows/common/windows';
@@ -85,7 +85,7 @@ export class CodeApplication {
 		@ILogService private logService: ILogService,
 		@IEnvironmentService private environmentService: IEnvironmentService,
 		@ILifecycleService private lifecycleService: ILifecycleService,
-		@IConfigurationService configurationService: ConfigurationService,
+		@IConfigurationService private configurationService: ConfigurationService,
 		@IStateService private stateService: IStateService,
 		@IHistoryMainService private historyMainService: IHistoryMainService
 	) {
@@ -99,6 +99,7 @@ export class CodeApplication {
 		// We handle uncaught exceptions here to prevent electron from opening a dialog to the user
 		errors.setUnexpectedErrorHandler(err => this.onUnexpectedError(err));
 		process.on('uncaughtException', err => this.onUnexpectedError(err));
+		process.on('unhandledRejection', (reason: any, promise: Promise<any>) => errors.onUnexpectedError(reason));
 
 		app.on('will-quit', () => {
 			this.logService.trace('App#will-quit: disposing resources');
@@ -261,7 +262,7 @@ export class CodeApplication {
 		}
 	}
 
-	public startup(): TPromise<void> {
+	startup(): TPromise<void> {
 		this.logService.debug('Starting VS Code');
 		this.logService.debug(`from: ${this.environmentService.appRoot}`);
 		this.logService.debug('args:', this.environmentService.args);
@@ -272,6 +273,20 @@ export class CodeApplication {
 		// two icons in the taskbar for the same app.
 		if (platform.isWindows && product.win32AppUserModelId) {
 			app.setAppUserModelId(product.win32AppUserModelId);
+		}
+
+		// Fix native tabs on macOS 10.13
+		// macOS enables a compatibility patch for any bundle ID beginning with
+		// "com.microsoft.", which breaks native tabs for VS Code when using this
+		// identifier (from the official build).
+		// Explicitly opt out of the patch here before creating any windows.
+		// See: https://github.com/Microsoft/vscode/issues/35361#issuecomment-399794085
+		try {
+			if (platform.isMacintosh && this.configurationService.getValue<boolean>('window.nativeTabs') === true && !systemPreferences.getUserDefault('NSUseImprovedLayoutPass', 'boolean')) {
+				systemPreferences.setUserDefault('NSUseImprovedLayoutPass', 'boolean', true as any);
+			}
+		} catch (error) {
+			this.logService.error(error);
 		}
 
 		// Create Electron IPC Server
@@ -411,7 +426,8 @@ export class CodeApplication {
 
 		// Create a URL handler which forwards to the last active window
 		const activeWindowManager = new ActiveWindowManager(windowsService);
-		const urlHandlerChannel = this.electronIpcServer.getChannel('urlHandler', { route: () => activeWindowManager.activeClientId });
+		const route = () => activeWindowManager.activeClientId;
+		const urlHandlerChannel = this.electronIpcServer.getChannel('urlHandler', { routeCall: route, routeEvent: route });
 		const multiplexURLHandler = new URLHandlerChannelClient(urlHandlerChannel);
 
 		// On Mac, Code can be running without any open windows, so we must create a window to handle urls,
@@ -420,7 +436,7 @@ export class CodeApplication {
 			const environmentService = accessor.get(IEnvironmentService);
 
 			urlService.registerHandler({
-				async handleURL(uri: URI): TPromise<boolean> {
+				handleURL(uri: URI): TPromise<boolean> {
 					if (windowsMainService.getWindowCount() === 0) {
 						const cli = { ...environmentService.args, goto: true };
 						const [window] = windowsMainService.open({ context: OpenContext.API, cli, forceEmpty: true });
@@ -428,7 +444,7 @@ export class CodeApplication {
 						return window.ready().then(() => urlService.open(uri));
 					}
 
-					return false;
+					return TPromise.as(false);
 				}
 			});
 		}

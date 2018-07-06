@@ -24,10 +24,6 @@ suite('IPC', () => {
 	suite('child process', () => {
 
 		test('createChannel', () => {
-			if (process.env['VSCODE_PID']) {
-				return undefined; // this test fails when run from within VS Code
-			}
-
 			const client = createClient();
 			const channel = client.getChannel<ITestChannel>('test');
 			const service = new TestServiceClient(channel);
@@ -41,10 +37,6 @@ suite('IPC', () => {
 		});
 
 		test('cancellation', () => {
-			if (process.env['VSCODE_PID']) {
-				return undefined; // this test fails when run from within VS Code
-			}
-
 			const client = createClient();
 			const channel = client.getChannel<ITestChannel>('test');
 			const service = new TestServiceClient(channel);
@@ -61,10 +53,6 @@ suite('IPC', () => {
 		});
 
 		test('events', () => {
-			if (process.env['VSCODE_PID']) {
-				return undefined; // this test fails when run from within VS Code
-			}
-
 			const client = createClient();
 			const channel = client.getChannel<ITestChannel>('test');
 			const service = new TestServiceClient(channel);
@@ -87,10 +75,6 @@ suite('IPC', () => {
 		});
 
 		test('event dispose', () => {
-			if (process.env['VSCODE_PID']) {
-				return undefined; // this test fails when run from within VS Code
-			}
-
 			const client = createClient();
 			const channel = client.getChannel<ITestChannel>('test');
 			const service = new TestServiceClient(channel);

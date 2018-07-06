@@ -125,7 +125,7 @@ class ExtHostTreeView<T> extends Disposable {
 	private elements: Map<TreeItemHandle, T> = new Map<TreeItemHandle, T>();
 	private nodes: Map<T, TreeNode> = new Map<T, TreeNode>();
 
-	private _visible: boolean = true;
+	private _visible: boolean = false;
 	get visible(): boolean { return this._visible; }
 
 	private _selectedHandles: TreeItemHandle[] = [];

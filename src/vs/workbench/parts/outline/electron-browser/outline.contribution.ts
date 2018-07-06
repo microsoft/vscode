@@ -42,6 +42,7 @@ MenuRegistry.addCommand({
 Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).registerConfiguration({
 	'id': 'outline',
 	'order': 117,
+	'title': localize('outlineConfigurationTitle', "Outline"),
 	'type': 'object',
 	'properties': {
 		[OutlineConfigKeys.icons]: {

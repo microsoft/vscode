@@ -96,7 +96,7 @@ export interface IViewDescriptor {
 
 	readonly container: ViewContainer;
 
-	// TODO do we really need this?!
+	// TODO@Sandeep do we really need this?!
 	readonly ctor: any;
 
 	readonly when?: ContextKeyExpr;
@@ -228,6 +228,8 @@ export interface ITreeViewer extends IDisposable {
 	readonly onDidChangeSelection: Event<ITreeItem[]>;
 
 	readonly onDidChangeVisibility: Event<boolean>;
+
+	readonly visible: boolean;
 
 	refresh(treeItems?: ITreeItem[]): TPromise<void>;
 

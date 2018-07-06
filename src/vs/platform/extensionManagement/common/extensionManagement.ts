@@ -378,11 +378,6 @@ export interface IExtensionEnablementService {
 	setEnablement(extension: ILocalExtension, state: EnablementState): TPromise<boolean>;
 }
 
-export interface IIgnoredRecommendations {
-	global: string[];
-	workspace: string[];
-}
-
 export interface IExtensionsConfigContent {
 	recommendations: string[];
 	unwantedRecommendations: string[];
@@ -415,9 +410,8 @@ export interface IExtensionTipsService {
 	getKeymapRecommendations(): IExtensionRecommendation[];
 	getAllRecommendations(): TPromise<IExtensionRecommendation[]>;
 	getKeywordsForExtension(extension: string): string[];
-	getRecommendationsForExtension(extension: string): string[];
-	getAllIgnoredRecommendations(): IIgnoredRecommendations;
-	ignoreExtensionRecommendation(extensionId: string): void;
+	toggleIgnoredRecommendation(extensionId: string, shouldIgnore: boolean): void;
+	getAllIgnoredRecommendations(): { global: string[], workspace: string[] };
 	onRecommendationChange: Event<RecommendationChangeNotification>;
 }
 
@@ -425,7 +419,8 @@ export enum ExtensionRecommendationReason {
 	Workspace,
 	File,
 	Executable,
-	DynamicWorkspace
+	DynamicWorkspace,
+	Experimental
 }
 
 export const ExtensionsLabel = localize('extensions', "Extensions");

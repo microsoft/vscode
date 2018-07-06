@@ -58,7 +58,7 @@ function resolveCommandHistory(configurationService: IConfigurationService): num
 
 class CommandsHistory {
 
-	public static readonly DEFAULT_COMMANDS_HISTORY_LENGTH = 50;
+	static readonly DEFAULT_COMMANDS_HISTORY_LENGTH = 50;
 
 	private static readonly PREF_KEY_CACHE = 'commandPalette.mru.cache';
 	private static readonly PREF_KEY_COUNTER = 'commandPalette.mru.counter';
@@ -120,20 +120,20 @@ class CommandsHistory {
 		this.storageService.store(CommandsHistory.PREF_KEY_COUNTER, commandCounter);
 	}
 
-	public push(commandId: string): void {
+	push(commandId: string): void {
 		// set counter to command
 		commandHistory.set(commandId, commandCounter++);
 	}
 
-	public peek(commandId: string): number {
+	peek(commandId: string): number {
 		return commandHistory.peek(commandId);
 	}
 }
 
 export class ShowAllCommandsAction extends Action {
 
-	public static readonly ID = 'workbench.action.showCommands';
-	public static readonly LABEL = nls.localize('showTriggerActions', "Show All Commands");
+	static readonly ID = 'workbench.action.showCommands';
+	static readonly LABEL = nls.localize('showTriggerActions', "Show All Commands");
 
 	constructor(
 		id: string,
@@ -144,7 +144,7 @@ export class ShowAllCommandsAction extends Action {
 		super(id, label);
 	}
 
-	public run(context?: any): TPromise<void> {
+	run(context?: any): TPromise<void> {
 		const config = <IWorkbenchQuickOpenConfiguration>this.configurationService.getValue();
 		const restoreInput = config.workbench && config.workbench.commandPalette && config.workbench.commandPalette.preserveInput === true;
 
@@ -162,8 +162,8 @@ export class ShowAllCommandsAction extends Action {
 
 export class ClearCommandHistoryAction extends Action {
 
-	public static readonly ID = 'workbench.action.clearCommandHistory';
-	public static readonly LABEL = nls.localize('clearCommandHistory', "Clear Command History");
+	static readonly ID = 'workbench.action.clearCommandHistory';
+	static readonly LABEL = nls.localize('clearCommandHistory', "Clear Command History");
 
 	constructor(
 		id: string,
@@ -173,7 +173,7 @@ export class ClearCommandHistoryAction extends Action {
 		super(id, label);
 	}
 
-	public run(context?: any): TPromise<void> {
+	run(context?: any): TPromise<void> {
 		const commandHistoryLength = resolveCommandHistory(this.configurationService);
 		if (commandHistoryLength > 0) {
 			commandHistory = new LRUCache<string, number>(commandHistoryLength);
@@ -199,7 +199,7 @@ class CommandPaletteEditorAction extends EditorAction {
 		});
 	}
 
-	public run(accessor: ServicesAccessor, editor: ICodeEditor): TPromise<void> {
+	run(accessor: ServicesAccessor, editor: ICodeEditor): TPromise<void> {
 		const quickOpenService = accessor.get(IQuickOpenService);
 
 		// Show with prefix
@@ -239,35 +239,35 @@ abstract class BaseCommandEntry extends QuickOpenEntryGroup {
 		this.setHighlights(highlights.label, null, highlights.alias);
 	}
 
-	public getCommandId(): string {
+	getCommandId(): string {
 		return this.commandId;
 	}
 
-	public getLabel(): string {
+	getLabel(): string {
 		return this.label;
 	}
 
-	public getSortLabel(): string {
+	getSortLabel(): string {
 		return this.labelLowercase;
 	}
 
-	public getDescription(): string {
+	getDescription(): string {
 		return this.description;
 	}
 
-	public setDescription(description: string): void {
+	setDescription(description: string): void {
 		this.description = description;
 	}
 
-	public getKeybinding(): ResolvedKeybinding {
+	getKeybinding(): ResolvedKeybinding {
 		return this.keybinding;
 	}
 
-	public getDetail(): string {
+	getDetail(): string {
 		return this.alias;
 	}
 
-	public getAriaLabel(): string {
+	getAriaLabel(): string {
 		if (this.keybindingAriaLabel) {
 			return nls.localize('entryAriaLabelWithKey', "{0}, {1}, commands", this.getLabel(), this.keybindingAriaLabel);
 		}
@@ -275,7 +275,7 @@ abstract class BaseCommandEntry extends QuickOpenEntryGroup {
 		return nls.localize('entryAriaLabel', "{0}, commands", this.getLabel());
 	}
 
-	public run(mode: Mode, context: IEntryRunContext): boolean {
+	run(mode: Mode, context: IEntryRunContext): boolean {
 		if (mode === Mode.OPEN) {
 			this.runAction(this.getAction());
 
@@ -372,7 +372,7 @@ const wordFilter = or(matchesPrefix, matchesWords, matchesContiguousSubString);
 
 export class CommandsHandler extends QuickOpenHandler {
 
-	public static readonly ID = 'workbench.picker.commands';
+	static readonly ID = 'workbench.picker.commands';
 
 	private lastSearchValue: string;
 	private commandHistoryEnabled: boolean;
@@ -397,7 +397,7 @@ export class CommandsHandler extends QuickOpenHandler {
 		this.commandHistoryEnabled = resolveCommandHistory(this.configurationService) > 0;
 	}
 
-	public getResults(searchValue: string): TPromise<QuickOpenModel> {
+	getResults(searchValue: string): TPromise<QuickOpenModel> {
 		searchValue = searchValue.trim();
 		this.lastSearchValue = searchValue;
 
@@ -412,7 +412,7 @@ export class CommandsHandler extends QuickOpenHandler {
 
 		// Other Actions
 		const menu = this.editorService.invokeWithinEditorContext(accessor => this.menuService.createMenu(MenuId.CommandPalette, accessor.get(IContextKeyService)));
-		const menuActions = menu.getActions().reduce((r, [, actions]) => [...r, ...actions], <MenuItemAction[]>[]);
+		const menuActions = menu.getActions().reduce((r, [, actions]) => [...r, ...actions], <MenuItemAction[]>[]).filter(action => action instanceof MenuItemAction) as MenuItemAction[];
 		const commandEntries = this.menuItemActionsToEntries(menuActions, searchValue);
 
 		// Concat
@@ -540,7 +540,7 @@ export class CommandsHandler extends QuickOpenHandler {
 		return entries;
 	}
 
-	public getAutoFocus(searchValue: string, context: { model: IModel<QuickOpenEntry>, quickNavigateConfiguration?: IQuickNavigateConfiguration }): IAutoFocus {
+	getAutoFocus(searchValue: string, context: { model: IModel<QuickOpenEntry>, quickNavigateConfiguration?: IQuickNavigateConfiguration }): IAutoFocus {
 		let autoFocusPrefixMatch = searchValue.trim();
 
 		if (autoFocusPrefixMatch && this.commandHistoryEnabled) {
@@ -556,11 +556,11 @@ export class CommandsHandler extends QuickOpenHandler {
 		};
 	}
 
-	public getEmptyLabel(searchString: string): string {
+	getEmptyLabel(searchString: string): string {
 		return nls.localize('noCommandsMatching', "No commands matching");
 	}
 
-	public onClose(canceled: boolean): void {
+	onClose(canceled: boolean): void {
 		if (canceled) {
 			lastCommandPaletteInput = void 0; // clear last input when user canceled quick open
 		}

@@ -26,6 +26,7 @@ const zipPath = arch => path.join(zipDir(arch), `VSCode-win32-${arch}.zip`);
 const setupDir = (arch, target) => path.join(repoPath, '.build', `win32-${arch}`, `${target}-setup`);
 const issPath = path.join(__dirname, 'win32', 'code.iss');
 const innoSetupPath = path.join(path.dirname(path.dirname(require.resolve('innosetup-compiler'))), 'bin', 'ISCC.exe');
+const signPS1 = path.join(repoPath, 'build', 'tfs', 'win32', 'sign.ps1');
 
 function packageInnoSetup(iss, options, cb) {
 	options = options || {};
@@ -42,7 +43,11 @@ function packageInnoSetup(iss, options, cb) {
 	keys.forEach(key => assert(typeof definitions[key] === 'string', `Missing value for '${key}' in Inno Setup package step`));
 
 	const defs = keys.map(key => `/d${key}=${definitions[key]}`);
-	const args = [iss].concat(defs);
+	const args = [
+		iss,
+		...defs,
+		`/sesrp=powershell.exe -ExecutionPolicy bypass ${signPS1} $f`
+	];
 
 	cp.spawn(innoSetupPath, args, { stdio: ['ignore', 'inherit', 'inherit'] })
 		.on('error', cb)
@@ -74,14 +79,15 @@ function buildWin32Setup(arch, target) {
 			DirName: product.win32DirName,
 			Version: pkg.version,
 			RawVersion: pkg.version.replace(/-\w+$/, ''),
-			NameVersion: product.win32NameVersion,
+			NameVersion: product.win32NameVersion + (target === 'user' ? ' (User)' : ''),
 			ExeBasename: product.nameShort,
 			RegValueName: product.win32RegValueName,
 			ShellNameShort: product.win32ShellNameShort,
 			AppMutex: product.win32MutexName,
 			Arch: arch,
 			AppId: arch === 'ia32' ? ia32AppId : x64AppId,
-			IncompatibleAppId: arch === 'ia32' ? x64AppId : ia32AppId,
+			IncompatibleTargetAppId: arch === 'ia32' ? product.win32AppId : product.win32x64AppId,
+			IncompatibleArchAppId: arch === 'ia32' ? x64AppId : ia32AppId,
 			AppUserId: product.win32AppUserModelId,
 			ArchitecturesAllowed: arch === 'ia32' ? '' : 'x64',
 			ArchitecturesInstallIn64BitMode: arch === 'ia32' ? '' : 'x64',
@@ -108,7 +114,7 @@ defineWin32SetupTasks('x64', 'user');
 
 function archiveWin32Setup(arch) {
 	return cb => {
-		const args = ['a', '-tzip', zipPath(arch), '.', '-r'];
+		const args = ['a', '-tzip', zipPath(arch), '-x!CodeSignSummary*.md', '.', '-r'];
 
 		cp.spawn(_7z, args, { stdio: 'inherit', cwd: buildPath(arch) })
 			.on('error', cb)

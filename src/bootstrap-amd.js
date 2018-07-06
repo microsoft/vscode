@@ -29,6 +29,8 @@ function readFile(file) {
 	});
 }
 
+const writeFile = (file, content) => new Promise((c, e) => fs.writeFile(file, content, 'utf8', err => err ? e(err) : c()));
+
 var rawNlsConfig = process.env['VSCODE_NLS_CONFIG'];
 var nlsConfig = rawNlsConfig ? JSON.parse(rawNlsConfig) : { availableLanguages: {} };
 
@@ -46,8 +48,15 @@ if (nlsConfig._resolvedLanguagePackCoreLocation) {
 			let json = JSON.parse(content);
 			bundles[bundle] = json;
 			cb(undefined, json);
-		})
-			.catch(cb);
+		}).catch((error) => {
+			try {
+				if (nlsConfig._corruptedFile) {
+					writeFile(nlsConfig._corruptedFile, 'corrupted').catch(function (error) { console.error(error); });
+				}
+			} finally {
+				cb(error, undefined);
+			}
+		});
 	};
 }
 

@@ -73,7 +73,7 @@ export class CommentsPanel extends Panel {
 	public getActions(): IAction[] {
 		if (!this.collapseAllAction) {
 			this.collapseAllAction = this.instantiationService.createInstance(CollapseAllAction, this.tree, this.commentsModel.hasCommentThreads());
-			this.toUnbind.push(this.collapseAllAction);
+			this._register(this.collapseAllAction);
 		}
 
 		return [this.collapseAllAction];

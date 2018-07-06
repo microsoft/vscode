@@ -26,6 +26,7 @@ import { Color } from 'vs/base/common/color';
 import { ConfigurationTarget } from 'vs/platform/configuration/common/configuration';
 import { LIGHT, DARK, HIGH_CONTRAST } from 'vs/platform/theme/common/themeService';
 import { schemaId } from 'vs/workbench/services/themes/common/colorThemeSchema';
+import { onUnexpectedError } from 'vs/base/common/errors';
 
 export class SelectColorThemeAction extends Action {
 
@@ -67,6 +68,7 @@ export class SelectColorThemeAction extends Action {
 
 				this.themeService.setColorTheme(theme.id, target).done(null,
 					err => {
+						onUnexpectedError(err);
 						this.themeService.setColorTheme(currentTheme.id, null);
 					}
 				);
@@ -75,13 +77,11 @@ export class SelectColorThemeAction extends Action {
 			const placeHolder = localize('themes.selectTheme', "Select Color Theme (Up/Down Keys to Preview)");
 			const autoFocusIndex = firstIndex(picks, p => p.id === currentTheme.id);
 			const delayer = new Delayer<void>(100);
+			const chooseTheme = theme => delayer.trigger(() => selectTheme(theme || currentTheme, true), 0);
+			const tryTheme = theme => delayer.trigger(() => selectTheme(theme, false));
 
-			return this.quickOpenService.pick(picks, { placeHolder, autoFocus: { autoFocusIndex } })
-				.then(
-					theme => delayer.trigger(() => selectTheme(theme || currentTheme, true), 0),
-					null,
-					theme => delayer.trigger(() => selectTheme(theme, false))
-				);
+			return this.quickOpenService.pick(picks, { placeHolder, autoFocus: { autoFocusIndex }, onDidFocus: tryTheme })
+				.then(chooseTheme);
 		});
 	}
 }
@@ -125,6 +125,7 @@ class SelectIconThemeAction extends Action {
 				}
 				this.themeService.setFileIconTheme(theme && theme.id, target).done(null,
 					err => {
+						onUnexpectedError(err);
 						this.themeService.setFileIconTheme(currentTheme.id, null);
 					}
 				);
@@ -133,13 +134,11 @@ class SelectIconThemeAction extends Action {
 			const placeHolder = localize('themes.selectIconTheme', "Select File Icon Theme");
 			const autoFocusIndex = firstIndex(picks, p => p.id === currentTheme.id);
 			const delayer = new Delayer<void>(100);
+			const chooseTheme = theme => delayer.trigger(() => selectTheme(theme || currentTheme, true), 0);
+			const tryTheme = theme => delayer.trigger(() => selectTheme(theme, false));
 
-			return this.quickOpenService.pick(picks, { placeHolder, autoFocus: { autoFocusIndex } })
-				.then(
-					theme => delayer.trigger(() => selectTheme(theme || currentTheme, true), 0),
-					null,
-					theme => delayer.trigger(() => selectTheme(theme, false))
-				);
+			return this.quickOpenService.pick(picks, { placeHolder, autoFocus: { autoFocusIndex }, onDidFocus: tryTheme })
+				.then(chooseTheme);
 		});
 	}
 }

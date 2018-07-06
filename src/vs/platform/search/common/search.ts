@@ -27,7 +27,7 @@ export interface ISearchService {
 	search(query: ISearchQuery): PPromise<ISearchComplete, ISearchProgressItem>;
 	extendQuery(query: ISearchQuery): void;
 	clearCache(cacheKey: string): TPromise<void>;
-	registerSearchResultProvider(provider: ISearchResultProvider): IDisposable;
+	registerSearchResultProvider(scheme: string, provider: ISearchResultProvider): IDisposable;
 }
 
 export interface ISearchHistoryValues {
@@ -47,6 +47,7 @@ export interface ISearchHistoryService {
 
 export interface ISearchResultProvider {
 	search(query: ISearchQuery): PPromise<ISearchComplete, ISearchProgressItem>;
+	clearCache(cacheKey: string): TPromise<void>;
 }
 
 export interface IFolderQuery<U extends UriComponents=uri> {

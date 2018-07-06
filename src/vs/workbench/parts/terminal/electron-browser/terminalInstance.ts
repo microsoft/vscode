@@ -65,7 +65,7 @@ export class TerminalInstance implements ITerminalInstance {
 	private _rows: number;
 	private _dimensionsOverride: ITerminalDimensions;
 	private _windowsShellHelper: WindowsShellHelper;
-	private _xtermReadyPromise: TPromise<void>;
+	private _xtermReadyPromise: Promise<void>;
 
 	private _disposables: lifecycle.IDisposable[];
 	private _messageTitleDisposable: lifecycle.IDisposable;
@@ -255,7 +255,7 @@ export class TerminalInstance implements ITerminalInstance {
 	/**
 	 * Create xterm.js instance and attach data listeners.
 	 */
-	protected async _createXterm(): TPromise<void> {
+	protected async _createXterm(): Promise<void> {
 		if (!Terminal) {
 			Terminal = (await import('vscode-xterm')).Terminal;
 			// Enable xterm.js addons
@@ -283,6 +283,7 @@ export class TerminalInstance implements ITerminalInstance {
 			bellStyle: config.enableBell ? 'sound' : 'none',
 			screenReaderMode: accessibilitySupport === 'on',
 			macOptionIsMeta: config.macOptionIsMeta,
+			macOptionClickForcesSelection: config.macOptionClickForcesSelection,
 			rightClickSelectsWord: config.rightClickBehavior === 'selectWord',
 			// TODO: Guess whether to use canvas or dom better
 			rendererType: config.rendererType === 'auto' ? 'canvas' : config.rendererType,
@@ -871,6 +872,7 @@ export class TerminalInstance implements ITerminalInstance {
 		this._setEnableBell(config.enableBell);
 		this._safeSetOption('scrollback', config.scrollback);
 		this._safeSetOption('macOptionIsMeta', config.macOptionIsMeta);
+		this._safeSetOption('macOptionClickForcesSelection', config.macOptionClickForcesSelection);
 		this._safeSetOption('rightClickSelectsWord', config.rightClickBehavior === 'selectWord');
 	}
 
@@ -963,18 +965,21 @@ export class TerminalInstance implements ITerminalInstance {
 				this._safeSetOption('drawBoldTextInBrightColors', config.drawBoldTextInBrightColors);
 			}
 
-			if (cols !== this._xterm.getOption('cols') || rows !== this._xterm.getOption('rows')) {
+			if (cols !== this._xterm.cols || rows !== this._xterm.rows) {
 				this._onDimensionsChanged.fire();
 			}
 
 			this._xterm.resize(cols, rows);
 			if (this._isVisible) {
-				// Force the renderer to unpause by simulating an IntersectionObserver event. This
-				// is to fix an issue where dragging the window to the top of the screen to maximize
-				// on Winodws/Linux would fire an event saying that the terminal was not visible.
-				// This should only force a refresh if one is needed.
+				// HACK: Force the renderer to unpause by simulating an IntersectionObserver event.
+				// This is to fix an issue where dragging the window to the top of the screen to
+				// maximize on Windows/Linux would fire an event saying that the terminal was not
+				// visible.
 				if (this._xterm.getOption('rendererType') === 'canvas') {
 					this._xterm._core.renderer.onIntersectionChange({ intersectionRatio: 1 });
+					// HACK: Force a refresh of the screen to ensure links are refresh corrected.
+					// This can probably be removed when the above hack is fixed in Chromium.
+					this._xterm.refresh(0, this._xterm.rows - 1);
 				}
 			}
 		}
@@ -1069,6 +1074,7 @@ registerThemingParticipant((theme: ITheme, collector: ICssStyleCollector) => {
 	const scrollbarSliderBackgroundColor = theme.getColor(scrollbarSliderBackground);
 	if (scrollbarSliderBackgroundColor) {
 		collector.addRule(`
+			.monaco-workbench .panel.integrated-terminal .find-focused .xterm .xterm-viewport,
 			.monaco-workbench .panel.integrated-terminal .xterm.focus .xterm-viewport,
 			.monaco-workbench .panel.integrated-terminal .xterm:focus .xterm-viewport,
 			.monaco-workbench .panel.integrated-terminal .xterm:hover .xterm-viewport { background-color: ${scrollbarSliderBackgroundColor} !important; }`

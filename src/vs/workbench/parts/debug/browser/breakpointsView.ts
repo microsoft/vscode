@@ -35,7 +35,7 @@ import { isCodeEditor } from 'vs/editor/browser/editorBrowser';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
 import { IEditorService, SIDE_GROUP, ACTIVE_GROUP } from 'vs/workbench/services/editor/common/editorService';
-import { ViewletPanel } from 'vs/workbench/browser/parts/views/panelViewlet';
+import { ViewletPanel, IViewletPanelOptions } from 'vs/workbench/browser/parts/views/panelViewlet';
 
 const $ = dom.$;
 
@@ -58,7 +58,7 @@ export class BreakpointsView extends ViewletPanel {
 		@IContextViewService private contextViewService: IContextViewService,
 		@IConfigurationService configurationService: IConfigurationService
 	) {
-		super(options, keybindingService, contextMenuService, configurationService);
+		super({ ...(options as IViewletPanelOptions), ariaHeaderLabel: nls.localize('breakpointsSection', "Breakpoints Section") }, keybindingService, contextMenuService, configurationService);
 
 		this.minimumBodySize = this.maximumBodySize = this.getExpandedBodySize();
 		this.settings = options.viewletSettings;
@@ -330,16 +330,11 @@ class BreakpointsRenderer implements IRenderer<IBreakpoint, IBreakpointTemplateD
 
 		const { message, className } = getBreakpointMessageAndClassName(this.debugService, this.textFileService, breakpoint);
 		data.icon.className = className + ' icon';
-		data.icon.title = message ? message : '';
+		data.breakpoint.title = breakpoint.message || message || '';
 
 		const debugActive = this.debugService.state === State.Running || this.debugService.state === State.Stopped;
 		if (debugActive && !breakpoint.verified) {
 			dom.addClass(data.breakpoint, 'disabled');
-			if (breakpoint.message) {
-				data.breakpoint.title = breakpoint.message;
-			}
-		} else if (breakpoint.condition || breakpoint.hitCondition) {
-			data.breakpoint.title = breakpoint.condition ? breakpoint.condition : breakpoint.hitCondition;
 		}
 	}
 
@@ -592,21 +587,20 @@ export function getBreakpointMessageAndClassName(debugService: IDebugService, te
 		};
 	}
 
-	if (breakpoint.logMessage) {
-		if (session && !session.raw.capabilities.supportsLogPoints) {
-			return {
-				className: 'debug-breakpoint-unsupported',
-				message: nls.localize('logBreakpointUnsupported', "Logpoints not supported by this debug type"),
-			};
+
+	if (breakpoint.logMessage || breakpoint.condition || breakpoint.hitCondition) {
+		const messages = [];
+		if (breakpoint.logMessage) {
+			if (session && !session.raw.capabilities.supportsLogPoints) {
+				return {
+					className: 'debug-breakpoint-unsupported',
+					message: nls.localize('logBreakpointUnsupported', "Logpoints not supported by this debug type"),
+				};
+			}
+
+			messages.push(nls.localize('logMessage', "Log Message: {0}", breakpoint.logMessage));
 		}
 
-		return {
-			className: 'debug-breakpoint-log',
-			message: appendMessage(breakpoint.logMessage)
-		};
-	}
-
-	if (breakpoint.condition || breakpoint.hitCondition) {
 		if (session && breakpoint.condition && !session.raw.capabilities.supportsConditionalBreakpoints) {
 			return {
 				className: 'debug-breakpoint-unsupported',
@@ -620,16 +614,16 @@ export function getBreakpointMessageAndClassName(debugService: IDebugService, te
 			};
 		}
 
-		if (breakpoint.condition && breakpoint.hitCondition) {
-			return {
-				className: 'debug-breakpoint-conditional',
-				message: appendMessage(`Expression: ${breakpoint.condition}\nHitCount: ${breakpoint.hitCondition}`)
-			};
+		if (breakpoint.condition) {
+			messages.push(nls.localize('expression', "Expression: {0}", breakpoint.condition));
+		}
+		if (breakpoint.hitCondition) {
+			messages.push(nls.localize('hitCount', "Hit Count: {0}", breakpoint.hitCondition));
 		}
 
 		return {
-			className: 'debug-breakpoint-conditional',
-			message: appendMessage(breakpoint.condition ? breakpoint.condition : breakpoint.hitCondition)
+			className: breakpoint.logMessage ? 'debug-breakpoint-log' : 'debug-breakpoint-conditional',
+			message: appendMessage(messages.join('\n'))
 		};
 	}
 

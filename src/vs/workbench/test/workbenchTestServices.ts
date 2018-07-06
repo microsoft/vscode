@@ -66,7 +66,7 @@ import { IExtensionService, ProfileSession, IExtensionsStatus, ExtensionPointCon
 import { IExtensionPoint } from 'vs/workbench/services/extensions/common/extensionsRegistry';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { IDecorationsService, IResourceDecorationChangeEvent, IDecoration, IDecorationData, IDecorationsProvider } from 'vs/workbench/services/decorations/browser/decorations';
-import { IDisposable, toDisposable } from 'vs/base/common/lifecycle';
+import { IDisposable, toDisposable, Disposable } from 'vs/base/common/lifecycle';
 import { IEditorGroupsService, IEditorGroup, GroupsOrder, GroupsArrangement, GroupDirection, IAddGroupOptions, IMergeGroupOptions, IMoveEditorOptions, ICopyEditorOptions, IEditorReplacement, IGroupChangeEvent, EditorsOrder, IFindGroupScope, EditorGroupLayout } from 'vs/workbench/services/group/common/editorGroupsService';
 import { IEditorService, IOpenEditorOverrideHandler } from 'vs/workbench/services/editor/common/editorService';
 import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
@@ -286,7 +286,7 @@ export function workbenchInstantiationService(): IInstantiationService {
 export class TestDecorationsService implements IDecorationsService {
 	_serviceBrand: any;
 	onDidChangeDecorations: Event<IResourceDecorationChangeEvent> = Event.None;
-	registerDecorationsProvider(provider: IDecorationsProvider): IDisposable { return toDisposable(); }
+	registerDecorationsProvider(provider: IDecorationsProvider): IDisposable { return Disposable.None; }
 	getDecoration(uri: URI, includeChildren: boolean, overwrite?: IDecorationData): IDecoration { return void 0; }
 }
 
@@ -850,7 +850,7 @@ export class TestFileService implements IFileService {
 		return resource.scheme === 'file';
 	}
 
-	del(resource: URI, useTrash?: boolean): TPromise<void> {
+	del(resource: URI, options?: { useTrash?: boolean, recursive?: boolean }): TPromise<void> {
 		return TPromise.as(null);
 	}
 
@@ -1123,6 +1123,7 @@ export class TestWindowsService implements IWindowsService {
 	onWindowBlur: Event<number>;
 	onWindowMaximize: Event<number>;
 	onWindowUnmaximize: Event<number>;
+	onRecentlyOpenedChange: Event<void>;
 
 	isFocused(windowId: number): TPromise<boolean> {
 		return TPromise.as(false);
@@ -1313,6 +1314,10 @@ export class TestWindowsService implements IWindowsService {
 	}
 
 	showOpenDialog(windowId: number, options: Electron.OpenDialogOptions): TPromise<string[]> {
+		return TPromise.as(void 0);
+	}
+
+	openAccessibilityOptions(): TPromise<void> {
 		return TPromise.as(void 0);
 	}
 

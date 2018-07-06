@@ -5,7 +5,7 @@
 
 import * as nls from 'vs/nls';
 import { registerColor, editorBackground, contrastBorder, transparent, editorWidgetBackground, textLinkForeground, lighten, darken, focusBorder } from 'vs/platform/theme/common/colorRegistry';
-import { Disposable, IDisposable } from 'vs/base/common/lifecycle';
+import { Disposable } from 'vs/base/common/lifecycle';
 import { IThemeService, ITheme } from 'vs/platform/theme/common/themeService';
 import { Color } from 'vs/base/common/color';
 
@@ -121,7 +121,7 @@ registerColor('editorGroup.background', {
 	dark: null,
 	light: null,
 	hc: null
-}, nls.localize('editorGroupBackground', "Deprecated background color of an editor group."), false, nls.localize('deprecatedEditorGroupBackground', "Deprecated: Background color of an editor group is no longer being supported with the introduction of the grid editor lyout. You can use editorGroup.emptyBackground to set the background color of empty editor groups."));
+}, nls.localize('editorGroupBackground', "Deprecated background color of an editor group."), false, nls.localize('deprecatedEditorGroupBackground', "Deprecated: Background color of an editor group is no longer being supported with the introduction of the grid editor layout. You can use editorGroup.emptyBackground to set the background color of empty editor groups."));
 
 export const EDITOR_GROUP_EMPTY_BACKGROUND = registerColor('editorGroup.emptyBackground', {
 	dark: null,
@@ -453,10 +453,6 @@ export class Themable extends Disposable {
 
 		// Hook up to theme changes
 		this._register(this.themeService.onThemeChange(theme => this.onThemeChange(theme)));
-	}
-
-	protected get toUnbind(): IDisposable[] {
-		return this._toDispose;
 	}
 
 	protected onThemeChange(theme: ITheme): void {

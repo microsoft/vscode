@@ -60,7 +60,7 @@ export abstract class BaseTextEditor extends BaseEditor implements ITextEditor {
 
 		this.editorMemento = this.getEditorMemento<IEditorViewState>(storageService, editorGroupService, TEXT_EDITOR_VIEW_STATE_PREFERENCE_KEY, 100);
 
-		this.toUnbind.push(this.configurationService.onDidChangeConfiguration(e => this.handleConfigurationChangeEvent(this.configurationService.getValue<IEditorConfiguration>(this.getResource()))));
+		this._register(this.configurationService.onDidChangeConfiguration(e => this.handleConfigurationChangeEvent(this.configurationService.getValue<IEditorConfiguration>(this.getResource()))));
 	}
 
 	protected get instantiationService(): IInstantiationService {
@@ -130,25 +130,25 @@ export abstract class BaseTextEditor extends BaseEditor implements ITextEditor {
 
 		// Editor for Text
 		this._editorContainer = parent;
-		this.editorControl = this.createEditorControl(parent, this.computeConfiguration(this.configurationService.getValue<IEditorConfiguration>(this.getResource())));
+		this.editorControl = this._register(this.createEditorControl(parent, this.computeConfiguration(this.configurationService.getValue<IEditorConfiguration>(this.getResource()))));
 
 		// Model & Language changes
 		const codeEditor = getCodeEditor(this.editorControl);
 		if (codeEditor) {
-			this.toUnbind.push(codeEditor.onDidChangeModelLanguage(e => this.updateEditorConfiguration()));
-			this.toUnbind.push(codeEditor.onDidChangeModel(e => this.updateEditorConfiguration()));
+			this._register(codeEditor.onDidChangeModelLanguage(e => this.updateEditorConfiguration()));
+			this._register(codeEditor.onDidChangeModel(e => this.updateEditorConfiguration()));
 		}
 
 		// Application & Editor focus change to respect auto save settings
 		if (isCodeEditor(this.editorControl)) {
-			this.toUnbind.push(this.editorControl.onDidBlurEditorWidget(() => this.onEditorFocusLost()));
+			this._register(this.editorControl.onDidBlurEditorWidget(() => this.onEditorFocusLost()));
 		} else if (isDiffEditor(this.editorControl)) {
-			this.toUnbind.push(this.editorControl.getOriginalEditor().onDidBlurEditorWidget(() => this.onEditorFocusLost()));
-			this.toUnbind.push(this.editorControl.getModifiedEditor().onDidBlurEditorWidget(() => this.onEditorFocusLost()));
+			this._register(this.editorControl.getOriginalEditor().onDidBlurEditorWidget(() => this.onEditorFocusLost()));
+			this._register(this.editorControl.getModifiedEditor().onDidBlurEditorWidget(() => this.onEditorFocusLost()));
 		}
 
-		this.toUnbind.push(this.editorService.onDidActiveEditorChange(() => this.onEditorFocusLost()));
-		this.toUnbind.push(DOM.addDisposableListener(window, DOM.EventType.BLUR, () => this.onWindowFocusLost()));
+		this._register(this.editorService.onDidActiveEditorChange(() => this.onEditorFocusLost()));
+		this._register(DOM.addDisposableListener(window, DOM.EventType.BLUR, () => this.onWindowFocusLost()));
 	}
 
 	private onEditorFocusLost(): void {
@@ -186,7 +186,7 @@ export abstract class BaseTextEditor extends BaseEditor implements ITextEditor {
 		return this.instantiationService.createInstance(CodeEditorWidget, parent, configuration, {});
 	}
 
-	public setInput(input: EditorInput, options: EditorOptions, token: CancellationToken): Thenable<void> {
+	setInput(input: EditorInput, options: EditorOptions, token: CancellationToken): Thenable<void> {
 		return super.setInput(input, options, token).then(() => {
 
 			// Update editor options after having set the input. We do this because there can be
@@ -209,17 +209,17 @@ export abstract class BaseTextEditor extends BaseEditor implements ITextEditor {
 		super.setEditorVisible(visible, group);
 	}
 
-	public focus(): void {
+	focus(): void {
 		this.editorControl.focus();
 	}
 
-	public layout(dimension: DOM.Dimension): void {
+	layout(dimension: DOM.Dimension): void {
 
 		// Pass on to Editor
 		this.editorControl.layout(dimension);
 	}
 
-	public getControl(): IEditor {
+	getControl(): IEditor {
 		return this.editorControl;
 	}
 
@@ -309,9 +309,8 @@ export abstract class BaseTextEditor extends BaseEditor implements ITextEditor {
 
 	protected abstract getAriaLabel(): string;
 
-	public dispose(): void {
+	dispose(): void {
 		this.lastAppliedEditorOptions = void 0;
-		this.editorControl.dispose();
 
 		super.dispose();
 	}

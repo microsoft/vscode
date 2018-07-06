@@ -299,7 +299,8 @@ export enum Operation {
 	Stash = 'Stash',
 	CheckIgnore = 'CheckIgnore',
 	LSTree = 'LSTree',
-	SubmoduleUpdate = 'SubmoduleUpdate'
+	SubmoduleUpdate = 'SubmoduleUpdate',
+	RebaseContinue = 'RebaseContinue',
 }
 
 function isReadOnly(operation: Operation): boolean {
@@ -479,6 +480,22 @@ export class Repository implements Disposable {
 		return this._submodules;
 	}
 
+	private _rebaseCommit: Commit | undefined = undefined;
+
+	set rebaseCommit(rebaseCommit: Commit | undefined) {
+		if (this._rebaseCommit && !rebaseCommit) {
+			this.inputBox.value = '';
+		} else if (rebaseCommit && (!this._rebaseCommit || this._rebaseCommit.hash !== rebaseCommit.hash)) {
+			this.inputBox.value = rebaseCommit.message;
+		}
+
+		this._rebaseCommit = rebaseCommit;
+	}
+
+	get rebaseCommit(): Commit | undefined {
+		return this._rebaseCommit;
+	}
+
 	private _operations = new OperationsImpl();
 	get operations(): Operations { return this._operations; }
 
@@ -553,6 +570,15 @@ export class Repository implements Disposable {
 	}
 
 	validateInput(text: string, position: number): SourceControlInputBoxValidation | undefined {
+		if (this.rebaseCommit) {
+			if (this.rebaseCommit.message !== text) {
+				return {
+					message: localize('commit in rebase', "It's not possible to change the commit message in the middle of a rebase. Please complete the rebase operation and use interactive rebase instead."),
+					type: SourceControlInputBoxValidationType.Warning
+				};
+			}
+		}
+
 		const config = workspace.getConfiguration('git');
 		const setting = config.get<'always' | 'warn' | 'off'>('inputValidation');
 
@@ -636,13 +662,23 @@ export class Repository implements Disposable {
 	}
 
 	async commit(message: string, opts: CommitOptions = Object.create(null)): Promise<void> {
-		await this.run(Operation.Commit, async () => {
-			if (opts.all) {
-				await this.repository.add([]);
-			}
+		if (this.rebaseCommit) {
+			await this.run(Operation.RebaseContinue, async () => {
+				if (opts.all) {
+					await this.repository.add([]);
+				}
 
-			await this.repository.commit(message, opts);
-		});
+				await this.repository.rebaseContinue();
+			});
+		} else {
+			await this.run(Operation.Commit, async () => {
+				if (opts.all) {
+					await this.repository.add([]);
+				}
+
+				await this.repository.commit(message, opts);
+			});
+		}
 	}
 
 	async clean(resources: Uri[]): Promise<void> {
@@ -1025,12 +1061,13 @@ export class Repository implements Disposable {
 			// noop
 		}
 
-		const [refs, remotes, submodules] = await Promise.all([this.repository.getRefs(), this.repository.getRemotes(), this.repository.getSubmodules()]);
+		const [refs, remotes, submodules, rebaseCommit] = await Promise.all([this.repository.getRefs(), this.repository.getRemotes(), this.repository.getSubmodules(), this.getRebaseCommit()]);
 
 		this._HEAD = HEAD;
 		this._refs = refs;
 		this._remotes = remotes;
 		this._submodules = submodules;
+		this.rebaseCommit = rebaseCommit;
 
 		const index: Resource[] = [];
 		const workingTree: Resource[] = [];
@@ -1087,6 +1124,17 @@ export class Repository implements Disposable {
 		commands.executeCommand('setContext', 'gitFreshRepository', !this._HEAD || !this._HEAD.commit);
 
 		this._onDidChangeStatus.fire();
+	}
+
+	private async getRebaseCommit(): Promise<Commit | undefined> {
+		const rebaseHeadPath = path.join(this.repository.root, '.git', 'REBASE_HEAD');
+
+		try {
+			const rebaseHead = await new Promise<string>((c, e) => fs.readFile(rebaseHeadPath, 'utf8', (err, result) => err ? e(err) : c(result)));
+			return await this.getCommit(rebaseHead.trim());
+		} catch (err) {
+			return undefined;
+		}
 	}
 
 	private onFSChange(uri: Uri): void {

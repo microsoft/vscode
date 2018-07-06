@@ -11,6 +11,7 @@ import { Command, CommandManager } from '../utils/commandManager';
 import { VersionDependentRegistration } from '../utils/dependentRegistration';
 import * as typeConverters from '../utils/typeConverters';
 import FormattingOptionsManager from './fileConfigurationManager';
+import TelemetryReporter from '../utils/telemetry';
 
 
 class ApplyRefactoringCommand implements Command {
@@ -18,7 +19,8 @@ class ApplyRefactoringCommand implements Command {
 	public readonly id = ApplyRefactoringCommand.ID;
 
 	constructor(
-		private readonly client: ITypeScriptServiceClient
+		private readonly client: ITypeScriptServiceClient,
+		private readonly telemetryReporter: TelemetryReporter
 	) { }
 
 	public async execute(
@@ -28,6 +30,18 @@ class ApplyRefactoringCommand implements Command {
 		action: string,
 		range: vscode.Range
 	): Promise<boolean> {
+		/* __GDPR__
+			"refactor.execute" : {
+				"action" : { "classification": "PublicNonPersonalData", "purpose": "FeatureInsight" },
+				"${include}": [
+					"${TypeScriptCommonProperties}"
+				]
+			}
+		*/
+		this.telemetryReporter.logTelemetry('refactor.execute', {
+			action: action
+		});
+
 		const args: Proto.GetEditsForRefactorRequestArgs = {
 			...typeConverters.Range.toFileRangeRequestArgs(file, range),
 			refactor,
@@ -97,9 +111,10 @@ class TypeScriptRefactorProvider implements vscode.CodeActionProvider {
 	constructor(
 		private readonly client: ITypeScriptServiceClient,
 		private readonly formattingOptionsManager: FormattingOptionsManager,
-		commandManager: CommandManager
+		commandManager: CommandManager,
+		telemetryReporter: TelemetryReporter
 	) {
-		const doRefactoringCommand = commandManager.register(new ApplyRefactoringCommand(this.client));
+		const doRefactoringCommand = commandManager.register(new ApplyRefactoringCommand(this.client, telemetryReporter));
 		commandManager.register(new SelectRefactorCommand(doRefactoringCommand));
 	}
 
@@ -204,10 +219,11 @@ export function register(
 	client: ITypeScriptServiceClient,
 	formattingOptionsManager: FormattingOptionsManager,
 	commandManager: CommandManager,
+	telemetryReporter: TelemetryReporter,
 ) {
 	return new VersionDependentRegistration(client, API.v240, () => {
 		return vscode.languages.registerCodeActionsProvider(selector,
-			new TypeScriptRefactorProvider(client, formattingOptionsManager, commandManager),
+			new TypeScriptRefactorProvider(client, formattingOptionsManager, commandManager, telemetryReporter),
 			TypeScriptRefactorProvider.metadata);
 	});
 }

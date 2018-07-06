@@ -4,52 +4,43 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import { createMainContextProxyIdentifier as createMainId, createExtHostContextProxyIdentifier as createExtId, ProxyIdentifier, IRPCProtocol } from 'vs/workbench/services/extensions/node/proxyIdentifier';
-
-import * as vscode from 'vscode';
-
-import URI, { UriComponents } from 'vs/base/common/uri';
+import { SerializedError } from 'vs/base/common/errors';
+import { IDisposable } from 'vs/base/common/lifecycle';
 import Severity from 'vs/base/common/severity';
+import URI, { UriComponents } from 'vs/base/common/uri';
 import { TPromise } from 'vs/base/common/winjs.base';
-
-import { IMarkerData } from 'vs/platform/markers/common/markers';
-import { EditorViewColumn } from 'vs/workbench/api/shared/editor';
-import { IExtensionDescription } from 'vs/workbench/services/extensions/common/extensions';
-import { StatusbarAlignment as MainThreadStatusBarAlignment } from 'vs/platform/statusbar/common/statusbar';
-import { ITelemetryInfo } from 'vs/platform/telemetry/common/telemetry';
-import { ICommandHandlerDescription } from 'vs/platform/commands/common/commands';
-import { IProgressOptions, IProgressStep } from 'vs/workbench/services/progress/common/progress';
-
-import * as editorCommon from 'vs/editor/common/editorCommon';
-import * as modes from 'vs/editor/common/modes';
-
-import { IConfigurationData, ConfigurationTarget, IConfigurationModel } from 'vs/platform/configuration/common/configuration';
-import { IConfig, IAdapterExecutable, ITerminalSettings } from 'vs/workbench/parts/debug/common/debug';
-
-import { IQuickPickItem, IPickOptions, IQuickInputButton } from 'vs/platform/quickinput/common/quickInput';
-import { SaveReason } from 'vs/workbench/services/textfile/common/textfiles';
 import { TextEditorCursorStyle } from 'vs/editor/common/config/editorOptions';
-import { EndOfLine, TextEditorLineNumbersStyle } from 'vs/workbench/api/node/extHostTypes';
-
-
-import { TaskSet } from 'vs/workbench/parts/tasks/common/tasks';
-import { IModelChangedEvent } from 'vs/editor/common/model/mirrorTextModel';
 import { IPosition } from 'vs/editor/common/core/position';
 import { IRange } from 'vs/editor/common/core/range';
 import { ISelection, Selection } from 'vs/editor/common/core/selection';
-
-import { ITreeItem } from 'vs/workbench/common/views';
-import { ThemeColor } from 'vs/platform/theme/common/themeService';
-import { IDisposable } from 'vs/base/common/lifecycle';
-import { SerializedError } from 'vs/base/common/errors';
-import { IStat, FileChangeType, IWatchOptions, FileSystemProviderCapabilities, FileWriteOptions, FileType, FileOverwriteOptions } from 'vs/platform/files/common/files';
-import { ConfigurationScope } from 'vs/platform/configuration/common/configurationRegistry';
-import { CommentRule, CharacterPair, EnterAction } from 'vs/editor/common/modes/languageConfiguration';
+import * as editorCommon from 'vs/editor/common/editorCommon';
 import { ISingleEditOperation } from 'vs/editor/common/model';
-import { IPatternInfo, IRawSearchQuery, IRawFileMatch2, ISearchCompleteStats } from 'vs/platform/search/common/search';
+import { IModelChangedEvent } from 'vs/editor/common/model/mirrorTextModel';
+import * as modes from 'vs/editor/common/modes';
+import { CharacterPair, CommentRule, EnterAction } from 'vs/editor/common/modes/languageConfiguration';
+import { ICommandHandlerDescription } from 'vs/platform/commands/common/commands';
+import { ConfigurationTarget, IConfigurationData, IConfigurationModel } from 'vs/platform/configuration/common/configuration';
+import { ConfigurationScope } from 'vs/platform/configuration/common/configurationRegistry';
+import { FileChangeType, FileDeleteOptions, FileOverwriteOptions, FileSystemProviderCapabilities, FileType, FileWriteOptions, IStat, IWatchOptions } from 'vs/platform/files/common/files';
 import { LogLevel } from 'vs/platform/log/common/log';
-import { TaskExecutionDTO, TaskDTO, TaskHandleDTO, TaskFilterDTO, TaskProcessStartedDTO, TaskProcessEndedDTO, TaskSystemInfoDTO } from 'vs/workbench/api/shared/tasks';
+import { IMarkerData } from 'vs/platform/markers/common/markers';
+import { IPickOptions, IQuickInputButton, IQuickPickItem } from 'vs/platform/quickinput/common/quickInput';
+import { IPatternInfo, IQueryOptions, IRawFileMatch2, IRawSearchQuery, ISearchCompleteStats } from 'vs/platform/search/common/search';
+import { StatusbarAlignment as MainThreadStatusBarAlignment } from 'vs/platform/statusbar/common/statusbar';
+import { ITelemetryInfo } from 'vs/platform/telemetry/common/telemetry';
+import { ThemeColor } from 'vs/platform/theme/common/themeService';
+import { EndOfLine, IFileOperationOptions, TextEditorLineNumbersStyle } from 'vs/workbench/api/node/extHostTypes';
+import { EditorViewColumn } from 'vs/workbench/api/shared/editor';
+import { TaskDTO, TaskExecutionDTO, TaskFilterDTO, TaskHandleDTO, TaskProcessEndedDTO, TaskProcessStartedDTO, TaskSystemInfoDTO } from 'vs/workbench/api/shared/tasks';
+import { ITreeItem } from 'vs/workbench/common/views';
+import { IAdapterExecutable, IConfig, ITerminalSettings } from 'vs/workbench/parts/debug/common/debug';
+import { TaskSet } from 'vs/workbench/parts/tasks/common/tasks';
 import { ITerminalDimensions } from 'vs/workbench/parts/terminal/common/terminal';
+import { IExtensionDescription } from 'vs/workbench/services/extensions/common/extensions';
+import { createExtHostContextProxyIdentifier as createExtId, createMainContextProxyIdentifier as createMainId, IRPCProtocol, ProxyIdentifier } from 'vs/workbench/services/extensions/node/proxyIdentifier';
+import { IProgressOptions, IProgressStep } from 'vs/workbench/services/progress/common/progress';
+import { SaveReason } from 'vs/workbench/services/textfile/common/textfiles';
+import * as vscode from 'vscode';
 
 export interface IEnvironment {
 	isExtensionDevelopmentDebug: boolean;
@@ -411,7 +402,7 @@ export interface TransferInputBox extends BaseTransferQuickInput {
 }
 
 export interface MainThreadQuickOpenShape extends IDisposable {
-	$show(options: IPickOptions): TPromise<number | number[]>;
+	$show(options: IPickOptions<TransferQuickPickItems>): TPromise<number | number[]>;
 	$setItems(items: TransferQuickPickItems[]): TPromise<any>;
 	$setError(error: Error): TPromise<any>;
 	$input(options: vscode.InputBoxOptions, validateInput: boolean): TPromise<string>;
@@ -471,7 +462,8 @@ export interface ExtHostUrlsShape {
 }
 
 export interface MainThreadWorkspaceShape extends IDisposable {
-	$startSearch(includePattern: string, includeFolder: string, excludePatternOrDisregardExcludes: string | false, maxResults: number, requestId: number): Thenable<UriComponents[]>;
+	$startFileSearch(includePattern: string, includeFolder: string, excludePatternOrDisregardExcludes: string | false, maxResults: number, requestId: number): Thenable<UriComponents[]>;
+	$startTextSearch(query: IPatternInfo, options: IQueryOptions, requestId: number): TPromise<void>;
 	$cancelSearch(requestId: number): Thenable<boolean>;
 	$saveAll(includeUntitled?: boolean): Thenable<boolean>;
 	$updateWorkspaceFolders(extensionName: string, index: number, deleteCount: number, workspaceFoldersToAdd: { uri: UriComponents, name?: string }[]): Thenable<void>;
@@ -491,7 +483,8 @@ export interface MainThreadFileSystemShape extends IDisposable {
 export interface MainThreadSearchShape extends IDisposable {
 	$registerSearchProvider(handle: number, scheme: string): void;
 	$unregisterProvider(handle: number): void;
-	$handleFindMatch(handle: number, session: number, data: UriComponents | IRawFileMatch2[]): void;
+	$handleFileMatch(handle: number, session: number, data: UriComponents[]): void;
+	$handleTextMatch(handle: number, session: number, data: IRawFileMatch2[]): void;
 	$handleTelemetry(eventName: string, data: any): void;
 }
 
@@ -671,6 +664,7 @@ export interface ExtHostTreeViewsShape {
 
 export interface ExtHostWorkspaceShape {
 	$acceptWorkspaceData(workspace: IWorkspaceData): void;
+	$handleTextSearchResult(result: IRawFileMatch2, requestId: number): void;
 }
 
 export interface ExtHostFileSystemShape {
@@ -681,13 +675,14 @@ export interface ExtHostFileSystemShape {
 	$rename(handle: number, resource: UriComponents, target: UriComponents, opts: FileOverwriteOptions): TPromise<void>;
 	$copy(handle: number, resource: UriComponents, target: UriComponents, opts: FileOverwriteOptions): TPromise<void>;
 	$mkdir(handle: number, resource: UriComponents): TPromise<void>;
-	$delete(handle: number, resource: UriComponents): TPromise<void>;
+	$delete(handle: number, resource: UriComponents, opts: FileDeleteOptions): TPromise<void>;
 	$watch(handle: number, session: number, resource: UriComponents, opts: IWatchOptions): void;
 	$unwatch(handle: number, session: number): void;
 }
 
 export interface ExtHostSearchShape {
 	$provideFileSearchResults(handle: number, session: number, query: IRawSearchQuery): TPromise<ISearchCompleteStats>;
+	$clearCache(handle: number, cacheKey: string): TPromise<void>;
 	$provideTextSearchResults(handle: number, session: number, pattern: IPatternInfo, query: IRawSearchQuery): TPromise<ISearchCompleteStats>;
 }
 
@@ -774,7 +769,7 @@ export interface WorkspaceSymbolsDto extends IdObject {
 export interface ResourceFileEditDto {
 	oldUri: UriComponents;
 	newUri: UriComponents;
-	options: { overwrite?: boolean, ignoreIfExists?: boolean };
+	options: IFileOperationOptions;
 }
 
 export interface ResourceTextEditDto {
@@ -883,7 +878,7 @@ export interface ExtHostSCMShape {
 }
 
 export interface ExtHostTaskShape {
-	$provideTasks(handle: number): TPromise<TaskSet>;
+	$provideTasks(handle: number, validTypes: { [key: string]: boolean; }): TPromise<TaskSet>;
 	$onDidStartTask(execution: TaskExecutionDTO): void;
 	$onDidStartTaskProcess(value: TaskProcessStartedDTO): void;
 	$onDidEndTaskProcess(value: TaskProcessEndedDTO): void;

@@ -7,11 +7,72 @@
 
 export interface IIteratorResult<T> {
 	readonly done: boolean;
-	readonly value: T;
+	readonly value: T | undefined;
 }
 
-export interface IIterator<E> {
-	next(): IIteratorResult<E>;
+export interface IIterator<T> {
+	next(): IIteratorResult<T>;
+}
+
+const _empty: IIterator<any> = {
+	next() {
+		return { done: true, value: undefined };
+	}
+};
+
+export function empty<T>(): IIterator<T> {
+	return _empty;
+}
+
+export function iter<T>(array: T[], index = 0, length = array.length): IIterator<T> {
+	return {
+		next(): IIteratorResult<T> {
+			if (index >= length) {
+				return { done: true, value: undefined };
+			}
+
+			return { done: false, value: array[index++] };
+		}
+	};
+}
+
+export function map<T, R>(iterator: IIterator<T>, fn: (t: T) => R): IIterator<R> {
+	return {
+		next() {
+			const { done, value } = iterator.next();
+			return { done, value: done ? undefined : fn(value) };
+		}
+	};
+}
+
+export function filter<T>(iterator: IIterator<T>, fn: (t: T) => boolean): IIterator<T> {
+	return {
+		next() {
+			while (true) {
+				const { done, value } = iterator.next();
+
+				if (done) {
+					return { done, value: undefined };
+				}
+
+				if (fn(value)) {
+					return { done, value };
+				}
+			}
+		}
+	};
+}
+
+export function forEach<T>(iterator: IIterator<T>, fn: (t: T) => void): void {
+	for (let next = iterator.next(); !next.done; next = iterator.next()) {
+		fn(next.value);
+	}
+}
+
+export function collect<T>(iterator: IIterator<T>): T[] {
+	const result: T[] = [];
+	forEach(iterator, value => result.push(value));
+	return result;
 }
 
 export interface INextIterator<T> {

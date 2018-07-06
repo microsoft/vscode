@@ -336,7 +336,7 @@ export const GitErrorCodes = {
 	NoStashFound: 'NoStashFound',
 	LocalChangesOverwritten: 'LocalChangesOverwritten',
 	NoUpstreamBranch: 'NoUpstreamBranch',
-	IsInSubmodule: 'IsInSubmodule'
+	IsInSubmodule: 'IsInSubmodule',
 };
 
 function getGitErrorCode(stderr: string): string | undefined {
@@ -876,27 +876,41 @@ export class Repository {
 		try {
 			await this.run(args, { input: message || '' });
 		} catch (commitErr) {
-			if (/not possible because you have unmerged files/.test(commitErr.stderr || '')) {
-				commitErr.gitErrorCode = GitErrorCodes.UnmergedChanges;
-				throw commitErr;
-			}
+			await this.handleCommitError(commitErr);
+		}
+	}
 
-			try {
-				await this.run(['config', '--get-all', 'user.name']);
-			} catch (err) {
-				err.gitErrorCode = GitErrorCodes.NoUserNameConfigured;
-				throw err;
-			}
+	async rebaseContinue(): Promise<void> {
+		const args = ['rebase', '--continue'];
 
-			try {
-				await this.run(['config', '--get-all', 'user.email']);
-			} catch (err) {
-				err.gitErrorCode = GitErrorCodes.NoUserEmailConfigured;
-				throw err;
-			}
+		try {
+			await this.run(args);
+		} catch (commitErr) {
+			await this.handleCommitError(commitErr);
+		}
+	}
 
+	private async handleCommitError(commitErr: any): Promise<void> {
+		if (/not possible because you have unmerged files/.test(commitErr.stderr || '')) {
+			commitErr.gitErrorCode = GitErrorCodes.UnmergedChanges;
 			throw commitErr;
 		}
+
+		try {
+			await this.run(['config', '--get-all', 'user.name']);
+		} catch (err) {
+			err.gitErrorCode = GitErrorCodes.NoUserNameConfigured;
+			throw err;
+		}
+
+		try {
+			await this.run(['config', '--get-all', 'user.email']);
+		} catch (err) {
+			err.gitErrorCode = GitErrorCodes.NoUserEmailConfigured;
+			throw err;
+		}
+
+		throw commitErr;
 	}
 
 	async branch(name: string, checkout: boolean): Promise<void> {

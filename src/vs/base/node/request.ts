@@ -49,7 +49,7 @@ export interface IRequestFunction {
 	(options: IRequestOptions): TPromise<IRequestContext>;
 }
 
-async function getNodeRequest(options: IRequestOptions): TPromise<IRawRequestFunction> {
+async function getNodeRequest(options: IRequestOptions): Promise<IRawRequestFunction> {
 	const endpoint = parseUrl(options.url);
 	const module = endpoint.protocol === 'https:' ? await import('https') : await import('http');
 	return module.request;
@@ -60,7 +60,7 @@ export function request(options: IRequestOptions): TPromise<IRequestContext> {
 
 	const rawRequestPromise = options.getRawRequest
 		? TPromise.as(options.getRawRequest(options))
-		: getNodeRequest(options);
+		: TPromise.wrap(getNodeRequest(options));
 
 	return rawRequestPromise.then(rawRequest => {
 

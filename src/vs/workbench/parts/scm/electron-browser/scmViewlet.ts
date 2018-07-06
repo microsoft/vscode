@@ -12,7 +12,7 @@ import { Event, Emitter, chain, mapEvent, anyEvent, filterEvent, latch } from 'v
 import { domEvent, stop } from 'vs/base/browser/event';
 import { basename } from 'vs/base/common/paths';
 import { onUnexpectedError } from 'vs/base/common/errors';
-import { IDisposable, dispose, combinedDisposable, empty as EmptyDisposable, toDisposable } from 'vs/base/common/lifecycle';
+import { IDisposable, dispose, combinedDisposable, Disposable, toDisposable } from 'vs/base/common/lifecycle';
 import { PanelViewlet, ViewletPanel, IViewletPanelOptions } from 'vs/workbench/browser/parts/views/panelViewlet';
 import { append, $, addClass, toggleClass, trackFocus, Dimension, addDisposableListener } from 'vs/base/browser/dom';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
@@ -142,7 +142,7 @@ class ProviderRenderer implements IRenderer<ISCMRepository, RepositoryTemplateDa
 		const count = new CountBadge(countContainer);
 		const badgeStyler = attachBadgeStyler(count, this.themeService);
 		const actionBar = new ActionBar(provider, { actionItemProvider: a => new StatusBarActionItem(a as StatusBarAction) });
-		const disposable = EmptyDisposable;
+		const disposable = Disposable.None;
 		const templateDisposable = combinedDisposable([actionBar, badgeStyler]);
 
 		return { title, type, countContainer, count, actionBar, disposable, templateDisposable };
@@ -389,7 +389,7 @@ class ResourceGroupRenderer implements IRenderer<ISCMResourceGroup, ResourceGrou
 		const countContainer = append(element, $('.count'));
 		const count = new CountBadge(countContainer);
 		const styler = attachBadgeStyler(count, this.themeService);
-		const elementDisposable = EmptyDisposable;
+		const elementDisposable = Disposable.None;
 
 		return {
 			name, count, actionBar, elementDisposable, dispose: () => {
@@ -501,7 +501,7 @@ class ResourceRenderer implements IRenderer<ISCMResource, ResourceTemplate> {
 		const decorationIcon = append(element, $('.decoration-icon'));
 
 		return {
-			element, name, fileLabel, decorationIcon, actionBar, elementDisposable: EmptyDisposable, dispose: () => {
+			element, name, fileLabel, decorationIcon, actionBar, elementDisposable: Disposable.None, dispose: () => {
 				actionBar.dispose();
 				fileLabel.dispose();
 			}
@@ -738,10 +738,6 @@ export class RepositoryPanel extends ViewletPanel {
 	private menus: SCMMenus;
 	private visibilityDisposables: IDisposable[] = [];
 
-	get onDidChangeTitle(): Event<void> {
-		return this.menus.onDidChangeTitle;
-	}
-
 	constructor(
 		id: string,
 		readonly repository: ISCMRepository,
@@ -760,6 +756,7 @@ export class RepositoryPanel extends ViewletPanel {
 	) {
 		super({ id, title: repository.provider.label }, keybindingService, contextMenuService, configurationService);
 		this.menus = instantiationService.createInstance(SCMMenus, repository.provider);
+		this.menus.onDidChangeTitle(this._onDidChangeTitleArea.fire, this._onDidChangeTitleArea, this.disposables);
 	}
 
 	render(): void {
@@ -814,12 +811,9 @@ export class RepositoryPanel extends ViewletPanel {
 			this.inputBox.setPlaceHolder(placeholder);
 		};
 
-		const validationDelayer = new ThrottledDelayer(200);
-
+		const validationDelayer = new ThrottledDelayer<any>(200);
 		const validate = () => {
-			validationDelayer.trigger(async (): TPromise<any> => {
-				const result = await this.repository.input.validateInput(this.inputBox.value, this.inputBox.inputElement.selectionStart);
-
+			return this.repository.input.validateInput(this.inputBox.value, this.inputBox.inputElement.selectionStart).then(result => {
 				if (!result) {
 					this.inputBox.inputElement.removeAttribute('aria-invalid');
 					this.inputBox.hideMessage();
@@ -830,15 +824,17 @@ export class RepositoryPanel extends ViewletPanel {
 			});
 		};
 
+		const triggerValidation = () => validationDelayer.trigger(validate);
+
 		this.inputBox = new InputBox(this.inputBoxContainer, this.contextViewService, { flexibleHeight: true });
 		this.disposables.push(attachInputBoxStyler(this.inputBox, this.themeService));
 		this.disposables.push(this.inputBox);
 
-		this.inputBox.onDidChange(validate, null, this.disposables);
+		this.inputBox.onDidChange(triggerValidation, null, this.disposables);
 
 		const onKeyUp = domEvent(this.inputBox.inputElement, 'keyup');
 		const onMouseUp = domEvent(this.inputBox.inputElement, 'mouseup');
-		anyEvent<any>(onKeyUp, onMouseUp)(() => validate(), null, this.disposables);
+		anyEvent<any>(onKeyUp, onMouseUp)(triggerValidation, null, this.disposables);
 
 		this.inputBox.value = this.repository.input.value;
 		this.inputBox.onDidChange(value => this.repository.input.value = value, null, this.disposables);
@@ -1023,10 +1019,10 @@ export class SCMViewlet extends PanelViewlet implements IViewModel, IViewsViewle
 	private menus: SCMMenus;
 	private mainPanel: MainPanel | null = null;
 	private cachedMainPanelHeight: number | undefined;
-	private mainPanelDisposable: IDisposable = EmptyDisposable;
+	private mainPanelDisposable: IDisposable = Disposable.None;
 	private _repositories: ISCMRepository[] = [];
 	private repositoryPanels: RepositoryPanel[] = [];
-	private singleRepositoryPanelTitleActionsDisposable: IDisposable = EmptyDisposable;
+	private singlePanelTitleActionsDisposable: IDisposable = Disposable.None;
 	private disposables: IDisposable[] = [];
 	private lastFocusedRepository: ISCMRepository | undefined;
 
@@ -1071,37 +1067,37 @@ export class SCMViewlet extends PanelViewlet implements IViewModel, IViewsViewle
 		this.disposables.push(this.contributedViews);
 	}
 
-	async create(parent: HTMLElement): TPromise<void> {
-		await super.create(parent);
+	create(parent: HTMLElement): TPromise<void> {
+		return super.create(parent).then(() => {
+			this.el = parent;
+			addClass(this.el, 'scm-viewlet');
+			addClass(this.el, 'empty');
+			append(parent, $('div.empty-message', null, localize('no open repo', "There are no active source control providers.")));
 
-		this.el = parent;
-		addClass(this.el, 'scm-viewlet');
-		addClass(this.el, 'empty');
-		append(parent, $('div.empty-message', null, localize('no open repo', "There are no active source control providers.")));
+			this.scmService.onDidAddRepository(this.onDidAddRepository, this, this.disposables);
+			this.scmService.onDidRemoveRepository(this.onDidRemoveRepository, this, this.disposables);
+			this.scmService.repositories.forEach(r => this.onDidAddRepository(r));
 
-		this.scmService.onDidAddRepository(this.onDidAddRepository, this, this.disposables);
-		this.scmService.onDidRemoveRepository(this.onDidRemoveRepository, this, this.disposables);
-		this.scmService.repositories.forEach(r => this.onDidAddRepository(r));
+			const onDidUpdateConfiguration = filterEvent(this.configurationService.onDidChangeConfiguration, e => e.affectsConfiguration('scm.alwaysShowProviders'));
+			onDidUpdateConfiguration(this.onDidChangeRepositories, this, this.disposables);
 
-		const onDidUpdateConfiguration = filterEvent(this.configurationService.onDidChangeConfiguration, e => e.affectsConfiguration('scm.alwaysShowProviders'));
-		onDidUpdateConfiguration(this.onDidChangeRepositories, this, this.disposables);
+			this.onDidChangeRepositories();
 
-		this.onDidChangeRepositories();
+			this.contributedViews.onDidAdd(this.onDidAddContributedViews, this, this.disposables);
+			this.contributedViews.onDidRemove(this.onDidRemoveContributedViews, this, this.disposables);
 
-		this.contributedViews.onDidAdd(this.onDidAddContributedViews, this, this.disposables);
-		this.contributedViews.onDidRemove(this.onDidRemoveContributedViews, this, this.disposables);
+			let index = this.getContributedViewsStartIndex();
+			const contributedViews: IAddedViewDescriptorRef[] = this.contributedViews.visibleViewDescriptors.map(viewDescriptor => {
+				const size = this.contributedViews.getSize(viewDescriptor.id);
+				const collapsed = this.contributedViews.isCollapsed(viewDescriptor.id);
+				return { viewDescriptor, index: index++, size, collapsed };
+			});
+			if (contributedViews.length) {
+				this.onDidAddContributedViews(contributedViews);
+			}
 
-		let index = this.getContributedViewsStartIndex();
-		const contributedViews: IAddedViewDescriptorRef[] = this.contributedViews.visibleViewDescriptors.map(viewDescriptor => {
-			const size = this.contributedViews.getSize(viewDescriptor.id);
-			const collapsed = this.contributedViews.isCollapsed(viewDescriptor.id);
-			return { viewDescriptor, index: index++, size, collapsed };
+			this.onDidSashChange(this.saveContributedViewSizes, this, this.disposables);
 		});
-		if (contributedViews.length) {
-			this.onDidAddContributedViews(contributedViews);
-		}
-
-		this.onDidSashChange(this.saveContributedViewSizes, this, this.disposables);
 	}
 
 	private onDidAddRepository(repository: ISCMRepository): void {
@@ -1156,7 +1152,7 @@ export class SCMViewlet extends PanelViewlet implements IViewModel, IViewsViewle
 			});
 		} else {
 			this.mainPanelDisposable.dispose();
-			this.mainPanelDisposable = EmptyDisposable;
+			this.mainPanelDisposable = Disposable.None;
 			this.mainPanel = null;
 		}
 	}
@@ -1303,10 +1299,10 @@ export class SCMViewlet extends PanelViewlet implements IViewModel, IViewsViewle
 
 		// React to menu changes for single view mode
 		if (wasSingleView !== this.isSingleView()) {
-			this.singleRepositoryPanelTitleActionsDisposable.dispose();
+			this.singlePanelTitleActionsDisposable.dispose();
 
 			if (this.isSingleView()) {
-				this.singleRepositoryPanelTitleActionsDisposable = this.repositoryPanels[0].onDidChangeTitle(this.updateTitleArea, this);
+				this.singlePanelTitleActionsDisposable = this.panels[0].onDidChangeTitleArea(this.updateTitleArea, this);
 			}
 
 			this.updateTitleArea();

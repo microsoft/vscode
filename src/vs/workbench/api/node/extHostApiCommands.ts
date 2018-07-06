@@ -19,6 +19,7 @@ import { ExtHostCommands } from 'vs/workbench/api/node/extHostCommands';
 import { CustomCodeAction } from 'vs/workbench/api/node/extHostLanguageFeatures';
 import { ICommandsExecutor, PreviewHTMLAPICommand, OpenFolderAPICommand, DiffAPICommand, OpenAPICommand, RemoveFromRecentlyOpenedAPICommand, SetEditorLayoutAPICommand } from './apiCommands';
 import { EditorGroupLayout } from 'vs/workbench/services/group/common/editorGroupsService';
+import { isFalsyOrEmpty } from 'vs/base/common/arrays';
 
 export class ExtHostApiCommands {
 
@@ -411,15 +412,24 @@ export class ExtHostApiCommands {
 		});
 	}
 
-	private _executeDocumentSymbolProvider(resource: URI): Thenable<vscode.DocumentSymbol[]> {
+	private _executeDocumentSymbolProvider(resource: URI): Thenable<vscode.SymbolInformation[]> {
 		const args = {
 			resource
 		};
 		return this._commands.executeCommand<modes.DocumentSymbol[]>('_executeDocumentSymbolProvider', args).then(value => {
-			if (value && Array.isArray(value)) {
-				return value.map(typeConverters.DocumentSymbol.to);
+			if (isFalsyOrEmpty(value)) {
+				return undefined;
 			}
-			return undefined;
+			let result: vscode.SymbolInformation[] = [];
+			for (const symbol of value) {
+				result.push(new types.SymbolInformation(
+					symbol.name,
+					typeConverters.SymbolKind.to(symbol.kind),
+					symbol.containerName,
+					new types.Location(resource, typeConverters.Range.to(symbol.range))
+				));
+			}
+			return result;
 		});
 	}
 

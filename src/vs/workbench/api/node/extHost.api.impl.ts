@@ -335,7 +335,7 @@ export function createApiFactory(
 				return proposedApiFunction(extension, extHostTerminalService.activeTerminal);
 			},
 			get terminals() {
-				return proposedApiFunction(extension, extHostTerminalService.terminals);
+				return extHostTerminalService.terminals;
 			},
 			showTextDocument(documentOrUri: vscode.TextDocument | vscode.Uri, columnOrOptions?: vscode.ViewColumn | vscode.TextDocumentShowOptions, preserveFocus?: boolean): TPromise<vscode.TextEditor> {
 				let documentPromise: TPromise<vscode.TextDocument>;
@@ -372,9 +372,9 @@ export function createApiFactory(
 			onDidCloseTerminal(listener, thisArg?, disposables?) {
 				return extHostTerminalService.onDidCloseTerminal(listener, thisArg, disposables);
 			},
-			onDidOpenTerminal: proposedApiFunction(extension, (listener, thisArg?, disposables?) => {
+			onDidOpenTerminal(listener, thisArg?, disposables?) {
 				return extHostTerminalService.onDidOpenTerminal(listener, thisArg, disposables);
-			}),
+			},
 			onDidChangeActiveTerminal: proposedApiFunction(extension, (listener, thisArg?, disposables?) => {
 				return extHostTerminalService.onDidChangeActiveTerminal(listener, thisArg, disposables);
 			}),
@@ -442,15 +442,15 @@ export function createApiFactory(
 			createTreeView(viewId: string, options: { treeDataProvider: vscode.TreeDataProvider<any> }): vscode.TreeView<any> {
 				return extHostTreeViews.createTreeView(viewId, options);
 			},
+			registerWebviewPanelSerializer: (viewType: string, serializer: vscode.WebviewPanelSerializer) => {
+				return extHostWebviews.registerWebviewPanelSerializer(viewType, serializer);
+			},
 			// proposed API
 			sampleFunction: proposedApiFunction(extension, () => {
 				return extHostMessageService.showMessage(extension, Severity.Info, 'Hello Proposed Api!', {}, []);
 			}),
 			registerDecorationProvider: proposedApiFunction(extension, (provider: vscode.DecorationProvider) => {
 				return extHostDecorations.registerDecorationProvider(provider, extension.id);
-			}),
-			registerWebviewPanelSerializer: proposedApiFunction(extension, (viewType: string, serializer: vscode.WebviewPanelSerializer) => {
-				return extHostWebviews.registerWebviewPanelSerializer(viewType, serializer);
 			}),
 			registerUriHandler(handler: vscode.UriHandler) {
 				return extHostUrls.registerUriHandler(extension.id, handler);
@@ -499,6 +499,9 @@ export function createApiFactory(
 			},
 			findFiles: (include, exclude, maxResults?, token?) => {
 				return extHostWorkspace.findFiles(typeConverters.GlobPattern.from(include), typeConverters.GlobPattern.from(exclude), maxResults, extension.id, token);
+			},
+			findTextInFiles: (query: vscode.TextSearchQuery, options: vscode.FindTextInFilesOptions, callback: (result: vscode.TextSearchResult) => void, token?: vscode.CancellationToken) => {
+				return extHostWorkspace.findTextInFiles(query, options || {}, callback, extension.id, token);
 			},
 			saveAll: (includeUntitled?) => {
 				return extHostWorkspace.saveAll(includeUntitled);
@@ -826,7 +829,9 @@ function defineAPI(factory: IExtensionApiFactory, extensionPaths: TernarySearchT
 
 		// fall back to a default implementation
 		if (!defaultApiImpl) {
-			console.warn(`Could not identify extension for 'vscode' require call from ${parent.filename}`);
+			let extensionPathsPretty = '';
+			extensionPaths.forEach((value, index) => extensionPathsPretty += `\t${index} -> ${value.id}\n`);
+			console.warn(`Could not identify extension for 'vscode' require call from ${parent.filename}. These are the extension path mappings: \n${extensionPathsPretty}`);
 			defaultApiImpl = factory(nullExtensionDescription);
 		}
 		return defaultApiImpl;

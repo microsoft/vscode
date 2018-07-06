@@ -26,6 +26,7 @@ import { IProgressService } from 'vs/platform/progress/common/progress';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { ITextModel, IWordAtPosition } from 'vs/editor/common/model';
 import { INotificationService } from 'vs/platform/notification/common/notification';
+import { createCancelablePromise } from 'vs/base/common/async';
 
 export class DefinitionActionConfig {
 
@@ -150,7 +151,7 @@ export class DefinitionAction extends EditorAction {
 			resource: uri,
 			options: {
 				selection: Range.collapseToStart(range),
-				revealIfVisible: true,
+				revealIfOpened: true,
 				revealInCenterIfOutsideViewport: true
 			}
 		}, editor, sideBySide);
@@ -159,7 +160,7 @@ export class DefinitionAction extends EditorAction {
 	private _openInPeek(editorService: ICodeEditorService, target: ICodeEditor, model: ReferencesModel) {
 		let controller = ReferencesController.get(target);
 		if (controller) {
-			controller.toggleWidget(target.getSelection(), TPromise.as(model), {
+			controller.toggleWidget(target.getSelection(), createCancelablePromise(_ => Promise.resolve(model)), {
 				getMetaTitle: (model) => {
 					return this._getMetaTitle(model);
 				},

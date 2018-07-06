@@ -82,6 +82,7 @@ export abstract class CommonEditorConfiguration extends Disposable implements ed
 		this._rawOptions.scrollbar = objects.mixin({}, this._rawOptions.scrollbar || {});
 		this._rawOptions.minimap = objects.mixin({}, this._rawOptions.minimap || {});
 		this._rawOptions.find = objects.mixin({}, this._rawOptions.find || {});
+		this._rawOptions.hover = objects.mixin({}, this._rawOptions.hover || {});
 
 		this._validatedOptions = editorOptions.EditorOptionsValidator.validate(this._rawOptions, EDITOR_DEFAULTS);
 		this.editor = null;
@@ -352,6 +353,11 @@ const editorConfiguration: IConfigurationNode = {
 			'default': EDITOR_DEFAULTS.contribInfo.hover.delay,
 			'description': nls.localize('hover.delay', "Controls the delay after which to show the hover")
 		},
+		'editor.hover.sticky': {
+			'type': 'boolean',
+			'default': EDITOR_DEFAULTS.contribInfo.hover.sticky,
+			'description': nls.localize('hover.sticky', "Controls if the hover should remain visible when mouse is moved over it")
+		},
 		'editor.find.seedSearchStringFromSelection': {
 			'type': 'boolean',
 			'default': EDITOR_DEFAULTS.contribInfo.find.seedSearchStringFromSelection,
@@ -526,7 +532,7 @@ const editorConfiguration: IConfigurationNode = {
 				nls.localize('snippetSuggestions.inline', "Show snippets suggestions with other suggestions."),
 				nls.localize('snippetSuggestions.none', "Do not show snippet suggestions."),
 			],
-			'default': EDITOR_DEFAULTS.contribInfo.snippetSuggestions,
+			'default': EDITOR_DEFAULTS.contribInfo.suggest.snippets,
 			'description': nls.localize('snippetSuggestions', "Controls whether snippets are shown with other suggestions and how they are sorted.")
 		},
 		'editor.emptySelectionClipboard': {
@@ -561,6 +567,16 @@ const editorConfiguration: IConfigurationNode = {
 			'default': 0,
 			'minimum': 0,
 			'description': nls.localize('suggestLineHeight', "Line height for the suggest widget")
+		},
+		'editor.suggest.filterGraceful': {
+			type: 'boolean',
+			default: true,
+			description: nls.localize('suggest.filterGraceful', "Controls whether filtering and sorting suggestions accounts for small typos.")
+		},
+		'editor.suggest.snippetsPreventQuickSuggestions': {
+			type: 'boolean',
+			default: true,
+			description: nls.localize('suggest.snippetsPreventQuickSuggestions', "Control whether an active snippet prevents quick suggestions.")
 		},
 		'editor.selectionHighlight': {
 			'type': 'boolean',

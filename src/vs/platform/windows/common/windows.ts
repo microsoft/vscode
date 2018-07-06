@@ -105,6 +105,7 @@ export interface IWindowsService {
 	onWindowBlur: Event<number>;
 	onWindowMaximize: Event<number>;
 	onWindowUnmaximize: Event<number>;
+	onRecentlyOpenedChange: Event<void>;
 
 	// Dialogs
 	pickFileFolderAndOpen(options: INativeOpenDialogOptions): TPromise<void>;
@@ -169,6 +170,7 @@ export interface IWindowsService {
 	// TODO: this is a bit backwards
 	startCrashReporter(config: CrashReporterStartOptions): TPromise<void>;
 
+	openAccessibilityOptions(): TPromise<void>;
 	openAboutDialog(): TPromise<void>;
 }
 

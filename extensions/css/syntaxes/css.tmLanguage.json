@@ -1,10 +1,10 @@
 {
 	"information_for_contributors": [
-		"This file has been converted from https://github.com/atom/language-css/blob/master/grammars/css.cson",
+		"This file has been converted from https://github.com/octref/language-css/blob/master/grammars/css.cson",
 		"If you want to provide a fix or improvement, please create a pull request against the original repository.",
 		"Once accepted there, we are happy to receive an update request."
 	],
-	"version": "https://github.com/atom/language-css/commit/17ad55bc5f65c16585e80ea1c7c19e0c0814f6d5",
+	"version": "https://github.com/octref/language-css/commit/ea1d7e3619966e47c57498913a5eabea0cce7538",
 	"name": "CSS",
 	"scopeName": "source.css",
 	"patterns": [
@@ -602,6 +602,45 @@
 						},
 						{
 							"include": "#string"
+						}
+					]
+				},
+				{
+					"begin": "(?i)(?=@[\\w-]+(\\s|\\(|/\\*|$))",
+					"end": "(?<=})(?!\\G)",
+					"patterns": [
+						{
+							"begin": "(?i)\\G(@)[\\w-]+",
+							"beginCaptures": {
+								"0": {
+									"name": "keyword.control.at-rule.css"
+								},
+								"1": {
+									"name": "punctuation.definition.keyword.css"
+								}
+							},
+							"end": "(?=\\s*[{;])",
+							"name": "meta.at-rule.header.css"
+						},
+						{
+							"begin": "{",
+							"beginCaptures": {
+								"0": {
+									"name": "punctuation.section.begin.bracket.curly.css"
+								}
+							},
+							"end": "}",
+							"endCaptures": {
+								"0": {
+									"name": "punctuation.section.end.bracket.curly.css"
+								}
+							},
+							"name": "meta.at-rule.body.css",
+							"patterns": [
+								{
+									"include": "$self"
+								}
+							]
 						}
 					]
 				}
@@ -1411,7 +1450,7 @@
 					"name": "invalid.illegal.colon.css"
 				}
 			},
-			"match": "(?xi)\n(:)(:*)\n(?: active|any-link|checked|default|disabled|empty|enabled|first\n  | (?:first|last|only)-(?:child|of-type)|focus|focus-within|fullscreen|host|hover\n  | in-range|indeterminate|invalid|left|link|optional|out-of-range\n  | read-only|read-write|required|right|root|scope|target|unresolved\n  | valid|visited\n)(?![\\w-]|\\s*[;}])",
+			"match": "(?xi)\n(:)(:*)\n(?: active|any-link|checked|default|defined|disabled|empty|enabled|first\n  | (?:first|last|only)-(?:child|of-type)|focus|focus-visible|focus-within\n  | fullscreen|host|hover|in-range|indeterminate|invalid|left|link\n  | optional|out-of-range|placeholder-shown|read-only|read-write\n  | required|right|root|scope|target|unresolved\n  | valid|visited\n)(?![\\w-]|\\s*[;}])",
 			"name": "entity.other.attribute-name.pseudo-class.css"
 		},
 		"pseudo-elements": {

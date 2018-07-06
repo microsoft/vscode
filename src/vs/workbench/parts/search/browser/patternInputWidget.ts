@@ -130,10 +130,7 @@ export class PatternInputWidget extends Widget {
 	}
 
 	public onSearchSubmit(): void {
-		const value = this.getValue();
-		if (value) {
-			this.inputBox.addToHistory(value);
-		}
+		this.inputBox.addToHistory();
 	}
 
 	public showNextTerm() {
