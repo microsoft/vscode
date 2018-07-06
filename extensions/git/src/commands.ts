@@ -630,12 +630,13 @@ export class CommandCenter {
 
 		const selection = resourceStates.filter(s => s instanceof Resource) as Resource[];
 		const merge = selection.filter(s => s.resourceGroupType === ResourceGroupType.Merge);
-		const bothModified = merge.filter(s => s.type === Status.BOTH_MODIFIED);
+		const isBothAddedOrModified = (s: Resource) => s.type === Status.BOTH_MODIFIED || s.type === Status.BOTH_ADDED;
+		const bothModified = merge.filter(isBothAddedOrModified);
 		const promises = bothModified.map(s => grep(s.resourceUri.fsPath, /^<{7}|^={7}|^>{7}/));
 		const unresolvedBothModified = await Promise.all<boolean>(promises);
 		const resolvedConflicts = bothModified.filter((s, i) => !unresolvedBothModified[i]);
 		const unresolvedConflicts = [
-			...merge.filter(s => s.type !== Status.BOTH_MODIFIED),
+			...merge.filter(s => !isBothAddedOrModified(s)),
 			...bothModified.filter((s, i) => unresolvedBothModified[i])
 		];
 
