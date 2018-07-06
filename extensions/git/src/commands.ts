@@ -667,12 +667,19 @@ export class CommandCenter {
 	@command('git.stageAll', { repository: true })
 	async stageAll(repository: Repository): Promise<void> {
 		const resources = repository.mergeGroup.resourceStates.filter(s => s instanceof Resource) as Resource[];
-		const mergeConflicts = resources.filter(s => s.resourceGroupType === ResourceGroupType.Merge);
+		const merge = resources.filter(s => s.resourceGroupType === ResourceGroupType.Merge);
+		const bothModified = merge.filter(s => s.type === Status.BOTH_MODIFIED);
+		const promises = bothModified.map(s => grep(s.resourceUri.fsPath, /^<{7}|^={7}|^>{7}/));
+		const unresolvedBothModified = await Promise.all<boolean>(promises);
+		const unresolvedConflicts = [
+			...merge.filter(s => s.type !== Status.BOTH_MODIFIED),
+			...bothModified.filter((s, i) => unresolvedBothModified[i])
+		];
 
-		if (mergeConflicts.length > 0) {
-			const message = mergeConflicts.length > 1
-				? localize('confirm stage files with merge conflicts', "Are you sure you want to stage {0} files with merge conflicts?", mergeConflicts.length)
-				: localize('confirm stage file with merge conflicts', "Are you sure you want to stage {0} with merge conflicts?", path.basename(mergeConflicts[0].resourceUri.fsPath));
+		if (unresolvedConflicts.length > 0) {
+			const message = unresolvedConflicts.length > 1
+				? localize('confirm stage files with merge conflicts', "Are you sure you want to stage {0} files with merge conflicts?", merge.length)
+				: localize('confirm stage file with merge conflicts', "Are you sure you want to stage {0} with merge conflicts?", path.basename(merge[0].resourceUri.fsPath));
 
 			const yes = localize('yes', "Yes");
 			const pick = await window.showWarningMessage(message, { modal: true }, yes);
