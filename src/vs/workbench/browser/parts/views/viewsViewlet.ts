@@ -42,21 +42,12 @@ export abstract class TreeViewsViewletPanel extends ViewletPanel {
 	protected get tree(): WorkbenchTree { return this._tree; }
 	protected set tree(tree: WorkbenchTree) {
 		this._tree = tree;
-		this.disposables.push(tree);
 		let tabEntry = true;
 
-		this.disposables.push(this.tree.onDidFocus(() => {
-			if (tabEntry) {
-				this._onDidTabFocus.fire();
-			}
-		}));
-
-		this.disposables.push(this.tree.onDidClick(() => {
-			tabEntry = false;
-			setTimeout(() => tabEntry = true, 10);
-		}));
-
-		this.onDidTabFocus(() => this.focusFirstIfNoFocus());
+		this.disposables.push(this.onDidTabFocus(() => this.focusFirstIfNoFocus()));
+		this.disposables.push(this._tree.onDidClick(() => { tabEntry = false; setTimeout(() => tabEntry = true, 10); }));
+		this.disposables.push(this._tree.onDidFocus(() => { if (tabEntry) { this._onDidTabFocus.fire(); } }));
+		this.disposables.push(this._tree);
 	}
 
 
