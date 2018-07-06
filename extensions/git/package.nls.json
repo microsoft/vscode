@@ -3,7 +3,7 @@
 	"description": "Git SCM Integration",
 	"command.clone": "Clone",
 	"command.init": "Initialize Repository",
-	"command.loadRepo": "Load Repo",
+	"command.openRepository": "Open Repository",
 	"command.close": "Close Repository",
 	"command.refresh": "Refresh",
 	"command.openChange": "Open Changes",

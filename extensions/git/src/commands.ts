@@ -501,38 +501,28 @@ export class CommandCenter {
 		}
 
 		await this.git.init(path);
-		await this.model.tryOpenRepository(path);
+		await this.model.openRepository(path);
 	}
 
-	@command('git.loadRepo', { repository: false })
-	async loadRepo(path?: string): Promise<void> {
-
+	@command('git.openRepository', { repository: false })
+	async openRepository(path?: string): Promise<void> {
 		if (!path) {
-			path = await window.showInputBox({
-				prompt: localize('repopath', "Repository Path"),
-				ignoreFocusOut: true
+			const result = await window.showOpenDialog({
+				canSelectFiles: false,
+				canSelectFolders: true,
+				canSelectMany: false,
+				defaultUri: Uri.file(os.homedir()),
+				openLabel: localize('open repo', "Open Repository")
 			});
-		}
 
-		if (path) {
-
-			try {
-
-				if (this.model.getRepository(path)) {
-					await this.model.tryOpenRepository(path);
-				}
-
-				else {
-					window.showInformationMessage(localize('notfound', "Could not find a repository at this path"));
-				}
-
+			if (!result || result.length === 0) {
 				return;
 			}
 
-			catch (err) {
-				//If something went wrong, tryOpenRepository should have already given error
-			}
+			path = result[0].fsPath;
 		}
+
+		await this.model.openRepository(path);
 	}
 
 	@command('git.close', { repository: true })
