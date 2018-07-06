@@ -992,6 +992,12 @@
           "scope": "resource",
           "default": 10,
           "description": "%config.detectSubmodulesLimit%"
+        },
+        "git.alwaysSignOff": {
+          "type": "boolean",
+          "scope": "resource",
+          "default": false,
+          "description": "%config.alwaysSignOff%"
         }
       }
     },
