@@ -82,11 +82,12 @@ export class BreakpointsView extends ViewletPanel {
 		CONTEXT_BREAKPOINTS_FOCUSED.bindTo(this.list.contextKeyService);
 
 		this.list.onContextMenu(this.onListContextMenu, this, this.disposables);
-		this.list.onDidFocus(() => {
+
+		this.disposables.push(this.list.onDidFocus(() => {
 			if (this.list.getFocusedElements().length === 0) {
 				this.list.focusFirst();
 			}
-		});
+		}));
 
 		this.disposables.push(this.list.onOpen(e => {
 			let isSingleClick = false;
