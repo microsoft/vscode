@@ -137,6 +137,22 @@ const ImageMimetypes = [
 	'image/bmp'
 ];
 
+async function categorizeResourceByResolution(resources: Resource[]): Promise<{ merge: Resource[], resolved: Resource[], unresolved: Resource[] }> {
+	const selection = resources.filter(s => s instanceof Resource) as Resource[];
+	const merge = selection.filter(s => s.resourceGroupType === ResourceGroupType.Merge);
+	const isBothAddedOrModified = (s: Resource) => s.type === Status.BOTH_MODIFIED || s.type === Status.BOTH_ADDED;
+	const possibleUnresolved = merge.filter(isBothAddedOrModified);
+	const promises = possibleUnresolved.map(s => grep(s.resourceUri.fsPath, /^<{7}|^={7}|^>{7}/));
+	const unresolvedBothModified = await Promise.all<boolean>(promises);
+	const resolved = possibleUnresolved.filter((s, i) => !unresolvedBothModified[i]);
+	const unresolved = [
+		...merge.filter(s => !isBothAddedOrModified(s)),
+		...possibleUnresolved.filter((s, i) => unresolvedBothModified[i])
+	];
+
+	return { merge, resolved, unresolved };
+}
+
 export class CommandCenter {
 
 	private disposables: Disposable[];
@@ -629,21 +645,12 @@ export class CommandCenter {
 		}
 
 		const selection = resourceStates.filter(s => s instanceof Resource) as Resource[];
-		const merge = selection.filter(s => s.resourceGroupType === ResourceGroupType.Merge);
-		const isBothAddedOrModified = (s: Resource) => s.type === Status.BOTH_MODIFIED || s.type === Status.BOTH_ADDED;
-		const bothModified = merge.filter(isBothAddedOrModified);
-		const promises = bothModified.map(s => grep(s.resourceUri.fsPath, /^<{7}|^={7}|^>{7}/));
-		const unresolvedBothModified = await Promise.all<boolean>(promises);
-		const resolvedConflicts = bothModified.filter((s, i) => !unresolvedBothModified[i]);
-		const unresolvedConflicts = [
-			...merge.filter(s => !isBothAddedOrModified(s)),
-			...bothModified.filter((s, i) => unresolvedBothModified[i])
-		];
+		const { resolved, unresolved } = await categorizeResourceByResolution(selection);
 
-		if (unresolvedConflicts.length > 0) {
-			const message = unresolvedConflicts.length > 1
-				? localize('confirm stage files with merge conflicts', "Are you sure you want to stage {0} files with merge conflicts?", unresolvedConflicts.length)
-				: localize('confirm stage file with merge conflicts', "Are you sure you want to stage {0} with merge conflicts?", path.basename(unresolvedConflicts[0].resourceUri.fsPath));
+		if (unresolved.length > 0) {
+			const message = unresolved.length > 1
+				? localize('confirm stage files with merge conflicts', "Are you sure you want to stage {0} files with merge conflicts?", unresolved.length)
+				: localize('confirm stage file with merge conflicts', "Are you sure you want to stage {0} with merge conflicts?", path.basename(unresolved[0].resourceUri.fsPath));
 
 			const yes = localize('yes', "Yes");
 			const pick = await window.showWarningMessage(message, { modal: true }, yes);
@@ -654,7 +661,7 @@ export class CommandCenter {
 		}
 
 		const workingTree = selection.filter(s => s.resourceGroupType === ResourceGroupType.WorkingTree);
-		const scmResources = [...workingTree, ...resolvedConflicts, ...unresolvedConflicts];
+		const scmResources = [...workingTree, ...resolved, ...unresolved];
 
 		this.outputChannel.appendLine(`git.stage.scmResources ${scmResources.length}`);
 		if (!scmResources.length) {
@@ -668,17 +675,10 @@ export class CommandCenter {
 	@command('git.stageAll', { repository: true })
 	async stageAll(repository: Repository): Promise<void> {
 		const resources = repository.mergeGroup.resourceStates.filter(s => s instanceof Resource) as Resource[];
-		const merge = resources.filter(s => s.resourceGroupType === ResourceGroupType.Merge);
-		const bothModified = merge.filter(s => s.type === Status.BOTH_MODIFIED);
-		const promises = bothModified.map(s => grep(s.resourceUri.fsPath, /^<{7}|^={7}|^>{7}/));
-		const unresolvedBothModified = await Promise.all<boolean>(promises);
-		const unresolvedConflicts = [
-			...merge.filter(s => s.type !== Status.BOTH_MODIFIED),
-			...bothModified.filter((s, i) => unresolvedBothModified[i])
-		];
+		const { merge, unresolved } = await categorizeResourceByResolution(resources);
 
-		if (unresolvedConflicts.length > 0) {
-			const message = unresolvedConflicts.length > 1
+		if (unresolved.length > 0) {
+			const message = unresolved.length > 1
 				? localize('confirm stage files with merge conflicts', "Are you sure you want to stage {0} files with merge conflicts?", merge.length)
 				: localize('confirm stage file with merge conflicts', "Are you sure you want to stage {0} with merge conflicts?", path.basename(merge[0].resourceUri.fsPath));
 
