@@ -78,8 +78,7 @@ class InstallAction extends Action {
 
 						return createSymlink().then(null, err => {
 							if (err.code === 'EACCES' || err.code === 'ENOENT') {
-								return this.createBinFolder()
-									.then(() => createSymlink());
+								return this.createBinFolderAndSymlink();
 							}
 
 							return TPromise.wrapError(err);
@@ -101,14 +100,14 @@ class InstallAction extends Action {
 			.then(null, ignore('ENOENT', false));
 	}
 
-	private createBinFolder(): TPromise<void> {
+	private createBinFolderAndSymlink(): TPromise<void> {
 		return new TPromise<void>((c, e) => {
 			const buttons = [nls.localize('ok', "OK"), nls.localize('cancel2', "Cancel")];
 
 			this.dialogService.show(Severity.Info, nls.localize('warnEscalation', "Code will now prompt with 'osascript' for Administrator privileges to install the shell command."), buttons, { cancelId: 1 }).then(choice => {
 				switch (choice) {
 					case 0 /* OK */:
-						const command = 'osascript -e "do shell script \\"mkdir -p /usr/local/bin && chown \\" & (do shell script (\\"whoami\\")) & \\" /usr/local/bin\\" with administrator privileges"';
+						const command = 'osascript -e "do shell script \\"mkdir -p /usr/local/bin && ln -sf \'' + getSource() + '\' \'' + this.target + '\'\\" with administrator privileges"';
 
 						nfcall(cp.exec, command, {})
 							.then(null, _ => TPromise.wrapError(new Error(nls.localize('cantCreateBinFolder', "Unable to create '/usr/local/bin'."))))
