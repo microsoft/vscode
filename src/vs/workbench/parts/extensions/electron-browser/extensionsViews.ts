@@ -89,6 +89,13 @@ export class ExtensionsListView extends ViewletPanel {
 			ariaLabel: localize('extensions', "Extensions"),
 			multipleSelectionSupport: false
 		}) as WorkbenchPagedList<IExtension>;
+
+		this.disposables.push(this.list.onDidFocus(() => {
+			if (this.list.getSelection().length === 0 && this.list.getFocus().length === 0) {
+				this.list.focusNext();
+			}
+		}));
+
 		this.disposables.push(this.list);
 
 		chain(this.list.onOpen)
@@ -645,9 +652,6 @@ export class ExtensionsListView extends ViewletPanel {
 	focus(): void {
 		super.focus();
 		this.list.domFocus();
-		if (this.list.getSelection().length === 0 && this.list.getFocus().length === 0) {
-			this.list.focusNext();
-		}
 	}
 }
 
