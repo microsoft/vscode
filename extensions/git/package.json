@@ -1002,7 +1002,7 @@
           "default": false,
           "description": "%config.alwaysSignOff%"
         },
-        "git.ignoreRepositories": {
+        "git.ignoredRepositories": {
           "type": "array",
           "default": [],
           "scope": "window",
