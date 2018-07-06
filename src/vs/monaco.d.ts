@@ -2513,6 +2513,10 @@ declare namespace monaco.editor {
 		 * Enable graceful matching. Defaults to true.
 		 */
 		filterGraceful?: boolean;
+		/**
+		 * Prevent quick suggestions when a snippet is active. Defaults to true.
+		 */
+		snippetsPreventQuickSuggestions?: boolean;
 	}
 
 	/**

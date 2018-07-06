@@ -163,6 +163,10 @@ export interface ISuggestOptions {
 	 * Enable graceful matching. Defaults to true.
 	 */
 	filterGraceful?: boolean;
+	/**
+	 * Prevent quick suggestions when a snippet is active. Defaults to true.
+	 */
+	snippetsPreventQuickSuggestions?: boolean;
 }
 
 /**
@@ -1253,7 +1257,9 @@ export class InternalEditorOptions {
 		} else if (!a || !b) {
 			return false;
 		} else {
-			return a.filterGraceful === b.filterGraceful && a.snippets === b.snippets;
+			return a.filterGraceful === b.filterGraceful
+				&& a.snippets === b.snippets
+				&& a.snippetsPreventQuickSuggestions === b.snippetsPreventQuickSuggestions;
 		}
 	}
 
@@ -1752,7 +1758,7 @@ export class EditorOptionsValidator {
 		return {
 			filterGraceful: _boolean(opts.suggest.filterGraceful, defaults.filterGraceful),
 			snippets: _stringSet<'top' | 'bottom' | 'inline' | 'none'>(opts.snippetSuggestions, defaults.snippets, ['top', 'bottom', 'inline', 'none']),
-			snippetsPreventQuickSuggestions: true,
+			snippetsPreventQuickSuggestions: _boolean(opts.suggest.snippetsPreventQuickSuggestions, defaults.filterGraceful),
 		};
 	}
 
