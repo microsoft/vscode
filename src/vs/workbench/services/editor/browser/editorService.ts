@@ -17,7 +17,7 @@ import { IFileService } from 'vs/platform/files/common/files';
 import { Schemas } from 'vs/base/common/network';
 import { Event, once, Emitter } from 'vs/base/common/event';
 import { URI } from 'vs/base/common/uri';
-import { basename } from 'vs/base/common/paths';
+import { basename, sep } from 'vs/base/common/paths';
 import { DiffEditorInput } from 'vs/workbench/common/editor/diffEditorInput';
 import { localize } from 'vs/nls';
 import { TPromise } from 'vs/base/common/winjs.base';
@@ -486,15 +486,15 @@ export class EditorService extends Disposable implements EditorServiceImpl {
 		if (resourceDiffInput.leftResource && resourceDiffInput.rightResource) {
 			const leftInput = this.createInput({ resource: resourceDiffInput.leftResource, forceFile: resourceDiffInput.forceFile });
 			const rightInput = this.createInput({ resource: resourceDiffInput.rightResource, forceFile: resourceDiffInput.forceFile });
-			const label = resourceDiffInput.label || localize('compareLabels', "{0} ↔ {1}", this.toDiffLabel(leftInput), this.toDiffLabel(rightInput));
-			const leftLabel = this.toDiffLabel(leftInput, this.workspaceContextService, this.environmentService);
-			const rightLabel = this.toDiffLabel(rightInput, this.workspaceContextService, this.environmentService);
+			const leftLabel = this.toDiffLabel(leftInput);
+			const rightLabel = this.toDiffLabel(rightInput);
 			const commonPrefix = [leftLabel, rightLabel].join('|').match(/^([^|]*)[^|]*(?:\|\1.*)*$/)[1];
-			const leftSlice = leftLabel.slice(commonPrefix.length);
-			const rightSlice = rightLabel.slice(commonPrefix.length);
+			const commonPath = commonPrefix.slice(0, commonPrefix.lastIndexOf(sep) + 1);
+			const leftSlice = leftLabel.slice(commonPath.length);
+			const rightSlice = rightLabel.slice(commonPath.length);
 			const label = resourceDiffInput.label || localize('compareLabels', "{0} ↔ {1}", leftSlice, rightSlice);
 
-			return new DiffEditorInput(label, commonPrefix, leftInput, rightInput);
+			return new DiffEditorInput(label, commonPath, leftInput, rightInput);
 		}
 
 		// Untitled file support
