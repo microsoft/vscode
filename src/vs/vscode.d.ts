@@ -6168,18 +6168,12 @@ declare module 'vscode' {
 		 * be able to handle uris which are directed to the extension itself. A uri must respect
 		 * the following rules:
 		 *
-		 * - The uri-scheme must be the product name (eg. `vscode`);
-		 * - The uri-authority must be the extension id (eg. `vscode-git`);
+		 * - The uri-scheme must be the product name;
+		 * - The uri-authority must be the extension id (eg. `my.extension`);
 		 * - The uri-path, -query and -fragment parts are arbitrary.
 		 *
-		 * For example, if the `vscode.git` extension registers a uri handler, it will only
-		 * be allowed to handle uris with the prefix `{product}://vscode.git`. All the following
-		 * uris are examples:
-		 *
-		 * - `vscode://vscode.git`
-		 * - `vscode://vscode.git/`
-		 * - `vscode://vscode.git/status`
-		 * - `vscode://vscode.git/clone?when=now`
+		 * For example, if the `my.extension` extension registers a uri handler, it will only
+		 * be allowed to handle uris with the prefix `product-name://my.extension`.
 		 *
 		 * An extension can only register a single uri handler in its entire activation lifetime.
 		 *
