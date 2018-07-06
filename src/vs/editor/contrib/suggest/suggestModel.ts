@@ -18,6 +18,7 @@ import { ITextModel, IWordAtPosition } from 'vs/editor/common/model';
 import { ISuggestSupport, StandardTokenType, SuggestContext, SuggestRegistry, SuggestTriggerKind } from 'vs/editor/common/modes';
 import { CompletionModel } from './completionModel';
 import { ISuggestionItem, getSuggestionComparator, provideSuggestionItems, getSnippetSuggestSupport } from './suggest';
+import { SnippetController2 } from 'vs/editor/contrib/snippet/snippetController2';
 
 export interface ICancelEvent {
 	readonly retrigger: boolean;
@@ -270,6 +271,11 @@ export class SuggestModel implements IDisposable {
 
 			if (!prevSelection.containsRange(this._currentSelection) && !prevSelection.getEndPosition().isBeforeOrEqual(this._currentSelection.getPosition())) {
 				// cursor didn't move RIGHT
+				return;
+			}
+
+			if (this._editor.getConfiguration().contribInfo.suggest.snippetsPreventQuickSuggestions && SnippetController2.get(this._editor).isInSnippet()) {
+				// no quick suggestion when in snippet mode
 				return;
 			}
 

@@ -844,6 +844,7 @@ export interface InternalEditorHoverOptions {
 export interface InternalSuggestOptions {
 	readonly filterGraceful: boolean;
 	readonly snippets: 'top' | 'bottom' | 'inline' | 'none';
+	readonly snippetsPreventQuickSuggestions: boolean;
 }
 
 export interface EditorWrappingInfo {
@@ -1751,6 +1752,7 @@ export class EditorOptionsValidator {
 		return {
 			filterGraceful: _boolean(opts.suggest.filterGraceful, defaults.filterGraceful),
 			snippets: _stringSet<'top' | 'bottom' | 'inline' | 'none'>(opts.snippetSuggestions, defaults.snippets, ['top', 'bottom', 'inline', 'none']),
+			snippetsPreventQuickSuggestions: true,
 		};
 	}
 
@@ -2470,7 +2472,8 @@ export const EDITOR_DEFAULTS: IValidatedEditorOptions = {
 		suggestLineHeight: 0,
 		suggest: {
 			filterGraceful: true,
-			snippets: 'inline'
+			snippets: 'inline',
+			snippetsPreventQuickSuggestions: true
 		},
 		selectionHighlight: true,
 		occurrencesHighlight: true,

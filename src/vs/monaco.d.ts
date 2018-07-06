@@ -3123,6 +3123,7 @@ declare namespace monaco.editor {
 	export interface InternalSuggestOptions {
 		readonly filterGraceful: boolean;
 		readonly snippets: 'top' | 'bottom' | 'inline' | 'none';
+		readonly snippetsPreventQuickSuggestions: boolean;
 	}
 
 	export interface EditorWrappingInfo {
