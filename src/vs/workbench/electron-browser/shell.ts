@@ -42,7 +42,7 @@ import { IIntegrityService } from 'vs/platform/integrity/common/integrity';
 import { EditorWorkerServiceImpl } from 'vs/editor/common/services/editorWorkerServiceImpl';
 import { IEditorWorkerService } from 'vs/editor/common/services/editorWorkerService';
 import { ExtensionService } from 'vs/workbench/services/extensions/electron-browser/extensionService';
-import { IStorageService } from 'vs/platform/storage/common/storage';
+import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
 import { InstantiationService } from 'vs/platform/instantiation/common/instantiationService';
@@ -93,7 +93,7 @@ import { NotificationService } from 'vs/workbench/services/notification/common/n
 import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
 import { DialogService } from 'vs/workbench/services/dialogs/electron-browser/dialogService';
 import { DialogChannel } from 'vs/platform/dialogs/common/dialogIpc';
-import { EventType, addDisposableListener, addClass, getClientArea } from 'vs/base/browser/dom';
+import { EventType, addDisposableListener, addClass, getClientArea, getDomNodePagePosition } from 'vs/base/browser/dom';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
 import { OpenerService } from 'vs/editor/browser/services/openerService';
 import { SearchHistoryService } from 'vs/workbench/services/search/node/searchHistoryService';
@@ -199,6 +199,9 @@ export class WorkbenchShell extends Disposable {
 
 			// Startup Workbench
 			workbench.startup().done(startupInfos => {
+
+				// Remove splash screen
+				this._removePartsSplash();
 
 				// Set lifecycle phase to `Runnning` so that other contributions can now do something
 				this.lifecycleService.phase = LifecyclePhase.Running;
@@ -536,12 +539,36 @@ export class WorkbenchShell extends Disposable {
 		// Keep font info for next startup around
 		saveFontInfo(this.storageService);
 
+		this._savePartsSplash();
+
 		// Dispose Workbench
 		if (this.workbench) {
 			this.workbench.dispose(reason);
 		}
 	}
+
+	private _savePartsSplash() {
+		let html = '<div id="monaco-parts-splash">';
+		let parts = this.container.querySelectorAll('.part');
+		for (let i = 0; i < parts.length; i++) {
+			let part = parts.item(i) as HTMLElement;
+			let pos = getDomNodePagePosition(part);
+			let { backgroundColor } = window.getComputedStyle(part);
+
+			html += `<div style="position: absolute; top: ${pos.top}px; left: ${pos.left}px; height: ${pos.height}px; width: ${pos.width}px; background-color: ${backgroundColor};"></div>`;
+		}
+		html += '</div>';
+		this.storageService.store('_splash_', html, StorageScope.WORKSPACE);
+	}
+
+	private _removePartsSplash(): void {
+		let element = document.getElementById('monaco-parts-splash');
+		if (element) {
+			element.remove();
+		}
+	}
 }
+
 
 registerThemingParticipant((theme: ITheme, collector: ICssStyleCollector) => {
 

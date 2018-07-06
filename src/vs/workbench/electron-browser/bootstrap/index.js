@@ -70,8 +70,8 @@ function uriFromPath(_path) {
 }
 
 function readFile(file) {
-	return new Promise(function(resolve, reject) {
-		fs.readFile(file, 'utf8', function(err, data) {
+	return new Promise(function (resolve, reject) {
+		fs.readFile(file, 'utf8', function (err, data) {
 			if (err) {
 				reject(err);
 				return;
@@ -79,6 +79,17 @@ function readFile(file) {
 			resolve(data);
 		});
 	});
+}
+
+function showPartsSplash(folder) {
+	const storageKey = `storage://workspace${folder}/_splash_`;
+	const structure = window.localStorage.getItem(storageKey);
+	if (structure) {
+		let splash = document.createElement('div');
+		splash.innerHTML = structure;
+		document.body.appendChild(splash);
+		window.localStorage.removeItem(storageKey);
+	}
 }
 
 const writeFile = (file, content) => new Promise((c, e) => fs.writeFile(file, content, 'utf8', err => err ? e(err) : c()));
@@ -159,6 +170,8 @@ function main() {
 	assign(process.env, configuration.userEnv);
 	perf.importEntries(configuration.perfEntries);
 
+	showPartsSplash(configuration.folderPath);
+
 	// Get the nls configuration into the process.env as early as possible.
 	var nlsConfig = { availableLanguages: {} };
 	const config = process.env['VSCODE_NLS_CONFIG'];
@@ -171,7 +184,7 @@ function main() {
 
 	if (nlsConfig._resolvedLanguagePackCoreLocation) {
 		let bundles = Object.create(null);
-		nlsConfig.loadBundle = function(bundle, language, cb) {
+		nlsConfig.loadBundle = function (bundle, language, cb) {
 			let result = bundles[bundle];
 			if (result) {
 				cb(undefined, result);
