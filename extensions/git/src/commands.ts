@@ -1395,10 +1395,6 @@ export class CommandCenter {
 
 		try {
 			await repository.push(repository.HEAD);
-			const gitConfig = workspace.getConfiguration('git');
-			if (gitConfig.get<boolean>('showPushSuccessNotification')) {
-				window.showInformationMessage(localize('push success', "Successfully pushed."));
-			}
 		} catch (err) {
 			if (err.gitErrorCode !== GitErrorCodes.NoUpstreamBranch) {
 				throw err;

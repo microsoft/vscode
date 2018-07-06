@@ -557,6 +557,16 @@ export class Repository implements Disposable {
 
 		this.disposables.push(new AutoFetcher(this, globalState));
 
+		// https://github.com/Microsoft/vscode/issues/39039
+		const onSuccessfulPush = filterEvent(this.onDidRunOperation, e => e.operation === Operation.Push && !e.error);
+		onSuccessfulPush(() => {
+			const gitConfig = workspace.getConfiguration('git');
+
+			if (gitConfig.get<boolean>('showPushSuccessNotification')) {
+				window.showInformationMessage(localize('push success', "Successfully pushed."));
+			}
+		}, null, this.disposables);
+
 		const statusBar = new StatusBarCommands(this);
 		this.disposables.push(statusBar);
 		statusBar.onDidChange(() => this._sourceControl.statusBarCommands = statusBar.commands, null, this.disposables);
