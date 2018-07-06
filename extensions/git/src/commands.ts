@@ -791,10 +791,10 @@ export class CommandCenter {
 		edit.replace(modifiedUri, new Range(new Position(0, 0), modifiedDocument.lineAt(modifiedDocument.lineCount - 1).range.end), result);
 		workspace.applyEdit(edit);
 
+		await modifiedDocument.save();
+
 		textEditor.selections = selectionsBeforeRevert;
 		textEditor.revealRange(visibleRangesBeforeRevert[0]);
-
-		await modifiedDocument.save();
 	}
 
 	@command('git.unstage')
