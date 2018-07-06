@@ -501,7 +501,7 @@ export class Git {
 export interface Commit {
 	hash: string;
 	message: string;
-	previousHashes: string[];
+	parents: string[];
 }
 
 export class GitStatusParser {
@@ -638,8 +638,8 @@ export function parseGitCommit(raw: string): Commit | null {
 		return null;
 	}
 
-	const previousHashes = match[2] ? match[2].split(' ') : [];
-	return { hash: match[1], message: match[3], previousHashes };
+	const parents = match[2] ? match[2].split(' ') : [];
+	return { hash: match[1], message: match[3], parents };
 }
 
 export interface DiffOptions {

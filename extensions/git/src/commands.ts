@@ -1172,16 +1172,19 @@ export class CommandCenter {
 		const HEAD = repository.HEAD;
 
 		if (!HEAD || !HEAD.commit) {
+			window.showWarningMessage(localize('no more', "Can't undo because HEAD doesn't point to any commit."));
 			return;
 		}
 
 		const commit = await repository.getCommit('HEAD');
-		if (commit.previousHashes.length > 0) {
+
+		if (commit.parents.length > 0) {
 			await repository.reset('HEAD~');
 		} else {
 			await repository.deleteRef('HEAD');
 			await this.unstageAll(repository);
 		}
+
 		repository.inputBox.value = commit.message;
 	}
 
