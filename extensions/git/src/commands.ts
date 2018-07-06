@@ -504,6 +504,37 @@ export class CommandCenter {
 		await this.model.tryOpenRepository(path);
 	}
 
+	@command('git.loadRepo', { repository: false })
+	async loadRepo(path?: string): Promise<void> {
+
+		if (!path) {
+			path = await window.showInputBox({
+				prompt: localize('repopath', "Repository Path"),
+				ignoreFocusOut: true
+			});
+		}
+
+		if (path) {
+
+			try {
+
+				if (this.model.getRepository(path)) {
+					await this.model.tryOpenRepository(path);
+				}
+
+				else {
+					window.showInformationMessage(localize('notfound', "Could not find a repository at this path"));
+				}
+
+				return;
+			}
+
+			catch (err) {
+				//If something went wrong, tryOpenRepository should have already given error
+			}
+		}
+	}
+
 	@command('git.close', { repository: true })
 	async close(repository: Repository): Promise<void> {
 		this.model.close(repository);
