@@ -11,11 +11,6 @@ import { TypeScriptServiceConfiguration } from './utils/configuration';
 import Logger from './utils/logger';
 import BufferSyncSupport from './features/bufferSyncSupport';
 
-declare module './protocol' {
-	export type JsxClosingTagRequestArgs = any;
-	export type JsxClosingTagResponse = any;
-}
-
 export interface ITypeScriptServiceClient {
 	/**
 	 * Convert a resource (VS Code) to a normalized path (TypeScript).
