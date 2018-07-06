@@ -318,20 +318,9 @@ class TypeScriptCompletionItemProvider implements vscode.CompletionItemProvider 
 		}
 
 		const enableDotCompletions = this.shouldEnableDotCompletions(document, position);
-
-		const completionItems: vscode.CompletionItem[] = [];
-		for (const element of msg) {
-			if (element.kind === PConst.Kind.warning && !completionConfiguration.nameSuggestions) {
-				continue;
-			}
-			if (!completionConfiguration.autoImportSuggestions && element.hasAction) {
-				continue;
-			}
-			const item = new MyCompletionItem(position, document, line.text, element, enableDotCompletions, completionConfiguration.useCodeSnippetsOnMethodSuggest);
-			completionItems.push(item);
-		}
-
-		return completionItems;
+		return msg
+			.filter(entry => !shouldExcludeCompletionEntry(entry, completionConfiguration))
+			.map(entry => new MyCompletionItem(position, document, line.text, entry, enableDotCompletions, completionConfiguration.useCodeSnippetsOnMethodSuggest));
 	}
 
 	public async resolveCompletionItem(
@@ -595,6 +584,17 @@ class TypeScriptCompletionItemProvider implements vscode.CompletionItemProvider 
 	}
 }
 
+function shouldExcludeCompletionEntry(
+	element: Proto.CompletionEntry,
+	completionConfiguration: CompletionConfiguration
+) {
+	return (
+		(!completionConfiguration.nameSuggestions && element.kind === PConst.Kind.warning)
+		|| (!completionConfiguration.quickSuggestionsForPaths &&
+			(element.kind === PConst.Kind.directory || element.kind === PConst.Kind.script))
+		|| (!completionConfiguration.autoImportSuggestions && element.hasAction)
+	);
+}
 
 export function register(
 	selector: vscode.DocumentSelector,
