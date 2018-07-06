@@ -991,7 +991,7 @@ export class CommandCenter {
 		getCommitMessage: () => Promise<string | undefined>,
 		opts?: CommitOptions
 	): Promise<boolean> {
-		const config = workspace.getConfiguration('git');
+		const config = workspace.getConfiguration('git', Uri.file(repository.root));
 		const promptToSaveFilesBeforeCommit = config.get<boolean>('promptToSaveFilesBeforeCommit') === true;
 
 		if (promptToSaveFilesBeforeCommit) {

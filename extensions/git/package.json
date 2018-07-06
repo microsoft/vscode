@@ -943,11 +943,13 @@
         },
         "git.enableSmartCommit": {
           "type": "boolean",
+          "scope": "resource",
           "description": "%config.enableSmartCommit%",
           "default": false
         },
         "git.enableCommitSigning": {
           "type": "boolean",
+          "scope": "resource",
           "description": "%config.enableCommitSigning%",
           "default": false
         },
@@ -958,6 +960,7 @@
         },
         "git.promptToSaveFilesBeforeCommit": {
           "type": "boolean",
+          "scope": "resource",
           "default": false,
           "description": "%config.promptToSaveFilesBeforeCommit%"
         },
