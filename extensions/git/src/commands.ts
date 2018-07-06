@@ -501,7 +501,28 @@ export class CommandCenter {
 		}
 
 		await this.git.init(path);
-		await this.model.tryOpenRepository(path);
+		await this.model.openRepository(path);
+	}
+
+	@command('git.openRepository', { repository: false })
+	async openRepository(path?: string): Promise<void> {
+		if (!path) {
+			const result = await window.showOpenDialog({
+				canSelectFiles: false,
+				canSelectFolders: true,
+				canSelectMany: false,
+				defaultUri: Uri.file(os.homedir()),
+				openLabel: localize('open repo', "Open Repository")
+			});
+
+			if (!result || result.length === 0) {
+				return;
+			}
+
+			path = result[0].fsPath;
+		}
+
+		await this.model.openRepository(path);
 	}
 
 	@command('git.close', { repository: true })
