@@ -1001,6 +1001,12 @@
           "scope": "resource",
           "default": false,
           "description": "%config.alwaysSignOff%"
+        },
+        "git.ignoreRepositories": {
+          "type": "array",
+          "default": [],
+          "scope": "window",
+          "description": "%config.ignoredRepositories%"
         }
       }
     },

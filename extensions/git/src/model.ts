@@ -190,6 +190,7 @@ export class Model {
 
 		const config = workspace.getConfiguration('git', Uri.file(path));
 		const enabled = config.get<boolean>('enabled') === true;
+		const ignoredRepos = new Set(config.get<Array<string>>('ignoreRepositories'));
 
 		if (!enabled) {
 			return;
@@ -204,6 +205,10 @@ export class Model {
 			const repositoryRoot = Uri.file(rawRoot).fsPath;
 
 			if (this.getRepository(repositoryRoot)) {
+				return;
+			}
+
+			if (ignoredRepos.has(rawRoot)) {
 				return;
 			}
 
