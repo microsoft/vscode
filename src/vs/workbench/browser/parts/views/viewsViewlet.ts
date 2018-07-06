@@ -26,7 +26,7 @@ import { DefaultPanelDndController } from 'vs/base/browser/ui/splitview/panelvie
 import { WorkbenchTree, IListService } from 'vs/platform/list/browser/listService';
 import { IWorkbenchThemeService, IFileIconTheme } from 'vs/workbench/services/themes/common/workbenchThemeService';
 import { ITreeConfiguration, ITreeOptions } from 'vs/base/parts/tree/browser/tree';
-import { latch, mapEvent } from 'vs/base/common/event';
+import { latch, mapEvent, Emitter } from 'vs/base/common/event';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IPartService } from 'vs/workbench/services/part/common/partService';
 import { localize } from 'vs/nls';
@@ -35,7 +35,17 @@ import { Registry } from 'vs/platform/registry/common/platform';
 
 export abstract class TreeViewsViewletPanel extends ViewletPanel {
 
-	protected tree: WorkbenchTree;
+	private _onDidTabFocus = new Emitter<void>();
+	protected onDidTabFocus = this._onDidTabFocus.event;
+
+	private _tree: WorkbenchTree;
+	protected get tree(): WorkbenchTree { return this._tree; }
+	protected set tree(tree: WorkbenchTree) {
+		this._tree = tree;
+		this.disposables.push(tree);
+		this.initTreeFocusTracker();
+	}
+
 
 	setExpanded(expanded: boolean): void {
 		if (this.isExpanded() !== expanded) {
@@ -81,6 +91,27 @@ export abstract class TreeViewsViewletPanel extends ViewletPanel {
 		}
 	}
 
+	protected focusFirstIfNoFocus() {
+		if (!this.tree.getFocus()) {
+			this.tree.setFocus(this.tree.getFirstVisibleElement());
+		}
+	}
+
+	private initTreeFocusTracker() {
+		let tabEntry = true;
+
+		this.disposables.push(this.tree.onDidFocus(() => {
+			if (tabEntry) {
+				this._onDidTabFocus.fire();
+			}
+		}));
+
+		this.disposables.push(this.tree.onDidClick(() => {
+			tabEntry = false;
+			setTimeout(() => tabEntry = true, 10);
+		}));
+	}
+
 	private focusTree(): void {
 		if (!this.tree) {
 			return; // return early if viewlet has not yet been created
@@ -94,13 +125,6 @@ export abstract class TreeViewsViewletPanel extends ViewletPanel {
 
 		// Pass Focus to Viewer
 		this.tree.domFocus();
-	}
-
-	dispose(): void {
-		if (this.tree) {
-			this.tree.dispose();
-		}
-		super.dispose();
 	}
 }
 

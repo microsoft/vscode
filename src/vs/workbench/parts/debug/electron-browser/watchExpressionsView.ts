@@ -84,6 +84,7 @@ export class WatchExpressionsView extends TreeViewsViewletPanel {
 		const removeAllWatchExpressionsAction = new RemoveAllWatchExpressionsAction(RemoveAllWatchExpressionsAction.ID, RemoveAllWatchExpressionsAction.LABEL, this.debugService, this.keybindingService);
 		this.toolbar.setActions([addWatchExpressionAction, collapseAction, removeAllWatchExpressionsAction])();
 
+		this.disposables.push(this.onDidTabFocus(() => this.focusFirstIfNoFocus()));
 		this.disposables.push(this.debugService.getModel().onDidChangeWatchExpressions(we => {
 			if (!this.isExpanded() || !this.isVisible()) {
 				this.needsRefresh = true;

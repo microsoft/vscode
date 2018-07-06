@@ -439,6 +439,9 @@ export class TreeView extends HeightMap {
 	private highlightedItemWasDraggable: boolean;
 	private onHiddenScrollTop: number;
 
+	private readonly _onDOMClick: Emitter<void> = new Emitter<void>();
+	get onDOMClick(): Event<void> { return this._onDOMClick.event; }
+
 	private readonly _onDOMFocus: Emitter<void> = new Emitter<void>();
 	get onDOMFocus(): Event<void> { return this._onDOMFocus.event; }
 
@@ -1208,6 +1211,7 @@ export class TreeView extends HeightMap {
 		}
 
 		this.context.controller.onMouseDown(this.context.tree, item.model.getElement(), event);
+		this._onDOMClick.fire();
 	}
 
 	private onMouseUp(e: MouseEvent): void {
@@ -1681,6 +1685,7 @@ export class TreeView extends HeightMap {
 
 		this._onDOMFocus.dispose();
 		this._onDOMBlur.dispose();
+		this._onDOMClick.dispose();
 
 		if (this.domNode.parentNode) {
 			this.domNode.parentNode.removeChild(this.domNode);

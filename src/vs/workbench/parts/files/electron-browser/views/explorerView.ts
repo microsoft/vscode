@@ -194,6 +194,7 @@ export class ExplorerView extends TreeViewsViewletPanel implements IExplorerView
 			this.toolbar.setActions(this.getActions(), this.getSecondaryActions())();
 		}
 
+		this.disposables.push(this.onDidTabFocus(() => this.focusFirstIfNoFocus()));
 		this.disposables.push(this.contextService.onDidChangeWorkspaceFolders(e => this.refreshFromEvent(e.added)));
 		this.disposables.push(this.contextService.onDidChangeWorkbenchState(e => this.refreshFromEvent()));
 	}
