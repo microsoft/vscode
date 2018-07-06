@@ -682,7 +682,7 @@ export class CodeMenu {
 		const twoRowsEditorLayout = this.createMenuItem(nls.localize({ key: 'miTwoRowsEditorLayout', comment: ['&& denotes a mnemonic'] }, "T&&wo Rows"), 'workbench.action.editorLayoutTwoRows');
 		const threeRowsEditorLayout = this.createMenuItem(nls.localize({ key: 'miThreeRowsEditorLayout', comment: ['&& denotes a mnemonic'] }, "Three &&Rows"), 'workbench.action.editorLayoutThreeRows');
 		const twoByTwoGridEditorLayout = this.createMenuItem(nls.localize({ key: 'miTwoByTwoGridEditorLayout', comment: ['&& denotes a mnemonic'] }, "&&Grid (2x2)"), 'workbench.action.editorLayoutTwoByTwoGrid');
-		const twoColumnsRightEditorLayout = this.createMenuItem(nls.localize({ key: 'miTwoColumnsRightEditorLayout', comment: ['&& denotes a mnemonic'] }, "Two C&&olumns Right"), 'workbench.action.editorLayoutTwoColumnsRight');
+		const twoRowsRightEditorLayout = this.createMenuItem(nls.localize({ key: 'miTwoRowsRightEditorLayout', comment: ['&& denotes a mnemonic'] }, "Two R&&ows Right"), 'workbench.action.editorLayoutTwoRowsRight');
 		const twoColumnsBottomEditorLayout = this.createMenuItem(nls.localize({ key: 'miTwoColumnsBottomEditorLayout', comment: ['&& denotes a mnemonic'] }, "Two &&Columns Bottom"), 'workbench.action.editorLayoutTwoColumnsBottom');
 
 		const toggleEditorLayout = this.createMenuItem(nls.localize({ key: 'miToggleEditorLayout', comment: ['&& denotes a mnemonic'] }, "Toggle Vertical/Horizontal &&Layout"), 'workbench.action.toggleEditorGroupLayout');
@@ -699,7 +699,7 @@ export class CodeMenu {
 			twoRowsEditorLayout,
 			threeRowsEditorLayout,
 			twoByTwoGridEditorLayout,
-			twoColumnsRightEditorLayout,
+			twoRowsRightEditorLayout,
 			twoColumnsBottomEditorLayout,
 			__separator__(),
 			toggleEditorLayout

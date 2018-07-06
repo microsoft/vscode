@@ -452,9 +452,9 @@ export function createApiFactory(
 			registerDecorationProvider: proposedApiFunction(extension, (provider: vscode.DecorationProvider) => {
 				return extHostDecorations.registerDecorationProvider(provider, extension.id);
 			}),
-			registerProtocolHandler: proposedApiFunction(extension, (handler: vscode.ProtocolHandler) => {
-				return extHostUrls.registerProtocolHandler(extension.id, handler);
-			}),
+			registerUriHandler(handler: vscode.UriHandler) {
+				return extHostUrls.registerUriHandler(extension.id, handler);
+			},
 			get quickInputBackButton() {
 				return proposedApiFunction(extension, (): vscode.QuickInputButton => {
 					return extHostQuickOpen.backButton;
