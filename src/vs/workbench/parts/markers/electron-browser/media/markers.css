@@ -79,8 +79,7 @@
 	display: none;
 }
 
-.markers-panel .markers-panel-container .tree-container.hidden,
-.markers-panel .markers-panel-container .message-box-container.hidden {
+.markers-panel .markers-panel-container .tree-container.hidden {
 	display: none;
 	visibility: hidden;
 }
