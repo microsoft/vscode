@@ -407,7 +407,7 @@ export class KeybindingsEditor extends BaseEditor implements IKeybindingsEditor 
 			const filter = this.searchWidget.getValue();
 			const keybindingsEntries: IKeybindingItemEntry[] = this.keybindingsEditorModel.fetch(filter, this.sortByPrecedence.checked);
 
-			this.ariaLabelElement.setAttribute('aria-label', this.getAriaLabel());
+			this.ariaLabelElement.setAttribute('aria-label', this.getAriaLabel(keybindingsEntries));
 
 			if (keybindingsEntries.length === 0) {
 				this.latestEmptyFilters.push(filter);
@@ -437,11 +437,11 @@ export class KeybindingsEditor extends BaseEditor implements IKeybindingsEditor 
 		}
 	}
 
-	private getAriaLabel(): string {
+	private getAriaLabel(keybindingsEntries: IKeybindingItemEntry[]): string {
 		if (this.sortByPrecedence.checked) {
-			return localize('show sorted keybindings', "Showing Keybindings in precendence order");
+			return localize('show sorted keybindings', "Showing {0} Keybindings in precendence order", keybindingsEntries.length);
 		} else {
-			return localize('show keybindings', "Showing Keybindings in alphabetical order");
+			return localize('show keybindings', "Showing {0} Keybindings in alphabetical order", keybindingsEntries.length);
 		}
 	}
 
