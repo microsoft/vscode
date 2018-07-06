@@ -68,6 +68,7 @@
 	"config.decorations.enabled": "Controls if Git contributes colors and badges to the explorer and the open editors view.",
 	"config.promptToSaveFilesBeforeCommit": "Controls whether Git should check for unsaved files before committing.",
 	"config.showInlineOpenFileAction": "Controls whether to show an inline Open File action in the Git changes view.",
+	"config.statusBarSyncRebase": "Controls whether status bar sync icon will Sync with Rebase or not",
 	"config.inputValidation": "Controls when to show commit message input validation.",
 	"config.detectSubmodules": "Controls whether to automatically detect git submodules.",
 	"colors.added": "Color for added resources.",
