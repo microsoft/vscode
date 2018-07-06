@@ -204,7 +204,7 @@ export class MarkersPanel extends Panel {
 			filter: new Viewer.DataFilter(),
 			renderer,
 			controller,
-			accessibilityProvider: new Viewer.MarkersTreeAccessibilityProvider(),
+			accessibilityProvider: this.instantiationService.createInstance(Viewer.MarkersTreeAccessibilityProvider),
 			dnd
 		}, {
 				twistiePixels: 20,
