@@ -966,6 +966,11 @@
           "default": true,
           "description": "%config.showInlineOpenFileAction%"
         },
+        "git.showPushSuccessNotification": {
+          "type": "boolean",
+          "description": "%config.showPushSuccessNotification%",
+          "default": false
+        },
         "git.inputValidation": {
           "type": "string",
           "enum": [
