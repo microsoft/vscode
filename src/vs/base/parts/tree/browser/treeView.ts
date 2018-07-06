@@ -411,6 +411,7 @@ export class TreeView extends HeightMap {
 	private msGesture: MSGesture;
 	private lastPointerType: string;
 	private lastClickTimeStamp: number = 0;
+	private enteredWithClick: boolean = false;
 
 	private horizontalScrolling: boolean;
 	private contentWidthUpdateDelayer = new Delayer<void>(50);
@@ -1187,6 +1188,9 @@ export class TreeView extends HeightMap {
 	private onMouseDown(e: MouseEvent): void {
 		this.didJustPressContextMenuKey = false;
 
+		this.enteredWithClick = true;
+		setTimeout(() => this.enteredWithClick = false, 10);
+
 		if (!this.context.controller.onMouseDown) {
 			return;
 		}
@@ -1569,8 +1573,8 @@ export class TreeView extends HeightMap {
 		if (!this.context.options.alwaysFocused) {
 			DOM.addClass(this.domNode, 'focused');
 		}
-		if (this.model && !this.model.getFocus()) {
-			this.focusPreviousPage();
+		if (this.model && !this.enteredWithClick && this.getFirstVisibleElement() && this.model.getFocus() === null) {
+			this.model.setFocus(this.getFirstVisibleElement());
 		}
 		this._onDOMFocus.fire();
 	}
