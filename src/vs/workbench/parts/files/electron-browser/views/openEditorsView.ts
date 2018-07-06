@@ -175,7 +175,7 @@ export class OpenEditorsView extends ViewletPanel {
 		}));
 	}
 
-	protected renderHeaderTitle(container: HTMLElement): HTMLElement {
+	protected renderHeaderTitle(container: HTMLElement): void {
 
 		const title = $('span', null, this.title);
 		const count = $('.count');
@@ -195,7 +195,7 @@ export class OpenEditorsView extends ViewletPanel {
 		})));
 
 		this.updateDirtyIndicator();
-		return super.renderHeaderTitle(container, [], [title, count]);
+		super.renderHeaderTitle(container, [], [title, count]);
 	}
 
 	public renderBody(container: HTMLElement): void {

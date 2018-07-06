@@ -119,8 +119,8 @@ export abstract class ViewletPanel extends Panel implements IView {
 		this.updateActionsVisibility();
 	}
 
-	protected renderHeaderTitle(container: HTMLElement, classList: string[], children: (string | Node)[]): HTMLElement {
-		return append(container, $('h3.' + ['title', ...classList].join('.'), null, ...children));
+	protected renderHeaderTitle(container: HTMLElement, classList: string[], children: (string | Node)[]): void {
+		append(container, $('h3.' + ['title', ...classList].join('.'), null, ...children));
 	}
 
 	focus(): void {

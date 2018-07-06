@@ -71,14 +71,14 @@ export class ExtensionsListView extends ViewletPanel {
 		super({ ...(options as IViewletPanelOptions), ariaHeaderLabel: options.title }, keybindingService, contextMenuService, configurationService);
 	}
 
-	renderHeaderTitle(container: HTMLElement): HTMLElement {
+	renderHeaderTitle(container: HTMLElement): void {
 		let title = $('span');
 		title.textContent = this.options.title;
 
 		this.badgeContainer = $('.count-badge-wrapper');
 		this.badge = new CountBadge(this.badgeContainer);
 		this.disposables.push(attachBadgeStyler(this.badge, this.themeService));
-		return super.renderHeaderTitle(container, [], [title, this.badgeContainer]);
+		super.renderHeaderTitle(container, [], [title, this.badgeContainer]);
 	}
 
 	renderBody(container: HTMLElement): void {
