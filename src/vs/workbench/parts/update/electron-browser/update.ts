@@ -209,6 +209,60 @@ export class Win3264BitContribution implements IWorkbenchContribution {
 	}
 }
 
+export class WinUserSetupContribution implements IWorkbenchContribution {
+
+	private static readonly KEY = 'update/win32-usersetup';
+
+	private static readonly STABLE_URL = 'https://vscode-update.azurewebsites.net/latest/win32-x64-user/stable';
+	private static readonly STABLE_URL_32BIT = 'https://vscode-update.azurewebsites.net/latest/win32-user/stable';
+	private static readonly INSIDER_URL = 'https://vscode-update.azurewebsites.net/latest/win32-x64-user/insider';
+	private static readonly INSIDER_URL_32BIT = 'https://vscode-update.azurewebsites.net/latest/win32-user/insider';
+
+	// TODO@joao this needs to change to the 1.26 release notes
+	private static readonly READ_MORE = 'https://aka.ms/vscode-win32-user-setup';
+
+	constructor(
+		@IStorageService storageService: IStorageService,
+		@INotificationService notificationService: INotificationService,
+		@IEnvironmentService environmentService: IEnvironmentService,
+		@IOpenerService private openerService: IOpenerService
+	) {
+		if (!environmentService.isBuilt || environmentService.disableUpdates) {
+			return;
+		}
+
+		const neverShowAgain = new NeverShowAgain(WinUserSetupContribution.KEY, storageService);
+
+		if (!neverShowAgain.shouldShow()) {
+			return;
+		}
+
+		const handle = notificationService.prompt(
+			severity.Info,
+			nls.localize('usersetup', "We recommend switching to our new User Setup distribution of {0} for Windows! Click [here]({1}) to learn more.", product.nameShort, WinUserSetupContribution.READ_MORE),
+			[
+				{
+					label: nls.localize('downloadnow', "Download"),
+					run: () => {
+						const url = product.quality === 'insider'
+							? (process.arch === 'ia32' ? WinUserSetupContribution.INSIDER_URL_32BIT : WinUserSetupContribution.INSIDER_URL)
+							: (process.arch === 'ia32' ? WinUserSetupContribution.STABLE_URL_32BIT : WinUserSetupContribution.STABLE_URL);
+
+						return this.openerService.open(URI.parse(url));
+					}
+				},
+				{
+					label: nls.localize('neveragain', "Don't Show Again"),
+					isSecondary: true,
+					run: () => {
+						neverShowAgain.action.run(handle);
+						neverShowAgain.action.dispose();
+					}
+				}]
+		);
+	}
+}
+
 class CommandAction extends Action {
 
 	constructor(
