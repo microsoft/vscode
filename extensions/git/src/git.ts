@@ -751,6 +751,27 @@ export class Repository {
 		return { mode, object, size: parseInt(size) };
 	}
 
+	async lstreeOutput(treeish: string, path: string): Promise<string> {
+		if (!treeish) { // index
+			const { stdout } = await this.run(['ls-files', '--stage', '--', path]);
+			return stdout;
+		}
+
+		const { stdout } = await this.run(['ls-tree', '-l', treeish, '--', path]);
+		return stdout;
+	}
+
+	async relativePathToGitRelativePath(treeish: string, path: string): Promise<string> {
+		let gitPath: string = path;
+		const pathPrefix = path.substring(0, path.lastIndexOf('/'));
+		const lstOutput = await this.lstreeOutput(treeish, pathPrefix + '/');
+		const findResult = lstOutput.toUpperCase().indexOf(path.toUpperCase());
+		if (findResult) {
+			gitPath = lstOutput.substr(findResult, path.length);
+		}
+		return gitPath;
+	}
+
 	async detectObjectType(object: string): Promise<{ mimetype: string, encoding?: string }> {
 		const child = await this.stream(['show', object]);
 		const buffer = await readBytes(child.stdout, 4100);
