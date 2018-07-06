@@ -764,9 +764,8 @@ export class RepositoryPanel extends ViewletPanel {
 		this.menus.onDidChangeTitle(this.updateActions, this, this.disposables);
 	}
 
-	protected renderHeaderTitle(container: HTMLElement): void {
-		const header = append(container, $('h3.title.scm-provider'));
-		const name = append(header, $('.name'));
+	protected renderHeaderTitle(container: HTMLElement): HTMLElement {
+		const name = $('.name');
 		const title = append(name, $('span.title'));
 		const type = append(name, $('span.type'));
 
@@ -780,6 +779,8 @@ export class RepositoryPanel extends ViewletPanel {
 
 		const onContextMenu = mapEvent(stop(domEvent(container, 'contextmenu')), e => new StandardMouseEvent(e));
 		onContextMenu(this.onContextMenu, this, this.disposables);
+
+		return super.renderHeaderTitle(container, ['scm-provider'], [name]);
 	}
 
 	private onContextMenu(event: StandardMouseEvent): void {

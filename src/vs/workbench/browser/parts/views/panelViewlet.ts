@@ -100,7 +100,7 @@ export abstract class ViewletPanel extends Panel implements IView {
 	protected renderHeader(container: HTMLElement): void {
 		this.headerContainer = container;
 
-		this.renderHeaderTitle(container);
+		this.renderHeaderTitle(container, [], [this.title]);
 
 		const actions = append(container, $('.actions'));
 		this.toolbar = new ToolBar(actions, this.contextMenuService, {
@@ -119,8 +119,8 @@ export abstract class ViewletPanel extends Panel implements IView {
 		this.updateActionsVisibility();
 	}
 
-	protected renderHeaderTitle(container: HTMLElement): void {
-		append(container, $('h3.title', null, this.title));
+	protected renderHeaderTitle(container: HTMLElement, classList: string[], children: (string | Node)[]): HTMLElement {
+		return append(container, $('h3.' + ['title', ...classList].join('.'), null, ...children));
 	}
 
 	focus(): void {

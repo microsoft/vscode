@@ -175,11 +175,10 @@ export class OpenEditorsView extends ViewletPanel {
 		}));
 	}
 
-	protected renderHeaderTitle(container: HTMLElement): void {
-		const title = dom.append(container, $('h3.title'));
-		dom.append(title, $('span', null, this.title));
+	protected renderHeaderTitle(container: HTMLElement): HTMLElement {
 
-		const count = dom.append(container, $('.count'));
+		const title = $('span', null, this.title);
+		const count = $('.count');
 		this.dirtyCountElement = dom.append(count, $('.monaco-count-badge'));
 
 		this.disposables.push((attachStylerCallback(this.themeService, { badgeBackground, badgeForeground, contrastBorder }, colors => {
@@ -196,6 +195,7 @@ export class OpenEditorsView extends ViewletPanel {
 		})));
 
 		this.updateDirtyIndicator();
+		return super.renderHeaderTitle(container, [], [title, count]);
 	}
 
 	public renderBody(container: HTMLElement): void {
