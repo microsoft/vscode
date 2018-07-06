@@ -43,7 +43,20 @@ export abstract class TreeViewsViewletPanel extends ViewletPanel {
 	protected set tree(tree: WorkbenchTree) {
 		this._tree = tree;
 		this.disposables.push(tree);
-		this.initTreeFocusTracker();
+		let tabEntry = true;
+
+		this.disposables.push(this.tree.onDidFocus(() => {
+			if (tabEntry) {
+				this._onDidTabFocus.fire();
+			}
+		}));
+
+		this.disposables.push(this.tree.onDidClick(() => {
+			tabEntry = false;
+			setTimeout(() => tabEntry = true, 10);
+		}));
+
+		this.onDidTabFocus(() => this.focusFirstIfNoFocus());
 	}
 
 
@@ -95,21 +108,6 @@ export abstract class TreeViewsViewletPanel extends ViewletPanel {
 		if (!this.tree.getFocus()) {
 			this.tree.setFocus(this.tree.getFirstVisibleElement());
 		}
-	}
-
-	private initTreeFocusTracker() {
-		let tabEntry = true;
-
-		this.disposables.push(this.tree.onDidFocus(() => {
-			if (tabEntry) {
-				this._onDidTabFocus.fire();
-			}
-		}));
-
-		this.disposables.push(this.tree.onDidClick(() => {
-			tabEntry = false;
-			setTimeout(() => tabEntry = true, 10);
-		}));
 	}
 
 	private focusTree(): void {

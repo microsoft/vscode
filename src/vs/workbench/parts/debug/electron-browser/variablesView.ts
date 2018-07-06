@@ -104,7 +104,6 @@ export class VariablesView extends TreeViewsViewletPanel {
 		const collapseAction = new CollapseAction(this.tree, false, 'explorer-action collapse-explorer');
 		this.toolbar.setActions([collapseAction])();
 
-		this.disposables.push(this.onDidTabFocus(() => this.focusFirstIfNoFocus()));
 		this.disposables.push(viewModel.onDidFocusStackFrame(sf => {
 			if (!this.isVisible() || !this.isExpanded()) {
 				this.needsRefresh = true;

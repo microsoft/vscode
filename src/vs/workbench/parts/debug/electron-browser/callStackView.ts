@@ -112,7 +112,6 @@ export class CallStackView extends TreeViewsViewletPanel {
 				twistiePixels
 			});
 
-		this.disposables.push(this.onDidTabFocus(() => this.focusFirstIfNoFocus()));
 		const callstackNavigator = new TreeResourceNavigator(this.tree);
 		this.disposables.push(callstackNavigator);
 		this.disposables.push(callstackNavigator.openResource(e => {
