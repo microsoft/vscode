@@ -1273,16 +1273,7 @@ export class CommandCenter {
 			return;
 		}
 
-		try {
-			await choice.run(repository);
-		} catch (err) {
-			if (err.gitErrorCode !== GitErrorCodes.Conflict) {
-				throw err;
-			}
-
-			const message = localize('merge conflicts', "There are merge conflicts. Resolve them before committing.");
-			await window.showWarningMessage(message);
-		}
+		await choice.run(repository);
 	}
 
 	@command('git.createTag', { repository: true })
@@ -1655,10 +1646,11 @@ export class CommandCenter {
 
 			return result.catch(async err => {
 				const options: MessageOptions = {
-					modal: err.gitErrorCode === GitErrorCodes.DirtyWorkTree
+					modal: true
 				};
 
 				let message: string;
+				let type: 'error' | 'warning' = 'error';
 
 				switch (err.gitErrorCode) {
 					case GitErrorCodes.DirtyWorkTree:
@@ -1666,6 +1658,11 @@ export class CommandCenter {
 						break;
 					case GitErrorCodes.PushRejected:
 						message = localize('cant push', "Can't push refs to remote. Try running 'Pull' first to integrate your changes.");
+						break;
+					case GitErrorCodes.Conflict:
+						message = localize('merge conflicts', "There are merge conflicts. Resolve them before committing.");
+						type = 'warning';
+						options.modal = false;
 						break;
 					default:
 						const hint = (err.stderr || err.message || String(err))
@@ -1687,11 +1684,11 @@ export class CommandCenter {
 					return;
 				}
 
-				options.modal = true;
-
 				const outputChannel = this.outputChannel as OutputChannel;
 				const openOutputChannelChoice = localize('open git log', "Open Git Log");
-				const choice = await window.showErrorMessage(message, options, openOutputChannelChoice);
+				const choice = type === 'error'
+					? await window.showErrorMessage(message, options, openOutputChannelChoice)
+					: await window.showWarningMessage(message, options, openOutputChannelChoice);
 
 				if (choice === openOutputChannelChoice) {
 					outputChannel.show();
