@@ -31,7 +31,7 @@ import { IEditorViewState } from 'vs/editor/common/editorCommon';
 import { getCodeEditor } from 'vs/editor/browser/editorBrowser';
 import { KeybindingsRegistry } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { KeyMod, KeyCode, KeyChord } from 'vs/base/common/keyCodes';
-import { isWindows, isMacintosh } from 'vs/base/common/platform';
+import { isWindows, isMacintosh, isLinux } from 'vs/base/common/platform';
 import { ITextModelService } from 'vs/editor/common/services/resolverService';
 import { sequence } from 'vs/base/common/async';
 import { getResourceForCommand, getMultiSelectedResources } from 'vs/workbench/parts/files/browser/files';
@@ -42,6 +42,8 @@ import { INotificationService } from 'vs/platform/notification/common/notificati
 import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
 import { IEditorService, SIDE_GROUP } from 'vs/workbench/services/editor/common/editorService';
 import { IEditorGroupsService } from 'vs/workbench/services/group/common/editorGroupsService';
+import { isEqual, basenameOrAuthority } from 'vs/base/common/resources';
+import { ltrim } from 'vs/base/common/strings';
 
 // Commands
 
@@ -56,6 +58,7 @@ export const COMPARE_SELECTED_COMMAND_ID = 'compareSelected';
 export const COMPARE_RESOURCE_COMMAND_ID = 'compareFiles';
 export const COMPARE_WITH_SAVED_COMMAND_ID = 'workbench.files.action.compareWithSaved';
 export const COPY_PATH_COMMAND_ID = 'copyFilePath';
+export const COPY_RELATIVE_PATH_COMMAND_ID = 'copyRelativeFilePath';
 
 export const SAVE_FILE_AS_COMMAND_ID = 'workbench.action.files.saveAs';
 export const SAVE_FILE_AS_LABEL = nls.localize('saveAs', "Save As...");
@@ -82,8 +85,15 @@ export const openWindowCommand = (accessor: ServicesAccessor, paths: string[], f
 	windowService.openWindow(paths, { forceNewWindow });
 };
 
-function save(resource: URI, isSaveAs: boolean, editorService: IEditorService, fileService: IFileService, untitledEditorService: IUntitledEditorService,
-	textFileService: ITextFileService, editorGroupService: IEditorGroupsService): TPromise<any> {
+function save(
+	resource: URI,
+	isSaveAs: boolean,
+	editorService: IEditorService,
+	fileService: IFileService,
+	untitledEditorService: IUntitledEditorService,
+	textFileService: ITextFileService,
+	editorGroupService: IEditorGroupsService
+): TPromise<any> {
 
 	if (resource && (fileService.canHandleResource(resource) || resource.scheme === Schemas.untitled)) {
 
@@ -352,6 +362,7 @@ function revealResourcesInOS(resources: URI[], windowsService: IWindowsService, 
 		notificationService.info(nls.localize('openFileToReveal', "Open a file first to reveal"));
 	}
 }
+
 KeybindingsRegistry.registerCommandAndKeybindingRule({
 	id: REVEAL_IN_OS_COMMAND_ID,
 	weight: KeybindingsRegistry.WEIGHT.workbenchContrib(),
@@ -365,6 +376,7 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 		revealResourcesInOS(resources, accessor.get(IWindowsService), accessor.get(INotificationService), accessor.get(IWorkspaceContextService));
 	}
 });
+
 KeybindingsRegistry.registerCommandAndKeybindingRule({
 	weight: KeybindingsRegistry.WEIGHT.workbenchContrib(),
 	when: undefined,
@@ -378,15 +390,34 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 	}
 });
 
-function resourcesToClipboard(resources: URI[], clipboardService: IClipboardService, notificationService: INotificationService): void {
+function resourcesToClipboard(resources: URI[], clipboardService: IClipboardService, notificationService: INotificationService, contextService?: IWorkspaceContextService): void {
 	if (resources.length) {
 		const lineDelimiter = isWindows ? '\r\n' : '\n';
-		const text = resources.map(r => r.scheme === Schemas.file ? paths.normalize(labels.normalizeDriveLetter(r.fsPath), true) : r.toString()).join(lineDelimiter);
+
+		const text = resources.map(resource => {
+			if (contextService) {
+				const workspaceFolder = contextService.getWorkspaceFolder(resource);
+				if (workspaceFolder) {
+					if (isEqual(workspaceFolder.uri, resource, !isLinux)) {
+						return basenameOrAuthority(workspaceFolder.uri);
+					}
+
+					return paths.normalize(ltrim(resource.path.substr(workspaceFolder.uri.path.length), paths.sep), true);
+				}
+			}
+
+			if (resource.scheme === Schemas.file) {
+				return paths.normalize(labels.normalizeDriveLetter(resource.fsPath), true);
+			}
+
+			return resource.toString();
+		}).join(lineDelimiter);
 		clipboardService.writeText(text);
 	} else {
 		notificationService.info(nls.localize('openFileToCopy', "Open a file first to copy its path"));
 	}
 }
+
 KeybindingsRegistry.registerCommandAndKeybindingRule({
 	weight: KeybindingsRegistry.WEIGHT.workbenchContrib(),
 	when: EditorContextKeys.focus.toNegated(),
@@ -398,6 +429,17 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 	handler: (accessor, resource: URI | object) => {
 		const resources = getMultiSelectedResources(resource, accessor.get(IListService), accessor.get(IEditorService));
 		resourcesToClipboard(resources, accessor.get(IClipboardService), accessor.get(INotificationService));
+	}
+});
+
+KeybindingsRegistry.registerCommandAndKeybindingRule({
+	weight: KeybindingsRegistry.WEIGHT.workbenchContrib(),
+	when: EditorContextKeys.focus.toNegated(),
+	primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyMod.Alt | KeyCode.KEY_C,
+	id: COPY_RELATIVE_PATH_COMMAND_ID,
+	handler: (accessor, resource: URI | object) => {
+		const resources = getMultiSelectedResources(resource, accessor.get(IListService), accessor.get(IEditorService));
+		resourcesToClipboard(resources, accessor.get(IClipboardService), accessor.get(INotificationService), accessor.get(IWorkspaceContextService));
 	}
 });
 

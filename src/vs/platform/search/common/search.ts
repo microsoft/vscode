@@ -47,6 +47,7 @@ export interface ISearchHistoryService {
 
 export interface ISearchResultProvider {
 	search(query: ISearchQuery): PPromise<ISearchComplete, ISearchProgressItem>;
+	clearCache(cacheKey: string): TPromise<void>;
 }
 
 export interface IFolderQuery<U extends UriComponents=uri> {

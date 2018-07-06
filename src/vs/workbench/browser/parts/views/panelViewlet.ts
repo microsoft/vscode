@@ -207,12 +207,12 @@ export class PanelViewlet extends Viewlet {
 		super(id, partService, telemetryService, themeService);
 	}
 
-	async create(parent: HTMLElement): TPromise<void> {
-		super.create(parent);
-
-		this.panelview = this._register(new PanelView(parent, this.options));
-		this._register(this.panelview.onDidDrop(({ from, to }) => this.movePanel(from as ViewletPanel, to as ViewletPanel)));
-		this._register(addDisposableListener(parent, EventType.CONTEXT_MENU, (e: MouseEvent) => this.showContextMenu(new StandardMouseEvent(e))));
+	create(parent: HTMLElement): TPromise<void> {
+		return super.create(parent).then(() => {
+			this.panelview = this._register(new PanelView(parent, this.options));
+			this._register(this.panelview.onDidDrop(({ from, to }) => this.movePanel(from as ViewletPanel, to as ViewletPanel)));
+			this._register(addDisposableListener(parent, EventType.CONTEXT_MENU, (e: MouseEvent) => this.showContextMenu(new StandardMouseEvent(e))));
+		});
 	}
 
 	private showContextMenu(event: StandardMouseEvent): void {

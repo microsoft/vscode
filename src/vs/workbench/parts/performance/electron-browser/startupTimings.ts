@@ -42,8 +42,8 @@ class StartupTimings implements IWorkbenchContribution {
 		this._reportStandardStartupTimes().then(undefined, onUnexpectedError);
 	}
 
-	private async _reportVariedStartupTimes(): TPromise<void> {
-		await TPromise.join([
+	private async _reportVariedStartupTimes(): Promise<void> {
+		await Promise.all([
 			this._extensionService.whenInstalledExtensionsRegistered(),
 			this._lifecycleService.when(LifecyclePhase.Eventually)
 		]);
@@ -57,7 +57,7 @@ class StartupTimings implements IWorkbenchContribution {
 		this._telemetryService.publicLog('startupTimeVaried', this._timerService.startupMetrics);
 	}
 
-	private async _reportStandardStartupTimes(): TPromise<void> {
+	private async _reportStandardStartupTimes(): Promise<void> {
 		// check for standard startup:
 		// * new window (no reload)
 		// * just one window

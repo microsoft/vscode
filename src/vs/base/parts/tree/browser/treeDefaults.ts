@@ -175,9 +175,9 @@ export class DefaultController implements _.IController {
 			tree.clearFocus(payload);
 			tree.clearSelection(payload);
 		} else {
-			const isMouseDown = eventish && event.browserEvent && event.browserEvent.type === 'mousedown';
-			if (!isMouseDown) {
-				eventish.preventDefault(); // we cannot preventDefault onMouseDown because this would break DND otherwise
+			const isSingleMouseDown = eventish && event.browserEvent && event.browserEvent.type === 'mousedown' && event.browserEvent.detail === 1;
+			if (!isSingleMouseDown) {
+				eventish.preventDefault(); // we cannot preventDefault onMouseDown with single click because this would break DND otherwise
 			}
 			eventish.stopPropagation();
 

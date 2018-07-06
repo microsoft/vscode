@@ -511,6 +511,16 @@ suite('workspace-namespace', () => {
 	// 	});
 	// });
 
+	test('findTextInFiles', async () => {
+		const results: vscode.TextSearchResult[] = [];
+		await vscode.workspace.findTextInFiles({ pattern: 'foo' }, { include: '*.ts' }, result => {
+			results.push(result);
+		});
+
+		assert.equal(results.length, 1);
+		assert.equal(vscode.workspace.asRelativePath(results[0].uri), '10linefile.ts');
+	});
+
 	test('applyEdit', () => {
 
 		return vscode.workspace.openTextDocument(vscode.Uri.parse('untitled:' + join(vscode.workspace.rootPath || '', './new2.txt'))).then(doc => {
@@ -603,8 +613,8 @@ suite('workspace-namespace', () => {
 
 		let newDoc = await vscode.workspace.openTextDocument(newUri);
 		assert.equal(newDoc.getText(), 'HelloFoo');
-		// let doc = await vscode.workspace.openTextDocument(docUri);
-		// assert.equal(doc.getText(), 'Bar');
+		let doc = await vscode.workspace.openTextDocument(docUri);
+		assert.equal(doc.getText(), 'Bar');
 	});
 
 	test('WorkspaceEdit api - after saving a deleted file, it still shows up as deleted. #42667', async function () {
@@ -679,8 +689,7 @@ suite('workspace-namespace', () => {
 		we = new vscode.WorkspaceEdit();
 		we.createFile(docUri, { overwrite: true });
 		assert.ok(await vscode.workspace.applyEdit(we));
-		// todo@ben
-		// assert.equal((await vscode.workspace.openTextDocument(docUri)).getText(), '');
+		assert.equal((await vscode.workspace.openTextDocument(docUri)).getText(), '');
 	});
 
 	test('WorkspaceEdit: create & ignoreIfExists', async function () {

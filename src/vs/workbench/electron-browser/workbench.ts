@@ -233,7 +233,7 @@ export class Workbench extends Disposable implements IPartService {
 	private inZenMode: IContextKey<boolean>;
 	private sideBarVisibleContext: IContextKey<boolean>;
 
-	private closeEmptyWindowScheduler: RunOnceScheduler = new RunOnceScheduler(() => this.onAllEditorsClosed(), 50);
+	private closeEmptyWindowScheduler: RunOnceScheduler = this._register(new RunOnceScheduler(() => this.onAllEditorsClosed(), 50));
 
 	constructor(
 		private parent: HTMLElement,
@@ -1205,7 +1205,7 @@ export class Workbench extends Disposable implements IPartService {
 	getTitleBarOffset(): number {
 		let offset = 0;
 		if (this.isVisible(Parts.TITLEBAR_PART)) {
-			offset = 22 / browser.getZoomFactor(); // adjust the position based on title bar size and zoom factor
+			offset = this.workbenchLayout.partLayoutInfo.titlebar.height;
 		}
 
 		return offset;

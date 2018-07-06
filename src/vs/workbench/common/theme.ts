@@ -5,7 +5,7 @@
 
 import * as nls from 'vs/nls';
 import { registerColor, editorBackground, contrastBorder, transparent, editorWidgetBackground, textLinkForeground, lighten, darken, focusBorder } from 'vs/platform/theme/common/colorRegistry';
-import { Disposable, IDisposable } from 'vs/base/common/lifecycle';
+import { Disposable } from 'vs/base/common/lifecycle';
 import { IThemeService, ITheme } from 'vs/platform/theme/common/themeService';
 import { Color } from 'vs/base/common/color';
 
@@ -453,10 +453,6 @@ export class Themable extends Disposable {
 
 		// Hook up to theme changes
 		this._register(this.themeService.onThemeChange(theme => this.onThemeChange(theme)));
-	}
-
-	protected get toUnbind(): IDisposable[] {
-		return this._toDispose;
 	}
 
 	protected onThemeChange(theme: ITheme): void {

@@ -342,7 +342,7 @@ export class FeedbackDropdown extends Dropdown {
 		return element;
 	}
 
-	public show(): void {
+	show(): void {
 		super.show();
 
 		if (this.options.onFeedbackVisibilityChange) {
@@ -356,7 +356,7 @@ export class FeedbackDropdown extends Dropdown {
 		}
 	}
 
-	public hide(): void {
+	hide(): void {
 		if (this.feedbackDescriptionInput) {
 			this.feedback = this.feedbackDescriptionInput.value;
 		}
@@ -373,7 +373,7 @@ export class FeedbackDropdown extends Dropdown {
 		super.hide();
 	}
 
-	public onEvent(e: Event, activeElement: HTMLElement): void {
+	onEvent(e: Event, activeElement: HTMLElement): void {
 		if (e instanceof KeyboardEvent) {
 			const keyboardEvent = <KeyboardEvent>e;
 			if (keyboardEvent.keyCode === 27) { // Escape

@@ -13,8 +13,8 @@ import { InputBox } from 'vs/base/browser/ui/inputbox/inputBox';
 import { ProgressBar } from 'vs/base/browser/ui/progressbar/progressbar';
 import { Action, IAction, RadioGroup } from 'vs/base/common/actions';
 import { firstIndex } from 'vs/base/common/arrays';
-import { asDisposablePromise, setDisposableTimeout } from 'vs/base/common/async';
-import { onUnexpectedError } from 'vs/base/common/errors';
+import { asDisposablePromise, setDisposableTimeout, createCancelablePromise } from 'vs/base/common/async';
+import { onUnexpectedError, isPromiseCanceledError } from 'vs/base/common/errors';
 import { Emitter } from 'vs/base/common/event';
 import { defaultGenerator } from 'vs/base/common/idGenerator';
 import { KeyCode } from 'vs/base/common/keyCodes';
@@ -53,6 +53,8 @@ import { ACTIVE_GROUP, IEditorService, SIDE_GROUP } from 'vs/workbench/services/
 import { KeyboardMapperFactory } from 'vs/workbench/services/keybinding/electron-browser/keybindingService';
 import { OutlineConfigKeys, OutlineViewFiltered, OutlineViewFocused, OutlineViewId } from './outline';
 import { OutlineController, OutlineDataSource, OutlineItemComparator, OutlineItemCompareType, OutlineItemFilter, OutlineRenderer, OutlineTreeState } from '../../../../editor/contrib/documentSymbols/outlineTree';
+import { IResourceInput } from 'vs/platform/editor/common/editor';
+import { ITextModel } from 'vs/editor/common/model';
 
 class RequestState {
 
@@ -134,11 +136,15 @@ class RequestOracle {
 		let modeListener = codeEditor.onDidChangeModelLanguage(_ => {
 			this._callback(codeEditor, undefined);
 		});
+		let disposeListener = codeEditor.onDidDispose(() => {
+			this._callback(undefined, undefined);
+		});
 		this._sessionDisposable = {
 			dispose() {
 				contentListener.dispose();
 				clearTimeout(handle);
 				modeListener.dispose();
+				disposeListener.dispose();
 			}
 		};
 	}
@@ -439,7 +445,18 @@ export class OutlinePanel extends ViewletPanel {
 		this._message.innerText = escape(message);
 	}
 
-	private async _doUpdate(editor: ICodeEditor, event: IModelContentChangedEvent): TPromise<void> {
+	private static _createOutlineModel(model: ITextModel, disposables: IDisposable[]): Promise<OutlineModel> {
+		let promise = createCancelablePromise(token => OutlineModel.create(model, token));
+		disposables.push({ dispose() { promise.cancel(); } });
+		return promise.catch(err => {
+			if (!isPromiseCanceledError(err)) {
+				throw err;
+			}
+			return undefined;
+		});
+	}
+
+	private async _doUpdate(editor: ICodeEditor, event: IModelContentChangedEvent): Promise<void> {
 		dispose(this._editorDisposables);
 
 		this._editorDisposables = new Array();
@@ -463,7 +480,7 @@ export class OutlinePanel extends ViewletPanel {
 			);
 		}
 
-		let model = await asDisposablePromise(OutlineModel.create(textModel), undefined, this._editorDisposables).promise;
+		let model = await OutlinePanel._createOutlineModel(textModel, this._editorDisposables);
 		dispose(loadingMessage);
 		if (!model) {
 			return;
@@ -510,7 +527,7 @@ export class OutlinePanel extends ViewletPanel {
 			}
 			await this._tree.setInput(model);
 			let state = this._treeStates.get(model.textModel.uri.toString());
-			OutlineTreeState.restore(this._tree, state, this);
+			await OutlineTreeState.restore(this._tree, state, this);
 		}
 
 		this._input.enable();
@@ -641,13 +658,19 @@ export class OutlinePanel extends ViewletPanel {
 		}
 	}
 
-	private async _revealTreeSelection(model: OutlineModel, element: OutlineElement, focus: boolean, aside: boolean): TPromise<void> {
+	private async _revealTreeSelection(model: OutlineModel, element: OutlineElement, focus: boolean, aside: boolean): Promise<void> {
 
-		let input = this._editorService.createInput({ resource: model.textModel.uri });
-		await this._editorService.openEditor(input, { preserveFocus: !focus, selection: Range.collapseToStart(element.symbol.selectionRange), revealInCenterIfOutsideViewport: true, forceOpen: true }, aside ? SIDE_GROUP : ACTIVE_GROUP);
+		await this._editorService.openEditor({
+			resource: model.textModel.uri,
+			options: {
+				preserveFocus: !focus,
+				selection: Range.collapseToStart(element.symbol.selectionRange),
+				revealInCenterIfOutsideViewport: true
+			}
+		} as IResourceInput, aside ? SIDE_GROUP : ACTIVE_GROUP);
 	}
 
-	private async _revealEditorSelection(model: OutlineModel, selection: Selection): TPromise<void> {
+	private async _revealEditorSelection(model: OutlineModel, selection: Selection): Promise<void> {
 		if (!this._outlineViewState.followCursor || !this._tree.getInput() || !selection) {
 			return;
 		}

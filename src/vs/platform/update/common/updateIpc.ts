@@ -6,12 +6,15 @@
 'use strict';
 
 import { TPromise } from 'vs/base/common/winjs.base';
-import { IChannel, eventToCall, eventFromCall } from 'vs/base/parts/ipc/common/ipc';
+import { IChannel } from 'vs/base/parts/ipc/common/ipc';
 import { Event, Emitter } from 'vs/base/common/event';
 import { onUnexpectedError } from 'vs/base/common/errors';
 import { IUpdateService, State } from './update';
 
 export interface IUpdateChannel extends IChannel {
+	listen(event: 'onStateChange'): Event<State>;
+	listen<T>(command: string, arg?: any): Event<T>;
+
 	call(command: 'checkForUpdates', arg: any): TPromise<void>;
 	call(command: 'downloadUpdate'): TPromise<void>;
 	call(command: 'applyUpdate'): TPromise<void>;
@@ -25,9 +28,16 @@ export class UpdateChannel implements IUpdateChannel {
 
 	constructor(private service: IUpdateService) { }
 
+	listen<T>(event: string, arg?: any): Event<any> {
+		switch (event) {
+			case 'onStateChange': return this.service.onStateChange;
+		}
+
+		throw new Error('No event found');
+	}
+
 	call(command: string, arg?: any): TPromise<any> {
 		switch (command) {
-			case 'event:onStateChange': return eventToCall(this.service.onStateChange);
 			case 'checkForUpdates': return this.service.checkForUpdates(arg);
 			case 'downloadUpdate': return this.service.downloadUpdate();
 			case 'applyUpdate': return this.service.applyUpdate();
@@ -42,8 +52,6 @@ export class UpdateChannel implements IUpdateChannel {
 export class UpdateChannelClient implements IUpdateService {
 
 	_serviceBrand: any;
-
-	private _onRemoteStateChange = eventFromCall<State>(this.channel, 'event:onStateChange');
 
 	private _onStateChange = new Emitter<State>();
 	get onStateChange(): Event<State> { return this._onStateChange.event; }
@@ -60,7 +68,8 @@ export class UpdateChannelClient implements IUpdateService {
 			this._onStateChange.fire(state);
 
 			// fire subsequent states as they come in from remote
-			this._onRemoteStateChange(state => this._onStateChange.fire(state));
+
+			this.channel.listen('onStateChange')(state => this._onStateChange.fire(state));
 		}, onUnexpectedError);
 	}
 

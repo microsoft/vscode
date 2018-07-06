@@ -27,11 +27,11 @@ export class OpenUrlAction extends Action {
 		super(id, label);
 	}
 
-	async run(): TPromise<any> {
-		const input = await this.quickInputService.input({ prompt: 'URL to open' });
-		const uri = URI.parse(input);
-
-		this.urlService.open(uri);
+	run(): TPromise<any> {
+		return this.quickInputService.input({ prompt: 'URL to open' }).then(input => {
+			const uri = URI.parse(input);
+			this.urlService.open(uri);
+		});
 	}
 }
 

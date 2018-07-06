@@ -239,6 +239,7 @@ class MenuActionItem extends BaseActionItem {
 
 class SubmenuActionItem extends MenuActionItem {
 	private mysubmenu: Menu;
+	private submenuContainer: Builder;
 	private mouseOver: boolean;
 
 	constructor(
@@ -311,18 +312,23 @@ class SubmenuActionItem extends MenuActionItem {
 		if (this.parentData.submenu && (force || (this.parentData.submenu !== this.mysubmenu))) {
 			this.parentData.submenu.dispose();
 			this.parentData.submenu = null;
+
+			if (this.submenuContainer) {
+				this.submenuContainer.dispose();
+				this.submenuContainer = null;
+			}
 		}
 	}
 
 	private createSubmenu() {
 		if (!this.parentData.submenu) {
-			const submenuContainer = $(this.builder).div({ class: 'monaco-submenu menubar-menu-items-holder context-view' });
+			this.submenuContainer = $(this.builder).div({ class: 'monaco-submenu menubar-menu-items-holder context-view' });
 
-			$(submenuContainer).style({
+			$(this.submenuContainer).style({
 				'left': `${$(this.builder).getClientArea().width}px`
 			});
 
-			$(submenuContainer).on(EventType.KEY_UP, (e) => {
+			$(this.submenuContainer).on(EventType.KEY_UP, (e) => {
 				let event = new StandardKeyboardEvent(e as KeyboardEvent);
 				if (event.equals(KeyCode.LeftArrow)) {
 					EventHelper.stop(e, true);
@@ -330,10 +336,13 @@ class SubmenuActionItem extends MenuActionItem {
 					this.parentData.parent.focus();
 					this.parentData.submenu.dispose();
 					this.parentData.submenu = null;
+
+					this.submenuContainer.dispose();
+					this.submenuContainer = null;
 				}
 			});
 
-			$(submenuContainer).on(EventType.KEY_DOWN, (e) => {
+			$(this.submenuContainer).on(EventType.KEY_DOWN, (e) => {
 				let event = new StandardKeyboardEvent(e as KeyboardEvent);
 				if (event.equals(KeyCode.LeftArrow)) {
 					EventHelper.stop(e, true);
@@ -341,10 +350,24 @@ class SubmenuActionItem extends MenuActionItem {
 			});
 
 
-			this.parentData.submenu = new Menu(submenuContainer.getHTMLElement(), this.submenuActions, this.submenuOptions);
+			this.parentData.submenu = new Menu(this.submenuContainer.getHTMLElement(), this.submenuActions, this.submenuOptions);
 			this.parentData.submenu.focus();
 
 			this.mysubmenu = this.parentData.submenu;
+		}
+	}
+
+	public dispose() {
+		super.dispose();
+
+		if (this.mysubmenu) {
+			this.mysubmenu.dispose();
+			this.mysubmenu = null;
+		}
+
+		if (this.submenuContainer) {
+			this.submenuContainer.dispose();
+			this.submenuContainer = null;
 		}
 	}
 }

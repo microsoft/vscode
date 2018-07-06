@@ -35,12 +35,12 @@ export interface IResourceDescriptor {
 }
 
 class BinarySize {
-	public static readonly KB = 1024;
-	public static readonly MB = BinarySize.KB * BinarySize.KB;
-	public static readonly GB = BinarySize.MB * BinarySize.KB;
-	public static readonly TB = BinarySize.GB * BinarySize.KB;
+	static readonly KB = 1024;
+	static readonly MB = BinarySize.KB * BinarySize.KB;
+	static readonly GB = BinarySize.MB * BinarySize.KB;
+	static readonly TB = BinarySize.GB * BinarySize.KB;
 
-	public static formatSize(size: number): string {
+	static formatSize(size: number): string {
 		if (size < BinarySize.KB) {
 			return nls.localize('sizeB', "{0}B", size);
 		}
@@ -73,7 +73,7 @@ export class ResourceViewer {
 
 	private static readonly MAX_OPEN_INTERNAL_SIZE = BinarySize.MB * 200; // max size until we offer an action to open internally
 
-	public static show(
+	static show(
 		descriptor: IResourceDescriptor,
 		fileService: IFileService,
 		container: HTMLElement,
@@ -115,7 +115,7 @@ class ImageView {
 	private static readonly MAX_IMAGE_SIZE = BinarySize.MB; // showing images inline is memory intense, so we have a limit
 	private static readonly BASE64_MARKER = 'base64,';
 
-	public static create(
+	static create(
 		container: HTMLElement,
 		descriptor: IResourceDescriptor,
 		fileService: IFileService,
@@ -153,7 +153,7 @@ class ImageView {
 }
 
 class LargeImageView {
-	public static create(
+	static create(
 		container: HTMLElement,
 		descriptor: IResourceDescriptor,
 		openExternalClb: (uri: URI) => void
@@ -179,7 +179,7 @@ class LargeImageView {
 }
 
 class FileTooLargeFileView {
-	public static create(
+	static create(
 		container: HTMLElement,
 		descriptor: IResourceDescriptor,
 		scrollbar: DomScrollableElement,
@@ -202,7 +202,7 @@ class FileTooLargeFileView {
 }
 
 class FileSeemsBinaryFileView {
-	public static create(
+	static create(
 		container: HTMLElement,
 		descriptor: IResourceDescriptor,
 		scrollbar: DomScrollableElement,
@@ -236,11 +236,12 @@ class FileSeemsBinaryFileView {
 type Scale = number | 'fit';
 
 class ZoomStatusbarItem extends Themable implements IStatusbarItem {
+
+	static instance: ZoomStatusbarItem;
+
 	showTimeout: number;
-	public static instance: ZoomStatusbarItem;
 
 	private statusBarItem: HTMLElement;
-
 	private onSelectScale?: (scale: Scale) => void;
 
 	constructor(
@@ -249,8 +250,10 @@ class ZoomStatusbarItem extends Themable implements IStatusbarItem {
 		@IThemeService themeService: IThemeService
 	) {
 		super(themeService);
+
 		ZoomStatusbarItem.instance = this;
-		this.toUnbind.push(editorService.onDidActiveEditorChange(() => this.onActiveEditorChanged()));
+
+		this._register(editorService.onDidActiveEditorChange(() => this.onActiveEditorChanged()));
 	}
 
 	private onActiveEditorChanged(): void {
@@ -258,7 +261,7 @@ class ZoomStatusbarItem extends Themable implements IStatusbarItem {
 		this.onSelectScale = void 0;
 	}
 
-	public show(scale: Scale, onSelectScale: (scale: number) => void) {
+	show(scale: Scale, onSelectScale: (scale: number) => void) {
 		clearTimeout(this.showTimeout);
 		this.showTimeout = setTimeout(() => {
 			this.onSelectScale = onSelectScale;
@@ -267,11 +270,11 @@ class ZoomStatusbarItem extends Themable implements IStatusbarItem {
 		}, 0);
 	}
 
-	public hide() {
+	hide() {
 		this.statusBarItem.style.display = 'none';
 	}
 
-	public render(container: HTMLElement): IDisposable {
+	render(container: HTMLElement): IDisposable {
 		if (!this.statusBarItem && container) {
 			this.statusBarItem = $(container).a()
 				.addClass('.zoom-statusbar-item')
@@ -358,7 +361,7 @@ class InlineImageView {
 	 */
 	private static readonly imageStateCache = new LRUCache<string, ImageState>(100);
 
-	public static create(
+	static create(
 		container: HTMLElement,
 		descriptor: IResourceDescriptor,
 		fileService: IFileService,
@@ -563,6 +566,7 @@ class InlineImageView {
 
 		return fileService.resolveContent(descriptor.resource, { encoding: 'base64' }).then(data => {
 			const mime = getMime(descriptor);
+
 			return `data:${mime};base64,${data.value}`;
 		});
 	}

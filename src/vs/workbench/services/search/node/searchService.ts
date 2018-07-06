@@ -258,7 +258,12 @@ export class SearchService implements ISearchService {
 	}
 
 	public clearCache(cacheKey: string): TPromise<void> {
-		return this.diskSearch.clearCache(cacheKey);
+		return TPromise.join([
+			...this.searchProviders,
+			this.fileSearchProvider,
+			this.diskSearch
+		].map(provider => provider && provider.clearCache(cacheKey)))
+			.then(() => { });
 	}
 
 	private forwardTelemetry() {

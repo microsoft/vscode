@@ -8,6 +8,7 @@
 import { PPromise, TPromise } from 'vs/base/common/winjs.base';
 import { IChannel } from 'vs/base/parts/ipc/common/ipc';
 import { IRawSearchService, IRawSearch, ISerializedSearchComplete, ISerializedSearchProgressItem, ITelemetryEvent } from './search';
+import { Event } from 'vs/base/common/event';
 
 export interface ISearchChannel extends IChannel {
 	call(command: 'fileSearch', search: IRawSearch): PPromise<ISerializedSearchComplete, ISerializedSearchProgressItem>;
@@ -20,6 +21,10 @@ export interface ISearchChannel extends IChannel {
 export class SearchChannel implements ISearchChannel {
 
 	constructor(private service: IRawSearchService) { }
+
+	listen<T>(event: string, arg?: any): Event<T> {
+		throw new Error('No events');
+	}
 
 	call(command: string, arg?: any): TPromise<any> {
 		switch (command) {

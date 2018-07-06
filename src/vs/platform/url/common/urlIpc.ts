@@ -10,6 +10,7 @@ import { IChannel } from 'vs/base/parts/ipc/common/ipc';
 import { IURLHandler, IURLService } from './url';
 import URI from 'vs/base/common/uri';
 import { IDisposable } from 'vs/base/common/lifecycle';
+import { Event } from 'vs/base/common/event';
 
 export interface IURLServiceChannel extends IChannel {
 	call(command: 'open', url: string): TPromise<boolean>;
@@ -19,6 +20,10 @@ export interface IURLServiceChannel extends IChannel {
 export class URLServiceChannel implements IURLServiceChannel {
 
 	constructor(private service: IURLService) { }
+
+	listen<T>(event: string, arg?: any): Event<T> {
+		throw new Error('No events');
+	}
 
 	call(command: string, arg?: any): TPromise<any> {
 		switch (command) {
@@ -51,6 +56,10 @@ export interface IURLHandlerChannel extends IChannel {
 export class URLHandlerChannel implements IURLHandlerChannel {
 
 	constructor(private handler: IURLHandler) { }
+
+	listen<T>(event: string, arg?: any): Event<T> {
+		throw new Error('No events');
+	}
 
 	call(command: string, arg?: any): TPromise<any> {
 		switch (command) {

@@ -18,7 +18,7 @@
   "dependencies": {
     "semver": "4.3.6",
     "vscode-extension-telemetry": "0.0.17",
-    "vscode-nls": "^3.2.1"
+    "vscode-nls": "^3.2.4"
   },
   "devDependencies": {
     "@types/node": "8.0.33",

@@ -28,14 +28,11 @@ import { Scope } from 'vs/workbench/common/memento';
 import { ISerializedEditorGroup, isSerializedEditorGroup } from 'vs/workbench/common/editor/editorGroup';
 import { TValueCallback, TPromise } from 'vs/base/common/winjs.base';
 import { always } from 'vs/base/common/async';
-import { INotificationService, Severity } from 'vs/platform/notification/common/notification';
-import { IWindowService } from 'vs/platform/windows/common/windows';
-import { ILifecycleService, LifecyclePhase } from 'vs/platform/lifecycle/common/lifecycle';
 import { EditorDropTarget } from 'vs/workbench/browser/parts/editor/editorDropTarget';
 import { localize } from 'vs/nls';
 import { Color } from 'vs/base/common/color';
 import { CenteredViewLayout } from 'vs/base/browser/ui/centered/centeredViewLayout';
-import { IView } from 'vs/base/browser/ui/grid/gridview';
+import { IView, orthogonal } from 'vs/base/browser/ui/grid/gridview';
 
 interface IEditorPartUIState {
 	serializedGrid: ISerializedGrid;
@@ -144,18 +141,13 @@ export class EditorPart extends Part implements EditorGroupsServiceImpl, IEditor
 	private _whenRestored: TPromise<void>;
 	private whenRestoredComplete: TValueCallback<void>;
 
-	private previousUIState: IEditorPartUIState;
-
 	constructor(
 		id: string,
 		private restorePreviousState: boolean,
 		@IInstantiationService private instantiationService: IInstantiationService,
 		@IThemeService themeService: IThemeService,
 		@IConfigurationService private configurationService: IConfigurationService,
-		@IStorageService private storageService: IStorageService,
-		@INotificationService private notificationService: INotificationService,
-		@IWindowService private windowService: IWindowService,
-		@ILifecycleService private lifecycleService: ILifecycleService
+		@IStorageService private storageService: IStorageService
 	) {
 		super(id, { hasTitle: false }, themeService);
 
@@ -414,7 +406,9 @@ export class EditorPart extends Part implements EditorGroupsServiceImpl, IEditor
 		const gridDescriptor = createSerializedGrid({
 			orientation: this.toGridViewOrientation(
 				layout.orientation,
-				(this.gridWidget.orientation === Orientation.VERTICAL) ? Orientation.HORIZONTAL : Orientation.VERTICAL // fix https://github.com/Microsoft/vscode/issues/52975
+				this.isTwoDimensionalGrid() ?
+					this.gridWidget.orientation :			// preserve original orientation for 2-dimensional grids
+					orthogonal(this.gridWidget.orientation) // otherwise flip (fix https://github.com/Microsoft/vscode/issues/52975)
 			),
 			groups: layout.groups
 		});
@@ -442,6 +436,17 @@ export class EditorPart extends Part implements EditorGroupsServiceImpl, IEditor
 		if (gridHasFocus) {
 			this._activeGroup.focus();
 		}
+	}
+
+	private isTwoDimensionalGrid(): boolean {
+		const views = this.gridWidget.getViews();
+		if (isGridBranchNode(views)) {
+			// the grid is 2-dimensional if any children
+			// of the grid is a branch node
+			return views.children.some(child => isGridBranchNode(child));
+		}
+
+		return false;
 	}
 
 	addGroup(location: IEditorGroupView | GroupIdentifier, direction: GroupDirection, options?: IAddGroupOptions): IEditorGroupView {
@@ -817,29 +822,15 @@ export class EditorPart extends Part implements EditorGroupsServiceImpl, IEditor
 	private doCreateGridControlWithPreviousState(): void {
 		const uiState = this.doGetPreviousState();
 		if (uiState && uiState.serializedGrid) {
-			try {
-				this.previousUIState = uiState;
 
-				// MRU
-				this.mostRecentActiveGroups = uiState.mostRecentActiveGroups;
+			// MRU
+			this.mostRecentActiveGroups = uiState.mostRecentActiveGroups;
 
-				// Grid Widget
-				this.doCreateGridControlWithState(uiState.serializedGrid, uiState.activeGroup);
+			// Grid Widget
+			this.doCreateGridControlWithState(uiState.serializedGrid, uiState.activeGroup);
 
-				// Ensure last active group has focus
-				this._activeGroup.focus();
-			} catch (error) {
-				if (this.gridWidget) {
-					this.doSetGridWidget();
-				}
-
-				this.groupViews.forEach(group => group.dispose());
-				this.groupViews.clear();
-				this._activeGroup = void 0;
-				this.mostRecentActiveGroups = [];
-
-				this.gridError(error); // TODO@ben remove this safe guard once the grid is stable
-			}
+			// Ensure last active group has focus
+			this._activeGroup.focus();
 		}
 	}
 
@@ -1015,19 +1006,6 @@ export class EditorPart extends Part implements EditorGroupsServiceImpl, IEditor
 		return this.groupViews.size === 1 && this._activeGroup.isEmpty();
 	}
 
-	// TODO@ben this should be removed once the gridwidget is stable
-	private gridError(error: Error): void {
-		console.error(error);
-
-		if (this.previousUIState) {
-			console.error('Serialized Grid State: ', this.previousUIState);
-		}
-
-		this.lifecycleService.when(LifecyclePhase.Running).then(() => {
-			this.notificationService.prompt(Severity.Error, `Grid Issue: ${error}. Please report this error stack with reproducible steps.`, [{ label: 'Open DevTools', run: () => this.windowService.openDevTools() }]);
-		});
-	}
-
 	layout(dimension: Dimension): Dimension[] {
 		const sizes = super.layout(dimension);
 
@@ -1040,11 +1018,7 @@ export class EditorPart extends Part implements EditorGroupsServiceImpl, IEditor
 		this.dimension = dimension;
 
 		// Layout Grid
-		try {
-			this.centeredLayoutWidget.layout(this.dimension.width, this.dimension.height);
-		} catch (error) {
-			this.gridError(error);
-		}
+		this.centeredLayoutWidget.layout(this.dimension.width, this.dimension.height);
 
 		// Event
 		this._onDidLayout.fire(dimension);

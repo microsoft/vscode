@@ -69,9 +69,14 @@
 	padding: .5em 0;
 }
 
-.monaco-shell .monaco-menu .monaco-action-bar.vertical .action-label,
+.monaco-shell .monaco-menu .monaco-action-bar.vertical .action-label:not(.separator),
 .monaco-shell .monaco-menu .monaco-action-bar.vertical .keybinding {
 	padding: 0.5em 2em;
+}
+
+.monaco-shell .monaco-menu .monaco-action-bar.vertical .action-label.separator {
+	padding: 0.2em 0 0 0;
+	margin-bottom: 0.2em;
 }
 
 .monaco-shell .monaco-menu .monaco-action-bar.vertical .submenu-indicator {

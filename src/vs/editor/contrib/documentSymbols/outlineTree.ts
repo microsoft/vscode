@@ -96,14 +96,14 @@ export class OutlineDataSource implements IDataSource {
 		return false;
 	}
 
-	async getChildren(tree: ITree, element: TreeElement): TPromise<TreeElement[]> {
+	getChildren(tree: ITree, element: TreeElement): TPromise<TreeElement[]> {
 		let res = values(element.children);
 		// console.log(element.id + ' with children ' + res.length);
-		return res;
+		return TPromise.wrap(res);
 	}
 
-	async getParent(tree: ITree, element: TreeElement | any): TPromise<TreeElement> {
-		return element && element.parent;
+	getParent(tree: ITree, element: TreeElement | any): TPromise<TreeElement> {
+		return TPromise.wrap(element && element.parent);
 	}
 
 	shouldAutoexpand(tree: ITree, element: TreeElement): boolean {
@@ -281,7 +281,7 @@ export class OutlineTreeState {
 		return { selected, focused, expanded };
 	}
 
-	static async restore(tree: ITree, state: OutlineTreeState, eventPayload: any): TPromise<void> {
+	static async restore(tree: ITree, state: OutlineTreeState, eventPayload: any): Promise<void> {
 		let model = <OutlineModel>tree.getInput();
 		if (!state || !(model instanceof OutlineModel)) {
 			return TPromise.as(undefined);

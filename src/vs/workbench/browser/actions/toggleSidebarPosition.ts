@@ -15,8 +15,8 @@ import { IConfigurationService, ConfigurationTarget } from 'vs/platform/configur
 
 export class ToggleSidebarPositionAction extends Action {
 
-	public static readonly ID = 'workbench.action.toggleSidebarPosition';
-	public static readonly LABEL = nls.localize('toggleSidebarPosition', "Toggle Side Bar Position");
+	static readonly ID = 'workbench.action.toggleSidebarPosition';
+	static readonly LABEL = nls.localize('toggleSidebarPosition', "Toggle Side Bar Position");
 
 	private static readonly sidebarPositionConfigurationKey = 'workbench.sideBar.location';
 
@@ -31,7 +31,7 @@ export class ToggleSidebarPositionAction extends Action {
 		this.enabled = !!this.partService && !!this.configurationService;
 	}
 
-	public run(): TPromise<any> {
+	run(): TPromise<any> {
 		const position = this.partService.getSideBarPosition();
 		const newPositionValue = (position === Position.LEFT) ? 'right' : 'left';
 

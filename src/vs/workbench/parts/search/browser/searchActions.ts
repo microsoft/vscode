@@ -492,14 +492,15 @@ export class ReplaceAllInFolderAction extends AbstractSearchAndReplaceAction {
 		super(Constants.ReplaceAllInFolderActionId, appendKeyBindingLabel(ReplaceAllInFolderAction.LABEL, keyBindingService.lookupKeybinding(Constants.ReplaceAllInFolderActionId), keyBindingService), 'action-replace-all');
 	}
 
-	public async run(): TPromise<any> {
+	public run(): TPromise<any> {
 		let nextFocusElement = this.getElementToFocusAfterRemoved(this.viewer, this.folderMatch);
-		await this.folderMatch.replaceAll();
-
-		if (nextFocusElement) {
-			this.viewer.setFocus(nextFocusElement);
-		}
-		this.viewer.domFocus();
+		return this.folderMatch.replaceAll()
+			.then(() => {
+				if (nextFocusElement) {
+					this.viewer.setFocus(nextFocusElement);
+				}
+				this.viewer.domFocus();
+			});
 	}
 }
 
