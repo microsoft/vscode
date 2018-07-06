@@ -638,22 +638,6 @@ declare module 'vscode' {
 
 	//#endregion
 
-	//#region URLs
-
-	export interface ProtocolHandler {
-		handleUri(uri: Uri): void;
-	}
-
-	export namespace window {
-
-		/**
-		 * Registers a protocol handler capable of handling system-wide URIs.
-		 */
-		export function registerProtocolHandler(handler: ProtocolHandler): Disposable;
-	}
-
-	//#endregion
-
 	//#region Joh -> exclusive document filters
 
 	export interface DocumentFilter {
