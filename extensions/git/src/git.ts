@@ -337,6 +337,7 @@ export const GitErrorCodes = {
 	LocalChangesOverwritten: 'LocalChangesOverwritten',
 	NoUpstreamBranch: 'NoUpstreamBranch',
 	IsInSubmodule: 'IsInSubmodule',
+	WrongCase: 'WrongCase',
 };
 
 function getGitErrorCode(stderr: string): string | undefined {
@@ -642,6 +643,36 @@ export function parseGitCommit(raw: string): Commit | null {
 	return { hash: match[1], message: match[3], parents };
 }
 
+interface LsTreeElement {
+	mode: string;
+	type: string;
+	object: string;
+	file: string;
+}
+
+export function parseLsTree(raw: string): LsTreeElement[] {
+	return raw.split('\n')
+		.filter(l => !!l)
+		.map(line => /^(\S+)\s+(\S+)\s+(\S+)\s+(.*)$/.exec(line)!)
+		.filter(m => !!m)
+		.map(([, mode, type, object, file]) => ({ mode, type, object, file }));
+}
+
+interface LsFilesElement {
+	mode: string;
+	object: string;
+	stage: string;
+	file: string;
+}
+
+export function parseLsFiles(raw: string): LsFilesElement[] {
+	return raw.split('\n')
+		.filter(l => !!l)
+		.map(line => /^(\S+)\s+(\S+)\s+(\S+)\s+(.*)$/.exec(line)!)
+		.filter(m => !!m)
+		.map(([, mode, object, stage, file]) => ({ mode, object, stage, file }));
+}
+
 export interface DiffOptions {
 	cached?: boolean;
 }
@@ -710,13 +741,19 @@ export class Repository {
 			return Promise.reject<Buffer>('Can\'t open file from git');
 		}
 
-		const { exitCode, stdout } = await exec(child);
+		const { exitCode, stdout, stderr } = await exec(child);
 
 		if (exitCode) {
-			return Promise.reject<Buffer>(new GitError({
+			const err = new GitError({
 				message: 'Could not show object.',
 				exitCode
-			}));
+			});
+
+			if (/exists on disk, but not in/.test(stderr)) {
+				err.gitErrorCode = GitErrorCodes.WrongCase;
+			}
+
+			return Promise.reject<Buffer>(err);
 		}
 
 		return stdout;
@@ -751,25 +788,27 @@ export class Repository {
 		return { mode, object, size: parseInt(size) };
 	}
 
-	async lstreeOutput(treeish: string, path: string): Promise<string> {
-		if (!treeish) { // index
-			const { stdout } = await this.run(['ls-files', '--stage', '--', path]);
-			return stdout;
-		}
-
-		const { stdout } = await this.run(['ls-tree', '-l', treeish, '--', path]);
-		return stdout;
+	async lstree2(treeish: string, path: string): Promise<LsTreeElement[]> {
+		const { stdout } = await this.run(['ls-tree', treeish, '--', path]);
+		return parseLsTree(stdout);
 	}
 
-	async relativePathToGitRelativePath(treeish: string, path: string): Promise<string> {
-		let gitPath: string = path;
-		const pathPrefix = path.substring(0, path.lastIndexOf('/'));
-		const lstOutput = await this.lstreeOutput(treeish, pathPrefix + '/');
-		const findResult = lstOutput.toUpperCase().indexOf(path.toUpperCase());
-		if (findResult) {
-			gitPath = lstOutput.substr(findResult, path.length);
+	async lsfiles(path: string): Promise<LsFilesElement[]> {
+		const { stdout } = await this.run(['ls-files', '--stage', '--', path]);
+		return parseLsFiles(stdout);
+	}
+
+	async getGitRelativePath(treeish: string, relativePath: string): Promise<string> {
+		const relativePathLowercase = relativePath.toLowerCase();
+		const dirname = path.posix.dirname(relativePath) + '/';
+		const elements: { file: string; }[] = treeish ? await this.lstree2(treeish, dirname) : await this.lsfiles(dirname);
+		const element = elements.filter(file => file.file.toLowerCase() === relativePathLowercase)[0];
+
+		if (!element) {
+			throw new GitError({ message: 'Git relative path not found.' });
 		}
-		return gitPath;
+
+		return element.file;
 	}
 
 	async detectObjectType(object: string): Promise<{ mimetype: string, encoding?: string }> {

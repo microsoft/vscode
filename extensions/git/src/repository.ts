@@ -876,8 +876,8 @@ export class Repository implements Disposable {
 	}
 
 	async show(ref: string, filePath: string): Promise<string> {
-		return this.run(Operation.Show, async () => {
-			let relativePath = path.relative(this.repository.root, filePath).replace(/\\/g, '/');
+		return await this.run(Operation.Show, async () => {
+			const relativePath = path.relative(this.repository.root, filePath).replace(/\\/g, '/');
 			const configFiles = workspace.getConfiguration('files', Uri.file(filePath));
 			const defaultEncoding = configFiles.get<string>('encoding');
 			const autoGuessEncoding = configFiles.get<boolean>('autoGuessEncoding');
@@ -886,8 +886,16 @@ export class Repository implements Disposable {
 				ref = 'HEAD';
 			}
 
-			relativePath = await this.repository.relativePathToGitRelativePath(ref, relativePath);
-			return this.repository.bufferString(`${ref}:${relativePath}`, defaultEncoding, autoGuessEncoding);
+			try {
+				return await this.repository.bufferString(`${ref}:${relativePath}`, defaultEncoding, autoGuessEncoding);
+			} catch (err) {
+				if (err.gitErrorCode === GitErrorCodes.WrongCase) {
+					const gitRelativePath = await this.repository.getGitRelativePath(ref, relativePath);
+					return await this.repository.bufferString(`${ref}:${gitRelativePath}`, defaultEncoding, autoGuessEncoding);
+				}
+
+				throw err;
+			}
 		});
 	}
 
