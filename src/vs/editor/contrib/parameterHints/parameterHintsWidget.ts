@@ -451,8 +451,10 @@ export class ParameterHintsWidget implements IContentWidget, IDisposable {
 
 	next(): boolean {
 		const length = this.hints.signatures.length;
+		const last = (this.currentSignature % length) === (length - 1);
 
-		if (length < 2) {
+		// If there is only one signature, or we're on last signature of list
+		if (length < 2 || last) {
 			this.cancel();
 			return false;
 		}
@@ -464,8 +466,9 @@ export class ParameterHintsWidget implements IContentWidget, IDisposable {
 
 	previous(): boolean {
 		const length = this.hints.signatures.length;
+		const first = this.currentSignature === 0;
 
-		if (length < 2) {
+		if (length < 2 || first) {
 			this.cancel();
 			return false;
 		}
