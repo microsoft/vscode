@@ -783,10 +783,17 @@ export class CommandCenter {
 
 		const originalUri = toGitUri(modifiedUri, '~');
 		const originalDocument = await workspace.openTextDocument(originalUri);
+		const selectionsBeforeRevert = textEditor.selections;
+		const visibleRangesBeforeRevert = textEditor.visibleRanges;
 		const result = applyLineChanges(originalDocument, modifiedDocument, changes);
+
 		const edit = new WorkspaceEdit();
 		edit.replace(modifiedUri, new Range(new Position(0, 0), modifiedDocument.lineAt(modifiedDocument.lineCount - 1).range.end), result);
 		workspace.applyEdit(edit);
+
+		textEditor.selections = selectionsBeforeRevert;
+		textEditor.revealRange(visibleRangesBeforeRevert[0]);
+
 		await modifiedDocument.save();
 	}
 
