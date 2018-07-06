@@ -1176,7 +1176,12 @@ export class CommandCenter {
 		}
 
 		const commit = await repository.getCommit('HEAD');
-		await repository.reset('HEAD~');
+		if (commit.previousHashes.length > 0) {
+			await repository.reset('HEAD~');
+		} else {
+			await repository.deleteRef('HEAD');
+			await this.unstageAll(repository);
+		}
 		repository.inputBox.value = commit.message;
 	}
 
