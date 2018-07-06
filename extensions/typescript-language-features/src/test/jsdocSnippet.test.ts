@@ -6,6 +6,7 @@
 import * as assert from 'assert';
 import 'mocha';
 import { templateToSnippet } from '../features/jsDocCompletions';
+import { tagsMarkdownPreview } from '../utils/previewer';
 
 suite('typescript.jsDocSnippet', () => {
 	test('Should do nothing for single line input', async () => {
@@ -72,6 +73,19 @@ suite('typescript.jsDocSnippet', () => {
 				' * $0',
 				' * @param \\$arg ${1}',
 				' */'
+			].join('\n'));
+	});
+
+	test('Should ignore hyphens after a param tag', async () => {
+		assert.strictEqual(
+			tagsMarkdownPreview([{
+				name: 'param',
+				text: 'a - b'
+			}]),
+			[
+				'*@param* `a` — b',
+				'',
+				''
 			].join('\n'));
 	});
 });
