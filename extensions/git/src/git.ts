@@ -647,15 +647,16 @@ interface LsTreeElement {
 	mode: string;
 	type: string;
 	object: string;
+	size: string;
 	file: string;
 }
 
 export function parseLsTree(raw: string): LsTreeElement[] {
 	return raw.split('\n')
 		.filter(l => !!l)
-		.map(line => /^(\S+)\s+(\S+)\s+(\S+)\s+(.*)$/.exec(line)!)
+		.map(line => /^(\S+)\s+(\S+)\s+(\S+)\s+(\S+)\s+(.*)$/.exec(line)!)
 		.filter(m => !!m)
-		.map(([, mode, type, object, file]) => ({ mode, type, object, file }));
+		.map(([, mode, type, object, size, file]) => ({ mode, type, object, size, file }));
 }
 
 interface LsFilesElement {
@@ -759,37 +760,33 @@ export class Repository {
 		return stdout;
 	}
 
-	async lstree(treeish: string, path: string): Promise<{ mode: string, object: string, size: number }> {
+	async getObjectDetails(treeish: string, path: string): Promise<{ mode: string, object: string, size: number }> {
 		if (!treeish) { // index
-			const { stdout } = await this.run(['ls-files', '--stage', '--', path]);
+			const elements = await this.lsfiles(path);
 
-			const match = /^(\d+)\s+([0-9a-f]{40})\s+(\d+)/.exec(stdout);
-
-			if (!match) {
+			if (elements.length === 0) {
 				throw new GitError({ message: 'Error running ls-files' });
 			}
 
-			const [, mode, object] = match;
+			const { mode, object } = elements[0];
 			const catFile = await this.run(['cat-file', '-s', object]);
 			const size = parseInt(catFile.stdout);
 
 			return { mode, object, size };
 		}
 
-		const { stdout } = await this.run(['ls-tree', '-l', treeish, '--', path]);
+		const elements = await this.lstree(treeish, path);
 
-		const match = /^(\d+)\s+(\w+)\s+([0-9a-f]{40})\s+(\d+)/.exec(stdout);
-
-		if (!match) {
-			throw new GitError({ message: 'Error running ls-tree' });
+		if (elements.length === 0) {
+			throw new GitError({ message: 'Error running ls-files' });
 		}
 
-		const [, mode, , object, size] = match;
+		const { mode, object, size } = elements[0];
 		return { mode, object, size: parseInt(size) };
 	}
 
-	async lstree2(treeish: string, path: string): Promise<LsTreeElement[]> {
-		const { stdout } = await this.run(['ls-tree', treeish, '--', path]);
+	async lstree(treeish: string, path: string): Promise<LsTreeElement[]> {
+		const { stdout } = await this.run(['ls-tree', '-l', treeish, '--', path]);
 		return parseLsTree(stdout);
 	}
 
@@ -801,7 +798,7 @@ export class Repository {
 	async getGitRelativePath(treeish: string, relativePath: string): Promise<string> {
 		const relativePathLowercase = relativePath.toLowerCase();
 		const dirname = path.posix.dirname(relativePath) + '/';
-		const elements: { file: string; }[] = treeish ? await this.lstree2(treeish, dirname) : await this.lsfiles(dirname);
+		const elements: { file: string; }[] = treeish ? await this.lstree(treeish, dirname) : await this.lsfiles(dirname);
 		const element = elements.filter(file => file.file.toLowerCase() === relativePathLowercase)[0];
 
 		if (!element) {
@@ -893,7 +890,7 @@ export class Repository {
 		let mode: string;
 
 		try {
-			const details = await this.lstree('HEAD', path);
+			const details = await this.getObjectDetails('HEAD', path);
 			mode = details.mode;
 		} catch (err) {
 			mode = '100644';

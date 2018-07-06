@@ -252,7 +252,7 @@ export class CommandCenter {
 				gitRef = indexStatus ? '' : 'HEAD';
 			}
 
-			const { size, object } = await repository.lstree(gitRef, uri.fsPath);
+			const { size, object } = await repository.getObjectDetails(gitRef, uri.fsPath);
 			const { mimetype } = await repository.detectObjectType(object);
 
 			if (mimetype === 'text/plain') {

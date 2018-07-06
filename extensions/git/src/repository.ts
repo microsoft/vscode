@@ -299,7 +299,7 @@ export enum Operation {
 	Tag = 'Tag',
 	Stash = 'Stash',
 	CheckIgnore = 'CheckIgnore',
-	LSTree = 'LSTree',
+	GetObjectDetails = 'GetObjectDetails',
 	SubmoduleUpdate = 'SubmoduleUpdate',
 	RebaseContinue = 'RebaseContinue',
 }
@@ -309,7 +309,7 @@ function isReadOnly(operation: Operation): boolean {
 		case Operation.Show:
 		case Operation.GetCommitTemplate:
 		case Operation.CheckIgnore:
-		case Operation.LSTree:
+		case Operation.GetObjectDetails:
 			return true;
 		default:
 			return false;
@@ -320,7 +320,7 @@ function shouldShowProgress(operation: Operation): boolean {
 	switch (operation) {
 		case Operation.Fetch:
 		case Operation.CheckIgnore:
-		case Operation.LSTree:
+		case Operation.GetObjectDetails:
 		case Operation.Show:
 			return false;
 		default:
@@ -906,8 +906,8 @@ export class Repository implements Disposable {
 		});
 	}
 
-	lstree(ref: string, filePath: string): Promise<{ mode: string, object: string, size: number }> {
-		return this.run(Operation.LSTree, () => this.repository.lstree(ref, filePath));
+	getObjectDetails(ref: string, filePath: string): Promise<{ mode: string, object: string, size: number }> {
+		return this.run(Operation.GetObjectDetails, () => this.repository.getObjectDetails(ref, filePath));
 	}
 
 	detectObjectType(object: string): Promise<{ mimetype: string, encoding?: string }> {
