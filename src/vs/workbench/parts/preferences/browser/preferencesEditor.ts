@@ -126,7 +126,8 @@ export class PreferencesEditor extends BaseEditor {
 			ariaLabel: nls.localize('SearchSettingsWidget.AriaLabel', "Search settings"),
 			placeholder: nls.localize('SearchSettingsWidget.Placeholder', "Search Settings"),
 			focusKey: this.searchFocusContextKey,
-			showResultCount: true
+			showResultCount: true,
+			ariaLive: 'assertive'
 		}));
 		this._register(this.searchWidget.onDidChange(value => this.onInputChanged()));
 		this._register(this.searchWidget.onFocus(() => this.lastFocusedWidget = this.searchWidget));
