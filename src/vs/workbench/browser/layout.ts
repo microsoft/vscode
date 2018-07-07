@@ -219,7 +219,7 @@ export class WorkbenchLayout extends Disposable implements IVerticalSashLayoutPr
 	}
 
 	@memoize
-	private get partLayoutInfo() {
+	public get partLayoutInfo() {
 		return {
 			titlebar: {
 				height: TITLE_BAR_HEIGHT

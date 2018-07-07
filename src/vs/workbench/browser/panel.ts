@@ -31,28 +31,28 @@ export class PanelRegistry extends CompositeRegistry<Panel> {
 	/**
 	 * Registers a panel to the platform.
 	 */
-	public registerPanel(descriptor: PanelDescriptor): void {
+	registerPanel(descriptor: PanelDescriptor): void {
 		super.registerComposite(descriptor);
 	}
 
 	/**
 	 * Returns an array of registered panels known to the platform.
 	 */
-	public getPanels(): PanelDescriptor[] {
+	getPanels(): PanelDescriptor[] {
 		return this.getComposites() as PanelDescriptor[];
 	}
 
 	/**
 	 * Sets the id of the panel that should open on startup by default.
 	 */
-	public setDefaultPanelId(id: string): void {
+	setDefaultPanelId(id: string): void {
 		this.defaultPanelId = id;
 	}
 
 	/**
 	 * Gets the id of the panel that should open on startup by default.
 	 */
-	public getDefaultPanelId(): string {
+	getDefaultPanelId(): string {
 		return this.defaultPanelId;
 	}
 }
@@ -76,7 +76,7 @@ export abstract class TogglePanelAction extends Action {
 		this.panelId = panelId;
 	}
 
-	public run(): TPromise<any> {
+	run(): TPromise<any> {
 
 		if (this.isPanelShowing()) {
 			return this.partService.setPanelHidden(true);

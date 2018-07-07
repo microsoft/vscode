@@ -33,7 +33,7 @@ import { SearchWidget, SettingsTarget, SettingsTargetsWidget } from 'vs/workbenc
 import { commonlyUsedData, tocData } from 'vs/workbench/parts/preferences/browser/settingsLayout';
 import { ISettingsEditorViewState, NonExpandableTree, resolveExtensionsSettings, resolveSettingsTree, SearchResultIdx, SearchResultModel, SettingsAccessibilityProvider, SettingsDataSource, SettingsRenderer, SettingsTreeController, SettingsTreeElement, SettingsTreeFilter, SettingsTreeGroupElement, SettingsTreeModel, SettingsTreeSettingElement } from 'vs/workbench/parts/preferences/browser/settingsTree';
 import { TOCDataSource, TOCRenderer, TOCTreeModel } from 'vs/workbench/parts/preferences/browser/tocTree';
-import { CONTEXT_SETTINGS_EDITOR, CONTEXT_SETTINGS_FIRST_ROW_FOCUS, CONTEXT_SETTINGS_SEARCH_FOCUS, IPreferencesSearchService, ISearchProvider } from 'vs/workbench/parts/preferences/common/preferences';
+import { CONTEXT_SETTINGS_EDITOR, CONTEXT_SETTINGS_FIRST_ROW_FOCUS, CONTEXT_SETTINGS_SEARCH_FOCUS, IPreferencesSearchService, ISearchProvider, CONTEXT_SETTINGS_ROW_FOCUS, CONTEXT_TOC_ROW_FOCUS } from 'vs/workbench/parts/preferences/common/preferences';
 import { IPreferencesService, ISearchResult, ISettingsEditorModel } from 'vs/workbench/services/preferences/common/preferences';
 import { SettingsEditor2Input } from 'vs/workbench/services/preferences/common/preferencesEditorInput';
 import { DefaultSettingsEditorModel } from 'vs/workbench/services/preferences/common/preferencesModels';
@@ -76,6 +76,8 @@ export class SettingsEditor2 extends BaseEditor {
 	private searchResultModel: SearchResultModel;
 
 	private firstRowFocused: IContextKey<boolean>;
+	private rowFocused: IContextKey<boolean>;
+	private tocRowFocused: IContextKey<boolean>;
 	private inSettingsEditorContextKey: IContextKey<boolean>;
 	private searchFocusContextKey: IContextKey<boolean>;
 
@@ -101,6 +103,8 @@ export class SettingsEditor2 extends BaseEditor {
 		this.inSettingsEditorContextKey = CONTEXT_SETTINGS_EDITOR.bindTo(contextKeyService);
 		this.searchFocusContextKey = CONTEXT_SETTINGS_SEARCH_FOCUS.bindTo(contextKeyService);
 		this.firstRowFocused = CONTEXT_SETTINGS_FIRST_ROW_FOCUS.bindTo(contextKeyService);
+		this.rowFocused = CONTEXT_SETTINGS_ROW_FOCUS.bindTo(contextKeyService);
+		this.tocRowFocused = CONTEXT_TOC_ROW_FOCUS.bindTo(contextKeyService);
 
 		this._register(configurationService.onDidChangeConfiguration(e => {
 			this.onConfigUpdate();
@@ -112,6 +116,7 @@ export class SettingsEditor2 extends BaseEditor {
 	}
 
 	createEditor(parent: HTMLElement): void {
+		parent.setAttribute('tabindex', '-1');
 		this.rootElement = DOM.append(parent, $('.settings-editor'));
 
 		this.createHeader(this.rootElement);
@@ -133,7 +138,9 @@ export class SettingsEditor2 extends BaseEditor {
 
 	layout(dimension: DOM.Dimension): void {
 		this.searchWidget.layout(dimension);
-		this.layoutSettingsList(dimension);
+		this.layoutTrees(dimension);
+
+		DOM.toggleClass(this.rootElement, 'narrow', dimension.width < 600);
 	}
 
 	focus(): void {
@@ -182,7 +189,8 @@ export class SettingsEditor2 extends BaseEditor {
 		this.searchWidget = this._register(this.instantiationService.createInstance(SearchWidget, searchContainer, {
 			ariaLabel: localize('SearchSettings.AriaLabel', "Search settings"),
 			placeholder: localize('SearchSettings.Placeholder', "Search settings"),
-			focusKey: this.searchFocusContextKey
+			focusKey: this.searchFocusContextKey,
+			ariaLive: 'assertive'
 		}));
 		this._register(this.searchWidget.onDidChange(() => this.onSearchInputChanged()));
 
@@ -268,20 +276,27 @@ export class SettingsEditor2 extends BaseEditor {
 				twistiePixels: 15
 			});
 
-		this._register(this.tocTree.onDidChangeSelection(e => {
+		this._register(this.tocTree.onDidChangeFocus(e => {
+			const element = e.focus;
 			if (this.searchResultModel) {
-				const element = e.selection[0];
 				this.viewState.filterToCategory = element;
 				this.refreshTreeAndMaintainFocus();
 			} else if (this.settingsTreeModel) {
-				const element = e.selection[0];
 				if (element && !e.payload.fromScroll) {
 					this.settingsTree.reveal(element, 0);
 					this.settingsTree.setSelection([element]);
 					this.settingsTree.setFocus(element);
-					this.settingsTree.domFocus();
 				}
 			}
+
+		}));
+
+		this._register(this.tocTree.onDidFocus(() => {
+			this.tocRowFocused.set(true);
+		}));
+
+		this._register(this.tocTree.onDidBlur(() => {
+			this.tocRowFocused.set(false);
 		}));
 
 		this.updateTOCVisible();
@@ -359,12 +374,19 @@ export class SettingsEditor2 extends BaseEditor {
 			this.selectedElement = e.focus;
 		}));
 
+		this._register(this.settingsTree.onDidBlur(() => {
+			this.rowFocused.set(false);
+			this.firstRowFocused.set(false);
+		}));
+
 		this._register(this.settingsTree.onDidChangeSelection(e => {
 			this.updateTreeScrollSync();
 
 			let firstRowFocused = false;
+			let rowFocused = false;
 			const selection: SettingsTreeElement = e.selection[0];
 			if (selection) {
+				rowFocused = true;
 				if (this.searchResultModel) {
 					firstRowFocused = selection.id === this.searchResultModel.getChildren()[0].id;
 				} else {
@@ -373,6 +395,7 @@ export class SettingsEditor2 extends BaseEditor {
 				}
 			}
 
+			this.rowFocused.set(rowFocused);
 			this.firstRowFocused.set(firstRowFocused);
 		}));
 
@@ -440,8 +463,8 @@ export class SettingsEditor2 extends BaseEditor {
 				this.tocTree.reveal(element, 1);
 			}
 
-			this.tocTree.setSelection([element], { fromScroll: true });
-			this.tocTree.setFocus(element);
+			this.tocTree.setSelection([element]);
+			this.tocTree.setFocus(element, { fromScroll: true });
 		}
 	}
 
@@ -564,6 +587,10 @@ export class SettingsEditor2 extends BaseEditor {
 		resolvedSettingsRoot.children.unshift(commonlyUsed);
 
 		resolvedSettingsRoot.children.push(resolveExtensionsSettings(dividedGroups.extension || []));
+
+		if (this.searchResultModel) {
+			this.searchResultModel.updateChildren();
+		}
 
 		if (this.settingsTreeModel) {
 			this.settingsTreeModel.update(resolvedSettingsRoot);
@@ -716,12 +743,14 @@ export class SettingsEditor2 extends BaseEditor {
 				const [result] = results;
 				if (!this.searchResultModel) {
 					this.searchResultModel = this.instantiationService.createInstance(SearchResultModel, this.viewState);
+					this.searchResultModel.setResult(type, result);
 					this.tocTreeModel.currentSearchModel = this.searchResultModel;
 					this.toggleSearchMode();
 					this.settingsTree.setInput(this.searchResultModel);
+				} else {
+					this.searchResultModel.setResult(type, result);
 				}
 
-				this.searchResultModel.setResult(type, result);
 				this.tocTreeModel.update();
 				resolve(this.refreshTreeAndMaintainFocus());
 			});
@@ -754,10 +783,15 @@ export class SettingsEditor2 extends BaseEditor {
 			});
 	}
 
-	private layoutSettingsList(dimension: DOM.Dimension): void {
+	private layoutTrees(dimension: DOM.Dimension): void {
 		const listHeight = dimension.height - (DOM.getDomNodePagePosition(this.headerContainer).height + 12 /*padding*/);
 		this.settingsTreeContainer.style.height = `${listHeight}px`;
 		this.settingsTree.layout(listHeight, 800);
+
+		const selectedSetting = this.settingsTree.getSelection()[0];
+		if (selectedSetting) {
+			this.settingsTree.refresh(selectedSetting);
+		}
 
 		const tocHeight = listHeight - 5; // padding
 		this.tocTreeContainer.style.height = `${tocHeight}px`;

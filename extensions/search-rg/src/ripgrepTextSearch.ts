@@ -7,10 +7,11 @@
 
 import * as cp from 'child_process';
 import { EventEmitter } from 'events';
+import * as path from 'path';
 import { NodeStringDecoder, StringDecoder } from 'string_decoder';
 import * as vscode from 'vscode';
 import { rgPath } from './ripgrep';
-import { anchorGlob } from './ripgrepHelpers';
+import { anchorGlob } from './utils';
 
 // If vscode-ripgrep is in an .asar file, then the binary is unpacked.
 const rgDiskPath = rgPath.replace(/\bnode_modules\.asar\b/, 'node_modules.asar.unpacked');
@@ -21,12 +22,21 @@ const MAX_TEXT_RESULTS = 10000;
 export class RipgrepTextSearchEngine {
 	private isDone = false;
 	private rgProc: cp.ChildProcess;
-	private killRgProcFn: (code?: number) => void;
 
 	private ripgrepParser: RipgrepParser;
 
-	constructor(private outputChannel: vscode.OutputChannel) {
-		this.killRgProcFn = () => this.rgProc && this.rgProc.kill();
+	constructor(private outputChannel: vscode.OutputChannel) { }
+
+	cancel() {
+		this.isDone = true;
+
+		if (this.rgProc) {
+			this.rgProc.kill();
+		}
+
+		if (this.ripgrepParser) {
+			this.ripgrepParser.cancel();
+		}
 	}
 
 	provideTextSearchResults(query: vscode.TextSearchQuery, options: vscode.TextSearchOptions, progress: vscode.Progress<vscode.TextSearchResult>, token: vscode.CancellationToken): Thenable<void> {
@@ -38,12 +48,7 @@ export class RipgrepTextSearchEngine {
 		})}`);
 
 		return new Promise((resolve, reject) => {
-			const cancel = () => {
-				this.isDone = true;
-				this.ripgrepParser.cancel();
-				this.rgProc.kill();
-			};
-			token.onCancellationRequested(cancel);
+			token.onCancellationRequested(() => this.cancel());
 
 			const rgArgs = getRgArgs(query, options);
 
@@ -55,7 +60,6 @@ export class RipgrepTextSearchEngine {
 			this.outputChannel.appendLine(`rg ${escapedArgs}\n - cwd: ${cwd}`);
 
 			this.rgProc = cp.spawn(rgDiskPath, rgArgs, { cwd });
-			process.once('exit', this.killRgProcFn);
 			this.rgProc.on('error', e => {
 				console.error(e);
 				this.outputChannel.append('Error: ' + (e && e.message));
@@ -70,7 +74,7 @@ export class RipgrepTextSearchEngine {
 			});
 
 			this.ripgrepParser.on('hitLimit', () => {
-				cancel();
+				this.cancel();
 			});
 
 			this.rgProc.stdout.on('data', data => {
@@ -91,7 +95,6 @@ export class RipgrepTextSearchEngine {
 				this.outputChannel.appendLine(gotData ? 'Got data from stdout' : 'No data from stdout');
 				this.outputChannel.appendLine(gotResult ? 'Got result from parser' : 'No result from parser');
 				this.outputChannel.appendLine('');
-				process.removeListener('exit', this.killRgProcFn);
 				if (this.isDone) {
 					resolve();
 				} else {
@@ -291,7 +294,7 @@ export class RipgrepParser extends EventEmitter {
 		lineMatches
 			.map(range => {
 				return <vscode.TextSearchResult>{
-					path: this.currentFile,
+					uri: vscode.Uri.file(path.join(this.rootFolder, this.currentFile)),
 					range,
 					preview: {
 						text: preview,

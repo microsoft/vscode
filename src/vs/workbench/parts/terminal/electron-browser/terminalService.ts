@@ -208,7 +208,7 @@ export class TerminalService extends AbstractTerminalService implements ITermina
 		const osVersion = (/(\d+)\.(\d+)\.(\d+)/g).exec(os.release());
 		let useWSLexe = false;
 
-		if (osVersion.length === 4) {
+		if (osVersion && osVersion.length === 4) {
 			const buildNumber = parseInt(osVersion[3]);
 			if (buildNumber >= 16299) {
 				useWSLexe = true;

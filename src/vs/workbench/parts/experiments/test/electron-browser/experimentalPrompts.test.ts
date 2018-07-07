@@ -22,7 +22,6 @@ import { NullTelemetryService } from 'vs/platform/telemetry/common/telemetryUtil
 import { TestNotificationService } from 'vs/platform/notification/test/common/testNotificationService';
 import { TPromise } from 'vs/base/common/winjs.base';
 
-
 suite('Experimental Prompts', () => {
 	let instantiationService: TestInstantiationService;
 	let experimentService: TestExperimentService;

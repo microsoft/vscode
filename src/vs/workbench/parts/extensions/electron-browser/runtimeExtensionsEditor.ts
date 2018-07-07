@@ -443,7 +443,7 @@ export class RuntimeExtensionsInput extends EditorInput {
 		return true;
 	}
 
-	resolve(refresh?: boolean): TPromise<any> {
+	resolve(): TPromise<any> {
 		return TPromise.as(null);
 	}
 
@@ -573,7 +573,11 @@ class SaveExtensionHostProfileAction extends Action {
 		});
 	}
 
-	async run(): TPromise<any> {
+	run(): TPromise<any> {
+		return TPromise.wrap(this._asyncRun());
+	}
+
+	private async _asyncRun(): Promise<any> {
 		let picked = await this._windowService.showSaveDialog({
 			title: 'Save Extension Host Profile',
 			buttonLabel: 'Save',

@@ -3948,9 +3948,9 @@ declare module 'vscode' {
 		 *
 		 * Diagnostics with this tag are rendered faded out. The amount of fading
 		 * is controlled by the `"editorUnnecessaryCode.opacity"` theme color. For
-		 * example, `"editorUnnecessaryCode.opacity": "#000000c0" will render the
+		 * example, `"editorUnnecessaryCode.opacity": "#000000c0"` will render the
 		 * code with 75% opacity. For high contrast themes, use the
-		 * `"editorUnnecessaryCode.border"` the color to underline unnecessary code
+		 * `"editorUnnecessaryCode.border"` theme color to underline unnecessary code
 		 * instead of fading it out.
 		 */
 		Unnecessary = 1,
@@ -5484,12 +5484,12 @@ declare module 'vscode' {
 		readonly viewColumn?: ViewColumn;
 
 		/**
-		 * Is the panel currently active?
+		 * Whether the panel is active (focused by the user).
 		 */
 		readonly active: boolean;
 
 		/**
-		 * Is the panel currently visible?
+		 * Whether the panel is visible.
 		 */
 		readonly visible: boolean;
 
@@ -5537,6 +5537,52 @@ declare module 'vscode' {
 		 * Webview panel whose view state changed.
 		 */
 		readonly webviewPanel: WebviewPanel;
+	}
+
+	/**
+	 * Restore webview panels that have been persisted when vscode shuts down.
+	 *
+	 * There are two types of webview persistence:
+	 *
+	 * - Persistence within a session.
+	 * - Persistence across sessions (across restarts of VS Code).
+	 *
+	 * A `WebviewPanelSerializer` is only required for the second case: persisting a webview across sessions.
+	 *
+	 * Persistence within a session allows a webview to save its state when it becomes hidden
+	 * and restore its content from this state when it becomes visible again. It is powered entirely
+	 * by the webview content itself. To save off a persisted state, call `acquireVsCodeApi().setState()` with
+	 * any json serializable object. To restore the state again, call `getState()`
+	 *
+	 * ```js
+	 * // Within the webview
+	 * const vscode = acquireVsCodeApi();
+	 *
+	 * // Get existing state
+	 * const oldState = vscode.getState() || { value: 0 };
+	 *
+	 * // Update state
+	 * setState({ value: oldState.value + 1 })
+	 * ```
+	 *
+	 * A `WebviewPanelSerializer` extends this persistence across restarts of VS Code. When the editor is shutdown,
+	 * VS Code will save off the state from `setState` of all webviews that have a serializer. When the
+	 * webview first becomes visible after the restart, this state is passed to `deserializeWebviewPanel`.
+	 * The extension can then restore the old `WebviewPanel` from this state.
+	 */
+	interface WebviewPanelSerializer {
+		/**
+		 * Restore a webview panel from its seriailzed `state`.
+		 *
+		 * Called when a serialized webview first becomes visible.
+		 *
+		 * @param webviewPanel Webview panel to restore. The serializer should take ownership of this panel. The
+		 * serializer must restore the webview's `.html` and hook up all webview events.
+		 * @param state Persisted state from the webview content.
+		 *
+		 * @return Thanble indicating that the webview has been fully restored.
+		 */
+		deserializeWebviewPanel(webviewPanel: WebviewPanel, state: any): Thenable<void>;
 	}
 
 	/**
@@ -5687,6 +5733,21 @@ declare module 'vscode' {
 	}
 
 	/**
+	 * A uri handler is responsible for handling system-wide [uris](#Uri).
+	 *
+	 * @see [window.registerUriHandler](#window.registerUriHandler).
+	 */
+	export interface UriHandler {
+
+		/**
+		 * Handle the provided system-wide [uri](#Uri).
+		 *
+		 * @see [window.registerUriHandler](#window.registerUriHandler).
+		 */
+		handleUri(uri: Uri): ProviderResult<void>;
+	}
+
+	/**
 	 * Namespace for dealing with the current window of the editor. That is visible
 	 * and active editors, as well as, UI elements to show messages, selections, and
 	 * asking for user input.
@@ -5737,6 +5798,17 @@ declare module 'vscode' {
 		 * An [event](#Event) which fires when the view column of an editor has changed.
 		 */
 		export const onDidChangeTextEditorViewColumn: Event<TextEditorViewColumnChangeEvent>;
+
+		/**
+		 * The currently opened terminals or an empty array.
+		 */
+		export const terminals: ReadonlyArray<Terminal>;
+
+		/**
+		 * An [event](#Event) which fires when a terminal has been created, either through the
+		 * [createTerminal](#window.createTerminal) API or commands.
+		 */
+		export const onDidOpenTerminal: Event<Terminal>;
 
 		/**
 		 * An [event](#Event) which fires when a terminal is disposed.
@@ -6145,6 +6217,42 @@ declare module 'vscode' {
 		 * @returns a [TreeView](#TreeView).
 		 */
 		export function createTreeView<T>(viewId: string, options: { treeDataProvider: TreeDataProvider<T> }): TreeView<T>;
+
+		/**
+		 * Registers a [uri handler](#UriHandler) capable of handling system-wide [uris](#Uri).
+		 * In case there are multiple windows open, the topmost window will handle the uri.
+		 * A uri handler is scoped to the extension it is contributed from; it will only
+		 * be able to handle uris which are directed to the extension itself. A uri must respect
+		 * the following rules:
+		 *
+		 * - The uri-scheme must be the product name;
+		 * - The uri-authority must be the extension id (eg. `my.extension`);
+		 * - The uri-path, -query and -fragment parts are arbitrary.
+		 *
+		 * For example, if the `my.extension` extension registers a uri handler, it will only
+		 * be allowed to handle uris with the prefix `product-name://my.extension`.
+		 *
+		 * An extension can only register a single uri handler in its entire activation lifetime.
+		 *
+		 * * *Note:* There is an activation event `onUri` that fires when a uri directed for
+		 * the current extension is about to be handled.
+		 *
+		 * @param handler The uri handler to register for this extension.
+		 */
+		export function registerUriHandler(handler: UriHandler): Disposable;
+
+		/**
+		 * Registers a webview panel serializer.
+		 *
+		 * Extensions that support reviving should have an `"onWebviewPanel:viewType"` activation event and
+		 * make sure that [registerWebviewPanelSerializer](#registerWebviewPanelSerializer) is called during activation.
+		 *
+		 * Only a single serializer may be registered at a time for a given `viewType`.
+		 *
+		 * @param viewType Type of the webview panel that can be serialized.
+		 * @param serializer Webview serializer.
+		 */
+		export function registerWebviewPanelSerializer(viewType: string, serializer: WebviewPanelSerializer): Disposable;
 	}
 
 	/**

@@ -37,7 +37,7 @@ import {
 	ShowEditorsInActiveGroupAction, MoveEditorToLastGroupAction, OpenFirstEditorInGroup, MoveGroupUpAction, MoveGroupDownAction, FocusLastGroupAction, SplitEditorLeftAction, SplitEditorRightAction,
 	SplitEditorUpAction, SplitEditorDownAction, MoveEditorToLeftGroupAction, MoveEditorToRightGroupAction, MoveEditorToAboveGroupAction, MoveEditorToBelowGroupAction, CloseAllEditorGroupsAction,
 	JoinAllGroupsAction, FocusLeftGroup, FocusAboveGroup, FocusRightGroup, FocusBelowGroup, EditorLayoutSingleAction, EditorLayoutTwoColumnsAction, EditorLayoutThreeColumnsAction, EditorLayoutTwoByTwoGridAction,
-	EditorLayoutTwoRowsAction, EditorLayoutThreeRowsAction, EditorLayoutTwoColumnsBottomAction, EditorLayoutTwoColumnsRightAction, NewEditorGroupLeftAction, NewEditorGroupRightAction,
+	EditorLayoutTwoRowsAction, EditorLayoutThreeRowsAction, EditorLayoutTwoColumnsBottomAction, EditorLayoutTwoRowsRightAction, NewEditorGroupLeftAction, NewEditorGroupRightAction,
 	NewEditorGroupAboveAction, NewEditorGroupBelowAction, SplitEditorOrthogonalAction
 } from 'vs/workbench/browser/parts/editor/editorActions';
 import * as editorCommands from 'vs/workbench/browser/parts/editor/editorCommands';
@@ -109,10 +109,9 @@ class UntitledEditorInputFactory implements IEditorInputFactory {
 
 	constructor(
 		@ITextFileService private textFileService: ITextFileService
-	) {
-	}
+	) { }
 
-	public serialize(editorInput: EditorInput): string {
+	serialize(editorInput: EditorInput): string {
 		if (!this.textFileService.isHotExitEnabled) {
 			return null; // never restore untitled unless hot exit is enabled
 		}
@@ -134,7 +133,7 @@ class UntitledEditorInputFactory implements IEditorInputFactory {
 		return JSON.stringify(serialized);
 	}
 
-	public deserialize(instantiationService: IInstantiationService, serializedEditorInput: string): UntitledEditorInput {
+	deserialize(instantiationService: IInstantiationService, serializedEditorInput: string): UntitledEditorInput {
 		return instantiationService.invokeFunction<UntitledEditorInput>(accessor => {
 			const deserialized: ISerializedUntitledEditorInput = JSON.parse(serializedEditorInput);
 			const resource = !!deserialized.resourceJSON ? URI.revive(deserialized.resourceJSON) : URI.parse(deserialized.resource);
@@ -163,7 +162,7 @@ interface ISerializedSideBySideEditorInput {
 // Register Side by Side Editor Input Factory
 class SideBySideEditorInputFactory implements IEditorInputFactory {
 
-	public serialize(editorInput: EditorInput): string {
+	serialize(editorInput: EditorInput): string {
 		const input = <SideBySideEditorInput>editorInput;
 
 		if (input.details && input.master) {
@@ -191,7 +190,7 @@ class SideBySideEditorInputFactory implements IEditorInputFactory {
 		return null;
 	}
 
-	public deserialize(instantiationService: IInstantiationService, serializedEditorInput: string): EditorInput {
+	deserialize(instantiationService: IInstantiationService, serializedEditorInput: string): EditorInput {
 		const deserialized: ISerializedSideBySideEditorInput = JSON.parse(serializedEditorInput);
 
 		const registry = Registry.as<IEditorInputFactoryRegistry>(EditorInputExtensions.EditorInputFactories);
@@ -230,13 +229,13 @@ export class QuickOpenActionContributor extends ActionBarContributor {
 		super();
 	}
 
-	public hasActions(context: any): boolean {
+	hasActions(context: any): boolean {
 		const entry = this.getEntry(context);
 
 		return !!entry;
 	}
 
-	public getActions(context: any): IAction[] {
+	getActions(context: any): IAction[] {
 		const actions: Action[] = [];
 
 		const entry = this.getEntry(context);
@@ -369,7 +368,7 @@ registry.registerWorkbenchAction(new SyncActionDescriptor(EditorLayoutThreeColum
 registry.registerWorkbenchAction(new SyncActionDescriptor(EditorLayoutTwoRowsAction, EditorLayoutTwoRowsAction.ID, EditorLayoutTwoRowsAction.LABEL), 'View: Two Rows Editor Layout', category);
 registry.registerWorkbenchAction(new SyncActionDescriptor(EditorLayoutThreeRowsAction, EditorLayoutThreeRowsAction.ID, EditorLayoutThreeRowsAction.LABEL), 'View: Three Rows Editor Layout', category);
 registry.registerWorkbenchAction(new SyncActionDescriptor(EditorLayoutTwoByTwoGridAction, EditorLayoutTwoByTwoGridAction.ID, EditorLayoutTwoByTwoGridAction.LABEL), 'View: Grid Editor Layout (2x2)', category);
-registry.registerWorkbenchAction(new SyncActionDescriptor(EditorLayoutTwoColumnsRightAction, EditorLayoutTwoColumnsRightAction.ID, EditorLayoutTwoColumnsRightAction.LABEL), 'View: Two Columns Right Editor Layout', category);
+registry.registerWorkbenchAction(new SyncActionDescriptor(EditorLayoutTwoRowsRightAction, EditorLayoutTwoRowsRightAction.ID, EditorLayoutTwoRowsRightAction.LABEL), 'View: Two Rows Right Editor Layout', category);
 registry.registerWorkbenchAction(new SyncActionDescriptor(EditorLayoutTwoColumnsBottomAction, EditorLayoutTwoColumnsBottomAction.ID, EditorLayoutTwoColumnsBottomAction.LABEL), 'View: Two Columns Bottom Editor Layout', category);
 
 // Register Editor Picker Actions including quick navigate support

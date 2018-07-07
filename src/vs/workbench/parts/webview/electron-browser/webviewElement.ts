@@ -131,71 +131,69 @@ export class WebviewElement extends Disposable {
 			}));
 		}
 
-		this._toDispose.push(
-			addDisposableListener(this._webview, 'console-message', function (e: { level: number; message: string; line: number; sourceId: string; }) {
-				console.log(`[Embedded Page] ${e.message}`);
-			}),
-			addDisposableListener(this._webview, 'dom-ready', () => {
-				this.layout();
-			}),
-			addDisposableListener(this._webview, 'crashed', () => {
-				console.error('embedded page crashed');
-			}),
-			addDisposableListener(this._webview, 'ipc-message', (event) => {
-				switch (event.channel) {
-					case 'onmessage':
-						if (this._options.enableWrappedPostMessage && event.args && event.args.length) {
-							this._onMessage.fire(event.args[0]);
-						}
-						return;
+		this._register(addDisposableListener(this._webview, 'console-message', function (e: { level: number; message: string; line: number; sourceId: string; }) {
+			console.log(`[Embedded Page] ${e.message}`);
+		}));
+		this._register(addDisposableListener(this._webview, 'dom-ready', () => {
+			this.layout();
+		}));
+		this._register(addDisposableListener(this._webview, 'crashed', () => {
+			console.error('embedded page crashed');
+		}));
+		this._register(addDisposableListener(this._webview, 'ipc-message', (event) => {
+			switch (event.channel) {
+				case 'onmessage':
+					if (this._options.enableWrappedPostMessage && event.args && event.args.length) {
+						this._onMessage.fire(event.args[0]);
+					}
+					return;
 
-					case 'did-click-link':
-						let [uri] = event.args;
-						this._onDidClickLink.fire(URI.parse(uri));
-						return;
+				case 'did-click-link':
+					let [uri] = event.args;
+					this._onDidClickLink.fire(URI.parse(uri));
+					return;
 
-					case 'did-set-content':
-						this._webview.style.flex = '';
-						this._webview.style.width = '100%';
-						this._webview.style.height = '100%';
-						this.layout();
-						return;
+				case 'did-set-content':
+					this._webview.style.flex = '';
+					this._webview.style.width = '100%';
+					this._webview.style.height = '100%';
+					this.layout();
+					return;
 
-					case 'did-scroll':
-						if (event.args && typeof event.args[0] === 'number') {
-							this._onDidScroll.fire({ scrollYPercentage: event.args[0] });
-						}
-						return;
+				case 'did-scroll':
+					if (event.args && typeof event.args[0] === 'number') {
+						this._onDidScroll.fire({ scrollYPercentage: event.args[0] });
+					}
+					return;
 
-					case 'do-reload':
-						this.reload();
-						return;
+				case 'do-reload':
+					this.reload();
+					return;
 
-					case 'do-update-state':
-						this._state = event.args[0];
-						this._onDidUpdateState.fire(this._state);
-						return;
-				}
-			}),
-			addDisposableListener(this._webview, 'focus', () => {
-				if (this._contextKey) {
-					this._contextKey.set(true);
-				}
-			}),
-			addDisposableListener(this._webview, 'blur', () => {
-				if (this._contextKey) {
-					this._contextKey.reset();
-				}
-			}),
-			addDisposableListener(this._webview, 'devtools-opened', () => {
-				this._send('devtools-opened');
-			}),
-		);
+				case 'do-update-state':
+					this._state = event.args[0];
+					this._onDidUpdateState.fire(this._state);
+					return;
+			}
+		}));
+		this._register(addDisposableListener(this._webview, 'focus', () => {
+			if (this._contextKey) {
+				this._contextKey.set(true);
+			}
+		}));
+		this._register(addDisposableListener(this._webview, 'blur', () => {
+			if (this._contextKey) {
+				this._contextKey.reset();
+			}
+		}));
+		this._register(addDisposableListener(this._webview, 'devtools-opened', () => {
+			this._send('devtools-opened');
+		}));
 
 		this._webviewFindWidget = this._register(instantiationService.createInstance(WebviewFindWidget, this));
 
 		this.style(this._themeService.getTheme());
-		this._themeService.onThemeChange(this.style, this, this._toDispose);
+		this._register(this._themeService.onThemeChange(this.style, this));
 	}
 
 	public mountTo(parent: HTMLElement) {

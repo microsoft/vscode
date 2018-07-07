@@ -31,7 +31,7 @@ interface IMainCli {
 	main: (argv: ParsedArgs) => TPromise<void>;
 }
 
-export async function main(argv: string[]): TPromise<any> {
+export async function main(argv: string[]): Promise<any> {
 	let args: ParsedArgs;
 
 	try {

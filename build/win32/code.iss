@@ -32,6 +32,7 @@ VersionInfoVersion={#RawVersion}
 ShowLanguageDialog=auto
 ArchitecturesAllowed={#ArchitecturesAllowed}
 ArchitecturesInstallIn64BitMode={#ArchitecturesInstallIn64BitMode}
+SignTool=esrp
 
 #if "user" == InstallTarget
 DefaultDirName={userpf}\{#DirName}
@@ -91,7 +92,7 @@ Filename: "{app}\{#ExeBasename}.exe"; Description: "{cm:LaunchProgram,{#NameLong
 #if "user" == InstallTarget
 #define SoftwareClassesRootKey "HKCU"
 #else
-#define SoftwareClassesRootKey "HKCR"
+#define SoftwareClassesRootKey "HKLM"
 #endif
 
 Root: {#SoftwareClassesRootKey}; Subkey: "Software\Classes\.ascx\OpenWithProgids"; ValueType: none; ValueName: "{#RegValueName}"; Flags: deletevalue uninsdeletevalue; Tasks: associatewithfiles
@@ -945,7 +946,7 @@ Root: {#SoftwareClassesRootKey}; Subkey: "Software\Classes\Drive\shell\{#RegValu
 #define Uninstall64RootKey "HKCU64"
 #define Uninstall32RootKey "HKCU32"
 #else
-#define EnvironmentRootKey "HKCR"
+#define EnvironmentRootKey "HKLM"
 #define EnvironmentKey "System\CurrentControlSet\Control\Session Manager\Environment"
 #define Uninstall64RootKey "HKLM64"
 #define Uninstall32RootKey "HKLM32"
@@ -963,8 +964,26 @@ var
 begin
   Result := True;
 
-  if IsWin64 then begin
-    RegKey := 'SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall\' + copy('{#IncompatibleAppId}', 2, 38) + '_is1';
+  #if "user" == InstallTarget
+    #if "ia32" == Arch
+      #define IncompatibleArchRootKey "HKLM32"
+    #else
+      #define IncompatibleArchRootKey "HKLM64"
+    #endif
+
+    if not WizardSilent() then begin
+      RegKey := 'SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall\' + copy('{#IncompatibleTargetAppId}', 2, 38) + '_is1';
+
+      if RegKeyExists({#IncompatibleArchRootKey}, RegKey) then begin
+        if MsgBox('{#NameShort} is already installed on this system for all users. Are you sure you want to install it for this user?', mbConfirmation, MB_YESNO) = IDNO then begin
+          Result := false;
+        end;
+      end;
+    end;
+  #endif
+
+  if Result and IsWin64 then begin
+    RegKey := 'SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall\' + copy('{#IncompatibleArchAppId}', 2, 38) + '_is1';
 
     if '{#Arch}' = 'ia32' then begin
       Result := not RegKeyExists({#Uninstall64RootKey}, RegKey);

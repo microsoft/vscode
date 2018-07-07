@@ -42,7 +42,7 @@ export class Colorizer {
 		let render = (str: string) => {
 			domNode.innerHTML = str;
 		};
-		return this.colorize(modeService, text, mimeType, options).then(render, (err) => console.error(err), render);
+		return this.colorize(modeService, text, mimeType, options).then(render, (err) => console.error(err));
 	}
 
 	private static _tokenizationSupportChangedPromise(language: string): TPromise<void> {
@@ -54,7 +54,7 @@ export class Colorizer {
 			}
 		};
 
-		return new TPromise<void>((c, e, p) => {
+		return new TPromise<void>((c, e) => {
 			listener = TokenizationRegistry.onDidChange((e) => {
 				if (e.changedLanguages.indexOf(language) >= 0) {
 					stopListening();

@@ -18,7 +18,7 @@ import { IPager, mapPager, singlePagePager } from 'vs/base/common/paging';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import {
 	IExtensionManagementService, IExtensionGalleryService, ILocalExtension, IGalleryExtension, IQueryOptions, IExtensionManifest,
-	InstallExtensionEvent, DidInstallExtensionEvent, LocalExtensionType, DidUninstallExtensionEvent, IExtensionEnablementService, IExtensionIdentifier, EnablementState, IExtensionTipsService, ExtensionRecommendationSource, IExtensionRecommendation
+	InstallExtensionEvent, DidInstallExtensionEvent, LocalExtensionType, DidUninstallExtensionEvent, IExtensionEnablementService, IExtensionIdentifier, EnablementState, IExtensionTipsService, ExtensionRecommendationSource, IExtensionRecommendation, IExtensionManagementServerService
 } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { getGalleryExtensionIdFromLocal, getGalleryExtensionTelemetryData, getLocalExtensionTelemetryData, areSameExtensions, getMaliciousExtensionsSet } from 'vs/platform/extensionManagement/common/extensionManagementUtil';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
@@ -352,7 +352,8 @@ export class ExtensionsWorkbenchService implements IExtensionsWorkbenchService, 
 		@ILogService private logService: ILogService,
 		@IProgressService2 private progressService: IProgressService2,
 		@IExtensionService private runtimeExtensionService: IExtensionService,
-		@IExtensionTipsService private extensionTipsService: IExtensionTipsService
+		@IExtensionTipsService private extensionTipsService: IExtensionTipsService,
+		@IExtensionManagementServerService private extensionManagementServerService: IExtensionManagementServerService
 	) {
 		this.stateProvider = ext => this.getExtensionState(ext);
 
@@ -752,7 +753,7 @@ export class ExtensionsWorkbenchService implements IExtensionsWorkbenchService, 
 			for (const extension of extensions) {
 				let dependents = this.getDependentsAfterDisablement(extension, allExtensions, this.local, enablementState);
 				if (dependents.length) {
-					return TPromise.wrapError<void>(new Error(this.getDependentsErrorMessage(extension, dependents)));
+					return TPromise.wrapError<void>(new Error(this.getDependentsErrorMessage(extension, allExtensions, dependents)));
 				}
 			}
 		}
@@ -805,7 +806,17 @@ export class ExtensionsWorkbenchService implements IExtensionsWorkbenchService, 
 		});
 	}
 
-	private getDependentsErrorMessage(extension: IExtension, dependents: IExtension[]): string {
+	private getDependentsErrorMessage(extension: IExtension, allDisabledExtensions: IExtension[], dependents: IExtension[]): string {
+		for (const e of [extension, ...allDisabledExtensions]) {
+			let dependentsOfTheExtension = dependents.filter(d => d.dependencies.some(id => areSameExtensions({ id }, e)));
+			if (dependentsOfTheExtension.length) {
+				return this.getErrorMessageForDisablingAnExtensionWithDependents(e, dependentsOfTheExtension);
+			}
+		}
+		return '';
+	}
+
+	private getErrorMessageForDisablingAnExtensionWithDependents(extension: IExtension, dependents: IExtension[]): string {
 		if (dependents.length === 1) {
 			return nls.localize('singleDependentError', "Cannot disable extension '{0}'. Extension '{1}' depends on this.", extension.displayName, dependents[0].displayName);
 		}
@@ -877,7 +888,8 @@ export class ExtensionsWorkbenchService implements IExtensionsWorkbenchService, 
 			if (!error) {
 				const installed = this.installed.filter(e => e.id === extension.id)[0];
 				if (installed) {
-					const existingLocal = installed.locals.filter(l => l.location.toString() === local.location.toString())[0];
+					const server = this.extensionManagementServerService.getExtensionManagementServer(local.location);
+					const existingLocal = installed.locals.filter(l => this.extensionManagementServerService.getExtensionManagementServer(l.location).location.toString() === server.location.toString())[0];
 					if (existingLocal) {
 						const locals = [...installed.locals];
 						locals.splice(installed.locals.indexOf(existingLocal), 1, local);
@@ -962,13 +974,13 @@ export class ExtensionsWorkbenchService implements IExtensionsWorkbenchService, 
 		this.notificationService.error(err);
 	}
 
-	async handleURL(uri: URI): TPromise<boolean> {
+	handleURL(uri: URI): TPromise<boolean> {
 		if (!/^extension/.test(uri.path)) {
-			return false;
+			return TPromise.as(false);
 		}
 
 		this.onOpenExtensionUrl(uri);
-		return true;
+		return TPromise.as(true);
 	}
 
 	private onOpenExtensionUrl(uri: URI): void {

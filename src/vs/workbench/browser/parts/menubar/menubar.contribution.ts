@@ -4,12 +4,9 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as nls from 'vs/nls';
-import * as menubarCommands from 'vs/workbench/browser/parts/menubar/menubarCommands';
 import { MenuRegistry, MenuId } from 'vs/platform/actions/common/actions';
 import { isMacintosh } from 'vs/base/common/platform';
 
-// TODO: Add submenu support to remove layout, preferences, and recent top level
-menubarCommands.setup();
 recentMenuRegistration();
 fileMenuRegistration();
 editMenuRegistration();
@@ -843,8 +840,8 @@ function layoutMenuRegistration() {
 	MenuRegistry.appendMenuItem(MenuId.MenubarLayoutMenu, {
 		group: '2_layouts',
 		command: {
-			id: 'workbench.action.editorLayoutTwoColumnsRight',
-			title: nls.localize({ key: 'miTwoColumnsRightEditorLayout', comment: ['&& denotes a mnemonic'] }, "Two C&&olumns Right")
+			id: 'workbench.action.editorLayoutTwoRowsRight',
+			title: nls.localize({ key: 'miTwoRowsRightEditorLayout', comment: ['&& denotes a mnemonic'] }, "Two R&&ows Right")
 		},
 		order: 8
 	});

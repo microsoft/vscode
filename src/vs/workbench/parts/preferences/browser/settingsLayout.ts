@@ -70,7 +70,7 @@ export const tocData: ITOCEntry = {
 				},
 				{
 					id: 'editor/editor',
-					label: localize('editor', "Editor"),
+					label: localize('textEditor', "Text Editor"),
 					settings: ['editor.*']
 				}
 			]

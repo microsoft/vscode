@@ -50,7 +50,7 @@ export class WatchExpressionsView extends TreeViewsViewletPanel {
 		@IInstantiationService private instantiationService: IInstantiationService,
 		@IConfigurationService configurationService: IConfigurationService
 	) {
-		super({ ...(options as IViewletPanelOptions), ariaHeaderLabel: nls.localize('expressionsSection', "Expressions Section") }, keybindingService, contextMenuService, configurationService);
+		super({ ...(options as IViewletPanelOptions), ariaHeaderLabel: nls.localize('watchExpressionsSection', "Watch Expressions Section") }, keybindingService, contextMenuService, configurationService);
 		this.settings = options.viewletSettings;
 
 		this.onWatchExpressionsUpdatedScheduler = new RunOnceScheduler(() => {

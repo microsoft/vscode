@@ -5,7 +5,7 @@
 
 import 'vs/css!./media/views';
 import { Event, Emitter } from 'vs/base/common/event';
-import { IDisposable, dispose, empty as EmptyDisposable, toDisposable, Disposable } from 'vs/base/common/lifecycle';
+import { IDisposable, dispose, Disposable, toDisposable } from 'vs/base/common/lifecycle';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { IAction, IActionItem, ActionRunner } from 'vs/base/common/actions';
@@ -109,7 +109,7 @@ export class CustomTreeViewPanel extends ViewletPanel {
 class TitleMenus implements IDisposable {
 
 	private disposables: IDisposable[] = [];
-	private titleDisposable: IDisposable = EmptyDisposable;
+	private titleDisposable: IDisposable = Disposable.None;
 	private titleActions: IAction[] = [];
 	private titleSecondaryActions: IAction[] = [];
 
@@ -123,7 +123,7 @@ class TitleMenus implements IDisposable {
 	) {
 		if (this.titleDisposable) {
 			this.titleDisposable.dispose();
-			this.titleDisposable = EmptyDisposable;
+			this.titleDisposable = Disposable.None;
 		}
 
 		const _contextKeyService = this.contextKeyService.createScoped();
@@ -242,7 +242,12 @@ export class CustomTreeViewer extends Disposable implements ITreeViewer {
 		return this._hasIconForLeafNode;
 	}
 
+	get visible(): boolean {
+		return this.isVisible;
+	}
+
 	setVisibility(isVisible: boolean): void {
+		isVisible = !!isVisible;
 		if (this.isVisible === isVisible) {
 			return;
 		}
@@ -412,26 +417,26 @@ class TreeDataSource implements IDataSource {
 	) {
 	}
 
-	public getId(tree: ITree, node: ITreeItem): string {
+	getId(tree: ITree, node: ITreeItem): string {
 		return node.handle;
 	}
 
-	public hasChildren(tree: ITree, node: ITreeItem): boolean {
+	hasChildren(tree: ITree, node: ITreeItem): boolean {
 		return this.treeView.dataProvider && node.collapsibleState !== TreeItemCollapsibleState.None;
 	}
 
-	public getChildren(tree: ITree, node: ITreeItem): TPromise<any[]> {
+	getChildren(tree: ITree, node: ITreeItem): TPromise<any[]> {
 		if (this.treeView.dataProvider) {
 			return this.progressService.withProgress({ location: this.container }, () => this.treeView.dataProvider.getChildren(node));
 		}
 		return TPromise.as([]);
 	}
 
-	public shouldAutoexpand(tree: ITree, node: ITreeItem): boolean {
+	shouldAutoexpand(tree: ITree, node: ITreeItem): boolean {
 		return node.collapsibleState === TreeItemCollapsibleState.Expanded;
 	}
 
-	public getParent(tree: ITree, node: any): TPromise<any> {
+	getParent(tree: ITree, node: any): TPromise<any> {
 		return TPromise.as(null);
 	}
 }
@@ -458,15 +463,15 @@ class TreeRenderer implements IRenderer {
 	) {
 	}
 
-	public getHeight(tree: ITree, element: any): number {
+	getHeight(tree: ITree, element: any): number {
 		return TreeRenderer.ITEM_HEIGHT;
 	}
 
-	public getTemplateId(tree: ITree, element: any): string {
+	getTemplateId(tree: ITree, element: any): string {
 		return TreeRenderer.TREE_TEMPLATE_ID;
 	}
 
-	public renderTemplate(tree: ITree, templateId: string, container: HTMLElement): ITreeExplorerTemplateData {
+	renderTemplate(tree: ITree, templateId: string, container: HTMLElement): ITreeExplorerTemplateData {
 		DOM.addClass(container, 'custom-view-tree-node-item');
 
 		const icon = DOM.append(container, DOM.$('.custom-view-tree-node-item-icon'));
@@ -481,7 +486,7 @@ class TreeRenderer implements IRenderer {
 		return { label, resourceLabel, icon, actionBar, aligner: new Aligner(container, tree, this.themeService) };
 	}
 
-	public renderElement(tree: ITree, node: ITreeItem, templateId: string, templateData: ITreeExplorerTemplateData): void {
+	renderElement(tree: ITree, node: ITreeItem, templateId: string, templateData: ITreeExplorerTemplateData): void {
 		const resource = node.resourceUri ? URI.revive(node.resourceUri) : null;
 		const label = node.label ? node.label : resource ? basename(resource.path) : '';
 		const icon = this.themeService.getTheme().type === LIGHT ? node.icon : node.iconDark;
@@ -523,7 +528,7 @@ class TreeRenderer implements IRenderer {
 		return node.collapsibleState === TreeItemCollapsibleState.Collapsed || node.collapsibleState === TreeItemCollapsibleState.Expanded ? FileKind.FOLDER : FileKind.FILE;
 	}
 
-	public disposeTemplate(tree: ITree, templateId: string, templateData: ITreeExplorerTemplateData): void {
+	disposeTemplate(tree: ITree, templateId: string, templateData: ITreeExplorerTemplateData): void {
 		templateData.resourceLabel.dispose();
 		templateData.actionBar.dispose();
 		templateData.aligner.dispose();
@@ -602,7 +607,7 @@ class TreeController extends WorkbenchTreeController {
 		return element.command ? this.isClickOnTwistie(event) : super.shouldToggleExpansion(element, event, origin);
 	}
 
-	public onContextMenu(tree: ITree, node: ITreeItem, event: ContextMenuEvent): boolean {
+	onContextMenu(tree: ITree, node: ITreeItem, event: ContextMenuEvent): boolean {
 		event.preventDefault();
 		event.stopPropagation();
 

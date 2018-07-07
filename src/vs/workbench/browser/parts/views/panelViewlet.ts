@@ -52,7 +52,7 @@ export abstract class ViewletPanel extends Panel implements IView {
 	private _onDidBlur = new Emitter<void>();
 	readonly onDidBlur: Event<void> = this._onDidBlur.event;
 
-	private _onDidChangeTitleArea = new Emitter<void>();
+	protected _onDidChangeTitleArea = new Emitter<void>();
 	readonly onDidChangeTitleArea: Event<void> = this._onDidChangeTitleArea.event;
 
 	private _isVisible: boolean;
@@ -207,12 +207,12 @@ export class PanelViewlet extends Viewlet {
 		super(id, partService, telemetryService, themeService);
 	}
 
-	async create(parent: HTMLElement): TPromise<void> {
-		super.create(parent);
-
-		this.panelview = this._register(new PanelView(parent, this.options));
-		this._register(this.panelview.onDidDrop(({ from, to }) => this.movePanel(from as ViewletPanel, to as ViewletPanel)));
-		this._register(addDisposableListener(parent, EventType.CONTEXT_MENU, (e: MouseEvent) => this.showContextMenu(new StandardMouseEvent(e))));
+	create(parent: HTMLElement): TPromise<void> {
+		return super.create(parent).then(() => {
+			this.panelview = this._register(new PanelView(parent, this.options));
+			this._register(this.panelview.onDidDrop(({ from, to }) => this.movePanel(from as ViewletPanel, to as ViewletPanel)));
+			this._register(addDisposableListener(parent, EventType.CONTEXT_MENU, (e: MouseEvent) => this.showContextMenu(new StandardMouseEvent(e))));
+		});
 	}
 
 	private showContextMenu(event: StandardMouseEvent): void {

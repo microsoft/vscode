@@ -312,10 +312,10 @@ export class FindWidget extends Widget implements IOverlayWidget, IHorizontalSas
 
 	private _updateHistory() {
 		if (this._state.searchString) {
-			this._findInput.inputBox.addToHistory(this._state.searchString);
+			this._findInput.inputBox.addToHistory();
 		}
 		if (this._state.replaceString) {
-			this._replaceInputBox.addToHistory(this._state.replaceString);
+			this._replaceInputBox.addToHistory();
 		}
 	}
 

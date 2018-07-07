@@ -96,14 +96,14 @@ export class OutlineDataSource implements IDataSource {
 		return false;
 	}
 
-	async getChildren(tree: ITree, element: TreeElement): TPromise<TreeElement[]> {
+	getChildren(tree: ITree, element: TreeElement): TPromise<TreeElement[]> {
 		let res = values(element.children);
 		// console.log(element.id + ' with children ' + res.length);
-		return res;
+		return TPromise.wrap(res);
 	}
 
-	async getParent(tree: ITree, element: TreeElement | any): TPromise<TreeElement> {
-		return element && element.parent;
+	getParent(tree: ITree, element: TreeElement | any): TPromise<TreeElement> {
+		return TPromise.wrap(element && element.parent);
 	}
 
 	shouldAutoexpand(tree: ITree, element: TreeElement): boolean {
@@ -181,11 +181,12 @@ export class OutlineRenderer implements IRenderer {
 		}
 
 		const { count, topSev } = element.marker;
-		const color = this._themeService.getTheme().getColor(topSev === MarkerSeverity.Error ? listErrorForeground : listWarningForeground).toString();
+		const color = this._themeService.getTheme().getColor(topSev === MarkerSeverity.Error ? listErrorForeground : listWarningForeground);
+		const cssColor = color ? color.toString() : 'inherit';
 
 		// color of the label
 		if (this.renderProblemColors) {
-			template.labelContainer.style.setProperty('--outline-element-color', color);
+			template.labelContainer.style.setProperty('--outline-element-color', cssColor);
 		} else {
 			template.labelContainer.style.removeProperty('--outline-element-color');
 		}
@@ -199,14 +200,14 @@ export class OutlineRenderer implements IRenderer {
 			dom.removeClass(template.decoration, 'bubble');
 			template.decoration.innerText = count < 10 ? count.toString() : '+9';
 			template.decoration.title = count === 1 ? localize('1.problem', "1 problem in this element") : localize('N.problem', "{0} problems in this element", count);
-			template.decoration.style.setProperty('--outline-element-color', color);
+			template.decoration.style.setProperty('--outline-element-color', cssColor);
 
 		} else {
 			dom.show(template.decoration);
 			dom.addClass(template.decoration, 'bubble');
 			template.decoration.innerText = '\uf052';
 			template.decoration.title = localize('deep.problem', "Contains elements with problems");
-			template.decoration.style.setProperty('--outline-element-color', color);
+			template.decoration.style.setProperty('--outline-element-color', cssColor);
 		}
 	}
 
@@ -280,7 +281,7 @@ export class OutlineTreeState {
 		return { selected, focused, expanded };
 	}
 
-	static async restore(tree: ITree, state: OutlineTreeState, eventPayload: any): TPromise<void> {
+	static async restore(tree: ITree, state: OutlineTreeState, eventPayload: any): Promise<void> {
 		let model = <OutlineModel>tree.getInput();
 		if (!state || !(model instanceof OutlineModel)) {
 			return TPromise.as(undefined);

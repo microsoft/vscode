@@ -173,10 +173,10 @@ export class ExplorerViewlet extends ViewContainerViewlet implements IExplorerVi
 		this._register(this.contextService.onDidChangeWorkspaceName(e => this.updateTitleArea()));
 	}
 
-	async create(parent: HTMLElement): TPromise<void> {
-		await super.create(parent);
-
-		DOM.addClass(parent, 'explorer-viewlet');
+	create(parent: HTMLElement): TPromise<void> {
+		return super.create(parent).then(() => {
+			DOM.addClass(parent, 'explorer-viewlet');
+		});
 	}
 
 	protected createView(viewDescriptor: IViewDescriptor, options: IViewletViewOptions): ViewletPanel {

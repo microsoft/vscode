@@ -437,7 +437,8 @@ export class ExtensionManagementService extends Disposable implements IExtension
 	private extractAndInstall({ zipPath, id, metadata }: InstallableExtension): TPromise<ILocalExtension> {
 		const tempPath = path.join(this.extensionsPath, `.${id}`);
 		const extensionPath = path.join(this.extensionsPath, id);
-		return this.extractAndRename(id, zipPath, tempPath, extensionPath)
+		return pfs.rimraf(extensionPath)
+			.then(() => this.extractAndRename(id, zipPath, tempPath, extensionPath), e => TPromise.wrapError(new ExtensionManagementError(nls.localize('errorDeleting', "Unable to delete the existing folder '{0}' while installing the extension '{1}'. Please delete the folder manually and try again", extensionPath, id), INSTALL_ERROR_DELETING)))
 			.then(() => {
 				this.logService.info('Installation completed.', id);
 				return this.scanExtension(id, this.extensionsPath, LocalExtensionType.User);
@@ -686,7 +687,7 @@ export class ExtensionManagementService extends Disposable implements IExtension
 		return promise;
 	}
 
-	private async postUninstallExtension(extension: ILocalExtension, error?: Error): TPromise<void> {
+	private async postUninstallExtension(extension: ILocalExtension, error?: Error): Promise<void> {
 		if (error) {
 			this.logService.error('Failed to uninstall extension:', extension.identifier.id, error.message);
 		} else {

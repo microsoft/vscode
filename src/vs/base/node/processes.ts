@@ -234,7 +234,7 @@ export abstract class AbstractProcess<TProgressData> {
 					if (this.cmd) {
 						childProcess = cp.spawn(this.cmd, this.args, this.options);
 					} else if (this.module) {
-						this.childProcessPromise = new TPromise<cp.ChildProcess>((c, e, p) => {
+						this.childProcessPromise = new TPromise<cp.ChildProcess>((c, e) => {
 							fork(this.module, this.args, <ForkOptions>this.options, (error: any, childProcess: cp.ChildProcess) => {
 								if (error) {
 									e(error);
@@ -323,7 +323,7 @@ export abstract class AbstractProcess<TProgressData> {
 	}
 
 	private useExec(): TPromise<boolean> {
-		return new TPromise<boolean>((c, e, p) => {
+		return new TPromise<boolean>((c, e) => {
 			if (!this.shell || !Platform.isWindows) {
 				c(false);
 			}

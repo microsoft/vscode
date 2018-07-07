@@ -19,8 +19,8 @@ import { IEditorGroupsService, GroupOrientation } from 'vs/workbench/services/gr
 
 export class ToggleEditorLayoutAction extends Action {
 
-	public static readonly ID = 'workbench.action.toggleEditorGroupLayout';
-	public static readonly LABEL = nls.localize('flipLayout', "Toggle Vertical/Horizontal Editor Layout");
+	static readonly ID = 'workbench.action.toggleEditorGroupLayout';
+	static readonly LABEL = nls.localize('flipLayout', "Toggle Vertical/Horizontal Editor Layout");
 
 	private toDispose: IDisposable[];
 
@@ -48,14 +48,14 @@ export class ToggleEditorLayoutAction extends Action {
 		this.enabled = this.editorGroupService.count > 1;
 	}
 
-	public run(): TPromise<any> {
+	run(): TPromise<any> {
 		const newOrientation = (this.editorGroupService.orientation === GroupOrientation.VERTICAL) ? GroupOrientation.HORIZONTAL : GroupOrientation.VERTICAL;
 		this.editorGroupService.setGroupOrientation(newOrientation);
 
 		return TPromise.as(null);
 	}
 
-	public dispose(): void {
+	dispose(): void {
 		this.toDispose = dispose(this.toDispose);
 
 		super.dispose();

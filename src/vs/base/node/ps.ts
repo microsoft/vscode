@@ -206,7 +206,8 @@ export function listProcesses(rootPid: number): Promise<ProcessItem> {
 
 						// The cpu usage value reported on Linux is the average over the process lifetime,
 						// recalculate the usage over a one second interval
-						let cmd = URI.parse(require.toUrl('vs/base/node/cpuUsage.sh')).fsPath;
+						// JSON.stringify is needed to escape spaces, https://github.com/nodejs/node/issues/6803
+						let cmd = JSON.stringify(URI.parse(require.toUrl('vs/base/node/cpuUsage.sh')).fsPath);
 						cmd += ' ' + pids.join(' ');
 
 						exec(cmd, {}, (err, stdout, stderr) => {

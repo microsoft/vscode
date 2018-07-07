@@ -25,6 +25,7 @@ import { LightBulbWidget } from './lightBulbWidget';
 import { escapeRegExpCharacters } from 'vs/base/common/strings';
 import { IBulkEditService } from 'vs/editor/browser/services/bulkEditService';
 import { IProgressService } from 'vs/platform/progress/common/progress';
+import { CancelablePromise } from 'vs/base/common/async';
 
 function contextKeyForSupportedActions(kind: CodeActionKind) {
 	return ContextKeyExpr.regex(
@@ -46,7 +47,7 @@ export class QuickFixController implements IEditorContribution {
 	private _lightBulbWidget: LightBulbWidget;
 	private _disposables: IDisposable[] = [];
 
-	private _activeRequest: TPromise<CodeAction[]> | undefined;
+	private _activeRequest: CancelablePromise<CodeAction[]> | undefined;
 
 	constructor(editor: ICodeEditor,
 		@IMarkerService markerService: IMarkerService,
@@ -124,7 +125,7 @@ export class QuickFixController implements IEditorContribution {
 		this._codeActionContextMenu.show(this._lightBulbWidget.model.actions, coords);
 	}
 
-	public triggerFromEditorSelection(filter?: CodeActionFilter, autoApply?: CodeActionAutoApply): TPromise<CodeAction[] | undefined> {
+	public triggerFromEditorSelection(filter?: CodeActionFilter, autoApply?: CodeActionAutoApply): Thenable<CodeAction[] | undefined> {
 		return this._model.trigger({ type: 'manual', filter, autoApply });
 	}
 
@@ -139,8 +140,8 @@ export class QuickFixController implements IEditorContribution {
 		this._lightBulbWidget.title = title;
 	}
 
-	private async _onApplyCodeAction(action: CodeAction): TPromise<void> {
-		await applyCodeAction(action, this._bulkEditService, this._commandService, this._editor);
+	private _onApplyCodeAction(action: CodeAction): TPromise<void> {
+		return TPromise.wrap(applyCodeAction(action, this._bulkEditService, this._commandService, this._editor));
 	}
 }
 
@@ -149,7 +150,7 @@ export async function applyCodeAction(
 	bulkEditService: IBulkEditService,
 	commandService: ICommandService,
 	editor?: ICodeEditor,
-) {
+): Promise<void> {
 	if (action.edit) {
 		await bulkEditService.apply(action.edit, { editor });
 	}

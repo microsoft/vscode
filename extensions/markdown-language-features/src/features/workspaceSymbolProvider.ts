@@ -136,7 +136,7 @@ export default class MarkdownWorkspaceSymbolProvider implements vscode.Workspace
 
 	private getSymbols(document: SkinnyTextDocument): Lazy<Thenable<vscode.SymbolInformation[]>> {
 		return lazy(async () => {
-			return this._symbolProvider.provideDocumentSymbols(document);
+			return this._symbolProvider.provideDocumentSymbolInformation(document);
 		});
 	}
 
