@@ -243,7 +243,15 @@ export class PreferencesService extends Disposable implements IPreferencesServic
 				return this.editorService.openEditor({ resource: editableKeybindings, options: { pinned: true } }).then(editors => void 0);
 			});
 		}
-		return this.editorService.openEditor(this.instantiationService.createInstance(KeybindingsEditorInput), { pinned: true }).then(() => null);
+
+		const keybindingsEditorInput = this.instantiationService.createInstance(KeybindingsEditorInput);
+		if (openDefaultKeybindings) {
+			keybindingsEditorInput.setDefaultSearchValue('@source:uesr');
+		} else {
+			keybindingsEditorInput.setDefaultSearchValue();
+		}
+
+		return this.editorService.openEditor(keybindingsEditorInput, { pinned: true }).then(() => null);
 	}
 
 	openRawDefaultKeybindings(): TPromise<IEditor> {
