@@ -99,7 +99,7 @@ export class DefinitionAction extends EditorAction {
 				this._openReference(editor, editorService, current, false);
 
 			} else {
-				// handle multile results
+				// handle multiple results
 				this._onResult(editorService, editor, new ReferencesModel(result));
 			}
 
@@ -134,14 +134,13 @@ export class DefinitionAction extends EditorAction {
 		if (this._configuration.openInPeek) {
 			this._openInPeek(editorService, editor, model);
 		} else {
-			let next = model.nearestReference(editor.getModel().uri, editor.getPosition());
-			this._openReference(editor, editorService, next, this._configuration.openToSide).then(editor => {
-				if (editor && model.references.length > 1) {
-					this._openInPeek(editorService, editor, model);
-				} else {
+			if (model.references.length === 1) {
+				this._openReference(editor, editorService, model.references[0], this._configuration.openToSide).then(() => {
 					model.dispose();
-				}
-			});
+				});
+			} else {
+				this._openInPeek(editorService, editor, model);
+			}
 		}
 	}
 
