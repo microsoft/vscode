@@ -271,10 +271,8 @@ function packageTask(platform, arch, opts) {
 		const date = new Date().toISOString();
 		const productJsonUpdate = { commit, date, checksums };
 
-		try {
+		if (shouldSetupSettingsSearch()) {
 			productJsonUpdate.settingsSearchBuildId = getSettingsSearchBuildId(packageJson);
-		} catch (err) {
-			console.warn(err);
 		}
 
 		const productJsonStream = gulp.src(['product.json'], { base: '.' })
@@ -474,9 +472,8 @@ gulp.task('upload-vscode-sourcemaps', ['minify-vscode'], () => {
 
 const allConfigDetailsPath = path.join(os.tmpdir(), 'configuration.json');
 gulp.task('upload-vscode-configuration', ['generate-vscode-configuration'], () => {
-	const branch = process.env.BUILD_SOURCEBRANCH;
-
-	if (!/\/master$/.test(branch) && branch.indexOf('/release/') < 0) {
+	if (!shouldSetupSettingsSearch()) {
+		const branch = process.env.BUILD_SOURCEBRANCH;
 		console.log(`Only runs on master and release branches, not ${branch}`);
 		return;
 	}
@@ -499,13 +496,24 @@ gulp.task('upload-vscode-configuration', ['generate-vscode-configuration'], () =
 		}));
 });
 
-function getSettingsSearchBuildId(packageJson) {
-	const previous = util.getPreviousVersion(packageJson.version);
+function shouldSetupSettingsSearch() {
+	const branch = process.env.BUILD_SOURCEBRANCH;
+	return branch && (/\/master$/.test(branch) || branch.indexOf('/release/') >= 0);
+}
 
+function getSettingsSearchBuildId(packageJson) {
 	try {
-		const out = cp.execSync(`git rev-list ${previous}..HEAD --count`);
+		const branch = process.env.BUILD_SOURCEBRANCH;
+		const branchId = branch.indexOf('/release/') >= 0 ? 0 :
+			/\/master$/.test(branch) ? 1 :
+			2; // Some unexpected branch
+
+		const out = cp.execSync(`git rev-list master --count`);
 		const count = parseInt(out.toString());
-		return util.versionStringToNumber(packageJson.version) * 1e4 + count;
+
+		// <version number><commit count><branchId (avoid unlikely conflicts)>
+		// 1.25.1, 1,234,567 commits, master = 1250112345671
+		return util.versionStringToNumber(packageJson.version) * 1e8 + count * 10 + branchId;
 	} catch (e) {
 		throw new Error('Could not determine build number: ' + e.toString());
 	}
