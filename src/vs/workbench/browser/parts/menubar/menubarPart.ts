@@ -34,6 +34,7 @@ import { IRecentlyOpened } from 'vs/platform/history/common/history';
 import { IWorkspaceIdentifier, ISingleFolderWorkspaceIdentifier, isSingleFolderWorkspaceIdentifier, getWorkspaceLabel } from 'vs/platform/workspaces/common/workspaces';
 import { getPathLabel } from 'vs/base/common/labels';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
+import { RunOnceScheduler } from 'vs/base/common/async';
 
 interface CustomMenu {
 	title: string;
@@ -88,9 +89,11 @@ export class MenubarPart extends Part {
 
 	private customMenus: CustomMenu[];
 
+	private menuUpdater: RunOnceScheduler;
 	private actionRunner: IActionRunner;
 	private container: Builder;
 	private recentlyOpened: IRecentlyOpened;
+	private updatePending: boolean;
 	private _modifierKeyStatus: IModifierKeyStatus;
 	private _isFocused: boolean;
 	private _onVisibilityChange: Emitter<Dimension>;
@@ -135,6 +138,8 @@ export class MenubarPart extends Part {
 			this.topLevelMenus['Window'] = this._register(this.menuService.createMenu(MenuId.MenubarWindowMenu, this.contextKeyService));
 		}
 
+		this.menuUpdater = this._register(new RunOnceScheduler(() => this.doSetupMenubar(), 0));
+
 		this.actionRunner = this._register(new ActionRunner());
 		this._register(this.actionRunner.onDidBeforeRun(() => {
 			if (this.focusedMenu && this.focusedMenu.holder) {
@@ -148,7 +153,7 @@ export class MenubarPart extends Part {
 			for (let topLevelMenuName of Object.keys(this.topLevelMenus)) {
 				this._register(this.topLevelMenus[topLevelMenuName].onDidChange(() => this.setupMenubar()));
 			}
-			this.setupMenubar();
+			this.doSetupMenubar();
 		}
 
 		this.isFocused = false;
@@ -212,6 +217,15 @@ export class MenubarPart extends Part {
 	}
 
 	private set isFocused(value: boolean) {
+		if (this._isFocused && !value) {
+			// Losing focus, update the menu if needed
+
+			if (this.updatePending) {
+				this.menuUpdater.schedule();
+				this.updatePending = false;
+			}
+		}
+
 		this._isFocused = value;
 
 		if (!this._isFocused && this.currentMenubarVisibility === 'toggle') {
@@ -282,6 +296,9 @@ export class MenubarPart extends Part {
 		// Listen to update service
 		// this.updateService.onStateChange(() => this.setupMenubar());
 
+		// Listen for context changes
+		this._register(this.contextKeyService.onDidChangeContext(() => this.setupMenubar()));
+
 		// Listen for changes in recently opened menu
 		this._register(this.windowsService.onRecentlyOpenedChange(() => { this.onRecentlyOpenedChange(); }));
 
@@ -291,12 +308,16 @@ export class MenubarPart extends Part {
 		this._register(ModifierKeyEmitter.getInstance().event(this.onModifierKeyToggled, this));
 	}
 
-	private setupMenubar(): void {
+	private doSetupMenubar(): void {
 		if (!isMacintosh && this.currentTitlebarStyleSetting === 'custom') {
 			this.setupCustomMenubar();
 		} else {
 			this.setupNativeMenubar();
 		}
+	}
+
+	private setupMenubar(): void {
+		this.menuUpdater.schedule();
 	}
 
 	private setupNativeMenubar(): void {
@@ -428,6 +449,12 @@ export class MenubarPart extends Part {
 	}
 
 	private setupCustomMenubar(): void {
+		// Don't update while using the menu
+		if (this.isFocused) {
+			this.updatePending = true;
+			return;
+		}
+
 		this.container.empty();
 		this.container.attr('role', 'menubar');
 
@@ -773,7 +800,7 @@ export class MenubarPart extends Part {
 
 		// Build the menubar
 		if (this.container) {
-			this.setupMenubar();
+			this.doSetupMenubar();
 		}
 
 		return this.container.getHTMLElement();
