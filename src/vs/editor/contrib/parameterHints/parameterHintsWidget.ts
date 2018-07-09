@@ -459,7 +459,7 @@ export class ParameterHintsWidget implements IContentWidget, IDisposable {
 			return false;
 		}
 
-		this.currentSignature = (this.currentSignature + 1) % length;
+		this.currentSignature++;
 		this.render();
 		return true;
 	}
@@ -473,7 +473,7 @@ export class ParameterHintsWidget implements IContentWidget, IDisposable {
 			return false;
 		}
 
-		this.currentSignature = (this.currentSignature - 1 + length) % length;
+		this.currentSignature--;
 		this.render();
 		return true;
 	}
