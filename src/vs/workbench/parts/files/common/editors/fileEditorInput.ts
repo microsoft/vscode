@@ -243,7 +243,7 @@ export class FileEditorInput extends EditorInput implements IFileEditorInput {
 		return this.forceOpenAsBinary ? BINARY_FILE_EDITOR_ID : TEXT_FILE_EDITOR_ID;
 	}
 
-	resolve(refresh?: boolean): TPromise<TextFileEditorModel | BinaryEditorModel> {
+	resolve(): TPromise<TextFileEditorModel | BinaryEditorModel> {
 
 		// Resolve as binary
 		if (this.forceOpenAsBinary) {
@@ -251,13 +251,17 @@ export class FileEditorInput extends EditorInput implements IFileEditorInput {
 		}
 
 		// Resolve as text
-		return this.doResolveAsText(refresh);
+		return this.doResolveAsText();
 	}
 
-	private doResolveAsText(reload?: boolean): TPromise<TextFileEditorModel | BinaryEditorModel> {
+	private doResolveAsText(): TPromise<TextFileEditorModel | BinaryEditorModel> {
 
 		// Resolve as text
-		return this.textFileService.models.loadOrCreate(this.resource, { encoding: this.preferredEncoding, reload, allowBinary: this.forceOpenAsText }).then(model => {
+		return this.textFileService.models.loadOrCreate(this.resource, {
+			encoding: this.preferredEncoding,
+			reload: { async: true }, // trigger a reload of the model if it exists already but do not wait to show the model
+			allowBinary: this.forceOpenAsText
+		}).then(model => {
 
 			// This is a bit ugly, because we first resolve the model and then resolve a model reference. the reason being that binary
 			// or very large files do not resolve to a text file model but should be opened as binary files without text. First calling into

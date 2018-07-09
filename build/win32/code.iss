@@ -92,7 +92,7 @@ Filename: "{app}\{#ExeBasename}.exe"; Description: "{cm:LaunchProgram,{#NameLong
 #if "user" == InstallTarget
 #define SoftwareClassesRootKey "HKCU"
 #else
-#define SoftwareClassesRootKey "HKCR"
+#define SoftwareClassesRootKey "HKLM"
 #endif
 
 Root: {#SoftwareClassesRootKey}; Subkey: "Software\Classes\.ascx\OpenWithProgids"; ValueType: none; ValueName: "{#RegValueName}"; Flags: deletevalue uninsdeletevalue; Tasks: associatewithfiles

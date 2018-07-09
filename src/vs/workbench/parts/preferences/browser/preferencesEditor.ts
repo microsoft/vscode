@@ -126,7 +126,8 @@ export class PreferencesEditor extends BaseEditor {
 			ariaLabel: nls.localize('SearchSettingsWidget.AriaLabel', "Search settings"),
 			placeholder: nls.localize('SearchSettingsWidget.Placeholder', "Search Settings"),
 			focusKey: this.searchFocusContextKey,
-			showResultCount: true
+			showResultCount: true,
+			ariaLive: 'assertive'
 		}));
 		this._register(this.searchWidget.onDidChange(value => this.onInputChanged()));
 		this._register(this.searchWidget.onFocus(() => this.lastFocusedWidget = this.searchWidget));
@@ -242,7 +243,7 @@ export class PreferencesEditor extends BaseEditor {
 		if (query) {
 			return TPromise.join([
 				this.localSearchDelayer.trigger(() => this.preferencesRenderers.localFilterPreferences(query)),
-				this.remoteSearchThrottle.trigger(() => this.progressService.showWhile(this.preferencesRenderers.remoteSearchPreferences(query), 500))
+				this.remoteSearchThrottle.trigger(() => TPromise.wrap(this.progressService.showWhile(this.preferencesRenderers.remoteSearchPreferences(query), 500)))
 			]) as TPromise;
 		} else {
 			// When clearing the input, update immediately to clear it

@@ -42,6 +42,7 @@ import URI from 'vs/base/common/uri';
 import { IdGenerator } from 'vs/base/common/idGenerator';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { equals } from 'vs/base/common/arrays';
+import { TimeoutTimer } from 'vs/base/common/async';
 
 const $ = dom.$;
 
@@ -104,7 +105,7 @@ class QuickInput implements IQuickInput {
 		this.onDidHideEmitter,
 	];
 
-	private busyDelay: TPromise<void>;
+	private busyDelay: TimeoutTimer;
 
 	constructor(protected ui: QuickInputUI) {
 	}
@@ -215,12 +216,12 @@ class QuickInput implements IQuickInput {
 			this.ui.title.textContent = title;
 		}
 		if (this.busy && !this.busyDelay) {
-			this.busyDelay = TPromise.timeout(800);
-			this.busyDelay.then(() => {
+			this.busyDelay = new TimeoutTimer();
+			this.busyDelay.setIfNotSet(() => {
 				if (this.visible) {
 					this.ui.progressBar.infinite();
 				}
-			}, () => { /* ignore */ });
+			}, 800);
 		}
 		if (!this.busy && this.busyDelay) {
 			this.ui.progressBar.stop();
@@ -890,8 +891,8 @@ export class QuickInputService extends Component implements IQuickInputService {
 		this.updateStyles();
 	}
 
-	pick<T extends IQuickPickItem, O extends IPickOptions>(picks: TPromise<T[]>, options: O = <O>{}, token: CancellationToken = CancellationToken.None): TPromise<O extends { canPickMany: true } ? T[] : T> {
-		return new TPromise<O extends { canPickMany: true } ? T[] : T>((resolve, reject, progress) => {
+	pick<T extends IQuickPickItem, O extends IPickOptions<T>>(picks: TPromise<T[]>, options: O = <O>{}, token: CancellationToken = CancellationToken.None): TPromise<O extends { canPickMany: true } ? T[] : T> {
+		return new TPromise<O extends { canPickMany: true } ? T[] : T>((resolve, reject) => {
 			if (token.isCancellationRequested) {
 				resolve(undefined);
 				return;
@@ -913,8 +914,8 @@ export class QuickInputService extends Component implements IQuickInputService {
 				}),
 				input.onDidChangeActive(items => {
 					const focused = items[0];
-					if (focused) {
-						progress(focused);
+					if (focused && options.onDidFocus) {
+						options.onDidFocus(focused);
 					}
 				}),
 				input.onDidChangeSelection(items => {

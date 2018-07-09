@@ -39,6 +39,11 @@
         }
       },
       {
+        "command": "git.openRepository",
+        "title": "%command.openRepository%",
+        "category": "Git"
+      },
+      {
         "command": "git.close",
         "title": "%command.close%",
         "category": "Git"
@@ -334,6 +339,10 @@
         },
         {
           "command": "git.init",
+          "when": "config.git.enabled"
+        },
+        {
+          "command": "git.openRepository",
           "when": "config.git.enabled"
         },
         {
@@ -881,7 +890,16 @@
           "scope": "application"
         },
         "git.autoRepositoryDetection": {
-          "type": "boolean",
+          "type": [
+            "boolean",
+            "string"
+          ],
+          "enum": [
+            true,
+            false,
+            "subFolders",
+            "openEditors"
+          ],
           "description": "%config.autoRepositoryDetection%",
           "default": true
         },
@@ -943,11 +961,13 @@
         },
         "git.enableSmartCommit": {
           "type": "boolean",
+          "scope": "resource",
           "description": "%config.enableSmartCommit%",
           "default": false
         },
         "git.enableCommitSigning": {
           "type": "boolean",
+          "scope": "resource",
           "description": "%config.enableCommitSigning%",
           "default": false
         },
@@ -958,6 +978,7 @@
         },
         "git.promptToSaveFilesBeforeCommit": {
           "type": "boolean",
+          "scope": "resource",
           "default": false,
           "description": "%config.promptToSaveFilesBeforeCommit%"
         },
@@ -965,6 +986,11 @@
           "type": "boolean",
           "default": true,
           "description": "%config.showInlineOpenFileAction%"
+        },
+        "git.showPushSuccessNotification": {
+          "type": "boolean",
+          "description": "%config.showPushSuccessNotification%",
+          "default": false
         },
         "git.inputValidation": {
           "type": "string",
@@ -987,6 +1013,18 @@
           "scope": "resource",
           "default": 10,
           "description": "%config.detectSubmodulesLimit%"
+        },
+        "git.alwaysSignOff": {
+          "type": "boolean",
+          "scope": "resource",
+          "default": false,
+          "description": "%config.alwaysSignOff%"
+        },
+        "git.ignoredRepositories": {
+          "type": "array",
+          "default": [],
+          "scope": "window",
+          "description": "%config.ignoredRepositories%"
         }
       }
     },

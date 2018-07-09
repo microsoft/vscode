@@ -421,8 +421,8 @@ export class PersistentContributableViewsModel extends ContributableViewsModel {
 		this.storageService = storageService;
 		this.contextService = contextService;
 
-		this._register(this.onDidAdd(() => this.saveVisibilityStates()));
-		this._register(this.onDidRemove(() => this.saveVisibilityStates()));
+		this._register(this.onDidAdd(viewDescriptorRefs => this.saveVisibilityStates(viewDescriptorRefs.map(r => r.viewDescriptor))));
+		this._register(this.onDidRemove(viewDescriptorRefs => this.saveVisibilityStates(viewDescriptorRefs.map(r => r.viewDescriptor))));
 	}
 
 	saveViewsStates(): void {
@@ -436,9 +436,9 @@ export class PersistentContributableViewsModel extends ContributableViewsModel {
 		this.storageService.store(this.viewletStateStorageId, JSON.stringify(storedViewsStates), this.contextService.getWorkbenchState() !== WorkbenchState.EMPTY ? StorageScope.WORKSPACE : StorageScope.GLOBAL);
 	}
 
-	private saveVisibilityStates(): void {
-		const storedViewsVisibilityStates: { id: string, isHidden: boolean }[] = [];
-		for (const viewDescriptor of this.viewDescriptors) {
+	private saveVisibilityStates(viewDescriptors: IViewDescriptor[]): void {
+		const storedViewsVisibilityStates = PersistentContributableViewsModel.loadViewsVisibilityState(this.hiddenViewsStorageId, this.storageService, this.contextService);
+		for (const viewDescriptor of viewDescriptors) {
 			if (viewDescriptor.canToggleVisibility) {
 				const viewState = this.viewStates.get(viewDescriptor.id);
 				storedViewsVisibilityStates.push({ id: viewDescriptor.id, isHidden: viewState ? !viewState.visible : void 0 });
@@ -450,8 +450,7 @@ export class PersistentContributableViewsModel extends ContributableViewsModel {
 	private static loadViewsStates(viewletStateStorageId: string, hiddenViewsStorageId: string, storageService: IStorageService, contextService: IWorkspaceContextService): Map<string, IViewState> {
 		const viewStates = new Map<string, IViewState>();
 		const storedViewsStates = JSON.parse(storageService.get(viewletStateStorageId, contextService.getWorkbenchState() !== WorkbenchState.EMPTY ? StorageScope.WORKSPACE : StorageScope.GLOBAL, '{}'));
-		const storedVisibilityStates = <Array<string | { id: string, isHidden: boolean }>>JSON.parse(storageService.get(hiddenViewsStorageId, StorageScope.GLOBAL, '[]'));
-		const viewsVisibilityStates = <{ id: string, isHidden: boolean }[]>storedVisibilityStates.map(c => typeof c === 'string' /* migration */ ? { id: c, isHidden: true } : c);
+		const viewsVisibilityStates = PersistentContributableViewsModel.loadViewsVisibilityState(hiddenViewsStorageId, storageService, contextService);
 		for (const { id, isHidden } of viewsVisibilityStates) {
 			const viewState = storedViewsStates[id];
 			if (viewState) {
@@ -467,6 +466,11 @@ export class PersistentContributableViewsModel extends ContributableViewsModel {
 			}
 		}
 		return viewStates;
+	}
+
+	private static loadViewsVisibilityState(hiddenViewsStorageId: string, storageService: IStorageService, contextService: IWorkspaceContextService): { id: string, isHidden: boolean }[] {
+		const storedVisibilityStates = <Array<string | { id: string, isHidden: boolean }>>JSON.parse(storageService.get(hiddenViewsStorageId, StorageScope.GLOBAL, '[]'));
+		return <{ id: string, isHidden: boolean }[]>storedVisibilityStates.map(c => typeof c === 'string' /* migration */ ? { id: c, isHidden: true } : c);
 	}
 
 	dispose(): void {

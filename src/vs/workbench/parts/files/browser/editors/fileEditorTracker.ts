@@ -6,7 +6,6 @@
 
 import { TPromise } from 'vs/base/common/winjs.base';
 import { IWorkbenchContribution } from 'vs/workbench/common/contributions';
-import * as errors from 'vs/base/common/errors';
 import URI from 'vs/base/common/uri';
 import * as paths from 'vs/base/common/paths';
 import { IEditorViewState } from 'vs/editor/common/editorCommon';
@@ -20,7 +19,6 @@ import { distinct } from 'vs/base/common/arrays';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { isLinux } from 'vs/base/common/platform';
-import { ResourceQueue } from 'vs/base/common/async';
 import { ResourceMap } from 'vs/base/common/map';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { isCodeEditor } from 'vs/editor/browser/editorBrowser';
@@ -29,6 +27,8 @@ import { IWindowService } from 'vs/platform/windows/common/windows';
 import { BINARY_FILE_EDITOR_ID } from 'vs/workbench/parts/files/common/files';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IEditorGroupsService, IEditorGroup } from 'vs/workbench/services/group/common/editorGroupsService';
+import { ResourceQueue } from 'vs/base/common/async';
+import { onUnexpectedError } from 'vs/base/common/errors';
 
 export class FileEditorTracker extends Disposable implements IWorkbenchContribution {
 
@@ -125,7 +125,9 @@ export class FileEditorTracker extends Disposable implements IWorkbenchContribut
 	private onFileChanges(e: FileChangesEvent): void {
 
 		// Handle updates
-		this.handleUpdates(e);
+		if (e.gotAdded() || e.gotUpdated()) {
+			this.handleUpdates(e);
+		}
 
 		// Handle deletes
 		if (e.gotDeleted()) {
@@ -286,31 +288,11 @@ export class FileEditorTracker extends Disposable implements IWorkbenchContribut
 
 	private handleUpdates(e: FileChangesEvent): void {
 
-		// Handle updates to visible binary editors
-		this.handleUpdatesToVisibleBinaryEditors(e);
-
 		// Handle updates to text models
 		this.handleUpdatesToTextModels(e);
-	}
 
-	private handleUpdatesToVisibleBinaryEditors(e: FileChangesEvent): void {
-		const editors = this.editorService.visibleControls;
-		editors.forEach(editor => {
-			const resource = toResource(editor.input, { supportSideBySide: true });
-
-			// Support side-by-side binary editors too
-			let isBinaryEditor = false;
-			if (editor instanceof SideBySideEditor) {
-				isBinaryEditor = editor.getMasterEditor().getId() === BINARY_FILE_EDITOR_ID;
-			} else {
-				isBinaryEditor = editor.getId() === BINARY_FILE_EDITOR_ID;
-			}
-
-			// Binary editor that should reload from event
-			if (resource && isBinaryEditor && (e.contains(resource, FileChangeType.UPDATED) || e.contains(resource, FileChangeType.ADDED))) {
-				this.editorService.openEditor(editor.input, { forceReload: true, preserveFocus: true }, editor.group);
-			}
-		});
+		// Handle updates to visible binary editors
+		this.handleUpdatesToVisibleBinaryEditors(e);
 	}
 
 	private handleUpdatesToTextModels(e: FileChangesEvent): void {
@@ -332,8 +314,28 @@ export class FileEditorTracker extends Disposable implements IWorkbenchContribut
 		// to have a size of 2 (1 running load and 1 queued load).
 		const queue = this.modelLoadQueue.queueFor(model.getResource());
 		if (queue.size <= 1) {
-			queue.queue(() => model.load().then(null, errors.onUnexpectedError));
+			queue.queue(() => model.load().then(null, onUnexpectedError));
 		}
+	}
+
+	private handleUpdatesToVisibleBinaryEditors(e: FileChangesEvent): void {
+		const editors = this.editorService.visibleControls;
+		editors.forEach(editor => {
+			const resource = toResource(editor.input, { supportSideBySide: true });
+
+			// Support side-by-side binary editors too
+			let isBinaryEditor = false;
+			if (editor instanceof SideBySideEditor) {
+				isBinaryEditor = editor.getMasterEditor().getId() === BINARY_FILE_EDITOR_ID;
+			} else {
+				isBinaryEditor = editor.getId() === BINARY_FILE_EDITOR_ID;
+			}
+
+			// Binary editor that should reload from event
+			if (resource && isBinaryEditor && (e.contains(resource, FileChangeType.UPDATED) || e.contains(resource, FileChangeType.ADDED))) {
+				this.editorService.openEditor(editor.input, { forceReload: true, preserveFocus: true }, editor.group);
+			}
+		});
 	}
 
 	private handleOutOfWorkspaceWatchers(): void {

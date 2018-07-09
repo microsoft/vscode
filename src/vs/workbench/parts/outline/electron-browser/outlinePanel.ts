@@ -136,11 +136,15 @@ class RequestOracle {
 		let modeListener = codeEditor.onDidChangeModelLanguage(_ => {
 			this._callback(codeEditor, undefined);
 		});
+		let disposeListener = codeEditor.onDidDispose(() => {
+			this._callback(undefined, undefined);
+		});
 		this._sessionDisposable = {
 			dispose() {
 				contentListener.dispose();
 				clearTimeout(handle);
 				modeListener.dispose();
+				disposeListener.dispose();
 			}
 		};
 	}

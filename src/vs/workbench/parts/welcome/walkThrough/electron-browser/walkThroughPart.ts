@@ -259,7 +259,7 @@ export class WalkThroughPart extends BaseEditor {
 
 		return super.setInput(input, options, token)
 			.then(() => {
-				return input.resolve(true);
+				return input.resolve();
 			})
 			.then(model => {
 				if (token.isCancellationRequested) {
