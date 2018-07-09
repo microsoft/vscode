@@ -14,14 +14,28 @@
 .monaco-breadcrumbs .monaco-breadcrumb-item {
 	display: flex;
 	align-items: center;
-	padding: 0 5px 0 3px;
 	flex: 0 1 auto;
 	white-space: nowrap;
-	cursor: pointer;
+	cursor: default;
 	align-self: center;
 	height: 100%;
 }
 
 .monaco-breadcrumbs .monaco-breadcrumb-item:nth-child(2) { /*first-child is the style-element*/
 	padding-left: 8px;
+}
+
+.monaco-breadcrumbs .monaco-breadcrumb-item:not(:last-child)::after {
+	background-image: url(./collapsed.svg);
+	width: 16px;
+	height: 16px;
+	display: inline-block;
+	background-size: 16px;
+	background-position: 50% 50%;
+	content: ' ';
+}
+
+.vs-dark .monaco-breadcrumbs .monaco-breadcrumb-item:not(:last-child)::after {
+	background-image: url(./collpased-dark.svg);
+
 }
