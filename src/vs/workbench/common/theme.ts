@@ -161,7 +161,7 @@ export const EDITOR_GROUP_BORDER = registerColor('editorGroup.border', {
 
 export const EDITOR_DRAG_AND_DROP_BACKGROUND = registerColor('editorGroup.dropBackground', {
 	dark: Color.fromHex('#53595D').transparent(0.5),
-	light: Color.fromHex('#3399FF').transparent(0.18),
+	light: Color.fromHex('#2677CB').transparent(0.18),
 	hc: null
 }, nls.localize('editorDragAndDropBackground', "Background color when dragging editors around. The color should have transparency so that the editor contents can still shine through."));
 
@@ -201,7 +201,7 @@ export const PANEL_ACTIVE_TITLE_BORDER = registerColor('panelTitle.activeBorder'
 
 export const PANEL_DRAG_AND_DROP_BACKGROUND = registerColor('panel.dropBackground', {
 	dark: Color.white.transparent(0.12),
-	light: Color.fromHex('#3399FF').transparent(0.18),
+	light: Color.fromHex('#2677CB').transparent(0.18),
 	hc: Color.white.transparent(0.12)
 }, nls.localize('panelDragAndDropBackground', "Drag and drop feedback color for the panel title items. The color should have transparency so that the panel entries can still shine through. Panels are shown below the editor area and contain views like output and integrated terminal."));
 
