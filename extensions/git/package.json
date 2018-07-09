@@ -881,7 +881,16 @@
           "scope": "application"
         },
         "git.autoRepositoryDetection": {
-          "type": "boolean",
+          "type": [
+            "boolean",
+            "string"
+          ],
+          "enum": [
+            true,
+            false,
+            "subFolders",
+            "openEditors"
+          ],
           "description": "%config.autoRepositoryDetection%",
           "default": true
         },

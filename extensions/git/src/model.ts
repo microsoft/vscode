@@ -91,6 +91,13 @@ export class Model {
 	 * for git repositories.
 	 */
 	private async scanWorkspaceFolders(): Promise<void> {
+		const config = workspace.getConfiguration('git');
+		const autoRepositoryDetection = config.get<boolean | 'subFolders' | 'openEditors'>('autoRepositoryDetection');
+
+		if (autoRepositoryDetection !== true && autoRepositoryDetection !== 'subFolders') {
+			return;
+		}
+
 		for (const folder of workspace.workspaceFolders || []) {
 			const root = folder.uri.fsPath;
 
@@ -159,9 +166,9 @@ export class Model {
 
 	private onDidChangeVisibleTextEditors(editors: TextEditor[]): void {
 		const config = workspace.getConfiguration('git');
-		const enabled = config.get<boolean>('autoRepositoryDetection') === true;
+		const autoRepositoryDetection = config.get<boolean | 'subFolders' | 'openEditors'>('autoRepositoryDetection');
 
-		if (!enabled) {
+		if (autoRepositoryDetection !== true && autoRepositoryDetection !== 'openEditors') {
 			return;
 		}
 
