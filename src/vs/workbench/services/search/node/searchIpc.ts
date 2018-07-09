@@ -25,7 +25,7 @@ export class SearchChannel implements ISearchChannel {
 	listen<T>(event: string, arg?: any): Event<any> {
 		switch (event) {
 			case 'telemetry': return this.service.onTelemetry;
-			case 'fileSearch': return this.service.textSearch(arg);
+			case 'fileSearch': return this.service.fileSearch(arg);
 			case 'textSearch': return this.service.textSearch(arg);
 		}
 		throw new Error('Event not found');
