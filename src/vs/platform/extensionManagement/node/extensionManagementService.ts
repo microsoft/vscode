@@ -152,14 +152,14 @@ export class ExtensionManagementService extends Disposable implements IExtension
 		}));
 	}
 
-	install(zipPath: string): TPromise<ILocalExtension> {
+	install(zipPath: string): TPromise<void> {
 		zipPath = path.resolve(zipPath);
 
 		return validateLocalExtension(zipPath)
 			.then(manifest => {
 				const identifier = { id: getLocalExtensionIdFromManifest(manifest) };
 				if (manifest.engines && manifest.engines.vscode && !isEngineValid(manifest.engines.vscode)) {
-					return TPromise.wrapError<ILocalExtension>(new Error(nls.localize('incompatible', "Unable to install Extension '{0}' as it is not compatible with Code '{1}'.", identifier.id, pkg.version)));
+					return TPromise.wrapError<void>(new Error(nls.localize('incompatible', "Unable to install Extension '{0}' as it is not compatible with Code '{1}'.", identifier.id, pkg.version)));
 				}
 				return this.removeIfExists(identifier.id)
 					.then(
@@ -173,7 +173,7 @@ export class ExtensionManagementService extends Disposable implements IExtension
 											metadata => this.installFromZipPath(identifier, zipPath, metadata, manifest),
 											error => this.installFromZipPath(identifier, zipPath, null, manifest))
 										.then(
-											local => { this.logService.info('Successfully installed the extension:', identifier.id); return local; },
+											() => { this.logService.info('Successfully installed the extension:', identifier.id); },
 											e => {
 												this.logService.error('Failed to install the extension:', identifier.id, e.message);
 												return TPromise.wrapError(e);
@@ -240,7 +240,7 @@ export class ExtensionManagementService extends Disposable implements IExtension
 			}));
 	}
 
-	installFromGallery(extension: IGalleryExtension): TPromise<ILocalExtension> {
+	installFromGallery(extension: IGalleryExtension): TPromise<void> {
 		this.onInstallExtensions([extension]);
 		return this.toNonCancellablePromise(this.getInstalled(LocalExtensionType.User)
 			.then(installed => this.collectExtensionsToInstall(extension)
@@ -253,13 +253,13 @@ export class ExtensionManagementService extends Disposable implements IExtension
 						return this.downloadAndInstallExtensions(extensionsToInstall, operataions)
 							.then(
 								locals => this.onDidInstallExtensions(extensionsToInstall, locals, operataions, [])
-									.then(() => locals.filter(l => areSameExtensions({ id: getGalleryExtensionIdFromLocal(l), uuid: l.identifier.uuid }, extension.identifier))[0]),
+									.then(() => null),
 								errors => this.onDidInstallExtensions(extensionsToInstall, [], operataions, errors));
 					},
 					error => this.onDidInstallExtensions([extension], [], [this.getOperation(extension.identifier, installed)], [error]))));
 	}
 
-	reinstallFromGallery(extension: ILocalExtension): TPromise<ILocalExtension> {
+	reinstallFromGallery(extension: ILocalExtension): TPromise<void> {
 		if (!this.galleryService.isEnabled()) {
 			return TPromise.wrapError(new Error(nls.localize('MarketPlaceDisabled', "Marketplace is not enabled")));
 		}
@@ -762,7 +762,8 @@ export class ExtensionManagementService extends Disposable implements IExtension
 						manifest.extensionDependencies = manifest.extensionDependencies.map(id => adoptToGalleryExtensionId(id));
 					}
 					const identifier = { id: type === LocalExtensionType.System ? folderName : getLocalExtensionIdFromManifest(manifest), uuid: metadata ? metadata.id : null };
-					return { type, identifier, manifest, metadata, location: URI.file(extensionPath), readmeUrl, changelogUrl };
+					const galleryIdentifier = { id: getGalleryExtensionId(manifest.publisher, manifest.name), uuid: identifier.uuid };
+					return { type, identifier, galleryIdentifier, manifest, metadata, location: URI.file(extensionPath), readmeUrl, changelogUrl };
 				}))
 			.then(null, () => null);
 	}
