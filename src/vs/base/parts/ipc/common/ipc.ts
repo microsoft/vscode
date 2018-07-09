@@ -14,7 +14,6 @@ enum MessageType {
 	RequestPromiseCancel,
 	ResponseInitialize,
 	ResponsePromiseSuccess,
-	ResponsePromiseProgress,
 	ResponsePromiseError,
 	ResponsePromiseErrorObj,
 
@@ -172,8 +171,6 @@ export class ChannelServer implements IChannelServer, IDisposable {
 			}
 
 			delete this.activeRequests[request.id];
-		}, data => {
-			this.protocol.send(<IRawResponse>{ id, data, type: MessageType.ResponsePromiseProgress });
 		});
 
 		this.activeRequests[request.id] = toDisposable(() => requestPromise.cancel());
@@ -282,7 +279,7 @@ export class ChannelClient implements IChannelClient, IDisposable {
 	private doRequest(request: IRequest): Promise {
 		const id = request.raw.id;
 
-		return new TPromise((c, e, p) => {
+		return new TPromise((c, e) => {
 			this.handlers[id] = response => {
 				switch (response.type) {
 					case MessageType.ResponsePromiseSuccess:
@@ -302,10 +299,6 @@ export class ChannelClient implements IChannelClient, IDisposable {
 						delete this.handlers[id];
 						e(response.data);
 						break;
-
-					case MessageType.ResponsePromiseProgress:
-						p(response.data);
-						break;
 				}
 			};
 
@@ -317,12 +310,12 @@ export class ChannelClient implements IChannelClient, IDisposable {
 	private bufferRequest(request: IRequest): Promise {
 		let flushedRequest: Promise = null;
 
-		return new TPromise((c, e, p) => {
+		return new TPromise((c, e) => {
 			this.bufferedRequests.push(request);
 
 			request.flush = () => {
 				request.flush = null;
-				flushedRequest = this.doRequest(request).then(c, e, p);
+				flushedRequest = this.doRequest(request).then(c, e);
 			};
 		}, () => {
 			request.flush = null;
