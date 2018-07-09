@@ -21,7 +21,7 @@ export interface IExtensionDescription {
 	readonly isBuiltin: boolean;
 	readonly isUnderDevelopment: boolean;
 	readonly extensionLocation: URI;
-	readonly extensionDependencies?: string[];
+	readonly extensionDependencies?: Array<string | { id: string, optional?: boolean }>;
 	readonly activationEvents?: string[];
 	readonly engines: {
 		vscode: string;
