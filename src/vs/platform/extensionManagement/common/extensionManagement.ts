@@ -123,7 +123,7 @@ export interface IExtensionManifest {
 	icon?: string;
 	categories?: string[];
 	activationEvents?: string[];
-	extensionDependencies?: string[];
+	extensionDependencies?: IExtensionDependency[];
 	contributes?: IExtensionContributions;
 	repository?: {
 		url: string;
@@ -133,8 +133,13 @@ export interface IExtensionManifest {
 	};
 }
 
+export interface IExtensionDependency {
+	id: string;
+	optional: boolean;
+}
+
 export interface IGalleryExtensionProperties {
-	dependencies?: string[];
+	dependencies?: IExtensionDependency[];
 	engine?: string;
 }
 

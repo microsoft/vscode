@@ -18,7 +18,7 @@ import { IPager, mapPager, singlePagePager } from 'vs/base/common/paging';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import {
 	IExtensionManagementService, IExtensionGalleryService, ILocalExtension, IGalleryExtension, IQueryOptions, IExtensionManifest,
-	InstallExtensionEvent, DidInstallExtensionEvent, LocalExtensionType, DidUninstallExtensionEvent, IExtensionEnablementService, IExtensionIdentifier, EnablementState, IExtensionTipsService, ExtensionRecommendationSource, IExtensionRecommendation, IExtensionManagementServerService
+	InstallExtensionEvent, DidInstallExtensionEvent, LocalExtensionType, DidUninstallExtensionEvent, IExtensionEnablementService, IExtensionIdentifier, EnablementState, IExtensionTipsService, ExtensionRecommendationSource, IExtensionRecommendation, IExtensionManagementServerService, IExtensionDependency
 } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { getGalleryExtensionIdFromLocal, getGalleryExtensionTelemetryData, getLocalExtensionTelemetryData, areSameExtensions, getMaliciousExtensionsSet } from 'vs/platform/extensionManagement/common/extensionManagementUtil';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
@@ -262,7 +262,7 @@ ${this.description}
 		return TPromise.wrapError<string>(new Error('not available'));
 	}
 
-	get dependencies(): string[] {
+	get dependencies(): IExtensionDependency[] {
 		const { local, gallery } = this;
 		if (gallery && !this.isGalleryOutdated()) {
 			return gallery.properties.dependencies;
@@ -303,7 +303,7 @@ class ExtensionDependencies implements IExtensionDependencies {
 		if (!this.hasDependencies) {
 			return [];
 		}
-		return this._extension.dependencies.map(d => new ExtensionDependencies(this._map.get(d), d, this._map, this));
+		return this._extension.dependencies.map(d => new ExtensionDependencies(this._map.get(d.id), d.id, this._map, this));
 	}
 
 	private computeHasDependencies(): boolean {
@@ -439,7 +439,7 @@ export class ExtensionsWorkbenchService implements IExtensionsWorkbenchService, 
 			.then(([allRecommendations, report]) => {
 				const maliciousSet = getMaliciousExtensionsSet(report);
 
-				return this.galleryService.loadAllDependencies((<Extension>extension).dependencies.map(id => <IExtensionIdentifier>{ id }))
+				return this.galleryService.loadAllDependencies((<Extension>extension).dependencies.map(dep => <IExtensionIdentifier>{ id: dep.id }))
 					.then(galleryExtensions => galleryExtensions.map(galleryExtension => this.fromGallery(galleryExtension, maliciousSet, allRecommendations)))
 					.then(extensions => [...this.local, ...extensions])
 					.then(extensions => {
@@ -774,7 +774,7 @@ export class ExtensionsWorkbenchService implements IExtensionsWorkbenchService, 
 				if (i.enablementState === enablementState) {
 					return false;
 				}
-				return i.type === LocalExtensionType.User && extensions.some(extension => extension.dependencies.indexOf(i.id) !== -1);
+				return i.type === LocalExtensionType.User && extensions.some(extension => extension.dependencies.some(dep => areSameExtensions({ id: dep.id }, i)));
 			});
 			if (dependenciesToDisable.length) {
 				const depsOfDeps = this.getDependenciesRecursively(dependenciesToDisable, installed, enablementState, checked);
@@ -799,17 +799,17 @@ export class ExtensionsWorkbenchService implements IExtensionsWorkbenchService, 
 				return false;
 			}
 			return i.dependencies.some(dep => {
-				if (extension.id === dep) {
+				if (extension.id === dep.id) {
 					return true;
 				}
-				return extensionsToDisable.some(d => d.id === dep);
+				return extensionsToDisable.some(d => d.id === dep.id);
 			});
 		});
 	}
 
 	private getDependentsErrorMessage(extension: IExtension, allDisabledExtensions: IExtension[], dependents: IExtension[]): string {
 		for (const e of [extension, ...allDisabledExtensions]) {
-			let dependentsOfTheExtension = dependents.filter(d => d.dependencies.some(id => areSameExtensions({ id }, e)));
+			let dependentsOfTheExtension = dependents.filter(d => d.dependencies.some(dep => areSameExtensions({ id: dep.id }, e)));
 			if (dependentsOfTheExtension.length) {
 				return this.getErrorMessageForDisablingAnExtensionWithDependents(e, dependentsOfTheExtension);
 			}

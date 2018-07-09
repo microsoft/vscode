@@ -21,7 +21,8 @@ import {
 	StatisticType,
 	IExtensionIdentifier,
 	IReportedExtension,
-	InstallOperation
+	InstallOperation,
+	IExtensionDependency
 } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { getGalleryExtensionIdFromLocal, adoptToGalleryExtensionId, areSameExtensions, getGalleryExtensionId, groupByExtension, getMaliciousExtensionsSet, getLocalExtensionId, getGalleryExtensionTelemetryData, getLocalExtensionTelemetryData, getIdFromLocalExtensionId } from 'vs/platform/extensionManagement/common/extensionManagementUtil';
 import { localizeManifest } from '../common/extensionNls';
@@ -382,13 +383,13 @@ export class ExtensionManagementService extends Disposable implements IExtension
 		return errors.length ? TPromise.wrapError(this.joinErrors(errors)) : TPromise.as(null);
 	}
 
-	private getDependenciesToInstall(dependencies: string[]): TPromise<IGalleryExtension[]> {
+	private getDependenciesToInstall(dependencies: IExtensionDependency[]): TPromise<IGalleryExtension[]> {
 		if (dependencies.length) {
 			return this.getInstalled()
 				.then(installed => {
-					const uninstalledDeps = dependencies.filter(d => installed.every(i => getGalleryExtensionId(i.manifest.publisher, i.manifest.name) !== d));
+					const uninstalledDeps = dependencies.filter(d => installed.every(i => !areSameExtensions(i.galleryIdentifier, { id: d.id })));
 					if (uninstalledDeps.length) {
-						return this.galleryService.loadAllDependencies(uninstalledDeps.map(id => (<IExtensionIdentifier>{ id })))
+						return this.galleryService.loadAllDependencies(uninstalledDeps.map(dep => (<IExtensionIdentifier>{ id: dep.id })))
 							.then(allDependencies => allDependencies.filter(d => {
 								const extensionId = getLocalExtensionIdFromGallery(d, d.version);
 								return installed.every(({ identifier }) => identifier.id !== extensionId);
@@ -568,7 +569,7 @@ export class ExtensionManagementService extends Disposable implements IExtension
 
 	private hasDependencies(extension: ILocalExtension, installed: ILocalExtension[]): boolean {
 		if (extension.manifest.extensionDependencies && extension.manifest.extensionDependencies.length) {
-			return installed.some(i => extension.manifest.extensionDependencies.indexOf(getGalleryExtensionIdFromLocal(i)) !== -1);
+			return installed.some(i => extension.manifest.extensionDependencies.some(dep => areSameExtensions({ id: dep.id }, i.galleryIdentifier)));
 		}
 		return false;
 	}
@@ -630,7 +631,7 @@ export class ExtensionManagementService extends Disposable implements IExtension
 		if (!extension.manifest.extensionDependencies || extension.manifest.extensionDependencies.length === 0) {
 			return [];
 		}
-		const dependenciesToUninstall = installed.filter(i => extension.manifest.extensionDependencies.indexOf(getGalleryExtensionIdFromLocal(i)) !== -1);
+		const dependenciesToUninstall = installed.filter(i => extension.manifest.extensionDependencies.some(dep => areSameExtensions({ id: dep.id }, i.galleryIdentifier)));
 		const depsOfDeps = [];
 		for (const dep of dependenciesToUninstall) {
 			depsOfDeps.push(...this.getDependenciesToUninstallRecursively(dep, installed, checked));
@@ -652,7 +653,7 @@ export class ExtensionManagementService extends Disposable implements IExtension
 	}
 
 	private getDependents(extension: ILocalExtension, installed: ILocalExtension[]): ILocalExtension[] {
-		return installed.filter(e => e.manifest.extensionDependencies && e.manifest.extensionDependencies.indexOf(getGalleryExtensionIdFromLocal(extension)) !== -1);
+		return installed.filter(e => e.manifest.extensionDependencies && e.manifest.extensionDependencies.some(dep => areSameExtensions({ id: dep.id }, extension.galleryIdentifier)));
 	}
 
 	private doUninstall(extension: ILocalExtension): TPromise<void> {
@@ -758,9 +759,7 @@ export class ExtensionManagementService extends Disposable implements IExtension
 					const readmeUrl = readme ? URI.file(path.join(extensionPath, readme)).toString() : null;
 					const changelog = children.filter(child => /^changelog(\.txt|\.md|)$/i.test(child))[0];
 					const changelogUrl = changelog ? URI.file(path.join(extensionPath, changelog)).toString() : null;
-					if (manifest.extensionDependencies) {
-						manifest.extensionDependencies = manifest.extensionDependencies.map(id => adoptToGalleryExtensionId(id));
-					}
+					manifest.extensionDependencies = manifest.extensionDependencies ? manifest.extensionDependencies.map(dep => typeof dep === 'string' ? { id: adoptToGalleryExtensionId(dep), optional: false } : { id: adoptToGalleryExtensionId(dep.id), optional: dep.optional }) : [];
 					const identifier = { id: type === LocalExtensionType.System ? folderName : getLocalExtensionIdFromManifest(manifest), uuid: metadata ? metadata.id : null };
 					const galleryIdentifier = { id: getGalleryExtensionId(manifest.publisher, manifest.name), uuid: identifier.uuid };
 					return { type, identifier, galleryIdentifier, manifest, metadata, location: URI.file(extensionPath), readmeUrl, changelogUrl };
