@@ -201,7 +201,7 @@ export class EditorBreadcrumbs implements IEditorBreadcrumbs {
 				return event.node;
 			},
 			render: (container: HTMLElement) => {
-				dom.addClasses(container, 'show-file-icons');
+				dom.addClasses(container, 'monaco-workbench', 'show-file-icons');
 				let { element } = event.item as Item;
 				let ctor: IConstructorSignature2<HTMLElement, BreadcrumbElement, BreadcrumbsPicker> = element instanceof FileElement ? BreadcrumbsFilePicker : BreadcrumbsOutlinePicker;
 				let res = this._instantiationService.createInstance(ctor, container, element);
