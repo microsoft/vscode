@@ -334,8 +334,16 @@ export abstract class ViewContainerViewlet extends PanelViewlet implements IView
 		});
 	}
 
-	private toggleViewVisibility(id: string): void {
-		this.viewsModel.setVisible(id, !this.viewsModel.isVisible(id));
+	private toggleViewVisibility(viewId: string): void {
+		const visible = !this.viewsModel.isVisible(viewId);
+		/* __GDPR__
+			"views.toggleVisibility" : {
+				"viewId" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
+				"visible": { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
+			}
+		*/
+		this.telemetryService.publicLog('views.toggledVisibility', { viewId, visible });
+		this.viewsModel.setVisible(viewId, visible);
 	}
 
 	private saveViewSizes(): void {

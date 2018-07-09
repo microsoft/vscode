@@ -428,43 +428,46 @@ export class RawDebugSession implements debug.IRawSession {
 
 	private dispatchRequest(request: DebugProtocol.Request): void {
 
-		const response: DebugProtocol.Response = {
-			type: 'response',
-			seq: 0,
-			command: request.command,
-			request_seq: request.seq,
-			success: true
-		};
+		if (this.debugAdapter) {
 
-		if (request.command === 'runInTerminal') {
+			const response: DebugProtocol.Response = {
+				type: 'response',
+				seq: 0,
+				command: request.command,
+				request_seq: request.seq,
+				success: true
+			};
 
-			this._debugger.runInTerminal(<DebugProtocol.RunInTerminalRequestArguments>request.arguments).then(_ => {
-				response.body = {};
-				this.debugAdapter.sendResponse(response);
-			}, err => {
+			if (request.command === 'runInTerminal') {
+
+				this._debugger.runInTerminal(<DebugProtocol.RunInTerminalRequestArguments>request.arguments).then(_ => {
+					response.body = {};
+					this.debugAdapter.sendResponse(response);
+				}, err => {
+					response.success = false;
+					response.message = err.message;
+					this.debugAdapter.sendResponse(response);
+				});
+
+			} else if (request.command === 'handshake') {
+				try {
+					const vsda = <any>require.__$__nodeRequire('vsda');
+					const obj = new vsda.signer();
+					const sig = obj.sign(request.arguments.value);
+					response.body = {
+						signature: sig
+					};
+					this.debugAdapter.sendResponse(response);
+				} catch (e) {
+					response.success = false;
+					response.message = e.message;
+					this.debugAdapter.sendResponse(response);
+				}
+			} else {
 				response.success = false;
-				response.message = err.message;
-				this.debugAdapter.sendResponse(response);
-			});
-
-		} else if (request.command === 'handshake') {
-			try {
-				const vsda = <any>require.__$__nodeRequire('vsda');
-				const obj = new vsda.signer();
-				const sig = obj.sign(request.arguments.value);
-				response.body = {
-					signature: sig
-				};
-				this.debugAdapter.sendResponse(response);
-			} catch (e) {
-				response.success = false;
-				response.message = e.message;
+				response.message = `unknown request '${request.command}'`;
 				this.debugAdapter.sendResponse(response);
 			}
-		} else {
-			response.success = false;
-			response.message = `unknown request '${request.command}'`;
-			this.debugAdapter.sendResponse(response);
 		}
 	}
 

@@ -22,6 +22,7 @@ import * as gulpUtil from 'gulp-util';
 import * as flatmap from 'gulp-flatmap';
 import * as pump from 'pump';
 import * as sm from 'source-map';
+import { Language } from './i18n';
 
 const REPO_ROOT_PATH = path.join(__dirname, '../..');
 
@@ -159,6 +160,10 @@ export interface IOptimizeTaskOpts {
 	 * (out folder name)
 	 */
 	out: string;
+	/**
+	 * (out folder name)
+	 */
+	languages?: Language[];
 }
 
 export function optimizeTask(opts: IOptimizeTaskOpts): () => NodeJS.ReadWriteStream {

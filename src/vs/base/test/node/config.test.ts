@@ -77,70 +77,70 @@ suite('Config', () => {
 		});
 	});
 
-	test('watching', function (done) {
-		this.timeout(10000); // watching is timing intense
+	// test('watching', function (done) {
+	// 	this.timeout(10000); // watching is timing intense
 
-		testFile('config', 'config.json').then(res => {
-			fs.writeFileSync(res.testFile, '// my comment\n{ "foo": "bar" }');
+	// 	testFile('config', 'config.json').then(res => {
+	// 		fs.writeFileSync(res.testFile, '// my comment\n{ "foo": "bar" }');
 
-			let watcher = new ConfigWatcher<{ foo: string; }>(res.testFile);
-			watcher.getConfig(); // ensure we are in sync
+	// 		let watcher = new ConfigWatcher<{ foo: string; }>(res.testFile);
+	// 		watcher.getConfig(); // ensure we are in sync
 
-			fs.writeFileSync(res.testFile, '// my comment\n{ "foo": "changed" }');
+	// 		fs.writeFileSync(res.testFile, '// my comment\n{ "foo": "changed" }');
 
-			watcher.onDidUpdateConfiguration(event => {
-				assert.ok(event);
-				assert.equal(event.config.foo, 'changed');
-				assert.equal(watcher.getValue('foo'), 'changed');
+	// 		watcher.onDidUpdateConfiguration(event => {
+	// 			assert.ok(event);
+	// 			assert.equal(event.config.foo, 'changed');
+	// 			assert.equal(watcher.getValue('foo'), 'changed');
 
-				watcher.dispose();
+	// 			watcher.dispose();
 
-				res.cleanUp().then(done, done);
-			});
-		}, done);
-	});
+	// 			res.cleanUp().then(done, done);
+	// 		});
+	// 	}, done);
+	// });
 
-	test('watching also works when file created later', function (done) {
-		this.timeout(10000); // watching is timing intense
+	// test('watching also works when file created later', function (done) {
+	// 	this.timeout(10000); // watching is timing intense
 
-		testFile('config', 'config.json').then(res => {
-			let watcher = new ConfigWatcher<{ foo: string; }>(res.testFile);
-			watcher.getConfig(); // ensure we are in sync
+	// 	testFile('config', 'config.json').then(res => {
+	// 		let watcher = new ConfigWatcher<{ foo: string; }>(res.testFile);
+	// 		watcher.getConfig(); // ensure we are in sync
 
-			fs.writeFileSync(res.testFile, '// my comment\n{ "foo": "changed" }');
+	// 		fs.writeFileSync(res.testFile, '// my comment\n{ "foo": "changed" }');
 
-			watcher.onDidUpdateConfiguration(event => {
-				assert.ok(event);
-				assert.equal(event.config.foo, 'changed');
-				assert.equal(watcher.getValue('foo'), 'changed');
+	// 		watcher.onDidUpdateConfiguration(event => {
+	// 			assert.ok(event);
+	// 			assert.equal(event.config.foo, 'changed');
+	// 			assert.equal(watcher.getValue('foo'), 'changed');
 
-				watcher.dispose();
+	// 			watcher.dispose();
 
-				res.cleanUp().then(done, done);
-			});
-		}, done);
-	});
+	// 			res.cleanUp().then(done, done);
+	// 		});
+	// 	}, done);
+	// });
 
-	test('watching detects the config file getting deleted', function (done) {
-		this.timeout(10000); // watching is timing intense
+	// test('watching detects the config file getting deleted', function (done) {
+	// 	this.timeout(10000); // watching is timing intense
 
-		testFile('config', 'config.json').then(res => {
-			fs.writeFileSync(res.testFile, '// my comment\n{ "foo": "bar" }');
+	// 	testFile('config', 'config.json').then(res => {
+	// 		fs.writeFileSync(res.testFile, '// my comment\n{ "foo": "bar" }');
 
-			let watcher = new ConfigWatcher<{ foo: string; }>(res.testFile);
-			watcher.getConfig(); // ensure we are in sync
+	// 		let watcher = new ConfigWatcher<{ foo: string; }>(res.testFile);
+	// 		watcher.getConfig(); // ensure we are in sync
 
-			watcher.onDidUpdateConfiguration(event => {
-				assert.ok(event);
+	// 		watcher.onDidUpdateConfiguration(event => {
+	// 			assert.ok(event);
 
-				watcher.dispose();
+	// 			watcher.dispose();
 
-				res.cleanUp().then(done, done);
-			});
+	// 			res.cleanUp().then(done, done);
+	// 		});
 
-			fs.unlinkSync(res.testFile);
-		}, done);
-	});
+	// 		fs.unlinkSync(res.testFile);
+	// 	}, done);
+	// });
 
 	test('reload', function (done) {
 		testFile('config', 'config.json').then(res => {

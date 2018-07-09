@@ -840,8 +840,8 @@ function layoutMenuRegistration() {
 	MenuRegistry.appendMenuItem(MenuId.MenubarLayoutMenu, {
 		group: '2_layouts',
 		command: {
-			id: 'workbench.action.editorLayoutTwoColumnsRight',
-			title: nls.localize({ key: 'miTwoColumnsRightEditorLayout', comment: ['&& denotes a mnemonic'] }, "Two C&&olumns Right")
+			id: 'workbench.action.editorLayoutTwoRowsRight',
+			title: nls.localize({ key: 'miTwoRowsRightEditorLayout', comment: ['&& denotes a mnemonic'] }, "Two R&&ows Right")
 		},
 		order: 8
 	});

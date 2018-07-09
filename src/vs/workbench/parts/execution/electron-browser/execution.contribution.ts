@@ -129,15 +129,13 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 MenuRegistry.appendMenuItem(MenuId.CommandPalette, {
 	command: {
 		id: OPEN_NATIVE_CONSOLE_COMMAND_ID,
-		title: env.isWindows ? nls.localize('globalConsoleActionWin', "Open New Command Prompt") :
-			nls.localize('globalConsoleActionMacLinux', "Open New Terminal")
+		title: nls.localize('globalConsoleAction', "Open New Terminal")
 	}
 });
 
 const openConsoleCommand = {
 	id: OPEN_IN_TERMINAL_COMMAND_ID,
-	title: env.isWindows ? nls.localize('scopedConsoleActionWin', "Open in Command Prompt") :
-		nls.localize('scopedConsoleActionMacLinux', "Open in Terminal")
+	title: nls.localize('scopedConsoleAction', "Open in Terminal")
 };
 MenuRegistry.appendMenuItem(MenuId.OpenEditorsContext, {
 	group: 'navigation',

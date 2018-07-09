@@ -329,6 +329,12 @@ export interface ITextFileService extends IDisposable {
 	revertAll(resources?: URI[], options?: IRevertOptions): TPromise<ITextFileOperationResult>;
 
 	/**
+	 * Create a file. If the file exists it will be overwritten with the contents if
+	 * the options enable to overwrite.
+	 */
+	create(resource: URI, contents?: string, options?: { overwrite?: boolean }): TPromise<void>;
+
+	/**
 	 * Delete a file. If the file is dirty, it will get reverted and then deleted from disk.
 	 */
 	delete(resource: URI, options?: { useTrash?: boolean, recursive?: boolean }): TPromise<void>;

@@ -50,6 +50,7 @@ export class MarkersPanel extends Panel {
 
 	private treeContainer: HTMLElement;
 	private messageBoxContainer: HTMLElement;
+	private ariaLabelElement: HTMLElement;
 	private panelSettings: any;
 
 	private currentResourceGotAddedToMarkersData: boolean = false;
@@ -76,8 +77,9 @@ export class MarkersPanel extends Panel {
 
 		dom.addClass(parent, 'markers-panel');
 
-		let container = dom.append(parent, dom.$('.markers-panel-container'));
+		const container = dom.append(parent, dom.$('.markers-panel-container'));
 
+		this.createArialLabelElement(container);
 		this.createMessageBox(container);
 		this.createTree(container);
 		this.createActions();
@@ -183,11 +185,17 @@ export class MarkersPanel extends Panel {
 
 	private createMessageBox(parent: HTMLElement): void {
 		this.messageBoxContainer = dom.append(parent, dom.$('.message-box-container'));
+		this.messageBoxContainer.setAttribute('aria-labelledby', 'markers-panel-arialabel');
+	}
+
+	private createArialLabelElement(parent: HTMLElement): void {
+		this.ariaLabelElement = dom.append(parent, dom.$(''));
+		this.ariaLabelElement.setAttribute('id', 'markers-panel-arialabel');
+		this.ariaLabelElement.setAttribute('aria-live', 'polite');
 	}
 
 	private createTree(parent: HTMLElement): void {
-		this.treeContainer = dom.append(parent, dom.$('.tree-container'));
-		dom.addClass(this.treeContainer, 'show-file-icons');
+		this.treeContainer = dom.append(parent, dom.$('.tree-container.show-file-icons'));
 		const renderer = this.instantiationService.createInstance(Viewer.Renderer);
 		const dnd = this.instantiationService.createInstance(SimpleFileResourceDragAndDrop, obj => obj instanceof ResourceMarkers ? obj.uri : void 0);
 		const controller = this.instantiationService.createInstance(Controller);
@@ -196,7 +204,7 @@ export class MarkersPanel extends Panel {
 			filter: new Viewer.DataFilter(),
 			renderer,
 			controller,
-			accessibilityProvider: new Viewer.MarkersTreeAccessibilityProvider(),
+			accessibilityProvider: this.instantiationService.createInstance(Viewer.MarkersTreeAccessibilityProvider),
 			dnd
 		}, {
 				twistiePixels: 20,
@@ -291,11 +299,18 @@ export class MarkersPanel extends Panel {
 	}
 
 	private renderMessage(): void {
-		const markersModel = this.markersWorkbenchService.markersModel;
-		const hasFilteredResources = markersModel.hasFilteredResources();
 		dom.clearNode(this.messageBoxContainer);
-		dom.toggleClass(this.messageBoxContainer, 'hidden', hasFilteredResources);
-		if (!hasFilteredResources) {
+		const markersModel = this.markersWorkbenchService.markersModel;
+		if (markersModel.hasFilteredResources()) {
+			const { total, filtered } = markersModel.stats();
+			if (filtered === total) {
+				this.ariaLabelElement.setAttribute('aria-label', localize('No problems filtered', "Showing {0} problems", total));
+			} else {
+				this.ariaLabelElement.setAttribute('aria-label', localize('problems filtered', "Showing {0} of {1} problems", filtered, total));
+			}
+			this.messageBoxContainer.removeAttribute('tabIndex');
+		} else {
+			this.messageBoxContainer.setAttribute('tabIndex', '0');
 			if (markersModel.hasResources()) {
 				if (markersModel.filterOptions.filter) {
 					this.renderFilteredByFilterMessage(this.messageBoxContainer);
@@ -315,6 +330,7 @@ export class MarkersPanel extends Panel {
 		link.textContent = localize('disableFilesExclude', "Disable Files Exclude Filter.");
 		link.setAttribute('tabIndex', '0');
 		dom.addDisposableListener(link, dom.EventType.CLICK, () => this.filterInputActionItem.useFilesExclude = false);
+		this.ariaLabelElement.setAttribute('aria-label', Messages.MARKERS_PANEL_NO_PROBLEMS_FILE_EXCLUSIONS_FILTER);
 	}
 
 	private renderFilteredByFilterMessage(container: HTMLElement) {
@@ -324,11 +340,13 @@ export class MarkersPanel extends Panel {
 		link.textContent = localize('clearFilter', "Clear Filter.");
 		link.setAttribute('tabIndex', '0');
 		dom.addDisposableListener(link, dom.EventType.CLICK, () => this.filterInputActionItem.clear());
+		this.ariaLabelElement.setAttribute('aria-label', Messages.MARKERS_PANEL_NO_PROBLEMS_FILTERS);
 	}
 
 	private renderNoProblemsMessage(container: HTMLElement) {
 		const span = dom.append(container, dom.$('span'));
 		span.textContent = Messages.MARKERS_PANEL_NO_PROBLEMS_BUILT;
+		this.ariaLabelElement.setAttribute('aria-label', Messages.MARKERS_PANEL_NO_PROBLEMS_BUILT);
 	}
 
 	private autoExpand(): void {

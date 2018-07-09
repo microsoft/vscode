@@ -18,7 +18,7 @@ import * as encoding from 'vs/base/node/encoding';
 import * as extfs from 'vs/base/node/extfs';
 import { IProgress } from 'vs/platform/search/common/search';
 import { rgPath } from 'vscode-ripgrep';
-import { FileMatch, IFolderSearch, IRawSearch, ISerializedFileMatch, ISerializedSearchComplete, LineMatch } from './search';
+import { FileMatch, IFolderSearch, IRawSearch, ISerializedFileMatch, LineMatch, ISerializedSearchSuccess } from './search';
 
 // If vscode-ripgrep is in an .asar file, then the binary is unpacked.
 const rgDiskPath = rgPath.replace(/\bnode_modules\.asar\b/, 'node_modules.asar.unpacked');
@@ -44,10 +44,11 @@ export class RipgrepEngine {
 	}
 
 	// TODO@Rob - make promise-based once the old search is gone, and I don't need them to have matching interfaces anymore
-	search(onResult: (match: ISerializedFileMatch) => void, onMessage: (message: IProgress) => void, done: (error: Error, complete: ISerializedSearchComplete) => void): void {
+	search(onResult: (match: ISerializedFileMatch) => void, onMessage: (message: IProgress) => void, done: (error: Error, complete: ISerializedSearchSuccess) => void): void {
 		if (!this.config.folderQueries.length && !this.config.extraFiles.length) {
 			process.removeListener('exit', this.killRgProcFn);
 			done(null, {
+				type: 'success',
 				limitHit: false,
 				stats: null
 			});
@@ -94,6 +95,7 @@ export class RipgrepEngine {
 			this.cancel();
 			process.removeListener('exit', this.killRgProcFn);
 			done(null, {
+				type: 'success',
 				limitHit: true,
 				stats: null
 			});
@@ -124,11 +126,13 @@ export class RipgrepEngine {
 					process.removeListener('exit', this.killRgProcFn);
 					if (stderr && !gotData && (displayMsg = rgErrorMsgForDisplay(stderr))) {
 						done(new Error(displayMsg), {
+							type: 'success',
 							limitHit: false,
 							stats: null
 						});
 					} else {
 						done(null, {
+							type: 'success',
 							limitHit: false,
 							stats: null
 						});

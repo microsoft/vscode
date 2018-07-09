@@ -1298,7 +1298,9 @@ class TaskService implements ITaskService {
 	}
 
 	private getGroupedTasks(): TPromise<TaskMap> {
-		return this.extensionService.activateByEvent('onCommand:workbench.action.tasks.runTask').then(() => {
+		return TPromise.join([this.extensionService.activateByEvent('onCommand:workbench.action.tasks.runTask'), TaskDefinitionRegistry.onReady()]).then(() => {
+			let validTypes: IStringDictionary<boolean> = Object.create(null);
+			TaskDefinitionRegistry.all().forEach(definition => validTypes[definition.taskType] = true);
 			return new TPromise<TaskSet[]>((resolve, reject) => {
 				let result: TaskSet[] = [];
 				let counter: number = 0;
@@ -1327,7 +1329,7 @@ class TaskService implements ITaskService {
 				if (this.schemaVersion === JsonSchemaVersion.V2_0_0 && this._providers.size > 0) {
 					this._providers.forEach((provider) => {
 						counter++;
-						provider.provideTasks().done(done, error);
+						provider.provideTasks(validTypes).done(done, error);
 					});
 				} else {
 					resolve(result);
@@ -2485,6 +2487,7 @@ let schema: IJSONSchema = {
 
 import schemaVersion1 from './jsonSchema_v1';
 import schemaVersion2 from './jsonSchema_v2';
+import { TaskDefinitionRegistry } from 'vs/workbench/parts/tasks/common/taskDefinitionRegistry';
 schema.definitions = {
 	...schemaVersion1.definitions,
 	...schemaVersion2.definitions,

@@ -2508,6 +2508,10 @@ declare namespace monaco.editor {
 		 * Enable graceful matching. Defaults to true.
 		 */
 		filterGraceful?: boolean;
+		/**
+		 * Prevent quick suggestions when a snippet is active. Defaults to true.
+		 */
+		snippetsPreventQuickSuggestions?: boolean;
 	}
 
 	/**
@@ -3118,6 +3122,7 @@ declare namespace monaco.editor {
 	export interface InternalSuggestOptions {
 		readonly filterGraceful: boolean;
 		readonly snippets: 'top' | 'bottom' | 'inline' | 'none';
+		readonly snippetsPreventQuickSuggestions: boolean;
 	}
 
 	export interface EditorWrappingInfo {
