@@ -35,7 +35,6 @@ import { LifecyclePhase } from 'vs/platform/lifecycle/common/lifecycle';
 import { PreferencesSearchService } from 'vs/workbench/parts/preferences/electron-browser/preferencesSearch';
 import { IPreferencesService } from 'vs/workbench/services/preferences/common/preferences';
 import { Command } from 'vs/editor/browser/editorExtensions';
-import product from 'vs/platform/node/product';
 
 registerSingleton(IPreferencesSearchService, PreferencesSearchService);
 
