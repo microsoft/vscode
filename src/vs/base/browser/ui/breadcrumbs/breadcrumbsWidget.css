@@ -21,10 +21,6 @@
 	height: 100%;
 }
 
-.monaco-breadcrumbs .monaco-breadcrumb-item:nth-child(2) { /*first-child is the style-element*/
-	padding-left: 8px;
-}
-
 .monaco-breadcrumbs .monaco-breadcrumb-item:not(:last-child)::after {
 	background-image: url(./collapsed.svg);
 	width: 16px;

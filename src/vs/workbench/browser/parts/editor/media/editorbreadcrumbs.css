@@ -6,3 +6,8 @@
 .monaco-workbench>.part.editor>.content .editor-group-container:not(.active) .editor-breadcrumbs {
 	opacity: .8;
 }
+
+
+.monaco-workbench>.part.editor>.content .editor-group-container .editor-breadcrumbs .monaco-breadcrumbs .monaco-breadcrumb-item:nth-child(2) { /*first-child is the style-element*/
+	padding-left: 8px;
+}
