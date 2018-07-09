@@ -92,7 +92,7 @@ Filename: "{app}\{#ExeBasename}.exe"; Description: "{cm:LaunchProgram,{#NameLong
 #if "user" == InstallTarget
 #define SoftwareClassesRootKey "HKCU"
 #else
-#define SoftwareClassesRootKey "HKCR"
+#define SoftwareClassesRootKey "HKLM"
 #endif
 
 Root: {#SoftwareClassesRootKey}; Subkey: "Software\Classes\.ascx\OpenWithProgids"; ValueType: none; ValueName: "{#RegValueName}"; Flags: deletevalue uninsdeletevalue; Tasks: associatewithfiles
@@ -946,7 +946,7 @@ Root: {#SoftwareClassesRootKey}; Subkey: "Software\Classes\Drive\shell\{#RegValu
 #define Uninstall64RootKey "HKCU64"
 #define Uninstall32RootKey "HKCU32"
 #else
-#define EnvironmentRootKey "HKCR"
+#define EnvironmentRootKey "HKLM"
 #define EnvironmentKey "System\CurrentControlSet\Control\Session Manager\Environment"
 #define Uninstall64RootKey "HKLM64"
 #define Uninstall32RootKey "HKLM32"

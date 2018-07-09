@@ -234,7 +234,7 @@ export class ExtensionHostMain {
 		return TPromise.join([fileNamePromise, globPatternPromise]).then(() => { });
 	}
 
-	private async activateIfFileName(extensionId: string, fileName: string): TPromise<void> {
+	private async activateIfFileName(extensionId: string, fileName: string): Promise<void> {
 
 		// find exact path
 		for (const { uri } of this._workspace.folders) {
@@ -250,7 +250,7 @@ export class ExtensionHostMain {
 		return undefined;
 	}
 
-	private async activateIfGlobPatterns(extensionId: string, globPatterns: string[]): TPromise<void> {
+	private async activateIfGlobPatterns(extensionId: string, globPatterns: string[]): Promise<void> {
 		this._extHostLogService.trace(`extensionHostMain#activateIfGlobPatterns: fileSearch, extension: ${extensionId}, entryPoint: workspaceContains`);
 
 		if (globPatterns.length === 0) {

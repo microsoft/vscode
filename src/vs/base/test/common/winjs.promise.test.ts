@@ -11,7 +11,7 @@ suite('WinJS and ES6 Promises', function () {
 
 	test('Promise.resolve', function () {
 		let resolveTPromise;
-		const tPromise = new winjs.Promise(function (c, e, p) {
+		const tPromise = new winjs.Promise((c, e) => {
 			resolveTPromise = c;
 		});
 
@@ -28,7 +28,7 @@ suite('WinJS and ES6 Promises', function () {
 
 	test('new Promise', function () {
 		let resolveTPromise;
-		const tPromise = new winjs.Promise(function (c, e, p) {
+		const tPromise = new winjs.Promise((c, e) => {
 			resolveTPromise = c;
 		});
 

@@ -707,7 +707,12 @@ export class Workbench extends Disposable implements IPartService {
 		const panelRegistry = Registry.as<PanelRegistry>(PanelExtensions.Panels);
 		const panelId = this.storageService.get(PanelPart.activePanelSettingsKey, StorageScope.WORKSPACE, panelRegistry.getDefaultPanelId());
 		if (!this.panelHidden && !!panelId) {
-			restorePromises.push(this.panelPart.openPanel(panelId, false));
+			const isPanelToRestoreEnabled = !!this.panelPart.getPanels().filter(p => p.id === panelId).length;
+			if (isPanelToRestoreEnabled) {
+				restorePromises.push(this.panelPart.openPanel(panelId, false));
+			} else {
+				restorePromises.push(this.panelPart.openPanel(panelRegistry.getDefaultPanelId(), false));
+			}
 		}
 
 		// Restore Zen Mode if active
@@ -1205,7 +1210,7 @@ export class Workbench extends Disposable implements IPartService {
 	getTitleBarOffset(): number {
 		let offset = 0;
 		if (this.isVisible(Parts.TITLEBAR_PART)) {
-			offset = 22 / browser.getZoomFactor(); // adjust the position based on title bar size and zoom factor
+			offset = this.workbenchLayout.partLayoutInfo.titlebar.height;
 		}
 
 		return offset;

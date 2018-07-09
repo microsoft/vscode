@@ -154,7 +154,7 @@ export class WebviewEditorInput extends EditorInput {
 		}
 	}
 
-	public resolve(refresh?: boolean): TPromise<IEditorModel, any> {
+	public resolve(): TPromise<IEditorModel, any> {
 		if (this.reviver && !this._revived) {
 			this._revived = true;
 			return this.reviver.reviveWebview(this).then(() => new EditorModel());

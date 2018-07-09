@@ -17,8 +17,8 @@ import { IdGenerator } from 'vs/base/common/idGenerator';
 import { IIterator } from 'vs/base/common/iterator';
 import { isFalsyOrWhitespace } from 'vs/base/common/strings';
 import { localize } from 'vs/nls';
-import { TPromise } from 'vs/base/common/winjs.base';
 import { isPromiseCanceledError } from 'vs/base/common/errors';
+import { CancellationTokenSource } from 'vs/base/common/cancellation';
 
 class DecorationRule {
 
@@ -180,7 +180,7 @@ class DecorationStyles {
 		let usedDecorations = new Set<string>();
 		for (let e = iter.next(); !e.done; e = iter.next()) {
 			e.value.data.forEach((value, key) => {
-				if (!isThenable<any>(value) && value) {
+				if (value && !(value instanceof DecorationDataRequest)) {
 					usedDecorations.add(DecorationRule.keyOf(value));
 				}
 			});
@@ -229,9 +229,16 @@ class FileDecorationChangeEvent implements IResourceDecorationChangeEvent {
 	}
 }
 
+class DecorationDataRequest {
+	constructor(
+		readonly source: CancellationTokenSource,
+		readonly thenable: Thenable<void>,
+	) { }
+}
+
 class DecorationProviderWrapper {
 
-	readonly data = TernarySearchTree.forPaths<TPromise<void> | IDecorationData>();
+	readonly data = TernarySearchTree.forPaths<DecorationDataRequest | IDecorationData>();
 	private readonly _dispoable: IDisposable;
 
 	constructor(
@@ -275,7 +282,7 @@ class DecorationProviderWrapper {
 			item = this._fetchData(uri);
 		}
 
-		if (item && !isThenable<void>(item)) {
+		if (item && !(item instanceof DecorationDataRequest)) {
 			// found something (which isn't pending anymore)
 			callback(item, false);
 		}
@@ -285,7 +292,7 @@ class DecorationProviderWrapper {
 			const iter = this.data.findSuperstr(key);
 			if (iter) {
 				for (let item = iter.next(); !item.done; item = iter.next()) {
-					if (item.value && !isThenable<void>(item.value)) {
+					if (item.value && !(item.value instanceof DecorationDataRequest)) {
 						callback(item.value, true);
 					}
 				}
@@ -297,27 +304,28 @@ class DecorationProviderWrapper {
 
 		// check for pending request and cancel it
 		const pendingRequest = this.data.get(uri.toString());
-		if (TPromise.is(pendingRequest)) {
-			pendingRequest.cancel();
+		if (pendingRequest instanceof DecorationDataRequest) {
+			pendingRequest.source.cancel();
 			this.data.delete(uri.toString());
 		}
 
-		const dataOrThenable = this._provider.provideDecorations(uri);
+		const source = new CancellationTokenSource();
+		const dataOrThenable = this._provider.provideDecorations(uri, source.token);
 		if (!isThenable(dataOrThenable)) {
 			// sync -> we have a result now
 			return this._keepItem(uri, dataOrThenable);
 
 		} else {
 			// async -> we have a result soon
-			const request = TPromise.wrap(dataOrThenable).then(data => {
+			const request = new DecorationDataRequest(source, Promise.resolve(dataOrThenable).then(data => {
 				if (this.data.get(uri.toString()) === request) {
 					this._keepItem(uri, data);
 				}
-			}, err => {
+			}).catch(err => {
 				if (!isPromiseCanceledError(err) && this.data.get(uri.toString()) === request) {
 					this.data.delete(uri.toString());
 				}
-			});
+			}));
 
 			this.data.set(uri.toString(), request);
 			return undefined;

@@ -301,7 +301,7 @@ export class ExtensionsViewlet extends ViewContainerViewlet implements IExtensio
 		}, this, this.disposables);
 	}
 
-	async create(parent: HTMLElement): TPromise<void> {
+	create(parent: HTMLElement): TPromise<void> {
 		addClass(parent, 'extensions-viewlet');
 		this.root = parent;
 
@@ -326,14 +326,14 @@ export class ExtensionsViewlet extends ViewContainerViewlet implements IExtensio
 
 		this.onSearchChange = mapEvent(onSearchInput, e => e.target.value);
 
-		await super.create(this.extensionsBox);
-
-		const installed = await this.extensionManagementService.getInstalled(LocalExtensionType.User);
-
-		if (installed.length === 0) {
-			this.searchBox.value = '@sort:installs';
-			this.searchExtensionsContextKey.set(true);
-		}
+		return super.create(this.extensionsBox)
+			.then(() => this.extensionManagementService.getInstalled(LocalExtensionType.User))
+			.then(installed => {
+				if (installed.length === 0) {
+					this.searchBox.value = '@sort:installs';
+					this.searchExtensionsContextKey.set(true);
+				}
+			});
 	}
 
 	public updateStyles(): void {
@@ -429,7 +429,7 @@ export class ExtensionsViewlet extends ViewContainerViewlet implements IExtensio
 			.done(null, err => this.onError(err));
 	}
 
-	private async doSearch(): TPromise<any> {
+	private doSearch(): TPromise<any> {
 		const value = this.searchBox.value || '';
 		this.searchExtensionsContextKey.set(!!value);
 		this.searchInstalledExtensionsContextKey.set(InstalledExtensionsView.isInstalledExtensionsQuery(value));
@@ -439,8 +439,9 @@ export class ExtensionsViewlet extends ViewContainerViewlet implements IExtensio
 		this.nonEmptyWorkspaceContextKey.set(this.contextService.getWorkbenchState() !== WorkbenchState.EMPTY);
 
 		if (value) {
-			this.progress(TPromise.join(this.panels.map(view => (<ExtensionsListView>view).show(this.searchBox.value))));
+			return this.progress(TPromise.join(this.panels.map(view => (<ExtensionsListView>view).show(this.searchBox.value))));
 		}
+		return TPromise.as(null);
 	}
 
 	protected onDidAddViews(added: IAddedViewDescriptorRef[]): ViewletPanel[] {

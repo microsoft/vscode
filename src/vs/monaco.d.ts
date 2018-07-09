@@ -83,7 +83,6 @@ declare namespace monaco {
 
 		public static join<T1, T2>(promises: [T1 | PromiseLike<T1>, T2 | PromiseLike<T2>]): Promise<[T1, T2]>;
 		public static join<T>(promises: (T | PromiseLike<T>)[]): Promise<T[]>;
-		public static join<T>(promises: { [n: string]: T | PromiseLike<T> }): Promise<{ [n: string]: T }>;
 
 		public static any<T>(promises: (T | PromiseLike<T>)[]): Promise<{ key: string; value: Promise<T>; }>;
 
@@ -2514,6 +2513,10 @@ declare namespace monaco.editor {
 		 * Enable graceful matching. Defaults to true.
 		 */
 		filterGraceful?: boolean;
+		/**
+		 * Prevent quick suggestions when a snippet is active. Defaults to true.
+		 */
+		snippetsPreventQuickSuggestions?: boolean;
 	}
 
 	/**
@@ -2736,7 +2739,7 @@ declare namespace monaco.editor {
 		/**
 		 * Configure the editor's hover.
 		 */
-		hover?: boolean | IEditorHoverOptions;
+		hover?: IEditorHoverOptions;
 		/**
 		 * Enable detecting links and making them clickable.
 		 * Defaults to true.
@@ -3124,6 +3127,7 @@ declare namespace monaco.editor {
 	export interface InternalSuggestOptions {
 		readonly filterGraceful: boolean;
 		readonly snippets: 'top' | 'bottom' | 'inline' | 'none';
+		readonly snippetsPreventQuickSuggestions: boolean;
 	}
 
 	export interface EditorWrappingInfo {

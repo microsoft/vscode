@@ -155,7 +155,7 @@ class RemoteSearchProvider implements ISearchProvider {
 		@ILogService private logService: ILogService
 	) {
 		this._remoteSearchP = this.options.filter ?
-			this.getSettingsForFilter(this.options.filter) :
+			TPromise.wrap(this.getSettingsForFilter(this.options.filter)) :
 			TPromise.wrap(null);
 	}
 
@@ -196,7 +196,7 @@ class RemoteSearchProvider implements ISearchProvider {
 		});
 	}
 
-	private async getSettingsForFilter(filter: string): TPromise<IFilterMetadata> {
+	private async getSettingsForFilter(filter: string): Promise<IFilterMetadata> {
 		const allRequestDetails: IBingRequestDetails[] = [];
 
 		// Only send MAX_REQUESTS requests in total just to keep it sane
@@ -308,7 +308,7 @@ class RemoteSearchProvider implements ISearchProvider {
 		};
 	}
 
-	private async prepareRequest(query: string, filterPage = 0): TPromise<IBingRequestDetails> {
+	private async prepareRequest(query: string, filterPage = 0): Promise<IBingRequestDetails> {
 		const verbatimQuery = query;
 		query = escapeSpecialChars(query);
 		const boost = 10;

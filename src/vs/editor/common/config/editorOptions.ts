@@ -163,6 +163,10 @@ export interface ISuggestOptions {
 	 * Enable graceful matching. Defaults to true.
 	 */
 	filterGraceful?: boolean;
+	/**
+	 * Prevent quick suggestions when a snippet is active. Defaults to true.
+	 */
+	snippetsPreventQuickSuggestions?: boolean;
 }
 
 /**
@@ -397,7 +401,7 @@ export interface IEditorOptions {
 	/**
 	 * Configure the editor's hover.
 	 */
-	hover?: boolean | IEditorHoverOptions;
+	hover?: IEditorHoverOptions;
 	/**
 	 * Enable detecting links and making them clickable.
 	 * Defaults to true.
@@ -844,6 +848,7 @@ export interface InternalEditorHoverOptions {
 export interface InternalSuggestOptions {
 	readonly filterGraceful: boolean;
 	readonly snippets: 'top' | 'bottom' | 'inline' | 'none';
+	readonly snippetsPreventQuickSuggestions: boolean;
 }
 
 export interface EditorWrappingInfo {
@@ -1252,7 +1257,9 @@ export class InternalEditorOptions {
 		} else if (!a || !b) {
 			return false;
 		} else {
-			return a.filterGraceful === b.filterGraceful && a.snippets === b.snippets;
+			return a.filterGraceful === b.filterGraceful
+				&& a.snippets === b.snippets
+				&& a.snippetsPreventQuickSuggestions === b.snippetsPreventQuickSuggestions;
 		}
 	}
 
@@ -1751,6 +1758,7 @@ export class EditorOptionsValidator {
 		return {
 			filterGraceful: _boolean(opts.suggest.filterGraceful, defaults.filterGraceful),
 			snippets: _stringSet<'top' | 'bottom' | 'inline' | 'none'>(opts.snippetSuggestions, defaults.snippets, ['top', 'bottom', 'inline', 'none']),
+			snippetsPreventQuickSuggestions: _boolean(opts.suggest.snippetsPreventQuickSuggestions, defaults.filterGraceful),
 		};
 	}
 
@@ -2470,7 +2478,8 @@ export const EDITOR_DEFAULTS: IValidatedEditorOptions = {
 		suggestLineHeight: 0,
 		suggest: {
 			filterGraceful: true,
-			snippets: 'inline'
+			snippets: 'inline',
+			snippetsPreventQuickSuggestions: true
 		},
 		selectionHighlight: true,
 		occurrencesHighlight: true,

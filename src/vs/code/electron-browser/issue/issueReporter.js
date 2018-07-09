@@ -45,6 +45,8 @@ function readFile(file) {
 	});
 }
 
+const writeFile = (file, content) => new Promise((c, e) => fs.writeFile(file, content, 'utf8', err => err ? e(err) : c()));
+
 function main() {
 	const args = parseURLQueryArgs();
 	const configuration = JSON.parse(args['config'] || '{}') || {};
@@ -127,8 +129,15 @@ function main() {
 				let json = JSON.parse(content);
 				bundles[bundle] = json;
 				cb(undefined, json);
-			})
-			.catch(cb);
+			}).catch((error) => {
+				try {
+					if (nlsConfig._corruptedFile) {
+						writeFile(nlsConfig._corruptedFile, 'corrupted').catch(function (error) { console.error(error); });
+					}
+				} finally {
+					cb(error, undefined);
+				}
+			});
 		};
 	}
 

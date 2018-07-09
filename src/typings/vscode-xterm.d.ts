@@ -125,6 +125,15 @@ declare module 'vscode-xterm' {
 		macOptionIsMeta?: boolean;
 
 		/**
+		 * Whether holding a modifier key will force normal selection behavior,
+		 * regardless of whether the terminal is in mouse events mode. This will
+		 * also prevent mouse events from being emitted by the terminal. For example,
+		 * this allows you to use xterm.js' regular selection inside tmux with
+		 * mouse mode enabled.
+		 */
+		macOptionClickForcesSelection?: boolean;
+
+		/**
 		 * (EXPERIMENTAL) The type of renderer to use, this allows using the
 		 * fallback DOM renderer when canvas is too slow for the environment. The
 		 * following features do not work when the DOM renderer is used:

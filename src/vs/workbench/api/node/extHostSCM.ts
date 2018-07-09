@@ -237,14 +237,14 @@ class ExtHostSourceControlResourceGroup implements vscode.SourceControlResourceG
 		return this._resourceStatesMap.get(handle);
 	}
 
-	async $executeResourceCommand(handle: number): TPromise<void> {
+	$executeResourceCommand(handle: number): TPromise<void> {
 		const command = this._resourceStatesCommandsMap.get(handle);
 
 		if (!command) {
-			return;
+			return TPromise.as(null);
 		}
 
-		await this._commands.executeCommand(command.command, ...command.arguments);
+		return asWinJsPromise(_ => this._commands.executeCommand(command.command, ...command.arguments));
 	}
 
 	_takeResourceStateSnapshot(): SCMRawResourceSplice[] {
@@ -568,25 +568,25 @@ export class ExtHostSCM implements ExtHostSCMShape {
 		return TPromise.as(null);
 	}
 
-	async $executeResourceCommand(sourceControlHandle: number, groupHandle: number, handle: number): TPromise<void> {
+	$executeResourceCommand(sourceControlHandle: number, groupHandle: number, handle: number): TPromise<void> {
 		this.logService.trace('ExtHostSCM#$executeResourceCommand', sourceControlHandle, groupHandle, handle);
 
 		const sourceControl = this._sourceControls.get(sourceControlHandle);
 
 		if (!sourceControl) {
-			return;
+			return TPromise.as(null);
 		}
 
 		const group = sourceControl.getResourceGroup(groupHandle);
 
 		if (!group) {
-			return;
+			return TPromise.as(null);
 		}
 
-		await group.$executeResourceCommand(handle);
+		return group.$executeResourceCommand(handle);
 	}
 
-	async $validateInput(sourceControlHandle: number, value: string, cursorPosition: number): TPromise<[string, number] | undefined> {
+	$validateInput(sourceControlHandle: number, value: string, cursorPosition: number): TPromise<[string, number] | undefined> {
 		this.logService.trace('ExtHostSCM#$validateInput', sourceControlHandle);
 
 		const sourceControl = this._sourceControls.get(sourceControlHandle);
@@ -599,12 +599,12 @@ export class ExtHostSCM implements ExtHostSCMShape {
 			return TPromise.as(undefined);
 		}
 
-		const result = await sourceControl.inputBox.validateInput(value, cursorPosition);
+		return asWinJsPromise(_ => Promise.resolve(sourceControl.inputBox.validateInput(value, cursorPosition))).then(result => {
+			if (!result) {
+				return TPromise.as(undefined);
+			}
 
-		if (!result) {
-			return TPromise.as(undefined);
-		}
-
-		return [result.message, result.type];
+			return TPromise.as<[string, number]>([result.message, result.type]);
+		});
 	}
 }

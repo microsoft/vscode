@@ -1,0 +1,18 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+.monaco-workbench>.part.editor>.content .editor-group-container:not(.active) .editor-breadcrumbs {
+	opacity: .8;
+}
+
+
+.monaco-workbench>.part.editor>.content .editor-group-container .editor-breadcrumbs .monaco-breadcrumbs .monaco-breadcrumb-item:nth-child(2) { /*first-child is the style-element*/
+	padding-left: 8px;
+}
+
+.monaco-breadcrumbs-picker {
+	border: 1px #dddddd solid;
+	box-shadow: #dddddd 6px 6px 6px -6px;
+}

@@ -13,6 +13,7 @@ import { ITextFileEditorModel, ITextFileEditorModelManager, TextFileModelChangeE
 import { ILifecycleService } from 'vs/platform/lifecycle/common/lifecycle';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { ResourceMap } from 'vs/base/common/map';
+import { onUnexpectedError } from 'vs/base/common/errors';
 
 export class TextFileEditorModelManager extends Disposable implements ITextFileEditorModelManager {
 
@@ -142,7 +143,17 @@ export class TextFileEditorModelManager extends Disposable implements ITextFileE
 		let model = this.get(resource);
 		if (model) {
 			if (options && options.reload) {
-				modelPromise = model.load(modelLoadOptions);
+
+				// async reload: trigger a reload but return immediately
+				if (options.reload.async) {
+					modelPromise = TPromise.as(model);
+					model.load(options).then(null, onUnexpectedError);
+				}
+
+				// sync reload: do not return until model reloaded
+				else {
+					modelPromise = model.load(modelLoadOptions);
+				}
 			} else {
 				modelPromise = TPromise.as(model);
 			}

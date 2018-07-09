@@ -126,7 +126,8 @@ export class PreferencesEditor extends BaseEditor {
 			ariaLabel: nls.localize('SearchSettingsWidget.AriaLabel', "Search settings"),
 			placeholder: nls.localize('SearchSettingsWidget.Placeholder', "Search Settings"),
 			focusKey: this.searchFocusContextKey,
-			showResultCount: true
+			showResultCount: true,
+			ariaLive: 'assertive'
 		}));
 		this._register(this.searchWidget.onDidChange(value => this.onInputChanged()));
 		this._register(this.searchWidget.onFocus(() => this.lastFocusedWidget = this.searchWidget));
@@ -242,7 +243,7 @@ export class PreferencesEditor extends BaseEditor {
 		if (query) {
 			return TPromise.join([
 				this.localSearchDelayer.trigger(() => this.preferencesRenderers.localFilterPreferences(query)),
-				this.remoteSearchThrottle.trigger(() => this.progressService.showWhile(this.preferencesRenderers.remoteSearchPreferences(query), 500))
+				this.remoteSearchThrottle.trigger(() => TPromise.wrap(this.progressService.showWhile(this.preferencesRenderers.remoteSearchPreferences(query), 500)))
 			]) as TPromise;
 		} else {
 			// When clearing the input, update immediately to clear it
@@ -434,7 +435,7 @@ class PreferencesRenderersController extends Disposable {
 		}
 	}
 
-	private async _onEditableContentDidChange(): TPromise<void> {
+	private async _onEditableContentDidChange(): Promise<void> {
 		await this.localFilterPreferences(this._lastQuery, true);
 		await this.remoteSearchPreferences(this._lastQuery, true);
 	}
@@ -511,11 +512,11 @@ class PreferencesRenderersController extends Disposable {
 		return TPromise.join(searchPs).then(() => { });
 	}
 
-	private searchSettingsTarget(query: string, provider: ISearchProvider, target: SettingsTarget, groupId: string, groupLabel: string, groupOrder: number): TPromise<void> {
+	private searchSettingsTarget(query: string, provider: ISearchProvider, target: SettingsTarget, groupId: string, groupLabel: string, groupOrder: number): Promise<void> {
 		if (!query) {
 			// Don't open the other settings targets when query is empty
 			this._onDidFilterResultsCountChange.fire({ target, count: 0 });
-			return TPromise.wrap(null);
+			return Promise.resolve(null);
 		}
 
 		return this.getPreferencesEditorModel(target).then(model => {
@@ -532,7 +533,7 @@ class PreferencesRenderersController extends Disposable {
 		});
 	}
 
-	private async getPreferencesEditorModel(target: SettingsTarget): TPromise<ISettingsEditorModel | null> {
+	private async getPreferencesEditorModel(target: SettingsTarget): Promise<ISettingsEditorModel | null> {
 		const resource = target === ConfigurationTarget.USER ? this.preferencesService.userSettingsResource :
 			target === ConfigurationTarget.WORKSPACE ? this.preferencesService.workspaceSettingsResource :
 				target;

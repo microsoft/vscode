@@ -64,7 +64,6 @@ export class CommentNode {
 
 		this._domNode.setAttribute('aria-label', `${comment.userName}, ${comment.body.value}`);
 		this._domNode.setAttribute('role', 'treeitem');
-		this._domNode.title = `${comment.userName}, ${comment.body.value}`;
 		this._clearTimeout = null;
 	}
 
@@ -109,7 +108,6 @@ export class ReviewZoneWidget extends ZoneWidget {
 	private _commentThread: modes.CommentThread;
 	private _commentGlyph: CommentGlyphWidget;
 	private _owner: number;
-	private _decorationIDs: string[];
 	private _localToDispose: IDisposable[];
 
 	public get owner(): number {
@@ -135,7 +133,6 @@ export class ReviewZoneWidget extends ZoneWidget {
 		this._owner = owner;
 		this._commentThread = commentThread;
 		this._isCollapsed = commentThread.collapsibleState !== modes.CommentThreadCollapsibleState.Expanded;
-		this._decorationIDs = [];
 		this._localToDispose = [];
 		this.create();
 		this.themeService.onThemeChange(this._applyTheme, this);
@@ -151,12 +148,7 @@ export class ReviewZoneWidget extends ZoneWidget {
 
 	public reveal(commentId?: string) {
 		if (this._isCollapsed) {
-			if (this._decorationIDs && this._decorationIDs.length) {
-				let range = this.editor.getModel().getDecorationRange(this._decorationIDs[0]);
-				this.show(range, 2);
-			} else {
-				this.show({ lineNumber: this._commentThread.range.startLineNumber, column: 1 }, 2);
-			}
+			this.show({ lineNumber: this._commentThread.range.startLineNumber, column: 1 }, 2);
 		}
 
 		this._bodyElement.focus();
@@ -196,13 +188,9 @@ export class ReviewZoneWidget extends ZoneWidget {
 		this._secondaryHeading = $('span.dirname').appendTo(titleElement).getHTMLElement();
 		this._metaHeading = $('span.meta').appendTo(titleElement).getHTMLElement();
 
-		let primaryHeading = 'Participants:';
-		$(this._primaryHeading).safeInnerHtml(primaryHeading);
-		this._primaryHeading.setAttribute('aria-label', primaryHeading);
-
-		let secondaryHeading = this._commentThread.comments.filter(arrays.uniqueFilter(comment => comment.userName)).map(comment => `@${comment.userName}`).join(', ');
-		$(this._secondaryHeading).safeInnerHtml(secondaryHeading);
-		this._secondaryHeading.setAttribute('aria-label', secondaryHeading);
+		if (this._commentThread.comments.length) {
+			this.createParticipantsLabel();
+		}
 
 		const actionsContainer = $('.review-actions').appendTo(this._headElement);
 		this._actionbarWidget = new ActionBar(actionsContainer.getHTMLElement(), {});
@@ -252,16 +240,6 @@ export class ReviewZoneWidget extends ZoneWidget {
 		for (let i = commentElementsToDel.length - 1; i >= 0; i--) {
 			this._commentElements.splice(commentElementsToDelIndex[i]);
 			this._commentsElement.removeChild(commentElementsToDel[i].domNode);
-		}
-
-		if (this._commentElements.length === 0) {
-			this._commentThread = commentThread;
-			commentThread.comments.forEach(comment => {
-				let newElement = new CommentNode(comment);
-				this._commentElements.push(newElement);
-				this._commentsElement.appendChild(newElement.domNode);
-			});
-			return;
 		}
 
 		let lastCommentElement: HTMLElement = null;
@@ -350,7 +328,15 @@ export class ReviewZoneWidget extends ZoneWidget {
 		this.setCommentEditorDecorations();
 
 		// Only add the additional step of clicking a reply button to expand the textarea when there are existing comments
-		this.createCommentButton();
+		if (hasExistingComments) {
+			this.createReplyButton();
+		} else {
+			if (!dom.hasClass(this._commentForm, 'expand')) {
+				dom.addClass(this._commentForm, 'expand');
+				this._commentEditor.focus();
+			}
+		}
+
 
 		this._localToDispose.push(this._commentEditor.onKeyDown((ev: IKeyboardEvent) => {
 			const hasExistingComments = this._commentThread.comments.length > 0;
@@ -384,6 +370,9 @@ export class ReviewZoneWidget extends ZoneWidget {
 					new Range(lineNumber, 1, lineNumber, 1),
 					this._commentEditor.getValue()
 				);
+
+				this.createReplyButton();
+				this.createParticipantsLabel();
 			}
 
 			this._commentEditor.setValue('');
@@ -415,28 +404,33 @@ export class ReviewZoneWidget extends ZoneWidget {
 		}
 	}
 
-	createCommentButton() {
-		const hasExistingComments = this._commentThread.comments.length > 0;
-		if (hasExistingComments) {
-			this._reviewThreadReplyButton = <HTMLButtonElement>$('button.review-thread-reply-button').appendTo(this._commentForm).getHTMLElement();
-			this._reviewThreadReplyButton.title = 'Reply...';
-			this._reviewThreadReplyButton.textContent = 'Reply...';
-			// bind click/escape actions for reviewThreadReplyButton and textArea
-			this._reviewThreadReplyButton.onclick = () => {
-				if (!dom.hasClass(this._commentForm, 'expand')) {
-					dom.addClass(this._commentForm, 'expand');
-					this._commentEditor.focus();
-				}
-			};
+	createParticipantsLabel() {
+		const primaryHeading = 'Participants:';
+		$(this._primaryHeading).safeInnerHtml(primaryHeading);
+		this._primaryHeading.setAttribute('aria-label', primaryHeading);
 
-			this._commentEditor.onDidBlurEditorWidget(() => {
-				if (this._commentEditor.getModel().getValueLength() === 0 && dom.hasClass(this._commentForm, 'expand')) {
-					dom.removeClass(this._commentForm, 'expand');
-				}
-			});
-		} else {
-			dom.addClass(this._commentForm, 'expand');
-		}
+		const secondaryHeading = this._commentThread.comments.filter(arrays.uniqueFilter(comment => comment.userName)).map(comment => `@${comment.userName}`).join(', ');
+		$(this._secondaryHeading).safeInnerHtml(secondaryHeading);
+		this._secondaryHeading.setAttribute('aria-label', secondaryHeading);
+	}
+
+	createReplyButton() {
+		this._reviewThreadReplyButton = <HTMLButtonElement>$('button.review-thread-reply-button').appendTo(this._commentForm).getHTMLElement();
+		this._reviewThreadReplyButton.title = 'Reply...';
+		this._reviewThreadReplyButton.textContent = 'Reply...';
+		// bind click/escape actions for reviewThreadReplyButton and textArea
+		this._reviewThreadReplyButton.onclick = () => {
+			if (!dom.hasClass(this._commentForm, 'expand')) {
+				dom.addClass(this._commentForm, 'expand');
+				this._commentEditor.focus();
+			}
+		};
+
+		this._commentEditor.onDidBlurEditorWidget(() => {
+			if (this._commentEditor.getModel().getValueLength() === 0 && dom.hasClass(this._commentForm, 'expand')) {
+				dom.removeClass(this._commentForm, 'expand');
+			}
+		});
 	}
 
 	_refresh() {
@@ -557,13 +551,12 @@ export class ReviewZoneWidget extends ZoneWidget {
 			this._resizeObserver.disconnect();
 			this._resizeObserver = null;
 		}
-		this.editor.changeDecorations(accessor => {
-			accessor.deltaDecorations(this._decorationIDs, []);
-		});
+
 		if (this._commentGlyph) {
 			this.editor.removeContentWidget(this._commentGlyph);
 			this._commentGlyph = null;
 		}
+
 		this._localToDispose.forEach(local => local.dispose());
 		this._onDidClose.fire();
 	}

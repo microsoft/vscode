@@ -7,30 +7,31 @@ import * as cp from 'child_process';
 import { Readable } from 'stream';
 import { NodeStringDecoder, StringDecoder } from 'string_decoder';
 import * as vscode from 'vscode';
-import { normalizeNFC, normalizeNFD } from './normalization';
+import { normalizeNFC, normalizeNFD } from './common/normalization';
 import { rgPath } from './ripgrep';
-import { anchorGlob } from './ripgrepHelpers';
+import { anchorGlob } from './utils';
 import { rgErrorMsgForDisplay } from './ripgrepTextSearch';
+import { IInternalFileSearchProvider } from './cachedSearchProvider';
 
 const isMac = process.platform === 'darwin';
 
 // If vscode-ripgrep is in an .asar file, then the binary is unpacked.
 const rgDiskPath = rgPath.replace(/\bnode_modules\.asar\b/, 'node_modules.asar.unpacked');
 
-export class RipgrepFileSearchEngine {
+export class RipgrepFileSearchEngine implements IInternalFileSearchProvider {
 	private rgProc: cp.ChildProcess;
-	private killRgProcFn: (code?: number) => void;
+	private isDone: boolean;
 
-	constructor(private outputChannel: vscode.OutputChannel) {
-		this.killRgProcFn = () => this.rgProc && this.rgProc.kill();
-		process.once('exit', this.killRgProcFn);
+	constructor(private outputChannel: vscode.OutputChannel) { }
+
+	cancel() {
+		this.isDone = true;
+		if (this.rgProc) {
+			this.rgProc.kill();
+		}
 	}
 
-	private dispose() {
-		process.removeListener('exit', this.killRgProcFn);
-	}
-
-	provideFileSearchResults(options: vscode.SearchOptions, progress: vscode.Progress<string>, token: vscode.CancellationToken): Thenable<void> {
+	provideFileSearchResults(options: vscode.FileSearchOptions, progress: vscode.Progress<string>, token: vscode.CancellationToken): Thenable<void> {
 		this.outputChannel.appendLine(`provideFileSearchResults ${JSON.stringify({
 			...options,
 			...{
@@ -39,12 +40,7 @@ export class RipgrepFileSearchEngine {
 		})}`);
 
 		return new Promise((resolve, reject) => {
-			let isDone = false;
-			const cancel = () => {
-				isDone = true;
-				this.rgProc.kill();
-			};
-			token.onCancellationRequested(cancel);
+			token.onCancellationRequested(() => this.cancel());
 
 			const rgArgs = getRgArgs(options);
 
@@ -93,7 +89,7 @@ export class RipgrepFileSearchEngine {
 				});
 
 				if (last) {
-					if (isDone) {
+					if (this.isDone) {
 						resolve();
 					} else {
 						// Trigger last result
@@ -106,12 +102,7 @@ export class RipgrepFileSearchEngine {
 					}
 				}
 			});
-		}).then(
-			() => this.dispose(),
-			err => {
-				this.dispose();
-				return Promise.reject(err);
-			});
+		});
 	}
 
 	private collectStdout(cmd: cp.ChildProcess, cb: (err: Error, stdout?: string, last?: boolean) => void): void {

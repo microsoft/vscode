@@ -43,6 +43,7 @@ import { LocalizationsChannel } from 'vs/platform/localizations/common/localizat
 import { DialogChannelClient } from 'vs/platform/dialogs/common/dialogIpc';
 import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
+import { DefaultURITransformer } from 'vs/base/common/uriIpc';
 
 export interface ISharedProcessConfiguration {
 	readonly machineId: string;
@@ -66,7 +67,7 @@ function main(server: Server, initData: ISharedProcessInitData, configuration: I
 	process.once('exit', () => dispose(disposables));
 
 	const environmentService = new EnvironmentService(initData.args, process.execPath);
-	const logLevelClient = new LogLevelSetterChannelClient(server.getChannel('loglevel', { route: () => 'main' }));
+	const logLevelClient = new LogLevelSetterChannelClient(server.getChannel('loglevel', { routeCall: () => 'main', routeEvent: () => 'main' }));
 	const logService = new FollowerLogService(logLevelClient, createSpdLogService('sharedprocess', initData.logLevel, environmentService.logsPath));
 	disposables.push(logService);
 
@@ -77,14 +78,18 @@ function main(server: Server, initData: ISharedProcessInitData, configuration: I
 	services.set(IConfigurationService, new SyncDescriptor(ConfigurationService));
 	services.set(IRequestService, new SyncDescriptor(RequestService));
 
-	const windowsChannel = server.getChannel('windows', { route: () => 'main' });
+	const windowsChannel = server.getChannel('windows', { routeCall: () => 'main', routeEvent: () => 'main' });
 	const windowsService = new WindowsChannelClient(windowsChannel);
 	services.set(IWindowsService, windowsService);
 
 	const activeWindowManager = new ActiveWindowManager(windowsService);
 	const dialogChannel = server.getChannel('dialog', {
-		route: () => {
-			logService.info('Routing dialog request to the client', activeWindowManager.activeClientId);
+		routeCall: () => {
+			logService.info('Routing dialog call request to the client', activeWindowManager.activeClientId);
+			return activeWindowManager.activeClientId;
+		},
+		routeEvent: () => {
+			logService.info('Routing dialog listen request to the client', activeWindowManager.activeClientId);
 			return activeWindowManager.activeClientId;
 		}
 	});
@@ -130,7 +135,7 @@ function main(server: Server, initData: ISharedProcessInitData, configuration: I
 
 		instantiationService2.invokeFunction(accessor => {
 			const extensionManagementService = accessor.get(IExtensionManagementService);
-			const channel = new ExtensionManagementChannel(extensionManagementService);
+			const channel = new ExtensionManagementChannel(extensionManagementService, DefaultURITransformer);
 			server.registerChannel('extensions', channel);
 
 			// clean up deprecated extensions

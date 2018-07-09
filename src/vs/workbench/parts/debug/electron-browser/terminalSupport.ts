@@ -22,7 +22,7 @@ export class TerminalLauncher implements ITerminalLauncher {
 	) {
 	}
 
-	async runInTerminal(args: DebugProtocol.RunInTerminalRequestArguments, config: ITerminalSettings): TPromise<void> {
+	runInTerminal(args: DebugProtocol.RunInTerminalRequestArguments, config: ITerminalSettings): TPromise<void> {
 
 		if (args.kind === 'external') {
 			return this.nativeTerminalService.runInTerminal(args.title, args.cwd, args.args, args.env || {});

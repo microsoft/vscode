@@ -12,7 +12,7 @@ import * as dom from 'vs/base/browser/dom';
 import { Builder, $ } from 'vs/base/browser/builder';
 import { BaseActionItem, IBaseActionItemOptions, Separator } from 'vs/base/browser/ui/actionbar/actionbar';
 import { ICommandService } from 'vs/platform/commands/common/commands';
-import { dispose, IDisposable, empty, toDisposable } from 'vs/base/common/lifecycle';
+import { dispose, IDisposable, Disposable, toDisposable } from 'vs/base/common/lifecycle';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 import { IThemeService, ITheme } from 'vs/platform/theme/common/themeService';
 import { TextBadge, NumberBadge, IBadge, IconBadge, ProgressBadge } from 'vs/workbench/services/activity/common/activity';
@@ -130,7 +130,7 @@ export class ActivityActionItem extends BaseActionItem {
 	protected options: IActivityActionItemOptions;
 
 	private $badgeContent: Builder;
-	private badgeDisposable: IDisposable = empty;
+	private badgeDisposable: IDisposable = Disposable.None;
 	private mouseUpTimeout: number;
 
 	constructor(
@@ -230,7 +230,7 @@ export class ActivityActionItem extends BaseActionItem {
 		const clazz = action.getClass();
 
 		this.badgeDisposable.dispose();
-		this.badgeDisposable = empty;
+		this.badgeDisposable = Disposable.None;
 
 		this.$badgeContent.empty();
 		this.$badge.hide();

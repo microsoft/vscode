@@ -13,8 +13,8 @@ import { InputBox } from 'vs/base/browser/ui/inputbox/inputBox';
 import { ProgressBar } from 'vs/base/browser/ui/progressbar/progressbar';
 import { Action, IAction, RadioGroup } from 'vs/base/common/actions';
 import { firstIndex } from 'vs/base/common/arrays';
-import { asDisposablePromise, setDisposableTimeout } from 'vs/base/common/async';
-import { onUnexpectedError } from 'vs/base/common/errors';
+import { asDisposablePromise, setDisposableTimeout, createCancelablePromise } from 'vs/base/common/async';
+import { onUnexpectedError, isPromiseCanceledError } from 'vs/base/common/errors';
 import { Emitter } from 'vs/base/common/event';
 import { defaultGenerator } from 'vs/base/common/idGenerator';
 import { KeyCode } from 'vs/base/common/keyCodes';
@@ -54,6 +54,7 @@ import { KeyboardMapperFactory } from 'vs/workbench/services/keybinding/electron
 import { OutlineConfigKeys, OutlineViewFiltered, OutlineViewFocused, OutlineViewId } from './outline';
 import { OutlineController, OutlineDataSource, OutlineItemComparator, OutlineItemCompareType, OutlineItemFilter, OutlineRenderer, OutlineTreeState } from '../../../../editor/contrib/documentSymbols/outlineTree';
 import { IResourceInput } from 'vs/platform/editor/common/editor';
+import { ITextModel } from 'vs/editor/common/model';
 
 class RequestState {
 
@@ -135,11 +136,15 @@ class RequestOracle {
 		let modeListener = codeEditor.onDidChangeModelLanguage(_ => {
 			this._callback(codeEditor, undefined);
 		});
+		let disposeListener = codeEditor.onDidDispose(() => {
+			this._callback(undefined, undefined);
+		});
 		this._sessionDisposable = {
 			dispose() {
 				contentListener.dispose();
 				clearTimeout(handle);
 				modeListener.dispose();
+				disposeListener.dispose();
 			}
 		};
 	}
@@ -347,6 +352,9 @@ export class OutlinePanel extends ViewletPanel {
 					return false;
 				}
 				const keyInfo = mapping[event.code];
+				if (!keyInfo) {
+					return false;
+				}
 				if (keyInfo.value) {
 					$this._input.focus();
 					return true;
@@ -440,6 +448,17 @@ export class OutlinePanel extends ViewletPanel {
 		this._message.innerText = escape(message);
 	}
 
+	private static _createOutlineModel(model: ITextModel, disposables: IDisposable[]): Promise<OutlineModel> {
+		let promise = createCancelablePromise(token => OutlineModel.create(model, token));
+		disposables.push({ dispose() { promise.cancel(); } });
+		return promise.catch(err => {
+			if (!isPromiseCanceledError(err)) {
+				throw err;
+			}
+			return undefined;
+		});
+	}
+
 	private async _doUpdate(editor: ICodeEditor, event: IModelContentChangedEvent): Promise<void> {
 		dispose(this._editorDisposables);
 
@@ -464,7 +483,7 @@ export class OutlinePanel extends ViewletPanel {
 			);
 		}
 
-		let model = await asDisposablePromise(OutlineModel.create(textModel), undefined, this._editorDisposables).promise;
+		let model = await OutlinePanel._createOutlineModel(textModel, this._editorDisposables);
 		dispose(loadingMessage);
 		if (!model) {
 			return;
@@ -649,8 +668,7 @@ export class OutlinePanel extends ViewletPanel {
 			options: {
 				preserveFocus: !focus,
 				selection: Range.collapseToStart(element.symbol.selectionRange),
-				revealInCenterIfOutsideViewport: true,
-				forceOpen: true
+				revealInCenterIfOutsideViewport: true
 			}
 		} as IResourceInput, aside ? SIDE_GROUP : ACTIVE_GROUP);
 	}

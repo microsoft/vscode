@@ -486,7 +486,6 @@ class Launch implements ILaunch {
 				return this.editorService.openEditor({
 					resource: resource,
 					options: {
-						forceOpen: true,
 						selection,
 						pinned: created,
 						revealIfVisible: true
