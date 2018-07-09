@@ -120,17 +120,15 @@ export class ExtensionTipsService extends Disposable implements IExtensionTipsSe
 		let globallyIgnored = <string[]>JSON.parse(this.storageService.get('extensionsAssistant/ignored_recommendations', StorageScope.GLOBAL, '[]'));
 		this._globallyIgnoredRecommendations = globallyIgnored.map(id => id.toLowerCase());
 
-		this.loadRecommendationsPromise = this.getWorkspaceRecommendations()
-			.then(() => {
-				// these must be called after workspace configs have been refreshed.
-				this.fetchCachedDynamicWorkspaceRecommendations();
-				this.fetchFileBasedRecommendations();
-				this.fetchExperimentalRecommendations();
-				return this.promptWorkspaceRecommendations();
-			}).then(() => {
-				this._modelService.onModelAdded(this.promptFiletypeBasedRecommendations, this, this._disposables);
-				this._modelService.getModels().forEach(model => this.promptFiletypeBasedRecommendations(model));
-			});
+		this.fetchCachedDynamicWorkspaceRecommendations();
+		this.fetchFileBasedRecommendations();
+		this.fetchExperimentalRecommendations();
+
+		this.loadRecommendationsPromise = this.getWorkspaceRecommendations().then(() => {
+			this.promptWorkspaceRecommendations();
+			this._modelService.onModelAdded(this.promptFiletypeBasedRecommendations, this, this._disposables);
+			this._modelService.getModels().forEach(model => this.promptFiletypeBasedRecommendations(model));
+		});
 
 		if (!this.configurationService.getValue<boolean>(ShowRecommendationsOnlyOnDemandKey)) {
 			this.fetchProactiveRecommendations(true);
@@ -411,7 +409,7 @@ export class ExtensionTipsService extends Disposable implements IExtensionTipsSe
 				if (this._exeBasedRecommendations[extensionId]) {
 					sources.push('executable');
 				}
-				if (this._dynamicWorkspaceRecommendations[extensionId]) {
+				if (this._dynamicWorkspaceRecommendations.indexOf(extensionId) !== -1) {
 					sources.push('dynamic');
 				}
 				return (<IExtensionRecommendation>{ extensionId, sources });
