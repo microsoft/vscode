@@ -78,11 +78,15 @@ export class EditorBreadcrumbsModel {
 		if (!this._editor) {
 			return;
 		}
-		this._updateOutline();
+		// update as model changes
 		this._disposables.push(DocumentSymbolProviderRegistry.onDidChange(_ => this._updateOutline()));
 		this._disposables.push(this._editor.onDidChangeModel(_ => this._updateOutline()));
 		this._disposables.push(this._editor.onDidChangeModelLanguage(_ => this._updateOutline()));
 		this._disposables.push(debounceEvent(this._editor.onDidChangeModelContent, _ => _, 350)(_ => this._updateOutline(true)));
+		this._updateOutline();
+
+		// stop when editor dies
+		this._disposables.push(this._editor.onDidDispose(() => this._outlineDisposables = dispose(this._outlineDisposables)));
 	}
 
 	private _updateOutline(didChangeContent?: boolean): void {
@@ -111,7 +115,7 @@ export class EditorBreadcrumbsModel {
 			const lastVersionId = buffer.getVersionId();
 			this._outlineDisposables.push(this._editor.onDidChangeCursorPosition(_ => {
 				timeout.cancelAndSet(() => {
-					if (lastVersionId === buffer.getVersionId()) {
+					if (!buffer.isDisposed() && lastVersionId === buffer.getVersionId()) {
 						this._updateOutlineElements(this._getOutlineElements(model, this._editor.getPosition()));
 					}
 				}, 150);
