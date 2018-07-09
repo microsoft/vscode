@@ -663,7 +663,7 @@ declare module 'vscode' {
 		 * of items of type T.
 		 *
 		 * Note that in many cases the more convenient [window.showQuickPick](#window.showQuickPick)
-		 * is easier to use. [window.createQuickPick](#window.createQuickPick) should be used,
+		 * is easier to use. [window.createQuickPick](#window.createQuickPick) should be used
 		 * when [window.showQuickPick](#window.showQuickPick) does not offer the required flexibility.
 		 *
 		 * @return A new [QuickPick](#QuickPick).
@@ -674,7 +674,7 @@ declare module 'vscode' {
 		 * Creates a [InputBox](#InputBox) to let the user enter some text input.
 		 *
 		 * Note that in many cases the more convenient [window.showInputBox](#window.showInputBox)
-		 * is easier to use. [window.createInputBox](#window.createInputBox) should be used,
+		 * is easier to use. [window.createInputBox](#window.createInputBox) should be used
 		 * when [window.showInputBox](#window.showInputBox) does not offer the required flexibility.
 		 *
 		 * @return A new [InputBox](#InputBox).
@@ -779,7 +779,7 @@ declare module 'vscode' {
 	 * selecting multiple items.
 	 *
 	 * Note that in many cases the more convenient [window.showQuickPick](#window.showQuickPick)
-	 * is easier to use. [window.createQuickPick](#window.createQuickPick) should be used,
+	 * is easier to use. [window.createQuickPick](#window.createQuickPick) should be used
 	 * when [window.showQuickPick](#window.showQuickPick) does not offer the required flexibility.
 	 */
 	export interface QuickPick<T extends QuickPickItem> extends QuickInput {
@@ -859,7 +859,7 @@ declare module 'vscode' {
 	 * A concrete [QuickInput](#QuickInput) to let the user input a text value.
 	 *
 	 * Note that in many cases the more convenient [window.showInputBox](#window.showInputBox)
-	 * is easier to use. [window.createInputBox](#window.createInputBox) should be used,
+	 * is easier to use. [window.createInputBox](#window.createInputBox) should be used
 	 * when [window.showInputBox](#window.showInputBox) does not offer the required flexibility.
 	 */
 	export interface InputBox extends QuickInput {
