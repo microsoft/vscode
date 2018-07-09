@@ -92,6 +92,9 @@ export class SCMService implements ISCMService {
 	private _onDidRemoveProvider = new Emitter<ISCMRepository>();
 	get onDidRemoveRepository(): Event<ISCMRepository> { return this._onDidRemoveProvider.event; }
 
+	private _onDidChangeSelectedRepositories = new Emitter<ISCMRepository[]>();
+	get onDidChangeSelectedRepositories(): Event<ISCMRepository[]> { return this._onDidChangeSelectedRepositories.event; }
+
 	constructor(@ILogService private logService: ILogService) { }
 
 	registerSCMProvider(provider: ISCMProvider): ISCMRepository {
@@ -120,5 +123,9 @@ export class SCMService implements ISCMService {
 		this._onDidAddProvider.fire(repository);
 
 		return repository;
+	}
+
+	changeSelectedRepositories(repositories: ISCMRepository[]) {
+		this._onDidChangeSelectedRepositories.fire(repositories);
 	}
 }

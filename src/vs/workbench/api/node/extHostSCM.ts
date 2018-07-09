@@ -471,6 +471,11 @@ export class ExtHostSCM implements ExtHostSCMShape {
 	private _onDidChangeActiveProvider = new Emitter<vscode.SourceControl>();
 	get onDidChangeActiveProvider(): Event<vscode.SourceControl> { return this._onDidChangeActiveProvider.event; }
 
+	public visibleSourceControls: vscode.SourceControl[] = [];
+
+	private _onDidChangeVisibleSourceControls = new Emitter<vscode.SourceControl[]>();
+	get onDidChangeVisibleSourceControls(): Event<vscode.SourceControl[]> { return this._onDidChangeVisibleSourceControls.event; }
+
 	constructor(
 		mainContext: IMainContext,
 		private _commands: ExtHostCommands,
@@ -565,6 +570,19 @@ export class ExtHostSCM implements ExtHostSCMShape {
 		}
 
 		sourceControl.inputBox.$onInputBoxValueChange(value);
+		return TPromise.as(null);
+	}
+
+	$onDidChangeVisibleSourceControls(sourceControlHandles: number[]): TPromise<void> {
+		this.logService.trace('ExtHostSCM#$onVisibleSouceControlsChange', sourceControlHandles);
+
+		const sourceControls = sourceControlHandles
+			.map(handle => this._sourceControls.get(handle))
+			.filter(sourceControl => !!sourceControl);
+
+		this.visibleSourceControls = sourceControls;
+		this._onDidChangeVisibleSourceControls.fire(this.visibleSourceControls);
+
 		return TPromise.as(null);
 	}
 

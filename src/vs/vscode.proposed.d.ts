@@ -1045,4 +1045,20 @@ declare module 'vscode' {
 	}
 
 	//#endregion
+
+	//#region scm, Rachel & Peng https://github.com/Microsoft/vscode/issues/53892
+
+	export namespace scm {
+		/**
+		 * The currently visible [source controls](#SourceControl).
+		 */
+		export const visibleSourceControls: SourceControl[];
+
+		/**
+		 * An [event](#Event) which fires when the visible [source controls](#SourceControl) have changed.
+		 */
+		export const onDidChangeVisibleSourceControls: Event<SourceControl[]>;
+	}
+
+	//#endregion
 }

@@ -594,6 +594,12 @@ export function createApiFactory(
 			},
 			createSourceControl(id: string, label: string, rootUri?: vscode.Uri) {
 				return extHostSCM.createSourceControl(extension, id, label, rootUri);
+			},
+			get visibleSourceControls() {
+				return extHostSCM.visibleSourceControls;
+			},
+			get onDidChangeVisibleSourceControls() {
+				return extHostSCM.onDidChangeVisibleSourceControls;
 			}
 		};
 

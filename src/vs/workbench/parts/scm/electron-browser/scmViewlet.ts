@@ -48,7 +48,7 @@ import { StandardMouseEvent } from 'vs/base/browser/mouseEvent';
 import * as platform from 'vs/base/common/platform';
 import { format } from 'vs/base/common/strings';
 import { ISpliceable, ISequence, ISplice } from 'vs/base/common/sequence';
-import { firstIndex } from 'vs/base/common/arrays';
+import { firstIndex, equals } from 'vs/base/common/arrays';
 import { WorkbenchList } from 'vs/platform/list/browser/listService';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { ThrottledDelayer } from 'vs/base/common/async';
@@ -1265,9 +1265,14 @@ export class SCMViewlet extends PanelViewlet implements IViewModel, IViewsViewle
 				return panel;
 			});
 
+		const oldSelectedRepositories = this.selectedRepositories.slice();
+		this.repositoryPanels = [...repositoryPanels, ...newRepositoryPanels];
+		if (!equals(oldSelectedRepositories, this.selectedRepositories)) {
+			this.scmService.changeSelectedRepositories(this.selectedRepositories);
+		}
+
 		// Add new selected panels
 		let index = repositoryPanels.length + (this.mainPanel ? 1 : 0);
-		this.repositoryPanels = [...repositoryPanels, ...newRepositoryPanels];
 		newRepositoryPanels.forEach(panel => {
 			this.addPanels([{ panel, size: panel.minimumSize, index: index++ }]);
 			panel.repository.focus();

@@ -270,6 +270,11 @@ export class MainThreadSCM implements MainThreadSCMShape {
 		@ISCMService private scmService: ISCMService
 	) {
 		this._proxy = extHostContext.getProxy(ExtHostContext.ExtHostSCM);
+
+		this._disposables.push(this.scmService.onDidChangeSelectedRepositories(repositories => {
+			const handles = repositories.map(repo => (<MainThreadSCMProvider>repo.provider).handle);
+			this._proxy.$onDidChangeVisibleSourceControls(handles);
+		}));
 	}
 
 	dispose(): void {
