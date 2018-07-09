@@ -102,25 +102,26 @@ export class EditorBreadcrumbsModel {
 		}
 
 		const source = new CancellationTokenSource();
+		const versionIdThen = buffer.getVersionId();
+		const timeout = new TimeoutTimer();
 
 		this._outlineDisposables.push({
 			dispose: () => {
 				source.cancel();
 				source.dispose();
+				timeout.dispose();
 			}
 		});
+
 		OutlineModel.create(buffer, source.token).then(model => {
 			this._updateOutlineElements(this._getOutlineElements(model, this._editor.getPosition()));
-			const timeout = new TimeoutTimer();
-			const lastVersionId = buffer.getVersionId();
 			this._outlineDisposables.push(this._editor.onDidChangeCursorPosition(_ => {
 				timeout.cancelAndSet(() => {
-					if (!buffer.isDisposed() && lastVersionId === buffer.getVersionId()) {
+					if (versionIdThen === buffer.getVersionId()) {
 						this._updateOutlineElements(this._getOutlineElements(model, this._editor.getPosition()));
 					}
 				}, 150);
 			}));
-			this._outlineDisposables.push(timeout);
 		}).catch(err => {
 			this._updateOutlineElements([]);
 			onUnexpectedError(err);
