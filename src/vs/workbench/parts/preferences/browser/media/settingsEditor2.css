@@ -116,7 +116,6 @@
 .settings-editor > .settings-body .settings-toc-container {
 	width: 175px;
 	margin-right: 5px;
-	padding-top: 5px;
 }
 
 .settings-editor > .settings-body .settings-toc-container.hidden {
@@ -296,7 +295,7 @@
 }
 
 .settings-editor > .settings-body > .settings-tree-container .settings-group-level-1.settings-group-first {
-	padding-top: 7px;
+	padding-top: 4px;
 }
 
 .settings-editor > .settings-body .settings-feedback-button {

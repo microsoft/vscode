@@ -457,7 +457,7 @@ export class SettingsRenderer implements IRenderer {
 	getHeight(tree: ITree, element: SettingsTreeElement): number {
 		if (element instanceof SettingsTreeGroupElement) {
 			if (element.isFirstGroup) {
-				return 31;
+				return 28;
 			}
 
 			return 40 + (7 * element.level);
