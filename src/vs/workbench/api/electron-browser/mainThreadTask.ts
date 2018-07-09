@@ -7,6 +7,7 @@
 import * as nls from 'vs/nls';
 
 import URI from 'vs/base/common/uri';
+import { generateUuid } from 'vs/base/common/uuid';
 import * as Objects from 'vs/base/common/objects';
 import { TPromise } from 'vs/base/common/winjs.base';
 import * as Types from 'vs/base/common/types';
@@ -38,10 +39,10 @@ namespace TaskExecutionDTO {
 			task: TaskDTO.from(value.task)
 		};
 	}
-	export function to(value: TaskExecutionDTO, workspace: IWorkspaceContextService): TaskExecution {
+	export function to(value: TaskExecutionDTO, workspace: IWorkspaceContextService, executeOnly: boolean): TaskExecution {
 		return {
 			id: value.id,
-			task: TaskDTO.to(value.task, workspace)
+			task: TaskDTO.to(value.task, workspace, executeOnly)
 		};
 	}
 }
@@ -70,8 +71,15 @@ namespace TaskDefinitionDTO {
 		delete result._key;
 		return result;
 	}
-	export function to(value: TaskDefinitionDTO): KeyedTaskIdentifier {
-		return TaskDefinition.createTaskIdentifier(value, console);
+	export function to(value: TaskDefinitionDTO, executeOnly: boolean): KeyedTaskIdentifier {
+		let result = TaskDefinition.createTaskIdentifier(value, console);
+		if (result === void 0 && executeOnly) {
+			result = {
+				_key: generateUuid(),
+				type: '$executeOnly'
+			};
+		}
+		return result;
 	}
 }
 
@@ -302,7 +310,7 @@ namespace TaskDTO {
 		return result;
 	}
 
-	export function to(task: TaskDTO, workspace: IWorkspaceContextService): Task {
+	export function to(task: TaskDTO, workspace: IWorkspaceContextService, executeOnly: boolean): Task {
 		if (typeof task.name !== 'string') {
 			return undefined;
 		}
@@ -321,7 +329,7 @@ namespace TaskDTO {
 		let source = TaskSourceDTO.to(task.source, workspace);
 
 		let label = nls.localize('task.label', '{0}: {1}', source.label, task.name);
-		let definition = TaskDefinitionDTO.to(task.definition);
+		let definition = TaskDefinitionDTO.to(task.definition, executeOnly);
 		let id = `${task.source.extensionId}.${definition._key}`;
 		let result: ContributedTask = {
 			_id: id, // uuidMap.getUUID(identifier),
@@ -449,7 +457,7 @@ export class MainThreadTask implements MainThreadTaskShape {
 					reject(new Error('Task not found'));
 				});
 			} else {
-				let task = TaskDTO.to(value, this._workspaceContextServer);
+				let task = TaskDTO.to(value, this._workspaceContextServer, true);
 				this._taskService.run(task);
 				let result: TaskExecutionDTO = {
 					id: task._id,
