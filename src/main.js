@@ -85,6 +85,7 @@ const app = require('electron').app;
 app.commandLine.appendSwitch('disable-mojo-local-storage');
 
 // TODO@Ben Electron 2.0.x: force srgb color profile (for https://github.com/Microsoft/vscode/issues/51791)
+// This also seems to fix: https://github.com/Microsoft/vscode/issues/48043
 app.commandLine.appendSwitch('force-color-profile', 'srgb');
 
 const minimist = require('minimist');
