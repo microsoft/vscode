@@ -384,17 +384,22 @@ export class FileWalker {
 			cb(err, stdout, last);
 		};
 
+		let gotData = false;
 		if (cmd.stdout) {
 			// Should be non-null, but #38195
 			this.forwardData(cmd.stdout, encoding, onData);
+			cmd.stdout.once('data', () => gotData = true);
 		} else {
 			onMessage({ message: 'stdout is null' });
 		}
 
-		const stderr = this.collectData(cmd.stderr);
-
-		let gotData = false;
-		cmd.stdout.once('data', () => gotData = true);
+		let stderr: Buffer[];
+		if (cmd.stderr) {
+			// Should be non-null, but #38195
+			stderr = this.collectData(cmd.stderr);
+		} else {
+			onMessage({ message: 'stderr is null' });
+		}
 
 		cmd.on('error', (err: Error) => {
 			onData(err);
