@@ -261,7 +261,7 @@ export class EditorBreadcrumbs implements IEditorBreadcrumbs {
 			},
 			onHide: () => {
 				this._widget.setSelected(undefined);
-				this._widget.setFocused(undefined);
+				// this._widget.setFocused(undefined);
 			}
 		});
 	}

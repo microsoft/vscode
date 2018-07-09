@@ -13,7 +13,7 @@ import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { IMouseEvent } from 'vs/base/browser/mouseEvent';
 import { Event, Emitter } from 'vs/base/common/event';
 import { Color } from 'vs/base/common/color';
-import { commonPrefixLength } from 'vs/base/common/arrays';
+import { commonPrefixLength, tail } from 'vs/base/common/arrays';
 
 export abstract class BreadcrumbsItem {
 	dispose(): void { }
@@ -134,6 +134,8 @@ export class BreadcrumbsWidget {
 	}
 
 	domFocus(): void {
+		const focused = this.getFocused() || tail(this._items);
+		this.setFocused(focused);
 		this._domNode.focus();
 	}
 
@@ -196,6 +198,9 @@ export class BreadcrumbsWidget {
 		let removed = this._items.splice(prefix, this._items.length - prefix, ...items.slice(prefix));
 		this._render(prefix);
 		dispose(removed);
+		if (prefix >= this._focusedItemIdx) {
+			this._focus(-1);
+		}
 	}
 
 	private _render(start: number): void {
@@ -224,6 +229,7 @@ export class BreadcrumbsWidget {
 
 	private _renderItem(item: BreadcrumbsItem, container: HTMLDivElement): void {
 		dom.clearNode(container);
+		container.className = '';
 		item.render(container);
 		dom.append(container);
 		dom.addClass(container, 'monaco-breadcrumb-item');
