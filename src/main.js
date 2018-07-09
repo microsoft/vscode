@@ -93,6 +93,19 @@ const args = minimist(process.argv, {
 	]
 });
 
+function getUserDataPath() {
+	if (isPortable) {
+		return path.join(portableDataPath, 'user-data');
+	}
+
+	return path.resolve(args['user-data-dir'] || paths.getDefaultUserDataPath(process.platform));
+}
+
+const userDataPath = getUserDataPath();
+
+// Set userData path before app 'ready' event and call to process.chdir
+app.setPath('userData', userDataPath);
+
 //#region NLS
 function stripComments(content) {
 	let regexp = /("(?:[^\\\"]*(?:\\.)?)*")|('(?:[^\\\']*(?:\\.)?)*')|(\/\*(?:\r?\n|.)*?\*\/)|(\/{2,}.*?(?:(?:\r?\n)|$))/g;
@@ -183,8 +196,7 @@ function getUserDefinedLocale() {
 		return Promise.resolve(locale.toLowerCase());
 	}
 
-	let userData = app.getPath('userData');
-	let localeConfig = path.join(userData, 'User', 'locale.json');
+	let localeConfig = path.join(userDataPath, 'User', 'locale.json');
 	return exists(localeConfig).then((result) => {
 		if (result) {
 			return readFile(localeConfig).then((content) => {
@@ -203,8 +215,7 @@ function getUserDefinedLocale() {
 }
 
 function getLanguagePackConfigurations() {
-	let userData = app.getPath('userData');
-	let configFile = path.join(userData, 'languagepacks.json');
+	let configFile = path.join(userDataPath, 'languagepacks.json');
 	try {
 		return require(configFile);
 	} catch (err) {
@@ -242,8 +253,6 @@ function getNLSConfiguration(locale) {
 	if (process.env['VSCODE_DEV']) {
 		return Promise.resolve({ locale: locale, availableLanguages: {} });
 	}
-
-	let userData = app.getPath('userData');
 
 	// We have a built version so we have extracted nls file. Try to find
 	// the right file to use.
@@ -285,7 +294,7 @@ function getNLSConfiguration(locale) {
 				return defaultResult(initialLocale);
 			}
 			let packId = packConfig.hash + '.' + locale;
-			let cacheRoot = path.join(userData, 'clp', packId);
+			let cacheRoot = path.join(userDataPath, 'clp', packId);
 			let coreLocation = path.join(cacheRoot, commit);
 			let translationsConfigFile = path.join(cacheRoot, 'tcf.json');
 			let corruptedFile = path.join(cacheRoot, 'corrupted.info');
@@ -395,22 +404,11 @@ const nodeCachedDataDir = new class {
 		if (!commit) {
 			return undefined;
 		}
-		return path.join(app.getPath('userData'), 'CachedData', commit);
+		return path.join(userDataPath, 'CachedData', commit);
 	}
 };
 
 //#endregion
-
-function getUserDataPath() {
-	if (isPortable) {
-		return path.join(portableDataPath, 'user-data');
-	}
-
-	return path.resolve(args['user-data-dir'] || paths.getDefaultUserDataPath(process.platform));
-}
-
-// Set userData path before app 'ready' event and call to process.chdir
-app.setPath('userData', getUserDataPath());
 
 // Update cwd based on environment and platform
 try {
