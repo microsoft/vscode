@@ -165,6 +165,7 @@
 
 .extensions-viewlet > .extensions .extension > .details > .description {
 	padding-right: 11px;
+	min-height: 18px;
 }
 
 .extensions-viewlet > .extensions .extension > .details > .footer {

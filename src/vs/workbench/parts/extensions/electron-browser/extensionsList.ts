@@ -183,15 +183,15 @@ export class Renderer implements IPagedRenderer<IExtension, ITemplateData> {
 
 		data.name.textContent = extension.displayName;
 		data.author.textContent = extension.publisherDisplayName;
-		data.description.textContent = extension.description;
+		data.description.textContent = extension.id.indexOf('language-pack-') === -1 ? extension.description : ''; // reduce flickering due to wait for manifest
 		data.installCount.style.display = '';
 		data.ratings.style.display = '';
 		data.extension = extension;
 
 		extension.getManifest().then(manifest => {
 			const name = manifest && manifest.contributes && manifest.contributes.localizations && manifest.contributes.localizations.length > 0 && manifest.contributes.localizations[0].localizedLanguageName;
-			if (name) { data.description.textContent = name[0].toLocaleUpperCase() + name.slice(1); }
-		});
+			data.description.textContent = name ? name[0].toLocaleUpperCase() + name.slice(1) : extension.description;
+		}, () => data.description.textContent = extension.description);
 	}
 
 	private updateRecommendationStatus(extension: IExtension, data: ITemplateData) {
