@@ -282,6 +282,11 @@ export class ListView<T> implements ISpliceable<T>, IDisposable {
 	private insertItemInDOM(index: number, beforeElement: HTMLElement | null): void {
 		const item = this.items[index];
 
+		if (!item) {
+			console.log(this.items);
+			throw new Error(`Got index ${index} and there are ${this.items.length} items. File issue to joao!`);
+		}
+
 		if (!item.row) {
 			item.row = this.cache.alloc(item.templateId);
 		}
@@ -311,6 +316,12 @@ export class ListView<T> implements ISpliceable<T>, IDisposable {
 
 	private removeItemFromDOM(index: number): void {
 		const item = this.items[index];
+
+		if (!item) {
+			console.log(this.items);
+			throw new Error(`Got index ${index} and there are ${this.items.length} items. File issue to joao!`);
+		}
+
 		this.cache.release(item.row);
 		item.row = null;
 	}
@@ -371,7 +382,12 @@ export class ListView<T> implements ISpliceable<T>, IDisposable {
 	}
 
 	private onScroll(e: ScrollEvent): void {
-		this.render(e.scrollTop, e.height);
+		try {
+			this.render(e.scrollTop, e.height);
+		} catch (err) {
+			console.log('Got bad scroll event:', e);
+			throw err;
+		}
 	}
 
 	private onTouchChange(event: GestureEvent): void {
