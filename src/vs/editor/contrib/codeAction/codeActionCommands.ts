@@ -88,7 +88,7 @@ export class QuickFixController implements IEditorContribution {
 			this._activeRequest = e.actions;
 		}
 
-		if (e && e.trigger.filter && e.trigger.filter.kind) {
+		if (e && e.actions && e.trigger.filter && e.trigger.filter.kind) {
 			// Triggered for specific scope
 			// Apply if we only have one action or requested autoApply, otherwise show menu
 			e.actions.then(fixes => {
