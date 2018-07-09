@@ -227,7 +227,10 @@ export class EditorBreadcrumbs implements IEditorBreadcrumbs {
 				return event.node;
 			},
 			render: (container: HTMLElement) => {
-				dom.addClasses(container, 'monaco-workbench', 'show-file-icons');
+				dom.addClasses(container, 'monaco-breadcrumbs-picker', 'monaco-workbench', 'show-file-icons');
+				let color = this._themeService.getTheme().getColor(SIDE_BAR_BACKGROUND);
+				container.style.borderColor = color.darken(.2).toString();
+				container.style.boxShadow = `${color.toString()} 6px 6px 6px -6px;`;
 				let { element } = event.item as Item;
 				let ctor: IConstructorSignature2<HTMLElement, BreadcrumbElement, BreadcrumbsPicker> = element instanceof FileElement ? BreadcrumbsFilePicker : BreadcrumbsOutlinePicker;
 				let res = this._instantiationService.createInstance(ctor, container, element);
@@ -294,7 +297,6 @@ export abstract class BreadcrumbsPicker {
 		this.focus = dom.trackFocus(this._domNode);
 		this.focus.onDidBlur(_ => this._onDidPickElement.fire(undefined), undefined, this._disposables);
 
-		this._tree.domFocus();
 		this._tree.setInput(this._getInput(input));
 	}
 

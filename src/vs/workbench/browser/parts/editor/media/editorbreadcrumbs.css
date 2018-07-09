@@ -11,3 +11,8 @@
 .monaco-workbench>.part.editor>.content .editor-group-container .editor-breadcrumbs .monaco-breadcrumbs .monaco-breadcrumb-item:nth-child(2) { /*first-child is the style-element*/
 	padding-left: 8px;
 }
+
+.monaco-breadcrumbs-picker {
+	border: 1px #dddddd solid;
+	box-shadow: #dddddd 6px 6px 6px -6px;
+}
