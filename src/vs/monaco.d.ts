@@ -2516,6 +2516,17 @@ declare namespace monaco.editor {
 		[kind: string]: boolean;
 	}
 
+	export type TFoldingExplicitMarkers = string | {
+		comment?: TFoldingMarker;
+		region?: TFoldingMarker;
+	};
+
+	export type TFoldingMarker = string | {
+		enabled?: boolean;
+		start?: string;
+		end?: string;
+	};
+
 	/**
 	 * Configuration options for the editor.
 	 */
@@ -2889,7 +2900,8 @@ declare namespace monaco.editor {
 		 * Selects the folding strategy. 'auto' uses the strategies contributed for the current document, 'indentation' uses the indentation based folding strategy.
 		 * Defaults to 'auto'.
 		 */
-		foldingStrategy?: 'auto' | 'indentation';
+		foldingStrategy?: 'auto' | 'explicit' | 'indentation';
+		foldingExplicitMarkers?: TFoldingExplicitMarkers;
 		/**
 		 * Controls whether the fold actions in the gutter stay always visible or hide unless the mouse is over the gutter.
 		 * Defaults to 'mouseover'.
@@ -3190,7 +3202,8 @@ declare namespace monaco.editor {
 		readonly occurrencesHighlight: boolean;
 		readonly codeLens: boolean;
 		readonly folding: boolean;
-		readonly foldingStrategy: 'auto' | 'indentation';
+		readonly foldingStrategy: 'auto' | 'explicit' | 'indentation';
+		readonly foldingExplicitMarkers: TFoldingExplicitMarkers;
 		readonly showFoldingControls: 'always' | 'mouseover';
 		readonly matchBrackets: boolean;
 		readonly find: InternalEditorFindOptions;
