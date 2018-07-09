@@ -148,13 +148,13 @@ export class EditorBreadcrumbsModel {
 	}
 
 	private _updateOutlineElements(elements: (OutlineGroup | OutlineElement)[]): void {
-		if (!equals(elements, this._outlineElements, EditorBreadcrumbsModel.outlineElementEquals)) {
+		if (!equals(elements, this._outlineElements, EditorBreadcrumbsModel._outlineElementEquals)) {
 			this._outlineElements = elements;
 			this._onDidUpdate.fire(this);
 		}
 	}
 
-	private static outlineElementEquals(a: OutlineGroup | OutlineElement, b: OutlineGroup | OutlineElement): boolean {
+	private static _outlineElementEquals(a: OutlineGroup | OutlineElement, b: OutlineGroup | OutlineElement): boolean {
 		if (a === b) {
 			return true;
 		} else if (!a || !b) {
