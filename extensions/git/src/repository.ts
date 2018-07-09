@@ -882,10 +882,6 @@ export class Repository implements Disposable {
 			const defaultEncoding = configFiles.get<string>('encoding');
 			const autoGuessEncoding = configFiles.get<boolean>('autoGuessEncoding');
 
-			if (ref === '') {
-				ref = 'HEAD';
-			}
-
 			try {
 				return await this.repository.bufferString(`${ref}:${relativePath}`, defaultEncoding, autoGuessEncoding);
 			} catch (err) {

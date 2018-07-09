@@ -795,10 +795,10 @@ export class Repository {
 		return parseLsFiles(stdout);
 	}
 
-	async getGitRelativePath(treeish: string, relativePath: string): Promise<string> {
+	async getGitRelativePath(ref: string, relativePath: string): Promise<string> {
 		const relativePathLowercase = relativePath.toLowerCase();
 		const dirname = path.posix.dirname(relativePath) + '/';
-		const elements: { file: string; }[] = treeish ? await this.lstree(treeish, dirname) : await this.lsfiles(dirname);
+		const elements: { file: string; }[] = ref ? await this.lstree(ref, dirname) : await this.lsfiles(dirname);
 		const element = elements.filter(file => file.file.toLowerCase() === relativePathLowercase)[0];
 
 		if (!element) {
