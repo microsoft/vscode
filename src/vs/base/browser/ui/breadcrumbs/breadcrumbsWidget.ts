@@ -44,14 +44,8 @@ export class SimpleBreadcrumbsItem extends BreadcrumbsItem {
 
 export interface IBreadcrumbsWidgetStyles {
 	breadcrumbsBackground?: Color;
-	breadcrumbsItemHoverBackground?: Color;
-	breadcrumbsItemHoverForeground?: Color;
-	breadcrumbsItemFocusBackground?: Color;
-	breadcrumbsItemFocusForeground?: Color;
-	breadcrumbsActiveItemSelectionBackground?: Color;
-	breadcrumbsActiveItemSelectionForeground?: Color;
-	breadcrumbsInactiveItemSelectionBackground?: Color;
-	breadcrumbsInactiveItemSelectionForeground?: Color;
+	breadcrumbsActiveForeground?: Color;
+	breadcrumbsInactiveForeground?: Color;
 }
 
 export class BreadcrumbsWidget {
@@ -123,29 +117,11 @@ export class BreadcrumbsWidget {
 		if (style.breadcrumbsBackground) {
 			content += `.monaco-breadcrumbs { background-color: ${style.breadcrumbsBackground}}`;
 		}
-		if (style.breadcrumbsItemFocusForeground) {
-			content += `.monaco-breadcrumbs:focus .monaco-breadcrumb-item.focused { color: ${style.breadcrumbsItemFocusForeground}}\n`;
+		if (style.breadcrumbsActiveForeground) {
+			content += `.monaco-breadcrumbs:focus .monaco-breadcrumb-item { color: ${style.breadcrumbsActiveForeground}}\n`;
 		}
-		if (style.breadcrumbsItemFocusBackground) {
-			content += `.monaco-breadcrumbs:focus .monaco-breadcrumb-item.focused { background-color: ${style.breadcrumbsItemFocusBackground}}\n`;
-		}
-		if (style.breadcrumbsItemFocusForeground) {
-			content += `.monaco-breadcrumbs .monaco-breadcrumb-item:hover { color: ${style.breadcrumbsItemHoverForeground}}\n`;
-		}
-		if (style.breadcrumbsItemFocusBackground) {
-			content += `.monaco-breadcrumbs .monaco-breadcrumb-item:hover { background-color: ${style.breadcrumbsItemHoverBackground}}\n`;
-		}
-		if (style.breadcrumbsActiveItemSelectionForeground) {
-			content += `.monaco-breadcrumbs:hover .monaco-breadcrumb-item.selected { color: ${style.breadcrumbsActiveItemSelectionForeground}}\n`;
-		}
-		if (style.breadcrumbsActiveItemSelectionBackground) {
-			content += `.monaco-breadcrumbs:hover .monaco-breadcrumb-item.selected { background-color: ${style.breadcrumbsActiveItemSelectionBackground}}\n`;
-		}
-		if (style.breadcrumbsInactiveItemSelectionForeground) {
-			content += `.monaco-breadcrumbs .monaco-breadcrumb-item.selected { color: ${style.breadcrumbsInactiveItemSelectionForeground}}\n`;
-		}
-		if (style.breadcrumbsInactiveItemSelectionBackground) {
-			content += `.monaco-breadcrumbs .monaco-breadcrumb-item.selected { background-color: ${style.breadcrumbsInactiveItemSelectionBackground}}\n`;
+		if (style.breadcrumbsInactiveForeground) {
+			content += `.monaco-breadcrumbs .monaco-breadcrumb-item { color: ${style.breadcrumbsInactiveForeground}}\n`;
 		}
 		if (this._styleElement.innerHTML !== content) {
 			this._styleElement.innerHTML = content;
