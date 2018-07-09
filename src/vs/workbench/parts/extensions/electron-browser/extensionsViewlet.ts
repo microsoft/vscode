@@ -330,7 +330,7 @@ export class ExtensionsViewlet extends ViewContainerViewlet implements IExtensio
 			.then(() => this.extensionManagementService.getInstalled(LocalExtensionType.User))
 			.then(installed => {
 				if (installed.length === 0) {
-					this.searchBox.value = '@sort:installs';
+					this.setQuery('@sort:installs', false);
 					this.searchExtensionsContextKey.set(true);
 				}
 			});
@@ -354,7 +354,7 @@ export class ExtensionsViewlet extends ViewContainerViewlet implements IExtensio
 			if (isVisibilityChanged) {
 				if (visible) {
 					this.searchBox.focus();
-					this.searchBox.setSelectionRange(0, this.searchBox.value.length);
+					this.searchBox.setSelectionRange(0, this.getQuery(false).length);
 				}
 			}
 		});
@@ -416,21 +416,30 @@ export class ExtensionsViewlet extends ViewContainerViewlet implements IExtensio
 		return this.secondaryActions;
 	}
 
+	private getQuery(trim = true): string {
+		let value = this.searchBox.value;
+		return trim && value ? value.trim() : value;
+	}
+
+	private setQuery(query: string, trim = true): void {
+		this.searchBox.value = trim && query ? query.trim() : query;
+	}
+
 	search(value: string): void {
 		const event = new Event('input', { bubbles: true }) as SearchInputEvent;
 		event.immediate = true;
 
-		this.searchBox.value = value;
+		this.setQuery(value);
 		this.searchBox.dispatchEvent(event);
 	}
 
 	private triggerSearch(immediate = false): void {
-		this.searchDelayer.trigger(() => this.doSearch(), immediate || !this.searchBox.value ? 0 : 500)
+		this.searchDelayer.trigger(() => this.doSearch(), immediate || !this.getQuery() ? 0 : 500)
 			.done(null, err => this.onError(err));
 	}
 
 	private doSearch(): TPromise<any> {
-		const value = this.searchBox.value || '';
+		const value = this.getQuery();
 		this.searchExtensionsContextKey.set(!!value);
 		this.searchInstalledExtensionsContextKey.set(InstalledExtensionsView.isInstalledExtensionsQuery(value));
 		this.searchBuiltInExtensionsContextKey.set(ExtensionsListView.isBuiltInExtensionsQuery(value));
@@ -439,14 +448,14 @@ export class ExtensionsViewlet extends ViewContainerViewlet implements IExtensio
 		this.nonEmptyWorkspaceContextKey.set(this.contextService.getWorkbenchState() !== WorkbenchState.EMPTY);
 
 		if (value) {
-			return this.progress(TPromise.join(this.panels.map(view => (<ExtensionsListView>view).show(this.searchBox.value))));
+			return this.progress(TPromise.join(this.panels.map(view => (<ExtensionsListView>view).show(this.getQuery()))));
 		}
 		return TPromise.as(null);
 	}
 
 	protected onDidAddViews(added: IAddedViewDescriptorRef[]): ViewletPanel[] {
 		const addedViews = super.onDidAddViews(added);
-		this.progress(TPromise.join(addedViews.map(addedView => (<ExtensionsListView>addedView).show(this.searchBox.value))));
+		this.progress(TPromise.join(addedViews.map(addedView => (<ExtensionsListView>addedView).show(this.getQuery()))));
 		return addedViews;
 	}
 

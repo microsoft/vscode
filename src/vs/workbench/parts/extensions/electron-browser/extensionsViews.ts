@@ -627,7 +627,7 @@ export class ExtensionsListView extends ViewletPanel {
 	}
 
 	static isRecommendedExtensionsQuery(query: string): boolean {
-		return /^@recommended$/i.test(query.trim());
+		return /^@recommended$/i.test(query);
 	}
 
 	static isSearchRecommendedExtensionsQuery(query: string): boolean {
