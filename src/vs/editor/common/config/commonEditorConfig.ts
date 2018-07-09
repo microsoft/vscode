@@ -573,6 +573,11 @@ const editorConfiguration: IConfigurationNode = {
 			default: true,
 			description: nls.localize('suggest.filterGraceful', "Controls whether filtering and sorting suggestions accounts for small typos.")
 		},
+		'editor.suggest.snippetsPreventQuickSuggestions': {
+			type: 'boolean',
+			default: true,
+			description: nls.localize('suggest.snippetsPreventQuickSuggestions', "Control whether an active snippet prevents quick suggestions.")
+		},
 		'editor.selectionHighlight': {
 			'type': 'boolean',
 			'default': EDITOR_DEFAULTS.contribInfo.selectionHighlight,

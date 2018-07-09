@@ -25,9 +25,7 @@ const buildfile = require('../src/buildfile');
 const common = require('./lib/optimize');
 const root = path.dirname(__dirname);
 const commit = util.getVersion(root);
-// @ts-ignore Microsoft/TypeScript#21262 complains about a require of a JSON file
 const packageJson = require('../package.json');
-// @ts-ignore Microsoft/TypeScript#21262 complains about a require of a JSON file
 const product = require('../product.json');
 const crypto = require('crypto');
 const i18n = require('./lib/i18n');
@@ -40,12 +38,12 @@ const productionDependencies = deps.getProductionDependencies(path.dirname(__dir
 // @ts-ignore
 const baseModules = Object.keys(process.binding('natives')).filter(n => !/^_|\//.test(n));
 const nodeModules = ['electron', 'original-fs']
+	// @ts-ignore JSON checking: dependencies property is optional
 	.concat(Object.keys(product.dependencies || {}))
 	.concat(_.uniq(productionDependencies.map(d => d.name)))
 	.concat(baseModules);
 
 // Build
-// @ts-ignore Microsoft/TypeScript#21262 complains about a require of a JSON file
 const builtInExtensions = require('./builtInExtensions.json');
 
 const excludedExtensions = [
@@ -120,6 +118,8 @@ gulp.task('clean-minified-vscode', util.rimraf('out-vscode-min'));
 gulp.task('minify-vscode', ['clean-minified-vscode', 'optimize-index-js'], common.minifyTask('out-vscode', baseUrl));
 
 // Package
+
+// @ts-ignore JSON checking: darwinCredits is optional
 const darwinCreditsTemplate = product.darwinCredits && _.template(fs.readFileSync(path.join(root, product.darwinCredits), 'utf8'));
 
 const config = {
@@ -148,6 +148,8 @@ const config = {
 	linuxExecutableName: product.applicationName,
 	winIcon: 'resources/win32/code.ico',
 	token: process.env['VSCODE_MIXIN_PASSWORD'] || process.env['GITHUB_TOKEN'] || void 0,
+
+	// @ts-ignore JSON checking: electronRepository is optional
 	repo: product.electronRepository || void 0
 };
 
@@ -255,6 +257,7 @@ function packageTask(platform, arch, opts) {
 			.pipe(filter(['**', '!**/*.js.map']));
 
 		let version = packageJson.version;
+		// @ts-ignore JSON checking: quality is optional
 		const quality = product.quality;
 
 		if (quality && quality !== 'stable') {
@@ -268,10 +271,8 @@ function packageTask(platform, arch, opts) {
 		const date = new Date().toISOString();
 		const productJsonUpdate = { commit, date, checksums };
 
-		try {
+		if (shouldSetupSettingsSearch()) {
 			productJsonUpdate.settingsSearchBuildId = getSettingsSearchBuildId(packageJson);
-		} catch (err) {
-			console.warn(err);
 		}
 
 		const productJsonStream = gulp.src(['product.json'], { base: '.' })
@@ -286,6 +287,7 @@ function packageTask(platform, arch, opts) {
 
 		const depsSrc = [
 			..._.flatten(productionDependencies.map(d => path.relative(root, d.path)).map(d => [`${d}/**`, `!${d}/**/{test,tests}/**`])),
+			// @ts-ignore JSON checking: dependencies is optional
 			..._.flatten(Object.keys(product.dependencies || {}).map(d => [`node_modules/${d}/**`, `!node_modules/${d}/**/{test,tests}/**`]))
 		];
 
@@ -470,9 +472,8 @@ gulp.task('upload-vscode-sourcemaps', ['minify-vscode'], () => {
 
 const allConfigDetailsPath = path.join(os.tmpdir(), 'configuration.json');
 gulp.task('upload-vscode-configuration', ['generate-vscode-configuration'], () => {
-	const branch = process.env.BUILD_SOURCEBRANCH;
-
-	if (!/\/master$/.test(branch) && branch.indexOf('/release/') < 0) {
+	if (!shouldSetupSettingsSearch()) {
+		const branch = process.env.BUILD_SOURCEBRANCH;
 		console.log(`Only runs on master and release branches, not ${branch}`);
 		return;
 	}
@@ -495,13 +496,24 @@ gulp.task('upload-vscode-configuration', ['generate-vscode-configuration'], () =
 		}));
 });
 
-function getSettingsSearchBuildId(packageJson) {
-	const previous = util.getPreviousVersion(packageJson.version);
+function shouldSetupSettingsSearch() {
+	const branch = process.env.BUILD_SOURCEBRANCH;
+	return branch && (/\/master$/.test(branch) || branch.indexOf('/release/') >= 0);
+}
 
+function getSettingsSearchBuildId(packageJson) {
 	try {
-		const out = cp.execSync(`git rev-list ${previous}..HEAD --count`);
+		const branch = process.env.BUILD_SOURCEBRANCH;
+		const branchId = branch.indexOf('/release/') >= 0 ? 0 :
+			/\/master$/.test(branch) ? 1 :
+			2; // Some unexpected branch
+
+		const out = cp.execSync(`git rev-list HEAD --count`);
 		const count = parseInt(out.toString());
-		return util.versionStringToNumber(packageJson.version) * 1e4 + count;
+
+		// <version number><commit count><branchId (avoid unlikely conflicts)>
+		// 1.25.1, 1,234,567 commits, master = 1250112345671
+		return util.versionStringToNumber(packageJson.version) * 1e8 + count * 10 + branchId;
 	} catch (e) {
 		throw new Error('Could not determine build number: ' + e.toString());
 	}

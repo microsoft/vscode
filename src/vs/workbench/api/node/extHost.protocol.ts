@@ -453,8 +453,8 @@ export interface ExtHostWebviewsShape {
 }
 
 export interface MainThreadUrlsShape extends IDisposable {
-	$registerProtocolHandler(handle: number, extensionId: string): TPromise<void>;
-	$unregisterProtocolHandler(handle: number): TPromise<void>;
+	$registerUriHandler(handle: number, extensionId: string): TPromise<void>;
+	$unregisterUriHandler(handle: number): TPromise<void>;
 }
 
 export interface ExtHostUrlsShape {
@@ -878,7 +878,7 @@ export interface ExtHostSCMShape {
 }
 
 export interface ExtHostTaskShape {
-	$provideTasks(handle: number): TPromise<TaskSet>;
+	$provideTasks(handle: number, validTypes: { [key: string]: boolean; }): TPromise<TaskSet>;
 	$onDidStartTask(execution: TaskExecutionDTO): void;
 	$onDidStartTaskProcess(value: TaskProcessStartedDTO): void;
 	$onDidEndTaskProcess(value: TaskProcessEndedDTO): void;

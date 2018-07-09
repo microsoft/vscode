@@ -7,7 +7,6 @@
 
 import { ISpliceable } from 'vs/base/common/sequence';
 import { IIterator, map, collect, iter, empty } from 'vs/base/common/iterator';
-import { last } from 'vs/base/common/arrays';
 import { Emitter, Event } from 'vs/base/common/event';
 
 export interface ITreeElement<T> {
@@ -108,7 +107,8 @@ export class TreeModel<T> {
 		const treeListElementsToInsert: ITreeNode<T>[] = [];
 		const elementsToInsert = getTreeElementIterator(toInsert);
 		const nodesToInsert = collect(map(elementsToInsert, el => treeElementToNode(el, parentNode, visible, treeListElementsToInsert)));
-		const deletedNodes = parentNode.children.splice(last(location), deleteCount, ...nodesToInsert);
+		const lastIndex = location[location.length - 1];
+		const deletedNodes = parentNode.children.splice(lastIndex, deleteCount, ...nodesToInsert);
 		const visibleDeleteCount = getVisibleCount(deletedNodes);
 
 		parentNode.visibleCount += getVisibleCount(nodesToInsert) - visibleDeleteCount;
@@ -175,7 +175,7 @@ export class TreeModel<T> {
 
 	private findNode(location: number[]): { node: IMutableTreeNode<T>, listIndex: number, visible: boolean } {
 		const { parentNode, listIndex, visible } = this.findParentNode(location);
-		const index = last(location);
+		const index = location[location.length - 1];
 
 		if (index < 0 || index > parentNode.children.length) {
 			throw new Error('Invalid tree location');

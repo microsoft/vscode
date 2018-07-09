@@ -616,11 +616,6 @@ declare module 'vscode' {
 
 	export namespace window {
 		/**
-		 * The currently opened terminals or an empty array.
-		 */
-		export const terminals: ReadonlyArray<Terminal>;
-
-		/**
 		 * The currently active terminal or `undefined`. The active terminal is the one that
 		 * currently has focus or most recently had focus.
 		 */
@@ -634,33 +629,11 @@ declare module 'vscode' {
 		export const onDidChangeActiveTerminal: Event<Terminal | undefined>;
 
 		/**
-		 * An [event](#Event) which fires when a terminal has been created, either through the
-		 * [createTerminal](#window.createTerminal) API or commands.
-		 */
-		export const onDidOpenTerminal: Event<Terminal>;
-
-		/**
 		 * Create a [TerminalRenderer](#TerminalRenderer).
 		 *
 		 * @param name The name of the terminal renderer, this shows up in the terminal selector.
 		 */
 		export function createTerminalRenderer(name: string): TerminalRenderer;
-	}
-
-	//#endregion
-
-	//#region URLs
-
-	export interface ProtocolHandler {
-		handleUri(uri: Uri): void;
-	}
-
-	export namespace window {
-
-		/**
-		 * Registers a protocol handler capable of handling system-wide URIs.
-		 */
-		export function registerProtocolHandler(handler: ProtocolHandler): Disposable;
 	}
 
 	//#endregion

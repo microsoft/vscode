@@ -106,7 +106,7 @@ export class Model {
 
 				children
 					.filter(child => child !== '.git')
-					.forEach(child => this.tryOpenRepository(path.join(root, child)));
+					.forEach(child => this.openRepository(path.join(root, child)));
 			} catch (err) {
 				// noop
 			}
@@ -125,7 +125,7 @@ export class Model {
 	@debounce(500)
 	private eventuallyScanPossibleGitRepositories(): void {
 		for (const path of this.possibleGitRepositoryPaths) {
-			this.tryOpenRepository(path);
+			this.openRepository(path);
 		}
 
 		this.possibleGitRepositoryPaths.clear();
@@ -146,7 +146,7 @@ export class Model {
 			.filter(r => !activeRepositories.has(r!.repository))
 			.filter(r => !(workspace.workspaceFolders || []).some(f => isDescendant(f.uri.fsPath, r!.repository.root))) as OpenRepository[];
 
-		possibleRepositoryFolders.forEach(p => this.tryOpenRepository(p.uri.fsPath));
+		possibleRepositoryFolders.forEach(p => this.openRepository(p.uri.fsPath));
 		openRepositoriesToDispose.forEach(r => r.dispose());
 	}
 
@@ -160,7 +160,7 @@ export class Model {
 			.filter(({ root }) => workspace.getConfiguration('git', root).get<boolean>('enabled') !== true)
 			.map(({ repository }) => repository);
 
-		possibleRepositoryFolders.forEach(p => this.tryOpenRepository(p.uri.fsPath));
+		possibleRepositoryFolders.forEach(p => this.openRepository(p.uri.fsPath));
 		openRepositoriesToDispose.forEach(r => r.dispose());
 	}
 
@@ -185,12 +185,12 @@ export class Model {
 				return;
 			}
 
-			this.tryOpenRepository(path.dirname(uri.fsPath));
+			this.openRepository(path.dirname(uri.fsPath));
 		});
 	}
 
 	@sequentialize
-	async tryOpenRepository(path: string): Promise<void> {
+	async openRepository(path: string): Promise<void> {
 		if (this.getRepository(path)) {
 			return;
 		}
@@ -211,6 +211,13 @@ export class Model {
 			const repositoryRoot = Uri.file(rawRoot).fsPath;
 
 			if (this.getRepository(repositoryRoot)) {
+				return;
+			}
+
+			const config = workspace.getConfiguration('git');
+			const ignoredRepos = new Set(config.get<Array<string>>('ignoredRepositories'));
+
+			if (ignoredRepos.has(rawRoot)) {
 				return;
 			}
 

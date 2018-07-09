@@ -3,14 +3,20 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-.monaco-count-badge {
-	padding: 0.3em 0.5em;
-	border-radius: 1em;
-	font-size: 85%;
-	min-width: 1.6em;
-	line-height: 1em;
-	font-weight: normal;
-	text-align: center;
-	display: inline-block;
-	box-sizing: border-box;
-}
+import * as assert from 'assert';
+import 'mocha';
+import { tagsMarkdownPreview } from '../utils/previewer';
+
+suite('typescript.previewer', () => {
+	test('Should ignore hyphens after a param tag', async () => {
+		assert.strictEqual(
+			tagsMarkdownPreview([
+				{
+					name: 'param',
+					text: 'a - b'
+				}
+			]),
+			'*@param* `a` — b');
+	});
+});
+

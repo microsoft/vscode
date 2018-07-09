@@ -1551,10 +1551,10 @@ export class EditorLayoutTwoColumnsBottomAction extends ExecuteCommandAction {
 	}
 }
 
-export class EditorLayoutTwoColumnsRightAction extends ExecuteCommandAction {
+export class EditorLayoutTwoRowsRightAction extends ExecuteCommandAction {
 
-	static readonly ID = 'workbench.action.editorLayoutTwoColumnsRight';
-	static readonly LABEL = nls.localize('editorLayoutTwoColumnsRight', "Two Columns Right Editor Layout");
+	static readonly ID = 'workbench.action.editorLayoutTwoRowsRight';
+	static readonly LABEL = nls.localize('editorLayoutTwoRowsRight', "Two Rows Right Editor Layout");
 
 	constructor(
 		id: string,
