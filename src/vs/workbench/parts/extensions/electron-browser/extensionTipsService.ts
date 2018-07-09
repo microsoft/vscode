@@ -81,7 +81,7 @@ export class ExtensionTipsService extends Disposable implements IExtensionTipsSe
 	private _workspaceIgnoredRecommendations: string[] = [];
 	private _extensionsRecommendationsUrl: string;
 	private _disposables: IDisposable[] = [];
-	public loadRecommendationsPromise: TPromise<any>;
+	public loadWorkspaceConfigPromise: TPromise<any>;
 	private proactiveRecommendationsFetched: boolean = false;
 
 	private readonly _onRecommendationChange: Emitter<RecommendationChangeNotification> = new Emitter<RecommendationChangeNotification>();
@@ -124,7 +124,7 @@ export class ExtensionTipsService extends Disposable implements IExtensionTipsSe
 		this.fetchFileBasedRecommendations();
 		this.fetchExperimentalRecommendations();
 
-		this.loadRecommendationsPromise = this.getWorkspaceRecommendations().then(() => {
+		this.loadWorkspaceConfigPromise = this.getWorkspaceRecommendations().then(() => {
 			this.promptWorkspaceRecommendations();
 			this._modelService.onModelAdded(this.promptFiletypeBasedRecommendations, this, this._disposables);
 			this._modelService.getModels().forEach(model => this.promptFiletypeBasedRecommendations(model));
