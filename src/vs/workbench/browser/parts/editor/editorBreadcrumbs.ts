@@ -198,7 +198,7 @@ export class EditorBreadcrumbs implements IEditorBreadcrumbs {
 	}
 
 	focus(): void {
-		this._widget.focus();
+		this._widget.domFocus();
 	}
 
 	focusNext(): void {
@@ -210,15 +210,18 @@ export class EditorBreadcrumbs implements IEditorBreadcrumbs {
 	}
 
 	select(): void {
-		const item = this._widget.getFocusedItem();
+		const item = this._widget.getFocused();
 		if (item) {
-			this._widget.select(item);
+			this._widget.setSelected(item);
 		}
 	}
 
 	private _onDidSelectItem(event: IBreadcrumbsItemEvent): void {
-		this._editorGroup.focus();
+		if (!event.item) {
+			return;
+		}
 
+		this._editorGroup.focus();
 		this._contextViewService.showContextView({
 			getAnchor() {
 				return event.node;
@@ -231,7 +234,6 @@ export class EditorBreadcrumbs implements IEditorBreadcrumbs {
 				res.layout({ width: 250, height: 300 });
 				res.onDidPickElement(data => {
 					this._contextViewService.hideContextView();
-					this._widget.select(undefined);
 					if (!data) {
 						return;
 					}
@@ -257,6 +259,10 @@ export class EditorBreadcrumbs implements IEditorBreadcrumbs {
 				});
 				return res;
 			},
+			onHide: () => {
+				this._widget.setSelected(undefined);
+				this._widget.setFocused(undefined);
+			}
 		});
 	}
 }

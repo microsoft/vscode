@@ -133,8 +133,16 @@ export class BreadcrumbsWidget {
 		}
 	}
 
-	focus(): void {
+	domFocus(): void {
 		this._domNode.focus();
+	}
+
+	getFocused(): BreadcrumbsItem {
+		return this._items[this._focusedItemIdx];
+	}
+
+	setFocused(item: BreadcrumbsItem): void {
+		this._focus(this._items.indexOf(item));
 	}
 
 	focusPrev(): any {
@@ -147,39 +155,39 @@ export class BreadcrumbsWidget {
 		this._domNode.focus();
 	}
 
-	private _focus(nth: number): boolean {
-		if (this._focusedItemIdx >= 0 && this._focusedItemIdx < this._nodes.length) {
-			dom.removeClass(this._nodes[this._focusedItemIdx], 'focused');
-			this._focusedItemIdx = -1;
+	private _focus(nth: number): void {
+		this._focusedItemIdx = -1;
+		for (let i = 0; i < this._nodes.length; i++) {
+			const node = this._nodes[i];
+			if (i !== nth) {
+				dom.removeClass(node, 'focused');
+			} else {
+				this._focusedItemIdx = i;
+				dom.addClass(node, 'focused');
+			}
 		}
-		if (nth < 0 || nth >= this._nodes.length) {
-			return false;
-		}
-		this._focusedItemIdx = nth;
-		dom.addClass(this._nodes[this._focusedItemIdx], 'focused');
-		this._scrollable.setScrollPosition({ scrollLeft: this._nodes[this._focusedItemIdx].offsetLeft });
 		this._onDidFocusItem.fire({ item: this._items[this._focusedItemIdx], node: this._nodes[this._focusedItemIdx] });
-		return true;
 	}
 
-	getFocusedItem(): BreadcrumbsItem {
-		return this._items[this._focusedItemIdx];
+	getSelected(): BreadcrumbsItem {
+		return this._items[this._selectedItemIdx];
 	}
 
-	select(item: BreadcrumbsItem): void {
+	setSelected(item: BreadcrumbsItem): void {
 		this._select(this._items.indexOf(item));
 	}
 
 	private _select(nth: number): void {
-		if (this._selectedItemIdx >= 0 && this._selectedItemIdx < this._nodes.length) {
-			dom.removeClass(this._nodes[this._selectedItemIdx], 'selected');
-			this._selectedItemIdx = -1;
+		this._selectedItemIdx = -1;
+		for (let i = 0; i < this._nodes.length; i++) {
+			const node = this._nodes[i];
+			if (i !== nth) {
+				dom.removeClass(node, 'selected');
+			} else {
+				this._selectedItemIdx = i;
+				dom.addClass(node, 'selected');
+			}
 		}
-		if (nth < 0 || nth >= this._nodes.length) {
-			return;
-		}
-		this._selectedItemIdx = nth;
-		dom.addClass(this._nodes[this._selectedItemIdx], 'selected');
 		this._onDidSelectItem.fire({ item: this._items[this._selectedItemIdx], node: this._nodes[this._selectedItemIdx] });
 	}
 
@@ -212,7 +220,6 @@ export class BreadcrumbsWidget {
 			this._nodes[start] = node;
 		}
 		this.layout(undefined);
-		this._focus(this._nodes.length - 1);
 	}
 
 	private _renderItem(item: BreadcrumbsItem, container: HTMLDivElement): void {
