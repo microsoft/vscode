@@ -38,6 +38,7 @@ import { RunOnceScheduler } from 'vs/base/common/async';
 
 interface CustomMenu {
 	title: string;
+	buttonElement: Builder;
 	titleElement: Builder;
 	actions?: IAction[];
 }
@@ -271,10 +272,7 @@ export class MenubarPart extends Part {
 			this.customMenus.forEach(customMenu => {
 				let child = customMenu.titleElement.child();
 				if (child) {
-					let grandChild = child.child();
-					if (grandChild) {
-						grandChild.style('text-decoration', modiferKeyStatus.altKey ? 'underline' : null);
-					}
+					child.style('text-decoration', modiferKeyStatus.altKey ? 'underline' : null);
 				}
 			});
 		}
@@ -325,6 +323,11 @@ export class MenubarPart extends Part {
 		if (isMacintosh && isWindows) {
 			this.menubarService.updateMenubar(this.windowService.getCurrentWindowId(), this.getMenubarMenus());
 		}
+	}
+
+
+	private clearMnemonic(topLevelElement: HTMLElement): void {
+		topLevelElement.accessKey = null;
 	}
 
 	private registerMnemonic(topLevelElement: HTMLElement, mnemonic: string): void {
@@ -455,10 +458,12 @@ export class MenubarPart extends Part {
 			return;
 		}
 
-		this.container.empty();
 		this.container.attr('role', 'menubar');
 
-		this.customMenus = [];
+		const firstTimeSetup = this.customMenus === undefined;
+		if (firstTimeSetup) {
+			this.customMenus = [];
+		}
 
 		let idx = 0;
 
@@ -466,26 +471,34 @@ export class MenubarPart extends Part {
 			const menu: IMenu = this.topLevelMenus[menuTitle];
 			let menuIndex = idx++;
 
-			let titleElement = $(this.container).div({ class: 'menubar-menu-button' });
+			// Create the top level menu button element
+			if (firstTimeSetup) {
+				const buttonElement = $(this.container).div({ class: 'menubar-menu-button' }).attr('role', 'menu');
+				buttonElement.attr('aria-label', this.topLevelTitles[menuTitle].replace(/&&(.)/g, '$1'));
+
+				const titleElement = $(buttonElement).div({ class: 'menubar-menu-title', 'aria-hidden': true });
+
+				this.customMenus.push({
+					title: menuTitle,
+					buttonElement: buttonElement,
+					titleElement: titleElement
+				});
+			}
+
+			// Update the button label to reflect mnemonics
 			let displayTitle = this.topLevelTitles[menuTitle].replace(/&&(.)/g, this.currentEnableMenuBarMnemonics ? '<mnemonic>$1</mnemonic>' : '$1');
-			let legibleTitle = this.topLevelTitles[menuTitle].replace(/&&(.)/g, '$1');
-			$(titleElement).div({ class: 'menubar-menu-title', 'aria-hidden': true }).innerHtml(displayTitle);
+			$(this.customMenus[menuIndex].titleElement).innerHtml(displayTitle);
 
-			titleElement.attr('aria-label', legibleTitle);
-			titleElement.attr('role', 'menu');
-
+			// Clear and register mnemonics due to updated settings
+			this.clearMnemonic(this.customMenus[menuIndex].buttonElement.getHTMLElement());
 			if (this.currentEnableMenuBarMnemonics) {
 				let mnemonic = (/&&(.)/g).exec(this.topLevelTitles[menuTitle]);
 				if (mnemonic && mnemonic[1]) {
-					this.registerMnemonic(titleElement.getHTMLElement(), mnemonic[1]);
+					this.registerMnemonic(this.customMenus[menuIndex].buttonElement.getHTMLElement(), mnemonic[1]);
 				}
 			}
 
-			this.customMenus.push({
-				title: menuTitle,
-				titleElement: titleElement
-			});
-
+			// Update the menu actions
 			const updateActions = (menu: IMenu, target: IAction[]) => {
 				target.splice(0);
 				let groups = menu.getActions();
@@ -513,53 +526,59 @@ export class MenubarPart extends Part {
 			};
 
 			this.customMenus[menuIndex].actions = [];
-			this._register(menu.onDidChange(() => updateActions(menu, this.customMenus[menuIndex].actions)));
+			if (firstTimeSetup) {
+				this._register(menu.onDidChange(() => updateActions(menu, this.customMenus[menuIndex].actions)));
+			}
+
 			updateActions(menu, this.customMenus[menuIndex].actions);
 
-			this.customMenus[menuIndex].titleElement.on(EventType.CLICK, () => {
-				if (this._modifierKeyStatus && (this._modifierKeyStatus.shiftKey || this._modifierKeyStatus.ctrlKey)) {
-					return; // supress keyboard shortcuts that shouldn't conflict
-				}
+			if (firstTimeSetup) {
+				this.customMenus[menuIndex].buttonElement.on(EventType.CLICK, () => {
+					if (this._modifierKeyStatus && (this._modifierKeyStatus.shiftKey || this._modifierKeyStatus.ctrlKey)) {
+						return; // supress keyboard shortcuts that shouldn't conflict
+					}
 
-				this.toggleCustomMenu(menuIndex);
-				this.isFocused = !this.isFocused;
-			});
-
-			this.customMenus[menuIndex].titleElement.on(EventType.MOUSE_ENTER, () => {
-				if (this.isFocused && !this.isCurrentMenu(menuIndex)) {
 					this.toggleCustomMenu(menuIndex);
-				}
-			});
+					this.isFocused = !this.isFocused;
+				});
 
-			this.customMenus[menuIndex].titleElement.on(EventType.MOUSE_LEAVE, () => {
-				if (!this.isFocused) {
+				this.customMenus[menuIndex].buttonElement.on(EventType.MOUSE_ENTER, () => {
+					if (this.isFocused && !this.isCurrentMenu(menuIndex)) {
+						this.toggleCustomMenu(menuIndex);
+					}
+				});
+
+				this.customMenus[menuIndex].buttonElement.on(EventType.MOUSE_LEAVE, () => {
+					if (!this.isFocused) {
+						this.cleanupCustomMenu();
+					}
+				});
+
+				this.customMenus[menuIndex].buttonElement.on(EventType.BLUR, () => {
 					this.cleanupCustomMenu();
-				}
-			});
-
-			this.customMenus[menuIndex].titleElement.on(EventType.BLUR, () => {
-				this.cleanupCustomMenu();
-			});
+				});
+			}
 		}
 
-		this.container.off(EventType.KEY_DOWN);
-		this.container.on(EventType.KEY_DOWN, (e) => {
-			let event = new StandardKeyboardEvent(e as KeyboardEvent);
-			let eventHandled = true;
+		if (firstTimeSetup) {
+			this.container.on(EventType.KEY_DOWN, (e) => {
+				let event = new StandardKeyboardEvent(e as KeyboardEvent);
+				let eventHandled = true;
 
-			if (event.equals(KeyCode.LeftArrow) || (event.shiftKey && event.keyCode === KeyCode.Tab)) {
-				this.focusPrevious();
-			} else if (event.equals(KeyCode.RightArrow) || event.equals(KeyCode.Tab)) {
-				this.focusNext();
-			} else {
-				eventHandled = false;
-			}
+				if (event.equals(KeyCode.LeftArrow) || (event.shiftKey && event.keyCode === KeyCode.Tab)) {
+					this.focusPrevious();
+				} else if (event.equals(KeyCode.RightArrow) || event.equals(KeyCode.Tab)) {
+					this.focusNext();
+				} else {
+					eventHandled = false;
+				}
 
-			if (eventHandled) {
-				event.preventDefault();
-				event.stopPropagation();
-			}
-		});
+				if (eventHandled) {
+					event.preventDefault();
+					event.stopPropagation();
+				}
+			});
+		}
 	}
 
 	private focusPrevious(): void {
@@ -670,9 +689,9 @@ export class MenubarPart extends Part {
 			}
 		}
 
-		customMenu.titleElement.domFocus();
+		customMenu.buttonElement.domFocus();
 
-		let menuHolder = $(customMenu.titleElement).div({ class: 'menubar-menu-items-holder' });
+		let menuHolder = $(customMenu.buttonElement).div({ class: 'menubar-menu-items-holder' });
 
 		$(menuHolder.getHTMLElement().parentElement).addClass('open');
 
@@ -755,7 +774,7 @@ export class MenubarPart extends Part {
 			}
 
 			if (typeof this.initialSizing.menuButtonPaddingLeftRight !== 'number') {
-				this.initialSizing.menuButtonPaddingLeftRight = parseInt(this.customMenus[0].titleElement.getComputedStyle().paddingLeft, 10);
+				this.initialSizing.menuButtonPaddingLeftRight = parseInt(this.customMenus[0].buttonElement.getComputedStyle().paddingLeft, 10);
 			}
 
 			this.container.style({
@@ -766,7 +785,7 @@ export class MenubarPart extends Part {
 			});
 
 			this.customMenus.forEach(customMenu => {
-				customMenu.titleElement.style({
+				customMenu.buttonElement.style({
 					'padding': `0 ${this.initialSizing.menuButtonPaddingLeftRight / browser.getZoomFactor()}px`
 				});
 			});
@@ -783,8 +802,8 @@ export class MenubarPart extends Part {
 
 	public getMenubarItemsDimensions(): Dimension {
 		if (this.customMenus) {
-			const left = this.customMenus[0].titleElement.getHTMLElement().getBoundingClientRect().left;
-			const right = this.customMenus[this.customMenus.length - 1].titleElement.getHTMLElement().getBoundingClientRect().right;
+			const left = this.customMenus[0].buttonElement.getHTMLElement().getBoundingClientRect().left;
+			const right = this.customMenus[this.customMenus.length - 1].buttonElement.getHTMLElement().getBoundingClientRect().right;
 			return new Dimension(right - left, this.container.getClientArea().height);
 		}
 
