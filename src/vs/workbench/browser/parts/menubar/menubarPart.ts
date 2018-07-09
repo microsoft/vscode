@@ -93,6 +93,7 @@ export class MenubarPart extends Part {
 	private actionRunner: IActionRunner;
 	private container: Builder;
 	private recentlyOpened: IRecentlyOpened;
+	private updatePending: boolean;
 	private _modifierKeyStatus: IModifierKeyStatus;
 	private _isFocused: boolean;
 	private _onVisibilityChange: Emitter<Dimension>;
@@ -216,6 +217,15 @@ export class MenubarPart extends Part {
 	}
 
 	private set isFocused(value: boolean) {
+		if (this._isFocused && !value) {
+			// Losing focus, update the menu if needed
+
+			if (this.updatePending) {
+				this.menuUpdater.schedule();
+				this.updatePending = false;
+			}
+		}
+
 		this._isFocused = value;
 
 		if (!this._isFocused && this.currentMenubarVisibility === 'toggle') {
@@ -441,7 +451,7 @@ export class MenubarPart extends Part {
 	private setupCustomMenubar(): void {
 		// Don't update while using the menu
 		if (this.isFocused) {
-			this.menuUpdater.schedule(100);
+			this.updatePending = true;
 			return;
 		}
 
