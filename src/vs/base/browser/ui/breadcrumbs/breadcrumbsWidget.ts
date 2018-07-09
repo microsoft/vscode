@@ -48,6 +48,11 @@ export interface IBreadcrumbsWidgetStyles {
 	breadcrumbsInactiveForeground?: Color;
 }
 
+export interface IBreadcrumbsItemEvent {
+	item: BreadcrumbsItem;
+	node: HTMLElement;
+}
+
 export class BreadcrumbsWidget {
 
 	private readonly _disposables = new Array<IDisposable>();
@@ -55,12 +60,12 @@ export class BreadcrumbsWidget {
 	private readonly _styleElement: HTMLStyleElement;
 	private readonly _scrollable: DomScrollableElement;
 
-	private readonly _onDidSelectItem = new Emitter<BreadcrumbsItem>();
-	private readonly _onDidFocusItem = new Emitter<BreadcrumbsItem>();
+	private readonly _onDidSelectItem = new Emitter<IBreadcrumbsItemEvent>();
+	private readonly _onDidFocusItem = new Emitter<IBreadcrumbsItemEvent>();
 	private readonly _onDidChangeFocus = new Emitter<boolean>();
 
-	readonly onDidSelectItem: Event<BreadcrumbsItem> = this._onDidSelectItem.event;
-	readonly onDidFocusItem: Event<BreadcrumbsItem> = this._onDidFocusItem.event;
+	readonly onDidSelectItem: Event<IBreadcrumbsItemEvent> = this._onDidSelectItem.event;
+	readonly onDidFocusItem: Event<IBreadcrumbsItemEvent> = this._onDidFocusItem.event;
 	readonly onDidChangeFocus: Event<boolean> = this._onDidChangeFocus.event;
 
 	private readonly _items = new Array<BreadcrumbsItem>();
@@ -153,7 +158,7 @@ export class BreadcrumbsWidget {
 		this._focusedItemIdx = nth;
 		dom.addClass(this._nodes[this._focusedItemIdx], 'focused');
 		this._scrollable.setScrollPosition({ scrollLeft: this._nodes[this._focusedItemIdx].offsetLeft });
-		this._onDidFocusItem.fire(this._items[this._focusedItemIdx]);
+		this._onDidFocusItem.fire({ item: this._items[this._focusedItemIdx], node: this._nodes[this._focusedItemIdx] });
 		return true;
 	}
 
@@ -175,7 +180,7 @@ export class BreadcrumbsWidget {
 		}
 		this._selectedItemIdx = nth;
 		dom.addClass(this._nodes[this._selectedItemIdx], 'selected');
-		this._onDidSelectItem.fire(this._items[this._selectedItemIdx]);
+		this._onDidSelectItem.fire({ item: this._items[this._selectedItemIdx], node: this._nodes[this._selectedItemIdx] });
 	}
 
 	setItems(items: BreadcrumbsItem[]): void {

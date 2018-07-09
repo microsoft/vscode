@@ -6,23 +6,25 @@
 'use strict';
 
 import * as dom from 'vs/base/browser/dom';
-import { BreadcrumbsItem, BreadcrumbsWidget } from 'vs/base/browser/ui/breadcrumbs/breadcrumbsWidget';
+import { BreadcrumbsItem, BreadcrumbsWidget, IBreadcrumbsItemEvent } from 'vs/base/browser/ui/breadcrumbs/breadcrumbsWidget';
 import { IconLabel } from 'vs/base/browser/ui/iconLabel/iconLabel';
 import { compareFileNames } from 'vs/base/common/comparers';
 import { debounceEvent, Emitter, Event } from 'vs/base/common/event';
 import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
 import { dispose, IDisposable } from 'vs/base/common/lifecycle';
-import { isEqual } from 'vs/base/common/resources';
+import { isEqual, dirname } from 'vs/base/common/resources';
 import URI from 'vs/base/common/uri';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { IDataSource, IRenderer, ISelectionEvent, ISorter, ITree, ITreeConfiguration } from 'vs/base/parts/tree/browser/tree';
 import 'vs/css!./media/editorbreadcrumbs';
 import { ICodeEditor, isCodeEditor } from 'vs/editor/browser/editorBrowser';
-import { OutlineElement, OutlineGroup, TreeElement } from 'vs/editor/contrib/documentSymbols/outlineModel';
+import { Range } from 'vs/editor/common/core/range';
+import { OutlineElement, OutlineGroup, OutlineModel, TreeElement } from 'vs/editor/contrib/documentSymbols/outlineModel';
 import { OutlineController, OutlineDataSource, OutlineItemComparator, OutlineRenderer } from 'vs/editor/contrib/documentSymbols/outlineTree';
 import { ContextKeyExpr, IContextKey, IContextKeyService, RawContextKey } from 'vs/platform/contextkey/common/contextkey';
+import { IContextViewService } from 'vs/platform/contextview/browser/contextView';
 import { FileKind, IFileService, IFileStat } from 'vs/platform/files/common/files';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
+import { IConstructorSignature2, IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { KeybindingsRegistry } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { WorkbenchTree } from 'vs/platform/list/browser/listService';
 import { attachBreadcrumbsStyler } from 'vs/platform/theme/common/styler';
@@ -32,6 +34,7 @@ import { FileLabel } from 'vs/workbench/browser/labels';
 import { BreadcrumbElement, EditorBreadcrumbsModel, FileElement } from 'vs/workbench/browser/parts/editor/editorBreadcrumbsModel';
 import { EditorInput } from 'vs/workbench/common/editor';
 import { SIDE_BAR_BACKGROUND } from 'vs/workbench/common/theme';
+import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IEditorBreadcrumbs, IEditorGroup, IEditorGroupsService } from 'vs/workbench/services/group/common/editorGroupsService';
 
 
@@ -106,6 +109,8 @@ export class EditorBreadcrumbs implements IEditorBreadcrumbs {
 		container: HTMLElement,
 		private readonly _editorGroup: IEditorGroup,
 		@IContextKeyService private readonly _contextKeyService: IContextKeyService,
+		@IContextViewService private readonly _contextViewService: IContextViewService,
+		@IEditorService private readonly _editorService: IEditorService,
 		@IFileService private readonly _fileService: IFileService,
 		@IWorkspaceContextService private readonly _workspaceService: IWorkspaceContextService,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
@@ -162,107 +167,6 @@ export class EditorBreadcrumbs implements IEditorBreadcrumbs {
 		this._widget.setItems(model.getElements().map(element => new Item(element, this._instantiationService)));
 
 		this._breadcrumbsDisposables.push(model, listener);
-
-
-		// const render = (element: FileElement, target: HTMLElement, disposables: IDisposable[]) => {
-		// 	let label = this._instantiationService.createInstance(FileLabel, target, {});
-		// 	label.setFile(element.uri, { fileKind: element.kind, hidePath: true, fileDecorations: { colors: false, badges: false } });
-		// 	disposables.push(label);
-		// };
-
-		// let fileItems: RenderedBreadcrumbsItem<FileElement>[] = [];
-		// let workspace = this._workspaceService.getWorkspaceFolder(uri);
-		// let path = uri.path;
-
-		// while (true) {
-		// 	let first = fileItems.length === 0;
-		// 	let name = paths.basename(path);
-		// 	uri = uri.with({ path });
-		// 	if (workspace && isEqual(workspace.uri, uri, true)) {
-		// 		break;
-		// 	}
-		// 	fileItems.unshift(new RenderedBreadcrumbsItem<FileElement>(
-		// 		render,
-		// 		new FileElement(name, first ? FileKind.FILE : FileKind.FOLDER, uri),
-		// 		!first
-		// 	));
-		// 	path = paths.dirname(path);
-		// 	if (path === '/') {
-		// 		break;
-		// 	}
-		// }
-
-		// this._widget.splice(0, this._widget.items().length, fileItems);
-
-		// let control = this._editorGroup.activeControl.getControl() as ICodeEditor;
-
-		// let model = new EditorBreadcrumbsModel(input.getResource(), isCodeEditor(control) ? control : undefined, this._workspaceService);
-		// let listener = model.onDidUpdate(_ => console.log(model.getElements()));
-		// console.log(model.getElements());
-		// this._breadcrumbsDisposables.push(model, listener);
-
-		// if (!isCodeEditor(control)) {
-		// 	return;
-		// }
-
-
-		// let oracle = new class extends Emitter<void> {
-
-		// 	private readonly _listener: IDisposable[] = [];
-
-		// 	constructor() {
-		// 		super();
-		// 		DocumentSymbolProviderRegistry.onDidChange(_ => this.fire());
-		// 		this._listener.push(control.onDidChangeModel(_ => this._checkModel()));
-		// 		this._listener.push(control.onDidChangeModelLanguage(_ => this._checkModel()));
-		// 		this._listener.push(setDisposableTimeout(_ => this._checkModel(), 0));
-		// 	}
-
-		// 	private _checkModel() {
-		// 		if (control.getModel() && isEqual(control.getModel().uri, input.getResource())) {
-		// 			this.fire();
-		// 		}
-		// 	}
-
-		// 	dispose(): void {
-		// 		dispose(this._listener);
-		// 		super.dispose();
-		// 	}
-		// };
-
-		// this._breadcrumbsDisposables.push(oracle);
-
-		// oracle.event(async _ => {
-		// 	let model = await asDisposablePromise(OutlineModel.create(control.getModel(), CancellationToken.None), undefined, this._breadcrumbsDisposables).promise;
-		// 	if (!model) {
-		// 		return;
-		// 	}
-		// 	type OutlineItem = OutlineElement | OutlineGroup;
-
-		// 	let render = (element: OutlineItem, target: HTMLElement, disposables: IDisposable[]) => {
-		// 		let label = this._instantiationService.createInstance(FileLabel, target, {});
-		// 		if (element instanceof OutlineElement) {
-		// 			label.setLabel({ name: element.symbol.name });
-		// 		} else {
-		// 			label.setLabel({ name: element.provider.displayName });
-		// 		}
-		// 		disposables.push(label);
-		// 	};
-
-		// 	let showOutlineForPosition = (position: IPosition) => {
-		// 		let element = model.getItemEnclosingPosition(position) as TreeElement;
-		// 		let outlineItems: RenderedBreadcrumbsItem<OutlineItem>[] = [];
-		// 		while (element instanceof OutlineGroup || element instanceof OutlineElement) {
-		// 			outlineItems.unshift(new RenderedBreadcrumbsItem<OutlineItem>(render, element, !!first(element.children)));
-		// 			element = element.parent;
-		// 		}
-		// 		// todo@joh compare items for equality and only update changed...
-		// 		this._widget.splice(fileItems.length, this._widget.items().length - fileItems.length, outlineItems);
-		// 	};
-
-		// 	showOutlineForPosition(control.getPosition());
-		// 	debounceEvent(control.onDidChangeCursorPosition, (last, cur) => cur, 100)(_ => showOutlineForPosition(control.getPosition()), undefined, this._breadcrumbsDisposables);
-		// });
 	}
 
 	closeEditor(input: EditorInput): void {
@@ -289,56 +193,48 @@ export class EditorBreadcrumbs implements IEditorBreadcrumbs {
 		}
 	}
 
-	private _onDidSelectItem(item: Item): void {
+	private _onDidSelectItem(event: IBreadcrumbsItemEvent): void {
 		this._editorGroup.focus();
 
-		// let ctor: IConstructorSignature2<HTMLElement, any, BreadcrumbsPicker>;
-		// let input: any;
-		// if (item.element instanceof FileElement) {
-		// 	ctor = BreadcrumbsFilePicker;
-		// 	input = dirname(item.element.uri);
-		// } else {
-		// 	ctor = BreadcrumbsOutlinePicker;
-		// 	input = item.element.parent;
-		// }
+		this._contextViewService.showContextView({
+			getAnchor() {
+				return event.node;
+			},
+			render: (container: HTMLElement) => {
+				dom.addClasses(container, 'show-file-icons');
+				let { element } = event.item as Item;
+				let ctor: IConstructorSignature2<HTMLElement, BreadcrumbElement, BreadcrumbsPicker> = element instanceof FileElement ? BreadcrumbsFilePicker : BreadcrumbsOutlinePicker;
+				let res = this._instantiationService.createInstance(ctor, container, element);
+				res.layout({ width: 250, height: 300 });
+				res.onDidPickElement(data => {
+					this._contextViewService.hideContextView();
+					this._widget.select(undefined);
+					if (!data) {
+						return;
+					}
+					if (URI.isUri(data)) {
+						// open new editor
+						this._editorService.openEditor({ resource: data });
 
-		// this._contextViewService.showContextView({
-		// 	getAnchor() {
-		// 		return item.node;
-		// 	},
-		// 	render: (container: HTMLElement) => {
-		// 		dom.addClasses(container, 'show-file-icons');
-		// 		let res = this._instantiationService.createInstance(ctor, container, input);
-		// 		res.layout({ width: 250, height: 300 });
-		// 		res.onDidPickElement(data => {
-		// 			this._contextViewService.hideContextView();
-		// 			this._widget.select(undefined);
-		// 			if (!data) {
-		// 				return;
-		// 			}
-		// 			if (URI.isUri(data)) {
-		// 				// open new editor
-		// 				this._editorService.openEditor({ resource: data });
+					} else if (data instanceof OutlineElement) {
 
-		// 			} else if (data instanceof OutlineElement) {
+						let resource: URI;
+						let candidate = data.parent;
+						while (candidate) {
+							if (candidate instanceof OutlineModel) {
+								resource = candidate.textModel.uri;
+								break;
+							}
+							candidate = candidate.parent;
+						}
 
-		// 				let resource: URI;
-		// 				let candidate = data.parent;
-		// 				while (candidate) {
-		// 					if (candidate instanceof OutlineModel) {
-		// 						resource = candidate.textModel.uri;
-		// 						break;
-		// 					}
-		// 					candidate = candidate.parent;
-		// 				}
+						this._editorService.openEditor({ resource, options: { selection: Range.collapseToStart(data.symbol.selectionRange) } });
 
-		// 				this._editorService.openEditor({ resource, options: { selection: Range.collapseToStart(data.symbol.selectionRange) } });
-
-		// 			}
-		// 		});
-		// 		return res;
-		// 	},
-		// });
+					}
+				});
+				return res;
+			},
+		});
 	}
 }
 
@@ -355,7 +251,7 @@ export abstract class BreadcrumbsPicker {
 
 	constructor(
 		container: HTMLElement,
-		input: any,
+		input: BreadcrumbElement,
 		@IInstantiationService protected readonly _instantiationService: IInstantiationService,
 		@IThemeService protected readonly _themeService: IThemeService,
 	) {
@@ -370,7 +266,7 @@ export abstract class BreadcrumbsPicker {
 		this.focus.onDidBlur(_ => this._onDidPickElement.fire(undefined), undefined, this._disposables);
 
 		this._tree.domFocus();
-		this._tree.setInput(input);
+		this._tree.setInput(this._getInput(input));
 	}
 
 	dispose(): void {
@@ -386,6 +282,7 @@ export abstract class BreadcrumbsPicker {
 		this._tree.layout(dim.height, dim.width);
 	}
 
+	protected abstract _getInput(input: BreadcrumbElement): any;
 	protected abstract _completeTreeConfiguration(config: ITreeConfiguration): ITreeConfiguration;
 	protected abstract _onDidChangeSelection(e: any): void;
 }
@@ -469,6 +366,11 @@ export class FileSorter implements ISorter {
 export class BreadcrumbsFilePicker extends BreadcrumbsPicker {
 
 
+	protected _getInput(input: BreadcrumbElement): any {
+		let { uri } = (input as FileElement);
+		return dirname(uri);
+	}
+
 	protected _completeTreeConfiguration(config: ITreeConfiguration): ITreeConfiguration {
 		// todo@joh reuse explorer implementations?
 		config.dataSource = this._instantiationService.createInstance(FileDataSource);
@@ -488,6 +390,10 @@ export class BreadcrumbsFilePicker extends BreadcrumbsPicker {
 
 export class BreadcrumbsOutlinePicker extends BreadcrumbsPicker {
 
+	protected _getInput(input: BreadcrumbElement): any {
+		return (input as TreeElement).parent;
+	}
+
 	protected _completeTreeConfiguration(config: ITreeConfiguration): ITreeConfiguration {
 		config.dataSource = this._instantiationService.createInstance(OutlineDataSource);
 		config.renderer = this._instantiationService.createInstance(OutlineRenderer);
@@ -497,7 +403,7 @@ export class BreadcrumbsOutlinePicker extends BreadcrumbsPicker {
 	}
 
 	protected _onDidChangeSelection(e: ISelectionEvent): void {
-		if (e.payload && !e.payload.didClickElement) {
+		if (e.payload && e.payload.didClickOnTwistie) {
 			return;
 		}
 		let [first] = e.selection;
