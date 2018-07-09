@@ -474,19 +474,54 @@ export class ExtensionsViewlet extends ViewContainerViewlet implements IExtensio
 	}
 
 	private autoComplete(): void {
+		const commands = ['installed', 'outdated', 'enabled', 'disabled', 'builtin', 'recommended', 'sort', 'category', 'tag', 'ext'];
+		const refinements = {
+			'sort': ['installs', 'rating', 'name'],
+			'category': ['Programming Languages', 'Snippets', 'Linters', 'Themes', 'Debuggers', 'Formatters', 'Keymaps', 'SCM Providers', 'Other', 'Extension Packs', 'Language Packs']
+		};
+
+		const prefixMatch = (arr: string[] | undefined, prefix: string): string => {
+			let longestMatch = 0;
+			let bestMatch = prefix;
+			(arr || []).forEach(possible => {
+				let matchLength = 0;
+				for (let i = 0; i < prefix.length; i++) {
+					if (prefix[i] === possible[i]) {
+						matchLength++;
+					} else {
+						break;
+					}
+				}
+				if (matchLength > longestMatch) {
+					bestMatch = possible;
+				} else if (matchLength === longestMatch) {
+					bestMatch = prefix; // non-exclusive prefix match length, reset
+				}
+			});
+			return bestMatch;
+		};
+
 		let value = this.searchBox.value;
 		if (!value) { return; }
 
-		let wordStart = value.lastIndexOf(' ', this.searchBox.selectionStart) + 1;
+		let wordStart = value.lastIndexOf(' ', this.searchBox.selectionStart - 1) + 1;
 
 		let wordEnd = value.indexOf(' ', this.searchBox.selectionStart);
 		if (wordEnd === -1) { wordEnd = value.length; }
 
 		let token = value.slice(wordStart, wordEnd);
-		console.log(`'${token}'`);
-		if (token[0] === '@') {
-			console.log('gotta autocomplete this');
-		}
+
+		const getBestMatch = (token: string): string => {
+			if (token[0] === '@') {
+				if (token.indexOf(':') > -1) {
+					let command = token.slice(1, token.indexOf(':'));
+					let refinement = token.slice(token.indexOf(':') + 1);
+					return `@${command}:${prefixMatch(refinements[command], refinement)}`;
+				} else {
+					console.log('gotta autocomplete this');
+				}
+			}
+		};
 	}
 
 	private onEnter(): void {
