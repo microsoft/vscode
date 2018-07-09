@@ -12,7 +12,7 @@ import { compareFileNames } from 'vs/base/common/comparers';
 import { debounceEvent, Emitter, Event } from 'vs/base/common/event';
 import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
 import { dispose, IDisposable } from 'vs/base/common/lifecycle';
-import { isEqual, dirname } from 'vs/base/common/resources';
+import { dirname, isEqual } from 'vs/base/common/resources';
 import URI from 'vs/base/common/uri';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { IDataSource, IRenderer, ISelectionEvent, ISorter, ITree, ITreeConfiguration } from 'vs/base/parts/tree/browser/tree';
@@ -21,22 +21,26 @@ import { ICodeEditor, isCodeEditor } from 'vs/editor/browser/editorBrowser';
 import { Range } from 'vs/editor/common/core/range';
 import { OutlineElement, OutlineGroup, OutlineModel, TreeElement } from 'vs/editor/contrib/documentSymbols/outlineModel';
 import { OutlineController, OutlineDataSource, OutlineItemComparator, OutlineRenderer } from 'vs/editor/contrib/documentSymbols/outlineTree';
+import { localize } from 'vs/nls';
+import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
+import { Extensions, IConfigurationRegistry } from 'vs/platform/configuration/common/configurationRegistry';
 import { ContextKeyExpr, IContextKey, IContextKeyService, RawContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { IContextViewService } from 'vs/platform/contextview/browser/contextView';
 import { FileKind, IFileService, IFileStat } from 'vs/platform/files/common/files';
 import { IConstructorSignature2, IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { KeybindingsRegistry } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { WorkbenchTree } from 'vs/platform/list/browser/listService';
+import { Registry } from 'vs/platform/registry/common/platform';
 import { attachBreadcrumbsStyler } from 'vs/platform/theme/common/styler';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { FileLabel } from 'vs/workbench/browser/labels';
 import { BreadcrumbElement, EditorBreadcrumbsModel, FileElement } from 'vs/workbench/browser/parts/editor/editorBreadcrumbsModel';
+import { EditorGroupView } from 'vs/workbench/browser/parts/editor/editorGroupView';
 import { EditorInput } from 'vs/workbench/common/editor';
 import { SIDE_BAR_BACKGROUND } from 'vs/workbench/common/theme';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
-import { IEditorBreadcrumbs, IEditorGroup, IEditorGroupsService } from 'vs/workbench/services/group/common/editorGroupsService';
-
+import { IEditorBreadcrumbs, IEditorGroupsService } from 'vs/workbench/services/group/common/editorGroupsService';
 
 class Item extends BreadcrumbsItem {
 
@@ -99,6 +103,8 @@ export class EditorBreadcrumbs implements IEditorBreadcrumbs {
 	private readonly _ckBreadcrumbsVisible: IContextKey<boolean>;
 	private readonly _ckBreadcrumbsFocused: IContextKey<boolean>;
 
+	private readonly _cfEnabled: Config<boolean>;
+
 	private readonly _disposables = new Array<IDisposable>();
 	private readonly _domNode: HTMLDivElement;
 	private readonly _widget: BreadcrumbsWidget;
@@ -107,7 +113,7 @@ export class EditorBreadcrumbs implements IEditorBreadcrumbs {
 
 	constructor(
 		container: HTMLElement,
-		private readonly _editorGroup: IEditorGroup,
+		private readonly _editorGroup: EditorGroupView,
 		@IContextKeyService private readonly _contextKeyService: IContextKeyService,
 		@IContextViewService private readonly _contextViewService: IContextViewService,
 		@IEditorService private readonly _editorService: IEditorService,
@@ -115,6 +121,7 @@ export class EditorBreadcrumbs implements IEditorBreadcrumbs {
 		@IWorkspaceContextService private readonly _workspaceService: IWorkspaceContextService,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 		@IThemeService private readonly _themeService: IThemeService,
+		@IConfigurationService configurationService: IConfigurationService,
 	) {
 		this._domNode = document.createElement('div');
 		dom.addClasses(this._domNode, 'editor-breadcrumbs', 'show-file-icons');
@@ -125,6 +132,17 @@ export class EditorBreadcrumbs implements IEditorBreadcrumbs {
 		this._widget.onDidChangeFocus(val => this._ckBreadcrumbsFocused.set(val), undefined, this._disposables);
 		this._disposables.push(attachBreadcrumbsStyler(this._widget, this._themeService));
 
+		this._cfEnabled = Config.create(configurationService, 'breadcrumbs.enabled');
+		this._disposables.push(this._cfEnabled.onDidChange(value => {
+			if (!value) {
+				this.closeEditor(undefined);
+				this._editorGroup.relayout();
+			} else if (this._editorGroup.activeEditor) {
+				this.openEditor(this._editorGroup.activeEditor);
+				this._editorGroup.relayout();
+			}
+		}));
+
 		this._ckBreadcrumbsVisible = EditorBreadcrumbs.CK_BreadcrumbsVisible.bindTo(this._contextKeyService);
 		this._ckBreadcrumbsFocused = EditorBreadcrumbs.CK_BreadcrumbsFocused.bindTo(this._contextKeyService);
 	}
@@ -133,10 +151,11 @@ export class EditorBreadcrumbs implements IEditorBreadcrumbs {
 		dispose(this._disposables);
 		this._widget.dispose();
 		this._ckBreadcrumbsVisible.reset();
+		this._cfEnabled.dispose();
 	}
 
 	getPreferredHeight(): number {
-		return 25;
+		return this._cfEnabled.value ? 25 : 0;
 	}
 
 	layout(dim: dom.Dimension): void {
@@ -150,6 +169,10 @@ export class EditorBreadcrumbs implements IEditorBreadcrumbs {
 	}
 
 	openEditor(input: EditorInput): void {
+		if (!this._cfEnabled.value) {
+			// not enabled -> return early
+			return;
+		}
 
 		this._breadcrumbsDisposables = dispose(this._breadcrumbsDisposables);
 
@@ -412,6 +435,55 @@ export class BreadcrumbsOutlinePicker extends BreadcrumbsPicker {
 		}
 	}
 }
+
+//#region config
+
+abstract class Config<T> {
+
+	name: string;
+	value: T;
+	onDidChange: Event<T>;
+	abstract dispose(): void;
+
+	static create<T>(service: IConfigurationService, name: string): Config<T> {
+
+		let value: T = service.getValue(name);
+		let onDidChange = new Emitter<T>();
+
+		let listener = service.onDidChangeConfiguration(e => {
+			if (e.affectsConfiguration(name)) {
+				value = service.getValue(name);
+				onDidChange.fire(value);
+			}
+		});
+
+		return {
+			name,
+			get value() { return value; },
+			onDidChange: onDidChange.event,
+			dispose(): void {
+				listener.dispose();
+				onDidChange.dispose();
+			}
+		};
+	}
+}
+
+Registry.as<IConfigurationRegistry>(Extensions.Configuration).registerConfiguration({
+	id: 'breadcrumbs',
+	title: localize('title', "Breadcrumb Navigation"),
+	order: 101,
+	type: 'object',
+	properties: {
+		'breadcrumbs.enabled': {
+			'description': localize('enabled', "Enable/disable navigation breadcrumbss"),
+			'type': 'boolean',
+			'default': false
+		}
+	}
+});
+
+//#endregion
 
 //#region commands
 

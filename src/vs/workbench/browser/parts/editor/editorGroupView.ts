@@ -1380,6 +1380,13 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 		this.editorControl.layout(new Dimension(this.dimension.width, this.dimension.height - (EDITOR_TITLE_HEIGHT + this.breadcrumbsControl.getPreferredHeight())));
 	}
 
+	relayout(): void {
+		if (this.dimension) {
+			const { width, height } = this.dimension;
+			this.layout(width, height);
+		}
+	}
+
 	toJSON(): ISerializedEditorGroup {
 		return this._group.serialize();
 	}
