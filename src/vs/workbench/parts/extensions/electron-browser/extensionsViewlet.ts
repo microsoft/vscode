@@ -317,6 +317,7 @@ export class ExtensionsViewlet extends ViewContainerViewlet implements IExtensio
 		const onKeyDown = chain(domEvent(this.searchBox, 'keydown'))
 			.map(e => new StandardKeyboardEvent(e));
 		onKeyDown.filter(e => e.keyCode === KeyCode.Escape).on(this.onEscape, this, this.disposables);
+		onKeyDown.filter(e => e.keyCode === KeyCode.Space && e.ctrlKey === true).on(this.autoComplete, this, this.disposables);
 
 		const onKeyDownForList = onKeyDown.filter(() => this.count() > 0);
 		onKeyDownForList.filter(e => e.keyCode === KeyCode.Enter).on(this.onEnter, this, this.disposables);
@@ -470,6 +471,22 @@ export class ExtensionsViewlet extends ViewContainerViewlet implements IExtensio
 
 	private onEscape(): void {
 		this.search('');
+	}
+
+	private autoComplete(): void {
+		let value = this.searchBox.value;
+		if (!value) { return; }
+
+		let wordStart = value.lastIndexOf(' ', this.searchBox.selectionStart) + 1;
+
+		let wordEnd = value.indexOf(' ', this.searchBox.selectionStart);
+		if (wordEnd === -1) { wordEnd = value.length; }
+
+		let token = value.slice(wordStart, wordEnd);
+		console.log(`'${token}'`);
+		if (token[0] === '@') {
+			console.log('gotta autocomplete this');
+		}
 	}
 
 	private onEnter(): void {
