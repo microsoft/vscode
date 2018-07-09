@@ -103,7 +103,7 @@ function findFirstEvenNumber(arr) {
 
 
 ### Formatting
-Keeping your code looking great is hard without a good formatter.  Luckily it's easy to format content either the entire document with kb(editor.action.formatDocument). Formatting can be applied to the current selection with kb(editor.action.formatSelection).  Both of these options are also available through the right-click context menu.
+Keeping your code looking great is hard without a good formatter.  Luckily it's easy to format content, either for the entire document with kb(editor.action.formatDocument) or for the current selection with kb(editor.action.formatSelection).  Both of these options are also available through the right-click context menu.
 
 ```js
 var cars = ["Saab", "Volvo", "BMW"];
