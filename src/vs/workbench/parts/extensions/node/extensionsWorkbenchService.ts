@@ -702,7 +702,7 @@ export class ExtensionsWorkbenchService implements IExtensionsWorkbenchService, 
 	}
 
 	private promptAndSetEnablement(extensions: IExtension[], enablementState: EnablementState): TPromise<any> {
-		const allDependencies = this.getDependenciesRecursively(extensions, this.local, enablementState, []);
+		const allDependencies = this.getDependenciesRecursively(extensions, this.local, enablementState);
 		if (allDependencies.length > 0) {
 			if (enablementState === EnablementState.Enabled || enablementState === EnablementState.WorkspaceEnabled) {
 				return this.promptForDependenciesAndEnable(extensions, allDependencies, enablementState);
@@ -761,7 +761,7 @@ export class ExtensionsWorkbenchService implements IExtensionsWorkbenchService, 
 		return TPromise.join(allExtensions.map(e => this.doSetEnablement(e, enablementState)));
 	}
 
-	private getDependenciesRecursively(extensions: IExtension[], installed: IExtension[], enablementState: EnablementState, checked: IExtension[]): IExtension[] {
+	private getDependenciesRecursively(extensions: IExtension[], installed: IExtension[], enablementState: EnablementState, checked: IExtension[] = []): IExtension[] {
 		const toCheck = extensions.filter(e => checked.indexOf(e) === -1);
 		if (toCheck.length) {
 			for (const extension of toCheck) {
@@ -798,12 +798,7 @@ export class ExtensionsWorkbenchService implements IExtensionsWorkbenchService, 
 			if (extensionsToDisable.indexOf(i) !== -1) {
 				return false;
 			}
-			return i.dependencies.some(dep => {
-				if (extension.id === dep.id) {
-					return true;
-				}
-				return extensionsToDisable.some(d => d.id === dep.id);
-			});
+			return i.dependencies.some(dep => !dep.optional && [extension, ...extensionsToDisable].some(d => d.id === dep.id));
 		});
 	}
 
