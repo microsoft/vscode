@@ -18,6 +18,7 @@ import { ITextModel, IWordAtPosition } from 'vs/editor/common/model';
 import { ISuggestSupport, StandardTokenType, SuggestContext, SuggestRegistry, SuggestTriggerKind } from 'vs/editor/common/modes';
 import { CompletionModel } from './completionModel';
 import { ISuggestionItem, getSuggestionComparator, provideSuggestionItems, getSnippetSuggestSupport } from './suggest';
+import { SnippetController2 } from 'vs/editor/contrib/snippet/snippetController2';
 
 export interface ICancelEvent {
 	readonly retrigger: boolean;
@@ -263,49 +264,58 @@ export class SuggestModel implements IDisposable {
 
 		if (this._state === State.Idle) {
 
-			// trigger 24x7 IntelliSense when idle, enabled, when cursor
-			// moved RIGHT, and when at a good position
-			if (this._editor.getConfiguration().contribInfo.quickSuggestions !== false
-				&& (prevSelection.containsRange(this._currentSelection)
-					|| prevSelection.getEndPosition().isBeforeOrEqual(this._currentSelection.getPosition()))
-			) {
-				this.cancel();
-
-				this._triggerQuickSuggest.cancelAndSet(() => {
-					if (!LineContext.shouldAutoTrigger(this._editor)) {
-						return;
-					}
-
-					const model = this._editor.getModel();
-					const pos = this._editor.getPosition();
-					if (!model) {
-						return;
-					}
-					// validate enabled now
-					const { quickSuggestions } = this._editor.getConfiguration().contribInfo;
-					if (quickSuggestions === false) {
-						return;
-					} else if (quickSuggestions === true) {
-						// all good
-					} else {
-						// Check the type of the token that triggered this
-						model.tokenizeIfCheap(pos.lineNumber);
-						const lineTokens = model.getLineTokens(pos.lineNumber);
-						const tokenType = lineTokens.getStandardTokenType(lineTokens.findTokenIndexAtOffset(Math.max(pos.column - 1 - 1, 0)));
-						const inValidScope = quickSuggestions.other && tokenType === StandardTokenType.Other
-							|| quickSuggestions.comments && tokenType === StandardTokenType.Comment
-							|| quickSuggestions.strings && tokenType === StandardTokenType.String;
-
-						if (!inValidScope) {
-							return;
-						}
-					}
-
-					// we made it till here -> trigger now
-					this.trigger({ auto: true });
-
-				}, this._quickSuggestDelay);
+			if (this._editor.getConfiguration().contribInfo.quickSuggestions === false) {
+				// not enabled
+				return;
 			}
+
+			if (!prevSelection.containsRange(this._currentSelection) && !prevSelection.getEndPosition().isBeforeOrEqual(this._currentSelection.getPosition())) {
+				// cursor didn't move RIGHT
+				return;
+			}
+
+			if (this._editor.getConfiguration().contribInfo.suggest.snippetsPreventQuickSuggestions && SnippetController2.get(this._editor).isInSnippet()) {
+				// no quick suggestion when in snippet mode
+				return;
+			}
+
+			this.cancel();
+
+			this._triggerQuickSuggest.cancelAndSet(() => {
+				if (!LineContext.shouldAutoTrigger(this._editor)) {
+					return;
+				}
+
+				const model = this._editor.getModel();
+				const pos = this._editor.getPosition();
+				if (!model) {
+					return;
+				}
+				// validate enabled now
+				const { quickSuggestions } = this._editor.getConfiguration().contribInfo;
+				if (quickSuggestions === false) {
+					return;
+				} else if (quickSuggestions === true) {
+					// all good
+				} else {
+					// Check the type of the token that triggered this
+					model.tokenizeIfCheap(pos.lineNumber);
+					const lineTokens = model.getLineTokens(pos.lineNumber);
+					const tokenType = lineTokens.getStandardTokenType(lineTokens.findTokenIndexAtOffset(Math.max(pos.column - 1 - 1, 0)));
+					const inValidScope = quickSuggestions.other && tokenType === StandardTokenType.Other
+						|| quickSuggestions.comments && tokenType === StandardTokenType.Comment
+						|| quickSuggestions.strings && tokenType === StandardTokenType.String;
+
+					if (!inValidScope) {
+						return;
+					}
+				}
+
+				// we made it till here -> trigger now
+				this.trigger({ auto: true });
+
+			}, this._quickSuggestDelay);
+
 		}
 	}
 

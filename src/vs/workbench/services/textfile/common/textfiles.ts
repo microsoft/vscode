@@ -186,7 +186,6 @@ export interface ITextFileEditorModelManager {
 	getAll(resource?: URI): ITextFileEditorModel[];
 
 	loadOrCreate(resource: URI, options?: IModelLoadOrCreateOptions): TPromise<ITextFileEditorModel>;
-	reload(model: ITextFileEditorModel): void;
 
 	disposeModel(model: ITextFileEditorModel): void;
 }
@@ -328,6 +327,12 @@ export interface ITextFileService extends IDisposable {
 	 * Reverts all the provided resources and returns a promise with the operation result.
 	 */
 	revertAll(resources?: URI[], options?: IRevertOptions): TPromise<ITextFileOperationResult>;
+
+	/**
+	 * Create a file. If the file exists it will be overwritten with the contents if
+	 * the options enable to overwrite.
+	 */
+	create(resource: URI, contents?: string, options?: { overwrite?: boolean }): TPromise<void>;
 
 	/**
 	 * Delete a file. If the file is dirty, it will get reverted and then deleted from disk.

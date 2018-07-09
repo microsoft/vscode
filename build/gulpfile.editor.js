@@ -15,7 +15,6 @@ const cp = require('child_process');
 
 var root = path.dirname(__dirname);
 var sha1 = util.getVersion(root);
-// @ts-ignore Microsoft/TypeScript#21262 complains about a require of a JSON file
 var semver = require('./monaco/package.json').version;
 var headerVersion = semver + '(' + sha1 + ')';
 
@@ -230,7 +229,7 @@ gulp.task('editor-distro', ['clean-editor-distro', 'compile-editor-esm', 'minify
 });
 
 gulp.task('analyze-editor-distro', function () {
-	// @ts-ignore Microsoft/TypeScript#21262 complains about a require of a JSON file
+	// @ts-ignore 
 	var bundleInfo = require('../out-editor/bundleInfo.json');
 	var graph = bundleInfo.graph;
 	var bundles = bundleInfo.bundles;

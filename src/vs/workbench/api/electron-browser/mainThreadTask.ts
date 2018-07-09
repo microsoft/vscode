@@ -11,6 +11,7 @@ import * as Objects from 'vs/base/common/objects';
 import { TPromise } from 'vs/base/common/winjs.base';
 import * as Types from 'vs/base/common/types';
 import * as Platform from 'vs/base/common/platform';
+import { IStringDictionary } from 'vs/base/common/collections';
 
 import { IWorkspaceContextService, IWorkspaceFolder } from 'vs/platform/workspace/common/workspace';
 
@@ -386,8 +387,8 @@ export class MainThreadTask implements MainThreadTaskShape {
 
 	public $registerTaskProvider(handle: number): TPromise<void> {
 		this._taskService.registerTaskProvider(handle, {
-			provideTasks: () => {
-				return this._proxy.$provideTasks(handle).then((value) => {
+			provideTasks: (validTypes: IStringDictionary<boolean>) => {
+				return this._proxy.$provideTasks(handle, validTypes).then((value) => {
 					let tasks: Task[] = [];
 					for (let task of value.tasks) {
 						let taskTransfer = task._source as any as ExtensionTaskSourceTransfer;

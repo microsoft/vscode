@@ -5,9 +5,8 @@
 'use strict';
 
 import 'vs/css!./builder';
-import { TPromise } from 'vs/base/common/winjs.base';
 import * as types from 'vs/base/common/types';
-import { IDisposable, dispose } from 'vs/base/common/lifecycle';
+import { IDisposable, dispose, toDisposable } from 'vs/base/common/lifecycle';
 import * as strings from 'vs/base/common/strings';
 import * as assert from 'vs/base/common/assert';
 import * as DOM from 'vs/base/browser/dom';
@@ -907,7 +906,7 @@ export class Builder implements IDisposable {
 		this.attr('aria-hidden', 'false');
 
 		// Cancel any pending showDelayed() invocation
-		this.cancelVisibilityPromise();
+		this.cancelVisibilityTimeout();
 
 		return this;
 	}
@@ -922,15 +921,15 @@ export class Builder implements IDisposable {
 	showDelayed(delay: number): Builder {
 
 		// Cancel any pending showDelayed() invocation
-		this.cancelVisibilityPromise();
+		this.cancelVisibilityTimeout();
 
-		let promise = TPromise.timeout(delay);
-		this.setProperty(VISIBILITY_BINDING_ID, promise);
-
-		promise.done(() => {
+		// Install new delay for showing
+		const handle = setTimeout(() => {
 			this.removeProperty(VISIBILITY_BINDING_ID);
 			this.show();
-		});
+		}, delay);
+
+		this.setProperty(VISIBILITY_BINDING_ID, toDisposable(() => clearTimeout(handle)));
 
 		return this;
 	}
@@ -945,7 +944,7 @@ export class Builder implements IDisposable {
 		this.attr('aria-hidden', 'true');
 
 		// Cancel any pending showDelayed() invocation
-		this.cancelVisibilityPromise();
+		this.cancelVisibilityTimeout();
 
 		return this;
 	}
@@ -957,10 +956,10 @@ export class Builder implements IDisposable {
 		return this.hasClass('monaco-builder-hidden') || this.currentElement.style.display === 'none';
 	}
 
-	private cancelVisibilityPromise(): void {
-		let promise: TPromise<void> = this.getProperty(VISIBILITY_BINDING_ID);
-		if (promise) {
-			promise.cancel();
+	private cancelVisibilityTimeout(): void {
+		const visibilityDisposable = this.getProperty(VISIBILITY_BINDING_ID) as IDisposable;
+		if (visibilityDisposable) {
+			visibilityDisposable.dispose();
 			this.removeProperty(VISIBILITY_BINDING_ID);
 		}
 	}

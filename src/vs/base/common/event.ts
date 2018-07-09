@@ -423,6 +423,8 @@ export function forEach<I>(event: Event<I>, each: (i: I) => void): Event<I> {
 	return (listener, thisArgs = null, disposables?) => event(i => { each(i); listener.call(thisArgs, i); }, null, disposables);
 }
 
+export function filterEvent<T>(event: Event<T>, filter: (e: T) => boolean): Event<T>;
+export function filterEvent<T, R>(event: Event<T | R>, filter: (e: T | R) => e is R): Event<R>;
 export function filterEvent<T>(event: Event<T>, filter: (e: T) => boolean): Event<T> {
 	return (listener, thisArgs = null, disposables?) => event(e => filter(e) && listener.call(thisArgs, e), null, disposables);
 }
