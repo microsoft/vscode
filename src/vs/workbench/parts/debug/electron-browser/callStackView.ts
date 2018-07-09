@@ -88,13 +88,12 @@ export class CallStackView extends TreeViewsViewletPanel {
 	}
 
 	protected renderHeaderTitle(container: HTMLElement): void {
-		const name = $('span');
-		name.textContent = this.options.title;
-		this.pauseMessage = $('span.pause-message');
+		let titleContainer = dom.append(container, $('.debug-call-stack-title'));
+		super.renderHeaderTitle(titleContainer, this.options.title);
+
+		this.pauseMessage = dom.append(titleContainer, $('span.pause-message'));
 		this.pauseMessage.hidden = true;
 		this.pauseMessageLabel = dom.append(this.pauseMessage, $('span.label'));
-
-		super.renderHeaderTitle(container, ['debug-call-stack-title'], [name, this.pauseMessage]);
 	}
 
 	public renderBody(container: HTMLElement): void {

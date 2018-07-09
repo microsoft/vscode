@@ -72,13 +72,11 @@ export class ExtensionsListView extends ViewletPanel {
 	}
 
 	renderHeaderTitle(container: HTMLElement): void {
-		let title = $('span');
-		title.textContent = this.options.title;
+		super.renderHeaderTitle(container, this.options.title);
 
-		this.badgeContainer = $('.count-badge-wrapper');
+		this.badgeContainer = append(container, $('.count-badge-wrapper'));
 		this.badge = new CountBadge(this.badgeContainer);
 		this.disposables.push(attachBadgeStyler(this.badge, this.themeService));
-		super.renderHeaderTitle(container, [], [title, this.badgeContainer]);
 	}
 
 	renderBody(container: HTMLElement): void {

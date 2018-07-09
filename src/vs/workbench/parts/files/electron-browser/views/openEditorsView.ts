@@ -176,9 +176,9 @@ export class OpenEditorsView extends ViewletPanel {
 	}
 
 	protected renderHeaderTitle(container: HTMLElement): void {
+		super.renderHeaderTitle(container, this.title);
 
-		const title = $('span', null, this.title);
-		const count = $('.count');
+		const count = dom.append(container, $('.count'));
 		this.dirtyCountElement = dom.append(count, $('.monaco-count-badge'));
 
 		this.disposables.push((attachStylerCallback(this.themeService, { badgeBackground, badgeForeground, contrastBorder }, colors => {
@@ -195,7 +195,6 @@ export class OpenEditorsView extends ViewletPanel {
 		})));
 
 		this.updateDirtyIndicator();
-		super.renderHeaderTitle(container, [], [title, count]);
 	}
 
 	public renderBody(container: HTMLElement): void {
