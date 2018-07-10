@@ -2,14 +2,14 @@ phases:
 - phase: Windows
   queue: Hosted VS2017
   steps:
-  - template: build/tfs/win32/continuous-build-win32.yml
+  - template: win32/continuous-build-win32.yml
 
 - phase: Linux
   queue: Hosted Linux Preview
   steps:
-  - template: build/tfs/linux/continuous-build-linux.yml
+  - template: linux/continuous-build-linux.yml
 
 - phase: macOS
   queue: Hosted macOS Preview
   steps:
-  - template: build/tfs/darwin/continuous-build-darwin.yml
+  - template: darwin/continuous-build-darwin.yml
