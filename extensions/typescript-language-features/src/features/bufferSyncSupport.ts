@@ -114,29 +114,11 @@ class SyncedBufferMap extends ResourceMap<SyncedBuffer> {
 	public get allBuffers(): Iterable<SyncedBuffer> {
 		return this.values;
 	}
-
-	public get allResources(): Iterable<string> {
-		return this.keys;
-	}
 }
 
-class PendingDiagnostics {
-	private readonly _pendingDiagnostics = new Map<string, number>();
-
-	public set(file: string, time: number): void {
-		this._pendingDiagnostics.set(file, time);
-	}
-
-	public has(file: string): boolean {
-		return this._pendingDiagnostics.has(file);
-	}
-
-	public clear(): void {
-		this._pendingDiagnostics.clear();
-	}
-
+class PendingDiagnostics extends ResourceMap<number> {
 	public getFileList(): Set<string> {
-		return new Set(Array.from(this._pendingDiagnostics.entries())
+		return new Set(Array.from(this.entries)
 			.sort((a, b) => a[1] - b[1])
 			.map(entry => entry[0]));
 	}
@@ -151,8 +133,7 @@ export default class BufferSyncSupport {
 	private readonly modeIds: Set<string>;
 	private readonly disposables: Disposable[] = [];
 	private readonly syncedBuffers: SyncedBufferMap;
-
-	private readonly pendingDiagnostics = new PendingDiagnostics();
+	private readonly pendingDiagnostics: PendingDiagnostics;
 	private readonly diagnosticDelayer: Delayer<any>;
 	private pendingGetErr: { request: Promise<any>, files: string[], token: CancellationTokenSource } | undefined;
 	private listening: boolean = false;
@@ -166,7 +147,9 @@ export default class BufferSyncSupport {
 
 		this.diagnosticDelayer = new Delayer<any>(300);
 
-		this.syncedBuffers = new SyncedBufferMap(path => this.normalizePath(path));
+		const pathNormalizer = (path: Uri) => this.normalizePath(path);
+		this.syncedBuffers = new SyncedBufferMap(pathNormalizer);
+		this.pendingDiagnostics = new PendingDiagnostics(pathNormalizer);
 
 		this.updateConfiguration();
 		workspace.onDidChangeConfiguration(this.updateConfiguration, this, this.disposables);
@@ -259,6 +242,7 @@ export default class BufferSyncSupport {
 			this.pendingGetErr.token.cancel();
 			this.pendingGetErr = undefined;
 
+			// In this case we always want to re-trigger all diagnostics
 			this.triggerDiagnostics();
 		}
 	}
@@ -266,7 +250,7 @@ export default class BufferSyncSupport {
 	public requestAllDiagnostics() {
 		for (const buffer of this.syncedBuffers.allBuffers) {
 			if (this.shouldValidate(buffer)) {
-				this.pendingDiagnostics.set(buffer.filepath, Date.now());
+				this.pendingDiagnostics.set(buffer.resource, Date.now());
 			}
 		}
 		this.triggerDiagnostics();
@@ -279,10 +263,7 @@ export default class BufferSyncSupport {
 		}
 
 		for (const resource of handledResources) {
-			const file = this.client.normalizedPath(resource);
-			if (file) {
-				this.pendingDiagnostics.set(file, Date.now());
-			}
+			this.pendingDiagnostics.set(resource, Date.now());
 		}
 
 		this.triggerDiagnostics();
@@ -299,7 +280,7 @@ export default class BufferSyncSupport {
 			return;
 		}
 
-		this.pendingDiagnostics.set(buffer.filepath, Date.now());
+		this.pendingDiagnostics.set(buffer.resource, Date.now());
 
 		const lineCount = buffer.lineCount;
 		const delay = Math.min(Math.max(Math.ceil(lineCount / 20), 300), 800);
@@ -307,17 +288,16 @@ export default class BufferSyncSupport {
 	}
 
 	public hasPendingDiagnostics(resource: Uri): boolean {
-		const file = this.client.normalizedPath(resource);
-		return !file || this.pendingDiagnostics.has(file);
+		return this.pendingDiagnostics.has(resource);
 	}
 
 	private sendPendingDiagnostics(): void {
 		const fileList = this.pendingDiagnostics.getFileList();
 
 		// Add all open TS buffers to the geterr request. They might be visible
-		for (const file of this.syncedBuffers.allResources) {
-			if (!this.pendingDiagnostics.has(file)) {
-				fileList.add(file);
+		for (const buffer of this.syncedBuffers.values) {
+			if (!this.pendingDiagnostics.has(buffer.resource)) {
+				fileList.add(buffer.filepath);
 			}
 		}
 
