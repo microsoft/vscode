@@ -765,19 +765,20 @@ export class RepositoryPanel extends ViewletPanel {
 	}
 
 	protected renderHeaderTitle(container: HTMLElement): void {
-		const header = append(container, $('.title.scm-provider'));
-		const name = append(header, $('.name'));
-		const title = append(name, $('span.title'));
-		const type = append(name, $('span.type'));
+		let title: string;
+		let type: string;
 
 		if (this.repository.provider.rootUri) {
-			title.textContent = basename(this.repository.provider.rootUri.fsPath);
-			type.textContent = this.repository.provider.label;
+			title = basename(this.repository.provider.rootUri.fsPath);
+			type = this.repository.provider.label;
 		} else {
-			title.textContent = this.repository.provider.label;
-			type.textContent = '';
+			title = this.repository.provider.label;
+			type = '';
 		}
 
+		super.renderHeaderTitle(container, title);
+		addClass(container, 'scm-provider');
+		append(container, $('span.type', null, type));
 		const onContextMenu = mapEvent(stop(domEvent(container, 'contextmenu')), e => new StandardMouseEvent(e));
 		onContextMenu(this.onContextMenu, this, this.disposables);
 	}
