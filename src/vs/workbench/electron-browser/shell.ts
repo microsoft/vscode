@@ -553,6 +553,16 @@ export class WorkbenchShell extends Disposable {
 		// capture html-structure
 		let html = '<div id="monaco-parts-splash">';
 
+		// title part
+		let titleHeight: number;
+		{
+			let part = this.workbench.getContainer(Parts.TITLEBAR_PART);
+			let pos = getDomNodePagePosition(part);
+			let bg = part.style.backgroundColor || 'inhert';
+			html += `<div style="position: absolute; width: 100%; left: 0; top: 0; height: ${pos.height}px; background-color: ${bg}l"></div>`;
+			titleHeight = pos.height;
+		}
+
 		// activitybar-part
 		let left = this.workbench.getSideBarPosition() === Position.LEFT;
 		let activityPartWidth: number;
@@ -560,7 +570,7 @@ export class WorkbenchShell extends Disposable {
 			let part = this.workbench.getContainer(Parts.ACTIVITYBAR_PART);
 			let pos = getDomNodePagePosition(part);
 			let bg = part.style.backgroundColor || 'inhert';
-			html += `<div style="position: absolute; height: 100%; top: 0; ${left ? 'left' : 'right'}: 0; width: ${pos.width}px; background-color: ${bg};"></div>`;
+			html += `<div style="position: absolute; height: 100%; top: ${titleHeight}px; ${left ? 'left' : 'right'}: 0; width: ${pos.width}px; background-color: ${bg};"></div>`;
 			activityPartWidth = pos.width;
 		}
 
@@ -569,7 +579,7 @@ export class WorkbenchShell extends Disposable {
 			let part = this.workbench.getContainer(Parts.SIDEBAR_PART);
 			let pos = getDomNodePagePosition(part);
 			let bg = part.style.backgroundColor || 'inhert';
-			html += `<div style="position: absolute; height: 100%; top: 0; ${left ? 'left' : 'right'}: ${activityPartWidth}px; width: ${pos.width}px; background-color: ${bg};"></div>`;
+			html += `<div style="position: absolute; height: 100%; top: ${titleHeight}px; ${left ? 'left' : 'right'}: ${activityPartWidth}px; width: ${pos.width}px; background-color: ${bg};"></div>`;
 		}
 
 		// statusbar-part
