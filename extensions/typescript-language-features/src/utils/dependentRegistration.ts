@@ -8,7 +8,7 @@ import { ITypeScriptServiceClient } from '../typescriptService';
 import API from './api';
 import { disposeAll } from './dispose';
 
-class ConditionalRegistration {
+export class ConditionalRegistration {
 	private registration: vscode.Disposable | undefined = undefined;
 
 	public constructor(
