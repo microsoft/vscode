@@ -259,9 +259,7 @@ export default class BufferSyncSupport {
 			this.pendingGetErr.token.cancel();
 			this.pendingGetErr = undefined;
 
-			this.diagnosticDelayer.trigger(() => {
-				this.sendPendingDiagnostics();
-			}, 200);
+			this.triggerDiagnostics();
 		}
 	}
 
@@ -271,9 +269,7 @@ export default class BufferSyncSupport {
 				this.pendingDiagnostics.set(buffer.filepath, Date.now());
 			}
 		}
-		this.diagnosticDelayer.trigger(() => {
-			this.sendPendingDiagnostics();
-		}, 200);
+		this.triggerDiagnostics();
 	}
 
 	public getErr(resources: Uri[]): any {
@@ -289,9 +285,13 @@ export default class BufferSyncSupport {
 			}
 		}
 
+		this.triggerDiagnostics();
+	}
+
+	private triggerDiagnostics(delay: number = 200) {
 		this.diagnosticDelayer.trigger(() => {
 			this.sendPendingDiagnostics();
-		}, 200);
+		}, delay);
 	}
 
 	public requestDiagnostic(resource: Uri): void {
@@ -306,12 +306,9 @@ export default class BufferSyncSupport {
 			return;
 		}
 
-		let delay = 300;
 		const lineCount = buffer.lineCount;
-		delay = Math.min(Math.max(Math.ceil(lineCount / 20), 300), 800);
-		this.diagnosticDelayer.trigger(() => {
-			this.sendPendingDiagnostics();
-		}, delay);
+		const delay = Math.min(Math.max(Math.ceil(lineCount / 20), 300), 800);
+		this.triggerDiagnostics(delay);
 	}
 
 	public hasPendingDiagnostics(resource: Uri): boolean {
