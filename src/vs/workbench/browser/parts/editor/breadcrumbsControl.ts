@@ -42,6 +42,7 @@ import { IEditorService } from 'vs/workbench/services/editor/common/editorServic
 import { IEditorGroupsService } from 'vs/workbench/services/group/common/editorGroupsService';
 import { onUnexpectedError } from 'vs/base/common/errors';
 import { IBreadcrumbsService } from 'vs/workbench/browser/parts/editor/breadcrumbs';
+import { editorBackground } from 'vs/platform/theme/common/colorRegistry';
 
 class Item extends BreadcrumbsItem {
 
@@ -221,18 +222,19 @@ export class BreadcrumbsControl {
 			},
 			render: (container: HTMLElement) => {
 				dom.addClasses(container, 'monaco-breadcrumbs-picker', 'monaco-workbench', 'show-file-icons');
-				let color = this._themeService.getTheme().getColor(SIDE_BAR_BACKGROUND);
-				container.style.borderColor = color.darken(.2).toString();
-				container.style.boxShadow = `${color.toString()} 6px 6px 6px -6px;`;
+				const theme = this._themeService.getTheme();
+				const color = theme.getColor(editorBackground).darken(theme.type === 'dark' ? .2 : .1);
+				container.style.borderColor = color.toString();
+				container.style.boxShadow = `2px 2px 3px ${color.toString()}`;
 				let { element } = event.item as Item;
 				let ctor: IConstructorSignature2<HTMLElement, BreadcrumbElement, BreadcrumbsPicker> = element instanceof FileElement ? BreadcrumbsFilePicker : BreadcrumbsOutlinePicker;
 				let res = this._instantiationService.createInstance(ctor, container, element);
 				res.layout({ width: 250, height: 300 });
 				let listener = res.onDidPickElement(data => {
-					this._contextViewService.hideContextView();
 					if (!data) {
 						return;
 					}
+					this._contextViewService.hideContextView();
 					if (URI.isUri(data)) {
 						// open new editor
 						this._editorService.openEditor({ resource: data });

@@ -17,6 +17,6 @@
 }
 
 .monaco-breadcrumbs-picker {
-	border: 1px #dddddd solid;
-	box-shadow: #dddddd 6px 6px 6px -6px;
+	border-style: solid;
+	border-width: 1px;
 }
