@@ -85,6 +85,17 @@ function treeNodeToElement<T>(node: IMutableTreeNode<T>): ITreeElement<T> {
 	return { element, children, collapsed };
 }
 
+export function getNodeLocation<T>(node: ITreeNode<T>): number[] {
+	const location = [];
+
+	while (node.parent) {
+		location.push(node.parent.children.indexOf(node));
+		node = node.parent;
+	}
+
+	return location.reverse();
+}
+
 export class TreeModel<T> {
 
 	private root: IMutableTreeNode<T> = {
@@ -122,6 +133,10 @@ export class TreeModel<T> {
 		}
 
 		return map(iter(deletedNodes), treeNodeToElement);
+	}
+
+	getListIndex(location: number[]): number {
+		return this.findNode(location).listIndex;
 	}
 
 	setCollapsed(location: number[], collapsed: boolean): boolean {

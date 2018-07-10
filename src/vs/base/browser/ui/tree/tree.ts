@@ -6,13 +6,14 @@
 import 'vs/css!./tree';
 import { IDisposable, dispose, Disposable, toDisposable } from 'vs/base/common/lifecycle';
 import { IListOptions, List, IIdentityProvider, IMultipleSelectionController } from 'vs/base/browser/ui/list/listWidget';
-import { TreeModel, ITreeNode, ITreeElement } from 'vs/base/browser/ui/tree/treeModel';
+import { TreeModel, ITreeNode, ITreeElement, getNodeLocation } from 'vs/base/browser/ui/tree/treeModel';
 import { IIterator, empty } from 'vs/base/common/iterator';
 import { IDelegate, IRenderer, IListMouseEvent } from 'vs/base/browser/ui/list/list';
 import { append, $ } from 'vs/base/browser/dom';
 import { Event, Relay, chain } from 'vs/base/common/event';
 import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { KeyCode } from 'vs/base/common/keyCodes';
+import { tail2 } from 'vs/base/common/arrays';
 
 function toTreeListOptions<T>(options?: IListOptions<T>): IListOptions<ITreeNode<T>> {
 	if (!options) {
@@ -126,17 +127,6 @@ class TreeRenderer<T, TTemplateData> implements IRenderer<ITreeNode<T>, ITreeLis
 	}
 }
 
-function getLocation<T>(node: ITreeNode<T>): number[] {
-	const location = [];
-
-	while (node.parent) {
-		location.push(node.parent.children.indexOf(node));
-		node = node.parent;
-	}
-
-	return location.reverse();
-}
-
 function isInputElement(e: HTMLElement): boolean {
 	return e.tagName === 'INPUT' || e.tagName === 'TEXTAREA';
 }
@@ -182,7 +172,7 @@ export class Tree<T> implements IDisposable {
 
 	private onMouseClick(e: IListMouseEvent<ITreeNode<T>>): void {
 		const node = e.element;
-		const location = getLocation(node);
+		const location = getNodeLocation(node);
 
 		this.model.toggleCollapsed(location);
 	}
@@ -198,12 +188,17 @@ export class Tree<T> implements IDisposable {
 		}
 
 		const node = nodes[0];
-		const location = getLocation(node);
-		const didCollapse = this.model.setCollapsed(location, true);
+		const location = getNodeLocation(node);
+		const didChange = this.model.setCollapsed(location, true);
 
-		if (!didCollapse) {
-			console.log('should focus parent');
-			// this.view.setFocus([]);
+		if (!didChange) {
+			if (location.length === 1) {
+				return;
+			}
+
+			const [parentLocation] = tail2(location);
+			const parentListIndex = this.model.getListIndex(parentLocation);
+			this.view.setFocus([parentListIndex]);
 		}
 	}
 
@@ -218,8 +213,17 @@ export class Tree<T> implements IDisposable {
 		}
 
 		const node = nodes[0];
-		const location = getLocation(node);
-		this.model.setCollapsed(location, false);
+		const location = getNodeLocation(node);
+		const didChange = this.model.setCollapsed(location, false);
+
+		if (!didChange) {
+			if (node.children.length === 0) {
+				return;
+			}
+
+			const [focusedIndex] = this.view.getFocus();
+			this.view.setFocus([focusedIndex + 1]);
+		}
 	}
 
 	private onSpace(e: StandardKeyboardEvent): void {
@@ -233,7 +237,7 @@ export class Tree<T> implements IDisposable {
 		}
 
 		const node = nodes[0];
-		const location = getLocation(node);
+		const location = getNodeLocation(node);
 		this.model.toggleCollapsed(location);
 	}
 
