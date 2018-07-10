@@ -12,6 +12,7 @@ fileMenuRegistration();
 editMenuRegistration();
 selectionMenuRegistration();
 viewMenuRegistration();
+appearanceMenuRegistration();
 layoutMenuRegistration();
 goMenuRegistration();
 debugMenuRegistration();
@@ -577,9 +578,26 @@ function viewMenuRegistration() {
 		order: 4
 	});
 
-	// Toggle View
+	// TODO: Appearance Submenu
 	MenuRegistry.appendMenuItem(MenuId.MenubarViewMenu, {
-		group: '4_toggle_view',
+		group: '5_appearance',
+		title: nls.localize({ key: 'miAppearance', comment: ['&& denotes a mnemonic'] }, "&&Appearance"),
+		submenu: MenuId.MenubarAppearanceMenu,
+		order: 1
+	});
+
+	// TODO: Editor Layout Submenu
+	MenuRegistry.appendMenuItem(MenuId.MenubarViewMenu, {
+		group: '5_appearance',
+		title: nls.localize({ key: 'miEditorLayout', comment: ['&& denotes a mnemonic'] }, "Editor &&Layout"),
+		submenu: MenuId.MenubarLayoutMenu,
+		order: 2
+	});
+}
+
+function appearanceMenuRegistration() {
+	MenuRegistry.appendMenuItem(MenuId.MenubarAppearanceMenu, {
+		group: '1_toggle_view',
 		command: {
 			id: 'workbench.action.toggleFullScreen',
 			title: nls.localize({ key: 'miToggleFullScreen', comment: ['&& denotes a mnemonic'] }, "Toggle &&Full Screen")
@@ -587,8 +605,8 @@ function viewMenuRegistration() {
 		order: 1
 	});
 
-	MenuRegistry.appendMenuItem(MenuId.MenubarViewMenu, {
-		group: '4_toggle_view',
+	MenuRegistry.appendMenuItem(MenuId.MenubarAppearanceMenu, {
+		group: '1_toggle_view',
 		command: {
 			id: 'workbench.action.toggleZenMode',
 			title: nls.localize('miToggleZenMode', "Toggle Zen Mode")
@@ -596,8 +614,8 @@ function viewMenuRegistration() {
 		order: 2
 	});
 
-	MenuRegistry.appendMenuItem(MenuId.MenubarViewMenu, {
-		group: '4_toggle_view',
+	MenuRegistry.appendMenuItem(MenuId.MenubarAppearanceMenu, {
+		group: '1_toggle_view',
 		command: {
 			id: 'workbench.action.toggleCenteredLayout',
 			title: nls.localize('miToggleCenteredLayout', "Toggle Centered Layout")
@@ -605,8 +623,8 @@ function viewMenuRegistration() {
 		order: 3
 	});
 
-	MenuRegistry.appendMenuItem(MenuId.MenubarViewMenu, {
-		group: '4_toggle_view',
+	MenuRegistry.appendMenuItem(MenuId.MenubarAppearanceMenu, {
+		group: '1_toggle_view',
 		command: {
 			id: 'workbench.action.toggleMenuBar',
 			title: nls.localize({ key: 'miToggleMenuBar', comment: ['&& denotes a mnemonic'] }, "Toggle Menu &&Bar")
@@ -614,18 +632,8 @@ function viewMenuRegistration() {
 		order: 4
 	});
 
-	// TODO: Editor Layout Submenu
-	MenuRegistry.appendMenuItem(MenuId.MenubarViewMenu, {
-		title: nls.localize({ key: 'miEditorLayout', comment: ['&& denotes a mnemonic'] }, "Editor &&Layout"),
-		submenu: MenuId.MenubarLayoutMenu,
-		group: '5_layout',
-		order: 1
-	});
-
-
-	// Workbench Layout
-	MenuRegistry.appendMenuItem(MenuId.MenubarViewMenu, {
-		group: '6_workbench_layout',
+	MenuRegistry.appendMenuItem(MenuId.MenubarAppearanceMenu, {
+		group: '2_workbench_layout',
 		command: {
 			id: 'workbench.action.toggleSidebarVisibility',
 			title: nls.localize({ key: 'miToggleSidebar', comment: ['&& denotes a mnemonic'] }, "&&Toggle Side Bar")
@@ -633,8 +641,8 @@ function viewMenuRegistration() {
 		order: 1
 	});
 
-	MenuRegistry.appendMenuItem(MenuId.MenubarViewMenu, {
-		group: '6_workbench_layout',
+	MenuRegistry.appendMenuItem(MenuId.MenubarAppearanceMenu, {
+		group: '2_workbench_layout',
 		command: {
 			id: 'workbench.action.toggleSidebarPosition',
 			title: nls.localize({ key: 'miMoveSidebarLeftRight', comment: ['&& denotes a mnemonic'] }, "&&Move Side Bar Left/Right")
@@ -642,8 +650,8 @@ function viewMenuRegistration() {
 		order: 2
 	});
 
-	MenuRegistry.appendMenuItem(MenuId.MenubarViewMenu, {
-		group: '6_workbench_layout',
+	MenuRegistry.appendMenuItem(MenuId.MenubarAppearanceMenu, {
+		group: '2_workbench_layout',
 		command: {
 			id: 'workbench.action.toggleStatusbarVisibility',
 			title: nls.localize({ key: 'miToggleStatusbar', comment: ['&& denotes a mnemonic'] }, "&&Toggle Status Bar")
@@ -651,8 +659,8 @@ function viewMenuRegistration() {
 		order: 3
 	});
 
-	MenuRegistry.appendMenuItem(MenuId.MenubarViewMenu, {
-		group: '6_workbench_layout',
+	MenuRegistry.appendMenuItem(MenuId.MenubarAppearanceMenu, {
+		group: '2_workbench_layout',
 		command: {
 			id: 'workbench.action.toggleActivityBarVisibility',
 			title: nls.localize({ key: 'miToggleActivityBar', comment: ['&& denotes a mnemonic'] }, "Toggle &&Activity Bar")
@@ -660,8 +668,8 @@ function viewMenuRegistration() {
 		order: 4
 	});
 
-	MenuRegistry.appendMenuItem(MenuId.MenubarViewMenu, {
-		group: '6_workbench_layout',
+	MenuRegistry.appendMenuItem(MenuId.MenubarAppearanceMenu, {
+		group: '2_workbench_layout',
 		command: {
 			id: 'workbench.action.togglePanel',
 			title: nls.localize({ key: 'miTogglePanel', comment: ['&& denotes a mnemonic'] }, "Toggle &&Panel")
@@ -670,8 +678,8 @@ function viewMenuRegistration() {
 	});
 
 	// Toggle Editor Settings
-	MenuRegistry.appendMenuItem(MenuId.MenubarViewMenu, {
-		group: '8_editor',
+	MenuRegistry.appendMenuItem(MenuId.MenubarAppearanceMenu, {
+		group: '3_editor',
 		command: {
 			id: 'workbench.action.toggleWordWrap',
 			title: nls.localize({ key: 'miToggleWordWrap', comment: ['&& denotes a mnemonic'] }, "Toggle &&Word Wrap")
@@ -679,8 +687,8 @@ function viewMenuRegistration() {
 		order: 1
 	});
 
-	MenuRegistry.appendMenuItem(MenuId.MenubarViewMenu, {
-		group: '8_editor',
+	MenuRegistry.appendMenuItem(MenuId.MenubarAppearanceMenu, {
+		group: '3_editor',
 		command: {
 			id: 'workbench.action.toggleMinimap',
 			title: nls.localize({ key: 'miToggleMinimap', comment: ['&& denotes a mnemonic'] }, "Toggle &&Minimap")
@@ -688,8 +696,8 @@ function viewMenuRegistration() {
 		order: 2
 	});
 
-	MenuRegistry.appendMenuItem(MenuId.MenubarViewMenu, {
-		group: '8_editor',
+	MenuRegistry.appendMenuItem(MenuId.MenubarAppearanceMenu, {
+		group: '3_editor',
 		command: {
 			id: 'workbench.action.toggleRenderWhitespace',
 			title: nls.localize({ key: 'miToggleRenderWhitespace', comment: ['&& denotes a mnemonic'] }, "Toggle &&Render Whitespace")
@@ -697,8 +705,8 @@ function viewMenuRegistration() {
 		order: 3
 	});
 
-	MenuRegistry.appendMenuItem(MenuId.MenubarViewMenu, {
-		group: '8_editor',
+	MenuRegistry.appendMenuItem(MenuId.MenubarAppearanceMenu, {
+		group: '3_editor',
 		command: {
 			id: 'workbench.action.toggleRenderControlCharacters',
 			title: nls.localize({ key: 'miToggleRenderControlCharacters', comment: ['&& denotes a mnemonic'] }, "Toggle &&Control Characters")
@@ -707,8 +715,8 @@ function viewMenuRegistration() {
 	});
 
 	// Zoom
-	MenuRegistry.appendMenuItem(MenuId.MenubarViewMenu, {
-		group: '9_zoom',
+	MenuRegistry.appendMenuItem(MenuId.MenubarAppearanceMenu, {
+		group: '4_zoom',
 		command: {
 			id: 'workbench.action.zoomIn',
 			title: nls.localize({ key: 'miZoomIn', comment: ['&& denotes a mnemonic'] }, "&&Zoom In")
@@ -716,8 +724,8 @@ function viewMenuRegistration() {
 		order: 1
 	});
 
-	MenuRegistry.appendMenuItem(MenuId.MenubarViewMenu, {
-		group: '9_zoom',
+	MenuRegistry.appendMenuItem(MenuId.MenubarAppearanceMenu, {
+		group: '4_zoom',
 		command: {
 			id: 'workbench.action.zoomOut',
 			title: nls.localize({ key: 'miZoomOut', comment: ['&& denotes a mnemonic'] }, "&&Zoom Out")
@@ -725,8 +733,8 @@ function viewMenuRegistration() {
 		order: 2
 	});
 
-	MenuRegistry.appendMenuItem(MenuId.MenubarViewMenu, {
-		group: '9_zoom',
+	MenuRegistry.appendMenuItem(MenuId.MenubarAppearanceMenu, {
+		group: '4_zoom',
 		command: {
 			id: 'workbench.action.zoomReset',
 			title: nls.localize({ key: 'miZoomReset', comment: ['&& denotes a mnemonic'] }, "&&Reset Zoom")
