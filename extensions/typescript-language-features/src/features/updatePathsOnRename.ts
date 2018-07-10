@@ -87,7 +87,7 @@ export class UpdateImportsOnFileRenameHandler {
 		// Never attempt to update import paths if the file does not contain something the looks like an export
 		const tree = await this.client.execute('navtree', { file: newFile });
 		const hasExport = (node: Proto.NavigationTree): boolean => {
-			return !!node.kindModifiers.match(/\bexport\b/g) || !!(node.childItems && node.childItems.some(hasExport));
+			return !!node.kindModifiers.match(/\bexports?\b/g) || !!(node.childItems && node.childItems.some(hasExport));
 		};
 		if (!tree.body || !tree.body || !hasExport(tree.body)) {
 			return;
