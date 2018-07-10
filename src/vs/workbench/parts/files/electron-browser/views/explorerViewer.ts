@@ -726,6 +726,7 @@ export class FileFilter implements IFilter {
 			return true; // always visible
 		}
 
+		// TODO: Remove workaround.
 		// Workaround for O(N^2) complexity (https://github.com/Microsoft/vscode/issues/9962)
 		let siblingsFn: () => string[];
 		let siblingCount = stat.parent && stat.parent.getChildrenCount();
@@ -737,7 +738,8 @@ export class FileFilter implements IFilter {
 
 		// Hide those that match Hidden Patterns
 		const expression = this.hiddenExpressionPerRoot.get(stat.root.resource.toString()) || Object.create(null);
-		if (glob.match(expression, paths.normalize(path.relative(stat.root.resource.path, stat.resource.path), true), siblingsFn)) {
+		// TODO: Use glob.parse() and cache result.
+		if (glob.match(expression, paths.normalize(path.relative(stat.root.resource.path, stat.resource.path), true), glob.hasSiblingFn(siblingsFn))) {
 			return false; // hidden through pattern
 		}
 

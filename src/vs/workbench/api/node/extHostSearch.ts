@@ -315,12 +315,12 @@ class QueryGlobTester {
 	/**
 	 * Guaranteed sync - siblingsFn should not return a promise.
 	 */
-	public includedInQuerySync(testPath: string, basename?: string, siblingsFn?: () => string[]): boolean {
-		if (this._parsedExcludeExpression && this._parsedExcludeExpression(testPath, basename, siblingsFn)) {
+	public includedInQuerySync(testPath: string, basename?: string, hasSibling?: (name: string) => boolean): boolean {
+		if (this._parsedExcludeExpression && this._parsedExcludeExpression(testPath, basename, hasSibling)) {
 			return false;
 		}
 
-		if (this._parsedIncludeExpression && !this._parsedIncludeExpression(testPath, basename, siblingsFn)) {
+		if (this._parsedIncludeExpression && !this._parsedIncludeExpression(testPath, basename, hasSibling)) {
 			return false;
 		}
 
@@ -330,9 +330,9 @@ class QueryGlobTester {
 	/**
 	 * Guaranteed async.
 	 */
-	public includedInQuery(testPath: string, basename?: string, siblingsFn?: () => string[] | TPromise<string[]>): TPromise<boolean> {
+	public includedInQuery(testPath: string, basename?: string, hasSibling?: (name: string) => boolean | TPromise<boolean>): TPromise<boolean> {
 		const excludeP = this._parsedExcludeExpression ?
-			TPromise.as(this._parsedExcludeExpression(testPath, basename, siblingsFn)).then(result => !!result) :
+			TPromise.as(this._parsedExcludeExpression(testPath, basename, hasSibling)).then(result => !!result) :
 			TPromise.wrap(false);
 
 		return excludeP.then(excluded => {
@@ -341,7 +341,7 @@ class QueryGlobTester {
 			}
 
 			return this._parsedIncludeExpression ?
-				TPromise.as(this._parsedIncludeExpression(testPath, basename, siblingsFn)).then(result => !!result) :
+				TPromise.as(this._parsedIncludeExpression(testPath, basename, hasSibling)).then(result => !!result) :
 				TPromise.wrap(true);
 		}).then(included => {
 			return included;
@@ -427,13 +427,13 @@ class TextSearchEngine {
 			const testingPs = [];
 			const progress = {
 				report: (result: vscode.TextSearchResult) => {
-					const siblingFn = folderQuery.folder.scheme === 'file' && (() => {
+					const hasSibling = folderQuery.folder.scheme === 'file' && glob.hasSiblingPromiseFn(() => {
 						return this.readdir(path.dirname(result.uri.fsPath));
 					});
 
 					const relativePath = path.relative(folderQuery.folder.fsPath, result.uri.fsPath);
 					testingPs.push(
-						queryTester.includedInQuery(relativePath, path.basename(relativePath), siblingFn)
+						queryTester.includedInQuery(relativePath, path.basename(relativePath), hasSibling)
 							.then(included => {
 								if (included) {
 									onResult(result);
@@ -692,6 +692,7 @@ class FileSearchEngine {
 		const self = this;
 		const filePattern = this.filePattern;
 		function matchDirectory(entries: IDirectoryEntry[]) {
+			const hasSibling = glob.hasSiblingFn(() => entries.map(entry => entry.basename));
 			for (let i = 0, n = entries.length; i < n; i++) {
 				const entry = entries[i];
 				const { relativePath, basename } = entry;
@@ -700,7 +701,7 @@ class FileSearchEngine {
 				// If the user searches for the exact file name, we adjust the glob matching
 				// to ignore filtering by siblings because the user seems to know what she
 				// is searching for and we want to include the result in that case anyway
-				if (!queryTester.includedInQuerySync(relativePath, basename, () => filePattern !== basename ? entries.map(entry => entry.basename) : [])) {
+				if (!queryTester.includedInQuerySync(relativePath, basename, filePattern !== basename ? hasSibling : undefined)) {
 					continue;
 				}
 
