@@ -593,6 +593,43 @@ function viewMenuRegistration() {
 		submenu: MenuId.MenubarLayoutMenu,
 		order: 2
 	});
+
+	// Toggle Editor Settings
+	MenuRegistry.appendMenuItem(MenuId.MenubarViewMenu, {
+		group: '6_editor',
+		command: {
+			id: 'workbench.action.toggleWordWrap',
+			title: nls.localize({ key: 'miToggleWordWrap', comment: ['&& denotes a mnemonic'] }, "Toggle &&Word Wrap")
+		},
+		order: 1
+	});
+
+	MenuRegistry.appendMenuItem(MenuId.MenubarViewMenu, {
+		group: '6_editor',
+		command: {
+			id: 'workbench.action.toggleMinimap',
+			title: nls.localize({ key: 'miToggleMinimap', comment: ['&& denotes a mnemonic'] }, "Toggle &&Minimap")
+		},
+		order: 2
+	});
+
+	MenuRegistry.appendMenuItem(MenuId.MenubarViewMenu, {
+		group: '6_editor',
+		command: {
+			id: 'workbench.action.toggleRenderWhitespace',
+			title: nls.localize({ key: 'miToggleRenderWhitespace', comment: ['&& denotes a mnemonic'] }, "Toggle &&Render Whitespace")
+		},
+		order: 3
+	});
+
+	MenuRegistry.appendMenuItem(MenuId.MenubarViewMenu, {
+		group: '6_editor',
+		command: {
+			id: 'workbench.action.toggleRenderControlCharacters',
+			title: nls.localize({ key: 'miToggleRenderControlCharacters', comment: ['&& denotes a mnemonic'] }, "Toggle &&Control Characters")
+		},
+		order: 4
+	});
 }
 
 function appearanceMenuRegistration() {
@@ -677,46 +714,9 @@ function appearanceMenuRegistration() {
 		order: 5
 	});
 
-	// Toggle Editor Settings
-	MenuRegistry.appendMenuItem(MenuId.MenubarAppearanceMenu, {
-		group: '3_editor',
-		command: {
-			id: 'workbench.action.toggleWordWrap',
-			title: nls.localize({ key: 'miToggleWordWrap', comment: ['&& denotes a mnemonic'] }, "Toggle &&Word Wrap")
-		},
-		order: 1
-	});
-
-	MenuRegistry.appendMenuItem(MenuId.MenubarAppearanceMenu, {
-		group: '3_editor',
-		command: {
-			id: 'workbench.action.toggleMinimap',
-			title: nls.localize({ key: 'miToggleMinimap', comment: ['&& denotes a mnemonic'] }, "Toggle &&Minimap")
-		},
-		order: 2
-	});
-
-	MenuRegistry.appendMenuItem(MenuId.MenubarAppearanceMenu, {
-		group: '3_editor',
-		command: {
-			id: 'workbench.action.toggleRenderWhitespace',
-			title: nls.localize({ key: 'miToggleRenderWhitespace', comment: ['&& denotes a mnemonic'] }, "Toggle &&Render Whitespace")
-		},
-		order: 3
-	});
-
-	MenuRegistry.appendMenuItem(MenuId.MenubarAppearanceMenu, {
-		group: '3_editor',
-		command: {
-			id: 'workbench.action.toggleRenderControlCharacters',
-			title: nls.localize({ key: 'miToggleRenderControlCharacters', comment: ['&& denotes a mnemonic'] }, "Toggle &&Control Characters")
-		},
-		order: 4
-	});
-
 	// Zoom
 	MenuRegistry.appendMenuItem(MenuId.MenubarAppearanceMenu, {
-		group: '4_zoom',
+		group: '3_zoom',
 		command: {
 			id: 'workbench.action.zoomIn',
 			title: nls.localize({ key: 'miZoomIn', comment: ['&& denotes a mnemonic'] }, "&&Zoom In")
@@ -725,7 +725,7 @@ function appearanceMenuRegistration() {
 	});
 
 	MenuRegistry.appendMenuItem(MenuId.MenubarAppearanceMenu, {
-		group: '4_zoom',
+		group: '3_zoom',
 		command: {
 			id: 'workbench.action.zoomOut',
 			title: nls.localize({ key: 'miZoomOut', comment: ['&& denotes a mnemonic'] }, "&&Zoom Out")
@@ -734,7 +734,7 @@ function appearanceMenuRegistration() {
 	});
 
 	MenuRegistry.appendMenuItem(MenuId.MenubarAppearanceMenu, {
-		group: '4_zoom',
+		group: '3_zoom',
 		command: {
 			id: 'workbench.action.zoomReset',
 			title: nls.localize({ key: 'miZoomReset', comment: ['&& denotes a mnemonic'] }, "&&Reset Zoom")
