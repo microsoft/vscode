@@ -6,7 +6,7 @@
 import 'vs/css!./list';
 import { IDisposable } from 'vs/base/common/lifecycle';
 import { range } from 'vs/base/common/arrays';
-import { IDelegate, IRenderer, IListEvent, IListOpenEvent } from './list';
+import { IVirtualDelegate, IRenderer, IListEvent, IListOpenEvent } from './list';
 import { List, IListStyles, IListOptions } from './listWidget';
 import { IPagedModel } from 'vs/base/common/paging';
 import { Event, mapEvent } from 'vs/base/common/event';
@@ -69,12 +69,12 @@ export class PagedList<T> implements IDisposable {
 
 	constructor(
 		container: HTMLElement,
-		delegate: IDelegate<number>,
+		virtualDelegate: IVirtualDelegate<number>,
 		renderers: IPagedRenderer<T, any>[],
 		options: IListOptions<any> = {}
 	) {
 		const pagedRenderers = renderers.map(r => new PagedRenderer<T, ITemplateData<T>>(r, () => this.model));
-		this.list = new List(container, delegate, pagedRenderers, options);
+		this.list = new List(container, virtualDelegate, pagedRenderers, options);
 	}
 
 	getHTMLElement(): HTMLElement {

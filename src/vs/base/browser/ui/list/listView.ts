@@ -12,7 +12,7 @@ import { domEvent } from 'vs/base/browser/event';
 import { ScrollableElement } from 'vs/base/browser/ui/scrollbar/scrollableElement';
 import { ScrollEvent, ScrollbarVisibility } from 'vs/base/common/scrollable';
 import { RangeMap, IRange, relativeComplement, intersect, shift } from './rangeMap';
-import { IDelegate, IRenderer, IListMouseEvent, IListTouchEvent, IListGestureEvent } from './list';
+import { IVirtualDelegate, IRenderer, IListMouseEvent, IListTouchEvent, IListGestureEvent } from './list';
 import { RowCache, IRow } from './rowCache';
 import { isWindows } from 'vs/base/common/platform';
 import * as browser from 'vs/base/browser/browser';
@@ -72,7 +72,7 @@ export class ListView<T> implements ISpliceable<T>, IDisposable {
 
 	constructor(
 		container: HTMLElement,
-		private delegate: IDelegate<T>,
+		private virtualDelegate: IVirtualDelegate<T>,
 		renderers: IRenderer<T, any>[],
 		options: IListViewOptions = DefaultOptions
 	) {
@@ -156,8 +156,8 @@ export class ListView<T> implements ISpliceable<T>, IDisposable {
 		const inserted = elements.map<IItem<T>>(element => ({
 			id: String(this.itemId++),
 			element,
-			size: this.delegate.getHeight(element),
-			templateId: this.delegate.getTemplateId(element),
+			size: this.virtualDelegate.getHeight(element),
+			templateId: this.virtualDelegate.getTemplateId(element),
 			row: null
 		}));
 

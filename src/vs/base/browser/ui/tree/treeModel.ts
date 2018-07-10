@@ -96,6 +96,8 @@ export function getNodeLocation<T>(node: ITreeNode<T>): number[] {
 	return location.reverse();
 }
 
+export type ISequence<T> = IIterator<T> | T[];
+
 export class TreeModel<T> {
 
 	private root: IMutableTreeNode<T> = {
@@ -113,7 +115,7 @@ export class TreeModel<T> {
 
 	constructor(private list: ISpliceable<ITreeNode<T>>) { }
 
-	splice(location: number[], deleteCount: number, toInsert?: IIterator<ITreeElement<T>> | ITreeElement<T>[]): IIterator<ITreeElement<T>> {
+	splice(location: number[], deleteCount: number, toInsert?: ISequence<ITreeElement<T>>): IIterator<ITreeElement<T>> {
 		if (location.length === 0) {
 			throw new Error('Invalid tree location');
 		}

@@ -15,7 +15,7 @@ import { KeyCode } from 'vs/base/common/keyCodes';
 import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { Event, Emitter, EventBufferer, chain, mapEvent, anyEvent } from 'vs/base/common/event';
 import { domEvent } from 'vs/base/browser/event';
-import { IDelegate, IRenderer, IListEvent, IListContextMenuEvent, IListMouseEvent, IListTouchEvent, IListGestureEvent, IListOpenEvent } from './list';
+import { IVirtualDelegate, IRenderer, IListEvent, IListContextMenuEvent, IListMouseEvent, IListTouchEvent, IListGestureEvent, IListOpenEvent } from './list';
 import { ListView, IListViewOptions } from './listView';
 import { Color } from 'vs/base/common/color';
 import { mixin } from 'vs/base/common/objects';
@@ -883,7 +883,7 @@ export class List<T> implements ISpliceable<T>, IDisposable {
 
 	constructor(
 		container: HTMLElement,
-		delegate: IDelegate<T>,
+		virtualDelegate: IVirtualDelegate<T>,
 		renderers: IRenderer<T, any>[],
 		options: IListOptions<T> = DefaultOptions
 	) {
@@ -894,7 +894,7 @@ export class List<T> implements ISpliceable<T>, IDisposable {
 
 		renderers = renderers.map(r => new PipelineRenderer(r.templateId, [this.focus.renderer, this.selection.renderer, r]));
 
-		this.view = new ListView(container, delegate, renderers, options);
+		this.view = new ListView(container, virtualDelegate, renderers, options);
 		this.view.domNode.setAttribute('role', 'tree');
 		DOM.addClass(this.view.domNode, this.idPrefix);
 		this.view.domNode.tabIndex = 0;

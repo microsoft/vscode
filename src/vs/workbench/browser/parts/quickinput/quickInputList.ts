@@ -6,7 +6,7 @@
 'use strict';
 
 import 'vs/css!./quickInput';
-import { IDelegate, IRenderer } from 'vs/base/browser/ui/list/list';
+import { IVirtualDelegate, IRenderer } from 'vs/base/browser/ui/list/list';
 import * as dom from 'vs/base/browser/dom';
 import { dispose, IDisposable } from 'vs/base/common/lifecycle';
 import { WorkbenchList } from 'vs/platform/list/browser/listService';
@@ -137,7 +137,7 @@ class ListElementRenderer implements IRenderer<ListElement, IListElementTemplate
 	}
 }
 
-class ListElementDelegate implements IDelegate<ListElement> {
+class ListElementDelegate implements IVirtualDelegate<ListElement> {
 
 	getHeight(element: ListElement): number {
 		return element.item.detail ? 44 : 22;

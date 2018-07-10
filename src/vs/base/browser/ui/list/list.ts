@@ -5,7 +5,7 @@
 
 import { GestureEvent } from 'vs/base/browser/touch';
 
-export interface IDelegate<T> {
+export interface IVirtualDelegate<T> {
 	getHeight(element: T): number;
 	getTemplateId(element: T): string;
 }

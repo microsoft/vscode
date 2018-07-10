@@ -17,7 +17,7 @@ import { PanelViewlet, ViewletPanel, IViewletPanelOptions } from 'vs/workbench/b
 import { append, $, addClass, toggleClass, trackFocus, Dimension, addDisposableListener } from 'vs/base/browser/dom';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { List } from 'vs/base/browser/ui/list/listWidget';
-import { IDelegate, IRenderer, IListContextMenuEvent, IListEvent } from 'vs/base/browser/ui/list/list';
+import { IVirtualDelegate, IRenderer, IListContextMenuEvent, IListEvent } from 'vs/base/browser/ui/list/list';
 import { VIEWLET_ID, VIEW_CONTAINER } from 'vs/workbench/parts/scm/common/scm';
 import { FileLabel } from 'vs/workbench/browser/labels';
 import { CountBadge } from 'vs/base/browser/ui/countBadge/countBadge';
@@ -75,7 +75,7 @@ export interface IViewModel {
 	hide(repository: ISCMRepository): void;
 }
 
-class ProvidersListDelegate implements IDelegate<ISCMRepository> {
+class ProvidersListDelegate implements IVirtualDelegate<ISCMRepository> {
 
 	getHeight(element: ISCMRepository): number {
 		return 22;
@@ -575,7 +575,7 @@ class ResourceRenderer implements IRenderer<ISCMResource, ResourceTemplate> {
 	}
 }
 
-class ProviderListDelegate implements IDelegate<ISCMResourceGroup | ISCMResource> {
+class ProviderListDelegate implements IVirtualDelegate<ISCMResourceGroup | ISCMResource> {
 
 	getHeight() { return 22; }
 

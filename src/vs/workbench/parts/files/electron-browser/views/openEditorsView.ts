@@ -26,7 +26,7 @@ import { attachStylerCallback } from 'vs/platform/theme/common/styler';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { badgeBackground, badgeForeground, contrastBorder } from 'vs/platform/theme/common/colorRegistry';
 import { WorkbenchList } from 'vs/platform/list/browser/listService';
-import { IDelegate, IRenderer, IListContextMenuEvent } from 'vs/base/browser/ui/list/list';
+import { IVirtualDelegate, IRenderer, IListContextMenuEvent } from 'vs/base/browser/ui/list/list';
 import { EditorLabel } from 'vs/workbench/browser/labels';
 import { ActionBar } from 'vs/base/browser/ui/actionbar/actionbar';
 import { TPromise } from 'vs/base/common/winjs.base';
@@ -488,7 +488,7 @@ class OpenEditorActionRunner extends ActionRunner {
 	}
 }
 
-class OpenEditorsDelegate implements IDelegate<OpenEditor | IEditorGroup> {
+class OpenEditorsDelegate implements IVirtualDelegate<OpenEditor | IEditorGroup> {
 
 	public static readonly ITEM_HEIGHT = 22;
 

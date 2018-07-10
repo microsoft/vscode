@@ -6,9 +6,9 @@
 import 'vs/css!./tree';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { IListOptions, List, IIdentityProvider, IMultipleSelectionController } from 'vs/base/browser/ui/list/listWidget';
-import { TreeModel, ITreeNode, ITreeElement, getNodeLocation } from 'vs/base/browser/ui/tree/treeModel';
+import { TreeModel, ITreeNode, ITreeElement, getNodeLocation, ISequence } from 'vs/base/browser/ui/tree/treeModel';
 import { IIterator, empty } from 'vs/base/common/iterator';
-import { IDelegate, IRenderer, IListMouseEvent } from 'vs/base/browser/ui/list/list';
+import { IVirtualDelegate, IRenderer, IListMouseEvent } from 'vs/base/browser/ui/list/list';
 import { append, $ } from 'vs/base/browser/dom';
 import { Event, Relay, chain } from 'vs/base/common/event';
 import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
@@ -45,9 +45,9 @@ function toTreeListOptions<T>(options?: IListOptions<T>): IListOptions<ITreeNode
 	};
 }
 
-class TreeDelegate<T> implements IDelegate<ITreeNode<T>> {
+class TreeDelegate<T> implements IVirtualDelegate<ITreeNode<T>> {
 
-	constructor(private delegate: IDelegate<T>) { }
+	constructor(private delegate: IVirtualDelegate<T>) { }
 
 	getHeight(element: ITreeNode<T>): number {
 		return this.delegate.getHeight(element.element);
@@ -131,6 +131,8 @@ function isInputElement(e: HTMLElement): boolean {
 	return e.tagName === 'INPUT' || e.tagName === 'TEXTAREA';
 }
 
+export interface ITreeOptions<T> extends IListOptions<T> { }
+
 export class Tree<T> implements IDisposable {
 
 	private view: List<ITreeNode<T>>;
@@ -139,9 +141,9 @@ export class Tree<T> implements IDisposable {
 
 	constructor(
 		container: HTMLElement,
-		delegate: IDelegate<T>,
+		delegate: IVirtualDelegate<T>,
 		renderers: IRenderer<T, any>[],
-		options?: IListOptions<T>
+		options?: ITreeOptions<T>
 	) {
 		const treeDelegate = new TreeDelegate(delegate);
 
@@ -166,7 +168,7 @@ export class Tree<T> implements IDisposable {
 		onKeyDown.filter(e => e.keyCode === KeyCode.Space).on(this.onSpace, this, this.disposables);
 	}
 
-	splice(location: number[], deleteCount: number, toInsert: IIterator<ITreeElement<T>> = empty()): IIterator<ITreeElement<T>> {
+	splice(location: number[], deleteCount: number, toInsert: ISequence<ITreeElement<T>> = empty()): IIterator<ITreeElement<T>> {
 		return this.model.splice(location, deleteCount, toInsert);
 	}
 

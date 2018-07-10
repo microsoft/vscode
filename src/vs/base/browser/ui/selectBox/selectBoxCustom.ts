@@ -14,7 +14,7 @@ import * as dom from 'vs/base/browser/dom';
 import * as arrays from 'vs/base/common/arrays';
 import { IContextViewProvider } from 'vs/base/browser/ui/contextview/contextview';
 import { List } from 'vs/base/browser/ui/list/listWidget';
-import { IDelegate, IRenderer } from 'vs/base/browser/ui/list/list';
+import { IVirtualDelegate, IRenderer } from 'vs/base/browser/ui/list/list';
 import { domEvent } from 'vs/base/browser/event';
 import { ScrollbarVisibility } from 'vs/base/common/scrollable';
 import { ISelectBoxDelegate, ISelectBoxOptions, ISelectBoxStyles, ISelectData } from 'vs/base/browser/ui/selectBox/selectBox';
@@ -76,7 +76,7 @@ class SelectListRenderer implements IRenderer<ISelectOptionItem, ISelectListTemp
 	}
 }
 
-export class SelectBoxList implements ISelectBoxDelegate, IDelegate<ISelectOptionItem> {
+export class SelectBoxList implements ISelectBoxDelegate, IVirtualDelegate<ISelectOptionItem> {
 
 	private static readonly DEFAULT_DROPDOWN_MINIMUM_BOTTOM_MARGIN = 32;
 

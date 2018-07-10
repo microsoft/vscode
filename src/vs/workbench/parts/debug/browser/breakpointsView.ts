@@ -23,7 +23,7 @@ import { basename } from 'vs/base/common/paths';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { Separator } from 'vs/base/browser/ui/actionbar/actionbar';
-import { IDelegate, IListContextMenuEvent, IRenderer } from 'vs/base/browser/ui/list/list';
+import { IVirtualDelegate, IListContextMenuEvent, IRenderer } from 'vs/base/browser/ui/list/list';
 import { IEditor } from 'vs/workbench/common/editor';
 import { InputBox } from 'vs/base/browser/ui/inputbox/inputBox';
 import { IKeyboardEvent } from 'vs/base/browser/keyboardEvent';
@@ -221,7 +221,7 @@ export class BreakpointsView extends ViewletPanel {
 	}
 }
 
-class BreakpointsDelegate implements IDelegate<IEnablement> {
+class BreakpointsDelegate implements IVirtualDelegate<IEnablement> {
 
 	constructor(private debugService: IDebugService) {
 		// noop
