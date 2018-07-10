@@ -26,7 +26,7 @@ import { DefaultPanelDndController } from 'vs/base/browser/ui/splitview/panelvie
 import { WorkbenchTree, IListService } from 'vs/platform/list/browser/listService';
 import { IWorkbenchThemeService, IFileIconTheme } from 'vs/workbench/services/themes/common/workbenchThemeService';
 import { ITreeConfiguration, ITreeOptions } from 'vs/base/parts/tree/browser/tree';
-import { latch, mapEvent, Emitter } from 'vs/base/common/event';
+import { latch, mapEvent } from 'vs/base/common/event';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IPartService } from 'vs/workbench/services/part/common/partService';
 import { localize } from 'vs/nls';
@@ -34,9 +34,6 @@ import { IAddedViewDescriptorRef, IViewDescriptorRef, PersistentContributableVie
 import { Registry } from 'vs/platform/registry/common/platform';
 
 export abstract class TreeViewsViewletPanel extends ViewletPanel {
-
-	private _onDidTabFocus = new Emitter<void>();
-	protected onDidTabFocus = this._onDidTabFocus.event;
 
 	private _tree: WorkbenchTree;
 	protected get tree(): WorkbenchTree { return this._tree; }
