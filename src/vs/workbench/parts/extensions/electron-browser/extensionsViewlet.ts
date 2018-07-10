@@ -58,6 +58,7 @@ import { ServiceCollection } from 'vs/platform/instantiation/common/serviceColle
 import { ExtensionsWorkbenchService } from 'vs/workbench/parts/extensions/node/extensionsWorkbenchService';
 import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
 import { SingleServerExtensionManagementServerService } from 'vs/workbench/services/extensions/node/extensionManagementServerService';
+import { Query } from 'vs/workbench/parts/extensions/common/extensionQuery';
 
 interface SearchInputEvent extends Event {
 	target: HTMLInputElement;
@@ -430,8 +431,12 @@ export class ExtensionsViewlet extends ViewContainerViewlet implements IExtensio
 			.done(null, err => this.onError(err));
 	}
 
+	private normalizedQuery(): string {
+		return (this.searchBox.value || '').replace(/@category/g, 'category').replace(/@tag:/g, 'tag:');
+	}
+
 	private doSearch(): TPromise<any> {
-		const value = this.searchBox.value || '';
+		const value = this.normalizedQuery();
 		this.searchExtensionsContextKey.set(!!value);
 		this.searchInstalledExtensionsContextKey.set(InstalledExtensionsView.isInstalledExtensionsQuery(value));
 		this.searchBuiltInExtensionsContextKey.set(ExtensionsListView.isBuiltInExtensionsQuery(value));
@@ -440,14 +445,14 @@ export class ExtensionsViewlet extends ViewContainerViewlet implements IExtensio
 		this.nonEmptyWorkspaceContextKey.set(this.contextService.getWorkbenchState() !== WorkbenchState.EMPTY);
 
 		if (value) {
-			return this.progress(TPromise.join(this.panels.map(view => (<ExtensionsListView>view).show(this.searchBox.value))));
+			return this.progress(TPromise.join(this.panels.map(view => (<ExtensionsListView>view).show(this.normalizedQuery()))));
 		}
 		return TPromise.as(null);
 	}
 
 	protected onDidAddViews(added: IAddedViewDescriptorRef[]): ViewletPanel[] {
 		const addedViews = super.onDidAddViews(added);
-		this.progress(TPromise.join(addedViews.map(addedView => (<ExtensionsListView>addedView).show(this.searchBox.value))));
+		this.progress(TPromise.join(addedViews.map(addedView => (<ExtensionsListView>addedView).show(this.normalizedQuery()))));
 		return addedViews;
 	}
 
@@ -474,54 +479,13 @@ export class ExtensionsViewlet extends ViewContainerViewlet implements IExtensio
 	}
 
 	private autoComplete(): void {
-		const commands = ['installed', 'outdated', 'enabled', 'disabled', 'builtin', 'recommended', 'sort', 'category', 'tag', 'ext'];
-		const refinements = {
-			'sort': ['installs', 'rating', 'name'],
-			'category': ['Programming Languages', 'Snippets', 'Linters', 'Themes', 'Debuggers', 'Formatters', 'Keymaps', 'SCM Providers', 'Other', 'Extension Packs', 'Language Packs']
-		};
+		let query = this.searchBox.value;
+		let wordStart = query.lastIndexOf(' ', this.searchBox.selectionStart - 1) + 1;
+		let wordEnd = query.indexOf(' ', this.searchBox.selectionStart);
+		if (wordEnd === -1) { wordEnd = query.length; }
 
-		const prefixMatch = (arr: string[] | undefined, prefix: string): string => {
-			let longestMatch = 0;
-			let bestMatch = prefix;
-			(arr || []).forEach(possible => {
-				let matchLength = 0;
-				for (let i = 0; i < prefix.length; i++) {
-					if (prefix[i] === possible[i]) {
-						matchLength++;
-					} else {
-						break;
-					}
-				}
-				if (matchLength > longestMatch) {
-					bestMatch = possible;
-				} else if (matchLength === longestMatch) {
-					bestMatch = prefix; // non-exclusive prefix match length, reset
-				}
-			});
-			return bestMatch;
-		};
-
-		let value = this.searchBox.value;
-		if (!value) { return; }
-
-		let wordStart = value.lastIndexOf(' ', this.searchBox.selectionStart - 1) + 1;
-
-		let wordEnd = value.indexOf(' ', this.searchBox.selectionStart);
-		if (wordEnd === -1) { wordEnd = value.length; }
-
-		let token = value.slice(wordStart, wordEnd);
-
-		const getBestMatch = (token: string): string => {
-			if (token[0] === '@') {
-				if (token.indexOf(':') > -1) {
-					let command = token.slice(1, token.indexOf(':'));
-					let refinement = token.slice(token.indexOf(':') + 1);
-					return `@${command}:${prefixMatch(refinements[command], refinement)}`;
-				} else {
-					console.log('gotta autocomplete this');
-				}
-			}
-		};
+		this.searchBox.value = query.slice(0, wordStart) + Query.autocomplete(query.slice(wordStart, wordEnd)) + query.slice(wordEnd);
+		this.triggerSearch(true);
 	}
 
 	private onEnter(): void {

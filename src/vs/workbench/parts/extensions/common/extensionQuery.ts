@@ -4,9 +4,65 @@
  *--------------------------------------------------------------------------------------------*/
 
 export class Query {
-
 	constructor(public value: string, public sortBy: string, public groupBy: string) {
 		this.value = value.trim();
+	}
+
+	static autocomplete(token: string): string {
+		const commands = ['installed', 'outdated', 'enabled', 'disabled', 'builtin', 'recommended', 'sort', 'category', 'tag', 'ext'];
+		const refinements = {
+			'sort': ['installs', 'rating', 'name'],
+			'category': ['programming languages', 'snippets', 'linters', 'themes', 'debuggers', 'formatters', 'keymaps', 'scm providers', 'other', 'extension packs', 'language packs'],
+			'tag': []
+		};
+
+		const prefixMatch = (arr: string[] | undefined, prefix: string): string | null => {
+			let longestMatch = 0;
+			let bestMatch: string | null = null;
+			(arr || []).forEach(possible => {
+				let matchLength = 0;
+				for (let i = 0; i < prefix.length; i++) {
+					if (prefix[i].toLowerCase() === possible[i].toLowerCase()) {
+						matchLength++;
+					} else {
+						break;
+					}
+				}
+				if (matchLength > longestMatch) {
+					bestMatch = possible;
+					longestMatch = matchLength;
+				} else if (matchLength === longestMatch) {
+					bestMatch = null; // non-exclusive prefix match, reset
+				}
+			});
+			return bestMatch;
+		};
+
+		if (token[0] === '@') {
+			if (token.indexOf(':') > -1) {
+				let command = token.slice(1, token.indexOf(':'));
+				let refinement = token.slice(token.indexOf(':') + 1);
+				let hadQuote = refinement[0] === '"';
+
+				if (hadQuote) { refinement = refinement.slice(1); }
+
+				let replacement = prefixMatch(refinements[command], refinement);
+				if (replacement) {
+					if (replacement.indexOf(' ') > -1 || hadQuote) {
+						return `@${command}:"${replacement}"`;
+					} else {
+						return `@${command}:${replacement}`;
+					}
+				}
+			} else {
+				let replacement = prefixMatch(commands, token.slice(1));
+				if (replacement) {
+					return '@' + replacement + (refinements[replacement] ? ':' : '');
+				}
+			}
+		}
+
+		return token;
 	}
 
 	static parse(value: string): Query {
