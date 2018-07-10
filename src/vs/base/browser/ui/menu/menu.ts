@@ -321,7 +321,7 @@ class SubmenuActionItem extends MenuActionItem {
 	}
 
 	private createSubmenu() {
-		if (!this.parentData.submenu) {
+		if (!this.parentData.submenu && this.builder) {
 			this.submenuContainer = $(this.builder).div({ class: 'monaco-submenu menubar-menu-items-holder context-view' });
 
 			$(this.submenuContainer).style({
