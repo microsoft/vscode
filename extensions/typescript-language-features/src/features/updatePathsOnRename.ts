@@ -83,15 +83,19 @@ export class UpdateImportsOnFileRenameHandler {
 		this.client.bufferSyncSupport.closeResource(targetResource);
 		this.client.bufferSyncSupport.openTextDocument(document);
 
-		if (!this.client.apiVersion.gte(API.v300)) {
+		if (!this.client.apiVersion.gte(API.v300) && !fs.lstatSync(newResource.fsPath).isDirectory()) {
 			// Workaround for https://github.com/Microsoft/vscode/issues/52967
 			// Never attempt to update import paths if the file does not contain something the looks like an export
-			const tree = await this.client.execute('navtree', { file: newFile });
-			const hasExport = (node: Proto.NavigationTree): boolean => {
-				return !!node.kindModifiers.match(/\bexports?\b/g) || !!(node.childItems && node.childItems.some(hasExport));
-			};
-			if (!tree.body || !tree.body || !hasExport(tree.body)) {
-				return;
+			try {
+				const tree = await this.client.execute('navtree', { file: newFile });
+				const hasExport = (node: Proto.NavigationTree): boolean => {
+					return !!node.kindModifiers.match(/\bexports?\b/g) || !!(node.childItems && node.childItems.some(hasExport));
+				};
+				if (!tree.body || !tree.body || !hasExport(tree.body)) {
+					return;
+				}
+			} catch {
+				// noop
 			}
 		}
 
