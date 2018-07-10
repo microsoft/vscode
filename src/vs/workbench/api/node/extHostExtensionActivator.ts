@@ -237,39 +237,35 @@ export class ExtensionsActivator {
 	 * semantics: `redExtensions` must wait for `greenExtensions`.
 	 */
 	private _handleActivateRequest(currentExtension: IExtensionDescription, greenExtensions: { [id: string]: IExtensionDescription; }, redExtensions: IExtensionDescription[]): void {
-		let dependencies = (typeof currentExtension.extensionDependencies === 'undefined' ? [] : currentExtension.extensionDependencies);
+		let depIds = (typeof currentExtension.extensionDependencies === 'undefined' ? [] : currentExtension.extensionDependencies);
 		let currentExtensionGetsGreenLight = true;
 
-		for (let j = 0, lenJ = dependencies.length; j < lenJ; j++) {
-			const dependency = dependencies[j];
-			const depId: string = typeof dependency === 'string' ? dependency : dependency.optional ? null : dependency.id;
+		for (let j = 0, lenJ = depIds.length; j < lenJ; j++) {
+			let depId = depIds[j];
+			let depDesc = this._registry.getExtensionDescription(depId);
 
-			if (depId) {
-				let depDesc = this._registry.getExtensionDescription(depId);
+			if (!depDesc) {
+				// Error condition 1: unknown dependency
+				this._host.showMessage(Severity.Error, nls.localize('unknownDep', "Extension '{1}' failed to activate. Reason: unknown dependency '{0}'.", depId, currentExtension.id));
+				const error = new Error(`Unknown dependency '${depId}'`);
+				this._activatedExtensions[currentExtension.id] = new FailedExtension(error);
+				return;
+			}
 
-				if (!depDesc) {
-					// Error condition 1: unknown dependency
-					this._host.showMessage(Severity.Error, nls.localize('unknownDep', "Extension '{1}' failed to activate. Reason: unknown dependency '{0}'.", depId, currentExtension.id));
-					const error = new Error(`Unknown dependency '${depId}'`);
+			if (hasOwnProperty.call(this._activatedExtensions, depId)) {
+				let dep = this._activatedExtensions[depId];
+				if (dep.activationFailed) {
+					// Error condition 2: a dependency has already failed activation
+					this._host.showMessage(Severity.Error, nls.localize('failedDep1', "Extension '{1}' failed to activate. Reason: dependency '{0}' failed to activate.", depId, currentExtension.id));
+					const error = new Error(`Dependency ${depId} failed to activate`);
+					(<any>error).detail = dep.activationFailedError;
 					this._activatedExtensions[currentExtension.id] = new FailedExtension(error);
 					return;
 				}
-
-				if (hasOwnProperty.call(this._activatedExtensions, depId)) {
-					let dep = this._activatedExtensions[depId];
-					if (dep.activationFailed) {
-						// Error condition 2: a dependency has already failed activation
-						this._host.showMessage(Severity.Error, nls.localize('failedDep1', "Extension '{1}' failed to activate. Reason: dependency '{0}' failed to activate.", depId, currentExtension.id));
-						const error = new Error(`Dependency ${depId} failed to activate`);
-						(<any>error).detail = dep.activationFailedError;
-						this._activatedExtensions[currentExtension.id] = new FailedExtension(error);
-						return;
-					}
-				} else {
-					// must first wait for the dependency to activate
-					currentExtensionGetsGreenLight = false;
-					greenExtensions[depId] = depDesc;
-				}
+			} else {
+				// must first wait for the dependency to activate
+				currentExtensionGetsGreenLight = false;
+				greenExtensions[depId] = depDesc;
 			}
 		}
 

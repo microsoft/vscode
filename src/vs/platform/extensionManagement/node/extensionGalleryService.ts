@@ -9,7 +9,7 @@ import * as path from 'path';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { distinct } from 'vs/base/common/arrays';
 import { getErrorMessage, isPromiseCanceledError } from 'vs/base/common/errors';
-import { StatisticType, IGalleryExtension, IExtensionGalleryService, IGalleryExtensionAsset, IQueryOptions, SortBy, SortOrder, IExtensionManifest, IExtensionIdentifier, IReportedExtension, InstallOperation, ITranslation, IExtensionDependency } from 'vs/platform/extensionManagement/common/extensionManagement';
+import { StatisticType, IGalleryExtension, IExtensionGalleryService, IGalleryExtensionAsset, IQueryOptions, SortBy, SortOrder, IExtensionManifest, IExtensionIdentifier, IReportedExtension, InstallOperation, ITranslation } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { getGalleryExtensionId, getGalleryExtensionTelemetryData, adoptToGalleryExtensionId } from 'vs/platform/extensionManagement/common/extensionManagementUtil';
 import { assign, getOrDefault } from 'vs/base/common/objects';
 import { IRequestService } from 'vs/platform/request/node/request';
@@ -262,18 +262,10 @@ function getVersionAsset(version: IRawGalleryExtensionVersion, type: string): IG
 	};
 }
 
-function getDependencies(version: IRawGalleryExtensionVersion): IExtensionDependency[] {
+function getDependencies(version: IRawGalleryExtensionVersion): string[] {
 	const values = version.properties ? version.properties.filter(p => p.key === PropertyType.Dependency) : [];
 	const value = values.length > 0 && values[0].value;
-	return value ? value.split(',').map(v => {
-		let dependency: IExtensionDependency;
-		try {
-			dependency = JSON.parse(v);
-		} catch (e) {
-			dependency = <IExtensionDependency>{ id: v, optional: false };
-		}
-		return <IExtensionDependency>{ id: adoptToGalleryExtensionId(dependency.id), optional: dependency.optional };
-	}) : [];
+	return value ? value.split(',').map(v => adoptToGalleryExtensionId(v)) : [];
 }
 
 function getEngine(version: IRawGalleryExtensionVersion): string {
@@ -629,7 +621,7 @@ export class ExtensionGalleryService implements IExtensionGalleryService {
 				const dependenciesSet = new Set<string>();
 				for (const dep of loadedDependencies) {
 					if (dep.properties.dependencies) {
-						dep.properties.dependencies.forEach(d => dependenciesSet.add(d.id));
+						dep.properties.dependencies.forEach(d => dependenciesSet.add(d));
 					}
 				}
 				result = distinct(result.concat(loadedDependencies), d => d.identifier.uuid);

@@ -387,8 +387,8 @@ class ExtensionManifestValidator extends ExtensionManifestHandler {
 			return false;
 		}
 		if (typeof extensionDescription.extensionDependencies !== 'undefined') {
-			if (!ExtensionManifestValidator._isExtensionDependencyArray(extensionDescription.extensionDependencies)) {
-				notices.push(nls.localize('extensionDescription.extensionDependencies', "property `{0}` can be omitted or must be an array of type `string` or `{id: string, optional: boolean}`", 'extensionDependencies'));
+			if (!ExtensionManifestValidator._isStringArray(extensionDescription.extensionDependencies)) {
+				notices.push(nls.localize('extensionDescription.extensionDependencies', "property `{0}` can be omitted or must be of type `string[]`", 'extensionDependencies'));
 				return false;
 			}
 		}
@@ -429,26 +429,6 @@ class ExtensionManifestValidator extends ExtensionManifestHandler {
 		for (let i = 0, len = arr.length; i < len; i++) {
 			if (typeof arr[i] !== 'string') {
 				return false;
-			}
-		}
-		return true;
-	}
-
-	private static _isExtensionDependencyArray(arr: any[]): boolean {
-		if (!Array.isArray(arr)) {
-			return false;
-		}
-		for (let i = 0, len = arr.length; i < len; i++) {
-			if (typeof arr[i] !== 'string') {
-				if (typeof arr[i] !== 'object') {
-					return false;
-				}
-				if (typeof arr[i]['id'] !== 'string') {
-					return false;
-				}
-				if (typeof arr[i]['optional'] !== 'undefined' && typeof arr[i]['optional'] !== 'boolean') {
-					return false;
-				}
 			}
 		}
 		return true;
