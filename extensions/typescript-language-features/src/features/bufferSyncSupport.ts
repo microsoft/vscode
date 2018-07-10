@@ -11,6 +11,7 @@ import API from '../utils/api';
 import { Delayer } from '../utils/async';
 import { disposeAll } from '../utils/dispose';
 import * as languageModeIds from '../utils/languageModeIds';
+import * as typeConverters from '../utils/typeConverters';
 import { ResourceMap } from './resourceMap';
 
 enum BufferKind {
@@ -96,12 +97,8 @@ class SyncedBuffer {
 	public onContentChanged(events: TextDocumentContentChangeEvent[]): void {
 		for (const { range, text } of events) {
 			const args: Proto.ChangeRequestArgs = {
-				file: this.filepath,
-				line: range.start.line + 1,
-				offset: range.start.character + 1,
-				endLine: range.end.line + 1,
-				endOffset: range.end.character + 1,
-				insertString: text
+				insertString: text,
+				...typeConverters.Range.toFormattingRequestArgs(this.filepath, range)
 			};
 			this.client.execute('change', args, false);
 		}
