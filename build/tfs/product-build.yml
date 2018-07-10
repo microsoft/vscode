@@ -7,7 +7,6 @@ phases:
   steps:
   - template: win32/product-build-win32.yml
 
-phases:
 - phase: Windows32
   condition: eq(variables['VSCODE_BUILD_WIN32_32BIT'], 'true')
   queue: Hosted VS2017
