@@ -322,6 +322,12 @@ export class ListView<T> implements ISpliceable<T>, IDisposable {
 			throw new Error(`Got index ${index} and there are ${this.items.length} items. File issue to joao!`);
 		}
 
+		const renderer = this.renderers.get(item.templateId);
+
+		if (renderer.disposeElement) {
+			renderer.disposeElement(item.element, index, item.row.templateData);
+		}
+
 		this.cache.release(item.row);
 		item.row = null;
 	}
