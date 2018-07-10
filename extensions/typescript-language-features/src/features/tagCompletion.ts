@@ -57,6 +57,11 @@ class TagClosing {
 			return;
 		}
 
+		const secondToLastCharacter = lastChange.text[lastChange.text.length - 2];
+		if (secondToLastCharacter === '>') {
+			return;
+		}
+
 		const rangeStart = lastChange.range.start;
 		const version = document.version;
 		this.timeout = setTimeout(async () => {
