@@ -585,6 +585,9 @@ export class SearchView extends Viewlet implements IViewlet, IPanel {
 			let treeHasFocus = false;
 			this.tree.onDidFocus(() => {
 				treeHasFocus = true;
+				if (this.tree && !this.tree.getFocus()) {
+					this.tree.setFocus(this.tree.getFirstVisibleElement());
+				}
 			});
 
 			this._register(this.tree.onDidChangeFocus((e: IFocusEvent) => {
