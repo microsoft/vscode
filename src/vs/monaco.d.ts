@@ -3242,6 +3242,7 @@ declare namespace monaco.editor {
 		readonly emptySelectionClipboard: boolean;
 		readonly layoutInfo: EditorLayoutInfo;
 		readonly fontInfo: FontInfo;
+		readonly codeLensFontInfo: FontInfo;
 		readonly viewInfo: InternalEditorViewOptions;
 		readonly wrappingInfo: EditorWrappingInfo;
 		readonly contribInfo: EditorContribOptions;
@@ -3380,6 +3381,7 @@ declare namespace monaco.editor {
 		readonly emptySelectionClipboard: boolean;
 		readonly layoutInfo: boolean;
 		readonly fontInfo: boolean;
+		readonly codeLensFontInfo: boolean;
 		readonly viewInfo: boolean;
 		readonly wrappingInfo: boolean;
 		readonly contribInfo: boolean;

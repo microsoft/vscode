@@ -1004,6 +1004,7 @@ export class InternalEditorOptions {
 	// ---- grouped options
 	readonly layoutInfo: EditorLayoutInfo;
 	readonly fontInfo: FontInfo;
+	readonly codeLensFontInfo: FontInfo;
 	readonly viewInfo: InternalEditorViewOptions;
 	readonly wrappingInfo: EditorWrappingInfo;
 	readonly contribInfo: EditorContribOptions;
@@ -1029,6 +1030,7 @@ export class InternalEditorOptions {
 		emptySelectionClipboard: boolean;
 		layoutInfo: EditorLayoutInfo;
 		fontInfo: FontInfo;
+		codeLensFontInfo: FontInfo;
 		viewInfo: InternalEditorViewOptions;
 		wrappingInfo: EditorWrappingInfo;
 		contribInfo: EditorContribOptions;
@@ -1051,6 +1053,7 @@ export class InternalEditorOptions {
 		this.emptySelectionClipboard = source.emptySelectionClipboard;
 		this.layoutInfo = source.layoutInfo;
 		this.fontInfo = source.fontInfo;
+		this.codeLensFontInfo = source.codeLensFontInfo;
 		this.viewInfo = source.viewInfo;
 		this.wrappingInfo = source.wrappingInfo;
 		this.contribInfo = source.contribInfo;
@@ -1080,6 +1083,7 @@ export class InternalEditorOptions {
 			&& this.emptySelectionClipboard === other.emptySelectionClipboard
 			&& InternalEditorOptions._equalsLayoutInfo(this.layoutInfo, other.layoutInfo)
 			&& this.fontInfo.equals(other.fontInfo)
+			&& this.codeLensFontInfo.equals(other.codeLensFontInfo)
 			&& InternalEditorOptions._equalsViewOptions(this.viewInfo, other.viewInfo)
 			&& InternalEditorOptions._equalsWrappingInfo(this.wrappingInfo, other.wrappingInfo)
 			&& InternalEditorOptions._equalsContribOptions(this.contribInfo, other.contribInfo)
@@ -1108,6 +1112,7 @@ export class InternalEditorOptions {
 			emptySelectionClipboard: (this.emptySelectionClipboard !== newOpts.emptySelectionClipboard),
 			layoutInfo: (!InternalEditorOptions._equalsLayoutInfo(this.layoutInfo, newOpts.layoutInfo)),
 			fontInfo: (!this.fontInfo.equals(newOpts.fontInfo)),
+			codeLensFontInfo: (!this.codeLensFontInfo.equals(newOpts.codeLensFontInfo)),
 			viewInfo: (!InternalEditorOptions._equalsViewOptions(this.viewInfo, newOpts.viewInfo)),
 			wrappingInfo: (!InternalEditorOptions._equalsWrappingInfo(this.wrappingInfo, newOpts.wrappingInfo)),
 			contribInfo: (!InternalEditorOptions._equalsContribOptions(this.contribInfo, newOpts.contribInfo))
@@ -1479,6 +1484,7 @@ export interface IConfigurationChangedEvent {
 	readonly emptySelectionClipboard: boolean;
 	readonly layoutInfo: boolean;
 	readonly fontInfo: boolean;
+	readonly codeLensFontInfo: boolean;
 	readonly viewInfo: boolean;
 	readonly wrappingInfo: boolean;
 	readonly contribInfo: boolean;
@@ -1491,6 +1497,7 @@ export interface IEnvironmentalOptions {
 	readonly outerWidth: number;
 	readonly outerHeight: number;
 	readonly fontInfo: FontInfo;
+	readonly codeLensFontInfo: FontInfo;
 	readonly extraEditorClassName: string;
 	readonly isDominatedByLongLines: boolean;
 	readonly lineNumbersDigitCount: number;
@@ -2167,6 +2174,7 @@ export class InternalEditorOptionsFactory {
 			emptySelectionClipboard: opts.emptySelectionClipboard && env.emptySelectionClipboard,
 			layoutInfo: layoutInfo,
 			fontInfo: env.fontInfo,
+			codeLensFontInfo: env.codeLensFontInfo,
 			viewInfo: opts.viewInfo,
 			wrappingInfo: wrappingInfo,
 			contribInfo: opts.contribInfo,

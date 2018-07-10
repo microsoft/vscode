@@ -23,30 +23,32 @@ import { INotificationService } from 'vs/platform/notification/common/notificati
 
 class CodeLensViewZone implements editorBrowser.IViewZone {
 
-	readonly heightInLines: number;
+	readonly heightInPx: number;
 	readonly suppressMouseDown: boolean;
 	readonly domNode: HTMLElement;
 
 	afterLineNumber: number;
 
 	private _lastHeight: number;
-	private _onHeight: Function;
+	private _onUpdate: Function;
 
-	constructor(afterLineNumber: number, onHeight: Function) {
+	constructor(afterLineNumber: number, _onUpdate: Function, initialHeightInPx: number) {
+		console.log('CodeLensViewZone constructor', initialHeightInPx);
 		this.afterLineNumber = afterLineNumber;
-		this._onHeight = onHeight;
+		this._onUpdate = _onUpdate;
 
-		this.heightInLines = 1;
+		this.heightInPx = initialHeightInPx;
 		this.suppressMouseDown = true;
 		this.domNode = document.createElement('div');
 	}
 
 	onComputedHeight(height: number): void {
+		console.log('CodeLensViewZone onComputedHeight', this._lastHeight, height);
 		if (this._lastHeight === undefined) {
 			this._lastHeight = height;
 		} else if (this._lastHeight !== height) {
 			this._lastHeight = height;
-			this._onHeight();
+			this._onUpdate();
 		}
 	}
 }
@@ -66,6 +68,7 @@ class CodeLensContentWidget implements editorBrowser.IContentWidget {
 
 	private _widgetPosition: editorBrowser.IContentWidgetPosition;
 	private _commands: { [id: string]: Command } = Object.create(null);
+	private _heightInPx: number;
 
 	constructor(
 		editor: editorBrowser.ICodeEditor,
@@ -107,12 +110,21 @@ class CodeLensContentWidget implements editorBrowser.IContentWidget {
 		dispose(this._disposables);
 	}
 
+	public get heightInPx() {
+		return this._heightInPx;
+	}
+
 	private _updateHeight(): void {
-		const { fontInfo, lineHeight } = this._editor.getConfiguration();
-		this._domNode.style.height = `${Math.round(lineHeight * 1.1)}px`;
-		this._domNode.style.lineHeight = `${lineHeight}px`;
-		this._domNode.style.fontSize = `${Math.round(fontInfo.fontSize * .9)}px`;
+		// TODO: Make sure this can be set and is read correctly
+		const { codeLensFontInfo } = this._editor.getConfiguration();
+		console.log('_updateHeight codeLensFontInfo', codeLensFontInfo);
+		const heightInPx = Math.round(codeLensFontInfo.lineHeight);
+		this._domNode.style.height = `${heightInPx}px`;
+		this._domNode.style.lineHeight = `${codeLensFontInfo.lineHeight}px`;
+		this._domNode.style.fontSize = `${Math.round(codeLensFontInfo.fontSize)}px`;
 		this._domNode.innerHTML = '&nbsp;';
+		this._heightInPx = heightInPx;
+		console.log('CodeLensContentWidget _heightInPx', this._heightInPx);
 	}
 
 	updateVisibility(): void {
@@ -221,8 +233,9 @@ export class CodeLens {
 		helper: CodeLensHelper,
 		viewZoneChangeAccessor: editorBrowser.IViewZoneChangeAccessor,
 		commandService: ICommandService, notificationService: INotificationService,
-		updateCallabck: Function
+		updateCallback: Function
 	) {
+		console.log('CodeLens constructor');
 		this._editor = editor;
 		this._data = data;
 		this._decorationIds = new Array<string>(this._data.length);
@@ -244,7 +257,7 @@ export class CodeLens {
 		});
 
 		this._contentWidget = new CodeLensContentWidget(editor, range, commandService, notificationService);
-		this._viewZone = new CodeLensViewZone(range.startLineNumber - 1, updateCallabck);
+		this._viewZone = new CodeLensViewZone(range.startLineNumber - 1, updateCallback, this._contentWidget.heightInPx);
 
 		this._viewZoneId = viewZoneChangeAccessor.addZone(this._viewZone);
 		this._editor.addContentWidget(this._contentWidget);

@@ -123,10 +123,13 @@ export abstract class CommonEditorConfiguration extends Disposable implements ed
 		const opts = this._validatedOptions;
 		const partialEnv = this._getEnvConfiguration();
 		const bareFontInfo = BareFontInfo.createFromRawSettings(this._rawOptions, partialEnv.zoomLevel);
+		// TODO: Figure out how to continue here
+		const bareCodeLensFontInfo = BareFontInfo.createFromRawSettings(this._rawOptions, partialEnv.zoomLevel);
 		const env: editorOptions.IEnvironmentalOptions = {
 			outerWidth: partialEnv.outerWidth,
 			outerHeight: partialEnv.outerHeight,
 			fontInfo: this.readConfiguration(bareFontInfo),
+			codeLensFontInfo: this.readConfiguration(bareCodeLensFontInfo),
 			extraEditorClassName: partialEnv.extraEditorClassName,
 			isDominatedByLongLines: this._isDominatedByLongLines,
 			lineNumbersDigitCount: this._lineNumbersDigitCount,
