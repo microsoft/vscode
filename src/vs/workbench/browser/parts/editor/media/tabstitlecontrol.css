@@ -252,4 +252,11 @@
 	cursor: default;
 	flex: initial;
 	padding-left: 4px;
+	height: 35px;
+}
+
+/* Breadcrumbs */
+
+.monaco-workbench > .part.editor > .content .editor-group-container > .title .breadcrumbs-control {
+	flex: 1 100%;
 }

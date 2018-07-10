@@ -44,8 +44,8 @@
 
 .monaco-workbench > .part.editor > .content .editor-group-container > .title {
 	position: relative;
-	height: 35px;
 	display: flex;
+	flex-wrap: wrap;
 	box-sizing:	border-box;
 	overflow: hidden;
 }
