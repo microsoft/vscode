@@ -115,10 +115,6 @@ export class Tree implements _.ITree {
 		return this.view && this.view.onDOMFocus;
 	}
 
-	get onDidClick(): Event<void> {
-		return this.view && this.view.onDOMClick;
-	}
-
 	get onDidBlur(): Event<void> {
 		return this.view && this.view.onDOMBlur;
 	}
