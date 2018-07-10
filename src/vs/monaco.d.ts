@@ -2967,6 +2967,10 @@ declare namespace monaco.editor {
 		 * Controls fading out of unused variables.
 		 */
 		showUnused?: boolean;
+		/**
+		 * Controls whether editors should be focused on hover.
+		 */
+		focusOnHover?: boolean;
 	}
 
 	/**
@@ -3218,6 +3222,7 @@ declare namespace monaco.editor {
 		readonly lightbulbEnabled: boolean;
 		readonly codeActionsOnSave: ICodeActionsOnSaveOptions;
 		readonly codeActionsOnSaveTimeout: number;
+		readonly focusOnHover: boolean;
 	}
 
 	/**

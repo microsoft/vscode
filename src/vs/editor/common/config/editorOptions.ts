@@ -625,6 +625,10 @@ export interface IEditorOptions {
 	 * Controls fading out of unused variables.
 	 */
 	showUnused?: boolean;
+	/**
+	 * Controls whether editors should be focused on hover.
+	 */
+	focusOnHover?: boolean;
 }
 
 /**
@@ -936,6 +940,7 @@ export interface EditorContribOptions {
 	readonly lightbulbEnabled: boolean;
 	readonly codeActionsOnSave: ICodeActionsOnSaveOptions;
 	readonly codeActionsOnSaveTimeout: number;
+	readonly focusOnHover: boolean;
 }
 
 /**
@@ -1315,6 +1320,7 @@ export class InternalEditorOptions {
 			&& objects.equals(a.codeActionsOnSave, b.codeActionsOnSave)
 			&& a.codeActionsOnSaveTimeout === b.codeActionsOnSaveTimeout
 			&& a.lightbulbEnabled === b.lightbulbEnabled
+			&& a.focusOnHover === b.focusOnHover
 		);
 	}
 
@@ -1676,7 +1682,7 @@ export class EditorOptionsValidator {
 			accessibilitySupport: _stringSet<'auto' | 'on' | 'off'>(opts.accessibilitySupport, defaults.accessibilitySupport, ['auto', 'on', 'off']),
 			showUnused: _boolean(opts.showUnused, defaults.showUnused),
 			viewInfo: viewInfo,
-			contribInfo: contribInfo,
+			contribInfo: contribInfo
 		};
 	}
 
@@ -1909,7 +1915,8 @@ export class EditorOptionsValidator {
 			colorDecorators: _boolean(opts.colorDecorators, defaults.colorDecorators),
 			lightbulbEnabled: _boolean(opts.lightbulb ? opts.lightbulb.enabled : false, defaults.lightbulbEnabled),
 			codeActionsOnSave: _booleanMap(opts.codeActionsOnSave, {}),
-			codeActionsOnSaveTimeout: _clampedInt(opts.codeActionsOnSaveTimeout, defaults.codeActionsOnSaveTimeout, 1, 10000)
+			codeActionsOnSaveTimeout: _clampedInt(opts.codeActionsOnSaveTimeout, defaults.codeActionsOnSaveTimeout, 1, 10000),
+			focusOnHover: _boolean(opts.focusOnHover, defaults.focusOnHover)
 		};
 	}
 }
@@ -2017,7 +2024,8 @@ export class InternalEditorOptionsFactory {
 				colorDecorators: opts.contribInfo.colorDecorators,
 				lightbulbEnabled: opts.contribInfo.lightbulbEnabled,
 				codeActionsOnSave: opts.contribInfo.codeActionsOnSave,
-				codeActionsOnSaveTimeout: opts.contribInfo.codeActionsOnSaveTimeout
+				codeActionsOnSaveTimeout: opts.contribInfo.codeActionsOnSaveTimeout,
+				focusOnHover: opts.contribInfo.focusOnHover
 			}
 		};
 	}
@@ -2496,6 +2504,7 @@ export const EDITOR_DEFAULTS: IValidatedEditorOptions = {
 		colorDecorators: true,
 		lightbulbEnabled: true,
 		codeActionsOnSave: {},
-		codeActionsOnSaveTimeout: 750
+		codeActionsOnSaveTimeout: 750,
+		focusOnHover: false
 	},
 };

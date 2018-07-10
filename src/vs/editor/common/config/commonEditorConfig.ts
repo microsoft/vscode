@@ -784,6 +784,11 @@ const editorConfiguration: IConfigurationNode = {
 			'default': EDITOR_MODEL_DEFAULTS.largeFileOptimizations,
 			'description': nls.localize('largeFileOptimizations', "Special handling for large files to disable certain memory intensive features.")
 		},
+		'editor.focusOnHover': {
+			'type': 'boolean',
+			'default': false,
+			'description': nls.localize('focusOnHover', 'Controls if editors should be focused when hovered.')
+		},
 		'diffEditor.renderIndicators': {
 			'type': 'boolean',
 			'default': true,
