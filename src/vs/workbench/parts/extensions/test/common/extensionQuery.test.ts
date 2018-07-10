@@ -155,7 +155,7 @@ suite('Extension query', () => {
 		assert.equal(Query.autocomplete('@s'), '@sort:');
 		assert.equal(Query.autocomplete('@i'), '@installed');
 		assert.equal(Query.autocomplete('@ins'), '@installed');
-		assert.equal(Query.autocomplete('@ca'), '@category');
+		assert.equal(Query.autocomplete('@ca'), '@category:');
 		assert.equal(Query.autocomplete('@en'), '@enabled');
 		assert.equal(Query.autocomplete('@ex'), '@ext');
 
