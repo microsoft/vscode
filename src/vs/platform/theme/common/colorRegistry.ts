@@ -223,6 +223,9 @@ export const scrollbarSliderActiveBackground = registerColor('scrollbarSlider.ac
 
 export const progressBarBackground = registerColor('progressBar.background', { dark: Color.fromHex('#0E70C0'), light: Color.fromHex('#0E70C0'), hc: contrastBorder }, nls.localize('progressBarBackground', "Background color of the progress bar that can show for long running operations."));
 
+export const breadcrumbsForegound = registerColor('breadcrumb.focusForeground', { light: Color.fromHex('#6C6C6C').transparent(.7), dark: Color.fromHex('#CCCCCC;').transparent(.7), hc: Color.white }, nls.localize('breadcrumbsFocusForeground', "Color of focused breadcrumb items."));
+export const breadcrumbsFocusedForegound = registerColor('breadcrumb.breadcrumbsFocusedForegound', { light: '#6C6C6C', dark: '#CCCCCC;', hc: Color.white }, nls.localize('breadcrumbsFocusForeground', "Color of focused breadcrumb items."));
+
 /**
  * Editor background color.
  * Because of bug https://monacotools.visualstudio.com/DefaultCollection/Monaco/_workitems/edit/13254

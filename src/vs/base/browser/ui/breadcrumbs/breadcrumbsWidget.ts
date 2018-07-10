@@ -44,8 +44,8 @@ export class SimpleBreadcrumbsItem extends BreadcrumbsItem {
 
 export interface IBreadcrumbsWidgetStyles {
 	breadcrumbsBackground?: Color;
-	breadcrumbsActiveForeground?: Color;
-	breadcrumbsInactiveForeground?: Color;
+	breadcrumbsForeground?: Color;
+	breadcrumbsFocusedForeground?: Color;
 }
 
 export interface IBreadcrumbsItemEvent {
@@ -123,11 +123,11 @@ export class BreadcrumbsWidget {
 		if (style.breadcrumbsBackground) {
 			content += `.monaco-breadcrumbs { background-color: ${style.breadcrumbsBackground}}`;
 		}
-		if (style.breadcrumbsActiveForeground) {
-			content += `.monaco-breadcrumbs:focus .monaco-breadcrumb-item { color: ${style.breadcrumbsActiveForeground}}\n`;
+		if (style.breadcrumbsForeground) {
+			content += `.monaco-breadcrumbs .monaco-breadcrumb-item { color: ${style.breadcrumbsForeground}}\n`;
 		}
-		if (style.breadcrumbsInactiveForeground) {
-			content += `.monaco-breadcrumbs .monaco-breadcrumb-item { color: ${style.breadcrumbsInactiveForeground}}\n`;
+		if (style.breadcrumbsFocusedForeground) {
+			content += `.monaco-breadcrumbs .monaco-breadcrumb-item.focused { color: ${style.breadcrumbsFocusedForeground}}\n`;
 		}
 		if (this._styleElement.innerHTML !== content) {
 			this._styleElement.innerHTML = content;

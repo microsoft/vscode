@@ -35,6 +35,3 @@
 	background-image: url(./collpased-dark.svg);
 }
 
-.monaco-breadcrumbs .monaco-breadcrumb-item.focused {
-	font-weight: bold;
-}
