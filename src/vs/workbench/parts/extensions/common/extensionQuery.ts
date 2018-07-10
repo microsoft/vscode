@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 export class Query {
+
 	constructor(public value: string, public sortBy: string, public groupBy: string) {
 		this.value = value.trim();
 	}
