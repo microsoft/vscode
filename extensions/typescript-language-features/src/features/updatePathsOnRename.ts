@@ -209,7 +209,12 @@ export class UpdateImportsOnFileRenameHandler {
 			return undefined;
 		}
 
-		if (this.client.apiVersion.gte(API.v292) && fs.lstatSync(resource.fsPath).isDirectory()) {
+		const isDirectory = fs.lstatSync(resource.fsPath).isDirectory();
+		if (isDirectory && this.client.apiVersion.gte(API.v300)) {
+			return resource;
+		}
+
+		if (isDirectory && this.client.apiVersion.gte(API.v292)) {
 			const files = await vscode.workspace.findFiles({
 				base: resource.fsPath,
 				pattern: '**/*.{ts,tsx,js,jsx}',
