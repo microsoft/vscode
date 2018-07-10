@@ -64,6 +64,7 @@ export class VariablesView extends TreeViewsViewletPanel {
 
 			this.needsRefresh = false;
 			this.tree.refresh().then(() => {
+				this.focusFirstIfNoFocus();
 				const stackFrame = this.debugService.getViewModel().focusedStackFrame;
 				return sequence(this.expandedElements.map(e => () => this.tree.expand(e))).then(() => {
 					// If there is no preserved expansion state simply expand the first scope
@@ -99,7 +100,7 @@ export class VariablesView extends TreeViewsViewletPanel {
 
 		const viewModel = this.debugService.getViewModel();
 
-		this.tree.setInput(viewModel);
+		this.setInput(viewModel);
 
 		const collapseAction = new CollapseAction(this.tree, false, 'explorer-action collapse-explorer');
 		this.toolbar.setActions([collapseAction])();

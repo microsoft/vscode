@@ -82,7 +82,7 @@ export class CallStackView extends TreeViewsViewletPanel {
 			}
 
 			this.needsRefresh = false;
-			(this.tree.getInput() === newTreeInput ? this.tree.refresh() : this.tree.setInput(newTreeInput))
+			(this.tree.getInput() === newTreeInput ? this.tree.refresh() : this.setInput(newTreeInput))
 				.done(() => this.updateTreeSelection(), errors.onUnexpectedError);
 		}, 50);
 	}

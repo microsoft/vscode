@@ -77,7 +77,7 @@ export class WatchExpressionsView extends TreeViewsViewletPanel {
 
 		CONTEXT_WATCH_EXPRESSIONS_FOCUSED.bindTo(this.tree.contextKeyService);
 
-		this.tree.setInput(this.debugService.getModel());
+		this.setInput(this.debugService.getModel());
 
 		const addWatchExpressionAction = new AddWatchExpressionAction(AddWatchExpressionAction.ID, AddWatchExpressionAction.LABEL, this.debugService, this.keybindingService);
 		const collapseAction = new CollapseAction(this.tree, true, 'explorer-action collapse-explorer');
