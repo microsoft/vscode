@@ -278,6 +278,10 @@ export class NotificationRenderer implements IRenderer<INotificationViewItem, IN
 		data.renderer.setInput(notification);
 	}
 
+	disposeElement(): void {
+		// noop
+	}
+
 	disposeTemplate(templateData: INotificationTemplateData): void {
 		templateData.toDispose = dispose(templateData.toDispose);
 	}

@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import 'vs/css!./tree';
-import { IDisposable, dispose, Disposable, toDisposable } from 'vs/base/common/lifecycle';
+import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { IListOptions, List, IIdentityProvider, IMultipleSelectionController } from 'vs/base/browser/ui/list/listWidget';
 import { TreeModel, ITreeNode, ITreeElement, getNodeLocation } from 'vs/base/browser/ui/tree/treeModel';
 import { IIterator, empty } from 'vs/base/common/iterator';
@@ -60,7 +60,6 @@ class TreeDelegate<T> implements IDelegate<ITreeNode<T>> {
 
 interface ITreeListTemplateData<T> {
 	twistie: HTMLElement;
-	elementDisposable: IDisposable;
 	templateData: T;
 }
 
@@ -92,19 +91,20 @@ class TreeRenderer<T, TTemplateData> implements IRenderer<ITreeNode<T>, ITreeLis
 		const contents = append(el, $('.tl-contents'));
 		const templateData = this.renderer.renderTemplate(contents);
 
-		return { twistie, elementDisposable: Disposable.None, templateData };
+		return { twistie, templateData };
 	}
 
 	renderElement(node: ITreeNode<T>, index: number, templateData: ITreeListTemplateData<TTemplateData>): void {
-		templateData.elementDisposable.dispose();
-
 		this.renderedNodes.set(node, templateData);
-		templateData.elementDisposable = toDisposable(() => this.renderedNodes.delete(node));
 
 		templateData.twistie.style.width = `${10 + node.depth * 10}px`;
 		renderTwistie(node, templateData.twistie);
 
 		this.renderer.renderElement(node.element, index, templateData.templateData);
+	}
+
+	disposeElement(node: ITreeNode<T>): void {
+		this.renderedNodes.delete(node);
 	}
 
 	disposeTemplate(templateData: ITreeListTemplateData<TTemplateData>): void {

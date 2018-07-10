@@ -173,7 +173,10 @@ class Renderer implements IRenderer<ICompletionItem, ISuggestionTemplateData> {
 			data.readMore.onmousedown = null;
 			data.readMore.onclick = null;
 		}
+	}
 
+	disposeElement(): void {
+		// noop
 	}
 
 	disposeTemplate(templateData: ISuggestionTemplateData): void {

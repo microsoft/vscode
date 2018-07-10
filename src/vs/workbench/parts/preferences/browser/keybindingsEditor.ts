@@ -667,6 +667,9 @@ class KeybindingHeaderRenderer implements IRenderer<IListEntry, any> {
 	renderElement(entry: IListEntry, index: number, template: any): void {
 	}
 
+	disposeElement(): void {
+	}
+
 	disposeTemplate(template: any): void {
 	}
 }
@@ -703,6 +706,8 @@ class KeybindingItemRenderer implements IRenderer<IKeybindingItemEntry, Keybindi
 		template.source.render(keybindingEntry);
 		template.when.render(keybindingEntry);
 	}
+
+	disposeElement(): void { }
 
 	disposeTemplate(template: KeybindingItemTemplate): void {
 		template.actions.dispose();

@@ -190,6 +190,10 @@ class ProviderRenderer implements IRenderer<ISCMRepository, RepositoryTemplateDa
 		templateData.disposable = combinedDisposable(disposables);
 	}
 
+	disposeElement(): void {
+		// noop
+	}
+
 	disposeTemplate(templateData: RepositoryTemplateData): void {
 		templateData.disposable.dispose();
 		templateData.templateDisposable.dispose();
@@ -437,6 +441,10 @@ class ResourceGroupRenderer implements IRenderer<ISCMResourceGroup, ResourceGrou
 		template.elementDisposable = combinedDisposable(disposables);
 	}
 
+	disposeElement(): void {
+		// noop
+	}
+
 	disposeTemplate(template: ResourceGroupTemplate): void {
 		template.dispose();
 	}
@@ -555,6 +563,10 @@ class ResourceRenderer implements IRenderer<ISCMResource, ResourceTemplate> {
 
 		template.element.setAttribute('data-tooltip', resource.decorations.tooltip);
 		template.elementDisposable = combinedDisposable(disposables);
+	}
+
+	disposeElement(): void {
+		// noop
 	}
 
 	disposeTemplate(template: ResourceTemplate): void {

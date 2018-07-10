@@ -127,6 +127,10 @@ class ListElementRenderer implements IRenderer<ListElement, IListElementTemplate
 		data.detail.set(element.item.detail, detailHighlights);
 	}
 
+	disposeElement(): void {
+		// noop
+	}
+
 	disposeTemplate(data: IListElementTemplateData): void {
 		data.toDisposeElement = dispose(data.toDisposeElement);
 		data.toDisposeTemplate = dispose(data.toDisposeTemplate);

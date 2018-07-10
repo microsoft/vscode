@@ -338,6 +338,10 @@ class BreakpointsRenderer implements IRenderer<IBreakpoint, IBreakpointTemplateD
 		}
 	}
 
+	disposeElement(): void {
+		// noop
+	}
+
 	disposeTemplate(templateData: IBreakpointTemplateData): void {
 		dispose(templateData.toDispose);
 	}
@@ -381,6 +385,10 @@ class ExceptionBreakpointsRenderer implements IRenderer<IExceptionBreakpoint, IB
 		data.name.textContent = exceptionBreakpoint.label || `${exceptionBreakpoint.filter} exceptions`;
 		data.breakpoint.title = data.name.textContent;
 		data.checkbox.checked = exceptionBreakpoint.enabled;
+	}
+
+	disposeElement(): void {
+		// noop
 	}
 
 	disposeTemplate(templateData: IBaseBreakpointTemplateData): void {
@@ -438,6 +446,10 @@ class FunctionBreakpointsRenderer implements IRenderer<FunctionBreakpoint, IBase
 		if (session && !session.raw.capabilities.supportsFunctionBreakpoints) {
 			data.breakpoint.title = nls.localize('functionBreakpointsNotSupported', "Function breakpoints are not supported by this debug type");
 		}
+	}
+
+	disposeElement(): void {
+		// noop
 	}
 
 	disposeTemplate(templateData: IBaseBreakpointWithIconTemplateData): void {
@@ -509,6 +521,10 @@ class FunctionBreakpointInputRenderer implements IRenderer<IFunctionBreakpoint, 
 		data.inputBox.value = functionBreakpoint.name || '';
 		data.inputBox.focus();
 		data.inputBox.select();
+	}
+
+	disposeElement(): void {
+		// noop
 	}
 
 	disposeTemplate(templateData: IInputTemplateData): void {

@@ -369,6 +369,8 @@ export class RuntimeExtensionsEditor extends BaseEditor {
 				}
 			},
 
+			disposeElement: () => null,
+
 			disposeTemplate: (data: IRuntimeExtensionTemplateData): void => {
 				data.disposables = dispose(data.disposables);
 			}

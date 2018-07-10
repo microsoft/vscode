@@ -165,6 +165,8 @@ export class TreeModel<T> {
 		node.collapsed = collapsed;
 
 		if (visible) {
+			this._onDidChangeCollapseState.fire(node);
+
 			let visibleCountDiff: number;
 
 			if (collapsed) {
@@ -185,8 +187,6 @@ export class TreeModel<T> {
 				mutableNode.visibleCount += visibleCountDiff;
 				mutableNode = mutableNode.parent;
 			}
-
-			this._onDidChangeCollapseState.fire(node);
 		}
 
 		return true;

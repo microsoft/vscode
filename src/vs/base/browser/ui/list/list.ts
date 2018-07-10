@@ -14,7 +14,7 @@ export interface IRenderer<TElement, TTemplateData> {
 	templateId: string;
 	renderTemplate(container: HTMLElement): TTemplateData;
 	renderElement(element: TElement, index: number, templateData: TTemplateData): void;
-	disposeElement?(element: TElement, index: number, templateData: TTemplateData): void;
+	disposeElement(element: TElement, index: number, templateData: TTemplateData): void;
 	disposeTemplate(templateData: TTemplateData): void;
 }
 

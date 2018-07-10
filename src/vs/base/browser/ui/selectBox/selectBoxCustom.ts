@@ -67,6 +67,10 @@ class SelectListRenderer implements IRenderer<ISelectOptionItem, ISelectListTemp
 		}
 	}
 
+	disposeElement(): void {
+		// noop
+	}
+
 	disposeTemplate(templateData: ISelectListTemplateData): void {
 		templateData.disposables = dispose(templateData.disposables);
 	}

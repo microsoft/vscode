@@ -68,6 +68,10 @@ class TraitRenderer<T> implements IRenderer<T, ITraitTemplateData>
 		this.trait.renderIndex(index, templateData);
 	}
 
+	disposeElement(): void {
+		// noop
+	}
+
 	splice(start: number, deleteCount: number, insertCount: number): void {
 		const rendered: IRenderedContainer[] = [];
 
@@ -804,6 +808,14 @@ class PipelineRenderer<T> implements IRenderer<T, any> {
 
 		for (const renderer of this.renderers) {
 			renderer.renderElement(element, index, templateData[i++]);
+		}
+	}
+
+	disposeElement(element: T, index: number, templateData: any[]): void {
+		let i = 0;
+
+		for (const renderer of this.renderers) {
+			renderer.disposeElement(element, index, templateData[i++]);
 		}
 	}
 

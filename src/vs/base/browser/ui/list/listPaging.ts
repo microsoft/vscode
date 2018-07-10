@@ -50,6 +50,10 @@ class PagedRenderer<TElement, TTemplateData> implements IRenderer<number, ITempl
 		promise.done(entry => this.renderer.renderElement(entry, index, data.data));
 	}
 
+	disposeElement(): void {
+		// noop
+	}
+
 	disposeTemplate(data: ITemplateData<TTemplateData>): void {
 		data.disposable.dispose();
 		data.disposable = null;
