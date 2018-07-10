@@ -148,6 +148,7 @@ suite('Extension query', () => {
 		assert.equal(Query.autocomplete('s'), 's');
 		assert.equal(Query.autocomplete('@e'), '@e');
 		assert.equal(Query.autocomplete('@category:s'), '@category:s');
+		assert.equal(Query.autocomplete('@category:"s'), '@category:"s');
 		assert.equal(Query.autocomplete('@category:"none'), '@category:"none');
 
 		// command completion
@@ -161,8 +162,8 @@ suite('Extension query', () => {
 		// refinement completion
 		assert.equal(Query.autocomplete('@sort:i'), '@sort:installs');
 		assert.equal(Query.autocomplete('@sort:r'), '@sort:rating');
-		assert.equal(Query.autocomplete('@category:s'), '@category:snippets');
-		assert.equal(Query.autocomplete('@category:"s'), '@category:"snippets"');
+		assert.equal(Query.autocomplete('@category:sn'), '@category:snippets');
+		assert.equal(Query.autocomplete('@category:"sn'), '@category:"snippets"');
 		assert.equal(Query.autocomplete('@category:pro'), '@category:"programming languages"');
 		assert.equal(Query.autocomplete('@category:"pro'), '@category:"programming languages"');
 	});

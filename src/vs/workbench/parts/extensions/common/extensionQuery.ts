@@ -39,31 +39,29 @@ export class Query {
 			return bestMatch;
 		};
 
-		if (token[0] === '@') {
-			if (token.indexOf(':') > -1) {
-				let command = token.slice(1, token.indexOf(':'));
-				let refinement = token.slice(token.indexOf(':') + 1);
-				let hadQuote = refinement[0] === '"';
+		if (token[0] !== '@') { return token; }
 
-				if (hadQuote) { refinement = refinement.slice(1); }
+		if (token.indexOf(':') === -1) {
+			let replacement = prefixMatch(commands, token.slice(1));
+			return replacement ? '@' + replacement + (refinements[replacement] ? ':' : '') : token;
+		} else {
+			let command = token.slice(1, token.indexOf(':'));
+			let refinement = token.slice(token.indexOf(':') + 1);
 
-				let replacement = prefixMatch(refinements[command], refinement);
-				if (replacement) {
-					if (replacement.indexOf(' ') > -1 || hadQuote) {
-						return `@${command}:"${replacement}"`;
-					} else {
-						return `@${command}:${replacement}`;
-					}
+			let hadQuote = refinement[0] === '"';
+			if (hadQuote) { refinement = refinement.slice(1); }
+
+			let replacement = prefixMatch(refinements[command], refinement);
+			if (replacement) {
+				if (replacement.indexOf(' ') > -1 || hadQuote) {
+					return `@${command}:"${replacement}"`;
+				} else {
+					return `@${command}:${replacement}`;
 				}
 			} else {
-				let replacement = prefixMatch(commands, token.slice(1));
-				if (replacement) {
-					return '@' + replacement + (refinements[replacement] ? ':' : '');
-				}
+				return token;
 			}
 		}
-
-		return token;
 	}
 
 	static parse(value: string): Query {
