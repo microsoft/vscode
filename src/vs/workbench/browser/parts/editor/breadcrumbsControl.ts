@@ -231,10 +231,10 @@ export class BreadcrumbsControl {
 				let res = this._instantiationService.createInstance(ctor, container, element);
 				res.layout({ width: 250, height: 300 });
 				let listener = res.onDidPickElement(data => {
+					this._contextViewService.hideContextView();
 					if (!data) {
 						return;
 					}
-					this._contextViewService.hideContextView();
 					if (URI.isUri(data)) {
 						// open new editor
 						this._editorService.openEditor({ resource: data });
