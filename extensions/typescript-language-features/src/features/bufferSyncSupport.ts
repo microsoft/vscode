@@ -147,7 +147,7 @@ export default class BufferSyncSupport {
 
 		this.diagnosticDelayer = new Delayer<any>(300);
 
-		const pathNormalizer = (path: Uri) => this.normalizePath(path);
+		const pathNormalizer = (path: Uri) => this.client.normalizedPath(path);
 		this.syncedBuffers = new SyncedBufferMap(pathNormalizer);
 		this.pendingDiagnostics = new PendingDiagnostics(pathNormalizer);
 
@@ -347,9 +347,5 @@ export default class BufferSyncSupport {
 			default:
 				return this._validateTypeScript;
 		}
-	}
-
-	private normalizePath(path: Uri): string | null {
-		return this.client.normalizedPath(path);
 	}
 }
