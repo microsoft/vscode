@@ -226,7 +226,7 @@ export default class BufferSyncSupport {
 		const syncedBuffer = new SyncedBuffer(document, filepath, this.client);
 		this.syncedBuffers.set(resource, syncedBuffer);
 		syncedBuffer.open();
-		this.requestDiagnostic(resource);
+		this.requestDiagnostic(syncedBuffer);
 	}
 
 	public closeResource(resource: Uri): void {
@@ -253,7 +253,7 @@ export default class BufferSyncSupport {
 		}
 
 		syncedBuffer.onContentChanged(e.contentChanges);
-		this.requestDiagnostic(syncedBuffer.resource);
+		this.requestDiagnostic(syncedBuffer);
 
 		if (this.pendingGetErr) {
 			this.pendingGetErr.token.cancel();
@@ -294,17 +294,12 @@ export default class BufferSyncSupport {
 		}, delay);
 	}
 
-	public requestDiagnostic(resource: Uri): void {
-		const file = this.client.normalizedPath(resource);
-		if (!file) {
+	private requestDiagnostic(buffer: SyncedBuffer): void {
+		if (!this.shouldValidate(buffer)) {
 			return;
 		}
 
-		this.pendingDiagnostics.set(file, Date.now());
-		const buffer = this.syncedBuffers.get(resource);
-		if (!buffer || !this.shouldValidate(buffer)) {
-			return;
-		}
+		this.pendingDiagnostics.set(buffer.filepath, Date.now());
 
 		const lineCount = buffer.lineCount;
 		const delay = Math.min(Math.max(Math.ceil(lineCount / 20), 300), 800);
