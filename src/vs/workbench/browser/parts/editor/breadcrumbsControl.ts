@@ -563,7 +563,9 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 	secondary: [KeyMod.Shift | KeyCode.Escape],
 	when: ContextKeyExpr.and(BreadcrumbsControl.CK_BreadcrumbsVisible, BreadcrumbsControl.CK_BreadcrumbsActive),
 	handler(accessor) {
-		let groups = accessor.get(IEditorGroupsService);
+		const groups = accessor.get(IEditorGroupsService);
+		const breadcrumbs = accessor.get(IBreadcrumbsService);
+		breadcrumbs.getWidget(groups.activeGroup.id).setFocused(undefined);
 		groups.activeGroup.activeControl.focus();
 	}
 });
