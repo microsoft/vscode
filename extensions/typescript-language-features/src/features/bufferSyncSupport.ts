@@ -120,6 +120,28 @@ class SyncedBufferMap extends ResourceMap<SyncedBuffer> {
 	}
 }
 
+class PendingDiagnostics {
+	private readonly _pendingDiagnostics = new Map<string, number>();
+
+	public set(file: string, time: number): void {
+		this._pendingDiagnostics.set(file, time);
+	}
+
+	public has(file: string): boolean {
+		return this._pendingDiagnostics.has(file);
+	}
+
+	public clear(): void {
+		this._pendingDiagnostics.clear();
+	}
+
+	public getFileList(): Set<string> {
+		return new Set(Array.from(this._pendingDiagnostics.entries())
+			.sort((a, b) => a[1] - b[1])
+			.map(entry => entry[0]));
+	}
+}
+
 export default class BufferSyncSupport {
 
 	private readonly client: ITypeScriptServiceClient;
@@ -130,7 +152,7 @@ export default class BufferSyncSupport {
 	private readonly disposables: Disposable[] = [];
 	private readonly syncedBuffers: SyncedBufferMap;
 
-	private readonly pendingDiagnostics = new Map<string, number>();
+	private readonly pendingDiagnostics = new PendingDiagnostics();
 	private readonly diagnosticDelayer: Delayer<any>;
 	private pendingGetErr: { request: Promise<any>, files: string[], token: CancellationTokenSource } | undefined;
 	private listening: boolean = false;
@@ -298,28 +320,26 @@ export default class BufferSyncSupport {
 	}
 
 	private sendPendingDiagnostics(): void {
-		const files = new Set(Array.from(this.pendingDiagnostics.entries())
-			.sort((a, b) => a[1] - b[1])
-			.map(entry => entry[0]));
+		const fileList = this.pendingDiagnostics.getFileList();
 
 		// Add all open TS buffers to the geterr request. They might be visible
 		for (const file of this.syncedBuffers.allResources) {
-			if (!this.pendingDiagnostics.get(file)) {
-				files.add(file);
+			if (!this.pendingDiagnostics.has(file)) {
+				fileList.add(file);
 			}
 		}
 
 		if (this.pendingGetErr) {
 			for (const file of this.pendingGetErr.files) {
-				files.add(file);
+				fileList.add(file);
 			}
 		}
 
-		if (files.size) {
-			const fileList = Array.from(files);
+		if (fileList.size) {
+			const files = Array.from(fileList);
 			const args: Proto.GeterrRequestArgs = {
 				delay: 0,
-				files: fileList
+				files
 			};
 			const token = new CancellationTokenSource();
 
@@ -331,7 +351,7 @@ export default class BufferSyncSupport {
 							this.pendingGetErr = undefined;
 						}
 					}),
-				files: fileList,
+				files,
 				token
 			};
 		}
