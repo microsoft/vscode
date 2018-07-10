@@ -10,11 +10,11 @@ import * as nls from 'vscode-nls';
 import * as Proto from '../protocol';
 import { ITypeScriptServiceClient } from '../typescriptService';
 import API from '../utils/api';
-import * as languageIds from '../utils/languageModeIds';
+import * as fileSchemes from '../utils/fileSchemes';
+import { isTypeScriptDocument } from '../utils/languageModeIds';
+import { escapeRegExp } from '../utils/regexp';
 import * as typeConverters from '../utils/typeConverters';
 import FileConfigurationManager from './fileConfigurationManager';
-import * as fileSchemes from '../utils/fileSchemes';
-import { escapeRegExp } from '../utils/regexp';
 
 const localize = nls.loadMessageBundle();
 
@@ -304,6 +304,3 @@ export class UpdateImportsOnFileRenameHandler {
 	}
 }
 
-function isTypeScriptDocument(document: vscode.TextDocument) {
-	return document.languageId === languageIds.typescript || document.languageId === languageIds.typescriptreact;
-}
