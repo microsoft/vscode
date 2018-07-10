@@ -1267,7 +1267,7 @@ export class SCMViewlet extends PanelViewlet implements IViewModel, IViewsViewle
 
 		const oldSelectedRepositories = this.selectedRepositories.slice();
 		this.repositoryPanels = [...repositoryPanels, ...newRepositoryPanels];
-		if (!equals(oldSelectedRepositories, this.selectedRepositories)) {
+		if (this.isVisible() && !equals(oldSelectedRepositories, this.selectedRepositories)) {
 			this.scmService.changeSelectedRepositories(this.selectedRepositories);
 		}
 
