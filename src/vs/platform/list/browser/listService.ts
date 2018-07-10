@@ -90,6 +90,7 @@ export class ListService implements IListService {
 const RawWorkbenchListFocusContextKey = new RawContextKey<boolean>('listFocus', true);
 export const WorkbenchListSupportsMultiSelectContextKey = new RawContextKey<boolean>('listSupportsMultiselect', true);
 export const WorkbenchListFocusContextKey = ContextKeyExpr.and(RawWorkbenchListFocusContextKey, ContextKeyExpr.not(InputFocusedContextKey));
+export const WorkbenchListHasSelectionOrFocus = new RawContextKey<boolean>('listHasSelectionOrFocus', false);
 export const WorkbenchListDoubleSelection = new RawContextKey<boolean>('listDoubleSelection', false);
 export const WorkbenchListMultiSelection = new RawContextKey<boolean>('listMultiSelection', false);
 
@@ -199,6 +200,7 @@ export class WorkbenchList<T> extends List<T> {
 
 	readonly contextKeyService: IContextKeyService;
 
+	private listHasSelectionOrFocus: IContextKey<boolean>;
 	private listDoubleSelection: IContextKey<boolean>;
 	private listMultiSelection: IContextKey<boolean>;
 
@@ -225,6 +227,7 @@ export class WorkbenchList<T> extends List<T> {
 		);
 
 		this.contextKeyService = createScopedContextKeyService(contextKeyService, this);
+		this.listHasSelectionOrFocus = WorkbenchListHasSelectionOrFocus.bindTo(this.contextKeyService);
 		this.listDoubleSelection = WorkbenchListDoubleSelection.bindTo(this.contextKeyService);
 		this.listMultiSelection = WorkbenchListMultiSelection.bindTo(this.contextKeyService);
 
@@ -236,8 +239,17 @@ export class WorkbenchList<T> extends List<T> {
 			attachListStyler(this, themeService),
 			this.onSelectionChange(() => {
 				const selection = this.getSelection();
+				const focus = this.getFocus();
+
+				this.listHasSelectionOrFocus.set(selection.length > 0 || focus.length > 0);
 				this.listMultiSelection.set(selection.length > 1);
 				this.listDoubleSelection.set(selection.length === 2);
+			}),
+			this.onFocusChange(() => {
+				const selection = this.getSelection();
+				const focus = this.getFocus();
+
+				this.listHasSelectionOrFocus.set(selection.length > 0 || focus.length > 0);
 			})
 		]));
 
@@ -323,6 +335,7 @@ export class WorkbenchTree extends Tree {
 
 	protected disposables: IDisposable[];
 
+	private listHasSelectionOrFocus: IContextKey<boolean>;
 	private listDoubleSelection: IContextKey<boolean>;
 	private listMultiSelection: IContextKey<boolean>;
 
@@ -352,6 +365,7 @@ export class WorkbenchTree extends Tree {
 
 		this.disposables = [];
 		this.contextKeyService = createScopedContextKeyService(contextKeyService, this);
+		this.listHasSelectionOrFocus = WorkbenchListHasSelectionOrFocus.bindTo(this.contextKeyService);
 		this.listDoubleSelection = WorkbenchListDoubleSelection.bindTo(this.contextKeyService);
 		this.listMultiSelection = WorkbenchListMultiSelection.bindTo(this.contextKeyService);
 
@@ -366,8 +380,18 @@ export class WorkbenchTree extends Tree {
 
 		this.disposables.push(this.onDidChangeSelection(() => {
 			const selection = this.getSelection();
+			const focus = this.getFocus();
+
+			this.listHasSelectionOrFocus.set((selection && selection.length > 0) || !!focus);
 			this.listDoubleSelection.set(selection && selection.length === 2);
 			this.listMultiSelection.set(selection && selection.length > 1);
+		}));
+
+		this.disposables.push(this.onDidChangeFocus(() => {
+			const selection = this.getSelection();
+			const focus = this.getFocus();
+
+			this.listHasSelectionOrFocus.set((selection && selection.length > 0) || !!focus);
 		}));
 
 		this.disposables.push(configurationService.onDidChangeConfiguration(e => {
