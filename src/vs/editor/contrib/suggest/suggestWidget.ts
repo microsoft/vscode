@@ -601,7 +601,11 @@ export class SuggestWidget implements IContentWidget, IDelegate<ICompletionItem>
 			} else {
 				removeClass(this.element, 'docs-side');
 			}
-		}).catch(onUnexpectedError).then(() => this.currentSuggestionDetails = null);
+		}).catch(onUnexpectedError).then(() => {
+			if (this.focusedItem === item) {
+				this.currentSuggestionDetails = null;
+			}
+		});
 
 		// emit an event
 		this.onDidFocusEmitter.fire({ item, index, model: this.completionModel });
