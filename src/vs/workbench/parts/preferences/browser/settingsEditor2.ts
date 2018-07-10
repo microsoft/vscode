@@ -693,7 +693,10 @@ export class SettingsEditor2 extends BaseEditor {
 		// Count unique results
 		const counts = {};
 		const filterResult = results[SearchResultIdx.Local];
-		counts['filterResult'] = filterResult.filterMatches.length;
+		if (filterResult) {
+			counts['filterResult'] = filterResult.filterMatches.length;
+		}
+
 		if (nlpResult) {
 			counts['nlpResult'] = nlpResult.filterMatches.length;
 		}
