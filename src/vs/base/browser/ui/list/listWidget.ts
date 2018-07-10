@@ -929,6 +929,14 @@ export class List<T> implements ISpliceable<T>, IDisposable {
 	}
 
 	splice(start: number, deleteCount: number, elements: T[] = []): void {
+		if (start < 0 || start > this.view.length) {
+			throw new Error(`Invalid start index: ${start}`);
+		}
+
+		if (deleteCount < 0) {
+			throw new Error(`Invalid delete count: ${deleteCount}`);
+		}
+
 		if (deleteCount === 0 && elements.length === 0) {
 			return;
 		}
