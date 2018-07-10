@@ -23,23 +23,14 @@ class TagClosing {
 	) {
 		vscode.workspace.onDidChangeTextDocument(
 			event => this.onDidChangeTextDocument(event.document, event.contentChanges),
-			null, this.disposables);
-
-		vscode.window.onDidChangeActiveTextEditor(
-			() => this.updateEnabledState(),
-			null, this.disposables);
-
-		this.updateEnabledState();
+			null,
+			this.disposables);
 	}
 
 	public dispose() {
 		disposeAll(this.disposables);
 		this._disposed = true;
 		this.timeout = undefined;
-	}
-
-	private updateEnabledState() {
-
 	}
 
 	private onDidChangeTextDocument(
