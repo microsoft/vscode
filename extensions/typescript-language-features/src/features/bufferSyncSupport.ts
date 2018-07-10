@@ -18,10 +18,6 @@ enum BufferKind {
 	JavaScript = 2,
 }
 
-interface IDiagnosticRequestor {
-	requestDiagnostic(resource: Uri): void;
-}
-
 function mode2ScriptKind(mode: string): 'TS' | 'TSX' | 'JS' | 'JSX' | undefined {
 	switch (mode) {
 		case languageModeIds.typescript: return 'TS';
@@ -37,7 +33,6 @@ class SyncedBuffer {
 	constructor(
 		private readonly document: TextDocument,
 		public readonly filepath: string,
-		private readonly diagnosticRequestor: IDiagnosticRequestor,
 		private readonly client: ITypeScriptServiceClient
 	) { }
 
@@ -110,7 +105,6 @@ class SyncedBuffer {
 			};
 			this.client.execute('change', args, false);
 		}
-		this.diagnosticRequestor.requestDiagnostic(this.document.uri);
 	}
 }
 
@@ -210,7 +204,7 @@ export default class BufferSyncSupport {
 			return;
 		}
 
-		const syncedBuffer = new SyncedBuffer(document, filepath, this, this.client);
+		const syncedBuffer = new SyncedBuffer(document, filepath, this.client);
 		this.syncedBuffers.set(resource, syncedBuffer);
 		syncedBuffer.open();
 		this.requestDiagnostic(resource);
@@ -240,6 +234,8 @@ export default class BufferSyncSupport {
 		}
 
 		syncedBuffer.onContentChanged(e.contentChanges);
+		this.requestDiagnostic(syncedBuffer.resource);
+
 		if (this.pendingGetErr) {
 			this.pendingGetErr.token.cancel();
 			this.pendingGetErr = undefined;
