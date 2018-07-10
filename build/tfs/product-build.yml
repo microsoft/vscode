@@ -9,7 +9,7 @@ phases:
 
 phases:
 - phase: Windows32
-  condition: eq(variables['VSCODE_BUILD_WIN32'], 'true')
+  condition: eq(variables['VSCODE_BUILD_WIN32_32BIT'], 'true')
   queue: Hosted VS2017
   variables:
     VSCODE_ARCH: ia32
@@ -25,7 +25,7 @@ phases:
   - template: build/tfs/linux/product-build-linux.yml
 
 - phase: Linux32
-  condition: eq(variables['VSCODE_BUILD_LINUX'], 'true')
+  condition: eq(variables['VSCODE_BUILD_LINUX_32BIT'], 'true')
   queue: linux-ia32
   variables:
     VSCODE_ARCH: ia32
