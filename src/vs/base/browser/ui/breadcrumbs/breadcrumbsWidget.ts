@@ -49,6 +49,7 @@ export interface IBreadcrumbsWidgetStyles {
 }
 
 export interface IBreadcrumbsItemEvent {
+	type: 'select' | 'focus';
 	item: BreadcrumbsItem;
 	node: HTMLElement;
 }
@@ -139,6 +140,10 @@ export class BreadcrumbsWidget {
 		this._domNode.focus();
 	}
 
+	isDOMFocused(): boolean {
+		return this._domNode === document.activeElement;
+	}
+
 	getFocused(): BreadcrumbsItem {
 		return this._items[this._focusedItemIdx];
 	}
@@ -149,12 +154,12 @@ export class BreadcrumbsWidget {
 
 	focusPrev(): any {
 		this._focus((this._focusedItemIdx - 1 + this._nodes.length) % this._nodes.length);
-		this._domNode.focus();
+		// this._domNode.focus();
 	}
 
 	focusNext(): any {
 		this._focus((this._focusedItemIdx + 1) % this._nodes.length);
-		this._domNode.focus();
+		// this._domNode.focus();
 	}
 
 	private _focus(nth: number): void {
@@ -168,7 +173,7 @@ export class BreadcrumbsWidget {
 				dom.addClass(node, 'focused');
 			}
 		}
-		this._onDidFocusItem.fire({ item: this._items[this._focusedItemIdx], node: this._nodes[this._focusedItemIdx] });
+		this._onDidFocusItem.fire({ type: 'focus', item: this._items[this._focusedItemIdx], node: this._nodes[this._focusedItemIdx] });
 	}
 
 	getSelected(): BreadcrumbsItem {
@@ -190,7 +195,7 @@ export class BreadcrumbsWidget {
 				dom.addClass(node, 'selected');
 			}
 		}
-		this._onDidSelectItem.fire({ item: this._items[this._selectedItemIdx], node: this._nodes[this._selectedItemIdx] });
+		this._onDidSelectItem.fire({ type: 'select', item: this._items[this._selectedItemIdx], node: this._nodes[this._selectedItemIdx] });
 	}
 
 	setItems(items: BreadcrumbsItem[]): void {
