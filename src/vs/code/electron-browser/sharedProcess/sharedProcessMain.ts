@@ -97,10 +97,12 @@ function main(server: Server, initData: ISharedProcessInitData, configuration: I
 	const instantiationService = new InstantiationService(services);
 
 	instantiationService.invokeFunction(accessor => {
+		const environmentService = accessor.get(IEnvironmentService);
+		const telemetryLogService = new FollowerLogService(logLevelClient, createSpdLogService('telemetry', initData.logLevel, environmentService.logsPath));
 		const appenders: AppInsightsAppender[] = [];
 
 		if (product.aiConfig && product.aiConfig.asimovKey) {
-			appenders.push(new AppInsightsAppender(eventPrefix, null, product.aiConfig.asimovKey));
+			appenders.push(new AppInsightsAppender(eventPrefix, null, product.aiConfig.asimovKey, telemetryLogService));
 		}
 
 		// It is important to dispose the AI adapter properly because
@@ -111,7 +113,6 @@ function main(server: Server, initData: ISharedProcessInitData, configuration: I
 		server.registerChannel('telemetryAppender', new TelemetryAppenderChannel(appender));
 
 		const services = new ServiceCollection();
-		const environmentService = accessor.get(IEnvironmentService);
 		const { appRoot, extensionsPath, extensionDevelopmentPath, isBuilt, installSourcePath } = environmentService;
 
 		if (isBuilt && !extensionDevelopmentPath && !environmentService.args['disable-telemetry'] && product.enableTelemetry) {
