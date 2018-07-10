@@ -196,9 +196,16 @@
 	opacity: 0.7;
 	margin-top: 3px;
 	overflow: hidden;
-	white-space: pre;
 	text-overflow: ellipsis;
 	height: 18px;
+}
+
+.settings-editor > .settings-body > .settings-tree-container .setting-item .setting-item-description * {
+	margin: 0px;
+}
+
+.settings-editor > .settings-body > .settings-tree-container .setting-item .setting-item-description code {
+	line-height: 15px; /** For some reason, this is needed, otherwise <code> will take up 20px height */
 }
 
 .settings-editor > .settings-body > .settings-tree-container .setting-measure-container.monaco-tree-row {
@@ -209,7 +216,6 @@
 .settings-editor > .settings-body > .settings-tree-container .setting-item.is-expanded .setting-item-description,
 .settings-editor > .settings-body > .settings-tree-container .setting-item.setting-measure-helper .setting-item-description {
 	height: initial;
-	white-space: pre-wrap;
 }
 
 .settings-editor > .settings-body > .settings-tree-container .setting-item-bool .setting-item-value-description {

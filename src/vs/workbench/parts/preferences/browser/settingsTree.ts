@@ -30,6 +30,7 @@ import { ICssStyleCollector, ITheme, IThemeService, registerThemingParticipant }
 import { SettingsTarget } from 'vs/workbench/parts/preferences/browser/preferencesWidgets';
 import { ITOCEntry } from 'vs/workbench/parts/preferences/browser/settingsLayout';
 import { ISearchResult, ISetting, ISettingsGroup } from 'vs/workbench/services/preferences/common/preferences';
+import { renderMarkdown } from 'vs/base/browser/htmlContentRenderer';
 
 const $ = DOM.$;
 
@@ -677,7 +678,10 @@ export class SettingsRenderer implements IRenderer {
 
 		template.labelElement.textContent = element.displayLabel;
 		template.labelElement.title = titleTooltip;
-		template.descriptionElement.textContent = element.description;
+
+		const renderedDescription = renderMarkdown({ value: element.description });
+		template.descriptionElement.innerHTML = '';
+		template.descriptionElement.appendChild(renderedDescription);
 
 		this.renderValue(element, isSelected, <ISettingItemTemplate>template);
 
