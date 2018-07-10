@@ -156,7 +156,7 @@ export default class BufferSyncSupport {
 		this.syncedBuffers = new SyncedBufferMap(path => this.normalizePath(path));
 
 		this.updateConfiguration();
-		workspace.onDidChangeConfiguration(() => this.updateConfiguration(), null);
+		workspace.onDidChangeConfiguration(this.updateConfiguration, this, this.disposables);
 	}
 
 	private readonly _onDelete = new EventEmitter<Uri>();
