@@ -144,7 +144,7 @@ export class TabsTitleControl extends TitleControl {
 				this.group.relayout();
 			} else if (value && !this.breadcrumbs) {
 				this.breadcrumbs = this.instantiationService.createInstance(BreadcrumbsControl, this.titleContainer, this.group);
-				this.breadcrumbs.update(this.group.activeEditor);
+				this.breadcrumbs.update();
 				this.group.relayout();
 			}
 		});
@@ -268,7 +268,7 @@ export class TabsTitleControl extends TitleControl {
 
 		// Update Breadcrumbs
 		if (this.breadcrumbs) {
-			this.breadcrumbs.update(editor);
+			this.breadcrumbs.update();
 		}
 	}
 
@@ -320,7 +320,7 @@ export class TabsTitleControl extends TitleControl {
 
 		// Update Breadcrumbs
 		if (this.breadcrumbs) {
-			this.breadcrumbs.update(undefined);
+			this.breadcrumbs.update();
 		}
 	}
 

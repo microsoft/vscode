@@ -37,7 +37,6 @@ import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace
 import { FileLabel } from 'vs/workbench/browser/labels';
 import { BreadcrumbElement, EditorBreadcrumbsModel, FileElement } from 'vs/workbench/browser/parts/editor/breadcrumbsModel';
 import { EditorGroupView } from 'vs/workbench/browser/parts/editor/editorGroupView';
-import { IEditorInput } from 'vs/workbench/common/editor';
 import { SIDE_BAR_BACKGROUND } from 'vs/workbench/common/theme';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IEditorGroupsService } from 'vs/workbench/services/group/common/editorGroupsService';
@@ -164,7 +163,8 @@ export class BreadcrumbsControl {
 		dom.toggleClass(this._domNode, 'active', value);
 	}
 
-	update(input: IEditorInput): void {
+	update(): void {
+		const input = this._editorGroup.activeEditor;
 		this._breadcrumbsDisposables = dispose(this._breadcrumbsDisposables);
 
 		if (!input || !input.getResource() || !this._fileService.canHandleResource(input.getResource())) {
