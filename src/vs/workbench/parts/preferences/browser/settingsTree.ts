@@ -679,7 +679,13 @@ export class SettingsRenderer implements IRenderer {
 		template.labelElement.textContent = element.displayLabel;
 		template.labelElement.title = titleTooltip;
 
-		const renderedDescription = renderMarkdown({ value: element.description });
+		const enumDescriptionText = element.setting.enumDescriptions ?
+			'\n' + element.setting.enumDescriptions
+				.map((desc, i) => ` - \`${element.setting.enum[i]}\`: ${desc}`)
+				.join('\n') :
+			'';
+		const descriptionText = element.description + enumDescriptionText;
+		const renderedDescription = renderMarkdown({ value: descriptionText });
 		template.descriptionElement.innerHTML = '';
 		template.descriptionElement.appendChild(renderedDescription);
 
