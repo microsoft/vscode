@@ -41,6 +41,7 @@ import { EditorInput } from 'vs/workbench/common/editor';
 import { SIDE_BAR_BACKGROUND } from 'vs/workbench/common/theme';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IEditorBreadcrumbs, IEditorGroupsService } from 'vs/workbench/services/group/common/editorGroupsService';
+import { onUnexpectedError } from 'vs/base/common/errors';
 
 class Item extends BreadcrumbsItem {
 
@@ -296,8 +297,10 @@ export abstract class BreadcrumbsPicker {
 
 		this.focus = dom.trackFocus(this._domNode);
 		this.focus.onDidBlur(_ => this._onDidPickElement.fire(undefined), undefined, this._disposables);
-
-		this._tree.setInput(this._getInput(input));
+		this._tree.setInput(this._getInput(input)).then(_ => {
+			this._tree.domFocus();
+			this._tree.focusFirst();
+		}, onUnexpectedError);
 	}
 
 	dispose(): void {
