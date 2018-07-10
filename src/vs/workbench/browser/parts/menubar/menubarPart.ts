@@ -154,10 +154,6 @@ export class MenubarPart extends Part {
 		this.actionRunner = this._register(new ActionRunner());
 		this._register(this.actionRunner.onDidBeforeRun(() => {
 			this.focusState = this.currentMenubarVisibility === 'toggle' ? MenubarState.HIDDEN : MenubarState.VISIBLE;
-			if (this.focusToReturn) {
-				this.focusToReturn.domFocus();
-				this.focusToReturn = null;
-			}
 		}));
 
 		this._onVisibilityChange = this._register(new Emitter<Dimension>());
@@ -255,7 +251,13 @@ export class MenubarPart extends Part {
 
 				if (this.isFocused) {
 					this.focusedMenu = null;
+
+					if (this.focusToReturn) {
+						this.focusToReturn.domFocus();
+						this.focusToReturn = null;
+					}
 				}
+
 
 				break;
 			case MenubarState.VISIBLE:
@@ -273,6 +275,11 @@ export class MenubarPart extends Part {
 					}
 
 					this.focusedMenu = null;
+
+					if (this.focusToReturn) {
+						this.focusToReturn.domFocus();
+						this.focusToReturn = null;
+					}
 				}
 
 				break;
@@ -718,6 +725,7 @@ export class MenubarPart extends Part {
 
 			if (event.relatedTarget) {
 				if (!this.container.getHTMLElement().contains(event.relatedTarget as HTMLElement)) {
+					this.focusToReturn = null;
 					this.focusState = this.currentMenubarVisibility === 'toggle' ? MenubarState.HIDDEN : MenubarState.VISIBLE;
 				}
 			}
