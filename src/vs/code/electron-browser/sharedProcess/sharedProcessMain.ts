@@ -25,7 +25,7 @@ import { ConfigurationService } from 'vs/platform/configuration/node/configurati
 import { IRequestService } from 'vs/platform/request/node/request';
 import { RequestService } from 'vs/platform/request/electron-browser/requestService';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { combinedAppender, NullTelemetryService } from 'vs/platform/telemetry/common/telemetryUtils';
+import { combinedAppender, NullTelemetryService, ITelemetryAppender, NullAppender, LogAppender } from 'vs/platform/telemetry/common/telemetryUtils';
 import { resolveCommonProperties } from 'vs/platform/telemetry/node/commonProperties';
 import { TelemetryAppenderChannel } from 'vs/platform/telemetry/common/telemetryIpc';
 import { TelemetryService, ITelemetryServiceConfig } from 'vs/platform/telemetry/common/telemetryService';
@@ -99,25 +99,22 @@ function main(server: Server, initData: ISharedProcessInitData, configuration: I
 	instantiationService.invokeFunction(accessor => {
 		const environmentService = accessor.get(IEnvironmentService);
 		const telemetryLogService = new FollowerLogService(logLevelClient, createSpdLogService('telemetry', initData.logLevel, environmentService.logsPath));
-		const appenders: AppInsightsAppender[] = [];
+		let appInsightsAppender: ITelemetryAppender = NullAppender;
 
 		if (product.aiConfig && product.aiConfig.asimovKey) {
-			appenders.push(new AppInsightsAppender(eventPrefix, null, product.aiConfig.asimovKey, telemetryLogService));
+			appInsightsAppender = new AppInsightsAppender(eventPrefix, null, product.aiConfig.asimovKey, telemetryLogService);
 		}
+		server.registerChannel('telemetryAppender', new TelemetryAppenderChannel(appInsightsAppender));
 
-		// It is important to dispose the AI adapter properly because
-		// only then they flush remaining data.
-		disposables.push(...appenders);
-
-		const appender = combinedAppender(...appenders);
-		server.registerChannel('telemetryAppender', new TelemetryAppenderChannel(appender));
+		const appenders = [appInsightsAppender, new LogAppender(logService)];
+		disposables.push(...appenders); // Ensure the AI appender is disposed so that they flush remaining data
 
 		const services = new ServiceCollection();
 		const { appRoot, extensionsPath, extensionDevelopmentPath, isBuilt, installSourcePath } = environmentService;
 
 		if (isBuilt && !extensionDevelopmentPath && !environmentService.args['disable-telemetry'] && product.enableTelemetry) {
 			const config: ITelemetryServiceConfig = {
-				appender,
+				appender: combinedAppender(...appenders),
 				commonProperties: resolveCommonProperties(product.commit, pkg.version, configuration.machineId, installSourcePath),
 				piiPaths: [appRoot, extensionsPath]
 			};
