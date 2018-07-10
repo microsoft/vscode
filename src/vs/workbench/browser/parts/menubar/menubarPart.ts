@@ -99,6 +99,7 @@ export class MenubarPart extends Part {
 
 	private menuUpdater: RunOnceScheduler;
 	private actionRunner: IActionRunner;
+	private focusToReturn: Builder;
 	private container: Builder;
 	private recentlyOpened: IRecentlyOpened;
 	private updatePending: boolean;
@@ -152,8 +153,10 @@ export class MenubarPart extends Part {
 
 		this.actionRunner = this._register(new ActionRunner());
 		this._register(this.actionRunner.onDidBeforeRun(() => {
-			if (this.focusedMenu && this.focusedMenu.holder) {
-				this.focusedMenu.holder.hide();
+			this.focusState = this.currentMenubarVisibility === 'toggle' ? MenubarState.HIDDEN : MenubarState.VISIBLE;
+			if (this.focusToReturn) {
+				this.focusToReturn.domFocus();
+				this.focusToReturn = null;
 			}
 		}));
 
@@ -699,6 +702,16 @@ export class MenubarPart extends Part {
 				}
 			});
 		}
+
+		this.container.on(EventType.FOCUS_IN, (e) => {
+			let event = e as FocusEvent;
+
+			if (event.relatedTarget) {
+				if (!this.container.getHTMLElement().contains(event.relatedTarget as HTMLElement)) {
+					this.focusToReturn = $(event.relatedTarget as HTMLElement);
+				}
+			}
+		});
 
 		this.container.on(EventType.FOCUS_OUT, (e) => {
 			let event = e as FocusEvent;
