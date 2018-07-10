@@ -120,12 +120,8 @@ export class ActiveDocumentDependentRegistration {
 		register: () => vscode.Disposable,
 	) {
 		this._registration = new ConditionalRegistration(register);
-
+		vscode.window.onDidChangeActiveTextEditor(this.update, this, this._disposables);
 		this.update();
-
-		vscode.window.onDidChangeActiveTextEditor(() => {
-			this.update();
-		}, null, this._disposables);
 	}
 
 	public dispose() {
