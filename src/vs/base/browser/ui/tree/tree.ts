@@ -6,8 +6,8 @@
 import 'vs/css!./tree';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { IListOptions, List, IIdentityProvider, IMultipleSelectionController } from 'vs/base/browser/ui/list/listWidget';
-import { TreeModel, ITreeNode, ITreeElement, getNodeLocation, ISequence } from 'vs/base/browser/ui/tree/treeModel';
-import { IIterator, empty } from 'vs/base/common/iterator';
+import { TreeModel, ITreeNode, ITreeElement, getNodeLocation } from 'vs/base/browser/ui/tree/treeModel';
+import { Iterator, ISequence } from 'vs/base/common/iterator';
 import { IVirtualDelegate, IRenderer, IListMouseEvent } from 'vs/base/browser/ui/list/list';
 import { append, $ } from 'vs/base/browser/dom';
 import { Event, Relay, chain } from 'vs/base/common/event';
@@ -168,7 +168,7 @@ export class Tree<T> implements IDisposable {
 		onKeyDown.filter(e => e.keyCode === KeyCode.Space).on(this.onSpace, this, this.disposables);
 	}
 
-	splice(location: number[], deleteCount: number, toInsert: ISequence<ITreeElement<T>> = empty()): IIterator<ITreeElement<T>> {
+	splice(location: number[], deleteCount: number, toInsert: ISequence<ITreeElement<T>> = Iterator.empty()): Iterator<ITreeElement<T>> {
 		return this.model.splice(location, deleteCount, toInsert);
 	}
 
