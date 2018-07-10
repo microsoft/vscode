@@ -63,6 +63,14 @@ interface ITreeListTemplateData<T> {
 	templateData: T;
 }
 
+function renderTwistie<T>(node: ITreeNode<T>, twistie: HTMLElement): void {
+	if (node.children.length === 0 && !node.collapsible) {
+		twistie.innerText = '';
+	} else {
+		twistie.innerText = node.collapsed ? '▹' : '◢';
+	}
+}
+
 class TreeRenderer<T, TTemplateData> implements IRenderer<ITreeNode<T>, ITreeListTemplateData<TTemplateData>> {
 
 	readonly templateId: string;
@@ -92,8 +100,8 @@ class TreeRenderer<T, TTemplateData> implements IRenderer<ITreeNode<T>, ITreeLis
 		this.renderedNodes.set(node, templateData);
 		templateData.elementDisposable = toDisposable(() => this.renderedNodes.delete(node));
 
-		templateData.twistie.innerText = node.children.length === 0 ? '' : (node.collapsed ? '▹' : '◢');
 		templateData.twistie.style.width = `${10 + node.depth * 10}px`;
+		renderTwistie(node, templateData.twistie);
 
 		this.renderer.renderElement(node.element, index, templateData.templateData);
 	}
@@ -109,7 +117,7 @@ class TreeRenderer<T, TTemplateData> implements IRenderer<ITreeNode<T>, ITreeLis
 			return;
 		}
 
-		templateData.twistie.innerText = node.children.length === 0 ? '' : (node.collapsed ? '▹' : '◢');
+		renderTwistie(node, templateData.twistie);
 	}
 
 	dispose(): void {

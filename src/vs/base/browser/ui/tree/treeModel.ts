@@ -12,6 +12,7 @@ import { Emitter, Event } from 'vs/base/common/event';
 export interface ITreeElement<T> {
 	readonly element: T;
 	readonly children?: IIterator<ITreeElement<T>> | ITreeElement<T>[];
+	readonly collapsible?: boolean;
 	readonly collapsed?: boolean;
 }
 
@@ -20,6 +21,7 @@ export interface ITreeNode<T> {
 	readonly element: T;
 	readonly children: IMutableTreeNode<T>[];
 	readonly depth: number;
+	readonly collapsible: boolean;
 	readonly collapsed: boolean;
 	readonly visibleCount: number;
 }
@@ -61,8 +63,8 @@ function getTreeElementIterator<T>(elements: IIterator<ITreeElement<T>> | ITreeE
 
 function treeElementToNode<T>(treeElement: ITreeElement<T>, parent: IMutableTreeNode<T>, visible: boolean, treeListElements: ITreeNode<T>[]): IMutableTreeNode<T> {
 	const depth = parent.depth + 1;
-	const { element, collapsed } = treeElement;
-	const node = { parent, element, children: [], depth, collapsed: !!collapsed, visibleCount: 0 };
+	const { element, collapsible, collapsed } = treeElement;
+	const node = { parent, element, children: [], depth, collapsible: !!collapsible, collapsed: !!collapsed, visibleCount: 0 };
 
 	if (visible) {
 		treeListElements.push(node);
@@ -70,6 +72,7 @@ function treeElementToNode<T>(treeElement: ITreeElement<T>, parent: IMutableTree
 
 	const children = getTreeElementIterator(treeElement.children);
 	node.children = collect(map(children, el => treeElementToNode(el, node, visible && !treeElement.collapsed, treeListElements)));
+	node.collapsible = node.collapsible || node.children.length > 0;
 	node.visibleCount = 1 + getVisibleCount(node.children);
 
 	return node;
@@ -89,6 +92,7 @@ export class TreeModel<T> {
 		element: undefined,
 		children: [],
 		depth: 0,
+		collapsible: false,
 		collapsed: false,
 		visibleCount: 1
 	};
@@ -130,6 +134,10 @@ export class TreeModel<T> {
 
 	private _setCollapsed(location: number[], collapsed?: boolean | undefined): boolean {
 		const { node, listIndex, visible } = this.findNode(location);
+
+		if (!node.collapsible) {
+			return false;
+		}
 
 		if (typeof collapsed === 'undefined') {
 			collapsed = !node.collapsed;
