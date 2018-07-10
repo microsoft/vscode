@@ -6,31 +6,40 @@ steps:
   inputs:
     versionSpec: "1.3.2"
 - powershell: |
-    yarn
+    . build/tfs/win32/exec.ps1
+    exec { yarn }
   displayName: Install Dependencies
 - powershell: |
-    yarn gulp electron
+    . build/tfs/win32/exec.ps1
+    exec { yarn gulp electron }
   displayName: Download Electron
 - powershell: |
-    yarn gulp hygiene
+    . build/tfs/win32/exec.ps1
+    exec { yarn gulp hygiene }
   displayName: Run Hygiene Checks
 - powershell: |
-    yarn check-monaco-editor-compilation
+    . build/tfs/win32/exec.ps1
+    exec { yarn check-monaco-editor-compilation }
   displayName: Run Monaco Editor Checks
 - powershell: |
-    yarn compile
+    . build/tfs/win32/exec.ps1
+    exec { yarn compile }
   displayName: Compile Sources
 - powershell: |
-    yarn download-builtin-extensions
+    . build/tfs/win32/exec.ps1
+    exec { yarn download-builtin-extensions }
   displayName: Download Built-in Extensions
 - powershell: |
-    .\scripts\test.bat --tfs "Unit Tests"
+    . build/tfs/win32/exec.ps1
+    exec { .\scripts\test.bat --tfs "Unit Tests" }
   displayName: Run Unit Tests
 - powershell: |
-    .\scripts\test-integration.bat --tfs "Integration Tests"
+    . build/tfs/win32/exec.ps1
+    exec { .\scripts\test-integration.bat --tfs "Integration Tests" }
   displayName: Run Integration Tests
 - powershell: |
-    yarn smoketest --screenshots "$(Build.ArtifactStagingDirectory)\artifacts" --log "$(Build.ArtifactStagingDirectory)\artifacts\smoketest.log"
+    . build/tfs/win32/exec.ps1
+    exec { yarn smoketest --screenshots "$(Build.ArtifactStagingDirectory)\artifacts" --log "$(Build.ArtifactStagingDirectory)\artifacts\smoketest.log" }
   displayName: Run Smoke Tests
   continueOnError: true
 - task: PublishBuildArtifacts@1
