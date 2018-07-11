@@ -38,6 +38,7 @@ import { listActiveSelectionBackground, listActiveSelectionForeground } from 'vs
 import { LocalSelectionTransfer, DraggedEditorGroupIdentifier, DraggedEditorIdentifier, fillResourceDataTransfers } from 'vs/workbench/browser/dnd';
 import { applyDragImage } from 'vs/base/browser/dnd';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
+import { BreadcrumbsConfig, BreadcrumbsControl } from 'vs/workbench/browser/parts/editor/breadcrumbsControl';
 
 export interface IToolbarActions {
 	primary: IAction[];
@@ -48,6 +49,8 @@ export abstract class TitleControl extends Themable {
 
 	protected readonly groupTransfer = LocalSelectionTransfer.getInstance<DraggedEditorGroupIdentifier>();
 	protected readonly editorTransfer = LocalSelectionTransfer.getInstance<DraggedEditorIdentifier>();
+
+	protected breadcrumbsControl: BreadcrumbsControl;
 
 	private currentPrimaryEditorActionIds: string[] = [];
 	private currentSecondaryEditorActionIds: string[] = [];
@@ -90,6 +93,24 @@ export abstract class TitleControl extends Themable {
 	}
 
 	protected abstract create(parent: HTMLElement): void;
+
+	protected createBreadcrumbsControl(container: HTMLElement): void {
+		const config = this._register(BreadcrumbsConfig.IsEnabled.bindTo(this.configurationService));
+		config.onDidChange(value => {
+			if (!value && this.breadcrumbsControl) {
+				this.breadcrumbsControl.dispose();
+				this.breadcrumbsControl = undefined;
+				this.group.relayout();
+			} else if (value && !this.breadcrumbsControl) {
+				this.breadcrumbsControl = this.instantiationService.createInstance(BreadcrumbsControl, container, this.group);
+				this.breadcrumbsControl.update();
+				this.group.relayout();
+			}
+		});
+		if (config.value) {
+			this.breadcrumbsControl = this.instantiationService.createInstance(BreadcrumbsControl, container, this.group);
+		}
+	}
 
 	protected createEditorActionsToolBar(container: HTMLElement): void {
 		const context = { groupId: this.group.id } as IEditorCommandsContext;
@@ -332,10 +353,11 @@ export abstract class TitleControl extends Themable {
 	}
 
 	getPreferredHeight(): number {
-		return EDITOR_TITLE_HEIGHT;
+		return EDITOR_TITLE_HEIGHT + (this.breadcrumbsControl ? this.breadcrumbsControl.getPreferredHeight() : 0);
 	}
 
 	dispose(): void {
+		this.breadcrumbsControl = dispose(this.breadcrumbsControl);
 		this.editorToolBarMenuDisposables = dispose(this.editorToolBarMenuDisposables);
 
 		super.dispose();
