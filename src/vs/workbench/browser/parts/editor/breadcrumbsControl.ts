@@ -238,7 +238,7 @@ export class BreadcrumbsControl {
 				container.style.boxShadow = `2px 2px 3px ${color.toString()}`;
 				container.style.position = 'absolute';
 				container.style.zIndex = '1000';
-				dom.addClasses(container, 'monaco-breadcrumbs-picker', 'monaco-workbench', 'show-file-icons');
+				dom.addClasses(container, 'monaco-breadcrumbs-picker', 'show-file-icons');
 
 				let { element } = event.item as Item;
 				let ctor: IConstructorSignature2<HTMLElement, BreadcrumbElement, BreadcrumbsPicker> = element instanceof FileElement ? BreadcrumbsFilePicker : BreadcrumbsOutlinePicker;
