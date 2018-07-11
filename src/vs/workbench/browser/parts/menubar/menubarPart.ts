@@ -19,7 +19,6 @@ import { ActionRunner, IActionRunner, IAction, Action } from 'vs/base/common/act
 import { Builder, $ } from 'vs/base/browser/builder';
 import { Separator } from 'vs/base/browser/ui/actionbar/actionbar';
 import { EventType, Dimension } from 'vs/base/browser/dom';
-import { MENUBAR_MENU_ACTIVE_FOREGROUND, MENUBAR_MENU_ACTIVE_BACKGROUND, MENUBAR_MENU_INACTIVE_FOREGROUND, MENUBAR_MENU_ACTIVE_BORDER } from 'vs/workbench/common/theme';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { isWindows, isMacintosh } from 'vs/base/common/platform';
 import { Menu, IMenuOptions, SubmenuAction } from 'vs/base/browser/ui/menu/menu';
@@ -34,6 +33,7 @@ import { IWorkspaceIdentifier, ISingleFolderWorkspaceIdentifier, isSingleFolderW
 import { getPathLabel } from 'vs/base/common/labels';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { RunOnceScheduler } from 'vs/base/common/async';
+import { MENUBAR_SELECTED_FOREGROUND, MENUBAR_SELECTED_BACKGROUND, MENUBAR_SELECTED_BORDER, TITLE_BAR_ACTIVE_FOREGROUND, TITLE_BAR_INACTIVE_FOREGROUND } from 'vs/workbench/common/theme';
 
 interface CustomMenu {
 	title: string;
@@ -325,6 +325,16 @@ export class MenubarPart extends Part {
 		this.updateStyles();
 	}
 
+	private onDidChangeWindowFocus(hasFocus: boolean): void {
+		if (this.container) {
+			if (hasFocus) {
+				this.container.removeClass('inactive');
+			} else {
+				this.container.addClass('inactive');
+			}
+		}
+	}
+
 	private onConfigurationUpdated(event: IConfigurationChangeEvent): void {
 		if (this.keys.some(key => event.affectsConfiguration(key))) {
 			this.setupMenubar();
@@ -405,6 +415,8 @@ export class MenubarPart extends Part {
 		this._register(this.keybindingService.onDidUpdateKeybindings(() => this.setupMenubar()));
 
 		this._register(ModifierKeyEmitter.getInstance().event(this.onModifierKeyToggled, this));
+
+		this._register(this.windowService.onDidChangeFocus(e => this.onDidChangeWindowFocus(e)));
 	}
 
 	private doSetupMenubar(): void {
@@ -947,41 +959,49 @@ export class MenubarPart extends Part {
 }
 
 registerThemingParticipant((theme: ITheme, collector: ICssStyleCollector) => {
-	const inactiveFgColor = theme.getColor(MENUBAR_MENU_INACTIVE_FOREGROUND);
-	if (inactiveFgColor) {
+	const menubarActiveWindowFgColor = theme.getColor(TITLE_BAR_ACTIVE_FOREGROUND);
+	if (menubarActiveWindowFgColor) {
 		collector.addRule(`
-			.monaco-workbench > .part.menubar > .menubar-menu-button {
-				'color': ${inactiveFgColor}
+		.monaco-workbench > .part.menubar > .menubar-menu-button {
+			color: ${menubarActiveWindowFgColor};
+		}
+		`);
+	}
+
+	const menubarInactiveWindowFgColor = theme.getColor(TITLE_BAR_INACTIVE_FOREGROUND);
+	if (menubarInactiveWindowFgColor) {
+		collector.addRule(`
+			.monaco-workbench > .part.menubar.inactive > .menubar-menu-button {
+				color: ${menubarInactiveWindowFgColor};
 			}
 		`);
 	}
 
-	const activeFgColor = theme.getColor(MENUBAR_MENU_ACTIVE_FOREGROUND);
-	if (activeFgColor) {
-		collector.addRule(`
-			.monaco-workbench > .part.menubar > .menubar-menu-button.open,
-			.monaco-workbench > .part.menubar > .menubar-menu-button:focus,
-			.monaco-workbench > .part.menubar > .menubar-menu-button:hover {
-				color: ${activeFgColor};
-			}
-		`);
-	}
 
-
-
-	const activeBgColor = theme.getColor(MENUBAR_MENU_ACTIVE_BACKGROUND);
-	if (activeBgColor) {
+	const menubarSelectedFgColor = theme.getColor(MENUBAR_SELECTED_FOREGROUND);
+	if (menubarSelectedFgColor) {
 		collector.addRule(`
 			.monaco-workbench > .part.menubar > .menubar-menu-button.open,
 			.monaco-workbench > .part.menubar > .menubar-menu-button:focus,
 			.monaco-workbench > .part.menubar > .menubar-menu-button:hover {
-				background-color: ${activeBgColor};
+				color: ${menubarSelectedFgColor};
 			}
 		`);
 	}
 
-	const borderColor = theme.getColor(MENUBAR_MENU_ACTIVE_BORDER);
-	if (borderColor) {
+	const menubarSelectedBgColor = theme.getColor(MENUBAR_SELECTED_BACKGROUND);
+	if (menubarSelectedBgColor) {
+		collector.addRule(`
+			.monaco-workbench > .part.menubar > .menubar-menu-button.open,
+			.monaco-workbench > .part.menubar > .menubar-menu-button:focus,
+			.monaco-workbench > .part.menubar > .menubar-menu-button:hover {
+				background-color: ${menubarSelectedBgColor};
+			}
+		`);
+	}
+
+	const menubarSelectedBorderColor = theme.getColor(MENUBAR_SELECTED_BORDER);
+	if (menubarSelectedBorderColor) {
 		collector.addRule(`
 			.monaco-workbench > .part.menubar > .menubar-menu-button:hover {
 				outline: dashed 1px;
@@ -996,7 +1016,7 @@ registerThemingParticipant((theme: ITheme, collector: ICssStyleCollector) => {
 			.monaco-workbench > .part.menubar > .menubar-menu-button:focus,
 			.monaco-workbench > .part.menubar > .menubar-menu-button:hover {
 				outline-offset: -1px;
-				outline-color: ${borderColor};
+				outline-color: ${menubarSelectedBorderColor};
 			}
 		`);
 	}
