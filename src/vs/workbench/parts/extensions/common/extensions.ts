@@ -49,6 +49,7 @@ export interface IExtension {
 	outdated: boolean;
 	enablementState: EnablementState;
 	dependencies: string[];
+	extensionPack: string[];
 	telemetryData: any;
 	preview: boolean;
 	getManifest(): TPromise<IExtensionManifest>;

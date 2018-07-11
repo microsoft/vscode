@@ -124,6 +124,7 @@ export interface IExtensionManifest {
 	categories?: string[];
 	activationEvents?: string[];
 	extensionDependencies?: string[];
+	extensionPack?: string[];
 	contributes?: IExtensionContributions;
 	repository?: {
 		url: string;
@@ -135,6 +136,7 @@ export interface IExtensionManifest {
 
 export interface IGalleryExtensionProperties {
 	dependencies?: string[];
+	extensionPack?: string[];
 	engine?: string;
 }
 
