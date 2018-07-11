@@ -595,7 +595,7 @@ export class ExtensionEditor extends BaseEditor {
 		const contributes = manifest.contributes;
 		const configuration = contributes && contributes.configuration;
 		let properties = configuration && configuration.properties;
-		if (Array.isArray(configuration)) {
+		if (!properties && Array.isArray(configuration)) {
 			properties = {};
 			configuration.forEach(config => {
 				properties = { ...properties, ...config.properties };
