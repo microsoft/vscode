@@ -239,7 +239,8 @@ export class SettingsEditor2 extends BaseEditor {
 		if (element) {
 			this.settingsTree.setSelection([element]);
 			this.settingsTree.setFocus(element);
-			this.settingsTree.reveal(element);
+			this.settingsTree.reveal(element, 0);
+			this.settingsTree.domFocus();
 		}
 	}
 
