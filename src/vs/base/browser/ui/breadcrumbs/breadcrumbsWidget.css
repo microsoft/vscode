@@ -9,6 +9,7 @@
 	flex-direction: row;
 	flex-wrap: nowrap;
 	justify-content: flex-start;
+	outline-style: none;
 }
 
 .monaco-breadcrumbs .monaco-breadcrumb-item {

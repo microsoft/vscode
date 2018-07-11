@@ -153,13 +153,15 @@ export class BreadcrumbsWidget {
 	}
 
 	focusPrev(): any {
-		this._focus((this._focusedItemIdx - 1 + this._nodes.length) % this._nodes.length);
-		// this._domNode.focus();
+		if (this._focusedItemIdx > 0) {
+			this._focus(this._focusedItemIdx - 1);
+		}
 	}
 
 	focusNext(): any {
-		this._focus((this._focusedItemIdx + 1) % this._nodes.length);
-		// this._domNode.focus();
+		if (this._focusedItemIdx + 1 < this._nodes.length) {
+			this._focus(this._focusedItemIdx + 1);
+		}
 	}
 
 	private _focus(nth: number): void {
