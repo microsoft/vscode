@@ -6,12 +6,13 @@
 'use strict';
 
 import { ISpliceable } from 'vs/base/common/sequence';
-import { IIterator, map, collect, iter, empty } from 'vs/base/common/iterator';
+import { Iterator, ISequence } from 'vs/base/common/iterator';
 import { Emitter, Event } from 'vs/base/common/event';
 
 export interface ITreeElement<T> {
 	readonly element: T;
-	readonly children?: IIterator<ITreeElement<T>> | ITreeElement<T>[];
+	readonly children?: Iterator<ITreeElement<T>> | ITreeElement<T>[];
+	readonly collapsible?: boolean;
 	readonly collapsed?: boolean;
 }
 
@@ -20,6 +21,7 @@ export interface ITreeNode<T> {
 	readonly element: T;
 	readonly children: IMutableTreeNode<T>[];
 	readonly depth: number;
+	readonly collapsible: boolean;
 	readonly collapsed: boolean;
 	readonly visibleCount: number;
 }
@@ -49,11 +51,11 @@ function getVisibleNodes<T>(nodes: IMutableTreeNode<T>[], result: ITreeNode<T>[]
 	return result;
 }
 
-function getTreeElementIterator<T>(elements: IIterator<ITreeElement<T>> | ITreeElement<T>[] | undefined): IIterator<ITreeElement<T>> {
+function getTreeElementIterator<T>(elements: Iterator<ITreeElement<T>> | ITreeElement<T>[] | undefined): Iterator<ITreeElement<T>> {
 	if (!elements) {
-		return empty();
+		return Iterator.empty();
 	} else if (Array.isArray(elements)) {
-		return iter(elements);
+		return Iterator.iterate(elements);
 	} else {
 		return elements;
 	}
@@ -61,15 +63,16 @@ function getTreeElementIterator<T>(elements: IIterator<ITreeElement<T>> | ITreeE
 
 function treeElementToNode<T>(treeElement: ITreeElement<T>, parent: IMutableTreeNode<T>, visible: boolean, treeListElements: ITreeNode<T>[]): IMutableTreeNode<T> {
 	const depth = parent.depth + 1;
-	const { element, collapsed } = treeElement;
-	const node = { parent, element, children: [], depth, collapsed: !!collapsed, visibleCount: 0 };
+	const { element, collapsible, collapsed } = treeElement;
+	const node = { parent, element, children: [], depth, collapsible: !!collapsible, collapsed: !!collapsed, visibleCount: 0 };
 
 	if (visible) {
 		treeListElements.push(node);
 	}
 
 	const children = getTreeElementIterator(treeElement.children);
-	node.children = collect(map(children, el => treeElementToNode(el, node, visible && !treeElement.collapsed, treeListElements)));
+	node.children = Iterator.collect(Iterator.map(children, el => treeElementToNode(el, node, visible && !treeElement.collapsed, treeListElements)));
+	node.collapsible = node.collapsible || node.children.length > 0;
 	node.visibleCount = 1 + getVisibleCount(node.children);
 
 	return node;
@@ -77,9 +80,20 @@ function treeElementToNode<T>(treeElement: ITreeElement<T>, parent: IMutableTree
 
 function treeNodeToElement<T>(node: IMutableTreeNode<T>): ITreeElement<T> {
 	const { element, collapsed } = node;
-	const children = map(iter(node.children), treeNodeToElement);
+	const children = Iterator.map(Iterator.iterate(node.children), treeNodeToElement);
 
 	return { element, children, collapsed };
+}
+
+export function getNodeLocation<T>(node: ITreeNode<T>): number[] {
+	const location = [];
+
+	while (node.parent) {
+		location.push(node.parent.children.indexOf(node));
+		node = node.parent;
+	}
+
+	return location.reverse();
 }
 
 export class TreeModel<T> {
@@ -89,6 +103,7 @@ export class TreeModel<T> {
 		element: undefined,
 		children: [],
 		depth: 0,
+		collapsible: false,
 		collapsed: false,
 		visibleCount: 1
 	};
@@ -98,7 +113,7 @@ export class TreeModel<T> {
 
 	constructor(private list: ISpliceable<ITreeNode<T>>) { }
 
-	splice(location: number[], deleteCount: number, toInsert?: IIterator<ITreeElement<T>> | ITreeElement<T>[]): IIterator<ITreeElement<T>> {
+	splice(location: number[], deleteCount: number, toInsert?: ISequence<ITreeElement<T>>): Iterator<ITreeElement<T>> {
 		if (location.length === 0) {
 			throw new Error('Invalid tree location');
 		}
@@ -106,7 +121,7 @@ export class TreeModel<T> {
 		const { parentNode, listIndex, visible } = this.findParentNode(location);
 		const treeListElementsToInsert: ITreeNode<T>[] = [];
 		const elementsToInsert = getTreeElementIterator(toInsert);
-		const nodesToInsert = collect(map(elementsToInsert, el => treeElementToNode(el, parentNode, visible, treeListElementsToInsert)));
+		const nodesToInsert = Iterator.collect(Iterator.map(elementsToInsert, el => treeElementToNode(el, parentNode, visible, treeListElementsToInsert)));
 		const lastIndex = location[location.length - 1];
 		const deletedNodes = parentNode.children.splice(lastIndex, deleteCount, ...nodesToInsert);
 		const visibleDeleteCount = getVisibleCount(deletedNodes);
@@ -117,7 +132,11 @@ export class TreeModel<T> {
 			this.list.splice(listIndex, visibleDeleteCount, treeListElementsToInsert);
 		}
 
-		return map(iter(deletedNodes), treeNodeToElement);
+		return Iterator.map(Iterator.iterate(deletedNodes), treeNodeToElement);
+	}
+
+	getListIndex(location: number[]): number {
+		return this.findNode(location).listIndex;
 	}
 
 	setCollapsed(location: number[], collapsed: boolean): boolean {
@@ -131,6 +150,10 @@ export class TreeModel<T> {
 	private _setCollapsed(location: number[], collapsed?: boolean | undefined): boolean {
 		const { node, listIndex, visible } = this.findNode(location);
 
+		if (!node.collapsible) {
+			return false;
+		}
+
 		if (typeof collapsed === 'undefined') {
 			collapsed = !node.collapsed;
 		}
@@ -142,6 +165,8 @@ export class TreeModel<T> {
 		node.collapsed = collapsed;
 
 		if (visible) {
+			this._onDidChangeCollapseState.fire(node);
+
 			let visibleCountDiff: number;
 
 			if (collapsed) {
@@ -162,8 +187,6 @@ export class TreeModel<T> {
 				mutableNode.visibleCount += visibleCountDiff;
 				mutableNode = mutableNode.parent;
 			}
-
-			this._onDidChangeCollapseState.fire(node);
 		}
 
 		return true;

@@ -19,7 +19,7 @@ import { attachProgressBarStyler } from 'vs/platform/theme/common/styler';
 import { IThemeService, registerThemingParticipant } from 'vs/platform/theme/common/themeService';
 import { editorBackground, contrastBorder } from 'vs/platform/theme/common/colorRegistry';
 import { Themable, EDITOR_GROUP_HEADER_TABS_BORDER, EDITOR_GROUP_HEADER_TABS_BACKGROUND, EDITOR_GROUP_HEADER_NO_TABS_BACKGROUND, EDITOR_GROUP_EMPTY_BACKGROUND, EDITOR_GROUP_FOCUSED_EMPTY_BORDER } from 'vs/workbench/common/theme';
-import { IMoveEditorOptions, ICopyEditorOptions, ICloseEditorsFilter, IGroupChangeEvent, GroupChangeKind, EditorsOrder, GroupsOrder, IEditorBreadcrumbs } from 'vs/workbench/services/group/common/editorGroupsService';
+import { IMoveEditorOptions, ICopyEditorOptions, ICloseEditorsFilter, IGroupChangeEvent, GroupChangeKind, EditorsOrder, GroupsOrder } from 'vs/workbench/services/group/common/editorGroupsService';
 import { TabsTitleControl } from 'vs/workbench/browser/parts/editor/tabsTitleControl';
 import { EditorControl } from 'vs/workbench/browser/parts/editor/editorControl';
 import { IProgressService } from 'vs/platform/progress/common/progress';
@@ -34,7 +34,7 @@ import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { RunOnceWorker } from 'vs/base/common/async';
 import { EventType as TouchEventType, GestureEvent } from 'vs/base/browser/touch';
 import { TitleControl } from 'vs/workbench/browser/parts/editor/titleControl';
-import { IEditorGroupsAccessor, IEditorGroupView, IEditorPartOptionsChangeEvent, EDITOR_TITLE_HEIGHT, getActiveTextEditorOptions, IEditorOpeningEvent } from 'vs/workbench/browser/parts/editor/editor';
+import { IEditorGroupsAccessor, IEditorGroupView, IEditorPartOptionsChangeEvent, getActiveTextEditorOptions, IEditorOpeningEvent } from 'vs/workbench/browser/parts/editor/editor';
 import { IUntitledEditorService } from 'vs/workbench/services/untitled/common/untitledEditorService';
 import { join } from 'vs/base/common/paths';
 import { ActionBar } from 'vs/base/browser/ui/actionbar/actionbar';
@@ -46,7 +46,6 @@ import { IMenuService, MenuId, IMenu } from 'vs/platform/actions/common/actions'
 import { StandardMouseEvent } from 'vs/base/browser/mouseEvent';
 import { fillInContextMenuActions } from 'vs/platform/actions/browser/menuItemActionItem';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
-import { EditorBreadcrumbs } from 'vs/workbench/browser/parts/editor/editorBreadcrumbs';
 
 export class EditorGroupView extends Themable implements IEditorGroupView {
 
@@ -104,9 +103,6 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 
 	private titleContainer: HTMLElement;
 	private titleAreaControl: TitleControl;
-
-	private breadcrumbsContainer: HTMLElement;
-	private breadcrumbsControl: EditorBreadcrumbs;
 
 	private progressBar: ProgressBar;
 
@@ -193,14 +189,6 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 
 		// Title control
 		this.createTitleAreaControl();
-
-		// Breadcrumbs container
-		this.breadcrumbsContainer = document.createElement('div');
-		addClass(this.breadcrumbsContainer, 'editor-breadcrumbs');
-		this.element.appendChild(this.breadcrumbsContainer);
-
-		// Breadcrumbs control
-		this.createEditorBreadcrumbs();
 
 		// Editor container
 		this.editorContainer = document.createElement('div');
@@ -409,16 +397,6 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 		}
 	}
 
-	private createEditorBreadcrumbs(): void {
-
-		if (this.breadcrumbsControl) {
-			this.breadcrumbsControl.dispose();
-			clearNode(this.breadcrumbsContainer);
-		}
-
-		this.breadcrumbsControl = this.scopedInstantiationService.createInstance(EditorBreadcrumbs, this.breadcrumbsContainer, this);
-	}
-
 	private restoreEditors(from: IEditorGroupView | ISerializedEditorGroup): TPromise<void> {
 		if (this._group.count === 0) {
 			return TPromise.as(void 0); // nothing to show
@@ -615,10 +593,6 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 		return this._label;
 	}
 
-	get breadcrumbs(): IEditorBreadcrumbs {
-		return this.breadcrumbsControl;
-	}
-
 	get disposed(): boolean {
 		return this._disposed;
 	}
@@ -643,8 +617,6 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 
 		// Update title control
 		this.titleAreaControl.setActive(isActive);
-
-		this.breadcrumbsControl.setActive(isActive);
 
 		// Update styles
 		this.updateStyles();
@@ -817,8 +789,6 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 		// Show in title control after editor control because some actions depend on it
 		this.titleAreaControl.openEditor(editor);
 
-		this.breadcrumbsControl.openEditor(editor);
-
 		return openEditorPromise;
 	}
 
@@ -988,7 +958,6 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 
 		// Forward to title control & breadcrumbs
 		this.titleAreaControl.closeEditor(editor);
-		this.breadcrumbsControl.closeEditor(editor);
 	}
 
 	private doCloseActiveEditor(focusNext = this.accessor.activeGroup === this, fromError?: boolean): void {
@@ -1375,9 +1344,8 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 		this.dimension = new Dimension(width, height);
 
 		// Forward to controls
-		this.titleAreaControl.layout(new Dimension(this.dimension.width, EDITOR_TITLE_HEIGHT));
-		this.breadcrumbsControl.layout(new Dimension(this.dimension.width, this.breadcrumbsControl.getPreferredHeight()));
-		this.editorControl.layout(new Dimension(this.dimension.width, this.dimension.height - (EDITOR_TITLE_HEIGHT + this.breadcrumbsControl.getPreferredHeight())));
+		this.titleAreaControl.layout(new Dimension(this.dimension.width, this.titleAreaControl.getPreferredHeight()));
+		this.editorControl.layout(new Dimension(this.dimension.width, this.dimension.height - this.titleAreaControl.getPreferredHeight()));
 	}
 
 	relayout(): void {
@@ -1403,8 +1371,6 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 		this._onWillDispose.fire();
 
 		this.titleAreaControl.dispose();
-
-		this.breadcrumbsControl.dispose();
 
 		super.dispose();
 	}

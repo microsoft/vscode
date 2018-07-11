@@ -4,15 +4,16 @@
  *--------------------------------------------------------------------------------------------*/
 
 import 'vs/css!./tree';
-import { IDisposable, dispose, Disposable, toDisposable } from 'vs/base/common/lifecycle';
+import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { IListOptions, List, IIdentityProvider, IMultipleSelectionController } from 'vs/base/browser/ui/list/listWidget';
-import { TreeModel, ITreeNode, ITreeElement } from 'vs/base/browser/ui/tree/treeModel';
-import { IIterator, empty } from 'vs/base/common/iterator';
-import { IDelegate, IRenderer, IListMouseEvent } from 'vs/base/browser/ui/list/list';
+import { TreeModel, ITreeNode, ITreeElement, getNodeLocation } from 'vs/base/browser/ui/tree/treeModel';
+import { Iterator, ISequence } from 'vs/base/common/iterator';
+import { IVirtualDelegate, IRenderer, IListMouseEvent } from 'vs/base/browser/ui/list/list';
 import { append, $ } from 'vs/base/browser/dom';
 import { Event, Relay, chain } from 'vs/base/common/event';
 import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { KeyCode } from 'vs/base/common/keyCodes';
+import { tail2 } from 'vs/base/common/arrays';
 
 function toTreeListOptions<T>(options?: IListOptions<T>): IListOptions<ITreeNode<T>> {
 	if (!options) {
@@ -44,9 +45,9 @@ function toTreeListOptions<T>(options?: IListOptions<T>): IListOptions<ITreeNode
 	};
 }
 
-class TreeDelegate<T> implements IDelegate<ITreeNode<T>> {
+class TreeDelegate<T> implements IVirtualDelegate<ITreeNode<T>> {
 
-	constructor(private delegate: IDelegate<T>) { }
+	constructor(private delegate: IVirtualDelegate<T>) { }
 
 	getHeight(element: ITreeNode<T>): number {
 		return this.delegate.getHeight(element.element);
@@ -59,8 +60,15 @@ class TreeDelegate<T> implements IDelegate<ITreeNode<T>> {
 
 interface ITreeListTemplateData<T> {
 	twistie: HTMLElement;
-	elementDisposable: IDisposable;
 	templateData: T;
+}
+
+function renderTwistie<T>(node: ITreeNode<T>, twistie: HTMLElement): void {
+	if (node.children.length === 0 && !node.collapsible) {
+		twistie.innerText = '';
+	} else {
+		twistie.innerText = node.collapsed ? '▹' : '◢';
+	}
 }
 
 class TreeRenderer<T, TTemplateData> implements IRenderer<ITreeNode<T>, ITreeListTemplateData<TTemplateData>> {
@@ -83,19 +91,20 @@ class TreeRenderer<T, TTemplateData> implements IRenderer<ITreeNode<T>, ITreeLis
 		const contents = append(el, $('.tl-contents'));
 		const templateData = this.renderer.renderTemplate(contents);
 
-		return { twistie, elementDisposable: Disposable.None, templateData };
+		return { twistie, templateData };
 	}
 
 	renderElement(node: ITreeNode<T>, index: number, templateData: ITreeListTemplateData<TTemplateData>): void {
-		templateData.elementDisposable.dispose();
-
 		this.renderedNodes.set(node, templateData);
-		templateData.elementDisposable = toDisposable(() => this.renderedNodes.delete(node));
 
-		templateData.twistie.innerText = node.children.length === 0 ? '' : (node.collapsed ? '▹' : '◢');
 		templateData.twistie.style.width = `${10 + node.depth * 10}px`;
+		renderTwistie(node, templateData.twistie);
 
 		this.renderer.renderElement(node.element, index, templateData.templateData);
+	}
+
+	disposeElement(node: ITreeNode<T>): void {
+		this.renderedNodes.delete(node);
 	}
 
 	disposeTemplate(templateData: ITreeListTemplateData<TTemplateData>): void {
@@ -109,7 +118,7 @@ class TreeRenderer<T, TTemplateData> implements IRenderer<ITreeNode<T>, ITreeLis
 			return;
 		}
 
-		templateData.twistie.innerText = node.children.length === 0 ? '' : (node.collapsed ? '▹' : '◢');
+		renderTwistie(node, templateData.twistie);
 	}
 
 	dispose(): void {
@@ -118,20 +127,11 @@ class TreeRenderer<T, TTemplateData> implements IRenderer<ITreeNode<T>, ITreeLis
 	}
 }
 
-function getLocation<T>(node: ITreeNode<T>): number[] {
-	const location = [];
-
-	while (node.parent) {
-		location.push(node.parent.children.indexOf(node));
-		node = node.parent;
-	}
-
-	return location.reverse();
-}
-
 function isInputElement(e: HTMLElement): boolean {
 	return e.tagName === 'INPUT' || e.tagName === 'TEXTAREA';
 }
+
+export interface ITreeOptions<T> extends IListOptions<T> { }
 
 export class Tree<T> implements IDisposable {
 
@@ -141,9 +141,9 @@ export class Tree<T> implements IDisposable {
 
 	constructor(
 		container: HTMLElement,
-		delegate: IDelegate<T>,
+		delegate: IVirtualDelegate<T>,
 		renderers: IRenderer<T, any>[],
-		options?: IListOptions<T>
+		options?: ITreeOptions<T>
 	) {
 		const treeDelegate = new TreeDelegate(delegate);
 
@@ -168,13 +168,13 @@ export class Tree<T> implements IDisposable {
 		onKeyDown.filter(e => e.keyCode === KeyCode.Space).on(this.onSpace, this, this.disposables);
 	}
 
-	splice(location: number[], deleteCount: number, toInsert: IIterator<ITreeElement<T>> = empty()): IIterator<ITreeElement<T>> {
+	splice(location: number[], deleteCount: number, toInsert: ISequence<ITreeElement<T>> = Iterator.empty()): Iterator<ITreeElement<T>> {
 		return this.model.splice(location, deleteCount, toInsert);
 	}
 
 	private onMouseClick(e: IListMouseEvent<ITreeNode<T>>): void {
 		const node = e.element;
-		const location = getLocation(node);
+		const location = getNodeLocation(node);
 
 		this.model.toggleCollapsed(location);
 	}
@@ -190,12 +190,17 @@ export class Tree<T> implements IDisposable {
 		}
 
 		const node = nodes[0];
-		const location = getLocation(node);
-		const didCollapse = this.model.setCollapsed(location, true);
+		const location = getNodeLocation(node);
+		const didChange = this.model.setCollapsed(location, true);
 
-		if (!didCollapse) {
-			console.log('should focus parent');
-			// this.view.setFocus([]);
+		if (!didChange) {
+			if (location.length === 1) {
+				return;
+			}
+
+			const [parentLocation] = tail2(location);
+			const parentListIndex = this.model.getListIndex(parentLocation);
+			this.view.setFocus([parentListIndex]);
 		}
 	}
 
@@ -210,8 +215,17 @@ export class Tree<T> implements IDisposable {
 		}
 
 		const node = nodes[0];
-		const location = getLocation(node);
-		this.model.setCollapsed(location, false);
+		const location = getNodeLocation(node);
+		const didChange = this.model.setCollapsed(location, false);
+
+		if (!didChange) {
+			if (node.children.length === 0) {
+				return;
+			}
+
+			const [focusedIndex] = this.view.getFocus();
+			this.view.setFocus([focusedIndex + 1]);
+		}
 	}
 
 	private onSpace(e: StandardKeyboardEvent): void {
@@ -225,7 +239,7 @@ export class Tree<T> implements IDisposable {
 		}
 
 		const node = nodes[0];
-		const location = getLocation(node);
+		const location = getNodeLocation(node);
 		this.model.toggleCollapsed(location);
 	}
 

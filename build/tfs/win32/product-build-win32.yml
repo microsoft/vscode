@@ -131,9 +131,8 @@ steps:
     ESRP: 'ESRP CodeSign'
 
 - powershell: |
-    . build/tfs/win32/exec.ps1
     $ErrorActionPreference = "Stop"
-    exec { .\build\tfs\win32\import-esrp-auth-cert.ps1 -AuthCertificateBase64 $(ESRP_AUTH_CERTIFICATE) -AuthCertificateKey $(ESRP_AUTH_CERTIFICATE_KEY) }
+    .\build\tfs\win32\import-esrp-auth-cert.ps1 -AuthCertificateBase64 $(ESRP_AUTH_CERTIFICATE) -AuthCertificateKey $(ESRP_AUTH_CERTIFICATE_KEY)
   displayName: Import ESRP Auth Certificate
 
 - powershell: |

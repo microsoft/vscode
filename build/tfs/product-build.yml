@@ -3,7 +3,7 @@ phases:
   condition: eq(variables['VSCODE_BUILD_WIN32'], 'true')
   queue: Hosted VS2017
   variables:
-    VSCODE_ARCH: ia32
+    VSCODE_ARCH: x64
   steps:
   - template: win32/product-build-win32.yml
 

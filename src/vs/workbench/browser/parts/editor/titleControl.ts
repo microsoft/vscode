@@ -33,10 +33,11 @@ import { getCodeEditor } from 'vs/editor/browser/editorBrowser';
 import { INotificationService } from 'vs/platform/notification/common/notification';
 import { Dimension, addDisposableListener, EventType } from 'vs/base/browser/dom';
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
-import { IEditorGroupsAccessor, IEditorPartOptions, IEditorGroupView } from 'vs/workbench/browser/parts/editor/editor';
+import { IEditorGroupsAccessor, IEditorPartOptions, IEditorGroupView, EDITOR_TITLE_HEIGHT } from 'vs/workbench/browser/parts/editor/editor';
 import { listActiveSelectionBackground, listActiveSelectionForeground } from 'vs/platform/theme/common/colorRegistry';
 import { LocalSelectionTransfer, DraggedEditorGroupIdentifier, DraggedEditorIdentifier, fillResourceDataTransfers } from 'vs/workbench/browser/dnd';
 import { applyDragImage } from 'vs/base/browser/dnd';
+import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 
 export interface IToolbarActions {
 	primary: IAction[];
@@ -72,7 +73,8 @@ export abstract class TitleControl extends Themable {
 		@IMenuService private menuService: IMenuService,
 		@IQuickOpenService protected quickOpenService: IQuickOpenService,
 		@IThemeService themeService: IThemeService,
-		@IExtensionService private extensionService: IExtensionService
+		@IExtensionService private extensionService: IExtensionService,
+		@IConfigurationService protected configurationService: IConfigurationService
 	) {
 		super(themeService);
 
@@ -327,6 +329,10 @@ export abstract class TitleControl extends Themable {
 
 	layout(dimension: Dimension): void {
 		// Optionally implemented in subclasses
+	}
+
+	getPreferredHeight(): number {
+		return EDITOR_TITLE_HEIGHT;
 	}
 
 	dispose(): void {

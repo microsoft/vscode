@@ -48,6 +48,7 @@ export interface ISetting {
 	// TODO@roblou maybe need new type and new EditorModel for GUI editor instead of ISetting which is used for text settings editor
 	type?: string | string[];
 	enum?: string[];
+	enumDescriptions?: string[];
 }
 
 export interface IExtensionSetting extends ISetting {

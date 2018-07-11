@@ -15,6 +15,7 @@ import { Event } from 'vs/base/common/event';
 import { addClass, EventType, EventHelper, EventLike, removeTabIndexAndUpdateFocus } from 'vs/base/browser/dom';
 import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { $, Builder } from 'vs/base/browser/builder';
+import { RunOnceScheduler } from 'vs/base/common/async';
 
 export interface IMenuOptions {
 	context?: any;
@@ -241,6 +242,8 @@ class SubmenuActionItem extends MenuActionItem {
 	private mysubmenu: Menu;
 	private submenuContainer: Builder;
 	private mouseOver: boolean;
+	private showScheduler: RunOnceScheduler;
+	private hideScheduler: RunOnceScheduler;
 
 	constructor(
 		action: IAction,
@@ -249,6 +252,20 @@ class SubmenuActionItem extends MenuActionItem {
 		private submenuOptions?: IMenuOptions
 	) {
 		super(action, action, { label: true, isMenu: true });
+
+		this.showScheduler = new RunOnceScheduler(() => {
+			if (this.mouseOver) {
+				this.cleanupExistingSubmenu(false);
+				this.createSubmenu();
+			}
+		}, 250);
+
+		this.hideScheduler = new RunOnceScheduler(() => {
+			if (!this.mouseOver && this.parentData.submenu === this.mysubmenu) {
+				this.parentData.parent.focus();
+				this.cleanupExistingSubmenu(true);
+			}
+		}, 750);
 	}
 
 	public render(container: HTMLElement): void {
@@ -278,26 +295,14 @@ class SubmenuActionItem extends MenuActionItem {
 			if (!this.mouseOver) {
 				this.mouseOver = true;
 
-				setTimeout(() => {
-					if (this.mouseOver) {
-						this.cleanupExistingSubmenu(false);
-						this.createSubmenu();
-					}
-				}, 250);
-
+				this.showScheduler.schedule();
 			}
 		});
 
 		$(this.builder).on(EventType.MOUSE_LEAVE, (e) => {
 			this.mouseOver = false;
 
-			setTimeout(() => {
-				if (!this.mouseOver && this.parentData.submenu === this.mysubmenu) {
-					this.parentData.parent.focus();
-					this.cleanupExistingSubmenu(true);
-				}
-
-			}, 750);
+			this.hideScheduler.schedule();
 		});
 	}
 
@@ -359,6 +364,9 @@ class SubmenuActionItem extends MenuActionItem {
 
 	public dispose() {
 		super.dispose();
+
+		this.hideScheduler.dispose();
+		this.showScheduler.dispose();
 
 		if (this.mysubmenu) {
 			this.mysubmenu.dispose();

@@ -23,7 +23,7 @@ async function getTree(fsPath, level) {
 
 	const childNames = await fs.readdir(fsPath);
 	const children = await Promise.all(childNames.map(async childName => await getTree(path.join(fsPath, childName), level + 1)));
-	return { element, collapsed: false, children };
+	return { element, collapsible: true, collapsed: false, children };
 }
 
 app.use(serve('public'));

@@ -71,9 +71,8 @@ export class ExtensionsListView extends ViewletPanel {
 		super({ ...(options as IViewletPanelOptions), ariaHeaderLabel: options.title }, keybindingService, contextMenuService, configurationService);
 	}
 
-	renderHeader(container: HTMLElement): void {
-		const titleDiv = append(container, $('div.title'));
-		append(titleDiv, $('span')).textContent = this.options.title;
+	renderHeaderTitle(container: HTMLElement): void {
+		super.renderHeaderTitle(container, this.options.title);
 
 		this.badgeContainer = append(container, $('.count-badge-wrapper'));
 		this.badge = new CountBadge(this.badgeContainer);

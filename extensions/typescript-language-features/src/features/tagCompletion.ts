@@ -23,23 +23,14 @@ class TagClosing {
 	) {
 		vscode.workspace.onDidChangeTextDocument(
 			event => this.onDidChangeTextDocument(event.document, event.contentChanges),
-			null, this.disposables);
-
-		vscode.window.onDidChangeActiveTextEditor(
-			() => this.updateEnabledState(),
-			null, this.disposables);
-
-		this.updateEnabledState();
+			null,
+			this.disposables);
 	}
 
 	public dispose() {
 		disposeAll(this.disposables);
 		this._disposed = true;
 		this.timeout = undefined;
-	}
-
-	private updateEnabledState() {
-
 	}
 
 	private onDidChangeTextDocument(
@@ -63,6 +54,11 @@ class TagClosing {
 		const lastChange = changes[changes.length - 1];
 		const lastCharacter = lastChange.text[lastChange.text.length - 1];
 		if (lastChange.rangeLength > 0 || lastCharacter !== '>' && lastCharacter !== '/') {
+			return;
+		}
+
+		const secondToLastCharacter = lastChange.text[lastChange.text.length - 2];
+		if (secondToLastCharacter === '>') {
 			return;
 		}
 
@@ -124,12 +120,8 @@ export class ActiveDocumentDependentRegistration {
 		register: () => vscode.Disposable,
 	) {
 		this._registration = new ConditionalRegistration(register);
-
+		vscode.window.onDidChangeActiveTextEditor(this.update, this, this._disposables);
 		this.update();
-
-		vscode.window.onDidChangeActiveTextEditor(() => {
-			this.update();
-		}, null, this._disposables);
 	}
 
 	public dispose() {

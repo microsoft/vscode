@@ -206,7 +206,6 @@ export class FileWalker {
 
 		const useRipgrep = this.useRipgrep;
 		let noSiblingsClauses: boolean;
-		let filePatternSeen = false;
 		if (useRipgrep) {
 			const ripgrep = spawnRipgrepCmd(this.config, folderQuery, this.config.includePattern, this.folderExcludePatterns.get(folderQuery.folder).expression);
 			cmd = ripgrep.cmd;
@@ -265,9 +264,6 @@ export class FileWalker {
 
 			if (useRipgrep && noSiblingsClauses) {
 				for (const relativePath of relativeFiles) {
-					if (relativePath === this.filePattern) {
-						filePatternSeen = true;
-					}
 					const basename = path.basename(relativePath);
 					this.matchFile(onResult, { base: rootFolder, relativePath, basename });
 					if (this.isLimitHit) {
@@ -276,22 +272,9 @@ export class FileWalker {
 					}
 				}
 				if (last || this.isLimitHit) {
-					if (!filePatternSeen) {
-						this.checkFilePatternRelativeMatch(folderQuery.folder, (match, size) => {
-							if (match) {
-								this.resultCount++;
-								onResult({
-									base: folderQuery.folder,
-									relativePath: this.filePattern,
-									basename: path.basename(this.filePattern),
-								});
-							}
-							done();
-						});
-					} else {
-						done();
-					}
+					done();
 				}
+
 				return;
 			}
 
@@ -518,25 +501,11 @@ export class FileWalker {
 				return done();
 			}
 
-			// Support relative paths to files from a root resource (ignores excludes)
-			return this.checkFilePatternRelativeMatch(folderQuery.folder, (match, size) => {
-				if (this.isCanceled || this.isLimitHit) {
-					return done();
-				}
+			if (this.isCanceled || this.isLimitHit) {
+				return done();
+			}
 
-				// Report result from file pattern if matching
-				if (match) {
-					this.resultCount++;
-					onResult({
-						base: folderQuery.folder,
-						relativePath: this.filePattern,
-						basename: path.basename(this.filePattern),
-						size
-					});
-				}
-
-				return this.doWalk(folderQuery, '', files, onResult, done);
-			});
+			return this.doWalk(folderQuery, '', files, onResult, done);
 		});
 	}
 
@@ -554,18 +523,6 @@ export class FileWalker {
 			cmdForkResultTime: this.cmdForkResultTime,
 			cmdResultCount: this.cmdResultCount
 		};
-	}
-
-	private checkFilePatternRelativeMatch(basePath: string, clb: (matchPath: string, size?: number) => void): void {
-		if (!this.filePattern || path.isAbsolute(this.filePattern)) {
-			return clb(null);
-		}
-
-		const absolutePath = path.join(basePath, this.filePattern);
-
-		return fs.stat(absolutePath, (error, stat) => {
-			return clb(!error && !stat.isDirectory() ? absolutePath : null, stat && stat.size); // only existing files
-		});
 	}
 
 	private doWalk(folderQuery: IFolderSearch, relativeParentPath: string, files: string[], onResult: (result: IRawFileMatch) => void, done: (error: Error) => void): void {
