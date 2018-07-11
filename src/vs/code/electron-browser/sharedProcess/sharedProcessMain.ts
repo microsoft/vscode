@@ -98,6 +98,7 @@ function main(server: Server, initData: ISharedProcessInitData, configuration: I
 	const instantiationService = new InstantiationService(services);
 
 	instantiationService.invokeFunction(accessor => {
+		const services = new ServiceCollection();
 		const environmentService = accessor.get(IEnvironmentService);
 		const { appRoot, extensionsPath, extensionDevelopmentPath, isBuilt, installSourcePath } = environmentService;
 		const telemetryLogService = new FollowerLogService(logLevelClient, createSpdLogService('telemetry', initData.logLevel, environmentService.logsPath));
@@ -109,9 +110,7 @@ function main(server: Server, initData: ISharedProcessInitData, configuration: I
 		server.registerChannel('telemetryAppender', new TelemetryAppenderChannel(appInsightsAppender));
 
 		const appenders = [appInsightsAppender, new LogAppender(logService)];
-		disposables.push(...appenders); // Ensure the AI appender is disposed so that they flush remaining data
-
-		const services = new ServiceCollection();
+		disposables.push(...appenders); // Ensure the AI appender is disposed so that it flushes remaining data
 
 		if (!extensionDevelopmentPath && !environmentService.args['disable-telemetry'] && product.enableTelemetry) {
 			const config: ITelemetryServiceConfig = {

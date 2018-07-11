@@ -363,12 +363,7 @@ export class WorkbenchShell extends Disposable {
 
 		// Telemetry
 
-		if (this.environmentService.isExtensionDevelopment || this.environmentService.args['disable-telemetry'] || !product.enableTelemetry) {
-			// disabled
-			this.telemetryService = NullTelemetryService;
-
-		} else {
-			// appender-based telemetry
+		if (!this.environmentService.isExtensionDevelopment && !this.environmentService.args['disable-telemetry'] && !!product.enableTelemetry) {
 			const channel = getDelayedChannel<ITelemetryAppenderChannel>(sharedProcess.then(c => c.getChannel('telemetryAppender')));
 			const config: ITelemetryServiceConfig = {
 				appender: combinedAppender(new TelemetryAppenderClient(channel), new LogAppender(this.logService)),
@@ -378,6 +373,8 @@ export class WorkbenchShell extends Disposable {
 
 			this.telemetryService = this._register(instantiationService.createInstance(TelemetryService, config));
 			this._register(new ErrorTelemetry(this.telemetryService));
+		} else {
+			this.telemetryService = NullTelemetryService;
 		}
 
 		serviceCollection.set(ITelemetryService, this.telemetryService);

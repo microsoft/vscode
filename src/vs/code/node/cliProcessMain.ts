@@ -22,7 +22,7 @@ import { IExtensionManagementService, IExtensionGalleryService, IExtensionManife
 import { ExtensionManagementService, validateLocalExtension } from 'vs/platform/extensionManagement/node/extensionManagementService';
 import { ExtensionGalleryService } from 'vs/platform/extensionManagement/node/extensionGalleryService';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { combinedAppender, NullTelemetryService, ITelemetryAppender } from 'vs/platform/telemetry/common/telemetryUtils';
+import { combinedAppender, NullTelemetryService } from 'vs/platform/telemetry/common/telemetryUtils';
 import { TelemetryService, ITelemetryServiceConfig } from 'vs/platform/telemetry/common/telemetryService';
 import { resolveCommonProperties } from 'vs/platform/telemetry/node/commonProperties';
 import { IRequestService } from 'vs/platform/request/node/request';
@@ -241,7 +241,7 @@ export function main(argv: ParsedArgs): TPromise<void> {
 			services.set(IExtensionGalleryService, new SyncDescriptor(ExtensionGalleryService));
 			services.set(IDialogService, new SyncDescriptor(CommandLineDialogService));
 
-			const appenders: ITelemetryAppender[] = [];
+			const appenders: AppInsightsAppender[] = [];
 			if (isBuilt && !extensionDevelopmentPath && !envService.args['disable-telemetry'] && product.enableTelemetry) {
 
 				if (product.aiConfig && product.aiConfig.asimovKey) {
