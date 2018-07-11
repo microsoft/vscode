@@ -243,7 +243,7 @@ export class BreadcrumbsControl {
 				let { element } = event.item as Item;
 				let ctor: IConstructorSignature2<HTMLElement, BreadcrumbElement, BreadcrumbsPicker> = element instanceof FileElement ? BreadcrumbsFilePicker : BreadcrumbsOutlinePicker;
 				let res = this._instantiationService.createInstance(ctor, container, element);
-				res.layout({ width: 250, height: 300 });
+				res.layout({ width: 330, height: 220 });
 				let listener = res.onDidPickElement(data => {
 					this._contextViewService.hideContextView();
 					this._widget.setSelection(undefined);
