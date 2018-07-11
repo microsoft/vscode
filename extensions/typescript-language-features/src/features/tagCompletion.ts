@@ -30,7 +30,10 @@ class TagClosing {
 	public dispose() {
 		disposeAll(this.disposables);
 		this._disposed = true;
-		this.timeout = undefined;
+		if (this.timeout) {
+			clearTimeout(this.timeout);
+			this.timeout = undefined;
+		}
 	}
 
 	private onDidChangeTextDocument(
