@@ -331,6 +331,39 @@ MenuRegistry.appendMenuItem(MenuId.SearchContext, {
 	order: 1
 });
 
+const FIND_IN_FILE_ID = 'filesExplorer.findInFile';
+CommandsRegistry.registerCommand({
+	id: FIND_IN_FILE_ID,
+	handler: (accessor, resource?: URI) => {
+		const listService = accessor.get(IListService);
+		const viewletService = accessor.get(IViewletService);
+		const panelService = accessor.get(IPanelService);
+		const fileService = accessor.get(IFileService);
+		// get multiple resource
+		const resources = getMultiSelectedResources(resource, listService, accessor.get(IEditorService));
+
+		return openSearchView(viewletService, panelService, true).then(searchView => {
+			if (resources && resources.length) {
+				return fileService.resolveFiles(resources.map(resource => ({ resource }))).then(results => {
+					const files: URI[] = [];
+
+					results.forEach(result => {
+						if (result.success) {
+							if (!result.stat.isDirectory) {
+								files.push(result.stat.resource);
+							}
+						}
+					});
+
+					searchView.searchInFile(distinct(files, file => file.toString()), (from, to) => relative(from, to));
+				});
+			}
+
+			return void 0;
+		});
+	}
+});
+
 const FIND_IN_FOLDER_ID = 'filesExplorer.findInFolder';
 CommandsRegistry.registerCommand({
 	id: FIND_IN_FOLDER_ID,
@@ -383,6 +416,16 @@ CommandsRegistry.registerCommand({
 			searchView.searchInFolders(null, (from, to) => relative(from, to));
 		});
 	}
+});
+
+MenuRegistry.appendMenuItem(MenuId.ExplorerContext, {
+	group: '4_search',
+	order: 10,
+	command: {
+		id: FIND_IN_FILE_ID,
+		title: nls.localize('findInFile', "Find in File...")
+	},
+	when: ContextKeyExpr.and(ExplorerFolderContext.toNegated(), ResourceContextKey.IsFile)
 });
 
 MenuRegistry.appendMenuItem(MenuId.ExplorerContext, {

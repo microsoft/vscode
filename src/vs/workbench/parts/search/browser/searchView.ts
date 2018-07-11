@@ -986,6 +986,56 @@ export class SearchView extends Viewlet implements IViewlet, IPanel {
 		}
 	}
 
+	public searchInFile(resources: URI[], pathToRelative: (from: string, to: string) => string): void {
+		const filesPaths: string[] = [];
+		const workspace = this.contextService.getWorkspace();
+
+		if (resources) {
+			resources.forEach(resource => {
+
+				let filePath: string;
+				if (this.contextService.getWorkbenchState() === WorkbenchState.FOLDER) {
+					// Show relative path from the root for single-root mode
+					filePath = paths.normalize(pathToRelative(workspace.folders[0].uri.fsPath, resource.fsPath));
+					if (filePath && filePath !== '.') {
+						filePath = './' + filePath;
+					}
+				} else {
+					const owningFolder = this.contextService.getWorkspaceFolder(resource);
+					if (owningFolder) {
+						const owningRootBasename = paths.basename(owningFolder.uri.fsPath);
+
+						// If this root is the only one with its basename, use a relative ./ path. If there is another, use an absolute path
+						const isUniqueFolder = workspace.folders.filter(folder => paths.basename(folder.uri.fsPath) === owningRootBasename).length === 1;
+						if (isUniqueFolder) {
+							filePath = `./${owningRootBasename}/${paths.normalize(pathToRelative(owningFolder.uri.fsPath, resource.fsPath))}`;
+						} else {
+							filePath = resource.fsPath;
+						}
+					}
+				}
+
+				if (filePath) {
+					filesPaths.push(filePath);
+				}
+			});
+		}
+
+		if (!filesPaths.length) {
+			this.inputPatternIncludes.setValue('');
+			this.searchWidget.focus();
+			return;
+		}
+
+		// Show 'files to include' box
+		if (!this.showsFileTypes()) {
+			this.toggleQueryDetails(true, true);
+		}
+
+		this.inputPatternIncludes.setValue(filesPaths.join(', '));
+		this.searchWidget.focus(false);
+	}
+
 	public searchInFolders(resources: URI[], pathToRelative: (from: string, to: string) => string): void {
 		const folderPaths: string[] = [];
 		const workspace = this.contextService.getWorkspace();
