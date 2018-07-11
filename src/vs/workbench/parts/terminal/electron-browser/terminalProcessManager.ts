@@ -126,7 +126,7 @@ export class TerminalProcessManager implements ITerminalProcessManager {
 
 			// TODO: Send right args (on ext host too)
 			console.log('create terminal process', env['PTYSHELL'], env['PTYCWD']);
-			this._process = new TerminalProcess(shellLaunchConfig.executable, shellLaunchConfig.args, this.initialCwd, cols, rows);
+			this._process = new TerminalProcess(shellLaunchConfig, this.initialCwd, cols, rows);
 		}
 		this.processState = ProcessState.LAUNCHING;
 

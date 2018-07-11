@@ -6,10 +6,12 @@
 import * as os from 'os';
 import * as path from 'path';
 import * as pty from 'node-pty';
+// import * as terminalEnvironment from 'vs/workbench/parts/terminal/node/terminalEnvironment';
 import { Event, Emitter } from 'vs/base/common/event';
 import { IProcessEnvironment } from 'vs/base/common/platform';
 import { ITerminalChildProcess } from 'vs/workbench/parts/terminal/node/terminal';
 import { IDisposable } from 'vs/base/common/lifecycle';
+import { IShellLaunchConfig } from 'vs/workbench/parts/terminal/common/terminal';
 
 export class TerminalProcess implements ITerminalChildProcess, IDisposable {
 	private _exitCode: number;
@@ -26,12 +28,12 @@ export class TerminalProcess implements ITerminalChildProcess, IDisposable {
 	private readonly _onProcessTitleChanged: Emitter<string> = new Emitter<string>();
 	public get onProcessTitleChanged(): Event<string> { return this._onProcessTitleChanged.event; }
 
-	constructor(shell: string, args: string | string[], cwd: string, cols: number, rows: number) {
+	constructor(shellLaunchConfig: IShellLaunchConfig, cwd: string, cols: number, rows: number) {
 		// The pty process needs to be run in its own child process to get around maxing out CPU on Mac,
 		// see https://github.com/electron/electron/issues/38
 		let shellName: string;
 		if (os.platform() === 'win32') {
-			shellName = path.basename(process.env.PTYSHELL);
+			shellName = path.basename(shellLaunchConfig.executable);
 		} else {
 			// Using 'xterm-256color' here helps ensure that the majority of Linux distributions will use a
 			// color prompt as defined in the default ~/.bashrc file.
@@ -46,7 +48,7 @@ export class TerminalProcess implements ITerminalChildProcess, IDisposable {
 			rows
 		};
 
-		this._ptyProcess = pty.spawn(shell, args, options);
+		this._ptyProcess = pty.spawn(shellLaunchConfig.executable, shellLaunchConfig.args, options);
 		this._ptyProcess.on('data', (data) => {
 			this._onProcessData.fire(data);
 			if (this._closeTimeout) {
@@ -100,6 +102,12 @@ export class TerminalProcess implements ITerminalChildProcess, IDisposable {
 				delete env[key];
 			}
 		});
+		// TODO: Determine which parts of env initialization should go where
+		// const envFromConfig = terminalEnvironment.resolveConfigurationVariables(this._configurationResolverService, { ...this._configHelper.config.env[platformKey] }, lastActiveWorkspaceRoot);
+		// const envFromShell = terminalEnvironment.resolveConfigurationVariables(this._configurationResolverService, { ...shellLaunchConfig.env }, lastActiveWorkspaceRoot);
+		// shellLaunchConfig.env = envFromShell;
+		// terminalEnvironment.mergeEnvironments(parentEnv, envFromConfig);
+		// const env = terminalEnvironment.createTerminalEnv(parentEnv, shellLaunchConfig, this.initialCwd, locale, cols, rows);
 		return env;
 	}
 
