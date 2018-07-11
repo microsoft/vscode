@@ -98,10 +98,11 @@ function main(server: Server, initData: ISharedProcessInitData, configuration: I
 
 	instantiationService.invokeFunction(accessor => {
 		const environmentService = accessor.get(IEnvironmentService);
+		const { appRoot, extensionsPath, extensionDevelopmentPath, isBuilt, installSourcePath } = environmentService;
 		const telemetryLogService = new FollowerLogService(logLevelClient, createSpdLogService('telemetry', initData.logLevel, environmentService.logsPath));
 		let appInsightsAppender: ITelemetryAppender = NullAppender;
 
-		if (product.aiConfig && product.aiConfig.asimovKey) {
+		if (product.aiConfig && product.aiConfig.asimovKey && isBuilt) {
 			appInsightsAppender = new AppInsightsAppender(eventPrefix, null, product.aiConfig.asimovKey, telemetryLogService);
 		}
 		server.registerChannel('telemetryAppender', new TelemetryAppenderChannel(appInsightsAppender));
@@ -110,9 +111,8 @@ function main(server: Server, initData: ISharedProcessInitData, configuration: I
 		disposables.push(...appenders); // Ensure the AI appender is disposed so that they flush remaining data
 
 		const services = new ServiceCollection();
-		const { appRoot, extensionsPath, extensionDevelopmentPath, isBuilt, installSourcePath } = environmentService;
 
-		if (isBuilt && !extensionDevelopmentPath && !environmentService.args['disable-telemetry'] && product.enableTelemetry) {
+		if (!extensionDevelopmentPath && !environmentService.args['disable-telemetry'] && product.enableTelemetry) {
 			const config: ITelemetryServiceConfig = {
 				appender: combinedAppender(...appenders),
 				commonProperties: resolveCommonProperties(product.commit, pkg.version, configuration.machineId, installSourcePath),
