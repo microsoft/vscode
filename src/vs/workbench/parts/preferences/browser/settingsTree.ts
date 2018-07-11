@@ -31,6 +31,7 @@ import { SettingsTarget } from 'vs/workbench/parts/preferences/browser/preferenc
 import { ITOCEntry } from 'vs/workbench/parts/preferences/browser/settingsLayout';
 import { ISearchResult, ISetting, ISettingsGroup } from 'vs/workbench/services/preferences/common/preferences';
 import { renderMarkdown } from 'vs/base/browser/htmlContentRenderer';
+import { ICancelableEvent } from 'vs/base/parts/tree/browser/treeDefaults';
 
 const $ = DOM.$;
 
@@ -851,6 +852,14 @@ export class SettingsTreeController extends WorkbenchTreeController {
 		@IConfigurationService configurationService: IConfigurationService
 	) {
 		super({}, configurationService);
+	}
+
+	protected onLeftClick(tree: ITree, element: any, eventish: ICancelableEvent, origin?: string): boolean {
+		// Without this, clicking on the setting description causes the tree to lose focus. I don't know why.
+		// The superclass does not always call it because of DND which is not used here.
+		eventish.preventDefault();
+
+		return super.onLeftClick(tree, element, eventish, origin);
 	}
 }
 
