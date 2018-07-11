@@ -68,7 +68,7 @@ export class TerminalProcess {
 		// let closeTimeout: number;
 		// let exitCode: number;
 
-		(<any>ptyProcess).on('data-buffered', (data) => {
+		(<any>ptyProcess).on('data', (data) => {
 			this._onData.fire(data);
 			// process.send({
 			// 	type: 'data',
