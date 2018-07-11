@@ -222,9 +222,21 @@ configurationRegistry.registerConfiguration({
 		},
 		'workbench.editor.openPositioning': {
 			'type': 'string',
-			'enum': ['left', 'right', 'first', 'last'],
+			'enum': ['left', 'right', 'first', 'last', 'sort'],
 			'default': 'right',
-			'description': nls.localize({ comment: ['This is the description for a setting. Values surrounded by single quotes are not to be translated.'], key: 'editorOpenPositioning' }, "Controls where editors open. Select 'left' or 'right' to open editors to the left or right of the currently active one. Select 'first' or 'last' to open editors independently from the currently active one.")
+			'description': nls.localize({ comment: ['This is the description for a setting. Values surrounded by single quotes are not to be translated.'], key: 'editorOpenPositioning' }, "Controls where editors open. Select 'left' or 'right' to open editors to the left or right of the currently active one. Select 'first' or 'last' to open editors independently from the currently active one. Select 'sort' to open editors in alphabetical order.")
+		},
+		'workbench.editor.openPositioningSortOrder': {
+			'type': 'string',
+			'enum': ['asc', 'desc'],
+			'default': 'asc',
+			'description': nls.localize('openPositioningSortOrder', "Controls in which direction the open editors are sorted.")
+		},
+		'workbench.editor.openPositioningSortRule': {
+			'type': 'string',
+			'enum': ['name-local', 'name-absolute', 'absolute'],
+			'default': 'name-local',
+			'description': nls.localize('openPositioningSortRule', "Controls how the open editors are sorted.")
 		},
 		'workbench.editor.openSideBySideDirection': {
 			'type': 'string',

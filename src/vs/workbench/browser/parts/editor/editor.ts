@@ -35,6 +35,8 @@ export const DEFAULT_EDITOR_PART_OPTIONS: IEditorPartOptions = {
 	showIcons: true,
 	enablePreview: true,
 	openPositioning: 'right',
+	openPositioningSortOrder: 'asc',
+	openPositioningSortRule: 'name-local',
 	openSideBySideDirection: 'right',
 	closeEmptyGroups: true,
 	labelFormat: 'default',

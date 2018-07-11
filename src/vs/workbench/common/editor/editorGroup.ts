@@ -6,7 +6,7 @@
 'use strict';
 
 import { Event, Emitter, once } from 'vs/base/common/event';
-import { Extensions, IEditorInputFactoryRegistry, EditorInput, toResource, IEditorIdentifier, IEditorCloseEvent, GroupIdentifier, SideBySideEditorInput, CloseDirection } from 'vs/workbench/common/editor';
+import { Extensions, IEditorInputFactoryRegistry, EditorInput, toResource, IEditorIdentifier, IEditorCloseEvent, GroupIdentifier, SideBySideEditorInput, CloseDirection, Verbosity } from 'vs/workbench/common/editor';
 import URI from 'vs/base/common/uri';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IConfigurationService, IConfigurationChangeEvent } from 'vs/platform/configuration/common/configuration';
@@ -18,7 +18,8 @@ const EditorOpenPositioning = {
 	LEFT: 'left',
 	RIGHT: 'right',
 	FIRST: 'first',
-	LAST: 'last'
+	LAST: 'last',
+	SORT: 'sort'
 };
 
 export interface EditorCloseEvent extends IEditorCloseEvent {
@@ -99,6 +100,8 @@ export class EditorGroup extends Disposable {
 	private active: EditorInput;  // editor in active state
 
 	private editorOpenPositioning: 'left' | 'right' | 'first' | 'last';
+	private editorOpenPositioningSortOrder: 'asc' | 'desc';
+	private editorOpenPositioningSortRule: 'name-local' | 'name-absolute' | 'absolute';
 
 	constructor(
 		labelOrSerializedGroup: ISerializedEditorGroup,
@@ -123,6 +126,8 @@ export class EditorGroup extends Disposable {
 
 	private onConfigurationUpdated(event?: IConfigurationChangeEvent): void {
 		this.editorOpenPositioning = this.configurationService.getValue('workbench.editor.openPositioning');
+		this.editorOpenPositioningSortOrder = this.configurationService.getValue('workbench.editor.openPositioningSortOrder');
+		this.editorOpenPositioningSortRule = this.configurationService.getValue('workbench.editor.openPositioningSortRule');
 	}
 
 	get id(): GroupIdentifier {
@@ -208,6 +213,62 @@ export class EditorGroup extends Disposable {
 					targetIndex = 0; // to the left becoming first editor in list
 				} else {
 					targetIndex = indexOfActive; // to the left of active editor
+				}
+			}
+
+			// Insert in Order
+			else if (this.editorOpenPositioning === EditorOpenPositioning.SORT) {
+				targetIndex = this.editors.length;
+
+				const order = this.editorOpenPositioningSortOrder === 'asc' ? v => v <= 0 : v => v > 0;
+				const name = editor.getTitle(Verbosity.SHORT);
+				const localPath = editor.getTitle(Verbosity.MEDIUM);
+				const absolutePath = editor.getTitle(Verbosity.LONG);
+
+				let sort;
+				// Sort by name then, if editor is local, sort by local path; if not, sort by absolute path
+				if (this.editorOpenPositioningSortRule === 'name-local') {
+					sort = (i) => {
+						const lc = name.localeCompare(this.editors[i].getTitle(Verbosity.SHORT));
+						if (lc === 0) {
+							if (name === localPath) {
+								if (order(localPath.localeCompare(this.editors[i].getTitle(Verbosity.MEDIUM)))) {
+									return i;
+								}
+							} else if (order(absolutePath.localeCompare(this.editors[i].getTitle(Verbosity.LONG)))) {
+								return i;
+							}
+
+							return -1;
+						} else {
+							return order(lc) ? i : -1;
+						}
+					};
+				}
+
+				// Sort by name then, by absolute path
+				else if (this.editorOpenPositioningSortRule === 'name-absolute') {
+					sort = (i) => {
+						const lc = name.localeCompare(this.editors[i].getTitle(Verbosity.SHORT));
+						if (lc === 0) {
+							return order(absolutePath.localeCompare(this.editors[i].getTitle(Verbosity.LONG))) ? i : -1;
+						} else {
+							return order(lc) ? i : -1;
+						}
+					};
+				}
+
+				// Sort by absolute path
+				else if (this.editorOpenPositioningSortRule === 'absolute') {
+					sort = (i) => order(absolutePath.localeCompare(this.editors[i].getTitle(Verbosity.LONG))) ? i : -1;
+				}
+
+				let t;
+				for (let i = 0; i < this.editors.length; i++) {
+					if ((t = sort(i)) !== -1) {
+						targetIndex = t;
+						break;
+					}
 				}
 			}
 

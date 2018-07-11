@@ -982,6 +982,8 @@ export interface IWorkbenchEditorPartConfiguration {
 	enablePreviewFromQuickOpen?: boolean;
 	closeOnFileDelete?: boolean;
 	openPositioning?: 'left' | 'right' | 'first' | 'last';
+	openPositioningSortOrder?: 'asc' | 'desc';
+	openPositioningSortRule?: 'name-local' | 'name-absolute' | 'absolute';
 	openSideBySideDirection?: 'right' | 'down';
 	closeEmptyGroups?: boolean;
 	revealIfOpen?: boolean;
