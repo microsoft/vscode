@@ -713,46 +713,31 @@ export class ExtensionsWorkbenchService implements IExtensionsWorkbenchService, 
 	}
 
 	private promptAndSetEnablement(extensions: IExtension[], enablementState: EnablementState): TPromise<any> {
-		const allDependencies = this.getDependenciesRecursively(extensions, this.local, enablementState);
-		if (allDependencies.length > 0) {
-			if (enablementState === EnablementState.Enabled || enablementState === EnablementState.WorkspaceEnabled) {
-				return this.promptForDependenciesAndEnable(extensions, allDependencies, enablementState);
+		const allDependenciesAndPackedExtensions = this.getDependenciesAndPackedExtensionsRecursively(extensions, this.local, enablementState);
+		if (allDependenciesAndPackedExtensions.length > 0) {
+			if (extensions.length === 1 && (enablementState === EnablementState.Disabled || enablementState === EnablementState.WorkspaceDisabled)) {
+				return this.promptForDependenciesAndDisable(extensions[0], allDependenciesAndPackedExtensions, enablementState);
 			} else {
-				return this.promptForDependenciesAndDisable(extensions, allDependencies, enablementState);
+				return this.checkAndSetEnablement(extensions, allDependenciesAndPackedExtensions, enablementState);
 			}
 		}
 		return this.checkAndSetEnablement(extensions, [], enablementState);
 	}
 
-	private promptForDependenciesAndEnable(extensions: IExtension[], dependencies: IExtension[], enablementState: EnablementState): TPromise<any> {
-		const message = nls.localize('enableDependeciesConfirmation', "Enabling an extension also enables its dependencies. Would you like to continue?");
+	private promptForDependenciesAndDisable(extension: IExtension, dependencies: IExtension[], enablementState: EnablementState): TPromise<void> {
+		const message = nls.localize('disableExtensionPackConfirmation', "Would you like to disable '{0}' only or as a pack?", extension.displayName);
 		const buttons = [
-			nls.localize('enable', "Yes"),
-			nls.localize('doNotEnable', "No")
-		];
-		return this.dialogService.show(Severity.Info, message, buttons, { cancelId: 1 })
-			.then<void>(value => {
-				if (value === 0) {
-					return this.checkAndSetEnablement(extensions, dependencies, enablementState);
-				}
-				return TPromise.as(null);
-			});
-	}
-
-	private promptForDependenciesAndDisable(extensions: IExtension[], dependencies: IExtension[], enablementState: EnablementState): TPromise<void> {
-		const message = nls.localize('disableDependeciesConfirmation', "Would you like to disable the dependencies of the extensions also?");
-		const buttons = [
-			nls.localize('yes', "Yes"),
-			nls.localize('no', "No"),
+			nls.localize('disablePack', "Disable Extension Pack"),
+			nls.localize('disableOnly', "Disable Extension Only"),
 			nls.localize('cancel', "Cancel")
 		];
-		return this.dialogService.show(Severity.Info, message, buttons, { cancelId: 2 })
+		return this.dialogService.show(Severity.Info, message, buttons)
 			.then<void>(value => {
 				if (value === 0) {
-					return this.checkAndSetEnablement(extensions, dependencies, enablementState);
+					return this.checkAndSetEnablement([extension], dependencies, enablementState);
 				}
 				if (value === 1) {
-					return this.checkAndSetEnablement(extensions, [], enablementState);
+					return this.checkAndSetEnablement([extension], [], enablementState);
 				}
 				return TPromise.as(null);
 			});
@@ -772,25 +757,26 @@ export class ExtensionsWorkbenchService implements IExtensionsWorkbenchService, 
 		return TPromise.join(allExtensions.map(e => this.doSetEnablement(e, enablementState)));
 	}
 
-	private getDependenciesRecursively(extensions: IExtension[], installed: IExtension[], enablementState: EnablementState, checked: IExtension[] = []): IExtension[] {
+	private getDependenciesAndPackedExtensionsRecursively(extensions: IExtension[], installed: IExtension[], enablementState: EnablementState, checked: IExtension[] = []): IExtension[] {
 		const toCheck = extensions.filter(e => checked.indexOf(e) === -1);
 		if (toCheck.length) {
 			for (const extension of toCheck) {
 				checked.push(extension);
 			}
-			const dependenciesToDisable = installed.filter(i => {
+			const extensionsToDisable = installed.filter(i => {
 				if (checked.indexOf(i) !== -1) {
 					return false;
 				}
 				if (i.enablementState === enablementState) {
 					return false;
 				}
-				return i.type === LocalExtensionType.User && extensions.some(extension => extension.dependencies.some(id => areSameExtensions({ id }, i)));
+				return i.type === LocalExtensionType.User &&
+					extensions.some(extension => extension.dependencies.some(id => areSameExtensions({ id }, i)) || extension.extensionPack.some(id => areSameExtensions({ id }, i)));
 			});
-			if (dependenciesToDisable.length) {
-				const depsOfDeps = this.getDependenciesRecursively(dependenciesToDisable, installed, enablementState, checked);
-				return [...dependenciesToDisable, ...depsOfDeps];
+			if (extensionsToDisable.length) {
+				extensionsToDisable.push(...this.getDependenciesAndPackedExtensionsRecursively(extensionsToDisable, installed, enablementState, checked));
 			}
+			return extensionsToDisable;
 		}
 		return [];
 	}
