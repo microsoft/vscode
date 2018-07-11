@@ -7,16 +7,15 @@ import * as vscode from 'vscode';
 import * as Proto from '../protocol';
 import { ITypeScriptServiceClient } from '../typescriptService';
 import API from '../utils/api';
-import { VersionDependentRegistration, ConfigurationDependentRegistration, ConditionalRegistration } from '../utils/dependentRegistration';
+import { ConditionalRegistration, ConfigurationDependentRegistration, VersionDependentRegistration } from '../utils/dependentRegistration';
 import { disposeAll } from '../utils/dispose';
 import * as typeConverters from '../utils/typeConverters';
 
 class TagClosing {
 
 	private _disposed = false;
-	private timeout: NodeJS.Timer | undefined = undefined;
-
-	private readonly disposables: vscode.Disposable[] = [];
+	private _timeout: NodeJS.Timer | undefined = undefined;
+	private readonly _disposables: vscode.Disposable[] = [];
 
 	constructor(
 		private readonly client: ITypeScriptServiceClient
@@ -24,15 +23,15 @@ class TagClosing {
 		vscode.workspace.onDidChangeTextDocument(
 			event => this.onDidChangeTextDocument(event.document, event.contentChanges),
 			null,
-			this.disposables);
+			this._disposables);
 	}
 
 	public dispose() {
-		disposeAll(this.disposables);
+		disposeAll(this._disposables);
 		this._disposed = true;
-		if (this.timeout) {
-			clearTimeout(this.timeout);
-			this.timeout = undefined;
+		if (this._timeout) {
+			clearTimeout(this._timeout);
+			this._timeout = undefined;
 		}
 	}
 
@@ -50,8 +49,8 @@ class TagClosing {
 			return;
 		}
 
-		if (typeof this.timeout !== 'undefined') {
-			clearTimeout(this.timeout);
+		if (typeof this._timeout !== 'undefined') {
+			clearTimeout(this._timeout);
 		}
 
 		const lastChange = changes[changes.length - 1];
@@ -67,7 +66,7 @@ class TagClosing {
 
 		const rangeStart = lastChange.range.start;
 		const version = document.version;
-		this.timeout = setTimeout(async () => {
+		this._timeout = setTimeout(async () => {
 			if (this._disposed) {
 				return;
 			}
@@ -102,7 +101,7 @@ class TagClosing {
 				}
 			}
 
-			this.timeout = void 0;
+			this._timeout = void 0;
 		}, 100);
 	}
 
