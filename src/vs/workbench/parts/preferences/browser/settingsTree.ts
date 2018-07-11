@@ -27,7 +27,7 @@ import { ConfigurationTarget, IConfigurationService } from 'vs/platform/configur
 import { IContextViewService } from 'vs/platform/contextview/browser/contextView';
 import { WorkbenchTree, WorkbenchTreeController } from 'vs/platform/list/browser/listService';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
-import { registerColor, selectBackground, selectBorder } from 'vs/platform/theme/common/colorRegistry';
+import { registerColor, selectBackground, selectBorder, textLinkForeground } from 'vs/platform/theme/common/colorRegistry';
 import { attachButtonStyler, attachInputBoxStyler, attachSelectBoxStyler } from 'vs/platform/theme/common/styler';
 import { ICssStyleCollector, ITheme, IThemeService, registerThemingParticipant } from 'vs/platform/theme/common/themeService';
 import { SettingsTarget } from 'vs/workbench/parts/preferences/browser/preferencesWidgets';
@@ -47,9 +47,7 @@ registerThemingParticipant((theme: ITheme, collector: ICssStyleCollector) => {
 	if (modifiedItemForegroundColor) {
 		collector.addRule(`.settings-editor > .settings-body > .settings-tree-container .setting-item.is-configured .setting-item-is-configured-label { color: ${modifiedItemForegroundColor}; }`);
 	}
-});
 
-registerThemingParticipant((theme: ITheme, collector: ICssStyleCollector) => {
 	// TODO@roblou Hacks! Make checkbox background themeable
 	const selectBackgroundColor = theme.getColor(selectBackground);
 	if (selectBackgroundColor) {
@@ -61,6 +59,12 @@ registerThemingParticipant((theme: ITheme, collector: ICssStyleCollector) => {
 	if (selectBorderColor) {
 		collector.addRule(`.settings-editor > .settings-body > .settings-tree-container .setting-item-bool .setting-value-checkbox { border-color: ${selectBorderColor} !important; }`);
 		collector.addRule(`.settings-editor > .settings-body > .settings-tree-container .setting-item .setting-item-control > .monaco-inputbox { border: solid 1px ${selectBorderColor} !important; }`);
+	}
+
+	const link = theme.getColor(textLinkForeground);
+	if (link) {
+		collector.addRule(`.settings-editor > .settings-body > .settings-tree-container .setting-item .setting-item-description a { color: ${link}; }`);
+		collector.addRule(`.settings-editor > .settings-body > .settings-tree-container .setting-item .setting-item-description a > code { color: ${link}; }`);
 	}
 });
 

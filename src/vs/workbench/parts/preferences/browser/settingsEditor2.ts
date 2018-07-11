@@ -9,7 +9,7 @@ import * as arrays from 'vs/base/common/arrays';
 import { Delayer, ThrottledDelayer } from 'vs/base/common/async';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import * as collections from 'vs/base/common/collections';
-import { Color } from 'vs/base/common/color';
+import { Color, RGBA } from 'vs/base/common/color';
 import { getErrorMessage, isPromiseCanceledError } from 'vs/base/common/errors';
 import URI from 'vs/base/common/uri';
 import { TPromise } from 'vs/base/common/winjs.base';
@@ -352,6 +352,14 @@ export class SettingsEditor2 extends BaseEditor {
 			const inactiveBorderColor = theme.getColor(listInactiveSelectionBackground);
 			if (inactiveBorderColor) {
 				collector.addRule(`.settings-editor > .settings-body > .settings-tree-container .monaco-tree .monaco-tree-row.focused {outline: solid 1px ${inactiveBorderColor}; outline-offset: -1px; }`);
+			}
+
+			const foregroundColor = theme.getColor(foreground);
+			if (foregroundColor) {
+				// Links appear inside other elements in markdown. CSS opacity acts like a mask. So we have to dynamically compute the description color to avoid
+				// applying an opacity to the link color.
+				const fgWithOpacity = new Color(new RGBA(foregroundColor.rgba.r, foregroundColor.rgba.g, foregroundColor.rgba.b, .7));
+				collector.addRule(`.settings-editor > .settings-body > .settings-tree-container .setting-item .setting-item-description { color: ${fgWithOpacity}; }`);
 			}
 		}));
 
