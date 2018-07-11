@@ -67,14 +67,11 @@ export class TerminalProcessManager implements ITerminalProcessManager {
 
 	public dispose(): void {
 		if (this._process) {
-			if (this._process.isConnected) {
-				// If the process was still connected this dispose came from
-				// within VS Code, not the process, so mark the process as
-				// killed by the user.
-				this.processState = ProcessState.KILLED_BY_USER;
-				this._process.shutdown();
-				// this._process.send({ event: 'shutdown' });
-			}
+			// If the process was still connected this dispose came from
+			// within VS Code, not the process, so mark the process as
+			// killed by the user.
+			this.processState = ProcessState.KILLED_BY_USER;
+			this._process.shutdown();
 			this._process = null;
 		}
 		this._disposables.forEach(d => d.dispose());
@@ -154,16 +151,18 @@ export class TerminalProcessManager implements ITerminalProcessManager {
 	}
 
 	public setDimensions(cols: number, rows: number): void {
-		if (this._process && this._process.isConnected) {
-			// The child process could aready be terminated
-			try {
-				this._process.resize(cols, rows);
-				// this._process.send({ event: 'resize', cols, rows });
-			} catch (error) {
-				// We tried to write to a closed pipe / channel.
-				if (error.code !== 'EPIPE' && error.code !== 'ERR_IPC_CHANNEL_CLOSED') {
-					throw (error);
-				}
+		if (!this._process) {
+			return;
+		}
+
+		// The child process could already be terminated
+		try {
+			this._process.resize(cols, rows);
+			// this._process.send({ event: 'resize', cols, rows });
+		} catch (error) {
+			// We tried to write to a closed pipe / channel.
+			if (error.code !== 'EPIPE' && error.code !== 'ERR_IPC_CHANNEL_CLOSED') {
+				throw (error);
 			}
 		}
 	}

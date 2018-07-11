@@ -14,9 +14,6 @@ import { Event } from 'vs/base/common/event';
  * child_process.ChildProcess node.js interface.
  */
 export interface ITerminalChildProcess {
-	// TODO: Remove connected and references to it
-	readonly isConnected: boolean;
-
 	onProcessData: Event<string>;
 	onProcessExit: Event<number>;
 	onProcessIdReady: Event<number>;

@@ -123,9 +123,4 @@ export class TerminalProcess implements ITerminalChildProcess, IDisposable {
 		// exception in winpty.
 		this._ptyProcess.resize(Math.max(cols, 1), Math.max(rows, 1));
 	}
-
-	public get isConnected(): boolean {
-		// Don't need connected anymore as it's the same process
-		return true;
-	}
 }

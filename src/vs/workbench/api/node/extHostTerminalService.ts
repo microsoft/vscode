@@ -401,28 +401,22 @@ export class ExtHostTerminalService implements ExtHostTerminalServiceShape {
 	}
 
 	public $acceptProcessInput(id: number, data: string): void {
-		if (this._terminalProcesses[id].isConnected) {
-			this._terminalProcesses[id].input(data);
-		}
+		this._terminalProcesses[id].input(data);
 	}
 
 	public $acceptProcessResize(id: number, cols: number, rows: number): void {
-		if (this._terminalProcesses[id].isConnected) {
-			try {
-				this._terminalProcesses[id].resize(cols, rows);
-			} catch (error) {
-				// We tried to write to a closed pipe / channel.
-				if (error.code !== 'EPIPE' && error.code !== 'ERR_IPC_CHANNEL_CLOSED') {
-					throw (error);
-				}
+		try {
+			this._terminalProcesses[id].resize(cols, rows);
+		} catch (error) {
+			// We tried to write to a closed pipe / channel.
+			if (error.code !== 'EPIPE' && error.code !== 'ERR_IPC_CHANNEL_CLOSED') {
+				throw (error);
 			}
 		}
 	}
 
 	public $acceptProcessShutdown(id: number): void {
-		if (this._terminalProcesses[id].isConnected) {
-			this._terminalProcesses[id].shutdown();
-		}
+		this._terminalProcesses[id].shutdown();
 	}
 
 	private _onProcessExit(id: number, exitCode: number): void {

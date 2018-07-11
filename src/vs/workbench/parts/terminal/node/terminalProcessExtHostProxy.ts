@@ -9,9 +9,6 @@ import { ITerminalService, ITerminalProcessExtHostProxy, IShellLaunchConfig } fr
 import { IDisposable } from 'vs/base/common/lifecycle';
 
 export class TerminalProcessExtHostProxy implements ITerminalChildProcess, ITerminalProcessExtHostProxy {
-	// For ext host processes connected checks happen on the ext host
-	public isConnected: boolean = true;
-
 	private _disposables: IDisposable[] = [];
 
 	private readonly _onProcessData: Emitter<string> = new Emitter<string>();
@@ -62,16 +59,6 @@ export class TerminalProcessExtHostProxy implements ITerminalChildProcess, ITerm
 		this._onProcessExit.fire(exitCode);
 		this.dispose();
 	}
-
-	// public send(message: IMessageToTerminalProcess): boolean {
-	// 	switch (message.event) {
-	// 		case 'input': this.emit('input', message.data); break;
-	// 		case 'resize': this.emit('resize', message.cols, message.rows); break;
-	// 		case 'shutdown': this.emit('shutdown'); break;
-	// 	}
-	// 	return true;
-	// }
-
 	public shutdown(): void {
 		this._onShutdown.fire();
 	}
@@ -83,23 +70,4 @@ export class TerminalProcessExtHostProxy implements ITerminalChildProcess, ITerm
 	public resize(cols: number, rows: number): void {
 		this._onResize.fire({ cols, rows });
 	}
-
-
-	// public onInput(listener: (data: string) => void): void {
-	// 	const outerListener = (data) => listener(data);
-	// 	this.on('input', outerListener);
-	// 	this._disposables.push(toDisposable(() => this.removeListener('input', outerListener)));
-	// }
-
-	// public onResize(listener: (cols: number, rows: number) => void): void {
-	// 	const outerListener = (cols, rows) => listener(cols, rows);
-	// 	this.on('resize', outerListener);
-	// 	this._disposables.push(toDisposable(() => this.removeListener('resize', outerListener)));
-	// }
-
-	// public onShutdown(listener: () => void): void {
-	// 	const outerListener = () => listener();
-	// 	this.on('shutdown', outerListener);
-	// 	this._disposables.push(toDisposable(() => this.removeListener('shutdown', outerListener)));
-	// }
 }
