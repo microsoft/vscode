@@ -38,7 +38,7 @@ import { listActiveSelectionBackground, listActiveSelectionForeground } from 'vs
 import { LocalSelectionTransfer, DraggedEditorGroupIdentifier, DraggedEditorIdentifier, fillResourceDataTransfers } from 'vs/workbench/browser/dnd';
 import { applyDragImage } from 'vs/base/browser/dnd';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { BreadcrumbsConfig, BreadcrumbsControl } from 'vs/workbench/browser/parts/editor/breadcrumbsControl';
+import { BreadcrumbsConfig, BreadcrumbsControl, IBreadcrumbsControlOptions } from 'vs/workbench/browser/parts/editor/breadcrumbsControl';
 
 export interface IToolbarActions {
 	primary: IAction[];
@@ -94,7 +94,7 @@ export abstract class TitleControl extends Themable {
 
 	protected abstract create(parent: HTMLElement): void;
 
-	protected createBreadcrumbsControl(container: HTMLElement): void {
+	protected createBreadcrumbsControl(container: HTMLElement, options: IBreadcrumbsControlOptions): void {
 		const config = this._register(BreadcrumbsConfig.IsEnabled.bindTo(this.configurationService));
 		config.onDidChange(value => {
 			if (!value && this.breadcrumbsControl) {
@@ -102,13 +102,13 @@ export abstract class TitleControl extends Themable {
 				this.breadcrumbsControl = undefined;
 				this.group.relayout();
 			} else if (value && !this.breadcrumbsControl) {
-				this.breadcrumbsControl = this.instantiationService.createInstance(BreadcrumbsControl, container, this.group);
+				this.breadcrumbsControl = this.instantiationService.createInstance(BreadcrumbsControl, container, options, this.group);
 				this.breadcrumbsControl.update();
 				this.group.relayout();
 			}
 		});
 		if (config.value) {
-			this.breadcrumbsControl = this.instantiationService.createInstance(BreadcrumbsControl, container, this.group);
+			this.breadcrumbsControl = this.instantiationService.createInstance(BreadcrumbsControl, container, options, this.group);
 		}
 	}
 

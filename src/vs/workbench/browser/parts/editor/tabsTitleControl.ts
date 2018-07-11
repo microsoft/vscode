@@ -116,7 +116,7 @@ export class TabsTitleControl extends TitleControl {
 		const breadcrumbsContainer = document.createElement('div');
 		addClass(breadcrumbsContainer, 'tabs-breadcrumbs');
 		this.titleContainer.appendChild(breadcrumbsContainer);
-		this.createBreadcrumbsControl(breadcrumbsContainer);
+		this.createBreadcrumbsControl(breadcrumbsContainer, { showIcons: true });
 	}
 
 	private createScrollbar(): void {

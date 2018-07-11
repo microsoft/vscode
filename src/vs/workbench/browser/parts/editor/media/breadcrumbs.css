@@ -11,6 +11,10 @@
 	opacity: .8;
 }
 
+.monaco-workbench>.part.editor>.content .editor-group-container .breadcrumbs-control .monaco-breadcrumb-item .symbol-icon{
+	padding-right: 4px;
+}
+
 .monaco-workbench>.part.editor>.content .editor-group-container .breadcrumbs-control .monaco-breadcrumbs .monaco-breadcrumb-item:nth-child(2) {
 	/*first-child is the style-element*/
 	padding-left: 8px;

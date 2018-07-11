@@ -12,7 +12,7 @@ import { compareFileNames } from 'vs/base/common/comparers';
 import { debounceEvent, Emitter, Event } from 'vs/base/common/event';
 import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
 import { dispose, IDisposable, combinedDisposable } from 'vs/base/common/lifecycle';
-import { dirname, isEqual } from 'vs/base/common/resources';
+import { dirname, isEqual, basenameOrAuthority } from 'vs/base/common/resources';
 import URI from 'vs/base/common/uri';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { IDataSource, IRenderer, ISelectionEvent, ISorter, ITree, ITreeConfiguration } from 'vs/base/parts/tree/browser/tree';
@@ -43,6 +43,7 @@ import { IEditorGroupsService } from 'vs/workbench/services/group/common/editorG
 import { onUnexpectedError } from 'vs/base/common/errors';
 import { IBreadcrumbsService } from 'vs/workbench/browser/parts/editor/breadcrumbs';
 import { editorBackground } from 'vs/platform/theme/common/colorRegistry';
+import { symbolKindToCssClass } from 'vs/editor/common/modes';
 
 class Item extends BreadcrumbsItem {
 
@@ -50,6 +51,7 @@ class Item extends BreadcrumbsItem {
 
 	constructor(
 		readonly element: BreadcrumbElement,
+		readonly showIcons: boolean,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService
 	) {
 		super();
@@ -75,12 +77,19 @@ class Item extends BreadcrumbsItem {
 	render(container: HTMLElement): void {
 		if (this.element instanceof FileElement) {
 			// file/folder
-			let label = this._instantiationService.createInstance(FileLabel, container, {});
-			label.setFile(this.element.uri, {
-				hidePath: true,
-				fileKind: this.element.isFile ? FileKind.FILE : FileKind.FOLDER
-			});
-			this._disposables.push(label);
+			if (this.showIcons) {
+				let label = this._instantiationService.createInstance(FileLabel, container, {});
+				label.setFile(this.element.uri, {
+					hidePath: true,
+					fileKind: this.element.isFile ? FileKind.FILE : FileKind.FOLDER
+				});
+				this._disposables.push(label);
+
+			} else {
+				let label = new IconLabel(container);
+				label.setValue(basenameOrAuthority(this.element.uri));
+				this._disposables.push(label);
+			}
 
 		} else if (this.element instanceof OutlineGroup) {
 			// provider
@@ -90,11 +99,22 @@ class Item extends BreadcrumbsItem {
 
 		} else if (this.element instanceof OutlineElement) {
 			// symbol
+
+			if (this.showIcons) {
+				let icon = document.createElement('div');
+				icon.className = `symbol-icon ${symbolKindToCssClass(this.element.symbol.kind)}`;
+				container.appendChild(icon);
+			}
+
 			let label = new IconLabel(container);
 			label.setValue(this.element.symbol.name.replace(/\r|\n|\r\n/g, '\u23CE'));
 			this._disposables.push(label);
 		}
 	}
+}
+
+export interface IBreadcrumbsControlOptions {
+	showIcons: boolean;
 }
 
 export class BreadcrumbsControl {
@@ -116,6 +136,7 @@ export class BreadcrumbsControl {
 
 	constructor(
 		container: HTMLElement,
+		private readonly _options: IBreadcrumbsControlOptions,
 		private readonly _editorGroup: EditorGroupView,
 		@IContextKeyService private readonly _contextKeyService: IContextKeyService,
 		@IContextViewService private readonly _contextViewService: IContextViewService,
@@ -177,8 +198,8 @@ export class BreadcrumbsControl {
 
 		let control = this._editorGroup.activeControl.getControl() as ICodeEditor;
 		let model = new EditorBreadcrumbsModel(input.getResource(), isCodeEditor(control) ? control : undefined, this._workspaceService);
-		let listener = model.onDidUpdate(_ => this._widget.setItems(model.getElements().map(element => new Item(element, this._instantiationService))));
-		this._widget.setItems(model.getElements().map(element => new Item(element, this._instantiationService)));
+		let listener = model.onDidUpdate(_ => this._widget.setItems(model.getElements().map(element => new Item(element, this._options.showIcons, this._instantiationService))));
+		this._widget.setItems(model.getElements().map(element => new Item(element, this._options.showIcons, this._instantiationService)));
 		this._breadcrumbsDisposables = [model, listener];
 	}
 
