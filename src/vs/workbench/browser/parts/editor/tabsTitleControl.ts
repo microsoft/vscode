@@ -112,7 +112,10 @@ export class TabsTitleControl extends TitleControl {
 		this.closeOneEditorAction = this._register(this.instantiationService.createInstance(CloseOneEditorAction, CloseOneEditorAction.ID, CloseOneEditorAction.LABEL));
 
 		// Breadcrumbs
-		this.createBreadcrumbsControl(this.titleContainer);
+		const breadcrumbsContainer = document.createElement('div');
+		addClass(breadcrumbsContainer, 'tabs-breadcrumbs');
+		this.titleContainer.appendChild(breadcrumbsContainer);
+		this.createBreadcrumbsControl(breadcrumbsContainer);
 	}
 
 	private createScrollbar(): void {

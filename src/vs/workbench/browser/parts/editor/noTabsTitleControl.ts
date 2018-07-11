@@ -35,6 +35,12 @@ export class NoTabsTitleControl extends TitleControl {
 		this.editorLabel = this._register(this.instantiationService.createInstance(ResourceLabel, this.titleContainer, void 0));
 		this._register(this.editorLabel.onClick(e => this.onTitleLabelClick(e)));
 
+		// Breadcrumbs
+		const breadcrumbsContainer = document.createElement('div');
+		addClass(breadcrumbsContainer, 'no-tabs-breadcrumbs');
+		this.titleContainer.appendChild(breadcrumbsContainer);
+		this.createBreadcrumbsControl(breadcrumbsContainer);
+
 		// Right Actions Container
 		const actionsContainer = document.createElement('div');
 		addClass(actionsContainer, 'title-actions');
@@ -177,7 +183,9 @@ export class NoTabsTitleControl extends TitleControl {
 
 			const { labelFormat } = this.accessor.partOptions;
 			let description: string;
-			if (labelFormat === 'default' && !isGroupActive) {
+			if (this.breadcrumbsControl) {
+				description = ''; // hide description when showing breadcrumbs
+			} else if (labelFormat === 'default' && !isGroupActive) {
 				description = ''; // hide description when group is not active and style is 'default'
 			} else {
 				description = editor.getDescription(this.getVerbosity(labelFormat)) || '';
@@ -188,7 +196,7 @@ export class NoTabsTitleControl extends TitleControl {
 				title = ''; // dont repeat what is already shown
 			}
 
-			this.editorLabel.setLabel({ name, description, resource }, { title, italic: !isEditorPinned, extraClasses: ['title-label'] });
+			this.editorLabel.setLabel({ name, description, resource }, { title, italic: !isEditorPinned, extraClasses: ['no-tabs', 'title-label'] });
 			if (isGroupActive) {
 				this.editorLabel.element.style.color = this.getColor(TAB_ACTIVE_FOREGROUND);
 			} else {
@@ -197,6 +205,11 @@ export class NoTabsTitleControl extends TitleControl {
 
 			// Update Editor Actions Toolbar
 			this.updateEditorActionsToolbar();
+		}
+
+		// Update Breadcrumbs
+		if (this.breadcrumbsControl) {
+			this.breadcrumbsControl.update();
 		}
 	}
 

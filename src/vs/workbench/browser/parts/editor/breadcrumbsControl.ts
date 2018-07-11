@@ -155,8 +155,10 @@ export class BreadcrumbsControl {
 	}
 
 	layout(dim: dom.Dimension): void {
-		this._domNode.style.width = `${dim.width}px`;
-		this._domNode.style.height = `${dim.height}px`;
+		if (dim) {
+			this._domNode.style.width = `${dim.width}px`;
+			this._domNode.style.height = `${dim.height}px`;
+		}
 		this._widget.layout(dim);
 	}
 

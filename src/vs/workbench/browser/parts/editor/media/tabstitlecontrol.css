@@ -257,6 +257,10 @@
 
 /* Breadcrumbs */
 
-.monaco-workbench > .part.editor > .content .editor-group-container > .title .breadcrumbs-control {
+.monaco-workbench > .part.editor > .content .editor-group-container > .title .tabs-breadcrumbs .breadcrumbs-control {
 	flex: 1 100%;
+}
+
+.monaco-workbench > .part.editor > .content .editor-group-container > .title .tabs-breadcrumbs .breadcrumbs-control .monaco-icon-label::before {
+	height: 18px; /* tweak the icon size of the editor labels when icons are enabled */
 }

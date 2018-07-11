@@ -350,6 +350,10 @@ export abstract class TitleControl extends Themable {
 
 	layout(dimension: Dimension): void {
 		// Optionally implemented in subclasses
+
+		if (this.breadcrumbsControl) {
+			this.breadcrumbsControl.layout(undefined);
+		}
 	}
 
 	getPreferredHeight(): number {
