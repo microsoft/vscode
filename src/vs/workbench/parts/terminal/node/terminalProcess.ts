@@ -7,6 +7,7 @@ import * as os from 'os';
 import * as path from 'path';
 import * as pty from 'node-pty';
 import { Event, Emitter } from 'vs/base/common/event';
+import { IProcessEnvironment } from 'vs/base/common/platform';
 
 export class TerminalProcess {
 	private _exitCode: number;
@@ -34,125 +35,63 @@ export class TerminalProcess {
 			// color prompt as defined in the default ~/.bashrc file.
 			shellName = 'xterm-256color';
 		}
-		// const shell = process.env.PTYSHELL;
-		// const args = getArgs();
-		// const cwd = process.env.PTYCWD;
-		// const cols = process.env.PTYCOLS;
-		// const rows = process.env.PTYROWS;
-		// let currentTitle = '';
 
-		// setupPlanB(Number(process.env.PTYPID));
-		cleanEnv();
-
-		interface IOptions {
-			name: string;
-			cwd: string;
-			cols?: number;
-			rows?: number;
-		}
-
-		const options: IOptions = {
+		const options: pty.IPtyForkOptions = {
 			name: shellName,
-			cwd
+			cwd,
+			env: this._createEnv(),
+			cols,
+			rows
 		};
-		if (cols && rows) {
-			// options.cols = parseInt(cols, 10);
-			// options.rows = parseInt(rows, 10);
-			options.cols = cols;
-			options.rows = rows;
-		}
 
-		const ptyProcess = pty.spawn(shell, args, options);
-		this._ptyProcess = ptyProcess;
-
-		// let closeTimeout: number;
-		// let exitCode: number;
-
-		(<any>ptyProcess).on('data', (data) => {
+		this._ptyProcess = pty.spawn(shell, args, options);
+		this._ptyProcess.on('data', (data) => {
 			this._onData.fire(data);
-			// process.send({
-			// 	type: 'data',
-			// 	content: data
-			// });
 			if (this._closeTimeout) {
 				clearTimeout(this._closeTimeout);
 				this._queueProcessExit();
 			}
 		});
-
-		ptyProcess.on('exit', (code) => {
+		this._ptyProcess.on('exit', (code) => {
 			this._exitCode = code;
 			this._queueProcessExit();
 		});
 
-		// process.on('message', (message) => {
-		// 	if (message.event === 'input') {
-		// 		ptyProcess.write(message.data);
-		// 	} else if (message.event === 'resize') {
-		// 		// Ensure that cols and rows are always >= 1, this prevents a native
-		// 		// exception in winpty.
-		// 		ptyProcess.resize(Math.max(message.cols, 1), Math.max(message.rows, 1));
-		// 	} else if (message.event === 'shutdown') {
-		// 		this._queueProcessExit();
-		// 	}
-		// });
-
+		// TODO: We should no longer need to delay this since spawn is sync
 		setTimeout(() => {
 			this._sendProcessId();
 		}, 1000);
 		this._setupTitlePolling();
+	}
 
-		// function getArgs(): string | string[] {
-		// 	if (process.env['PTYSHELLCMDLINE']) {
-		// 		return process.env['PTYSHELLCMDLINE'];
-		// 	}
-		// 	const args = [];
-		// 	let i = 0;
-		// 	while (process.env['PTYSHELLARG' + i]) {
-		// 		args.push(process.env['PTYSHELLARG' + i]);
-		// 		i++;
-		// 	}
-		// 	return args;
-		// }
-
-		function cleanEnv() {
-			const keys = [
-				'AMD_ENTRYPOINT',
-				'ELECTRON_NO_ASAR',
-				'ELECTRON_RUN_AS_NODE',
-				'GOOGLE_API_KEY',
-				'PTYCWD',
-				'PTYPID',
-				'PTYSHELL',
-				'PTYCOLS',
-				'PTYROWS',
-				'PTYSHELLCMDLINE',
-				'VSCODE_LOGS',
-				'VSCODE_PORTABLE',
-				'VSCODE_PID',
-			];
-			// TODO: Don't change process.env, create a new one
-			keys.forEach(function (key) {
-				if (process.env[key]) {
-					delete process.env[key];
-				}
-			});
-			let i = 0;
-			while (process.env['PTYSHELLARG' + i]) {
-				delete process.env['PTYSHELLARG' + i];
-				i++;
+	private _createEnv(): IProcessEnvironment {
+		const env: IProcessEnvironment = { ...process.env };
+		const keysToRemove = [
+			'AMD_ENTRYPOINT',
+			'ELECTRON_ENABLE_STACK_DUMPING',
+			'ELECTRON_ENABLE_LOGGING',
+			'ELECTRON_NO_ASAR',
+			'ELECTRON_RUN_AS_NODE',
+			'GOOGLE_API_KEY',
+			'VSCODE_CLI',
+			'VSCODE_DEV',
+			'VSCODE_IPC_HOOK',
+			'VSCODE_LOGS',
+			'VSCODE_NLS_CONFIG',
+			'VSCODE_PORTABLE',
+			'VSCODE_PID',
+		];
+		keysToRemove.forEach((key) => {
+			if (env[key]) {
+				delete env[key];
 			}
-		}
-
-		// function setupPlanB(parentPid: number) {
-		// 	setInterval(function () {
-		// 		try {
-		// 			process.kill(parentPid, 0); // throws an exception if the main process doesn't exist anymore.
-		// 		} catch (e) {
-		// 			process.exit();
-		// 		}
-		// 	}, 5000);
-		// }
+		});
+		Object.keys(env).forEach(key => {
+			if (key.search(/^VSCODE_NODE_CACHED_DATA_DIR_\d+$/) === 0) {
+				delete env[key];
+			}
+		});
+		return env;
 	}
 
 	private _setupTitlePolling() {
@@ -174,22 +113,13 @@ export class TerminalProcess {
 		this._closeTimeout = setTimeout(() => {
 			this._ptyProcess.kill();
 			this._onExit.fire(this._exitCode);
-			// process.exit(exitCode);
 		}, 250);
 	}
 
 	private _sendProcessId() {
 		this._onProcessIdReady.fire(this._ptyProcess.pid);
-		// process.send({
-		// 	type: 'pid',
-		// 	content: ptyProcess.pid
-		// });
 	}
 	private _sendProcessTitle(): void {
-		// process.send({
-		// 	type: 'title',
-		// 	content: ptyProcess.process
-		// });
 		this._currentTitle = this._ptyProcess.process;
 		this._onTitleChanged.fire(this._currentTitle);
 	}
