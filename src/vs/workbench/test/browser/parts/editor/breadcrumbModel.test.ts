@@ -8,7 +8,7 @@
 import * as assert from 'assert';
 import URI from 'vs/base/common/uri';
 import { Workspace, WorkspaceFolder } from 'vs/platform/workspace/common/workspace';
-import { EditorBreadcrumbsModel, FileElement } from 'vs/workbench/browser/parts/editor/editorBreadcrumbsModel';
+import { EditorBreadcrumbsModel, FileElement } from 'vs/workbench/browser/parts/editor/breadcrumbsModel';
 import { TestContextService } from 'vs/workbench/test/workbenchTestServices';
 
 

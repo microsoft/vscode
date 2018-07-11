@@ -14,7 +14,7 @@ import * as dom from 'vs/base/browser/dom';
 import * as arrays from 'vs/base/common/arrays';
 import { IContextViewProvider } from 'vs/base/browser/ui/contextview/contextview';
 import { List } from 'vs/base/browser/ui/list/listWidget';
-import { IDelegate, IRenderer } from 'vs/base/browser/ui/list/list';
+import { IVirtualDelegate, IRenderer } from 'vs/base/browser/ui/list/list';
 import { domEvent } from 'vs/base/browser/event';
 import { ScrollbarVisibility } from 'vs/base/common/scrollable';
 import { ISelectBoxDelegate, ISelectBoxOptions, ISelectBoxStyles, ISelectData } from 'vs/base/browser/ui/selectBox/selectBox';
@@ -67,12 +67,16 @@ class SelectListRenderer implements IRenderer<ISelectOptionItem, ISelectListTemp
 		}
 	}
 
+	disposeElement(): void {
+		// noop
+	}
+
 	disposeTemplate(templateData: ISelectListTemplateData): void {
 		templateData.disposables = dispose(templateData.disposables);
 	}
 }
 
-export class SelectBoxList implements ISelectBoxDelegate, IDelegate<ISelectOptionItem> {
+export class SelectBoxList implements ISelectBoxDelegate, IVirtualDelegate<ISelectOptionItem> {
 
 	private static readonly DEFAULT_DROPDOWN_MINIMUM_BOTTOM_MARGIN = 32;
 
@@ -238,6 +242,8 @@ export class SelectBoxList implements ISelectBoxDelegate, IDelegate<ISelectOptio
 
 		if (selected !== undefined) {
 			this.select(selected);
+			// Set current = selected since this is not necessarily a user exit
+			this._currentSelection = this.selected;
 		}
 	}
 
@@ -523,8 +529,10 @@ export class SelectBoxList implements ISelectBoxDelegate, IDelegate<ISelectOptio
 
 	// List methods
 
-	// List mouse controller - active exit, select option, fire onDidSelect, return focus to parent select
+	// List mouse controller - active exit, select option, fire onDidSelect if change, return focus to parent select
 	private onMouseUp(e: MouseEvent): void {
+
+		dom.EventHelper.stop(e);
 
 		// Check our mouse event is on an option (not scrollbar)
 		if (!e.toElement.classList.contains('option-text')) {
@@ -542,59 +550,58 @@ export class SelectBoxList implements ISelectBoxDelegate, IDelegate<ISelectOptio
 
 			this.selectList.setFocus([this.selected]);
 			this.selectList.reveal(this.selectList.getFocus()[0]);
-			this._onDidSelect.fire({
-				index: this.selectElement.selectedIndex,
-				selected: this.selectElement.title
-			});
 
-			// Reset Selection Handler
-			this._currentSelection = -1;
+			// Only fire if selection change
+			if (this.selected !== this._currentSelection) {
+				// Set current = selected
+				this._currentSelection = this.selected;
+
+				this._onDidSelect.fire({
+					index: this.selectElement.selectedIndex,
+					selected: this.selectElement.title
+				});
+			}
+
 			this.hideSelectDropDown(true);
 		}
-		dom.EventHelper.stop(e);
 	}
 
-	// List Exit - passive - hide drop-down, fire onDidSelect
+	// List Exit - passive - implicit no selection change, hide drop-down
 	private onListBlur(): void {
 
-		if (this._currentSelection >= 0) {
+		if (this.selected !== this._currentSelection) {
+			// Reset selected to current if no change
 			this.select(this._currentSelection);
 		}
-
-		this._onDidSelect.fire({
-			index: this.selectElement.selectedIndex,
-			selected: this.selectElement.title
-		});
 
 		this.hideSelectDropDown(false);
 	}
 
 	// List keyboard controller
-	// List exit - active - hide ContextView dropdown, return focus to parent select, fire onDidSelect
+
+	// List exit - active - hide ContextView dropdown, reset selection, return focus to parent select
 	private onEscape(e: StandardKeyboardEvent): void {
 		dom.EventHelper.stop(e);
+
+		// Reset selection to value when opened
 		this.select(this._currentSelection);
-
 		this.hideSelectDropDown(true);
-
-		this._onDidSelect.fire({
-			index: this.selectElement.selectedIndex,
-			selected: this.selectElement.title
-		});
 	}
 
-	// List exit - active - hide ContextView dropdown, return focus to parent select, fire onDidSelect
+	// List exit - active - hide ContextView dropdown, return focus to parent select, fire onDidSelect if change
 	private onEnter(e: StandardKeyboardEvent): void {
 		dom.EventHelper.stop(e);
 
-		// Reset current selection
-		this._currentSelection = -1;
+		// Only fire if selection change
+		if (this.selected !== this._currentSelection) {
+			this._currentSelection = this.selected;
+			this._onDidSelect.fire({
+				index: this.selectElement.selectedIndex,
+				selected: this.selectElement.title
+			});
+		}
 
 		this.hideSelectDropDown(true);
-		this._onDidSelect.fire({
-			index: this.selectElement.selectedIndex,
-			selected: this.selectElement.title
-		});
 	}
 
 	// List navigation - have to handle a disabled option (jump over)

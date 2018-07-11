@@ -67,7 +67,8 @@ function main(server: Server, initData: ISharedProcessInitData, configuration: I
 	process.once('exit', () => dispose(disposables));
 
 	const environmentService = new EnvironmentService(initData.args, process.execPath);
-	const logLevelClient = new LogLevelSetterChannelClient(server.getChannel('loglevel', { routeCall: () => 'main', routeEvent: () => 'main' }));
+	const mainRoute = () => TPromise.as('main');
+	const logLevelClient = new LogLevelSetterChannelClient(server.getChannel('loglevel', { routeCall: mainRoute, routeEvent: mainRoute }));
 	const logService = new FollowerLogService(logLevelClient, createSpdLogService('sharedprocess', initData.logLevel, environmentService.logsPath));
 	disposables.push(logService);
 
@@ -78,21 +79,13 @@ function main(server: Server, initData: ISharedProcessInitData, configuration: I
 	services.set(IConfigurationService, new SyncDescriptor(ConfigurationService));
 	services.set(IRequestService, new SyncDescriptor(RequestService));
 
-	const windowsChannel = server.getChannel('windows', { routeCall: () => 'main', routeEvent: () => 'main' });
+	const windowsChannel = server.getChannel('windows', { routeCall: mainRoute, routeEvent: mainRoute });
 	const windowsService = new WindowsChannelClient(windowsChannel);
 	services.set(IWindowsService, windowsService);
 
 	const activeWindowManager = new ActiveWindowManager(windowsService);
-	const dialogChannel = server.getChannel('dialog', {
-		routeCall: () => {
-			logService.info('Routing dialog call request to the client', activeWindowManager.activeClientId);
-			return activeWindowManager.activeClientId;
-		},
-		routeEvent: () => {
-			logService.info('Routing dialog listen request to the client', activeWindowManager.activeClientId);
-			return activeWindowManager.activeClientId;
-		}
-	});
+	const route = () => activeWindowManager.getActiveClientId();
+	const dialogChannel = server.getChannel('dialog', { routeCall: route, routeEvent: route });
 	services.set(IDialogService, new DialogChannelClient(dialogChannel));
 
 	const instantiationService = new InstantiationService(services);

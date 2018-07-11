@@ -11,15 +11,12 @@ import API from '../utils/api';
 import { Delayer } from '../utils/async';
 import { disposeAll } from '../utils/dispose';
 import * as languageModeIds from '../utils/languageModeIds';
+import * as typeConverters from '../utils/typeConverters';
 import { ResourceMap } from './resourceMap';
 
 enum BufferKind {
 	TypeScript = 1,
 	JavaScript = 2,
-}
-
-interface IDiagnosticRequestor {
-	requestDiagnostic(resource: Uri): void;
 }
 
 function mode2ScriptKind(mode: string): 'TS' | 'TSX' | 'JS' | 'JSX' | undefined {
@@ -37,7 +34,6 @@ class SyncedBuffer {
 	constructor(
 		private readonly document: TextDocument,
 		public readonly filepath: string,
-		private readonly diagnosticRequestor: IDiagnosticRequestor,
 		private readonly client: ITypeScriptServiceClient
 	) { }
 
@@ -101,16 +97,11 @@ class SyncedBuffer {
 	public onContentChanged(events: TextDocumentContentChangeEvent[]): void {
 		for (const { range, text } of events) {
 			const args: Proto.ChangeRequestArgs = {
-				file: this.filepath,
-				line: range.start.line + 1,
-				offset: range.start.character + 1,
-				endLine: range.end.line + 1,
-				endOffset: range.end.character + 1,
-				insertString: text
+				insertString: text,
+				...typeConverters.Range.toFormattingRequestArgs(this.filepath, range)
 			};
 			this.client.execute('change', args, false);
 		}
-		this.diagnosticRequestor.requestDiagnostic(this.document.uri);
 	}
 }
 
@@ -123,9 +114,13 @@ class SyncedBufferMap extends ResourceMap<SyncedBuffer> {
 	public get allBuffers(): Iterable<SyncedBuffer> {
 		return this.values;
 	}
+}
 
-	public get allResources(): Iterable<string> {
-		return this.keys;
+class PendingDiagnostics extends ResourceMap<number> {
+	public getFileList(): Set<string> {
+		return new Set(Array.from(this.entries)
+			.sort((a, b) => a[1] - b[1])
+			.map(entry => entry[0]));
 	}
 }
 
@@ -138,8 +133,7 @@ export default class BufferSyncSupport {
 	private readonly modeIds: Set<string>;
 	private readonly disposables: Disposable[] = [];
 	private readonly syncedBuffers: SyncedBufferMap;
-
-	private readonly pendingDiagnostics = new Map<string, number>();
+	private readonly pendingDiagnostics: PendingDiagnostics;
 	private readonly diagnosticDelayer: Delayer<any>;
 	private pendingGetErr: { request: Promise<any>, files: string[], token: CancellationTokenSource } | undefined;
 	private listening: boolean = false;
@@ -153,10 +147,12 @@ export default class BufferSyncSupport {
 
 		this.diagnosticDelayer = new Delayer<any>(300);
 
-		this.syncedBuffers = new SyncedBufferMap(path => this.normalizePath(path));
+		const pathNormalizer = (path: Uri) => this.client.normalizedPath(path);
+		this.syncedBuffers = new SyncedBufferMap(pathNormalizer);
+		this.pendingDiagnostics = new PendingDiagnostics(pathNormalizer);
 
 		this.updateConfiguration();
-		workspace.onDidChangeConfiguration(() => this.updateConfiguration(), null);
+		workspace.onDidChangeConfiguration(this.updateConfiguration, this, this.disposables);
 	}
 
 	private readonly _onDelete = new EventEmitter<Uri>();
@@ -210,10 +206,10 @@ export default class BufferSyncSupport {
 			return;
 		}
 
-		const syncedBuffer = new SyncedBuffer(document, filepath, this, this.client);
+		const syncedBuffer = new SyncedBuffer(document, filepath, this.client);
 		this.syncedBuffers.set(resource, syncedBuffer);
 		syncedBuffer.open();
-		this.requestDiagnostic(resource);
+		this.requestDiagnostic(syncedBuffer);
 	}
 
 	public closeResource(resource: Uri): void {
@@ -240,25 +236,24 @@ export default class BufferSyncSupport {
 		}
 
 		syncedBuffer.onContentChanged(e.contentChanges);
+		this.requestDiagnostic(syncedBuffer);
+
 		if (this.pendingGetErr) {
 			this.pendingGetErr.token.cancel();
 			this.pendingGetErr = undefined;
 
-			this.diagnosticDelayer.trigger(() => {
-				this.sendPendingDiagnostics();
-			}, 200);
+			// In this case we always want to re-trigger all diagnostics
+			this.triggerDiagnostics();
 		}
 	}
 
 	public requestAllDiagnostics() {
 		for (const buffer of this.syncedBuffers.allBuffers) {
 			if (this.shouldValidate(buffer)) {
-				this.pendingDiagnostics.set(buffer.filepath, Date.now());
+				this.pendingDiagnostics.set(buffer.resource, Date.now());
 			}
 		}
-		this.diagnosticDelayer.trigger(() => {
-			this.sendPendingDiagnostics();
-		}, 200);
+		this.triggerDiagnostics();
 	}
 
 	public getErr(resources: Uri[]): any {
@@ -268,65 +263,55 @@ export default class BufferSyncSupport {
 		}
 
 		for (const resource of handledResources) {
-			const file = this.client.normalizedPath(resource);
-			if (file) {
-				this.pendingDiagnostics.set(file, Date.now());
-			}
+			this.pendingDiagnostics.set(resource, Date.now());
 		}
 
-		this.diagnosticDelayer.trigger(() => {
-			this.sendPendingDiagnostics();
-		}, 200);
+		this.triggerDiagnostics();
 	}
 
-	public requestDiagnostic(resource: Uri): void {
-		const file = this.client.normalizedPath(resource);
-		if (!file) {
-			return;
-		}
-
-		this.pendingDiagnostics.set(file, Date.now());
-		const buffer = this.syncedBuffers.get(resource);
-		if (!buffer || !this.shouldValidate(buffer)) {
-			return;
-		}
-
-		let delay = 300;
-		const lineCount = buffer.lineCount;
-		delay = Math.min(Math.max(Math.ceil(lineCount / 20), 300), 800);
+	private triggerDiagnostics(delay: number = 200) {
 		this.diagnosticDelayer.trigger(() => {
 			this.sendPendingDiagnostics();
 		}, delay);
 	}
 
+	private requestDiagnostic(buffer: SyncedBuffer): void {
+		if (!this.shouldValidate(buffer)) {
+			return;
+		}
+
+		this.pendingDiagnostics.set(buffer.resource, Date.now());
+
+		const lineCount = buffer.lineCount;
+		const delay = Math.min(Math.max(Math.ceil(lineCount / 20), 300), 800);
+		this.triggerDiagnostics(delay);
+	}
+
 	public hasPendingDiagnostics(resource: Uri): boolean {
-		const file = this.client.normalizedPath(resource);
-		return !file || this.pendingDiagnostics.has(file);
+		return this.pendingDiagnostics.has(resource);
 	}
 
 	private sendPendingDiagnostics(): void {
-		const files = new Set(Array.from(this.pendingDiagnostics.entries())
-			.sort((a, b) => a[1] - b[1])
-			.map(entry => entry[0]));
+		const fileList = this.pendingDiagnostics.getFileList();
 
 		// Add all open TS buffers to the geterr request. They might be visible
-		for (const file of this.syncedBuffers.allResources) {
-			if (!this.pendingDiagnostics.get(file)) {
-				files.add(file);
+		for (const buffer of this.syncedBuffers.values) {
+			if (!this.pendingDiagnostics.has(buffer.resource)) {
+				fileList.add(buffer.filepath);
 			}
 		}
 
 		if (this.pendingGetErr) {
 			for (const file of this.pendingGetErr.files) {
-				files.add(file);
+				fileList.add(file);
 			}
 		}
 
-		if (files.size) {
-			const fileList = Array.from(files);
+		if (fileList.size) {
+			const files = Array.from(fileList);
 			const args: Proto.GeterrRequestArgs = {
 				delay: 0,
-				files: fileList
+				files
 			};
 			const token = new CancellationTokenSource();
 
@@ -338,7 +323,7 @@ export default class BufferSyncSupport {
 							this.pendingGetErr = undefined;
 						}
 					}),
-				files: fileList,
+				files,
 				token
 			};
 		}
@@ -362,9 +347,5 @@ export default class BufferSyncSupport {
 			default:
 				return this._validateTypeScript;
 		}
-	}
-
-	private normalizePath(path: Uri): string | null {
-		return this.client.normalizedPath(path);
 	}
 }

@@ -67,7 +67,7 @@ import { IExtensionPoint } from 'vs/workbench/services/extensions/common/extensi
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { IDecorationsService, IResourceDecorationChangeEvent, IDecoration, IDecorationData, IDecorationsProvider } from 'vs/workbench/services/decorations/browser/decorations';
 import { IDisposable, toDisposable, Disposable } from 'vs/base/common/lifecycle';
-import { IEditorGroupsService, IEditorGroup, GroupsOrder, GroupsArrangement, GroupDirection, IAddGroupOptions, IMergeGroupOptions, IMoveEditorOptions, ICopyEditorOptions, IEditorReplacement, IGroupChangeEvent, EditorsOrder, IFindGroupScope, EditorGroupLayout, IEditorBreadcrumbs } from 'vs/workbench/services/group/common/editorGroupsService';
+import { IEditorGroupsService, IEditorGroup, GroupsOrder, GroupsArrangement, GroupDirection, IAddGroupOptions, IMergeGroupOptions, IMoveEditorOptions, ICopyEditorOptions, IEditorReplacement, IGroupChangeEvent, EditorsOrder, IFindGroupScope, EditorGroupLayout } from 'vs/workbench/services/group/common/editorGroupsService';
 import { IEditorService, IOpenEditorOverrideHandler } from 'vs/workbench/services/editor/common/editorService';
 import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
 import { ICodeEditor, IDiffEditor } from 'vs/editor/browser/editorBrowser';
@@ -583,7 +583,6 @@ export class TestEditorGroup implements IEditorGroupView {
 	constructor(public id: number) { }
 
 	group: EditorGroup = void 0;
-	breadcrumbs: IEditorBreadcrumbs;
 	activeControl: IEditor;
 	activeEditor: IEditorInput;
 	previewEditor: IEditorInput;
@@ -674,6 +673,7 @@ export class TestEditorGroup implements IEditorGroupView {
 	dispose(): void { }
 	toJSON(): object { return Object.create(null); }
 	layout(width: number, height: number): void { }
+	relayout() { }
 }
 
 export class TestEditorService implements EditorServiceImpl {
@@ -1293,6 +1293,10 @@ export class TestWindowsService implements IWindowsService {
 
 	updateTouchBar(windowId: number, items: ISerializableCommandAction[][]): Promise<void> {
 		return TPromise.as(void 0);
+	}
+
+	getActiveWindowId(): TPromise<number | undefined> {
+		return TPromise.as(undefined);
 	}
 
 	// This needs to be handled from browser process to prevent

@@ -39,6 +39,8 @@ import { addClass, addDisposableListener, hasClass, EventType, EventHelper, remo
 import { localize } from 'vs/nls';
 import { IEditorGroupsAccessor, IEditorPartOptions, IEditorGroupView } from 'vs/workbench/browser/parts/editor/editor';
 import { CloseOneEditorAction } from 'vs/workbench/browser/parts/editor/editorActions';
+import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
+import { BreadcrumbsControl } from 'vs/workbench/browser/parts/editor/breadcrumbsControl';
 
 interface IEditorInputLabel {
 	name: string;
@@ -78,9 +80,10 @@ export class TabsTitleControl extends TitleControl {
 		@IMenuService menuService: IMenuService,
 		@IQuickOpenService quickOpenService: IQuickOpenService,
 		@IThemeService themeService: IThemeService,
-		@IExtensionService extensionService: IExtensionService
+		@IExtensionService extensionService: IExtensionService,
+		@IConfigurationService configurationService: IConfigurationService
 	) {
-		super(parent, accessor, group, contextMenuService, instantiationService, contextKeyService, keybindingService, telemetryService, notificationService, menuService, quickOpenService, themeService, extensionService);
+		super(parent, accessor, group, contextMenuService, instantiationService, contextKeyService, keybindingService, telemetryService, notificationService, menuService, quickOpenService, themeService, extensionService, configurationService);
 	}
 
 	protected create(parent: HTMLElement): void {
@@ -108,6 +111,12 @@ export class TabsTitleControl extends TitleControl {
 
 		// Close Action
 		this.closeOneEditorAction = this._register(this.instantiationService.createInstance(CloseOneEditorAction, CloseOneEditorAction.ID, CloseOneEditorAction.LABEL));
+
+		// Breadcrumbs
+		const breadcrumbsContainer = document.createElement('div');
+		addClass(breadcrumbsContainer, 'tabs-breadcrumbs');
+		this.titleContainer.appendChild(breadcrumbsContainer);
+		this.createBreadcrumbsControl(breadcrumbsContainer, { showIcons: true, showDecorationColors: false });
 	}
 
 	private createScrollbar(): void {
@@ -240,6 +249,11 @@ export class TabsTitleControl extends TitleControl {
 
 		// Redraw all tabs
 		this.redraw();
+
+		// Update Breadcrumbs
+		if (this.breadcrumbsControl) {
+			this.breadcrumbsControl.update();
+		}
 	}
 
 	closeEditor(editor: IEditorInput): void {
@@ -286,6 +300,11 @@ export class TabsTitleControl extends TitleControl {
 			this.tabLabels = [];
 
 			this.clearEditorActionsToolbar();
+		}
+
+		// Update Breadcrumbs
+		if (this.breadcrumbsControl) {
+			this.breadcrumbsControl.update();
 		}
 	}
 
@@ -908,6 +927,11 @@ export class TabsTitleControl extends TitleControl {
 		const activeTab = this.getTab(this.group.activeEditor);
 		if (!activeTab) {
 			return;
+		}
+
+		if (this.breadcrumbsControl) {
+			this.breadcrumbsControl.layout({ width: dimension.width, height: BreadcrumbsControl.HEIGHT });
+			this.scrollbar.getDomNode().style.height = `${dimension.height - BreadcrumbsControl.HEIGHT}px`;
 		}
 
 		const visibleContainerWidth = this.tabsContainer.offsetWidth;

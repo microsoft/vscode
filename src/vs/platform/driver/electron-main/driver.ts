@@ -27,12 +27,12 @@ class WindowRouter implements IClientRouter {
 
 	constructor(private windowId: number) { }
 
-	routeCall(): string {
-		return `window:${this.windowId}`;
+	routeCall(): TPromise<string> {
+		return TPromise.as(`window:${this.windowId}`);
 	}
 
-	routeEvent(): string {
-		return `window:${this.windowId}`;
+	routeEvent(): TPromise<string> {
+		return TPromise.as(`window:${this.windowId}`);
 	}
 }
 

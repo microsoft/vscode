@@ -10,7 +10,7 @@ import { createDecorator, IInstantiationService } from 'vs/platform/instantiatio
 import { IDisposable, toDisposable, combinedDisposable, dispose, Disposable } from 'vs/base/common/lifecycle';
 import { IContextKeyService, IContextKey, RawContextKey, ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
 import { PagedList, IPagedRenderer } from 'vs/base/browser/ui/list/listPaging';
-import { IDelegate, IRenderer, IListMouseEvent, IListTouchEvent } from 'vs/base/browser/ui/list/list';
+import { IVirtualDelegate, IRenderer, IListMouseEvent, IListTouchEvent } from 'vs/base/browser/ui/list/list';
 import { Tree } from 'vs/base/parts/tree/browser/treeImpl';
 import { attachListStyler, defaultListStyles, computeStyles } from 'vs/platform/theme/common/styler';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
@@ -208,7 +208,7 @@ export class WorkbenchList<T> extends List<T> {
 
 	constructor(
 		container: HTMLElement,
-		delegate: IDelegate<T>,
+		delegate: IVirtualDelegate<T>,
 		renderers: IRenderer<T, any>[],
 		options: IListOptions<T>,
 		@IContextKeyService contextKeyService: IContextKeyService,
@@ -279,7 +279,7 @@ export class WorkbenchPagedList<T> extends PagedList<T> {
 
 	constructor(
 		container: HTMLElement,
-		delegate: IDelegate<number>,
+		delegate: IVirtualDelegate<number>,
 		renderers: IPagedRenderer<T, any>[],
 		options: IListOptions<T>,
 		@IContextKeyService contextKeyService: IContextKeyService,

@@ -81,8 +81,6 @@ export async function activate(context: ExtensionContext): Promise<API> {
 	const telemetryReporter = new TelemetryReporter(name, version, aiKey);
 	deactivateTasks.push(() => telemetryReporter.dispose());
 
-	await new Promise(c => setTimeout(c, 10000));
-
 	const config = workspace.getConfiguration('git', null);
 	const enabled = config.get<boolean>('enabled');
 
