@@ -1048,16 +1048,35 @@ declare module 'vscode' {
 
 	//#region scm, Rachel & Peng https://github.com/Microsoft/vscode/issues/53892
 
-	export namespace scm {
+	export interface ReadonlySourceControl {
 		/**
-		 * The currently visible [source controls](#SourceControl).
+		 * The id of this source control.
 		 */
-		export const visibleSourceControls: SourceControl[];
+		readonly id: string;
 
 		/**
-		 * An [event](#Event) which fires when the visible [source controls](#SourceControl) have changed.
+		 * The human-readable label of this source control.
 		 */
-		export const onDidChangeVisibleSourceControls: Event<SourceControl[]>;
+		readonly label: string;
+
+		/**
+		 * The (optional) Uri of the root of this source control.
+		 */
+		readonly rootUri: Uri | undefined;
+	}
+
+	export namespace scm {
+
+		/**
+		 * The currently visible [source controls](#ReadonlySourceControl).
+		 */
+		export const visibleSourceControls: ReadonlySourceControl[];
+
+
+		/**
+		 * An [event](#Event) which fires when the visible [source controls](#ReadonlySourceControl) have changed.
+		 */
+		export const onDidChangeVisibleSourceControls: Event<ReadonlySourceControl[]>;
 	}
 
 	//#endregion
