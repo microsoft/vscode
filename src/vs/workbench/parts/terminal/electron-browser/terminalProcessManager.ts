@@ -3,19 +3,20 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import * as platform from 'vs/base/common/platform';
 import * as terminalEnvironment from 'vs/workbench/parts/terminal/node/terminalEnvironment';
 import { IDisposable } from 'vs/base/common/lifecycle';
 import { ProcessState, ITerminalProcessManager, IShellLaunchConfig, ITerminalConfigHelper } from 'vs/workbench/parts/terminal/common/terminal';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { ILogService } from 'vs/platform/log/common/log';
 import { Emitter, Event } from 'vs/base/common/event';
-import { IConfigurationResolverService } from 'vs/workbench/services/configurationResolver/common/configurationResolver';
-import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { IHistoryService } from 'vs/workbench/services/history/common/history';
 import { ITerminalChildProcess } from 'vs/workbench/parts/terminal/node/terminal';
 import { TerminalProcessExtHostProxy } from 'vs/workbench/parts/terminal/node/terminalProcessExtHostProxy';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { TerminalProcess } from 'vs/workbench/parts/terminal/node/terminalProcess';
+import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
+import { IConfigurationResolverService } from 'vs/workbench/services/configurationResolver/common/configurationResolver';
 
 /** The amount of time to consider terminal errors to be related to the launch */
 const LAUNCHING_DURATION = 500;
@@ -48,11 +49,13 @@ export class TerminalProcessManager implements ITerminalProcessManager {
 	public get onProcessExit(): Event<number> { return this._onProcessExit.event; }
 
 	constructor(
-		private _terminalId: number,
-		private _configHelper: ITerminalConfigHelper,
+		private readonly _terminalId: number,
+		private readonly _configHelper: ITerminalConfigHelper,
 		@IHistoryService private readonly _historyService: IHistoryService,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
-		@ILogService private _logService: ILogService
+		@ILogService private readonly _logService: ILogService,
+		@IWorkspaceContextService private readonly _workspaceContextService: IWorkspaceContextService,
+		@IConfigurationResolverService private readonly _configurationResolverService: IConfigurationResolverService
 	) {
 		this.ptyProcessReady = new TPromise<void>(c => {
 			this.onProcessReady(() => {
@@ -91,11 +94,35 @@ export class TerminalProcessManager implements ITerminalProcessManager {
 		if (extensionHostOwned) {
 			this._process = this._instantiationService.createInstance(TerminalProcessExtHostProxy, this._terminalId, shellLaunchConfig, cols, rows);
 		} else {
+			if (!shellLaunchConfig.executable) {
+				this._configHelper.mergeDefaultShellPathAndArgs(shellLaunchConfig);
+			}
+
 			const lastActiveWorkspaceRootUri = this._historyService.getLastActiveWorkspaceRoot('file');
 			this.initialCwd = terminalEnvironment.getCwd(shellLaunchConfig, lastActiveWorkspaceRootUri, this._configHelper);
 
-			this._logService.debug(`Terminal process launching`, shellLaunchConfig, this.initialCwd, cols, rows);
-			this._process = this._instantiationService.createInstance(TerminalProcess, shellLaunchConfig, this.initialCwd, cols, rows, lastActiveWorkspaceRootUri, this._configHelper);
+			// Resolve env vars from config and shell
+			const lastActiveWorkspaceRoot = this._workspaceContextService.getWorkspaceFolder(lastActiveWorkspaceRootUri);
+			const platformKey = platform.isWindows ? 'windows' : (platform.isMacintosh ? 'osx' : 'linux');
+			const envFromConfig = terminalEnvironment.resolveConfigurationVariables(this._configurationResolverService, { ...this._configHelper.config.env[platformKey] }, lastActiveWorkspaceRoot);
+			const envFromShell = terminalEnvironment.resolveConfigurationVariables(this._configurationResolverService, { ...shellLaunchConfig.env }, lastActiveWorkspaceRoot);
+			shellLaunchConfig.env = envFromShell;
+
+			// Merge process env with the env from config and from shellLaunchConfig
+			const env = { ...process.env };
+			terminalEnvironment.mergeEnvironments(env, envFromConfig);
+			terminalEnvironment.mergeEnvironments(env, shellLaunchConfig.env);
+
+			// Sanitize the environment, removing any undesirable VS Code and Electron environment
+			// variables
+			terminalEnvironment.sanitizeEnvironment(env);
+
+			// Adding other env keys necessary to create the process
+			const locale = this._configHelper.config.setLocaleVariables ? platform.locale : undefined;
+			terminalEnvironment.addTerminalEnvironmentKeys(env, locale);
+
+			this._logService.debug(`Terminal process launching`, shellLaunchConfig, this.initialCwd, cols, rows, env);
+			this._process = new TerminalProcess(shellLaunchConfig, this.initialCwd, cols, rows, env);
 		}
 		this.processState = ProcessState.LAUNCHING;
 

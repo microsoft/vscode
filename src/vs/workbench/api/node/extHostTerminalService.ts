@@ -7,12 +7,11 @@
 import * as vscode from 'vscode';
 import * as os from 'os';
 import * as platform from 'vs/base/common/platform';
-// import * as terminalEnvironment from 'vs/workbench/parts/terminal/node/terminalEnvironment';
-// import Uri from 'vs/base/common/uri';
+import * as terminalEnvironment from 'vs/workbench/parts/terminal/node/terminalEnvironment';
 import { Event, Emitter } from 'vs/base/common/event';
 import { ExtHostTerminalServiceShape, MainContext, MainThreadTerminalServiceShape, IMainContext, ShellLaunchConfigDto } from 'vs/workbench/api/node/extHost.protocol';
 import { ExtHostConfiguration } from 'vs/workbench/api/node/extHostConfiguration';
-// import { ILogService } from 'vs/platform/log/common/log';
+import { ILogService } from 'vs/platform/log/common/log';
 import { EXT_HOST_CREATION_DELAY } from 'vs/workbench/parts/terminal/common/terminal';
 import { TerminalProcess } from 'vs/workbench/parts/terminal/node/terminalProcess';
 
@@ -241,7 +240,7 @@ export class ExtHostTerminalService implements ExtHostTerminalServiceShape {
 	constructor(
 		mainContext: IMainContext,
 		private _extHostConfiguration: ExtHostConfiguration,
-		// private _logService: ILogService
+		private _logService: ILogService
 	) {
 		this._proxy = mainContext.getProxy(MainContext.MainThreadTerminalService);
 	}
@@ -358,8 +357,6 @@ export class ExtHostTerminalService implements ExtHostTerminalServiceShape {
 
 		const terminalConfig = this._extHostConfiguration.getConfiguration('terminal.integrated');
 
-		// TODO: Move locale into TerminalProcess
-		// const locale = terminalConfig.get('setLocaleVariables') ? platform.locale : undefined;
 		if (!shellLaunchConfig.executable) {
 			// TODO: This duplicates some of TerminalConfigHelper.mergeDefaultShellPathAndArgs and should be merged
 			// this._configHelper.mergeDefaultShellPathAndArgs(shellLaunchConfig);
@@ -383,20 +380,20 @@ export class ExtHostTerminalService implements ExtHostTerminalServiceShape {
 		// const platformKey = platform.isWindows ? 'windows' : (platform.isMacintosh ? 'osx' : 'linux');
 		// const envFromConfig = terminalEnvironment.resolveConfigurationVariables(this._configurationResolverService, { ...this._configHelper.config.env[platformKey] }, lastActiveWorkspaceRoot);
 		// const envFromShell = terminalEnvironment.resolveConfigurationVariables(this._configurationResolverService, { ...shellLaunchConfig.env }, lastActiveWorkspaceRoot);
-		// shellLaunchConfig.env = envFromShell;
 
 		// Merge process env with the env from config
-		// const parentEnv = { ...process.env };
-		// terminalEnvironment.mergeEnvironments(parentEnv, envFromConfig);
+		const env = { ...process.env };
+		// terminalEnvironment.mergeEnvironments(env, envFromConfig);
+		terminalEnvironment.mergeEnvironments(env, shellLaunchConfig.env);
 
 		// Continue env initialization, merging in the env from the launch
 		// config and adding keys that are needed to create the process
-		// const env = terminalEnvironment.createTerminalEnv(parentEnv, shellLaunchConfig, initialCwd, locale, cols, rows);
-		// const options = { env, cwd, execArgv: [] };
+		const locale = terminalConfig.get('setLocaleVariables') ? platform.locale : undefined;
+		terminalEnvironment.addTerminalEnvironmentKeys(env, locale);
 
 		// Fork the process and listen for messages
-		// this._logService.debug(`Terminal process launching on ext host`, options);
-		this._terminalProcesses[id] = new TerminalProcess(shellLaunchConfig, initialCwd, cols, rows);
+		this._logService.debug(`Terminal process launching on ext host`, shellLaunchConfig, initialCwd, cols, rows, env);
+		this._terminalProcesses[id] = new TerminalProcess(shellLaunchConfig, initialCwd, cols, rows, env);
 		this._terminalProcesses[id].onProcessIdReady(pid => this._proxy.$sendProcessPid(id, pid));
 		this._terminalProcesses[id].onProcessTitleChanged(title => this._proxy.$sendProcessTitle(id, title));
 		this._terminalProcesses[id].onProcessData(data => this._proxy.$sendProcessData(id, data));
