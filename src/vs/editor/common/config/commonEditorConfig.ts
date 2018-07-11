@@ -659,13 +659,73 @@ const editorConfiguration: IConfigurationNode = {
 		},
 		'editor.foldingStrategy': {
 			'type': 'string',
-			'enum': ['auto', 'indentation'],
+			'enum': ['auto', 'explicit', 'indentation'],
 			'enumDescriptions': [
 				nls.localize('foldingStrategyAuto', 'If available, use a language specific folding strategy, otherwise falls back to the indentation based strategy.'),
+				nls.localize('foldingStrategyExplicit', 'Always use the explicit based folding strategy'),
 				nls.localize('foldingStrategyIndentation', 'Always use the indentation based folding strategy')
 			],
 			'default': EDITOR_DEFAULTS.contribInfo.foldingStrategy,
-			'description': nls.localize('foldingStrategy', "Controls the way folding ranges are computed. 'auto' picks uses a language specific folding strategy, if available. 'indentation' forces that the indentation based folding strategy is used.")
+			'description': nls.localize('foldingStrategy', "Controls the way folding ranges are computed. 'auto' picks uses a language specific folding strategy, if available. 'explicit' forces that the explicit based folding strategy is used. indentation' forces that the indentation based folding strategy is used.")
+		},
+		'editor.foldingExplicitMarkers': {
+			'anyOf': [
+				{
+					type: 'string',
+					enum: ['language'],
+				},
+				{
+					type: 'object',
+					properties: {
+						comment: {
+							'anyOf': [
+								{
+									type: 'string',
+									enum: ['language'],
+								},
+								{
+									type: 'object',
+									properties: {
+										enabled: {
+											type: 'boolean',
+										},
+										start: {
+											type: 'string',
+										},
+										end: {
+											type: 'string',
+										},
+									}
+								}
+							]
+						},
+						region: {
+							'anyOf': [
+								{
+									type: 'string',
+									enum: ['language'],
+								},
+								{
+									type: 'object',
+									properties: {
+										enabled: {
+											type: 'boolean',
+										},
+										start: {
+											type: 'string',
+										},
+										end: {
+											type: 'string',
+										},
+									}
+								}
+							]
+						},
+					}
+				}
+			],
+			'default': EDITOR_DEFAULTS.contribInfo.foldingExplicitMarkers,
+			'description': nls.localize('foldingExplicitMarkers', "Controls the way folding ranges are computed in the explicit based folding strategy.")
 		},
 		'editor.showFoldingControls': {
 			'type': 'string',

@@ -165,6 +165,9 @@ export interface ICodeActionsOnSaveOptions {
 	[kind: string]: boolean;
 }
 
+export type TFoldingExplicitMarkers = string | { comment?: TFoldingMarker, region?: TFoldingMarker };
+export type TFoldingMarker = string | { enabled?: boolean, start?: string, end?: string };
+
 /**
  * Configuration options for the editor.
  */
@@ -546,7 +549,8 @@ export interface IEditorOptions {
 	 * Selects the folding strategy. 'auto' uses the strategies contributed for the current document, 'indentation' uses the indentation based folding strategy.
 	 * Defaults to 'auto'.
 	 */
-	foldingStrategy?: 'auto' | 'indentation';
+	foldingStrategy?: 'auto' | 'explicit' | 'indentation';
+	foldingExplicitMarkers?: TFoldingExplicitMarkers;
 	/**
 	 * Controls whether the fold actions in the gutter stay always visible or hide unless the mouse is over the gutter.
 	 * Defaults to 'mouseover'.
@@ -906,7 +910,8 @@ export interface EditorContribOptions {
 	readonly occurrencesHighlight: boolean;
 	readonly codeLens: boolean;
 	readonly folding: boolean;
-	readonly foldingStrategy: 'auto' | 'indentation';
+	readonly foldingStrategy: 'auto' | 'explicit' | 'indentation';
+	readonly foldingExplicitMarkers: TFoldingExplicitMarkers;
 	readonly showFoldingControls: 'always' | 'mouseover';
 	readonly matchBrackets: boolean;
 	readonly find: InternalEditorFindOptions;
@@ -1271,6 +1276,7 @@ export class InternalEditorOptions {
 			&& a.codeLens === b.codeLens
 			&& a.folding === b.folding
 			&& a.foldingStrategy === b.foldingStrategy
+			&& InternalEditorOptions._equalsFoldingExplicitMarkers(a.foldingExplicitMarkers, b.foldingExplicitMarkers)
 			&& a.showFoldingControls === b.showFoldingControls
 			&& a.matchBrackets === b.matchBrackets
 			&& this._equalFindOptions(a.find, b.find)
@@ -1295,6 +1301,38 @@ export class InternalEditorOptions {
 			a.comments === b.comments
 			&& a.other === b.other
 			&& a.strings === b.strings
+		);
+	}
+
+	private static _equalsFoldingExplicitMarkers(a: TFoldingExplicitMarkers, b: TFoldingExplicitMarkers): boolean {
+		if (typeof a === 'string' && typeof b === 'string') {
+			return true;
+		}
+		if (typeof a !== 'object') {
+			return typeof b !== 'object';
+		}
+		if (typeof b !== 'object') {
+			return false;
+		}
+
+		return this._equalsFoldingMarker(a.comment, b.comment) && this._equalsFoldingMarker(a.region, b.region);
+	}
+
+	private static _equalsFoldingMarker(a: TFoldingMarker, b: TFoldingMarker): boolean {
+		if (typeof a === 'string' && typeof b === 'string') {
+			return true;
+		}
+		if (typeof a !== 'object') {
+			return typeof b !== 'object';
+		}
+		if (typeof b !== 'object') {
+			return false;
+		}
+
+		return (
+			a.enabled === b.enabled
+			&& a.start === b.start
+			&& a.end === b.end
 		);
 	}
 }
@@ -1825,6 +1863,23 @@ export class EditorOptionsValidator {
 		} else {
 			quickSuggestions = _boolean(opts.quickSuggestions, defaults.quickSuggestions);
 		}
+		let foldingExplicitMarkers: TFoldingExplicitMarkers;
+		if (typeof opts.foldingExplicitMarkers === 'object') {
+			foldingExplicitMarkers = {
+				comment: _foldingExplicitMarker(opts.foldingExplicitMarkers.comment, {
+					enabled: true,
+					start: '\\/\\*',
+					end: '\\*\\/'
+				}),
+				region: _foldingExplicitMarker(opts.foldingExplicitMarkers.region, {
+					enabled: true,
+					start: '#region',
+					end: '#endregion'
+				})
+			};
+		} else {
+			foldingExplicitMarkers = _string(opts.foldingExplicitMarkers, 'language');
+		}
 		// Compatibility support for acceptSuggestionOnEnter
 		if (typeof opts.acceptSuggestionOnEnter === 'boolean') {
 			opts.acceptSuggestionOnEnter = opts.acceptSuggestionOnEnter ? 'on' : 'off';
@@ -1853,7 +1908,8 @@ export class EditorOptionsValidator {
 			occurrencesHighlight: _boolean(opts.occurrencesHighlight, defaults.occurrencesHighlight),
 			codeLens: _boolean(opts.codeLens, defaults.codeLens),
 			folding: _boolean(opts.folding, defaults.folding),
-			foldingStrategy: _stringSet<'auto' | 'indentation'>(opts.foldingStrategy, defaults.foldingStrategy, ['auto', 'indentation']),
+			foldingStrategy: _stringSet<'auto' | 'explicit' | 'indentation'>(opts.foldingStrategy, defaults.foldingStrategy, ['auto', 'explicit', 'indentation']),
+			foldingExplicitMarkers: foldingExplicitMarkers,
 			showFoldingControls: _stringSet<'always' | 'mouseover'>(opts.showFoldingControls, defaults.showFoldingControls, ['always', 'mouseover']),
 			matchBrackets: _boolean(opts.matchBrackets, defaults.matchBrackets),
 			find: find,
@@ -1862,6 +1918,19 @@ export class EditorOptionsValidator {
 			codeActionsOnSave: _booleanMap(opts.codeActionsOnSave, {}),
 			codeActionsOnSaveTimeout: _clampedInt(opts.codeActionsOnSaveTimeout, defaults.codeActionsOnSaveTimeout, 1, 10000)
 		};
+	}
+}
+
+function _foldingExplicitMarker(value, defaults) {
+	if (typeof value === 'object') {
+		return {
+			enabled: _boolean(value.enabled, defaults.enabled),
+			start: _string(value.start, defaults.start),
+			end: _string(value.end, defaults.end),
+		};
+	}
+	else {
+		return _string(value, 'language');
 	}
 }
 
@@ -1962,6 +2031,7 @@ export class InternalEditorOptionsFactory {
 				codeLens: (accessibilityIsOn ? false : opts.contribInfo.codeLens), // DISABLED WHEN SCREEN READER IS ATTACHED
 				folding: (accessibilityIsOn ? false : opts.contribInfo.folding), // DISABLED WHEN SCREEN READER IS ATTACHED
 				foldingStrategy: opts.contribInfo.foldingStrategy,
+				foldingExplicitMarkers: opts.contribInfo.foldingExplicitMarkers,
 				showFoldingControls: opts.contribInfo.showFoldingControls,
 				matchBrackets: (accessibilityIsOn ? false : opts.contribInfo.matchBrackets), // DISABLED WHEN SCREEN READER IS ATTACHED
 				find: opts.contribInfo.find,
@@ -2433,6 +2503,18 @@ export const EDITOR_DEFAULTS: IValidatedEditorOptions = {
 		codeLens: true,
 		folding: true,
 		foldingStrategy: 'auto',
+		foldingExplicitMarkers: {
+			comment: <TFoldingMarker>{
+				enabled: true,
+				start: '\\/\\*',
+				end: '\\*\\/'
+			},
+			region: <TFoldingMarker>{
+				enabled: true,
+				start: '#region',
+				end: '#endregion'
+			}
+		},
 		showFoldingControls: 'mouseover',
 		matchBrackets: true,
 		find: {
