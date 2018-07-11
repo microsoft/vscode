@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as DOM from 'vs/base/browser/dom';
+import { renderMarkdown } from 'vs/base/browser/htmlContentRenderer';
 import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { IMouseEvent } from 'vs/base/browser/mouseEvent';
 import { Button } from 'vs/base/browser/ui/button/button';
@@ -12,11 +13,12 @@ import { InputBox } from 'vs/base/browser/ui/inputbox/inputBox';
 import { SelectBox } from 'vs/base/browser/ui/selectBox/selectBox';
 import * as arrays from 'vs/base/common/arrays';
 import { Color } from 'vs/base/common/color';
+import { onUnexpectedError } from 'vs/base/common/errors';
 import { Emitter, Event } from 'vs/base/common/event';
 import { KeyCode } from 'vs/base/common/keyCodes';
 import { dispose, IDisposable } from 'vs/base/common/lifecycle';
 import * as objects from 'vs/base/common/objects';
-import { escapeRegExpCharacters } from 'vs/base/common/strings';
+import { escapeRegExpCharacters, startsWith } from 'vs/base/common/strings';
 import URI from 'vs/base/common/uri';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { IAccessibilityProvider, IDataSource, IFilter, IRenderer, ITree } from 'vs/base/parts/tree/browser/tree';
@@ -24,14 +26,13 @@ import { localize } from 'vs/nls';
 import { ConfigurationTarget, IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IContextViewService } from 'vs/platform/contextview/browser/contextView';
 import { WorkbenchTree, WorkbenchTreeController } from 'vs/platform/list/browser/listService';
+import { IOpenerService } from 'vs/platform/opener/common/opener';
 import { registerColor, selectBackground, selectBorder } from 'vs/platform/theme/common/colorRegistry';
 import { attachButtonStyler, attachInputBoxStyler, attachSelectBoxStyler } from 'vs/platform/theme/common/styler';
 import { ICssStyleCollector, ITheme, IThemeService, registerThemingParticipant } from 'vs/platform/theme/common/themeService';
 import { SettingsTarget } from 'vs/workbench/parts/preferences/browser/preferencesWidgets';
 import { ITOCEntry } from 'vs/workbench/parts/preferences/browser/settingsLayout';
 import { ISearchResult, ISetting, ISettingsGroup } from 'vs/workbench/services/preferences/common/preferences';
-import { renderMarkdown } from 'vs/base/browser/htmlContentRenderer';
-import { ICancelableEvent } from 'vs/base/parts/tree/browser/treeDefaults';
 
 const $ = DOM.$;
 
@@ -99,6 +100,7 @@ export interface ITOCEntry {
 export class SettingsTreeModel {
 	private _root: SettingsTreeGroupElement;
 	private _treeElementsById = new Map<string, SettingsTreeElement>();
+	private _treeElementsBySettingName = new Map<string, SettingsTreeElement>();
 
 	constructor(
 		private _viewState: ISettingsEditorViewState,
@@ -125,6 +127,10 @@ export class SettingsTreeModel {
 
 	getElementById(id: string): SettingsTreeElement {
 		return this._treeElementsById.get(id);
+	}
+
+	getElementByName(name: string): SettingsTreeElement {
+		return this._treeElementsBySettingName.get(name);
 	}
 
 	private createSettingsTreeGroupElement(tocEntry: ITOCEntry, parent?: SettingsTreeGroupElement): SettingsTreeGroupElement {
@@ -155,6 +161,7 @@ export class SettingsTreeModel {
 	private createSettingsTreeSettingElement(setting: ISetting, parent: SettingsTreeGroupElement): SettingsTreeSettingElement {
 		const element = createSettingsTreeSettingElement(setting, parent, this._viewState.settingsTarget, this._configurationService);
 		this._treeElementsById.set(element.id, element);
+		this._treeElementsBySettingName.set(setting.key, element);
 		return element;
 	}
 }
@@ -446,12 +453,16 @@ export class SettingsRenderer implements IRenderer {
 	private readonly _onDidOpenSettings: Emitter<void> = new Emitter<void>();
 	public readonly onDidOpenSettings: Event<void> = this._onDidOpenSettings.event;
 
+	private readonly _onDidClickSettingLink: Emitter<string> = new Emitter<string>();
+	public readonly onDidClickSettingLink: Event<string> = this._onDidClickSettingLink.event;
+
 	private measureContainer: HTMLElement;
 
 	constructor(
 		_measureContainer: HTMLElement,
 		@IThemeService private themeService: IThemeService,
-		@IContextViewService private contextViewService: IContextViewService
+		@IContextViewService private contextViewService: IContextViewService,
+		@IOpenerService private readonly openerService: IOpenerService,
 	) {
 		this.measureContainer = DOM.append(_measureContainer, $('.setting-measure-container.monaco-tree-row'));
 	}
@@ -686,7 +697,19 @@ export class SettingsRenderer implements IRenderer {
 				.join('\n') :
 			'';
 		const descriptionText = element.description + enumDescriptionText;
-		const renderedDescription = renderMarkdown({ value: descriptionText });
+		const renderedDescription = renderMarkdown({ value: descriptionText }, {
+			actionHandler: {
+				callback: (content: string) => {
+					if (startsWith(content, '#')) {
+						this._onDidClickSettingLink.fire(content.substr(1));
+					} else {
+						this.openerService.open(URI.parse(content)).then(void 0, onUnexpectedError);
+					}
+				},
+				disposeables: template.toDispose
+			}
+		});
+		renderedDescription.classList.add('setting-item-description-markdown');
 		template.descriptionElement.innerHTML = '';
 		template.descriptionElement.appendChild(renderedDescription);
 
@@ -854,7 +877,14 @@ export class SettingsTreeController extends WorkbenchTreeController {
 		super({}, configurationService);
 	}
 
-	protected onLeftClick(tree: ITree, element: any, eventish: ICancelableEvent, origin?: string): boolean {
+	protected onLeftClick(tree: ITree, element: any, eventish: IMouseEvent, origin?: string): boolean {
+		const isLink = eventish.target.tagName.toLowerCase() === 'a' ||
+			eventish.target.parentElement.tagName.toLowerCase() === 'a'; // <code> inside <a>
+
+		if (isLink && DOM.findParentWithClass(eventish.target, 'setting-item-description-markdown', tree.getHTMLElement())) {
+			return true;
+		}
+
 		// Without this, clicking on the setting description causes the tree to lose focus. I don't know why.
 		// The superclass does not always call it because of DND which is not used here.
 		eventish.preventDefault();

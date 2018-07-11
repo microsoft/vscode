@@ -33,7 +33,7 @@ import { SearchWidget, SettingsTarget, SettingsTargetsWidget } from 'vs/workbenc
 import { commonlyUsedData, tocData } from 'vs/workbench/parts/preferences/browser/settingsLayout';
 import { ISettingsEditorViewState, NonExpandableTree, resolveExtensionsSettings, resolveSettingsTree, SearchResultIdx, SearchResultModel, SettingsAccessibilityProvider, SettingsDataSource, SettingsRenderer, SettingsTreeController, SettingsTreeElement, SettingsTreeFilter, SettingsTreeGroupElement, SettingsTreeModel, SettingsTreeSettingElement } from 'vs/workbench/parts/preferences/browser/settingsTree';
 import { TOCDataSource, TOCRenderer, TOCTreeModel } from 'vs/workbench/parts/preferences/browser/tocTree';
-import { CONTEXT_SETTINGS_EDITOR, CONTEXT_SETTINGS_FIRST_ROW_FOCUS, CONTEXT_SETTINGS_SEARCH_FOCUS, IPreferencesSearchService, ISearchProvider, CONTEXT_SETTINGS_ROW_FOCUS, CONTEXT_TOC_ROW_FOCUS } from 'vs/workbench/parts/preferences/common/preferences';
+import { CONTEXT_SETTINGS_EDITOR, CONTEXT_SETTINGS_FIRST_ROW_FOCUS, CONTEXT_SETTINGS_ROW_FOCUS, CONTEXT_SETTINGS_SEARCH_FOCUS, CONTEXT_TOC_ROW_FOCUS, IPreferencesSearchService, ISearchProvider } from 'vs/workbench/parts/preferences/common/preferences';
 import { IPreferencesService, ISearchResult, ISettingsEditorModel } from 'vs/workbench/services/preferences/common/preferences';
 import { SettingsEditor2Input } from 'vs/workbench/services/preferences/common/preferencesEditorInput';
 import { DefaultSettingsEditorModel } from 'vs/workbench/services/preferences/common/preferencesModels';
@@ -234,6 +234,15 @@ export class SettingsEditor2 extends BaseEditor {
 		this._register(DOM.addDisposableListener(this.showConfiguredSettingsOnlyCheckbox, 'change', e => this.onShowConfiguredOnlyClicked()));
 	}
 
+	private revealSetting(settingName: string): void {
+		const element = this.settingsTreeModel.getElementByName(settingName);
+		if (element) {
+			this.settingsTree.setSelection([element]);
+			this.settingsTree.setFocus(element);
+			this.settingsTree.reveal(element);
+		}
+	}
+
 	private openSettingsFile(): TPromise<IEditor> {
 		const currentSettingsTarget = this.settingsTargetsWidget.settingsTarget;
 
@@ -314,6 +323,7 @@ export class SettingsEditor2 extends BaseEditor {
 		const renderer = this.instantiationService.createInstance(SettingsRenderer, this.settingsTreeContainer);
 		this._register(renderer.onDidChangeSetting(e => this.onDidChangeSetting(e.key, e.value)));
 		this._register(renderer.onDidOpenSettings(() => this.openSettingsFile()));
+		this._register(renderer.onDidClickSettingLink(settingName => this.revealSetting(settingName)));
 
 		const treeClass = 'settings-editor-tree';
 		this.settingsTree = this.instantiationService.createInstance(NonExpandableTree, this.settingsTreeContainer,
