@@ -191,7 +191,6 @@ export class Workbench extends Disposable implements IPartService {
 	_serviceBrand: any;
 
 	private workbenchParams: WorkbenchParams;
-	private workbenchContainer: Builder;
 	private workbench: Builder;
 	private workbenchStarted: boolean;
 	private workbenchCreated: boolean;
@@ -300,11 +299,10 @@ export class Workbench extends Disposable implements IPartService {
 	}
 
 	private createWorkbench(): void {
-		this.workbenchContainer = $('.monaco-workbench-container');
 		this.workbench = $().div({
 			'class': `monaco-workbench ${isWindows ? 'windows' : isLinux ? 'linux' : 'mac'}`,
 			id: Identifiers.WORKBENCH_CONTAINER
-		}).appendTo(this.workbenchContainer);
+		});
 	}
 
 	private createGlobalActions(): void {
@@ -999,7 +997,7 @@ export class Workbench extends Disposable implements IPartService {
 		this.createNotificationsHandlers();
 
 		// Add Workbench to DOM
-		this.workbenchContainer.build(this.container);
+		this.workbench.appendTo(this.container);
 	}
 
 	private createTitlebarPart(): void {
