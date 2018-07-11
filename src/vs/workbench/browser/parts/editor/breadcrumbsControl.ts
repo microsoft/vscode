@@ -91,7 +91,7 @@ class Item extends BreadcrumbsItem {
 		} else if (this.element instanceof OutlineElement) {
 			// symbol
 			let label = new IconLabel(container);
-			label.setValue(this.element.symbol.name);
+			label.setValue(this.element.symbol.name.replace(/\r|\n|\r\n/g, '\u23CE'));
 			this._disposables.push(label);
 		}
 	}
