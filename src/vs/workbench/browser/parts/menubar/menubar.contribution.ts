@@ -1291,7 +1291,7 @@ function preferencesMenuRegistration() {
 	MenuRegistry.appendMenuItem(MenuId.MenubarPreferencesMenu, {
 		group: '1_settings',
 		command: {
-			id: 'workbench.action.openSettings',
+			id: 'workbench.action.openSettings2',
 			title: nls.localize({ key: 'miOpenSettings', comment: ['&& denotes a mnemonic'] }, "&&Settings")
 		},
 		order: 1

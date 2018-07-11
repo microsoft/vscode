@@ -23,7 +23,7 @@ import { basename } from 'vs/base/common/paths';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { Separator } from 'vs/base/browser/ui/actionbar/actionbar';
-import { IDelegate, IListContextMenuEvent, IRenderer } from 'vs/base/browser/ui/list/list';
+import { IVirtualDelegate, IListContextMenuEvent, IRenderer } from 'vs/base/browser/ui/list/list';
 import { IEditor } from 'vs/workbench/common/editor';
 import { InputBox } from 'vs/base/browser/ui/inputbox/inputBox';
 import { IKeyboardEvent } from 'vs/base/browser/keyboardEvent';
@@ -221,7 +221,7 @@ export class BreakpointsView extends ViewletPanel {
 	}
 }
 
-class BreakpointsDelegate implements IDelegate<IEnablement> {
+class BreakpointsDelegate implements IVirtualDelegate<IEnablement> {
 
 	constructor(private debugService: IDebugService) {
 		// noop
@@ -338,6 +338,10 @@ class BreakpointsRenderer implements IRenderer<IBreakpoint, IBreakpointTemplateD
 		}
 	}
 
+	disposeElement(): void {
+		// noop
+	}
+
 	disposeTemplate(templateData: IBreakpointTemplateData): void {
 		dispose(templateData.toDispose);
 	}
@@ -381,6 +385,10 @@ class ExceptionBreakpointsRenderer implements IRenderer<IExceptionBreakpoint, IB
 		data.name.textContent = exceptionBreakpoint.label || `${exceptionBreakpoint.filter} exceptions`;
 		data.breakpoint.title = data.name.textContent;
 		data.checkbox.checked = exceptionBreakpoint.enabled;
+	}
+
+	disposeElement(): void {
+		// noop
 	}
 
 	disposeTemplate(templateData: IBaseBreakpointTemplateData): void {
@@ -438,6 +446,10 @@ class FunctionBreakpointsRenderer implements IRenderer<FunctionBreakpoint, IBase
 		if (session && !session.raw.capabilities.supportsFunctionBreakpoints) {
 			data.breakpoint.title = nls.localize('functionBreakpointsNotSupported', "Function breakpoints are not supported by this debug type");
 		}
+	}
+
+	disposeElement(): void {
+		// noop
 	}
 
 	disposeTemplate(templateData: IBaseBreakpointWithIconTemplateData): void {
@@ -509,6 +521,10 @@ class FunctionBreakpointInputRenderer implements IRenderer<IFunctionBreakpoint, 
 		data.inputBox.value = functionBreakpoint.name || '';
 		data.inputBox.focus();
 		data.inputBox.select();
+	}
+
+	disposeElement(): void {
+		// noop
 	}
 
 	disposeTemplate(templateData: IInputTemplateData): void {

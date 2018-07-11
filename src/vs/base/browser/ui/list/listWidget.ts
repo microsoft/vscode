@@ -15,7 +15,7 @@ import { KeyCode } from 'vs/base/common/keyCodes';
 import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { Event, Emitter, EventBufferer, chain, mapEvent, anyEvent } from 'vs/base/common/event';
 import { domEvent } from 'vs/base/browser/event';
-import { IDelegate, IRenderer, IListEvent, IListContextMenuEvent, IListMouseEvent, IListTouchEvent, IListGestureEvent, IListOpenEvent } from './list';
+import { IVirtualDelegate, IRenderer, IListEvent, IListContextMenuEvent, IListMouseEvent, IListTouchEvent, IListGestureEvent, IListOpenEvent } from './list';
 import { ListView, IListViewOptions } from './listView';
 import { Color } from 'vs/base/common/color';
 import { mixin } from 'vs/base/common/objects';
@@ -66,6 +66,10 @@ class TraitRenderer<T> implements IRenderer<T, ITraitTemplateData>
 		}
 
 		this.trait.renderIndex(index, templateData);
+	}
+
+	disposeElement(): void {
+		// noop
 	}
 
 	splice(start: number, deleteCount: number, insertCount: number): void {
@@ -807,6 +811,14 @@ class PipelineRenderer<T> implements IRenderer<T, any> {
 		}
 	}
 
+	disposeElement(element: T, index: number, templateData: any[]): void {
+		let i = 0;
+
+		for (const renderer of this.renderers) {
+			renderer.disposeElement(element, index, templateData[i++]);
+		}
+	}
+
 	disposeTemplate(templateData: any[]): void {
 		let i = 0;
 
@@ -871,7 +883,7 @@ export class List<T> implements ISpliceable<T>, IDisposable {
 
 	constructor(
 		container: HTMLElement,
-		delegate: IDelegate<T>,
+		virtualDelegate: IVirtualDelegate<T>,
 		renderers: IRenderer<T, any>[],
 		options: IListOptions<T> = DefaultOptions
 	) {
@@ -882,7 +894,7 @@ export class List<T> implements ISpliceable<T>, IDisposable {
 
 		renderers = renderers.map(r => new PipelineRenderer(r.templateId, [this.focus.renderer, this.selection.renderer, r]));
 
-		this.view = new ListView(container, delegate, renderers, options);
+		this.view = new ListView(container, virtualDelegate, renderers, options);
 		this.view.domNode.setAttribute('role', 'tree');
 		DOM.addClass(this.view.domNode, this.idPrefix);
 		this.view.domNode.tabIndex = 0;
@@ -929,6 +941,14 @@ export class List<T> implements ISpliceable<T>, IDisposable {
 	}
 
 	splice(start: number, deleteCount: number, elements: T[] = []): void {
+		if (start < 0 || start > this.view.length) {
+			throw new Error(`Invalid start index: ${start}`);
+		}
+
+		if (deleteCount < 0) {
+			throw new Error(`Invalid delete count: ${deleteCount}`);
+		}
+
 		if (deleteCount === 0 && elements.length === 0) {
 			return;
 		}

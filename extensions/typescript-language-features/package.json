@@ -505,6 +505,16 @@
           "default": "prompt",
           "description": "%typescript.updateImportsOnFileMove.enabled%",
           "scope": "resource"
+        },
+        "typescript.autoClosingTags": {
+          "type": "boolean",
+          "default": true,
+          "description": "%typescript.autoClosingTags%"
+        },
+        "javascript.autoClosingTags": {
+          "type": "boolean",
+          "default": true,
+          "description": "%typescript.autoClosingTags%"
         }
       }
     },

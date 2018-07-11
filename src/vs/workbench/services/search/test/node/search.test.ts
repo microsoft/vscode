@@ -600,29 +600,6 @@ suite('FileSearchEngine', () => {
 		});
 	});
 
-	test('Files: relative path to file ignores excludes', function (done: () => void) {
-		this.timeout(testTimeout);
-		let engine = new FileSearchEngine({
-			folderQueries: ROOT_FOLDER_QUERY,
-			filePattern: path.normalize(path.join('examples', 'company.js')),
-			excludePattern: { '**/*.js': true }
-		});
-
-		let count = 0;
-		let res: IRawFileMatch;
-		engine.search((result) => {
-			if (result) {
-				count++;
-			}
-			res = result;
-		}, () => { }, (error) => {
-			assert.ok(!error);
-			assert.equal(count, 1);
-			assert.equal(path.basename(res.relativePath), 'company.js');
-			done();
-		});
-	});
-
 	test('Files: Include pattern, single files', function (done: () => void) {
 		this.timeout(testTimeout);
 		let engine = new FileSearchEngine({

@@ -352,6 +352,9 @@ export class OutlinePanel extends ViewletPanel {
 					return false;
 				}
 				const keyInfo = mapping[event.code];
+				if (!keyInfo) {
+					return false;
+				}
 				if (keyInfo.value) {
 					$this._input.focus();
 					return true;

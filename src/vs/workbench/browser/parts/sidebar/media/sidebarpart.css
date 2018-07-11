@@ -12,7 +12,7 @@
 	visibility: hidden !important;
 }
 
-.monaco-workbench > .sidebar > .title > .title-label span {
+.monaco-workbench > .sidebar > .title > .title-label h2 {
 	text-transform: uppercase;
 }
 

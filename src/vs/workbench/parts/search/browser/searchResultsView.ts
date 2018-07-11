@@ -237,7 +237,8 @@ export class SearchRenderer extends Disposable implements IRenderer {
 
 	private renderFolderMatch(tree: ITree, folderMatch: FolderMatch, templateData: IFolderMatchTemplate): void {
 		if (folderMatch.hasRoot()) {
-			const fileKind = resources.isEqual(this.contextService.getWorkspaceFolder(folderMatch.resource()).uri, folderMatch.resource()) ?
+			const workspaceFolder = this.contextService.getWorkspaceFolder(folderMatch.resource());
+			const fileKind = workspaceFolder && resources.isEqual(workspaceFolder.uri, folderMatch.resource()) ?
 				FileKind.ROOT_FOLDER :
 				FileKind.FOLDER;
 

@@ -332,7 +332,7 @@ namespace TaskDTO {
 		let definition = TaskDefinitionDTO.to(task.definition, executeOnly);
 		let id = `${task.source.extensionId}.${definition._key}`;
 		let result: ContributedTask = {
-			_id: id, // uuidMap.getUUID(identifier),
+			_id: id, // uuidMap.getUUID(identifier)
 			_source: source,
 			_label: label,
 			type: definition.type,
