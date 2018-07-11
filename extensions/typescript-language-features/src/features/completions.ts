@@ -309,20 +309,17 @@ class TypeScriptCompletionItemProvider implements vscode.CompletionItemProvider 
 		let msg: ReadonlyArray<Proto.CompletionEntry> | undefined = undefined;
 		try {
 			if (this.client.apiVersion.gte(API.v300)) {
-				const response = await this.client.execute('completionInfo', args, token);
-				if (!response.body) {
+				const { body } = await this.client.execute('completionInfo', args, token);
+				if (!body || body.isNewIdentifierLocation) {
 					return null;
 				}
-				if (response.body.isNewIdentifierLocation) {
-					return null;
-				}
-				msg = response.body.entries;
+				msg = body.entries;
 			} else {
-				const response = await this.client.execute('completions', args, token);
-				if (!response.body) {
+				const { body } = await this.client.execute('completions', args, token);
+				if (!body) {
 					return null;
 				}
-				msg = response.body;
+				msg = body;
 			}
 		} catch {
 			return null;
