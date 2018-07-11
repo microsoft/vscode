@@ -388,8 +388,6 @@ export class MenubarPart extends Part {
 	}
 
 	private registerListeners(): void {
-		this._register(browser.onDidChangeFullscreen(() => this.onDidChangeFullscreen()));
-
 		// Update when config changes
 		this._register(this.configurationService.onDidChangeConfiguration(e => this.onConfigurationUpdated(e)));
 
@@ -405,7 +403,14 @@ export class MenubarPart extends Part {
 		// Listen to keybindings change
 		this._register(this.keybindingService.onDidUpdateKeybindings(() => this.setupMenubar()));
 
-		this._register(ModifierKeyEmitter.getInstance().event(this.onModifierKeyToggled, this));
+		// These listeners only apply when the custom menubar is being used
+		if (!isMacintosh && this.currentTitlebarStyleSetting === 'custom') {
+			// Listen to fullscreen changes
+			this._register(browser.onDidChangeFullscreen(() => this.onDidChangeFullscreen()));
+
+			// Listen for alt key presses
+			this._register(ModifierKeyEmitter.getInstance().event(this.onModifierKeyToggled, this));
+		}
 	}
 
 	private doSetupMenubar(): void {
