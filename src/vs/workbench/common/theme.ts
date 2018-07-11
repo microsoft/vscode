@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as nls from 'vs/nls';
-import { registerColor, editorBackground, contrastBorder, transparent, editorWidgetBackground, textLinkForeground, lighten, darken, focusBorder } from 'vs/platform/theme/common/colorRegistry';
+import { registerColor, editorBackground, contrastBorder, transparent, editorWidgetBackground, textLinkForeground, lighten, darken, focusBorder, foreground, activeContrastBorder } from 'vs/platform/theme/common/colorRegistry';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { IThemeService, ITheme } from 'vs/platform/theme/common/themeService';
 import { Color } from 'vs/base/common/color';
@@ -387,6 +387,32 @@ export const TITLE_BAR_BORDER = registerColor('titleBar.border', {
 	light: null,
 	hc: contrastBorder
 }, nls.localize('titleBarBorder', "Title bar border color. Note that this color is currently only supported on macOS."));
+
+// < --- Menubar --- >
+
+export const MENUBAR_MENU_INACTIVE_FOREGROUND = registerColor('menubar.inactiveMenuForeground', {
+	dark: TITLE_BAR_INACTIVE_FOREGROUND,
+	light: TITLE_BAR_INACTIVE_FOREGROUND,
+	hc: TITLE_BAR_INACTIVE_FOREGROUND
+}, nls.localize('menubarInactiveMenuForeground', "Menubar inactive menu foreground color."));
+
+export const MENUBAR_MENU_ACTIVE_FOREGROUND = registerColor('menubar.activeMenuForeground', {
+	dark: foreground,
+	light: foreground,
+	hc: foreground
+}, nls.localize('menubarActiveMenuForeground', "Menubar active menu foreground color."));
+
+export const MENUBAR_MENU_ACTIVE_BACKGROUND = registerColor('menubar.activeMenuBackground', {
+	dark: transparent(Color.white, 0.1),
+	light: transparent(Color.black, 0.1),
+	hc: null
+}, nls.localize('menubarActiveMenuBackground', "Menubar active menu background color."));
+
+export const MENUBAR_MENU_ACTIVE_BORDER = registerColor('menubar.menuActiveBorder', {
+	dark: null,
+	light: null,
+	hc: activeContrastBorder
+}, nls.localize('menubarMenuActiveBorder', "Menubar active menu border color."));
 
 // < --- Notifications --- >
 

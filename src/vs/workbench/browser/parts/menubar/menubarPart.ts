@@ -12,21 +12,20 @@ import * as browser from 'vs/base/browser/browser';
 import { Part } from 'vs/workbench/browser/part';
 import { IMenubarService, IMenubarMenu, IMenubarMenuItemAction, IMenubarData } from 'vs/platform/menubar/common/menubar';
 import { IMenuService, MenuId, IMenu, SubmenuItemAction } from 'vs/platform/actions/common/actions';
-import { IThemeService } from 'vs/platform/theme/common/themeService';
+import { IThemeService, registerThemingParticipant, ITheme, ICssStyleCollector } from 'vs/platform/theme/common/themeService';
 import { IWindowService, MenuBarVisibility, IWindowsService } from 'vs/platform/windows/common/windows';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { ActionRunner, IActionRunner, IAction, Action } from 'vs/base/common/actions';
 import { Builder, $ } from 'vs/base/browser/builder';
 import { Separator } from 'vs/base/browser/ui/actionbar/actionbar';
-import { EventType, Dimension, toggleClass } from 'vs/base/browser/dom';
-import { TITLE_BAR_ACTIVE_BACKGROUND, TITLE_BAR_ACTIVE_FOREGROUND } from 'vs/workbench/common/theme';
+import { EventType, Dimension } from 'vs/base/browser/dom';
+import { MENUBAR_MENU_ACTIVE_FOREGROUND, MENUBAR_MENU_ACTIVE_BACKGROUND, MENUBAR_MENU_INACTIVE_FOREGROUND, MENUBAR_MENU_ACTIVE_BORDER } from 'vs/workbench/common/theme';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { isWindows, isMacintosh } from 'vs/base/common/platform';
 import { Menu, IMenuOptions, SubmenuAction } from 'vs/base/browser/ui/menu/menu';
 import { KeyCode } from 'vs/base/common/keyCodes';
 import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { IConfigurationService, IConfigurationChangeEvent } from 'vs/platform/configuration/common/configuration';
-import { Color } from 'vs/base/common/color';
 import { Event, Emitter } from 'vs/base/common/event';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { domEvent } from 'vs/base/browser/event';
@@ -676,15 +675,11 @@ export class MenubarPart extends Part {
 						this.cleanupCustomMenu();
 						this.showCustomMenu(menuIndex);
 					} else if (this.isFocused && !this.isOpen) {
+						this.focusedMenu = { index: menuIndex };
 						this.customMenus[menuIndex].buttonElement.domFocus();
 					}
 				});
 
-				this.customMenus[menuIndex].buttonElement.on(EventType.MOUSE_LEAVE, () => {
-					if (!this.isOpen && this.isFocused) {
-						this.customMenus[menuIndex].buttonElement.domBlur();
-					}
-				});
 			}
 		}
 
@@ -875,25 +870,6 @@ export class MenubarPart extends Part {
 		};
 	}
 
-	updateStyles(): void {
-		super.updateStyles();
-
-		// Part container
-		if (this.container) {
-			const fgColor = this.getColor(TITLE_BAR_ACTIVE_FOREGROUND);
-			const bgColor = this.getColor(TITLE_BAR_ACTIVE_BACKGROUND);
-
-			this.container.style('color', fgColor);
-			if (browser.isFullscreen()) {
-				this.container.style('background-color', bgColor);
-			} else {
-				this.container.style('background-color', null);
-			}
-
-			toggleClass(this.container.getHTMLElement(), 'light', Color.fromHex(bgColor).isLighter());
-		}
-	}
-
 	public get onVisibilityChange(): Event<Dimension> {
 		return this._onVisibilityChange.event;
 	}
@@ -969,6 +945,62 @@ export class MenubarPart extends Part {
 		return this.container.getHTMLElement();
 	}
 }
+
+registerThemingParticipant((theme: ITheme, collector: ICssStyleCollector) => {
+	const inactiveFgColor = theme.getColor(MENUBAR_MENU_INACTIVE_FOREGROUND);
+	if (inactiveFgColor) {
+		collector.addRule(`
+			.monaco-workbench > .part.menubar > .menubar-menu-button {
+				'color': ${inactiveFgColor}
+			}
+		`);
+	}
+
+	const activeFgColor = theme.getColor(MENUBAR_MENU_ACTIVE_FOREGROUND);
+	if (activeFgColor) {
+		collector.addRule(`
+			.monaco-workbench > .part.menubar > .menubar-menu-button.open,
+			.monaco-workbench > .part.menubar > .menubar-menu-button:focus,
+			.monaco-workbench > .part.menubar > .menubar-menu-button:hover {
+				color: ${activeFgColor};
+			}
+		`);
+	}
+
+
+
+	const activeBgColor = theme.getColor(MENUBAR_MENU_ACTIVE_BACKGROUND);
+	if (activeBgColor) {
+		collector.addRule(`
+			.monaco-workbench > .part.menubar > .menubar-menu-button.open,
+			.monaco-workbench > .part.menubar > .menubar-menu-button:focus,
+			.monaco-workbench > .part.menubar > .menubar-menu-button:hover {
+				background-color: ${activeBgColor};
+			}
+		`);
+	}
+
+	const borderColor = theme.getColor(MENUBAR_MENU_ACTIVE_BORDER);
+	if (borderColor) {
+		collector.addRule(`
+			.monaco-workbench > .part.menubar > .menubar-menu-button:hover {
+				outline: dashed 1px;
+			}
+
+			.monaco-workbench > .part.menubar > .menubar-menu-button.open,
+			.monaco-workbench > .part.menubar > .menubar-menu-button:focus {
+				outline: solid 1px;
+			}
+
+			.monaco-workbench > .part.menubar > .menubar-menu-button.open,
+			.monaco-workbench > .part.menubar > .menubar-menu-button:focus,
+			.monaco-workbench > .part.menubar > .menubar-menu-button:hover {
+				outline-offset: -1px;
+				outline-color: ${borderColor};
+			}
+		`);
+	}
+});
 
 interface IModifierKeyStatus {
 	altKey: boolean;
