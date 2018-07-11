@@ -114,13 +114,9 @@ class TagClosing {
 
 			const activeDocument = activeEditor.document;
 			if (document === activeDocument && activeDocument.version === version) {
-				const selections = activeEditor.selections;
-				const snippet = this.getTagSnippet(body);
-				if (selections.length && selections.some(s => s.active.isEqual(position))) {
-					activeEditor.insertSnippet(snippet, selections.map(s => s.active));
-				} else {
-					activeEditor.insertSnippet(snippet, position);
-				}
+				activeEditor.insertSnippet(
+					this.getTagSnippet(body),
+					this.getInsertionPositions(activeEditor, position));
 			}
 		}, 100);
 	}
@@ -130,6 +126,13 @@ class TagClosing {
 		snippet.appendPlaceholder('', 0);
 		snippet.appendText(closingTag.newText);
 		return snippet;
+	}
+
+	private getInsertionPositions(editor: vscode.TextEditor, position: vscode.Position) {
+		const activeSelectionPositions = editor.selections.map(s => s.active);
+		return activeSelectionPositions.some(p => p.isEqual(position))
+			? activeSelectionPositions
+			: position;
 	}
 }
 
