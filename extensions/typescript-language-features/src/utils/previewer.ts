@@ -27,7 +27,7 @@ function getTagBodyText(tag: Proto.JSDocTagInfo): string | undefined {
 function getTagDocumentation(tag: Proto.JSDocTagInfo): string | undefined {
 	switch (tag.name) {
 		case 'param':
-			const body = (tag.text || '').split(/^([\w\.]+)\s*/);
+			const body = (tag.text || '').split(/^([\w\.]+)\s*-?\s*/);
 			if (body && body.length === 3) {
 				const param = body[1];
 				const doc = body[2];
@@ -72,13 +72,18 @@ export function markdownDocumentation(
 
 export function addMarkdownDocumentation(
 	out: MarkdownString,
-	documentation: Proto.SymbolDisplayPart[],
-	tags: Proto.JSDocTagInfo[]
+	documentation: Proto.SymbolDisplayPart[] | undefined,
+	tags: Proto.JSDocTagInfo[] | undefined
 ): MarkdownString {
-	out.appendMarkdown(plain(documentation));
-	const tagsPreview = tagsMarkdownPreview(tags);
-	if (tagsPreview) {
-		out.appendMarkdown('\n\n' + tagsPreview);
+	if (documentation) {
+		out.appendMarkdown(plain(documentation));
+	}
+
+	if (tags) {
+		const tagsPreview = tagsMarkdownPreview(tags);
+		if (tagsPreview) {
+			out.appendMarkdown('\n\n' + tagsPreview);
+		}
 	}
 	return out;
 }

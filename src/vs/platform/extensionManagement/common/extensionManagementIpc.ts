@@ -33,7 +33,7 @@ export class ExtensionManagementChannel implements IExtensionManagementChannel {
 	onUninstallExtension: Event<IExtensionIdentifier>;
 	onDidUninstallExtension: Event<DidUninstallExtensionEvent>;
 
-	constructor(private service: IExtensionManagementService) {
+	constructor(private service: IExtensionManagementService, private uriTransformer: IURITransformer) {
 		this.onInstallExtension = buffer(service.onInstallExtension, true);
 		this.onDidInstallExtension = buffer(service.onDidInstallExtension, true);
 		this.onUninstallExtension = buffer(service.onUninstallExtension, true);
@@ -55,14 +55,18 @@ export class ExtensionManagementChannel implements IExtensionManagementChannel {
 		switch (command) {
 			case 'install': return this.service.install(args[0]);
 			case 'installFromGallery': return this.service.installFromGallery(args[0]);
-			case 'uninstall': return this.service.uninstall(args[0], args[1]);
-			case 'reinstallFromGallery': return this.service.reinstallFromGallery(args[0]);
+			case 'uninstall': return this.service.uninstall(this._transform(args[0]), args[1]);
+			case 'reinstallFromGallery': return this.service.reinstallFromGallery(this._transform(args[0]));
 			case 'getInstalled': return this.service.getInstalled(args[0]);
-			case 'updateMetadata': return this.service.updateMetadata(args[0], args[1]);
+			case 'updateMetadata': return this.service.updateMetadata(this._transform(args[0]), args[1]);
 			case 'getExtensionsReport': return this.service.getExtensionsReport();
 		}
 
 		throw new Error('Invalid call');
+	}
+
+	private _transform(extension: ILocalExtension): ILocalExtension {
+		return extension ? { ...extension, ...{ location: URI.revive(this.uriTransformer.transformIncoming(extension.location)) } } : extension;
 	}
 }
 

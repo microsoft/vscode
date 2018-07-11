@@ -30,6 +30,8 @@ import { ICssStyleCollector, ITheme, IThemeService, registerThemingParticipant }
 import { SettingsTarget } from 'vs/workbench/parts/preferences/browser/preferencesWidgets';
 import { ITOCEntry } from 'vs/workbench/parts/preferences/browser/settingsLayout';
 import { ISearchResult, ISetting, ISettingsGroup } from 'vs/workbench/services/preferences/common/preferences';
+import { renderMarkdown } from 'vs/base/browser/htmlContentRenderer';
+import { ICancelableEvent } from 'vs/base/parts/tree/browser/treeDefaults';
 
 const $ = DOM.$;
 
@@ -457,7 +459,7 @@ export class SettingsRenderer implements IRenderer {
 	getHeight(tree: ITree, element: SettingsTreeElement): number {
 		if (element instanceof SettingsTreeGroupElement) {
 			if (element.isFirstGroup) {
-				return 31;
+				return 28;
 			}
 
 			return 40 + (7 * element.level);
@@ -677,7 +679,16 @@ export class SettingsRenderer implements IRenderer {
 
 		template.labelElement.textContent = element.displayLabel;
 		template.labelElement.title = titleTooltip;
-		template.descriptionElement.textContent = element.description;
+
+		const enumDescriptionText = element.setting.enumDescriptions ?
+			'\n' + element.setting.enumDescriptions
+				.map((desc, i) => ` - \`${element.setting.enum[i]}\`: ${desc}`)
+				.join('\n') :
+			'';
+		const descriptionText = element.description + enumDescriptionText;
+		const renderedDescription = renderMarkdown({ value: descriptionText });
+		template.descriptionElement.innerHTML = '';
+		template.descriptionElement.appendChild(renderedDescription);
 
 		this.renderValue(element, isSelected, <ISettingItemTemplate>template);
 
@@ -841,6 +852,14 @@ export class SettingsTreeController extends WorkbenchTreeController {
 		@IConfigurationService configurationService: IConfigurationService
 	) {
 		super({}, configurationService);
+	}
+
+	protected onLeftClick(tree: ITree, element: any, eventish: ICancelableEvent, origin?: string): boolean {
+		// Without this, clicking on the setting description causes the tree to lose focus. I don't know why.
+		// The superclass does not always call it because of DND which is not used here.
+		eventish.preventDefault();
+
+		return super.onLeftClick(tree, element, eventish, origin);
 	}
 }
 

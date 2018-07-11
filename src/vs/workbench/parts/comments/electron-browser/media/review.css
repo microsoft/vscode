@@ -55,6 +55,7 @@
 
 .monaco-editor .review-widget .body .review-comment .review-comment-contents {
 	margin-left: 20px;
+	user-select: text;
 }
 
 .monaco-editor .review-widget .body pre {

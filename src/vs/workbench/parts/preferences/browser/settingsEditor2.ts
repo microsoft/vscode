@@ -189,7 +189,8 @@ export class SettingsEditor2 extends BaseEditor {
 		this.searchWidget = this._register(this.instantiationService.createInstance(SearchWidget, searchContainer, {
 			ariaLabel: localize('SearchSettings.AriaLabel', "Search settings"),
 			placeholder: localize('SearchSettings.Placeholder', "Search settings"),
-			focusKey: this.searchFocusContextKey
+			focusKey: this.searchFocusContextKey,
+			ariaLive: 'assertive'
 		}));
 		this._register(this.searchWidget.onDidChange(() => this.onSearchInputChanged()));
 
@@ -692,7 +693,10 @@ export class SettingsEditor2 extends BaseEditor {
 		// Count unique results
 		const counts = {};
 		const filterResult = results[SearchResultIdx.Local];
-		counts['filterResult'] = filterResult.filterMatches.length;
+		if (filterResult) {
+			counts['filterResult'] = filterResult.filterMatches.length;
+		}
+
 		if (nlpResult) {
 			counts['nlpResult'] = nlpResult.filterMatches.length;
 		}

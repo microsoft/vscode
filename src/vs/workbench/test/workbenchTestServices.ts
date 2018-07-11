@@ -673,6 +673,7 @@ export class TestEditorGroup implements IEditorGroupView {
 	dispose(): void { }
 	toJSON(): object { return Object.create(null); }
 	layout(width: number, height: number): void { }
+	relayout() { }
 }
 
 export class TestEditorService implements EditorServiceImpl {

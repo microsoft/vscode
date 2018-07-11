@@ -24,10 +24,6 @@ export function tail2<T>(arr: T[]): [T[], T] {
 	return [arr.slice(0, arr.length - 1), arr[arr.length - 1]];
 }
 
-export function last<T>(arr: T[]): T {
-	return arr[arr.length - 1];
-}
-
 export function equals<T>(one: ReadonlyArray<T>, other: ReadonlyArray<T>, itemEquals: (a: T, b: T) => boolean = (a, b) => a === b): boolean {
 	if (one.length !== other.length) {
 		return false;
@@ -81,47 +77,55 @@ export function findFirstInSorted<T>(array: T[], p: (x: T) => boolean): number {
 	return low;
 }
 
+type Compare<T> = (a: T, b: T) => number;
+
 /**
  * Like `Array#sort` but always stable. Usually runs a little slower `than Array#sort`
  * so only use this when actually needing stable sort.
  */
-export function mergeSort<T>(data: T[], compare: (a: T, b: T) => number): T[] {
-	_divideAndMerge(data, compare);
+export function mergeSort<T>(data: T[], compare: Compare<T>): T[] {
+	_sort(data, compare, 0, data.length - 1, []);
 	return data;
 }
 
-function _divideAndMerge<T>(data: T[], compare: (a: T, b: T) => number): void {
-	if (data.length <= 1) {
-		// sorted
-		return;
+function _merge<T>(a: T[], compare: Compare<T>, lo: number, mid: number, hi: number, aux: T[]): void {
+	let leftIdx = lo, rightIdx = mid + 1;
+	for (let i = lo; i <= hi; i++) {
+		aux[i] = a[i];
 	}
-	const p = (data.length / 2) | 0;
-	const left = data.slice(0, p);
-	const right = data.slice(p);
-
-	_divideAndMerge(left, compare);
-	_divideAndMerge(right, compare);
-
-	let leftIdx = 0;
-	let rightIdx = 0;
-	let i = 0;
-	while (leftIdx < left.length && rightIdx < right.length) {
-		let ret = compare(left[leftIdx], right[rightIdx]);
-		if (ret <= 0) {
-			// smaller_equal -> take left to preserve order
-			data[i++] = left[leftIdx++];
+	for (let i = lo; i <= hi; i++) {
+		if (leftIdx > mid) {
+			// left side consumed
+			a[i] = aux[rightIdx++];
+		} else if (rightIdx > hi) {
+			// right side consumed
+			a[i] = aux[leftIdx++];
+		} else if (compare(aux[rightIdx], aux[leftIdx]) < 0) {
+			// right element is less -> comes first
+			a[i] = aux[rightIdx++];
 		} else {
-			// greater -> take right
-			data[i++] = right[rightIdx++];
+			// left element comes first (less or equal)
+			a[i] = aux[leftIdx++];
 		}
 	}
-	while (leftIdx < left.length) {
-		data[i++] = left[leftIdx++];
-	}
-	while (rightIdx < right.length) {
-		data[i++] = right[rightIdx++];
-	}
 }
+
+function _sort<T>(a: T[], compare: Compare<T>, lo: number, hi: number, aux: T[]) {
+	if (hi <= lo) {
+		return;
+	}
+	let mid = lo + ((hi - lo) / 2) | 0;
+	_sort(a, compare, lo, mid, aux);
+	_sort(a, compare, mid + 1, hi, aux);
+	if (compare(a[mid], a[mid + 1]) <= 0) {
+		// left and right are sorted and if the last-left element is less
+		// or equals than the first-right element there is nothing else
+		// to do
+		return;
+	}
+	_merge(a, compare, lo, mid, hi, aux);
+}
+
 
 export function groupBy<T>(data: T[], compare: (a: T, b: T) => number): T[][] {
 	const result: T[][] = [];

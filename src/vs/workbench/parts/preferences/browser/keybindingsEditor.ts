@@ -32,7 +32,7 @@ import {
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 import { IKeybindingEditingService } from 'vs/workbench/services/keybinding/common/keybindingEditing';
 import { List } from 'vs/base/browser/ui/list/listWidget';
-import { IDelegate, IRenderer, IListContextMenuEvent, IListEvent } from 'vs/base/browser/ui/list/list';
+import { IVirtualDelegate, IRenderer, IListContextMenuEvent, IListEvent } from 'vs/base/browser/ui/list/list';
 import { IThemeService, registerThemingParticipant, ITheme, ICssStyleCollector } from 'vs/platform/theme/common/themeService';
 import { IContextKeyService, IContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
@@ -74,6 +74,8 @@ export class KeybindingsEditor extends BaseEditor implements IKeybindingsEditor 
 	private searchFocusContextKey: IContextKey<boolean>;
 	private sortByPrecedence: Checkbox;
 
+	private ariaLabelElement: HTMLElement;
+
 	constructor(
 		@ITelemetryService telemetryService: ITelemetryService,
 		@IThemeService themeService: IThemeService,
@@ -100,6 +102,7 @@ export class KeybindingsEditor extends BaseEditor implements IKeybindingsEditor 
 	createEditor(parent: HTMLElement): void {
 		const keybindingsEditorElement = DOM.append(parent, $('div', { class: 'keybindings-editor' }));
 
+		this.createAriaLabelElement(keybindingsEditorElement);
 		this.createOverlayContainer(keybindingsEditorElement);
 		this.createHeader(keybindingsEditorElement);
 		this.createBody(keybindingsEditorElement);
@@ -268,6 +271,12 @@ export class KeybindingsEditor extends BaseEditor implements IKeybindingsEditor 
 		return TPromise.as(null);
 	}
 
+	private createAriaLabelElement(parent: HTMLElement): void {
+		this.ariaLabelElement = DOM.append(parent, DOM.$(''));
+		this.ariaLabelElement.setAttribute('id', 'keybindings-editor-aria-label-element');
+		this.ariaLabelElement.setAttribute('aria-live', 'assertive');
+	}
+
 	private createOverlayContainer(parent: HTMLElement): void {
 		this.overlayContainer = DOM.append(parent, $('.overlay-container'));
 		this.overlayContainer.style.position = 'absolute';
@@ -293,7 +302,8 @@ export class KeybindingsEditor extends BaseEditor implements IKeybindingsEditor 
 		this.searchWidget = this._register(this.instantiationService.createInstance(SearchWidget, searchContainer, {
 			ariaLabel: localize('SearchKeybindings.AriaLabel', "Search keybindings"),
 			placeholder: localize('SearchKeybindings.Placeholder', "Search keybindings"),
-			focusKey: this.searchFocusContextKey
+			focusKey: this.searchFocusContextKey,
+			ariaLabelledBy: 'keybindings-editor-aria-label-element'
 		}));
 		this._register(this.searchWidget.onDidChange(searchValue => this.delayedFiltering.trigger(() => this.filterKeybindings())));
 
@@ -302,8 +312,7 @@ export class KeybindingsEditor extends BaseEditor implements IKeybindingsEditor 
 			isChecked: false,
 			title: localize('sortByPrecedene', "Sort by Precedence")
 		}));
-		this._register(
-			this.sortByPrecedence.onChange(() => this.renderKeybindingsEntries(false)));
+		this._register(this.sortByPrecedence.onChange(() => this.renderKeybindingsEntries(false)));
 		searchContainer.appendChild(this.sortByPrecedence.domNode);
 
 		this.createOpenKeybindingsElement(this.headerContainer);
@@ -397,6 +406,9 @@ export class KeybindingsEditor extends BaseEditor implements IKeybindingsEditor 
 		if (this.keybindingsEditorModel) {
 			const filter = this.searchWidget.getValue();
 			const keybindingsEntries: IKeybindingItemEntry[] = this.keybindingsEditorModel.fetch(filter, this.sortByPrecedence.checked);
+
+			this.ariaLabelElement.setAttribute('aria-label', this.getAriaLabel(keybindingsEntries));
+
 			if (keybindingsEntries.length === 0) {
 				this.latestEmptyFilters.push(filter);
 			}
@@ -422,6 +434,14 @@ export class KeybindingsEditor extends BaseEditor implements IKeybindingsEditor 
 					this.focus();
 				}
 			}
+		}
+	}
+
+	private getAriaLabel(keybindingsEntries: IKeybindingItemEntry[]): string {
+		if (this.sortByPrecedence.checked) {
+			return localize('show sorted keybindings', "Showing {0} Keybindings in precendence order", keybindingsEntries.length);
+		} else {
+			return localize('show keybindings', "Showing {0} Keybindings in alphabetical order", keybindingsEntries.length);
 		}
 	}
 
@@ -594,7 +614,7 @@ export class KeybindingsEditor extends BaseEditor implements IKeybindingsEditor 
 	}
 }
 
-class Delegate implements IDelegate<IListEntry> {
+class Delegate implements IVirtualDelegate<IListEntry> {
 
 	getHeight(element: IListEntry) {
 		if (element.templateId === KEYBINDING_ENTRY_TEMPLATE_ID) {
@@ -647,6 +667,9 @@ class KeybindingHeaderRenderer implements IRenderer<IListEntry, any> {
 	renderElement(entry: IListEntry, index: number, template: any): void {
 	}
 
+	disposeElement(): void {
+	}
+
 	disposeTemplate(template: any): void {
 	}
 }
@@ -683,6 +706,8 @@ class KeybindingItemRenderer implements IRenderer<IKeybindingItemEntry, Keybindi
 		template.source.render(keybindingEntry);
 		template.when.render(keybindingEntry);
 	}
+
+	disposeElement(): void { }
 
 	disposeTemplate(template: KeybindingItemTemplate): void {
 		template.actions.dispose();

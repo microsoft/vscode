@@ -39,6 +39,13 @@
 	background-color: #EEE;
 }
 
+.monaco-menu .monaco-action-bar.vertical .action-menu-item {
+	-ms-flex: 1 1 auto;
+	flex: 1 1 auto;
+	display: -ms-flexbox;
+	display: flex;
+}
+
 .monaco-menu .monaco-action-bar.vertical .action-label {
 	-ms-flex: 1 1 auto;
 	flex: 1 1 auto;

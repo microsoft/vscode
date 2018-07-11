@@ -11,7 +11,7 @@ import { onUnexpectedError } from 'vs/base/common/errors';
 import { IProgress } from 'vs/platform/search/common/search';
 import { FileWalker } from 'vs/workbench/services/search/node/fileSearch';
 
-import { ISerializedFileMatch, ISerializedSearchComplete, IRawSearch, ISearchEngine } from './search';
+import { ISerializedFileMatch, IRawSearch, ISearchEngine, ISerializedSearchSuccess } from './search';
 import { ISearchWorker } from './worker/searchWorkerIpc';
 import { ITextSearchWorkerProvider } from './textSearchWorkerProvider';
 
@@ -60,7 +60,7 @@ export class Engine implements ISearchEngine<ISerializedFileMatch[]> {
 		});
 	}
 
-	search(onResult: (match: ISerializedFileMatch[]) => void, onProgress: (progress: IProgress) => void, done: (error: Error, complete: ISerializedSearchComplete) => void): void {
+	search(onResult: (match: ISerializedFileMatch[]) => void, onProgress: (progress: IProgress) => void, done: (error: Error, complete: ISerializedSearchSuccess) => void): void {
 		this.workers = this.workerProvider.getWorkers();
 		this.initializeWorkers();
 
@@ -86,6 +86,7 @@ export class Engine implements ISearchEngine<ISerializedFileMatch[]> {
 			if (!this.isDone && this.processedBytes === this.totalBytes && this.walkerIsDone) {
 				this.isDone = true;
 				done(this.walkerError, {
+					type: 'success',
 					limitHit: this.limitReached,
 					stats: this.walker.getStats()
 				});

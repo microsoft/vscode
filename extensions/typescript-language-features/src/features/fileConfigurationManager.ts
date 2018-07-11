@@ -7,8 +7,8 @@ import { workspace as Workspace, FormattingOptions, TextDocument, CancellationTo
 
 import * as Proto from '../protocol';
 import { ITypeScriptServiceClient } from '../typescriptService';
-import * as languageIds from '../utils/languageModeIds';
 import API from '../utils/api';
+import { isTypeScriptDocument } from '../utils/languageModeIds';
 
 function objsAreEqual<T>(a: T, b: T): boolean {
 	let keys = Object.keys(a);
@@ -175,8 +175,4 @@ function getImportModuleSpecifierPreference(config: WorkspaceConfiguration) {
 		case 'non-relative': return 'non-relative';
 		default: return undefined;
 	}
-}
-
-function isTypeScriptDocument(document: TextDocument) {
-	return document.languageId === languageIds.typescript || document.languageId === languageIds.typescriptreact;
 }

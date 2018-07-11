@@ -21,7 +21,7 @@ import { IExtensionsWorkbenchService, IExtension } from 'vs/workbench/parts/exte
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IExtensionService, IExtensionDescription, IExtensionsStatus, IExtensionHostProfile } from 'vs/workbench/services/extensions/common/extensions';
-import { IDelegate, IRenderer } from 'vs/base/browser/ui/list/list';
+import { IVirtualDelegate, IRenderer } from 'vs/base/browser/ui/list/list';
 import { WorkbenchList } from 'vs/platform/list/browser/listService';
 import { append, $, addClass, toggleClass, Dimension } from 'vs/base/browser/dom';
 import { ActionBar, Separator } from 'vs/base/browser/ui/actionbar/actionbar';
@@ -216,7 +216,7 @@ export class RuntimeExtensionsEditor extends BaseEditor {
 
 		const TEMPLATE_ID = 'runtimeExtensionElementTemplate';
 
-		const delegate = new class implements IDelegate<IRuntimeExtension>{
+		const delegate = new class implements IVirtualDelegate<IRuntimeExtension>{
 			getHeight(element: IRuntimeExtension): number {
 				return 62;
 			}
@@ -368,6 +368,8 @@ export class RuntimeExtensionsEditor extends BaseEditor {
 					data.profileTimeline.innerHTML = '';
 				}
 			},
+
+			disposeElement: () => null,
 
 			disposeTemplate: (data: IRuntimeExtensionTemplateData): void => {
 				data.disposables = dispose(data.disposables);

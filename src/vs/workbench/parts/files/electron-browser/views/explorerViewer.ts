@@ -275,7 +275,11 @@ export class FileRenderer implements IRenderer {
 		const extraClasses = ['explorer-item', 'explorer-item-edited'];
 		const fileKind = stat.isRoot ? FileKind.ROOT_FOLDER : (stat.isDirectory || (stat instanceof NewStatPlaceholder && stat.isDirectoryPlaceholder())) ? FileKind.FOLDER : FileKind.FILE;
 		const labelOptions: IFileLabelOptions = { hidePath: true, hideLabel: true, fileKind, extraClasses };
-		label.setFile(stat.resource, labelOptions);
+
+		const parent = stat.name ? resources.dirname(stat.resource) : stat.resource;
+		const value = stat.name || '';
+
+		label.setFile(parent.with({ path: paths.join(parent.path, value || ' ') }), labelOptions); // Use icon for ' ' if name is empty.
 
 		// Input field for name
 		const inputBox = new InputBox(label.element, this.contextViewService, {
@@ -286,12 +290,10 @@ export class FileRenderer implements IRenderer {
 		});
 		const styler = attachInputBoxStyler(inputBox, this.themeService);
 
-		const parent = resources.dirname(stat.resource);
 		inputBox.onDidChange(value => {
-			label.setFile(parent.with({ path: paths.join(parent.path, value) }), labelOptions); // update label icon while typing!
+			label.setFile(parent.with({ path: paths.join(parent.path, value || ' ') }), labelOptions); // update label icon while typing!
 		});
 
-		const value = stat.name || '';
 		const lastDot = value.lastIndexOf('.');
 
 		inputBox.value = value;

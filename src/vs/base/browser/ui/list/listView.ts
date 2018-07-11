@@ -12,7 +12,7 @@ import { domEvent } from 'vs/base/browser/event';
 import { ScrollableElement } from 'vs/base/browser/ui/scrollbar/scrollableElement';
 import { ScrollEvent, ScrollbarVisibility } from 'vs/base/common/scrollable';
 import { RangeMap, IRange, relativeComplement, intersect, shift } from './rangeMap';
-import { IDelegate, IRenderer, IListMouseEvent, IListTouchEvent, IListGestureEvent } from './list';
+import { IVirtualDelegate, IRenderer, IListMouseEvent, IListTouchEvent, IListGestureEvent } from './list';
 import { RowCache, IRow } from './rowCache';
 import { isWindows } from 'vs/base/common/platform';
 import * as browser from 'vs/base/browser/browser';
@@ -72,7 +72,7 @@ export class ListView<T> implements ISpliceable<T>, IDisposable {
 
 	constructor(
 		container: HTMLElement,
-		private delegate: IDelegate<T>,
+		private virtualDelegate: IVirtualDelegate<T>,
 		renderers: IRenderer<T, any>[],
 		options: IListViewOptions = DefaultOptions
 	) {
@@ -156,8 +156,8 @@ export class ListView<T> implements ISpliceable<T>, IDisposable {
 		const inserted = elements.map<IItem<T>>(element => ({
 			id: String(this.itemId++),
 			element,
-			size: this.delegate.getHeight(element),
-			templateId: this.delegate.getTemplateId(element),
+			size: this.virtualDelegate.getHeight(element),
+			templateId: this.virtualDelegate.getTemplateId(element),
 			row: null
 		}));
 
@@ -282,6 +282,11 @@ export class ListView<T> implements ISpliceable<T>, IDisposable {
 	private insertItemInDOM(index: number, beforeElement: HTMLElement | null): void {
 		const item = this.items[index];
 
+		if (!item) {
+			console.log(this.items);
+			throw new Error(`Got index ${index} and there are ${this.items.length} items. File issue to joao!`);
+		}
+
 		if (!item.row) {
 			item.row = this.cache.alloc(item.templateId);
 		}
@@ -311,6 +316,18 @@ export class ListView<T> implements ISpliceable<T>, IDisposable {
 
 	private removeItemFromDOM(index: number): void {
 		const item = this.items[index];
+
+		if (!item) {
+			console.log(this.items);
+			throw new Error(`Got index ${index} and there are ${this.items.length} items. File issue to joao!`);
+		}
+
+		const renderer = this.renderers.get(item.templateId);
+
+		if (renderer.disposeElement) {
+			renderer.disposeElement(item.element, index, item.row.templateData);
+		}
+
 		this.cache.release(item.row);
 		item.row = null;
 	}
@@ -371,7 +388,12 @@ export class ListView<T> implements ISpliceable<T>, IDisposable {
 	}
 
 	private onScroll(e: ScrollEvent): void {
-		this.render(e.scrollTop, e.height);
+		try {
+			this.render(e.scrollTop, e.height);
+		} catch (err) {
+			console.log('Got bad scroll event:', e);
+			throw err;
+		}
 	}
 
 	private onTouchChange(event: GestureEvent): void {

@@ -286,8 +286,7 @@ export default class TypeScriptServiceClientHost {
 		if (diagnostic.code) {
 			converted.code = diagnostic.code;
 		}
-		// TODO: requires TS 3.0
-		const relatedInformation = (diagnostic as any).relatedInformation;
+		const relatedInformation = diagnostic.relatedInformation;
 		if (relatedInformation) {
 			converted.relatedInformation = relatedInformation.map((info: any) => {
 				let span = info.span;
