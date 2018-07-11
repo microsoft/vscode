@@ -1053,6 +1053,28 @@ function goMenuRegistration() {
 }
 
 function debugMenuRegistration() {
+
+	MenuRegistry.appendMenuItem(MenuId.MenubarToolsMenu, {
+		group: '1_terminal',
+		title: nls.localize({ key: 'miTerminal', comment: ['&& denotes a mnemonic'] }, "Terminal"),
+		submenu: MenuId.MenubarTerminalMenu,
+		order: 1
+	});
+
+	MenuRegistry.appendMenuItem(MenuId.MenubarToolsMenu, {
+		group: '2_debug',
+		title: nls.localize({ key: 'miTerminal1', comment: ['&& denotes a mnemonic'] }, "Debug"),
+		submenu: MenuId.MenubarDebugMenu,
+		order: 2
+	});
+
+	MenuRegistry.appendMenuItem(MenuId.MenubarToolsMenu, {
+		group: '3_tasks',
+		title: nls.localize({ key: 'miTerminal2', comment: ['&& denotes a mnemonic'] }, "Tasks"),
+		submenu: MenuId.MenubarTasksMenu,
+		order: 3
+	});
+
 	// Start/Stop Debug
 	MenuRegistry.appendMenuItem(MenuId.MenubarDebugMenu, {
 		group: '1_debug',
