@@ -15,6 +15,7 @@ class TagClosing {
 
 	private _disposed = false;
 	private _timeout: NodeJS.Timer | undefined = undefined;
+	private _cancel: vscode.CancellationTokenSource | undefined = undefined;
 	private readonly _disposables: vscode.Disposable[] = [];
 
 	constructor(
@@ -27,11 +28,19 @@ class TagClosing {
 	}
 
 	public dispose() {
-		disposeAll(this._disposables);
 		this._disposed = true;
+
+		disposeAll(this._disposables);
+
 		if (this._timeout) {
 			clearTimeout(this._timeout);
 			this._timeout = undefined;
+		}
+
+		if (this._cancel) {
+			this._cancel.cancel();
+			this._cancel.dispose();
+			this._cancel = undefined;
 		}
 	}
 
@@ -51,6 +60,12 @@ class TagClosing {
 
 		if (typeof this._timeout !== 'undefined') {
 			clearTimeout(this._timeout);
+		}
+
+		if (this._cancel) {
+			this._cancel.cancel();
+			this._cancel.dispose();
+			this._cancel = undefined;
 		}
 
 		const lastChange = changes[changes.length - 1];
@@ -77,8 +92,9 @@ class TagClosing {
 			let body: Proto.TextInsertion | undefined = undefined;
 			const args: Proto.JsxClosingTagRequestArgs = typeConverters.Position.toFileLocationRequestArgs(filepath, position);
 
+			this._cancel = new vscode.CancellationTokenSource();
 			try {
-				const response = await this.client.execute('jsxClosingTag', args, null as any);
+				const response = await this.client.execute('jsxClosingTag', args, this._cancel.token);
 				body = response && response.body;
 				if (!body) {
 					return;
