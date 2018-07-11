@@ -51,7 +51,7 @@ class Item extends BreadcrumbsItem {
 
 	constructor(
 		readonly element: BreadcrumbElement,
-		readonly showIcons: boolean,
+		readonly options: IBreadcrumbsControlOptions,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService
 	) {
 		super();
@@ -77,11 +77,12 @@ class Item extends BreadcrumbsItem {
 	render(container: HTMLElement): void {
 		if (this.element instanceof FileElement) {
 			// file/folder
-			if (this.showIcons) {
+			if (this.options.showIcons) {
 				let label = this._instantiationService.createInstance(FileLabel, container, {});
 				label.setFile(this.element.uri, {
 					hidePath: true,
-					fileKind: this.element.isFile ? FileKind.FILE : FileKind.FOLDER
+					fileKind: this.element.isFile ? FileKind.FILE : FileKind.FOLDER,
+					fileDecorations: { colors: this.options.showDecorationColors, badges: false }
 				});
 				this._disposables.push(label);
 
@@ -100,7 +101,7 @@ class Item extends BreadcrumbsItem {
 		} else if (this.element instanceof OutlineElement) {
 			// symbol
 
-			if (this.showIcons) {
+			if (this.options.showIcons) {
 				let icon = document.createElement('div');
 				icon.className = `symbol-icon ${symbolKindToCssClass(this.element.symbol.kind)}`;
 				container.appendChild(icon);
@@ -115,6 +116,7 @@ class Item extends BreadcrumbsItem {
 
 export interface IBreadcrumbsControlOptions {
 	showIcons: boolean;
+	showDecorationColors: boolean;
 }
 
 export class BreadcrumbsControl {
@@ -194,8 +196,8 @@ export class BreadcrumbsControl {
 
 		let control = this._editorGroup.activeControl.getControl() as ICodeEditor;
 		let model = new EditorBreadcrumbsModel(input.getResource(), isCodeEditor(control) ? control : undefined, this._workspaceService);
-		let listener = model.onDidUpdate(_ => this._widget.setItems(model.getElements().map(element => new Item(element, this._options.showIcons, this._instantiationService))));
-		this._widget.setItems(model.getElements().map(element => new Item(element, this._options.showIcons, this._instantiationService)));
+		let listener = model.onDidUpdate(_ => this._widget.setItems(model.getElements().map(element => new Item(element, this._options, this._instantiationService))));
+		this._widget.setItems(model.getElements().map(element => new Item(element, this._options, this._instantiationService)));
 		this._breadcrumbsDisposables = [model, listener];
 	}
 
