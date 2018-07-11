@@ -101,10 +101,10 @@ function main(server: Server, initData: ISharedProcessInitData, configuration: I
 		const services = new ServiceCollection();
 		const environmentService = accessor.get(IEnvironmentService);
 		const { appRoot, extensionsPath, extensionDevelopmentPath, isBuilt, installSourcePath } = environmentService;
+		const telemetryLogService = new FollowerLogService(logLevelClient, createSpdLogService('telemetry', initData.logLevel, environmentService.logsPath));
 
 		let appInsightsAppender: ITelemetryAppender = NullAppender;
 		if (product.aiConfig && product.aiConfig.asimovKey && isBuilt) {
-			const telemetryLogService = new FollowerLogService(logLevelClient, createSpdLogService('telemetry', initData.logLevel, environmentService.logsPath));
 			appInsightsAppender = new AppInsightsAppender(eventPrefix, null, product.aiConfig.asimovKey, telemetryLogService);
 			disposables.push(appInsightsAppender); // Ensure the AI appender is disposed so that it flushes remaining data
 		}
