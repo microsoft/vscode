@@ -191,7 +191,22 @@ export class BreadcrumbsWidget {
 				dom.addClass(node, 'focused');
 			}
 		}
+		this._reveal(this._focusedItemIdx);
 		this._onDidFocusItem.fire({ type: 'focus', item: this._items[this._focusedItemIdx], node: this._nodes[this._focusedItemIdx] });
+	}
+
+	reveal(item: BreadcrumbsItem): void {
+		let idx = this._items.indexOf(item);
+		if (idx >= 0) {
+			this._reveal(idx);
+		}
+	}
+
+	private _reveal(nth: number): void {
+		const node = this._nodes[nth];
+		if (node) {
+			this._scrollable.setScrollPosition({ scrollLeft: node.offsetLeft });
+		}
 	}
 
 	getSelection(): BreadcrumbsItem {
@@ -221,9 +236,7 @@ export class BreadcrumbsWidget {
 		let removed = this._items.splice(prefix, this._items.length - prefix, ...items.slice(prefix));
 		this._render(prefix);
 		dispose(removed);
-		if (prefix >= this._focusedItemIdx) {
-			this._focus(-1);
-		}
+		this._focus(-1);
 	}
 
 	private _render(start: number): void {

@@ -196,8 +196,14 @@ export class BreadcrumbsControl {
 
 		let control = this._editorGroup.activeControl.getControl() as ICodeEditor;
 		let model = new EditorBreadcrumbsModel(input.getResource(), isCodeEditor(control) ? control : undefined, this._workspaceService);
-		let listener = model.onDidUpdate(_ => this._widget.setItems(model.getElements().map(element => new Item(element, this._options, this._instantiationService))));
-		this._widget.setItems(model.getElements().map(element => new Item(element, this._options, this._instantiationService)));
+
+		let updateBreadcrumbs = () => {
+			let items = model.getElements().map(element => new Item(element, this._options, this._instantiationService));
+			this._widget.setItems(items);
+			this._widget.reveal(items[items.length - 1]);
+		};
+		let listener = model.onDidUpdate(updateBreadcrumbs);
+		updateBreadcrumbs();
 		this._breadcrumbsDisposables = [model, listener];
 	}
 
