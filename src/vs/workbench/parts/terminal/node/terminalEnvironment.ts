@@ -52,30 +52,16 @@ function _mergeEnvironmentValue(env: IStringDictionary<string>, key: string, val
 	}
 }
 
-export function createTerminalEnv(parentEnv: IStringDictionary<string>, shell: IShellLaunchConfig, cwd: string, locale: string, cols?: number, rows?: number): IStringDictionary<string> {
-	const env = { ...parentEnv };
+export function createTerminalEnv(shell: IShellLaunchConfig, locale: string): IStringDictionary<string> {
+	const env = { ...process.env };
 	if (shell.env) {
 		mergeEnvironments(env, shell.env);
 	}
 
-	// env['PTYPID'] = process.pid.toString();
-	// env['PTYSHELL'] = shell.executable;
 	env['TERM_PROGRAM'] = 'vscode';
 	env['TERM_PROGRAM_VERSION'] = pkg.version;
-	// if (shell.args) {
-	// 	if (typeof shell.args === 'string') {
-	// 		env[`PTYSHELLCMDLINE`] = shell.args;
-	// 	} else {
-	// 		shell.args.forEach((arg, i) => env[`PTYSHELLARG${i}`] = arg);
-	// 	}
-	// }
-	// env['PTYCWD'] = cwd;
 	env['LANG'] = _getLangEnvVariable(locale);
-	// if (cols && rows) {
-	// 	env['PTYCOLS'] = cols.toString();
-	// 	env['PTYROWS'] = rows.toString();
-	// }
-	env['AMD_ENTRYPOINT'] = 'vs/workbench/parts/terminal/node/terminalProcess';
+
 	return env;
 }
 

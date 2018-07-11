@@ -3,10 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-// import * as cp from 'child_process';
-import * as platform from 'vs/base/common/platform';
 import * as terminalEnvironment from 'vs/workbench/parts/terminal/node/terminalEnvironment';
-import Uri from 'vs/base/common/uri';
 import { IDisposable } from 'vs/base/common/lifecycle';
 import { ProcessState, ITerminalProcessManager, IShellLaunchConfig, ITerminalConfigHelper } from 'vs/workbench/parts/terminal/common/terminal';
 import { TPromise } from 'vs/base/common/winjs.base';
@@ -53,9 +50,7 @@ export class TerminalProcessManager implements ITerminalProcessManager {
 	constructor(
 		private _terminalId: number,
 		private _configHelper: ITerminalConfigHelper,
-		@IWorkspaceContextService private readonly _workspaceContextService: IWorkspaceContextService,
 		@IHistoryService private readonly _historyService: IHistoryService,
-		@IConfigurationResolverService private readonly _configurationResolverService: IConfigurationResolverService,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 		@ILogService private _logService: ILogService
 	) {
@@ -96,37 +91,11 @@ export class TerminalProcessManager implements ITerminalProcessManager {
 		if (extensionHostOwned) {
 			this._process = this._instantiationService.createInstance(TerminalProcessExtHostProxy, this._terminalId, shellLaunchConfig, cols, rows);
 		} else {
-			// TODO: Move locale into TerminalProcess
-			const locale = this._configHelper.config.setLocaleVariables ? platform.locale : undefined;
-			if (!shellLaunchConfig.executable) {
-				this._configHelper.mergeDefaultShellPathAndArgs(shellLaunchConfig);
-			}
-
 			const lastActiveWorkspaceRootUri = this._historyService.getLastActiveWorkspaceRoot('file');
 			this.initialCwd = terminalEnvironment.getCwd(shellLaunchConfig, lastActiveWorkspaceRootUri, this._configHelper);
 
-			// Resolve env vars from config and shell
-			const lastActiveWorkspaceRoot = this._workspaceContextService.getWorkspaceFolder(lastActiveWorkspaceRootUri);
-			const platformKey = platform.isWindows ? 'windows' : (platform.isMacintosh ? 'osx' : 'linux');
-			const envFromConfig = terminalEnvironment.resolveConfigurationVariables(this._configurationResolverService, { ...this._configHelper.config.env[platformKey] }, lastActiveWorkspaceRoot);
-			const envFromShell = terminalEnvironment.resolveConfigurationVariables(this._configurationResolverService, { ...shellLaunchConfig.env }, lastActiveWorkspaceRoot);
-			shellLaunchConfig.env = envFromShell;
-
-			// Merge process env with the env from config
-			const parentEnv = { ...process.env };
-			// TODO: Move environment merge stuff into TerminalProcess
-			terminalEnvironment.mergeEnvironments(parentEnv, envFromConfig);
-
-			// Continue env initialization, merging in the env from the launch
-			// config and adding keys that are needed to create the process
-			const env = terminalEnvironment.createTerminalEnv(parentEnv, shellLaunchConfig, this.initialCwd, locale, cols, rows);
-			const cwd = Uri.parse(require.toUrl('../node')).fsPath;
-			const options = { env, cwd };
-			this._logService.debug(`Terminal process launching`, options);
-
-			// TODO: Send right args (on ext host too)
-			console.log('create terminal process', env['PTYSHELL'], env['PTYCWD']);
-			this._process = new TerminalProcess(shellLaunchConfig, this.initialCwd, cols, rows);
+			this._logService.debug(`Terminal process launching`, shellLaunchConfig, this.initialCwd, cols, rows);
+			this._process = this._instantiationService.createInstance(TerminalProcess, shellLaunchConfig, this.initialCwd, cols, rows, lastActiveWorkspaceRootUri, this._configHelper);
 		}
 		this.processState = ProcessState.LAUNCHING;
 
