@@ -369,18 +369,13 @@ export class WorkbenchShell extends Disposable {
 
 		} else {
 			// appender-based telemetry
+			const channel = getDelayedChannel<ITelemetryAppenderChannel>(sharedProcess.then(c => c.getChannel('telemetryAppender')));
 			const config: ITelemetryServiceConfig = {
-				appender: undefined,
+				appender: combinedAppender(new TelemetryAppenderClient(channel), new LogAppender(this.logService)),
 				commonProperties: resolveWorkbenchCommonProperties(this.storageService, product.commit, pkg.version, this.configuration.machineId, this.environmentService.installSourcePath),
 				piiPaths: [this.environmentService.appRoot, this.environmentService.extensionsPath]
 			};
 
-			if (this.environmentService.isBuilt) {
-				const channel = getDelayedChannel<ITelemetryAppenderChannel>(sharedProcess.then(c => c.getChannel('telemetryAppender')));
-				config.appender = combinedAppender(new TelemetryAppenderClient(channel), new LogAppender(this.logService));
-			} else {
-				config.appender = new LogAppender(this.logService);
-			}
 			this.telemetryService = this._register(instantiationService.createInstance(TelemetryService, config));
 			this._register(new ErrorTelemetry(this.telemetryService));
 		}
