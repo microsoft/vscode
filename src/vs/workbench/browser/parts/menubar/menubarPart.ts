@@ -33,7 +33,7 @@ import { IWorkspaceIdentifier, ISingleFolderWorkspaceIdentifier, isSingleFolderW
 import { getPathLabel } from 'vs/base/common/labels';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { RunOnceScheduler } from 'vs/base/common/async';
-import { MENUBAR_SELECTED_FOREGROUND, MENUBAR_SELECTED_BACKGROUND, MENUBAR_SELECTED_BORDER, TITLE_BAR_ACTIVE_FOREGROUND, TITLE_BAR_INACTIVE_FOREGROUND } from 'vs/workbench/common/theme';
+import { MENUBAR_SELECTED_FOREGROUND, MENUBAR_SELECTED_BACKGROUND, MENUBAR_SELECTED_BORDER, TITLE_BAR_ACTIVE_FOREGROUND, TITLE_BAR_INACTIVE_FOREGROUND, MENU_BACKGROUND, MENU_FOREGROUND, MENU_SELECTED_BACKGROUND, MENU_SELECTED_FOREGROUND, MENU_SELECTED_BORDER } from 'vs/workbench/common/theme';
 
 interface CustomMenu {
 	title: string;
@@ -1017,6 +1017,65 @@ registerThemingParticipant((theme: ITheme, collector: ICssStyleCollector) => {
 			.monaco-workbench > .part.menubar > .menubar-menu-button:hover {
 				outline-offset: -1px;
 				outline-color: ${menubarSelectedBorderColor};
+			}
+		`);
+	}
+
+	const menuBgColor = theme.getColor(MENU_BACKGROUND);
+	if (menuBgColor) {
+		collector.addRule(`
+			.monaco-menu .monaco-action-bar.vertical,
+			.monaco-menu .monaco-action-bar.vertical .action-menu-item {
+				background-color: ${menuBgColor};
+			}
+		`);
+	}
+
+	const menuFgColor = theme.getColor(MENU_FOREGROUND);
+	if (menuFgColor) {
+		collector.addRule(`
+			.monaco-menu .monaco-action-bar.vertical,
+			.monaco-menu .monaco-action-bar.vertical .action-menu-item {
+				color: ${menuFgColor};
+			}
+		`);
+	}
+
+	const selectedMenuItemBgColor = theme.getColor(MENU_SELECTED_BACKGROUND);
+	if (menuBgColor) {
+		collector.addRule(`
+		.monaco-menu .monaco-action-bar.vertical .action-item.focused > .action-menu-item,
+		.monaco-menu .monaco-action-bar.vertical .action-menu-item:hover {
+				background-color: ${selectedMenuItemBgColor};
+			}
+		`);
+	}
+
+	const selectedMenuItemFgColor = theme.getColor(MENU_SELECTED_FOREGROUND);
+	if (selectedMenuItemFgColor) {
+		collector.addRule(`
+		.monaco-menu .monaco-action-bar.vertical .action-item.focused > .action-menu-item,
+		.monaco-menu .monaco-action-bar.vertical .action-menu-item:hover {
+				color: ${selectedMenuItemFgColor};
+			}
+		`);
+	}
+
+	const selectedMenuItemBorderColor = theme.getColor(MENU_SELECTED_BORDER);
+	if (selectedMenuItemBorderColor) {
+		collector.addRule(`
+		.monaco-menu .monaco-action-bar.vertical .action-item.focused > .action-menu-item {
+			outline: solid 1px;
+		}
+
+		.monaco-menu .monaco-action-bar.vertical .action-menu-item:hover {
+			outline: dashed 1px;
+		}
+
+		.monaco-menu .monaco-action-bar.vertical .action-item.focused > .action-menu-item,
+		.monaco-menu .monaco-action-bar.vertical .action-menu-item:hover {
+				outline-offset: -1px;
+				outline-color: ${selectedMenuItemBorderColor};
 			}
 		`);
 	}

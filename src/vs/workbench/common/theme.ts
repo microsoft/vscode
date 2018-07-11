@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as nls from 'vs/nls';
-import { registerColor, editorBackground, contrastBorder, transparent, editorWidgetBackground, textLinkForeground, lighten, darken, focusBorder, foreground, activeContrastBorder, listFocusForeground, listFocusBackground, listActiveSelectionForeground, listActiveSelectionBackground } from 'vs/platform/theme/common/colorRegistry';
+import { registerColor, editorBackground, contrastBorder, transparent, editorWidgetBackground, textLinkForeground, lighten, darken, focusBorder, activeContrastBorder, listActiveSelectionForeground, listActiveSelectionBackground } from 'vs/platform/theme/common/colorRegistry';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { IThemeService, ITheme } from 'vs/platform/theme/common/themeService';
 import { Color } from 'vs/base/common/color';
@@ -409,15 +409,15 @@ export const MENUBAR_SELECTED_BORDER = registerColor('menubar.selectedBorder', {
 }, nls.localize('menubarSelectedBorder', "Selected menu in menubar border color."));
 
 export const MENU_FOREGROUND = registerColor('menu.foreground', {
-	dark: listFocusForeground,
-	light: listFocusForeground,
-	hc: listFocusForeground
+	dark: SIDE_BAR_FOREGROUND,
+	light: SIDE_BAR_FOREGROUND,
+	hc: SIDE_BAR_FOREGROUND
 }, nls.localize('menuForeground', "Default menu item foreground color."));
 
 export const MENU_BACKGROUND = registerColor('menu.background', {
-	dark: listFocusBackground,
-	light: listFocusBackground,
-	hc: listFocusBackground
+	dark: SIDE_BAR_BACKGROUND,
+	light: SIDE_BAR_BACKGROUND,
+	hc: SIDE_BAR_BACKGROUND
 }, nls.localize('menuBackground', "Default menu item background color."));
 
 export const MENU_SELECTED_FOREGROUND = registerColor('menu.selectedForeground', {
