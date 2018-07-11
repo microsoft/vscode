@@ -96,6 +96,7 @@ export class TerminalProcessManager implements ITerminalProcessManager {
 		if (extensionHostOwned) {
 			this._process = this._instantiationService.createInstance(TerminalProcessExtHostProxy, this._terminalId, shellLaunchConfig, cols, rows);
 		} else {
+			// TODO: Move locale into TerminalProcess
 			const locale = this._configHelper.config.setLocaleVariables ? platform.locale : undefined;
 			if (!shellLaunchConfig.executable) {
 				this._configHelper.mergeDefaultShellPathAndArgs(shellLaunchConfig);
@@ -113,6 +114,7 @@ export class TerminalProcessManager implements ITerminalProcessManager {
 
 			// Merge process env with the env from config
 			const parentEnv = { ...process.env };
+			// TODO: Move environment merge stuff into TerminalProcess
 			terminalEnvironment.mergeEnvironments(parentEnv, envFromConfig);
 
 			// Continue env initialization, merging in the env from the launch
@@ -123,7 +125,8 @@ export class TerminalProcessManager implements ITerminalProcessManager {
 			this._logService.debug(`Terminal process launching`, options);
 
 			// TODO: Send right args (on ext host too)
-			this._process = new TerminalProcess(env['PTYSHELL'], [], env['PTYCWD'], cols, rows);
+			console.log('create terminal process', env['PTYSHELL'], env['PTYCWD']);
+			this._process = new TerminalProcess(shellLaunchConfig.executable, shellLaunchConfig.args, this.initialCwd, cols, rows);
 		}
 		this.processState = ProcessState.LAUNCHING;
 
