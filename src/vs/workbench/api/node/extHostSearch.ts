@@ -9,7 +9,6 @@ import { CancellationTokenSource } from 'vs/base/common/cancellation';
 import { toErrorMessage } from 'vs/base/common/errorMessage';
 import * as glob from 'vs/base/common/glob';
 import * as resources from 'vs/base/common/resources';
-import * as strings from 'vs/base/common/strings';
 import URI, { UriComponents } from 'vs/base/common/uri';
 import { PPromise, TPromise } from 'vs/base/common/winjs.base';
 import * as extfs from 'vs/base/node/extfs';
@@ -505,7 +504,6 @@ function patternInfoToQuery(patternInfo: IPatternInfo): vscode.TextSearchQuery {
 
 class FileSearchEngine {
 	private filePattern: string;
-	private normalizedFilePatternLowercase: string;
 	private includePattern: glob.ParsedExpression;
 	private maxResults: number;
 	private exists: boolean;
@@ -525,10 +523,6 @@ class FileSearchEngine {
 		this.resultCount = 0;
 		this.isLimitHit = false;
 		this.activeCancellationTokens = new Set<CancellationTokenSource>();
-
-		if (this.filePattern) {
-			this.normalizedFilePatternLowercase = strings.stripWildcards(this.filePattern).toLowerCase();
-		}
 
 		this.globalExcludePattern = config.excludePattern && glob.parse(config.excludePattern);
 	}
@@ -730,7 +724,7 @@ class FileSearchEngine {
 	}
 
 	private matchFile(onResult: (result: IInternalFileMatch) => void, candidate: IInternalFileMatch): void {
-		if (this.isFilePatternMatch(candidate.relativePath) && (!this.includePattern || this.includePattern(candidate.relativePath, candidate.basename))) {
+		if (!this.includePattern || this.includePattern(candidate.relativePath, candidate.basename)) {
 			if (this.exists || (this.maxResults && this.resultCount >= this.maxResults)) {
 				this.isLimitHit = true;
 				this.cancel();
@@ -740,20 +734,6 @@ class FileSearchEngine {
 				onResult(candidate);
 			}
 		}
-	}
-
-	private isFilePatternMatch(path: string): boolean {
-		// Check for search pattern
-		if (this.filePattern) {
-			if (this.filePattern === '*') {
-				return true; // support the all-matching wildcard
-			}
-
-			return strings.fuzzyContains(path, this.normalizedFilePatternLowercase);
-		}
-
-		// No patterns means we match all
-		return true;
 	}
 }
 
