@@ -220,14 +220,16 @@ export class BreadcrumbsControl {
 			getAnchor() {
 				return event.node;
 			},
-			render: (container: HTMLElement) => {
-				dom.addClasses(container, 'monaco-breadcrumbs-picker', 'monaco-workbench', 'show-file-icons');
+			render: (parent: HTMLElement) => {
+				const container = document.createElement('div');
+				parent.appendChild(container);
 				const theme = this._themeService.getTheme();
 				const color = theme.getColor(editorBackground).darken(theme.type === 'dark' ? .2 : .1);
 				container.style.borderColor = color.toString();
 				container.style.boxShadow = `2px 2px 3px ${color.toString()}`;
 				container.style.position = 'absolute';
 				container.style.zIndex = '1000';
+				dom.addClasses(container, 'monaco-breadcrumbs-picker', 'monaco-workbench', 'show-file-icons');
 
 				let { element } = event.item as Item;
 				let ctor: IConstructorSignature2<HTMLElement, BreadcrumbElement, BreadcrumbsPicker> = element instanceof FileElement ? BreadcrumbsFilePicker : BreadcrumbsOutlinePicker;
@@ -303,8 +305,8 @@ export abstract class BreadcrumbsPicker {
 		this.focus = dom.trackFocus(this._domNode);
 		this.focus.onDidBlur(_ => this._onDidPickElement.fire(undefined), undefined, this._disposables);
 		this._tree.setInput(this._getInput(input)).then(_ => {
-			this._tree.domFocus();
 			this._tree.focusFirst();
+			this._tree.domFocus();
 		}, onUnexpectedError);
 	}
 
