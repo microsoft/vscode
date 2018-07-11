@@ -397,10 +397,6 @@ export class ExtHostTerminalService implements ExtHostTerminalServiceShape {
 		// Fork the process and listen for messages
 		this._logService.debug(`Terminal process launching on ext host`, options);
 		this._terminalProcesses[id] = new TerminalProcess(shellLaunchConfig.executable, shellLaunchConfig.args, cwd, cols, rows);
-		// this._terminalProcesses[id].on
-		// this._terminalProcesses[id].on('message', (message: IMessageFromTerminalProcess) => {
-		// 	switch (message.type) {
-		// });
 		this._terminalProcesses[id].onProcessIdReady(pid => this._proxy.$sendProcessPid(id, pid));
 		this._terminalProcesses[id].onProcessTitleChanged(title => this._proxy.$sendProcessTitle(id, title));
 		this._terminalProcesses[id].onProcessData(data => this._proxy.$sendProcessData(id, data));
@@ -410,7 +406,6 @@ export class ExtHostTerminalService implements ExtHostTerminalServiceShape {
 	public $acceptProcessInput(id: number, data: string): void {
 		if (this._terminalProcesses[id].isConnected) {
 			this._terminalProcesses[id].input(data);
-			// this._terminalProcesses[id].send({ event: 'input', data });
 		}
 	}
 
@@ -418,7 +413,6 @@ export class ExtHostTerminalService implements ExtHostTerminalServiceShape {
 		if (this._terminalProcesses[id].isConnected) {
 			try {
 				this._terminalProcesses[id].resize(cols, rows);
-				// this._terminalProcesses[id].send({ event: 'resize', cols, rows });
 			} catch (error) {
 				// We tried to write to a closed pipe / channel.
 				if (error.code !== 'EPIPE' && error.code !== 'ERR_IPC_CHANNEL_CLOSED') {
@@ -431,15 +425,12 @@ export class ExtHostTerminalService implements ExtHostTerminalServiceShape {
 	public $acceptProcessShutdown(id: number): void {
 		if (this._terminalProcesses[id].isConnected) {
 			this._terminalProcesses[id].shutdown();
-			// this._terminalProcesses[id].send({ event: 'shutdown' });
 		}
 	}
 
 	private _onProcessExit(id: number, exitCode: number): void {
 		// Remove listeners
-		// const process = this._terminalProcesses[id];
-		// process.removeAllListeners('message');
-		// process.removeAllListeners('exit');
+		this._terminalProcesses[id].dispose();
 
 		// Remove process reference
 		delete this._terminalProcesses[id];

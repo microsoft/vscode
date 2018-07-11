@@ -122,7 +122,7 @@ export class TerminalProcessManager implements ITerminalProcessManager {
 			const options = { env, cwd };
 			this._logService.debug(`Terminal process launching`, options);
 
-			// this._process = cp.fork(Uri.parse(require.toUrl('bootstrap')).fsPath, ['--type=terminal'], options);
+			// TODO: Send right args (on ext host too)
 			this._process = new TerminalProcess(env['PTYSHELL'], [], env['PTYCWD'], cols, rows);
 		}
 		this.processState = ProcessState.LAUNCHING;

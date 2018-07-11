@@ -9,8 +9,9 @@ import * as pty from 'node-pty';
 import { Event, Emitter } from 'vs/base/common/event';
 import { IProcessEnvironment } from 'vs/base/common/platform';
 import { ITerminalChildProcess } from 'vs/workbench/parts/terminal/node/terminal';
+import { IDisposable } from 'vs/base/common/lifecycle';
 
-export class TerminalProcess implements ITerminalChildProcess {
+export class TerminalProcess implements ITerminalChildProcess, IDisposable {
 	private _exitCode: number;
 	private _closeTimeout: number;
 	private _ptyProcess: pty.IPty;
@@ -63,6 +64,13 @@ export class TerminalProcess implements ITerminalChildProcess {
 			this._sendProcessId();
 		}, 1000);
 		this._setupTitlePolling();
+	}
+
+	public dispose(): void {
+		this._onProcessData.dispose();
+		this._onProcessExit.dispose();
+		this._onProcessIdReady.dispose();
+		this._onProcessTitleChanged.dispose();
 	}
 
 	private _createEnv(): IProcessEnvironment {
