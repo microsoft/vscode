@@ -266,6 +266,8 @@ export function attachStylerCallback(themeService: IThemeService, colors: { [nam
 export interface IBreadcrumbsWidgetStyleOverrides extends IStyleOverrides {
 	breadcrumbsBackground?: ColorIdentifier;
 	breadcrumbsForeground?: ColorIdentifier;
+	breadcrumbsHoverBackground?: ColorIdentifier;
+	breadcrumbsHoverForeground?: ColorIdentifier;
 	breadcrumbsFocusForeground?: ColorIdentifier;
 	breadcrumbsFocusAndSelectionBackground?: ColorIdentifier;
 	breadcrumbsFocusAndSelectionForeground?: ColorIdentifier;
@@ -274,6 +276,8 @@ export interface IBreadcrumbsWidgetStyleOverrides extends IStyleOverrides {
 export const defaultBreadcrumbsStyles = <IBreadcrumbsWidgetStyleOverrides>{
 	breadcrumbsBackground: editorBackground,
 	breadcrumbsForeground: breadcrumbsForeground,
+	breadcrumbsHoverBackground: editorBackground,
+	breadcrumbsHoverForeground: breadcrumbsFocusForeground,
 	breadcrumbsFocusForeground: breadcrumbsFocusForeground,
 	breadcrumbsFocusAndSelectionBackground: breadcrumbsActiveSelectionBackground,
 	breadcrumbsFocusAndSelectionForeground: breadcrumbsActiveSelectionForeground,

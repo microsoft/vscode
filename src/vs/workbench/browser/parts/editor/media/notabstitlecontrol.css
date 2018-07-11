@@ -43,6 +43,10 @@
 	background-image: none;
 }
 
+.monaco-workbench.windows > .part.editor > .content .editor-group-container > .title .no-tabs-breadcrumbs .breadcrumbs-control .monaco-breadcrumb-item:not(:last-child)::after  {
+	content: '\\';
+}
+
 /* Title Actions */
 .monaco-workbench > .part.editor > .content .editor-group-container > .title .title-actions {
 	display: flex;
