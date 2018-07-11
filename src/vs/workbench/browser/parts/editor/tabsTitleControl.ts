@@ -40,6 +40,7 @@ import { localize } from 'vs/nls';
 import { IEditorGroupsAccessor, IEditorPartOptions, IEditorGroupView } from 'vs/workbench/browser/parts/editor/editor';
 import { CloseOneEditorAction } from 'vs/workbench/browser/parts/editor/editorActions';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
+import { BreadcrumbsControl } from 'vs/workbench/browser/parts/editor/breadcrumbsControl';
 
 interface IEditorInputLabel {
 	name: string;
@@ -928,11 +929,9 @@ export class TabsTitleControl extends TitleControl {
 			return;
 		}
 
-		let breadcrumbsHeight = 0;
 		if (this.breadcrumbsControl) {
-			breadcrumbsHeight = this.breadcrumbsControl.getPreferredHeight();
-			this.breadcrumbsControl.layout({ width: dimension.width, height: breadcrumbsHeight });
-			this.scrollbar.getDomNode().style.height = `${dimension.height - breadcrumbsHeight}px`;
+			this.breadcrumbsControl.layout({ width: dimension.width, height: BreadcrumbsControl.HEIGHT });
+			this.scrollbar.getDomNode().style.height = `${dimension.height - BreadcrumbsControl.HEIGHT}px`;
 		}
 
 		const visibleContainerWidth = this.tabsContainer.offsetWidth;

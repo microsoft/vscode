@@ -99,6 +99,8 @@ class Item extends BreadcrumbsItem {
 
 export class BreadcrumbsControl {
 
+	static HEIGHT = 25;
+
 	static CK_BreadcrumbsVisible = new RawContextKey('breadcrumbsVisible', false);
 	static CK_BreadcrumbsActive = new RawContextKey('breadcrumbsActive', false);
 
@@ -150,15 +152,7 @@ export class BreadcrumbsControl {
 		this._domNode.remove();
 	}
 
-	getPreferredHeight(): number {
-		return 25;
-	}
-
 	layout(dim: dom.Dimension): void {
-		if (dim) {
-			this._domNode.style.width = `${dim.width}px`;
-			this._domNode.style.height = `${dim.height}px`;
-		}
 		this._widget.layout(dim);
 	}
 
