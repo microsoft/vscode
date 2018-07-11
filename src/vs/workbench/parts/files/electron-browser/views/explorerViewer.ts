@@ -687,8 +687,6 @@ export class FileSorter implements ISorter {
 // Explorer Filter
 export class FileFilter implements IFilter {
 
-	private static readonly MAX_SIBLINGS_FILTER_THRESHOLD = 2000;
-
 	private hiddenExpressionPerRoot: Map<string, glob.IExpression>;
 	private workspaceFolderChangeListener: IDisposable;
 
@@ -726,20 +724,10 @@ export class FileFilter implements IFilter {
 			return true; // always visible
 		}
 
-		// TODO: Remove workaround.
-		// Workaround for O(N^2) complexity (https://github.com/Microsoft/vscode/issues/9962)
-		let siblingsFn: () => string[];
-		let siblingCount = stat.parent && stat.parent.getChildrenCount();
-		if (siblingCount && siblingCount > FileFilter.MAX_SIBLINGS_FILTER_THRESHOLD) {
-			siblingsFn = () => void 0;
-		} else {
-			siblingsFn = () => stat.parent ? stat.parent.getChildrenNames() : void 0;
-		}
-
 		// Hide those that match Hidden Patterns
 		const expression = this.hiddenExpressionPerRoot.get(stat.root.resource.toString()) || Object.create(null);
-		// TODO: Use glob.parse() and cache result.
-		if (glob.match(expression, paths.normalize(path.relative(stat.root.resource.path, stat.resource.path), true), glob.hasSiblingFn(siblingsFn))) {
+		// TODO@Ben TODO@Isidor: Use glob.parse() and cache result to speed this up even further
+		if (glob.match(expression, paths.normalize(path.relative(stat.root.resource.path, stat.resource.path), true), name => !!stat.parent.getChild(name))) {
 			return false; // hidden through pattern
 		}
 
