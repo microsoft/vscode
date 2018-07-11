@@ -46,7 +46,7 @@ export const NullAppender: ITelemetryAppender = { log: () => null, dispose: () =
 
 export class LogAppender implements ITelemetryAppender {
 
-	private commonProperties = ['sessionID', 'version', 'timestamp'];
+	private commonPropertiesRegex = /^sessionID$|^version$|^timestamp$|^common\./;
 	constructor(@ILogService private readonly _logService: ILogService) { }
 
 	dispose(): TPromise<any> {
@@ -56,7 +56,7 @@ export class LogAppender implements ITelemetryAppender {
 	log(eventName: string, data: any): void {
 		const strippedData = {};
 		Object.keys(data).forEach(key => {
-			if (key.indexOf('common.') !== 0 && this.commonProperties.indexOf(key) === -1) {
+			if (!this.commonPropertiesRegex.test(key)) {
 				strippedData[key] = data[key];
 			}
 		});
