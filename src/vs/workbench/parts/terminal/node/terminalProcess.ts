@@ -8,21 +8,22 @@ import * as path from 'path';
 import * as pty from 'node-pty';
 import { Event, Emitter } from 'vs/base/common/event';
 import { IProcessEnvironment } from 'vs/base/common/platform';
+import { ITerminalChildProcess } from 'vs/workbench/parts/terminal/node/terminal';
 
-export class TerminalProcess {
+export class TerminalProcess implements ITerminalChildProcess {
 	private _exitCode: number;
 	private _closeTimeout: number;
 	private _ptyProcess: pty.IPty;
 	private _currentTitle: string = '';
 
-	private readonly _onData: Emitter<string> = new Emitter<string>();
-	public get onData(): Event<string> { return this._onData.event; }
-	private readonly _onExit: Emitter<number> = new Emitter<number>();
-	public get onExit(): Event<number> { return this._onExit.event; }
+	private readonly _onProcessData: Emitter<string> = new Emitter<string>();
+	public get onProcessData(): Event<string> { return this._onProcessData.event; }
+	private readonly _onProcessExit: Emitter<number> = new Emitter<number>();
+	public get onProcessExit(): Event<number> { return this._onProcessExit.event; }
 	private readonly _onProcessIdReady: Emitter<number> = new Emitter<number>();
 	public get onProcessIdReady(): Event<number> { return this._onProcessIdReady.event; }
-	private readonly _onTitleChanged: Emitter<string> = new Emitter<string>();
-	public get onTitleChanged(): Event<string> { return this._onTitleChanged.event; }
+	private readonly _onProcessTitleChanged: Emitter<string> = new Emitter<string>();
+	public get onProcessTitleChanged(): Event<string> { return this._onProcessTitleChanged.event; }
 
 	constructor(shell: string, args: string | string[], cwd: string, cols: number, rows: number) {
 		// The pty process needs to be run in its own child process to get around maxing out CPU on Mac,
@@ -46,7 +47,7 @@ export class TerminalProcess {
 
 		this._ptyProcess = pty.spawn(shell, args, options);
 		this._ptyProcess.on('data', (data) => {
-			this._onData.fire(data);
+			this._onProcessData.fire(data);
 			if (this._closeTimeout) {
 				clearTimeout(this._closeTimeout);
 				this._queueProcessExit();
@@ -112,7 +113,7 @@ export class TerminalProcess {
 		// TODO: Dispose correctly
 		this._closeTimeout = setTimeout(() => {
 			this._ptyProcess.kill();
-			this._onExit.fire(this._exitCode);
+			this._onProcessExit.fire(this._exitCode);
 		}, 250);
 	}
 
@@ -121,7 +122,7 @@ export class TerminalProcess {
 	}
 	private _sendProcessTitle(): void {
 		this._currentTitle = this._ptyProcess.process;
-		this._onTitleChanged.fire(this._currentTitle);
+		this._onProcessTitleChanged.fire(this._currentTitle);
 	}
 
 	public shutdown(): void {

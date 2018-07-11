@@ -5,17 +5,16 @@
 'use strict';
 
 import * as vscode from 'vscode';
-import * as cp from 'child_process';
 import * as os from 'os';
 import * as platform from 'vs/base/common/platform';
 import * as terminalEnvironment from 'vs/workbench/parts/terminal/node/terminalEnvironment';
 import Uri from 'vs/base/common/uri';
 import { Event, Emitter } from 'vs/base/common/event';
 import { ExtHostTerminalServiceShape, MainContext, MainThreadTerminalServiceShape, IMainContext, ShellLaunchConfigDto } from 'vs/workbench/api/node/extHost.protocol';
-import { IMessageFromTerminalProcess } from 'vs/workbench/parts/terminal/node/terminal';
 import { ExtHostConfiguration } from 'vs/workbench/api/node/extHostConfiguration';
 import { ILogService } from 'vs/platform/log/common/log';
 import { EXT_HOST_CREATION_DELAY } from 'vs/workbench/parts/terminal/common/terminal';
+import { TerminalProcess } from 'vs/workbench/parts/terminal/node/terminalProcess';
 
 const RENDERER_NO_PROCESS_ID = -1;
 
@@ -226,7 +225,7 @@ export class ExtHostTerminalService implements ExtHostTerminalServiceShape {
 	private _proxy: MainThreadTerminalServiceShape;
 	private _activeTerminal: ExtHostTerminal;
 	private _terminals: ExtHostTerminal[] = [];
-	private _terminalProcesses: { [id: number]: cp.ChildProcess } = {};
+	private _terminalProcesses: { [id: number]: TerminalProcess } = {};
 	private _terminalRenderers: ExtHostTerminalRenderer[] = [];
 
 	public get activeTerminal(): ExtHostTerminal { return this._activeTerminal; }
@@ -397,27 +396,29 @@ export class ExtHostTerminalService implements ExtHostTerminalServiceShape {
 
 		// Fork the process and listen for messages
 		this._logService.debug(`Terminal process launching on ext host`, options);
-		this._terminalProcesses[id] = cp.fork(Uri.parse(require.toUrl('bootstrap')).fsPath, ['--type=terminal'], options);
-		this._terminalProcesses[id].on('message', (message: IMessageFromTerminalProcess) => {
-			switch (message.type) {
-				case 'pid': this._proxy.$sendProcessPid(id, <number>message.content); break;
-				case 'title': this._proxy.$sendProcessTitle(id, <string>message.content); break;
-				case 'data': this._proxy.$sendProcessData(id, <string>message.content); break;
-			}
-		});
-		this._terminalProcesses[id].on('exit', (exitCode) => this._onProcessExit(id, exitCode));
+		this._terminalProcesses[id] = new TerminalProcess(shellLaunchConfig.executable, shellLaunchConfig.args, cwd, cols, rows);
+		// this._terminalProcesses[id].on
+		// this._terminalProcesses[id].on('message', (message: IMessageFromTerminalProcess) => {
+		// 	switch (message.type) {
+		// });
+		this._terminalProcesses[id].onProcessIdReady(pid => this._proxy.$sendProcessPid(id, pid));
+		this._terminalProcesses[id].onProcessTitleChanged(title => this._proxy.$sendProcessTitle(id, title));
+		this._terminalProcesses[id].onProcessData(data => this._proxy.$sendProcessData(id, data));
+		this._terminalProcesses[id].onProcessExit((exitCode) => this._onProcessExit(id, exitCode));
 	}
 
 	public $acceptProcessInput(id: number, data: string): void {
-		if (this._terminalProcesses[id].connected) {
-			this._terminalProcesses[id].send({ event: 'input', data });
+		if (this._terminalProcesses[id].isConnected) {
+			this._terminalProcesses[id].input(data);
+			// this._terminalProcesses[id].send({ event: 'input', data });
 		}
 	}
 
 	public $acceptProcessResize(id: number, cols: number, rows: number): void {
-		if (this._terminalProcesses[id].connected) {
+		if (this._terminalProcesses[id].isConnected) {
 			try {
-				this._terminalProcesses[id].send({ event: 'resize', cols, rows });
+				this._terminalProcesses[id].resize(cols, rows);
+				// this._terminalProcesses[id].send({ event: 'resize', cols, rows });
 			} catch (error) {
 				// We tried to write to a closed pipe / channel.
 				if (error.code !== 'EPIPE' && error.code !== 'ERR_IPC_CHANNEL_CLOSED') {
@@ -428,16 +429,17 @@ export class ExtHostTerminalService implements ExtHostTerminalServiceShape {
 	}
 
 	public $acceptProcessShutdown(id: number): void {
-		if (this._terminalProcesses[id].connected) {
-			this._terminalProcesses[id].send({ event: 'shutdown' });
+		if (this._terminalProcesses[id].isConnected) {
+			this._terminalProcesses[id].shutdown();
+			// this._terminalProcesses[id].send({ event: 'shutdown' });
 		}
 	}
 
 	private _onProcessExit(id: number, exitCode: number): void {
 		// Remove listeners
-		const process = this._terminalProcesses[id];
-		process.removeAllListeners('message');
-		process.removeAllListeners('exit');
+		// const process = this._terminalProcesses[id];
+		// process.removeAllListeners('message');
+		// process.removeAllListeners('exit');
 
 		// Remove process reference
 		delete this._terminalProcesses[id];

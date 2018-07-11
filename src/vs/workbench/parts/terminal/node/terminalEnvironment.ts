@@ -58,23 +58,23 @@ export function createTerminalEnv(parentEnv: IStringDictionary<string>, shell: I
 		mergeEnvironments(env, shell.env);
 	}
 
-	env['PTYPID'] = process.pid.toString();
-	env['PTYSHELL'] = shell.executable;
+	// env['PTYPID'] = process.pid.toString();
+	// env['PTYSHELL'] = shell.executable;
 	env['TERM_PROGRAM'] = 'vscode';
 	env['TERM_PROGRAM_VERSION'] = pkg.version;
-	if (shell.args) {
-		if (typeof shell.args === 'string') {
-			env[`PTYSHELLCMDLINE`] = shell.args;
-		} else {
-			shell.args.forEach((arg, i) => env[`PTYSHELLARG${i}`] = arg);
-		}
-	}
-	env['PTYCWD'] = cwd;
+	// if (shell.args) {
+	// 	if (typeof shell.args === 'string') {
+	// 		env[`PTYSHELLCMDLINE`] = shell.args;
+	// 	} else {
+	// 		shell.args.forEach((arg, i) => env[`PTYSHELLARG${i}`] = arg);
+	// 	}
+	// }
+	// env['PTYCWD'] = cwd;
 	env['LANG'] = _getLangEnvVariable(locale);
-	if (cols && rows) {
-		env['PTYCOLS'] = cols.toString();
-		env['PTYROWS'] = rows.toString();
-	}
+	// if (cols && rows) {
+	// 	env['PTYCOLS'] = cols.toString();
+	// 	env['PTYROWS'] = rows.toString();
+	// }
 	env['AMD_ENTRYPOINT'] = 'vs/workbench/parts/terminal/node/terminalProcess';
 	return env;
 }

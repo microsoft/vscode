@@ -15,8 +15,8 @@ import { Emitter, Event } from 'vs/base/common/event';
 import { IConfigurationResolverService } from 'vs/workbench/services/configurationResolver/common/configurationResolver';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { IHistoryService } from 'vs/workbench/services/history/common/history';
-// import { ITerminalChildProcess, IMessageFromTerminalProcess } from 'vs/workbench/parts/terminal/node/terminal';
-// import { TerminalProcessExtHostProxy } from 'vs/workbench/parts/terminal/node/terminalProcessExtHostProxy';
+import { ITerminalChildProcess } from 'vs/workbench/parts/terminal/node/terminal';
+import { TerminalProcessExtHostProxy } from 'vs/workbench/parts/terminal/node/terminalProcessExtHostProxy';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { TerminalProcess } from 'vs/workbench/parts/terminal/node/terminalProcess';
 
@@ -37,7 +37,7 @@ export class TerminalProcessManager implements ITerminalProcessManager {
 	public shellProcessId: number;
 	public initialCwd: string;
 
-	private _process: TerminalProcess;
+	private _process: ITerminalChildProcess;
 	private _preLaunchInputQueue: string[] = [];
 	private _disposables: IDisposable[] = [];
 
@@ -59,7 +59,6 @@ export class TerminalProcessManager implements ITerminalProcessManager {
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 		@ILogService private _logService: ILogService
 	) {
-		console.log(this._terminalId, this._instantiationService);
 		this.ptyProcessReady = new TPromise<void>(c => {
 			this.onProcessReady(() => {
 				this._logService.debug(`Terminal process ready (shellProcessId: ${this.shellProcessId})`);
@@ -93,42 +92,42 @@ export class TerminalProcessManager implements ITerminalProcessManager {
 		cols: number,
 		rows: number
 	): void {
-		// const extensionHostOwned = (<any>this._configHelper.config).extHostProcess;
-		// if (extensionHostOwned) {
-		// 	this._process = this._instantiationService.createInstance(TerminalProcessExtHostProxy, this._terminalId, shellLaunchConfig, cols, rows);
-		// } else {
-		const locale = this._configHelper.config.setLocaleVariables ? platform.locale : undefined;
-		if (!shellLaunchConfig.executable) {
-			this._configHelper.mergeDefaultShellPathAndArgs(shellLaunchConfig);
+		const extensionHostOwned = (<any>this._configHelper.config).extHostProcess;
+		if (extensionHostOwned) {
+			this._process = this._instantiationService.createInstance(TerminalProcessExtHostProxy, this._terminalId, shellLaunchConfig, cols, rows);
+		} else {
+			const locale = this._configHelper.config.setLocaleVariables ? platform.locale : undefined;
+			if (!shellLaunchConfig.executable) {
+				this._configHelper.mergeDefaultShellPathAndArgs(shellLaunchConfig);
+			}
+
+			const lastActiveWorkspaceRootUri = this._historyService.getLastActiveWorkspaceRoot('file');
+			this.initialCwd = terminalEnvironment.getCwd(shellLaunchConfig, lastActiveWorkspaceRootUri, this._configHelper);
+
+			// Resolve env vars from config and shell
+			const lastActiveWorkspaceRoot = this._workspaceContextService.getWorkspaceFolder(lastActiveWorkspaceRootUri);
+			const platformKey = platform.isWindows ? 'windows' : (platform.isMacintosh ? 'osx' : 'linux');
+			const envFromConfig = terminalEnvironment.resolveConfigurationVariables(this._configurationResolverService, { ...this._configHelper.config.env[platformKey] }, lastActiveWorkspaceRoot);
+			const envFromShell = terminalEnvironment.resolveConfigurationVariables(this._configurationResolverService, { ...shellLaunchConfig.env }, lastActiveWorkspaceRoot);
+			shellLaunchConfig.env = envFromShell;
+
+			// Merge process env with the env from config
+			const parentEnv = { ...process.env };
+			terminalEnvironment.mergeEnvironments(parentEnv, envFromConfig);
+
+			// Continue env initialization, merging in the env from the launch
+			// config and adding keys that are needed to create the process
+			const env = terminalEnvironment.createTerminalEnv(parentEnv, shellLaunchConfig, this.initialCwd, locale, cols, rows);
+			const cwd = Uri.parse(require.toUrl('../node')).fsPath;
+			const options = { env, cwd };
+			this._logService.debug(`Terminal process launching`, options);
+
+			// this._process = cp.fork(Uri.parse(require.toUrl('bootstrap')).fsPath, ['--type=terminal'], options);
+			this._process = new TerminalProcess(env['PTYSHELL'], [], env['PTYCWD'], cols, rows);
 		}
-
-		const lastActiveWorkspaceRootUri = this._historyService.getLastActiveWorkspaceRoot('file');
-		this.initialCwd = terminalEnvironment.getCwd(shellLaunchConfig, lastActiveWorkspaceRootUri, this._configHelper);
-
-		// Resolve env vars from config and shell
-		const lastActiveWorkspaceRoot = this._workspaceContextService.getWorkspaceFolder(lastActiveWorkspaceRootUri);
-		const platformKey = platform.isWindows ? 'windows' : (platform.isMacintosh ? 'osx' : 'linux');
-		const envFromConfig = terminalEnvironment.resolveConfigurationVariables(this._configurationResolverService, { ...this._configHelper.config.env[platformKey] }, lastActiveWorkspaceRoot);
-		const envFromShell = terminalEnvironment.resolveConfigurationVariables(this._configurationResolverService, { ...shellLaunchConfig.env }, lastActiveWorkspaceRoot);
-		shellLaunchConfig.env = envFromShell;
-
-		// Merge process env with the env from config
-		const parentEnv = { ...process.env };
-		terminalEnvironment.mergeEnvironments(parentEnv, envFromConfig);
-
-		// Continue env initialization, merging in the env from the launch
-		// config and adding keys that are needed to create the process
-		const env = terminalEnvironment.createTerminalEnv(parentEnv, shellLaunchConfig, this.initialCwd, locale, cols, rows);
-		const cwd = Uri.parse(require.toUrl('../node')).fsPath;
-		const options = { env, cwd };
-		this._logService.debug(`Terminal process launching`, options);
-
-		// this._process = cp.fork(Uri.parse(require.toUrl('bootstrap')).fsPath, ['--type=terminal'], options);
-		this._process = new TerminalProcess(env['PTYSHELL'], [], env['PTYCWD'], cols, rows);
-		// }
 		this.processState = ProcessState.LAUNCHING;
 
-		this._process.onData(data => {
+		this._process.onProcessData(data => {
 			this._onProcessData.fire(data);
 		});
 
@@ -143,8 +142,8 @@ export class TerminalProcessManager implements ITerminalProcessManager {
 			}
 		});
 
-		this._process.onTitleChanged(title => this._onProcessTitle.fire(title));
-		this._process.onExit(exitCode => this._onExit(exitCode));
+		this._process.onProcessTitleChanged(title => this._onProcessTitle.fire(title));
+		this._process.onProcessExit(exitCode => this._onExit(exitCode));
 		// this._process.on('message', message => this._onMessage(message));
 		// this._process.on('exit', exitCode => this._onExit(exitCode));
 
