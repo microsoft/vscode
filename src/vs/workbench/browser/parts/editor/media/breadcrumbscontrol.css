@@ -12,7 +12,8 @@
 }
 
 .monaco-workbench>.part.editor>.content .editor-group-container .breadcrumbs-control .monaco-breadcrumb-item .symbol-icon{
-	padding-right: 4px;
+	margin-left: 4px;
+	padding-right: 2px;
 }
 
 .monaco-workbench>.part.editor>.content .editor-group-container .breadcrumbs-control .monaco-breadcrumbs .monaco-breadcrumb-item:nth-child(2) {

@@ -153,8 +153,8 @@ export class BreadcrumbsControl {
 		dom.append(container, this._domNode);
 
 		this._widget = new BreadcrumbsWidget(this._domNode);
-		this._widget.onDidSelectItem(this._onDidSelectItem, this, this._disposables);
-		this._widget.onDidFocusItem(this._onDidSelectItem, this, this._disposables);
+		this._widget.onDidSelectItem(this._onSelectEvent, this, this._disposables);
+		this._widget.onDidFocusItem(this._onFocusEvent, this, this._disposables);
 		this._widget.onDidChangeFocus(this._updateCkBreadcrumbsActive, this, this._disposables);
 		this._disposables.push(attachBreadcrumbsStyler(this._widget, this._themeService));
 
@@ -203,32 +203,14 @@ export class BreadcrumbsControl {
 		this._breadcrumbsDisposables = [model, listener];
 	}
 
-	focus(): void {
-		this._widget.domFocus();
-	}
-
-	focusNext(): void {
-		this._widget.focusNext();
-	}
-
-	focusPrev(): void {
-		this._widget.focusPrev();
-	}
-
-	select(): void {
-		const item = this._widget.getFocused();
-		if (item) {
-			this._widget.setSelected(item);
+	private _onFocusEvent(event: IBreadcrumbsItemEvent): void {
+		if (event.item && this._breadcrumbsPickerShowing) {
+			return this._widget.setSelection(event.item);
 		}
 	}
 
-	private _onDidSelectItem(event: IBreadcrumbsItemEvent): void {
+	private _onSelectEvent(event: IBreadcrumbsItemEvent): void {
 		if (!event.item) {
-			return;
-		}
-
-		if (event.type === 'focus' && !this._breadcrumbsPickerShowing) {
-			// focus change only moves the picker when already active
 			return;
 		}
 
@@ -254,6 +236,7 @@ export class BreadcrumbsControl {
 				res.layout({ width: 250, height: 300 });
 				let listener = res.onDidPickElement(data => {
 					this._contextViewService.hideContextView();
+					this._widget.setSelection(undefined);
 					if (!data) {
 						return;
 					}
@@ -571,13 +554,13 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 	id: 'breadcrumbs.selectFocused',
 	weight: KeybindingsRegistry.WEIGHT.workbenchContrib(),
 	primary: KeyCode.Enter,
-	secondary: [KeyCode.UpArrow, KeyCode.Space],
+	secondary: [KeyCode.DownArrow, KeyCode.Space],
 	when: ContextKeyExpr.and(BreadcrumbsControl.CK_BreadcrumbsVisible, BreadcrumbsControl.CK_BreadcrumbsActive),
 	handler(accessor) {
 		const groups = accessor.get(IEditorGroupsService);
 		const breadcrumbs = accessor.get(IBreadcrumbsService);
 		const widget = breadcrumbs.getWidget(groups.activeGroup.id);
-		widget.setSelected(widget.getFocused());
+		widget.setSelection(widget.getFocused());
 	}
 });
 KeybindingsRegistry.registerCommandAndKeybindingRule({
@@ -590,6 +573,7 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 		const groups = accessor.get(IEditorGroupsService);
 		const breadcrumbs = accessor.get(IBreadcrumbsService);
 		breadcrumbs.getWidget(groups.activeGroup.id).setFocused(undefined);
+		breadcrumbs.getWidget(groups.activeGroup.id).setSelection(undefined);
 		groups.activeGroup.activeControl.focus();
 	}
 });

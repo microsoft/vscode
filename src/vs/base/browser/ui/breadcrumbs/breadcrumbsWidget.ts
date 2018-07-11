@@ -45,7 +45,9 @@ export class SimpleBreadcrumbsItem extends BreadcrumbsItem {
 export interface IBreadcrumbsWidgetStyles {
 	breadcrumbsBackground?: Color;
 	breadcrumbsForeground?: Color;
-	breadcrumbsFocusedForeground?: Color;
+	breadcrumbsFocusForeground?: Color;
+	breadcrumbsFocusAndSelectionBackground?: Color;
+	breadcrumbsFocusAndSelectionForeground?: Color;
 }
 
 export interface IBreadcrumbsItemEvent {
@@ -126,8 +128,14 @@ export class BreadcrumbsWidget {
 		if (style.breadcrumbsForeground) {
 			content += `.monaco-breadcrumbs .monaco-breadcrumb-item { color: ${style.breadcrumbsForeground}}\n`;
 		}
-		if (style.breadcrumbsFocusedForeground) {
-			content += `.monaco-breadcrumbs .monaco-breadcrumb-item.focused { color: ${style.breadcrumbsFocusedForeground}}\n`;
+		if (style.breadcrumbsFocusForeground) {
+			content += `.monaco-breadcrumbs .monaco-breadcrumb-item.focused { color: ${style.breadcrumbsFocusForeground}}\n`;
+		}
+		if (style.breadcrumbsFocusAndSelectionBackground) {
+			content += `.monaco-breadcrumbs .monaco-breadcrumb-item.focused.selected { background-color: ${style.breadcrumbsFocusAndSelectionBackground}}\n`;
+		}
+		if (style.breadcrumbsFocusAndSelectionForeground) {
+			content += `.monaco-breadcrumbs .monaco-breadcrumb-item.focused.selected { color: ${style.breadcrumbsFocusAndSelectionForeground}}\n`;
 		}
 		if (this._styleElement.innerHTML !== content) {
 			this._styleElement.innerHTML = content;
@@ -178,11 +186,11 @@ export class BreadcrumbsWidget {
 		this._onDidFocusItem.fire({ type: 'focus', item: this._items[this._focusedItemIdx], node: this._nodes[this._focusedItemIdx] });
 	}
 
-	getSelected(): BreadcrumbsItem {
+	getSelection(): BreadcrumbsItem {
 		return this._items[this._selectedItemIdx];
 	}
 
-	setSelected(item: BreadcrumbsItem): void {
+	setSelection(item: BreadcrumbsItem): void {
 		this._select(this._items.indexOf(item));
 	}
 
