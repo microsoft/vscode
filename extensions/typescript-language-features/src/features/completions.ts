@@ -273,7 +273,7 @@ class TypeScriptCompletionItemProvider implements vscode.CompletionItemProvider 
 		position: vscode.Position,
 		token: vscode.CancellationToken,
 		context: vscode.CompletionContext
-	): Promise<vscode.CompletionItem[]> {
+	): Promise<vscode.CompletionItem[] | null> {
 		if (this.typingsStatus.isAcquiringTypings) {
 			return Promise.reject<vscode.CompletionItem[]>({
 				label: localize(
@@ -287,14 +287,14 @@ class TypeScriptCompletionItemProvider implements vscode.CompletionItemProvider 
 
 		const file = this.client.toPath(document.uri);
 		if (!file) {
-			return [];
+			return null;
 		}
 
 		const line = document.lineAt(position.line);
 		const completionConfiguration = CompletionConfiguration.getConfigurationForResource(document.uri);
 
 		if (!this.shouldTrigger(context, completionConfiguration, line, position)) {
-			return [];
+			return null;
 		}
 
 		await this.fileConfigurationManager.ensureConfigurationForDocument(document, token);
@@ -311,21 +311,21 @@ class TypeScriptCompletionItemProvider implements vscode.CompletionItemProvider 
 			if (this.client.apiVersion.gte(API.v300)) {
 				const response = await this.client.execute('completionInfo', args, token);
 				if (!response.body) {
-					return [];
+					return null;
 				}
 				if (response.body.isNewIdentifierLocation) {
-					return [];
+					return null;
 				}
 				msg = response.body.entries;
 			} else {
 				const response = await this.client.execute('completions', args, token);
 				if (!response.body) {
-					return [];
+					return null;
 				}
 				msg = response.body;
 			}
 		} catch {
-			return [];
+			return null;
 		}
 
 		const enableDotCompletions = this.shouldEnableDotCompletions(document, position);
