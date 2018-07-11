@@ -6,7 +6,6 @@
 .monaco-workbench > .part.titlebar {
 	box-sizing: border-box;
 	width: 100%;
-	font-size: 12px;
 	padding: 0 70px;
 	overflow: hidden;
 	flex-shrink: 0;

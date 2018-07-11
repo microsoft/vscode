@@ -6,7 +6,6 @@
 .monaco-workbench > .part.menubar {
 	display: flex;
 	position: absolute;
-	font-size: 12px;
 	box-sizing: border-box;
 	padding-left: 35px;
 	padding-right: 138px;

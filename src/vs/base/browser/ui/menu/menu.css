@@ -53,6 +53,7 @@
 	padding: 0.8em 1em;
 	line-height: 1.1em;
 	background: none;
+	font-size: inherit;
 }
 
 .monaco-menu .monaco-action-bar.vertical .keybinding,
