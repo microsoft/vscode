@@ -32,6 +32,10 @@
 	font-size: 0.9em;
 }
 
+.monaco-workbench > .part.editor > .content .editor-group-container > .title .no-tabs-breadcrumbs .breadcrumbs-control.preview .monaco-breadcrumb-item {
+	font-style: italic;
+}
+
 .monaco-workbench > .part.editor > .content .editor-group-container > .title .no-tabs-breadcrumbs .breadcrumbs-control .monaco-breadcrumb-item:not(:last-child)::after {
 	content: '/';
 	height: inherit;

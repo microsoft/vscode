@@ -11,7 +11,7 @@ import { TitleControl, IToolbarActions } from 'vs/workbench/browser/parts/editor
 import { ResourceLabel } from 'vs/workbench/browser/labels';
 import { TAB_ACTIVE_FOREGROUND, TAB_UNFOCUSED_ACTIVE_FOREGROUND } from 'vs/workbench/common/theme';
 import { EventType as TouchEventType, GestureEvent, Gesture } from 'vs/base/browser/touch';
-import { addDisposableListener, EventType, addClass, EventHelper, removeClass } from 'vs/base/browser/dom';
+import { addDisposableListener, EventType, addClass, EventHelper, removeClass, toggleClass } from 'vs/base/browser/dom';
 import { IEditorPartOptions } from 'vs/workbench/browser/parts/editor/editor';
 import { IAction } from 'vs/base/common/actions';
 import { CLOSE_EDITOR_COMMAND_ID } from 'vs/workbench/browser/parts/editor/editorCommands';
@@ -162,6 +162,9 @@ export class NoTabsTitleControl extends TitleControl {
 		const editor = this.group.activeEditor;
 		this.lastRenderedActiveEditor = editor;
 
+		const isEditorPinned = this.group.isPinned(this.group.activeEditor);
+		const isGroupActive = this.accessor.activeGroup === this.group;
+
 		// Clear if there is no editor
 		if (!editor) {
 			removeClass(this.titleContainer, 'dirty');
@@ -171,9 +174,6 @@ export class NoTabsTitleControl extends TitleControl {
 
 		// Otherwise render it
 		else {
-			const isEditorPinned = this.group.isPinned(this.group.activeEditor);
-			const isGroupActive = this.accessor.activeGroup === this.group;
-
 			// Dirty state
 			this.updateEditorDirty(editor);
 
@@ -209,7 +209,12 @@ export class NoTabsTitleControl extends TitleControl {
 
 		// Update Breadcrumbs
 		if (this.breadcrumbsControl) {
-			this.breadcrumbsControl.update();
+			if (isGroupActive) {
+				this.breadcrumbsControl.update();
+				toggleClass(this.breadcrumbsControl.domNode, 'preview', !isEditorPinned);
+			} else {
+				this.breadcrumbsControl.clear();
+			}
 		}
 	}
 

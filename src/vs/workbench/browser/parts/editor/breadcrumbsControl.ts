@@ -127,7 +127,7 @@ export class BreadcrumbsControl {
 	private readonly _ckBreadcrumbsVisible: IContextKey<boolean>;
 	private readonly _ckBreadcrumbsActive: IContextKey<boolean>;
 
-	private readonly _domNode: HTMLDivElement;
+	readonly domNode: HTMLDivElement;
 	private readonly _widget: BreadcrumbsWidget;
 	private _disposables = new Array<IDisposable>();
 
@@ -148,11 +148,11 @@ export class BreadcrumbsControl {
 		@IConfigurationService configurationService: IConfigurationService,
 		@IBreadcrumbsService breadcrumbsService: IBreadcrumbsService,
 	) {
-		this._domNode = document.createElement('div');
-		dom.addClasses(this._domNode, 'breadcrumbs-control');
-		dom.append(container, this._domNode);
+		this.domNode = document.createElement('div');
+		dom.addClasses(this.domNode, 'breadcrumbs-control');
+		dom.append(container, this.domNode);
 
-		this._widget = new BreadcrumbsWidget(this._domNode);
+		this._widget = new BreadcrumbsWidget(this.domNode);
 		this._widget.onDidSelectItem(this._onSelectEvent, this, this._disposables);
 		this._widget.onDidFocusItem(this._onFocusEvent, this, this._disposables);
 		this._widget.onDidChangeFocus(this._updateCkBreadcrumbsActive, this, this._disposables);
@@ -170,15 +170,11 @@ export class BreadcrumbsControl {
 		this._ckBreadcrumbsVisible.reset();
 		this._ckBreadcrumbsActive.reset();
 		this._widget.dispose();
-		this._domNode.remove();
+		this.domNode.remove();
 	}
 
 	layout(dim: dom.Dimension): void {
 		this._widget.layout(dim);
-	}
-
-	setActive(value: boolean): void {
-		dom.toggleClass(this._domNode, 'active', value);
 	}
 
 	update(): void {
@@ -189,11 +185,11 @@ export class BreadcrumbsControl {
 			// cleanup and return when there is no input or when
 			// we cannot handle this input
 			this._ckBreadcrumbsVisible.set(false);
-			dom.toggleClass(this._domNode, 'hidden', true);
+			dom.toggleClass(this.domNode, 'hidden', true);
 			return;
 		}
 
-		dom.toggleClass(this._domNode, 'hidden', false);
+		dom.toggleClass(this.domNode, 'hidden', false);
 		this._ckBreadcrumbsVisible.set(true);
 
 		let control = this._editorGroup.activeControl.getControl() as ICodeEditor;
@@ -201,6 +197,12 @@ export class BreadcrumbsControl {
 		let listener = model.onDidUpdate(_ => this._widget.setItems(model.getElements().map(element => new Item(element, this._options.showIcons, this._instantiationService))));
 		this._widget.setItems(model.getElements().map(element => new Item(element, this._options.showIcons, this._instantiationService)));
 		this._breadcrumbsDisposables = [model, listener];
+	}
+
+	clear(): void {
+		this._breadcrumbsDisposables = dispose(this._breadcrumbsDisposables);
+		this._ckBreadcrumbsVisible.set(false);
+		dom.toggleClass(this.domNode, 'hidden', true);
 	}
 
 	private _onFocusEvent(event: IBreadcrumbsItemEvent): void {
