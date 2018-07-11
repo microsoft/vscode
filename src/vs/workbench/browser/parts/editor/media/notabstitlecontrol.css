@@ -5,7 +5,7 @@
 
 /* Title Label */
 
-.monaco-workbench > .part.editor > .content .editor-group-container > .title .tabs-container .title-label {
+.monaco-workbench > .part.editor > .content .editor-group-container > .title .title-label {
 	line-height: 35px;
 	overflow: hidden;
 	text-overflow: ellipsis;
@@ -13,7 +13,7 @@
 	padding-left: 20px;
 }
 
-.monaco-workbench > .part.editor > .content .editor-group-container > .title .tabs-container .monaco-icon-label::before {
+.monaco-workbench > .part.editor > .content .editor-group-container > .title .monaco-icon-label::before {
 	height: 35px; /* tweak the icon size of the editor labels when icons are enabled */
 }
 
