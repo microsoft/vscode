@@ -28,10 +28,6 @@
 	line-height: 35px;
 }
 
-.monaco-workbench > .part.editor > .content .editor-group-container > .title .no-tabs-breadcrumbs .breadcrumbs-control {
-	margin-left: 0.5em;
-}
-
 .monaco-workbench > .part.editor > .content .editor-group-container > .title .no-tabs-breadcrumbs .breadcrumbs-control .monaco-breadcrumb-item {
 	font-size: 0.9em;
 }
