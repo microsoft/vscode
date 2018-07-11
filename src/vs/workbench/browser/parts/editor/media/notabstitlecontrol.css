@@ -32,6 +32,14 @@
 	font-size: 0.9em;
 }
 
+.monaco-workbench > .part.editor > .content .editor-group-container > .title .no-tabs-breadcrumbs .breadcrumbs-control .monaco-breadcrumb-item:nth-child(2) {
+	padding-left: 2px;
+}
+
+.monaco-workbench > .part.editor > .content .editor-group-container > .title .no-tabs-breadcrumbs .breadcrumbs-control .monaco-breadcrumb-item:last-child {
+	padding-right: 2px;
+}
+
 .monaco-workbench > .part.editor > .content .editor-group-container > .title .no-tabs-breadcrumbs .breadcrumbs-control.preview .monaco-breadcrumb-item {
 	font-style: italic;
 }
