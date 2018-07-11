@@ -306,12 +306,23 @@ class TypeScriptCompletionItemProvider implements vscode.CompletionItemProvider 
 			triggerCharacter: context.triggerCharacter as Proto.CompletionsTriggerCharacter
 		};
 
-		let msg: Proto.CompletionEntry[] | undefined = undefined;
+		let msg: ReadonlyArray<Proto.CompletionEntry> | undefined = undefined;
 		try {
-			const response = await this.client.execute('completions', args, token);
-			msg = response.body;
-			if (!msg) {
-				return [];
+			if (this.client.apiVersion.gte(API.v300)) {
+				const response = await this.client.execute('completionInfo', args, token);
+				if (!response.body) {
+					return [];
+				}
+				if (response.body.isNewIdentifierLocation) {
+					return [];
+				}
+				msg = response.body.entries;
+			} else {
+				const response = await this.client.execute('completions', args, token);
+				if (!response.body) {
+					return [];
+				}
+				msg = response.body;
 			}
 		} catch {
 			return [];
