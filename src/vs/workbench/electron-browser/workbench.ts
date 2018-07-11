@@ -235,7 +235,6 @@ export class Workbench extends Disposable implements IPartService {
 	private closeEmptyWindowScheduler: RunOnceScheduler = this._register(new RunOnceScheduler(() => this.onAllEditorsClosed(), 50));
 
 	constructor(
-		private parent: HTMLElement,
 		private container: HTMLElement,
 		private configuration: IWindowConfiguration,
 		serviceCollection: ServiceCollection,
@@ -972,12 +971,6 @@ export class Workbench extends Disposable implements IPartService {
 
 		// Apply font aliasing
 		this.setFontAliasing(this.fontAliasing);
-
-		// Apply title style if shown
-		const titleStyle = this.getCustomTitleBarStyle();
-		if (titleStyle) {
-			DOM.addClass(this.parent, `titlebar-style-${titleStyle}`);
-		}
 
 		// Apply fullscreen state
 		if (browser.isFullscreen()) {
