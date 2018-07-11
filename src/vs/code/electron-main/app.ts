@@ -426,7 +426,7 @@ export class CodeApplication {
 
 		// Create a URL handler which forwards to the last active window
 		const activeWindowManager = new ActiveWindowManager(windowsService);
-		const route = () => activeWindowManager.activeClientId;
+		const route = () => activeWindowManager.getActiveClientId();
 		const urlHandlerChannel = this.electronIpcServer.getChannel('urlHandler', { routeCall: route, routeEvent: route });
 		const multiplexURLHandler = new URLHandlerChannelClient(urlHandlerChannel);
 

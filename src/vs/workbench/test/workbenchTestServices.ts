@@ -1295,6 +1295,10 @@ export class TestWindowsService implements IWindowsService {
 		return TPromise.as(void 0);
 	}
 
+	getActiveWindowId(): TPromise<number | undefined> {
+		return TPromise.as(undefined);
+	}
+
 	// This needs to be handled from browser process to prevent
 	// foreground ordering issues on Windows
 	openExternal(url: string): TPromise<boolean> {
