@@ -16,7 +16,6 @@ import { toErrorMessage } from 'vs/base/common/errorMessage';
 import product from 'vs/platform/node/product';
 import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
 import pkg from 'vs/platform/node/package';
-import { ContextViewService } from 'vs/platform/contextview/browser/contextViewService';
 import { Workbench, IWorkbenchStartedInfo } from 'vs/workbench/electron-browser/workbench';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { NullTelemetryService, configurationTelemetry } from 'vs/platform/telemetry/common/telemetryUtils';
@@ -46,7 +45,6 @@ import { IStorageService } from 'vs/platform/storage/common/storage';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
 import { InstantiationService } from 'vs/platform/instantiation/common/instantiationService';
-import { IContextViewService } from 'vs/platform/contextview/browser/contextView';
 import { ILifecycleService, LifecyclePhase, ShutdownReason, StartupKind } from 'vs/platform/lifecycle/common/lifecycle';
 import { IMarkerService } from 'vs/platform/markers/common/markers';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
@@ -120,7 +118,6 @@ export class WorkbenchShell extends Disposable {
 	private storageService: IStorageService;
 	private environmentService: IEnvironmentService;
 	private logService: ILogService;
-	private contextViewService: ContextViewService;
 	private configurationService: IConfigurationService;
 	private contextService: IWorkspaceContextService;
 	private telemetryService: ITelemetryService;
@@ -409,9 +406,6 @@ export class WorkbenchShell extends Disposable {
 
 		serviceCollection.set(ICommandService, new SyncDescriptor(CommandService));
 
-		this.contextViewService = instantiationService.createInstance(ContextViewService, this.container);
-		serviceCollection.set(IContextViewService, this.contextViewService);
-
 		serviceCollection.set(IMarkerService, new SyncDescriptor(MarkerService));
 
 		serviceCollection.set(IModeService, new SyncDescriptor(WorkbenchModeServiceImpl));
@@ -507,7 +501,6 @@ export class WorkbenchShell extends Disposable {
 	}
 
 	private layout(): void {
-		this.contextViewService.layout();
 		this.workbench.layout();
 	}
 

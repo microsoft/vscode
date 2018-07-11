@@ -199,6 +199,7 @@ export class Workbench extends Disposable implements IPartService {
 	private editorService: EditorService;
 	private editorGroupService: IEditorGroupsService;
 	private viewletService: IViewletService;
+	private contextViewService: ContextViewService;
 	private contextKeyService: IContextKeyService;
 	private keybindingService: IKeybindingService;
 	private backupFileService: IBackupFileService;
@@ -248,7 +249,6 @@ export class Workbench extends Disposable implements IPartService {
 		@IEnvironmentService private environmentService: IEnvironmentService,
 		@IWindowService private windowService: IWindowService,
 		@INotificationService private notificationService: NotificationService,
-		@IContextViewService private contextViewService: ContextViewService,
 		@ITelemetryService private telemetryService: TelemetryService
 	) {
 		super();
@@ -351,6 +351,10 @@ export class Workbench extends Disposable implements IPartService {
 
 		// List
 		serviceCollection.set(IListService, this.instantiationService.createInstance(ListService));
+
+		// Context view service
+		this.contextViewService = this.instantiationService.createInstance(ContextViewService, this.workbench.getHTMLElement());
+		serviceCollection.set(IContextViewService, this.contextViewService);
 
 		// Use themable context menus when custom titlebar is enabled to match custom menubar
 		if (!isMacintosh && this.getCustomTitleBarStyle() === 'custom') {
@@ -1283,6 +1287,8 @@ export class Workbench extends Disposable implements IPartService {
 	}
 
 	layout(options?: ILayoutOptions): void {
+		this.contextViewService.layout();
+
 		if (this.workbenchStarted && !this.workbenchShutdown) {
 			this.workbenchLayout.layout(options);
 		}
