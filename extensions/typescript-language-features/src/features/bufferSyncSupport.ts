@@ -124,6 +124,14 @@ class PendingDiagnostics extends ResourceMap<number> {
 	}
 }
 
+class GetErrRequest {
+	public constructor(
+		public readonly request: Promise<any>,
+		public readonly files: string[],
+		public readonly token: CancellationTokenSource,
+	) { }
+}
+
 export default class BufferSyncSupport {
 
 	private readonly client: ITypeScriptServiceClient;
@@ -135,7 +143,7 @@ export default class BufferSyncSupport {
 	private readonly syncedBuffers: SyncedBufferMap;
 	private readonly pendingDiagnostics: PendingDiagnostics;
 	private readonly diagnosticDelayer: Delayer<any>;
-	private pendingGetErr: { request: Promise<any>, files: string[], token: CancellationTokenSource } | undefined;
+	private pendingGetErr: GetErrRequest | undefined;
 	private listening: boolean = false;
 
 	constructor(
@@ -315,8 +323,8 @@ export default class BufferSyncSupport {
 			};
 			const token = new CancellationTokenSource();
 
-			const getErr = this.pendingGetErr = {
-				request: this.client.executeAsync('geterr', args, token.token)
+			const getErr = this.pendingGetErr = new GetErrRequest(
+				this.client.executeAsync('geterr', args, token.token)
 					.then(undefined, () => { })
 					.then(() => {
 						if (this.pendingGetErr === getErr) {
@@ -324,8 +332,7 @@ export default class BufferSyncSupport {
 						}
 					}),
 				files,
-				token
-			};
+				token);
 		}
 		this.pendingDiagnostics.clear();
 	}
