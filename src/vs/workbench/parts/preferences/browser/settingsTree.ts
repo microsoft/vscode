@@ -714,7 +714,7 @@ export class SettingsRenderer implements IRenderer {
 		renderedDescription.classList.add('setting-item-description-markdown');
 		template.descriptionElement.innerHTML = '';
 		template.descriptionElement.appendChild(renderedDescription);
-		renderedDescription.querySelectorAll('a').forEach(aElement => {
+		(<any>renderedDescription.querySelectorAll('a')).forEach(aElement => {
 			aElement.tabIndex = isSelected ? 0 : -1;
 		});
 
