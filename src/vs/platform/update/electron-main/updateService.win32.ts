@@ -76,6 +76,15 @@ export class Win32UpdateService extends AbstractUpdateService {
 		@ILogService logService: ILogService
 	) {
 		super(lifecycleService, configurationService, environmentService, requestService, logService);
+
+		if (getUpdateType() === UpdateType.Setup) {
+			/* __GDPR__
+					"update:win32SetupTarget" : {
+						"explicit" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true }
+					}
+				*/
+			telemetryService.publicLog('update:win32SetupTarget', { target: product.target });
+		}
 	}
 
 	protected buildUpdateFeedUrl(quality: string): string | undefined {
@@ -89,13 +98,6 @@ export class Win32UpdateService extends AbstractUpdateService {
 			platform += '-archive';
 		} else if (product.target === 'user') {
 			platform += '-user';
-
-			/* __GDPR__
-					"update:win32SetupTarget" : {
-						"explicit" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true }
-					}
-				*/
-			this.telemetryService.publicLog('update:win32SetupTarget', { target: product.target });
 		}
 
 		return createUpdateURL(platform, quality);
