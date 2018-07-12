@@ -14,7 +14,7 @@ import { ILifecycleService } from 'vs/platform/lifecycle/electron-main/lifecycle
 import { IRequestService } from 'vs/platform/request/node/request';
 import product from 'vs/platform/node/product';
 import { TPromise, Promise } from 'vs/base/common/winjs.base';
-import { State, IUpdate, StateType, AvailableForDownload } from 'vs/platform/update/common/update';
+import { State, IUpdate, StateType, AvailableForDownload, UpdateType } from 'vs/platform/update/common/update';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { ILogService } from 'vs/platform/log/common/log';
@@ -44,17 +44,12 @@ interface IAvailableUpdate {
 	updateFilePath?: string;
 }
 
-enum UpdateType {
-	Automatic,
-	Manual
-}
-
 let _updateType: UpdateType | undefined = undefined;
 function getUpdateType(): UpdateType {
 	if (typeof _updateType === 'undefined') {
 		_updateType = fs.existsSync(path.join(path.dirname(process.execPath), 'unins000.exe'))
-			? UpdateType.Automatic
-			: UpdateType.Manual;
+			? UpdateType.Setup
+			: UpdateType.Archive;
 	}
 
 	return _updateType;
@@ -90,7 +85,7 @@ export class Win32UpdateService extends AbstractUpdateService {
 			platform += '-x64';
 		}
 
-		if (getUpdateType() === UpdateType.Manual) {
+		if (getUpdateType() === UpdateType.Archive) {
 			platform += '-archive';
 		} else if (product.target === 'user') {
 			platform += '-user';
@@ -109,6 +104,8 @@ export class Win32UpdateService extends AbstractUpdateService {
 		this.requestService.request({ url: this.url })
 			.then<IUpdate>(asJson)
 			.then(update => {
+				const updateType = getUpdateType();
+
 				if (!update || !update.url || !update.version || !update.productVersion) {
 					/* __GDPR__
 							"update:notAvailable" : {
@@ -117,11 +114,11 @@ export class Win32UpdateService extends AbstractUpdateService {
 						*/
 					this.telemetryService.publicLog('update:notAvailable', { explicit: !!context });
 
-					this.setState(State.Idle);
+					this.setState(State.Idle(updateType));
 					return TPromise.as(null);
 				}
 
-				if (getUpdateType() === UpdateType.Manual) {
+				if (updateType === UpdateType.Archive) {
 					this.setState(State.AvailableForDownload(update));
 					return TPromise.as(null);
 				}
@@ -170,13 +167,13 @@ export class Win32UpdateService extends AbstractUpdateService {
 					}
 					*/
 				this.telemetryService.publicLog('update:notAvailable', { explicit: !!context });
-				this.setState(State.Idle);
+				this.setState(State.Idle(getUpdateType()));
 			});
 	}
 
 	protected doDownloadUpdate(state: AvailableForDownload): TPromise<void> {
 		shell.openExternal(state.update.url);
-		this.setState(State.Idle);
+		this.setState(State.Idle(getUpdateType()));
 		return TPromise.as(null);
 	}
 
@@ -220,7 +217,7 @@ export class Win32UpdateService extends AbstractUpdateService {
 
 				child.once('exit', () => {
 					this.availableUpdate = undefined;
-					this.setState(State.Idle);
+					this.setState(State.Idle(getUpdateType()));
 				});
 
 				const readyMutexName = `${product.win32MutexName}-ready`;
@@ -248,5 +245,9 @@ export class Win32UpdateService extends AbstractUpdateService {
 				stdio: ['ignore', 'ignore', 'ignore']
 			});
 		}
+	}
+
+	protected getUpdateType(): UpdateType {
+		return getUpdateType();
 	}
 }
