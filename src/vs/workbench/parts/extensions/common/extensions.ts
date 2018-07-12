@@ -54,7 +54,9 @@ export interface IExtension {
 	preview: boolean;
 	getManifest(): TPromise<IExtensionManifest>;
 	getReadme(): TPromise<string>;
+	hasReadme(): boolean;
 	getChangelog(): TPromise<string>;
+	hasChangelog(): boolean;
 	local?: ILocalExtension;
 	locals?: ILocalExtension[];
 	gallery?: IGalleryExtension;

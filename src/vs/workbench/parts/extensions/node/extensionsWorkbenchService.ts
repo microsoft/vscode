@@ -218,6 +218,18 @@ class Extension implements IExtension {
 		return TPromise.as(this.local.manifest);
 	}
 
+	hasReadme(): boolean {
+		if (this.gallery && !this.isGalleryOutdated() && this.gallery.assets.readme) {
+			return true;
+		}
+
+		if (this.local && this.local.readmeUrl) {
+			return true;
+		}
+
+		return this.type === LocalExtensionType.System;
+	}
+
 	getReadme(): TPromise<string> {
 		if (this.gallery && !this.isGalleryOutdated()) {
 			if (this.gallery.assets.readme) {
@@ -240,6 +252,19 @@ ${this.description}
 		}
 
 		return TPromise.wrapError<string>(new Error('not available'));
+	}
+
+	hasChangelog(): boolean {
+		if (this.gallery && this.gallery.assets.changelog && !this.isGalleryOutdated()) {
+			return true;
+		}
+
+		if (this.local && this.local.changelogUrl) {
+			const uri = URI.parse(this.local.changelogUrl);
+			return uri.scheme === 'file';
+		}
+
+		return false;
 	}
 
 	getChangelog(): TPromise<string> {

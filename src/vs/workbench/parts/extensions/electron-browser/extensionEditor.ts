@@ -423,17 +423,27 @@ export class ExtensionEditor extends BaseEditor {
 
 		this.navbar.clear();
 		this.navbar.onChange(this.onNavbarChange.bind(this, extension), this, this.transientDisposables);
-		this.navbar.push(NavbarSection.Readme, localize('details', "Details"), localize('detailstooltip', "Extension details, rendered from the extension's 'README.md' file"));
-		if (extension.extensionPack.length) {
-			this.navbar.push(NavbarSection.ExtensionPack, localize('extensionPack', "Extension Pack"), localize('extensionsPack', "Set of extensions that can be installed together"));
-		}
-		this.navbar.push(NavbarSection.Contributions, localize('contributions', "Contributions"), localize('contributionstooltip', "Lists contributions to VS Code by this extension"));
-		this.navbar.push(NavbarSection.Changelog, localize('changelog', "Changelog"), localize('changelogtooltip', "Extension update history, rendered from the extension's 'CHANGELOG.md' file"));
-		if (extension.dependencies.length) {
-			this.navbar.push(NavbarSection.Dependencies, localize('dependencies', "Dependencies"), localize('dependenciestooltip', "Lists extensions this extension depends on"));
-		}
 
-		this.editorLoadComplete = true;
+		if (extension.hasReadme()) {
+			this.navbar.push(NavbarSection.Readme, localize('details', "Details"), localize('detailstooltip', "Extension details, rendered from the extension's 'README.md' file"));
+		}
+		this.extensionManifest.get()
+			.then(manifest => {
+				if (extension.extensionPack.length) {
+					this.navbar.push(NavbarSection.ExtensionPack, localize('extensionPack', "Extension Pack"), localize('extensionsPack', "Set of extensions that can be installed together"));
+				}
+				if (manifest.contributes) {
+					this.navbar.push(NavbarSection.Contributions, localize('contributions', "Contributions"), localize('contributionstooltip', "Lists contributions to VS Code by this extension"));
+				}
+				if (extension.hasChangelog()) {
+					this.navbar.push(NavbarSection.Changelog, localize('changelog', "Changelog"), localize('changelogtooltip', "Extension update history, rendered from the extension's 'CHANGELOG.md' file"));
+				}
+				if (extension.dependencies.length) {
+					this.navbar.push(NavbarSection.Dependencies, localize('dependencies', "Dependencies"), localize('dependenciestooltip', "Lists extensions this extension depends on"));
+				}
+				this.editorLoadComplete = true;
+			});
+
 		return super.setInput(input, options, token);
 	}
 
@@ -782,50 +792,6 @@ export class ExtensionEditor extends BaseEditor {
 		append(container, details);
 		return true;
 	}
-
-	/* private renderExtensionPack(container: HTMLElement, extension: IExtension, manifest: IExtensionManifest, onDetailsToggle: Function): boolean {
-		if (!manifest.contributes || !manifest.contributes.extensionPack) {
-			return false;
-		}
-
-		const extensionsWorkbenchService = this.extensionsWorkbenchService;
-		class ExtensionData implements IExtensionData {
-
-			readonly extension: IExtension;
-			readonly parent: IExtensionData;
-			private readonly manifest: IExtensionManifest;
-
-			constructor(extension: IExtension, manifest: IExtensionManifest, parent?: IExtensionData) {
-				this.extension = extension;
-				this.manifest = manifest;
-				this.parent = parent;
-			}
-
-			get hasChildren(): boolean {
-				return !!(this.manifest.contributes && this.manifest.contributes.extensionPack);
-			}
-
-			getChildren(): Promise<IExtensionData[]> {
-				if (this.manifest.contributes && this.manifest.contributes.extensionPack) {
-					const names = arrays.distinct(this.manifest.contributes.extensionPack, e => e.id.toLowerCase()).map(({ id }) => id);
-					return extensionsWorkbenchService.queryGallery({ names, pageSize: names.length })
-						.then(result => TPromise.join(result.firstPage.map(e => e.getManifest()))
-							.then(manifests => result.firstPage.map((extension, index) => new ExtensionData(extension, manifests[index], this))));
-				}
-				return TPromise.as(null);
-			}
-		}
-
-		const details = $('details', { open: true, ontoggle: onDetailsToggle },
-			$('summary', null, localize('extension pack', "Extension Pack")));
-
-		const tree = this.instantiationService.createInstance(ExtensionsTree, new ExtensionData(extension, manifest), details);
-		append(container, details);
-
-		details.style.height = '1000px';
-		tree.layout(1000);
-		return true;
-	} */
 
 	private renderColorThemes(container: HTMLElement, manifest: IExtensionManifest, onDetailsToggle: Function): boolean {
 		const contributes = manifest.contributes;
