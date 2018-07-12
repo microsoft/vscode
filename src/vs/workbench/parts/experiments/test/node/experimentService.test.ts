@@ -621,12 +621,12 @@ suite('Experiment Service', () => {
 		};
 
 		testObject = instantiationService.createInstance(TestExperimentService);
-		const custom = testObject.getExperimentsToRunByType(ExperimentActionType.Custom).then(result => {
+		const custom = testObject.getExperimentsByType(ExperimentActionType.Custom).then(result => {
 			assert.equal(result.length, 2);
 			assert.equal(result[0].id, 'simple-experiment');
 			assert.equal(result[1].id, 'custom-experiment');
 		});
-		const prompt = testObject.getExperimentsToRunByType(ExperimentActionType.Prompt).then(result => {
+		const prompt = testObject.getExperimentsByType(ExperimentActionType.Prompt).then(result => {
 			assert.equal(result.length, 2);
 			assert.equal(result[0].id, 'prompt-with-no-commands');
 			assert.equal(result[1].id, 'prompt-with-commands');
@@ -687,9 +687,12 @@ suite('Experiment Service', () => {
 		});
 
 		testObject = instantiationService.createInstance(TestExperimentService);
-		return testObject.getExperimentsToRunByType(ExperimentActionType.Custom).then(result => {
-			assert.equal(result.length, 1);
-			assert.equal(result[0].id, 'experiment4');
+		return testObject.getExperimentsByType(ExperimentActionType.Custom).then(result => {
+			assert.equal(result.length, 2);
+			assert.equal(result[0].id, 'experiment3');
+			assert.equal(result[0].state, ExperimentState.NoRun);
+			assert.equal(result[1].id, 'experiment4');
+			assert.equal(result[1].state, ExperimentState.Run);
 			assert.equal(storageDataExperiment3.state, ExperimentState.NoRun);
 			assert.equal(storageDataExperiment4.state, ExperimentState.Run);
 			return TPromise.as(null);

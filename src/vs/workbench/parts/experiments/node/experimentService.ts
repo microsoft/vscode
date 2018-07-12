@@ -97,7 +97,7 @@ export interface IExperiment {
 export interface IExperimentService {
 	_serviceBrand: any;
 	getExperimentById(id: string): TPromise<IExperiment>;
-	getExperimentsToRunByType(type: ExperimentActionType): TPromise<IExperiment[]>;
+	getExperimentsByType(type: ExperimentActionType): TPromise<IExperiment[]>;
 	getCuratedExtensionsList(curatedExtensionsKey: string): TPromise<string[]>;
 	markAsCompleted(experimentId: string): void;
 
@@ -136,12 +136,12 @@ export class ExperimentService extends Disposable implements IExperimentService 
 		});
 	}
 
-	public getExperimentsToRunByType(type: ExperimentActionType): TPromise<IExperiment[]> {
+	public getExperimentsByType(type: ExperimentActionType): TPromise<IExperiment[]> {
 		return this._loadExperimentsPromise.then(() => {
 			if (type === ExperimentActionType.Custom) {
-				return this._experiments.filter(x => x.enabled && x.state === ExperimentState.Run && (!x.action || x.action.type === type));
+				return this._experiments.filter(x => x.enabled && (!x.action || x.action.type === type));
 			}
-			return this._experiments.filter(x => x.enabled && x.state === ExperimentState.Run && x.action && x.action.type === type);
+			return this._experiments.filter(x => x.enabled && x.action && x.action.type === type);
 		});
 	}
 
