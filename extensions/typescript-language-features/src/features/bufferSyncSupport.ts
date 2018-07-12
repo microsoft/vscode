@@ -12,7 +12,7 @@ import { Delayer } from '../utils/async';
 import { disposeAll } from '../utils/dispose';
 import * as languageModeIds from '../utils/languageModeIds';
 import * as typeConverters from '../utils/typeConverters';
-import { ResourceMap } from './resourceMap';
+import { ResourceMap } from '../utils/resourceMap';
 
 enum BufferKind {
 	TypeScript = 1,

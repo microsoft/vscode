@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import *  as vscode from 'vscode';
-import { ResourceMap } from './resourceMap';
+import { ResourceMap } from '../utils/resourceMap';
 
 export class DiagnosticSet {
 	private _map = new ResourceMap<vscode.Diagnostic[]>();
