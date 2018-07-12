@@ -200,18 +200,18 @@ export class Controller extends WorkbenchTreeController {
 
 class OpenExtensionAction extends Action {
 
-	private _extension: IExtensionData;
+	private _extensionData: IExtensionData;
 
 	constructor(@IExtensionsWorkbenchService private extensionsWorkdbenchService: IExtensionsWorkbenchService) {
 		super('extensions.action.openExtension', '');
 	}
 
 	public set extensionData(extension: IExtensionData) {
-		this._extension = extension;
+		this._extensionData = extension;
 	}
 
 	public get extensionData(): IExtensionData {
-		return this._extension;
+		return this._extensionData;
 	}
 
 	run(sideByside: boolean): TPromise<any> {
