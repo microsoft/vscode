@@ -9,7 +9,7 @@ import * as platform from 'vs/base/common/platform';
 import * as terminalEnvironment from 'vs/workbench/parts/terminal/node/terminalEnvironment';
 import Uri from 'vs/base/common/uri';
 import { IStringDictionary } from 'vs/base/common/collections';
-import { /*IShellLaunchConfig,*/ ITerminalConfigHelper } from 'vs/workbench/parts/terminal/common/terminal';
+import { ITerminalConfigHelper } from 'vs/workbench/parts/terminal/common/terminal';
 
 suite('Workbench - TerminalEnvironment', () => {
 	test('addTerminalEnvironmentKeys', () => {
