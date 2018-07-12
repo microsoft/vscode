@@ -138,7 +138,7 @@ let showReferencesCommand: ICommandHandler = (accessor: ServicesAccessor, resour
 
 		return TPromise.as(controller.toggleWidget(
 			new Range(position.lineNumber, position.column, position.lineNumber, position.column),
-			createCancelablePromise(_ => Promise.reject(new ReferencesModel(references))),
+			createCancelablePromise(_ => Promise.resolve(new ReferencesModel(references))),
 			defaultReferenceSearchOptions)).then(() => true);
 	});
 };

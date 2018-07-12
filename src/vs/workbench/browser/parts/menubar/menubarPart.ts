@@ -34,11 +34,20 @@ import { IRecentlyOpened } from 'vs/platform/history/common/history';
 import { IWorkspaceIdentifier, ISingleFolderWorkspaceIdentifier, isSingleFolderWorkspaceIdentifier, getWorkspaceLabel } from 'vs/platform/workspaces/common/workspaces';
 import { getPathLabel } from 'vs/base/common/labels';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
+import { RunOnceScheduler } from 'vs/base/common/async';
 
 interface CustomMenu {
 	title: string;
+	buttonElement: Builder;
 	titleElement: Builder;
 	actions?: IAction[];
+}
+
+enum MenubarState {
+	HIDDEN,
+	VISIBLE,
+	FOCUSED,
+	OPEN
 }
 
 export class MenubarPart extends Part {
@@ -82,17 +91,22 @@ export class MenubarPart extends Part {
 
 	private focusedMenu: {
 		index: number;
-		holder: Builder;
-		widget: Menu;
+		holder?: Builder;
+		widget?: Menu;
 	};
 
 	private customMenus: CustomMenu[];
 
+	private menuUpdater: RunOnceScheduler;
 	private actionRunner: IActionRunner;
+	private focusToReturn: Builder;
 	private container: Builder;
 	private recentlyOpened: IRecentlyOpened;
+	private updatePending: boolean;
+	private focusingWithAlt: boolean;
 	private _modifierKeyStatus: IModifierKeyStatus;
-	private _isFocused: boolean;
+	private _focusState: MenubarState;
+
 	private _onVisibilityChange: Emitter<Dimension>;
 
 	private initialSizing: {
@@ -135,11 +149,11 @@ export class MenubarPart extends Part {
 			this.topLevelMenus['Window'] = this._register(this.menuService.createMenu(MenuId.MenubarWindowMenu, this.contextKeyService));
 		}
 
+		this.menuUpdater = this._register(new RunOnceScheduler(() => this.doSetupMenubar(), 0));
+
 		this.actionRunner = this._register(new ActionRunner());
 		this._register(this.actionRunner.onDidBeforeRun(() => {
-			if (this.focusedMenu && this.focusedMenu.holder) {
-				this.focusedMenu.holder.hide();
-			}
+			this.focusState = this.currentMenubarVisibility === 'toggle' ? MenubarState.HIDDEN : MenubarState.VISIBLE;
 		}));
 
 		this._onVisibilityChange = this._register(new Emitter<Dimension>());
@@ -148,10 +162,10 @@ export class MenubarPart extends Part {
 			for (let topLevelMenuName of Object.keys(this.topLevelMenus)) {
 				this._register(this.topLevelMenus[topLevelMenuName].onDidChange(() => this.setupMenubar()));
 			}
-			this.setupMenubar();
+			this.doSetupMenubar();
 		}
 
-		this.isFocused = false;
+		this._focusState = MenubarState.HIDDEN;
 
 		this.windowService.getRecentlyOpened().then((recentlyOpened) => {
 			this.recentlyOpened = recentlyOpened;
@@ -207,18 +221,105 @@ export class MenubarPart extends Part {
 		return this.configurationService.getValue<string>('window.titleBarStyle');
 	}
 
-	private get isFocused(): boolean {
-		return this._isFocused;
+	private get focusState(): MenubarState {
+		return this._focusState;
 	}
 
-	private set isFocused(value: boolean) {
-		this._isFocused = value;
+	private set focusState(value: MenubarState) {
+		if (this._focusState >= MenubarState.FOCUSED && value < MenubarState.FOCUSED) {
+			// Losing focus, update the menu if needed
 
-		if (!this._isFocused && this.currentMenubarVisibility === 'toggle') {
-			if (this.container) {
-				this.hideMenubar();
+			if (this.updatePending) {
+				this.menuUpdater.schedule();
+				this.updatePending = false;
 			}
 		}
+
+		if (value === this._focusState) {
+			return;
+		}
+
+		switch (value) {
+			case MenubarState.HIDDEN:
+				if (this.isVisible) {
+					this.hideMenubar();
+				}
+
+				if (this.isOpen) {
+					this.cleanupCustomMenu();
+				}
+
+				if (this.isFocused) {
+					this.focusedMenu = null;
+
+					if (this.focusToReturn) {
+						this.focusToReturn.domFocus();
+						this.focusToReturn = null;
+					}
+				}
+
+
+				break;
+			case MenubarState.VISIBLE:
+				if (!this.isVisible) {
+					this.showMenubar();
+				}
+
+				if (this.isOpen) {
+					this.cleanupCustomMenu();
+				}
+
+				if (this.isFocused) {
+					if (this.focusedMenu) {
+						this.customMenus[this.focusedMenu.index].buttonElement.domBlur();
+					}
+
+					this.focusedMenu = null;
+
+					if (this.focusToReturn) {
+						this.focusToReturn.domFocus();
+						this.focusToReturn = null;
+					}
+				}
+
+				break;
+			case MenubarState.FOCUSED:
+				if (!this.isVisible) {
+					this.showMenubar();
+				}
+
+				if (this.isOpen) {
+					this.cleanupCustomMenu();
+				}
+
+				if (this.focusedMenu) {
+					this.customMenus[this.focusedMenu.index].buttonElement.domFocus();
+				}
+				break;
+			case MenubarState.OPEN:
+				if (!this.isVisible) {
+					this.showMenubar();
+				}
+
+				if (this.focusedMenu) {
+					this.showCustomMenu(this.focusedMenu.index);
+				}
+				break;
+		}
+
+		this._focusState = value;
+	}
+
+	private get isVisible(): boolean {
+		return this.focusState >= MenubarState.VISIBLE;
+	}
+
+	private get isFocused(): boolean {
+		return this.focusState >= MenubarState.FOCUSED;
+	}
+
+	private get isOpen(): boolean {
+		return this.focusState >= MenubarState.OPEN;
 	}
 
 	private onDidChangeFullscreen(): void {
@@ -241,29 +342,42 @@ export class MenubarPart extends Part {
 		this.container.style('visibility', null);
 	}
 
-	private onModifierKeyToggled(modiferKeyStatus: IModifierKeyStatus): void {
+	private onModifierKeyToggled(modifierKeyStatus: IModifierKeyStatus): void {
+		const altKeyPressed = (!this._modifierKeyStatus || !this._modifierKeyStatus.altKey) && modifierKeyStatus.altKey;
+		const altKeyAlone = altKeyPressed && !modifierKeyStatus.ctrlKey && !modifierKeyStatus.shiftKey;
+		const allModifiersReleased = !modifierKeyStatus.altKey && !modifierKeyStatus.ctrlKey && !modifierKeyStatus.shiftKey;
+
 		if (this.currentMenubarVisibility === 'toggle') {
-			const altKeyPressed = (!this._modifierKeyStatus || !this._modifierKeyStatus.altKey) && modiferKeyStatus.altKey;
-			if (altKeyPressed && !modiferKeyStatus.ctrlKey && !modiferKeyStatus.shiftKey) {
-				this.showMenubar();
-			} else if (!this.isFocused) {
-				this.hideMenubar();
+			if (altKeyAlone) {
+				if (!this.isVisible) {
+					this.focusState = MenubarState.VISIBLE;
+				}
+			} else if (!allModifiersReleased && !this.isFocused) {
+				this.focusState = MenubarState.HIDDEN;
 			}
 		}
 
-		this._modifierKeyStatus = modiferKeyStatus;
+		if (allModifiersReleased && this.focusingWithAlt) {
+			if (!this.isFocused) {
+				this.focusedMenu = { index: 0 };
+				this.focusState = MenubarState.FOCUSED;
+			} else if (!this.isOpen) {
+				this.focusState = this.currentMenubarVisibility === 'toggle' ? MenubarState.HIDDEN : MenubarState.VISIBLE;
+			}
+		}
+
+		this._modifierKeyStatus = modifierKeyStatus;
 
 		if (this.currentEnableMenuBarMnemonics && this.customMenus) {
 			this.customMenus.forEach(customMenu => {
 				let child = customMenu.titleElement.child();
 				if (child) {
-					let grandChild = child.child();
-					if (grandChild) {
-						grandChild.style('text-decoration', modiferKeyStatus.altKey ? 'underline' : null);
-					}
+					child.style('text-decoration', modifierKeyStatus.altKey ? 'underline' : null);
 				}
 			});
 		}
+
+		this.focusingWithAlt = altKeyAlone;
 	}
 
 	private onRecentlyOpenedChange(): void {
@@ -274,13 +388,14 @@ export class MenubarPart extends Part {
 	}
 
 	private registerListeners(): void {
-		this._register(browser.onDidChangeFullscreen(() => this.onDidChangeFullscreen()));
-
 		// Update when config changes
 		this._register(this.configurationService.onDidChangeConfiguration(e => this.onConfigurationUpdated(e)));
 
 		// Listen to update service
 		// this.updateService.onStateChange(() => this.setupMenubar());
+
+		// Listen for context changes
+		this._register(this.contextKeyService.onDidChangeContext(() => this.setupMenubar()));
 
 		// Listen for changes in recently opened menu
 		this._register(this.windowsService.onRecentlyOpenedChange(() => { this.onRecentlyOpenedChange(); }));
@@ -288,10 +403,17 @@ export class MenubarPart extends Part {
 		// Listen to keybindings change
 		this._register(this.keybindingService.onDidUpdateKeybindings(() => this.setupMenubar()));
 
-		this._register(ModifierKeyEmitter.getInstance().event(this.onModifierKeyToggled, this));
+		// These listeners only apply when the custom menubar is being used
+		if (!isMacintosh && this.currentTitlebarStyleSetting === 'custom') {
+			// Listen to fullscreen changes
+			this._register(browser.onDidChangeFullscreen(() => this.onDidChangeFullscreen()));
+
+			// Listen for alt key presses
+			this._register(ModifierKeyEmitter.getInstance().event(this.onModifierKeyToggled, this));
+		}
 	}
 
-	private setupMenubar(): void {
+	private doSetupMenubar(): void {
 		if (!isMacintosh && this.currentTitlebarStyleSetting === 'custom') {
 			this.setupCustomMenubar();
 		} else {
@@ -299,11 +421,20 @@ export class MenubarPart extends Part {
 		}
 	}
 
+	private setupMenubar(): void {
+		this.menuUpdater.schedule();
+	}
+
 	private setupNativeMenubar(): void {
 		// TODO@sbatten: Remove once native menubar is ready
 		if (isMacintosh && isWindows) {
 			this.menubarService.updateMenubar(this.windowService.getCurrentWindowId(), this.getMenubarMenus());
 		}
+	}
+
+
+	private clearMnemonic(topLevelElement: HTMLElement): void {
+		topLevelElement.accessKey = null;
 	}
 
 	private registerMnemonic(topLevelElement: HTMLElement, mnemonic: string): void {
@@ -428,10 +559,18 @@ export class MenubarPart extends Part {
 	}
 
 	private setupCustomMenubar(): void {
-		this.container.empty();
+		// Don't update while using the menu
+		if (this.isFocused) {
+			this.updatePending = true;
+			return;
+		}
+
 		this.container.attr('role', 'menubar');
 
-		this.customMenus = [];
+		const firstTimeSetup = this.customMenus === undefined;
+		if (firstTimeSetup) {
+			this.customMenus = [];
+		}
 
 		let idx = 0;
 
@@ -439,26 +578,34 @@ export class MenubarPart extends Part {
 			const menu: IMenu = this.topLevelMenus[menuTitle];
 			let menuIndex = idx++;
 
-			let titleElement = $(this.container).div({ class: 'menubar-menu-button' });
+			// Create the top level menu button element
+			if (firstTimeSetup) {
+				const buttonElement = $(this.container).div({ class: 'menubar-menu-button' }).attr({ 'role': 'menu', 'tabindex': 0 });
+				buttonElement.attr('aria-label', this.topLevelTitles[menuTitle].replace(/&&(.)/g, '$1'));
+
+				const titleElement = $(buttonElement).div({ class: 'menubar-menu-title', 'aria-hidden': true });
+
+				this.customMenus.push({
+					title: menuTitle,
+					buttonElement: buttonElement,
+					titleElement: titleElement
+				});
+			}
+
+			// Update the button label to reflect mnemonics
 			let displayTitle = this.topLevelTitles[menuTitle].replace(/&&(.)/g, this.currentEnableMenuBarMnemonics ? '<mnemonic>$1</mnemonic>' : '$1');
-			let legibleTitle = this.topLevelTitles[menuTitle].replace(/&&(.)/g, '$1');
-			$(titleElement).div({ class: 'menubar-menu-title', 'aria-hidden': true }).innerHtml(displayTitle);
+			$(this.customMenus[menuIndex].titleElement).innerHtml(displayTitle);
 
-			titleElement.attr('aria-label', legibleTitle);
-			titleElement.attr('role', 'menu');
-
+			// Clear and register mnemonics due to updated settings
+			this.clearMnemonic(this.customMenus[menuIndex].buttonElement.getHTMLElement());
 			if (this.currentEnableMenuBarMnemonics) {
 				let mnemonic = (/&&(.)/g).exec(this.topLevelTitles[menuTitle]);
 				if (mnemonic && mnemonic[1]) {
-					this.registerMnemonic(titleElement.getHTMLElement(), mnemonic[1]);
+					this.registerMnemonic(this.customMenus[menuIndex].buttonElement.getHTMLElement(), mnemonic[1]);
 				}
 			}
 
-			this.customMenus.push({
-				title: menuTitle,
-				titleElement: titleElement
-			});
-
+			// Update the menu actions
 			const updateActions = (menu: IMenu, target: IAction[]) => {
 				target.splice(0);
 				let groups = menu.getActions();
@@ -486,56 +633,112 @@ export class MenubarPart extends Part {
 			};
 
 			this.customMenus[menuIndex].actions = [];
-			this._register(menu.onDidChange(() => updateActions(menu, this.customMenus[menuIndex].actions)));
+			if (firstTimeSetup) {
+				this._register(menu.onDidChange(() => updateActions(menu, this.customMenus[menuIndex].actions)));
+			}
+
 			updateActions(menu, this.customMenus[menuIndex].actions);
 
-			this.customMenus[menuIndex].titleElement.on(EventType.CLICK, () => {
-				if (this._modifierKeyStatus && (this._modifierKeyStatus.shiftKey || this._modifierKeyStatus.ctrlKey)) {
-					return; // supress keyboard shortcuts that shouldn't conflict
+			if (firstTimeSetup) {
+				this.customMenus[menuIndex].buttonElement.on(EventType.KEY_UP, (e) => {
+					let event = new StandardKeyboardEvent(e as KeyboardEvent);
+					let eventHandled = true;
+
+					if ((event.equals(KeyCode.DownArrow) || event.equals(KeyCode.Enter)) && !this.isOpen) {
+						this.focusedMenu = { index: menuIndex };
+						this.focusState = MenubarState.OPEN;
+					} else {
+						eventHandled = false;
+					}
+
+					if (eventHandled) {
+						event.preventDefault();
+						event.stopPropagation();
+					}
+				});
+
+				this.customMenus[menuIndex].buttonElement.on(EventType.CLICK, () => {
+					if (this._modifierKeyStatus && (this._modifierKeyStatus.shiftKey || this._modifierKeyStatus.ctrlKey)) {
+						return; // supress keyboard shortcuts that shouldn't conflict
+					}
+
+					if (this.isOpen) {
+						if (this.isCurrentMenu(menuIndex)) {
+							this.focusState = this.currentMenubarVisibility === 'toggle' ? MenubarState.HIDDEN : MenubarState.VISIBLE;
+						} else {
+							this.cleanupCustomMenu();
+							this.showCustomMenu(menuIndex);
+						}
+					} else {
+						this.focusedMenu = { index: menuIndex };
+						this.focusState = MenubarState.OPEN;
+					}
+				});
+
+				this.customMenus[menuIndex].buttonElement.on(EventType.MOUSE_ENTER, () => {
+					if (this.isOpen && !this.isCurrentMenu(menuIndex)) {
+						this.customMenus[menuIndex].buttonElement.domFocus();
+						this.cleanupCustomMenu();
+						this.showCustomMenu(menuIndex);
+					} else if (this.isFocused && !this.isOpen) {
+						this.customMenus[menuIndex].buttonElement.domFocus();
+					}
+				});
+
+				this.customMenus[menuIndex].buttonElement.on(EventType.MOUSE_LEAVE, () => {
+					if (!this.isOpen && this.isFocused) {
+						this.customMenus[menuIndex].buttonElement.domBlur();
+					}
+				});
+			}
+		}
+
+		if (firstTimeSetup) {
+			this.container.on(EventType.KEY_DOWN, (e) => {
+				let event = new StandardKeyboardEvent(e as KeyboardEvent);
+				let eventHandled = true;
+
+				if (event.equals(KeyCode.LeftArrow) || (event.shiftKey && event.keyCode === KeyCode.Tab)) {
+					this.focusPrevious();
+				} else if (event.equals(KeyCode.RightArrow) || event.equals(KeyCode.Tab)) {
+					this.focusNext();
+				} else if (event.equals(KeyCode.Escape) && this.isFocused && !this.isOpen) {
+					this.focusState = this.currentMenubarVisibility === 'toggle' ? MenubarState.HIDDEN : MenubarState.VISIBLE;
+				} else {
+					eventHandled = false;
 				}
 
-				this.toggleCustomMenu(menuIndex);
-				this.isFocused = !this.isFocused;
-			});
-
-			this.customMenus[menuIndex].titleElement.on(EventType.MOUSE_ENTER, () => {
-				if (this.isFocused && !this.isCurrentMenu(menuIndex)) {
-					this.toggleCustomMenu(menuIndex);
+				if (eventHandled) {
+					event.preventDefault();
+					event.stopPropagation();
 				}
-			});
-
-			this.customMenus[menuIndex].titleElement.on(EventType.MOUSE_LEAVE, () => {
-				if (!this.isFocused) {
-					this.cleanupCustomMenu();
-				}
-			});
-
-			this.customMenus[menuIndex].titleElement.on(EventType.BLUR, () => {
-				this.cleanupCustomMenu();
 			});
 		}
 
-		this.container.off(EventType.KEY_DOWN);
-		this.container.on(EventType.KEY_DOWN, (e) => {
-			let event = new StandardKeyboardEvent(e as KeyboardEvent);
-			let eventHandled = true;
+		this.container.on(EventType.FOCUS_IN, (e) => {
+			let event = e as FocusEvent;
 
-			if (event.equals(KeyCode.LeftArrow) || (event.shiftKey && event.keyCode === KeyCode.Tab)) {
-				this.focusPrevious();
-			} else if (event.equals(KeyCode.RightArrow) || event.equals(KeyCode.Tab)) {
-				this.focusNext();
-			} else {
-				eventHandled = false;
+			if (event.relatedTarget) {
+				if (!this.container.getHTMLElement().contains(event.relatedTarget as HTMLElement)) {
+					this.focusToReturn = $(event.relatedTarget as HTMLElement);
+				}
 			}
+		});
 
-			if (eventHandled) {
-				event.preventDefault();
-				event.stopPropagation();
+		this.container.on(EventType.FOCUS_OUT, (e) => {
+			let event = e as FocusEvent;
+
+			if (event.relatedTarget) {
+				if (!this.container.getHTMLElement().contains(event.relatedTarget as HTMLElement)) {
+					this.focusToReturn = null;
+					this.focusState = this.currentMenubarVisibility === 'toggle' ? MenubarState.HIDDEN : MenubarState.VISIBLE;
+				}
 			}
 		});
 	}
 
 	private focusPrevious(): void {
+
 		if (!this.focusedMenu) {
 			return;
 		}
@@ -546,7 +749,13 @@ export class MenubarPart extends Part {
 			return;
 		}
 
-		this.toggleCustomMenu(newFocusedIndex);
+		if (this.isOpen) {
+			this.cleanupCustomMenu();
+			this.showCustomMenu(newFocusedIndex);
+		} else if (this.isFocused) {
+			this.focusedMenu.index = newFocusedIndex;
+			this.customMenus[newFocusedIndex].buttonElement.domFocus();
+		}
 	}
 
 	private focusNext(): void {
@@ -560,7 +769,13 @@ export class MenubarPart extends Part {
 			return;
 		}
 
-		this.toggleCustomMenu(newFocusedIndex);
+		if (this.isOpen) {
+			this.cleanupCustomMenu();
+			this.showCustomMenu(newFocusedIndex);
+		} else if (this.isFocused) {
+			this.focusedMenu.index = newFocusedIndex;
+			this.customMenus[newFocusedIndex].buttonElement.domFocus();
+		}
 	}
 
 	private getMenubarMenus(): IMenubarData {
@@ -619,33 +834,15 @@ export class MenubarPart extends Part {
 			if (this.focusedMenu.widget) {
 				this.focusedMenu.widget.dispose();
 			}
+
+			this.focusedMenu = { index: this.focusedMenu.index };
 		}
-
-		this.focusedMenu = null;
 	}
 
-	public focusCustomMenu(menuTitle: string): void {
-		this.toggleCustomMenu(0);
-	}
-
-	private toggleCustomMenu(menuIndex: number): void {
+	private showCustomMenu(menuIndex: number): void {
 		const customMenu = this.customMenus[menuIndex];
 
-		if (this.focusedMenu) {
-			let hiding: boolean = this.isCurrentMenu(menuIndex);
-
-			// Need to cleanup currently displayed menu
-			this.cleanupCustomMenu();
-
-			// Hiding this menu
-			if (hiding) {
-				return;
-			}
-		}
-
-		customMenu.titleElement.domFocus();
-
-		let menuHolder = $(customMenu.titleElement).div({ class: 'menubar-menu-items-holder' });
+		let menuHolder = $(customMenu.buttonElement).div({ class: 'menubar-menu-items-holder' });
 
 		$(menuHolder.getHTMLElement().parentElement).addClass('open');
 
@@ -665,14 +862,12 @@ export class MenubarPart extends Part {
 		let menuWidget = this._register(new Menu(menuHolder.getHTMLElement(), customMenu.actions, menuOptions));
 
 		this._register(menuWidget.onDidCancel(() => {
-			this.cleanupCustomMenu();
-			this.isFocused = false;
+			this.focusState = MenubarState.FOCUSED;
 		}));
 
 		this._register(menuWidget.onDidBlur(() => {
 			setTimeout(() => {
 				this.cleanupCustomMenu();
-				this.isFocused = false;
 			}, 100);
 		}));
 
@@ -728,7 +923,7 @@ export class MenubarPart extends Part {
 			}
 
 			if (typeof this.initialSizing.menuButtonPaddingLeftRight !== 'number') {
-				this.initialSizing.menuButtonPaddingLeftRight = parseInt(this.customMenus[0].titleElement.getComputedStyle().paddingLeft, 10);
+				this.initialSizing.menuButtonPaddingLeftRight = parseInt(this.customMenus[0].buttonElement.getComputedStyle().paddingLeft, 10);
 			}
 
 			this.container.style({
@@ -739,7 +934,7 @@ export class MenubarPart extends Part {
 			});
 
 			this.customMenus.forEach(customMenu => {
-				customMenu.titleElement.style({
+				customMenu.buttonElement.style({
 					'padding': `0 ${this.initialSizing.menuButtonPaddingLeftRight / browser.getZoomFactor()}px`
 				});
 			});
@@ -756,8 +951,8 @@ export class MenubarPart extends Part {
 
 	public getMenubarItemsDimensions(): Dimension {
 		if (this.customMenus) {
-			const left = this.customMenus[0].titleElement.getHTMLElement().getBoundingClientRect().left;
-			const right = this.customMenus[this.customMenus.length - 1].titleElement.getHTMLElement().getBoundingClientRect().right;
+			const left = this.customMenus[0].buttonElement.getHTMLElement().getBoundingClientRect().left;
+			const right = this.customMenus[this.customMenus.length - 1].buttonElement.getHTMLElement().getBoundingClientRect().right;
 			return new Dimension(right - left, this.container.getClientArea().height);
 		}
 
@@ -773,7 +968,7 @@ export class MenubarPart extends Part {
 
 		// Build the menubar
 		if (this.container) {
-			this.setupMenubar();
+			this.doSetupMenubar();
 		}
 
 		return this.container.getHTMLElement();

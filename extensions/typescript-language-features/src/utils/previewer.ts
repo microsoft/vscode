@@ -72,13 +72,18 @@ export function markdownDocumentation(
 
 export function addMarkdownDocumentation(
 	out: MarkdownString,
-	documentation: Proto.SymbolDisplayPart[],
-	tags: Proto.JSDocTagInfo[]
+	documentation: Proto.SymbolDisplayPart[] | undefined,
+	tags: Proto.JSDocTagInfo[] | undefined
 ): MarkdownString {
-	out.appendMarkdown(plain(documentation));
-	const tagsPreview = tagsMarkdownPreview(tags);
-	if (tagsPreview) {
-		out.appendMarkdown('\n\n' + tagsPreview);
+	if (documentation) {
+		out.appendMarkdown(plain(documentation));
+	}
+
+	if (tags) {
+		const tagsPreview = tagsMarkdownPreview(tags);
+		if (tagsPreview) {
+			out.appendMarkdown('\n\n' + tagsPreview);
+		}
 	}
 	return out;
 }

@@ -115,7 +115,7 @@ export abstract class TypeScriptBaseCodeLensProvider implements CodeLensProvider
 		}
 
 		// TS 3.0+ provides a span for just the symbol
-		if ((item as any).nameSpan) {
+		if (item.nameSpan) {
 			return typeConverters.Range.fromTextSpan((item as any).nameSpan);
 		}
 

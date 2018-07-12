@@ -8,7 +8,7 @@ import { ITypeScriptServiceClient } from '../typescriptService';
 import API from './api';
 import { disposeAll } from './dispose';
 
-class ConditionalRegistration {
+export class ConditionalRegistration {
 	private registration: vscode.Disposable | undefined = undefined;
 
 	public constructor(
@@ -75,12 +75,8 @@ export class ConfigurationDependentRegistration {
 		register: () => vscode.Disposable,
 	) {
 		this._registration = new ConditionalRegistration(register);
-
 		this.update();
-
-		vscode.workspace.onDidChangeConfiguration(() => {
-			this.update();
-		}, null, this._disposables);
+		vscode.workspace.onDidChangeConfiguration(this.update, this, this._disposables);
 	}
 
 	public dispose() {

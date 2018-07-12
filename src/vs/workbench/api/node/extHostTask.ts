@@ -871,7 +871,8 @@ export class ExtHostTask implements ExtHostTaskShape {
 				if (task.definition && validTypes[task.definition.type] === true) {
 					sanitized.push(task);
 				} else {
-					console.error(`Dropping task [${task.source}, ${task.name}]. Its type is not known to the system.`);
+					sanitized.push(task);
+					console.warn(`The task [${task.source}, ${task.name}] uses an undefined task type. The task will be ignored in the future.`);
 				}
 			}
 			let workspaceFolders = this._workspaceService.getWorkspaceFolders();

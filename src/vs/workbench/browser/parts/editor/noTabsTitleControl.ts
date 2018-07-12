@@ -11,7 +11,7 @@ import { TitleControl, IToolbarActions } from 'vs/workbench/browser/parts/editor
 import { ResourceLabel } from 'vs/workbench/browser/labels';
 import { TAB_ACTIVE_FOREGROUND, TAB_UNFOCUSED_ACTIVE_FOREGROUND } from 'vs/workbench/common/theme';
 import { EventType as TouchEventType, GestureEvent, Gesture } from 'vs/base/browser/touch';
-import { addDisposableListener, EventType, addClass, EventHelper, removeClass } from 'vs/base/browser/dom';
+import { addDisposableListener, EventType, addClass, EventHelper, removeClass, toggleClass } from 'vs/base/browser/dom';
 import { IEditorPartOptions } from 'vs/workbench/browser/parts/editor/editor';
 import { IAction } from 'vs/base/common/actions';
 import { CLOSE_EDITOR_COMMAND_ID } from 'vs/workbench/browser/parts/editor/editorCommands';
@@ -34,6 +34,12 @@ export class NoTabsTitleControl extends TitleControl {
 		// Editor Label
 		this.editorLabel = this._register(this.instantiationService.createInstance(ResourceLabel, this.titleContainer, void 0));
 		this._register(this.editorLabel.onClick(e => this.onTitleLabelClick(e)));
+
+		// Breadcrumbs
+		const breadcrumbsContainer = document.createElement('div');
+		addClass(breadcrumbsContainer, 'no-tabs-breadcrumbs');
+		this.titleContainer.appendChild(breadcrumbsContainer);
+		this.createBreadcrumbsControl(breadcrumbsContainer, { showIcons: false, showDecorationColors: false });
 
 		// Right Actions Container
 		const actionsContainer = document.createElement('div');
@@ -156,6 +162,9 @@ export class NoTabsTitleControl extends TitleControl {
 		const editor = this.group.activeEditor;
 		this.lastRenderedActiveEditor = editor;
 
+		const isEditorPinned = this.group.isPinned(this.group.activeEditor);
+		const isGroupActive = this.accessor.activeGroup === this.group;
+
 		// Clear if there is no editor
 		if (!editor) {
 			removeClass(this.titleContainer, 'dirty');
@@ -165,9 +174,6 @@ export class NoTabsTitleControl extends TitleControl {
 
 		// Otherwise render it
 		else {
-			const isEditorPinned = this.group.isPinned(this.group.activeEditor);
-			const isGroupActive = this.accessor.activeGroup === this.group;
-
 			// Dirty state
 			this.updateEditorDirty(editor);
 
@@ -177,7 +183,9 @@ export class NoTabsTitleControl extends TitleControl {
 
 			const { labelFormat } = this.accessor.partOptions;
 			let description: string;
-			if (labelFormat === 'default' && !isGroupActive) {
+			if (this.breadcrumbsControl) {
+				description = ''; // hide description when showing breadcrumbs
+			} else if (labelFormat === 'default' && !isGroupActive) {
 				description = ''; // hide description when group is not active and style is 'default'
 			} else {
 				description = editor.getDescription(this.getVerbosity(labelFormat)) || '';
@@ -188,7 +196,7 @@ export class NoTabsTitleControl extends TitleControl {
 				title = ''; // dont repeat what is already shown
 			}
 
-			this.editorLabel.setLabel({ name, description, resource }, { title, italic: !isEditorPinned, extraClasses: ['title-label'] });
+			this.editorLabel.setLabel({ name, description, resource }, { title, italic: !isEditorPinned, extraClasses: ['no-tabs', 'title-label'] });
 			if (isGroupActive) {
 				this.editorLabel.element.style.color = this.getColor(TAB_ACTIVE_FOREGROUND);
 			} else {
@@ -197,6 +205,16 @@ export class NoTabsTitleControl extends TitleControl {
 
 			// Update Editor Actions Toolbar
 			this.updateEditorActionsToolbar();
+		}
+
+		// Update Breadcrumbs
+		if (this.breadcrumbsControl) {
+			if (isGroupActive) {
+				this.breadcrumbsControl.update();
+				toggleClass(this.breadcrumbsControl.domNode, 'preview', !isEditorPinned);
+			} else {
+				this.breadcrumbsControl.clear();
+			}
 		}
 	}
 

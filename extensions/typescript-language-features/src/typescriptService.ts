@@ -11,11 +11,6 @@ import { TypeScriptServiceConfiguration } from './utils/configuration';
 import Logger from './utils/logger';
 import BufferSyncSupport from './features/bufferSyncSupport';
 
-declare module './protocol' {
-	export type JsxClosingTagRequestArgs = any;
-	export type JsxClosingTagResponse = any;
-}
-
 export interface ITypeScriptServiceClient {
 	/**
 	 * Convert a resource (VS Code) to a normalized path (TypeScript).
@@ -56,6 +51,7 @@ export interface ITypeScriptServiceClient {
 	execute(command: 'change', args: Proto.ChangeRequestArgs, expectedResult: boolean, token?: CancellationToken): Promise<any>;
 	execute(command: 'quickinfo', args: Proto.FileLocationRequestArgs, token?: CancellationToken): Promise<Proto.QuickInfoResponse>;
 	execute(command: 'completions', args: Proto.CompletionsRequestArgs, token?: CancellationToken): Promise<Proto.CompletionsResponse>;
+	execute(command: 'completionInfo', args: Proto.CompletionsRequestArgs, token?: CancellationToken): Promise<Proto.CompletionInfoResponse>;
 	execute(command: 'completionEntryDetails', args: Proto.CompletionDetailsRequestArgs, token?: CancellationToken): Promise<Proto.CompletionDetailsResponse>;
 	execute(command: 'signatureHelp', args: Proto.SignatureHelpRequestArgs, token?: CancellationToken): Promise<Proto.SignatureHelpResponse>;
 	execute(command: 'definition', args: Proto.FileLocationRequestArgs, token?: CancellationToken): Promise<Proto.DefinitionResponse>;

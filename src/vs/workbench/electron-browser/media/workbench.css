@@ -3,10 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-.monaco-workbench-container {
-	position: absolute;
-}
-
 .monaco-workbench {
 	font-size: 13px;
 	line-height: 1.4em;
