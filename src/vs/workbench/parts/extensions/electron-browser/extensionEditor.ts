@@ -793,50 +793,6 @@ export class ExtensionEditor extends BaseEditor {
 		return true;
 	}
 
-	/* private renderExtensionPack(container: HTMLElement, extension: IExtension, manifest: IExtensionManifest, onDetailsToggle: Function): boolean {
-		if (!manifest.contributes || !manifest.contributes.extensionPack) {
-			return false;
-		}
-
-		const extensionsWorkbenchService = this.extensionsWorkbenchService;
-		class ExtensionData implements IExtensionData {
-
-			readonly extension: IExtension;
-			readonly parent: IExtensionData;
-			private readonly manifest: IExtensionManifest;
-
-			constructor(extension: IExtension, manifest: IExtensionManifest, parent?: IExtensionData) {
-				this.extension = extension;
-				this.manifest = manifest;
-				this.parent = parent;
-			}
-
-			get hasChildren(): boolean {
-				return !!(this.manifest.contributes && this.manifest.contributes.extensionPack);
-			}
-
-			getChildren(): Promise<IExtensionData[]> {
-				if (this.manifest.contributes && this.manifest.contributes.extensionPack) {
-					const names = arrays.distinct(this.manifest.contributes.extensionPack, e => e.id.toLowerCase()).map(({ id }) => id);
-					return extensionsWorkbenchService.queryGallery({ names, pageSize: names.length })
-						.then(result => TPromise.join(result.firstPage.map(e => e.getManifest()))
-							.then(manifests => result.firstPage.map((extension, index) => new ExtensionData(extension, manifests[index], this))));
-				}
-				return TPromise.as(null);
-			}
-		}
-
-		const details = $('details', { open: true, ontoggle: onDetailsToggle },
-			$('summary', null, localize('extension pack', "Extension Pack")));
-
-		const tree = this.instantiationService.createInstance(ExtensionsTree, new ExtensionData(extension, manifest), details);
-		append(container, details);
-
-		details.style.height = '1000px';
-		tree.layout(1000);
-		return true;
-	} */
-
 	private renderColorThemes(container: HTMLElement, manifest: IExtensionManifest, onDetailsToggle: Function): boolean {
 		const contributes = manifest.contributes;
 		const contrib = contributes && contributes.themes || [];
