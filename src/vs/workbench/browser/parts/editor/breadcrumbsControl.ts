@@ -315,8 +315,15 @@ export abstract class BreadcrumbsPicker {
 		this.focus = dom.trackFocus(this._domNode);
 		this.focus.onDidBlur(_ => this._onDidPickElement.fire(undefined), undefined, this._disposables);
 		this._tree.setInput(this._getInput(input)).then(_ => {
-			this._tree.focusFirst();
 			this._tree.domFocus();
+			let selection = this._getInitialSelection(this._tree, input);
+			if (selection) {
+				this._tree.setFocus(selection);
+				this._tree.reveal(selection);
+			} else {
+				this._tree.focusFirst();
+			}
+
 		}, onUnexpectedError);
 	}
 
@@ -334,6 +341,7 @@ export abstract class BreadcrumbsPicker {
 	}
 
 	protected abstract _getInput(input: BreadcrumbElement): any;
+	protected abstract _getInitialSelection(tree: ITree, input: BreadcrumbElement): any;
 	protected abstract _completeTreeConfiguration(config: ITreeConfiguration): ITreeConfiguration;
 	protected abstract _onDidChangeSelection(e: any): void;
 }
@@ -422,6 +430,17 @@ export class BreadcrumbsFilePicker extends BreadcrumbsPicker {
 		return dirname(uri);
 	}
 
+	protected _getInitialSelection(tree: ITree, input: BreadcrumbElement): any {
+		let { uri } = (input as FileElement);
+		let nav = tree.getNavigator();
+		while (nav.next()) {
+			if (isEqual(uri, (nav.current() as IFileStat).resource)) {
+				return nav.current();
+			}
+		}
+		return undefined;
+	}
+
 	protected _completeTreeConfiguration(config: ITreeConfiguration): ITreeConfiguration {
 		// todo@joh reuse explorer implementations?
 		config.dataSource = this._instantiationService.createInstance(FileDataSource);
@@ -443,6 +462,10 @@ export class BreadcrumbsOutlinePicker extends BreadcrumbsPicker {
 
 	protected _getInput(input: BreadcrumbElement): any {
 		return (input as TreeElement).parent;
+	}
+
+	protected _getInitialSelection(_tree: ITree, input: BreadcrumbElement): any {
+		return input;
 	}
 
 	protected _completeTreeConfiguration(config: ITreeConfiguration): ITreeConfiguration {
