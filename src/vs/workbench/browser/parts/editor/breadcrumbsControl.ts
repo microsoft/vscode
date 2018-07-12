@@ -330,7 +330,6 @@ export abstract class BreadcrumbsPicker {
 				this._tree.reveal(selection);
 			}
 
-			this._input.setEnabled(true);
 			// input - interact with tree
 			this._disposables.push(dom.addStandardDisposableListener(this._input.inputElement, 'keyup', event => {
 				if (event.keyCode === KeyCode.DownArrow) {
@@ -367,6 +366,8 @@ export abstract class BreadcrumbsPicker {
 					this._tree.setSelection([topElement], this);
 				}
 			}));
+
+			this._input.setEnabled(true);
 
 		}, onUnexpectedError);
 
@@ -544,7 +545,9 @@ class HighlightingOutlineRenderer extends OutlineRenderer implements IHighlighti
 export class BreadcrumbsOutlinePicker extends BreadcrumbsPicker {
 
 	protected _getInput(input: BreadcrumbElement): any {
-		return (input as TreeElement).parent;
+		let element = input as TreeElement;
+		OutlineModel.get(element).updateMatches('');
+		return (element).parent;
 	}
 
 	protected _getInitialSelection(_tree: ITree, input: BreadcrumbElement): any {
