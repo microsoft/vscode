@@ -89,6 +89,13 @@ export class Win32UpdateService extends AbstractUpdateService {
 			platform += '-archive';
 		} else if (product.target === 'user') {
 			platform += '-user';
+
+			/* __GDPR__
+					"update:win32SetupTarget" : {
+						"explicit" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true }
+					}
+				*/
+			this.telemetryService.publicLog('update:win32SetupTarget', { target: product.target });
 		}
 
 		return createUpdateURL(platform, quality);
