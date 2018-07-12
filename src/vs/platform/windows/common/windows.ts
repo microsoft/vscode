@@ -162,6 +162,7 @@ export interface IWindowsService {
 	getWindowCount(): TPromise<number>;
 	log(severity: string, ...messages: string[]): TPromise<void>;
 	showItemInFolder(path: string): TPromise<void>;
+	getActiveWindowId(): TPromise<number | undefined>;
 
 	// This needs to be handled from browser process to prevent
 	// foreground ordering issues on Windows
@@ -357,19 +358,31 @@ export interface IRunActionInWindowRequest {
 export class ActiveWindowManager implements IDisposable {
 
 	private disposables: IDisposable[] = [];
-	private _activeWindowId: number;
+	private firstActiveWindowIdPromise: TPromise<any> | null;
+	private _activeWindowId: number | undefined;
 
 	constructor(@IWindowsService windowsService: IWindowsService) {
 		const onActiveWindowChange = latch(anyEvent(windowsService.onWindowOpen, windowsService.onWindowFocus));
 		onActiveWindowChange(this.setActiveWindow, this, this.disposables);
+
+		this.firstActiveWindowIdPromise = windowsService.getActiveWindowId()
+			.then(id => (typeof this._activeWindowId === 'undefined') && this.setActiveWindow(id));
 	}
 
 	private setActiveWindow(windowId: number) {
+		if (this.firstActiveWindowIdPromise) {
+			this.firstActiveWindowIdPromise = null;
+		}
+
 		this._activeWindowId = windowId;
 	}
 
-	get activeClientId(): string {
-		return `window:${this._activeWindowId}`;
+	getActiveClientId(): TPromise<string> {
+		if (this.firstActiveWindowIdPromise) {
+			return this.firstActiveWindowIdPromise;
+		}
+
+		return TPromise.as(`window:${this._activeWindowId}`);
 	}
 
 	dispose() {

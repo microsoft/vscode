@@ -9,6 +9,7 @@
 	flex-direction: row;
 	flex-wrap: nowrap;
 	justify-content: flex-start;
+	outline-style: none;
 }
 
 .monaco-breadcrumbs .monaco-breadcrumb-item {
@@ -16,13 +17,14 @@
 	align-items: center;
 	flex: 0 1 auto;
 	white-space: nowrap;
-	cursor: default;
+	cursor: pointer;
 	align-self: center;
 	height: 100%;
 }
 
 .monaco-breadcrumbs .monaco-breadcrumb-item:not(:last-child)::after {
 	background-image: url(./collapsed.svg);
+	opacity: .7;
 	width: 16px;
 	height: 16px;
 	display: inline-block;
@@ -35,6 +37,3 @@
 	background-image: url(./collpased-dark.svg);
 }
 
-.monaco-breadcrumbs .monaco-breadcrumb-item.focused {
-	font-weight: bold;
-}

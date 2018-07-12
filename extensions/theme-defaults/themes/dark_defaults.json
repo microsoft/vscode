@@ -10,6 +10,8 @@
 		"editor.selectionHighlightBackground": "#ADD6FF26",
 		"list.dropBackground": "#383B3D",
 		"activityBarBadge.background": "#007ACC",
-		"sideBarTitle.foreground": "#BBBBBB"
+		"sideBarTitle.foreground": "#BBBBBB",
+		"settings.textInputBackground": "#292929",
+		"settings.numberInputBackground": "#292929"
 	}
 }

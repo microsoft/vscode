@@ -83,7 +83,60 @@ suite('SnippetsService', function () {
 			assert.equal(result.incomplete, undefined);
 			assert.equal(result.suggestions.length, 1);
 			assert.equal(result.suggestions[0].label, 'bar');
+			assert.equal(result.suggestions[0].overwriteBefore, 3);
 			assert.equal(result.suggestions[0].insertText, 'barCodeSnippet');
+		});
+	});
+
+	test('snippet completions - with different prefixes', async function () {
+
+		snippetService = new SimpleSnippetService([new Snippet(
+			['fooLang'],
+			'barTest',
+			'bar',
+			'',
+			's1',
+			''
+		), new Snippet(
+			['fooLang'],
+			'name',
+			'bar-bar',
+			'',
+			's2',
+			''
+		)]);
+
+		const provider = new SnippetSuggestProvider(modeService, snippetService);
+		const model = TextModel.createFromString('bar-bar', undefined, modeService.getLanguageIdentifier('fooLang'));
+
+		await provider.provideCompletionItems(model, new Position(1, 3), suggestContext).then(result => {
+			assert.equal(result.incomplete, undefined);
+			assert.equal(result.suggestions.length, 2);
+			assert.equal(result.suggestions[0].label, 'bar');
+			assert.equal(result.suggestions[0].insertText, 's1');
+			assert.equal(result.suggestions[0].overwriteBefore, 2);
+			assert.equal(result.suggestions[1].label, 'bar-bar');
+			assert.equal(result.suggestions[1].insertText, 's2');
+			assert.equal(result.suggestions[1].overwriteBefore, 2);
+		});
+
+		await provider.provideCompletionItems(model, new Position(1, 5), suggestContext).then(result => {
+			assert.equal(result.incomplete, undefined);
+			assert.equal(result.suggestions.length, 1);
+			assert.equal(result.suggestions[0].label, 'bar-bar');
+			assert.equal(result.suggestions[0].insertText, 's2');
+			assert.equal(result.suggestions[0].overwriteBefore, 4);
+		});
+
+		await provider.provideCompletionItems(model, new Position(1, 6), suggestContext).then(result => {
+			assert.equal(result.incomplete, undefined);
+			assert.equal(result.suggestions.length, 2);
+			assert.equal(result.suggestions[0].label, 'bar');
+			assert.equal(result.suggestions[0].insertText, 's1');
+			assert.equal(result.suggestions[0].overwriteBefore, 1);
+			assert.equal(result.suggestions[1].label, 'bar-bar');
+			assert.equal(result.suggestions[1].insertText, 's2');
+			assert.equal(result.suggestions[1].overwriteBefore, 5);
 		});
 	});
 
@@ -108,13 +161,14 @@ suite('SnippetsService', function () {
 			return provider.provideCompletionItems(model, new Position(1, 4), suggestContext);
 		}).then(result => {
 			assert.equal(result.suggestions.length, 1);
+			assert.equal(result.suggestions[0].overwriteBefore, 2);
 			model.dispose();
 
 			model = TextModel.createFromString('a<?', undefined, modeService.getLanguageIdentifier('fooLang'));
 			return provider.provideCompletionItems(model, new Position(1, 4), suggestContext);
 		}).then(result => {
-
-			assert.equal(result.suggestions.length, 0);
+			assert.equal(result.suggestions.length, 1);
+			assert.equal(result.suggestions[0].overwriteBefore, 2);
 			model.dispose();
 		});
 	});
@@ -169,5 +223,28 @@ suite('SnippetsService', function () {
 			assert.equal(first.label, 'first');
 			assert.equal(second.label, 'second');
 		});
+	});
+
+	test('Dash in snippets prefix broken #53945', async function () {
+		snippetService = new SimpleSnippetService([new Snippet(
+			['fooLang'],
+			'p-a',
+			'p-a',
+			'',
+			'second',
+			''
+		)]);
+		const provider = new SnippetSuggestProvider(modeService, snippetService);
+
+		let model = TextModel.createFromString('p-', undefined, modeService.getLanguageIdentifier('fooLang'));
+
+		let result = await provider.provideCompletionItems(model, new Position(1, 2), suggestContext);
+		assert.equal(result.suggestions.length, 1);
+
+		result = await provider.provideCompletionItems(model, new Position(1, 3), suggestContext);
+		assert.equal(result.suggestions.length, 1);
+
+		result = await provider.provideCompletionItems(model, new Position(1, 3), { triggerCharacter: '-', triggerKind: SuggestTriggerKind.TriggerCharacter });
+		assert.equal(result.suggestions.length, 1);
 	});
 });

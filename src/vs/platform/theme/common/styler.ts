@@ -6,7 +6,7 @@
 'use strict';
 
 import { ITheme, IThemeService } from 'vs/platform/theme/common/themeService';
-import { focusBorder, inputBackground, inputForeground, ColorIdentifier, selectForeground, selectBackground, selectListBackground, selectBorder, inputBorder, foreground, editorBackground, contrastBorder, inputActiveOptionBorder, listFocusBackground, listFocusForeground, listActiveSelectionBackground, listActiveSelectionForeground, listInactiveSelectionForeground, listInactiveSelectionBackground, listInactiveFocusBackground, listHoverBackground, listHoverForeground, listDropBackground, pickerGroupBorder, pickerGroupForeground, widgetShadow, inputValidationInfoBorder, inputValidationInfoBackground, inputValidationWarningBorder, inputValidationWarningBackground, inputValidationErrorBorder, inputValidationErrorBackground, activeContrastBorder, buttonForeground, buttonBackground, buttonHoverBackground, ColorFunction, lighten, badgeBackground, badgeForeground, progressBarBackground } from 'vs/platform/theme/common/colorRegistry';
+import { focusBorder, inputBackground, inputForeground, ColorIdentifier, selectForeground, selectBackground, selectListBackground, selectBorder, inputBorder, foreground, editorBackground, contrastBorder, inputActiveOptionBorder, listFocusBackground, listFocusForeground, listActiveSelectionBackground, listActiveSelectionForeground, listInactiveSelectionForeground, listInactiveSelectionBackground, listInactiveFocusBackground, listHoverBackground, listHoverForeground, listDropBackground, pickerGroupBorder, pickerGroupForeground, widgetShadow, inputValidationInfoBorder, inputValidationInfoBackground, inputValidationWarningBorder, inputValidationWarningBackground, inputValidationErrorBorder, inputValidationErrorBackground, activeContrastBorder, buttonForeground, buttonBackground, buttonHoverBackground, ColorFunction, lighten, badgeBackground, badgeForeground, progressBarBackground, breadcrumbsForeground, breadcrumbsFocusForeground, breadcrumbsActiveSelectionBackground, breadcrumbsActiveSelectionForeground } from 'vs/platform/theme/common/colorRegistry';
 import { IDisposable } from 'vs/base/common/lifecycle';
 import { Color } from 'vs/base/common/color';
 import { mixin } from 'vs/base/common/objects';
@@ -265,28 +265,22 @@ export function attachStylerCallback(themeService: IThemeService, colors: { [nam
 
 export interface IBreadcrumbsWidgetStyleOverrides extends IStyleOverrides {
 	breadcrumbsBackground?: ColorIdentifier;
-	breadcrumbsItemHoverBackground?: ColorIdentifier;
-	breadcrumbsItemHoverForeground?: ColorIdentifier;
-	breadcrumbsItemFocusBackground?: ColorIdentifier;
-	breadcrumbsItemFocusForeground?: ColorIdentifier;
-	breadcrumbsActiveItemSelectionBackground?: ColorIdentifier;
-	breadcrumbsActiveItemSelectionForeground?: ColorIdentifier;
-	breadcrumbsInactiveItemSelectionBackground?: ColorIdentifier;
-	breadcrumbsInactiveItemSelectionForeground?: ColorIdentifier;
+	breadcrumbsForeground?: ColorIdentifier;
+	breadcrumbsHoverBackground?: ColorIdentifier;
+	breadcrumbsHoverForeground?: ColorIdentifier;
+	breadcrumbsFocusForeground?: ColorIdentifier;
+	breadcrumbsFocusAndSelectionBackground?: ColorIdentifier;
+	breadcrumbsFocusAndSelectionForeground?: ColorIdentifier;
 }
 
 export const defaultBreadcrumbsStyles = <IBreadcrumbsWidgetStyleOverrides>{
 	breadcrumbsBackground: editorBackground,
-	breadcrumbsItemHoverBackground: listHoverBackground,
-	breadcrumbsItemHoverForeground: listHoverForeground,
-	breadcrumbsItemFocusBackground: listFocusBackground,
-	breadcrumbsItemFocusForeground: listFocusForeground,
-	breadcrumbsItemSelectionBackground: listActiveSelectionBackground,
-	breadcrumbsItemSelectionForeground: listActiveSelectionForeground,
-	breadcrumbsActiveItemSelectionBackground: listActiveSelectionBackground,
-	breadcrumbsActiveItemSelectionForeground: listActiveSelectionForeground,
-	breadcrumbsInactiveItemSelectionBackground: editorBackground,
-	breadcrumbsInactiveItemSelectionForeground: listInactiveSelectionForeground,
+	breadcrumbsForeground: breadcrumbsForeground,
+	breadcrumbsHoverBackground: editorBackground,
+	breadcrumbsHoverForeground: breadcrumbsFocusForeground,
+	breadcrumbsFocusForeground: breadcrumbsFocusForeground,
+	breadcrumbsFocusAndSelectionBackground: breadcrumbsActiveSelectionBackground,
+	breadcrumbsFocusAndSelectionForeground: breadcrumbsActiveSelectionForeground,
 };
 
 export function attachBreadcrumbsStyler(widget: IThemable, themeService: IThemeService, style?: IBreadcrumbsWidgetStyleOverrides): IDisposable {

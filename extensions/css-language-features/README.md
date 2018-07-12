@@ -1,6 +1,15 @@
-# CSS Language Features
+# Language Features for CSS, SCSS and LESS files.
 
-This extension offers CSS/SCSS/Less support in VS Code.
+**Notice** This extension is bundled with Visual Studio Code. It can be disabled but not uninstalled.
+
+## Features
+
+This extension provides rich language support to CSS/SCSS/LESS files.
+- auto-completion
+- linting
+- diagnostics
+- extra information on hover
+- navigation to definition and references
 
 ## Development
 
@@ -19,7 +28,9 @@ This extension offers CSS/SCSS/Less support in VS Code.
 
 ### Contribute to vscode-css-languageservice
 
-[Microsoft/vscode-css-languageservice](https://github.com/Microsoft/vscode-css-languageservice) contains the language smarts for CSS/SCSS/Less, and this extension wraps the service into a Language Server for VS Code. If you want to fix CSS/SCSS/Less issues or make improvements, you should make changes at [Microsoft/vscode-css-languageservice](https://github.com/Microsoft/vscode-css-languageservice).
+[Microsoft/vscode-css-languageservice](https://github.com/Microsoft/vscode-css-languageservice) contains the language smarts for CSS/SCSS/Less.
+This extension wraps the css language service into a Language Server for VS Code.
+If you want to fix CSS/SCSS/Less issues or make improvements, you should make changes at [Microsoft/vscode-css-languageservice](https://github.com/Microsoft/vscode-css-languageservice).
 
 However, within this extension, you can run a development version of `vscode-css-languageservice` to debug code or test language features interactively:
 

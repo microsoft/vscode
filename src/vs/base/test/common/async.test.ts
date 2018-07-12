@@ -41,6 +41,95 @@ suite('Async', () => {
 		return result;
 	});
 
+	// Cancelling a sync cancelable promise will fire the cancelled token.
+	// Also, every `then` callback runs in another execution frame.
+	test('CancelablePromise execution order (sync)', function () {
+		const order = [];
+
+		const cancellablePromise = async.createCancelablePromise(token => {
+			order.push('in callback');
+			token.onCancellationRequested(_ => order.push('cancelled'));
+			return Promise.resolve(1234);
+		});
+
+		order.push('afterCreate');
+
+		const promise = cancellablePromise
+			.then(null, err => null)
+			.then(() => order.push('finally'));
+
+		cancellablePromise.cancel();
+		order.push('afterCancel');
+
+		return promise.then(() => assert.deepEqual(order, ['in callback', 'afterCreate', 'cancelled', 'afterCancel', 'finally']));
+	});
+
+	// Cancelling an async cancelable promise is just the same as a sync cancellable promise.
+	test('CancelablePromise execution order (async)', function () {
+		const order = [];
+
+		const cancellablePromise = async.createCancelablePromise(token => {
+			order.push('in callback');
+			token.onCancellationRequested(_ => order.push('cancelled'));
+			return new Promise(c => setTimeout(c(1234), 0));
+		});
+
+		order.push('afterCreate');
+
+		const promise = cancellablePromise
+			.then(null, err => null)
+			.then(() => order.push('finally'));
+
+		cancellablePromise.cancel();
+		order.push('afterCancel');
+
+		return promise.then(() => assert.deepEqual(order, ['in callback', 'afterCreate', 'cancelled', 'afterCancel', 'finally']));
+	});
+
+	// Cancelling a sync tpromise will NOT cancel the promise, since it has resolved already.
+	// Every `then` callback runs sync in the same execution frame, thus `finally` executes
+	// before `afterCancel`.
+	test('TPromise execution order (sync)', function () {
+		const order = [];
+		let promise = new TPromise(resolve => {
+			order.push('in executor');
+			resolve(1234);
+		}, () => order.push('cancelled'));
+
+		order.push('afterCreate');
+
+		promise = promise
+			.then(null, err => null)
+			.then(() => order.push('finally'));
+
+		promise.cancel();
+		order.push('afterCancel');
+
+		return promise.then(() => assert.deepEqual(order, ['in executor', 'afterCreate', 'finally', 'afterCancel']));
+	});
+
+	// Cancelling an async tpromise will cancel the promise.
+	// Every `then` callback runs sync on the same execution frame as the `cancel` call,
+	// so finally still executes before `afterCancel`.
+	test('TPromise execution order (async)', function () {
+		const order = [];
+		let promise = new TPromise(resolve => {
+			order.push('in executor');
+			setTimeout(() => resolve(1234));
+		}, () => order.push('cancelled'));
+
+		order.push('afterCreate');
+
+		promise = promise
+			.then(null, err => null)
+			.then(() => order.push('finally'));
+
+		promise.cancel();
+		order.push('afterCancel');
+
+		return promise.then(() => assert.deepEqual(order, ['in executor', 'afterCreate', 'cancelled', 'finally', 'afterCancel']));
+	});
+
 	test('cancelablePromise - get inner result', async function () {
 		let promise = async.createCancelablePromise(token => {
 			return async.timeout(12).then(_ => 1234);

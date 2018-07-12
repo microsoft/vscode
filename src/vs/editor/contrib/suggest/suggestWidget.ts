@@ -14,7 +14,7 @@ import { onUnexpectedError } from 'vs/base/common/errors';
 import { IDisposable, dispose, toDisposable } from 'vs/base/common/lifecycle';
 import { addClass, append, $, hide, removeClass, show, toggleClass, getDomNodePagePosition, hasClass } from 'vs/base/browser/dom';
 import { HighlightedLabel } from 'vs/base/browser/ui/highlightedlabel/highlightedLabel';
-import { IDelegate, IListEvent, IRenderer } from 'vs/base/browser/ui/list/list';
+import { IVirtualDelegate, IListEvent, IRenderer } from 'vs/base/browser/ui/list/list';
 import { List } from 'vs/base/browser/ui/list/listWidget';
 import { DomScrollableElement } from 'vs/base/browser/ui/scrollbar/scrollableElement';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
@@ -173,7 +173,10 @@ class Renderer implements IRenderer<ICompletionItem, ISuggestionTemplateData> {
 			data.readMore.onmousedown = null;
 			data.readMore.onclick = null;
 		}
+	}
 
+	disposeElement(): void {
+		// noop
 	}
 
 	disposeTemplate(templateData: ISuggestionTemplateData): void {
@@ -349,7 +352,7 @@ export interface ISelectedSuggestion {
 	model: CompletionModel;
 }
 
-export class SuggestWidget implements IContentWidget, IDelegate<ICompletionItem>, IDisposable {
+export class SuggestWidget implements IContentWidget, IVirtualDelegate<ICompletionItem>, IDisposable {
 
 	private static readonly ID: string = 'editor.widget.suggestWidget';
 
@@ -601,7 +604,11 @@ export class SuggestWidget implements IContentWidget, IDelegate<ICompletionItem>
 			} else {
 				removeClass(this.element, 'docs-side');
 			}
-		}).catch(onUnexpectedError).then(() => this.currentSuggestionDetails = null);
+		}).catch(onUnexpectedError).then(() => {
+			if (this.focusedItem === item) {
+				this.currentSuggestionDetails = null;
+			}
+		});
 
 		// emit an event
 		this.onDidFocusEmitter.fire({ item, index, model: this.completionModel });
