@@ -330,6 +330,13 @@ export class MenubarPart extends Part {
 				this.container.removeClass('inactive');
 			} else {
 				this.container.addClass('inactive');
+				if (!hasFocus) {
+					if (this.isVisible && this.currentMenubarVisibility === 'toggle') {
+						this.focusState = MenubarState.HIDDEN;
+					} else if (this.isFocused) {
+						this.focusState = MenubarState.VISIBLE;
+					}
+				}
 			}
 		}
 	}
@@ -664,7 +671,7 @@ export class MenubarPart extends Part {
 					}
 				});
 
-				this.customMenus[menuIndex].buttonElement.on(EventType.CLICK, () => {
+				this.customMenus[menuIndex].buttonElement.on(EventType.CLICK, (e) => {
 					if (this._modifierKeyStatus && (this._modifierKeyStatus.shiftKey || this._modifierKeyStatus.ctrlKey)) {
 						return; // supress keyboard shortcuts that shouldn't conflict
 					}
@@ -680,6 +687,9 @@ export class MenubarPart extends Part {
 						this.focusedMenu = { index: menuIndex };
 						this.focusState = MenubarState.OPEN;
 					}
+
+					e.preventDefault();
+					e.stopPropagation();
 				});
 
 				this.customMenus[menuIndex].buttonElement.on(EventType.MOUSE_ENTER, () => {
@@ -716,6 +726,13 @@ export class MenubarPart extends Part {
 					event.stopPropagation();
 				}
 			});
+
+			this._register($(window).on(EventType.CLICK, () => {
+				// This click is outide the menubar so it counts as a focus out
+				if (this.isFocused) {
+					this.focusState = this.currentMenubarVisibility === 'toggle' ? MenubarState.HIDDEN : MenubarState.VISIBLE;
+				}
+			}));
 		}
 
 		this.container.on(EventType.FOCUS_IN, (e) => {
