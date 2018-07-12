@@ -423,8 +423,6 @@ interface IDisposableTemplate {
 }
 
 interface ISettingItemTemplate extends IDisposableTemplate {
-	parent: HTMLElement;
-
 	containerElement: HTMLElement;
 	categoryElement: HTMLElement;
 	labelElement: HTMLElement;
@@ -588,7 +586,6 @@ export class SettingsRenderer implements IRenderer {
 
 		const toDispose = [];
 		const template: ISettingItemTemplate = {
-			parent: container,
 			toDispose,
 
 			containerElement: container,
@@ -699,8 +696,8 @@ export class SettingsRenderer implements IRenderer {
 		const isSelected = !!this.elementIsSelected(tree, element);
 		const setting = element.setting;
 
-		DOM.toggleClass(template.parent, 'is-configured', element.isConfigured);
-		DOM.toggleClass(template.parent, 'is-expanded', isSelected);
+		DOM.toggleClass(template.containerElement, 'is-configured', element.isConfigured);
+		DOM.toggleClass(template.containerElement, 'is-expanded', isSelected);
 		template.containerElement.id = element.id.replace(/\./g, '_');
 
 		const titleTooltip = setting.key;
