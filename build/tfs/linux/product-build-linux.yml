@@ -38,6 +38,7 @@ steps:
     set -e
     REPO="$(pwd)"
     ROOT="$REPO/.."
+    ARCH="$(VSCODE_ARCH)"
 
     # Publish tarball
     PLATFORM_LINUX="linux-$(VSCODE_ARCH)"
