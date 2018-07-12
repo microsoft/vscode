@@ -1009,6 +1009,10 @@ export class TestWindowService implements IWindowService {
 		return TPromise.as(void 0);
 	}
 
+	enterWorkspace(path: string): TPromise<IEnterWorkspaceResult> {
+		return TPromise.as(void 0);
+	}
+
 	createAndEnterWorkspace(folders?: IWorkspaceFolderCreationData[], path?: string): TPromise<IEnterWorkspaceResult> {
 		return TPromise.as(void 0);
 	}
@@ -1159,6 +1163,10 @@ export class TestWindowsService implements IWindowsService {
 	}
 
 	closeWorkspace(windowId: number): TPromise<void> {
+		return TPromise.as(void 0);
+	}
+
+	enterWorkspace(windowId: number, path: string): TPromise<IEnterWorkspaceResult> {
 		return TPromise.as(void 0);
 	}
 
