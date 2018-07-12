@@ -93,7 +93,6 @@ export class TerminalProcess implements ITerminalChildProcess, IDisposable {
 		if (this._closeTimeout) {
 			clearTimeout(this._closeTimeout);
 		}
-		// TODO: Dispose correctly
 		this._closeTimeout = setTimeout(() => {
 			this._ptyProcess.kill();
 			this._onProcessExit.fire(this._exitCode);
