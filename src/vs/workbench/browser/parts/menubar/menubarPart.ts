@@ -103,7 +103,6 @@ export class MenubarPart extends Part {
 	private container: Builder;
 	private recentlyOpened: IRecentlyOpened;
 	private updatePending: boolean;
-	private focusingWithAlt: boolean;
 	private _modifierKeyStatus: IModifierKeyStatus;
 	private _focusState: MenubarState;
 
@@ -343,8 +342,8 @@ export class MenubarPart extends Part {
 	}
 
 	private onModifierKeyToggled(modifierKeyStatus: IModifierKeyStatus): void {
-		const altKeyPressed = (!this._modifierKeyStatus || !this._modifierKeyStatus.altKey) && modifierKeyStatus.altKey;
-		const altKeyAlone = altKeyPressed && !modifierKeyStatus.ctrlKey && !modifierKeyStatus.shiftKey;
+		this._modifierKeyStatus = modifierKeyStatus;
+		const altKeyAlone = modifierKeyStatus.lastKeyPressed === 'alt' && !modifierKeyStatus.ctrlKey && !modifierKeyStatus.shiftKey;
 		const allModifiersReleased = !modifierKeyStatus.altKey && !modifierKeyStatus.ctrlKey && !modifierKeyStatus.shiftKey;
 
 		if (this.currentMenubarVisibility === 'toggle') {
@@ -357,7 +356,7 @@ export class MenubarPart extends Part {
 			}
 		}
 
-		if (allModifiersReleased && this.focusingWithAlt) {
+		if (allModifiersReleased && modifierKeyStatus.lastKeyPressed === 'alt' && modifierKeyStatus.lastKeyReleased === 'alt') {
 			if (!this.isFocused) {
 				this.focusedMenu = { index: 0 };
 				this.focusState = MenubarState.FOCUSED;
@@ -365,8 +364,6 @@ export class MenubarPart extends Part {
 				this.focusState = this.currentMenubarVisibility === 'toggle' ? MenubarState.HIDDEN : MenubarState.VISIBLE;
 			}
 		}
-
-		this._modifierKeyStatus = modifierKeyStatus;
 
 		if (this.currentEnableMenuBarMnemonics && this.customMenus) {
 			this.customMenus.forEach(customMenu => {
@@ -376,8 +373,6 @@ export class MenubarPart extends Part {
 				}
 			});
 		}
-
-		this.focusingWithAlt = altKeyAlone;
 	}
 
 	private onRecentlyOpenedChange(): void {
@@ -975,74 +970,80 @@ export class MenubarPart extends Part {
 	}
 }
 
+type ModifierKey = 'alt' | 'ctrl' | 'shift';
+
 interface IModifierKeyStatus {
 	altKey: boolean;
 	shiftKey: boolean;
 	ctrlKey: boolean;
+	lastKeyPressed?: ModifierKey;
+	lastKeyReleased?: ModifierKey;
 }
+
 
 class ModifierKeyEmitter extends Emitter<IModifierKeyStatus> {
 
 	private _subscriptions: IDisposable[] = [];
-	private _isPressed: IModifierKeyStatus;
+	private _keyStatus: IModifierKeyStatus;
 	private static instance: ModifierKeyEmitter;
 
 	private constructor() {
 		super();
 
-		this._isPressed = {
+		this._keyStatus = {
 			altKey: false,
 			shiftKey: false,
 			ctrlKey: false
 		};
 
 		this._subscriptions.push(domEvent(document.body, 'keydown')(e => {
-			if (e.altKey || e.shiftKey || e.ctrlKey) {
-				this.isPressed = {
-					altKey: e.altKey,
-					ctrlKey: e.ctrlKey,
-					shiftKey: e.shiftKey
-				};
+			if (e.altKey && !this._keyStatus.altKey) {
+				this._keyStatus.lastKeyPressed = 'alt';
+			} else if (e.ctrlKey && !this._keyStatus.ctrlKey) {
+				this._keyStatus.lastKeyPressed = 'ctrl';
+			} else if (e.shiftKey && !this._keyStatus.shiftKey) {
+				this._keyStatus.lastKeyPressed = 'shift';
+			} else {
+				this._keyStatus.lastKeyPressed = undefined;
+			}
+
+			this._keyStatus.altKey = e.altKey;
+			this._keyStatus.ctrlKey = e.ctrlKey;
+			this._keyStatus.shiftKey = e.shiftKey;
+
+			if (this._keyStatus.lastKeyPressed) {
+				this.fire(this._keyStatus);
 			}
 		}));
 		this._subscriptions.push(domEvent(document.body, 'keyup')(e => {
-			if ((!e.altKey && this.isPressed.altKey) ||
-				(!e.shiftKey && this.isPressed.shiftKey) ||
-				(!e.ctrlKey && this.isPressed.ctrlKey)
-			) {
+			if (!e.altKey && this._keyStatus.altKey) {
+				this._keyStatus.lastKeyReleased = 'alt';
+			} else if (!e.ctrlKey && this._keyStatus.ctrlKey) {
+				this._keyStatus.lastKeyReleased = 'ctrl';
+			} else if (!e.shiftKey && this._keyStatus.shiftKey) {
+				this._keyStatus.lastKeyReleased = 'shift';
+			} else {
+				this._keyStatus.lastKeyReleased = undefined;
+			}
 
-				this.isPressed = {
-					altKey: e.altKey,
-					shiftKey: e.shiftKey,
-					ctrlKey: e.ctrlKey
-				};
+			this._keyStatus.altKey = e.altKey;
+			this._keyStatus.ctrlKey = e.ctrlKey;
+			this._keyStatus.shiftKey = e.shiftKey;
+
+			if (this._keyStatus.lastKeyReleased) {
+				this.fire(this._keyStatus);
 			}
 		}));
 
-		this._subscriptions.push(domEvent(document.body, 'blur')(e => {
-			if (this.isPressed.altKey || this.isPressed.shiftKey || this.isPressed.ctrlKey) {
-				this.isPressed = {
-					altKey: false,
-					shiftKey: false,
-					ctrlKey: false
-				};
-			}
+		this._subscriptions.push(domEvent(window, 'blur')(e => {
+			this._keyStatus.lastKeyPressed = undefined;
+			this._keyStatus.lastKeyReleased = undefined;
+			this._keyStatus.altKey = false;
+			this._keyStatus.shiftKey = false;
+			this._keyStatus.shiftKey = false;
+
+			this.fire(this._keyStatus);
 		}));
-	}
-
-	get isPressed(): IModifierKeyStatus {
-		return this._isPressed;
-	}
-
-	set isPressed(value: IModifierKeyStatus) {
-		if (this._isPressed.altKey === value.altKey &&
-			this._isPressed.shiftKey === value.shiftKey &&
-			this._isPressed.ctrlKey === value.ctrlKey) {
-			return;
-		}
-
-		this._isPressed = value;
-		this.fire(this._isPressed);
 	}
 
 	static getInstance() {
