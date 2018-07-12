@@ -140,8 +140,6 @@ export class TerminalProcessManager implements ITerminalProcessManager {
 
 		this._process.onProcessTitleChanged(title => this._onProcessTitle.fire(title));
 		this._process.onProcessExit(exitCode => this._onExit(exitCode));
-		// this._process.on('message', message => this._onMessage(message));
-		// this._process.on('exit', exitCode => this._onExit(exitCode));
 
 		setTimeout(() => {
 			if (this.processState === ProcessState.LAUNCHING) {
@@ -158,7 +156,6 @@ export class TerminalProcessManager implements ITerminalProcessManager {
 		// The child process could already be terminated
 		try {
 			this._process.resize(cols, rows);
-			// this._process.send({ event: 'resize', cols, rows });
 		} catch (error) {
 			// We tried to write to a closed pipe / channel.
 			if (error.code !== 'EPIPE' && error.code !== 'ERR_IPC_CHANNEL_CLOSED') {
@@ -178,31 +175,6 @@ export class TerminalProcessManager implements ITerminalProcessManager {
 			this._preLaunchInputQueue.push(data);
 		}
 	}
-
-	// private _onMessage(message: IMessageFromTerminalProcess): void {
-	// 	this._logService.trace(`terminalProcessManager#_onMessage (shellProcessId: ${this.shellProcessId}`, message);
-	// 	switch (message.type) {
-	// 		case 'data':
-	// 			this._onProcessData.fire(<string>message.content);
-	// 			break;
-	// 		case 'pid':
-	// 			this.shellProcessId = <number>message.content;
-	// 			this._onProcessReady.fire();
-
-	// 			// Send any queued data that's waiting
-	// 			if (this._preLaunchInputQueue.length > 0) {
-	// 				this._process.send({
-	// 					event: 'input',
-	// 					data: this._preLaunchInputQueue.join('')
-	// 				});
-	// 				this._preLaunchInputQueue.length = 0;
-	// 			}
-	// 			break;
-	// 		case 'title':
-	// 			this._onProcessTitle.fire(<string>message.content);
-	// 			break;
-	// 	}
-	// }
 
 	private _onExit(exitCode: number): void {
 		this._process = null;

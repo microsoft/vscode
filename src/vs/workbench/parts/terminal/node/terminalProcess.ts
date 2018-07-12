@@ -34,8 +34,6 @@ export class TerminalProcess implements ITerminalChildProcess, IDisposable {
 		rows: number,
 		env: platform.IProcessEnvironment
 	) {
-		// The pty process needs to be run in its own child process to get around maxing out CPU on Mac,
-		// see https://github.com/electron/electron/issues/38
 		let shellName: string;
 		if (os.platform() === 'win32') {
 			shellName = path.basename(shellLaunchConfig.executable);
@@ -66,10 +64,10 @@ export class TerminalProcess implements ITerminalChildProcess, IDisposable {
 			this._queueProcessExit();
 		});
 
-		// TODO: We should no longer need to delay this since spawn is sync
+		// TODO: We should no longer need to delay this since pty.spawn is sync
 		setTimeout(() => {
 			this._sendProcessId();
-		}, 1000);
+		}, 500);
 		this._setupTitlePolling();
 	}
 
@@ -99,12 +97,14 @@ export class TerminalProcess implements ITerminalChildProcess, IDisposable {
 		this._closeTimeout = setTimeout(() => {
 			this._ptyProcess.kill();
 			this._onProcessExit.fire(this._exitCode);
+			this.dispose();
 		}, 250);
 	}
 
 	private _sendProcessId() {
 		this._onProcessIdReady.fire(this._ptyProcess.pid);
 	}
+
 	private _sendProcessTitle(): void {
 		this._currentTitle = this._ptyProcess.process;
 		this._onProcessTitleChanged.fire(this._currentTitle);
