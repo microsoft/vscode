@@ -3,12 +3,12 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { CodeLensProvider, CodeLens, CancellationToken, TextDocument, Range, Uri, Position, Event, EventEmitter } from 'vscode';
+import { CancellationToken, CodeLens, CodeLensProvider, Event, EventEmitter, Position, Range, TextDocument, Uri } from 'vscode';
 import * as Proto from '../protocol';
-
 import { ITypeScriptServiceClient } from '../typescriptService';
-import * as typeConverters from '../utils/typeConverters';
 import { escapeRegExp } from '../utils/regexp';
+import * as typeConverters from '../utils/typeConverters';
+
 
 export class ReferencesCodeLens extends CodeLens {
 	constructor(

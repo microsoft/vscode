@@ -4,20 +4,20 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as vscode from 'vscode';
-
-import { ITypeScriptServiceClient } from '../typescriptService';
-import TypingsStatus from '../utils/typingsStatus';
-
+import * as nls from 'vscode-nls';
 import * as Proto from '../protocol';
 import * as PConst from '../protocol.const';
+import { ITypeScriptServiceClient } from '../typescriptService';
+import API from '../utils/api';
+import { applyCodeAction } from '../utils/codeAction';
+import { Command, CommandManager } from '../utils/commandManager';
 import * as Previewer from '../utils/previewer';
 import * as typeConverters from '../utils/typeConverters';
-
-import * as nls from 'vscode-nls';
-import { applyCodeAction } from '../utils/codeAction';
-import { CommandManager, Command } from '../utils/commandManager';
+import TypingsStatus from '../utils/typingsStatus';
 import FileConfigurationManager from './fileConfigurationManager';
-import API from '../utils/api';
+
+
+
 
 const localize = nls.loadMessageBundle();
 

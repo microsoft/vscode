@@ -3,13 +3,13 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { CancellationToken, Uri, Event } from 'vscode';
+import { CancellationToken, Event, Uri } from 'vscode';
+import BufferSyncSupport from './features/bufferSyncSupport';
 import * as Proto from './protocol';
 import API from './utils/api';
-import { TypeScriptServerPlugin } from './utils/plugins';
 import { TypeScriptServiceConfiguration } from './utils/configuration';
 import Logger from './utils/logger';
-import BufferSyncSupport from './features/bufferSyncSupport';
+import { TypeScriptServerPlugin } from './utils/plugins';
 
 export interface ITypeScriptServiceClient {
 	/**

@@ -3,9 +3,9 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { MessageItem, workspace, Disposable, ProgressLocation, window } from 'vscode';
-import { ITypeScriptServiceClient } from '../typescriptService';
+import { Disposable, MessageItem, ProgressLocation, window, workspace } from 'vscode';
 import { loadMessageBundle } from 'vscode-nls';
+import { ITypeScriptServiceClient } from '../typescriptService';
 
 const localize = loadMessageBundle();
 

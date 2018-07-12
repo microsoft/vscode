@@ -4,10 +4,10 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as vscode from 'vscode';
-
 import { ITypeScriptServiceClient } from '../typescriptService';
-import * as typeConverters from '../utils/typeConverters';
 import API from '../utils/api';
+import * as typeConverters from '../utils/typeConverters';
+
 
 class TypeScriptReferenceSupport implements vscode.ReferenceProvider {
 	public constructor(

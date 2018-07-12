@@ -11,8 +11,8 @@ import API from '../utils/api';
 import { Delayer } from '../utils/async';
 import { disposeAll } from '../utils/dispose';
 import * as languageModeIds from '../utils/languageModeIds';
-import * as typeConverters from '../utils/typeConverters';
 import { ResourceMap } from '../utils/resourceMap';
+import * as typeConverters from '../utils/typeConverters';
 
 enum BufferKind {
 	TypeScript = 1,

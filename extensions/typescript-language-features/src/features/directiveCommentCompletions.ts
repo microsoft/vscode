@@ -6,8 +6,8 @@
 import * as vscode from 'vscode';
 import * as nls from 'vscode-nls';
 import { ITypeScriptServiceClient } from '../typescriptService';
-import { VersionDependentRegistration } from '../utils/dependentRegistration';
 import API from '../utils/api';
+import { VersionDependentRegistration } from '../utils/dependentRegistration';
 
 const localize = nls.loadMessageBundle();
 

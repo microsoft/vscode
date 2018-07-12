@@ -4,8 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as jsonc from 'jsonc-parser';
+import { dirname, join } from 'path';
 import * as vscode from 'vscode';
-import { join, dirname } from 'path';
 
 class TsconfigLinkProvider implements vscode.DocumentLinkProvider {
 

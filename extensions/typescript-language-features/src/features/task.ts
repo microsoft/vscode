@@ -8,14 +8,14 @@
 import * as fs from 'fs';
 import * as path from 'path';
 import * as vscode from 'vscode';
-
+import * as nls from 'vscode-nls';
 import * as Proto from '../protocol';
 import { ITypeScriptServiceClient } from '../typescriptService';
-import TsConfigProvider, { TSConfig } from '../utils/tsconfigProvider';
-import { isImplicitProjectConfigFile } from '../utils/tsconfig';
-
-import * as nls from 'vscode-nls';
 import { Lazy } from '../utils/lazy';
+import { isImplicitProjectConfigFile } from '../utils/tsconfig';
+import TsConfigProvider, { TSConfig } from '../utils/tsconfigProvider';
+
+
 const localize = nls.loadMessageBundle();
 
 type AutoDetect = 'on' | 'off' | 'build' | 'watch';

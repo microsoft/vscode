@@ -3,12 +3,12 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { workspace as Workspace, FormattingOptions, TextDocument, CancellationToken, window, Disposable, workspace, WorkspaceConfiguration } from 'vscode';
-
+import { CancellationToken, Disposable, FormattingOptions, TextDocument, window, workspace as Workspace, workspace, WorkspaceConfiguration } from 'vscode';
 import * as Proto from '../protocol';
 import { ITypeScriptServiceClient } from '../typescriptService';
 import API from '../utils/api';
 import { isTypeScriptDocument } from '../utils/languageModeIds';
+
 
 function objsAreEqual<T>(a: T, b: T): boolean {
 	let keys = Object.keys(a);
