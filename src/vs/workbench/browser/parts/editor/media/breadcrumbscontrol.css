@@ -28,10 +28,18 @@
 
 .monaco-workbench .monaco-breadcrumbs-picker {
 	overflow: hidden;
+	display: flex;
+	flex-direction: column;
 }
 
-.monaco-workbench .monaco-breadcrumbs-picker .monaco-inputbox {
-	margin: 5px 9px;
+.monaco-workbench .monaco-breadcrumbs-picker .breadcrumbs-picker-input {
+	padding: 5px 9px;
+	position: relative;
+	box-sizing: border-box;
+}
+
+.monaco-workbench .monaco-breadcrumbs-picker .breadcrumbs-picker-tree {
+	height: 100%;
 }
 
 .monaco-workbench .monaco-breadcrumbs-picker .monaco-highlighted-label .highlight{

@@ -309,25 +309,31 @@ export abstract class BreadcrumbsPicker {
 		this._focus = dom.trackFocus(this._domNode);
 		this._focus.onDidBlur(_ => this._onDidPickElement.fire(undefined), undefined, this._disposables);
 
-		this._input = new InputBox(this._domNode, undefined, { placeholder: localize('placeholder', "Find") });
+		const inputContainer = document.createElement('div');
+		inputContainer.className = 'breadcrumbs-picker-input';
+		this._domNode.appendChild(inputContainer);
+		this._input = new InputBox(inputContainer, undefined, { placeholder: localize('placeholder', "Find") });
 		this._input.setEnabled(false);
 		this._disposables.push(attachListStyler(this._input, this._themeService));
 
-		let treeConifg = this._completeTreeConfiguration({ dataSource: undefined, renderer: undefined });
-		this._tree = this._instantiationService.createInstance(WorkbenchTree, this._domNode, treeConifg, {});
+		const treeContainer = document.createElement('div');
+		treeContainer.className = 'breadcrumbs-picker-tree';
+		this._domNode.appendChild(treeContainer);
+		const treeConifg = this._completeTreeConfiguration({ dataSource: undefined, renderer: undefined });
+		this._tree = this._instantiationService.createInstance(WorkbenchTree, treeContainer, treeConifg, {});
 		this._disposables.push(this._tree.onDidChangeSelection(e => {
 			if (e.payload !== this) {
 				setTimeout(_ => this._onDidChangeSelection(e)); // need to debounce here because this disposes the tree and the tree doesn't like to be disposed on click
 			}
 		}));
 
-		this._tree.setInput(this._getInput(input)).then(_ => {
+		this._tree.setInput(this._getInput(input)).then(async _ => {
 
 			let selection = this._getInitialSelection(this._tree, input);
 			if (selection) {
+				await this._tree.reveal(selection);
 				this._tree.setSelection([selection], this);
 				this._tree.setFocus(selection);
-				this._tree.reveal(selection);
 			}
 
 			// input - interact with tree
@@ -361,7 +367,7 @@ export abstract class BreadcrumbsPicker {
 					this._tree.refresh(element).then(undefined, onUnexpectedError);
 				}
 				if (topElement) {
-					this._tree.reveal(topElement);
+					await this._tree.reveal(topElement);
 					this._tree.setFocus(topElement);
 					this._tree.setSelection([topElement], this);
 				}
