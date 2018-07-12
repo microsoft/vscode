@@ -1026,7 +1026,7 @@ registerThemingParticipant((theme: ITheme, collector: ICssStyleCollector) => {
 	if (menuBgColor) {
 		collector.addRule(`
 			.monaco-menu .monaco-action-bar.vertical,
-			.monaco-menu .monaco-action-bar.vertical .action-menu-item {
+			.monaco-menu .monaco-action-bar.vertical .action-item {
 				background-color: ${menuBgColor};
 			}
 		`);
@@ -1036,7 +1036,7 @@ registerThemingParticipant((theme: ITheme, collector: ICssStyleCollector) => {
 	if (menuFgColor) {
 		collector.addRule(`
 			.monaco-menu .monaco-action-bar.vertical,
-			.monaco-menu .monaco-action-bar.vertical .action-menu-item {
+			.monaco-menu .monaco-action-bar.vertical .action-item {
 				color: ${menuFgColor};
 			}
 		`);
@@ -1045,18 +1045,18 @@ registerThemingParticipant((theme: ITheme, collector: ICssStyleCollector) => {
 	const selectedMenuItemBgColor = theme.getColor(MENU_SELECTION_BACKGROUND);
 	if (menuBgColor) {
 		collector.addRule(`
-		.monaco-menu .monaco-action-bar.vertical .action-item.focused > .action-menu-item,
-		.monaco-menu .monaco-action-bar.vertical .action-menu-item:hover {
-				background-color: ${selectedMenuItemBgColor};
-			}
+			.monaco-menu .monaco-action-bar.vertical .action-item.focused,
+			.monaco-menu .monaco-action-bar.vertical .action-item:hover:not(.disabled) {
+					background-color: ${selectedMenuItemBgColor};
+				}
 		`);
 	}
 
 	const selectedMenuItemFgColor = theme.getColor(MENU_SELECTION_FOREGROUND);
 	if (selectedMenuItemFgColor) {
 		collector.addRule(`
-		.monaco-menu .monaco-action-bar.vertical .action-item.focused > .action-menu-item,
-		.monaco-menu .monaco-action-bar.vertical .action-menu-item:hover {
+		.monaco-menu .monaco-action-bar.vertical .action-item.focused,
+		.monaco-menu .monaco-action-bar.vertical .action-item:hover:not(.disabled) {
 				color: ${selectedMenuItemFgColor};
 			}
 		`);
@@ -1065,16 +1065,16 @@ registerThemingParticipant((theme: ITheme, collector: ICssStyleCollector) => {
 	const selectedMenuItemBorderColor = theme.getColor(MENU_SELECTION_BORDER);
 	if (selectedMenuItemBorderColor) {
 		collector.addRule(`
-		.monaco-menu .monaco-action-bar.vertical .action-item.focused > .action-menu-item {
+		.monaco-menu .monaco-action-bar.vertical .action-item.focused {
 			outline: solid 1px;
 		}
 
-		.monaco-menu .monaco-action-bar.vertical .action-menu-item:hover {
+		.monaco-menu .monaco-action-bar.vertical .action-item:hover:not(.disabled) {
 			outline: dashed 1px;
 		}
 
-		.monaco-menu .monaco-action-bar.vertical .action-item.focused > .action-menu-item,
-		.monaco-menu .monaco-action-bar.vertical .action-menu-item:hover {
+		.monaco-menu .monaco-action-bar.vertical .action-item.focused,
+		.monaco-menu .monaco-action-bar.vertical .action-item:hover:not(.disabled) {
 				outline-offset: -1px;
 				outline-color: ${selectedMenuItemBorderColor};
 			}
