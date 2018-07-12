@@ -62,29 +62,33 @@ export class HistoryMainService implements IHistoryMainService {
 			const mru = this.getRecentlyOpened();
 
 			// Workspaces
-			workspaces.forEach(workspace => {
-				const isUntitledWorkspace = !isSingleFolderWorkspaceIdentifier(workspace) && this.workspacesMainService.isUntitledWorkspace(workspace);
-				if (isUntitledWorkspace) {
-					return; // only store saved workspaces
-				}
+			if (Array.isArray(workspaces)) {
+				workspaces.forEach(workspace => {
+					const isUntitledWorkspace = !isSingleFolderWorkspaceIdentifier(workspace) && this.workspacesMainService.isUntitledWorkspace(workspace);
+					if (isUntitledWorkspace) {
+						return; // only store saved workspaces
+					}
 
-				mru.workspaces.unshift(workspace);
-				mru.workspaces = arrays.distinct(mru.workspaces, workspace => this.distinctFn(workspace));
+					mru.workspaces.unshift(workspace);
+					mru.workspaces = arrays.distinct(mru.workspaces, workspace => this.distinctFn(workspace));
 
-				// We do not add to recent documents here because on Windows we do this from a custom
-				// JumpList and on macOS we fill the recent documents in one go from all our data later.
-			});
+					// We do not add to recent documents here because on Windows we do this from a custom
+					// JumpList and on macOS we fill the recent documents in one go from all our data later.
+				});
+			}
 
 			// Files
-			files.forEach((path) => {
-				mru.files.unshift(path);
-				mru.files = arrays.distinct(mru.files, file => this.distinctFn(file));
+			if (Array.isArray(files)) {
+				files.forEach((path) => {
+					mru.files.unshift(path);
+					mru.files = arrays.distinct(mru.files, file => this.distinctFn(file));
 
-				// Add to recent documents (Windows only, macOS later)
-				if (isWindows) {
-					app.addRecentDocument(path);
-				}
-			});
+					// Add to recent documents (Windows only, macOS later)
+					if (isWindows) {
+						app.addRecentDocument(path);
+					}
+				});
+			}
 
 			// Make sure its bounded
 			mru.workspaces = mru.workspaces.slice(0, HistoryMainService.MAX_TOTAL_RECENT_ENTRIES);
