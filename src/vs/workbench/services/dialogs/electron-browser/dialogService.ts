@@ -13,6 +13,7 @@ import { isLinux, isWindows } from 'vs/base/common/platform';
 import { IWindowService } from 'vs/platform/windows/common/windows';
 import { mnemonicButtonLabel } from 'vs/base/common/labels';
 import { IDialogService, IConfirmation, IConfirmationResult, IDialogOptions } from 'vs/platform/dialogs/common/dialogs';
+import { ILogService } from 'vs/platform/log/common/log';
 
 interface IMassagedMessageBoxOptions {
 
@@ -34,10 +35,13 @@ export class DialogService implements IDialogService {
 	_serviceBrand: any;
 
 	constructor(
-		@IWindowService private windowService: IWindowService
+		@IWindowService private windowService: IWindowService,
+		@ILogService private logService: ILogService
 	) { }
 
 	confirm(confirmation: IConfirmation): TPromise<IConfirmationResult> {
+		this.logService.trace('DialogService#confirm', confirmation.message);
+
 		const { options, buttonIndexMap } = this.massageMessageBoxOptions(this.getConfirmOptions(confirmation));
 
 		return this.windowService.showMessageBox(options).then(result => {
@@ -86,6 +90,8 @@ export class DialogService implements IDialogService {
 	}
 
 	show(severity: Severity, message: string, buttons: string[], dialogOptions?: IDialogOptions): TPromise<number> {
+		this.logService.trace('DialogService#show', message);
+
 		const { options, buttonIndexMap } = this.massageMessageBoxOptions({
 			message,
 			buttons,

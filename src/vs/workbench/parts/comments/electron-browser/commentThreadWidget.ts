@@ -26,7 +26,7 @@ import { IInstantiationService } from 'vs/platform/instantiation/common/instanti
 import { IModelService } from 'vs/editor/common/services/modelService';
 import { SimpleCommentEditor } from './simpleCommentEditor';
 import URI from 'vs/base/common/uri';
-import { transparent, editorForeground } from 'vs/platform/theme/common/colorRegistry';
+import { transparent, editorForeground, inputValidationErrorBorder } from 'vs/platform/theme/common/colorRegistry';
 import { IModeService } from 'vs/editor/common/services/modeService';
 import { IKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { KeyCode } from 'vs/base/common/keyCodes';
@@ -270,7 +270,7 @@ export class ReviewZoneWidget extends ZoneWidget {
 	}
 
 	protected _doLayout(heightInPixel: number, widthInPixel: number): void {
-		this._commentEditor.layout({ height: (this._commentEditor.hasWidgetFocus() ? 5 : 1) * 18, width: widthInPixel - 20 /* margin */ });
+		this._commentEditor.layout({ height: (this._commentEditor.hasWidgetFocus() ? 5 : 1) * 18, width: widthInPixel - 40 /* margin */ });
 	}
 
 	display(lineNumber: number) {
@@ -353,6 +353,22 @@ export class ReviewZoneWidget extends ZoneWidget {
 		attachButtonStyler(button, this.themeService);
 		button.label = 'Add comment';
 		button.onDidClick(async () => {
+			if (!this._commentEditor.getValue()) {
+				this._commentEditor.focus();
+				this._commentEditor.getDomNode().style.outline = `1px solid ${this.themeService.getTheme().getColor(inputValidationErrorBorder)}`;
+
+
+				this._disposables.push(this._commentEditor.onDidChangeModelContent(_ => {
+					if (!this._commentEditor.getValue()) {
+						this._commentEditor.getDomNode().style.outline = `1px solid ${this.themeService.getTheme().getColor(inputValidationErrorBorder)}`;
+					} else {
+						this._commentEditor.getDomNode().style.outline = '';
+					}
+				}));
+
+				return;
+			}
+
 			let newCommentThread;
 			if (this._commentThread.threadId) {
 				// reply

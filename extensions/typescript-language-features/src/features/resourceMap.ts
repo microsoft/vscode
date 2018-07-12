@@ -45,12 +45,16 @@ export class ResourceMap<T> {
 		}
 	}
 
+	public clear() {
+		this._map.clear();
+	}
+
 	public get values(): Iterable<T> {
 		return this._map.values();
 	}
 
-	public get keys(): Iterable<string> {
-		return this._map.keys();
+	public get entries() {
+		return this._map.entries();
 	}
 
 	private toKey(resource: Uri): string | null {

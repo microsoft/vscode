@@ -61,7 +61,7 @@ export const tocData: ITOCEntry = {
 				{
 					id: 'editor/suggestions',
 					label: localize('suggestions', "Suggestions"),
-					settings: ['editor.*suggestion*']
+					settings: ['editor.*suggest*']
 				},
 				{
 					id: 'editor/files',

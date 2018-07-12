@@ -9,6 +9,7 @@
 	flex-direction: row;
 	flex-wrap: nowrap;
 	justify-content: flex-start;
+	outline-style: none;
 }
 
 .monaco-breadcrumbs .monaco-breadcrumb-item {
@@ -16,7 +17,7 @@
 	align-items: center;
 	flex: 0 1 auto;
 	white-space: nowrap;
-	cursor: default;
+	cursor: pointer;
 	align-self: center;
 	height: 100%;
 }

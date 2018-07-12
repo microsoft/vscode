@@ -9,11 +9,9 @@ import { CancellationTokenSource } from 'vs/base/common/cancellation';
 import { toErrorMessage } from 'vs/base/common/errorMessage';
 import * as glob from 'vs/base/common/glob';
 import * as resources from 'vs/base/common/resources';
-import * as strings from 'vs/base/common/strings';
 import URI, { UriComponents } from 'vs/base/common/uri';
 import { PPromise, TPromise } from 'vs/base/common/winjs.base';
 import * as extfs from 'vs/base/node/extfs';
-import * as pfs from 'vs/base/node/pfs';
 import { IFileMatch, IFolderQuery, IPatternInfo, IRawSearchQuery, ISearchCompleteStats, ISearchQuery } from 'vs/platform/search/common/search';
 import * as vscode from 'vscode';
 import { ExtHostSearchShape, IMainContext, MainContext, MainThreadSearchShape } from './extHost.protocol';
@@ -30,9 +28,9 @@ export class ExtHostSearch implements ExtHostSearchShape {
 
 	private _fileSearchManager: FileSearchManager;
 
-	constructor(mainContext: IMainContext, private _schemeTransformer: ISchemeTransformer, private _extfs = extfs, private _pfs = pfs) {
+	constructor(mainContext: IMainContext, private _schemeTransformer: ISchemeTransformer, private _extfs = extfs) {
 		this._proxy = mainContext.getProxy(MainContext.MainThreadSearch);
-		this._fileSearchManager = new FileSearchManager(this._pfs);
+		this._fileSearchManager = new FileSearchManager();
 	}
 
 	private _transformScheme(scheme: string): string {
@@ -506,7 +504,6 @@ function patternInfoToQuery(patternInfo: IPatternInfo): vscode.TextSearchQuery {
 
 class FileSearchEngine {
 	private filePattern: string;
-	private normalizedFilePatternLowercase: string;
 	private includePattern: glob.ParsedExpression;
 	private maxResults: number;
 	private exists: boolean;
@@ -518,7 +515,7 @@ class FileSearchEngine {
 
 	private globalExcludePattern: glob.ParsedExpression;
 
-	constructor(private config: ISearchQuery, private provider: vscode.SearchProvider, private _pfs: typeof pfs) {
+	constructor(private config: ISearchQuery, private provider: vscode.SearchProvider) {
 		this.filePattern = config.filePattern;
 		this.includePattern = config.includePattern && glob.parse(config.includePattern);
 		this.maxResults = config.maxResults || null;
@@ -526,10 +523,6 @@ class FileSearchEngine {
 		this.resultCount = 0;
 		this.isLimitHit = false;
 		this.activeCancellationTokens = new Set<CancellationTokenSource>();
-
-		if (this.filePattern) {
-			this.normalizedFilePatternLowercase = strings.stripWildcards(this.filePattern).toLowerCase();
-		}
 
 		this.globalExcludePattern = config.excludePattern && glob.parse(config.excludePattern);
 	}
@@ -633,19 +626,6 @@ class FileSearchEngine {
 						return null;
 					}
 
-					if (noSiblingsClauses && this.isLimitHit) {
-						// If the limit was hit, check whether filePattern is an exact relative match because it must be included
-						return this.checkFilePatternRelativeMatch(fq.folder).then(({ exists, size }) => {
-							if (exists) {
-								onResult({
-									base: fq.folder,
-									relativePath: this.filePattern,
-									basename: path.basename(this.filePattern),
-								});
-							}
-						});
-					}
-
 					this.matchDirectoryTree(tree, queryTester, onResult);
 					return null;
 				}).then(
@@ -743,26 +723,8 @@ class FileSearchEngine {
 		matchDirectory(rootEntries);
 	}
 
-	private checkFilePatternRelativeMatch(base: URI): TPromise<{ exists: boolean, size?: number }> {
-		if (!this.filePattern || path.isAbsolute(this.filePattern) || base.scheme !== 'file') {
-			return TPromise.wrap({ exists: false });
-		}
-
-		const absolutePath = path.join(base.fsPath, this.filePattern);
-		return this._pfs.stat(absolutePath).then(stat => {
-			return {
-				exists: !stat.isDirectory(),
-				size: stat.size
-			};
-		}, err => {
-			return {
-				exists: false
-			};
-		});
-	}
-
 	private matchFile(onResult: (result: IInternalFileMatch) => void, candidate: IInternalFileMatch): void {
-		if (this.isFilePatternMatch(candidate.relativePath) && (!this.includePattern || this.includePattern(candidate.relativePath, candidate.basename))) {
+		if (!this.includePattern || this.includePattern(candidate.relativePath, candidate.basename)) {
 			if (this.exists || (this.maxResults && this.resultCount >= this.maxResults)) {
 				this.isLimitHit = true;
 				this.cancel();
@@ -772,20 +734,6 @@ class FileSearchEngine {
 				onResult(candidate);
 			}
 		}
-	}
-
-	private isFilePatternMatch(path: string): boolean {
-		// Check for search pattern
-		if (this.filePattern) {
-			if (this.filePattern === '*') {
-				return true; // support the all-matching wildcard
-			}
-
-			return strings.fuzzyContains(path, this.normalizedFilePatternLowercase);
-		}
-
-		// No patterns means we match all
-		return true;
 	}
 }
 
@@ -800,12 +748,10 @@ class FileSearchManager {
 
 	private readonly expandedCacheKeys = new Map<string, string[]>();
 
-	constructor(private _pfs: typeof pfs) { }
-
 	fileSearch(config: ISearchQuery, provider: vscode.SearchProvider): PPromise<ISearchCompleteStats, IFileMatch[]> {
 		let searchP: PPromise;
 		return new PPromise<ISearchCompleteStats, IFileMatch[]>((c, e, p) => {
-			const engine = new FileSearchEngine(config, provider, this._pfs);
+			const engine = new FileSearchEngine(config, provider);
 
 			searchP = this.doSearch(engine, FileSearchManager.BATCH_SIZE).then(
 				result => {

@@ -242,6 +242,8 @@ export class SelectBoxList implements ISelectBoxDelegate, IVirtualDelegate<ISele
 
 		if (selected !== undefined) {
 			this.select(selected);
+			// Set current = selected since this is not necessarily a user exit
+			this._currentSelection = this.selected;
 		}
 	}
 
@@ -527,8 +529,10 @@ export class SelectBoxList implements ISelectBoxDelegate, IVirtualDelegate<ISele
 
 	// List methods
 
-	// List mouse controller - active exit, select option, fire onDidSelect, return focus to parent select
+	// List mouse controller - active exit, select option, fire onDidSelect if change, return focus to parent select
 	private onMouseUp(e: MouseEvent): void {
+
+		dom.EventHelper.stop(e);
 
 		// Check our mouse event is on an option (not scrollbar)
 		if (!e.toElement.classList.contains('option-text')) {
@@ -546,59 +550,58 @@ export class SelectBoxList implements ISelectBoxDelegate, IVirtualDelegate<ISele
 
 			this.selectList.setFocus([this.selected]);
 			this.selectList.reveal(this.selectList.getFocus()[0]);
-			this._onDidSelect.fire({
-				index: this.selectElement.selectedIndex,
-				selected: this.selectElement.title
-			});
 
-			// Reset Selection Handler
-			this._currentSelection = -1;
+			// Only fire if selection change
+			if (this.selected !== this._currentSelection) {
+				// Set current = selected
+				this._currentSelection = this.selected;
+
+				this._onDidSelect.fire({
+					index: this.selectElement.selectedIndex,
+					selected: this.selectElement.title
+				});
+			}
+
 			this.hideSelectDropDown(true);
 		}
-		dom.EventHelper.stop(e);
 	}
 
-	// List Exit - passive - hide drop-down, fire onDidSelect
+	// List Exit - passive - implicit no selection change, hide drop-down
 	private onListBlur(): void {
 
-		if (this._currentSelection >= 0) {
+		if (this.selected !== this._currentSelection) {
+			// Reset selected to current if no change
 			this.select(this._currentSelection);
 		}
-
-		this._onDidSelect.fire({
-			index: this.selectElement.selectedIndex,
-			selected: this.selectElement.title
-		});
 
 		this.hideSelectDropDown(false);
 	}
 
 	// List keyboard controller
-	// List exit - active - hide ContextView dropdown, return focus to parent select, fire onDidSelect
+
+	// List exit - active - hide ContextView dropdown, reset selection, return focus to parent select
 	private onEscape(e: StandardKeyboardEvent): void {
 		dom.EventHelper.stop(e);
+
+		// Reset selection to value when opened
 		this.select(this._currentSelection);
-
 		this.hideSelectDropDown(true);
-
-		this._onDidSelect.fire({
-			index: this.selectElement.selectedIndex,
-			selected: this.selectElement.title
-		});
 	}
 
-	// List exit - active - hide ContextView dropdown, return focus to parent select, fire onDidSelect
+	// List exit - active - hide ContextView dropdown, return focus to parent select, fire onDidSelect if change
 	private onEnter(e: StandardKeyboardEvent): void {
 		dom.EventHelper.stop(e);
 
-		// Reset current selection
-		this._currentSelection = -1;
+		// Only fire if selection change
+		if (this.selected !== this._currentSelection) {
+			this._currentSelection = this.selected;
+			this._onDidSelect.fire({
+				index: this.selectElement.selectedIndex,
+				selected: this.selectElement.title
+			});
+		}
 
 		this.hideSelectDropDown(true);
-		this._onDidSelect.fire({
-			index: this.selectElement.selectedIndex,
-			selected: this.selectElement.title
-		});
 	}
 
 	// List navigation - have to handle a disabled option (jump over)
