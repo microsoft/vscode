@@ -26,7 +26,14 @@
 	margin-right: 8px;
 }
 
-.monaco-breadcrumbs-picker {
-	border-style: solid;
-	border-width: 1px;
+.monaco-workbench .monaco-breadcrumbs-picker {
+	overflow: hidden;
+}
+
+.monaco-workbench .monaco-breadcrumbs-picker .monaco-inputbox {
+	margin: 5px 9px;
+}
+
+.monaco-workbench .monaco-breadcrumbs-picker .monaco-highlighted-label .highlight{
+	font-weight: bold;
 }
