@@ -33,7 +33,7 @@ import { IWorkspaceIdentifier, ISingleFolderWorkspaceIdentifier, isSingleFolderW
 import { getPathLabel } from 'vs/base/common/labels';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { RunOnceScheduler } from 'vs/base/common/async';
-import { MENUBAR_SELECTED_FOREGROUND, MENUBAR_SELECTED_BACKGROUND, MENUBAR_SELECTED_BORDER, TITLE_BAR_ACTIVE_FOREGROUND, TITLE_BAR_INACTIVE_FOREGROUND, MENU_BACKGROUND, MENU_FOREGROUND, MENU_SELECTED_BACKGROUND, MENU_SELECTED_FOREGROUND, MENU_SELECTED_BORDER } from 'vs/workbench/common/theme';
+import { MENUBAR_SELECTION_FOREGROUND, MENUBAR_SELECTION_BACKGROUND, MENUBAR_SELECTION_BORDER, TITLE_BAR_ACTIVE_FOREGROUND, TITLE_BAR_INACTIVE_FOREGROUND, MENU_BACKGROUND, MENU_FOREGROUND, MENU_SELECTION_BACKGROUND, MENU_SELECTION_FOREGROUND, MENU_SELECTION_BORDER } from 'vs/workbench/common/theme';
 
 interface CustomMenu {
 	title: string;
@@ -979,7 +979,7 @@ registerThemingParticipant((theme: ITheme, collector: ICssStyleCollector) => {
 	}
 
 
-	const menubarSelectedFgColor = theme.getColor(MENUBAR_SELECTED_FOREGROUND);
+	const menubarSelectedFgColor = theme.getColor(MENUBAR_SELECTION_FOREGROUND);
 	if (menubarSelectedFgColor) {
 		collector.addRule(`
 			.monaco-workbench > .part.menubar > .menubar-menu-button.open,
@@ -990,7 +990,7 @@ registerThemingParticipant((theme: ITheme, collector: ICssStyleCollector) => {
 		`);
 	}
 
-	const menubarSelectedBgColor = theme.getColor(MENUBAR_SELECTED_BACKGROUND);
+	const menubarSelectedBgColor = theme.getColor(MENUBAR_SELECTION_BACKGROUND);
 	if (menubarSelectedBgColor) {
 		collector.addRule(`
 			.monaco-workbench > .part.menubar > .menubar-menu-button.open,
@@ -1001,7 +1001,7 @@ registerThemingParticipant((theme: ITheme, collector: ICssStyleCollector) => {
 		`);
 	}
 
-	const menubarSelectedBorderColor = theme.getColor(MENUBAR_SELECTED_BORDER);
+	const menubarSelectedBorderColor = theme.getColor(MENUBAR_SELECTION_BORDER);
 	if (menubarSelectedBorderColor) {
 		collector.addRule(`
 			.monaco-workbench > .part.menubar > .menubar-menu-button:hover {
@@ -1042,7 +1042,7 @@ registerThemingParticipant((theme: ITheme, collector: ICssStyleCollector) => {
 		`);
 	}
 
-	const selectedMenuItemBgColor = theme.getColor(MENU_SELECTED_BACKGROUND);
+	const selectedMenuItemBgColor = theme.getColor(MENU_SELECTION_BACKGROUND);
 	if (menuBgColor) {
 		collector.addRule(`
 		.monaco-menu .monaco-action-bar.vertical .action-item.focused > .action-menu-item,
@@ -1052,7 +1052,7 @@ registerThemingParticipant((theme: ITheme, collector: ICssStyleCollector) => {
 		`);
 	}
 
-	const selectedMenuItemFgColor = theme.getColor(MENU_SELECTED_FOREGROUND);
+	const selectedMenuItemFgColor = theme.getColor(MENU_SELECTION_FOREGROUND);
 	if (selectedMenuItemFgColor) {
 		collector.addRule(`
 		.monaco-menu .monaco-action-bar.vertical .action-item.focused > .action-menu-item,
@@ -1062,7 +1062,7 @@ registerThemingParticipant((theme: ITheme, collector: ICssStyleCollector) => {
 		`);
 	}
 
-	const selectedMenuItemBorderColor = theme.getColor(MENU_SELECTED_BORDER);
+	const selectedMenuItemBorderColor = theme.getColor(MENU_SELECTION_BORDER);
 	if (selectedMenuItemBorderColor) {
 		collector.addRule(`
 		.monaco-menu .monaco-action-bar.vertical .action-item.focused > .action-menu-item {
