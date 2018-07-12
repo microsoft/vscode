@@ -66,9 +66,9 @@ export function register() {
 		'**/[jt]sconfig.*.json',
 	];
 
-	const selector: vscode.DocumentSelector = patterns.map((pattern): vscode.DocumentFilter => ({
-		language: 'jsonc',
-		pattern: pattern
-	}));
+	const languages = ['json', 'jsonc'];
+
+	const selector: vscode.DocumentSelector = ([] as any[]).concat(
+		...languages.map(language => patterns.map((pattern): vscode.DocumentFilter => ({ language, pattern }))));
 	return vscode.languages.registerDocumentLinkProvider(selector, new TsconfigLinkProvider());
 }
