@@ -634,7 +634,67 @@ suite('Experiment Service', () => {
 		return TPromise.join([custom, prompt]);
 	});
 
+	test('experimentsPreviouslyRun includes, excludes check', () => {
+		experimentData = {
+			experiments: [
+				{
+					id: 'experiment3',
+					enabled: true,
+					condition: {
+						experimentsPreviouslyRun: {
+							includes: ['experiment1'],
+							excludes: ['experiment2']
+						}
+					}
+				},
+				{
+					id: 'experiment4',
+					enabled: true,
+					condition: {
+						experimentsPreviouslyRun: {
+							includes: ['experiment1'],
+							excludes: ['experiment200']
+						}
+					}
+				}
+			]
+		};
 
+		let storageDataExperiment3 = { enabled: true, state: ExperimentState.Evaluating };
+		let storageDataExperiment4 = { enabled: true, state: ExperimentState.Evaluating };
+		instantiationService.stub(IStorageService, {
+			get: (a, b, c) => {
+				switch (a) {
+					case 'currentOrPreviouslyRunExperiments':
+						return JSON.stringify(['experiment1', 'experiment2']);
+					default:
+						break;
+				}
+				return c;
+			},
+			store: (a, b, c) => {
+				switch (a) {
+					case 'experiments.experiment3':
+						storageDataExperiment3 = JSON.parse(b);
+						break;
+					case 'experiments.experiment4':
+						storageDataExperiment4 = JSON.parse(b);
+						break;
+					default:
+						break;
+				}
+			}
+		});
+
+		testObject = instantiationService.createInstance(TestExperimentService);
+		return testObject.getExperimentsToRunByType(ExperimentActionType.Custom).then(result => {
+			assert.equal(result.length, 1);
+			assert.equal(result[0].id, 'experiment4');
+			assert.equal(storageDataExperiment3.state, ExperimentState.NoRun);
+			assert.equal(storageDataExperiment4.state, ExperimentState.Run);
+			return TPromise.as(null);
+		});
+	});
 	// test('Experiment with condition type FileEdit should increment editcount as appropriate', () => {
 
 	// });

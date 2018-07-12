@@ -55,6 +55,10 @@ interface IRawExperiment {
 			workspaceExcludes?: string[];
 			minEditCount: number;
 		},
+		experimentsPreviouslyRun?: {
+			excludes?: string[];
+			includes?: string[];
+		}
 		userProbability?: number;
 	};
 	action?: IExperimentAction;
@@ -251,7 +255,7 @@ export class ExperimentService extends Disposable implements IExperimentService 
 					this.storageService.store(storageKey, JSON.stringify(experimentState));
 
 					if (state === ExperimentState.Run) {
-						this._onExperimentEnabled.fire(processedExperiment);
+						this.fireRunExperiment(processedExperiment);
 					}
 					return TPromise.as(null);
 				});
@@ -261,6 +265,15 @@ export class ExperimentService extends Disposable implements IExperimentService 
 				this.telemetryService.publicLog('experiments', this._experiments);
 			});
 		});
+	}
+
+	private fireRunExperiment(experiment: IExperiment) {
+		this._onExperimentEnabled.fire(experiment);
+		const runExperimentIdsFromStorage: string[] = safeParse(this.storageService.get('currentOrPreviouslyRunExperiments', StorageScope.GLOBAL), []);
+		if (runExperimentIdsFromStorage.indexOf(experiment.id)) {
+			runExperimentIdsFromStorage.push(experiment.id);
+			this.storageService.store('currentOrPreviouslyRunExperiments', JSON.stringify(runExperimentIdsFromStorage));
+		}
 	}
 
 	private shouldRunExperiment(experiment: IRawExperiment, processedExperiment: IExperiment): TPromise<ExperimentState> {
@@ -274,6 +287,21 @@ export class ExperimentService extends Disposable implements IExperimentService 
 
 		if (!experiment.condition) {
 			return TPromise.wrap(ExperimentState.Run);
+		}
+
+		if (experiment.condition.experimentsPreviouslyRun) {
+			const runExperimentIdsFromStorage: string[] = safeParse(this.storageService.get('currentOrPreviouslyRunExperiments', StorageScope.GLOBAL), []);
+			let includeCheck = true;
+			let excludeCheck = true;
+			if (Array.isArray(experiment.condition.experimentsPreviouslyRun.includes)) {
+				includeCheck = runExperimentIdsFromStorage.some(x => experiment.condition.experimentsPreviouslyRun.includes.indexOf(x) > -1);
+			}
+			if (includeCheck && Array.isArray(experiment.condition.experimentsPreviouslyRun.excludes)) {
+				excludeCheck = !runExperimentIdsFromStorage.some(x => experiment.condition.experimentsPreviouslyRun.excludes.indexOf(x) > -1);
+			}
+			if (!includeCheck || !excludeCheck) {
+				return TPromise.wrap(ExperimentState.NoRun);
+			}
 		}
 
 		if (this.environmentService.appQuality === 'stable' && experiment.condition.insidersOnly === true) {
@@ -371,7 +399,7 @@ export class ExperimentService extends Disposable implements IExperimentService 
 					processedExperiment.state = latestExperimentState.state = Math.random() < experiment.condition.userProbability ? ExperimentState.Run : ExperimentState.NoRun;
 					this.storageService.store(storageKey, JSON.stringify(latestExperimentState), StorageScope.GLOBAL);
 					if (latestExperimentState.state === ExperimentState.Run && ExperimentActionType[experiment.action.type] === ExperimentActionType.Prompt) {
-						this._onExperimentEnabled.fire(processedExperiment);
+						this.fireRunExperiment(processedExperiment);
 					}
 				}
 			});
