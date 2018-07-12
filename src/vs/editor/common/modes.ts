@@ -840,7 +840,11 @@ export interface FoldingContext {
  */
 export interface FoldingRangeProvider {
 	/**
-	 * Provides the color ranges for a specific model.
+	 * Provides the id of the provider.
+	 */
+	id(): string | null;
+	/**
+	 * Provides the folding ranges for a specific model.
 	 */
 	provideFoldingRanges(model: model.ITextModel, context: FoldingContext, token: CancellationToken): FoldingRange[] | Thenable<FoldingRange[]>;
 }

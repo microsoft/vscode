@@ -2889,7 +2889,7 @@ declare namespace monaco.editor {
 		 * Selects the folding strategy. 'auto' uses the strategies contributed for the current document, 'indentation' uses the indentation based folding strategy.
 		 * Defaults to 'auto'.
 		 */
-		foldingStrategy?: 'auto' | 'indentation';
+		foldingStrategy?: string;
 		/**
 		 * Controls whether the fold actions in the gutter stay always visible or hide unless the mouse is over the gutter.
 		 * Defaults to 'mouseover'.
@@ -3190,7 +3190,7 @@ declare namespace monaco.editor {
 		readonly occurrencesHighlight: boolean;
 		readonly codeLens: boolean;
 		readonly folding: boolean;
-		readonly foldingStrategy: 'auto' | 'indentation';
+		readonly foldingStrategy: string;
 		readonly showFoldingControls: 'always' | 'mouseover';
 		readonly matchBrackets: boolean;
 		readonly find: InternalEditorFindOptions;
@@ -5139,7 +5139,11 @@ declare namespace monaco.languages {
 	 */
 	export interface FoldingRangeProvider {
 		/**
-		 * Provides the color ranges for a specific model.
+		 * Provides the id of the provider.
+		 */
+		id(): string | null;
+		/**
+		 * Provides the folding ranges for a specific model.
 		 */
 		provideFoldingRanges(model: editor.ITextModel, context: FoldingContext, token: CancellationToken): FoldingRange[] | Thenable<FoldingRange[]>;
 	}

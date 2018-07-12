@@ -291,7 +291,7 @@ export interface MainThreadLanguageFeaturesShape extends IDisposable {
 	$registerSignatureHelpProvider(handle: number, selector: ISerializedDocumentFilter[], triggerCharacter: string[]): void;
 	$registerDocumentLinkProvider(handle: number, selector: ISerializedDocumentFilter[]): void;
 	$registerDocumentColorProvider(handle: number, selector: ISerializedDocumentFilter[]): void;
-	$registerFoldingRangeProvider(handle: number, selector: ISerializedDocumentFilter[]): void;
+	$registerFoldingRangeProvider(handle: number, id: string | null, selector: ISerializedDocumentFilter[]): void;
 	$setLanguageConfiguration(handle: number, languageId: string, configuration: ISerializedLanguageConfiguration): void;
 }
 

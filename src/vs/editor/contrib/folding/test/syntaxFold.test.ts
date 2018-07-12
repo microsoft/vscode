@@ -20,6 +20,10 @@ class TestFoldingRangeProvider implements FoldingRangeProvider {
 	constructor(private model: ITextModel, private ranges: IndentRange[]) {
 	}
 
+	id() {
+		return null;
+	}
+
 	provideFoldingRanges(model: ITextModel, context: FoldingContext, token: CancellationToken): FoldingRange[] {
 		if (model === this.model) {
 			return this.ranges;

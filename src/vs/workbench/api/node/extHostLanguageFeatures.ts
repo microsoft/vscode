@@ -828,10 +828,14 @@ class ColorProviderAdapter {
 
 class FoldingProviderAdapter {
 
+	public readonly id?: string;
+
 	constructor(
 		private _documents: ExtHostDocuments,
 		private _provider: vscode.FoldingRangeProvider
-	) { }
+	) {
+		this.id = _provider.id;
+	}
 
 	provideFoldingRanges(resource: URI, context: modes.FoldingContext): TPromise<modes.FoldingRange[]> {
 		const doc = this._documents.getDocumentData(resource).document;
@@ -1194,7 +1198,7 @@ export class ExtHostLanguageFeatures implements ExtHostLanguageFeaturesShape {
 
 	registerFoldingRangeProvider(selector: vscode.DocumentSelector, provider: vscode.FoldingRangeProvider): vscode.Disposable {
 		const handle = this._addNewAdapter(new FoldingProviderAdapter(this._documents, provider));
-		this._proxy.$registerFoldingRangeProvider(handle, this._transformDocumentSelector(selector));
+		this._proxy.$registerFoldingRangeProvider(handle, provider.id, this._transformDocumentSelector(selector));
 		return this._createDisposable(handle);
 	}
 

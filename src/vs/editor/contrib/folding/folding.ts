@@ -59,7 +59,7 @@ export class FoldingController implements IEditorContribution {
 	private editor: ICodeEditor;
 	private _isEnabled: boolean;
 	private _autoHideFoldingControls: boolean;
-	private _useFoldingProviders: boolean;
+	private _foldingStrategy: string;
 
 	private foldingDecorationProvider: FoldingDecorationProvider;
 
@@ -84,7 +84,7 @@ export class FoldingController implements IEditorContribution {
 		this.editor = editor;
 		this._isEnabled = this.editor.getConfiguration().contribInfo.folding;
 		this._autoHideFoldingControls = this.editor.getConfiguration().contribInfo.showFoldingControls === 'mouseover';
-		this._useFoldingProviders = this.editor.getConfiguration().contribInfo.foldingStrategy !== 'indentation';
+		this._foldingStrategy = this.editor.getConfiguration().contribInfo.foldingStrategy;
 
 		this.globalToDispose = [];
 		this.localToDispose = [];
@@ -108,9 +108,9 @@ export class FoldingController implements IEditorContribution {
 					this.foldingDecorationProvider.autoHideFoldingControls = this._autoHideFoldingControls;
 					this.onModelContentChanged();
 				}
-				let oldUseFoldingProviders = this._useFoldingProviders;
-				this._useFoldingProviders = this.editor.getConfiguration().contribInfo.foldingStrategy !== 'indentation';
-				if (oldUseFoldingProviders !== this._useFoldingProviders) {
+				let oldFoldingStrategy = this._foldingStrategy;
+				this._foldingStrategy = this.editor.getConfiguration().contribInfo.foldingStrategy;
+				if (oldFoldingStrategy !== this._foldingStrategy) {
 					this.onFoldingStrategyChanged();
 				}
 			}
@@ -228,9 +228,15 @@ export class FoldingController implements IEditorContribution {
 		if (this.rangeProvider) {
 			return this.rangeProvider;
 		}
-		this.rangeProvider = new IndentRangeProvider(editorModel); // fallback
 
-		if (this._useFoldingProviders) {
+		if (this._foldingStrategy !== 'auto' && this._foldingStrategy !== 'indentation') {
+			const foldingProviders = FoldingRangeProviderRegistry.entries().filter(provider => provider.id() === this._foldingStrategy);
+			if (foldingProviders.length > 0) {
+				this.rangeProvider = new SyntaxRangeProvider(editorModel, foldingProviders);
+			}
+		}
+
+		if (this._foldingStrategy === 'auto' || (this._foldingStrategy !== 'indentation' && !this.rangeProvider)) {
 			let foldingProviders = FoldingRangeProviderRegistry.ordered(this.foldingModel.textModel);
 			if (foldingProviders.length === 0 && this.foldingStateMemento) {
 				this.rangeProvider = new InitializingRangeProvider(editorModel, this.foldingStateMemento.collapsedRegions, () => {
@@ -243,6 +249,11 @@ export class FoldingController implements IEditorContribution {
 				this.rangeProvider = new SyntaxRangeProvider(editorModel, foldingProviders);
 			}
 		}
+
+		if (!this.rangeProvider) {
+			this.rangeProvider = new IndentRangeProvider(editorModel); // fallback
+		}
+
 		this.foldingStateMemento = null;
 		return this.rangeProvider;
 	}

@@ -546,7 +546,7 @@ export interface IEditorOptions {
 	 * Selects the folding strategy. 'auto' uses the strategies contributed for the current document, 'indentation' uses the indentation based folding strategy.
 	 * Defaults to 'auto'.
 	 */
-	foldingStrategy?: 'auto' | 'indentation';
+	foldingStrategy?: string;
 	/**
 	 * Controls whether the fold actions in the gutter stay always visible or hide unless the mouse is over the gutter.
 	 * Defaults to 'mouseover'.
@@ -906,7 +906,7 @@ export interface EditorContribOptions {
 	readonly occurrencesHighlight: boolean;
 	readonly codeLens: boolean;
 	readonly folding: boolean;
-	readonly foldingStrategy: 'auto' | 'indentation';
+	readonly foldingStrategy: string;
 	readonly showFoldingControls: 'always' | 'mouseover';
 	readonly matchBrackets: boolean;
 	readonly find: InternalEditorFindOptions;
@@ -1853,7 +1853,7 @@ export class EditorOptionsValidator {
 			occurrencesHighlight: _boolean(opts.occurrencesHighlight, defaults.occurrencesHighlight),
 			codeLens: _boolean(opts.codeLens, defaults.codeLens),
 			folding: _boolean(opts.folding, defaults.folding),
-			foldingStrategy: _stringSet<'auto' | 'indentation'>(opts.foldingStrategy, defaults.foldingStrategy, ['auto', 'indentation']),
+			foldingStrategy: _string(opts.foldingStrategy, defaults.foldingStrategy),
 			showFoldingControls: _stringSet<'always' | 'mouseover'>(opts.showFoldingControls, defaults.showFoldingControls, ['always', 'mouseover']),
 			matchBrackets: _boolean(opts.matchBrackets, defaults.matchBrackets),
 			find: find,
