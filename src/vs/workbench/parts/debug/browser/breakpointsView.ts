@@ -83,12 +83,6 @@ export class BreakpointsView extends ViewletPanel {
 
 		this.list.onContextMenu(this.onListContextMenu, this, this.disposables);
 
-		this.disposables.push(this.list.onDidFocus(() => {
-			if (this.list.getFocusedElements().length === 0) {
-				this.list.focusFirst();
-			}
-		}));
-
 		this.disposables.push(this.list.onOpen(e => {
 			let isSingleClick = false;
 			let isDoubleClick = false;
@@ -113,6 +107,10 @@ export class BreakpointsView extends ViewletPanel {
 		}));
 
 		this.list.splice(0, this.list.length, this.elements);
+
+		if (this.list.getSelection().length === 0 && this.list.getFocus().length === 0) {
+			this.list.focusNext();
+		}
 	}
 
 	public focus(): void {
@@ -202,6 +200,9 @@ export class BreakpointsView extends ViewletPanel {
 			}
 			if (this.list) {
 				this.list.splice(0, this.list.length, this.elements);
+				if (this.list.getSelection().length === 0 && this.list.getFocus().length === 0) {
+					this.list.focusNext();
+				}
 				this.needsRefresh = false;
 			}
 		} else {
