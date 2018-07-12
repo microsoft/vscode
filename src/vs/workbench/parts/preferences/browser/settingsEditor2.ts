@@ -24,7 +24,7 @@ import { IInstantiationService } from 'vs/platform/instantiation/common/instanti
 import { WorkbenchTree, WorkbenchTreeController } from 'vs/platform/list/browser/listService';
 import { ILogService } from 'vs/platform/log/common/log';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { editorBackground, foreground, listActiveSelectionBackground, listInactiveSelectionBackground } from 'vs/platform/theme/common/colorRegistry';
+import { editorBackground, focusBorder, foreground, listInactiveSelectionBackground, registerColor } from 'vs/platform/theme/common/colorRegistry';
 import { attachButtonStyler, attachStyler } from 'vs/platform/theme/common/styler';
 import { ICssStyleCollector, ITheme, IThemeService, registerThemingParticipant } from 'vs/platform/theme/common/themeService';
 import { BaseEditor } from 'vs/workbench/browser/parts/editor/baseEditor';
@@ -39,6 +39,12 @@ import { SettingsEditor2Input } from 'vs/workbench/services/preferences/common/p
 import { DefaultSettingsEditorModel } from 'vs/workbench/services/preferences/common/preferencesModels';
 
 const $ = DOM.$;
+
+export const settingItemInactiveSelectionBorder = registerColor('settings.inactiveSelectedItemBorder', {
+	dark: '#3F3F46',
+	light: '#CCCEDB',
+	hc: null
+}, localize('settingItemInactiveSelectionBorder', "The color of the selected setting row border, when the settings list does not have focus."));
 
 export class SettingsEditor2 extends BaseEditor {
 
@@ -344,12 +350,12 @@ export class SettingsEditor2 extends BaseEditor {
 			});
 
 		this._register(registerThemingParticipant((theme: ITheme, collector: ICssStyleCollector) => {
-			const activeBorderColor = theme.getColor(listActiveSelectionBackground);
+			const activeBorderColor = theme.getColor(focusBorder);
 			if (activeBorderColor) {
 				collector.addRule(`.settings-editor > .settings-body > .settings-tree-container .monaco-tree:focus .monaco-tree-row.focused {outline: solid 1px ${activeBorderColor}; outline-offset: -1px; }`);
 			}
 
-			const inactiveBorderColor = theme.getColor(listInactiveSelectionBackground);
+			const inactiveBorderColor = theme.getColor(settingItemInactiveSelectionBorder);
 			if (inactiveBorderColor) {
 				collector.addRule(`.settings-editor > .settings-body > .settings-tree-container .monaco-tree .monaco-tree-row.focused {outline: solid 1px ${inactiveBorderColor}; outline-offset: -1px; }`);
 			}
