@@ -57,7 +57,18 @@ interface IRawExperiment {
 		},
 		userProbability?: number;
 	};
-	action?: { type: string; properties: any };
+	action?: IExperimentAction;
+}
+
+interface IExperimentAction {
+	type: ExperimentActionType;
+	properties: any;
+}
+
+export enum ExperimentActionType {
+	Custom = 'Custom',
+	Prompt = 'Prompt',
+	AddToRecommendations = 'AddToRecommendations'
 }
 
 export interface IExperimentActionPromptProperties {
@@ -65,10 +76,9 @@ export interface IExperimentActionPromptProperties {
 	commands: IExperimentActionPromptCommand[];
 }
 
-interface IExperimentActionPromptCommand {
+export interface IExperimentActionPromptCommand {
 	text: string;
 	externalLink?: string;
-	dontShowAgain?: boolean;
 	curatedExtensionsKey?: string;
 	curatedExtensionsList?: string[];
 }
@@ -78,17 +88,6 @@ export interface IExperiment {
 	enabled: boolean;
 	state: ExperimentState;
 	action?: IExperimentAction;
-}
-
-export enum ExperimentActionType {
-	Custom,
-	Prompt,
-	AddToRecommendations
-}
-
-interface IExperimentAction {
-	type: ExperimentActionType;
-	properties: any;
 }
 
 export interface IExperimentService {
