@@ -344,7 +344,6 @@ export class ExtensionsViewlet extends ViewContainerViewlet implements IExtensio
 		this.disposables.push(this.searchBox.onDidBlurEditorText(() => removeClass(this.monacoStyleContainer, 'synthetic-focus')));
 
 		const onKeyDownMonaco = chain(this.searchBox.onKeyDown);
-		onKeyDownMonaco.filter(e => e.keyCode === KeyCode.Escape).on(this.onEscape, this, this.disposables);
 		onKeyDownMonaco.filter(e => e.keyCode === KeyCode.Tab).on(e => e.stopPropagation(), this, this.disposables);
 		onKeyDownMonaco.filter(e => e.keyCode === KeyCode.Enter).on(e => {
 			e.preventDefault();
@@ -509,10 +508,6 @@ export class ExtensionsViewlet extends ViewContainerViewlet implements IExtensio
 
 	private count(): number {
 		return this.panels.reduce((count, view) => (<ExtensionsListView>view).count() + count, 0);
-	}
-
-	private onEscape(): void {
-		this.search('');
 	}
 
 	private autoComplete(query: string, position: number): { fullText: string, additionalText: string, overwrite: number }[] {
