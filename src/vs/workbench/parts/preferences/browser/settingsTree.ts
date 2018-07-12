@@ -83,7 +83,6 @@ export class SettingsTreeGroupElement extends SettingsTreeElement {
 export class SettingsTreeSettingElement extends SettingsTreeElement {
 	setting: ISetting;
 
-	isExpanded: boolean;
 	displayCategory: string;
 	displayLabel: string;
 	value: any;
@@ -195,7 +194,6 @@ function createSettingsTreeSettingElement(setting: ISetting, parent: any, settin
 	element.setting = setting;
 	element.displayLabel = displayKeyFormat.label;
 	element.displayCategory = displayKeyFormat.category;
-	element.isExpanded = false;
 
 	element.value = displayValue;
 	element.isConfigured = isConfigured;
@@ -716,6 +714,9 @@ export class SettingsRenderer implements IRenderer {
 		renderedDescription.classList.add('setting-item-description-markdown');
 		template.descriptionElement.innerHTML = '';
 		template.descriptionElement.appendChild(renderedDescription);
+		renderedDescription.querySelectorAll('a').forEach(aElement => {
+			aElement.tabIndex = isSelected ? 0 : -1;
+		});
 
 		this.renderValue(element, isSelected, <ISettingItemTemplate>template);
 
