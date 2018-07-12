@@ -89,12 +89,12 @@ export default class FileConfigurationManager {
 			return;
 		}
 
+		this.formatOptions[key] = currentOptions;
 		const args: Proto.ConfigureRequestArguments = {
 			file,
 			...currentOptions,
 		};
 		await this.client.execute('configure', args, token);
-		this.formatOptions[key] = currentOptions;
 	}
 
 	public reset() {
