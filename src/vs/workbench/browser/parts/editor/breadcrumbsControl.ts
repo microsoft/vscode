@@ -172,16 +172,29 @@ export class BreadcrumbsControl {
 		this._widget.layout(dim);
 	}
 
-	update(): void {
+	isHidden(): boolean {
+		return dom.hasClass(this.domNode, 'hidden');
+	}
+
+	hide(): void {
+		this._breadcrumbsDisposables = dispose(this._breadcrumbsDisposables);
+		this._ckBreadcrumbsVisible.set(false);
+		dom.toggleClass(this.domNode, 'hidden', true);
+	}
+
+	update(): boolean {
 		const input = this._editorGroup.activeEditor;
 		this._breadcrumbsDisposables = dispose(this._breadcrumbsDisposables);
 
 		if (!input || !input.getResource() || !this._fileService.canHandleResource(input.getResource())) {
 			// cleanup and return when there is no input or when
 			// we cannot handle this input
-			this._ckBreadcrumbsVisible.set(false);
-			dom.toggleClass(this.domNode, 'hidden', true);
-			return;
+			if (!this.isHidden()) {
+				this.hide();
+				return true;
+			} else {
+				return false;
+			}
 		}
 
 		dom.toggleClass(this.domNode, 'hidden', false);
@@ -198,13 +211,10 @@ export class BreadcrumbsControl {
 		let listener = model.onDidUpdate(updateBreadcrumbs);
 		updateBreadcrumbs();
 		this._breadcrumbsDisposables = [model, listener];
+		return true;
 	}
 
-	clear(): void {
-		this._breadcrumbsDisposables = dispose(this._breadcrumbsDisposables);
-		this._ckBreadcrumbsVisible.set(false);
-		dom.toggleClass(this.domNode, 'hidden', true);
-	}
+
 
 	private _onFocusEvent(event: IBreadcrumbsItemEvent): void {
 		if (event.item && this._breadcrumbsPickerShowing) {

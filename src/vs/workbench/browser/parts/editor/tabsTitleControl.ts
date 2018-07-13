@@ -137,6 +137,14 @@ export class TabsTitleControl extends TitleControl {
 		this.titleContainer.appendChild(this.scrollbar.getDomNode());
 	}
 
+	private updateBreadcrumbsControl(): void {
+		if (this.breadcrumbsControl && this.breadcrumbsControl.update()) {
+			// relayout when we have a breadcrumbs and when update changed
+			// its hidden-status
+			this.group.relayout();
+		}
+	}
+
 	private registerContainerListeners(): void {
 
 		// Group dragging
@@ -251,9 +259,7 @@ export class TabsTitleControl extends TitleControl {
 		this.redraw();
 
 		// Update Breadcrumbs
-		if (this.breadcrumbsControl) {
-			this.breadcrumbsControl.update();
-		}
+		this.updateBreadcrumbsControl();
 	}
 
 	closeEditor(editor: IEditorInput): void {
@@ -303,9 +309,7 @@ export class TabsTitleControl extends TitleControl {
 		}
 
 		// Update Breadcrumbs
-		if (this.breadcrumbsControl) {
-			this.breadcrumbsControl.update();
-		}
+		this.updateBreadcrumbsControl();
 	}
 
 	moveEditor(editor: IEditorInput, fromIndex: number, targetIndex: number): void {
@@ -929,7 +933,7 @@ export class TabsTitleControl extends TitleControl {
 			return;
 		}
 
-		if (this.breadcrumbsControl) {
+		if (this.breadcrumbsControl && !this.breadcrumbsControl.isHidden()) {
 			this.breadcrumbsControl.layout({ width: dimension.width, height: BreadcrumbsControl.HEIGHT });
 			this.scrollbar.getDomNode().style.height = `${dimension.height - BreadcrumbsControl.HEIGHT}px`;
 		}

@@ -217,7 +217,7 @@ export class NoTabsTitleControl extends TitleControl {
 				this.breadcrumbsControl.update();
 				toggleClass(this.breadcrumbsControl.domNode, 'preview', !isEditorPinned);
 			} else {
-				this.breadcrumbsControl.clear();
+				this.breadcrumbsControl.hide();
 			}
 		}
 	}
