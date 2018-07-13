@@ -474,8 +474,8 @@ export interface ISettingChangeEvent {
 
 export class SettingsRenderer implements IRenderer {
 
-	private static readonly SETTING_ROW_HEIGHT = 94;
-	private static readonly SETTING_BOOL_ROW_HEIGHT = 61;
+	private static readonly SETTING_ROW_HEIGHT = 98;
+	private static readonly SETTING_BOOL_ROW_HEIGHT = 65;
 
 	private readonly _onDidChangeSetting: Emitter<ISettingChangeEvent> = new Emitter<ISettingChangeEvent>();
 	public readonly onDidChangeSetting: Event<ISettingChangeEvent> = this._onDidChangeSetting.event;
