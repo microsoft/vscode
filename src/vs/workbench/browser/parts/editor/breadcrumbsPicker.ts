@@ -240,8 +240,9 @@ export class BreadcrumbsOutlinePicker extends BreadcrumbsPicker {
 
 	protected _getInput(input: BreadcrumbElement): any {
 		let element = input as TreeElement;
-		OutlineModel.get(element).updateMatches('');
-		return (element).parent;
+		let model = OutlineModel.get(element);
+		model.updateMatches('');
+		return model;
 	}
 
 	protected _getInitialSelection(_tree: ITree, input: BreadcrumbElement): any {
