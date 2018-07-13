@@ -20,6 +20,7 @@ import { IPosition } from 'vs/editor/common/core/position';
 import { DocumentSymbolProviderRegistry } from 'vs/editor/common/modes';
 import { OutlineElement, OutlineGroup, OutlineModel } from 'vs/editor/contrib/documentSymbols/outlineModel';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
+import { Schemas } from 'vs/base/common/network';
 
 export class FileElement {
 	constructor(
@@ -60,6 +61,11 @@ export class EditorBreadcrumbsModel {
 	}
 
 	private static _getFileElements(uri: URI, workspaceService: IWorkspaceContextService): FileElement[] {
+
+		if (uri.scheme === Schemas.untitled) {
+			return [];
+		}
+
 		let result: FileElement[] = [];
 		let workspace = workspaceService.getWorkspaceFolder(uri);
 		let path = uri.path;

@@ -169,6 +169,16 @@ export class NoTabsTitleControl extends TitleControl {
 		const isEditorPinned = this.group.isPinned(this.group.activeEditor);
 		const isGroupActive = this.accessor.activeGroup === this.group;
 
+		// Update Breadcrumbs
+		if (this.breadcrumbsControl) {
+			if (isGroupActive) {
+				this.breadcrumbsControl.update();
+				toggleClass(this.breadcrumbsControl.domNode, 'preview', !isEditorPinned);
+			} else {
+				this.breadcrumbsControl.hide();
+			}
+		}
+
 		// Clear if there is no editor
 		if (!editor) {
 			removeClass(this.titleContainer, 'dirty');
@@ -187,7 +197,7 @@ export class NoTabsTitleControl extends TitleControl {
 
 			const { labelFormat } = this.accessor.partOptions;
 			let description: string;
-			if (this.breadcrumbsControl) {
+			if (this.breadcrumbsControl && !this.breadcrumbsControl.isHidden()) {
 				description = ''; // hide description when showing breadcrumbs
 			} else if (labelFormat === 'default' && !isGroupActive) {
 				description = ''; // hide description when group is not active and style is 'default'
@@ -209,16 +219,6 @@ export class NoTabsTitleControl extends TitleControl {
 
 			// Update Editor Actions Toolbar
 			this.updateEditorActionsToolbar();
-		}
-
-		// Update Breadcrumbs
-		if (this.breadcrumbsControl) {
-			if (isGroupActive) {
-				this.breadcrumbsControl.update();
-				toggleClass(this.breadcrumbsControl.domNode, 'preview', !isEditorPinned);
-			} else {
-				this.breadcrumbsControl.hide();
-			}
 		}
 	}
 

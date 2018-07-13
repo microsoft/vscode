@@ -16,10 +16,9 @@ import 'vs/css!./media/breadcrumbscontrol';
 import { ICodeEditor, isCodeEditor } from 'vs/editor/browser/editorBrowser';
 import { Range } from 'vs/editor/common/core/range';
 import { OutlineElement, OutlineGroup, OutlineModel, TreeElement } from 'vs/editor/contrib/documentSymbols/outlineModel';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { ContextKeyExpr, IContextKey, IContextKeyService, RawContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { IContextViewService } from 'vs/platform/contextview/browser/contextView';
-import { FileKind, IFileService } from 'vs/platform/files/common/files';
+import { FileKind } from 'vs/platform/files/common/files';
 import { IConstructorSignature2, IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { KeybindingsRegistry } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { attachBreadcrumbsStyler } from 'vs/platform/theme/common/styler';
@@ -134,11 +133,9 @@ export class BreadcrumbsControl {
 		@IContextKeyService private readonly _contextKeyService: IContextKeyService,
 		@IContextViewService private readonly _contextViewService: IContextViewService,
 		@IEditorService private readonly _editorService: IEditorService,
-		@IFileService private readonly _fileService: IFileService,
 		@IWorkspaceContextService private readonly _workspaceService: IWorkspaceContextService,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 		@IThemeService private readonly _themeService: IThemeService,
-		@IConfigurationService configurationService: IConfigurationService,
 		@IBreadcrumbsService breadcrumbsService: IBreadcrumbsService,
 	) {
 		this.domNode = document.createElement('div');
@@ -184,7 +181,7 @@ export class BreadcrumbsControl {
 		const input = this._editorGroup.activeEditor;
 		this._breadcrumbsDisposables = dispose(this._breadcrumbsDisposables);
 
-		if (!input || !input.getResource() || !this._fileService.canHandleResource(input.getResource())) {
+		if (!input || !input.getResource()) {
 			// cleanup and return when there is no input or when
 			// we cannot handle this input
 			if (!this.isHidden()) {

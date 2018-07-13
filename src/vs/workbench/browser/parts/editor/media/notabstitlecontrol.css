@@ -22,10 +22,12 @@
 }
 
 /* Breadcrumbs */
+
 .monaco-workbench > .part.editor > .content .editor-group-container > .title .no-tabs-breadcrumbs {
 	flex: 1 50%;
 	overflow: hidden;
 	line-height: 35px;
+	height: 35px;
 }
 
 .monaco-workbench > .part.editor > .content .editor-group-container > .title .no-tabs-breadcrumbs .breadcrumbs-control {
