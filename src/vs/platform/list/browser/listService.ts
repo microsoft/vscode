@@ -565,9 +565,53 @@ export interface IHighlightingTreeConfiguration extends ITreeConfiguration {
 	renderer: IHighlightingRenderer & ITreeRenderer;
 }
 
+// export class HighlightingTreeController extends WorkbenchTreeController {
+
+// 	private readonly mapper = KeyboardMapperFactory.INSTANCE;
+
+// 	constructor(
+// 		options: IControllerOptions,
+// 		private readonly onType: () => any,
+// 		@IConfigurationService configurationService: IConfigurationService
+// 	) {
+// 		super(options, configurationService);
+// 	}
+
+// 	onKeyDown(tree: ITree, event: IKeyboardEvent) {
+// 		let handled = super.onKeyDown(tree, event);
+// 		if (handled) {
+// 			return true;
+// 		}
+// 		if (this.upKeyBindingDispatcher.has(event.keyCode)) {
+// 			return false;
+// 		}
+// 		if (event.ctrlKey || event.metaKey) {
+// 			// ignore ctrl/cmd-combination but not shift/alt-combinatios
+// 			return false;
+// 		}
+// 		// crazy -> during keydown focus moves to the input box
+// 		// and because of that the keyup event is handled by the
+// 		// input field
+// 		const mapping = this.mapper.getRawKeyboardMapping();
+// 		if (!mapping) {
+// 			return false;
+// 		}
+// 		const keyInfo = mapping[event.code];
+// 		if (!keyInfo) {
+// 			return false;
+// 		}
+// 		if (keyInfo.value) {
+// 			this.onType();
+// 			return true;
+// 		}
+// 		return false;
+// 	}
+// }
+
 export class HighlightingWorkbenchTree extends WorkbenchTree {
 
-	protected readonly input: InputBox;
+	readonly input: InputBox;
+
 	protected readonly renderer: IHighlightingRenderer;
 
 	constructor(
@@ -594,6 +638,7 @@ export class HighlightingWorkbenchTree extends WorkbenchTree {
 		parent.appendChild(container);
 
 		// create tree
+		// treeConfiguration.controller = treeConfiguration.controller || instantiationService.createInstance(HighlightingTreeController, {}, () => this.input.focus());
 		super(treeContainer, treeConfiguration, treeOptions, contextKeyService, listService, themeService, instantiationService, configurationService);
 		this.renderer = treeConfiguration.renderer;
 
