@@ -3,20 +3,20 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as vscode from 'vscode';
 import { basename } from 'path';
-
-import TypeScriptServiceClient from './typescriptServiceClient';
-import TypingsStatus from './utils/typingsStatus';
-import FileConfigurationManager from './features/fileConfigurationManager';
-import { CommandManager } from './utils/commandManager';
-import { DiagnosticsManager, DiagnosticKind } from './features/diagnostics';
-import { LanguageDescription } from './utils/languageDescription';
-import * as fileSchemes from './utils/fileSchemes';
+import * as vscode from 'vscode';
 import { CachedNavTreeResponse } from './features/baseCodeLensProvider';
-import { memoize } from './utils/memoize';
+import { DiagnosticKind, DiagnosticsManager } from './features/diagnostics';
+import FileConfigurationManager from './features/fileConfigurationManager';
+import TypeScriptServiceClient from './typescriptServiceClient';
+import { CommandManager } from './utils/commandManager';
 import { disposeAll } from './utils/dispose';
+import * as fileSchemes from './utils/fileSchemes';
+import { LanguageDescription } from './utils/languageDescription';
+import { memoize } from './utils/memoize';
 import TelemetryReporter from './utils/telemetry';
+import TypingsStatus from './utils/typingsStatus';
+
 
 const validateSetting = 'validate.enable';
 const suggestionSetting = 'suggestionActions.enabled';

@@ -4,8 +4,4 @@
 
 ## Features
 
-This extension provides language support to JSON files.
-- auto-completion
-- diagnostics
-- extra information on hover
-- formatting
+See [JSON in Visual Studio Code](https://code.visualstudio.com/docs/languages/json) to learn about the features of this extension.

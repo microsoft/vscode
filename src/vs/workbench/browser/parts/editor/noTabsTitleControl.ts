@@ -12,7 +12,7 @@ import { ResourceLabel } from 'vs/workbench/browser/labels';
 import { TAB_ACTIVE_FOREGROUND, TAB_UNFOCUSED_ACTIVE_FOREGROUND } from 'vs/workbench/common/theme';
 import { EventType as TouchEventType, GestureEvent, Gesture } from 'vs/base/browser/touch';
 import { addDisposableListener, EventType, addClass, EventHelper, removeClass, toggleClass } from 'vs/base/browser/dom';
-import { IEditorPartOptions } from 'vs/workbench/browser/parts/editor/editor';
+import { IEditorPartOptions, EDITOR_TITLE_HEIGHT } from 'vs/workbench/browser/parts/editor/editor';
 import { IAction } from 'vs/base/common/actions';
 import { CLOSE_EDITOR_COMMAND_ID } from 'vs/workbench/browser/parts/editor/editorCommands';
 
@@ -88,6 +88,10 @@ export class NoTabsTitleControl extends TitleControl {
 		if (e instanceof MouseEvent && e.button === 1 /* Middle Button */) {
 			this.group.closeEditor(this.group.activeEditor);
 		}
+	}
+
+	getPreferredHeight(): number {
+		return EDITOR_TITLE_HEIGHT;
 	}
 
 	openEditor(editor: IEditorInput): void {

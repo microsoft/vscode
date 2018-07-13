@@ -12,21 +12,19 @@ import * as browser from 'vs/base/browser/browser';
 import { Part } from 'vs/workbench/browser/part';
 import { IMenubarService, IMenubarMenu, IMenubarMenuItemAction, IMenubarData } from 'vs/platform/menubar/common/menubar';
 import { IMenuService, MenuId, IMenu, SubmenuItemAction } from 'vs/platform/actions/common/actions';
-import { IThemeService } from 'vs/platform/theme/common/themeService';
+import { IThemeService, registerThemingParticipant, ITheme, ICssStyleCollector } from 'vs/platform/theme/common/themeService';
 import { IWindowService, MenuBarVisibility, IWindowsService } from 'vs/platform/windows/common/windows';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { ActionRunner, IActionRunner, IAction, Action } from 'vs/base/common/actions';
 import { Builder, $ } from 'vs/base/browser/builder';
 import { Separator } from 'vs/base/browser/ui/actionbar/actionbar';
-import { EventType, Dimension, toggleClass } from 'vs/base/browser/dom';
-import { TITLE_BAR_ACTIVE_BACKGROUND, TITLE_BAR_ACTIVE_FOREGROUND } from 'vs/workbench/common/theme';
+import { EventType, Dimension } from 'vs/base/browser/dom';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { isWindows, isMacintosh } from 'vs/base/common/platform';
 import { Menu, IMenuOptions, SubmenuAction } from 'vs/base/browser/ui/menu/menu';
 import { KeyCode } from 'vs/base/common/keyCodes';
 import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { IConfigurationService, IConfigurationChangeEvent } from 'vs/platform/configuration/common/configuration';
-import { Color } from 'vs/base/common/color';
 import { Event, Emitter } from 'vs/base/common/event';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { domEvent } from 'vs/base/browser/event';
@@ -35,6 +33,7 @@ import { IWorkspaceIdentifier, ISingleFolderWorkspaceIdentifier, isSingleFolderW
 import { getPathLabel } from 'vs/base/common/labels';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { RunOnceScheduler } from 'vs/base/common/async';
+import { MENUBAR_SELECTION_FOREGROUND, MENUBAR_SELECTION_BACKGROUND, MENUBAR_SELECTION_BORDER, TITLE_BAR_ACTIVE_FOREGROUND, TITLE_BAR_INACTIVE_FOREGROUND, MENU_BACKGROUND, MENU_FOREGROUND, MENU_SELECTION_BACKGROUND, MENU_SELECTION_FOREGROUND, MENU_SELECTION_BORDER } from 'vs/workbench/common/theme';
 
 interface CustomMenu {
 	title: string;
@@ -103,7 +102,6 @@ export class MenubarPart extends Part {
 	private container: Builder;
 	private recentlyOpened: IRecentlyOpened;
 	private updatePending: boolean;
-	private focusingWithAlt: boolean;
 	private _modifierKeyStatus: IModifierKeyStatus;
 	private _focusState: MenubarState;
 
@@ -326,6 +324,16 @@ export class MenubarPart extends Part {
 		this.updateStyles();
 	}
 
+	private onDidChangeWindowFocus(hasFocus: boolean): void {
+		if (this.container) {
+			if (hasFocus) {
+				this.container.removeClass('inactive');
+			} else {
+				this.container.addClass('inactive');
+			}
+		}
+	}
+
 	private onConfigurationUpdated(event: IConfigurationChangeEvent): void {
 		if (this.keys.some(key => event.affectsConfiguration(key))) {
 			this.setupMenubar();
@@ -343,8 +351,8 @@ export class MenubarPart extends Part {
 	}
 
 	private onModifierKeyToggled(modifierKeyStatus: IModifierKeyStatus): void {
-		const altKeyPressed = (!this._modifierKeyStatus || !this._modifierKeyStatus.altKey) && modifierKeyStatus.altKey;
-		const altKeyAlone = altKeyPressed && !modifierKeyStatus.ctrlKey && !modifierKeyStatus.shiftKey;
+		this._modifierKeyStatus = modifierKeyStatus;
+		const altKeyAlone = modifierKeyStatus.lastKeyPressed === 'alt' && !modifierKeyStatus.ctrlKey && !modifierKeyStatus.shiftKey;
 		const allModifiersReleased = !modifierKeyStatus.altKey && !modifierKeyStatus.ctrlKey && !modifierKeyStatus.shiftKey;
 
 		if (this.currentMenubarVisibility === 'toggle') {
@@ -357,7 +365,7 @@ export class MenubarPart extends Part {
 			}
 		}
 
-		if (allModifiersReleased && this.focusingWithAlt) {
+		if (allModifiersReleased && modifierKeyStatus.lastKeyPressed === 'alt' && modifierKeyStatus.lastKeyReleased === 'alt') {
 			if (!this.isFocused) {
 				this.focusedMenu = { index: 0 };
 				this.focusState = MenubarState.FOCUSED;
@@ -365,8 +373,6 @@ export class MenubarPart extends Part {
 				this.focusState = this.currentMenubarVisibility === 'toggle' ? MenubarState.HIDDEN : MenubarState.VISIBLE;
 			}
 		}
-
-		this._modifierKeyStatus = modifierKeyStatus;
 
 		if (this.currentEnableMenuBarMnemonics && this.customMenus) {
 			this.customMenus.forEach(customMenu => {
@@ -376,8 +382,6 @@ export class MenubarPart extends Part {
 				}
 			});
 		}
-
-		this.focusingWithAlt = altKeyAlone;
 	}
 
 	private onRecentlyOpenedChange(): void {
@@ -410,6 +414,9 @@ export class MenubarPart extends Part {
 
 			// Listen for alt key presses
 			this._register(ModifierKeyEmitter.getInstance().event(this.onModifierKeyToggled, this));
+
+			// Listen for window focus changes
+			this._register(this.windowService.onDidChangeFocus(e => this.onDidChangeWindowFocus(e)));
 		}
 	}
 
@@ -681,15 +688,11 @@ export class MenubarPart extends Part {
 						this.cleanupCustomMenu();
 						this.showCustomMenu(menuIndex);
 					} else if (this.isFocused && !this.isOpen) {
+						this.focusedMenu = { index: menuIndex };
 						this.customMenus[menuIndex].buttonElement.domFocus();
 					}
 				});
 
-				this.customMenus[menuIndex].buttonElement.on(EventType.MOUSE_LEAVE, () => {
-					if (!this.isOpen && this.isFocused) {
-						this.customMenus[menuIndex].buttonElement.domBlur();
-					}
-				});
 			}
 		}
 
@@ -880,25 +883,6 @@ export class MenubarPart extends Part {
 		};
 	}
 
-	updateStyles(): void {
-		super.updateStyles();
-
-		// Part container
-		if (this.container) {
-			const fgColor = this.getColor(TITLE_BAR_ACTIVE_FOREGROUND);
-			const bgColor = this.getColor(TITLE_BAR_ACTIVE_BACKGROUND);
-
-			this.container.style('color', fgColor);
-			if (browser.isFullscreen()) {
-				this.container.style('background-color', bgColor);
-			} else {
-				this.container.style('background-color', null);
-			}
-
-			toggleClass(this.container.getHTMLElement(), 'light', Color.fromHex(bgColor).isLighter());
-		}
-	}
-
 	public get onVisibilityChange(): Event<Dimension> {
 		return this._onVisibilityChange.event;
 	}
@@ -975,74 +959,203 @@ export class MenubarPart extends Part {
 	}
 }
 
+registerThemingParticipant((theme: ITheme, collector: ICssStyleCollector) => {
+	const menubarActiveWindowFgColor = theme.getColor(TITLE_BAR_ACTIVE_FOREGROUND);
+	if (menubarActiveWindowFgColor) {
+		collector.addRule(`
+		.monaco-workbench > .part.menubar > .menubar-menu-button {
+			color: ${menubarActiveWindowFgColor};
+		}
+		`);
+	}
+
+	const menubarInactiveWindowFgColor = theme.getColor(TITLE_BAR_INACTIVE_FOREGROUND);
+	if (menubarInactiveWindowFgColor) {
+		collector.addRule(`
+			.monaco-workbench > .part.menubar.inactive > .menubar-menu-button {
+				color: ${menubarInactiveWindowFgColor};
+			}
+		`);
+	}
+
+
+	const menubarSelectedFgColor = theme.getColor(MENUBAR_SELECTION_FOREGROUND);
+	if (menubarSelectedFgColor) {
+		collector.addRule(`
+			.monaco-workbench > .part.menubar > .menubar-menu-button.open,
+			.monaco-workbench > .part.menubar > .menubar-menu-button:focus,
+			.monaco-workbench > .part.menubar > .menubar-menu-button:hover {
+				color: ${menubarSelectedFgColor};
+			}
+		`);
+	}
+
+	const menubarSelectedBgColor = theme.getColor(MENUBAR_SELECTION_BACKGROUND);
+	if (menubarSelectedBgColor) {
+		collector.addRule(`
+			.monaco-workbench > .part.menubar > .menubar-menu-button.open,
+			.monaco-workbench > .part.menubar > .menubar-menu-button:focus,
+			.monaco-workbench > .part.menubar > .menubar-menu-button:hover {
+				background-color: ${menubarSelectedBgColor};
+			}
+		`);
+	}
+
+	const menubarSelectedBorderColor = theme.getColor(MENUBAR_SELECTION_BORDER);
+	if (menubarSelectedBorderColor) {
+		collector.addRule(`
+			.monaco-workbench > .part.menubar > .menubar-menu-button:hover {
+				outline: dashed 1px;
+			}
+
+			.monaco-workbench > .part.menubar > .menubar-menu-button.open,
+			.monaco-workbench > .part.menubar > .menubar-menu-button:focus {
+				outline: solid 1px;
+			}
+
+			.monaco-workbench > .part.menubar > .menubar-menu-button.open,
+			.monaco-workbench > .part.menubar > .menubar-menu-button:focus,
+			.monaco-workbench > .part.menubar > .menubar-menu-button:hover {
+				outline-offset: -1px;
+				outline-color: ${menubarSelectedBorderColor};
+			}
+		`);
+	}
+
+	const menuBgColor = theme.getColor(MENU_BACKGROUND);
+	if (menuBgColor) {
+		collector.addRule(`
+			.monaco-menu .monaco-action-bar.vertical,
+			.monaco-menu .monaco-action-bar.vertical .action-item {
+				background-color: ${menuBgColor};
+			}
+		`);
+	}
+
+	const menuFgColor = theme.getColor(MENU_FOREGROUND);
+	if (menuFgColor) {
+		collector.addRule(`
+			.monaco-menu .monaco-action-bar.vertical,
+			.monaco-menu .monaco-action-bar.vertical .action-item {
+				color: ${menuFgColor};
+			}
+		`);
+	}
+
+	const selectedMenuItemBgColor = theme.getColor(MENU_SELECTION_BACKGROUND);
+	if (menuBgColor) {
+		collector.addRule(`
+			.monaco-menu .monaco-action-bar.vertical .action-item.focused,
+			.monaco-menu .monaco-action-bar.vertical .action-item:hover:not(.disabled) {
+					background-color: ${selectedMenuItemBgColor};
+				}
+		`);
+	}
+
+	const selectedMenuItemFgColor = theme.getColor(MENU_SELECTION_FOREGROUND);
+	if (selectedMenuItemFgColor) {
+		collector.addRule(`
+		.monaco-menu .monaco-action-bar.vertical .action-item.focused,
+		.monaco-menu .monaco-action-bar.vertical .action-item:hover:not(.disabled) {
+				color: ${selectedMenuItemFgColor};
+			}
+		`);
+	}
+
+	const selectedMenuItemBorderColor = theme.getColor(MENU_SELECTION_BORDER);
+	if (selectedMenuItemBorderColor) {
+		collector.addRule(`
+		.monaco-menu .monaco-action-bar.vertical .action-item.focused {
+			outline: solid 1px;
+		}
+
+		.monaco-menu .monaco-action-bar.vertical .action-item:hover:not(.disabled) {
+			outline: dashed 1px;
+		}
+
+		.monaco-menu .monaco-action-bar.vertical .action-item.focused,
+		.monaco-menu .monaco-action-bar.vertical .action-item:hover:not(.disabled) {
+				outline-offset: -1px;
+				outline-color: ${selectedMenuItemBorderColor};
+			}
+		`);
+	}
+});
+
+type ModifierKey = 'alt' | 'ctrl' | 'shift';
+
 interface IModifierKeyStatus {
 	altKey: boolean;
 	shiftKey: boolean;
 	ctrlKey: boolean;
+	lastKeyPressed?: ModifierKey;
+	lastKeyReleased?: ModifierKey;
 }
+
 
 class ModifierKeyEmitter extends Emitter<IModifierKeyStatus> {
 
 	private _subscriptions: IDisposable[] = [];
-	private _isPressed: IModifierKeyStatus;
+	private _keyStatus: IModifierKeyStatus;
 	private static instance: ModifierKeyEmitter;
 
 	private constructor() {
 		super();
 
-		this._isPressed = {
+		this._keyStatus = {
 			altKey: false,
 			shiftKey: false,
 			ctrlKey: false
 		};
 
 		this._subscriptions.push(domEvent(document.body, 'keydown')(e => {
-			if (e.altKey || e.shiftKey || e.ctrlKey) {
-				this.isPressed = {
-					altKey: e.altKey,
-					ctrlKey: e.ctrlKey,
-					shiftKey: e.shiftKey
-				};
+			if (e.altKey && !this._keyStatus.altKey) {
+				this._keyStatus.lastKeyPressed = 'alt';
+			} else if (e.ctrlKey && !this._keyStatus.ctrlKey) {
+				this._keyStatus.lastKeyPressed = 'ctrl';
+			} else if (e.shiftKey && !this._keyStatus.shiftKey) {
+				this._keyStatus.lastKeyPressed = 'shift';
+			} else {
+				this._keyStatus.lastKeyPressed = undefined;
+			}
+
+			this._keyStatus.altKey = e.altKey;
+			this._keyStatus.ctrlKey = e.ctrlKey;
+			this._keyStatus.shiftKey = e.shiftKey;
+
+			if (this._keyStatus.lastKeyPressed) {
+				this.fire(this._keyStatus);
 			}
 		}));
 		this._subscriptions.push(domEvent(document.body, 'keyup')(e => {
-			if ((!e.altKey && this.isPressed.altKey) ||
-				(!e.shiftKey && this.isPressed.shiftKey) ||
-				(!e.ctrlKey && this.isPressed.ctrlKey)
-			) {
+			if (!e.altKey && this._keyStatus.altKey) {
+				this._keyStatus.lastKeyReleased = 'alt';
+			} else if (!e.ctrlKey && this._keyStatus.ctrlKey) {
+				this._keyStatus.lastKeyReleased = 'ctrl';
+			} else if (!e.shiftKey && this._keyStatus.shiftKey) {
+				this._keyStatus.lastKeyReleased = 'shift';
+			} else {
+				this._keyStatus.lastKeyReleased = undefined;
+			}
 
-				this.isPressed = {
-					altKey: e.altKey,
-					shiftKey: e.shiftKey,
-					ctrlKey: e.ctrlKey
-				};
+			this._keyStatus.altKey = e.altKey;
+			this._keyStatus.ctrlKey = e.ctrlKey;
+			this._keyStatus.shiftKey = e.shiftKey;
+
+			if (this._keyStatus.lastKeyReleased) {
+				this.fire(this._keyStatus);
 			}
 		}));
 
-		this._subscriptions.push(domEvent(document.body, 'blur')(e => {
-			if (this.isPressed.altKey || this.isPressed.shiftKey || this.isPressed.ctrlKey) {
-				this.isPressed = {
-					altKey: false,
-					shiftKey: false,
-					ctrlKey: false
-				};
-			}
+		this._subscriptions.push(domEvent(window, 'blur')(e => {
+			this._keyStatus.lastKeyPressed = undefined;
+			this._keyStatus.lastKeyReleased = undefined;
+			this._keyStatus.altKey = false;
+			this._keyStatus.shiftKey = false;
+			this._keyStatus.shiftKey = false;
+
+			this.fire(this._keyStatus);
 		}));
-	}
-
-	get isPressed(): IModifierKeyStatus {
-		return this._isPressed;
-	}
-
-	set isPressed(value: IModifierKeyStatus) {
-		if (this._isPressed.altKey === value.altKey &&
-			this._isPressed.shiftKey === value.shiftKey &&
-			this._isPressed.ctrlKey === value.ctrlKey) {
-			return;
-		}
-
-		this._isPressed = value;
-		this.fire(this._isPressed);
 	}
 
 	static getInstance() {

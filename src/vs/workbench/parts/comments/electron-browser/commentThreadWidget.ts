@@ -20,19 +20,20 @@ import { peekViewBorder } from 'vs/editor/contrib/referenceSearch/referencesWidg
 import { IOptions, ZoneWidget } from 'vs/editor/contrib/zoneWidget/zoneWidget';
 import { attachButtonStyler } from 'vs/platform/theme/common/styler';
 import { ITheme, IThemeService } from 'vs/platform/theme/common/themeService';
-import { renderMarkdown } from 'vs/base/browser/htmlContentRenderer';
 import { CommentGlyphWidget } from 'vs/workbench/parts/comments/electron-browser/commentGlyphWidget';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IModelService } from 'vs/editor/common/services/modelService';
 import { SimpleCommentEditor } from './simpleCommentEditor';
 import URI from 'vs/base/common/uri';
-import { transparent, editorForeground, inputValidationErrorBorder } from 'vs/platform/theme/common/colorRegistry';
+import { transparent, editorForeground, inputValidationErrorBorder, textLinkActiveForeground, textLinkForeground, focusBorder } from 'vs/platform/theme/common/colorRegistry';
 import { IModeService } from 'vs/editor/common/services/modeService';
 import { IKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { KeyCode } from 'vs/base/common/keyCodes';
 import { ICommentService } from 'vs/workbench/parts/comments/electron-browser/commentService';
 import { Range, IRange } from 'vs/editor/common/core/range';
 import { IPosition } from 'vs/editor/common/core/position';
+import { IOpenerService } from 'vs/platform/opener/common/opener';
+import { MarkdownRenderer } from 'vs/editor/contrib/markdown/markdownRenderer';
 
 export const COMMENTEDITOR_DECORATION_KEY = 'commenteditordecoration';
 const EXPAND_ACTION_CLASS = 'expand-review-action octicon octicon-chevron-down';
@@ -47,7 +48,10 @@ export class CommentNode {
 	public get domNode(): HTMLElement {
 		return this._domNode;
 	}
-	constructor(public comment: modes.Comment) {
+	constructor(
+		public comment: modes.Comment,
+		private markdownRenderer: MarkdownRenderer,
+	) {
 		this._domNode = $('div.review-comment').getHTMLElement();
 		this._domNode.tabIndex = 0;
 		let avatar = $('div.avatar-container').appendTo(this._domNode).getHTMLElement();
@@ -59,7 +63,7 @@ export class CommentNode {
 		let author = $('strong.author').appendTo(header).getHTMLElement();
 		author.innerText = comment.userName;
 		this._body = $('div.comment-body').appendTo(commentDetailsContainer).getHTMLElement();
-		this._md = renderMarkdown(comment.body);
+		this._md = this.markdownRenderer.render(comment.body).element;
 		this._body.appendChild(this._md);
 
 		this._domNode.setAttribute('aria-label', `${comment.userName}, ${comment.body.value}`);
@@ -70,7 +74,7 @@ export class CommentNode {
 	update(newComment: modes.Comment) {
 		if (newComment.body !== this.comment.body) {
 			this._body.removeChild(this._md);
-			this._md = renderMarkdown(newComment.body);
+			this._md = this.markdownRenderer.render(newComment.body).element;
 			this._body.appendChild(this._md);
 		}
 
@@ -109,6 +113,8 @@ export class ReviewZoneWidget extends ZoneWidget {
 	private _commentGlyph: CommentGlyphWidget;
 	private _owner: number;
 	private _localToDispose: IDisposable[];
+	private _markdownRenderer: MarkdownRenderer;
+	private _styleElement: HTMLStyleElement;
 
 	public get owner(): number {
 		return this._owner;
@@ -123,6 +129,7 @@ export class ReviewZoneWidget extends ZoneWidget {
 		private modelService: IModelService,
 		private themeService: IThemeService,
 		private commentService: ICommentService,
+		private openerService: IOpenerService,
 		editor: ICodeEditor,
 		owner: number,
 		commentThread: modes.CommentThread,
@@ -135,7 +142,12 @@ export class ReviewZoneWidget extends ZoneWidget {
 		this._isCollapsed = commentThread.collapsibleState !== modes.CommentThreadCollapsibleState.Expanded;
 		this._localToDispose = [];
 		this.create();
+
+		this._styleElement = dom.createStyleSheet(this.domNode);
 		this.themeService.onThemeChange(this._applyTheme, this);
+		this._applyTheme(this.themeService.getTheme());
+
+		this._markdownRenderer = new MarkdownRenderer(editor, this.modeService, this.openerService);
 	}
 
 	public get onDidClose(): Event<ReviewZoneWidget> {
@@ -251,7 +263,7 @@ export class ReviewZoneWidget extends ZoneWidget {
 				lastCommentElement = oldCommentNode[0].domNode;
 				newCommentNodeList.unshift(oldCommentNode[0]);
 			} else {
-				let newElement = new CommentNode(currentComment);
+				let newElement = new CommentNode(currentComment, this._markdownRenderer);
 				newCommentNodeList.unshift(newElement);
 				if (lastCommentElement) {
 					this._commentsElement.insertBefore(newElement.domNode, lastCommentElement);
@@ -310,7 +322,7 @@ export class ReviewZoneWidget extends ZoneWidget {
 
 		this._commentElements = [];
 		for (let i = 0; i < this._commentThread.comments.length; i++) {
-			let newCommentNode = new CommentNode(this._commentThread.comments[i]);
+			let newCommentNode = new CommentNode(this._commentThread.comments[i], this._markdownRenderer);
 			this._commentElements.push(newCommentNode);
 			this._commentsElement.appendChild(newCommentNode.domNode);
 		}
@@ -548,6 +560,24 @@ export class ReviewZoneWidget extends ZoneWidget {
 			arrowColor: borderColor,
 			frameColor: borderColor
 		});
+
+		const content: string[] = [];
+		const linkColor = theme.getColor(textLinkForeground);
+		if (linkColor) {
+			content.push(`.monaco-editor .review-widget .body .review-comment a { color: ${linkColor} }`);
+		}
+
+		const linkActiveColor = theme.getColor(textLinkActiveForeground);
+		if (linkActiveColor) {
+			content.push(`.monaco-editor .review-widget .body .review-comment a:hover, a:active { color: ${linkActiveColor} }`);
+		}
+
+		const focusColor = theme.getColor(focusBorder);
+		if (focusColor) {
+			content.push(`.monaco-editor .review-widget .body .review-comment a:focus { outline: 1px solid ${focusColor}; }`);
+		}
+
+		this._styleElement.innerHTML = content.join('\n');
 	}
 
 	show(rangeOrPos: IRange | IPosition, heightInLines: number): void {

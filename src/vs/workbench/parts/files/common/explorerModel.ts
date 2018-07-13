@@ -279,19 +279,6 @@ export class ExplorerItem {
 		return this.children.size;
 	}
 
-	public getChildrenNames(): string[] {
-		if (!this.children) {
-			return [];
-		}
-
-		const names: string[] = [];
-		this.children.forEach(child => {
-			names.push(child.name);
-		});
-
-		return names;
-	}
-
 	/**
 	 * Removes a child element from this folder.
 	 */

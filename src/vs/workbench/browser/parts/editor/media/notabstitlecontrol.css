@@ -28,12 +28,16 @@
 	line-height: 35px;
 }
 
+.monaco-workbench > .part.editor > .content .editor-group-container > .title .no-tabs-breadcrumbs .breadcrumbs-control {
+	padding-left: 8px;
+}
+
 .monaco-workbench > .part.editor > .content .editor-group-container > .title .no-tabs-breadcrumbs .breadcrumbs-control .monaco-breadcrumb-item {
 	font-size: 0.9em;
 }
 
 .monaco-workbench > .part.editor > .content .editor-group-container > .title .no-tabs-breadcrumbs .breadcrumbs-control .monaco-breadcrumb-item:nth-child(2) {
-	padding-left: 2px;
+	margin-left: 0px;
 }
 
 .monaco-workbench > .part.editor > .content .editor-group-container > .title .no-tabs-breadcrumbs .breadcrumbs-control .monaco-breadcrumb-item:last-child {

@@ -1,0 +1,54 @@
+{
+	"name": "debug-auto-launch",
+	"displayName": "%displayName%",
+	"description": "%description%",
+	"version": "1.0.0",
+	"publisher": "vscode",
+	"engines": {
+		"vscode": "^1.5.0"
+	},
+	"activationEvents": [
+		"*"
+	],
+	"main": "./out/extension",
+	"scripts": {
+		"compile": "gulp compile-extension:debug-auto-launch",
+		"watch": "gulp watch-extension:debug-auto-launch"
+	},
+	"contributes": {
+		"configuration": {
+			"title": "Node debug",
+			"properties": {
+				"debug.node.autoAttach": {
+					"scope": "window",
+					"type": "string",
+					"enum": [
+						"disabled",
+						"on",
+						"off"
+					],
+					"enumDescriptions": [
+						"%debug.node.autoAttach.disabled.description%",
+						"%debug.node.autoAttach.on.description%",
+						"%debug.node.autoAttach.off.description%"
+					],
+					"description": "%debug.node.autoAttach.description%",
+					"default": "disabled"
+				}
+			}
+		},
+		"commands": [
+			{
+				"command": "extension.node-debug.toggleAutoAttach",
+				"title": "%toggle.auto.attach%",
+				"category": "Debug"
+			}
+		]
+	},
+	"dependencies": {
+		"vscode-nls": "^3.2.4"
+	},
+	"devDependencies": {
+		"@types/node": "8.0.33"
+	}
+}
