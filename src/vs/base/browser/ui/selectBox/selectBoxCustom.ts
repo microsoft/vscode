@@ -494,19 +494,8 @@ export class SelectBoxList implements ISelectBoxDelegate, IVirtualDelegate<ISele
 			const selectMinWidth = this.setWidthControlElement(this.widthControlElement);
 			const selectOptimalWidth = Math.max(selectMinWidth, Math.round(selectWidth)).toString() + 'px';
 
-			console.debug('sW:sMinW:sOW: ' + selectWidth + ' ' + selectMinWidth + ' ' + selectOptimalWidth);
-			// this.selectDropDownContainer.style.minWidth = selectOptimalWidth;
 			this.selectDropDownContainer.style.width = selectOptimalWidth;
 
-			// this.selectDropDownContainer.style.height = '120px';
-			// this.selectDropDownContainer.style.width = '170px';
-			let styles2 = getComputedStyle(this.selectDropDownContainer);
-			console.debug('container ' + styles2.getPropertyValue('width'));
-			styles2 = getComputedStyle(this.selectDropDownListContainer);
-			console.debug('Lcontainer ' + styles2.getPropertyValue('width'));
-
-
-			// this.selectDropDownContainer.style.width = '155px'
 			// Maintain focus outline on parent select as well as list container - tabindex for focus
 			this.selectDropDownListContainer.setAttribute('tabindex', '0');
 			dom.toggleClass(this.selectElement, 'synthetic-focus', true);
