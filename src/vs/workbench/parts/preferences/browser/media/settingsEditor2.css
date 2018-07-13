@@ -247,17 +247,17 @@
 	display: flex;
 }
 
-.settings-editor > .settings-body > .settings-tree-container .setting-item .setting-item-value > .setting-item-control.setting-type-number {
+.settings-editor > .settings-body > .settings-tree-container .setting-item.setting-item-number .setting-item-value > .setting-item-control {
 	min-width: 200px;
 }
 
-.settings-editor > .settings-body > .settings-tree-container .setting-item .setting-item-value > .setting-item-control.setting-type-enum,
-.settings-editor > .settings-body > .settings-tree-container .setting-item .setting-item-value > .setting-item-control.setting-type-string {
+.settings-editor > .settings-body > .settings-tree-container .setting-item.setting-item-enum .setting-item-value > .setting-item-control,
+.settings-editor > .settings-body > .settings-tree-container .setting-item.setting-item-text .setting-item-value > .setting-item-control {
 	flex: 1;
 	min-width: initial;
 }
 
-.settings-editor > .settings-body > .settings-tree-container .setting-item .setting-item-value > .setting-item-control.setting-type-enum > select {
+.settings-editor > .settings-body > .settings-tree-container .setting-item.setting-item-enum .setting-item-value > .setting-item-control > select {
 	width: 100%;
 }
 
