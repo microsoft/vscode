@@ -8,7 +8,6 @@
 import * as dom from 'vs/base/browser/dom';
 import { BreadcrumbsItem, BreadcrumbsWidget, IBreadcrumbsItemEvent } from 'vs/base/browser/ui/breadcrumbs/breadcrumbsWidget';
 import { IconLabel } from 'vs/base/browser/ui/iconLabel/iconLabel';
-import { Emitter, Event } from 'vs/base/common/event';
 import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
 import { dispose, IDisposable, combinedDisposable } from 'vs/base/common/lifecycle';
 import { isEqual, basenameOrAuthority } from 'vs/base/common/resources';
@@ -17,15 +16,12 @@ import 'vs/css!./media/breadcrumbscontrol';
 import { ICodeEditor, isCodeEditor } from 'vs/editor/browser/editorBrowser';
 import { Range } from 'vs/editor/common/core/range';
 import { OutlineElement, OutlineGroup, OutlineModel, TreeElement } from 'vs/editor/contrib/documentSymbols/outlineModel';
-import { localize } from 'vs/nls';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { Extensions, IConfigurationRegistry } from 'vs/platform/configuration/common/configurationRegistry';
 import { ContextKeyExpr, IContextKey, IContextKeyService, RawContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { IContextViewService } from 'vs/platform/contextview/browser/contextView';
 import { FileKind, IFileService } from 'vs/platform/files/common/files';
 import { IConstructorSignature2, IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { KeybindingsRegistry } from 'vs/platform/keybinding/common/keybindingsRegistry';
-import { Registry } from 'vs/platform/registry/common/platform';
 import { attachBreadcrumbsStyler } from 'vs/platform/theme/common/styler';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
@@ -282,64 +278,6 @@ export class BreadcrumbsControl {
 		this._ckBreadcrumbsActive.set(value);
 	}
 }
-
-//#region config
-
-export abstract class BreadcrumbsConfig<T> {
-
-	name: string;
-	value: T;
-	onDidChange: Event<T>;
-	abstract dispose(): void;
-
-	private constructor() {
-		// internal
-	}
-
-	static IsEnabled = BreadcrumbsConfig._stub<boolean>('breadcrumbs.enabled');
-
-	private static _stub<T>(name: string): { bindTo(service: IConfigurationService): BreadcrumbsConfig<T> } {
-		return {
-			bindTo(service) {
-				let value: T = service.getValue(name);
-				let onDidChange = new Emitter<T>();
-
-				let listener = service.onDidChangeConfiguration(e => {
-					if (e.affectsConfiguration(name)) {
-						value = service.getValue(name);
-						onDidChange.fire(value);
-					}
-				});
-
-				return {
-					name,
-					get value() { return value; },
-					onDidChange: onDidChange.event,
-					dispose(): void {
-						listener.dispose();
-						onDidChange.dispose();
-					}
-				};
-			}
-		};
-	}
-}
-
-Registry.as<IConfigurationRegistry>(Extensions.Configuration).registerConfiguration({
-	id: 'breadcrumbs',
-	title: localize('title', "Breadcrumb Navigation"),
-	order: 101,
-	type: 'object',
-	properties: {
-		'breadcrumbs.enabled': {
-			'description': localize('enabled', "Enable/disable navigation breadcrumbss"),
-			'type': 'boolean',
-			'default': false
-		}
-	}
-});
-
-//#endregion
 
 //#region commands
 
