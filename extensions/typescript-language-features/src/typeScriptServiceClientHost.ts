@@ -11,6 +11,7 @@
 import { Diagnostic, DiagnosticRelatedInformation, DiagnosticSeverity, DiagnosticTag, Disposable, Memento, Range, Uri, workspace } from 'vscode';
 import { DiagnosticKind } from './features/diagnostics';
 import FileConfigurationManager from './features/fileConfigurationManager';
+import { UpdateImportsOnFileRenameHandler } from './features/updatePathsOnRename';
 import LanguageProvider from './languageProvider';
 import * as Proto from './protocol';
 import * as PConst from './protocol.const';
@@ -24,7 +25,6 @@ import { TypeScriptServerPlugin } from './utils/plugins';
 import * as typeConverters from './utils/typeConverters';
 import TypingsStatus, { AtaProgressReporter } from './utils/typingsStatus';
 import VersionStatus from './utils/versionStatus';
-import { UpdateImportsOnFileRenameHandler } from './features/updatePathsOnRename';
 
 // Style check diagnostics that can be reported as warnings
 const styleCheckDiagnostics = [

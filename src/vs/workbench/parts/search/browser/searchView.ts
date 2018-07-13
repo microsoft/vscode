@@ -732,6 +732,10 @@ export class SearchView extends Viewlet implements IViewlet, IPanel {
 		return promise;
 	}
 
+	public moveFocusToResults(): void {
+		this.tree.domFocus();
+	}
+
 	public focus(): void {
 		super.focus();
 

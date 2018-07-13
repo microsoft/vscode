@@ -21,6 +21,8 @@ export class Snippet {
 	private _codeSnippet: string;
 	private _isBogous: boolean;
 
+	readonly prefixLow: string;
+
 	constructor(
 		readonly scopes: string[],
 		readonly name: string,
@@ -31,6 +33,7 @@ export class Snippet {
 		readonly isFromExtension?: boolean,
 	) {
 		//
+		this.prefixLow = prefix.toLowerCase();
 	}
 
 	get codeSnippet(): string {

@@ -186,8 +186,8 @@ export class ExtensionsListView extends ViewletPanel {
 				const basics = result.filter(e => {
 					return e.local.manifest
 						&& e.local.manifest.contributes
-						&& Array.isArray(e.local.manifest.contributes.languages)
-						&& e.local.manifest.contributes.languages.length
+						&& Array.isArray(e.local.manifest.contributes.grammars)
+						&& e.local.manifest.contributes.grammars.length
 						&& e.local.identifier.id !== 'git';
 				});
 				return new PagedModel(this.sortExtensions(basics, options));
@@ -196,7 +196,7 @@ export class ExtensionsListView extends ViewletPanel {
 				const others = result.filter(e => {
 					return e.local.manifest
 						&& e.local.manifest.contributes
-						&& (!Array.isArray(e.local.manifest.contributes.languages) || e.local.identifier.id === 'git')
+						&& (!Array.isArray(e.local.manifest.contributes.grammars) || e.local.identifier.id === 'git')
 						&& !Array.isArray(e.local.manifest.contributes.themes);
 				});
 				return new PagedModel(this.sortExtensions(others, options));

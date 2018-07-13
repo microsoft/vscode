@@ -5,8 +5,8 @@
 
 import * as fs from 'fs';
 import { Uri } from 'vscode';
-import { memoize } from '../utils/memoize';
-import { getTempFile } from '../utils/temp';
+import { memoize } from './memoize';
+import { getTempFile } from './temp';
 
 /**
  * Maps of file resources

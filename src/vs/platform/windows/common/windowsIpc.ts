@@ -34,6 +34,7 @@ export interface IWindowsChannel extends IChannel {
 	call(command: 'reloadWindow', arg: [number, ParsedArgs]): TPromise<void>;
 	call(command: 'toggleDevTools', arg: number): TPromise<void>;
 	call(command: 'closeWorkspace', arg: number): TPromise<void>;
+	call(command: 'enterWorkspace', arg: [number, string]): TPromise<IEnterWorkspaceResult>;
 	call(command: 'createAndEnterWorkspace', arg: [number, IWorkspaceFolderCreationData[], string]): TPromise<IEnterWorkspaceResult>;
 	call(command: 'saveAndEnterWorkspace', arg: [number, string]): TPromise<IEnterWorkspaceResult>;
 	call(command: 'toggleFullScreen', arg: number): TPromise<void>;
@@ -68,6 +69,7 @@ export interface IWindowsChannel extends IChannel {
 	call(command: 'toggleSharedProcess'): TPromise<void>;
 	call(command: 'log', arg: [string, string[]]): TPromise<void>;
 	call(command: 'showItemInFolder', arg: string): TPromise<void>;
+	call(command: 'getActiveWindowId'): TPromise<number>;
 	call(command: 'openExternal', arg: string): TPromise<boolean>;
 	call(command: 'startCrashReporter', arg: CrashReporterStartOptions): TPromise<void>;
 	call(command: 'openAccessibilityOptions'): TPromise<void>;
@@ -119,6 +121,7 @@ export class WindowsChannel implements IWindowsChannel {
 			case 'openDevTools': return this.service.openDevTools(arg[0], arg[1]);
 			case 'toggleDevTools': return this.service.toggleDevTools(arg);
 			case 'closeWorkspace': return this.service.closeWorkspace(arg);
+			case 'enterWorkspace': return this.service.enterWorkspace(arg[0], arg[1]);
 			case 'createAndEnterWorkspace': {
 				const rawFolders: IWorkspaceFolderCreationData[] = arg[1];
 				let folders: IWorkspaceFolderCreationData[];
@@ -166,6 +169,7 @@ export class WindowsChannel implements IWindowsChannel {
 			case 'quit': return this.service.quit();
 			case 'log': return this.service.log(arg[0], arg[1]);
 			case 'showItemInFolder': return this.service.showItemInFolder(arg);
+			case 'getActiveWindowId': return this.service.getActiveWindowId();
 			case 'openExternal': return this.service.openExternal(arg);
 			case 'startCrashReporter': return this.service.startCrashReporter(arg);
 			case 'openAccessibilityOptions': return this.service.openAccessibilityOptions();
@@ -230,6 +234,10 @@ export class WindowsChannelClient implements IWindowsService {
 
 	closeWorkspace(windowId: number): TPromise<void> {
 		return this.channel.call('closeWorkspace', windowId);
+	}
+
+	enterWorkspace(windowId: number, path: string): TPromise<IEnterWorkspaceResult> {
+		return this.channel.call('enterWorkspace', [windowId, path]);
 	}
 
 	createAndEnterWorkspace(windowId: number, folders?: IWorkspaceFolderCreationData[], path?: string): TPromise<IEnterWorkspaceResult> {
@@ -362,6 +370,10 @@ export class WindowsChannelClient implements IWindowsService {
 
 	showItemInFolder(path: string): TPromise<void> {
 		return this.channel.call('showItemInFolder', path);
+	}
+
+	getActiveWindowId(): TPromise<number | undefined> {
+		return this.channel.call('getActiveWindowId');
 	}
 
 	openExternal(url: string): TPromise<boolean> {

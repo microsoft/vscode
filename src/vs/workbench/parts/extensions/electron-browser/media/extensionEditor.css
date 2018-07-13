@@ -311,11 +311,11 @@
 	border-color: rgb(238, 238, 238);
 }
 
-.extension-editor .subcontent .monaco-tree-row .content .unknown-dependency {
+.extension-editor .subcontent .monaco-tree-row .content .unknown-extension {
 	line-height: 62px;
 }
 
-.extension-editor .subcontent .monaco-tree-row .content .unknown-dependency > .error-marker {
+.extension-editor .subcontent .monaco-tree-row .content .unknown-extension > .error-marker {
 	background-color: #BE1100;
 	padding: 2px 4px;
 	font-weight: bold;
@@ -323,46 +323,46 @@
 	color: #CCC;
 }
 
-.extension-editor .subcontent .monaco-tree-row .unknown-dependency > .message {
+.extension-editor .subcontent .monaco-tree-row .unknown-extension > .message {
 	padding-left: 10px;
 	font-weight: bold;
 	font-size: 14px;
 }
 
-.extension-editor .subcontent .monaco-tree-row .dependency {
+.extension-editor .subcontent .monaco-tree-row .extension {
 	display: flex;
 	align-items: center;
 }
 
-.extension-editor .subcontent .monaco-tree-row .dependency > .details {
+.extension-editor .subcontent .monaco-tree-row .extension > .details {
 	flex: 1;
 	overflow: hidden;
 	padding-left: 10px;
 }
 
-.extension-editor .subcontent .monaco-tree-row .dependency > .details > .header {
+.extension-editor .subcontent .monaco-tree-row .extension > .details > .header {
 	display: flex;
 	align-items: center;
 	height: 19px;
 	overflow: hidden;
 }
 
-.extension-editor .subcontent .monaco-tree-row .dependency > .icon {
+.extension-editor .subcontent .monaco-tree-row .extension > .icon {
 	height: 40px;
 	width: 40px;
 	object-fit: contain;
 }
 
-.extension-editor .subcontent .monaco-tree-row .dependency > .details > .header > .name {
+.extension-editor .subcontent .monaco-tree-row .extension > .details > .header > .name {
 	font-weight: bold;
 	font-size: 16px;
 }
 
-.extension-editor .subcontent .monaco-tree-row .dependency > .details > .header > .name:hover {
+.extension-editor .subcontent .monaco-tree-row .extension > .details > .header > .name:hover {
 	text-decoration: underline;
 }
 
-.extension-editor .subcontent .monaco-tree-row .dependency > .details > .header > .identifier {
+.extension-editor .subcontent .monaco-tree-row .extension > .details > .header > .identifier {
 	font-size: 90%;
 	opacity: 0.6;
 	margin-left: 10px;
@@ -371,14 +371,14 @@
 	border-radius: 4px;
 }
 
-.extension-editor .subcontent .monaco-tree-row .dependency > .details > .footer {
+.extension-editor .subcontent .monaco-tree-row .extension > .details > .footer {
 	display: flex;
 	height: 19px;
 	overflow: hidden;
 	padding-top: 5px;
 }
 
-.extension-editor .subcontent .monaco-tree-row .dependency > .details > .footer > .author {
+.extension-editor .subcontent .monaco-tree-row .extension > .details > .footer > .author {
 	font-size: 90%;
 	font-weight: 600;
 	opacity: 0.6;

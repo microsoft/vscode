@@ -5,14 +5,14 @@
 'use strict';
 
 import * as assert from 'assert';
+import { dispose, IDisposable } from 'vs/base/common/lifecycle';
 import URI from 'vs/base/common/uri';
-import { TextModel } from 'vs/editor/common/model/textModel';
-import { CodeActionProviderRegistry, LanguageIdentifier, CodeActionProvider, Command, WorkspaceEdit, ResourceTextEdit, CodeAction, CodeActionContext } from 'vs/editor/common/modes';
-import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { Range } from 'vs/editor/common/core/range';
+import { TextModel } from 'vs/editor/common/model/textModel';
+import { CodeAction, CodeActionContext, CodeActionProvider, CodeActionProviderRegistry, Command, LanguageIdentifier, ResourceTextEdit, WorkspaceEdit } from 'vs/editor/common/modes';
 import { getCodeActions } from 'vs/editor/contrib/codeAction/codeAction';
 import { CodeActionKind } from 'vs/editor/contrib/codeAction/codeActionTrigger';
-import { MarkerSeverity, IMarkerData } from 'vs/platform/markers/common/markers';
+import { IMarkerData, MarkerSeverity } from 'vs/platform/markers/common/markers';
 
 suite('CodeAction', () => {
 

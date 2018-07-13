@@ -10,6 +10,11 @@ import { IDisposable } from 'vs/base/common/lifecycle';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { GroupIdentifier } from 'vs/workbench/common/editor';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
+import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
+import { Emitter, Event } from 'vs/base/common/event';
+import { Registry } from 'vs/platform/registry/common/platform';
+import { IConfigurationRegistry, Extensions } from 'vs/platform/configuration/common/configurationRegistry';
+import { localize } from 'vs/nls';
 
 export const IBreadcrumbsService = createDecorator<IBreadcrumbsService>('IEditorBreadcrumbsService');
 
@@ -45,3 +50,62 @@ export class BreadcrumbsService implements IBreadcrumbsService {
 }
 
 registerSingleton(IBreadcrumbsService, BreadcrumbsService);
+
+
+//#region config
+
+export abstract class BreadcrumbsConfig<T> {
+
+	name: string;
+	value: T;
+	onDidChange: Event<T>;
+	abstract dispose(): void;
+
+	private constructor() {
+		// internal
+	}
+
+	static IsEnabled = BreadcrumbsConfig._stub<boolean>('breadcrumbs.enabled');
+
+	private static _stub<T>(name: string): { bindTo(service: IConfigurationService): BreadcrumbsConfig<T> } {
+		return {
+			bindTo(service) {
+				let value: T = service.getValue(name);
+				let onDidChange = new Emitter<T>();
+
+				let listener = service.onDidChangeConfiguration(e => {
+					if (e.affectsConfiguration(name)) {
+						value = service.getValue(name);
+						onDidChange.fire(value);
+					}
+				});
+
+				return {
+					name,
+					get value() { return value; },
+					onDidChange: onDidChange.event,
+					dispose(): void {
+						listener.dispose();
+						onDidChange.dispose();
+					}
+				};
+			}
+		};
+	}
+}
+
+Registry.as<IConfigurationRegistry>(Extensions.Configuration).registerConfiguration({
+	id: 'breadcrumbs',
+	title: localize('title', "Breadcrumb Navigation"),
+	order: 101,
+	type: 'object',
+	properties: {
+		'breadcrumbs.enabled': {
+			'description': localize('enabled', "Enable/disable navigation breadcrumbss"),
+			'type': 'boolean',
+			'default': false
+		}
+	}
+});
+
+//#endregion

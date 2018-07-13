@@ -9,7 +9,7 @@ import * as arrays from 'vs/base/common/arrays';
 import { Delayer, ThrottledDelayer } from 'vs/base/common/async';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import * as collections from 'vs/base/common/collections';
-import { Color } from 'vs/base/common/color';
+import { Color, RGBA } from 'vs/base/common/color';
 import { getErrorMessage, isPromiseCanceledError } from 'vs/base/common/errors';
 import URI from 'vs/base/common/uri';
 import { TPromise } from 'vs/base/common/winjs.base';
@@ -24,7 +24,7 @@ import { IInstantiationService } from 'vs/platform/instantiation/common/instanti
 import { WorkbenchTree, WorkbenchTreeController } from 'vs/platform/list/browser/listService';
 import { ILogService } from 'vs/platform/log/common/log';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { editorBackground, foreground, listActiveSelectionBackground, listInactiveSelectionBackground } from 'vs/platform/theme/common/colorRegistry';
+import { editorBackground, focusBorder, foreground, registerColor } from 'vs/platform/theme/common/colorRegistry';
 import { attachButtonStyler, attachStyler } from 'vs/platform/theme/common/styler';
 import { ICssStyleCollector, ITheme, IThemeService, registerThemingParticipant } from 'vs/platform/theme/common/themeService';
 import { BaseEditor } from 'vs/workbench/browser/parts/editor/baseEditor';
@@ -39,6 +39,12 @@ import { SettingsEditor2Input } from 'vs/workbench/services/preferences/common/p
 import { DefaultSettingsEditorModel } from 'vs/workbench/services/preferences/common/preferencesModels';
 
 const $ = DOM.$;
+
+export const settingItemInactiveSelectionBorder = registerColor('settings.inactiveSelectedItemBorder', {
+	dark: '#3F3F46',
+	light: '#CCCEDB',
+	hc: null
+}, localize('settingItemInactiveSelectionBorder', "The color of the selected setting row border, when the settings list does not have focus."));
 
 export class SettingsEditor2 extends BaseEditor {
 
@@ -344,14 +350,22 @@ export class SettingsEditor2 extends BaseEditor {
 			});
 
 		this._register(registerThemingParticipant((theme: ITheme, collector: ICssStyleCollector) => {
-			const activeBorderColor = theme.getColor(listActiveSelectionBackground);
+			const activeBorderColor = theme.getColor(focusBorder);
 			if (activeBorderColor) {
 				collector.addRule(`.settings-editor > .settings-body > .settings-tree-container .monaco-tree:focus .monaco-tree-row.focused {outline: solid 1px ${activeBorderColor}; outline-offset: -1px; }`);
 			}
 
-			const inactiveBorderColor = theme.getColor(listInactiveSelectionBackground);
+			const inactiveBorderColor = theme.getColor(settingItemInactiveSelectionBorder);
 			if (inactiveBorderColor) {
 				collector.addRule(`.settings-editor > .settings-body > .settings-tree-container .monaco-tree .monaco-tree-row.focused {outline: solid 1px ${inactiveBorderColor}; outline-offset: -1px; }`);
+			}
+
+			const foregroundColor = theme.getColor(foreground);
+			if (foregroundColor) {
+				// Links appear inside other elements in markdown. CSS opacity acts like a mask. So we have to dynamically compute the description color to avoid
+				// applying an opacity to the link color.
+				const fgWithOpacity = new Color(new RGBA(foregroundColor.rgba.r, foregroundColor.rgba.g, foregroundColor.rgba.b, .7));
+				collector.addRule(`.settings-editor > .settings-body > .settings-tree-container .setting-item .setting-item-description { color: ${fgWithOpacity}; }`);
 			}
 		}));
 

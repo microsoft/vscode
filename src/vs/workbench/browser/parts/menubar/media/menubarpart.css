@@ -32,19 +32,6 @@
 	zoom: 1;
 }
 
-
-.monaco-workbench > .part.menubar > .menubar-menu-button.open,
-.monaco-workbench > .part.menubar > .menubar-menu-button:focus,
-.monaco-workbench > .part.menubar > .menubar-menu-button:hover {
-	background-color: rgba(255, 255, 255, 0.1);
-}
-
-.monaco-workbench > .part.menubar.light > .menubar-menu-button.open,
-.monaco-workbench > .part.menubar.light > .menubar-menu-button:focus,
-.monaco-workbench > .part.menubar.light > .menubar-menu-button:hover {
-	background-color: rgba(0, 0, 0, 0.1);
-}
-
 .menubar-menu-items-holder {
 	position: absolute;
 	left: 0px;

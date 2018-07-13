@@ -54,7 +54,7 @@ export class SideBySideEditor extends BaseEditor {
 
 	private onDidCreateEditors = this._register(new Emitter<{ width: number; height: number; }>());
 	private _onDidSizeConstraintsChange = this._register(new Relay<{ width: number; height: number; }>());
-	get onDidSizeConstraintsChange(): Event<{ width: number; height: number; }> { return anyEvent(this.onDidCreateEditors.event, this._onDidSizeConstraintsChange.event); }
+	readonly onDidSizeConstraintsChange: Event<{ width: number; height: number; }> = anyEvent(this.onDidCreateEditors.event, this._onDidSizeConstraintsChange.event);
 
 	constructor(
 		@ITelemetryService telemetryService: ITelemetryService,

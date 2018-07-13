@@ -4,10 +4,10 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as vscode from 'vscode';
-import { ITypeScriptServiceClient } from '../typescriptService';
 import { loadMessageBundle } from 'vscode-nls';
-import { openOrCreateConfigFile, isImplicitProjectConfigFile } from './tsconfig';
+import { ITypeScriptServiceClient } from '../typescriptService';
 import TelemetryReporter from './telemetry';
+import { isImplicitProjectConfigFile, openOrCreateConfigFile } from './tsconfig';
 
 const localize = loadMessageBundle();
 

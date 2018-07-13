@@ -671,3 +671,11 @@ export const clearHistoryCommand: ICommandHandler = accessor => {
 	const searchHistoryService = accessor.get(ISearchHistoryService);
 	searchHistoryService.clearHistory();
 };
+
+export const focusSearchListCommand: ICommandHandler = accessor => {
+	const viewletService = accessor.get(IViewletService);
+	const panelService = accessor.get(IPanelService);
+	openSearchView(viewletService, panelService).then(searchView => {
+		searchView.moveFocusToResults();
+	});
+};

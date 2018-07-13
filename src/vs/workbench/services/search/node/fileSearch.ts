@@ -462,6 +462,7 @@ export class FileWalker {
 		const filePattern = this.filePattern;
 		function matchDirectory(entries: IDirectoryEntry[]) {
 			self.directoriesWalked++;
+			const hasSibling = glob.hasSiblingFn(() => entries.map(entry => entry.basename));
 			for (let i = 0, n = entries.length; i < n; i++) {
 				const entry = entries[i];
 				const { relativePath, basename } = entry;
@@ -470,7 +471,7 @@ export class FileWalker {
 				// If the user searches for the exact file name, we adjust the glob matching
 				// to ignore filtering by siblings because the user seems to know what she
 				// is searching for and we want to include the result in that case anyway
-				if (excludePattern.test(relativePath, basename, () => filePattern !== basename ? entries.map(entry => entry.basename) : [])) {
+				if (excludePattern.test(relativePath, basename, filePattern !== basename ? hasSibling : undefined)) {
 					continue;
 				}
 
@@ -529,6 +530,7 @@ export class FileWalker {
 		const rootFolder = folderQuery.folder;
 
 		// Execute tasks on each file in parallel to optimize throughput
+		const hasSibling = glob.hasSiblingFn(() => files);
 		flow.parallel(files, (file: string, clb: (error: Error, result: {}) => void): void => {
 
 			// Check canceled
@@ -536,17 +538,12 @@ export class FileWalker {
 				return clb(null, undefined);
 			}
 
+			// Check exclude pattern
 			// If the user searches for the exact file name, we adjust the glob matching
 			// to ignore filtering by siblings because the user seems to know what she
 			// is searching for and we want to include the result in that case anyway
-			let siblings = files;
-			if (this.config.filePattern === file) {
-				siblings = [];
-			}
-
-			// Check exclude pattern
 			let currentRelativePath = relativeParentPath ? [relativeParentPath, file].join(path.sep) : file;
-			if (this.folderExcludePatterns.get(folderQuery.folder).test(currentRelativePath, file, () => siblings)) {
+			if (this.folderExcludePatterns.get(folderQuery.folder).test(currentRelativePath, file, this.config.filePattern !== file ? hasSibling : undefined)) {
 				return clb(null, undefined);
 			}
 
@@ -733,9 +730,9 @@ class AbsoluteAndRelativeParsedExpression {
 		this.relativeParsedExpr = relativeGlobExpr && glob.parse(relativeGlobExpr, { trimForExclusions: true });
 	}
 
-	public test(_path: string, basename?: string, siblingsFn?: () => string[] | TPromise<string[]>): string | TPromise<string> {
-		return (this.relativeParsedExpr && this.relativeParsedExpr(_path, basename, siblingsFn)) ||
-			(this.absoluteParsedExpr && this.absoluteParsedExpr(path.join(this.root, _path), basename, siblingsFn));
+	public test(_path: string, basename?: string, hasSibling?: (name: string) => boolean | TPromise<boolean>): string | TPromise<string> {
+		return (this.relativeParsedExpr && this.relativeParsedExpr(_path, basename, hasSibling)) ||
+			(this.absoluteParsedExpr && this.absoluteParsedExpr(path.join(this.root, _path), basename, hasSibling));
 	}
 
 	public getBasenameTerms(): string[] {

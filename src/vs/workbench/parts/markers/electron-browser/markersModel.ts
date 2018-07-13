@@ -15,6 +15,10 @@ import { groupBy, isFalsyOrEmpty, flatten } from 'vs/base/common/arrays';
 import { values } from 'vs/base/common/map';
 import * as glob from 'vs/base/common/glob';
 import * as strings from 'vs/base/common/strings';
+import { ITextModelService } from 'vs/editor/common/services/resolverService';
+import { CodeAction } from 'vs/editor/common/modes';
+import { getCodeActions } from 'vs/editor/contrib/codeAction/codeAction';
+import { CodeActionTrigger } from 'vs/editor/contrib/codeAction/codeActionTrigger';
 
 function compareUris(a: URI, b: URI) {
 	if (a.toString() < b.toString()) {
@@ -85,6 +89,7 @@ export class Marker extends NodeWithId {
 	constructor(
 		id: string,
 		readonly raw: IMarker,
+		private textModelService: ITextModelService
 	) {
 		super(id);
 	}
@@ -95,6 +100,17 @@ export class Marker extends NodeWithId {
 
 	public get range(): IRange {
 		return this.raw;
+	}
+
+	public async getCodeActions(trigger: CodeActionTrigger): Promise<CodeAction[]> {
+		const modelReference = await this.textModelService.createModelReference(this.resource);
+		if (modelReference) {
+			const model = modelReference.object.textEditorModel;
+			const codeActions = await getCodeActions(model, new Range(this.range.startLineNumber, this.range.startColumn, this.range.endLineNumber, this.range.endColumn), trigger);
+			modelReference.dispose();
+			return codeActions;
+		}
+		return [];
 	}
 
 	public toString(): string {
@@ -185,7 +201,10 @@ export class MarkersModel {
 	private _markersByResource: Map<string, ResourceMarkers>;
 	private _filterOptions: FilterOptions;
 
-	constructor(markers: IMarker[] = []) {
+	constructor(
+		markers: IMarker[] = [],
+		@ITextModelService private textModelService: ITextModelService
+	) {
 		this._markersByResource = new Map<string, ResourceMarkers>();
 		this._filterOptions = new FilterOptions();
 
@@ -274,7 +293,7 @@ export class MarkersModel {
 		this.updateResource(resource);
 
 		rawMarkers.forEach((rawMarker, index) => {
-			const marker = new Marker(uri.toString() + index, rawMarker);
+			const marker = new Marker(uri.toString() + index, rawMarker, this.textModelService);
 			if (rawMarker.relatedInformation) {
 				const groupedByResource = groupBy(rawMarker.relatedInformation, MarkersModel._compareMarkersByUri);
 				groupedByResource.sort((a, b) => compareUris(a[0].resource, b[0].resource));

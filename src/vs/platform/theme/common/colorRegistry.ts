@@ -223,8 +223,10 @@ export const scrollbarSliderActiveBackground = registerColor('scrollbarSlider.ac
 
 export const progressBarBackground = registerColor('progressBar.background', { dark: Color.fromHex('#0E70C0'), light: Color.fromHex('#0E70C0'), hc: contrastBorder }, nls.localize('progressBarBackground', "Background color of the progress bar that can show for long running operations."));
 
-export const breadcrumbsForegound = registerColor('breadcrumb.focusForeground', { light: Color.fromHex('#6C6C6C').transparent(.7), dark: Color.fromHex('#CCCCCC').transparent(.7), hc: Color.white.transparent(.7) }, nls.localize('breadcrumbsFocusForeground', "Color of focused breadcrumb items."));
-export const breadcrumbsFocusedForegound = registerColor('breadcrumb.breadcrumbsFocusedForegound', { light: '#6C6C6C', dark: '#CCCCCC', hc: Color.white }, nls.localize('breadcrumbsFocusForeground', "Color of focused breadcrumb items."));
+export const breadcrumbsForeground = registerColor('breadcrumb.breadcrumbsForeground', { light: Color.fromHex('#6C6C6C').transparent(.7), dark: Color.fromHex('#CCCCCC').transparent(.7), hc: Color.white.transparent(.7) }, nls.localize('breadcrumbsFocusForeground', "Color of focused breadcrumb items."));
+export const breadcrumbsFocusForeground = registerColor('breadcrumb.breadcrumbsFocusForeground', { light: '#6C6C6C', dark: '#CCCCCC', hc: Color.white }, nls.localize('breadcrumbsFocusForeground', "Color of focused breadcrumb items."));
+export const breadcrumbsActiveSelectionForeground = registerColor('breadcrumb.breadcrumbsActiveSelectionForeground', { light: '#6C6C6C', dark: '#CCCCCC', hc: Color.white }, nls.localize('breadcrumbsSelectedForegound', "Color of selected breadcrumb items."));
+export const breadcrumbsActiveSelectionBackground = registerColor('breadcrumb.breadcrumbsActiveSelectionBackground', { light: '#F3F3F3', dark: '#252526', hc: Color.black }, nls.localize('breadcrumbsSelectedBackground', "Background color of selected breadcrumb items."));
 
 /**
  * Editor background color.

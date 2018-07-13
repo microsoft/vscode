@@ -1009,6 +1009,10 @@ export class TestWindowService implements IWindowService {
 		return TPromise.as(void 0);
 	}
 
+	enterWorkspace(path: string): TPromise<IEnterWorkspaceResult> {
+		return TPromise.as(void 0);
+	}
+
 	createAndEnterWorkspace(folders?: IWorkspaceFolderCreationData[], path?: string): TPromise<IEnterWorkspaceResult> {
 		return TPromise.as(void 0);
 	}
@@ -1162,6 +1166,10 @@ export class TestWindowsService implements IWindowsService {
 		return TPromise.as(void 0);
 	}
 
+	enterWorkspace(windowId: number, path: string): TPromise<IEnterWorkspaceResult> {
+		return TPromise.as(void 0);
+	}
+
 	createAndEnterWorkspace(windowId: number, folders?: IWorkspaceFolderCreationData[], path?: string): TPromise<IEnterWorkspaceResult> {
 		return TPromise.as(void 0);
 	}
@@ -1293,6 +1301,10 @@ export class TestWindowsService implements IWindowsService {
 
 	updateTouchBar(windowId: number, items: ISerializableCommandAction[][]): Promise<void> {
 		return TPromise.as(void 0);
+	}
+
+	getActiveWindowId(): TPromise<number | undefined> {
+		return TPromise.as(undefined);
 	}
 
 	// This needs to be handled from browser process to prevent

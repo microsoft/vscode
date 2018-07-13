@@ -662,10 +662,65 @@ export class CodeMenu {
 		const terminal = this.createMenuItem(nls.localize({ key: 'miToggleTerminal', comment: ['&& denotes a mnemonic'] }, "&&Terminal"), 'workbench.action.terminal.toggleTerminal');
 		const problems = this.createMenuItem(nls.localize({ key: 'miMarker', comment: ['&& denotes a mnemonic'] }, "&&Problems"), 'workbench.actions.view.problems');
 
+		// Appearance
+
+		const appearanceMenu = new Menu();
+
 		const fullscreen = new MenuItem(this.withKeybinding('workbench.action.toggleFullScreen', { label: this.mnemonicLabel(nls.localize({ key: 'miToggleFullScreen', comment: ['&& denotes a mnemonic'] }, "Toggle &&Full Screen")), click: () => this.windowsMainService.getLastActiveWindow().toggleFullScreen(), enabled: this.windowsMainService.getWindowCount() > 0 }));
 		const toggleZenMode = this.createMenuItem(nls.localize('miToggleZenMode', "Toggle Zen Mode"), 'workbench.action.toggleZenMode');
 		const toggleCenteredLayout = this.createMenuItem(nls.localize('miToggleCenteredLayout', "Toggle Centered Layout"), 'workbench.action.toggleCenteredLayout');
 		const toggleMenuBar = this.createMenuItem(nls.localize({ key: 'miToggleMenuBar', comment: ['&& denotes a mnemonic'] }, "Toggle Menu &&Bar"), 'workbench.action.toggleMenuBar');
+
+		const toggleSidebar = this.createMenuItem(nls.localize({ key: 'miToggleSidebar', comment: ['&& denotes a mnemonic'] }, "&&Toggle Side Bar"), 'workbench.action.toggleSidebarVisibility');
+
+		let moveSideBarLabel: string;
+		if (this.currentSidebarLocation !== 'right') {
+			moveSideBarLabel = nls.localize({ key: 'miMoveSidebarRight', comment: ['&& denotes a mnemonic'] }, "&&Move Side Bar Right");
+		} else {
+			moveSideBarLabel = nls.localize({ key: 'miMoveSidebarLeft', comment: ['&& denotes a mnemonic'] }, "&&Move Side Bar Left");
+		}
+
+		const moveSidebar = this.createMenuItem(moveSideBarLabel, 'workbench.action.toggleSidebarPosition');
+		const togglePanel = this.createMenuItem(nls.localize({ key: 'miTogglePanel', comment: ['&& denotes a mnemonic'] }, "Toggle &&Panel"), 'workbench.action.togglePanel');
+
+		let statusBarLabel: string;
+		if (this.currentStatusbarVisible) {
+			statusBarLabel = nls.localize({ key: 'miHideStatusbar', comment: ['&& denotes a mnemonic'] }, "&&Hide Status Bar");
+		} else {
+			statusBarLabel = nls.localize({ key: 'miShowStatusbar', comment: ['&& denotes a mnemonic'] }, "&&Show Status Bar");
+		}
+		const toggleStatusbar = this.createMenuItem(statusBarLabel, 'workbench.action.toggleStatusbarVisibility');
+
+		let activityBarLabel: string;
+		if (this.currentActivityBarVisible) {
+			activityBarLabel = nls.localize({ key: 'miHideActivityBar', comment: ['&& denotes a mnemonic'] }, "Hide &&Activity Bar");
+		} else {
+			activityBarLabel = nls.localize({ key: 'miShowActivityBar', comment: ['&& denotes a mnemonic'] }, "Show &&Activity Bar");
+		}
+		const toggleActivtyBar = this.createMenuItem(activityBarLabel, 'workbench.action.toggleActivityBarVisibility');
+
+		const zoomIn = this.createMenuItem(nls.localize({ key: 'miZoomIn', comment: ['&& denotes a mnemonic'] }, "&&Zoom In"), 'workbench.action.zoomIn');
+		const zoomOut = this.createMenuItem(nls.localize({ key: 'miZoomOut', comment: ['&& denotes a mnemonic'] }, "Zoom O&&ut"), 'workbench.action.zoomOut');
+		const resetZoom = this.createMenuItem(nls.localize({ key: 'miZoomReset', comment: ['&& denotes a mnemonic'] }, "&&Reset Zoom"), 'workbench.action.zoomReset');
+
+		arrays.coalesce([
+			fullscreen,
+			toggleZenMode,
+			toggleCenteredLayout,
+			isWindows || isLinux ? toggleMenuBar : void 0,
+			__separator__(),
+			moveSidebar,
+			toggleSidebar,
+			togglePanel,
+			toggleStatusbar,
+			toggleActivtyBar,
+			__separator__(),
+			zoomIn,
+			zoomOut,
+			resetZoom
+		]).forEach(item => appearanceMenu.append(item));
+
+		const appearance = new MenuItem({ label: this.mnemonicLabel(nls.localize({ key: 'miAppearance', comment: ['&& denotes a mnemonic'] }, "&&Appearance")), submenu: appearanceMenu });
 
 		// Editor Layout
 
@@ -707,49 +762,17 @@ export class CodeMenu {
 
 		const editorLayout = new MenuItem({ label: this.mnemonicLabel(nls.localize({ key: 'miEditorLayout', comment: ['&& denotes a mnemonic'] }, "Editor &&Layout")), submenu: editorLayoutMenu });
 
-		// Workbench Layout
-		const toggleSidebar = this.createMenuItem(nls.localize({ key: 'miToggleSidebar', comment: ['&& denotes a mnemonic'] }, "&&Toggle Side Bar"), 'workbench.action.toggleSidebarVisibility');
-
-		let moveSideBarLabel: string;
-		if (this.currentSidebarLocation !== 'right') {
-			moveSideBarLabel = nls.localize({ key: 'miMoveSidebarRight', comment: ['&& denotes a mnemonic'] }, "&&Move Side Bar Right");
-		} else {
-			moveSideBarLabel = nls.localize({ key: 'miMoveSidebarLeft', comment: ['&& denotes a mnemonic'] }, "&&Move Side Bar Left");
-		}
-
-		const moveSidebar = this.createMenuItem(moveSideBarLabel, 'workbench.action.toggleSidebarPosition');
-		const togglePanel = this.createMenuItem(nls.localize({ key: 'miTogglePanel', comment: ['&& denotes a mnemonic'] }, "Toggle &&Panel"), 'workbench.action.togglePanel');
-
-		let statusBarLabel: string;
-		if (this.currentStatusbarVisible) {
-			statusBarLabel = nls.localize({ key: 'miHideStatusbar', comment: ['&& denotes a mnemonic'] }, "&&Hide Status Bar");
-		} else {
-			statusBarLabel = nls.localize({ key: 'miShowStatusbar', comment: ['&& denotes a mnemonic'] }, "&&Show Status Bar");
-		}
-		const toggleStatusbar = this.createMenuItem(statusBarLabel, 'workbench.action.toggleStatusbarVisibility');
-
-		let activityBarLabel: string;
-		if (this.currentActivityBarVisible) {
-			activityBarLabel = nls.localize({ key: 'miHideActivityBar', comment: ['&& denotes a mnemonic'] }, "Hide &&Activity Bar");
-		} else {
-			activityBarLabel = nls.localize({ key: 'miShowActivityBar', comment: ['&& denotes a mnemonic'] }, "Show &&Activity Bar");
-		}
-		const toggleActivtyBar = this.createMenuItem(activityBarLabel, 'workbench.action.toggleActivityBarVisibility');
-
-		// Editor
 		const toggleWordWrap = this.createMenuItem(nls.localize({ key: 'miToggleWordWrap', comment: ['&& denotes a mnemonic'] }, "Toggle &&Word Wrap"), 'editor.action.toggleWordWrap');
 		const toggleMinimap = this.createMenuItem(nls.localize({ key: 'miToggleMinimap', comment: ['&& denotes a mnemonic'] }, "Toggle &&Minimap"), 'editor.action.toggleMinimap');
 		const toggleRenderWhitespace = this.createMenuItem(nls.localize({ key: 'miToggleRenderWhitespace', comment: ['&& denotes a mnemonic'] }, "Toggle &&Render Whitespace"), 'editor.action.toggleRenderWhitespace');
 		const toggleRenderControlCharacters = this.createMenuItem(nls.localize({ key: 'miToggleRenderControlCharacters', comment: ['&& denotes a mnemonic'] }, "Toggle &&Control Characters"), 'editor.action.toggleRenderControlCharacter');
 
-		// Zoom
-		const zoomIn = this.createMenuItem(nls.localize({ key: 'miZoomIn', comment: ['&& denotes a mnemonic'] }, "&&Zoom In"), 'workbench.action.zoomIn');
-		const zoomOut = this.createMenuItem(nls.localize({ key: 'miZoomOut', comment: ['&& denotes a mnemonic'] }, "Zoom O&&ut"), 'workbench.action.zoomOut');
-		const resetZoom = this.createMenuItem(nls.localize({ key: 'miZoomReset', comment: ['&& denotes a mnemonic'] }, "&&Reset Zoom"), 'workbench.action.zoomReset');
-
 		arrays.coalesce([
 			commands,
 			openView,
+			__separator__(),
+			appearance,
+			editorLayout,
 			__separator__(),
 			explorer,
 			search,
@@ -762,27 +785,10 @@ export class CodeMenu {
 			debugConsole,
 			terminal,
 			__separator__(),
-			fullscreen,
-			toggleZenMode,
-			toggleCenteredLayout,
-			isWindows || isLinux ? toggleMenuBar : void 0,
-			__separator__(),
-			editorLayout,
-			__separator__(),
-			moveSidebar,
-			toggleSidebar,
-			togglePanel,
-			toggleStatusbar,
-			toggleActivtyBar,
-			__separator__(),
 			toggleWordWrap,
 			toggleMinimap,
 			toggleRenderWhitespace,
-			toggleRenderControlCharacters,
-			__separator__(),
-			zoomIn,
-			zoomOut,
-			resetZoom
+			toggleRenderControlCharacters
 		]).forEach(item => viewMenu.append(item));
 	}
 
