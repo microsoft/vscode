@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import { ITree, ITreeConfiguration, ITreeOptions } from 'vs/base/parts/tree/browser/tree';
+import { ITree, ITreeConfiguration, ITreeOptions, IRenderer as ITreeRenderer } from 'vs/base/parts/tree/browser/tree';
 import { List, IListOptions, isSelectionRangeChangeEvent, isSelectionSingleChangeEvent, IMultipleSelectionController, IOpenController, DefaultStyleController } from 'vs/base/browser/ui/list/listWidget';
 import { createDecorator, IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IDisposable, toDisposable, combinedDisposable, dispose, Disposable } from 'vs/base/common/lifecycle';
@@ -12,7 +12,7 @@ import { IContextKeyService, IContextKey, RawContextKey, ContextKeyExpr } from '
 import { PagedList, IPagedRenderer } from 'vs/base/browser/ui/list/listPaging';
 import { IVirtualDelegate, IRenderer, IListMouseEvent, IListTouchEvent } from 'vs/base/browser/ui/list/list';
 import { Tree } from 'vs/base/parts/tree/browser/treeImpl';
-import { attachListStyler, defaultListStyles, computeStyles } from 'vs/platform/theme/common/styler';
+import { attachListStyler, defaultListStyles, computeStyles, attachInputBoxStyler } from 'vs/platform/theme/common/styler';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { InputFocusedContextKey } from 'vs/platform/workbench/common/contextkeys';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
@@ -23,8 +23,14 @@ import { DefaultController, IControllerOptions, OpenMode, ClickBehavior, Default
 import { isUndefinedOrNull } from 'vs/base/common/types';
 import { IEditorOptions } from 'vs/platform/editor/common/editor';
 import { Event, Emitter } from 'vs/base/common/event';
-import { createStyleSheet } from 'vs/base/browser/dom';
+import { createStyleSheet, addStandardDisposableListener } from 'vs/base/browser/dom';
 import { ScrollbarVisibility } from 'vs/base/common/scrollable';
+import { FuzzyScore } from 'vs/base/common/filters';
+import { InputBox, IInputOptions } from 'vs/base/browser/ui/inputbox/inputBox';
+import { IContextViewService } from 'vs/platform/contextview/browser/contextView';
+import { TPromise } from 'vs/base/common/winjs.base';
+import { onUnexpectedError } from 'vs/base/common/errors';
+import { KeyCode } from 'vs/base/common/keyCodes';
 
 export type ListWidget = List<any> | PagedList<any> | ITree;
 
@@ -546,6 +552,108 @@ export class TreeResourceNavigator extends Disposable {
 				element: this.tree.getSelection()[0],
 				payload
 			});
+		}
+	}
+}
+
+
+export interface IHighlightingRenderer extends ITreeRenderer {
+	updateHighlights(tree: ITree, element: any, pattern: string): FuzzyScore;
+}
+
+export interface IHighlightingTreeConfiguration extends ITreeConfiguration {
+	renderer: IHighlightingRenderer & ITreeRenderer;
+}
+
+export class HighlightingWorkbenchTree extends WorkbenchTree {
+
+	protected readonly input: InputBox;
+	protected readonly renderer: IHighlightingRenderer;
+
+	constructor(
+		parent: HTMLElement,
+		treeConfiguration: IHighlightingTreeConfiguration,
+		treeOptions: ITreeOptions,
+		listOptions: IInputOptions,
+		@IContextKeyService contextKeyService: IContextKeyService,
+		@IContextViewService contextViewService: IContextViewService,
+		@IListService listService: IListService,
+		@IThemeService themeService: IThemeService,
+		@IInstantiationService instantiationService: IInstantiationService,
+		@IConfigurationService configurationService: IConfigurationService
+	) {
+		// build html skeleton
+		const container = document.createElement('div');
+		container.className = 'highlighting-tree';
+		const inputContainer = document.createElement('div');
+		inputContainer.className = 'input';
+		const treeContainer = document.createElement('div');
+		treeContainer.className = 'tree';
+		container.appendChild(inputContainer);
+		container.appendChild(treeContainer);
+		parent.appendChild(container);
+
+		// create tree
+		super(treeContainer, treeConfiguration, treeOptions, contextKeyService, listService, themeService, instantiationService, configurationService);
+		this.renderer = treeConfiguration.renderer;
+
+		// create input
+		this.input = new InputBox(inputContainer, contextViewService, listOptions);
+		this.input.setEnabled(false);
+		this.input.onDidChange(this.updateHighlights, this, this.disposables);
+		this.disposables.push(attachInputBoxStyler(this.input, themeService));
+		this.disposables.push(this.input);
+		this.disposables.push(addStandardDisposableListener(this.input.inputElement, 'keyup', event => {
+			//todo@joh make this command/context-key based
+			if (event.keyCode === KeyCode.DownArrow) {
+				this.focusNext();
+				this.domFocus();
+			} else if (event.keyCode === KeyCode.UpArrow) {
+				this.focusPrevious();
+				this.domFocus();
+			} else if (event.keyCode === KeyCode.Enter) {
+				this.setSelection(this.getSelection());
+			} else if (event.keyCode === KeyCode.Escape) {
+				this.input.value = '';
+				this.domFocus();
+			}
+		}));
+	}
+
+	setInput(element: any): TPromise<any> {
+		this.input.setEnabled(false);
+		return super.setInput(element).then(value => {
+			this.input.setEnabled(true);
+			return value;
+		});
+	}
+
+	layout(height?: number, width?: number): void {
+		this.input.layout();
+		super.layout(isNaN(height) ? height : height - this.input.height, width);
+	}
+
+	private updateHighlights(pattern: string): void {
+		let nav = this.getNavigator(undefined, false);
+		let topScore: FuzzyScore;
+		let topElement: any;
+		while (nav.next()) {
+			let element = nav.current();
+			let score = this.renderer.updateHighlights(this, element, pattern);
+			if (!topScore || score && topScore[0] < score[0]) {
+				topScore = score;
+				topElement = element;
+			}
+			this.refresh(element).then(undefined, onUnexpectedError);
+		}
+		if (topElement) {
+			this.reveal(topElement).then(_ => {
+				this.setFocus(topElement);
+				this.setSelection([topElement], this);
+			}, onUnexpectedError);
+		} else {
+			this.setSelection([], this);
+			this.setFocus(undefined);
 		}
 	}
 }

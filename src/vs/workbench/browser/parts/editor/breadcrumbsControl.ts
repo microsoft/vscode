@@ -8,30 +8,25 @@
 import * as dom from 'vs/base/browser/dom';
 import { BreadcrumbsItem, BreadcrumbsWidget, IBreadcrumbsItemEvent } from 'vs/base/browser/ui/breadcrumbs/breadcrumbsWidget';
 import { IconLabel } from 'vs/base/browser/ui/iconLabel/iconLabel';
-import { compareFileNames } from 'vs/base/common/comparers';
 import { Emitter, Event } from 'vs/base/common/event';
 import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
 import { dispose, IDisposable, combinedDisposable } from 'vs/base/common/lifecycle';
-import { dirname, isEqual, basenameOrAuthority } from 'vs/base/common/resources';
+import { isEqual, basenameOrAuthority } from 'vs/base/common/resources';
 import URI from 'vs/base/common/uri';
-import { TPromise } from 'vs/base/common/winjs.base';
-import { IDataSource, IRenderer, ISelectionEvent, ISorter, ITree, ITreeConfiguration } from 'vs/base/parts/tree/browser/tree';
 import 'vs/css!./media/breadcrumbscontrol';
 import { ICodeEditor, isCodeEditor } from 'vs/editor/browser/editorBrowser';
 import { Range } from 'vs/editor/common/core/range';
 import { OutlineElement, OutlineGroup, OutlineModel, TreeElement } from 'vs/editor/contrib/documentSymbols/outlineModel';
-import { OutlineDataSource, OutlineItemComparator, OutlineRenderer } from 'vs/editor/contrib/documentSymbols/outlineTree';
 import { localize } from 'vs/nls';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { Extensions, IConfigurationRegistry } from 'vs/platform/configuration/common/configurationRegistry';
 import { ContextKeyExpr, IContextKey, IContextKeyService, RawContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { IContextViewService } from 'vs/platform/contextview/browser/contextView';
-import { FileKind, IFileService, IFileStat } from 'vs/platform/files/common/files';
+import { FileKind, IFileService } from 'vs/platform/files/common/files';
 import { IConstructorSignature2, IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { KeybindingsRegistry } from 'vs/platform/keybinding/common/keybindingsRegistry';
-import { WorkbenchTree } from 'vs/platform/list/browser/listService';
 import { Registry } from 'vs/platform/registry/common/platform';
-import { attachBreadcrumbsStyler, attachListStyler } from 'vs/platform/theme/common/styler';
+import { attachBreadcrumbsStyler } from 'vs/platform/theme/common/styler';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { FileLabel } from 'vs/workbench/browser/labels';
@@ -39,12 +34,9 @@ import { BreadcrumbElement, EditorBreadcrumbsModel, FileElement } from 'vs/workb
 import { EditorGroupView } from 'vs/workbench/browser/parts/editor/editorGroupView';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IEditorGroupsService } from 'vs/workbench/services/group/common/editorGroupsService';
-import { onUnexpectedError } from 'vs/base/common/errors';
 import { IBreadcrumbsService } from 'vs/workbench/browser/parts/editor/breadcrumbs';
-import { breadcrumbsActiveSelectionBackground } from 'vs/platform/theme/common/colorRegistry';
 import { symbolKindToCssClass } from 'vs/editor/common/modes';
-import { InputBox } from 'vs/base/browser/ui/inputbox/inputBox';
-import { FuzzyScore, createMatches, fuzzyScore } from 'vs/base/common/filters';
+import { BreadcrumbsPicker, BreadcrumbsFilePicker, BreadcrumbsOutlinePicker } from 'vs/workbench/browser/parts/editor/breadcrumbsPicker';
 
 class Item extends BreadcrumbsItem {
 
@@ -278,307 +270,6 @@ export class BreadcrumbsControl {
 		this._ckBreadcrumbsActive.set(value);
 	}
 }
-
-export abstract class BreadcrumbsPicker {
-
-	protected readonly _disposables = new Array<IDisposable>();
-	protected readonly _domNode: HTMLDivElement;
-	protected readonly _focus: dom.IFocusTracker;
-	protected readonly _input: InputBox;
-	protected readonly _tree: WorkbenchTree;
-
-	protected readonly _onDidPickElement = new Emitter<any>();
-
-	readonly onDidPickElement: Event<any> = this._onDidPickElement.event;
-
-	constructor(
-		container: HTMLElement,
-		input: BreadcrumbElement,
-		@IInstantiationService protected readonly _instantiationService: IInstantiationService,
-		@IThemeService protected readonly _themeService: IThemeService,
-	) {
-		this._domNode = document.createElement('div');
-		this._domNode.className = 'monaco-breadcrumbs-picker';
-		const color = this._themeService.getTheme().getColor(breadcrumbsActiveSelectionBackground);
-		this._domNode.style.background = color.toString();
-		this._domNode.style.boxShadow = `2px 2px 3px ${color.darken(.1)}`;
-		this._domNode.style.position = 'absolute';
-		this._domNode.style.zIndex = '1000';
-		container.appendChild(this._domNode);
-
-		this._focus = dom.trackFocus(this._domNode);
-		this._focus.onDidBlur(_ => this._onDidPickElement.fire(undefined), undefined, this._disposables);
-
-		const inputContainer = document.createElement('div');
-		inputContainer.className = 'breadcrumbs-picker-input';
-		this._domNode.appendChild(inputContainer);
-		this._input = new InputBox(inputContainer, undefined, { placeholder: localize('placeholder', "Find") });
-		this._input.setEnabled(false);
-		this._disposables.push(attachListStyler(this._input, this._themeService));
-
-		const treeContainer = document.createElement('div');
-		treeContainer.className = 'breadcrumbs-picker-tree';
-		this._domNode.appendChild(treeContainer);
-		const treeConifg = this._completeTreeConfiguration({ dataSource: undefined, renderer: undefined });
-		this._tree = this._instantiationService.createInstance(WorkbenchTree, treeContainer, treeConifg, {});
-		this._disposables.push(this._tree.onDidChangeSelection(e => {
-			if (e.payload !== this) {
-				setTimeout(_ => this._onDidChangeSelection(e)); // need to debounce here because this disposes the tree and the tree doesn't like to be disposed on click
-			}
-		}));
-
-		this._tree.setInput(this._getInput(input)).then(async _ => {
-
-			let selection = this._getInitialSelection(this._tree, input);
-			if (selection) {
-				await this._tree.reveal(selection);
-				this._tree.setSelection([selection], this);
-				this._tree.setFocus(selection);
-			}
-
-			// input - interact with tree
-			this._disposables.push(dom.addStandardDisposableListener(this._input.inputElement, 'keyup', event => {
-				if (event.keyCode === KeyCode.DownArrow) {
-					this._tree.focusNext();
-					this._tree.domFocus();
-				} else if (event.keyCode === KeyCode.UpArrow) {
-					this._tree.focusPrevious();
-					this._tree.domFocus();
-				} else if (event.keyCode === KeyCode.Enter) {
-					this._onDidChangeSelection({ selection: this._tree.getSelection() });
-				} else if (event.keyCode === KeyCode.Escape) {
-					this._input.value = '';
-					this._tree.domFocus();
-				}
-			}));
-
-			// input - type to find
-			this._disposables.push(this._input.onDidChange(async value => {
-				let nav = this._tree.getNavigator(undefined, false);
-				let topScore: FuzzyScore;
-				let topElement: any;
-				while (nav.next()) {
-					let element = nav.current();
-					let score = treeConifg.renderer.updateHighlights(this._tree, element, value);
-					if (!topScore || score && topScore[0] < score[0]) {
-						topScore = score;
-						topElement = element;
-					}
-					this._tree.refresh(element).then(undefined, onUnexpectedError);
-				}
-				if (topElement) {
-					await this._tree.reveal(topElement);
-					this._tree.setFocus(topElement);
-					this._tree.setSelection([topElement], this);
-				}
-			}));
-
-			this._input.setEnabled(true);
-
-		}, onUnexpectedError);
-
-		// this._input.focus();
-		this._tree.domFocus();
-	}
-
-	dispose(): void {
-		dispose(this._disposables);
-		this._onDidPickElement.dispose();
-		this._input.dispose();
-		this._tree.dispose();
-		this._focus.dispose();
-	}
-
-	layout(dim: dom.Dimension) {
-		this._domNode.style.width = `${dim.width}px`;
-		this._domNode.style.height = `${dim.height}px`;
-
-		this._input.layout();
-		this._tree.layout(dim.height - this._input.height, dim.width);
-	}
-
-	protected abstract _getInput(input: BreadcrumbElement): any;
-	protected abstract _getInitialSelection(tree: ITree, input: BreadcrumbElement): any;
-	protected abstract _completeTreeConfiguration(config: ITreeConfiguration2): ITreeConfiguration2;
-	protected abstract _onDidChangeSelection(e: ISelectionEvent): void;
-}
-
-interface IHighlightingRenderer {
-	updateHighlights(tree: ITree, element: any, pattern: string): FuzzyScore;
-}
-
-interface ITreeConfiguration2 extends ITreeConfiguration {
-	renderer: IHighlightingRenderer & IRenderer;
-}
-
-
-//#region - Files
-
-export class FileDataSource implements IDataSource {
-
-	private readonly _parents = new WeakMap<IFileStat, IFileStat>();
-
-	constructor(
-		@IFileService private readonly _fileService: IFileService,
-	) { }
-
-	getId(tree: ITree, element: IFileStat | URI): string {
-		return URI.isUri(element) ? element.toString() : element.resource.toString();
-	}
-
-	hasChildren(tree: ITree, element: IFileStat | URI): boolean {
-		return URI.isUri(element) || element.isDirectory;
-	}
-
-	getChildren(tree: ITree, element: IFileStat | URI): TPromise<IFileStat[]> {
-		return this._fileService.resolveFile(
-			URI.isUri(element) ? element : element.resource
-		).then(stat => {
-			for (const child of stat.children) {
-				this._parents.set(child, stat);
-			}
-			return stat.children;
-		});
-	}
-
-	getParent(tree: ITree, element: IFileStat | URI): TPromise<IFileStat> {
-		return TPromise.as(URI.isUri(element) ? undefined : this._parents.get(element));
-	}
-}
-
-export class FileRenderer implements IRenderer, IHighlightingRenderer {
-
-	private readonly _scores = new WeakMap<IFileStat, FuzzyScore>();
-
-	constructor(
-		@IInstantiationService private readonly _instantiationService: IInstantiationService
-	) { }
-
-	getHeight(tree: ITree, element: any): number {
-		return 22;
-	}
-
-	getTemplateId(tree: ITree, element: any): string {
-		return 'FileStat';
-	}
-
-	renderTemplate(tree: ITree, templateId: string, container: HTMLElement) {
-		return this._instantiationService.createInstance(FileLabel, container, { supportHighlights: true });
-	}
-
-	renderElement(tree: ITree, element: IFileStat, templateId: string, templateData: FileLabel): void {
-		templateData.setFile(element.resource, {
-			hidePath: true,
-			fileKind: element.isDirectory ? FileKind.FOLDER : FileKind.FILE,
-			fileDecorations: { colors: true, badges: true },
-			matches: createMatches((this._scores.get(element) || [, []])[1])
-		});
-	}
-
-	disposeTemplate(tree: ITree, templateId: string, templateData: FileLabel): void {
-		templateData.dispose();
-	}
-
-	updateHighlights(tree: ITree, element: any, pattern: string): FuzzyScore {
-		let score = fuzzyScore(pattern, (element as IFileStat).name, undefined, true);
-		this._scores.set(element, score);
-		return score;
-	}
-}
-
-export class FileSorter implements ISorter {
-	compare(tree: ITree, a: IFileStat, b: IFileStat): number {
-		if (a.isDirectory === b.isDirectory) {
-			// same type -> compare on names
-			return compareFileNames(a.name, b.name);
-		} else if (a.isDirectory) {
-			return -1;
-		} else {
-			return 1;
-		}
-	}
-}
-
-export class BreadcrumbsFilePicker extends BreadcrumbsPicker {
-
-	protected _getInput(input: BreadcrumbElement): any {
-		let { uri } = (input as FileElement);
-		return dirname(uri);
-	}
-
-	protected _getInitialSelection(tree: ITree, input: BreadcrumbElement): any {
-		let { uri } = (input as FileElement);
-		let nav = tree.getNavigator();
-		while (nav.next()) {
-			if (isEqual(uri, (nav.current() as IFileStat).resource)) {
-				return nav.current();
-			}
-		}
-		return undefined;
-	}
-
-	protected _completeTreeConfiguration(config: ITreeConfiguration2): ITreeConfiguration2 {
-		// todo@joh reuse explorer implementations?
-		config.dataSource = this._instantiationService.createInstance(FileDataSource);
-		config.renderer = this._instantiationService.createInstance(FileRenderer);
-		config.sorter = new FileSorter();
-		return config;
-	}
-
-	protected _onDidChangeSelection(e: ISelectionEvent): void {
-		let [first] = e.selection;
-		let stat = first as IFileStat;
-		if (stat && !stat.isDirectory) {
-			this._onDidPickElement.fire(stat.resource);
-		}
-	}
-}
-//#endregion
-
-//#region - Symbols
-
-class HighlightingOutlineRenderer extends OutlineRenderer implements IHighlightingRenderer {
-
-	updateHighlights(tree: ITree, element: any, pattern: string): FuzzyScore {
-		if (element instanceof OutlineElement) {
-			return element.score = fuzzyScore(pattern, element.symbol.name, undefined, true) || [-1, []];
-		}
-		return undefined;
-	}
-
-}
-
-export class BreadcrumbsOutlinePicker extends BreadcrumbsPicker {
-
-	protected _getInput(input: BreadcrumbElement): any {
-		let element = input as TreeElement;
-		OutlineModel.get(element).updateMatches('');
-		return (element).parent;
-	}
-
-	protected _getInitialSelection(_tree: ITree, input: BreadcrumbElement): any {
-		return input;
-	}
-
-	protected _completeTreeConfiguration(config: ITreeConfiguration2): ITreeConfiguration2 {
-		config.dataSource = this._instantiationService.createInstance(OutlineDataSource);
-		config.renderer = this._instantiationService.createInstance(HighlightingOutlineRenderer);
-		config.sorter = new OutlineItemComparator();
-		return config;
-	}
-
-	protected _onDidChangeSelection(e: ISelectionEvent): void {
-		if (e.payload && e.payload.didClickOnTwistie) {
-			return;
-		}
-		let [first] = e.selection;
-		if (first instanceof OutlineElement) {
-			this._onDidPickElement.fire(first);
-		}
-	}
-}
-
-//#endregion
 
 //#region config
 
