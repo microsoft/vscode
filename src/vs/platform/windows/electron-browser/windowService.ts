@@ -81,6 +81,10 @@ export class WindowService implements IWindowService {
 		return this.windowsService.closeWorkspace(this.windowId);
 	}
 
+	enterWorkspace(path: string): TPromise<IEnterWorkspaceResult> {
+		return this.windowsService.enterWorkspace(this.windowId, path);
+	}
+
 	createAndEnterWorkspace(folders?: IWorkspaceFolderCreationData[], path?: string): TPromise<IEnterWorkspaceResult> {
 		return this.windowsService.createAndEnterWorkspace(this.windowId, folders, path);
 	}

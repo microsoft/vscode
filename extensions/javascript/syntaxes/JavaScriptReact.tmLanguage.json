@@ -4,7 +4,7 @@
 		"If you want to provide a fix or improvement, please create a pull request against the original repository.",
 		"Once accepted there, we are happy to receive an update request."
 	],
-	"version": "https://github.com/Microsoft/TypeScript-TmLanguage/commit/88217b1c7d36ed5d35adc3099ba7978aabe2531b",
+	"version": "https://github.com/Microsoft/TypeScript-TmLanguage/commit/d7df3e324468b6535af67573d2956f9a852aa586",
 	"name": "JavaScript (with React support)",
 	"scopeName": "source.js.jsx",
 	"patterns": [
@@ -138,6 +138,10 @@
 				{
 					"name": "keyword.control.with.js.jsx",
 					"match": "(?<![_$[:alnum:]])(?:(?<=\\.\\.\\.)|(?<!\\.))(with)(?![_$[:alnum:]])(?:(?=\\.\\.\\.)|(?!\\.))"
+				},
+				{
+					"name": "keyword.control.js.jsx",
+					"match": "(?<![_$[:alnum:]])(?:(?<=\\.\\.\\.)|(?<!\\.))(package)(?![_$[:alnum:]])(?:(?=\\.\\.\\.)|(?!\\.))"
 				},
 				{
 					"name": "keyword.other.debugger.js.jsx",
@@ -312,7 +316,7 @@
 							"name": "punctuation.separator.comma.js.jsx"
 						}
 					},
-					"end": "(?<!,)((?==|;|}|(\\s+(of|in)\\s+)|^\\s*$))|((?<=\\S)(?=\\s*$))",
+					"end": "(?<!,)(((?==|;|}|(\\s+(of|in)\\s+)|^\\s*$))|((?<=\\S)(?=\\s*$)))",
 					"patterns": [
 						{
 							"include": "#comment"

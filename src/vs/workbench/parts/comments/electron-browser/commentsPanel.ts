@@ -22,6 +22,7 @@ import { CommentsDataFilter, CommentsDataSource, CommentsModelRenderer } from 'v
 import { ICommentService, IWorkspaceCommentThreadsEvent } from 'vs/workbench/parts/comments/electron-browser/commentService';
 import { IEditorService, ACTIVE_GROUP, SIDE_GROUP } from 'vs/workbench/services/editor/common/editorService';
 import { ICommandService } from 'vs/platform/commands/common/commands';
+import { textLinkForeground, textLinkActiveForeground, focusBorder } from 'vs/platform/theme/common/colorRegistry';
 
 export const COMMENTS_PANEL_ID = 'workbench.panel.comments';
 export const COMMENTS_PANEL_TITLE = 'Comments';
@@ -60,7 +61,35 @@ export class CommentsPanel extends Panel {
 		this.commentService.onDidSetAllCommentThreads(this.onAllCommentsChanged, this);
 		this.commentService.onDidUpdateCommentThreads(this.onCommentsUpdated, this);
 
+		const styleElement = dom.createStyleSheet(parent);
+		this.applyStyles(styleElement);
+		this.themeService.onThemeChange(_ => {
+			this.applyStyles(styleElement);
+		});
+
 		return this.render();
+	}
+
+	private applyStyles(styleElement: HTMLStyleElement) {
+		const content: string[] = [];
+
+		const theme = this.themeService.getTheme();
+		const linkColor = theme.getColor(textLinkForeground);
+		if (linkColor) {
+			content.push(`.comments-panel .comments-panel-container a { color: ${linkColor}; }`);
+		}
+
+		const linkActiveColor = theme.getColor(textLinkActiveForeground);
+		if (linkActiveColor) {
+			content.push(`.comments-panel .comments-panel-container a:hover, a:active { color: ${linkActiveColor}; }`);
+		}
+
+		const focusColor = theme.getColor(focusBorder);
+		if (focusColor) {
+			content.push(`.comments-panel .commenst-panel-container a:focus { outline-color: ${focusColor}; }`);
+		}
+
+		styleElement.innerHTML = content.join('\n');
 	}
 
 	private render(): TPromise<void> {

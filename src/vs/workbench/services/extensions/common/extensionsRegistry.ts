@@ -288,6 +288,15 @@ const schema: IJSONSchema = {
 				pattern: EXTENSION_IDENTIFIER_PATTERN
 			}
 		},
+		extensionPack: {
+			description: nls.localize('vscode.extension.contributes.extensionPack', "A set of extensions that can be installed together. The identifier of an extension is always ${publisher}.${name}. For example: vscode.csharp."),
+			type: 'array',
+			uniqueItems: true,
+			items: {
+				type: 'string',
+				pattern: EXTENSION_IDENTIFIER_PATTERN
+			}
+		},
 		scripts: {
 			type: 'object',
 			properties: {

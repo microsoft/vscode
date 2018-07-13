@@ -191,7 +191,6 @@ export class Workbench extends Disposable implements IPartService {
 	_serviceBrand: any;
 
 	private workbenchParams: WorkbenchParams;
-	private workbenchContainer: Builder;
 	private workbench: Builder;
 	private workbenchStarted: boolean;
 	private workbenchCreated: boolean;
@@ -200,6 +199,7 @@ export class Workbench extends Disposable implements IPartService {
 	private editorService: EditorService;
 	private editorGroupService: IEditorGroupsService;
 	private viewletService: IViewletService;
+	private contextViewService: ContextViewService;
 	private contextKeyService: IContextKeyService;
 	private keybindingService: IKeybindingService;
 	private backupFileService: IBackupFileService;
@@ -236,7 +236,6 @@ export class Workbench extends Disposable implements IPartService {
 	private closeEmptyWindowScheduler: RunOnceScheduler = this._register(new RunOnceScheduler(() => this.onAllEditorsClosed(), 50));
 
 	constructor(
-		private parent: HTMLElement,
 		private container: HTMLElement,
 		private configuration: IWindowConfiguration,
 		serviceCollection: ServiceCollection,
@@ -250,7 +249,6 @@ export class Workbench extends Disposable implements IPartService {
 		@IEnvironmentService private environmentService: IEnvironmentService,
 		@IWindowService private windowService: IWindowService,
 		@INotificationService private notificationService: NotificationService,
-		@IContextViewService private contextViewService: ContextViewService,
 		@ITelemetryService private telemetryService: TelemetryService
 	) {
 		super();
@@ -300,11 +298,10 @@ export class Workbench extends Disposable implements IPartService {
 	}
 
 	private createWorkbench(): void {
-		this.workbenchContainer = $('.monaco-workbench-container');
 		this.workbench = $().div({
 			'class': `monaco-workbench ${isWindows ? 'windows' : isLinux ? 'linux' : 'mac'}`,
 			id: Identifiers.WORKBENCH_CONTAINER
-		}).appendTo(this.workbenchContainer);
+		});
 	}
 
 	private createGlobalActions(): void {
@@ -354,6 +351,10 @@ export class Workbench extends Disposable implements IPartService {
 
 		// List
 		serviceCollection.set(IListService, this.instantiationService.createInstance(ListService));
+
+		// Context view service
+		this.contextViewService = this.instantiationService.createInstance(ContextViewService, this.workbench.getHTMLElement());
+		serviceCollection.set(IContextViewService, this.contextViewService);
 
 		// Use themable context menus when custom titlebar is enabled to match custom menubar
 		if (!isMacintosh && this.getCustomTitleBarStyle() === 'custom') {
@@ -707,7 +708,12 @@ export class Workbench extends Disposable implements IPartService {
 		const panelRegistry = Registry.as<PanelRegistry>(PanelExtensions.Panels);
 		const panelId = this.storageService.get(PanelPart.activePanelSettingsKey, StorageScope.WORKSPACE, panelRegistry.getDefaultPanelId());
 		if (!this.panelHidden && !!panelId) {
-			restorePromises.push(this.panelPart.openPanel(panelId, false));
+			const isPanelToRestoreEnabled = !!this.panelPart.getPanels().filter(p => p.id === panelId).length;
+			if (isPanelToRestoreEnabled) {
+				restorePromises.push(this.panelPart.openPanel(panelId, false));
+			} else {
+				restorePromises.push(this.panelPart.openPanel(panelRegistry.getDefaultPanelId(), false));
+			}
 		}
 
 		// Restore Zen Mode if active
@@ -970,12 +976,6 @@ export class Workbench extends Disposable implements IPartService {
 		// Apply font aliasing
 		this.setFontAliasing(this.fontAliasing);
 
-		// Apply title style if shown
-		const titleStyle = this.getCustomTitleBarStyle();
-		if (titleStyle) {
-			DOM.addClass(this.parent, `titlebar-style-${titleStyle}`);
-		}
-
 		// Apply fullscreen state
 		if (browser.isFullscreen()) {
 			this.workbench.addClass('fullscreen');
@@ -994,7 +994,7 @@ export class Workbench extends Disposable implements IPartService {
 		this.createNotificationsHandlers();
 
 		// Add Workbench to DOM
-		this.workbenchContainer.build(this.container);
+		this.workbench.appendTo(this.container);
 	}
 
 	private createTitlebarPart(): void {
@@ -1287,6 +1287,8 @@ export class Workbench extends Disposable implements IPartService {
 	}
 
 	layout(options?: ILayoutOptions): void {
+		this.contextViewService.layout();
+
 		if (this.workbenchStarted && !this.workbenchShutdown) {
 			this.workbenchLayout.layout(options);
 		}

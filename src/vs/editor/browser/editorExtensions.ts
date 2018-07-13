@@ -20,6 +20,7 @@ import { IContextKeyService, ContextKeyExpr } from 'vs/platform/contextkey/commo
 import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { ITextModel } from 'vs/editor/common/model';
+import { IPosition } from 'vs/base/browser/ui/contextview/contextview';
 
 export type ServicesAccessor = ServicesAccessor;
 export type IEditorContributionCtor = IConstructorSignature1<ICodeEditor, editorCommon.IEditorContribution>;
@@ -210,8 +211,14 @@ export function registerLanguageCommand(id: string, handler: (accessor: Services
 	CommandsRegistry.registerCommand(id, (accessor, args) => handler(accessor, args || {}));
 }
 
-export function registerDefaultLanguageCommand(id: string, handler: (model: ITextModel, position: Position, args: { [n: string]: any }) => any) {
-	registerLanguageCommand(id, function (accessor, args) {
+interface IDefaultArgs {
+	resource: URI;
+	position: IPosition;
+	[name: string]: any;
+}
+
+export function registerDefaultLanguageCommand(id: string, handler: (model: ITextModel, position: Position, args: IDefaultArgs) => any) {
+	registerLanguageCommand(id, function (accessor, args: IDefaultArgs) {
 
 		const { resource, position } = args;
 		if (!(resource instanceof URI)) {

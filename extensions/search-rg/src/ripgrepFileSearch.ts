@@ -114,16 +114,22 @@ export class RipgrepFileSearchEngine implements IInternalFileSearchProvider {
 			cb(err, stdout, last);
 		};
 
+		let gotData = false;
 		if (cmd.stdout) {
+			// Should be non-null, but #38195
 			this.forwardData(cmd.stdout, onData);
+			cmd.stdout.once('data', () => gotData = true);
 		} else {
 			this.outputChannel.appendLine('stdout is null');
 		}
 
-		const stderr = this.collectData(cmd.stderr);
-
-		let gotData = false;
-		cmd.stdout.once('data', () => gotData = true);
+		let stderr: Buffer[];
+		if (cmd.stderr) {
+			// Should be non-null, but #38195
+			stderr = this.collectData(cmd.stderr);
+		} else {
+			this.outputChannel.appendLine('stderr is null');
+		}
 
 		cmd.on('error', (err: Error) => {
 			onData(err);

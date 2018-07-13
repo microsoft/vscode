@@ -5,8 +5,8 @@
 
 import * as fs from 'fs';
 import { Uri } from 'vscode';
-import { memoize } from '../utils/memoize';
-import { getTempFile } from '../utils/temp';
+import { memoize } from './memoize';
+import { getTempFile } from './temp';
 
 /**
  * Maps of file resources
@@ -45,12 +45,16 @@ export class ResourceMap<T> {
 		}
 	}
 
+	public clear() {
+		this._map.clear();
+	}
+
 	public get values(): Iterable<T> {
 		return this._map.values();
 	}
 
-	public get keys(): Iterable<string> {
-		return this._map.keys();
+	public get entries() {
+		return this._map.entries();
 	}
 
 	private toKey(resource: Uri): string | null {

@@ -4,8 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as vscode from 'vscode';
-import { TypeScriptVersion } from './versionProvider';
 import * as languageModeIds from './languageModeIds';
+import { TypeScriptVersion } from './versionProvider';
 
 export default class VersionStatus {
 	private readonly _onChangeEditorSub: vscode.Disposable;

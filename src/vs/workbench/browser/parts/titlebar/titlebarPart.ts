@@ -252,13 +252,15 @@ export class TitlebarPart extends Part implements ITitleService {
 
 		// App Icon (Windows/Linux)
 		if (!isMacintosh) {
-			this.appIcon = $(this.titleContainer).div({
-				class: 'window-appicon',
-			}).on(EventType.DBLCLICK, e => {
-				EventHelper.stop(e, true);
+			this.appIcon = $(this.titleContainer).div({ class: 'window-appicon' });
 
-				this.windowService.closeWindow().then(null, errors.onUnexpectedError);
-			});
+			if (isWindows) {
+				this.appIcon.on(EventType.DBLCLICK, e => {
+					EventHelper.stop(e, true);
+
+					this.windowService.closeWindow().then(null, errors.onUnexpectedError);
+				});
+			}
 		}
 
 		// Title

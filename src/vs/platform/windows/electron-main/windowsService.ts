@@ -14,7 +14,7 @@ import product from 'vs/platform/node/product';
 import { IWindowsService, OpenContext, INativeOpenDialogOptions, IEnterWorkspaceResult, IMessageBoxResult, IDevToolsOptions } from 'vs/platform/windows/common/windows';
 import { IEnvironmentService, ParsedArgs } from 'vs/platform/environment/common/environment';
 import { shell, crashReporter, app, Menu, clipboard, BrowserWindow } from 'electron';
-import { Event, fromNodeEventEmitter, mapEvent, filterEvent, anyEvent } from 'vs/base/common/event';
+import { Event, fromNodeEventEmitter, mapEvent, filterEvent, anyEvent, latch } from 'vs/base/common/event';
 import { IURLService, IURLHandler } from 'vs/platform/url/common/url';
 import { ILifecycleService } from 'vs/platform/lifecycle/electron-main/lifecycleMain';
 import { IWindowsMainService, ISharedProcess } from 'vs/platform/windows/electron-main/windows';
@@ -31,6 +31,8 @@ export class WindowsService implements IWindowsService, IURLHandler, IDisposable
 	_serviceBrand: any;
 
 	private disposables: IDisposable[] = [];
+
+	private _activeWindowId: number | undefined;
 
 	readonly onWindowOpen: Event<number> = filterEvent(fromNodeEventEmitter(app, 'browser-window-created', (_, w: Electron.BrowserWindow) => w.id), id => !!this.windowsMainService.getWindowById(id));
 	readonly onWindowFocus: Event<number> = anyEvent(
@@ -54,6 +56,10 @@ export class WindowsService implements IWindowsService, IURLHandler, IDisposable
 		@ILogService private logService: ILogService
 	) {
 		urlService.registerHandler(this);
+
+		// remember last active window id
+		latch(anyEvent(this.onWindowOpen, this.onWindowFocus))
+			(id => this._activeWindowId = id, null, this.disposables);
 	}
 
 	pickFileFolderAndOpen(options: INativeOpenDialogOptions): TPromise<void> {
@@ -160,6 +166,17 @@ export class WindowsService implements IWindowsService, IURLHandler, IDisposable
 
 		if (codeWindow) {
 			this.windowsMainService.closeWorkspace(codeWindow);
+		}
+
+		return TPromise.as(null);
+	}
+
+	enterWorkspace(windowId: number, path: string): TPromise<IEnterWorkspaceResult> {
+		this.logService.trace('windowsService#enterWorkspace', windowId);
+		const codeWindow = this.windowsMainService.getWindowById(windowId);
+
+		if (codeWindow) {
+			return this.windowsMainService.enterWorkspace(codeWindow, path);
 		}
 
 		return TPromise.as(null);
@@ -433,6 +450,10 @@ export class WindowsService implements IWindowsService, IURLHandler, IDisposable
 		this.logService.trace('windowsService#showItemInFolder');
 		shell.showItemInFolder(path);
 		return TPromise.as(null);
+	}
+
+	getActiveWindowId(): TPromise<number | undefined> {
+		return TPromise.as(this._activeWindowId);
 	}
 
 	openExternal(url: string): TPromise<boolean> {

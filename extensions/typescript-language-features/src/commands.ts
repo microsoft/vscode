@@ -4,13 +4,13 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as vscode from 'vscode';
-
+import * as nls from 'vscode-nls';
 import TypeScriptServiceClientHost from './typeScriptServiceClientHost';
 import { Command } from './utils/commandManager';
 import { Lazy } from './utils/lazy';
-import { openOrCreateConfigFile, isImplicitProjectConfigFile } from './utils/tsconfig';
+import { isImplicitProjectConfigFile, openOrCreateConfigFile } from './utils/tsconfig';
 
-import * as nls from 'vscode-nls';
+
 const localize = nls.loadMessageBundle();
 
 

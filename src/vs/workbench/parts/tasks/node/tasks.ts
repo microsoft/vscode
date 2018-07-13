@@ -27,7 +27,10 @@ namespace TaskDefinition {
 	export function createTaskIdentifier(external: TaskIdentifier, reporter: { error(message: string): void; }): KeyedTaskIdentifier | undefined {
 		let definition = TaskDefinitionRegistry.get(external.type);
 		if (definition === void 0) {
-			return undefined;
+			// We have no task definition so we can't sanitize the literal. Take it as is
+			let copy = Objects.deepClone(external);
+			delete copy._key;
+			return KeyedTaskIdentifier.create(copy);
 		}
 
 		let literal: { type: string;[name: string]: any } = Object.create(null);

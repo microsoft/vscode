@@ -7,7 +7,7 @@
 
 import URI from 'vs/base/common/uri';
 import { CharCode } from 'vs/base/common/charCode';
-import { IIterator } from './iterator';
+import { Iterator } from './iterator';
 
 export function values<V = any>(set: Set<V>): V[];
 export function values<K = any, V = any>(map: Map<K, V>): V[];
@@ -306,7 +306,7 @@ export class TernarySearchTree<E> {
 		return node && node.value || candidate;
 	}
 
-	findSuperstr(key: string): IIterator<E> {
+	findSuperstr(key: string): Iterator<E> {
 		let iter = this._iter.reset(key);
 		let node = this._root;
 		while (node) {
@@ -333,7 +333,7 @@ export class TernarySearchTree<E> {
 		return undefined;
 	}
 
-	private _nodeIterator(node: TernarySearchTreeNode<E>): IIterator<E> {
+	private _nodeIterator(node: TernarySearchTreeNode<E>): Iterator<E> {
 		let res = {
 			done: false,
 			value: undefined

@@ -293,12 +293,13 @@ export enum Operation {
 	GetCommitTemplate = 'GetCommitTemplate',
 	DeleteBranch = 'DeleteBranch',
 	RenameBranch = 'RenameBranch',
+	DeleteRef = 'DeleteRef',
 	Merge = 'Merge',
 	Ignore = 'Ignore',
 	Tag = 'Tag',
 	Stash = 'Stash',
 	CheckIgnore = 'CheckIgnore',
-	LSTree = 'LSTree',
+	GetObjectDetails = 'GetObjectDetails',
 	SubmoduleUpdate = 'SubmoduleUpdate',
 	RebaseContinue = 'RebaseContinue',
 }
@@ -308,7 +309,7 @@ function isReadOnly(operation: Operation): boolean {
 		case Operation.Show:
 		case Operation.GetCommitTemplate:
 		case Operation.CheckIgnore:
-		case Operation.LSTree:
+		case Operation.GetObjectDetails:
 			return true;
 		default:
 			return false;
@@ -319,7 +320,7 @@ function shouldShowProgress(operation: Operation): boolean {
 	switch (operation) {
 		case Operation.Fetch:
 		case Operation.CheckIgnore:
-		case Operation.LSTree:
+		case Operation.GetObjectDetails:
 		case Operation.Show:
 			return false;
 		default:
@@ -557,6 +558,16 @@ export class Repository implements Disposable {
 
 		this.disposables.push(new AutoFetcher(this, globalState));
 
+		// https://github.com/Microsoft/vscode/issues/39039
+		const onSuccessfulPush = filterEvent(this.onDidRunOperation, e => e.operation === Operation.Push && !e.error);
+		onSuccessfulPush(() => {
+			const gitConfig = workspace.getConfiguration('git');
+
+			if (gitConfig.get<boolean>('showPushSuccessNotification')) {
+				window.showInformationMessage(localize('push success', "Successfully pushed."));
+			}
+		}, null, this.disposables);
+
 		const statusBar = new StatusBarCommands(this);
 		this.disposables.push(statusBar);
 		statusBar.onDidChange(() => this._sourceControl.statusBarCommands = statusBar.commands, null, this.disposables);
@@ -766,6 +777,10 @@ export class Repository implements Disposable {
 		await this.run(Operation.Reset, () => this.repository.reset(treeish, hard));
 	}
 
+	async deleteRef(ref: string): Promise<void> {
+		await this.run(Operation.DeleteRef, () => this.repository.deleteRef(ref));
+	}
+
 	@throttle
 	async fetch(): Promise<void> {
 		await this.run(Operation.Fetch, () => this.repository.fetch());
@@ -861,13 +876,22 @@ export class Repository implements Disposable {
 	}
 
 	async show(ref: string, filePath: string): Promise<string> {
-		return this.run(Operation.Show, () => {
+		return await this.run(Operation.Show, async () => {
 			const relativePath = path.relative(this.repository.root, filePath).replace(/\\/g, '/');
 			const configFiles = workspace.getConfiguration('files', Uri.file(filePath));
 			const defaultEncoding = configFiles.get<string>('encoding');
 			const autoGuessEncoding = configFiles.get<boolean>('autoGuessEncoding');
 
-			return this.repository.bufferString(`${ref}:${relativePath}`, defaultEncoding, autoGuessEncoding);
+			try {
+				return await this.repository.bufferString(`${ref}:${relativePath}`, defaultEncoding, autoGuessEncoding);
+			} catch (err) {
+				if (err.gitErrorCode === GitErrorCodes.WrongCase) {
+					const gitRelativePath = await this.repository.getGitRelativePath(ref, relativePath);
+					return await this.repository.bufferString(`${ref}:${gitRelativePath}`, defaultEncoding, autoGuessEncoding);
+				}
+
+				throw err;
+			}
 		});
 	}
 
@@ -878,8 +902,8 @@ export class Repository implements Disposable {
 		});
 	}
 
-	lstree(ref: string, filePath: string): Promise<{ mode: string, object: string, size: number }> {
-		return this.run(Operation.LSTree, () => this.repository.lstree(ref, filePath));
+	getObjectDetails(ref: string, filePath: string): Promise<{ mode: string, object: string, size: number }> {
+		return this.run(Operation.GetObjectDetails, () => this.repository.getObjectDetails(ref, filePath));
 	}
 
 	detectObjectType(object: string): Promise<{ mimetype: string, encoding?: string }> {

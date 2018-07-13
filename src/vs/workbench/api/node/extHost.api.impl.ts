@@ -452,9 +452,9 @@ export function createApiFactory(
 			registerDecorationProvider: proposedApiFunction(extension, (provider: vscode.DecorationProvider) => {
 				return extHostDecorations.registerDecorationProvider(provider, extension.id);
 			}),
-			registerProtocolHandler: proposedApiFunction(extension, (handler: vscode.ProtocolHandler) => {
-				return extHostUrls.registerProtocolHandler(extension.id, handler);
-			}),
+			registerUriHandler(handler: vscode.UriHandler) {
+				return extHostUrls.registerUriHandler(extension.id, handler);
+			},
 			get quickInputBackButton() {
 				return proposedApiFunction(extension, (): vscode.QuickInputButton => {
 					return extHostQuickOpen.backButton;
@@ -500,7 +500,19 @@ export function createApiFactory(
 			findFiles: (include, exclude, maxResults?, token?) => {
 				return extHostWorkspace.findFiles(typeConverters.GlobPattern.from(include), typeConverters.GlobPattern.from(exclude), maxResults, extension.id, token);
 			},
-			findTextInFiles: (query: vscode.TextSearchQuery, options: vscode.FindTextInFilesOptions, callback: (result: vscode.TextSearchResult) => void, token?: vscode.CancellationToken) => {
+			findTextInFiles: (query: vscode.TextSearchQuery, optionsOrCallback, callbackOrToken?, token?: vscode.CancellationToken) => {
+				let options: vscode.FindTextInFilesOptions;
+				let callback: (result: vscode.TextSearchResult) => void;
+
+				if (typeof optionsOrCallback === 'object') {
+					options = optionsOrCallback;
+					callback = callbackOrToken;
+				} else {
+					options = {};
+					callback = optionsOrCallback;
+					token = callbackOrToken;
+				}
+
 				return extHostWorkspace.findTextInFiles(query, options || {}, callback, extension.id, token);
 			},
 			saveAll: (includeUntitled?) => {

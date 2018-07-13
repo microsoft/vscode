@@ -341,15 +341,17 @@ export function getIconClasses(modelService: IModelService, modeService: IModeSe
 		// Files
 		else {
 
-			// Name
-			classes.push(`${name}-name-file-icon`);
+			// Name & Extension(s)
+			if (name) {
+				classes.push(`${name}-name-file-icon`);
 
-			// Extension(s)
-			const dotSegments = name.split('.');
-			for (let i = 1; i < dotSegments.length; i++) {
-				classes.push(`${dotSegments.slice(i).join('.')}-ext-file-icon`); // add each combination of all found extensions if more than one
+				const dotSegments = name.split('.');
+				for (let i = 1; i < dotSegments.length; i++) {
+					classes.push(`${dotSegments.slice(i).join('.')}-ext-file-icon`); // add each combination of all found extensions if more than one
+				}
+
+				classes.push(`ext-file-icon`); // extra segment to increase file-ext score
 			}
-			classes.push(`ext-file-icon`); // extra segment to increase file-ext score
 
 			// Configured Language
 			let configuredLangId = getConfiguredLangId(modelService, resource);

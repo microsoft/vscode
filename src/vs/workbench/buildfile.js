@@ -27,8 +27,6 @@ exports.collectModules = function () {
 		createModuleDescription('vs/workbench/services/files/node/watcher/nsfw/watcherApp', []),
 
 		createModuleDescription('vs/workbench/node/extensionHostProcess', []),
-
-		createModuleDescription('vs/workbench/parts/terminal/node/terminalProcess', [])
 	];
 
 	return modules;

@@ -282,19 +282,19 @@ const editorConfiguration: IConfigurationNode = {
 			'type': 'number',
 			'default': EDITOR_MODEL_DEFAULTS.tabSize,
 			'minimum': 1,
-			'description': nls.localize('tabSize', "The number of spaces a tab is equal to. This setting is overridden based on the file contents when `editor.detectIndentation` is on."),
+			'description': nls.localize('tabSize', "The number of spaces a tab is equal to. This setting is overridden based on the file contents when [`editor.detectIndentation`](#editor.detectIndentation) is on."),
 			'errorMessage': nls.localize('tabSize.errorMessage', "Expected 'number'. Note that the value \"auto\" has been replaced by the `editor.detectIndentation` setting.")
 		},
 		'editor.insertSpaces': {
 			'type': 'boolean',
 			'default': EDITOR_MODEL_DEFAULTS.insertSpaces,
-			'description': nls.localize('insertSpaces', "Insert spaces when pressing Tab. This setting is overridden based on the file contents when `editor.detectIndentation` is on."),
+			'description': nls.localize('insertSpaces', "Insert spaces when pressing Tab. This setting is overridden based on the file contents when [`editor.detectIndentation`](#editor.detectIndentation) is on."),
 			'errorMessage': nls.localize('insertSpaces.errorMessage', "Expected 'boolean'. Note that the value \"auto\" has been replaced by the `editor.detectIndentation` setting.")
 		},
 		'editor.detectIndentation': {
 			'type': 'boolean',
 			'default': EDITOR_MODEL_DEFAULTS.detectIndentation,
-			'description': nls.localize('detectIndentation', "When opening a file, `editor.tabSize` and `editor.insertSpaces` will be detected based on the file contents.")
+			'description': nls.localize('detectIndentation', "When opening a file, [`editor.tabSize`](#editor.tabSize) and [`editor.insertSpaces`](#editor.insertSpaces) will be detected based on the file contents.")
 		},
 		'editor.roundedSelection': {
 			'type': 'boolean',
@@ -440,7 +440,7 @@ const editorConfiguration: IConfigurationNode = {
 					'- `ctrlCmd` refers to a value the setting can take and should not be localized.',
 					'- `Control` and `Command` refer to the modifier keys Ctrl or Cmd on the keyboard and can be localized.'
 				]
-			}, "The modifier to be used to add multiple cursors with the mouse. `ctrlCmd` maps to `Control` on Windows and Linux and to `Command` on macOS. The Go To Definition and Open Link mouse gestures will adapt such that they do not conflict with the multicursor modifier.")
+			}, "The modifier to be used to add multiple cursors with the mouse. `ctrlCmd` maps to `Control` on Windows and Linux and to `Command` on macOS. The Go To Definition and Open Link mouse gestures will adapt such that they do not conflict with the multicursor modifier. [Read more](https://code.visualstudio.com/docs/editor/codebasics#_multicursor-modifier)")
 		},
 		'editor.multiCursorMergeOverlapping': {
 			'type': 'boolean',

@@ -28,6 +28,7 @@ import { ReviewZoneWidget, COMMENTEDITOR_DECORATION_KEY } from 'vs/workbench/par
 import { ICommentService } from 'vs/workbench/parts/comments/electron-browser/commentService';
 import { IModelService } from 'vs/editor/common/services/modelService';
 import { IModeService } from 'vs/editor/common/services/modeService';
+import { IOpenerService } from 'vs/platform/opener/common/opener';
 
 export const ctxReviewPanelVisible = new RawContextKey<boolean>('reviewPanelVisible', false);
 
@@ -72,7 +73,7 @@ export class ReviewController implements IEditorContribution {
 		@IModeService private modeService: IModeService,
 		@IModelService private modelService: IModelService,
 		@ICodeEditorService private codeEditorService: ICodeEditorService,
-
+		@IOpenerService private openerService: IOpenerService
 	) {
 		this.editor = editor;
 		this.globalToDispose = [];
@@ -98,7 +99,7 @@ export class ReviewController implements IEditorContribution {
 
 			this._commentInfos.forEach(info => {
 				info.threads.forEach(thread => {
-					let zoneWidget = new ReviewZoneWidget(this.instantiationService, this.modeService, this.modelService, this.themeService, this.commentService, this.editor, info.owner, thread, {});
+					let zoneWidget = new ReviewZoneWidget(this.instantiationService, this.modeService, this.modelService, this.themeService, this.commentService, this.openerService, this.editor, info.owner, thread, {});
 					zoneWidget.display(thread.range.startLineNumber);
 					this._commentWidgets.push(zoneWidget);
 				});
@@ -222,7 +223,7 @@ export class ReviewController implements IEditorContribution {
 				}
 			});
 			added.forEach(thread => {
-				let zoneWidget = new ReviewZoneWidget(this.instantiationService, this.modeService, this.modelService, this.themeService, this.commentService, this.editor, e.owner, thread, {});
+				let zoneWidget = new ReviewZoneWidget(this.instantiationService, this.modeService, this.modelService, this.themeService, this.commentService, this.openerService, this.editor, e.owner, thread, {});
 				zoneWidget.display(thread.range.startLineNumber);
 				this._commentWidgets.push(zoneWidget);
 				this._commentInfos.filter(info => info.owner === e.owner)[0].threads.push(thread);
@@ -239,7 +240,7 @@ export class ReviewController implements IEditorContribution {
 		// add new comment
 		this._reviewPanelVisible.set(true);
 		const { replyCommand, ownerId } = newCommentInfo;
-		this._newCommentWidget = new ReviewZoneWidget(this.instantiationService, this.modeService, this.modelService, this.themeService, this.commentService, this.editor, ownerId, {
+		this._newCommentWidget = new ReviewZoneWidget(this.instantiationService, this.modeService, this.modelService, this.themeService, this.commentService, this.openerService, this.editor, ownerId, {
 			threadId: null,
 			resource: null,
 			comments: [],
@@ -334,7 +335,7 @@ export class ReviewController implements IEditorContribution {
 
 		this._commentInfos.forEach(info => {
 			info.threads.forEach(thread => {
-				let zoneWidget = new ReviewZoneWidget(this.instantiationService, this.modeService, this.modelService, this.themeService, this.commentService, this.editor, info.owner, thread, {});
+				let zoneWidget = new ReviewZoneWidget(this.instantiationService, this.modeService, this.modelService, this.themeService, this.commentService, this.openerService, this.editor, info.owner, thread, {});
 				zoneWidget.display(thread.range.startLineNumber);
 				this._commentWidgets.push(zoneWidget);
 			});

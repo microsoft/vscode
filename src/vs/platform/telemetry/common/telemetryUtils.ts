@@ -12,6 +12,7 @@ import URI from 'vs/base/common/uri';
 import { IConfigurationService, ConfigurationTarget } from 'vs/platform/configuration/common/configuration';
 import { IKeybindingService, KeybindingSource } from 'vs/platform/keybinding/common/keybinding';
 import { ITelemetryService, ITelemetryInfo, ITelemetryData } from 'vs/platform/telemetry/common/telemetry';
+import { ILogService } from 'vs/platform/log/common/log';
 
 export const NullTelemetryService = new class implements ITelemetryService {
 	_serviceBrand: undefined;
@@ -41,6 +42,27 @@ export function combinedAppender(...appenders: ITelemetryAppender[]): ITelemetry
 }
 
 export const NullAppender: ITelemetryAppender = { log: () => null, dispose: () => TPromise.as(null) };
+
+
+export class LogAppender implements ITelemetryAppender {
+
+	private commonPropertiesRegex = /^sessionID$|^version$|^timestamp$|^commitHash$|^common\./;
+	constructor(@ILogService private readonly _logService: ILogService) { }
+
+	dispose(): TPromise<any> {
+		return TPromise.as(undefined);
+	}
+
+	log(eventName: string, data: any): void {
+		const strippedData = {};
+		Object.keys(data).forEach(key => {
+			if (!this.commonPropertiesRegex.test(key)) {
+				strippedData[key] = data[key];
+			}
+		});
+		this._logService.trace(`telemetry/${eventName}`, strippedData);
+	}
+}
 
 /* __GDPR__FRAGMENT__
 	"URIDescriptor" : {

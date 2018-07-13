@@ -625,7 +625,7 @@ export class RunActiveFileInTerminalAction extends Action {
 		if (!instance) {
 			return TPromise.as(void 0);
 		}
-		const editor = this.codeEditorService.getFocusedCodeEditor();
+		const editor = this.codeEditorService.getActiveCodeEditor();
 		if (!editor) {
 			return TPromise.as(void 0);
 		}

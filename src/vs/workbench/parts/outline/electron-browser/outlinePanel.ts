@@ -352,6 +352,9 @@ export class OutlinePanel extends ViewletPanel {
 					return false;
 				}
 				const keyInfo = mapping[event.code];
+				if (!keyInfo) {
+					return false;
+				}
 				if (keyInfo.value) {
 					$this._input.focus();
 					return true;
@@ -515,7 +518,7 @@ export class OutlinePanel extends ViewletPanel {
 
 		this._progressBar.stop().hide();
 
-		if (oldModel && oldModel.adopt(model)) {
+		if (oldModel && oldModel.merge(model)) {
 			this._tree.refresh(undefined, true);
 			model = oldModel;
 

@@ -32,6 +32,10 @@ export function activate(
 	context.subscriptions.push(new TypeScriptTaskProviderManager(lazyClientHost.map(x => x.serviceClient)));
 	context.subscriptions.push(new LanguageConfigurationManager());
 
+	import('./features/tsconfig').then(module => {
+		context.subscriptions.push(module.register());
+	});
+
 	const supportedLanguage = [].concat.apply([], standardLanguageDescriptions.map(x => x.modeIds).concat(plugins.map(x => x.languages)));
 	function didOpenTextDocument(textDocument: vscode.TextDocument): boolean {
 		if (isSupportedDocument(supportedLanguage, textDocument)) {

@@ -205,7 +205,13 @@ export class TerminalInstance implements ITerminalInstance {
 		// order to be precise. font.charWidth/charHeight alone as insufficient
 		// when window.devicePixelRatio changes.
 		const scaledWidthAvailable = dimension.width * window.devicePixelRatio;
-		const scaledCharWidth = Math.floor(font.charWidth * window.devicePixelRatio) + font.letterSpacing;
+
+		let scaledCharWidth: number;
+		if (this._configHelper.config.rendererType === 'dom') {
+			scaledCharWidth = font.charWidth * window.devicePixelRatio;
+		} else {
+			scaledCharWidth = Math.floor(font.charWidth * window.devicePixelRatio) + font.letterSpacing;
+		}
 		this._cols = Math.max(Math.floor(scaledWidthAvailable / scaledCharWidth), 1);
 
 		const scaledHeightAvailable = dimension.height * window.devicePixelRatio;

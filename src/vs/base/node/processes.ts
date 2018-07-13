@@ -8,7 +8,7 @@ import * as path from 'path';
 import * as cp from 'child_process';
 import { fork } from 'vs/base/node/stdFork';
 import * as nls from 'vs/nls';
-import { PPromise, TPromise, TValueCallback, TProgressCallback, ErrorCallback } from 'vs/base/common/winjs.base';
+import { TPromise, TValueCallback, ErrorCallback } from 'vs/base/common/winjs.base';
 import * as Types from 'vs/base/common/types';
 import { IStringDictionary } from 'vs/base/common/collections';
 import URI from 'vs/base/common/uri';
@@ -18,6 +18,8 @@ import * as Platform from 'vs/base/common/platform';
 import { LineDecoder } from 'vs/base/node/decoder';
 import { CommandOptions, ForkOptions, SuccessData, Source, TerminateResponse, TerminateResponseCode, Executable } from 'vs/base/common/processes';
 export { CommandOptions, ForkOptions, SuccessData, Source, TerminateResponse, TerminateResponseCode };
+
+export type TProgressCallback<T> = (progress: T) => void;
 
 export interface LineData {
 	line: string;
@@ -152,18 +154,16 @@ export abstract class AbstractProcess<TProgressData> {
 		return 'other';
 	}
 
-	public start(): PPromise<SuccessData, TProgressData> {
+	public start(pp: TProgressCallback<TProgressData>): TPromise<SuccessData> {
 		if (Platform.isWindows && ((this.options && this.options.cwd && TPath.isUNC(this.options.cwd)) || !this.options && !this.options.cwd && TPath.isUNC(process.cwd()))) {
 			return TPromise.wrapError(new Error(nls.localize('TaskRunner.UNC', 'Can\'t execute a shell command on a UNC drive.')));
 		}
 		return this.useExec().then((useExec) => {
 			let cc: TValueCallback<SuccessData>;
 			let ee: ErrorCallback;
-			let pp: TProgressCallback<TProgressData>;
-			let result = new PPromise<any, TProgressData>((c, e, p) => {
+			let result = new TPromise<any>((c, e) => {
 				cc = c;
 				ee = e;
-				pp = p;
 			});
 
 			if (useExec) {

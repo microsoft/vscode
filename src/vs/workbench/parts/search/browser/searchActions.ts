@@ -84,15 +84,6 @@ export const toggleRegexCommand = (accessor: ServicesAccessor) => {
 	searchView.toggleRegex();
 };
 
-export const FocusActiveEditorCommand = (accessor: ServicesAccessor) => {
-	const editorService = accessor.get(IEditorService);
-	const activeControl = editorService.activeControl;
-	if (activeControl) {
-		activeControl.focus();
-	}
-	return TPromise.as(true);
-};
-
 export class FocusNextInputAction extends Action {
 
 	public static readonly ID = 'search.focus.nextInputBox';

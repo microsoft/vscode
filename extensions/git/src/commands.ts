@@ -252,7 +252,7 @@ export class CommandCenter {
 				gitRef = indexStatus ? '' : 'HEAD';
 			}
 
-			const { size, object } = await repository.lstree(gitRef, uri.fsPath);
+			const { size, object } = await repository.getObjectDetails(gitRef, uri.fsPath);
 			const { mimetype } = await repository.detectObjectType(object);
 
 			if (mimetype === 'text/plain') {
@@ -501,7 +501,28 @@ export class CommandCenter {
 		}
 
 		await this.git.init(path);
-		await this.model.tryOpenRepository(path);
+		await this.model.openRepository(path);
+	}
+
+	@command('git.openRepository', { repository: false })
+	async openRepository(path?: string): Promise<void> {
+		if (!path) {
+			const result = await window.showOpenDialog({
+				canSelectFiles: false,
+				canSelectFolders: true,
+				canSelectMany: false,
+				defaultUri: Uri.file(os.homedir()),
+				openLabel: localize('open repo', "Open Repository")
+			});
+
+			if (!result || result.length === 0) {
+				return;
+			}
+
+			path = result[0].fsPath;
+		}
+
+		await this.model.openRepository(path);
 	}
 
 	@command('git.close', { repository: true })
@@ -783,11 +804,18 @@ export class CommandCenter {
 
 		const originalUri = toGitUri(modifiedUri, '~');
 		const originalDocument = await workspace.openTextDocument(originalUri);
+		const selectionsBeforeRevert = textEditor.selections;
+		const visibleRangesBeforeRevert = textEditor.visibleRanges;
 		const result = applyLineChanges(originalDocument, modifiedDocument, changes);
+
 		const edit = new WorkspaceEdit();
 		edit.replace(modifiedUri, new Range(new Position(0, 0), modifiedDocument.lineAt(modifiedDocument.lineCount - 1).range.end), result);
 		workspace.applyEdit(edit);
+
 		await modifiedDocument.save();
+
+		textEditor.selections = selectionsBeforeRevert;
+		textEditor.revealRange(visibleRangesBeforeRevert[0]);
 	}
 
 	@command('git.unstage')
@@ -984,7 +1012,7 @@ export class CommandCenter {
 		getCommitMessage: () => Promise<string | undefined>,
 		opts?: CommitOptions
 	): Promise<boolean> {
-		const config = workspace.getConfiguration('git');
+		const config = workspace.getConfiguration('git', Uri.file(repository.root));
 		const promptToSaveFilesBeforeCommit = config.get<boolean>('promptToSaveFilesBeforeCommit') === true;
 
 		if (promptToSaveFilesBeforeCommit) {
@@ -1037,6 +1065,10 @@ export class CommandCenter {
 
 		// enable signing of commits if configurated
 		opts.signCommit = enableCommitSigning;
+
+		if (config.get<boolean>('alwaysSignOff')) {
+			opts.signoff = true;
+		}
 
 		if (
 			// no changes
@@ -1140,11 +1172,19 @@ export class CommandCenter {
 		const HEAD = repository.HEAD;
 
 		if (!HEAD || !HEAD.commit) {
+			window.showWarningMessage(localize('no more', "Can't undo because HEAD doesn't point to any commit."));
 			return;
 		}
 
 		const commit = await repository.getCommit('HEAD');
-		await repository.reset('HEAD~');
+
+		if (commit.parents.length > 0) {
+			await repository.reset('HEAD~');
+		} else {
+			await repository.deleteRef('HEAD');
+			await this.unstageAll(repository);
+		}
+
 		repository.inputBox.value = commit.message;
 	}
 

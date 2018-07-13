@@ -51,17 +51,11 @@ class TypeScriptFormattingProvider implements vscode.DocumentRangeFormattingEdit
 		options: vscode.FormattingOptions,
 		token: vscode.CancellationToken
 	): Promise<vscode.TextEdit[]> {
-		const absPath = this.client.toPath(document.uri);
-		if (!absPath) {
+		const file = this.client.toPath(document.uri);
+		if (!file) {
 			return [];
 		}
-		const args: Proto.FormatRequestArgs = {
-			file: absPath,
-			line: range.start.line + 1,
-			offset: range.start.character + 1,
-			endLine: range.end.line + 1,
-			endOffset: range.end.character + 1
-		};
+		const args = typeConverters.Range.toFormattingRequestArgs(file, range);
 		return this.doFormat(document, options, args, token);
 	}
 

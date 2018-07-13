@@ -189,12 +189,45 @@ declare module 'vscode' {
 		provideTextSearchResults?(query: TextSearchQuery, options: TextSearchOptions, progress: Progress<TextSearchResult>, token: CancellationToken): Thenable<void>;
 	}
 
+	/**
+	 * Options that can be set on a findTextInFiles search.
+	 */
 	export interface FindTextInFilesOptions {
+		/**
+		 * A [glob pattern](#GlobPattern) that defines the files to search for. The glob pattern
+		 * will be matched against the file paths of files relative to their workspace. Use a [relative pattern](#RelativePattern)
+		 * to restrict the search results to a [workspace folder](#WorkspaceFolder).
+		 */
 		include?: GlobPattern;
-		exclude?: GlobPattern;
+
+		/**
+		 * A [glob pattern](#GlobPattern) that defines files and folders to exclude. The glob pattern
+		 * will be matched against the file paths of resulting matches relative to their workspace. When `undefined` only default excludes will
+		 * apply, when `null` no excludes will apply.
+		 */
+		exclude?: GlobPattern | null;
+
+		/**
+		 * The maximum number of results to search for
+		 */
 		maxResults?: number;
+
+		/**
+		 * Whether external files that exclude files, like .gitignore, should be respected.
+		 * See the vscode setting `"search.useIgnoreFiles"`.
+		 */
 		useIgnoreFiles?: boolean;
+
+		/**
+		 * Whether symlinks should be followed while searching.
+		 * See the vscode setting `"search.followSymlinks"`.
+		 */
 		followSymlinks?: boolean;
+
+		/**
+		 * Interpret files using this encoding.
+		 * See the vscode setting `"files.encoding"`
+		 */
 		encoding?: string;
 	}
 
@@ -210,6 +243,24 @@ declare module 'vscode' {
 		 */
 		export function registerSearchProvider(scheme: string, provider: SearchProvider): Disposable;
 
+
+		/**
+		 * Search text in files across all [workspace folders](#workspace.workspaceFolders) in the workspace.
+		 * @param query The query parameters for the search - the search string, whether it's case-sensitive, or a regex, or matches whole words.
+		 * @param callback A callback, called for each result
+		 * @param token A token that can be used to signal cancellation to the underlying search engine.
+		 * @return A thenable that resolves when the search is complete.
+		 */
+		export function findTextInFiles(query: TextSearchQuery, callback: (result: TextSearchResult) => void, token?: CancellationToken): Thenable<void>;
+
+		/**
+		 * Search text in files across all [workspace folders](#workspace.workspaceFolders) in the workspace.
+		 * @param query The query parameters for the search - the search string, whether it's case-sensitive, or a regex, or matches whole words.
+		 * @param options An optional set of query options. Include and exclude patterns, maxResults, etc.
+		 * @param callback A callback, called for each result
+		 * @param token A token that can be used to signal cancellation to the underlying search engine.
+		 * @return A thenable that resolves when the search is complete.
+		 */
 		export function findTextInFiles(query: TextSearchQuery, options: FindTextInFilesOptions, callback: (result: TextSearchResult) => void, token?: CancellationToken): Thenable<void>;
 	}
 
@@ -638,22 +689,6 @@ declare module 'vscode' {
 
 	//#endregion
 
-	//#region URLs
-
-	export interface ProtocolHandler {
-		handleUri(uri: Uri): void;
-	}
-
-	export namespace window {
-
-		/**
-		 * Registers a protocol handler capable of handling system-wide URIs.
-		 */
-		export function registerProtocolHandler(handler: ProtocolHandler): Disposable;
-	}
-
-	//#endregion
-
 	//#region Joh -> exclusive document filters
 
 	export interface DocumentFilter {
@@ -679,7 +714,7 @@ declare module 'vscode' {
 		 * of items of type T.
 		 *
 		 * Note that in many cases the more convenient [window.showQuickPick](#window.showQuickPick)
-		 * is easier to use. [window.createQuickPick](#window.createQuickPick) should be used,
+		 * is easier to use. [window.createQuickPick](#window.createQuickPick) should be used
 		 * when [window.showQuickPick](#window.showQuickPick) does not offer the required flexibility.
 		 *
 		 * @return A new [QuickPick](#QuickPick).
@@ -690,7 +725,7 @@ declare module 'vscode' {
 		 * Creates a [InputBox](#InputBox) to let the user enter some text input.
 		 *
 		 * Note that in many cases the more convenient [window.showInputBox](#window.showInputBox)
-		 * is easier to use. [window.createInputBox](#window.createInputBox) should be used,
+		 * is easier to use. [window.createInputBox](#window.createInputBox) should be used
 		 * when [window.showInputBox](#window.showInputBox) does not offer the required flexibility.
 		 *
 		 * @return A new [InputBox](#InputBox).
@@ -795,7 +830,7 @@ declare module 'vscode' {
 	 * selecting multiple items.
 	 *
 	 * Note that in many cases the more convenient [window.showQuickPick](#window.showQuickPick)
-	 * is easier to use. [window.createQuickPick](#window.createQuickPick) should be used,
+	 * is easier to use. [window.createQuickPick](#window.createQuickPick) should be used
 	 * when [window.showQuickPick](#window.showQuickPick) does not offer the required flexibility.
 	 */
 	export interface QuickPick<T extends QuickPickItem> extends QuickInput {
@@ -875,7 +910,7 @@ declare module 'vscode' {
 	 * A concrete [QuickInput](#QuickInput) to let the user input a text value.
 	 *
 	 * Note that in many cases the more convenient [window.showInputBox](#window.showInputBox)
-	 * is easier to use. [window.createInputBox](#window.createInputBox) should be used,
+	 * is easier to use. [window.createInputBox](#window.createInputBox) should be used
 	 * when [window.showInputBox](#window.showInputBox) does not offer the required flexibility.
 	 */
 	export interface InputBox extends QuickInput {

@@ -9,7 +9,7 @@ import * as arrays from 'vs/base/common/arrays';
 import { Delayer, ThrottledDelayer } from 'vs/base/common/async';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import * as collections from 'vs/base/common/collections';
-import { Color } from 'vs/base/common/color';
+import { Color, RGBA } from 'vs/base/common/color';
 import { getErrorMessage, isPromiseCanceledError } from 'vs/base/common/errors';
 import URI from 'vs/base/common/uri';
 import { TPromise } from 'vs/base/common/winjs.base';
@@ -24,7 +24,7 @@ import { IInstantiationService } from 'vs/platform/instantiation/common/instanti
 import { WorkbenchTree, WorkbenchTreeController } from 'vs/platform/list/browser/listService';
 import { ILogService } from 'vs/platform/log/common/log';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { editorBackground, foreground, listActiveSelectionBackground, listInactiveSelectionBackground } from 'vs/platform/theme/common/colorRegistry';
+import { editorBackground, focusBorder, foreground, registerColor } from 'vs/platform/theme/common/colorRegistry';
 import { attachButtonStyler, attachStyler } from 'vs/platform/theme/common/styler';
 import { ICssStyleCollector, ITheme, IThemeService, registerThemingParticipant } from 'vs/platform/theme/common/themeService';
 import { BaseEditor } from 'vs/workbench/browser/parts/editor/baseEditor';
@@ -33,12 +33,18 @@ import { SearchWidget, SettingsTarget, SettingsTargetsWidget } from 'vs/workbenc
 import { commonlyUsedData, tocData } from 'vs/workbench/parts/preferences/browser/settingsLayout';
 import { ISettingsEditorViewState, NonExpandableTree, resolveExtensionsSettings, resolveSettingsTree, SearchResultIdx, SearchResultModel, SettingsAccessibilityProvider, SettingsDataSource, SettingsRenderer, SettingsTreeController, SettingsTreeElement, SettingsTreeFilter, SettingsTreeGroupElement, SettingsTreeModel, SettingsTreeSettingElement } from 'vs/workbench/parts/preferences/browser/settingsTree';
 import { TOCDataSource, TOCRenderer, TOCTreeModel } from 'vs/workbench/parts/preferences/browser/tocTree';
-import { CONTEXT_SETTINGS_EDITOR, CONTEXT_SETTINGS_FIRST_ROW_FOCUS, CONTEXT_SETTINGS_SEARCH_FOCUS, IPreferencesSearchService, ISearchProvider, CONTEXT_SETTINGS_ROW_FOCUS, CONTEXT_TOC_ROW_FOCUS } from 'vs/workbench/parts/preferences/common/preferences';
+import { CONTEXT_SETTINGS_EDITOR, CONTEXT_SETTINGS_FIRST_ROW_FOCUS, CONTEXT_SETTINGS_ROW_FOCUS, CONTEXT_SETTINGS_SEARCH_FOCUS, CONTEXT_TOC_ROW_FOCUS, IPreferencesSearchService, ISearchProvider } from 'vs/workbench/parts/preferences/common/preferences';
 import { IPreferencesService, ISearchResult, ISettingsEditorModel } from 'vs/workbench/services/preferences/common/preferences';
 import { SettingsEditor2Input } from 'vs/workbench/services/preferences/common/preferencesEditorInput';
 import { DefaultSettingsEditorModel } from 'vs/workbench/services/preferences/common/preferencesModels';
 
 const $ = DOM.$;
+
+export const settingItemInactiveSelectionBorder = registerColor('settings.inactiveSelectedItemBorder', {
+	dark: '#3F3F46',
+	light: '#CCCEDB',
+	hc: null
+}, localize('settingItemInactiveSelectionBorder', "The color of the selected setting row border, when the settings list does not have focus."));
 
 export class SettingsEditor2 extends BaseEditor {
 
@@ -189,7 +195,8 @@ export class SettingsEditor2 extends BaseEditor {
 		this.searchWidget = this._register(this.instantiationService.createInstance(SearchWidget, searchContainer, {
 			ariaLabel: localize('SearchSettings.AriaLabel', "Search settings"),
 			placeholder: localize('SearchSettings.Placeholder', "Search settings"),
-			focusKey: this.searchFocusContextKey
+			focusKey: this.searchFocusContextKey,
+			ariaLive: 'assertive'
 		}));
 		this._register(this.searchWidget.onDidChange(() => this.onSearchInputChanged()));
 
@@ -231,6 +238,16 @@ export class SettingsEditor2 extends BaseEditor {
 		showConfiguredSettingsOnlyLabel.htmlFor = 'configured-only-checkbox';
 
 		this._register(DOM.addDisposableListener(this.showConfiguredSettingsOnlyCheckbox, 'change', e => this.onShowConfiguredOnlyClicked()));
+	}
+
+	private revealSetting(settingName: string): void {
+		const element = this.settingsTreeModel.getElementByName(settingName);
+		if (element) {
+			this.settingsTree.setSelection([element]);
+			this.settingsTree.setFocus(element);
+			this.settingsTree.reveal(element, 0);
+			this.settingsTree.domFocus();
+		}
 	}
 
 	private openSettingsFile(): TPromise<IEditor> {
@@ -313,6 +330,7 @@ export class SettingsEditor2 extends BaseEditor {
 		const renderer = this.instantiationService.createInstance(SettingsRenderer, this.settingsTreeContainer);
 		this._register(renderer.onDidChangeSetting(e => this.onDidChangeSetting(e.key, e.value)));
 		this._register(renderer.onDidOpenSettings(() => this.openSettingsFile()));
+		this._register(renderer.onDidClickSettingLink(settingName => this.revealSetting(settingName)));
 
 		const treeClass = 'settings-editor-tree';
 		this.settingsTree = this.instantiationService.createInstance(NonExpandableTree, this.settingsTreeContainer,
@@ -332,14 +350,22 @@ export class SettingsEditor2 extends BaseEditor {
 			});
 
 		this._register(registerThemingParticipant((theme: ITheme, collector: ICssStyleCollector) => {
-			const activeBorderColor = theme.getColor(listActiveSelectionBackground);
+			const activeBorderColor = theme.getColor(focusBorder);
 			if (activeBorderColor) {
 				collector.addRule(`.settings-editor > .settings-body > .settings-tree-container .monaco-tree:focus .monaco-tree-row.focused {outline: solid 1px ${activeBorderColor}; outline-offset: -1px; }`);
 			}
 
-			const inactiveBorderColor = theme.getColor(listInactiveSelectionBackground);
+			const inactiveBorderColor = theme.getColor(settingItemInactiveSelectionBorder);
 			if (inactiveBorderColor) {
 				collector.addRule(`.settings-editor > .settings-body > .settings-tree-container .monaco-tree .monaco-tree-row.focused {outline: solid 1px ${inactiveBorderColor}; outline-offset: -1px; }`);
+			}
+
+			const foregroundColor = theme.getColor(foreground);
+			if (foregroundColor) {
+				// Links appear inside other elements in markdown. CSS opacity acts like a mask. So we have to dynamically compute the description color to avoid
+				// applying an opacity to the link color.
+				const fgWithOpacity = new Color(new RGBA(foregroundColor.rgba.r, foregroundColor.rgba.g, foregroundColor.rgba.b, .7));
+				collector.addRule(`.settings-editor > .settings-body > .settings-tree-container .setting-item .setting-item-description { color: ${fgWithOpacity}; }`);
 			}
 		}));
 
@@ -692,7 +718,10 @@ export class SettingsEditor2 extends BaseEditor {
 		// Count unique results
 		const counts = {};
 		const filterResult = results[SearchResultIdx.Local];
-		counts['filterResult'] = filterResult.filterMatches.length;
+		if (filterResult) {
+			counts['filterResult'] = filterResult.filterMatches.length;
+		}
+
 		if (nlpResult) {
 			counts['nlpResult'] = nlpResult.filterMatches.length;
 		}
