@@ -26,6 +26,20 @@
 		"onWebviewPanel:markdown.preview"
 	],
 	"contributes": {
+		"languages": [
+			{
+				"id": "markdown",
+				"aliases": [
+					"Markdown"
+				],
+				"extensions": [
+					".md",
+					".mdown",
+					".markdown",
+					".markdn"
+				]
+			}
+		],
 		"commands": [
 			{
 				"command": "markdown.showPreview",

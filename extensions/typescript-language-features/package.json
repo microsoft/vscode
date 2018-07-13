@@ -44,6 +44,47 @@
   ],
   "main": "./out/extension",
   "contributes": {
+    "languages": [
+      {
+        "id": "typescript",
+        "aliases": [
+          "TypeScript"
+        ],
+        "extensions": [
+          ".ts"
+        ]
+      },
+      {
+        "id": "typescriptreact",
+        "aliases": [
+          "TypeScript React"
+        ],
+        "extensions": [
+          ".tsx"
+        ]
+      },
+      {
+        "id": "javascriptreact",
+        "aliases": [
+          "JavaScript React"
+        ],
+        "extensions": [
+          ".jsx"
+        ]
+      },
+      {
+        "id": "javascript",
+        "aliases": [
+          "JavaScript"
+        ],
+        "extensions": [
+          ".js",
+          ".es6",
+          ".mjs",
+          ".pac"
+        ]
+      }
+    ],
     "jsonValidation": [
       {
         "fileMatch": "package.json",

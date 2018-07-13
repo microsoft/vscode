@@ -26,7 +26,7 @@ export interface ITMSyntaxExtensionPoint {
 }
 
 export const grammarsExtPoint: IExtensionPoint<ITMSyntaxExtensionPoint[]> = ExtensionsRegistry.registerExtensionPoint<ITMSyntaxExtensionPoint[]>('grammars', [languagesExtPoint], {
-	description: nls.localize('vscode.extension.contributes.grammars', 'Contributes textmate tokenizers.'),
+	description: nls.localize('vscode.extension.contributes.grammars', 'Contributes textmate tokenizers for languages.'),
 	type: 'array',
 	defaultSnippets: [{ body: [{ language: '${1:id}', scopeName: 'source.${2:id}', path: './syntaxes/${3:id}.tmLanguage.' }] }],
 	items: {

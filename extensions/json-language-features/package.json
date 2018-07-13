@@ -24,6 +24,34 @@
     "Programming Languages"
   ],
   "contributes": {
+    "languages": [
+      {
+        "id": "json",
+        "aliases": [
+          "JSON"
+        ],
+        "extensions": [
+          ".json",
+          ".bowerrc",
+          ".jshintrc",
+          ".jscsrc",
+          ".eslintrc",
+          ".babelrc",
+          ".webmanifest",
+          ".js.map",
+          ".css.map"
+        ]
+      },
+      {
+        "id": "jsonc",
+        "aliases": [
+          "JSON with Comments"
+        ],
+        "extensions": [
+          ".jsonc"
+        ]
+      }
+    ],
     "configuration": {
       "id": "json",
       "order": 20,

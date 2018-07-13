@@ -26,6 +26,32 @@
     "Programming Languages"
   ],
   "contributes": {
+    "languages": [
+      {
+        "id": "css",
+        "aliases": [
+          "CSS"
+        ],
+        "extensions": [
+          ".css"
+        ]
+      },
+      {
+        "id": "less",
+        "aliases": [
+          "Less"
+        ]
+      },
+      {
+        "id": "scss",
+        "aliases": [
+          "SCSS"
+        ],
+        "extensions": [
+          ".scss"
+        ]
+      }
+    ],
     "configuration": [
       {
         "order": 22,
