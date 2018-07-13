@@ -667,4 +667,20 @@ suite('ExtHostLanguageFeatureCommands', function () {
 			});
 		});
 	});
+
+	test('"TypeError: e.onCancellationRequested is not a function" calling hover provider in Insiders #54174', function () {
+
+		disposables.push(extHost.registerHoverProvider(defaultSelector, <vscode.HoverProvider>{
+			provideHover(): any {
+				return new types.Hover('fofofofo');
+			}
+		}));
+
+		return rpcProtocol.sync().then(() => {
+			return commands.executeCommand<vscode.Hover[]>('vscode.executeHoverProvider', model.uri, new types.Position(1, 1)).then(value => {
+				assert.equal(value.length, 1);
+				assert.equal(value[0].contents.length, 1);
+			});
+		});
+	});
 });
