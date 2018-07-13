@@ -245,7 +245,7 @@ class Extension implements IExtension {
 
 		if (this.type === LocalExtensionType.System) {
 			return TPromise.as(`# ${this.displayName || this.name}
-**Notice** This extension is bundled with Visual Studio Code. It can be disabled but not uninstalled.
+**Notice:** This extension is bundled with Visual Studio Code. It can be disabled but not uninstalled.
 ## Features
 ${this.description}
 `);
