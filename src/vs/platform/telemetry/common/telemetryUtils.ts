@@ -46,7 +46,7 @@ export const NullAppender: ITelemetryAppender = { log: () => null, dispose: () =
 
 export class LogAppender implements ITelemetryAppender {
 
-	private commonPropertiesRegex = /^sessionID$|^version$|^timestamp$|^common\./;
+	private commonPropertiesRegex = /^sessionID$|^version$|^timestamp$|^commitHash$|^common\./;
 	constructor(@ILogService private readonly _logService: ILogService) { }
 
 	dispose(): TPromise<any> {
