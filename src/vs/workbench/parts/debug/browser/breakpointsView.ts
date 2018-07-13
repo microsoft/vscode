@@ -107,10 +107,6 @@ export class BreakpointsView extends ViewletPanel {
 		}));
 
 		this.list.splice(0, this.list.length, this.elements);
-
-		if (this.list.getSelection().length === 0 && this.list.getFocus().length === 0) {
-			this.list.focusNext();
-		}
 	}
 
 	public focus(): void {
@@ -200,9 +196,6 @@ export class BreakpointsView extends ViewletPanel {
 			}
 			if (this.list) {
 				this.list.splice(0, this.list.length, this.elements);
-				if (this.list.getSelection().length === 0 && this.list.getFocus().length === 0) {
-					this.list.focusNext();
-				}
 				this.needsRefresh = false;
 			}
 		} else {

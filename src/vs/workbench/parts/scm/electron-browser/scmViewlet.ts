@@ -756,11 +756,6 @@ export class RepositoryPanel extends ViewletPanel {
 	) {
 		super({ id, title: repository.provider.label }, keybindingService, contextMenuService, configurationService);
 		this.menus = instantiationService.createInstance(SCMMenus, repository.provider);
-		repository.provider.onDidChangeResources(() => {
-			if (this.list.getFocusedElements().length === 0 && this.list.length > 1) {
-				this.list.setFocus([1]);
-			}
-		}, null, this.disposables);
 		this.menus.onDidChangeTitle(this._onDidChangeTitleArea.fire, this._onDidChangeTitleArea, this.disposables);
 	}
 
@@ -898,9 +893,6 @@ export class RepositoryPanel extends ViewletPanel {
 		if (visible) {
 			const listSplicer = new ResourceGroupSplicer(this.repository.provider.groups, this.list);
 			this.visibilityDisposables.push(listSplicer);
-			if (this.list.getFocusedElements().length === 0 && this.list.length > 1) {
-				this.list.setFocus([1]);
-			}
 		} else {
 			this.visibilityDisposables = dispose(this.visibilityDisposables);
 		}
