@@ -60,7 +60,7 @@
 
 .monaco-workbench > .part.editor > .content .editor-group-container > .title .no-tabs-breadcrumbs .breadcrumbs-control .monaco-breadcrumb-item.shows-symbol-icon::before {
 	padding-right: 2px;
-	content: ' ';
+	/* content: ' '; */
 }
 
 .monaco-workbench > .part.editor > .content .editor-group-container > .title .no-tabs-breadcrumbs .breadcrumbs-control .monaco-breadcrumb-item.shows-symbol-icon .symbol-icon {
