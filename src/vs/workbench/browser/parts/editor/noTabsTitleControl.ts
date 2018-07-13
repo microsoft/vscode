@@ -39,7 +39,7 @@ export class NoTabsTitleControl extends TitleControl {
 		const breadcrumbsContainer = document.createElement('div');
 		addClass(breadcrumbsContainer, 'no-tabs-breadcrumbs');
 		this.titleContainer.appendChild(breadcrumbsContainer);
-		this.createBreadcrumbsControl(breadcrumbsContainer, { showIcons: false, showDecorationColors: false });
+		this.createBreadcrumbsControl(breadcrumbsContainer, { showFileIcons: false, showSymbolIcons: true, showDecorationColors: false });
 
 		// Right Actions Container
 		const actionsContainer = document.createElement('div');

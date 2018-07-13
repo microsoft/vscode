@@ -48,15 +48,21 @@
 	font-style: italic;
 }
 
-.monaco-workbench > .part.editor > .content .editor-group-container > .title .no-tabs-breadcrumbs .breadcrumbs-control .monaco-breadcrumb-item:not(:last-child)::after {
+.monaco-workbench > .part.editor > .content .editor-group-container > .title .no-tabs-breadcrumbs .breadcrumbs-control .monaco-breadcrumb-item:not(:first-child)::before {
 	content: '/';
+	opacity: 1;
 	height: inherit;
 	width: inherit;
 	background-image: none;
 }
 
-.monaco-workbench.windows > .part.editor > .content .editor-group-container > .title .no-tabs-breadcrumbs .breadcrumbs-control .monaco-breadcrumb-item:not(:last-child)::after  {
+.monaco-workbench.windows > .part.editor > .content .editor-group-container > .title .no-tabs-breadcrumbs .breadcrumbs-control .monaco-breadcrumb-item:not(:first-child)::before  {
 	content: '\\';
+}
+
+.monaco-workbench > .part.editor > .content .editor-group-container > .title .no-tabs-breadcrumbs .breadcrumbs-control .monaco-breadcrumb-item.shows-symbol-icon:not(:first-child)::before {
+	/* breadcrumbs items that show a symbol icon don't show slashes */
+	content: ' ';
 }
 
 /* Title Actions */

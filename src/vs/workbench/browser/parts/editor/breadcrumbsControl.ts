@@ -70,7 +70,7 @@ class Item extends BreadcrumbsItem {
 	render(container: HTMLElement): void {
 		if (this.element instanceof FileElement) {
 			// file/folder
-			if (this.options.showIcons) {
+			if (this.options.showFileIcons) {
 				let label = this._instantiationService.createInstance(FileLabel, container, {});
 				label.setFile(this.element.uri, {
 					hidePath: true,
@@ -94,10 +94,11 @@ class Item extends BreadcrumbsItem {
 		} else if (this.element instanceof OutlineElement) {
 			// symbol
 
-			if (this.options.showIcons) {
+			if (this.options.showSymbolIcons) {
 				let icon = document.createElement('div');
 				icon.className = `symbol-icon ${symbolKindToCssClass(this.element.symbol.kind)}`;
 				container.appendChild(icon);
+				container.classList.add('shows-symbol-icon');
 			}
 
 			let label = new IconLabel(container);
@@ -108,7 +109,8 @@ class Item extends BreadcrumbsItem {
 }
 
 export interface IBreadcrumbsControlOptions {
-	showIcons: boolean;
+	showFileIcons: boolean;
+	showSymbolIcons: boolean;
 	showDecorationColors: boolean;
 }
 

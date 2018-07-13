@@ -22,7 +22,7 @@
 	height: 100%;
 }
 
-.monaco-breadcrumbs .monaco-breadcrumb-item:not(:last-child)::after {
+.monaco-breadcrumbs .monaco-breadcrumb-item:not(:first-child)::before {
 	background-image: url(./collapsed.svg);
 	opacity: .7;
 	width: 16px;
@@ -33,7 +33,7 @@
 	content: ' ';
 }
 
-.vs-dark .monaco-breadcrumbs .monaco-breadcrumb-item:not(:last-child)::after {
+.vs-dark .monaco-breadcrumbs .monaco-breadcrumb-item:not(:first-child)::before {
 	background-image: url(./collpased-dark.svg);
 }
 
