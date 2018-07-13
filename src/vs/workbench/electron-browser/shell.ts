@@ -523,7 +523,7 @@ export class WorkbenchShell extends Disposable {
 	private _savePartsSplash() {
 
 		// capture html-structure
-		let html = '<div id="monaco-parts-splash">';
+		let html = '<div id="monaco-parts-splash" style="overflow: hidden;">';
 
 		// title part
 		let titleHeight: number;
