@@ -48,7 +48,7 @@ export abstract class BreadcrumbsPicker {
 		this._domNode.className = 'monaco-breadcrumbs-picker show-file-icons';
 		const color = this._themeService.getTheme().getColor(breadcrumbsActiveSelectionBackground);
 		this._domNode.style.background = color.toString();
-		this._domNode.style.boxShadow = `2px 2px 3px ${color.darken(.1)}`;
+		this._domNode.style.boxShadow = `0px 5px 8px ${color.darken(.2)}`;
 		this._domNode.style.position = 'absolute';
 		this._domNode.style.zIndex = '1000';
 		container.appendChild(this._domNode);
