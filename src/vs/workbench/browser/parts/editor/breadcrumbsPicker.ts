@@ -45,7 +45,7 @@ export abstract class BreadcrumbsPicker {
 		@IThemeService protected readonly _themeService: IThemeService,
 	) {
 		this._domNode = document.createElement('div');
-		this._domNode.className = 'monaco-breadcrumbs-picker';
+		this._domNode.className = 'monaco-breadcrumbs-picker show-file-icons';
 		const color = this._themeService.getTheme().getColor(breadcrumbsActiveSelectionBackground);
 		this._domNode.style.background = color.toString();
 		this._domNode.style.boxShadow = `2px 2px 3px ${color.darken(.1)}`;
