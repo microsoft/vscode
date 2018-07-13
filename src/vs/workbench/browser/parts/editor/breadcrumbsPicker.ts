@@ -136,7 +136,7 @@ export class FileDataSource implements IDataSource {
 
 export class FileRenderer implements IRenderer, IHighlightingRenderer {
 
-	private readonly _scores = new WeakMap<IFileStat, FuzzyScore>();
+	private readonly _scores = new Map<string, FuzzyScore>();
 
 	constructor(
 		@IInstantiationService private readonly _instantiationService: IInstantiationService
@@ -159,7 +159,7 @@ export class FileRenderer implements IRenderer, IHighlightingRenderer {
 			hidePath: true,
 			fileKind: element.isDirectory ? FileKind.FOLDER : FileKind.FILE,
 			fileDecorations: { colors: true, badges: true },
-			matches: createMatches((this._scores.get(element) || [, []])[1])
+			matches: createMatches((this._scores.get(element.resource.toString()) || [, []])[1])
 		});
 	}
 
@@ -167,10 +167,20 @@ export class FileRenderer implements IRenderer, IHighlightingRenderer {
 		templateData.dispose();
 	}
 
-	updateHighlights(tree: ITree, element: any, pattern: string): FuzzyScore {
-		let score = fuzzyScore(pattern, (element as IFileStat).name, undefined, true);
-		this._scores.set(element, score);
-		return score;
+	updateHighlights(tree: ITree, pattern: string): any {
+		let nav = tree.getNavigator(undefined, false);
+		let topScore: FuzzyScore;
+		let topElement: any;
+		while (nav.next()) {
+			let element = nav.current() as IFileStat;
+			let score = fuzzyScore(pattern, element.name, undefined, true);
+			this._scores.set(element.resource.toString(), score);
+			if (!topScore || score && topScore[0] < score[0]) {
+				topScore = score;
+				topElement = element;
+			}
+		}
+		return topElement;
 	}
 }
 
@@ -227,13 +237,10 @@ export class BreadcrumbsFilePicker extends BreadcrumbsPicker {
 
 class HighlightingOutlineRenderer extends OutlineRenderer implements IHighlightingRenderer {
 
-	updateHighlights(tree: ITree, element: any, pattern: string): FuzzyScore {
-		if (element instanceof OutlineElement) {
-			return element.score = fuzzyScore(pattern, element.symbol.name, undefined, true) || [-1, []];
-		}
-		return undefined;
+	updateHighlights(tree: ITree, pattern: string): any {
+		let model = OutlineModel.get(tree.getInput());
+		return model.updateMatches(pattern);
 	}
-
 }
 
 export class BreadcrumbsOutlinePicker extends BreadcrumbsPicker {

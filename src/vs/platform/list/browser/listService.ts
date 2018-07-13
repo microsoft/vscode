@@ -25,7 +25,6 @@ import { IEditorOptions } from 'vs/platform/editor/common/editor';
 import { Event, Emitter } from 'vs/base/common/event';
 import { createStyleSheet, addStandardDisposableListener } from 'vs/base/browser/dom';
 import { ScrollbarVisibility } from 'vs/base/common/scrollable';
-import { FuzzyScore } from 'vs/base/common/filters';
 import { InputBox, IInputOptions } from 'vs/base/browser/ui/inputbox/inputBox';
 import { IContextViewService } from 'vs/platform/contextview/browser/contextView';
 import { TPromise } from 'vs/base/common/winjs.base';
@@ -559,7 +558,10 @@ export class TreeResourceNavigator extends Disposable {
 
 
 export interface IHighlightingRenderer extends ITreeRenderer {
-	updateHighlights(tree: ITree, element: any, pattern: string): FuzzyScore;
+	/**
+	 * Update hightlights and return the best matching element
+	 */
+	updateHighlights(tree: ITree, pattern: string): any;
 }
 
 export interface IHighlightingTreeConfiguration extends ITreeConfiguration {
@@ -671,27 +673,29 @@ export class HighlightingWorkbenchTree extends WorkbenchTree {
 		super.layout(isNaN(height) ? height : height - this.input.height, width);
 	}
 
+	private lastSelection: any[];
+
 	private updateHighlights(pattern: string): void {
-		let nav = this.getNavigator(undefined, false);
-		let topScore: FuzzyScore;
-		let topElement: any;
-		while (nav.next()) {
-			let element = nav.current();
-			let score = this.renderer.updateHighlights(this, element, pattern);
-			if (!topScore || score && topScore[0] < score[0]) {
-				topScore = score;
-				topElement = element;
-			}
-			this.refresh(element).then(undefined, onUnexpectedError);
+
+		// remember old selection
+		let defaultSelection: any[];
+		if (!this.lastSelection && pattern) {
+			this.lastSelection = this.getSelection();
+			defaultSelection = [];
+		} else if (this.lastSelection && !pattern) {
+			defaultSelection = this.lastSelection;
+			this.lastSelection = [];
 		}
-		if (topElement) {
+
+		let topElement = this.renderer.updateHighlights(this, pattern);
+		if (topElement && pattern) {
 			this.reveal(topElement).then(_ => {
-				this.setFocus(topElement);
 				this.setSelection([topElement], this);
+				return this.refresh();
 			}, onUnexpectedError);
 		} else {
-			this.setSelection([], this);
-			this.setFocus(undefined);
+			this.setSelection(defaultSelection, this);
+			this.refresh().then(undefined, onUnexpectedError);
 		}
 	}
 }
