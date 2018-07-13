@@ -11,3 +11,4 @@ This extension provides rich language support to CSS/SCSS/LESS files.
 - extra information on hover
 - navigation to definition and references
 
+Please read the [CONTRIBUTING.md](https://github.com/Microsoft/vscode/blob/master/extensions/css-language-features/CONTRIBUTING.md) file to learn how to contribute to this extension.

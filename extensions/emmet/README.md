@@ -6,7 +6,7 @@
 
 See [Emmet in Visual Studio Code](https://code.visualstudio.com/docs/editor/emmet)
 
-
+Please read the [CONTRIBUTING.md](https://github.com/Microsoft/vscode/blob/master/extensions/emmet/CONTRIBUTING.md) file to learn how to contribute to this extension.
 
 
 

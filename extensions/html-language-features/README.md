@@ -12,4 +12,4 @@ This extension provides rich language support to HTML files.
 - navigation to definition and references
 - formatting
 
-
+Please read the [CONTRIBUTING.md](https://github.com/Microsoft/vscode/blob/master/extensions/html-language-features/CONTRIBUTING.md) file to learn how to contribute to this extension.
