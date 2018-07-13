@@ -171,6 +171,17 @@ export class WindowsService implements IWindowsService, IURLHandler, IDisposable
 		return TPromise.as(null);
 	}
 
+	enterWorkspace(windowId: number, path: string): TPromise<IEnterWorkspaceResult> {
+		this.logService.trace('windowsService#enterWorkspace', windowId);
+		const codeWindow = this.windowsMainService.getWindowById(windowId);
+
+		if (codeWindow) {
+			return this.windowsMainService.enterWorkspace(codeWindow, path);
+		}
+
+		return TPromise.as(null);
+	}
+
 	createAndEnterWorkspace(windowId: number, folders?: IWorkspaceFolderCreationData[], path?: string): TPromise<IEnterWorkspaceResult> {
 		this.logService.trace('windowsService#createAndEnterWorkspace', windowId);
 		const codeWindow = this.windowsMainService.getWindowById(windowId);
