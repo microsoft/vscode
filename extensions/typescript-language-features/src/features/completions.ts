@@ -15,6 +15,7 @@ import * as Previewer from '../utils/previewer';
 import * as typeConverters from '../utils/typeConverters';
 import TypingsStatus from '../utils/typingsStatus';
 import FileConfigurationManager from './fileConfigurationManager';
+import { memoize } from '../utils/memoize';
 
 const localize = nls.loadMessageBundle();
 
@@ -34,9 +35,9 @@ class MyCompletionItem extends vscode.CompletionItem {
 		line: string,
 		public readonly tsEntry: Proto.CompletionEntry,
 		useCodeSnippetsOnMethodSuggest: boolean,
-		commitCharactersSettings: CommitCharactersSettings
+		public readonly commitCharactersSettings: CommitCharactersSettings
 	) {
-		super(tsEntry.name);
+		super(tsEntry.name, MyCompletionItem.convertKind(tsEntry.kind));
 
 		if (tsEntry.isRecommended) {
 			// Make sure isRecommended property always comes first
@@ -51,9 +52,7 @@ class MyCompletionItem extends vscode.CompletionItem {
 			this.sortText = tsEntry.sortText;
 		}
 
-		this.kind = MyCompletionItem.convertKind(tsEntry.kind);
 		this.position = position;
-		this.commitCharacters = MyCompletionItem.getCommitCharacters(commitCharactersSettings, tsEntry.kind);
 		this.useCodeSnippet = useCodeSnippetsOnMethodSuggest && (this.kind === vscode.CompletionItemKind.Function || this.kind === vscode.CompletionItemKind.Method);
 		if (tsEntry.replacementSpan) {
 			this.range = typeConverters.Range.fromTextSpan(tsEntry.replacementSpan);
@@ -136,7 +135,6 @@ class MyCompletionItem extends vscode.CompletionItem {
 			case PConst.Kind.interface:
 				return vscode.CompletionItemKind.Interface;
 			case PConst.Kind.warning:
-			case PConst.Kind.file:
 			case PConst.Kind.script:
 				return vscode.CompletionItemKind.File;
 			case PConst.Kind.directory:
@@ -147,12 +145,10 @@ class MyCompletionItem extends vscode.CompletionItem {
 		return vscode.CompletionItemKind.Property;
 	}
 
-	private static getCommitCharacters(
-		settings: CommitCharactersSettings,
-		kind: string
-	): string[] | undefined {
+	@memoize
+	public get commitCharacters(): string[] | undefined {
 		const commitCharacters: string[] = [];
-		switch (kind) {
+		switch (this.tsEntry.kind) {
 			case PConst.Kind.memberGetAccessor:
 			case PConst.Kind.memberSetAccessor:
 			case PConst.Kind.constructSignature:
@@ -160,7 +156,7 @@ class MyCompletionItem extends vscode.CompletionItem {
 			case PConst.Kind.indexSignature:
 			case PConst.Kind.enum:
 			case PConst.Kind.interface:
-				if (settings.enableDotCompletions) {
+				if (this.commitCharactersSettings.enableDotCompletions) {
 					commitCharacters.push('.');
 				}
 				break;
@@ -175,10 +171,10 @@ class MyCompletionItem extends vscode.CompletionItem {
 			case PConst.Kind.class:
 			case PConst.Kind.function:
 			case PConst.Kind.memberFunction:
-				if (settings.enableDotCompletions) {
+				if (this.commitCharactersSettings.enableDotCompletions) {
 					commitCharacters.push('.', ',');
 				}
-				if (settings.enableCallCompletions) {
+				if (this.commitCharactersSettings.enableCallCompletions) {
 					commitCharacters.push('(');
 				}
 				break;
