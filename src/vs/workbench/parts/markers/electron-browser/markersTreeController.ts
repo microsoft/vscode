@@ -15,12 +15,9 @@ import { ActionItem, Separator } from 'vs/base/browser/ui/actionbar/actionbar';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { WorkbenchTree, WorkbenchTreeController } from 'vs/platform/list/browser/listService';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { getCodeActions } from 'vs/editor/contrib/codeAction/codeAction';
-import { ITextModelService } from 'vs/editor/common/services/resolverService';
 import { IBulkEditService } from 'vs/editor/browser/services/bulkEditService';
 import { applyCodeAction } from 'vs/editor/contrib/codeAction/codeActionCommands';
 import { ICommandService } from 'vs/platform/commands/common/commands';
-import { Range } from 'vs/editor/common/core/range';
 import { IEditorService, ACTIVE_GROUP } from 'vs/workbench/services/editor/common/editorService';
 
 export class Controller extends WorkbenchTreeController {
@@ -30,7 +27,6 @@ export class Controller extends WorkbenchTreeController {
 		@IMenuService private menuService: IMenuService,
 		@IKeybindingService private readonly _keybindingService: IKeybindingService,
 		@IConfigurationService configurationService: IConfigurationService,
-		@ITextModelService private textModelService: ITextModelService,
 		@IBulkEditService private bulkEditService: IBulkEditService,
 		@ICommandService private commandService: ICommandService,
 		@IEditorService private editorService: IEditorService
@@ -106,20 +102,16 @@ export class Controller extends WorkbenchTreeController {
 
 	private async _getQuickFixActions(element: any): Promise<IAction[]> {
 		if (element instanceof Marker) {
-			const modelReference = await this.textModelService.createModelReference(element.resource);
-			if (modelReference) {
-				const model = modelReference.object.textEditorModel;
-				const codeActions = await getCodeActions(model, new Range(element.range.startLineNumber, element.range.startColumn, element.range.endLineNumber, element.range.endColumn), { type: 'manual' });
-				return codeActions.map(codeAction => new Action(
-					codeAction.command ? codeAction.command.id : codeAction.title,
-					codeAction.title,
-					void 0,
-					true,
-					() => {
-						return this.openFileAtMarker(element)
-							.then(() => applyCodeAction(codeAction, this.bulkEditService, this.commandService));
-					}));
-			}
+			const codeActions = await element.getCodeActions({ type: 'manual' });
+			return codeActions.map(codeAction => new Action(
+				codeAction.command ? codeAction.command.id : codeAction.title,
+				codeAction.title,
+				void 0,
+				true,
+				() => {
+					return this.openFileAtMarker(element)
+						.then(() => applyCodeAction(codeAction, this.bulkEditService, this.commandService));
+				}));
 
 		}
 		return Promise.resolve([]);
