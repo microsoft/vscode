@@ -9,52 +9,62 @@ import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { ISpliceable } from 'vs/base/common/sequence';
 import { ISequence, getSequenceIterator, Iterator } from 'vs/base/common/iterator';
 
-export interface IDataProvider<T> {
+export interface IDataTreeElement<T> {
+	element: T;
+	collapsed?: boolean; // defaults to true
+}
+
+export enum DataTreeNodeState {
+	Idle,
+	Refreshing
+}
+
+export interface IDataTreeNode<T> {
+	element: T;
+	state: DataTreeNodeState;
+}
+
+export interface IDataTreeProvider<T> {
 	hasChildren(element: T): boolean;
-	getChildren(element: T): Promise<ISequence<T>>;
+	getChildren(element: T): Promise<ISequence<IDataTreeElement<T>>>;
 	getParent(element: T): Promise<T>;
 }
 
-export class DataTree<T> {
+export class DataTreeModel<T> {
 
-	private model: TreeModel<T>;
+	private model: TreeModel<IDataTreeNode<T>>;
 	// private items = new Map<T, ITreeElement<T>>();
 	private disposables: IDisposable[] = [];
 
-	private _root: T;
-
-	get root(): T {
-		return this._root;
+	constructor(
+		private dataSource: IDataTreeProvider<T>,
+		list: ISpliceable<ITreeNode<IDataTreeNode<T>>>
+	) {
+		this.model = new TreeModel<IDataTreeNode<T>>(list);
 	}
 
-	set root(root: T) {
-		this._root = root;
-
+	setInput(root: T): Promise<void> {
 		if (!this.dataSource.hasChildren(root)) {
 			this.model.splice([0], Number.POSITIVE_INFINITY);
-			return;
+			return Promise.resolve();
 		}
 
 		this.model.splice([0], Number.POSITIVE_INFINITY);
-		this.dataSource.getChildren(root).then(children => {
-			const childrenElements = Iterator.map<T, ITreeElement<T>>(getSequenceIterator(children), element => ({
-				element,
-				collapsed: true,
-				children
-			}));
 
+		return this.dataSource.getChildren(root).then(children => {
+			const nodes = Iterator.map<IDataTreeElement<T>, ITreeElement<IDataTreeNode<T>>>(
+				getSequenceIterator(children),
+				({ element, collapsed }) => ({
+					element: {
+						element,
+						state: DataTreeNodeState.Idle
+					},
+					collapsed: typeof collapsed === 'boolean' ? collapsed : true
+				})
+			);
 
-			// this.model.splice([0], Number.POSITIVE_INFINITY, children);
+			this.model.splice([0], Number.POSITIVE_INFINITY, nodes);
 		});
-	}
-
-	constructor(
-		private dataSource: IDataProvider<T>,
-		list: ISpliceable<ITreeNode<T>>,
-		root: T
-	) {
-		this.model = new TreeModel<T>(list);
-		this.root = root;
 	}
 
 	async refresh(element: T, recursive = false): Promise<void> {
