@@ -114,6 +114,10 @@ export class EditorBreadcrumbsModel {
 		});
 
 		OutlineModel.create(buffer, source.token).then(model => {
+
+			// copy the model
+			model = model.adopt();
+
 			this._updateOutlineElements(this._getOutlineElements(model, this._editor.getPosition()));
 			this._outlineDisposables.push(this._editor.onDidChangeCursorPosition(_ => {
 				timeout.cancelAndSet(() => {

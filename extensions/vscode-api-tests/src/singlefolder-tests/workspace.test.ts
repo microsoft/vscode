@@ -499,17 +499,16 @@ suite('workspace-namespace', () => {
 		});
 	});
 
-	// TODO@Joh this test fails randomly
-	// test('findFiles, cancellation', () => {
+	test('findFiles, cancellation', () => {
 
-	// 	const source = new CancellationTokenSource();
-	// 	const token = source.token; // just to get an instance first
-	// 	source.cancel();
+		const source = new vscode.CancellationTokenSource();
+		const token = source.token; // just to get an instance first
+		source.cancel();
 
-	// 	return vscode.workspace.findFiles('*.js', null, 100, token).then((res) => {
-	// 		assert.equal(res, void 0);
-	// 	});
-	// });
+		return vscode.workspace.findFiles('*.js', null, 100, token).then((res) => {
+			assert.deepEqual(res, []);
+		});
+	});
 
 	test('findTextInFiles', async () => {
 		const results: vscode.TextSearchResult[] = [];

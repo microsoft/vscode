@@ -115,6 +115,7 @@ const AssetType = {
 
 const PropertyType = {
 	Dependency: 'Microsoft.VisualStudio.Code.ExtensionDependencies',
+	ExtensionPack: 'Microsoft.VisualStudio.Code.ExtensionPack',
 	Engine: 'Microsoft.VisualStudio.Code.Engine'
 };
 
@@ -262,8 +263,8 @@ function getVersionAsset(version: IRawGalleryExtensionVersion, type: string): IG
 	};
 }
 
-function getDependencies(version: IRawGalleryExtensionVersion): string[] {
-	const values = version.properties ? version.properties.filter(p => p.key === PropertyType.Dependency) : [];
+function getExtensions(version: IRawGalleryExtensionVersion, property: string): string[] {
+	const values = version.properties ? version.properties.filter(p => p.key === property) : [];
 	const value = values.length > 0 && values[0].value;
 	return value ? value.split(',').map(v => adoptToGalleryExtensionId(v)) : [];
 }
@@ -308,7 +309,8 @@ function toExtension(galleryExtension: IRawGalleryExtension, extensionsGalleryUr
 		ratingCount: getStatistic(galleryExtension.statistics, 'ratingcount'),
 		assets,
 		properties: {
-			dependencies: getDependencies(version),
+			dependencies: getExtensions(version, PropertyType.Dependency),
+			extensionPack: getExtensions(version, PropertyType.ExtensionPack),
 			engine: getEngine(version)
 		},
 		/* __GDPR__FRAGMENT__
@@ -568,7 +570,7 @@ export class ExtensionGalleryService implements IExtensionGalleryService {
 				return this.getLastValidExtensionVersion(rawExtension, rawExtension.versions)
 					.then(rawVersion => {
 						if (rawVersion) {
-							extension.properties.dependencies = getDependencies(rawVersion);
+							extension.properties.dependencies = getExtensions(rawVersion, PropertyType.Dependency);
 							extension.properties.engine = getEngine(rawVersion);
 							extension.assets.download = getVersionAsset(rawVersion, AssetType.VSIX);
 							extension.version = rawVersion.version;

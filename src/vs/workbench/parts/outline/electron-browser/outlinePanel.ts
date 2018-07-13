@@ -518,7 +518,7 @@ export class OutlinePanel extends ViewletPanel {
 
 		this._progressBar.stop().hide();
 
-		if (oldModel && oldModel.adopt(model)) {
+		if (oldModel && oldModel.merge(model)) {
 			this._tree.refresh(undefined, true);
 			model = oldModel;
 

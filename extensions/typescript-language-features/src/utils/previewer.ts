@@ -3,8 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as Proto from '../protocol';
 import { MarkdownString } from 'vscode';
+import * as Proto from '../protocol';
 
 function getTagBodyText(tag: Proto.JSDocTagInfo): string | undefined {
 	if (!tag.text) {

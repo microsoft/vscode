@@ -596,9 +596,9 @@ export interface ITerminalProcessExtHostProxy extends IDisposable {
 	emitPid(pid: number): void;
 	emitExit(exitCode: number): void;
 
-	onInput(listener: (data: string) => void): void;
-	onResize(listener: (cols: number, rows: number) => void): void;
-	onShutdown(listener: () => void): void;
+	onInput: Event<string>;
+	onResize: Event<{ cols: number, rows: number }>;
+	onShutdown: Event<void>;
 }
 
 export interface ITerminalProcessExtHostRequest {

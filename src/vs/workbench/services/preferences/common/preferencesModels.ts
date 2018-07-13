@@ -473,7 +473,8 @@ export class DefaultSettings extends Disposable {
 					valueRange: null,
 					overrides: [],
 					type: setting.type,
-					enum: setting.enum
+					enum: setting.enum,
+					enumDescriptions: setting.enumDescriptions
 				};
 			}
 			return null;
@@ -547,7 +548,7 @@ export class DefaultSettings extends Disposable {
 				const value = prop.default;
 				const description = (prop.description || '').split('\n');
 				const overrides = OVERRIDE_PROPERTY_PATTERN.test(key) ? this.parseOverrideSettings(prop.default) : [];
-				result.push({ key, value, description, range: null, keyRange: null, valueRange: null, descriptionRanges: [], overrides, type: prop.type, enum: prop.enum });
+				result.push({ key, value, description, range: null, keyRange: null, valueRange: null, descriptionRanges: [], overrides, type: prop.type, enum: prop.enum, enumDescriptions: prop.enumDescriptions });
 			}
 		}
 		return result;

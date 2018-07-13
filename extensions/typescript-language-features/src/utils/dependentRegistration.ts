@@ -75,12 +75,8 @@ export class ConfigurationDependentRegistration {
 		register: () => vscode.Disposable,
 	) {
 		this._registration = new ConditionalRegistration(register);
-
 		this.update();
-
-		vscode.workspace.onDidChangeConfiguration(() => {
-			this.update();
-		}, null, this._disposables);
+		vscode.workspace.onDidChangeConfiguration(this.update, this, this._disposables);
 	}
 
 	public dispose() {

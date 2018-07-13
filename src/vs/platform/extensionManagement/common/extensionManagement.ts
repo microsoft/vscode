@@ -124,6 +124,7 @@ export interface IExtensionManifest {
 	categories?: string[];
 	activationEvents?: string[];
 	extensionDependencies?: string[];
+	extensionPack?: string[];
 	contributes?: IExtensionContributions;
 	repository?: {
 		url: string;
@@ -135,6 +136,7 @@ export interface IExtensionManifest {
 
 export interface IGalleryExtensionProperties {
 	dependencies?: string[];
+	extensionPack?: string[];
 	engine?: string;
 }
 
@@ -205,6 +207,7 @@ export enum LocalExtensionType {
 export interface ILocalExtension {
 	type: LocalExtensionType;
 	identifier: IExtensionIdentifier;
+	galleryIdentifier: IExtensionIdentifier;
 	manifest: IExtensionManifest;
 	metadata: IGalleryMetadata;
 	location: URI;
@@ -303,10 +306,10 @@ export interface IExtensionManagementService {
 	onUninstallExtension: Event<IExtensionIdentifier>;
 	onDidUninstallExtension: Event<DidUninstallExtensionEvent>;
 
-	install(zipPath: string): TPromise<ILocalExtension>;
-	installFromGallery(extension: IGalleryExtension): TPromise<ILocalExtension>;
+	install(zipPath: string): TPromise<void>;
+	installFromGallery(extension: IGalleryExtension): TPromise<void>;
 	uninstall(extension: ILocalExtension, force?: boolean): TPromise<void>;
-	reinstallFromGallery(extension: ILocalExtension): TPromise<ILocalExtension>;
+	reinstallFromGallery(extension: ILocalExtension): TPromise<void>;
 	getInstalled(type?: LocalExtensionType): TPromise<ILocalExtension[]>;
 	getExtensionsReport(): TPromise<IReportedExtension[]>;
 
