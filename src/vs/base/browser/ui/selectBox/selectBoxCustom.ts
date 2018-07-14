@@ -417,7 +417,15 @@ export class SelectBoxList implements ISelectBoxDelegate, IVirtualDelegate<ISele
 
 		this.layoutSelectDropDown();
 		return {
-			dispose: () => container.removeChild(this.selectDropDownContainer) // remove to take out the CSS rules we add
+			dispose: () => {
+				// contextView will dispose itself if moving from one View to another
+				try {
+					container.removeChild(this.selectDropDownContainer); // remove to take out the CSS rules we add
+				}
+				catch (error) {
+					// Ignore, removed already by change of focus
+				}
+			}
 		};
 	}
 
