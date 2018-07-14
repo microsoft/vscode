@@ -128,7 +128,7 @@ export const tocData: ITOCEntry = {
 			children: [
 				{
 					id: 'features/explorer',
-					label: localize('fileExplorer', "File Explorer"),
+					label: localize('fileExplorer', "Explorer"),
 					settings: ['explorer.*', 'outline.*']
 				},
 				{
