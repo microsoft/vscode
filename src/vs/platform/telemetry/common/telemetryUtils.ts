@@ -126,6 +126,7 @@ const configurationValueWhitelist = [
 	'editor.wordBasedSuggestions',
 	'editor.suggestSelection',
 	'editor.suggestFontSize',
+	'editor.suggestFontWeight',
 	'editor.suggestLineHeight',
 	'editor.selectionHighlight',
 	'editor.occurrencesHighlight',

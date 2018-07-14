@@ -2863,6 +2863,11 @@ declare namespace monaco.editor {
 		 */
 		suggestFontSize?: number;
 		/**
+		 * The font weight for the suggest widget.
+		 * Defaults to the editor font weight.
+		 */
+		suggestFontWeight?: 'normal' | 'bold' | 'bolder' | 'lighter' | 'initial' | 'inherit' | '100' | '200' | '300' | '400' | '500' | '600' | '700' | '800' | '900';
+		/**
 		 * The line height for the suggest widget.
 		 * Defaults to the editor line height.
 		 */
@@ -3204,6 +3209,7 @@ declare namespace monaco.editor {
 		readonly wordBasedSuggestions: boolean;
 		readonly suggestSelection: 'first' | 'recentlyUsed' | 'recentlyUsedByPrefix';
 		readonly suggestFontSize: number;
+		readonly suggestFontWeight: 'normal' | 'bold' | 'bolder' | 'lighter' | 'initial' | 'inherit' | '100' | '200' | '300' | '400' | '500' | '600' | '700' | '800' | '900';
 		readonly suggestLineHeight: number;
 		readonly suggest: InternalSuggestOptions;
 		readonly selectionHighlight: boolean;

@@ -521,6 +521,11 @@ export interface IEditorOptions {
 	 */
 	suggestFontSize?: number;
 	/**
+	 * The font weight for the suggest widget.
+	 * Defaults to the editor font weight.
+	 */
+	suggestFontWeight?: 'normal' | 'bold' | 'bolder' | 'lighter' | 'initial' | 'inherit' | '100' | '200' | '300' | '400' | '500' | '600' | '700' | '800' | '900';
+	/**
 	 * The line height for the suggest widget.
 	 * Defaults to the editor line height.
 	 */
@@ -922,6 +927,7 @@ export interface EditorContribOptions {
 	readonly wordBasedSuggestions: boolean;
 	readonly suggestSelection: 'first' | 'recentlyUsed' | 'recentlyUsedByPrefix';
 	readonly suggestFontSize: number;
+	readonly suggestFontWeight: 'normal' | 'bold' | 'bolder' | 'lighter' | 'initial' | 'inherit' | '100' | '200' | '300' | '400' | '500' | '600' | '700' | '800' | '900';
 	readonly suggestLineHeight: number;
 	readonly suggest: InternalSuggestOptions;
 	readonly selectionHighlight: boolean;
@@ -1301,6 +1307,7 @@ export class InternalEditorOptions {
 			&& a.wordBasedSuggestions === b.wordBasedSuggestions
 			&& a.suggestSelection === b.suggestSelection
 			&& a.suggestFontSize === b.suggestFontSize
+			&& a.suggestFontWeight === b.suggestFontWeight
 			&& a.suggestLineHeight === b.suggestLineHeight
 			&& this._equalsSuggestOptions(a.suggest, b.suggest)
 			&& a.selectionHighlight === b.selectionHighlight
@@ -1896,6 +1903,7 @@ export class EditorOptionsValidator {
 			wordBasedSuggestions: _boolean(opts.wordBasedSuggestions, defaults.wordBasedSuggestions),
 			suggestSelection: _stringSet<'first' | 'recentlyUsed' | 'recentlyUsedByPrefix'>(opts.suggestSelection, defaults.suggestSelection, ['first', 'recentlyUsed', 'recentlyUsedByPrefix']),
 			suggestFontSize: _clampedInt(opts.suggestFontSize, defaults.suggestFontSize, 0, 1000),
+			suggestFontWeight: _stringSet<'normal' | 'bold' | 'bolder' | 'lighter' | 'initial' | 'inherit' | '100' | '200' | '300' | '400' | '500' | '600' | '700' | '800' | '900'>(opts.suggestFontWeight, defaults.suggestFontWeight, ['normal', 'bold', 'bolder', 'lighter', 'initial', 'inherit', '100', '200', '300', '400', '500', '600', '700', '800', '900']),
 			suggestLineHeight: _clampedInt(opts.suggestLineHeight, defaults.suggestLineHeight, 0, 1000),
 			suggest: this._sanitizeSuggestOpts(opts, defaults.suggest),
 			selectionHighlight: _boolean(opts.selectionHighlight, defaults.selectionHighlight),
@@ -2004,6 +2012,7 @@ export class InternalEditorOptionsFactory {
 				wordBasedSuggestions: opts.contribInfo.wordBasedSuggestions,
 				suggestSelection: opts.contribInfo.suggestSelection,
 				suggestFontSize: opts.contribInfo.suggestFontSize,
+				suggestFontWeight: opts.contribInfo.suggestFontWeight,
 				suggestLineHeight: opts.contribInfo.suggestLineHeight,
 				suggest: opts.contribInfo.suggest,
 				selectionHighlight: (accessibilityIsOn ? false : opts.contribInfo.selectionHighlight), // DISABLED WHEN SCREEN READER IS ATTACHED
@@ -2475,6 +2484,7 @@ export const EDITOR_DEFAULTS: IValidatedEditorOptions = {
 		wordBasedSuggestions: true,
 		suggestSelection: 'recentlyUsed',
 		suggestFontSize: 0,
+		suggestFontWeight: 'normal',
 		suggestLineHeight: 0,
 		suggest: {
 			filterGraceful: true,

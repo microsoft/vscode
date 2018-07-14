@@ -562,6 +562,12 @@ const editorConfiguration: IConfigurationNode = {
 			'minimum': 0,
 			'description': nls.localize('suggestFontSize', "Font size for the suggest widget")
 		},
+		'editor.suggestFontWeight': {
+			'type': 'string',
+			'enum': ['normal', 'bold', '100', '200', '300', '400', '500', '600', '700', '800', '900'],
+			'description': nls.localize('suggestFontWeight', "Font weight for the suggest widget"),
+			'default': 'normal'
+		},
 		'editor.suggestLineHeight': {
 			'type': 'integer',
 			'default': 0,
