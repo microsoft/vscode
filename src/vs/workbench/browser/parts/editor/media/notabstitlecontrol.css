@@ -22,41 +22,50 @@
 }
 
 /* Breadcrumbs */
+
 .monaco-workbench > .part.editor > .content .editor-group-container > .title .no-tabs-breadcrumbs {
 	flex: 1 50%;
 	overflow: hidden;
 	line-height: 35px;
+	height: 35px;
 }
 
 .monaco-workbench > .part.editor > .content .editor-group-container > .title .no-tabs-breadcrumbs .breadcrumbs-control {
-	padding-left: 8px;
+	padding: 0 6px;
 }
 
 .monaco-workbench > .part.editor > .content .editor-group-container > .title .no-tabs-breadcrumbs .breadcrumbs-control .monaco-breadcrumb-item {
 	font-size: 0.9em;
 }
 
-.monaco-workbench > .part.editor > .content .editor-group-container > .title .no-tabs-breadcrumbs .breadcrumbs-control .monaco-breadcrumb-item:nth-child(2) {
-	margin-left: 0px;
-}
-
-.monaco-workbench > .part.editor > .content .editor-group-container > .title .no-tabs-breadcrumbs .breadcrumbs-control .monaco-breadcrumb-item:last-child {
-	padding-right: 2px;
-}
-
 .monaco-workbench > .part.editor > .content .editor-group-container > .title .no-tabs-breadcrumbs .breadcrumbs-control.preview .monaco-breadcrumb-item {
 	font-style: italic;
 }
 
-.monaco-workbench > .part.editor > .content .editor-group-container > .title .no-tabs-breadcrumbs .breadcrumbs-control .monaco-breadcrumb-item:not(:last-child)::after {
+.monaco-workbench > .part.editor > .content .editor-group-container > .title .no-tabs-breadcrumbs .breadcrumbs-control .monaco-breadcrumb-item:not(:first-child)::before {
 	content: '/';
+	opacity: 1;
 	height: inherit;
 	width: inherit;
 	background-image: none;
 }
 
-.monaco-workbench.windows > .part.editor > .content .editor-group-container > .title .no-tabs-breadcrumbs .breadcrumbs-control .monaco-breadcrumb-item:not(:last-child)::after  {
+.monaco-workbench.windows > .part.editor > .content .editor-group-container > .title .no-tabs-breadcrumbs .breadcrumbs-control .monaco-breadcrumb-item:not(:first-child)::before  {
 	content: '\\';
+}
+.monaco-workbench > .part.editor > .content .editor-group-container > .title .no-tabs-breadcrumbs .breadcrumbs-control .monaco-breadcrumb-item.shows-symbol-icon,
+.monaco-workbench > .part.editor > .content .editor-group-container > .title .no-tabs-breadcrumbs .breadcrumbs-control .monaco-breadcrumb-item:last-child {
+	padding-right: 4px; /* does not have trailing separator*/
+}
+
+.monaco-workbench > .part.editor > .content .editor-group-container > .title .no-tabs-breadcrumbs .breadcrumbs-control .monaco-breadcrumb-item.shows-symbol-icon::before {
+	padding-right: 2px;
+	/* content: ' '; */
+}
+
+.monaco-workbench > .part.editor > .content .editor-group-container > .title .no-tabs-breadcrumbs .breadcrumbs-control .monaco-breadcrumb-item.shows-symbol-icon .symbol-icon {
+	width: 15px;
+	min-width: 15px;
 }
 
 /* Title Actions */

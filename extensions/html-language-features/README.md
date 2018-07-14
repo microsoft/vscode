@@ -1,6 +1,6 @@
-# Language Features for HTML.
+# Language Features for HTML
 
-**Notice** This extension is bundled with Visual Studio Code. It can be disabled but not uninstalled.
+**Notice:** This extension is bundled with Visual Studio Code. It can be disabled but not uninstalled.
 
 ## Features
 

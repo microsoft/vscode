@@ -13,7 +13,7 @@ import { Hover, HoverProviderRegistry } from 'vs/editor/common/modes';
 import { Position } from 'vs/editor/common/core/position';
 import { CancellationToken } from 'vs/base/common/cancellation';
 
-export function getHover(model: ITextModel, position: Position, token: CancellationToken = CancellationToken.None): Promise<Hover[]> {
+export function getHover(model: ITextModel, position: Position, token: CancellationToken): Promise<Hover[]> {
 
 	const supports = HoverProviderRegistry.ordered(model);
 	const values: Hover[] = [];
@@ -35,4 +35,4 @@ export function getHover(model: ITextModel, position: Position, token: Cancellat
 	return Promise.all(promises).then(() => coalesce(values));
 }
 
-registerDefaultLanguageCommand('_executeHoverProvider', getHover);
+registerDefaultLanguageCommand('_executeHoverProvider', (model, position) => getHover(model, position, CancellationToken.None));

@@ -144,6 +144,10 @@ export class WorkspaceEditingService implements IWorkspaceEditingService {
 		return false;
 	}
 
+	enterWorkspace(path: string): TPromise<void> {
+		return this.doEnterWorkspace(() => this.windowService.enterWorkspace(path));
+	}
+
 	createAndEnterWorkspace(folders?: IWorkspaceFolderCreationData[], path?: string): TPromise<void> {
 		return this.doEnterWorkspace(() => this.windowService.createAndEnterWorkspace(folders, path));
 	}

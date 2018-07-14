@@ -15,11 +15,16 @@ import * as Previewer from '../utils/previewer';
 import * as typeConverters from '../utils/typeConverters';
 import TypingsStatus from '../utils/typingsStatus';
 import FileConfigurationManager from './fileConfigurationManager';
-
-
-
+import { memoize } from '../utils/memoize';
 
 const localize = nls.loadMessageBundle();
+
+
+interface CommitCharactersSettings {
+	readonly enable: boolean;
+	readonly enableDotCompletions: boolean;
+	readonly enableCallCompletions: boolean;
+}
 
 class MyCompletionItem extends vscode.CompletionItem {
 	public readonly useCodeSnippet: boolean;
@@ -29,10 +34,10 @@ class MyCompletionItem extends vscode.CompletionItem {
 		public readonly document: vscode.TextDocument,
 		line: string,
 		public readonly tsEntry: Proto.CompletionEntry,
-		enableDotCompletions: boolean,
-		useCodeSnippetsOnMethodSuggest: boolean
+		useCodeSnippetsOnMethodSuggest: boolean,
+		public readonly commitCharactersSettings: CommitCharactersSettings
 	) {
-		super(tsEntry.name);
+		super(tsEntry.name, MyCompletionItem.convertKind(tsEntry.kind));
 
 		if (tsEntry.isRecommended) {
 			// Make sure isRecommended property always comes first
@@ -47,9 +52,7 @@ class MyCompletionItem extends vscode.CompletionItem {
 			this.sortText = tsEntry.sortText;
 		}
 
-		this.kind = MyCompletionItem.convertKind(tsEntry.kind);
 		this.position = position;
-		this.commitCharacters = MyCompletionItem.getCommitCharacters(enableDotCompletions, !useCodeSnippetsOnMethodSuggest, tsEntry.kind);
 		this.useCodeSnippet = useCodeSnippetsOnMethodSuggest && (this.kind === vscode.CompletionItemKind.Function || this.kind === vscode.CompletionItemKind.Method);
 		if (tsEntry.replacementSpan) {
 			this.range = typeConverters.Range.fromTextSpan(tsEntry.replacementSpan);
@@ -132,7 +135,6 @@ class MyCompletionItem extends vscode.CompletionItem {
 			case PConst.Kind.interface:
 				return vscode.CompletionItemKind.Interface;
 			case PConst.Kind.warning:
-			case PConst.Kind.file:
 			case PConst.Kind.script:
 				return vscode.CompletionItemKind.File;
 			case PConst.Kind.directory:
@@ -143,13 +145,10 @@ class MyCompletionItem extends vscode.CompletionItem {
 		return vscode.CompletionItemKind.Property;
 	}
 
-	private static getCommitCharacters(
-		enableDotCompletions: boolean,
-		enableCallCompletions: boolean,
-		kind: string
-	): string[] | undefined {
+	@memoize
+	public get commitCharacters(): string[] | undefined {
 		const commitCharacters: string[] = [];
-		switch (kind) {
+		switch (this.tsEntry.kind) {
 			case PConst.Kind.memberGetAccessor:
 			case PConst.Kind.memberSetAccessor:
 			case PConst.Kind.constructSignature:
@@ -157,7 +156,7 @@ class MyCompletionItem extends vscode.CompletionItem {
 			case PConst.Kind.indexSignature:
 			case PConst.Kind.enum:
 			case PConst.Kind.interface:
-				if (enableDotCompletions) {
+				if (this.commitCharactersSettings.enableDotCompletions) {
 					commitCharacters.push('.');
 				}
 				break;
@@ -172,10 +171,10 @@ class MyCompletionItem extends vscode.CompletionItem {
 			case PConst.Kind.class:
 			case PConst.Kind.function:
 			case PConst.Kind.memberFunction:
-				if (enableDotCompletions) {
+				if (this.commitCharactersSettings.enableDotCompletions) {
 					commitCharacters.push('.', ',');
 				}
-				if (enableCallCompletions) {
+				if (this.commitCharactersSettings.enableCallCompletions) {
 					commitCharacters.push('(');
 				}
 				break;
@@ -306,13 +305,16 @@ class TypeScriptCompletionItemProvider implements vscode.CompletionItemProvider 
 			triggerCharacter: context.triggerCharacter as Proto.CompletionsTriggerCharacter
 		};
 
+
+		let enableCommitCharacters = true;
 		let msg: ReadonlyArray<Proto.CompletionEntry> | undefined = undefined;
 		try {
 			if (this.client.apiVersion.gte(API.v300)) {
 				const { body } = await this.client.execute('completionInfo', args, token);
-				if (!body || body.isNewIdentifierLocation) {
+				if (!body) {
 					return null;
 				}
+				enableCommitCharacters = !body.isNewIdentifierLocation;
 				msg = body.entries;
 			} else {
 				const { body } = await this.client.execute('completions', args, token);
@@ -328,7 +330,11 @@ class TypeScriptCompletionItemProvider implements vscode.CompletionItemProvider 
 		const enableDotCompletions = this.shouldEnableDotCompletions(document, position);
 		return msg
 			.filter(entry => !shouldExcludeCompletionEntry(entry, completionConfiguration))
-			.map(entry => new MyCompletionItem(position, document, line.text, entry, enableDotCompletions, completionConfiguration.useCodeSnippetsOnMethodSuggest));
+			.map(entry => new MyCompletionItem(position, document, line.text, entry, completionConfiguration.useCodeSnippetsOnMethodSuggest, {
+				enable: enableCommitCharacters,
+				enableDotCompletions,
+				enableCallCompletions: !completionConfiguration.useCodeSnippetsOnMethodSuggest
+			}));
 	}
 
 	public async resolveCompletionItem(

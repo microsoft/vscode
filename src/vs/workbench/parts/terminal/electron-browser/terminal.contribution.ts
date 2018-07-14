@@ -121,7 +121,7 @@ configurationRegistry.registerConfiguration({
 			'default': false
 		},
 		'terminal.integrated.macOptionClickForcesSelection': {
-			'description': nls.localize('terminal.integrated.macOptionClickForcesSelection', "Whether to force selection when when using option+click on macOS, this will force a regular (line) selection and disallow the use of column selection mode. This enables copying and pasting using the regular terminal selection when in tmux mouse mode for example."),
+			'description': nls.localize('terminal.integrated.macOptionClickForcesSelection', "Whether to force selection when using Option+click on macOS. This will force a regular (line) selection and disallow the use of column selection mode. This enables copying and pasting using the regular terminal selection, for example, when mouse mode is enabled in tmux."),
 			'type': 'boolean',
 			'default': false
 		},

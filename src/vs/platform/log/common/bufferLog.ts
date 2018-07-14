@@ -30,6 +30,15 @@ export class BufferLogService extends AbstractLogService implements ILogService 
 	private buffer: ILog[] = [];
 	private _logger: ILogService | undefined = undefined;
 
+	constructor() {
+		super();
+		this._register(this.onDidChangeLogLevel(level => {
+			if (this._logger) {
+				this._logger.setLevel(level);
+			}
+		}));
+	}
+
 	set logger(logger: ILogService) {
 		this._logger = logger;
 

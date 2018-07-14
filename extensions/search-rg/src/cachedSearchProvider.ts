@@ -74,8 +74,13 @@ export class CachedSearchProvider {
 		}
 
 		return allResultsPromise.then(results => {
-			const scorerCache: ScorerCache = cache ? cache.scorerCache : Object.create(null);
-			return this.sortResults(args, results, scorerCache);
+			// TODO@roblou quickopen results are not scored until the first keypress
+			if (args.query.pattern) {
+				const scorerCache: ScorerCache = cache ? cache.scorerCache : Object.create(null);
+				return this.sortResults(args, results, scorerCache);
+			} else {
+				return results;
+			}
 		});
 	}
 

@@ -40,7 +40,7 @@ class OrganizeImportsCommand implements Command {
 		}
 
 		const edits = typeconverts.WorkspaceEdit.fromFileCodeEdits(this.client, response.body);
-		return await vscode.workspace.applyEdit(edits);
+		return vscode.workspace.applyEdit(edits);
 	}
 }
 

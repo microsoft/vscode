@@ -9,15 +9,15 @@
 
 .settings-editor {
 	padding-top: 11px;
-	padding-left: 2px;
+	padding-left: 5px;
 	max-width: 1100px;
 	margin: auto;
 }
 
 /* header styling */
 .settings-editor > .settings-header {
-	padding-left: 5px;
-	padding-right: 5px;
+	padding-left: 17px;
+	padding-right: 11px;
 	box-sizing: border-box;
 	margin: auto;
 }
@@ -72,7 +72,7 @@
 }
 
 .settings-editor > .settings-header > .settings-header-controls {
-	margin-top: 3px;
+	margin-top: 8px;
 	height: 30px;
 	display: flex;
 }
@@ -113,6 +113,13 @@
 .settings-editor > .settings-body .settings-tree-container .monaco-tree::before {
 	outline: none !important;
 }
+
+.settings-editor > .settings-body .settings-tree-container .monaco-tree-wrapper,
+.settings-editor > .settings-body > .settings-tree-container .setting-measure-container {
+	/** Allocate space for the scrollbar */
+	width: calc(100% - 11px)
+}
+
 
 .settings-editor > .settings-body .settings-toc-container {
 	width: 175px;
@@ -155,8 +162,8 @@
 }
 
 .settings-editor > .settings-body > .settings-tree-container .setting-item {
-	padding-top: 9px;
-	padding-bottom: 13px;
+	padding-top: 11px;
+	padding-bottom: 15px;
 	box-sizing: border-box;
 	cursor: default;
 	white-space: normal;
@@ -247,17 +254,17 @@
 	display: flex;
 }
 
-.settings-editor > .settings-body > .settings-tree-container .setting-item .setting-item-value > .setting-item-control.setting-type-number {
+.settings-editor > .settings-body > .settings-tree-container .setting-item.setting-item-number .setting-item-value > .setting-item-control {
 	min-width: 200px;
 }
 
-.settings-editor > .settings-body > .settings-tree-container .setting-item .setting-item-value > .setting-item-control.setting-type-enum,
-.settings-editor > .settings-body > .settings-tree-container .setting-item .setting-item-value > .setting-item-control.setting-type-string {
+.settings-editor > .settings-body > .settings-tree-container .setting-item.setting-item-enum .setting-item-value > .setting-item-control,
+.settings-editor > .settings-body > .settings-tree-container .setting-item.setting-item-text .setting-item-value > .setting-item-control {
 	flex: 1;
 	min-width: initial;
 }
 
-.settings-editor > .settings-body > .settings-tree-container .setting-item .setting-item-value > .setting-item-control.setting-type-enum > select {
+.settings-editor > .settings-body > .settings-tree-container .setting-item.setting-item-enum .setting-item-value > .setting-item-control > select {
 	width: 100%;
 }
 

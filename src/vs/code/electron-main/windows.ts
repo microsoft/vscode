@@ -1310,6 +1310,10 @@ export class WindowsManager implements IWindowsMainService {
 		return this.workspacesManager.saveAndEnterWorkspace(win, path).then(result => this.doEnterWorkspace(win, result));
 	}
 
+	enterWorkspace(win: ICodeWindow, path: string): TPromise<IEnterWorkspaceResult> {
+		return this.workspacesManager.enterWorkspace(win, path).then(result => this.doEnterWorkspace(win, result));
+	}
+
 	createAndEnterWorkspace(win: ICodeWindow, folders?: IWorkspaceFolderCreationData[], path?: string): TPromise<IEnterWorkspaceResult> {
 		return this.workspacesManager.createAndEnterWorkspace(win, folders, path).then(result => this.doEnterWorkspace(win, result));
 	}
@@ -1775,6 +1779,23 @@ class WorkspacesManager {
 		return this.doSaveAndOpenWorkspace(window, window.openedWorkspace, path);
 	}
 
+	enterWorkspace(window: ICodeWindow, path: string): TPromise<IEnterWorkspaceResult> {
+		if (!window || !window.win || window.readyState !== ReadyState.READY) {
+			return TPromise.as(null); // return early if the window is not ready or disposed
+		}
+
+		return this.isValidTargetWorkspacePath(window, path).then(isValid => {
+			if (!isValid) {
+				return TPromise.as<IEnterWorkspaceResult>(null); // return early if the workspace is not valid
+			}
+
+			return this.workspacesMainService.resolveWorkspace(path).then(workspace => {
+				return this.doOpenWorkspace(window, workspace);
+			});
+		});
+
+	}
+
 	createAndEnterWorkspace(window: ICodeWindow, folders?: IWorkspaceFolderCreationData[], path?: string): TPromise<IEnterWorkspaceResult> {
 		if (!window || !window.win || window.readyState !== ReadyState.READY) {
 			return TPromise.as(null); // return early if the window is not ready or disposed
@@ -1826,22 +1847,24 @@ class WorkspacesManager {
 			savePromise = TPromise.as(workspace);
 		}
 
-		return savePromise.then(workspace => {
-			window.focus();
+		return savePromise.then(workspace => this.doOpenWorkspace(window, workspace));
+	}
 
-			// Register window for backups and migrate current backups over
-			let backupPath: string;
-			if (!window.config.extensionDevelopmentPath) {
-				backupPath = this.backupMainService.registerWorkspaceBackupSync(workspace, window.config.backupPath);
-			}
+	private doOpenWorkspace(window: ICodeWindow, workspace: IWorkspaceIdentifier): IEnterWorkspaceResult {
+		window.focus();
 
-			// Update window configuration properly based on transition to workspace
-			window.config.folderPath = void 0;
-			window.config.workspace = workspace;
-			window.config.backupPath = backupPath;
+		// Register window for backups and migrate current backups over
+		let backupPath: string;
+		if (!window.config.extensionDevelopmentPath) {
+			backupPath = this.backupMainService.registerWorkspaceBackupSync(workspace, window.config.backupPath);
+		}
 
-			return { workspace, backupPath };
-		});
+		// Update window configuration properly based on transition to workspace
+		window.config.folderPath = void 0;
+		window.config.workspace = workspace;
+		window.config.backupPath = backupPath;
+
+		return { workspace, backupPath };
 	}
 
 	pickWorkspaceAndOpen(options: INativeOpenDialogOptions): void {

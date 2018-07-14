@@ -12,7 +12,6 @@ import { Checkbox } from 'vs/base/browser/ui/checkbox/checkbox';
 import { InputBox } from 'vs/base/browser/ui/inputbox/inputBox';
 import { SelectBox } from 'vs/base/browser/ui/selectBox/selectBox';
 import * as arrays from 'vs/base/common/arrays';
-import { Color } from 'vs/base/common/color';
 import { onUnexpectedError } from 'vs/base/common/errors';
 import { Emitter, Event } from 'vs/base/common/event';
 import { KeyCode } from 'vs/base/common/keyCodes';
@@ -28,7 +27,7 @@ import { IContextViewService } from 'vs/platform/contextview/browser/contextView
 import { WorkbenchTree, WorkbenchTreeController } from 'vs/platform/list/browser/listService';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
 import { inputBackground, inputBorder, inputForeground, registerColor, selectBackground, selectBorder, selectForeground, textLinkForeground } from 'vs/platform/theme/common/colorRegistry';
-import { attachButtonStyler, attachInputBoxStyler, attachSelectBoxStyler } from 'vs/platform/theme/common/styler';
+import { attachInputBoxStyler, attachSelectBoxStyler } from 'vs/platform/theme/common/styler';
 import { ICssStyleCollector, ITheme, IThemeService, registerThemingParticipant } from 'vs/platform/theme/common/themeService';
 import { SettingsTarget } from 'vs/workbench/parts/preferences/browser/preferencesWidgets';
 import { ITOCEntry } from 'vs/workbench/parts/preferences/browser/settingsLayout';
@@ -106,8 +105,7 @@ export class SettingsTreeSettingElement extends SettingsTreeElement {
 	isConfigured: boolean;
 	overriddenScopeList: string[];
 	description: string;
-	valueType?: string | string[];
-	enum?: string[];
+	valueType: 'enum' | 'string' | 'integer' | 'number' | 'boolean' | 'complex';
 }
 
 export interface ITOCEntry {
@@ -216,8 +214,13 @@ function createSettingsTreeSettingElement(setting: ISetting, parent: any, settin
 	element.isConfigured = isConfigured;
 	element.overriddenScopeList = overriddenScopeList;
 	element.description = setting.description.join('\n');
-	element.enum = setting.enum;
-	element.valueType = setting.type;
+
+	element.valueType = (setting.enum && (setting.type === 'string' || !setting.type)) ? 'enum' :
+		setting.type === 'string' ? 'string' :
+			setting.type === 'integer' ? 'integer' :
+				setting.type === 'number' ? 'number' :
+					setting.type === 'boolean' ? 'boolean' :
+						'complex';
 
 	return element;
 }
@@ -422,7 +425,9 @@ interface IDisposableTemplate {
 	toDispose: IDisposable[];
 }
 
-interface ISettingItemTemplate extends IDisposableTemplate {
+interface ISettingItemTemplate<T = any> extends IDisposableTemplate {
+	onChange?: (value: T) => void;
+
 	containerElement: HTMLElement;
 	categoryElement: HTMLElement;
 	labelElement: HTMLElement;
@@ -432,17 +437,22 @@ interface ISettingItemTemplate extends IDisposableTemplate {
 	otherOverridesElement: HTMLElement;
 }
 
-interface ISettingBoolItemTemplate extends IDisposableTemplate {
-	parent: HTMLElement;
-
-	onChange?: (newState: boolean) => void;
-	containerElement: HTMLElement;
-	categoryElement: HTMLElement;
-	labelElement: HTMLElement;
-	descriptionElement: HTMLElement;
+interface ISettingBoolItemTemplate extends ISettingItemTemplate<boolean> {
 	checkbox: Checkbox;
-	isConfiguredElement: HTMLElement;
-	otherOverridesElement: HTMLElement;
+}
+
+interface ISettingTextItemTemplate extends ISettingItemTemplate<string> {
+	inputBox: InputBox;
+}
+
+type ISettingNumberItemTemplate = ISettingTextItemTemplate;
+
+interface ISettingEnumItemTemplate extends ISettingItemTemplate<number> {
+	selectBox: SelectBox;
+}
+
+interface ISettingComplexItemTemplate extends ISettingItemTemplate<void> {
+	button: Button;
 }
 
 interface IGroupTitleTemplate extends IDisposableTemplate {
@@ -450,8 +460,11 @@ interface IGroupTitleTemplate extends IDisposableTemplate {
 	parent: HTMLElement;
 }
 
-const SETTINGS_ELEMENT_TEMPLATE_ID = 'settings.entry.template';
+const SETTINGS_TEXT_TEMPLATE_ID = 'settings.text.template';
+const SETTINGS_NUMBER_TEMPLATE_ID = 'settings.number.template';
+const SETTINGS_ENUM_TEMPLATE_ID = 'settings.enum.template';
 const SETTINGS_BOOL_TEMPLATE_ID = 'settings.bool.template';
+const SETTINGS_COMPLEX_TEMPLATE_ID = 'settings.complex.template';
 const SETTINGS_GROUP_ELEMENT_TEMPLATE_ID = 'settings.group.template';
 
 export interface ISettingChangeEvent {
@@ -461,8 +474,8 @@ export interface ISettingChangeEvent {
 
 export class SettingsRenderer implements IRenderer {
 
-	private static readonly SETTING_ROW_HEIGHT = 94;
-	private static readonly SETTING_BOOL_ROW_HEIGHT = 61;
+	private static readonly SETTING_ROW_HEIGHT = 98;
+	private static readonly SETTING_BOOL_ROW_HEIGHT = 65;
 
 	private readonly _onDidChangeSetting: Emitter<ISettingChangeEvent> = new Emitter<ISettingChangeEvent>();
 	public readonly onDidChangeSetting: Event<ISettingChangeEvent> = this._onDidChangeSetting.event;
@@ -536,7 +549,19 @@ export class SettingsRenderer implements IRenderer {
 				return SETTINGS_BOOL_TEMPLATE_ID;
 			}
 
-			return SETTINGS_ELEMENT_TEMPLATE_ID;
+			if (element.valueType === 'integer' || element.valueType === 'number') {
+				return SETTINGS_NUMBER_TEMPLATE_ID;
+			}
+
+			if (element.valueType === 'string') {
+				return SETTINGS_TEXT_TEMPLATE_ID;
+			}
+
+			if (element.valueType === 'enum') {
+				return SETTINGS_ENUM_TEMPLATE_ID;
+			}
+
+			return SETTINGS_COMPLEX_TEMPLATE_ID;
 		}
 
 		return '';
@@ -547,12 +572,24 @@ export class SettingsRenderer implements IRenderer {
 			return this.renderGroupTitleTemplate(container);
 		}
 
-		if (templateId === SETTINGS_ELEMENT_TEMPLATE_ID) {
-			return this.renderSettingTemplate(tree, container);
+		if (templateId === SETTINGS_TEXT_TEMPLATE_ID) {
+			return this.renderSettingTextTemplate(tree, container);
+		}
+
+		if (templateId === SETTINGS_NUMBER_TEMPLATE_ID) {
+			return this.renderSettingNumberTemplate(tree, container);
 		}
 
 		if (templateId === SETTINGS_BOOL_TEMPLATE_ID) {
 			return this.renderSettingBoolTemplate(tree, container);
+		}
+
+		if (templateId === SETTINGS_ENUM_TEMPLATE_ID) {
+			return this.renderSettingEnumTemplate(tree, container);
+		}
+
+		if (templateId === SETTINGS_COMPLEX_TEMPLATE_ID) {
+			return this.renderSettingComplexTemplate(tree, container);
 		}
 
 		return null;
@@ -570,8 +607,9 @@ export class SettingsRenderer implements IRenderer {
 		return template;
 	}
 
-	private renderSettingTemplate(tree: ITree, container: HTMLElement): ISettingItemTemplate {
+	private renderCommonTemplate(tree: ITree, container: HTMLElement, typeClass: string): ISettingItemTemplate {
 		DOM.addClass(container, 'setting-item');
+		DOM.addClass(container, 'setting-item-' + typeClass);
 
 		const titleElement = DOM.append(container, $('.setting-item-title'));
 		const categoryElement = DOM.append(titleElement, $('span.setting-item-category'));
@@ -581,7 +619,7 @@ export class SettingsRenderer implements IRenderer {
 		const descriptionElement = DOM.append(container, $('.setting-item-description'));
 
 		const valueElement = DOM.append(container, $('.setting-item-value'));
-		const controlElement = DOM.append(valueElement, $('div'));
+		const controlElement = DOM.append(valueElement, $('div.setting-item-control'));
 		const resetButtonElement = DOM.append(valueElement, $('.reset-button-container'));
 
 		const toDispose = [];
@@ -611,6 +649,58 @@ export class SettingsRenderer implements IRenderer {
 		return template;
 	}
 
+	private renderSettingTextTemplate(tree: ITree, container: HTMLElement, type = 'text'): ISettingTextItemTemplate {
+		const common = this.renderCommonTemplate(tree, container, 'text');
+
+		const inputBox = new InputBox(common.controlElement, this.contextViewService);
+		common.toDispose.push(inputBox);
+		common.toDispose.push(attachInputBoxStyler(inputBox, this.themeService, {
+			inputBackground: settingsTextInputBackground,
+			inputForeground: settingsTextInputForeground,
+			inputBorder: settingsTextInputBorder
+		}));
+		common.toDispose.push(
+			inputBox.onDidChange(e => {
+				if (template.onChange) {
+					template.onChange(e);
+				}
+			}));
+		common.toDispose.push(inputBox);
+
+		const template: ISettingTextItemTemplate = {
+			...common,
+			inputBox
+		};
+
+		return template;
+	}
+
+	private renderSettingNumberTemplate(tree: ITree, container: HTMLElement): ISettingNumberItemTemplate {
+		const common = this.renderCommonTemplate(tree, container, 'number');
+
+		const inputBox = new InputBox(common.controlElement, this.contextViewService);
+		common.toDispose.push(inputBox);
+		common.toDispose.push(attachInputBoxStyler(inputBox, this.themeService, {
+			inputBackground: settingsNumberInputBackground,
+			inputForeground: settingsNumberInputForeground,
+			inputBorder: settingsNumberInputBorder
+		}));
+		common.toDispose.push(
+			inputBox.onDidChange(e => {
+				if (template.onChange) {
+					template.onChange(e);
+				}
+			}));
+		common.toDispose.push(inputBox);
+
+		const template: ISettingNumberItemTemplate = {
+			...common,
+			inputBox
+		};
+
+		return template;
+	}
+
 	private renderSettingBoolTemplate(tree: ITree, container: HTMLElement): ISettingBoolItemTemplate {
 		DOM.addClass(container, 'setting-item');
 		DOM.addClass(container, 'setting-item-bool');
@@ -636,12 +726,12 @@ export class SettingsRenderer implements IRenderer {
 		}));
 
 		const template: ISettingBoolItemTemplate = {
-			parent: container,
 			toDispose,
 
 			containerElement: container,
 			categoryElement,
 			labelElement,
+			controlElement,
 			checkbox,
 			descriptionElement,
 			isConfiguredElement,
@@ -661,18 +751,55 @@ export class SettingsRenderer implements IRenderer {
 		return template;
 	}
 
+	private renderSettingEnumTemplate(tree: ITree, container: HTMLElement): ISettingEnumItemTemplate {
+		const common = this.renderCommonTemplate(tree, container, 'enum');
+
+		const selectBox = new SelectBox([], undefined, this.contextViewService);
+		common.toDispose.push(selectBox);
+		common.toDispose.push(attachSelectBoxStyler(selectBox, this.themeService, {
+			selectBackground: settingsSelectBackground,
+			selectForeground: settingsSelectForeground,
+			selectBorder: settingsSelectBorder
+		}));
+		selectBox.render(common.controlElement);
+
+		common.toDispose.push(
+			selectBox.onDidSelect(e => {
+				if (template.onChange) {
+					template.onChange(e.index);
+				}
+			}));
+
+		const template: ISettingEnumItemTemplate = {
+			...common,
+			selectBox
+		};
+
+		return template;
+	}
+
+	private renderSettingComplexTemplate(tree: ITree, container: HTMLElement): ISettingComplexItemTemplate {
+		const common = this.renderCommonTemplate(tree, container, 'complex');
+
+		const openSettingsButton = new Button(common.controlElement, { title: true, buttonBackground: null, buttonHoverBackground: null });
+		openSettingsButton.onDidClick(() => this._onDidOpenSettings.fire());
+		openSettingsButton.label = localize('editInSettingsJson', "Edit in settings.json");
+		openSettingsButton.element.classList.add('edit-in-settings-button');
+
+		const template: ISettingComplexItemTemplate = {
+			...common,
+			button: openSettingsButton
+		};
+
+		return template;
+	}
+
 	renderElement(tree: ITree, element: SettingsTreeElement, templateId: string, template: any): void {
-		if (templateId === SETTINGS_ELEMENT_TEMPLATE_ID) {
-			return this.renderSettingElement(tree, <SettingsTreeSettingElement>element, template);
-		}
-
-		if (templateId === SETTINGS_BOOL_TEMPLATE_ID) {
-			return this.renderSettingElement(tree, <SettingsTreeSettingElement>element, template);
-		}
-
 		if (templateId === SETTINGS_GROUP_ELEMENT_TEMPLATE_ID) {
 			return this.renderGroupElement(<SettingsTreeGroupElement>element, template);
 		}
+
+		return this.renderSettingElement(tree, <SettingsTreeSettingElement>element, templateId, template);
 	}
 
 	private renderGroupElement(element: SettingsTreeGroupElement, template: IGroupTitleTemplate): void {
@@ -692,7 +819,7 @@ export class SettingsRenderer implements IRenderer {
 		return selectedElement && selectedElement.id === element.id;
 	}
 
-	private renderSettingElement(tree: ITree, element: SettingsTreeSettingElement, template: ISettingItemTemplate | ISettingBoolItemTemplate): void {
+	private renderSettingElement(tree: ITree, element: SettingsTreeSettingElement, templateId: string, template: ISettingItemTemplate | ISettingBoolItemTemplate): void {
 		const isSelected = !!this.elementIsSelected(tree, element);
 		const setting = element.setting;
 
@@ -732,7 +859,7 @@ export class SettingsRenderer implements IRenderer {
 			aElement.tabIndex = isSelected ? 0 : -1;
 		});
 
-		this.renderValue(element, isSelected, <ISettingItemTemplate>template);
+		this.renderValue(element, isSelected, templateId, <ISettingItemTemplate>template);
 
 		template.isConfiguredElement.textContent = element.isConfigured ? localize('configured', "Modified") : '';
 
@@ -747,29 +874,19 @@ export class SettingsRenderer implements IRenderer {
 		}
 	}
 
-	private renderValue(element: SettingsTreeSettingElement, isSelected: boolean, template: ISettingItemTemplate | ISettingBoolItemTemplate): void {
+	private renderValue(element: SettingsTreeSettingElement, isSelected: boolean, templateId: string, template: ISettingItemTemplate | ISettingBoolItemTemplate): void {
 		const onChange = value => this._onDidChangeSetting.fire({ key: element.setting.key, value });
 
-		if (element.valueType === 'boolean') {
+		if (templateId === SETTINGS_ENUM_TEMPLATE_ID) {
+			this.renderEnum(element, isSelected, <ISettingEnumItemTemplate>template, onChange);
+		} else if (templateId === SETTINGS_TEXT_TEMPLATE_ID) {
+			this.renderText(element, isSelected, <ISettingTextItemTemplate>template, onChange);
+		} else if (templateId === SETTINGS_NUMBER_TEMPLATE_ID) {
+			this.renderNumber(element, isSelected, <ISettingTextItemTemplate>template, onChange);
+		} else if (templateId === SETTINGS_BOOL_TEMPLATE_ID) {
 			this.renderBool(element, isSelected, <ISettingBoolItemTemplate>template, onChange);
-		} else {
-			return this._renderValue(element, isSelected, <ISettingItemTemplate>template, onChange);
-		}
-	}
-
-	private _renderValue(element: SettingsTreeSettingElement, isSelected: boolean, template: ISettingItemTemplate, onChange: (value: any) => void): void {
-		const valueControlElement = template.controlElement;
-		valueControlElement.innerHTML = '';
-
-		valueControlElement.setAttribute('class', 'setting-item-control');
-		if (element.enum && (element.valueType === 'string' || !element.valueType)) {
-			this.renderEnum(element, isSelected, template, valueControlElement, onChange);
-		} else if (element.valueType === 'string') {
-			this.renderText(element, isSelected, template, valueControlElement, onChange);
-		} else if (element.valueType === 'number' || element.valueType === 'integer') {
-			this.renderNumber(element, isSelected, template, valueControlElement, onChange);
-		} else {
-			this.renderEditInSettingsJson(element, isSelected, template, valueControlElement);
+		} else if (templateId === SETTINGS_COMPLEX_TEMPLATE_ID) {
+			this.renderEditInSettingsJson(element, isSelected, <ISettingComplexItemTemplate>template);
 		}
 	}
 
@@ -781,73 +898,41 @@ export class SettingsRenderer implements IRenderer {
 		template.checkbox.domNode.tabIndex = isSelected ? 0 : -1;
 	}
 
-	private renderEnum(dataElement: SettingsTreeSettingElement, isSelected: boolean, template: ISettingItemTemplate, element: HTMLElement, onChange: (value: string) => void): void {
-		element.classList.add('setting-type-enum');
-		const idx = dataElement.enum.indexOf(dataElement.value);
-		const displayOptions = dataElement.enum.map(escapeInvisibleChars);
-		const selectBox = new SelectBox(displayOptions, idx, this.contextViewService);
-		template.toDispose.push(attachSelectBoxStyler(selectBox, this.themeService, {
-			selectBackground: settingsSelectBackground,
-			selectForeground: settingsSelectForeground,
-			selectBorder: settingsSelectBorder
-		}));
-		selectBox.render(element);
-		if (element.firstElementChild) {
-			element.firstElementChild.setAttribute('tabindex', isSelected ? '0' : '-1');
+	private renderEnum(dataElement: SettingsTreeSettingElement, isSelected: boolean, template: ISettingEnumItemTemplate, onChange: (value: string) => void): void {
+		const displayOptions = dataElement.setting.enum.map(escapeInvisibleChars);
+		template.selectBox.setOptions(displayOptions);
+
+		const idx = dataElement.setting.enum.indexOf(dataElement.value);
+		template.onChange = null;
+		template.selectBox.select(idx);
+		template.onChange = idx => onChange(dataElement.setting.enum[idx]);
+
+		if (template.controlElement.firstElementChild) {
+			template.controlElement.firstElementChild.setAttribute('tabindex', isSelected ? '0' : '-1');
 		}
 
-		template.toDispose.push(
-			selectBox.onDidSelect(e => onChange(dataElement.enum[e.index])));
 	}
 
-	private renderText(dataElement: SettingsTreeSettingElement, isSelected: boolean, template: ISettingItemTemplate, element: HTMLElement, onChange: (value: string) => void): void {
-		element.classList.add('setting-type-string');
-		const inputBox = new InputBox(element, this.contextViewService);
-		template.toDispose.push(attachInputBoxStyler(inputBox, this.themeService, {
-			inputBackground: settingsTextInputBackground,
-			inputForeground: settingsTextInputForeground,
-			inputBorder: settingsTextInputBorder
-		}));
-		template.toDispose.push(inputBox);
-		inputBox.value = dataElement.value;
-		inputBox.inputElement.tabIndex = isSelected ? 0 : -1;
-
-		template.toDispose.push(
-			inputBox.onDidChange(e => onChange(e)));
+	private renderText(dataElement: SettingsTreeSettingElement, isSelected: boolean, template: ISettingTextItemTemplate, onChange: (value: string) => void): void {
+		template.onChange = null;
+		template.inputBox.value = dataElement.value;
+		template.onChange = value => onChange(value);
+		template.inputBox.inputElement.tabIndex = isSelected ? 0 : -1;
 	}
 
-	private renderNumber(dataElement: SettingsTreeSettingElement, isSelected: boolean, template: ISettingItemTemplate, element: HTMLElement, onChange: (value: number) => void): void {
-		element.classList.add('setting-type-number');
+	private renderNumber(dataElement: SettingsTreeSettingElement, isSelected: boolean, template: ISettingTextItemTemplate, onChange: (value: number) => void): void {
+		template.onChange = null;
+		template.inputBox.value = dataElement.value;
+		template.onChange = value => onChange(parseFn(value));
+		template.inputBox.inputElement.tabIndex = isSelected ? 0 : -1;
+
 		const parseFn = dataElement.valueType === 'integer' ? parseInt : parseFloat;
-
-		const inputBox = new InputBox(element, this.contextViewService);
-		template.toDispose.push(attachInputBoxStyler(inputBox, this.themeService, {
-			inputBackground: settingsNumberInputBackground,
-			inputForeground: settingsNumberInputForeground,
-			inputBorder: settingsNumberInputBorder
-		}));
-		template.toDispose.push(inputBox);
-		inputBox.value = dataElement.value;
-		inputBox.inputElement.tabIndex = isSelected ? 0 : -1;
-
-		template.toDispose.push(
-			inputBox.onDidChange(value => onChange(parseFn(value))));
 	}
 
-	private renderEditInSettingsJson(dataElement: SettingsTreeSettingElement, isSelected: boolean, template: ISettingItemTemplate, element: HTMLElement): void {
-		element.classList.add('setting-type-complex');
-		const openSettingsButton = new Button(element, { title: true, buttonBackground: null, buttonHoverBackground: null });
-		openSettingsButton.onDidClick(() => this._onDidOpenSettings.fire());
-		openSettingsButton.label = localize('editInSettingsJson', "Edit in settings.json");
-		openSettingsButton.element.classList.add('edit-in-settings-button');
-		openSettingsButton.element.tabIndex = isSelected ? 0 : -1;
+	private renderEditInSettingsJson(dataElement: SettingsTreeSettingElement, isSelected: boolean, template: ISettingComplexItemTemplate): void {
+		template.button.element.tabIndex = isSelected ? 0 : -1;
 
-		template.toDispose.push(openSettingsButton);
-		template.toDispose.push(attachButtonStyler(openSettingsButton, this.themeService, {
-			buttonBackground: Color.transparent.toString(),
-			buttonHoverBackground: Color.transparent.toString(),
-			buttonForeground: 'foreground'
-		}));
+		template.onChange = () => this._onDidOpenSettings.fire();
 	}
 
 	disposeTemplate(tree: ITree, templateId: string, template: IDisposableTemplate): void {
