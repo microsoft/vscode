@@ -34,6 +34,7 @@ export interface ISelectBoxDelegate {
 }
 
 export interface ISelectBoxOptions {
+	ariaLabel?: string;
 	minBottomMargin?: number;
 }
 
