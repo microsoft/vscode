@@ -489,8 +489,8 @@ export class SelectBoxList implements ISelectBoxDelegate, IVirtualDelegate<ISele
 			// Set final container height after adjustments
 			this.selectDropDownContainer.style.height = (listHeight + verticalPadding) + 'px';
 
-			// Determine optimal width - min(longest option), opt(parent select), max(ContextView controlled)
-			const selectWidth = dom.getTotalWidth(this.selectElement);
+			// Determine optimal width - min(longest option), opt(parent select, excluding margins), max(ContextView controlled)
+			const selectWidth = this.selectElement.offsetWidth;
 			const selectMinWidth = this.setWidthControlElement(this.widthControlElement);
 			const selectOptimalWidth = Math.max(selectMinWidth, Math.round(selectWidth)).toString() + 'px';
 
