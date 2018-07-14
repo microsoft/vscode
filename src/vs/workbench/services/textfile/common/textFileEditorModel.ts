@@ -361,7 +361,7 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 						"mimeType" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
 						"ext": { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
 						"path": { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
-						"reason": { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
+						"reason": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true }
 					}
 				*/
 				this.telemetryService.publicLog('fileGet', {
@@ -725,7 +725,7 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 						"filePUT" : {
 							"mimeType" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
 							"ext": { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
-							"reason": { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
+							"reason": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true }
 						}
 					*/
 					this.telemetryService.publicLog('filePUT', {
