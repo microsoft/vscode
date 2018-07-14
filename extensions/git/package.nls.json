@@ -50,6 +50,8 @@
 	"command.stash": "Stash",
 	"command.stashPop": "Pop Stash...",
 	"command.stashPopLatest": "Pop Latest Stash",
+	"command.stashApply": "Apply Stash...",
+	"command.stashApplyLatest": "Apply Latest Stash",
 	"config.enabled": "Whether git is enabled",
 	"config.path": "Path to the git executable",
 	"config.autoRepositoryDetection": "Configures when repositories should be automatically detected.",
