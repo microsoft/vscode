@@ -68,7 +68,7 @@ export class SelectBox extends Widget implements ISelectBoxDelegate {
 
 		// Instantiate select implementation based on platform
 		if (isMacintosh) {
-			this.selectBoxDelegate = new SelectBoxNative(options, selected, styles);
+			this.selectBoxDelegate = new SelectBoxNative(options, selected, styles, selectBoxOptions);
 		} else {
 			this.selectBoxDelegate = new SelectBoxList(options, selected, contextViewProvider, styles, selectBoxOptions);
 		}
