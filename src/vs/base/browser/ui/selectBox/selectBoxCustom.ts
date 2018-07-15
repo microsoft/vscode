@@ -117,11 +117,9 @@ export class SelectBoxList implements ISelectBoxDelegate, IVirtualDelegate<ISele
 		// Use custom CSS vars for padding calculation
 		this.selectElement.className = 'monaco-select-box monaco-select-box-dropdown-padding';
 
-
 		if (typeof this.selectBoxOptions.ariaLabel === 'string') {
 			this.selectElement.setAttribute('aria-label', this.selectBoxOptions.ariaLabel);
 		}
-
 
 		this._onDidSelect = new Emitter<ISelectData>();
 

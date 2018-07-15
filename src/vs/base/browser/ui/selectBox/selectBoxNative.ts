@@ -36,7 +36,6 @@ export class SelectBoxNative implements ISelectBoxDelegate {
 		this.styles = styles;
 
 		this.registerListeners();
-
 		this.setOptions(options, selected);
 	}
 
