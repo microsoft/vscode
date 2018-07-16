@@ -86,7 +86,7 @@ export class EditorBreadcrumbsModel {
 			if (info.folder && isEqual(info.folder.uri, uri)) {
 				break;
 			}
-			info.path.push(new FileElement(uri, info.path.length === 0));
+			info.path.unshift(new FileElement(uri, info.path.length === 0));
 			uri = uri.with({ path: paths.dirname(uri.path) });
 		}
 		return info;
