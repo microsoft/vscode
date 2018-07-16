@@ -607,7 +607,7 @@ export namespace CursorMove {
 						\`\`\`
 						'left', 'right', 'up', 'down'
 						'wrappedLineStart', 'wrappedLineEnd', 'wrappedLineColumnCenter'
-						'wrappedLineFirstNonWhitespaceCharacter', 'wrappedLineLastNonWhitespaceCharacter',
+						'wrappedLineFirstNonWhitespaceCharacter', 'wrappedLineLastNonWhitespaceCharacter'
 						'viewPortTop', 'viewPortCenter', 'viewPortBottom', 'viewPortIfOutside'
 						\`\`\`
 					* 'by': Unit to move. Default is computed based on 'to' value.
