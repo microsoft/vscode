@@ -986,7 +986,7 @@ export class DebugService implements debug.IDebugService {
 					if (this.model.getReplElements().length > 0) {
 						this.panelService.openPanel(debug.REPL_ID, false).done(undefined, errors.onUnexpectedError);
 					}
-					if (this.model.getReplElements().length === 0) {
+					if (this.model.getSessions().length === 0) {
 						this.inDebugMode.reset();
 					}
 
