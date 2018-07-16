@@ -12,6 +12,7 @@ import { Command, CommandManager } from '../utils/commandManager';
 import { VersionDependentRegistration } from '../utils/dependentRegistration';
 import * as typeconverts from '../utils/typeConverters';
 import FileConfigurationManager from './fileConfigurationManager';
+import TelemetryReporter from '../utils/telemetry';
 
 const localize = nls.loadMessageBundle();
 
@@ -22,10 +23,20 @@ class OrganizeImportsCommand implements Command {
 	public readonly id = OrganizeImportsCommand.Id;
 
 	constructor(
-		private readonly client: ITypeScriptServiceClient
+		private readonly client: ITypeScriptServiceClient,
+		private readonly telemetryReporter: TelemetryReporter,
 	) { }
 
 	public async execute(file: string): Promise<boolean> {
+		/* __GDPR__
+			"organizeImports.execute" : {
+				"${include}": [
+					"${TypeScriptCommonProperties}"
+				]
+			}
+		*/
+		this.telemetryReporter.logTelemetry('organizeImports.execute', {});
+
 		const args: Proto.OrganizeImportsRequestArgs = {
 			scope: {
 				type: 'file',
@@ -49,8 +60,10 @@ export class OrganizeImportsCodeActionProvider implements vscode.CodeActionProvi
 		private readonly client: ITypeScriptServiceClient,
 		commandManager: CommandManager,
 		private readonly fileConfigManager: FileConfigurationManager,
+		telemetryReporter: TelemetryReporter,
+
 	) {
-		commandManager.register(new OrganizeImportsCommand(client));
+		commandManager.register(new OrganizeImportsCommand(client, telemetryReporter));
 	}
 
 	public readonly metadata: vscode.CodeActionProviderMetadata = {
@@ -82,10 +95,11 @@ export function register(
 	selector: vscode.DocumentSelector,
 	client: ITypeScriptServiceClient,
 	commandManager: CommandManager,
-	fileConfigurationManager: FileConfigurationManager
+	fileConfigurationManager: FileConfigurationManager,
+	telemetryReporter: TelemetryReporter,
 ) {
 	return new VersionDependentRegistration(client, API.v280, () => {
-		const organizeImportsProvider = new OrganizeImportsCodeActionProvider(client, commandManager, fileConfigurationManager);
+		const organizeImportsProvider = new OrganizeImportsCodeActionProvider(client, commandManager, fileConfigurationManager, telemetryReporter);
 		return vscode.languages.registerCodeActionsProvider(selector,
 			organizeImportsProvider,
 			organizeImportsProvider.metadata);
