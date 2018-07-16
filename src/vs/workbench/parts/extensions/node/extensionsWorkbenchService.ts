@@ -151,7 +151,7 @@ class Extension implements IExtension {
 					return require.toUrl('../electron-browser/media/theme-icon.png');
 				}
 				if (Array.isArray(this.local.manifest.contributes.grammars) && this.local.manifest.contributes.grammars.length) {
-					return require.toUrl('../electron-browser/media/language-icon.png');
+					return require.toUrl('../electron-browser/media/language-icon.svg');
 				}
 			}
 		}
