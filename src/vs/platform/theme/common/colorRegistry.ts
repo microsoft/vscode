@@ -292,6 +292,8 @@ export const diffRemoved = registerColor('diffEditor.removedTextBackground', { d
 export const diffInsertedOutline = registerColor('diffEditor.insertedTextBorder', { dark: null, light: null, hc: '#33ff2eff' }, nls.localize('diffEditorInsertedOutline', 'Outline color for the text that got inserted.'));
 export const diffRemovedOutline = registerColor('diffEditor.removedTextBorder', { dark: null, light: null, hc: '#FF008F' }, nls.localize('diffEditorRemovedOutline', 'Outline color for text that got removed.'));
 
+export const diffBorder = registerColor('diffEditor.diffEditorBorder', { dark: '#444444', light: '#E7E7E7', hc: contrastBorder }, nls.localize('diffEditorBorder', 'Border color between the original and modified diff editors.'));
+
 /**
  * Merge-conflict colors
  */
