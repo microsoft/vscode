@@ -183,6 +183,8 @@ const configurationValueWhitelist = [
 	'workbench.startupEditor',
 	'breadcrumbs.enabled',
 	'breadcrumbs.useQuickPick',
+	'breadcrumbs.filePath',
+	'breadcrumbs.symbolPath',
 ];
 
 export function configurationTelemetry(telemetryService: ITelemetryService, configurationService: IConfigurationService): IDisposable {
