@@ -167,7 +167,7 @@ export class DebugService implements debug.IDebugService {
 					(<RawDebugSession>session.raw).attach(session.configuration);
 				});
 			} else {
-				this.onRawSessionEnd(raw);
+				raw.disconnect().done(undefined, errors.onUnexpectedError);
 				this.doCreateSession(session.raw.root, { resolved: session.configuration, unresolved: session.unresolvedConfiguration }, session.getId());
 			}
 
@@ -175,7 +175,7 @@ export class DebugService implements debug.IDebugService {
 		}
 
 		if (broadcast.channel === EXTENSION_TERMINATE_BROADCAST_CHANNEL) {
-			this.onRawSessionEnd(raw);
+			raw.disconnect().done(undefined, errors.onUnexpectedError);
 			return;
 		}
 
@@ -285,8 +285,6 @@ export class DebugService implements debug.IDebugService {
 	}
 
 	private registerSessionListeners(session: debug.ISession, raw: RawDebugSession): void {
-		this.toDisposeOnSessionEnd.get(raw.getId()).push(raw);
-
 		this.toDisposeOnSessionEnd.get(raw.getId()).push(raw.onDidInitialize(event => {
 			aria.status(nls.localize('debuggingStarted', "Debugging started."));
 			const sendConfigurationDone = () => {
@@ -447,7 +445,7 @@ export class DebugService implements debug.IDebugService {
 				});
 			}
 			if (session && session.getId() === event.sessionId) {
-				this.onRawSessionEnd(raw);
+				this.onExitAdapter(raw);
 			}
 		}));
 
@@ -1172,7 +1170,7 @@ export class DebugService implements debug.IDebugService {
 		return undefined;
 	}
 
-	private onRawSessionEnd(raw: RawDebugSession): void {
+	private onExitAdapter(raw: RawDebugSession): void {
 		const breakpoints = this.model.getBreakpoints();
 		const session = this.model.getSessions().filter(p => p.getId() === raw.getId()).pop();
 		/* __GDPR__

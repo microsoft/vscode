@@ -354,7 +354,7 @@ export class RawDebugSession implements debug.IRawSession {
 		if (this.debugAdapter && !this.disconnected) {
 			// point of no return: from now on don't report any errors
 			this.disconnected = true;
-			return this.send('disconnect', { restart: restart }, false).then(() => this.stopServer(), () => this.stopServer());
+			return this.send('disconnect', { restart }, false).then(() => this.stopServer(), () => this.stopServer());
 		}
 
 		return TPromise.as(null);
@@ -512,9 +512,5 @@ export class RawDebugSession implements debug.IRawSession {
 			this.notificationService.error(nls.localize('debugAdapterCrash', "Debug adapter process has terminated unexpectedly"));
 		}
 		this._onDidExitAdapter.fire({ sessionId: this.getId() });
-	}
-
-	public dispose(): void {
-		this.disconnect().done(null, errors.onUnexpectedError);
 	}
 }
