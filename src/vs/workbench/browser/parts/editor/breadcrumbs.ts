@@ -66,6 +66,7 @@ export abstract class BreadcrumbsConfig<T> {
 	}
 
 	static IsEnabled = BreadcrumbsConfig._stub<boolean>('breadcrumbs.enabled');
+	static UseQuickPick = BreadcrumbsConfig._stub<boolean>('breadcrumbs.useQuickPick');
 
 	private static _stub<T>(name: string): { bindTo(service: IConfigurationService): BreadcrumbsConfig<T> } {
 		return {
@@ -101,7 +102,12 @@ Registry.as<IConfigurationRegistry>(Extensions.Configuration).registerConfigurat
 	type: 'object',
 	properties: {
 		'breadcrumbs.enabled': {
-			'description': localize('enabled', "Enable/disable navigation breadcrumbss"),
+			'description': localize('enabled', "Enable/disable navigation breadcrumbs"),
+			'type': 'boolean',
+			'default': false
+		},
+		'breadcrumbs.useQuickPick': {
+			'description': localize('useQuickPick', "Use quick pick instead of seperate pickers."),
 			'type': 'boolean',
 			'default': false
 		}

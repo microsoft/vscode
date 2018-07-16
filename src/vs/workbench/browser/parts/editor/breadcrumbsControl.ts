@@ -29,10 +29,12 @@ import { BreadcrumbElement, EditorBreadcrumbsModel, FileElement } from 'vs/workb
 import { EditorGroupView } from 'vs/workbench/browser/parts/editor/editorGroupView';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IEditorGroupsService } from 'vs/workbench/services/group/common/editorGroupsService';
-import { IBreadcrumbsService } from 'vs/workbench/browser/parts/editor/breadcrumbs';
+import { IBreadcrumbsService, BreadcrumbsConfig } from 'vs/workbench/browser/parts/editor/breadcrumbs';
 import { symbolKindToCssClass } from 'vs/editor/common/modes';
 import { BreadcrumbsPicker, BreadcrumbsFilePicker, BreadcrumbsOutlinePicker } from 'vs/workbench/browser/parts/editor/breadcrumbsPicker';
 import { StandardMouseEvent } from 'vs/base/browser/mouseEvent';
+import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
+import { IQuickOpenService } from 'vs/platform/quickOpen/common/quickOpen';
 
 class Item extends BreadcrumbsItem {
 
@@ -123,10 +125,12 @@ export class BreadcrumbsControl {
 	private readonly _ckBreadcrumbsVisible: IContextKey<boolean>;
 	private readonly _ckBreadcrumbsActive: IContextKey<boolean>;
 
+	private readonly _cfUseQuickPick: BreadcrumbsConfig<boolean>;
+
 	readonly domNode: HTMLDivElement;
 	private readonly _widget: BreadcrumbsWidget;
-	private _disposables = new Array<IDisposable>();
 
+	private _disposables = new Array<IDisposable>();
 	private _breadcrumbsDisposables = new Array<IDisposable>();
 	private _breadcrumbsPickerShowing = false;
 
@@ -140,7 +144,9 @@ export class BreadcrumbsControl {
 		@IWorkspaceContextService private readonly _workspaceService: IWorkspaceContextService,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 		@IThemeService private readonly _themeService: IThemeService,
+		@IQuickOpenService private readonly _quickOpenService: IQuickOpenService,
 		@IBreadcrumbsService breadcrumbsService: IBreadcrumbsService,
+		@IConfigurationService configurationService: IConfigurationService,
 	) {
 		this.domNode = document.createElement('div');
 		dom.addClasses(this.domNode, 'breadcrumbs-control');
@@ -155,6 +161,8 @@ export class BreadcrumbsControl {
 		this._ckBreadcrumbsVisible = BreadcrumbsControl.CK_BreadcrumbsVisible.bindTo(this._contextKeyService);
 		this._ckBreadcrumbsActive = BreadcrumbsControl.CK_BreadcrumbsActive.bindTo(this._contextKeyService);
 
+		this._cfUseQuickPick = BreadcrumbsConfig.UseQuickPick.bindTo(configurationService);
+
 		this._disposables.push(breadcrumbsService.register(this._editorGroup.id, this._widget));
 	}
 
@@ -163,6 +171,7 @@ export class BreadcrumbsControl {
 		this._breadcrumbsDisposables = dispose(this._breadcrumbsDisposables);
 		this._ckBreadcrumbsVisible.reset();
 		this._ckBreadcrumbsActive.reset();
+		this._cfUseQuickPick.dispose();
 		this._widget.dispose();
 		this.domNode.remove();
 	}
@@ -235,6 +244,14 @@ export class BreadcrumbsControl {
 			this._widget.setFocused(undefined);
 			this._widget.setSelection(undefined);
 			this._revealInEditor(element);
+			return;
+		}
+
+		if (this._cfUseQuickPick.value) {
+			// using quick pick
+			this._widget.setFocused(undefined);
+			this._widget.setSelection(undefined);
+			this._quickOpenService.show(element instanceof TreeElement ? '@' : '');
 			return;
 		}
 
