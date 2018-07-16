@@ -104,7 +104,7 @@ steps:
           pushd build/tfs/linux
           # Submit to apt repo
           if [ "$DEB_ARCH" = "amd64" ]; then
-            eval echo '{ \"server\": \"azure-apt-cat.cloudapp.net\", \"protocol\": \"https\", \"port\": \"443\", \"repositoryId\": \"58a4adf642421134a1a48d1a\", \"username\": \"vscode\", \"password\": \"$(LINUX_REPO_PASSWORD)\" }' > apt-config.json
+            echo "{ \"server\": \"azure-apt-cat.cloudapp.net\", \"protocol\": \"https\", \"port\": \"443\", \"repositoryId\": \"58a4adf642421134a1a48d1a\", \"username\": \"vscode\", \"password\": \"$(LINUX_REPO_PASSWORD)\" }" > apt-config.json
 
             AZURE_DOCUMENTDB_MASTERKEY="$(AZURE_DOCUMENTDB_MASTERKEY)" \
             AZURE_STORAGE_ACCESS_KEY_2="$(AZURE_STORAGE_ACCESS_KEY_2)" \
