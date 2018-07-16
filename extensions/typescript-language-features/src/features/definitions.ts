@@ -44,10 +44,11 @@ export default class TypeScriptDefinitionProvider extends DefinitionProviderBase
 				const span = response.body.textSpan ? typeConverters.Range.fromTextSpan(response.body.textSpan) : undefined;
 				return locations
 					.map(location => {
-						const loc = typeConverters.Location.fromTextSpan(this.client.toResource(location.file), location);
-						return {
-							origin: span,
-							...loc,
+						const target = typeConverters.Location.fromTextSpan(this.client.toResource(location.file), location);
+						return <vscode.DefinitionLink>{
+							originSelectionRange: span,
+							targetRange: target.range,
+							targetUri: target.uri,
 						};
 					});
 			} catch {

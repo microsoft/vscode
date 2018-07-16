@@ -166,14 +166,15 @@ class DefinitionAdapter {
 
 	private static convertDefinitionLink(value: vscode.Location | vscode.DefinitionLink): modes.DefinitionLink {
 		const definitionLink = <vscode.DefinitionLink>value;
+		const location = <vscode.Location>value;
 		return {
-			origin: definitionLink.origin
-				? typeConvert.Range.from(definitionLink.origin)
+			origin: definitionLink.originSelectionRange
+				? typeConvert.Range.from(definitionLink.originSelectionRange)
 				: undefined,
-			uri: value.uri,
-			range: typeConvert.Range.from(value.range),
-			selectionRange: definitionLink.selectionRange
-				? typeConvert.Range.from(definitionLink.selectionRange)
+			uri: definitionLink.targetUri ? definitionLink.targetUri : location.uri,
+			range: typeConvert.Range.from(definitionLink.targetRange ? definitionLink.targetRange : location.range),
+			selectionRange: definitionLink.targetSelectionRange
+				? typeConvert.Range.from(definitionLink.targetSelectionRange)
 				: undefined,
 		};
 	}

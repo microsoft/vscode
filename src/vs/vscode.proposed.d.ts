@@ -1070,26 +1070,26 @@ declare module 'vscode' {
 		 * Used as the underlined span for mouse definition hover. Defaults to the word range at
 		 * the definition position.
 		 */
-		origin?: Range;
+		originSelectionRange?: Range;
 
 		/**
 		 * The resource identifier of the definition.
 		 */
-		uri: Uri;
+		targetUri: Uri;
 
 		/**
 		 * The full range of the definition.
 		 *
 		 * For a class definition for example, this would be the entire body of the class definition.
 		 */
-		range: Range;
+		targetRange: Range;
 
 		/**
 		 * The span of the symbol definition.
 		 *
 		 * For a class definition, this would be the class name itself in the class definition.
 		 */
-		selectionRange?: Range;
+		targetSelectionRange?: Range;
 	}
 
 	export interface DefinitionProvider {
