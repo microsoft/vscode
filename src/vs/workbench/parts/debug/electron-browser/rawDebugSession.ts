@@ -43,6 +43,7 @@ export class RawDebugSession implements debug.IRawSession {
 	private cachedInitServerP: TPromise<void>;
 	private startTime: number;
 	public disconnected: boolean;
+	private terminated: boolean;
 	private sentPromises: TPromise<DebugProtocol.Response>[];
 	private _capabilities: DebugProtocol.Capabilities;
 	private allThreadsContinued: boolean;
@@ -339,24 +340,13 @@ export class RawDebugSession implements debug.IRawSession {
 		return this.send<DebugProtocol.CompletionsResponse>('completions', args);
 	}
 
-	public disconnect(restart = false, force = false): TPromise<DebugProtocol.DisconnectResponse> {
-		if (this.disconnected && force) {
-			return this.stopServer();
+	public terminate(restart = false): TPromise<DebugProtocol.TerminateResponse> {
+		if (this.capabilities.supportsTerminateRequest && !this.terminated) {
+			this.terminated = true;
+			return this.send('terminate', { restart });
 		}
 
-		// Cancel all sent promises on disconnect so debug trees are not left in a broken state #3666.
-		// Give a 1s timeout to give a chance for some promises to complete.
-		setTimeout(() => {
-			this.sentPromises.forEach(p => p && p.cancel());
-			this.sentPromises = [];
-		}, 1000);
-
-		if (this.debugAdapter && !this.disconnected) {
-			// point of no return: from now on don't report any errors
-			this.disconnected = true;
-			return this.send('disconnect', { restart }, false).then(() => this.stopServer(), () => this.stopServer());
-		}
-
+		this.dispose(restart);
 		return TPromise.as(null);
 	}
 
@@ -481,6 +471,26 @@ export class RawDebugSession implements debug.IRawSession {
 			},
 			seq: undefined
 		});
+	}
+
+	public dispose(restart = false): void {
+		if (this.disconnected) {
+			this.stopServer().done(undefined, errors.onUnexpectedError);
+		} else {
+
+			// Cancel all sent promises on disconnect so debug trees are not left in a broken state #3666.
+			// Give a 1s timeout to give a chance for some promises to complete.
+			setTimeout(() => {
+				this.sentPromises.forEach(p => p && p.cancel());
+				this.sentPromises = [];
+			}, 1000);
+
+			if (this.debugAdapter && !this.disconnected) {
+				// point of no return: from now on don't report any errors
+				this.disconnected = true;
+				this.send('disconnect', { restart }, false).then(() => this.stopServer(), () => this.stopServer()).done(undefined, errors.onUnexpectedError);
+			}
+		}
 	}
 
 	private stopServer(): TPromise<any> {

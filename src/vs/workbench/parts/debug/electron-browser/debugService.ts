@@ -167,15 +167,16 @@ export class DebugService implements debug.IDebugService {
 					(<RawDebugSession>session.raw).attach(session.configuration);
 				});
 			} else {
-				raw.disconnect().done(undefined, errors.onUnexpectedError);
-				this.doCreateSession(session.raw.root, { resolved: session.configuration, unresolved: session.unresolvedConfiguration }, session.getId());
+				const root = raw.root;
+				raw.dispose();
+				this.doCreateSession(root, { resolved: session.configuration, unresolved: session.unresolvedConfiguration }, session.getId());
 			}
 
 			return;
 		}
 
 		if (broadcast.channel === EXTENSION_TERMINATE_BROADCAST_CHANNEL) {
-			raw.disconnect().done(undefined, errors.onUnexpectedError);
+			raw.terminate().done(undefined, errors.onUnexpectedError);
 			return;
 		}
 
@@ -292,7 +293,7 @@ export class DebugService implements debug.IDebugService {
 					return raw.configurationDone().done(null, e => {
 						// Disconnect the debug session on configuration done error #10596
 						if (raw) {
-							raw.disconnect().done(null, errors.onUnexpectedError);
+							raw.dispose();
 						}
 						this.notificationService.error(e.message);
 					});
@@ -342,7 +343,7 @@ export class DebugService implements debug.IDebugService {
 				if (event.body && event.body.restart && session) {
 					this.restartSession(session, event.body.restart).done(null, err => this.notificationService.error(err.message));
 				} else {
-					raw.disconnect().done(null, errors.onUnexpectedError);
+					raw.dispose();
 				}
 			}
 		}));
@@ -975,7 +976,7 @@ export class DebugService implements debug.IDebugService {
 					this.telemetryService.publicLog('debugMisconfiguration', { type: resolved ? resolved.type : undefined, error: errorMessage });
 					this.updateStateAndEmit(raw.getId(), debug.State.Inactive);
 					if (!raw.disconnected) {
-						raw.disconnect().done(null, errors.onUnexpectedError);
+						raw.dispose();
 					} else if (session) {
 						this.model.removeSession(session.getId());
 					}
@@ -1115,7 +1116,7 @@ export class DebugService implements debug.IDebugService {
 			// Do not run preLaunch and postDebug tasks for automatic restarts
 			this.skipRunningTask = !!restartData;
 
-			return session.raw.disconnect(true).then(() => {
+			return session.raw.terminate(true).then(() => {
 				if (strings.equalsIgnoreCase(session.configuration.type, 'extensionHost') && session.raw.root) {
 					return this.broadcastService.broadcast({
 						channel: EXTENSION_RELOAD_BROADCAST_CHANNEL,
@@ -1157,12 +1158,12 @@ export class DebugService implements debug.IDebugService {
 
 	public stopSession(session: debug.ISession): TPromise<any> {
 		if (session) {
-			return session.raw.disconnect(false, true);
+			return session.raw.terminate();
 		}
 
 		const sessions = this.model.getSessions();
 		if (sessions.length) {
-			return TPromise.join(sessions.map(s => s.raw.disconnect(false, true)));
+			return TPromise.join(sessions.map(s => s.raw.terminate(false)));
 		}
 
 		this.sessionStates.clear();
