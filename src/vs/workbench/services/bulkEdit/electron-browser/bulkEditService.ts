@@ -286,16 +286,27 @@ export class BulkEdit {
 		for (const edit of edits) {
 			progress.report(undefined);
 
-			let overwrite = edit.options && edit.options.overwrite;
+			let options = edit.options || {};
+
 			if (edit.newUri && edit.oldUri) {
-				await this._textFileService.move(edit.oldUri, edit.newUri, overwrite);
-			} else if (!edit.newUri && edit.oldUri) {
-				await this._textFileService.delete(edit.oldUri, { useTrash: true, recursive: edit.options && edit.options.recursive });
-			} else if (edit.newUri && !edit.oldUri) {
-				let ignoreIfExists = edit.options && edit.options.ignoreIfExists;
-				if (!ignoreIfExists || !await this._fileService.existsFile(edit.newUri)) {
-					await this._textFileService.create(edit.newUri, undefined, { overwrite });
+				// rename
+				if (options.overwrite === undefined && options.ignoreIfExists && await this._fileService.existsFile(edit.newUri)) {
+					continue; // not overwriting, but ignoring, and the target file exists
 				}
+				await this._textFileService.move(edit.oldUri, edit.newUri, options.overwrite);
+
+			} else if (!edit.newUri && edit.oldUri) {
+				// delete file
+				if (!options.ignoreIfNotExists || await this._fileService.existsFile(edit.oldUri)) {
+					await this._textFileService.delete(edit.oldUri, { useTrash: true, recursive: options.recursive });
+				}
+
+			} else if (edit.newUri && !edit.oldUri) {
+				// create file
+				if (options.overwrite === undefined && options.ignoreIfExists && await this._fileService.existsFile(edit.newUri)) {
+					continue; // not overwriting, but ignoring, and the target file exists
+				}
+				await this._textFileService.create(edit.newUri, undefined, { overwrite: options.overwrite });
 			}
 		}
 	}

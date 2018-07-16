@@ -1008,7 +1008,7 @@ declare module 'vscode' {
 		 *
 		 * @param uri The uri of the file that is to be deleted.
 		 */
-		deleteFile(uri: Uri, options?: { recursive?: boolean }): void;
+		deleteFile(uri: Uri, options?: { recursive?: boolean, ignoreIfNotExists?: boolean }): void;
 
 		/**
 		 * Rename a file or folder.
@@ -1017,7 +1017,7 @@ declare module 'vscode' {
 		 * @param newUri The new location.
 		 * @param options Defines if existing files should be overwritten.
 		 */
-		renameFile(oldUri: Uri, newUri: Uri, options?: { overwrite?: boolean }): void;
+		renameFile(oldUri: Uri, newUri: Uri, options?: { overwrite?: boolean, ignoreIfExists?: boolean }): void;
 	}
 
 	export namespace workspace {

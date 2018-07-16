@@ -5210,6 +5210,7 @@ declare namespace monaco.languages {
 		newUri: Uri;
 		options: {
 			overwrite?: boolean;
+			ignoreIfNotExists?: boolean;
 			ignoreIfExists?: boolean;
 			recursive?: boolean;
 		};
