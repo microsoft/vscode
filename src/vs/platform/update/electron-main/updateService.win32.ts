@@ -80,7 +80,7 @@ export class Win32UpdateService extends AbstractUpdateService {
 		if (getUpdateType() === UpdateType.Setup) {
 			/* __GDPR__
 					"update:win32SetupTarget" : {
-						"explicit" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true }
+						"target" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
 					}
 				*/
 			telemetryService.publicLog('update:win32SetupTarget', { target: product.target });
