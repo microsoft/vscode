@@ -26,6 +26,28 @@
     "Programming Languages"
   ],
   "contributes": {
+    "languages": [
+      {
+        "id": "html",
+        "extensions": [
+          ".html",
+          ".htm",
+          ".shtml",
+          ".xhtml",
+          ".mdoc",
+          ".jsp",
+          ".asp",
+          ".aspx",
+          ".jshtm",
+          ".volt",
+          ".ejs",
+          ".rhtml"
+        ],
+        "aliases": [
+          "HTML"
+        ]
+      }
+    ],
     "configuration": {
       "id": "html",
       "order": 20,

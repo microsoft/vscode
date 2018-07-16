@@ -16,6 +16,21 @@
 		"Programming Languages"
 	],
 	"contributes": {
+		"languages": [
+			{
+				"id": "php",
+				"extensions": [
+					".php",
+					".php4",
+					".php5",
+					".phtml",
+					".ctp"
+				],
+				"aliases": [
+					"php"
+				]
+			}
+		],
 		"configuration": {
 			"title": "%configuration.title%",
 			"type": "object",

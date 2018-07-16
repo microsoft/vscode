@@ -31,7 +31,7 @@ export interface IRawLanguageExtensionPoint {
 }
 
 export const languagesExtPoint: IExtensionPoint<IRawLanguageExtensionPoint[]> = ExtensionsRegistry.registerExtensionPoint<IRawLanguageExtensionPoint[]>('languages', [], {
-	description: nls.localize('vscode.extension.contributes.languages', 'Contributes language declarations.'),
+	description: nls.localize('vscode.extension.contributes.languages', 'Contributes language features.'),
 	type: 'array',
 	items: {
 		type: 'object',
