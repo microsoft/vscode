@@ -221,6 +221,11 @@ const schema: IJSONSchema = {
 						body: 'workspaceContains:${4:filePattern}'
 					},
 					{
+						label: 'onSearch',
+						description: nls.localize('vscode.extension.activationEvents.onSearch', 'An activation event emitted whenever a search is started in the folder with the given scheme.'),
+						body: 'onSearch:${7:scheme}'
+					},
+					{
 						label: 'onView',
 						body: 'onView:${5:viewId}',
 						description: nls.localize('vscode.extension.activationEvents.onView', 'An activation event emitted whenever the specified view is expanded.'),

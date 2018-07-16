@@ -125,7 +125,10 @@ export class SearchService implements ISearchService {
 					}
 				});
 
-			const providerPromise = this.extensionService.whenInstalledExtensionsRegistered().then(() => {
+			const schemesInQuery = query.folderQueries.map(fq => fq.folder.scheme);
+			const providerActivations = schemesInQuery.map(scheme => this.extensionService.activateByEvent(`onSearch:${scheme}`));
+
+			const providerPromise = TPromise.join(providerActivations).then(() => {
 				// TODO@roblou this is not properly waiting for search-rg to finish registering itself
 				// If no search provider has been registered for the 'file' schema, fall back on DiskSearch
 				const providers = [
