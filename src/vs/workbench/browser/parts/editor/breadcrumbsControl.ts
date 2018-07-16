@@ -145,8 +145,8 @@ export class BreadcrumbsControl {
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 		@IThemeService private readonly _themeService: IThemeService,
 		@IQuickOpenService private readonly _quickOpenService: IQuickOpenService,
+		@IConfigurationService private readonly _configurationService: IConfigurationService,
 		@IBreadcrumbsService breadcrumbsService: IBreadcrumbsService,
-		@IConfigurationService configurationService: IConfigurationService,
 	) {
 		this.domNode = document.createElement('div');
 		dom.addClasses(this.domNode, 'breadcrumbs-control');
@@ -161,7 +161,7 @@ export class BreadcrumbsControl {
 		this._ckBreadcrumbsVisible = BreadcrumbsControl.CK_BreadcrumbsVisible.bindTo(this._contextKeyService);
 		this._ckBreadcrumbsActive = BreadcrumbsControl.CK_BreadcrumbsActive.bindTo(this._contextKeyService);
 
-		this._cfUseQuickPick = BreadcrumbsConfig.UseQuickPick.bindTo(configurationService);
+		this._cfUseQuickPick = BreadcrumbsConfig.UseQuickPick.bindTo(_configurationService);
 
 		this._disposables.push(breadcrumbsService.register(this._editorGroup.id, this._widget));
 	}
@@ -209,7 +209,7 @@ export class BreadcrumbsControl {
 		this._ckBreadcrumbsVisible.set(true);
 
 		let control = this._editorGroup.activeControl.getControl() as ICodeEditor;
-		let model = new EditorBreadcrumbsModel(input.getResource(), isCodeEditor(control) ? control : undefined, this._workspaceService);
+		let model = new EditorBreadcrumbsModel(input.getResource(), isCodeEditor(control) ? control : undefined, this._workspaceService, this._configurationService);
 		dom.toggleClass(this.domNode, 'relative-path', model.isRelative());
 
 		let updateBreadcrumbs = () => {

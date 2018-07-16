@@ -21,6 +21,8 @@ import { DocumentSymbolProviderRegistry } from 'vs/editor/common/modes';
 import { OutlineElement, OutlineGroup, OutlineModel } from 'vs/editor/contrib/documentSymbols/outlineModel';
 import { IWorkspaceContextService, IWorkspaceFolder, WorkbenchState } from 'vs/platform/workspace/common/workspace';
 import { Schemas } from 'vs/base/common/network';
+import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
+import { BreadcrumbsConfig } from 'vs/workbench/browser/parts/editor/breadcrumbs';
 
 export class FileElement {
 	constructor(
@@ -38,6 +40,9 @@ export class EditorBreadcrumbsModel {
 	private readonly _disposables: IDisposable[] = [];
 	private readonly _fileInfo: FileInfo;
 
+	private readonly _cfgFilePath: BreadcrumbsConfig<'on' | 'off' | 'last'>;
+	private readonly _cfgSymbolPath: BreadcrumbsConfig<'on' | 'off' | 'last'>;
+
 	private _outlineElements: (OutlineGroup | OutlineElement)[] = [];
 	private _outlineDisposables: IDisposable[] = [];
 
@@ -48,13 +53,23 @@ export class EditorBreadcrumbsModel {
 		private readonly _uri: URI,
 		private readonly _editor: ICodeEditor | undefined,
 		@IWorkspaceContextService workspaceService: IWorkspaceContextService,
+		@IConfigurationService configurationService: IConfigurationService,
 	) {
+
+		this._cfgFilePath = BreadcrumbsConfig.FilePath.bindTo(configurationService);
+		this._cfgSymbolPath = BreadcrumbsConfig.SymbolPath.bindTo(configurationService);
+
+		this._disposables.push(this._cfgFilePath.onDidChange(_ => this._onDidUpdate.fire(this)));
+		this._disposables.push(this._cfgSymbolPath.onDidChange(_ => this._onDidUpdate.fire(this)));
+
 		this._fileInfo = EditorBreadcrumbsModel._initFilePathInfo(this._uri, workspaceService);
 		this._bindToEditor();
 		this._onDidUpdate.fire(this);
 	}
 
 	dispose(): void {
+		this._cfgFilePath.dispose();
+		this._cfgSymbolPath.dispose();
 		dispose(this._disposables);
 	}
 
@@ -63,7 +78,23 @@ export class EditorBreadcrumbsModel {
 	}
 
 	getElements(): ReadonlyArray<BreadcrumbElement> {
-		return [].concat(this._fileInfo.path, this._outlineElements);
+		let result: BreadcrumbElement[] = [];
+
+		// file path elements
+		if (this._cfgFilePath.value === 'on') {
+			result = result.concat(this._fileInfo.path);
+		} else if (this._cfgFilePath.value === 'last' && this._fileInfo.path.length > 0) {
+			result = result.concat(this._fileInfo.path.slice(-1));
+		}
+
+		// symbol path elements
+		if (this._cfgSymbolPath.value === 'on') {
+			result = result.concat(this._outlineElements);
+		} else if (this._cfgSymbolPath.value === 'last' && this._outlineElements.length > 0) {
+			result = result.concat(this._outlineElements.slice(-1));
+		}
+
+		return result;
 	}
 
 	private static _initFilePathInfo(uri: URI, workspaceService: IWorkspaceContextService): FileInfo {
