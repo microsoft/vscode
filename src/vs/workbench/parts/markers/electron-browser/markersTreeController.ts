@@ -7,7 +7,7 @@
 import { TPromise } from 'vs/base/common/winjs.base';
 import * as mouse from 'vs/base/browser/mouseEvent';
 import * as tree from 'vs/base/parts/tree/browser/tree';
-import { MarkersModel, Marker } from 'vs/workbench/parts/markers/electron-browser/markersModel';
+import { MarkersModel, Marker, ResourceMarkers } from 'vs/workbench/parts/markers/electron-browser/markersModel';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 import { IMenuService, MenuId } from 'vs/platform/actions/common/actions';
 import { IAction, Action } from 'vs/base/common/actions';
@@ -19,6 +19,7 @@ import { IBulkEditService } from 'vs/editor/browser/services/bulkEditService';
 import { applyCodeAction } from 'vs/editor/contrib/codeAction/codeActionCommands';
 import { ICommandService } from 'vs/platform/commands/common/commands';
 import { IEditorService, ACTIVE_GROUP } from 'vs/workbench/services/editor/common/editorService';
+import { localize } from 'vs/nls';
 
 export class Controller extends WorkbenchTreeController {
 
@@ -79,10 +80,14 @@ export class Controller extends WorkbenchTreeController {
 	private async _getMenuActions(tree: WorkbenchTree, element: any): Promise<IAction[]> {
 		const result: IAction[] = [];
 
-		const quickFixActions = await this._getQuickFixActions(element);
 
-		if (quickFixActions.length) {
-			result.push(...quickFixActions);
+		if (element instanceof Marker) {
+			const quickFixActions = await this._getQuickFixActions(tree, element);
+			if (quickFixActions.length) {
+				result.push(...quickFixActions);
+			} else {
+				result.push(new Action('problems.no.fixes', localize('no fixes available', "No fixes available"), void 0, false));
+			}
 			result.push(new Separator());
 		}
 
@@ -100,9 +105,10 @@ export class Controller extends WorkbenchTreeController {
 		return result;
 	}
 
-	private async _getQuickFixActions(element: any): Promise<IAction[]> {
-		if (element instanceof Marker) {
-			const codeActions = await element.getCodeActions({ type: 'manual' });
+	private async _getQuickFixActions(tree: WorkbenchTree, element: Marker): Promise<IAction[]> {
+		const parent = tree.getNavigator(element).parent();
+		if (parent instanceof ResourceMarkers) {
+			const codeActions = await parent.getFixes(element);
 			return codeActions.map(codeAction => new Action(
 				codeAction.command ? codeAction.command.id : codeAction.title,
 				codeAction.title,
@@ -112,9 +118,8 @@ export class Controller extends WorkbenchTreeController {
 					return this.openFileAtMarker(element)
 						.then(() => applyCodeAction(codeAction, this.bulkEditService, this.commandService));
 				}));
-
 		}
-		return Promise.resolve([]);
+		return [];
 	}
 
 	public openFileAtMarker(element: Marker): TPromise<void> {
