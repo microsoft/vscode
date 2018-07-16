@@ -109,7 +109,7 @@ Registry.as<IConfigurationRegistry>(Extensions.Configuration).registerConfigurat
 			default: false
 		},
 		'breadcrumbs.useQuickPick': {
-			description: localize('useQuickPick', "Use quick pick instead of seperate pickers."),
+			description: localize('useQuickPick', "Use quick pick instead of breadcrumb-pickers."),
 			type: 'boolean',
 			default: false
 		},
