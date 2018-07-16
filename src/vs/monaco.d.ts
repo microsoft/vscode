@@ -4933,7 +4933,7 @@ declare namespace monaco.languages {
 		/**
 		 * Provide the implementation of the symbol at the given position and document.
 		 */
-		provideImplementation(model: editor.ITextModel, position: Position, token: CancellationToken): Definition | Thenable<Definition>;
+		provideImplementation(model: editor.ITextModel, position: Position, token: CancellationToken): DefinitionLink | Thenable<DefinitionLink>;
 	}
 
 	/**
@@ -4944,7 +4944,7 @@ declare namespace monaco.languages {
 		/**
 		 * Provide the type definition of the symbol at the given position and document.
 		 */
-		provideTypeDefinition(model: editor.ITextModel, position: Position, token: CancellationToken): Definition | Thenable<Definition>;
+		provideTypeDefinition(model: editor.ITextModel, position: Position, token: CancellationToken): DefinitionLink | Thenable<DefinitionLink>;
 	}
 
 	/**

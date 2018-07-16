@@ -17,12 +17,7 @@ export default class TypeScriptDefinitionProvider extends DefinitionProviderBase
 		super(client);
 	}
 
-	public async provideDefinition() {
-		// Implemented by provideDefinition2
-		return undefined;
-	}
-
-	public async provideDefinition2(
+	public async provideDefinition(
 		document: vscode.TextDocument,
 		position: vscode.Position,
 		token: vscode.CancellationToken | boolean

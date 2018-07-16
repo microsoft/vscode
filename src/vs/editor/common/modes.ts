@@ -565,7 +565,7 @@ export interface ImplementationProvider {
 	/**
 	 * Provide the implementation of the symbol at the given position and document.
 	 */
-	provideImplementation(model: model.ITextModel, position: Position, token: CancellationToken): Definition | Thenable<Definition>;
+	provideImplementation(model: model.ITextModel, position: Position, token: CancellationToken): DefinitionLink | Thenable<DefinitionLink>;
 }
 
 /**
@@ -576,7 +576,7 @@ export interface TypeDefinitionProvider {
 	/**
 	 * Provide the type definition of the symbol at the given position and document.
 	 */
-	provideTypeDefinition(model: model.ITextModel, position: Position, token: CancellationToken): Definition | Thenable<Definition>;
+	provideTypeDefinition(model: model.ITextModel, position: Position, token: CancellationToken): DefinitionLink | Thenable<DefinitionLink>;
 }
 
 /**

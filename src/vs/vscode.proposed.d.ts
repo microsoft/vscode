@@ -1054,47 +1054,4 @@ declare module 'vscode' {
 		export const onDidRenameFile: Event<FileRenameEvent>;
 	}
 	//#endregion
-
-	//#region Matt: Deinition range
-
-	/**
-	 * Information about where a symbol is defined.
-	 *
-	 * Provides additional metadata over normal [location](#Location) definitions, including the range of
-	 * the defining symbol
-	 */
-	export interface DefinitionLink {
-		/**
-		 * Span of the symbol being defined in the source file.
-		 *
-		 * Used as the underlined span for mouse definition hover. Defaults to the word range at
-		 * the definition position.
-		 */
-		originSelectionRange?: Range;
-
-		/**
-		 * The resource identifier of the definition.
-		 */
-		targetUri: Uri;
-
-		/**
-		 * The full range of the definition.
-		 *
-		 * For a class definition for example, this would be the entire body of the class definition.
-		 */
-		targetRange: Range;
-
-		/**
-		 * The span of the symbol definition.
-		 *
-		 * For a class definition, this would be the class name itself in the class definition.
-		 */
-		targetSelectionRange?: Range;
-	}
-
-	export interface DefinitionProvider {
-		provideDefinition2?(document: TextDocument, position: Position, token: CancellationToken): ProviderResult<Definition | DefinitionLink[]>;
-	}
-
-	//#endregion
 }
