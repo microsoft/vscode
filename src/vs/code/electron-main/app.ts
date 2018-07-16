@@ -30,7 +30,7 @@ import { IConfigurationService } from 'vs/platform/configuration/common/configur
 import { IURLService } from 'vs/platform/url/common/url';
 import { URLHandlerChannelClient, URLServiceChannel } from 'vs/platform/url/common/urlIpc';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { NullTelemetryService } from 'vs/platform/telemetry/common/telemetryUtils';
+import { NullTelemetryService, combinedAppender, LogAppender } from 'vs/platform/telemetry/common/telemetryUtils';
 import { ITelemetryAppenderChannel, TelemetryAppenderClient } from 'vs/platform/telemetry/common/telemetryIpc';
 import { TelemetryService, ITelemetryServiceConfig } from 'vs/platform/telemetry/common/telemetryService';
 import { resolveCommonProperties } from 'vs/platform/telemetry/node/commonProperties';
@@ -99,6 +99,7 @@ export class CodeApplication {
 		// We handle uncaught exceptions here to prevent electron from opening a dialog to the user
 		errors.setUnexpectedErrorHandler(err => this.onUnexpectedError(err));
 		process.on('uncaughtException', err => this.onUnexpectedError(err));
+		process.on('unhandledRejection', (reason: any, promise: Promise<any>) => errors.onUnexpectedError(reason));
 
 		app.on('will-quit', () => {
 			this.logService.trace('App#will-quit: disposing resources');
@@ -261,7 +262,7 @@ export class CodeApplication {
 		}
 	}
 
-	public startup(): TPromise<void> {
+	startup(): TPromise<void> {
 		this.logService.debug('Starting VS Code');
 		this.logService.debug(`from: ${this.environmentService.appRoot}`);
 		this.logService.debug('args:', this.environmentService.args);
@@ -361,9 +362,9 @@ export class CodeApplication {
 		services.set(IMenubarService, new SyncDescriptor(MenubarService));
 
 		// Telemtry
-		if (this.environmentService.isBuilt && !this.environmentService.isExtensionDevelopment && !this.environmentService.args['disable-telemetry'] && !!product.enableTelemetry) {
+		if (!this.environmentService.isExtensionDevelopment && !this.environmentService.args['disable-telemetry'] && !!product.enableTelemetry) {
 			const channel = getDelayedChannel<ITelemetryAppenderChannel>(this.sharedProcessClient.then(c => c.getChannel('telemetryAppender')));
-			const appender = new TelemetryAppenderClient(channel);
+			const appender = combinedAppender(new TelemetryAppenderClient(channel), new LogAppender(this.logService));
 			const commonProperties = resolveCommonProperties(product.commit, pkg.version, machineId, this.environmentService.installSourcePath);
 			const piiPaths = [this.environmentService.appRoot, this.environmentService.extensionsPath];
 			const config: ITelemetryServiceConfig = { appender, commonProperties, piiPaths };
@@ -425,7 +426,8 @@ export class CodeApplication {
 
 		// Create a URL handler which forwards to the last active window
 		const activeWindowManager = new ActiveWindowManager(windowsService);
-		const urlHandlerChannel = this.electronIpcServer.getChannel('urlHandler', { route: () => activeWindowManager.activeClientId });
+		const route = () => activeWindowManager.getActiveClientId();
+		const urlHandlerChannel = this.electronIpcServer.getChannel('urlHandler', { routeCall: route, routeEvent: route });
 		const multiplexURLHandler = new URLHandlerChannelClient(urlHandlerChannel);
 
 		// On Mac, Code can be running without any open windows, so we must create a window to handle urls,
@@ -434,7 +436,7 @@ export class CodeApplication {
 			const environmentService = accessor.get(IEnvironmentService);
 
 			urlService.registerHandler({
-				async handleURL(uri: URI): TPromise<boolean> {
+				handleURL(uri: URI): TPromise<boolean> {
 					if (windowsMainService.getWindowCount() === 0) {
 						const cli = { ...environmentService.args, goto: true };
 						const [window] = windowsMainService.open({ context: OpenContext.API, cli, forceEmpty: true });
@@ -442,7 +444,7 @@ export class CodeApplication {
 						return window.ready().then(() => urlService.open(uri));
 					}
 
-					return false;
+					return TPromise.as(false);
 				}
 			});
 		}

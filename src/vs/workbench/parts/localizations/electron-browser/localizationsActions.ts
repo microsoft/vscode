@@ -47,10 +47,7 @@ export class ConfigureLocaleAction extends Action {
 				return undefined;
 			}
 			return this.editorService.openEditor({
-				resource: stat.resource,
-				options: {
-					forceOpen: true
-				}
+				resource: stat.resource
 			});
 		}, (error) => {
 			throw new Error(localize('fail.createSettings', "Unable to create '{0}' ({1}).", getPathLabel(file, this.environmentService, this.contextService), error));

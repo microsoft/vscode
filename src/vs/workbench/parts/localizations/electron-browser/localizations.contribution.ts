@@ -141,7 +141,8 @@ export class LocalizationWorkbenchContribution extends Disposable implements IWo
 					return;
 				}
 
-				const ceintlExtensionSearch = this.galleryService.query({ names: [`MS-CEINTL.vscode-language-pack-${locale}`], pageSize: 1 });
+				const extensionIdPostfix = this.getPossibleChineseMapping(locale);
+				const ceintlExtensionSearch = this.galleryService.query({ names: [`MS-CEINTL.vscode-language-pack-${extensionIdPostfix}`], pageSize: 1 });
 				const tagSearch = this.galleryService.query({ text: `tag:lp-${locale}`, pageSize: 1 });
 
 				TPromise.join([ceintlExtensionSearch, tagSearch]).then(([ceintlResult, tagResult]) => {
@@ -150,7 +151,7 @@ export class LocalizationWorkbenchContribution extends Disposable implements IWo
 					}
 
 					const extensionToInstall = ceintlResult.total === 1 ? ceintlResult.firstPage[0] : tagResult.total === 1 ? tagResult.firstPage[0] : null;
-					const extensionToFetchTranslationsFrom = extensionToInstall || tagResult.total > 0 ? tagResult.firstPage[0] : null;
+					const extensionToFetchTranslationsFrom = extensionToInstall || (tagResult.total > 0 ? tagResult.firstPage[0] : null);
 
 					if (!extensionToFetchTranslationsFrom || !extensionToFetchTranslationsFrom.assets.manifest) {
 						return;
@@ -233,6 +234,11 @@ export class LocalizationWorkbenchContribution extends Disposable implements IWo
 				});
 			});
 
+	}
+
+	private getPossibleChineseMapping(locale: string): string {
+		locale = locale.toLowerCase();
+		return locale === 'zh-cn' ? 'zh-hans' : locale === 'zh-tw' ? 'zh-hant' : locale;
 	}
 
 	private getLanguagePackExtension(language: string): TPromise<IGalleryExtension> {

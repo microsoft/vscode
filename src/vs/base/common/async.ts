@@ -32,6 +32,40 @@ export function toWinJsPromise<T>(arg: Thenable<T> | TPromise<T>): TPromise<T> {
 	return new TPromise((resolve, reject) => arg.then(resolve, reject));
 }
 
+export interface CancelablePromise<T> extends Promise<T> {
+	cancel(): void;
+}
+
+export function createCancelablePromise<T>(callback: (token: CancellationToken) => Thenable<T>): CancelablePromise<T> {
+	const source = new CancellationTokenSource();
+
+	const thenable = callback(source.token);
+	const promise = new Promise<T>((resolve, reject) => {
+		source.token.onCancellationRequested(() => {
+			reject(errors.canceled());
+		});
+		Promise.resolve(thenable).then(value => {
+			source.dispose();
+			resolve(value);
+		}, err => {
+			source.dispose();
+			reject(err);
+		});
+	});
+
+	return new class implements CancelablePromise<T> {
+		cancel() {
+			source.cancel();
+		}
+		then<TResult1 = T, TResult2 = never>(resolve?: ((value: T) => TResult1 | Thenable<TResult1>) | undefined | null, reject?: ((reason: any) => TResult2 | Thenable<TResult2>) | undefined | null): Promise<TResult1 | TResult2> {
+			return promise.then(resolve, reject);
+		}
+		catch<TResult = never>(reject?: ((reason: any) => TResult | Thenable<TResult>) | undefined | null): Promise<T | TResult> {
+			return this.then(undefined, reject);
+		}
+	};
+}
+
 export function asWinJsPromise<T>(callback: (token: CancellationToken) => T | TPromise<T> | Thenable<T>): TPromise<T> {
 	let source = new CancellationTokenSource();
 	return new TPromise<T>((resolve, reject, progress) => {
@@ -59,10 +93,6 @@ export function asWinJsPromise<T>(callback: (token: CancellationToken) => T | TP
 	}, () => {
 		source.cancel();
 	});
-}
-
-export function asWinJSImport<T>(importPromise: Thenable<T>): TPromise<T> {
-	return toWinJsPromise(importPromise); // workaround for https://github.com/Microsoft/vscode/issues/48205
 }
 
 /**
@@ -322,7 +352,7 @@ export class Barrier {
 
 	constructor() {
 		this._isOpen = false;
-		this._promise = new TPromise<boolean>((c, e, p) => {
+		this._promise = new TPromise<boolean>((c, e) => {
 			this._completePromise = c;
 		}, () => {
 			console.warn('You should really not try to cancel this ready promise!');
@@ -368,8 +398,16 @@ export class ShallowCancelThenPromise<T> extends TPromise<T> {
 /**
  * Replacement for `WinJS.TPromise.timeout`.
  */
-export function timeout(n: number): Thenable<void> {
-	return new TPromise(resolve => setTimeout(resolve, n));
+export function timeout(n: number): CancelablePromise<void> {
+	return createCancelablePromise(token => {
+		return new Promise((resolve, reject) => {
+			const handle = setTimeout(resolve, n);
+			token.onCancellationRequested(_ => {
+				clearTimeout(handle);
+				reject(errors.canceled());
+			});
+		});
+	});
 }
 
 function isWinJSPromise(candidate: any): candidate is TPromise {
@@ -446,13 +484,35 @@ export function sequence<T>(promiseFactories: ITask<Thenable<T>>[]): TPromise<T[
 	return TPromise.as(null).then(thenHandler);
 }
 
-export function first<T>(promiseFactories: ITask<TPromise<T>>[], shouldStop: (t: T) => boolean = t => !!t): TPromise<T> {
+export function first2<T>(promiseFactories: ITask<Promise<T>>[], shouldStop: (t: T) => boolean = t => !!t, defaultValue: T = null): Promise<T> {
+
+	let index = 0;
+	const len = promiseFactories.length;
+
+	const loop = () => {
+		if (index >= len) {
+			return Promise.resolve(defaultValue);
+		}
+		const factory = promiseFactories[index++];
+		const promise = factory();
+		return promise.then(result => {
+			if (shouldStop(result)) {
+				return Promise.resolve(result);
+			}
+			return loop();
+		});
+	};
+
+	return loop();
+}
+
+export function first<T>(promiseFactories: ITask<TPromise<T>>[], shouldStop: (t: T) => boolean = t => !!t, defaultValue: T = null): TPromise<T> {
 	let index = 0;
 	const len = promiseFactories.length;
 
 	const loop: () => TPromise<T> = () => {
 		if (index >= len) {
-			return TPromise.as(null);
+			return TPromise.as(defaultValue);
 		}
 
 		const factory = promiseFactories[index++];

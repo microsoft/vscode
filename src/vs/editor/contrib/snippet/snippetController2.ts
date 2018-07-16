@@ -205,6 +205,10 @@ export class SnippetController2 implements IEditorContribution {
 		this._updateState();
 	}
 
+	isInSnippet(): boolean {
+		return this._inSnippet.get();
+	}
+
 	getSessionEnclosingRange(): Range {
 		if (this._session) {
 			return this._session.getEnclosingRange();

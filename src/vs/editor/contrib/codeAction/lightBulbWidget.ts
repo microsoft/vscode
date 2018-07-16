@@ -7,12 +7,12 @@ import * as dom from 'vs/base/browser/dom';
 import { GlobalMouseMoveMonitor, IStandardMouseMoveEventData, standardMouseMoveMerger } from 'vs/base/browser/globalMouseMoveMonitor';
 import { CancellationTokenSource } from 'vs/base/common/cancellation';
 import { Emitter, Event } from 'vs/base/common/event';
-import { IDisposable, dispose } from 'vs/base/common/lifecycle';
+import { dispose, IDisposable } from 'vs/base/common/lifecycle';
 import 'vs/css!./lightBulbWidget';
 import { ContentWidgetPositionPreference, ICodeEditor, IContentWidget, IContentWidgetPosition } from 'vs/editor/browser/editorBrowser';
 import { TextModel } from 'vs/editor/common/model/textModel';
-import { CodeActionsComputeEvent } from './codeActionModel';
 import { CodeActionKind } from 'vs/editor/contrib/codeAction/codeActionTrigger';
+import { CodeActionsComputeEvent } from './codeActionModel';
 
 export class LightBulbWidget implements IDisposable, IContentWidget {
 
@@ -116,7 +116,7 @@ export class LightBulbWidget implements IDisposable, IContentWidget {
 		this._model = value;
 
 		const selection = this._model.rangeOrSelection;
-		this._model.actions.done(fixes => {
+		this._model.actions.then(fixes => {
 			if (!token.isCancellationRequested && fixes && fixes.length > 0) {
 				if (selection.isEmpty() && fixes.every(fix => fix.kind && CodeActionKind.Refactor.contains(fix.kind))) {
 					this.hide();
@@ -126,7 +126,7 @@ export class LightBulbWidget implements IDisposable, IContentWidget {
 			} else {
 				this.hide();
 			}
-		}, err => {
+		}).catch(err => {
 			this.hide();
 		});
 	}

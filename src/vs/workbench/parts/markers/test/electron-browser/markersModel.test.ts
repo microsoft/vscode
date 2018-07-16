@@ -9,6 +9,8 @@ import * as assert from 'assert';
 import URI from 'vs/base/common/uri';
 import { IMarker, MarkerSeverity, IRelatedInformation } from 'vs/platform/markers/common/markers';
 import { MarkersModel, Marker, ResourceMarkers, RelatedInformation } from 'vs/workbench/parts/markers/electron-browser/markersModel';
+import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
+import { workbenchInstantiationService } from 'vs/workbench/test/workbenchTestServices';
 
 class TestMarkersModel extends MarkersModel {
 
@@ -22,6 +24,12 @@ class TestMarkersModel extends MarkersModel {
 
 suite('MarkersModel Test', () => {
 
+	let instantiationService: IInstantiationService;
+
+	setup(() => {
+		instantiationService = workbenchInstantiationService();
+	});
+
 	test('getFilteredResource return markers grouped by resource', function () {
 		const marker1 = aMarker('res1');
 		const marker2 = aMarker('res2');
@@ -29,7 +37,7 @@ suite('MarkersModel Test', () => {
 		const marker4 = aMarker('res3');
 		const marker5 = aMarker('res4');
 		const marker6 = aMarker('res2');
-		const testObject = new TestMarkersModel([marker1, marker2, marker3, marker4, marker5, marker6]);
+		const testObject = instantiationService.createInstance(TestMarkersModel, [marker1, marker2, marker3, marker4, marker5, marker6]);
 
 		const actuals = testObject.filteredResources;
 
@@ -61,7 +69,7 @@ suite('MarkersModel Test', () => {
 		const marker4 = aMarker('b/res3');
 		const marker5 = aMarker('res4');
 		const marker6 = aMarker('c/res2', MarkerSeverity.Info);
-		const testObject = new TestMarkersModel([marker1, marker2, marker3, marker4, marker5, marker6]);
+		const testObject = instantiationService.createInstance(TestMarkersModel, [marker1, marker2, marker3, marker4, marker5, marker6]);
 
 		const actuals = testObject.resources;
 
@@ -80,7 +88,7 @@ suite('MarkersModel Test', () => {
 		const marker4 = aMarker('b/res3');
 		const marker5 = aMarker('res4');
 		const marker6 = aMarker('c/res2');
-		const testObject = new TestMarkersModel([marker1, marker2, marker3, marker4, marker5, marker6]);
+		const testObject = instantiationService.createInstance(TestMarkersModel, [marker1, marker2, marker3, marker4, marker5, marker6]);
 
 		const actuals = testObject.resources;
 
@@ -108,7 +116,7 @@ suite('MarkersModel Test', () => {
 		const marker13 = aWarningWithRange(5);
 		const marker14 = anErrorWithRange(4);
 		const marker15 = anErrorWithRange(8, 2, 8, 4);
-		const testObject = new TestMarkersModel([marker1, marker2, marker3, marker4, marker5, marker6, marker7, marker8, marker9, marker10, marker11, marker12, marker13, marker14, marker15]);
+		const testObject = instantiationService.createInstance(TestMarkersModel, [marker1, marker2, marker3, marker4, marker5, marker6, marker7, marker8, marker9, marker10, marker11, marker12, marker13, marker14, marker15]);
 
 		const actuals = testObject.resources[0].markers;
 
@@ -132,19 +140,19 @@ suite('MarkersModel Test', () => {
 	test('toString()', function () {
 		let marker = aMarker('a/res1');
 		marker.code = '1234';
-		assert.equal(JSON.stringify({ ...marker, resource: marker.resource.path }, null, '\t'), new Marker('', marker).toString());
+		assert.equal(JSON.stringify({ ...marker, resource: marker.resource.path }, null, '\t'), instantiationService.createInstance(Marker, '', marker).toString());
 
 		marker = aMarker('a/res2', MarkerSeverity.Warning);
-		assert.equal(JSON.stringify({ ...marker, resource: marker.resource.path }, null, '\t'), new Marker('', marker).toString());
+		assert.equal(JSON.stringify({ ...marker, resource: marker.resource.path }, null, '\t'), instantiationService.createInstance(Marker, '', marker).toString());
 
 		marker = aMarker('a/res2', MarkerSeverity.Info, 1, 2, 1, 8, 'Info', '');
-		assert.equal(JSON.stringify({ ...marker, resource: marker.resource.path }, null, '\t'), new Marker('', marker).toString());
+		assert.equal(JSON.stringify({ ...marker, resource: marker.resource.path }, null, '\t'), instantiationService.createInstance(Marker, '', marker).toString());
 
 		marker = aMarker('a/res2', MarkerSeverity.Hint, 1, 2, 1, 8, 'Ignore message', 'Ignore');
-		assert.equal(JSON.stringify({ ...marker, resource: marker.resource.path }, null, '\t'), new Marker('', marker).toString());
+		assert.equal(JSON.stringify({ ...marker, resource: marker.resource.path }, null, '\t'), instantiationService.createInstance(Marker, '', marker).toString());
 
 		marker = aMarker('a/res2', MarkerSeverity.Warning, 1, 2, 1, 8, 'Warning message', '', [{ startLineNumber: 2, startColumn: 5, endLineNumber: 2, endColumn: 10, message: 'some info', resource: URI.file('a/res3') }]);
-		const testObject = new Marker('', marker);
+		const testObject = instantiationService.createInstance(Marker, '', marker);
 		testObject.resourceRelatedInformation = marker.relatedInformation.map(r => new RelatedInformation('', r));
 		assert.equal(JSON.stringify({ ...marker, resource: marker.resource.path, relatedInformation: marker.relatedInformation.map(r => ({ ...r, resource: r.resource.path })) }, null, '\t'), testObject.toString());
 	});

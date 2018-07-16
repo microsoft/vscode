@@ -16,12 +16,18 @@ import { GitDecorations } from './decorationProvider';
 import { Askpass } from './askpass';
 import { toDisposable, filterEvent, eventToPromise } from './util';
 import TelemetryReporter from 'vscode-extension-telemetry';
-import { API, createApi } from './api';
+import { API, NoopAPIImpl, APIImpl } from './api';
 import { GitProtocolHandler } from './protocolHandler';
 
-let telemetryReporter: TelemetryReporter;
+const deactivateTasks: { (): Promise<any>; }[] = [];
 
-async function init(context: ExtensionContext, outputChannel: OutputChannel, disposables: Disposable[]): Promise<Model> {
+export async function deactivate(): Promise<any> {
+	for (const task of deactivateTasks) {
+		await task();
+	}
+}
+
+async function createModel(context: ExtensionContext, outputChannel: OutputChannel, telemetryReporter: TelemetryReporter, disposables: Disposable[]): Promise<Model> {
 	const pathHint = workspace.getConfiguration('git').get<string>('path');
 	const info = await findGit(pathHint, path => outputChannel.appendLine(localize('looking', "Looking for git in: {0}", path)));
 	const askpass = new Askpass();
@@ -63,13 +69,30 @@ async function init(context: ExtensionContext, outputChannel: OutputChannel, dis
 	return model;
 }
 
-async function _activate(context: ExtensionContext, disposables: Disposable[]): Promise<Model | undefined> {
+export async function activate(context: ExtensionContext): Promise<API> {
+	const disposables: Disposable[] = [];
+	context.subscriptions.push(new Disposable(() => Disposable.from(...disposables).dispose()));
+
 	const outputChannel = window.createOutputChannel('Git');
 	commands.registerCommand('git.showOutput', () => outputChannel.show());
 	disposables.push(outputChannel);
 
+	const { name, version, aiKey } = require(context.asAbsolutePath('./package.json')) as { name: string, version: string, aiKey: string };
+	const telemetryReporter = new TelemetryReporter(name, version, aiKey);
+	deactivateTasks.push(() => telemetryReporter.dispose());
+
+	const config = workspace.getConfiguration('git', null);
+	const enabled = config.get<boolean>('enabled');
+
+	if (!enabled) {
+		const onConfigChange = filterEvent(workspace.onDidChangeConfiguration, e => e.affectsConfiguration('git'));
+		const onEnabled = filterEvent(onConfigChange, () => workspace.getConfiguration('git', null).get<boolean>('enabled') === true);
+		await eventToPromise(onEnabled);
+	}
+
 	try {
-		return await init(context, outputChannel, disposables);
+		const model = await createModel(context, outputChannel, telemetryReporter, disposables);
+		return new APIImpl(model);
 	} catch (err) {
 		if (!/Git installation not found/.test(err.message || '')) {
 			throw err;
@@ -78,58 +101,28 @@ async function _activate(context: ExtensionContext, disposables: Disposable[]): 
 		const config = workspace.getConfiguration('git');
 		const shouldIgnore = config.get<boolean>('ignoreMissingGitWarning') === true;
 
-		if (shouldIgnore) {
-			return;
+		if (!shouldIgnore) {
+			console.warn(err.message);
+			outputChannel.appendLine(err.message);
+			outputChannel.show();
+
+			const download = localize('downloadgit', "Download Git");
+			const neverShowAgain = localize('neverShowAgain', "Don't Show Again");
+			const choice = await window.showWarningMessage(
+				localize('notfound', "Git not found. Install it or configure it using the 'git.path' setting."),
+				download,
+				neverShowAgain
+			);
+
+			if (choice === download) {
+				commands.executeCommand('vscode.open', Uri.parse('https://git-scm.com/'));
+			} else if (choice === neverShowAgain) {
+				await config.update('ignoreMissingGitWarning', true, true);
+			}
 		}
 
-		console.warn(err.message);
-		outputChannel.appendLine(err.message);
-		outputChannel.show();
-
-		const download = localize('downloadgit', "Download Git");
-		const neverShowAgain = localize('neverShowAgain', "Don't Show Again");
-		const choice = await window.showWarningMessage(
-			localize('notfound', "Git not found. Install it or configure it using the 'git.path' setting."),
-			download,
-			neverShowAgain
-		);
-
-		if (choice === download) {
-			commands.executeCommand('vscode.open', Uri.parse('https://git-scm.com/'));
-		} else if (choice === neverShowAgain) {
-			await config.update('ignoreMissingGitWarning', true, true);
-		}
+		return new NoopAPIImpl();
 	}
-}
-
-export function activate(context: ExtensionContext): API {
-	const config = workspace.getConfiguration('git', null);
-	const enabled = config.get<boolean>('enabled');
-
-	const disposables: Disposable[] = [];
-	context.subscriptions.push(new Disposable(() => Disposable.from(...disposables).dispose()));
-
-	const { name, version, aiKey } = require(context.asAbsolutePath('./package.json')) as { name: string, version: string, aiKey: string };
-	telemetryReporter = new TelemetryReporter(name, version, aiKey);
-
-	let activatePromise: Promise<Model | undefined>;
-
-	if (enabled) {
-		activatePromise = _activate(context, disposables);
-	} else {
-		const onConfigChange = filterEvent(workspace.onDidChangeConfiguration, e => e.affectsConfiguration('git'));
-		const onEnabled = filterEvent(onConfigChange, () => workspace.getConfiguration('git', null).get<boolean>('enabled') === true);
-
-		activatePromise = eventToPromise(onEnabled)
-			.then(() => _activate(context, disposables));
-	}
-
-	const modelPromise = activatePromise
-		.then(model => model || Promise.reject<Model>('Git model not found'));
-
-	activatePromise.catch(err => console.error(err));
-
-	return createApi(modelPromise);
 }
 
 async function checkGitVersion(info: IGit): Promise<void> {
@@ -158,8 +151,4 @@ async function checkGitVersion(info: IGit): Promise<void> {
 	} else if (choice === neverShowAgain) {
 		await config.update('ignoreLegacyWarning', true, true);
 	}
-}
-
-export function deactivate(): Promise<any> {
-	return telemetryReporter ? telemetryReporter.dispose() : Promise.resolve(null);
 }

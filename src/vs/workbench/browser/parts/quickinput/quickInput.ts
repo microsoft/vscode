@@ -42,6 +42,7 @@ import URI from 'vs/base/common/uri';
 import { IdGenerator } from 'vs/base/common/idGenerator';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { equals } from 'vs/base/common/arrays';
+import { TimeoutTimer } from 'vs/base/common/async';
 
 const $ = dom.$;
 
@@ -104,7 +105,7 @@ class QuickInput implements IQuickInput {
 		this.onDidHideEmitter,
 	];
 
-	private busyDelay: TPromise<void>;
+	private busyDelay: TimeoutTimer;
 
 	constructor(protected ui: QuickInputUI) {
 	}
@@ -215,12 +216,12 @@ class QuickInput implements IQuickInput {
 			this.ui.title.textContent = title;
 		}
 		if (this.busy && !this.busyDelay) {
-			this.busyDelay = TPromise.timeout(800);
-			this.busyDelay.then(() => {
+			this.busyDelay = new TimeoutTimer();
+			this.busyDelay.setIfNotSet(() => {
 				if (this.visible) {
 					this.ui.progressBar.infinite();
 				}
-			}, () => { /* ignore */ });
+			}, 800);
 		}
 		if (!this.busy && this.busyDelay) {
 			this.ui.progressBar.stop();
@@ -711,8 +712,8 @@ export class QuickInputService extends Component implements IQuickInputService {
 	private enabled = true;
 	private inQuickOpenWidgets: Record<string, boolean> = {};
 	private inQuickOpenContext: IContextKey<boolean>;
-	private onDidAcceptEmitter = new Emitter<void>();
-	private onDidTriggerButtonEmitter = new Emitter<IQuickInputButton>();
+	private onDidAcceptEmitter = this._register(new Emitter<void>());
+	private onDidTriggerButtonEmitter = this._register(new Emitter<IQuickInputButton>());
 
 	private controller: QuickInput;
 
@@ -729,11 +730,8 @@ export class QuickInputService extends Component implements IQuickInputService {
 	) {
 		super(QuickInputService.ID, themeService);
 		this.inQuickOpenContext = new RawContextKey<boolean>('inQuickOpen', false).bindTo(contextKeyService);
-		this.toUnbind.push(
-			this.quickOpenService.onShow(() => this.inQuickOpen('quickOpen', true)),
-			this.quickOpenService.onHide(() => this.inQuickOpen('quickOpen', false)),
-			this.onDidAcceptEmitter
-		);
+		this._register(this.quickOpenService.onShow(() => this.inQuickOpen('quickOpen', true)));
+		this._register(this.quickOpenService.onHide(() => this.inQuickOpen('quickOpen', false)));
 	}
 
 	private inQuickOpen(widget: 'quickInput' | 'quickOpen', open: boolean) {
@@ -765,25 +763,23 @@ export class QuickInputService extends Component implements IQuickInputService {
 
 		this.titleBar = dom.append(container, $('.quick-input-titlebar'));
 
-		const leftActionBar = new ActionBar(this.titleBar);
+		const leftActionBar = this._register(new ActionBar(this.titleBar));
 		leftActionBar.domNode.classList.add('quick-input-left-action-bar');
-		this.toUnbind.push(leftActionBar);
 
 		const title = dom.append(this.titleBar, $('.quick-input-title'));
 
-		const rightActionBar = new ActionBar(this.titleBar);
+		const rightActionBar = this._register(new ActionBar(this.titleBar));
 		rightActionBar.domNode.classList.add('quick-input-right-action-bar');
-		this.toUnbind.push(rightActionBar);
 
 		const headerContainer = dom.append(container, $('.quick-input-header'));
 
 		const checkAll = <HTMLInputElement>dom.append(headerContainer, $('input.quick-input-check-all'));
 		checkAll.type = 'checkbox';
-		this.toUnbind.push(dom.addStandardDisposableListener(checkAll, dom.EventType.CHANGE, e => {
+		this._register(dom.addStandardDisposableListener(checkAll, dom.EventType.CHANGE, e => {
 			const checked = checkAll.checked;
 			list.setAllVisibleChecked(checked);
 		}));
-		this.toUnbind.push(dom.addDisposableListener(checkAll, dom.EventType.CLICK, e => {
+		this._register(dom.addDisposableListener(checkAll, dom.EventType.CLICK, e => {
 			if (e.x || e.y) { // Avoid 'click' triggered by 'space'...
 				inputBox.setFocus();
 			}
@@ -791,18 +787,17 @@ export class QuickInputService extends Component implements IQuickInputService {
 
 		this.filterContainer = dom.append(headerContainer, $('.quick-input-filter'));
 
-		const inputBox = new QuickInputBox(this.filterContainer);
-		this.toUnbind.push(inputBox);
+		const inputBox = this._register(new QuickInputBox(this.filterContainer));
 
 		this.countContainer = dom.append(this.filterContainer, $('.quick-input-count'));
 		const count = new CountBadge(this.countContainer, { countFormat: localize({ key: 'quickInput.countSelected', comment: ['This tells the user how many items are selected in a list of items to select from. The items can be anything.'] }, "{0} Selected") });
-		this.toUnbind.push(attachBadgeStyler(count, this.themeService));
+		this._register(attachBadgeStyler(count, this.themeService));
 
 		this.okContainer = dom.append(headerContainer, $('.quick-input-action'));
 		this.ok = new Button(this.okContainer);
 		attachButtonStyler(this.ok, this.themeService);
 		this.ok.label = localize('ok', "OK");
-		this.toUnbind.push(this.ok.onDidClick(e => {
+		this._register(this.ok.onDidClick(e => {
 			this.onDidAcceptEmitter.fire();
 		}));
 
@@ -810,17 +805,16 @@ export class QuickInputService extends Component implements IQuickInputService {
 
 		const progressBar = new ProgressBar(container);
 		dom.addClass(progressBar.getContainer(), 'quick-input-progress');
-		this.toUnbind.push(attachProgressBarStyler(progressBar, this.themeService));
+		this._register(attachProgressBarStyler(progressBar, this.themeService));
 
-		const list = this.instantiationService.createInstance(QuickInputList, container);
-		this.toUnbind.push(list);
-		this.toUnbind.push(list.onChangedAllVisibleChecked(checked => {
+		const list = this._register(this.instantiationService.createInstance(QuickInputList, container));
+		this._register(list.onChangedAllVisibleChecked(checked => {
 			checkAll.checked = checked;
 		}));
-		this.toUnbind.push(list.onChangedCheckedCount(c => {
+		this._register(list.onChangedCheckedCount(c => {
 			count.setCount(c);
 		}));
-		this.toUnbind.push(list.onLeave(() => {
+		this._register(list.onLeave(() => {
 			// Defer to avoid the input field reacting to the triggering key.
 			setTimeout(() => {
 				inputBox.setFocus();
@@ -828,7 +822,7 @@ export class QuickInputService extends Component implements IQuickInputService {
 			}, 0);
 		}));
 
-		this.toUnbind.push(dom.addDisposableListener(container, 'focusout', (e: FocusEvent) => {
+		this._register(dom.addDisposableListener(container, 'focusout', (e: FocusEvent) => {
 			if (e.relatedTarget === container) {
 				(<HTMLElement>e.target).focus();
 				return;
@@ -842,7 +836,7 @@ export class QuickInputService extends Component implements IQuickInputService {
 				this.hide(true);
 			}
 		}));
-		this.toUnbind.push(dom.addDisposableListener(container, dom.EventType.KEY_DOWN, (e: KeyboardEvent) => {
+		this._register(dom.addDisposableListener(container, dom.EventType.KEY_DOWN, (e: KeyboardEvent) => {
 			const event = new StandardKeyboardEvent(e);
 			switch (event.keyCode) {
 				case KeyCode.Enter:
@@ -873,7 +867,7 @@ export class QuickInputService extends Component implements IQuickInputService {
 			}
 		}));
 
-		this.toUnbind.push(this.quickOpenService.onShow(() => this.hide(true)));
+		this._register(this.quickOpenService.onShow(() => this.hide(true)));
 
 		this.ui = {
 			container,
@@ -897,8 +891,8 @@ export class QuickInputService extends Component implements IQuickInputService {
 		this.updateStyles();
 	}
 
-	pick<T extends IQuickPickItem, O extends IPickOptions>(picks: TPromise<T[]>, options: O = <O>{}, token: CancellationToken = CancellationToken.None): TPromise<O extends { canPickMany: true } ? T[] : T> {
-		return new TPromise<O extends { canPickMany: true } ? T[] : T>((resolve, reject, progress) => {
+	pick<T extends IQuickPickItem, O extends IPickOptions<T>>(picks: TPromise<T[]>, options: O = <O>{}, token: CancellationToken = CancellationToken.None): TPromise<O extends { canPickMany: true } ? T[] : T> {
+		return new TPromise<O extends { canPickMany: true } ? T[] : T>((resolve, reject) => {
 			if (token.isCancellationRequested) {
 				resolve(undefined);
 				return;
@@ -920,8 +914,8 @@ export class QuickInputService extends Component implements IQuickInputService {
 				}),
 				input.onDidChangeActive(items => {
 					const focused = items[0];
-					if (focused) {
-						progress(focused);
+					if (focused && options.onDidFocus) {
+						options.onDidFocus(focused);
 					}
 				}),
 				input.onDidChangeSelection(items => {

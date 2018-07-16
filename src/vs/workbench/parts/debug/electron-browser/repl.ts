@@ -104,10 +104,10 @@ export class Repl extends Panel implements IPrivateReplService, IHistoryNavigati
 	}
 
 	private registerListeners(): void {
-		this.toUnbind.push(this.debugService.getModel().onDidChangeReplElements(() => {
+		this._register(this.debugService.getModel().onDidChangeReplElements(() => {
 			this.refreshReplElements(this.debugService.getModel().getReplElements().length === 0);
 		}));
-		this.toUnbind.push(this.panelService.onDidPanelOpen(panel => this.refreshReplElements(true)));
+		this._register(this.panelService.onDidPanelOpen(panel => this.refreshReplElements(true)));
 	}
 
 	private refreshReplElements(noDelay: boolean): void {
@@ -154,7 +154,7 @@ export class Repl extends Panel implements IPrivateReplService, IHistoryNavigati
 		if (!visible) {
 			dispose(this.model);
 		} else {
-			this.model = this.modelService.createModel('', null, uri.parse(`${DEBUG_SCHEME}:input`), true);
+			this.model = this.modelService.createModel('', null, uri.parse(`${DEBUG_SCHEME}:replinput`), true);
 			this.replInput.setModel(this.model);
 		}
 
@@ -166,14 +166,14 @@ export class Repl extends Panel implements IPrivateReplService, IHistoryNavigati
 
 		const { scopedContextKeyService, historyNavigationEnablement } = createAndBindHistoryNavigationWidgetScopedContextKeyService(this.contextKeyService, { target: this.replInputContainer, historyNavigator: this });
 		this.historyNavigationEnablement = historyNavigationEnablement;
-		this.toUnbind.push(scopedContextKeyService);
+		this._register(scopedContextKeyService);
 		CONTEXT_IN_DEBUG_REPL.bindTo(scopedContextKeyService).set(true);
 
 		const scopedInstantiationService = this.instantiationService.createChild(new ServiceCollection(
 			[IContextKeyService, scopedContextKeyService], [IPrivateReplService, this]));
 		this.replInput = scopedInstantiationService.createInstance(CodeEditorWidget, this.replInputContainer, SimpleDebugEditor.getEditorOptions(), SimpleDebugEditor.getCodeEditorWidgetOptions());
 
-		modes.SuggestRegistry.register({ scheme: DEBUG_SCHEME, hasAccessToAllModels: true }, {
+		modes.SuggestRegistry.register({ scheme: DEBUG_SCHEME, pattern: '**/replinput', hasAccessToAllModels: true }, {
 			triggerCharacters: ['.'],
 			provideCompletionItems: (model: ITextModel, position: Position, _context: modes.SuggestContext, token: CancellationToken): Thenable<modes.ISuggestResult> => {
 				// Disable history navigation because up and down are used to navigate through the suggest widget
@@ -191,19 +191,19 @@ export class Repl extends Panel implements IPrivateReplService, IHistoryNavigati
 			}
 		});
 
-		this.toUnbind.push(this.replInput.onDidScrollChange(e => {
+		this._register(this.replInput.onDidScrollChange(e => {
 			if (!e.scrollHeightChanged) {
 				return;
 			}
 			this.replInputHeight = Math.max(Repl.REPL_INPUT_INITIAL_HEIGHT, Math.min(Repl.REPL_INPUT_MAX_HEIGHT, e.scrollHeight, this.dimension.height));
 			this.layout(this.dimension);
 		}));
-		this.toUnbind.push(this.replInput.onDidChangeModelContent(() => {
+		this._register(this.replInput.onDidChangeModelContent(() => {
 			this.historyNavigationEnablement.set(this.replInput.getModel().getValue() === '');
 		}));
 
-		this.toUnbind.push(dom.addStandardDisposableListener(this.replInputContainer, dom.EventType.FOCUS, () => dom.addClass(this.replInputContainer, 'synthetic-focus')));
-		this.toUnbind.push(dom.addStandardDisposableListener(this.replInputContainer, dom.EventType.BLUR, () => dom.removeClass(this.replInputContainer, 'synthetic-focus')));
+		this._register(dom.addStandardDisposableListener(this.replInputContainer, dom.EventType.FOCUS, () => dom.addClass(this.replInputContainer, 'synthetic-focus')));
+		this._register(dom.addStandardDisposableListener(this.replInputContainer, dom.EventType.BLUR, () => dom.removeClass(this.replInputContainer, 'synthetic-focus')));
 	}
 
 	private navigateHistory(previous: boolean): void {
@@ -282,9 +282,7 @@ export class Repl extends Panel implements IPrivateReplService, IHistoryNavigati
 				this.instantiationService.createInstance(ClearReplAction, ClearReplAction.ID, ClearReplAction.LABEL)
 			];
 
-			this.actions.forEach(a => {
-				this.toUnbind.push(a);
-			});
+			this.actions.forEach(a => this._register(a));
 		}
 
 		return this.actions;

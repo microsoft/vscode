@@ -32,7 +32,8 @@ export interface IOpenCallbacks {
  */
 export abstract class BaseBinaryResourceEditor extends BaseEditor {
 
-	private readonly _onMetadataChanged: Emitter<void>;
+	private readonly _onMetadataChanged: Emitter<void> = this._register(new Emitter<void>());
+	get onMetadataChanged(): Event<void> { return this._onMetadataChanged.event; }
 
 	private callbacks: IOpenCallbacks;
 	private metadata: string;
@@ -49,17 +50,10 @@ export abstract class BaseBinaryResourceEditor extends BaseEditor {
 	) {
 		super(id, telemetryService, themeService);
 
-		this._onMetadataChanged = new Emitter<void>();
-		this.toUnbind.push(this._onMetadataChanged);
-
 		this.callbacks = callbacks;
 	}
 
-	public get onMetadataChanged(): Event<void> {
-		return this._onMetadataChanged.event;
-	}
-
-	public getTitle(): string {
+	getTitle(): string {
 		return this.input ? this.input.getName() : nls.localize('binaryEditor', "Binary Viewer");
 	}
 
@@ -73,13 +67,13 @@ export abstract class BaseBinaryResourceEditor extends BaseEditor {
 		this.binaryContainer.tabindex(0); // enable focus support from the editor part (do not remove)
 
 		// Custom Scrollbars
-		this.scrollbar = new DomScrollableElement(binaryContainerElement, { horizontal: ScrollbarVisibility.Auto, vertical: ScrollbarVisibility.Auto });
+		this.scrollbar = this._register(new DomScrollableElement(binaryContainerElement, { horizontal: ScrollbarVisibility.Auto, vertical: ScrollbarVisibility.Auto }));
 		parent.appendChild(this.scrollbar.getDomNode());
 	}
 
-	public setInput(input: EditorInput, options: EditorOptions, token: CancellationToken): Thenable<void> {
+	setInput(input: EditorInput, options: EditorOptions, token: CancellationToken): Thenable<void> {
 		return super.setInput(input, options, token).then(() => {
-			return input.resolve(true).then(model => {
+			return input.resolve().then(model => {
 
 				// Check for cancellation
 				if (token.isCancellationRequested) {
@@ -109,14 +103,15 @@ export abstract class BaseBinaryResourceEditor extends BaseEditor {
 
 	private handleMetadataChanged(meta: string): void {
 		this.metadata = meta;
+
 		this._onMetadataChanged.fire();
 	}
 
-	public getMetadata(): string {
+	getMetadata(): string {
 		return this.metadata;
 	}
 
-	public clearInput(): void {
+	clearInput(): void {
 
 		// Clear Meta
 		this.handleMetadataChanged(null);
@@ -127,7 +122,7 @@ export abstract class BaseBinaryResourceEditor extends BaseEditor {
 		super.clearInput();
 	}
 
-	public layout(dimension: Dimension): void {
+	layout(dimension: Dimension): void {
 
 		// Pass on to Binary Container
 		this.binaryContainer.size(dimension.width, dimension.height);
@@ -137,15 +132,14 @@ export abstract class BaseBinaryResourceEditor extends BaseEditor {
 		}
 	}
 
-	public focus(): void {
+	focus(): void {
 		this.binaryContainer.domFocus();
 	}
 
-	public dispose(): void {
+	dispose(): void {
 
 		// Destroy Container
 		this.binaryContainer.destroy();
-		this.scrollbar.dispose();
 
 		super.dispose();
 	}

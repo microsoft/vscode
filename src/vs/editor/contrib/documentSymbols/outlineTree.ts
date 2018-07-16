@@ -5,22 +5,23 @@
 'use strict';
 
 import * as dom from 'vs/base/browser/dom';
-import 'vs/css!./media/symbol-icons';
 import { IMouseEvent } from 'vs/base/browser/mouseEvent';
 import { HighlightedLabel } from 'vs/base/browser/ui/highlightedlabel/highlightedLabel';
 import { values } from 'vs/base/common/collections';
 import { createMatches } from 'vs/base/common/filters';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { IDataSource, IFilter, IRenderer, ISorter, ITree } from 'vs/base/parts/tree/browser/tree';
+import 'vs/css!./media/outlineTree';
+import 'vs/css!./media/symbol-icons';
 import { Range } from 'vs/editor/common/core/range';
-import { symbolKindToCssClass, SymbolKind } from 'vs/editor/common/modes';
+import { SymbolKind, symbolKindToCssClass } from 'vs/editor/common/modes';
 import { OutlineElement, OutlineGroup, OutlineModel, TreeElement } from 'vs/editor/contrib/documentSymbols/outlineModel';
 import { localize } from 'vs/nls';
+import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { WorkbenchTreeController } from 'vs/platform/list/browser/listService';
 import { MarkerSeverity } from 'vs/platform/markers/common/markers';
 import { listErrorForeground, listWarningForeground } from 'vs/platform/theme/common/colorRegistry';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 
 export enum OutlineItemCompareType {
 	ByPosition,
@@ -96,14 +97,14 @@ export class OutlineDataSource implements IDataSource {
 		return false;
 	}
 
-	async getChildren(tree: ITree, element: TreeElement): TPromise<TreeElement[]> {
+	getChildren(tree: ITree, element: TreeElement): TPromise<TreeElement[]> {
 		let res = values(element.children);
 		// console.log(element.id + ' with children ' + res.length);
-		return res;
+		return TPromise.wrap(res);
 	}
 
-	async getParent(tree: ITree, element: TreeElement | any): TPromise<TreeElement> {
-		return element && element.parent;
+	getParent(tree: ITree, element: TreeElement | any): TPromise<TreeElement> {
+		return TPromise.wrap(element && element.parent);
 	}
 
 	shouldAutoexpand(tree: ITree, element: TreeElement): boolean {
@@ -281,7 +282,7 @@ export class OutlineTreeState {
 		return { selected, focused, expanded };
 	}
 
-	static async restore(tree: ITree, state: OutlineTreeState, eventPayload: any): TPromise<void> {
+	static async restore(tree: ITree, state: OutlineTreeState, eventPayload: any): Promise<void> {
 		let model = <OutlineModel>tree.getInput();
 		if (!state || !(model instanceof OutlineModel)) {
 			return TPromise.as(undefined);

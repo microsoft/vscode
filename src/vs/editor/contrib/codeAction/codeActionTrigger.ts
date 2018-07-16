@@ -9,6 +9,7 @@ export class CodeActionKind {
 	private static readonly sep = '.';
 
 	public static readonly Empty = new CodeActionKind('');
+	public static readonly QuickFix = new CodeActionKind('quickfix');
 	public static readonly Refactor = new CodeActionKind('refactor');
 	public static readonly Source = new CodeActionKind('source');
 	public static readonly SourceOrganizeImports = new CodeActionKind('source.organizeImports');

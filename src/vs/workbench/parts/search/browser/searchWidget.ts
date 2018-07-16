@@ -319,6 +319,7 @@ export class SearchWidget extends Widget {
 		this.replaceAllAction.label = SearchWidget.REPLACE_ALL_DISABLED_LABEL;
 		this.replaceActionBar = this._register(new ActionBar(this.replaceContainer));
 		this.replaceActionBar.push([this.replaceAllAction], { icon: true, label: false });
+		this.onkeydown(this.replaceActionBar.domNode, (keyboardEvent) => this.onReplaceActionbarKeyDown(keyboardEvent));
 
 		this.replaceInputFocusTracker = this._register(dom.trackFocus(this.replaceInput.inputElement));
 		this._register(this.replaceInputFocusTracker.onDidFocus(() => this.replaceInputBoxFocused.set(true)));
@@ -438,6 +439,13 @@ export class SearchWidget extends Widget {
 
 		else if (keyboardEvent.equals(KeyMod.Shift | KeyCode.Tab)) {
 			this.searchInput.focus();
+			keyboardEvent.preventDefault();
+		}
+	}
+
+	private onReplaceActionbarKeyDown(keyboardEvent: IKeyboardEvent) {
+		if (keyboardEvent.equals(KeyMod.Shift | KeyCode.Tab)) {
+			this.focusRegexAction();
 			keyboardEvent.preventDefault();
 		}
 	}

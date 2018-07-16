@@ -66,11 +66,11 @@ export interface IEditorOptions {
 	readonly preserveFocus?: boolean;
 
 	/**
-	 * Tells the editor to replace the editor input in the editor even if it is identical to the one
-	 * already showing. By default, the editor will not replace the input if it is identical to the
+	 * Tells the editor to reload the editor input in the editor even if it is identical to the one
+	 * already showing. By default, the editor will not reload the input if it is identical to the
 	 * one showing.
 	 */
-	readonly forceOpen?: boolean;
+	readonly forceReload?: boolean;
 
 	/**
 	 * Will reveal the editor if it is already opened and visible in any of the opened editor groups. Note

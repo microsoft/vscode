@@ -906,7 +906,7 @@ export function isResourceTextEdit(thing: any): thing is ResourceTextEdit {
 export interface ResourceFileEdit {
 	oldUri: URI;
 	newUri: URI;
-	options: { overwrite?: boolean, ignoreIfExists?: boolean, recursive?: boolean };
+	options: { overwrite?: boolean, ignoreIfNotExists?: boolean, ignoreIfExists?: boolean, recursive?: boolean };
 }
 
 export interface ResourceTextEdit {

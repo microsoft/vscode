@@ -7,10 +7,6 @@
 
 import { once } from 'vs/base/common/functional';
 
-export const empty: IDisposable = Object.freeze<IDisposable>({
-	dispose() { }
-});
-
 export interface IDisposable {
 	dispose(): void;
 }
@@ -24,7 +20,6 @@ export function dispose<T extends IDisposable>(disposable: T): T;
 export function dispose<T extends IDisposable>(...disposables: T[]): T[];
 export function dispose<T extends IDisposable>(disposables: T[]): T[];
 export function dispose<T extends IDisposable>(first: T | T[], ...rest: T[]): T | T[] {
-
 	if (Array.isArray(first)) {
 		first.forEach(d => d && d.dispose());
 		return [];
@@ -45,23 +40,16 @@ export function combinedDisposable(disposables: IDisposable[]): IDisposable {
 	return { dispose: () => dispose(disposables) };
 }
 
-export function toDisposable(...fns: (() => void)[]): IDisposable {
-	return {
-		dispose() {
-			for (const fn of fns) {
-				fn();
-			}
-		}
-	};
+export function toDisposable(fn: () => void): IDisposable {
+	return { dispose() { fn(); } };
 }
 
 export abstract class Disposable implements IDisposable {
 
-	protected _toDispose: IDisposable[];
+	static None = Object.freeze<IDisposable>({ dispose() { } });
 
-	constructor() {
-		this._toDispose = [];
-	}
+	protected _toDispose: IDisposable[] = [];
+	protected get toDispose(): IDisposable[] { return this._toDispose; }
 
 	public dispose(): void {
 		this._toDispose = dispose(this._toDispose);
@@ -69,6 +57,7 @@ export abstract class Disposable implements IDisposable {
 
 	protected _register<T extends IDisposable>(t: T): T {
 		this._toDispose.push(t);
+
 		return t;
 	}
 }

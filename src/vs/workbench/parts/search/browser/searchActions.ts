@@ -84,15 +84,6 @@ export const toggleRegexCommand = (accessor: ServicesAccessor) => {
 	searchView.toggleRegex();
 };
 
-export const FocusActiveEditorCommand = (accessor: ServicesAccessor) => {
-	const editorService = accessor.get(IEditorService);
-	const activeControl = editorService.activeControl;
-	if (activeControl) {
-		activeControl.focus();
-	}
-	return TPromise.as(true);
-};
-
 export class FocusNextInputAction extends Action {
 
 	public static readonly ID = 'search.focus.nextInputBox';
@@ -492,14 +483,15 @@ export class ReplaceAllInFolderAction extends AbstractSearchAndReplaceAction {
 		super(Constants.ReplaceAllInFolderActionId, appendKeyBindingLabel(ReplaceAllInFolderAction.LABEL, keyBindingService.lookupKeybinding(Constants.ReplaceAllInFolderActionId), keyBindingService), 'action-replace-all');
 	}
 
-	public async run(): TPromise<any> {
+	public run(): TPromise<any> {
 		let nextFocusElement = this.getElementToFocusAfterRemoved(this.viewer, this.folderMatch);
-		await this.folderMatch.replaceAll();
-
-		if (nextFocusElement) {
-			this.viewer.setFocus(nextFocusElement);
-		}
-		this.viewer.domFocus();
+		return this.folderMatch.replaceAll()
+			.then(() => {
+				if (nextFocusElement) {
+					this.viewer.setFocus(nextFocusElement);
+				}
+				this.viewer.domFocus();
+			});
 	}
 }
 
@@ -678,4 +670,12 @@ export const copyAllCommand: ICommandHandler = accessor => {
 export const clearHistoryCommand: ICommandHandler = accessor => {
 	const searchHistoryService = accessor.get(ISearchHistoryService);
 	searchHistoryService.clearHistory();
+};
+
+export const focusSearchListCommand: ICommandHandler = accessor => {
+	const viewletService = accessor.get(IViewletService);
+	const panelService = accessor.get(IPanelService);
+	openSearchView(viewletService, panelService).then(searchView => {
+		searchView.moveFocusToResults();
+	});
 };

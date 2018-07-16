@@ -7,6 +7,7 @@
 import { IChannel } from 'vs/base/parts/ipc/common/ipc';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { IMenubarService, IMenubarData } from 'vs/platform/menubar/common/menubar';
+import { Event } from 'vs/base/common/event';
 
 export interface IMenubarChannel extends IChannel {
 	call(command: 'updateMenubar', arg: [number, IMenubarData]): TPromise<void>;
@@ -16,6 +17,10 @@ export interface IMenubarChannel extends IChannel {
 export class MenubarChannel implements IMenubarChannel {
 
 	constructor(private service: IMenubarService) { }
+
+	listen<T>(event: string, arg?: any): Event<T> {
+		throw new Error('No events');
+	}
 
 	call(command: string, arg?: any): TPromise<any> {
 		switch (command) {

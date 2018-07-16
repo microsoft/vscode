@@ -21,7 +21,7 @@ import { IExtensionsWorkbenchService, IExtension } from 'vs/workbench/parts/exte
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IExtensionService, IExtensionDescription, IExtensionsStatus, IExtensionHostProfile } from 'vs/workbench/services/extensions/common/extensions';
-import { IDelegate, IRenderer } from 'vs/base/browser/ui/list/list';
+import { IVirtualDelegate, IRenderer } from 'vs/base/browser/ui/list/list';
 import { WorkbenchList } from 'vs/platform/list/browser/listService';
 import { append, $, addClass, toggleClass, Dimension } from 'vs/base/browser/dom';
 import { ActionBar, Separator } from 'vs/base/browser/ui/actionbar/actionbar';
@@ -216,7 +216,7 @@ export class RuntimeExtensionsEditor extends BaseEditor {
 
 		const TEMPLATE_ID = 'runtimeExtensionElementTemplate';
 
-		const delegate = new class implements IDelegate<IRuntimeExtension>{
+		const delegate = new class implements IVirtualDelegate<IRuntimeExtension>{
 			getHeight(element: IRuntimeExtension): number {
 				return 62;
 			}
@@ -369,6 +369,8 @@ export class RuntimeExtensionsEditor extends BaseEditor {
 				}
 			},
 
+			disposeElement: () => null,
+
 			disposeTemplate: (data: IRuntimeExtensionTemplateData): void => {
 				data.disposables = dispose(data.disposables);
 			}
@@ -443,7 +445,7 @@ export class RuntimeExtensionsInput extends EditorInput {
 		return true;
 	}
 
-	resolve(refresh?: boolean): TPromise<any> {
+	resolve(): TPromise<any> {
 		return TPromise.as(null);
 	}
 
@@ -573,7 +575,11 @@ class SaveExtensionHostProfileAction extends Action {
 		});
 	}
 
-	async run(): TPromise<any> {
+	run(): TPromise<any> {
+		return TPromise.wrap(this._asyncRun());
+	}
+
+	private async _asyncRun(): Promise<any> {
 		let picked = await this._windowService.showSaveDialog({
 			title: 'Save Extension Host Profile',
 			buttonLabel: 'Save',

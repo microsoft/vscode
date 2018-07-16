@@ -236,6 +236,15 @@
 				"VSCODE_DEV": "1",
 				"VSCODE_CLI": "1"
 			}
+		},
+		{
+			"name": "Launch Built-in Extension",
+			"type": "extensionHost",
+			"request": "launch",
+			"runtimeExecutable": "${execPath}",
+			"args": [
+				"--extensionDevelopmentPath=${workspaceRoot}/extensions/debug-auto-launch"
+			]
 		}
 	],
 	"compounds": [

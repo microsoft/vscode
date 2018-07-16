@@ -16,12 +16,12 @@ suite('Workbench editor options', () => {
 		assert(!options.preserveFocus);
 		options.preserveFocus = true;
 		assert(options.preserveFocus);
-		assert(!options.forceOpen);
-		options.forceOpen = true;
-		assert(options.forceOpen);
+		assert(!options.forceReload);
+		options.forceReload = true;
+		assert(options.forceReload);
 
 		options = new EditorOptions();
-		options.forceOpen = true;
+		options.forceReload = true;
 	});
 
 	test('TextEditorOptions', function () {
@@ -35,7 +35,7 @@ suite('Workbench editor options', () => {
 		otherOptions.selection(1, 1, 2, 2);
 
 		options = new TextEditorOptions();
-		options.forceOpen = true;
+		options.forceReload = true;
 		options.selection(1, 1, 2, 2);
 	});
 });

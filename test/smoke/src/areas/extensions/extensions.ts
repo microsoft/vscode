@@ -32,7 +32,8 @@ export class Extensions extends Viewlet {
 
 	async installExtension(name: string): Promise<void> {
 		await this.searchForExtension(name);
-		await this.code.waitAndClick(`div.extensions-viewlet[id="workbench.view.extensions"] .monaco-list-row[aria-label="${name}"] .extension li[class='action-item'] .extension-action.install`);
-		await this.code.waitForElement(`div.extensions-viewlet[id="workbench.view.extensions"] .monaco-list-row[aria-label="${name}"] .extension li[class='action-item'] .extension-action.reload`);
+		const ariaLabel = `${name}. Press enter for extension details.`;
+		await this.code.waitAndClick(`div.extensions-viewlet[id="workbench.view.extensions"] .monaco-list-row[aria-label="${ariaLabel}"] .extension li[class='action-item'] .extension-action.install`);
+		await this.code.waitForElement(`div.extensions-viewlet[id="workbench.view.extensions"] .monaco-list-row[aria-label="${ariaLabel}"] .extension li[class='action-item'] .extension-action.reload`);
 	}
 }

@@ -21,6 +21,7 @@ import { isCodeEditor } from 'vs/editor/browser/editorBrowser';
 import { isFalsyOrEmpty } from 'vs/base/common/arrays';
 import { ILogService } from 'vs/platform/log/common/log';
 import { IPanelService } from 'vs/workbench/services/panel/common/panelService';
+import { IUpdateService } from 'vs/platform/update/common/update';
 
 class StartupTimings implements IWorkbenchContribution {
 
@@ -34,14 +35,15 @@ class StartupTimings implements IWorkbenchContribution {
 		@ITelemetryService private readonly _telemetryService: ITelemetryService,
 		@ILifecycleService private readonly _lifecycleService: ILifecycleService,
 		@IExtensionService private readonly _extensionService: IExtensionService,
+		@IUpdateService private readonly _updateService: IUpdateService,
 	) {
 
 		this._reportVariedStartupTimes().then(undefined, onUnexpectedError);
 		this._reportStandardStartupTimes().then(undefined, onUnexpectedError);
 	}
 
-	private async _reportVariedStartupTimes(): TPromise<void> {
-		await TPromise.join([
+	private async _reportVariedStartupTimes(): Promise<void> {
+		await Promise.all([
 			this._extensionService.whenInstalledExtensionsRegistered(),
 			this._lifecycleService.when(LifecyclePhase.Eventually)
 		]);
@@ -55,7 +57,7 @@ class StartupTimings implements IWorkbenchContribution {
 		this._telemetryService.publicLog('startupTimeVaried', this._timerService.startupMetrics);
 	}
 
-	private async _reportStandardStartupTimes(): TPromise<void> {
+	private async _reportStandardStartupTimes(): Promise<void> {
 		// check for standard startup:
 		// * new window (no reload)
 		// * just one window
@@ -87,7 +89,10 @@ class StartupTimings implements IWorkbenchContribution {
 			this._logService.info('no standard startup: not using cached data');
 			return;
 		}
-
+		if (!await this._updateService.isLatestVersion()) {
+			this._logService.info('no standard startup: not running latest version');
+			return;
+		}
 		// wait only know so that can check the restored state as soon as possible
 		await TPromise.join([
 			this._extensionService.whenInstalledExtensionsRegistered(),

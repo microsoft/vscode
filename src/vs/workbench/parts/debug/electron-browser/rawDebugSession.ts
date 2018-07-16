@@ -43,6 +43,7 @@ export class RawDebugSession implements debug.IRawSession {
 	private cachedInitServerP: TPromise<void>;
 	private startTime: number;
 	public disconnected: boolean;
+	private terminated: boolean;
 	private sentPromises: TPromise<DebugProtocol.Response>[];
 	private _capabilities: DebugProtocol.Capabilities;
 	private allThreadsContinued: boolean;
@@ -339,24 +340,13 @@ export class RawDebugSession implements debug.IRawSession {
 		return this.send<DebugProtocol.CompletionsResponse>('completions', args);
 	}
 
-	public disconnect(restart = false, force = false): TPromise<DebugProtocol.DisconnectResponse> {
-		if (this.disconnected && force) {
-			return this.stopServer();
+	public terminate(restart = false): TPromise<DebugProtocol.TerminateResponse> {
+		if (this.capabilities.supportsTerminateRequest && !this.terminated) {
+			this.terminated = true;
+			return this.send('terminate', { restart });
 		}
 
-		// Cancel all sent promises on disconnect so debug trees are not left in a broken state #3666.
-		// Give a 1s timeout to give a chance for some promises to complete.
-		setTimeout(() => {
-			this.sentPromises.forEach(p => p && p.cancel());
-			this.sentPromises = [];
-		}, 1000);
-
-		if (this.debugAdapter && !this.disconnected) {
-			// point of no return: from now on don't report any errors
-			this.disconnected = true;
-			return this.send('disconnect', { restart: restart }, false).then(() => this.stopServer(), () => this.stopServer());
-		}
-
+		this.dispose(restart);
 		return TPromise.as(null);
 	}
 
@@ -428,43 +418,46 @@ export class RawDebugSession implements debug.IRawSession {
 
 	private dispatchRequest(request: DebugProtocol.Request): void {
 
-		const response: DebugProtocol.Response = {
-			type: 'response',
-			seq: 0,
-			command: request.command,
-			request_seq: request.seq,
-			success: true
-		};
+		if (this.debugAdapter) {
 
-		if (request.command === 'runInTerminal') {
+			const response: DebugProtocol.Response = {
+				type: 'response',
+				seq: 0,
+				command: request.command,
+				request_seq: request.seq,
+				success: true
+			};
 
-			this._debugger.runInTerminal(<DebugProtocol.RunInTerminalRequestArguments>request.arguments).then(_ => {
-				response.body = {};
-				this.debugAdapter.sendResponse(response);
-			}, err => {
+			if (request.command === 'runInTerminal') {
+
+				this._debugger.runInTerminal(<DebugProtocol.RunInTerminalRequestArguments>request.arguments).then(_ => {
+					response.body = {};
+					this.debugAdapter.sendResponse(response);
+				}, err => {
+					response.success = false;
+					response.message = err.message;
+					this.debugAdapter.sendResponse(response);
+				});
+
+			} else if (request.command === 'handshake') {
+				try {
+					const vsda = <any>require.__$__nodeRequire('vsda');
+					const obj = new vsda.signer();
+					const sig = obj.sign(request.arguments.value);
+					response.body = {
+						signature: sig
+					};
+					this.debugAdapter.sendResponse(response);
+				} catch (e) {
+					response.success = false;
+					response.message = e.message;
+					this.debugAdapter.sendResponse(response);
+				}
+			} else {
 				response.success = false;
-				response.message = err.message;
-				this.debugAdapter.sendResponse(response);
-			});
-
-		} else if (request.command === 'handshake') {
-			try {
-				const vsda = <any>require.__$__nodeRequire('vsda');
-				const obj = new vsda.signer();
-				const sig = obj.sign(request.arguments.value);
-				response.body = {
-					signature: sig
-				};
-				this.debugAdapter.sendResponse(response);
-			} catch (e) {
-				response.success = false;
-				response.message = e.message;
+				response.message = `unknown request '${request.command}'`;
 				this.debugAdapter.sendResponse(response);
 			}
-		} else {
-			response.success = false;
-			response.message = `unknown request '${request.command}'`;
-			this.debugAdapter.sendResponse(response);
 		}
 	}
 
@@ -478,6 +471,26 @@ export class RawDebugSession implements debug.IRawSession {
 			},
 			seq: undefined
 		});
+	}
+
+	public dispose(restart = false): void {
+		if (this.disconnected) {
+			this.stopServer().done(undefined, errors.onUnexpectedError);
+		} else {
+
+			// Cancel all sent promises on disconnect so debug trees are not left in a broken state #3666.
+			// Give a 1s timeout to give a chance for some promises to complete.
+			setTimeout(() => {
+				this.sentPromises.forEach(p => p && p.cancel());
+				this.sentPromises = [];
+			}, 1000);
+
+			if (this.debugAdapter && !this.disconnected) {
+				// point of no return: from now on don't report any errors
+				this.disconnected = true;
+				this.send('disconnect', { restart }, false).then(() => this.stopServer(), () => this.stopServer()).done(undefined, errors.onUnexpectedError);
+			}
+		}
 	}
 
 	private stopServer(): TPromise<any> {
@@ -509,9 +522,5 @@ export class RawDebugSession implements debug.IRawSession {
 			this.notificationService.error(nls.localize('debugAdapterCrash', "Debug adapter process has terminated unexpectedly"));
 		}
 		this._onDidExitAdapter.fire({ sessionId: this.getId() });
-	}
-
-	public dispose(): void {
-		this.disconnect().done(null, errors.onUnexpectedError);
 	}
 }

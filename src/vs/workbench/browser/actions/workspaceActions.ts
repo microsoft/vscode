@@ -93,7 +93,7 @@ export class AddRootFolderAction extends Action {
 		super(id, label);
 	}
 
-	public run(): TPromise<any> {
+	run(): TPromise<any> {
 		return this.commandService.executeCommand(ADD_ROOT_FOLDER_COMMAND_ID);
 	}
 }
@@ -113,7 +113,7 @@ export class GlobalRemoveRootFolderAction extends Action {
 		super(id, label);
 	}
 
-	public run(): TPromise<any> {
+	run(): TPromise<any> {
 		const state = this.contextService.getWorkbenchState();
 
 		// Workspace / Folder
@@ -148,7 +148,7 @@ export class SaveWorkspaceAsAction extends Action {
 		super(id, label);
 	}
 
-	public run(): TPromise<any> {
+	run(): TPromise<any> {
 		return this.getNewWorkspaceConfigPath().then(configPath => {
 			if (configPath) {
 				switch (this.contextService.getWorkbenchState()) {
@@ -192,15 +192,15 @@ export class OpenWorkspaceAction extends Action {
 		super(id, label);
 	}
 
-	public run(event?: any, data?: ITelemetryData): TPromise<any> {
+	run(event?: any, data?: ITelemetryData): TPromise<any> {
 		return this.windowService.pickWorkspaceAndOpen({ telemetryExtraData: data, dialogOptions: { defaultPath: defaultWorkspacePath(this.contextService, this.historyService, this.environmentService) } });
 	}
 }
 
 export class OpenWorkspaceConfigFileAction extends Action {
 
-	public static readonly ID = 'workbench.action.openWorkspaceConfigFile';
-	public static readonly LABEL = nls.localize('openWorkspaceConfigFile', "Open Workspace Configuration File");
+	static readonly ID = 'workbench.action.openWorkspaceConfigFile';
+	static readonly LABEL = nls.localize('openWorkspaceConfigFile', "Open Workspace Configuration File");
 
 	constructor(
 		id: string,
@@ -213,15 +213,15 @@ export class OpenWorkspaceConfigFileAction extends Action {
 		this.enabled = !!this.workspaceContextService.getWorkspace().configuration;
 	}
 
-	public run(): TPromise<any> {
+	run(): TPromise<any> {
 		return this.editorService.openEditor({ resource: this.workspaceContextService.getWorkspace().configuration });
 	}
 }
 
 export class DuplicateWorkspaceInNewWindowAction extends Action {
 
-	public static readonly ID = 'workbench.action.duplicateWorkspaceInNewWindow';
-	public static readonly LABEL = nls.localize('duplicateWorkspaceInNewWindow', "Duplicate Workspace in New Window");
+	static readonly ID = 'workbench.action.duplicateWorkspaceInNewWindow';
+	static readonly LABEL = nls.localize('duplicateWorkspaceInNewWindow', "Duplicate Workspace in New Window");
 
 	constructor(
 		id: string,
@@ -234,7 +234,7 @@ export class DuplicateWorkspaceInNewWindowAction extends Action {
 		super(id, label);
 	}
 
-	public run(): TPromise<any> {
+	run(): TPromise<any> {
 		const folders = this.workspaceContextService.getWorkspace().folders;
 
 		return this.workspacesService.createWorkspace(folders).then(newWorkspace => {

@@ -131,7 +131,7 @@ export function getJavaScriptMode(documentRegions: LanguageModelCache<HTMLDocume
 		},
 		doSignatureHelp(document: TextDocument, position: Position): SignatureHelp | null {
 			updateCurrentTextDocument(document);
-			let signHelp = jsLanguageService.getSignatureHelpItems(FILE_NAME, currentTextDocument.offsetAt(position));
+			let signHelp = jsLanguageService.getSignatureHelpItems(FILE_NAME, currentTextDocument.offsetAt(position), undefined);
 			if (signHelp) {
 				let ret: SignatureHelp = {
 					activeSignature: signHelp.selectedItemIndex,

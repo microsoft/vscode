@@ -625,7 +625,7 @@ export class RunActiveFileInTerminalAction extends Action {
 		if (!instance) {
 			return TPromise.as(void 0);
 		}
-		const editor = this.codeEditorService.getFocusedCodeEditor();
+		const editor = this.codeEditorService.getActiveCodeEditor();
 		if (!editor) {
 			return TPromise.as(void 0);
 		}
@@ -669,7 +669,7 @@ export class SwitchTerminalActionItem extends SelectActionItem {
 		@IThemeService themeService: IThemeService,
 		@IContextViewService contextViewService: IContextViewService
 	) {
-		super(null, action, terminalService.getTabLabels(), terminalService.activeTabIndex, contextViewService);
+		super(null, action, terminalService.getTabLabels(), terminalService.activeTabIndex, contextViewService, { ariaLabel: nls.localize('terminals', 'Terminals') });
 
 		this.toDispose.push(terminalService.onInstancesChanged(this._updateItems, this));
 		this.toDispose.push(terminalService.onActiveTabChanged(this._updateItems, this));

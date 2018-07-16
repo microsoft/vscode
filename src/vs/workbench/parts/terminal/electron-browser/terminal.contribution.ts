@@ -120,6 +120,11 @@ configurationRegistry.registerConfiguration({
 			'type': 'boolean',
 			'default': false
 		},
+		'terminal.integrated.macOptionClickForcesSelection': {
+			'description': nls.localize('terminal.integrated.macOptionClickForcesSelection', "Whether to force selection when using Option+click on macOS. This will force a regular (line) selection and disallow the use of column selection mode. This enables copying and pasting using the regular terminal selection, for example, when mouse mode is enabled in tmux."),
+			'type': 'boolean',
+			'default': false
+		},
 		'terminal.integrated.copyOnSelection': {
 			'description': nls.localize('terminal.integrated.copyOnSelection', "When set, text selected in the terminal will be copied to the clipboard."),
 			'type': 'boolean',
@@ -350,7 +355,7 @@ configurationRegistry.registerConfiguration({
 			'description': nls.localize('terminal.integrated.experimentalTextureCachingStrategy', "Controls how the terminal stores glyph textures. `static` is the default and uses a fixed texture to draw the characters from. `dynamic` will draw the characters to the texture as they are needed, this should boost overall performance at the cost of slightly increased draw time the first time a character is drawn. `dynamic` will eventually become the default and this setting will be removed. Changes to this setting will only apply to new terminals."),
 			'type': 'string',
 			'enum': ['static', 'dynamic'],
-			'default': 'static'
+			'default': 'dynamic'
 		},
 	}
 });

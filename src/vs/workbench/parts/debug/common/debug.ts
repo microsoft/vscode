@@ -115,7 +115,7 @@ export interface IRawSession {
 	evaluate(args: DebugProtocol.EvaluateArguments): TPromise<DebugProtocol.EvaluateResponse>;
 
 	readonly capabilities: DebugProtocol.Capabilities;
-	disconnect(restart?: boolean, force?: boolean): TPromise<DebugProtocol.DisconnectResponse>;
+	terminate(restart?: boolean): TPromise<DebugProtocol.TerminateResponse>;
 	custom(request: string, args: any): TPromise<DebugProtocol.Response>;
 	onDidEvent: Event<DebugProtocol.Event>;
 	onDidInitialize: Event<DebugProtocol.InitializedEvent>;

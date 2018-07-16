@@ -119,7 +119,7 @@ class BuildStatusBarItem extends Themable implements IStatusbarItem {
 	}
 
 	private registerListeners(): void {
-		this.toUnbind.push(this.contextService.onDidChangeWorkbenchState(() => this.updateStyles()));
+		this._register(this.contextService.onDidChangeWorkbenchState(() => this.updateStyles()));
 	}
 
 	protected updateStyles(): void {
@@ -1062,8 +1062,8 @@ class TaskService implements ITaskService {
 				this.editorService.openEditor({
 					resource,
 					options: {
-						forceOpen: true,
-						pinned: false
+						pinned: false,
+						forceReload: true // because content might have changed
 					}
 				});
 			}
@@ -1085,7 +1085,6 @@ class TaskService implements ITaskService {
 		return this.editorService.openEditor({
 			resource,
 			options: {
-				forceOpen: true,
 				pinned: false
 			}
 		}).then(() => undefined);
@@ -1299,7 +1298,9 @@ class TaskService implements ITaskService {
 	}
 
 	private getGroupedTasks(): TPromise<TaskMap> {
-		return this.extensionService.activateByEvent('onCommand:workbench.action.tasks.runTask').then(() => {
+		return TPromise.join([this.extensionService.activateByEvent('onCommand:workbench.action.tasks.runTask'), TaskDefinitionRegistry.onReady()]).then(() => {
+			let validTypes: IStringDictionary<boolean> = Object.create(null);
+			TaskDefinitionRegistry.all().forEach(definition => validTypes[definition.taskType] = true);
 			return new TPromise<TaskSet[]>((resolve, reject) => {
 				let result: TaskSet[] = [];
 				let counter: number = 0;
@@ -1328,7 +1329,7 @@ class TaskService implements ITaskService {
 				if (this.schemaVersion === JsonSchemaVersion.V2_0_0 && this._providers.size > 0) {
 					this._providers.forEach((provider) => {
 						counter++;
-						provider.provideTasks().done(done, error);
+						provider.provideTasks(validTypes).done(done, error);
 					});
 				} else {
 					resolve(result);
@@ -2229,7 +2230,6 @@ class TaskService implements ITaskService {
 				this.editorService.openEditor({
 					resource,
 					options: {
-						forceOpen: true,
 						pinned: configFileCreated // pin only if config file is created #8727
 					}
 				});
@@ -2487,6 +2487,7 @@ let schema: IJSONSchema = {
 
 import schemaVersion1 from './jsonSchema_v1';
 import schemaVersion2 from './jsonSchema_v2';
+import { TaskDefinitionRegistry } from 'vs/workbench/parts/tasks/common/taskDefinitionRegistry';
 schema.definitions = {
 	...schemaVersion1.definitions,
 	...schemaVersion2.definitions,

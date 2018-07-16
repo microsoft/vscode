@@ -142,7 +142,9 @@ export class ContextMenuController implements IEditorContribution {
 		// Disable hover
 		const oldHoverSetting = this._editor.getConfiguration().contribInfo.hover;
 		this._editor.updateOptions({
-			hover: false
+			hover: {
+				enabled: false
+			}
 		});
 
 		let menuPosition = forcedPosition;

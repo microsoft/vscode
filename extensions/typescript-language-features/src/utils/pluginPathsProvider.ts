@@ -4,9 +4,9 @@
  *--------------------------------------------------------------------------------------------*/
 import * as path from 'path';
 import { workspace } from 'vscode';
-
 import { TypeScriptServiceConfiguration } from './configuration';
 import { RelativeWorkspacePathResolver } from './relativePathResolver';
+
 
 export class TypeScriptPluginPathsProvider {
 	public readonly relativePathResolver: RelativeWorkspacePathResolver = new RelativeWorkspacePathResolver();

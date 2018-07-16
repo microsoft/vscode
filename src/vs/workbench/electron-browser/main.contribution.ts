@@ -22,9 +22,6 @@ import { inQuickOpenContext, getQuickNavigateHandler } from 'vs/workbench/browse
 import { KeybindingsRegistry } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { CommandsRegistry } from 'vs/platform/commands/common/commands';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { IWorkbenchContributionsRegistry, Extensions as WorkbenchExtensions } from 'vs/workbench/common/contributions';
-import { LifecyclePhase } from 'vs/platform/lifecycle/common/lifecycle';
-import { HistoryNavigationKeybindingsChangedContribution } from 'vs/workbench/electron-browser/removedKeybindingsContribution';
 
 // Contribute Commands
 registerCommands();
@@ -70,16 +67,10 @@ if (OpenTipsAndTricksUrlAction.AVAILABLE) {
 }
 
 workbenchActionsRegistry.registerWorkbenchAction(new SyncActionDescriptor(OpenTwitterUrlAction, OpenTwitterUrlAction.ID, OpenTwitterUrlAction.LABEL), 'Help: Join us on Twitter', helpCategory);
-
-workbenchActionsRegistry.registerWorkbenchAction(new SyncActionDescriptor(OpenRequestFeatureUrlAction, OpenRequestFeatureUrlAction.ID,
-	OpenRequestFeatureUrlAction.LABEL), 'Help: Search Feature Requests', helpCategory);
-
+workbenchActionsRegistry.registerWorkbenchAction(new SyncActionDescriptor(OpenRequestFeatureUrlAction, OpenRequestFeatureUrlAction.ID, OpenRequestFeatureUrlAction.LABEL), 'Help: Search Feature Requests', helpCategory);
 workbenchActionsRegistry.registerWorkbenchAction(new SyncActionDescriptor(OpenLicenseUrlAction, OpenLicenseUrlAction.ID, OpenLicenseUrlAction.LABEL), 'Help: View License', helpCategory);
-
 workbenchActionsRegistry.registerWorkbenchAction(new SyncActionDescriptor(OpenPrivacyStatementUrlAction, OpenPrivacyStatementUrlAction.ID, OpenPrivacyStatementUrlAction.LABEL), 'Help: Privacy Statement', helpCategory);
-
 workbenchActionsRegistry.registerWorkbenchAction(new SyncActionDescriptor(ShowAccessibilityOptionsAction, ShowAccessibilityOptionsAction.ID, ShowAccessibilityOptionsAction.LABEL), 'Help: Accessibility Options', helpCategory);
-
 workbenchActionsRegistry.registerWorkbenchAction(new SyncActionDescriptor(ShowAboutDialogAction, ShowAboutDialogAction.ID, ShowAboutDialogAction.LABEL), 'Help: About', helpCategory);
 
 workbenchActionsRegistry.registerWorkbenchAction(
@@ -120,10 +111,6 @@ workbenchActionsRegistry.registerWorkbenchAction(new SyncActionDescriptor(Global
 workbenchActionsRegistry.registerWorkbenchAction(new SyncActionDescriptor(OpenWorkspaceAction, OpenWorkspaceAction.ID, OpenWorkspaceAction.LABEL), 'Workspaces: Open Workspace...', workspacesCategory);
 workbenchActionsRegistry.registerWorkbenchAction(new SyncActionDescriptor(SaveWorkspaceAsAction, SaveWorkspaceAsAction.ID, SaveWorkspaceAsAction.LABEL), 'Workspaces: Save Workspace As...', workspacesCategory);
 workbenchActionsRegistry.registerWorkbenchAction(new SyncActionDescriptor(DuplicateWorkspaceInNewWindowAction, DuplicateWorkspaceInNewWindowAction.ID, DuplicateWorkspaceInNewWindowAction.LABEL), 'Workspaces: Duplicate Workspace in New Window', workspacesCategory);
-// Support old command id
-CommandsRegistry.registerCommand('workbench.action.openFolderAsWorkspaceInNewWindow', serviceAccesor => {
-	serviceAccesor.get(IInstantiationService).createInstance(DuplicateWorkspaceInNewWindowAction, DuplicateWorkspaceInNewWindowAction.ID, DuplicateWorkspaceInNewWindowAction.LABEL).run();
-});
 
 CommandsRegistry.registerCommand(OpenWorkspaceConfigFileAction.ID, serviceAccessor => {
 	serviceAccessor.get(IInstantiationService).createInstance(OpenWorkspaceConfigFileAction, OpenWorkspaceConfigFileAction.ID, OpenWorkspaceConfigFileAction.LABEL).run();
@@ -476,7 +463,7 @@ configurationRegistry.registerConfiguration({
 			'type': 'boolean',
 			'default': false,
 			'scope': ConfigurationScope.APPLICATION,
-			'description': nls.localize('window.smoothScrollingWorkaround', "Enable this workaround if scrolling is no longer smooth after restoring a minimized VS Code window. This is a workaround for an issue (https://github.com/Microsoft/vscode/issues/13612) where scrolling starts to lag on devices with precision trackpads like the Surface devices from Microsoft. Enabling this workaround can result in a little bit of layout flickering after restoring the window from minimized state but is otherwise harmless."),
+			'description': nls.localize('window.smoothScrollingWorkaround', "Enable this workaround if scrolling is no longer smooth after restoring a minimized VS Code window. This is a workaround for an issue (https://github.com/Microsoft/vscode/issues/13612) where scrolling starts to lag on devices with precision trackpads like the Surface devices from Microsoft. Enabling this workaround can result in a little bit of layout flickering after restoring the window from minimized state but is otherwise harmless. Note: in order for this workaround to function, make sure to also set 'window.titleBarStyle: native'."),
 			'included': isWindows
 		},
 		'window.clickThroughInactive': {
@@ -528,5 +515,3 @@ configurationRegistry.registerConfiguration({
 		}
 	}
 });
-
-Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench).registerWorkbenchContribution(HistoryNavigationKeybindingsChangedContribution, LifecyclePhase.Eventually);

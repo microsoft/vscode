@@ -15,7 +15,7 @@ import { IProgress, LineMatch, FileMatch, ISearchComplete, ISearchProgressItem, 
 import { IUntitledEditorService } from 'vs/workbench/services/untitled/common/untitledEditorService';
 import { IModelService } from 'vs/editor/common/services/modelService';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { IRawSearch, ISerializedSearchComplete, ISerializedSearchProgressItem, ISerializedFileMatch, IRawSearchService, ITelemetryEvent } from './search';
+import { IRawSearch, ISerializedSearchComplete, ISerializedSearchProgressItem, ISerializedFileMatch, IRawSearchService, ITelemetryEvent, isSerializedSearchComplete, isSerializedSearchSuccess, ISerializedSearchSuccess } from './search';
 import { ISearchChannel, SearchChannelClient } from './searchIpc';
 import { IEnvironmentService, IDebugParams } from 'vs/platform/environment/common/environment';
 import { ResourceMap } from 'vs/base/common/map';
@@ -26,6 +26,7 @@ import { Schemas } from 'vs/base/common/network';
 import * as pfs from 'vs/base/node/pfs';
 import { ILogService } from 'vs/platform/log/common/log';
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
+import { Event } from 'vs/base/common/event';
 
 export class SearchService implements ISearchService {
 	public _serviceBrand: any;
@@ -258,7 +259,12 @@ export class SearchService implements ISearchService {
 	}
 
 	public clearCache(cacheKey: string): TPromise<void> {
-		return this.diskSearch.clearCache(cacheKey);
+		return TPromise.join([
+			...this.searchProviders,
+			this.fileSearchProvider,
+			this.diskSearch
+		].map(provider => provider && provider.clearCache(cacheKey)))
+			.then(() => { });
 	}
 
 	private forwardTelemetry() {
@@ -315,14 +321,14 @@ export class DiskSearch implements ISearchResultProvider {
 				const existingFolders = folderQueries.filter((q, index) => exists[index]);
 				const rawSearch = this.rawSearchQuery(query, existingFolders);
 
-				let request: PPromise<ISerializedSearchComplete, ISerializedSearchProgressItem>;
+				let event: Event<ISerializedSearchProgressItem | ISerializedSearchComplete>;
 				if (query.type === QueryType.File) {
-					request = this.raw.fileSearch(rawSearch);
+					event = this.raw.fileSearch(rawSearch);
 				} else {
-					request = this.raw.textSearch(rawSearch);
+					event = this.raw.textSearch(rawSearch);
 				}
 
-				return DiskSearch.collectResults(request);
+				return DiskSearch.collectResultsFromEvent(event);
 			});
 	}
 
@@ -367,7 +373,28 @@ export class DiskSearch implements ISearchResultProvider {
 		return rawSearch;
 	}
 
-	public static collectResults(request: PPromise<ISerializedSearchComplete, ISerializedSearchProgressItem>): PPromise<ISearchComplete, ISearchProgressItem> {
+	public static collectResultsFromEvent(event: Event<ISerializedSearchProgressItem | ISerializedSearchComplete>): PPromise<ISearchComplete, ISearchProgressItem> {
+		const promise = new PPromise<ISerializedSearchSuccess, ISerializedSearchProgressItem>((c, e, p) => {
+			setTimeout(() => {
+				const listener = event(ev => {
+					if (isSerializedSearchComplete(ev)) {
+						if (isSerializedSearchSuccess(ev)) {
+							c(ev);
+						} else {
+							e(ev.error);
+						}
+						listener.dispose();
+					} else {
+						p(ev);
+					}
+				});
+			}, 0);
+		});
+
+		return DiskSearch.collectResults(promise);
+	}
+
+	public static collectResults(request: PPromise<ISerializedSearchSuccess, ISerializedSearchProgressItem>): PPromise<ISearchComplete, ISearchProgressItem> {
 		let result: IFileMatch[] = [];
 		return new PPromise<ISearchComplete, ISearchProgressItem>((c, e, p) => {
 			request.done((complete) => {
@@ -415,6 +442,8 @@ export class DiskSearch implements ISearchResultProvider {
 	}
 
 	public fetchTelemetry(): PPromise<void, ITelemetryEvent> {
-		return this.raw.fetchTelemetry();
+		return new PPromise<void, ITelemetryEvent>((c, e, p) => {
+			this.raw.onTelemetry(p);
+		});
 	}
 }

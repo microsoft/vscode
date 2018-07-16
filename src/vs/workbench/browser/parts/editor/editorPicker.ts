@@ -32,38 +32,38 @@ export class EditorPickerEntry extends QuickOpenEntryGroup {
 		super();
 	}
 
-	public getLabelOptions(): IIconLabelValueOptions {
+	getLabelOptions(): IIconLabelValueOptions {
 		return {
 			extraClasses: getIconClasses(this.modelService, this.modeService, this.getResource()),
 			italic: !this._group.isPinned(this.editor)
 		};
 	}
 
-	public getLabel(): string {
+	getLabel(): string {
 		return this.editor.getName();
 	}
 
-	public getIcon(): string {
+	getIcon(): string {
 		return this.editor.isDirty() ? 'dirty' : '';
 	}
 
-	public get group(): IEditorGroup {
+	get group(): IEditorGroup {
 		return this._group;
 	}
 
-	public getResource(): URI {
+	getResource(): URI {
 		return toResource(this.editor, { supportSideBySide: true });
 	}
 
-	public getAriaLabel(): string {
+	getAriaLabel(): string {
 		return nls.localize('entryAriaLabel', "{0}, editor group picker", this.getLabel());
 	}
 
-	public getDescription(): string {
+	getDescription(): string {
 		return this.editor.getDescription();
 	}
 
-	public run(mode: Mode, context: IEntryRunContext): boolean {
+	run(mode: Mode, context: IEntryRunContext): boolean {
 		if (mode === Mode.OPEN) {
 			return this.runOpen(context);
 		}
@@ -91,7 +91,7 @@ export abstract class BaseEditorPicker extends QuickOpenHandler {
 		this.scorerCache = Object.create(null);
 	}
 
-	public getResults(searchValue: string): TPromise<QuickOpenModel> {
+	getResults(searchValue: string): TPromise<QuickOpenModel> {
 		const editorEntries = this.getEditorEntries();
 		if (!editorEntries.length) {
 			return TPromise.as(null);
@@ -142,7 +142,7 @@ export abstract class BaseEditorPicker extends QuickOpenHandler {
 		return TPromise.as(new QuickOpenModel(entries));
 	}
 
-	public onClose(canceled: boolean): void {
+	onClose(canceled: boolean): void {
 		this.scorerCache = Object.create(null);
 	}
 
@@ -151,7 +151,7 @@ export abstract class BaseEditorPicker extends QuickOpenHandler {
 
 export class ActiveEditorGroupPicker extends BaseEditorPicker {
 
-	public static readonly ID = 'workbench.picker.activeEditors';
+	static readonly ID = 'workbench.picker.activeEditors';
 
 	protected getEditorEntries(): EditorPickerEntry[] {
 		return this.group.getEditors(EditorsOrder.MOST_RECENTLY_ACTIVE).map((editor, index) => this.instantiationService.createInstance(EditorPickerEntry, editor, this.group));
@@ -161,7 +161,7 @@ export class ActiveEditorGroupPicker extends BaseEditorPicker {
 		return this.editorGroupService.activeGroup;
 	}
 
-	public getEmptyLabel(searchString: string): string {
+	getEmptyLabel(searchString: string): string {
 		if (searchString) {
 			return nls.localize('noResultsFoundInGroup', "No matching opened editor found in group");
 		}
@@ -169,7 +169,7 @@ export class ActiveEditorGroupPicker extends BaseEditorPicker {
 		return nls.localize('noOpenedEditors', "List of opened editors is currently empty in group");
 	}
 
-	public getAutoFocus(searchValue: string, context: { model: IModel<QuickOpenEntry>, quickNavigateConfiguration?: IQuickNavigateConfiguration }): IAutoFocus {
+	getAutoFocus(searchValue: string, context: { model: IModel<QuickOpenEntry>, quickNavigateConfiguration?: IQuickNavigateConfiguration }): IAutoFocus {
 		if (searchValue || !context.quickNavigateConfiguration) {
 			return {
 				autoFocusFirstEntry: true
@@ -201,7 +201,7 @@ export class ActiveEditorGroupPicker extends BaseEditorPicker {
 
 export class AllEditorsPicker extends BaseEditorPicker {
 
-	public static readonly ID = 'workbench.picker.editors';
+	static readonly ID = 'workbench.picker.editors';
 
 	protected getEditorEntries(): EditorPickerEntry[] {
 		const entries: EditorPickerEntry[] = [];
@@ -215,7 +215,7 @@ export class AllEditorsPicker extends BaseEditorPicker {
 		return entries;
 	}
 
-	public getEmptyLabel(searchString: string): string {
+	getEmptyLabel(searchString: string): string {
 		if (searchString) {
 			return nls.localize('noResultsFound', "No matching opened editor found");
 		}
@@ -223,7 +223,7 @@ export class AllEditorsPicker extends BaseEditorPicker {
 		return nls.localize('noOpenedEditorsAllGroups', "List of opened editors is currently empty");
 	}
 
-	public getAutoFocus(searchValue: string, context: { model: IModel<QuickOpenEntry>, quickNavigateConfiguration?: IQuickNavigateConfiguration }): IAutoFocus {
+	getAutoFocus(searchValue: string, context: { model: IModel<QuickOpenEntry>, quickNavigateConfiguration?: IQuickNavigateConfiguration }): IAutoFocus {
 		if (searchValue) {
 			return {
 				autoFocusFirstEntry: true

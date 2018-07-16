@@ -21,6 +21,7 @@ import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { IDisposable } from 'vs/base/common/lifecycle';
 import { getPathLabel } from 'vs/base/common/labels';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
+import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 
 interface IResourceMarkersTemplateData {
 	resourceLabel: ResourceLabel;
@@ -30,6 +31,7 @@ interface IResourceMarkersTemplateData {
 
 interface IMarkerTemplateData {
 	icon: HTMLElement;
+	lightbulb: HTMLElement;
 	source: HighlightedLabel;
 	description: HighlightedLabel;
 	lnCol: HTMLElement;
@@ -178,6 +180,7 @@ export class Renderer implements IRenderer {
 	private renderMarkerTemplate(container: HTMLElement): IMarkerTemplateData {
 		const data: IMarkerTemplateData = Object.create(null);
 		data.icon = dom.append(container, dom.$('.marker-icon'));
+		data.lightbulb = dom.append(container, dom.$('.icon.lightbulb'));
 		data.source = new HighlightedLabel(dom.append(container, dom.$('')));
 		data.description = new HighlightedLabel(dom.append(container, dom.$('.marker-description')));
 		data.lnCol = dom.append(container, dom.$('span.marker-line'));
@@ -207,7 +210,9 @@ export class Renderer implements IRenderer {
 
 	private renderMarkerElement(tree: ITree, element: Marker, templateData: IMarkerTemplateData) {
 		let marker = element.raw;
+
 		templateData.icon.className = 'icon ' + Renderer.iconClassNameFor(marker);
+		dom.removeClass(templateData.lightbulb, 'quick-fixes');
 
 		templateData.source.set(marker.source, element.sourceMatches);
 		dom.toggleClass(templateData.source.element, 'marker-source', !!marker.source);
@@ -216,6 +221,11 @@ export class Renderer implements IRenderer {
 		templateData.description.element.title = marker.message;
 
 		templateData.lnCol.textContent = Messages.MARKERS_PANEL_AT_LINE_COL_NUMBER(marker.startLineNumber, marker.startColumn);
+
+		const parent = tree.getNavigator(element).parent();
+		if (parent instanceof ResourceMarkers) {
+			parent.hasFixes(element).then(hasFixes => dom.toggleClass(templateData.lightbulb, 'quick-fixes', hasFixes));
+		}
 	}
 
 	private renderRelatedInfoElement(tree: ITree, element: RelatedInformation, templateData: IRelatedInformationTemplateData) {
@@ -256,9 +266,16 @@ export class Renderer implements IRenderer {
 
 export class MarkersTreeAccessibilityProvider implements IAccessibilityProvider {
 
+	constructor(
+		@IWorkspaceContextService private contextService: IWorkspaceContextService,
+		@IEnvironmentService private environmentService: IEnvironmentService
+	) {
+	}
+
 	public getAriaLabel(tree: ITree, element: any): string {
 		if (element instanceof ResourceMarkers) {
-			return Messages.MARKERS_TREE_ARIA_LABEL_RESOURCE(element.name, element.filteredCount);
+			const path = getPathLabel(element.uri, this.environmentService, this.contextService) || element.uri.fsPath;
+			return Messages.MARKERS_TREE_ARIA_LABEL_RESOURCE(element.filteredCount, element.name, paths.dirname(path));
 		}
 		if (element instanceof Marker) {
 			return Messages.MARKERS_TREE_ARIA_LABEL_MARKER(element);

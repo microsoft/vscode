@@ -7,11 +7,11 @@ import * as vscode from 'vscode';
 import * as nls from 'vscode-nls';
 import * as Proto from '../protocol';
 import { ITypeScriptServiceClient } from '../typescriptService';
+import API from '../utils/api';
 import { Command, CommandManager } from '../utils/commandManager';
+import { VersionDependentRegistration } from '../utils/dependentRegistration';
 import * as typeconverts from '../utils/typeConverters';
 import FileConfigurationManager from './fileConfigurationManager';
-import { VersionDependentRegistration } from '../utils/dependentRegistration';
-import API from '../utils/api';
 
 const localize = nls.loadMessageBundle();
 
@@ -40,7 +40,7 @@ class OrganizeImportsCommand implements Command {
 		}
 
 		const edits = typeconverts.WorkspaceEdit.fromFileCodeEdits(this.client, response.body);
-		return await vscode.workspace.applyEdit(edits);
+		return vscode.workspace.applyEdit(edits);
 	}
 }
 

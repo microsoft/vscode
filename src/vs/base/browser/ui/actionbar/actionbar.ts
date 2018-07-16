@@ -11,7 +11,7 @@ import * as nls from 'vs/nls';
 import * as lifecycle from 'vs/base/common/lifecycle';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { Builder, $ } from 'vs/base/browser/builder';
-import { SelectBox } from 'vs/base/browser/ui/selectBox/selectBox';
+import { SelectBox, ISelectBoxOptions } from 'vs/base/browser/ui/selectBox/selectBox';
 import { IAction, IActionRunner, Action, IActionChangeEvent, ActionRunner, IRunEvent } from 'vs/base/common/actions';
 import * as DOM from 'vs/base/browser/dom';
 import * as types from 'vs/base/common/types';
@@ -154,7 +154,7 @@ export class BaseActionItem implements IActionItem {
 		DOM.EventHelper.stop(event, true);
 
 		let context: any;
-		if (types.isUndefinedOrNull(this._context)) {
+		if (types.isUndefinedOrNull(this._context) || !types.isObject(this._context)) {
 			context = event;
 		} else {
 			context = this._context;
@@ -640,10 +640,12 @@ export class ActionBar implements IActionRunner {
 
 	public focus(selectFirst?: boolean): void {
 		if (selectFirst && typeof this.focusedItem === 'undefined') {
-			this.focusedItem = 0;
+			// Focus the first enabled item
+			this.focusedItem = this.items.length - 1;
+			this.focusNext();
+		} else {
+			this.updateFocus();
 		}
-
-		this.updateFocus();
 	}
 
 	private focusNext(): void {
@@ -760,10 +762,10 @@ export class SelectActionItem extends BaseActionItem {
 	protected selectBox: SelectBox;
 	protected toDispose: lifecycle.IDisposable[];
 
-	constructor(ctx: any, action: IAction, options: string[], selected: number, contextViewProvider: IContextViewProvider
+	constructor(ctx: any, action: IAction, options: string[], selected: number, contextViewProvider: IContextViewProvider, selectBoxOptions?: ISelectBoxOptions
 	) {
 		super(ctx, action);
-		this.selectBox = new SelectBox(options, selected, contextViewProvider);
+		this.selectBox = new SelectBox(options, selected, contextViewProvider, null, selectBoxOptions);
 
 		this.toDispose = [];
 		this.toDispose.push(this.selectBox);

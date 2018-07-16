@@ -172,7 +172,7 @@
 			}
 
 			// apply default script
-			if (enableWrappedPostMessage) {
+			if (enableWrappedPostMessage && options.allowScripts) {
 				const defaultScript = newDocument.createElement('script');
 				defaultScript.textContent = `
 					const acquireVsCodeApi = (function() {

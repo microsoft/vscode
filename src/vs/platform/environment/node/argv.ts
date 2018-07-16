@@ -160,7 +160,7 @@ const extensionsHelp: { [name: string]: string; } = {
 	'--show-versions': localize('showVersions', "Show versions of installed extensions, when using --list-extension."),
 	'--install-extension (<extension-id> | <extension-vsix-path>)': localize('installExtension', "Installs an extension."),
 	'--uninstall-extension (<extension-id> | <extension-vsix-path>)': localize('uninstallExtension', "Uninstalls an extension."),
-	'--enable-proposed-api <extension-id>': localize('experimentalApis', "Enables proposed API features for an extension.")
+	'--enable-proposed-api (<extension-id>)': localize('experimentalApis', "Enables proposed API features for extensions. Can receive one or more extension IDs to enable individually.")
 };
 
 const troubleshootingHelp: { [name: string]: string; } = {

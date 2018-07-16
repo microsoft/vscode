@@ -37,7 +37,7 @@ import { IViewletService } from 'vs/workbench/services/viewlet/browser/viewlet';
 import { IInstantiationService, ServicesAccessor, IConstructorSignature2 } from 'vs/platform/instantiation/common/instantiation';
 import { ITextModel } from 'vs/editor/common/model';
 import { IWindowService } from 'vs/platform/windows/common/windows';
-import { COPY_PATH_COMMAND_ID, REVEAL_IN_EXPLORER_COMMAND_ID, SAVE_ALL_COMMAND_ID, SAVE_ALL_LABEL, SAVE_ALL_IN_GROUP_COMMAND_ID } from 'vs/workbench/parts/files/electron-browser/fileCommands';
+import { REVEAL_IN_EXPLORER_COMMAND_ID, SAVE_ALL_COMMAND_ID, SAVE_ALL_LABEL, SAVE_ALL_IN_GROUP_COMMAND_ID } from 'vs/workbench/parts/files/electron-browser/fileCommands';
 import { ITextModelService, ITextModelContentProvider } from 'vs/editor/common/services/resolverService';
 import { IConfigurationService, ConfigurationTarget } from 'vs/platform/configuration/common/configuration';
 import { IClipboardService } from 'vs/platform/clipboard/common/clipboardService';
@@ -661,7 +661,7 @@ class BaseDeleteFileAction extends BaseFileAction {
 					}
 
 					// Call function
-					const servicePromise = TPromise.join(distinctElements.map(e => this.fileService.del(e.resource, this.useTrash))).then(() => {
+					const servicePromise = TPromise.join(distinctElements.map(e => this.fileService.del(e.resource, { useTrash: this.useTrash, recursive: true }))).then(() => {
 						if (distinctElements[0].parent) {
 							this.tree.setFocus(distinctElements[0].parent); // move focus to parent
 						}
@@ -1450,24 +1450,6 @@ export class ShowOpenedFileInNewWindow extends Action {
 		}
 
 		return TPromise.as(true);
-	}
-}
-
-export class CopyPathAction extends Action {
-
-	public static readonly LABEL = nls.localize('copyPath', "Copy Path");
-
-	constructor(
-		private resource: URI,
-		@ICommandService private commandService: ICommandService
-	) {
-		super('copyFilePath', CopyPathAction.LABEL);
-
-		this.order = 140;
-	}
-
-	public run(): TPromise<any> {
-		return this.commandService.executeCommand(COPY_PATH_COMMAND_ID, this.resource);
 	}
 }
 
