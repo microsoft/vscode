@@ -84,19 +84,22 @@ class MyCompletionItem extends vscode.CompletionItem {
 			}
 			this.label += '?';
 		}
+		this.resolveRange(line);
 	}
 
-	public resolve(): void {
-		if (!this.range) {
-			// Try getting longer, prefix based range for completions that span words
-			const wordRange = this.document.getWordRangeAtPosition(this.position);
-			const text = this.document.getText(new vscode.Range(this.position.line, Math.max(0, this.position.character - this.label.length), this.position.line, this.position.character)).toLowerCase();
-			const entryName = this.label.toLowerCase();
-			for (let i = entryName.length; i >= 0; --i) {
-				if (text.endsWith(entryName.substr(0, i)) && (!wordRange || wordRange.start.character > this.position.character - i)) {
-					this.range = new vscode.Range(this.position.line, Math.max(0, this.position.character - i), this.position.line, this.position.character);
-					break;
-				}
+	private resolveRange(line: string): void {
+		if (this.range) {
+			return;
+		}
+
+		// Try getting longer, prefix based range for completions that span words
+		const wordRange = this.document.getWordRangeAtPosition(this.position);
+		const text = line.slice(Math.max(0, this.position.character - this.label.length), this.position.character).toLowerCase();
+		const entryName = this.label.toLowerCase();
+		for (let i = entryName.length; i >= 0; --i) {
+			if (text.endsWith(entryName.substr(0, i)) && (!wordRange || wordRange.start.character > this.position.character - i)) {
+				this.range = new vscode.Range(this.position.line, Math.max(0, this.position.character - i), this.position.line, this.position.character);
+				break;
 			}
 		}
 	}
@@ -353,8 +356,6 @@ class TypeScriptCompletionItemProvider implements vscode.CompletionItemProvider 
 		if (!filepath) {
 			return undefined;
 		}
-
-		item.resolve();
 
 		const args: Proto.CompletionDetailsRequestArgs = {
 			...typeConverters.Position.toFileLocationRequestArgs(filepath, item.position),
