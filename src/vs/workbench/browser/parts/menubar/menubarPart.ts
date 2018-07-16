@@ -151,7 +151,7 @@ export class MenubarPart extends Part {
 
 		this.actionRunner = this._register(new ActionRunner());
 		this._register(this.actionRunner.onDidBeforeRun(() => {
-			this.focusState = this.currentMenubarVisibility === 'toggle' ? MenubarState.HIDDEN : MenubarState.VISIBLE;
+			this.setUnfocusedState();
 		}));
 
 		this._onVisibilityChange = this._register(new Emitter<Dimension>());
@@ -330,6 +330,7 @@ export class MenubarPart extends Part {
 				this.container.removeClass('inactive');
 			} else {
 				this.container.addClass('inactive');
+				this.setUnfocusedState();
 			}
 		}
 	}
@@ -338,6 +339,10 @@ export class MenubarPart extends Part {
 		if (this.keys.some(key => event.affectsConfiguration(key))) {
 			this.setupMenubar();
 		}
+	}
+
+	private setUnfocusedState(): void {
+		this.focusState = this.currentMenubarVisibility === 'toggle' ? MenubarState.HIDDEN : MenubarState.VISIBLE;
 	}
 
 	private hideMenubar(): void {
@@ -370,7 +375,7 @@ export class MenubarPart extends Part {
 				this.focusedMenu = { index: 0 };
 				this.focusState = MenubarState.FOCUSED;
 			} else if (!this.isOpen) {
-				this.focusState = this.currentMenubarVisibility === 'toggle' ? MenubarState.HIDDEN : MenubarState.VISIBLE;
+				this.setUnfocusedState();
 			}
 		}
 
@@ -664,14 +669,14 @@ export class MenubarPart extends Part {
 					}
 				});
 
-				this.customMenus[menuIndex].buttonElement.on(EventType.CLICK, () => {
+				this.customMenus[menuIndex].buttonElement.on(EventType.CLICK, (e) => {
 					if (this._modifierKeyStatus && (this._modifierKeyStatus.shiftKey || this._modifierKeyStatus.ctrlKey)) {
 						return; // supress keyboard shortcuts that shouldn't conflict
 					}
 
 					if (this.isOpen) {
 						if (this.isCurrentMenu(menuIndex)) {
-							this.focusState = this.currentMenubarVisibility === 'toggle' ? MenubarState.HIDDEN : MenubarState.VISIBLE;
+							this.setUnfocusedState();
 						} else {
 							this.cleanupCustomMenu();
 							this.showCustomMenu(menuIndex);
@@ -680,6 +685,9 @@ export class MenubarPart extends Part {
 						this.focusedMenu = { index: menuIndex };
 						this.focusState = MenubarState.OPEN;
 					}
+
+					e.preventDefault();
+					e.stopPropagation();
 				});
 
 				this.customMenus[menuIndex].buttonElement.on(EventType.MOUSE_ENTER, () => {
@@ -706,7 +714,7 @@ export class MenubarPart extends Part {
 				} else if (event.equals(KeyCode.RightArrow) || event.equals(KeyCode.Tab)) {
 					this.focusNext();
 				} else if (event.equals(KeyCode.Escape) && this.isFocused && !this.isOpen) {
-					this.focusState = this.currentMenubarVisibility === 'toggle' ? MenubarState.HIDDEN : MenubarState.VISIBLE;
+					this.setUnfocusedState();
 				} else {
 					eventHandled = false;
 				}
@@ -716,6 +724,13 @@ export class MenubarPart extends Part {
 					event.stopPropagation();
 				}
 			});
+
+			this._register($(window).on(EventType.CLICK, () => {
+				// This click is outside the menubar so it counts as a focus out
+				if (this.isFocused) {
+					this.setUnfocusedState();
+				}
+			}));
 		}
 
 		this.container.on(EventType.FOCUS_IN, (e) => {
@@ -734,7 +749,7 @@ export class MenubarPart extends Part {
 			if (event.relatedTarget) {
 				if (!this.container.getHTMLElement().contains(event.relatedTarget as HTMLElement)) {
 					this.focusToReturn = null;
-					this.focusState = this.currentMenubarVisibility === 'toggle' ? MenubarState.HIDDEN : MenubarState.VISIBLE;
+					this.setUnfocusedState();
 				}
 			}
 		});
