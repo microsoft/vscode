@@ -16,10 +16,21 @@ import { TestConfigurationService } from 'vs/platform/configuration/test/common/
 suite('Breadcrumb Model', function () {
 
 	const workspaceService = new TestContextService(new Workspace('ffff', 'Test', [new WorkspaceFolder({ uri: URI.parse('foo:/bar/baz/ws'), name: 'ws', index: 0 })]));
+	const configService = new class extends TestConfigurationService {
+		getValue(...args: any[]) {
+			if (args[0] === 'breadcrumbs.filePath') {
+				return 'on';
+			}
+			if (args[0] === 'breadcrumbs.symbolPath') {
+				return 'on';
+			}
+			return super.getValue(...args);
+		}
+	};
 
 	test('only uri, inside workspace', function () {
 
-		let model = new EditorBreadcrumbsModel(URI.parse('foo:/bar/baz/ws/some/path/file.ts'), undefined, workspaceService, new TestConfigurationService());
+		let model = new EditorBreadcrumbsModel(URI.parse('foo:/bar/baz/ws/some/path/file.ts'), undefined, workspaceService, configService);
 		let elements = model.getElements();
 
 		assert.equal(elements.length, 3);
@@ -34,7 +45,7 @@ suite('Breadcrumb Model', function () {
 
 	test('only uri, outside workspace', function () {
 
-		let model = new EditorBreadcrumbsModel(URI.parse('foo:/outside/file.ts'), undefined, workspaceService, new TestConfigurationService());
+		let model = new EditorBreadcrumbsModel(URI.parse('foo:/outside/file.ts'), undefined, workspaceService, configService);
 		let elements = model.getElements();
 
 		assert.equal(elements.length, 2);
