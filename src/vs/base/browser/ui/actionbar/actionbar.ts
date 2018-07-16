@@ -496,6 +496,28 @@ export class ActionBar implements IActionRunner {
 			this.actionsList.setAttribute('aria-label', this.options.ariaLabel);
 		}
 
+		if (this.options.isMenu) {
+			$(this.actionsList).on(DOM.EventType.MOUSE_OVER, (e) => {
+				let target = e.target as HTMLElement;
+				if (!target || !DOM.isAncestor(target, this.actionsList) || target === this.actionsList) {
+					return;
+				}
+
+				while (target.parentElement !== this.actionsList) {
+					target = target.parentElement;
+				}
+
+				if (DOM.hasClass(target, 'action-item') && !DOM.hasClass(target, 'disabled')) {
+					const lastFocusedItem = this.focusedItem;
+					this.setFocusedItem(target);
+
+					if (lastFocusedItem !== this.focusedItem) {
+						this.updateFocus();
+					}
+				}
+			});
+		}
+
 		this.domNode.appendChild(this.actionsList);
 
 		container.appendChild(this.domNode);
@@ -522,6 +544,16 @@ export class ActionBar implements IActionRunner {
 			this.actionsList.setAttribute('aria-label', label);
 		} else {
 			this.actionsList.removeAttribute('aria-label');
+		}
+	}
+
+	private setFocusedItem(element: HTMLElement): void {
+		for (let i = 0; i < this.actionsList.children.length; i++) {
+			let elem = this.actionsList.children[i];
+			if (element === elem) {
+				this.focusedItem = i;
+				break;
+			}
 		}
 	}
 

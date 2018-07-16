@@ -359,6 +359,8 @@ class SubmenuActionItem extends MenuActionItem {
 			this.parentData.submenu.focus();
 
 			this.mysubmenu = this.parentData.submenu;
+		} else {
+			this.parentData.submenu.focus();
 		}
 	}
 
