@@ -232,6 +232,7 @@ export class BreadcrumbsControl {
 
 		if (this._shouldRevealItem(event)) {
 			// reveal the item
+			this._widget.setFocused(undefined);
 			this._widget.setSelection(undefined);
 			this._revealInEditor(element);
 			return;
@@ -248,6 +249,7 @@ export class BreadcrumbsControl {
 				res.layout({ width: 220, height: 330 });
 				let listener = res.onDidPickElement(data => {
 					this._contextViewService.hideContextView();
+					this._widget.setFocused(undefined);
 					this._widget.setSelection(undefined);
 					if (data) {
 						this._revealInEditor(data);
