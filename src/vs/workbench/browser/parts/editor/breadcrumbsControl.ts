@@ -201,6 +201,7 @@ export class BreadcrumbsControl {
 
 		let control = this._editorGroup.activeControl.getControl() as ICodeEditor;
 		let model = new EditorBreadcrumbsModel(input.getResource(), isCodeEditor(control) ? control : undefined, this._workspaceService);
+		dom.toggleClass(this.domNode, 'relative-path', model.isRelative());
 
 		let updateBreadcrumbs = () => {
 			let items = model.getElements().map(element => new Item(element, this._options, this._instantiationService));

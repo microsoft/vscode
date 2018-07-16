@@ -19,7 +19,7 @@ import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { IPosition } from 'vs/editor/common/core/position';
 import { DocumentSymbolProviderRegistry } from 'vs/editor/common/modes';
 import { OutlineElement, OutlineGroup, OutlineModel } from 'vs/editor/contrib/documentSymbols/outlineModel';
-import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
+import { IWorkspaceContextService, IWorkspaceFolder, WorkbenchState } from 'vs/platform/workspace/common/workspace';
 import { Schemas } from 'vs/base/common/network';
 
 export class FileElement {
@@ -31,10 +31,12 @@ export class FileElement {
 
 export type BreadcrumbElement = FileElement | OutlineGroup | OutlineElement;
 
+type FileInfo = { path: FileElement[], folder: IWorkspaceFolder, showFolder: boolean };
+
 export class EditorBreadcrumbsModel {
 
 	private readonly _disposables: IDisposable[] = [];
-	private readonly _fileElements: FileElement[] = [];
+	private readonly _fileInfo: FileInfo;
 
 	private _outlineElements: (OutlineGroup | OutlineElement)[] = [];
 	private _outlineDisposables: IDisposable[] = [];
@@ -47,7 +49,7 @@ export class EditorBreadcrumbsModel {
 		private readonly _editor: ICodeEditor | undefined,
 		@IWorkspaceContextService workspaceService: IWorkspaceContextService,
 	) {
-		this._fileElements = EditorBreadcrumbsModel._getFileElements(this._uri, workspaceService);
+		this._fileInfo = EditorBreadcrumbsModel._initFilePathInfo(this._uri, workspaceService);
 		this._bindToEditor();
 		this._onDidUpdate.fire(this);
 	}
@@ -56,28 +58,38 @@ export class EditorBreadcrumbsModel {
 		dispose(this._disposables);
 	}
 
-	getElements(): ReadonlyArray<BreadcrumbElement> {
-		return [].concat(this._fileElements, this._outlineElements);
+	isRelative(): boolean {
+		return Boolean(this._fileInfo.folder);
 	}
 
-	private static _getFileElements(uri: URI, workspaceService: IWorkspaceContextService): FileElement[] {
+	getElements(): ReadonlyArray<BreadcrumbElement> {
+		return [].concat(this._fileInfo.path, this._outlineElements);
+	}
+
+	private static _initFilePathInfo(uri: URI, workspaceService: IWorkspaceContextService): FileInfo {
 
 		if (uri.scheme === Schemas.untitled) {
-			return [];
+			return {
+				showFolder: false,
+				folder: undefined,
+				path: []
+			};
 		}
 
-		let result: FileElement[] = [];
-		let workspace = workspaceService.getWorkspaceFolder(uri);
-		let path = uri.path;
-		while (path !== '/') {
-			if (workspace && isEqual(workspace.uri, uri)) {
+		let info: FileInfo = {
+			showFolder: workspaceService.getWorkbenchState() === WorkbenchState.WORKSPACE,
+			folder: workspaceService.getWorkspaceFolder(uri),
+			path: []
+		};
+
+		while (uri.path !== '/') {
+			if (info.folder && isEqual(info.folder.uri, uri)) {
 				break;
 			}
-			result.push(new FileElement(uri, result.length === 0));
-			path = paths.dirname(path);
-			uri = uri.with({ path });
+			info.path.push(new FileElement(uri, info.path.length === 0));
+			uri = uri.with({ path: paths.dirname(uri.path) });
 		}
-		return result.reverse();
+		return info;
 	}
 
 	private _bindToEditor(): void {
