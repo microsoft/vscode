@@ -181,6 +181,8 @@ const configurationValueWhitelist = [
 	'php.validate.run',
 	'workbench.welcome.enabled',
 	'workbench.startupEditor',
+	'breadcrumbs.enabled',
+	'breadcrumbs.useQuickPick',
 ];
 
 export function configurationTelemetry(telemetryService: ITelemetryService, configurationService: IConfigurationService): IDisposable {
