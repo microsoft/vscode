@@ -11,6 +11,7 @@ import { IExtensionDescription } from 'vs/workbench/services/extensions/common/e
 import { Progress } from 'vs/platform/progress/common/progress';
 import { localize } from 'vs/nls';
 import { CancellationTokenSource, CancellationToken } from 'vs/base/common/cancellation';
+import { debounce } from 'vs/base/common/decorators';
 import { IProgressStep } from 'vs/workbench/services/progress/common/progress';
 
 export class ExtHostProgress implements ExtHostProgressShape {
@@ -68,37 +69,22 @@ export class ExtHostProgress implements ExtHostProgressShape {
 	}
 }
 
-class ProgressCallback extends Progress<IProgressStep> {
-	private throttledProgressStep: IProgressStep;
+function mergeProgress(result: IProgressStep, currentValue: IProgressStep): IProgressStep {
+	result.message = currentValue.message;
+	if (typeof currentValue.increment === 'number') {
+		result.increment = currentValue.increment;
+	}
 
+	return result;
+}
+
+class ProgressCallback extends Progress<IProgressStep> {
 	constructor(private _proxy: MainThreadProgressShape, private _handle: number) {
 		super(p => this.throttledReport(p));
 	}
 
-	private throttledReport(p: IProgressStep): void {
-
-		// Throttle progress over the duration of 100ms
-		if (!this.throttledProgressStep) {
-			this.throttledProgressStep = p;
-
-			setTimeout(() => {
-				this._proxy.$progressReport(this._handle, this.throttledProgressStep);
-
-				this.throttledProgressStep = void 0;
-			}, 100);
-		}
-
-		// If throttled, merge the progress step into the existing one
-		else {
-			this.throttledProgressStep.message = p.message;
-
-			if (typeof p.increment === 'number') {
-				if (typeof this.throttledProgressStep.increment === 'number') {
-					this.throttledProgressStep.increment += p.increment;
-				} else {
-					this.throttledProgressStep.increment = p.increment;
-				}
-			}
-		}
+	@debounce(100, (result: IProgressStep, currentValue: IProgressStep) => mergeProgress(result, currentValue), () => Object.create(null))
+	throttledReport(p: IProgressStep): void {
+		this._proxy.$progressReport(this._handle, p);
 	}
 }
