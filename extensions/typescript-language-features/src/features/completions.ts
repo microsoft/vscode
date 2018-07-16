@@ -21,7 +21,7 @@ const localize = nls.loadMessageBundle();
 
 
 interface CommitCharactersSettings {
-	readonly enable: boolean;
+	readonly enabled: boolean;
 	readonly enableDotCompletions: boolean;
 	readonly enableCallCompletions: boolean;
 }
@@ -147,6 +147,10 @@ class MyCompletionItem extends vscode.CompletionItem {
 
 	@memoize
 	public get commitCharacters(): string[] | undefined {
+		if (!this.commitCharactersSettings.enabled) {
+			return undefined;
+		}
+
 		const commitCharacters: string[] = [];
 		switch (this.tsEntry.kind) {
 			case PConst.Kind.memberGetAccessor:
@@ -331,7 +335,7 @@ class TypeScriptCompletionItemProvider implements vscode.CompletionItemProvider 
 		return msg
 			.filter(entry => !shouldExcludeCompletionEntry(entry, completionConfiguration))
 			.map(entry => new MyCompletionItem(position, document, line.text, entry, completionConfiguration.useCodeSnippetsOnMethodSuggest, {
-				enable: enableCommitCharacters,
+				enabled: enableCommitCharacters,
 				enableDotCompletions,
 				enableCallCompletions: !completionConfiguration.useCodeSnippetsOnMethodSuggest
 			}));
