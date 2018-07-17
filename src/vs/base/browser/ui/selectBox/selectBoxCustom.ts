@@ -276,6 +276,12 @@ export class SelectBoxList implements ISelectBoxDelegate, IVirtualDelegate<ISele
 		this.selectElement.title = this.options[this.selected];
 	}
 
+	public setAriaLabel(label: string): void {
+		this.selectBoxOptions.ariaLabel = label;
+		this.selectElement.setAttribute('aria-label', this.selectBoxOptions.ariaLabel);
+		this.selectList.getHTMLElement().setAttribute('aria-label', this.selectBoxOptions.ariaLabel);
+	}
+
 	public focus(): void {
 		if (this.selectElement) {
 			this.selectElement.focus();

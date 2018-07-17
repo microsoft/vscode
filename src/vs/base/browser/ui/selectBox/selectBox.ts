@@ -23,6 +23,7 @@ export interface ISelectBoxDelegate {
 	readonly onDidSelect: Event<ISelectData>;
 	setOptions(options: string[], selected?: number, disabled?: number): void;
 	select(index: number): void;
+	setAriaLabel(label: string);
 	focus(): void;
 	blur(): void;
 	dispose(): void;
@@ -88,6 +89,10 @@ export class SelectBox extends Widget implements ISelectBoxDelegate {
 
 	public select(index: number): void {
 		this.selectBoxDelegate.select(index);
+	}
+
+	public setAriaLabel(label: string): void {
+		this.selectBoxDelegate.setAriaLabel(label);
 	}
 
 	public focus(): void {
