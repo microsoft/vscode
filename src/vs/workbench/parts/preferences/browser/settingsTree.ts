@@ -311,7 +311,9 @@ function getFlatSettings(settingsGroups: ISettingsGroup[]) {
 	for (let group of settingsGroups) {
 		for (let section of group.sections) {
 			for (let s of section.settings) {
-				result.add(s);
+				if (!s.overrides || !s.overrides.length) {
+					result.add(s);
+				}
 			}
 		}
 	}
