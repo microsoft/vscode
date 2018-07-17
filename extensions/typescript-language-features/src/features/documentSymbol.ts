@@ -34,30 +34,30 @@ class TypeScriptDocumentSymbolProvider implements vscode.DocumentSymbolProvider 
 		private readonly client: ITypeScriptServiceClient
 	) { }
 
-	public async provideDocumentSymbols(resource: vscode.TextDocument, token: vscode.CancellationToken): Promise<vscode.DocumentSymbol[] | vscode.SymbolInformation[]> {
-		const filepath = this.client.toPath(resource.uri);
-		if (!filepath) {
-			return [];
+	public async provideDocumentSymbols(resource: vscode.TextDocument, token: vscode.CancellationToken): Promise<vscode.DocumentSymbol[] | undefined> {
+		const file = this.client.toPath(resource.uri);
+		if (!file) {
+			return undefined;
 		}
-		const args: Proto.FileRequestArgs = {
-			file: filepath
-		};
 
+
+		let tree: Proto.NavigationTree | undefined;
 		try {
+			const args: Proto.FileRequestArgs = { file };
 			const response = await this.client.execute('navtree', args, token);
-			if (response.body) {
-				// The root represents the file. Ignore this when showing in the UI
-				const tree = response.body;
-				if (tree.childItems) {
-					const result = new Array<vscode.DocumentSymbol>();
-					tree.childItems.forEach(item => TypeScriptDocumentSymbolProvider.convertNavTree(resource.uri, result, item));
-					return result;
-				}
-			}
-			return [];
-		} catch (e) {
-			return [];
+			tree = response.body;
+		} catch {
+			return undefined;
 		}
+
+		if (tree && tree.childItems) {
+			// The root represents the file. Ignore this when showing in the UI
+			const result: vscode.DocumentSymbol[] = [];
+			tree.childItems.forEach(item => TypeScriptDocumentSymbolProvider.convertNavTree(resource.uri, result, item));
+			return result;
+		}
+
+		return undefined;
 	}
 
 	private static convertNavTree(resource: vscode.Uri, bucket: vscode.DocumentSymbol[], item: Proto.NavigationTree): boolean {
