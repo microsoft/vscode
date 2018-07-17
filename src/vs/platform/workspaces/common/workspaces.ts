@@ -29,6 +29,11 @@ export const UNTITLED_WORKSPACE_NAME = 'workspace.json';
  */
 export type ISingleFolderWorkspaceIdentifier = string;
 
+/**
+ * A single folder workspace identifier is just the folder URI
+ */
+export type ISingleFolderWorkspaceIdentifier2 = URI;
+
 export interface IWorkspaceIdentifier {
 	id: string;
 	configPath: string;
@@ -135,6 +140,10 @@ export function getWorkspaceLabel(workspace: (IWorkspaceIdentifier | ISingleFold
 
 export function isSingleFolderWorkspaceIdentifier(obj: any): obj is ISingleFolderWorkspaceIdentifier {
 	return typeof obj === 'string';
+}
+
+export function isSingleFolderWorkspaceIdentifier2(obj: any): obj is ISingleFolderWorkspaceIdentifier2 {
+	return obj instanceof URI;
 }
 
 export function isWorkspaceIdentifier(obj: any): obj is IWorkspaceIdentifier {
