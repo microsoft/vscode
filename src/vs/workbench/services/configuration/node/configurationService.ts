@@ -132,16 +132,16 @@ export class WorkspaceService extends Disposable implements IWorkspaceConfigurat
 	public isCurrentWorkspace(workspaceIdentifier: ISingleFolderWorkspaceIdentifier | IWorkspaceIdentifier): boolean {
 		switch (this.getWorkbenchState()) {
 			case WorkbenchState.FOLDER:
-				return isSingleFolderWorkspaceIdentifier(workspaceIdentifier) && isEqual(this.workspace.folders[0].uri, this.toSingleFolderWorkspaceIdentifier2(workspaceIdentifier), this.workspace.folders[0].uri.scheme !== Schemas.file || !isLinux);
+				return isSingleFolderWorkspaceIdentifier(workspaceIdentifier) && isEqual(this.workspace.folders[0].uri, this.toUri(workspaceIdentifier), this.workspace.folders[0].uri.scheme !== Schemas.file || !isLinux);
 			case WorkbenchState.WORKSPACE:
 				return isWorkspaceIdentifier(workspaceIdentifier) && this.workspace.id === workspaceIdentifier.id;
 		}
 		return false;
 	}
 
-	private toSingleFolderWorkspaceIdentifier2(folderIdentifier: ISingleFolderWorkspaceIdentifier): URI {
-		const uri = URI.parse(folderIdentifier);
-		return uri.scheme ? uri : URI.file(folderIdentifier);
+	private toUri(folderIdentifier: ISingleFolderWorkspaceIdentifier): URI {
+		// TODO:Sandy Change to URI.parse parsing once main sends URIs
+		return URI.file(folderIdentifier);
 	}
 
 	private doUpdateFolders(foldersToAdd: IWorkspaceFolderCreationData[], foldersToRemove: URI[], index?: number): TPromise<void> {

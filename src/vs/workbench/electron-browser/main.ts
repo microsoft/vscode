@@ -116,7 +116,7 @@ function openWorkbench(configuration: IWindowConfiguration): TPromise<void> {
 }
 
 function createAndInitializeWorkspaceService(configuration: IWindowConfiguration, environmentService: EnvironmentService): TPromise<WorkspaceService> {
-	const folderUri = configuration.folderPath ? uri.file(configuration.folderPath) /* TODO: Change to URI.path parsing once main sends URIs*/ : null;
+	const folderUri = configuration.folderPath ? uri.file(configuration.folderPath) /* TODO:Sandy Change to URI.parse once main sends URIs*/ : null;
 	return validateFolderUri(folderUri, configuration.verbose).then(validatedFolderUri => {
 
 		const workspaceService = new WorkspaceService(environmentService);
