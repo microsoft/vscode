@@ -196,7 +196,7 @@ export class BreadcrumbsControl {
 		const input = this._editorGroup.activeEditor;
 		this._breadcrumbsDisposables = dispose(this._breadcrumbsDisposables);
 
-		if (!input || (input.getResource().scheme !== Schemas.untitled && !this._fileService.canHandleResource(input.getResource()))) {
+		if (!input || !input.getResource() || (input.getResource().scheme !== Schemas.untitled && !this._fileService.canHandleResource(input.getResource()))) {
 			// cleanup and return when there is no input or when
 			// we cannot handle this input
 			if (!this.isHidden()) {
