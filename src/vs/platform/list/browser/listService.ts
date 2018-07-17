@@ -23,7 +23,7 @@ import { DefaultController, IControllerOptions, OpenMode, ClickBehavior, Default
 import { isUndefinedOrNull } from 'vs/base/common/types';
 import { IEditorOptions } from 'vs/platform/editor/common/editor';
 import { Event, Emitter } from 'vs/base/common/event';
-import { createStyleSheet, addStandardDisposableListener } from 'vs/base/browser/dom';
+import { createStyleSheet, addStandardDisposableListener, getTotalHeight } from 'vs/base/browser/dom';
 import { ScrollbarVisibility } from 'vs/base/common/scrollable';
 import { InputBox, IInputOptions } from 'vs/base/browser/ui/inputbox/inputBox';
 import { IContextViewService } from 'vs/platform/contextview/browser/contextView';
@@ -605,7 +605,8 @@ export class HighlightingTreeController extends WorkbenchTreeController {
 
 export class HighlightingWorkbenchTree extends WorkbenchTree {
 
-	readonly input: InputBox;
+	protected readonly inputContainer: HTMLElement;
+	protected readonly input: InputBox;
 
 	protected readonly renderer: IHighlightingRenderer;
 
@@ -638,6 +639,7 @@ export class HighlightingWorkbenchTree extends WorkbenchTree {
 		this.renderer = treeConfiguration.renderer;
 
 		// create input
+		this.inputContainer = inputContainer;
 		this.input = new InputBox(inputContainer, contextViewService, listOptions);
 		this.input.setEnabled(false);
 		this.input.onDidChange(this.updateHighlights, this, this.disposables);
@@ -670,7 +672,7 @@ export class HighlightingWorkbenchTree extends WorkbenchTree {
 
 	layout(height?: number, width?: number): void {
 		this.input.layout();
-		super.layout(isNaN(height) ? height : height - this.input.height, width);
+		super.layout(isNaN(height) ? height : height - getTotalHeight(this.inputContainer), width);
 	}
 
 	private lastSelection: any[];
