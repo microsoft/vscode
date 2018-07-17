@@ -12,20 +12,10 @@ import FileConfigurationManager from './fileConfigurationManager';
 
 
 class TypeScriptFormattingProvider implements vscode.DocumentRangeFormattingEditProvider, vscode.OnTypeFormattingEditProvider {
-	private enabled: boolean = true;
-
 	public constructor(
 		private readonly client: ITypeScriptServiceClient,
 		private readonly formattingOptionsManager: FileConfigurationManager
 	) { }
-
-	public updateConfiguration(config: vscode.WorkspaceConfiguration): void {
-		this.enabled = config.get('format.enable', true);
-	}
-
-	public isEnabled(): boolean {
-		return this.enabled;
-	}
 
 	private async doFormat(
 		document: vscode.TextDocument,
