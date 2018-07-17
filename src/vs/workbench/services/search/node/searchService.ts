@@ -91,18 +91,19 @@ export class SearchService implements ISearchService {
 		}
 	}
 
-	public search(query: ISearchQuery): PPromise<ISearchComplete, ISearchProgressItem> {
+	public search(query: ISearchQuery, onProgress?: (item: ISearchProgressItem) => void): TPromise<ISearchComplete> {
 		this.forwardTelemetry();
 
 		let combinedPromise: TPromise<void>;
 
-		return new PPromise<ISearchComplete, ISearchProgressItem>((onComplete, onError, onProgress) => {
+		return new TPromise<ISearchComplete>((onComplete, onError) => {
 
 			// Get local results from dirty/untitled
 			const localResults = this.getLocalResults(query);
 
-			// Allow caller to register progress callback
-			process.nextTick(() => localResults.values().filter((res) => !!res).forEach(onProgress));
+			if (onProgress) {
+				localResults.values().filter((res) => !!res).forEach(onProgress);
+			}
 
 			this.logService.trace('SearchService#search', JSON.stringify(query));
 
@@ -112,10 +113,10 @@ export class SearchService implements ISearchService {
 				progress => {
 					if (progress.resource) {
 						// Match
-						if (!localResults.has(progress.resource)) { // don't override local results
+						if (!localResults.has(progress.resource) && onProgress) { // don't override local results
 							onProgress(progress);
 						}
-					} else {
+					} else if (onProgress) {
 						// Progress
 						onProgress(<IProgress>progress);
 					}
