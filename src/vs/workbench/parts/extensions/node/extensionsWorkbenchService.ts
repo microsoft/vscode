@@ -276,7 +276,7 @@ ${this.description}
 
 		if (!changelogUrl) {
 			if (this.type === LocalExtensionType.System) {
-				return TPromise.as(nls.localize('checkReleaseNotes', 'Please check the [VS Code Release Notes](https://code.visulstudio.com/updates) for changes to the built-in extensions.'));
+				return TPromise.as(nls.localize('checkReleaseNotes', 'Please check the [VS Code Release Notes](https://code.visualstudio.com/updates) for changes to the built-in extensions.'));
 			}
 
 			return TPromise.wrapError<string>(new Error('not available'));
