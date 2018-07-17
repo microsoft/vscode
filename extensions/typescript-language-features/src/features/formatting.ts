@@ -10,7 +10,6 @@ import { ConfigurationDependentRegistration } from '../utils/dependentRegistrati
 import * as typeConverters from '../utils/typeConverters';
 import FileConfigurationManager from './fileConfigurationManager';
 
-
 class TypeScriptFormattingProvider implements vscode.DocumentRangeFormattingEditProvider, vscode.OnTypeFormattingEditProvider {
 	public constructor(
 		private readonly client: ITypeScriptServiceClient,
@@ -56,17 +55,15 @@ class TypeScriptFormattingProvider implements vscode.DocumentRangeFormattingEdit
 		options: vscode.FormattingOptions,
 		token: vscode.CancellationToken
 	): Promise<vscode.TextEdit[]> {
-		const filepath = this.client.toPath(document.uri);
-		if (!filepath) {
+		const file = this.client.toPath(document.uri);
+		if (!file) {
 			return [];
 		}
 
 		await this.formattingOptionsManager.ensureConfigurationOptions(document, options, token);
 
 		const args: Proto.FormatOnKeyRequestArgs = {
-			file: filepath,
-			line: position.line + 1,
-			offset: position.character + 1,
+			...typeConverters.Position.toFileLocationRequestArgs(file, position),
 			key: ch
 		};
 		try {
