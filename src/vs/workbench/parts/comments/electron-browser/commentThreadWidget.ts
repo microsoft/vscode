@@ -477,26 +477,28 @@ export class ReviewZoneWidget extends ZoneWidget {
 	}
 
 	private setCommentEditorDecorations() {
-		let model = this._commentEditor.getModel();
-		let valueLength = model.getValueLength();
-		const hasExistingComments = this._commentThread.comments.length > 0;
-		let placeholder = valueLength > 0 ? '' : (hasExistingComments ? 'Reply...' : 'Type a new comment');
-		const decorations = [{
-			range: {
-				startLineNumber: 0,
-				endLineNumber: 0,
-				startColumn: 0,
-				endColumn: 1
-			},
-			renderOptions: {
-				after: {
-					contentText: placeholder,
-					color: transparent(editorForeground, 0.4)(this.themeService.getTheme()).toString()
+		if (this._commentEditor) {
+			let model = this._commentEditor.getModel();
+			let valueLength = model.getValueLength();
+			const hasExistingComments = this._commentThread.comments.length > 0;
+			let placeholder = valueLength > 0 ? '' : (hasExistingComments ? 'Reply...' : 'Type a new comment');
+			const decorations = [{
+				range: {
+					startLineNumber: 0,
+					endLineNumber: 0,
+					startColumn: 0,
+					endColumn: 1
+				},
+				renderOptions: {
+					after: {
+						contentText: placeholder,
+						color: transparent(editorForeground, 0.4)(this.themeService.getTheme()).toString()
+					}
 				}
-			}
-		}];
+			}];
 
-		this._commentEditor.setDecorations(COMMENTEDITOR_DECORATION_KEY, decorations);
+			this._commentEditor.setDecorations(COMMENTEDITOR_DECORATION_KEY, decorations);
+		}
 	}
 
 	private mouseDownInfo: { lineNumber: number, iconClicked: boolean };
@@ -580,6 +582,9 @@ export class ReviewZoneWidget extends ZoneWidget {
 		}
 
 		this._styleElement.innerHTML = content.join('\n');
+
+		// Editor decorations should also be responsive to theme changes
+		this.setCommentEditorDecorations();
 	}
 
 	show(rangeOrPos: IRange | IPosition, heightInLines: number): void {
