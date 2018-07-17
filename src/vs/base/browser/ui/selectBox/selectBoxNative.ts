@@ -108,6 +108,11 @@ export class SelectBoxNative implements ISelectBoxDelegate {
 		this.selectElement.title = this.options[this.selected];
 	}
 
+	public setAriaLabel(label: string): void {
+		this.selectBoxOptions.ariaLabel = label;
+		this.selectElement.setAttribute('aria-label', label);
+	}
+
 	public focus(): void {
 		if (this.selectElement) {
 			this.selectElement.focus();
