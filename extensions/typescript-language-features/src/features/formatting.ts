@@ -16,36 +16,29 @@ class TypeScriptFormattingProvider implements vscode.DocumentRangeFormattingEdit
 		private readonly formattingOptionsManager: FileConfigurationManager
 	) { }
 
-	private async doFormat(
-		document: vscode.TextDocument,
-		options: vscode.FormattingOptions,
-		args: Proto.FormatRequestArgs,
-		token: vscode.CancellationToken
-	): Promise<vscode.TextEdit[]> {
-		await this.formattingOptionsManager.ensureConfigurationOptions(document, options, token);
-		try {
-			const response = await this.client.execute('format', args, token);
-			if (response.body) {
-				return response.body.map(typeConverters.TextEdit.fromCodeEdit);
-			}
-		} catch {
-			// noop
-		}
-		return [];
-	}
-
 	public async provideDocumentRangeFormattingEdits(
 		document: vscode.TextDocument,
 		range: vscode.Range,
 		options: vscode.FormattingOptions,
 		token: vscode.CancellationToken
-	): Promise<vscode.TextEdit[]> {
+	): Promise<vscode.TextEdit[] | undefined> {
 		const file = this.client.toPath(document.uri);
 		if (!file) {
-			return [];
+			return undefined;
 		}
-		const args = typeConverters.Range.toFormattingRequestArgs(file, range);
-		return this.doFormat(document, options, args, token);
+
+		await this.formattingOptionsManager.ensureConfigurationOptions(document, options, token);
+
+		let edits: Proto.CodeEdit[] | undefined;
+		try {
+			const args = typeConverters.Range.toFormattingRequestArgs(file, range);
+			const response = await this.client.execute('format', args, token);
+			edits = response.body;
+		} catch {
+			// noop
+		}
+
+		return (edits || []).map(typeConverters.TextEdit.fromCodeEdit);
 	}
 
 	public async provideOnTypeFormattingEdits(
