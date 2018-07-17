@@ -225,8 +225,6 @@ export class BreadcrumbsControl {
 		return true;
 	}
 
-
-
 	private _onFocusEvent(event: IBreadcrumbsItemEvent): void {
 		if (event.item && this._breadcrumbsPickerShowing) {
 			return this._widget.setSelection(event.item);
@@ -265,7 +263,7 @@ export class BreadcrumbsControl {
 			render: (parent: HTMLElement) => {
 				let ctor: IConstructorSignature2<HTMLElement, BreadcrumbElement, BreadcrumbsPicker> = element instanceof FileElement ? BreadcrumbsFilePicker : BreadcrumbsOutlinePicker;
 				let res = this._instantiationService.createInstance(ctor, parent, element);
-				res.layout({ width: 220, height: 330 });
+				res.layout({ width: Math.max(220, dom.getTotalWidth(event.node)), height: 330 });
 				let listener = res.onDidPickElement(data => {
 					this._contextViewService.hideContextView();
 					this._widget.setFocused(undefined);
