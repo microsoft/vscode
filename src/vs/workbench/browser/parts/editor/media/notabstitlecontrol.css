@@ -3,6 +3,13 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+.monaco-workbench > .part.editor > .content .editor-group-container > .title > .label-container {
+	display: flex;
+	justify-content: flex-start;
+	overflow: hidden;
+	flex: auto;
+}
+
 /* Title Label */
 
 .monaco-workbench > .part.editor > .content .editor-group-container > .title .title-label {
@@ -23,26 +30,23 @@
 
 /* Breadcrumbs */
 
-.monaco-workbench > .part.editor > .content .editor-group-container > .title .no-tabs-breadcrumbs {
+.monaco-workbench > .part.editor > .content .editor-group-container > .title .no-tabs-breadcrumbs.breadcrumbs-control {
 	flex: 1 50%;
 	overflow: hidden;
 	line-height: 35px;
 	height: 35px;
-}
-
-.monaco-workbench > .part.editor > .content .editor-group-container > .title .no-tabs-breadcrumbs .breadcrumbs-control {
 	padding: 0 6px;
 }
 
-.monaco-workbench > .part.editor > .content .editor-group-container > .title .no-tabs-breadcrumbs .breadcrumbs-control .monaco-breadcrumb-item {
+.monaco-workbench > .part.editor > .content .editor-group-container > .title .no-tabs-breadcrumbs.breadcrumbs-control .monaco-breadcrumb-item {
 	font-size: 0.9em;
 }
 
-.monaco-workbench > .part.editor > .content .editor-group-container > .title .no-tabs-breadcrumbs .breadcrumbs-control.preview .monaco-breadcrumb-item {
+.monaco-workbench > .part.editor > .content .editor-group-container > .title .no-tabs-breadcrumbs.breadcrumbs-control.preview .monaco-breadcrumb-item {
 	font-style: italic;
 }
 
-.monaco-workbench > .part.editor > .content .editor-group-container > .title .no-tabs-breadcrumbs .breadcrumbs-control .monaco-breadcrumb-item::before {
+.monaco-workbench > .part.editor > .content .editor-group-container > .title .no-tabs-breadcrumbs.breadcrumbs-control .monaco-breadcrumb-item::before {
 	content: '/';
 	opacity: 1;
 	height: inherit;
@@ -50,26 +54,25 @@
 	background-image: none;
 }
 
-.monaco-workbench.windows > .part.editor > .content .editor-group-container > .title .no-tabs-breadcrumbs .breadcrumbs-control .monaco-breadcrumb-item::before  {
+.monaco-workbench.windows > .part.editor > .content .editor-group-container > .title .no-tabs-breadcrumbs.breadcrumbs-control .monaco-breadcrumb-item::before  {
 	content: '\\';
 }
 
-.monaco-workbench > .part.editor > .content .editor-group-container > .title .no-tabs-breadcrumbs .breadcrumbs-control.relative-path .monaco-breadcrumb-item:nth-child(2)::before  {
+.monaco-workbench > .part.editor > .content .editor-group-container > .title .no-tabs-breadcrumbs.breadcrumbs-control.relative-path .monaco-breadcrumb-item:nth-child(2)::before  {
 	/* relative path -> hide first seperator */
 	display: none;
 }
 
-.monaco-workbench > .part.editor > .content .editor-group-container > .title .no-tabs-breadcrumbs .breadcrumbs-control .monaco-breadcrumb-item.shows-symbol-icon,
-.monaco-workbench > .part.editor > .content .editor-group-container > .title .no-tabs-breadcrumbs .breadcrumbs-control .monaco-breadcrumb-item:last-child {
+.monaco-workbench > .part.editor > .content .editor-group-container > .title .no-tabs-breadcrumbs.breadcrumbs-control .monaco-breadcrumb-item.shows-symbol-icon,
+.monaco-workbench > .part.editor > .content .editor-group-container > .title .no-tabs-breadcrumbs.breadcrumbs-control .monaco-breadcrumb-item:last-child {
 	padding-right: 4px; /* does not have trailing separator*/
 }
 
-.monaco-workbench > .part.editor > .content .editor-group-container > .title .no-tabs-breadcrumbs .breadcrumbs-control .monaco-breadcrumb-item.shows-symbol-icon::before {
+.monaco-workbench > .part.editor > .content .editor-group-container > .title .no-tabs-breadcrumbs.breadcrumbs-control .monaco-breadcrumb-item.shows-symbol-icon::before {
 	padding-right: 2px;
-	/* content: ' '; */
 }
 
-.monaco-workbench > .part.editor > .content .editor-group-container > .title .no-tabs-breadcrumbs .breadcrumbs-control .monaco-breadcrumb-item.shows-symbol-icon .symbol-icon {
+.monaco-workbench > .part.editor > .content .editor-group-container > .title .no-tabs-breadcrumbs.breadcrumbs-control .monaco-breadcrumb-item.shows-symbol-icon .symbol-icon {
 	width: 15px;
 	min-width: 15px;
 }

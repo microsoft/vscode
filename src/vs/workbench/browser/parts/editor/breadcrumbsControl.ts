@@ -111,6 +111,7 @@ export interface IBreadcrumbsControlOptions {
 	showFileIcons: boolean;
 	showSymbolIcons: boolean;
 	showDecorationColors: boolean;
+	extraClasses: string[];
 }
 
 export class BreadcrumbsControl {
@@ -151,7 +152,8 @@ export class BreadcrumbsControl {
 		@IBreadcrumbsService breadcrumbsService: IBreadcrumbsService,
 	) {
 		this.domNode = document.createElement('div');
-		dom.addClasses(this.domNode, 'breadcrumbs-control');
+		dom.addClass(this.domNode, 'breadcrumbs-control');
+		dom.addClasses(this.domNode, ..._options.extraClasses);
 		dom.append(container, this.domNode);
 
 		this._widget = new BreadcrumbsWidget(this.domNode);
