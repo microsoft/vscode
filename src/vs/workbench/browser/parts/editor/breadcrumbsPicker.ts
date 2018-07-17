@@ -56,9 +56,6 @@ export abstract class BreadcrumbsPicker {
 		this._focus = dom.trackFocus(this._domNode);
 		this._focus.onDidBlur(_ => this._onDidPickElement.fire(undefined), undefined, this._disposables);
 
-		const treeContainer = document.createElement('div');
-		treeContainer.className = 'breadcrumbs-picker-tree';
-		this._domNode.appendChild(treeContainer);
 		const treeConifg = this._completeTreeConfiguration({ dataSource: undefined, renderer: undefined });
 		this._tree = this._instantiationService.createInstance(HighlightingWorkbenchTree, this._domNode, treeConifg, {}, { placeholder: localize('placeholder', "Find") });
 		this._disposables.push(this._tree.onDidChangeSelection(e => {

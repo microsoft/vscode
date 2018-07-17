@@ -15,7 +15,7 @@ import { EncodingMode, ConfirmResult, EditorInput, IFileEditorInput, ITextEditor
 import { TextFileEditorModel } from 'vs/workbench/services/textfile/common/textFileEditorModel';
 import { BinaryEditorModel } from 'vs/workbench/common/editor/binaryEditorModel';
 import { FileOperationError, FileOperationResult } from 'vs/platform/files/common/files';
-import { ITextFileService, AutoSaveMode, ModelState, TextFileModelChangeEvent } from 'vs/workbench/services/textfile/common/textfiles';
+import { ITextFileService, AutoSaveMode, ModelState, TextFileModelChangeEvent, LoadReason } from 'vs/workbench/services/textfile/common/textfiles';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IReference } from 'vs/base/common/lifecycle';
@@ -260,7 +260,8 @@ export class FileEditorInput extends EditorInput implements IFileEditorInput {
 		return this.textFileService.models.loadOrCreate(this.resource, {
 			encoding: this.preferredEncoding,
 			reload: { async: true }, // trigger a reload of the model if it exists already but do not wait to show the model
-			allowBinary: this.forceOpenAsText
+			allowBinary: this.forceOpenAsText,
+			reason: LoadReason.EDITOR
 		}).then(model => {
 
 			// This is a bit ugly, because we first resolve the model and then resolve a model reference. the reason being that binary

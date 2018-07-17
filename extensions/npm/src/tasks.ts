@@ -100,6 +100,7 @@ async function detectNpmScripts(): Promise<Task[]> {
 
 	let emptyTasks: Task[] = [];
 	let allTasks: Task[] = [];
+	let visitedPackageJsonFiles: Set<string> = new Set();
 
 	let folders = workspace.workspaceFolders;
 	if (!folders) {
@@ -112,8 +113,10 @@ async function detectNpmScripts(): Promise<Task[]> {
 				let relativePattern = new RelativePattern(folder, '**/package.json');
 				let paths = await workspace.findFiles(relativePattern, '**/node_modules/**');
 				for (let j = 0; j < paths.length; j++) {
-					if (!isExcluded(folder, paths[j])) {
-						let tasks = await provideNpmScriptsForFolder(paths[j]);
+					let path = paths[j];
+					if (!isExcluded(folder, path) && !visitedPackageJsonFiles.has(path.fsPath)) {
+						let tasks = await provideNpmScriptsForFolder(path);
+						visitedPackageJsonFiles.add(path.fsPath);
 						allTasks.push(...tasks);
 					}
 				}

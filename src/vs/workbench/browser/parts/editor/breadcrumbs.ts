@@ -66,6 +66,9 @@ export abstract class BreadcrumbsConfig<T> {
 	}
 
 	static IsEnabled = BreadcrumbsConfig._stub<boolean>('breadcrumbs.enabled');
+	static UseQuickPick = BreadcrumbsConfig._stub<boolean>('breadcrumbs.useQuickPick');
+	static FilePath = BreadcrumbsConfig._stub<'on' | 'off' | 'last'>('breadcrumbs.filePath');
+	static SymbolPath = BreadcrumbsConfig._stub<'on' | 'off' | 'last'>('breadcrumbs.symbolPath');
 
 	private static _stub<T>(name: string): { bindTo(service: IConfigurationService): BreadcrumbsConfig<T> } {
 		return {
@@ -101,10 +104,37 @@ Registry.as<IConfigurationRegistry>(Extensions.Configuration).registerConfigurat
 	type: 'object',
 	properties: {
 		'breadcrumbs.enabled': {
-			'description': localize('enabled', "Enable/disable navigation breadcrumbss"),
-			'type': 'boolean',
-			'default': false
-		}
+			description: localize('enabled', "Enable/disable navigation breadcrumbs"),
+			type: 'boolean',
+			default: false
+		},
+		'breadcrumbs.useQuickPick': {
+			description: localize('useQuickPick', "Use quick pick instead of breadcrumb-pickers."),
+			type: 'boolean',
+			default: false
+		},
+		'breadcrumbs.filePath': {
+			description: localize('filepath', "Controls if and how file paths are shown in the breadcrumbs view."),
+			type: 'string',
+			default: 'on',
+			enum: ['on', 'off', 'last'],
+			enumDescriptions: [
+				localize('filepath.on', "Show the file path in the breadcrumbs view."),
+				localize('filepath.off', "Do not show the file path in the breadcrumbs view."),
+				localize('filepath.last', "Only show the last element of the file path in the breadcrumbs view."),
+			]
+		},
+		'breadcrumbs.symbolPath': {
+			description: localize('symbolpath', "Controls if and how symbols are shown in the breadcrumbs view."),
+			type: 'string',
+			default: 'on',
+			enum: ['on', 'off', 'last'],
+			enumDescriptions: [
+				localize('symbolpath.on', "Show all symbols the breadcrumbs view."),
+				localize('symbolpath.off', "Do not show symbols in the breadcrumbs view."),
+				localize('symbolpath.last', "Only show the current symbol in the breadcrumbs view."),
+			]
+		},
 	}
 });
 

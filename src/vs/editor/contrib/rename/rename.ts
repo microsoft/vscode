@@ -183,9 +183,6 @@ class RenameController implements IEditorContribution {
 				}
 
 				return this._bulkEditService.apply(result, { editor: this.editor }).then(result => {
-					if (result.selection) {
-						this.editor.setSelection(result.selection);
-					}
 					// alert
 					if (result.ariaSummary) {
 						alert(nls.localize('aria', "Successfully renamed '{0}' to '{1}'. Summary: {2}", loc.text, newNameOrFocusFlag, result.ariaSummary));

@@ -318,7 +318,7 @@ export async function main(argv: string[]): Promise<any> {
 			env
 		};
 
-		if (typeof args['upload-logs'] !== undefined) {
+		if (typeof args['upload-logs'] !== 'undefined') {
 			options['stdio'] = ['pipe', 'pipe', 'pipe'];
 		} else if (!verbose) {
 			options['stdio'] = 'ignore';
