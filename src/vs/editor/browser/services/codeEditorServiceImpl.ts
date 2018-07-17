@@ -212,7 +212,7 @@ class DecorationTypeOptionsProvider implements IModelDecorationOptionsProvider {
 
 const _CSS_MAP: { [prop: string]: string; } = {
 	color: 'color:{0} !important;',
-	opacity: 'opacity:{0};',
+	opacity: 'opacity:{0}; will-change: opacity;',
 	backgroundColor: 'background-color:{0};',
 
 	outline: 'outline:{0};',
