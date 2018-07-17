@@ -23,12 +23,12 @@ import { DefaultController, IControllerOptions, OpenMode, ClickBehavior, Default
 import { isUndefinedOrNull } from 'vs/base/common/types';
 import { IEditorOptions } from 'vs/platform/editor/common/editor';
 import { Event, Emitter } from 'vs/base/common/event';
-import { createStyleSheet, addStandardDisposableListener, getTotalHeight } from 'vs/base/browser/dom';
+import { createStyleSheet, addStandardDisposableListener, getTotalHeight, removeClass, addClass } from 'vs/base/browser/dom';
 import { ScrollbarVisibility } from 'vs/base/common/scrollable';
 import { InputBox, IInputOptions } from 'vs/base/browser/ui/inputbox/inputBox';
 import { IContextViewService } from 'vs/platform/contextview/browser/contextView';
 import { TPromise } from 'vs/base/common/winjs.base';
-import { onUnexpectedError } from 'vs/base/common/errors';
+import { onUnexpectedError, canceled } from 'vs/base/common/errors';
 import { KeyCode } from 'vs/base/common/keyCodes';
 import { IKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 
@@ -605,6 +605,7 @@ export class HighlightingTreeController extends WorkbenchTreeController {
 
 export class HighlightingWorkbenchTree extends WorkbenchTree {
 
+	protected readonly domNode: HTMLElement;
 	protected readonly inputContainer: HTMLElement;
 	protected readonly input: InputBox;
 
@@ -634,9 +635,12 @@ export class HighlightingWorkbenchTree extends WorkbenchTree {
 		parent.appendChild(container);
 
 		// create tree
-		treeConfiguration.controller = treeConfiguration.controller || instantiationService.createInstance(HighlightingTreeController, {}, () => this.input.focus());
+		treeConfiguration.controller = treeConfiguration.controller || instantiationService.createInstance(HighlightingTreeController, {}, () => this.onTypeInTree());
 		super(treeContainer, treeConfiguration, treeOptions, contextKeyService, listService, themeService, instantiationService, configurationService);
 		this.renderer = treeConfiguration.renderer;
+
+		this.domNode = container;
+		addClass(this.domNode, 'inactive');
 
 		// create input
 		this.inputContainer = inputContainer;
@@ -665,6 +669,10 @@ export class HighlightingWorkbenchTree extends WorkbenchTree {
 	setInput(element: any): TPromise<any> {
 		this.input.setEnabled(false);
 		return super.setInput(element).then(value => {
+			if (!this.input.inputElement) {
+				// has been disposed in the meantime -> cancel
+				return Promise.reject(canceled());
+			}
 			this.input.setEnabled(true);
 			return value;
 		});
@@ -673,6 +681,12 @@ export class HighlightingWorkbenchTree extends WorkbenchTree {
 	layout(height?: number, width?: number): void {
 		this.input.layout();
 		super.layout(isNaN(height) ? height : height - getTotalHeight(this.inputContainer), width);
+	}
+
+	private onTypeInTree(): void {
+		removeClass(this.domNode, 'inactive');
+		this.input.focus();
+		this.layout();
 	}
 
 	private lastSelection: any[];
@@ -693,6 +707,7 @@ export class HighlightingWorkbenchTree extends WorkbenchTree {
 		if (topElement && pattern) {
 			this.reveal(topElement).then(_ => {
 				this.setSelection([topElement], this);
+				this.setFocus(topElement, this);
 				return this.refresh();
 			}, onUnexpectedError);
 		} else {

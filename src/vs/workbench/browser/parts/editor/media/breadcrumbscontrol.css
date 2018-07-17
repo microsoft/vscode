@@ -24,9 +24,18 @@
 	padding: 5px 9px;
 	position: relative;
 	box-sizing: border-box;
+	height: 36px;
 }
 
 .monaco-workbench .monaco-breadcrumbs-picker .highlighting-tree>.tree {
+	height: calc(100% - 36px);
+}
+
+.monaco-workbench .monaco-breadcrumbs-picker .highlighting-tree.inactive>.input {
+	display: none;
+}
+
+.monaco-workbench .monaco-breadcrumbs-picker .highlighting-tree.inactive>.tree {
 	height: 100%;
 }
 
