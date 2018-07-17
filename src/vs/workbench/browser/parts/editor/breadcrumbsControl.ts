@@ -19,7 +19,7 @@ import { OutlineElement, OutlineGroup, OutlineModel, TreeElement } from 'vs/edit
 import { ContextKeyExpr, IContextKey, IContextKeyService, RawContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { IContextViewService } from 'vs/platform/contextview/browser/contextView';
 import { FileKind, IFileService } from 'vs/platform/files/common/files';
-import { IConstructorSignature2, IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
+import { IConstructorSignature1, IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { KeybindingsRegistry } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { attachBreadcrumbsStyler } from 'vs/platform/theme/common/styler';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
@@ -263,9 +263,10 @@ export class BreadcrumbsControl {
 				return event.node;
 			},
 			render: (parent: HTMLElement) => {
-				let ctor: IConstructorSignature2<HTMLElement, BreadcrumbElement, BreadcrumbsPicker> = element instanceof FileElement ? BreadcrumbsFilePicker : BreadcrumbsOutlinePicker;
-				let res = this._instantiationService.createInstance(ctor, parent, element);
+				let ctor: IConstructorSignature1<HTMLElement, BreadcrumbsPicker> = element instanceof FileElement ? BreadcrumbsFilePicker : BreadcrumbsOutlinePicker;
+				let res = this._instantiationService.createInstance(ctor, parent);
 				res.layout({ width: Math.max(220, dom.getTotalWidth(event.node)), height: 330 });
+				res.setInput(element);
 				let listener = res.onDidPickElement(data => {
 					this._contextViewService.hideContextView();
 					this._widget.setFocused(undefined);

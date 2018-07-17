@@ -40,7 +40,6 @@ export abstract class BreadcrumbsPicker {
 
 	constructor(
 		container: HTMLElement,
-		input: BreadcrumbElement,
 		@IInstantiationService protected readonly _instantiationService: IInstantiationService,
 		@IThemeService protected readonly _themeService: IThemeService,
 	) {
@@ -64,17 +63,6 @@ export abstract class BreadcrumbsPicker {
 			}
 		}));
 
-		this._tree.setInput(this._getInput(input)).then(() => {
-			let selection = this._getInitialSelection(this._tree, input);
-			if (selection) {
-				this._tree.reveal(selection).then(() => {
-					this._tree.setSelection([selection], this._tree);
-					this._tree.setFocus(selection);
-				});
-			}
-		}, onUnexpectedError);
-
-		// this._input.focus();
 		this._tree.domFocus();
 	}
 
@@ -83,6 +71,19 @@ export abstract class BreadcrumbsPicker {
 		this._onDidPickElement.dispose();
 		this._tree.dispose();
 		this._focus.dispose();
+	}
+
+	setInput(input: any): void {
+		let actualInput = this._getInput(input);
+		this._tree.setInput(actualInput).then(() => {
+			let selection = this._getInitialSelection(this._tree, input);
+			if (selection) {
+				this._tree.reveal(selection).then(() => {
+					this._tree.setSelection([selection], this._tree);
+					this._tree.setFocus(selection);
+				});
+			}
+		}, onUnexpectedError);
 	}
 
 	layout(dim: dom.Dimension) {
