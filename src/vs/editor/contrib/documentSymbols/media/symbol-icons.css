@@ -131,11 +131,11 @@
 
 /* variable */
 .monaco-workbench .symbol-icon.variable {
-	background-image: url('Field_16x.svg');
+	background-image: url('LocalVariable_16x_vscode.svg');
 }
 .vs-dark .monaco-workbench .symbol-icon.variable,
 .hc-black .monaco-workbench .symbol-icon.variable {
-	background-image: url('Field_16x_darkp.svg');
+	background-image: url('LocalVariable_16x_vscode_inverse.svg');
 }
 
 /* array */
