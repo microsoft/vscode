@@ -10,32 +10,32 @@ import { Action } from 'vs/base/common/actions';
 import * as errors from 'vs/base/common/errors';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import * as debug from 'vs/workbench/parts/debug/common/debug';
 import { Debugger } from 'vs/workbench/parts/debug/node/debugger';
 import { IOutputService } from 'vs/workbench/parts/output/common/output';
 import { IWorkspaceFolder } from 'vs/platform/workspace/common/workspace';
 import { INotificationService } from 'vs/platform/notification/common/notification';
 import { formatPII } from 'vs/workbench/parts/debug/common/debugUtils';
 import { SocketDebugAdapter } from 'vs/workbench/parts/debug/node/debugAdapter';
+import { SessionState, DebugEvent, IRawSession, IDebugAdapter } from 'vs/workbench/parts/debug/common/debug';
 
 
-export interface SessionExitedEvent extends debug.DebugEvent {
+export interface SessionExitedEvent extends DebugEvent {
 	body: {
 		exitCode: number,
 		sessionId: string
 	};
 }
 
-export interface SessionTerminatedEvent extends debug.DebugEvent {
+export interface SessionTerminatedEvent extends DebugEvent {
 	body: {
 		restart?: boolean,
 		sessionId: string
 	};
 }
 
-export class RawDebugSession implements debug.IRawSession {
+export class RawDebugSession implements IRawSession {
 
-	private debugAdapter: debug.IDebugAdapter;
+	private debugAdapter: IDebugAdapter;
 
 	public emittedStopped: boolean;
 	public readyForBreakpoints: boolean;
@@ -47,6 +47,7 @@ export class RawDebugSession implements debug.IRawSession {
 	private sentPromises: TPromise<DebugProtocol.Response>[];
 	private _capabilities: DebugProtocol.Capabilities;
 	private allThreadsContinued: boolean;
+	private state: SessionState = SessionState.LAUNCH;
 
 	private readonly _onDidInitialize: Emitter<DebugProtocol.InitializedEvent>;
 	private readonly _onDidStop: Emitter<DebugProtocol.StoppedEvent>;
@@ -57,7 +58,7 @@ export class RawDebugSession implements debug.IRawSession {
 	private readonly _onDidThread: Emitter<DebugProtocol.ThreadEvent>;
 	private readonly _onDidOutput: Emitter<DebugProtocol.OutputEvent>;
 	private readonly _onDidBreakpoint: Emitter<DebugProtocol.BreakpointEvent>;
-	private readonly _onDidCustomEvent: Emitter<debug.DebugEvent>;
+	private readonly _onDidCustomEvent: Emitter<DebugEvent>;
 	private readonly _onDidEvent: Emitter<DebugProtocol.Event>;
 
 	constructor(
@@ -84,7 +85,7 @@ export class RawDebugSession implements debug.IRawSession {
 		this._onDidThread = new Emitter<DebugProtocol.ThreadEvent>();
 		this._onDidOutput = new Emitter<DebugProtocol.OutputEvent>();
 		this._onDidBreakpoint = new Emitter<DebugProtocol.BreakpointEvent>();
-		this._onDidCustomEvent = new Emitter<debug.DebugEvent>();
+		this._onDidCustomEvent = new Emitter<DebugEvent>();
 		this._onDidEvent = new Emitter<DebugProtocol.Event>();
 	}
 
@@ -128,7 +129,7 @@ export class RawDebugSession implements debug.IRawSession {
 		return this._onDidBreakpoint.event;
 	}
 
-	public get onDidCustomEvent(): Event<debug.DebugEvent> {
+	public get onDidCustomEvent(): Event<DebugEvent> {
 		return this._onDidCustomEvent.event;
 	}
 
@@ -230,7 +231,7 @@ export class RawDebugSession implements debug.IRawSession {
 		}, () => errorCallback(errors.canceled()));
 	}
 
-	private onDapEvent(event: debug.DebugEvent): void {
+	private onDapEvent(event: DebugEvent): void {
 		event.sessionId = this.id;
 
 		if (event.event === 'initialized') {
@@ -283,6 +284,7 @@ export class RawDebugSession implements debug.IRawSession {
 	}
 
 	public attach(args: DebugProtocol.AttachRequestArguments): TPromise<DebugProtocol.AttachResponse> {
+		this.state = SessionState.ATTACH;
 		return this.send('attach', args).then(response => this.readCapabilities(response));
 	}
 
@@ -341,7 +343,7 @@ export class RawDebugSession implements debug.IRawSession {
 	}
 
 	public terminate(restart = false): TPromise<DebugProtocol.TerminateResponse> {
-		if (this.capabilities.supportsTerminateRequest && !this.terminated) {
+		if (this.capabilities.supportsTerminateRequest && !this.terminated && this.state === SessionState.LAUNCH) {
 			this.terminated = true;
 			return this.send('terminate', { restart });
 		}
