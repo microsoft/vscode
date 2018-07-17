@@ -526,6 +526,7 @@ export class ExtensionTipsService extends Disposable implements IExtensionTipsSe
 							recommendationsToSuggest.push(id);
 						}
 						const filedBasedRecommendation = this._fileBasedRecommendations[id.toLowerCase()] || { recommendedTime: now, sources: [] };
+						filedBasedRecommendation.recommendedTime = now;
 						if (!filedBasedRecommendation.sources.some(s => s instanceof URI && s.toString() === uri.toString())) {
 							filedBasedRecommendation.sources.push(uri);
 						}
