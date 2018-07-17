@@ -35,7 +35,17 @@ import { Registry } from 'vs/platform/registry/common/platform';
 
 export abstract class TreeViewsViewletPanel extends ViewletPanel {
 
-	protected tree: WorkbenchTree;
+	private _tree: WorkbenchTree;
+	protected get tree(): WorkbenchTree { return this._tree; }
+	protected set tree(tree: WorkbenchTree) {
+		this._tree = tree;
+		this.disposables.push(this._tree);
+	}
+
+	setInput(element): TPromise<any, any> {
+		return this.tree.setInput(element).then(() => this.focusFirstIfNoFocus());
+	}
+
 
 	setExpanded(expanded: boolean): void {
 		if (this.isExpanded() !== expanded) {
@@ -81,6 +91,12 @@ export abstract class TreeViewsViewletPanel extends ViewletPanel {
 		}
 	}
 
+	protected focusFirstIfNoFocus() {
+		if (!this.tree.getFocus()) {
+			this.tree.setFocus(this.tree.getFirstVisibleElement());
+		}
+	}
+
 	private focusTree(): void {
 		if (!this.tree) {
 			return; // return early if viewlet has not yet been created
@@ -94,13 +110,6 @@ export abstract class TreeViewsViewletPanel extends ViewletPanel {
 
 		// Pass Focus to Viewer
 		this.tree.domFocus();
-	}
-
-	dispose(): void {
-		if (this.tree) {
-			this.tree.dispose();
-		}
-		super.dispose();
 	}
 }
 

@@ -183,6 +183,7 @@ export class ExplorerView extends TreeViewsViewletPanel implements IExplorerView
 			this.disposables.push(this.configurationService.onDidChangeConfiguration(e => this.onConfigurationUpdated(this.configurationService.getValue<IFilesConfiguration>(), e)));
 
 			this.revealActiveFile();
+			this.focusFirstIfNoFocus();
 		});
 	}
 
@@ -222,7 +223,6 @@ export class ExplorerView extends TreeViewsViewletPanel implements IExplorerView
 		}
 
 		let clearSelection = true;
-		let clearFocus = false;
 
 		// Handle files
 		const activeFile = this.getActiveFile();
@@ -246,7 +246,6 @@ export class ExplorerView extends TreeViewsViewletPanel implements IExplorerView
 		const activeInput = this.editorService.activeEditor;
 		if (!activeInput || toResource(activeInput, { supportSideBySide: true, filter: Schemas.untitled })) {
 			this.settings[ExplorerView.MEMENTO_LAST_ACTIVE_FILE_RESOURCE] = void 0;
-			clearFocus = true;
 		}
 
 		// Otherwise clear
@@ -254,9 +253,6 @@ export class ExplorerView extends TreeViewsViewletPanel implements IExplorerView
 			this.explorerViewer.clearSelection();
 		}
 
-		if (clearFocus) {
-			this.explorerViewer.clearFocus();
-		}
 	}
 
 	private onConfigurationUpdated(configuration: IFilesConfiguration, event?: IConfigurationChangeEvent): void {

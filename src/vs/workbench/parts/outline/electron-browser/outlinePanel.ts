@@ -529,6 +529,9 @@ export class OutlinePanel extends ViewletPanel {
 				this._treeStates.set(oldModel.textModel.uri.toString(), state);
 			}
 			await this._tree.setInput(model);
+			if (!this._tree.getFocus()) {
+				this._tree.setFocus(this._tree.getFirstVisibleElement());
+			}
 			let state = this._treeStates.get(model.textModel.uri.toString());
 			await OutlineTreeState.restore(this._tree, state, this);
 		}
