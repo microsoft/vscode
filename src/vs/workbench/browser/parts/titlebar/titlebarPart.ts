@@ -46,6 +46,7 @@ export class TitlebarPart extends Part implements ITitleService {
 
 	private titleContainer: Builder;
 	private title: Builder;
+	private dragRegion: Builder;
 	private windowControls: Builder;
 	private maxRestoreControl: Builder;
 	private appIcon: Builder;
@@ -249,6 +250,9 @@ export class TitlebarPart extends Part implements ITitleService {
 
 	createContentArea(parent: HTMLElement): HTMLElement {
 		this.titleContainer = $(parent);
+
+		// Draggable region that we can manipulate for #52522
+		this.dragRegion = $(this.titleContainer).div({ class: 'titlebar-drag-region' });
 
 		// App Icon (Windows/Linux)
 		if (!isMacintosh) {
@@ -504,11 +508,8 @@ export class TitlebarPart extends Part implements ITitleService {
 				this.title.style('visibility', 'hidden');
 
 				// Hack to fix issue #52522 with layered webkit-app-region elements appearing under cursor
-				this.titleContainer.addClass('menu-toggling');
-				setTimeout(() => {
-					this.titleContainer.removeClass('menu-toggling');
-				}, 50);
-
+				this.dragRegion.hide();
+				this.dragRegion.showDelayed(50);
 			} else {
 				this.title.style('visibility', null);
 			}
