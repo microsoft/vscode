@@ -5,7 +5,7 @@
 
 'use strict';
 
-import * as fs from 'original-fs';
+import * as fs from 'fs';
 import * as path from 'path';
 import * as pfs from 'vs/base/node/pfs';
 import { memoize } from 'vs/base/common/decorators';

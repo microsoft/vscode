@@ -6,7 +6,7 @@
 'use strict';
 
 import { basename, normalize, join, dirname } from 'path';
-import * as fs from 'original-fs';
+import * as fs from 'fs';
 import { localize } from 'vs/nls';
 import * as arrays from 'vs/base/common/arrays';
 import { assign, mixin, equals } from 'vs/base/common/objects';

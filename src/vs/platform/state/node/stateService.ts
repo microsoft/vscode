@@ -6,7 +6,7 @@
 'use strict';
 
 import * as path from 'path';
-import * as fs from 'original-fs';
+import * as fs from 'fs';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { writeFileAndFlushSync } from 'vs/base/node/extfs';
 import { isUndefined, isUndefinedOrNull } from 'vs/base/common/types';
