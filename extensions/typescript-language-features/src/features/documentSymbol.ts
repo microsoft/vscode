@@ -7,9 +7,7 @@ import * as vscode from 'vscode';
 import * as Proto from '../protocol';
 import * as PConst from '../protocol.const';
 import { ITypeScriptServiceClient } from '../typescriptService';
-import API from '../utils/api';
 import * as typeConverters from '../utils/typeConverters';
-
 
 const getSymbolKind = (kind: string): vscode.SymbolKind => {
 	switch (kind) {
@@ -33,7 +31,8 @@ const getSymbolKind = (kind: string): vscode.SymbolKind => {
 
 class TypeScriptDocumentSymbolProvider implements vscode.DocumentSymbolProvider {
 	public constructor(
-		private readonly client: ITypeScriptServiceClient) { }
+		private readonly client: ITypeScriptServiceClient
+	) { }
 
 	public async provideDocumentSymbols(resource: vscode.TextDocument, token: vscode.CancellationToken): Promise<vscode.DocumentSymbol[] | vscode.SymbolInformation[]> {
 		const filepath = this.client.toPath(resource.uri);
@@ -45,47 +44,19 @@ class TypeScriptDocumentSymbolProvider implements vscode.DocumentSymbolProvider 
 		};
 
 		try {
-			if (this.client.apiVersion.gte(API.v206)) {
-				const response = await this.client.execute('navtree', args, token);
-				if (response.body) {
-					// The root represents the file. Ignore this when showing in the UI
-					const tree = response.body;
-					if (tree.childItems) {
-						const result = new Array<vscode.DocumentSymbol>();
-						tree.childItems.forEach(item => TypeScriptDocumentSymbolProvider.convertNavTree(resource.uri, result, item));
-						return result;
-					}
-				}
-			} else {
-				const response = await this.client.execute('navbar', args, token);
-				if (response.body) {
-					const result = new Array<vscode.SymbolInformation>();
-					const foldingMap: ObjectMap<vscode.SymbolInformation> = Object.create(null);
-					response.body.forEach(item => TypeScriptDocumentSymbolProvider.convertNavBar(resource.uri, 0, foldingMap, result as vscode.SymbolInformation[], item));
+			const response = await this.client.execute('navtree', args, token);
+			if (response.body) {
+				// The root represents the file. Ignore this when showing in the UI
+				const tree = response.body;
+				if (tree.childItems) {
+					const result = new Array<vscode.DocumentSymbol>();
+					tree.childItems.forEach(item => TypeScriptDocumentSymbolProvider.convertNavTree(resource.uri, result, item));
 					return result;
 				}
 			}
 			return [];
 		} catch (e) {
 			return [];
-		}
-	}
-
-	private static convertNavBar(resource: vscode.Uri, indent: number, foldingMap: ObjectMap<vscode.SymbolInformation>, bucket: vscode.SymbolInformation[], item: Proto.NavigationBarItem, containerLabel?: string): void {
-		const realIndent = indent + item.indent;
-		const key = `${realIndent}|${item.text}`;
-		if (realIndent !== 0 && !foldingMap[key] && TypeScriptDocumentSymbolProvider.shouldInclueEntry(item)) {
-			const result = new vscode.SymbolInformation(item.text,
-				getSymbolKind(item.kind),
-				containerLabel ? containerLabel : '',
-				typeConverters.Location.fromTextSpan(resource, item.spans[0]));
-			foldingMap[key] = result;
-			bucket.push(result);
-		}
-		if (item.childItems && item.childItems.length > 0) {
-			for (const child of item.childItems) {
-				TypeScriptDocumentSymbolProvider.convertNavBar(resource, realIndent + 1, foldingMap, bucket, child, item.text);
-			}
 		}
 	}
 
