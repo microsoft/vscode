@@ -364,14 +364,14 @@ class TypeScriptCompletionItemProvider implements vscode.CompletionItemProvider 
 			]
 		};
 
-		let response: Proto.CompletionDetailsResponse;
+		let details: Proto.CompletionEntryDetails[] | undefined;
 		try {
-			response = await this.client.execute('completionEntryDetails', args, token);
+			const response = await this.client.execute('completionEntryDetails', args, token);
+			details = response.body;
 		} catch {
 			return item;
 		}
 
-		const details = response.body;
 		if (!details || !details.length || !details[0]) {
 			return item;
 		}
