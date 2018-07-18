@@ -3920,21 +3920,13 @@ mute-stream@~0.0.4:
   version "0.0.7"
   resolved "https://registry.yarnpkg.com/mute-stream/-/mute-stream-0.0.7.tgz#3075ce93bc21b8fab43e1bc4da7e8115ed1e7bab"
 
-nan@2.10.0:
+nan@2.10.0, nan@^2.10.0:
   version "2.10.0"
   resolved "https://registry.yarnpkg.com/nan/-/nan-2.10.0.tgz#96d0cd610ebd58d4b4de9cc0c6828cda99c7548f"
 
 nan@2.8.0, nan@^2.8.0:
   version "2.8.0"
   resolved "https://registry.yarnpkg.com/nan/-/nan-2.8.0.tgz#ed715f3fe9de02b57a5e6252d90a96675e1f085a"
-
-nan@^2.0.0:
-  version "2.9.2"
-  resolved "https://registry.yarnpkg.com/nan/-/nan-2.9.2.tgz#f564d75f5f8f36a6d9456cca7a6c4fe488ab7866"
-
-nan@^2.0.9, nan@^2.3.0:
-  version "2.4.0"
-  resolved "https://registry.yarnpkg.com/nan/-/nan-2.4.0.tgz#fb3c59d45fe4effe215f0b890f8adf6eb32d2232"
 
 nan@^2.1.0:
   version "2.7.0"
@@ -4161,11 +4153,11 @@ onetime@^1.0.0:
   version "1.1.0"
   resolved "https://registry.yarnpkg.com/onetime/-/onetime-1.1.0.tgz#a1f7838f8314c516f05ecefcbc4ccfe04b4ed789"
 
-oniguruma@^7.0.0:
+oniguruma@bpasero/node-oniguruma#nan-2.10.0:
   version "7.0.0"
-  resolved "https://registry.yarnpkg.com/oniguruma/-/oniguruma-7.0.0.tgz#cf258a8b1a2ec1d0d68964d6336df264008ebf4c"
+  resolved "https://codeload.github.com/bpasero/node-oniguruma/tar.gz/ee02dceee2e45f4edf7b1eeef518f5d3ad19a7bd"
   dependencies:
-    nan "^2.0.9"
+    nan "^2.10.0"
 
 optimist@0.3.5:
   version "0.3.5"
@@ -6195,9 +6187,9 @@ vsce@1.33.2:
     yauzl "^2.3.1"
     yazl "^2.2.2"
 
-vscode-chokidar@1.6.2:
-  version "1.6.2"
-  resolved "https://registry.yarnpkg.com/vscode-chokidar/-/vscode-chokidar-1.6.2.tgz#4db06e2d963befe42dd44434212f5b8606b53831"
+vscode-chokidar@^1.6.2:
+  version "1.6.3"
+  resolved "https://registry.yarnpkg.com/vscode-chokidar/-/vscode-chokidar-1.6.3.tgz#69d760870549d53355b570789b514db914d16b9c"
   dependencies:
     anymatch "^1.3.0"
     async-each "^1.0.0"
@@ -6208,17 +6200,17 @@ vscode-chokidar@1.6.2:
     path-is-absolute "^1.0.0"
     readdirp "^2.0.0"
   optionalDependencies:
-    vscode-fsevents "0.3.8"
+    vscode-fsevents "0.3.9"
 
 vscode-debugprotocol@1.30.0:
   version "1.30.0"
   resolved "https://registry.yarnpkg.com/vscode-debugprotocol/-/vscode-debugprotocol-1.30.0.tgz#ece6d8559733e87bc7a2147b385899777a92af69"
 
-vscode-fsevents@0.3.8:
-  version "0.3.8"
-  resolved "https://registry.yarnpkg.com/vscode-fsevents/-/vscode-fsevents-0.3.8.tgz#389647fa2f6daffedf1b40132a5bb96ac6501521"
+vscode-fsevents@0.3.9:
+  version "0.3.9"
+  resolved "https://registry.yarnpkg.com/vscode-fsevents/-/vscode-fsevents-0.3.9.tgz#edbb66ea2c4eeb102b9194bb602e73bd9512c64c"
   dependencies:
-    nan "^2.3.0"
+    nan "^2.10.0"
 
 vscode-nls-dev@3.0.7:
   version "3.0.7"
@@ -6236,25 +6228,25 @@ vscode-nls-dev@3.0.7:
     xml2js "^0.4.19"
     yargs "^10.1.1"
 
-vscode-nsfw@1.0.17:
-  version "1.0.17"
-  resolved "https://registry.yarnpkg.com/vscode-nsfw/-/vscode-nsfw-1.0.17.tgz#da3820f26aea3a7e95cadc54bd9e5dae3d47e474"
+vscode-nsfw@bpasero/nsfw#electron-3.0.x:
+  version "1.0.16"
+  resolved "https://codeload.github.com/bpasero/nsfw/tar.gz/b2df5c087cdaa654b416a700ccd2fc9bcbc92f0f"
   dependencies:
     fs-extra "^0.26.5"
     lodash.isinteger "^4.0.4"
     lodash.isundefined "^3.0.1"
-    nan "^2.0.0"
+    nan "^2.10.0"
     promisify-node "^0.3.0"
 
 vscode-ripgrep@^1.0.1:
   version "1.0.1"
   resolved "https://registry.yarnpkg.com/vscode-ripgrep/-/vscode-ripgrep-1.0.1.tgz#eff2f2b2a49921ac0acd3ff8dfecaaeebf0184cf"
 
-vscode-textmate@^4.0.1:
+vscode-textmate@Microsoft/vscode-textmate#electron-3.0.x:
   version "4.0.1"
-  resolved "https://registry.yarnpkg.com/vscode-textmate/-/vscode-textmate-4.0.1.tgz#6c36f28e9059ce12bc34907f7a33ea43166b26a8"
+  resolved "https://codeload.github.com/Microsoft/vscode-textmate/tar.gz/a29af05076a6ad0d598c00d65fe130fe9b84b164"
   dependencies:
-    oniguruma "^7.0.0"
+    oniguruma bpasero/node-oniguruma#nan-2.10.0
 
 vscode-xterm@3.6.0-beta3:
   version "3.6.0-beta3"
