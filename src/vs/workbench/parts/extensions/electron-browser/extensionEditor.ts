@@ -494,7 +494,7 @@ export class ExtensionEditor extends BaseEditor {
 
 				this.activeWebview.onDidClickLink(link => {
 					// Whitelist supported schemes for links
-					if (link && ['http', 'https', 'mailto'].indexOf(link.scheme) >= 0) {
+					if (link && ['http', 'https', 'mailto', 'command'].indexOf(link.scheme) >= 0) {
 						this.openerService.open(link);
 					}
 				}, null, this.contentDisposables);
