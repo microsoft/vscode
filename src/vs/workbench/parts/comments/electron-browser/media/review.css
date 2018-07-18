@@ -149,6 +149,7 @@
 	white-space: nowrap;
 	border: 0px;
 	cursor: text;
+	outline: 1px solid transparent;
 }
 
 .monaco-editor .review-widget .body .comment-form .review-thread-reply-button:focus {
