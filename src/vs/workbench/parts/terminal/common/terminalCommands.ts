@@ -6,7 +6,7 @@
 import { KeybindingsRegistry } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { ITerminalService } from 'vs/workbench/parts/terminal/common/terminal';
 
-export function setup(): void {
+export function setupTerminalCommands(): void {
 	registerOpenTerminalAtIndexCommands();
 }
 

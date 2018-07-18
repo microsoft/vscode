@@ -11,7 +11,6 @@ import * as debugActions from 'vs/workbench/parts/debug/browser/debugActions';
 import * as nls from 'vs/nls';
 import * as panel from 'vs/workbench/browser/panel';
 import * as platform from 'vs/base/common/platform';
-import * as terminalCommands from 'vs/workbench/parts/terminal/common/terminalCommands';
 import { Extensions, IConfigurationRegistry } from 'vs/platform/configuration/common/configurationRegistry';
 import { ITerminalService, KEYBINDING_CONTEXT_TERMINAL_FOCUS, KEYBINDING_CONTEXT_TERMINAL_TEXT_SELECTED, TERMINAL_PANEL_ID, KEYBINDING_CONTEXT_TERMINAL_FIND_WIDGET_VISIBLE, TerminalCursorStyle, KEYBINDING_CONTEXT_TERMINAL_FIND_WIDGET_NOT_VISIBLE, DEFAULT_LINE_HEIGHT, DEFAULT_LETTER_SPACING } from 'vs/workbench/parts/terminal/common/terminal';
 import { getTerminalDefaultShellUnixLike, getTerminalDefaultShellWindows } from 'vs/workbench/parts/terminal/node/terminal';
@@ -37,6 +36,8 @@ import { CommandsRegistry } from 'vs/platform/commands/common/commands';
 import { TogglePanelAction } from 'vs/workbench/browser/parts/panel/panelActions';
 import { TerminalPanel } from 'vs/workbench/parts/terminal/electron-browser/terminalPanel';
 import { TerminalPickerHandler } from 'vs/workbench/parts/terminal/browser/terminalQuickOpen';
+import { setupTerminalCommands } from 'vs/workbench/parts/terminal/common/terminalCommands';
+import { setupTerminalMenu } from 'vs/workbench/parts/terminal/common/terminalMenu';
 
 const quickOpenRegistry = (Registry.as<IQuickOpenRegistry>(QuickOpenExtensions.Quickopen));
 
@@ -533,6 +534,7 @@ actionRegistry.registerWorkbenchAction(new SyncActionDescriptor(SelectToNextComm
 actionRegistry.registerWorkbenchAction(new SyncActionDescriptor(SelectToPreviousLineAction, SelectToPreviousLineAction.ID, SelectToPreviousLineAction.LABEL), 'Terminal: Select To Previous Line', category);
 actionRegistry.registerWorkbenchAction(new SyncActionDescriptor(SelectToNextLineAction, SelectToNextLineAction.ID, SelectToNextLineAction.LABEL), 'Terminal: Select To Next Line', category);
 
-terminalCommands.setup();
+setupTerminalCommands();
+setupTerminalMenu();
 
 registerColors();
