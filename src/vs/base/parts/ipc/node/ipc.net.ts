@@ -35,9 +35,13 @@ export class Protocol implements IDisposable, IMessagePassingProtocol {
 	private _firstChunkTimer: TimeoutTimer;
 	private _socketDataListener: (data: Buffer) => void;
 	private _socketEndListener: () => void;
+	private _socketCloseListener: () => void;
 
 	private _onMessage = new Emitter<any>();
 	readonly onMessage: Event<any> = this._onMessage.event;
+
+	private _onClose = new Emitter<void>();
+	readonly onClose: Event<void> = this._onClose.event;
 
 	constructor(private _socket: Socket, firstDataChunk?: Buffer) {
 		this._isDisposed = false;
@@ -134,6 +138,11 @@ export class Protocol implements IDisposable, IMessagePassingProtocol {
 			acceptFirstDataChunk();
 		};
 		_socket.on('end', this._socketEndListener);
+
+		this._socketCloseListener = () => {
+			this._onClose.fire();
+		};
+		_socket.once('close', this._socketCloseListener);
 	}
 
 	public dispose(): void {
@@ -141,6 +150,11 @@ export class Protocol implements IDisposable, IMessagePassingProtocol {
 		this._firstChunkTimer.dispose();
 		this._socket.removeListener('data', this._socketDataListener);
 		this._socket.removeListener('end', this._socketEndListener);
+		this._socket.removeListener('close', this._socketCloseListener);
+	}
+
+	public end(): void {
+		this._socket.end();
 	}
 
 	public getBuffer(): Buffer {
@@ -227,18 +241,19 @@ export class Server extends IPCServer {
 
 export class Client extends IPCClient {
 
-	private _onClose = new Emitter<void>();
-	get onClose(): Event<void> { return this._onClose.event; }
+	public static fromSocket(socket: Socket, id: string): Client {
+		return new Client(new Protocol(socket), id);
+	}
 
-	constructor(private socket: Socket, id: string) {
-		super(new Protocol(socket), id);
-		socket.once('close', () => this._onClose.fire());
+	get onClose(): Event<void> { return this.protocol.onClose; }
+
+	constructor(private protocol: Protocol, id: string) {
+		super(protocol, id);
 	}
 
 	dispose(): void {
 		super.dispose();
-		this.socket.end();
-		this.socket = null;
+		this.protocol.end();
 	}
 }
 
@@ -263,7 +278,7 @@ export function connect(hook: any, clientId: string): TPromise<Client> {
 	return new TPromise<Client>((c, e) => {
 		const socket = createConnection(hook, () => {
 			socket.removeListener('error', e);
-			c(new Client(socket, clientId));
+			c(Client.fromSocket(socket, clientId));
 		});
 
 		socket.once('error', e);
