@@ -49,6 +49,7 @@ import { assign } from 'vs/base/common/objects';
 import { INotificationService } from 'vs/platform/notification/common/notification';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { ExtensionsTree, IExtensionData } from 'vs/workbench/parts/extensions/browser/extensionsViewer';
+import { ShowCurrentReleaseNotesAction } from 'vs/workbench/parts/update/electron-browser/update';
 
 /**  A context key that is set when an extension editor webview has focus. */
 export const KEYBINDING_CONTEXT_EXTENSIONEDITOR_WEBVIEW_FOCUS = new RawContextKey<boolean>('extensionEditorWebviewFocus', undefined);
@@ -493,8 +494,11 @@ export class ExtensionEditor extends BaseEditor {
 				this.activeWebview.contents = body;
 
 				this.activeWebview.onDidClickLink(link => {
+					if (!link) {
+						return;
+					}
 					// Whitelist supported schemes for links
-					if (link && ['http', 'https', 'mailto'].indexOf(link.scheme) >= 0) {
+					if (['http', 'https', 'mailto'].indexOf(link.scheme) >= 0 || (link.scheme === 'command' && link.path === ShowCurrentReleaseNotesAction.ID)) {
 						this.openerService.open(link);
 					}
 				}, null, this.contentDisposables);
