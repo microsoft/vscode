@@ -63,18 +63,8 @@
 	display: none;
 }
 
-.monaco-workbench > .part.editor > .content .editor-group-container > .title .no-tabs-breadcrumbs.breadcrumbs-control .monaco-breadcrumb-item.shows-symbol-icon,
 .monaco-workbench > .part.editor > .content .editor-group-container > .title .no-tabs-breadcrumbs.breadcrumbs-control .monaco-breadcrumb-item:last-child {
 	padding-right: 4px; /* does not have trailing separator*/
-}
-
-.monaco-workbench > .part.editor > .content .editor-group-container > .title .no-tabs-breadcrumbs.breadcrumbs-control .monaco-breadcrumb-item.shows-symbol-icon::before {
-	padding-right: 2px;
-}
-
-.monaco-workbench > .part.editor > .content .editor-group-container > .title .no-tabs-breadcrumbs.breadcrumbs-control .monaco-breadcrumb-item.shows-symbol-icon .symbol-icon {
-	width: 15px;
-	min-width: 15px;
 }
 
 /* Title Actions */
