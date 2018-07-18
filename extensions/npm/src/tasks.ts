@@ -304,6 +304,45 @@ async function findAllScripts(buffer: string): Promise<StringMap> {
 	return scripts;
 }
 
+export function findScriptAtPosition(buffer: string, offset: number): string | undefined {
+	let script: string | undefined = undefined;
+	let inScripts = false;
+	let scriptStart: number | undefined;
+
+	let visitor: JSONVisitor = {
+		onError(_error: ParseErrorCode, _offset: number, _length: number) {
+			// TODO: inform user about the parse error
+		},
+		onObjectEnd() {
+			if (inScripts) {
+				inScripts = false;
+				scriptStart = undefined;
+			}
+		},
+		onLiteralValue(value: any, nodeOffset: number, nodeLength: number) {
+			if (inScripts && scriptStart) {
+				if (offset >= scriptStart && offset < nodeOffset + nodeLength) {
+					// found the script
+					inScripts = false;
+				} else {
+					script = undefined;
+				}
+			}
+		},
+		onObjectProperty(property: string, nodeOffset: number, nodeLength: number) {
+			if (property === 'scripts') {
+				inScripts = true;
+			}
+			else if (inScripts) {
+				scriptStart = nodeOffset;
+				script = property;
+			}
+		}
+	};
+	visit(buffer, visitor);
+	return script;
+}
+
 export async function getScripts(packageJsonUri: Uri): Promise<StringMap | undefined> {
 
 	if (packageJsonUri.scheme !== 'file') {

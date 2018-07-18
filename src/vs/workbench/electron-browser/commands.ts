@@ -105,7 +105,7 @@ export function registerCommands(): void {
 	KeybindingsRegistry.registerCommandAndKeybindingRule({
 		id: 'list.expandSelectionDown',
 		weight: KeybindingsRegistry.WEIGHT.workbenchContrib(),
-		when: WorkbenchListFocusContextKey,
+		when: ContextKeyExpr.and(WorkbenchListFocusContextKey, WorkbenchListSupportsMultiSelectContextKey),
 		primary: KeyMod.Shift | KeyCode.DownArrow,
 		handler: (accessor, arg2) => {
 			const focused = accessor.get(IListService).lastFocusedList;
@@ -178,7 +178,7 @@ export function registerCommands(): void {
 	KeybindingsRegistry.registerCommandAndKeybindingRule({
 		id: 'list.expandSelectionUp',
 		weight: KeybindingsRegistry.WEIGHT.workbenchContrib(),
-		when: WorkbenchListFocusContextKey,
+		when: ContextKeyExpr.and(WorkbenchListFocusContextKey, WorkbenchListSupportsMultiSelectContextKey),
 		primary: KeyMod.Shift | KeyCode.UpArrow,
 		handler: (accessor, arg2) => {
 			const focused = accessor.get(IListService).lastFocusedList;
