@@ -48,7 +48,6 @@ export abstract class BreadcrumbsPicker {
 		const color = this._themeService.getTheme().getColor(breadcrumbsActiveSelectionBackground);
 		this._domNode.style.background = color.toString();
 		this._domNode.style.boxShadow = `0px 5px 8px ${color.darken(.2)}`;
-		this._domNode.style.position = 'absolute';
 		this._domNode.style.zIndex = '1000';
 		container.appendChild(this._domNode);
 
