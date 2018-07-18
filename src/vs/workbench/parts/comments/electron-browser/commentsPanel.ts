@@ -23,6 +23,7 @@ import { ICommentService, IWorkspaceCommentThreadsEvent } from 'vs/workbench/par
 import { IEditorService, ACTIVE_GROUP, SIDE_GROUP } from 'vs/workbench/services/editor/common/editorService';
 import { ICommandService } from 'vs/platform/commands/common/commands';
 import { textLinkForeground, textLinkActiveForeground, focusBorder } from 'vs/platform/theme/common/colorRegistry';
+import { IOpenerService } from 'vs/platform/opener/common/opener';
 
 export const COMMENTS_PANEL_ID = 'workbench.panel.comments';
 export const COMMENTS_PANEL_TITLE = 'Comments';
@@ -40,6 +41,7 @@ export class CommentsPanel extends Panel {
 		@ICommentService private commentService: ICommentService,
 		@IEditorService private editorService: IEditorService,
 		@ICommandService private commandService: ICommandService,
+		@IOpenerService private openerService: IOpenerService,
 		@ITelemetryService telemetryService: ITelemetryService,
 		@IThemeService themeService: IThemeService
 	) {
@@ -130,7 +132,7 @@ export class CommentsPanel extends Panel {
 	private createTree(): void {
 		this.tree = this.instantiationService.createInstance(WorkbenchTree, this.treeContainer, {
 			dataSource: new CommentsDataSource(),
-			renderer: new CommentsModelRenderer(this.instantiationService),
+			renderer: new CommentsModelRenderer(this.instantiationService, this.openerService),
 			accessibilityProvider: new DefaultAccessibilityProvider,
 			controller: new DefaultController(),
 			dnd: new DefaultDragAndDrop(),
