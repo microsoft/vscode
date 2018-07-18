@@ -117,14 +117,14 @@ suite('CharacterPairSupport', () => {
 		assert.equal(testShouldAutoClose(sup, [{ text: ' ', type: StandardTokenType.Other }, { text: '//a', type: StandardTokenType.Comment }], 'a', 4), false);
 		assert.equal(testShouldAutoClose(sup, [{ text: ' ', type: StandardTokenType.Other }, { text: '//a', type: StandardTokenType.Comment }], '{', 5), false);
 		assert.equal(testShouldAutoClose(sup, [{ text: ' ', type: StandardTokenType.Other }, { text: '//a', type: StandardTokenType.Comment }], 'a', 5), false);
-  });
+    });
   
-  test('shouldAutoClosePair for onlyIn array', function () {
-    var sup = new CharacterPairSupport({ autoClosingPairs: [{ open: '@', close: '{}', onlyIn: ['string'] }] });
-    // assert.equal(testShouldAutoClose(sup, [{ text: 'one', type: 0 /* Other */ }], '@', 3), true);
-    assert.equal(testShouldAutoClose(sup, [{ text: '" "', type: 2 /* String */ }], '@', 3), true);
-    assert.equal(testShouldAutoClose(sup, [{ text: ' ', type: 1 /* Comment */ }], '@', 3), false);
-    assert.equal(testShouldAutoClose(sup, [{ text: '/ /', type: 4 /* Regex */ }], '@', 3), false);
-    assert.equal(testShouldAutoClose(sup, [{ text: 'test', type: 1 /* Comment */ }, { text: 'x=', type: 0 /* Other */ }, { text: '"this"', type: 2 /* String */ }, { text: ';', type: 0 /* Other */ }], '@', 7), false);
-  });
+    test('shouldAutoClosePair for onlyIn array', function () {
+    	var sup = new CharacterPairSupport({ autoClosingPairs: [{ open: '@', close: '{}', onlyIn: ['string'] }] });
+    	// assert.equal(testShouldAutoClose(sup, [{ text: 'one', type: 0 /* Other */ }], '@', 3), true);
+    	assert.equal(testShouldAutoClose(sup, [{ text: '" "', type: 2 /* String */ }], '@', 3), true);
+    	assert.equal(testShouldAutoClose(sup, [{ text: ' ', type: 1 /* Comment */ }], '@', 3), false);
+    	assert.equal(testShouldAutoClose(sup, [{ text: '/ /', type: 4 /* Regex */ }], '@', 3), false);
+    	assert.equal(testShouldAutoClose(sup, [{ text: 'test', type: 1 /* Comment */ }, { text: 'x=', type: 0 /* Other */ }, { text: '"this"', type: 2 /* String */ }, { text: ';', type: 0 /* Other */ }], '@', 7), false);
+    });
 });
