@@ -31,6 +31,7 @@ interface IResourceMarkersTemplateData {
 
 interface IMarkerTemplateData {
 	icon: HTMLElement;
+	lightbulb: HTMLElement;
 	source: HighlightedLabel;
 	description: HighlightedLabel;
 	lnCol: HTMLElement;
@@ -179,6 +180,7 @@ export class Renderer implements IRenderer {
 	private renderMarkerTemplate(container: HTMLElement): IMarkerTemplateData {
 		const data: IMarkerTemplateData = Object.create(null);
 		data.icon = dom.append(container, dom.$('.marker-icon'));
+		data.lightbulb = dom.append(container, dom.$('.icon.lightbulb'));
 		data.source = new HighlightedLabel(dom.append(container, dom.$('')));
 		data.description = new HighlightedLabel(dom.append(container, dom.$('.marker-description')));
 		data.lnCol = dom.append(container, dom.$('span.marker-line'));
@@ -208,7 +210,9 @@ export class Renderer implements IRenderer {
 
 	private renderMarkerElement(tree: ITree, element: Marker, templateData: IMarkerTemplateData) {
 		let marker = element.raw;
+
 		templateData.icon.className = 'icon ' + Renderer.iconClassNameFor(marker);
+		dom.removeClass(templateData.lightbulb, 'quick-fixes');
 
 		templateData.source.set(marker.source, element.sourceMatches);
 		dom.toggleClass(templateData.source.element, 'marker-source', !!marker.source);
@@ -217,6 +221,11 @@ export class Renderer implements IRenderer {
 		templateData.description.element.title = marker.message;
 
 		templateData.lnCol.textContent = Messages.MARKERS_PANEL_AT_LINE_COL_NUMBER(marker.startLineNumber, marker.startColumn);
+
+		const parent = tree.getNavigator(element).parent();
+		if (parent instanceof ResourceMarkers) {
+			parent.hasFixes(element).then(hasFixes => dom.toggleClass(templateData.lightbulb, 'quick-fixes', hasFixes));
+		}
 	}
 
 	private renderRelatedInfoElement(tree: ITree, element: RelatedInformation, templateData: IRelatedInformationTemplateData) {

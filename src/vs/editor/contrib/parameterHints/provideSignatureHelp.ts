@@ -17,7 +17,7 @@ export const Context = {
 	MultipleSignatures: new RawContextKey<boolean>('parameterHintsMultipleSignatures', false),
 };
 
-export function provideSignatureHelp(model: ITextModel, position: Position, token: CancellationToken = CancellationToken.None): Promise<SignatureHelp> {
+export function provideSignatureHelp(model: ITextModel, position: Position, token: CancellationToken): Promise<SignatureHelp> {
 
 	const supports = SignatureHelpProviderRegistry.ordered(model);
 
@@ -26,4 +26,4 @@ export function provideSignatureHelp(model: ITextModel, position: Position, toke
 	}));
 }
 
-registerDefaultLanguageCommand('_executeSignatureHelpProvider', provideSignatureHelp);
+registerDefaultLanguageCommand('_executeSignatureHelpProvider', (model, position) => provideSignatureHelp(model, position, CancellationToken.None));

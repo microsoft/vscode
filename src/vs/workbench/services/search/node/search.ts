@@ -68,7 +68,10 @@ export interface ISerializedSearchSuccess {
 
 export interface ISerializedSearchError {
 	type: 'error';
-	error: any;
+	error: {
+		message: string,
+		stack: string
+	};
 }
 
 export type ISerializedSearchComplete = ISerializedSearchSuccess | ISerializedSearchError;

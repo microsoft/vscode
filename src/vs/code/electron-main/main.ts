@@ -35,7 +35,7 @@ import { IRequestService } from 'vs/platform/request/node/request';
 import { RequestService } from 'vs/platform/request/electron-main/requestService';
 import { IURLService } from 'vs/platform/url/common/url';
 import { URLService } from 'vs/platform/url/common/urlService';
-import * as fs from 'original-fs';
+import * as fs from 'fs';
 import { CodeApplication } from 'vs/code/electron-main/app';
 import { HistoryMainService } from 'vs/platform/history/electron-main/historyMainService';
 import { IHistoryMainService } from 'vs/platform/history/common/history';

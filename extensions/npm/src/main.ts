@@ -9,9 +9,13 @@ import * as vscode from 'vscode';
 
 import { addJSONProviders } from './features/jsonContributions';
 import { NpmScriptsTreeDataProvider } from './npmView';
-import { provideNpmScripts, invalidateScriptsCache } from './tasks';
+import { provideNpmScripts, invalidateScriptsCache, findScriptAtPosition, createTask } from './tasks';
+
+import * as nls from 'vscode-nls';
 
 let taskProvider: vscode.Disposable | undefined;
+
+const localize = nls.loadMessageBundle();
 
 export async function activate(context: vscode.ExtensionContext): Promise<void> {
 	taskProvider = registerTaskProvider(context);
@@ -32,6 +36,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
 		}
 	});
 	context.subscriptions.push(addJSONProviders(httpRequest.xhr));
+	context.subscriptions.push(vscode.commands.registerCommand('npm.runScriptFromSource', runScriptFromSource));
 }
 
 function registerTaskProvider(context: vscode.ExtensionContext): vscode.Disposable | undefined {
@@ -68,6 +73,29 @@ function registerExplorer(context: vscode.ExtensionContext): NpmScriptsTreeDataP
 function configureHttpRequest() {
 	const httpSettings = vscode.workspace.getConfiguration('http');
 	httpRequest.configure(httpSettings.get<string>('proxy', ''), httpSettings.get<boolean>('proxyStrictSSL', true));
+}
+
+async function runScriptFromSource() {
+	let editor = vscode.window.activeTextEditor;
+	if (!editor) {
+		return;
+	}
+	let document = editor.document;
+	let contents = document.getText();
+	let selection = editor.selection;
+	let offset = document.offsetAt(selection.anchor);
+	let script = findScriptAtPosition(contents, offset);
+	if (script) {
+		let uri = document.uri;
+		let folder = vscode.workspace.getWorkspaceFolder(uri);
+		if (folder) {
+			let task = createTask(script, `run ${script}`, folder, uri);
+			vscode.tasks.executeTask(task);
+		}
+	} else {
+		let message = localize('noScriptFound', 'Could not find a script at the selection.');
+		vscode.window.showErrorMessage(message);
+	}
 }
 
 export function deactivate(): void {

@@ -3,9 +3,9 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { commands, Memento, QuickPickItem, Uri, window, workspace } from 'vscode';
 import * as nls from 'vscode-nls';
-import { TypeScriptVersionProvider, TypeScriptVersion } from './versionProvider';
-import { Memento, commands, Uri, window, QuickPickItem, workspace } from 'vscode';
+import { TypeScriptVersion, TypeScriptVersionProvider } from './versionProvider';
 
 const localize = nls.loadMessageBundle();
 

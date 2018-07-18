@@ -36,7 +36,7 @@ export const overviewRulerWordHighlightStrongForeground = registerColor('editorO
 
 export const ctxHasWordHighlights = new RawContextKey<boolean>('hasWordHighlights', false);
 
-export function getOccurrencesAtPosition(model: ITextModel, position: Position, token: CancellationToken = CancellationToken.None): Promise<DocumentHighlight[]> {
+export function getOccurrencesAtPosition(model: ITextModel, position: Position, token: CancellationToken): Promise<DocumentHighlight[]> {
 
 	const orderedByScore = DocumentHighlightProviderRegistry.ordered(model);
 
@@ -49,7 +49,7 @@ export function getOccurrencesAtPosition(model: ITextModel, position: Position, 
 	}), result => !isFalsyOrEmpty(result));
 }
 
-registerDefaultLanguageCommand('_executeDocumentHighlights', getOccurrencesAtPosition);
+registerDefaultLanguageCommand('_executeDocumentHighlights', (model, position) => getOccurrencesAtPosition(model, position, CancellationToken.None));
 
 class WordHighlighter {
 

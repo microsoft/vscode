@@ -49,11 +49,14 @@ export interface IExtension {
 	outdated: boolean;
 	enablementState: EnablementState;
 	dependencies: string[];
+	extensionPack: string[];
 	telemetryData: any;
 	preview: boolean;
 	getManifest(): TPromise<IExtensionManifest>;
 	getReadme(): TPromise<string>;
+	hasReadme(): boolean;
 	getChangelog(): TPromise<string>;
+	hasChangelog(): boolean;
 	local?: ILocalExtension;
 	locals?: ILocalExtension[];
 	gallery?: IGalleryExtension;

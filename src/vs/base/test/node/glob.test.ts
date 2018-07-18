@@ -430,6 +430,7 @@ suite('Glob', () => {
 
 	test('expression support (single)', function () {
 		let siblings = ['test.html', 'test.txt', 'test.ts', 'test.js'];
+		let hasSibling = name => siblings.indexOf(name) !== -1;
 
 		// { "**/*.js": { "when": "$(basename).ts" } }
 		let expression: glob.IExpression = {
@@ -438,9 +439,9 @@ suite('Glob', () => {
 			}
 		};
 
-		assert.strictEqual('**/*.js', glob.match(expression, 'test.js', () => siblings));
-		assert.strictEqual(glob.match(expression, 'test.js', () => []), null);
-		assert.strictEqual(glob.match(expression, 'test.js', () => ['te.ts']), null);
+		assert.strictEqual('**/*.js', glob.match(expression, 'test.js', hasSibling));
+		assert.strictEqual(glob.match(expression, 'test.js', () => false), null);
+		assert.strictEqual(glob.match(expression, 'test.js', name => name === 'te.ts'), null);
 		assert.strictEqual(glob.match(expression, 'test.js'), null);
 
 		expression = {
@@ -449,22 +450,23 @@ suite('Glob', () => {
 			}
 		};
 
-		assert.strictEqual(glob.match(expression, 'test.js', () => siblings), null);
+		assert.strictEqual(glob.match(expression, 'test.js', hasSibling), null);
 
 		expression = {
 			'**/*.js': {
 			}
 		};
 
-		assert.strictEqual('**/*.js', glob.match(expression, 'test.js', () => siblings));
+		assert.strictEqual('**/*.js', glob.match(expression, 'test.js', hasSibling));
 
 		expression = {};
 
-		assert.strictEqual(glob.match(expression, 'test.js', () => siblings), null);
+		assert.strictEqual(glob.match(expression, 'test.js', hasSibling), null);
 	});
 
 	test('expression support (multiple)', function () {
 		let siblings = ['test.html', 'test.txt', 'test.ts', 'test.js'];
+		let hasSibling = name => siblings.indexOf(name) !== -1;
 
 		// { "**/*.js": { "when": "$(basename).ts" } }
 		let expression: glob.IExpression = {
@@ -474,11 +476,11 @@ suite('Glob', () => {
 			'**/*.bananas': { bananas: true }
 		};
 
-		assert.strictEqual('**/*.js', glob.match(expression, 'test.js', () => siblings));
-		assert.strictEqual('**/*.as', glob.match(expression, 'test.as', () => siblings));
-		assert.strictEqual('**/*.bananas', glob.match(expression, 'test.bananas', () => siblings));
+		assert.strictEqual('**/*.js', glob.match(expression, 'test.js', hasSibling));
+		assert.strictEqual('**/*.as', glob.match(expression, 'test.as', hasSibling));
+		assert.strictEqual('**/*.bananas', glob.match(expression, 'test.bananas', hasSibling));
 		assert.strictEqual('**/*.bananas', glob.match(expression, 'test.bananas'));
-		assert.strictEqual(glob.match(expression, 'test.foo', () => siblings), null);
+		assert.strictEqual(glob.match(expression, 'test.foo', hasSibling), null);
 	});
 
 	test('brackets', function () {
@@ -713,15 +715,16 @@ suite('Glob', () => {
 			'**/*.js': { when: '$(basename).ts' }
 		};
 
-		let sibilings = () => ['foo.ts', 'foo.js', 'foo', 'bar'];
+		let siblings = ['foo.ts', 'foo.js', 'foo', 'bar'];
+		let hasSibling = name => siblings.indexOf(name) !== -1;
 
-		assert.strictEqual(glob.match(expr, 'bar', sibilings), '**/bar');
-		assert.strictEqual(glob.match(expr, 'foo', sibilings), null);
-		assert.strictEqual(glob.match(expr, 'foo/bar', sibilings), '**/bar');
-		assert.strictEqual(glob.match(expr, 'foo\\bar', sibilings), '**/bar');
-		assert.strictEqual(glob.match(expr, 'foo/foo', sibilings), null);
-		assert.strictEqual(glob.match(expr, 'foo.js', sibilings), '**/*.js');
-		assert.strictEqual(glob.match(expr, 'bar.js', sibilings), null);
+		assert.strictEqual(glob.match(expr, 'bar', hasSibling), '**/bar');
+		assert.strictEqual(glob.match(expr, 'foo', hasSibling), null);
+		assert.strictEqual(glob.match(expr, 'foo/bar', hasSibling), '**/bar');
+		assert.strictEqual(glob.match(expr, 'foo\\bar', hasSibling), '**/bar');
+		assert.strictEqual(glob.match(expr, 'foo/foo', hasSibling), null);
+		assert.strictEqual(glob.match(expr, 'foo.js', hasSibling), '**/*.js');
+		assert.strictEqual(glob.match(expr, 'bar.js', hasSibling), null);
 	});
 
 	test('expression with multipe basename globs', function () {
@@ -766,10 +769,11 @@ suite('Glob', () => {
 		assert.strictEqual(glob.parse('{**/baz,**/foo}')('baz/foo', 'foo'), true);
 
 		let expr = { '**/*.js': { when: '$(basename).ts' } };
-		let sibilings = () => ['foo.ts', 'foo.js'];
+		let siblings = ['foo.ts', 'foo.js'];
+		let hasSibling = name => siblings.indexOf(name) !== -1;
 
-		assert.strictEqual(glob.parse(expr)('bar/baz.js', 'baz.js', sibilings), null);
-		assert.strictEqual(glob.parse(expr)('bar/foo.js', 'foo.js', sibilings), '**/*.js');
+		assert.strictEqual(glob.parse(expr)('bar/baz.js', 'baz.js', hasSibling), null);
+		assert.strictEqual(glob.parse(expr)('bar/foo.js', 'foo.js', hasSibling), '**/*.js');
 	});
 
 	test('expression/pattern basename terms', function () {
@@ -809,7 +813,8 @@ suite('Glob', () => {
 				['bar/nope', null]
 			]);
 
-		const siblingsFn = () => ['baz', 'baz.zip', 'nope'];
+		const siblings = ['baz', 'baz.zip', 'nope'];
+		const hasSibling = name => siblings.indexOf(name) !== -1;
 		testOptimizationForBasenames({
 			'**/foo/**': { when: '$(basename).zip' },
 			'**/bar/**': true
@@ -820,12 +825,12 @@ suite('Glob', () => {
 				['foo/bar', '**/bar/**'],
 			], [
 				null,
-				siblingsFn,
-				siblingsFn
+				hasSibling,
+				hasSibling
 			]);
 	});
 
-	function testOptimizationForBasenames(pattern: string | glob.IExpression, basenameTerms: string[], matches: [string, string | boolean][], siblingsFns: (() => string[])[] = []) {
+	function testOptimizationForBasenames(pattern: string | glob.IExpression, basenameTerms: string[], matches: [string, string | boolean][], siblingsFns: ((name: string) => boolean)[] = []) {
 		const parsed = glob.parse(<glob.IExpression>pattern, { trimForExclusions: true });
 		assert.deepStrictEqual(glob.getBasenameTerms(parsed), basenameTerms);
 		matches.forEach(([text, result], i) => {
@@ -914,7 +919,8 @@ suite('Glob', () => {
 				[nativeSep('/foo/bar/nope'), null]
 			]);
 
-		const siblingsFn = () => ['baz', 'baz.zip', 'nope'];
+		const siblings = ['baz', 'baz.zip', 'nope'];
+		let hasSibling = name => siblings.indexOf(name) !== -1;
 		testOptimizationForPaths({
 			'**/foo/123/**': { when: '$(basename).zip' },
 			'**/bar/123/**': true
@@ -925,12 +931,12 @@ suite('Glob', () => {
 				[nativeSep('foo/bar/123'), '**/bar/123/**'],
 			], [
 				null,
-				siblingsFn,
-				siblingsFn
+				hasSibling,
+				hasSibling
 			]);
 	});
 
-	function testOptimizationForPaths(pattern: string | glob.IExpression, pathTerms: string[], matches: [string, string | boolean][], siblingsFns: (() => string[])[] = []) {
+	function testOptimizationForPaths(pattern: string | glob.IExpression, pathTerms: string[], matches: [string, string | boolean][], siblingsFns: ((name: string) => boolean)[] = []) {
 		const parsed = glob.parse(<glob.IExpression>pattern, { trimForExclusions: true });
 		assert.deepStrictEqual(glob.getPathTerms(parsed), pathTerms);
 		matches.forEach(([text, result], i) => {

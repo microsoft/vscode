@@ -11,8 +11,8 @@ import API from '../utils/api';
 import { Delayer } from '../utils/async';
 import { disposeAll } from '../utils/dispose';
 import * as languageModeIds from '../utils/languageModeIds';
+import { ResourceMap } from '../utils/resourceMap';
 import * as typeConverters from '../utils/typeConverters';
-import { ResourceMap } from './resourceMap';
 
 enum BufferKind {
 	TypeScript = 1,
@@ -124,6 +124,50 @@ class PendingDiagnostics extends ResourceMap<number> {
 	}
 }
 
+class GetErrRequest {
+
+	public static executeGetErrRequest(
+		client: ITypeScriptServiceClient,
+		files: string[],
+		onDone: () => void
+	) {
+		const token = new CancellationTokenSource();
+		return new GetErrRequest(client, files, token, onDone);
+	}
+
+	private _done: boolean = false;
+
+	private constructor(
+		client: ITypeScriptServiceClient,
+		public readonly files: string[],
+		private readonly _token: CancellationTokenSource,
+		onDone: () => void
+	) {
+		const args: Proto.GeterrRequestArgs = {
+			delay: 0,
+			files
+		};
+
+		client.executeAsync('geterr', args, _token.token)
+			.then(undefined, () => { })
+			.then(() => {
+				if (this._done) {
+					return;
+				}
+				this._done = true;
+				onDone();
+			});
+	}
+
+	public cancel(): any {
+		if (!this._done) {
+			this._token.cancel();
+		}
+
+		this._token.dispose();
+	}
+}
+
 export default class BufferSyncSupport {
 
 	private readonly client: ITypeScriptServiceClient;
@@ -135,7 +179,7 @@ export default class BufferSyncSupport {
 	private readonly syncedBuffers: SyncedBufferMap;
 	private readonly pendingDiagnostics: PendingDiagnostics;
 	private readonly diagnosticDelayer: Delayer<any>;
-	private pendingGetErr: { request: Promise<any>, files: string[], token: CancellationTokenSource } | undefined;
+	private pendingGetErr: GetErrRequest | undefined;
 	private listening: boolean = false;
 
 	constructor(
@@ -236,13 +280,12 @@ export default class BufferSyncSupport {
 		}
 
 		syncedBuffer.onContentChanged(e.contentChanges);
-		this.requestDiagnostic(syncedBuffer);
+		const didTrigger = this.requestDiagnostic(syncedBuffer);
 
-		if (this.pendingGetErr) {
-			this.pendingGetErr.token.cancel();
-			this.pendingGetErr = undefined;
-
+		if (!didTrigger && this.pendingGetErr) {
 			// In this case we always want to re-trigger all diagnostics
+			this.pendingGetErr.cancel();
+			this.pendingGetErr = undefined;
 			this.triggerDiagnostics();
 		}
 	}
@@ -275,16 +318,16 @@ export default class BufferSyncSupport {
 		}, delay);
 	}
 
-	private requestDiagnostic(buffer: SyncedBuffer): void {
+	private requestDiagnostic(buffer: SyncedBuffer): boolean {
 		if (!this.shouldValidate(buffer)) {
-			return;
+			return false;
 		}
 
 		this.pendingDiagnostics.set(buffer.resource, Date.now());
 
-		const lineCount = buffer.lineCount;
-		const delay = Math.min(Math.max(Math.ceil(lineCount / 20), 300), 800);
+		const delay = Math.min(Math.max(Math.ceil(buffer.lineCount / 20), 300), 800);
 		this.triggerDiagnostics(delay);
+		return true;
 	}
 
 	public hasPendingDiagnostics(resource: Uri): boolean {
@@ -308,25 +351,17 @@ export default class BufferSyncSupport {
 		}
 
 		if (fileList.size) {
-			const files = Array.from(fileList);
-			const args: Proto.GeterrRequestArgs = {
-				delay: 0,
-				files
-			};
-			const token = new CancellationTokenSource();
+			if (this.pendingGetErr) {
+				this.pendingGetErr.cancel();
+			}
 
-			const getErr = this.pendingGetErr = {
-				request: this.client.executeAsync('geterr', args, token.token)
-					.then(undefined, () => { })
-					.then(() => {
-						if (this.pendingGetErr === getErr) {
-							this.pendingGetErr = undefined;
-						}
-					}),
-				files,
-				token
-			};
+			const getErr = this.pendingGetErr = GetErrRequest.executeGetErrRequest(this.client, Array.from(fileList), () => {
+				if (this.pendingGetErr === getErr) {
+					this.pendingGetErr = undefined;
+				}
+			});
 		}
+
 		this.pendingDiagnostics.clear();
 	}
 

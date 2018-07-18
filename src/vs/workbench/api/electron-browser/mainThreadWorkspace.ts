@@ -10,8 +10,8 @@ import URI, { UriComponents } from 'vs/base/common/uri';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { localize } from 'vs/nls';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { IFileMatch, IFolderQuery, IPatternInfo, IQueryOptions, ISearchConfiguration, ISearchQuery, ISearchService, QueryType } from 'vs/platform/search/common/search';
+import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
+import { IFileMatch, IFolderQuery, IPatternInfo, IQueryOptions, ISearchConfiguration, ISearchQuery, ISearchService, QueryType, ISearchProgressItem } from 'vs/platform/search/common/search';
 import { IStatusbarService } from 'vs/platform/statusbar/common/statusbar';
 import { IWorkspaceContextService, WorkbenchState } from 'vs/platform/workspace/common/workspace';
 import { extHostNamedCustomer } from 'vs/workbench/api/electron-browser/extHostCustomers';
@@ -19,6 +19,7 @@ import { QueryBuilder } from 'vs/workbench/parts/search/common/queryBuilder';
 import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
 import { IWorkspaceEditingService } from 'vs/workbench/services/workspace/common/workspaceEditing';
 import { ExtHostContext, ExtHostWorkspaceShape, IExtHostContext, MainContext, MainThreadWorkspaceShape } from '../node/extHost.protocol';
+import { CommandsRegistry } from 'vs/platform/commands/common/commands';
 
 @extHostNamedCustomer(MainContext.MainThreadWorkspace)
 export class MainThreadWorkspace implements MainThreadWorkspaceShape {
@@ -169,7 +170,13 @@ export class MainThreadWorkspace implements MainThreadWorkspaceShape {
 		const query = queryBuilder.text(pattern, folders, options);
 
 		return new TPromise((resolve, reject) => {
-			const search = this._searchService.search(query).then(
+			const onProgress = (p: ISearchProgressItem) => {
+				if (p.lineMatches) {
+					this._proxy.$handleTextSearchResult(p, requestId);
+				}
+			};
+
+			const search = this._searchService.search(query, onProgress).then(
 				() => {
 					delete this._activeSearches[requestId];
 					resolve(null);
@@ -181,11 +188,6 @@ export class MainThreadWorkspace implements MainThreadWorkspaceShape {
 					}
 
 					return undefined;
-				},
-				p => {
-					if (p.lineMatches) {
-						this._proxy.$handleTextSearchResult(p, requestId);
-					}
 				});
 
 			this._activeSearches[requestId] = search;
@@ -210,3 +212,9 @@ export class MainThreadWorkspace implements MainThreadWorkspaceShape {
 		});
 	}
 }
+
+CommandsRegistry.registerCommand('_workbench.enterWorkspace', function (accessor: ServicesAccessor, workspace: URI) {
+	const workspaceEditingService = accessor.get(IWorkspaceEditingService);
+
+	return workspaceEditingService.enterWorkspace(workspace.fsPath);
+});

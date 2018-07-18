@@ -294,4 +294,4 @@ export function provideReferences(model: ITextModel, position: Position, token: 
 	});
 }
 
-registerDefaultLanguageCommand('_executeReferenceProvider', provideReferences);
+registerDefaultLanguageCommand('_executeReferenceProvider', (model, position) => provideReferences(model, position, CancellationToken.None));

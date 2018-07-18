@@ -25,7 +25,7 @@ export function generateRandomPipeName(): string {
 
 export class Protocol implements IMessagePassingProtocol {
 
-	private static readonly _headerLen = 17;
+	private static readonly _headerLen = 5;
 
 	private _onMessage = new Emitter<any>();
 
@@ -50,7 +50,7 @@ export class Protocol implements IMessagePassingProtocol {
 			while (totalLength > 0) {
 
 				if (state.readHead) {
-					// expecting header -> read 17bytes for header
+					// expecting header -> read 5bytes for header
 					// information: `bodyIsJson` and `bodyLen`
 					if (totalLength >= Protocol._headerLen) {
 						const all = Buffer.concat(chunks);
@@ -123,10 +123,10 @@ export class Protocol implements IMessagePassingProtocol {
 		// ensure string
 		if (typeof message !== 'string') {
 			message = JSON.stringify(message);
-			header.writeInt8(1, 0);
+			header.writeInt8(1, 0, true);
 		}
 		const data = Buffer.from(message);
-		header.writeInt32BE(data.length, 1);
+		header.writeInt32BE(data.length, 1, true);
 
 		this._writeSoon(header, data);
 	}
