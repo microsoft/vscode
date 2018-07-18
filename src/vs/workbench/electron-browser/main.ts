@@ -195,10 +195,7 @@ function createStorageService(workspaceService: IWorkspaceContextService, enviro
 	if (disableStorage) {
 		storage = inMemoryLocalStorageInstance;
 	} else {
-		// TODO@Ben remove me after a while
-		perf.mark('willAccessLocalStorage');
 		storage = window.localStorage;
-		perf.mark('didAccessLocalStorage');
 	}
 
 	return new StorageService(storage, storage, workspaceId, secondaryWorkspaceId);

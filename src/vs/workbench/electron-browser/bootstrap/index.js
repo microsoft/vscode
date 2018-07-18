@@ -96,14 +96,19 @@ function showPartsSplash(configuration) {
 		keep = true;
 	}
 
-	let structure = window.localStorage.getItem(key);
+	// TODO@Ben remove me after a while
+	perf.mark('willAccessLocalStorage');
+	let storage = window.localStorage;
+	perf.mark('didAccessLocalStorage');
+
+	let structure = storage.getItem(key);
 	if (structure) {
 		let splash = document.createElement('div');
 		splash.innerHTML = structure;
 		document.body.appendChild(splash);
 	}
 	if (!keep) {
-		window.localStorage.removeItem(key);
+		storage.removeItem(key);
 	}
 }
 
