@@ -21,7 +21,9 @@ function code() {
 
 	# Launch Code
 	if [[ "$OSTYPE" == "darwin"* ]]; then
-		exec ./.build/electron/Electron.app/Contents/MacOS/Electron . "$@"
+		NAME=`node -p "require('./product.json').nameLong"`
+		APPNAME=`node -p "require('./product.json').darwinExecutable"`
+		exec ./.build/electron/$NAME.app/Contents/MacOS/$APPNAME . "$@"
 	else
 		exec ./.build/electron/electron . "$@"
 	fi

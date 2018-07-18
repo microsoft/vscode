@@ -194,7 +194,7 @@
 			"name": "Unit Tests",
 			"protocol": "inspector",
 			"program": "${workspaceFolder}/node_modules/mocha/bin/_mocha",
-			"runtimeExecutable": "${workspaceFolder}/.build/electron/Code - OSS.app/Contents/MacOS/Electron",
+			"runtimeExecutable": "${workspaceFolder}/.build/electron/Code - OSS.app/Contents/MacOS/VSCodeOSS",
 			"windows": {
 				"runtimeExecutable": "${workspaceFolder}/.build/electron/Code - OSS.exe"
 			},
@@ -226,7 +226,7 @@
 			"port": 9999,
 			"args": [
 				"-l",
-				"${workspaceFolder}/.build/electron/Code - OSS.app/Contents/MacOS/Electron"
+				"${workspaceFolder}/.build/electron/Code - OSS.app/Contents/MacOS/VSCodeOSS"
 			],
 			"outFiles": [
 				"${cwd}/out/**/*.js"

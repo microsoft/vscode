@@ -10,12 +10,10 @@ import { Logger } from './logger';
 
 export enum Quality {
 	Dev,
-	Insiders,
-	Stable
+	Built
 }
 
 export interface ApplicationOptions extends SpawnOptions {
-	quality: Quality;
 	workspacePath: string;
 	workspaceFilePath: string;
 	waitTime: number;
@@ -29,7 +27,7 @@ export class Application {
 	constructor(private options: ApplicationOptions) { }
 
 	get quality(): Quality {
-		return this.options.quality;
+		return this.options.codePath ? Quality.Built : Quality.Dev;
 	}
 
 	get code(): Code {
