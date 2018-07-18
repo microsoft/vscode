@@ -6,7 +6,7 @@
 import { KeybindingsRegistry } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { ITerminalService } from 'vs/workbench/parts/terminal/common/terminal';
 
-export const enum COMMAND_ID {
+export const enum TERMINAL_COMMAND_ID {
 	TOGGLE = 'workbench.action.terminal.toggleTerminal',
 	KILL = 'workbench.action.terminal.kill',
 	QUICK_KILL = 'workbench.action.terminal.quickKill',

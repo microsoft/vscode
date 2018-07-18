@@ -36,7 +36,7 @@ import { CommandsRegistry } from 'vs/platform/commands/common/commands';
 import { TogglePanelAction } from 'vs/workbench/browser/parts/panel/panelActions';
 import { TerminalPanel } from 'vs/workbench/parts/terminal/electron-browser/terminalPanel';
 import { TerminalPickerHandler } from 'vs/workbench/parts/terminal/browser/terminalQuickOpen';
-import { setupTerminalCommands, COMMAND_ID } from 'vs/workbench/parts/terminal/common/terminalCommands';
+import { setupTerminalCommands, TERMINAL_COMMAND_ID } from 'vs/workbench/parts/terminal/common/terminalCommands';
 import { setupTerminalMenu } from 'vs/workbench/parts/terminal/common/terminalMenu';
 
 const quickOpenRegistry = (Registry.as<IQuickOpenRegistry>(QuickOpenExtensions.Quickopen));
@@ -227,46 +227,46 @@ configurationRegistry.registerConfiguration({
 				'type': 'string'
 			},
 			'default': [
-				COMMAND_ID.CLEAR_SELECTION,
-				COMMAND_ID.CLEAR,
-				COMMAND_ID.COPY_SELECTION,
-				COMMAND_ID.DELETE_WORD_LEFT,
-				COMMAND_ID.DELETE_WORD_RIGHT,
-				COMMAND_ID.FIND_WIDGET_FOCUS,
-				COMMAND_ID.FIND_WIDGET_HIDE,
-				COMMAND_ID.FOCUS_NEXT_PANE,
-				COMMAND_ID.FOCUS_NEXT,
-				COMMAND_ID.FOCUS_PREVIOUS_PANE,
-				COMMAND_ID.FOCUS_PREVIOUS,
-				COMMAND_ID.FOCUS,
-				COMMAND_ID.KILL,
-				COMMAND_ID.MOVE_TO_LINE_END,
-				COMMAND_ID.MOVE_TO_LINE_START,
-				COMMAND_ID.NEW_IN_ACTIVE_WORKSPACE,
-				COMMAND_ID.NEW,
-				COMMAND_ID.PASTE,
-				COMMAND_ID.RESIZE_PANE_DOWN,
-				COMMAND_ID.RESIZE_PANE_LEFT,
-				COMMAND_ID.RESIZE_PANE_RIGHT,
-				COMMAND_ID.RESIZE_PANE_UP,
-				COMMAND_ID.RUN_ACTIVE_FILE,
-				COMMAND_ID.RUN_SELECTED_TEXT,
-				COMMAND_ID.SCROLL_DOWN_LINE,
-				COMMAND_ID.SCROLL_DOWN_PAGE,
-				COMMAND_ID.SCROLL_TO_BOTTOM,
-				COMMAND_ID.SCROLL_TO_NEXT_COMMAND,
-				COMMAND_ID.SCROLL_TO_PREVIOUS_COMMAND,
-				COMMAND_ID.SCROLL_TO_TOP,
-				COMMAND_ID.SCROLL_UP_LINE,
-				COMMAND_ID.SCROLL_UP_PAGE,
-				COMMAND_ID.SELECT_ALL,
-				COMMAND_ID.SELECT_TO_NEXT_COMMAND,
-				COMMAND_ID.SELECT_TO_NEXT_LINE,
-				COMMAND_ID.SELECT_TO_PREVIOUS_COMMAND,
-				COMMAND_ID.SELECT_TO_PREVIOUS_LINE,
-				COMMAND_ID.SPLIT_IN_ACTIVE_WORKSPACE,
-				COMMAND_ID.SPLIT,
-				COMMAND_ID.TOGGLE,
+				TERMINAL_COMMAND_ID.CLEAR_SELECTION,
+				TERMINAL_COMMAND_ID.CLEAR,
+				TERMINAL_COMMAND_ID.COPY_SELECTION,
+				TERMINAL_COMMAND_ID.DELETE_WORD_LEFT,
+				TERMINAL_COMMAND_ID.DELETE_WORD_RIGHT,
+				TERMINAL_COMMAND_ID.FIND_WIDGET_FOCUS,
+				TERMINAL_COMMAND_ID.FIND_WIDGET_HIDE,
+				TERMINAL_COMMAND_ID.FOCUS_NEXT_PANE,
+				TERMINAL_COMMAND_ID.FOCUS_NEXT,
+				TERMINAL_COMMAND_ID.FOCUS_PREVIOUS_PANE,
+				TERMINAL_COMMAND_ID.FOCUS_PREVIOUS,
+				TERMINAL_COMMAND_ID.FOCUS,
+				TERMINAL_COMMAND_ID.KILL,
+				TERMINAL_COMMAND_ID.MOVE_TO_LINE_END,
+				TERMINAL_COMMAND_ID.MOVE_TO_LINE_START,
+				TERMINAL_COMMAND_ID.NEW_IN_ACTIVE_WORKSPACE,
+				TERMINAL_COMMAND_ID.NEW,
+				TERMINAL_COMMAND_ID.PASTE,
+				TERMINAL_COMMAND_ID.RESIZE_PANE_DOWN,
+				TERMINAL_COMMAND_ID.RESIZE_PANE_LEFT,
+				TERMINAL_COMMAND_ID.RESIZE_PANE_RIGHT,
+				TERMINAL_COMMAND_ID.RESIZE_PANE_UP,
+				TERMINAL_COMMAND_ID.RUN_ACTIVE_FILE,
+				TERMINAL_COMMAND_ID.RUN_SELECTED_TEXT,
+				TERMINAL_COMMAND_ID.SCROLL_DOWN_LINE,
+				TERMINAL_COMMAND_ID.SCROLL_DOWN_PAGE,
+				TERMINAL_COMMAND_ID.SCROLL_TO_BOTTOM,
+				TERMINAL_COMMAND_ID.SCROLL_TO_NEXT_COMMAND,
+				TERMINAL_COMMAND_ID.SCROLL_TO_PREVIOUS_COMMAND,
+				TERMINAL_COMMAND_ID.SCROLL_TO_TOP,
+				TERMINAL_COMMAND_ID.SCROLL_UP_LINE,
+				TERMINAL_COMMAND_ID.SCROLL_UP_PAGE,
+				TERMINAL_COMMAND_ID.SELECT_ALL,
+				TERMINAL_COMMAND_ID.SELECT_TO_NEXT_COMMAND,
+				TERMINAL_COMMAND_ID.SELECT_TO_NEXT_LINE,
+				TERMINAL_COMMAND_ID.SELECT_TO_PREVIOUS_COMMAND,
+				TERMINAL_COMMAND_ID.SELECT_TO_PREVIOUS_LINE,
+				TERMINAL_COMMAND_ID.SPLIT_IN_ACTIVE_WORKSPACE,
+				TERMINAL_COMMAND_ID.SPLIT,
+				TERMINAL_COMMAND_ID.TOGGLE,
 				ToggleTabFocusModeAction.ID,
 				QUICKOPEN_ACTION_ID,
 				QUICKOPEN_FOCUS_SECONDARY_ACTION_ID,
@@ -369,7 +369,7 @@ registerSingleton(ITerminalService, TerminalService);
 	nls.localize('terminal', "Terminal"),
 	'terminal',
 	40,
-	ToggleTerminalAction.ID
+	TERMINAL_COMMAND_ID.TOGGLE
 ));
 
 // On mac cmd+` is reserved to cycle between windows, that's why the keybindings use WinCtrl
@@ -409,7 +409,7 @@ actionRegistry.registerWorkbenchAction(new SyncActionDescriptor(SelectAllTermina
 }, KEYBINDING_CONTEXT_TERMINAL_FOCUS), 'Terminal: Select All', category);
 actionRegistry.registerWorkbenchAction(new SyncActionDescriptor(RunSelectedTextInTerminalAction, RunSelectedTextInTerminalAction.ID, RunSelectedTextInTerminalAction.LABEL), 'Terminal: Run Selected Text In Active Terminal', category);
 actionRegistry.registerWorkbenchAction(new SyncActionDescriptor(RunActiveFileInTerminalAction, RunActiveFileInTerminalAction.ID, RunActiveFileInTerminalAction.LABEL), 'Terminal: Run Active File In Active Terminal', category);
-actionRegistry.registerWorkbenchAction(new SyncActionDescriptor(ToggleTerminalAction, ToggleTerminalAction.ID, ToggleTerminalAction.LABEL, {
+actionRegistry.registerWorkbenchAction(new SyncActionDescriptor(ToggleTerminalAction, TERMINAL_COMMAND_ID.TOGGLE, ToggleTerminalAction.LABEL, {
 	primary: KeyMod.CtrlCmd | KeyCode.US_BACKTICK,
 	mac: { primary: KeyMod.WinCtrl | KeyCode.US_BACKTICK }
 }), 'View: Toggle Integrated Terminal', nls.localize('viewCategory', "View"));
