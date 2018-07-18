@@ -33,7 +33,6 @@ export interface IPickOpenEntry {
 	run?: (context: IEntryRunContext) => void;
 	action?: IAction;
 	payload?: any;
-	picked?: boolean;
 }
 
 export interface IPickOpenItem {
@@ -85,46 +84,14 @@ export interface IPickOptions {
 	 * a context key to set when this picker is active
 	 */
 	contextKey?: string;
-
-	/**
-	 * an optional flag to make this picker multi-select (honoured by extension API)
-	 */
-	canSelectMany?: boolean;
 }
 
-export interface IInputOptions {
+export interface IStringPickOptions extends IPickOptions {
+	onDidFocus?: (item: string) => void;
+}
 
-	/**
-	 * the value to prefill in the input box
-	 */
-	value?: string;
-
-	/**
-	 * the selection of value, default to the whole word
-	 */
-	valueSelection?: [number, number];
-
-	/**
-	 * the text to display underneath the input box
-	 */
-	prompt?: string;
-
-	/**
-	 * an optional string to show as place holder in the input box to guide the user what to type
-	 */
-	placeHolder?: string;
-
-	/**
-	 * set to true to show a password prompt that will not show the typed value
-	 */
-	password?: boolean;
-
-	ignoreFocusLost?: boolean;
-
-	/**
-	 * an optional function that is used to validate user input.
-	 */
-	validateInput?: (input: string) => TPromise<string>;
+export interface ITypedPickOptions<T extends IPickOpenEntry> extends IPickOptions {
+	onDidFocus?: (entry: T) => void;
 }
 
 export interface IShowOptions {
@@ -155,20 +122,15 @@ export interface IQuickOpenService {
 	 * Passing in a promise will allow you to resolve the elements in the background while quick open will show a
 	 * progress bar spinning.
 	 */
-	pick(picks: TPromise<string[]>, options?: IPickOptions, token?: CancellationToken): TPromise<string>;
-	pick<T extends IPickOpenEntry>(picks: TPromise<T[]>, options?: IPickOptions, token?: CancellationToken): TPromise<T>;
-	pick(picks: string[], options?: IPickOptions, token?: CancellationToken): TPromise<string>;
-	pick<T extends IPickOpenEntry>(picks: T[], options?: IPickOptions, token?: CancellationToken): TPromise<T>;
+	pick(picks: TPromise<string[]>, options?: IStringPickOptions, token?: CancellationToken): TPromise<string>;
+	pick<T extends IPickOpenEntry>(picks: TPromise<T[]>, options?: ITypedPickOptions<T>, token?: CancellationToken): TPromise<T>;
+	pick(picks: string[], options?: IStringPickOptions, token?: CancellationToken): TPromise<string>;
+	pick<T extends IPickOpenEntry>(picks: T[], options?: ITypedPickOptions<T>, token?: CancellationToken): TPromise<T>;
 
 	/**
 	 * Allows to navigate from the outside in an opened picker.
 	 */
 	navigate(next: boolean, quickNavigate?: IQuickNavigateConfiguration): void;
-
-	/**
-	 * Opens the quick open box for user input and returns a promise with the user typed value if any.
-	 */
-	input(options?: IInputOptions, token?: CancellationToken): TPromise<string>;
 
 	/**
 	 * Accepts the selected value in quick open if visible.

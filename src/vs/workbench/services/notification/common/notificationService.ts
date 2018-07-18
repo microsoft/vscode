@@ -7,31 +7,22 @@
 
 import { INotificationService, INotification, INotificationHandle, Severity, NotificationMessage, INotificationActions, IPromptChoice } from 'vs/platform/notification/common/notification';
 import { INotificationsModel, NotificationsModel } from 'vs/workbench/common/notifications';
-import { IDisposable, dispose } from 'vs/base/common/lifecycle';
+import { dispose, Disposable } from 'vs/base/common/lifecycle';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { Action } from 'vs/base/common/actions';
 import { once } from 'vs/base/common/event';
 
-export class NotificationService implements INotificationService {
+export class NotificationService extends Disposable implements INotificationService {
 
-	public _serviceBrand: any;
+	_serviceBrand: any;
 
-	private _model: INotificationsModel;
-	private toDispose: IDisposable[];
+	private _model: INotificationsModel = this._register(new NotificationsModel());
 
-	constructor() {
-		this.toDispose = [];
-
-		const model = new NotificationsModel();
-		this.toDispose.push(model);
-		this._model = model;
-	}
-
-	public get model(): INotificationsModel {
+	get model(): INotificationsModel {
 		return this._model;
 	}
 
-	public info(message: NotificationMessage | NotificationMessage[]): void {
+	info(message: NotificationMessage | NotificationMessage[]): void {
 		if (Array.isArray(message)) {
 			message.forEach(m => this.info(m));
 
@@ -41,7 +32,7 @@ export class NotificationService implements INotificationService {
 		this.model.notify({ severity: Severity.Info, message });
 	}
 
-	public warn(message: NotificationMessage | NotificationMessage[]): void {
+	warn(message: NotificationMessage | NotificationMessage[]): void {
 		if (Array.isArray(message)) {
 			message.forEach(m => this.warn(m));
 
@@ -51,7 +42,7 @@ export class NotificationService implements INotificationService {
 		this.model.notify({ severity: Severity.Warning, message });
 	}
 
-	public error(message: NotificationMessage | NotificationMessage[]): void {
+	error(message: NotificationMessage | NotificationMessage[]): void {
 		if (Array.isArray(message)) {
 			message.forEach(m => this.error(m));
 
@@ -61,11 +52,11 @@ export class NotificationService implements INotificationService {
 		this.model.notify({ severity: Severity.Error, message });
 	}
 
-	public notify(notification: INotification): INotificationHandle {
+	notify(notification: INotification): INotificationHandle {
 		return this.model.notify(notification);
 	}
 
-	public prompt(severity: Severity, message: string, choices: IPromptChoice[], onCancel?: () => void): INotificationHandle {
+	prompt(severity: Severity, message: string, choices: IPromptChoice[], onCancel?: () => void): INotificationHandle {
 		let handle: INotificationHandle;
 		let choiceClicked = false;
 
@@ -108,9 +99,5 @@ export class NotificationService implements INotificationService {
 		});
 
 		return handle;
-	}
-
-	public dispose(): void {
-		this.toDispose = dispose(this.toDispose);
 	}
 }

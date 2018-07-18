@@ -21,7 +21,7 @@
 	"schema.languageId": "Die ID der Symboldefinition für die Zuordnung.",
 	"schema.fonts": "Schriftarten, die in den Symboldefinitionen verwendet werden.",
 	"schema.id": "Die ID der Schriftart.",
-	"schema.src": "Die Speicherorte der Schriftart.",
+	"schema.src": "Der Speicherort der Schriftart.",
 	"schema.font-path": "Der Schriftartpfad relativ zur aktuellen Symboldesigndatei.",
 	"schema.font-format": "Das Format der Schriftart.",
 	"schema.font-weight": "Die Gewichtung der Schriftart.",

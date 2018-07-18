@@ -3,6 +3,7 @@
 	"type": "dark",
 	"colors": {
 		"input.background": "#51412c",
+		"dropdown.background": "#51412c",
 		"editor.background": "#221a0f",
 		"editor.foreground": "#d3af86",
 		"focusBorder": "#a57a4c",
@@ -19,7 +20,6 @@
 		"editorWidget.background": "#131510",
 		"editorHoverWidget.background": "#221a14",
 		"editorGroupHeader.tabsBackground": "#131510",
-		"editorGroup.background": "#0f0c08",
 		"editorLineNumber.activeForeground": "#adadad",
 		"tab.inactiveBackground": "#131510",
 		"titleBar.activeBackground": "#423523",

@@ -49,6 +49,7 @@ const indentationFilter = [
 	'!src/vs/base/common/marked/marked.js',
 	'!src/vs/base/common/winjs.base.js',
 	'!src/vs/base/node/terminateProcess.sh',
+	'!src/vs/base/node/cpuUsage.sh',
 	'!test/assert.js',
 
 	// except specific folders
@@ -81,6 +82,7 @@ const indentationFilter = [
 	'!build/{lib,tslintRules}/**/*.js',
 	'!build/**/*.sh',
 	'!build/tfs/**/*.js',
+	'!build/tfs/**/*.config',
 	'!**/Dockerfile',
 	'!extensions/markdown-language-features/media/*.js'
 ];
@@ -103,8 +105,9 @@ const copyrightFilter = [
 	'!**/*.code-workspace',
 	'!build/**/*.init',
 	'!resources/linux/snap/snapcraft.yaml',
+	'!resources/linux/snap/electron-launch',
 	'!resources/win32/bin/code.js',
-	'!extensions/markdown-language-features/media/tomorrow.css',
+	'!extensions/markdown-language-features/media/highlight.css',
 	'!extensions/html-language-features/server/src/modes/typescript/*',
 	'!extensions/*/server/bin/*'
 ];

@@ -83,6 +83,7 @@
 			"name": "VS Code API Tests (single folder)",
 			"runtimeExecutable": "${execPath}",
 			"args": [
+				// "${workspaceFolder}", // Uncomment for running out of sources.
 				"${workspaceFolder}/extensions/vscode-api-tests/testWorkspace",
 				"--extensionDevelopmentPath=${workspaceFolder}/extensions/vscode-api-tests",
 				"--extensionTestsPath=${workspaceFolder}/extensions/vscode-api-tests/out/singlefolder-tests"
@@ -174,6 +175,20 @@
 			]
 		},
 		{
+			"type": "extensionHost",
+			"request": "launch",
+			"name": "TypeScript Extension Tests",
+			"runtimeExecutable": "${execPath}",
+			"args": [
+				"${workspaceFolder}/extensions/typescript-language-features/test-fixtures",
+				"--extensionDevelopmentPath=${workspaceFolder}/extensions/typescript-language-features",
+				"--extensionTestsPath=${workspaceFolder}/extensions/typescript-language-features/out/test"
+			],
+			"outFiles": [
+				"${workspaceFolder}/extensions/typescript-language-features/out/**/*.js"
+			]
+		},
+		{
 			"type": "node",
 			"request": "launch",
 			"name": "Unit Tests",
@@ -187,6 +202,7 @@
 				"runtimeExecutable": "${workspaceFolder}/.build/electron/code-oss"
 			},
 			"stopOnEntry": false,
+			"outputCapture": "std",
 			"args": [
 				"--delay",
 				"--timeout",
@@ -220,6 +236,15 @@
 				"VSCODE_DEV": "1",
 				"VSCODE_CLI": "1"
 			}
+		},
+		{
+			"name": "Launch Built-in Extension",
+			"type": "extensionHost",
+			"request": "launch",
+			"runtimeExecutable": "${execPath}",
+			"args": [
+				"--extensionDevelopmentPath=${workspaceRoot}/extensions/debug-auto-launch"
+			]
 		}
 	],
 	"compounds": [
@@ -235,6 +260,13 @@
 			"configurations": [
 				"Launch VS Code",
 				"Attach to Search Process"
+			]
+		},
+		{
+			"name": "Renderer and Extension Host processes",
+			"configurations": [
+				"Launch VS Code",
+				"Attach to Extension Host"
 			]
 		}
 	]

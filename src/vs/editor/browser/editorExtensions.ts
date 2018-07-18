@@ -16,11 +16,11 @@ import { Position } from 'vs/editor/common/core/position';
 import * as editorCommon from 'vs/editor/common/editorCommon';
 import { IModelService } from 'vs/editor/common/services/modelService';
 import { MenuId, MenuRegistry, IMenuItem } from 'vs/platform/actions/common/actions';
-import { IEditorService } from 'vs/platform/editor/common/editor';
 import { IContextKeyService, ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
-import { ICodeEditorService, getCodeEditor } from 'vs/editor/browser/services/codeEditorService';
+import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { ITextModel } from 'vs/editor/common/model';
+import { IPosition } from 'vs/base/browser/ui/contextview/contextview';
 
 export type ServicesAccessor = ServicesAccessor;
 export type IEditorContributionCtor = IConstructorSignature1<ICodeEditor, editorCommon.IEditorContribution>;
@@ -85,12 +85,6 @@ export abstract class Command {
 
 //#region EditorCommand
 
-function getWorkbenchActiveEditor(accessor: ServicesAccessor): ICodeEditor {
-	const editorService = accessor.get(IEditorService);
-	let activeEditor = (<any>editorService).getActiveEditor && (<any>editorService).getActiveEditor();
-	return getCodeEditor(activeEditor);
-}
-
 export interface IContributionCommandOptions<T> extends ICommandOptions {
 	handler: (controller: T) => void;
 }
@@ -124,14 +118,8 @@ export abstract class EditorCommand extends Command {
 	public runCommand(accessor: ServicesAccessor, args: any): void | TPromise<void> {
 		const codeEditorService = accessor.get(ICodeEditorService);
 
-		// Find the editor with text focus
-		let editor = codeEditorService.getFocusedCodeEditor();
-
-		if (!editor) {
-			// Fallback to use what the workbench considers the active editor
-			editor = getWorkbenchActiveEditor(accessor);
-		}
-
+		// Find the editor with text focus or active
+		let editor = codeEditorService.getFocusedCodeEditor() || codeEditorService.getActiveCodeEditor();
 		if (!editor) {
 			// well, at least we tried...
 			return;
@@ -223,8 +211,14 @@ export function registerLanguageCommand(id: string, handler: (accessor: Services
 	CommandsRegistry.registerCommand(id, (accessor, args) => handler(accessor, args || {}));
 }
 
-export function registerDefaultLanguageCommand(id: string, handler: (model: ITextModel, position: Position, args: { [n: string]: any }) => any) {
-	registerLanguageCommand(id, function (accessor, args) {
+interface IDefaultArgs {
+	resource: URI;
+	position: IPosition;
+	[name: string]: any;
+}
+
+export function registerDefaultLanguageCommand(id: string, handler: (model: ITextModel, position: Position, args: IDefaultArgs) => any) {
+	registerLanguageCommand(id, function (accessor, args: IDefaultArgs) {
 
 		const { resource, position } = args;
 		if (!(resource instanceof URI)) {

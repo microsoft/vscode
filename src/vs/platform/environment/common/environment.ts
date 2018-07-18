@@ -25,6 +25,7 @@ export interface ParsedArgs {
 	performance?: boolean;
 	'prof-startup'?: string;
 	'prof-startup-prefix'?: string;
+	'prof-append-timers'?: string;
 	verbose?: boolean;
 	log?: string;
 	logExtensionHostCommunication?: boolean;
@@ -58,6 +59,7 @@ export interface ParsedArgs {
 	'file-chmod'?: boolean;
 	'upload-logs'?: string;
 	'driver'?: string;
+	'driver-verbose'?: boolean;
 }
 
 export const IEnvironmentService = createDecorator<IEnvironmentService>('environmentService');
@@ -133,4 +135,5 @@ export interface IEnvironmentService {
 	disableCrashReporter: boolean;
 
 	driverHandle: string;
+	driverVerbose: boolean;
 }

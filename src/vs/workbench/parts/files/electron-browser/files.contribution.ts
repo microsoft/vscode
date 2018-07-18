@@ -25,7 +25,6 @@ import { IInstantiationService } from 'vs/platform/instantiation/common/instanti
 import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
 import { IKeybindings } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { IViewletService } from 'vs/workbench/services/viewlet/browser/viewlet';
-import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { KeyMod, KeyCode } from 'vs/base/common/keyCodes';
 import * as platform from 'vs/base/common/platform';
 import { DirtyFilesTracker } from 'vs/workbench/parts/files/common/dirtyFilesTracker';
@@ -33,6 +32,8 @@ import { ExplorerViewlet, ExplorerViewletViewsContribution } from 'vs/workbench/
 import { IEditorRegistry, EditorDescriptor, Extensions as EditorExtensions } from 'vs/workbench/browser/editor';
 import { DataUriEditorInput } from 'vs/workbench/common/editor/dataUriEditorInput';
 import { LifecyclePhase } from 'vs/platform/lifecycle/common/lifecycle';
+import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
+import { IEditorGroupsService } from 'vs/workbench/services/group/common/editorGroupsService';
 
 // Viewlet Action
 export class OpenExplorerViewletAction extends ToggleViewletAction {
@@ -43,9 +44,9 @@ export class OpenExplorerViewletAction extends ToggleViewletAction {
 		id: string,
 		label: string,
 		@IViewletService viewletService: IViewletService,
-		@IWorkbenchEditorService editorService: IWorkbenchEditorService
+		@IEditorGroupsService editorGroupService: IEditorGroupsService
 	) {
-		super(id, label, VIEWLET_ID, viewletService, editorService);
+		super(id, label, VIEWLET_ID, viewletService, editorGroupService);
 	}
 }
 
@@ -136,7 +137,7 @@ class FileEditorInputFactory implements IEditorInputFactory {
 			const resource = !!fileInput.resourceJSON ? URI.revive(fileInput.resourceJSON) : URI.parse(fileInput.resource);
 			const encoding = fileInput.encoding;
 
-			return accessor.get(IWorkbenchEditorService).createInput({ resource, encoding }) as FileEditorInput;
+			return accessor.get(IEditorService).createInput({ resource, encoding }, { forceFileInput: true }) as FileEditorInput;
 		});
 	}
 }
@@ -250,12 +251,12 @@ configurationRegistry.registerConfiguration({
 				nls.localize({ comment: ['This is the description for a setting. Values surrounded by single quotes are not to be translated.'], key: 'files.autoSave.onWindowChange' }, "A dirty file is automatically saved when the window loses focus.")
 			],
 			'default': AutoSaveConfiguration.OFF,
-			'description': nls.localize({ comment: ['This is the description for a setting. Values surrounded by single quotes are not to be translated.'], key: 'autoSave' }, "Controls auto save of dirty files. Accepted values:  '{0}', '{1}', '{2}' (editor loses focus), '{3}' (window loses focus). If set to '{4}', you can configure the delay in 'files.autoSaveDelay'.", AutoSaveConfiguration.OFF, AutoSaveConfiguration.AFTER_DELAY, AutoSaveConfiguration.ON_FOCUS_CHANGE, AutoSaveConfiguration.ON_WINDOW_CHANGE, AutoSaveConfiguration.AFTER_DELAY)
+			'description': nls.localize({ comment: ['This is the description for a setting. Values surrounded by single quotes are not to be translated.'], key: 'autoSave' }, "Controls auto save of dirty files. Accepted values:  '{0}', '{1}', '{2}' (editor loses focus), '{3}' (window loses focus). If set to '{4}', you can configure the delay in [`files.autoSaveDelay`](#files.autoSaveDelay). Read more about autosave [here](https://code.visualstudio.com/docs/editor/codebasics#_save-auto-save)", AutoSaveConfiguration.OFF, AutoSaveConfiguration.AFTER_DELAY, AutoSaveConfiguration.ON_FOCUS_CHANGE, AutoSaveConfiguration.ON_WINDOW_CHANGE, AutoSaveConfiguration.AFTER_DELAY)
 		},
 		'files.autoSaveDelay': {
 			'type': 'number',
 			'default': 1000,
-			'description': nls.localize({ comment: ['This is the description for a setting. Values surrounded by single quotes are not to be translated.'], key: 'autoSaveDelay' }, "Controls the delay in ms after which a dirty file is saved automatically. Only applies when 'files.autoSave' is set to '{0}'", AutoSaveConfiguration.AFTER_DELAY)
+			'description': nls.localize({ comment: ['This is the description for a setting. Values surrounded by single quotes are not to be translated.'], key: 'autoSaveDelay' }, "Controls the delay in ms after which a dirty file is saved automatically. Only applies when [`files.autoSave`](#files.autoSave) is set to '{0}'", AutoSaveConfiguration.AFTER_DELAY)
 		},
 		'files.watcherExclude': {
 			'type': 'object',
@@ -286,7 +287,7 @@ configurationRegistry.registerConfiguration({
 		'files.maxMemoryForLargeFilesMB': {
 			'type': 'number',
 			'default': 4096,
-			'description': nls.localize('maxMemoryForLargeFilesMB', "Controls the memory available to VS Code after restart when trying to open large files. Same affect as specifying --max-memory=NEWSIZE on the command line.")
+			'description': nls.localize('maxMemoryForLargeFilesMB', "Controls the memory available to VS Code after restart when trying to open large files. Same effect as specifying --max-memory=NEWSIZE on the command line.")
 		}
 	}
 });

@@ -4,13 +4,56 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-let perf = require('./vs/base/common/performance');
+const perf = require('./vs/base/common/performance');
 perf.mark('main:started');
 
 // Perf measurements
 global.perfStartTime = Date.now();
 
 Error.stackTraceLimit = 100; // increase number of stack frames (from 10, https://github.com/v8/v8/wiki/Stack-Trace-API)
+
+const fs = require('fs');
+const path = require('path');
+const product = require('../product.json');
+const appRoot = path.dirname(__dirname);
+
+function getApplicationPath() {
+	if (process.env['VSCODE_DEV']) {
+		return appRoot;
+	} else if (process.platform === 'darwin') {
+		return path.dirname(path.dirname(path.dirname(appRoot)));
+	} else {
+		return path.dirname(path.dirname(appRoot));
+	}
+}
+
+function getPortableDataPath() {
+	if (process.env['VSCODE_PORTABLE']) {
+		return process.env['VSCODE_PORTABLE'];
+	}
+
+	if (process.platform === 'win32' || process.platform === 'linux') {
+		return path.join(getApplicationPath(), 'data');
+	} else {
+		const portableDataName = product.portable || `${product.applicationName}-portable-data`;
+		return path.join(path.dirname(getApplicationPath()), portableDataName);
+	}
+}
+
+const portableDataPath = getPortableDataPath();
+const isPortable = fs.existsSync(portableDataPath);
+const portableTempPath = path.join(portableDataPath, 'tmp');
+const isTempPortable = isPortable && fs.existsSync(portableTempPath);
+
+if (isPortable) {
+	process.env['VSCODE_PORTABLE'] = portableDataPath;
+} else {
+	delete process.env['VSCODE_PORTABLE'];
+}
+
+if (isTempPortable) {
+	process.env[process.platform === 'win32' ? 'TEMP' : 'TMPDIR'] = portableTempPath;
+}
 
 //#region Add support for using node_modules.asar
 (function () {
@@ -36,16 +79,34 @@ Error.stackTraceLimit = 100; // increase number of stack frames (from 10, https:
 })();
 //#endregion
 
-let app = require('electron').app;
-let fs = require('fs');
-let path = require('path');
-let minimist = require('minimist');
-let paths = require('./paths');
+const app = require('electron').app;
 
-let args = minimist(process.argv, {
-	string: ['user-data-dir', 'locale']
+const minimist = require('minimist');
+const paths = require('./paths');
+
+const args = minimist(process.argv, {
+	string: [
+		'user-data-dir',
+		'locale',
+		'js-flags',
+		'max-memory'
+	]
 });
 
+function getUserDataPath() {
+	if (isPortable) {
+		return path.join(portableDataPath, 'user-data');
+	}
+
+	return path.resolve(args['user-data-dir'] || paths.getDefaultUserDataPath(process.platform));
+}
+
+const userDataPath = getUserDataPath();
+
+// Set userData path before app 'ready' event and call to process.chdir
+app.setPath('userData', userDataPath);
+
+//#region NLS
 function stripComments(content) {
 	let regexp = /("(?:[^\\\"]*(?:\\.)?)*")|('(?:[^\\\']*(?:\\.)?)*')|(\/\*(?:\r?\n|.)*?\*\/)|(\/{2,}.*?(?:(?:\r?\n)|$))/g;
 	let result = content.replace(regexp, function (match, m1, m2, m3, m4) {
@@ -70,113 +131,58 @@ function stripComments(content) {
 	return result;
 }
 
-let _commit;
-function getCommit() {
-	if (_commit) {
-		return _commit;
-	}
-	if (_commit === null) {
-		return undefined;
-	}
-	try {
-		let productJson = require(path.join(__dirname, '../product.json'));
-		if (productJson.commit) {
-			_commit = productJson.commit;
-		} else {
-			_commit = null;
-		}
-	} catch (exp) {
-		_commit = null;
-	}
-	return _commit || undefined;
-}
+const mkdir = dir => new Promise((c, e) => fs.mkdir(dir, err => (err && err.code !== 'EEXIST') ? e(err) : c(dir)));
+const exists = file => new Promise(c => fs.exists(file, c));
+const readFile = file => new Promise((c, e) => fs.readFile(file, 'utf8', (err, data) => err ? e(err) : c(data)));
+const writeFile = (file, content) => new Promise((c, e) => fs.writeFile(file, content, 'utf8', err => err ? e(err) : c()));
+const touch = file => new Promise((c, e) => { const d = new Date(); fs.utimes(file, d, d, err => err ? e(err) : c()); });
+const lstat = file => new Promise((c, e) => fs.lstat(file, (err, stats) => err ? e(err) : c(stats)));
+const readdir = dir => new Promise((c, e) => fs.readdir(dir, (err, files) => err ? e(err) : c(files)));
+const rmdir = dir => new Promise((c, e) => fs.rmdir(dir, err => err ? e(err) : c(undefined)));
+const unlink = file => new Promise((c, e) => fs.unlink(file, err => err ? e(err) : c(undefined)));
 
 function mkdirp(dir) {
-	return mkdir(dir)
-		.then(null, (err) => {
-			if (err && err.code === 'ENOENT') {
-				let parent = path.dirname(dir);
-				if (parent !== dir) { // if not arrived at root
-					return mkdirp(parent)
-						.then(() => {
-							return mkdir(dir);
-						});
-				}
-			}
-			throw err;
-		});
-}
+	return mkdir(dir).then(null, err => {
+		if (err && err.code === 'ENOENT') {
+			const parent = path.dirname(dir);
 
-function mkdir(dir) {
-	return new Promise((resolve, reject) => {
-		fs.mkdir(dir, (err) => {
-			if (err && err.code !== 'EEXIST') {
-				reject(err);
-			} else {
-				resolve(dir);
+			if (parent !== dir) { // if not arrived at root
+				return mkdirp(parent).then(() => mkdir(dir));
 			}
-		});
+		}
+
+		throw err;
 	});
 }
 
-function exists(file) {
-	return new Promise((resolve) => {
-		fs.exists(file, (result) => {
-			resolve(result);
-		});
+function rimraf(location) {
+	return lstat(location).then(stat => {
+		if (stat.isDirectory() && !stat.isSymbolicLink()) {
+			return readdir(location)
+				.then(children => Promise.all(children.map(child => rimraf(path.join(location, child)))))
+				.then(() => rmdir(location));
+		} else {
+			return unlink(location);
+		}
+	}, (err) => {
+		if (err.code === 'ENOENT') {
+			return void 0;
+		}
+		throw err;
 	});
 }
 
-function readFile(file) {
-	return new Promise((resolve, reject) => {
-		fs.readFile(file, 'utf8', (err, data) => {
-			if (err) {
-				reject(err);
-				return;
-			}
-			resolve(data);
-		});
-	});
-}
+function resolveJSFlags(...jsFlags) {
 
-function writeFile(file, content) {
-	return new Promise((resolve, reject) => {
-		fs.writeFile(file, content, 'utf8', (err) => {
-			if (err) {
-				reject(err);
-				return;
-			}
-			resolve(undefined);
-		});
-	});
-}
-
-function touch(file) {
-	return new Promise((resolve, reject) => {
-		let d = new Date();
-		fs.utimes(file, d, d, (err) => {
-			if (err) {
-				reject(err);
-				return;
-			}
-			resolve(undefined);
-		});
-	});
-}
-
-function resolveJSFlags() {
-	let jsFlags = [];
 	if (args['js-flags']) {
 		jsFlags.push(args['js-flags']);
 	}
+
 	if (args['max-memory'] && !/max_old_space_size=(\d+)/g.exec(args['js-flags'])) {
 		jsFlags.push(`--max_old_space_size=${args['max-memory']}`);
 	}
-	if (jsFlags.length > 0) {
-		return jsFlags.join(' ');
-	} else {
-		return null;
-	}
+
+	return jsFlags.length > 0 ? jsFlags.join(' ') : null;
 }
 
 // Language tags are case insensitve however an amd loader is case sensitive
@@ -190,8 +196,7 @@ function getUserDefinedLocale() {
 		return Promise.resolve(locale.toLowerCase());
 	}
 
-	let userData = app.getPath('userData');
-	let localeConfig = path.join(userData, 'User', 'locale.json');
+	let localeConfig = path.join(userDataPath, 'User', 'locale.json');
 	return exists(localeConfig).then((result) => {
 		if (result) {
 			return readFile(localeConfig).then((content) => {
@@ -210,8 +215,7 @@ function getUserDefinedLocale() {
 }
 
 function getLanguagePackConfigurations() {
-	let userData = app.getPath('userData');
-	let configFile = path.join(userData, 'languagepacks.json');
+	let configFile = path.join(userDataPath, 'languagepacks.json');
 	try {
 		return require(configFile);
 	} catch (err) {
@@ -250,8 +254,6 @@ function getNLSConfiguration(locale) {
 		return Promise.resolve({ locale: locale, availableLanguages: {} });
 	}
 
-	let userData = app.getPath('userData');
-
 	// We have a built version so we have extracted nls file. Try to find
 	// the right file to use.
 
@@ -263,50 +265,21 @@ function getNLSConfiguration(locale) {
 
 	let initialLocale = locale;
 
-	function resolveLocale(locale) {
-		while (locale) {
-			let candidate = path.join(__dirname, 'vs', 'code', 'electron-main', 'main.nls.') + locale + '.js';
-			if (fs.existsSync(candidate)) {
-				return { locale: initialLocale, availableLanguages: { '*': locale } };
-			} else {
-				let index = locale.lastIndexOf('-');
-				if (index > 0) {
-					locale = locale.substring(0, index);
-				} else {
-					locale = undefined;
-				}
-			}
-		}
-		return undefined;
-	}
-
 	perf.mark('nlsGeneration:start');
-	let defaultResult = function(locale) {
-		let isCoreLanguage = true;
-		if (locale) {
-			isCoreLanguage = ['de', 'es', 'fr', 'it', 'ja', 'ko', 'ru', 'zh-cn', 'zh-tw'].some((language) => {
-				return locale === language || locale.startsWith(language + '-');
-			});
-		}
-		if (isCoreLanguage) {
-			let result = resolveLocale(locale);
-			perf.mark('nlsGeneration:end');
-			return Promise.resolve(result);
-		} else  {
-			perf.mark('nlsGeneration:end');
-			return Promise.resolve({ locale: locale, availableLanguages: {} });
-		}
+
+	let defaultResult = function (locale) {
+		perf.mark('nlsGeneration:end');
+		return Promise.resolve({ locale: locale, availableLanguages: {} });
 	};
 	try {
-		let commit = getCommit();
+		let commit = product.commit;
 		if (!commit) {
-			return defaultResult(locale);
+			return defaultResult(initialLocale);
 		}
 		let configs = getLanguagePackConfigurations();
 		if (!configs) {
-			return defaultResult(locale);
+			return defaultResult(initialLocale);
 		}
-		let initialLocale = locale;
 		locale = resolveLanguagePackLocale(configs, locale);
 		if (!locale) {
 			return defaultResult(initialLocale);
@@ -314,72 +287,85 @@ function getNLSConfiguration(locale) {
 		let packConfig = configs[locale];
 		let mainPack;
 		if (!packConfig || typeof packConfig.hash !== 'string' || !packConfig.translations || typeof (mainPack = packConfig.translations['vscode']) !== 'string') {
-			return defaultResult(locale);
+			return defaultResult(initialLocale);
 		}
 		return exists(mainPack).then((fileExists) => {
 			if (!fileExists) {
-				return defaultResult(locale);
+				return defaultResult(initialLocale);
 			}
 			let packId = packConfig.hash + '.' + locale;
-			let cacheRoot = path.join(userData, 'clp', packId);
+			let cacheRoot = path.join(userDataPath, 'clp', packId);
 			let coreLocation = path.join(cacheRoot, commit);
 			let translationsConfigFile = path.join(cacheRoot, 'tcf.json');
+			let corruptedFile = path.join(cacheRoot, 'corrupted.info');
 			let result = {
 				locale: initialLocale,
 				availableLanguages: { '*': locale },
 				_languagePackId: packId,
 				_translationsConfigFile: translationsConfigFile,
 				_cacheRoot: cacheRoot,
-				_resolvedLanguagePackCoreLocation: coreLocation
+				_resolvedLanguagePackCoreLocation: coreLocation,
+				_corruptedFile: corruptedFile
 			};
-			return exists(coreLocation).then((fileExists) => {
-				if (fileExists) {
-					// We don't wait for this. No big harm if we can't touch
-					touch(coreLocation).catch(() => {});
-					perf.mark('nlsGeneration:end');
-					return result;
+			return exists(corruptedFile).then((corrupted) => {
+				// The nls cache directory is corrupted.
+				let toDelete;
+				if (corrupted) {
+					toDelete = rimraf(cacheRoot);
+				} else {
+					toDelete = Promise.resolve(undefined);
 				}
-				return mkdirp(coreLocation).then(() => {
-					return Promise.all([readFile(path.join(__dirname, 'nls.metadata.json')), readFile(mainPack)]);
-				}).then((values) => {
-					let metadata = JSON.parse(values[0]);
-					let packData = JSON.parse(values[1]).contents;
-					let bundles = Object.keys(metadata.bundles);
-					let writes = [];
-					for (let bundle of bundles) {
-						let modules = metadata.bundles[bundle];
-						let target = Object.create(null);
-						for (let module of modules) {
-							let keys = metadata.keys[module];
-							let defaultMessages = metadata.messages[module];
-							let translations = packData[module];
-							let targetStrings;
-							if (translations) {
-								targetStrings = [];
-								for (let i = 0; i < keys.length; i++) {
-									let elem = keys[i];
-									let key = typeof elem === 'string' ? elem : elem.key;
-									let translatedMessage = translations[key];
-									if (translatedMessage === undefined) {
-										translatedMessage = defaultMessages[i];
-									}
-									targetStrings.push(translatedMessage);
-								}
-							} else {
-								targetStrings = defaultMessages;
-							}
-							target[module] = targetStrings;
+				return toDelete.then(() => {
+					return exists(coreLocation).then((fileExists) => {
+						if (fileExists) {
+							// We don't wait for this. No big harm if we can't touch
+							touch(coreLocation).catch(() => { });
+							perf.mark('nlsGeneration:end');
+							return result;
 						}
-						writes.push(writeFile(path.join(coreLocation, bundle.replace(/\//g, '!') + '.nls.json'), JSON.stringify(target)));
-					}
-					writes.push(writeFile(translationsConfigFile, JSON.stringify(packConfig.translations)));
-					return Promise.all(writes);
-				}).then(() => {
-					perf.mark('nlsGeneration:end');
-					return result;
-				}).catch((err) => {
-					console.error('Generating translation files failed.', err);
-					return defaultResult(locale);
+						return mkdirp(coreLocation).then(() => {
+							return Promise.all([readFile(path.join(__dirname, 'nls.metadata.json')), readFile(mainPack)]);
+						}).then((values) => {
+							let metadata = JSON.parse(values[0]);
+							let packData = JSON.parse(values[1]).contents;
+							let bundles = Object.keys(metadata.bundles);
+							let writes = [];
+							for (let bundle of bundles) {
+								let modules = metadata.bundles[bundle];
+								let target = Object.create(null);
+								for (let module of modules) {
+									let keys = metadata.keys[module];
+									let defaultMessages = metadata.messages[module];
+									let translations = packData[module];
+									let targetStrings;
+									if (translations) {
+										targetStrings = [];
+										for (let i = 0; i < keys.length; i++) {
+											let elem = keys[i];
+											let key = typeof elem === 'string' ? elem : elem.key;
+											let translatedMessage = translations[key];
+											if (translatedMessage === undefined) {
+												translatedMessage = defaultMessages[i];
+											}
+											targetStrings.push(translatedMessage);
+										}
+									} else {
+										targetStrings = defaultMessages;
+									}
+									target[module] = targetStrings;
+								}
+								writes.push(writeFile(path.join(coreLocation, bundle.replace(/\//g, '!') + '.nls.json'), JSON.stringify(target)));
+							}
+							writes.push(writeFile(translationsConfigFile, JSON.stringify(packConfig.translations)));
+							return Promise.all(writes);
+						}).then(() => {
+							perf.mark('nlsGeneration:end');
+							return result;
+						}).catch((err) => {
+							console.error('Generating translation files failed.', err);
+							return defaultResult(locale);
+						});
+					});
 				});
 			});
 		});
@@ -388,32 +374,41 @@ function getNLSConfiguration(locale) {
 		return defaultResult(locale);
 	}
 }
+//#endregion
 
-function getNodeCachedDataDir() {
-	// flag to disable cached data support
-	if (process.argv.indexOf('--no-cached-data') > 0) {
-		return Promise.resolve(undefined);
+//#region Cached Data Dir
+const nodeCachedDataDir = new class {
+
+	constructor() {
+		this.value = this._compute();
 	}
 
-	// IEnvironmentService.isBuilt
-	if (process.env['VSCODE_DEV']) {
-		return Promise.resolve(undefined);
+	jsFlags() {
+		return this.value ? '--nolazy' : undefined;
 	}
 
-	// find commit id
-	let commit = getCommit();
-	if (!commit) {
-		return Promise.resolve(undefined);
+	ensureExists() {
+		return mkdirp(this.value).then(() => this.value, () => { /*ignore*/ });
 	}
 
-	let dir = path.join(app.getPath('userData'), 'CachedData', commit);
+	_compute() {
+		if (process.argv.indexOf('--no-cached-data') > 0) {
+			return undefined;
+		}
+		// IEnvironmentService.isBuilt
+		if (process.env['VSCODE_DEV']) {
+			return undefined;
+		}
+		// find commit id
+		let commit = product.commit;
+		if (!commit) {
+			return undefined;
+		}
+		return path.join(userDataPath, 'CachedData', commit);
+	}
+};
 
-	return mkdirp(dir).then(undefined, function () { /*ignore*/ });
-}
-
-// Set userData path before app 'ready' event and call to process.chdir
-let userData = path.resolve(args['user-data-dir'] || paths.getDefaultUserDataPath(process.platform));
-app.setPath('userData', userData);
+//#endregion
 
 // Update cwd based on environment and platform
 try {
@@ -449,20 +444,6 @@ global.getOpenUrls = function () {
 	return openUrls;
 };
 
-// use '<UserData>/CachedData'-directory to store
-// node/v8 cached data.
-let nodeCachedDataDir = getNodeCachedDataDir().then(function (value) {
-	if (value) {
-		// store the data directory
-		process.env['VSCODE_NODE_CACHED_DATA_DIR_' + process.pid] = value;
-
-		// tell v8 to not be lazy when parsing JavaScript. Generally this makes startup slower
-		// but because we generate cached data it makes subsequent startups much faster
-		let existingJSFlags = resolveJSFlags();
-		app.commandLine.appendSwitch('--js-flags', existingJSFlags ? existingJSFlags + ' --nolazy' : '--nolazy');
-	}
-	return value;
-});
 
 let nlsConfiguration = undefined;
 let userDefinedLocale = getUserDefinedLocale();
@@ -472,7 +453,7 @@ userDefinedLocale.then((locale) => {
 	}
 });
 
-let jsFlags = resolveJSFlags();
+let jsFlags = resolveJSFlags(nodeCachedDataDir.jsFlags());
 if (jsFlags) {
 	app.commandLine.appendSwitch('--js-flags', jsFlags);
 }
@@ -480,8 +461,7 @@ if (jsFlags) {
 // Load our code once ready
 app.once('ready', function () {
 	perf.mark('main:appReady');
-	Promise.all([nodeCachedDataDir, userDefinedLocale]).then((values) => {
-		let locale = values[1];
+	Promise.all([nodeCachedDataDir.ensureExists(), userDefinedLocale]).then(([cachedDataDir, locale]) => {
 		if (locale && !nlsConfiguration) {
 			nlsConfiguration = getNLSConfiguration(locale);
 		}
@@ -493,6 +473,7 @@ app.once('ready', function () {
 		nlsConfiguration.then((nlsConfig) => {
 			let boot = (nlsConfig) => {
 				process.env['VSCODE_NLS_CONFIG'] = JSON.stringify(nlsConfig);
+				if (cachedDataDir) process.env['VSCODE_NODE_CACHED_DATA_DIR_' + process.pid] = cachedDataDir;
 				require('./bootstrap-amd').bootstrap('vs/code/electron-main/main');
 			};
 			// We recevied a valid nlsConfig from a user defined locale

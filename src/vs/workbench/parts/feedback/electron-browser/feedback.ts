@@ -139,8 +139,12 @@ export class FeedbackDropdown extends Dropdown {
 
 		$('h2.title').text(nls.localize("label.sendASmile", "Tweet us your feedback.")).appendTo($form);
 
-		const cancelBtn = $('div.cancel').attr('tabindex', '0');
-		cancelBtn.on(dom.EventType.MOUSE_OVER, () => {
+		const closeBtn = $('div.cancel').attr({
+			'tabindex': '0',
+			'role': 'button',
+			'title': nls.localize('close', "Close")
+		});
+		closeBtn.on(dom.EventType.MOUSE_OVER, () => {
 			const theme = this.themeService.getTheme();
 			let darkenFactor: number;
 			switch (theme.type) {
@@ -153,13 +157,13 @@ export class FeedbackDropdown extends Dropdown {
 			}
 
 			if (darkenFactor) {
-				cancelBtn.getHTMLElement().style.backgroundColor = darken(theme.getColor(editorWidgetBackground), darkenFactor)(theme).toString();
+				closeBtn.getHTMLElement().style.backgroundColor = darken(theme.getColor(editorWidgetBackground), darkenFactor)(theme).toString();
 			}
 		});
-		cancelBtn.on(dom.EventType.MOUSE_OUT, () => {
-			cancelBtn.getHTMLElement().style.backgroundColor = null;
+		closeBtn.on(dom.EventType.MOUSE_OUT, () => {
+			closeBtn.getHTMLElement().style.backgroundColor = null;
 		});
-		this.invoke(cancelBtn, () => {
+		this.invoke(closeBtn, () => {
 			this.hide();
 		}).appendTo($form);
 
@@ -178,7 +182,8 @@ export class FeedbackDropdown extends Dropdown {
 
 		this.smileyInput = $('div').addClass('sentiment smile').attr({
 			'aria-checked': 'false',
-			'aria-label': nls.localize('smileCaption', "Happy"),
+			'aria-label': nls.localize('smileCaption', "Happy Feedback Sentiment"),
+			'title': nls.localize('smileCaption', "Happy Feedback Sentiment"),
 			'tabindex': 0,
 			'role': 'checkbox'
 		});
@@ -186,7 +191,8 @@ export class FeedbackDropdown extends Dropdown {
 
 		this.frownyInput = $('div').addClass('sentiment frown').attr({
 			'aria-checked': 'false',
-			'aria-label': nls.localize('frownCaption', "Sad"),
+			'aria-label': nls.localize('frownCaption', "Sad Feedback Sentiment"),
+			'title': nls.localize('frownCaption', "Sad Feedback Sentiment"),
 			'tabindex': 0,
 			'role': 'checkbox'
 		});
@@ -233,7 +239,7 @@ export class FeedbackDropdown extends Dropdown {
 		this.feedbackDescriptionInput = <HTMLTextAreaElement>$('textarea.feedback-description').attr({
 			rows: 3,
 			maxlength: this.maxFeedbackCharacters,
-			'aria-label': nls.localize("commentsHeader", "Comments")
+			'aria-label': nls.localize("feedbackTextInput", "Tell us your feedback")
 		})
 			.text(this.feedback).attr('required', 'required')
 			.on('keyup', () => {
@@ -254,9 +260,10 @@ export class FeedbackDropdown extends Dropdown {
 		this.sendButton.label = nls.localize('tweet', "Tweet");
 		this.$sendButton = new Builder(this.sendButton.element);
 		this.$sendButton.addClass('send');
+		this.$sendButton.title(nls.localize('tweetFeedback', "Tweet Feedback"));
 		this.toDispose.push(attachButtonStyler(this.sendButton, this.themeService));
 
-		this.invoke(this.$sendButton, () => {
+		this.sendButton.onDidClick(() => {
 			if (this.isSendingFeedback) {
 				return;
 			}
@@ -335,7 +342,7 @@ export class FeedbackDropdown extends Dropdown {
 		return element;
 	}
 
-	public show(): void {
+	show(): void {
 		super.show();
 
 		if (this.options.onFeedbackVisibilityChange) {
@@ -349,7 +356,7 @@ export class FeedbackDropdown extends Dropdown {
 		}
 	}
 
-	public hide(): void {
+	hide(): void {
 		if (this.feedbackDescriptionInput) {
 			this.feedback = this.feedbackDescriptionInput.value;
 		}
@@ -366,7 +373,7 @@ export class FeedbackDropdown extends Dropdown {
 		super.hide();
 	}
 
-	public onEvent(e: Event, activeElement: HTMLElement): void {
+	onEvent(e: Event, activeElement: HTMLElement): void {
 		if (e instanceof KeyboardEvent) {
 			const keyboardEvent = <KeyboardEvent>e;
 			if (keyboardEvent.keyCode === 27) { // Escape

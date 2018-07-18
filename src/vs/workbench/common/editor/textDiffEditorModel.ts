@@ -31,7 +31,7 @@ export class TextDiffEditorModel extends DiffEditorModel {
 		return this._modifiedModel as BaseTextEditorModel;
 	}
 
-	public load(): TPromise<EditorModel> {
+	load(): TPromise<EditorModel> {
 		return super.load().then(() => {
 			this.updateTextDiffEditorModel();
 
@@ -58,15 +58,19 @@ export class TextDiffEditorModel extends DiffEditorModel {
 		}
 	}
 
-	public get textDiffEditorModel(): IDiffEditorModel {
+	get textDiffEditorModel(): IDiffEditorModel {
 		return this._textDiffEditorModel;
 	}
 
-	public isResolved(): boolean {
+	isResolved(): boolean {
 		return !!this._textDiffEditorModel;
 	}
 
-	public dispose(): void {
+	isReadonly(): boolean {
+		return this.modifiedModel.isReadonly();
+	}
+
+	dispose(): void {
 
 		// Free the diff editor model but do not propagate the dispose() call to the two models
 		// inside. We never created the two models (original and modified) so we can not dispose

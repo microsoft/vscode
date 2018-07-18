@@ -13,5 +13,6 @@
 	"indentUsingTabs": "Отступ с использованием табуляции",
 	"indentUsingSpaces": "Отступ с использованием пробелов",
 	"detectIndentation": "Определение отступа от содержимого",
-	"editor.reindentlines": "Повторно расставить отступы строк"
+	"editor.reindentlines": "Повторно расставить отступы строк",
+	"editor.reindentselectedlines": "Повторно расставить отступы для выбранных строк"
 }

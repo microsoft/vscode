@@ -19,10 +19,12 @@ import { IStorageService } from 'vs/platform/storage/common/storage';
 import { ITextResourceConfigurationService } from 'vs/editor/common/services/resourceConfiguration';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
-import { IEditorGroupService } from 'vs/workbench/services/group/common/groupService';
 import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
 import { once } from 'vs/base/common/event';
 import { ScrollType } from 'vs/editor/common/editorCommon';
+import { IEditorGroupsService } from 'vs/workbench/services/group/common/editorGroupsService';
+import { CancellationToken } from 'vs/base/common/cancellation';
+import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 
 /**
  * An editor implementation that is capable of showing the contents of resource inputs. Uses
@@ -37,13 +39,14 @@ export class AbstractTextResourceEditor extends BaseTextEditor {
 		@IStorageService storageService: IStorageService,
 		@ITextResourceConfigurationService configurationService: ITextResourceConfigurationService,
 		@IThemeService themeService: IThemeService,
-		@IEditorGroupService editorGroupService: IEditorGroupService,
-		@ITextFileService textFileService: ITextFileService
+		@IEditorGroupsService editorGroupService: IEditorGroupsService,
+		@ITextFileService textFileService: ITextFileService,
+		@IEditorService editorService: IEditorService
 	) {
-		super(id, telemetryService, instantiationService, storageService, configurationService, themeService, textFileService, editorGroupService);
+		super(id, telemetryService, instantiationService, storageService, configurationService, themeService, textFileService, editorService, editorGroupService);
 	}
 
-	public getTitle(): string {
+	getTitle(): string {
 		if (this.input) {
 			return this.input.getName();
 		}
@@ -51,36 +54,23 @@ export class AbstractTextResourceEditor extends BaseTextEditor {
 		return nls.localize('textEditor', "Text Editor");
 	}
 
-	public setInput(input: EditorInput, options?: EditorOptions): TPromise<void> {
-
-		// Return early for same input unless we force to open
-		const forceOpen = options && options.forceOpen;
-		if (!forceOpen && input.matches(this.input)) {
-
-			// Still apply options if any (avoiding instanceof here for a reason, do not change!)
-			const textOptions = <TextEditorOptions>options;
-			if (textOptions && types.isFunction(textOptions.apply)) {
-				textOptions.apply(this.getControl(), ScrollType.Smooth);
-			}
-
-			return TPromise.wrap<void>(null);
-		}
+	setInput(input: EditorInput, options: EditorOptions, token: CancellationToken): Thenable<void> {
 
 		// Remember view settings if input changes
 		this.saveTextResourceEditorViewState(this.input);
 
 		// Set input and resolve
-		return super.setInput(input, options).then(() => {
-			return input.resolve(true).then((resolvedModel: EditorModel) => {
+		return super.setInput(input, options, token).then(() => {
+			return input.resolve().then((resolvedModel: EditorModel) => {
+
+				// Check for cancellation
+				if (token.isCancellationRequested) {
+					return void 0;
+				}
 
 				// Assert Model instance
 				if (!(resolvedModel instanceof BaseTextEditorModel)) {
 					return TPromise.wrapError<void>(new Error('Unable to open file as text'));
-				}
-
-				// Assert that the current input is still the one we expect. This prevents a race condition when loading takes long and another input was set meanwhile
-				if (!this.input || this.input !== input) {
-					return null;
 				}
 
 				// Set Editor Model
@@ -114,6 +104,13 @@ export class AbstractTextResourceEditor extends BaseTextEditor {
 		}
 	}
 
+	setOptions(options: EditorOptions): void {
+		const textOptions = <TextEditorOptions>options;
+		if (textOptions && types.isFunction(textOptions.apply)) {
+			textOptions.apply(this.getControl(), ScrollType.Smooth);
+		}
+	}
+
 	protected getConfigurationOverrides(): IEditorOptions {
 		const options = super.getConfigurationOverrides();
 
@@ -139,18 +136,23 @@ export class AbstractTextResourceEditor extends BaseTextEditor {
 
 	/**
 	 * Reveals the last line of this editor if it has a model set.
+	 * When smart is true only scroll if the cursor is currently on the last line of the output panel.
+	 * This allows users to click on the output panel to stop scrolling when they see something of interest.
+	 * To resume, they should scroll to the end of the output panel again.
 	 */
-	public revealLastLine(): void {
+	revealLastLine(smart: boolean): void {
 		const codeEditor = <ICodeEditor>this.getControl();
 		const model = codeEditor.getModel();
 
 		if (model) {
 			const lastLine = model.getLineCount();
-			codeEditor.revealPosition({ lineNumber: lastLine, column: model.getLineMaxColumn(lastLine) }, ScrollType.Smooth);
+			if (!smart || codeEditor.getPosition().lineNumber === lastLine) {
+				codeEditor.revealPosition({ lineNumber: lastLine, column: model.getLineMaxColumn(lastLine) }, ScrollType.Smooth);
+			}
 		}
 	}
 
-	public clearInput(): void {
+	clearInput(): void {
 
 		// Keep editor view state in settings to restore when coming back
 		this.saveTextResourceEditorViewState(this.input);
@@ -161,7 +163,7 @@ export class AbstractTextResourceEditor extends BaseTextEditor {
 		super.clearInput();
 	}
 
-	public shutdown(): void {
+	shutdown(): void {
 
 		// Save View State (only for untitled)
 		if (this.input instanceof UntitledEditorInput) {
@@ -198,7 +200,7 @@ export class AbstractTextResourceEditor extends BaseTextEditor {
 
 export class TextResourceEditor extends AbstractTextResourceEditor {
 
-	public static readonly ID = 'workbench.editors.textResourceEditor';
+	static readonly ID = 'workbench.editors.textResourceEditor';
 
 	constructor(
 		@ITelemetryService telemetryService: ITelemetryService,
@@ -206,9 +208,10 @@ export class TextResourceEditor extends AbstractTextResourceEditor {
 		@IStorageService storageService: IStorageService,
 		@ITextResourceConfigurationService configurationService: ITextResourceConfigurationService,
 		@IThemeService themeService: IThemeService,
-		@IEditorGroupService editorGroupService: IEditorGroupService,
-		@ITextFileService textFileService: ITextFileService
+		@ITextFileService textFileService: ITextFileService,
+		@IEditorService editorService: IEditorService,
+		@IEditorGroupsService editorGroupService: IEditorGroupsService
 	) {
-		super(TextResourceEditor.ID, telemetryService, instantiationService, storageService, configurationService, themeService, editorGroupService, textFileService);
+		super(TextResourceEditor.ID, telemetryService, instantiationService, storageService, configurationService, themeService, editorGroupService, textFileService, editorService);
 	}
 }

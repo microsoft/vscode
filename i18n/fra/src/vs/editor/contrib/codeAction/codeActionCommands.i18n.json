@@ -14,5 +14,6 @@
 	"editor.action.refactor.noneMessage": "Aucune refactorisation disponible",
 	"source.label": "Action de la source",
 	"editor.action.source.noneMessage": "Aucune action n'est disponible",
-	"organizeImports.label": "Organiser les Imports"
+	"organizeImports.label": "Organiser les Imports",
+	"editor.action.organize.noneMessage": "Aucune action organiser les imports disponible"
 }

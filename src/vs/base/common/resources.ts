@@ -52,6 +52,13 @@ export function dirname(resource: uri): uri {
 	});
 }
 
+export function joinPath(resource: uri, pathFragment: string): uri {
+	const joinedPath = paths.join(resource.path || '/', pathFragment);
+	return resource.with({
+		path: joinedPath
+	});
+}
+
 export function distinctParents<T>(items: T[], resourceAccessor: (item: T) => uri): T[] {
 	const distinctParents: T[] = [];
 	for (let i = 0; i < items.length; i++) {

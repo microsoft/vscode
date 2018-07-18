@@ -75,7 +75,7 @@ export interface IViewLayout {
 	 * Reserve rendering space.
 	 * @return an identifier that can be later used to remove or change the whitespace.
 	 */
-	addWhitespace(afterLineNumber: number, ordinal: number, height: number): number;
+	addWhitespace(afterLineNumber: number, ordinal: number, height: number, minWidth: number): number;
 	/**
 	 * Change the properties of a whitespace.
 	 */
@@ -124,6 +124,7 @@ export interface IViewModel {
 
 	getDecorationsInViewport(visibleRange: Range): ViewModelDecoration[];
 	getViewLineRenderingData(visibleRange: Range, lineNumber: number): ViewLineRenderingData;
+	getViewLineData(lineNumber: number): ViewLineData;
 	getMinimapLinesRenderingData(startLineNumber: number, endLineNumber: number, needed: boolean[]): MinimapLinesRenderingData;
 	getCompletelyVisibleViewRange(): Range;
 	getCompletelyVisibleViewRangeAtScrollTop(scrollTop: number): Range;
@@ -132,7 +133,7 @@ export interface IViewModel {
 	getLineCount(): number;
 	getLineContent(lineNumber: number): string;
 	getLineLength(lineNumber: number): number;
-	getActiveIndentGuide(lineNumber: number): IActiveIndentGuideInfo;
+	getActiveIndentGuide(lineNumber: number, minLineNumber: number, maxLineNumber: number): IActiveIndentGuideInfo;
 	getLinesIndentGuides(startLineNumber: number, endLineNumber: number): number[];
 	getLineMinColumn(lineNumber: number): number;
 	getLineMaxColumn(lineNumber: number): number;
@@ -147,7 +148,7 @@ export interface IViewModel {
 
 	deduceModelPositionRelativeToViewPosition(viewAnchorPosition: Position, deltaOffset: number, lineFeedCnt: number): Position;
 	getEOL(): string;
-	getPlainTextToCopy(ranges: Range[], emptySelectionClipboard: boolean): string | string[];
+	getPlainTextToCopy(ranges: Range[], emptySelectionClipboard: boolean, forceCRLF: boolean): string | string[];
 	getHTMLToCopy(ranges: Range[], emptySelectionClipboard: boolean): string;
 }
 
@@ -172,6 +173,10 @@ export class ViewLineData {
 	 */
 	public readonly content: string;
 	/**
+	 * Does this line continue with a wrapped line?
+	 */
+	public readonly continuesWithWrappedLine: boolean;
+	/**
 	 * The minimum allowed column at this view line.
 	 */
 	public readonly minColumn: number;
@@ -186,11 +191,13 @@ export class ViewLineData {
 
 	constructor(
 		content: string,
+		continuesWithWrappedLine: boolean,
 		minColumn: number,
 		maxColumn: number,
 		tokens: IViewLineTokens
 	) {
 		this.content = content;
+		this.continuesWithWrappedLine = continuesWithWrappedLine;
 		this.minColumn = minColumn;
 		this.maxColumn = maxColumn;
 		this.tokens = tokens;
@@ -210,6 +217,10 @@ export class ViewLineRenderingData {
 	 * The content at this view line.
 	 */
 	public readonly content: string;
+	/**
+	 * Does this line continue with a wrapped line?
+	 */
+	public readonly continuesWithWrappedLine: boolean;
 	/**
 	 * Describes if `content` contains RTL characters.
 	 */
@@ -235,6 +246,7 @@ export class ViewLineRenderingData {
 		minColumn: number,
 		maxColumn: number,
 		content: string,
+		continuesWithWrappedLine: boolean,
 		mightContainRTL: boolean,
 		mightContainNonBasicASCII: boolean,
 		tokens: IViewLineTokens,
@@ -244,6 +256,7 @@ export class ViewLineRenderingData {
 		this.minColumn = minColumn;
 		this.maxColumn = maxColumn;
 		this.content = content;
+		this.continuesWithWrappedLine = continuesWithWrappedLine;
 
 		this.isBasicASCII = ViewLineRenderingData.isBasicASCII(content, mightContainNonBasicASCII);
 		this.containsRTL = ViewLineRenderingData.containsRTL(content, this.isBasicASCII, mightContainRTL);

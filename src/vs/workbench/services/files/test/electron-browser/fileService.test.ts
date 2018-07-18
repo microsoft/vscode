@@ -157,7 +157,7 @@ suite('FileService', () => {
 
 		const resource = uri.file(path.join(testDir, 'index.html'));
 		return service.resolveFile(resource).then(source => {
-			return service.rename(source.resource, 'other.html').then(renamed => {
+			return service.moveFile(source.resource, uri.file(path.join(path.dirname(source.resource.fsPath), 'other.html'))).then(renamed => {
 				assert.equal(fs.existsSync(renamed.resource.fsPath), true);
 				assert.equal(fs.existsSync(source.resource.fsPath), false);
 
@@ -181,7 +181,7 @@ suite('FileService', () => {
 
 		const resource = uri.file(path.join(testDir, 'index.html'));
 		return service.resolveFile(resource).then(source => {
-			return service.rename(source.resource, renameToPath).then(renamed => {
+			return service.moveFile(source.resource, uri.file(path.join(path.dirname(source.resource.fsPath), renameToPath))).then(renamed => {
 				assert.equal(fs.existsSync(renamed.resource.fsPath), true);
 				assert.equal(fs.existsSync(source.resource.fsPath), false);
 
@@ -202,7 +202,7 @@ suite('FileService', () => {
 
 		const resource = uri.file(path.join(testDir, 'deep'));
 		return service.resolveFile(resource).then(source => {
-			return service.rename(source.resource, 'deeper').then(renamed => {
+			return service.moveFile(source.resource, uri.file(path.join(path.dirname(source.resource.fsPath), 'deeper'))).then(renamed => {
 				assert.equal(fs.existsSync(renamed.resource.fsPath), true);
 				assert.equal(fs.existsSync(source.resource.fsPath), false);
 
@@ -226,7 +226,7 @@ suite('FileService', () => {
 
 		const resource = uri.file(path.join(testDir, 'deep'));
 		return service.resolveFile(resource).then(source => {
-			return service.rename(source.resource, renameToPath).then(renamed => {
+			return service.moveFile(source.resource, uri.file(path.join(path.dirname(source.resource.fsPath), renameToPath))).then(renamed => {
 				assert.equal(fs.existsSync(renamed.resource.fsPath), true);
 				assert.equal(fs.existsSync(source.resource.fsPath), false);
 
@@ -246,7 +246,7 @@ suite('FileService', () => {
 
 		const resource = uri.file(path.join(testDir, 'index.html'));
 		return service.resolveFile(resource).then(source => {
-			return service.rename(source.resource, 'INDEX.html').then(renamed => {
+			return service.moveFile(source.resource, uri.file(path.join(path.dirname(source.resource.fsPath), 'INDEX.html'))).then(renamed => {
 				assert.equal(fs.existsSync(renamed.resource.fsPath), true);
 				assert.equal(path.basename(renamed.resource.fsPath), 'INDEX.html');
 
@@ -430,7 +430,7 @@ suite('FileService', () => {
 
 	test('copyFile - MIX CASE', function () {
 		return service.resolveFile(uri.file(path.join(testDir, 'index.html'))).then(source => {
-			return service.rename(source.resource, 'CONWAY.js').then(renamed => { // index.html => CONWAY.js
+			return service.moveFile(source.resource, uri.file(path.join(path.dirname(source.resource.fsPath), 'CONWAY.js'))).then(renamed => {
 				assert.equal(fs.existsSync(renamed.resource.fsPath), true);
 				assert.ok(fs.readdirSync(testDir).some(f => f === 'CONWAY.js'));
 
@@ -476,7 +476,7 @@ suite('FileService', () => {
 		});
 	});
 
-	test('deleteFolder', function () {
+	test('deleteFolder (recursive)', function () {
 		let event: FileOperationEvent;
 		const toDispose = service.onAfterOperation(e => {
 			event = e;
@@ -484,13 +484,24 @@ suite('FileService', () => {
 
 		const resource = uri.file(path.join(testDir, 'deep'));
 		return service.resolveFile(resource).then(source => {
-			return service.del(source.resource).then(() => {
+			return service.del(source.resource, { recursive: true }).then(() => {
 				assert.equal(fs.existsSync(source.resource.fsPath), false);
 
 				assert.ok(event);
 				assert.equal(event.resource.fsPath, resource.fsPath);
 				assert.equal(event.operation, FileOperation.DELETE);
 				toDispose.dispose();
+			});
+		});
+	});
+
+	test('deleteFolder (non recursive)', function () {
+		const resource = uri.file(path.join(testDir, 'deep'));
+		return service.resolveFile(resource).then(source => {
+			return service.del(source.resource).then(() => {
+				return TPromise.wrapError(new Error('Unexpected'));
+			}, error => {
+				return TPromise.as(true);
 			});
 		});
 	});

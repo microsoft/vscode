@@ -11,13 +11,12 @@ import * as resources from 'vs/base/common/resources';
 import { ResourceMap } from 'vs/base/common/map';
 import { isLinux } from 'vs/base/common/platform';
 import { IFileStat } from 'vs/platform/files/common/files';
-import { IEditorInput } from 'vs/platform/editor/common/editor';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
-import { IEditorGroup, toResource, IEditorIdentifier } from 'vs/workbench/common/editor';
+import { toResource, IEditorIdentifier, IEditorInput } from 'vs/workbench/common/editor';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
-import { getPathLabel } from 'vs/base/common/labels';
 import { Schemas } from 'vs/base/common/network';
-import { startsWith, startsWithIgnoreCase, equalsIgnoreCase } from 'vs/base/common/strings';
+import { startsWith, startsWithIgnoreCase, rtrim } from 'vs/base/common/strings';
+import { IEditorGroup } from 'vs/workbench/services/group/common/editorGroupsService';
 
 export class Model {
 
@@ -25,12 +24,8 @@ export class Model {
 	private _listener: IDisposable;
 
 	constructor(@IWorkspaceContextService private contextService: IWorkspaceContextService) {
-		const setRoots = () => this._roots = this.contextService.getWorkspace().folders.map(folder => {
-			const root = new ExplorerItem(folder.uri, undefined);
-			root.name = folder.name;
-
-			return root;
-		});
+		const setRoots = () => this._roots = this.contextService.getWorkspace().folders
+			.map(folder => new ExplorerItem(folder.uri, undefined, false, false, true, folder.name));
 		this._listener = this.contextService.onDidChangeWorkspaceFolders(() => setRoots());
 		setRoots();
 	}
@@ -72,23 +67,27 @@ export class Model {
 
 export class ExplorerItem {
 	public resource: URI;
-	public name: string;
+	private _name: string;
 	public mtime: number;
 	public etag: string;
 	private _isDirectory: boolean;
 	private _isSymbolicLink: boolean;
+	private _isReadonly: boolean;
 	private children: Map<string, ExplorerItem>;
+	private _isError: boolean;
 	public parent: ExplorerItem;
 
 	public isDirectoryResolved: boolean;
 
-	constructor(resource: URI, public root: ExplorerItem, isSymbolicLink?: boolean, isDirectory?: boolean, name: string = getPathLabel(resource), mtime?: number, etag?: string) {
+	constructor(resource: URI, public root: ExplorerItem, isSymbolicLink?: boolean, isReadonly?: boolean, isDirectory?: boolean, name: string = resources.basenameOrAuthority(resource), mtime?: number, etag?: string, isError?: boolean) {
 		this.resource = resource;
-		this.name = name;
+		this._name = name;
 		this.isDirectory = !!isDirectory;
 		this._isSymbolicLink = !!isSymbolicLink;
+		this._isReadonly = !!isReadonly;
 		this.etag = etag;
 		this.mtime = mtime;
+		this._isError = !!isError;
 
 		if (!this.root) {
 			this.root = this;
@@ -105,6 +104,14 @@ export class ExplorerItem {
 		return this._isDirectory;
 	}
 
+	public get isReadonly(): boolean {
+		return this._isReadonly;
+	}
+
+	public get isError(): boolean {
+		return this._isError;
+	}
+
 	public set isDirectory(value: boolean) {
 		if (value !== this._isDirectory) {
 			this._isDirectory = value;
@@ -117,8 +124,19 @@ export class ExplorerItem {
 
 	}
 
-	public get nonexistentRoot(): boolean {
-		return this.isRoot && !this.isDirectoryResolved && this.isDirectory;
+	public get name(): string {
+		return this._name;
+	}
+
+	private updateName(value: string): void {
+		// Re-add to parent since the parent has a name map to children and the name might have changed
+		if (this.parent) {
+			this.parent.removeChild(this);
+		}
+		this._name = value;
+		if (this.parent) {
+			this.parent.addChild(this);
+		}
 	}
 
 	public getId(): string {
@@ -126,11 +144,11 @@ export class ExplorerItem {
 	}
 
 	public get isRoot(): boolean {
-		return this.resource.toString() === this.root.resource.toString();
+		return this === this.root;
 	}
 
-	public static create(raw: IFileStat, root: ExplorerItem, resolveTo?: URI[]): ExplorerItem {
-		const stat = new ExplorerItem(raw.resource, root, raw.isSymbolicLink, raw.isDirectory, raw.name, raw.mtime, raw.etag);
+	public static create(raw: IFileStat, root: ExplorerItem, resolveTo?: URI[], isError = false): ExplorerItem {
+		const stat = new ExplorerItem(raw.resource, root, raw.isSymbolicLink, raw.isReadonly, raw.isDirectory, raw.name, raw.mtime, raw.etag, isError);
 
 		// Recursively add children if present
 		if (stat.isDirectory) {
@@ -173,11 +191,13 @@ export class ExplorerItem {
 
 		// Properties
 		local.resource = disk.resource;
-		local.name = disk.name;
+		local.updateName(disk.name);
 		local.isDirectory = disk.isDirectory;
 		local.mtime = disk.mtime;
 		local.isDirectoryResolved = disk.isDirectoryResolved;
 		local._isSymbolicLink = disk.isSymbolicLink;
+		local._isReadonly = disk.isReadonly;
+		local._isError = disk.isError;
 
 		// Merge Children if resolved
 		if (mergingDirectories && disk.isDirectoryResolved) {
@@ -259,19 +279,6 @@ export class ExplorerItem {
 		return this.children.size;
 	}
 
-	public getChildrenNames(): string[] {
-		if (!this.children) {
-			return [];
-		}
-
-		const names: string[] = [];
-		this.children.forEach(child => {
-			names.push(child.name);
-		});
-
-		return names;
-	}
-
 	/**
 	 * Removes a child element from this folder.
 	 */
@@ -322,7 +329,7 @@ export class ExplorerItem {
 	public rename(renamedStat: { name: string, mtime: number }): void {
 
 		// Merge a subset of Properties that can change on rename
-		this.name = renamedStat.name;
+		this.updateName(renamedStat.name);
 		this.mtime = renamedStat.mtime;
 
 		// Update Paths including children
@@ -338,17 +345,14 @@ export class ExplorerItem {
 		if (resource && this.resource.scheme === resource.scheme && this.resource.authority === resource.authority &&
 			(isLinux ? startsWith(resource.path, this.resource.path) : startsWithIgnoreCase(resource.path, this.resource.path))
 		) {
-			return this.findByPath(resource.path, this.resource.path.length);
+			return this.findByPath(rtrim(resource.path, paths.sep), this.resource.path.length);
 		}
 
 		return null; //Unable to find
 	}
 
 	private findByPath(path: string, index: number): ExplorerItem {
-		if (this.resource.path === path) {
-			return this;
-		}
-		if (!isLinux && equalsIgnoreCase(this.resource.path, path)) {
+		if (paths.isEqual(rtrim(this.resource.path, paths.sep), path, !isLinux)) {
 			return this;
 		}
 
@@ -388,7 +392,7 @@ export class NewStatPlaceholder extends ExplorerItem {
 	private directoryPlaceholder: boolean;
 
 	constructor(isDirectory: boolean, root: ExplorerItem) {
-		super(URI.file(''), root, false, false, NewStatPlaceholder.NAME);
+		super(URI.file(''), root, false, false, false, NewStatPlaceholder.NAME);
 
 		this.id = NewStatPlaceholder.ID++;
 		this.isDirectoryResolved = isDirectory;
@@ -399,7 +403,6 @@ export class NewStatPlaceholder extends ExplorerItem {
 		this.parent.removeChild(this);
 
 		this.isDirectoryResolved = void 0;
-		this.name = void 0;
 		this.isDirectory = void 0;
 		this.mtime = void 0;
 	}
@@ -454,19 +457,23 @@ export class OpenEditor implements IEditorIdentifier {
 	}
 
 	public get editorIndex() {
-		return this._group.indexOf(this.editor);
+		return this._group.getIndexOfEditor(this.editor);
 	}
 
 	public get group() {
 		return this._group;
 	}
 
+	public get groupId() {
+		return this._group.id;
+	}
+
 	public getId(): string {
-		return `openeditor:${this.group.id}:${this.group.indexOf(this.editor)}:${this.editor.getName()}:${this.editor.getDescription()}`;
+		return `openeditor:${this.groupId}:${this.editorIndex}:${this.editor.getName()}:${this.editor.getDescription()}`;
 	}
 
 	public isPreview(): boolean {
-		return this.group.isPreview(this.editor);
+		return this._group.previewEditor === this.editor;
 	}
 
 	public isUntitled(): boolean {

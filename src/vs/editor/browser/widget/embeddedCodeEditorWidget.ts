@@ -10,14 +10,14 @@ import { ICommandService } from 'vs/platform/commands/common/commands';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
-import { CodeEditor } from 'vs/editor/browser/codeEditor';
+import { CodeEditorWidget } from 'vs/editor/browser/widget/codeEditorWidget';
 import { IConfigurationChangedEvent, IEditorOptions, IDiffEditorOptions } from 'vs/editor/common/config/editorOptions';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { DiffEditorWidget } from 'vs/editor/browser/widget/diffEditorWidget';
 import { IEditorWorkerService } from 'vs/editor/common/services/editorWorkerService';
 import { INotificationService } from 'vs/platform/notification/common/notification';
 
-export class EmbeddedCodeEditorWidget extends CodeEditor {
+export class EmbeddedCodeEditorWidget extends CodeEditorWidget {
 
 	private _parentEditor: ICodeEditor;
 	private _overwriteOptions: IEditorOptions;
@@ -33,7 +33,7 @@ export class EmbeddedCodeEditorWidget extends CodeEditor {
 		@IThemeService themeService: IThemeService,
 		@INotificationService notificationService: INotificationService
 	) {
-		super(domElement, parentEditor.getRawConfiguration(), instantiationService, codeEditorService, commandService, contextKeyService, themeService, notificationService);
+		super(domElement, parentEditor.getRawConfiguration(), {}, instantiationService, codeEditorService, commandService, contextKeyService, themeService, notificationService);
 
 		this._parentEditor = parentEditor;
 		this._overwriteOptions = options;

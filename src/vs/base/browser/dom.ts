@@ -634,11 +634,11 @@ export function getDomNodePagePosition(domNode: HTMLElement): IDomNodePagePositi
 }
 
 export interface IStandardWindow {
-	scrollX: number;
-	scrollY: number;
+	readonly scrollX: number;
+	readonly scrollY: number;
 }
 
-export const StandardWindow: IStandardWindow = new class {
+export const StandardWindow: IStandardWindow = new class implements IStandardWindow {
 	get scrollX(): number {
 		if (typeof window.scrollX === 'number') {
 			// modern browsers
@@ -723,14 +723,22 @@ export function isAncestor(testChild: Node, testAncestor: Node): boolean {
 	return false;
 }
 
-export function findParentWithClass(node: HTMLElement, clazz: string, stopAtClazz?: string): HTMLElement {
+export function findParentWithClass(node: HTMLElement, clazz: string, stopAtClazzOrNode?: string | HTMLElement): HTMLElement {
 	while (node) {
 		if (hasClass(node, clazz)) {
 			return node;
 		}
 
-		if (stopAtClazz && hasClass(node, stopAtClazz)) {
-			return null;
+		if (stopAtClazzOrNode) {
+			if (typeof stopAtClazzOrNode === 'string') {
+				if (hasClass(node, stopAtClazzOrNode)) {
+					return null;
+				}
+			} else {
+				if (node === stopAtClazzOrNode) {
+					return null;
+				}
+			}
 		}
 
 		node = <HTMLElement>node.parentNode;
@@ -811,6 +819,8 @@ export const EventType = {
 	MOUSE_OVER: 'mouseover',
 	MOUSE_MOVE: 'mousemove',
 	MOUSE_OUT: 'mouseout',
+	MOUSE_ENTER: 'mouseenter',
+	MOUSE_LEAVE: 'mouseleave',
 	CONTEXT_MENU: 'contextmenu',
 	WHEEL: 'wheel',
 	// Keyboard
@@ -830,6 +840,8 @@ export const EventType = {
 	SUBMIT: 'submit',
 	RESET: 'reset',
 	FOCUS: 'focus',
+	FOCUS_IN: 'focusin',
+	FOCUS_OUT: 'focusout',
 	BLUR: 'blur',
 	INPUT: 'input',
 	// Local Storage
@@ -978,7 +990,7 @@ export function $<T extends HTMLElement>(description: string, attrs?: { [key: st
 
 	Object.keys(attrs || {}).forEach(name => {
 		if (/^on\w+$/.test(name)) {
-			result[name] = attrs[name];
+			(<any>result)[name] = attrs[name];
 		} else if (name === 'selected') {
 			const value = attrs[name];
 			if (value) {

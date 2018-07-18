@@ -33,9 +33,6 @@ import { IInstantiationService } from 'vs/platform/instantiation/common/instanti
 import 'vs/workbench/parts/search/electron-browser/search.contribution';
 import { NullLogService } from 'vs/platform/log/common/log';
 import { ITextModel } from 'vs/editor/common/model';
-import { ExtHostWorkspace } from 'vs/workbench/api/node/extHostWorkspace';
-import { generateUuid } from 'vs/base/common/uuid';
-import { ExtHostTask } from 'vs/workbench/api/node/extHostTask';
 
 const defaultSelector = { scheme: 'far' };
 const model: ITextModel = EditorModel.createFromString(
@@ -52,8 +49,6 @@ let rpcProtocol: TestRPCProtocol;
 let extHost: ExtHostLanguageFeatures;
 let mainThread: MainThreadLanguageFeatures;
 let commands: ExtHostCommands;
-let task: ExtHostTask;
-let workspace: ExtHostWorkspace;
 let disposables: vscode.Disposable[] = [];
 let originalErrorHandler: (e: any) => any;
 
@@ -71,14 +66,14 @@ suite('ExtHostLanguageFeatureCommands', function () {
 			rpcProtocol = new TestRPCProtocol();
 			instantiationService.stub(IHeapService, {
 				_serviceBrand: undefined,
-				trackRecursive(args) {
+				trackRecursive(args: any) {
 					// nothing
 					return args;
 				}
 			});
 			instantiationService.stub(ICommandService, {
 				_serviceBrand: undefined,
-				executeCommand(id, args): any {
+				executeCommand(id: string, args: any): any {
 					if (!CommandsRegistry.getCommands()[id]) {
 						return TPromise.wrapError(new Error(id + ' NOT known'));
 					}
@@ -120,11 +115,9 @@ suite('ExtHostLanguageFeatureCommands', function () {
 		const heapService = new ExtHostHeapService();
 
 		commands = new ExtHostCommands(rpcProtocol, heapService, new NullLogService());
-		workspace = new ExtHostWorkspace(rpcProtocol, { id: generateUuid(), name: 'Test', folders: [] }, new NullLogService());
-		task = new ExtHostTask(rpcProtocol, workspace);
 		rpcProtocol.set(ExtHostContext.ExtHostCommands, commands);
 		rpcProtocol.set(MainContext.MainThreadCommands, inst.createInstance(MainThreadCommands, rpcProtocol));
-		ExtHostApiCommands.register(commands, task);
+		ExtHostApiCommands.register(commands);
 
 		const diagnostics = new ExtHostDiagnostics(rpcProtocol);
 		rpcProtocol.set(ExtHostContext.ExtHostDiagnostics, diagnostics);
@@ -339,6 +332,8 @@ suite('ExtHostLanguageFeatureCommands', function () {
 			return commands.executeCommand<vscode.SymbolInformation[]>('vscode.executeDocumentSymbolProvider', model.uri).then(values => {
 				assert.equal(values.length, 2);
 				let [first, second] = values;
+				assert.ok(first instanceof types.SymbolInformation);
+				assert.ok(second instanceof types.SymbolInformation);
 				assert.equal(first.name, 'testing2');
 				assert.equal(second.name, 'testing1');
 			});
@@ -453,6 +448,38 @@ suite('ExtHostLanguageFeatureCommands', function () {
 		assert.ok(list instanceof types.CompletionList);
 		assert.equal(resolveCount, 2);
 
+	});
+
+	test('"vscode.executeCompletionItemProvider" doesnot return a preselect field #53749', async function () {
+		disposables.push(extHost.registerCompletionItemProvider(defaultSelector, <vscode.CompletionItemProvider>{
+			provideCompletionItems(): any {
+				let a = new types.CompletionItem('item1');
+				a.preselect = true;
+				let b = new types.CompletionItem('item2');
+				let c = new types.CompletionItem('item3');
+				c.preselect = true;
+				let d = new types.CompletionItem('item4');
+				return new types.CompletionList([a, b, c, d], false);
+			}
+		}, []));
+
+		await rpcProtocol.sync();
+
+		let list = await commands.executeCommand<vscode.CompletionList>(
+			'vscode.executeCompletionItemProvider',
+			model.uri,
+			new types.Position(0, 4),
+			undefined
+		);
+
+		assert.ok(list instanceof types.CompletionList);
+		assert.equal(list.items.length, 4);
+
+		let [a, b, c, d] = list.items;
+		assert.equal(a.preselect, true);
+		assert.equal(b.preselect, undefined);
+		assert.equal(c.preselect, true);
+		assert.equal(d.preselect, undefined);
 	});
 
 	// --- quickfix
@@ -637,6 +664,22 @@ suite('ExtHostLanguageFeatureCommands', function () {
 				assert.equal(first.additionalTextEdits[0].range.start.character, 20);
 				assert.equal(first.additionalTextEdits[0].range.end.line, 2);
 				assert.equal(first.additionalTextEdits[0].range.end.character, 20);
+			});
+		});
+	});
+
+	test('"TypeError: e.onCancellationRequested is not a function" calling hover provider in Insiders #54174', function () {
+
+		disposables.push(extHost.registerHoverProvider(defaultSelector, <vscode.HoverProvider>{
+			provideHover(): any {
+				return new types.Hover('fofofofo');
+			}
+		}));
+
+		return rpcProtocol.sync().then(() => {
+			return commands.executeCommand<vscode.Hover[]>('vscode.executeHoverProvider', model.uri, new types.Position(1, 1)).then(value => {
+				assert.equal(value.length, 1);
+				assert.equal(value[0].contents.length, 1);
 			});
 		});
 	});

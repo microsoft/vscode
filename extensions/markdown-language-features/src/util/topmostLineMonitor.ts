@@ -4,21 +4,21 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as vscode from 'vscode';
-
 import { disposeAll } from '../util/dispose';
 import { isMarkdownFile } from './file';
-
 
 export class MarkdownFileTopmostLineMonitor {
 	private readonly disposables: vscode.Disposable[] = [];
 
 	private readonly pendingUpdates = new Map<string, number>();
 
+	private readonly throttle = 50;
+
 	constructor() {
 		vscode.window.onDidChangeTextEditorVisibleRanges(event => {
 			if (isMarkdownFile(event.textEditor.document)) {
 				const line = getVisibleLine(event.textEditor);
-				if (line) {
+				if (typeof line === 'number') {
 					this.updateLine(event.textEditor.document.uri, line);
 				}
 			}
@@ -47,7 +47,7 @@ export class MarkdownFileTopmostLineMonitor {
 					});
 					this.pendingUpdates.delete(key);
 				}
-			}, 50);
+			}, this.throttle);
 		}
 
 		this.pendingUpdates.set(key, line);

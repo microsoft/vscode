@@ -4,13 +4,13 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as vscode from 'vscode';
-
+import * as nls from 'vscode-nls';
 import TypeScriptServiceClientHost from './typeScriptServiceClientHost';
 import { Command } from './utils/commandManager';
 import { Lazy } from './utils/lazy';
-import { openOrCreateConfigFile, isImplicitProjectConfigFile } from './utils/tsconfig';
+import { isImplicitProjectConfigFile, openOrCreateConfigFile } from './utils/tsconfig';
 
-import * as nls from 'vscode-nls';
+
 const localize = nls.loadMessageBundle();
 
 
@@ -119,9 +119,9 @@ async function goToProjectConfig(
 		return;
 	}
 
-	const file = client.normalizePath(resource);
+	const file = client.toPath(resource);
 	// TSServer errors when 'projectInfo' is invoked on a non js/ts file
-	if (!file || !clientHost.handles(resource)) {
+	if (!file || !await clientHost.handles(resource)) {
 		vscode.window.showWarningMessage(
 			localize(
 				'typescript.projectConfigUnsupportedFile',

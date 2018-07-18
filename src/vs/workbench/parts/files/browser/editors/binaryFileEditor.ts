@@ -9,25 +9,26 @@ import { BaseBinaryResourceEditor } from 'vs/workbench/browser/parts/editor/bina
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { IWindowsService } from 'vs/platform/windows/common/windows';
-import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { EditorInput, EditorOptions } from 'vs/workbench/common/editor';
-import { onUnexpectedError } from 'vs/base/common/errors';
 import { FileEditorInput } from 'vs/workbench/parts/files/common/editors/fileEditorInput';
 import URI from 'vs/base/common/uri';
 import { BINARY_FILE_EDITOR_ID } from 'vs/workbench/parts/files/common/files';
+import { IFileService } from 'vs/platform/files/common/files';
+import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 
 /**
  * An implementation of editor for binary files like images.
  */
 export class BinaryFileEditor extends BaseBinaryResourceEditor {
 
-	public static readonly ID = BINARY_FILE_EDITOR_ID;
+	static readonly ID = BINARY_FILE_EDITOR_ID;
 
 	constructor(
 		@ITelemetryService telemetryService: ITelemetryService,
 		@IThemeService themeService: IThemeService,
+		@IFileService fileService: IFileService,
 		@IWindowsService private windowsService: IWindowsService,
-		@IWorkbenchEditorService private editorService: IWorkbenchEditorService
+		@IEditorService private editorService: IEditorService
 	) {
 		super(
 			BinaryFileEditor.ID,
@@ -36,14 +37,15 @@ export class BinaryFileEditor extends BaseBinaryResourceEditor {
 				openExternal: resource => this.openExternal(resource)
 			},
 			telemetryService,
-			themeService
+			themeService,
+			fileService
 		);
 	}
 
 	private openInternal(input: EditorInput, options: EditorOptions): void {
 		if (input instanceof FileEditorInput) {
 			input.setForceOpenAsText();
-			this.editorService.openEditor(input, options, this.position).done(null, onUnexpectedError);
+			this.editorService.openEditor(input, options, this.group);
 		}
 	}
 
@@ -57,7 +59,7 @@ export class BinaryFileEditor extends BaseBinaryResourceEditor {
 		});
 	}
 
-	public getTitle(): string {
+	getTitle(): string {
 		return this.input ? this.input.getName() : nls.localize('binaryFileEditor', "Binary File Viewer");
 	}
 }

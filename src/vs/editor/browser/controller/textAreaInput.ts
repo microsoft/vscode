@@ -126,7 +126,8 @@ export class TextAreaInput extends Disposable {
 		this._nextCommand = ReadFromTextArea.Type;
 
 		this._register(dom.addStandardDisposableListener(textArea.domNode, 'keydown', (e: IKeyboardEvent) => {
-			if (this._isDoingComposition && e.keyCode === KeyCode.KEY_IN_COMPOSITION) {
+			if (this._isDoingComposition &&
+				(e.keyCode === KeyCode.KEY_IN_COMPOSITION || e.keyCode === KeyCode.Backspace)) {
 				// Stop propagation for keyDown events if the IME is processing key input
 				e.stopPropagation();
 			}
@@ -204,15 +205,6 @@ export class TextAreaInput extends Disposable {
 		this._register(dom.addDisposableListener(textArea.domNode, 'compositionupdate', (e: CompositionEvent) => {
 			this._lastTextAreaEvent = TextAreaInputEventType.compositionupdate;
 
-			if (browser.isChromev56) {
-				// See https://github.com/Microsoft/monaco-editor/issues/320
-				// where compositionupdate .data is broken in Chrome v55 and v56
-				// See https://bugs.chromium.org/p/chromium/issues/detail?id=677050#c9
-				// The textArea doesn't get the composition update yet, the value of textarea is still obsolete
-				// so we can't correct e at this moment.
-				return;
-			}
-
 			if (compositionDataInValid(e.locale)) {
 				const [newState, typeInput] = deduceInputFromTextAreaValue(/*couldBeEmojiInput*/false, /*couldBeTypingAtOffset0*/false);
 				this._textAreaState = newState;
@@ -265,17 +257,6 @@ export class TextAreaInput extends Disposable {
 			this._textArea.setIgnoreSelectionChangeTime('received input event');
 
 			if (this._isDoingComposition) {
-				// See https://github.com/Microsoft/monaco-editor/issues/320
-				if (browser.isChromev56) {
-					const [newState, typeInput] = deduceComposition(this._textArea.getValue());
-					this._textAreaState = newState;
-
-					this._onType.fire(typeInput);
-					let e: ICompositionData = {
-						data: typeInput.text
-					};
-					this._onCompositionUpdate.fire(e);
-				}
 				return;
 			}
 
@@ -286,7 +267,6 @@ export class TextAreaInput extends Disposable {
 			}
 
 			this._textAreaState = newState;
-			// console.log('==> DEDUCED INPUT: ' + JSON.stringify(typeInput));
 			if (this._nextCommand === ReadFromTextArea.Type) {
 				if (typeInput.text !== '') {
 					this._onType.fire(typeInput);
@@ -501,7 +481,7 @@ export class TextAreaInput extends Disposable {
 		}
 
 		let copyHTML: string = null;
-		if (!browser.isEdgeOrIE && (copyPlainText.length < 65536 || CopyOptions.forceCopyWithSyntaxHighlighting)) {
+		if (browser.hasClipboardSupport() && (copyPlainText.length < 65536 || CopyOptions.forceCopyWithSyntaxHighlighting)) {
 			copyHTML = this._host.getHTMLToCopy();
 		}
 		ClipboardEventUtils.setTextData(e, copyPlainText, copyHTML);

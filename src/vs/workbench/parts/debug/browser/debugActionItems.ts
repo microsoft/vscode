@@ -47,7 +47,7 @@ export class StartDebugActionItem implements IActionItem {
 		@IContextViewService contextViewService: IContextViewService,
 	) {
 		this.toDispose = [];
-		this.selectBox = new SelectBox([], -1, contextViewService);
+		this.selectBox = new SelectBox([], -1, contextViewService, null, { ariaLabel: nls.localize('debugLaunchConfigurations', 'Debug Launch Configurations') });
 		this.toDispose.push(this.selectBox);
 		this.toDispose.push(attachSelectBoxStyler(this.selectBox, themeService, {
 			selectBackground: SIDE_BAR_BACKGROUND
@@ -187,21 +187,21 @@ export class StartDebugActionItem implements IActionItem {
 	}
 }
 
-export class FocusProcessActionItem extends SelectActionItem {
+export class FocusSessionActionItem extends SelectActionItem {
 	constructor(
 		action: IAction,
 		@IDebugService private debugService: IDebugService,
 		@IThemeService themeService: IThemeService,
 		@IContextViewService contextViewService: IContextViewService
 	) {
-		super(null, action, [], -1, contextViewService);
+		super(null, action, [], -1, contextViewService, { ariaLabel: nls.localize('debugSession', 'Debug Session') });
 
 		this.toDispose.push(attachSelectBoxStyler(this.selectBox, themeService));
 
 		this.debugService.getViewModel().onDidFocusStackFrame(() => {
-			const process = this.debugService.getViewModel().focusedProcess;
-			if (process) {
-				const index = this.debugService.getModel().getProcesses().indexOf(process);
+			const session = this.debugService.getViewModel().focusedSession;
+			if (session) {
+				const index = this.debugService.getModel().getSessions().indexOf(session);
 				this.select(index);
 			}
 		});
@@ -211,10 +211,10 @@ export class FocusProcessActionItem extends SelectActionItem {
 	}
 
 	private update() {
-		const process = this.debugService.getViewModel().focusedProcess;
-		const processes = this.debugService.getModel().getProcesses();
+		const session = this.debugService.getViewModel().focusedSession;
+		const sessions = this.debugService.getModel().getSessions();
 		const showRootName = this.debugService.getConfigurationManager().getLaunches().length > 1;
-		const names = processes.map(p => p.getName(showRootName));
-		this.setOptions(names, process ? processes.indexOf(process) : undefined);
+		const names = sessions.map(s => s.getName(showRootName));
+		this.setOptions(names, session ? sessions.indexOf(session) : undefined);
 	}
 }

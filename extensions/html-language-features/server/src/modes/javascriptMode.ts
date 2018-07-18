@@ -69,7 +69,7 @@ export function getJavaScriptMode(documentRegions: LanguageModelCache<HTMLDocume
 		},
 		doValidation(document: TextDocument): Diagnostic[] {
 			updateCurrentTextDocument(document);
-			const syntaxDiagnostics = jsLanguageService.getSyntacticDiagnostics(FILE_NAME);
+			const syntaxDiagnostics: ts.Diagnostic[] = jsLanguageService.getSyntacticDiagnostics(FILE_NAME);
 			const semanticDiagnostics = jsLanguageService.getSemanticDiagnostics(FILE_NAME);
 			return syntaxDiagnostics.concat(semanticDiagnostics).map((diag: ts.Diagnostic): Diagnostic => {
 				return {
@@ -109,7 +109,7 @@ export function getJavaScriptMode(documentRegions: LanguageModelCache<HTMLDocume
 		},
 		doResolve(document: TextDocument, item: CompletionItem): CompletionItem {
 			updateCurrentTextDocument(document);
-			let details = jsLanguageService.getCompletionEntryDetails(FILE_NAME, item.data.offset, item.label, undefined, undefined);
+			let details = jsLanguageService.getCompletionEntryDetails(FILE_NAME, item.data.offset, item.label, undefined, undefined, undefined);
 			if (details) {
 				item.detail = ts.displayPartsToString(details.displayParts);
 				item.documentation = ts.displayPartsToString(details.documentation);
@@ -131,7 +131,7 @@ export function getJavaScriptMode(documentRegions: LanguageModelCache<HTMLDocume
 		},
 		doSignatureHelp(document: TextDocument, position: Position): SignatureHelp | null {
 			updateCurrentTextDocument(document);
-			let signHelp = jsLanguageService.getSignatureHelpItems(FILE_NAME, currentTextDocument.offsetAt(position));
+			let signHelp = jsLanguageService.getSignatureHelpItems(FILE_NAME, currentTextDocument.offsetAt(position), undefined);
 			if (signHelp) {
 				let ret: SignatureHelp = {
 					activeSignature: signHelp.selectedItemIndex,

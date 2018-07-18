@@ -11,32 +11,21 @@ import { Position } from 'vs/editor/common/core/position';
 import { ITextModel } from 'vs/editor/common/model';
 import { TextModel } from 'vs/editor/common/model/textModel';
 import { SignatureHelp, SignatureHelpProvider, SignatureHelpProviderRegistry } from 'vs/editor/common/modes';
-import { MockScopeLocation, TestCodeEditor } from 'vs/editor/test/browser/testCodeEditor';
-import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
-import { InstantiationService } from 'vs/platform/instantiation/common/instantiationService';
+import { TestCodeEditor, createTestCodeEditor } from 'vs/editor/test/browser/testCodeEditor';
 import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
-import { MockContextKeyService } from 'vs/platform/keybinding/test/common/mockKeybindingService';
-import { INotificationService } from 'vs/platform/notification/common/notification';
-import { TestNotificationService } from 'vs/platform/notification/test/common/testNotificationService';
 import { IStorageService, NullStorageService } from 'vs/platform/storage/common/storage';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { NullTelemetryService } from 'vs/platform/telemetry/common/telemetryUtils';
 import { ParameterHintsModel } from '../parameterHintsWidget';
 
 function createMockEditor(model: TextModel): TestCodeEditor {
-	const contextKeyService = new MockContextKeyService();
-	const telemetryService = NullTelemetryService;
-	const notificationService = new TestNotificationService();
-	const instantiationService = new InstantiationService(new ServiceCollection(
-		[IContextKeyService, contextKeyService],
-		[ITelemetryService, telemetryService],
-		[IStorageService, NullStorageService],
-		[INotificationService, TestNotificationService]
-	));
-
-	const editor = new TestCodeEditor(new MockScopeLocation(), {}, false, instantiationService, contextKeyService, notificationService);
-	editor.setModel(model);
-	return editor;
+	return createTestCodeEditor({
+		model: model,
+		serviceCollection: new ServiceCollection(
+			[ITelemetryService, NullTelemetryService],
+			[IStorageService, NullStorageService]
+		)
+	});
 }
 
 

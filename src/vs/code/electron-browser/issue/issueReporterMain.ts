@@ -23,7 +23,7 @@ import { getDelayedChannel } from 'vs/base/parts/ipc/common/ipc';
 import { connect as connectNet } from 'vs/base/parts/ipc/node/ipc.net';
 import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
 import { IWindowConfiguration, IWindowsService } from 'vs/platform/windows/common/windows';
-import { NullTelemetryService } from 'vs/platform/telemetry/common/telemetryUtils';
+import { NullTelemetryService, combinedAppender, LogAppender } from 'vs/platform/telemetry/common/telemetryUtils';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { ITelemetryServiceConfig, TelemetryService } from 'vs/platform/telemetry/common/telemetryService';
 import { ITelemetryAppenderChannel, TelemetryAppenderClient } from 'vs/platform/telemetry/common/telemetryIpc';
@@ -40,7 +40,8 @@ import { createSpdLogService } from 'vs/platform/log/node/spdlogService';
 import { LogLevelSetterChannelClient, FollowerLogService } from 'vs/platform/log/common/logIpc';
 import { ILogService, getLogLevel } from 'vs/platform/log/common/log';
 import { OcticonLabel } from 'vs/base/browser/ui/octiconLabel/octiconLabel';
-import { normalizeGitHubIssuesUrl } from 'vs/code/electron-browser/issue/issueReporterUtil';
+import { normalizeGitHubUrl } from 'vs/code/electron-browser/issue/issueReporterUtil';
+import { Button } from 'vs/base/browser/ui/button/button';
 
 const MAX_URL_LENGTH = platform.isWindows ? 2081 : 5400;
 
@@ -72,6 +73,8 @@ export class IssueReporter extends Disposable {
 	private receivedPerformanceInfo = false;
 	private shouldQueueSearch = false;
 
+	private previewButton: Button;
+
 	constructor(configuration: IssueReporterConfiguration) {
 		super();
 
@@ -85,6 +88,8 @@ export class IssueReporter extends Disposable {
 			},
 			extensionsDisabled: this.environmentService.disableExtensions,
 		});
+
+		this.previewButton = new Button(document.getElementById('issue-reporter'));
 
 		ipcRenderer.on('issuePerformanceInfoResponse', (event, info) => {
 			this.logService.trace('issueReporter: Received performance data');
@@ -107,7 +112,9 @@ export class IssueReporter extends Disposable {
 		});
 
 		ipcRenderer.send('issueSystemInfoRequest');
-		ipcRenderer.send('issuePerformanceInfoRequest');
+		if (configuration.data.issueType === IssueType.PerformanceIssue) {
+			ipcRenderer.send('issuePerformanceInfoRequest');
+		}
 		this.logService.trace('issueReporter: Sent data requests');
 
 		if (window.document.documentElement.lang !== 'en') {
@@ -143,7 +150,7 @@ export class IssueReporter extends Disposable {
 		const content: string[] = [];
 
 		if (styles.inputBackground) {
-			content.push(`input[type="text"], textarea, select, .issues-container > .issue > .issue-state { background-color: ${styles.inputBackground}; }`);
+			content.push(`input[type="text"], textarea, select, .issues-container > .issue > .issue-state, .block-info { background-color: ${styles.inputBackground}; }`);
 		}
 
 		if (styles.inputBorder) {
@@ -153,7 +160,7 @@ export class IssueReporter extends Disposable {
 		}
 
 		if (styles.inputForeground) {
-			content.push(`input[type="text"], textarea, select, .issues-container > .issue > .issue-state { color: ${styles.inputForeground}; }`);
+			content.push(`input[type="text"], textarea, select, .issues-container > .issue > .issue-state, .block-info { color: ${styles.inputForeground}; }`);
 		}
 
 		if (styles.inputErrorBorder) {
@@ -169,20 +176,12 @@ export class IssueReporter extends Disposable {
 			content.push(`a, .workbenchCommand { color: ${styles.textLinkColor}; }`);
 		}
 
-		if (styles.buttonBackground) {
-			content.push(`button { background-color: ${styles.buttonBackground}; }`);
-		}
-
-		if (styles.buttonForeground) {
-			content.push(`button { color: ${styles.buttonForeground}; }`);
-		}
-
-		if (styles.buttonHoverBackground) {
-			content.push(`#github-submit-btn:hover:enabled, #github-submit-btn:focus:enabled { background-color: ${styles.buttonHoverBackground}; }`);
-		}
-
 		if (styles.textLinkColor) {
 			content.push(`a { color: ${styles.textLinkColor}; }`);
+		}
+
+		if (styles.textLinkActiveForeground) {
+			content.push(`a:hover, .workbenchCommand:hover { color: ${styles.textLinkActiveForeground}; }`);
 		}
 
 		if (styles.sliderBackgroundColor) {
@@ -195,6 +194,18 @@ export class IssueReporter extends Disposable {
 
 		if (styles.sliderHoverColor) {
 			content.push(`::--webkit-scrollbar-thumb:hover { background-color: ${styles.sliderHoverColor}; }`);
+		}
+
+		if (styles.buttonBackground) {
+			content.push(`.monaco-text-button { background-color: ${styles.buttonBackground} !important; }`);
+		}
+
+		if (styles.buttonForeground) {
+			content.push(`.monaco-text-button { color: ${styles.buttonForeground} !important; }`);
+		}
+
+		if (styles.buttonHoverBackground) {
+			content.push(`.monaco-text-button:hover, .monaco-text-button:focus { background-color: ${styles.buttonHoverBackground} !important; }`);
 		}
 
 		styleTag.innerHTML = content.join('\n');
@@ -276,9 +287,9 @@ export class IssueReporter extends Disposable {
 			.then(() => connectNet(this.environmentService.sharedIPCHandle, `window:${configuration.windowId}`));
 
 		const instantiationService = new InstantiationService(serviceCollection, true);
-		if (this.environmentService.isBuilt && !this.environmentService.isExtensionDevelopment && !this.environmentService.args['disable-telemetry'] && !!product.enableTelemetry) {
+		if (!this.environmentService.isExtensionDevelopment && !this.environmentService.args['disable-telemetry'] && !!product.enableTelemetry) {
 			const channel = getDelayedChannel<ITelemetryAppenderChannel>(sharedProcess.then(c => c.getChannel('telemetryAppender')));
-			const appender = new TelemetryAppenderClient(channel);
+			const appender = combinedAppender(new TelemetryAppenderClient(channel), new LogAppender(logService));
 			const commonProperties = resolveCommonProperties(product.commit, pkg.version, configuration.machineId, this.environmentService.installSourcePath);
 			const piiPaths = [this.environmentService.appRoot, this.environmentService.extensionsPath];
 			const config: ITelemetryServiceConfig = { appender, commonProperties, piiPaths };
@@ -294,7 +305,11 @@ export class IssueReporter extends Disposable {
 
 	private setEventHandlers(): void {
 		this.addEventListener('issue-type', 'change', (event: Event) => {
-			this.issueReporterModel.update({ issueType: parseInt((<HTMLInputElement>event.target).value) });
+			const issueType = parseInt((<HTMLInputElement>event.target).value);
+			this.issueReporterModel.update({ issueType: issueType });
+			if (issueType === IssueType.PerformanceIssue && !this.receivedPerformanceInfo) {
+				ipcRenderer.send('issuePerformanceInfoRequest');
+			}
 			this.updatePreviewButtonState();
 			this.render();
 		});
@@ -306,20 +321,20 @@ export class IssueReporter extends Disposable {
 			});
 		});
 
-		const labelElements = document.getElementsByClassName('caption');
-		for (let i = 0; i < labelElements.length; i++) {
-			const label = labelElements.item(i);
-			label.addEventListener('click', (e) => {
-				e.stopPropagation();
-
-				// Stop propgagation not working as expected in this case https://bugs.chromium.org/p/chromium/issues/detail?id=809801
-				// preventDefault does prevent outer details tag from toggling, so use that and manually toggle the checkbox
+		const showInfoElements = document.getElementsByClassName('showInfo');
+		for (let i = 0; i < showInfoElements.length; i++) {
+			const showInfo = showInfoElements.item(i);
+			showInfo.addEventListener('click', (e) => {
 				e.preventDefault();
-				const containingDiv = (<HTMLLabelElement>e.target).parentElement;
-				const checkbox = <HTMLInputElement>containingDiv.firstElementChild;
-				if (checkbox) {
-					checkbox.checked = !checkbox.checked;
-					this.issueReporterModel.update({ [checkbox.id]: !this.issueReporterModel.getData()[checkbox.id] });
+				const label = (<HTMLDivElement>e.target);
+				const containingElement = label.parentElement.parentElement;
+				const info = containingElement.lastElementChild;
+				if (info.classList.contains('hidden')) {
+					show(info);
+					label.textContent = localize('hide', "hide");
+				} else {
+					hide(info);
+					label.textContent = localize('show', "show");
 				}
 			});
 		}
@@ -366,7 +381,7 @@ export class IssueReporter extends Disposable {
 			}
 		});
 
-		this.addEventListener('github-submit-btn', 'click', () => this.createIssue());
+		this.previewButton.onDidClick(() => this.createIssue());
 
 		this.addEventListener('disableExtensions', 'click', () => {
 			ipcRenderer.send('workbenchCommand', 'workbench.action.reloadWindowWithExtensionsDisabled');
@@ -402,13 +417,12 @@ export class IssueReporter extends Disposable {
 	}
 
 	private updatePreviewButtonState() {
-		const submitButton = <HTMLButtonElement>document.getElementById('github-submit-btn');
 		if (this.isPreviewEnabled()) {
-			submitButton.disabled = false;
-			submitButton.textContent = localize('previewOnGitHub', "Preview on GitHub");
+			this.previewButton.label = localize('previewOnGitHub', "Preview on GitHub");
+			this.previewButton.enabled = true;
 		} else {
-			submitButton.disabled = true;
-			submitButton.textContent = localize('loadingData', "Loading data...");
+			this.previewButton.enabled = false;
+			this.previewButton.label = localize('loadingData', "Loading data...");
 		}
 	}
 
@@ -452,12 +466,19 @@ export class IssueReporter extends Disposable {
 	}
 
 	private searchExtensionIssues(title: string): void {
-		const url = this.getExtensionRepositoryUrl();
+		const url = this.getExtensionGitHubUrl();
 		if (title) {
-			const matches = /^https?:\/\/github\.com\/(.*)(?:.git)/.exec(url);
+			const matches = /^https?:\/\/github\.com\/(.*)/.exec(url);
 			if (matches && matches.length) {
 				const repo = matches[1];
 				return this.searchGitHub(repo, title);
+			}
+
+			// If the extension has no repository, display empty search results
+			if (this.issueReporterModel.getData().selectedExtension) {
+				this.clearSearchResults();
+				return this.displaySearchResults([]);
+
 			}
 		}
 
@@ -727,6 +748,12 @@ export class IssueReporter extends Disposable {
 				this.validateInput('description');
 			});
 
+			if (this.issueReporterModel.fileOnExtension()) {
+				document.getElementById('extension-selector').addEventListener('change', (event) => {
+					this.validateInput('extension-selector');
+				});
+			}
+
 			return false;
 		}
 
@@ -751,16 +778,26 @@ export class IssueReporter extends Disposable {
 		return true;
 	}
 
+	private getExtensionGitHubUrl(): string {
+		let repositoryUrl = '';
+		const bugsUrl = this.getExtensionBugsUrl();
+		const extensionUrl = this.getExtensionRepositoryUrl();
+		// If given, try to match the extension's bug url
+		if (bugsUrl && bugsUrl.match(/^https?:\/\/github\.com\/(.*)/)) {
+			repositoryUrl = normalizeGitHubUrl(bugsUrl);
+		} else if (extensionUrl && extensionUrl.match(/^https?:\/\/github\.com\/(.*)/)) {
+			repositoryUrl = normalizeGitHubUrl(extensionUrl);
+		}
+
+		return repositoryUrl;
+	}
+
 	private getIssueUrlWithTitle(issueTitle: string): string {
 		let repositoryUrl = product.reportIssueUrl;
 		if (this.issueReporterModel.fileOnExtension()) {
-			const bugsUrl = this.getExtensionBugsUrl();
-			const extensionUrl = this.getExtensionRepositoryUrl();
-			// If given, try to match the extension's bug url
-			if (bugsUrl && bugsUrl.match(/^https?:\/\/github\.com\/(.*)/)) {
-				repositoryUrl = normalizeGitHubIssuesUrl(bugsUrl);
-			} else if (extensionUrl && extensionUrl.match(/^https?:\/\/github\.com\/(.*)/)) {
-				repositoryUrl = normalizeGitHubIssuesUrl(extensionUrl);
+			const extensionGitHubUrl = this.getExtensionGitHubUrl();
+			if (extensionGitHubUrl) {
+				repositoryUrl = extensionGitHubUrl + '/issues/new';
 			}
 		}
 

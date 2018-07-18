@@ -36,7 +36,6 @@ export class ExtensionMessageCollector {
 		this._messageHandler({
 			type: type,
 			message: message,
-			source: this._extension.extensionFolderPath,
 			extensionId: this._extension.id,
 			extensionPointId: this._extensionPointId
 		});
@@ -222,6 +221,16 @@ const schema: IJSONSchema = {
 						body: 'workspaceContains:${4:filePattern}'
 					},
 					{
+						label: 'onFileSystem',
+						description: nls.localize('vscode.extension.activationEvents.onFileSystem', 'An activation event emitted whenever a file or folder is accessed with the given scheme.'),
+						body: 'onFileSystem:${1:scheme}'
+					},
+					{
+						label: 'onSearch',
+						description: nls.localize('vscode.extension.activationEvents.onSearch', 'An activation event emitted whenever a search is started in the folder with the given scheme.'),
+						body: 'onSearch:${7:scheme}'
+					},
+					{
 						label: 'onView',
 						body: 'onView:${5:viewId}',
 						description: nls.localize('vscode.extension.activationEvents.onView', 'An activation event emitted whenever the specified view is expanded.'),
@@ -282,6 +291,15 @@ const schema: IJSONSchema = {
 		},
 		extensionDependencies: {
 			description: nls.localize('vscode.extension.extensionDependencies', 'Dependencies to other extensions. The identifier of an extension is always ${publisher}.${name}. For example: vscode.csharp.'),
+			type: 'array',
+			uniqueItems: true,
+			items: {
+				type: 'string',
+				pattern: EXTENSION_IDENTIFIER_PATTERN
+			}
+		},
+		extensionPack: {
+			description: nls.localize('vscode.extension.contributes.extensionPack', "A set of extensions that can be installed together. The identifier of an extension is always ${publisher}.${name}. For example: vscode.csharp."),
 			type: 'array',
 			uniqueItems: true,
 			items: {

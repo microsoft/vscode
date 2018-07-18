@@ -5,16 +5,16 @@
 
 'use strict';
 
-import { ProtocolHandler, Uri, window, Disposable, commands } from 'vscode';
+import { UriHandler, Uri, window, Disposable, commands } from 'vscode';
 import { dispose } from './util';
 import * as querystring from 'querystring';
 
-export class GitProtocolHandler implements ProtocolHandler {
+export class GitProtocolHandler implements UriHandler {
 
 	private disposables: Disposable[] = [];
 
 	constructor() {
-		this.disposables.push(window.registerProtocolHandler(this));
+		this.disposables.push(window.registerUriHandler(this));
 	}
 
 	handleUri(uri: Uri): void {

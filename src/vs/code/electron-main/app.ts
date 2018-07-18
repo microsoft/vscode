@@ -5,14 +5,13 @@
 
 'use strict';
 
-import { app, ipcMain as ipc } from 'electron';
+import { app, ipcMain as ipc, systemPreferences } from 'electron';
 import * as platform from 'vs/base/common/platform';
 import { WindowsManager } from 'vs/code/electron-main/windows';
 import { IWindowsService, OpenContext, ActiveWindowManager } from 'vs/platform/windows/common/windows';
 import { WindowsChannel } from 'vs/platform/windows/common/windowsIpc';
 import { WindowsService } from 'vs/platform/windows/electron-main/windowsService';
 import { ILifecycleService } from 'vs/platform/lifecycle/electron-main/lifecycleMain';
-import { CodeMenu } from 'vs/code/electron-main/menus';
 import { getShellEnvironment } from 'vs/code/node/shellEnv';
 import { IUpdateService } from 'vs/platform/update/common/update';
 import { UpdateChannel } from 'vs/platform/update/common/updateIpc';
@@ -31,7 +30,7 @@ import { IConfigurationService } from 'vs/platform/configuration/common/configur
 import { IURLService } from 'vs/platform/url/common/url';
 import { URLHandlerChannelClient, URLServiceChannel } from 'vs/platform/url/common/urlIpc';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { NullTelemetryService } from 'vs/platform/telemetry/common/telemetryUtils';
+import { NullTelemetryService, combinedAppender, LogAppender } from 'vs/platform/telemetry/common/telemetryUtils';
 import { ITelemetryAppenderChannel, TelemetryAppenderClient } from 'vs/platform/telemetry/common/telemetryIpc';
 import { TelemetryService, ITelemetryServiceConfig } from 'vs/platform/telemetry/common/telemetryService';
 import { resolveCommonProperties } from 'vs/platform/telemetry/node/commonProperties';
@@ -58,9 +57,14 @@ import { IIssueService } from 'vs/platform/issue/common/issue';
 import { IssueChannel } from 'vs/platform/issue/common/issueIpc';
 import { IssueService } from 'vs/platform/issue/electron-main/issueService';
 import { LogLevelSetterChannel } from 'vs/platform/log/common/logIpc';
-import { setUnexpectedErrorHandler } from 'vs/base/common/errors';
+import * as errors from 'vs/base/common/errors';
 import { ElectronURLListener } from 'vs/platform/url/electron-main/electronUrlListener';
 import { serve as serveDriver } from 'vs/platform/driver/electron-main/driver';
+import { IMenubarService } from 'vs/platform/menubar/common/menubar';
+import { MenubarService } from 'vs/platform/menubar/electron-main/menubarService';
+import { MenubarChannel } from 'vs/platform/menubar/common/menubarIpc';
+// TODO@sbatten: Remove after conversion to new dynamic menubar
+import { CodeMenu } from 'vs/code/electron-main/menus';
 
 export class CodeApplication {
 
@@ -81,7 +85,7 @@ export class CodeApplication {
 		@ILogService private logService: ILogService,
 		@IEnvironmentService private environmentService: IEnvironmentService,
 		@ILifecycleService private lifecycleService: ILifecycleService,
-		@IConfigurationService configurationService: ConfigurationService,
+		@IConfigurationService private configurationService: ConfigurationService,
 		@IStateService private stateService: IStateService,
 		@IHistoryMainService private historyMainService: IHistoryMainService
 	) {
@@ -93,8 +97,9 @@ export class CodeApplication {
 	private registerListeners(): void {
 
 		// We handle uncaught exceptions here to prevent electron from opening a dialog to the user
-		setUnexpectedErrorHandler(err => this.onUnexpectedError(err));
+		errors.setUnexpectedErrorHandler(err => this.onUnexpectedError(err));
 		process.on('uncaughtException', err => this.onUnexpectedError(err));
+		process.on('unhandledRejection', (reason: any, promise: Promise<any>) => errors.onUnexpectedError(reason));
 
 		app.on('will-quit', () => {
 			this.logService.trace('App#will-quit: disposing resources');
@@ -257,7 +262,7 @@ export class CodeApplication {
 		}
 	}
 
-	public startup(): TPromise<void> {
+	startup(): TPromise<void> {
 		this.logService.debug('Starting VS Code');
 		this.logService.debug(`from: ${this.environmentService.appRoot}`);
 		this.logService.debug('args:', this.environmentService.args);
@@ -268,6 +273,20 @@ export class CodeApplication {
 		// two icons in the taskbar for the same app.
 		if (platform.isWindows && product.win32AppUserModelId) {
 			app.setAppUserModelId(product.win32AppUserModelId);
+		}
+
+		// Fix native tabs on macOS 10.13
+		// macOS enables a compatibility patch for any bundle ID beginning with
+		// "com.microsoft.", which breaks native tabs for VS Code when using this
+		// identifier (from the official build).
+		// Explicitly opt out of the patch here before creating any windows.
+		// See: https://github.com/Microsoft/vscode/issues/35361#issuecomment-399794085
+		try {
+			if (platform.isMacintosh && this.configurationService.getValue<boolean>('window.nativeTabs') === true && !systemPreferences.getUserDefault('NSUseImprovedLayoutPass', 'boolean')) {
+				systemPreferences.setUserDefault('NSUseImprovedLayoutPass', 'boolean', true as any);
+			}
+		} catch (error) {
+			this.logService.error(error);
 		}
 
 		// Create Electron IPC Server
@@ -289,7 +308,7 @@ export class CodeApplication {
 
 			// Create driver
 			if (this.environmentService.driverHandle) {
-				serveDriver(this.electronIpcServer, this.environmentService.driverHandle, appInstantiationService).then(server => {
+				serveDriver(this.electronIpcServer, this.environmentService.driverHandle, this.environmentService, appInstantiationService).then(server => {
 					this.logService.info('Driver started at:', this.environmentService.driverHandle);
 					this.toDispose.push(server);
 				});
@@ -340,11 +359,12 @@ export class CodeApplication {
 		services.set(IWindowsService, new SyncDescriptor(WindowsService, this.sharedProcess));
 		services.set(ILaunchService, new SyncDescriptor(LaunchService));
 		services.set(IIssueService, new SyncDescriptor(IssueService, machineId, this.userEnv));
+		services.set(IMenubarService, new SyncDescriptor(MenubarService));
 
 		// Telemtry
-		if (this.environmentService.isBuilt && !this.environmentService.isExtensionDevelopment && !this.environmentService.args['disable-telemetry'] && !!product.enableTelemetry) {
+		if (!this.environmentService.isExtensionDevelopment && !this.environmentService.args['disable-telemetry'] && !!product.enableTelemetry) {
 			const channel = getDelayedChannel<ITelemetryAppenderChannel>(this.sharedProcessClient.then(c => c.getChannel('telemetryAppender')));
-			const appender = new TelemetryAppenderClient(channel);
+			const appender = combinedAppender(new TelemetryAppenderClient(channel), new LogAppender(this.logService));
 			const commonProperties = resolveCommonProperties(product.commit, pkg.version, machineId, this.environmentService.installSourcePath);
 			const piiPaths = [this.environmentService.appRoot, this.environmentService.extensionsPath];
 			const config: ITelemetryServiceConfig = { appender, commonProperties, piiPaths };
@@ -383,6 +403,10 @@ export class CodeApplication {
 		this.electronIpcServer.registerChannel('windows', windowsChannel);
 		this.sharedProcessClient.done(client => client.registerChannel('windows', windowsChannel));
 
+		const menubarService = accessor.get(IMenubarService);
+		const menubarChannel = new MenubarChannel(menubarService);
+		this.electronIpcServer.registerChannel('menubar', menubarChannel);
+
 		const urlService = accessor.get(IURLService);
 		const urlChannel = new URLServiceChannel(urlService);
 		this.electronIpcServer.registerChannel('url', urlChannel);
@@ -396,14 +420,34 @@ export class CodeApplication {
 		this.lifecycleService.ready();
 
 		// Propagate to clients
-		this.windowsMainService = accessor.get(IWindowsMainService); // TODO@Joao: unfold this
+		const windowsMainService = this.windowsMainService = accessor.get(IWindowsMainService); // TODO@Joao: unfold this
 
 		const args = this.environmentService.args;
 
 		// Create a URL handler which forwards to the last active window
 		const activeWindowManager = new ActiveWindowManager(windowsService);
-		const urlHandlerChannel = this.electronIpcServer.getChannel('urlHandler', { route: () => activeWindowManager.activeClientId });
+		const route = () => activeWindowManager.getActiveClientId();
+		const urlHandlerChannel = this.electronIpcServer.getChannel('urlHandler', { routeCall: route, routeEvent: route });
 		const multiplexURLHandler = new URLHandlerChannelClient(urlHandlerChannel);
+
+		// On Mac, Code can be running without any open windows, so we must create a window to handle urls,
+		// if there is none
+		if (platform.isMacintosh) {
+			const environmentService = accessor.get(IEnvironmentService);
+
+			urlService.registerHandler({
+				handleURL(uri: URI): TPromise<boolean> {
+					if (windowsMainService.getWindowCount() === 0) {
+						const cli = { ...environmentService.args, goto: true };
+						const [window] = windowsMainService.open({ context: OpenContext.API, cli, forceEmpty: true });
+
+						return window.ready().then(() => urlService.open(uri));
+					}
+
+					return TPromise.as(false);
+				}
+			});
+		}
 
 		// Register the multiple URL handker
 		urlService.registerHandler(multiplexURLHandler);
@@ -428,7 +472,6 @@ export class CodeApplication {
 	}
 
 	private afterWindowOpen(accessor: ServicesAccessor): void {
-		const appInstantiationService = accessor.get(IInstantiationService);
 		const windowsMainService = accessor.get(IWindowsMainService);
 
 		let windowsMutex: Mutex = null;
@@ -468,15 +511,20 @@ export class CodeApplication {
 			}
 		}
 
+		// TODO@sbatten: Remove when menu is converted
 		// Install Menu
-		appInstantiationService.createInstance(CodeMenu);
+		const instantiationService = accessor.get(IInstantiationService);
+		const configurationService = accessor.get(IConfigurationService);
+		if (platform.isMacintosh || configurationService.getValue<string>('window.titleBarStyle') !== 'custom') {
+			instantiationService.createInstance(CodeMenu);
+		}
 
 		// Jump List
 		this.historyMainService.updateWindowsJumpList();
 		this.historyMainService.onRecentlyOpenedChange(() => this.historyMainService.updateWindowsJumpList());
 
-		// Start shared process here
-		this.sharedProcess.spawn();
+		// Start shared process after a while
+		TPromise.timeout(3000).then(() => this.sharedProcess.spawn());
 	}
 
 	private dispose(): void {

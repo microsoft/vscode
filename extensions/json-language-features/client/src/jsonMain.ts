@@ -12,7 +12,7 @@ import { workspace, languages, ExtensionContext, extensions, Uri, LanguageConfig
 import { LanguageClient, LanguageClientOptions, RequestType, ServerOptions, TransportKind, NotificationType, DidChangeConfigurationNotification, CancellationToken } from 'vscode-languageclient';
 import TelemetryReporter from 'vscode-extension-telemetry';
 
-import { FoldingRangeRequest, FoldingRangeRequestParam, FoldingRangeClientCapabilities } from 'vscode-languageserver-protocol-foldingprovider';
+import { FoldingRangeRequest, FoldingRangeRequestParam, FoldingRangeClientCapabilities, FoldingRangeKind as LSFoldingRangeKind } from 'vscode-languageserver-protocol-foldingprovider';
 
 import { hash } from './utils/hash';
 
@@ -156,17 +156,18 @@ export function activate(context: ExtensionContext) {
 	languages.setLanguageConfiguration('jsonc', languageConfiguration);
 
 	function initFoldingProvider(): Disposable {
-		const kinds: { [value: string]: FoldingRangeKind } = Object.create(null);
-		function getKind(value: string | undefined) {
-			if (!value) {
-				return void 0;
+		function getKind(kind: string | undefined): FoldingRangeKind | undefined {
+			if (kind) {
+				switch (kind) {
+					case LSFoldingRangeKind.Comment:
+						return FoldingRangeKind.Comment;
+					case LSFoldingRangeKind.Imports:
+						return FoldingRangeKind.Imports;
+					case LSFoldingRangeKind.Region:
+						return FoldingRangeKind.Region;
+				}
 			}
-			let kind = kinds[value];
-			if (!kind) {
-				kind = new FoldingRangeKind(value);
-				kinds[value] = kind;
-			}
-			return kind;
+			return void 0;
 		}
 		return languages.registerFoldingRangeProvider(documentSelector, {
 			provideFoldingRanges(document: TextDocument, context: FoldingContext, token: CancellationToken) {
@@ -250,11 +251,22 @@ function getSettings(): Settings {
 				settings.json!.schemas!.push(schemaSetting);
 			}
 			let fileMatches = setting.fileMatch;
+			let resultingFileMatches = schemaSetting.fileMatch!;
 			if (Array.isArray(fileMatches)) {
 				if (fileMatchPrefix) {
-					fileMatches = fileMatches.map(m => fileMatchPrefix + m);
+					for (let fileMatch of fileMatches) {
+						if (fileMatch[0] === '/') {
+							resultingFileMatches.push(fileMatchPrefix + fileMatch);
+							resultingFileMatches.push(fileMatchPrefix + '/*' + fileMatch);
+						} else {
+							resultingFileMatches.push(fileMatchPrefix + '/' + fileMatch);
+							resultingFileMatches.push(fileMatchPrefix + '/*/' + fileMatch);
+						}
+					}
+				} else {
+					resultingFileMatches.push(...fileMatches);
 				}
-				schemaSetting.fileMatch!.push(...fileMatches);
+
 			}
 			if (setting.schema) {
 				schemaSetting.schema = setting.schema;
@@ -275,10 +287,10 @@ function getSettings(): Settings {
 			let folderSchemas = schemaConfigInfo!.workspaceFolderValue;
 			if (Array.isArray(folderSchemas)) {
 				let folderPath = folderUri.toString();
-				if (folderPath[folderPath.length - 1] !== '/') {
-					folderPath = folderPath + '/';
+				if (folderPath[folderPath.length - 1] === '/') {
+					folderPath = folderPath.substr(0, folderPath.length - 1);
 				}
-				collectSchemaSettings(folderSchemas, folderUri.fsPath, folderPath + '*');
+				collectSchemaSettings(folderSchemas, folderUri.fsPath, folderPath);
 			}
 		}
 	}

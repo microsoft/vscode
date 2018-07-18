@@ -28,7 +28,7 @@ export class CodeActionContextMenu {
 		private readonly _onApplyCodeAction: (action: CodeAction) => TPromise<any>
 	) { }
 
-	show(fixes: TPromise<CodeAction[]>, at: { x: number; y: number } | Position) {
+	show(fixes: Thenable<CodeAction[]>, at: { x: number; y: number } | Position) {
 
 		const actions = fixes.then(value => {
 			return value.map(action => {
@@ -53,8 +53,11 @@ export class CodeActionContextMenu {
 				}
 				return at;
 			},
-			getActions: () => actions,
-			onHide: () => { this._visible = false; },
+			getActions: () => TPromise.wrap(actions),
+			onHide: () => {
+				this._visible = false;
+				this._editor.focus();
+			},
 			autoSelectFirstItem: true
 		});
 	}

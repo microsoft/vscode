@@ -9,7 +9,7 @@ import 'vs/css!./folding';
 import * as nls from 'vs/nls';
 import * as types from 'vs/base/common/types';
 import { escapeRegExpCharacters } from 'vs/base/common/strings';
-import { RunOnceScheduler, Delayer, asWinJsPromise } from 'vs/base/common/async';
+import { RunOnceScheduler, Delayer, CancelablePromise, createCancelablePromise } from 'vs/base/common/async';
 import { KeyCode, KeyMod, KeyChord } from 'vs/base/common/keyCodes';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { TPromise } from 'vs/base/common/winjs.base';
@@ -29,13 +29,22 @@ import { LanguageConfigurationRegistry } from 'vs/editor/common/modes/languageCo
 import { IndentRangeProvider } from 'vs/editor/contrib/folding/indentRangeProvider';
 import { IPosition } from 'vs/editor/common/core/position';
 import { FoldingRangeProviderRegistry, FoldingRangeKind } from 'vs/editor/common/modes';
-import { SyntaxRangeProvider } from './syntaxRangeProvider';
+import { SyntaxRangeProvider, ID_SYNTAX_PROVIDER } from './syntaxRangeProvider';
 import { CancellationToken } from 'vs/base/common/cancellation';
+import { InitializingRangeProvider, ID_INIT_PROVIDER } from 'vs/editor/contrib/folding/intializingRangeProvider';
 
 export const ID = 'editor.contrib.folding';
 
 export interface RangeProvider {
-	compute(editorModel: ITextModel, cancelationToken: CancellationToken): Thenable<FoldingRegions>;
+	readonly id: string;
+	compute(cancelationToken: CancellationToken): Thenable<FoldingRegions>;
+	dispose(): void;
+}
+
+interface FoldingStateMemento {
+	collapsedRegions?: CollapseMemento;
+	lineCount?: number;
+	provider?: string;
 }
 
 export class FoldingController implements IEditorContribution {
@@ -58,7 +67,9 @@ export class FoldingController implements IEditorContribution {
 	private hiddenRangeModel: HiddenRangeModel;
 
 	private rangeProvider: RangeProvider;
-	private foldingRegionPromise: TPromise<FoldingRegions>;
+	private foldingRegionPromise: CancelablePromise<FoldingRegions>;
+
+	private foldingStateMemento: FoldingStateMemento;
 
 	private foldingModelPromise: TPromise<FoldingModel>;
 	private updateScheduler: Delayer<FoldingModel>;
@@ -119,14 +130,15 @@ export class FoldingController implements IEditorContribution {
 	/**
 	 * Store view state.
 	 */
-	public saveViewState(): { collapsedRegions?: CollapseMemento, lineCount?: number } {
+	public saveViewState(): FoldingStateMemento {
 		let model = this.editor.getModel();
 		if (!model || !this._isEnabled || model.isTooLargeForTokenization()) {
 			return {};
 		}
 		if (this.foldingModel) { // disposed ?
 			let collapsedRegions = this.foldingModel.isInitialized ? this.foldingModel.getMemento() : this.hiddenRangeModel.getMemento();
-			return { collapsedRegions, lineCount: model.getLineCount() };
+			let provider = this.rangeProvider ? this.rangeProvider.id : void 0;
+			return { collapsedRegions, lineCount: model.getLineCount(), provider };
 		}
 		return void 0;
 	}
@@ -134,13 +146,17 @@ export class FoldingController implements IEditorContribution {
 	/**
 	 * Restore view state.
 	 */
-	public restoreViewState(state: { collapsedRegions?: CollapseMemento, lineCount?: number }): void {
+	public restoreViewState(state: FoldingStateMemento): void {
 		let model = this.editor.getModel();
 		if (!model || !this._isEnabled || model.isTooLargeForTokenization()) {
 			return;
 		}
 		if (!state || !state.collapsedRegions || state.lineCount !== model.getLineCount()) {
 			return;
+		}
+
+		if (state.provider === ID_SYNTAX_PROVIDER || state.provider === ID_INIT_PROVIDER) {
+			this.foldingStateMemento = state;
 		}
 
 		// set the hidden ranges right away, before waiting for the folding model.
@@ -190,27 +206,44 @@ export class FoldingController implements IEditorContribution {
 				this.foldingModelPromise = null;
 				this.hiddenRangeModel = null;
 				this.cursorChangedScheduler = null;
+				this.foldingStateMemento = null;
+				if (this.rangeProvider) {
+					this.rangeProvider.dispose();
+				}
 				this.rangeProvider = null;
-
 			}
 		});
 		this.onModelContentChanged();
 	}
 
 	private onFoldingStrategyChanged() {
+		if (this.rangeProvider) {
+			this.rangeProvider.dispose();
+		}
 		this.rangeProvider = null;
 		this.onModelContentChanged();
 	}
 
-	private getRangeProvider(): RangeProvider {
-		if (!this.rangeProvider) {
-			if (this._useFoldingProviders) {
-				let foldingProviders = FoldingRangeProviderRegistry.ordered(this.foldingModel.textModel);
-				this.rangeProvider = foldingProviders.length ? new SyntaxRangeProvider(foldingProviders) : new IndentRangeProvider();
-			} else {
-				this.rangeProvider = new IndentRangeProvider();
+	private getRangeProvider(editorModel: ITextModel): RangeProvider {
+		if (this.rangeProvider) {
+			return this.rangeProvider;
+		}
+		this.rangeProvider = new IndentRangeProvider(editorModel); // fallback
+
+		if (this._useFoldingProviders) {
+			let foldingProviders = FoldingRangeProviderRegistry.ordered(this.foldingModel.textModel);
+			if (foldingProviders.length === 0 && this.foldingStateMemento) {
+				this.rangeProvider = new InitializingRangeProvider(editorModel, this.foldingStateMemento.collapsedRegions, () => {
+					// if after 30 the InitializingRangeProvider is still not replaced, force a refresh
+					this.foldingStateMemento = null;
+					this.onFoldingStrategyChanged();
+				}, 30000);
+				return this.rangeProvider; // keep memento in case there are still no foldingProviders on the next request.
+			} else if (foldingProviders.length > 0) {
+				this.rangeProvider = new SyntaxRangeProvider(editorModel, foldingProviders);
 			}
 		}
+		this.foldingStateMemento = null;
 		return this.rangeProvider;
 	}
 
@@ -228,8 +261,8 @@ export class FoldingController implements IEditorContribution {
 				if (!this.foldingModel) { // null if editor has been disposed, or folding turned off
 					return null;
 				}
-				let foldingRegionPromise = this.foldingRegionPromise = asWinJsPromise<FoldingRegions>(token => this.getRangeProvider().compute(this.foldingModel.textModel, token));
-				return foldingRegionPromise.then(foldingRanges => {
+				let foldingRegionPromise = this.foldingRegionPromise = createCancelablePromise(token => this.getRangeProvider(this.foldingModel.textModel).compute(token));
+				return TPromise.wrap(foldingRegionPromise.then(foldingRanges => {
 					if (foldingRanges && foldingRegionPromise === this.foldingRegionPromise) { // new request or cancelled in the meantime?
 						// some cursors might have moved into hidden regions, make sure they are in expanded regions
 						let selections = this.editor.getSelections();
@@ -237,7 +270,7 @@ export class FoldingController implements IEditorContribution {
 						this.foldingModel.update(foldingRanges, selectionLineNumbers);
 					}
 					return this.foldingModel;
-				});
+				}));
 			});
 		}
 	}
@@ -298,7 +331,7 @@ export class FoldingController implements IEditorContribution {
 		switch (e.target.type) {
 			case MouseTargetType.GUTTER_LINE_DECORATIONS:
 				const data = e.target.detail as IMarginData;
-				const gutterOffsetX = data.offsetX - data.glyphMarginWidth - data.lineNumbersWidth;
+				const gutterOffsetX = data.offsetX - data.glyphMarginWidth - data.lineNumbersWidth - data.glyphMarginLeft;
 
 				// TODO@joao TODO@alex TODO@martin this is such that we don't collide with dirty diff
 				if (gutterOffsetX <= 10) {
@@ -462,7 +495,7 @@ class UnfoldAction extends FoldingAction<FoldingArguments> {
 						name: 'Unfold editor argument',
 						description: `Property-value pairs that can be passed through this argument:
 						* 'levels': Number of levels to unfold. If not set, defaults to 1.
-						* 'direction': If 'up', unfold given number of levels up otherwise unfolds down
+						* 'direction': If 'up', unfold given number of levels up otherwise unfolds down.
 						* 'selectionLines': The start lines (0-based) of the editor selections to apply the unfold action to. If not set, the active selection(s) will be used.
 						`,
 						constraint: foldingArgumentsConstraint
@@ -524,8 +557,8 @@ class FoldAction extends FoldingAction<FoldingArguments> {
 					{
 						name: 'Fold editor argument',
 						description: `Property-value pairs that can be passed through this argument:
-							* 'levels': Number of levels to fold. Defaults to 1
-							* 'direction': If 'up', folds given number of levels up otherwise folds down
+							* 'levels': Number of levels to fold. Defaults to 1.
+							* 'direction': If 'up', folds given number of levels up otherwise folds down.
 							* 'selectionLines': The start lines (0-based) of the editor selections to apply the fold action to. If not set, the active selection(s) will be used.
 						`,
 						constraint: foldingArgumentsConstraint

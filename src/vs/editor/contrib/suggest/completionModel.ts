@@ -5,10 +5,11 @@
 
 'use strict';
 
-import { fuzzyScore, fuzzyScoreGracefulAggressive, skipScore } from 'vs/base/common/filters';
-import { ISuggestSupport, ISuggestResult } from 'vs/editor/common/modes';
-import { ISuggestionItem, SnippetConfig } from './suggest';
+import { fuzzyScore, fuzzyScoreGracefulAggressive, anyScore } from 'vs/base/common/filters';
 import { isDisposable } from 'vs/base/common/lifecycle';
+import { ISuggestResult, ISuggestSupport } from 'vs/editor/common/modes';
+import { ISuggestionItem } from './suggest';
+import { InternalSuggestOptions, EDITOR_DEFAULTS } from 'vs/editor/common/config/editorOptions';
 
 export interface ICompletionItem extends ISuggestionItem {
 	matches?: number[];
@@ -46,25 +47,27 @@ const enum Refilter {
 
 export class CompletionModel {
 
-	private readonly _column: number;
 	private readonly _items: ICompletionItem[];
+	private readonly _column: number;
+	private readonly _options: InternalSuggestOptions;
 	private readonly _snippetCompareFn = CompletionModel._compareCompletionItems;
 
 	private _lineContext: LineContext;
 	private _refilterKind: Refilter;
 	private _filteredItems: ICompletionItem[];
-	private _isIncomplete: boolean;
+	private _isIncomplete: Set<ISuggestSupport>;
 	private _stats: ICompletionStats;
 
-	constructor(items: ISuggestionItem[], column: number, lineContext: LineContext, snippetConfig?: SnippetConfig) {
+	constructor(items: ISuggestionItem[], column: number, lineContext: LineContext, options: InternalSuggestOptions = EDITOR_DEFAULTS.contribInfo.suggest) {
 		this._items = items;
 		this._column = column;
+		this._options = options;
 		this._refilterKind = Refilter.All;
 		this._lineContext = lineContext;
 
-		if (snippetConfig === 'top') {
+		if (options.snippets === 'top') {
 			this._snippetCompareFn = CompletionModel._compareCompletionItemsSnippetsUp;
-		} else if (snippetConfig === 'bottom') {
+		} else if (options.snippets === 'bottom') {
 			this._snippetCompareFn = CompletionModel._compareCompletionItemsSnippetsDown;
 		}
 	}
@@ -99,24 +102,27 @@ export class CompletionModel {
 		return this._filteredItems;
 	}
 
-	get incomplete(): boolean {
+	get incomplete(): Set<ISuggestSupport> {
 		this._ensureCachedState();
 		return this._isIncomplete;
 	}
 
-	resolveIncompleteInfo(): { incomplete: ISuggestSupport[], complete: ISuggestionItem[] } {
-		const incomplete: ISuggestSupport[] = [];
-		const complete: ISuggestionItem[] = [];
+	adopt(except: Set<ISuggestSupport>): ISuggestionItem[] {
+		let res = new Array<ISuggestionItem>();
+		for (let i = 0; i < this._items.length;) {
+			if (!except.has(this._items[i].support)) {
+				res.push(this._items[i]);
 
-		for (const item of this._items) {
-			if (!item.container.incomplete) {
-				complete.push(item);
-			} else if (incomplete.indexOf(item.support) < 0) {
-				incomplete.push(item.support);
+				// unordered removed
+				this._items[i] = this._items[this._items.length - 1];
+				this._items.pop();
+			} else {
+				// continue with next item
+				i++;
 			}
 		}
-
-		return { incomplete, complete };
+		this._refilterKind = Refilter.All;
+		return res;
 	}
 
 	get stats(): ICompletionStats {
@@ -132,7 +138,7 @@ export class CompletionModel {
 
 	private _createCachedState(): void {
 
-		this._isIncomplete = false;
+		this._isIncomplete = new Set();
 		this._stats = { suggestionCount: 0, snippetCount: 0, textCount: 0 };
 
 		const { leadingLineContent, characterCountDelta } = this._lineContext;
@@ -143,8 +149,9 @@ export class CompletionModel {
 		const target: typeof source = [];
 
 		// picks a score function based on the number of
-		// items that we have to score/filter
-		const scoreFn = source.length > 2000 ? fuzzyScore : fuzzyScoreGracefulAggressive;
+		// items that we have to score/filter and based on the
+		// user-configuration
+		const scoreFn = (!this._options.filterGraceful || source.length > 2000) ? fuzzyScore : fuzzyScoreGracefulAggressive;
 
 		for (let i = 0; i < source.length; i++) {
 
@@ -153,7 +160,9 @@ export class CompletionModel {
 
 			// collect those supports that signaled having
 			// an incomplete result
-			this._isIncomplete = this._isIncomplete || container.incomplete;
+			if (container.incomplete) {
+				this._isIncomplete.add(item.support);
+			}
 
 			// 'word' is that remainder of the current line that we
 			// filter and score against. In theory each suggestion uses a
@@ -186,7 +195,7 @@ export class CompletionModel {
 					continue;
 				}
 				item.score = match[0];
-				item.matches = skipScore(word, suggestion.label)[1];
+				item.matches = (fuzzyScore(word, suggestion.label) || anyScore(word, suggestion.label))[1];
 
 			} else {
 				// by default match `word` against the `label`

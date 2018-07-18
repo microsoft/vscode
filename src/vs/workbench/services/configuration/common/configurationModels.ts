@@ -8,7 +8,7 @@ import { equals } from 'vs/base/common/objects';
 import { compare, toValuesTree, IConfigurationChangeEvent, ConfigurationTarget, IConfigurationModel, IConfigurationOverrides } from 'vs/platform/configuration/common/configuration';
 import { Configuration as BaseConfiguration, ConfigurationModelParser, ConfigurationChangeEvent, ConfigurationModel, AbstractConfigurationChangeEvent } from 'vs/platform/configuration/common/configurationModels';
 import { Registry } from 'vs/platform/registry/common/platform';
-import { IConfigurationRegistry, IConfigurationPropertySchema, Extensions, ConfigurationScope } from 'vs/platform/configuration/common/configurationRegistry';
+import { IConfigurationRegistry, IConfigurationPropertySchema, Extensions, ConfigurationScope, OVERRIDE_PROPERTY_PATTERN } from 'vs/platform/configuration/common/configurationRegistry';
 import { IStoredWorkspaceFolder } from 'vs/platform/workspaces/common/workspaces';
 import { Workspace } from 'vs/platform/workspace/common/workspace';
 import { ResourceMap } from 'vs/base/common/map';
@@ -101,16 +101,25 @@ export class FolderSettingsModelParser extends ConfigurationModelParser {
 	}
 
 	private parseWorkspaceSettings(rawSettings: any): void {
-		const rawWorkspaceSettings = {};
 		const configurationProperties = Registry.as<IConfigurationRegistry>(Extensions.Configuration).getConfigurationProperties();
-		for (let key in rawSettings) {
-			const scope = this.getScope(key, configurationProperties);
-			if (this.scopes.indexOf(scope) !== -1) {
-				rawWorkspaceSettings[key] = rawSettings[key];
-			}
-		}
+		const rawWorkspaceSettings = this.filterByScope(rawSettings, configurationProperties, true);
 		const configurationModel = this.parseRaw(rawWorkspaceSettings);
 		this._settingsModel = new ConfigurationModel(configurationModel.contents, configurationModel.keys, configurationModel.overrides);
+	}
+
+	private filterByScope(properties: {}, configurationProperties: { [qualifiedKey: string]: IConfigurationPropertySchema }, filterOverriddenProperties: boolean): {} {
+		const result = {};
+		for (let key in properties) {
+			if (OVERRIDE_PROPERTY_PATTERN.test(key) && filterOverriddenProperties) {
+				result[key] = this.filterByScope(properties[key], configurationProperties, false);
+			} else {
+				const scope = this.getScope(key, configurationProperties);
+				if (this.scopes.indexOf(scope) !== -1) {
+					result[key] = properties[key];
+				}
+			}
+		}
+		return result;
 	}
 
 	private getScope(key: string, configurationProperties: { [qualifiedKey: string]: IConfigurationPropertySchema }): ConfigurationScope {
@@ -160,9 +169,7 @@ export class Configuration extends BaseConfiguration {
 		const { added, updated, removed } = compare(this.user, user);
 		let changedKeys = [...added, ...updated, ...removed];
 		if (changedKeys.length) {
-			const oldValues = changedKeys.map(key => this.getValue(key));
 			super.updateUserConfiguration(user);
-			changedKeys = changedKeys.filter((key, index) => !equals(oldValues[index], this.getValue(key)));
 		}
 		return new ConfigurationChangeEvent().change(changedKeys);
 	}
@@ -171,9 +178,7 @@ export class Configuration extends BaseConfiguration {
 		const { added, updated, removed } = compare(this.workspace, workspaceConfiguration);
 		let changedKeys = [...added, ...updated, ...removed];
 		if (changedKeys.length) {
-			const oldValues = changedKeys.map(key => this.getValue(key));
 			super.updateWorkspaceConfiguration(workspaceConfiguration);
-			changedKeys = changedKeys.filter((key, index) => !equals(oldValues[index], this.getValue(key)));
 		}
 		return new ConfigurationChangeEvent().change(changedKeys);
 	}
@@ -184,9 +189,7 @@ export class Configuration extends BaseConfiguration {
 			const { added, updated, removed } = compare(currentFolderConfiguration, folderConfiguration);
 			let changedKeys = [...added, ...updated, ...removed];
 			if (changedKeys.length) {
-				const oldValues = changedKeys.map(key => this.getValue(key, { resource }));
 				super.updateFolderConfiguration(resource, folderConfiguration);
-				changedKeys = changedKeys.filter((key, index) => !equals(oldValues[index], this.getValue(key, { resource })));
 			}
 			return new ConfigurationChangeEvent().change(changedKeys, resource);
 		} else {

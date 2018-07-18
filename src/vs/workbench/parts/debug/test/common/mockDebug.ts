@@ -7,7 +7,7 @@ import uri from 'vs/base/common/uri';
 import { Event, Emitter } from 'vs/base/common/event';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { IWorkspaceFolder } from 'vs/platform/workspace/common/workspace';
-import { ILaunch, IDebugService, State, DebugEvent, IProcess, IConfigurationManager, IStackFrame, IBreakpointData, IBreakpointUpdateData, IConfig, IModel, IViewModel, ISession, IBreakpoint } from 'vs/workbench/parts/debug/common/debug';
+import { ILaunch, IDebugService, State, DebugEvent, ISession, IConfigurationManager, IStackFrame, IBreakpointData, IBreakpointUpdateData, IConfig, IModel, IViewModel, IRawSession, IBreakpoint } from 'vs/workbench/parts/debug/common/debug';
 
 export class MockDebugService implements IDebugService {
 	public _serviceBrand: any;
@@ -20,11 +20,11 @@ export class MockDebugService implements IDebugService {
 		return null;
 	}
 
-	public get onDidNewProcess(): Event<IProcess> {
+	public get onDidNewSession(): Event<ISession> {
 		return null;
 	}
 
-	public get onDidEndProcess(): Event<IProcess> {
+	public get onDidEndSession(): Event<ISession> {
 		return null;
 	}
 
@@ -89,11 +89,11 @@ export class MockDebugService implements IDebugService {
 		return TPromise.as(null);
 	}
 
-	public restartProcess(): TPromise<any> {
+	public restartSession(): TPromise<any> {
 		return TPromise.as(null);
 	}
 
-	public stopProcess(): TPromise<any> {
+	public stopSession(): TPromise<any> {
 		return TPromise.as(null);
 	}
 
@@ -110,7 +110,7 @@ export class MockDebugService implements IDebugService {
 	public sourceIsNotAvailable(uri: uri): void { }
 }
 
-export class MockSession implements ISession {
+export class MockSession implements IRawSession {
 
 	public readyForBreakpoints = true;
 	public emittedStopped = true;
@@ -176,8 +176,8 @@ export class MockSession implements ISession {
 		return emitter.event;
 	}
 
-	public get onDidExitAdapter(): Event<DebugEvent> {
-		const emitter = new Emitter<DebugEvent>();
+	public get onDidExitAdapter(): Event<{ sessionId: string }> {
+		const emitter = new Emitter<{ sessionId: string }>();
 		return emitter.event;
 	}
 
@@ -186,7 +186,7 @@ export class MockSession implements ISession {
 		return TPromise.as(null);
 	}
 
-	public disconnect(restart?: boolean, force?: boolean): TPromise<DebugProtocol.DisconnectResponse> {
+	public terminate(restart = false): TPromise<DebugProtocol.TerminateResponse> {
 		return TPromise.as(null);
 	}
 

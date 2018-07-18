@@ -20,6 +20,7 @@ export interface ColorContribution {
 	readonly description: string;
 	readonly defaults: ColorDefaults;
 	readonly needsTransparency: boolean;
+	readonly deprecationMessage: string;
 }
 
 
@@ -87,7 +88,7 @@ class ColorRegistry implements IColorRegistry {
 	}
 
 	public registerColor(id: string, defaults: ColorDefaults, description: string, needsTransparency = false, deprecationMessage?: string): ColorIdentifier {
-		let colorContribution = { id, description, defaults, needsTransparency };
+		let colorContribution: ColorContribution = { id, description, defaults, needsTransparency, deprecationMessage };
 		this.colorsById[id] = colorContribution;
 		let propertySchema: IJSONSchema = { type: 'string', description, format: 'color-hex', default: '#ff0000' };
 		if (deprecationMessage) {
@@ -163,7 +164,7 @@ export const selectionBackground = registerColor('selection.background', { light
 
 export const textSeparatorForeground = registerColor('textSeparator.foreground', { light: '#0000002e', dark: '#ffffff2e', hc: Color.black }, nls.localize('textSeparatorForeground', "Color for text separators."));
 export const textLinkForeground = registerColor('textLink.foreground', { light: '#4080D0', dark: '#4080D0', hc: '#4080D0' }, nls.localize('textLinkForeground', "Foreground color for links in text."));
-export const textLinkActiveForeground = registerColor('textLink.activeForeground', { light: '#4080D0', dark: '#4080D0', hc: '#4080D0' }, nls.localize('textLinkActiveForeground', "Foreground color for active links in text."));
+export const textLinkActiveForeground = registerColor('textLink.activeForeground', { light: '#4080D0', dark: '#4080D0', hc: '#4080D0' }, nls.localize('textLinkActiveForeground', "Foreground color for links in text when clicked on and on mouse hover."));
 export const textPreformatForeground = registerColor('textPreformat.foreground', { light: '#A31515', dark: '#D7BA7D', hc: '#D7BA7D' }, nls.localize('textPreformatForeground', "Foreground color for preformatted text segments."));
 export const textBlockQuoteBackground = registerColor('textBlockQuote.background', { light: '#7f7f7f1a', dark: '#7f7f7f1a', hc: null }, nls.localize('textBlockQuoteBackground', "Background color for block quotes in text."));
 export const textBlockQuoteBorder = registerColor('textBlockQuote.border', { light: '#007acc80', dark: '#007acc80', hc: Color.white }, nls.localize('textBlockQuoteBorder', "Border color for block quotes in text."));
@@ -202,6 +203,8 @@ export const listHoverForeground = registerColor('list.hoverForeground', { dark:
 export const listDropBackground = registerColor('list.dropBackground', { dark: listFocusBackground, light: listFocusBackground, hc: null }, nls.localize('listDropBackground', "List/Tree drag and drop background when moving items around using the mouse."));
 export const listHighlightForeground = registerColor('list.highlightForeground', { dark: '#0097fb', light: '#007acc', hc: focusBorder }, nls.localize('highlight', 'List/Tree foreground color of the match highlights when searching inside the list/tree.'));
 export const listInvalidItemForeground = registerColor('list.invalidItemForeground', { dark: '#B89500', light: '#B89500', hc: '#B89500' }, nls.localize('invalidItemForeground', 'List/Tree foreground color for invalid items, for example an unresolved root in explorer.'));
+export const listErrorForeground = registerColor('list.errorForeground', { dark: '#ea4646', light: '#d60a0a', hc: null }, nls.localize('listErrorForeground', 'Foreground color of list items containing errors.'));
+export const listWarningForeground = registerColor('list.warningForeground', { dark: '#4d9e4d', light: '#117711', hc: null }, nls.localize('listWarningForeground', 'Foreground color of list items containing warnings.'));
 
 export const pickerGroupForeground = registerColor('pickerGroup.foreground', { dark: Color.fromHex('#0097FB').transparent(0.6), light: Color.fromHex('#007ACC').transparent(0.6), hc: Color.white }, nls.localize('pickerGroupForeground', "Quick picker color for grouping labels."));
 export const pickerGroupBorder = registerColor('pickerGroup.border', { dark: '#3F3F46', light: '#CCCEDB', hc: Color.white }, nls.localize('pickerGroupBorder', "Quick picker color for grouping borders."));
@@ -216,9 +219,14 @@ export const badgeForeground = registerColor('badge.foreground', { dark: Color.w
 export const scrollbarShadow = registerColor('scrollbar.shadow', { dark: '#000000', light: '#DDDDDD', hc: null }, nls.localize('scrollbarShadow', "Scrollbar shadow to indicate that the view is scrolled."));
 export const scrollbarSliderBackground = registerColor('scrollbarSlider.background', { dark: Color.fromHex('#797979').transparent(0.4), light: Color.fromHex('#646464').transparent(0.4), hc: transparent(contrastBorder, 0.6) }, nls.localize('scrollbarSliderBackground', "Scrollbar slider background color."));
 export const scrollbarSliderHoverBackground = registerColor('scrollbarSlider.hoverBackground', { dark: Color.fromHex('#646464').transparent(0.7), light: Color.fromHex('#646464').transparent(0.7), hc: transparent(contrastBorder, 0.8) }, nls.localize('scrollbarSliderHoverBackground', "Scrollbar slider background color when hovering."));
-export const scrollbarSliderActiveBackground = registerColor('scrollbarSlider.activeBackground', { dark: Color.fromHex('#BFBFBF').transparent(0.4), light: Color.fromHex('#000000').transparent(0.6), hc: contrastBorder }, nls.localize('scrollbarSliderActiveBackground', "Scrollbar slider background color when active."));
+export const scrollbarSliderActiveBackground = registerColor('scrollbarSlider.activeBackground', { dark: Color.fromHex('#BFBFBF').transparent(0.4), light: Color.fromHex('#000000').transparent(0.6), hc: contrastBorder }, nls.localize('scrollbarSliderActiveBackground', "Scrollbar slider background color when clicked on."));
 
 export const progressBarBackground = registerColor('progressBar.background', { dark: Color.fromHex('#0E70C0'), light: Color.fromHex('#0E70C0'), hc: contrastBorder }, nls.localize('progressBarBackground', "Background color of the progress bar that can show for long running operations."));
+
+export const breadcrumbsForeground = registerColor('breadcrumb.breadcrumbsForeground', { light: Color.fromHex('#6C6C6C').transparent(.7), dark: Color.fromHex('#CCCCCC').transparent(.7), hc: Color.white.transparent(.7) }, nls.localize('breadcrumbsFocusForeground', "Color of focused breadcrumb items."));
+export const breadcrumbsFocusForeground = registerColor('breadcrumb.breadcrumbsFocusForeground', { light: '#6C6C6C', dark: '#CCCCCC', hc: Color.white }, nls.localize('breadcrumbsFocusForeground', "Color of focused breadcrumb items."));
+export const breadcrumbsActiveSelectionForeground = registerColor('breadcrumb.breadcrumbsActiveSelectionForeground', { light: '#6C6C6C', dark: '#CCCCCC', hc: Color.white }, nls.localize('breadcrumbsSelectedForegound', "Color of selected breadcrumb items."));
+export const breadcrumbsActiveSelectionBackground = registerColor('breadcrumb.breadcrumbsActiveSelectionBackground', { light: '#F3F3F3', dark: '#252526', hc: Color.black }, nls.localize('breadcrumbsSelectedBackground', "Background color of selected breadcrumb items."));
 
 /**
  * Editor background color.
@@ -238,6 +246,7 @@ export const editorForeground = registerColor('editor.foreground', { light: '#33
 export const editorWidgetBackground = registerColor('editorWidget.background', { dark: '#2D2D30', light: '#EFEFF2', hc: '#0C141F' }, nls.localize('editorWidgetBackground', 'Background color of editor widgets, such as find/replace.'));
 export const editorWidgetBorder = registerColor('editorWidget.border', { dark: '#454545', light: '#C8C8C8', hc: contrastBorder }, nls.localize('editorWidgetBorder', 'Border color of editor widgets. The color is only used if the widget chooses to have a border and if the color is not overridden by a widget.'));
 
+export const editorWidgetResizeBorder = registerColor('editorWidget.resizeBorder', { light: null, dark: null, hc: null }, nls.localize('editorWidgetResizeBorder', "Border color of the resize bar of editor widgets. The color is only used if the widget chooses to have a resize border and if the color is not overridden by a widget."));
 
 /**
  * Editor selection colors.
@@ -282,6 +291,8 @@ export const diffRemoved = registerColor('diffEditor.removedTextBackground', { d
 
 export const diffInsertedOutline = registerColor('diffEditor.insertedTextBorder', { dark: null, light: null, hc: '#33ff2eff' }, nls.localize('diffEditorInsertedOutline', 'Outline color for the text that got inserted.'));
 export const diffRemovedOutline = registerColor('diffEditor.removedTextBorder', { dark: null, light: null, hc: '#FF008F' }, nls.localize('diffEditorRemovedOutline', 'Outline color for text that got removed.'));
+
+export const diffBorder = registerColor('diffEditor.border', { dark: null, light: null, hc: contrastBorder }, nls.localize('diffEditorBorder', 'Border color between the two text editors.'));
 
 /**
  * Merge-conflict colors

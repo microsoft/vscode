@@ -12,5 +12,7 @@
 	"hintnn": "{1} ve {2} satırları arasında {0} biçimlendirme düzenlemesi yapıldı",
 	"no.provider": "'{0}' dosyaları için yüklenmiş bir biçimlendirici yok.",
 	"formatDocument.label": "Belgeyi Biçimlendir",
-	"formatSelection.label": "Seçimi Biçimlendir"
+	"no.documentprovider": "'{0}' dosyaları için yüklenmiş bir doküman biçimlendiricisi yok.",
+	"formatSelection.label": "Seçimi Biçimlendir",
+	"no.selectionprovider": "'{0}' dosyaları için yüklenmiş bir seçim biçimlendiricisi yok."
 }

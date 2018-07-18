@@ -7,7 +7,7 @@
 import { localize } from 'vs/nls';
 import { IJSONSchema } from 'vs/base/common/jsonSchema';
 import { ExtensionMessageCollector, ExtensionsRegistry, IExtensionPoint } from 'vs/workbench/services/extensions/common/extensionsRegistry';
-import { join } from 'vs/base/common/paths';
+import * as resources from 'vs/base/common/resources';
 import { createCSSRule } from 'vs/base/browser/dom';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { SyncActionDescriptor } from 'vs/platform/actions/common/actions';
@@ -17,24 +17,30 @@ import { IPartService } from 'vs/workbench/services/part/common/partService';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { IStorageService } from 'vs/platform/storage/common/storage';
-import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
-import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 import { IExtensionService, IExtensionDescription } from 'vs/workbench/services/extensions/common/extensions';
-import { ViewLocation } from 'vs/workbench/common/views';
-import { PersistentViewsViewlet } from 'vs/workbench/browser/parts/views/viewsViewlet';
+import { Extensions as ViewContainerExtensions, IViewContainersRegistry, TEST_VIEW_CONTAINER_ID } from 'vs/workbench/common/views';
+import { ViewContainerViewlet } from 'vs/workbench/browser/parts/views/viewsViewlet';
 import { IWorkbenchActionRegistry, Extensions as ActionExtensions } from 'vs/workbench/common/actions';
 import { IViewletService } from 'vs/workbench/services/viewlet/browser/viewlet';
 import { forEach } from 'vs/base/common/collections';
 import { IWorkbenchContributionsRegistry, Extensions as WorkbenchExtensions, IWorkbenchContribution } from 'vs/workbench/common/contributions';
 import { LifecyclePhase } from 'vs/platform/lifecycle/common/lifecycle';
-
+import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
+import { IEditorGroupsService } from 'vs/workbench/services/group/common/editorGroupsService';
+import URI from 'vs/base/common/uri';
 
 export interface IUserFriendlyViewsContainerDescriptor {
 	id: string;
 	title: string;
 	icon: string;
+}
+
+export interface IUserFriendlyViewsContainerDescriptor2 {
+	id: string;
+	title: string;
+	icon: URI;
 }
 
 const viewsContainerSchema: IJSONSchema = {
@@ -50,7 +56,7 @@ const viewsContainerSchema: IJSONSchema = {
 			type: 'string'
 		},
 		icon: {
-			description: localize('vscode.extension.contributes.views.containers.icon', 'Path to the container icon'),
+			description: localize('vscode.extension.contributes.views.containers.icon', "Path to the container icon. Icons are 24x24 centered on a 50x40 block and have a fill color of 'rgb(215, 218, 224)' or '#d7dae0'. It is recommended that icons be in SVG, though any image file type is accepted."),
 			type: 'string'
 		}
 	}
@@ -70,22 +76,27 @@ export const viewsContainersContribution: IJSONSchema = {
 
 export const viewsContainersExtensionPoint: IExtensionPoint<{ [loc: string]: IUserFriendlyViewsContainerDescriptor[] }> = ExtensionsRegistry.registerExtensionPoint<{ [loc: string]: IUserFriendlyViewsContainerDescriptor[] }>('viewsContainers', [], viewsContainersContribution);
 
-const CUSTOM_VIEW_CONTAINER_ORDER = 5;
+const TEST_VIEW_CONTAINER_ORDER = 6;
 
 class ViewsContainersExtensionHandler implements IWorkbenchContribution {
 
 	constructor() {
+		this.registerTestViewContainer();
 		this.handleAndRegisterCustomViewContainers();
+	}
+
+	private registerTestViewContainer(): void {
+		const title = localize('test', "Test");
+		const cssClass = `extensionViewlet-test`;
+		const icon = URI.parse(require.toUrl('./media/test.svg'));
+
+		this.registerCustomViewlet({ id: TEST_VIEW_CONTAINER_ID, title, icon }, TEST_VIEW_CONTAINER_ORDER, cssClass);
 	}
 
 	private handleAndRegisterCustomViewContainers() {
 		viewsContainersExtensionPoint.setHandler((extensions) => {
 			for (let extension of extensions) {
 				const { value, collector } = extension;
-				if (!extension.description.enableProposedApi) {
-					collector.error(localize({ key: 'proposed', comment: ['Contribution refers to those that an extension contributes to VS Code through an extension/contribution point. '] }, "'viewsContainers' contribution is only available when running out of dev or with the following command line switch: --enable-proposed-api {0}", extension.description.id));
-					continue;
-				}
 				forEach(value, entry => {
 					if (!this.isValidViewsContainer(entry.value, collector)) {
 						return;
@@ -108,11 +119,11 @@ class ViewsContainersExtensionHandler implements IWorkbenchContribution {
 
 		for (let descriptor of viewsContainersDescriptors) {
 			if (typeof descriptor.id !== 'string') {
-				collector.error(localize('requireidstring', "property `{0}` is mandatory and must be of type `string`. Allowed only alphanumeric letters, '_', '-'.", 'id'));
+				collector.error(localize('requireidstring', "property `{0}` is mandatory and must be of type `string`. Only alphanumeric characters, '_', and '-' are allowed.", 'id'));
 				return false;
 			}
 			if (!(/^[a-z0-9_-]+$/i.test(descriptor.id))) {
-				collector.error(localize('requireidstring', "property `{0}` is mandatory and must be of type `string`. Allowed only alphanumeric letters, '_', '-'.", 'id'));
+				collector.error(localize('requireidstring', "property `{0}` is mandatory and must be of type `string`. Only alphanumeric characters, '_', and '-' are allowed.", 'id'));
 				return false;
 			}
 			if (typeof descriptor.title !== 'string') {
@@ -131,62 +142,69 @@ class ViewsContainersExtensionHandler implements IWorkbenchContribution {
 	private registerCustomViewContainers(containers: IUserFriendlyViewsContainerDescriptor[], extension: IExtensionDescription) {
 		containers.forEach((descriptor, index) => {
 			const cssClass = `extensionViewlet-${descriptor.id}`;
-			const icon = join(extension.extensionFolderPath, descriptor.icon);
-			this.registerCustomViewlet({ id: descriptor.id, title: descriptor.title, icon }, CUSTOM_VIEW_CONTAINER_ORDER + index + 1, cssClass);
+			const icon = resources.joinPath(extension.extensionLocation, descriptor.icon);
+			this.registerCustomViewlet({ id: `workbench.view.extension.${descriptor.id}`, title: descriptor.title, icon }, TEST_VIEW_CONTAINER_ORDER + index + 1, cssClass);
 		});
 	}
 
-	private registerCustomViewlet(descriptor: IUserFriendlyViewsContainerDescriptor, order: number, cssClass: string): void {
-		const id = `workbench.view.extension.${descriptor.id}`;
-		const location: ViewLocation = ViewLocation.register(id);
+	private registerCustomViewlet(descriptor: IUserFriendlyViewsContainerDescriptor2, order: number, cssClass: string): void {
+		const viewContainersRegistry = Registry.as<IViewContainersRegistry>(ViewContainerExtensions.ViewContainersRegistry);
+		const viewletRegistry = Registry.as<ViewletRegistry>(ViewletExtensions.Viewlets);
+		const id = descriptor.id;
 
-		// Register as viewlet
-		class CustomViewlet extends PersistentViewsViewlet {
-			constructor(
-				@IPartService partService: IPartService,
-				@ITelemetryService telemetryService: ITelemetryService,
-				@IWorkspaceContextService contextService: IWorkspaceContextService,
-				@IStorageService storageService: IStorageService,
-				@IWorkbenchEditorService editorService: IWorkbenchEditorService,
-				@IInstantiationService instantiationService: IInstantiationService,
-				@IContextKeyService contextKeyService: IContextKeyService,
-				@IThemeService themeService: IThemeService,
-				@IContextMenuService contextMenuService: IContextMenuService,
-				@IExtensionService extensionService: IExtensionService
-			) {
-				super(id, location, `${id}.state`, true, partService, telemetryService, storageService, instantiationService, themeService, contextService, contextKeyService, contextMenuService, extensionService);
+		if (!viewletRegistry.getViewlet(id)) {
+
+			viewContainersRegistry.registerViewContainer(id);
+
+			// Register as viewlet
+			class CustomViewlet extends ViewContainerViewlet {
+				constructor(
+					@IPartService partService: IPartService,
+					@ITelemetryService telemetryService: ITelemetryService,
+					@IWorkspaceContextService contextService: IWorkspaceContextService,
+					@IStorageService storageService: IStorageService,
+					@IEditorService editorService: IEditorService,
+					@IInstantiationService instantiationService: IInstantiationService,
+					@IThemeService themeService: IThemeService,
+					@IContextMenuService contextMenuService: IContextMenuService,
+					@IExtensionService extensionService: IExtensionService
+				) {
+					super(id, `${id}.state`, true, partService, telemetryService, storageService, instantiationService, themeService, contextMenuService, extensionService, contextService);
+				}
 			}
-		}
-		const viewletDescriptor = new ViewletDescriptor(
-			CustomViewlet,
-			id,
-			descriptor.title,
-			cssClass,
-			order
-		);
+			const viewletDescriptor = new ViewletDescriptor(
+				CustomViewlet,
+				id,
+				descriptor.title,
+				cssClass,
+				order,
+				descriptor.icon
+			);
 
-		Registry.as<ViewletRegistry>(ViewletExtensions.Viewlets).registerViewlet(viewletDescriptor);
+			viewletRegistry.registerViewlet(viewletDescriptor);
 
-		// Register Action to Open Viewlet
-		class OpenCustomViewletAction extends ToggleViewletAction {
-			constructor(
-				id: string, label: string,
-				@IViewletService viewletService: IViewletService,
-				@IWorkbenchEditorService editorService: IWorkbenchEditorService
-			) {
-				super(id, label, id, viewletService, editorService);
+			// Register Action to Open Viewlet
+			class OpenCustomViewletAction extends ToggleViewletAction {
+				constructor(
+					id: string, label: string,
+					@IViewletService viewletService: IViewletService,
+					@IEditorGroupsService editorGroupService: IEditorGroupsService
+				) {
+					super(id, label, id, viewletService, editorGroupService);
+				}
 			}
-		}
-		const registry = Registry.as<IWorkbenchActionRegistry>(ActionExtensions.WorkbenchActions);
-		registry.registerWorkbenchAction(
-			new SyncActionDescriptor(OpenCustomViewletAction, id, localize('showViewlet', "Show {0}", descriptor.title)),
-			'View: Show {0}',
-			localize('view', "View")
-		);
+			const registry = Registry.as<IWorkbenchActionRegistry>(ActionExtensions.WorkbenchActions);
+			registry.registerWorkbenchAction(
+				new SyncActionDescriptor(OpenCustomViewletAction, id, localize('showViewlet', "Show {0}", descriptor.title)),
+				'View: Show {0}',
+				localize('view', "View")
+			);
 
-		// Generate CSS to show the icon in the activity bar
-		const iconClass = `.monaco-workbench > .activitybar .monaco-action-bar .action-label.${cssClass}`;
-		createCSSRule(iconClass, `-webkit-mask: url('${descriptor.icon}') no-repeat 50% 50%;`);
+			// Generate CSS to show the icon in the activity bar
+			const iconClass = `.monaco-workbench > .activitybar .monaco-action-bar .action-label.${cssClass}`;
+			createCSSRule(iconClass, `-webkit-mask: url('${descriptor.icon}') no-repeat 50% 50%`);
+		}
+
 	}
 }
 

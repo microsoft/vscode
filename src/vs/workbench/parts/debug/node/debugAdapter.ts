@@ -7,6 +7,7 @@ import * as fs from 'fs';
 import * as cp from 'child_process';
 import * as stream from 'stream';
 import * as nls from 'vs/nls';
+import * as net from 'net';
 import * as paths from 'vs/base/common/paths';
 import * as strings from 'vs/base/common/strings';
 import * as objects from 'vs/base/common/objects';
@@ -17,10 +18,7 @@ import { TPromise } from 'vs/base/common/winjs.base';
 import { ExtensionsChannelId } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { IExtensionDescription } from 'vs/workbench/services/extensions/common/extensions';
 import { IOutputService } from 'vs/workbench/parts/output/common/output';
-import { IDebugAdapter, IAdapterExecutable, IDebuggerContribution, IPlatformSpecificAdapterContribution, IConfig } from 'vs/workbench/parts/debug/common/debug';
-import { IConfigurationResolverService } from 'vs/workbench/services/configurationResolver/common/configurationResolver';
-import { IWorkspaceFolder } from 'vs/platform/workspace/common/workspace';
-import { IStringDictionary } from 'vs/base/common/collections';
+import { IDebugAdapter, IAdapterExecutable, IDebuggerContribution, IPlatformSpecificAdapterContribution } from 'vs/workbench/parts/debug/common/debug';
 
 /**
  * Abstract implementation of the low level API for a debug adapter.
@@ -216,17 +214,50 @@ export abstract class StreamDebugAdapter extends AbstractDebugAdapter {
 }
 
 /**
+ * An implementation that connects to a debug adapter via a socket.
+*/
+export class SocketDebugAdapter extends StreamDebugAdapter {
+
+	private socket: net.Socket;
+
+	constructor(private port: number, private host = '127.0.0.1') {
+		super();
+	}
+
+	startSession(): TPromise<void> {
+		return new TPromise<void>((c, e) => {
+			this.socket = net.createConnection(this.port, this.host, () => {
+				this.connect(this.socket, <any>this.socket);
+				c(null);
+			});
+			this.socket.on('error', (err: any) => {
+				e(err);
+			});
+			this.socket.on('close', () => this._onExit.fire(0));
+		});
+	}
+
+	stopSession(): TPromise<void> {
+		if (this.socket !== null) {
+			this.socket.end();
+			this.socket = undefined;
+		}
+		return void 0;
+	}
+}
+
+/**
  * An implementation that launches the debug adapter as a separate process and communicates via stdin/stdout.
 */
 export class DebugAdapter extends StreamDebugAdapter {
 
-	private _serverProcess: cp.ChildProcess;
+	private serverProcess: cp.ChildProcess;
 
-	constructor(private _debugType: string, private _adapterExecutable: IAdapterExecutable | null, extensionDescriptions: IExtensionDescription[], private _outputService?: IOutputService) {
+	constructor(private debugType: string, private adapterExecutable: IAdapterExecutable | null, extensionDescriptions: IExtensionDescription[], private outputService?: IOutputService) {
 		super();
 
-		if (!this._adapterExecutable) {
-			this._adapterExecutable = DebugAdapter.platformAdapterExecutable(extensionDescriptions, this._debugType);
+		if (!this.adapterExecutable) {
+			this.adapterExecutable = DebugAdapter.platformAdapterExecutable(extensionDescriptions, this.debugType);
 		}
 	}
 
@@ -235,54 +266,54 @@ export class DebugAdapter extends StreamDebugAdapter {
 		return new TPromise<void>((c, e) => {
 
 			// verify executables
-			if (this._adapterExecutable.command) {
-				if (paths.isAbsolute(this._adapterExecutable.command)) {
-					if (!fs.existsSync(this._adapterExecutable.command)) {
-						e(new Error(nls.localize('debugAdapterBinNotFound', "Debug adapter executable '{0}' does not exist.", this._adapterExecutable.command)));
+			if (this.adapterExecutable.command) {
+				if (paths.isAbsolute(this.adapterExecutable.command)) {
+					if (!fs.existsSync(this.adapterExecutable.command)) {
+						e(new Error(nls.localize('debugAdapterBinNotFound', "Debug adapter executable '{0}' does not exist.", this.adapterExecutable.command)));
 					}
 				} else {
 					// relative path
-					if (this._adapterExecutable.command.indexOf('/') < 0 && this._adapterExecutable.command.indexOf('\\') < 0) {
+					if (this.adapterExecutable.command.indexOf('/') < 0 && this.adapterExecutable.command.indexOf('\\') < 0) {
 						// no separators: command looks like a runtime name like 'node' or 'mono'
 						// TODO: check that the runtime is available on PATH
 					}
 				}
 			} else {
 				e(new Error(nls.localize({ key: 'debugAdapterCannotDetermineExecutable', comment: ['Adapter executable file not found'] },
-					"Cannot determine executable for debug adapter '{0}'.", this._debugType)));
+					"Cannot determine executable for debug adapter '{0}'.", this.debugType)));
 			}
 
-			if (this._adapterExecutable.command === 'node' && this._outputService) {
-				if (Array.isArray(this._adapterExecutable.args) && this._adapterExecutable.args.length > 0) {
-					stdfork.fork(this._adapterExecutable.args[0], this._adapterExecutable.args.slice(1), {}, (err, child) => {
+			if (this.adapterExecutable.command === 'node' && this.outputService) {
+				if (Array.isArray(this.adapterExecutable.args) && this.adapterExecutable.args.length > 0) {
+					stdfork.fork(this.adapterExecutable.args[0], this.adapterExecutable.args.slice(1), {}, (err, child) => {
 						if (err) {
-							e(new Error(nls.localize('unableToLaunchDebugAdapter', "Unable to launch debug adapter from '{0}'.", this._adapterExecutable.args[0])));
+							e(new Error(nls.localize('unableToLaunchDebugAdapter', "Unable to launch debug adapter from '{0}'.", this.adapterExecutable.args[0])));
 						}
-						this._serverProcess = child;
+						this.serverProcess = child;
 						c(null);
 					});
 				} else {
 					e(new Error(nls.localize('unableToLaunchDebugAdapterNoArgs', "Unable to launch debug adapter.")));
 				}
 			} else {
-				this._serverProcess = cp.spawn(this._adapterExecutable.command, this._adapterExecutable.args);
+				this.serverProcess = cp.spawn(this.adapterExecutable.command, this.adapterExecutable.args);
 				c(null);
 			}
 		}).then(_ => {
-			this._serverProcess.on('error', (err: Error) => this._onError.fire(err));
-			this._serverProcess.on('exit', (code: number, signal: string) => this._onExit.fire(code));
+			this.serverProcess.on('error', (err: Error) => this._onError.fire(err));
+			this.serverProcess.on('exit', (code: number, signal: string) => this._onExit.fire(code));
 
-			if (this._outputService) {
+			if (this.outputService) {
 				const sanitize = (s: string) => s.toString().replace(/\r?\n$/mg, '');
 				// this.serverProcess.stdout.on('data', (data: string) => {
 				// 	console.log('%c' + sanitize(data), 'background: #ddd; font-style: italic;');
 				// });
-				this._serverProcess.stderr.on('data', (data: string) => {
-					this._outputService.getChannel(ExtensionsChannelId).append(sanitize(data));
+				this.serverProcess.stderr.on('data', (data: string) => {
+					this.outputService.getChannel(ExtensionsChannelId).append(sanitize(data));
 				});
 			}
 
-			this.connect(this._serverProcess.stdout, this._serverProcess.stdin);
+			this.connect(this.serverProcess.stdout, this.serverProcess.stdin);
 		}, err => {
 			this._onError.fire(err);
 		});
@@ -290,12 +321,16 @@ export class DebugAdapter extends StreamDebugAdapter {
 
 	stopSession(): TPromise<void> {
 
+		if (!this.serverProcess) {
+			return TPromise.as(null);
+		}
+
 		// when killing a process in windows its child
 		// processes are *not* killed but become root
 		// processes. Therefore we use TASKKILL.EXE
 		if (platform.isWindows) {
 			return new TPromise<void>((c, e) => {
-				const killer = cp.exec(`taskkill /F /T /PID ${this._serverProcess.pid}`, function (err, stdout, stderr) {
+				const killer = cp.exec(`taskkill /F /T /PID ${this.serverProcess.pid}`, function (err, stdout, stderr) {
 					if (err) {
 						return e(err);
 					}
@@ -304,7 +339,7 @@ export class DebugAdapter extends StreamDebugAdapter {
 				killer.on('error', e);
 			});
 		} else {
-			this._serverProcess.kill('SIGTERM');
+			this.serverProcess.kill('SIGTERM');
 			return TPromise.as(null);
 		}
 	}
@@ -313,8 +348,8 @@ export class DebugAdapter extends StreamDebugAdapter {
 		if (!contribution) {
 			return undefined;
 		}
-		let result: IDebuggerContribution = {};
 
+		const result: IDebuggerContribution = Object.create(null);
 		if (contribution.runtime) {
 			if (contribution.runtime.indexOf('./') === 0) {	// TODO
 				result.runtime = paths.join(extensionFolderPath, contribution.runtime);
@@ -354,10 +389,8 @@ export class DebugAdapter extends StreamDebugAdapter {
 		return result;
 	}
 
-	static platformAdapterExecutable(extensionDescriptions: IExtensionDescription[], debugType: string): IAdapterExecutable {
-
-		let result: IDebuggerContribution = {};
-
+	public static platformAdapterExecutable(extensionDescriptions: IExtensionDescription[], debugType: string): IAdapterExecutable {
+		const result: IDebuggerContribution = Object.create(null);
 		debugType = debugType.toLowerCase();
 
 		// merge all contributions into one
@@ -365,15 +398,13 @@ export class DebugAdapter extends StreamDebugAdapter {
 			if (ed.contributes) {
 				const debuggers = <IDebuggerContribution[]>ed.contributes['debuggers'];
 				if (debuggers && debuggers.length > 0) {
-					const dbgs = debuggers.filter(d => strings.equalsIgnoreCase(d.type, debugType));
-					for (const dbg of dbgs) {
-
+					debuggers.filter(dbg => strings.equalsIgnoreCase(dbg.type, debugType)).forEach(dbg => {
 						// extract relevant attributes and make then absolute where needed
-						const dbg1 = DebugAdapter.extract(dbg, ed.extensionFolderPath);
+						const extractedDbg = DebugAdapter.extract(dbg, ed.extensionLocation.fsPath);
 
 						// merge
-						objects.mixin(result, dbg1, ed.isBuiltin);
-					}
+						objects.mixin(result, extractedDbg, ed.isBuiltin);
+					});
 				}
 			}
 		}
@@ -408,109 +439,5 @@ export class DebugAdapter extends StreamDebugAdapter {
 				args: args || []
 			};
 		}
-	}
-
-	static substituteVariables(workspaceFolder: IWorkspaceFolder, config: IConfig, resolverService: IConfigurationResolverService, commandValueMapping?: IStringDictionary<string>): IConfig {
-
-		const result = objects.deepClone(config) as IConfig;
-
-		// hoist platform specific attributes to top level
-		if (platform.isWindows && result.windows) {
-			Object.keys(result.windows).forEach(key => result[key] = result.windows[key]);
-		} else if (platform.isMacintosh && result.osx) {
-			Object.keys(result.osx).forEach(key => result[key] = result.osx[key]);
-		} else if (platform.isLinux && result.linux) {
-			Object.keys(result.linux).forEach(key => result[key] = result.linux[key]);
-		}
-
-		// delete all platform specific sections
-		delete result.windows;
-		delete result.osx;
-		delete result.linux;
-
-		// substitute all variables in string values
-		return resolverService.resolveAny(workspaceFolder, result, commandValueMapping);
-	}
-}
-
-// path hooks helpers
-
-export function convertToDAPaths(msg: DebugProtocol.ProtocolMessage, fixSourcePaths: (source: DebugProtocol.Source) => void): void {
-	convertPaths(msg, (toDA: boolean, source: DebugProtocol.Source | undefined) => {
-		if (toDA && source) {
-			fixSourcePaths(source);
-		}
-	});
-}
-
-export function convertToVSCPaths(msg: DebugProtocol.ProtocolMessage, fixSourcePaths: (source: DebugProtocol.Source) => void): void {
-	convertPaths(msg, (toDA: boolean, source: DebugProtocol.Source | undefined) => {
-		if (!toDA && source) {
-			fixSourcePaths(source);
-		}
-	});
-}
-
-function convertPaths(msg: DebugProtocol.ProtocolMessage, fixSourcePaths: (toDA: boolean, source: DebugProtocol.Source | undefined) => void): void {
-	switch (msg.type) {
-		case 'event':
-			const event = <DebugProtocol.Event>msg;
-			switch (event.event) {
-				case 'output':
-					fixSourcePaths(false, (<DebugProtocol.OutputEvent>event).body.source);
-					break;
-				case 'loadedSource':
-					fixSourcePaths(false, (<DebugProtocol.LoadedSourceEvent>event).body.source);
-					break;
-				case 'breakpoint':
-					fixSourcePaths(false, (<DebugProtocol.BreakpointEvent>event).body.breakpoint.source);
-					break;
-				default:
-					break;
-			}
-			break;
-		case 'request':
-			const request = <DebugProtocol.Request>msg;
-			switch (request.command) {
-				case 'setBreakpoints':
-					fixSourcePaths(true, (<DebugProtocol.SetBreakpointsArguments>request.arguments).source);
-					break;
-				case 'source':
-					fixSourcePaths(true, (<DebugProtocol.SourceArguments>request.arguments).source);
-					break;
-				case 'gotoTargets':
-					fixSourcePaths(true, (<DebugProtocol.GotoTargetsArguments>request.arguments).source);
-					break;
-				default:
-					break;
-			}
-			break;
-		case 'response':
-			const response = <DebugProtocol.Response>msg;
-			switch (response.command) {
-				case 'stackTrace':
-					const r1 = <DebugProtocol.StackTraceResponse>response;
-					r1.body.stackFrames.forEach(frame => fixSourcePaths(false, frame.source));
-					break;
-				case 'loadedSources':
-					const r2 = <DebugProtocol.LoadedSourcesResponse>response;
-					r2.body.sources.forEach(source => fixSourcePaths(false, source));
-					break;
-				case 'scopes':
-					const r3 = <DebugProtocol.ScopesResponse>response;
-					r3.body.scopes.forEach(scope => fixSourcePaths(false, scope.source));
-					break;
-				case 'setFunctionBreakpoints':
-					const r4 = <DebugProtocol.SetFunctionBreakpointsResponse>response;
-					r4.body.breakpoints.forEach(bp => fixSourcePaths(false, bp.source));
-					break;
-				case 'setBreakpoints':
-					const r5 = <DebugProtocol.SetBreakpointsResponse>response;
-					r5.body.breakpoints.forEach(bp => fixSourcePaths(false, bp.source));
-					break;
-				default:
-					break;
-			}
-			break;
 	}
 }

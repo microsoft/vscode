@@ -25,5 +25,6 @@
 	"peekViewEditorBackground": "Peek 뷰 편집기의 배경색입니다.",
 	"peekViewEditorGutterBackground": "Peek 뷰 편집기의 거터 배경색입니다.",
 	"peekViewResultsMatchHighlight": "Peek 뷰 결과 목록의 일치 항목 강조 표시 색입니다.",
-	"peekViewEditorMatchHighlight": "Peek 뷰 편집기의 일치 항목 강조 표시 색입니다."
+	"peekViewEditorMatchHighlight": "Peek 뷰 편집기의 일치 항목 강조 표시 색입니다.",
+	"peekViewEditorMatchHighlightBorder": "Peek 뷰 편집기의 일치 항목 강조 표시 테두리입니다."
 }

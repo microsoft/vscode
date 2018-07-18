@@ -92,6 +92,7 @@ export class Tree implements _.ITree {
 		options.alwaysFocused = options.alwaysFocused === true ? true : false;
 		options.useShadows = options.useShadows === false ? false : true;
 		options.paddingOnRow = options.paddingOnRow === false ? false : true;
+		options.showLoading = options.showLoading === false ? false : true;
 
 		this.context = new TreeContext(this, configuration, options);
 		this.model = new Model.TreeModel(this.context);
@@ -116,6 +117,10 @@ export class Tree implements _.ITree {
 
 	get onDidBlur(): Event<void> {
 		return this.view && this.view.onDOMBlur;
+	}
+
+	get onDidScroll(): Event<void> {
+		return this.view && this.view.onDidScroll;
 	}
 
 	public getHTMLElement(): HTMLElement {
@@ -206,6 +211,11 @@ export class Tree implements _.ITree {
 	public getRelativeTop(element: any): number {
 		let item = this.model.getItem(element);
 		return this.view.getRelativeTop(item);
+	}
+
+	public getFirstVisibleElement(): any {
+		return this.view.getFirstVisibleElement();
+
 	}
 
 	public getScrollPosition(): number {

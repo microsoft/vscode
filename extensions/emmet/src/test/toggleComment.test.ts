@@ -247,6 +247,36 @@ suite('Tests for Toggle Comment action from Emmet (HTML)', () => {
 			});
 		});
 	});
+
+	test('toggle comment within script template', () => {
+		const templateContents = `
+	<script type="text/template">
+		<li><span>Hello</span></li>
+		<li><!--<span>There</span>--></li>
+		<div><li><span>Bye</span></li></div>
+		<span/>
+	</script>
+	`;
+		const expectedContents = `
+	<script type="text/template">
+		<!--<li><span>Hello</span></li>-->
+		<li><span>There</span></li>
+		<div><li><!--<span>Bye</span>--></li></div>
+		<span/>
+	</script>
+	`;
+		return withRandomFileEditor(templateContents, 'html', (editor, doc) => {
+			editor.selections = [
+				new Selection(2, 2, 2, 28), // select entire li element
+				new Selection(3, 17, 3, 17), // cursor inside the commented span
+				new Selection(4, 18, 4, 18), // cursor inside the noncommented span
+			];
+			return toggleComment().then(() => {
+				assert.equal(doc.getText(), expectedContents);
+				return Promise.resolve();
+			});
+		});
+	});
 });
 
 suite('Tests for Toggle Comment action from Emmet (CSS)', () => {
@@ -541,7 +571,7 @@ suite('Tests for Toggle Comment action from Emmet in nested css (SCSS)', () => {
 				assert.equal(doc.getText(), expectedContents);
 				return toggleComment().then(() => {
 					assert.equal(doc.getText(), contents);
-				return Promise.resolve();
+					return Promise.resolve();
 				});
 			});
 		});

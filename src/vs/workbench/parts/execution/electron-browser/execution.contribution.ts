@@ -13,7 +13,6 @@ import * as paths from 'vs/base/common/paths';
 import uri from 'vs/base/common/uri';
 import { ITerminalService } from 'vs/workbench/parts/execution/common/execution';
 import { MenuId, MenuRegistry } from 'vs/platform/actions/common/actions';
-import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { KeyMod, KeyCode } from 'vs/base/common/keyCodes';
 import { Extensions, IConfigurationRegistry, ConfigurationScope } from 'vs/platform/configuration/common/configurationRegistry';
 import { ITerminalService as IIntegratedTerminalService, KEYBINDING_CONTEXT_TERMINAL_NOT_FOCUSED } from 'vs/workbench/parts/terminal/common/terminal';
@@ -28,6 +27,7 @@ import { getMultiSelectedResources } from 'vs/workbench/parts/files/browser/file
 import { CommandsRegistry } from 'vs/platform/commands/common/commands';
 import { Schemas } from 'vs/base/common/network';
 import { distinct } from 'vs/base/common/arrays';
+import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 
 if (env.isWindows) {
 	registerSingleton(ITerminalService, WinTerminalService);
@@ -81,7 +81,7 @@ CommandsRegistry.registerCommand({
 	id: OPEN_IN_TERMINAL_COMMAND_ID,
 	handler: (accessor, resource: uri) => {
 		const configurationService = accessor.get(IConfigurationService);
-		const editorService = accessor.get(IWorkbenchEditorService);
+		const editorService = accessor.get(IEditorService);
 		const fileService = accessor.get(IFileService);
 		const integratedTerminalService = accessor.get(IIntegratedTerminalService);
 		const terminalService = accessor.get(ITerminalService);
@@ -129,15 +129,13 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 MenuRegistry.appendMenuItem(MenuId.CommandPalette, {
 	command: {
 		id: OPEN_NATIVE_CONSOLE_COMMAND_ID,
-		title: env.isWindows ? nls.localize('globalConsoleActionWin', "Open New Command Prompt") :
-			nls.localize('globalConsoleActionMacLinux', "Open New Terminal")
+		title: nls.localize('globalConsoleAction', "Open New Terminal")
 	}
 });
 
 const openConsoleCommand = {
 	id: OPEN_IN_TERMINAL_COMMAND_ID,
-	title: env.isWindows ? nls.localize('scopedConsoleActionWin', "Open in Command Prompt") :
-		nls.localize('scopedConsoleActionMacLinux', "Open in Terminal")
+	title: nls.localize('scopedConsoleAction', "Open in Terminal")
 };
 MenuRegistry.appendMenuItem(MenuId.OpenEditorsContext, {
 	group: 'navigation',

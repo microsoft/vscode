@@ -21,11 +21,17 @@ import { IModeService } from 'vs/editor/common/services/modeService';
 import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
 import { IViewlet } from 'vs/workbench/common/viewlet';
 import { InputFocusedContextKey } from 'vs/platform/workbench/common/contextkeys';
+import { Registry } from 'vs/platform/registry/common/platform';
+import { IViewContainersRegistry, Extensions as ViewContainerExtensions, ViewContainer } from 'vs/workbench/common/views';
 
 /**
  * Explorer viewlet id.
  */
 export const VIEWLET_ID = 'workbench.view.explorer';
+/**
+ * Explorer viewlet container.
+ */
+export const VIEW_CONTAINER: ViewContainer = Registry.as<IViewContainersRegistry>(ViewContainerExtensions.ViewContainersRegistry).registerViewContainer(VIEWLET_ID);
 
 export interface IExplorerViewlet extends IViewlet {
 	getExplorerView(): IExplorerView;
@@ -44,10 +50,13 @@ const openEditorsVisibleId = 'openEditorsVisible';
 const openEditorsFocusId = 'openEditorsFocus';
 const explorerViewletFocusId = 'explorerViewletFocus';
 const explorerResourceIsFolderId = 'explorerResourceIsFolder';
+const explorerResourceReadonly = 'explorerResourceReadonly';
 const explorerResourceIsRootId = 'explorerResourceIsRoot';
 
 export const ExplorerViewletVisibleContext = new RawContextKey<boolean>(explorerViewletVisibleId, true);
 export const ExplorerFolderContext = new RawContextKey<boolean>(explorerResourceIsFolderId, false);
+export const ExplorerResourceReadonlyContext = new RawContextKey<boolean>(explorerResourceReadonly, false);
+export const ExplorerResourceNotReadonlyContext = ExplorerResourceReadonlyContext.toNegated();
 export const ExplorerRootContext = new RawContextKey<boolean>(explorerResourceIsRootId, false);
 export const FilesExplorerFocusedContext = new RawContextKey<boolean>(filesExplorerFocusId, true);
 export const OpenEditorsVisibleContext = new RawContextKey<boolean>(openEditorsVisibleId, false);
@@ -148,7 +157,7 @@ export class FileOnDiskContentProvider implements ITextModelContentProvider {
 	) {
 	}
 
-	public provideTextContent(resource: URI): TPromise<ITextModel> {
+	provideTextContent(resource: URI): TPromise<ITextModel> {
 		const fileOnDiskResource = URI.file(resource.fsPath);
 
 		// Make sure our file from disk is resolved up to date
@@ -196,7 +205,7 @@ export class FileOnDiskContentProvider implements ITextModelContentProvider {
 		});
 	}
 
-	public dispose(): void {
+	dispose(): void {
 		this.fileWatcher = dispose(this.fileWatcher);
 	}
 }

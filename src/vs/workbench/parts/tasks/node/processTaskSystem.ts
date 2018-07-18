@@ -122,7 +122,7 @@ export class ProcessTaskSystem implements ITaskSystem {
 		if (!this.activeTask || Task.getMapKey(this.activeTask) !== Task.getMapKey(task)) {
 			return TPromise.as<TaskTerminateResponse>({ success: false, task: undefined });
 		}
-		return this.terminateAll()[0];
+		return this.terminateAll().then(values => values[0]);
 	}
 
 	public terminateAll(): TPromise<TaskTerminateResponse[]> {
@@ -233,9 +233,9 @@ export class ProcessTaskSystem implements ITaskSystem {
 		}
 		if (task.isBackground) {
 			let watchingProblemMatcher = new WatchingProblemCollector(this.resolveMatchers(task, task.problemMatchers), this.markerService, this.modelService);
-			let toUnbind: IDisposable[] = [];
+			let toDispose: IDisposable[] = [];
 			let eventCounter: number = 0;
-			toUnbind.push(watchingProblemMatcher.onDidStateChange((event) => {
+			toDispose.push(watchingProblemMatcher.onDidStateChange((event) => {
 				if (event.kind === ProblemCollectorEventKind.BackgroundProcessingBegins) {
 					eventCounter++;
 					this._onDidStateChange.fire(TaskEvent.create(TaskEventKind.Active, task));
@@ -248,12 +248,37 @@ export class ProcessTaskSystem implements ITaskSystem {
 			let delayer: Async.Delayer<any> = null;
 			this.activeTask = task;
 			const inactiveEvent = TaskEvent.create(TaskEventKind.Inactive, task);
-			this.activeTaskPromise = this.childProcess.start().then((success): ITaskSummary => {
+			let processStartedSignaled: boolean = false;
+			const onProgress = (progress: LineData) => {
+				let line = Strings.removeAnsiEscapeCodes(progress.line);
+				this.outputChannel.append(line + '\n');
+				watchingProblemMatcher.processLine(line);
+				if (delayer === null) {
+					delayer = new Async.Delayer(3000);
+				}
+				delayer.trigger(() => {
+					watchingProblemMatcher.forceDelivery();
+					return null;
+				}).then(() => {
+					delayer = null;
+				});
+			};
+			const startPromise = this.childProcess.start(onProgress);
+			this.childProcess.pid.then(pid => {
+				if (pid !== -1) {
+					processStartedSignaled = true;
+					this._onDidStateChange.fire(TaskEvent.create(TaskEventKind.ProcessStarted, task, pid));
+				}
+			});
+			this.activeTaskPromise = startPromise.then((success): ITaskSummary => {
 				this.childProcessEnded();
 				watchingProblemMatcher.done();
 				watchingProblemMatcher.dispose();
-				toUnbind = dispose(toUnbind);
-				toUnbind = null;
+				if (processStartedSignaled) {
+					this._onDidStateChange.fire(TaskEvent.create(TaskEventKind.ProcessEnded, task, success.cmdCode));
+				}
+				toDispose = dispose(toDispose);
+				toDispose = null;
 				for (let i = 0; i < eventCounter; i++) {
 					this._onDidStateChange.fire(inactiveEvent);
 				}
@@ -269,42 +294,47 @@ export class ProcessTaskSystem implements ITaskSystem {
 			}, (error: ErrorData) => {
 				this.childProcessEnded();
 				watchingProblemMatcher.dispose();
-				toUnbind = dispose(toUnbind);
-				toUnbind = null;
+				toDispose = dispose(toDispose);
+				toDispose = null;
 				for (let i = 0; i < eventCounter; i++) {
 					this._onDidStateChange.fire(inactiveEvent);
 				}
 				eventCounter = 0;
 				return this.handleError(task, error);
-			}, (progress: LineData) => {
-				let line = Strings.removeAnsiEscapeCodes(progress.line);
-				this.outputChannel.append(line + '\n');
-				watchingProblemMatcher.processLine(line);
-				if (delayer === null) {
-					delayer = new Async.Delayer(3000);
-				}
-				delayer.trigger(() => {
-					watchingProblemMatcher.forceDelivery();
-					return null;
-				}).then(() => {
-					delayer = null;
-				});
 			});
 			let result: ITaskExecuteResult = (<any>task).tscWatch
 				? { kind: TaskExecuteKind.Started, started: { restartOnFileChanges: '**/*.ts' }, promise: this.activeTaskPromise }
 				: { kind: TaskExecuteKind.Started, started: {}, promise: this.activeTaskPromise };
 			return result;
 		} else {
+			this._onDidStateChange.fire(TaskEvent.create(TaskEventKind.Start, task));
 			this._onDidStateChange.fire(TaskEvent.create(TaskEventKind.Active, task));
 			let startStopProblemMatcher = new StartStopProblemCollector(this.resolveMatchers(task, task.problemMatchers), this.markerService, this.modelService);
 			this.activeTask = task;
 			const inactiveEvent = TaskEvent.create(TaskEventKind.Inactive, task);
-			this.activeTaskPromise = this.childProcess.start().then((success): ITaskSummary => {
+			let processStartedSignaled: boolean = false;
+			const onProgress = (progress) => {
+				let line = Strings.removeAnsiEscapeCodes(progress.line);
+				this.outputChannel.append(line + '\n');
+				startStopProblemMatcher.processLine(line);
+			};
+			const startPromise = this.childProcess.start(onProgress);
+			this.childProcess.pid.then(pid => {
+				if (pid !== -1) {
+					processStartedSignaled = true;
+					this._onDidStateChange.fire(TaskEvent.create(TaskEventKind.ProcessStarted, task, pid));
+				}
+			});
+			this.activeTaskPromise = startPromise.then((success): ITaskSummary => {
 				this.childProcessEnded();
 				startStopProblemMatcher.done();
 				startStopProblemMatcher.dispose();
 				this.checkTerminated(task, success);
+				if (processStartedSignaled) {
+					this._onDidStateChange.fire(TaskEvent.create(TaskEventKind.ProcessEnded, task, success.cmdCode));
+				}
 				this._onDidStateChange.fire(inactiveEvent);
+				this._onDidStateChange.fire(TaskEvent.create(TaskEventKind.End, task));
 				if (success.cmdCode && success.cmdCode === 1 && startStopProblemMatcher.numberOfMatches === 0 && reveal !== RevealKind.Never) {
 					this.showOutput();
 				}
@@ -314,11 +344,8 @@ export class ProcessTaskSystem implements ITaskSystem {
 				this.childProcessEnded();
 				startStopProblemMatcher.dispose();
 				this._onDidStateChange.fire(inactiveEvent);
+				this._onDidStateChange.fire(TaskEvent.create(TaskEventKind.End, task));
 				return this.handleError(task, error);
-			}, (progress) => {
-				let line = Strings.removeAnsiEscapeCodes(progress.line);
-				this.outputChannel.append(line + '\n');
-				startStopProblemMatcher.processLine(line);
 			});
 			return { kind: TaskExecuteKind.Started, started: {}, promise: this.activeTaskPromise };
 		}

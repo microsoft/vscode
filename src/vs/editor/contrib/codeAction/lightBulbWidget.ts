@@ -7,10 +7,11 @@ import * as dom from 'vs/base/browser/dom';
 import { GlobalMouseMoveMonitor, IStandardMouseMoveEventData, standardMouseMoveMerger } from 'vs/base/browser/globalMouseMoveMonitor';
 import { CancellationTokenSource } from 'vs/base/common/cancellation';
 import { Emitter, Event } from 'vs/base/common/event';
-import { IDisposable, dispose } from 'vs/base/common/lifecycle';
+import { dispose, IDisposable } from 'vs/base/common/lifecycle';
 import 'vs/css!./lightBulbWidget';
 import { ContentWidgetPositionPreference, ICodeEditor, IContentWidget, IContentWidgetPosition } from 'vs/editor/browser/editorBrowser';
 import { TextModel } from 'vs/editor/common/model/textModel';
+import { CodeActionKind } from 'vs/editor/contrib/codeAction/codeActionTrigger';
 import { CodeActionsComputeEvent } from './codeActionModel';
 
 export class LightBulbWidget implements IDisposable, IContentWidget {
@@ -52,7 +53,7 @@ export class LightBulbWidget implements IDisposable, IContentWidget {
 			const { lineHeight } = this._editor.getConfiguration();
 
 			let pad = Math.floor(lineHeight / 3);
-			if (this._position.position.lineNumber < this._model.position.lineNumber) {
+			if (this._position && this._position.position.lineNumber < this._model.position.lineNumber) {
 				pad += lineHeight;
 			}
 
@@ -114,13 +115,18 @@ export class LightBulbWidget implements IDisposable, IContentWidget {
 		const { token } = this._futureFixes;
 		this._model = value;
 
-		this._model.actions.done(fixes => {
+		const selection = this._model.rangeOrSelection;
+		this._model.actions.then(fixes => {
 			if (!token.isCancellationRequested && fixes && fixes.length > 0) {
-				this._show();
+				if (selection.isEmpty() && fixes.every(fix => fix.kind && CodeActionKind.Refactor.contains(fix.kind))) {
+					this.hide();
+				} else {
+					this._show();
+				}
 			} else {
 				this.hide();
 			}
-		}, err => {
+		}).catch(err => {
 			this.hide();
 		});
 	}
@@ -144,6 +150,10 @@ export class LightBulbWidget implements IDisposable, IContentWidget {
 		}
 		const { lineNumber } = this._model.position;
 		const model = this._editor.getModel();
+		if (!model) {
+			return;
+		}
+
 		const tabSize = model.getOptions().tabSize;
 		const lineContent = model.getLineContent(lineNumber);
 		const indent = TextModel.computeIndentLevel(lineContent, tabSize);

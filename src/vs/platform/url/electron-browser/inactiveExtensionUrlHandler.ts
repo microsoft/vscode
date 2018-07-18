@@ -40,7 +40,7 @@ export class ExtensionUrlHandler implements IExtensionUrlHandler, IURLHandler {
 
 	readonly _serviceBrand: any;
 
-	private extensionIds = new Set<string>();
+	private extensionHandlers = new Map<string, IURLHandler>();
 	private uriBuffer = new Map<string, { timestamp: number, uri: URI }[]>();
 	private disposable: IDisposable;
 
@@ -57,46 +57,61 @@ export class ExtensionUrlHandler implements IExtensionUrlHandler, IURLHandler {
 		]);
 	}
 
-	async handleURL(uri: URI): TPromise<boolean> {
+	handleURL(uri: URI): TPromise<boolean> {
 		if (!isExtensionId(uri.authority)) {
-			return false;
-		}
-
-		const extensionId = uri.authority;
-
-		const result = await this.dialogService.confirm({
-			message: localize('confirmUrl', "Do you want to let the {0} extension open the following URL?", extensionId),
-			detail: uri.toString()
-		});
-
-		if (!result.confirmed) {
-			return true;
-		}
-
-		// let the ExtensionUrlHandler instance handle this
-		if (this.extensionIds.has(extensionId)) {
 			return TPromise.as(false);
 		}
 
-		// collect URI for eventual extension activation
-		const timestamp = new Date().getTime();
-		let uris = this.uriBuffer.get(extensionId);
+		const extensionId = uri.authority;
+		const wasHandlerAvailable = this.extensionHandlers.has(extensionId);
 
-		if (!uris) {
-			uris = [];
-			this.uriBuffer.set(extensionId, uris);
-		}
+		return this.extensionService.getExtensions().then(extensions => {
+			const extension = extensions.filter(e => e.id === extensionId)[0];
 
-		uris.push({ timestamp, uri });
+			if (!extension) {
+				return TPromise.as(false);
+			}
 
-		// activate the extension
-		await this.extensionService.activateByEvent(`onUri:${extensionId}`);
+			return this.dialogService.confirm({
+				message: localize('confirmUrl', "Allow an extension to open this URL?", extensionId),
+				detail: `${extension.displayName || extension.name} (${extensionId}) wants to open a URL:\n\n${uri.toString()}`
+			}).then(result => {
 
-		return true;
+				if (!result.confirmed) {
+					return TPromise.as(true);
+				}
+
+				const handler = this.extensionHandlers.get(extensionId);
+				if (handler) {
+					if (!wasHandlerAvailable) {
+						// forward it directly
+						return handler.handleURL(uri);
+					}
+
+					// let the ExtensionUrlHandler instance handle this
+					return TPromise.as(false);
+				}
+
+				// collect URI for eventual extension activation
+				const timestamp = new Date().getTime();
+				let uris = this.uriBuffer.get(extensionId);
+
+				if (!uris) {
+					uris = [];
+					this.uriBuffer.set(extensionId, uris);
+				}
+
+				uris.push({ timestamp, uri });
+
+				// activate the extension
+				return this.extensionService.activateByEvent(`onUri:${extensionId}`)
+					.then(() => true);
+			});
+		});
 	}
 
 	registerExtensionHandler(extensionId: string, handler: IURLHandler): void {
-		this.extensionIds.add(extensionId);
+		this.extensionHandlers.set(extensionId, handler);
 
 		const uris = this.uriBuffer.get(extensionId) || [];
 
@@ -108,7 +123,7 @@ export class ExtensionUrlHandler implements IExtensionUrlHandler, IURLHandler {
 	}
 
 	unregisterExtensionHandler(extensionId: string): void {
-		this.extensionIds.delete(extensionId);
+		this.extensionHandlers.delete(extensionId);
 	}
 
 	// forget about all uris buffered more than 5 minutes ago
@@ -129,7 +144,7 @@ export class ExtensionUrlHandler implements IExtensionUrlHandler, IURLHandler {
 
 	dispose(): void {
 		this.disposable.dispose();
-		this.extensionIds.clear();
+		this.extensionHandlers.clear();
 		this.uriBuffer.clear();
 	}
 }

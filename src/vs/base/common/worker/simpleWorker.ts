@@ -91,7 +91,7 @@ class SimpleWorkerProtocol {
 			c: null,
 			e: null
 		};
-		let result = new TPromise<any>((c, e, p) => {
+		let result = new TPromise<any>((c, e) => {
 			reply.c = c;
 			reply.e = e;
 		}, () => {
@@ -232,7 +232,7 @@ export class SimpleWorkerClient<T> extends Disposable {
 			loaderConfiguration = (<any>self).requirejs.s.contexts._.config;
 		}
 
-		this._lazyProxy = new TPromise<T>((c, e, p) => {
+		this._lazyProxy = new TPromise<T>((c, e) => {
 			lazyProxyFulfill = c;
 			lazyProxyReject = e;
 		}, () => { /* no cancel */ });
@@ -273,7 +273,7 @@ export class SimpleWorkerClient<T> extends Disposable {
 	}
 
 	private _request(method: string, args: any[]): TPromise<any> {
-		return new TPromise<any>((c, e, p) => {
+		return new TPromise<any>((c, e) => {
 			this._onModuleLoaded.then(() => {
 				this._protocol.sendMessage(method, args).then(c, e);
 			}, e);
@@ -290,6 +290,7 @@ export class SimpleWorkerClient<T> extends Disposable {
 
 export interface IRequestHandler {
 	_requestHandlerBrand: any;
+	[prop: string]: any;
 }
 
 /**
@@ -362,7 +363,7 @@ export class SimpleWorkerServer {
 
 		let cc: ValueCallback;
 		let ee: ErrorCallback;
-		let r = new TPromise<any>((c, e, p) => {
+		let r = new TPromise<any>((c, e) => {
 			cc = c;
 			ee = e;
 		});

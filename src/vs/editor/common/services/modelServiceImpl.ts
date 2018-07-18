@@ -11,7 +11,7 @@ import { MarkdownString } from 'vs/base/common/htmlContent';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import URI from 'vs/base/common/uri';
 import { TPromise } from 'vs/base/common/winjs.base';
-import { IMarker, IMarkerService, MarkerSeverity } from 'vs/platform/markers/common/markers';
+import { IMarker, IMarkerService, MarkerSeverity, MarkerTag } from 'vs/platform/markers/common/markers';
 import { Range } from 'vs/editor/common/core/range';
 import { TextModel, createTextBuffer } from 'vs/editor/common/model/textModel';
 import { IMode, LanguageIdentifier } from 'vs/editor/common/modes';
@@ -127,10 +127,15 @@ class ModelMarkerHandler {
 		let color: ThemeColor;
 		let darkColor: ThemeColor;
 		let zIndex: number;
+		let inlineClassName: string;
 
 		switch (marker.severity) {
 			case MarkerSeverity.Hint:
-				className = ClassName.EditorHintDecoration;
+				if (marker.tags && marker.tags.indexOf(MarkerTag.Unnecessary) >= 0) {
+					className = ClassName.EditorUnnecessaryDecoration;
+				} else {
+					className = ClassName.EditorHintDecoration;
+				}
 				zIndex = 0;
 				break;
 			case MarkerSeverity.Warning:
@@ -154,6 +159,12 @@ class ModelMarkerHandler {
 				break;
 		}
 
+		if (marker.tags) {
+			if (marker.tags.indexOf(MarkerTag.Unnecessary) !== -1) {
+				inlineClassName = ClassName.EditorUnnecessaryInlineDecoration;
+			}
+		}
+
 		let hoverMessage: MarkdownString = null;
 		let { message, source, relatedInformation } = marker;
 
@@ -174,8 +185,10 @@ class ModelMarkerHandler {
 				hoverMessage.appendMarkdown('\n');
 				for (const { message, resource, startLineNumber, startColumn } of relatedInformation) {
 					hoverMessage.appendMarkdown(
-						`* [${basename(resource.path)}(${startLineNumber}, ${startColumn})](${resource.toString(false)}#${startLineNumber},${startColumn}): \`${message}\` \n`
+						`* [${basename(resource.path)}(${startLineNumber}, ${startColumn})](${resource.toString(false)}#${startLineNumber},${startColumn}): `
 					);
+					hoverMessage.appendText(`${message}`);
+					hoverMessage.appendMarkdown('\n');
 				}
 				hoverMessage.appendMarkdown('\n');
 			}
@@ -191,7 +204,8 @@ class ModelMarkerHandler {
 				darkColor,
 				position: OverviewRulerLane.Right
 			},
-			zIndex
+			zIndex,
+			inlineClassName,
 		};
 	}
 }
@@ -259,6 +273,9 @@ export class ModelServiceImpl implements IModelService {
 			let parsedTabSize = parseInt(config.editor.tabSize, 10);
 			if (!isNaN(parsedTabSize)) {
 				tabSize = parsedTabSize;
+			}
+			if (tabSize < 1) {
+				tabSize = 1;
 			}
 		}
 
@@ -418,7 +435,7 @@ export class ModelServiceImpl implements IModelService {
 
 		// Otherwise find a diff between the values and update model
 		model.pushStackElement();
-		model.setEOL(textBuffer.getEOL() === '\r\n' ? EndOfLineSequence.CRLF : EndOfLineSequence.LF);
+		model.pushEOL(textBuffer.getEOL() === '\r\n' ? EndOfLineSequence.CRLF : EndOfLineSequence.LF);
 		model.pushEditOperations(
 			[],
 			ModelServiceImpl._computeEdits(model, textBuffer),

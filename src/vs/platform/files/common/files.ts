@@ -128,16 +128,11 @@ export interface IFileService {
 	createFolder(resource: URI): TPromise<IFileStat>;
 
 	/**
-	 * Renames the provided file to use the new name. The returned promise
-	 * will have the stat model object as a result.
+	 * Deletes the provided file. The optional useTrash parameter allows to
+	 * move the file to trash. The optional recursive parameter allows to delete
+	 * non-empty folders recursively.
 	 */
-	rename(resource: URI, newName: string): TPromise<IFileStat>;
-
-	/**
-	 * Deletes the provided file.  The optional useTrash parameter allows to
-	 * move the file to trash.
-	 */
-	del(resource: URI, useTrash?: boolean): TPromise<void>;
+	del(resource: URI, options?: { useTrash?: boolean, recursive?: boolean }): TPromise<void>;
 
 	/**
 	 * Allows to start a watcher that reports file change events on the provided resource.
@@ -155,40 +150,30 @@ export interface IFileService {
 	dispose(): void;
 }
 
-export enum FileType2 {
-	File = 1,
-	Directory = 2,
-	SymbolicLink = 4,
+export interface FileOverwriteOptions {
+	overwrite: boolean;
 }
 
-export interface FileOptions {
-	/**
-	 * Create a file when it doesn't exists.
-	 */
-	create?: boolean;
+export interface FileWriteOptions {
+	overwrite: boolean;
+	create: boolean;
+}
 
-	/**
-	 * In combination with [`create`](FileOptions.create) but
-	 * the operation should fail when a file already exists.
-	 */
-	exclusive?: boolean;
+export interface FileDeleteOptions {
+	recursive: boolean;
+}
 
-	/**
-	 * Open a file for reading.
-	 */
-	read?: boolean;
-
-	/**
-	 * Open a file for writing.
-	 */
-	write?: boolean;
+export enum FileType {
+	Unknown = 0,
+	File = 1,
+	Directory = 2,
+	SymbolicLink = 64
 }
 
 export interface IStat {
-	isFile?: boolean;
-	isDirectory?: boolean;
-	isSymbolicLink?: boolean;
+	type: FileType;
 	mtime: number;
+	ctime: number;
 	size: number;
 }
 
@@ -202,7 +187,8 @@ export enum FileSystemProviderCapabilities {
 	FileOpenReadWriteClose = 1 << 2,
 	FileFolderCopy = 1 << 3,
 
-	PathCaseSensitive = 1 << 10
+	PathCaseSensitive = 1 << 10,
+	Readonly = 1 << 11
 }
 
 export interface IFileSystemProvider {
@@ -213,17 +199,17 @@ export interface IFileSystemProvider {
 	watch(resource: URI, opts: IWatchOptions): IDisposable;
 
 	stat(resource: URI): TPromise<IStat>;
-	mkdir(resource: URI): TPromise<IStat>;
-	readdir(resource: URI): TPromise<[string, IStat][]>;
-	delete(resource: URI): TPromise<void>;
+	mkdir(resource: URI): TPromise<void>;
+	readdir(resource: URI): TPromise<[string, FileType][]>;
+	delete(resource: URI, opts: FileDeleteOptions): TPromise<void>;
 
-	rename(from: URI, to: URI, opts: FileOptions): TPromise<IStat>;
-	copy?(from: URI, to: URI, opts: FileOptions): TPromise<IStat>;
+	rename(from: URI, to: URI, opts: FileOverwriteOptions): TPromise<void>;
+	copy?(from: URI, to: URI, opts: FileOverwriteOptions): TPromise<void>;
 
-	readFile?(resource: URI, opts: FileOptions): TPromise<Uint8Array>;
-	writeFile?(resource: URI, content: Uint8Array, opts: FileOptions): TPromise<void>;
+	readFile?(resource: URI): TPromise<Uint8Array>;
+	writeFile?(resource: URI, content: Uint8Array, opts: FileWriteOptions): TPromise<void>;
 
-	open?(resource: URI, opts: FileOptions): TPromise<number>;
+	open?(resource: URI): TPromise<number>;
 	close?(fd: number): TPromise<void>;
 	read?(fd: number, pos: number, data: Uint8Array, offset: number, length: number): TPromise<number>;
 	write?(fd: number, pos: number, data: Uint8Array, offset: number, length: number): TPromise<number>;
@@ -247,15 +233,15 @@ export class FileOperationEvent {
 	constructor(private _resource: URI, private _operation: FileOperation, private _target?: IFileStat) {
 	}
 
-	public get resource(): URI {
+	get resource(): URI {
 		return this._resource;
 	}
 
-	public get target(): IFileStat {
+	get target(): IFileStat {
 		return this._target;
 	}
 
-	public get operation(): FileOperation {
+	get operation(): FileOperation {
 		return this._operation;
 	}
 }
@@ -293,7 +279,7 @@ export class FileChangesEvent {
 		this._changes = changes;
 	}
 
-	public get changes() {
+	get changes() {
 		return this._changes;
 	}
 
@@ -302,7 +288,7 @@ export class FileChangesEvent {
 	 * type DELETED, this method will also return true if a folder got deleted that is the parent of the
 	 * provided file path.
 	 */
-	public contains(resource: URI, type: FileChangeType): boolean {
+	contains(resource: URI, type: FileChangeType): boolean {
 		if (!resource) {
 			return false;
 		}
@@ -324,42 +310,42 @@ export class FileChangesEvent {
 	/**
 	 * Returns the changes that describe added files.
 	 */
-	public getAdded(): IFileChange[] {
+	getAdded(): IFileChange[] {
 		return this.getOfType(FileChangeType.ADDED);
 	}
 
 	/**
 	 * Returns if this event contains added files.
 	 */
-	public gotAdded(): boolean {
+	gotAdded(): boolean {
 		return this.hasType(FileChangeType.ADDED);
 	}
 
 	/**
 	 * Returns the changes that describe deleted files.
 	 */
-	public getDeleted(): IFileChange[] {
+	getDeleted(): IFileChange[] {
 		return this.getOfType(FileChangeType.DELETED);
 	}
 
 	/**
 	 * Returns if this event contains deleted files.
 	 */
-	public gotDeleted(): boolean {
+	gotDeleted(): boolean {
 		return this.hasType(FileChangeType.DELETED);
 	}
 
 	/**
 	 * Returns the changes that describe updated files.
 	 */
-	public getUpdated(): IFileChange[] {
+	getUpdated(): IFileChange[] {
 		return this.getOfType(FileChangeType.UPDATED);
 	}
 
 	/**
 	 * Returns if this event contains updated files.
 	 */
-	public gotUpdated(): boolean {
+	gotUpdated(): boolean {
 		return this.hasType(FileChangeType.UPDATED);
 	}
 
@@ -418,6 +404,11 @@ export interface IBaseStat {
 	 * current state of the file or directory.
 	 */
 	etag: string;
+
+	/**
+	 * The resource is readonly.
+	 */
+	isReadonly?: boolean;
 }
 
 /**
@@ -848,12 +839,12 @@ export const SUPPORTED_ENCODINGS: { [encoding: string]: { labelLong: string; lab
 		order: 33
 	},
 	gbk: {
-		labelLong: 'Chinese (GBK)',
+		labelLong: 'Simplified Chinese (GBK)',
 		labelShort: 'GBK',
 		order: 34
 	},
 	gb18030: {
-		labelLong: 'Chinese (GB18030)',
+		labelLong: 'Simplified Chinese (GB18030)',
 		labelShort: 'GB18030',
 		order: 35
 	},
@@ -924,3 +915,6 @@ export enum FileKind {
 	FOLDER,
 	ROOT_FOLDER
 }
+
+export const MIN_MAX_MEMORY_SIZE_MB = 2048;
+export const FALLBACK_MAX_MEMORY_SIZE_MB = 4096;

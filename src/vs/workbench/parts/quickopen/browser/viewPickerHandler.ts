@@ -19,10 +19,10 @@ import { Action } from 'vs/base/common/actions';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { fuzzyContains, stripWildcards } from 'vs/base/common/strings';
 import { matchesFuzzy } from 'vs/base/common/filters';
-import { ViewsRegistry, ViewLocation, IViewsService } from 'vs/workbench/common/views';
+import { ViewsRegistry, ViewContainer, IViewsService, IViewContainersRegistry, Extensions as ViewContainerExtensions } from 'vs/workbench/common/views';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { ViewletDescriptor } from 'vs/workbench/browser/viewlet';
-import { VIEWLET_ID as SCM_VIEWLET_ID } from 'vs/workbench/parts/scm/common/scm';
+import { Registry } from 'vs/platform/registry/common/platform';
 
 export const VIEW_PICKER_PREFIX = 'view ';
 
@@ -36,19 +36,19 @@ export class ViewEntry extends QuickOpenEntryGroup {
 		super();
 	}
 
-	public getLabel(): string {
+	getLabel(): string {
 		return this.label;
 	}
 
-	public getCategory(): string {
+	getCategory(): string {
 		return this.category;
 	}
 
-	public getAriaLabel(): string {
+	getAriaLabel(): string {
 		return nls.localize('entryAriaLabel', "{0}, view picker", this.getLabel());
 	}
 
-	public run(mode: Mode, context: IEntryRunContext): boolean {
+	run(mode: Mode, context: IEntryRunContext): boolean {
 		if (mode === Mode.OPEN) {
 			return this.runOpen(context);
 		}
@@ -67,7 +67,7 @@ export class ViewEntry extends QuickOpenEntryGroup {
 
 export class ViewPickerHandler extends QuickOpenHandler {
 
-	public static readonly ID = 'workbench.picker.views';
+	static readonly ID = 'workbench.picker.views';
 
 	constructor(
 		@IViewletService private viewletService: IViewletService,
@@ -80,7 +80,7 @@ export class ViewPickerHandler extends QuickOpenHandler {
 		super();
 	}
 
-	public getResults(searchValue: string): TPromise<QuickOpenModel> {
+	getResults(searchValue: string): TPromise<QuickOpenModel> {
 		searchValue = searchValue.trim();
 		const normalizedSearchValueLowercase = stripWildcards(searchValue).toLowerCase();
 
@@ -122,8 +122,8 @@ export class ViewPickerHandler extends QuickOpenHandler {
 	private getViewEntries(): ViewEntry[] {
 		const viewEntries: ViewEntry[] = [];
 
-		const getViewEntriesForViewlet = (viewlet: ViewletDescriptor, viewLocation: ViewLocation): ViewEntry[] => {
-			const views = ViewsRegistry.getViews(viewLocation);
+		const getViewEntriesForViewlet = (viewlet: ViewletDescriptor, viewContainer: ViewContainer): ViewEntry[] => {
+			const views = ViewsRegistry.getViews(viewContainer);
 			const result: ViewEntry[] = [];
 			if (views.length) {
 				for (const view of views) {
@@ -145,24 +145,26 @@ export class ViewPickerHandler extends QuickOpenHandler {
 
 		// Viewlet Views
 		viewlets.forEach((viewlet, index) => {
-			const viewLocation: ViewLocation = viewlet.id === SCM_VIEWLET_ID ? ViewLocation.SCM : ViewLocation.get(viewlet.id);
-			if (viewLocation) {
-				const viewEntriesForViewlet: ViewEntry[] = getViewEntriesForViewlet(viewlet, viewLocation);
+			const viewContainer: ViewContainer = Registry.as<IViewContainersRegistry>(ViewContainerExtensions.ViewContainersRegistry).get(viewlet.id);
+			if (viewContainer) {
+				const viewEntriesForViewlet: ViewEntry[] = getViewEntriesForViewlet(viewlet, viewContainer);
 				viewEntries.push(...viewEntriesForViewlet);
 			}
 		});
 
 		// Terminals
-		const terminals = this.terminalService.terminalInstances;
-		terminals.forEach((terminal, index) => {
-			const terminalsCategory = nls.localize('terminals', "Terminal");
-			const entry = new ViewEntry(nls.localize('terminalTitle', "{0}: {1}", index + 1, terminal.title), terminalsCategory, () => {
-				this.terminalService.showPanel(true).done(() => {
-					this.terminalService.setActiveInstance(terminal);
-				}, errors.onUnexpectedError);
-			});
+		const terminalsCategory = nls.localize('terminals', "Terminal");
+		this.terminalService.terminalTabs.forEach((tab, tabIndex) => {
+			tab.terminalInstances.forEach((terminal, terminalIndex) => {
+				const index = `${tabIndex + 1}.${terminalIndex + 1}`;
+				const entry = new ViewEntry(nls.localize('terminalTitle', "{0}: {1}", index, terminal.title), terminalsCategory, () => {
+					this.terminalService.showPanel(true).done(() => {
+						this.terminalService.setActiveInstance(terminal);
+					}, errors.onUnexpectedError);
+				});
 
-			viewEntries.push(entry);
+				viewEntries.push(entry);
+			});
 		});
 
 		// Output Channels
@@ -177,7 +179,7 @@ export class ViewPickerHandler extends QuickOpenHandler {
 		return viewEntries;
 	}
 
-	public getAutoFocus(searchValue: string, context: { model: IModel<QuickOpenEntry>, quickNavigateConfiguration?: IQuickNavigateConfiguration }): IAutoFocus {
+	getAutoFocus(searchValue: string, context: { model: IModel<QuickOpenEntry>, quickNavigateConfiguration?: IQuickNavigateConfiguration }): IAutoFocus {
 		return {
 			autoFocusFirstEntry: !!searchValue || !!context.quickNavigateConfiguration
 		};
@@ -186,8 +188,8 @@ export class ViewPickerHandler extends QuickOpenHandler {
 
 export class OpenViewPickerAction extends QuickOpenAction {
 
-	public static readonly ID = 'workbench.action.openView';
-	public static readonly LABEL = nls.localize('openView', "Open View");
+	static readonly ID = 'workbench.action.openView';
+	static readonly LABEL = nls.localize('openView', "Open View");
 
 	constructor(
 		id: string,
@@ -200,8 +202,8 @@ export class OpenViewPickerAction extends QuickOpenAction {
 
 export class QuickOpenViewPickerAction extends Action {
 
-	public static readonly ID = 'workbench.action.quickOpenView';
-	public static readonly LABEL = nls.localize('quickOpenView', "Quick Open View");
+	static readonly ID = 'workbench.action.quickOpenView';
+	static readonly LABEL = nls.localize('quickOpenView', "Quick Open View");
 
 	constructor(
 		id: string,
@@ -212,7 +214,7 @@ export class QuickOpenViewPickerAction extends Action {
 		super(id, label);
 	}
 
-	public run(): TPromise<boolean> {
+	run(): TPromise<boolean> {
 		const keys = this.keybindingService.lookupKeybindings(this.id);
 
 		this.quickOpenService.show(VIEW_PICKER_PREFIX, { quickNavigateConfiguration: { keybindings: keys } });

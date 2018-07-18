@@ -3,30 +3,29 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { CancelablePromise } from 'vs/base/common/async';
 import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
-import { IDisposable, dispose } from 'vs/base/common/lifecycle';
+import { dispose, IDisposable } from 'vs/base/common/lifecycle';
+import { escapeRegExpCharacters } from 'vs/base/common/strings';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { EditorAction, EditorCommand, ServicesAccessor } from 'vs/editor/browser/editorExtensions';
-import { BulkEdit } from 'vs/editor/browser/services/bulkEdit';
+import { IBulkEditService } from 'vs/editor/browser/services/bulkEditService';
 import { IEditorContribution } from 'vs/editor/common/editorCommon';
 import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
 import { CodeAction } from 'vs/editor/common/modes';
-import { ITextModelService } from 'vs/editor/common/services/resolverService';
 import { MessageController } from 'vs/editor/contrib/message/messageController';
 import * as nls from 'vs/nls';
 import { ICommandService } from 'vs/platform/commands/common/commands';
 import { ContextKeyExpr, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
-import { IFileService } from 'vs/platform/files/common/files';
-import { optional } from 'vs/platform/instantiation/common/instantiation';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { IMarkerService } from 'vs/platform/markers/common/markers';
+import { IProgressService } from 'vs/platform/progress/common/progress';
 import { CodeActionModel, CodeActionsComputeEvent, SUPPORTED_CODE_ACTIONS } from './codeActionModel';
 import { CodeActionAutoApply, CodeActionFilter, CodeActionKind } from './codeActionTrigger';
 import { CodeActionContextMenu } from './codeActionWidget';
 import { LightBulbWidget } from './lightBulbWidget';
-import { escapeRegExpCharacters } from 'vs/base/common/strings';
 
 function contextKeyForSupportedActions(kind: CodeActionKind) {
 	return ContextKeyExpr.regex(
@@ -48,17 +47,19 @@ export class QuickFixController implements IEditorContribution {
 	private _lightBulbWidget: LightBulbWidget;
 	private _disposables: IDisposable[] = [];
 
+	private _activeRequest: CancelablePromise<CodeAction[]> | undefined;
+
 	constructor(editor: ICodeEditor,
 		@IMarkerService markerService: IMarkerService,
 		@IContextKeyService contextKeyService: IContextKeyService,
-		@ICommandService private readonly _commandService: ICommandService,
+		@IProgressService progressService: IProgressService,
 		@IContextMenuService contextMenuService: IContextMenuService,
+		@ICommandService private readonly _commandService: ICommandService,
 		@IKeybindingService private readonly _keybindingService: IKeybindingService,
-		@ITextModelService private readonly _textModelService: ITextModelService,
-		@optional(IFileService) private _fileService: IFileService
+		@IBulkEditService private readonly _bulkEditService: IBulkEditService,
 	) {
 		this._editor = editor;
-		this._model = new CodeActionModel(this._editor, markerService, contextKeyService);
+		this._model = new CodeActionModel(this._editor, markerService, contextKeyService, progressService);
 		this._codeActionContextMenu = new CodeActionContextMenu(editor, contextMenuService, action => this._onApplyCodeAction(action));
 		this._lightBulbWidget = new LightBulbWidget(editor);
 
@@ -78,7 +79,16 @@ export class QuickFixController implements IEditorContribution {
 	}
 
 	private _onCodeActionsEvent(e: CodeActionsComputeEvent): void {
-		if (e && e.trigger.filter && e.trigger.filter.kind) {
+		if (this._activeRequest) {
+			this._activeRequest.cancel();
+			this._activeRequest = undefined;
+		}
+
+		if (e && e.actions) {
+			this._activeRequest = e.actions;
+		}
+
+		if (e && e.actions && e.trigger.filter && e.trigger.filter.kind) {
 			// Triggered for specific scope
 			// Apply if we only have one action or requested autoApply, otherwise show menu
 			e.actions.then(fixes => {
@@ -112,10 +122,12 @@ export class QuickFixController implements IEditorContribution {
 	}
 
 	private _handleLightBulbSelect(coords: { x: number, y: number }): void {
-		this._codeActionContextMenu.show(this._lightBulbWidget.model.actions, coords);
+		if (this._lightBulbWidget.model.actions) {
+			this._codeActionContextMenu.show(this._lightBulbWidget.model.actions, coords);
+		}
 	}
 
-	public triggerFromEditorSelection(filter?: CodeActionFilter, autoApply?: CodeActionAutoApply): TPromise<CodeAction[] | undefined> {
+	public triggerFromEditorSelection(filter?: CodeActionFilter, autoApply?: CodeActionAutoApply): Thenable<CodeAction[] | undefined> {
 		return this._model.trigger({ type: 'manual', filter, autoApply });
 	}
 
@@ -130,20 +142,19 @@ export class QuickFixController implements IEditorContribution {
 		this._lightBulbWidget.title = title;
 	}
 
-	private async _onApplyCodeAction(action: CodeAction): TPromise<void> {
-		await applyCodeAction(action, this._textModelService, this._fileService, this._commandService, this._editor);
+	private _onApplyCodeAction(action: CodeAction): TPromise<void> {
+		return TPromise.wrap(applyCodeAction(action, this._bulkEditService, this._commandService, this._editor));
 	}
 }
 
 export async function applyCodeAction(
 	action: CodeAction,
-	textModelService: ITextModelService,
-	fileService: IFileService,
+	bulkEditService: IBulkEditService,
 	commandService: ICommandService,
-	editor: ICodeEditor,
-) {
+	editor?: ICodeEditor,
+): Promise<void> {
 	if (action.edit) {
-		await BulkEdit.perform(action.edit.edits, textModelService, fileService, editor);
+		await bulkEditService.apply(action.edit, { editor });
 	}
 	if (action.command) {
 		await commandService.executeCommand(action.command.id, ...action.command.arguments);
@@ -258,7 +269,10 @@ export class RefactorAction extends EditorAction {
 			precondition: ContextKeyExpr.and(EditorContextKeys.writable, EditorContextKeys.hasCodeActionsProvider),
 			kbOpts: {
 				kbExpr: EditorContextKeys.editorTextFocus,
-				primary: KeyMod.WinCtrl | KeyMod.Shift | KeyCode.KEY_R
+				primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KEY_R,
+				mac: {
+					primary: KeyMod.WinCtrl | KeyMod.Shift | KeyCode.KEY_R
+				}
 			},
 			menuOpts: {
 				group: '1_modification',

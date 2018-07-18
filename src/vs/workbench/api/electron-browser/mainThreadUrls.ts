@@ -42,7 +42,7 @@ export class MainThreadUrls implements MainThreadUrlsShape {
 		this.proxy = context.getProxy(ExtHostContext.ExtHostUrls);
 	}
 
-	$registerProtocolHandler(handle: number, extensionId: string): TPromise<void> {
+	$registerUriHandler(handle: number, extensionId: string): TPromise<void> {
 		const handler = new ExtensionUrlHandler(this.proxy, handle, extensionId);
 		const disposable = this.urlService.registerHandler(handler);
 
@@ -52,7 +52,7 @@ export class MainThreadUrls implements MainThreadUrlsShape {
 		return TPromise.as(null);
 	}
 
-	$unregisterProtocolHandler(handle: number): TPromise<void> {
+	$unregisterUriHandler(handle: number): TPromise<void> {
 		const tuple = this.handlers.get(handle);
 
 		if (!tuple) {

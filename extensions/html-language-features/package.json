@@ -17,7 +17,8 @@
   "enableProposedApi": true,
   "main": "./client/out/htmlMain",
   "scripts": {
-    "compile": "gulp compile-extension:html-language-features-client & gulp compile-extension:html-language-features-server",
+    "compile": "gulp compile-extension:html-language-features-client compile-extension:html-language-features-server",
+    "watch": "gulp watch-extension:html-language-features-client watch-extension:html-language-features-server",
     "postinstall": "cd server && yarn install",
     "install-client-next": "yarn add vscode-languageclient@next"
   },
@@ -172,10 +173,10 @@
     }
   },
   "dependencies": {
-    "vscode-extension-telemetry": "0.0.16",
-    "vscode-languageclient": "^4.0.0",
-    "vscode-languageserver-protocol-foldingprovider": "^2.0.0-next.2",
-    "vscode-nls": "^3.2.2"
+    "vscode-extension-telemetry": "0.0.17",
+    "vscode-languageclient": "^4.1.4",
+    "vscode-languageserver-protocol-foldingprovider": "^2.0.1",
+    "vscode-nls": "^3.2.4"
   },
   "devDependencies": {
     "@types/node": "7.0.43"

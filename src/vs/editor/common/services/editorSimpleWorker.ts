@@ -22,7 +22,7 @@ import { getWordAtText, ensureValidWordDefinition } from 'vs/editor/common/model
 import { createMonacoBaseAPI } from 'vs/editor/common/standalone/standaloneBase';
 import { IWordAtPosition, EndOfLineSequence } from 'vs/editor/common/model';
 import { globals } from 'vs/base/common/platform';
-import { IIterator } from 'vs/base/common/iterator';
+import { Iterator } from 'vs/base/common/iterator';
 
 export interface IMirrorModel {
 	readonly uri: URI;
@@ -59,7 +59,7 @@ export interface ICommonModel {
 	getLinesContent(): string[];
 	getLineCount(): number;
 	getLineContent(lineNumber: number): string;
-	createWordIterator(wordDefinition: RegExp): IIterator<string>;
+	createWordIterator(wordDefinition: RegExp): Iterator<string>;
 	getWordUntilPosition(position: IPosition, wordDefinition: RegExp): IWordAtPosition;
 	getValueInRange(range: IRange): string;
 	getWordAtPosition(position: IPosition, wordDefinition: RegExp): Range;
@@ -147,7 +147,7 @@ class MirrorModel extends BaseMirrorModel implements ICommonModel {
 		};
 	}
 
-	public createWordIterator(wordDefinition: RegExp): IIterator<string> {
+	public createWordIterator(wordDefinition: RegExp): Iterator<string> {
 		let obj = {
 			done: false,
 			value: ''
@@ -156,7 +156,7 @@ class MirrorModel extends BaseMirrorModel implements ICommonModel {
 		let lineText: string;
 		let wordRangesIdx = 0;
 		let wordRanges: IWordRange[] = [];
-		let next = () => {
+		let next = (): { done: boolean; value: string } => {
 
 			if (wordRangesIdx < wordRanges.length) {
 				obj.done = false;
@@ -303,7 +303,7 @@ export interface IForeignModuleFactory {
 	(ctx: IWorkerContext, createData: any): any;
 }
 
-declare var require;
+declare var require: any;
 
 /**
  * @internal
@@ -332,6 +332,7 @@ export abstract class BaseEditorSimpleWorker {
 		let originalLines = original.getLinesContent();
 		let modifiedLines = modified.getLinesContent();
 		let diffComputer = new DiffComputer(originalLines, modifiedLines, {
+			shouldComputeCharChanges: true,
 			shouldPostProcessCharChanges: true,
 			shouldIgnoreTrimWhitespace: ignoreTrimWhitespace,
 			shouldMakePrettyDiff: true
@@ -349,6 +350,7 @@ export abstract class BaseEditorSimpleWorker {
 		let originalLines = original.getLinesContent();
 		let modifiedLines = modified.getLinesContent();
 		let diffComputer = new DiffComputer(originalLines, modifiedLines, {
+			shouldComputeCharChanges: false,
 			shouldPostProcessCharChanges: false,
 			shouldIgnoreTrimWhitespace: ignoreTrimWhitespace,
 			shouldMakePrettyDiff: true

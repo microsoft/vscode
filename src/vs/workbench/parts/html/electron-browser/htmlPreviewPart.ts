@@ -8,9 +8,8 @@
 import { localize } from 'vs/nls';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { ITextModel } from 'vs/editor/common/model';
-import { empty as EmptyDisposable, IDisposable, dispose, IReference } from 'vs/base/common/lifecycle';
-import { EditorOptions, EditorInput, EditorViewStateMemento } from 'vs/workbench/common/editor';
-import { Position } from 'vs/platform/editor/common/editor';
+import { Disposable, IDisposable, dispose, IReference } from 'vs/base/common/lifecycle';
+import { EditorOptions, EditorInput, IEditorMemento } from 'vs/workbench/common/editor';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { BaseTextEditorModel } from 'vs/workbench/common/editor/textEditorModel';
 import { HtmlInput, HtmlInputOptions, areHtmlInputOptionsEqual } from 'vs/workbench/parts/html/common/htmlInput';
@@ -18,14 +17,14 @@ import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
 import { ITextModelService, ITextEditorModel } from 'vs/editor/common/services/resolverService';
 import { Parts, IPartService } from 'vs/workbench/services/part/common/partService';
-import { IContextViewService } from 'vs/platform/contextview/browser/contextView';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IStorageService } from 'vs/platform/storage/common/storage';
-import { IEnvironmentService } from 'vs/platform/environment/common/environment';
-import { Scope } from 'vs/workbench/common/memento';
 import { Dimension } from 'vs/base/browser/dom';
 import { BaseWebviewEditor } from 'vs/workbench/parts/webview/electron-browser/baseWebviewEditor';
 import { WebviewElement, WebviewOptions } from 'vs/workbench/parts/webview/electron-browser/webviewElement';
+import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
+import { IEditorGroupsService, IEditorGroup } from 'vs/workbench/services/group/common/editorGroupsService';
+import { CancellationToken } from 'vs/base/common/cancellation';
 
 export interface HtmlPreviewEditorViewState {
 	scrollYPercentage: number;
@@ -43,28 +42,28 @@ export class HtmlPreviewPart extends BaseWebviewEditor {
 
 	private _modelRef: IReference<ITextEditorModel>;
 	public get model(): ITextModel { return this._modelRef && this._modelRef.object.textEditorModel; }
-	private _modelChangeSubscription = EmptyDisposable;
-	private _themeChangeSubscription = EmptyDisposable;
+	private _modelChangeSubscription = Disposable.None;
+	private _themeChangeSubscription = Disposable.None;
 
 	private _content: HTMLElement;
 	private _scrollYPercentage: number = 0;
 
-	private editorViewStateMemento: EditorViewStateMemento<HtmlPreviewEditorViewState>;
+	private editorMemento: IEditorMemento<HtmlPreviewEditorViewState>;
 
 	constructor(
 		@ITelemetryService telemetryService: ITelemetryService,
 		@IThemeService themeService: IThemeService,
 		@IContextKeyService contextKeyService: IContextKeyService,
-		@IContextViewService private readonly _contextViewService: IContextViewService,
-		@IEnvironmentService private readonly _environmentService: IEnvironmentService,
 		@IOpenerService private readonly _openerService: IOpenerService,
 		@IPartService private readonly _partService: IPartService,
 		@IStorageService readonly _storageService: IStorageService,
-		@ITextModelService private readonly _textModelResolverService: ITextModelService
+		@ITextModelService private readonly _textModelResolverService: ITextModelService,
+		@IInstantiationService private readonly _instantiationService: IInstantiationService,
+		@IEditorGroupsService readonly editorGroupService: IEditorGroupsService
 	) {
 		super(HtmlPreviewPart.ID, telemetryService, themeService, contextKeyService);
 
-		this.editorViewStateMemento = new EditorViewStateMemento<HtmlPreviewEditorViewState>(this.getMemento(_storageService, Scope.WORKSPACE), this.viewStateStorageKey);
+		this.editorMemento = this.getEditorMemento<HtmlPreviewEditorViewState>(_storageService, editorGroupService, this.viewStateStorageKey);
 	}
 
 	dispose(): void {
@@ -75,7 +74,7 @@ export class HtmlPreviewPart extends BaseWebviewEditor {
 		this._themeChangeSubscription.dispose();
 		this._modelChangeSubscription.dispose();
 
-		// dipose model ref
+		// dispose model ref
 		dispose(this._modelRef);
 		super.dispose();
 	}
@@ -94,11 +93,8 @@ export class HtmlPreviewPart extends BaseWebviewEditor {
 				webviewOptions = this.input.options;
 			}
 
-			this._webview = new WebviewElement(
+			this._webview = this._instantiationService.createInstance(WebviewElement,
 				this._partService.getContainer(Parts.EDITOR_PART),
-				this.themeService,
-				this._environmentService,
-				this._contextViewService,
 				this.contextKey,
 				this.findInputFocusContextKey,
 				{
@@ -126,18 +122,9 @@ export class HtmlPreviewPart extends BaseWebviewEditor {
 		return this._webview;
 	}
 
-	public changePosition(position: Position): void {
-		// what this actually means is that we got reparented. that
-		// has caused the webview to stop working and we need to reset it
-		this._doSetVisible(false);
-		this._doSetVisible(true);
-
-		super.changePosition(position);
-	}
-
-	protected setEditorVisible(visible: boolean, position?: Position): void {
+	protected setEditorVisible(visible: boolean, group: IEditorGroup): void {
 		this._doSetVisible(visible);
-		super.setEditorVisible(visible, position);
+		super.setEditorVisible(visible, group);
 	}
 
 	private _doSetVisible(visible: boolean): void {
@@ -192,7 +179,7 @@ export class HtmlPreviewPart extends BaseWebviewEditor {
 		this.webview.sendMessage(data);
 	}
 
-	public setInput(input: EditorInput, options?: EditorOptions): TPromise<void> {
+	public setInput(input: EditorInput, options: EditorOptions, token: CancellationToken): Thenable<void> {
 
 		if (this.input && this.input.matches(input) && this._hasValidModel() && this.input instanceof HtmlInput && input instanceof HtmlInput && areHtmlInputOptionsEqual(this.input.options, input.options)) {
 			return TPromise.as(undefined);
@@ -216,11 +203,14 @@ export class HtmlPreviewPart extends BaseWebviewEditor {
 			return TPromise.wrapError<void>(new Error('Invalid input'));
 		}
 
-		return super.setInput(input, options).then(() => {
+		return super.setInput(input, options, token).then(() => {
 			const resourceUri = input.getResource();
 			return this._textModelResolverService.createModelReference(resourceUri).then(ref => {
-				const model = ref.object;
+				if (token.isCancellationRequested) {
+					return undefined;
+				}
 
+				const model = ref.object;
 				if (model instanceof BaseTextEditorModel) {
 					this._modelRef = ref;
 				}
@@ -256,18 +246,10 @@ export class HtmlPreviewPart extends BaseWebviewEditor {
 	}
 
 	private saveHTMLPreviewViewState(input: HtmlInput, editorViewState: HtmlPreviewEditorViewState): void {
-		this.editorViewStateMemento.saveState(input, this.position, editorViewState);
+		this.editorMemento.saveState(this.group, input, editorViewState);
 	}
 
 	private loadHTMLPreviewViewState(input: HtmlInput): HtmlPreviewEditorViewState {
-		return this.editorViewStateMemento.loadState(input, this.position);
-	}
-
-	protected saveMemento(): void {
-
-		// ensure to first save our view state memento
-		this.editorViewStateMemento.save();
-
-		super.saveMemento();
+		return this.editorMemento.loadState(this.group, input);
 	}
 }

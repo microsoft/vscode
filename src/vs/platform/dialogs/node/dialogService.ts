@@ -8,6 +8,7 @@ import { TPromise } from 'vs/base/common/winjs.base';
 import { IDialogService, IConfirmation, IConfirmationResult } from 'vs/platform/dialogs/common/dialogs';
 import Severity from 'vs/base/common/severity';
 import { localize } from 'vs/nls';
+import { canceled } from 'vs/base/common/errors';
 
 export class CommandLineDialogService implements IDialogService {
 
@@ -31,7 +32,7 @@ export class CommandLineDialogService implements IDialogService {
 			});
 			rl.once('SIGINT', () => {
 				rl.close();
-				promise.cancel();
+				e(canceled());
 			});
 		});
 		return promise;

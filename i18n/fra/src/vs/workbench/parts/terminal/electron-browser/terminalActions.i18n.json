@@ -57,5 +57,7 @@
 	"workbench.action.terminal.scrollToPreviousCommand": "Faire défiler jusqu'à la commande précédente",
 	"workbench.action.terminal.scrollToNextCommand": "Faire défiler jusqu'à la prochaine commande",
 	"workbench.action.terminal.selectToPreviousCommand": "Sélectionnez pour la commande précédente",
-	"workbench.action.terminal.selectToNextCommand": "Sélectionnez pour la commande suivante"
+	"workbench.action.terminal.selectToNextCommand": "Sélectionnez pour la commande suivante",
+	"workbench.action.terminal.selectToPreviousLine": "Sélectionner pour la ligne précédente",
+	"workbench.action.terminal.selectToNextLine": "Sélectionner pour la ligne suivante"
 }

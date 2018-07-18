@@ -7,20 +7,32 @@
 
 import { TPromise } from 'vs/base/common/winjs.base';
 import { IChannel } from 'vs/base/parts/ipc/common/ipc';
-import { IWatcherRequest, IWatcherService } from 'vs/workbench/services/files/node/watcher/unix/watcher';
+import { IWatcherRequest, IWatcherService, IWatcherOptions, IWatchError } from './watcher';
+import { Event } from 'vs/base/common/event';
+import { IRawFileChange } from 'vs/workbench/services/files/node/watcher/common';
 
 export interface IWatcherChannel extends IChannel {
-	call(command: 'watch', request: IWatcherRequest): TPromise<void>;
-	call(command: string, arg: any): TPromise<any>;
+	listen(event: 'watch', verboseLogging: boolean): Event<IRawFileChange[] | Error>;
+	listen<T>(event: string, arg?: any): Event<T>;
+
+	call(command: 'setRoots', request: IWatcherRequest[]): TPromise<void>;
+	call<T>(command: string, arg?: any): TPromise<T>;
 }
 
 export class WatcherChannel implements IWatcherChannel {
 
 	constructor(private service: IWatcherService) { }
 
+	listen(event: string, arg?: any): Event<any> {
+		switch (event) {
+			case 'watch': return this.service.watch(arg);
+		}
+		throw new Error('No events');
+	}
+
 	call(command: string, arg: any): TPromise<any> {
 		switch (command) {
-			case 'watch': return this.service.watch(arg);
+			case 'setRoots': return this.service.setRoots(arg);
 		}
 		return undefined;
 	}
@@ -30,7 +42,11 @@ export class WatcherChannelClient implements IWatcherService {
 
 	constructor(private channel: IWatcherChannel) { }
 
-	watch(request: IWatcherRequest): TPromise<void> {
-		return this.channel.call('watch', request);
+	watch(options: IWatcherOptions): Event<IRawFileChange[] | IWatchError> {
+		return this.channel.listen('watch', options);
+	}
+
+	setRoots(roots: IWatcherRequest[]): TPromise<void> {
+		return this.channel.call('setRoots', roots);
 	}
 }

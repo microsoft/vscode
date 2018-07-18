@@ -3,27 +3,24 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as nls from 'vs/nls';
-import { SideBySideEditorInput, EditorInput } from 'vs/workbench/common/editor';
-import { Verbosity } from 'vs/platform/editor/common/editor';
-import { ResourceEditorInput } from 'vs/workbench/common/editor/resourceEditorInput';
+import { OS } from 'vs/base/common/platform';
 import URI from 'vs/base/common/uri';
+import { TPromise } from 'vs/base/common/winjs.base';
 import { ITextModelService } from 'vs/editor/common/services/resolverService';
+import * as nls from 'vs/nls';
+import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
+import { EditorInput, SideBySideEditorInput, Verbosity } from 'vs/workbench/common/editor';
+import { ResourceEditorInput } from 'vs/workbench/common/editor/resourceEditorInput';
 import { IHashService } from 'vs/workbench/services/hash/common/hashService';
 import { KeybindingsEditorModel } from 'vs/workbench/services/preferences/common/keybindingsEditorModel';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { OS } from 'vs/base/common/platform';
-import { TPromise } from 'vs/base/common/winjs.base';
+import { IPreferencesService } from './preferences';
+import { DefaultSettingsEditorModel } from './preferencesModels';
 
 export class PreferencesEditorInput extends SideBySideEditorInput {
 	public static readonly ID: string = 'workbench.editorinputs.preferencesEditorInput';
 
 	getTypeId(): string {
 		return PreferencesEditorInput.ID;
-	}
-
-	public supportsSplitEditor(): boolean {
-		return true;
 	}
 
 	public getTitle(verbosity: Verbosity): string {
@@ -73,11 +70,38 @@ export class KeybindingsEditorInput extends EditorInput {
 		return nls.localize('keybindingsInputName', "Keyboard Shortcuts");
 	}
 
-	resolve(refresh?: boolean): TPromise<KeybindingsEditorModel> {
+	resolve(): TPromise<KeybindingsEditorModel> {
 		return TPromise.as(this.keybindingsModel);
 	}
 
 	matches(otherInput: any): boolean {
 		return otherInput instanceof KeybindingsEditorInput;
+	}
+}
+
+export class SettingsEditor2Input extends EditorInput {
+
+	public static readonly ID: string = 'workbench.input.settings2';
+
+	constructor(
+		@IPreferencesService private preferencesService: IPreferencesService
+	) {
+		super();
+	}
+
+	getTypeId(): string {
+		return SettingsEditor2Input.ID;
+	}
+
+	getName(): string {
+		return nls.localize('settingsEditor2InputName', "Settings (Preview)");
+	}
+
+	resolve(): TPromise<DefaultSettingsEditorModel> {
+		return <TPromise<DefaultSettingsEditorModel>>this.preferencesService.createPreferencesEditorModel(URI.parse('vscode://defaultsettings/0/settings.json'));
+	}
+
+	matches(otherInput: any): boolean {
+		return otherInput instanceof SettingsEditor2Input;
 	}
 }

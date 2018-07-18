@@ -37,15 +37,17 @@ export interface IMonarchLanguage {
 	/**
 	 * attach this to every token class (by default '.' + name)
 	 */
-	tokenPostfix: string;
+	tokenPostfix?: string;
 }
 
+export type IShortMonarchLanguageRule1 = [RegExp, string | IMonarchLanguageAction];
+export type IShortMonarchLanguageRule2 = [RegExp, string | IMonarchLanguageAction, string];
 /**
  * A rule is either a regular expression and an action
  * 		shorthands: [reg,act] == { regex: reg, action: act}
  *		and       : [reg,act,nxt] == { regex: reg, action: act{ next: nxt }}
  */
-export interface IMonarchLanguageRule {
+export interface IExpandedMonarchLanguageRule {
 	/**
 	 * match tokens
 	 */
@@ -60,6 +62,7 @@ export interface IMonarchLanguageRule {
 	 */
 	include?: string;
 }
+export type IMonarchLanguageRule = IShortMonarchLanguageRule1 | IShortMonarchLanguageRule2 | IExpandedMonarchLanguageRule;
 
 /**
  * An action is either an array of actions...

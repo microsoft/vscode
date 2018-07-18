@@ -23,7 +23,7 @@ import { Action, IAction } from 'vs/base/common/actions';
 import { Part, IPartOptions } from 'vs/workbench/browser/part';
 import { Composite, CompositeRegistry } from 'vs/workbench/browser/composite';
 import { IComposite } from 'vs/workbench/common/composite';
-import { WorkbenchProgressService } from 'vs/workbench/services/progress/browser/progressService';
+import { ScopedProgressService } from 'vs/workbench/services/progress/browser/progressService';
 import { IPartService } from 'vs/workbench/services/part/common/partService';
 import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
@@ -51,6 +51,12 @@ export interface ICompositeTitleLabel {
 }
 
 export abstract class CompositePart<T extends Composite> extends Part {
+
+	protected _onDidCompositeOpen = this._register(new Emitter<IComposite>());
+	protected _onDidCompositeClose = this._register(new Emitter<IComposite>());
+
+	protected toolBar: ToolBar;
+
 	private instantiatedCompositeListeners: IDisposable[];
 	private mapCompositeToCompositeContainer: { [compositeId: string]: Builder; };
 	private mapActionsBindingToComposite: { [compositeId: string]: () => void; };
@@ -59,13 +65,10 @@ export abstract class CompositePart<T extends Composite> extends Part {
 	private lastActiveCompositeId: string;
 	private instantiatedComposites: Composite[];
 	private titleLabel: ICompositeTitleLabel;
-	protected toolBar: ToolBar;
 	private progressBar: ProgressBar;
 	private contentAreaSize: Dimension;
 	private telemetryActionsListener: IDisposable;
 	private currentCompositeOpenToken: string;
-	protected _onDidCompositeOpen = new Emitter<IComposite>();
-	protected _onDidCompositeClose = new Emitter<IComposite>();
 
 	constructor(
 		private notificationService: INotificationService,
@@ -178,7 +181,7 @@ export abstract class CompositePart<T extends Composite> extends Part {
 		// Instantiate composite from registry otherwise
 		const compositeDescriptor = this.registry.getComposite(id);
 		if (compositeDescriptor) {
-			const progressService = this.instantiationService.createInstance(WorkbenchProgressService, this.progressBar, compositeDescriptor.id, isActive);
+			const progressService = this.instantiationService.createInstance(ScopedProgressService, this.progressBar, compositeDescriptor.id, isActive);
 			const compositeInstantiationService = this.instantiationService.createChild(new ServiceCollection([IProgressService, progressService]));
 
 			const composite = compositeDescriptor.instantiate(compositeInstantiationService);
@@ -400,7 +403,7 @@ export abstract class CompositePart<T extends Composite> extends Part {
 		});
 	}
 
-	public createTitleArea(parent: HTMLElement): HTMLElement {
+	createTitleArea(parent: HTMLElement): HTMLElement {
 
 		// Title Area Container
 		const titleArea = $(parent).div({
@@ -416,11 +419,11 @@ export abstract class CompositePart<T extends Composite> extends Part {
 		}, div => {
 
 			// Toolbar
-			this.toolBar = new ToolBar(div.getHTMLElement(), this.contextMenuService, {
+			this.toolBar = this._register(new ToolBar(div.getHTMLElement(), this.contextMenuService, {
 				actionItemProvider: action => this.actionItemProvider(action as Action),
 				orientation: ActionsOrientation.HORIZONTAL,
 				getKeyBinding: action => this.keybindingService.lookupKeybinding(action.id)
-			});
+			}));
 		});
 
 		return titleArea.getHTMLElement();
@@ -431,7 +434,7 @@ export abstract class CompositePart<T extends Composite> extends Part {
 		$(parent).div({
 			'class': 'title-label'
 		}, div => {
-			titleLabel = div.span();
+			titleLabel = div.element('h2');
 		});
 
 		const $this = this;
@@ -463,12 +466,12 @@ export abstract class CompositePart<T extends Composite> extends Part {
 		return undefined;
 	}
 
-	public createContentArea(parent: HTMLElement): HTMLElement {
+	createContentArea(parent: HTMLElement): HTMLElement {
 		return $(parent).div({
 			'class': 'content'
 		}, div => {
-			this.progressBar = new ProgressBar(div.getHTMLElement());
-			this.toUnbind.push(attachProgressBarStyler(this.progressBar, this.themeService));
+			this.progressBar = this._register(new ProgressBar(div.getHTMLElement()));
+			this._register(attachProgressBarStyler(this.progressBar, this.themeService));
 			this.progressBar.hide();
 		}).getHTMLElement();
 	}
@@ -477,7 +480,7 @@ export abstract class CompositePart<T extends Composite> extends Part {
 		this.notificationService.error(types.isString(error) ? new Error(error) : error);
 	}
 
-	public getProgressIndicator(id: string): IProgressService {
+	getProgressIndicator(id: string): IProgressService {
 		return this.mapProgressServiceToComposite[id];
 	}
 
@@ -489,7 +492,7 @@ export abstract class CompositePart<T extends Composite> extends Part {
 		return [];
 	}
 
-	public layout(dimension: Dimension): Dimension[] {
+	layout(dimension: Dimension): Dimension[] {
 
 		// Pass to super
 		const sizes = super.layout(dimension);
@@ -503,13 +506,13 @@ export abstract class CompositePart<T extends Composite> extends Part {
 		return sizes;
 	}
 
-	public shutdown(): void {
+	shutdown(): void {
 		this.instantiatedComposites.forEach(i => i.shutdown());
 
 		super.shutdown();
 	}
 
-	public dispose(): void {
+	dispose(): void {
 		this.mapCompositeToCompositeContainer = null;
 		this.mapProgressServiceToComposite = null;
 		this.mapActionsBindingToComposite = null;
@@ -519,13 +522,8 @@ export abstract class CompositePart<T extends Composite> extends Part {
 		}
 
 		this.instantiatedComposites = [];
-
 		this.instantiatedCompositeListeners = dispose(this.instantiatedCompositeListeners);
 
-		this.progressBar.dispose();
-		this.toolBar.dispose();
-
-		// Super Dispose
 		super.dispose();
 	}
 }

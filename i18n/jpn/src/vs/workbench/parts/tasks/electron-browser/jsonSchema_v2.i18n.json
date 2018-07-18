@@ -28,6 +28,7 @@
 	"JsonSchema.tasks.group.none": "タスクをグループに割り当てない",
 	"JsonSchema.tasks.group": "このタスクが属する実行グループを定義します。ビルド グループに追加する \"build\" とテスト グループに追加する \"test\" をサポートしています。",
 	"JsonSchema.tasks.type": "タスクをプロセスとして実行するか、またはシェル内部でコマンドとして実行するかどうかを定義します。",
+	"JsonSchema.commandArray": "実行されるシェル コマンドです。配列の項目は空白文字を使用して結合されます。",
 	"JsonSchema.command.quotedString.value": "実際のコマンド値",
 	"JsonSchema.tasks.quoting.escape": "シェルのエスケープ文字を使用して文字をエスケープします (例: PowerShell の ` 、bash の \\)。",
 	"JsonSchema.tasks.quoting.strong": "シェルの strong quote 文字を使用して引数を引用します (例: PowerShell や bash の下の \")。",

@@ -8,7 +8,7 @@ import * as path from 'path';
 import * as cp from 'child_process';
 import { fork } from 'vs/base/node/stdFork';
 import * as nls from 'vs/nls';
-import { PPromise, TPromise, TValueCallback, TProgressCallback, ErrorCallback } from 'vs/base/common/winjs.base';
+import { TPromise, TValueCallback, ErrorCallback } from 'vs/base/common/winjs.base';
 import * as Types from 'vs/base/common/types';
 import { IStringDictionary } from 'vs/base/common/collections';
 import URI from 'vs/base/common/uri';
@@ -18,6 +18,8 @@ import * as Platform from 'vs/base/common/platform';
 import { LineDecoder } from 'vs/base/node/decoder';
 import { CommandOptions, ForkOptions, SuccessData, Source, TerminateResponse, TerminateResponseCode, Executable } from 'vs/base/common/processes';
 export { CommandOptions, ForkOptions, SuccessData, Source, TerminateResponse, TerminateResponseCode };
+
+export type TProgressCallback<T> = (progress: T) => void;
 
 export interface LineData {
 	line: string;
@@ -79,6 +81,7 @@ export abstract class AbstractProcess<TProgressData> {
 
 	private childProcess: cp.ChildProcess;
 	protected childProcessPromise: TPromise<cp.ChildProcess>;
+	private pidResolve: TValueCallback<number>;
 	protected terminateRequested: boolean;
 
 	private static WellKnowCommands: IStringDictionary<boolean> = {
@@ -151,18 +154,16 @@ export abstract class AbstractProcess<TProgressData> {
 		return 'other';
 	}
 
-	public start(): PPromise<SuccessData, TProgressData> {
+	public start(pp: TProgressCallback<TProgressData>): TPromise<SuccessData> {
 		if (Platform.isWindows && ((this.options && this.options.cwd && TPath.isUNC(this.options.cwd)) || !this.options && !this.options.cwd && TPath.isUNC(process.cwd()))) {
 			return TPromise.wrapError(new Error(nls.localize('TaskRunner.UNC', 'Can\'t execute a shell command on a UNC drive.')));
 		}
 		return this.useExec().then((useExec) => {
 			let cc: TValueCallback<SuccessData>;
 			let ee: ErrorCallback;
-			let pp: TProgressCallback<TProgressData>;
-			let result = new PPromise<any, TProgressData>((c, e, p) => {
+			let result = new TPromise<any>((c, e) => {
 				cc = c;
 				ee = e;
-				pp = p;
 			});
 
 			if (useExec) {
@@ -233,7 +234,7 @@ export abstract class AbstractProcess<TProgressData> {
 					if (this.cmd) {
 						childProcess = cp.spawn(this.cmd, this.args, this.options);
 					} else if (this.module) {
-						this.childProcessPromise = new TPromise<cp.ChildProcess>((c, e, p) => {
+						this.childProcessPromise = new TPromise<cp.ChildProcess>((c, e) => {
 							fork(this.module, this.args, <ForkOptions>this.options, (error: any, childProcess: cp.ChildProcess) => {
 								if (error) {
 									e(error);
@@ -241,6 +242,10 @@ export abstract class AbstractProcess<TProgressData> {
 									return;
 								}
 								this.childProcess = childProcess;
+								if (this.pidResolve) {
+									this.pidResolve(Types.isNumber(childProcess.pid) ? childProcess.pid : -1);
+									this.pidResolve = undefined;
+								}
 								this.childProcess.on('close', closeHandler);
 								this.handleSpawn(childProcess, cc, pp, ee, false);
 								c(childProcess);
@@ -251,6 +256,10 @@ export abstract class AbstractProcess<TProgressData> {
 				if (childProcess) {
 					this.childProcess = childProcess;
 					this.childProcessPromise = TPromise.as(childProcess);
+					if (this.pidResolve) {
+						this.pidResolve(Types.isNumber(childProcess.pid) ? childProcess.pid : -1);
+						this.pidResolve = undefined;
+					}
 					childProcess.on('error', (error: Error) => {
 						this.childProcess = null;
 						ee({ terminated: this.terminateRequested, error: error });
@@ -288,7 +297,13 @@ export abstract class AbstractProcess<TProgressData> {
 	}
 
 	public get pid(): TPromise<number> {
-		return this.childProcessPromise.then(childProcess => childProcess.pid, err => -1);
+		if (this.childProcessPromise) {
+			return this.childProcessPromise.then(childProcess => childProcess.pid, err => -1);
+		} else {
+			return new TPromise<number>((resolve) => {
+				this.pidResolve = resolve;
+			});
+		}
 	}
 
 	public terminate(): TPromise<TerminateResponse> {
@@ -308,7 +323,7 @@ export abstract class AbstractProcess<TProgressData> {
 	}
 
 	private useExec(): TPromise<boolean> {
-		return new TPromise<boolean>((c, e, p) => {
+		return new TPromise<boolean>((c, e) => {
 			if (!this.shell || !Platform.isWindows) {
 				c(false);
 			}

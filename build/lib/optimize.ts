@@ -18,11 +18,11 @@ import * as concat from 'gulp-concat';
 import * as VinylFile from 'vinyl';
 import * as bundle from './bundle';
 import * as util from './util';
-import * as i18n from './i18n';
 import * as gulpUtil from 'gulp-util';
 import * as flatmap from 'gulp-flatmap';
 import * as pump from 'pump';
 import * as sm from 'source-map';
+import { Language } from './i18n';
 
 const REPO_ROOT_PATH = path.join(__dirname, '../..');
 
@@ -161,10 +161,11 @@ export interface IOptimizeTaskOpts {
 	 */
 	out: string;
 	/**
-	 * (languages to process)
+	 * (out folder name)
 	 */
-	languages: i18n.Language[];
+	languages?: Language[];
 }
+
 export function optimizeTask(opts: IOptimizeTaskOpts): () => NodeJS.ReadWriteStream {
 	const entryPoints = opts.entryPoints;
 	const otherSources = opts.otherSources;
@@ -232,10 +233,6 @@ export function optimizeTask(opts: IOptimizeTaskOpts): () => NodeJS.ReadWriteStr
 				sourceRoot: null,
 				addComment: true,
 				includeContent: true
-			}))
-			.pipe(i18n.processNlsFiles({
-				fileHeader: bundledFileHeader,
-				languages: opts.languages
 			}))
 			.pipe(gulp.dest(out));
 	};

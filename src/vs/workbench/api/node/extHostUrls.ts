@@ -8,13 +8,16 @@ import { MainContext, IMainContext, ExtHostUrlsShape, MainThreadUrlsShape } from
 import URI, { UriComponents } from 'vs/base/common/uri';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { toDisposable } from 'vs/base/common/lifecycle';
+import { asWinJsPromise } from 'vs/base/common/async';
+import { onUnexpectedError } from 'vs/base/common/errors';
 
 export class ExtHostUrls implements ExtHostUrlsShape {
 
 	private static HandlePool = 0;
 	private readonly _proxy: MainThreadUrlsShape;
 
-	private handlers = new Map<number, vscode.ProtocolHandler>();
+	private handles = new Set<string>();
+	private handlers = new Map<number, vscode.UriHandler>();
 
 	constructor(
 		mainContext: IMainContext
@@ -22,14 +25,20 @@ export class ExtHostUrls implements ExtHostUrlsShape {
 		this._proxy = mainContext.getProxy(MainContext.MainThreadUrls);
 	}
 
-	registerProtocolHandler(extensionId: string, handler: vscode.ProtocolHandler): vscode.Disposable {
+	registerUriHandler(extensionId: string, handler: vscode.UriHandler): vscode.Disposable {
+		if (this.handles.has(extensionId)) {
+			throw new Error(`Protocol handler already registered for extension ${extensionId}`);
+		}
+
 		const handle = ExtHostUrls.HandlePool++;
+		this.handles.add(extensionId);
 		this.handlers.set(handle, handler);
-		this._proxy.$registerProtocolHandler(handle, extensionId);
+		this._proxy.$registerUriHandler(handle, extensionId);
 
 		return toDisposable(() => {
+			this.handles.delete(extensionId);
 			this.handlers.delete(handle);
-			this._proxy.$unregisterProtocolHandler(handle);
+			this._proxy.$unregisterUriHandler(handle);
 		});
 	}
 
@@ -40,7 +49,9 @@ export class ExtHostUrls implements ExtHostUrlsShape {
 			return TPromise.as(null);
 		}
 
-		handler.handleUri(URI.revive(uri));
+		asWinJsPromise(_ => handler.handleUri(URI.revive(uri)))
+			.done(null, onUnexpectedError);
+
 		return TPromise.as(null);
 	}
 }

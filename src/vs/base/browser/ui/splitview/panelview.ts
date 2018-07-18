@@ -30,6 +30,15 @@ export interface IPanelStyles {
 	headerHighContrastBorder?: Color;
 }
 
+/**
+ * A Panel is a structured SplitView view.
+ *
+ * WARNING: You must call `render()` after you contruct it.
+ * It can't be done automatically at the end of the ctor
+ * because of the order of property initialization in TypeScript.
+ * Subclasses wouldn't be able to set own properties
+ * before the `render()` call, thus forbiding their use.
+ */
 export abstract class Panel implements IView {
 
 	private static readonly HEADER_SIZE = 22;
@@ -40,25 +49,21 @@ export abstract class Panel implements IView {
 	private _minimumBodySize: number;
 	private _maximumBodySize: number;
 	private ariaHeaderLabel: string;
-	private styles: IPanelStyles | undefined = undefined;
+	private styles: IPanelStyles = {};
 
-	private el: HTMLElement;
+	readonly element: HTMLElement;
 	private header: HTMLElement;
 	protected disposables: IDisposable[] = [];
 
 	private _onDidChange = new Emitter<number | undefined>();
 	readonly onDidChange: Event<number | undefined> = this._onDidChange.event;
 
-	get element(): HTMLElement {
-		return this.el;
-	}
-
 	get draggableElement(): HTMLElement {
 		return this.header;
 	}
 
 	get dropTargetElement(): HTMLElement {
-		return this.el;
+		return this.element;
 	}
 
 	private _dropBackground: Color | undefined;
@@ -109,6 +114,8 @@ export abstract class Panel implements IView {
 		this.ariaHeaderLabel = options.ariaHeaderLabel || '';
 		this._minimumBodySize = typeof options.minimumBodySize === 'number' ? options.minimumBodySize : 120;
 		this._maximumBodySize = typeof options.maximumBodySize === 'number' ? options.maximumBodySize : Number.POSITIVE_INFINITY;
+
+		this.element = $('.panel');
 	}
 
 	isExpanded(): boolean {
@@ -139,11 +146,9 @@ export abstract class Panel implements IView {
 		this._onDidChange.fire();
 	}
 
-	render(container: HTMLElement): void {
-		this.el = append(container, $('.panel'));
-
+	render(): void {
 		this.header = $('.panel-header');
-		append(this.el, this.header);
+		append(this.element, this.header);
 		this.header.setAttribute('tabindex', '0');
 		this.header.setAttribute('role', 'toolbar');
 		this.header.setAttribute('aria-label', this.ariaHeaderLabel);
@@ -177,7 +182,7 @@ export abstract class Panel implements IView {
 		// onHeaderKeyDown.filter(e => e.keyCode === KeyCode.DownArrow)
 		// 	.event(focusNext, this, this.disposables);
 
-		const body = append(this.el, $('.panel-body'));
+		const body = append(this.element, $('.panel-body'));
 		this.renderBody(body);
 	}
 
@@ -370,7 +375,7 @@ export class PanelView implements IDisposable {
 	private _onDidDrop = new Emitter<{ from: Panel, to: Panel }>();
 	readonly onDidDrop: Event<{ from: Panel, to: Panel }> = this._onDidDrop.event;
 
-	readonly onDidSashChange: Event<void>;
+	readonly onDidSashChange: Event<number>;
 
 	constructor(container: HTMLElement, options: IPanelViewOptions = {}) {
 		this.dnd = options.dnd;

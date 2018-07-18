@@ -9,11 +9,12 @@ import * as path from 'path';
 import * as platform from 'vs/base/common/platform';
 import * as watcher from 'vs/workbench/services/files/node/watcher/common';
 import * as nsfw from 'vscode-nsfw';
-import { IWatcherService, IWatcherRequest } from 'vs/workbench/services/files/node/watcher/nsfw/watcher';
-import { TPromise, ProgressCallback, TValueCallback, ErrorCallback } from 'vs/base/common/winjs.base';
+import { IWatcherService, IWatcherRequest, IWatcherOptions, IWatchError } from 'vs/workbench/services/files/node/watcher/nsfw/watcher';
+import { TPromise, TValueCallback } from 'vs/base/common/winjs.base';
 import { ThrottledDelayer } from 'vs/base/common/async';
 import { FileChangeType } from 'vs/platform/files/common/files';
-import { normalizeNFC } from 'vs/base/common/strings';
+import { normalizeNFC } from 'vs/base/common/normalization';
+import { Event, Emitter } from 'vs/base/common/event';
 
 const nsfwActionToRawChangeType: { [key: number]: number } = [];
 nsfwActionToRawChangeType[nsfw.actions.CREATED] = FileChangeType.ADDED;
@@ -35,20 +36,15 @@ export class NsfwWatcherService implements IWatcherService {
 	private static readonly FS_EVENT_DELAY = 50; // aggregate and only emit events when changes have stopped for this duration (in ms)
 
 	private _pathWatchers: { [watchPath: string]: IPathWatcher } = {};
-	private _watcherPromise: TPromise<void>;
-	private _progressCallback: ProgressCallback;
-	private _errorCallback: ErrorCallback;
 	private _verboseLogging: boolean;
 	private enospcErrorLogged: boolean;
 
-	public initialize(verboseLogging: boolean): TPromise<void> {
-		this._verboseLogging = true;
-		this._watcherPromise = new TPromise<void>((c, e, p) => {
-			this._errorCallback = e;
-			this._progressCallback = p;
+	private _onWatchEvent = new Emitter<watcher.IRawFileChange[] | IWatchError>();
+	readonly onWatchEvent = this._onWatchEvent.event;
 
-		});
-		return this._watcherPromise;
+	watch(options: IWatcherOptions): Event<watcher.IRawFileChange[] | IWatchError> {
+		this._verboseLogging = options.verboseLogging;
+		return this.onWatchEvent;
 	}
 
 	private _watch(request: IWatcherRequest): void {
@@ -70,7 +66,7 @@ export class NsfwWatcherService implements IWatcherService {
 			// See https://github.com/Microsoft/vscode/issues/7950
 			if (e === 'Inotify limit reached' && !this.enospcErrorLogged) {
 				this.enospcErrorLogged = true;
-				this._errorCallback(new Error('Inotify limit reached (ENOSPC)'));
+				this._onWatchEvent.fire({ message: 'Inotify limit reached (ENOSPC)' });
 			}
 		});
 
@@ -119,7 +115,7 @@ export class NsfwWatcherService implements IWatcherService {
 
 				// Broadcast to clients normalized
 				const res = watcher.normalize(events);
-				this._progressCallback(res);
+				this._onWatchEvent.fire(res);
 
 				// Logging
 				if (this._verboseLogging) {

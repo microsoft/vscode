@@ -28,7 +28,7 @@ import { IFileService } from 'vs/platform/files/common/files';
 import { ITextModelService, ITextEditorModel } from 'vs/editor/common/services/resolverService';
 import { OVERRIDE_PROPERTY_PATTERN, IConfigurationRegistry, Extensions as ConfigurationExtensions, ConfigurationScope } from 'vs/platform/configuration/common/configurationRegistry';
 import { ICommandService } from 'vs/platform/commands/common/commands';
-import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
+import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { ITextModel } from 'vs/editor/common/model';
 import { INotificationService, Severity } from 'vs/platform/notification/common/notification';
 
@@ -133,7 +133,7 @@ export class ConfigurationEditingService {
 		@ITextFileService private textFileService: ITextFileService,
 		@INotificationService private notificationService: INotificationService,
 		@ICommandService private commandService: ICommandService,
-		@IWorkbenchEditorService private editorService: IWorkbenchEditorService
+		@IEditorService private editorService: IEditorService
 	) {
 		this.queue = new Queue<void>();
 	}
@@ -371,7 +371,7 @@ export class ConfigurationEditingService {
 			return false;
 		}
 		const parseErrors: json.ParseError[] = [];
-		json.parse(model.getValue(), parseErrors, { allowTrailingComma: true });
+		json.parse(model.getValue(), parseErrors);
 		return parseErrors.length > 0;
 	}
 

@@ -23,13 +23,16 @@ declare module "vscode-textmate" {
 		readonly name?: string;
 		readonly settings: IRawThemeSetting[];
 	}
+	export interface Thenable<T> extends PromiseLike<T> {
+	}
 	/**
 	 * A registry helper that can locate grammar file paths given scope names.
 	 */
 	export interface RegistryOptions {
 		theme?: IRawTheme;
-		getFilePath(scopeName: string): string;
+		loadGrammar(scopeName: string): Thenable<IRawGrammar>;
 		getInjections?(scopeName: string): string[];
+		getOnigLib?(): Thenable<IOnigLib>;
 	}
 	/**
 	 * A map from scope name to a language id. Please do not use language id 0.
@@ -38,10 +41,10 @@ declare module "vscode-textmate" {
 		[scopeName: string]: number;
 	}
 	/**
-	 * A map from scope name to a token type.
+	 * A map from selectors to token types.
 	 */
 	export interface ITokenTypeMap {
-		[scopeName: string]: StandardTokenType;
+		[selector: string]: StandardTokenType;
 	}
 	export const enum StandardTokenType {
 		Other = 0,
@@ -72,25 +75,25 @@ declare module "vscode-textmate" {
 		 * Load the grammar for `scopeName` and all referenced included grammars asynchronously.
 		 * Please do not use language id 0.
 		 */
-		loadGrammarWithEmbeddedLanguages(initialScopeName: string, initialLanguage: number, embeddedLanguages: IEmbeddedLanguagesMap, callback: (err: any, grammar: IGrammar) => void): void;
+		loadGrammarWithEmbeddedLanguages(initialScopeName: string, initialLanguage: number, embeddedLanguages: IEmbeddedLanguagesMap): Thenable<IGrammar>;
 		/**
 		 * Load the grammar for `scopeName` and all referenced included grammars asynchronously.
 		 * Please do not use language id 0.
 		 */
-		loadGrammarWithConfiguration(initialScopeName: string, initialLanguage: number, configuration: IGrammarConfiguration, callback: (err: any, grammar: IGrammar) => void): void;
+		loadGrammarWithConfiguration(initialScopeName: string, initialLanguage: number, configuration: IGrammarConfiguration): Thenable<IGrammar>;
 		/**
 		 * Load the grammar for `scopeName` and all referenced included grammars asynchronously.
 		 */
-		loadGrammar(initialScopeName: string, callback: (err: any, grammar: IGrammar) => void): void;
-		private _loadGrammar(initialScopeName, callback);
+		loadGrammar(initialScopeName: string): Thenable<IGrammar>;
+		private _loadGrammar(initialScopeName, initialLanguage, embeddedLanguages, tokenTypes);
 		/**
-		 * Load the grammar at `path` synchronously.
+		 * Adds a rawGrammar.
 		 */
-		loadGrammarFromPathSync(path: string, initialLanguage?: number, embeddedLanguages?: IEmbeddedLanguagesMap): IGrammar;
+		addGrammar(rawGrammar: IRawGrammar, injections?: string[], initialLanguage?: number, embeddedLanguages?: IEmbeddedLanguagesMap): Thenable<IGrammar>;
 		/**
-		 * Get the grammar for `scopeName`. The grammar must first be created via `loadGrammar` or `loadGrammarFromPathSync`.
+		 * Get the grammar for `scopeName`. The grammar must first be created via `loadGrammar` or `addGrammar`.
 		 */
-		grammarForScopeName(scopeName: string, initialLanguage?: number, embeddedLanguages?: IEmbeddedLanguagesMap, tokenTypes?: ITokenTypeMap): IGrammar;
+		grammarForScopeName(scopeName: string, initialLanguage?: number, embeddedLanguages?: IEmbeddedLanguagesMap, tokenTypes?: ITokenTypeMap): Thenable<IGrammar>;
 	}
 	/**
 	 * A grammar
@@ -179,4 +182,75 @@ declare module "vscode-textmate" {
 		equals(other: StackElement): boolean;
 	}
 	export const INITIAL: StackElement;
+	export const parseRawGrammar: (content: string, filePath: string) => IRawGrammar;
+	export interface ILocation {
+		readonly filename: string;
+		readonly line: number;
+		readonly char: number;
+	}
+	export interface ILocatable {
+		readonly $vscodeTextmateLocation?: ILocation;
+	}
+	export interface IRawGrammar extends ILocatable {
+		repository: IRawRepository;
+		readonly scopeName: string;
+		readonly patterns: IRawRule[];
+		readonly injections?: {
+			[expression: string]: IRawRule;
+		};
+		readonly injectionSelector?: string;
+		readonly fileTypes?: string[];
+		readonly name?: string;
+		readonly firstLineMatch?: string;
+	}
+	export interface IRawRepositoryMap {
+		[name: string]: IRawRule;
+		$self: IRawRule;
+		$base: IRawRule;
+	}
+	export type IRawRepository = IRawRepositoryMap & ILocatable;
+	export interface IRawRule extends ILocatable {
+		id?: number;
+		readonly include?: string;
+		readonly name?: string;
+		readonly contentName?: string;
+		readonly match?: string;
+		readonly captures?: IRawCaptures;
+		readonly begin?: string;
+		readonly beginCaptures?: IRawCaptures;
+		readonly end?: string;
+		readonly endCaptures?: IRawCaptures;
+		readonly while?: string;
+		readonly whileCaptures?: IRawCaptures;
+		readonly patterns?: IRawRule[];
+		readonly repository?: IRawRepository;
+		readonly applyEndPatternLast?: boolean;
+	}
+	export interface IRawCapturesMap {
+		[captureId: string]: IRawRule;
+	}
+	export type IRawCaptures = IRawCapturesMap & ILocatable;
+	export interface IOnigLib {
+		createOnigScanner(sources: string[]): OnigScanner;
+		createOnigString(sources: string): OnigString;
+	}
+	export interface IOnigCaptureIndex {
+		start: number;
+		end: number;
+		length: number;
+	}
+	export interface IOnigMatch {
+		index: number;
+		captureIndices: IOnigCaptureIndex[];
+		scanner: OnigScanner;
+	}
+	export interface OnigScanner {
+		findNextMatchSync(string: string | OnigString, startPosition: number): IOnigMatch;
+	}
+	export interface OnigString {
+		readonly content: string;
+		readonly dispose?: () => void;
+	}
+
+
 }

@@ -49,6 +49,10 @@ suite('AbstractKeybindingService', () => {
 			return this._resolver;
 		}
 
+		protected _documentHasFocus(): boolean {
+			return true;
+		}
+
 		public resolveKeybinding(kb: Keybinding): ResolvedKeybinding[] {
 			return [new USLayoutResolvedKeybinding(kb, OS)];
 		}
@@ -230,7 +234,7 @@ suite('AbstractKeybindingService', () => {
 		assert.equal(shouldPreventDefault, true);
 		assert.deepEqual(executeCommandCalls, [{
 			commandId: 'simpleCommand',
-			args: [{}]
+			args: [null]
 		}]);
 		assert.deepEqual(showMessageCalls, []);
 		assert.deepEqual(statusMessageCalls, []);
@@ -299,7 +303,7 @@ suite('AbstractKeybindingService', () => {
 		assert.equal(shouldPreventDefault, true);
 		assert.deepEqual(executeCommandCalls, [{
 			commandId: 'simpleCommand',
-			args: [{}]
+			args: [null]
 		}]);
 		assert.deepEqual(showMessageCalls, []);
 		assert.deepEqual(statusMessageCalls, []);
@@ -330,7 +334,7 @@ suite('AbstractKeybindingService', () => {
 		assert.equal(shouldPreventDefault, true);
 		assert.deepEqual(executeCommandCalls, [{
 			commandId: 'chordCommand',
-			args: [{}]
+			args: [null]
 		}]);
 		assert.deepEqual(showMessageCalls, []);
 		assert.deepEqual(statusMessageCalls, []);
@@ -359,7 +363,7 @@ suite('AbstractKeybindingService', () => {
 		assert.equal(shouldPreventDefault, true);
 		assert.deepEqual(executeCommandCalls, [{
 			commandId: 'simpleCommand',
-			args: [{}]
+			args: [null]
 		}]);
 		assert.deepEqual(showMessageCalls, []);
 		assert.deepEqual(statusMessageCalls, []);
@@ -377,7 +381,7 @@ suite('AbstractKeybindingService', () => {
 		assert.equal(shouldPreventDefault, true);
 		assert.deepEqual(executeCommandCalls, [{
 			commandId: 'simpleCommand',
-			args: [{}]
+			args: [null]
 		}]);
 		assert.deepEqual(showMessageCalls, []);
 		assert.deepEqual(statusMessageCalls, []);
@@ -417,7 +421,7 @@ suite('AbstractKeybindingService', () => {
 		assert.equal(shouldPreventDefault, false);
 		assert.deepEqual(executeCommandCalls, [{
 			commandId: 'simpleCommand',
-			args: [{}]
+			args: [null]
 		}]);
 		assert.deepEqual(showMessageCalls, []);
 		assert.deepEqual(statusMessageCalls, []);

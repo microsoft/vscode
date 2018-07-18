@@ -3,13 +3,10 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-'use strict';
-
 import 'vs/css!./media/resourceviewer';
 import * as nls from 'vs/nls';
 import * as mimes from 'vs/base/common/mime';
 import URI from 'vs/base/common/uri';
-import * as paths from 'vs/base/common/paths';
 import { Builder, $ } from 'vs/base/browser/builder';
 import * as DOM from 'vs/base/browser/dom';
 import { DomScrollableElement } from 'vs/base/browser/ui/scrollbar/scrollableElement';
@@ -24,79 +21,26 @@ import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { Action } from 'vs/base/common/actions';
-import { IEditorGroupService } from 'vs/workbench/services/group/common/groupService';
+import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { memoize } from 'vs/base/common/decorators';
 import * as platform from 'vs/base/common/platform';
-
-interface MapExtToMediaMimes {
-	[index: string]: string;
-}
-
-// Known media mimes that we can handle
-const mapExtToMediaMimes: MapExtToMediaMimes = {
-	'.bmp': 'image/bmp',
-	'.gif': 'image/gif',
-	'.jpg': 'image/jpg',
-	'.jpeg': 'image/jpg',
-	'.jpe': 'image/jpg',
-	'.png': 'image/png',
-	'.tiff': 'image/tiff',
-	'.tif': 'image/tiff',
-	'.ico': 'image/x-icon',
-	'.tga': 'image/x-tga',
-	'.psd': 'image/vnd.adobe.photoshop',
-	'.webp': 'image/webp',
-	'.mid': 'audio/midi',
-	'.midi': 'audio/midi',
-	'.mp4a': 'audio/mp4',
-	'.mpga': 'audio/mpeg',
-	'.mp2': 'audio/mpeg',
-	'.mp2a': 'audio/mpeg',
-	'.mp3': 'audio/mpeg',
-	'.m2a': 'audio/mpeg',
-	'.m3a': 'audio/mpeg',
-	'.oga': 'audio/ogg',
-	'.ogg': 'audio/ogg',
-	'.spx': 'audio/ogg',
-	'.aac': 'audio/x-aac',
-	'.wav': 'audio/x-wav',
-	'.wma': 'audio/x-ms-wma',
-	'.mp4': 'video/mp4',
-	'.mp4v': 'video/mp4',
-	'.mpg4': 'video/mp4',
-	'.mpeg': 'video/mpeg',
-	'.mpg': 'video/mpeg',
-	'.mpe': 'video/mpeg',
-	'.m1v': 'video/mpeg',
-	'.m2v': 'video/mpeg',
-	'.ogv': 'video/ogg',
-	'.qt': 'video/quicktime',
-	'.mov': 'video/quicktime',
-	'.webm': 'video/webm',
-	'.mkv': 'video/x-matroska',
-	'.mk3d': 'video/x-matroska',
-	'.mks': 'video/x-matroska',
-	'.wmv': 'video/x-ms-wmv',
-	'.flv': 'video/x-flv',
-	'.avi': 'video/x-msvideo',
-	'.movie': 'video/x-sgi-movie'
-};
+import { IFileService } from 'vs/platform/files/common/files';
 
 export interface IResourceDescriptor {
-	resource: URI;
-	name: string;
-	size: number;
-	etag: string;
-	mime: string;
+	readonly resource: URI;
+	readonly name: string;
+	readonly size: number;
+	readonly etag: string;
+	readonly mime: string;
 }
 
 class BinarySize {
-	public static readonly KB = 1024;
-	public static readonly MB = BinarySize.KB * BinarySize.KB;
-	public static readonly GB = BinarySize.MB * BinarySize.KB;
-	public static readonly TB = BinarySize.GB * BinarySize.KB;
+	static readonly KB = 1024;
+	static readonly MB = BinarySize.KB * BinarySize.KB;
+	static readonly GB = BinarySize.MB * BinarySize.KB;
+	static readonly TB = BinarySize.GB * BinarySize.KB;
 
-	public static formatSize(size: number): string {
+	static formatSize(size: number): string {
 		if (size < BinarySize.KB) {
 			return nls.localize('sizeB', "{0}B", size);
 		}
@@ -129,8 +73,9 @@ export class ResourceViewer {
 
 	private static readonly MAX_OPEN_INTERNAL_SIZE = BinarySize.MB * 200; // max size until we offer an action to open internally
 
-	public static show(
+	static show(
 		descriptor: IResourceDescriptor,
+		fileService: IFileService,
 		container: HTMLElement,
 		scrollbar: DomScrollableElement,
 		openInternalClb: (uri: URI) => void,
@@ -143,7 +88,7 @@ export class ResourceViewer {
 
 		// Images
 		if (ResourceViewer.isImageResource(descriptor)) {
-			return ImageView.create(container, descriptor, scrollbar, openExternalClb, metadataClb);
+			return ImageView.create(container, descriptor, fileService, scrollbar, openExternalClb, metadataClb);
 		}
 
 		// Large Files
@@ -160,21 +105,9 @@ export class ResourceViewer {
 	}
 
 	private static isImageResource(descriptor: IResourceDescriptor) {
-		const mime = ResourceViewer.getMime(descriptor);
+		const mime = getMime(descriptor);
 
 		return mime.indexOf('image/') >= 0;
-	}
-
-	private static getMime(descriptor: IResourceDescriptor): string {
-		let mime = descriptor.mime;
-		if (!mime && descriptor.resource.scheme !== Schemas.data) {
-			const ext = paths.extname(descriptor.resource.toString());
-			if (ext) {
-				mime = mapExtToMediaMimes[ext.toLowerCase()];
-			}
-		}
-
-		return mime || mimes.MIME_BINARY;
 	}
 }
 
@@ -182,15 +115,16 @@ class ImageView {
 	private static readonly MAX_IMAGE_SIZE = BinarySize.MB; // showing images inline is memory intense, so we have a limit
 	private static readonly BASE64_MARKER = 'base64,';
 
-	public static create(
+	static create(
 		container: HTMLElement,
 		descriptor: IResourceDescriptor,
+		fileService: IFileService,
 		scrollbar: DomScrollableElement,
 		openExternalClb: (uri: URI) => void,
 		metadataClb: (meta: string) => void
 	): ResourceViewerContext | null {
 		if (ImageView.shouldShowImageInline(descriptor)) {
-			return InlineImageView.create(container, descriptor, scrollbar, metadataClb);
+			return InlineImageView.create(container, descriptor, fileService, scrollbar, metadataClb);
 		}
 
 		LargeImageView.create(container, descriptor, openExternalClb);
@@ -219,7 +153,7 @@ class ImageView {
 }
 
 class LargeImageView {
-	public static create(
+	static create(
 		container: HTMLElement,
 		descriptor: IResourceDescriptor,
 		openExternalClb: (uri: URI) => void
@@ -245,7 +179,7 @@ class LargeImageView {
 }
 
 class FileTooLargeFileView {
-	public static create(
+	static create(
 		container: HTMLElement,
 		descriptor: IResourceDescriptor,
 		scrollbar: DomScrollableElement,
@@ -268,7 +202,7 @@ class FileTooLargeFileView {
 }
 
 class FileSeemsBinaryFileView {
-	public static create(
+	static create(
 		container: HTMLElement,
 		descriptor: IResourceDescriptor,
 		scrollbar: DomScrollableElement,
@@ -302,29 +236,32 @@ class FileSeemsBinaryFileView {
 type Scale = number | 'fit';
 
 class ZoomStatusbarItem extends Themable implements IStatusbarItem {
+
+	static instance: ZoomStatusbarItem;
+
 	showTimeout: number;
-	public static instance: ZoomStatusbarItem;
 
 	private statusBarItem: HTMLElement;
-
 	private onSelectScale?: (scale: Scale) => void;
 
 	constructor(
 		@IContextMenuService private contextMenuService: IContextMenuService,
-		@IEditorGroupService editorGroupService: IEditorGroupService,
+		@IEditorService editorService: IEditorService,
 		@IThemeService themeService: IThemeService
 	) {
 		super(themeService);
+
 		ZoomStatusbarItem.instance = this;
-		this.toUnbind.push(editorGroupService.onEditorsChanged(() => this.onEditorsChanged()));
+
+		this._register(editorService.onDidActiveEditorChange(() => this.onActiveEditorChanged()));
 	}
 
-	private onEditorsChanged(): void {
+	private onActiveEditorChanged(): void {
 		this.hide();
 		this.onSelectScale = void 0;
 	}
 
-	public show(scale: Scale, onSelectScale: (scale: number) => void) {
+	show(scale: Scale, onSelectScale: (scale: number) => void) {
 		clearTimeout(this.showTimeout);
 		this.showTimeout = setTimeout(() => {
 			this.onSelectScale = onSelectScale;
@@ -333,11 +270,11 @@ class ZoomStatusbarItem extends Themable implements IStatusbarItem {
 		}, 0);
 	}
 
-	public hide() {
+	hide() {
 		this.statusBarItem.style.display = 'none';
 	}
 
-	public render(container: HTMLElement): IDisposable {
+	render(container: HTMLElement): IDisposable {
 		if (!this.statusBarItem && container) {
 			this.statusBarItem = $(container).a()
 				.addClass('.zoom-statusbar-item')
@@ -420,21 +357,14 @@ class InlineImageView {
 	private static readonly PIXELATION_THRESHOLD = 3;
 
 	/**
-	 * Chrome is caching images very aggressively and so we use the ETag information to find out if
-	 * we need to bypass the cache or not. We could always bypass the cache everytime we show the image
-	 * however that has very bad impact on memory consumption because each time the image gets shown,
-	 * memory grows (see also https://github.com/electron/electron/issues/6275)
-	 */
-	private static IMAGE_RESOURCE_ETAG_CACHE = new LRUCache<string, { etag: string, src: string }>(100);
-
-	/**
 	 * Store the scale and position of an image so it can be restored when changing editor tabs
 	 */
 	private static readonly imageStateCache = new LRUCache<string, ImageState>(100);
 
-	public static create(
+	static create(
 		container: HTMLElement,
 		descriptor: IResourceDescriptor,
+		fileService: IFileService,
 		scrollbar: DomScrollableElement,
 		metadataClb: (meta: string) => void
 	) {
@@ -601,7 +531,7 @@ class InlineImageView {
 		$(container)
 			.empty()
 			.addClass('image', 'zoom-in')
-			.img({ src: InlineImageView.imageSrc(descriptor) })
+			.img({})
 			.style('visibility', 'hidden')
 			.addClass('scale-to-fit')
 			.on(DOM.EventType.LOAD, (e, i) => {
@@ -619,27 +549,33 @@ class InlineImageView {
 				}
 			});
 
+		InlineImageView.imageSrc(descriptor, fileService).then(dataUri => {
+			const imgs = container.getElementsByTagName('img');
+			if (imgs.length) {
+				imgs[0].src = dataUri;
+			}
+		});
+
 		return context;
 	}
 
-	private static imageSrc(descriptor: IResourceDescriptor): string {
+	private static imageSrc(descriptor: IResourceDescriptor, fileService: IFileService): TPromise<string> {
 		if (descriptor.resource.scheme === Schemas.data) {
-			return descriptor.resource.toString(true /* skip encoding */);
+			return TPromise.as(descriptor.resource.toString(true /* skip encoding */));
 		}
 
-		const src = descriptor.resource.toString();
+		return fileService.resolveContent(descriptor.resource, { encoding: 'base64' }).then(data => {
+			const mime = getMime(descriptor);
 
-		let cached = InlineImageView.IMAGE_RESOURCE_ETAG_CACHE.get(src);
-		if (!cached) {
-			cached = { etag: descriptor.etag, src };
-			InlineImageView.IMAGE_RESOURCE_ETAG_CACHE.set(src, cached);
-		}
-
-		if (cached.etag !== descriptor.etag) {
-			cached.etag = descriptor.etag;
-			cached.src = `${src}?${Date.now()}`; // bypass cache with this trick
-		}
-
-		return cached.src;
+			return `data:${mime};base64,${data.value}`;
+		});
 	}
+}
+
+function getMime(descriptor: IResourceDescriptor) {
+	let mime = descriptor.mime;
+	if (!mime && descriptor.resource.scheme !== Schemas.data) {
+		mime = mimes.getMediaMime(descriptor.resource.toString());
+	}
+	return mime || mimes.MIME_BINARY;
 }

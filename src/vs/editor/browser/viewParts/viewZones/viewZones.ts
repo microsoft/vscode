@@ -25,6 +25,7 @@ export interface IMyViewZone {
 interface IComputedViewZoneProps {
 	afterViewLineNumber: number;
 	heightInPx: number;
+	minWidthInPx: number;
 }
 
 export class ViewZones extends ViewPart {
@@ -138,7 +139,8 @@ export class ViewZones extends ViewPart {
 		if (zone.afterLineNumber === 0) {
 			return {
 				afterViewLineNumber: 0,
-				heightInPx: this._heightInPixels(zone)
+				heightInPx: this._heightInPixels(zone),
+				minWidthInPx: this._minWidthInPixels(zone)
 			};
 		}
 
@@ -177,13 +179,14 @@ export class ViewZones extends ViewPart {
 		let isVisible = this._context.model.coordinatesConverter.modelPositionIsVisible(zoneBeforeModelPosition);
 		return {
 			afterViewLineNumber: viewPosition.lineNumber,
-			heightInPx: (isVisible ? this._heightInPixels(zone) : 0)
+			heightInPx: (isVisible ? this._heightInPixels(zone) : 0),
+			minWidthInPx: this._minWidthInPixels(zone)
 		};
 	}
 
 	public addZone(zone: IViewZone): number {
 		let props = this._computeWhitespaceProps(zone);
-		let whitespaceId = this._context.viewLayout.addWhitespace(props.afterViewLineNumber, this._getZoneOrdinal(zone), props.heightInPx);
+		let whitespaceId = this._context.viewLayout.addWhitespace(props.afterViewLineNumber, this._getZoneOrdinal(zone), props.heightInPx, props.minWidthInPx);
 
 		let myZone: IMyViewZone = {
 			whitespaceId: whitespaceId,
@@ -273,6 +276,13 @@ export class ViewZones extends ViewPart {
 			return this._lineHeight * zone.heightInLines;
 		}
 		return this._lineHeight;
+	}
+
+	private _minWidthInPixels(zone: IViewZone): number {
+		if (typeof zone.minWidthInPx === 'number') {
+			return zone.minWidthInPx;
+		}
+		return 0;
 	}
 
 	private _safeCallOnComputedHeight(zone: IViewZone, height: number): void {

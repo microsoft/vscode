@@ -90,7 +90,13 @@ export class EnvironmentService implements IEnvironmentService {
 	get userHome(): string { return os.homedir(); }
 
 	@memoize
-	get userDataPath(): string { return parseUserDataDir(this._args, process); }
+	get userDataPath(): string {
+		if (process.env['VSCODE_PORTABLE']) {
+			return path.join(process.env['VSCODE_PORTABLE'], 'user-data');
+		}
+
+		return parseUserDataDir(this._args, process);
+	}
 
 	get appNameLong(): string { return product.nameLong; }
 
@@ -127,7 +133,19 @@ export class EnvironmentService implements IEnvironmentService {
 	get installSourcePath(): string { return path.join(this.userDataPath, 'installSource'); }
 
 	@memoize
-	get extensionsPath(): string { return parsePathArg(this._args['extensions-dir'], process) || process.env['VSCODE_EXTENSIONS'] || path.join(this.userHome, product.dataFolderName, 'extensions'); }
+	get extensionsPath(): string {
+		const fromArgs = parsePathArg(this._args['extensions-dir'], process);
+
+		if (fromArgs) {
+			return fromArgs;
+		} else if (process.env['VSCODE_EXTENSIONS']) {
+			return process.env['VSCODE_EXTENSIONS'];
+		} else if (process.env['VSCODE_PORTABLE']) {
+			return path.join(process.env['VSCODE_PORTABLE'], 'extensions');
+		} else {
+			return path.join(this.userHome, product.dataFolderName, 'extensions');
+		}
+	}
 
 	@memoize
 	get extensionDevelopmentPath(): string { return this._args.extensionDevelopmentPath ? path.normalize(this._args.extensionDevelopmentPath) : this._args.extensionDevelopmentPath; }
@@ -171,6 +189,7 @@ export class EnvironmentService implements IEnvironmentService {
 	get disableCrashReporter(): boolean { return !!this._args['disable-crash-reporter']; }
 
 	get driverHandle(): string { return this._args['driver']; }
+	get driverVerbose(): boolean { return this._args['driver-verbose']; }
 
 	constructor(private _args: ParsedArgs, private _execPath: string) {
 		if (!process.env['VSCODE_LOGS']) {

@@ -89,7 +89,7 @@ class ConfigAwareContextValuesContainer extends Context {
 				const contextKey = `config.${configKey}`;
 				if (contextKey in this._value) {
 					this._value[contextKey] = this._configurationService.getValue(configKey);
-					this._emitter.fire(configKey);
+					this._emitter.fire(contextKey);
 				}
 			}
 		}
@@ -331,6 +331,7 @@ class ScopedContextKeyService extends AbstractContextKeyService {
 		this._parent.disposeContext(this._myContextId);
 		if (this._domNode) {
 			this._domNode.removeAttribute(KEYBINDING_CONTEXT_ATTR);
+			this._domNode = undefined;
 		}
 	}
 

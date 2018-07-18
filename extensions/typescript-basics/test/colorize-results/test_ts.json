@@ -232,7 +232,7 @@
 	},
 	{
 		"c": " ",
-		"t": "source.ts meta.namespace.declaration.ts meta.block.ts meta.class.ts",
+		"t": "source.ts meta.namespace.declaration.ts meta.block.ts meta.class.ts meta.field.declaration.ts",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -320,7 +320,7 @@
 	},
 	{
 		"c": " ",
-		"t": "source.ts meta.namespace.declaration.ts meta.block.ts meta.class.ts",
+		"t": "source.ts meta.namespace.declaration.ts meta.block.ts meta.class.ts meta.field.declaration.ts",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -408,7 +408,7 @@
 	},
 	{
 		"c": " ",
-		"t": "source.ts meta.namespace.declaration.ts meta.block.ts meta.class.ts",
+		"t": "source.ts meta.namespace.declaration.ts meta.block.ts meta.class.ts meta.field.declaration.ts",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -474,7 +474,7 @@
 	},
 	{
 		"c": "\t\t",
-		"t": "source.ts meta.namespace.declaration.ts meta.block.ts meta.class.ts",
+		"t": "source.ts meta.namespace.declaration.ts meta.block.ts meta.class.ts meta.method.declaration.ts",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -1156,7 +1156,7 @@
 	},
 	{
 		"c": " ",
-		"t": "source.ts meta.namespace.declaration.ts meta.block.ts meta.class.ts",
+		"t": "source.ts meta.namespace.declaration.ts meta.block.ts meta.class.ts meta.field.declaration.ts",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -1244,7 +1244,7 @@
 	},
 	{
 		"c": " ",
-		"t": "source.ts meta.namespace.declaration.ts meta.block.ts meta.class.ts",
+		"t": "source.ts meta.namespace.declaration.ts meta.block.ts meta.class.ts meta.field.declaration.ts",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -1332,7 +1332,7 @@
 	},
 	{
 		"c": " ",
-		"t": "source.ts meta.namespace.declaration.ts meta.block.ts meta.class.ts",
+		"t": "source.ts meta.namespace.declaration.ts meta.block.ts meta.class.ts meta.field.declaration.ts",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -1420,7 +1420,7 @@
 	},
 	{
 		"c": " ",
-		"t": "source.ts meta.namespace.declaration.ts meta.block.ts meta.class.ts",
+		"t": "source.ts meta.namespace.declaration.ts meta.block.ts meta.class.ts meta.field.declaration.ts",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -1508,7 +1508,7 @@
 	},
 	{
 		"c": " ",
-		"t": "source.ts meta.namespace.declaration.ts meta.block.ts meta.class.ts",
+		"t": "source.ts meta.namespace.declaration.ts meta.block.ts meta.class.ts meta.field.declaration.ts",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -1596,7 +1596,7 @@
 	},
 	{
 		"c": " ",
-		"t": "source.ts meta.namespace.declaration.ts meta.block.ts meta.class.ts",
+		"t": "source.ts meta.namespace.declaration.ts meta.block.ts meta.class.ts meta.field.declaration.ts",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -1684,7 +1684,7 @@
 	},
 	{
 		"c": " ",
-		"t": "source.ts meta.namespace.declaration.ts meta.block.ts meta.class.ts",
+		"t": "source.ts meta.namespace.declaration.ts meta.block.ts meta.class.ts meta.field.declaration.ts",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -1772,7 +1772,7 @@
 	},
 	{
 		"c": " ",
-		"t": "source.ts meta.namespace.declaration.ts meta.block.ts meta.class.ts",
+		"t": "source.ts meta.namespace.declaration.ts meta.block.ts meta.class.ts meta.field.declaration.ts",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -1893,7 +1893,7 @@
 	},
 	{
 		"c": "\t\t",
-		"t": "source.ts meta.namespace.declaration.ts meta.block.ts meta.class.ts",
+		"t": "source.ts meta.namespace.declaration.ts meta.block.ts meta.class.ts meta.method.declaration.ts",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -8416,7 +8416,7 @@
 	},
 	{
 		"c": " ",
-		"t": "source.ts meta.namespace.declaration.ts meta.block.ts meta.class.ts meta.method.declaration.ts meta.block.ts meta.var.expr.ts",
+		"t": "source.ts meta.namespace.declaration.ts meta.block.ts meta.class.ts meta.method.declaration.ts meta.block.ts meta.var.expr.ts meta.array.literal.ts",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -8801,7 +8801,7 @@
 	},
 	{
 		"c": " ",
-		"t": "source.ts meta.namespace.declaration.ts meta.block.ts meta.class.ts meta.method.declaration.ts meta.block.ts meta.block.ts meta.var.expr.ts",
+		"t": "source.ts meta.namespace.declaration.ts meta.block.ts meta.class.ts meta.method.declaration.ts meta.block.ts meta.block.ts meta.var.expr.ts meta.array.literal.ts",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",

@@ -401,17 +401,17 @@ export class MainThreadSCM implements MainThreadSCMShape {
 		}
 
 		if (enabled) {
-			repository.input.validateInput = async (value, pos): TPromise<IInputValidation | undefined> => {
-				const result = await this._proxy.$validateInput(sourceControlHandle, value, pos);
+			repository.input.validateInput = (value, pos): TPromise<IInputValidation | undefined> => {
+				return this._proxy.$validateInput(sourceControlHandle, value, pos).then(result => {
+					if (!result) {
+						return undefined;
+					}
 
-				if (!result) {
-					return undefined;
-				}
-
-				return {
-					message: result[0],
-					type: result[1]
-				};
+					return {
+						message: result[0],
+						type: result[1]
+					};
+				});
 			};
 		} else {
 			repository.input.validateInput = () => TPromise.as(undefined);

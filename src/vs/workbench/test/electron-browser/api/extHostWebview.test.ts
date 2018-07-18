@@ -11,11 +11,11 @@ import { ExtHostWebviews } from 'vs/workbench/api/node/extHostWebview';
 import { mock } from 'vs/workbench/test/electron-browser/api/mock';
 import * as vscode from 'vscode';
 import { SingleProxyRPCProtocol } from './testRPCProtocol';
-import { Position as EditorPosition } from 'vs/platform/editor/common/editor';
+import { EditorViewColumn } from 'vs/workbench/api/shared/editor';
 
 suite('ExtHostWebview', function () {
 
-	test('Cannot register multiple serializer for the same view type', async () => {
+	test('Cannot register multiple serializers for the same view type', async () => {
 		const viewType = 'view.type';
 
 		const shape = createNoopMainThreadWebviews();
@@ -24,9 +24,7 @@ suite('ExtHostWebview', function () {
 		let lastInvokedDeserializer: vscode.WebviewPanelSerializer | undefined = undefined;
 
 		class NoopSerializer implements vscode.WebviewPanelSerializer {
-			async serializeWebviewPanel(webview: vscode.WebviewPanel): Promise<any> { /* noop */ }
-
-			async deserializeWebviewPanel(webview: vscode.WebviewPanel, state: any): Promise<void> {
+			async deserializeWebviewPanel(_webview: vscode.WebviewPanel, _state: any): Promise<void> {
 				lastInvokedDeserializer = this;
 			}
 		}
@@ -36,7 +34,7 @@ suite('ExtHostWebview', function () {
 
 		const serializerARegistration = extHostWebviews.registerWebviewPanelSerializer(viewType, serializerA);
 
-		await extHostWebviews.$deserializeWebviewPanel('x', viewType, 'title', {}, EditorPosition.ONE, {});
+		await extHostWebviews.$deserializeWebviewPanel('x', viewType, 'title', {}, 0 as EditorViewColumn, {});
 		assert.strictEqual(lastInvokedDeserializer, serializerA);
 
 		assert.throws(
@@ -47,7 +45,7 @@ suite('ExtHostWebview', function () {
 
 		extHostWebviews.registerWebviewPanelSerializer(viewType, serializerB);
 
-		await extHostWebviews.$deserializeWebviewPanel('x', viewType, 'title', {}, EditorPosition.ONE, {});
+		await extHostWebviews.$deserializeWebviewPanel('x', viewType, 'title', {}, 0 as EditorViewColumn, {});
 		assert.strictEqual(lastInvokedDeserializer, serializerB);
 	});
 });

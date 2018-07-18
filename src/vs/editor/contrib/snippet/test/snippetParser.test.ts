@@ -240,6 +240,20 @@ suite('SnippetParser', () => {
 
 	});
 
+	test('Parser, placeholder transforms', function () {
+		assertTextAndMarker('${1///}', '', Placeholder);
+		assertTextAndMarker('${1/regex/format/gmi}', '', Placeholder);
+		assertTextAndMarker('${1/([A-Z][a-z])/format/}', '', Placeholder);
+
+		// tricky regex
+		assertTextAndMarker('${1/m\\/atch/$1/i}', '', Placeholder);
+		assertMarker('${1/regex\/format/options}', Text);
+
+		// incomplete
+		assertTextAndMarker('${1///', '${1///', Text);
+		assertTextAndMarker('${1/regex/format/options', '${1/regex/format/options', Text);
+	});
+
 	test('No way to escape forward slash in snippet regex #36715', function () {
 		assertMarker('${TM_DIRECTORY/src\\//$1/}', Variable);
 	});
@@ -378,6 +392,41 @@ suite('SnippetParser', () => {
 		assert.ok(marker[0] instanceof Variable);
 	});
 
+	test('Parser, transform example', () => {
+		let { children } = new SnippetParser().parse('${1:name} : ${2:type}${3/\\s:=(.*)/${1:+ :=}${1}/};\n$0');
+
+		//${1:name}
+		assert.ok(children[0] instanceof Placeholder);
+		assert.equal(children[0].children.length, 1);
+		assert.equal(children[0].children[0].toString(), 'name');
+		assert.equal((<Placeholder>children[0]).transform, undefined);
+
+		// :
+		assert.ok(children[1] instanceof Text);
+		assert.equal(children[1].toString(), ' : ');
+
+		//${2:type}
+		assert.ok(children[2] instanceof Placeholder);
+		assert.equal(children[2].children.length, 1);
+		assert.equal(children[2].children[0].toString(), 'type');
+
+		//${3/\\s:=(.*)/${1:+ :=}${1}/}
+		assert.ok(children[3] instanceof Placeholder);
+		assert.equal(children[3].children.length, 0);
+		assert.notEqual((<Placeholder>children[3]).transform, undefined);
+		let transform = (<Placeholder>children[3]).transform;
+		assert.equal(transform.regexp, '/\\s:=(.*)/');
+		assert.equal(transform.children.length, 2);
+		assert.ok(transform.children[0] instanceof FormatString);
+		assert.equal((<FormatString>transform.children[0]).index, 1);
+		assert.equal((<FormatString>transform.children[0]).ifValue, ' :=');
+		assert.ok(transform.children[1] instanceof FormatString);
+		assert.equal((<FormatString>transform.children[1]).index, 1);
+		assert.ok(children[4] instanceof Text);
+		assert.equal(children[4].toString(), ';\n');
+
+	});
+
 	test('Parser, default placeholder values', () => {
 
 		assertMarker('errorContext: `${1:err}`, error: $1', Text, Placeholder, Text, Placeholder);
@@ -391,6 +440,23 @@ suite('SnippetParser', () => {
 		assert.equal((<Placeholder>p2).index, '1');
 		assert.equal((<Placeholder>p2).children.length, '1');
 		assert.equal((<Text>(<Placeholder>p2).children[0]), 'err');
+	});
+
+	test('Parser, default placeholder values and one transform', () => {
+
+		assertMarker('errorContext: `${1:err}`, error: ${1/err/ok/}', Text, Placeholder, Text, Placeholder);
+
+		const [, p3, , p4] = new SnippetParser().parse('errorContext: `${1:err}`, error:${1/err/ok/}').children;
+
+		assert.equal((<Placeholder>p3).index, '1');
+		assert.equal((<Placeholder>p3).children.length, '1');
+		assert.equal((<Text>(<Placeholder>p3).children[0]), 'err');
+		assert.equal((<Placeholder>p3).transform, undefined);
+
+		assert.equal((<Placeholder>p4).index, '1');
+		assert.equal((<Placeholder>p4).children.length, '1');
+		assert.equal((<Text>(<Placeholder>p4).children[0]), 'err');
+		assert.notEqual((<Placeholder>p4).transform, undefined);
 	});
 
 	test('Repeated snippet placeholder should always inherit, #31040', function () {
@@ -629,5 +695,21 @@ suite('SnippetParser', () => {
 
 		const snippet = new SnippetParser().parse('${TM_DIRECTORY/.*src[\\/](.*)/$1/}');
 		assertMarker(snippet, Variable);
+	});
+
+	test('Variable transformation doesn\'t work if undefined variables are used in the same snippet #51769', function () {
+		let transform = new Transform();
+		transform.appendChild(new Text('bar'));
+		transform.regexp = new RegExp('foo', 'gi');
+		assert.equal(transform.toTextmateString(), '/foo/bar/ig');
+	});
+
+	test('Snippet parser freeze #53144', function () {
+		let snippet = new SnippetParser().parse('${1/(void$)|(.+)/${1:?-\treturn nil;}/}');
+		assertMarker(snippet, Placeholder);
+	});
+
+	test('snippets variable not resolved in JSON proposal #52931', function () {
+		assertTextAndMarker('FOO${1:/bin/bash}', 'FOO/bin/bash', Text, Placeholder);
 	});
 });

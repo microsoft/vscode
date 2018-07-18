@@ -17,7 +17,6 @@ var concat = require("gulp-concat");
 var VinylFile = require("vinyl");
 var bundle = require("./bundle");
 var util = require("./util");
-var i18n = require("./i18n");
 var gulpUtil = require("gulp-util");
 var flatmap = require("gulp-flatmap");
 var pump = require("pump");
@@ -163,10 +162,6 @@ function optimizeTask(opts) {
             sourceRoot: null,
             addComment: true,
             includeContent: true
-        }))
-            .pipe(i18n.processNlsFiles({
-            fileHeader: bundledFileHeader,
-            languages: opts.languages
         }))
             .pipe(gulp.dest(out));
     };

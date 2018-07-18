@@ -8,7 +8,6 @@
 	],
 	"neverShowAgain": "不再显示",
 	"searchMarketplace": "搜索商店",
-	"showLanguagePackExtensions": "商店中有可以将 VS Code 本地化为“{0}”语言的扩展。",
 	"dynamicWorkspaceRecommendation": "您可能会对这个扩展感兴趣，它在 {0} 存储库的用户间流行。",
 	"exeBasedRecommendation": "根据你安装的 {0}，向你推荐此扩展。",
 	"fileBasedRecommendation": "根据您最近打开的文件推荐此扩展。",

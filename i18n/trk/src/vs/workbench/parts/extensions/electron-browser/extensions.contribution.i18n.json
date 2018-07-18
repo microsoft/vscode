@@ -15,6 +15,6 @@
 	"developer": "Geliştirici",
 	"extensionsConfigurationTitle": "Eklentiler",
 	"extensionsAutoUpdate": "Eklentileri otomatik olarak güncelle",
-	"extensionsIgnoreRecommendations": "\"Doğru\" olarak ayarlanırsa, eklenti tavsiyeleri bildirimleri artık gösterilmez.",
-	"extensionsShowRecommendationsOnlyOnDemand": "Doğru olarak ayarlanırsa, kullanıcı tarafından özel olarak istenmedikçe tavsiyeler alınmaz ve gösterilmez."
+	"extensionsIgnoreRecommendations": "\"true\" değeri atanırsa, eklenti tavsiyeleri bildirimleri artık gösterilmez.",
+	"extensionsShowRecommendationsOnlyOnDemand": "\"true\" değeri atanırsa, kullanıcı tarafından özel olarak istenmedikçe tavsiyeler alınmaz ve gösterilmez."
 }

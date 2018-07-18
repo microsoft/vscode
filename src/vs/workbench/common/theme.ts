@@ -4,8 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as nls from 'vs/nls';
-import { registerColor, editorBackground, contrastBorder, transparent, editorWidgetBackground, textLinkForeground, lighten, darken } from 'vs/platform/theme/common/colorRegistry';
-import { IDisposable, Disposable, dispose } from 'vs/base/common/lifecycle';
+import { registerColor, editorBackground, contrastBorder, transparent, editorWidgetBackground, textLinkForeground, lighten, darken, focusBorder, activeContrastBorder, listActiveSelectionForeground, listActiveSelectionBackground } from 'vs/platform/theme/common/colorRegistry';
+import { Disposable } from 'vs/base/common/lifecycle';
 import { IThemeService, ITheme } from 'vs/platform/theme/common/themeService';
 import { Color } from 'vs/base/common/color';
 
@@ -58,13 +58,25 @@ export const TAB_ACTIVE_BORDER = registerColor('tab.activeBorder', {
 	dark: null,
 	light: null,
 	hc: null
-}, nls.localize('tabActiveBorder', "Border to highlight active tabs. Tabs are the containers for editors in the editor area. Multiple tabs can be opened in one editor group. There can be multiple editor groups."));
+}, nls.localize('tabActiveBorder', "Border on the bottom of an active tab. Tabs are the containers for editors in the editor area. Multiple tabs can be opened in one editor group. There can be multiple editor groups."));
+
+export const TAB_ACTIVE_BORDER_TOP = registerColor('tab.activeBorderTop', {
+	dark: null,
+	light: null,
+	hc: null
+}, nls.localize('tabActiveBorderTop', "Border to the top of an active tab. Tabs are the containers for editors in the editor area. Multiple tabs can be opened in one editor group. There can be multiple editor groups."));
 
 export const TAB_UNFOCUSED_ACTIVE_BORDER = registerColor('tab.unfocusedActiveBorder', {
 	dark: transparent(TAB_ACTIVE_BORDER, 0.5),
 	light: transparent(TAB_ACTIVE_BORDER, 0.7),
 	hc: null
-}, nls.localize('tabActiveUnfocusedBorder', "Border to highlight active tabs in an unfocused group. Tabs are the containers for editors in the editor area. Multiple tabs can be opened in one editor group. There can be multiple editor groups."));
+}, nls.localize('tabActiveUnfocusedBorder', "Border on the bottom of an active tab in an unfocused group. Tabs are the containers for editors in the editor area. Multiple tabs can be opened in one editor group. There can be multiple editor groups."));
+
+export const TAB_UNFOCUSED_ACTIVE_BORDER_TOP = registerColor('tab.unfocusedActiveBorderTop', {
+	dark: transparent(TAB_ACTIVE_BORDER_TOP, 0.5),
+	light: transparent(TAB_ACTIVE_BORDER_TOP, 0.7),
+	hc: null
+}, nls.localize('tabActiveUnfocusedBorderTop', "Border to the top of an active tab in an unfocused group. Tabs are the containers for editors in the editor area. Multiple tabs can be opened in one editor group. There can be multiple editor groups."));
 
 export const TAB_HOVER_BORDER = registerColor('tab.hoverBorder', {
 	dark: null,
@@ -105,11 +117,23 @@ export const TAB_UNFOCUSED_INACTIVE_FOREGROUND = registerColor('tab.unfocusedIna
 
 // < --- Editors --- >
 
-export const EDITOR_GROUP_BACKGROUND = registerColor('editorGroup.background', {
-	dark: '#2D2D2D',
-	light: '#ECECEC',
+registerColor('editorGroup.background', {
+	dark: null,
+	light: null,
 	hc: null
-}, nls.localize('editorGroupBackground', "Background color of an editor group. Editor groups are the containers of editors. The background color shows up when dragging editor groups around."));
+}, nls.localize('editorGroupBackground', "Deprecated background color of an editor group."), false, nls.localize('deprecatedEditorGroupBackground', "Deprecated: Background color of an editor group is no longer being supported with the introduction of the grid editor layout. You can use editorGroup.emptyBackground to set the background color of empty editor groups."));
+
+export const EDITOR_GROUP_EMPTY_BACKGROUND = registerColor('editorGroup.emptyBackground', {
+	dark: null,
+	light: null,
+	hc: null
+}, nls.localize('editorGroupEmptyBackground', "Background color of an empty editor group. Editor groups are the containers of editors."));
+
+export const EDITOR_GROUP_FOCUSED_EMPTY_BORDER = registerColor('editorGroup.focusedEmptyBorder', {
+	dark: null,
+	light: null,
+	hc: focusBorder
+}, nls.localize('editorGroupFocusedEmptyBorder', "Border color of an empty editor group that is focused. Editor groups are the containers of editors."));
 
 export const EDITOR_GROUP_HEADER_TABS_BACKGROUND = registerColor('editorGroupHeader.tabsBackground', {
 	dark: '#252526',
@@ -364,6 +388,56 @@ export const TITLE_BAR_BORDER = registerColor('titleBar.border', {
 	hc: contrastBorder
 }, nls.localize('titleBarBorder', "Title bar border color. Note that this color is currently only supported on macOS."));
 
+// < --- Menubar --- >
+
+export const MENUBAR_SELECTION_FOREGROUND = registerColor('menubar.selectionForeground', {
+	dark: TITLE_BAR_ACTIVE_FOREGROUND,
+	light: TITLE_BAR_ACTIVE_FOREGROUND,
+	hc: TITLE_BAR_ACTIVE_FOREGROUND
+}, nls.localize('menubarSelectionForeground', "Foreground color of the selected menu item in the menubar."));
+
+export const MENUBAR_SELECTION_BACKGROUND = registerColor('menubar.selectionBackground', {
+	dark: transparent(Color.white, 0.1),
+	light: transparent(Color.black, 0.1),
+	hc: null
+}, nls.localize('menubarSelectionBackground', "Background color of the selected menu item in the menubar."));
+
+export const MENUBAR_SELECTION_BORDER = registerColor('menubar.selectionBorder', {
+	dark: null,
+	light: null,
+	hc: activeContrastBorder
+}, nls.localize('menubarSelectionBorder', "Border color of the selected menu item in the menubar."));
+
+export const MENU_FOREGROUND = registerColor('menu.foreground', {
+	dark: SIDE_BAR_FOREGROUND,
+	light: SIDE_BAR_FOREGROUND,
+	hc: SIDE_BAR_FOREGROUND
+}, nls.localize('menuForeground', "Foreground color of menu items."));
+
+export const MENU_BACKGROUND = registerColor('menu.background', {
+	dark: SIDE_BAR_BACKGROUND,
+	light: SIDE_BAR_BACKGROUND,
+	hc: SIDE_BAR_BACKGROUND
+}, nls.localize('menuBackground', "Background color of menu items."));
+
+export const MENU_SELECTION_FOREGROUND = registerColor('menu.selectionForeground', {
+	dark: listActiveSelectionForeground,
+	light: listActiveSelectionForeground,
+	hc: listActiveSelectionForeground
+}, nls.localize('menuSelectionForeground', "Foreground color of the selected menu item in menus."));
+
+export const MENU_SELECTION_BACKGROUND = registerColor('menu.selectionBackground', {
+	dark: listActiveSelectionBackground,
+	light: listActiveSelectionBackground,
+	hc: listActiveSelectionBackground
+}, nls.localize('menuSelectionBackground', "Background color of the selected menu item in menus."));
+
+export const MENU_SELECTION_BORDER = registerColor('menu.selectionBorder', {
+	dark: null,
+	light: null,
+	hc: null
+}, nls.localize('menuSelectionBorder', "Border color of the selected menu item in menus."));
+
 // < --- Notifications --- >
 
 export const NOTIFICATIONS_CENTER_BORDER = registerColor('notificationCenter.border', {
@@ -418,23 +492,17 @@ export const NOTIFICATIONS_BORDER = registerColor('notifications.border', {
  * Base class for all themable workbench components.
  */
 export class Themable extends Disposable {
-	private _toUnbind: IDisposable[];
-	private theme: ITheme;
+	protected theme: ITheme;
 
 	constructor(
 		protected themeService: IThemeService
 	) {
 		super();
 
-		this._toUnbind = [];
 		this.theme = themeService.getTheme();
 
 		// Hook up to theme changes
-		this._toUnbind.push(this.themeService.onThemeChange(theme => this.onThemeChange(theme)));
-	}
-
-	protected get toUnbind() {
-		return this._toUnbind;
+		this._register(this.themeService.onThemeChange(theme => this.onThemeChange(theme)));
 	}
 
 	protected onThemeChange(theme: ITheme): void {
@@ -455,11 +523,5 @@ export class Themable extends Disposable {
 		}
 
 		return color ? color.toString() : null;
-	}
-
-	public dispose(): void {
-		this._toUnbind = dispose(this._toUnbind);
-
-		super.dispose();
 	}
 }

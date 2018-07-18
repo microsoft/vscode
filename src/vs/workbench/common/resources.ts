@@ -63,7 +63,7 @@ export class ResourceContextKey implements IContextKey<URI> {
 		this._isFile.reset();
 	}
 
-	public get(): URI {
+	get(): URI {
 		return this._resourceKey.get();
 	}
 }

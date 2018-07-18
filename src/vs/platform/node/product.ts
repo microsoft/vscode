@@ -18,9 +18,11 @@ export interface IProductConfiguration {
 	downloadUrl: string;
 	updateUrl?: string;
 	quality?: string;
+	target?: string;
 	commit?: string;
 	settingsSearchBuildId?: number;
 	settingsSearchUrl?: string;
+	experimentsUrl?: string;
 	date: string;
 	extensionsGallery: {
 		serviceUrl: string;
@@ -30,7 +32,7 @@ export interface IProductConfiguration {
 	};
 	extensionTips: { [id: string]: string; };
 	extensionImportantTips: { [id: string]: { name: string; pattern: string; }; };
-	exeBasedExtensionTips: { [id: string]: any; };
+	exeBasedExtensionTips: { [id: string]: { friendlyName: string, windowsPath?: string, recommendations: string[] }; };
 	extensionKeywords: { [extension: string]: string[]; };
 	extensionAllowedBadgeProviders: string[];
 	extensionAllowedProposedApi: string[];
@@ -73,6 +75,7 @@ export interface IProductConfiguration {
 		'darwin': string;
 	};
 	logUploaderUrl: string;
+	portable?: string;
 }
 
 export interface ISurveyData {

@@ -24,9 +24,13 @@ class MyTextEditorModel extends BaseTextEditorModel {
 	public createTextEditorModel(value: ITextBufferFactory, resource?: URI, modeId?: string) {
 		return super.createTextEditorModel(value, resource, modeId);
 	}
+
+	isReadonly(): boolean {
+		return false;
+	}
 }
 
-suite('Workbench - EditorModel', () => {
+suite('Workbench editor model', () => {
 
 	let instantiationService: TestInstantiationService;
 	let modeService: IModeService;

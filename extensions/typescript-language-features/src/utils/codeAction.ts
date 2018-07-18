@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { WorkspaceEdit, workspace } from 'vscode';
+import { workspace, WorkspaceEdit } from 'vscode';
 import * as Proto from '../protocol';
 import { ITypeScriptServiceClient } from '../typescriptService';
 import * as typeConverters from './typeConverters';
@@ -13,7 +13,7 @@ export function getEditForCodeAction(
 	action: Proto.CodeAction
 ): WorkspaceEdit | undefined {
 	return action.changes && action.changes.length
-		? typeConverters.WorkspaceEdit.fromFromFileCodeEdits(client, action.changes)
+		? typeConverters.WorkspaceEdit.fromFileCodeEdits(client, action.changes)
 		: undefined;
 }
 

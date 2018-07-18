@@ -258,3 +258,161 @@ function quote(args: string[]): string {
 	}
 	return r;
 }
+
+
+export function hasChildprocesses(processId: number): boolean {
+	if (processId) {
+		try {
+			// if shell has at least one child process, assume that shell is busy
+			if (env.isWindows) {
+				const result = cp.spawnSync('wmic', ['process', 'get', 'ParentProcessId']);
+				if (result.stdout) {
+					const pids = result.stdout.toString().split('\r\n');
+					if (!pids.some(p => parseInt(p) === processId)) {
+						return false;
+					}
+				}
+			} else {
+				const result = cp.spawnSync('/usr/bin/pgrep', ['-lP', String(processId)]);
+				if (result.stdout) {
+					const r = result.stdout.toString().trim();
+					if (r.length === 0 || r.indexOf(' tmux') >= 0) { // ignore 'tmux'; see #43683
+						return false;
+					}
+				}
+			}
+		}
+		catch (e) {
+			// silently ignore
+		}
+	}
+	// fall back to safe side
+	return true;
+}
+
+const enum ShellType { cmd, powershell, bash }
+
+export function prepareCommand(args: DebugProtocol.RunInTerminalRequestArguments, config: ITerminalSettings): string {
+
+	let shellType: ShellType;
+
+	// get the shell configuration for the current platform
+	let shell: string;
+	const shell_config = config.integrated.shell;
+	if (env.isWindows) {
+		shell = shell_config.windows;
+		shellType = ShellType.cmd;
+	} else if (env.isLinux) {
+		shell = shell_config.linux;
+		shellType = ShellType.bash;
+	} else if (env.isMacintosh) {
+		shell = shell_config.osx;
+		shellType = ShellType.bash;
+	}
+
+	// try to determine the shell type
+	shell = shell.trim().toLowerCase();
+	if (shell.indexOf('powershell') >= 0) {
+		shellType = ShellType.powershell;
+	} else if (shell.indexOf('cmd.exe') >= 0) {
+		shellType = ShellType.cmd;
+	} else if (shell.indexOf('bash') >= 0) {
+		shellType = ShellType.bash;
+	} else if (shell.indexOf('git\\bin\\bash.exe') >= 0) {
+		shellType = ShellType.bash;
+	}
+
+	let quote: (s: string) => string;
+	let command = '';
+
+	switch (shellType) {
+
+		case ShellType.powershell:
+
+			quote = (s: string) => {
+				s = s.replace(/\'/g, '\'\'');
+				return `'${s}'`;
+				//return s.indexOf(' ') >= 0 || s.indexOf('\'') >= 0 || s.indexOf('"') >= 0 ? `'${s}'` : s;
+			};
+
+			if (args.cwd) {
+				command += `cd '${args.cwd}'; `;
+			}
+			if (args.env) {
+				for (let key in args.env) {
+					const value = args.env[key];
+					if (value === null) {
+						command += `Remove-Item env:${key}; `;
+					} else {
+						command += `\${env:${key}}='${value}'; `;
+					}
+				}
+			}
+			if (args.args && args.args.length > 0) {
+				const cmd = quote(args.args.shift());
+				command += (cmd[0] === '\'') ? `& ${cmd} ` : `${cmd} `;
+				for (let a of args.args) {
+					command += `${quote(a)} `;
+				}
+			}
+			break;
+
+		case ShellType.cmd:
+
+			quote = (s: string) => {
+				s = s.replace(/\"/g, '""');
+				return (s.indexOf(' ') >= 0 || s.indexOf('"') >= 0) ? `"${s}"` : s;
+			};
+
+			if (args.cwd) {
+				command += `cd ${quote(args.cwd)} && `;
+			}
+			if (args.env) {
+				command += 'cmd /C "';
+				for (let key in args.env) {
+					const value = args.env[key];
+					if (value === null) {
+						command += `set "${key}=" && `;
+					} else {
+						command += `set "${key}=${args.env[key]}" && `;
+					}
+				}
+			}
+			for (let a of args.args) {
+				command += `${quote(a)} `;
+			}
+			if (args.env) {
+				command += '"';
+			}
+			break;
+
+		case ShellType.bash:
+
+			quote = (s: string) => {
+				s = s.replace(/\"/g, '\\"');
+				return (s.indexOf(' ') >= 0 || s.indexOf('\\') >= 0) ? `"${s}"` : s;
+			};
+
+			if (args.cwd) {
+				command += `cd ${quote(args.cwd)} ; `;
+			}
+			if (args.env) {
+				command += 'env';
+				for (let key in args.env) {
+					const value = args.env[key];
+					if (value === null) {
+						command += ` -u "${key}"`;
+					} else {
+						command += ` "${key}=${value}"`;
+					}
+				}
+				command += ' ';
+			}
+			for (let a of args.args) {
+				command += `${quote(a)} `;
+			}
+			break;
+	}
+
+	return command;
+}

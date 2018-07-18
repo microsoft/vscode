@@ -4,7 +4,6 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import { IEditorService } from 'vs/platform/editor/common/editor';
 import { IInstantiationService, optional } from 'vs/platform/instantiation/common/instantiation';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
@@ -17,13 +16,14 @@ import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { INotificationService } from 'vs/platform/notification/common/notification';
 import { ReferencesController } from 'vs/editor/contrib/referenceSearch/referencesController';
+import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
 
 export class WorkbenchReferencesController extends ReferencesController {
 
 	public constructor(
 		editor: ICodeEditor,
 		@IContextKeyService contextKeyService: IContextKeyService,
-		@IEditorService editorService: IEditorService,
+		@ICodeEditorService codeEditorService: ICodeEditorService,
 		@ITextModelService textModelResolverService: ITextModelService,
 		@INotificationService notificationService: INotificationService,
 		@IInstantiationService instantiationService: IInstantiationService,
@@ -37,7 +37,7 @@ export class WorkbenchReferencesController extends ReferencesController {
 			false,
 			editor,
 			contextKeyService,
-			editorService,
+			codeEditorService,
 			textModelResolverService,
 			notificationService,
 			instantiationService,

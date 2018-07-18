@@ -13,5 +13,6 @@
 	"indentUsingTabs": "使用“Tab”缩进",
 	"indentUsingSpaces": "使用空格缩进",
 	"detectIndentation": "检查内容中的缩进",
-	"editor.reindentlines": "重新缩进行"
+	"editor.reindentlines": "重新缩进行",
+	"editor.reindentselectedlines": "重新缩进所选行"
 }

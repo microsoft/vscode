@@ -8,10 +8,11 @@ import { ProgressOptions } from 'vscode';
 import { MainThreadProgressShape, ExtHostProgressShape } from './extHost.protocol';
 import { ProgressLocation } from './extHostTypeConverters';
 import { IExtensionDescription } from 'vs/workbench/services/extensions/common/extensions';
-import { IProgressStep, Progress } from 'vs/platform/progress/common/progress';
+import { Progress } from 'vs/platform/progress/common/progress';
 import { localize } from 'vs/nls';
 import { CancellationTokenSource, CancellationToken } from 'vs/base/common/cancellation';
 import { debounce } from 'vs/base/common/decorators';
+import { IProgressStep } from 'vs/workbench/services/progress/common/progress';
 
 export class ExtHostProgress implements ExtHostProgressShape {
 
@@ -70,11 +71,14 @@ export class ExtHostProgress implements ExtHostProgressShape {
 
 function mergeProgress(result: IProgressStep, currentValue: IProgressStep): IProgressStep {
 	result.message = currentValue.message;
-	if (typeof currentValue.increment === 'number' && typeof result.message === 'number') {
-		result.increment += currentValue.increment;
-	} else if (typeof currentValue.increment === 'number') {
-		result.increment = currentValue.increment;
+	if (typeof currentValue.increment === 'number') {
+		if (typeof result.increment === 'number') {
+			result.increment += currentValue.increment;
+		} else {
+			result.increment = currentValue.increment;
+		}
 	}
+
 	return result;
 }
 

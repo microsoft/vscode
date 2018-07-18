@@ -8,7 +8,7 @@ import * as strings from 'vs/base/common/strings';
 import * as errors from 'vs/base/common/errors';
 import { RunOnceScheduler } from 'vs/base/common/async';
 import { IDisposable, Disposable } from 'vs/base/common/lifecycle';
-import { TPromise, PPromise } from 'vs/base/common/winjs.base';
+import { TPromise } from 'vs/base/common/winjs.base';
 import URI from 'vs/base/common/uri';
 import { values, ResourceMap, TernarySearchTree } from 'vs/base/common/map';
 import { Event, Emitter, fromPromise, stopwatch, anyEvent } from 'vs/base/common/event';
@@ -394,13 +394,15 @@ export class FolderMatch extends Disposable {
 	public add(raw: IFileMatch[], silent: boolean): void {
 		let changed: FileMatch[] = [];
 		raw.forEach((rawFileMatch) => {
-			if (!this._fileMatches.has(rawFileMatch.resource)) {
-				let fileMatch = this.instantiationService.createInstance(FileMatch, this._query.contentPattern, this._query.maxResults, this, rawFileMatch);
-				this.doAdd(fileMatch);
-				changed.push(fileMatch);
-				let disposable = fileMatch.onChange(() => this.onFileChange(fileMatch));
-				fileMatch.onDispose(() => disposable.dispose());
+			if (this._fileMatches.has(rawFileMatch.resource)) {
+				this._fileMatches.get(rawFileMatch.resource).dispose();
 			}
+
+			let fileMatch = this.instantiationService.createInstance(FileMatch, this._query.contentPattern, this._query.maxResults, this, rawFileMatch);
+			this.doAdd(fileMatch);
+			changed.push(fileMatch);
+			let disposable = fileMatch.onChange(() => this.onFileChange(fileMatch));
+			fileMatch.onDispose(() => disposable.dispose());
 		});
 		if (!silent && changed.length) {
 			this._onChange.fire({ elements: changed, added: true });
@@ -495,6 +497,26 @@ export class FolderMatch extends Disposable {
 		this._onDispose.fire();
 		super.dispose();
 	}
+}
+
+/**
+ * Compares instances of the same match type. Different match types should not be siblings
+ * and their sort order is undefined.
+ */
+export function searchMatchComparer(elementA: RenderableMatch, elementB: RenderableMatch): number {
+	if (elementA instanceof FolderMatch && elementB instanceof FolderMatch) {
+		return elementA.index() - elementB.index();
+	}
+
+	if (elementA instanceof FileMatch && elementB instanceof FileMatch) {
+		return elementA.resource().fsPath.localeCompare(elementB.resource().fsPath) || elementA.name().localeCompare(elementB.name());
+	}
+
+	if (elementA instanceof Match && elementB instanceof Match) {
+		return Range.compareRangesUsingStarts(elementA.range(), elementB.range());
+	}
+
+	return undefined;
 }
 
 export class SearchResult extends Disposable {
@@ -686,7 +708,7 @@ export class SearchModel extends Disposable {
 	private readonly _onReplaceTermChanged: Emitter<void> = this._register(new Emitter<void>());
 	public readonly onReplaceTermChanged: Event<void> = this._onReplaceTermChanged.event;
 
-	private currentRequest: PPromise<ISearchComplete, ISearchProgressItem>;
+	private currentRequest: TPromise<ISearchComplete>;
 
 	constructor(@ISearchService private searchService: ISearchService, @ITelemetryService private telemetryService: ITelemetryService, @IInstantiationService private instantiationService: IInstantiationService) {
 		super();
@@ -721,18 +743,26 @@ export class SearchModel extends Disposable {
 		return this._searchResult;
 	}
 
-	public search(query: ISearchQuery): PPromise<ISearchComplete, ISearchProgressItem> {
+	public search(query: ISearchQuery, onProgress?: (result: ISearchProgressItem) => void): TPromise<ISearchComplete> {
 		this.cancelSearch();
+
 		this._searchQuery = query;
-		this.currentRequest = this.searchService.search(this._searchQuery);
-
 		this.searchResult.clear();
-
 		this._searchResult.query = this._searchQuery;
+
+		const progressEmitter = new Emitter<void>();
 		this._replacePattern = new ReplacePattern(this._replaceString, this._searchQuery.contentPattern);
 
+		this.currentRequest = this.searchService.search(this._searchQuery, p => {
+			progressEmitter.fire();
+			this.onSearchProgress(p);
+
+			if (onProgress) {
+				onProgress(p);
+			}
+		});
+
 		const onDone = fromPromise(this.currentRequest);
-		const progressEmitter = new Emitter<void>();
 		const onFirstRender = anyEvent<any>(onDone, progressEmitter.event);
 		const onFirstRenderStopwatch = stopwatch(onFirstRender);
 		/* __GDPR__
@@ -755,12 +785,7 @@ export class SearchModel extends Disposable {
 		const currentRequest = this.currentRequest;
 		this.currentRequest.then(
 			value => this.onSearchCompleted(value, Date.now() - start),
-			e => this.onSearchError(e, Date.now() - start),
-			p => {
-				progressEmitter.fire();
-				this.onSearchProgress(p);
-			}
-		);
+			e => this.onSearchError(e, Date.now() - start));
 
 		// this.currentRequest may be completed (and nulled) immediately
 		return currentRequest;
@@ -769,9 +794,6 @@ export class SearchModel extends Disposable {
 	private onSearchCompleted(completed: ISearchComplete, duration: number): ISearchComplete {
 		this.currentRequest = null;
 
-		if (completed) {
-			this._searchResult.add(completed.results, false);
-		}
 		const options: IPatternInfo = objects.assign({}, this._searchQuery.contentPattern);
 		delete options.pattern;
 		/* __GDPR__

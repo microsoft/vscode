@@ -20,7 +20,7 @@
     "jsonc-parser": "^1.0.0",
     "minimatch": "^3.0.4",
     "request-light": "^0.2.2",
-    "vscode-nls": "^3.2.1"
+    "vscode-nls": "^3.2.4"
   },
   "devDependencies": {
     "@types/minimatch": "^3.0.3",
@@ -30,31 +30,50 @@
   "activationEvents": [
     "onCommand:workbench.action.tasks.runTask",
     "onLanguage:json",
-    "onView:npm",
-    "workspaceContains:**/package.json"
+    "onView:npm"
   ],
   "contributes": {
+    "languages": [
+      {
+        "id": "ignore",
+        "filenames": [
+          ".npmignore"
+        ]
+      }
+    ],
     "views": {
       "explorer": [
         {
           "id": "npm",
           "name": "%view.name%",
-          "when": "hasNpmScripts"
+          "when": "config.npm.enableScriptExplorer"
         }
       ]
     },
     "commands": [
       {
         "command": "npm.runScript",
-        "title": "%command.run%"
+        "title": "%command.run%",
+        "icon": {
+          "light": "resources/light/continue.svg",
+          "dark": "resources/dark/continue.svg"
+        }
       },
       {
         "command": "npm.debugScript",
-        "title": "%command.debug%"
+        "title": "%command.debug%",
+        "icon": {
+          "light": "resources/light/debug.svg",
+          "dark": "resources/dark/debug.svg"
+        }
       },
       {
         "command": "npm.openScript",
         "title": "%command.openScript%"
+      },
+      {
+        "command": "npm.runInstall",
+        "title": "%command.runInstall%"
       },
       {
         "command": "npm.refresh",
@@ -66,6 +85,28 @@
       }
     ],
     "menus": {
+      "commandPalette": [
+        {
+          "command": "npm.refresh",
+          "when": "false"
+        },
+        {
+          "command": "npm.runScript",
+          "when": "false"
+        },
+        {
+          "command": "npm.debugScript",
+          "when": "false"
+        },
+        {
+          "command": "npm.openScript",
+          "when": "false"
+        },
+        {
+          "command": "npm.runInstall",
+          "when": "false"
+        }
+      ],
       "view/title": [
         {
           "command": "npm.refresh",
@@ -77,7 +118,12 @@
         {
           "command": "npm.openScript",
           "when": "view == npm && viewItem == packageJSON",
-          "group": "navigation"
+          "group": "navigation@1"
+        },
+        {
+          "command": "npm.runInstall",
+          "when": "view == npm && viewItem == packageJSON",
+          "group": "navigation@2"
         },
         {
           "command": "npm.openScript",
@@ -88,6 +134,21 @@
           "command": "npm.runScript",
           "when": "view == npm && viewItem == script",
           "group": "navigation@2"
+        },
+        {
+          "command": "npm.runScript",
+          "when": "view == npm && viewItem == script",
+          "group": "inline"
+        },
+        {
+          "command": "npm.runScript",
+          "when": "view == npm && viewItem == debugScript",
+          "group": "inline"
+        },
+        {
+          "command": "npm.debugScript",
+          "when": "view == npm && viewItem == debugScript",
+          "group": "inline"
         },
         {
           "command": "npm.debugScript",
@@ -143,6 +204,16 @@
           "default": false,
           "scope": "resource",
           "description": "%config.npm.enableScriptExplorer%"
+        },
+        "npm.scriptExplorerAction": {
+          "type": "string",
+          "enum": [
+            "open",
+            "run"
+          ],
+          "description": "%config.npm.scriptExplorerAction%",
+          "scope": "window",
+          "default": "open"
         }
       }
     },

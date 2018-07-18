@@ -9,6 +9,7 @@ import { TPromise } from 'vs/base/common/winjs.base';
 import * as nls from 'vs/nls';
 import { Action } from 'vs/base/common/actions';
 import { IQuickOpenService } from 'vs/platform/quickOpen/common/quickOpen';
+import { IQuickInputService } from 'vs/platform/quickinput/common/quickInput';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
 import { ICommandHandler, CommandsRegistry } from 'vs/platform/commands/common/commands';
@@ -46,16 +47,18 @@ export class BaseQuickOpenNavigateAction extends Action {
 		private next: boolean,
 		private quickNavigate: boolean,
 		@IQuickOpenService private quickOpenService: IQuickOpenService,
+		@IQuickInputService private quickInputService: IQuickInputService,
 		@IKeybindingService private keybindingService: IKeybindingService
 	) {
 		super(id, label);
 	}
 
-	public run(event?: any): TPromise<any> {
+	run(event?: any): TPromise<any> {
 		const keys = this.keybindingService.lookupKeybindings(this.id);
 		const quickNavigate = this.quickNavigate ? { keybindings: keys } : void 0;
 
 		this.quickOpenService.navigate(this.next, quickNavigate);
+		this.quickInputService.navigate(this.next, quickNavigate);
 
 		return TPromise.as(true);
 	}
@@ -65,70 +68,76 @@ export function getQuickNavigateHandler(id: string, next?: boolean): ICommandHan
 	return accessor => {
 		const keybindingService = accessor.get(IKeybindingService);
 		const quickOpenService = accessor.get(IQuickOpenService);
+		const quickInputService = accessor.get(IQuickInputService);
 
 		const keys = keybindingService.lookupKeybindings(id);
 		const quickNavigate = { keybindings: keys };
 
 		quickOpenService.navigate(next, quickNavigate);
+		quickInputService.navigate(next, quickNavigate);
 	};
 }
 
 export class QuickOpenNavigateNextAction extends BaseQuickOpenNavigateAction {
 
-	public static readonly ID = 'workbench.action.quickOpenNavigateNext';
-	public static readonly LABEL = nls.localize('quickNavigateNext', "Navigate Next in Quick Open");
+	static readonly ID = 'workbench.action.quickOpenNavigateNext';
+	static readonly LABEL = nls.localize('quickNavigateNext', "Navigate Next in Quick Open");
 
 	constructor(
 		id: string,
 		label: string,
 		@IQuickOpenService quickOpenService: IQuickOpenService,
+		@IQuickInputService quickInputService: IQuickInputService,
 		@IKeybindingService keybindingService: IKeybindingService
 	) {
-		super(id, label, true, true, quickOpenService, keybindingService);
+		super(id, label, true, true, quickOpenService, quickInputService, keybindingService);
 	}
 }
 
 export class QuickOpenNavigatePreviousAction extends BaseQuickOpenNavigateAction {
 
-	public static readonly ID = 'workbench.action.quickOpenNavigatePrevious';
-	public static readonly LABEL = nls.localize('quickNavigatePrevious', "Navigate Previous in Quick Open");
+	static readonly ID = 'workbench.action.quickOpenNavigatePrevious';
+	static readonly LABEL = nls.localize('quickNavigatePrevious', "Navigate Previous in Quick Open");
 
 	constructor(
 		id: string,
 		label: string,
 		@IQuickOpenService quickOpenService: IQuickOpenService,
+		@IQuickInputService quickInputService: IQuickInputService,
 		@IKeybindingService keybindingService: IKeybindingService
 	) {
-		super(id, label, false, true, quickOpenService, keybindingService);
+		super(id, label, false, true, quickOpenService, quickInputService, keybindingService);
 	}
 }
 
 export class QuickOpenSelectNextAction extends BaseQuickOpenNavigateAction {
 
-	public static readonly ID = 'workbench.action.quickOpenSelectNext';
-	public static readonly LABEL = nls.localize('quickSelectNext', "Select Next in Quick Open");
+	static readonly ID = 'workbench.action.quickOpenSelectNext';
+	static readonly LABEL = nls.localize('quickSelectNext', "Select Next in Quick Open");
 
 	constructor(
 		id: string,
 		label: string,
 		@IQuickOpenService quickOpenService: IQuickOpenService,
+		@IQuickInputService quickInputService: IQuickInputService,
 		@IKeybindingService keybindingService: IKeybindingService
 	) {
-		super(id, label, true, false, quickOpenService, keybindingService);
+		super(id, label, true, false, quickOpenService, quickInputService, keybindingService);
 	}
 }
 
 export class QuickOpenSelectPreviousAction extends BaseQuickOpenNavigateAction {
 
-	public static readonly ID = 'workbench.action.quickOpenSelectPrevious';
-	public static readonly LABEL = nls.localize('quickSelectPrevious', "Select Previous in Quick Open");
+	static readonly ID = 'workbench.action.quickOpenSelectPrevious';
+	static readonly LABEL = nls.localize('quickSelectPrevious', "Select Previous in Quick Open");
 
 	constructor(
 		id: string,
 		label: string,
 		@IQuickOpenService quickOpenService: IQuickOpenService,
+		@IQuickInputService quickInputService: IQuickInputService,
 		@IKeybindingService keybindingService: IKeybindingService
 	) {
-		super(id, label, false, false, quickOpenService, keybindingService);
+		super(id, label, false, false, quickOpenService, quickInputService, keybindingService);
 	}
 }
