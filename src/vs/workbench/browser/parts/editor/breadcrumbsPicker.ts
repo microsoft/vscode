@@ -20,7 +20,7 @@ import { localize } from 'vs/nls';
 import { FileKind, IFileService, IFileStat } from 'vs/platform/files/common/files';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { HighlightingWorkbenchTree, IHighlightingTreeConfiguration, IHighlightingRenderer } from 'vs/platform/list/browser/listService';
-import { IThemeService } from 'vs/platform/theme/common/themeService';
+import { IThemeService, DARK } from 'vs/platform/theme/common/themeService';
 import { FileLabel } from 'vs/workbench/browser/labels';
 import { BreadcrumbElement, FileElement } from 'vs/workbench/browser/parts/editor/breadcrumbsModel';
 import { onUnexpectedError } from 'vs/base/common/errors';
@@ -45,10 +45,10 @@ export abstract class BreadcrumbsPicker {
 	) {
 		this._domNode = document.createElement('div');
 		this._domNode.className = 'monaco-breadcrumbs-picker show-file-icons';
-		const color = this._themeService.getTheme().getColor(breadcrumbsActiveSelectionBackground);
+		const theme = this._themeService.getTheme();
+		const color = theme.getColor(breadcrumbsActiveSelectionBackground);
 		this._domNode.style.background = color.toString();
-		this._domNode.style.boxShadow = `0px 5px 8px ${color.darken(.2)}`;
-		this._domNode.style.zIndex = '1000';
+		this._domNode.style.boxShadow = `0px 5px 8px ${(theme.type === DARK ? color.darken(.6) : color.darken(.2))}`;
 		container.appendChild(this._domNode);
 
 		this._focus = dom.trackFocus(this._domNode);
