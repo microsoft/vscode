@@ -1060,8 +1060,7 @@ registerThemingParticipant((theme: ITheme, collector: ICssStyleCollector) => {
 	const selectedMenuItemBgColor = theme.getColor(MENU_SELECTION_BACKGROUND);
 	if (menuBgColor) {
 		collector.addRule(`
-			.monaco-shell .monaco-menu .monaco-action-bar.vertical .action-item.focused,
-			.monaco-shell .monaco-menu .monaco-action-bar.vertical .action-item:hover:not(.disabled) {
+			.monaco-shell .monaco-menu .monaco-action-bar.vertical .action-item.focused {
 					background-color: ${selectedMenuItemBgColor};
 				}
 		`);
@@ -1070,8 +1069,7 @@ registerThemingParticipant((theme: ITheme, collector: ICssStyleCollector) => {
 	const selectedMenuItemFgColor = theme.getColor(MENU_SELECTION_FOREGROUND);
 	if (selectedMenuItemFgColor) {
 		collector.addRule(`
-		.monaco-shell .monaco-menu .monaco-action-bar.vertical .action-item.focused,
-		.monaco-shell .monaco-menu .monaco-action-bar.vertical .action-item:hover:not(.disabled) {
+		.monaco-shell .monaco-menu .monaco-action-bar.vertical .action-item.focused {
 				color: ${selectedMenuItemFgColor};
 			}
 		`);
@@ -1081,17 +1079,7 @@ registerThemingParticipant((theme: ITheme, collector: ICssStyleCollector) => {
 	if (selectedMenuItemBorderColor) {
 		collector.addRule(`
 		.monaco-shell .monaco-menu .monaco-action-bar.vertical .action-item.focused {
-			outline: solid 1px;
-		}
-
-		.monaco-shell .monaco-menu .monaco-action-bar.vertical .action-item:hover:not(.disabled) {
-			outline: dashed 1px;
-		}
-
-		.monaco-shell .monaco-menu .monaco-action-bar.vertical .action-item.focused,
-		.monaco-shell .monaco-menu .monaco-action-bar.vertical .action-item:hover:not(.disabled) {
-				outline-offset: -1px;
-				outline-color: ${selectedMenuItemBorderColor};
+				border: 1px solid ${selectedMenuItemBorderColor};
 			}
 		`);
 	}

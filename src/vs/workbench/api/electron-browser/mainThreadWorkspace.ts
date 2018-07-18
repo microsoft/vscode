@@ -11,7 +11,7 @@ import { TPromise } from 'vs/base/common/winjs.base';
 import { localize } from 'vs/nls';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
-import { IFileMatch, IFolderQuery, IPatternInfo, IQueryOptions, ISearchConfiguration, ISearchQuery, ISearchService, QueryType } from 'vs/platform/search/common/search';
+import { IFileMatch, IFolderQuery, IPatternInfo, IQueryOptions, ISearchConfiguration, ISearchQuery, ISearchService, QueryType, ISearchProgressItem } from 'vs/platform/search/common/search';
 import { IStatusbarService } from 'vs/platform/statusbar/common/statusbar';
 import { IWorkspaceContextService, WorkbenchState } from 'vs/platform/workspace/common/workspace';
 import { extHostNamedCustomer } from 'vs/workbench/api/electron-browser/extHostCustomers';
@@ -170,7 +170,13 @@ export class MainThreadWorkspace implements MainThreadWorkspaceShape {
 		const query = queryBuilder.text(pattern, folders, options);
 
 		return new TPromise((resolve, reject) => {
-			const search = this._searchService.search(query).then(
+			const onProgress = (p: ISearchProgressItem) => {
+				if (p.lineMatches) {
+					this._proxy.$handleTextSearchResult(p, requestId);
+				}
+			};
+
+			const search = this._searchService.search(query, onProgress).then(
 				() => {
 					delete this._activeSearches[requestId];
 					resolve(null);
@@ -182,11 +188,6 @@ export class MainThreadWorkspace implements MainThreadWorkspaceShape {
 					}
 
 					return undefined;
-				},
-				p => {
-					if (p.lineMatches) {
-						this._proxy.$handleTextSearchResult(p, requestId);
-					}
 				});
 
 			this._activeSearches[requestId] = search;

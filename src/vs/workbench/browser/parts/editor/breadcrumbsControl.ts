@@ -6,36 +6,35 @@
 'use strict';
 
 import * as dom from 'vs/base/browser/dom';
+import { StandardMouseEvent } from 'vs/base/browser/mouseEvent';
 import { BreadcrumbsItem, BreadcrumbsWidget, IBreadcrumbsItemEvent } from 'vs/base/browser/ui/breadcrumbs/breadcrumbsWidget';
 import { IconLabel } from 'vs/base/browser/ui/iconLabel/iconLabel';
 import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
-import { dispose, IDisposable, combinedDisposable } from 'vs/base/common/lifecycle';
-import { isEqual, basenameOrAuthority } from 'vs/base/common/resources';
-import URI from 'vs/base/common/uri';
+import { combinedDisposable, dispose, IDisposable } from 'vs/base/common/lifecycle';
+import { Schemas } from 'vs/base/common/network';
+import { basenameOrAuthority, isEqual } from 'vs/base/common/resources';
 import 'vs/css!./media/breadcrumbscontrol';
 import { ICodeEditor, isCodeEditor } from 'vs/editor/browser/editorBrowser';
 import { Range } from 'vs/editor/common/core/range';
+import { symbolKindToCssClass } from 'vs/editor/common/modes';
 import { OutlineElement, OutlineGroup, OutlineModel, TreeElement } from 'vs/editor/contrib/documentSymbols/outlineModel';
+import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { ContextKeyExpr, IContextKey, IContextKeyService, RawContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { IContextViewService } from 'vs/platform/contextview/browser/contextView';
 import { FileKind, IFileService } from 'vs/platform/files/common/files';
-import { IConstructorSignature2, IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
+import { IConstructorSignature1, IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { KeybindingsRegistry } from 'vs/platform/keybinding/common/keybindingsRegistry';
+import { IQuickOpenService } from 'vs/platform/quickOpen/common/quickOpen';
 import { attachBreadcrumbsStyler } from 'vs/platform/theme/common/styler';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { FileLabel } from 'vs/workbench/browser/labels';
+import { BreadcrumbsConfig, IBreadcrumbsService } from 'vs/workbench/browser/parts/editor/breadcrumbs';
 import { BreadcrumbElement, EditorBreadcrumbsModel, FileElement } from 'vs/workbench/browser/parts/editor/breadcrumbsModel';
+import { BreadcrumbsFilePicker, BreadcrumbsOutlinePicker, BreadcrumbsPicker } from 'vs/workbench/browser/parts/editor/breadcrumbsPicker';
 import { EditorGroupView } from 'vs/workbench/browser/parts/editor/editorGroupView';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IEditorGroupsService } from 'vs/workbench/services/group/common/editorGroupsService';
-import { IBreadcrumbsService, BreadcrumbsConfig } from 'vs/workbench/browser/parts/editor/breadcrumbs';
-import { symbolKindToCssClass } from 'vs/editor/common/modes';
-import { BreadcrumbsPicker, BreadcrumbsFilePicker, BreadcrumbsOutlinePicker } from 'vs/workbench/browser/parts/editor/breadcrumbsPicker';
-import { StandardMouseEvent } from 'vs/base/browser/mouseEvent';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { IQuickOpenService } from 'vs/platform/quickOpen/common/quickOpen';
-import { Schemas } from 'vs/base/common/network';
 
 class Item extends BreadcrumbsItem {
 
@@ -111,6 +110,7 @@ export interface IBreadcrumbsControlOptions {
 	showFileIcons: boolean;
 	showSymbolIcons: boolean;
 	showDecorationColors: boolean;
+	extraClasses: string[];
 }
 
 export class BreadcrumbsControl {
@@ -151,7 +151,8 @@ export class BreadcrumbsControl {
 		@IBreadcrumbsService breadcrumbsService: IBreadcrumbsService,
 	) {
 		this.domNode = document.createElement('div');
-		dom.addClasses(this.domNode, 'breadcrumbs-control');
+		dom.addClass(this.domNode, 'breadcrumbs-control');
+		dom.addClasses(this.domNode, ..._options.extraClasses);
 		dom.append(container, this.domNode);
 
 		this._widget = new BreadcrumbsWidget(this.domNode);
@@ -222,10 +223,18 @@ export class BreadcrumbsControl {
 		let listener = model.onDidUpdate(updateBreadcrumbs);
 		updateBreadcrumbs();
 		this._breadcrumbsDisposables = [model, listener];
+
+		// close picker on hide/update
+		this._breadcrumbsDisposables.push({
+			dispose: () => {
+				if (this._breadcrumbsPickerShowing) {
+					this._contextViewService.hideContextView();
+				}
+			}
+		});
+
 		return true;
 	}
-
-
 
 	private _onFocusEvent(event: IBreadcrumbsItemEvent): void {
 		if (event.item && this._breadcrumbsPickerShowing) {
@@ -245,7 +254,7 @@ export class BreadcrumbsControl {
 			// reveal the item
 			this._widget.setFocused(undefined);
 			this._widget.setSelection(undefined);
-			this._revealInEditor(element);
+			this._revealInEditor(event, element);
 			return;
 		}
 
@@ -263,23 +272,22 @@ export class BreadcrumbsControl {
 				return event.node;
 			},
 			render: (parent: HTMLElement) => {
-				let ctor: IConstructorSignature2<HTMLElement, BreadcrumbElement, BreadcrumbsPicker> = element instanceof FileElement ? BreadcrumbsFilePicker : BreadcrumbsOutlinePicker;
-				let res = this._instantiationService.createInstance(ctor, parent, element);
-				res.layout({ width: 220, height: 330 });
+				let ctor: IConstructorSignature1<HTMLElement, BreadcrumbsPicker> = element instanceof FileElement ? BreadcrumbsFilePicker : BreadcrumbsOutlinePicker;
+				let res = this._instantiationService.createInstance(ctor, parent);
+				res.layout({ width: Math.max(220, dom.getTotalWidth(event.node)), height: 330 });
+				res.setInput(element);
 				let listener = res.onDidPickElement(data => {
 					this._contextViewService.hideContextView();
 					this._widget.setFocused(undefined);
 					this._widget.setSelection(undefined);
-					if (data) {
-						this._revealInEditor(data);
-					}
+					this._revealInEditor(event, data);
 				});
 				this._breadcrumbsPickerShowing = true;
 				this._updateCkBreadcrumbsActive();
 
 				return combinedDisposable([listener, res]);
 			},
-			onHide: (data) => {
+			onHide: () => {
 				this._breadcrumbsPickerShowing = false;
 				this._updateCkBreadcrumbsActive();
 			}
@@ -291,16 +299,21 @@ export class BreadcrumbsControl {
 		this._ckBreadcrumbsActive.set(value);
 	}
 
-	private _revealInEditor(data: any): void {
-		if (URI.isUri(data)) {
-			// open new editor
-			this._editorService.openEditor({ resource: data });
-		} else if (data instanceof FileElement) {
-			//
-			this._editorService.openEditor({ resource: data.uri });
+	private _revealInEditor(event: IBreadcrumbsItemEvent, data: any): void {
+		if (data instanceof FileElement) {
+			if (data.isFile) {
+				// open file in editor
+				this._editorService.openEditor({ resource: data.uri });
+			} else {
+				// show next picker
+				let items = this._widget.getItems();
+				let idx = items.indexOf(event.item);
+				this._widget.setFocused(items[idx + 1]);
+				this._widget.setSelection(items[idx + 1], BreadcrumbsControl.Payload_Pick);
+			}
 
 		} else if (data instanceof OutlineElement) {
-			//
+			// open symbol in editor
 			let model = OutlineModel.get(data);
 			this._editorService.openEditor({
 				resource: model.textModel.uri,

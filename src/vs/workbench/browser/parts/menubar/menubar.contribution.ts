@@ -6,6 +6,7 @@
 import * as nls from 'vs/nls';
 import { MenuRegistry, MenuId } from 'vs/platform/actions/common/actions';
 import { isMacintosh } from 'vs/base/common/platform';
+import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
 
 recentMenuRegistration();
 fileMenuRegistration();
@@ -17,7 +18,6 @@ layoutMenuRegistration();
 goMenuRegistration();
 debugMenuRegistration();
 tasksMenuRegistration();
-terminalMenuRegistration();
 
 if (isMacintosh) {
 	windowMenuRegistration();
@@ -102,7 +102,7 @@ function fileMenuRegistration() {
 		group: '4_save',
 		command: {
 			id: 'workbench.action.files.save',
-			title: nls.localize({ key: 'miSave', comment: ['&& denotes a mnemonic'] }, "&&Save"),
+			title: nls.localize({ key: 'miSave', comment: ['&& denotes a mnemonic'] }, "&&Save")
 		},
 		order: 1
 	});
@@ -1058,7 +1058,8 @@ function debugMenuRegistration() {
 		group: '1_debug',
 		command: {
 			id: 'workbench.action.debug.start',
-			title: nls.localize({ key: 'miStartDebugging', comment: ['&& denotes a mnemonic'] }, "&&Start Debugging")
+			title: nls.localize({ key: 'miStartDebugging', comment: ['&& denotes a mnemonic'] }, "&&Start Debugging"),
+			precondition: ContextKeyExpr.not('inDebugMode')
 		},
 		order: 1
 	});
@@ -1067,7 +1068,8 @@ function debugMenuRegistration() {
 		group: '1_debug',
 		command: {
 			id: 'workbench.action.debug.run',
-			title: nls.localize({ key: 'miStartWithoutDebugging', comment: ['&& denotes a mnemonic'] }, "Start &&Without Debugging")
+			title: nls.localize({ key: 'miStartWithoutDebugging', comment: ['&& denotes a mnemonic'] }, "Start &&Without Debugging"),
+			precondition: ContextKeyExpr.not('inDebugMode')
 		},
 		order: 2
 	});
@@ -1076,7 +1078,8 @@ function debugMenuRegistration() {
 		group: '1_debug',
 		command: {
 			id: 'workbench.action.debug.stop',
-			title: nls.localize({ key: 'miStopDebugging', comment: ['&& denotes a mnemonic'] }, "&&Stop Debugging")
+			title: nls.localize({ key: 'miStopDebugging', comment: ['&& denotes a mnemonic'] }, "&&Stop Debugging"),
+			precondition: ContextKeyExpr.has('inDebugMode')
 		},
 		order: 3
 	});
@@ -1085,7 +1088,8 @@ function debugMenuRegistration() {
 		group: '1_debug',
 		command: {
 			id: 'workbench.action.debug.restart',
-			title: nls.localize({ key: 'miRestart Debugging', comment: ['&& denotes a mnemonic'] }, "&&Restart Debugging")
+			title: nls.localize({ key: 'miRestart Debugging', comment: ['&& denotes a mnemonic'] }, "&&Restart Debugging"),
+			precondition: ContextKeyExpr.has('inDebugMode')
 		},
 		order: 4
 	});
@@ -1114,7 +1118,8 @@ function debugMenuRegistration() {
 		group: '3_step',
 		command: {
 			id: 'workbench.action.debug.stepOver',
-			title: nls.localize({ key: 'miStepOver', comment: ['&& denotes a mnemonic'] }, "Step &&Over")
+			title: nls.localize({ key: 'miStepOver', comment: ['&& denotes a mnemonic'] }, "Step &&Over"),
+			precondition: ContextKeyExpr.has('inDebugMode')
 		},
 		order: 1
 	});
@@ -1123,7 +1128,8 @@ function debugMenuRegistration() {
 		group: '3_step',
 		command: {
 			id: 'workbench.action.debug.stepInto',
-			title: nls.localize({ key: 'miStepInto', comment: ['&& denotes a mnemonic'] }, "Step &&Into")
+			title: nls.localize({ key: 'miStepInto', comment: ['&& denotes a mnemonic'] }, "Step &&Into"),
+			precondition: ContextKeyExpr.has('inDebugMode')
 		},
 		order: 2
 	});
@@ -1132,7 +1138,8 @@ function debugMenuRegistration() {
 		group: '3_step',
 		command: {
 			id: 'workbench.action.debug.stepOut',
-			title: nls.localize({ key: 'miStepOut', comment: ['&& denotes a mnemonic'] }, "Step O&&ut")
+			title: nls.localize({ key: 'miStepOut', comment: ['&& denotes a mnemonic'] }, "Step O&&ut"),
+			precondition: ContextKeyExpr.has('inDebugMode')
 		},
 		order: 3
 	});
@@ -1141,7 +1148,8 @@ function debugMenuRegistration() {
 		group: '3_step',
 		command: {
 			id: 'workbench.action.debug.continue',
-			title: nls.localize({ key: 'miContinue', comment: ['&& denotes a mnemonic'] }, "&&Continue")
+			title: nls.localize({ key: 'miContinue', comment: ['&& denotes a mnemonic'] }, "&&Continue"),
+			precondition: ContextKeyExpr.has('inDebugMode')
 		},
 		order: 4
 	});
@@ -1500,104 +1508,5 @@ function helpMenuRegistration() {
 			title: nls.localize({ key: 'miAbout', comment: ['&& denotes a mnemonic'] }, "&&About")
 		},
 		order: 1
-	});
-}
-
-function terminalMenuRegistration() {
-
-	// Manage
-
-	MenuRegistry.appendMenuItem(MenuId.MenubarTerminalMenu, {
-		group: '1_manage',
-		command: {
-			id: 'workbench.action.terminal.new',
-			title: nls.localize({ key: 'miNewTerminal', comment: ['&& denotes a mnemonic'] }, "&&New Terminal")
-		},
-		order: 1
-	});
-
-	MenuRegistry.appendMenuItem(MenuId.MenubarTerminalMenu, {
-		group: '1_manage',
-		command: {
-			id: 'workbench.action.terminal.split',
-			title: nls.localize({ key: 'miSplitTerminal', comment: ['&& denotes a mnemonic'] }, "&&Split Terminal")
-		},
-		order: 2
-	});
-
-	MenuRegistry.appendMenuItem(MenuId.MenubarTerminalMenu, {
-		group: '1_manage',
-		command: {
-			id: 'workbench.action.terminal.kill',
-			title: nls.localize({ key: 'miKillTerminal', comment: ['&& denotes a mnemonic'] }, "&&Kill Terminal")
-		},
-		order: 3
-	});
-
-	// Run
-
-	MenuRegistry.appendMenuItem(MenuId.MenubarTerminalMenu, {
-		group: '2_run',
-		command: {
-			id: 'workbench.action.terminal.clear',
-			title: nls.localize({ key: 'miClear', comment: ['&& denotes a mnemonic'] }, "&&Clear")
-		},
-		order: 1
-	});
-
-	MenuRegistry.appendMenuItem(MenuId.MenubarTerminalMenu, {
-		group: '2_run',
-		command: {
-			id: 'workbench.action.terminal.runActiveFile',
-			title: nls.localize({ key: 'miRunActiveFile', comment: ['&& denotes a mnemonic'] }, "Run &&Active File")
-		},
-		order: 2
-	});
-
-	MenuRegistry.appendMenuItem(MenuId.MenubarTerminalMenu, {
-		group: '2_run',
-		command: {
-			id: 'workbench.action.terminal.runSelectedFile',
-			title: nls.localize({ key: 'miRunSelectedText', comment: ['&& denotes a mnemonic'] }, "Run &&Selected Text")
-		},
-		order: 3
-	});
-
-	// Selection
-
-	MenuRegistry.appendMenuItem(MenuId.MenubarTerminalMenu, {
-		group: '3_selection',
-		command: {
-			id: 'workbench.action.terminal.scrollToPreviousCommand',
-			title: nls.localize({ key: 'miScrollToPreviousCommand', comment: ['&& denotes a mnemonic'] }, "Scroll To Previous Command")
-		},
-		order: 1
-	});
-
-	MenuRegistry.appendMenuItem(MenuId.MenubarTerminalMenu, {
-		group: '3_selection',
-		command: {
-			id: 'workbench.action.terminal.scrollToNextCommand',
-			title: nls.localize({ key: 'miScrollToNextCommand', comment: ['&& denotes a mnemonic'] }, "Scroll To Next Command")
-		},
-		order: 2
-	});
-
-	MenuRegistry.appendMenuItem(MenuId.MenubarTerminalMenu, {
-		group: '3_selection',
-		command: {
-			id: 'workbench.action.terminal.selectToPreviousCommand',
-			title: nls.localize({ key: 'miSelectToPreviousCommand', comment: ['&& denotes a mnemonic'] }, "Select To Previous Command")
-		},
-		order: 3
-	});
-
-	MenuRegistry.appendMenuItem(MenuId.MenubarTerminalMenu, {
-		group: '3_selection',
-		command: {
-			id: 'workbench.action.terminal.selectToNextCommand',
-			title: nls.localize({ key: 'miSelectToNextCommand', comment: ['&& denotes a mnemonic'] }, "Select To Next Command")
-		},
-		order: 4
 	});
 }

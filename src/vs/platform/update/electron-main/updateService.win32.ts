@@ -5,7 +5,7 @@
 
 'use strict';
 
-import * as fs from 'original-fs';
+import * as fs from 'fs';
 import * as path from 'path';
 import * as pfs from 'vs/base/node/pfs';
 import { memoize } from 'vs/base/common/decorators';
@@ -79,10 +79,15 @@ export class Win32UpdateService extends AbstractUpdateService {
 
 		if (getUpdateType() === UpdateType.Setup) {
 			/* __GDPR__
-					"update:win32SetupTarget" : {
-						"target" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
-					}
-				*/
+				"update:win32SetupTarget" : {
+					"target" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
+				}
+			*/
+			/* __GDPR__
+				"update:win<NUMBER>SetupTarget" : {
+					"target" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
+				}
+			*/
 			telemetryService.publicLog('update:win32SetupTarget', { target: product.target });
 		}
 	}

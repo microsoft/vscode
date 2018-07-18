@@ -87,6 +87,9 @@ export class SettingsEditor2 extends BaseEditor {
 	private inSettingsEditorContextKey: IContextKey<boolean>;
 	private searchFocusContextKey: IContextKey<boolean>;
 
+	/** Don't spam warnings */
+	private hasWarnedMissingSettings: boolean;
+
 	constructor(
 		@ITelemetryService telemetryService: ITelemetryService,
 		@IConfigurationService private configurationService: IConfigurationService,
@@ -607,9 +610,22 @@ export class SettingsEditor2 extends BaseEditor {
 	private onConfigUpdate(): TPromise<void> {
 		const groups = this.defaultSettingsEditorModel.settingsGroups.slice(1); // Without commonlyUsed
 		const dividedGroups = collections.groupBy(groups, g => g.contributedByExtension ? 'extension' : 'core');
-		const resolvedSettingsRoot = resolveSettingsTree(tocData, dividedGroups.core);
+		const settingsResult = resolveSettingsTree(tocData, dividedGroups.core);
+		const resolvedSettingsRoot = settingsResult.tree;
+
+		// Warn for settings not included in layout
+		if (settingsResult.leftoverSettings.size && !this.hasWarnedMissingSettings) {
+			let settingKeyList = [];
+			settingsResult.leftoverSettings.forEach(s => {
+				settingKeyList.push(s.key);
+			});
+
+			this.logService.warn(`SettingsEditor2: Settings not included in settingsLayout.ts: ${settingKeyList.join(', ')}`);
+			this.hasWarnedMissingSettings = true;
+		}
+
 		const commonlyUsed = resolveSettingsTree(commonlyUsedData, dividedGroups.core);
-		resolvedSettingsRoot.children.unshift(commonlyUsed);
+		resolvedSettingsRoot.children.unshift(commonlyUsed.tree);
 
 		resolvedSettingsRoot.children.push(resolveExtensionsSettings(dividedGroups.extension || []));
 

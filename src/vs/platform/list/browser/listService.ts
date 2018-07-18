@@ -102,11 +102,6 @@ export const WorkbenchListMultiSelection = new RawContextKey<boolean>('listMulti
 
 function createScopedContextKeyService(contextKeyService: IContextKeyService, widget: ListWidget): IContextKeyService {
 	const result = contextKeyService.createScoped(widget.getHTMLElement());
-
-	if (widget instanceof List || widget instanceof PagedList) {
-		WorkbenchListSupportsMultiSelectContextKey.bindTo(result);
-	}
-
 	RawWorkbenchListFocusContextKey.bindTo(result);
 	return result;
 }
@@ -233,6 +228,10 @@ export class WorkbenchList<T> extends List<T> {
 		);
 
 		this.contextKeyService = createScopedContextKeyService(contextKeyService, this);
+
+		const listSupportsMultiSelect = WorkbenchListSupportsMultiSelectContextKey.bindTo(this.contextKeyService);
+		listSupportsMultiSelect.set(!(options.multipleSelectionSupport === false));
+
 		this.listHasSelectionOrFocus = WorkbenchListHasSelectionOrFocus.bindTo(this.contextKeyService);
 		this.listDoubleSelection = WorkbenchListDoubleSelection.bindTo(this.contextKeyService);
 		this.listMultiSelection = WorkbenchListMultiSelection.bindTo(this.contextKeyService);
@@ -305,6 +304,9 @@ export class WorkbenchPagedList<T> extends PagedList<T> {
 
 		this.contextKeyService = createScopedContextKeyService(contextKeyService, this);
 
+		const listSupportsMultiSelect = WorkbenchListSupportsMultiSelectContextKey.bindTo(this.contextKeyService);
+		listSupportsMultiSelect.set(!(options.multipleSelectionSupport === false));
+
 		this._useAltAsMultipleSelectionModifier = useAltAsMultipleSelectionModifier(configurationService);
 
 		this.disposables.push(combinedDisposable([
@@ -371,6 +373,9 @@ export class WorkbenchTree extends Tree {
 
 		this.disposables = [];
 		this.contextKeyService = createScopedContextKeyService(contextKeyService, this);
+
+		WorkbenchListSupportsMultiSelectContextKey.bindTo(this.contextKeyService);
+
 		this.listHasSelectionOrFocus = WorkbenchListHasSelectionOrFocus.bindTo(this.contextKeyService);
 		this.listDoubleSelection = WorkbenchListDoubleSelection.bindTo(this.contextKeyService);
 		this.listMultiSelection = WorkbenchListMultiSelection.bindTo(this.contextKeyService);

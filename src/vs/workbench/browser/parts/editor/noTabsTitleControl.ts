@@ -31,15 +31,16 @@ export class NoTabsTitleControl extends TitleControl {
 		// Gesture Support
 		Gesture.addTarget(this.titleContainer);
 
+		const labelContainer = document.createElement('div');
+		addClass(labelContainer, 'label-container');
+		this.titleContainer.appendChild(labelContainer);
+
 		// Editor Label
-		this.editorLabel = this._register(this.instantiationService.createInstance(ResourceLabel, this.titleContainer, void 0));
+		this.editorLabel = this._register(this.instantiationService.createInstance(ResourceLabel, labelContainer, void 0));
 		this._register(this.editorLabel.onClick(e => this.onTitleLabelClick(e)));
 
 		// Breadcrumbs
-		const breadcrumbsContainer = document.createElement('div');
-		addClass(breadcrumbsContainer, 'no-tabs-breadcrumbs');
-		this.titleContainer.appendChild(breadcrumbsContainer);
-		this.createBreadcrumbsControl(breadcrumbsContainer, { showFileIcons: false, showSymbolIcons: true, showDecorationColors: false });
+		this.createBreadcrumbsControl(labelContainer, { showFileIcons: false, showSymbolIcons: true, showDecorationColors: false, extraClasses: ['no-tabs-breadcrumbs'] });
 
 		// Right Actions Container
 		const actionsContainer = document.createElement('div');

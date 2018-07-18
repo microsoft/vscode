@@ -264,7 +264,7 @@ ${this.description}
 			return uri.scheme === 'file';
 		}
 
-		return false;
+		return this.type === LocalExtensionType.System;
 	}
 
 	getChangelog(): TPromise<string> {
@@ -275,6 +275,10 @@ ${this.description}
 		const changelogUrl = this.local && this.local.changelogUrl;
 
 		if (!changelogUrl) {
+			if (this.type === LocalExtensionType.System) {
+				return TPromise.as(nls.localize('checkReleaseNotes', 'Please check the [VS Code Release Notes](https://code.visualstudio.com/updates) for changes to the built-in extensions.'));
+			}
+
 			return TPromise.wrapError<string>(new Error('not available'));
 		}
 

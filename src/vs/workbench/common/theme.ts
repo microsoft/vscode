@@ -435,7 +435,7 @@ export const MENU_SELECTION_BACKGROUND = registerColor('menu.selectionBackground
 export const MENU_SELECTION_BORDER = registerColor('menu.selectionBorder', {
 	dark: null,
 	light: null,
-	hc: activeContrastBorder
+	hc: null
 }, nls.localize('menuSelectionBorder', "Border color of the selected menu item in menus."));
 
 // < --- Notifications --- >
