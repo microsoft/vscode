@@ -1150,6 +1150,10 @@ class ModifierKeyEmitter extends Emitter<IModifierKeyStatus> {
 				this._keyStatus.lastKeyReleased = undefined;
 			}
 
+			if (this._keyStatus.lastKeyPressed !== this._keyStatus.lastKeyReleased) {
+				this._keyStatus.lastKeyPressed = undefined;
+			}
+
 			this._keyStatus.altKey = e.altKey;
 			this._keyStatus.ctrlKey = e.ctrlKey;
 			this._keyStatus.shiftKey = e.shiftKey;
