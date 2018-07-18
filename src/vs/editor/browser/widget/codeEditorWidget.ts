@@ -46,7 +46,7 @@ import { IMouseEvent } from 'vs/base/browser/mouseEvent';
 import { InternalEditorAction } from 'vs/editor/common/editorAction';
 import { ICommandDelegate } from 'vs/editor/browser/view/viewController';
 import { CoreEditorCommand } from 'vs/editor/browser/controller/coreCommands';
-import { editorErrorForeground, editorErrorBorder, editorWarningForeground, editorWarningBorder, editorInfoBorder, editorInfoForeground, editorHintForeground, editorHintBorder, editorUnnecessaryCodeOpacity, editorUnnecessaryCodeBorder } from 'vs/editor/common/view/editorColorRegistry';
+import { editorErrorForeground, editorErrorBorder, editorWarningForeground, editorWarningBorder, editorInfoBorder, editorInfoForeground, editorHintForeground, editorHintBorder, editorUnnecessaryCodeOpacity, editorUnnecessaryCodeBorder, editorUnnecessaryCodeForeground } from 'vs/editor/common/view/editorColorRegistry';
 import { Color } from 'vs/base/common/color';
 import { ClassName } from 'vs/editor/common/model/intervalTree';
 
@@ -1803,9 +1803,14 @@ registerThemingParticipant((theme, collector) => {
 		collector.addRule(`.monaco-editor .${ClassName.EditorHintDecoration} { background: url("data:image/svg+xml,${getDotDotDotSVGData(hintForeground)}") no-repeat bottom left; }`);
 	}
 
-	const unnecessaryForeground = theme.getColor(editorUnnecessaryCodeOpacity);
+	const unnecessaryForeground = theme.getColor(editorUnnecessaryCodeForeground);
 	if (unnecessaryForeground) {
-		collector.addRule(`.${SHOW_UNUSED_ENABLED_CLASS} .monaco-editor .${ClassName.EditorUnnecessaryInlineDecoration} { opacity: ${unnecessaryForeground.rgba.a}; }`);
+		collector.addRule(`.${SHOW_UNUSED_ENABLED_CLASS} .monaco-editor .${ClassName.EditorUnnecessaryInlineDecoration} { color: ${Color.Format.CSS.formatRGB(unnecessaryForeground)}; }`);
+	}
+
+	const unnecessaryOpacity = theme.getColor(editorUnnecessaryCodeOpacity);
+	if (unnecessaryOpacity) {
+		collector.addRule(`.${SHOW_UNUSED_ENABLED_CLASS} .monaco-editor .${ClassName.EditorUnnecessaryInlineDecoration} { opacity: ${unnecessaryOpacity.rgba.a}; }`);
 	}
 
 	const unnecessaryBorder = theme.getColor(editorUnnecessaryCodeBorder);

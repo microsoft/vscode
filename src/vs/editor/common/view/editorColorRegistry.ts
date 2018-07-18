@@ -50,6 +50,7 @@ export const editorHintForeground = registerColor('editorHint.foreground', { dar
 export const editorHintBorder = registerColor('editorHint.border', { dark: null, light: null, hc: Color.fromHex('#eeeeee').transparent(0.8) }, nls.localize('hintBorder', 'Border color of hint squigglies in the editor.'));
 
 export const editorUnnecessaryCodeBorder = registerColor('editorUnnecessaryCode.border', { dark: null, light: null, hc: Color.fromHex('#fff').transparent(0.8) }, nls.localize('unnecessaryCodeBorder', 'Border of unnecessary code in the editor.'));
+export const editorUnnecessaryCodeForeground = registerColor('editorUnnecessaryCode.foreground', { dark: null, light: null, hc: null }, nls.localize('unnecessaryCodeForeground', 'Foreground color of unnecessary code in the editor overriding its syntax color.'));
 export const editorUnnecessaryCodeOpacity = registerColor('editorUnnecessaryCode.opacity', { dark: Color.fromHex('#000a'), light: Color.fromHex('#0007'), hc: null }, nls.localize('unnecessaryCodeOpacity', 'Opacity of unnecessary code in the editor.'));
 
 const rulerRangeDefault = new Color(new RGBA(0, 122, 204, 0.6));
