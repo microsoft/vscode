@@ -351,10 +351,7 @@ export class ExtensionsViewlet extends ViewContainerViewlet implements IExtensio
 
 		const onKeyDownMonaco = chain(this.searchBox.onKeyDown);
 		onKeyDownMonaco.filter(e => e.keyCode === KeyCode.Tab).on(e => e.stopPropagation(), this, this.disposables);
-		onKeyDownMonaco.filter(e => e.keyCode === KeyCode.Enter).on(e => {
-			e.preventDefault();
-			if (this.count() > 0) { this.onEnter(); }
-		}, this, this.disposables);
+		onKeyDownMonaco.filter(e => e.keyCode === KeyCode.Enter).on(e => e.preventDefault(), this, this.disposables);
 
 		const searchChangeEvent = new Emitter<string>();
 		this.onSearchChange = searchChangeEvent.event;
@@ -512,10 +509,6 @@ export class ExtensionsViewlet extends ViewContainerViewlet implements IExtensio
 		return this.instantiationService.createInstance(viewDescriptor.ctor, options) as ViewletPanel;
 	}
 
-	private count(): number {
-		return this.panels.reduce((count, view) => (<ExtensionsListView>view).count() + count, 0);
-	}
-
 	private autoComplete(query: string, position: number): { fullText: string, overwrite: number }[] {
 		if (query.lastIndexOf('@', position - 1) === -1 || query.lastIndexOf('@', position - 1) < query.lastIndexOf(' ', position - 1)) { return []; }
 
@@ -523,10 +516,6 @@ export class ExtensionsViewlet extends ViewContainerViewlet implements IExtensio
 		let alreadyTypedCount = position - wordStart - 1;
 
 		return Query.autocompletions().map(replacement => ({ fullText: replacement, overwrite: alreadyTypedCount }));
-	}
-
-	private onEnter(): void {
-		(<ExtensionsListView>this.panels[0]).focus();
 	}
 
 	private onViewletOpen(viewlet: IViewlet): void {
