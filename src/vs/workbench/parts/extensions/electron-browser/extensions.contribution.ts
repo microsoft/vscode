@@ -222,6 +222,11 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration)
 				type: 'boolean',
 				description: localize('extensionsCloseExtensionDetailsOnViewChange', "If set to true, editors with extension details will be automatically closed upon navigating away from the Extensions View."),
 				default: false
+			},
+			'extensions.recieveUpdates': {
+				type: 'boolean',
+				description: localize('extensionsRecieveUpdates', "Configure whether you receive updates for outdated extensions."),
+				default: true
 			}
 		}
 	});
