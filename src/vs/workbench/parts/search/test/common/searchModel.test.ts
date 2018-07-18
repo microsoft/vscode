@@ -158,7 +158,7 @@ suite('SearchModel', () => {
 		});
 	});
 
-	test('Search Model: Search reports timed telemetry on search when progress is called', () => {
+	test.skip('Search Model: Search reports timed telemetry on search when progress is called', () => {
 		let target2 = sinon.spy();
 		stub(nullEvent, 'stop', target2);
 		let target1 = sinon.stub().returns(nullEvent);
