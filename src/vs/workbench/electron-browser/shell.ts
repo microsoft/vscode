@@ -531,7 +531,7 @@ export class WorkbenchShell extends Disposable {
 			let part = this.workbench.getContainer(Parts.TITLEBAR_PART);
 			let pos = getDomNodePagePosition(part);
 			let bg = part.style.backgroundColor || 'inhert';
-			html += `<div style="position: absolute; width: 100%; left: 0; top: 0; height: ${pos.height}px; background-color: ${bg}l"></div>`;
+			html += `<div style="position: absolute; width: 100%; left: 0; top: 0; height: ${pos.height}px; background-color: ${bg};"></div>`;
 			titleHeight = pos.height;
 		}
 
