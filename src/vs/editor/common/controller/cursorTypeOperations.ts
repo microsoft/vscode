@@ -578,25 +578,25 @@ export class TypeOperations {
 	private static _runAutoClosingOpenCharType(prevEditOperationType: EditOperationType, config: CursorConfiguration, model: ITextModel, selections: Selection[], ch: string): EditOperationResult {
     let commands: ICommand[] = [];
 		for (let i = 0, len = selections.length; i < len; i++) {
-      const selection = selections[i];
+        	const selection = selections[i];
 
-      //*** Added code to check if position of cursor needs to be changed (as specified by user) after autocompletion is done
-      let lineTokens = null;
-      const position = selection.getPosition();
+        	//*** Added code to check if position of cursor needs to be changed (as specified by user) after autocompletion is done
+        	let lineTokens = null;
+        	const position = selection.getPosition();
 
-      if (model.isCheapToTokenize(position.lineNumber)) {
-        model.forceTokenization(position.lineNumber);
-        lineTokens = model.getLineTokens(position.lineNumber);
-      }
+        	if (model.isCheapToTokenize(position.lineNumber)) {
+        		model.forceTokenization(position.lineNumber);
+        		lineTokens = model.getLineTokens(position.lineNumber);
+      		}
 
-      const newCursorPosition = LanguageConfigurationRegistry.shouldChangeCursorPositionAfterAutocomplete(ch, lineTokens, position.column, false)
+        	const newCursorPosition = LanguageConfigurationRegistry.shouldChangeCursorPositionAfterAutocomplete(ch, lineTokens, position.column, false);
 
-      const closeCharacter = config.autoClosingPairsOpen[ch];
-      if (newCursorPosition) {
-        commands[i] = new ReplaceCommandWithOffsetCursorState(selection, ch + closeCharacter, 0, (-closeCharacter.length + newCursorPosition));
-      } else {
-        commands[i] = new ReplaceCommandWithOffsetCursorState(selection, ch + closeCharacter, 0, -closeCharacter.length);
-      }
+        	const closeCharacter = config.autoClosingPairsOpen[ch];
+        	if (newCursorPosition) {
+        		commands[i] = new ReplaceCommandWithOffsetCursorState(selection, ch + closeCharacter, 0, (-closeCharacter.length + newCursorPosition));
+        	} else {
+        		commands[i] = new ReplaceCommandWithOffsetCursorState(selection, ch + closeCharacter, 0, -closeCharacter.length);
+        	}
 		}
 		return new EditOperationResult(EditOperationType.Typing, commands, {
 			shouldPushStackElementBefore: true,
@@ -690,22 +690,22 @@ export class TypeOperations {
 		}
 
 		if (electricAction.appendText) {
-      const newCursorPosition = LanguageConfigurationRegistry.shouldChangeCursorPositionAfterAutocomplete(ch, lineTokens, position.column, true)
-      let command;
+        	const newCursorPosition = LanguageConfigurationRegistry.shouldChangeCursorPositionAfterAutocomplete(ch, lineTokens, position.column, true);
+        	let command;
 
-      //*** Added support for (user input) cursorPosition for complexAutoClosePairs
-      if (newCursorPosition) {
-        command = new ReplaceCommandWithOffsetCursorState(selection, ch + electricAction.appendText, 0, (-electricAction.appendText.length + newCursorPosition));
-      } else {
-        command = new ReplaceCommandWithOffsetCursorState(selection, ch + electricAction.appendText, 0, -electricAction.appendText.length);
-      }
+        	//*** Added support for (user input) cursorPosition for complexAutoClosePairs
+        	if (newCursorPosition) {
+        		command = new ReplaceCommandWithOffsetCursorState(selection, ch + electricAction.appendText, 0, (-electricAction.appendText.length + newCursorPosition));
+        	} else {
+            	command = new ReplaceCommandWithOffsetCursorState(selection, ch + electricAction.appendText, 0, -electricAction.appendText.length);
+        	}
       
-      if (command) {
-        return new EditOperationResult(EditOperationType.Typing, [command], {
-          shouldPushStackElementBefore: false,
-          shouldPushStackElementAfter: true
-        });
-      }
+        	if (command) {
+        		return new EditOperationResult(EditOperationType.Typing, [command], {
+            		shouldPushStackElementBefore: false,
+            		shouldPushStackElementAfter: true
+          		});
+        	}
 		}
 
 		if (electricAction.matchOpenBracket) {
