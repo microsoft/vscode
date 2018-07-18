@@ -300,16 +300,17 @@ class WatchExpressionsRenderer implements IRenderer {
 		}
 
 		data.name.textContent = watchExpression.name;
+		renderExpressionValue(watchExpression, data.value, {
+			showChanged: true,
+			maxValueLength: MAX_VALUE_RENDER_LENGTH_IN_VIEWLET,
+			preserveWhitespace: false,
+			showHover: true,
+			colorize: true
+		});
+		data.name.title = watchExpression.type ? watchExpression.type : watchExpression.value;
+
 		if (watchExpression.value) {
 			data.name.textContent += ':';
-			renderExpressionValue(watchExpression, data.value, {
-				showChanged: true,
-				maxValueLength: MAX_VALUE_RENDER_LENGTH_IN_VIEWLET,
-				preserveWhitespace: false,
-				showHover: true,
-				colorize: true
-			});
-			data.name.title = watchExpression.type ? watchExpression.type : watchExpression.value;
 		}
 	}
 
