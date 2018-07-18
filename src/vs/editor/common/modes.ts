@@ -554,7 +554,7 @@ export interface DefinitionProvider {
 	/**
 	 * Provide the definition of the symbol at the given position and document.
 	 */
-	provideDefinition(model: model.ITextModel, position: Position, token: CancellationToken): DefinitionLink | Thenable<DefinitionLink[]>;
+	provideDefinition(model: model.ITextModel, position: Position, token: CancellationToken): Definition | DefinitionLink[] | Thenable<Definition | DefinitionLink[]>;
 }
 
 /**
@@ -565,7 +565,7 @@ export interface ImplementationProvider {
 	/**
 	 * Provide the implementation of the symbol at the given position and document.
 	 */
-	provideImplementation(model: model.ITextModel, position: Position, token: CancellationToken): DefinitionLink | Thenable<DefinitionLink>;
+	provideImplementation(model: model.ITextModel, position: Position, token: CancellationToken): Definition | DefinitionLink[] | Thenable<Definition | DefinitionLink[]>;
 }
 
 /**
@@ -576,7 +576,7 @@ export interface TypeDefinitionProvider {
 	/**
 	 * Provide the type definition of the symbol at the given position and document.
 	 */
-	provideTypeDefinition(model: model.ITextModel, position: Position, token: CancellationToken): DefinitionLink | Thenable<DefinitionLink>;
+	provideTypeDefinition(model: model.ITextModel, position: Position, token: CancellationToken): Definition | DefinitionLink[] | Thenable<Definition | DefinitionLink[]>;
 }
 
 /**
