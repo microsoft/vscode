@@ -313,13 +313,19 @@ export class ExtensionsViewlet extends ViewContainerViewlet implements IExtensio
 		modes.SuggestRegistry.register({ scheme: 'extensions', pattern: '**/searchinput', hasAccessToAllModels: true }, {
 			triggerCharacters: ['@'],
 			provideCompletionItems: (model: ITextModel, position: Position, _context: modes.SuggestContext) => {
+				const sortKey = (item: string) => {
+					if (item.indexOf(':') === -1) { return 'a'; }
+					else if (/ext:/.test(item) || /tag:/.test(item)) { return 'b'; }
+					else if (/sort:/.test(item)) { return 'c'; }
+					else { return 'd'; }
+				};
 				return {
 					suggestions: this.autoComplete(model.getValue(), position.column).map(item => (
 						{
 							label: item.fullText,
 							insertText: item.fullText,
 							overwriteBefore: item.overwrite,
-							sortText: item.fullText.indexOf(':') === -1 ? 'a' : item.fullText.indexOf('sort') !== -1 ? 'b' : 'c', // things with no colon; sorts; everything else
+							sortText: sortKey(item.fullText),
 							type: <modes.SuggestionType>'keyword'
 						}))
 				};
@@ -468,7 +474,7 @@ export class ExtensionsViewlet extends ViewContainerViewlet implements IExtensio
 	}
 
 	private normalizedQuery(): string {
-		return (this.searchBox.getValue() || '').replace(/@category/g, 'category').replace(/@tag:/g, 'tag:');
+		return (this.searchBox.getValue() || '').replace(/@category/g, 'category').replace(/@tag:/g, 'tag:').replace(/@ext:/g, 'ext:');
 	}
 
 	private doSearch(): TPromise<any> {
