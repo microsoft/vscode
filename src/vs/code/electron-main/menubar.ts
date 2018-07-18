@@ -20,8 +20,9 @@ import { mnemonicMenuLabel as baseMnemonicLabel, unmnemonicLabel, getPathLabel }
 import { KeybindingsResolver } from 'vs/code/electron-main/keyboard';
 import { IWindowsMainService, IWindowsCountChangedEvent } from 'vs/platform/windows/electron-main/windows';
 import { IHistoryMainService } from 'vs/platform/history/common/history';
-import { IWorkspaceIdentifier, getWorkspaceLabel, ISingleFolderWorkspaceIdentifier, isSingleFolderWorkspaceIdentifier } from 'vs/platform/workspaces/common/workspaces';
+import { IWorkspaceIdentifier, getWorkspaceLabel, ISingleFolderWorkspaceIdentifier2, isSingleFolderWorkspaceIdentifier2, isWorkspaceIdentifier } from 'vs/platform/workspaces/common/workspaces';
 import { IMenubarData, IMenubarMenuItemAction, IMenubarMenuItemSeparator } from 'vs/platform/menubar/common/menubar';
+import URI from 'vs/base/common/uri';
 
 // interface IExtensionViewlet {
 // 	id: string;
@@ -511,15 +512,18 @@ export class Menubar {
 		});
 	}
 
-	private createOpenRecentMenuItem(workspace: IWorkspaceIdentifier | ISingleFolderWorkspaceIdentifier | string, commandId: string, isFile: boolean): Electron.MenuItem {
+	private createOpenRecentMenuItem(workspace: IWorkspaceIdentifier | ISingleFolderWorkspaceIdentifier2 | string, commandId: string, isFile: boolean): Electron.MenuItem {
 		let label: string;
-		let path: string;
-		if (isSingleFolderWorkspaceIdentifier(workspace) || typeof workspace === 'string') {
+		let uri: URI;
+		if (isSingleFolderWorkspaceIdentifier2(workspace)) {
 			label = unmnemonicLabel(getPathLabel(workspace, this.environmentService, null));
-			path = workspace;
-		} else {
+			uri = workspace;
+		} else if (isWorkspaceIdentifier(workspace)) {
 			label = getWorkspaceLabel(workspace, this.environmentService, { verbose: true });
-			path = workspace.configPath;
+			uri = URI.file(workspace.configPath);
+		} else {
+			label = unmnemonicLabel(getPathLabel(workspace, this.environmentService, null));
+			uri = URI.file(workspace);
 		}
 
 		return new MenuItem(this.likeAction(commandId, {
@@ -529,12 +533,13 @@ export class Menubar {
 				const success = this.windowsMainService.open({
 					context: OpenContext.MENU,
 					cli: this.environmentService.args,
-					pathsToOpen: [path], forceNewWindow: openInNewWindow,
+					pathsToOpen: [uri],
+					forceNewWindow: openInNewWindow,
 					forceOpenWorkspaceAsFile: isFile
 				}).length > 0;
 
 				if (!success) {
-					this.historyMainService.removeFromRecentlyOpened([isSingleFolderWorkspaceIdentifier(workspace) ? workspace : workspace.configPath]);
+					this.historyMainService.removeFromRecentlyOpened([workspace]);
 				}
 			}
 		}, false));

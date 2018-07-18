@@ -81,8 +81,7 @@ export const REMOVE_ROOT_FOLDER_LABEL = nls.localize('removeFolderFromWorkspace'
 
 export const openWindowCommand = (accessor: ServicesAccessor, paths: string[], forceNewWindow: boolean) => {
 	const windowService = accessor.get(IWindowService);
-
-	windowService.openWindow(paths, { forceNewWindow });
+	windowService.openWindow(paths.map(path => URI.file(path)), { forceNewWindow });
 };
 
 function save(

@@ -8,12 +8,14 @@
 import * as platform from 'vs/base/common/platform';
 import * as paths from 'vs/base/common/paths';
 import { OpenContext } from 'vs/platform/windows/common/windows';
-import { IWorkspaceIdentifier, ISingleFolderWorkspaceIdentifier, isSingleFolderWorkspaceIdentifier, IResolvedWorkspace } from 'vs/platform/workspaces/common/workspaces';
+import { IWorkspaceIdentifier, IResolvedWorkspace, ISingleFolderWorkspaceIdentifier2, isSingleFolderWorkspaceIdentifier2 } from 'vs/platform/workspaces/common/workspaces';
 import { Schemas } from 'vs/base/common/network';
+import URI from 'vs/base/common/uri';
+import { hasToIgnoreCase, isEqual } from 'vs/base/common/resources';
 
 export interface ISimpleWindow {
 	openedWorkspace?: IWorkspaceIdentifier;
-	openedFolderPath?: string;
+	openedFolderUri?: URI;
 	openedFilePath?: string;
 	extensionDevelopmentPath?: string;
 	lastFocusTime: number;
@@ -30,7 +32,7 @@ export interface IBestWindowOrFolderOptions<W extends ISimpleWindow> {
 	workspaceResolver: (workspace: IWorkspaceIdentifier) => IResolvedWorkspace;
 }
 
-export function findBestWindowOrFolderForFile<W extends ISimpleWindow>({ windows, newWindow, reuseWindow, context, filePath, workspaceResolver }: IBestWindowOrFolderOptions<W>): W | string {
+export function findBestWindowOrFolderForFile<W extends ISimpleWindow>({ windows, newWindow, reuseWindow, context, filePath, workspaceResolver }: IBestWindowOrFolderOptions<W>): W {
 	if (!newWindow && filePath && (context === OpenContext.DESKTOP || context === OpenContext.CLI || context === OpenContext.DOCK)) {
 		const windowOnFilePath = findWindowOnFilePath(windows, filePath, workspaceResolver);
 		if (windowOnFilePath) {
@@ -54,9 +56,9 @@ function findWindowOnFilePath<W extends ISimpleWindow>(windows: W[], filePath: s
 	}
 
 	// Then go with single folder windows that are parent of the provided file path
-	const singleFolderWindowsOnFilePath = windows.filter(window => typeof window.openedFolderPath === 'string' && paths.isEqualOrParent(filePath, window.openedFolderPath, !platform.isLinux /* ignorecase */));
+	const singleFolderWindowsOnFilePath = windows.filter(window => window.openedFolderUri && window.openedFolderUri.scheme === Schemas.file && paths.isEqualOrParent(filePath, window.openedFolderUri.fsPath, !platform.isLinux /* ignorecase */));
 	if (singleFolderWindowsOnFilePath.length) {
-		return singleFolderWindowsOnFilePath.sort((a, b) => -(a.openedFolderPath.length - b.openedFolderPath.length))[0];
+		return singleFolderWindowsOnFilePath.sort((a, b) => -(a.openedFolderUri.path.length - b.openedFolderUri.path.length))[0];
 	}
 
 	return null;
@@ -68,12 +70,12 @@ export function getLastActiveWindow<W extends ISimpleWindow>(windows: W[]): W {
 	return windows.filter(window => window.lastFocusTime === lastFocusedDate)[0];
 }
 
-export function findWindowOnWorkspace<W extends ISimpleWindow>(windows: W[], workspace: (IWorkspaceIdentifier | ISingleFolderWorkspaceIdentifier)): W {
+export function findWindowOnWorkspace<W extends ISimpleWindow>(windows: W[], workspace: (IWorkspaceIdentifier | ISingleFolderWorkspaceIdentifier2)): W {
 	return windows.filter(window => {
 
 		// match on folder
-		if (isSingleFolderWorkspaceIdentifier(workspace)) {
-			if (typeof window.openedFolderPath === 'string' && (paths.isEqual(window.openedFolderPath, workspace, !platform.isLinux /* ignorecase */))) {
+		if (isSingleFolderWorkspaceIdentifier2(workspace)) {
+			if (window.openedFolderUri && isEqual(window.openedFolderUri, workspace, hasToIgnoreCase(window.openedFolderUri))) { //TODO:#54483
 				return true;
 			}
 		}
@@ -110,7 +112,7 @@ export function findWindowOnWorkspaceOrFolderPath<W extends ISimpleWindow>(windo
 		}
 
 		// check for folder path
-		if (window.openedFolderPath && paths.isEqual(window.openedFolderPath, path, !platform.isLinux /* ignorecase */)) {
+		if (window.openedFolderUri && window.openedFolderUri.scheme === Schemas.file && paths.isEqual(window.openedFolderUri.fsPath, path, !platform.isLinux /* ignorecase */)) {
 			return true;
 		}
 

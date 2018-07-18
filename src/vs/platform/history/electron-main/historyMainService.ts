@@ -16,11 +16,19 @@ import { getPathLabel, getBaseLabel } from 'vs/base/common/labels';
 import { IPath } from 'vs/platform/windows/common/windows';
 import { Event as CommonEvent, Emitter } from 'vs/base/common/event';
 import { isWindows, isMacintosh, isLinux } from 'vs/base/common/platform';
-import { IWorkspaceIdentifier, IWorkspacesMainService, getWorkspaceLabel, ISingleFolderWorkspaceIdentifier, isSingleFolderWorkspaceIdentifier, IWorkspaceSavedEvent } from 'vs/platform/workspaces/common/workspaces';
+import { IWorkspaceIdentifier, IWorkspacesMainService, getWorkspaceLabel, IWorkspaceSavedEvent, ISingleFolderWorkspaceIdentifier2, isSingleFolderWorkspaceIdentifier2, isWorkspaceIdentifier } from 'vs/platform/workspaces/common/workspaces';
 import { IHistoryMainService, IRecentlyOpened } from 'vs/platform/history/common/history';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { isEqual } from 'vs/base/common/paths';
 import { RunOnceScheduler } from 'vs/base/common/async';
+import { getComparisonKey, isEqual as areResourcesEqual, hasToIgnoreCase } from 'vs/base/common/resources';
+import URI, { UriComponents } from 'vs/base/common/uri';
+import { Schemas } from 'vs/base/common/network';
+
+interface ISerializedRecentlyOpened {
+	workspaces: (IWorkspaceIdentifier | string | UriComponents)[];
+	files: string[];
+}
 
 export class HistoryMainService implements IHistoryMainService {
 
@@ -57,14 +65,14 @@ export class HistoryMainService implements IHistoryMainService {
 		this.addRecentlyOpened([e.workspace], []);
 	}
 
-	addRecentlyOpened(workspaces: (IWorkspaceIdentifier | ISingleFolderWorkspaceIdentifier)[], files: string[]): void {
+	addRecentlyOpened(workspaces: (IWorkspaceIdentifier | ISingleFolderWorkspaceIdentifier2)[], files: string[]): void {
 		if ((workspaces && workspaces.length > 0) || (files && files.length > 0)) {
 			const mru = this.getRecentlyOpened();
 
 			// Workspaces
 			if (Array.isArray(workspaces)) {
 				workspaces.forEach(workspace => {
-					const isUntitledWorkspace = !isSingleFolderWorkspaceIdentifier(workspace) && this.workspacesMainService.isUntitledWorkspace(workspace);
+					const isUntitledWorkspace = !isSingleFolderWorkspaceIdentifier2(workspace) && this.workspacesMainService.isUntitledWorkspace(workspace);
 					if (isUntitledWorkspace) {
 						return; // only store saved workspaces
 					}
@@ -104,21 +112,37 @@ export class HistoryMainService implements IHistoryMainService {
 		}
 	}
 
-	removeFromRecentlyOpened(pathsToRemove: string[]): void {
+	removeFromRecentlyOpened(pathsToRemove: (IWorkspaceIdentifier | ISingleFolderWorkspaceIdentifier2 | string)[]): void {
 		const mru = this.getRecentlyOpened();
 		let update = false;
 
 		pathsToRemove.forEach((pathToRemove => {
 
 			// Remove workspace
-			let index = arrays.firstIndex(mru.workspaces, workspace => isEqual(isSingleFolderWorkspaceIdentifier(workspace) ? workspace : workspace.configPath, pathToRemove, !isLinux /* ignorecase */));
+			let index = arrays.firstIndex(mru.workspaces, workspace => {
+				if (isWorkspaceIdentifier(pathToRemove)) {
+					return isWorkspaceIdentifier(workspace) && isEqual(pathToRemove.configPath, workspace.configPath, !isLinux /* ignorecase */);
+				}
+				if (isSingleFolderWorkspaceIdentifier2(pathToRemove)) {
+					return isSingleFolderWorkspaceIdentifier2(workspace) && areResourcesEqual(pathToRemove, workspace, hasToIgnoreCase(pathToRemove));
+				}
+				if (typeof pathsToRemove === 'string') {
+					if (isSingleFolderWorkspaceIdentifier2(workspace)) {
+						return workspace.scheme === Schemas.file && areResourcesEqual(URI.file(pathToRemove), workspace, hasToIgnoreCase(workspace));
+					}
+					if (isWorkspaceIdentifier(workspace)) {
+						return isEqual(pathToRemove, workspace.configPath, !isLinux /* ignorecase */);
+					}
+				}
+				return false;
+			});
 			if (index >= 0) {
 				mru.workspaces.splice(index, 1);
 				update = true;
 			}
 
 			// Remove file
-			index = arrays.firstIndex(mru.files, file => isEqual(file, pathToRemove, !isLinux /* ignorecase */));
+			index = arrays.firstIndex(mru.files, file => typeof pathToRemove === 'string' && isEqual(file, pathToRemove, !isLinux /* ignorecase */));
 			if (index >= 0) {
 				mru.files.splice(index, 1);
 				update = true;
@@ -155,7 +179,7 @@ export class HistoryMainService implements IHistoryMainService {
 		// Take up to maxEntries/2 workspaces
 		for (let i = 0; i < mru.workspaces.length && i < HistoryMainService.MAX_MACOS_DOCK_RECENT_ENTRIES / 2; i++) {
 			const workspace = mru.workspaces[i];
-			app.addRecentDocument(isSingleFolderWorkspaceIdentifier(workspace) ? workspace : workspace.configPath);
+			app.addRecentDocument(isSingleFolderWorkspaceIdentifier2(workspace) ? workspace.toString() : workspace.configPath);
 			maxEntries--;
 		}
 
@@ -174,12 +198,12 @@ export class HistoryMainService implements IHistoryMainService {
 		this._onRecentlyOpenedChange.fire();
 	}
 
-	getRecentlyOpened(currentWorkspace?: IWorkspaceIdentifier | ISingleFolderWorkspaceIdentifier, currentFiles?: IPath[]): IRecentlyOpened {
-		let workspaces: (IWorkspaceIdentifier | ISingleFolderWorkspaceIdentifier)[];
+	getRecentlyOpened(currentWorkspace?: IWorkspaceIdentifier | ISingleFolderWorkspaceIdentifier2, currentFiles?: IPath[]): IRecentlyOpened {
+		let workspaces: (IWorkspaceIdentifier | ISingleFolderWorkspaceIdentifier2)[];
 		let files: string[];
 
 		// Get from storage
-		const storedRecents = this.stateService.getItem<IRecentlyOpened>(HistoryMainService.recentlyOpenedStorageKey);
+		const storedRecents = this.getRecentlyOpenedFromStorage();
 		if (storedRecents) {
 			workspaces = storedRecents.workspaces || [];
 			files = storedRecents.files || [];
@@ -203,20 +227,46 @@ export class HistoryMainService implements IHistoryMainService {
 		files = arrays.distinct(files, file => this.distinctFn(file));
 
 		// Hide untitled workspaces
-		workspaces = workspaces.filter(workspace => isSingleFolderWorkspaceIdentifier(workspace) || !this.workspacesMainService.isUntitledWorkspace(workspace));
+		workspaces = workspaces.filter(workspace => isSingleFolderWorkspaceIdentifier2(workspace) || !this.workspacesMainService.isUntitledWorkspace(workspace));
 
 		return { workspaces, files };
 	}
 
-	private distinctFn(workspaceOrFile: IWorkspaceIdentifier | ISingleFolderWorkspaceIdentifier | string): string {
-		if (isSingleFolderWorkspaceIdentifier(workspaceOrFile)) {
+	private distinctFn(workspaceOrFile: IWorkspaceIdentifier | ISingleFolderWorkspaceIdentifier2 | string): string {
+		if (isSingleFolderWorkspaceIdentifier2(workspaceOrFile)) {
+			return getComparisonKey(workspaceOrFile);
+		}
+		if (typeof workspaceOrFile === 'string') {
 			return isLinux ? workspaceOrFile : workspaceOrFile.toLowerCase();
 		}
 
 		return workspaceOrFile.id;
 	}
 
+	private getRecentlyOpenedFromStorage(): IRecentlyOpened {
+		const storedRecents: ISerializedRecentlyOpened = this.stateService.getItem<ISerializedRecentlyOpened>(HistoryMainService.recentlyOpenedStorageKey);
+		const result: IRecentlyOpened = { workspaces: [], files: storedRecents.files };
+		for (const workspace of storedRecents.workspaces) {
+			if (typeof workspace === 'string') {
+				result.workspaces.push(URI.file(workspace));
+			} else if (isWorkspaceIdentifier(workspace)) {
+				result.workspaces.push(workspace);
+			} else {
+				result.workspaces.push(URI.revive(workspace));
+			}
+		}
+		return result;
+	}
+
 	private saveRecentlyOpened(recent: IRecentlyOpened): void {
+		const serialized: ISerializedRecentlyOpened = { workspaces: [], files: recent.files };
+		for (const workspace of recent.workspaces) {
+			if (isSingleFolderWorkspaceIdentifier2(workspace)) {
+				serialized.workspaces.push(<UriComponents>workspace.toJSON());
+			} else {
+				serialized.workspaces.push(workspace);
+			}
+		}
 		this.stateService.setItem(HistoryMainService.recentlyOpenedStorageKey, recent);
 	}
 
@@ -257,15 +307,26 @@ export class HistoryMainService implements IHistoryMainService {
 				type: 'custom',
 				name: nls.localize('recentFolders', "Recent Workspaces"),
 				items: this.getRecentlyOpened().workspaces.slice(0, 7 /* limit number of entries here */).map(workspace => {
-					const title = isSingleFolderWorkspaceIdentifier(workspace) ? getBaseLabel(workspace) : getWorkspaceLabel(workspace, this.environmentService);
-					const description = isSingleFolderWorkspaceIdentifier(workspace) ? nls.localize('folderDesc', "{0} {1}", getBaseLabel(workspace), getPathLabel(path.dirname(workspace), this.environmentService)) : nls.localize('codeWorkspace', "Code Workspace");
+					const title = isSingleFolderWorkspaceIdentifier2(workspace) ? getBaseLabel(workspace) : getWorkspaceLabel(workspace, this.environmentService);
+					const description = isSingleFolderWorkspaceIdentifier2(workspace) ? nls.localize('folderDesc', "{0} {1}", getBaseLabel(workspace), getPathLabel(path.dirname(workspace.path), this.environmentService)) : nls.localize('codeWorkspace', "Code Workspace");
+					let args;
+					// use quotes to support paths with whitespaces
+					if (isSingleFolderWorkspaceIdentifier2(workspace)) {
+						if (workspace.scheme === Schemas.file) {
+							args = `"${workspace.fsPath}"`;
+						} else {
+							args = `--folderUri "${workspace.path}"`;
+						}
+					} else {
+						args = `"${workspace.configPath}"`;
+					}
 
 					return <Electron.JumpListItem>{
 						type: 'task',
 						title,
 						description,
 						program: process.execPath,
-						args: `"${isSingleFolderWorkspaceIdentifier(workspace) ? workspace : workspace.configPath}"`, // open folder (use quotes to support paths with whitespaces)
+						args,
 						iconPath: 'explorer.exe', // simulate folder icon
 						iconIndex: 0
 					};

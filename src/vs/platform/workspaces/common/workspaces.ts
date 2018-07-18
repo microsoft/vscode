@@ -13,9 +13,10 @@ import { basename, dirname, join } from 'vs/base/common/paths';
 import { isLinux } from 'vs/base/common/platform';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { Event } from 'vs/base/common/event';
-import { tildify, getPathLabel } from 'vs/base/common/labels';
+import { tildify, getPathLabel, getBaseLabel } from 'vs/base/common/labels';
 import { IWorkspaceFolder } from 'vs/platform/workspace/common/workspace';
 import URI from 'vs/base/common/uri';
+import { Schemas } from 'vs/base/common/network';
 
 export const IWorkspacesMainService = createDecorator<IWorkspacesMainService>('workspacesMainService');
 export const IWorkspacesService = createDecorator<IWorkspacesService>('workspacesService');
@@ -27,7 +28,7 @@ export const UNTITLED_WORKSPACE_NAME = 'workspace.json';
 /**
  * A single folder workspace identifier is just the path to the folder.
  */
-export type ISingleFolderWorkspaceIdentifier = string;
+export type ISingleFolderWorkspaceIdentifier2 = URI;
 
 export interface IWorkspaceIdentifier {
 	id: string;
@@ -111,11 +112,17 @@ export interface IWorkspacesService {
 	createWorkspace(folders?: IWorkspaceFolderCreationData[]): TPromise<IWorkspaceIdentifier>;
 }
 
-export function getWorkspaceLabel(workspace: (IWorkspaceIdentifier | ISingleFolderWorkspaceIdentifier), environmentService: IEnvironmentService, options?: { verbose: boolean }): string {
+export function getWorkspaceLabel(workspace: (IWorkspaceIdentifier | ISingleFolderWorkspaceIdentifier2), environmentService: IEnvironmentService, options?: { verbose: boolean }): string {
 
 	// Workspace: Single Folder
-	if (isSingleFolderWorkspaceIdentifier(workspace)) {
-		return tildify(workspace, environmentService.userHome);
+	if (isSingleFolderWorkspaceIdentifier2(workspace)) {
+		// Folder on disk
+		if (workspace.scheme === Schemas.file) {
+			return tildify(workspace.fsPath, environmentService.userHome);
+		}
+
+		// Remote folder
+		return getBaseLabel(workspace);
 	}
 
 	// Workspace: Untitled
@@ -133,8 +140,8 @@ export function getWorkspaceLabel(workspace: (IWorkspaceIdentifier | ISingleFold
 	return localize('workspaceName', "{0} (Workspace)", workspaceName);
 }
 
-export function isSingleFolderWorkspaceIdentifier(obj: any): obj is ISingleFolderWorkspaceIdentifier {
-	return typeof obj === 'string';
+export function isSingleFolderWorkspaceIdentifier2(obj: any): obj is ISingleFolderWorkspaceIdentifier2 {
+	return obj instanceof URI;
 }
 
 export function isWorkspaceIdentifier(obj: any): obj is IWorkspaceIdentifier {

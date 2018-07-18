@@ -36,7 +36,7 @@ import { webFrame, shell } from 'electron';
 import { getPathLabel, getBaseLabel } from 'vs/base/common/labels';
 import { IViewlet } from 'vs/workbench/common/viewlet';
 import { IPanel } from 'vs/workbench/common/panel';
-import { IWorkspaceIdentifier, getWorkspaceLabel, ISingleFolderWorkspaceIdentifier, isSingleFolderWorkspaceIdentifier } from 'vs/platform/workspaces/common/workspaces';
+import { IWorkspaceIdentifier, getWorkspaceLabel, ISingleFolderWorkspaceIdentifier2, isSingleFolderWorkspaceIdentifier2, isWorkspaceIdentifier } from 'vs/platform/workspaces/common/workspaces';
 import { FileKind } from 'vs/platform/files/common/files';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IExtensionService, ActivationTimes } from 'vs/workbench/services/extensions/common/extensions';
@@ -721,24 +721,28 @@ export abstract class BaseOpenRecentAction extends Action {
 			.then(({ workspaces, files }) => this.openRecent(workspaces, files));
 	}
 
-	private openRecent(recentWorkspaces: (IWorkspaceIdentifier | ISingleFolderWorkspaceIdentifier)[], recentFiles: string[]): void {
+	private openRecent(recentWorkspaces: (IWorkspaceIdentifier | ISingleFolderWorkspaceIdentifier2)[], recentFiles: string[]): void {
 
-		function toPick(workspace: IWorkspaceIdentifier | ISingleFolderWorkspaceIdentifier, separator: ISeparator, fileKind: FileKind, environmentService: IEnvironmentService, removeAction?: RemoveFromRecentlyOpened): IFilePickOpenEntry {
-			let path: string;
+		function toPick(workspace: IWorkspaceIdentifier | ISingleFolderWorkspaceIdentifier2 | string, separator: ISeparator, fileKind: FileKind, environmentService: IEnvironmentService, removeAction?: RemoveFromRecentlyOpened): IFilePickOpenEntry {
+			let resource: URI;
 			let label: string;
 			let description: string;
-			if (isSingleFolderWorkspaceIdentifier(workspace)) {
-				path = workspace;
-				label = getBaseLabel(path);
-				description = getPathLabel(paths.dirname(path), environmentService);
-			} else {
-				path = workspace.configPath;
+			if (isSingleFolderWorkspaceIdentifier2(workspace)) {
+				resource = workspace;
+				label = getBaseLabel(resource);
+				description = getPathLabel(paths.dirname(resource.path), environmentService);
+			} else if (isWorkspaceIdentifier(workspace)) {
+				resource = URI.file(workspace.configPath);
 				label = getWorkspaceLabel(workspace, environmentService);
 				description = getPathLabel(paths.dirname(workspace.configPath), environmentService);
+			} else {
+				resource = URI.file(workspace);
+				label = getBaseLabel(workspace);
+				description = getPathLabel(paths.dirname(workspace), environmentService);
 			}
 
 			return {
-				resource: URI.file(path),
+				resource,
 				fileKind,
 				label,
 				description,
@@ -747,19 +751,19 @@ export abstract class BaseOpenRecentAction extends Action {
 					setTimeout(() => {
 						// Bug: somehow when not running this code in a timeout, it is not possible to use this picker
 						// with quick navigate keys (not able to trigger quick navigate once running it once).
-						runPick(path, fileKind === FileKind.FILE, context);
+						runPick(resource, fileKind === FileKind.FILE, context);
 					});
 				},
 				action: removeAction
 			};
 		}
 
-		const runPick = (path: string, isFile: boolean, context: IEntryRunContext) => {
+		const runPick = (resource: URI, isFile: boolean, context: IEntryRunContext) => {
 			const forceNewWindow = context.keymods.ctrlCmd;
-			this.windowService.openWindow([path], { forceNewWindow, forceOpenWorkspaceAsFile: isFile });
+			this.windowService.openWindow([resource], { forceNewWindow, forceOpenWorkspaceAsFile: isFile });
 		};
 
-		const workspacePicks: IFilePickOpenEntry[] = recentWorkspaces.map((workspace, index) => toPick(workspace, index === 0 ? { label: nls.localize('workspaces', "workspaces") } : void 0, isSingleFolderWorkspaceIdentifier(workspace) ? FileKind.FOLDER : FileKind.ROOT_FOLDER, this.environmentService, !this.isQuickNavigate() ? this.removeAction : void 0));
+		const workspacePicks: IFilePickOpenEntry[] = recentWorkspaces.map((workspace, index) => toPick(workspace, index === 0 ? { label: nls.localize('workspaces', "workspaces") } : void 0, isSingleFolderWorkspaceIdentifier2(workspace) ? FileKind.FOLDER : FileKind.ROOT_FOLDER, this.environmentService, !this.isQuickNavigate() ? this.removeAction : void 0));
 		const filePicks: IFilePickOpenEntry[] = recentFiles.map((p, index) => toPick(p, index === 0 ? { label: nls.localize('files', "files"), border: true } : void 0, FileKind.FILE, this.environmentService, !this.isQuickNavigate() ? this.removeAction : void 0));
 
 		// focus second entry if the first recent workspace is the current workspace

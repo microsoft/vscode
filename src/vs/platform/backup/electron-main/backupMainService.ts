@@ -14,7 +14,13 @@ import { IEnvironmentService } from 'vs/platform/environment/common/environment'
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IFilesConfiguration, HotExitConfiguration } from 'vs/platform/files/common/files';
 import { ILogService } from 'vs/platform/log/common/log';
-import { IWorkspaceIdentifier, ISingleFolderWorkspaceIdentifier, isSingleFolderWorkspaceIdentifier } from 'vs/platform/workspaces/common/workspaces';
+import { IWorkspaceIdentifier } from 'vs/platform/workspaces/common/workspaces';
+
+type ISingleFolderWorkspaceIdentifier = string;
+
+function isSingleFolderWorkspaceIdentifier(obj: any): obj is ISingleFolderWorkspaceIdentifier {
+	return typeof obj === 'string';
+}
 
 export class BackupMainService implements IBackupMainService {
 
@@ -227,7 +233,7 @@ export class BackupMainService implements IBackupMainService {
 			const workspacePath = isSingleFolderWorkspaceIdentifier(workspaceId) ? workspaceId : workspaceId.configPath;
 			const backupPath = path.join(this.backupHome, isSingleFolderWorkspaceIdentifier(workspaceId) ? this.getFolderHash(workspaceId) : workspaceId.id);
 			const hasBackups = this.hasBackupsSync(backupPath);
-			const missingWorkspace = hasBackups && !fs.existsSync(workspacePath);
+			const missingWorkspace = hasBackups && !fs.existsSync(workspacePath); //TODO:#54483
 
 			// If the workspace/folder has no backups, make sure to delete it
 			// If the workspace/folder has backups, but the target workspace is missing, convert backups to empty ones
@@ -320,6 +326,7 @@ export class BackupMainService implements IBackupMainService {
 	}
 
 	private sanitizePath(p: string): string {
+		//TODO:#54483
 		return platform.isLinux ? p : p.toLowerCase();
 	}
 

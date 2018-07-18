@@ -26,7 +26,7 @@ import { IWorkspaceConfigurationService, FOLDER_CONFIG_FOLDER_NAME, defaultSetti
 import { Registry } from 'vs/platform/registry/common/platform';
 import { IConfigurationNode, IConfigurationRegistry, Extensions, IConfigurationPropertySchema, allSettings, windowSettings, resourceSettings, applicationSettings } from 'vs/platform/configuration/common/configurationRegistry';
 import { createHash } from 'crypto';
-import { getWorkspaceLabel, IWorkspaceIdentifier, ISingleFolderWorkspaceIdentifier, isSingleFolderWorkspaceIdentifier, isWorkspaceIdentifier, IStoredWorkspaceFolder, isStoredWorkspaceFolder, IWorkspaceFolderCreationData } from 'vs/platform/workspaces/common/workspaces';
+import { getWorkspaceLabel, IWorkspaceIdentifier, isWorkspaceIdentifier, IStoredWorkspaceFolder, isStoredWorkspaceFolder, IWorkspaceFolderCreationData, ISingleFolderWorkspaceIdentifier2, isSingleFolderWorkspaceIdentifier2 } from 'vs/platform/workspaces/common/workspaces';
 import { IWindowConfiguration } from 'vs/platform/windows/common/windows';
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
 import { ICommandService } from 'vs/platform/commands/common/commands';
@@ -41,7 +41,7 @@ import { UserConfiguration } from 'vs/platform/configuration/node/configuration'
 import { getBaseLabel } from 'vs/base/common/labels';
 import { IJSONSchema, IJSONSchemaMap } from 'vs/base/common/jsonSchema';
 import { localize } from 'vs/nls';
-import { isEqual } from 'vs/base/common/resources';
+import { isEqual, hasToIgnoreCase } from 'vs/base/common/resources';
 
 export class WorkspaceService extends Disposable implements IWorkspaceConfigurationService, IWorkspaceContextService {
 
@@ -129,19 +129,14 @@ export class WorkspaceService extends Disposable implements IWorkspaceConfigurat
 		return !!this.getWorkspaceFolder(resource);
 	}
 
-	public isCurrentWorkspace(workspaceIdentifier: ISingleFolderWorkspaceIdentifier | IWorkspaceIdentifier): boolean {
+	public isCurrentWorkspace(workspaceIdentifier: ISingleFolderWorkspaceIdentifier2 | IWorkspaceIdentifier): boolean {
 		switch (this.getWorkbenchState()) {
 			case WorkbenchState.FOLDER:
-				return isSingleFolderWorkspaceIdentifier(workspaceIdentifier) && isEqual(this.workspace.folders[0].uri, this.toUri(workspaceIdentifier), this.workspace.folders[0].uri.scheme !== Schemas.file || !isLinux);
+				return isSingleFolderWorkspaceIdentifier2(workspaceIdentifier) && isEqual(workspaceIdentifier, this.workspace.folders[0].uri, hasToIgnoreCase(workspaceIdentifier));
 			case WorkbenchState.WORKSPACE:
 				return isWorkspaceIdentifier(workspaceIdentifier) && this.workspace.id === workspaceIdentifier.id;
 		}
 		return false;
-	}
-
-	private toUri(folderIdentifier: ISingleFolderWorkspaceIdentifier): URI {
-		// TODO:Sandy Change to URI.parse parsing once main sends URIs
-		return URI.file(folderIdentifier);
 	}
 
 	private doUpdateFolders(foldersToAdd: IWorkspaceFolderCreationData[], foldersToRemove: URI[], index?: number): TPromise<void> {
@@ -301,7 +296,7 @@ export class WorkspaceService extends Disposable implements IWorkspaceConfigurat
 		return this._configuration.keys();
 	}
 
-	initialize(arg: IWorkspaceIdentifier | URI | IWindowConfiguration, postInitialisationTask: () => void = () => null): TPromise<any> {
+	initialize(arg: IWorkspaceIdentifier | ISingleFolderWorkspaceIdentifier2 | IWindowConfiguration, postInitialisationTask: () => void = () => null): TPromise<any> {
 		return this.createWorkspace(arg)
 			.then(workspace => this.updateWorkspaceAndInitializeConfiguration(workspace, postInitialisationTask));
 	}
@@ -333,7 +328,7 @@ export class WorkspaceService extends Disposable implements IWorkspaceConfigurat
 			return this.createMulitFolderWorkspace(arg);
 		}
 
-		if (arg instanceof URI) {
+		if (isSingleFolderWorkspaceIdentifier2(arg)) {
 			return this.createSingleFolderWorkspace(arg);
 		}
 

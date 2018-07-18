@@ -29,11 +29,12 @@ import { Event, Emitter } from 'vs/base/common/event';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { domEvent } from 'vs/base/browser/event';
 import { IRecentlyOpened } from 'vs/platform/history/common/history';
-import { IWorkspaceIdentifier, ISingleFolderWorkspaceIdentifier, isSingleFolderWorkspaceIdentifier, getWorkspaceLabel } from 'vs/platform/workspaces/common/workspaces';
+import { IWorkspaceIdentifier, getWorkspaceLabel, ISingleFolderWorkspaceIdentifier2, isSingleFolderWorkspaceIdentifier2, isWorkspaceIdentifier } from 'vs/platform/workspaces/common/workspaces';
 import { getPathLabel } from 'vs/base/common/labels';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { RunOnceScheduler } from 'vs/base/common/async';
 import { MENUBAR_SELECTION_FOREGROUND, MENUBAR_SELECTION_BACKGROUND, MENUBAR_SELECTION_BORDER, TITLE_BAR_ACTIVE_FOREGROUND, TITLE_BAR_INACTIVE_FOREGROUND, MENU_BACKGROUND, MENU_FOREGROUND, MENU_SELECTION_BACKGROUND, MENU_SELECTION_FOREGROUND, MENU_SELECTION_BORDER } from 'vs/workbench/common/theme';
+import URI from 'vs/base/common/uri';
 
 interface CustomMenu {
 	title: string;
@@ -508,23 +509,26 @@ export class MenubarPart extends Part {
 		return this.currentEnableMenuBarMnemonics ? label : label.replace(/&&(.)/g, '$1');
 	}
 
-	private createOpenRecentMenuAction(workspace: IWorkspaceIdentifier | ISingleFolderWorkspaceIdentifier | string, commandId: string, isFile: boolean): IAction {
+	private createOpenRecentMenuAction(workspace: IWorkspaceIdentifier | ISingleFolderWorkspaceIdentifier2 | string, commandId: string, isFile: boolean): IAction {
 
 		let label: string;
-		let path: string;
+		let uri: URI;
 
-		if (isSingleFolderWorkspaceIdentifier(workspace) || typeof workspace === 'string') {
+		if (isSingleFolderWorkspaceIdentifier2(workspace)) {
 			label = getPathLabel(workspace, this.environmentService);
-			path = workspace;
-		} else {
+			uri = workspace;
+		} else if (isWorkspaceIdentifier(workspace)) {
 			label = getWorkspaceLabel(workspace, this.environmentService, { verbose: true });
-			path = workspace.configPath;
+			uri = URI.file(workspace.configPath);
+		} else {
+			label = getPathLabel(workspace, this.environmentService);
+			uri = URI.file(workspace);
 		}
 
 		return new Action(commandId, label, undefined, undefined, (event) => {
 			const openInNewWindow = event && ((!isMacintosh && (event.ctrlKey || event.shiftKey)) || (isMacintosh && (event.metaKey || event.altKey)));
 
-			return this.windowService.openWindow([path], {
+			return this.windowService.openWindow([uri], {
 				forceNewWindow: openInNewWindow,
 				forceOpenWorkspaceAsFile: isFile
 			});
