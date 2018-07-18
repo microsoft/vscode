@@ -1037,6 +1037,15 @@ registerThemingParticipant((theme: ITheme, collector: ICssStyleCollector) => {
 		`);
 	}
 
+	const menuShadow = theme.getColor('widget.shadow');
+	if (menuShadow) {
+		collector.addRule(`
+			.monaco-shell .monaco-workbench .monaco-menu-container {
+				box-shadow: 0 2px 4px ${menuShadow};
+			}
+		`);
+	}
+
 	const menuBgColor = theme.getColor(MENU_BACKGROUND);
 	if (menuBgColor) {
 		collector.addRule(`
