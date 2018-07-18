@@ -92,7 +92,7 @@ export function renderExpressionValue(expressionOrValue: IExpression | string, c
 		container.textContent = value || '';
 	}
 	if (options.showHover) {
-		container.title = value;
+		container.title = value || '';
 	}
 }
 
