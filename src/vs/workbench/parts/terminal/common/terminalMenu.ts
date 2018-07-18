@@ -54,8 +54,7 @@ export function setupTerminalMenu() {
 		group: runGroup,
 		command: {
 			id: TERMINAL_COMMAND_ID.RUN_ACTIVE_FILE,
-			title: nls.localize({ key: 'miRunActiveFile', comment: ['&& denotes a mnemonic'] }, "Run &&Active File"),
-			precondition: ContextKeyExpr.has('terminalIsOpen')
+			title: nls.localize({ key: 'miRunActiveFile', comment: ['&& denotes a mnemonic'] }, "Run &&Active File")
 		},
 		order: 2
 	});
@@ -63,8 +62,7 @@ export function setupTerminalMenu() {
 		group: runGroup,
 		command: {
 			id: TERMINAL_COMMAND_ID.RUN_SELECTED_TEXT,
-			title: nls.localize({ key: 'miRunSelectedText', comment: ['&& denotes a mnemonic'] }, "Run &&Selected Text"),
-			precondition: ContextKeyExpr.has('terminalIsOpen')
+			title: nls.localize({ key: 'miRunSelectedText', comment: ['&& denotes a mnemonic'] }, "Run &&Selected Text")
 		},
 		order: 3
 	});
