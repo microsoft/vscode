@@ -25,7 +25,7 @@ import { IInstantiationService } from 'vs/platform/instantiation/common/instanti
 import { IModelService } from 'vs/editor/common/services/modelService';
 import { SimpleCommentEditor } from './simpleCommentEditor';
 import URI from 'vs/base/common/uri';
-import { transparent, editorForeground, inputValidationErrorBorder, textLinkActiveForeground, textLinkForeground, focusBorder } from 'vs/platform/theme/common/colorRegistry';
+import { transparent, editorForeground, inputValidationErrorBorder, textLinkActiveForeground, textLinkForeground, focusBorder, textBlockQuoteBackground, textBlockQuoteBorder } from 'vs/platform/theme/common/colorRegistry';
 import { IModeService } from 'vs/editor/common/services/modeService';
 import { IKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { KeyCode } from 'vs/base/common/keyCodes';
@@ -579,6 +579,16 @@ export class ReviewZoneWidget extends ZoneWidget {
 		const focusColor = theme.getColor(focusBorder);
 		if (focusColor) {
 			content.push(`.monaco-editor .review-widget .body .review-comment a:focus { outline: 1px solid ${focusColor}; }`);
+		}
+
+		const blockQuoteBackground = theme.getColor(textBlockQuoteBackground);
+		if (blockQuoteBackground) {
+			content.push(`.monaco-editor .review-widget .body .review-comment blockquote { background: ${blockQuoteBackground}; }`);
+		}
+
+		const blockQuoteBOrder = theme.getColor(textBlockQuoteBorder);
+		if (blockQuoteBOrder) {
+			content.push(`.monaco-editor .review-widget .body .review-comment blockquote { border-color: ${blockQuoteBOrder}; }`);
 		}
 
 		this._styleElement.innerHTML = content.join('\n');

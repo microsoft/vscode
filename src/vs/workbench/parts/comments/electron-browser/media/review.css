@@ -35,6 +35,13 @@
 	display: flex;
 }
 
+.monaco-editor .review-widget .body .review-comment blockquote {
+	margin: 0 7px 0 5px;
+	padding: 0 16px 0 10px;
+	border-left-width: 5px;
+	border-left-style: solid;
+}
+
 .monaco-editor .review-widget .body .review-comment .avatar-container {
 	margin-top: 4px !important;
 }
