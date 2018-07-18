@@ -409,7 +409,7 @@ actionRegistry.registerWorkbenchAction(new SyncActionDescriptor(SelectAllTermina
 }, KEYBINDING_CONTEXT_TERMINAL_FOCUS), 'Terminal: Select All', category);
 actionRegistry.registerWorkbenchAction(new SyncActionDescriptor(RunSelectedTextInTerminalAction, RunSelectedTextInTerminalAction.ID, RunSelectedTextInTerminalAction.LABEL), 'Terminal: Run Selected Text In Active Terminal', category);
 actionRegistry.registerWorkbenchAction(new SyncActionDescriptor(RunActiveFileInTerminalAction, RunActiveFileInTerminalAction.ID, RunActiveFileInTerminalAction.LABEL), 'Terminal: Run Active File In Active Terminal', category);
-actionRegistry.registerWorkbenchAction(new SyncActionDescriptor(ToggleTerminalAction, TERMINAL_COMMAND_ID.TOGGLE, ToggleTerminalAction.LABEL, {
+actionRegistry.registerWorkbenchAction(new SyncActionDescriptor(ToggleTerminalAction, ToggleTerminalAction.ID, ToggleTerminalAction.LABEL, {
 	primary: KeyMod.CtrlCmd | KeyCode.US_BACKTICK,
 	mac: { primary: KeyMod.WinCtrl | KeyCode.US_BACKTICK }
 }), 'View: Toggle Integrated Terminal', nls.localize('viewCategory', "View"));

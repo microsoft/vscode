@@ -113,6 +113,7 @@ export class CopyTerminalSelectionAction extends Action {
 
 	public static readonly ID = TERMINAL_COMMAND_ID.COPY_SELECTION;
 	public static readonly LABEL = nls.localize('workbench.action.terminal.copySelection', "Copy Selection");
+	public static readonly SHORT_LABEL = nls.localize('workbench.action.terminal.copySelection.short', "Copy");
 
 	constructor(
 		id: string, label: string,
@@ -230,7 +231,7 @@ export class CreateNewTerminalAction extends Action {
 
 	public static readonly ID = TERMINAL_COMMAND_ID.NEW;
 	public static readonly LABEL = nls.localize('workbench.action.terminal.new', "Create New Integrated Terminal");
-	public static readonly PANEL_LABEL = nls.localize('workbench.action.terminal.new.short', "New Terminal");
+	public static readonly SHORT_LABEL = nls.localize('workbench.action.terminal.new.short', "New Terminal");
 
 	constructor(
 		id: string, label: string,
@@ -304,6 +305,7 @@ export class CreateNewInActiveWorkspaceTerminalAction extends Action {
 export class SplitTerminalAction extends Action {
 	public static readonly ID = TERMINAL_COMMAND_ID.SPLIT;
 	public static readonly LABEL = nls.localize('workbench.action.terminal.split', "Split Terminal");
+	public static readonly SHORT_LABEL = nls.localize('workbench.action.terminal.split.short', "Split");
 
 	constructor(
 		id: string, label: string,
@@ -538,6 +540,7 @@ export class TerminalPasteAction extends Action {
 
 	public static readonly ID = TERMINAL_COMMAND_ID.PASTE;
 	public static readonly LABEL = nls.localize('workbench.action.terminal.paste', "Paste into Active Terminal");
+	public static readonly SHORT_LABEL = nls.localize('workbench.action.terminal.paste.short', "Paste");
 
 	constructor(
 		id: string, label: string,
@@ -649,7 +652,7 @@ export class SwitchTerminalAction extends Action {
 		id: string, label: string,
 		@ITerminalService private terminalService: ITerminalService
 	) {
-		super(SwitchTerminalAction.ID, SwitchTerminalAction.LABEL, 'terminal-action switch-terminal');
+		super(id, label, 'terminal-action switch-terminal');
 	}
 
 	public run(item?: string): TPromise<any> {
