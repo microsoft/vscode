@@ -298,14 +298,14 @@ export class LanguageConfigurationRegistryImpl {
 		    if (!electricCharacterSupport) {
 				return null;
 		    }
-		    return electricCharacterSupport.shouldChangeCursorPositionAfterAutocomplete(character)
+		    return electricCharacterSupport.shouldChangeCursorPositionAfterAutocomplete(character);
 		}
 
 		let characterPairSupport = this._getCharacterPairSupport(scopedLineTokens.languageId);
 		if (!characterPairSupport) {
 		    return null;
 		}
-		return characterPairSupport.shouldChangeCursorPositionAfterAutocomplete(character)
+		return characterPairSupport.shouldChangeCursorPositionAfterAutocomplete(character);
 	}
 
 	// end characterPair
