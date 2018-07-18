@@ -87,4 +87,39 @@ suite('IPC, Socket Protocol', () => {
 			});
 		});
 	});
+
+	test('can devolve to a socket and evolve again without losing data', () => {
+		let resolve: (v: void) => void;
+		let result = new TPromise<void>((_resolve, _reject) => {
+			resolve = _resolve;
+		});
+		const sender = new Protocol(stream);
+		const receiver1 = new Protocol(stream);
+
+		assert.equal(stream.listenerCount('data'), 2);
+		assert.equal(stream.listenerCount('end'), 2);
+
+		receiver1.onMessage((msg) => {
+			assert.equal(msg.value, 1);
+
+			let buffer = receiver1.getBuffer();
+			receiver1.dispose();
+
+			assert.equal(stream.listenerCount('data'), 1);
+			assert.equal(stream.listenerCount('end'), 1);
+
+			const receiver2 = new Protocol(stream, buffer);
+			receiver2.onMessage((msg) => {
+				assert.equal(msg.value, 2);
+				resolve(void 0);
+			});
+		});
+
+		const msg1 = { value: 1 };
+		const msg2 = { value: 2 };
+		sender.send(msg1);
+		sender.send(msg2);
+
+		return result;
+	});
 });
