@@ -89,70 +89,70 @@ suite('StandardAutoClosingPairConditional', () => {
 		assert.equal(v.isOK(StandardTokenType.Comment), false);
 		assert.equal(v.isOK(StandardTokenType.String), false);
 		assert.equal(v.isOK(StandardTokenType.RegEx), false);
-  });
+    });
   
 
-  test('Empty onlyIn', function () {
-    var v = new StandardAutoClosingPairConditional({ open: '@', close: '{}', onlyIn: [] });
-    assert.equal(v.isOK(0 /* Other */), false);
-    assert.equal(v.isOK(1 /* Comment */), true);
-    assert.equal(v.isOK(2 /* String */), true);
-    assert.equal(v.isOK(4 /* RegEx */), true);
-  });
-  test('Invalid onlyIn', function () {
-    var v = new StandardAutoClosingPairConditional({ open: '@', close: '{}', onlyIn: ['bla'] });
-    assert.equal(v.isOK(0 /* Other */), false);
-    assert.equal(v.isOK(1 /* Comment */), true);
-    assert.equal(v.isOK(2 /* String */), true);
-    assert.equal(v.isOK(4 /* RegEx */), true);
-  });
-  test('onlyIn in strings', function () {
-    var v = new StandardAutoClosingPairConditional({ open: '@', close: '{}', onlyIn: ['string'] });
-    assert.equal(v.isOK(0 /* Other */), false);
-    assert.equal(v.isOK(1 /* Comment */), false);
-    assert.equal(v.isOK(2 /* String */), true);
-    assert.equal(v.isOK(4 /* RegEx */), false);
-  });
-  test('onlyIn in comments', function () {
-    var v = new StandardAutoClosingPairConditional({ open: '@', close: '{}', onlyIn: ['comment'] });
-    assert.equal(v.isOK(0 /* Other */), false);
-    assert.equal(v.isOK(1 /* Comment */), true);
-    assert.equal(v.isOK(2 /* String */), false);
-    assert.equal(v.isOK(4 /* RegEx */), false);
-  });
-  test('onlyIn in regex', function () {
-    var v = new StandardAutoClosingPairConditional({ open: '@', close: '{}', onlyIn: ['regex'] });
-    assert.equal(v.isOK(0 /* Other */), false);
-    assert.equal(v.isOK(1 /* Comment */), false);
-    assert.equal(v.isOK(2 /* String */), false);
-    assert.equal(v.isOK(4 /* RegEx */), true);
-  });
-  test('onlyIn in strings and comments', function () {
-    var v = new StandardAutoClosingPairConditional({ open: '@', close: '{}', onlyIn: ['string', 'comment'] });
-    assert.equal(v.isOK(0 /* Other */), false);
-    assert.equal(v.isOK(1 /* Comment */), true);
-    assert.equal(v.isOK(2 /* String */), true);
-    assert.equal(v.isOK(4 /* RegEx */), false);
-  });
-  test('onlyIn in strings and regex', function () {
-    var v = new StandardAutoClosingPairConditional({ open: '@', close: '{}', onlyIn: ['string', 'regex'] });
-    assert.equal(v.isOK(0 /* Other */), false);
-    assert.equal(v.isOK(1 /* Comment */), false);
-    assert.equal(v.isOK(2 /* String */), true);
-    assert.equal(v.isOK(4 /* RegEx */), true);
-  });
-  test('onlyIn in comments and regex', function () {
-    var v = new StandardAutoClosingPairConditional({ open: '@', close: '{}', onlyIn: ['comment', 'regex'] });
-    assert.equal(v.isOK(0 /* Other */), false);
-    assert.equal(v.isOK(1 /* Comment */), true);
-    assert.equal(v.isOK(2 /* String */), false);
-    assert.equal(v.isOK(4 /* RegEx */), true);
-  });
-  test('onlyIn in strings, comments and regex', function () {
-    var v = new StandardAutoClosingPairConditional({ open: '@', close: '{}', onlyIn: ['string', 'comment', 'regex'] });
-    assert.equal(v.isOK(0 /* Other */), false);
-    assert.equal(v.isOK(1 /* Comment */), true);
-    assert.equal(v.isOK(2 /* String */), true);
-    assert.equal(v.isOK(4 /* RegEx */), true);
-  });
+    test('Empty onlyIn', function () {
+    	var v = new StandardAutoClosingPairConditional({ open: '@', close: '{}', onlyIn: [] });
+    	assert.equal(v.isOK(0 /* Other */), false);
+    	assert.equal(v.isOK(1 /* Comment */), true);
+    	assert.equal(v.isOK(2 /* String */), true);
+    	assert.equal(v.isOK(4 /* RegEx */), true);
+    });
+    test('Invalid onlyIn', function () {
+    	var v = new StandardAutoClosingPairConditional({ open: '@', close: '{}', onlyIn: ['bla'] });
+    	assert.equal(v.isOK(0 /* Other */), false);
+    	assert.equal(v.isOK(1 /* Comment */), true);
+    	assert.equal(v.isOK(2 /* String */), true);
+    	assert.equal(v.isOK(4 /* RegEx */), true);
+    });
+    test('onlyIn in strings', function () {
+    	var v = new StandardAutoClosingPairConditional({ open: '@', close: '{}', onlyIn: ['string'] });
+    	assert.equal(v.isOK(0 /* Other */), false);
+    	assert.equal(v.isOK(1 /* Comment */), false);
+    	assert.equal(v.isOK(2 /* String */), true);
+    	assert.equal(v.isOK(4 /* RegEx */), false);
+    });
+    test('onlyIn in comments', function () {
+    	var v = new StandardAutoClosingPairConditional({ open: '@', close: '{}', onlyIn: ['comment'] });
+    	assert.equal(v.isOK(0 /* Other */), false);
+    	assert.equal(v.isOK(1 /* Comment */), true);
+    	assert.equal(v.isOK(2 /* String */), false);
+    	assert.equal(v.isOK(4 /* RegEx */), false);
+    });
+    test('onlyIn in regex', function () {
+    	var v = new StandardAutoClosingPairConditional({ open: '@', close: '{}', onlyIn: ['regex'] });
+    	assert.equal(v.isOK(0 /* Other */), false);
+    	assert.equal(v.isOK(1 /* Comment */), false);
+    	assert.equal(v.isOK(2 /* String */), false);
+    	assert.equal(v.isOK(4 /* RegEx */), true);
+    });
+    test('onlyIn in strings and comments', function () {
+    	var v = new StandardAutoClosingPairConditional({ open: '@', close: '{}', onlyIn: ['string', 'comment'] });
+    	assert.equal(v.isOK(0 /* Other */), false);
+    	assert.equal(v.isOK(1 /* Comment */), true);
+    	assert.equal(v.isOK(2 /* String */), true);
+    	assert.equal(v.isOK(4 /* RegEx */), false);
+    });
+    test('onlyIn in strings and regex', function () {
+    	var v = new StandardAutoClosingPairConditional({ open: '@', close: '{}', onlyIn: ['string', 'regex'] });
+    	assert.equal(v.isOK(0 /* Other */), false);
+    	assert.equal(v.isOK(1 /* Comment */), false);
+    	assert.equal(v.isOK(2 /* String */), true);
+    	assert.equal(v.isOK(4 /* RegEx */), true);
+    });
+    test('onlyIn in comments and regex', function () {
+    	var v = new StandardAutoClosingPairConditional({ open: '@', close: '{}', onlyIn: ['comment', 'regex'] });
+    	assert.equal(v.isOK(0 /* Other */), false);
+    	assert.equal(v.isOK(1 /* Comment */), true);
+    	assert.equal(v.isOK(2 /* String */), false);
+    	assert.equal(v.isOK(4 /* RegEx */), true);
+    });
+    test('onlyIn in strings, comments and regex', function () {
+    	var v = new StandardAutoClosingPairConditional({ open: '@', close: '{}', onlyIn: ['string', 'comment', 'regex'] });
+    	assert.equal(v.isOK(0 /* Other */), false);
+    	assert.equal(v.isOK(1 /* Comment */), true);
+    	assert.equal(v.isOK(2 /* String */), true);
+    	assert.equal(v.isOK(4 /* RegEx */), true);
+    });
 });
