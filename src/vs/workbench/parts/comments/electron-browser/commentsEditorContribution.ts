@@ -5,11 +5,13 @@
 'use strict';
 
 import 'vs/css!./media/review';
+import * as nls from 'vs/nls';
 import { $ } from 'vs/base/browser/builder';
+import { findFirstInSorted } from 'vs/base/common/arrays';
 import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { ICodeEditor, IEditorMouseEvent, IViewZone } from 'vs/editor/browser/editorBrowser';
-import { registerEditorContribution } from 'vs/editor/browser/editorExtensions';
+import { registerEditorContribution, EditorAction, registerEditorAction } from 'vs/editor/browser/editorExtensions';
 import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
 import { EmbeddedCodeEditorWidget } from 'vs/editor/browser/widget/embeddedCodeEditorWidget';
 import { IEditorContribution } from 'vs/editor/common/editorCommon';
@@ -152,6 +154,56 @@ export class ReviewController implements IEditorContribution {
 		const commentThreadWidget = this._commentWidgets.filter(widget => widget.commentThread.threadId === threadId);
 		if (commentThreadWidget.length === 1) {
 			commentThreadWidget[0].reveal(commentId);
+		}
+	}
+
+	public nextCommentThread(): void {
+		if (!this._commentWidgets.length) {
+			return;
+		}
+
+		const after = this.editor.getSelection().getEndPosition();
+		const sortedWidgets = this._commentWidgets.sort((a, b) => {
+			if (a.commentThread.range.startLineNumber < b.commentThread.range.startLineNumber) {
+				return -1;
+			}
+
+			if (a.commentThread.range.startLineNumber > b.commentThread.range.startLineNumber) {
+				return 1;
+			}
+
+			if (a.commentThread.range.startColumn < b.commentThread.range.startColumn) {
+				return -1;
+			}
+
+			if (a.commentThread.range.startColumn > b.commentThread.range.startColumn) {
+				return 1;
+			}
+
+			return 0;
+		});
+
+		let idx = findFirstInSorted(sortedWidgets, widget => {
+			if (widget.commentThread.range.startLineNumber > after.lineNumber) {
+				return true;
+			}
+
+			if (widget.commentThread.range.startLineNumber < after.lineNumber) {
+				return false;
+			}
+
+			if (widget.commentThread.range.startColumn > after.column) {
+				return true;
+			}
+			return false;
+		});
+
+		if (idx === this._commentWidgets.length) {
+			this._commentWidgets[0].reveal();
+			this.editor.setSelection(this._commentWidgets[0].commentThread.range);
+		} else {
+			sortedWidgets[idx].reveal();
+			this.editor.setSelection(sortedWidgets[idx].commentThread.range);
 		}
 	}
 
@@ -360,8 +412,27 @@ export class ReviewController implements IEditorContribution {
 	}
 }
 
-registerEditorContribution(ReviewController);
+export class NextCommentThreadAction extends EditorAction {
 
+	constructor() {
+		super({
+			id: 'editor.action.nextCommentThreadAction',
+			label: nls.localize('nextCommentThreadAction', "Go to Next Comment Thread"),
+			alias: 'Go to Next Comment Thread',
+			precondition: null,
+		});
+	}
+
+	public run(accessor: ServicesAccessor, editor: ICodeEditor): void {
+		let controller = ReviewController.get(editor);
+		if (controller) {
+			controller.nextCommentThread();
+		}
+	}
+}
+
+registerEditorContribution(ReviewController);
+registerEditorAction(NextCommentThreadAction);
 
 KeybindingsRegistry.registerCommandAndKeybindingRule({
 	id: 'closeReviewPanel',
