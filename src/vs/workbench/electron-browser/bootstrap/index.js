@@ -85,8 +85,10 @@ function showPartsSplash(configuration) {
 
 	let key;
 	let keep = false;
+	// this is the logic of StorageService#getWorkspaceKey and StorageService#toStorageKey
 	if (configuration.folderPath) {
-		key = `storage://workspace/${configuration.folderPath.replace(/^\//, '')}/parts-splash`;
+		let workspaceKey = require('vscode-uri').default.file(configuration.folderPath).toString().replace('file:///', '').replace(/^\//, '');
+		key = `storage://workspace/${workspaceKey}/parts-splash`;
 	} else if (configuration.workspace) {
 		key = `storage://workspace/root:${configuration.workspace.id}/parts-splash`;
 	} else {
