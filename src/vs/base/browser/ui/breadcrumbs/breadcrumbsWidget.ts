@@ -232,6 +232,10 @@ export class BreadcrumbsWidget {
 		this._onDidSelectItem.fire({ type: 'select', item: this._items[this._selectedItemIdx], node: this._nodes[this._selectedItemIdx], payload });
 	}
 
+	getItems(): ReadonlyArray<BreadcrumbsItem> {
+		return this._items;
+	}
+
 	setItems(items: BreadcrumbsItem[]): void {
 		let prefix = commonPrefixLength(this._items, items, (a, b) => a.equals(b));
 		let removed = this._items.splice(prefix, this._items.length - prefix, ...items.slice(prefix));
