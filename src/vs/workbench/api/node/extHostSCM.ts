@@ -18,6 +18,7 @@ import { comparePaths } from 'vs/base/common/comparers';
 import * as vscode from 'vscode';
 import { ISplice } from 'vs/base/common/sequence';
 import { ILogService } from 'vs/platform/log/common/log';
+import { deepFreeze } from 'vs/base/common/objects';
 
 type ProviderHandle = number;
 type GroupHandle = number;
@@ -471,6 +472,11 @@ export class ExtHostSCM implements ExtHostSCMShape {
 	private _onDidChangeActiveProvider = new Emitter<vscode.SourceControl>();
 	get onDidChangeActiveProvider(): Event<vscode.SourceControl> { return this._onDidChangeActiveProvider.event; }
 
+	public visibleSourceControls: vscode.ReadonlySourceControl[] = [];
+
+	private _onDidChangeVisibleSourceControls = new Emitter<vscode.ReadonlySourceControl[]>();
+	get onDidChangeVisibleSourceControls(): Event<vscode.ReadonlySourceControl[]> { return this._onDidChangeVisibleSourceControls.event; }
+
 	constructor(
 		mainContext: IMainContext,
 		private _commands: ExtHostCommands,
@@ -565,6 +571,28 @@ export class ExtHostSCM implements ExtHostSCMShape {
 		}
 
 		sourceControl.inputBox.$onInputBoxValueChange(value);
+		return TPromise.as(null);
+	}
+
+	$onDidChangeVisibleSourceControls(sourceControlHandles: number[]): TPromise<void> {
+		this.logService.trace('ExtHostSCM#$onVisibleSouceControlsChange', sourceControlHandles);
+
+		const sourceControls = sourceControlHandles
+			.map(handle => {
+				const sourceControl = this._sourceControls.get(handle);
+				return sourceControl
+					? deepFreeze({
+						id: sourceControl.id,
+						label: sourceControl.label,
+						rootUri: sourceControl.rootUri
+					})
+					: null;
+			})
+			.filter(sourceControl => !!sourceControl);
+
+		this.visibleSourceControls = sourceControls;
+		this._onDidChangeVisibleSourceControls.fire(this.visibleSourceControls);
+
 		return TPromise.as(null);
 	}
 

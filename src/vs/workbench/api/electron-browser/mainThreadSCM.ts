@@ -15,6 +15,7 @@ import { ExtHostContext, MainThreadSCMShape, ExtHostSCMShape, SCMProviderFeature
 import { Command } from 'vs/editor/common/modes';
 import { extHostNamedCustomer } from 'vs/workbench/api/electron-browser/extHostCustomers';
 import { ISplice, Sequence } from 'vs/base/common/sequence';
+import { equals } from 'vs/base/common/arrays';
 
 class MainThreadSCMResourceGroup implements ISCMResourceGroup {
 
@@ -264,12 +265,21 @@ export class MainThreadSCM implements MainThreadSCMShape {
 	private _repositories: { [handle: number]: ISCMRepository; } = Object.create(null);
 	private _inputDisposables: { [handle: number]: IDisposable; } = Object.create(null);
 	private _disposables: IDisposable[] = [];
+	private _selectedRepositories: number[] = [];
 
 	constructor(
 		extHostContext: IExtHostContext,
 		@ISCMService private scmService: ISCMService
 	) {
 		this._proxy = extHostContext.getProxy(ExtHostContext.ExtHostSCM);
+
+		this._disposables.push(this.scmService.onDidChangeSelectedRepositories(repositories => {
+			const handles = repositories.map(repo => (<MainThreadSCMProvider>repo.provider).handle);
+			if (!equals(handles, this._selectedRepositories)) {
+				this._selectedRepositories = handles;
+				this._proxy.$onDidChangeVisibleSourceControls(handles);
+			}
+		}));
 	}
 
 	dispose(): void {
@@ -291,6 +301,11 @@ export class MainThreadSCM implements MainThreadSCMShape {
 
 		const inputDisposable = repository.input.onDidChange(value => this._proxy.$onInputBoxValueChange(handle, value));
 		this._inputDisposables[handle] = inputDisposable;
+
+		if (!this._selectedRepositories.length) {
+			this._selectedRepositories.push(handle);
+			this._proxy.$onDidChangeVisibleSourceControls(this._selectedRepositories);
+		}
 	}
 
 	$updateSourceControl(handle: number, features: SCMProviderFeatures): void {
