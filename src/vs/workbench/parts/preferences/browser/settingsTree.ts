@@ -236,8 +236,12 @@ function inspectSetting(key: string, target: SettingsTarget, configurationServic
 	return { isConfigured, inspected, targetSelector };
 }
 
-export function resolveSettingsTree(tocData: ITOCEntry, coreSettingsGroups: ISettingsGroup[]): ITOCEntry {
-	return _resolveSettingsTree(tocData, getFlatSettings(coreSettingsGroups));
+export function resolveSettingsTree(tocData: ITOCEntry, coreSettingsGroups: ISettingsGroup[]): { tree: ITOCEntry, leftoverSettings: Set<ISetting> } {
+	const allSettings = getFlatSettings(coreSettingsGroups);
+	return {
+		tree: _resolveSettingsTree(tocData, allSettings),
+		leftoverSettings: allSettings
+	};
 }
 
 export function resolveExtensionsSettings(groups: ISettingsGroup[]): ITOCEntry {
@@ -311,7 +315,9 @@ function getFlatSettings(settingsGroups: ISettingsGroup[]) {
 	for (let group of settingsGroups) {
 		for (let section of group.sections) {
 			for (let s of section.settings) {
-				result.add(s);
+				if (!s.overrides || !s.overrides.length) {
+					result.add(s);
+				}
 			}
 		}
 	}

@@ -96,7 +96,7 @@ export interface IColor {
 
 export interface IExtensionContributions {
 	commands?: ICommand[];
-	configuration?: IConfiguration;
+	configuration?: IConfiguration | IConfiguration[];
 	debuggers?: IDebugger[];
 	grammars?: IGrammar[];
 	jsonValidation?: IJSONValidation[];

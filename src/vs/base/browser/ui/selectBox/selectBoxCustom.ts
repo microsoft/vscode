@@ -117,7 +117,12 @@ export class SelectBoxList implements ISelectBoxDelegate, IVirtualDelegate<ISele
 		// Use custom CSS vars for padding calculation
 		this.selectElement.className = 'monaco-select-box monaco-select-box-dropdown-padding';
 
+		if (typeof this.selectBoxOptions.ariaLabel === 'string') {
+			this.selectElement.setAttribute('aria-label', this.selectBoxOptions.ariaLabel);
+		}
+
 		this._onDidSelect = new Emitter<ISelectData>();
+
 		this.styles = styles;
 
 		this.registerListeners();
@@ -271,6 +276,12 @@ export class SelectBoxList implements ISelectBoxDelegate, IVirtualDelegate<ISele
 		this.selectElement.title = this.options[this.selected];
 	}
 
+	public setAriaLabel(label: string): void {
+		this.selectBoxOptions.ariaLabel = label;
+		this.selectElement.setAttribute('aria-label', this.selectBoxOptions.ariaLabel);
+		this.selectList.getHTMLElement().setAttribute('aria-label', this.selectBoxOptions.ariaLabel);
+	}
+
 	public focus(): void {
 		if (this.selectElement) {
 			this.selectElement.focus();
@@ -417,7 +428,15 @@ export class SelectBoxList implements ISelectBoxDelegate, IVirtualDelegate<ISele
 
 		this.layoutSelectDropDown();
 		return {
-			dispose: () => container.removeChild(this.selectDropDownContainer) // remove to take out the CSS rules we add
+			dispose: () => {
+				// contextView will dispose itself if moving from one View to another
+				try {
+					container.removeChild(this.selectDropDownContainer); // remove to take out the CSS rules we add
+				}
+				catch (error) {
+					// Ignore, removed already by change of focus
+				}
+			}
 		};
 	}
 
@@ -489,8 +508,8 @@ export class SelectBoxList implements ISelectBoxDelegate, IVirtualDelegate<ISele
 			// Set final container height after adjustments
 			this.selectDropDownContainer.style.height = (listHeight + verticalPadding) + 'px';
 
-			// Determine optimal width - min(longest option), opt(parent select), max(ContextView controlled)
-			const selectWidth = dom.getTotalWidth(this.selectElement);
+			// Determine optimal width - min(longest option), opt(parent select, excluding margins), max(ContextView controlled)
+			const selectWidth = this.selectElement.offsetWidth;
 			const selectMinWidth = this.setWidthControlElement(this.widthControlElement);
 			const selectOptimalWidth = Math.max(selectMinWidth, Math.round(selectWidth)).toString() + 'px';
 
@@ -537,6 +556,7 @@ export class SelectBoxList implements ISelectBoxDelegate, IVirtualDelegate<ISele
 		this.listRenderer = new SelectListRenderer();
 
 		this.selectList = new List(this.selectDropDownListContainer, this, [this.listRenderer], {
+			ariaLabel: this.selectBoxOptions.ariaLabel,
 			useShadows: false,
 			selectOnMouseDown: false,
 			verticalScrollMode: ScrollbarVisibility.Visible,
@@ -566,6 +586,8 @@ export class SelectBoxList implements ISelectBoxDelegate, IVirtualDelegate<ISele
 			.on(e => this.onMouseUp(e), this, this.toDispose);
 
 		this.toDispose.push(this.selectList.onDidBlur(e => this.onListBlur()));
+
+		this.selectList.getHTMLElement().setAttribute('aria-expanded', 'true');
 	}
 
 	// List methods

@@ -13,11 +13,11 @@ import { guessMimeTypes } from 'vs/base/common/mime';
 import { toErrorMessage } from 'vs/base/common/errorMessage';
 import URI from 'vs/base/common/uri';
 import * as diagnostics from 'vs/base/common/diagnostics';
-import * as types from 'vs/base/common/types';
+import { isUndefinedOrNull } from 'vs/base/common/types';
 import { IMode } from 'vs/editor/common/modes';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
-import { ITextFileService, IAutoSaveConfiguration, ModelState, ITextFileEditorModel, ISaveOptions, ISaveErrorHandler, ISaveParticipant, StateChange, SaveReason, IRawTextContent, ILoadOptions } from 'vs/workbench/services/textfile/common/textfiles';
+import { ITextFileService, IAutoSaveConfiguration, ModelState, ITextFileEditorModel, ISaveOptions, ISaveErrorHandler, ISaveParticipant, StateChange, SaveReason, IRawTextContent, ILoadOptions, LoadReason } from 'vs/workbench/services/textfile/common/textfiles';
 import { EncodingMode } from 'vs/workbench/common/editor';
 import { BaseTextEditorModel } from 'vs/workbench/common/editor/textEditorModel';
 import { IBackupFileService } from 'vs/workbench/services/backup/common/backup';
@@ -275,7 +275,7 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 					isReadonly: false
 				};
 
-				return this.loadWithContent(content, backup);
+				return this.loadWithContent(content, options, backup);
 			}
 
 			// Otherwise load from file
@@ -313,7 +313,7 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 
 				// Guard against the model having changed in the meantime
 				if (currentVersionId === this.versionId) {
-					return this.loadWithContent(content);
+					return this.loadWithContent(content, options);
 				}
 
 				return this;
@@ -346,7 +346,7 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 			});
 	}
 
-	private loadWithContent(content: IRawTextContent, backup?: URI): TPromise<TextFileEditorModel> {
+	private loadWithContent(content: IRawTextContent, options?: ILoadOptions, backup?: URI): TPromise<TextFileEditorModel> {
 		return this.doLoadWithContent(content, backup).then(model => {
 
 			// Telemetry: We log the fileGet telemetry event after the model has been loaded to ensure a good mimetype
@@ -360,10 +360,16 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 					"fileGet" : {
 						"mimeType" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
 						"ext": { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
-						"path": { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
+						"path": { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
+						"reason": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true }
 					}
 				*/
-				this.telemetryService.publicLog('fileGet', { mimeType: guessMimeTypes(this.resource.fsPath).join(', '), ext: path.extname(this.resource.fsPath), path: this.hashService.createSHA1(this.resource.fsPath) });
+				this.telemetryService.publicLog('fileGet', {
+					mimeType: guessMimeTypes(this.resource.fsPath).join(', '),
+					ext: path.extname(this.resource.fsPath),
+					path: this.hashService.createSHA1(this.resource.fsPath),
+					reason: options && options.reason ? options.reason : LoadReason.OTHER
+				});
 			}
 
 			return model;
@@ -592,7 +598,7 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 	}
 
 	private doSave(versionId: number, options: ISaveOptions): TPromise<void> {
-		if (types.isUndefinedOrNull(options.reason)) {
+		if (isUndefinedOrNull(options.reason)) {
 			options.reason = SaveReason.EXPLICIT;
 		}
 
@@ -718,10 +724,15 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 					/* __GDPR__
 						"filePUT" : {
 							"mimeType" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
-							"ext": { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
+							"ext": { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
+							"reason": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true }
 						}
 					*/
-					this.telemetryService.publicLog('filePUT', { mimeType: guessMimeTypes(this.resource.fsPath).join(', '), ext: path.extname(this.lastResolvedDiskStat.resource.fsPath) });
+					this.telemetryService.publicLog('filePUT', {
+						mimeType: guessMimeTypes(this.resource.fsPath).join(', '),
+						ext: path.extname(this.resource.fsPath),
+						reason: options.reason
+					});
 				}
 
 				// Update dirty state unless model has changed meanwhile
@@ -761,6 +772,9 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 	}
 
 	private isSettingsFile(): boolean {
+		if (path.extname(this.resource.fsPath) !== '.json') {
+			return false;
+		}
 
 		// Check for global settings file
 		if (path.isEqual(this.resource.fsPath, this.environmentService.appSettingsPath, !isLinux)) {
@@ -940,7 +954,7 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 	}
 
 	isResolved(): boolean {
-		return !types.isUndefinedOrNull(this.lastResolvedDiskStat);
+		return !isUndefinedOrNull(this.lastResolvedDiskStat);
 	}
 
 	isReadonly(): boolean {

@@ -43,6 +43,7 @@ import { assign } from 'vs/base/common/objects';
 import URI from 'vs/base/common/uri';
 import { areSameExtensions, getGalleryExtensionIdFromLocal } from 'vs/platform/extensionManagement/common/extensionManagementUtil';
 import { IExperimentService, ExperimentActionType, ExperimentState } from 'vs/workbench/parts/experiments/node/experimentService';
+import { Schemas } from 'vs/base/common/network';
 
 const milliSecondsInADay = 1000 * 60 * 60 * 24;
 const choiceNever = localize('neverShowAgain', "Don't Show Again");
@@ -86,6 +87,7 @@ export class ExtensionTipsService extends Disposable implements IExtensionTipsSe
 
 	private readonly _onRecommendationChange: Emitter<RecommendationChangeNotification> = new Emitter<RecommendationChangeNotification>();
 	onRecommendationChange: Event<RecommendationChangeNotification> = this._onRecommendationChange.event;
+	private sessionSeed: number;
 
 	constructor(
 		@IExtensionGalleryService private readonly _galleryService: IExtensionGalleryService,
@@ -108,7 +110,6 @@ export class ExtensionTipsService extends Disposable implements IExtensionTipsSe
 	) {
 		super();
 
-
 		if (!this.isEnabled()) {
 			return;
 		}
@@ -116,6 +117,8 @@ export class ExtensionTipsService extends Disposable implements IExtensionTipsSe
 		if (product.extensionsGallery && product.extensionsGallery.recommendationsUrl) {
 			this._extensionsRecommendationsUrl = product.extensionsGallery.recommendationsUrl;
 		}
+
+		this.sessionSeed = +new Date();
 
 		let globallyIgnored = <string[]>JSON.parse(this.storageService.get('extensionsAssistant/ignored_recommendations', StorageScope.GLOBAL, '[]'));
 		this._globallyIgnoredRecommendations = globallyIgnored.map(id => id.toLowerCase());
@@ -402,7 +405,7 @@ export class ExtensionTipsService extends Disposable implements IExtensionTipsSe
 				...this._dynamicWorkspaceRecommendations,
 				...Object.keys(this._experimentalRecommendations),
 			]).filter(extensionId => this.isExtensionAllowedToBeRecommended(extensionId));
-			shuffle(others);
+			shuffle(others, this.sessionSeed);
 			return others.map(extensionId => {
 				const sources: ExtensionRecommendationSource[] = [];
 				if (this._exeBasedRecommendations[extensionId]) {
@@ -497,7 +500,7 @@ export class ExtensionTipsService extends Disposable implements IExtensionTipsSe
 		let hasSuggestion = false;
 
 		const uri = model.uri;
-		if (!uri) {
+		if (!uri || uri.scheme !== Schemas.file) {
 			return;
 		}
 
@@ -523,6 +526,7 @@ export class ExtensionTipsService extends Disposable implements IExtensionTipsSe
 							recommendationsToSuggest.push(id);
 						}
 						const filedBasedRecommendation = this._fileBasedRecommendations[id.toLowerCase()] || { recommendedTime: now, sources: [] };
+						filedBasedRecommendation.recommendedTime = now;
 						if (!filedBasedRecommendation.sources.some(s => s instanceof URI && s.toString() === uri.toString())) {
 							filedBasedRecommendation.sources.push(uri);
 						}

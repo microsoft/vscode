@@ -56,6 +56,7 @@ export interface IBreadcrumbsItemEvent {
 	type: 'select' | 'focus';
 	item: BreadcrumbsItem;
 	node: HTMLElement;
+	payload: any;
 }
 
 export class BreadcrumbsWidget {
@@ -164,23 +165,23 @@ export class BreadcrumbsWidget {
 		return this._items[this._focusedItemIdx];
 	}
 
-	setFocused(item: BreadcrumbsItem): void {
-		this._focus(this._items.indexOf(item));
+	setFocused(item: BreadcrumbsItem, payload?: any): void {
+		this._focus(this._items.indexOf(item), payload);
 	}
 
-	focusPrev(): any {
+	focusPrev(payload?: any): any {
 		if (this._focusedItemIdx > 0) {
-			this._focus(this._focusedItemIdx - 1);
+			this._focus(this._focusedItemIdx - 1, payload);
 		}
 	}
 
-	focusNext(): any {
+	focusNext(payload?: any): any {
 		if (this._focusedItemIdx + 1 < this._nodes.length) {
-			this._focus(this._focusedItemIdx + 1);
+			this._focus(this._focusedItemIdx + 1, payload);
 		}
 	}
 
-	private _focus(nth: number): void {
+	private _focus(nth: number, payload: any): void {
 		this._focusedItemIdx = -1;
 		for (let i = 0; i < this._nodes.length; i++) {
 			const node = this._nodes[i];
@@ -192,7 +193,7 @@ export class BreadcrumbsWidget {
 			}
 		}
 		this._reveal(this._focusedItemIdx);
-		this._onDidFocusItem.fire({ type: 'focus', item: this._items[this._focusedItemIdx], node: this._nodes[this._focusedItemIdx] });
+		this._onDidFocusItem.fire({ type: 'focus', item: this._items[this._focusedItemIdx], node: this._nodes[this._focusedItemIdx], payload });
 	}
 
 	reveal(item: BreadcrumbsItem): void {
@@ -213,11 +214,11 @@ export class BreadcrumbsWidget {
 		return this._items[this._selectedItemIdx];
 	}
 
-	setSelection(item: BreadcrumbsItem): void {
-		this._select(this._items.indexOf(item));
+	setSelection(item: BreadcrumbsItem, payload?: any): void {
+		this._select(this._items.indexOf(item), payload);
 	}
 
-	private _select(nth: number): void {
+	private _select(nth: number, payload: any): void {
 		this._selectedItemIdx = -1;
 		for (let i = 0; i < this._nodes.length; i++) {
 			const node = this._nodes[i];
@@ -228,7 +229,11 @@ export class BreadcrumbsWidget {
 				dom.addClass(node, 'selected');
 			}
 		}
-		this._onDidSelectItem.fire({ type: 'select', item: this._items[this._selectedItemIdx], node: this._nodes[this._selectedItemIdx] });
+		this._onDidSelectItem.fire({ type: 'select', item: this._items[this._selectedItemIdx], node: this._nodes[this._selectedItemIdx], payload });
+	}
+
+	getItems(): ReadonlyArray<BreadcrumbsItem> {
+		return this._items;
 	}
 
 	setItems(items: BreadcrumbsItem[]): void {
@@ -236,7 +241,7 @@ export class BreadcrumbsWidget {
 		let removed = this._items.splice(prefix, this._items.length - prefix, ...items.slice(prefix));
 		this._render(prefix);
 		dispose(removed);
-		this._focus(-1);
+		this._focus(-1, undefined);
 	}
 
 	private _render(start: number): void {
@@ -275,8 +280,8 @@ export class BreadcrumbsWidget {
 		for (let el = event.target; el; el = el.parentElement) {
 			let idx = this._nodes.indexOf(el as any);
 			if (idx >= 0) {
-				this._focus(idx);
-				this._select(idx);
+				this._focus(idx, event);
+				this._select(idx, event);
 				break;
 			}
 		}

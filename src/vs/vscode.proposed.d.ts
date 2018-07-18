@@ -991,6 +991,11 @@ declare module 'vscode' {
 	export interface WorkspaceEdit {
 
 		/**
+		 * The number of affected resources of textual or resource changes.
+		 */
+		readonly size: number;
+
+		/**
 		 * Create a regular file.
 		 *
 		 * @param uri Uri of the new file..
@@ -1003,7 +1008,7 @@ declare module 'vscode' {
 		 *
 		 * @param uri The uri of the file that is to be deleted.
 		 */
-		deleteFile(uri: Uri, options?: { recursive?: boolean }): void;
+		deleteFile(uri: Uri, options?: { recursive?: boolean, ignoreIfNotExists?: boolean }): void;
 
 		/**
 		 * Rename a file or folder.
@@ -1012,11 +1017,7 @@ declare module 'vscode' {
 		 * @param newUri The new location.
 		 * @param options Defines if existing files should be overwritten.
 		 */
-		renameFile(oldUri: Uri, newUri: Uri, options?: { overwrite?: boolean }): void;
-
-		// replaceText(uri: Uri, range: Range, newText: string): void;
-		// insertText(uri: Uri, position: Position, newText: string): void;
-		// deleteText(uri: Uri, range: Range): void;
+		renameFile(oldUri: Uri, newUri: Uri, options?: { overwrite?: boolean, ignoreIfExists?: boolean }): void;
 	}
 
 	export namespace workspace {

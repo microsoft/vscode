@@ -43,7 +43,6 @@ import { LocalizationsChannel } from 'vs/platform/localizations/common/localizat
 import { DialogChannelClient } from 'vs/platform/dialogs/common/dialogIpc';
 import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
-import { DefaultURITransformer } from 'vs/base/common/uriIpc';
 
 export interface ISharedProcessConfiguration {
 	readonly machineId: string;
@@ -123,7 +122,7 @@ function main(server: Server, initData: ISharedProcessInitData, configuration: I
 
 		instantiationService2.invokeFunction(accessor => {
 			const extensionManagementService = accessor.get(IExtensionManagementService);
-			const channel = new ExtensionManagementChannel(extensionManagementService, DefaultURITransformer);
+			const channel = new ExtensionManagementChannel(extensionManagementService);
 			server.registerChannel('extensions', channel);
 
 			// clean up deprecated extensions

@@ -267,6 +267,7 @@
 	height: 18px; /* tweak the icon size of the editor labels when icons are enabled */
 }
 
-.monaco-workbench > .part.editor > .content .editor-group-container > .title .tabs-breadcrumbs  .breadcrumbs-control .monaco-breadcrumb-item:last-child {
-	padding-right: 8px;
+.monaco-workbench > .part.editor > .content .editor-group-container > .title .tabs-breadcrumbs  .breadcrumbs-control .monaco-breadcrumb-item {
+	padding-right: 4px;
 }
+

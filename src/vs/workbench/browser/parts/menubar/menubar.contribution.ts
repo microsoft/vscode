@@ -6,6 +6,7 @@
 import * as nls from 'vs/nls';
 import { MenuRegistry, MenuId } from 'vs/platform/actions/common/actions';
 import { isMacintosh } from 'vs/base/common/platform';
+import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
 
 recentMenuRegistration();
 fileMenuRegistration();
@@ -102,7 +103,7 @@ function fileMenuRegistration() {
 		group: '4_save',
 		command: {
 			id: 'workbench.action.files.save',
-			title: nls.localize({ key: 'miSave', comment: ['&& denotes a mnemonic'] }, "&&Save"),
+			title: nls.localize({ key: 'miSave', comment: ['&& denotes a mnemonic'] }, "&&Save")
 		},
 		order: 1
 	});
@@ -1058,7 +1059,8 @@ function debugMenuRegistration() {
 		group: '1_debug',
 		command: {
 			id: 'workbench.action.debug.start',
-			title: nls.localize({ key: 'miStartDebugging', comment: ['&& denotes a mnemonic'] }, "&&Start Debugging")
+			title: nls.localize({ key: 'miStartDebugging', comment: ['&& denotes a mnemonic'] }, "&&Start Debugging"),
+			precondition: ContextKeyExpr.not('inDebugMode')
 		},
 		order: 1
 	});
@@ -1067,7 +1069,8 @@ function debugMenuRegistration() {
 		group: '1_debug',
 		command: {
 			id: 'workbench.action.debug.run',
-			title: nls.localize({ key: 'miStartWithoutDebugging', comment: ['&& denotes a mnemonic'] }, "Start &&Without Debugging")
+			title: nls.localize({ key: 'miStartWithoutDebugging', comment: ['&& denotes a mnemonic'] }, "Start &&Without Debugging"),
+			precondition: ContextKeyExpr.not('inDebugMode')
 		},
 		order: 2
 	});
@@ -1076,7 +1079,8 @@ function debugMenuRegistration() {
 		group: '1_debug',
 		command: {
 			id: 'workbench.action.debug.stop',
-			title: nls.localize({ key: 'miStopDebugging', comment: ['&& denotes a mnemonic'] }, "&&Stop Debugging")
+			title: nls.localize({ key: 'miStopDebugging', comment: ['&& denotes a mnemonic'] }, "&&Stop Debugging"),
+			precondition: ContextKeyExpr.has('inDebugMode')
 		},
 		order: 3
 	});
@@ -1085,7 +1089,8 @@ function debugMenuRegistration() {
 		group: '1_debug',
 		command: {
 			id: 'workbench.action.debug.restart',
-			title: nls.localize({ key: 'miRestart Debugging', comment: ['&& denotes a mnemonic'] }, "&&Restart Debugging")
+			title: nls.localize({ key: 'miRestart Debugging', comment: ['&& denotes a mnemonic'] }, "&&Restart Debugging"),
+			precondition: ContextKeyExpr.has('inDebugMode')
 		},
 		order: 4
 	});
@@ -1114,7 +1119,8 @@ function debugMenuRegistration() {
 		group: '3_step',
 		command: {
 			id: 'workbench.action.debug.stepOver',
-			title: nls.localize({ key: 'miStepOver', comment: ['&& denotes a mnemonic'] }, "Step &&Over")
+			title: nls.localize({ key: 'miStepOver', comment: ['&& denotes a mnemonic'] }, "Step &&Over"),
+			precondition: ContextKeyExpr.has('inDebugMode')
 		},
 		order: 1
 	});
@@ -1123,7 +1129,8 @@ function debugMenuRegistration() {
 		group: '3_step',
 		command: {
 			id: 'workbench.action.debug.stepInto',
-			title: nls.localize({ key: 'miStepInto', comment: ['&& denotes a mnemonic'] }, "Step &&Into")
+			title: nls.localize({ key: 'miStepInto', comment: ['&& denotes a mnemonic'] }, "Step &&Into"),
+			precondition: ContextKeyExpr.has('inDebugMode')
 		},
 		order: 2
 	});
@@ -1132,7 +1139,8 @@ function debugMenuRegistration() {
 		group: '3_step',
 		command: {
 			id: 'workbench.action.debug.stepOut',
-			title: nls.localize({ key: 'miStepOut', comment: ['&& denotes a mnemonic'] }, "Step O&&ut")
+			title: nls.localize({ key: 'miStepOut', comment: ['&& denotes a mnemonic'] }, "Step O&&ut"),
+			precondition: ContextKeyExpr.has('inDebugMode')
 		},
 		order: 3
 	});
@@ -1141,7 +1149,8 @@ function debugMenuRegistration() {
 		group: '3_step',
 		command: {
 			id: 'workbench.action.debug.continue',
-			title: nls.localize({ key: 'miContinue', comment: ['&& denotes a mnemonic'] }, "&&Continue")
+			title: nls.localize({ key: 'miContinue', comment: ['&& denotes a mnemonic'] }, "&&Continue"),
+			precondition: ContextKeyExpr.has('inDebugMode')
 		},
 		order: 4
 	});

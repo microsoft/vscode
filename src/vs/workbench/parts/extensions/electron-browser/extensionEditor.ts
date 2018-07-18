@@ -667,7 +667,14 @@ export class ExtensionEditor extends BaseEditor {
 	private renderSettings(container: HTMLElement, manifest: IExtensionManifest, onDetailsToggle: Function): boolean {
 		const contributes = manifest.contributes;
 		const configuration = contributes && contributes.configuration;
-		const properties = configuration && configuration.properties;
+		let properties = {};
+		if (Array.isArray(configuration)) {
+			configuration.forEach(config => {
+				properties = { ...properties, ...config.properties };
+			});
+		} else if (configuration) {
+			properties = configuration.properties;
+		}
 		const contrib = properties ? Object.keys(properties) : [];
 
 		if (!contrib.length) {

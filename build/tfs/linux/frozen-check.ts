@@ -39,4 +39,11 @@ function getConfig(quality: string): Promise<Config> {
 }
 
 getConfig(process.argv[2])
-	.then(c => console.log(c.frozen), e => console.error(e));
+	.then(config => {
+		console.log(config.frozen);
+		process.exit(0);
+	})
+	.catch(err => {
+		console.error(err);
+		process.exit(1);
+	});

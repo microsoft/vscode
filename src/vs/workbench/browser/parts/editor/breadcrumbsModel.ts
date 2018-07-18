@@ -19,7 +19,10 @@ import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { IPosition } from 'vs/editor/common/core/position';
 import { DocumentSymbolProviderRegistry } from 'vs/editor/common/modes';
 import { OutlineElement, OutlineGroup, OutlineModel } from 'vs/editor/contrib/documentSymbols/outlineModel';
-import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
+import { IWorkspaceContextService, IWorkspaceFolder, WorkbenchState } from 'vs/platform/workspace/common/workspace';
+import { Schemas } from 'vs/base/common/network';
+import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
+import { BreadcrumbsConfig } from 'vs/workbench/browser/parts/editor/breadcrumbs';
 
 export class FileElement {
 	constructor(
@@ -30,10 +33,15 @@ export class FileElement {
 
 export type BreadcrumbElement = FileElement | OutlineGroup | OutlineElement;
 
+type FileInfo = { path: FileElement[], folder: IWorkspaceFolder, showFolder: boolean };
+
 export class EditorBreadcrumbsModel {
 
 	private readonly _disposables: IDisposable[] = [];
-	private readonly _fileElements: FileElement[] = [];
+	private readonly _fileInfo: FileInfo;
+
+	private readonly _cfgFilePath: BreadcrumbsConfig<'on' | 'off' | 'last'>;
+	private readonly _cfgSymbolPath: BreadcrumbsConfig<'on' | 'off' | 'last'>;
 
 	private _outlineElements: (OutlineGroup | OutlineElement)[] = [];
 	private _outlineDisposables: IDisposable[] = [];
@@ -45,33 +53,74 @@ export class EditorBreadcrumbsModel {
 		private readonly _uri: URI,
 		private readonly _editor: ICodeEditor | undefined,
 		@IWorkspaceContextService workspaceService: IWorkspaceContextService,
+		@IConfigurationService configurationService: IConfigurationService,
 	) {
-		this._fileElements = EditorBreadcrumbsModel._getFileElements(this._uri, workspaceService);
+
+		this._cfgFilePath = BreadcrumbsConfig.FilePath.bindTo(configurationService);
+		this._cfgSymbolPath = BreadcrumbsConfig.SymbolPath.bindTo(configurationService);
+
+		this._disposables.push(this._cfgFilePath.onDidChange(_ => this._onDidUpdate.fire(this)));
+		this._disposables.push(this._cfgSymbolPath.onDidChange(_ => this._onDidUpdate.fire(this)));
+
+		this._fileInfo = EditorBreadcrumbsModel._initFilePathInfo(this._uri, workspaceService);
 		this._bindToEditor();
 		this._onDidUpdate.fire(this);
 	}
 
 	dispose(): void {
+		this._cfgFilePath.dispose();
+		this._cfgSymbolPath.dispose();
 		dispose(this._disposables);
 	}
 
-	getElements(): ReadonlyArray<BreadcrumbElement> {
-		return [].concat(this._fileElements, this._outlineElements);
+	isRelative(): boolean {
+		return Boolean(this._fileInfo.folder);
 	}
 
-	private static _getFileElements(uri: URI, workspaceService: IWorkspaceContextService): FileElement[] {
-		let result: FileElement[] = [];
-		let workspace = workspaceService.getWorkspaceFolder(uri);
-		let path = uri.path;
-		while (path !== '/') {
-			if (workspace && isEqual(workspace.uri, uri)) {
+	getElements(): ReadonlyArray<BreadcrumbElement> {
+		let result: BreadcrumbElement[] = [];
+
+		// file path elements
+		if (this._cfgFilePath.value === 'on') {
+			result = result.concat(this._fileInfo.path);
+		} else if (this._cfgFilePath.value === 'last' && this._fileInfo.path.length > 0) {
+			result = result.concat(this._fileInfo.path.slice(-1));
+		}
+
+		// symbol path elements
+		if (this._cfgSymbolPath.value === 'on') {
+			result = result.concat(this._outlineElements);
+		} else if (this._cfgSymbolPath.value === 'last' && this._outlineElements.length > 0) {
+			result = result.concat(this._outlineElements.slice(-1));
+		}
+
+		return result;
+	}
+
+	private static _initFilePathInfo(uri: URI, workspaceService: IWorkspaceContextService): FileInfo {
+
+		if (uri.scheme === Schemas.untitled) {
+			return {
+				showFolder: false,
+				folder: undefined,
+				path: []
+			};
+		}
+
+		let info: FileInfo = {
+			showFolder: workspaceService.getWorkbenchState() === WorkbenchState.WORKSPACE,
+			folder: workspaceService.getWorkspaceFolder(uri),
+			path: []
+		};
+
+		while (uri.path !== '/') {
+			if (info.folder && isEqual(info.folder.uri, uri)) {
 				break;
 			}
-			result.push(new FileElement(uri, result.length === 0));
-			path = paths.dirname(path);
-			uri = uri.with({ path });
+			info.path.unshift(new FileElement(uri, info.path.length === 0));
+			uri = uri.with({ path: paths.dirname(uri.path) });
 		}
-		return result.reverse();
+		return info;
 	}
 
 	private _bindToEditor(): void {

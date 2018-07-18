@@ -151,7 +151,7 @@ class Extension implements IExtension {
 					return require.toUrl('../electron-browser/media/theme-icon.png');
 				}
 				if (Array.isArray(this.local.manifest.contributes.grammars) && this.local.manifest.contributes.grammars.length) {
-					return require.toUrl('../electron-browser/media/language-icon.png');
+					return require.toUrl('../electron-browser/media/language-icon.svg');
 				}
 			}
 		}
@@ -245,7 +245,7 @@ class Extension implements IExtension {
 
 		if (this.type === LocalExtensionType.System) {
 			return TPromise.as(`# ${this.displayName || this.name}
-**Notice** This extension is bundled with Visual Studio Code. It can be disabled but not uninstalled.
+**Notice:** This extension is bundled with Visual Studio Code. It can be disabled but not uninstalled.
 ## Features
 ${this.description}
 `);
@@ -264,7 +264,7 @@ ${this.description}
 			return uri.scheme === 'file';
 		}
 
-		return false;
+		return this.type === LocalExtensionType.System;
 	}
 
 	getChangelog(): TPromise<string> {
@@ -275,6 +275,10 @@ ${this.description}
 		const changelogUrl = this.local && this.local.changelogUrl;
 
 		if (!changelogUrl) {
+			if (this.type === LocalExtensionType.System) {
+				return TPromise.as(nls.localize('checkReleaseNotes', 'Please check the [VS Code Release Notes](https://code.visualstudio.com/updates) for changes to the built-in extensions.'));
+			}
+
 			return TPromise.wrapError<string>(new Error('not available'));
 		}
 

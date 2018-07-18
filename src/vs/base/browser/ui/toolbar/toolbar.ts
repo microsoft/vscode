@@ -171,7 +171,7 @@ class ToggleMenuAction extends Action {
 	private toggleDropdownMenu: () => void;
 
 	constructor(toggleDropdownMenu: () => void) {
-		super(ToggleMenuAction.ID, nls.localize('more', "More"), null, true);
+		super(ToggleMenuAction.ID, nls.localize('moreActions', "More Actions..."), null, true);
 
 		this.toggleDropdownMenu = toggleDropdownMenu;
 	}

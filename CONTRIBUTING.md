@@ -59,7 +59,7 @@ Please include the following with each issue:
 
 * What you expected to see, versus what you actually saw
 
-* Images, animations, or a link to a video showing the issue occuring
+* Images, animations, or a link to a video showing the issue occurring
 
 * A code snippet that demonstrates the issue or a link to a code repository the developers can easily pull down to recreate the issue locally
 
