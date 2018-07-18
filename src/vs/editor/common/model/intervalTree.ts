@@ -12,14 +12,14 @@ import { IModelDecoration, TrackedRangeStickiness as ActualTrackedRangeStickines
 // The red-black tree is based on the "Introduction to Algorithms" by Cormen, Leiserson and Rivest.
 //
 
-export const ClassName = {
-	EditorHintDecoration: 'squiggly-hint',
-	EditorInfoDecoration: 'squiggly-info',
-	EditorWarningDecoration: 'squiggly-warning',
-	EditorErrorDecoration: 'squiggly-error',
-	EditorUnnecessaryDecoration: 'squiggly-unnecessary',
-	EditorUnnecessaryInlineDecoration: 'squiggly-inline-unnecessary'
-};
+export const enum ClassName {
+	EditorHintDecoration = 'squiggly-hint',
+	EditorInfoDecoration = 'squiggly-info',
+	EditorWarningDecoration = 'squiggly-warning',
+	EditorErrorDecoration = 'squiggly-error',
+	EditorUnnecessaryDecoration = 'squiggly-unnecessary',
+	EditorUnnecessaryInlineDecoration = 'squiggly-inline-unnecessary'
+}
 
 /**
  * Describes the behavior of decorations when typing/editing near their edges.
