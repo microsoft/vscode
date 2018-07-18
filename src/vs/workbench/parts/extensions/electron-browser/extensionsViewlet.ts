@@ -659,6 +659,7 @@ export class MaliciousExtensionChecker implements IWorkbenchContribution {
 let SEARCH_INPUT_OPTIONS: IEditorOptions =
 {
 	fontSize: 13,
+	lineHeight: 22,
 	wordWrap: 'off',
 	overviewRulerLanes: 0,
 	glyphMargin: false,

@@ -198,7 +198,7 @@
 }
 
 .extensions-viewlet .header .monaco-container {
-	padding: 5px 4px 3px;
+	padding: 3px 4px 5px;
 }
 
 .extensions-viewlet .header .monaco-container .suggest-widget {
@@ -220,6 +220,7 @@
 	white-space: nowrap;
 	text-overflow: ellipsis;
 	pointer-events: none;
+	margin-top: 2px;
 }
 
 .vs .extensions-viewlet > .extensions .monaco-list-row.disabled > .bookmark,
