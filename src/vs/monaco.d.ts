@@ -4614,6 +4614,8 @@ declare namespace monaco.languages {
 
 	export interface IAutoClosingPairConditional extends IAutoClosingPair {
 		notIn?: string[];
+		onlyIn?: string[];
+		cursorPosition?: number;
 	}
 
 	/**
