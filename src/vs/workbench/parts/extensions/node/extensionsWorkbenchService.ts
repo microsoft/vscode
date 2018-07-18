@@ -26,7 +26,7 @@ import { IConfigurationService } from 'vs/platform/configuration/common/configur
 import { IWindowService } from 'vs/platform/windows/common/windows';
 import Severity from 'vs/base/common/severity';
 import URI from 'vs/base/common/uri';
-import { IExtension, IExtensionDependencies, ExtensionState, IExtensionsWorkbenchService, AutoUpdateConfigurationKey, RecievesUpdatesConfigurationKey } from 'vs/workbench/parts/extensions/common/extensions';
+import { IExtension, IExtensionDependencies, ExtensionState, IExtensionsWorkbenchService, AutoUpdateConfigurationKey, ReceivesUpdatesConfigurationKey } from 'vs/workbench/parts/extensions/common/extensions';
 import { IEditorService, SIDE_GROUP, ACTIVE_GROUP } from 'vs/workbench/services/editor/common/editorService';
 import { IURLService, IURLHandler } from 'vs/platform/url/common/url';
 import { ExtensionsInput } from 'vs/workbench/parts/extensions/common/extensionsInput';
@@ -410,12 +410,12 @@ export class ExtensionsWorkbenchService implements IExtensionsWorkbenchService, 
 		urlService.registerHandler(this);
 
 		this.configurationService.onDidChangeConfiguration(e => {
-			if (e.affectsConfiguration(AutoUpdateConfigurationKey)) {
+			if (e.affectsConfiguration(AutoUpdateConfigurationKey) || e.affectsConfiguration(ReceivesUpdatesConfigurationKey)) {
 				if (this.isAutoUpdateEnabled()) {
 					this.checkForUpdates();
 				}
 			}
-			if (e.affectsConfiguration(RecievesUpdatesConfigurationKey)) {
+			if (e.affectsConfiguration(ReceivesUpdatesConfigurationKey)) {
 				this.eventuallySyncWithGallery(true);
 			}
 		}, this, this.disposables);
@@ -610,15 +610,15 @@ export class ExtensionsWorkbenchService implements IExtensionsWorkbenchService, 
 	}
 
 	private isAutoUpdateEnabled(): boolean {
-		return this.configurationService.getValue(AutoUpdateConfigurationKey);
+		return this.configurationService.getValue(AutoUpdateConfigurationKey) && this.isReceiveUpdatesEnabled();
 	}
 
-	private isRecieveUpdatesEnabled(): boolean {
-		return this.configurationService.getValue(RecievesUpdatesConfigurationKey);
+	private isReceiveUpdatesEnabled(): boolean {
+		return this.configurationService.getValue(ReceivesUpdatesConfigurationKey);
 	}
 
 	private eventuallySyncWithGallery(immediate = false): void {
-		if (!this.isRecieveUpdatesEnabled()) {
+		if (!this.isReceiveUpdatesEnabled()) {
 			return;
 		}
 		const loop = () => this.syncWithGallery().then(() => this.eventuallySyncWithGallery());

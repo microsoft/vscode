@@ -98,12 +98,12 @@ export const ConfigurationKey = 'extensions';
 export const AutoUpdateConfigurationKey = 'extensions.autoUpdate';
 export const ShowRecommendationsOnlyOnDemandKey = 'extensions.showRecommendationsOnlyOnDemand';
 export const CloseExtensionDetailsOnViewChangeKey = 'extensions.closeExtensionDetailsOnViewChange';
-export const RecievesUpdatesConfigurationKey = 'extensions.recieveUpdates';
+export const ReceivesUpdatesConfigurationKey = 'extensions.receiveUpdates';
 
 export interface IExtensionsConfiguration {
 	autoUpdate: boolean;
 	ignoreRecommendations: boolean;
 	showRecommendationsOnlyOnDemand: boolean;
 	closeExtensionDetailsOnViewChange: boolean;
-	recieveUpdates: boolean;
+	receiveUpdates: boolean;
 }
