@@ -365,7 +365,7 @@ export interface IWriteFileOptions {
 }
 
 let canFlush = true;
-export function writeFileAndFlush(path: string, data: string | NodeBuffer | NodeJS.ReadableStream, options: IWriteFileOptions, callback: (error?: Error) => void): void {
+export function writeFileAndFlush(path: string, data: string | Buffer | NodeJS.ReadableStream, options: IWriteFileOptions, callback: (error?: Error) => void): void {
 	options = ensureOptions(options);
 
 	if (typeof data === 'string' || Buffer.isBuffer(data)) {
@@ -466,7 +466,7 @@ function doWriteFileStreamAndFlush(path: string, reader: NodeJS.ReadableStream, 
 // not in some cache.
 //
 // See https://github.com/nodejs/node/blob/v5.10.0/lib/fs.js#L1194
-function doWriteFileAndFlush(path: string, data: string | NodeBuffer, options: IWriteFileOptions, callback: (error?: Error) => void): void {
+function doWriteFileAndFlush(path: string, data: string | Buffer, options: IWriteFileOptions, callback: (error?: Error) => void): void {
 	if (options.encoding) {
 		data = encode(data, options.encoding.charset, { addBOM: options.encoding.addBOM });
 	}
@@ -503,7 +503,7 @@ function doWriteFileAndFlush(path: string, data: string | NodeBuffer, options: I
 	});
 }
 
-export function writeFileAndFlushSync(path: string, data: string | NodeBuffer, options?: IWriteFileOptions): void {
+export function writeFileAndFlushSync(path: string, data: string | Buffer, options?: IWriteFileOptions): void {
 	options = ensureOptions(options);
 
 	if (options.encoding) {

@@ -46,7 +46,7 @@ export class OutOfProcessWin32FolderWatcher {
 		const stdoutLineDecoder = new decoder.LineDecoder();
 
 		// Events over stdout
-		this.handle.stdout.on('data', (data: NodeBuffer) => {
+		this.handle.stdout.on('data', (data: Buffer) => {
 
 			// Collect raw events from output
 			const rawEvents: IRawFileChange[] = [];
@@ -86,13 +86,13 @@ export class OutOfProcessWin32FolderWatcher {
 
 		// Errors
 		this.handle.on('error', (error: Error) => this.onError(error));
-		this.handle.stderr.on('data', (data: NodeBuffer) => this.onError(data));
+		this.handle.stderr.on('data', (data: Buffer) => this.onError(data));
 
 		// Exit
 		this.handle.on('exit', (code: number, signal: string) => this.onExit(code, signal));
 	}
 
-	private onError(error: Error | NodeBuffer): void {
+	private onError(error: Error | Buffer): void {
 		this.errorCallback('[FileWatcher] process error: ' + error.toString());
 	}
 

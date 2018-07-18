@@ -6,9 +6,9 @@
 /// <reference path='./node.d.ts'/>
 
 declare module 'iconv-lite' {
-	export function decode(buffer: NodeBuffer, encoding: string): string;
+	export function decode(buffer: Buffer, encoding: string): string;
 
-	export function encode(content: string | NodeBuffer, encoding: string, options?: { addBOM?: boolean }): NodeBuffer;
+	export function encode(content: string | Buffer, encoding: string, options?: { addBOM?: boolean }): Buffer;
 
 	export function encodingExists(encoding: string): boolean;
 

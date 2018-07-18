@@ -119,11 +119,11 @@ export function bomLength(encoding: string): number {
 	return 0;
 }
 
-export function decode(buffer: NodeBuffer, encoding: string): string {
+export function decode(buffer: Buffer, encoding: string): string {
 	return iconv.decode(buffer, toNodeEncoding(encoding));
 }
 
-export function encode(content: string | NodeBuffer, encoding: string, options?: { addBOM?: boolean }): NodeBuffer {
+export function encode(content: string | Buffer, encoding: string, options?: { addBOM?: boolean }): Buffer {
 	return iconv.encode(content, toNodeEncoding(encoding), options);
 }
 
@@ -147,7 +147,7 @@ function toNodeEncoding(enc: string): string {
 	return enc;
 }
 
-export function detectEncodingByBOMFromBuffer(buffer: NodeBuffer, bytesRead: number): string {
+export function detectEncodingByBOMFromBuffer(buffer: Buffer, bytesRead: number): string {
 	if (!buffer || bytesRead < 2) {
 		return null;
 	}
@@ -193,7 +193,7 @@ const IGNORE_ENCODINGS = ['ascii', 'utf-8', 'utf-16', 'utf-32'];
 /**
  * Guesses the encoding from buffer.
  */
-export function guessEncodingByBuffer(buffer: NodeBuffer): TPromise<string> {
+export function guessEncodingByBuffer(buffer: Buffer): TPromise<string> {
 	return toWinJsPromise(import('jschardet')).then(jschardet => {
 		jschardet.Constants.MINIMUM_THRESHOLD = MINIMUM_THRESHOLD;
 
