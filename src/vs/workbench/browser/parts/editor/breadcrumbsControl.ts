@@ -223,6 +223,16 @@ export class BreadcrumbsControl {
 		let listener = model.onDidUpdate(updateBreadcrumbs);
 		updateBreadcrumbs();
 		this._breadcrumbsDisposables = [model, listener];
+
+		// close picker on hide/update
+		this._breadcrumbsDisposables.push({
+			dispose: () => {
+				if (this._breadcrumbsPickerShowing) {
+					this._contextViewService.hideContextView();
+				}
+			}
+		});
+
 		return true;
 	}
 
@@ -277,7 +287,7 @@ export class BreadcrumbsControl {
 
 				return combinedDisposable([listener, res]);
 			},
-			onHide: (data) => {
+			onHide: () => {
 				this._breadcrumbsPickerShowing = false;
 				this._updateCkBreadcrumbsActive();
 			}
