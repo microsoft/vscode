@@ -334,7 +334,7 @@ export class ExtensionsViewlet extends ViewContainerViewlet implements IExtensio
 		const header = append(this.root, $('.header'));
 		this.monacoStyleContainer = append(header, $('.monaco-container'));
 		this.searchBox = this.instantiationService.createInstance(CodeEditorWidget, this.monacoStyleContainer, SEARCH_INPUT_OPTIONS, {});
-		this.placeholderText = append(this.monacoStyleContainer, $('.search-placeholder', null, 'Search Extensions in Marketplace'));
+		this.placeholderText = append(this.monacoStyleContainer, $('.search-placeholder', null, localize('searchExtensions', "Search Extensions in Marketplace")));
 
 		this.extensionsBox = append(this.root, $('.extensions'));
 
@@ -510,13 +510,13 @@ export class ExtensionsViewlet extends ViewContainerViewlet implements IExtensio
 		return this.panels.reduce((count, view) => (<ExtensionsListView>view).count() + count, 0);
 	}
 
-	private autoComplete(query: string, position: number): { fullText: string, additionalText: string, overwrite: number }[] {
+	private autoComplete(query: string, position: number): { fullText: string, overwrite: number }[] {
 		if (query.lastIndexOf('@', position - 1) === -1 || query.lastIndexOf('@', position - 1) < query.lastIndexOf(' ', position - 1)) { return []; }
 
 		let wordStart = query.lastIndexOf('@', position - 1) + 1;
 		let alreadyTypedCount = position - wordStart - 1;
 
-		return Query.autocompletions().map(replacement => ({ fullText: replacement, additionalText: replacement, overwrite: alreadyTypedCount }));
+		return Query.autocompletions().map(replacement => ({ fullText: replacement, overwrite: alreadyTypedCount }));
 	}
 
 	private onEnter(): void {
@@ -671,7 +671,7 @@ let SEARCH_INPUT_OPTIONS: IEditorOptions =
 		horizontal: 'hidden',
 		vertical: 'hidden'
 	},
-	ariaLabel: 'Search Extensions in Marketplace',
+	ariaLabel: localize('searchExtensions', "Search Extensions in Marketplace"),
 	cursorWidth: 1,
 	lineDecorationsWidth: 0,
 	overviewRulerBorder: false,
