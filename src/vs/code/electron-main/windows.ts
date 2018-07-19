@@ -400,7 +400,7 @@ export class WindowsManager implements IWindowsMainService {
 		let workspacesToRestore: IWorkspaceIdentifier[] = [];
 		let emptyToRestore: string[] = [];
 		if (openConfig.initialStartup && !openConfig.cli.extensionDevelopmentPath && !openConfig.cli['disable-restore-windows']) {
-			foldersToRestore = this.backupMainService.getFolderBackupPaths().map(path => URI.file(path));
+			foldersToRestore = this.backupMainService.getFolderBackupPaths();
 
 			workspacesToRestore = this.backupMainService.getWorkspaceBackups();						// collect from workspaces with hot-exit backups
 			workspacesToRestore.push(...this.workspacesMainService.getUntitledWorkspacesSync());	// collect from previous window session
@@ -1203,7 +1203,7 @@ export class WindowsManager implements IWindowsMainService {
 					if (configuration.workspace) {
 						configuration.backupPath = this.backupMainService.registerWorkspaceBackupSync(configuration.workspace);
 					} else if (configuration.folderUri) {
-						configuration.backupPath = this.backupMainService.registerFolderBackupSync(configuration.folderUri.fsPath);
+						configuration.backupPath = this.backupMainService.registerFolderBackupSync(configuration.folderUri);
 					} else {
 						configuration.backupPath = this.backupMainService.registerEmptyWindowBackupSync(options.emptyWindowBackupFolder);
 					}
