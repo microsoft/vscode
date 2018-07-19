@@ -37,6 +37,8 @@ import { IEditorService } from 'vs/workbench/services/editor/common/editorServic
 import { IEditorGroupsService } from 'vs/workbench/services/group/common/editorGroupsService';
 import { MenuRegistry, MenuId } from 'vs/platform/actions/common/actions';
 import { localize } from 'vs/nls';
+import { WorkbenchListFocusContextKey, IListService } from 'vs/platform/list/browser/listService';
+import { Tree } from 'vs/base/parts/tree/browser/treeImpl';
 
 class Item extends BreadcrumbsItem {
 
@@ -414,5 +416,16 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 		groups.activeGroup.activeControl.focus();
 	}
 });
-
+KeybindingsRegistry.registerCommandAndKeybindingRule({
+	id: 'breadcrumbs.pickFromTree',
+	weight: KeybindingsRegistry.WEIGHT.workbenchContrib(),
+	primary: KeyCode.Tab,
+	when: ContextKeyExpr.and(BreadcrumbsControl.CK_BreadcrumbsVisible, BreadcrumbsControl.CK_BreadcrumbsActive, WorkbenchListFocusContextKey),
+	handler(accessor) {
+		const list = accessor.get(IListService).lastFocusedList;
+		if (list instanceof Tree) {
+			list.setSelection([list.getFocus()]);
+		}
+	}
+});
 //#endregion
