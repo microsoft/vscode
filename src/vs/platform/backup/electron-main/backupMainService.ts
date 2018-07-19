@@ -86,7 +86,7 @@ export class BackupMainService implements IBackupMainService {
 			this.saveSync();
 		}
 
-		const backupPath = path.join(this.backupHome, workspace.id);
+		const backupPath = this.getBackupPath(workspace.id);
 
 		if (migrateFrom) {
 			this.moveBackupFolderSync(backupPath, migrateFrom);
@@ -125,7 +125,7 @@ export class BackupMainService implements IBackupMainService {
 			this.folderWorkspaces.push(folderUri);
 			this.saveSync();
 		}
-		return path.join(this.backupHome, this.getFolderHash(folderUri));
+		return this.getBackupPath(this.getFolderHash(folderUri));
 	}
 
 	public unregisterFolderBackupSync(folderUri: URI): void {
@@ -146,7 +146,7 @@ export class BackupMainService implements IBackupMainService {
 			this.emptyWorkspaces.push(backupFolder);
 			this.saveSync();
 		}
-		return path.join(this.backupHome, backupFolder);
+		return this.getBackupPath(backupFolder);
 	}
 
 	public unregisterEmptyWindowBackupSync(backupFolder: string): void {
@@ -178,8 +178,16 @@ export class BackupMainService implements IBackupMainService {
 			if (Array.isArray(backups.folderURIWorkspaces)) {
 				workspaceFolders = backups.folderURIWorkspaces.map(f => URI.parse(f));
 			} else if (Array.isArray(backups.folderWorkspaces)) {
-				// legacy
-				workspaceFolders = backups.folderWorkspaces.map(f => URI.file(f));
+				// migrate legacy folder paths
+				for (const folderPath of backups.folderWorkspaces) {
+					const oldFolderHash = this.getLegacyFolderHash(folderPath);
+					const folderUri = URI.file(folderPath);
+					const newFolderHash = this.getFolderHash(folderUri);
+					if (newFolderHash !== oldFolderHash) {
+						this.moveBackupFolderSync(this.getBackupPath(newFolderHash), this.getBackupPath(oldFolderHash));
+					}
+					workspaceFolders.add(folderUri);
+				}
 			}
 		} catch (e) {
 			// ignore URI parsing exceptions
@@ -189,6 +197,10 @@ export class BackupMainService implements IBackupMainService {
 		// save again in case some workspaces or folders have been removed
 		this.saveSync();
 
+	}
+
+	private getBackupPath(oldFolderHash: string): string {
+		return path.join(this.backupHome, oldFolderHash);
 	}
 
 	private validateWorkspaces(rootWorkspaces: IWorkspaceIdentifier[]): IWorkspaceIdentifier[] {
@@ -208,7 +220,7 @@ export class BackupMainService implements IBackupMainService {
 			if (!seenIds[workspace.id]) {
 				seenIds[workspace.id] = true;
 
-				const backupPath = path.join(this.backupHome, workspace.id);
+				const backupPath = this.getBackupPath(workspace.id);
 				const hasBackups = this.hasBackupsSync(backupPath);
 
 				// If the workspace has no backups, ignore it
@@ -240,7 +252,7 @@ export class BackupMainService implements IBackupMainService {
 			if (!seen[key]) {
 				seen[key] = true;
 
-				const backupPath = path.join(this.backupHome, this.getFolderHash(folderURI));
+				const backupPath = this.getBackupPath(this.getFolderHash(folderURI));
 				const hasBackups = this.hasBackupsSync(backupPath);
 
 				// If the folder has no backups, ignore it
@@ -276,7 +288,7 @@ export class BackupMainService implements IBackupMainService {
 			if (!seen[backupFolder]) {
 				seen[backupFolder] = true;
 
-				const backupPath = path.join(this.backupHome, backupFolder);
+				const backupPath = this.getBackupPath(backupFolder);
 				if (this.hasBackupsSync(backupPath)) {
 					result.push(backupFolder);
 				} else {
@@ -307,7 +319,7 @@ export class BackupMainService implements IBackupMainService {
 		}
 
 		// Rename backupPath to new empty window backup path
-		const newEmptyWindowBackupPath = path.join(this.backupHome, newBackupFolder);
+		const newEmptyWindowBackupPath = this.getBackupPath(newBackupFolder);
 		try {
 			fs.renameSync(backupPath, newEmptyWindowBackupPath);
 		} catch (ex) {
@@ -368,5 +380,9 @@ export class BackupMainService implements IBackupMainService {
 			key = hasToIgnoreCase(folderPath) ? folderPath.toString().toLowerCase() : folderPath.toString();
 		}
 		return crypto.createHash('md5').update(key).digest('hex');
+	}
+
+	private getLegacyFolderHash(folderPath: string): string {
+		return crypto.createHash('md5').update(platform.isLinux ? folderPath : folderPath.toLowerCase()).digest('hex');
 	}
 }
