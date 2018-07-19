@@ -39,6 +39,7 @@ import { MenuRegistry, MenuId } from 'vs/platform/actions/common/actions';
 import { localize } from 'vs/nls';
 import { WorkbenchListFocusContextKey, IListService } from 'vs/platform/list/browser/listService';
 import { Tree } from 'vs/base/parts/tree/browser/treeImpl';
+import { CommandsRegistry } from 'vs/platform/commands/common/commands';
 
 class Item extends BreadcrumbsItem {
 
@@ -355,6 +356,19 @@ MenuRegistry.appendMenuItem(MenuId.CommandPalette, {
 		id: 'breadcrumbs.focus',
 		title: localize('cmd.focus', "Focus Breadcrumbs")
 	}
+});
+MenuRegistry.appendMenuItem(MenuId.MenubarViewMenu, {
+	group: '5_editor',
+	order: 99,
+	command: {
+		id: 'breadcrumbs.toggle',
+		title: localize('cmd.toggle', "Toggle Breadcrumbs")
+	}
+});
+CommandsRegistry.registerCommand('breadcrumbs.toggle', accessor => {
+	let config = accessor.get(IConfigurationService);
+	let value = BreadcrumbsConfig.IsEnabled.bindTo(config).value;
+	BreadcrumbsConfig.IsEnabled.bindTo(config).value = !value;
 });
 
 KeybindingsRegistry.registerCommandAndKeybindingRule({
