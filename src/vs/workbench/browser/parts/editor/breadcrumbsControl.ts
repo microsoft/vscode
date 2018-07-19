@@ -82,6 +82,12 @@ class Item extends BreadcrumbsItem {
 			this._disposables.push(label);
 			dom.toggleClass(container, 'file', this.element.isFile);
 
+		} else if (this.element instanceof OutlineModel) {
+			// has outline element but not in one
+			let label = document.createElement('div');
+			label.innerHTML = '&hellip;';
+			container.appendChild(label);
+
 		} else if (this.element instanceof OutlineGroup) {
 			// provider
 			let label = new IconLabel(container);
@@ -90,14 +96,12 @@ class Item extends BreadcrumbsItem {
 
 		} else if (this.element instanceof OutlineElement) {
 			// symbol
-
 			if (this.options.showSymbolIcons) {
 				let icon = document.createElement('div');
 				icon.className = symbolKindToCssClass(this.element.symbol.kind);
 				container.appendChild(icon);
 				dom.addClass(container, 'shows-symbol-icon');
 			}
-
 			let label = new IconLabel(container);
 			let title = this.element.symbol.name.replace(/\r|\n|\r\n/g, '\u23CE');
 			label.setValue(title, undefined, { title });

@@ -107,6 +107,10 @@ export abstract class BreadcrumbsPicker {
 					this._tree.setFocus(selection);
 					this._tree.domFocus();
 				});
+			} else {
+				this._tree.focusFirst();
+				this._tree.setSelection([this._tree.getFocus()], this._tree);
+				this._tree.domFocus();
 			}
 		}, onUnexpectedError);
 	}
@@ -278,7 +282,7 @@ export class BreadcrumbsOutlinePicker extends BreadcrumbsPicker {
 	}
 
 	protected _getInitialSelection(_tree: ITree, input: BreadcrumbElement): any {
-		return input;
+		return input instanceof OutlineModel ? undefined : input;
 	}
 
 	protected _completeTreeConfiguration(config: IHighlightingTreeConfiguration): IHighlightingTreeConfiguration {
