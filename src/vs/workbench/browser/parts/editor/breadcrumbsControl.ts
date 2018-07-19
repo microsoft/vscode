@@ -35,6 +35,8 @@ import { BreadcrumbsFilePicker, BreadcrumbsOutlinePicker, BreadcrumbsPicker } fr
 import { EditorGroupView } from 'vs/workbench/browser/parts/editor/editorGroupView';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IEditorGroupsService } from 'vs/workbench/services/group/common/editorGroupsService';
+import { MenuRegistry, MenuId } from 'vs/platform/actions/common/actions';
+import { localize } from 'vs/nls';
 
 class Item extends BreadcrumbsItem {
 
@@ -328,6 +330,13 @@ export class BreadcrumbsControl {
 }
 
 //#region commands
+
+MenuRegistry.appendMenuItem(MenuId.CommandPalette, {
+	command: {
+		id: 'breadcrumbs.focus',
+		title: localize('cmd.focus', "Focus Breadcrumbs")
+	}
+});
 
 KeybindingsRegistry.registerCommandAndKeybindingRule({
 	id: 'breadcrumbs.focus',
