@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import 'vs/css!./list';
+import { localize } from 'vs/nls';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { isNumber } from 'vs/base/common/types';
 import { range, firstIndex } from 'vs/base/common/arrays';
@@ -934,7 +935,7 @@ export class List<T> implements ISpliceable<T>, IDisposable {
 		this.onSelectionChange(this._onSelectionChange, this, this.disposables);
 
 		if (options.ariaLabel) {
-			this.view.domNode.setAttribute('aria-label', options.ariaLabel);
+			this.view.domNode.setAttribute('aria-label', localize('aria list', "{0}. Use the navigation keys to navigate.", options.ariaLabel));
 		}
 
 		this.style(options);
