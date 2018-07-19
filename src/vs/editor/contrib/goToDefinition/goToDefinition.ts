@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { flatten } from 'vs/base/common/arrays';
+import { flatten, coalesce } from 'vs/base/common/arrays';
 import { asWinJsPromise } from 'vs/base/common/async';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { onUnexpectedExternalError } from 'vs/base/common/errors';
@@ -33,7 +33,7 @@ function getDefinitions<T>(
 	});
 	return TPromise.join(promises)
 		.then(flatten)
-		.then(references => references.filter(x => !!x));
+		.then(references => coalesce(references));
 }
 
 
