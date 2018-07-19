@@ -20,19 +20,20 @@ import { peekViewBorder } from 'vs/editor/contrib/referenceSearch/referencesWidg
 import { IOptions, ZoneWidget } from 'vs/editor/contrib/zoneWidget/zoneWidget';
 import { attachButtonStyler } from 'vs/platform/theme/common/styler';
 import { ITheme, IThemeService } from 'vs/platform/theme/common/themeService';
-import { renderMarkdown } from 'vs/base/browser/htmlContentRenderer';
 import { CommentGlyphWidget } from 'vs/workbench/parts/comments/electron-browser/commentGlyphWidget';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IModelService } from 'vs/editor/common/services/modelService';
 import { SimpleCommentEditor } from './simpleCommentEditor';
 import URI from 'vs/base/common/uri';
-import { transparent, editorForeground } from 'vs/platform/theme/common/colorRegistry';
+import { transparent, editorForeground, inputValidationErrorBorder, textLinkActiveForeground, textLinkForeground, focusBorder, textBlockQuoteBackground, textBlockQuoteBorder, contrastBorder } from 'vs/platform/theme/common/colorRegistry';
 import { IModeService } from 'vs/editor/common/services/modeService';
 import { IKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { KeyCode } from 'vs/base/common/keyCodes';
 import { ICommentService } from 'vs/workbench/parts/comments/electron-browser/commentService';
 import { Range, IRange } from 'vs/editor/common/core/range';
 import { IPosition } from 'vs/editor/common/core/position';
+import { IOpenerService } from 'vs/platform/opener/common/opener';
+import { MarkdownRenderer } from 'vs/editor/contrib/markdown/markdownRenderer';
 
 export const COMMENTEDITOR_DECORATION_KEY = 'commenteditordecoration';
 const EXPAND_ACTION_CLASS = 'expand-review-action octicon octicon-chevron-down';
@@ -47,7 +48,10 @@ export class CommentNode {
 	public get domNode(): HTMLElement {
 		return this._domNode;
 	}
-	constructor(public comment: modes.Comment) {
+	constructor(
+		public comment: modes.Comment,
+		private markdownRenderer: MarkdownRenderer,
+	) {
 		this._domNode = $('div.review-comment').getHTMLElement();
 		this._domNode.tabIndex = 0;
 		let avatar = $('div.avatar-container').appendTo(this._domNode).getHTMLElement();
@@ -59,7 +63,7 @@ export class CommentNode {
 		let author = $('strong.author').appendTo(header).getHTMLElement();
 		author.innerText = comment.userName;
 		this._body = $('div.comment-body').appendTo(commentDetailsContainer).getHTMLElement();
-		this._md = renderMarkdown(comment.body);
+		this._md = this.markdownRenderer.render(comment.body).element;
 		this._body.appendChild(this._md);
 
 		this._domNode.setAttribute('aria-label', `${comment.userName}, ${comment.body.value}`);
@@ -70,7 +74,7 @@ export class CommentNode {
 	update(newComment: modes.Comment) {
 		if (newComment.body !== this.comment.body) {
 			this._body.removeChild(this._md);
-			this._md = renderMarkdown(newComment.body);
+			this._md = this.markdownRenderer.render(newComment.body).element;
 			this._body.appendChild(this._md);
 		}
 
@@ -109,6 +113,8 @@ export class ReviewZoneWidget extends ZoneWidget {
 	private _commentGlyph: CommentGlyphWidget;
 	private _owner: number;
 	private _localToDispose: IDisposable[];
+	private _markdownRenderer: MarkdownRenderer;
+	private _styleElement: HTMLStyleElement;
 
 	public get owner(): number {
 		return this._owner;
@@ -123,6 +129,7 @@ export class ReviewZoneWidget extends ZoneWidget {
 		private modelService: IModelService,
 		private themeService: IThemeService,
 		private commentService: ICommentService,
+		private openerService: IOpenerService,
 		editor: ICodeEditor,
 		owner: number,
 		commentThread: modes.CommentThread,
@@ -135,7 +142,12 @@ export class ReviewZoneWidget extends ZoneWidget {
 		this._isCollapsed = commentThread.collapsibleState !== modes.CommentThreadCollapsibleState.Expanded;
 		this._localToDispose = [];
 		this.create();
+
+		this._styleElement = dom.createStyleSheet(this.domNode);
 		this.themeService.onThemeChange(this._applyTheme, this);
+		this._applyTheme(this.themeService.getTheme());
+
+		this._markdownRenderer = new MarkdownRenderer(editor, this.modeService, this.openerService);
 	}
 
 	public get onDidClose(): Event<ReviewZoneWidget> {
@@ -196,9 +208,10 @@ export class ReviewZoneWidget extends ZoneWidget {
 		this._actionbarWidget = new ActionBar(actionsContainer.getHTMLElement(), {});
 		this._disposables.push(this._actionbarWidget);
 
-		this._toggleAction = new Action('review.expand', nls.localize('label.expand', "Expand"), this._isCollapsed ? EXPAND_ACTION_CLASS : COLLAPSE_ACTION_CLASS, true, () => {
+		this._toggleAction = new Action('review.expand', nls.localize('label.collapse', "Collapse"), this._isCollapsed ? EXPAND_ACTION_CLASS : COLLAPSE_ACTION_CLASS, true, () => {
 			if (this._isCollapsed) {
 				this.show({ lineNumber: this._commentThread.range.startLineNumber, column: 1 }, 2);
+				this._toggleAction.label = nls.localize('label.collapse', "Collapse");
 			}
 			else {
 				if (this._commentThread.comments.length === 0) {
@@ -207,6 +220,7 @@ export class ReviewZoneWidget extends ZoneWidget {
 				}
 				this._isCollapsed = true;
 				this.hide();
+				this._toggleAction.label = nls.localize('label.expand', "Expand");
 			}
 			return null;
 		});
@@ -251,7 +265,7 @@ export class ReviewZoneWidget extends ZoneWidget {
 				lastCommentElement = oldCommentNode[0].domNode;
 				newCommentNodeList.unshift(oldCommentNode[0]);
 			} else {
-				let newElement = new CommentNode(currentComment);
+				let newElement = new CommentNode(currentComment, this._markdownRenderer);
 				newCommentNodeList.unshift(newElement);
 				if (lastCommentElement) {
 					this._commentsElement.insertBefore(newElement.domNode, lastCommentElement);
@@ -270,7 +284,7 @@ export class ReviewZoneWidget extends ZoneWidget {
 	}
 
 	protected _doLayout(heightInPixel: number, widthInPixel: number): void {
-		this._commentEditor.layout({ height: (this._commentEditor.hasWidgetFocus() ? 5 : 1) * 18, width: widthInPixel - 20 /* margin */ });
+		this._commentEditor.layout({ height: (this._commentEditor.hasWidgetFocus() ? 5 : 1) * 18, width: widthInPixel - 40 /* margin */ });
 	}
 
 	display(lineNumber: number) {
@@ -310,7 +324,7 @@ export class ReviewZoneWidget extends ZoneWidget {
 
 		this._commentElements = [];
 		for (let i = 0; i < this._commentThread.comments.length; i++) {
-			let newCommentNode = new CommentNode(this._commentThread.comments[i]);
+			let newCommentNode = new CommentNode(this._commentThread.comments[i], this._markdownRenderer);
 			this._commentElements.push(newCommentNode);
 			this._commentsElement.appendChild(newCommentNode.domNode);
 		}
@@ -353,6 +367,22 @@ export class ReviewZoneWidget extends ZoneWidget {
 		attachButtonStyler(button, this.themeService);
 		button.label = 'Add comment';
 		button.onDidClick(async () => {
+			if (!this._commentEditor.getValue()) {
+				this._commentEditor.focus();
+				this._commentEditor.getDomNode().style.outline = `1px solid ${this.themeService.getTheme().getColor(inputValidationErrorBorder)}`;
+
+
+				this._disposables.push(this._commentEditor.onDidChangeModelContent(_ => {
+					if (!this._commentEditor.getValue()) {
+						this._commentEditor.getDomNode().style.outline = `1px solid ${this.themeService.getTheme().getColor(inputValidationErrorBorder)}`;
+					} else {
+						this._commentEditor.getDomNode().style.outline = '';
+					}
+				}));
+
+				return;
+			}
+
 			let newCommentThread;
 			if (this._commentThread.threadId) {
 				// reply
@@ -447,26 +477,28 @@ export class ReviewZoneWidget extends ZoneWidget {
 	}
 
 	private setCommentEditorDecorations() {
-		let model = this._commentEditor.getModel();
-		let valueLength = model.getValueLength();
-		const hasExistingComments = this._commentThread.comments.length > 0;
-		let placeholder = valueLength > 0 ? '' : (hasExistingComments ? 'Reply...' : 'Type a new comment');
-		const decorations = [{
-			range: {
-				startLineNumber: 0,
-				endLineNumber: 0,
-				startColumn: 0,
-				endColumn: 1
-			},
-			renderOptions: {
-				after: {
-					contentText: placeholder,
-					color: transparent(editorForeground, 0.4)(this.themeService.getTheme()).toString()
+		const model = this._commentEditor && this._commentEditor.getModel();
+		if (model) {
+			let valueLength = model.getValueLength();
+			const hasExistingComments = this._commentThread.comments.length > 0;
+			let placeholder = valueLength > 0 ? '' : (hasExistingComments ? 'Reply...' : 'Type a new comment');
+			const decorations = [{
+				range: {
+					startLineNumber: 0,
+					endLineNumber: 0,
+					startColumn: 0,
+					endColumn: 1
+				},
+				renderOptions: {
+					after: {
+						contentText: placeholder,
+						color: transparent(editorForeground, 0.4)(this.themeService.getTheme()).toString()
+					}
 				}
-			}
-		}];
+			}];
 
-		this._commentEditor.setDecorations(COMMENTEDITOR_DECORATION_KEY, decorations);
+			this._commentEditor.setDecorations(COMMENTEDITOR_DECORATION_KEY, decorations);
+		}
 	}
 
 	private mouseDownInfo: { lineNumber: number, iconClicked: boolean };
@@ -532,6 +564,44 @@ export class ReviewZoneWidget extends ZoneWidget {
 			arrowColor: borderColor,
 			frameColor: borderColor
 		});
+
+		const content: string[] = [];
+		const linkColor = theme.getColor(textLinkForeground);
+		if (linkColor) {
+			content.push(`.monaco-editor .review-widget .body .review-comment a { color: ${linkColor} }`);
+		}
+
+		const linkActiveColor = theme.getColor(textLinkActiveForeground);
+		if (linkActiveColor) {
+			content.push(`.monaco-editor .review-widget .body .review-comment a:hover, a:active { color: ${linkActiveColor} }`);
+		}
+
+		const focusColor = theme.getColor(focusBorder);
+		if (focusColor) {
+			content.push(`.monaco-editor .review-widget .body .review-comment a:focus { outline: 1px solid ${focusColor}; }`);
+			content.push(`.monaco-editor .review-widget .body .comment-form .monaco-editor.focused { outline: 1px solid ${focusColor}; }`);
+		}
+
+		const blockQuoteBackground = theme.getColor(textBlockQuoteBackground);
+		if (blockQuoteBackground) {
+			content.push(`.monaco-editor .review-widget .body .review-comment blockquote { background: ${blockQuoteBackground}; }`);
+		}
+
+		const blockQuoteBOrder = theme.getColor(textBlockQuoteBorder);
+		if (blockQuoteBOrder) {
+			content.push(`.monaco-editor .review-widget .body .review-comment blockquote { border-color: ${blockQuoteBOrder}; }`);
+		}
+
+		const hcBorder = theme.getColor(contrastBorder);
+		if (hcBorder) {
+			content.push(`.monaco-editor .review-widget .body .comment-form .review-thread-reply-button { outline-color: ${hcBorder}; }`);
+			content.push(`.monaco-editor .review-widget .body .comment-form .monaco-editor { outline: 1px solid ${hcBorder}; }`);
+		}
+
+		this._styleElement.innerHTML = content.join('\n');
+
+		// Editor decorations should also be responsive to theme changes
+		this.setCommentEditorDecorations();
 	}
 
 	show(rangeOrPos: IRange | IPosition, heightInLines: number): void {

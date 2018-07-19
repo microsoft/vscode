@@ -23,21 +23,21 @@ import { CallStackView } from 'vs/workbench/parts/debug/electron-browser/callSta
 import { Extensions as WorkbenchExtensions, IWorkbenchContributionsRegistry } from 'vs/workbench/common/contributions';
 import {
 	IDebugService, VIEWLET_ID, REPL_ID, CONTEXT_NOT_IN_DEBUG_MODE, CONTEXT_IN_DEBUG_MODE, INTERNAL_CONSOLE_OPTIONS_SCHEMA,
-	CONTEXT_DEBUG_STATE, VARIABLES_VIEW_ID, CALLSTACK_VIEW_ID, WATCH_VIEW_ID, BREAKPOINTS_VIEW_ID, VIEW_CONTAINER
+	CONTEXT_DEBUG_STATE, VARIABLES_VIEW_ID, CALLSTACK_VIEW_ID, WATCH_VIEW_ID, BREAKPOINTS_VIEW_ID, VIEW_CONTAINER, LOADED_SCRIPTS_VIEW_ID, CONTEXT_LOADED_SCRIPTS_SUPPORTED
 } from 'vs/workbench/parts/debug/common/debug';
 import { IPartService } from 'vs/workbench/services/part/common/partService';
 import { IPanelService } from 'vs/workbench/services/panel/common/panelService';
 import { DebugEditorModelManager } from 'vs/workbench/parts/debug/browser/debugEditorModelManager';
 import {
 	StepOverAction, ClearReplAction, FocusReplAction, StepIntoAction, StepOutAction, StartAction, RestartAction, ContinueAction, StopAction, DisconnectAction, PauseAction, AddFunctionBreakpointAction,
-	ConfigureAction, DisableAllBreakpointsAction, EnableAllBreakpointsAction, RemoveAllBreakpointsAction, RunAction, ReapplyBreakpointsAction, SelectAndStartAction, TerminateThreadAction
+	ConfigureAction, DisableAllBreakpointsAction, EnableAllBreakpointsAction, RemoveAllBreakpointsAction, RunAction, ReapplyBreakpointsAction, SelectAndStartAction, TerminateThreadAction, ToggleReplAction
 } from 'vs/workbench/parts/debug/browser/debugActions';
 import { DebugActionsWidget } from 'vs/workbench/parts/debug/browser/debugActionsWidget';
 import * as service from 'vs/workbench/parts/debug/electron-browser/debugService';
 import { DebugContentProvider } from 'vs/workbench/parts/debug/browser/debugContentProvider';
 import 'vs/workbench/parts/debug/electron-browser/debugEditorContribution';
 import { IViewletService } from 'vs/workbench/services/viewlet/browser/viewlet';
-import { registerCommands } from 'vs/workbench/parts/debug/browser/debugCommands';
+import { registerCommands, ADD_CONFIGURATION_ID, TOGGLE_INLINE_BREAKPOINT_ID } from 'vs/workbench/parts/debug/browser/debugCommands';
 import { IQuickOpenRegistry, Extensions as QuickOpenExtensions, QuickOpenHandlerDescriptor } from 'vs/workbench/browser/quickopen';
 import { StatusBarColorProvider } from 'vs/workbench/parts/debug/browser/statusbarColorProvider';
 import { ViewsRegistry } from 'vs/workbench/common/views';
@@ -51,6 +51,8 @@ import { DebugStatus } from 'vs/workbench/parts/debug/browser/debugStatus';
 import { LifecyclePhase } from 'vs/platform/lifecycle/common/lifecycle';
 import { launchSchemaId } from 'vs/workbench/services/configuration/common/configuration';
 import { IEditorGroupsService } from 'vs/workbench/services/group/common/editorGroupsService';
+import { LoadedScriptsView } from 'vs/workbench/parts/debug/browser/loadedScriptsView';
+import { TOGGLE_LOG_POINT_ID, TOGGLE_CONDITIONAL_BREAKPOINT_ID, TOGGLE_BREAKPOINT_ID } from 'vs/workbench/parts/debug/browser/debugEditorActions';
 
 class OpenDebugViewletAction extends ToggleViewletAction {
 	public static readonly ID = VIEWLET_ID;
@@ -111,6 +113,7 @@ Registry.as<PanelRegistry>(PanelExtensions.Panels).setDefaultPanelId(REPL_ID);
 ViewsRegistry.registerViews([{ id: VARIABLES_VIEW_ID, name: nls.localize('variables', "Variables"), ctor: VariablesView, order: 10, weight: 40, container: VIEW_CONTAINER, canToggleVisibility: true }]);
 ViewsRegistry.registerViews([{ id: WATCH_VIEW_ID, name: nls.localize('watch', "Watch"), ctor: WatchExpressionsView, order: 20, weight: 10, container: VIEW_CONTAINER, canToggleVisibility: true }]);
 ViewsRegistry.registerViews([{ id: CALLSTACK_VIEW_ID, name: nls.localize('callStack', "Call Stack"), ctor: CallStackView, order: 30, weight: 30, container: VIEW_CONTAINER, canToggleVisibility: true }]);
+ViewsRegistry.registerViews([{ id: LOADED_SCRIPTS_VIEW_ID, name: nls.localize('loadedScripts', "Loaded Scripts"), ctor: LoadedScriptsView, order: 35, weight: 10, container: VIEW_CONTAINER, canToggleVisibility: true, when: CONTEXT_LOADED_SCRIPTS_SUPPORTED }]);
 ViewsRegistry.registerViews([{ id: BREAKPOINTS_VIEW_ID, name: nls.localize('breakpoints', "Breakpoints"), ctor: BreakpointsView, order: 40, weight: 20, container: VIEW_CONTAINER, canToggleVisibility: true }]);
 
 // register action to open viewlet
@@ -224,6 +227,200 @@ registerCommands();
 // Register Debug Status
 const statusBar = Registry.as<IStatusbarRegistry>(StatusExtensions.Statusbar);
 statusBar.registerStatusbarItem(new StatusbarItemDescriptor(DebugStatus, StatusbarAlignment.LEFT, 30 /* Low Priority */));
+
+// View menu
+
+MenuRegistry.appendMenuItem(MenuId.MenubarViewMenu, {
+	group: '3_views',
+	command: {
+		id: VIEWLET_ID,
+		title: nls.localize({ key: 'miViewDebug', comment: ['&& denotes a mnemonic'] }, "&&Debug")
+	},
+	order: 4
+});
+
+MenuRegistry.appendMenuItem(MenuId.MenubarViewMenu, {
+	group: '4_panels',
+	command: {
+		id: ToggleReplAction.ID,
+		title: nls.localize({ key: 'miToggleDebugConsole', comment: ['&& denotes a mnemonic'] }, "De&&bug Console")
+	},
+	order: 2
+});
+
+// Debug menu
+
+MenuRegistry.appendMenuItem(MenuId.MenubarDebugMenu, {
+	group: '1_debug',
+	command: {
+		id: StartAction.ID,
+		title: nls.localize({ key: 'miStartDebugging', comment: ['&& denotes a mnemonic'] }, "&&Start Debugging")
+	},
+	order: 1
+});
+
+MenuRegistry.appendMenuItem(MenuId.MenubarDebugMenu, {
+	group: '1_debug',
+	command: {
+		id: RunAction.ID,
+		title: nls.localize({ key: 'miStartWithoutDebugging', comment: ['&& denotes a mnemonic'] }, "Start &&Without Debugging")
+	},
+	order: 2
+});
+
+MenuRegistry.appendMenuItem(MenuId.MenubarDebugMenu, {
+	group: '1_debug',
+	command: {
+		id: StopAction.ID,
+		title: nls.localize({ key: 'miStopDebugging', comment: ['&& denotes a mnemonic'] }, "&&Stop Debugging"),
+		precondition: CONTEXT_IN_DEBUG_MODE
+	},
+	order: 3
+});
+
+MenuRegistry.appendMenuItem(MenuId.MenubarDebugMenu, {
+	group: '1_debug',
+	command: {
+		id: RestartAction.ID,
+		title: nls.localize({ key: 'miRestart Debugging', comment: ['&& denotes a mnemonic'] }, "&&Restart Debugging"),
+		precondition: CONTEXT_IN_DEBUG_MODE
+	},
+	order: 4
+});
+
+// Configuration
+MenuRegistry.appendMenuItem(MenuId.MenubarDebugMenu, {
+	group: '2_configuration',
+	command: {
+		id: ConfigureAction.ID,
+		title: nls.localize({ key: 'miOpenConfigurations', comment: ['&& denotes a mnemonic'] }, "Open &&Configurations")
+	},
+	order: 1
+});
+
+MenuRegistry.appendMenuItem(MenuId.MenubarDebugMenu, {
+	group: '2_configuration',
+	command: {
+		id: ADD_CONFIGURATION_ID,
+		title: nls.localize({ key: 'miAddConfiguration', comment: ['&& denotes a mnemonic'] }, "Add Configuration...")
+	},
+	order: 2
+});
+
+// Step Commands
+MenuRegistry.appendMenuItem(MenuId.MenubarDebugMenu, {
+	group: '3_step',
+	command: {
+		id: StepOverAction.ID,
+		title: nls.localize({ key: 'miStepOver', comment: ['&& denotes a mnemonic'] }, "Step &&Over"),
+		precondition: CONTEXT_DEBUG_STATE.isEqualTo('stopped')
+	},
+	order: 1
+});
+
+MenuRegistry.appendMenuItem(MenuId.MenubarDebugMenu, {
+	group: '3_step',
+	command: {
+		id: StepIntoAction.ID,
+		title: nls.localize({ key: 'miStepInto', comment: ['&& denotes a mnemonic'] }, "Step &&Into"),
+		precondition: CONTEXT_DEBUG_STATE.isEqualTo('stopped')
+	},
+	order: 2
+});
+
+MenuRegistry.appendMenuItem(MenuId.MenubarDebugMenu, {
+	group: '3_step',
+	command: {
+		id: StepOutAction.ID,
+		title: nls.localize({ key: 'miStepOut', comment: ['&& denotes a mnemonic'] }, "Step O&&ut"),
+		precondition: CONTEXT_DEBUG_STATE.isEqualTo('stopped')
+	},
+	order: 3
+});
+
+MenuRegistry.appendMenuItem(MenuId.MenubarDebugMenu, {
+	group: '3_step',
+	command: {
+		id: ContinueAction.ID,
+		title: nls.localize({ key: 'miContinue', comment: ['&& denotes a mnemonic'] }, "&&Continue"),
+		precondition: CONTEXT_DEBUG_STATE.isEqualTo('stopped')
+	},
+	order: 4
+});
+
+// New Breakpoints
+MenuRegistry.appendMenuItem(MenuId.MenubarDebugMenu, {
+	group: '4_new_breakpoint',
+	command: {
+		id: TOGGLE_BREAKPOINT_ID,
+		title: nls.localize({ key: 'miToggleBreakpoint', comment: ['&& denotes a mnemonic'] }, "Toggle &&Breakpoint")
+	},
+	order: 1
+});
+
+MenuRegistry.appendMenuItem(MenuId.MenubarDebugMenu, {
+	group: '4_new_breakpoint',
+	command: {
+		id: TOGGLE_CONDITIONAL_BREAKPOINT_ID,
+		title: nls.localize({ key: 'miConditionalBreakpoint', comment: ['&& denotes a mnemonic'] }, "Toggle &&Conditional Breakpoint...")
+	},
+	order: 2
+});
+
+MenuRegistry.appendMenuItem(MenuId.MenubarDebugMenu, {
+	group: '4_new_breakpoint',
+	command: {
+		id: TOGGLE_INLINE_BREAKPOINT_ID,
+		title: nls.localize({ key: 'miInlineBreakpoint', comment: ['&& denotes a mnemonic'] }, "Toggle Inline Breakp&&oint")
+	},
+	order: 3
+});
+
+MenuRegistry.appendMenuItem(MenuId.MenubarDebugMenu, {
+	group: '4_new_breakpoint',
+	command: {
+		id: AddFunctionBreakpointAction.ID,
+		title: nls.localize({ key: 'miFunctionBreakpoint', comment: ['&& denotes a mnemonic'] }, "Toggle &&Function Breakpoint...")
+	},
+	order: 4
+});
+
+MenuRegistry.appendMenuItem(MenuId.MenubarDebugMenu, {
+	group: '4_new_breakpoint',
+	command: {
+		id: TOGGLE_LOG_POINT_ID,
+		title: nls.localize({ key: 'miLogPoint', comment: ['&& denotes a mnemonic'] }, "Toggle &&Logpoint...")
+	},
+	order: 5
+});
+
+// Modify Breakpoints
+MenuRegistry.appendMenuItem(MenuId.MenubarDebugMenu, {
+	group: '5_breakpoints',
+	command: {
+		id: EnableAllBreakpointsAction.ID,
+		title: nls.localize({ key: 'miEnableAllBreakpoints', comment: ['&& denotes a mnemonic'] }, "Enable All Breakpoints")
+	},
+	order: 1
+});
+
+MenuRegistry.appendMenuItem(MenuId.MenubarDebugMenu, {
+	group: '5_breakpoints',
+	command: {
+		id: DisableAllBreakpointsAction.ID,
+		title: nls.localize({ key: 'miDisableAllBreakpoints', comment: ['&& denotes a mnemonic'] }, "Disable A&&ll Breakpoints")
+	},
+	order: 2
+});
+
+MenuRegistry.appendMenuItem(MenuId.MenubarDebugMenu, {
+	group: '5_breakpoints',
+	command: {
+		id: RemoveAllBreakpointsAction.ID,
+		title: nls.localize({ key: 'miRemoveAllBreakpoints', comment: ['&& denotes a mnemonic'] }, "Remove &&All Breakpoints")
+	},
+	order: 3
+});
 
 // Touch Bar
 if (isMacintosh) {

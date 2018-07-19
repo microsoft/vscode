@@ -41,6 +41,7 @@ import { UserConfiguration } from 'vs/platform/configuration/node/configuration'
 import { getBaseLabel } from 'vs/base/common/labels';
 import { IJSONSchema, IJSONSchemaMap } from 'vs/base/common/jsonSchema';
 import { localize } from 'vs/nls';
+import { isEqual } from 'vs/base/common/resources';
 
 export class WorkspaceService extends Disposable implements IWorkspaceConfigurationService, IWorkspaceContextService {
 
@@ -131,11 +132,16 @@ export class WorkspaceService extends Disposable implements IWorkspaceConfigurat
 	public isCurrentWorkspace(workspaceIdentifier: ISingleFolderWorkspaceIdentifier | IWorkspaceIdentifier): boolean {
 		switch (this.getWorkbenchState()) {
 			case WorkbenchState.FOLDER:
-				return isSingleFolderWorkspaceIdentifier(workspaceIdentifier) && this.pathEquals(this.workspace.folders[0].uri.fsPath, workspaceIdentifier);
+				return isSingleFolderWorkspaceIdentifier(workspaceIdentifier) && isEqual(this.workspace.folders[0].uri, this.toUri(workspaceIdentifier), this.workspace.folders[0].uri.scheme !== Schemas.file || !isLinux);
 			case WorkbenchState.WORKSPACE:
 				return isWorkspaceIdentifier(workspaceIdentifier) && this.workspace.id === workspaceIdentifier.id;
 		}
 		return false;
+	}
+
+	private toUri(folderIdentifier: ISingleFolderWorkspaceIdentifier): URI {
+		// TODO:Sandy Change to URI.parse parsing once main sends URIs
+		return URI.file(folderIdentifier);
 	}
 
 	private doUpdateFolders(foldersToAdd: IWorkspaceFolderCreationData[], foldersToRemove: URI[], index?: number): TPromise<void> {
@@ -295,7 +301,7 @@ export class WorkspaceService extends Disposable implements IWorkspaceConfigurat
 		return this._configuration.keys();
 	}
 
-	initialize(arg: IWorkspaceIdentifier | ISingleFolderWorkspaceIdentifier | IWindowConfiguration, postInitialisationTask: () => void = () => null): TPromise<any> {
+	initialize(arg: IWorkspaceIdentifier | URI | IWindowConfiguration, postInitialisationTask: () => void = () => null): TPromise<any> {
 		return this.createWorkspace(arg)
 			.then(workspace => this.updateWorkspaceAndInitializeConfiguration(workspace, postInitialisationTask));
 	}
@@ -322,12 +328,12 @@ export class WorkspaceService extends Disposable implements IWorkspaceConfigurat
 		this.jsonEditingService = instantiationService.createInstance(JSONEditingService);
 	}
 
-	private createWorkspace(arg: IWorkspaceIdentifier | ISingleFolderWorkspaceIdentifier | IWindowConfiguration): TPromise<Workspace> {
+	private createWorkspace(arg: IWorkspaceIdentifier | URI | IWindowConfiguration): TPromise<Workspace> {
 		if (isWorkspaceIdentifier(arg)) {
 			return this.createMulitFolderWorkspace(arg);
 		}
 
-		if (isSingleFolderWorkspaceIdentifier(arg)) {
+		if (arg instanceof URI) {
 			return this.createSingleFolderWorkspace(arg);
 		}
 
@@ -345,15 +351,18 @@ export class WorkspaceService extends Disposable implements IWorkspaceConfigurat
 			});
 	}
 
-	private createSingleFolderWorkspace(singleFolderWorkspaceIdentifier: ISingleFolderWorkspaceIdentifier): TPromise<Workspace> {
-		const folderPath = URI.file(singleFolderWorkspaceIdentifier);
-		return stat(folderPath.fsPath)
-			.then(workspaceStat => {
-				const ctime = isLinux ? workspaceStat.ino : workspaceStat.birthtime.getTime(); // On Linux, birthtime is ctime, so we cannot use it! We use the ino instead!
-				const id = createHash('md5').update(folderPath.fsPath).update(ctime ? String(ctime) : '').digest('hex');
-				const folder = URI.file(folderPath.fsPath);
-				return new Workspace(id, getBaseLabel(folder), toWorkspaceFolders([{ path: folder.fsPath }]), null, ctime);
-			});
+	private createSingleFolderWorkspace(folder: URI): TPromise<Workspace> {
+		if (folder.scheme === Schemas.file) {
+			return stat(folder.fsPath)
+				.then(workspaceStat => {
+					const ctime = isLinux ? workspaceStat.ino : workspaceStat.birthtime.getTime(); // On Linux, birthtime is ctime, so we cannot use it! We use the ino instead!
+					const id = createHash('md5').update(folder.fsPath).update(ctime ? String(ctime) : '').digest('hex');
+					return new Workspace(id, getBaseLabel(folder), toWorkspaceFolders([{ path: folder.fsPath }]), null, ctime);
+				});
+		} else {
+			const id = createHash('md5').update(folder.toString()).digest('hex');
+			return TPromise.as(new Workspace(id, getBaseLabel(folder), toWorkspaceFolders([{ uri: folder.toString() }]), null));
+		}
 	}
 
 	private createEmptyWorkspace(configuration: IWindowConfiguration): TPromise<Workspace> {
@@ -669,15 +678,6 @@ export class WorkspaceService extends Disposable implements IWorkspaceConfigurat
 				return this._configuration.workspace.contents;
 		}
 		return {};
-	}
-
-	private pathEquals(path1: string, path2: string): boolean {
-		if (!isLinux) {
-			path1 = path1.toLowerCase();
-			path2 = path2.toLowerCase();
-		}
-
-		return path1 === path2;
 	}
 }
 

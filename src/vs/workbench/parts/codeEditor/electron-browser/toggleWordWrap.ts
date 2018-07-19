@@ -130,11 +130,12 @@ function applyWordWrapState(editor: ICodeEditor, state: IWordWrapState): void {
 	});
 }
 
+const TOGGLE_WORD_WRAP_ID = 'editor.action.toggleWordWrap';
 class ToggleWordWrapAction extends EditorAction {
 
 	constructor() {
 		super({
-			id: 'editor.action.toggleWordWrap',
+			id: TOGGLE_WORD_WRAP_ID,
 			label: nls.localize('toggle.wordwrap', "View: Toggle Word Wrap"),
 			alias: 'View: Toggle Word Wrap',
 			precondition: null,
@@ -255,7 +256,7 @@ registerEditorAction(ToggleWordWrapAction);
 
 MenuRegistry.appendMenuItem(MenuId.EditorTitle, {
 	command: {
-		id: 'editor.action.toggleWordWrap',
+		id: TOGGLE_WORD_WRAP_ID,
 		title: nls.localize('unwrapMinified', "Disable wrapping for this file"),
 		iconLocation: { dark: URI.parse(require.toUrl('vs/workbench/parts/codeEditor/electron-browser/media/WordWrap_16x.svg')) }
 	},
@@ -269,7 +270,7 @@ MenuRegistry.appendMenuItem(MenuId.EditorTitle, {
 });
 MenuRegistry.appendMenuItem(MenuId.EditorTitle, {
 	command: {
-		id: 'editor.action.toggleWordWrap',
+		id: TOGGLE_WORD_WRAP_ID,
 		title: nls.localize('wrapMinified', "Enable wrapping for this file"),
 		iconLocation: { dark: URI.parse(require.toUrl('vs/workbench/parts/codeEditor/electron-browser/media/WordWrap_16x.svg')) }
 	},
@@ -280,4 +281,15 @@ MenuRegistry.appendMenuItem(MenuId.EditorTitle, {
 		ContextKeyExpr.has(isDominatedByLongLinesKey),
 		ContextKeyExpr.not(isWordWrapMinifiedKey)
 	)
+});
+
+
+// View menu
+MenuRegistry.appendMenuItem(MenuId.MenubarViewMenu, {
+	group: '5_editor',
+	command: {
+		id: TOGGLE_WORD_WRAP_ID,
+		title: nls.localize({ key: 'miToggleWordWrap', comment: ['&& denotes a mnemonic'] }, "Toggle &&Word Wrap")
+	},
+	order: 1
 });

@@ -25,12 +25,12 @@ export class KeybindingIO {
 		let quotedSerializedKeybinding = JSON.stringify(item.resolvedKeybinding.getUserSettingsLabel());
 		out.write(`{ "key": ${rightPaddedString(quotedSerializedKeybinding + ',', 25)} "command": `);
 
-		let serializedWhen = item.when ? item.when.serialize() : '';
+		let quotedSerializedWhen = item.when ? JSON.stringify(item.when.serialize()) : '';
 		let quotedSerializeCommand = JSON.stringify(item.command);
-		if (serializedWhen.length > 0) {
+		if (quotedSerializedWhen.length > 0) {
 			out.write(`${quotedSerializeCommand},`);
 			out.writeLine();
-			out.write(`                                     "when": "${serializedWhen}" `);
+			out.write(`                                     "when": ${quotedSerializedWhen} `);
 		} else {
 			out.write(`${quotedSerializeCommand} `);
 		}

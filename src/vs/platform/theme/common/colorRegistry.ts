@@ -223,6 +223,11 @@ export const scrollbarSliderActiveBackground = registerColor('scrollbarSlider.ac
 
 export const progressBarBackground = registerColor('progressBar.background', { dark: Color.fromHex('#0E70C0'), light: Color.fromHex('#0E70C0'), hc: contrastBorder }, nls.localize('progressBarBackground', "Background color of the progress bar that can show for long running operations."));
 
+export const breadcrumbsForeground = registerColor('breadcrumb.breadcrumbsForeground', { light: Color.fromHex('#6C6C6C').transparent(.7), dark: Color.fromHex('#CCCCCC').transparent(.7), hc: Color.white.transparent(.7) }, nls.localize('breadcrumbsFocusForeground', "Color of focused breadcrumb items."));
+export const breadcrumbsFocusForeground = registerColor('breadcrumb.breadcrumbsFocusForeground', { light: '#6C6C6C', dark: '#CCCCCC', hc: Color.white }, nls.localize('breadcrumbsFocusForeground', "Color of focused breadcrumb items."));
+export const breadcrumbsActiveSelectionForeground = registerColor('breadcrumb.breadcrumbsActiveSelectionForeground', { light: '#6C6C6C', dark: '#CCCCCC', hc: Color.white }, nls.localize('breadcrumbsSelectedForegound', "Color of selected breadcrumb items."));
+export const breadcrumbsPickerBackground = registerColor('breadcrumb.breadcrumbsPickerBackground', { light: '#ECECEC', dark: '#252526', hc: Color.black }, nls.localize('breadcrumbsSelectedBackground', "Background color of breadcrumb item picker."));
+
 /**
  * Editor background color.
  * Because of bug https://monacotools.visualstudio.com/DefaultCollection/Monaco/_workitems/edit/13254
@@ -286,6 +291,8 @@ export const diffRemoved = registerColor('diffEditor.removedTextBackground', { d
 
 export const diffInsertedOutline = registerColor('diffEditor.insertedTextBorder', { dark: null, light: null, hc: '#33ff2eff' }, nls.localize('diffEditorInsertedOutline', 'Outline color for the text that got inserted.'));
 export const diffRemovedOutline = registerColor('diffEditor.removedTextBorder', { dark: null, light: null, hc: '#FF008F' }, nls.localize('diffEditorRemovedOutline', 'Outline color for text that got removed.'));
+
+export const diffBorder = registerColor('diffEditor.border', { dark: null, light: null, hc: contrastBorder }, nls.localize('diffEditorBorder', 'Border color between the two text editors.'));
 
 /**
  * Merge-conflict colors

@@ -16,6 +16,7 @@
     "Programming Languages"
   ],
   "dependencies": {
+    "jsonc-parser": "^2.0.1",
     "semver": "4.3.6",
     "vscode-extension-telemetry": "0.0.17",
     "vscode-nls": "^3.2.4"
@@ -40,7 +41,11 @@
     "onCommand:javascript.goToProjectConfig",
     "onCommand:typescript.goToProjectConfig",
     "onCommand:typescript.openTsServerLog",
-    "onCommand:workbench.action.tasks.runTask"
+    "onCommand:workbench.action.tasks.runTask",
+    "workspaceContains:**/tsconfig.json",
+    "workspaceContains:**/jsconfig.json",
+    "workspaceContains:**/tsconfig.*.json",
+    "workspaceContains:**/jsconfig.*.json"
   ],
   "main": "./out/extension",
   "contributes": {
@@ -505,6 +510,16 @@
           "default": "prompt",
           "description": "%typescript.updateImportsOnFileMove.enabled%",
           "scope": "resource"
+        },
+        "typescript.autoClosingTags": {
+          "type": "boolean",
+          "default": true,
+          "description": "%typescript.autoClosingTags%"
+        },
+        "javascript.autoClosingTags": {
+          "type": "boolean",
+          "default": true,
+          "description": "%typescript.autoClosingTags%"
         }
       }
     },

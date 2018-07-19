@@ -245,7 +245,7 @@ export function main(argv: ParsedArgs): TPromise<void> {
 			if (isBuilt && !extensionDevelopmentPath && !envService.args['disable-telemetry'] && product.enableTelemetry) {
 
 				if (product.aiConfig && product.aiConfig.asimovKey) {
-					appenders.push(new AppInsightsAppender(eventPrefix, null, product.aiConfig.asimovKey));
+					appenders.push(new AppInsightsAppender(eventPrefix, null, product.aiConfig.asimovKey, logService));
 				}
 
 				const config: ITelemetryServiceConfig = {

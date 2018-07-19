@@ -9,11 +9,9 @@ import { CancellationTokenSource } from 'vs/base/common/cancellation';
 import { toErrorMessage } from 'vs/base/common/errorMessage';
 import * as glob from 'vs/base/common/glob';
 import * as resources from 'vs/base/common/resources';
-import * as strings from 'vs/base/common/strings';
 import URI, { UriComponents } from 'vs/base/common/uri';
 import { PPromise, TPromise } from 'vs/base/common/winjs.base';
 import * as extfs from 'vs/base/node/extfs';
-import * as pfs from 'vs/base/node/pfs';
 import { IFileMatch, IFolderQuery, IPatternInfo, IRawSearchQuery, ISearchCompleteStats, ISearchQuery } from 'vs/platform/search/common/search';
 import * as vscode from 'vscode';
 import { ExtHostSearchShape, IMainContext, MainContext, MainThreadSearchShape } from './extHost.protocol';
@@ -30,9 +28,9 @@ export class ExtHostSearch implements ExtHostSearchShape {
 
 	private _fileSearchManager: FileSearchManager;
 
-	constructor(mainContext: IMainContext, private _schemeTransformer: ISchemeTransformer, private _extfs = extfs, private _pfs = pfs) {
+	constructor(mainContext: IMainContext, private _schemeTransformer: ISchemeTransformer, private _extfs = extfs) {
 		this._proxy = mainContext.getProxy(MainContext.MainThreadSearch);
-		this._fileSearchManager = new FileSearchManager(this._pfs);
+		this._fileSearchManager = new FileSearchManager();
 	}
 
 	private _transformScheme(scheme: string): string {
@@ -317,12 +315,12 @@ class QueryGlobTester {
 	/**
 	 * Guaranteed sync - siblingsFn should not return a promise.
 	 */
-	public includedInQuerySync(testPath: string, basename?: string, siblingsFn?: () => string[]): boolean {
-		if (this._parsedExcludeExpression && this._parsedExcludeExpression(testPath, basename, siblingsFn)) {
+	public includedInQuerySync(testPath: string, basename?: string, hasSibling?: (name: string) => boolean): boolean {
+		if (this._parsedExcludeExpression && this._parsedExcludeExpression(testPath, basename, hasSibling)) {
 			return false;
 		}
 
-		if (this._parsedIncludeExpression && !this._parsedIncludeExpression(testPath, basename, siblingsFn)) {
+		if (this._parsedIncludeExpression && !this._parsedIncludeExpression(testPath, basename, hasSibling)) {
 			return false;
 		}
 
@@ -332,9 +330,9 @@ class QueryGlobTester {
 	/**
 	 * Guaranteed async.
 	 */
-	public includedInQuery(testPath: string, basename?: string, siblingsFn?: () => string[] | TPromise<string[]>): TPromise<boolean> {
+	public includedInQuery(testPath: string, basename?: string, hasSibling?: (name: string) => boolean | TPromise<boolean>): TPromise<boolean> {
 		const excludeP = this._parsedExcludeExpression ?
-			TPromise.as(this._parsedExcludeExpression(testPath, basename, siblingsFn)).then(result => !!result) :
+			TPromise.as(this._parsedExcludeExpression(testPath, basename, hasSibling)).then(result => !!result) :
 			TPromise.wrap(false);
 
 		return excludeP.then(excluded => {
@@ -343,7 +341,7 @@ class QueryGlobTester {
 			}
 
 			return this._parsedIncludeExpression ?
-				TPromise.as(this._parsedIncludeExpression(testPath, basename, siblingsFn)).then(result => !!result) :
+				TPromise.as(this._parsedIncludeExpression(testPath, basename, hasSibling)).then(result => !!result) :
 				TPromise.wrap(true);
 		}).then(included => {
 			return included;
@@ -429,13 +427,13 @@ class TextSearchEngine {
 			const testingPs = [];
 			const progress = {
 				report: (result: vscode.TextSearchResult) => {
-					const siblingFn = folderQuery.folder.scheme === 'file' && (() => {
+					const hasSibling = folderQuery.folder.scheme === 'file' && glob.hasSiblingPromiseFn(() => {
 						return this.readdir(path.dirname(result.uri.fsPath));
 					});
 
 					const relativePath = path.relative(folderQuery.folder.fsPath, result.uri.fsPath);
 					testingPs.push(
-						queryTester.includedInQuery(relativePath, path.basename(relativePath), siblingFn)
+						queryTester.includedInQuery(relativePath, path.basename(relativePath), hasSibling)
 							.then(included => {
 								if (included) {
 									onResult(result);
@@ -506,7 +504,6 @@ function patternInfoToQuery(patternInfo: IPatternInfo): vscode.TextSearchQuery {
 
 class FileSearchEngine {
 	private filePattern: string;
-	private normalizedFilePatternLowercase: string;
 	private includePattern: glob.ParsedExpression;
 	private maxResults: number;
 	private exists: boolean;
@@ -518,7 +515,7 @@ class FileSearchEngine {
 
 	private globalExcludePattern: glob.ParsedExpression;
 
-	constructor(private config: ISearchQuery, private provider: vscode.SearchProvider, private _pfs: typeof pfs) {
+	constructor(private config: ISearchQuery, private provider: vscode.SearchProvider) {
 		this.filePattern = config.filePattern;
 		this.includePattern = config.includePattern && glob.parse(config.includePattern);
 		this.maxResults = config.maxResults || null;
@@ -526,10 +523,6 @@ class FileSearchEngine {
 		this.resultCount = 0;
 		this.isLimitHit = false;
 		this.activeCancellationTokens = new Set<CancellationTokenSource>();
-
-		if (this.filePattern) {
-			this.normalizedFilePatternLowercase = strings.stripWildcards(this.filePattern).toLowerCase();
-		}
 
 		this.globalExcludePattern = config.excludePattern && glob.parse(config.excludePattern);
 	}
@@ -633,19 +626,6 @@ class FileSearchEngine {
 						return null;
 					}
 
-					if (noSiblingsClauses && this.isLimitHit) {
-						// If the limit was hit, check whether filePattern is an exact relative match because it must be included
-						return this.checkFilePatternRelativeMatch(fq.folder).then(({ exists, size }) => {
-							if (exists) {
-								onResult({
-									base: fq.folder,
-									relativePath: this.filePattern,
-									basename: path.basename(this.filePattern),
-								});
-							}
-						});
-					}
-
 					this.matchDirectoryTree(tree, queryTester, onResult);
 					return null;
 				}).then(
@@ -712,6 +692,7 @@ class FileSearchEngine {
 		const self = this;
 		const filePattern = this.filePattern;
 		function matchDirectory(entries: IDirectoryEntry[]) {
+			const hasSibling = glob.hasSiblingFn(() => entries.map(entry => entry.basename));
 			for (let i = 0, n = entries.length; i < n; i++) {
 				const entry = entries[i];
 				const { relativePath, basename } = entry;
@@ -720,7 +701,7 @@ class FileSearchEngine {
 				// If the user searches for the exact file name, we adjust the glob matching
 				// to ignore filtering by siblings because the user seems to know what she
 				// is searching for and we want to include the result in that case anyway
-				if (!queryTester.includedInQuerySync(relativePath, basename, () => filePattern !== basename ? entries.map(entry => entry.basename) : [])) {
+				if (!queryTester.includedInQuerySync(relativePath, basename, filePattern !== basename ? hasSibling : undefined)) {
 					continue;
 				}
 
@@ -743,26 +724,8 @@ class FileSearchEngine {
 		matchDirectory(rootEntries);
 	}
 
-	private checkFilePatternRelativeMatch(base: URI): TPromise<{ exists: boolean, size?: number }> {
-		if (!this.filePattern || path.isAbsolute(this.filePattern) || base.scheme !== 'file') {
-			return TPromise.wrap({ exists: false });
-		}
-
-		const absolutePath = path.join(base.fsPath, this.filePattern);
-		return this._pfs.stat(absolutePath).then(stat => {
-			return {
-				exists: !stat.isDirectory(),
-				size: stat.size
-			};
-		}, err => {
-			return {
-				exists: false
-			};
-		});
-	}
-
 	private matchFile(onResult: (result: IInternalFileMatch) => void, candidate: IInternalFileMatch): void {
-		if (this.isFilePatternMatch(candidate.relativePath) && (!this.includePattern || this.includePattern(candidate.relativePath, candidate.basename))) {
+		if (!this.includePattern || this.includePattern(candidate.relativePath, candidate.basename)) {
 			if (this.exists || (this.maxResults && this.resultCount >= this.maxResults)) {
 				this.isLimitHit = true;
 				this.cancel();
@@ -772,20 +735,6 @@ class FileSearchEngine {
 				onResult(candidate);
 			}
 		}
-	}
-
-	private isFilePatternMatch(path: string): boolean {
-		// Check for search pattern
-		if (this.filePattern) {
-			if (this.filePattern === '*') {
-				return true; // support the all-matching wildcard
-			}
-
-			return strings.fuzzyContains(path, this.normalizedFilePatternLowercase);
-		}
-
-		// No patterns means we match all
-		return true;
 	}
 }
 
@@ -800,12 +749,10 @@ class FileSearchManager {
 
 	private readonly expandedCacheKeys = new Map<string, string[]>();
 
-	constructor(private _pfs: typeof pfs) { }
-
 	fileSearch(config: ISearchQuery, provider: vscode.SearchProvider): PPromise<ISearchCompleteStats, IFileMatch[]> {
 		let searchP: PPromise;
 		return new PPromise<ISearchCompleteStats, IFileMatch[]>((c, e, p) => {
-			const engine = new FileSearchEngine(config, provider, this._pfs);
+			const engine = new FileSearchEngine(config, provider);
 
 			searchP = this.doSearch(engine, FileSearchManager.BATCH_SIZE).then(
 				result => {

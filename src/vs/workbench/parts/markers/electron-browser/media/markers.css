@@ -165,3 +165,18 @@
 .vs-dark .markers-panel .icon.info {
 	background: url('status-info-inverse.svg') center center no-repeat;
 }
+
+.markers-panel .icon.lightbulb {
+	background: url('lightbulb.svg') center/40% no-repeat;
+	position: absolute;
+	width: 24px;
+	height: 30px;
+}
+
+.vs-dark .markers-panel .icon.lightbulb {
+	background: url('lightbulb-dark.svg') center/40% no-repeat;
+}
+
+.markers-panel .icon.lightbulb:not(.quick-fixes) {
+	display: none;
+}

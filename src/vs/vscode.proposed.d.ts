@@ -189,12 +189,45 @@ declare module 'vscode' {
 		provideTextSearchResults?(query: TextSearchQuery, options: TextSearchOptions, progress: Progress<TextSearchResult>, token: CancellationToken): Thenable<void>;
 	}
 
+	/**
+	 * Options that can be set on a findTextInFiles search.
+	 */
 	export interface FindTextInFilesOptions {
+		/**
+		 * A [glob pattern](#GlobPattern) that defines the files to search for. The glob pattern
+		 * will be matched against the file paths of files relative to their workspace. Use a [relative pattern](#RelativePattern)
+		 * to restrict the search results to a [workspace folder](#WorkspaceFolder).
+		 */
 		include?: GlobPattern;
-		exclude?: GlobPattern;
+
+		/**
+		 * A [glob pattern](#GlobPattern) that defines files and folders to exclude. The glob pattern
+		 * will be matched against the file paths of resulting matches relative to their workspace. When `undefined` only default excludes will
+		 * apply, when `null` no excludes will apply.
+		 */
+		exclude?: GlobPattern | null;
+
+		/**
+		 * The maximum number of results to search for
+		 */
 		maxResults?: number;
+
+		/**
+		 * Whether external files that exclude files, like .gitignore, should be respected.
+		 * See the vscode setting `"search.useIgnoreFiles"`.
+		 */
 		useIgnoreFiles?: boolean;
+
+		/**
+		 * Whether symlinks should be followed while searching.
+		 * See the vscode setting `"search.followSymlinks"`.
+		 */
 		followSymlinks?: boolean;
+
+		/**
+		 * Interpret files using this encoding.
+		 * See the vscode setting `"files.encoding"`
+		 */
 		encoding?: string;
 	}
 
@@ -210,6 +243,24 @@ declare module 'vscode' {
 		 */
 		export function registerSearchProvider(scheme: string, provider: SearchProvider): Disposable;
 
+
+		/**
+		 * Search text in files across all [workspace folders](#workspace.workspaceFolders) in the workspace.
+		 * @param query The query parameters for the search - the search string, whether it's case-sensitive, or a regex, or matches whole words.
+		 * @param callback A callback, called for each result
+		 * @param token A token that can be used to signal cancellation to the underlying search engine.
+		 * @return A thenable that resolves when the search is complete.
+		 */
+		export function findTextInFiles(query: TextSearchQuery, callback: (result: TextSearchResult) => void, token?: CancellationToken): Thenable<void>;
+
+		/**
+		 * Search text in files across all [workspace folders](#workspace.workspaceFolders) in the workspace.
+		 * @param query The query parameters for the search - the search string, whether it's case-sensitive, or a regex, or matches whole words.
+		 * @param options An optional set of query options. Include and exclude patterns, maxResults, etc.
+		 * @param callback A callback, called for each result
+		 * @param token A token that can be used to signal cancellation to the underlying search engine.
+		 * @return A thenable that resolves when the search is complete.
+		 */
 		export function findTextInFiles(query: TextSearchQuery, options: FindTextInFilesOptions, callback: (result: TextSearchResult) => void, token?: CancellationToken): Thenable<void>;
 	}
 
@@ -940,6 +991,11 @@ declare module 'vscode' {
 	export interface WorkspaceEdit {
 
 		/**
+		 * The number of affected resources of textual or resource changes.
+		 */
+		readonly size: number;
+
+		/**
 		 * Create a regular file.
 		 *
 		 * @param uri Uri of the new file..
@@ -952,7 +1008,7 @@ declare module 'vscode' {
 		 *
 		 * @param uri The uri of the file that is to be deleted.
 		 */
-		deleteFile(uri: Uri, options?: { recursive?: boolean }): void;
+		deleteFile(uri: Uri, options?: { recursive?: boolean, ignoreIfNotExists?: boolean }): void;
 
 		/**
 		 * Rename a file or folder.
@@ -961,11 +1017,7 @@ declare module 'vscode' {
 		 * @param newUri The new location.
 		 * @param options Defines if existing files should be overwritten.
 		 */
-		renameFile(oldUri: Uri, newUri: Uri, options?: { overwrite?: boolean }): void;
-
-		// replaceText(uri: Uri, range: Range, newText: string): void;
-		// insertText(uri: Uri, position: Position, newText: string): void;
-		// deleteText(uri: Uri, range: Range): void;
+		renameFile(oldUri: Uri, newUri: Uri, options?: { overwrite?: boolean, ignoreIfExists?: boolean }): void;
 	}
 
 	export namespace workspace {
@@ -1001,48 +1053,5 @@ declare module 'vscode' {
 		export const onWillRenameFile: Event<FileWillRenameEvent>;
 		export const onDidRenameFile: Event<FileRenameEvent>;
 	}
-	//#endregion
-
-	//#region Matt: Deinition range
-
-	/**
-	 * Information about where a symbol is defined.
-	 *
-	 * Provides additional metadata over normal [location](#Location) definitions, including the range of
-	 * the defining symbol
-	 */
-	export interface DefinitionLink {
-		/**
-		 * Span of the symbol being defined in the source file.
-		 *
-		 * Used as the underlined span for mouse definition hover. Defaults to the word range at
-		 * the definition position.
-		 */
-		origin?: Range;
-
-		/**
-		 * The resource identifier of the definition.
-		 */
-		uri: Uri;
-
-		/**
-		 * The full range of the definition.
-		 *
-		 * For a class definition for example, this would be the entire body of the class definition.
-		 */
-		range: Range;
-
-		/**
-		 * The span of the symbol definition.
-		 *
-		 * For a class definition, this would be the class name itself in the class definition.
-		 */
-		selectionRange?: Range;
-	}
-
-	export interface DefinitionProvider {
-		provideDefinition2?(document: TextDocument, position: Position, token: CancellationToken): ProviderResult<Definition | DefinitionLink[]>;
-	}
-
 	//#endregion
 }

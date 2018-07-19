@@ -46,6 +46,7 @@ export class TitlebarPart extends Part implements ITitleService {
 
 	private titleContainer: Builder;
 	private title: Builder;
+	private dragRegion: Builder;
 	private windowControls: Builder;
 	private maxRestoreControl: Builder;
 	private appIcon: Builder;
@@ -250,15 +251,20 @@ export class TitlebarPart extends Part implements ITitleService {
 	createContentArea(parent: HTMLElement): HTMLElement {
 		this.titleContainer = $(parent);
 
+		// Draggable region that we can manipulate for #52522
+		this.dragRegion = $(this.titleContainer).div({ class: 'titlebar-drag-region' });
+
 		// App Icon (Windows/Linux)
 		if (!isMacintosh) {
-			this.appIcon = $(this.titleContainer).div({
-				class: 'window-appicon',
-			}).on(EventType.DBLCLICK, e => {
-				EventHelper.stop(e, true);
+			this.appIcon = $(this.titleContainer).div({ class: 'window-appicon' });
 
-				this.windowService.closeWindow().then(null, errors.onUnexpectedError);
-			});
+			if (isWindows) {
+				this.appIcon.on(EventType.DBLCLICK, e => {
+					EventHelper.stop(e, true);
+
+					this.windowService.closeWindow().then(null, errors.onUnexpectedError);
+				});
+			}
 		}
 
 		// Title
@@ -500,6 +506,10 @@ export class TitlebarPart extends Part implements ITitleService {
 			let menubarToggled = this.configurationService.getValue<MenuBarVisibility>('window.menuBarVisibility') === 'toggle';
 			if (menubarToggled && this.menubarWidth) {
 				this.title.style('visibility', 'hidden');
+
+				// Hack to fix issue #52522 with layered webkit-app-region elements appearing under cursor
+				this.dragRegion.hide();
+				this.dragRegion.showDelayed(50);
 			} else {
 				this.title.style('visibility', null);
 			}

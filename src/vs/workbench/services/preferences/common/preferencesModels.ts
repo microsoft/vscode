@@ -473,7 +473,8 @@ export class DefaultSettings extends Disposable {
 					valueRange: null,
 					overrides: [],
 					type: setting.type,
-					enum: setting.enum
+					enum: setting.enum,
+					enumDescriptions: setting.enumDescriptions
 				};
 			}
 			return null;
@@ -492,7 +493,8 @@ export class DefaultSettings extends Disposable {
 		};
 	}
 
-	private parseConfig(config: IConfigurationNode, result: ISettingsGroup[], configurations: IConfigurationNode[], settingsGroup?: ISettingsGroup): ISettingsGroup[] {
+	private parseConfig(config: IConfigurationNode, result: ISettingsGroup[], configurations: IConfigurationNode[], settingsGroup?: ISettingsGroup, seenSettings?: { [key: string]: boolean }): ISettingsGroup[] {
+		seenSettings = seenSettings ? seenSettings : {};
 		let title = config.title;
 		if (!title) {
 			const configWithTitleAndSameId = configurations.filter(c => c.id === config.id && c.title)[0];
@@ -516,14 +518,20 @@ export class DefaultSettings extends Disposable {
 				settingsGroup = { sections: [{ settings: [] }], id: config.id, title: config.id, titleRange: null, range: null, contributedByExtension: !!config.contributedByExtension };
 				result.push(settingsGroup);
 			}
-			const configurationSettings: ISetting[] = [...settingsGroup.sections[settingsGroup.sections.length - 1].settings, ...this.parseSettings(config.properties)];
+			const configurationSettings: ISetting[] = [];
+			for (const setting of [...settingsGroup.sections[settingsGroup.sections.length - 1].settings, ...this.parseSettings(config.properties)]) {
+				if (!seenSettings[setting.key]) {
+					configurationSettings.push(setting);
+					seenSettings[setting.key] = true;
+				}
+			}
 			if (configurationSettings.length) {
 				configurationSettings.sort((a, b) => a.key.localeCompare(b.key));
 				settingsGroup.sections[settingsGroup.sections.length - 1].settings = configurationSettings;
 			}
 		}
 		if (config.allOf) {
-			config.allOf.forEach(c => this.parseConfig(c, result, configurations, settingsGroup));
+			config.allOf.forEach(c => this.parseConfig(c, result, configurations, settingsGroup, seenSettings));
 		}
 		return result;
 	}
@@ -547,7 +555,7 @@ export class DefaultSettings extends Disposable {
 				const value = prop.default;
 				const description = (prop.description || '').split('\n');
 				const overrides = OVERRIDE_PROPERTY_PATTERN.test(key) ? this.parseOverrideSettings(prop.default) : [];
-				result.push({ key, value, description, range: null, keyRange: null, valueRange: null, descriptionRanges: [], overrides, type: prop.type, enum: prop.enum });
+				result.push({ key, value, description, range: null, keyRange: null, valueRange: null, descriptionRanges: [], overrides, type: prop.type, enum: prop.enum, enumDescriptions: prop.enumDescriptions });
 			}
 		}
 		return result;

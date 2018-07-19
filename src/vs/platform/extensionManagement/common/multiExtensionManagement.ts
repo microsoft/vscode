@@ -41,7 +41,7 @@ export class MulitExtensionManagementService implements IExtensionManagementServ
 		return this.getServer(extension).extensionManagementService.uninstall(extension, force);
 	}
 
-	reinstallFromGallery(extension: ILocalExtension): TPromise<ILocalExtension> {
+	reinstallFromGallery(extension: ILocalExtension): TPromise<void> {
 		return this.getServer(extension).extensionManagementService.reinstallFromGallery(extension);
 	}
 
@@ -49,12 +49,12 @@ export class MulitExtensionManagementService implements IExtensionManagementServ
 		return this.getServer(extension).extensionManagementService.updateMetadata(extension, metadata);
 	}
 
-	install(zipPath: string): TPromise<ILocalExtension> {
+	install(zipPath: string): TPromise<void> {
 		return this.servers[0].extensionManagementService.install(zipPath);
 	}
 
-	installFromGallery(extension: IGalleryExtension): TPromise<ILocalExtension> {
-		return this.servers[0].extensionManagementService.installFromGallery(extension);
+	installFromGallery(extension: IGalleryExtension): TPromise<void> {
+		return TPromise.join(this.servers.map(server => server.extensionManagementService.installFromGallery(extension))).then(() => null);
 	}
 
 	getExtensionsReport(): TPromise<IReportedExtension[]> {

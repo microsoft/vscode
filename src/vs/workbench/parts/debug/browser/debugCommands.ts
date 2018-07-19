@@ -25,6 +25,9 @@ import { INotificationService } from 'vs/platform/notification/common/notificati
 import { InputFocusedContext } from 'vs/platform/workbench/common/contextkeys';
 import { ServicesAccessor } from 'vs/editor/browser/editorExtensions';
 
+export const ADD_CONFIGURATION_ID = 'debug.addConfiguration';
+export const TOGGLE_INLINE_BREAKPOINT_ID = 'editor.debug.action.toggleInlineBreakpoint';
+
 export function registerCommands(): void {
 
 	KeybindingsRegistry.registerCommandAndKeybindingRule({
@@ -171,7 +174,7 @@ export function registerCommands(): void {
 	});
 
 	KeybindingsRegistry.registerCommandAndKeybindingRule({
-		id: 'debug.addConfiguration',
+		id: ADD_CONFIGURATION_ID,
 		weight: KeybindingsRegistry.WEIGHT.workbenchContrib(),
 		when: undefined,
 		primary: undefined,
@@ -196,7 +199,6 @@ export function registerCommands(): void {
 		}
 	});
 
-	const INLINE_BREAKPOINT_COMMAND_ID = 'editor.debug.action.toggleInlineBreakpoint';
 	const inlineBreakpointHandler = (accessor: ServicesAccessor) => {
 		const debugService = accessor.get(IDebugService);
 		const editorService = accessor.get(IEditorService);
@@ -221,20 +223,20 @@ export function registerCommands(): void {
 		weight: KeybindingsRegistry.WEIGHT.workbenchContrib(),
 		primary: KeyMod.Shift | KeyCode.F9,
 		when: EditorContextKeys.editorTextFocus,
-		id: INLINE_BREAKPOINT_COMMAND_ID,
+		id: TOGGLE_INLINE_BREAKPOINT_ID,
 		handler: inlineBreakpointHandler
 	});
 
 	MenuRegistry.appendMenuItem(MenuId.CommandPalette, {
 		command: {
-			id: INLINE_BREAKPOINT_COMMAND_ID,
+			id: TOGGLE_INLINE_BREAKPOINT_ID,
 			title: nls.localize('inlineBreakpoint', "Inline Breakpoint"),
 			category: nls.localize('debug', "Debug")
 		}
 	});
 	MenuRegistry.appendMenuItem(MenuId.EditorContext, {
 		command: {
-			id: INLINE_BREAKPOINT_COMMAND_ID,
+			id: TOGGLE_INLINE_BREAKPOINT_ID,
 			title: nls.localize('addInlineBreakpoint', "Add Inline Breakpoint")
 		},
 		when: ContextKeyExpr.and(CONTEXT_IN_DEBUG_MODE, CONTEXT_NOT_IN_DEBUG_REPL, EditorContextKeys.writable),

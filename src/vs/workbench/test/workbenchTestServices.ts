@@ -67,13 +67,14 @@ import { IExtensionPoint } from 'vs/workbench/services/extensions/common/extensi
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { IDecorationsService, IResourceDecorationChangeEvent, IDecoration, IDecorationData, IDecorationsProvider } from 'vs/workbench/services/decorations/browser/decorations';
 import { IDisposable, toDisposable, Disposable } from 'vs/base/common/lifecycle';
-import { IEditorGroupsService, IEditorGroup, GroupsOrder, GroupsArrangement, GroupDirection, IAddGroupOptions, IMergeGroupOptions, IMoveEditorOptions, ICopyEditorOptions, IEditorReplacement, IGroupChangeEvent, EditorsOrder, IFindGroupScope, EditorGroupLayout, IEditorBreadcrumbs } from 'vs/workbench/services/group/common/editorGroupsService';
+import { IEditorGroupsService, IEditorGroup, GroupsOrder, GroupsArrangement, GroupDirection, IAddGroupOptions, IMergeGroupOptions, IMoveEditorOptions, ICopyEditorOptions, IEditorReplacement, IGroupChangeEvent, EditorsOrder, IFindGroupScope, EditorGroupLayout } from 'vs/workbench/services/group/common/editorGroupsService';
 import { IEditorService, IOpenEditorOverrideHandler } from 'vs/workbench/services/editor/common/editorService';
 import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
 import { ICodeEditor, IDiffEditor } from 'vs/editor/browser/editorBrowser';
 import { IDecorationRenderOptions } from 'vs/editor/common/editorCommon';
 import { EditorGroup } from 'vs/workbench/common/editor/editorGroup';
 import { Dimension } from 'vs/base/browser/dom';
+import { ILogService, LogLevel } from 'vs/platform/log/common/log';
 
 export function createFileInput(instantiationService: IInstantiationService, resource: URI): FileEditorInput {
 	return instantiationService.createInstance(FileEditorInput, resource, void 0);
@@ -275,12 +276,26 @@ export function workbenchInstantiationService(): IInstantiationService {
 	instantiationService.stub(IEnvironmentService, TestEnvironmentService);
 	instantiationService.stub(IThemeService, new TestThemeService());
 	instantiationService.stub(IHashService, new TestHashService());
+	instantiationService.stub(ILogService, new TestLogService());
 	instantiationService.stub(IEditorGroupsService, new TestEditorGroupsService([new TestEditorGroup(0)]));
 	const editorService = new TestEditorService();
 	instantiationService.stub(IEditorService, editorService);
 	instantiationService.stub(ICodeEditorService, new TestCodeEditorService());
 
 	return instantiationService;
+}
+
+export class TestLogService implements ILogService {
+	_serviceBrand: any; onDidChangeLogLevel: Event<LogLevel>;
+	getLevel(): LogLevel { return LogLevel.Info; }
+	setLevel(level: LogLevel): void { }
+	trace(message: string, ...args: any[]): void { }
+	debug(message: string, ...args: any[]): void { }
+	info(message: string, ...args: any[]): void { }
+	warn(message: string, ...args: any[]): void { }
+	error(message: string | Error, ...args: any[]): void { }
+	critical(message: string | Error, ...args: any[]): void { }
+	dispose(): void { }
 }
 
 export class TestDecorationsService implements IDecorationsService {
@@ -583,7 +598,6 @@ export class TestEditorGroup implements IEditorGroupView {
 	constructor(public id: number) { }
 
 	group: EditorGroup = void 0;
-	breadcrumbs: IEditorBreadcrumbs;
 	activeControl: IEditor;
 	activeEditor: IEditorInput;
 	previewEditor: IEditorInput;
@@ -674,6 +688,7 @@ export class TestEditorGroup implements IEditorGroupView {
 	dispose(): void { }
 	toJSON(): object { return Object.create(null); }
 	layout(width: number, height: number): void { }
+	relayout() { }
 }
 
 export class TestEditorService implements EditorServiceImpl {
@@ -1009,6 +1024,10 @@ export class TestWindowService implements IWindowService {
 		return TPromise.as(void 0);
 	}
 
+	enterWorkspace(path: string): TPromise<IEnterWorkspaceResult> {
+		return TPromise.as(void 0);
+	}
+
 	createAndEnterWorkspace(folders?: IWorkspaceFolderCreationData[], path?: string): TPromise<IEnterWorkspaceResult> {
 		return TPromise.as(void 0);
 	}
@@ -1162,6 +1181,10 @@ export class TestWindowsService implements IWindowsService {
 		return TPromise.as(void 0);
 	}
 
+	enterWorkspace(windowId: number, path: string): TPromise<IEnterWorkspaceResult> {
+		return TPromise.as(void 0);
+	}
+
 	createAndEnterWorkspace(windowId: number, folders?: IWorkspaceFolderCreationData[], path?: string): TPromise<IEnterWorkspaceResult> {
 		return TPromise.as(void 0);
 	}
@@ -1293,6 +1316,10 @@ export class TestWindowsService implements IWindowsService {
 
 	updateTouchBar(windowId: number, items: ISerializableCommandAction[][]): Promise<void> {
 		return TPromise.as(void 0);
+	}
+
+	getActiveWindowId(): TPromise<number | undefined> {
+		return TPromise.as(undefined);
 	}
 
 	// This needs to be handled from browser process to prevent

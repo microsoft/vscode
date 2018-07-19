@@ -25,7 +25,7 @@ import { ConfigurationService } from 'vs/platform/configuration/node/configurati
 import { IRequestService } from 'vs/platform/request/node/request';
 import { RequestService } from 'vs/platform/request/electron-browser/requestService';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { combinedAppender, NullTelemetryService } from 'vs/platform/telemetry/common/telemetryUtils';
+import { combinedAppender, NullTelemetryService, ITelemetryAppender, NullAppender, LogAppender } from 'vs/platform/telemetry/common/telemetryUtils';
 import { resolveCommonProperties } from 'vs/platform/telemetry/node/commonProperties';
 import { TelemetryAppenderChannel } from 'vs/platform/telemetry/common/telemetryIpc';
 import { TelemetryService, ITelemetryServiceConfig } from 'vs/platform/telemetry/common/telemetryService';
@@ -43,7 +43,6 @@ import { LocalizationsChannel } from 'vs/platform/localizations/common/localizat
 import { DialogChannelClient } from 'vs/platform/dialogs/common/dialogIpc';
 import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
-import { DefaultURITransformer } from 'vs/base/common/uriIpc';
 
 export interface ISharedProcessConfiguration {
 	readonly machineId: string;
@@ -67,7 +66,8 @@ function main(server: Server, initData: ISharedProcessInitData, configuration: I
 	process.once('exit', () => dispose(disposables));
 
 	const environmentService = new EnvironmentService(initData.args, process.execPath);
-	const logLevelClient = new LogLevelSetterChannelClient(server.getChannel('loglevel', { routeCall: () => 'main', routeEvent: () => 'main' }));
+	const mainRoute = () => TPromise.as('main');
+	const logLevelClient = new LogLevelSetterChannelClient(server.getChannel('loglevel', { routeCall: mainRoute, routeEvent: mainRoute }));
 	const logService = new FollowerLogService(logLevelClient, createSpdLogService('sharedprocess', initData.logLevel, environmentService.logsPath));
 	disposables.push(logService);
 
@@ -78,46 +78,33 @@ function main(server: Server, initData: ISharedProcessInitData, configuration: I
 	services.set(IConfigurationService, new SyncDescriptor(ConfigurationService));
 	services.set(IRequestService, new SyncDescriptor(RequestService));
 
-	const windowsChannel = server.getChannel('windows', { routeCall: () => 'main', routeEvent: () => 'main' });
+	const windowsChannel = server.getChannel('windows', { routeCall: mainRoute, routeEvent: mainRoute });
 	const windowsService = new WindowsChannelClient(windowsChannel);
 	services.set(IWindowsService, windowsService);
 
 	const activeWindowManager = new ActiveWindowManager(windowsService);
-	const dialogChannel = server.getChannel('dialog', {
-		routeCall: () => {
-			logService.info('Routing dialog call request to the client', activeWindowManager.activeClientId);
-			return activeWindowManager.activeClientId;
-		},
-		routeEvent: () => {
-			logService.info('Routing dialog listen request to the client', activeWindowManager.activeClientId);
-			return activeWindowManager.activeClientId;
-		}
-	});
+	const route = () => activeWindowManager.getActiveClientId();
+	const dialogChannel = server.getChannel('dialog', { routeCall: route, routeEvent: route });
 	services.set(IDialogService, new DialogChannelClient(dialogChannel));
 
 	const instantiationService = new InstantiationService(services);
 
 	instantiationService.invokeFunction(accessor => {
-		const appenders: AppInsightsAppender[] = [];
-
-		if (product.aiConfig && product.aiConfig.asimovKey) {
-			appenders.push(new AppInsightsAppender(eventPrefix, null, product.aiConfig.asimovKey));
-		}
-
-		// It is important to dispose the AI adapter properly because
-		// only then they flush remaining data.
-		disposables.push(...appenders);
-
-		const appender = combinedAppender(...appenders);
-		server.registerChannel('telemetryAppender', new TelemetryAppenderChannel(appender));
-
 		const services = new ServiceCollection();
 		const environmentService = accessor.get(IEnvironmentService);
 		const { appRoot, extensionsPath, extensionDevelopmentPath, isBuilt, installSourcePath } = environmentService;
+		const telemetryLogService = new FollowerLogService(logLevelClient, createSpdLogService('telemetry', initData.logLevel, environmentService.logsPath));
 
-		if (isBuilt && !extensionDevelopmentPath && !environmentService.args['disable-telemetry'] && product.enableTelemetry) {
+		let appInsightsAppender: ITelemetryAppender = NullAppender;
+		if (product.aiConfig && product.aiConfig.asimovKey && isBuilt) {
+			appInsightsAppender = new AppInsightsAppender(eventPrefix, null, product.aiConfig.asimovKey, telemetryLogService);
+			disposables.push(appInsightsAppender); // Ensure the AI appender is disposed so that it flushes remaining data
+		}
+		server.registerChannel('telemetryAppender', new TelemetryAppenderChannel(appInsightsAppender));
+
+		if (!extensionDevelopmentPath && !environmentService.args['disable-telemetry'] && product.enableTelemetry) {
 			const config: ITelemetryServiceConfig = {
-				appender,
+				appender: combinedAppender(appInsightsAppender, new LogAppender(logService)),
 				commonProperties: resolveCommonProperties(product.commit, pkg.version, configuration.machineId, installSourcePath),
 				piiPaths: [appRoot, extensionsPath]
 			};
@@ -135,7 +122,7 @@ function main(server: Server, initData: ISharedProcessInitData, configuration: I
 
 		instantiationService2.invokeFunction(accessor => {
 			const extensionManagementService = accessor.get(IExtensionManagementService);
-			const channel = new ExtensionManagementChannel(extensionManagementService, DefaultURITransformer);
+			const channel = new ExtensionManagementChannel(extensionManagementService);
 			server.registerChannel('extensions', channel);
 
 			// clean up deprecated extensions

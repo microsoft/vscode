@@ -3870,9 +3870,9 @@ declare namespace monaco.editor {
 		 * The edits will land on the undo-redo stack, but no "undo stop" will be pushed.
 		 * @param source The source of the call.
 		 * @param edits The edits to execute.
-		 * @param endCursoState Cursor state after the edits were applied.
+		 * @param endCursorState Cursor state after the edits were applied.
 		 */
-		executeEdits(source: string, edits: IIdentifiedSingleEditOperation[], endCursoState?: Selection[]): boolean;
+		executeEdits(source: string, edits: IIdentifiedSingleEditOperation[], endCursorState?: Selection[]): boolean;
 		/**
 		 * Execute multiple (concommitent) commands on the editor.
 		 * @param source The source of the call.
@@ -4922,7 +4922,7 @@ declare namespace monaco.languages {
 		/**
 		 * Provide the definition of the symbol at the given position and document.
 		 */
-		provideDefinition(model: editor.ITextModel, position: Position, token: CancellationToken): DefinitionLink | Thenable<DefinitionLink[]>;
+		provideDefinition(model: editor.ITextModel, position: Position, token: CancellationToken): Definition | DefinitionLink[] | Thenable<Definition | DefinitionLink[]>;
 	}
 
 	/**
@@ -4933,7 +4933,7 @@ declare namespace monaco.languages {
 		/**
 		 * Provide the implementation of the symbol at the given position and document.
 		 */
-		provideImplementation(model: editor.ITextModel, position: Position, token: CancellationToken): Definition | Thenable<Definition>;
+		provideImplementation(model: editor.ITextModel, position: Position, token: CancellationToken): Definition | DefinitionLink[] | Thenable<Definition | DefinitionLink[]>;
 	}
 
 	/**
@@ -4944,7 +4944,7 @@ declare namespace monaco.languages {
 		/**
 		 * Provide the type definition of the symbol at the given position and document.
 		 */
-		provideTypeDefinition(model: editor.ITextModel, position: Position, token: CancellationToken): Definition | Thenable<Definition>;
+		provideTypeDefinition(model: editor.ITextModel, position: Position, token: CancellationToken): Definition | DefinitionLink[] | Thenable<Definition | DefinitionLink[]>;
 	}
 
 	/**
@@ -5210,6 +5210,7 @@ declare namespace monaco.languages {
 		newUri: Uri;
 		options: {
 			overwrite?: boolean;
+			ignoreIfNotExists?: boolean;
 			ignoreIfExists?: boolean;
 			recursive?: boolean;
 		};

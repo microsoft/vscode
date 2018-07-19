@@ -24,6 +24,7 @@
   },
   "scripts": {},
   "activationEvents": [
+    "onSearch:file",
     "*"
   ],
   "main": "./out/extension",
