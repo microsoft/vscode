@@ -509,7 +509,7 @@ export class ExtensionsViewlet extends ViewContainerViewlet implements IExtensio
 	}
 
 	private autoComplete(query: string, position: number): { fullText: string, overwrite: number }[] {
-		if (query.lastIndexOf('@', position - 1) === -1 || query.lastIndexOf('@', position - 1) < query.lastIndexOf(' ', position - 1)) { return []; }
+		if (query.lastIndexOf('@', position - 1) !== query.lastIndexOf(' ', position - 1) + 1) { return []; }
 
 		let wordStart = query.lastIndexOf('@', position - 1) + 1;
 		let alreadyTypedCount = position - wordStart - 1;
