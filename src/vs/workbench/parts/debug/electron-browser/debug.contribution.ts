@@ -30,7 +30,7 @@ import { IPanelService } from 'vs/workbench/services/panel/common/panelService';
 import { DebugEditorModelManager } from 'vs/workbench/parts/debug/browser/debugEditorModelManager';
 import {
 	StepOverAction, ClearReplAction, FocusReplAction, StepIntoAction, StepOutAction, StartAction, RestartAction, ContinueAction, StopAction, DisconnectAction, PauseAction, AddFunctionBreakpointAction,
-	ConfigureAction, DisableAllBreakpointsAction, EnableAllBreakpointsAction, RemoveAllBreakpointsAction, RunAction, ReapplyBreakpointsAction, SelectAndStartAction, TerminateThreadAction
+	ConfigureAction, DisableAllBreakpointsAction, EnableAllBreakpointsAction, RemoveAllBreakpointsAction, RunAction, ReapplyBreakpointsAction, SelectAndStartAction, TerminateThreadAction, ToggleReplAction
 } from 'vs/workbench/parts/debug/browser/debugActions';
 import { DebugActionsWidget } from 'vs/workbench/parts/debug/browser/debugActionsWidget';
 import * as service from 'vs/workbench/parts/debug/electron-browser/debugService';
@@ -228,7 +228,27 @@ registerCommands();
 const statusBar = Registry.as<IStatusbarRegistry>(StatusExtensions.Statusbar);
 statusBar.registerStatusbarItem(new StatusbarItemDescriptor(DebugStatus, StatusbarAlignment.LEFT, 30 /* Low Priority */));
 
-// Register debug menu
+// View menu
+
+MenuRegistry.appendMenuItem(MenuId.MenubarViewMenu, {
+	group: '3_views',
+	command: {
+		id: VIEWLET_ID,
+		title: nls.localize({ key: 'miViewDebug', comment: ['&& denotes a mnemonic'] }, "&&Debug")
+	},
+	order: 4
+});
+
+MenuRegistry.appendMenuItem(MenuId.MenubarViewMenu, {
+	group: '4_panels',
+	command: {
+		id: ToggleReplAction.ID,
+		title: nls.localize({ key: 'miToggleDebugConsole', comment: ['&& denotes a mnemonic'] }, "De&&bug Console")
+	},
+	order: 2
+});
+
+// Debug menu
 
 MenuRegistry.appendMenuItem(MenuId.MenubarDebugMenu, {
 	group: '1_debug',

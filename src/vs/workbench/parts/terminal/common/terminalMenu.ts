@@ -9,6 +9,18 @@ import { TERMINAL_COMMAND_ID } from 'vs/workbench/parts/terminal/common/terminal
 import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
 
 export function setupTerminalMenu() {
+
+	// View menu
+
+	MenuRegistry.appendMenuItem(MenuId.MenubarViewMenu, {
+		group: '4_panels',
+		command: {
+			id: TERMINAL_COMMAND_ID.TOGGLE,
+			title: nls.localize({ key: 'miToggleIntegratedTerminal', comment: ['&& denotes a mnemonic'] }, "&&Integrated Terminal")
+		},
+		order: 3
+	});
+
 	// Manage
 	const manageGroup = '1_manage';
 	MenuRegistry.appendMenuItem(MenuId.MenubarTerminalMenu, {

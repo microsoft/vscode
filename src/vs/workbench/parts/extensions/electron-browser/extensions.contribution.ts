@@ -248,3 +248,14 @@ MenuRegistry.appendMenuItem(MenuId.MenubarPreferencesMenu, {
 	},
 	order: 2
 });
+
+// View menu
+
+MenuRegistry.appendMenuItem(MenuId.MenubarViewMenu, {
+	group: '3_views',
+	command: {
+		id: VIEWLET_ID,
+		title: localize({ key: 'miViewExtensions', comment: ['&& denotes a mnemonic'] }, "E&&xtensions")
+	},
+	order: 5
+});
