@@ -355,7 +355,7 @@ export class StandardAutoClosingPairConditional {
   //*** If the onlyIn array var is set, check if the StandardTokenType of isOK is "other". If so, return 1 (i.e. don't autoclose)
 	public isOK(standardToken: StandardTokenType): boolean {
     if (this._onlyInFlag && (standardToken == StandardTokenType.Other)) {
-      return false
+      return false;
     }
 		return (this._standardTokenMask & <number>standardToken) === 0;
   }
@@ -363,8 +363,8 @@ export class StandardAutoClosingPairConditional {
   //*** Get the user input for the autoclose cursor position (if it's valid)
   public getCursorPositionOption(): number {
     if (this._cursorPositionOption) {
-      return this._cursorPositionOption
+      return this._cursorPositionOption;
     }
-    return null
+    return null;
   }
 }

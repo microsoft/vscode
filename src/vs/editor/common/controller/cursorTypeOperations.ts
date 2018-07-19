@@ -560,7 +560,8 @@ export class TypeOperations {
 
 			// const lineTokens = model.getLineTokens(position.lineNumber);
 
-			let shouldAutoClosePair = false;
+      let shouldAutoClosePair = false;
+      
 			try {
 				shouldAutoClosePair = LanguageConfigurationRegistry.shouldAutoClosePair(ch, lineTokens, position.column);
 			} catch (e) {
@@ -781,11 +782,17 @@ export class TypeOperations {
 					}
 				}
 
-				const characterAfter = lineText.charAt(position.column - 1);
+        const characterAfter = lineText.charAt(position.column - 1);
+
+        model.forceTokenization(position.lineNumber);
+        const lineTokens = model.getLineTokens(position.lineNumber);
+        const currentTokenIndex = lineTokens.findTokenIndexAtOffset(position.column - 2)
+        const currentTokenType = lineTokens.getStandardTokenType(currentTokenIndex)
 
 				if (characterAfter) {
-					let isBeforeCloseBrace = TypeOperations._isBeforeClosingBrace(config, ch, characterAfter);
-					if (!isBeforeCloseBrace && !/\s/.test(characterAfter)) {
+          let isBeforeCloseBrace = TypeOperations._isBeforeClosingBrace(config, ch, characterAfter);
+          //*** Allow autocompletion in strings without needing a space after the cursor (for interpolation)
+          if (!isBeforeCloseBrace && !/\s/.test(characterAfter) && currentTokenType != modes.StandardTokenType.String) {
 						continue;
 					}
 				}
@@ -794,9 +801,6 @@ export class TypeOperations {
 					// Do not force tokenization
 					continue;
 				}
-
-				model.forceTokenization(position.lineNumber);
-				const lineTokens = model.getLineTokens(position.lineNumber);
 
 				let shouldAutoClosePair = false;
 
