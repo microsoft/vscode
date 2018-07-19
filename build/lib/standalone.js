@@ -42,7 +42,7 @@ function extractEditor(options) {
         copied[fileName] = true;
         var srcPath = path.join(options.sourcesRoot, fileName);
         var dstPath = path.join(options.destRoot, fileName);
-        fs.writeFileSync(dstPath, fs.readFileSync(srcPath));
+        writeFile(dstPath, fs.readFileSync(srcPath));
     };
     var writeOutputFile = function (fileName, contents) {
         writeFile(path.join(options.destRoot, fileName), contents);
@@ -74,8 +74,10 @@ function extractEditor(options) {
             }
         }
     }
+    var tsConfig = JSON.parse(fs.readFileSync(path.join(options.sourcesRoot, 'tsconfig.json')).toString());
+    tsConfig.compilerOptions.noUnusedLocals = false;
+    writeOutputFile('tsconfig.json', JSON.stringify(tsConfig, null, '\t'));
     [
-        'tsconfig.json',
         'vs/css.build.js',
         'vs/css.d.ts',
         'vs/css.js',
@@ -85,6 +87,10 @@ function extractEditor(options) {
         'vs/nls.d.ts',
         'vs/nls.js',
         'vs/nls.mock.ts',
+        'typings/lib.ie11_safe_es6.d.ts',
+        'typings/thenable.d.ts',
+        'typings/es6-promise.d.ts',
+        'typings/require.d.ts',
     ].forEach(copyFile);
 }
 exports.extractEditor = extractEditor;

@@ -12,6 +12,7 @@ const File = require('vinyl');
 const i18n = require('./lib/i18n');
 const standalone = require('./lib/standalone');
 const cp = require('child_process');
+const compilation = require('./lib/compilation');
 
 var root = path.dirname(__dirname);
 var sha1 = util.getVersion(root);
@@ -114,6 +115,10 @@ gulp.task('optimize-editor', ['clean-optimized-editor', 'compile-client-build'],
 	out: 'out-editor',
 	languages: languages
 }));
+
+// Full compile, including nls and inline sources in sourcemaps, for build
+gulp.task('clean-editor-build', util.rimraf('out-editor-build'));
+gulp.task('compile-editor-build', ['clean-editor-build', 'extract-editor-src'], compilation.compileTask('out-editor-src', 'out-editor-build', true));
 
 gulp.task('clean-minified-editor', util.rimraf('out-editor-min'));
 gulp.task('minify-editor', ['clean-minified-editor', 'optimize-editor'], common.minifyTask('out-editor'));

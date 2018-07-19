@@ -14,7 +14,7 @@ const OUT_EDITOR = path.join(REPO_ROOT, 'out-editor');
 
 let dirCache: { [dir: string]: boolean; } = {};
 
-function writeFile(filePath: string, contents: string): void {
+function writeFile(filePath: string, contents: Buffer | string): void {
 	function ensureDirs(dirPath: string): void {
 		if (dirCache[dirPath]) {
 			return;
@@ -46,7 +46,7 @@ export function extractEditor(options: tss.ITreeShakingOptions & { destRoot: str
 		copied[fileName] = true;
 		const srcPath = path.join(options.sourcesRoot, fileName);
 		const dstPath = path.join(options.destRoot, fileName);
-		fs.writeFileSync(dstPath, fs.readFileSync(srcPath));
+		writeFile(dstPath, fs.readFileSync(srcPath));
 	};
 	const writeOutputFile = (fileName: string, contents: string) => {
 		writeFile(path.join(options.destRoot, fileName), contents);
@@ -80,8 +80,11 @@ export function extractEditor(options: tss.ITreeShakingOptions & { destRoot: str
 		}
 	}
 
+	const tsConfig = JSON.parse(fs.readFileSync(path.join(options.sourcesRoot, 'tsconfig.json')).toString());
+	tsConfig.compilerOptions.noUnusedLocals = false;
+	writeOutputFile('tsconfig.json', JSON.stringify(tsConfig, null, '\t'));
+
 	[
-		'tsconfig.json',
 		'vs/css.build.js',
 		'vs/css.d.ts',
 		'vs/css.js',
@@ -91,6 +94,10 @@ export function extractEditor(options: tss.ITreeShakingOptions & { destRoot: str
 		'vs/nls.d.ts',
 		'vs/nls.js',
 		'vs/nls.mock.ts',
+		'typings/lib.ie11_safe_es6.d.ts',
+		'typings/thenable.d.ts',
+		'typings/es6-promise.d.ts',
+		'typings/require.d.ts',
 	].forEach(copyFile);
 }
 
