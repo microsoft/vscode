@@ -65,10 +65,11 @@
 
 .settings-editor > .settings-body > .settings-tree-container .setting-item.setting-item-exclude .monaco-text-button {
 	width: initial;
+	padding: 4px 10px;
 }
 
 .settings-editor > .settings-body > .settings-tree-container .setting-item.setting-item-exclude .monaco-text-button.setting-exclude-addPattern {
-	margin-right: 5px;
+	margin-right: 10px;
 }
 
 .settings-editor > .settings-body > .settings-tree-container .setting-item.setting-item-exclude .monaco-text-button.setting-exclude-addButton {
@@ -76,6 +77,30 @@
 }
 
 .settings-editor > .settings-body > .settings-tree-container .setting-item.setting-item-exclude.is-expanded .monaco-text-button.setting-exclude-addButton {
+	display: inline-block;
+}
+
+.settings-editor > .settings-body > .settings-tree-container .setting-item.setting-item-exclude .monaco-list-row.setting-exclude-newExcludeItem {
+	display: flex;
+}
+
+.settings-editor > .settings-body > .settings-tree-container .setting-item.setting-item-exclude .monaco-list-row.setting-exclude-newExcludeItem .setting-exclude-patternInput,
+.settings-editor > .settings-body > .settings-tree-container .setting-item.setting-item-exclude .monaco-list-row.setting-exclude-newExcludeItem .setting-exclude-siblingInput {
+	display: none;
+	flex: 1;
+	max-width: 200px;
+}
+
+.settings-editor > .settings-body > .settings-tree-container .setting-item.setting-item-exclude .monaco-list-row.setting-exclude-newPattern .setting-exclude-patternInput {
+	display: inline-block;
+}
+
+.settings-editor > .settings-body > .settings-tree-container .setting-item.setting-item-exclude .monaco-list-row.setting-exclude-newPatternWithSibling .setting-exclude-patternInput {
+	margin-right: 5px;
+}
+
+.settings-editor > .settings-body > .settings-tree-container .setting-item.setting-item-exclude .monaco-list-row.setting-exclude-newPatternWithSibling .setting-exclude-patternInput,
+.settings-editor > .settings-body > .settings-tree-container .setting-item.setting-item-exclude .monaco-list-row.setting-exclude-newPatternWithSibling .setting-exclude-siblingInput {
 	display: inline-block;
 }
 
