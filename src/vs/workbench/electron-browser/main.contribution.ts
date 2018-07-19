@@ -262,6 +262,62 @@ if (!isMacintosh) {
 	});
 }
 
+// Appereance menu
+MenuRegistry.appendMenuItem(MenuId.MenubarViewMenu, {
+	group: '2_appearance',
+	title: nls.localize({ key: 'miAppearance', comment: ['&& denotes a mnemonic'] }, "&&Appearance"),
+	submenu: MenuId.MenubarAppearanceMenu,
+	order: 1
+});
+
+MenuRegistry.appendMenuItem(MenuId.MenubarAppearanceMenu, {
+	group: '1_toggle_view',
+	command: {
+		id: ToggleFullScreenAction.ID,
+		title: nls.localize({ key: 'miToggleFullScreen', comment: ['&& denotes a mnemonic'] }, "Toggle &&Full Screen")
+	},
+	order: 1
+});
+
+MenuRegistry.appendMenuItem(MenuId.MenubarAppearanceMenu, {
+	group: '1_toggle_view',
+	command: {
+		id: ToggleMenuBarAction.ID,
+		title: nls.localize({ key: 'miToggleMenuBar', comment: ['&& denotes a mnemonic'] }, "Toggle Menu &&Bar")
+	},
+	order: 4
+});
+
+// Zoom
+
+MenuRegistry.appendMenuItem(MenuId.MenubarAppearanceMenu, {
+	group: '3_zoom',
+	command: {
+		id: ZoomInAction.ID,
+		title: nls.localize({ key: 'miZoomIn', comment: ['&& denotes a mnemonic'] }, "&&Zoom In")
+	},
+	order: 1
+});
+
+MenuRegistry.appendMenuItem(MenuId.MenubarAppearanceMenu, {
+	group: '3_zoom',
+	command: {
+		id: ZoomOutAction.ID,
+		title: nls.localize({ key: 'miZoomOut', comment: ['&& denotes a mnemonic'] }, "&&Zoom Out")
+	},
+	order: 2
+});
+
+MenuRegistry.appendMenuItem(MenuId.MenubarAppearanceMenu, {
+	group: '3_zoom',
+	command: {
+		id: ZoomResetAction.ID,
+		title: nls.localize({ key: 'miZoomReset', comment: ['&& denotes a mnemonic'] }, "&&Reset Zoom")
+	},
+	order: 3
+});
+
+
 // Configuration: Workbench
 const configurationRegistry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration);
 

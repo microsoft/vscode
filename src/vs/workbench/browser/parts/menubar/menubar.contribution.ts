@@ -9,7 +9,6 @@ import { isMacintosh } from 'vs/base/common/platform';
 
 editMenuRegistration();
 selectionMenuRegistration();
-appearanceMenuRegistration();
 layoutMenuRegistration();
 goMenuRegistration();
 tasksMenuRegistration();
@@ -271,14 +270,6 @@ function selectionMenuRegistration() {
 	});
 }
 
-// TODO: Appearance Submenu
-MenuRegistry.appendMenuItem(MenuId.MenubarViewMenu, {
-	group: '2_appearance',
-	title: nls.localize({ key: 'miAppearance', comment: ['&& denotes a mnemonic'] }, "&&Appearance"),
-	submenu: MenuId.MenubarAppearanceMenu,
-	order: 1
-});
-
 // TODO: Editor Layout Submenu
 MenuRegistry.appendMenuItem(MenuId.MenubarViewMenu, {
 	group: '2_appearance',
@@ -287,116 +278,6 @@ MenuRegistry.appendMenuItem(MenuId.MenubarViewMenu, {
 	order: 2
 });
 
-function appearanceMenuRegistration() {
-	MenuRegistry.appendMenuItem(MenuId.MenubarAppearanceMenu, {
-		group: '1_toggle_view',
-		command: {
-			id: 'workbench.action.toggleFullScreen',
-			title: nls.localize({ key: 'miToggleFullScreen', comment: ['&& denotes a mnemonic'] }, "Toggle &&Full Screen")
-		},
-		order: 1
-	});
-
-	MenuRegistry.appendMenuItem(MenuId.MenubarAppearanceMenu, {
-		group: '1_toggle_view',
-		command: {
-			id: 'workbench.action.toggleZenMode',
-			title: nls.localize('miToggleZenMode', "Toggle Zen Mode")
-		},
-		order: 2
-	});
-
-	MenuRegistry.appendMenuItem(MenuId.MenubarAppearanceMenu, {
-		group: '1_toggle_view',
-		command: {
-			id: 'workbench.action.toggleCenteredLayout',
-			title: nls.localize('miToggleCenteredLayout', "Toggle Centered Layout")
-		},
-		order: 3
-	});
-
-	MenuRegistry.appendMenuItem(MenuId.MenubarAppearanceMenu, {
-		group: '1_toggle_view',
-		command: {
-			id: 'workbench.action.toggleMenuBar',
-			title: nls.localize({ key: 'miToggleMenuBar', comment: ['&& denotes a mnemonic'] }, "Toggle Menu &&Bar")
-		},
-		order: 4
-	});
-
-	MenuRegistry.appendMenuItem(MenuId.MenubarAppearanceMenu, {
-		group: '2_workbench_layout',
-		command: {
-			id: 'workbench.action.toggleSidebarVisibility',
-			title: nls.localize({ key: 'miToggleSidebar', comment: ['&& denotes a mnemonic'] }, "&&Toggle Side Bar")
-		},
-		order: 1
-	});
-
-	MenuRegistry.appendMenuItem(MenuId.MenubarAppearanceMenu, {
-		group: '2_workbench_layout',
-		command: {
-			id: 'workbench.action.toggleSidebarPosition',
-			title: nls.localize({ key: 'miMoveSidebarLeftRight', comment: ['&& denotes a mnemonic'] }, "&&Move Side Bar Left/Right")
-		},
-		order: 2
-	});
-
-	MenuRegistry.appendMenuItem(MenuId.MenubarAppearanceMenu, {
-		group: '2_workbench_layout',
-		command: {
-			id: 'workbench.action.toggleStatusbarVisibility',
-			title: nls.localize({ key: 'miToggleStatusbar', comment: ['&& denotes a mnemonic'] }, "&&Toggle Status Bar")
-		},
-		order: 3
-	});
-
-	MenuRegistry.appendMenuItem(MenuId.MenubarAppearanceMenu, {
-		group: '2_workbench_layout',
-		command: {
-			id: 'workbench.action.toggleActivityBarVisibility',
-			title: nls.localize({ key: 'miToggleActivityBar', comment: ['&& denotes a mnemonic'] }, "Toggle &&Activity Bar")
-		},
-		order: 4
-	});
-
-	MenuRegistry.appendMenuItem(MenuId.MenubarAppearanceMenu, {
-		group: '2_workbench_layout',
-		command: {
-			id: 'workbench.action.togglePanel',
-			title: nls.localize({ key: 'miTogglePanel', comment: ['&& denotes a mnemonic'] }, "Toggle &&Panel")
-		},
-		order: 5
-	});
-
-	// Zoom
-	MenuRegistry.appendMenuItem(MenuId.MenubarAppearanceMenu, {
-		group: '3_zoom',
-		command: {
-			id: 'workbench.action.zoomIn',
-			title: nls.localize({ key: 'miZoomIn', comment: ['&& denotes a mnemonic'] }, "&&Zoom In")
-		},
-		order: 1
-	});
-
-	MenuRegistry.appendMenuItem(MenuId.MenubarAppearanceMenu, {
-		group: '3_zoom',
-		command: {
-			id: 'workbench.action.zoomOut',
-			title: nls.localize({ key: 'miZoomOut', comment: ['&& denotes a mnemonic'] }, "&&Zoom Out")
-		},
-		order: 2
-	});
-
-	MenuRegistry.appendMenuItem(MenuId.MenubarAppearanceMenu, {
-		group: '3_zoom',
-		command: {
-			id: 'workbench.action.zoomReset',
-			title: nls.localize({ key: 'miZoomReset', comment: ['&& denotes a mnemonic'] }, "&&Reset Zoom")
-		},
-		order: 3
-	});
-}
 
 function layoutMenuRegistration() {
 	// Split
