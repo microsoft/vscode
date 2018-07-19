@@ -550,7 +550,6 @@ export class ExtensionsListView extends ViewletPanel {
 			this.list.model = model;
 			this.list.scrollTop = 0;
 			const count = this.count();
-			this.list.focusNext();
 
 			toggleClass(this.extensionsList, 'hidden', count === 0);
 			toggleClass(this.messageBox, 'hidden', count > 0);
@@ -645,6 +644,9 @@ export class ExtensionsListView extends ViewletPanel {
 
 	focus(): void {
 		super.focus();
+		if (!(this.list.getFocus().length || this.list.getSelection().length)) {
+			this.list.focusNext();
+		}
 		this.list.domFocus();
 	}
 }
