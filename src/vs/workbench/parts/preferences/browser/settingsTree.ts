@@ -34,7 +34,7 @@ import { ISearchResult, ISetting, ISettingsGroup } from 'vs/workbench/services/p
 const $ = DOM.$;
 
 export const modifiedItemForeground = registerColor('settings.modifiedItemForeground', {
-	light: '#019001',
+	light: '#018101',
 	dark: '#73C991',
 	hc: '#73C991'
 }, localize('modifiedItemForeground', "(For settings editor preview) The foreground color for a modified setting."));
