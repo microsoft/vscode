@@ -276,7 +276,6 @@ export class BreadcrumbsControl {
 		this._contextViewService.showContextView({
 			render: (parent: HTMLElement) => {
 				picker = createBreadcrumbsPicker(this._instantiationService, parent, element);
-				picker.setInput(element);
 				let listener = picker.onDidPickElement(data => {
 					this._contextViewService.hideContextView();
 					this._widget.setFocused(undefined);
@@ -307,6 +306,7 @@ export class BreadcrumbsControl {
 					pickerArrowOffset = (data.left + (data.width * .3)) - x;
 				}
 				picker.layout(pickerHeight, pickerWidth, pickerArrowSize, Math.max(0, pickerArrowOffset));
+				picker.setInput(element);
 				return { x, y };
 			},
 			onHide: () => {

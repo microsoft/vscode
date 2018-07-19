@@ -37,6 +37,7 @@ export abstract class BreadcrumbsPicker {
 	protected readonly _disposables = new Array<IDisposable>();
 	protected readonly _domNode: HTMLDivElement;
 	protected readonly _arrow: HTMLDivElement;
+	protected readonly _treeContainer: HTMLDivElement;
 	protected readonly _tree: HighlightingWorkbenchTree;
 	protected readonly _focus: dom.IFocusTracker;
 
@@ -66,17 +67,16 @@ export abstract class BreadcrumbsPicker {
 		this._arrow.style.borderColor = `transparent transparent ${color.toString()}`;
 		this._domNode.appendChild(this._arrow);
 
-		const container = document.createElement('div');
-		container.style.background = color.toString();
-		container.style.paddingTop = '2px';
-		container.style.boxShadow = `0px 5px 8px ${(theme.type === DARK ? color.darken(.6) : color.darken(.2))}`;
-		container.style.height = '100%';
-		this._domNode.appendChild(container);
+		this._treeContainer = document.createElement('div');
+		this._treeContainer.style.background = color.toString();
+		this._treeContainer.style.paddingTop = '2px';
+		this._treeContainer.style.boxShadow = `0px 5px 8px ${(theme.type === DARK ? color.darken(.6) : color.darken(.2))}`;
+		this._domNode.appendChild(this._treeContainer);
 
 		const treeConifg = this._completeTreeConfiguration({ dataSource: undefined, renderer: undefined });
 		this._tree = this._instantiationService.createInstance(
 			HighlightingWorkbenchTree,
-			container,
+			this._treeContainer,
 			treeConifg,
 			{ useShadows: false },
 			{ placeholder: localize('placeholder', "Find") }
@@ -116,11 +116,14 @@ export abstract class BreadcrumbsPicker {
 	}
 
 	layout(height: number, width: number, arrowSize: number, arrowOffset: number) {
-		this._domNode.style.width = `${width}px`;
 		this._domNode.style.height = `${height}px`;
+		this._domNode.style.width = `${width}px`;
 		this._arrow.style.borderWidth = `${arrowSize}px`;
 		this._arrow.style.marginLeft = `${arrowOffset}px`;
-		this._tree.layout(height, width);
+
+		this._treeContainer.style.height = `${height - 2 * arrowSize}px`;
+		this._treeContainer.style.width = `${width}px`;
+		this._tree.layout();
 	}
 
 	protected abstract _getInput(input: BreadcrumbElement): any;
