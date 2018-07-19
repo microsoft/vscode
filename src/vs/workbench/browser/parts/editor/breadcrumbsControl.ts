@@ -93,7 +93,7 @@ class Item extends BreadcrumbsItem {
 
 			if (this.options.showSymbolIcons) {
 				let icon = document.createElement('div');
-				icon.className = `symbol-icon ${symbolKindToCssClass(this.element.symbol.kind)}`;
+				icon.className = symbolKindToCssClass(this.element.symbol.kind);
 				container.appendChild(icon);
 				dom.addClass(container, 'shows-symbol-icon');
 			}

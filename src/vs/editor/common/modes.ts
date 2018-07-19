@@ -646,7 +646,7 @@ export const symbolKindToCssClass = (function () {
 	_fromMapping[SymbolKind.TypeParameter] = 'type-parameter';
 
 	return function toCssClassName(kind: SymbolKind): string {
-		return _fromMapping[kind] || 'property';
+		return `symbol-icon ${_fromMapping[kind] || 'property'}`;
 	};
 })();
 
