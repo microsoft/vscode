@@ -52,12 +52,16 @@ suite('BackupMainService', () => {
 			super.loadSync();
 		}
 
-		public toBackupPath(workspacePath: Uri): string {
-			return path.join(this.backupHome, super.getFolderHash(workspacePath));
+		public toBackupPath(folderUri: Uri): string {
+			return path.join(this.backupHome, super.getFolderHash(folderUri));
 		}
 
-		public getFolderHash(folderPath: Uri): string {
-			return super.getFolderHash(folderPath);
+		public getFolderHash(folderUri: Uri): string {
+			return super.getFolderHash(folderUri);
+		}
+
+		public toLegacyBackupPath(folderPath: string): string {
+			return path.join(this.backupHome, super.getLegacyFolderHash(folderPath));
 		}
 	}
 
@@ -87,7 +91,8 @@ suite('BackupMainService', () => {
 	const fooFile = Uri.file(platform.isWindows ? 'C:\\foo' : '/foo');
 	const barFile = Uri.file(platform.isWindows ? 'C:\\bar' : '/bar');
 
-	const existingTestFolder = Uri.file(path.join(parentDir, 'folder1'));
+	const existingTestFolder1 = Uri.file(path.join(parentDir, 'folder1'));
+	const existingTestFolder2 = Uri.file(path.join(parentDir, 'folder2'));
 
 	let service: TestBackupMainService;
 	let configService: TestConfigurationService;
@@ -234,6 +239,46 @@ suite('BackupMainService', () => {
 		const emptyBackups = service.getEmptyWindowBackupPaths();
 		assert.equal(1, emptyBackups.length);
 		assert.equal(1, fs.readdirSync(path.join(backupHome, emptyBackups[0])).length);
+	});
+
+	suite('migrate folderPath to folderURI', () => {
+
+		test('migration makes sure to preserve existing backups', () => {
+			let oldPath1 = platform.isLinux ? existingTestFolder1.fsPath : existingTestFolder1.fsPath.toLowerCase();
+			let oldPath2 = platform.isLinux ? existingTestFolder2.fsPath : existingTestFolder2.fsPath.toUpperCase();
+
+			if (!fs.existsSync(oldPath1)) {
+				fs.mkdirSync(oldPath1);
+			}
+			if (!fs.existsSync(oldPath2)) {
+				fs.mkdirSync(oldPath2);
+			}
+			const backupFolder1 = service.toLegacyBackupPath(oldPath1);
+			if (!fs.existsSync(backupFolder1)) {
+				fs.mkdirSync(backupFolder1);
+				fs.mkdirSync(path.join(backupFolder1, Schemas.file));
+				fs.writeFile(path.join(backupFolder1, Schemas.file, 'unsaved1.txt'), 'Legacy');
+			}
+			const backupFolder2 = service.toLegacyBackupPath(oldPath2);
+			if (!fs.existsSync(backupFolder2)) {
+				fs.mkdirSync(backupFolder2);
+				fs.mkdirSync(path.join(backupFolder2, Schemas.file));
+				fs.writeFile(path.join(backupFolder2, Schemas.file, 'unsaved2.txt'), 'Legacy');
+			}
+
+			const workspacesJson = { rootWorkspaces: [], folderWorkspaces: [oldPath1, oldPath2], emptyWorkspaces: [] };
+			return pfs.writeFile(backupWorkspacesPath, JSON.stringify(workspacesJson)).then(() => {
+				service.loadSync();
+				return pfs.readFile(backupWorkspacesPath, 'utf-8').then(content => {
+					const json = <IBackupWorkspacesFormat>JSON.parse(content);
+					assert.deepEqual(json.folderURIWorkspaces, [existingTestFolder1.toString(), existingTestFolder2.toString()]);
+					const newBackupFolder1 = service.toBackupPath(existingTestFolder1);
+					assert.ok(fs.existsSync(path.join(newBackupFolder1, Schemas.file, 'unsaved1.txt')));
+					const newBackupFolder2 = service.toBackupPath(existingTestFolder2);
+					assert.ok(fs.existsSync(path.join(newBackupFolder2, Schemas.file, 'unsaved2.txt')));
+				});
+			});
+		});
 	});
 
 	suite('loadSync', () => {
@@ -388,36 +433,36 @@ suite('BackupMainService', () => {
 	suite('dedupeFolderWorkspaces', () => {
 		test('should ignore duplicates (folder workspace)', () => {
 
-			ensureFolderExists(existingTestFolder);
+			ensureFolderExists(existingTestFolder1);
 
 			const workspacesJson: IBackupWorkspacesFormat = {
 				rootWorkspaces: [],
-				folderURIWorkspaces: [existingTestFolder.toString(), existingTestFolder.toString()],
+				folderURIWorkspaces: [existingTestFolder1.toString(), existingTestFolder1.toString()],
 				emptyWorkspaces: []
 			};
 			return pfs.writeFile(backupWorkspacesPath, JSON.stringify(workspacesJson)).then(() => {
 				service.loadSync();
 				return pfs.readFile(backupWorkspacesPath, 'utf-8').then(buffer => {
 					const json = <IBackupWorkspacesFormat>JSON.parse(buffer);
-					assert.deepEqual(json.folderURIWorkspaces, [existingTestFolder.toString()]);
+					assert.deepEqual(json.folderURIWorkspaces, [existingTestFolder1.toString()]);
 				});
 			});
 		});
 
 		test('should ignore duplicates on Windows and Mac (folder workspace)', () => {
 
-			ensureFolderExists(existingTestFolder);
+			ensureFolderExists(existingTestFolder1);
 
 			const workspacesJson: IBackupWorkspacesFormat = {
 				rootWorkspaces: [],
-				folderURIWorkspaces: [existingTestFolder.toString(), existingTestFolder.toString().toLowerCase()],
+				folderURIWorkspaces: [existingTestFolder1.toString(), existingTestFolder1.toString().toLowerCase()],
 				emptyWorkspaces: []
 			};
 			return pfs.writeFile(backupWorkspacesPath, JSON.stringify(workspacesJson)).then(() => {
 				service.loadSync();
 				return pfs.readFile(backupWorkspacesPath, 'utf-8').then(buffer => {
 					const json = <IBackupWorkspacesFormat>JSON.parse(buffer);
-					assert.deepEqual(json.folderURIWorkspaces, [existingTestFolder.toString()]);
+					assert.deepEqual(json.folderURIWorkspaces, [existingTestFolder1.toString()]);
 				});
 			});
 		});
@@ -548,16 +593,16 @@ suite('BackupMainService', () => {
 
 		test('should fail gracefully when removing a path that doesn\'t exist', () => {
 
-			ensureFolderExists(existingTestFolder); // make sure backup folder exists, so the folder is not removed on loadSync
+			ensureFolderExists(existingTestFolder1); // make sure backup folder exists, so the folder is not removed on loadSync
 
-			const workspacesJson: IBackupWorkspacesFormat = { rootWorkspaces: [], folderURIWorkspaces: [existingTestFolder.toString()], emptyWorkspaces: [] };
+			const workspacesJson: IBackupWorkspacesFormat = { rootWorkspaces: [], folderURIWorkspaces: [existingTestFolder1.toString()], emptyWorkspaces: [] };
 			return pfs.writeFile(backupWorkspacesPath, JSON.stringify(workspacesJson)).then(() => {
 				service.loadSync();
 				service.unregisterFolderBackupSync(barFile);
 				service.unregisterEmptyWindowBackupSync('test');
 				return pfs.readFile(backupWorkspacesPath, 'utf-8').then(content => {
 					const json = <IBackupWorkspacesFormat>JSON.parse(content);
-					assert.deepEqual(json.folderURIWorkspaces, [existingTestFolder.toString()]);
+					assert.deepEqual(json.folderURIWorkspaces, [existingTestFolder1.toString()]);
 				});
 			});
 		});

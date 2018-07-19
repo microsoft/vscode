@@ -173,12 +173,13 @@ export class BackupMainService implements IBackupMainService {
 		this.rootWorkspaces = this.validateWorkspaces(backups.rootWorkspaces);
 
 		// read folder backups
-		let workspaceFolders;
+		let workspaceFolders: URI[];
 		try {
 			if (Array.isArray(backups.folderURIWorkspaces)) {
 				workspaceFolders = backups.folderURIWorkspaces.map(f => URI.parse(f));
 			} else if (Array.isArray(backups.folderWorkspaces)) {
 				// migrate legacy folder paths
+				workspaceFolders = [];
 				for (const folderPath of backups.folderWorkspaces) {
 					const oldFolderHash = this.getLegacyFolderHash(folderPath);
 					const folderUri = URI.file(folderPath);
@@ -186,7 +187,7 @@ export class BackupMainService implements IBackupMainService {
 					if (newFolderHash !== oldFolderHash) {
 						this.moveBackupFolderSync(this.getBackupPath(newFolderHash), this.getBackupPath(oldFolderHash));
 					}
-					workspaceFolders.add(folderUri);
+					workspaceFolders.push(folderUri);
 				}
 			}
 		} catch (e) {
@@ -382,7 +383,7 @@ export class BackupMainService implements IBackupMainService {
 		return crypto.createHash('md5').update(key).digest('hex');
 	}
 
-	private getLegacyFolderHash(folderPath: string): string {
+	protected getLegacyFolderHash(folderPath: string): string {
 		return crypto.createHash('md5').update(platform.isLinux ? folderPath : folderPath.toLowerCase()).digest('hex');
 	}
 }
