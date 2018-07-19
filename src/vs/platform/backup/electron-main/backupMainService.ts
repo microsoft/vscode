@@ -182,7 +182,7 @@ export class BackupMainService implements IBackupMainService {
 				workspaceFolders = backups.folderWorkspaces.map(f => URI.file(f));
 			}
 		} catch (e) {
-			// ignore URI parsing expeptions
+			// ignore URI parsing exceptions
 		}
 		this.folderWorkspaces = this.validateFolders(workspaceFolders);
 
@@ -264,7 +264,6 @@ export class BackupMainService implements IBackupMainService {
 			return [];
 		}
 
-
 		const result: string[] = [];
 		const seen: { [id: string]: boolean } = Object.create(null);
 
@@ -281,7 +280,7 @@ export class BackupMainService implements IBackupMainService {
 				if (this.hasBackupsSync(backupPath)) {
 					result.push(backupFolder);
 				} else {
-					this.deleteStaleBackup(backupFolder);
+					this.deleteStaleBackup(backupPath);
 				}
 			}
 		}
@@ -350,7 +349,6 @@ export class BackupMainService implements IBackupMainService {
 				folderURIWorkspaces: this.folderWorkspaces.map(f => f.toString()),
 				emptyWorkspaces: this.emptyWorkspaces
 			};
-
 			extfs.writeFileAndFlushSync(this.workspacesJsonPath, JSON.stringify(backups));
 		} catch (ex) {
 			this.logService.error(`Backup: Could not save workspaces.json: ${ex.toString()}`);
