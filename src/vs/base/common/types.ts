@@ -162,8 +162,16 @@ export function validateConstraint(arg: any, constraint: TypeConstraint): void {
  * any additional argument supplied.
  */
 export function create(ctor: Function, ...args: any[]): any {
-	let obj = Object.create(ctor.prototype);
-	ctor.apply(obj, args);
+	if (isES6Class(ctor)) {
+		return new (ctor as any)(...args);
+	} else {
+		let obj = Object.create(ctor.prototype);
+		ctor.apply(obj, args);
+		return obj;
+	}
+}
 
-	return obj;
+function isES6Class(func) {
+	// https://stackoverflow.com/questions/29093396/how-do-you-check-the-difference-between-an-ecmascript-6-class-and-function?answertab=votes#tab-top
+	return typeof func === 'function' && /^class\s/.test(Function.prototype.toString.call(func));
 }

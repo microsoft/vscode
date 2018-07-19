@@ -61,7 +61,9 @@ function createCompile(build, emitError) {
 function compileTask(out, build) {
     return function () {
         var compile = createCompile(build, true);
-        var src = es.merge(gulp.src('src/**', { base: 'src' }), gulp.src('node_modules/typescript/lib/lib.d.ts'));
+        var src = es.merge(gulp.src('src/**', { base: 'src' }), 
+        // gulp.src('node_modules/typescript/lib/lib.dom.d.ts'),
+        gulp.src('node_modules/typescript/lib/lib.es6.d.ts'));
         // Do not write .d.ts files to disk, as they are not needed there.
         var dtsFilter = util.filter(function (data) { return !/\.d\.ts$/.test(data.path); });
         return src
@@ -76,7 +78,9 @@ exports.compileTask = compileTask;
 function watchTask(out, build) {
     return function () {
         var compile = createCompile(build);
-        var src = es.merge(gulp.src('src/**', { base: 'src' }), gulp.src('node_modules/typescript/lib/lib.d.ts'));
+        var src = es.merge(gulp.src('src/**', { base: 'src' }), 
+        // gulp.src('node_modules/typescript/lib/lib.dom.d.ts'),
+        gulp.src('node_modules/typescript/lib/lib.es6.d.ts'));
         var watchSrc = watch('src/**', { base: 'src' });
         // Do not write .d.ts files to disk, as they are not needed there.
         var dtsFilter = util.filter(function (data) { return !/\.d\.ts$/.test(data.path); });
