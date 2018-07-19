@@ -20,7 +20,7 @@ import { mnemonicMenuLabel as baseMnemonicLabel, unmnemonicLabel, getPathLabel }
 import { KeybindingsResolver } from 'vs/code/electron-main/keyboard';
 import { IWindowsMainService, IWindowsCountChangedEvent } from 'vs/platform/windows/electron-main/windows';
 import { IHistoryMainService } from 'vs/platform/history/common/history';
-import { IWorkspaceIdentifier, getWorkspaceLabel, ISingleFolderWorkspaceIdentifier2, isSingleFolderWorkspaceIdentifier2, isWorkspaceIdentifier } from 'vs/platform/workspaces/common/workspaces';
+import { IWorkspaceIdentifier, getWorkspaceLabel, ISingleFolderWorkspaceIdentifier, isSingleFolderWorkspaceIdentifier, isWorkspaceIdentifier } from 'vs/platform/workspaces/common/workspaces';
 import { IMenubarData, IMenubarMenuItemAction, IMenubarMenuItemSeparator } from 'vs/platform/menubar/common/menubar';
 import URI from 'vs/base/common/uri';
 
@@ -512,10 +512,10 @@ export class Menubar {
 		});
 	}
 
-	private createOpenRecentMenuItem(workspace: IWorkspaceIdentifier | ISingleFolderWorkspaceIdentifier2 | string, commandId: string, isFile: boolean): Electron.MenuItem {
+	private createOpenRecentMenuItem(workspace: IWorkspaceIdentifier | ISingleFolderWorkspaceIdentifier | string, commandId: string, isFile: boolean): Electron.MenuItem {
 		let label: string;
 		let uri: URI;
-		if (isSingleFolderWorkspaceIdentifier2(workspace)) {
+		if (isSingleFolderWorkspaceIdentifier(workspace)) {
 			label = unmnemonicLabel(getWorkspaceLabel(workspace, this.environmentService, { verbose: true }));
 			uri = workspace;
 		} else if (isWorkspaceIdentifier(workspace)) {

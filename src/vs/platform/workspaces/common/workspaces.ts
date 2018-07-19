@@ -28,7 +28,7 @@ export const UNTITLED_WORKSPACE_NAME = 'workspace.json';
 /**
  * A single folder workspace identifier is just the path to the folder.
  */
-export type ISingleFolderWorkspaceIdentifier2 = URI;
+export type ISingleFolderWorkspaceIdentifier = URI;
 
 export interface IWorkspaceIdentifier {
 	id: string;
@@ -112,10 +112,10 @@ export interface IWorkspacesService {
 	createWorkspace(folders?: IWorkspaceFolderCreationData[]): TPromise<IWorkspaceIdentifier>;
 }
 
-export function getWorkspaceLabel(workspace: (IWorkspaceIdentifier | ISingleFolderWorkspaceIdentifier2), environmentService: IEnvironmentService, options?: { verbose: boolean }): string {
+export function getWorkspaceLabel(workspace: (IWorkspaceIdentifier | ISingleFolderWorkspaceIdentifier), environmentService: IEnvironmentService, options?: { verbose: boolean }): string {
 
 	// Workspace: Single Folder
-	if (isSingleFolderWorkspaceIdentifier2(workspace)) {
+	if (isSingleFolderWorkspaceIdentifier(workspace)) {
 		// Folder on disk
 		if (workspace.scheme === Schemas.file) {
 			return options && options.verbose ? getPathLabel(workspace, environmentService) : getBaseLabel(workspace);
@@ -140,7 +140,7 @@ export function getWorkspaceLabel(workspace: (IWorkspaceIdentifier | ISingleFold
 	return localize('workspaceName', "{0} (Workspace)", workspaceName);
 }
 
-export function isSingleFolderWorkspaceIdentifier2(obj: any): obj is ISingleFolderWorkspaceIdentifier2 {
+export function isSingleFolderWorkspaceIdentifier(obj: any): obj is ISingleFolderWorkspaceIdentifier {
 	return obj instanceof URI;
 }
 

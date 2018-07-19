@@ -28,7 +28,7 @@ import { IWindowsMainService, IOpenConfiguration, IWindowsCountChangedEvent, ICo
 import { IHistoryMainService } from 'vs/platform/history/common/history';
 import { IProcessEnvironment, isLinux, isMacintosh, isWindows } from 'vs/base/common/platform';
 import { TPromise } from 'vs/base/common/winjs.base';
-import { IWorkspacesMainService, IWorkspaceIdentifier, WORKSPACE_FILTER, IWorkspaceFolderCreationData, ISingleFolderWorkspaceIdentifier2, isSingleFolderWorkspaceIdentifier2 } from 'vs/platform/workspaces/common/workspaces';
+import { IWorkspacesMainService, IWorkspaceIdentifier, WORKSPACE_FILTER, IWorkspaceFolderCreationData, ISingleFolderWorkspaceIdentifier, isSingleFolderWorkspaceIdentifier } from 'vs/platform/workspaces/common/workspaces';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { mnemonicButtonLabel } from 'vs/base/common/labels';
 import { Schemas } from 'vs/base/common/network';
@@ -462,7 +462,7 @@ export class WindowsManager implements IWindowsMainService {
 		// Remember in recent document list (unless this opens for extension development)
 		// Also do not add paths when files are opened for diffing, only if opened individually
 		if (!usedWindows.some(w => w.isExtensionDevelopmentHost) && !openConfig.cli.diff) {
-			const recentlyOpenedWorkspaces: (IWorkspaceIdentifier | ISingleFolderWorkspaceIdentifier2)[] = [];
+			const recentlyOpenedWorkspaces: (IWorkspaceIdentifier | ISingleFolderWorkspaceIdentifier)[] = [];
 			const recentlyOpenedFiles: string[] = [];
 
 			pathsToOpen.forEach(win => {
@@ -1095,7 +1095,7 @@ export class WindowsManager implements IWindowsMainService {
 			const extensionDevelopmentWindowState = this.windowsState.lastPluginDevelopmentHostWindow;
 			const workspaceToOpen = extensionDevelopmentWindowState && (extensionDevelopmentWindowState.workspace || extensionDevelopmentWindowState.folderUri);
 			if (workspaceToOpen) {
-				if (isSingleFolderWorkspaceIdentifier2(workspaceToOpen)) {
+				if (isSingleFolderWorkspaceIdentifier(workspaceToOpen)) {
 					if (workspaceToOpen.scheme === Schemas.file) {
 						openConfig.cli._ = [workspaceToOpen.fsPath];
 					} else {
@@ -2024,9 +2024,9 @@ class WorkspacesManager {
 		});
 	}
 
-	private getUntitledWorkspaceSaveDialogDefaultPath(workspace?: IWorkspaceIdentifier | ISingleFolderWorkspaceIdentifier2): string {
+	private getUntitledWorkspaceSaveDialogDefaultPath(workspace?: IWorkspaceIdentifier | ISingleFolderWorkspaceIdentifier): string {
 		if (workspace) {
-			if (isSingleFolderWorkspaceIdentifier2(workspace)) {
+			if (isSingleFolderWorkspaceIdentifier(workspace)) {
 				return workspace.scheme === Schemas.file ? dirname(workspace.fsPath) : void 0;
 			}
 

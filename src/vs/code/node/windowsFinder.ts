@@ -8,7 +8,7 @@
 import * as platform from 'vs/base/common/platform';
 import * as paths from 'vs/base/common/paths';
 import { OpenContext } from 'vs/platform/windows/common/windows';
-import { IWorkspaceIdentifier, IResolvedWorkspace, ISingleFolderWorkspaceIdentifier2, isSingleFolderWorkspaceIdentifier2 } from 'vs/platform/workspaces/common/workspaces';
+import { IWorkspaceIdentifier, IResolvedWorkspace, ISingleFolderWorkspaceIdentifier, isSingleFolderWorkspaceIdentifier } from 'vs/platform/workspaces/common/workspaces';
 import { Schemas } from 'vs/base/common/network';
 import URI from 'vs/base/common/uri';
 import { hasToIgnoreCase, isEqual } from 'vs/base/common/resources';
@@ -70,11 +70,11 @@ export function getLastActiveWindow<W extends ISimpleWindow>(windows: W[]): W {
 	return windows.filter(window => window.lastFocusTime === lastFocusedDate)[0];
 }
 
-export function findWindowOnWorkspace<W extends ISimpleWindow>(windows: W[], workspace: (IWorkspaceIdentifier | ISingleFolderWorkspaceIdentifier2)): W {
+export function findWindowOnWorkspace<W extends ISimpleWindow>(windows: W[], workspace: (IWorkspaceIdentifier | ISingleFolderWorkspaceIdentifier)): W {
 	return windows.filter(window => {
 
 		// match on folder
-		if (isSingleFolderWorkspaceIdentifier2(workspace)) {
+		if (isSingleFolderWorkspaceIdentifier(workspace)) {
 			if (window.openedFolderUri && isEqual(window.openedFolderUri, workspace, hasToIgnoreCase(window.openedFolderUri))) { //TODO:#54483
 				return true;
 			}

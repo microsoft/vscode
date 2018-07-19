@@ -9,7 +9,7 @@ import { TPromise } from 'vs/base/common/winjs.base';
 import { Event, buffer } from 'vs/base/common/event';
 import { IChannel } from 'vs/base/parts/ipc/common/ipc';
 import { IWindowsService, INativeOpenDialogOptions, IEnterWorkspaceResult, CrashReporterStartOptions, IMessageBoxResult, MessageBoxOptions, SaveDialogOptions, OpenDialogOptions, IDevToolsOptions } from 'vs/platform/windows/common/windows';
-import { IWorkspaceIdentifier, IWorkspaceFolderCreationData, isSingleFolderWorkspaceIdentifier2, ISingleFolderWorkspaceIdentifier2, isWorkspaceIdentifier } from 'vs/platform/workspaces/common/workspaces';
+import { IWorkspaceIdentifier, IWorkspaceFolderCreationData, isSingleFolderWorkspaceIdentifier, ISingleFolderWorkspaceIdentifier, isWorkspaceIdentifier } from 'vs/platform/workspaces/common/workspaces';
 import { IRecentlyOpened } from 'vs/platform/history/common/history';
 import { ISerializableCommandAction } from 'vs/platform/actions/common/actions';
 import URI from 'vs/base/common/uri';
@@ -41,7 +41,7 @@ export interface IWindowsChannel extends IChannel {
 	call(command: 'toggleFullScreen', arg: number): TPromise<void>;
 	call(command: 'setRepresentedFilename', arg: [number, string]): TPromise<void>;
 	call(command: 'addRecentlyOpened', arg: string[]): TPromise<void>;
-	call(command: 'removeFromRecentlyOpened', arg: (IWorkspaceIdentifier | ISingleFolderWorkspaceIdentifier2 | string)[]): TPromise<void>;
+	call(command: 'removeFromRecentlyOpened', arg: (IWorkspaceIdentifier | ISingleFolderWorkspaceIdentifier | string)[]): TPromise<void>;
 	call(command: 'clearRecentlyOpened'): TPromise<void>;
 	call(command: 'getRecentlyOpened', arg: number): TPromise<IRecentlyOpened>;
 	call(command: 'showPreviousWindowTab'): TPromise<void>;
@@ -140,7 +140,7 @@ export class WindowsChannel implements IWindowsChannel {
 			case 'toggleFullScreen': return this.service.toggleFullScreen(arg);
 			case 'setRepresentedFilename': return this.service.setRepresentedFilename(arg[0], arg[1]);
 			case 'addRecentlyOpened': return this.service.addRecentlyOpened(arg);
-			case 'removeFromRecentlyOpened': return this.service.removeFromRecentlyOpened(isSingleFolderWorkspaceIdentifier2(arg) ? URI.revive(arg) : arg);
+			case 'removeFromRecentlyOpened': return this.service.removeFromRecentlyOpened(isSingleFolderWorkspaceIdentifier(arg) ? URI.revive(arg) : arg);
 			case 'clearRecentlyOpened': return this.service.clearRecentlyOpened();
 			case 'showPreviousWindowTab': return this.service.showPreviousWindowTab();
 			case 'showNextWindowTab': return this.service.showNextWindowTab();
@@ -260,7 +260,7 @@ export class WindowsChannelClient implements IWindowsService {
 		return this.channel.call('addRecentlyOpened', files);
 	}
 
-	removeFromRecentlyOpened(paths: (IWorkspaceIdentifier | ISingleFolderWorkspaceIdentifier2 | string)[]): TPromise<void> {
+	removeFromRecentlyOpened(paths: (IWorkspaceIdentifier | ISingleFolderWorkspaceIdentifier | string)[]): TPromise<void> {
 		return this.channel.call('removeFromRecentlyOpened', paths);
 	}
 

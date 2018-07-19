@@ -39,7 +39,7 @@ import { IUpdateService } from 'vs/platform/update/common/update';
 import { URLHandlerChannel, URLServiceChannelClient } from 'vs/platform/url/common/urlIpc';
 import { IURLService } from 'vs/platform/url/common/url';
 import { WorkspacesChannelClient } from 'vs/platform/workspaces/common/workspacesIpc';
-import { IWorkspacesService, ISingleFolderWorkspaceIdentifier2 } from 'vs/platform/workspaces/common/workspaces';
+import { IWorkspacesService, ISingleFolderWorkspaceIdentifier } from 'vs/platform/workspaces/common/workspaces';
 import { createSpdLogService } from 'vs/platform/log/node/spdlogService';
 import * as fs from 'fs';
 import { ConsoleLogService, MultiplexLogService, ILogService } from 'vs/platform/log/common/log';
@@ -125,7 +125,7 @@ function createAndInitializeWorkspaceService(configuration: IWindowConfiguration
 	});
 }
 
-function validateFolderUri(folderUri: ISingleFolderWorkspaceIdentifier2, verbose: boolean): TPromise<uri> {
+function validateFolderUri(folderUri: ISingleFolderWorkspaceIdentifier, verbose: boolean): TPromise<uri> {
 
 	// Return early if we do not have a single folder uri or if it is a non file uri
 	if (!folderUri || folderUri.scheme !== Schemas.file) {
