@@ -320,6 +320,7 @@ export class ExtensionsViewlet extends ViewContainerViewlet implements IExtensio
 
 		const onKeyDownForList = onKeyDown.filter(() => this.count() > 0);
 		onKeyDownForList.filter(e => e.keyCode === KeyCode.Enter).on(this.onEnter, this, this.disposables);
+		onKeyDownForList.filter(e => e.keyCode === KeyCode.DownArrow).on(this.focusListView, this, this.disposables);
 
 		const onSearchInput = domEvent(this.searchBox, 'input') as EventOf<SearchInputEvent>;
 		onSearchInput(e => this.triggerSearch(e.immediate), null, this.disposables);
@@ -474,6 +475,10 @@ export class ExtensionsViewlet extends ViewContainerViewlet implements IExtensio
 
 	private onEnter(): void {
 		(<ExtensionsListView>this.panels[0]).select();
+	}
+
+	private focusListView(): void {
+		this.panels[0].focus();
 	}
 
 	private onViewletOpen(viewlet: IViewlet): void {
