@@ -35,7 +35,10 @@
 			{
 				"language": "makefile",
 				"scopeName": "source.makefile",
-				"path": "./syntaxes/make.tmLanguage.json"
+				"path": "./syntaxes/make.tmLanguage.json",
+				"tokenTypes": {
+					"string.interpolated": "other"
+				}
 			}
 		],
 		"configurationDefaults": {
