@@ -354,21 +354,6 @@ export class StandardAutoClosingPairConditional {
     //*** Set a variable to determine if we have a notIn array or an onlyIn array (or neither)
     //*** If the onlyIn array var is set, check if the StandardTokenType of isOK is "other". If so, return 1 (i.e. don't autoclose)
 	public isOK(standardToken: StandardTokenType): boolean {
-<<<<<<< HEAD
-    if (this._onlyInFlag && (standardToken == StandardTokenType.Other)) {
-      return false;
-    }
-		return (this._standardTokenMask & <number>standardToken) === 0;
-  }
-
-  //*** Get the user input for the autoclose cursor position (if it's valid)
-  public getCursorPositionOption(): number {
-    if (this._cursorPositionOption) {
-      return this._cursorPositionOption;
-    }
-    return null;
-  }
-=======
 		if (this._onlyInFlag && (standardToken == StandardTokenType.Other)) {
 		  return false;
 		}
@@ -382,5 +367,4 @@ export class StandardAutoClosingPairConditional {
 		}
 		return null;
 	}
->>>>>>> 0c730377c510f2fc9ea7e3c751696439f2da4e1d
 }
