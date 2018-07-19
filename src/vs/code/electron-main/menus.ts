@@ -490,16 +490,16 @@ export class CodeMenu {
 
 	private createOpenRecentMenuItem(workspace: IWorkspaceIdentifier | ISingleFolderWorkspaceIdentifier | string, commandId: string, isFile: boolean): Electron.MenuItem {
 		let label: string;
-		let resource: URI;
+		let uri: URI;
 		if (isSingleFolderWorkspaceIdentifier(workspace)) {
 			label = unmnemonicLabel(getWorkspaceLabel(workspace, this.environmentService, { verbose: true }));
-			resource = workspace;
+			uri = workspace;
 		} else if (isWorkspaceIdentifier(workspace)) {
 			label = getWorkspaceLabel(workspace, this.environmentService, { verbose: true });
-			resource = URI.file(workspace.configPath);
+			uri = URI.file(workspace.configPath);
 		} else {
 			label = unmnemonicLabel(getPathLabel(workspace, this.environmentService, null));
-			resource = URI.file(workspace);
+			uri = URI.file(workspace);
 		}
 
 		return new MenuItem(this.likeAction(commandId, {
@@ -509,7 +509,7 @@ export class CodeMenu {
 				const success = this.windowsMainService.open({
 					context: OpenContext.MENU,
 					cli: this.environmentService.args,
-					pathsToOpen: [resource], forceNewWindow: openInNewWindow,
+					urisToOpen: [uri], forceNewWindow: openInNewWindow,
 					forceOpenWorkspaceAsFile: isFile
 				}).length > 0;
 

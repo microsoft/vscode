@@ -421,7 +421,7 @@ export class WindowsManager implements IWindowsMainService {
 		// Make sure to pass focus to the most relevant of the windows if we open multiple
 		if (usedWindows.length > 1) {
 
-			let focusLastActive = this.windowsState.lastActiveWindow && !openConfig.forceEmpty && !openConfig.cli._.length && (!openConfig.pathsToOpen || !openConfig.pathsToOpen.length);
+			let focusLastActive = this.windowsState.lastActiveWindow && !openConfig.forceEmpty && !openConfig.cli._.length && (!openConfig.urisToOpen || !openConfig.urisToOpen.length);
 			let focusLastOpened = true;
 			let focusLastWindow = true;
 
@@ -671,7 +671,7 @@ export class WindowsManager implements IWindowsMainService {
 			// Open remaining ones
 			allFoldersToOpen.forEach(folderToOpen => {
 
-				if (windowsOnFolderPath.some(win => isEqual(win.openedFolderUri, folderToOpen, hasToIgnoreCase(win.openedFolderUri)))) { //TODO:#54483
+				if (windowsOnFolderPath.some(win => isEqual(win.openedFolderUri, folderToOpen, hasToIgnoreCase(win.openedFolderUri)))) {
 					return; // ignore folders that are already open
 				}
 
@@ -773,13 +773,12 @@ export class WindowsManager implements IWindowsMainService {
 		return browserWindow;
 	}
 
-	//TODO:#54483 (Checked)
 	private getPathsToOpen(openConfig: IOpenConfiguration): IPathToOpen[] {
 		let windowsToOpen: IPathToOpen[];
 		let isCommandLineOrAPICall = false;
 
 		// Extract paths: from API
-		if (openConfig.pathsToOpen && openConfig.pathsToOpen.length > 0) {
+		if (openConfig.urisToOpen && openConfig.urisToOpen.length > 0) {
 			windowsToOpen = this.doExtractPathsFromAPI(openConfig);
 			isCommandLineOrAPICall = true;
 		}
@@ -818,9 +817,8 @@ export class WindowsManager implements IWindowsMainService {
 		return windowsToOpen;
 	}
 
-	//TODO:#54483 (Checked)
 	private doExtractPathsFromAPI(openConfig: IOpenConfiguration): IPath[] {
-		let pathsToOpen = openConfig.pathsToOpen.map(pathToOpen => {
+		let pathsToOpen = openConfig.urisToOpen.map(pathToOpen => {
 			const path = this.parseUri(pathToOpen, { gotoLineMode: openConfig.cli && openConfig.cli.goto, forceOpenWorkspaceAsFile: openConfig.forceOpenWorkspaceAsFile });
 
 			// Warn if the requested path to open does not exist
@@ -965,7 +963,6 @@ export class WindowsManager implements IWindowsMainService {
 		return restoreWindows;
 	}
 
-	//TODO:#54483
 	private parseUri(anyUri: URI, options?: { ignoreFileNotFound?: boolean, gotoLineMode?: boolean, forceOpenWorkspaceAsFile?: boolean; }): IPathToOpen {
 		if (!anyUri) {
 			return null;
@@ -993,7 +990,6 @@ export class WindowsManager implements IWindowsMainService {
 			anyPath = parsedPath.path;
 		}
 
-		//TODO:#54483
 		const candidate = normalize(anyPath);
 		try {
 			const candidateStat = fs.statSync(candidate);
@@ -1705,7 +1701,7 @@ class Dialogs {
 				this.windowsMainService.open({
 					context: OpenContext.DIALOG,
 					cli: this.environmentService.args,
-					pathsToOpen: paths,
+					urisToOpen: paths,
 					forceNewWindow: options.forceNewWindow,
 					forceOpenWorkspaceAsFile: options.dialogOptions && !equals(options.dialogOptions.filters, WORKSPACE_FILTER)
 				});

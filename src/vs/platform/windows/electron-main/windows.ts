@@ -124,7 +124,7 @@ export interface IOpenConfiguration {
 	contextWindowId?: number;
 	cli: ParsedArgs;
 	userEnv?: IProcessEnvironment;
-	pathsToOpen?: URI[];
+	urisToOpen?: URI[];
 	preferNewWindow?: boolean;
 	forceNewWindow?: boolean;
 	forceReuseWindow?: boolean;

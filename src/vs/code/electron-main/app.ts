@@ -175,7 +175,7 @@ export class CodeApplication {
 					this.windowsMainService.open({
 						context: OpenContext.DOCK /* can also be opening from finder while app is running */,
 						cli: this.environmentService.args,
-						pathsToOpen: macOpenFileURIs,
+						urisToOpen: macOpenFileURIs,
 						preferNewWindow: true /* dropping on the dock or opening from finder prefers to open in a new window */
 					});
 					macOpenFileURIs = [];
@@ -465,7 +465,7 @@ export class CodeApplication {
 		if (args['new-window'] && args._.length === 0) {
 			this.windowsMainService.open({ context, cli: args, forceNewWindow: true, forceEmpty: true, initialStartup: true }); // new window if "-n" was used without paths
 		} else if (macOpenFiles && macOpenFiles.length && (!args._ || !args._.length)) {
-			this.windowsMainService.open({ context: OpenContext.DOCK, cli: args, pathsToOpen: macOpenFiles.map(file => URI.file(file)), initialStartup: true }); // mac: open-file event received on startup
+			this.windowsMainService.open({ context: OpenContext.DOCK, cli: args, urisToOpen: macOpenFiles.map(file => URI.file(file)), initialStartup: true }); // mac: open-file event received on startup
 		} else {
 			this.windowsMainService.open({ context, cli: args, forceNewWindow: args['new-window'] || (!args._.length && args['unity-launch']), diffMode: args.diff, initialStartup: true }); // default: read paths from cli
 		}

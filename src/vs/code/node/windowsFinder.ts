@@ -75,7 +75,7 @@ export function findWindowOnWorkspace<W extends ISimpleWindow>(windows: W[], wor
 
 		// match on folder
 		if (isSingleFolderWorkspaceIdentifier(workspace)) {
-			if (window.openedFolderUri && isEqual(window.openedFolderUri, workspace, hasToIgnoreCase(window.openedFolderUri))) { //TODO:#54483
+			if (window.openedFolderUri && isEqual(window.openedFolderUri, workspace, hasToIgnoreCase(window.openedFolderUri))) {
 				return true;
 			}
 		}

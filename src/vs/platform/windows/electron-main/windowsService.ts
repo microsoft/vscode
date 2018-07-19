@@ -402,7 +402,7 @@ export class WindowsService implements IWindowsService, IURLHandler, IDisposable
 			context: OpenContext.API,
 			contextWindowId: windowId,
 			cli: this.environmentService.args,
-			pathsToOpen: paths,
+			urisToOpen: paths,
 			forceNewWindow: options && options.forceNewWindow,
 			forceReuseWindow: options && options.forceReuseWindow,
 			forceOpenWorkspaceAsFile: options && options.forceOpenWorkspaceAsFile
@@ -563,9 +563,9 @@ export class WindowsService implements IWindowsService, IURLHandler, IDisposable
 
 	private openFileForURI(uri: URI): TPromise<boolean> {
 		const cli = assign(Object.create(null), this.environmentService.args, { goto: true });
-		const pathsToOpen = [uri];
+		const urisToOpen = [uri];
 
-		this.windowsMainService.open({ context: OpenContext.API, cli, pathsToOpen });
+		this.windowsMainService.open({ context: OpenContext.API, cli, urisToOpen });
 		return TPromise.wrap(true);
 	}
 
