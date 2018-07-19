@@ -85,7 +85,7 @@ export class ExtensionsListView extends ViewletPanel {
 		const delegate = new Delegate();
 		const renderer = this.instantiationService.createInstance(Renderer);
 		this.list = this.instantiationService.createInstance(WorkbenchPagedList, this.extensionsList, delegate, [renderer], {
-			ariaLabel: localize('extensions', "Extensions"),
+			ariaLabel: localize('extensions', "Extensions. Use the navigation keys to navigate extensions."),
 			multipleSelectionSupport: false
 		}) as WorkbenchPagedList<IExtension>;
 		this.disposables.push(this.list);
