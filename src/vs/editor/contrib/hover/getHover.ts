@@ -3,8 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-'use strict';
-
 import { coalesce } from 'vs/base/common/arrays';
 import { onUnexpectedExternalError } from 'vs/base/common/errors';
 import { ITextModel } from 'vs/editor/common/model';
@@ -20,12 +18,14 @@ export function getHover(model: ITextModel, position: Position, token: Cancellat
 
 	const promises = supports.map((support, idx) => {
 		return Promise.resolve(support.provideHover(model, position, token)).then((result) => {
-			if (result) {
-				let hasRange = (typeof result.range !== 'undefined');
-				let hasHtmlContent = typeof result.contents !== 'undefined' && result.contents && result.contents.length > 0;
-				if (hasRange && hasHtmlContent) {
-					values[idx] = result;
-				}
+			if (!result) {
+				return;
+			}
+
+			const hasRange = (typeof result.range !== 'undefined');
+			const hasHtmlContent = typeof result.contents !== 'undefined' && result.contents && result.contents.length > 0;
+			if (hasRange && hasHtmlContent) {
+				values[idx] = result;
 			}
 		}, err => {
 			onUnexpectedExternalError(err);
