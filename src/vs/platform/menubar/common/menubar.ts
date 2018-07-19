@@ -23,7 +23,7 @@ export interface IMenubarData {
 }
 
 export interface IMenubarMenu {
-	items: Array<IMenubarMenuItemAction | IMenubarMenuItemSeparator>;
+	items: Array<MenubarMenuItem>;
 }
 
 export interface IMenubarMenuItemAction {
@@ -33,6 +33,26 @@ export interface IMenubarMenuItemAction {
 	enabled: boolean;
 }
 
+export interface IMenubarMenuItemSubmenu {
+	id: string;
+	label: string;
+	submenu: IMenubarMenu;
+}
+
 export interface IMenubarMenuItemSeparator {
 	id: 'vscode.menubar.separator';
+}
+
+export type MenubarMenuItem = IMenubarMenuItemAction | IMenubarMenuItemSubmenu | IMenubarMenuItemSeparator;
+
+export function isMenubarMenuItemSubmenu(menuItem: MenubarMenuItem): menuItem is IMenubarMenuItemSubmenu {
+	return (<IMenubarMenuItemSubmenu>menuItem).submenu !== undefined;
+}
+
+export function isMenubarMenuItemAction(menuItem: MenubarMenuItem): menuItem is IMenubarMenuItemAction {
+	return (<IMenubarMenuItemAction>menuItem).checked !== undefined || (<IMenubarMenuItemAction>menuItem).enabled !== undefined;
+}
+
+export function isMenubarMenuItemSeparator(menuItem: MenubarMenuItem): menuItem is IMenubarMenuItemSeparator {
+	return (<IMenubarMenuItemSeparator>menuItem).id === 'vscode.menubar.separator';
 }

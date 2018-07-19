@@ -21,7 +21,7 @@ import { KeybindingsResolver } from 'vs/code/electron-main/keyboard';
 import { IWindowsMainService, IWindowsCountChangedEvent } from 'vs/platform/windows/electron-main/windows';
 import { IHistoryMainService } from 'vs/platform/history/common/history';
 import { IWorkspaceIdentifier, getWorkspaceLabel, ISingleFolderWorkspaceIdentifier, isSingleFolderWorkspaceIdentifier } from 'vs/platform/workspaces/common/workspaces';
-import { IMenubarData, IMenubarMenuItemAction, IMenubarMenuItemSeparator } from 'vs/platform/menubar/common/menubar';
+import { IMenubarData, isMenubarMenuItemSeparator, isMenubarMenuItemSubmenu, isMenubarMenuItemAction, MenubarMenuItem } from 'vs/platform/menubar/common/menubar';
 
 // interface IExtensionViewlet {
 // 	id: string;
@@ -33,17 +33,6 @@ const telemetryFrom = 'menu';
 export class Menubar {
 
 	private static readonly MAX_MENU_RECENT_ENTRIES = 10;
-
-	// private keys = [
-	// 	'files.autoSave',
-	// 	'editor.multiCursorModifier',
-	// 	'workbench.sideBar.location',
-	// 	'workbench.statusBar.visible',
-	// 	'workbench.activityBar.visible',
-	// 	'window.enableMenuBarMnemonics',
-	// 	'window.nativeTabs'
-	// ];
-
 	private isQuitting: boolean;
 	private appMenuInstalled: boolean;
 
@@ -113,7 +102,7 @@ export class Menubar {
 		// this.updateService.onStateChange(() => this.updateMenu());
 
 		// Listen to keybindings change
-		this.keybindingsResolver.onKeybindingsChanged(() => this.scheduleUpdateMenu());
+		// this.keybindingsResolver.onKeybindingsChanged(() => this.scheduleUpdateMenu());
 	}
 
 	private get currentEnableMenuBarMnemonics(): boolean {
@@ -228,19 +217,6 @@ export class Menubar {
 			menubar.append(editMenuItem);
 		}
 
-		// Recent
-		const recentMenu = new Menu();
-		const recentMenuItem = new MenuItem({ label: this.mnemonicLabel(nls.localize({ key: 'miRecent', comment: ['&& denotes a mnemonic'] }, "&&Recent")), submenu: recentMenu, enabled: recentMenu.items.length > 0 });
-		if (this.shouldDrawMenu('Recent')) {
-			if (this.shouldFallback('Recent')) {
-				this.setFallbackMenuById(recentMenu, 'Recent');
-			} else {
-				this.setMenuById(recentMenu, 'Recent');
-			}
-
-			menubar.append(recentMenuItem);
-		}
-
 		// Selection
 		const selectionMenu = new Menu();
 		const selectionMenuItem = new MenuItem({ label: this.mnemonicLabel(nls.localize({ key: 'mSelection', comment: ['&& denotes a mnemonic'] }, "&&Selection")), submenu: selectionMenu });
@@ -277,6 +253,15 @@ export class Menubar {
 			menubar.append(gotoMenuItem);
 		}
 
+		// Terminal
+		const terminalMenu = new Menu();
+		const terminalMenuItem = new MenuItem({ label: this.mnemonicLabel(nls.localize({ key: 'mTerminal', comment: ['&& denotes a mnemonic'] }, "Ter&&minal")), submenu: terminalMenu });
+
+		if (this.shouldDrawMenu('Terminal')) {
+			this.setMenuById(terminalMenu, 'Terminal');
+			menubar.append(terminalMenuItem);
+		}
+
 		// Debug
 		const debugMenu = new Menu();
 		const debugMenuItem = new MenuItem({ label: this.mnemonicLabel(nls.localize({ key: 'mDebug', comment: ['&& denotes a mnemonic'] }, "&&Debug")), submenu: debugMenu });
@@ -290,8 +275,8 @@ export class Menubar {
 		const taskMenu = new Menu();
 		const taskMenuItem = new MenuItem({ label: this.mnemonicLabel(nls.localize({ key: 'mTask', comment: ['&& denotes a mnemonic'] }, "&&Tasks")), submenu: taskMenu });
 
-		if (this.shouldDrawMenu('Task')) {
-			this.setMenuById(taskMenu, 'Task');
+		if (this.shouldDrawMenu('Tasks')) {
+			this.setMenuById(taskMenu, 'Tasks');
 			menubar.append(taskMenuItem);
 		}
 
@@ -405,32 +390,12 @@ export class Menubar {
 			case 'Recent':
 				menu.append(this.createMenuItem(nls.localize({ key: 'miReopenClosedEditor', comment: ['&& denotes a mnemonic'] }, "&&Reopen Closed Editor"), 'workbench.action.reopenClosedEditor'));
 
-				const { workspaces, files } = this.historyMainService.getRecentlyOpened();
+				this.insertRecentMenuItems(menu);
 
-				// Workspaces
-				if (workspaces.length > 0) {
-					menu.append(__separator__());
-
-					for (let i = 0; i < Menubar.MAX_MENU_RECENT_ENTRIES && i < workspaces.length; i++) {
-						menu.append(this.createOpenRecentMenuItem(workspaces[i], 'openRecentWorkspace', false));
-					}
-				}
-
-				// Files
-				if (files.length > 0) {
-					menu.append(__separator__());
-
-					for (let i = 0; i < Menubar.MAX_MENU_RECENT_ENTRIES && i < files.length; i++) {
-						menu.append(this.createOpenRecentMenuItem(files[i], 'openRecentFile', true));
-					}
-				}
-
-				if (workspaces.length || files.length) {
-					menu.append(__separator__());
-					menu.append(this.createMenuItem(nls.localize({ key: 'miMore', comment: ['&& denotes a mnemonic'] }, "&&More..."), 'workbench.action.openRecent'));
-					menu.append(__separator__());
-					menu.append(new MenuItem(this.likeAction('workbench.action.clearRecentFiles', { label: this.mnemonicLabel(nls.localize({ key: 'miClearRecentOpen', comment: ['&& denotes a mnemonic'] }, "&&Clear Recently Opened")), click: () => this.historyMainService.clearRecentlyOpened() })));
-				}
+				menu.append(__separator__());
+				menu.append(this.createMenuItem(nls.localize({ key: 'miMore', comment: ['&& denotes a mnemonic'] }, "&&More..."), 'workbench.action.openRecent'));
+				menu.append(__separator__());
+				menu.append(new MenuItem(this.likeAction('workbench.action.clearRecentFiles', { label: this.mnemonicLabel(nls.localize({ key: 'miClearRecentOpen', comment: ['&& denotes a mnemonic'] }, "&&Clear Recently Opened")), click: () => this.historyMainService.clearRecentlyOpened() })));
 
 				break;
 
@@ -495,20 +460,50 @@ export class Menubar {
 		}
 	}
 
-	private setMenuById(menu: Electron.Menu, menuId: string): void {
-		console.log(`Attempting to set menu for ${menuId}`);
-
-		// Build dynamic menu
-		this.menubarMenus[menuId].items.forEach((item: IMenubarMenuItemAction | IMenubarMenuItemSeparator) => {
-			if (item.id === 'vscode.menubar.separator') {
+	private setMenu(menu: Electron.Menu, items: Array<MenubarMenuItem>) {
+		items.forEach((item: MenubarMenuItem) => {
+			if (isMenubarMenuItemSeparator(item)) {
 				menu.append(__separator__());
-			} else {
-				let menuItem: Electron.MenuItem;
-				let action: IMenubarMenuItemAction = <IMenubarMenuItemAction>item;
-				menuItem = this.createMenuItem(action.label, action.id, action.enabled, action.checked);
+			} else if (isMenubarMenuItemSubmenu(item)) {
+				const submenu = new Menu();
+				const submenuItem = new MenuItem({ label: this.mnemonicLabel(item.label), submenu: submenu });
+				this.setMenu(submenu, item.submenu.items);
+				menu.append(submenuItem);
+			} else if (isMenubarMenuItemAction(item)) {
+				if (item.id === 'workbench.action.openRecent') {
+					this.insertRecentMenuItems(menu);
+				}
+
+				const menuItem = this.createMenuItem(item.label, item.id, item.enabled, item.checked);
 				menu.append(menuItem);
 			}
 		});
+	}
+
+	private setMenuById(menu: Electron.Menu, menuId: string): void {
+		this.setMenu(menu, this.menubarMenus[menuId].items);
+	}
+
+	private insertRecentMenuItems(menu: Electron.Menu) {
+		const { workspaces, files } = this.historyMainService.getRecentlyOpened();
+
+		// Workspaces
+		if (workspaces.length > 0) {
+			for (let i = 0; i < Menubar.MAX_MENU_RECENT_ENTRIES && i < workspaces.length; i++) {
+				menu.append(this.createOpenRecentMenuItem(workspaces[i], 'openRecentWorkspace', false));
+			}
+
+			menu.append(__separator__());
+		}
+
+		// Files
+		if (files.length > 0) {
+			for (let i = 0; i < Menubar.MAX_MENU_RECENT_ENTRIES && i < files.length; i++) {
+				menu.append(this.createOpenRecentMenuItem(files[i], 'openRecentFile', true));
+			}
+
+			menu.append(__separator__());
+		}
 	}
 
 	private createOpenRecentMenuItem(workspace: IWorkspaceIdentifier | ISingleFolderWorkspaceIdentifier | string, commandId: string, isFile: boolean): Electron.MenuItem {

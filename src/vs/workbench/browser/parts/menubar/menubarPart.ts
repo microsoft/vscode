@@ -10,7 +10,7 @@ import 'vs/css!./media/menubarpart';
 import * as nls from 'vs/nls';
 import * as browser from 'vs/base/browser/browser';
 import { Part } from 'vs/workbench/browser/part';
-import { IMenubarService, IMenubarMenu, IMenubarMenuItemAction, IMenubarData } from 'vs/platform/menubar/common/menubar';
+import { IMenubarService, IMenubarMenu, IMenubarMenuItemAction, IMenubarData, IMenubarMenuItemSubmenu } from 'vs/platform/menubar/common/menubar';
 import { IMenuService, MenuId, IMenu, SubmenuItemAction } from 'vs/platform/actions/common/actions';
 import { IThemeService, registerThemingParticipant, ITheme, ICssStyleCollector } from 'vs/platform/theme/common/themeService';
 import { IWindowService, MenuBarVisibility, IWindowsService } from 'vs/platform/windows/common/windows';
@@ -438,10 +438,7 @@ export class MenubarPart extends Part {
 	}
 
 	private setupNativeMenubar(): void {
-		// TODO@sbatten: Remove once native menubar is ready
-		if (isMacintosh && isWindows) {
-			this.menubarService.updateMenubar(this.windowService.getCurrentWindowId(), this.getMenubarMenus());
-		}
+		this.menubarService.updateMenubar(this.windowService.getCurrentWindowId(), this.getMenubarMenus());
 	}
 
 
@@ -796,37 +793,54 @@ export class MenubarPart extends Part {
 		}
 	}
 
+	private populateMenuItems(menu: IMenu, menuToPopulate: IMenubarMenu) {
+		let groups = menu.getActions();
+		for (let group of groups) {
+			const [, actions] = group;
+
+			actions.forEach(menuItem => {
+
+				if (menuItem instanceof SubmenuItemAction) {
+					const submenu = { items: [] };
+					this.populateMenuItems(this.menuService.createMenu(menuItem.item.submenu, this.contextKeyService), submenu);
+
+					let menubarSubmenuItem: IMenubarMenuItemSubmenu = {
+						id: menuItem.id,
+						label: menuItem.label,
+						submenu: submenu
+					};
+
+					menuToPopulate.items.push(menubarSubmenuItem);
+				} else {
+					let menubarMenuItem: IMenubarMenuItemAction = {
+						id: menuItem.id,
+						label: menuItem.label,
+						checked: menuItem.checked,
+						enabled: menuItem.enabled
+					};
+
+					this.setCheckedStatus(menubarMenuItem);
+					menubarMenuItem.label = this.calculateActionLabel(menubarMenuItem);
+
+					menuToPopulate.items.push(menubarMenuItem);
+				}
+			});
+
+			menuToPopulate.items.push({ id: 'vscode.menubar.separator' });
+		}
+
+		if (menuToPopulate.items.length > 0) {
+			menuToPopulate.items.pop();
+		}
+	}
+
 	private getMenubarMenus(): IMenubarData {
 		let ret: IMenubarData = {};
 
 		for (let topLevelMenuName of Object.keys(this.topLevelMenus)) {
 			const menu = this.topLevelMenus[topLevelMenuName];
 			let menubarMenu: IMenubarMenu = { items: [] };
-			let groups = menu.getActions();
-			for (let group of groups) {
-				const [, actions] = group;
-
-				actions.forEach(menuItemAction => {
-					let menubarMenuItem: IMenubarMenuItemAction = {
-						id: menuItemAction.id,
-						label: menuItemAction.label,
-						checked: menuItemAction.checked,
-						enabled: menuItemAction.enabled
-					};
-
-					this.setCheckedStatus(menubarMenuItem);
-					menubarMenuItem.label = this.calculateActionLabel(menubarMenuItem);
-
-					menubarMenu.items.push(menubarMenuItem);
-				});
-
-				menubarMenu.items.push({ id: 'vscode.menubar.separator' });
-			}
-
-			if (menubarMenu.items.length > 0) {
-				menubarMenu.items.pop();
-			}
-
+			this.populateMenuItems(menu, menubarMenu);
 			ret[topLevelMenuName] = menubarMenu;
 		}
 
