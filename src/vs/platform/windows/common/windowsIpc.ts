@@ -63,7 +63,7 @@ export interface IWindowsChannel extends IChannel {
 	call(command: 'openWindow', arg: [number, URI[], { forceNewWindow?: boolean, forceReuseWindow?: boolean, forceOpenWorkspaceAsFile?: boolean }]): TPromise<void>;
 	call(command: 'openNewWindow'): TPromise<void>;
 	call(command: 'showWindow', arg: number): TPromise<void>;
-	call(command: 'getWindows'): TPromise<{ id: number; workspace?: IWorkspaceIdentifier; folderPath?: string; title: string; filename?: string; }[]>;
+	call(command: 'getWindows'): TPromise<{ id: number; workspace?: IWorkspaceIdentifier; folderUri?: ISingleFolderWorkspaceIdentifier; title: string; filename?: string; }[]>;
 	call(command: 'getWindowCount'): TPromise<number>;
 	call(command: 'relaunch', arg: [{ addArgs?: string[], removeArgs?: string[] }]): TPromise<void>;
 	call(command: 'whenSharedProcessReady'): TPromise<void>;
@@ -360,8 +360,8 @@ export class WindowsChannelClient implements IWindowsService {
 		return this.channel.call('showWindow', windowId);
 	}
 
-	getWindows(): TPromise<{ id: number; workspace?: IWorkspaceIdentifier; folderPath?: string; title: string; filename?: string; }[]> {
-		return this.channel.call('getWindows');
+	getWindows(): TPromise<{ id: number; workspace?: IWorkspaceIdentifier; folderUri?: ISingleFolderWorkspaceIdentifier; title: string; filename?: string; }[]> {
+		return this.channel.call('getWindows').then(result => { result.forEach(win => win.folderUri = win.folderUri ? URI.revive(win.folderUri) : win.folderUri); return result; });
 	}
 
 	getWindowCount(): TPromise<number> {

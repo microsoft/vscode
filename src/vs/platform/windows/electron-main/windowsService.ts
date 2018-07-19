@@ -428,10 +428,10 @@ export class WindowsService implements IWindowsService, IURLHandler, IDisposable
 		return TPromise.as(null);
 	}
 
-	getWindows(): TPromise<{ id: number; workspace?: IWorkspaceIdentifier; folderUri?: string; title: string; filename?: string; }[]> {
+	getWindows(): TPromise<{ id: number; workspace?: IWorkspaceIdentifier; folderUri?: ISingleFolderWorkspaceIdentifier; title: string; filename?: string; }[]> {
 		this.logService.trace('windowsService#getWindows');
 		const windows = this.windowsMainService.getWindows();
-		const result = windows.map(w => ({ id: w.id, workspace: w.openedWorkspace, openedFolderUri: w.openedFolderUri, title: w.win.getTitle(), filename: w.getRepresentedFilename() }));
+		const result = windows.map(w => ({ id: w.id, workspace: w.openedWorkspace, folderUri: w.openedFolderUri, title: w.win.getTitle(), filename: w.getRepresentedFilename() }));
 
 		return TPromise.as(result);
 	}

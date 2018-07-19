@@ -372,13 +372,13 @@ export class BackupMainService implements IBackupMainService {
 		return (Date.now() + Math.round(Math.random() * 1000)).toString();
 	}
 
-	protected getFolderHash(folderPath: URI): string {
+	protected getFolderHash(folderUri: URI): string {
 		let key;
-		if (folderPath.scheme === Schemas.file) {
+		if (folderUri.scheme === Schemas.file) {
 			// for backward compatibility, use the path as key
-			key = platform.isLinux ? folderPath.fsPath : folderPath.fsPath.toLowerCase();
+			key = platform.isLinux ? folderUri.fsPath : folderUri.fsPath.toLowerCase();
 		} else {
-			key = hasToIgnoreCase(folderPath) ? folderPath.toString().toLowerCase() : folderPath.toString();
+			key = hasToIgnoreCase(folderUri) ? folderUri.toString().toLowerCase() : folderUri.toString();
 		}
 		return crypto.createHash('md5').update(key).digest('hex');
 	}
