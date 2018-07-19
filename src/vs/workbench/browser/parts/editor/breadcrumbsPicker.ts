@@ -24,7 +24,7 @@ import { IThemeService, DARK } from 'vs/platform/theme/common/themeService';
 import { FileLabel } from 'vs/workbench/browser/labels';
 import { BreadcrumbElement, FileElement } from 'vs/workbench/browser/parts/editor/breadcrumbsModel';
 import { onUnexpectedError } from 'vs/base/common/errors';
-import { breadcrumbsActiveSelectionBackground } from 'vs/platform/theme/common/colorRegistry';
+import { breadcrumbsPickerBackground } from 'vs/platform/theme/common/colorRegistry';
 import { FuzzyScore, createMatches, fuzzyScore } from 'vs/base/common/filters';
 
 export function createBreadcrumbsPicker(instantiationService: IInstantiationService, parent: HTMLElement, element: BreadcrumbElement): BreadcrumbsPicker {
@@ -36,38 +36,58 @@ export abstract class BreadcrumbsPicker {
 
 	protected readonly _disposables = new Array<IDisposable>();
 	protected readonly _domNode: HTMLDivElement;
-	protected readonly _focus: dom.IFocusTracker;
+	protected readonly _arrow: HTMLDivElement;
 	protected readonly _tree: HighlightingWorkbenchTree;
+	protected readonly _focus: dom.IFocusTracker;
 
 	protected readonly _onDidPickElement = new Emitter<any>();
 
 	readonly onDidPickElement: Event<any> = this._onDidPickElement.event;
 
 	constructor(
-		container: HTMLElement,
+		parent: HTMLElement,
 		@IInstantiationService protected readonly _instantiationService: IInstantiationService,
 		@IThemeService protected readonly _themeService: IThemeService,
 	) {
 		this._domNode = document.createElement('div');
 		this._domNode.className = 'monaco-breadcrumbs-picker show-file-icons';
-		const theme = this._themeService.getTheme();
-		const color = theme.getColor(breadcrumbsActiveSelectionBackground);
-		this._domNode.style.background = color.toString();
-		this._domNode.style.boxShadow = `0px 5px 8px ${(theme.type === DARK ? color.darken(.6) : color.darken(.2))}`;
-		container.appendChild(this._domNode);
+		parent.appendChild(this._domNode);
 
 		this._focus = dom.trackFocus(this._domNode);
 		this._focus.onDidBlur(_ => this._onDidPickElement.fire(undefined), undefined, this._disposables);
 
+		const theme = this._themeService.getTheme();
+		const color = theme.getColor(breadcrumbsPickerBackground);
+
+		this._arrow = document.createElement('div');
+		this._arrow.style.width = '0';
+		this._arrow.style.borderStyle = 'solid';
+		this._arrow.style.borderWidth = '8px';
+		this._arrow.style.borderColor = `transparent transparent ${color.toString()}`;
+		this._domNode.appendChild(this._arrow);
+
+		const container = document.createElement('div');
+		container.style.background = color.toString();
+		container.style.paddingTop = '2px';
+		container.style.boxShadow = `0px 5px 8px ${(theme.type === DARK ? color.darken(.6) : color.darken(.2))}`;
+		container.style.height = '100%';
+		this._domNode.appendChild(container);
+
 		const treeConifg = this._completeTreeConfiguration({ dataSource: undefined, renderer: undefined });
-		this._tree = this._instantiationService.createInstance(HighlightingWorkbenchTree, this._domNode, treeConifg, {}, { placeholder: localize('placeholder', "Find") });
+		this._tree = this._instantiationService.createInstance(
+			HighlightingWorkbenchTree,
+			container,
+			treeConifg,
+			{ useShadows: false },
+			{ placeholder: localize('placeholder', "Find") }
+		);
 		this._disposables.push(this._tree.onDidChangeSelection(e => {
 			if (e.payload !== this._tree) {
 				setTimeout(_ => this._onDidChangeSelection(e)); // need to debounce here because this disposes the tree and the tree doesn't like to be disposed on click
 			}
 		}));
 
-		this._tree.domFocus();
+		this._domNode.focus();
 	}
 
 	dispose(): void {
@@ -85,15 +105,18 @@ export abstract class BreadcrumbsPicker {
 				this._tree.reveal(selection).then(() => {
 					this._tree.setSelection([selection], this._tree);
 					this._tree.setFocus(selection);
+					this._tree.domFocus();
 				});
 			}
 		}, onUnexpectedError);
 	}
 
-	layout(dim: dom.Dimension) {
-		this._domNode.style.width = `${dim.width}px`;
-		this._domNode.style.height = `${dim.height}px`;
-		this._tree.layout(dim.height, dim.width);
+	layout(height: number, width: number, arrowSize: number, arrowOffset: number) {
+		this._domNode.style.width = `${width}px`;
+		this._domNode.style.height = `${height}px`;
+		this._arrow.style.borderWidth = `${arrowSize}px`;
+		this._arrow.style.marginLeft = `${arrowOffset}px`;
+		this._tree.layout(height, width);
 	}
 
 	protected abstract _getInput(input: BreadcrumbElement): any;
