@@ -339,7 +339,7 @@ export class ExtensionsViewlet extends ViewContainerViewlet implements IExtensio
 
 		const header = append(this.root, $('.header'));
 		this.monacoStyleContainer = append(header, $('.monaco-container'));
-		this.searchBox = this.instantiationService.createInstance(CodeEditorWidget, this.monacoStyleContainer, SEARCH_INPUT_OPTIONS, {});
+		this.searchBox = this.instantiationService.createInstance(CodeEditorWidget, this.monacoStyleContainer, SEARCH_INPUT_OPTIONS, { isSimpleWidget: true });
 		this.placeholderText = append(this.monacoStyleContainer, $('.search-placeholder', null, localize('searchExtensions', "Search Extensions in Marketplace")));
 
 		this.extensionsBox = append(this.root, $('.extensions'));
@@ -350,7 +350,6 @@ export class ExtensionsViewlet extends ViewContainerViewlet implements IExtensio
 		this.disposables.push(this.searchBox.onDidBlurEditorText(() => removeClass(this.monacoStyleContainer, 'synthetic-focus')));
 
 		const onKeyDownMonaco = chain(this.searchBox.onKeyDown);
-		onKeyDownMonaco.filter(e => e.keyCode === KeyCode.Tab).on(e => e.stopPropagation(), this, this.disposables);
 		onKeyDownMonaco.filter(e => e.keyCode === KeyCode.Enter).on(e => e.preventDefault(), this, this.disposables);
 
 		const searchChangeEvent = new Emitter<string>();
