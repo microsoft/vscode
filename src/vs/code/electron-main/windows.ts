@@ -790,7 +790,7 @@ export class WindowsManager implements IWindowsMainService {
 		}
 
 		// Extract paths: from CLI
-		else if (openConfig.cli._.length > 0) {
+		else if (openConfig.cli._.length > 0 || openConfig.cli['folder-uris']) {
 			windowsToOpen = this.doExtractPathsFromCLI(openConfig.cli);
 			isCommandLineOrAPICall = true;
 		}
@@ -847,7 +847,20 @@ export class WindowsManager implements IWindowsMainService {
 	}
 
 	private doExtractPathsFromCLI(cli: ParsedArgs): IPath[] {
-		const pathsToOpen = arrays.coalesce(cli._.map(candidate => this.parsePath(candidate, { ignoreFileNotFound: true, gotoLineMode: cli.goto })));
+		const pathsToOpen = [];
+
+		// folder uris
+		if (cli['folder-uris']) {
+			const arg = cli['folder-uris'];
+			const folderUris: string[] = typeof arg === 'string' ? [arg] : arg;
+			pathsToOpen.push(...arrays.coalesce(folderUris.map(candidate => this.parseUri(URI.parse(candidate), { ignoreFileNotFound: true, gotoLineMode: cli.goto }))));
+		}
+
+		// folder or file paths
+		if (cli._ && cli._.length) {
+			pathsToOpen.push(...arrays.coalesce(cli._.map(candidate => this.parsePath(candidate, { ignoreFileNotFound: true, gotoLineMode: cli.goto }))));
+		}
+
 		if (pathsToOpen.length > 0) {
 			return pathsToOpen;
 		}
