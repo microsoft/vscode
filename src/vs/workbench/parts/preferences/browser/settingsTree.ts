@@ -916,6 +916,9 @@ export class SettingsRenderer implements IRenderer {
 		const displayOptions = dataElement.setting.enum.map(escapeInvisibleChars);
 		template.selectBox.setOptions(displayOptions);
 
+		const label = dataElement.displayCategory + ' ' + dataElement.displayLabel;
+		template.selectBox.setAriaLabel(label);
+
 		const idx = dataElement.setting.enum.indexOf(dataElement.value);
 		template.onChange = null;
 		template.selectBox.select(idx);
