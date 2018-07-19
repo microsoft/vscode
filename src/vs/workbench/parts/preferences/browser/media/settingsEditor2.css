@@ -45,7 +45,7 @@
 .settings-editor > .settings-header > .settings-preview-header > .settings-preview-warning {
 	text-align: right;
 	text-transform: uppercase;
-	background: rgba(136, 136, 136, 0.3);
+	background: rgba(136, 136, 136, 0.2);
 	border-radius: 2px;
 	font-size: 0.8em;
 	padding: 0 3px;
@@ -190,11 +190,11 @@
 }
 
 .settings-editor > .settings-body > .settings-tree-container .setting-item .setting-item-category {
-	opacity: 0.7;
+	opacity: 0.9;
 }
 
 .settings-editor > .settings-body > .settings-tree-container .setting-item .setting-item-description {
-	opacity: 0.7;
+	opacity: 0.9;
 	margin-top: 3px;
 	overflow: hidden;
 	white-space: pre;
