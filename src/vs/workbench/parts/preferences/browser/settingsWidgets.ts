@@ -180,6 +180,10 @@ class ExcludeDataItemRenderer implements IRenderer<IExcludeDataItem, IExcludeDat
 	renderElement(element: IExcludeDataItem, index: number, templateData: IExcludeDataItemTemplate): void {
 		templateData.patternElement.textContent = element.pattern;
 		templateData.siblingElement.textContent = element.sibling;
+
+		templateData.container.title = element.sibling ?
+			localize('excludeSiblingHintLabel', "Exclude files matching `{0}`, only when a file matching `{1}` is present", element.pattern, element.sibling) :
+			localize('excludePatternHintLabel', "Exclude files matching `{0}`", element.pattern);
 	}
 
 	disposeElement(element: IExcludeDataItem, index: number, templateData: IExcludeDataItemTemplate): void {

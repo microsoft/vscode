@@ -542,9 +542,7 @@ export class SettingsRenderer implements ITreeRenderer {
 			if (isSelected) {
 				return this.measureSettingElementHeight(tree, element);
 			} else if (isExcludeSetting(element)) {
-				// TODO@roblou measure or static calc?
-				// return this.measureSettingElementHeight(tree, element);
-				return Object.keys(element.value).length * 22 + 75;
+				return Object.keys(element.value).length * 22 + 70;
 			} else {
 				return this._getUnexpandedSettingHeight(element);
 			}

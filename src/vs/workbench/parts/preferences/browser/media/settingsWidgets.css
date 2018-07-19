@@ -14,6 +14,7 @@
 .settings-editor > .settings-body > .settings-tree-container .setting-item.setting-item-exclude .setting-exclude-pattern,
 .settings-editor > .settings-body > .settings-tree-container .setting-item.setting-item-exclude .setting-exclude-sibling {
 	display: inline-block;
+	line-height: 22px;
 }
 
 .settings-editor > .settings-body > .settings-tree-container .setting-item.setting-item-exclude .setting-exclude-sibling {
@@ -27,6 +28,7 @@
 	display: none;
 	position: absolute;
 	right: 0px;
+	margin-top: 1px;
 }
 
 .settings-editor > .settings-body > .settings-tree-container .setting-item.setting-item-exclude .monaco-list-row:hover .monaco-action-bar,
@@ -37,11 +39,12 @@
 .settings-editor > .settings-body > .settings-tree-container .setting-item.setting-item-exclude .monaco-list-row .monaco-action-bar .action-label {
 	width: 16px;
 	height: 16px;
-	margin-top: 2px;
+	padding: 2px;
+	margin-right: 2px;
 }
 
 .settings-editor > .settings-body > .settings-tree-container .setting-item.setting-item-exclude .monaco-list-row .monaco-action-bar .setting-excludeAction-edit {
-	margin-right: 7px;
+	margin-right: 4px;
 }
 
 .vs .settings-editor > .settings-body > .settings-tree-container .setting-item.setting-item-exclude .monaco-list-row .monaco-action-bar .setting-excludeAction-edit {
@@ -83,7 +86,7 @@
 	border-radius: 3px;
 	margin-right: 4px;
 	margin-left: 0px;
-	margin-top: 4px;
+	margin-top: 3px;
 	padding: 0px;
 	background-size: 14px !important;
 }
