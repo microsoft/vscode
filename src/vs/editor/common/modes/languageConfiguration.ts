@@ -175,9 +175,9 @@ export interface IAutoClosingPair {
 }
 
 export interface IAutoClosingPairConditional extends IAutoClosingPair {
-  notIn?: string[];
-  onlyIn?: string[];
-  cursorPosition?: number;
+	notIn?: string[];
+	onlyIn?: string[];
+	cursorPosition?: number;
 }
 
 /**
@@ -247,15 +247,15 @@ export class StandardAutoClosingPairConditional {
 		this.close = source.close;
 
 		// initially allowed in all tokens
-    this._standardTokenMask = 0;
+		this._standardTokenMask = 0;
 
-    // Check if interger
-    if (source.cursorPosition && !isNaN(source.cursorPosition) && (source.cursorPosition % 1 == 0)) {
-      // Make sure the given integer (cursor position) is within the bounds of the close string
-      if (source.cursorPosition >= 0 && source.cursorPosition <= this.close.length) {
-        this._cursorPositionOption = source.cursorPosition
-      }
-    }
+		// Check if interger
+		if (source.cursorPosition && !isNaN(source.cursorPosition) && (source.cursorPosition % 1 == 0)) {
+		  // Make sure the given integer (cursor position) is within the bounds of the close string
+		  if (source.cursorPosition >= 0 && source.cursorPosition <= this.close.length) {
+			this._cursorPositionOption = source.cursorPosition;
+		  }
+		}
     
 		if (Array.isArray(source.notIn)) {
 			for (let i = 0, len = source.notIn.length; i < len; i++) {
@@ -272,88 +272,89 @@ export class StandardAutoClosingPairConditional {
 						break;
 				}
 			}
-      /**
-      * The onlyIn array will define the scopes we only want the autoCompletion to be used for
-      * It is the opposite of the notIn array.
-      */
-    } else if (Array.isArray(source.onlyIn)) {
-        /**
-        * Use a string variable (_onlyInOptions) to keep track of which scopes
-        * have (already) been listed. The 'other' option is not considered.
-        */
-        this._onlyInFlag = 1;
-        this._onlyInOptions = '';
+		  /**
+		  * The onlyIn array will define the scopes we only want the autoCompletion to be used for
+		  * It is the opposite of the notIn array.
+		  */
+		} else if (Array.isArray(source.onlyIn)) {
+			/**
+			* Use a string variable (_onlyInOptions) to keep track of which scopes
+			* have (already) been listed. The 'other' option is not considered.
+			*/
+			this._onlyInFlag = 1;
+			this._onlyInOptions = '';
 
-        for (let i = 0, len = source.onlyIn.length; i < len; i++) {
-          let onlyIn = source.onlyIn[i];
-          switch (onlyIn) {
-            case 'string':
-              if (this._onlyInOptions.indexOf('2') == -1) {
-                this._onlyInOptions += '2';
-              }
-              break;
-            case 'comment':
-              if (this._onlyInOptions.indexOf('1') == -1) {
-                this._onlyInOptions += '1';
-              }
-              break;
-            case 'regex':
-              if (this._onlyInOptions.indexOf('4') == -1) {
-                this._onlyInOptions += '4';
-              }
-              break;
-          }
-        }
+			for (let i = 0, len = source.onlyIn.length; i < len; i++) {
+			  let onlyIn = source.onlyIn[i];
+			  switch (onlyIn) {
+				case 'string':
+				  if (this._onlyInOptions.indexOf('2') == -1) {
+					this._onlyInOptions += '2';
+				  }
+				  break;
+				case 'comment':
+				  if (this._onlyInOptions.indexOf('1') == -1) {
+					this._onlyInOptions += '1';
+				  }
+				  break;
+				case 'regex':
+				  if (this._onlyInOptions.indexOf('4') == -1) {
+					this._onlyInOptions += '4';
+				  }
+				  break;
+			  }
+			}
 
-        this._value = +this._onlyInOptions;
-        this._optionSum = 0;
+			this._value = +this._onlyInOptions;
+			this._optionSum = 0;
 
-        /**
-        * Loop through each digit and add them all together to determine the case,
-        * i.e. '24' = ['string', 'regex']. Sum = 6, which is case 6. 
-        * We want to do this so that the order of the "onlyIn" input doesn't matter
-        */
-        while (this._value > 0) {
-          this._optionSum += this._value % 10;
-          this._value = Math.floor(this._value / 10);
-        }
+			/**
+			* Loop through each digit and add them all together to determine the case,
+			* i.e. '24' = ['string', 'regex']. Sum = 6, which is case 6. 
+			* We want to do this so that the order of the "onlyIn" input doesn't matter
+			*/
+			while (this._value > 0) {
+			  this._optionSum += this._value % 10;
+			  this._value = Math.floor(this._value / 10);
+			}
 
-        switch (this._optionSum) {
-          case 1: // ['comment']
-            // AND result (in isOK) returns 0 only if standardToken = 'comment' (1)
-            this._standardTokenMask = 6;
-            break;
-          case 2: // ['string']
-            // AND result 0 only if standardToken = 'string' (2)
-            this._standardTokenMask = 5;
-            break;
-          case 3: // ['comment', 'string']
-            // AND result returns 0 only if standardToken = 'comment' (1) or 'string' (2)
-            this._standardTokenMask = 4;
-            break;
-          case 4: // ['regex']
-            // AND result returns 0 only if standardToken 'regex' (4)
-            this._standardTokenMask = 3;
-            break;
-          case 5: // ['comment', 'regex']
-            // AND result returns 0 only if standardToken 'comment' (1) or 'regex' (4)
-            this._standardTokenMask = 2;
-            break;
-          case 6: // ['string', 'regex']
-            // AND result returns 0 only if standardToken 'string' (2) or 'regex' (4)
-            this._standardTokenMask = 1;
-            break;
-          case 7: // ['comment', 'string', 'regex']
-            // AND result returns 0 for any given scope
-            this._standardTokenMask = 0;
-            break; 
-        }
-    }
-  }
+			switch (this._optionSum) {
+			  case 1: // ['comment']
+				// AND result (in isOK) returns 0 only if standardToken = 'comment' (1)
+				this._standardTokenMask = 6;
+				break;
+			  case 2: // ['string']
+				// AND result 0 only if standardToken = 'string' (2)
+				this._standardTokenMask = 5;
+				break;
+			  case 3: // ['comment', 'string']
+				// AND result returns 0 only if standardToken = 'comment' (1) or 'string' (2)
+				this._standardTokenMask = 4;
+				break;
+			  case 4: // ['regex']
+				// AND result returns 0 only if standardToken 'regex' (4)
+				this._standardTokenMask = 3;
+				break;
+			  case 5: // ['comment', 'regex']
+				// AND result returns 0 only if standardToken 'comment' (1) or 'regex' (4)
+				this._standardTokenMask = 2;
+				break;
+			  case 6: // ['string', 'regex']
+				// AND result returns 0 only if standardToken 'string' (2) or 'regex' (4)
+				this._standardTokenMask = 1;
+				break;
+			  case 7: // ['comment', 'string', 'regex']
+				// AND result returns 0 for any given scope
+				this._standardTokenMask = 0;
+				break; 
+			}
+		}
+	  }
 
-  //*** Set a variable to determine if we have a notIn array or an onlyIn array (or neither)
-  //*** If the onlyIn array var is set, check if the StandardTokenType of isOK is "other". If so, return 1 (i.e. don't autoclose)
+    //*** Set a variable to determine if we have a notIn array or an onlyIn array (or neither)
+    //*** If the onlyIn array var is set, check if the StandardTokenType of isOK is "other". If so, return 1 (i.e. don't autoclose)
 	public isOK(standardToken: StandardTokenType): boolean {
+<<<<<<< HEAD
     if (this._onlyInFlag && (standardToken == StandardTokenType.Other)) {
       return false;
     }
@@ -367,4 +368,19 @@ export class StandardAutoClosingPairConditional {
     }
     return null;
   }
+=======
+		if (this._onlyInFlag && (standardToken == StandardTokenType.Other)) {
+		  return false;
+		}
+	    return (this._standardTokenMask & <number>standardToken) === 0;
+	}
+
+	//*** Get the user input for the autoclose cursor position (if it's valid)
+	public getCursorPositionOption(): number {
+		if (this._cursorPositionOption) {
+		  return this._cursorPositionOption;
+		}
+		return null;
+	}
+>>>>>>> 0c730377c510f2fc9ea7e3c751696439f2da4e1d
 }

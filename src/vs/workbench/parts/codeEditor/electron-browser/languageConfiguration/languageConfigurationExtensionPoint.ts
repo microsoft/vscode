@@ -193,19 +193,19 @@ export class LanguageConfigurationFileHandler {
 						console.warn(`[${languageIdentifier.language}]: language configuration: expected \`autoClosingPairs[${i}].notIn\` to be a string array.`);
 						continue;
 					}
-        }
-        if (typeof pair.onlyIn !== 'undefined') {
-          if (!isStringArr(pair.onlyIn)) {
-            console.warn(`[${languageIdentifier.language}]: language configuration: expected \`autoClosingPairs[${i}].onlyIn\` to be a string array.`);
-            continue;
-          }
-        }
-        if (typeof pair.cursorPosition !== 'number') {
-          console.warn(`[${languageIdentifier.language}]: language configuration: expected \`autoClosingPairs[${i}].cursorPosition\` to be a number.`);
-          continue;
-        }
+        	    }
+          		if (typeof pair.onlyIn !== 'undefined') {
+          			if (!isStringArr(pair.onlyIn)) {
+            			console.warn(`[${languageIdentifier.language}]: language configuration: expected \`autoClosingPairs[${i}].onlyIn\` to be a string array.`);
+            			continue;
+          			}
+        		}
+        		if (typeof pair.cursorPosition !== 'number') {
+          			console.warn(`[${languageIdentifier.language}]: language configuration: expected \`autoClosingPairs[${i}].cursorPosition\` to be a number.`);
+          			continue;
+        		}
 				result = result || [];
-        result.push({ open: pair.open, close: pair.close, notIn: pair.notIn, onlyIn: pair.onlyIn, cursorPosition: pair.cursorPosition });
+        		result.push({ open: pair.open, close: pair.close, notIn: pair.notIn, onlyIn: pair.onlyIn, cursorPosition: pair.cursorPosition });
 			}
 		}
 		return result;
@@ -438,18 +438,18 @@ const schema: IJSONSchema = {
 							items: {
 								enum: ['string', 'comment', 'regex']
 							}
-            },
-            onlyIn: {
-              type: 'array',
-              description: nls.localize('schema.autoClosingPairs.onlyIn', 'Defines a list of scopes that the auto pairs only work in.'),
-              items: {
-                enum: ['string', 'comment', 'regex']
-              }
-            },
-            cursorPosition: {
-              type: 'number',
-              description: nls.localize('schema.autoClosingPairs.cursorPosition', 'Defines a location in the close string where the cursor should be placed after autocompletion is done. Valid cursor positions are integers from 0 until (and including) close.length')
-            }
+            			},
+            			onlyIn: {
+              				type: 'array',
+              				description: nls.localize('schema.autoClosingPairs.onlyIn', 'Defines a list of scopes that the auto pairs only work in.'),
+              				items: {
+                				enum: ['string', 'comment', 'regex']
+              				}
+            			},
+            			cursorPosition: {
+              				type: 'number',
+              				description: nls.localize('schema.autoClosingPairs.cursorPosition', 'Defines a location in the close string where the cursor should be placed after autocompletion is done. Valid cursor positions are integers from 0 until (and including) close.length')
+            			}
 					}
 				}]
 			}

@@ -117,7 +117,7 @@ suite('CharacterPairSupport', () => {
 		assert.equal(testShouldAutoClose(sup, [{ text: ' ', type: StandardTokenType.Other }, { text: '//a', type: StandardTokenType.Comment }], 'a', 4), false);
 		assert.equal(testShouldAutoClose(sup, [{ text: ' ', type: StandardTokenType.Other }, { text: '//a', type: StandardTokenType.Comment }], '{', 5), false);
 		assert.equal(testShouldAutoClose(sup, [{ text: ' ', type: StandardTokenType.Other }, { text: '//a', type: StandardTokenType.Comment }], 'a', 5), false);
-  });
+    });
   
   test('shouldAutoClosePair for onlyIn array', function () {
     var sup = new CharacterPairSupport({ autoClosingPairs: [{ open: '#', close: '{}', onlyIn: ['string'] }] });
