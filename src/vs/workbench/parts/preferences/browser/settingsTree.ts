@@ -483,6 +483,7 @@ export class SettingsRenderer implements IRenderer {
 
 	private static readonly SETTING_ROW_HEIGHT = 98;
 	private static readonly SETTING_BOOL_ROW_HEIGHT = 65;
+	public static readonly MAX_ENUM_DESCRIPTIONS = 10;
 
 	private readonly _onDidChangeSetting: Emitter<ISettingChangeEvent> = new Emitter<ISettingChangeEvent>();
 	public readonly onDidChangeSetting: Event<ISettingChangeEvent> = this._onDidChangeSetting.event;
@@ -846,7 +847,7 @@ export class SettingsRenderer implements IRenderer {
 		template.labelElement.textContent = element.displayLabel;
 		template.labelElement.title = titleTooltip;
 
-		const enumDescriptionText = element.setting.enumDescriptions ?
+		const enumDescriptionText = element.setting.enumDescriptions && element.setting.enum && element.setting.enum.length < SettingsRenderer.MAX_ENUM_DESCRIPTIONS ?
 			'\n' + element.setting.enumDescriptions
 				.map((desc, i) => ` - \`${element.setting.enum[i]}\`: ${desc}`)
 				.join('\n') :
@@ -911,7 +912,7 @@ export class SettingsRenderer implements IRenderer {
 	}
 
 	private renderEnum(dataElement: SettingsTreeSettingElement, isSelected: boolean, template: ISettingEnumItemTemplate, onChange: (value: string) => void): void {
-		const displayOptions = dataElement.setting.enum.map(escapeInvisibleChars);
+		const displayOptions = getDisplayEnumOptions(dataElement.setting);
 		template.selectBox.setOptions(displayOptions);
 
 		const label = dataElement.displayCategory + ' ' + dataElement.displayLabel;
@@ -953,6 +954,20 @@ export class SettingsRenderer implements IRenderer {
 	disposeTemplate(tree: ITree, templateId: string, template: IDisposableTemplate): void {
 		dispose(template.toDispose);
 	}
+}
+
+function getDisplayEnumOptions(setting: ISetting): string[] {
+	if (setting.enum.length > SettingsRenderer.MAX_ENUM_DESCRIPTIONS && setting.enumDescriptions) {
+		return setting.enum
+			.map(escapeInvisibleChars)
+			.map((value, i) => {
+				return setting.enumDescriptions[i] ?
+					`${value}: ${setting.enumDescriptions[i]}` :
+					value;
+			});
+	}
+
+	return setting.enum.map(escapeInvisibleChars);
 }
 
 function escapeInvisibleChars(enumValue: string): string {
