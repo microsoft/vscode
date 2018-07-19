@@ -493,3 +493,23 @@ const focusSettingsListCommand = new FocusSettingsListCommand({
 	kbOpts: { primary: KeyCode.Enter }
 });
 KeybindingsRegistry.registerCommandAndKeybindingRule(focusSettingsListCommand.toCommandAndKeybindingRule(KeybindingsRegistry.WEIGHT.workbenchContrib()));
+
+// Preferences menu
+
+MenuRegistry.appendMenuItem(MenuId.MenubarPreferencesMenu, {
+	group: '1_settings',
+	command: {
+		id: OpenSettings2Action.ID,
+		title: nls.localize({ key: 'miOpenSettings', comment: ['&& denotes a mnemonic'] }, "&&Settings")
+	},
+	order: 1
+});
+
+MenuRegistry.appendMenuItem(MenuId.MenubarPreferencesMenu, {
+	group: '2_keybindings',
+	command: {
+		id: OpenGlobalKeybindingsAction.ID,
+		title: nls.localize({ key: 'miOpenKeymap', comment: ['&& denotes a mnemonic'] }, "&&Keyboard Shortcuts")
+	},
+	order: 1
+});

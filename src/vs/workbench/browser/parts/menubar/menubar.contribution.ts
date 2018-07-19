@@ -7,8 +7,6 @@ import * as nls from 'vs/nls';
 import { MenuRegistry, MenuId } from 'vs/platform/actions/common/actions';
 import { isMacintosh } from 'vs/base/common/platform';
 
-recentMenuRegistration();
-fileMenuRegistration();
 editMenuRegistration();
 selectionMenuRegistration();
 viewMenuRegistration();
@@ -21,171 +19,9 @@ if (isMacintosh) {
 	windowMenuRegistration();
 }
 
-preferencesMenuRegistration();
 helpMenuRegistration();
 
-// Menu registration - File Menu
-function fileMenuRegistration() {
-	MenuRegistry.appendMenuItem(MenuId.MenubarFileMenu, {
-		group: '1_new',
-		command: {
-			id: 'workbench.action.files.newUntitledFile',
-			title: nls.localize({ key: 'miNewFile', comment: ['&& denotes a mnemonic'] }, "&&New File")
-		},
-		order: 1
-	});
-
-	MenuRegistry.appendMenuItem(MenuId.MenubarFileMenu, {
-		group: '1_new',
-		command: {
-			id: 'workbench.action.newWindow',
-			title: nls.localize({ key: 'miNewWindow', comment: ['&& denotes a mnemonic'] }, "New &&Window")
-		},
-		order: 2
-	});
-
-	MenuRegistry.appendMenuItem(MenuId.MenubarFileMenu, {
-		group: '2_open',
-		command: {
-			id: 'workbench.action.files.openFile',
-			title: nls.localize({ key: 'miOpenFile', comment: ['&& denotes a mnemonic'] }, "&&Open File...")
-		},
-		order: 1
-	});
-
-	MenuRegistry.appendMenuItem(MenuId.MenubarFileMenu, {
-		group: '2_open',
-		command: {
-			id: 'workbench.action.files.openFolder',
-			title: nls.localize({ key: 'miOpenFolder', comment: ['&& denotes a mnemonic'] }, "Open &&Folder...")
-		},
-		order: 2
-	});
-
-	MenuRegistry.appendMenuItem(MenuId.MenubarFileMenu, {
-		group: '2_open',
-		command: {
-			id: 'workbench.action.openWorkspace',
-			title: nls.localize({ key: 'miOpenWorkspace', comment: ['&& denotes a mnemonic'] }, "Open Wor&&kspace...")
-		},
-		order: 3
-	});
-
-	MenuRegistry.appendMenuItem(MenuId.MenubarFileMenu, {
-		title: nls.localize({ key: 'miOpenRecent', comment: ['&& denotes a mnemonic'] }, "Open &&Recent"),
-		submenu: MenuId.MenubarRecentMenu,
-		group: '2_open',
-		order: 4
-	});
-
-	MenuRegistry.appendMenuItem(MenuId.MenubarFileMenu, {
-		group: '3_workspace',
-		command: {
-			id: 'workbench.action.addRootFolder',
-			title: nls.localize({ key: 'miAddFolderToWorkspace', comment: ['&& denotes a mnemonic'] }, "A&&dd Folder to Workspace...")
-		},
-		order: 1
-	});
-
-	MenuRegistry.appendMenuItem(MenuId.MenubarFileMenu, {
-		group: '3_workspace',
-		command: {
-			id: 'workbench.action.saveWorkspaceAs',
-			title: nls.localize('miSaveWorkspaceAs', "Save Workspace As...")
-		},
-		order: 2
-	});
-
-	MenuRegistry.appendMenuItem(MenuId.MenubarFileMenu, {
-		group: '4_save',
-		command: {
-			id: 'workbench.action.files.save',
-			title: nls.localize({ key: 'miSave', comment: ['&& denotes a mnemonic'] }, "&&Save")
-		},
-		order: 1
-	});
-
-	MenuRegistry.appendMenuItem(MenuId.MenubarFileMenu, {
-		group: '4_save',
-		command: {
-			id: 'workbench.action.files.saveAs',
-			title: nls.localize({ key: 'miSaveAs', comment: ['&& denotes a mnemonic'] }, "Save &&As...")
-		},
-		order: 2
-	});
-
-	MenuRegistry.appendMenuItem(MenuId.MenubarFileMenu, {
-		group: '4_save',
-		command: {
-			id: 'workbench.action.files.saveAll',
-			title: nls.localize({ key: 'miSaveAll', comment: ['&& denotes a mnemonic'] }, "Save A&&ll")
-		},
-		order: 3
-	});
-
-	MenuRegistry.appendMenuItem(MenuId.MenubarFileMenu, {
-		group: '5_autosave',
-		command: {
-			id: 'workbench.action.toggleAutoSave',
-			title: nls.localize('miAutoSave', "Auto Save")
-		},
-		order: 1
-	});
-
-	MenuRegistry.appendMenuItem(MenuId.MenubarFileMenu, {
-		title: nls.localize({ key: 'miPreferences', comment: ['&& denotes a mnemonic'] }, "&&Preferences"),
-		submenu: MenuId.MenubarPreferencesMenu,
-		group: '5_autosave',
-		order: 2
-	});
-
-	MenuRegistry.appendMenuItem(MenuId.MenubarFileMenu, {
-		group: '6_close',
-		command: {
-			id: '',
-			title: nls.localize({ key: 'miRevert', comment: ['&& denotes a mnemonic'] }, "Re&&vert File")
-		},
-		order: 1
-	});
-
-	MenuRegistry.appendMenuItem(MenuId.MenubarFileMenu, {
-		group: '6_close',
-		command: {
-			id: 'workbench.action.closeActiveEditor',
-			title: nls.localize({ key: 'miCloseEditor', comment: ['&& denotes a mnemonic'] }, "&&Close Editor")
-		},
-		order: 2
-	});
-
-	MenuRegistry.appendMenuItem(MenuId.MenubarFileMenu, {
-		group: '6_close',
-		command: {
-			id: 'workbench.action.closeFolder',
-			title: nls.localize({ key: 'miCloseFolder', comment: ['&& denotes a mnemonic'] }, "Close &&Folder")
-		},
-		order: 3
-	});
-
-	MenuRegistry.appendMenuItem(MenuId.MenubarFileMenu, {
-		group: '6_close',
-		command: {
-			id: 'workbench.action.closeWindow',
-			title: nls.localize({ key: 'miCloseWindow', comment: ['&& denotes a mnemonic'] }, "Clos&&e Window")
-		},
-		order: 4
-	});
-
-	if (!isMacintosh) {
-		MenuRegistry.appendMenuItem(MenuId.MenubarFileMenu, {
-			group: 'z_Exit',
-			command: {
-				id: 'workbench.action.quit',
-				title: nls.localize({ key: 'miExit', comment: ['&& denotes a mnemonic'] }, "E&&xit")
-			},
-			order: 1
-		});
-	}
-}
+// Menu registration
 
 function editMenuRegistration() {
 	MenuRegistry.appendMenuItem(MenuId.MenubarEditMenu, {
@@ -269,9 +105,6 @@ function editMenuRegistration() {
 		},
 		order: 2
 	});
-
-
-	///
 
 
 	MenuRegistry.appendMenuItem(MenuId.MenubarEditMenu, {
@@ -437,39 +270,6 @@ function selectionMenuRegistration() {
 		},
 		order: 7
 	});
-}
-
-function recentMenuRegistration() {
-	// Editor
-	MenuRegistry.appendMenuItem(MenuId.MenubarRecentMenu, {
-		group: '1_editor',
-		command: {
-			id: 'workbench.action.reopenClosedEditor',
-			title: nls.localize({ key: 'miReopenClosedEditor', comment: ['&& denotes a mnemonic'] }, "&&Reopen Closed Editor")
-		},
-		order: 1
-	});
-
-	// More
-	MenuRegistry.appendMenuItem(MenuId.MenubarRecentMenu, {
-		group: 'y_more',
-		command: {
-			id: 'workbench.action.openRecent',
-			title: nls.localize({ key: 'miMore', comment: ['&& denotes a mnemonic'] }, "&&More...")
-		},
-		order: 1
-	});
-
-	// Clear
-	MenuRegistry.appendMenuItem(MenuId.MenubarRecentMenu, {
-		group: 'z_clear',
-		command: {
-			id: 'workbench.action.clearRecentFiles',
-			title: nls.localize({ key: 'miClearRecentOpen', comment: ['&& denotes a mnemonic'] }, "&&Clear Recently Opened")
-		},
-		order: 1
-	});
-
 }
 
 function viewMenuRegistration() {
@@ -1121,62 +921,6 @@ function tasksMenuRegistration() {
 
 function windowMenuRegistration() {
 
-}
-
-function preferencesMenuRegistration() {
-	MenuRegistry.appendMenuItem(MenuId.MenubarPreferencesMenu, {
-		group: '1_settings',
-		command: {
-			id: 'workbench.action.openSettings2',
-			title: nls.localize({ key: 'miOpenSettings', comment: ['&& denotes a mnemonic'] }, "&&Settings")
-		},
-		order: 1
-	});
-
-	MenuRegistry.appendMenuItem(MenuId.MenubarPreferencesMenu, {
-		group: '2_keybindings',
-		command: {
-			id: 'workbench.action.openGlobalKeybindings',
-			title: nls.localize({ key: 'miOpenKeymap', comment: ['&& denotes a mnemonic'] }, "&&Keyboard Shortcuts")
-		},
-		order: 1
-	});
-
-	MenuRegistry.appendMenuItem(MenuId.MenubarPreferencesMenu, {
-		group: '2_keybindings',
-		command: {
-			id: 'workbench.extensions.action.showRecommendedKeymapExtensions',
-			title: nls.localize({ key: 'miOpenKeymapExtensions', comment: ['&& denotes a mnemonic'] }, "&&Keymap Extensions")
-		},
-		order: 2
-	});
-
-	MenuRegistry.appendMenuItem(MenuId.MenubarPreferencesMenu, {
-		group: '3_snippets',
-		command: {
-			id: 'workbench.action.openSnippets',
-			title: nls.localize({ key: 'miOpenSnippets', comment: ['&& denotes a mnemonic'] }, "User &&Snippets")
-		},
-		order: 1
-	});
-
-	MenuRegistry.appendMenuItem(MenuId.MenubarPreferencesMenu, {
-		group: '4_themes',
-		command: {
-			id: 'workbench.action.selectTheme',
-			title: nls.localize({ key: 'miSelectColorTheme', comment: ['&& denotes a mnemonic'] }, "&&Color Theme")
-		},
-		order: 1
-	});
-
-	MenuRegistry.appendMenuItem(MenuId.MenubarPreferencesMenu, {
-		group: '4_themes',
-		command: {
-			id: 'workbench.action.selectIconTheme',
-			title: nls.localize({ key: 'miSelectIconTheme', comment: ['&& denotes a mnemonic'] }, "File &&Icon Theme")
-		},
-		order: 2
-	});
 }
 
 function helpMenuRegistration() {

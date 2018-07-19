@@ -536,3 +536,22 @@ MenuRegistry.appendMenuItem(MenuId.CommandPalette, { command: { id: editorComman
 MenuRegistry.appendMenuItem(MenuId.CommandPalette, { command: { id: editorCommands.CLOSE_SAVED_EDITORS_COMMAND_ID, title: nls.localize('closeSavedEditors', "Close Saved Editors in Group"), category } });
 MenuRegistry.appendMenuItem(MenuId.CommandPalette, { command: { id: editorCommands.CLOSE_OTHER_EDITORS_IN_GROUP_COMMAND_ID, title: nls.localize('closeOtherEditors', "Close Other Editors in Group"), category } });
 MenuRegistry.appendMenuItem(MenuId.CommandPalette, { command: { id: editorCommands.CLOSE_EDITORS_TO_THE_RIGHT_COMMAND_ID, title: nls.localize('closeRightEditors', "Close Editors to the Right in Group"), category } });
+
+// File menu
+MenuRegistry.appendMenuItem(MenuId.MenubarRecentMenu, {
+	group: '1_editor',
+	command: {
+		id: ReopenClosedEditorAction.ID,
+		title: nls.localize({ key: 'miReopenClosedEditor', comment: ['&& denotes a mnemonic'] }, "&&Reopen Closed Editor")
+	},
+	order: 1
+});
+
+MenuRegistry.appendMenuItem(MenuId.MenubarRecentMenu, {
+	group: 'z_clear',
+	command: {
+		id: ClearRecentFilesAction.ID,
+		title: nls.localize({ key: 'miClearRecentOpen', comment: ['&& denotes a mnemonic'] }, "&&Clear Recently Opened")
+	},
+	order: 1
+});
