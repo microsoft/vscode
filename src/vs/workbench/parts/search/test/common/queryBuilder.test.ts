@@ -236,6 +236,21 @@ suite('QueryBuilder', () => {
 			});
 	});
 
+	test('file pattern trimming', () => {
+		const content = 'content';
+		assertEqualQueries(
+			queryBuilder.text(
+				PATTERN_INFO,
+				undefined,
+				{ filePattern: ` ${content} ` }
+			),
+			<ISearchQuery>{
+				contentPattern: PATTERN_INFO,
+				filePattern: content,
+				type: QueryType.Text
+			});
+	});
+
 	test('exclude ./ syntax', () => {
 		assertEqualQueries(
 			queryBuilder.text(

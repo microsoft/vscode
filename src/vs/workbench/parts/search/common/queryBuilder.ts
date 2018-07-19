@@ -75,12 +75,12 @@ export class QueryBuilder {
 			this.resolveSmartCaseToCaseSensitive(contentPattern);
 		}
 
-		const query = <ISearchQuery>{
+		const query: ISearchQuery = {
 			type,
 			folderQueries,
 			usingSearchPaths: !!(searchPaths && searchPaths.length),
 			extraFileResources: options.extraFileResources,
-			filePattern: options.filePattern,
+			filePattern: options.filePattern.trim(),
 			excludePattern,
 			includePattern,
 			maxResults: options.maxResults,
