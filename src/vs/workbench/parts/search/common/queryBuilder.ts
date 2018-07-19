@@ -80,7 +80,9 @@ export class QueryBuilder {
 			folderQueries,
 			usingSearchPaths: !!(searchPaths && searchPaths.length),
 			extraFileResources: options.extraFileResources,
-			filePattern: options.filePattern.trim(),
+			filePattern: options.filePattern
+				? options.filePattern.trim()
+				: options.filePattern,
 			excludePattern,
 			includePattern,
 			maxResults: options.maxResults,
