@@ -384,7 +384,10 @@ export class ExtensionsViewlet extends ViewContainerViewlet implements IExtensio
 		this.monacoStyleContainer.style.borderStyle = inputBorderColor ? 'solid' : null;
 		this.monacoStyleContainer.style.borderColor = inputBorderColor;
 
-		(this.monacoStyleContainer.getElementsByClassName('cursor')[0] as HTMLDivElement).style.backgroundColor = this.getColor(inputForeground);
+		let cursor = this.monacoStyleContainer.getElementsByClassName('cursor')[0] as HTMLDivElement;
+		if (cursor) {
+			cursor.style.backgroundColor = this.getColor(inputForeground);
+		}
 	}
 
 	setVisible(visible: boolean): TPromise<void> {
