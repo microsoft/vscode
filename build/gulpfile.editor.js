@@ -75,6 +75,33 @@ function editorLoaderConfig() {
 
 const languages = i18n.defaultLanguages.concat([]);  // i18n.defaultLanguages.concat(process.env.VSCODE_QUALITY !== 'stable' ? i18n.extraLanguages : []);
 
+gulp.task('clean-editor-src', util.rimraf('out-editor-src'));
+gulp.task('extract-editor-src', ['clean-editor-src'], function() {
+	standalone.extractEditor({
+		sourcesRoot: path.join(root, 'src'),
+		entryPoints: [
+			'vs/editor/editor.main',
+			'vs/editor/editor.worker',
+			// 'user',
+			// 'user2',
+		],
+		libs: [
+			`lib.d.ts`,
+			`lib.es2015.collection.d.ts`
+		],
+		redirects: {
+			'vs/base/browser/ui/octiconLabel/octiconLabel': 'vs/base/browser/ui/octiconLabel/octiconLabel.mock',
+		},
+		compilerOptions: {
+			module: 2, // ModuleKind.AMD
+			// moduleResolution: 'classic'
+		},
+		shakeLevel: 1, // 1-InnerFile, 2-ClassMembers
+		importIgnorePattern: /^vs\/css!/,
+		destRoot: path.join(root, 'out-editor-src')
+	});
+});
+
 gulp.task('clean-optimized-editor', util.rimraf('out-editor'));
 gulp.task('optimize-editor', ['clean-optimized-editor', 'compile-client-build'], common.optimizeTask({
 	entryPoints: editorEntryPoints,
@@ -229,7 +256,7 @@ gulp.task('editor-distro', ['clean-editor-distro', 'compile-editor-esm', 'minify
 });
 
 gulp.task('analyze-editor-distro', function () {
-	// @ts-ignore 
+	// @ts-ignore
 	var bundleInfo = require('../out-editor/bundleInfo.json');
 	var graph = bundleInfo.graph;
 	var bundles = bundleInfo.bundles;
