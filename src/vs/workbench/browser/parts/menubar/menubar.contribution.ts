@@ -6,7 +6,6 @@
 import * as nls from 'vs/nls';
 import { MenuRegistry, MenuId } from 'vs/platform/actions/common/actions';
 import { isMacintosh } from 'vs/base/common/platform';
-import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
 
 recentMenuRegistration();
 fileMenuRegistration();
@@ -16,7 +15,6 @@ viewMenuRegistration();
 appearanceMenuRegistration();
 layoutMenuRegistration();
 goMenuRegistration();
-debugMenuRegistration();
 tasksMenuRegistration();
 
 if (isMacintosh) {
@@ -1050,184 +1048,6 @@ function goMenuRegistration() {
 		},
 		order: 7
 	});
-}
-
-function debugMenuRegistration() {
-	// Start/Stop Debug
-	MenuRegistry.appendMenuItem(MenuId.MenubarDebugMenu, {
-		group: '1_debug',
-		command: {
-			id: 'workbench.action.debug.start',
-			title: nls.localize({ key: 'miStartDebugging', comment: ['&& denotes a mnemonic'] }, "&&Start Debugging"),
-			precondition: ContextKeyExpr.not('inDebugMode')
-		},
-		order: 1
-	});
-
-	MenuRegistry.appendMenuItem(MenuId.MenubarDebugMenu, {
-		group: '1_debug',
-		command: {
-			id: 'workbench.action.debug.run',
-			title: nls.localize({ key: 'miStartWithoutDebugging', comment: ['&& denotes a mnemonic'] }, "Start &&Without Debugging"),
-			precondition: ContextKeyExpr.not('inDebugMode')
-		},
-		order: 2
-	});
-
-	MenuRegistry.appendMenuItem(MenuId.MenubarDebugMenu, {
-		group: '1_debug',
-		command: {
-			id: 'workbench.action.debug.stop',
-			title: nls.localize({ key: 'miStopDebugging', comment: ['&& denotes a mnemonic'] }, "&&Stop Debugging"),
-			precondition: ContextKeyExpr.has('inDebugMode')
-		},
-		order: 3
-	});
-
-	MenuRegistry.appendMenuItem(MenuId.MenubarDebugMenu, {
-		group: '1_debug',
-		command: {
-			id: 'workbench.action.debug.restart',
-			title: nls.localize({ key: 'miRestart Debugging', comment: ['&& denotes a mnemonic'] }, "&&Restart Debugging"),
-			precondition: ContextKeyExpr.has('inDebugMode')
-		},
-		order: 4
-	});
-
-	// Configuration
-	MenuRegistry.appendMenuItem(MenuId.MenubarDebugMenu, {
-		group: '2_configuration',
-		command: {
-			id: 'workbench.action.debug.configure',
-			title: nls.localize({ key: 'miOpenConfigurations', comment: ['&& denotes a mnemonic'] }, "Open &&Configurations")
-		},
-		order: 1
-	});
-
-	MenuRegistry.appendMenuItem(MenuId.MenubarDebugMenu, {
-		group: '2_configuration',
-		command: {
-			id: 'debug.addConfiguration',
-			title: nls.localize({ key: 'miAddConfiguration', comment: ['&& denotes a mnemonic'] }, "Add Configuration...")
-		},
-		order: 2
-	});
-
-	// Step Commands
-	MenuRegistry.appendMenuItem(MenuId.MenubarDebugMenu, {
-		group: '3_step',
-		command: {
-			id: 'workbench.action.debug.stepOver',
-			title: nls.localize({ key: 'miStepOver', comment: ['&& denotes a mnemonic'] }, "Step &&Over"),
-			precondition: ContextKeyExpr.has('inDebugMode')
-		},
-		order: 1
-	});
-
-	MenuRegistry.appendMenuItem(MenuId.MenubarDebugMenu, {
-		group: '3_step',
-		command: {
-			id: 'workbench.action.debug.stepInto',
-			title: nls.localize({ key: 'miStepInto', comment: ['&& denotes a mnemonic'] }, "Step &&Into"),
-			precondition: ContextKeyExpr.has('inDebugMode')
-		},
-		order: 2
-	});
-
-	MenuRegistry.appendMenuItem(MenuId.MenubarDebugMenu, {
-		group: '3_step',
-		command: {
-			id: 'workbench.action.debug.stepOut',
-			title: nls.localize({ key: 'miStepOut', comment: ['&& denotes a mnemonic'] }, "Step O&&ut"),
-			precondition: ContextKeyExpr.has('inDebugMode')
-		},
-		order: 3
-	});
-
-	MenuRegistry.appendMenuItem(MenuId.MenubarDebugMenu, {
-		group: '3_step',
-		command: {
-			id: 'workbench.action.debug.continue',
-			title: nls.localize({ key: 'miContinue', comment: ['&& denotes a mnemonic'] }, "&&Continue"),
-			precondition: ContextKeyExpr.has('inDebugMode')
-		},
-		order: 4
-	});
-
-	// New Breakpoints
-	MenuRegistry.appendMenuItem(MenuId.MenubarDebugMenu, {
-		group: '4_new_breakpoint',
-		command: {
-			id: 'editor.debug.action.toggleBreakpoint',
-			title: nls.localize({ key: 'miToggleBreakpoint', comment: ['&& denotes a mnemonic'] }, "Toggle &&Breakpoint")
-		},
-		order: 1
-	});
-
-	MenuRegistry.appendMenuItem(MenuId.MenubarDebugMenu, {
-		group: '4_new_breakpoint',
-		command: {
-			id: 'editor.debug.action.conditionalBreakpoint',
-			title: nls.localize({ key: 'miConditionalBreakpoint', comment: ['&& denotes a mnemonic'] }, "Toggle &&Conditional Breakpoint...")
-		},
-		order: 2
-	});
-
-	MenuRegistry.appendMenuItem(MenuId.MenubarDebugMenu, {
-		group: '4_new_breakpoint',
-		command: {
-			id: 'editor.debug.action.toggleInlineBreakpoint',
-			title: nls.localize({ key: 'miInlineBreakpoint', comment: ['&& denotes a mnemonic'] }, "Toggle Inline Breakp&&oint")
-		},
-		order: 3
-	});
-
-	MenuRegistry.appendMenuItem(MenuId.MenubarDebugMenu, {
-		group: '4_new_breakpoint',
-		command: {
-			id: 'workbench.debug.viewlet.action.addFunctionBreakpointAction',
-			title: nls.localize({ key: 'miFunctionBreakpoint', comment: ['&& denotes a mnemonic'] }, "Toggle &&Function Breakpoint...")
-		},
-		order: 4
-	});
-
-	MenuRegistry.appendMenuItem(MenuId.MenubarDebugMenu, {
-		group: '4_new_breakpoint',
-		command: {
-			id: 'editor.debug.action.toggleLogPoint',
-			title: nls.localize({ key: 'miLogPoint', comment: ['&& denotes a mnemonic'] }, "Toggle &&Logpoint...")
-		},
-		order: 5
-	});
-
-	// Modify Breakpoints
-	MenuRegistry.appendMenuItem(MenuId.MenubarDebugMenu, {
-		group: '5_breakpoints',
-		command: {
-			id: 'workbench.debug.viewlet.action.enableAllBreakpoints',
-			title: nls.localize({ key: 'miEnableAllBreakpoints', comment: ['&& denotes a mnemonic'] }, "Enable All Breakpoints")
-		},
-		order: 1
-	});
-
-	MenuRegistry.appendMenuItem(MenuId.MenubarDebugMenu, {
-		group: '5_breakpoints',
-		command: {
-			id: 'workbench.debug.viewlet.action.disableAllBreakpoints',
-			title: nls.localize({ key: 'miDisableAllBreakpoints', comment: ['&& denotes a mnemonic'] }, "Disable A&&ll Breakpoints")
-		},
-		order: 2
-	});
-
-	MenuRegistry.appendMenuItem(MenuId.MenubarDebugMenu, {
-		group: '5_breakpoints',
-		command: {
-			id: 'workbench.debug.viewlet.action.removeAllBreakpoints',
-			title: nls.localize({ key: 'miRemoveAllBreakpoints', comment: ['&& denotes a mnemonic'] }, "Remove &&All Breakpoints")
-		},
-		order: 3
-	});
-
 }
 
 function tasksMenuRegistration() {

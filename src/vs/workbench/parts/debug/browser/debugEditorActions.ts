@@ -17,10 +17,11 @@ import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { openBreakpointSource } from 'vs/workbench/parts/debug/browser/breakpointsView';
 
+export const TOGGLE_BREAKPOINT_ID = 'editor.debug.action.toggleBreakpoint';
 class ToggleBreakpointAction extends EditorAction {
 	constructor() {
 		super({
-			id: 'editor.debug.action.toggleBreakpoint',
+			id: TOGGLE_BREAKPOINT_ID,
 			label: nls.localize('toggleBreakpointAction', "Debug: Toggle Breakpoint"),
 			alias: 'Debug: Toggle Breakpoint',
 			precondition: null,
@@ -49,11 +50,12 @@ class ToggleBreakpointAction extends EditorAction {
 	}
 }
 
+export const TOGGLE_CONDITIONAL_BREAKPOINT_ID = 'editor.debug.action.conditionalBreakpoint';
 class ConditionalBreakpointAction extends EditorAction {
 
 	constructor() {
 		super({
-			id: 'editor.debug.action.conditionalBreakpoint',
+			id: TOGGLE_CONDITIONAL_BREAKPOINT_ID,
 			label: nls.localize('conditionalBreakpointEditorAction', "Debug: Add Conditional Breakpoint..."),
 			alias: 'Debug: Add Conditional Breakpoint...',
 			precondition: null
@@ -70,11 +72,12 @@ class ConditionalBreakpointAction extends EditorAction {
 	}
 }
 
+export const TOGGLE_LOG_POINT_ID = 'editor.debug.action.toggleLogPoint';
 class LogPointAction extends EditorAction {
 
 	constructor() {
 		super({
-			id: 'editor.debug.action.toggleLogPoint',
+			id: TOGGLE_LOG_POINT_ID,
 			label: nls.localize('logPointEditorAction', "Debug: Add Logpoint..."),
 			alias: 'Debug: Add Logpoint...',
 			precondition: null
