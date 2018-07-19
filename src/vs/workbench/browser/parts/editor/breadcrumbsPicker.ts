@@ -18,7 +18,7 @@ import { OutlineElement, OutlineModel, TreeElement } from 'vs/editor/contrib/doc
 import { OutlineDataSource, OutlineItemComparator, OutlineRenderer } from 'vs/editor/contrib/documentSymbols/outlineTree';
 import { localize } from 'vs/nls';
 import { FileKind, IFileService, IFileStat } from 'vs/platform/files/common/files';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
+import { IInstantiationService, IConstructorSignature1 } from 'vs/platform/instantiation/common/instantiation';
 import { HighlightingWorkbenchTree, IHighlightingTreeConfiguration, IHighlightingRenderer } from 'vs/platform/list/browser/listService';
 import { IThemeService, DARK } from 'vs/platform/theme/common/themeService';
 import { FileLabel } from 'vs/workbench/browser/labels';
@@ -26,6 +26,11 @@ import { BreadcrumbElement, FileElement } from 'vs/workbench/browser/parts/edito
 import { onUnexpectedError } from 'vs/base/common/errors';
 import { breadcrumbsActiveSelectionBackground } from 'vs/platform/theme/common/colorRegistry';
 import { FuzzyScore, createMatches, fuzzyScore } from 'vs/base/common/filters';
+
+export function createBreadcrumbsPicker(instantiationService: IInstantiationService, parent: HTMLElement, element: BreadcrumbElement): BreadcrumbsPicker {
+	let ctor: IConstructorSignature1<HTMLElement, BreadcrumbsPicker> = element instanceof FileElement ? BreadcrumbsFilePicker : BreadcrumbsOutlinePicker;
+	return instantiationService.createInstance(ctor, parent);
+}
 
 export abstract class BreadcrumbsPicker {
 

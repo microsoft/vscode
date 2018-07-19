@@ -22,7 +22,7 @@ import { IConfigurationService } from 'vs/platform/configuration/common/configur
 import { ContextKeyExpr, IContextKey, IContextKeyService, RawContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { IContextViewService } from 'vs/platform/contextview/browser/contextView';
 import { FileKind, IFileService } from 'vs/platform/files/common/files';
-import { IConstructorSignature1, IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
+import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { KeybindingsRegistry } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { IQuickOpenService } from 'vs/platform/quickOpen/common/quickOpen';
 import { attachBreadcrumbsStyler } from 'vs/platform/theme/common/styler';
@@ -31,7 +31,7 @@ import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace
 import { FileLabel } from 'vs/workbench/browser/labels';
 import { BreadcrumbsConfig, IBreadcrumbsService } from 'vs/workbench/browser/parts/editor/breadcrumbs';
 import { BreadcrumbElement, EditorBreadcrumbsModel, FileElement } from 'vs/workbench/browser/parts/editor/breadcrumbsModel';
-import { BreadcrumbsFilePicker, BreadcrumbsOutlinePicker, BreadcrumbsPicker } from 'vs/workbench/browser/parts/editor/breadcrumbsPicker';
+import { createBreadcrumbsPicker } from 'vs/workbench/browser/parts/editor/breadcrumbsPicker';
 import { EditorGroupView } from 'vs/workbench/browser/parts/editor/editorGroupView';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IEditorGroupsService } from 'vs/workbench/services/group/common/editorGroupsService';
@@ -272,11 +272,10 @@ export class BreadcrumbsControl {
 				return event.node;
 			},
 			render: (parent: HTMLElement) => {
-				let ctor: IConstructorSignature1<HTMLElement, BreadcrumbsPicker> = element instanceof FileElement ? BreadcrumbsFilePicker : BreadcrumbsOutlinePicker;
-				let res = this._instantiationService.createInstance(ctor, parent);
-				res.layout({ width: Math.max(220, dom.getTotalWidth(event.node)), height: 330 });
-				res.setInput(element);
-				let listener = res.onDidPickElement(data => {
+				let picker = createBreadcrumbsPicker(this._instantiationService, parent, element);
+				picker.layout({ width: Math.max(220, dom.getTotalWidth(event.node)), height: 330 });
+				picker.setInput(element);
+				let listener = picker.onDidPickElement(data => {
 					this._contextViewService.hideContextView();
 					this._widget.setFocused(undefined);
 					this._widget.setSelection(undefined);
@@ -285,7 +284,7 @@ export class BreadcrumbsControl {
 				this._breadcrumbsPickerShowing = true;
 				this._updateCkBreadcrumbsActive();
 
-				return combinedDisposable([listener, res]);
+				return combinedDisposable([listener, picker]);
 			},
 			onHide: () => {
 				this._breadcrumbsPickerShowing = false;
