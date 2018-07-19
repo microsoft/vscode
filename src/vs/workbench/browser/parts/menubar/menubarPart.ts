@@ -515,7 +515,7 @@ export class MenubarPart extends Part {
 		let uri: URI;
 
 		if (isSingleFolderWorkspaceIdentifier2(workspace)) {
-			label = getPathLabel(workspace, this.environmentService);
+			label = getWorkspaceLabel(workspace, this.environmentService, { verbose: true });
 			uri = workspace;
 		} else if (isWorkspaceIdentifier(workspace)) {
 			label = getWorkspaceLabel(workspace, this.environmentService, { verbose: true });

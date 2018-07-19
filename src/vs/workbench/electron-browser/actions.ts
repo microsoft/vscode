@@ -729,8 +729,8 @@ export abstract class BaseOpenRecentAction extends Action {
 			let description: string;
 			if (isSingleFolderWorkspaceIdentifier2(workspace)) {
 				resource = workspace;
-				label = getBaseLabel(resource);
-				description = getPathLabel(paths.dirname(resource.path), environmentService);
+				label = getWorkspaceLabel(workspace, environmentService);
+				description = getPathLabel(resource.with({ path: paths.dirname(resource.path) }), environmentService);
 			} else if (isWorkspaceIdentifier(workspace)) {
 				resource = URI.file(workspace.configPath);
 				label = getWorkspaceLabel(workspace, environmentService);

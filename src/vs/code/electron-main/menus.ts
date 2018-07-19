@@ -492,7 +492,7 @@ export class CodeMenu {
 		let label: string;
 		let resource: URI;
 		if (isSingleFolderWorkspaceIdentifier2(workspace)) {
-			label = unmnemonicLabel(getPathLabel(workspace, this.environmentService, null));
+			label = unmnemonicLabel(getWorkspaceLabel(workspace, this.environmentService, { verbose: true }));
 			resource = workspace;
 		} else if (isWorkspaceIdentifier(workspace)) {
 			label = getWorkspaceLabel(workspace, this.environmentService, { verbose: true });

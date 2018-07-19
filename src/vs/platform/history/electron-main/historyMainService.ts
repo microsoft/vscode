@@ -179,7 +179,7 @@ export class HistoryMainService implements IHistoryMainService {
 		// Take up to maxEntries/2 workspaces
 		for (let i = 0; i < mru.workspaces.length && i < HistoryMainService.MAX_MACOS_DOCK_RECENT_ENTRIES / 2; i++) {
 			const workspace = mru.workspaces[i];
-			app.addRecentDocument(isSingleFolderWorkspaceIdentifier2(workspace) ? workspace.toString() : workspace.configPath);
+			app.addRecentDocument(isSingleFolderWorkspaceIdentifier2(workspace) ? workspace.scheme === Schemas.file ? workspace.fsPath : workspace.toString() : workspace.configPath);
 			maxEntries--;
 		}
 
@@ -307,7 +307,7 @@ export class HistoryMainService implements IHistoryMainService {
 				type: 'custom',
 				name: nls.localize('recentFolders', "Recent Workspaces"),
 				items: this.getRecentlyOpened().workspaces.slice(0, 7 /* limit number of entries here */).map(workspace => {
-					const title = isSingleFolderWorkspaceIdentifier2(workspace) ? getBaseLabel(workspace) : getWorkspaceLabel(workspace, this.environmentService);
+					const title = getWorkspaceLabel(workspace, this.environmentService);
 					const description = isSingleFolderWorkspaceIdentifier2(workspace) ? nls.localize('folderDesc', "{0} {1}", getBaseLabel(workspace), getPathLabel(path.dirname(workspace.path), this.environmentService)) : nls.localize('codeWorkspace', "Code Workspace");
 					let args;
 					// use quotes to support paths with whitespaces

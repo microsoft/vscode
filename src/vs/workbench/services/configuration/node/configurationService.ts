@@ -38,7 +38,6 @@ import { JSONEditingService } from 'vs/workbench/services/configuration/node/jso
 import { Schemas } from 'vs/base/common/network';
 import { massageFolderPathForWorkspace } from 'vs/platform/workspaces/node/workspaces';
 import { UserConfiguration } from 'vs/platform/configuration/node/configuration';
-import { getBaseLabel } from 'vs/base/common/labels';
 import { IJSONSchema, IJSONSchemaMap } from 'vs/base/common/jsonSchema';
 import { localize } from 'vs/nls';
 import { isEqual, hasToIgnoreCase } from 'vs/base/common/resources';
@@ -352,11 +351,11 @@ export class WorkspaceService extends Disposable implements IWorkspaceConfigurat
 				.then(workspaceStat => {
 					const ctime = isLinux ? workspaceStat.ino : workspaceStat.birthtime.getTime(); // On Linux, birthtime is ctime, so we cannot use it! We use the ino instead!
 					const id = createHash('md5').update(folder.fsPath).update(ctime ? String(ctime) : '').digest('hex');
-					return new Workspace(id, getBaseLabel(folder), toWorkspaceFolders([{ path: folder.fsPath }]), null, ctime);
+					return new Workspace(id, getWorkspaceLabel(folder, this.environmentService), toWorkspaceFolders([{ path: folder.fsPath }]), null, ctime);
 				});
 		} else {
 			const id = createHash('md5').update(folder.toString()).digest('hex');
-			return TPromise.as(new Workspace(id, getBaseLabel(folder), toWorkspaceFolders([{ uri: folder.toString() }]), null));
+			return TPromise.as(new Workspace(id, getWorkspaceLabel(folder, this.environmentService), toWorkspaceFolders([{ uri: folder.toString() }]), null));
 		}
 	}
 
