@@ -16,14 +16,8 @@ export function getHover(model: ITextModel, position: Position, token: Cancellat
 	const supports = HoverProviderRegistry.ordered(model);
 
 	const promises = supports.map(support => {
-		return Promise.resolve(support.provideHover(model, position, token)).then(result => {
-			if (!result) {
-				return undefined;
-			}
-
-			const hasRange = (typeof result.range !== 'undefined');
-			const hasHtmlContent = typeof result.contents !== 'undefined' && result.contents && result.contents.length > 0;
-			return hasRange && hasHtmlContent ? result : undefined;
+		return Promise.resolve(support.provideHover(model, position, token)).then(hover => {
+			return hover && isValid(hover) ? hover : undefined;
 		}, err => {
 			onUnexpectedExternalError(err);
 			return undefined;
@@ -34,3 +28,9 @@ export function getHover(model: ITextModel, position: Position, token: Cancellat
 }
 
 registerDefaultLanguageCommand('_executeHoverProvider', (model, position) => getHover(model, position, CancellationToken.None));
+
+function isValid(result: Hover) {
+	const hasRange = (typeof result.range !== 'undefined');
+	const hasHtmlContent = typeof result.contents !== 'undefined' && result.contents && result.contents.length > 0;
+	return hasRange && hasHtmlContent;
+}
