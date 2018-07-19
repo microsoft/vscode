@@ -501,7 +501,8 @@ export class QuickOpenModel implements
 	IModel<QuickOpenEntry>,
 	IDataSource<QuickOpenEntry>,
 	IFilter<QuickOpenEntry>,
-	IRunner<QuickOpenEntry>
+	IRunner<QuickOpenEntry>,
+	IAccessiblityProvider<QuickOpenEntry>
 {
 	private _entries: QuickOpenEntry[];
 	private _dataSource: IDataSource<QuickOpenEntry>;
