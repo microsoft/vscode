@@ -154,14 +154,14 @@ export class CodeApplication {
 			});
 		});
 
-		let macOpenFiles: URI[] = [];
+		let macOpenFileURIs: URI[] = [];
 		let runningTimeout: number = null;
 		app.on('open-file', (event: Event, path: string) => {
 			this.logService.trace('App#open-file: ', path);
 			event.preventDefault();
 
 			// Keep in array because more might come!
-			macOpenFiles.push(URI.file(path));
+			macOpenFileURIs.push(URI.file(path));
 
 			// Clear previous handler if any
 			if (runningTimeout !== null) {
@@ -175,10 +175,10 @@ export class CodeApplication {
 					this.windowsMainService.open({
 						context: OpenContext.DOCK /* can also be opening from finder while app is running */,
 						cli: this.environmentService.args,
-						pathsToOpen: macOpenFiles,
+						pathsToOpen: macOpenFileURIs,
 						preferNewWindow: true /* dropping on the dock or opening from finder prefers to open in a new window */
 					});
-					macOpenFiles = [];
+					macOpenFileURIs = [];
 					runningTimeout = null;
 				}
 			}, 100);
