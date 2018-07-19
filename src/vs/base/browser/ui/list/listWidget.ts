@@ -351,9 +351,13 @@ class DOMFocusController<T> implements IDisposable {
 
 		const focusedDomElement = this.view.domElement(focus[0]);
 		const tabIndexElement = focusedDomElement.querySelector('[tabIndex]');
-		const style = tabIndexElement && window.getComputedStyle(tabIndexElement);
 
-		if (!tabIndexElement || !(tabIndexElement instanceof HTMLElement) || style.visibility === 'hidden' || style.display === 'none') {
+		if (!tabIndexElement || !(tabIndexElement instanceof HTMLElement)) {
+			return;
+		}
+
+		const style = window.getComputedStyle(tabIndexElement);
+		if (style.visibility === 'hidden' || style.display === 'none') {
 			return;
 		}
 
