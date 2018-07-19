@@ -25,6 +25,7 @@ export interface ITree {
 	onDidExpandItem: Event<IItemExpandEvent>;
 	onDidCollapseItem: Event<IItemCollapseEvent>;
 	onDidDispose: Event<void>;
+	onDidScroll: Event<void>;
 
 	/**
 	 * Returns the tree's DOM element.
@@ -109,13 +110,6 @@ export interface ITree {
 	collapseAll(elements?: any[], recursive?: boolean): WinJS.Promise;
 
 	/**
-	 * Collapses several elements.
-	 * Collapses all elements at the greatest tree depth that has expanded elements.
-	 * The returned promise returns a boolean for whether the elements were collapsed or not.
-	 */
-	collapseDeepestExpandedLevel(): WinJS.Promise;
-
-	/**
 	 * Toggles an element's expansion state.
 	 */
 	toggleExpansion(element: any, recursive?: boolean): WinJS.Promise;
@@ -147,6 +141,11 @@ export interface ITree {
 	 * Useful when calling `reveal(element, relativeTop)`.
 	 */
 	getRelativeTop(element: any): number;
+
+	/**
+	 * Returns the top-most visible element.
+	 */
+	getFirstVisibleElement(): any;
 
 	/**
 	 * Returns a number between 0 and 1 representing how much the tree is scroll down. 0 means all the way

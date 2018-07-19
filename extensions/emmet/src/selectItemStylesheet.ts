@@ -51,7 +51,7 @@ export function nextItemStylesheet(startOffset: vscode.Position, endOffset: vsco
 }
 
 export function prevItemStylesheet(startOffset: vscode.Position, endOffset: vscode.Position, editor: vscode.TextEditor, rootNode: CssNode): vscode.Selection | undefined {
-	let currentNode = <CssNode>getNode(rootNode, startOffset);
+	let currentNode = <CssNode>getNode(rootNode, startOffset, false);
 	if (!currentNode) {
 		currentNode = rootNode;
 	}

@@ -16,7 +16,7 @@ import { IHistoryService } from 'vs/workbench/services/history/common/history';
 import { FileChangesEvent, IFileService, FileChangeType, FILES_EXCLUDE_CONFIG } from 'vs/platform/files/common/files';
 import { Selection } from 'vs/editor/common/core/selection';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
-import { IDisposable, dispose } from 'vs/base/common/lifecycle';
+import { IDisposable, dispose, Disposable } from 'vs/base/common/lifecycle';
 import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
 import { ILifecycleService } from 'vs/platform/lifecycle/common/lifecycle';
 import { Registry } from 'vs/platform/registry/common/platform';
@@ -49,15 +49,15 @@ export class TextEditorState {
 		} : void 0;
 	}
 
-	public get editorInput(): IEditorInput {
+	get editorInput(): IEditorInput {
 		return this._editorInput;
 	}
 
-	public get selection(): ITextEditorSelection {
+	get selection(): ITextEditorSelection {
 		return this.textEditorSelection;
 	}
 
-	public justifiesNewPushState(other: TextEditorState, event?: ICursorPositionChangedEvent): boolean {
+	justifiesNewPushState(other: TextEditorState, event?: ICursorPositionChangedEvent): boolean {
 		if (event && event.source === 'api') {
 			return true; // always let API source win (e.g. "Go to definition" should add a history entry)
 		}
@@ -97,16 +97,14 @@ interface IRecentlyClosedFile {
 	index: number;
 }
 
-export class HistoryService implements IHistoryService {
+export class HistoryService extends Disposable implements IHistoryService {
 
-	public _serviceBrand: any;
+	_serviceBrand: any;
 
 	private static readonly STORAGE_KEY = 'history.entries';
 	private static readonly MAX_HISTORY_ITEMS = 200;
 	private static readonly MAX_STACK_ITEMS = 20;
 	private static readonly MAX_RECENTLY_CLOSED_EDITORS = 20;
-
-	private toUnbind: IDisposable[];
 
 	private activeEditorListeners: IDisposable[];
 	private lastActiveEditor: IEditorIdentifier;
@@ -135,7 +133,8 @@ export class HistoryService implements IHistoryService {
 		@IWindowsService private windowService: IWindowsService,
 		@IInstantiationService private instantiationService: IInstantiationService,
 	) {
-		this.toUnbind = [];
+		super();
+
 		this.activeEditorListeners = [];
 
 		this.fileInputFactory = Registry.as<IEditorInputFactoryRegistry>(EditorInputExtensions.EditorInputFactories).getFileInputFactory();
@@ -145,11 +144,11 @@ export class HistoryService implements IHistoryService {
 		this.stack = [];
 		this.recentlyClosedFiles = [];
 		this.loaded = false;
-		this.resourceFilter = instantiationService.createInstance(
+		this.resourceFilter = this._register(instantiationService.createInstance(
 			ResourceGlobMatcher,
 			(root: URI) => this.getExcludes(root),
 			(event: IConfigurationChangeEvent) => event.affectsConfiguration(FILES_EXCLUDE_CONFIG) || event.affectsConfiguration('search.exclude')
-		);
+		));
 
 		this.registerListeners();
 	}
@@ -161,12 +160,12 @@ export class HistoryService implements IHistoryService {
 	}
 
 	private registerListeners(): void {
-		this.toUnbind.push(this.editorService.onDidActiveEditorChange(() => this.onActiveEditorChanged()));
-		this.toUnbind.push(this.editorService.onDidOpenEditorFail(event => this.remove(event.editor)));
-		this.toUnbind.push(this.editorService.onDidCloseEditor(event => this.onEditorClosed(event)));
-		this.toUnbind.push(this.lifecycleService.onShutdown(reason => this.saveHistory()));
-		this.toUnbind.push(this.fileService.onFileChanges(event => this.onFileChanges(event)));
-		this.toUnbind.push(this.resourceFilter.onExpressionChange(() => this.handleExcludesChange()));
+		this._register(this.editorService.onDidActiveEditorChange(() => this.onActiveEditorChanged()));
+		this._register(this.editorService.onDidOpenEditorFail(event => this.remove(event.editor)));
+		this._register(this.editorService.onDidCloseEditor(event => this.onEditorClosed(event)));
+		this._register(this.lifecycleService.onShutdown(reason => this.saveHistory()));
+		this._register(this.fileService.onFileChanges(event => this.onFileChanges(event)));
+		this._register(this.resourceFilter.onExpressionChange(() => this.handleExcludesChange()));
 	}
 
 	private onActiveEditorChanged(): void {
@@ -236,7 +235,7 @@ export class HistoryService implements IHistoryService {
 		}
 	}
 
-	public reopenLastClosedEditor(): void {
+	reopenLastClosedEditor(): void {
 		this.ensureHistoryLoaded();
 
 		let lastClosedFile = this.recentlyClosedFiles.pop();
@@ -249,7 +248,7 @@ export class HistoryService implements IHistoryService {
 		}
 	}
 
-	public forward(acrossEditors?: boolean): void {
+	forward(acrossEditors?: boolean): void {
 		if (this.stack.length > this.index + 1) {
 			if (acrossEditors) {
 				this.doForwardAcrossEditors();
@@ -287,7 +286,7 @@ export class HistoryService implements IHistoryService {
 		}
 	}
 
-	public back(acrossEditors?: boolean): void {
+	back(acrossEditors?: boolean): void {
 		if (this.index > 0) {
 			if (acrossEditors) {
 				this.doBackAcrossEditors();
@@ -297,7 +296,7 @@ export class HistoryService implements IHistoryService {
 		}
 	}
 
-	public last(): void {
+	last(): void {
 		if (this.lastIndex === -1) {
 			this.back();
 		} else {
@@ -329,7 +328,7 @@ export class HistoryService implements IHistoryService {
 		}
 	}
 
-	public clear(): void {
+	clear(): void {
 		this.ensureHistoryLoaded();
 
 		this.index = -1;
@@ -421,9 +420,9 @@ export class HistoryService implements IHistoryService {
 		this.removeExcludedFromHistory();
 	}
 
-	public remove(input: IEditorInput | IResourceInput): void;
-	public remove(input: FileChangesEvent): void;
-	public remove(arg1: IEditorInput | IResourceInput | FileChangesEvent): void {
+	remove(input: IEditorInput | IResourceInput): void;
+	remove(input: FileChangesEvent): void;
+	remove(arg1: IEditorInput | IResourceInput | FileChangesEvent): void {
 		this.removeFromHistory(arg1);
 		this.removeFromStack(arg1);
 		this.removeFromRecentlyClosedFiles(arg1);
@@ -502,7 +501,7 @@ export class HistoryService implements IHistoryService {
 		this.add(editor.input);
 	}
 
-	public add(input: IEditorInput, selection?: ITextEditorSelection): void {
+	add(input: IEditorInput, selection?: ITextEditorSelection): void {
 		if (!this.navigatingInStack) {
 			this.addOrReplaceInStack(input, selection);
 		}
@@ -667,7 +666,7 @@ export class HistoryService implements IHistoryService {
 		return resourceInput && resourceInput.resource.toString() === resource.toString();
 	}
 
-	public getHistory(): (IEditorInput | IResourceInput)[] {
+	getHistory(): (IEditorInput | IResourceInput)[] {
 		this.ensureHistoryLoaded();
 
 		return this.history.slice(0);
@@ -748,7 +747,7 @@ export class HistoryService implements IHistoryService {
 		}).filter(input => !!input);
 	}
 
-	public getLastActiveWorkspaceRoot(schemeFilter?: string): URI {
+	getLastActiveWorkspaceRoot(schemeFilter?: string): URI {
 
 		// No Folder: return early
 		const folders = this.contextService.getWorkspace().folders;
@@ -796,7 +795,7 @@ export class HistoryService implements IHistoryService {
 		return void 0;
 	}
 
-	public getLastActiveFile(): URI {
+	getLastActiveFile(): URI {
 		const history = this.getHistory();
 		for (let i = 0; i < history.length; i++) {
 			let resource: URI;
@@ -814,9 +813,5 @@ export class HistoryService implements IHistoryService {
 		}
 
 		return void 0;
-	}
-
-	public dispose(): void {
-		this.toUnbind = dispose(this.toUnbind);
 	}
 }

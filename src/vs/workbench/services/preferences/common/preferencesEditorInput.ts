@@ -23,10 +23,6 @@ export class PreferencesEditorInput extends SideBySideEditorInput {
 		return PreferencesEditorInput.ID;
 	}
 
-	public supportsSplitEditor(): boolean {
-		return true;
-	}
-
 	public getTitle(verbosity: Verbosity): string {
 		return this.master.getTitle(verbosity);
 	}
@@ -74,7 +70,7 @@ export class KeybindingsEditorInput extends EditorInput {
 		return nls.localize('keybindingsInputName', "Keyboard Shortcuts");
 	}
 
-	resolve(refresh?: boolean): TPromise<KeybindingsEditorModel> {
+	resolve(): TPromise<KeybindingsEditorModel> {
 		return TPromise.as(this.keybindingsModel);
 	}
 
@@ -101,7 +97,7 @@ export class SettingsEditor2Input extends EditorInput {
 		return nls.localize('settingsEditor2InputName', "Settings (Preview)");
 	}
 
-	resolve(refresh?: boolean): TPromise<DefaultSettingsEditorModel> {
+	resolve(): TPromise<DefaultSettingsEditorModel> {
 		return <TPromise<DefaultSettingsEditorModel>>this.preferencesService.createPreferencesEditorModel(URI.parse('vscode://defaultsettings/0/settings.json'));
 	}
 

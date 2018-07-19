@@ -3,12 +3,12 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { ChildProcess, fork } from 'child_process';
-import { IDisposable } from 'vs/base/common/lifecycle';
+import { ChildProcess, fork, ForkOptions } from 'child_process';
+import { IDisposable, toDisposable, dispose } from 'vs/base/common/lifecycle';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { Delayer } from 'vs/base/common/async';
 import { deepClone, assign } from 'vs/base/common/objects';
-import { Emitter, fromNodeEventEmitter } from 'vs/base/common/event';
+import { Emitter, fromNodeEventEmitter, Event } from 'vs/base/common/event';
 import { createQueuedSender } from 'vs/base/node/processes';
 import { ChannelServer as IPCServer, ChannelClient as IPCClient, IChannelClient, IChannel } from 'vs/base/parts/ipc/common/ipc';
 import { isRemoteConsoleLog, log } from 'vs/base/node/console';
@@ -74,10 +74,13 @@ export interface IIPCOptions {
 export class Client implements IChannelClient, IDisposable {
 
 	private disposeDelayer: Delayer<void>;
-	private activeRequests: TPromise<void>[];
+	private activeRequests: IDisposable[];
 	private child: ChildProcess;
 	private _client: IPCClient;
 	private channels: { [name: string]: IChannel };
+
+	private _onDidProcessExit = new Emitter<{ code: number, signal: string }>();
+	readonly onDidProcessExit = this._onDidProcessExit.event;
 
 	constructor(private modulePath: string, private options: IIPCOptions) {
 		const timeout = options && options.timeout ? options.timeout : 60000;
@@ -89,11 +92,12 @@ export class Client implements IChannelClient, IDisposable {
 	}
 
 	getChannel<T extends IChannel>(channelName: string): T {
-		const call = (command: string, arg: any) => this.request(channelName, command, arg);
-		return { call } as T;
+		const call = (command: string, arg: any) => this.requestPromise(channelName, command, arg);
+		const listen = (event: string, arg: any) => this.requestEvent(channelName, event, arg);
+		return { call, listen } as IChannel as T;
 	}
 
-	protected request(channelName: string, name: string, arg: any): TPromise<void> {
+	protected requestPromise(channelName: string, name: string, arg: any): TPromise<void> {
 		if (!this.disposeDelayer) {
 			return TPromise.wrapError(new Error('disposed'));
 		}
@@ -110,7 +114,7 @@ export class Client implements IChannelClient, IDisposable {
 					return;
 				}
 
-				this.activeRequests.splice(this.activeRequests.indexOf(result), 1);
+				this.activeRequests.splice(this.activeRequests.indexOf(disposable), 1);
 
 				if (this.activeRequests.length === 0) {
 					this.disposeDelayer.trigger(() => this.disposeClient());
@@ -118,14 +122,48 @@ export class Client implements IChannelClient, IDisposable {
 			});
 		}, () => request.cancel());
 
-		this.activeRequests.push(result);
+		const disposable = toDisposable(() => result.cancel());
+		this.activeRequests.push(disposable);
 		return result;
+	}
+
+	protected requestEvent<T>(channelName: string, name: string, arg: any): Event<T> {
+		if (!this.disposeDelayer) {
+			return Event.None;
+		}
+
+		this.disposeDelayer.cancel();
+
+		let listener: IDisposable;
+		const emitter = new Emitter<any>({
+			onFirstListenerAdd: () => {
+				const channel = this.channels[channelName] || (this.channels[channelName] = this.client.getChannel(channelName));
+				const event: Event<T> = channel.listen(name, arg);
+
+				listener = event(emitter.fire, emitter);
+				this.activeRequests.push(listener);
+
+			},
+			onLastListenerRemove: () => {
+				if (!this.activeRequests) {
+					return;
+				}
+
+				this.activeRequests.splice(this.activeRequests.indexOf(listener), 1);
+
+				if (this.activeRequests.length === 0) {
+					this.disposeDelayer.trigger(() => this.disposeClient());
+				}
+			}
+		});
+
+		return emitter.event;
 	}
 
 	private get client(): IPCClient {
 		if (!this._client) {
 			const args = this.options && this.options.args ? this.options.args : [];
-			const forkOpts = Object.create(null);
+			const forkOpts: ForkOptions = Object.create(null);
 
 			forkOpts.env = assign(deepClone(process.env), { 'VSCODE_PARENT_PID': String(process.pid) });
 
@@ -178,15 +216,16 @@ export class Client implements IChannelClient, IDisposable {
 				process.removeListener('exit', onExit);
 
 				if (this.activeRequests) {
-					this.activeRequests.forEach(req => req.cancel());
-					this.activeRequests = [];
+					this.activeRequests = dispose(this.activeRequests);
 				}
 
 				if (code !== 0 && signal !== 'SIGTERM') {
-					console.warn('IPC "' + this.options.serverName + '" crashed with exit code ' + code);
+					console.warn('IPC "' + this.options.serverName + '" crashed with exit code ' + code + ' and signal ' + signal);
 					this.disposeDelayer.cancel();
 					this.disposeClient();
 				}
+
+				this._onDidProcessExit.fire({ code, signal });
 			});
 		}
 
@@ -203,6 +242,7 @@ export class Client implements IChannelClient, IDisposable {
 	}
 
 	dispose() {
+		this._onDidProcessExit.dispose();
 		this.disposeDelayer.cancel();
 		this.disposeDelayer = null;
 		this.disposeClient();

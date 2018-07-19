@@ -5,23 +5,23 @@
 'use strict';
 
 import * as dom from 'vs/base/browser/dom';
-import 'vs/css!./media/symbol-icons';
 import { IMouseEvent } from 'vs/base/browser/mouseEvent';
 import { HighlightedLabel } from 'vs/base/browser/ui/highlightedlabel/highlightedLabel';
 import { values } from 'vs/base/common/collections';
-import { onUnexpectedError } from 'vs/base/common/errors';
 import { createMatches } from 'vs/base/common/filters';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { IDataSource, IFilter, IRenderer, ISorter, ITree } from 'vs/base/parts/tree/browser/tree';
+import 'vs/css!./media/outlineTree';
+import 'vs/css!./media/symbol-icons';
 import { Range } from 'vs/editor/common/core/range';
-import { symbolKindToCssClass, SymbolKind } from 'vs/editor/common/modes';
+import { SymbolKind, symbolKindToCssClass } from 'vs/editor/common/modes';
 import { OutlineElement, OutlineGroup, OutlineModel, TreeElement } from 'vs/editor/contrib/documentSymbols/outlineModel';
 import { localize } from 'vs/nls';
+import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { WorkbenchTreeController } from 'vs/platform/list/browser/listService';
 import { MarkerSeverity } from 'vs/platform/markers/common/markers';
 import { listErrorForeground, listWarningForeground } from 'vs/platform/theme/common/colorRegistry';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 
 export enum OutlineItemCompareType {
 	ByPosition,
@@ -97,14 +97,14 @@ export class OutlineDataSource implements IDataSource {
 		return false;
 	}
 
-	async getChildren(tree: ITree, element: TreeElement): TPromise<TreeElement[]> {
+	getChildren(tree: ITree, element: TreeElement): TPromise<TreeElement[]> {
 		let res = values(element.children);
 		// console.log(element.id + ' with children ' + res.length);
-		return res;
+		return TPromise.wrap(res);
 	}
 
-	async getParent(tree: ITree, element: TreeElement | any): TPromise<TreeElement> {
-		return element && element.parent;
+	getParent(tree: ITree, element: TreeElement | any): TPromise<TreeElement> {
+		return TPromise.wrap(element && element.parent);
 	}
 
 	shouldAutoexpand(tree: ITree, element: TreeElement): boolean {
@@ -162,7 +162,7 @@ export class OutlineRenderer implements IRenderer {
 
 	renderElement(tree: ITree, element: OutlineGroup | OutlineElement, templateId: string, template: OutlineTemplate): void {
 		if (element instanceof OutlineElement) {
-			template.icon.className = `outline-element-icon symbol-icon ${symbolKindToCssClass(element.symbol.kind)}`;
+			template.icon.className = `outline-element-icon ${symbolKindToCssClass(element.symbol.kind)}`;
 			template.label.set(element.symbol.name, element.score ? createMatches(element.score[1]) : undefined, localize('title.template', "{0} ({1})", element.symbol.name, OutlineRenderer._symbolKindNames[element.symbol.kind]));
 			template.detail.innerText = element.symbol.detail || '';
 			this._renderMarkerInfo(element, template);
@@ -182,11 +182,12 @@ export class OutlineRenderer implements IRenderer {
 		}
 
 		const { count, topSev } = element.marker;
-		const color = this._themeService.getTheme().getColor(topSev === MarkerSeverity.Error ? listErrorForeground : listWarningForeground).toString();
+		const color = this._themeService.getTheme().getColor(topSev === MarkerSeverity.Error ? listErrorForeground : listWarningForeground);
+		const cssColor = color ? color.toString() : 'inherit';
 
 		// color of the label
 		if (this.renderProblemColors) {
-			template.labelContainer.style.setProperty('--outline-element-color', color);
+			template.labelContainer.style.setProperty('--outline-element-color', cssColor);
 		} else {
 			template.labelContainer.style.removeProperty('--outline-element-color');
 		}
@@ -200,14 +201,14 @@ export class OutlineRenderer implements IRenderer {
 			dom.removeClass(template.decoration, 'bubble');
 			template.decoration.innerText = count < 10 ? count.toString() : '+9';
 			template.decoration.title = count === 1 ? localize('1.problem', "1 problem in this element") : localize('N.problem', "{0} problems in this element", count);
-			template.decoration.style.setProperty('--outline-element-color', color);
+			template.decoration.style.setProperty('--outline-element-color', cssColor);
 
 		} else {
 			dom.show(template.decoration);
 			dom.addClass(template.decoration, 'bubble');
 			template.decoration.innerText = '\uf052';
 			template.decoration.title = localize('deep.problem', "Contains elements with problems");
-			template.decoration.style.setProperty('--outline-element-color', color);
+			template.decoration.style.setProperty('--outline-element-color', cssColor);
 		}
 	}
 
@@ -281,7 +282,7 @@ export class OutlineTreeState {
 		return { selected, focused, expanded };
 	}
 
-	static async restore(tree: ITree, state: OutlineTreeState, eventPayload: any): TPromise<void> {
+	static async restore(tree: ITree, state: OutlineTreeState, eventPayload: any): Promise<void> {
 		let model = <OutlineModel>tree.getInput();
 		if (!state || !(model instanceof OutlineModel)) {
 			return TPromise.as(undefined);
@@ -307,35 +308,11 @@ export class OutlineTreeState {
 }
 
 export class OutlineController extends WorkbenchTreeController {
-
-	protected onLeftClick(tree: ITree, element: any, event: IMouseEvent, origin: string = 'mouse'): boolean {
-
-		const payload = { origin: origin, originalEvent: event, didClickElement: false };
-
-		if (tree.getInput() === element) {
-			tree.clearFocus(payload);
-			tree.clearSelection(payload);
+	protected shouldToggleExpansion(element: any, event: IMouseEvent, origin: string): boolean {
+		if (element instanceof OutlineElement) {
+			return this.isClickOnTwistie(event);
 		} else {
-			const isMouseDown = event && event.browserEvent && event.browserEvent.type === 'mousedown';
-			if (!isMouseDown) {
-				event.preventDefault(); // we cannot preventDefault onMouseDown because this would break DND otherwise
-			}
-			event.stopPropagation();
-
-			payload.didClickElement = element instanceof OutlineElement && !this.isClickOnTwistie(event);
-
-			tree.domFocus();
-			tree.setSelection([element], payload);
-			tree.setFocus(element, payload);
-
-			if (!payload.didClickElement) {
-				if (tree.isExpanded(element)) {
-					tree.collapse(element).then(null, onUnexpectedError);
-				} else {
-					tree.expand(element).then(null, onUnexpectedError);
-				}
-			}
+			return super.shouldToggleExpansion(element, event, origin);
 		}
-		return true;
 	}
 }

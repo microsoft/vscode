@@ -11,7 +11,7 @@ import * as nls from 'vs/nls';
 import * as lifecycle from 'vs/base/common/lifecycle';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { Builder, $ } from 'vs/base/browser/builder';
-import { SelectBox } from 'vs/base/browser/ui/selectBox/selectBox';
+import { SelectBox, ISelectBoxOptions } from 'vs/base/browser/ui/selectBox/selectBox';
 import { IAction, IActionRunner, Action, IActionChangeEvent, ActionRunner, IRunEvent } from 'vs/base/common/actions';
 import * as DOM from 'vs/base/browser/dom';
 import * as types from 'vs/base/common/types';
@@ -42,8 +42,6 @@ export class BaseActionItem implements IActionItem {
 	public _callOnDispose: lifecycle.IDisposable[];
 	public _context: any;
 	public _action: IAction;
-
-	static MNEMONIC_REGEX: RegExp = /&&(.)/g;
 
 	private _actionRunner: IActionRunner;
 
@@ -156,7 +154,7 @@ export class BaseActionItem implements IActionItem {
 		DOM.EventHelper.stop(event, true);
 
 		let context: any;
-		if (types.isUndefinedOrNull(this._context)) {
+		if (types.isUndefinedOrNull(this._context) || !types.isObject(this._context)) {
 			context = event;
 		} else {
 			context = this._context;
@@ -277,11 +275,7 @@ export class ActionItem extends BaseActionItem {
 
 	public _updateLabel(): void {
 		if (this.options.label) {
-			let label = this.getAction().label;
-			if (label && this.options.isMenu) {
-				label = label.replace(BaseActionItem.MNEMONIC_REGEX, '$1\u0332');
-			}
-			this.$e.text(label);
+			this.$e.text(this.getAction().label);
 		}
 	}
 
@@ -502,6 +496,28 @@ export class ActionBar implements IActionRunner {
 			this.actionsList.setAttribute('aria-label', this.options.ariaLabel);
 		}
 
+		if (this.options.isMenu) {
+			$(this.actionsList).on(DOM.EventType.MOUSE_OVER, (e) => {
+				let target = e.target as HTMLElement;
+				if (!target || !DOM.isAncestor(target, this.actionsList) || target === this.actionsList) {
+					return;
+				}
+
+				while (target.parentElement !== this.actionsList) {
+					target = target.parentElement;
+				}
+
+				if (DOM.hasClass(target, 'action-item') && !DOM.hasClass(target, 'disabled')) {
+					const lastFocusedItem = this.focusedItem;
+					this.setFocusedItem(target);
+
+					if (lastFocusedItem !== this.focusedItem) {
+						this.updateFocus();
+					}
+				}
+			});
+		}
+
 		this.domNode.appendChild(this.actionsList);
 
 		container.appendChild(this.domNode);
@@ -528,6 +544,16 @@ export class ActionBar implements IActionRunner {
 			this.actionsList.setAttribute('aria-label', label);
 		} else {
 			this.actionsList.removeAttribute('aria-label');
+		}
+	}
+
+	private setFocusedItem(element: HTMLElement): void {
+		for (let i = 0; i < this.actionsList.children.length; i++) {
+			let elem = this.actionsList.children[i];
+			if (element === elem) {
+				this.focusedItem = i;
+				break;
+			}
 		}
 	}
 
@@ -565,15 +591,6 @@ export class ActionBar implements IActionRunner {
 		return this.domNode;
 	}
 
-	private _addMnemonic(action: IAction, actionItemElement: HTMLElement): void {
-		let matches = BaseActionItem.MNEMONIC_REGEX.exec(action.label);
-		if (matches && matches.length === 2) {
-			let mnemonic = matches[1];
-
-			actionItemElement.accessKey = mnemonic.toLocaleLowerCase();
-		}
-	}
-
 	public push(arg: IAction | IAction[], options: IActionOptions = {}): void {
 
 		const actions: IAction[] = !Array.isArray(arg) ? [arg] : arg;
@@ -590,10 +607,6 @@ export class ActionBar implements IActionRunner {
 				e.preventDefault();
 				e.stopPropagation();
 			});
-
-			if (options.isMenu) {
-				this._addMnemonic(action, actionItemElement);
-			}
 
 			let item: IActionItem = null;
 
@@ -659,10 +672,12 @@ export class ActionBar implements IActionRunner {
 
 	public focus(selectFirst?: boolean): void {
 		if (selectFirst && typeof this.focusedItem === 'undefined') {
-			this.focusedItem = 0;
+			// Focus the first enabled item
+			this.focusedItem = this.items.length - 1;
+			this.focusNext();
+		} else {
+			this.updateFocus();
 		}
-
-		this.updateFocus();
 	}
 
 	private focusNext(): void {
@@ -779,10 +794,10 @@ export class SelectActionItem extends BaseActionItem {
 	protected selectBox: SelectBox;
 	protected toDispose: lifecycle.IDisposable[];
 
-	constructor(ctx: any, action: IAction, options: string[], selected: number, contextViewProvider: IContextViewProvider
+	constructor(ctx: any, action: IAction, options: string[], selected: number, contextViewProvider: IContextViewProvider, selectBoxOptions?: ISelectBoxOptions
 	) {
 		super(ctx, action);
-		this.selectBox = new SelectBox(options, selected, contextViewProvider);
+		this.selectBox = new SelectBox(options, selected, contextViewProvider, null, selectBoxOptions);
 
 		this.toDispose = [];
 		this.toDispose.push(this.selectBox);

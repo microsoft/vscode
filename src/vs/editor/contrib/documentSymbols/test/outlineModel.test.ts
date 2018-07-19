@@ -12,6 +12,7 @@ import { Range } from 'vs/editor/common/core/range';
 import { IMarker, MarkerSeverity } from 'vs/platform/markers/common/markers';
 import { TextModel } from 'vs/editor/common/model/textModel';
 import URI from 'vs/base/common/uri';
+import { CancellationToken, CancellationTokenSource } from 'vs/base/common/cancellation';
 
 suite('OutlineModel', function () {
 
@@ -26,16 +27,16 @@ suite('OutlineModel', function () {
 			}
 		});
 
-		await OutlineModel.create(model);
+		await OutlineModel.create(model, CancellationToken.None);
 		assert.equal(count, 1);
 
 		// cached
-		await OutlineModel.create(model);
+		await OutlineModel.create(model, CancellationToken.None);
 		assert.equal(count, 1);
 
 		// new version
 		model.applyEdits([{ text: 'XXX', range: new Range(1, 1, 1, 1) }]);
-		await OutlineModel.create(model);
+		await OutlineModel.create(model, CancellationToken.None);
 		assert.equal(count, 2);
 
 		reg.dispose();
@@ -58,13 +59,15 @@ suite('OutlineModel', function () {
 		});
 
 		assert.equal(isCancelled, false);
-		let p1 = OutlineModel.create(model);
-		let p2 = OutlineModel.create(model);
+		let s1 = new CancellationTokenSource();
+		OutlineModel.create(model, s1.token);
+		let s2 = new CancellationTokenSource();
+		OutlineModel.create(model, s2.token);
 
-		p1.cancel();
+		s1.cancel();
 		assert.equal(isCancelled, false);
 
-		p2.cancel();
+		s2.cancel();
 		assert.equal(isCancelled, true);
 
 		reg.dispose();
@@ -149,4 +152,37 @@ suite('OutlineModel', function () {
 		assert.equal(c1.marker, undefined);
 		assert.equal(c2.marker.count, 1);
 	});
+
+	test('OutlineElement - updateMarker/multiple groups', function () {
+
+		let model = new class extends OutlineModel {
+			constructor() {
+				super(null);
+			}
+			readyForTesting() {
+				this._groups = this.children as any;
+			}
+		};
+		model.children['g1'] = new OutlineGroup('g1', model, null, 1);
+		model.children['g1'].children['c1'] = new OutlineElement('c1', model.children['g1'], fakeSymbolInformation(new Range(1, 1, 11, 1)));
+
+		model.children['g2'] = new OutlineGroup('g2', model, null, 1);
+		model.children['g2'].children['c2'] = new OutlineElement('c2', model.children['g2'], fakeSymbolInformation(new Range(1, 1, 7, 1)));
+		model.children['g2'].children['c2'].children['c2.1'] = new OutlineElement('c2.1', model.children['g2'].children['c2'], fakeSymbolInformation(new Range(1, 3, 2, 19)));
+		model.children['g2'].children['c2'].children['c2.2'] = new OutlineElement('c2.2', model.children['g2'].children['c2'], fakeSymbolInformation(new Range(4, 1, 6, 10)));
+
+		model.readyForTesting();
+
+		const data = [
+			fakeMarker(new Range(1, 1, 2, 8)),
+			fakeMarker(new Range(6, 1, 6, 98)),
+		];
+
+		model.updateMarker(data);
+
+		assert.equal(model.children['g1'].children['c1'].marker.count, 2);
+		assert.equal(model.children['g2'].children['c2'].children['c2.1'].marker.count, 1);
+		assert.equal(model.children['g2'].children['c2'].children['c2.2'].marker.count, 1);
+	});
+
 });

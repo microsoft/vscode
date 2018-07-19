@@ -4,13 +4,17 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import { Emitter, Event } from 'vs/base/common/event';
+import { flatten } from 'vs/base/common/arrays';
+import { AsyncEmitter, Emitter, Event } from 'vs/base/common/event';
 import { IRelativePattern, parse } from 'vs/base/common/glob';
 import URI, { UriComponents } from 'vs/base/common/uri';
-import * as vscode from 'vscode';
-import { ExtHostFileSystemEventServiceShape, FileSystemEvents } from './extHost.protocol';
-import { Disposable } from './extHostTypes';
 import { TPromise } from 'vs/base/common/winjs.base';
+import { ExtHostDocumentsAndEditors } from 'vs/workbench/api/node/extHostDocumentsAndEditors';
+import { IExtensionDescription } from 'vs/workbench/services/extensions/common/extensions';
+import * as vscode from 'vscode';
+import { ExtHostFileSystemEventServiceShape, FileSystemEvents, IMainContext, MainContext, ResourceFileEditDto, ResourceTextEditDto, MainThreadTextEditorsShape } from './extHost.protocol';
+import * as typeConverter from './extHostTypeConverters';
+import { Disposable, WorkspaceEdit } from './extHostTypes';
 
 class FileSystemWatcher implements vscode.FileSystemWatcher {
 
@@ -94,16 +98,25 @@ class FileSystemWatcher implements vscode.FileSystemWatcher {
 	}
 }
 
+interface WillRenameListener {
+	extension: IExtensionDescription;
+	(e: vscode.FileWillRenameEvent): any;
+}
+
 export class ExtHostFileSystemEventService implements ExtHostFileSystemEventServiceShape {
 
-	private _onFileEvent = new Emitter<FileSystemEvents>();
-	private _onDidRenameFile = new Emitter<vscode.FileRenameEvent>();
-	private _onWillRenameFile = new Emitter<vscode.FileWillRenameEvent>();
+	private readonly _onFileEvent = new Emitter<FileSystemEvents>();
+	private readonly _onDidRenameFile = new Emitter<vscode.FileRenameEvent>();
+	private readonly _onWillRenameFile = new AsyncEmitter<vscode.FileWillRenameEvent>();
 
 	readonly onDidRenameFile: Event<vscode.FileRenameEvent> = this._onDidRenameFile.event;
-	readonly onWillRenameFile: Event<vscode.FileWillRenameEvent> = this._onWillRenameFile.event;
 
-	constructor() {
+	constructor(
+		mainContext: IMainContext,
+		private readonly _extHostDocumentsAndEditors: ExtHostDocumentsAndEditors,
+		private readonly _mainThreadTextEditors: MainThreadTextEditorsShape = mainContext.getProxy(MainContext.MainThreadTextEditors)
+	) {
+		//
 	}
 
 	public createFileSystemWatcher(globPattern: string | IRelativePattern, ignoreCreateEvents?: boolean, ignoreChangeEvents?: boolean, ignoreDeleteEvents?: boolean): vscode.FileSystemWatcher {
@@ -118,23 +131,54 @@ export class ExtHostFileSystemEventService implements ExtHostFileSystemEventServ
 		this._onDidRenameFile.fire(Object.freeze({ oldUri: URI.revive(oldUri), newUri: URI.revive(newUri) }));
 	}
 
-	$onWillRename(oldUri: UriComponents, newUri: UriComponents): TPromise<any> {
+	getOnWillRenameFileEvent(extension: IExtensionDescription): Event<vscode.FileWillRenameEvent> {
+		return (listener, thisArg, disposables) => {
+			let wrappedListener = <WillRenameListener><any>function () {
+				listener.apply(thisArg, arguments);
+			};
+			wrappedListener.extension = extension;
+			return this._onWillRenameFile.event(wrappedListener, undefined, disposables);
+		};
+	}
 
-		let thenables: Thenable<any>[] = [];
+	$onWillRename(oldUriDto: UriComponents, newUriDto: UriComponents): TPromise<any> {
+		const oldUri = URI.revive(oldUriDto);
+		const newUri = URI.revive(newUriDto);
 
-		this._onWillRenameFile.fire({
-			oldUri: URI.revive(oldUri),
-			newUri: URI.revive(newUri),
-			waitUntil(thenable: Thenable<any>): void {
-				if (Object.isFrozen(thenables)) {
-					throw new Error('waitUntil cannot be called async');
+		const edits: WorkspaceEdit[] = [];
+		return TPromise.wrap(this._onWillRenameFile.fireAsync((bucket, listener) => {
+			return {
+				oldUri,
+				newUri,
+				waitUntil: (thenable: Thenable<vscode.WorkspaceEdit>): void => {
+					if (Object.isFrozen(bucket)) {
+						throw new TypeError('waitUntil cannot be called async');
+					}
+					const index = bucket.length;
+					const wrappedThenable = TPromise.as(thenable).then(result => {
+						// ignore all results except for WorkspaceEdits. Those
+						// are stored in a spare array
+						if (result instanceof WorkspaceEdit) {
+							edits[index] = result;
+						}
+					});
+					bucket.push(wrappedThenable);
 				}
-				thenables.push(thenable.then(undefined, err => console.error(err)));
+			};
+		}).then(() => {
+			if (edits.length === 0) {
+				return undefined;
 			}
-		});
-
-		Object.freeze(thenables);
-
-		return TPromise.join(thenables);
+			// flatten all WorkspaceEdits collected via waitUntil-call
+			// and apply them in one go.
+			let allEdits = new Array<(ResourceFileEditDto | ResourceTextEditDto)[]>();
+			for (let edit of edits) {
+				if (edit) { // sparse array
+					let { edits } = typeConverter.WorkspaceEdit.from(edit, this._extHostDocumentsAndEditors);
+					allEdits.push(edits);
+				}
+			}
+			return this._mainThreadTextEditors.$tryApplyWorkspaceEdit({ edits: flatten(allEdits) });
+		}));
 	}
 }

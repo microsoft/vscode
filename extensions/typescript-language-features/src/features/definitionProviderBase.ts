@@ -3,15 +3,15 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { TextDocument, Position, CancellationToken, Location } from 'vscode';
-
+import { CancellationToken, Location, Position, TextDocument } from 'vscode';
 import * as Proto from '../protocol';
 import { ITypeScriptServiceClient } from '../typescriptService';
 import * as typeConverters from '../utils/typeConverters';
 
+
 export default class TypeScriptDefinitionProviderBase {
 	constructor(
-		private readonly client: ITypeScriptServiceClient
+		protected readonly client: ITypeScriptServiceClient
 	) { }
 
 	protected async getSymbolLocations(

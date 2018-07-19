@@ -11,7 +11,6 @@ import * as debugActions from 'vs/workbench/parts/debug/browser/debugActions';
 import * as nls from 'vs/nls';
 import * as panel from 'vs/workbench/browser/panel';
 import * as platform from 'vs/base/common/platform';
-import * as terminalCommands from 'vs/workbench/parts/terminal/common/terminalCommands';
 import { Extensions, IConfigurationRegistry } from 'vs/platform/configuration/common/configurationRegistry';
 import { ITerminalService, KEYBINDING_CONTEXT_TERMINAL_FOCUS, KEYBINDING_CONTEXT_TERMINAL_TEXT_SELECTED, TERMINAL_PANEL_ID, KEYBINDING_CONTEXT_TERMINAL_FIND_WIDGET_VISIBLE, TerminalCursorStyle, KEYBINDING_CONTEXT_TERMINAL_FIND_WIDGET_NOT_VISIBLE, DEFAULT_LINE_HEIGHT, DEFAULT_LETTER_SPACING } from 'vs/workbench/parts/terminal/common/terminal';
 import { getTerminalDefaultShellUnixLike, getTerminalDefaultShellWindows } from 'vs/workbench/parts/terminal/node/terminal';
@@ -37,6 +36,8 @@ import { CommandsRegistry } from 'vs/platform/commands/common/commands';
 import { TogglePanelAction } from 'vs/workbench/browser/parts/panel/panelActions';
 import { TerminalPanel } from 'vs/workbench/parts/terminal/electron-browser/terminalPanel';
 import { TerminalPickerHandler } from 'vs/workbench/parts/terminal/browser/terminalQuickOpen';
+import { setupTerminalCommands, TERMINAL_COMMAND_ID } from 'vs/workbench/parts/terminal/common/terminalCommands';
+import { setupTerminalMenu } from 'vs/workbench/parts/terminal/common/terminalMenu';
 
 const quickOpenRegistry = (Registry.as<IQuickOpenRegistry>(QuickOpenExtensions.Quickopen));
 
@@ -117,6 +118,11 @@ configurationRegistry.registerConfiguration({
 		},
 		'terminal.integrated.macOptionIsMeta': {
 			'description': nls.localize('terminal.integrated.macOptionIsMeta', "Treat the option key as the meta key in the terminal on macOS."),
+			'type': 'boolean',
+			'default': false
+		},
+		'terminal.integrated.macOptionClickForcesSelection': {
+			'description': nls.localize('terminal.integrated.macOptionClickForcesSelection', "Whether to force selection when using Option+click on macOS. This will force a regular (line) selection and disallow the use of column selection mode. This enables copying and pasting using the regular terminal selection, for example, when mouse mode is enabled in tmux."),
 			'type': 'boolean',
 			'default': false
 		},
@@ -221,17 +227,50 @@ configurationRegistry.registerConfiguration({
 				'type': 'string'
 			},
 			'default': [
+				TERMINAL_COMMAND_ID.CLEAR_SELECTION,
+				TERMINAL_COMMAND_ID.CLEAR,
+				TERMINAL_COMMAND_ID.COPY_SELECTION,
+				TERMINAL_COMMAND_ID.DELETE_WORD_LEFT,
+				TERMINAL_COMMAND_ID.DELETE_WORD_RIGHT,
+				TERMINAL_COMMAND_ID.FIND_WIDGET_FOCUS,
+				TERMINAL_COMMAND_ID.FIND_WIDGET_HIDE,
+				TERMINAL_COMMAND_ID.FOCUS_NEXT_PANE,
+				TERMINAL_COMMAND_ID.FOCUS_NEXT,
+				TERMINAL_COMMAND_ID.FOCUS_PREVIOUS_PANE,
+				TERMINAL_COMMAND_ID.FOCUS_PREVIOUS,
+				TERMINAL_COMMAND_ID.FOCUS,
+				TERMINAL_COMMAND_ID.KILL,
+				TERMINAL_COMMAND_ID.MOVE_TO_LINE_END,
+				TERMINAL_COMMAND_ID.MOVE_TO_LINE_START,
+				TERMINAL_COMMAND_ID.NEW_IN_ACTIVE_WORKSPACE,
+				TERMINAL_COMMAND_ID.NEW,
+				TERMINAL_COMMAND_ID.PASTE,
+				TERMINAL_COMMAND_ID.RESIZE_PANE_DOWN,
+				TERMINAL_COMMAND_ID.RESIZE_PANE_LEFT,
+				TERMINAL_COMMAND_ID.RESIZE_PANE_RIGHT,
+				TERMINAL_COMMAND_ID.RESIZE_PANE_UP,
+				TERMINAL_COMMAND_ID.RUN_ACTIVE_FILE,
+				TERMINAL_COMMAND_ID.RUN_SELECTED_TEXT,
+				TERMINAL_COMMAND_ID.SCROLL_DOWN_LINE,
+				TERMINAL_COMMAND_ID.SCROLL_DOWN_PAGE,
+				TERMINAL_COMMAND_ID.SCROLL_TO_BOTTOM,
+				TERMINAL_COMMAND_ID.SCROLL_TO_NEXT_COMMAND,
+				TERMINAL_COMMAND_ID.SCROLL_TO_PREVIOUS_COMMAND,
+				TERMINAL_COMMAND_ID.SCROLL_TO_TOP,
+				TERMINAL_COMMAND_ID.SCROLL_UP_LINE,
+				TERMINAL_COMMAND_ID.SCROLL_UP_PAGE,
+				TERMINAL_COMMAND_ID.SELECT_ALL,
+				TERMINAL_COMMAND_ID.SELECT_TO_NEXT_COMMAND,
+				TERMINAL_COMMAND_ID.SELECT_TO_NEXT_LINE,
+				TERMINAL_COMMAND_ID.SELECT_TO_PREVIOUS_COMMAND,
+				TERMINAL_COMMAND_ID.SELECT_TO_PREVIOUS_LINE,
+				TERMINAL_COMMAND_ID.SPLIT_IN_ACTIVE_WORKSPACE,
+				TERMINAL_COMMAND_ID.SPLIT,
+				TERMINAL_COMMAND_ID.TOGGLE,
 				ToggleTabFocusModeAction.ID,
 				QUICKOPEN_ACTION_ID,
 				QUICKOPEN_FOCUS_SECONDARY_ACTION_ID,
 				ShowAllCommandsAction.ID,
-				CreateNewTerminalAction.ID,
-				CreateNewInActiveWorkspaceTerminalAction.ID,
-				CopyTerminalSelectionAction.ID,
-				KillTerminalAction.ID,
-				FocusActiveTerminalAction.ID,
-				FocusPreviousTerminalAction.ID,
-				FocusNextTerminalAction.ID,
 				'workbench.action.tasks.build',
 				'workbench.action.tasks.restartTask',
 				'workbench.action.tasks.runTask',
@@ -255,18 +294,6 @@ configurationRegistry.registerConfiguration({
 				'workbench.action.focusSixthEditorGroup',
 				'workbench.action.focusSeventhEditorGroup',
 				'workbench.action.focusEighthEditorGroup',
-				TerminalPasteAction.ID,
-				RunSelectedTextInTerminalAction.ID,
-				RunActiveFileInTerminalAction.ID,
-				ToggleTerminalAction.ID,
-				ScrollDownTerminalAction.ID,
-				ScrollDownPageTerminalAction.ID,
-				ScrollToBottomTerminalAction.ID,
-				ScrollUpTerminalAction.ID,
-				ScrollUpPageTerminalAction.ID,
-				ScrollToTopTerminalAction.ID,
-				ClearTerminalAction.ID,
-				ClearSelectionTerminalAction.ID,
 				debugActions.StartAction.ID,
 				debugActions.StopAction.ID,
 				debugActions.RunAction.ID,
@@ -283,33 +310,12 @@ configurationRegistry.registerConfiguration({
 				FocusLastGroupAction.ID,
 				OpenFirstEditorInGroup.ID,
 				OpenLastEditorInGroup.ID,
-				SelectAllTerminalAction.ID,
-				FocusTerminalFindWidgetAction.ID,
-				HideTerminalFindWidgetAction.ID,
 				NavigateUpAction.ID,
 				NavigateDownAction.ID,
 				NavigateRightAction.ID,
 				NavigateLeftAction.ID,
-				DeleteWordLeftTerminalAction.ID,
-				DeleteWordRightTerminalAction.ID,
-				MoveToLineStartTerminalAction.ID,
-				MoveToLineEndTerminalAction.ID,
 				TogglePanelAction.ID,
-				'workbench.action.quickOpenView',
-				SplitTerminalAction.ID,
-				SplitInActiveWorkspaceTerminalAction.ID,
-				FocusPreviousPaneTerminalAction.ID,
-				FocusNextPaneTerminalAction.ID,
-				ResizePaneLeftTerminalAction.ID,
-				ResizePaneRightTerminalAction.ID,
-				ResizePaneUpTerminalAction.ID,
-				ResizePaneDownTerminalAction.ID,
-				ScrollToPreviousCommandAction.ID,
-				ScrollToNextCommandAction.ID,
-				SelectToPreviousCommandAction.ID,
-				SelectToNextCommandAction.ID,
-				SelectToPreviousLineAction.ID,
-				SelectToNextLineAction.ID
+				'workbench.action.quickOpenView'
 			].sort()
 		},
 		'terminal.integrated.env.osx': {
@@ -347,10 +353,10 @@ configurationRegistry.registerConfiguration({
 			'default': false
 		},
 		'terminal.integrated.experimentalTextureCachingStrategy': {
-			'description': nls.localize('terminal.integrated.experimentalTextureCachingStrategy', "Controls how the terminal stores glyph textures. Changes to this setting will only apply to new terminals."),
+			'description': nls.localize('terminal.integrated.experimentalTextureCachingStrategy', "Controls how the terminal stores glyph textures. `static` is the default and uses a fixed texture to draw the characters from. `dynamic` will draw the characters to the texture as they are needed, this should boost overall performance at the cost of slightly increased draw time the first time a character is drawn. `dynamic` will eventually become the default and this setting will be removed. Changes to this setting will only apply to new terminals."),
 			'type': 'string',
 			'enum': ['static', 'dynamic'],
-			'default': 'static'
+			'default': 'dynamic'
 		},
 	}
 });
@@ -363,7 +369,7 @@ registerSingleton(ITerminalService, TerminalService);
 	nls.localize('terminal', "Terminal"),
 	'terminal',
 	40,
-	ToggleTerminalAction.ID
+	TERMINAL_COMMAND_ID.TOGGLE
 ));
 
 // On mac cmd+` is reserved to cycle between windows, that's why the keybindings use WinCtrl
@@ -528,6 +534,7 @@ actionRegistry.registerWorkbenchAction(new SyncActionDescriptor(SelectToNextComm
 actionRegistry.registerWorkbenchAction(new SyncActionDescriptor(SelectToPreviousLineAction, SelectToPreviousLineAction.ID, SelectToPreviousLineAction.LABEL), 'Terminal: Select To Previous Line', category);
 actionRegistry.registerWorkbenchAction(new SyncActionDescriptor(SelectToNextLineAction, SelectToNextLineAction.ID, SelectToNextLineAction.LABEL), 'Terminal: Select To Next Line', category);
 
-terminalCommands.setup();
+setupTerminalCommands();
+setupTerminalMenu();
 
 registerColors();

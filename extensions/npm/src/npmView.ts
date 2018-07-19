@@ -164,10 +164,14 @@ export class NpmScriptsTreeDataProvider implements TreeDataProvider<TreeItem> {
 	private extractDebugArg(scripts: any, task: Task): [string, number] | undefined {
 		let script: string = scripts[task.name];
 
-		let match = script.match(/--(inspect|debug)(-brk)?(=(\d*))?/);
+		// matches --debug, --debug=1234, --debug-brk, debug-brk=1234, --inspect, 
+		// --inspect=1234, --inspect-brk, --inspect-brk=1234, 
+		// --inspect=localhost:1245, --inspect=127.0.0.1:1234, --inspect=[aa:1:0:0:0]:1234, --inspect=:1234
+		let match = script.match(/--(inspect|debug)(-brk)?(=((\[[0-9a-fA-F:]*\]|[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+|[a-zA-Z0-9\.]*):)?(\d+))?/);
+
 		if (match) {
-			if (match[4]) {
-				return [match[1], parseInt(match[4])];
+			if (match[6]) {
+				return [match[1], parseInt(match[6])];
 			}
 			if (match[1] === 'inspect') {
 				return [match[1], 9229];
@@ -354,7 +358,6 @@ export class NpmScriptsTreeDataProvider implements TreeDataProvider<TreeItem> {
 	private buildTaskTree(tasks: Task[]): Folder[] | PackageJSON[] | NoScripts[] {
 		let folders: Map<String, Folder> = new Map();
 		let packages: Map<String, PackageJSON> = new Map();
-		let scripts: Map<String, NpmScript> = new Map();
 
 		let folder = null;
 		let packageJson = null;
@@ -376,11 +379,8 @@ export class NpmScriptsTreeDataProvider implements TreeDataProvider<TreeItem> {
 					packages.set(fullPath, packageJson);
 				}
 				let fullScriptPath = path.join(packageJson.path, each.name);
-				if (!scripts.get(fullScriptPath)) {
-					let script = new NpmScript(this.extensionContext, packageJson, each);
-					packageJson.addScript(script);
-					scripts.set(fullScriptPath, script);
-				}
+				let script = new NpmScript(this.extensionContext, packageJson, each);
+				packageJson.addScript(script);
 			}
 		});
 		if (folders.size === 1) {

@@ -31,12 +31,12 @@ import { isMacintosh, isWindows, isLinux } from 'vs/base/common/platform';
 import URI from 'vs/base/common/uri';
 import { Color } from 'vs/base/common/color';
 import { trim } from 'vs/base/common/strings';
-import { addDisposableListener, EventType, EventHelper, Dimension, addClass, removeClass } from 'vs/base/browser/dom';
+import { addDisposableListener, EventType, EventHelper, Dimension } from 'vs/base/browser/dom';
 import { IPartService } from 'vs/workbench/services/part/common/partService';
 
 export class TitlebarPart extends Part implements ITitleService {
 
-	public _serviceBrand: any;
+	_serviceBrand: any;
 
 	private static readonly NLS_UNSUPPORTED = nls.localize('patchedWindowTitle', "[Unsupported]");
 	private static readonly NLS_USER_IS_ADMIN = isWindows ? nls.localize('userIsAdmin', "[Administrator]") : nls.localize('userIsSudo', "[Superuser]");
@@ -46,7 +46,9 @@ export class TitlebarPart extends Part implements ITitleService {
 
 	private titleContainer: Builder;
 	private title: Builder;
+	private dragRegion: Builder;
 	private windowControls: Builder;
+	private maxRestoreControl: Builder;
 	private appIcon: Builder;
 
 	private pendingTitle: string;
@@ -83,20 +85,18 @@ export class TitlebarPart extends Part implements ITitleService {
 		this.properties = { isPure: true, isAdmin: false };
 		this.activeEditorListeners = [];
 
-		this.setTitle(this.getWindowTitle());
-
 		this.registerListeners();
 	}
 
 	private registerListeners(): void {
-		this.toUnbind.push(addDisposableListener(window, EventType.BLUR, () => this.onBlur()));
-		this.toUnbind.push(addDisposableListener(window, EventType.FOCUS, () => this.onFocus()));
-		this.toUnbind.push(this.configurationService.onDidChangeConfiguration(e => this.onConfigurationChanged(e)));
-		this.toUnbind.push(this.editorService.onDidActiveEditorChange(() => this.onActiveEditorChange()));
-		this.toUnbind.push(this.contextService.onDidChangeWorkspaceFolders(() => this.setTitle(this.getWindowTitle())));
-		this.toUnbind.push(this.contextService.onDidChangeWorkbenchState(() => this.setTitle(this.getWindowTitle())));
-		this.toUnbind.push(this.contextService.onDidChangeWorkspaceName(() => this.setTitle(this.getWindowTitle())));
-		this.toUnbind.push(this.partService.onMenubarVisibilityChange(this.onMenubarVisibilityChanged, this));
+		this._register(addDisposableListener(window, EventType.BLUR, () => this.onBlur()));
+		this._register(addDisposableListener(window, EventType.FOCUS, () => this.onFocus()));
+		this._register(this.configurationService.onDidChangeConfiguration(e => this.onConfigurationChanged(e)));
+		this._register(this.editorService.onDidActiveEditorChange(() => this.onActiveEditorChange()));
+		this._register(this.contextService.onDidChangeWorkspaceFolders(() => this.setTitle(this.getWindowTitle())));
+		this._register(this.contextService.onDidChangeWorkbenchState(() => this.setTitle(this.getWindowTitle())));
+		this._register(this.contextService.onDidChangeWorkspaceName(() => this.setTitle(this.getWindowTitle())));
+		this._register(this.partService.onMenubarVisibilityChange(this.onMenubarVisibilityChanged, this));
 	}
 
 	private onBlur(): void {
@@ -179,7 +179,7 @@ export class TitlebarPart extends Part implements ITitleService {
 		return title;
 	}
 
-	public updateProperties(properties: ITitleProperties): void {
+	updateProperties(properties: ITitleProperties): void {
 		const isAdmin = typeof properties.isAdmin === 'boolean' ? properties.isAdmin : this.properties.isAdmin;
 		const isPure = typeof properties.isPure === 'boolean' ? properties.isPure : this.properties.isPure;
 
@@ -248,27 +248,31 @@ export class TitlebarPart extends Part implements ITitleService {
 		});
 	}
 
-	public createContentArea(parent: HTMLElement): HTMLElement {
+	createContentArea(parent: HTMLElement): HTMLElement {
 		this.titleContainer = $(parent);
+
+		// Draggable region that we can manipulate for #52522
+		this.dragRegion = $(this.titleContainer).div({ class: 'titlebar-drag-region' });
 
 		// App Icon (Windows/Linux)
 		if (!isMacintosh) {
-			this.appIcon = $(this.titleContainer).div({
-				class: 'window-appicon',
-			}).on(EventType.DBLCLICK, e => {
-				EventHelper.stop(e, true);
+			this.appIcon = $(this.titleContainer).div({ class: 'window-appicon' });
 
-				this.windowService.closeWindow().then(null, errors.onUnexpectedError);
-			});
+			if (isWindows) {
+				this.appIcon.on(EventType.DBLCLICK, e => {
+					EventHelper.stop(e, true);
 
-			// Resizer
-			$(this.titleContainer).div({ class: 'resizer' });
+					this.windowService.closeWindow().then(null, errors.onUnexpectedError);
+				});
+			}
 		}
 
 		// Title
 		this.title = $(this.titleContainer).div({ class: 'window-title' });
 		if (this.pendingTitle) {
 			this.title.text(this.pendingTitle);
+		} else {
+			this.setTitle(this.getWindowTitle());
 		}
 
 		// Maximize/Restore on doubleclick
@@ -297,7 +301,7 @@ export class TitlebarPart extends Part implements ITitleService {
 			});
 
 			// Restore
-			$(this.windowControls).div({ class: 'window-icon window-max-restore' }).on(EventType.CLICK, () => {
+			this.maxRestoreControl = $(this.windowControls).div({ class: 'window-icon window-max-restore' }).on(EventType.CLICK, () => {
 				this.windowService.isMaximized().then((maximized) => {
 					if (maximized) {
 						return this.windowService.unmaximizeWindow();
@@ -315,6 +319,9 @@ export class TitlebarPart extends Part implements ITitleService {
 			const isMaximized = this.windowService.getConfiguration().maximized ? true : false;
 			this.onDidChangeMaximized(isMaximized);
 			this.windowService.onDidChangeMaximize(this.onDidChangeMaximized, this);
+
+			// Resizer
+			$(this.titleContainer).div({ class: 'resizer' });
 		}
 
 		// Since the title area is used to drag the window, we do not want to steal focus from the
@@ -332,17 +339,16 @@ export class TitlebarPart extends Part implements ITitleService {
 	}
 
 	private onDidChangeMaximized(maximized: boolean) {
-		const element = $(this.titleContainer).getHTMLElement().querySelector('.window-max-restore') as HTMLElement;
-		if (!element) {
+		if (!this.maxRestoreControl) {
 			return;
 		}
 
 		if (maximized) {
-			removeClass(element, 'window-maximize');
-			addClass(element, 'window-unmaximize');
+			this.maxRestoreControl.removeClass('window-maximize');
+			this.maxRestoreControl.addClass('window-unmaximize');
 		} else {
-			removeClass(element, 'window-unmaximize');
-			addClass(element, 'window-maximize');
+			this.maxRestoreControl.removeClass('window-unmaximize');
+			this.maxRestoreControl.addClass('window-maximize');
 		}
 	}
 
@@ -417,7 +423,7 @@ export class TitlebarPart extends Part implements ITitleService {
 		return actions;
 	}
 
-	public setTitle(title: string): void {
+	setTitle(title: string): void {
 
 		// Always set the native window title to identify us properly to the OS
 		window.document.title = title;
@@ -500,14 +506,17 @@ export class TitlebarPart extends Part implements ITitleService {
 			let menubarToggled = this.configurationService.getValue<MenuBarVisibility>('window.menuBarVisibility') === 'toggle';
 			if (menubarToggled && this.menubarWidth) {
 				this.title.style('visibility', 'hidden');
+
+				// Hack to fix issue #52522 with layered webkit-app-region elements appearing under cursor
+				this.dragRegion.hide();
+				this.dragRegion.showDelayed(50);
 			} else {
 				this.title.style('visibility', null);
 			}
 		}
 	}
 
-	public layout(dimension: Dimension): Dimension[] {
-
+	layout(dimension: Dimension): Dimension[] {
 		this.updateLayout();
 
 		return super.layout(dimension);
@@ -520,7 +529,7 @@ class ShowItemInFolderAction extends Action {
 		super('showItemInFolder.action.id', label);
 	}
 
-	public run(): TPromise<void> {
+	run(): TPromise<void> {
 		return this.windowsService.showItemInFolder(this.path);
 	}
 }

@@ -13,46 +13,255 @@ declare module 'vscode' {
 		export function sampleFunction(): Thenable<any>;
 	}
 
-	//#region Joh: remote, search provider
+	//#region Rob: search provider
 
+	/**
+	 * The parameters of a query for text search.
+	 */
 	export interface TextSearchQuery {
+		/**
+		 * The text pattern to search for.
+		 */
 		pattern: string;
-		isRegExp: boolean;
-		isCaseSensitive: boolean;
-		isWordMatch: boolean;
+
+		/**
+		 * Whether or not `pattern` should be interpreted as a regular expression.
+		 */
+		isRegExp?: boolean;
+
+		/**
+		 * Whether or not the search should be case-sensitive.
+		 */
+		isCaseSensitive?: boolean;
+
+		/**
+		 * Whether or not to search for whole word matches only.
+		 */
+		isWordMatch?: boolean;
 	}
 
+	/**
+	 * A file glob pattern to match file paths against.
+	 * TODO@roblou - merge this with the GlobPattern docs/definition in vscode.d.ts.
+	 * @see [GlobPattern](#GlobPattern)
+	 */
+	export type GlobString = string;
+
+	/**
+	 * Options common to file and text search
+	 */
 	export interface SearchOptions {
+		/**
+		 * The root folder to search within.
+		 */
 		folder: Uri;
-		includes: string[]; // paths relative to folder
-		excludes: string[];
+
+		/**
+		 * Files that match an `includes` glob pattern should be included in the search.
+		 */
+		includes: GlobString[];
+
+		/**
+		 * Files that match an `excludes` glob pattern should be excluded from the search.
+		 */
+		excludes: GlobString[];
+
+		/**
+		 * Whether external files that exclude files, like .gitignore, should be respected.
+		 * See the vscode setting `"search.useIgnoreFiles"`.
+		 */
 		useIgnoreFiles?: boolean;
+
+		/**
+		 * Whether symlinks should be followed while searching.
+		 * See the vscode setting `"search.followSymlinks"`.
+		 */
 		followSymlinks?: boolean;
+
+		/**
+		 * The maximum number of results to be returned.
+		 */
+		maxResults?: number;
 	}
 
+	/**
+	 * Options that apply to text search.
+	 */
 	export interface TextSearchOptions extends SearchOptions {
-		previewOptions?: any; // total length? # of context lines? leading and trailing # of chars?
+		/**
+		 *  TODO@roblou - total length? # of context lines? leading and trailing # of chars?
+		 */
+		previewOptions?: any;
+
+		/**
+		 * Exclude files larger than `maxFileSize` in bytes.
+		 */
 		maxFileSize?: number;
+
+		/**
+		 * Interpret files using this encoding.
+		 * See the vscode setting `"files.encoding"`
+		 */
 		encoding?: string;
 	}
 
-	export interface FileSearchOptions extends SearchOptions { }
+	/**
+	 * The parameters of a query for file search.
+	 */
+	export interface FileSearchQuery {
+		/**
+		 * The search pattern to match against file paths.
+		 */
+		pattern: string;
 
-	export interface TextSearchResult {
-		path: string;
-		range: Range;
-
-		// For now, preview must be a single line of text
-		preview: { text: string, match: Range };
+		/**
+		 * `cacheKey` has the same value when `provideFileSearchResults` is invoked multiple times during a single quickopen session.
+		 * Providers can optionally use this to cache results at the beginning of a quickopen session and filter results as the user types.
+		 * It will have a different value for each folder searched.
+		 */
+		cacheKey?: string;
 	}
 
+	/**
+	 * Options that apply to file search.
+	 */
+	export interface FileSearchOptions extends SearchOptions { }
+
+	export interface TextSearchResultPreview {
+		/**
+		 * The matching line of text, or a portion of the matching line that contains the match.
+		 * For now, this can only be a single line.
+		 */
+		text: string;
+
+		/**
+		 * The Range within `text` corresponding to the text of the match.
+		 */
+		match: Range;
+	}
+
+	/**
+	 * A match from a text search
+	 */
+	export interface TextSearchResult {
+		/**
+		 * The uri for the matching document.
+		 */
+		uri: Uri;
+
+		/**
+		 * The range of the match within the document.
+		 */
+		range: Range;
+
+		/**
+		 * A preview of the matching line
+		 */
+		preview: TextSearchResultPreview;
+	}
+
+	/**
+	 * A SearchProvider provides search results for files or text in files. It can be invoked by quickopen, the search viewlet, and other extensions.
+	 */
 	export interface SearchProvider {
-		provideFileSearchResults?(options: FileSearchOptions, progress: Progress<string>, token: CancellationToken): Thenable<void>;
+		/**
+		 * Provide the set of files that match a certain file path pattern.
+		 * @param query The parameters for this query.
+		 * @param options A set of options to consider while searching files.
+		 * @param progress A progress callback that must be invoked for all results.
+		 * @param token A cancellation token.
+		 */
+		provideFileSearchResults?(query: FileSearchQuery, options: FileSearchOptions, progress: Progress<Uri>, token: CancellationToken): Thenable<void>;
+
+		/**
+		 * Optional - if the provider makes use of `query.cacheKey`, it can implement this method which is invoked when the cache can be cleared.
+		 * @param cacheKey The same key that was passed as `query.cacheKey`.
+		 */
+		clearCache?(cacheKey: string): void;
+
+		/**
+		 * Provide results that match the given text pattern.
+		 * @param query The parameters for this query.
+		 * @param options A set of options to consider while searching.
+		 * @param progress A progress callback that must be invoked for all results.
+		 * @param token A cancellation token.
+		 */
 		provideTextSearchResults?(query: TextSearchQuery, options: TextSearchOptions, progress: Progress<TextSearchResult>, token: CancellationToken): Thenable<void>;
 	}
 
+	/**
+	 * Options that can be set on a findTextInFiles search.
+	 */
+	export interface FindTextInFilesOptions {
+		/**
+		 * A [glob pattern](#GlobPattern) that defines the files to search for. The glob pattern
+		 * will be matched against the file paths of files relative to their workspace. Use a [relative pattern](#RelativePattern)
+		 * to restrict the search results to a [workspace folder](#WorkspaceFolder).
+		 */
+		include?: GlobPattern;
+
+		/**
+		 * A [glob pattern](#GlobPattern) that defines files and folders to exclude. The glob pattern
+		 * will be matched against the file paths of resulting matches relative to their workspace. When `undefined` only default excludes will
+		 * apply, when `null` no excludes will apply.
+		 */
+		exclude?: GlobPattern | null;
+
+		/**
+		 * The maximum number of results to search for
+		 */
+		maxResults?: number;
+
+		/**
+		 * Whether external files that exclude files, like .gitignore, should be respected.
+		 * See the vscode setting `"search.useIgnoreFiles"`.
+		 */
+		useIgnoreFiles?: boolean;
+
+		/**
+		 * Whether symlinks should be followed while searching.
+		 * See the vscode setting `"search.followSymlinks"`.
+		 */
+		followSymlinks?: boolean;
+
+		/**
+		 * Interpret files using this encoding.
+		 * See the vscode setting `"files.encoding"`
+		 */
+		encoding?: string;
+	}
+
 	export namespace workspace {
+		/**
+		 * Register a search provider.
+		 *
+		 * Only one provider can be registered per scheme.
+		 *
+		 * @param scheme The provider will be invoked for workspace folders that have this file scheme.
+		 * @param provider The provider.
+		 * @return A [disposable](#Disposable) that unregisters this provider when being disposed.
+		 */
 		export function registerSearchProvider(scheme: string, provider: SearchProvider): Disposable;
+
+
+		/**
+		 * Search text in files across all [workspace folders](#workspace.workspaceFolders) in the workspace.
+		 * @param query The query parameters for the search - the search string, whether it's case-sensitive, or a regex, or matches whole words.
+		 * @param callback A callback, called for each result
+		 * @param token A token that can be used to signal cancellation to the underlying search engine.
+		 * @return A thenable that resolves when the search is complete.
+		 */
+		export function findTextInFiles(query: TextSearchQuery, callback: (result: TextSearchResult) => void, token?: CancellationToken): Thenable<void>;
+
+		/**
+		 * Search text in files across all [workspace folders](#workspace.workspaceFolders) in the workspace.
+		 * @param query The query parameters for the search - the search string, whether it's case-sensitive, or a regex, or matches whole words.
+		 * @param options An optional set of query options. Include and exclude patterns, maxResults, etc.
+		 * @param callback A callback, called for each result
+		 * @param token A token that can be used to signal cancellation to the underlying search engine.
+		 * @return A thenable that resolves when the search is complete.
+		 */
+		export function findTextInFiles(query: TextSearchQuery, options: FindTextInFilesOptions, callback: (result: TextSearchResult) => void, token?: CancellationToken): Thenable<void>;
 	}
 
 	//#endregion
@@ -341,7 +550,7 @@ declare module 'vscode' {
 		 * provides access to the raw data stream from the process running within the terminal,
 		 * including VT sequences.
 		 */
-		onData: Event<string>;
+		onDidWriteData: Event<string>;
 	}
 
 	/**
@@ -351,12 +560,12 @@ declare module 'vscode' {
 		/**
 		 * The number of columns in the terminal.
 		 */
-		cols: number;
+		readonly columns: number;
 
 		/**
 		 * The number of rows in the terminal.
 		 */
-		rows: number;
+		readonly rows: number;
 	}
 
 	/**
@@ -368,10 +577,10 @@ declare module 'vscode' {
 	 * created with all its APIs available for use by extensions. When using the Terminal object
 	 * of a TerminalRenderer it acts just like normal only the extension that created the
 	 * TerminalRenderer essentially acts as a process. For example when an
-	 * [Terminal.onData](#Terminal.onData) listener is registered, that will fire when
-	 * [TerminalRenderer.write](#TerminalRenderer.write) is called. Similarly when
+	 * [Terminal.onDidWriteData](#Terminal.onDidWriteData) listener is registered, that will fire
+	 * when [TerminalRenderer.write](#TerminalRenderer.write) is called. Similarly when
 	 * [Terminal.sendText](#Terminal.sendText) is triggered that will fire the
-	 * [TerminalRenderer.onInput](#TerminalRenderer.onInput) event.
+	 * [TerminalRenderer.onDidAcceptInput](#TerminalRenderer.onDidAcceptInput) event.
 	 *
 	 * **Example:** Create a terminal renderer, show it and write hello world in red
 	 * ```typescript
@@ -399,7 +608,7 @@ declare module 'vscode' {
 		 * };
 		 * ```
 		 */
-		dimensions: TerminalDimensions;
+		dimensions: TerminalDimensions | undefined;
 
 		/**
 		 * The maximum dimensions of the terminal, this will be undefined immediately after a
@@ -407,12 +616,12 @@ declare module 'vscode' {
 		 * Listen to [onDidChangeMaximumDimensions](TerminalRenderer.onDidChangeMaximumDimensions)
 		 * to get notified when this value changes.
 		 */
-		readonly maximumDimensions: TerminalDimensions;
+		readonly maximumDimensions: TerminalDimensions | undefined;
 
 		/**
 		 * The corressponding [Terminal](#Terminal) for this TerminalRenderer.
 		 */
-		readonly terminal: Thenable<Terminal>;
+		readonly terminal: Terminal;
 
 		/**
 		 * Write text to the terminal. Unlike [Terminal.sendText](#Terminal.sendText) which sends
@@ -441,49 +650,34 @@ declare module 'vscode' {
 		 * workbench command such as `workbench.action.terminal.runSelectedText`
 		 * ```typescript
 		 * const terminalRenderer = window.createTerminalRenderer('test');
-		 * terminalRenderer.onInput(data => {
+		 * terminalRenderer.onDidAcceptInput(data => {
 		 *   cosole.log(data); // 'Hello world'
 		 * });
 		 * terminalRenderer.terminal.then(t => t.sendText('Hello world'));
 		 * ```
 		 */
-		onInput: Event<string>;
+		readonly onDidAcceptInput: Event<string>;
 
 		/**
 		 * An event which fires when the [maximum dimensions](#TerminalRenderer.maimumDimensions) of
 		 * the terminal renderer change.
 		 */
-		onDidChangeMaximumDimensions: Event<TerminalDimensions>;
+		readonly onDidChangeMaximumDimensions: Event<TerminalDimensions>;
 	}
 
 	export namespace window {
 		/**
-		 * The currently opened terminals or an empty array.
-		 *
-		 * @readonly
-		 */
-		export let terminals: Terminal[];
-
-		/**
 		 * The currently active terminal or `undefined`. The active terminal is the one that
 		 * currently has focus or most recently had focus.
-		 *
-		 * @readonly
 		 */
-		export let activeTerminal: Terminal | undefined;
+		export const activeTerminal: Terminal | undefined;
 
 		/**
 		 * An [event](#Event) which fires when the [active terminal](#window.activeTerminal)
-		 * has changed. *Note* that the event also fires when the active editor changes
+		 * has changed. *Note* that the event also fires when the active terminal changes
 		 * to `undefined`.
 		 */
 		export const onDidChangeActiveTerminal: Event<Terminal | undefined>;
-
-		/**
-		 * An [event](#Event) which fires when a terminal has been created, either through the
-		 * [createTerminal](#window.createTerminal) API or commands.
-		 */
-		export const onDidOpenTerminal: Event<Terminal>;
 
 		/**
 		 * Create a [TerminalRenderer](#TerminalRenderer).
@@ -491,22 +685,6 @@ declare module 'vscode' {
 		 * @param name The name of the terminal renderer, this shows up in the terminal selector.
 		 */
 		export function createTerminalRenderer(name: string): TerminalRenderer;
-	}
-
-	//#endregion
-
-	//#region URLs
-
-	export interface ProtocolHandler {
-		handleUri(uri: Uri): void;
-	}
-
-	export namespace window {
-
-		/**
-		 * Registers a protocol handler capable of handling system-wide URIs.
-		 */
-		export function registerProtocolHandler(handler: ProtocolHandler): Disposable;
 	}
 
 	//#endregion
@@ -523,96 +701,279 @@ declare module 'vscode' {
 
 	export namespace window {
 
+		/**
+		 * A back button for [QuickPick](#QuickPick) and [InputBox](#InputBox).
+		 *
+		 * When a navigation 'back' button is needed this one should be used for consistency.
+		 * It comes with a predefined icon, tooltip and location.
+		 */
 		export const quickInputBackButton: QuickInputButton;
 
 		/**
-		 * Implementation incomplete. See #49340.
+		 * Creates a [QuickPick](#QuickPick) to let the user pick an item from a list
+		 * of items of type T.
+		 *
+		 * Note that in many cases the more convenient [window.showQuickPick](#window.showQuickPick)
+		 * is easier to use. [window.createQuickPick](#window.createQuickPick) should be used
+		 * when [window.showQuickPick](#window.showQuickPick) does not offer the required flexibility.
+		 *
+		 * @return A new [QuickPick](#QuickPick).
 		 */
-		export function createQuickPick(): QuickPick;
+		export function createQuickPick<T extends QuickPickItem>(): QuickPick<T>;
 
 		/**
-		 * Implementation incomplete. See #49340.
+		 * Creates a [InputBox](#InputBox) to let the user enter some text input.
+		 *
+		 * Note that in many cases the more convenient [window.showInputBox](#window.showInputBox)
+		 * is easier to use. [window.createInputBox](#window.createInputBox) should be used
+		 * when [window.showInputBox](#window.showInputBox) does not offer the required flexibility.
+		 *
+		 * @return A new [InputBox](#InputBox).
 		 */
 		export function createInputBox(): InputBox;
 	}
 
+	/**
+	 * A light-weight user input UI that is intially not visible. After
+	 * configuring it through its properties the extension can make it
+	 * visible by calling [QuickInput.show](#QuickInput.show).
+	 *
+	 * There are several reasons why this UI might have to be hidden and
+	 * the extension will be notified through [QuickInput.onDidHide](#QuickInput.onDidHide).
+	 * (Examples include: an explict call to [QuickInput.hide](#QuickInput.hide),
+	 * the user pressing Esc, some other input UI opening, etc.)
+	 *
+	 * A user pressing Enter or some other gesture implying acceptance
+	 * of the current state does not automatically hide this UI component.
+	 * It is up to the extension to decide whether to accept the user's input
+	 * and if the UI should indeed be hidden through a call to [QuickInput.hide](#QuickInput.hide).
+	 *
+	 * When the extension no longer needs this input UI, it should
+	 * [QuickInput.dispose](#QuickInput.dispose) it to allow for freeing up
+	 * any resources associated with it.
+	 *
+	 * See [QuickPick](#QuickPick) and [InputBox](#InputBox) for concrete UIs.
+	 */
 	export interface QuickInput {
 
+		/**
+		 * An optional title.
+		 */
 		title: string | undefined;
 
+		/**
+		 * An optional current step count.
+		 */
 		step: number | undefined;
 
+		/**
+		 * An optional total step count.
+		 */
 		totalSteps: number | undefined;
 
+		/**
+		 * If the UI should allow for user input. Defaults to true.
+		 *
+		 * Change this to false, e.g., while validating user input or
+		 * loading data for the next step in user input.
+		 */
 		enabled: boolean;
 
+		/**
+		 * If the UI should show a progress indicator. Defaults to false.
+		 *
+		 * Change this to true, e.g., while loading more data or validating
+		 * user input.
+		 */
 		busy: boolean;
 
+		/**
+		 * If the UI should stay open even when loosing UI focus. Defaults to false.
+		 */
 		ignoreFocusOut: boolean;
 
+		/**
+		 * Makes the input UI visible in its current configuration. Any other input
+		 * UI will first fire an [QuickInput.onDidHide](#QuickInput.onDidHide) event.
+		 */
 		show(): void;
 
+		/**
+		 * Hides this input UI. This will also fire an [QuickInput.onDidHide](#QuickInput.onDidHide)
+		 * event.
+		 */
 		hide(): void;
 
+		/**
+		 * An event signaling when this input UI is hidden.
+		 *
+		 * There are several reasons why this UI might have to be hidden and
+		 * the extension will be notified through [QuickInput.onDidHide](#QuickInput.onDidHide).
+		 * (Examples include: an explict call to [QuickInput.hide](#QuickInput.hide),
+		 * the user pressing Esc, some other input UI opening, etc.)
+		 */
 		onDidHide: Event<void>;
 
+		/**
+		 * Dispose of this input UI and any associated resources. If it is still
+		 * visible, it is first hidden. After this call the input UI is no longer
+		 * functional and no additional methods or properties on it should be
+		 * accessed. Instead a new input UI should be created.
+		 */
 		dispose(): void;
 	}
 
-	export interface QuickPick extends QuickInput {
+	/**
+	 * A concrete [QuickInput](#QuickInput) to let the user pick an item from a
+	 * list of items of type T. The items can be filtered through a filter text field and
+	 * there is an option [canSelectMany](#QuickPick.canSelectMany) to allow for
+	 * selecting multiple items.
+	 *
+	 * Note that in many cases the more convenient [window.showQuickPick](#window.showQuickPick)
+	 * is easier to use. [window.createQuickPick](#window.createQuickPick) should be used
+	 * when [window.showQuickPick](#window.showQuickPick) does not offer the required flexibility.
+	 */
+	export interface QuickPick<T extends QuickPickItem> extends QuickInput {
 
+		/**
+		 * Current value of the filter text.
+		 */
 		value: string;
 
+		/**
+		 * Optional placeholder in the filter text.
+		 */
 		placeholder: string | undefined;
 
+		/**
+		 * An event signaling when the value of the filter text has changed.
+		 */
 		readonly onDidChangeValue: Event<string>;
 
+		/**
+		 * An event signaling when the user indicated acceptance of the selected item(s).
+		 */
 		readonly onDidAccept: Event<void>;
 
+		/**
+		 * Buttons for actions in the UI.
+		 */
 		buttons: ReadonlyArray<QuickInputButton>;
 
+		/**
+		 * An event signaling when a button was triggered.
+		 */
 		readonly onDidTriggerButton: Event<QuickInputButton>;
 
-		items: ReadonlyArray<QuickPickItem>;
+		/**
+		 * Items to pick from.
+		 */
+		items: ReadonlyArray<T>;
 
+		/**
+		 * If multiple items can be selected at the same time. Defaults to false.
+		 */
 		canSelectMany: boolean;
 
+		/**
+		 * If the filter text should also be matched against the description of the items. Defaults to false.
+		 */
 		matchOnDescription: boolean;
 
+		/**
+		 * If the filter text should also be matched against the detail of the items. Defaults to false.
+		 */
 		matchOnDetail: boolean;
 
-		readonly activeItems: ReadonlyArray<QuickPickItem>;
+		/**
+		 * Active items. This can be read and updated by the extension.
+		 */
+		activeItems: ReadonlyArray<T>;
 
-		readonly onDidChangeActive: Event<QuickPickItem[]>;
+		/**
+		 * An event signaling when the active items have changed.
+		 */
+		readonly onDidChangeActive: Event<T[]>;
 
-		readonly selectedItems: ReadonlyArray<QuickPickItem>;
+		/**
+		 * Selected items. This can be read and updated by the extension.
+		 */
+		selectedItems: ReadonlyArray<T>;
 
-		readonly onDidChangeSelection: Event<QuickPickItem[]>;
+		/**
+		 * An event signaling when the selected items have changed.
+		 */
+		readonly onDidChangeSelection: Event<T[]>;
 	}
 
+	/**
+	 * A concrete [QuickInput](#QuickInput) to let the user input a text value.
+	 *
+	 * Note that in many cases the more convenient [window.showInputBox](#window.showInputBox)
+	 * is easier to use. [window.createInputBox](#window.createInputBox) should be used
+	 * when [window.showInputBox](#window.showInputBox) does not offer the required flexibility.
+	 */
 	export interface InputBox extends QuickInput {
 
+		/**
+		 * Current input value.
+		 */
 		value: string;
 
+		/**
+		 * Optional placeholder in the filter text.
+		 */
 		placeholder: string | undefined;
 
+		/**
+		 * If the input value should be hidden. Defaults to false.
+		 */
 		password: boolean;
 
+		/**
+		 * An event signaling when the value has changed.
+		 */
 		readonly onDidChangeValue: Event<string>;
 
+		/**
+		 * An event signaling when the user indicated acceptance of the input value.
+		 */
 		readonly onDidAccept: Event<void>;
 
+		/**
+		 * Buttons for actions in the UI.
+		 */
 		buttons: ReadonlyArray<QuickInputButton>;
 
+		/**
+		 * An event signaling when a button was triggered.
+		 */
 		readonly onDidTriggerButton: Event<QuickInputButton>;
 
+		/**
+		 * An optional prompt text providing some ask or explanation to the user.
+		 */
 		prompt: string | undefined;
 
+		/**
+		 * An optional validation message indicating a problem with the current input value.
+		 */
 		validationMessage: string | undefined;
 	}
 
+	/**
+	 * Button for an action in a [QuickPick](#QuickPick) or [InputBox](#InputBox).
+	 */
 	export interface QuickInputButton {
+
+		/**
+		 * Icon for the button.
+		 */
 		readonly iconPath: string | Uri | { light: string | Uri; dark: string | Uri } | ThemeIcon;
+
+		/**
+		 * An optional tooltip.
+		 */
 		readonly tooltip?: string | undefined;
 	}
 
@@ -620,10 +981,58 @@ declare module 'vscode' {
 
 	//#region joh: https://github.com/Microsoft/vscode/issues/10659
 
+	/**
+	 * A workspace edit is a collection of textual and files changes for
+	 * multiple resources and documents. Use the [applyEdit](#workspace.applyEdit)-function
+	 * to apply a workspace edit. Note that all changes are applied in the same order in which
+	 * they have been added and that invalid sequences like 'delete file a' -> 'insert text in
+	 * file a' causes failure of the operation.
+	 */
 	export interface WorkspaceEdit {
-		createFile(uri: Uri): void;
-		deleteFile(uri: Uri): void;
-		renameFile(oldUri: Uri, newUri: Uri): void;
+
+		/**
+		 * The number of affected resources of textual or resource changes.
+		 */
+		readonly size: number;
+
+		/**
+		 * Create a regular file.
+		 *
+		 * @param uri Uri of the new file..
+		 * @param options Defines if an existing file should be overwritten or be ignored.
+		 */
+		createFile(uri: Uri, options?: { overwrite?: boolean, ignoreIfExists?: boolean }): void;
+
+		/**
+		 * Delete a file or folder.
+		 *
+		 * @param uri The uri of the file that is to be deleted.
+		 */
+		deleteFile(uri: Uri, options?: { recursive?: boolean, ignoreIfNotExists?: boolean }): void;
+
+		/**
+		 * Rename a file or folder.
+		 *
+		 * @param oldUri The existing file.
+		 * @param newUri The new location.
+		 * @param options Defines if existing files should be overwritten.
+		 */
+		renameFile(oldUri: Uri, newUri: Uri, options?: { overwrite?: boolean, ignoreIfExists?: boolean }): void;
+	}
+
+	export namespace workspace {
+		/**
+		 * Make changes to one or many resources as defined by the given
+		 * [workspace edit](#WorkspaceEdit).
+		 *
+		 * The editor implements an 'all-or-nothing'-strategy and that means failure to modify,
+		 * delete, rename, or create one file will abort the operation. In that case, the thenable returned
+		 * by this function resolves to `false`.
+		 *
+		 * @param edit A workspace edit.
+		 * @return A thenable that resolves when the edit could be applied.
+		 */
+		export function applyEdit(edit: WorkspaceEdit): Thenable<boolean>;
 	}
 
 	//#endregion
@@ -637,48 +1046,12 @@ declare module 'vscode' {
 	export interface FileWillRenameEvent {
 		readonly oldUri: Uri;
 		readonly newUri: Uri;
-		waitUntil(thenable: Thenable<any>): void;
+		waitUntil(thenable: Thenable<WorkspaceEdit>): void;
 	}
 
 	export namespace workspace {
 		export const onWillRenameFile: Event<FileWillRenameEvent>;
 		export const onDidRenameFile: Event<FileRenameEvent>;
 	}
-	//#endregion
-
-	//#region Matt: WebView Serializer
-
-	/**
-	 * Restore webview panels that have been persisted when vscode shuts down.
-	 */
-	interface WebviewPanelSerializer {
-		/**
-		 * Restore a webview panel from its seriailzed `state`.
-		 *
-		 * Called when a serialized webview first becomes visible.
-		 *
-		 * @param webviewPanel Webview panel to restore. The serializer should take ownership of this panel.
-		 * @param state Persisted state.
-		 *
-		 * @return Thanble indicating that the webview has been fully restored.
-		 */
-		deserializeWebviewPanel(webviewPanel: WebviewPanel, state: any): Thenable<void>;
-	}
-
-	namespace window {
-		/**
-		 * Registers a webview panel serializer.
-		 *
-		 * Extensions that support reviving should have an `"onWebviewPanel:viewType"` activation method and
-		 * make sure that [registerWebviewPanelSerializer](#registerWebviewPanelSerializer) is called during activation.
-		 *
-		 * Only a single serializer may be registered at a time for a given `viewType`.
-		 *
-		 * @param viewType Type of the webview panel that can be serialized.
-		 * @param serializer Webview serializer.
-		 */
-		export function registerWebviewPanelSerializer(viewType: string, serializer: WebviewPanelSerializer): Disposable;
-	}
-
 	//#endregion
 }

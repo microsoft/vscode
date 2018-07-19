@@ -50,7 +50,7 @@ export class WatchExpressionsView extends TreeViewsViewletPanel {
 		@IInstantiationService private instantiationService: IInstantiationService,
 		@IConfigurationService configurationService: IConfigurationService
 	) {
-		super({ ...(options as IViewletPanelOptions), ariaHeaderLabel: nls.localize('expressionsSection', "Expressions Section") }, keybindingService, contextMenuService, configurationService);
+		super({ ...(options as IViewletPanelOptions), ariaHeaderLabel: nls.localize('watchExpressionsSection', "Watch Expressions Section") }, keybindingService, contextMenuService, configurationService);
 		this.settings = options.viewletSettings;
 
 		this.onWatchExpressionsUpdatedScheduler = new RunOnceScheduler(() => {
@@ -300,16 +300,17 @@ class WatchExpressionsRenderer implements IRenderer {
 		}
 
 		data.name.textContent = watchExpression.name;
+		renderExpressionValue(watchExpression, data.value, {
+			showChanged: true,
+			maxValueLength: MAX_VALUE_RENDER_LENGTH_IN_VIEWLET,
+			preserveWhitespace: false,
+			showHover: true,
+			colorize: true
+		});
+		data.name.title = watchExpression.type ? watchExpression.type : watchExpression.value;
+
 		if (watchExpression.value) {
 			data.name.textContent += ':';
-			renderExpressionValue(watchExpression, data.value, {
-				showChanged: true,
-				maxValueLength: MAX_VALUE_RENDER_LENGTH_IN_VIEWLET,
-				preserveWhitespace: false,
-				showHover: true,
-				colorize: true
-			});
-			data.name.title = watchExpression.type ? watchExpression.type : watchExpression.value;
 		}
 	}
 

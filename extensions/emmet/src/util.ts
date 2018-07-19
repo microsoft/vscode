@@ -47,7 +47,7 @@ export const LANGUAGE_MODES: any = {
 	'typescriptreact': ['!', '.', '}', '*', '$', ']', '0', '1', '2', '3', '4', '5', '6', '7', '8', '9']
 };
 
-const allowedMimeTypesInScriptTag = ['text/html', 'text/plain', 'text/x-template', 'text/template'];
+const allowedMimeTypesInScriptTag = ['text/html', 'text/plain', 'text/x-template', 'text/template', 'text/ng-template'];
 
 const emmetModes = ['html', 'pug', 'slim', 'haml', 'xml', 'xsl', 'jsx', 'css', 'scss', 'sass', 'less', 'stylus'];
 
@@ -285,7 +285,7 @@ function findClosingCommentAfterPosition(document: vscode.TextDocument, position
 /**
  * Returns node corresponding to given position in the given root node
  */
-export function getNode(root: Node | undefined, position: vscode.Position, includeNodeBoundary: boolean = false) {
+export function getNode(root: Node | undefined, position: vscode.Position, includeNodeBoundary: boolean) {
 	if (!root) {
 		return null;
 	}
@@ -310,7 +310,7 @@ export function getNode(root: Node | undefined, position: vscode.Position, inclu
 	return foundNode;
 }
 
-export function getHtmlNode(document: vscode.TextDocument, root: Node | undefined, position: vscode.Position, includeNodeBoundary: boolean = false): HtmlNode | undefined {
+export function getHtmlNode(document: vscode.TextDocument, root: Node | undefined, position: vscode.Position, includeNodeBoundary: boolean): HtmlNode | undefined {
 	let currentNode = <HtmlNode>getNode(root, position, includeNodeBoundary);
 	if (!currentNode) { return; }
 
@@ -532,7 +532,7 @@ export function getCssPropertyFromRule(rule: Rule, name: string): Property | und
  */
 export function getCssPropertyFromDocument(editor: vscode.TextEditor, position: vscode.Position): Property | null | undefined {
 	const rootNode = parseDocument(editor.document);
-	const node = getNode(rootNode, position);
+	const node = getNode(rootNode, position, true);
 
 	if (isStyleSheet(editor.document.languageId)) {
 		return node && node.type === 'property' ? <Property>node : null;
@@ -545,7 +545,7 @@ export function getCssPropertyFromDocument(editor: vscode.TextEditor, position: 
 		&& htmlNode.close.start.isAfter(position)) {
 		let buffer = new DocumentStreamReader(editor.document, htmlNode.start, new vscode.Range(htmlNode.start, htmlNode.end));
 		let rootNode = parseStylesheet(buffer);
-		const node = getNode(rootNode, position);
+		const node = getNode(rootNode, position, true);
 		return (node && node.type === 'property') ? <Property>node : null;
 	}
 }

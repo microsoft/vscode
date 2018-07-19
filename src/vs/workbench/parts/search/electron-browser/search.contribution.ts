@@ -52,7 +52,7 @@ import { getMultiSelectedResources } from 'vs/workbench/parts/files/browser/file
 import { Schemas } from 'vs/base/common/network';
 import { PanelRegistry, Extensions as PanelExtensions, PanelDescriptor } from 'vs/workbench/browser/panel';
 import { IPanelService } from 'vs/workbench/services/panel/common/panelService';
-import { openSearchView, getSearchView, ReplaceAllInFolderAction, ReplaceAllAction, CloseReplaceAction, FocusNextSearchResultAction, FocusPreviousSearchResultAction, ReplaceInFilesAction, FindInFilesAction, toggleCaseSensitiveCommand, toggleRegexCommand, CollapseDeepestExpandedLevelAction, toggleWholeWordCommand, RemoveAction, ReplaceAction, ClearSearchResultsAction, copyPathCommand, copyMatchCommand, copyAllCommand, clearHistoryCommand, FocusNextInputAction, FocusPreviousInputAction } from 'vs/workbench/parts/search/browser/searchActions';
+import { openSearchView, getSearchView, ReplaceAllInFolderAction, ReplaceAllAction, CloseReplaceAction, FocusNextSearchResultAction, FocusPreviousSearchResultAction, ReplaceInFilesAction, FindInFilesAction, toggleCaseSensitiveCommand, toggleRegexCommand, CollapseDeepestExpandedLevelAction, toggleWholeWordCommand, RemoveAction, ReplaceAction, ClearSearchResultsAction, copyPathCommand, copyMatchCommand, copyAllCommand, clearHistoryCommand, FocusNextInputAction, FocusPreviousInputAction, RefreshAction, focusSearchListCommand } from 'vs/workbench/parts/search/browser/searchActions';
 import { VIEW_ID, ISearchConfigurationProperties } from 'vs/platform/search/common/search';
 import { IWorkbenchContributionsRegistry, Extensions as WorkbenchExtensions } from 'vs/workbench/common/contributions';
 import { LifecyclePhase } from 'vs/platform/lifecycle/common/lifecycle';
@@ -331,6 +331,19 @@ MenuRegistry.appendMenuItem(MenuId.SearchContext, {
 	order: 1
 });
 
+CommandsRegistry.registerCommand({
+	id: Constants.FocusSearchListCommandID,
+	handler: focusSearchListCommand
+});
+
+const focusSearchListCommandLabel = nls.localize('focusSearchListCommandLabel', "Focus List");
+const FocusSearchListCommand: ICommandAction = {
+	id: Constants.FocusSearchListCommandID,
+	title: focusSearchListCommandLabel,
+	category
+};
+MenuRegistry.addCommand(FocusSearchListCommand);
+
 const FIND_IN_FOLDER_ID = 'filesExplorer.findInFolder';
 CommandsRegistry.registerCommand({
 	id: FIND_IN_FOLDER_ID,
@@ -365,6 +378,13 @@ CommandsRegistry.registerCommand({
 	id: ClearSearchResultsAction.ID,
 	handler: (accessor, args: any) => {
 		accessor.get(IInstantiationService).createInstance(ClearSearchResultsAction, ClearSearchResultsAction.ID, '').run();
+	}
+});
+
+CommandsRegistry.registerCommand({
+	id: RefreshAction.ID,
+	handler: (accessor, args: any) => {
+		accessor.get(IInstantiationService).createInstance(RefreshAction, RefreshAction.ID, '').run();
 	}
 });
 
@@ -524,7 +544,7 @@ configurationRegistry.registerConfiguration({
 	properties: {
 		'search.exclude': {
 			type: 'object',
-			description: nls.localize('exclude', "Configure glob patterns for excluding files and folders in searches. Inherits all glob patterns from the files.exclude setting."),
+			description: nls.localize('exclude', "Configure glob patterns for excluding files and folders in searches. Inherits all glob patterns from the [`files.exclude`](#files-exclude) setting. Read more about glob patterns [here](https://code.visualstudio.com/docs/editor/codebasics#_advanced-search-options)."),
 			default: { '**/node_modules': true, '**/bower_components': true },
 			additionalProperties: {
 				anyOf: [
@@ -594,4 +614,15 @@ registerLanguageCommand('_executeWorkspaceSymbolProvider', function (accessor, a
 		throw illegalArgument();
 	}
 	return getWorkspaceSymbols(query);
+});
+
+// View menu
+
+MenuRegistry.appendMenuItem(MenuId.MenubarViewMenu, {
+	group: '3_views',
+	command: {
+		id: VIEW_ID,
+		title: nls.localize({ key: 'miViewSearch', comment: ['&& denotes a mnemonic'] }, "&&Search")
+	},
+	order: 2
 });

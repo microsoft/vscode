@@ -4,10 +4,11 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import { IAction, IActionRunner, Action } from 'vs/base/common/actions';
+import { IAction, IActionRunner } from 'vs/base/common/actions';
 import { IActionItem } from 'vs/base/browser/ui/actionbar/actionbar';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { ResolvedKeybinding } from 'vs/base/common/keyCodes';
+import { SubmenuAction } from 'vs/base/browser/ui/menu/menu';
 
 export interface IEvent {
 	shiftKey?: boolean;
@@ -16,9 +17,9 @@ export interface IEvent {
 	metaKey?: boolean;
 }
 
-export class ContextSubMenu extends Action {
+export class ContextSubMenu extends SubmenuAction {
 	constructor(label: string, public entries: (ContextSubMenu | IAction)[]) {
-		super('contextsubmenu', label, '', true);
+		super(label, entries, 'contextsubmenu');
 	}
 }
 

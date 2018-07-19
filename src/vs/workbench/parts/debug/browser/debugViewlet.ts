@@ -66,10 +66,10 @@ export class DebugViewlet extends ViewContainerViewlet {
 		}));
 	}
 
-	async create(parent: HTMLElement): TPromise<void> {
-		await super.create(parent);
-
-		DOM.addClass(parent, 'debug-viewlet');
+	create(parent: HTMLElement): TPromise<void> {
+		return super.create(parent).then(() => {
+			DOM.addClass(parent, 'debug-viewlet');
+		});
 	}
 
 	public focus(): void {
@@ -105,7 +105,7 @@ export class DebugViewlet extends ViewContainerViewlet {
 			return [this.startAction, this.configureAction, this.toggleReplAction];
 		}
 
-		return DebugActionsWidget.getActions(this.allActions, this.toUnbind, this.debugService, this.keybindingService, this.instantiationService);
+		return DebugActionsWidget.getActions(this.allActions, this.toDispose, this.debugService, this.keybindingService, this.instantiationService);
 	}
 
 	public get showInitialDebugActions(): boolean {
@@ -226,7 +226,7 @@ export class FocusWatchViewAction extends Action {
 export class FocusCallStackViewAction extends Action {
 
 	static readonly ID = 'workbench.debug.action.focusCallStackView';
-	static LABEL = nls.localize({ comment: ['Debug is a noun in this context, not a verb.'], key: 'debugFocusCallStackView' }, 'Focus CallStack');
+	static LABEL = nls.localize({ comment: ['Debug is a noun in this context, not a verb.'], key: 'debugFocusCallStackView' }, 'Focus Call Stack');
 
 	constructor(id: string, label: string,
 		@IViewletService private viewletService: IViewletService

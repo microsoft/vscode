@@ -105,6 +105,7 @@ export interface IWindowsService {
 	onWindowBlur: Event<number>;
 	onWindowMaximize: Event<number>;
 	onWindowUnmaximize: Event<number>;
+	onRecentlyOpenedChange: Event<void>;
 
 	// Dialogs
 	pickFileFolderAndOpen(options: INativeOpenDialogOptions): TPromise<void>;
@@ -119,6 +120,7 @@ export interface IWindowsService {
 	openDevTools(windowId: number, options?: IDevToolsOptions): TPromise<void>;
 	toggleDevTools(windowId: number): TPromise<void>;
 	closeWorkspace(windowId: number): TPromise<void>;
+	enterWorkspace(windowId: number, path: string): TPromise<IEnterWorkspaceResult>;
 	createAndEnterWorkspace(windowId: number, folders?: IWorkspaceFolderCreationData[], path?: string): TPromise<IEnterWorkspaceResult>;
 	saveAndEnterWorkspace(windowId: number, path: string): TPromise<IEnterWorkspaceResult>;
 	toggleFullScreen(windowId: number): TPromise<void>;
@@ -161,6 +163,7 @@ export interface IWindowsService {
 	getWindowCount(): TPromise<number>;
 	log(severity: string, ...messages: string[]): TPromise<void>;
 	showItemInFolder(path: string): TPromise<void>;
+	getActiveWindowId(): TPromise<number | undefined>;
 
 	// This needs to be handled from browser process to prevent
 	// foreground ordering issues on Windows
@@ -169,6 +172,7 @@ export interface IWindowsService {
 	// TODO: this is a bit backwards
 	startCrashReporter(config: CrashReporterStartOptions): TPromise<void>;
 
+	openAccessibilityOptions(): TPromise<void>;
 	openAboutDialog(): TPromise<void>;
 }
 
@@ -197,6 +201,7 @@ export interface IWindowService {
 	toggleDevTools(): TPromise<void>;
 	closeWorkspace(): TPromise<void>;
 	updateTouchBar(items: ISerializableCommandAction[][]): TPromise<void>;
+	enterWorkspace(path: string): TPromise<IEnterWorkspaceResult>;
 	createAndEnterWorkspace(folders?: IWorkspaceFolderCreationData[], path?: string): TPromise<IEnterWorkspaceResult>;
 	saveAndEnterWorkspace(path: string): TPromise<IEnterWorkspaceResult>;
 	toggleFullScreen(): TPromise<void>;
@@ -355,19 +360,31 @@ export interface IRunActionInWindowRequest {
 export class ActiveWindowManager implements IDisposable {
 
 	private disposables: IDisposable[] = [];
-	private _activeWindowId: number;
+	private firstActiveWindowIdPromise: TPromise<any> | null;
+	private _activeWindowId: number | undefined;
 
 	constructor(@IWindowsService windowsService: IWindowsService) {
 		const onActiveWindowChange = latch(anyEvent(windowsService.onWindowOpen, windowsService.onWindowFocus));
 		onActiveWindowChange(this.setActiveWindow, this, this.disposables);
+
+		this.firstActiveWindowIdPromise = windowsService.getActiveWindowId()
+			.then(id => (typeof this._activeWindowId === 'undefined') && this.setActiveWindow(id));
 	}
 
 	private setActiveWindow(windowId: number) {
+		if (this.firstActiveWindowIdPromise) {
+			this.firstActiveWindowIdPromise = null;
+		}
+
 		this._activeWindowId = windowId;
 	}
 
-	get activeClientId(): string {
-		return `window:${this._activeWindowId}`;
+	getActiveClientId(): TPromise<string> {
+		if (this.firstActiveWindowIdPromise) {
+			return this.firstActiveWindowIdPromise;
+		}
+
+		return TPromise.as(`window:${this._activeWindowId}`);
 	}
 
 	dispose() {

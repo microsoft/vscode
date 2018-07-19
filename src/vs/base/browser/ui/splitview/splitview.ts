@@ -89,7 +89,8 @@ export namespace Sizing {
 export class SplitView implements IDisposable {
 
 	readonly orientation: Orientation;
-	private el: HTMLElement;
+	// TODO@Joao have the same pattern as grid here
+	readonly el: HTMLElement;
 	private sashContainer: HTMLElement;
 	private viewContainer: HTMLElement;
 	private size = 0;
@@ -424,8 +425,17 @@ export class SplitView implements IDisposable {
 
 		size = typeof size === 'number' ? size : item.size;
 		size = clamp(size, item.view.minimumSize, item.view.maximumSize);
-		item.size = size;
-		this.relayout(index);
+
+		if (this.inverseAltBehavior && index > 0) {
+			// In this case, we want the view to grow or shrink both sides equally
+			// so we just resize the "left" side by half and let `resize` do the clamping magic
+			this.resize(index - 1, Math.floor((item.size - size) / 2));
+			this.distributeEmptySpace();
+			this.layoutViews();
+		} else {
+			item.size = size;
+			this.relayout(index, undefined);
+		}
 	}
 
 	resizeView(index: number, size: number): void {

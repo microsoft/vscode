@@ -16,8 +16,8 @@ import { Queue } from 'vs/base/common/async';
 import { stat, writeFile } from 'vs/base/node/pfs';
 import { IJSONContributionRegistry, Extensions as JSONExtensions } from 'vs/platform/jsonschemas/common/jsonContributionRegistry';
 import { IWorkspaceContextService, Workspace, WorkbenchState, IWorkspaceFolder, toWorkspaceFolders, IWorkspaceFoldersChangeEvent, WorkspaceFolder } from 'vs/platform/workspace/common/workspace';
-import { isLinux, isWindows, isMacintosh } from 'vs/base/common/platform';
 import { IFileService } from 'vs/platform/files/common/files';
+import { isLinux } from 'vs/base/common/platform';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { ConfigurationChangeEvent, ConfigurationModel, DefaultConfigurationModel } from 'vs/platform/configuration/common/configurationModels';
 import { IConfigurationChangeEvent, ConfigurationTarget, IConfigurationOverrides, keyFromOverrideIdentifier, isConfigurationOverrides, IConfigurationData } from 'vs/platform/configuration/common/configuration';
@@ -41,6 +41,7 @@ import { UserConfiguration } from 'vs/platform/configuration/node/configuration'
 import { getBaseLabel } from 'vs/base/common/labels';
 import { IJSONSchema, IJSONSchemaMap } from 'vs/base/common/jsonSchema';
 import { localize } from 'vs/nls';
+import { isEqual } from 'vs/base/common/resources';
 
 export class WorkspaceService extends Disposable implements IWorkspaceConfigurationService, IWorkspaceContextService {
 
@@ -80,7 +81,7 @@ export class WorkspaceService extends Disposable implements IWorkspaceConfigurat
 		this._register(this.userConfiguration.onDidChangeConfiguration(() => this.onUserConfigurationChanged()));
 		this._register(this.workspaceConfiguration.onDidUpdateConfiguration(() => this.onWorkspaceConfigurationChanged()));
 
-		this._register(Registry.as<IConfigurationRegistry>(Extensions.Configuration).onDidRegisterConfiguration(e => this.registerConfigurationSchemas()));
+		this._register(Registry.as<IConfigurationRegistry>(Extensions.Configuration).onDidSchemaChange(e => this.registerConfigurationSchemas()));
 		this._register(Registry.as<IConfigurationRegistry>(Extensions.Configuration).onDidRegisterConfiguration(configurationProperties => this.onDefaultConfigurationChanged(configurationProperties)));
 
 		this.workspaceEditingQueue = new Queue<void>();
@@ -131,11 +132,16 @@ export class WorkspaceService extends Disposable implements IWorkspaceConfigurat
 	public isCurrentWorkspace(workspaceIdentifier: ISingleFolderWorkspaceIdentifier | IWorkspaceIdentifier): boolean {
 		switch (this.getWorkbenchState()) {
 			case WorkbenchState.FOLDER:
-				return isSingleFolderWorkspaceIdentifier(workspaceIdentifier) && this.pathEquals(this.workspace.folders[0].uri.fsPath, workspaceIdentifier);
+				return isSingleFolderWorkspaceIdentifier(workspaceIdentifier) && isEqual(this.workspace.folders[0].uri, this.toUri(workspaceIdentifier), this.workspace.folders[0].uri.scheme !== Schemas.file || !isLinux);
 			case WorkbenchState.WORKSPACE:
 				return isWorkspaceIdentifier(workspaceIdentifier) && this.workspace.id === workspaceIdentifier.id;
 		}
 		return false;
+	}
+
+	private toUri(folderIdentifier: ISingleFolderWorkspaceIdentifier): URI {
+		// TODO:Sandy Change to URI.parse parsing once main sends URIs
+		return URI.file(folderIdentifier);
 	}
 
 	private doUpdateFolders(foldersToAdd: IWorkspaceFolderCreationData[], foldersToRemove: URI[], index?: number): TPromise<void> {
@@ -295,9 +301,9 @@ export class WorkspaceService extends Disposable implements IWorkspaceConfigurat
 		return this._configuration.keys();
 	}
 
-	initialize(arg: IWorkspaceIdentifier | ISingleFolderWorkspaceIdentifier | IWindowConfiguration): TPromise<any> {
+	initialize(arg: IWorkspaceIdentifier | URI | IWindowConfiguration, postInitialisationTask: () => void = () => null): TPromise<any> {
 		return this.createWorkspace(arg)
-			.then(workspace => this.updateWorkspaceAndInitializeConfiguration(workspace));
+			.then(workspace => this.updateWorkspaceAndInitializeConfiguration(workspace, postInitialisationTask));
 	}
 
 	acquireFileService(fileService: IFileService): void {
@@ -322,12 +328,12 @@ export class WorkspaceService extends Disposable implements IWorkspaceConfigurat
 		this.jsonEditingService = instantiationService.createInstance(JSONEditingService);
 	}
 
-	private createWorkspace(arg: IWorkspaceIdentifier | ISingleFolderWorkspaceIdentifier | IWindowConfiguration): TPromise<Workspace> {
+	private createWorkspace(arg: IWorkspaceIdentifier | URI | IWindowConfiguration): TPromise<Workspace> {
 		if (isWorkspaceIdentifier(arg)) {
 			return this.createMulitFolderWorkspace(arg);
 		}
 
-		if (isSingleFolderWorkspaceIdentifier(arg)) {
+		if (arg instanceof URI) {
 			return this.createSingleFolderWorkspace(arg);
 		}
 
@@ -345,27 +351,18 @@ export class WorkspaceService extends Disposable implements IWorkspaceConfigurat
 			});
 	}
 
-	private createSingleFolderWorkspace(singleFolderWorkspaceIdentifier: ISingleFolderWorkspaceIdentifier): TPromise<Workspace> {
-		const folderPath = URI.file(singleFolderWorkspaceIdentifier);
-		return stat(folderPath.fsPath)
-			.then(workspaceStat => {
-				let ctime: number;
-				if (isLinux) {
-					ctime = workspaceStat.ino; // Linux: birthtime is ctime, so we cannot use it! We use the ino instead!
-				} else if (isMacintosh) {
-					ctime = workspaceStat.birthtime.getTime(); // macOS: birthtime is fine to use as is
-				} else if (isWindows) {
-					if (typeof workspaceStat.birthtimeMs === 'number') {
-						ctime = Math.floor(workspaceStat.birthtimeMs); // Windows: fix precision issue in node.js 8.x to get 7.x results (see https://github.com/nodejs/node/issues/19897)
-					} else {
-						ctime = workspaceStat.birthtime.getTime();
-					}
-				}
-
-				const id = createHash('md5').update(folderPath.fsPath).update(ctime ? String(ctime) : '').digest('hex');
-				const folder = URI.file(folderPath.fsPath);
-				return new Workspace(id, getBaseLabel(folder), toWorkspaceFolders([{ path: folder.fsPath }]), null, ctime);
-			});
+	private createSingleFolderWorkspace(folder: URI): TPromise<Workspace> {
+		if (folder.scheme === Schemas.file) {
+			return stat(folder.fsPath)
+				.then(workspaceStat => {
+					const ctime = isLinux ? workspaceStat.ino : workspaceStat.birthtime.getTime(); // On Linux, birthtime is ctime, so we cannot use it! We use the ino instead!
+					const id = createHash('md5').update(folder.fsPath).update(ctime ? String(ctime) : '').digest('hex');
+					return new Workspace(id, getBaseLabel(folder), toWorkspaceFolders([{ path: folder.fsPath }]), null, ctime);
+				});
+		} else {
+			const id = createHash('md5').update(folder.toString()).digest('hex');
+			return TPromise.as(new Workspace(id, getBaseLabel(folder), toWorkspaceFolders([{ uri: folder.toString() }]), null));
+		}
 	}
 
 	private createEmptyWorkspace(configuration: IWindowConfiguration): TPromise<Workspace> {
@@ -373,7 +370,7 @@ export class WorkspaceService extends Disposable implements IWorkspaceConfigurat
 		return TPromise.as(new Workspace(id));
 	}
 
-	private updateWorkspaceAndInitializeConfiguration(workspace: Workspace): TPromise<void> {
+	private updateWorkspaceAndInitializeConfiguration(workspace: Workspace, postInitialisationTask: () => void): TPromise<void> {
 		const hasWorkspaceBefore = !!this.workspace;
 		let previousState: WorkbenchState;
 		let previousWorkspacePath: string;
@@ -389,6 +386,9 @@ export class WorkspaceService extends Disposable implements IWorkspaceConfigurat
 		}
 
 		return this.initializeConfiguration().then(() => {
+
+			postInitialisationTask(); // Post initialisation task should be run before triggering events.
+
 			// Trigger changes after configuration initialization so that configuration is up to date.
 			if (hasWorkspaceBefore) {
 				const newState = this.getWorkbenchState();
@@ -678,15 +678,6 @@ export class WorkspaceService extends Disposable implements IWorkspaceConfigurat
 				return this._configuration.workspace.contents;
 		}
 		return {};
-	}
-
-	private pathEquals(path1: string, path2: string): boolean {
-		if (!isLinux) {
-			path1 = path1.toLowerCase();
-			path2 = path2.toLowerCase();
-		}
-
-		return path1 === path2;
 	}
 }
 

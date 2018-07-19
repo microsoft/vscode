@@ -125,6 +125,15 @@ declare module 'vscode-xterm' {
 		macOptionIsMeta?: boolean;
 
 		/**
+		 * Whether holding a modifier key will force normal selection behavior,
+		 * regardless of whether the terminal is in mouse events mode. This will
+		 * also prevent mouse events from being emitted by the terminal. For example,
+		 * this allows you to use xterm.js' regular selection inside tmux with
+		 * mouse mode enabled.
+		 */
+		macOptionClickForcesSelection?: boolean;
+
+		/**
 		 * (EXPERIMENTAL) The type of renderer to use, this allows using the
 		 * fallback DOM renderer when canvas is too slow for the environment. The
 		 * following features do not work when the DOM renderer is used:
@@ -670,18 +679,37 @@ declare module 'vscode-xterm' {
 
 // Modifications to official .d.ts below
 declare module 'vscode-xterm' {
-	interface Terminal {
+	interface TerminalCore {
 		buffer: {
 			y: number;
 			ybase: number;
 			ydisp: number;
 			x: number;
+			lines: any[];
+
+			translateBufferLineToString(lineIndex: number, trimRight: boolean): string;
 		};
+
+		send(text: string): void;
 
 		/**
 		 * Emit an event on the terminal.
 		 */
 		emit(type: string, data: any): void;
+
+		charMeasure?: { height: number, width: number };
+
+		renderer: {
+			_renderLayers: any[];
+			onIntersectionChange: any;
+		};
+	}
+
+	interface Terminal {
+		_core: TerminalCore;
+
+		webLinksInit(handler?: (event: MouseEvent, uri: string) => void, options?: ILinkMatcherOptions): void;
+		winptyCompatInit(): void;
 
 		/**
 		 * Find the next instance of the term, then scroll to and select it. If it
@@ -698,9 +726,5 @@ declare module 'vscode-xterm' {
 		 * @return Whether a result was found.
 		 */
 		findPrevious(term: string): boolean;
-
-		webLinksInit(handler?: (event: MouseEvent, uri: string) => void, options?: ILinkMatcherOptions): void;
-		winptyCompatInit(): void;
-		charMeasure?: { height: number, width: number };
 	}
 }

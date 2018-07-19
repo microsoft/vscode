@@ -141,7 +141,8 @@ export class LocalizationWorkbenchContribution extends Disposable implements IWo
 					return;
 				}
 
-				const ceintlExtensionSearch = this.galleryService.query({ names: [`MS-CEINTL.vscode-language-pack-${locale}`], pageSize: 1 });
+				const extensionIdPostfix = this.getPossibleChineseMapping(locale);
+				const ceintlExtensionSearch = this.galleryService.query({ names: [`MS-CEINTL.vscode-language-pack-${extensionIdPostfix}`], pageSize: 1 });
 				const tagSearch = this.galleryService.query({ text: `tag:lp-${locale}`, pageSize: 1 });
 
 				TPromise.join([ceintlExtensionSearch, tagSearch]).then(([ceintlResult, tagResult]) => {
@@ -150,7 +151,7 @@ export class LocalizationWorkbenchContribution extends Disposable implements IWo
 					}
 
 					const extensionToInstall = ceintlResult.total === 1 ? ceintlResult.firstPage[0] : tagResult.total === 1 ? tagResult.firstPage[0] : null;
-					const extensionToFetchTranslationsFrom = extensionToInstall || tagResult.total > 0 ? tagResult.firstPage[0] : null;
+					const extensionToFetchTranslationsFrom = extensionToInstall || (tagResult.total > 0 ? tagResult.firstPage[0] : null);
 
 					if (!extensionToFetchTranslationsFrom || !extensionToFetchTranslationsFrom.assets.manifest) {
 						return;
@@ -159,11 +160,21 @@ export class LocalizationWorkbenchContribution extends Disposable implements IWo
 					TPromise.join([this.galleryService.getManifest(extensionToFetchTranslationsFrom), this.galleryService.getCoreTranslation(extensionToFetchTranslationsFrom, locale)])
 						.then(([manifest, translation]) => {
 							const loc = manifest && manifest.contributes && manifest.contributes.localizations && manifest.contributes.localizations.filter(x => x.languageId.toLowerCase() === locale)[0];
+							const languageName = loc ? (loc.languageName || locale) : locale;
 							const languageDisplayName = loc ? (loc.localizedLanguageName || loc.languageName || locale) : locale;
-							const translations = {
-								...minimumTranslatedStrings,
-								...(translation && translation.contents ? translation.contents['vs/platform/node/minimalTranslations'] : {})
-							};
+							const translationsFromPack = translation && translation.contents ? translation.contents['vs/platform/node/minimalTranslations'] : {};
+							const promptMessageKey = extensionToInstall ? 'installAndRestartMessage' : 'showLanguagePackExtensions';
+							const useEnglish = !translationsFromPack[promptMessageKey];
+
+							const translations = {};
+							Object.keys(minimumTranslatedStrings).forEach(key => {
+								if (!translationsFromPack[key] || useEnglish) {
+									translations[key] = minimumTranslatedStrings[key].replace('{0}', languageName);
+								} else {
+									translations[key] = `${translationsFromPack[key].replace('{0}', languageDisplayName)} (${minimumTranslatedStrings[key].replace('{0}', languageName)})`;
+								}
+							});
+
 							const logUserReaction = (userReaction: string) => {
 								/* __GDPR__
 									"languagePackSuggestion:popup" : {
@@ -195,8 +206,7 @@ export class LocalizationWorkbenchContribution extends Disposable implements IWo
 								}
 							};
 
-							const promptMessage = translations[extensionToInstall ? 'installAndRestartMessage' : 'showLanguagePackExtensions']
-								.replace('{0}', languageDisplayName);
+							const promptMessage = translations[promptMessageKey];
 
 							this.notificationService.prompt(
 								Severity.Info,
@@ -224,6 +234,11 @@ export class LocalizationWorkbenchContribution extends Disposable implements IWo
 				});
 			});
 
+	}
+
+	private getPossibleChineseMapping(locale: string): string {
+		locale = locale.toLowerCase();
+		return locale === 'zh-cn' ? 'zh-hans' : locale === 'zh-tw' ? 'zh-hant' : locale;
 	}
 
 	private getLanguagePackExtension(language: string): TPromise<IGalleryExtension> {

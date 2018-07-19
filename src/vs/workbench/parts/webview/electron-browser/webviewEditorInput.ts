@@ -144,11 +144,17 @@ export class WebviewEditorInput extends EditorInput {
 		};
 
 		if (this._webview) {
-			this._webview.options = this._options;
+			this._webview.options = {
+				allowScripts: this._options.enableScripts,
+				allowSvgs: true,
+				enableWrappedPostMessage: true,
+				useSameOriginForRoot: false,
+				localResourceRoots: this._options.localResourceRoots
+			};
 		}
 	}
 
-	public resolve(refresh?: boolean): TPromise<IEditorModel, any> {
+	public resolve(): TPromise<IEditorModel, any> {
 		if (this.reviver && !this._revived) {
 			this._revived = true;
 			return this.reviver.reviveWebview(this).then(() => new EditorModel());

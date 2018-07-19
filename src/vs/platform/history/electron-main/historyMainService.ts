@@ -57,34 +57,38 @@ export class HistoryMainService implements IHistoryMainService {
 		this.addRecentlyOpened([e.workspace], []);
 	}
 
-	public addRecentlyOpened(workspaces: (IWorkspaceIdentifier | ISingleFolderWorkspaceIdentifier)[], files: string[]): void {
+	addRecentlyOpened(workspaces: (IWorkspaceIdentifier | ISingleFolderWorkspaceIdentifier)[], files: string[]): void {
 		if ((workspaces && workspaces.length > 0) || (files && files.length > 0)) {
 			const mru = this.getRecentlyOpened();
 
 			// Workspaces
-			workspaces.forEach(workspace => {
-				const isUntitledWorkspace = !isSingleFolderWorkspaceIdentifier(workspace) && this.workspacesMainService.isUntitledWorkspace(workspace);
-				if (isUntitledWorkspace) {
-					return; // only store saved workspaces
-				}
+			if (Array.isArray(workspaces)) {
+				workspaces.forEach(workspace => {
+					const isUntitledWorkspace = !isSingleFolderWorkspaceIdentifier(workspace) && this.workspacesMainService.isUntitledWorkspace(workspace);
+					if (isUntitledWorkspace) {
+						return; // only store saved workspaces
+					}
 
-				mru.workspaces.unshift(workspace);
-				mru.workspaces = arrays.distinct(mru.workspaces, workspace => this.distinctFn(workspace));
+					mru.workspaces.unshift(workspace);
+					mru.workspaces = arrays.distinct(mru.workspaces, workspace => this.distinctFn(workspace));
 
-				// We do not add to recent documents here because on Windows we do this from a custom
-				// JumpList and on macOS we fill the recent documents in one go from all our data later.
-			});
+					// We do not add to recent documents here because on Windows we do this from a custom
+					// JumpList and on macOS we fill the recent documents in one go from all our data later.
+				});
+			}
 
 			// Files
-			files.forEach((path) => {
-				mru.files.unshift(path);
-				mru.files = arrays.distinct(mru.files, file => this.distinctFn(file));
+			if (Array.isArray(files)) {
+				files.forEach((path) => {
+					mru.files.unshift(path);
+					mru.files = arrays.distinct(mru.files, file => this.distinctFn(file));
 
-				// Add to recent documents (Windows only, macOS later)
-				if (isWindows) {
-					app.addRecentDocument(path);
-				}
-			});
+					// Add to recent documents (Windows only, macOS later)
+					if (isWindows) {
+						app.addRecentDocument(path);
+					}
+				});
+			}
 
 			// Make sure its bounded
 			mru.workspaces = mru.workspaces.slice(0, HistoryMainService.MAX_TOTAL_RECENT_ENTRIES);
@@ -100,7 +104,7 @@ export class HistoryMainService implements IHistoryMainService {
 		}
 	}
 
-	public removeFromRecentlyOpened(pathsToRemove: string[]): void {
+	removeFromRecentlyOpened(pathsToRemove: string[]): void {
 		const mru = this.getRecentlyOpened();
 		let update = false;
 
@@ -162,7 +166,7 @@ export class HistoryMainService implements IHistoryMainService {
 		}
 	}
 
-	public clearRecentlyOpened(): void {
+	clearRecentlyOpened(): void {
 		this.saveRecentlyOpened({ workspaces: [], files: [] });
 		app.clearRecentDocuments();
 
@@ -170,7 +174,7 @@ export class HistoryMainService implements IHistoryMainService {
 		this._onRecentlyOpenedChange.fire();
 	}
 
-	public getRecentlyOpened(currentWorkspace?: IWorkspaceIdentifier | ISingleFolderWorkspaceIdentifier, currentFiles?: IPath[]): IRecentlyOpened {
+	getRecentlyOpened(currentWorkspace?: IWorkspaceIdentifier | ISingleFolderWorkspaceIdentifier, currentFiles?: IPath[]): IRecentlyOpened {
 		let workspaces: (IWorkspaceIdentifier | ISingleFolderWorkspaceIdentifier)[];
 		let files: string[];
 
@@ -216,7 +220,7 @@ export class HistoryMainService implements IHistoryMainService {
 		this.stateService.setItem(HistoryMainService.recentlyOpenedStorageKey, recent);
 	}
 
-	public updateWindowsJumpList(): void {
+	updateWindowsJumpList(): void {
 		if (!isWindows) {
 			return; // only on windows
 		}

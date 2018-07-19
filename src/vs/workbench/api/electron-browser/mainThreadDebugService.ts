@@ -69,7 +69,7 @@ export class MainThreadDebugService implements MainThreadDebugServiceShape, IDeb
 	}
 
 	substituteVariables(folder: IWorkspaceFolder, config: IConfig): TPromise<IConfig> {
-		return this._proxy.$substituteVariables(folder.uri, config);
+		return this._proxy.$substituteVariables(folder ? folder.uri : undefined, config);
 	}
 
 	runInTerminal(args: DebugProtocol.RunInTerminalRequestArguments, config: ITerminalSettings): TPromise<void> {

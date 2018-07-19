@@ -95,7 +95,7 @@ export class JSONEditingService implements IJSONEditingService {
 
 	private hasParseErrors(model: ITextModel): boolean {
 		const parseErrors: json.ParseError[] = [];
-		json.parse(model.getValue(), parseErrors, { allowTrailingComma: true });
+		json.parse(model.getValue(), parseErrors);
 		return parseErrors.length > 0;
 	}
 

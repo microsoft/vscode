@@ -271,18 +271,18 @@ export const TextEdit = {
 
 export namespace WorkspaceEdit {
 	export function from(value: vscode.WorkspaceEdit, documents?: ExtHostDocumentsAndEditors): WorkspaceEditDto {
-		const result: modes.WorkspaceEdit = {
+		const result: WorkspaceEditDto = {
 			edits: []
 		};
-		for (const entry of (value as types.WorkspaceEdit).allEntries()) {
+		for (const entry of (value as types.WorkspaceEdit)._allEntries()) {
 			const [uri, uriOrEdits] = entry;
 			if (Array.isArray(uriOrEdits)) {
 				// text edits
 				let doc = documents ? documents.getDocument(uri.toString()) : undefined;
-				result.edits.push({ resource: uri, modelVersionId: doc && doc.version, edits: uriOrEdits.map(TextEdit.from) });
+				result.edits.push(<ResourceTextEditDto>{ resource: uri, modelVersionId: doc && doc.version, edits: uriOrEdits.map(TextEdit.from) });
 			} else {
 				// resource edits
-				result.edits.push({ oldUri: uri, newUri: uriOrEdits });
+				result.edits.push(<ResourceFileEditDto>{ oldUri: uri, newUri: uriOrEdits, options: entry[2] });
 			}
 		}
 		return result;
@@ -299,7 +299,8 @@ export namespace WorkspaceEdit {
 			} else {
 				result.renameFile(
 					URI.revive((<ResourceFileEditDto>edit).oldUri),
-					URI.revive((<ResourceFileEditDto>edit).newUri)
+					URI.revive((<ResourceFileEditDto>edit).newUri),
+					(<ResourceFileEditDto>edit).options
 				);
 			}
 		}
@@ -412,6 +413,23 @@ export const location = {
 	}
 };
 
+export namespace DefinitionLink {
+	export function from(value: vscode.Location | vscode.DefinitionLink): modes.DefinitionLink {
+		const definitionLink = <vscode.DefinitionLink>value;
+		const location = <vscode.Location>value;
+		return {
+			origin: definitionLink.originSelectionRange
+				? Range.from(definitionLink.originSelectionRange)
+				: undefined,
+			uri: definitionLink.targetUri ? definitionLink.targetUri : location.uri,
+			range: Range.from(definitionLink.targetRange ? definitionLink.targetRange : location.range),
+			selectionRange: definitionLink.targetSelectionRange
+				? Range.from(definitionLink.targetSelectionRange)
+				: undefined,
+		};
+	}
+}
+
 export namespace Hover {
 	export function from(hover: vscode.Hover): modes.Hover {
 		return <modes.Hover>{
@@ -511,6 +529,7 @@ export namespace Suggest {
 		result.documentation = htmlContent.isMarkdownString(suggestion.documentation) ? MarkdownString.to(suggestion.documentation) : suggestion.documentation;
 		result.sortText = suggestion.sortText;
 		result.filterText = suggestion.filterText;
+		result.preselect = suggestion.preselect;
 
 		// 'overwrite[Before|After]'-logic
 		let overwriteBefore = (typeof suggestion.overwriteBefore === 'number') ? suggestion.overwriteBefore : 0;

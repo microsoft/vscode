@@ -4,10 +4,10 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { OutputChannel, window } from 'vscode';
+import * as nls from 'vscode-nls';
 import * as is from './is';
 import { memoize } from './memoize';
 
-import * as nls from 'vscode-nls';
 const localize = nls.loadMessageBundle();
 
 export default class Logger {

@@ -20,7 +20,7 @@ import { InputBox, MessageType } from 'vs/base/browser/ui/inputbox/inputBox';
 import { isMacintosh, isLinux } from 'vs/base/common/platform';
 import * as glob from 'vs/base/common/glob';
 import { FileLabel, IFileLabelOptions } from 'vs/workbench/browser/labels';
-import { IDisposable, dispose, empty as EmptyDisposable } from 'vs/base/common/lifecycle';
+import { IDisposable, dispose, Disposable } from 'vs/base/common/lifecycle';
 import { IFilesConfiguration, SortOrder } from 'vs/workbench/parts/files/common/files';
 import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
 import { FileOperationError, FileOperationResult, IFileService, FileKind } from 'vs/platform/files/common/files';
@@ -56,6 +56,7 @@ import { IDialogService, IConfirmationResult, IConfirmation, getConfirmMessage }
 import { INotificationService } from 'vs/platform/notification/common/notification';
 import { IEditorService, SIDE_GROUP, ACTIVE_GROUP } from 'vs/workbench/services/editor/common/editorService';
 import { fillInContextMenuActions } from 'vs/platform/actions/browser/menuItemActionItem';
+import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 
 export class FileDataSource implements IDataSource {
 	constructor(
@@ -232,7 +233,7 @@ export class FileRenderer implements IRenderer {
 	}
 
 	public renderTemplate(tree: ITree, templateId: string, container: HTMLElement): IFileTemplateData {
-		const elementDisposable = EmptyDisposable;
+		const elementDisposable = Disposable.None;
 		const label = this.instantiationService.createInstance(FileLabel, container, void 0);
 
 		return { elementDisposable, label, container };
@@ -263,7 +264,7 @@ export class FileRenderer implements IRenderer {
 		else {
 			templateData.label.element.style.display = 'none';
 			this.renderInputBox(templateData.container, tree, stat, editableData);
-			templateData.elementDisposable = EmptyDisposable;
+			templateData.elementDisposable = Disposable.None;
 		}
 	}
 
@@ -274,7 +275,11 @@ export class FileRenderer implements IRenderer {
 		const extraClasses = ['explorer-item', 'explorer-item-edited'];
 		const fileKind = stat.isRoot ? FileKind.ROOT_FOLDER : (stat.isDirectory || (stat instanceof NewStatPlaceholder && stat.isDirectoryPlaceholder())) ? FileKind.FOLDER : FileKind.FILE;
 		const labelOptions: IFileLabelOptions = { hidePath: true, hideLabel: true, fileKind, extraClasses };
-		label.setFile(stat.resource, labelOptions);
+
+		const parent = stat.name ? resources.dirname(stat.resource) : stat.resource;
+		const value = stat.name || '';
+
+		label.setFile(parent.with({ path: paths.join(parent.path, value || ' ') }), labelOptions); // Use icon for ' ' if name is empty.
 
 		// Input field for name
 		const inputBox = new InputBox(label.element, this.contextViewService, {
@@ -285,12 +290,10 @@ export class FileRenderer implements IRenderer {
 		});
 		const styler = attachInputBoxStyler(inputBox, this.themeService);
 
-		const parent = resources.dirname(stat.resource);
 		inputBox.onDidChange(value => {
-			label.setFile(parent.with({ path: paths.join(parent.path, value) }), labelOptions); // update label icon while typing!
+			label.setFile(parent.with({ path: paths.join(parent.path, value || ' ') }), labelOptions); // update label icon while typing!
 		});
 
-		const value = stat.name || '';
 		const lastDot = value.lastIndexOf('.');
 
 		inputBox.value = value;
@@ -405,6 +408,7 @@ export class FileController extends WorkbenchTreeController implements IDisposab
 		@IMenuService private menuService: IMenuService,
 		@IContextKeyService contextKeyService: IContextKeyService,
 		@IClipboardService private clipboardService: IClipboardService,
+		@IKeybindingService private keybindingService: IKeybindingService,
 		@IConfigurationService configurationService: IConfigurationService
 	) {
 		super({ clickBehavior: ClickBehavior.ON_MOUSE_UP /* do not change to not break DND */ }, configurationService);
@@ -536,6 +540,9 @@ export class FileController extends WorkbenchTreeController implements IDisposab
 				if (wasCancelled) {
 					tree.domFocus();
 				}
+			},
+			getKeyBinding: (action) => {
+				return this.keybindingService.lookupKeybinding(action.id);
 			},
 			getActionsContext: () => selection && selection.indexOf(stat) >= 0
 				? selection.map((fs: ExplorerItem) => fs.resource)
@@ -678,18 +685,21 @@ export class FileSorter implements ISorter {
 }
 
 // Explorer Filter
+interface CachedParsedExpression {
+	original: glob.IExpression;
+	parsed: glob.ParsedExpression;
+}
+
 export class FileFilter implements IFilter {
 
-	private static readonly MAX_SIBLINGS_FILTER_THRESHOLD = 2000;
-
-	private hiddenExpressionPerRoot: Map<string, glob.IExpression>;
+	private hiddenExpressionPerRoot: Map<string, CachedParsedExpression>;
 	private workspaceFolderChangeListener: IDisposable;
 
 	constructor(
 		@IWorkspaceContextService private contextService: IWorkspaceContextService,
 		@IConfigurationService private configurationService: IConfigurationService
 	) {
-		this.hiddenExpressionPerRoot = new Map<string, glob.IExpression>();
+		this.hiddenExpressionPerRoot = new Map<string, CachedParsedExpression>();
 
 		this.registerListeners();
 	}
@@ -702,9 +712,16 @@ export class FileFilter implements IFilter {
 		let needsRefresh = false;
 		this.contextService.getWorkspace().folders.forEach(folder => {
 			const configuration = this.configurationService.getValue<IFilesConfiguration>({ resource: folder.uri });
-			const excludesConfig = (configuration && configuration.files && configuration.files.exclude) || Object.create(null);
-			needsRefresh = needsRefresh || !objects.equals(this.hiddenExpressionPerRoot.get(folder.uri.toString()), excludesConfig);
-			this.hiddenExpressionPerRoot.set(folder.uri.toString(), objects.deepClone(excludesConfig)); // do not keep the config, as it gets mutated under our hoods
+			const excludesConfig: glob.IExpression = (configuration && configuration.files && configuration.files.exclude) || Object.create(null);
+
+			if (!needsRefresh) {
+				const cached = this.hiddenExpressionPerRoot.get(folder.uri.toString());
+				needsRefresh = !cached || !objects.equals(cached.original, excludesConfig);
+			}
+
+			const excludesConfigCopy = objects.deepClone(excludesConfig); // do not keep the config, as it gets mutated under our hoods
+
+			this.hiddenExpressionPerRoot.set(folder.uri.toString(), { original: excludesConfigCopy, parsed: glob.parse(excludesConfigCopy) } as CachedParsedExpression);
 		});
 
 		return needsRefresh;
@@ -719,18 +736,9 @@ export class FileFilter implements IFilter {
 			return true; // always visible
 		}
 
-		// Workaround for O(N^2) complexity (https://github.com/Microsoft/vscode/issues/9962)
-		let siblingsFn: () => string[];
-		let siblingCount = stat.parent && stat.parent.getChildrenCount();
-		if (siblingCount && siblingCount > FileFilter.MAX_SIBLINGS_FILTER_THRESHOLD) {
-			siblingsFn = () => void 0;
-		} else {
-			siblingsFn = () => stat.parent ? stat.parent.getChildrenNames() : void 0;
-		}
-
 		// Hide those that match Hidden Patterns
-		const expression = this.hiddenExpressionPerRoot.get(stat.root.resource.toString()) || Object.create(null);
-		if (glob.match(expression, paths.normalize(path.relative(stat.root.resource.path, stat.resource.path), true), siblingsFn)) {
+		const cached = this.hiddenExpressionPerRoot.get(stat.root.resource.toString());
+		if (cached && cached.parsed(paths.normalize(path.relative(stat.root.resource.path, stat.resource.path), true), stat.name, name => !!stat.parent.getChild(name))) {
 			return false; // hidden through pattern
 		}
 
@@ -885,6 +893,9 @@ export class FileDragAndDrop extends SimpleFileResourceDragAndDrop {
 		// All (target = file/folder)
 		else {
 			if (target.isDirectory) {
+				if (target.isReadonly) {
+					return DRAG_OVER_REJECT;
+				}
 				return fromDesktop || isCopy ? DRAG_OVER_ACCEPT_BUBBLE_DOWN_COPY(true) : DRAG_OVER_ACCEPT_BUBBLE_DOWN(true);
 			}
 
@@ -945,7 +956,7 @@ export class FileDragAndDrop extends SimpleFileResourceDragAndDrop {
 			}
 
 			// Handle dropped files (only support FileStat as target)
-			else if (target instanceof ExplorerItem) {
+			else if (target instanceof ExplorerItem && !target.isReadonly) {
 				const addFilesAction = this.instantiationService.createInstance(AddFilesAction, tree, target, null);
 
 				return addFilesAction.run(droppedResources.map(res => res.resource));
@@ -1036,6 +1047,10 @@ export class FileDragAndDrop extends SimpleFileResourceDragAndDrop {
 		}
 
 		return tree.expand(target).then(() => {
+
+			if (target.isReadonly) {
+				return void 0;
+			}
 
 			// Reuse duplicate action if user copies
 			if (isCopy) {

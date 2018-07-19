@@ -128,10 +128,11 @@ export interface IFileService {
 	createFolder(resource: URI): TPromise<IFileStat>;
 
 	/**
-	 * Deletes the provided file.  The optional useTrash parameter allows to
-	 * move the file to trash.
+	 * Deletes the provided file. The optional useTrash parameter allows to
+	 * move the file to trash. The optional recursive parameter allows to delete
+	 * non-empty folders recursively.
 	 */
-	del(resource: URI, useTrash?: boolean): TPromise<void>;
+	del(resource: URI, options?: { useTrash?: boolean, recursive?: boolean }): TPromise<void>;
 
 	/**
 	 * Allows to start a watcher that reports file change events on the provided resource.
@@ -156,6 +157,10 @@ export interface FileOverwriteOptions {
 export interface FileWriteOptions {
 	overwrite: boolean;
 	create: boolean;
+}
+
+export interface FileDeleteOptions {
+	recursive: boolean;
 }
 
 export enum FileType {
@@ -196,7 +201,7 @@ export interface IFileSystemProvider {
 	stat(resource: URI): TPromise<IStat>;
 	mkdir(resource: URI): TPromise<void>;
 	readdir(resource: URI): TPromise<[string, FileType][]>;
-	delete(resource: URI): TPromise<void>;
+	delete(resource: URI, opts: FileDeleteOptions): TPromise<void>;
 
 	rename(from: URI, to: URI, opts: FileOverwriteOptions): TPromise<void>;
 	copy?(from: URI, to: URI, opts: FileOverwriteOptions): TPromise<void>;
@@ -228,15 +233,15 @@ export class FileOperationEvent {
 	constructor(private _resource: URI, private _operation: FileOperation, private _target?: IFileStat) {
 	}
 
-	public get resource(): URI {
+	get resource(): URI {
 		return this._resource;
 	}
 
-	public get target(): IFileStat {
+	get target(): IFileStat {
 		return this._target;
 	}
 
-	public get operation(): FileOperation {
+	get operation(): FileOperation {
 		return this._operation;
 	}
 }
@@ -274,7 +279,7 @@ export class FileChangesEvent {
 		this._changes = changes;
 	}
 
-	public get changes() {
+	get changes() {
 		return this._changes;
 	}
 
@@ -283,7 +288,7 @@ export class FileChangesEvent {
 	 * type DELETED, this method will also return true if a folder got deleted that is the parent of the
 	 * provided file path.
 	 */
-	public contains(resource: URI, type: FileChangeType): boolean {
+	contains(resource: URI, type: FileChangeType): boolean {
 		if (!resource) {
 			return false;
 		}
@@ -305,42 +310,42 @@ export class FileChangesEvent {
 	/**
 	 * Returns the changes that describe added files.
 	 */
-	public getAdded(): IFileChange[] {
+	getAdded(): IFileChange[] {
 		return this.getOfType(FileChangeType.ADDED);
 	}
 
 	/**
 	 * Returns if this event contains added files.
 	 */
-	public gotAdded(): boolean {
+	gotAdded(): boolean {
 		return this.hasType(FileChangeType.ADDED);
 	}
 
 	/**
 	 * Returns the changes that describe deleted files.
 	 */
-	public getDeleted(): IFileChange[] {
+	getDeleted(): IFileChange[] {
 		return this.getOfType(FileChangeType.DELETED);
 	}
 
 	/**
 	 * Returns if this event contains deleted files.
 	 */
-	public gotDeleted(): boolean {
+	gotDeleted(): boolean {
 		return this.hasType(FileChangeType.DELETED);
 	}
 
 	/**
 	 * Returns the changes that describe updated files.
 	 */
-	public getUpdated(): IFileChange[] {
+	getUpdated(): IFileChange[] {
 		return this.getOfType(FileChangeType.UPDATED);
 	}
 
 	/**
 	 * Returns if this event contains updated files.
 	 */
-	public gotUpdated(): boolean {
+	gotUpdated(): boolean {
 		return this.hasType(FileChangeType.UPDATED);
 	}
 
@@ -399,6 +404,11 @@ export interface IBaseStat {
 	 * current state of the file or directory.
 	 */
 	etag: string;
+
+	/**
+	 * The resource is readonly.
+	 */
+	isReadonly?: boolean;
 }
 
 /**
@@ -411,11 +421,6 @@ export interface IFileStat extends IBaseStat {
 	 * {{encoding}} has no meaning.
 	 */
 	isDirectory: boolean;
-
-	/**
-	 * The resource is readonly.
-	 */
-	isReadonly?: boolean;
 
 	/**
 	 * The resource is a symbolic link.

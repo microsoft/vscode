@@ -143,6 +143,15 @@ class CodeLensAdapter {
 	}
 }
 
+function convertToDefinitionLinks(value: vscode.Definition): modes.DefinitionLink[] {
+	if (Array.isArray(value)) {
+		return (value as (vscode.DefinitionLink | vscode.Location)[]).map(typeConvert.DefinitionLink.from);
+	} else if (value) {
+		return [typeConvert.DefinitionLink.from(value)];
+	}
+	return undefined;
+}
+
 class DefinitionAdapter {
 
 	constructor(
@@ -150,17 +159,10 @@ class DefinitionAdapter {
 		private readonly _provider: vscode.DefinitionProvider
 	) { }
 
-	provideDefinition(resource: URI, position: IPosition): TPromise<modes.Definition> {
+	provideDefinition(resource: URI, position: IPosition): TPromise<modes.DefinitionLink[]> {
 		let doc = this._documents.getDocumentData(resource).document;
 		let pos = typeConvert.Position.to(position);
-		return asWinJsPromise(token => this._provider.provideDefinition(doc, pos, token)).then(value => {
-			if (Array.isArray(value)) {
-				return value.map(typeConvert.location.from);
-			} else if (value) {
-				return typeConvert.location.from(value);
-			}
-			return undefined;
-		});
+		return asWinJsPromise(token => this._provider.provideDefinition(doc, pos, token)).then(convertToDefinitionLinks);
 	}
 }
 
@@ -171,17 +173,10 @@ class ImplementationAdapter {
 		private readonly _provider: vscode.ImplementationProvider
 	) { }
 
-	provideImplementation(resource: URI, position: IPosition): TPromise<modes.Definition> {
+	provideImplementation(resource: URI, position: IPosition): TPromise<modes.DefinitionLink[]> {
 		let doc = this._documents.getDocumentData(resource).document;
 		let pos = typeConvert.Position.to(position);
-		return asWinJsPromise(token => this._provider.provideImplementation(doc, pos, token)).then(value => {
-			if (Array.isArray(value)) {
-				return value.map(typeConvert.location.from);
-			} else if (value) {
-				return typeConvert.location.from(value);
-			}
-			return undefined;
-		});
+		return asWinJsPromise(token => this._provider.provideImplementation(doc, pos, token)).then(convertToDefinitionLinks);
 	}
 }
 
@@ -192,17 +187,10 @@ class TypeDefinitionAdapter {
 		private readonly _provider: vscode.TypeDefinitionProvider
 	) { }
 
-	provideTypeDefinition(resource: URI, position: IPosition): TPromise<modes.Definition> {
+	provideTypeDefinition(resource: URI, position: IPosition): TPromise<modes.DefinitionLink[]> {
 		const doc = this._documents.getDocumentData(resource).document;
 		const pos = typeConvert.Position.to(position);
-		return asWinJsPromise(token => this._provider.provideTypeDefinition(doc, pos, token)).then(value => {
-			if (Array.isArray(value)) {
-				return value.map(typeConvert.location.from);
-			} else if (value) {
-				return typeConvert.location.from(value);
-			}
-			return undefined;
-		});
+		return asWinJsPromise(token => this._provider.provideTypeDefinition(doc, pos, token)).then(convertToDefinitionLinks);
 	}
 }
 
@@ -495,18 +483,18 @@ class RenameAdapter {
 			return typeConvert.WorkspaceEdit.from(value);
 		}, err => {
 			if (typeof err === 'string') {
-				return <modes.WorkspaceEdit>{
+				return <WorkspaceEditDto>{
 					edits: undefined,
 					rejectReason: err
 				};
 			} else if (err instanceof Error && typeof err.message === 'string') {
-				return <modes.WorkspaceEdit>{
+				return <WorkspaceEditDto>{
 					edits: undefined,
 					rejectReason: err.message
 				};
 			} else {
 				// generic error
-				return TPromise.wrapError<modes.WorkspaceEdit>(err);
+				return TPromise.wrapError<WorkspaceEditDto>(err);
 			}
 		});
 	}
@@ -974,7 +962,7 @@ export class ExtHostLanguageFeatures implements ExtHostLanguageFeaturesShape {
 		return this._createDisposable(handle);
 	}
 
-	$provideDefinition(handle: number, resource: UriComponents, position: IPosition): TPromise<modes.Definition> {
+	$provideDefinition(handle: number, resource: UriComponents, position: IPosition): TPromise<modes.DefinitionLink[]> {
 		return this._withAdapter(handle, DefinitionAdapter, adapter => adapter.provideDefinition(URI.revive(resource), position));
 	}
 
@@ -984,7 +972,7 @@ export class ExtHostLanguageFeatures implements ExtHostLanguageFeaturesShape {
 		return this._createDisposable(handle);
 	}
 
-	$provideImplementation(handle: number, resource: UriComponents, position: IPosition): TPromise<modes.Definition> {
+	$provideImplementation(handle: number, resource: UriComponents, position: IPosition): TPromise<modes.DefinitionLink[]> {
 		return this._withAdapter(handle, ImplementationAdapter, adapter => adapter.provideImplementation(URI.revive(resource), position));
 	}
 
@@ -994,7 +982,7 @@ export class ExtHostLanguageFeatures implements ExtHostLanguageFeaturesShape {
 		return this._createDisposable(handle);
 	}
 
-	$provideTypeDefinition(handle: number, resource: UriComponents, position: IPosition): TPromise<modes.Definition> {
+	$provideTypeDefinition(handle: number, resource: UriComponents, position: IPosition): TPromise<modes.DefinitionLink[]> {
 		return this._withAdapter(handle, TypeDefinitionAdapter, adapter => adapter.provideTypeDefinition(URI.revive(resource), position));
 	}
 

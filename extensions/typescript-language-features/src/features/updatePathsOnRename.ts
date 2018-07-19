@@ -10,11 +10,11 @@ import * as nls from 'vscode-nls';
 import * as Proto from '../protocol';
 import { ITypeScriptServiceClient } from '../typescriptService';
 import API from '../utils/api';
-import * as languageIds from '../utils/languageModeIds';
+import * as fileSchemes from '../utils/fileSchemes';
+import { isTypeScriptDocument } from '../utils/languageModeIds';
+import { escapeRegExp } from '../utils/regexp';
 import * as typeConverters from '../utils/typeConverters';
 import FileConfigurationManager from './fileConfigurationManager';
-import * as fileSchemes from '../utils/fileSchemes';
-import { escapeRegExp } from '../utils/regexp';
 
 const localize = nls.loadMessageBundle();
 
@@ -82,6 +82,22 @@ export class UpdateImportsOnFileRenameHandler {
 		// Make sure TS knows about file
 		this.client.bufferSyncSupport.closeResource(targetResource);
 		this.client.bufferSyncSupport.openTextDocument(document);
+
+		if (!this.client.apiVersion.gte(API.v300) && !fs.lstatSync(newResource.fsPath).isDirectory()) {
+			// Workaround for https://github.com/Microsoft/vscode/issues/52967
+			// Never attempt to update import paths if the file does not contain something the looks like an export
+			try {
+				const tree = await this.client.execute('navtree', { file: newFile });
+				const hasExport = (node: Proto.NavigationTree): boolean => {
+					return !!node.kindModifiers.match(/\bexports?\b/g) || !!(node.childItems && node.childItems.some(hasExport));
+				};
+				if (!tree.body || !tree.body || !hasExport(tree.body)) {
+					return;
+				}
+			} catch {
+				// noop
+			}
+		}
 
 		const edits = await this.getEditsForFileRename(targetFile, document, oldFile, newFile);
 		if (!edits || !edits.size) {
@@ -193,7 +209,12 @@ export class UpdateImportsOnFileRenameHandler {
 			return undefined;
 		}
 
-		if (this.client.apiVersion.gte(API.v292) && fs.lstatSync(resource.fsPath).isDirectory()) {
+		const isDirectory = fs.lstatSync(resource.fsPath).isDirectory();
+		if (isDirectory && this.client.apiVersion.gte(API.v300)) {
+			return resource;
+		}
+
+		if (isDirectory && this.client.apiVersion.gte(API.v292)) {
 			const files = await vscode.workspace.findFiles({
 				base: resource.fsPath,
 				pattern: '**/*.{ts,tsx,js,jsx}',
@@ -201,7 +222,7 @@ export class UpdateImportsOnFileRenameHandler {
 			return files[0];
 		}
 
-		return this._handles(resource) ? resource : undefined;
+		return (await this._handles(resource)) ? resource : undefined;
 	}
 
 	private async getEditsForFileRename(
@@ -213,7 +234,7 @@ export class UpdateImportsOnFileRenameHandler {
 		const isDirectoryRename = fs.lstatSync(newFile).isDirectory();
 		await this.fileConfigurationManager.ensureConfigurationForDocument(document, undefined);
 
-		const args: Proto.GetEditsForFileRenameRequestArgs = {
+		const args: Proto.GetEditsForFileRenameRequestArgs & { file: string } = {
 			file: targetResource,
 			oldFilePath: oldFile,
 			newFilePath: newFile,
@@ -225,9 +246,19 @@ export class UpdateImportsOnFileRenameHandler {
 
 		const edits: Proto.FileCodeEdits[] = [];
 		for (const edit of response.body) {
+			// Workaround for https://github.com/Microsoft/vscode/issues/52675
+			if ((edit as Proto.FileCodeEdits).fileName.match(/[\/\\]node_modules[\/\\]/gi)) {
+				continue;
+			}
+			for (const change of (edit as Proto.FileCodeEdits).textChanges) {
+				if (change.newText.match(/\/node_modules\//gi)) {
+					continue;
+				}
+			}
+
 			edits.push(await this.fixEdit(edit, isDirectoryRename, oldFile, newFile));
 		}
-		return typeConverters.WorkspaceEdit.fromFromFileCodeEdits(this.client, edits);
+		return typeConverters.WorkspaceEdit.fromFileCodeEdits(this.client, edits);
 	}
 
 	private async fixEdit(
@@ -273,6 +304,3 @@ export class UpdateImportsOnFileRenameHandler {
 	}
 }
 
-function isTypeScriptDocument(document: vscode.TextDocument) {
-	return document.languageId === languageIds.typescript || document.languageId === languageIds.typescriptreact;
-}

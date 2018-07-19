@@ -9,7 +9,7 @@ import * as nls from 'vs/nls';
 import severity from 'vs/base/common/severity';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { IAction, Action } from 'vs/base/common/actions';
-import { IDisposable, dispose, empty as EmptyDisposable } from 'vs/base/common/lifecycle';
+import { IDisposable, dispose, Disposable } from 'vs/base/common/lifecycle';
 import { Separator } from 'vs/base/browser/ui/actionbar/actionbar';
 import pkg from 'vs/platform/node/package';
 import product from 'vs/platform/node/product';
@@ -21,7 +21,7 @@ import { IOpenerService } from 'vs/platform/opener/common/opener';
 import { ICommandService } from 'vs/platform/commands/common/commands';
 import { IWorkbenchContribution } from 'vs/workbench/common/contributions';
 import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
-import { IUpdateService, State as UpdateState, StateType, IUpdate } from 'vs/platform/update/common/update';
+import { IUpdateService, State as UpdateState, StateType, IUpdate, UpdateType } from 'vs/platform/update/common/update';
 import * as semver from 'semver';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { INotificationService, INotificationHandle } from 'vs/platform/notification/common/notification';
@@ -73,11 +73,11 @@ export abstract class AbstractShowReleaseNotesAction extends Action {
 
 		this.enabled = false;
 
-		return showReleaseNotes(this.instantiationService, this.version)
+		return TPromise.wrap(showReleaseNotes(this.instantiationService, this.version)
 			.then(null, () => {
 				const action = this.instantiationService.createInstance(OpenLatestReleaseNotesInBrowserAction);
 				return action.run().then(() => false);
-			});
+			}));
 	}
 }
 
@@ -209,6 +209,80 @@ export class Win3264BitContribution implements IWorkbenchContribution {
 	}
 }
 
+export class WinUserSetupContribution implements IWorkbenchContribution {
+
+	private static readonly KEY = 'update/win32-usersetup';
+
+	private static readonly STABLE_URL = 'https://vscode-update.azurewebsites.net/latest/win32-x64-user/stable';
+	private static readonly STABLE_URL_32BIT = 'https://vscode-update.azurewebsites.net/latest/win32-user/stable';
+	private static readonly INSIDER_URL = 'https://vscode-update.azurewebsites.net/latest/win32-x64-user/insider';
+	private static readonly INSIDER_URL_32BIT = 'https://vscode-update.azurewebsites.net/latest/win32-user/insider';
+
+	// TODO@joao this needs to change to the 1.26 release notes
+	private static readonly READ_MORE = 'https://aka.ms/vscode-win32-user-setup';
+
+	private disposables: IDisposable[] = [];
+
+	constructor(
+		@IStorageService private storageService: IStorageService,
+		@INotificationService private notificationService: INotificationService,
+		@IEnvironmentService private environmentService: IEnvironmentService,
+		@IOpenerService private openerService: IOpenerService,
+		@IUpdateService private updateService: IUpdateService
+	) {
+		updateService.onStateChange(this.onUpdateStateChange, this, this.disposables);
+		this.onUpdateStateChange(this.updateService.state);
+	}
+
+	private onUpdateStateChange(state: UpdateState): void {
+		if (state.type !== StateType.Idle) {
+			return;
+		}
+
+		if (state.updateType !== UpdateType.Setup) {
+			return;
+		}
+
+		if (!this.environmentService.isBuilt || this.environmentService.disableUpdates) {
+			return;
+		}
+
+		const neverShowAgain = new NeverShowAgain(WinUserSetupContribution.KEY, this.storageService);
+
+		if (!neverShowAgain.shouldShow()) {
+			return;
+		}
+
+		const handle = this.notificationService.prompt(
+			severity.Info,
+			nls.localize('usersetup', "We recommend switching to our new User Setup distribution of {0} for Windows! Click [here]({1}) to learn more.", product.nameShort, WinUserSetupContribution.READ_MORE),
+			[
+				{
+					label: nls.localize('downloadnow', "Download"),
+					run: () => {
+						const url = product.quality === 'insider'
+							? (process.arch === 'ia32' ? WinUserSetupContribution.INSIDER_URL_32BIT : WinUserSetupContribution.INSIDER_URL)
+							: (process.arch === 'ia32' ? WinUserSetupContribution.STABLE_URL_32BIT : WinUserSetupContribution.STABLE_URL);
+
+						return this.openerService.open(URI.parse(url));
+					}
+				},
+				{
+					label: nls.localize('neveragain', "Don't Show Again"),
+					isSecondary: true,
+					run: () => {
+						neverShowAgain.action.run(handle);
+						neverShowAgain.action.dispose();
+					}
+				}]
+		);
+	}
+
+	dispose(): void {
+		this.disposables = dispose(this.disposables);
+	}
+}
+
 class CommandAction extends Action {
 
 	constructor(
@@ -223,7 +297,7 @@ class CommandAction extends Action {
 export class UpdateContribution implements IGlobalActivity {
 
 	private static readonly showCommandsId = 'workbench.action.showCommands';
-	private static readonly openSettingsId = 'workbench.action.openSettings';
+	private static readonly openSettingsId = 'workbench.action.openSettings2';
 	private static readonly openKeybindingsId = 'workbench.action.openGlobalKeybindings';
 	private static readonly openUserSnippets = 'workbench.action.openSnippets';
 	private static readonly selectColorThemeId = 'workbench.action.selectTheme';
@@ -235,7 +309,7 @@ export class UpdateContribution implements IGlobalActivity {
 	get cssClass() { return 'update-activity'; }
 
 	private state: UpdateState;
-	private badgeDisposable: IDisposable = EmptyDisposable;
+	private badgeDisposable: IDisposable = Disposable.None;
 	private disposables: IDisposable[] = [];
 
 	constructor(
@@ -349,7 +423,7 @@ export class UpdateContribution implements IGlobalActivity {
 		);
 	}
 
-	// windows fast updates
+	// windows fast updates (target === system)
 	private onUpdateDownloaded(update: IUpdate): void {
 		if (!this.shouldShowNotification()) {
 			return;
@@ -377,6 +451,11 @@ export class UpdateContribution implements IGlobalActivity {
 
 	// windows fast updates
 	private onUpdateUpdating(update: IUpdate): void {
+		if (isWindows && product.target === 'user') {
+			return;
+		}
+
+		// windows fast updates (target === system)
 		const neverShowAgain = new NeverShowAgain('update/win32-fast-updates', this.storageService);
 
 		if (!neverShowAgain.shouldShow()) {
@@ -399,10 +478,11 @@ export class UpdateContribution implements IGlobalActivity {
 
 	// windows and mac
 	private onUpdateReady(update: IUpdate): void {
-		if (!isWindows && !this.shouldShowNotification()) {
+		if (!(isWindows && product.target !== 'user') && !this.shouldShowNotification()) {
 			return;
 		}
 
+		// windows user fast updates and mac
 		this.notificationService.prompt(
 			severity.Info,
 			nls.localize('updateAvailableAfterRestart', "Restart {0} to apply the latest update.", product.nameLong),

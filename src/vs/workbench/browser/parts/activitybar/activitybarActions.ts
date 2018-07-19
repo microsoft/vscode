@@ -21,8 +21,9 @@ import { activeContrastBorder, focusBorder } from 'vs/platform/theme/common/colo
 import { StandardMouseEvent } from 'vs/base/browser/mouseEvent';
 import { KeyCode } from 'vs/base/common/keyCodes';
 import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
-import { ActivityAction, ActivityActionItem, ICompositeBarColors } from 'vs/workbench/browser/parts/compositebar/compositeBarActions';
+import { ActivityAction, ActivityActionItem, ICompositeBarColors, ToggleCompositePinnedAction, ICompositeBar } from 'vs/workbench/browser/parts/compositebar/compositeBarActions';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
+import URI from 'vs/base/common/uri';
 
 export class ViewletActivityAction extends ActivityAction {
 
@@ -39,7 +40,7 @@ export class ViewletActivityAction extends ActivityAction {
 		super(activity);
 	}
 
-	public run(event: any): TPromise<any> {
+	run(event: any): TPromise<any> {
 		if (event instanceof MouseEvent && event.button === 2) {
 			return TPromise.as(false); // do not run on right click
 		}
@@ -85,7 +86,7 @@ export class ToggleViewletAction extends Action {
 		super(_viewlet.id, _viewlet.name);
 	}
 
-	public run(): TPromise<any> {
+	run(): TPromise<any> {
 		const sideBarVisible = this.partService.isVisible(Parts.SIDEBAR_PART);
 		const activeViewlet = this.viewletService.getActiveViewlet();
 
@@ -116,7 +117,7 @@ export class GlobalActivityActionItem extends ActivityActionItem {
 		super(action, { draggable: false, colors, icon: true }, themeService);
 	}
 
-	public render(container: HTMLElement): void {
+	render(container: HTMLElement): void {
 		super.render(container);
 
 		// Context menus are triggered on mouse down so that an item can be picked
@@ -155,6 +156,41 @@ export class GlobalActivityActionItem extends ActivityActionItem {
 			getActions: () => TPromise.as(actions),
 			onHide: () => dispose(actions)
 		});
+	}
+}
+
+export class PlaceHolderViewletActivityAction extends ViewletActivityAction {
+
+	constructor(
+		id: string, iconUrl: URI,
+		@IViewletService viewletService: IViewletService,
+		@IPartService partService: IPartService,
+		@ITelemetryService telemetryService: ITelemetryService
+	) {
+		super({ id, name: id, cssClass: `extensionViewlet-placeholder-${id.replace(/\./g, '-')}` }, viewletService, partService, telemetryService);
+
+		const iconClass = `.monaco-workbench > .activitybar .monaco-action-bar .action-label.${this.class}`; // Generate Placeholder CSS to show the icon in the activity bar
+		DOM.createCSSRule(iconClass, `-webkit-mask: url('${iconUrl || ''}') no-repeat 50% 50%`);
+		this.enabled = false;
+	}
+
+	setActivity(activity: IActivity): void {
+		this.activity = activity;
+		this.enabled = true;
+	}
+}
+
+export class PlaceHolderToggleCompositePinnedAction extends ToggleCompositePinnedAction {
+
+	constructor(id: string, compositeBar: ICompositeBar) {
+		super({ id, name: id, cssClass: void 0 }, compositeBar);
+
+		this.enabled = false;
+	}
+
+	setActivity(activity: IActivity): void {
+		this.label = activity.name;
+		this.enabled = true;
 	}
 }
 

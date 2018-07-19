@@ -3,23 +3,12 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import 'vs/css!./centeredViewLayout';
-
 import { SplitView, Orientation, ISplitViewStyles, IView as ISplitViewView } from 'vs/base/browser/ui/splitview/splitview';
 import { $ } from 'vs/base/browser/dom';
 import { Event, mapEvent } from 'vs/base/common/event';
 import { IView } from 'vs/base/browser/ui/grid/gridview';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
-
-function toSplitViewView(view: IView, getHeight: () => number): ISplitViewView {
-	return {
-		element: view.element,
-		maximumSize: view.maximumWidth,
-		minimumSize: view.minimumWidth,
-		onDidChange: mapEvent(view.onDidChange, widthAndHeight => widthAndHeight && widthAndHeight.width),
-		layout: size => view.layout(size, getHeight())
-	};
-}
+import { Color } from 'vs/base/common/color';
 
 export interface CenteredViewState {
 	leftMarginRatio: number;
@@ -31,19 +20,54 @@ const GOLDEN_RATIO = {
 	rightMarginRatio: 0.1909
 };
 
+function createEmptyView(background: Color): ISplitViewView {
+	const element = $('.centered-layout-margin');
+	element.style.height = '100%';
+	element.style.backgroundColor = background.toString();
+
+	return {
+		element,
+		layout: () => undefined,
+		minimumSize: 60,
+		maximumSize: Number.POSITIVE_INFINITY,
+		onDidChange: Event.None
+	};
+}
+
+function toSplitViewView(view: IView, getHeight: () => number): ISplitViewView {
+	return {
+		element: view.element,
+		get maximumSize() { return view.maximumWidth; },
+		get minimumSize() { return view.minimumWidth; },
+		onDidChange: mapEvent(view.onDidChange, e => e && e.width),
+		layout: size => view.layout(size, getHeight())
+	};
+}
+
+export interface ICenteredViewStyles extends ISplitViewStyles {
+	background: Color;
+}
+
 export class CenteredViewLayout {
 
 	private splitView: SplitView;
-	private element: HTMLElement;
 	private width: number = 0;
 	private height: number = 0;
-	private style: ISplitViewStyles;
+	private style: ICenteredViewStyles;
 	private didLayout = false;
-	private splitViewDisposable: IDisposable[] = [];
+	private emptyViews: ISplitViewView[];
+	private splitViewDisposables: IDisposable[] = [];
 
 	constructor(private container: HTMLElement, private view: IView, public readonly state: CenteredViewState = GOLDEN_RATIO) {
 		this.container.appendChild(this.view.element);
+		// Make sure to hide the split view overflow like sashes #52892
+		this.container.style.overflow = 'hidden';
 	}
+
+	get minimumWidth(): number { return this.splitView ? this.splitView.minimumSize : this.view.minimumWidth; }
+	get maximumWidth(): number { return this.splitView ? this.splitView.maximumSize : this.view.maximumWidth; }
+	get minimumHeight(): number { return this.view.minimumHeight; }
+	get maximumHeight(): number { return this.view.maximumHeight; }
 
 	layout(width: number, height: number): void {
 		this.width = width;
@@ -68,72 +92,59 @@ export class CenteredViewLayout {
 		return !!this.splitView;
 	}
 
-	styles(style: ISplitViewStyles): void {
+	styles(style: ICenteredViewStyles): void {
 		this.style = style;
 		if (this.splitView) {
 			this.splitView.style(this.style);
-		}
-	}
-
-	resetView(view: IView): void {
-		this.view = view;
-		if (this.splitView) {
-			const size = this.splitView.getViewSize(1);
-			this.splitView.removeView(1);
-			this.splitView.addView(toSplitViewView(this.view, () => this.height), size, 1);
+			this.emptyViews[0].element.style.backgroundColor = this.style.background.toString();
+			this.emptyViews[1].element.style.backgroundColor = this.style.background.toString();
 		}
 	}
 
 	activate(active: boolean): void {
-		if (active === !!this.splitView) {
+		if (active === this.isActive()) {
 			return;
 		}
 
 		if (active) {
-			this.element = $('.centered-view-layout');
 			this.container.removeChild(this.view.element);
-			this.container.appendChild(this.element);
-			this.splitView = new SplitView(this.element, {
+			this.splitView = new SplitView(this.container, {
 				inverseAltBehavior: true,
 				orientation: Orientation.HORIZONTAL,
 				styles: this.style
 			});
 
-			this.splitViewDisposable.push(this.splitView.onDidSashChange(() => {
+			this.splitViewDisposables.push(this.splitView.onDidSashChange(() => {
 				this.state.leftMarginRatio = this.splitView.getViewSize(0) / this.width;
 				this.state.rightMarginRatio = this.splitView.getViewSize(2) / this.width;
 			}));
-			this.splitViewDisposable.push(this.splitView.onDidSashReset(() => {
+			this.splitViewDisposables.push(this.splitView.onDidSashReset(() => {
 				this.state.leftMarginRatio = GOLDEN_RATIO.leftMarginRatio;
 				this.state.rightMarginRatio = GOLDEN_RATIO.rightMarginRatio;
 				this.resizeMargins();
 			}));
 
 			this.splitView.layout(this.width);
-
-			const getEmptyView = () => ({
-				element: $('.centered-layout-margin'),
-				layout: () => undefined,
-				minimumSize: 60,
-				maximumSize: Number.POSITIVE_INFINITY,
-				onDidChange: Event.None
-			});
-
 			this.splitView.addView(toSplitViewView(this.view, () => this.height), 0);
-			this.splitView.addView(getEmptyView(), this.state.leftMarginRatio * this.width, 0);
-			this.splitView.addView(getEmptyView(), this.state.rightMarginRatio * this.width, 2);
+			this.emptyViews = [createEmptyView(this.style.background), createEmptyView(this.style.background)];
+			this.splitView.addView(this.emptyViews[0], this.state.leftMarginRatio * this.width, 0);
+			this.splitView.addView(this.emptyViews[1], this.state.rightMarginRatio * this.width, 2);
 		} else {
-			this.splitViewDisposable = dispose(this.splitViewDisposable);
+			this.container.removeChild(this.splitView.el);
+			this.splitViewDisposables = dispose(this.splitViewDisposables);
 			this.splitView.dispose();
 			this.splitView = undefined;
-			this.container.removeChild(this.element);
+			this.emptyViews = undefined;
 			this.container.appendChild(this.view.element);
 		}
 	}
 
 	dispose(): void {
+		this.splitViewDisposables = dispose(this.splitViewDisposables);
+
 		if (this.splitView) {
 			this.splitView.dispose();
+			this.splitView = undefined;
 		}
 	}
 }

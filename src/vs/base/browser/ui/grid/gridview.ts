@@ -9,7 +9,7 @@ import 'vs/css!./gridview';
 import { Event, anyEvent, Emitter, mapEvent, Relay } from 'vs/base/common/event';
 import { Orientation, Sash } from 'vs/base/browser/ui/sash/sash';
 import { SplitView, IView as ISplitView, Sizing, ISplitViewStyles } from 'vs/base/browser/ui/splitview/splitview';
-import { empty as EmptyDisposable, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
+import { Disposable, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
 import { $ } from 'vs/base/browser/dom';
 import { tail2 as tail } from 'vs/base/common/arrays';
 import { Color } from 'vs/base/common/color';
@@ -26,14 +26,6 @@ export interface IView {
 	readonly onDidChange: Event<{ width: number; height: number; }>;
 	layout(width: number, height: number): void;
 }
-
-/*
-TODO:
-	- NEW: 	add a color to show a border where the sash is, similar to how other
-			widgets have a color (e.g. Button, with applyStyles). Challenge is that this
-			color has to be applied via JS and not CSS to not apply it to all views
-			NOT CSS
-*/
 
 export function orthogonal(orientation: Orientation): Orientation {
 	return orientation === Orientation.VERTICAL ? Orientation.HORIZONTAL : Orientation.VERTICAL;
@@ -75,7 +67,7 @@ export interface IGridViewOptions {
 class BranchNode implements ISplitView, IDisposable {
 
 	readonly element: HTMLElement;
-	readonly children: Node[];
+	readonly children: Node[] = [];
 	private splitview: SplitView;
 
 	private _size: number;
@@ -127,14 +119,15 @@ class BranchNode implements ISplitView, IDisposable {
 		return this.orientation === Orientation.HORIZONTAL ? this.maximumSize : this.maximumOrthogonalSize;
 	}
 
-	private _onDidChange: Emitter<number | undefined>;
-	get onDidChange(): Event<number | undefined> { return this._onDidChange.event; }
-	private childrenChangeDisposable: IDisposable = EmptyDisposable;
+	private _onDidChange = new Emitter<number | undefined>();
+	readonly onDidChange: Event<number | undefined> = this._onDidChange.event;
+
+	private childrenChangeDisposable: IDisposable = Disposable.None;
 
 	private _onDidSashReset = new Emitter<number[]>();
 	readonly onDidSashReset: Event<number[]> = this._onDidSashReset.event;
-	private splitviewSashResetDisposable: IDisposable = EmptyDisposable;
-	private childrenSashResetDisposable: IDisposable = EmptyDisposable;
+	private splitviewSashResetDisposable: IDisposable = Disposable.None;
+	private childrenSashResetDisposable: IDisposable = Disposable.None;
 
 	get orthogonalStartSash(): Sash | undefined { return this.splitview.orthogonalStartSash; }
 	set orthogonalStartSash(sash: Sash | undefined) { this.splitview.orthogonalStartSash = sash; }
@@ -150,9 +143,6 @@ class BranchNode implements ISplitView, IDisposable {
 		this._styles = styles;
 		this._size = size;
 		this._orthogonalSize = orthogonalSize;
-
-		this._onDidChange = new Emitter<number | undefined>();
-		this.children = [];
 
 		this.element = $('.monaco-grid-branch-node');
 		this.splitview = new SplitView(this.element, { orientation, styles });
@@ -290,18 +280,51 @@ class BranchNode implements ISplitView, IDisposable {
 
 	trySet2x2(other: BranchNode): IDisposable {
 		if (this.children.length !== 2 || other.children.length !== 2) {
-			return EmptyDisposable;
+			return Disposable.None;
 		}
 
 		if (this.getChildSize(0) !== other.getChildSize(0)) {
-			return EmptyDisposable;
+			return Disposable.None;
+		}
+
+		const [firstChild, secondChild] = this.children;
+		const [otherFirstChild, otherSecondChild] = other.children;
+
+		if (!(firstChild instanceof LeafNode) || !(secondChild instanceof LeafNode)) {
+			return Disposable.None;
+		}
+
+		if (!(otherFirstChild instanceof LeafNode) || !(otherSecondChild instanceof LeafNode)) {
+			return Disposable.None;
+		}
+
+		if (this.orientation === Orientation.VERTICAL) {
+			secondChild.linkedWidthNode = otherFirstChild.linkedHeightNode = firstChild;
+			firstChild.linkedWidthNode = otherSecondChild.linkedHeightNode = secondChild;
+			otherSecondChild.linkedWidthNode = firstChild.linkedHeightNode = otherFirstChild;
+			otherFirstChild.linkedWidthNode = secondChild.linkedHeightNode = otherSecondChild;
+		} else {
+			otherFirstChild.linkedWidthNode = secondChild.linkedHeightNode = firstChild;
+			otherSecondChild.linkedWidthNode = firstChild.linkedHeightNode = secondChild;
+			firstChild.linkedWidthNode = otherSecondChild.linkedHeightNode = otherFirstChild;
+			secondChild.linkedWidthNode = otherFirstChild.linkedHeightNode = otherSecondChild;
 		}
 
 		const mySash = this.splitview.sashes[0];
 		const otherSash = other.splitview.sashes[0];
 		mySash.linkedSash = otherSash;
 		otherSash.linkedSash = mySash;
-		return toDisposable(() => mySash.linkedSash = otherSash.linkedSash = undefined);
+
+		this._onDidChange.fire();
+		other._onDidChange.fire();
+
+		return toDisposable(() => {
+			mySash.linkedSash = otherSash.linkedSash = undefined;
+			firstChild.linkedHeightNode = firstChild.linkedWidthNode = undefined;
+			secondChild.linkedHeightNode = secondChild.linkedWidthNode = undefined;
+			otherFirstChild.linkedHeightNode = otherFirstChild.linkedWidthNode = undefined;
+			otherSecondChild.linkedHeightNode = otherSecondChild.linkedWidthNode = undefined;
+		});
 	}
 
 	dispose(): void {
@@ -326,12 +349,37 @@ class LeafNode implements ISplitView, IDisposable {
 
 	readonly onDidSashReset: Event<number[]> = Event.None;
 
+	private _onDidLinkedWidthNodeChange = new Relay<number | undefined>();
+	private _linkedWidthNode: LeafNode | undefined = undefined;
+	get linkedWidthNode(): LeafNode | undefined { return this._linkedWidthNode; }
+	set linkedWidthNode(node: LeafNode | undefined) {
+		this._onDidLinkedWidthNodeChange.input = node ? node._onDidViewChange : Event.None;
+		this._linkedWidthNode = node;
+		this._onDidSetLinkedNode.fire();
+	}
+
+	private _onDidLinkedHeightNodeChange = new Relay<number | undefined>();
+	private _linkedHeightNode: LeafNode | undefined = undefined;
+	get linkedHeightNode(): LeafNode | undefined { return this._linkedHeightNode; }
+	set linkedHeightNode(node: LeafNode | undefined) {
+		this._onDidLinkedHeightNodeChange.input = node ? node._onDidViewChange : Event.None;
+		this._linkedHeightNode = node;
+		this._onDidSetLinkedNode.fire();
+	}
+
+	private _onDidSetLinkedNode = new Emitter<number | undefined>();
+	private _onDidViewChange: Event<number | undefined>;
+	readonly onDidChange: Event<number | undefined>;
+
 	constructor(
 		readonly view: IView,
 		readonly orientation: Orientation,
 		orthogonalSize: number = 0
 	) {
 		this._orthogonalSize = orthogonalSize;
+
+		this._onDidViewChange = mapEvent(this.view.onDidChange, this.orientation === Orientation.HORIZONTAL ? e => e && e.width : e => e && e.height);
+		this.onDidChange = anyEvent(this._onDidViewChange, this._onDidSetLinkedNode.event, this._onDidLinkedWidthNodeChange.event, this._onDidLinkedHeightNodeChange.event);
 	}
 
 	get width(): number {
@@ -346,24 +394,36 @@ class LeafNode implements ISplitView, IDisposable {
 		return this.view.element;
 	}
 
+	private get minimumWidth(): number {
+		return this.linkedWidthNode ? Math.max(this.linkedWidthNode.view.minimumWidth, this.view.minimumWidth) : this.view.minimumWidth;
+	}
+
+	private get maximumWidth(): number {
+		return this.linkedWidthNode ? Math.min(this.linkedWidthNode.view.maximumWidth, this.view.maximumWidth) : this.view.maximumWidth;
+	}
+
+	private get minimumHeight(): number {
+		return this.linkedHeightNode ? Math.max(this.linkedHeightNode.view.minimumHeight, this.view.minimumHeight) : this.view.minimumHeight;
+	}
+
+	private get maximumHeight(): number {
+		return this.linkedHeightNode ? Math.min(this.linkedHeightNode.view.maximumHeight, this.view.maximumHeight) : this.view.maximumHeight;
+	}
+
 	get minimumSize(): number {
-		return this.orientation === Orientation.HORIZONTAL ? this.view.minimumHeight : this.view.minimumWidth;
+		return this.orientation === Orientation.HORIZONTAL ? this.minimumHeight : this.minimumWidth;
 	}
 
 	get maximumSize(): number {
-		return this.orientation === Orientation.HORIZONTAL ? this.view.maximumHeight : this.view.maximumWidth;
+		return this.orientation === Orientation.HORIZONTAL ? this.maximumHeight : this.maximumWidth;
 	}
 
 	get minimumOrthogonalSize(): number {
-		return this.orientation === Orientation.HORIZONTAL ? this.view.minimumWidth : this.view.minimumHeight;
+		return this.orientation === Orientation.HORIZONTAL ? this.minimumWidth : this.minimumHeight;
 	}
 
 	get maximumOrthogonalSize(): number {
-		return this.orientation === Orientation.HORIZONTAL ? this.view.maximumWidth : this.view.maximumHeight;
-	}
-
-	get onDidChange(): Event<number> {
-		return mapEvent(this.view.onDidChange, this.orientation === Orientation.HORIZONTAL ? e => e && e.width : e => e && e.height);
+		return this.orientation === Orientation.HORIZONTAL ? this.maximumWidth : this.maximumHeight;
 	}
 
 	set orthogonalStartSash(sash: Sash) {
@@ -425,7 +485,7 @@ export class GridView implements IDisposable {
 	private onDidSashResetRelay = new Relay<number[]>();
 	readonly onDidSashReset: Event<number[]> = this.onDidSashResetRelay.event;
 
-	private disposable2x2: IDisposable = EmptyDisposable;
+	private disposable2x2: IDisposable = Disposable.None;
 
 	private get root(): BranchNode {
 		return this._root;
@@ -490,7 +550,7 @@ export class GridView implements IDisposable {
 
 	addView(view: IView, size: number | Sizing, location: number[]): void {
 		this.disposable2x2.dispose();
-		this.disposable2x2 = EmptyDisposable;
+		this.disposable2x2 = Disposable.None;
 
 		const [rest, index] = tail(location);
 		const [pathToParent, parent] = this.getNode(rest);
@@ -522,7 +582,7 @@ export class GridView implements IDisposable {
 
 	removeView(location: number[], sizing?: Sizing): IView {
 		this.disposable2x2.dispose();
-		this.disposable2x2 = EmptyDisposable;
+		this.disposable2x2 = Disposable.None;
 
 		const [rest, index] = tail(location);
 		const [pathToParent, parent] = this.getNode(rest);
@@ -723,7 +783,7 @@ export class GridView implements IDisposable {
 
 	trySet2x2(): void {
 		this.disposable2x2.dispose();
-		this.disposable2x2 = EmptyDisposable;
+		this.disposable2x2 = Disposable.None;
 
 		if (this.root.children.length !== 2) {
 			return;

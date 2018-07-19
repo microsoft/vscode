@@ -30,6 +30,9 @@ import { IOpenerService } from 'vs/platform/opener/common/opener';
 
 export class MainThreadTextEditors implements MainThreadTextEditorsShape {
 
+	private static INSTANCE_COUNT: number = 0;
+
+	private _instanceId: string;
 	private _proxy: ExtHostEditorsShape;
 	private _documentsAndEditors: MainThreadDocumentsAndEditors;
 	private _toDispose: IDisposable[];
@@ -45,6 +48,7 @@ export class MainThreadTextEditors implements MainThreadTextEditorsShape {
 		@IEditorService private readonly _editorService: IEditorService,
 		@IEditorGroupsService private readonly _editorGroupService: IEditorGroupsService
 	) {
+		this._instanceId = String(++MainThreadTextEditors.INSTANCE_COUNT);
 		this._proxy = extHostContext.getProxy(ExtHostContext.ExtHostEditors);
 		this._documentsAndEditors = documentsAndEditors;
 		this._toDispose = [];
@@ -167,6 +171,7 @@ export class MainThreadTextEditors implements MainThreadTextEditorsShape {
 	}
 
 	$trySetDecorations(id: string, key: string, ranges: IDecorationOptions[]): TPromise<void> {
+		key = `${this._instanceId}-${key}`;
 		if (!this._documentsAndEditors.getEditor(id)) {
 			return TPromise.wrapError(disposed(`TextEditor(${id})`));
 		}
@@ -175,6 +180,7 @@ export class MainThreadTextEditors implements MainThreadTextEditorsShape {
 	}
 
 	$trySetDecorationsFast(id: string, key: string, ranges: number[]): TPromise<void> {
+		key = `${this._instanceId}-${key}`;
 		if (!this._documentsAndEditors.getEditor(id)) {
 			return TPromise.wrapError(disposed(`TextEditor(${id})`));
 		}
@@ -218,11 +224,13 @@ export class MainThreadTextEditors implements MainThreadTextEditorsShape {
 	}
 
 	$registerTextEditorDecorationType(key: string, options: IDecorationRenderOptions): void {
+		key = `${this._instanceId}-${key}`;
 		this._registeredDecorationTypes[key] = true;
 		this._codeEditorService.registerDecorationType(key, options);
 	}
 
 	$removeTextEditorDecorationType(key: string): void {
+		key = `${this._instanceId}-${key}`;
 		delete this._registeredDecorationTypes[key];
 		this._codeEditorService.removeDecorationType(key);
 	}

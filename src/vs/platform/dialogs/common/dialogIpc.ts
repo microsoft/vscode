@@ -9,6 +9,7 @@ import { TPromise } from 'vs/base/common/winjs.base';
 import { IChannel } from 'vs/base/parts/ipc/common/ipc';
 import { IDialogService, IConfirmation, IConfirmationResult } from 'vs/platform/dialogs/common/dialogs';
 import Severity from 'vs/base/common/severity';
+import { Event } from 'vs/base/common/event';
 
 export interface IDialogChannel extends IChannel {
 	call(command: 'show'): TPromise<number>;
@@ -18,7 +19,10 @@ export interface IDialogChannel extends IChannel {
 
 export class DialogChannel implements IDialogChannel {
 
-	constructor(@IDialogService private dialogService: IDialogService) {
+	constructor(@IDialogService private dialogService: IDialogService) { }
+
+	listen<T>(event: string): Event<T> {
+		throw new Error('No event found');
 	}
 
 	call(command: string, args?: any[]): TPromise<any> {

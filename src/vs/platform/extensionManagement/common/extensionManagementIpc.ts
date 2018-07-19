@@ -6,21 +6,21 @@
 'use strict';
 
 import { TPromise } from 'vs/base/common/winjs.base';
-import { IChannel, eventToCall, eventFromCall } from 'vs/base/parts/ipc/common/ipc';
+import { IChannel } from 'vs/base/parts/ipc/common/ipc';
 import { IExtensionManagementService, ILocalExtension, InstallExtensionEvent, DidInstallExtensionEvent, IGalleryExtension, LocalExtensionType, DidUninstallExtensionEvent, IExtensionIdentifier, IGalleryMetadata, IReportedExtension } from './extensionManagement';
 import { Event, buffer, mapEvent } from 'vs/base/common/event';
 import URI from 'vs/base/common/uri';
 import { IURITransformer } from 'vs/base/common/uriIpc';
 
 export interface IExtensionManagementChannel extends IChannel {
-	call(command: 'event:onInstallExtension'): TPromise<void>;
-	call(command: 'event:onDidInstallExtension'): TPromise<void>;
-	call(command: 'event:onUninstallExtension'): TPromise<void>;
-	call(command: 'event:onDidUninstallExtension'): TPromise<void>;
-	call(command: 'install', args: [string]): TPromise<ILocalExtension>;
-	call(command: 'installFromGallery', args: [IGalleryExtension]): TPromise<ILocalExtension>;
+	listen(event: 'onInstallExtension'): Event<InstallExtensionEvent>;
+	listen(event: 'onDidInstallExtension'): Event<DidInstallExtensionEvent>;
+	listen(event: 'onUninstallExtension'): Event<IExtensionIdentifier>;
+	listen(event: 'onDidUninstallExtension'): Event<DidUninstallExtensionEvent>;
+	call(command: 'install', args: [string]): TPromise<void>;
+	call(command: 'installFromGallery', args: [IGalleryExtension]): TPromise<void>;
 	call(command: 'uninstall', args: [ILocalExtension, boolean]): TPromise<void>;
-	call(command: 'reinstallFromGallery', args: [ILocalExtension]): TPromise<ILocalExtension>;
+	call(command: 'reinstallFromGallery', args: [ILocalExtension]): TPromise<void>;
 	call(command: 'getInstalled', args: [LocalExtensionType]): TPromise<ILocalExtension[]>;
 	call(command: 'getExtensionsReport'): TPromise<IReportedExtension[]>;
 	call(command: 'updateMetadata', args: [ILocalExtension, IGalleryMetadata]): TPromise<ILocalExtension>;
@@ -40,21 +40,33 @@ export class ExtensionManagementChannel implements IExtensionManagementChannel {
 		this.onDidUninstallExtension = buffer(service.onDidUninstallExtension, true);
 	}
 
+	listen(event: string): Event<any> {
+		switch (event) {
+			case 'onInstallExtension': return this.onInstallExtension;
+			case 'onDidInstallExtension': return this.onDidInstallExtension;
+			case 'onUninstallExtension': return this.onUninstallExtension;
+			case 'onDidUninstallExtension': return this.onDidUninstallExtension;
+		}
+
+		throw new Error('Invalid listen');
+	}
+
 	call(command: string, args?: any): TPromise<any> {
 		switch (command) {
-			case 'event:onInstallExtension': return eventToCall(this.onInstallExtension);
-			case 'event:onDidInstallExtension': return eventToCall(this.onDidInstallExtension);
-			case 'event:onUninstallExtension': return eventToCall(this.onUninstallExtension);
-			case 'event:onDidUninstallExtension': return eventToCall(this.onDidUninstallExtension);
 			case 'install': return this.service.install(args[0]);
 			case 'installFromGallery': return this.service.installFromGallery(args[0]);
-			case 'uninstall': return this.service.uninstall(args[0], args[1]);
-			case 'reinstallFromGallery': return this.service.reinstallFromGallery(args[0]);
+			case 'uninstall': return this.service.uninstall(this._transform(args[0]), args[1]);
+			case 'reinstallFromGallery': return this.service.reinstallFromGallery(this._transform(args[0]));
 			case 'getInstalled': return this.service.getInstalled(args[0]);
-			case 'updateMetadata': return this.service.updateMetadata(args[0], args[1]);
+			case 'updateMetadata': return this.service.updateMetadata(this._transform(args[0]), args[1]);
 			case 'getExtensionsReport': return this.service.getExtensionsReport();
 		}
-		return undefined;
+
+		throw new Error('Invalid call');
+	}
+
+	private _transform(extension: ILocalExtension): ILocalExtension {
+		return extension ? { ...extension, ...{ location: URI.revive(extension.location) } } : extension;
 	}
 }
 
@@ -64,53 +76,47 @@ export class ExtensionManagementChannelClient implements IExtensionManagementSer
 
 	constructor(private channel: IExtensionManagementChannel, private uriTransformer: IURITransformer) { }
 
-	private _onInstallExtension = eventFromCall<InstallExtensionEvent>(this.channel, 'event:onInstallExtension');
-	get onInstallExtension(): Event<InstallExtensionEvent> { return this._onInstallExtension; }
+	get onInstallExtension(): Event<InstallExtensionEvent> { return this.channel.listen('onInstallExtension'); }
+	get onDidInstallExtension(): Event<DidInstallExtensionEvent> { return mapEvent(this.channel.listen('onDidInstallExtension'), i => ({ ...i, local: this._transformIncoming(i.local) })); }
+	get onUninstallExtension(): Event<IExtensionIdentifier> { return this.channel.listen('onUninstallExtension'); }
+	get onDidUninstallExtension(): Event<DidUninstallExtensionEvent> { return this.channel.listen('onDidUninstallExtension'); }
 
-	private _onDidInstallExtension = mapEvent(eventFromCall<DidInstallExtensionEvent>(this.channel, 'event:onDidInstallExtension'), i => ({ ...i, local: this._transform(i.local) }));
-	get onDidInstallExtension(): Event<DidInstallExtensionEvent> { return this._onDidInstallExtension; }
-
-	private _onUninstallExtension = eventFromCall<IExtensionIdentifier>(this.channel, 'event:onUninstallExtension');
-	get onUninstallExtension(): Event<IExtensionIdentifier> { return this._onUninstallExtension; }
-
-	private _onDidUninstallExtension = eventFromCall<DidUninstallExtensionEvent>(this.channel, 'event:onDidUninstallExtension');
-	get onDidUninstallExtension(): Event<DidUninstallExtensionEvent> { return this._onDidUninstallExtension; }
-
-	install(zipPath: string): TPromise<ILocalExtension> {
-		return this.channel.call('install', [zipPath])
-			.then(extension => this._transform(extension));
+	install(zipPath: string): TPromise<void> {
+		return this.channel.call('install', [zipPath]);
 	}
 
-	installFromGallery(extension: IGalleryExtension): TPromise<ILocalExtension> {
-		return this.channel.call('installFromGallery', [extension])
-			.then(extension => this._transform(extension));
+	installFromGallery(extension: IGalleryExtension): TPromise<void> {
+		return this.channel.call('installFromGallery', [extension]);
 	}
 
 	uninstall(extension: ILocalExtension, force = false): TPromise<void> {
-		return this.channel.call('uninstall', [extension, force]);
+		return this.channel.call('uninstall', [this._transformOutgoing(extension), force]);
 	}
 
-	reinstallFromGallery(extension: ILocalExtension): TPromise<ILocalExtension> {
-		return this.channel.call('reinstallFromGallery', [extension])
-			.then(extension => this._transform(extension));
+	reinstallFromGallery(extension: ILocalExtension): TPromise<void> {
+		return this.channel.call('reinstallFromGallery', [this._transformOutgoing(extension)]);
 	}
 
 	getInstalled(type: LocalExtensionType = null): TPromise<ILocalExtension[]> {
 		return this.channel.call('getInstalled', [type])
-			.then(extensions => extensions.map(extension => this._transform(extension)));
+			.then(extensions => extensions.map(extension => this._transformIncoming(extension)));
 	}
 
 	updateMetadata(local: ILocalExtension, metadata: IGalleryMetadata): TPromise<ILocalExtension> {
-		return this.channel.call('updateMetadata', [local, metadata])
-			.then(extension => this._transform(extension));
+		return this.channel.call('updateMetadata', [this._transformOutgoing(local), metadata])
+			.then(extension => this._transformIncoming(extension));
 	}
 
 	getExtensionsReport(): TPromise<IReportedExtension[]> {
 		return this.channel.call('getExtensionsReport');
 	}
 
-	private _transform(extension: ILocalExtension): ILocalExtension {
+	private _transformIncoming(extension: ILocalExtension): ILocalExtension {
 		return extension ? { ...extension, ...{ location: URI.revive(this.uriTransformer.transformIncoming(extension.location)) } } : extension;
+	}
+
+	private _transformOutgoing(extension: ILocalExtension): ILocalExtension {
+		return extension ? { ...extension, ...{ location: this.uriTransformer.transformOutgoing(extension.location) } } : extension;
 	}
 
 }

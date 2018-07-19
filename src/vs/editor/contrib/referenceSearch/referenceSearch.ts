@@ -17,7 +17,7 @@ import { Range } from 'vs/editor/common/core/range';
 import { PeekContext, getOuterEditor } from './peekViewWidget';
 import { ReferencesController, RequestOptions, ctxReferenceSearchVisible } from './referencesController';
 import { ReferencesModel, OneReference } from './referencesModel';
-import { asWinJsPromise } from 'vs/base/common/async';
+import { asWinJsPromise, createCancelablePromise } from 'vs/base/common/async';
 import { onUnexpectedExternalError } from 'vs/base/common/errors';
 import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
 import { EmbeddedCodeEditorWidget } from 'vs/editor/browser/widget/embeddedCodeEditorWidget';
@@ -28,6 +28,7 @@ import { ctxReferenceWidgetSearchTreeFocused } from 'vs/editor/contrib/reference
 import { CommandsRegistry, ICommandHandler } from 'vs/platform/commands/common/commands';
 import URI from 'vs/base/common/uri';
 import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
+import { CancellationToken } from 'vs/base/common/cancellation';
 
 export const defaultReferenceSearchOptions: RequestOptions = {
 	getMetaTitle(model) {
@@ -85,7 +86,7 @@ export class ReferenceAction extends EditorAction {
 		}
 		let range = editor.getSelection();
 		let model = editor.getModel();
-		let references = provideReferences(model, range.getStartPosition()).then(references => new ReferencesModel(references));
+		let references = createCancelablePromise(token => provideReferences(model, range.getStartPosition(), token).then(references => new ReferencesModel(references)));
 		controller.toggleWidget(range, references, defaultReferenceSearchOptions);
 	}
 }
@@ -113,7 +114,7 @@ let findReferencesCommand: ICommandHandler = (accessor: ServicesAccessor, resour
 			return undefined;
 		}
 
-		let references = provideReferences(control.getModel(), Position.lift(position)).then(references => new ReferencesModel(references));
+		let references = createCancelablePromise(token => provideReferences(control.getModel(), Position.lift(position), token).then(references => new ReferencesModel(references)));
 		let range = new Range(position.lineNumber, position.column, position.lineNumber, position.column);
 		return TPromise.as(controller.toggleWidget(range, references, defaultReferenceSearchOptions));
 	});
@@ -137,7 +138,7 @@ let showReferencesCommand: ICommandHandler = (accessor: ServicesAccessor, resour
 
 		return TPromise.as(controller.toggleWidget(
 			new Range(position.lineNumber, position.column, position.lineNumber, position.column),
-			TPromise.as(new ReferencesModel(references)),
+			createCancelablePromise(_ => Promise.resolve(new ReferencesModel(references))),
 			defaultReferenceSearchOptions)).then(() => true);
 	});
 };
@@ -266,7 +267,7 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 	handler: openReferenceToSide
 });
 
-export function provideReferences(model: ITextModel, position: Position): TPromise<Location[]> {
+export function provideReferences(model: ITextModel, position: Position, token: CancellationToken): Promise<Location[]> {
 
 	// collect references from all providers
 	const promises = ReferenceProviderRegistry.ordered(model).map(provider => {
@@ -282,7 +283,7 @@ export function provideReferences(model: ITextModel, position: Position): TPromi
 		});
 	});
 
-	return TPromise.join(promises).then(references => {
+	return Promise.all(promises).then(references => {
 		let result: Location[] = [];
 		for (let ref of references) {
 			if (ref) {
@@ -293,4 +294,4 @@ export function provideReferences(model: ITextModel, position: Position): TPromi
 	});
 }
 
-registerDefaultLanguageCommand('_executeReferenceProvider', provideReferences);
+registerDefaultLanguageCommand('_executeReferenceProvider', (model, position) => provideReferences(model, position, CancellationToken.None));

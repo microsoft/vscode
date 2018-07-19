@@ -6,7 +6,7 @@
 
 import { posix } from 'path';
 import { flatten, isFalsyOrEmpty } from 'vs/base/common/arrays';
-import { IDisposable, dispose } from 'vs/base/common/lifecycle';
+import { IDisposable, dispose, Disposable } from 'vs/base/common/lifecycle';
 import { TernarySearchTree, keys } from 'vs/base/common/map';
 import { Schemas } from 'vs/base/common/network';
 import URI from 'vs/base/common/uri';
@@ -86,9 +86,8 @@ export function toDeepIFileStat(provider: IFileSystemProvider, tuple: [URI, ISta
 	});
 }
 
-class WorkspaceWatchLogic {
+class WorkspaceWatchLogic extends Disposable {
 
-	private _disposables: IDisposable[] = [];
 	private _watches = new Map<string, URI>();
 
 	constructor(
@@ -96,9 +95,11 @@ class WorkspaceWatchLogic {
 		@IConfigurationService private _configurationService: IConfigurationService,
 		@IWorkspaceContextService private _contextService: IWorkspaceContextService,
 	) {
+		super();
+
 		this._refresh();
 
-		this._disposables.push(this._contextService.onDidChangeWorkspaceFolders(e => {
+		this._register(this._contextService.onDidChangeWorkspaceFolders(e => {
 			for (const removed of e.removed) {
 				this._unwatchWorkspace(removed.uri);
 			}
@@ -106,10 +107,10 @@ class WorkspaceWatchLogic {
 				this._watchWorkspace(added.uri);
 			}
 		}));
-		this._disposables.push(this._contextService.onDidChangeWorkbenchState(e => {
+		this._register(this._contextService.onDidChangeWorkbenchState(e => {
 			this._refresh();
 		}));
-		this._disposables.push(this._configurationService.onDidChangeConfiguration(e => {
+		this._register(this._configurationService.onDidChangeConfiguration(e => {
 			if (e.affectsConfiguration('files.watcherExclude')) {
 				this._refresh();
 			}
@@ -118,7 +119,7 @@ class WorkspaceWatchLogic {
 
 	dispose(): void {
 		this._unwatchWorkspaces();
-		this._disposables = dispose(this._disposables);
+		super.dispose();
 	}
 
 	private _refresh(): void {
@@ -184,7 +185,7 @@ export class RemoteFileService extends FileService {
 
 		this._provider = new Map<string, IFileSystemProvider>();
 		this._lastKnownSchemes = JSON.parse(this._storageService.get('remote_schemes', undefined, '[]'));
-		this.toDispose.push(new WorkspaceWatchLogic(this, configurationService, contextService));
+		this._register(new WorkspaceWatchLogic(this, configurationService, contextService));
 	}
 
 	registerProvider(scheme: string, provider: IFileSystemProvider): IDisposable {
@@ -412,6 +413,7 @@ export class RemoteFileService extends FileService {
 						name: fileStat.name,
 						etag: fileStat.etag,
 						mtime: fileStat.mtime,
+						isReadonly: fileStat.isReadonly
 					};
 				});
 			});
@@ -442,12 +444,20 @@ export class RemoteFileService extends FileService {
 		}
 	}
 
+	private static _throwIfFileSystemIsReadonly(provider: IFileSystemProvider): IFileSystemProvider {
+		if (provider.capabilities & FileSystemProviderCapabilities.Readonly) {
+			throw new FileOperationError(localize('err.readonly', "Resource can not be modified."), FileOperationResult.FILE_PERMISSION_DENIED);
+		}
+		return provider;
+	}
+
 	createFile(resource: URI, content?: string, options?: ICreateFileOptions): TPromise<IFileStat> {
 		if (resource.scheme === Schemas.file) {
 			return super.createFile(resource, content, options);
 		} else {
 
-			return this._withProvider(resource).then(provider => {
+			return this._withProvider(resource).then(RemoteFileService._throwIfFileSystemIsReadonly).then(provider => {
+
 				return RemoteFileService._mkdirp(provider, resource.with({ path: posix.dirname(resource.path) })).then(() => {
 					const encoding = this.encoding.getWriteEncoding(resource);
 					return this._writeFile(provider, resource, new StringSnapshot(content), encoding, { create: true, overwrite: Boolean(options && options.overwrite) });
@@ -468,7 +478,7 @@ export class RemoteFileService extends FileService {
 		if (resource.scheme === Schemas.file) {
 			return super.updateContent(resource, value, options);
 		} else {
-			return this._withProvider(resource).then(provider => {
+			return this._withProvider(resource).then(RemoteFileService._throwIfFileSystemIsReadonly).then(provider => {
 				return RemoteFileService._mkdirp(provider, resource.with({ path: posix.dirname(resource.path) })).then(() => {
 					const snapshot = typeof value === 'string' ? new StringSnapshot(value) : value;
 					return this._writeFile(provider, resource, snapshot, options && options.encoding, { create: true, overwrite: true });
@@ -499,7 +509,8 @@ export class RemoteFileService extends FileService {
 				etag: content.etag,
 				mtime: content.mtime,
 				name: content.name,
-				resource: content.resource
+				resource: content.resource,
+				isReadonly: content.isReadonly
 			};
 			content.value.on('data', chunk => result.value += chunk);
 			content.value.on('error', reject);
@@ -509,12 +520,12 @@ export class RemoteFileService extends FileService {
 
 	// --- delete
 
-	del(resource: URI, useTrash?: boolean): TPromise<void> {
+	del(resource: URI, options?: { useTrash?: boolean, recursive?: boolean }): TPromise<void> {
 		if (resource.scheme === Schemas.file) {
-			return super.del(resource, useTrash);
+			return super.del(resource, options);
 		} else {
-			return this._withProvider(resource).then(provider => {
-				return provider.delete(resource).then(() => {
+			return this._withProvider(resource).then(RemoteFileService._throwIfFileSystemIsReadonly).then(provider => {
+				return provider.delete(resource, { recursive: options && options.recursive }).then(() => {
 					this._onAfterOperation.fire(new FileOperationEvent(resource, FileOperation.DELETE));
 				});
 			});
@@ -525,7 +536,7 @@ export class RemoteFileService extends FileService {
 		if (resource.scheme === Schemas.file) {
 			return super.createFolder(resource);
 		} else {
-			return this._withProvider(resource).then(provider => {
+			return this._withProvider(resource).then(RemoteFileService._throwIfFileSystemIsReadonly).then(provider => {
 				return RemoteFileService._mkdirp(provider, resource.with({ path: posix.dirname(resource.path) })).then(() => {
 					return provider.mkdir(resource).then(() => {
 						return this.resolveFile(resource);
@@ -551,10 +562,10 @@ export class RemoteFileService extends FileService {
 	private _doMoveWithInScheme(source: URI, target: URI, overwrite?: boolean): TPromise<IFileStat> {
 
 		const prepare = overwrite
-			? this.del(target).then(undefined, err => { /*ignore*/ })
+			? this.del(target, { recursive: true }).then(undefined, err => { /*ignore*/ })
 			: TPromise.as(null);
 
-		return prepare.then(() => this._withProvider(source)).then(provider => {
+		return prepare.then(() => this._withProvider(source)).then(RemoteFileService._throwIfFileSystemIsReadonly).then(provider => {
 			return provider.rename(source, target, { overwrite }).then(() => {
 				return this.resolveFile(target);
 			}).then(fileStat => {
@@ -572,7 +583,7 @@ export class RemoteFileService extends FileService {
 
 	private _doMoveAcrossScheme(source: URI, target: URI, overwrite?: boolean): TPromise<IFileStat> {
 		return this.copyFile(source, target, overwrite).then(() => {
-			return this.del(source);
+			return this.del(source, { recursive: true });
 		}).then(() => {
 			return this.resolveFile(target);
 		}).then(fileStat => {
@@ -586,7 +597,7 @@ export class RemoteFileService extends FileService {
 			return super.copyFile(source, target, overwrite);
 		}
 
-		return this._withProvider(target).then(provider => {
+		return this._withProvider(target).then(RemoteFileService._throwIfFileSystemIsReadonly).then(provider => {
 
 			if (source.scheme === target.scheme && (provider.capabilities & FileSystemProviderCapabilities.FileFolderCopy)) {
 				// good: provider supports copy withing scheme
@@ -605,7 +616,7 @@ export class RemoteFileService extends FileService {
 			}
 
 			const prepare = overwrite
-				? this.del(target).then(undefined, err => { /*ignore*/ })
+				? this.del(target, { recursive: true }).then(undefined, err => { /*ignore*/ })
 				: TPromise.as(null);
 
 			return prepare.then(() => {
@@ -640,7 +651,7 @@ export class RemoteFileService extends FileService {
 
 	private _activeWatches = new Map<string, { unwatch: Thenable<IDisposable>, count: number }>();
 
-	public watchFileChanges(resource: URI, opts?: IWatchOptions): void {
+	watchFileChanges(resource: URI, opts?: IWatchOptions): void {
 		if (resource.scheme === Schemas.file) {
 			return super.watchFileChanges(resource);
 		}
@@ -666,7 +677,7 @@ export class RemoteFileService extends FileService {
 		});
 	}
 
-	public unwatchFileChanges(resource: URI): void {
+	unwatchFileChanges(resource: URI): void {
 		if (resource.scheme === Schemas.file) {
 			return super.unwatchFileChanges(resource);
 		}

@@ -383,15 +383,15 @@ suite('ExtHostTypes', function () {
 		edit.replace(URI.parse('foo:a'), new types.Range(2, 1, 2, 1), 'bar');
 		edit.replace(URI.parse('foo:b'), new types.Range(3, 1, 3, 1), 'bazz');
 
-		const all = edit.allEntries();
+		const all = edit._allEntries();
 		assert.equal(all.length, 4);
 
-		function isFileChange(thing: [URI, types.TextEdit[]] | [URI, URI]): thing is [URI, URI] {
+		function isFileChange(thing: [URI, types.TextEdit[]] | [URI, URI, { overwrite?: boolean }]): thing is [URI, URI, { overwrite?: boolean }] {
 			const [f, s] = thing;
 			return URI.isUri(f) && URI.isUri(s);
 		}
 
-		function isTextChange(thing: [URI, types.TextEdit[]] | [URI, URI]): thing is [URI, types.TextEdit[]] {
+		function isTextChange(thing: [URI, types.TextEdit[]] | [URI, URI, { overwrite?: boolean }]): thing is [URI, types.TextEdit[]] {
 			const [f, s] = thing;
 			return URI.isUri(f) && Array.isArray(s);
 		}
@@ -418,8 +418,8 @@ suite('ExtHostTypes', function () {
 		edit.insert(uri, new types.Position(0, 0), 'Hello');
 		edit.insert(uri, new types.Position(0, 0), 'Foo');
 
-		assert.equal(edit.allEntries().length, 2);
-		let [first, second] = edit.allEntries();
+		assert.equal(edit._allEntries().length, 2);
+		let [first, second] = edit._allEntries();
 		assert.equal((first as [URI, types.TextEdit[]])[1][0].newText, 'Hello');
 		assert.equal((second as [URI, types.TextEdit[]])[1][0].newText, 'Foo');
 	});

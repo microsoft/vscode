@@ -9,7 +9,7 @@ import 'vs/css!./snippetSession';
 import { getLeadingWhitespace } from 'vs/base/common/strings';
 import { ITextModel, TrackedRangeStickiness, IIdentifiedSingleEditOperation } from 'vs/editor/common/model';
 import { EditOperation } from 'vs/editor/common/core/editOperation';
-import { TextmateSnippet, Placeholder, Choice, SnippetParser } from './snippetParser';
+import { TextmateSnippet, Placeholder, Choice, Text, SnippetParser } from './snippetParser';
 import { Selection } from 'vs/editor/common/core/selection';
 import { Range } from 'vs/editor/common/core/range';
 import { IPosition } from 'vs/editor/common/core/position';
@@ -86,6 +86,25 @@ export class OneSnippet {
 	move(fwd: boolean | undefined): Selection[] {
 
 		this._initDecorations();
+
+		// Transform placeholder text if necessary
+		if (this._placeholderGroupsIdx >= 0) {
+			let operations: IIdentifiedSingleEditOperation[] = [];
+
+			for (const placeholder of this._placeholderGroups[this._placeholderGroupsIdx]) {
+				// Check if the placeholder has a transformation
+				if (placeholder.transform) {
+					const id = this._placeholderDecorations.get(placeholder);
+					const range = this._editor.getModel().getDecorationRange(id);
+					const currentValue = this._editor.getModel().getValueInRange(range);
+
+					operations.push(EditOperation.replaceMove(range, placeholder.transform.resolve(currentValue)));
+				}
+			}
+			if (operations.length > 0) {
+				this._editor.executeEdits('snippet.placeholderTransform', operations);
+			}
+		}
 
 		if (fwd === true && this._placeholderGroupsIdx < this._placeholderGroups.length - 1) {
 			this._placeholderGroupsIdx += 1;
@@ -165,6 +184,14 @@ export class OneSnippet {
 
 				const id = this._placeholderDecorations.get(placeholder);
 				const range = this._editor.getModel().getDecorationRange(id);
+				if (!range) {
+					// one of the placeholder lost its decoration and
+					// therefore we bail out and pretend the placeholder
+					// (with its mirrors) doesn't exist anymore.
+					result.delete(placeholder.index);
+					break;
+				}
+
 				ranges.push(range);
 			}
 		}
@@ -244,17 +271,26 @@ export class OneSnippet {
 
 export class SnippetSession {
 
-	static adjustWhitespace(model: ITextModel, position: IPosition, template: string): string {
-
+	static adjustWhitespace2(model: ITextModel, position: IPosition, snippet: TextmateSnippet): void {
 		const line = model.getLineContent(position.lineNumber);
 		const lineLeadingWhitespace = getLeadingWhitespace(line, 0, position.column - 1);
-		const templateLines = template.split(/\r\n|\r|\n/);
 
-		for (let i = 1; i < templateLines.length; i++) {
-			let templateLeadingWhitespace = getLeadingWhitespace(templateLines[i]);
-			templateLines[i] = model.normalizeIndentation(lineLeadingWhitespace + templateLeadingWhitespace) + templateLines[i].substr(templateLeadingWhitespace.length);
-		}
-		return templateLines.join(model.getEOL());
+		snippet.walk(marker => {
+			if (marker instanceof Text && !(marker.parent instanceof Choice)) {
+				// adjust indentation of text markers, except for choise elements
+				// which get adjusted when being selected
+				const lines = marker.value.split(/\r\n|\r|\n/);
+				for (let i = 1; i < lines.length; i++) {
+					let templateLeadingWhitespace = getLeadingWhitespace(lines[i]);
+					lines[i] = model.normalizeIndentation(lineLeadingWhitespace + templateLeadingWhitespace) + lines[i].substr(templateLeadingWhitespace.length);
+				}
+				const newValue = lines.join(model.getEOL());
+				if (newValue !== marker.value) {
+					marker.parent.replace(marker, [new Text(newValue)]);
+				}
+			}
+			return true;
+		});
 	}
 
 	static adjustSelection(model: ITextModel, selection: Selection, overwriteBefore: number, overwriteAfter: number): Selection {
@@ -324,19 +360,19 @@ export class SnippetSession {
 				.setStartPosition(extensionBefore.startLineNumber, extensionBefore.startColumn)
 				.setEndPosition(extensionAfter.endLineNumber, extensionAfter.endColumn);
 
+			const snippet = new SnippetParser().parse(template, true, enforceFinalTabstop);
+
 			// adjust the template string to match the indentation and
 			// whitespace rules of this insert location (can be different for each cursor)
 			const start = snippetSelection.getStartPosition();
-			const adjustedTemplate = SnippetSession.adjustWhitespace(model, start, template);
+			SnippetSession.adjustWhitespace2(model, start, snippet);
 
-			const snippet = new SnippetParser()
-				.parse(adjustedTemplate, true, enforceFinalTabstop)
-				.resolveVariables(new CompositeSnippetVariableResolver([
-					modelBasedVariableResolver,
-					new ClipboardBasedVariableResolver(clipboardService, idx, indexedSelections.length),
-					new SelectionBasedVariableResolver(model, selection),
-					new TimeBasedVariableResolver
-				]));
+			snippet.resolveVariables(new CompositeSnippetVariableResolver([
+				modelBasedVariableResolver,
+				new ClipboardBasedVariableResolver(clipboardService, idx, indexedSelections.length),
+				new SelectionBasedVariableResolver(model, selection),
+				new TimeBasedVariableResolver
+			]));
 
 			const offset = model.getOffsetAt(start) + delta;
 			delta += snippet.toString().length - model.getValueLengthInRange(snippetSelection);

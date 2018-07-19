@@ -4,7 +4,7 @@
 		"If you want to provide a fix or improvement, please create a pull request against the original repository.",
 		"Once accepted there, we are happy to receive an update request."
 	],
-	"version": "https://github.com/Microsoft/TypeScript-TmLanguage/commit/7bf8960f7042474b10b519f39339fc527907ce16",
+	"version": "https://github.com/Microsoft/TypeScript-TmLanguage/commit/d7df3e324468b6535af67573d2956f9a852aa586",
 	"name": "TypeScript",
 	"scopeName": "source.ts",
 	"patterns": [
@@ -138,6 +138,10 @@
 				{
 					"name": "keyword.control.with.ts",
 					"match": "(?<![_$[:alnum:]])(?:(?<=\\.\\.\\.)|(?<!\\.))(with)(?![_$[:alnum:]])(?:(?=\\.\\.\\.)|(?!\\.))"
+				},
+				{
+					"name": "keyword.control.ts",
+					"match": "(?<![_$[:alnum:]])(?:(?<=\\.\\.\\.)|(?<!\\.))(package)(?![_$[:alnum:]])(?:(?=\\.\\.\\.)|(?!\\.))"
 				},
 				{
 					"name": "keyword.other.debugger.ts",
@@ -309,7 +313,7 @@
 							"name": "punctuation.separator.comma.ts"
 						}
 					},
-					"end": "(?<!,)((?==|;|}|(\\s+(of|in)\\s+)|^\\s*$))|((?<=\\S)(?=\\s*$))",
+					"end": "(?<!,)(((?==|;|}|(\\s+(of|in)\\s+)|^\\s*$))|((?<=\\S)(?=\\s*$)))",
 					"patterns": [
 						{
 							"include": "#comment"
@@ -4149,7 +4153,7 @@
 		},
 		"directives": {
 			"name": "comment.line.triple-slash.directive.ts",
-			"begin": "^(///)\\s*(?=<(reference|amd-dependency|amd-module)(\\s+(path|types|no-default-lib|name)\\s*=\\s*((\\'([^\\'\\\\]|\\\\\\'|\\\\)*\\')|(\\\"([^\\\"\\\\]|\\\\\\\"|\\\\)*\\\")))+\\s*/>\\s*$)",
+			"begin": "^(///)\\s*(?=<(reference|amd-dependency|amd-module)(\\s+(path|types|no-default-lib|lib|name)\\s*=\\s*((\\'([^\\'\\\\]|\\\\\\'|\\\\)*\\')|(\\\"([^\\\"\\\\]|\\\\\\\"|\\\\)*\\\")))+\\s*/>\\s*$)",
 			"beginCaptures": {
 				"1": {
 					"name": "punctuation.definition.comment.ts"
@@ -4177,7 +4181,7 @@
 					"patterns": [
 						{
 							"name": "entity.other.attribute-name.directive.ts",
-							"match": "path|types|no-default-lib|name"
+							"match": "path|types|no-default-lib|lib|name"
 						},
 						{
 							"name": "keyword.operator.assignment.ts",
