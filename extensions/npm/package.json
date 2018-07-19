@@ -60,10 +60,6 @@
         }
       },
       {
-        "command": "npm.runScriptFromSource",
-        "title": "%command.runScriptFromSource%"
-      },
-      {
         "command": "npm.debugScript",
         "title": "%command.debug%",
         "icon": {
@@ -120,13 +116,6 @@
           "command": "npm.refresh",
           "when": "view == npm",
           "group": "navigation"
-        }
-      ],
-      "editor/context": [
-        {
-          "command": "npm.runScriptFromSource",
-          "when": "resourceFilename == 'package.json'",
-          "group": "navigation@+1"
         }
       ],
       "view/item/context": [

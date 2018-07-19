@@ -15,6 +15,5 @@
 	"command.run": "Run",
 	"command.debug": "Debug",
 	"command.openScript": "Open",
-	"command.runInstall": "Run Install",
-	"command.runScriptFromSource": "Run Script"
+	"command.runInstall": "Run Install"
 }

@@ -9,17 +9,17 @@ import * as vscode from 'vscode';
 
 import { addJSONProviders } from './features/jsonContributions';
 import { NpmScriptsTreeDataProvider } from './npmView';
-import { provideNpmScripts, invalidateScriptsCache, findScriptAtPosition, createTask } from './tasks';
+import { provideNpmScripts, invalidateScriptsCache } from './tasks';
 
-import * as nls from 'vscode-nls';
+import { NpmLenseProvider } from './lenses';
 
 let taskProvider: vscode.Disposable | undefined;
-
-const localize = nls.loadMessageBundle();
 
 export async function activate(context: vscode.ExtensionContext): Promise<void> {
 	taskProvider = registerTaskProvider(context);
 	const treeDataProvider = registerExplorer(context);
+	registerLenseProvider(context);
+
 	configureHttpRequest();
 	vscode.workspace.onDidChangeConfiguration((e) => {
 		configureHttpRequest();
@@ -36,7 +36,6 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
 		}
 	});
 	context.subscriptions.push(addJSONProviders(httpRequest.xhr));
-	context.subscriptions.push(vscode.commands.registerCommand('npm.runScriptFromSource', runScriptFromSource));
 }
 
 function registerTaskProvider(context: vscode.ExtensionContext): vscode.Disposable | undefined {
@@ -70,32 +69,21 @@ function registerExplorer(context: vscode.ExtensionContext): NpmScriptsTreeDataP
 	return undefined;
 }
 
+function registerLenseProvider(context: vscode.ExtensionContext) {
+	if (vscode.workspace.workspaceFolders) {
+		let npmSelector: vscode.DocumentSelector = {
+			language: 'json',
+			scheme: 'file',
+			pattern: '**/package.json'
+		};
+		let provider = new NpmLenseProvider(context);
+		context.subscriptions.push(vscode.languages.registerCodeLensProvider(npmSelector, provider));
+	}
+}
+
 function configureHttpRequest() {
 	const httpSettings = vscode.workspace.getConfiguration('http');
 	httpRequest.configure(httpSettings.get<string>('proxy', ''), httpSettings.get<boolean>('proxyStrictSSL', true));
-}
-
-async function runScriptFromSource() {
-	let editor = vscode.window.activeTextEditor;
-	if (!editor) {
-		return;
-	}
-	let document = editor.document;
-	let contents = document.getText();
-	let selection = editor.selection;
-	let offset = document.offsetAt(selection.anchor);
-	let script = findScriptAtPosition(contents, offset);
-	if (script) {
-		let uri = document.uri;
-		let folder = vscode.workspace.getWorkspaceFolder(uri);
-		if (folder) {
-			let task = createTask(script, `run ${script}`, folder, uri);
-			vscode.tasks.executeTask(task);
-		}
-	} else {
-		let message = localize('noScriptFound', 'Could not find a script at the selection.');
-		vscode.window.showErrorMessage(message);
-	}
 }
 
 export function deactivate(): void {
