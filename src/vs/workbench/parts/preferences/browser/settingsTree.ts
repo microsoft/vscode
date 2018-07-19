@@ -627,7 +627,6 @@ export class SettingsRenderer implements IRenderer {
 
 		const valueElement = DOM.append(container, $('.setting-item-value'));
 		const controlElement = DOM.append(valueElement, $('div.setting-item-control'));
-		const resetButtonElement = DOM.append(valueElement, $('.reset-button-container'));
 
 		const toDispose = [];
 		const template: ISettingItemTemplate = {
@@ -644,7 +643,6 @@ export class SettingsRenderer implements IRenderer {
 
 		// Prevent clicks from being handled by list
 		toDispose.push(DOM.addDisposableListener(controlElement, 'mousedown', (e: IMouseEvent) => e.stopPropagation()));
-		toDispose.push(DOM.addDisposableListener(resetButtonElement, 'mousedown', (e: IMouseEvent) => e.stopPropagation()));
 
 		toDispose.push(DOM.addStandardDisposableListener(valueElement, 'keydown', (e: StandardKeyboardEvent) => {
 			if (e.keyCode === KeyCode.Escape) {
@@ -915,6 +913,9 @@ export class SettingsRenderer implements IRenderer {
 	private renderEnum(dataElement: SettingsTreeSettingElement, isSelected: boolean, template: ISettingEnumItemTemplate, onChange: (value: string) => void): void {
 		const displayOptions = dataElement.setting.enum.map(escapeInvisibleChars);
 		template.selectBox.setOptions(displayOptions);
+
+		const label = dataElement.displayCategory + ' ' + dataElement.displayLabel;
+		template.selectBox.setAriaLabel(label);
 
 		const idx = dataElement.setting.enum.indexOf(dataElement.value);
 		template.onChange = null;

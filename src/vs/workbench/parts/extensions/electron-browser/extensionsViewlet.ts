@@ -351,6 +351,7 @@ export class ExtensionsViewlet extends ViewContainerViewlet implements IExtensio
 
 		const onKeyDownMonaco = chain(this.searchBox.onKeyDown);
 		onKeyDownMonaco.filter(e => e.keyCode === KeyCode.Enter).on(e => e.preventDefault(), this, this.disposables);
+		onKeyDownMonaco.filter(e => e.keyCode === KeyCode.DownArrow).on(() => this.focusListView(), this, this.disposables);
 
 		const searchChangeEvent = new Emitter<string>();
 		this.onSearchChange = searchChangeEvent.event;
@@ -518,6 +519,16 @@ export class ExtensionsViewlet extends ViewContainerViewlet implements IExtensio
 		let alreadyTypedCount = position - wordStart - 1;
 
 		return Query.autocompletions().map(replacement => ({ fullText: replacement, overwrite: alreadyTypedCount }));
+	}
+
+	private count(): number {
+		return this.panels.reduce((count, view) => (<ExtensionsListView>view).count() + count, 0);
+	}
+
+	private focusListView(): void {
+		if (this.count() > 0) {
+			this.panels[0].focus();
+		}
 	}
 
 	private onViewletOpen(viewlet: IViewlet): void {
