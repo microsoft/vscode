@@ -15,6 +15,7 @@ import * as extfs from 'vs/base/node/extfs';
 import { IFileMatch, IFolderQuery, IPatternInfo, IRawSearchQuery, ISearchCompleteStats, ISearchQuery } from 'vs/platform/search/common/search';
 import * as vscode from 'vscode';
 import { ExtHostSearchShape, IMainContext, MainContext, MainThreadSearchShape } from './extHost.protocol';
+import { toDisposable } from 'vs/base/common/lifecycle';
 
 export interface ISchemeTransformer {
 	transformOutgoing(scheme: string): string;
@@ -44,12 +45,10 @@ export class ExtHostSearch implements ExtHostSearchShape {
 		const handle = this._handlePool++;
 		this._searchProvider.set(handle, provider);
 		this._proxy.$registerSearchProvider(handle, this._transformScheme(scheme));
-		return {
-			dispose: () => {
-				this._searchProvider.delete(handle);
-				this._proxy.$unregisterProvider(handle);
-			}
-		};
+		return toDisposable(() => {
+			this._searchProvider.delete(handle);
+			this._proxy.$unregisterProvider(handle);
+		});
 	}
 
 	$provideFileSearchResults(handle: number, session: number, rawQuery: IRawSearchQuery): TPromise<ISearchCompleteStats> {

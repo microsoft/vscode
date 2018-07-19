@@ -19,7 +19,7 @@ import { IRawSearch, ISerializedSearchComplete, ISerializedSearchProgressItem, I
 import { ISearchChannel, SearchChannelClient } from './searchIpc';
 import { IEnvironmentService, IDebugParams } from 'vs/platform/environment/common/environment';
 import { ResourceMap } from 'vs/base/common/map';
-import { IDisposable } from 'vs/base/common/lifecycle';
+import { IDisposable, toDisposable } from 'vs/base/common/lifecycle';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { onUnexpectedError } from 'vs/base/common/errors';
 import { Schemas } from 'vs/base/common/network';
@@ -55,18 +55,16 @@ export class SearchService implements ISearchService {
 			this.searchProviders.push(provider);
 		}
 
-		return {
-			dispose: () => {
-				if (scheme === 'file') {
-					this.fileSearchProvider = null;
-				} else {
-					const idx = this.searchProviders.indexOf(provider);
-					if (idx >= 0) {
-						this.searchProviders.splice(idx, 1);
-					}
+		return toDisposable(() => {
+			if (scheme === 'file') {
+				this.fileSearchProvider = null;
+			} else {
+				const idx = this.searchProviders.indexOf(provider);
+				if (idx >= 0) {
+					this.searchProviders.splice(idx, 1);
 				}
 			}
-		};
+		});
 	}
 
 	public extendQuery(query: ISearchQuery): void {
