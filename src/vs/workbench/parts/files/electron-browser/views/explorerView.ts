@@ -435,6 +435,7 @@ export class ExplorerView extends TreeViewsViewletPanel implements IExplorerView
 		// Update resource context based on focused element
 		this.disposables.push(this.explorerViewer.onDidChangeFocus((e: { focus: ExplorerItem }) => {
 			const isSingleFolder = this.contextService.getWorkbenchState() === WorkbenchState.FOLDER;
+			// 54483: Check with Isi
 			const resource = e.focus ? e.focus.resource : isSingleFolder ? this.contextService.getWorkspace().folders[0].uri : undefined;
 			this.resourceContext.set(resource);
 			this.folderContext.set((isSingleFolder && !e.focus) || e.focus && e.focus.isDirectory);

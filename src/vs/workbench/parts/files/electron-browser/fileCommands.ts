@@ -353,6 +353,7 @@ CommandsRegistry.registerCommand({
 });
 
 function revealResourcesInOS(resources: URI[], windowsService: IWindowsService, notificationService: INotificationService, workspaceContextService: IWorkspaceContextService): void {
+	// 54483: Check with @Isi
 	if (resources.length) {
 		sequence(resources.map(r => () => windowsService.showItemInFolder(paths.normalize(r.fsPath, true))));
 	} else if (workspaceContextService.getWorkspace().folders.length) {

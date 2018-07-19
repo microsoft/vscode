@@ -997,6 +997,7 @@ export class SearchView extends Viewlet implements IViewlet, IPanel {
 		if (resources) {
 			resources.forEach(resource => {
 				let folderPath: string;
+				// #54483 Check with Rob
 				if (this.contextService.getWorkbenchState() === WorkbenchState.FOLDER) {
 					// Show relative path from the root for single-root mode
 					folderPath = paths.normalize(pathToRelative(workspace.folders[0].uri.fsPath, resource.fsPath));
