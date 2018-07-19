@@ -665,6 +665,10 @@ export class TerminalInstance implements ITerminalInstance {
 				const width = parseInt(computedStyle.getPropertyValue('width').replace('px', ''), 10);
 				const height = parseInt(computedStyle.getPropertyValue('height').replace('px', ''), 10);
 				this.layout(new dom.Dimension(width, height));
+				// HACK: Trigger another async layout to ensure xterm's CharMeasure is ready to use,
+				// this hack can be removed when https://github.com/xtermjs/xterm.js/issues/702 is
+				// supported.
+				setTimeout(() => this.layout(new dom.Dimension(width, height)), 0);
 			}
 		}
 	}
