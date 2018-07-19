@@ -20,7 +20,7 @@ import { ILifecycleService, UnloadReason, IWindowUnloadEvent } from 'vs/platform
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { ILogService } from 'vs/platform/log/common/log';
 import { IWindowSettings, OpenContext, IPath, IWindowConfiguration, INativeOpenDialogOptions, ReadyState, IPathsToWaitFor, IEnterWorkspaceResult, IMessageBoxResult } from 'vs/platform/windows/common/windows';
-import { getLastActiveWindow, findBestWindowOrFolderForFile, findWindowOnWorkspace, findWindowOnExtensionDevelopmentPath, findWindowOnWorkspaceOrFolderPath } from 'vs/code/node/windowsFinder';
+import { getLastActiveWindow, findBestWindowOrFolderForFile, findWindowOnWorkspace, findWindowOnExtensionDevelopmentPath, findWindowOnWorkspaceOrFolderUri } from 'vs/code/node/windowsFinder';
 import { Event as CommonEvent, Emitter } from 'vs/base/common/event';
 import product from 'vs/platform/node/product';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
@@ -1104,8 +1104,15 @@ export class WindowsManager implements IWindowsMainService {
 		}
 
 		// Make sure we are not asked to open a workspace or folder that is already opened
-		if (openConfig.cli._.some(path => !!findWindowOnWorkspaceOrFolderPath(WindowsManager.WINDOWS, path))) {
+		if (openConfig.cli._.some(path => !!findWindowOnWorkspaceOrFolderUri(WindowsManager.WINDOWS, URI.file(path)))) {
 			openConfig.cli._ = [];
+		}
+		if (openConfig.cli['folder-uri']) {
+			const arg = openConfig.cli['folder-uri'];
+			const folderUris: string[] = typeof arg === 'string' ? [arg] : arg;
+			if (folderUris.some(uri => !!findWindowOnWorkspaceOrFolderUri(WindowsManager.WINDOWS, URI.parse(uri)))) {
+				openConfig.cli['folder-uri'] = [];
+			}
 		}
 
 		// Open it

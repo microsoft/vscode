@@ -103,16 +103,16 @@ export function findWindowOnExtensionDevelopmentPath<W extends ISimpleWindow>(wi
 	})[0];
 }
 
-export function findWindowOnWorkspaceOrFolderPath<W extends ISimpleWindow>(windows: W[], path: string): W {
+export function findWindowOnWorkspaceOrFolderUri<W extends ISimpleWindow>(windows: W[], uri: URI): W {
 	return windows.filter(window => {
 
 		// check for workspace config path
-		if (window.openedWorkspace && paths.isEqual(window.openedWorkspace.configPath, path, !platform.isLinux /* ignorecase */)) {
+		if (window.openedWorkspace && isEqual(URI.file(window.openedWorkspace.configPath), uri, !platform.isLinux /* ignorecase */)) {
 			return true;
 		}
 
 		// check for folder path
-		if (window.openedFolderUri && window.openedFolderUri.scheme === Schemas.file && paths.isEqual(window.openedFolderUri.fsPath, path, !platform.isLinux /* ignorecase */)) {
+		if (window.openedFolderUri && isEqual(window.openedFolderUri, uri, hasToIgnoreCase(uri))) {
 			return true;
 		}
 
