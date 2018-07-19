@@ -12,7 +12,7 @@ import { IconLabel } from 'vs/base/browser/ui/iconLabel/iconLabel';
 import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
 import { combinedDisposable, dispose, IDisposable } from 'vs/base/common/lifecycle';
 import { Schemas } from 'vs/base/common/network';
-import { basenameOrAuthority, isEqual } from 'vs/base/common/resources';
+import { isEqual } from 'vs/base/common/resources';
 import 'vs/css!./media/breadcrumbscontrol';
 import { ICodeEditor, isCodeEditor } from 'vs/editor/browser/editorBrowser';
 import { Range } from 'vs/editor/common/core/range';
@@ -72,20 +72,15 @@ class Item extends BreadcrumbsItem {
 	render(container: HTMLElement): void {
 		if (this.element instanceof FileElement) {
 			// file/folder
-			if (this.options.showFileIcons) {
-				let label = this._instantiationService.createInstance(FileLabel, container, {});
-				label.setFile(this.element.uri, {
-					hidePath: true,
-					fileKind: this.element.isFile ? FileKind.FILE : FileKind.FOLDER,
-					fileDecorations: { colors: this.options.showDecorationColors, badges: false }
-				});
-				this._disposables.push(label);
-
-			} else {
-				let label = new IconLabel(container);
-				label.setValue(basenameOrAuthority(this.element.uri));
-				this._disposables.push(label);
-			}
+			let label = this._instantiationService.createInstance(FileLabel, container, {});
+			label.setFile(this.element.uri, {
+				hidePath: true,
+				fileKind: this.element.isFile ? FileKind.FILE : FileKind.FOLDER,
+				hideIcon: !this.element.isFile || !this.options.showFileIcons,
+				fileDecorations: { colors: this.options.showDecorationColors, badges: false }
+			});
+			this._disposables.push(label);
+			dom.toggleClass(container, 'file', this.element.isFile);
 
 		} else if (this.element instanceof OutlineGroup) {
 			// provider
@@ -100,11 +95,12 @@ class Item extends BreadcrumbsItem {
 				let icon = document.createElement('div');
 				icon.className = `symbol-icon ${symbolKindToCssClass(this.element.symbol.kind)}`;
 				container.appendChild(icon);
-				container.classList.add('shows-symbol-icon');
+				dom.addClass(container, 'shows-symbol-icon');
 			}
 
 			let label = new IconLabel(container);
-			label.setValue(this.element.symbol.name.replace(/\r|\n|\r\n/g, '\u23CE'));
+			let title = this.element.symbol.name.replace(/\r|\n|\r\n/g, '\u23CE');
+			label.setValue(title, undefined, { title });
 			this._disposables.push(label);
 		}
 	}

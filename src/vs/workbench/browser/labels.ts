@@ -199,11 +199,12 @@ export class ResourceLabel extends IconLabel {
 			iconLabelOptions.title = this.computedPathLabel;
 		}
 
-		if (!this.computedIconClasses) {
-			this.computedIconClasses = getIconClasses(this.modelService, this.modeService, resource, this.options && this.options.fileKind);
+		if (this.options && !this.options.hideIcon) {
+			if (!this.computedIconClasses) {
+				this.computedIconClasses = getIconClasses(this.modelService, this.modeService, resource, this.options && this.options.fileKind);
+			}
+			iconLabelOptions.extraClasses = this.computedIconClasses.slice(0);
 		}
-
-		iconLabelOptions.extraClasses = this.computedIconClasses.slice(0);
 		if (this.options && this.options.extraClasses) {
 			iconLabelOptions.extraClasses.push(...this.options.extraClasses);
 		}
