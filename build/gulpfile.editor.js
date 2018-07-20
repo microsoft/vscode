@@ -83,6 +83,7 @@ gulp.task('extract-editor-src', ['clean-editor-src'], function() {
 		entryPoints: [
 			'vs/editor/editor.main',
 			'vs/editor/editor.worker',
+			'vs/base/worker/workerMain',
 			// 'user',
 			// 'user2',
 		],
@@ -105,6 +106,7 @@ gulp.task('extract-editor-src', ['clean-editor-src'], function() {
 
 gulp.task('clean-optimized-editor', util.rimraf('out-editor'));
 gulp.task('optimize-editor', ['clean-optimized-editor', 'compile-client-build'], common.optimizeTask({
+	src: 'out-build',
 	entryPoints: editorEntryPoints,
 	otherSources: editorOtherSources,
 	resources: editorResources,
@@ -119,6 +121,24 @@ gulp.task('optimize-editor', ['clean-optimized-editor', 'compile-client-build'],
 // Full compile, including nls and inline sources in sourcemaps, for build
 gulp.task('clean-editor-build', util.rimraf('out-editor-build'));
 gulp.task('compile-editor-build', ['clean-editor-build', 'extract-editor-src'], compilation.compileTask('out-editor-src', 'out-editor-build', true));
+
+gulp.task('optimize-editor2', ['clean-optimized-editor', 'compile-editor-build'], common.optimizeTask({
+	src: 'out-editor-build',
+	entryPoints: editorEntryPoints,
+	otherSources: editorOtherSources,
+	resources: editorResources,
+	loaderConfig: {
+		paths: {
+			'vs': 'out-editor-build/vs',
+			'vscode': 'empty:'
+		}
+	},
+	bundleLoader: false,
+	header: BUNDLED_FILE_HEADER,
+	bundleInfo: true,
+	out: 'out-editor',
+	languages: languages
+}));
 
 gulp.task('clean-minified-editor', util.rimraf('out-editor-min'));
 gulp.task('minify-editor', ['clean-minified-editor', 'optimize-editor'], common.minifyTask('out-editor'));
