@@ -652,22 +652,24 @@ function helpMenuRegistration() {
 		order: 2
 	});
 
-	MenuRegistry.appendMenuItem(MenuId.MenubarHelpMenu, {
-		group: '5_tools',
-		command: {
-			id: 'workbench.action.showAccessibilityOptions',
-			title: nls.localize({ key: 'miAccessibilityOptions', comment: ['&& denotes a mnemonic'] }, "Accessibility &&Options")
-		},
-		order: 3
-	});
+	if (!isMacintosh) {
+		MenuRegistry.appendMenuItem(MenuId.MenubarHelpMenu, {
+			group: '5_tools',
+			command: {
+				id: 'workbench.action.showAccessibilityOptions',
+				title: nls.localize({ key: 'miAccessibilityOptions', comment: ['&& denotes a mnemonic'] }, "Accessibility &&Options")
+			},
+			order: 3
+		});
 
-	// About
-	MenuRegistry.appendMenuItem(MenuId.MenubarHelpMenu, {
-		group: 'z_about',
-		command: {
-			id: 'workbench.action.showAboutDialog',
-			title: nls.localize({ key: 'miAbout', comment: ['&& denotes a mnemonic'] }, "&&About")
-		},
-		order: 1
-	});
+		// About
+		MenuRegistry.appendMenuItem(MenuId.MenubarHelpMenu, {
+			group: 'z_about',
+			command: {
+				id: 'workbench.action.showAboutDialog',
+				title: nls.localize({ key: 'miAbout', comment: ['&& denotes a mnemonic'] }, "&&About")
+			},
+			order: 1
+		});
+	}
 }

@@ -163,23 +163,34 @@ MenuRegistry.appendMenuItem(MenuId.MenubarFileMenu, {
 	order: 2
 });
 
-MenuRegistry.appendMenuItem(MenuId.MenubarFileMenu, {
-	group: '2_open',
-	command: {
-		id: OpenFileAction.ID,
-		title: nls.localize({ key: 'miOpenFile', comment: ['&& denotes a mnemonic'] }, "&&Open File...")
-	},
-	order: 1
-});
+if (!isMacintosh) {
+	MenuRegistry.appendMenuItem(MenuId.MenubarFileMenu, {
+		group: '2_open',
+		command: {
+			id: OpenFileAction.ID,
+			title: nls.localize({ key: 'miOpenFile', comment: ['&& denotes a mnemonic'] }, "&&Open File...")
+		},
+		order: 1
+	});
 
-MenuRegistry.appendMenuItem(MenuId.MenubarFileMenu, {
-	group: '2_open',
-	command: {
-		id: OpenFolderAction.ID,
-		title: nls.localize({ key: 'miOpenFolder', comment: ['&& denotes a mnemonic'] }, "Open &&Folder...")
-	},
-	order: 2
-});
+	MenuRegistry.appendMenuItem(MenuId.MenubarFileMenu, {
+		group: '2_open',
+		command: {
+			id: OpenFolderAction.ID,
+			title: nls.localize({ key: 'miOpenFolder', comment: ['&& denotes a mnemonic'] }, "Open &&Folder...")
+		},
+		order: 2
+	});
+} else {
+	MenuRegistry.appendMenuItem(MenuId.MenubarFileMenu, {
+		group: '2_open',
+		command: {
+			id: OpenFileFolderAction.ID,
+			title: nls.localize({ key: 'miOpen', comment: ['&& denotes a mnemonic'] }, "&&Open...")
+		},
+		order: 1
+	});
+}
 
 MenuRegistry.appendMenuItem(MenuId.MenubarFileMenu, {
 	group: '2_open',
@@ -226,12 +237,14 @@ MenuRegistry.appendMenuItem(MenuId.MenubarFileMenu, {
 	order: 2
 });
 
-MenuRegistry.appendMenuItem(MenuId.MenubarFileMenu, {
-	title: nls.localize({ key: 'miPreferences', comment: ['&& denotes a mnemonic'] }, "&&Preferences"),
-	submenu: MenuId.MenubarPreferencesMenu,
-	group: '5_autosave',
-	order: 2
-});
+if (!isMacintosh) {
+	MenuRegistry.appendMenuItem(MenuId.MenubarFileMenu, {
+		title: nls.localize({ key: 'miPreferences', comment: ['&& denotes a mnemonic'] }, "&&Preferences"),
+		submenu: MenuId.MenubarPreferencesMenu,
+		group: '5_autosave',
+		order: 2
+	});
+}
 
 MenuRegistry.appendMenuItem(MenuId.MenubarFileMenu, {
 	group: '6_close',

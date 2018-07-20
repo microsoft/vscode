@@ -324,6 +324,14 @@ export class Menubar {
 	private setMacApplicationMenu(macApplicationMenu: Electron.Menu): void {
 		const about = new MenuItem({ label: nls.localize('mAbout', "About {0}", product.nameLong), role: 'about' });
 		const checkForUpdates = this.getUpdateMenuItems();
+
+		let preferences;
+		if (this.shouldDrawMenu('Preferences')) {
+			const preferencesMenu = new Menu();
+			this.setMenuById(preferencesMenu, 'Preferences');
+			preferences = new MenuItem({ label: this.mnemonicLabel(nls.localize({ key: 'miPreferences', comment: ['&& denotes a mnemonic'] }, "&&Preferences")), submenu: preferencesMenu });
+		}
+
 		const servicesMenu = new Menu();
 		const services = new MenuItem({ label: nls.localize('mServices', "Services"), role: 'services', submenu: servicesMenu });
 		const hide = new MenuItem({ label: nls.localize('mHide', "Hide {0}", product.nameLong), role: 'hide', accelerator: 'Command+H' });
@@ -339,6 +347,14 @@ export class Menubar {
 
 		const actions = [about];
 		actions.push(...checkForUpdates);
+
+		if (preferences) {
+			actions.push(...[
+				__separator__(),
+				preferences
+			]);
+		}
+
 		actions.push(...[
 			__separator__(),
 			services,
