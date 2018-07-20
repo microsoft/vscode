@@ -534,33 +534,33 @@ export class TypeOperations {
 					return false;
 				}
 			}
+			
+			// Only consider auto closing the pair if a space follows or if another autoclosed pair follows
+      		// if (currentTokenType == modes.StandardTokenType.String)
+      		const characterAfter = lineText.charAt(position.column - 1);
 
-      // Only consider auto closing the pair if a space follows or if another autoclosed pair follows
-      // if (currentTokenType == modes.StandardTokenType.String)
-      const characterAfter = lineText.charAt(position.column - 1);
+      		if (!model.isCheapToTokenize(position.lineNumber)) {
+        		// Do not force tokenization
+        		return false;
+      		}
 
-      if (!model.isCheapToTokenize(position.lineNumber)) {
-        // Do not force tokenization
-        return false;
-      }
-
-      model.forceTokenization(position.lineNumber);
-      const lineTokens = model.getLineTokens(position.lineNumber);
-      const currentTokenIndex = lineTokens.findTokenIndexAtOffset(position.column - 2);
-      const currentTokenType = lineTokens.getStandardTokenType(currentTokenIndex);
+      		model.forceTokenization(position.lineNumber);
+      		const lineTokens = model.getLineTokens(position.lineNumber);
+      		const currentTokenIndex = lineTokens.findTokenIndexAtOffset(position.column - 2);
+      		const currentTokenType = lineTokens.getStandardTokenType(currentTokenIndex);
 
 			if (characterAfter) {
-        let isBeforeCloseBrace = TypeOperations._isBeforeClosingBrace(config, ch, characterAfter);
+        		let isBeforeCloseBrace = TypeOperations._isBeforeClosingBrace(config, ch, characterAfter);
 
-        //*** Allow autocompletion in strings without needing a space after the cursor (allows for autocomplete interpolation)
-        if (!isBeforeCloseBrace && !/\s/.test(characterAfter) && currentTokenType !== modes.StandardTokenType.String) {
+        		//*** Allow autocompletion in strings without needing a space after the cursor (allows for autocomplete interpolation)
+        		if (!isBeforeCloseBrace && !/\s/.test(characterAfter) && currentTokenType !== modes.StandardTokenType.String) {
 					return false;
 				}
 			}
 
 			// const lineTokens = model.getLineTokens(position.lineNumber);
 
-      let shouldAutoClosePair = false;
+      		let shouldAutoClosePair = false;
       
 			try {
 				shouldAutoClosePair = LanguageConfigurationRegistry.shouldAutoClosePair(ch, lineTokens, position.column);
@@ -782,17 +782,17 @@ export class TypeOperations {
 					}
 				}
 
-        const characterAfter = lineText.charAt(position.column - 1);
+        	const characterAfter = lineText.charAt(position.column - 1);
 
-        model.forceTokenization(position.lineNumber);
-        const lineTokens = model.getLineTokens(position.lineNumber);
-        const currentTokenIndex = lineTokens.findTokenIndexAtOffset(position.column - 2);
-        const currentTokenType = lineTokens.getStandardTokenType(currentTokenIndex);
+        	model.forceTokenization(position.lineNumber);
+        	const lineTokens = model.getLineTokens(position.lineNumber);
+        	const currentTokenIndex = lineTokens.findTokenIndexAtOffset(position.column - 2);
+        	const currentTokenType = lineTokens.getStandardTokenType(currentTokenIndex);
 
-				if (characterAfter) {
-          let isBeforeCloseBrace = TypeOperations._isBeforeClosingBrace(config, ch, characterAfter);
-          //*** Allow autocompletion in strings without needing a space after the cursor (for interpolation)
-          if (!isBeforeCloseBrace && !/\s/.test(characterAfter) && currentTokenType !== modes.StandardTokenType.String) {
+			if (characterAfter) {
+          		let isBeforeCloseBrace = TypeOperations._isBeforeClosingBrace(config, ch, characterAfter);
+          		//*** Allow autocompletion in strings without needing a space after the cursor (for interpolation)
+          		if (!isBeforeCloseBrace && !/\s/.test(characterAfter) && currentTokenType !== modes.StandardTokenType.String) {
 						continue;
 					}
 				}
