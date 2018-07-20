@@ -462,9 +462,9 @@ export class CodeApplication {
 		// Open our first window
 		const macOpenFiles = (<any>global).macOpenFiles as string[];
 		const context = !!process.env['VSCODE_CLI'] ? OpenContext.CLI : OpenContext.DESKTOP;
-		if (args['new-window'] && args._.length === 0) {
+		if (args['new-window'] && args._.length === 0 && (args['folder-uri'] || []).length === 0) {
 			this.windowsMainService.open({ context, cli: args, forceNewWindow: true, forceEmpty: true, initialStartup: true }); // new window if "-n" was used without paths
-		} else if (macOpenFiles && macOpenFiles.length && (!args._ || !args._.length)) {
+		} else if (macOpenFiles && macOpenFiles.length && (!args._ || !args._.length || !args['folder-uri'] || !args['folder-uri'].length)) {
 			this.windowsMainService.open({ context: OpenContext.DOCK, cli: args, urisToOpen: macOpenFiles.map(file => URI.file(file)), initialStartup: true }); // mac: open-file event received on startup
 		} else {
 			this.windowsMainService.open({ context, cli: args, forceNewWindow: args['new-window'] || (!args._.length && args['unity-launch']), diffMode: args.diff, initialStartup: true }); // default: read paths from cli

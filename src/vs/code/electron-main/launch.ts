@@ -178,7 +178,7 @@ export class LaunchService implements ILaunchService {
 		}
 
 		// Start without file/folder arguments
-		else if (args._.length === 0) {
+		else if (args._.length === 0 && (args['folder-uri'] || []).length === 0) {
 			let openNewWindow = false;
 
 			// Force new window

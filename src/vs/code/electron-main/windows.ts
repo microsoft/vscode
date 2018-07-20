@@ -421,7 +421,7 @@ export class WindowsManager implements IWindowsMainService {
 		// Make sure to pass focus to the most relevant of the windows if we open multiple
 		if (usedWindows.length > 1) {
 
-			let focusLastActive = this.windowsState.lastActiveWindow && !openConfig.forceEmpty && !openConfig.cli._.length && (!openConfig.urisToOpen || !openConfig.urisToOpen.length);
+			let focusLastActive = this.windowsState.lastActiveWindow && !openConfig.forceEmpty && !openConfig.cli._.length && !(openConfig.cli['folder-uri'] || []).length && !(openConfig.urisToOpen || []).length;
 			let focusLastOpened = true;
 			let focusLastWindow = true;
 
@@ -789,7 +789,7 @@ export class WindowsManager implements IWindowsMainService {
 		}
 
 		// Extract paths: from CLI
-		else if (openConfig.cli._.length > 0 || openConfig.cli['folder-uri']) {
+		else if (openConfig.cli._.length > 0 || (openConfig.cli['folder-uri'] || []).length > 0) {
 			windowsToOpen = this.doExtractPathsFromCLI(openConfig.cli);
 			isCommandLineOrAPICall = true;
 		}
@@ -848,7 +848,7 @@ export class WindowsManager implements IWindowsMainService {
 		const pathsToOpen = [];
 
 		// folder uris
-		if (cli['folder-uri']) {
+		if (cli['folder-uri'] && cli['folder-uri'].length) {
 			const arg = cli['folder-uri'];
 			const folderUris: string[] = typeof arg === 'string' ? [arg] : arg;
 			pathsToOpen.push(...arrays.coalesce(folderUris.map(candidate => this.parseUri(URI.parse(candidate), { ignoreFileNotFound: true, gotoLineMode: cli.goto }))));
@@ -1087,7 +1087,7 @@ export class WindowsManager implements IWindowsMainService {
 		}
 
 		// Fill in previously opened workspace unless an explicit path is provided and we are not unit testing
-		if (openConfig.cli._.length === 0 && !openConfig.cli.extensionTestsPath) {
+		if (openConfig.cli._.length === 0 && (openConfig.cli['folder-uri'] || []).length === 0 && !openConfig.cli.extensionTestsPath) {
 			const extensionDevelopmentWindowState = this.windowsState.lastPluginDevelopmentHostWindow;
 			const workspaceToOpen = extensionDevelopmentWindowState && (extensionDevelopmentWindowState.workspace || extensionDevelopmentWindowState.folderUri);
 			if (workspaceToOpen) {
@@ -1095,7 +1095,7 @@ export class WindowsManager implements IWindowsMainService {
 					if (workspaceToOpen.scheme === Schemas.file) {
 						openConfig.cli._ = [workspaceToOpen.fsPath];
 					} else {
-						// TODO:sandy handle other URIs
+						openConfig.cli['folder-uri'] = [workspaceToOpen.toString()];
 					}
 				} else {
 					openConfig.cli._ = [workspaceToOpen.configPath];
@@ -1116,7 +1116,7 @@ export class WindowsManager implements IWindowsMainService {
 		}
 
 		// Open it
-		this.open({ context: openConfig.context, cli: openConfig.cli, forceNewWindow: true, forceEmpty: openConfig.cli._.length === 0, userEnv: openConfig.userEnv });
+		this.open({ context: openConfig.context, cli: openConfig.cli, forceNewWindow: true, forceEmpty: openConfig.cli._.length === 0 && (openConfig.cli['folder-uri'] || []).length === 0, userEnv: openConfig.userEnv });
 	}
 
 	private openInBrowserWindow(options: IOpenBrowserWindowOptions): ICodeWindow {
