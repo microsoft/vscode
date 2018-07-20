@@ -512,7 +512,7 @@ class TypeScriptLanguageServiceHost implements ts.LanguageServiceHost {
 	}
 }
 
-function execute() {
+export function execute(): IMonacoDeclarationResult {
 
 	const OUTPUT_FILES: { [file: string]: string; } = {};
 	const SRC_FILES: IFileMap = {};
@@ -536,15 +536,13 @@ function execute() {
 		var t = Date.now();
 		const emitOutput = languageService.getEmitOutput(fileName, true);
 		OUTPUT_FILES[SRC_FILE_TO_EXPECTED_NAME[fileName]] = emitOutput.outputFiles[0].text;
-		console.log(`Generating .d.ts for ${fileName} took ${Date.now() - t} ms`);
+		// console.log(`Generating .d.ts for ${fileName} took ${Date.now() - t} ms`);
 	});
 	console.log(`Generating .d.ts took ${Date.now() - t1} ms`);
 
-	const result = run('src', OUTPUT_FILES);
+	// console.log(result.filePath);
+	// fs.writeFileSync(result.filePath, result.content.replace(/\r\n/gm, '\n'));
+	// fs.writeFileSync(path.join(SRC, 'user.ts'), result.usageContent.replace(/\r\n/gm, '\n'));
 
-	console.log(result.filePath);
-	fs.writeFileSync(result.filePath, result.content.replace(/\r\n/gm, '\n'));
-	fs.writeFileSync(path.join(SRC, 'user.ts'), result.usageContent.replace(/\r\n/gm, '\n'));
+	return run('src', OUTPUT_FILES);
 }
-
-// execute();

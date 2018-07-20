@@ -16,7 +16,7 @@ var ShakeLevel;
 })(ShakeLevel = exports.ShakeLevel || (exports.ShakeLevel = {}));
 function shake(options) {
     var languageService = createTypeScriptLanguageService(options);
-    markNodes(languageService, options.shakeLevel, options.entryPoints.map(function (moduleId) { return moduleId + '.ts'; }), options.importIgnorePattern);
+    markNodes(languageService, options);
     return generateResult(languageService, options.shakeLevel);
 }
 exports.shake = shake;
@@ -24,6 +24,10 @@ exports.shake = shake;
 function createTypeScriptLanguageService(options) {
     // Discover referenced files
     var FILES = discoverAndReadFiles(options);
+    // Add fake usage files
+    options.inlineEntryPoints.forEach(function (inlineEntryPoint, index) {
+        FILES["inlineEntryPoint:" + index + ".ts"] = inlineEntryPoint;
+    });
     // Resolve libs
     var RESOLVED_LIBS = {};
     options.libs.forEach(function (filename) {
@@ -166,9 +170,9 @@ function nodeOrChildIsBlack(node) {
     }
     return false;
 }
-function markNodes(languageService, shakeLevel, entryPointFiles, importIgnorePattern) {
+function markNodes(languageService, options) {
     var program = languageService.getProgram();
-    if (shakeLevel === 0 /* Files */) {
+    if (options.shakeLevel === 0 /* Files */) {
         // Mark all source files Black
         program.getSourceFiles().forEach(function (sourceFile) {
             setColor(sourceFile, 2 /* Black */);
@@ -249,7 +253,7 @@ function markNodes(languageService, shakeLevel, entryPointFiles, importIgnorePat
         }
         setColor(node, 2 /* Black */);
         black_queue.push(node);
-        if (shakeLevel === 2 /* ClassMembers */ && (ts.isMethodDeclaration(node) || ts.isMethodSignature(node) || ts.isPropertySignature(node) || ts.isGetAccessor(node) || ts.isSetAccessor(node))) {
+        if (options.shakeLevel === 2 /* ClassMembers */ && (ts.isMethodDeclaration(node) || ts.isMethodSignature(node) || ts.isPropertySignature(node) || ts.isGetAccessor(node) || ts.isSetAccessor(node))) {
             var references = languageService.getReferencesAtPosition(node.getSourceFile().fileName, node.name.pos + node.name.getLeadingTriviaWidth());
             if (references) {
                 for (var i = 0, len = references.length; i < len; i++) {
@@ -275,7 +279,7 @@ function markNodes(languageService, shakeLevel, entryPointFiles, importIgnorePat
         enqueue_black(sourceFile);
     }
     function enqueueImport(node, importText) {
-        if (importIgnorePattern.test(importText)) {
+        if (options.importIgnorePattern.test(importText)) {
             // this import should be ignored
             return;
         }
@@ -289,7 +293,9 @@ function markNodes(languageService, shakeLevel, entryPointFiles, importIgnorePat
         }
         enqueueFile(fullPath);
     }
-    entryPointFiles.forEach(function (filename) { return enqueueFile(filename); });
+    options.entryPoints.forEach(function (moduleId) { return enqueueFile(moduleId + '.ts'); });
+    // Add fake usage files
+    options.inlineEntryPoints.forEach(function (_, index) { return enqueueFile("inlineEntryPoint:" + index + ".ts"); });
     var step = 0;
     var checker = program.getTypeChecker();
     var _loop_1 = function () {
@@ -330,7 +336,7 @@ function markNodes(languageService, shakeLevel, entryPointFiles, importIgnorePat
                         // (they can be the declaration of a module import)
                         continue;
                     }
-                    if (shakeLevel === 2 /* ClassMembers */ && (ts.isClassDeclaration(declaration) || ts.isInterfaceDeclaration(declaration))) {
+                    if (options.shakeLevel === 2 /* ClassMembers */ && (ts.isClassDeclaration(declaration) || ts.isInterfaceDeclaration(declaration))) {
                         enqueue_black(declaration.name);
                         for (var j = 0; j < declaration.members.length; j++) {
                             var member = declaration.members[j];

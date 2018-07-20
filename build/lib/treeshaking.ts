@@ -28,6 +28,10 @@ export interface ITreeShakingOptions {
 	 */
 	entryPoints: string[];
 	/**
+	 * Inline usages.
+	 */
+	inlineEntryPoints: string[];
+	/**
 	 * TypeScript libs.
 	 * e.g. `lib.d.ts`, `lib.es2015.collection.d.ts`
 	 */
@@ -55,7 +59,7 @@ export interface ITreeShakingResult {
 export function shake(options: ITreeShakingOptions): ITreeShakingResult {
 	const languageService = createTypeScriptLanguageService(options);
 
-	markNodes(languageService, options.shakeLevel, options.entryPoints.map(moduleId => moduleId + '.ts'), options.importIgnorePattern);
+	markNodes(languageService, options);
 
 	return generateResult(languageService, options.shakeLevel);
 }
@@ -64,6 +68,11 @@ export function shake(options: ITreeShakingOptions): ITreeShakingResult {
 function createTypeScriptLanguageService(options: ITreeShakingOptions): ts.LanguageService {
 	// Discover referenced files
 	const FILES = discoverAndReadFiles(options);
+
+	// Add fake usage files
+	options.inlineEntryPoints.forEach((inlineEntryPoint, index) => {
+		FILES[`inlineEntryPoint:${index}.ts`] = inlineEntryPoint;
+	});
 
 	// Resolve libs
 	const RESOLVED_LIBS: ILibMap = {};
@@ -229,10 +238,10 @@ function nodeOrChildIsBlack(node: ts.Node): boolean {
 	return false;
 }
 
-function markNodes(languageService: ts.LanguageService, shakeLevel: ShakeLevel, entryPointFiles: string[], importIgnorePattern: RegExp) {
+function markNodes(languageService: ts.LanguageService, options: ITreeShakingOptions) {
 	const program = languageService.getProgram();
 
-	if (shakeLevel === ShakeLevel.Files) {
+	if (options.shakeLevel === ShakeLevel.Files) {
 		// Mark all source files Black
 		program.getSourceFiles().forEach((sourceFile) => {
 			setColor(sourceFile, NodeColor.Black);
@@ -335,7 +344,7 @@ function markNodes(languageService: ts.LanguageService, shakeLevel: ShakeLevel, 
 		setColor(node, NodeColor.Black);
 		black_queue.push(node);
 
-		if (shakeLevel === ShakeLevel.ClassMembers && (ts.isMethodDeclaration(node) || ts.isMethodSignature(node) || ts.isPropertySignature(node) || ts.isGetAccessor(node) || ts.isSetAccessor(node))) {
+		if (options.shakeLevel === ShakeLevel.ClassMembers && (ts.isMethodDeclaration(node) || ts.isMethodSignature(node) || ts.isPropertySignature(node) || ts.isGetAccessor(node) || ts.isSetAccessor(node))) {
 			const references = languageService.getReferencesAtPosition(node.getSourceFile().fileName, node.name.pos + node.name.getLeadingTriviaWidth());
 			if (references) {
 				for (let i = 0, len = references.length; i < len; i++) {
@@ -365,7 +374,7 @@ function markNodes(languageService: ts.LanguageService, shakeLevel: ShakeLevel, 
 	}
 
 	function enqueueImport(node: ts.Node, importText: string): void {
-		if (importIgnorePattern.test(importText)) {
+		if (options.importIgnorePattern.test(importText)) {
 			// this import should be ignored
 			return;
 		}
@@ -380,7 +389,9 @@ function markNodes(languageService: ts.LanguageService, shakeLevel: ShakeLevel, 
 		enqueueFile(fullPath);
 	}
 
-	entryPointFiles.forEach((filename) => enqueueFile(filename));
+	options.entryPoints.forEach(moduleId => enqueueFile(moduleId + '.ts'));
+	// Add fake usage files
+	options.inlineEntryPoints.forEach((_, index) => enqueueFile(`inlineEntryPoint:${index}.ts`));
 
 	let step = 0;
 
@@ -429,7 +440,7 @@ function markNodes(languageService: ts.LanguageService, shakeLevel: ShakeLevel, 
 						continue;
 					}
 
-					if (shakeLevel === ShakeLevel.ClassMembers && (ts.isClassDeclaration(declaration) || ts.isInterfaceDeclaration(declaration))) {
+					if (options.shakeLevel === ShakeLevel.ClassMembers && (ts.isClassDeclaration(declaration) || ts.isInterfaceDeclaration(declaration))) {
 						enqueue_black(declaration.name);
 
 						for (let j = 0; j < declaration.members.length; j++) {
