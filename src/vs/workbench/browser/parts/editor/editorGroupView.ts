@@ -34,7 +34,7 @@ import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { RunOnceWorker } from 'vs/base/common/async';
 import { EventType as TouchEventType, GestureEvent } from 'vs/base/browser/touch';
 import { TitleControl } from 'vs/workbench/browser/parts/editor/titleControl';
-import { IEditorGroupsAccessor, IEditorGroupView, IEditorPartOptionsChangeEvent, EDITOR_TITLE_HEIGHT, getActiveTextEditorOptions, IEditorOpeningEvent } from 'vs/workbench/browser/parts/editor/editor';
+import { IEditorGroupsAccessor, IEditorGroupView, IEditorPartOptionsChangeEvent, getActiveTextEditorOptions, IEditorOpeningEvent } from 'vs/workbench/browser/parts/editor/editor';
 import { IUntitledEditorService } from 'vs/workbench/services/untitled/common/untitledEditorService';
 import { join } from 'vs/base/common/paths';
 import { ActionBar } from 'vs/base/browser/ui/actionbar/actionbar';
@@ -337,8 +337,10 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 				target = (e as GestureEvent).initialTarget as HTMLElement;
 			}
 
-			if (findParentWithClass(target, 'monaco-action-bar', this.titleContainer)) {
-				return; // not when clicking on actions
+			if (findParentWithClass(target, 'monaco-action-bar', this.titleContainer) ||
+				findParentWithClass(target, 'monaco-breadcrumb-item', this.titleContainer)
+			) {
+				return; // not when clicking on actions or breadcrumbs
 			}
 
 			// timeout to keep focus in editor after mouse up
@@ -956,7 +958,7 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 			this.doCloseInactiveEditor(editor);
 		}
 
-		// Forward to title control
+		// Forward to title control & breadcrumbs
 		this.titleAreaControl.closeEditor(editor);
 	}
 
@@ -1278,14 +1280,15 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 		if (activeReplacement) {
 
 			// Open replacement as active editor
-			return this.doOpenEditor(activeReplacement.replacement, activeReplacement.options).then(() => {
+			const openEditorResult = this.doOpenEditor(activeReplacement.replacement, activeReplacement.options);
 
-				// Close previous active editor
-				this.doCloseInactiveEditor(activeReplacement.editor);
+			// Close previous active editor
+			this.doCloseInactiveEditor(activeReplacement.editor);
 
-				// Forward to title control
-				this.titleAreaControl.closeEditor(activeReplacement.editor);
-			});
+			// Forward to title control
+			this.titleAreaControl.closeEditor(activeReplacement.editor);
+
+			return openEditorResult;
 		}
 
 		return TPromise.as(void 0);
@@ -1343,8 +1346,15 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 		this.dimension = new Dimension(width, height);
 
 		// Forward to controls
-		this.titleAreaControl.layout(new Dimension(this.dimension.width, EDITOR_TITLE_HEIGHT));
-		this.editorControl.layout(new Dimension(this.dimension.width, this.dimension.height - EDITOR_TITLE_HEIGHT));
+		this.titleAreaControl.layout(new Dimension(this.dimension.width, this.titleAreaControl.getPreferredHeight()));
+		this.editorControl.layout(new Dimension(this.dimension.width, this.dimension.height - this.titleAreaControl.getPreferredHeight()));
+	}
+
+	relayout(): void {
+		if (this.dimension) {
+			const { width, height } = this.dimension;
+			this.layout(width, height);
+		}
 	}
 
 	toJSON(): ISerializedEditorGroup {

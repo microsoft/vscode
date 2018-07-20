@@ -44,7 +44,7 @@ export class ExtensionsInput extends EditorInput {
 		return this.extension === otherExtensionInput.extension;
 	}
 
-	resolve(refresh?: boolean): TPromise<any> {
+	resolve(): TPromise<any> {
 		return TPromise.as(null);
 	}
 

@@ -9,6 +9,7 @@ import { ITypeScriptServiceClient } from '../typescriptService';
 import API from '../utils/api';
 import { Command, CommandManager } from '../utils/commandManager';
 import { VersionDependentRegistration } from '../utils/dependentRegistration';
+import TelemetryReporter from '../utils/telemetry';
 import * as typeConverters from '../utils/typeConverters';
 import FormattingOptionsManager from './fileConfigurationManager';
 
@@ -18,7 +19,8 @@ class ApplyRefactoringCommand implements Command {
 	public readonly id = ApplyRefactoringCommand.ID;
 
 	constructor(
-		private readonly client: ITypeScriptServiceClient
+		private readonly client: ITypeScriptServiceClient,
+		private readonly telemetryReporter: TelemetryReporter
 	) { }
 
 	public async execute(
@@ -28,6 +30,18 @@ class ApplyRefactoringCommand implements Command {
 		action: string,
 		range: vscode.Range
 	): Promise<boolean> {
+		/* __GDPR__
+			"refactor.execute" : {
+				"action" : { "classification": "PublicNonPersonalData", "purpose": "FeatureInsight" },
+				"${include}": [
+					"${TypeScriptCommonProperties}"
+				]
+			}
+		*/
+		this.telemetryReporter.logTelemetry('refactor.execute', {
+			action: action
+		});
+
 		const args: Proto.GetEditsForRefactorRequestArgs = {
 			...typeConverters.Range.toFileRangeRequestArgs(file, range),
 			refactor,
@@ -97,9 +111,10 @@ class TypeScriptRefactorProvider implements vscode.CodeActionProvider {
 	constructor(
 		private readonly client: ITypeScriptServiceClient,
 		private readonly formattingOptionsManager: FormattingOptionsManager,
-		commandManager: CommandManager
+		commandManager: CommandManager,
+		telemetryReporter: TelemetryReporter
 	) {
-		const doRefactoringCommand = commandManager.register(new ApplyRefactoringCommand(this.client));
+		const doRefactoringCommand = commandManager.register(new ApplyRefactoringCommand(this.client, telemetryReporter));
 		commandManager.register(new SelectRefactorCommand(doRefactoringCommand));
 	}
 
@@ -125,17 +140,18 @@ class TypeScriptRefactorProvider implements vscode.CodeActionProvider {
 		await this.formattingOptionsManager.ensureConfigurationForDocument(document, undefined);
 
 		const args: Proto.GetApplicableRefactorsRequestArgs = typeConverters.Range.toFileRangeRequestArgs(file, rangeOrSelection);
-		let response: Proto.GetApplicableRefactorsResponse;
+		let refactorings: Proto.ApplicableRefactorInfo[];
 		try {
-			response = await this.client.execute('getApplicableRefactors', args, token);
-			if (!response || !response.body) {
+			const response = await this.client.execute('getApplicableRefactors', args, token);
+			if (!response.body) {
 				return undefined;
 			}
+			refactorings = response.body;
 		} catch {
 			return undefined;
 		}
 
-		return this.convertApplicableRefactors(response.body, document, file, rangeOrSelection);
+		return this.convertApplicableRefactors(refactorings, document, file, rangeOrSelection);
 	}
 
 	private convertApplicableRefactors(
@@ -204,10 +220,11 @@ export function register(
 	client: ITypeScriptServiceClient,
 	formattingOptionsManager: FormattingOptionsManager,
 	commandManager: CommandManager,
+	telemetryReporter: TelemetryReporter,
 ) {
 	return new VersionDependentRegistration(client, API.v240, () => {
 		return vscode.languages.registerCodeActionsProvider(selector,
-			new TypeScriptRefactorProvider(client, formattingOptionsManager, commandManager),
+			new TypeScriptRefactorProvider(client, formattingOptionsManager, commandManager, telemetryReporter),
 			TypeScriptRefactorProvider.metadata);
 	});
 }

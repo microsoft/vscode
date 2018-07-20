@@ -8,15 +8,15 @@ import { TPromise } from 'vs/base/common/winjs.base';
 import * as nls from 'vs/nls';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { Action } from 'vs/base/common/actions';
-import { SyncActionDescriptor } from 'vs/platform/actions/common/actions';
+import { SyncActionDescriptor, MenuRegistry, MenuId } from 'vs/platform/actions/common/actions';
 import { IWorkbenchActionRegistry, Extensions } from 'vs/workbench/common/actions';
 import { IConfigurationService, ConfigurationTarget } from 'vs/platform/configuration/common/configuration';
 import { IPartService, Parts } from 'vs/workbench/services/part/common/partService';
 
 export class ToggleStatusbarVisibilityAction extends Action {
 
-	public static readonly ID = 'workbench.action.toggleStatusbarVisibility';
-	public static readonly LABEL = nls.localize('toggleStatusbar', "Toggle Status Bar Visibility");
+	static readonly ID = 'workbench.action.toggleStatusbarVisibility';
+	static readonly LABEL = nls.localize('toggleStatusbar', "Toggle Status Bar Visibility");
 
 	private static readonly statusbarVisibleKey = 'workbench.statusBar.visible';
 
@@ -31,7 +31,7 @@ export class ToggleStatusbarVisibilityAction extends Action {
 		this.enabled = !!this.partService;
 	}
 
-	public run(): TPromise<any> {
+	run(): TPromise<any> {
 		const visibility = this.partService.isVisible(Parts.STATUSBAR_PART);
 		const newVisibilityValue = !visibility;
 
@@ -41,3 +41,12 @@ export class ToggleStatusbarVisibilityAction extends Action {
 
 const registry = Registry.as<IWorkbenchActionRegistry>(Extensions.WorkbenchActions);
 registry.registerWorkbenchAction(new SyncActionDescriptor(ToggleStatusbarVisibilityAction, ToggleStatusbarVisibilityAction.ID, ToggleStatusbarVisibilityAction.LABEL), 'View: Toggle Status Bar Visibility', nls.localize('view', "View"));
+
+MenuRegistry.appendMenuItem(MenuId.MenubarAppearanceMenu, {
+	group: '2_workbench_layout',
+	command: {
+		id: ToggleStatusbarVisibilityAction.ID,
+		title: nls.localize({ key: 'miToggleStatusbar', comment: ['&& denotes a mnemonic'] }, "&&Toggle Status Bar")
+	},
+	order: 3
+});

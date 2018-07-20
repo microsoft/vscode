@@ -29,6 +29,8 @@ function readFile(file) {
 	});
 }
 
+const writeFile = (file, content) => new Promise((c, e) => fs.writeFile(file, content, 'utf8', err => err ? e(err) : c()));
+
 var rawNlsConfig = process.env['VSCODE_NLS_CONFIG'];
 var nlsConfig = rawNlsConfig ? JSON.parse(rawNlsConfig) : { availableLanguages: {} };
 
@@ -46,8 +48,15 @@ if (nlsConfig._resolvedLanguagePackCoreLocation) {
 			let json = JSON.parse(content);
 			bundles[bundle] = json;
 			cb(undefined, json);
-		})
-			.catch(cb);
+		}).catch((error) => {
+			try {
+				if (nlsConfig._corruptedFile) {
+					writeFile(nlsConfig._corruptedFile, 'corrupted').catch(function (error) { console.error(error); });
+				}
+			} finally {
+				cb(error, undefined);
+			}
+		});
 	};
 }
 
@@ -59,6 +68,11 @@ loader.config({
 	'vs/nls': nlsConfig,
 	nodeCachedDataDir: process.env['VSCODE_NODE_CACHED_DATA_DIR_' + process.pid]
 });
+
+if (process.env['ELECTRON_RUN_AS_NODE'] || process.versions.electron) {
+	// running in Electron
+	loader.define('fs', ['original-fs'], function (originalFS) { return originalFS; }); // replace the patched electron fs with the original node fs for all AMD code
+}
 
 if (nlsConfig.pseudo) {
 	loader(['vs/nls'], function (nlsPlugin) {

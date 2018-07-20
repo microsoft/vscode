@@ -83,16 +83,16 @@ export function renderExpressionValue(expressionOrValue: IExpression | string, c
 		}
 	}
 
-	if (options.maxValueLength && value.length > options.maxValueLength) {
+	if (options.maxValueLength && value && value.length > options.maxValueLength) {
 		value = value.substr(0, options.maxValueLength) + '...';
 	}
 	if (value && !options.preserveWhitespace) {
 		container.textContent = replaceWhitespace(value);
 	} else {
-		container.textContent = value;
+		container.textContent = value || '';
 	}
 	if (options.showHover) {
-		container.title = value;
+		container.title = value || '';
 	}
 }
 
@@ -103,18 +103,15 @@ export function renderVariable(variable: Variable, data: IVariableTemplateData, 
 		dom.toggleClass(data.name, 'virtual', !!variable.presentationHint && variable.presentationHint.kind === 'virtual');
 	}
 
-	if (variable.value) {
-		data.name.textContent += (typeof variable.name === 'string') ? ':' : '';
-		renderExpressionValue(variable, data.value, {
-			showChanged,
-			maxValueLength: MAX_VALUE_RENDER_LENGTH_IN_VIEWLET,
-			preserveWhitespace: false,
-			showHover: true,
-			colorize: true
-		});
-	} else {
-		data.value.textContent = '';
-		data.value.title = '';
+	renderExpressionValue(variable, data.value, {
+		showChanged,
+		maxValueLength: MAX_VALUE_RENDER_LENGTH_IN_VIEWLET,
+		preserveWhitespace: false,
+		showHover: true,
+		colorize: true
+	});
+	if (variable.value && typeof variable.name === 'string') {
+		data.name.textContent += ':';
 	}
 }
 

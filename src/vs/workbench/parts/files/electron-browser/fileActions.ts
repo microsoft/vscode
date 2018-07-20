@@ -18,7 +18,6 @@ import { posix } from 'path';
 import * as errors from 'vs/base/common/errors';
 import { toErrorMessage } from 'vs/base/common/errorMessage';
 import * as strings from 'vs/base/common/strings';
-import * as diagnostics from 'vs/base/common/diagnostics';
 import { Action, IAction } from 'vs/base/common/actions';
 import { MessageType, IInputValidator } from 'vs/base/browser/ui/inputbox/inputBox';
 import { ITree, IHighlightEvent } from 'vs/base/parts/tree/browser/tree';
@@ -37,7 +36,7 @@ import { IViewletService } from 'vs/workbench/services/viewlet/browser/viewlet';
 import { IInstantiationService, ServicesAccessor, IConstructorSignature2 } from 'vs/platform/instantiation/common/instantiation';
 import { ITextModel } from 'vs/editor/common/model';
 import { IWindowService } from 'vs/platform/windows/common/windows';
-import { COPY_PATH_COMMAND_ID, REVEAL_IN_EXPLORER_COMMAND_ID, SAVE_ALL_COMMAND_ID, SAVE_ALL_LABEL, SAVE_ALL_IN_GROUP_COMMAND_ID } from 'vs/workbench/parts/files/electron-browser/fileCommands';
+import { REVEAL_IN_EXPLORER_COMMAND_ID, SAVE_ALL_COMMAND_ID, SAVE_ALL_LABEL, SAVE_ALL_IN_GROUP_COMMAND_ID } from 'vs/workbench/parts/files/electron-browser/fileCommands';
 import { ITextModelService, ITextModelContentProvider } from 'vs/editor/common/services/resolverService';
 import { IConfigurationService, ConfigurationTarget } from 'vs/platform/configuration/common/configuration';
 import { IClipboardService } from 'vs/platform/clipboard/common/clipboardService';
@@ -661,7 +660,7 @@ class BaseDeleteFileAction extends BaseFileAction {
 					}
 
 					// Call function
-					const servicePromise = TPromise.join(distinctElements.map(e => this.fileService.del(e.resource, this.useTrash))).then(() => {
+					const servicePromise = TPromise.join(distinctElements.map(e => this.fileService.del(e.resource, { useTrash: this.useTrash, recursive: true }))).then(() => {
 						if (distinctElements[0].parent) {
 							this.tree.setFocus(distinctElements[0].parent); // move focus to parent
 						}
@@ -1453,24 +1452,6 @@ export class ShowOpenedFileInNewWindow extends Action {
 	}
 }
 
-export class CopyPathAction extends Action {
-
-	public static readonly LABEL = nls.localize('copyPath', "Copy Path");
-
-	constructor(
-		private resource: URI,
-		@ICommandService private commandService: ICommandService
-	) {
-		super('copyFilePath', CopyPathAction.LABEL);
-
-		this.order = 140;
-	}
-
-	public run(): TPromise<any> {
-		return this.commandService.executeCommand(COPY_PATH_COMMAND_ID, this.resource);
-	}
-}
-
 export function validateFileName(parent: ExplorerItem, name: string): string {
 
 	// Produce a well formed file name
@@ -1596,14 +1577,6 @@ class ClipboardContentProvider implements ITextModelContentProvider {
 
 		return TPromise.as(model);
 	}
-}
-
-// Diagnostics support
-let diag: (...args: any[]) => void;
-if (!diag) {
-	diag = diagnostics.register('FileActionsDiagnostics', function (...args: any[]) {
-		console.log(args[1] + ' - ' + args[0] + ' (time: ' + args[2].getTime() + ' [' + args[2].toUTCString() + '])');
-	});
 }
 
 interface IExplorerContext {

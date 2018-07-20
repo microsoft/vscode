@@ -20,7 +20,7 @@ export class LifecycleService implements ILifecycleService {
 
 	private static readonly _lastShutdownReasonKey = 'lifecyle.lastShutdownReason';
 
-	public _serviceBrand: any;
+	_serviceBrand: any;
 
 	private readonly _onWillShutdown = new Emitter<ShutdownEvent>();
 	private readonly _onShutdown = new Emitter<ShutdownReason>();
@@ -95,11 +95,11 @@ export class LifecycleService implements ILifecycleService {
 		return handleVetos(vetos, err => this._notificationService.error(toErrorMessage(err)));
 	}
 
-	public get phase(): LifecyclePhase {
+	get phase(): LifecyclePhase {
 		return this._phase;
 	}
 
-	public set phase(value: LifecyclePhase) {
+	set phase(value: LifecyclePhase) {
 		if (value < this.phase) {
 			throw new Error('Lifecycle cannot go backwards');
 		}
@@ -119,7 +119,7 @@ export class LifecycleService implements ILifecycleService {
 		}
 	}
 
-	public when(phase: LifecyclePhase): Thenable<any> {
+	when(phase: LifecyclePhase): Thenable<any> {
 		if (phase <= this._phase) {
 			return Promise.resolve();
 		}
@@ -133,15 +133,15 @@ export class LifecycleService implements ILifecycleService {
 		return barrier.wait();
 	}
 
-	public get startupKind(): StartupKind {
+	get startupKind(): StartupKind {
 		return this._startupKind;
 	}
 
-	public get onWillShutdown(): Event<ShutdownEvent> {
+	get onWillShutdown(): Event<ShutdownEvent> {
 		return this._onWillShutdown.event;
 	}
 
-	public get onShutdown(): Event<ShutdownReason> {
+	get onShutdown(): Event<ShutdownReason> {
 		return this._onShutdown.event;
 	}
 }

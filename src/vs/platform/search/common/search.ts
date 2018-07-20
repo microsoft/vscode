@@ -24,10 +24,10 @@ export const ISearchService = createDecorator<ISearchService>('searchService');
  */
 export interface ISearchService {
 	_serviceBrand: any;
-	search(query: ISearchQuery): PPromise<ISearchComplete, ISearchProgressItem>;
+	search(query: ISearchQuery, onProgress?: (result: ISearchProgressItem) => void): TPromise<ISearchComplete>;
 	extendQuery(query: ISearchQuery): void;
 	clearCache(cacheKey: string): TPromise<void>;
-	registerSearchResultProvider(provider: ISearchResultProvider): IDisposable;
+	registerSearchResultProvider(scheme: string, provider: ISearchResultProvider): IDisposable;
 }
 
 export interface ISearchHistoryValues {
@@ -47,6 +47,7 @@ export interface ISearchHistoryService {
 
 export interface ISearchResultProvider {
 	search(query: ISearchQuery): PPromise<ISearchComplete, ISearchProgressItem>;
+	clearCache(cacheKey: string): TPromise<void>;
 }
 
 export interface IFolderQuery<U extends UriComponents=uri> {

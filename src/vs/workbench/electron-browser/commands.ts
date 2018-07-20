@@ -13,7 +13,7 @@ import { IWindowsService, IWindowService } from 'vs/platform/windows/common/wind
 import { List } from 'vs/base/browser/ui/list/listWidget';
 import * as errors from 'vs/base/common/errors';
 import { CommandsRegistry } from 'vs/platform/commands/common/commands';
-import { WorkbenchListFocusContextKey, IListService, WorkbenchListSupportsMultiSelectContextKey, ListWidget } from 'vs/platform/list/browser/listService';
+import { WorkbenchListFocusContextKey, IListService, WorkbenchListSupportsMultiSelectContextKey, ListWidget, WorkbenchListHasSelectionOrFocus } from 'vs/platform/list/browser/listService';
 import { PagedList } from 'vs/base/browser/ui/list/listPaging';
 import { range } from 'vs/base/common/arrays';
 import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
@@ -32,6 +32,7 @@ function ensureDOMFocus(widget: ListWidget): void {
 	}
 }
 
+export const QUIT_ID = 'workbench.action.quit';
 export function registerCommands(): void {
 
 	function focusDown(accessor: ServicesAccessor, arg2?: number): void {
@@ -105,7 +106,7 @@ export function registerCommands(): void {
 	KeybindingsRegistry.registerCommandAndKeybindingRule({
 		id: 'list.expandSelectionDown',
 		weight: KeybindingsRegistry.WEIGHT.workbenchContrib(),
-		when: WorkbenchListFocusContextKey,
+		when: ContextKeyExpr.and(WorkbenchListFocusContextKey, WorkbenchListSupportsMultiSelectContextKey),
 		primary: KeyMod.Shift | KeyCode.DownArrow,
 		handler: (accessor, arg2) => {
 			const focused = accessor.get(IListService).lastFocusedList;
@@ -178,7 +179,7 @@ export function registerCommands(): void {
 	KeybindingsRegistry.registerCommandAndKeybindingRule({
 		id: 'list.expandSelectionUp',
 		weight: KeybindingsRegistry.WEIGHT.workbenchContrib(),
-		when: WorkbenchListFocusContextKey,
+		when: ContextKeyExpr.and(WorkbenchListFocusContextKey, WorkbenchListSupportsMultiSelectContextKey),
 		primary: KeyMod.Shift | KeyCode.UpArrow,
 		handler: (accessor, arg2) => {
 			const focused = accessor.get(IListService).lastFocusedList;
@@ -471,13 +472,30 @@ export function registerCommands(): void {
 	KeybindingsRegistry.registerCommandAndKeybindingRule({
 		id: 'list.clear',
 		weight: KeybindingsRegistry.WEIGHT.workbenchContrib(),
-		when: WorkbenchListFocusContextKey,
+		when: ContextKeyExpr.and(WorkbenchListFocusContextKey, WorkbenchListHasSelectionOrFocus),
 		primary: KeyCode.Escape,
 		handler: (accessor) => {
 			const focused = accessor.get(IListService).lastFocusedList;
 
-			// Tree only
-			if (focused && !(focused instanceof List || focused instanceof PagedList)) {
+			// List
+			if (focused instanceof List || focused instanceof PagedList) {
+				const list = focused;
+
+				if (list.getSelection().length > 0) {
+					list.setSelection([]);
+
+					return void 0;
+				}
+
+				if (list.getFocus().length > 0) {
+					list.setFocus([]);
+
+					return void 0;
+				}
+			}
+
+			// Tree
+			else if (focused) {
 				const tree = focused;
 
 				if (tree.getSelection().length) {
@@ -520,7 +538,7 @@ export function registerCommands(): void {
 	});
 
 	KeybindingsRegistry.registerCommandAndKeybindingRule({
-		id: 'workbench.action.quit',
+		id: QUIT_ID,
 		weight: KeybindingsRegistry.WEIGHT.workbenchContrib(),
 		handler(accessor: ServicesAccessor) {
 			const windowsService = accessor.get(IWindowsService);

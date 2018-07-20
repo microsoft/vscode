@@ -5,9 +5,8 @@
 
 import * as nls from 'vs/nls';
 
-import { asWinJsPromise, first } from 'vs/base/common/async';
+import { first2, createCancelablePromise, CancelablePromise } from 'vs/base/common/async';
 import { onUnexpectedExternalError } from 'vs/base/common/errors';
-import { TPromise } from 'vs/base/common/winjs.base';
 import { Range } from 'vs/editor/common/core/range';
 import * as editorCommon from 'vs/editor/common/editorCommon';
 import { registerEditorContribution, EditorAction, IActionOptions, registerEditorAction, registerDefaultLanguageCommand } from 'vs/editor/browser/editorExtensions';
@@ -25,6 +24,7 @@ import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
 import { firstIndex, isFalsyOrEmpty } from 'vs/base/common/arrays';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { ITextModel, TrackedRangeStickiness, OverviewRulerLane, IModelDeltaDecoration } from 'vs/editor/common/model';
+import { CancellationToken } from 'vs/base/common/cancellation';
 
 export const editorWordHighlight = registerColor('editor.wordHighlightBackground', { dark: '#575757B8', light: '#57575740', hc: null }, nls.localize('wordHighlight', 'Background color of a symbol during read-access, like reading a variable. The color must not be opaque to not hide underlying decorations.'), true);
 export const editorWordHighlightStrong = registerColor('editor.wordHighlightStrongBackground', { dark: '#004972B8', light: '#0e639c40', hc: null }, nls.localize('wordHighlightStrong', 'Background color of a symbol during write-access, like writing to a variable. The color must not be opaque to not hide underlying decorations.'), true);
@@ -36,20 +36,20 @@ export const overviewRulerWordHighlightStrongForeground = registerColor('editorO
 
 export const ctxHasWordHighlights = new RawContextKey<boolean>('hasWordHighlights', false);
 
-export function getOccurrencesAtPosition(model: ITextModel, position: Position): TPromise<DocumentHighlight[]> {
+export function getOccurrencesAtPosition(model: ITextModel, position: Position, token: CancellationToken): Promise<DocumentHighlight[]> {
 
 	const orderedByScore = DocumentHighlightProviderRegistry.ordered(model);
 
 	// in order of score ask the occurrences provider
 	// until someone response with a good result
 	// (good = none empty array)
-	return first(orderedByScore.map(provider => () => {
-		return asWinJsPromise(token => provider.provideDocumentHighlights(model, position, token))
+	return first2(orderedByScore.map(provider => () => {
+		return Promise.resolve(provider.provideDocumentHighlights(model, position, token))
 			.then(undefined, onUnexpectedExternalError);
 	}), result => !isFalsyOrEmpty(result));
 }
 
-registerDefaultLanguageCommand('_executeDocumentHighlights', getOccurrencesAtPosition);
+registerDefaultLanguageCommand('_executeDocumentHighlights', (model, position) => getOccurrencesAtPosition(model, position, CancellationToken.None));
 
 class WordHighlighter {
 
@@ -61,7 +61,7 @@ class WordHighlighter {
 	private toUnhook: IDisposable[];
 
 	private workerRequestTokenId: number = 0;
-	private workerRequest: TPromise<DocumentHighlight[]> = null;
+	private workerRequest: CancelablePromise<DocumentHighlight[]> = null;
 	private workerRequestCompleted: boolean = false;
 	private workerRequestValue: DocumentHighlight[] = [];
 
@@ -291,7 +291,7 @@ class WordHighlighter {
 			let myRequestId = ++this.workerRequestTokenId;
 			this.workerRequestCompleted = false;
 
-			this.workerRequest = getOccurrencesAtPosition(this.model, this.editor.getPosition());
+			this.workerRequest = createCancelablePromise(token => getOccurrencesAtPosition(this.model, this.editor.getPosition(), token));
 
 			this.workerRequest.then(data => {
 				if (myRequestId === this.workerRequestTokenId) {
@@ -299,7 +299,7 @@ class WordHighlighter {
 					this.workerRequestValue = data || [];
 					this._beginRenderDecorations();
 				}
-			}).done();
+			});
 		}
 
 		this._lastWordRange = currentWordRange;

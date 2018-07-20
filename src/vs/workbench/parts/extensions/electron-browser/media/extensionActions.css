@@ -76,24 +76,3 @@
 .extension-editor > .header.recommended > .details > .recommendation > .monaco-action-bar .actions-container {
 	justify-content: flex-start;
 }
-
-.extension-editor > .header.recommended > .details > .recommendation > .monaco-action-bar .action-item .action-label.extension-action.ignore {
-	height: 13px;
-	width: 8px;
-	border: none;
-	outline-offset: 0;
-	margin-left: 6px;
-	padding-left: 0;
-	margin-top: 3px;
-	background-color: transparent;
-	color: hsl(0, 66%, 50%);
-}
-
-.hc-black .extension-editor > .header.recommended > .details > .recommendation > .monaco-action-bar .action-item .action-label.extension-action.ignore,
-.vs-dark .extension-editor > .header.recommended > .details > .recommendation > .monaco-action-bar .action-item .action-label.extension-action.ignore {
-	color: hsla(0, 66%, 77%, 1);
-}
-
-.extension-editor > .header.recommended > .details > .recommendation > .monaco-action-bar .action-item .action-label.extension-action.ignore:hover {
-	filter: brightness(.8);
-}

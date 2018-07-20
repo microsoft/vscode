@@ -1,7 +1,7 @@
 {
   "name": "code-oss-dev",
-  "version": "1.25.0",
-  "distro": "974512091c88e4e435fc2a427cf44b08e61a57dd",
+  "version": "1.26.0",
+  "distro": "655112e16611a8427ba96dbd6de2b05ecf2e3f6b",
   "author": {
     "name": "Microsoft Corporation"
   },
@@ -13,6 +13,7 @@
     "postinstall": "node build/npm/postinstall.js",
     "compile": "gulp compile --max_old_space_size=4095",
     "watch": "gulp watch --max_old_space_size=4095",
+    "watch-client": "gulp watch-client --max_old_space_size=4095",
     "monaco-editor-test": "mocha --only-monaco-editor",
     "precommit": "node build/gulpfile.hygiene.js",
     "gulp": "gulp --max_old_space_size=4095",
@@ -39,17 +40,17 @@
     "native-is-elevated": "^0.2.1",
     "native-keymap": "1.2.5",
     "native-watchdog": "0.3.0",
-    "node-pty": "0.7.5",
+    "node-pty": "0.7.6",
     "semver": "^5.5.0",
-    "spdlog": "0.6.0",
+    "spdlog": "0.7.1",
     "sudo-prompt": "8.2.0",
     "v8-inspect-profiler": "^0.0.8",
     "vscode-chokidar": "1.6.2",
-    "vscode-debugprotocol": "1.28.0",
+    "vscode-debugprotocol": "1.30.0",
     "vscode-nsfw": "1.0.17",
     "vscode-ripgrep": "^1.0.1",
     "vscode-textmate": "^4.0.1",
-    "vscode-xterm": "3.5.0-beta17",
+    "vscode-xterm": "3.6.0-beta3",
     "yauzl": "^2.9.1"
   },
   "devDependencies": {
@@ -116,7 +117,7 @@
     "sinon": "^1.17.2",
     "source-map": "^0.4.4",
     "tslint": "^5.9.1",
-    "typescript": "2.9.1",
+    "typescript": "2.9.2",
     "typescript-formatter": "7.1.0",
     "uglify-es": "^3.0.18",
     "underscore": "^1.8.2",

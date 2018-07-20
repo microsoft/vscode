@@ -6,7 +6,7 @@
 
 import { onUnexpectedError } from 'vs/base/common/errors';
 import { once as onceFn } from 'vs/base/common/functional';
-import { combinedDisposable, empty as EmptyDisposable, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
+import { combinedDisposable, Disposable, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
 import { LinkedList } from 'vs/base/common/linkedList';
 import { TPromise } from 'vs/base/common/winjs.base';
 
@@ -167,7 +167,7 @@ export class AsyncEmitter<T extends IWaitUntil> extends Emitter<T> {
 
 	private _asyncDeliveryQueue: [Listener, T, Thenable<any>[]][];
 
-	async fireAsync(eventFn: (thenables: Thenable<any>[], listener: Function) => T): TPromise<void> {
+	async fireAsync(eventFn: (thenables: Thenable<any>[], listener: Function) => T): Promise<void> {
 		if (!this._listeners) {
 			return;
 		}
@@ -200,7 +200,7 @@ export class AsyncEmitter<T extends IWaitUntil> extends Emitter<T> {
 			// freeze thenables-collection to enforce sync-calls to
 			// wait until and then wait for all thenables to resolve
 			Object.freeze(thenables);
-			await TPromise.join(thenables);
+			await Promise.all(thenables);
 		}
 	}
 }
@@ -413,6 +413,7 @@ export interface IChainableEvent<T> {
 	filter(fn: (e: T) => boolean): IChainableEvent<T>;
 	latch(): IChainableEvent<T>;
 	on(listener: (e: T) => any, thisArgs?: any, disposables?: IDisposable[]): IDisposable;
+	once(listener: (e: T) => any, thisArgs?: any, disposables?: IDisposable[]): IDisposable;
 }
 
 export function mapEvent<I, O>(event: Event<I>, map: (i: I) => O): Event<O> {
@@ -423,6 +424,8 @@ export function forEach<I>(event: Event<I>, each: (i: I) => void): Event<I> {
 	return (listener, thisArgs = null, disposables?) => event(i => { each(i); listener.call(thisArgs, i); }, null, disposables);
 }
 
+export function filterEvent<T>(event: Event<T>, filter: (e: T) => boolean): Event<T>;
+export function filterEvent<T, R>(event: Event<T | R>, filter: (e: T | R) => e is R): Event<R>;
 export function filterEvent<T>(event: Event<T>, filter: (e: T) => boolean): Event<T> {
 	return (listener, thisArgs = null, disposables?) => event(e => filter(e) && listener.call(thisArgs, e), null, disposables);
 }
@@ -451,6 +454,10 @@ class ChainableEvent<T> implements IChainableEvent<T> {
 
 	on(listener: (e: T) => any, thisArgs: any, disposables: IDisposable[]) {
 		return this._event(listener, thisArgs, disposables);
+	}
+
+	once(listener: (e: T) => any, thisArgs: any, disposables: IDisposable[]) {
+		return once(this._event)(listener, thisArgs, disposables);
 	}
 }
 
@@ -559,7 +566,7 @@ export class Relay<T> implements IDisposable {
 	private emitter = new Emitter<T>();
 	readonly event: Event<T> = this.emitter.event;
 
-	private disposable: IDisposable = EmptyDisposable;
+	private disposable: IDisposable = Disposable.None;
 
 	set input(event: Event<T>) {
 		this.disposable.dispose();

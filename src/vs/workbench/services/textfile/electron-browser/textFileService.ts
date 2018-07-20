@@ -54,7 +54,7 @@ export class TextFileService extends AbstractTextFileService {
 		super(lifecycleService, contextService, configurationService, fileService, untitledEditorService, instantiationService, notificationService, environmentService, backupFileService, windowsService, historyService, contextKeyService, modelService);
 	}
 
-	public resolveTextContent(resource: URI, options?: IResolveContentOptions): TPromise<IRawTextContent> {
+	resolveTextContent(resource: URI, options?: IResolveContentOptions): TPromise<IRawTextContent> {
 		return this.fileService.resolveStreamContent(resource, options).then(streamContent => {
 			return createTextBufferFactoryFromStream(streamContent.value).then(res => {
 				const r: IRawTextContent = {
@@ -71,7 +71,7 @@ export class TextFileService extends AbstractTextFileService {
 		});
 	}
 
-	public confirmSave(resources?: URI[]): TPromise<ConfirmResult> {
+	confirmSave(resources?: URI[]): TPromise<ConfirmResult> {
 		if (this.environmentService.isExtensionDevelopment) {
 			return TPromise.wrap(ConfirmResult.DONT_SAVE); // no veto when we are in extension dev mode because we cannot assum we run interactive (e.g. tests)
 		}
@@ -102,7 +102,7 @@ export class TextFileService extends AbstractTextFileService {
 		});
 	}
 
-	public promptForPath(defaultPath: string): TPromise<string> {
+	promptForPath(defaultPath: string): TPromise<string> {
 		return this.windowService.showSaveDialog(this.getSaveDialogOptions(defaultPath));
 	}
 

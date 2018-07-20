@@ -64,7 +64,6 @@ import 'vs/workbench/parts/scm/electron-browser/scmViewlet'; // can be packaged 
 import 'vs/workbench/parts/debug/electron-browser/debug.contribution';
 import 'vs/workbench/parts/debug/browser/debugQuickOpen';
 import 'vs/workbench/parts/debug/electron-browser/repl';
-import 'vs/workbench/parts/debug/browser/debugEditorActions';
 import 'vs/workbench/parts/debug/browser/debugViewlet'; // can be packaged separately
 
 import 'vs/workbench/parts/markers/electron-browser/markers.contribution';
@@ -138,5 +137,8 @@ import 'vs/workbench/parts/welcome/overlay/browser/welcomeOverlay';
 
 import 'vs/workbench/parts/outline/electron-browser/outline.contribution';
 
+import 'vs/workbench/parts/navigation/common/navigation.contribution';
+
 // services
 import 'vs/workbench/services/bulkEdit/electron-browser/bulkEditService';
+import 'vs/workbench/parts/experiments/electron-browser/experiments.contribution';

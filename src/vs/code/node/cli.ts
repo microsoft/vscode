@@ -31,7 +31,7 @@ interface IMainCli {
 	main: (argv: ParsedArgs) => TPromise<void>;
 }
 
-export async function main(argv: string[]): TPromise<any> {
+export async function main(argv: string[]): Promise<any> {
 	let args: ParsedArgs;
 
 	try {
@@ -318,7 +318,7 @@ export async function main(argv: string[]): TPromise<any> {
 			env
 		};
 
-		if (typeof args['upload-logs'] !== undefined) {
+		if (typeof args['upload-logs'] !== 'undefined') {
 			options['stdio'] = ['pipe', 'pipe', 'pipe'];
 		} else if (!verbose) {
 			options['stdio'] = 'ignore';

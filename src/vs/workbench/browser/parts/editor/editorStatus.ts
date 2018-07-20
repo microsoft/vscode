@@ -62,11 +62,11 @@ import { IPreferencesService } from 'vs/workbench/services/preferences/common/pr
 class SideBySideEditorEncodingSupport implements IEncodingSupport {
 	constructor(private master: IEncodingSupport, private details: IEncodingSupport) { }
 
-	public getEncoding(): string {
+	getEncoding(): string {
 		return this.master.getEncoding(); // always report from modified (right hand) side
 	}
 
-	public setEncoding(encoding: string, mode: EncodingMode): void {
+	setEncoding(encoding: string, mode: EncodingMode): void {
 		[this.master, this.details].forEach(s => s.setEncoding(encoding, mode));
 	}
 }
@@ -128,7 +128,7 @@ class StateChange {
 		this.metadata = false;
 	}
 
-	public combine(other: StateChange) {
+	combine(other: StateChange) {
 		this.indentation = this.indentation || other.indentation;
 		this.selectionStatus = this.selectionStatus || other.selectionStatus;
 		this.mode = this.mode || other.mode;
@@ -153,28 +153,28 @@ interface StateDelta {
 
 class State {
 	private _selectionStatus: string;
-	public get selectionStatus(): string { return this._selectionStatus; }
+	get selectionStatus(): string { return this._selectionStatus; }
 
 	private _mode: string;
-	public get mode(): string { return this._mode; }
+	get mode(): string { return this._mode; }
 
 	private _encoding: string;
-	public get encoding(): string { return this._encoding; }
+	get encoding(): string { return this._encoding; }
 
 	private _EOL: string;
-	public get EOL(): string { return this._EOL; }
+	get EOL(): string { return this._EOL; }
 
 	private _indentation: string;
-	public get indentation(): string { return this._indentation; }
+	get indentation(): string { return this._indentation; }
 
 	private _tabFocusMode: boolean;
-	public get tabFocusMode(): boolean { return this._tabFocusMode; }
+	get tabFocusMode(): boolean { return this._tabFocusMode; }
 
 	private _screenReaderMode: boolean;
-	public get screenReaderMode(): boolean { return this._screenReaderMode; }
+	get screenReaderMode(): boolean { return this._screenReaderMode; }
 
 	private _metadata: string;
-	public get metadata(): string { return this._metadata; }
+	get metadata(): string { return this._metadata; }
 
 	constructor() {
 		this._selectionStatus = null;
@@ -186,7 +186,7 @@ class State {
 		this._metadata = null;
 	}
 
-	public update(update: StateDelta): StateChange {
+	update(update: StateDelta): StateChange {
 		const e = new StateChange();
 		let somethingChanged = false;
 
@@ -277,7 +277,6 @@ function hide(el: HTMLElement): void {
 }
 
 export class EditorStatus implements IStatusbarItem {
-
 	private state: State;
 	private element: HTMLElement;
 	private tabFocusModeElement: HTMLElement;
@@ -308,7 +307,7 @@ export class EditorStatus implements IStatusbarItem {
 		this.state = new State();
 	}
 
-	public render(container: HTMLElement): IDisposable {
+	render(container: HTMLElement): IDisposable {
 		this.element = append(container, $('.editor-statusbar-item'));
 
 		this.tabFocusModeElement = append(this.element, $('a.editor-status-tabfocusmode.status-bar-info'));
@@ -824,8 +823,8 @@ export class ShowLanguageExtensionsAction extends Action {
 
 export class ChangeModeAction extends Action {
 
-	public static readonly ID = 'workbench.action.editor.changeLanguageMode';
-	public static readonly LABEL = nls.localize('changeMode', "Change Language Mode");
+	static readonly ID = 'workbench.action.editor.changeLanguageMode';
+	static readonly LABEL = nls.localize('changeMode', "Change Language Mode");
 
 	constructor(
 		actionId: string,
@@ -842,7 +841,7 @@ export class ChangeModeAction extends Action {
 		super(actionId, actionLabel);
 	}
 
-	public run(): TPromise<any> {
+	run(): TPromise<any> {
 		const activeTextEditorWidget = getCodeEditor(this.editorService.activeTextEditorWidget);
 		if (!activeTextEditorWidget) {
 			return this.quickOpenService.pick([{ label: nls.localize('noEditor', "No text editor active at this time") }]);
@@ -1037,8 +1036,8 @@ export interface IChangeEOLEntry extends IPickOpenEntry {
 
 class ChangeIndentationAction extends Action {
 
-	public static readonly ID = 'workbench.action.editor.changeIndentation';
-	public static readonly LABEL = nls.localize('changeIndentation', "Change Indentation");
+	static readonly ID = 'workbench.action.editor.changeIndentation';
+	static readonly LABEL = nls.localize('changeIndentation', "Change Indentation");
 
 	constructor(
 		actionId: string,
@@ -1049,7 +1048,7 @@ class ChangeIndentationAction extends Action {
 		super(actionId, actionLabel);
 	}
 
-	public run(): TPromise<any> {
+	run(): TPromise<any> {
 		const activeTextEditorWidget = getCodeEditor(this.editorService.activeTextEditorWidget);
 		if (!activeTextEditorWidget) {
 			return this.quickOpenService.pick([{ label: nls.localize('noEditor', "No text editor active at this time") }]);
@@ -1087,8 +1086,8 @@ class ChangeIndentationAction extends Action {
 
 export class ChangeEOLAction extends Action {
 
-	public static readonly ID = 'workbench.action.editor.changeEOL';
-	public static readonly LABEL = nls.localize('changeEndOfLine', "Change End of Line Sequence");
+	static readonly ID = 'workbench.action.editor.changeEOL';
+	static readonly LABEL = nls.localize('changeEndOfLine', "Change End of Line Sequence");
 
 	constructor(
 		actionId: string,
@@ -1099,7 +1098,7 @@ export class ChangeEOLAction extends Action {
 		super(actionId, actionLabel);
 	}
 
-	public run(): TPromise<any> {
+	run(): TPromise<any> {
 		const activeTextEditorWidget = getCodeEditor(this.editorService.activeTextEditorWidget);
 		if (!activeTextEditorWidget) {
 			return this.quickOpenService.pick([{ label: nls.localize('noEditor', "No text editor active at this time") }]);
@@ -1132,8 +1131,8 @@ export class ChangeEOLAction extends Action {
 
 export class ChangeEncodingAction extends Action {
 
-	public static readonly ID = 'workbench.action.editor.changeEncoding';
-	public static readonly LABEL = nls.localize('changeEncoding', "Change File Encoding");
+	static readonly ID = 'workbench.action.editor.changeEncoding';
+	static readonly LABEL = nls.localize('changeEncoding', "Change File Encoding");
 
 	constructor(
 		actionId: string,
@@ -1146,7 +1145,7 @@ export class ChangeEncodingAction extends Action {
 		super(actionId, actionLabel);
 	}
 
-	public run(): TPromise<any> {
+	run(): TPromise<any> {
 		if (!getCodeEditor(this.editorService.activeTextEditorWidget)) {
 			return this.quickOpenService.pick([{ label: nls.localize('noEditor', "No text editor active at this time") }]);
 		}
@@ -1264,7 +1263,7 @@ class ScreenReaderDetectedExplanation extends Themable {
 		super(themeService);
 	}
 
-	public get visible(): boolean {
+	get visible(): boolean {
 		return this._visible;
 	}
 
@@ -1284,7 +1283,7 @@ class ScreenReaderDetectedExplanation extends Themable {
 		}
 	}
 
-	public show(anchorElement: HTMLElement): void {
+	show(anchorElement: HTMLElement): void {
 		this._visible = true;
 
 		this.contextViewService.showContextView({
@@ -1308,7 +1307,7 @@ class ScreenReaderDetectedExplanation extends Themable {
 		});
 	}
 
-	public hide(): void {
+	hide(): void {
 		this.contextViewService.hideContextView();
 	}
 

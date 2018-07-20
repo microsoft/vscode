@@ -151,6 +151,22 @@ export interface IEditorHoverOptions {
 	 * Defaults to 300.
 	 */
 	delay?: number;
+	/**
+	 * Is the hover sticky such that it can be clicked and its contents selected?
+	 * Defaults to true.
+	 */
+	sticky?: boolean;
+}
+
+export interface ISuggestOptions {
+	/**
+	 * Enable graceful matching. Defaults to true.
+	 */
+	filterGraceful?: boolean;
+	/**
+	 * Prevent quick suggestions when a snippet is active. Defaults to true.
+	 */
+	snippetsPreventQuickSuggestions?: boolean;
 }
 
 /**
@@ -385,7 +401,7 @@ export interface IEditorOptions {
 	/**
 	 * Configure the editor's hover.
 	 */
-	hover?: boolean | IEditorHoverOptions;
+	hover?: IEditorHoverOptions;
 	/**
 	 * Enable detecting links and making them clickable.
 	 * Defaults to true.
@@ -420,6 +436,10 @@ export interface IEditorOptions {
 	 * Defaults to 'auto'. It is best to leave this to 'auto'.
 	 */
 	accessibilitySupport?: 'auto' | 'off' | 'on';
+	/**
+	 * Suggest options.
+	 */
+	suggest?: ISuggestOptions;
 	/**
 	 * Enable quick suggestions (shadow suggestions)
 	 * Defaults to true.
@@ -822,6 +842,13 @@ export interface InternalEditorFindOptions {
 export interface InternalEditorHoverOptions {
 	readonly enabled: boolean;
 	readonly delay: number;
+	readonly sticky: boolean;
+}
+
+export interface InternalSuggestOptions {
+	readonly filterGraceful: boolean;
+	readonly snippets: 'top' | 'bottom' | 'inline' | 'none';
+	readonly snippetsPreventQuickSuggestions: boolean;
 }
 
 export interface EditorWrappingInfo {
@@ -891,11 +918,12 @@ export interface EditorContribOptions {
 	readonly suggestOnTriggerCharacters: boolean;
 	readonly acceptSuggestionOnEnter: 'on' | 'smart' | 'off';
 	readonly acceptSuggestionOnCommitCharacter: boolean;
-	readonly snippetSuggestions: 'top' | 'bottom' | 'inline' | 'none';
+	// readonly snippetSuggestions: 'top' | 'bottom' | 'inline' | 'none';
 	readonly wordBasedSuggestions: boolean;
 	readonly suggestSelection: 'first' | 'recentlyUsed' | 'recentlyUsedByPrefix';
 	readonly suggestFontSize: number;
 	readonly suggestLineHeight: number;
+	readonly suggest: InternalSuggestOptions;
 	readonly selectionHighlight: boolean;
 	readonly occurrencesHighlight: boolean;
 	readonly codeLens: boolean;
@@ -1216,7 +1244,23 @@ export class InternalEditorOptions {
 		return (
 			a.enabled === b.enabled
 			&& a.delay === b.delay
+			&& a.sticky === b.sticky
 		);
+	}
+
+	/**
+	 * @internal
+	 */
+	private static _equalsSuggestOptions(a: InternalSuggestOptions, b: InternalSuggestOptions): any {
+		if (a === b) {
+			return true;
+		} else if (!a || !b) {
+			return false;
+		} else {
+			return a.filterGraceful === b.filterGraceful
+				&& a.snippets === b.snippets
+				&& a.snippetsPreventQuickSuggestions === b.snippetsPreventQuickSuggestions;
+		}
 	}
 
 	/**
@@ -1254,11 +1298,11 @@ export class InternalEditorOptions {
 			&& a.suggestOnTriggerCharacters === b.suggestOnTriggerCharacters
 			&& a.acceptSuggestionOnEnter === b.acceptSuggestionOnEnter
 			&& a.acceptSuggestionOnCommitCharacter === b.acceptSuggestionOnCommitCharacter
-			&& a.snippetSuggestions === b.snippetSuggestions
 			&& a.wordBasedSuggestions === b.wordBasedSuggestions
 			&& a.suggestSelection === b.suggestSelection
 			&& a.suggestFontSize === b.suggestFontSize
 			&& a.suggestLineHeight === b.suggestLineHeight
+			&& this._equalsSuggestOptions(a.suggest, b.suggest)
 			&& a.selectionHighlight === b.selectionHighlight
 			&& a.occurrencesHighlight === b.occurrencesHighlight
 			&& a.codeLens === b.codeLens
@@ -1702,9 +1746,22 @@ export class EditorOptionsValidator {
 
 		return {
 			enabled: _boolean(opts.enabled, defaults.enabled),
-			delay: _clampedInt(opts.delay, defaults.delay, 0, 10000)
+			delay: _clampedInt(opts.delay, defaults.delay, 0, 10000),
+			sticky: _boolean(opts.sticky, defaults.sticky)
 		};
 	}
+
+	private static _sanitizeSuggestOpts(opts: IEditorOptions, defaults: InternalSuggestOptions): InternalSuggestOptions {
+		if (!opts.suggest) {
+			return defaults;
+		}
+		return {
+			filterGraceful: _boolean(opts.suggest.filterGraceful, defaults.filterGraceful),
+			snippets: _stringSet<'top' | 'bottom' | 'inline' | 'none'>(opts.snippetSuggestions, defaults.snippets, ['top', 'bottom', 'inline', 'none']),
+			snippetsPreventQuickSuggestions: _boolean(opts.suggest.snippetsPreventQuickSuggestions, defaults.filterGraceful),
+		};
+	}
+
 
 	private static _sanitizeViewInfo(opts: IEditorOptions, defaults: InternalEditorViewOptions): InternalEditorViewOptions {
 
@@ -1836,11 +1893,11 @@ export class EditorOptionsValidator {
 			suggestOnTriggerCharacters: _boolean(opts.suggestOnTriggerCharacters, defaults.suggestOnTriggerCharacters),
 			acceptSuggestionOnEnter: _stringSet<'on' | 'smart' | 'off'>(opts.acceptSuggestionOnEnter, defaults.acceptSuggestionOnEnter, ['on', 'smart', 'off']),
 			acceptSuggestionOnCommitCharacter: _boolean(opts.acceptSuggestionOnCommitCharacter, defaults.acceptSuggestionOnCommitCharacter),
-			snippetSuggestions: _stringSet<'top' | 'bottom' | 'inline' | 'none'>(opts.snippetSuggestions, defaults.snippetSuggestions, ['top', 'bottom', 'inline', 'none']),
 			wordBasedSuggestions: _boolean(opts.wordBasedSuggestions, defaults.wordBasedSuggestions),
 			suggestSelection: _stringSet<'first' | 'recentlyUsed' | 'recentlyUsedByPrefix'>(opts.suggestSelection, defaults.suggestSelection, ['first', 'recentlyUsed', 'recentlyUsedByPrefix']),
 			suggestFontSize: _clampedInt(opts.suggestFontSize, defaults.suggestFontSize, 0, 1000),
 			suggestLineHeight: _clampedInt(opts.suggestLineHeight, defaults.suggestLineHeight, 0, 1000),
+			suggest: this._sanitizeSuggestOpts(opts, defaults.suggest),
 			selectionHighlight: _boolean(opts.selectionHighlight, defaults.selectionHighlight),
 			occurrencesHighlight: _boolean(opts.occurrencesHighlight, defaults.occurrencesHighlight),
 			codeLens: _boolean(opts.codeLens, defaults.codeLens),
@@ -1944,11 +2001,11 @@ export class InternalEditorOptionsFactory {
 				suggestOnTriggerCharacters: opts.contribInfo.suggestOnTriggerCharacters,
 				acceptSuggestionOnEnter: opts.contribInfo.acceptSuggestionOnEnter,
 				acceptSuggestionOnCommitCharacter: opts.contribInfo.acceptSuggestionOnCommitCharacter,
-				snippetSuggestions: opts.contribInfo.snippetSuggestions,
 				wordBasedSuggestions: opts.contribInfo.wordBasedSuggestions,
 				suggestSelection: opts.contribInfo.suggestSelection,
 				suggestFontSize: opts.contribInfo.suggestFontSize,
 				suggestLineHeight: opts.contribInfo.suggestLineHeight,
+				suggest: opts.contribInfo.suggest,
 				selectionHighlight: (accessibilityIsOn ? false : opts.contribInfo.selectionHighlight), // DISABLED WHEN SCREEN READER IS ATTACHED
 				occurrencesHighlight: (accessibilityIsOn ? false : opts.contribInfo.occurrencesHighlight), // DISABLED WHEN SCREEN READER IS ATTACHED
 				codeLens: (accessibilityIsOn ? false : opts.contribInfo.codeLens), // DISABLED WHEN SCREEN READER IS ATTACHED
@@ -2401,7 +2458,8 @@ export const EDITOR_DEFAULTS: IValidatedEditorOptions = {
 		selectionClipboard: true,
 		hover: {
 			enabled: true,
-			delay: 300
+			delay: 300,
+			sticky: true
 		},
 		links: true,
 		contextmenu: true,
@@ -2414,11 +2472,15 @@ export const EDITOR_DEFAULTS: IValidatedEditorOptions = {
 		suggestOnTriggerCharacters: true,
 		acceptSuggestionOnEnter: 'on',
 		acceptSuggestionOnCommitCharacter: true,
-		snippetSuggestions: 'inline',
 		wordBasedSuggestions: true,
 		suggestSelection: 'recentlyUsed',
 		suggestFontSize: 0,
 		suggestLineHeight: 0,
+		suggest: {
+			filterGraceful: true,
+			snippets: 'inline',
+			snippetsPreventQuickSuggestions: true
+		},
 		selectionHighlight: true,
 		occurrencesHighlight: true,
 		codeLens: true,

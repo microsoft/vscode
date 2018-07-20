@@ -21,7 +21,7 @@ import { IEditorService } from 'vs/workbench/services/editor/common/editorServic
  */
 export class BinaryFileEditor extends BaseBinaryResourceEditor {
 
-	public static readonly ID = BINARY_FILE_EDITOR_ID;
+	static readonly ID = BINARY_FILE_EDITOR_ID;
 
 	constructor(
 		@ITelemetryService telemetryService: ITelemetryService,
@@ -59,7 +59,7 @@ export class BinaryFileEditor extends BaseBinaryResourceEditor {
 		});
 	}
 
-	public getTitle(): string {
+	getTitle(): string {
 		return this.input ? this.input.getName() : nls.localize('binaryFileEditor', "Binary File Viewer");
 	}
 }

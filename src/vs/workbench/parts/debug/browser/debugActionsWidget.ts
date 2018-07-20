@@ -34,7 +34,6 @@ import { IDisposable } from 'vs/base/common/lifecycle';
 
 const DEBUG_ACTIONS_WIDGET_POSITION_KEY = 'debug.actionswidgetposition';
 const DEBUG_ACTIONS_WIDGET_Y_KEY = 'debug.actionswidgety';
-const HEIGHT = 32;
 
 export const debugToolBarBackground = registerColor('debugToolBar.background', {
 	dark: '#333333',
@@ -81,7 +80,7 @@ export class DebugActionsWidget extends Themable implements IWorkbenchContributi
 		this.$el.append(actionBarContainter);
 
 		this.activeActions = [];
-		this.actionBar = new ActionBar(actionBarContainter.getHTMLElement(), {
+		this.actionBar = this._register(new ActionBar(actionBarContainter.getHTMLElement(), {
 			orientation: ActionsOrientation.HORIZONTAL,
 			actionItemProvider: (action: IAction) => {
 				if (action.id === FocusSessionAction.ID) {
@@ -90,27 +89,26 @@ export class DebugActionsWidget extends Themable implements IWorkbenchContributi
 
 				return null;
 			}
-		});
+		}));
 
-		this.updateScheduler = new RunOnceScheduler(() => {
+		this.updateScheduler = this._register(new RunOnceScheduler(() => {
 			const state = this.debugService.state;
 			const toolBarLocation = this.configurationService.getValue<IDebugConfiguration>('debug').toolBarLocation;
 			if (state === State.Inactive || toolBarLocation === 'docked' || toolBarLocation === 'hidden') {
 				return this.hide();
 			}
 
-			const actions = DebugActionsWidget.getActions(this.allActions, this.toUnbind, this.debugService, this.keybindingService, this.instantiationService);
+			const actions = DebugActionsWidget.getActions(this.allActions, this.toDispose, this.debugService, this.keybindingService, this.instantiationService);
 			if (!arrays.equals(actions, this.activeActions, (first, second) => first.id === second.id)) {
 				this.actionBar.clear();
 				this.actionBar.push(actions, { icon: true, label: false });
 				this.activeActions = actions;
 			}
 			this.show();
-		}, 20);
+		}, 20));
 
 		this.updateStyles();
 
-		this.toUnbind.push(this.actionBar);
 		this.registerListeners();
 
 		this.hide();
@@ -118,10 +116,10 @@ export class DebugActionsWidget extends Themable implements IWorkbenchContributi
 	}
 
 	private registerListeners(): void {
-		this.toUnbind.push(this.debugService.onDidChangeState(() => this.updateScheduler.schedule()));
-		this.toUnbind.push(this.debugService.getViewModel().onDidFocusSession(() => this.updateScheduler.schedule()));
-		this.toUnbind.push(this.configurationService.onDidChangeConfiguration(e => this.onDidConfigurationChange(e)));
-		this.toUnbind.push(this.actionBar.actionRunner.onDidRun((e: IRunEvent) => {
+		this._register(this.debugService.onDidChangeState(() => this.updateScheduler.schedule()));
+		this._register(this.debugService.getViewModel().onDidFocusSession(() => this.updateScheduler.schedule()));
+		this._register(this.configurationService.onDidChangeConfiguration(e => this.onDidConfigurationChange(e)));
+		this._register(this.actionBar.actionRunner.onDidRun((e: IRunEvent) => {
 			// check for error
 			if (e.error && !errors.isPromiseCanceledError(e.error)) {
 				this.notificationService.error(e.error);
@@ -138,7 +136,7 @@ export class DebugActionsWidget extends Themable implements IWorkbenchContributi
 				this.telemetryService.publicLog('workbenchActionExecuted', { id: e.action.id, from: 'debugActionsWidget' });
 			}
 		}));
-		$(window).on(dom.EventType.RESIZE, () => this.setCoordinates(), this.toUnbind);
+		$(window).on(dom.EventType.RESIZE, () => this.setCoordinates(), this.toDispose);
 
 		this.dragArea.on(dom.EventType.MOUSE_UP, (event: MouseEvent) => {
 			const mouseClickEvent = new StandardMouseEvent(event);
@@ -167,8 +165,8 @@ export class DebugActionsWidget extends Themable implements IWorkbenchContributi
 			});
 		});
 
-		this.toUnbind.push(this.partService.onTitleBarVisibilityChange(() => this.setYCoordinate()));
-		this.toUnbind.push(browser.onDidChangeZoomLevel(() => this.setYCoordinate()));
+		this._register(this.partService.onTitleBarVisibilityChange(() => this.setYCoordinate()));
+		this._register(browser.onDidChangeZoomLevel(() => this.setYCoordinate()));
 	}
 
 	private storePosition(): void {
@@ -220,10 +218,11 @@ export class DebugActionsWidget extends Themable implements IWorkbenchContributi
 		if (y === undefined) {
 			y = this.storageService.getInteger(DEBUG_ACTIONS_WIDGET_Y_KEY, StorageScope.GLOBAL, 0);
 		}
-		if ((y < HEIGHT / 2) || (y > HEIGHT + HEIGHT / 2)) {
-			const moveToTop = y < HEIGHT;
-			this.setYCoordinate(moveToTop ? 0 : HEIGHT);
-			this.storageService.store(DEBUG_ACTIONS_WIDGET_Y_KEY, moveToTop ? 0 : 2 * HEIGHT, StorageScope.GLOBAL);
+		const titleAreaHeight = 35;
+		if ((y < titleAreaHeight / 2) || (y > titleAreaHeight + titleAreaHeight / 2)) {
+			const moveToTop = y < titleAreaHeight;
+			this.setYCoordinate(moveToTop ? 0 : titleAreaHeight);
+			this.storageService.store(DEBUG_ACTIONS_WIDGET_Y_KEY, moveToTop ? 0 : 2 * titleAreaHeight, StorageScope.GLOBAL);
 		}
 	}
 
@@ -235,6 +234,7 @@ export class DebugActionsWidget extends Themable implements IWorkbenchContributi
 
 	private show(): void {
 		if (this.isVisible) {
+			this.setCoordinates();
 			return;
 		}
 		if (!this.isBuilt) {
@@ -252,7 +252,7 @@ export class DebugActionsWidget extends Themable implements IWorkbenchContributi
 		this.$el.hide();
 	}
 
-	public static getActions(allActions: AbstractDebugAction[], toUnbind: IDisposable[], debugService: IDebugService, keybindingService: IKeybindingService, instantiationService: IInstantiationService): AbstractDebugAction[] {
+	public static getActions(allActions: AbstractDebugAction[], toDispose: IDisposable[], debugService: IDebugService, keybindingService: IKeybindingService, instantiationService: IInstantiationService): AbstractDebugAction[] {
 		if (allActions.length === 0) {
 			allActions.push(new ContinueAction(ContinueAction.ID, ContinueAction.LABEL, debugService, keybindingService));
 			allActions.push(new PauseAction(PauseAction.ID, PauseAction.LABEL, debugService, keybindingService));
@@ -265,9 +265,7 @@ export class DebugActionsWidget extends Themable implements IWorkbenchContributi
 			allActions.push(new StepBackAction(StepBackAction.ID, StepBackAction.LABEL, debugService, keybindingService));
 			allActions.push(new ReverseContinueAction(ReverseContinueAction.ID, ReverseContinueAction.LABEL, debugService, keybindingService));
 			allActions.push(instantiationService.createInstance(FocusSessionAction, FocusSessionAction.ID, FocusSessionAction.LABEL));
-			allActions.forEach(a => {
-				toUnbind.push(a);
-			});
+			allActions.forEach(a => toDispose.push(a));
 		}
 
 		const state = debugService.state;

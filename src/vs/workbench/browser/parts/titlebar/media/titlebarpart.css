@@ -13,11 +13,20 @@
 	align-items: center;
 	justify-content: center;
 	user-select: none;
-	-webkit-app-region: drag;
 	zoom: 1; /* prevent zooming */
 	line-height: 22px;
 	height: 22px;
 	display: flex;
+}
+
+.monaco-workbench > .part.titlebar > .titlebar-drag-region {
+	top: 0;
+	left: 0;
+	display: block;
+	position: absolute;
+	width: 100%;
+	height: 100%;
+	-webkit-app-region: drag;
 }
 
 .monaco-workbench > .part.titlebar > .window-title {
@@ -25,7 +34,6 @@
 	overflow: hidden;
 	white-space: nowrap;
 	text-overflow: ellipsis;
-	-webkit-app-region: drag;
 	zoom: 1; /* prevent zooming */
 }
 
@@ -45,7 +53,7 @@
 	position: absolute;
 	top: 0;
 	width: 100%;
-	height: 1px;
+	height: 20%;
 }
 
 .monaco-workbench.windows > .part.titlebar > .window-title,
@@ -82,15 +90,14 @@
 .monaco-workbench > .part.titlebar > .window-controls-container > .window-icon {
 	display: inline-block;
 	-webkit-app-region: no-drag;
-	-webkit-transition: background-color .2s;
-	transition: background-color .2s;
+	-webkit-transition: background-color .1s;
+	transition: background-color .1s;
 	height: 100%;
 	width: 33.34%;
-	background-size: 20%;
+	background-size: 21.74%;
 	background-position: center center;
 	background-repeat: no-repeat;
 }
-
 
 .monaco-workbench > .part.titlebar > .window-controls-container > .window-icon svg {
 	shape-rendering: crispEdges;

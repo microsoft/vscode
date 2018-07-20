@@ -2,17 +2,17 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-import * as nls from 'vscode-nls';
-const localize = nls.loadMessageBundle();
-
-import * as path from 'path';
 import * as fs from 'fs';
-
-import { workspace, window } from 'vscode';
-
+import * as path from 'path';
+import { window, workspace } from 'vscode';
+import * as nls from 'vscode-nls';
+import API from './api';
 import { TypeScriptServiceConfiguration } from './configuration';
 import { RelativeWorkspacePathResolver } from './relativePathResolver';
-import API from './api';
+const localize = nls.loadMessageBundle();
+
+
+
 
 
 export class TypeScriptVersion {

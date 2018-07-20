@@ -61,7 +61,7 @@ export const tocData: ITOCEntry = {
 				{
 					id: 'editor/suggestions',
 					label: localize('suggestions', "Suggestions"),
-					settings: ['editor.*suggestion*']
+					settings: ['editor.*suggest*']
 				},
 				{
 					id: 'editor/files',
@@ -70,7 +70,7 @@ export const tocData: ITOCEntry = {
 				},
 				{
 					id: 'editor/editor',
-					label: localize('editor', "Editor"),
+					label: localize('textEditor', "Text Editor"),
 					settings: ['editor.*']
 				}
 			]
@@ -85,9 +85,19 @@ export const tocData: ITOCEntry = {
 					settings: ['workbench.activityBar.*', 'workbench.*color*', 'workbench.fontAliasing', 'workbench.iconTheme', 'workbench.sidebar.location', 'workbench.*.visible', 'workbench.tips.enabled', 'workbench.tree.*', 'workbench.view.*']
 				},
 				{
+					id: 'workbench/breadcrumbs',
+					label: localize('breadcrumbs', "Breadcrumbs"),
+					settings: ['breadcrumbs.*']
+				},
+				{
 					id: 'workbench/editor',
 					label: localize('editorManagement', "Editor Management"),
 					settings: ['workbench.editor.*']
+				},
+				{
+					id: 'workbench/settings',
+					label: localize('settings', "Settings Editor"),
+					settings: ['workbench.settings.*']
 				},
 				{
 					id: 'workbench/zenmode',
@@ -123,7 +133,7 @@ export const tocData: ITOCEntry = {
 			children: [
 				{
 					id: 'features/explorer',
-					label: localize('fileExplorer', "File Explorer"),
+					label: localize('fileExplorer', "Explorer"),
 					settings: ['explorer.*', 'outline.*']
 				},
 				{
@@ -184,11 +194,6 @@ export const tocData: ITOCEntry = {
 					settings: ['telemetry.*']
 				}
 			]
-		},
-		{
-			id: 'extensions',
-			label: localize('extensions', "Extensions"),
-			settings: ['*']
 		}
 	]
 };

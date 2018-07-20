@@ -643,6 +643,9 @@ export class SnippetParser {
 		let start = this._token;
 		while (this._token.type !== type) {
 			this._token = this._scanner.next();
+			if (this._token.type === TokenType.EOF) {
+				return false;
+			}
 		}
 		let value = this._scanner.value.substring(start.pos, this._token.pos);
 		this._token = this._scanner.next();
@@ -715,17 +718,6 @@ export class SnippetParser {
 					return true;
 				}
 
-				//../<regex>/<format>/<options>} -> transform
-				if (this._accept(TokenType.Forwardslash)) {
-					if (this._parseTransform(placeholder)) {
-						parent.appendChild(placeholder);
-						return true;
-					}
-
-					this._backTo(token);
-					return false;
-				}
-
 				if (this._parse(placeholder)) {
 					continue;
 				}
@@ -753,13 +745,6 @@ export class SnippetParser {
 							// ..|} -> done
 							parent.appendChild(placeholder);
 							return true;
-						}
-						if (this._accept(TokenType.Forwardslash)) {
-							// ...|/<regex>/<format>/<options>} -> transform
-							if (this._parseTransform(placeholder)) {
-								parent.appendChild(placeholder);
-								return true;
-							}
 						}
 					}
 				}

@@ -5,7 +5,6 @@
 
 import 'vs/css!./selectBox';
 
-import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { Event } from 'vs/base/common/event';
 import { Widget } from 'vs/base/browser/ui/widget';
 import { Color } from 'vs/base/common/color';
@@ -24,6 +23,7 @@ export interface ISelectBoxDelegate {
 	readonly onDidSelect: Event<ISelectData>;
 	setOptions(options: string[], selected?: number, disabled?: number): void;
 	select(index: number): void;
+	setAriaLabel(label: string);
 	focus(): void;
 	blur(): void;
 	dispose(): void;
@@ -35,6 +35,7 @@ export interface ISelectBoxDelegate {
 }
 
 export interface ISelectBoxOptions {
+	ariaLabel?: string;
 	minBottomMargin?: number;
 }
 
@@ -58,25 +59,22 @@ export interface ISelectData {
 }
 
 export class SelectBox extends Widget implements ISelectBoxDelegate {
-	private toDispose: IDisposable[];
 	private styles: ISelectBoxStyles;
 	private selectBoxDelegate: ISelectBoxDelegate;
 
 	constructor(options: string[], selected: number, contextViewProvider: IContextViewProvider, styles: ISelectBoxStyles = deepClone(defaultStyles), selectBoxOptions?: ISelectBoxOptions) {
 		super();
 
-		this.toDispose = [];
-
 		mixin(this.styles, defaultStyles, false);
 
 		// Instantiate select implementation based on platform
 		if (isMacintosh) {
-			this.selectBoxDelegate = new SelectBoxNative(options, selected, styles);
+			this.selectBoxDelegate = new SelectBoxNative(options, selected, styles, selectBoxOptions);
 		} else {
 			this.selectBoxDelegate = new SelectBoxList(options, selected, contextViewProvider, styles, selectBoxOptions);
 		}
 
-		this.toDispose.push(this.selectBoxDelegate);
+		this._register(this.selectBoxDelegate);
 	}
 
 	// Public SelectBox Methods - routed through delegate interface
@@ -91,6 +89,10 @@ export class SelectBox extends Widget implements ISelectBoxDelegate {
 
 	public select(index: number): void {
 		this.selectBoxDelegate.select(index);
+	}
+
+	public setAriaLabel(label: string): void {
+		this.selectBoxDelegate.setAriaLabel(label);
 	}
 
 	public focus(): void {
@@ -113,10 +115,5 @@ export class SelectBox extends Widget implements ISelectBoxDelegate {
 
 	public applyStyles(): void {
 		this.selectBoxDelegate.applyStyles();
-	}
-
-	public dispose(): void {
-		this.toDispose = dispose(this.toDispose);
-		super.dispose();
 	}
 }

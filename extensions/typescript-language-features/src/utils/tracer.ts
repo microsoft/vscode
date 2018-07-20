@@ -4,9 +4,9 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { workspace } from 'vscode';
-
 import * as Proto from '../protocol';
 import Logger from './logger';
+
 
 
 enum Trace {

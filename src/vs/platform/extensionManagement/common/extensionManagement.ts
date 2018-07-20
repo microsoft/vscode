@@ -96,7 +96,7 @@ export interface IColor {
 
 export interface IExtensionContributions {
 	commands?: ICommand[];
-	configuration?: IConfiguration;
+	configuration?: IConfiguration | IConfiguration[];
 	debuggers?: IDebugger[];
 	grammars?: IGrammar[];
 	jsonValidation?: IJSONValidation[];
@@ -124,6 +124,7 @@ export interface IExtensionManifest {
 	categories?: string[];
 	activationEvents?: string[];
 	extensionDependencies?: string[];
+	extensionPack?: string[];
 	contributes?: IExtensionContributions;
 	repository?: {
 		url: string;
@@ -135,6 +136,7 @@ export interface IExtensionManifest {
 
 export interface IGalleryExtensionProperties {
 	dependencies?: string[];
+	extensionPack?: string[];
 	engine?: string;
 }
 
@@ -205,6 +207,7 @@ export enum LocalExtensionType {
 export interface ILocalExtension {
 	type: LocalExtensionType;
 	identifier: IExtensionIdentifier;
+	galleryIdentifier: IExtensionIdentifier;
 	manifest: IExtensionManifest;
 	metadata: IGalleryMetadata;
 	location: URI;
@@ -303,10 +306,10 @@ export interface IExtensionManagementService {
 	onUninstallExtension: Event<IExtensionIdentifier>;
 	onDidUninstallExtension: Event<DidUninstallExtensionEvent>;
 
-	install(zipPath: string): TPromise<ILocalExtension>;
-	installFromGallery(extension: IGalleryExtension): TPromise<ILocalExtension>;
+	install(zipPath: string): TPromise<void>;
+	installFromGallery(extension: IGalleryExtension): TPromise<void>;
 	uninstall(extension: ILocalExtension, force?: boolean): TPromise<void>;
-	reinstallFromGallery(extension: ILocalExtension): TPromise<ILocalExtension>;
+	reinstallFromGallery(extension: ILocalExtension): TPromise<void>;
 	getInstalled(type?: LocalExtensionType): TPromise<ILocalExtension[]>;
 	getExtensionsReport(): TPromise<IReportedExtension[]>;
 
@@ -340,6 +343,8 @@ export const IExtensionEnablementService = createDecorator<IExtensionEnablementS
 export interface IExtensionEnablementService {
 	_serviceBrand: any;
 
+	readonly allUserExtensionsDisabled: boolean;
+
 	/**
 	 * Event to listen on for extension enablement changes
 	 */
@@ -349,7 +354,7 @@ export interface IExtensionEnablementService {
 	 * Returns all disabled extension identifiers for current workspace
 	 * Returns an empty array if none exist
 	 */
-	getDisabledExtensions(): TPromise<IExtensionIdentifier[]>;
+	getDisabledExtensions(): Promise<IExtensionIdentifier[]>;
 
 	/**
 	 * Returns the enablement state for the given extension
@@ -376,11 +381,6 @@ export interface IExtensionEnablementService {
 	 * Throws error if enablement is requested for workspace and there is no workspace
 	 */
 	setEnablement(extension: ILocalExtension, state: EnablementState): TPromise<boolean>;
-}
-
-export interface IIgnoredRecommendations {
-	global: string[];
-	workspace: string[];
 }
 
 export interface IExtensionsConfigContent {
@@ -415,9 +415,8 @@ export interface IExtensionTipsService {
 	getKeymapRecommendations(): IExtensionRecommendation[];
 	getAllRecommendations(): TPromise<IExtensionRecommendation[]>;
 	getKeywordsForExtension(extension: string): string[];
-	getRecommendationsForExtension(extension: string): string[];
-	getAllIgnoredRecommendations(): IIgnoredRecommendations;
-	ignoreExtensionRecommendation(extensionId: string): void;
+	toggleIgnoredRecommendation(extensionId: string, shouldIgnore: boolean): void;
+	getAllIgnoredRecommendations(): { global: string[], workspace: string[] };
 	onRecommendationChange: Event<RecommendationChangeNotification>;
 }
 
@@ -425,7 +424,8 @@ export enum ExtensionRecommendationReason {
 	Workspace,
 	File,
 	Executable,
-	DynamicWorkspace
+	DynamicWorkspace,
+	Experimental
 }
 
 export const ExtensionsLabel = localize('extensions', "Extensions");

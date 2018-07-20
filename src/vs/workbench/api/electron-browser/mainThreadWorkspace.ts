@@ -5,18 +5,24 @@
 'use strict';
 
 import { isPromiseCanceledError } from 'vs/base/common/errors';
+import { dispose, IDisposable } from 'vs/base/common/lifecycle';
 import URI, { UriComponents } from 'vs/base/common/uri';
-import { ISearchService, QueryType, ISearchQuery, IFolderQuery, ISearchConfiguration } from 'vs/platform/search/common/search';
-import { IWorkspaceContextService, WorkbenchState } from 'vs/platform/workspace/common/workspace';
-import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
 import { TPromise } from 'vs/base/common/winjs.base';
-import { MainThreadWorkspaceShape, ExtHostWorkspaceShape, ExtHostContext, MainContext, IExtHostContext } from '../node/extHost.protocol';
-import { IDisposable, dispose } from 'vs/base/common/lifecycle';
-import { extHostNamedCustomer } from 'vs/workbench/api/electron-browser/extHostCustomers';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { IWorkspaceEditingService } from 'vs/workbench/services/workspace/common/workspaceEditing';
 import { localize } from 'vs/nls';
+import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
+import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
+import { IFileMatch, IFolderQuery, IPatternInfo, IQueryOptions, ISearchConfiguration, ISearchQuery, ISearchService, QueryType, ISearchProgressItem } from 'vs/platform/search/common/search';
 import { IStatusbarService } from 'vs/platform/statusbar/common/statusbar';
+import { IWorkspaceContextService, WorkbenchState } from 'vs/platform/workspace/common/workspace';
+import { extHostNamedCustomer } from 'vs/workbench/api/electron-browser/extHostCustomers';
+import { QueryBuilder } from 'vs/workbench/parts/search/common/queryBuilder';
+import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
+import { IWorkspaceEditingService } from 'vs/workbench/services/workspace/common/workspaceEditing';
+import { ExtHostContext, ExtHostWorkspaceShape, IExtHostContext, MainContext, MainThreadWorkspaceShape } from '../node/extHost.protocol';
+import { CommandsRegistry } from 'vs/platform/commands/common/commands';
+import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
+import { areSameExtensions } from 'vs/platform/extensionManagement/common/extensionManagementUtil';
+import { IWindowService } from 'vs/platform/windows/common/windows';
 
 @extHostNamedCustomer(MainContext.MainThreadWorkspace)
 export class MainThreadWorkspace implements MainThreadWorkspaceShape {
@@ -32,7 +38,8 @@ export class MainThreadWorkspace implements MainThreadWorkspaceShape {
 		@ITextFileService private readonly _textFileService: ITextFileService,
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
 		@IWorkspaceEditingService private readonly _workspaceEditingService: IWorkspaceEditingService,
-		@IStatusbarService private readonly _statusbarService: IStatusbarService
+		@IStatusbarService private readonly _statusbarService: IStatusbarService,
+		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 	) {
 		this._proxy = extHostContext.getProxy(ExtHostContext.ExtHostWorkspace);
 		this._contextService.onDidChangeWorkspaceFolders(this._onDidChangeWorkspace, this, this._toDispose);
@@ -97,7 +104,7 @@ export class MainThreadWorkspace implements MainThreadWorkspaceShape {
 
 	// --- search ---
 
-	$startSearch(includePattern: string, includeFolder: string, excludePatternOrDisregardExcludes: string | false, maxResults: number, requestId: number): Thenable<URI[]> {
+	$startFileSearch(includePattern: string, includeFolder: string, excludePatternOrDisregardExcludes: string | false, maxResults: number, requestId: number): Thenable<URI[]> {
 		const workspace = this._contextService.getWorkspace();
 		if (!workspace.folders.length) {
 			return undefined;
@@ -158,6 +165,38 @@ export class MainThreadWorkspace implements MainThreadWorkspaceShape {
 		return search;
 	}
 
+	$startTextSearch(pattern: IPatternInfo, options: IQueryOptions, requestId: number): TPromise<void, IFileMatch> {
+		const workspace = this._contextService.getWorkspace();
+		const folders = workspace.folders.map(folder => folder.uri);
+
+		const queryBuilder = this._instantiationService.createInstance(QueryBuilder);
+		const query = queryBuilder.text(pattern, folders, options);
+
+		return new TPromise((resolve, reject) => {
+			const onProgress = (p: ISearchProgressItem) => {
+				if (p.lineMatches) {
+					this._proxy.$handleTextSearchResult(p, requestId);
+				}
+			};
+
+			const search = this._searchService.search(query, onProgress).then(
+				() => {
+					delete this._activeSearches[requestId];
+					resolve(null);
+				},
+				err => {
+					delete this._activeSearches[requestId];
+					if (!isPromiseCanceledError(err)) {
+						reject(TPromise.wrapError(err));
+					}
+
+					return undefined;
+				});
+
+			this._activeSearches[requestId] = search;
+		});
+	}
+
 	$cancelSearch(requestId: number): Thenable<boolean> {
 		const search = this._activeSearches[requestId];
 		if (search) {
@@ -176,3 +215,19 @@ export class MainThreadWorkspace implements MainThreadWorkspaceShape {
 		});
 	}
 }
+
+CommandsRegistry.registerCommand('_workbench.enterWorkspace', async function (accessor: ServicesAccessor, workspace: URI, disableExtensions: string[]) {
+	const workspaceEditingService = accessor.get(IWorkspaceEditingService);
+	const extensionService = accessor.get(IExtensionService);
+	const windowService = accessor.get(IWindowService);
+
+	if (disableExtensions && disableExtensions.length) {
+		const runningExtensions = await extensionService.getExtensions();
+		// If requested extension to disable is running, then reload window with given workspace
+		if (disableExtensions && runningExtensions.some(runningExtension => disableExtensions.some(id => areSameExtensions({ id }, { id: runningExtension.id })))) {
+			return windowService.openWindow([workspace.fsPath], { args: { _: [], 'disable-extension': disableExtensions } });
+		}
+	}
+
+	return workspaceEditingService.enterWorkspace(workspace.fsPath);
+});

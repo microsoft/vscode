@@ -13,6 +13,7 @@ import { registerLanguageCommand } from 'vs/editor/browser/editorExtensions';
 import { Range, IRange } from 'vs/editor/common/core/range';
 import { illegalArgument } from 'vs/base/common/errors';
 import { IModelService } from 'vs/editor/common/services/modelService';
+import { CancellationToken } from 'vs/base/common/cancellation';
 
 
 export interface IColorData {
@@ -20,10 +21,10 @@ export interface IColorData {
 	provider: DocumentColorProvider;
 }
 
-export function getColors(model: ITextModel): TPromise<IColorData[]> {
+export function getColors(model: ITextModel, token: CancellationToken): Promise<IColorData[]> {
 	const colors: IColorData[] = [];
 	const providers = ColorProviderRegistry.ordered(model).reverse();
-	const promises = providers.map(provider => asWinJsPromise(token => provider.provideDocumentColors(model, token)).then(result => {
+	const promises = providers.map(provider => Promise.resolve(provider.provideDocumentColors(model, token)).then(result => {
 		if (Array.isArray(result)) {
 			for (let colorInfo of result) {
 				colors.push({ colorInfo, provider });
@@ -31,11 +32,11 @@ export function getColors(model: ITextModel): TPromise<IColorData[]> {
 		}
 	}));
 
-	return TPromise.join(promises).then(() => colors);
+	return Promise.all(promises).then(() => colors);
 }
 
-export function getColorPresentations(model: ITextModel, colorInfo: IColorInformation, provider: DocumentColorProvider): TPromise<IColorPresentation[]> {
-	return asWinJsPromise(token => provider.provideColorPresentations(model, colorInfo, token));
+export function getColorPresentations(model: ITextModel, colorInfo: IColorInformation, provider: DocumentColorProvider, token: CancellationToken): Promise<IColorPresentation[]> {
+	return Promise.resolve(provider.provideColorPresentations(model, colorInfo, token));
 }
 
 registerLanguageCommand('_executeDocumentColorProvider', function (accessor, args) {

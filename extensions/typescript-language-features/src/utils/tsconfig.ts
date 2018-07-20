@@ -3,11 +3,11 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as vscode from 'vscode';
 import * as path from 'path';
+import * as vscode from 'vscode';
 import * as Proto from '../protocol';
-
 import { TypeScriptServiceConfiguration } from './configuration';
+
 
 export function isImplicitProjectConfigFile(configFileName: string) {
 	return configFileName.indexOf('/dev/null/') === 0;

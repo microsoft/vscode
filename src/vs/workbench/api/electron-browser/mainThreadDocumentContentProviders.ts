@@ -4,17 +4,20 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import URI, { UriComponents } from 'vs/base/common/uri';
+import { onUnexpectedError } from 'vs/base/common/errors';
 import { IDisposable } from 'vs/base/common/lifecycle';
+import URI, { UriComponents } from 'vs/base/common/uri';
 import { TPromise } from 'vs/base/common/winjs.base';
-import { ITextModel, DefaultEndOfLine } from 'vs/editor/common/model';
 import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
-import { MainThreadDocumentContentProvidersShape, ExtHostContext, ExtHostDocumentContentProvidersShape, MainContext, IExtHostContext } from '../node/extHost.protocol';
-import { createTextBuffer } from 'vs/editor/common/model/textModel';
-import { ITextModelService } from 'vs/editor/common/services/resolverService';
-import { IModeService } from 'vs/editor/common/services/modeService';
+import { EditOperation } from 'vs/editor/common/core/editOperation';
+import { Range } from 'vs/editor/common/core/range';
+import { ITextModel } from 'vs/editor/common/model';
+import { IEditorWorkerService } from 'vs/editor/common/services/editorWorkerService';
 import { IModelService } from 'vs/editor/common/services/modelService';
+import { IModeService } from 'vs/editor/common/services/modeService';
+import { ITextModelService } from 'vs/editor/common/services/resolverService';
 import { extHostNamedCustomer } from 'vs/workbench/api/electron-browser/extHostCustomers';
+import { ExtHostContext, ExtHostDocumentContentProvidersShape, IExtHostContext, MainContext, MainThreadDocumentContentProvidersShape } from '../node/extHost.protocol';
 
 @extHostNamedCustomer(MainContext.MainThreadDocumentContentProviders)
 export class MainThreadDocumentContentProviders implements MainThreadDocumentContentProvidersShape {
@@ -27,6 +30,7 @@ export class MainThreadDocumentContentProviders implements MainThreadDocumentCon
 		@ITextModelService private readonly _textModelResolverService: ITextModelService,
 		@IModeService private readonly _modeService: IModeService,
 		@IModelService private readonly _modelService: IModelService,
+		@IEditorWorkerService private readonly _editorWorkerService: IEditorWorkerService,
 		@ICodeEditorService codeEditorService: ICodeEditorService
 	) {
 		this._proxy = extHostContext.getProxy(ExtHostContext.ExtHostDocumentContentProviders);
@@ -67,10 +71,11 @@ export class MainThreadDocumentContentProviders implements MainThreadDocumentCon
 			return;
 		}
 
-		const textBuffer = createTextBuffer(value, DefaultEndOfLine.CRLF);
-
-		if (!model.equalsTextBuffer(textBuffer)) {
-			model.setValueFromTextBuffer(textBuffer);
-		}
+		this._editorWorkerService.computeMoreMinimalEdits(model.uri, [{ text: value, range: model.getFullModelRange() }]).then(edits => {
+			if (edits.length > 0) {
+				// use the evil-edit as these models show in readonly-editor only
+				model.applyEdits(edits.map(edit => EditOperation.replace(Range.lift(edit.range), edit.text)));
+			}
+		}, onUnexpectedError);
 	}
 }

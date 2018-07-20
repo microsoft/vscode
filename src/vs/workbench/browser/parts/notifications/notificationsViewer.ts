@@ -5,7 +5,7 @@
 
 'use strict';
 
-import { IDelegate, IRenderer } from 'vs/base/browser/ui/list/list';
+import { IVirtualDelegate, IRenderer } from 'vs/base/browser/ui/list/list';
 import { clearNode, addClass, removeClass, toggleClass, addDisposableListener, EventType, EventHelper } from 'vs/base/browser/dom';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
 import URI from 'vs/base/common/uri';
@@ -26,7 +26,7 @@ import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { ProgressBar } from 'vs/base/browser/ui/progressbar/progressbar';
 import { Severity } from 'vs/platform/notification/common/notification';
 
-export class NotificationsListDelegate implements IDelegate<INotificationViewItem> {
+export class NotificationsListDelegate implements IVirtualDelegate<INotificationViewItem> {
 
 	private static readonly ROW_HEIGHT = 42;
 	private static readonly LINE_HEIGHT = 22;
@@ -46,7 +46,7 @@ export class NotificationsListDelegate implements IDelegate<INotificationViewIte
 		return offsetHelper;
 	}
 
-	public getHeight(notification: INotificationViewItem): number {
+	getHeight(notification: INotificationViewItem): number {
 
 		// First row: message and actions
 		let expandedHeight = NotificationsListDelegate.ROW_HEIGHT;
@@ -102,7 +102,7 @@ export class NotificationsListDelegate implements IDelegate<INotificationViewIte
 		return preferredHeight;
 	}
 
-	public getTemplateId(element: INotificationViewItem): string {
+	getTemplateId(element: INotificationViewItem): string {
 		if (element instanceof NotificationViewItem) {
 			return NotificationRenderer.TEMPLATE_ID;
 		}
@@ -135,7 +135,7 @@ interface IMessageActionHandler {
 
 class NotificationMessageRenderer {
 
-	public static render(message: INotificationMessage, actionHandler?: IMessageActionHandler): HTMLElement {
+	static render(message: INotificationMessage, actionHandler?: IMessageActionHandler): HTMLElement {
 		const messageContainer = document.createElement('span');
 
 		// Message has no links
@@ -181,7 +181,7 @@ class NotificationMessageRenderer {
 
 export class NotificationRenderer implements IRenderer<INotificationViewItem, INotificationTemplateData> {
 
-	public static readonly TEMPLATE_ID = 'notification';
+	static readonly TEMPLATE_ID = 'notification';
 
 	constructor(
 		private actionRunner: IActionRunner,
@@ -191,11 +191,11 @@ export class NotificationRenderer implements IRenderer<INotificationViewItem, IN
 	) {
 	}
 
-	public get templateId() {
+	get templateId() {
 		return NotificationRenderer.TEMPLATE_ID;
 	}
 
-	public renderTemplate(container: HTMLElement): INotificationTemplateData {
+	renderTemplate(container: HTMLElement): INotificationTemplateData {
 		const data: INotificationTemplateData = Object.create(null);
 		data.toDispose = [];
 
@@ -274,11 +274,15 @@ export class NotificationRenderer implements IRenderer<INotificationViewItem, IN
 		return data;
 	}
 
-	public renderElement(notification: INotificationViewItem, index: number, data: INotificationTemplateData): void {
+	renderElement(notification: INotificationViewItem, index: number, data: INotificationTemplateData): void {
 		data.renderer.setInput(notification);
 	}
 
-	public disposeTemplate(templateData: INotificationTemplateData): void {
+	disposeElement(): void {
+		// noop
+	}
+
+	disposeTemplate(templateData: INotificationTemplateData): void {
 		templateData.toDispose = dispose(templateData.toDispose);
 	}
 }
@@ -291,7 +295,7 @@ export class NotificationTemplateRenderer {
 
 	private static readonly SEVERITIES: ('info' | 'warning' | 'error')[] = ['info', 'warning', 'error'];
 
-	private inputDisposeables: IDisposable[];
+	private inputDisposeables: IDisposable[] = [];
 
 	constructor(
 		private template: INotificationTemplateData,
@@ -301,8 +305,6 @@ export class NotificationTemplateRenderer {
 		@IThemeService private themeService: IThemeService,
 		@IKeybindingService private keybindingService: IKeybindingService
 	) {
-		this.inputDisposeables = [];
-
 		if (!NotificationTemplateRenderer.closeNotificationAction) {
 			NotificationTemplateRenderer.closeNotificationAction = instantiationService.createInstance(ClearNotificationAction, ClearNotificationAction.ID, ClearNotificationAction.LABEL);
 			NotificationTemplateRenderer.expandNotificationAction = instantiationService.createInstance(ExpandNotificationAction, ExpandNotificationAction.ID, ExpandNotificationAction.LABEL);
@@ -310,7 +312,7 @@ export class NotificationTemplateRenderer {
 		}
 	}
 
-	public setInput(notification: INotificationViewItem): void {
+	setInput(notification: INotificationViewItem): void {
 		this.inputDisposeables = dispose(this.inputDisposeables);
 
 		this.render(notification);
@@ -507,7 +509,7 @@ export class NotificationTemplateRenderer {
 		return keybinding ? keybinding.getLabel() : void 0;
 	}
 
-	public dispose(): void {
+	dispose(): void {
 		this.inputDisposeables = dispose(this.inputDisposeables);
 	}
 }

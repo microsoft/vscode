@@ -34,7 +34,7 @@ import { Event, Emitter } from 'vs/base/common/event';
 import { IPartService } from 'vs/workbench/services/part/common/partService';
 import { QuickOpenHandler, QuickOpenHandlerDescriptor, IQuickOpenRegistry, Extensions, EditorQuickOpenEntry, CLOSE_ON_FOCUS_LOST_CONFIG } from 'vs/workbench/browser/quickopen';
 import * as errors from 'vs/base/common/errors';
-import { IPickOpenEntry, IFilePickOpenEntry, IQuickOpenService, IPickOptions, IShowOptions, IPickOpenItem } from 'vs/platform/quickOpen/common/quickOpen';
+import { IPickOpenEntry, IFilePickOpenEntry, IQuickOpenService, IShowOptions, IPickOpenItem, IStringPickOptions, ITypedPickOptions } from 'vs/platform/quickOpen/common/quickOpen';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
@@ -73,28 +73,31 @@ interface IInternalPickOptions {
 	ignoreFocusLost?: boolean;
 	quickNavigateConfiguration?: IQuickNavigateConfiguration;
 	onDidType?: (value: string) => any;
+	onDidFocus?: (item: any) => void;
 }
 
 export class QuickOpenController extends Component implements IQuickOpenService {
 
 	private static readonly MAX_SHORT_RESPONSE_TIME = 500;
-
-	public _serviceBrand: any;
-
 	private static readonly ID = 'workbench.component.quickopen';
 
-	private readonly _onShow: Emitter<void>;
-	private readonly _onHide: Emitter<void>;
+	_serviceBrand: any;
+
+	private readonly _onShow: Emitter<void> = this._register(new Emitter<void>());
+	get onShow(): Event<void> { return this._onShow.event; }
+
+	private readonly _onHide: Emitter<void> = this._register(new Emitter<void>());
+	get onHide(): Event<void> { return this._onHide.event; }
 
 	private quickOpenWidget: QuickOpenWidget;
 	private pickOpenWidget: QuickOpenWidget;
 	private layoutDimensions: Dimension;
-	private mapResolvedHandlersToPrefix: { [prefix: string]: TPromise<QuickOpenHandler>; };
-	private mapContextKeyToContext: { [id: string]: IContextKey<boolean>; };
-	private handlerOnOpenCalled: { [prefix: string]: boolean; };
+	private mapResolvedHandlersToPrefix: { [prefix: string]: TPromise<QuickOpenHandler>; } = Object.create(null);
+	private mapContextKeyToContext: { [id: string]: IContextKey<boolean>; } = Object.create(null);
+	private handlerOnOpenCalled: { [prefix: string]: boolean; } = Object.create(null);
 	private currentResultToken: string;
 	private currentPickerToken: string;
-	private promisesToCompleteOnHide: ValueCallback[];
+	private promisesToCompleteOnHide: ValueCallback[] = [];
 	private previousActiveHandlerDescriptor: QuickOpenHandlerDescriptor;
 	private actionProvider = new ContributableActionProvider();
 	private closeOnFocusLost: boolean;
@@ -112,16 +115,7 @@ export class QuickOpenController extends Component implements IQuickOpenService 
 	) {
 		super(QuickOpenController.ID, themeService);
 
-		this.mapResolvedHandlersToPrefix = {};
-		this.handlerOnOpenCalled = {};
-		this.mapContextKeyToContext = {};
-
-		this.promisesToCompleteOnHide = [];
-
 		this.editorHistoryHandler = this.instantiationService.createInstance(EditorHistoryHandler);
-
-		this._onShow = new Emitter<void>();
-		this._onHide = new Emitter<void>();
 
 		this.updateConfiguration();
 
@@ -129,9 +123,9 @@ export class QuickOpenController extends Component implements IQuickOpenService 
 	}
 
 	private registerListeners(): void {
-		this.toUnbind.push(this.configurationService.onDidChangeConfiguration(e => this.updateConfiguration()));
-		this.toUnbind.push(this.partService.onTitleBarVisibilityChange(() => this.positionQuickOpenWidget()));
-		this.toUnbind.push(browser.onDidChangeZoomLevel(() => this.positionQuickOpenWidget()));
+		this._register(this.configurationService.onDidChangeConfiguration(e => this.updateConfiguration()));
+		this._register(this.partService.onTitleBarVisibilityChange(() => this.positionQuickOpenWidget()));
+		this._register(browser.onDidChangeZoomLevel(() => this.positionQuickOpenWidget()));
 	}
 
 	private updateConfiguration(): void {
@@ -142,15 +136,7 @@ export class QuickOpenController extends Component implements IQuickOpenService 
 		}
 	}
 
-	public get onShow(): Event<void> {
-		return this._onShow.event;
-	}
-
-	public get onHide(): Event<void> {
-		return this._onHide.event;
-	}
-
-	public navigate(next: boolean, quickNavigate?: IQuickNavigateConfiguration): void {
+	navigate(next: boolean, quickNavigate?: IQuickNavigateConfiguration): void {
 		if (this.quickOpenWidget) {
 			this.quickOpenWidget.navigate(next, quickNavigate);
 		}
@@ -160,11 +146,11 @@ export class QuickOpenController extends Component implements IQuickOpenService 
 		}
 	}
 
-	public pick(picks: TPromise<string[]>, options?: IPickOptions, token?: CancellationToken): TPromise<string>;
-	public pick<T extends IPickOpenEntry>(picks: TPromise<T[]>, options?: IPickOptions, token?: CancellationToken): TPromise<string>;
-	public pick(picks: string[], options?: IPickOptions, token?: CancellationToken): TPromise<string>;
-	public pick<T extends IPickOpenEntry>(picks: T[], options?: IPickOptions, token?: CancellationToken): TPromise<T>;
-	public pick(arg1: string[] | TPromise<string[]> | IPickOpenEntry[] | TPromise<IPickOpenEntry[]>, options?: IPickOptions, token?: CancellationToken): TPromise<string | IPickOpenEntry> {
+	pick(picks: TPromise<string[]>, options?: IStringPickOptions, token?: CancellationToken): TPromise<string>;
+	pick<T extends IPickOpenEntry>(picks: TPromise<T[]>, options?: ITypedPickOptions<T>, token?: CancellationToken): TPromise<string>;
+	pick(picks: string[], options?: IStringPickOptions, token?: CancellationToken): TPromise<string>;
+	pick<T extends IPickOpenEntry>(picks: T[], options?: ITypedPickOptions<T>, token?: CancellationToken): TPromise<T>;
+	pick(arg1: string[] | TPromise<string[]> | IPickOpenEntry[] | TPromise<IPickOpenEntry[]>, options?: IStringPickOptions | ITypedPickOptions<IPickOpenEntry>, token?: CancellationToken): TPromise<string | IPickOpenEntry> {
 		if (!options) {
 			options = Object.create(null);
 		}
@@ -195,13 +181,13 @@ export class QuickOpenController extends Component implements IQuickOpenService 
 			this.pickOpenWidget.hide(HideReason.CANCELED);
 		}
 
-		return new TPromise<string | IPickOpenEntry>((resolve, reject, progress) => {
+		return new TPromise<string | IPickOpenEntry>((resolve, reject) => {
 
 			function onItem(item: IPickOpenEntry): string | IPickOpenEntry {
 				return item && isAboutStrings ? item.label : item;
 			}
 
-			this.doPick(entryPromise, options, token).then(item => resolve(onItem(item)), err => reject(err), item => progress(onItem(item)));
+			this.doPick(entryPromise, options, token).then(item => resolve(onItem(item)), err => reject(err));
 		});
 	}
 
@@ -217,7 +203,7 @@ export class QuickOpenController extends Component implements IQuickOpenService 
 
 		// Create upon first open
 		if (!this.pickOpenWidget) {
-			this.pickOpenWidget = new QuickOpenWidget(
+			this.pickOpenWidget = this._register(new QuickOpenWidget(
 				document.getElementById(this.partService.getWorkbenchElementId()),
 				{
 					onOk: () => { /* ignore, handle later */ },
@@ -230,8 +216,8 @@ export class QuickOpenController extends Component implements IQuickOpenService 
 					keyboardSupport: false,
 					treeCreator: (container, config, opts) => this.instantiationService.createInstance(WorkbenchTree, container, config, opts)
 				}
-			);
-			this.toUnbind.push(attachQuickOpenStyler(this.pickOpenWidget, this.themeService, { background: SIDE_BAR_BACKGROUND, foreground: SIDE_BAR_FOREGROUND }));
+			));
+			this._register(attachQuickOpenStyler(this.pickOpenWidget, this.themeService, { background: SIDE_BAR_BACKGROUND, foreground: SIDE_BAR_FOREGROUND }));
 
 			const pickOpenContainer = this.pickOpenWidget.create();
 			addClass(pickOpenContainer, 'show-file-icons');
@@ -263,7 +249,7 @@ export class QuickOpenController extends Component implements IQuickOpenService 
 			this.pickOpenWidget.layout(this.layoutDimensions);
 		}
 
-		return new TPromise<IPickOpenEntry>((complete, error, progress) => {
+		return new TPromise<IPickOpenEntry>((complete, error) => {
 
 			// Detect cancellation while pick promise is loading
 			this.pickOpenWidget.setCallbacks({
@@ -294,7 +280,14 @@ export class QuickOpenController extends Component implements IQuickOpenService 
 
 				// Model
 				const model = new QuickOpenModel([], new PickOpenActionProvider());
-				const entries = picks.map((e, index) => this.instantiationService.createInstance(PickOpenEntry, e, index, () => progress(e), () => this.pickOpenWidget.refresh()));
+				const entries = picks.map((e, index) => {
+					const onPreview = () => {
+						if (options.onDidFocus) {
+							options.onDidFocus(e);
+						}
+					};
+					return this.instantiationService.createInstance(PickOpenEntry, e, index, onPreview, () => this.pickOpenWidget.refresh());
+				});
 				if (picks.length === 0) {
 					entries.push(this.instantiationService.createInstance(PickOpenEntry, { label: nls.localize('emptyPicks', "There are no entries to pick from") }, 0, null, null));
 				}
@@ -414,7 +407,7 @@ export class QuickOpenController extends Component implements IQuickOpenService 
 		});
 	}
 
-	public accept(): void {
+	accept(): void {
 		[this.quickOpenWidget, this.pickOpenWidget].forEach(w => {
 			if (w && w.isVisible()) {
 				w.accept();
@@ -422,7 +415,7 @@ export class QuickOpenController extends Component implements IQuickOpenService 
 		});
 	}
 
-	public focus(): void {
+	focus(): void {
 		[this.quickOpenWidget, this.pickOpenWidget].forEach(w => {
 			if (w && w.isVisible()) {
 				w.focus();
@@ -430,7 +423,7 @@ export class QuickOpenController extends Component implements IQuickOpenService 
 		});
 	}
 
-	public close(): void {
+	close(): void {
 		[this.quickOpenWidget, this.pickOpenWidget].forEach(w => {
 			if (w && w.isVisible()) {
 				w.hide(HideReason.CANCELED);
@@ -446,7 +439,7 @@ export class QuickOpenController extends Component implements IQuickOpenService 
 		}
 	}
 
-	public show(prefix?: string, options?: IShowOptions): TPromise<void> {
+	show(prefix?: string, options?: IShowOptions): TPromise<void> {
 		let quickNavigateConfiguration = options ? options.quickNavigateConfiguration : void 0;
 		let inputSelection = options ? options.inputSelection : void 0;
 		let autoFocus = options ? options.autoFocus : void 0;
@@ -464,7 +457,7 @@ export class QuickOpenController extends Component implements IQuickOpenService 
 
 		// Create upon first open
 		if (!this.quickOpenWidget) {
-			this.quickOpenWidget = new QuickOpenWidget(
+			this.quickOpenWidget = this._register(new QuickOpenWidget(
 				document.getElementById(this.partService.getWorkbenchElementId()),
 				{
 					onOk: () => { /* ignore */ },
@@ -478,8 +471,8 @@ export class QuickOpenController extends Component implements IQuickOpenService 
 					keyboardSupport: false,
 					treeCreator: (container, config, opts) => this.instantiationService.createInstance(WorkbenchTree, container, config, opts)
 				}
-			);
-			this.toUnbind.push(attachQuickOpenStyler(this.quickOpenWidget, this.themeService, { background: SIDE_BAR_BACKGROUND, foreground: SIDE_BAR_FOREGROUND }));
+			));
+			this._register(attachQuickOpenStyler(this.quickOpenWidget, this.themeService, { background: SIDE_BAR_BACKGROUND, foreground: SIDE_BAR_FOREGROUND }));
 
 			const quickOpenContainer = this.quickOpenWidget.create();
 			addClass(quickOpenContainer, 'show-file-icons');
@@ -557,14 +550,12 @@ export class QuickOpenController extends Component implements IQuickOpenService 
 
 			// Pass to handlers
 			for (let prefix in this.mapResolvedHandlersToPrefix) {
-				if (this.mapResolvedHandlersToPrefix.hasOwnProperty(prefix)) {
-					const promise = this.mapResolvedHandlersToPrefix[prefix];
-					promise.then(handler => {
-						this.handlerOnOpenCalled[prefix] = false;
+				const promise = this.mapResolvedHandlersToPrefix[prefix];
+				promise.then(handler => {
+					this.handlerOnOpenCalled[prefix] = false;
 
-						handler.onClose(reason === HideReason.CANCELED); // Don't check if onOpen was called to preserve old behaviour for now
-					});
-				}
+					handler.onClose(reason === HideReason.CANCELED); // Don't check if onOpen was called to preserve old behaviour for now
+				});
 			}
 
 			// Complete promises that are waiting
@@ -879,7 +870,7 @@ export class QuickOpenController extends Component implements IQuickOpenService 
 		return this.mapResolvedHandlersToPrefix[id] = TPromise.as(handler.instantiate(this.instantiationService));
 	}
 
-	public layout(dimension: Dimension): void {
+	layout(dimension: Dimension): void {
 		this.layoutDimensions = dimension;
 		if (this.quickOpenWidget) {
 			this.quickOpenWidget.layout(this.layoutDimensions);
@@ -888,18 +879,6 @@ export class QuickOpenController extends Component implements IQuickOpenService 
 		if (this.pickOpenWidget) {
 			this.pickOpenWidget.layout(this.layoutDimensions);
 		}
-	}
-
-	public dispose(): void {
-		if (this.quickOpenWidget) {
-			this.quickOpenWidget.dispose();
-		}
-
-		if (this.pickOpenWidget) {
-			this.pickOpenWidget.dispose();
-		}
-
-		super.dispose();
 	}
 }
 
@@ -912,7 +891,7 @@ class PlaceholderQuickOpenEntry extends QuickOpenEntryGroup {
 		this.placeHolderLabel = placeHolderLabel;
 	}
 
-	public getLabel(): string {
+	getLabel(): string {
 		return this.placeHolderLabel;
 	}
 }
@@ -961,7 +940,7 @@ class PickOpenEntry extends PlaceholderQuickOpenEntry implements IPickOpenItem {
 		this.fileKind = fileItem.fileKind;
 	}
 
-	public matchesFuzzy(query: string, options: IInternalPickOptions): { labelHighlights: IMatch[], descriptionHighlights: IMatch[], detailHighlights: IMatch[] } {
+	matchesFuzzy(query: string, options: IInternalPickOptions): { labelHighlights: IMatch[], descriptionHighlights: IMatch[], detailHighlights: IMatch[] } {
 		if (!this.labelOcticons) {
 			this.labelOcticons = parseOcticons(this.getLabel()); // parse on demand
 		}
@@ -978,72 +957,72 @@ class PickOpenEntry extends PlaceholderQuickOpenEntry implements IPickOpenItem {
 		};
 	}
 
-	public getPayload(): any {
+	getPayload(): any {
 		return this.payload;
 	}
 
-	public remove(): void {
+	remove(): void {
 		super.setHidden(true);
 		this.removed = true;
 
 		this.onRemove();
 	}
 
-	public isHidden(): boolean {
+	isHidden(): boolean {
 		return this.removed || super.isHidden();
 	}
 
-	public get action(): IAction {
+	get action(): IAction {
 		return this._action;
 	}
 
-	public get index(): number {
+	get index(): number {
 		return this._index;
 	}
 
-	public getLabelOptions(): IIconLabelValueOptions {
+	getLabelOptions(): IIconLabelValueOptions {
 		return {
 			extraClasses: this.resource ? getIconClasses(this.modelService, this.modeService, this.resource, this.fileKind) : []
 		};
 	}
 
-	public get shouldRunWithContext(): IEntryRunContext {
+	get shouldRunWithContext(): IEntryRunContext {
 		return this._shouldRunWithContext;
 	}
 
-	public getDescription(): string {
+	getDescription(): string {
 		return this.description;
 	}
 
-	public getDetail(): string {
+	getDetail(): string {
 		return this.detail;
 	}
 
-	public getTooltip(): string {
+	getTooltip(): string {
 		return this.tooltip;
 	}
 
-	public getDescriptionTooltip(): string {
+	getDescriptionTooltip(): string {
 		return this.descriptionTooltip;
 	}
 
-	public showBorder(): boolean {
+	showBorder(): boolean {
 		return this.hasSeparator;
 	}
 
-	public getGroupLabel(): string {
+	getGroupLabel(): string {
 		return this.separatorLabel;
 	}
 
-	public shouldAlwaysShow(): boolean {
+	shouldAlwaysShow(): boolean {
 		return this.alwaysShow;
 	}
 
-	public getResource(): URI {
+	getResource(): URI {
 		return this.resource;
 	}
 
-	public run(mode: Mode, context: IEntryRunContext): boolean {
+	run(mode: Mode, context: IEntryRunContext): boolean {
 		if (mode === Mode.OPEN) {
 			this._shouldRunWithContext = context;
 
@@ -1059,23 +1038,23 @@ class PickOpenEntry extends PlaceholderQuickOpenEntry implements IPickOpenItem {
 }
 
 class PickOpenActionProvider implements IActionProvider {
-	public hasActions(tree: ITree, element: PickOpenEntry): boolean {
+	hasActions(tree: ITree, element: PickOpenEntry): boolean {
 		return !!element.action;
 	}
 
-	public getActions(tree: ITree, element: PickOpenEntry): TPromise<IAction[]> {
+	getActions(tree: ITree, element: PickOpenEntry): TPromise<IAction[]> {
 		return TPromise.as(element.action ? [element.action] : []);
 	}
 
-	public hasSecondaryActions(tree: ITree, element: PickOpenEntry): boolean {
+	hasSecondaryActions(tree: ITree, element: PickOpenEntry): boolean {
 		return false;
 	}
 
-	public getSecondaryActions(tree: ITree, element: PickOpenEntry): TPromise<IAction[]> {
+	getSecondaryActions(tree: ITree, element: PickOpenEntry): TPromise<IAction[]> {
 		return TPromise.as([]);
 	}
 
-	public getActionItem(tree: ITree, element: PickOpenEntry, action: Action): BaseActionItem {
+	getActionItem(tree: ITree, element: PickOpenEntry, action: Action): BaseActionItem {
 		return null;
 	}
 }
@@ -1091,7 +1070,7 @@ class EditorHistoryHandler {
 		this.scorerCache = Object.create(null);
 	}
 
-	public getResults(searchValue?: string): QuickOpenEntry[] {
+	getResults(searchValue?: string): QuickOpenEntry[] {
 
 		// Massage search for scoring
 		const query = prepareQuery(searchValue);
@@ -1146,7 +1125,7 @@ class EditorHistoryItemAccessorClass extends QuickOpenItemAccessorClass {
 		super();
 	}
 
-	public getItemDescription(entry: QuickOpenEntry): string {
+	getItemDescription(entry: QuickOpenEntry): string {
 		return this.allowMatchOnDescription ? entry.getDescription() : void 0;
 	}
 }
@@ -1198,37 +1177,37 @@ export class EditorHistoryEntry extends EditorQuickOpenEntry {
 		}
 	}
 
-	public getIcon(): string {
+	getIcon(): string {
 		return this.dirty ? 'dirty' : '';
 	}
 
-	public getLabel(): string {
+	getLabel(): string {
 		return this.label;
 	}
 
-	public getLabelOptions(): IIconLabelValueOptions {
+	getLabelOptions(): IIconLabelValueOptions {
 		return {
 			extraClasses: getIconClasses(this.modelService, this.modeService, this.resource)
 		};
 	}
 
-	public getAriaLabel(): string {
+	getAriaLabel(): string {
 		return nls.localize('entryAriaLabel', "{0}, recently opened", this.getLabel());
 	}
 
-	public getDescription(): string {
+	getDescription(): string {
 		return this.description;
 	}
 
-	public getResource(): URI {
+	getResource(): URI {
 		return this.resource;
 	}
 
-	public getInput(): IEditorInput | IResourceInput {
+	getInput(): IEditorInput | IResourceInput {
 		return this.input;
 	}
 
-	public run(mode: Mode, context: IEntryRunContext): boolean {
+	run(mode: Mode, context: IEntryRunContext): boolean {
 		if (mode === Mode.OPEN) {
 			const sideBySide = !context.quickNavigateConfiguration && (context.keymods.alt || context.keymods.ctrlCmd);
 			const pinned = !this.configurationService.getValue<IWorkbenchEditorConfiguration>().workbench.editor.enablePreviewFromQuickOpen || context.keymods.alt;
@@ -1260,8 +1239,8 @@ function resourceForEditorHistory(input: EditorInput, fileService: IFileService)
 
 export class RemoveFromEditorHistoryAction extends Action {
 
-	public static readonly ID = 'workbench.action.removeFromEditorHistory';
-	public static readonly LABEL = nls.localize('removeFromEditorHistory', "Remove From History");
+	static readonly ID = 'workbench.action.removeFromEditorHistory';
+	static readonly LABEL = nls.localize('removeFromEditorHistory', "Remove From History");
 
 	constructor(
 		id: string,
@@ -1273,7 +1252,7 @@ export class RemoveFromEditorHistoryAction extends Action {
 		super(id, label);
 	}
 
-	public run(): TPromise<any> {
+	run(): TPromise<any> {
 		interface IHistoryPickEntry extends IFilePickOpenEntry {
 			input: IEditorInput | IResourceInput;
 		}

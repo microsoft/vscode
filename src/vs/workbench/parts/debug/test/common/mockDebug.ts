@@ -186,7 +186,7 @@ export class MockSession implements IRawSession {
 		return TPromise.as(null);
 	}
 
-	public disconnect(restart?: boolean, force?: boolean): TPromise<DebugProtocol.DisconnectResponse> {
+	public terminate(restart = false): TPromise<DebugProtocol.TerminateResponse> {
 		return TPromise.as(null);
 	}
 

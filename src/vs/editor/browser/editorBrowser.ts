@@ -578,9 +578,9 @@ export interface ICodeEditor extends editorCommon.IEditor {
 	 * The edits will land on the undo-redo stack, but no "undo stop" will be pushed.
 	 * @param source The source of the call.
 	 * @param edits The edits to execute.
-	 * @param endCursoState Cursor state after the edits were applied.
+	 * @param endCursorState Cursor state after the edits were applied.
 	 */
-	executeEdits(source: string, edits: IIdentifiedSingleEditOperation[], endCursoState?: Selection[]): boolean;
+	executeEdits(source: string, edits: IIdentifiedSingleEditOperation[], endCursorState?: Selection[]): boolean;
 
 	/**
 	 * Execute multiple (concommitent) commands on the editor.

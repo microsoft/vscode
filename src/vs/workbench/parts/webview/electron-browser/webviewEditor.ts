@@ -8,7 +8,6 @@ import { domEvent } from 'vs/base/browser/event';
 import { Emitter, Event } from 'vs/base/common/event';
 import { IDisposable } from 'vs/base/common/lifecycle';
 import URI from 'vs/base/common/uri';
-import { TPromise } from 'vs/base/common/winjs.base';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
@@ -163,22 +162,22 @@ export class WebviewEditor extends BaseWebviewEditor {
 		super.clearInput();
 	}
 
-	async setInput(input: WebviewEditorInput, options: EditorOptions, token: CancellationToken): TPromise<void> {
+	setInput(input: WebviewEditorInput, options: EditorOptions, token: CancellationToken): Thenable<void> {
 		if (this.input) {
 			(this.input as WebviewEditorInput).releaseWebview(this);
 			this._webview = undefined;
 			this._webviewContent = undefined;
 		}
-		await super.setInput(input, options, token);
+		return super.setInput(input, options, token)
+			.then(() => input.resolve())
+			.then(() => {
+				if (token.isCancellationRequested) {
+					return;
+				}
 
-		await input.resolve();
-
-		if (token.isCancellationRequested) {
-			return;
-		}
-
-		input.updateGroup(this.group.id);
-		this.updateWebview(input);
+				input.updateGroup(this.group.id);
+				this.updateWebview(input);
+			});
 	}
 
 	private updateWebview(input: WebviewEditorInput) {
@@ -245,7 +244,7 @@ export class WebviewEditor extends BaseWebviewEditor {
 			this._webview.initialScrollProgress = input.scrollYPercentage;
 		}
 
-		this._webview.state = input.webviewState;
+		this._webview.state = input.state.state;
 
 		this._content.setAttribute('aria-flowto', this._webviewContent.id);
 

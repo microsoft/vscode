@@ -66,7 +66,7 @@ import { IExtensionService, ProfileSession, IExtensionsStatus, ExtensionPointCon
 import { IExtensionPoint } from 'vs/workbench/services/extensions/common/extensionsRegistry';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { IDecorationsService, IResourceDecorationChangeEvent, IDecoration, IDecorationData, IDecorationsProvider } from 'vs/workbench/services/decorations/browser/decorations';
-import { IDisposable, toDisposable } from 'vs/base/common/lifecycle';
+import { IDisposable, toDisposable, Disposable } from 'vs/base/common/lifecycle';
 import { IEditorGroupsService, IEditorGroup, GroupsOrder, GroupsArrangement, GroupDirection, IAddGroupOptions, IMergeGroupOptions, IMoveEditorOptions, ICopyEditorOptions, IEditorReplacement, IGroupChangeEvent, EditorsOrder, IFindGroupScope, EditorGroupLayout } from 'vs/workbench/services/group/common/editorGroupsService';
 import { IEditorService, IOpenEditorOverrideHandler } from 'vs/workbench/services/editor/common/editorService';
 import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
@@ -74,6 +74,7 @@ import { ICodeEditor, IDiffEditor } from 'vs/editor/browser/editorBrowser';
 import { IDecorationRenderOptions } from 'vs/editor/common/editorCommon';
 import { EditorGroup } from 'vs/workbench/common/editor/editorGroup';
 import { Dimension } from 'vs/base/browser/dom';
+import { ILogService, LogLevel } from 'vs/platform/log/common/log';
 
 export function createFileInput(instantiationService: IInstantiationService, resource: URI): FileEditorInput {
 	return instantiationService.createInstance(FileEditorInput, resource, void 0);
@@ -275,6 +276,7 @@ export function workbenchInstantiationService(): IInstantiationService {
 	instantiationService.stub(IEnvironmentService, TestEnvironmentService);
 	instantiationService.stub(IThemeService, new TestThemeService());
 	instantiationService.stub(IHashService, new TestHashService());
+	instantiationService.stub(ILogService, new TestLogService());
 	instantiationService.stub(IEditorGroupsService, new TestEditorGroupsService([new TestEditorGroup(0)]));
 	const editorService = new TestEditorService();
 	instantiationService.stub(IEditorService, editorService);
@@ -283,10 +285,23 @@ export function workbenchInstantiationService(): IInstantiationService {
 	return instantiationService;
 }
 
+export class TestLogService implements ILogService {
+	_serviceBrand: any; onDidChangeLogLevel: Event<LogLevel>;
+	getLevel(): LogLevel { return LogLevel.Info; }
+	setLevel(level: LogLevel): void { }
+	trace(message: string, ...args: any[]): void { }
+	debug(message: string, ...args: any[]): void { }
+	info(message: string, ...args: any[]): void { }
+	warn(message: string, ...args: any[]): void { }
+	error(message: string | Error, ...args: any[]): void { }
+	critical(message: string | Error, ...args: any[]): void { }
+	dispose(): void { }
+}
+
 export class TestDecorationsService implements IDecorationsService {
 	_serviceBrand: any;
 	onDidChangeDecorations: Event<IResourceDecorationChangeEvent> = Event.None;
-	registerDecorationsProvider(provider: IDecorationsProvider): IDisposable { return toDisposable(); }
+	registerDecorationsProvider(provider: IDecorationsProvider): IDisposable { return Disposable.None; }
 	getDecoration(uri: URI, includeChildren: boolean, overwrite?: IDecorationData): IDecoration { return void 0; }
 }
 
@@ -673,6 +688,7 @@ export class TestEditorGroup implements IEditorGroupView {
 	dispose(): void { }
 	toJSON(): object { return Object.create(null); }
 	layout(width: number, height: number): void { }
+	relayout() { }
 }
 
 export class TestEditorService implements EditorServiceImpl {
@@ -850,7 +866,7 @@ export class TestFileService implements IFileService {
 		return resource.scheme === 'file';
 	}
 
-	del(resource: URI, useTrash?: boolean): TPromise<void> {
+	del(resource: URI, options?: { useTrash?: boolean, recursive?: boolean }): TPromise<void> {
 		return TPromise.as(null);
 	}
 
@@ -1008,6 +1024,10 @@ export class TestWindowService implements IWindowService {
 		return TPromise.as(void 0);
 	}
 
+	enterWorkspace(path: string): TPromise<IEnterWorkspaceResult> {
+		return TPromise.as(void 0);
+	}
+
 	createAndEnterWorkspace(folders?: IWorkspaceFolderCreationData[], path?: string): TPromise<IEnterWorkspaceResult> {
 		return TPromise.as(void 0);
 	}
@@ -1123,6 +1143,7 @@ export class TestWindowsService implements IWindowsService {
 	onWindowBlur: Event<number>;
 	onWindowMaximize: Event<number>;
 	onWindowUnmaximize: Event<number>;
+	onRecentlyOpenedChange: Event<void>;
 
 	isFocused(windowId: number): TPromise<boolean> {
 		return TPromise.as(false);
@@ -1157,6 +1178,10 @@ export class TestWindowsService implements IWindowsService {
 	}
 
 	closeWorkspace(windowId: number): TPromise<void> {
+		return TPromise.as(void 0);
+	}
+
+	enterWorkspace(windowId: number, path: string): TPromise<IEnterWorkspaceResult> {
 		return TPromise.as(void 0);
 	}
 
@@ -1293,6 +1318,10 @@ export class TestWindowsService implements IWindowsService {
 		return TPromise.as(void 0);
 	}
 
+	getActiveWindowId(): TPromise<number | undefined> {
+		return TPromise.as(undefined);
+	}
+
 	// This needs to be handled from browser process to prevent
 	// foreground ordering issues on Windows
 	openExternal(url: string): TPromise<boolean> {
@@ -1313,6 +1342,10 @@ export class TestWindowsService implements IWindowsService {
 	}
 
 	showOpenDialog(windowId: number, options: Electron.OpenDialogOptions): TPromise<string[]> {
+		return TPromise.as(void 0);
+	}
+
+	openAccessibilityOptions(): TPromise<void> {
 		return TPromise.as(void 0);
 	}
 

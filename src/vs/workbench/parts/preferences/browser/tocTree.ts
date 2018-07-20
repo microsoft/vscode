@@ -48,8 +48,8 @@ export class TOCTreeModel {
 	}
 
 	private getSearchResultChildrenCount(group: SettingsTreeGroupElement): number {
-		return this._currentSearchModel.getFlatSettings().filter(s => {
-			return this.groupContainsSetting(group, s);
+		return this._currentSearchModel.getChildren().filter(child => {
+			return this.groupContainsSetting(group, child.setting);
 		}).length;
 	}
 
