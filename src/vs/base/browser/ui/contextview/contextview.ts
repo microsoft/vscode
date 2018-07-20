@@ -8,7 +8,7 @@
 import 'vs/css!./contextview';
 import { Builder, $ } from 'vs/base/browser/builder';
 import * as DOM from 'vs/base/browser/dom';
-import { IDisposable, dispose } from 'vs/base/common/lifecycle';
+import { IDisposable, dispose, toDisposable } from 'vs/base/common/lifecycle';
 
 export interface IAnchor {
 	x: number;
@@ -116,11 +116,9 @@ export class ContextView {
 		this.$view = $('.context-view').hide();
 		this.setContainer(container);
 
-		this.toDispose = [{
-			dispose: () => {
-				this.setContainer(null);
-			}
-		}];
+		this.toDispose = [toDisposable(() => {
+			this.setContainer(null);
+		})];
 
 		this.toDisposeOnClean = null;
 	}
