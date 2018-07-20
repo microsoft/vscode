@@ -293,7 +293,7 @@ export class LanguageConfigurationRegistryImpl {
 	public shouldChangeCursorPositionAfterAutocomplete(character: string, context: LineTokens, column: number, isElectricChar: boolean): number {
     	let scopedLineTokens = createScopedLineTokens(context, column - 1);
 
-		if (isElectricChar == true) {
+		if (isElectricChar === true) {
 			let electricCharacterSupport = this._getElectricCharacterSupport(scopedLineTokens.languageId);
 		    if (!electricCharacterSupport) {
 				return null;

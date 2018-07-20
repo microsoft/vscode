@@ -250,7 +250,7 @@ export class StandardAutoClosingPairConditional {
 		this._standardTokenMask = 0;
 
 		// Check if interger
-		if (source.cursorPosition && !isNaN(source.cursorPosition) && (source.cursorPosition % 1 == 0)) {
+		if (source.cursorPosition && !isNaN(source.cursorPosition) && (source.cursorPosition % 1 === 0)) {
 		  // Make sure the given integer (cursor position) is within the bounds of the close string
 		  if (source.cursorPosition >= 0 && source.cursorPosition <= this.close.length) {
 			this._cursorPositionOption = source.cursorPosition;
@@ -288,17 +288,17 @@ export class StandardAutoClosingPairConditional {
 				let onlyIn = source.onlyIn[i];
 			  	switch (onlyIn) {
 					case 'string':
-				  	if (this._onlyInOptions.indexOf('2') == -1) {
+				  	if (this._onlyInOptions.indexOf('2') === -1) {
 						this._onlyInOptions += '2';
 				  	}
 				  	break;
 					case 'comment':
-				  	if (this._onlyInOptions.indexOf('1') == -1) {
+				  	if (this._onlyInOptions.indexOf('1') === -1) {
 						this._onlyInOptions += '1';
 				  	}
 				  	break;
 					case 'regex':
-				  	if (this._onlyInOptions.indexOf('4') == -1) {
+				  	if (this._onlyInOptions.indexOf('4') === -1) {
 						this._onlyInOptions += '4';
 				  	}
 				  	break;
@@ -354,7 +354,7 @@ export class StandardAutoClosingPairConditional {
   //*** Set a variable to determine if we have a notIn array or an onlyIn array (or neither)
   //*** If the onlyIn array var is set, check if the StandardTokenType of isOK is "other". If so, return 1 (i.e. don't autoclose)
 	public isOK(standardToken: StandardTokenType): boolean {
-		if (this._onlyInFlag && (standardToken == StandardTokenType.Other)) {
+		if (this._onlyInFlag && (standardToken === StandardTokenType.Other)) {
 			return false;
 		}
 	    return (this._standardTokenMask & <number>standardToken) === 0;

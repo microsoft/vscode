@@ -546,14 +546,14 @@ export class TypeOperations {
 
       model.forceTokenization(position.lineNumber);
       const lineTokens = model.getLineTokens(position.lineNumber);
-      const currentTokenIndex = lineTokens.findTokenIndexAtOffset(position.column - 2)
-      const currentTokenType = lineTokens.getStandardTokenType(currentTokenIndex)
+      const currentTokenIndex = lineTokens.findTokenIndexAtOffset(position.column - 2);
+      const currentTokenType = lineTokens.getStandardTokenType(currentTokenIndex);
 
 			if (characterAfter) {
         let isBeforeCloseBrace = TypeOperations._isBeforeClosingBrace(config, ch, characterAfter);
 
         //*** Allow autocompletion in strings without needing a space after the cursor (allows for autocomplete interpolation)
-        if (!isBeforeCloseBrace && !/\s/.test(characterAfter) && currentTokenType != modes.StandardTokenType.String) {
+        if (!isBeforeCloseBrace && !/\s/.test(characterAfter) && currentTokenType !== modes.StandardTokenType.String) {
 					return false;
 				}
 			}
@@ -786,13 +786,13 @@ export class TypeOperations {
 
         model.forceTokenization(position.lineNumber);
         const lineTokens = model.getLineTokens(position.lineNumber);
-        const currentTokenIndex = lineTokens.findTokenIndexAtOffset(position.column - 2)
-        const currentTokenType = lineTokens.getStandardTokenType(currentTokenIndex)
+        const currentTokenIndex = lineTokens.findTokenIndexAtOffset(position.column - 2);
+        const currentTokenType = lineTokens.getStandardTokenType(currentTokenIndex);
 
 				if (characterAfter) {
           let isBeforeCloseBrace = TypeOperations._isBeforeClosingBrace(config, ch, characterAfter);
           //*** Allow autocompletion in strings without needing a space after the cursor (for interpolation)
-          if (!isBeforeCloseBrace && !/\s/.test(characterAfter) && currentTokenType != modes.StandardTokenType.String) {
+          if (!isBeforeCloseBrace && !/\s/.test(characterAfter) && currentTokenType !== modes.StandardTokenType.String) {
 						continue;
 					}
 				}
