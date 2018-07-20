@@ -39,7 +39,7 @@ export class TestExtensionEnablementService extends ExtensionEnablementService {
 				{ onDidUninstallExtension: new Emitter<DidUninstallExtensionEvent>().event } as IExtensionManagementService));
 	}
 
-	public reset(): Promise<void> {
+	public async reset(): Promise<void> {
 		return this.getDisabledExtensions().then(extensions => extensions.forEach(d => this.setEnablement(aLocalExtension(d.id), EnablementState.Enabled)));
 	}
 }
@@ -370,6 +370,7 @@ function aLocalExtension(id: string, contributes?: IExtensionContributions): ILo
 	const [publisher, name] = id.split('.');
 	return <ILocalExtension>Object.create({
 		identifier: { id },
+		galleryIdentifier: { id, uuid: void 0 },
 		manifest: {
 			name,
 			publisher,
