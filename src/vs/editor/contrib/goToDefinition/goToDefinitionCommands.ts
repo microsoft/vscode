@@ -3,8 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-'use strict';
-
 import * as nls from 'vs/nls';
 import { alert } from 'vs/base/browser/ui/aria/aria';
 import { KeyCode, KeyMod, KeyChord } from 'vs/base/common/keyCodes';
@@ -13,7 +11,7 @@ import { TPromise } from 'vs/base/common/winjs.base';
 import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
 import { Range } from 'vs/editor/common/core/range';
 import { registerEditorAction, IActionOptions, ServicesAccessor, EditorAction } from 'vs/editor/browser/editorExtensions';
-import { Location } from 'vs/editor/common/modes';
+import { DefinitionLink } from 'vs/editor/common/modes';
 import { getDefinitionsAtPosition, getImplementationsAtPosition, getTypeDefinitionsAtPosition } from './goToDefinition';
 import { ReferencesController } from 'vs/editor/contrib/referenceSearch/referencesController';
 import { ReferencesModel } from 'vs/editor/contrib/referenceSearch/referencesModel';
@@ -67,7 +65,7 @@ export class DefinitionAction extends EditorAction {
 			// * remove falsy references
 			// * find reference at the current pos
 			let idxOfCurrent = -1;
-			let result: Location[] = [];
+			const result: DefinitionLink[] = [];
 			for (let i = 0; i < references.length; i++) {
 				let reference = references[i];
 				if (!reference || !reference.range) {
@@ -112,7 +110,7 @@ export class DefinitionAction extends EditorAction {
 		return definitionPromise;
 	}
 
-	protected _getDeclarationsAtPosition(model: ITextModel, position: corePosition.Position): TPromise<Location[]> {
+	protected _getDeclarationsAtPosition(model: ITextModel, position: corePosition.Position): TPromise<DefinitionLink[]> {
 		return getDefinitionsAtPosition(model, position);
 	}
 
@@ -145,8 +143,8 @@ export class DefinitionAction extends EditorAction {
 		}
 	}
 
-	private _openReference(editor: ICodeEditor, editorService: ICodeEditorService, reference: Location, sideBySide: boolean): TPromise<ICodeEditor> {
-		let { uri, range } = reference;
+	private _openReference(editor: ICodeEditor, editorService: ICodeEditorService, reference: DefinitionLink, sideBySide: boolean): TPromise<ICodeEditor> {
+		const { uri, range } = reference;
 		return editorService.openCodeEditor({
 			resource: uri,
 			options: {
@@ -247,7 +245,7 @@ export class PeekDefinitionAction extends DefinitionAction {
 }
 
 export class ImplementationAction extends DefinitionAction {
-	protected _getDeclarationsAtPosition(model: ITextModel, position: corePosition.Position): TPromise<Location[]> {
+	protected _getDeclarationsAtPosition(model: ITextModel, position: corePosition.Position): TPromise<DefinitionLink[]> {
 		return getImplementationsAtPosition(model, position);
 	}
 
@@ -303,7 +301,7 @@ export class PeekImplementationAction extends ImplementationAction {
 }
 
 export class TypeDefinitionAction extends DefinitionAction {
-	protected _getDeclarationsAtPosition(model: ITextModel, position: corePosition.Position): TPromise<Location[]> {
+	protected _getDeclarationsAtPosition(model: ITextModel, position: corePosition.Position): TPromise<DefinitionLink[]> {
 		return getTypeDefinitionsAtPosition(model, position);
 	}
 

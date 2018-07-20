@@ -25,7 +25,7 @@ import { IInstantiationService } from 'vs/platform/instantiation/common/instanti
 import { IModelService } from 'vs/editor/common/services/modelService';
 import { SimpleCommentEditor } from './simpleCommentEditor';
 import URI from 'vs/base/common/uri';
-import { transparent, editorForeground, inputValidationErrorBorder, textLinkActiveForeground, textLinkForeground, focusBorder } from 'vs/platform/theme/common/colorRegistry';
+import { transparent, editorForeground, inputValidationErrorBorder, textLinkActiveForeground, textLinkForeground, focusBorder, textBlockQuoteBackground, textBlockQuoteBorder, contrastBorder } from 'vs/platform/theme/common/colorRegistry';
 import { IModeService } from 'vs/editor/common/services/modeService';
 import { IKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { KeyCode } from 'vs/base/common/keyCodes';
@@ -477,8 +477,8 @@ export class ReviewZoneWidget extends ZoneWidget {
 	}
 
 	private setCommentEditorDecorations() {
-		if (this._commentEditor) {
-			let model = this._commentEditor.getModel();
+		const model = this._commentEditor && this._commentEditor.getModel();
+		if (model) {
 			let valueLength = model.getValueLength();
 			const hasExistingComments = this._commentThread.comments.length > 0;
 			let placeholder = valueLength > 0 ? '' : (hasExistingComments ? 'Reply...' : 'Type a new comment');
@@ -579,6 +579,23 @@ export class ReviewZoneWidget extends ZoneWidget {
 		const focusColor = theme.getColor(focusBorder);
 		if (focusColor) {
 			content.push(`.monaco-editor .review-widget .body .review-comment a:focus { outline: 1px solid ${focusColor}; }`);
+			content.push(`.monaco-editor .review-widget .body .comment-form .monaco-editor.focused { outline: 1px solid ${focusColor}; }`);
+		}
+
+		const blockQuoteBackground = theme.getColor(textBlockQuoteBackground);
+		if (blockQuoteBackground) {
+			content.push(`.monaco-editor .review-widget .body .review-comment blockquote { background: ${blockQuoteBackground}; }`);
+		}
+
+		const blockQuoteBOrder = theme.getColor(textBlockQuoteBorder);
+		if (blockQuoteBOrder) {
+			content.push(`.monaco-editor .review-widget .body .review-comment blockquote { border-color: ${blockQuoteBOrder}; }`);
+		}
+
+		const hcBorder = theme.getColor(contrastBorder);
+		if (hcBorder) {
+			content.push(`.monaco-editor .review-widget .body .comment-form .review-thread-reply-button { outline-color: ${hcBorder}; }`);
+			content.push(`.monaco-editor .review-widget .body .comment-form .monaco-editor { outline: 1px solid ${hcBorder}; }`);
 		}
 
 		this._styleElement.innerHTML = content.join('\n');

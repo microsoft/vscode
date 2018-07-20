@@ -17,12 +17,7 @@ export default class TypeScriptDefinitionProvider extends DefinitionProviderBase
 		super(client);
 	}
 
-	public async provideDefinition() {
-		// Implemented by provideDefinition2
-		return undefined;
-	}
-
-	public async provideDefinition2(
+	public async provideDefinition(
 		document: vscode.TextDocument,
 		position: vscode.Position,
 		token: vscode.CancellationToken | boolean
@@ -44,10 +39,11 @@ export default class TypeScriptDefinitionProvider extends DefinitionProviderBase
 				const span = response.body.textSpan ? typeConverters.Range.fromTextSpan(response.body.textSpan) : undefined;
 				return locations
 					.map(location => {
-						const loc = typeConverters.Location.fromTextSpan(this.client.toResource(location.file), location);
-						return {
-							origin: span,
-							...loc,
+						const target = typeConverters.Location.fromTextSpan(this.client.toResource(location.file), location);
+						return <vscode.DefinitionLink>{
+							originSelectionRange: span,
+							targetRange: target.range,
+							targetUri: target.uri,
 						};
 					});
 			} catch {

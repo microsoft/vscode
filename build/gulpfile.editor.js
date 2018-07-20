@@ -12,6 +12,9 @@ const File = require('vinyl');
 const i18n = require('./lib/i18n');
 const standalone = require('./lib/standalone');
 const cp = require('child_process');
+const compilation = require('./lib/compilation');
+const monacoapi = require('./monaco/api');
+const fs = require('fs');
 
 var root = path.dirname(__dirname);
 var sha1 = util.getVersion(root);
@@ -58,29 +61,56 @@ var BUNDLED_FILE_HEADER = [
 	''
 ].join('\n');
 
-function editorLoaderConfig() {
-	var result = common.loaderConfig();
-
-	// never ship octicons in editor
-	result.paths['vs/base/browser/ui/octiconLabel/octiconLabel'] = 'out-build/vs/base/browser/ui/octiconLabel/octiconLabel.mock';
-
-	// force css inlining to use base64 -- see https://github.com/Microsoft/monaco-editor/issues/148
-	result['vs/css'] = {
-		inlineResources: 'base64',
-		inlineResourcesLimit: 3000 // see https://github.com/Microsoft/monaco-editor/issues/336
-	};
-
-	return result;
-}
-
 const languages = i18n.defaultLanguages.concat([]);  // i18n.defaultLanguages.concat(process.env.VSCODE_QUALITY !== 'stable' ? i18n.extraLanguages : []);
 
+gulp.task('clean-editor-src', util.rimraf('out-editor-src'));
+gulp.task('extract-editor-src', ['clean-editor-src'], function () {
+	console.log(`If the build fails, consider tweaking shakeLevel below to a lower value.`);
+	const apiusages = monacoapi.execute().usageContent;
+	const extrausages = fs.readFileSync(path.join(root, 'build', 'monaco', 'monaco.usage.recipe')).toString();
+	standalone.extractEditor({
+		sourcesRoot: path.join(root, 'src'),
+		entryPoints: [
+			'vs/editor/editor.main',
+			'vs/editor/editor.worker',
+			'vs/base/worker/workerMain',
+		],
+		inlineEntryPoints: [
+			apiusages,
+			extrausages
+		],
+		libs: [
+			`lib.d.ts`,
+			`lib.es2015.collection.d.ts`
+		],
+		redirects: {
+			'vs/base/browser/ui/octiconLabel/octiconLabel': 'vs/base/browser/ui/octiconLabel/octiconLabel.mock',
+		},
+		compilerOptions: {
+			module: 2, // ModuleKind.AMD
+		},
+		shakeLevel: 2, // 0-Files, 1-InnerFile, 2-ClassMembers
+		importIgnorePattern: /^vs\/css!/,
+		destRoot: path.join(root, 'out-editor-src')
+	});
+});
+
+// Full compile, including nls and inline sources in sourcemaps, for build
+gulp.task('clean-editor-build', util.rimraf('out-editor-build'));
+gulp.task('compile-editor-build', ['clean-editor-build', 'extract-editor-src'], compilation.compileTask('out-editor-src', 'out-editor-build', true));
+
 gulp.task('clean-optimized-editor', util.rimraf('out-editor'));
-gulp.task('optimize-editor', ['clean-optimized-editor', 'compile-client-build'], common.optimizeTask({
+gulp.task('optimize-editor', ['clean-optimized-editor', 'compile-editor-build'], common.optimizeTask({
+	src: 'out-editor-build',
 	entryPoints: editorEntryPoints,
 	otherSources: editorOtherSources,
 	resources: editorResources,
-	loaderConfig: editorLoaderConfig(),
+	loaderConfig: {
+		paths: {
+			'vs': 'out-editor-build/vs',
+			'vscode': 'empty:'
+		}
+	},
 	bundleLoader: false,
 	header: BUNDLED_FILE_HEADER,
 	bundleInfo: true,
@@ -229,7 +259,7 @@ gulp.task('editor-distro', ['clean-editor-distro', 'compile-editor-esm', 'minify
 });
 
 gulp.task('analyze-editor-distro', function () {
-	// @ts-ignore 
+	// @ts-ignore
 	var bundleInfo = require('../out-editor/bundleInfo.json');
 	var graph = bundleInfo.graph;
 	var bundles = bundleInfo.bundles;

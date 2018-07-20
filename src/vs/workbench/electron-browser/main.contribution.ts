@@ -14,8 +14,8 @@ import { IConfigurationRegistry, Extensions as ConfigurationExtensions, Configur
 import { IWorkbenchActionRegistry, Extensions } from 'vs/workbench/common/actions';
 import { KeyMod, KeyChord, KeyCode } from 'vs/base/common/keyCodes';
 import { isWindows, isLinux, isMacintosh } from 'vs/base/common/platform';
-import { KeybindingsReferenceAction, OpenDocumentationUrlAction, OpenIntroductoryVideosUrlAction, OpenTipsAndTricksUrlAction, OpenIssueReporterAction, ReportPerformanceIssueUsingReporterAction, ZoomResetAction, ZoomOutAction, ZoomInAction, ToggleFullScreenAction, ToggleMenuBarAction, CloseWorkspaceAction, CloseCurrentWindowAction, SwitchWindow, NewWindowAction, NavigateUpAction, NavigateDownAction, NavigateLeftAction, NavigateRightAction, IncreaseViewSizeAction, DecreaseViewSizeAction, ShowStartupPerformance, ToggleSharedProcessAction, QuickSwitchWindow, QuickOpenRecentAction, inRecentFilesPickerContextKey, ShowAboutDialogAction, InspectContextKeysAction, OpenProcessExplorer, OpenTwitterUrlAction, OpenRequestFeatureUrlAction, OpenPrivacyStatementUrlAction, OpenLicenseUrlAction, ShowAccessibilityOptionsAction } from 'vs/workbench/electron-browser/actions';
-import { registerCommands } from 'vs/workbench/electron-browser/commands';
+import { KeybindingsReferenceAction, OpenDocumentationUrlAction, OpenIntroductoryVideosUrlAction, OpenTipsAndTricksUrlAction, OpenIssueReporterAction, ReportPerformanceIssueUsingReporterAction, ZoomResetAction, ZoomOutAction, ZoomInAction, ToggleFullScreenAction, ToggleMenuBarAction, CloseWorkspaceAction, CloseCurrentWindowAction, SwitchWindow, NewWindowAction, NavigateUpAction, NavigateDownAction, NavigateLeftAction, NavigateRightAction, IncreaseViewSizeAction, DecreaseViewSizeAction, ShowStartupPerformance, ToggleSharedProcessAction, QuickSwitchWindow, QuickOpenRecentAction, inRecentFilesPickerContextKey, ShowAboutDialogAction, InspectContextKeysAction, OpenProcessExplorer, OpenTwitterUrlAction, OpenRequestFeatureUrlAction, OpenPrivacyStatementUrlAction, OpenLicenseUrlAction, ShowAccessibilityOptionsAction, OpenRecentAction } from 'vs/workbench/electron-browser/actions';
+import { registerCommands, QUIT_ID } from 'vs/workbench/electron-browser/commands';
 import { AddRootFolderAction, GlobalRemoveRootFolderAction, OpenWorkspaceAction, SaveWorkspaceAsAction, OpenWorkspaceConfigFileAction, DuplicateWorkspaceInNewWindowAction, OpenFileFolderAction, OpenFileAction, OpenFolderAction } from 'vs/workbench/browser/actions/workspaceActions';
 import { ContextKeyExpr, RawContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { inQuickOpenContext, getQuickNavigateHandler } from 'vs/workbench/browser/parts/quickopen/quickopen';
@@ -151,6 +151,172 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 	primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KEY_R,
 	mac: { primary: KeyMod.WinCtrl | KeyMod.Shift | KeyCode.KEY_R }
 });
+
+// Menu registration - file menu
+
+MenuRegistry.appendMenuItem(MenuId.MenubarFileMenu, {
+	group: '1_new',
+	command: {
+		id: NewWindowAction.ID,
+		title: nls.localize({ key: 'miNewWindow', comment: ['&& denotes a mnemonic'] }, "New &&Window")
+	},
+	order: 2
+});
+
+MenuRegistry.appendMenuItem(MenuId.MenubarFileMenu, {
+	group: '2_open',
+	command: {
+		id: OpenFileAction.ID,
+		title: nls.localize({ key: 'miOpenFile', comment: ['&& denotes a mnemonic'] }, "&&Open File...")
+	},
+	order: 1
+});
+
+MenuRegistry.appendMenuItem(MenuId.MenubarFileMenu, {
+	group: '2_open',
+	command: {
+		id: OpenFolderAction.ID,
+		title: nls.localize({ key: 'miOpenFolder', comment: ['&& denotes a mnemonic'] }, "Open &&Folder...")
+	},
+	order: 2
+});
+
+MenuRegistry.appendMenuItem(MenuId.MenubarFileMenu, {
+	group: '2_open',
+	command: {
+		id: OpenWorkspaceAction.ID,
+		title: nls.localize({ key: 'miOpenWorkspace', comment: ['&& denotes a mnemonic'] }, "Open Wor&&kspace...")
+	},
+	order: 3
+});
+
+MenuRegistry.appendMenuItem(MenuId.MenubarFileMenu, {
+	title: nls.localize({ key: 'miOpenRecent', comment: ['&& denotes a mnemonic'] }, "Open &&Recent"),
+	submenu: MenuId.MenubarRecentMenu,
+	group: '2_open',
+	order: 4
+});
+
+
+// More
+MenuRegistry.appendMenuItem(MenuId.MenubarRecentMenu, {
+	group: 'y_more',
+	command: {
+		id: OpenRecentAction.ID,
+		title: nls.localize({ key: 'miMore', comment: ['&& denotes a mnemonic'] }, "&&More...")
+	},
+	order: 1
+});
+
+MenuRegistry.appendMenuItem(MenuId.MenubarFileMenu, {
+	group: '3_workspace',
+	command: {
+		id: AddRootFolderAction.ID,
+		title: nls.localize({ key: 'miAddFolderToWorkspace', comment: ['&& denotes a mnemonic'] }, "A&&dd Folder to Workspace...")
+	},
+	order: 1
+});
+
+MenuRegistry.appendMenuItem(MenuId.MenubarFileMenu, {
+	group: '3_workspace',
+	command: {
+		id: SaveWorkspaceAsAction.ID,
+		title: nls.localize('miSaveWorkspaceAs', "Save Workspace As...")
+	},
+	order: 2
+});
+
+MenuRegistry.appendMenuItem(MenuId.MenubarFileMenu, {
+	title: nls.localize({ key: 'miPreferences', comment: ['&& denotes a mnemonic'] }, "&&Preferences"),
+	submenu: MenuId.MenubarPreferencesMenu,
+	group: '5_autosave',
+	order: 2
+});
+
+MenuRegistry.appendMenuItem(MenuId.MenubarFileMenu, {
+	group: '6_close',
+	command: {
+		id: CloseWorkspaceAction.ID,
+		title: nls.localize({ key: 'miCloseFolder', comment: ['&& denotes a mnemonic'] }, "Close &&Folder")
+	},
+	order: 3
+});
+
+MenuRegistry.appendMenuItem(MenuId.MenubarFileMenu, {
+	group: '6_close',
+	command: {
+		id: CloseCurrentWindowAction.ID,
+		title: nls.localize({ key: 'miCloseWindow', comment: ['&& denotes a mnemonic'] }, "Clos&&e Window")
+	},
+	order: 4
+});
+
+if (!isMacintosh) {
+	MenuRegistry.appendMenuItem(MenuId.MenubarFileMenu, {
+		group: 'z_Exit',
+		command: {
+			id: QUIT_ID,
+			title: nls.localize({ key: 'miExit', comment: ['&& denotes a mnemonic'] }, "E&&xit")
+		},
+		order: 1
+	});
+}
+
+// Appereance menu
+MenuRegistry.appendMenuItem(MenuId.MenubarViewMenu, {
+	group: '2_appearance',
+	title: nls.localize({ key: 'miAppearance', comment: ['&& denotes a mnemonic'] }, "&&Appearance"),
+	submenu: MenuId.MenubarAppearanceMenu,
+	order: 1
+});
+
+MenuRegistry.appendMenuItem(MenuId.MenubarAppearanceMenu, {
+	group: '1_toggle_view',
+	command: {
+		id: ToggleFullScreenAction.ID,
+		title: nls.localize({ key: 'miToggleFullScreen', comment: ['&& denotes a mnemonic'] }, "Toggle &&Full Screen")
+	},
+	order: 1
+});
+
+MenuRegistry.appendMenuItem(MenuId.MenubarAppearanceMenu, {
+	group: '1_toggle_view',
+	command: {
+		id: ToggleMenuBarAction.ID,
+		title: nls.localize({ key: 'miToggleMenuBar', comment: ['&& denotes a mnemonic'] }, "Toggle Menu &&Bar")
+	},
+	order: 4
+});
+
+// Zoom
+
+MenuRegistry.appendMenuItem(MenuId.MenubarAppearanceMenu, {
+	group: '3_zoom',
+	command: {
+		id: ZoomInAction.ID,
+		title: nls.localize({ key: 'miZoomIn', comment: ['&& denotes a mnemonic'] }, "&&Zoom In")
+	},
+	order: 1
+});
+
+MenuRegistry.appendMenuItem(MenuId.MenubarAppearanceMenu, {
+	group: '3_zoom',
+	command: {
+		id: ZoomOutAction.ID,
+		title: nls.localize({ key: 'miZoomOut', comment: ['&& denotes a mnemonic'] }, "&&Zoom Out")
+	},
+	order: 2
+});
+
+MenuRegistry.appendMenuItem(MenuId.MenubarAppearanceMenu, {
+	group: '3_zoom',
+	command: {
+		id: ZoomResetAction.ID,
+		title: nls.localize({ key: 'miZoomReset', comment: ['&& denotes a mnemonic'] }, "&&Reset Zoom")
+	},
+	order: 3
+});
+
 
 // Configuration: Workbench
 const configurationRegistry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration);

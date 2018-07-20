@@ -60,7 +60,7 @@ export interface IWindowsChannel extends IChannel {
 	call(command: 'onWindowTitleDoubleClick', arg: number): TPromise<void>;
 	call(command: 'setDocumentEdited', arg: [number, boolean]): TPromise<void>;
 	call(command: 'quit'): TPromise<void>;
-	call(command: 'openWindow', arg: [number, URI[], { forceNewWindow?: boolean, forceReuseWindow?: boolean, forceOpenWorkspaceAsFile?: boolean }]): TPromise<void>;
+	call(command: 'openWindow', arg: [number, URI[], { forceNewWindow?: boolean, forceReuseWindow?: boolean, forceOpenWorkspaceAsFile?: boolean, args?: ParsedArgs }]): TPromise<void>;
 	call(command: 'openNewWindow'): TPromise<void>;
 	call(command: 'showWindow', arg: number): TPromise<void>;
 	call(command: 'getWindows'): TPromise<{ id: number; workspace?: IWorkspaceIdentifier; folderUri?: ISingleFolderWorkspaceIdentifier; title: string; filename?: string; }[]>;
@@ -348,7 +348,7 @@ export class WindowsChannelClient implements IWindowsService {
 		return this.channel.call('toggleSharedProcess');
 	}
 
-	openWindow(windowId: number, paths: URI[], options?: { forceNewWindow?: boolean, forceReuseWindow?: boolean, forceOpenWorkspaceAsFile?: boolean }): TPromise<void> {
+	openWindow(windowId: number, paths: URI[], options?: { forceNewWindow?: boolean, forceReuseWindow?: boolean, forceOpenWorkspaceAsFile?: boolean, args?: ParsedArgs }): TPromise<void> {
 		return this.channel.call('openWindow', [windowId, paths, options]);
 	}
 

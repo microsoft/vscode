@@ -654,19 +654,21 @@ export class HighlightingWorkbenchTree extends WorkbenchTree {
 		this.input.onDidChange(this.updateHighlights, this, this.disposables);
 		this.disposables.push(attachInputBoxStyler(this.input, themeService));
 		this.disposables.push(this.input);
-		this.disposables.push(addStandardDisposableListener(this.input.inputElement, 'keyup', event => {
+		this.disposables.push(addStandardDisposableListener(this.input.inputElement, 'keydown', event => {
 			//todo@joh make this command/context-key based
-			if (event.keyCode === KeyCode.DownArrow) {
-				this.focusNext();
-				this.domFocus();
-			} else if (event.keyCode === KeyCode.UpArrow) {
-				this.focusPrevious();
-				this.domFocus();
-			} else if (event.keyCode === KeyCode.Enter) {
-				this.setSelection(this.getSelection());
-			} else if (event.keyCode === KeyCode.Escape) {
-				this.input.value = '';
-				this.domFocus();
+			switch (event.keyCode) {
+				case KeyCode.DownArrow:
+				case KeyCode.UpArrow:
+					this.domFocus();
+					break;
+				case KeyCode.Enter:
+				case KeyCode.Tab:
+					this.setSelection(this.getSelection());
+					break;
+				case KeyCode.Escape:
+					this.input.value = '';
+					this.domFocus();
+					break;
 			}
 		}));
 	}

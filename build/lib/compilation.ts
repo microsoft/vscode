@@ -21,19 +21,22 @@ import * as fs from 'fs';
 
 const reporter = createReporter();
 
-const rootDir = path.join(__dirname, '../../src');
-const options = require('../../src/tsconfig.json').compilerOptions;
-options.verbose = false;
-options.sourceMap = true;
-if (process.env['VSCODE_NO_SOURCEMAP']) { // To be used by developers in a hurry
-	options.sourceMap = false;
+function getTypeScriptCompilerOptions(src: string) {
+	const rootDir = path.join(__dirname, `../../${src}`);
+	const options = require(`../../${src}/tsconfig.json`).compilerOptions;
+	options.verbose = false;
+	options.sourceMap = true;
+	if (process.env['VSCODE_NO_SOURCEMAP']) { // To be used by developers in a hurry
+		options.sourceMap = false;
+	}
+	options.rootDir = rootDir;
+	options.sourceRoot = util.toFileUri(rootDir);
+	options.newLine = /\r\n/.test(fs.readFileSync(__filename, 'utf8')) ? 'CRLF' : 'LF';
+	return options;
 }
-options.rootDir = rootDir;
-options.sourceRoot = util.toFileUri(rootDir);
-options.newLine = /\r\n/.test(fs.readFileSync(__filename, 'utf8')) ? 'CRLF' : 'LF';
 
-function createCompile(build: boolean, emitError?: boolean): (token?: util.ICancellationToken) => NodeJS.ReadWriteStream {
-	const opts = _.clone(options);
+function createCompile(src: string, build: boolean, emitError?: boolean): (token?: util.ICancellationToken) => NodeJS.ReadWriteStream {
+	const opts = _.clone(getTypeScriptCompilerOptions(src));
 	opts.inlineSources = !!build;
 	opts.noFilesystemLookup = true;
 
@@ -59,7 +62,7 @@ function createCompile(build: boolean, emitError?: boolean): (token?: util.ICanc
 			.pipe(sourcemaps.write('.', {
 				addComment: false,
 				includeContent: !!build,
-				sourceRoot: options.sourceRoot
+				sourceRoot: opts.sourceRoot
 			}))
 			.pipe(tsFilter.restore)
 			.pipe(reporter.end(emitError));
@@ -68,32 +71,32 @@ function createCompile(build: boolean, emitError?: boolean): (token?: util.ICanc
 	};
 }
 
-export function compileTask(out: string, build: boolean): () => NodeJS.ReadWriteStream {
+export function compileTask(src: string, out: string, build: boolean): () => NodeJS.ReadWriteStream {
 
 	return function () {
-		const compile = createCompile(build, true);
+		const compile = createCompile(src, build, true);
 
-		const src = es.merge(
-			gulp.src('src/**', { base: 'src' }),
+		const srcPipe = es.merge(
+			gulp.src(`${src}/**`, { base: `${src}` }),
 			gulp.src('node_modules/typescript/lib/lib.d.ts'),
 		);
 
 		// Do not write .d.ts files to disk, as they are not needed there.
 		const dtsFilter = util.filter(data => !/\.d\.ts$/.test(data.path));
 
-		return src
+		return srcPipe
 			.pipe(compile())
 			.pipe(dtsFilter)
 			.pipe(gulp.dest(out))
 			.pipe(dtsFilter.restore)
-			.pipe(monacodtsTask(out, false));
+			.pipe(src !== 'src' ? es.through() : monacodtsTask(out, false));
 	};
 }
 
 export function watchTask(out: string, build: boolean): () => NodeJS.ReadWriteStream {
 
 	return function () {
-		const compile = createCompile(build);
+		const compile = createCompile('src', build);
 
 		const src = es.merge(
 			gulp.src('src/**', { base: 'src' }),
@@ -150,6 +153,7 @@ function monacodtsTask(out: string, isWatch: boolean): NodeJS.ReadWriteStream {
 			if (isWatch) {
 				fs.writeFileSync(result.filePath, result.content);
 			} else {
+				fs.writeFileSync(result.filePath, result.content);
 				resultStream.emit('error', 'monaco.d.ts is no longer up to date. Please run gulp watch and commit the new file.');
 			}
 		}

@@ -974,7 +974,7 @@ export default class TypeScriptServiceClient implements ITypeScriptServiceClient
 		}
 
 		if (this.apiVersion.gte(API.v222)) {
-			this.cancellationPipeName = electron.getTempSock('tscancellation');
+			this.cancellationPipeName = electron.getTempFile('tscancellation');
 			args.push('--cancellationPipeName', this.cancellationPipeName + '*');
 		}
 

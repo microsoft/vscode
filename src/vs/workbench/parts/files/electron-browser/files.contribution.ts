@@ -8,7 +8,7 @@
 import URI from 'vs/base/common/uri';
 import { ViewletRegistry, Extensions as ViewletExtensions, ViewletDescriptor, ToggleViewletAction } from 'vs/workbench/browser/viewlet';
 import * as nls from 'vs/nls';
-import { SyncActionDescriptor } from 'vs/platform/actions/common/actions';
+import { SyncActionDescriptor, MenuId, MenuRegistry } from 'vs/platform/actions/common/actions';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { IConfigurationRegistry, Extensions as ConfigurationExtensions, ConfigurationScope } from 'vs/platform/configuration/common/configurationRegistry';
 import { IWorkbenchActionRegistry, Extensions as ActionExtensions } from 'vs/workbench/common/actions';
@@ -370,4 +370,14 @@ configurationRegistry.registerConfiguration({
 			default: true
 		},
 	}
+});
+
+// View menu
+MenuRegistry.appendMenuItem(MenuId.MenubarViewMenu, {
+	group: '3_views',
+	command: {
+		id: VIEWLET_ID,
+		title: nls.localize({ key: 'miViewExplorer', comment: ['&& denotes a mnemonic'] }, "&&Explorer")
+	},
+	order: 1
 });

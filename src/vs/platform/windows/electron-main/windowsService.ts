@@ -392,7 +392,7 @@ export class WindowsService implements IWindowsService, IURLHandler, IDisposable
 		return TPromise.as(null);
 	}
 
-	openWindow(windowId: number, paths: URI[], options?: { forceNewWindow?: boolean, forceReuseWindow?: boolean, forceOpenWorkspaceAsFile?: boolean }): TPromise<void> {
+	openWindow(windowId: number, paths: URI[], options?: { forceNewWindow?: boolean, forceReuseWindow?: boolean, forceOpenWorkspaceAsFile?: boolean, args?: ParsedArgs }): TPromise<void> {
 		this.logService.trace('windowsService#openWindow');
 		if (!paths || !paths.length) {
 			return TPromise.as(null);
@@ -401,8 +401,8 @@ export class WindowsService implements IWindowsService, IURLHandler, IDisposable
 		this.windowsMainService.open({
 			context: OpenContext.API,
 			contextWindowId: windowId,
-			cli: this.environmentService.args,
 			urisToOpen: paths,
+			cli: options && options.args ? { ...this.environmentService.args, ...options.args } : this.environmentService.args,
 			forceNewWindow: options && options.forceNewWindow,
 			forceReuseWindow: options && options.forceReuseWindow,
 			forceOpenWorkspaceAsFile: options && options.forceOpenWorkspaceAsFile

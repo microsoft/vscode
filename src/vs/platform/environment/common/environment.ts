@@ -30,7 +30,6 @@ export interface ParsedArgs {
 	verbose?: boolean;
 	log?: string;
 	logExtensionHostCommunication?: boolean;
-	'disable-extensions'?: boolean;
 	'extensions-dir'?: string;
 	extensionDevelopmentPath?: string;
 	extensionTestsPath?: string;
@@ -39,6 +38,8 @@ export interface ParsedArgs {
 	debugId?: string;
 	debugSearch?: string;
 	debugBrkSearch?: string;
+	'disable-extensions'?: boolean;
+	'disable-extension'?: string | string[];
 	'list-extensions'?: boolean;
 	'show-versions'?: boolean;
 	'install-extension'?: string | string[];
@@ -101,7 +102,7 @@ export interface IEnvironmentService {
 	workspacesHome: string;
 
 	isExtensionDevelopment: boolean;
-	disableExtensions: boolean;
+	disableExtensions: boolean | string[];
 	extensionsPath: string;
 	extensionDevelopmentPath: string;
 	extensionTestsPath: string;

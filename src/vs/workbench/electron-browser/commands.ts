@@ -33,6 +33,7 @@ function ensureDOMFocus(widget: ListWidget): void {
 	}
 }
 
+export const QUIT_ID = 'workbench.action.quit';
 export function registerCommands(): void {
 
 	function focusDown(accessor: ServicesAccessor, arg2?: number): void {
@@ -538,7 +539,7 @@ export function registerCommands(): void {
 	});
 
 	KeybindingsRegistry.registerCommandAndKeybindingRule({
-		id: 'workbench.action.quit',
+		id: QUIT_ID,
 		weight: KeybindingsRegistry.WEIGHT.workbenchContrib(),
 		handler(accessor: ServicesAccessor) {
 			const windowsService = accessor.get(IWindowsService);

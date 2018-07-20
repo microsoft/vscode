@@ -369,7 +369,6 @@ export class ExtensionHostProcessWorker {
 					isExtensionDevelopmentDebug: this._isExtensionDevDebug,
 					appRoot: this._environmentService.appRoot,
 					appSettingsHome: this._environmentService.appSettingsHome,
-					disableExtensions: this._environmentService.disableExtensions,
 					extensionDevelopmentPath: this._environmentService.extensionDevelopmentPath,
 					extensionTestsPath: this._environmentService.extensionTestsPath
 				},
