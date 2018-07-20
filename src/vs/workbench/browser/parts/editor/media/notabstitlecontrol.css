@@ -6,6 +6,7 @@
 .monaco-workbench > .part.editor > .content .editor-group-container > .title > .label-container {
 	display: flex;
 	justify-content: flex-start;
+	align-items: center;
 	overflow: hidden;
 	flex: auto;
 }
@@ -33,8 +34,6 @@
 .monaco-workbench > .part.editor > .content .editor-group-container > .title .no-tabs-breadcrumbs.breadcrumbs-control {
 	flex: 1 50%;
 	overflow: hidden;
-	line-height: 35px;
-	height: 35px;
 	padding: 0 6px;
 }
 

@@ -4,9 +4,9 @@
  *--------------------------------------------------------------------------------------------*/
 
 import Logger from './logger';
-import { getTempFile, makeRandomHexString } from './temp';
+import * as temp from './temp';
 import path = require('path');
-import os = require('os');
+import fs = require('fs');
 import net = require('net');
 import cp = require('child_process');
 
@@ -15,13 +15,25 @@ export interface IForkOptions {
 	execArgv?: string[];
 }
 
-export function getTempSock(prefix: string): string {
-	const fullName = `vscode-${prefix}-${makeRandomHexString(20)}`;
-	return getTempFile(fullName + '.sock');
+const getRootTempDir = (() => {
+	let dir: string | undefined;
+	return () => {
+		if (!dir) {
+			dir = temp.getTempFile(`vscode-typescript`);
+			if (!fs.existsSync(dir)) {
+				fs.mkdirSync(dir);
+			}
+		}
+		return dir;
+	};
+})();
+
+export function getTempFile(prefix: string): string {
+	return path.join(getRootTempDir(), `${prefix}-${temp.makeRandomHexString(20)}.tmp`);
 }
 
 function generatePipeName(): string {
-	return getPipeName(makeRandomHexString(40));
+	return getPipeName(temp.makeRandomHexString(40));
 }
 
 function getPipeName(name: string): string {
@@ -31,7 +43,7 @@ function getPipeName(name: string): string {
 	}
 
 	// Mac/Unix: use socket file
-	return path.join(os.tmpdir(), fullName + '.sock');
+	return path.join(getRootTempDir(), fullName + '.sock');
 }
 
 function generatePatchedEnv(

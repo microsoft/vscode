@@ -85,7 +85,13 @@ export abstract class BreadcrumbsConfig<T> {
 
 				return {
 					name,
-					get value() { return value; },
+					get value() {
+						return value;
+					},
+					set value(newValue: T) {
+						service.updateValue(name, newValue);
+						value = newValue;
+					},
 					onDidChange: onDidChange.event,
 					dispose(): void {
 						listener.dispose();

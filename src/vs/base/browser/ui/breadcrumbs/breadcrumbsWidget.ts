@@ -114,13 +114,13 @@ export class BreadcrumbsWidget {
 	}
 
 	layout(dim: dom.Dimension): void {
-		if (!dim) {
-			this._scrollable.scanDomNode();
-		} else {
+		if (dim) {
 			this._domNode.style.width = `${dim.width}px`;
 			this._domNode.style.height = `${dim.height}px`;
-			this._scrollable.scanDomNode();
 		}
+		this._scrollable.setRevealOnScroll(false);
+		this._scrollable.scanDomNode();
+		this._scrollable.setRevealOnScroll(true);
 	}
 
 	style(style: IBreadcrumbsWidgetStyles): void {
@@ -206,7 +206,9 @@ export class BreadcrumbsWidget {
 	private _reveal(nth: number): void {
 		const node = this._nodes[nth];
 		if (node) {
+			this._scrollable.setRevealOnScroll(false);
 			this._scrollable.setScrollPosition({ scrollLeft: node.offsetLeft });
+			this._scrollable.setRevealOnScroll(true);
 		}
 	}
 

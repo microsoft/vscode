@@ -3,10 +3,25 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+
+import { flatten } from 'vs/base/common/arrays';
+
 export class Query {
 
 	constructor(public value: string, public sortBy: string, public groupBy: string) {
 		this.value = value.trim();
+	}
+
+	static autocompletions(): string[] {
+		const commands = ['installed', 'outdated', 'enabled', 'disabled', 'builtin', 'recommended', 'sort', 'category', 'tag', 'ext'];
+		const subcommands = {
+			'sort': ['installs', 'rating', 'name'],
+			'category': ['"programming languages"', 'snippets', 'linters', 'themes', 'debuggers', 'formatters', 'keymaps', '"scm providers"', 'other', '"extension packs"', '"language packs"'],
+			'tag': [''],
+			'ext': ['']
+		};
+
+		return flatten(commands.map(command => subcommands[command] ? subcommands[command].map(subcommand => `${command}:${subcommand}`) : [command]));
 	}
 
 	static parse(value: string): Query {

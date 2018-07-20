@@ -45,11 +45,6 @@ import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
 import { IListService, ListService } from 'vs/platform/list/browser/listService';
 import { IBulkEditService } from 'vs/editor/browser/services/bulkEditService';
 
-export interface IEditorContextViewService extends IContextViewService {
-	dispose(): void;
-	setContainer(domNode: HTMLElement): void;
-}
-
 export interface IEditorOverrideServices {
 	[index: string]: any;
 }

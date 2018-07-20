@@ -6,7 +6,6 @@
 .monaco-workbench > .part.menubar {
 	display: flex;
 	position: absolute;
-	font-size: 12px;
 	box-sizing: border-box;
 	padding-left: 35px;
 	padding-right: 138px;
@@ -39,9 +38,9 @@
 }
 
 .menubar-menu-items-holder.monaco-menu-container {
-	box-shadow: 0 2px 8px #A8A8A8;
+	box-shadow: 0 2px 4px;
 }
 
 .vs-dark .menubar-menu-items-holder.monaco-menu-container {
-	box-shadow: 0 2px 8px #000;
+	box-shadow: 0 2px 4px;
 }

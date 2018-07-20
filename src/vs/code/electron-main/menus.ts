@@ -766,6 +766,7 @@ export class CodeMenu {
 		const toggleMinimap = this.createMenuItem(nls.localize({ key: 'miToggleMinimap', comment: ['&& denotes a mnemonic'] }, "Toggle &&Minimap"), 'editor.action.toggleMinimap');
 		const toggleRenderWhitespace = this.createMenuItem(nls.localize({ key: 'miToggleRenderWhitespace', comment: ['&& denotes a mnemonic'] }, "Toggle &&Render Whitespace"), 'editor.action.toggleRenderWhitespace');
 		const toggleRenderControlCharacters = this.createMenuItem(nls.localize({ key: 'miToggleRenderControlCharacters', comment: ['&& denotes a mnemonic'] }, "Toggle &&Control Characters"), 'editor.action.toggleRenderControlCharacter');
+		const toggleBreadcrumbs = this.createMenuItem(nls.localize({ key: 'miToggleBreadcrumbs', comment: ['&& denotes a mnemonic'] }, "Toggle &&Breadcrumbs"), 'breadcrumbs.toggle');
 
 		arrays.coalesce([
 			commands,
@@ -788,7 +789,8 @@ export class CodeMenu {
 			toggleWordWrap,
 			toggleMinimap,
 			toggleRenderWhitespace,
-			toggleRenderControlCharacters
+			toggleRenderControlCharacters,
+			toggleBreadcrumbs
 		]).forEach(item => viewMenu.append(item));
 	}
 

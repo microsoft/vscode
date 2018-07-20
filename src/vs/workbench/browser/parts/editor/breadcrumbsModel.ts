@@ -31,7 +31,7 @@ export class FileElement {
 	) { }
 }
 
-export type BreadcrumbElement = FileElement | OutlineGroup | OutlineElement;
+export type BreadcrumbElement = FileElement | OutlineModel | OutlineGroup | OutlineElement;
 
 type FileInfo = { path: FileElement[], folder: IWorkspaceFolder, showFolder: boolean };
 
@@ -43,7 +43,7 @@ export class EditorBreadcrumbsModel {
 	private readonly _cfgFilePath: BreadcrumbsConfig<'on' | 'off' | 'last'>;
 	private readonly _cfgSymbolPath: BreadcrumbsConfig<'on' | 'off' | 'last'>;
 
-	private _outlineElements: (OutlineGroup | OutlineElement)[] = [];
+	private _outlineElements: (OutlineModel | OutlineGroup | OutlineElement)[] = [];
 	private _outlineDisposables: IDisposable[] = [];
 
 	private _onDidUpdate = new Emitter<this>();
@@ -181,11 +181,14 @@ export class EditorBreadcrumbsModel {
 		});
 	}
 
-	private _getOutlineElements(model: OutlineModel, position: IPosition): (OutlineGroup | OutlineElement)[] {
+	private _getOutlineElements(model: OutlineModel, position: IPosition): (OutlineModel | OutlineGroup | OutlineElement)[] {
 		if (!model) {
 			return [];
 		}
 		let item: OutlineGroup | OutlineElement = model.getItemEnclosingPosition(position);
+		if (!item) {
+			return [model];
+		}
 		let chain: (OutlineGroup | OutlineElement)[] = [];
 		while (item) {
 			chain.push(item);
@@ -201,14 +204,14 @@ export class EditorBreadcrumbsModel {
 		return chain.reverse();
 	}
 
-	private _updateOutlineElements(elements: (OutlineGroup | OutlineElement)[]): void {
+	private _updateOutlineElements(elements: (OutlineModel | OutlineGroup | OutlineElement)[]): void {
 		if (!equals(elements, this._outlineElements, EditorBreadcrumbsModel._outlineElementEquals)) {
 			this._outlineElements = elements;
 			this._onDidUpdate.fire(this);
 		}
 	}
 
-	private static _outlineElementEquals(a: OutlineGroup | OutlineElement, b: OutlineGroup | OutlineElement): boolean {
+	private static _outlineElementEquals(a: OutlineModel | OutlineGroup | OutlineElement, b: OutlineModel | OutlineGroup | OutlineElement): boolean {
 		if (a === b) {
 			return true;
 		} else if (!a || !b) {

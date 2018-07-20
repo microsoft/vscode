@@ -11,10 +11,7 @@
 }
 
 .monaco-editor .comment-hint{
-	display: flex;
-	align-items: center;
-	justify-content: center;
-	height: 16px;
+	height: 20px;
 	width: 20px;
 	padding-left: 2px;
 	background: url('comment.svg') center center no-repeat;
@@ -36,6 +33,13 @@
 .monaco-editor .review-widget .body .review-comment {
 	padding: 8px 16px 8px 20px;
 	display: flex;
+}
+
+.monaco-editor .review-widget .body .review-comment blockquote {
+	margin: 0 7px 0 5px;
+	padding: 0 16px 0 10px;
+	border-left-width: 5px;
+	border-left-style: solid;
 }
 
 .monaco-editor .review-widget .body .review-comment .avatar-container {
@@ -145,6 +149,7 @@
 	white-space: nowrap;
 	border: 0px;
 	cursor: text;
+	outline: 1px solid transparent;
 }
 
 .monaco-editor .review-widget .body .comment-form .review-thread-reply-button:focus {

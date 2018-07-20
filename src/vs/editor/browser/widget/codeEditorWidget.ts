@@ -1356,22 +1356,22 @@ export class CodeEditorWidget extends Disposable implements editorBrowser.ICodeE
 		if (this.isSimpleWidget) {
 			commandDelegate = {
 				paste: (source: string, text: string, pasteOnNewLine: boolean, multicursorText: string[]) => {
-					this.cursor.trigger(source, editorCommon.Handler.Paste, { text, pasteOnNewLine, multicursorText });
+					this.trigger(source, editorCommon.Handler.Paste, { text, pasteOnNewLine, multicursorText });
 				},
 				type: (source: string, text: string) => {
-					this.cursor.trigger(source, editorCommon.Handler.Type, { text });
+					this.trigger(source, editorCommon.Handler.Type, { text });
 				},
 				replacePreviousChar: (source: string, text: string, replaceCharCnt: number) => {
-					this.cursor.trigger(source, editorCommon.Handler.ReplacePreviousChar, { text, replaceCharCnt });
+					this.trigger(source, editorCommon.Handler.ReplacePreviousChar, { text, replaceCharCnt });
 				},
 				compositionStart: (source: string) => {
-					this.cursor.trigger(source, editorCommon.Handler.CompositionStart, undefined);
+					this.trigger(source, editorCommon.Handler.CompositionStart, undefined);
 				},
 				compositionEnd: (source: string) => {
-					this.cursor.trigger(source, editorCommon.Handler.CompositionEnd, undefined);
+					this.trigger(source, editorCommon.Handler.CompositionEnd, undefined);
 				},
 				cut: (source: string) => {
-					this.cursor.trigger(source, editorCommon.Handler.Cut, undefined);
+					this.trigger(source, editorCommon.Handler.Cut, undefined);
 				}
 			};
 		} else {

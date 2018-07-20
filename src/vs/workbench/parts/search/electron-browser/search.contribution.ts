@@ -615,3 +615,14 @@ registerLanguageCommand('_executeWorkspaceSymbolProvider', function (accessor, a
 	}
 	return getWorkspaceSymbols(query);
 });
+
+// View menu
+
+MenuRegistry.appendMenuItem(MenuId.MenubarViewMenu, {
+	group: '3_views',
+	command: {
+		id: VIEW_ID,
+		title: nls.localize({ key: 'miViewSearch', comment: ['&& denotes a mnemonic'] }, "&&Search")
+	},
+	order: 2
+});
