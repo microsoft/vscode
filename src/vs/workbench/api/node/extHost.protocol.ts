@@ -247,9 +247,9 @@ export interface ISerializedLanguageConfiguration {
 		autoClosingPairs: {
 			open: string;
 			close: string;
-      notIn?: string[];
-      onlyIn?: string[];
-      cursorPosition?: number;
+			notIn?: string[];
+			onlyIn?: string[];
+			cursorPosition?: number;
 		}[];
 	};
 }

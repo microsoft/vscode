@@ -286,24 +286,24 @@ export class LanguageConfigurationRegistryImpl {
 			return false;
 		}
 		return characterPairSupport.shouldAutoClosePair(character, scopedLineTokens, column - scopedLineTokens.firstCharOffset);
-  }
-  
+	}
+	
 	//*** Added code to check if user specified a valid cursor position to move cursor to after autocomplete is done. 
 	//*** Also added support for electric chars
 	public shouldChangeCursorPositionAfterAutocomplete(character: string, context: LineTokens, column: number, isElectricChar: boolean): number {
-    	let scopedLineTokens = createScopedLineTokens(context, column - 1);
+			let scopedLineTokens = createScopedLineTokens(context, column - 1);
 
 		if (isElectricChar === true) {
 			let electricCharacterSupport = this._getElectricCharacterSupport(scopedLineTokens.languageId);
-		    if (!electricCharacterSupport) {
+				if (!electricCharacterSupport) {
 				return null;
-		    }
-		    return electricCharacterSupport.shouldChangeCursorPositionAfterAutocomplete(character);
+				}
+				return electricCharacterSupport.shouldChangeCursorPositionAfterAutocomplete(character);
 		}
 
 		let characterPairSupport = this._getCharacterPairSupport(scopedLineTokens.languageId);
 		if (!characterPairSupport) {
-		    return null;
+				return null;
 		}
 		return characterPairSupport.shouldChangeCursorPositionAfterAutocomplete(character);
 	}

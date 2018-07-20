@@ -46,19 +46,19 @@ export class CharacterPairSupport {
 		}
 
 		return false;
-    }
+		}
 
-    //*** Added code to check if user specified a valid cursor position to move cursor to after autocomplete is done
-    public shouldChangeCursorPositionAfterAutocomplete(character: string): number {
-    	for (let i = 0; i < this._autoClosingPairs.length; ++i) {
-        	let autoClosingPair = this._autoClosingPairs[i];
+		//*** Added code to check if user specified a valid cursor position to move cursor to after autocomplete is done
+		public shouldChangeCursorPositionAfterAutocomplete(character: string): number {
+			for (let i = 0; i < this._autoClosingPairs.length; ++i) {
+					let autoClosingPair = this._autoClosingPairs[i];
 
-        	if (autoClosingPair.open === character && autoClosingPair.getCursorPositionOption()) {
-        		return autoClosingPair.getCursorPositionOption();
-      		}
-    	}
-    	return null;
-    }
+					if (autoClosingPair.open === character && autoClosingPair.getCursorPositionOption()) {
+						return autoClosingPair.getCursorPositionOption();
+					}
+			}
+			return null;
+		}
 
 	public getSurroundingPairs(): IAutoClosingPair[] {
 		return this._surroundingPairs;

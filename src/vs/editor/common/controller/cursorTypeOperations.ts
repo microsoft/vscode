@@ -535,33 +535,33 @@ export class TypeOperations {
 				}
 			}
 
-      // Only consider auto closing the pair if a space follows or if another autoclosed pair follows
-      // if (currentTokenType == modes.StandardTokenType.String)
-      const characterAfter = lineText.charAt(position.column - 1);
+			// Only consider auto closing the pair if a space follows or if another autoclosed pair follows
+			// if (currentTokenType == modes.StandardTokenType.String)
+			const characterAfter = lineText.charAt(position.column - 1);
 
-      if (!model.isCheapToTokenize(position.lineNumber)) {
-        // Do not force tokenization
-        return false;
-      }
+			if (!model.isCheapToTokenize(position.lineNumber)) {
+				// Do not force tokenization
+				return false;
+			}
 
-      model.forceTokenization(position.lineNumber);
-      const lineTokens = model.getLineTokens(position.lineNumber);
-      const currentTokenIndex = lineTokens.findTokenIndexAtOffset(position.column - 2);
-      const currentTokenType = lineTokens.getStandardTokenType(currentTokenIndex);
+			model.forceTokenization(position.lineNumber);
+			const lineTokens = model.getLineTokens(position.lineNumber);
+			const currentTokenIndex = lineTokens.findTokenIndexAtOffset(position.column - 2);
+			const currentTokenType = lineTokens.getStandardTokenType(currentTokenIndex);
 
 			if (characterAfter) {
-        let isBeforeCloseBrace = TypeOperations._isBeforeClosingBrace(config, ch, characterAfter);
+				let isBeforeCloseBrace = TypeOperations._isBeforeClosingBrace(config, ch, characterAfter);
 
-        //*** Allow autocompletion in strings without needing a space after the cursor (allows for autocomplete interpolation)
-        if (!isBeforeCloseBrace && !/\s/.test(characterAfter) && currentTokenType !== modes.StandardTokenType.String) {
+				//*** Allow autocompletion in strings without needing a space after the cursor (allows for autocomplete interpolation)
+				if (!isBeforeCloseBrace && !/\s/.test(characterAfter) && currentTokenType !== modes.StandardTokenType.String) {
 					return false;
 				}
 			}
 
 			// const lineTokens = model.getLineTokens(position.lineNumber);
 
-      let shouldAutoClosePair = false;
-      
+			let shouldAutoClosePair = false;
+			
 			try {
 				shouldAutoClosePair = LanguageConfigurationRegistry.shouldAutoClosePair(ch, lineTokens, position.column);
 			} catch (e) {
@@ -577,27 +577,27 @@ export class TypeOperations {
 	}
 
 	private static _runAutoClosingOpenCharType(prevEditOperationType: EditOperationType, config: CursorConfiguration, model: ITextModel, selections: Selection[], ch: string): EditOperationResult {
-    let commands: ICommand[] = [];
+		let commands: ICommand[] = [];
 		for (let i = 0, len = selections.length; i < len; i++) {
-        	const selection = selections[i];
+					const selection = selections[i];
 
-        	//*** Added code to check if position of cursor needs to be changed (as specified by user) after autocompletion is done
-        	let lineTokens = null;
-        	const position = selection.getPosition();
+					//*** Added code to check if position of cursor needs to be changed (as specified by user) after autocompletion is done
+					let lineTokens = null;
+					const position = selection.getPosition();
 
-        	if (model.isCheapToTokenize(position.lineNumber)) {
-        		model.forceTokenization(position.lineNumber);
-        		lineTokens = model.getLineTokens(position.lineNumber);
-      		}
+					if (model.isCheapToTokenize(position.lineNumber)) {
+						model.forceTokenization(position.lineNumber);
+						lineTokens = model.getLineTokens(position.lineNumber);
+					}
 
-        	const newCursorPosition = LanguageConfigurationRegistry.shouldChangeCursorPositionAfterAutocomplete(ch, lineTokens, position.column, false);
+					const newCursorPosition = LanguageConfigurationRegistry.shouldChangeCursorPositionAfterAutocomplete(ch, lineTokens, position.column, false);
 
-        	const closeCharacter = config.autoClosingPairsOpen[ch];
-        	if (newCursorPosition) {
-        		commands[i] = new ReplaceCommandWithOffsetCursorState(selection, ch + closeCharacter, 0, (-closeCharacter.length + newCursorPosition));
-        	} else {
-        		commands[i] = new ReplaceCommandWithOffsetCursorState(selection, ch + closeCharacter, 0, -closeCharacter.length);
-        	}
+					const closeCharacter = config.autoClosingPairsOpen[ch];
+					if (newCursorPosition) {
+						commands[i] = new ReplaceCommandWithOffsetCursorState(selection, ch + closeCharacter, 0, (-closeCharacter.length + newCursorPosition));
+					} else {
+						commands[i] = new ReplaceCommandWithOffsetCursorState(selection, ch + closeCharacter, 0, -closeCharacter.length);
+					}
 		}
 		return new EditOperationResult(EditOperationType.Typing, commands, {
 			shouldPushStackElementBefore: true,
@@ -691,22 +691,22 @@ export class TypeOperations {
 		}
 
 		if (electricAction.appendText) {
-        	const newCursorPosition = LanguageConfigurationRegistry.shouldChangeCursorPositionAfterAutocomplete(ch, lineTokens, position.column, true);
-        	let command;
+					const newCursorPosition = LanguageConfigurationRegistry.shouldChangeCursorPositionAfterAutocomplete(ch, lineTokens, position.column, true);
+					let command;
 
-        	//*** Added support for (user input) cursorPosition for complexAutoClosePairs
-        	if (newCursorPosition) {
-        		command = new ReplaceCommandWithOffsetCursorState(selection, ch + electricAction.appendText, 0, (-electricAction.appendText.length + newCursorPosition));
-        	} else {
-            	command = new ReplaceCommandWithOffsetCursorState(selection, ch + electricAction.appendText, 0, -electricAction.appendText.length);
-        	}
-      
-        	if (command) {
-        		return new EditOperationResult(EditOperationType.Typing, [command], {
-            		shouldPushStackElementBefore: false,
-            		shouldPushStackElementAfter: true
-          		});
-        	}
+					//*** Added support for (user input) cursorPosition for complexAutoClosePairs
+					if (newCursorPosition) {
+						command = new ReplaceCommandWithOffsetCursorState(selection, ch + electricAction.appendText, 0, (-electricAction.appendText.length + newCursorPosition));
+					} else {
+							command = new ReplaceCommandWithOffsetCursorState(selection, ch + electricAction.appendText, 0, -electricAction.appendText.length);
+					}
+			
+					if (command) {
+						return new EditOperationResult(EditOperationType.Typing, [command], {
+								shouldPushStackElementBefore: false,
+								shouldPushStackElementAfter: true
+							});
+					}
 		}
 
 		if (electricAction.matchOpenBracket) {
@@ -782,17 +782,17 @@ export class TypeOperations {
 					}
 				}
 
-        const characterAfter = lineText.charAt(position.column - 1);
+				const characterAfter = lineText.charAt(position.column - 1);
 
-        model.forceTokenization(position.lineNumber);
-        const lineTokens = model.getLineTokens(position.lineNumber);
-        const currentTokenIndex = lineTokens.findTokenIndexAtOffset(position.column - 2);
-        const currentTokenType = lineTokens.getStandardTokenType(currentTokenIndex);
+				model.forceTokenization(position.lineNumber);
+				const lineTokens = model.getLineTokens(position.lineNumber);
+				const currentTokenIndex = lineTokens.findTokenIndexAtOffset(position.column - 2);
+				const currentTokenType = lineTokens.getStandardTokenType(currentTokenIndex);
 
 				if (characterAfter) {
-          let isBeforeCloseBrace = TypeOperations._isBeforeClosingBrace(config, ch, characterAfter);
-          //*** Allow autocompletion in strings without needing a space after the cursor (for interpolation)
-          if (!isBeforeCloseBrace && !/\s/.test(characterAfter) && currentTokenType !== modes.StandardTokenType.String) {
+					let isBeforeCloseBrace = TypeOperations._isBeforeClosingBrace(config, ch, characterAfter);
+					//*** Allow autocompletion in strings without needing a space after the cursor (for interpolation)
+					if (!isBeforeCloseBrace && !/\s/.test(characterAfter) && currentTokenType !== modes.StandardTokenType.String) {
 						continue;
 					}
 				}
