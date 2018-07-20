@@ -83,7 +83,6 @@ declare namespace monaco {
 
 		public static join<T1, T2>(promises: [T1 | PromiseLike<T1>, T2 | PromiseLike<T2>]): Promise<[T1, T2]>;
 		public static join<T>(promises: (T | PromiseLike<T>)[]): Promise<T[]>;
-		public static join<T>(promises: { [n: string]: T | PromiseLike<T> }): Promise<{ [n: string]: T }>;
 
 		public static any<T>(promises: (T | PromiseLike<T>)[]): Promise<{ key: string; value: Promise<T>; }>;
 
@@ -2502,6 +2501,22 @@ declare namespace monaco.editor {
 		 * Defaults to 300.
 		 */
 		delay?: number;
+		/**
+		 * Is the hover sticky such that it can be clicked and its contents selected?
+		 * Defaults to true.
+		 */
+		sticky?: boolean;
+	}
+
+	export interface ISuggestOptions {
+		/**
+		 * Enable graceful matching. Defaults to true.
+		 */
+		filterGraceful?: boolean;
+		/**
+		 * Prevent quick suggestions when a snippet is active. Defaults to true.
+		 */
+		snippetsPreventQuickSuggestions?: boolean;
 	}
 
 	/**
@@ -2724,7 +2739,7 @@ declare namespace monaco.editor {
 		/**
 		 * Configure the editor's hover.
 		 */
-		hover?: boolean | IEditorHoverOptions;
+		hover?: IEditorHoverOptions;
 		/**
 		 * Enable detecting links and making them clickable.
 		 * Defaults to true.
@@ -2759,6 +2774,10 @@ declare namespace monaco.editor {
 		 * Defaults to 'auto'. It is best to leave this to 'auto'.
 		 */
 		accessibilitySupport?: 'auto' | 'off' | 'on';
+		/**
+		 * Suggest options.
+		 */
+		suggest?: ISuggestOptions;
 		/**
 		 * Enable quick suggestions (shadow suggestions)
 		 * Defaults to true.
@@ -3102,6 +3121,13 @@ declare namespace monaco.editor {
 	export interface InternalEditorHoverOptions {
 		readonly enabled: boolean;
 		readonly delay: number;
+		readonly sticky: boolean;
+	}
+
+	export interface InternalSuggestOptions {
+		readonly filterGraceful: boolean;
+		readonly snippets: 'top' | 'bottom' | 'inline' | 'none';
+		readonly snippetsPreventQuickSuggestions: boolean;
 	}
 
 	export interface EditorWrappingInfo {
@@ -3175,11 +3201,11 @@ declare namespace monaco.editor {
 		readonly suggestOnTriggerCharacters: boolean;
 		readonly acceptSuggestionOnEnter: 'on' | 'smart' | 'off';
 		readonly acceptSuggestionOnCommitCharacter: boolean;
-		readonly snippetSuggestions: 'top' | 'bottom' | 'inline' | 'none';
 		readonly wordBasedSuggestions: boolean;
 		readonly suggestSelection: 'first' | 'recentlyUsed' | 'recentlyUsedByPrefix';
 		readonly suggestFontSize: number;
 		readonly suggestLineHeight: number;
+		readonly suggest: InternalSuggestOptions;
 		readonly selectionHighlight: boolean;
 		readonly occurrencesHighlight: boolean;
 		readonly codeLens: boolean;
@@ -3844,9 +3870,9 @@ declare namespace monaco.editor {
 		 * The edits will land on the undo-redo stack, but no "undo stop" will be pushed.
 		 * @param source The source of the call.
 		 * @param edits The edits to execute.
-		 * @param endCursoState Cursor state after the edits were applied.
+		 * @param endCursorState Cursor state after the edits were applied.
 		 */
-		executeEdits(source: string, edits: IIdentifiedSingleEditOperation[], endCursoState?: Selection[]): boolean;
+		executeEdits(source: string, edits: IIdentifiedSingleEditOperation[], endCursorState?: Selection[]): boolean;
 		/**
 		 * Execute multiple (concommitent) commands on the editor.
 		 * @param source The source of the call.
@@ -4898,7 +4924,7 @@ declare namespace monaco.languages {
 		/**
 		 * Provide the definition of the symbol at the given position and document.
 		 */
-		provideDefinition(model: editor.ITextModel, position: Position, token: CancellationToken): DefinitionLink | Thenable<DefinitionLink[]>;
+		provideDefinition(model: editor.ITextModel, position: Position, token: CancellationToken): Definition | DefinitionLink[] | Thenable<Definition | DefinitionLink[]>;
 	}
 
 	/**
@@ -4909,7 +4935,7 @@ declare namespace monaco.languages {
 		/**
 		 * Provide the implementation of the symbol at the given position and document.
 		 */
-		provideImplementation(model: editor.ITextModel, position: Position, token: CancellationToken): Definition | Thenable<Definition>;
+		provideImplementation(model: editor.ITextModel, position: Position, token: CancellationToken): Definition | DefinitionLink[] | Thenable<Definition | DefinitionLink[]>;
 	}
 
 	/**
@@ -4920,7 +4946,7 @@ declare namespace monaco.languages {
 		/**
 		 * Provide the type definition of the symbol at the given position and document.
 		 */
-		provideTypeDefinition(model: editor.ITextModel, position: Position, token: CancellationToken): Definition | Thenable<Definition>;
+		provideTypeDefinition(model: editor.ITextModel, position: Position, token: CancellationToken): Definition | DefinitionLink[] | Thenable<Definition | DefinitionLink[]>;
 	}
 
 	/**
@@ -5186,7 +5212,9 @@ declare namespace monaco.languages {
 		newUri: Uri;
 		options: {
 			overwrite?: boolean;
+			ignoreIfNotExists?: boolean;
 			ignoreIfExists?: boolean;
+			recursive?: boolean;
 		};
 	}
 
@@ -5339,15 +5367,19 @@ declare namespace monaco.languages {
 		/**
 		 * attach this to every token class (by default '.' + name)
 		 */
-		tokenPostfix: string;
+		tokenPostfix?: string;
 	}
+
+	export type IShortMonarchLanguageRule1 = [RegExp, string | IMonarchLanguageAction];
+
+	export type IShortMonarchLanguageRule2 = [RegExp, string | IMonarchLanguageAction, string];
 
 	/**
 	 * A rule is either a regular expression and an action
 	 * 		shorthands: [reg,act] == { regex: reg, action: act}
 	 *		and       : [reg,act,nxt] == { regex: reg, action: act{ next: nxt }}
 	 */
-	export interface IMonarchLanguageRule {
+	export interface IExpandedMonarchLanguageRule {
 		/**
 		 * match tokens
 		 */
@@ -5361,6 +5393,8 @@ declare namespace monaco.languages {
 		 */
 		include?: string;
 	}
+
+	export type IMonarchLanguageRule = IShortMonarchLanguageRule1 | IShortMonarchLanguageRule2 | IExpandedMonarchLanguageRule;
 
 	/**
 	 * An action is either an array of actions...
