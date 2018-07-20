@@ -3943,12 +3943,12 @@ suite('autoClosingPairs', () => {
 					{ open: '\'', close: '\'', notIn: ['string', 'comment'] },
 					{ open: '\"', close: '\"', notIn: ['string'] },
 					{ open: '`', close: '`', notIn: ['string', 'comment'] },
-								{ open: '/**', close: ' */', notIn: ['string'] },
-								{ open: '.each', close: '{ |e| }', notIn: ['string', 'comment'], cursorPosition: 5 },
-								{ open: '.indexOf', close: '()', notIn: ['string', 'comment'], cursorPosition: 1 },
-								{ open: '.charAt', close: '(0)', notIn: ['string', 'comment'], cursorPosition: 2 },
-								{ open: '.slice', close: '(0)', notIn: ['string', 'comment'], cursorPosition: 10 },
-								{ open: '.substr', close: '(0)', notIn: ['string', 'comment'], cursorPosition: -1 }
+					{ open: '/**', close: ' */', notIn: ['string'] },
+					{ open: '.each', close: '{ |e| }', notIn: ['string', 'comment'], cursorPosition: 5 },
+					{ open: '.indexOf', close: '()', notIn: ['string', 'comment'], cursorPosition: 1 },
+					{ open: '.charAt', close: '(0)', notIn: ['string', 'comment'], cursorPosition: 2 },
+					{ open: '.slice', close: '(0)', notIn: ['string', 'comment'], cursorPosition: 10 },
+					{ open: '.substr', close: '(0)', notIn: ['string', 'comment'], cursorPosition: -1 }
 				],
 			}));
 		}
@@ -4152,64 +4152,64 @@ suite('autoClosingPairs', () => {
 			assert.equal(model.getLineContent(8), 'teste"');
 		});
 		mode.dispose();
+	});
+
+	test('test cursorPosition attribute of autclosePairs', () => {
+		let mode = new AutoClosingMode();
+		usingCursor({
+			text: [
+				'',
+			],
+			languageIdentifier: mode.getLanguageIdentifier()
+		}, (model, cursor) => {
+
+			function typeCharacters(cursor: Cursor, chars: string): void {
+				for (let i = 0, len = chars.length; i < len; i++) {
+					cursorCommand(cursor, H.Type, { text: chars[i] }, 'keyboard');
+				}
+			}
+
+			cursor.setSelections('test', [new Selection(1, 1000, 1, 1000)]);
+			typeCharacters(cursor, 'str.indexOf');
+			assert.equal(model.getLineContent(1), 'str.indexOf()');
+			assertCursor(cursor, new Position(1, 13));
+
+			moveTo(cursor, 1, model.getLineMaxColumn(1));
+			typeCharacters(cursor, '\n');
+			model.forceTokenization(model.getLineCount());
+			cursor.setSelections('test', [new Selection(2, 1000, 2, 1000)]);
+			typeCharacters(cursor, 'array.each');
+			assert.equal(model.getLineContent(2), 'array.each{ |e| }');
+			assertCursor(cursor, new Position(2, 16));
+
+			moveTo(cursor, 2, model.getLineMaxColumn(2));
+			typeCharacters(cursor, '\n');
+			model.forceTokenization(model.getLineCount());
+			cursor.setSelections('test', [new Selection(3, 1000, 3, 1000)]);
+			typeCharacters(cursor, 'line.charAt');
+			assert.equal(model.getLineContent(3), 'line.charAt(0)');
+			assertCursor(cursor, new Position(3, 14));
+
+			// Check that invalid cursorPosition values don't move the cursor at all: value larger than .close.length
+			moveTo(cursor, 3, model.getLineMaxColumn(3));
+			typeCharacters(cursor, '\n');
+			model.forceTokenization(model.getLineCount());
+			cursor.setSelections('test', [new Selection(4, 1000, 4, 1000)]);
+			typeCharacters(cursor, 'string.slice');
+			assert.equal(model.getLineContent(4), 'string.slice(0)');
+			assertCursor(cursor, new Position(4, 13));
+
+			// Check that invalid cursorPosition values don't move the cursor at all: negative value
+			moveTo(cursor, 4, model.getLineMaxColumn(4));
+			typeCharacters(cursor, '\n');
+			model.forceTokenization(model.getLineCount());
+			cursor.setSelections('test', [new Selection(5, 1000, 5, 1000)]);
+			typeCharacters(cursor, 'data.substr');
+			assert.equal(model.getLineContent(5), 'data.substr(0)');
+			assertCursor(cursor, new Position(5, 12));
 		});
-	
-		test('test cursorPosition attribute of autclosePairs', () => {
-			let mode = new AutoClosingMode();
-			usingCursor({
-					text: [
-					'',
-					],
-					languageIdentifier: mode.getLanguageIdentifier()
-			}, (model, cursor) => {
-
-					function typeCharacters(cursor: Cursor, chars: string): void {
-						for (let i = 0, len = chars.length; i < len; i++) {
-								cursorCommand(cursor, H.Type, { text: chars[i] }, 'keyboard');
-						}
-					}
-
-					cursor.setSelections('test', [new Selection(1, 1000, 1, 1000)]);
-					typeCharacters(cursor, 'str.indexOf');
-					assert.equal(model.getLineContent(1), 'str.indexOf()');
-					assertCursor(cursor, new Position(1, 13));
-
-					moveTo(cursor, 1, model.getLineMaxColumn(1));
-					typeCharacters(cursor, '\n');
-					model.forceTokenization(model.getLineCount());
-					cursor.setSelections('test', [new Selection(2, 1000, 2, 1000)]);
-					typeCharacters(cursor, 'array.each');
-					assert.equal(model.getLineContent(2), 'array.each{ |e| }');
-					assertCursor(cursor, new Position(2, 16));
-
-					moveTo(cursor, 2, model.getLineMaxColumn(2));
-					typeCharacters(cursor, '\n');
-					model.forceTokenization(model.getLineCount());
-					cursor.setSelections('test', [new Selection(3, 1000, 3, 1000)]);
-					typeCharacters(cursor, 'line.charAt');
-					assert.equal(model.getLineContent(3), 'line.charAt(0)');
-					assertCursor(cursor, new Position(3, 14));
-
-					// Check that invalid cursorPosition values don't move the cursor at all: value larger than .close.length
-					moveTo(cursor, 3, model.getLineMaxColumn(3));
-					typeCharacters(cursor, '\n');
-					model.forceTokenization(model.getLineCount());
-					cursor.setSelections('test', [new Selection(4, 1000, 4, 1000)]);
-					typeCharacters(cursor, 'string.slice');
-					assert.equal(model.getLineContent(4), 'string.slice(0)');
-					assertCursor(cursor, new Position(4, 13));
-
-					// Check that invalid cursorPosition values don't move the cursor at all: negative value
-					moveTo(cursor, 4, model.getLineMaxColumn(4));
-					typeCharacters(cursor, '\n');
-					model.forceTokenization(model.getLineCount());
-					cursor.setSelections('test', [new Selection(5, 1000, 5, 1000)]);
-					typeCharacters(cursor, 'data.substr');
-					assert.equal(model.getLineContent(5), 'data.substr(0)');
-					assertCursor(cursor, new Position(5, 12));
-			});
 		mode.dispose();
-		});
+	});
 
 	test('issue #15825: accents on mac US intl keyboard', () => {
 		let mode = new AutoClosingMode();

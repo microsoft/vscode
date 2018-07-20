@@ -253,10 +253,10 @@ export class StandardAutoClosingPairConditional {
 		if (source.cursorPosition && !isNaN(source.cursorPosition) && (source.cursorPosition % 1 === 0)) {
 			// Make sure the given integer (cursor position) is within the bounds of the close string
 			if (source.cursorPosition >= 0 && source.cursorPosition <= this.close.length) {
-			this._cursorPositionOption = source.cursorPosition;
+				this._cursorPositionOption = source.cursorPosition;
 			}
 		}
-		
+
 		if (Array.isArray(source.notIn)) {
 			for (let i = 0, len = source.notIn.length; i < len; i++) {
 				let notIn = source.notIn[i];
@@ -277,32 +277,32 @@ export class StandardAutoClosingPairConditional {
 			* It is the opposite of the notIn array.
 			*/
 		} else if (Array.isArray(source.onlyIn)) {
-				/**
-			* Use a string variable (_onlyInOptions) to keep track of which scopes
-			* have (already) been listed. The 'other' option is not considered.
-			*/
+			/**
+		* Use a string variable (_onlyInOptions) to keep track of which scopes
+		* have (already) been listed. The 'other' option is not considered.
+		*/
 			this._onlyInFlag = 1;
 			this._onlyInOptions = '';
 
 			for (let i = 0, len = source.onlyIn.length; i < len; i++) {
 				let onlyIn = source.onlyIn[i];
-					switch (onlyIn) {
+				switch (onlyIn) {
 					case 'string':
 						if (this._onlyInOptions.indexOf('2') === -1) {
-						this._onlyInOptions += '2';
+							this._onlyInOptions += '2';
 						}
 						break;
 					case 'comment':
 						if (this._onlyInOptions.indexOf('1') === -1) {
-						this._onlyInOptions += '1';
+							this._onlyInOptions += '1';
 						}
 						break;
 					case 'regex':
 						if (this._onlyInOptions.indexOf('4') === -1) {
-						this._onlyInOptions += '4';
+							this._onlyInOptions += '4';
 						}
 						break;
-					}
+				}
 			}
 
 			this._value = +this._onlyInOptions;
@@ -323,30 +323,30 @@ export class StandardAutoClosingPairConditional {
 					// AND result (in isOK) returns 0 only if standardToken = 'comment' (1)
 					this._standardTokenMask = 6;
 					break;
-					case 2: // ['string']
+				case 2: // ['string']
 					// AND result 0 only if standardToken = 'string' (2)
 					this._standardTokenMask = 5;
 					break;
-					case 3: // ['comment', 'string']
+				case 3: // ['comment', 'string']
 					// AND result returns 0 only if standardToken = 'comment' (1) or 'string' (2)
 					this._standardTokenMask = 4;
 					break;
-					case 4: // ['regex']
+				case 4: // ['regex']
 					// AND result returns 0 only if standardToken 'regex' (4)
 					this._standardTokenMask = 3;
 					break;
-					case 5: // ['comment', 'regex']
+				case 5: // ['comment', 'regex']
 					// AND result returns 0 only if standardToken 'comment' (1) or 'regex' (4)
 					this._standardTokenMask = 2;
 					break;
-					case 6: // ['string', 'regex']
+				case 6: // ['string', 'regex']
 					// AND result returns 0 only if standardToken 'string' (2) or 'regex' (4)
 					this._standardTokenMask = 1;
 					break;
-					case 7: // ['comment', 'string', 'regex']
+				case 7: // ['comment', 'string', 'regex']
 					// AND result returns 0 for any given scope
 					this._standardTokenMask = 0;
-					break; 
+					break;
 			}
 		}
 	}
@@ -357,7 +357,7 @@ export class StandardAutoClosingPairConditional {
 		if (this._onlyInFlag && (standardToken === StandardTokenType.Other)) {
 			return false;
 		}
-			return (this._standardTokenMask & <number>standardToken) === 0;
+		return (this._standardTokenMask & <number>standardToken) === 0;
 	}
 
 	//*** Get the user input for the autoclose cursor position (if it's valid)

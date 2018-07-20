@@ -142,17 +142,17 @@ export class BracketElectricCharacterSupport {
 		}
 
 		return null;
-		}
-	
-		//*** Added support for cursorPosition for complexAutoClosePairs
-		public shouldChangeCursorPositionAfterAutocomplete(character: string): number {
-			for (let i = 0; i < this._complexAutoClosePairs.length; ++i) {
-					let pair = this._complexAutoClosePairs[i];
+	}
 
-					if (pair.open.charAt(pair.open.length - 1) === character && pair.getCursorPositionOption) {
-						return pair.getCursorPositionOption();
-					}
+	//*** Added support for cursorPosition for complexAutoClosePairs
+	public shouldChangeCursorPositionAfterAutocomplete(character: string): number {
+		for (let i = 0; i < this._complexAutoClosePairs.length; ++i) {
+			let pair = this._complexAutoClosePairs[i];
+
+			if (pair.open.charAt(pair.open.length - 1) === character && pair.getCursorPositionOption) {
+				return pair.getCursorPositionOption();
 			}
-				return null;
 		}
+		return null;
+	}
 }
