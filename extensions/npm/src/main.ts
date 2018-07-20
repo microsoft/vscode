@@ -9,16 +9,13 @@ import * as vscode from 'vscode';
 
 import { addJSONProviders } from './features/jsonContributions';
 import { NpmScriptsTreeDataProvider } from './npmView';
-import { provideNpmScripts, invalidateScriptsCache } from './tasks';
-
-import { NpmLenseProvider } from './lenses';
-
-let taskProvider: vscode.Disposable | undefined;
+import { invalidateScriptsCache, NpmTaskProvider } from './tasks';
+import { NpmLensProvider } from './lenses';
 
 export async function activate(context: vscode.ExtensionContext): Promise<void> {
-	taskProvider = registerTaskProvider(context);
+	const taskProvider = registerTaskProvider(context);
 	const treeDataProvider = registerExplorer(context);
-	registerLenseProvider(context);
+	const lensProvider = registerLensProvider(context);
 
 	configureHttpRequest();
 	vscode.workspace.onDidChangeConfiguration((e) => {
@@ -34,6 +31,11 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
 				treeDataProvider.refresh();
 			}
 		}
+		if (e.affectsConfiguration('npm.scriptCodeLens.enable')) {
+			if (lensProvider) {
+				lensProvider.refresh();
+			}
+		}
 	});
 	context.subscriptions.push(addJSONProviders(httpRequest.xhr));
 }
@@ -46,15 +48,10 @@ function registerTaskProvider(context: vscode.ExtensionContext): vscode.Disposab
 		watcher.onDidCreate((_e) => invalidateScriptsCache());
 		context.subscriptions.push(watcher);
 
-		let provider: vscode.TaskProvider = {
-			provideTasks: async () => {
-				return provideNpmScripts();
-			},
-			resolveTask(_task: vscode.Task): vscode.Task | undefined {
-				return undefined;
-			}
-		};
-		return vscode.workspace.registerTaskProvider('npm', provider);
+		let provider: vscode.TaskProvider = new NpmTaskProvider(context);
+		let disposable = vscode.workspace.registerTaskProvider('npm', provider);
+		context.subscriptions.push(disposable);
+		return disposable;
 	}
 	return undefined;
 }
@@ -69,16 +66,18 @@ function registerExplorer(context: vscode.ExtensionContext): NpmScriptsTreeDataP
 	return undefined;
 }
 
-function registerLenseProvider(context: vscode.ExtensionContext) {
+function registerLensProvider(context: vscode.ExtensionContext): NpmLensProvider | undefined {
 	if (vscode.workspace.workspaceFolders) {
 		let npmSelector: vscode.DocumentSelector = {
 			language: 'json',
 			scheme: 'file',
 			pattern: '**/package.json'
 		};
-		let provider = new NpmLenseProvider(context);
+		let provider = new NpmLensProvider(context);
 		context.subscriptions.push(vscode.languages.registerCodeLensProvider(npmSelector, provider));
+		return provider;
 	}
+	return undefined;
 }
 
 function configureHttpRequest() {
@@ -87,7 +86,4 @@ function configureHttpRequest() {
 }
 
 export function deactivate(): void {
-	if (taskProvider) {
-		taskProvider.dispose();
-	}
 }

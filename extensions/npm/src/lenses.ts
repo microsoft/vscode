@@ -6,7 +6,7 @@
 
 import {
 	ExtensionContext, CodeLensProvider, TextDocument, commands, ProviderResult, CodeLens, CancellationToken,
-	workspace, tasks, Range, Command
+	workspace, tasks, Range, Command, Event, EventEmitter
 } from 'vscode';
 import {
 	createTask, startDebugging, findAllScriptRanges, extractDebugArgFromScript
@@ -15,46 +15,59 @@ import * as nls from 'vscode-nls';
 
 const localize = nls.loadMessageBundle();
 
-export class NpmLenseProvider implements CodeLensProvider {
+export class NpmLensProvider implements CodeLensProvider {
 	private extensionContext: ExtensionContext;
+	private _onDidChangeCodeLenses: EventEmitter<void> = new EventEmitter<void>();
+	readonly onDidChangeCodeLenses: Event<void> = this._onDidChangeCodeLenses.event;
 
 	constructor(context: ExtensionContext) {
-		const subscriptions = context.subscriptions;
 		this.extensionContext = context;
-		context.subscriptions.push(commands.registerCommand('npm.runScriptFromLense', this.runScriptFromLense, this));
-		context.subscriptions.push(commands.registerCommand('npm.debugScriptFromLense', this.debugScriptFromLense, this));
+		context.subscriptions.push(commands.registerCommand('npm.runScriptFromLens', this.runScriptFromLens, this));
+		context.subscriptions.push(commands.registerCommand('npm.debugScriptFromLens', this.debugScriptFromLens, this));
 	}
 
-	public provideCodeLenses(document: TextDocument, token: CancellationToken): ProviderResult<CodeLens[]> {
+	public provideCodeLenses(document: TextDocument, _token: CancellationToken): ProviderResult<CodeLens[]> {
 		let result = findAllScriptRanges(document.getText());
+		let folder = workspace.getWorkspaceFolder(document.uri);
 		let lenses: CodeLens[] = [];
+
+
+		if (folder && !workspace.getConfiguration('npm', folder.uri).get<string>('scriptCodeLens.enable', 'true')) {
+			return lenses;
+		}
 
 		result.forEach((value, key) => {
 			let start = document.positionAt(value[0]);
 			let end = document.positionAt(value[0] + value[1]);
-			let lens: CodeLens;
+			let range = new Range(start, end);
+
 			let command: Command = {
-				command: 'npm.runScriptFromLense',
+				command: 'npm.runScriptFromLens',
 				title: localize('run', "Run"),
 				arguments: [document, key]
 			};
-			lens = new CodeLens(new Range(start, end), command);
+			let lens: CodeLens = new CodeLens(range, command);
 			lenses.push(lens);
+
 			let debugArgs = extractDebugArgFromScript(value[2]);
 			if (debugArgs) {
 				command = {
-					command: 'npm.debugScriptFromLense',
+					command: 'npm.debugScriptFromLens',
 					title: localize('debug', "Debug"),
 					arguments: [document, key, debugArgs[0], debugArgs[1]]
 				};
-				lens = new CodeLens(new Range(start, end), command);
+				lens = new CodeLens(range, command);
 				lenses.push(lens);
 			}
 		});
 		return lenses;
 	}
 
-	public runScriptFromLense(document: TextDocument, script: string) {
+	public refresh() {
+		this._onDidChangeCodeLenses.fire();
+	}
+
+	public runScriptFromLens(document: TextDocument, script: string) {
 		let uri = document.uri;
 		let folder = workspace.getWorkspaceFolder(uri);
 		if (folder) {
@@ -63,7 +76,7 @@ export class NpmLenseProvider implements CodeLensProvider {
 		}
 	}
 
-	public debugScriptFromLense(document: TextDocument, script: string, protocol: string, port: number) {
+	public debugScriptFromLens(document: TextDocument, script: string, protocol: string, port: number) {
 		let uri = document.uri;
 		let folder = workspace.getWorkspaceFolder(uri);
 		if (folder) {

@@ -6,7 +6,7 @@
 
 import {
 	TaskDefinition, Task, TaskGroup, WorkspaceFolder, RelativePattern, ShellExecution, Uri, workspace,
-	DebugConfiguration, debug
+	DebugConfiguration, debug, TaskProvider, ExtensionContext
 } from 'vscode';
 import * as path from 'path';
 import * as fs from 'fs';
@@ -24,6 +24,22 @@ export interface NpmTaskDefinition extends TaskDefinition {
 type AutoDetect = 'on' | 'off';
 
 let cachedTasks: Task[] | undefined = undefined;
+
+export class NpmTaskProvider implements TaskProvider {
+	private extensionContext: ExtensionContext;
+
+	constructor(context: ExtensionContext) {
+		this.extensionContext = context;
+	}
+
+	public provideTasks() {
+		return provideNpmScripts();
+	}
+
+	public resolveTask(_task: Task): Task | undefined {
+		return undefined;
+	}
+}
 
 export function invalidateScriptsCache() {
 	cachedTasks = undefined;
@@ -327,7 +343,6 @@ async function findAllScripts(buffer: string): Promise<StringMap> {
 
 	let visitor: JSONVisitor = {
 		onError(_error: ParseErrorCode, _offset: number, _length: number) {
-			// TODO: inform user about the parse error
 		},
 		onObjectEnd() {
 			if (inScripts) {
