@@ -3946,7 +3946,9 @@ suite('autoClosingPairs', () => {
           { open: '/**', close: ' */', notIn: ['string'] },
           { open: '.each', close: '{ |e| }', notIn: ['string', 'comment'], cursorPosition: 5 },
           { open: '.indexOf', close: '()', notIn: ['string', 'comment'], cursorPosition: 1 },
-          { open: '.charAt', close: '(0)', notIn: ['string', 'comment'], cursorPosition: 2 }
+          { open: '.charAt', close: '(0)', notIn: ['string', 'comment'], cursorPosition: 2 },
+          { open: '.slice', close: '(0)', notIn: ['string', 'comment'], cursorPosition: 10 },
+          { open: '.substr', close: '(0)', notIn: ['string', 'comment'], cursorPosition: -1 }
 				],
 			}));
 		}
@@ -4187,6 +4189,24 @@ suite('autoClosingPairs', () => {
       typeCharacters(cursor, 'line.charAt');
       assert.equal(model.getLineContent(3), 'line.charAt(0)');
       assertCursor(cursor, new Position(3, 14));
+
+      // Check that invalid cursorPosition values don't move the cursor at all: value larger than .close.length
+      moveTo(cursor, 3, model.getLineMaxColumn(3))
+      typeCharacters(cursor, '\n');
+      model.forceTokenization(model.getLineCount());
+      cursor.setSelections('test', [new Selection(4, 1000, 4, 1000)]);
+      typeCharacters(cursor, 'string.slice');
+      assert.equal(model.getLineContent(4), 'string.slice(0)');
+      assertCursor(cursor, new Position(4, 13));
+
+      // Check that invalid cursorPosition values don't move the cursor at all: negative value
+      moveTo(cursor, 4, model.getLineMaxColumn(4))
+      typeCharacters(cursor, '\n');
+      model.forceTokenization(model.getLineCount());
+      cursor.setSelections('test', [new Selection(5, 1000, 5, 1000)]);
+      typeCharacters(cursor, 'data.substr');
+      assert.equal(model.getLineContent(5), 'data.substr(0)');
+      assertCursor(cursor, new Position(5, 12));
     });
     mode.dispose();
   });

@@ -349,10 +349,10 @@ export class StandardAutoClosingPairConditional {
 				break; 
 			}
 		}
-	  }
+	}
 
-    //*** Set a variable to determine if we have a notIn array or an onlyIn array (or neither)
-    //*** If the onlyIn array var is set, check if the StandardTokenType of isOK is "other". If so, return 1 (i.e. don't autoclose)
+  //*** Set a variable to determine if we have a notIn array or an onlyIn array (or neither)
+  //*** If the onlyIn array var is set, check if the StandardTokenType of isOK is "other". If so, return 1 (i.e. don't autoclose)
 	public isOK(standardToken: StandardTokenType): boolean {
 		if (this._onlyInFlag && (standardToken == StandardTokenType.Other)) {
 		  return false;
