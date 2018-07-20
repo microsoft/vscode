@@ -309,7 +309,7 @@ class WatchExpressionsRenderer implements IRenderer {
 		});
 		data.name.title = watchExpression.type ? watchExpression.type : watchExpression.value;
 
-		if (watchExpression.value) {
+		if (typeof watchExpression.value === 'string') {
 			data.name.textContent += ':';
 		}
 	}
