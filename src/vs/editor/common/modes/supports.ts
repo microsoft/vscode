@@ -77,7 +77,7 @@ export class ScopedLineTokens {
 }
 
 const enum IgnoreBracketsInTokens {
-  value = modes.StandardTokenType.Comment | modes.StandardTokenType.String | modes.StandardTokenType.RegEx
+	value = modes.StandardTokenType.Comment | modes.StandardTokenType.String | modes.StandardTokenType.RegEx
 }
 
 export function ignoreBracketsInToken(standardTokenType: modes.StandardTokenType): boolean {
