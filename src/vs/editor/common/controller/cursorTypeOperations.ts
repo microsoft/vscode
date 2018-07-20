@@ -577,7 +577,7 @@ export class TypeOperations {
 	}
 
 	private static _runAutoClosingOpenCharType(prevEditOperationType: EditOperationType, config: CursorConfiguration, model: ITextModel, selections: Selection[], ch: string): EditOperationResult {
-    let commands: ICommand[] = [];
+    	let commands: ICommand[] = [];
 		for (let i = 0, len = selections.length; i < len; i++) {
         	const selection = selections[i];
 
