@@ -244,7 +244,7 @@ export class HistoryMainService implements IHistoryMainService {
 	}
 
 	private getRecentlyOpenedFromStorage(): IRecentlyOpened {
-		const storedRecents: ISerializedRecentlyOpened = this.stateService.getItem<ISerializedRecentlyOpened>(HistoryMainService.recentlyOpenedStorageKey);
+		const storedRecents: ISerializedRecentlyOpened = this.stateService.getItem<ISerializedRecentlyOpened>(HistoryMainService.recentlyOpenedStorageKey) || { workspaces: [], files: [] };
 		const result: IRecentlyOpened = { workspaces: [], files: storedRecents.files };
 		for (const workspace of storedRecents.workspaces) {
 			if (typeof workspace === 'string') {
