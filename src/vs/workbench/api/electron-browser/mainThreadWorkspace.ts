@@ -225,7 +225,7 @@ CommandsRegistry.registerCommand('_workbench.enterWorkspace', async function (ac
 		const runningExtensions = await extensionService.getExtensions();
 		// If requested extension to disable is running, then reload window with given workspace
 		if (disableExtensions && runningExtensions.some(runningExtension => disableExtensions.some(id => areSameExtensions({ id }, { id: runningExtension.id })))) {
-			return windowService.openWindow([workspace.fsPath], { args: { _: [], 'disable-extension': disableExtensions } });
+			return windowService.openWindow([URI.file(workspace.fsPath)], { args: { _: [], 'disable-extension': disableExtensions } });
 		}
 	}
 
