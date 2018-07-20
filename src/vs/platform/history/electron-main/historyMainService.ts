@@ -16,11 +16,13 @@ import { getPathLabel, getBaseLabel } from 'vs/base/common/labels';
 import { IPath } from 'vs/platform/windows/common/windows';
 import { Event as CommonEvent, Emitter } from 'vs/base/common/event';
 import { isWindows, isMacintosh, isLinux } from 'vs/base/common/platform';
-import { IWorkspaceIdentifier, IWorkspacesMainService, getWorkspaceLabel, ISingleFolderWorkspaceIdentifier, isSingleFolderWorkspaceIdentifier, IWorkspaceSavedEvent } from 'vs/platform/workspaces/common/workspaces';
+import { IWorkspaceIdentifier, IWorkspacesMainService, getWorkspaceLabel, ISingleFolderWorkspaceIdentifier, isSingleFolderWorkspaceIdentifier, IWorkspaceSavedEvent, isWorkspaceIdentifier } from 'vs/platform/workspaces/common/workspaces';
 import { IHistoryMainService, IRecentlyOpened } from 'vs/platform/history/common/history';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { isEqual } from 'vs/base/common/paths';
 import { RunOnceScheduler } from 'vs/base/common/async';
+import URI from 'vs/base/common/uri';
+import { Schemas } from 'vs/base/common/network';
 
 export class HistoryMainService implements IHistoryMainService {
 
@@ -179,7 +181,7 @@ export class HistoryMainService implements IHistoryMainService {
 		let files: string[];
 
 		// Get from storage
-		const storedRecents = this.stateService.getItem<IRecentlyOpened>(HistoryMainService.recentlyOpenedStorageKey);
+		const storedRecents = this.getRecentlyOpenedFromStorage();
 		if (storedRecents) {
 			workspaces = storedRecents.workspaces || [];
 			files = storedRecents.files || [];
@@ -214,6 +216,24 @@ export class HistoryMainService implements IHistoryMainService {
 		}
 
 		return workspaceOrFile.id;
+	}
+
+	private getRecentlyOpenedFromStorage(): IRecentlyOpened {
+		const storedRecents: IRecentlyOpened = this.stateService.getItem<IRecentlyOpened>(HistoryMainService.recentlyOpenedStorageKey) || { workspaces: [], files: [] };
+		const result: IRecentlyOpened = { workspaces: [], files: storedRecents.files };
+		for (const workspace of storedRecents.workspaces) {
+			if (typeof workspace === 'string') {
+				result.workspaces.push(workspace);
+			} else if (isWorkspaceIdentifier(workspace)) {
+				result.workspaces.push(workspace);
+			} else {
+				const uri = URI.revive(workspace);
+				if (uri.scheme === Schemas.file) {
+					result.workspaces.push(uri.fsPath);
+				}
+			}
+		}
+		return result;
 	}
 
 	private saveRecentlyOpened(recent: IRecentlyOpened): void {
