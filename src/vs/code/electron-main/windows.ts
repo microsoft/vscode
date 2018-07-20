@@ -34,7 +34,7 @@ import { IInstantiationService } from 'vs/platform/instantiation/common/instanti
 import { mnemonicButtonLabel } from 'vs/base/common/labels';
 import { Schemas } from 'vs/base/common/network';
 import { normalizeNFC } from 'vs/base/common/normalization';
-import URI from 'vs/base/common/uri';
+import URI, { UriComponents } from 'vs/base/common/uri';
 import { Queue } from 'vs/base/common/async';
 import { exists } from 'vs/base/node/pfs';
 
@@ -53,6 +53,11 @@ interface IWindowState {
 	backupPath: string;
 	uiState: ISingleWindowState;
 }
+
+interface IBackwardCompatibleWindowState extends IWindowState {
+	folderUri?: UriComponents;
+}
+
 
 interface IWindowsState {
 	lastActiveWindow?: IWindowState;
@@ -144,13 +149,39 @@ export class WindowsManager implements IWindowsMainService {
 		@IWorkspacesMainService private workspacesMainService: IWorkspacesMainService,
 		@IInstantiationService private instantiationService: IInstantiationService
 	) {
-		this.windowsState = this.stateService.getItem<IWindowsState>(WindowsManager.windowsStateStorageKey) || { openedWindows: [] };
+		this.windowsState = this.getWindowsState();
 		if (!Array.isArray(this.windowsState.openedWindows)) {
 			this.windowsState.openedWindows = [];
 		}
 
 		this.dialogs = new Dialogs(environmentService, telemetryService, stateService, this);
 		this.workspacesManager = new WorkspacesManager(workspacesMainService, backupMainService, environmentService, this);
+	}
+
+	private getWindowsState(): IWindowsState {
+		const windowsState = this.stateService.getItem<IWindowsState>(WindowsManager.windowsStateStorageKey) || { openedWindows: [] };
+		if (windowsState.lastActiveWindow) {
+			windowsState.lastActiveWindow = this.revive(windowsState.lastActiveWindow);
+		}
+		if (windowsState.lastPluginDevelopmentHostWindow) {
+			windowsState.lastPluginDevelopmentHostWindow = this.revive(windowsState.lastPluginDevelopmentHostWindow);
+		}
+		if (windowsState.openedWindows) {
+			windowsState.openedWindows = arrays.coalesce(windowsState.openedWindows.map(windowState => this.revive(windowState)));
+		}
+		return windowsState;
+	}
+
+	private revive(windowState: IWindowState): IWindowState {
+		if ((<IBackwardCompatibleWindowState>windowState).folderUri) {
+			const uri = URI.revive((<IBackwardCompatibleWindowState>windowState).folderUri);
+			if (uri.scheme === Schemas.file) {
+				windowState.folderPath = uri.fsPath;
+			} else {
+				return null;
+			}
+		}
+		return windowState;
 	}
 
 	ready(initialUserEnv: IProcessEnvironment): void {
