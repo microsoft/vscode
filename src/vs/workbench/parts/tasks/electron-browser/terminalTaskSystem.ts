@@ -580,6 +580,8 @@ export class TerminalTaskSystem implements ITaskSystem {
 					if (!shellSpecified) {
 						toAdd.push('-c');
 					}
+				} else if (basename === 'wsl.exe') {
+					windowsShellArgs = false;
 				} else {
 					if (!shellSpecified) {
 						toAdd.push('/d', '/c');
@@ -602,13 +604,13 @@ export class TerminalTaskSystem implements ITaskSystem {
 					shellArgs.push(element);
 				}
 			});
-			shellArgs.push(commandLine);
+			shellArgs = shellArgs.concat(commandLine);
 			shellLaunchConfig.args = windowsShellArgs ? shellArgs.join(' ') : shellArgs;
 			if (task.command.presentation.echo) {
 				if (needsFolderQualification) {
 					shellLaunchConfig.initialText = `\x1b[1m> Executing task in folder ${workspaceFolder.name}: ${commandLine} <\x1b[0m\n`;
 				} else {
-					shellLaunchConfig.initialText = `\x1b[1m> Executing task: ${commandLine} <\x1b[0m\n`;
+					shellLaunchConfig.initialText = `\x1b[1m> Executing task: ${commandLine.join(' ')} <\x1b[0m\n`;
 				}
 			}
 		} else {
@@ -700,17 +702,20 @@ export class TerminalTaskSystem implements ITaskSystem {
 		return [result, commandExecutable, undefined];
 	}
 
-	private buildShellCommandLine(shellExecutable: string, shellOptions: ShellConfiguration, command: CommandString, args: CommandString[]): string {
+	private buildShellCommandLine(shellExecutable: string, shellOptions: ShellConfiguration, command: CommandString, args: CommandString[]): string[] {
 		// If we have no args and the command is a string then use the
 		// command to stay backwards compatible with the old command line
 		// model.
 		if ((!args || args.length === 0) && Types.isString(command)) {
-			return command;
+			return [command];
 		}
 		let basename = path.parse(shellExecutable).name.toLowerCase();
 		let shellQuoteOptions = this.getQuotingOptions(basename, shellOptions);
 
 		function needsQuotes(value: string): boolean {
+			if (basename === 'wsl') {
+				return false;
+			}
 			if (value.length >= 2) {
 				let first = value[0] === shellQuoteOptions.strong ? shellQuoteOptions.strong : value[0] === shellQuoteOptions.weak ? shellQuoteOptions.weak : undefined;
 				if (first === value[value.length - 1]) {
@@ -785,18 +790,19 @@ export class TerminalTaskSystem implements ITaskSystem {
 			argQuoted = argQuoted || quoted;
 		}
 
-		let commandLine = result.join(' ');
+		// wsl.exe fails if the whole command is quoted, so the args are kept separate
+		let commandLine = basename !== 'wsl' ? [result.join(' ')] : result;
 		// There are special rules quoted command line in cmd.exe
 		if (Platform.isWindows) {
 			if (basename === 'cmd' && commandQuoted && argQuoted) {
-				commandLine = '"' + commandLine + '"';
+				commandLine[0] = '"' + commandLine[0] + '"';
 			} else if (basename === 'powershell' && commandQuoted) {
-				commandLine = '& ' + commandLine;
+				commandLine[0] = '& ' + commandLine[0];
 			}
 		}
 
 		if (basename === 'cmd' && Platform.isWindows && commandQuoted && argQuoted) {
-			commandLine = '"' + commandLine + '"';
+			commandLine[0] = '"' + commandLine[0] + '"';
 		}
 		return commandLine;
 	}
