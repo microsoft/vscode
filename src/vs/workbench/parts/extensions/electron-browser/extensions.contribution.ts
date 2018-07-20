@@ -204,7 +204,7 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration)
 		properties: {
 			'extensions.autoUpdate': {
 				type: 'boolean',
-				description: localize('extensionsAutoUpdate', "Automatically update extensions"),
+				description: localize('extensionsAutoUpdate', "Automatically update extensions. If the setting 'extensions.receiveUpdates' is set to false, then extensions will not be updated, regardless of this setting."),
 				default: true,
 				scope: ConfigurationScope.APPLICATION
 			},
@@ -222,6 +222,11 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration)
 				type: 'boolean',
 				description: localize('extensionsCloseExtensionDetailsOnViewChange', "If set to true, editors with extension details will be automatically closed upon navigating away from the Extensions View."),
 				default: false
+			},
+			'extensions.receiveUpdates': {
+				type: 'boolean',
+				description: localize('extensionsReceiveUpdates', "Receive updates for outdated extensions, but not automatically update them. If set to false, extension auto-update feature is disabled regardless of the value for the 'extensions.autoUpdate' setting"),
+				default: true
 			}
 		}
 	});
