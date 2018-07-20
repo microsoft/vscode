@@ -13,8 +13,6 @@ export enum DiagnosticKind {
 	Suggestion
 }
 
-const allDiagnosticKinds = [DiagnosticKind.Syntax, DiagnosticKind.Semantic, DiagnosticKind.Suggestion];
-
 class FileDiagnostics {
 	private readonly _diagnostics = new Map<DiagnosticKind, vscode.Diagnostic[]>();
 
@@ -22,13 +20,6 @@ class FileDiagnostics {
 		public readonly file: vscode.Uri,
 		public language: DiagnosticLanguage
 	) { }
-
-	public isEmpty(): boolean {
-		return allDiagnosticKinds.every(kind => {
-			const diagnostics = this._diagnostics.get(kind);
-			return !!(diagnostics && diagnostics.length);
-		});
-	}
 
 	public updateDiagnostics(
 		language: DiagnosticLanguage,
@@ -58,25 +49,25 @@ class FileDiagnostics {
 		}
 
 		return [
-			...(this._diagnostics.get(DiagnosticKind.Syntax) || []),
-			...(this._diagnostics.get(DiagnosticKind.Semantic) || []),
+			...this.get(DiagnosticKind.Syntax),
+			...this.get(DiagnosticKind.Semantic),
 			...this.getSuggestionDiagnostics(settings),
 		];
 	}
 
 	private getSuggestionDiagnostics(settings: DiagnosticSettings) {
-		if (!this._diagnostics.get(DiagnosticKind.Suggestion)) {
-			return [];
-		}
-
 		const enableSuggestions = settings.getEnableSuggestions(this.language);
-		return this._diagnostics.get(DiagnosticKind.Suggestion)!.filter(x => {
-			if (enableSuggestions) {
+		return this.get(DiagnosticKind.Suggestion).filter(x => {
+			if (!enableSuggestions) {
 				// Still show unused
 				return x.tags && x.tags.indexOf(vscode.DiagnosticTag.Unnecessary) !== -1;
 			}
 			return true;
 		});
+	}
+
+	private get(kind: DiagnosticKind): vscode.Diagnostic[] {
+		return this._diagnostics.get(kind) || [];
 	}
 }
 
