@@ -54,6 +54,7 @@
 	"config.path": "Path to the git executable",
 	"config.autoRepositoryDetection": "Configures when repositories should be automatically detected.",
 	"config.autorefresh": "Whether auto refreshing is enabled",
+	"config.refreshIcon": "Git Refresh Blinking Icon",
 	"config.autofetch": "Whether auto fetching is enabled",
 	"config.enableLongCommitWarning": "Whether long commit messages should be warned about",
 	"config.confirmSync": "Confirm before synchronizing git repositories",

@@ -23,8 +23,7 @@
     "update-grammar": "node ./build/update-grammars.js"
   },
   "contributes": {
-    "commands": [
-      {
+    "commands": [{
         "command": "git.clone",
         "title": "%command.clone%",
         "category": "Git"
@@ -332,8 +331,7 @@
       }
     ],
     "menus": {
-      "commandPalette": [
-        {
+      "commandPalette": [{
           "command": "git.clone",
           "when": "config.git.enabled"
         },
@@ -538,8 +536,7 @@
           "when": "config.git.enabled && gitOpenRepositoryCount != 0"
         }
       ],
-      "scm/title": [
-        {
+      "scm/title": [{
           "command": "git.init",
           "group": "navigation",
           "when": "config.git.enabled && !scmProvider && gitOpenRepositoryCount == 0 && workspaceFolderCount != 0"
@@ -670,15 +667,12 @@
           "when": "scmProvider == git"
         }
       ],
-      "scm/sourceControl": [
-        {
-          "command": "git.close",
-          "group": "navigation",
-          "when": "scmProvider == git"
-        }
-      ],
-      "scm/resourceGroup/context": [
-        {
+      "scm/sourceControl": [{
+        "command": "git.close",
+        "group": "navigation",
+        "when": "scmProvider == git"
+      }],
+      "scm/resourceGroup/context": [{
           "command": "git.stageAll",
           "when": "scmProvider == git && scmResourceGroup == merge",
           "group": "1_modification"
@@ -719,8 +713,7 @@
           "group": "inline"
         }
       ],
-      "scm/resourceState/context": [
-        {
+      "scm/resourceState/context": [{
           "command": "git.stage",
           "when": "scmProvider == git && scmResourceGroup == merge",
           "group": "1_modification"
@@ -816,8 +809,7 @@
           "group": "1_modification@3"
         }
       ],
-      "editor/title": [
-        {
+      "editor/title": [{
           "command": "git.openFile",
           "group": "navigation",
           "when": "config.git.enabled && gitOpenRepositoryCount != 0 && isInDiffEditor && resourceScheme =~ /^git$|^file$/"
@@ -843,8 +835,7 @@
           "when": "config.git.enabled && gitOpenRepositoryCount != 0 && isInDiffEditor && resourceScheme =~ /^git$|^file$/"
         }
       ],
-      "editor/context": [
-        {
+      "editor/context": [{
           "command": "git.stageSelectedRanges",
           "group": "2_git@1",
           "when": "isInDiffRightEditor && config.git.enabled && gitOpenRepositoryCount != 0 && isInDiffEditor && resourceScheme =~ /^git$|^file$/"
@@ -860,8 +851,7 @@
           "when": "isInDiffRightEditor && config.git.enabled && gitOpenRepositoryCount != 0 && isInDiffEditor && resourceScheme =~ /^git$|^file$/"
         }
       ],
-      "scm/change/title": [
-        {
+      "scm/change/title": [{
           "command": "git.stageChange",
           "when": "originalResourceScheme == git"
         },
@@ -906,6 +896,11 @@
         "git.autorefresh": {
           "type": "boolean",
           "description": "%config.autorefresh%",
+          "default": true
+        },
+        "git.refreshIcon": {
+          "type": "boolean",
+          "description": "%config.refreshIcon%",
           "default": true
         },
         "git.autofetch": {
@@ -1028,8 +1023,7 @@
         }
       }
     },
-    "colors": [
-      {
+    "colors": [{
         "id": "gitDecoration.addedResourceForeground",
         "description": "%colors.added%",
         "defaults": {
@@ -1093,8 +1087,7 @@
         }
       }
     ],
-    "languages": [
-      {
+    "languages": [{
         "id": "git-commit",
         "aliases": [
           "Git Commit Message",
@@ -1142,8 +1135,7 @@
         "configuration": "./languages/ignore.language-configuration.json"
       }
     ],
-    "grammars": [
-      {
+    "grammars": [{
         "language": "git-commit",
         "scopeName": "text.git-commit",
         "path": "./syntaxes/git-commit.tmLanguage.json"
