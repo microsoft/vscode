@@ -6,6 +6,7 @@
 import * as jsonc from 'jsonc-parser';
 import { dirname, join } from 'path';
 import * as vscode from 'vscode';
+import { flatten } from '../utils/arrays';
 
 function mapNode<R>(node: jsonc.Node | undefined, f: (x: jsonc.Node) => R): R[] {
 	return node && node.type === 'array' && node.children
@@ -83,7 +84,9 @@ export function register() {
 
 	const languages = ['json', 'jsonc'];
 
-	const selector: vscode.DocumentSelector = ([] as any[]).concat(
-		...languages.map(language => patterns.map((pattern): vscode.DocumentFilter => ({ language, pattern }))));
+	const selector: vscode.DocumentSelector = flatten(
+		languages.map(language =>
+			patterns.map((pattern): vscode.DocumentFilter => ({ language, pattern }))));
+
 	return vscode.languages.registerDocumentLinkProvider(selector, new TsconfigLinkProvider());
 }
