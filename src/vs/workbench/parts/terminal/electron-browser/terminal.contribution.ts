@@ -88,12 +88,12 @@ configurationRegistry.registerConfiguration({
 			'default': []
 		},
 		'terminal.integrated.shell.osx': {
-			'description': nls.localize('terminal.integrated.shell.osx', "The path of the shell that the terminal uses on OS X."),
+			'description': nls.localize('terminal.integrated.shell.osx', "The path of the shell that the terminal uses on macOS."),
 			'type': 'string',
 			'default': getTerminalDefaultShellUnixLike()
 		},
 		'terminal.integrated.shellArgs.osx': {
-			'description': nls.localize('terminal.integrated.shellArgs.osx', "The command line arguments to use when on the OS X terminal."),
+			'description': nls.localize('terminal.integrated.shellArgs.osx', "The command line arguments to use when on the macOS terminal."),
 			'type': 'array',
 			'items': {
 				'type': 'string'
@@ -137,7 +137,7 @@ configurationRegistry.registerConfiguration({
 			'default': true
 		},
 		'terminal.integrated.fontFamily': {
-			'description': nls.localize('terminal.integrated.fontFamily', "Controls the font family of the terminal, this defaults to editor.fontFamily's value."),
+			'description': nls.localize('terminal.integrated.fontFamily', "Controls the font family of the terminal, this defaults to [`editor.fontFamily`](#editor.fontFamily)'s value."),
 			'type': 'string'
 		},
 		// TODO: Support font ligatures
@@ -189,21 +189,31 @@ configurationRegistry.registerConfiguration({
 			'default': 1000
 		},
 		'terminal.integrated.setLocaleVariables': {
-			'description': nls.localize('terminal.integrated.setLocaleVariables', "Controls whether locale variables are set at startup of the terminal, this defaults to true on OS X, false on other platforms."),
+			'description': nls.localize('terminal.integrated.setLocaleVariables', "Controls whether locale variables are set at startup of the terminal, this defaults to `true` on macOS, `false` on other platforms."),
 			'type': 'boolean',
 			'default': platform.isMacintosh
 		},
 		'terminal.integrated.rendererType': {
-			'type': 'string',
-			'enum': ['auto', 'canvas', 'dom'],
+			type: 'string',
+			enum: ['auto', 'canvas', 'dom'],
+			enumDescriptions: [
+				nls.localize('terminal.integrated.rendererType.auto', "Let VS Code guess which renderer to use."),
+				nls.localize('terminal.integrated.rendererType.canvas', "Use the standard GPU/canvas-based renderer"),
+				nls.localize('terminal.integrated.rendererType.dom', "Use the fallback DOM-based renderer.")
+			],
 			default: 'auto',
-			description: nls.localize('terminal.integrated.rendererType', "Controls how the terminal is rendered, the options are \"canvas\" for the standard (fast) canvas renderer, \"dom\" for the fallback DOM-based renderer or \"auto\" which lets VS Code guess which will be best. This setting needs VS Code to reload in order to take effect.")
+			description: nls.localize('terminal.integrated.rendererType', "Controls how the terminal is rendered. This setting needs VS Code to reload in order to take effect.")
 		},
 		'terminal.integrated.rightClickBehavior': {
-			'type': 'string',
-			'enum': ['default', 'copyPaste', 'selectWord'],
+			type: 'string',
+			enum: ['default', 'copyPaste', 'selectWord'],
+			enumDescriptions: [
+				nls.localize('terminal.integrated.rightClickBehavior.default', "Show the context menu."),
+				nls.localize('terminal.integrated.rightClickBehavior.copyPaste', "Copy when there is a selection, otherwise paste."),
+				nls.localize('terminal.integrated.rightClickBehavior.selectWord', "Select the word under the cursor and show the context menu.")
+			],
 			default: platform.isMacintosh ? 'selectWord' : platform.isWindows ? 'copyPaste' : 'default',
-			description: nls.localize('terminal.integrated.rightClickBehavior', "Controls how terminal reacts to right click, possibilities are \"default\", \"copyPaste\", and \"selectWord\". \"default\" will show the context menu, \"copyPaste\" will copy when there is a selection otherwise paste, \"selectWord\" will select the word under the cursor and show the context menu.")
+			description: nls.localize('terminal.integrated.rightClickBehavior', "Controls how terminal reacts to right click.")
 		},
 		'terminal.integrated.cwd': {
 			'description': nls.localize('terminal.integrated.cwd', "An explicit start path where the terminal will be launched, this is used as the current working directory (cwd) for the shell process. This may be particularly useful in workspace settings if the root directory is not a convenient cwd."),
@@ -319,7 +329,7 @@ configurationRegistry.registerConfiguration({
 			].sort()
 		},
 		'terminal.integrated.env.osx': {
-			'description': nls.localize('terminal.integrated.env.osx', "Object with environment variables that will be added to the VS Code process to be used by the terminal on OS X"),
+			'description': nls.localize('terminal.integrated.env.osx', "Object with environment variables that will be added to the VS Code process to be used by the terminal on macOS. Set to `null` to delete the environment variable."),
 			'type': 'object',
 			'additionalProperties': {
 				'type': ['string', 'null']
@@ -327,7 +337,7 @@ configurationRegistry.registerConfiguration({
 			'default': {}
 		},
 		'terminal.integrated.env.linux': {
-			'description': nls.localize('terminal.integrated.env.linux', "Object with environment variables that will be added to the VS Code process to be used by the terminal on Linux"),
+			'description': nls.localize('terminal.integrated.env.linux', "Object with environment variables that will be added to the VS Code process to be used by the terminal on Linux. Set to `null` to delete the environment variable."),
 			'type': 'object',
 			'additionalProperties': {
 				'type': ['string', 'null']
@@ -335,7 +345,7 @@ configurationRegistry.registerConfiguration({
 			'default': {}
 		},
 		'terminal.integrated.env.windows': {
-			'description': nls.localize('terminal.integrated.env.windows', "Object with environment variables that will be added to the VS Code process to be used by the terminal on Windows"),
+			'description': nls.localize('terminal.integrated.env.windows', "Object with environment variables that will be added to the VS Code process to be used by the terminal on Windows. Set to `null` to delete the environment variable."),
 			'type': 'object',
 			'additionalProperties': {
 				'type': ['string', 'null']
@@ -343,15 +353,16 @@ configurationRegistry.registerConfiguration({
 			'default': {}
 		},
 		'terminal.integrated.showExitAlert': {
-			'description': nls.localize('terminal.integrated.showExitAlert', "Show alert `The terminal process terminated with exit code` when exit code is non-zero."),
+			'description': nls.localize('terminal.integrated.showExitAlert', "Show alert \"The terminal process terminated with exit code\" when exit code is non-zero."),
 			'type': 'boolean',
 			'default': true
 		},
 		'terminal.integrated.experimentalRestore': {
-			'description': nls.localize('terminal.integrated.experimentalRestore', "Whether to restore terminal sessions for the workspace automatically when launching VS Code. This is an experimental setting; it may be buggy and could change in the future."),
+			'description': nls.localize('terminal.integrated.experimentalRestore', "Whether to restore terminal sessions for the workspace automatically when launching VS Code. This is an experimental setting; it may be buggy and could change or be removed in the future."),
 			'type': 'boolean',
 			'default': false
 		},
+		// TODO: Default to dynamic and remove setting in 1.27
 		'terminal.integrated.experimentalTextureCachingStrategy': {
 			'description': nls.localize('terminal.integrated.experimentalTextureCachingStrategy', "Controls how the terminal stores glyph textures. `static` is the default and uses a fixed texture to draw the characters from. `dynamic` will draw the characters to the texture as they are needed, this should boost overall performance at the cost of slightly increased draw time the first time a character is drawn. `dynamic` will eventually become the default and this setting will be removed. Changes to this setting will only apply to new terminals."),
 			'type': 'string',

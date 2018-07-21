@@ -51,6 +51,10 @@ getDefaultTerminalLinuxReady().then(defaultTerminalLinux => {
 					'integrated',
 					'external'
 				],
+				'enumDescriptions': [
+					nls.localize('terminal.explorerKind.integrated', "Use VS Code's integrated terminal."),
+					nls.localize('terminal.explorerKind.external', "Use the configured external terminal.")
+				],
 				'description': nls.localize('explorer.openInTerminalKind', "Customizes what kind of terminal to launch."),
 				'default': 'integrated'
 			},
@@ -62,7 +66,7 @@ getDefaultTerminalLinuxReady().then(defaultTerminalLinux => {
 			},
 			'terminal.external.osxExec': {
 				'type': 'string',
-				'description': nls.localize('terminal.external.osxExec', "Customizes which terminal application to run on OS X."),
+				'description': nls.localize('terminal.external.osxExec', "Customizes which terminal application to run on macOS."),
 				'default': DEFAULT_TERMINAL_OSX,
 				'scope': ConfigurationScope.APPLICATION
 			},
