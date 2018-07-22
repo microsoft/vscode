@@ -325,7 +325,7 @@ export class WindowsManager implements IWindowsMainService {
 		else if (!win.isExtensionDevelopmentHost && (!!win.openedWorkspace || !!win.openedFolderUri)) {
 			this.windowsState.openedWindows.forEach(o => {
 				const sameWorkspace = win.openedWorkspace && o.workspace && o.workspace.id === win.openedWorkspace.id;
-				const sameFolder = win.openedFolderUri && isEqual(o.folderUri, win.openedFolderUri, hasToIgnoreCase(o.folderUri));
+				const sameFolder = win.openedFolderUri && o.folderUri && isEqual(o.folderUri, win.openedFolderUri, hasToIgnoreCase(o.folderUri));
 
 				if (sameWorkspace || sameFolder) {
 					o.uiState = state.uiState;
