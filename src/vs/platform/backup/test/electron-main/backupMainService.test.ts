@@ -625,9 +625,6 @@ suite('BackupMainService', () => {
 	});
 
 	suite('getWorkspaceHash', () => {
-		test('should perform an md5 hash on the path', () => {
-			assert.equal(service.getFolderHash(Uri.file('/foo')), '1effb2475fcfba4f9e8b8a1dbc8f3caf');
-		});
 
 		test('should ignore case on Windows and Mac', () => {
 			// Skip test on Linux
