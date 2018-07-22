@@ -856,6 +856,16 @@ class SettingsContentBuilder {
 			setting.descriptionRanges.push({ startLineNumber: this.lineCountWithOffset, startColumn: this.lastLine.indexOf(line) + 1, endLineNumber: this.lineCountWithOffset, endColumn: this.lastLine.length });
 		}
 
+		if (setting.enumDescriptions && setting.enumDescriptions.some(desc => !!desc)) {
+			setting.enumDescriptions.forEach((desc, i) => {
+				if (desc) {
+					this._contentByLines.push(`  //  - ${setting.enum[i]}: ${desc}`);
+				} else {
+					this._contentByLines.push(`  //  - ${setting.enum[i]}`);
+				}
+			});
+		}
+
 		let preValueConent = indent;
 		const keyString = JSON.stringify(setting.key);
 		preValueConent += keyString;
