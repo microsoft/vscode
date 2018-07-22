@@ -828,7 +828,7 @@ export class WindowsManager implements IWindowsMainService {
 					type: 'info',
 					buttons: [localize('ok', "OK")],
 					message: localize('pathNotExistTitle', "Path does not exist"),
-					detail: localize('pathNotExistDetail', "The path '{0}' does not seem to exist anymore on disk.", pathToOpen),
+					detail: localize('pathNotExistDetail', "The path '{0}' does not seem to exist anymore on disk.", pathToOpen.scheme === Schemas.file ? pathToOpen.fsPath : pathToOpen.path),
 					noLink: true
 				};
 
