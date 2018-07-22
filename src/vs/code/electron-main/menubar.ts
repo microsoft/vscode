@@ -17,7 +17,7 @@ import product from 'vs/platform/node/product';
 import { RunOnceScheduler } from 'vs/base/common/async';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { mnemonicMenuLabel as baseMnemonicLabel, unmnemonicLabel, getPathLabel } from 'vs/base/common/labels';
-import { KeybindingsResolver } from 'vs/code/electron-main/keyboard';
+import { IKeybinding } from 'vs/code/electron-main/keyboard';
 import { IWindowsMainService, IWindowsCountChangedEvent } from 'vs/platform/windows/electron-main/windows';
 import { IHistoryMainService } from 'vs/platform/history/common/history';
 import { IWorkspaceIdentifier, getWorkspaceLabel, ISingleFolderWorkspaceIdentifier, isSingleFolderWorkspaceIdentifier } from 'vs/platform/workspaces/common/workspaces';
@@ -38,13 +38,11 @@ export class Menubar {
 
 	private menuUpdater: RunOnceScheduler;
 
-	private keybindingsResolver: KeybindingsResolver;
-
-	// private extensionViewlets: IExtensionViewlet[];
-
 	private nativeTabMenuItems: Electron.MenuItem[];
 
 	private menubarMenus: IMenubarData = {};
+
+	private keybindings: { [commandId: string]: IKeybinding };
 
 	constructor(
 		@IUpdateService private updateService: IUpdateService,
@@ -59,7 +57,8 @@ export class Menubar {
 		// this.nativeTabMenuItems = [];
 
 		this.menuUpdater = new RunOnceScheduler(() => this.doUpdateMenu(), 0);
-		this.keybindingsResolver = instantiationService.createInstance(KeybindingsResolver);
+		// this.keybindingsResolver = instantiationService.createInstance(KeybindingsResolver);
+		this.keybindings = Object.create(null);
 
 		this.install();
 
@@ -372,7 +371,6 @@ export class Menubar {
 	private shouldDrawMenu(menuId: string): boolean {
 		switch (menuId) {
 			case 'File':
-			case 'Recent':
 			case 'Help':
 				return true;
 			default:
@@ -381,7 +379,7 @@ export class Menubar {
 	}
 
 	private shouldFallback(menuId: string): boolean {
-		return this.shouldDrawMenu(menuId) && (this.windowsMainService.getWindowCount() === 0 || !this.menubarMenus[menuId]);
+		return this.shouldDrawMenu(menuId) && (this.windowsMainService.getWindowCount() === 0);
 	}
 
 	private setFallbackMenuById(menu: Electron.Menu, menuId: string): void {
@@ -488,6 +486,11 @@ export class Menubar {
 			} else if (isMenubarMenuItemAction(item)) {
 				if (item.id === 'workbench.action.openRecent') {
 					this.insertRecentMenuItems(menu);
+				}
+
+				// Store the keybinding
+				if (item.keybinding) {
+					this.keybindings[item.id] = item.keybinding;
 				}
 
 				const menuItem = this.createMenuItem(item.label, item.id, item.enabled, item.checked);
@@ -685,7 +688,7 @@ export class Menubar {
 	}
 
 	private withKeybinding(commandId: string, options: Electron.MenuItemConstructorOptions): Electron.MenuItemConstructorOptions {
-		const binding = this.keybindingsResolver.getKeybinding(commandId);
+		const binding = this.keybindings[commandId];
 
 		// Apply binding if there is one
 		if (binding && binding.label) {

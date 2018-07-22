@@ -26,11 +26,18 @@ export interface IMenubarMenu {
 	items: Array<MenubarMenuItem>;
 }
 
+export interface IMenubarKeybinding {
+	id: string;
+	label: string;
+	isNative: boolean;
+}
+
 export interface IMenubarMenuItemAction {
 	id: string;
 	label: string;
 	checked: boolean;
 	enabled: boolean;
+	keybinding?: IMenubarKeybinding;
 }
 
 export interface IMenubarMenuItemSubmenu {

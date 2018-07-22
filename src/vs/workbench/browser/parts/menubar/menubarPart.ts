@@ -10,7 +10,7 @@ import 'vs/css!./media/menubarpart';
 import * as nls from 'vs/nls';
 import * as browser from 'vs/base/browser/browser';
 import { Part } from 'vs/workbench/browser/part';
-import { IMenubarService, IMenubarMenu, IMenubarMenuItemAction, IMenubarData, IMenubarMenuItemSubmenu } from 'vs/platform/menubar/common/menubar';
+import { IMenubarService, IMenubarMenu, IMenubarMenuItemAction, IMenubarData, IMenubarMenuItemSubmenu, IMenubarKeybinding } from 'vs/platform/menubar/common/menubar';
 import { IMenuService, MenuId, IMenu, SubmenuItemAction } from 'vs/platform/actions/common/actions';
 import { IThemeService, registerThemingParticipant, ITheme, ICssStyleCollector } from 'vs/platform/theme/common/themeService';
 import { IWindowService, MenuBarVisibility, IWindowsService } from 'vs/platform/windows/common/windows';
@@ -794,6 +794,27 @@ export class MenubarPart extends Part {
 		}
 	}
 
+	private getMenubarKeybinding(id: string): IMenubarKeybinding {
+		const binding = this.keybindingService.lookupKeybinding(id);
+		if (!binding) {
+			return null;
+		}
+
+		// first try to resolve a native accelerator
+		const electronAccelerator = binding.getElectronAccelerator();
+		if (electronAccelerator) {
+			return { id, label: electronAccelerator, isNative: true };
+		}
+
+		// we need this fallback to support keybindings that cannot show in electron menus (e.g. chords)
+		const acceleratorLabel = binding.getLabel();
+		if (acceleratorLabel) {
+			return { id, label: acceleratorLabel, isNative: false };
+		}
+
+		return null;
+	}
+
 	private populateMenuItems(menu: IMenu, menuToPopulate: IMenubarMenu) {
 		let groups = menu.getActions();
 		for (let group of groups) {
@@ -817,7 +838,8 @@ export class MenubarPart extends Part {
 						id: menuItem.id,
 						label: menuItem.label,
 						checked: menuItem.checked,
-						enabled: menuItem.enabled
+						enabled: menuItem.enabled,
+						keybinding: this.getMenubarKeybinding(menuItem.id)
 					};
 
 					this.setCheckedStatus(menubarMenuItem);
