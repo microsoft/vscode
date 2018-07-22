@@ -39,6 +39,7 @@ import { IExtensionService } from 'vs/workbench/services/extensions/common/exten
 import { groupBy } from 'vs/base/common/collections';
 import { Schemas } from 'vs/base/common/network';
 import { posix } from 'path';
+import { offlineModeSetting } from 'vs/platform/common/offlineMode';
 
 interface IExtensionStateProvider<T> {
 	(extension: Extension): T;
@@ -410,7 +411,7 @@ export class ExtensionsWorkbenchService implements IExtensionsWorkbenchService, 
 		urlService.registerHandler(this);
 
 		this.configurationService.onDidChangeConfiguration(e => {
-			if (e.affectsConfiguration(AutoUpdateConfigurationKey)) {
+			if (e.affectsConfiguration(AutoUpdateConfigurationKey) || e.affectsConfiguration(offlineModeSetting)) {
 				if (this.isAutoUpdateEnabled()) {
 					this.checkForUpdates();
 				}
@@ -607,10 +608,13 @@ export class ExtensionsWorkbenchService implements IExtensionsWorkbenchService, 
 	}
 
 	private isAutoUpdateEnabled(): boolean {
-		return this.configurationService.getValue(AutoUpdateConfigurationKey);
+		return this.configurationService.getValue(AutoUpdateConfigurationKey) === true && this.configurationService.getValue(offlineModeSetting) !== true;
 	}
 
 	private eventuallySyncWithGallery(immediate = false): void {
+		if (this.configurationService.getValue(offlineModeSetting) === true) {
+			return;
+		}
 		const loop = () => this.syncWithGallery().then(() => this.eventuallySyncWithGallery());
 		const delay = immediate ? 0 : ExtensionsWorkbenchService.SyncPeriod;
 

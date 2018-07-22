@@ -18,6 +18,7 @@ import { isWindows, isMacintosh, isLinux } from 'vs/base/common/platform';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { IConfigurationRegistry, Extensions } from 'vs/platform/configuration/common/configurationRegistry';
 import { Registry } from 'vs/platform/registry/common/platform';
+import { offlineModeSetting } from 'vs/platform/common/offlineMode';
 
 export const ICrashReporterService = createDecorator<ICrashReporterService>('crashReporterService');
 
@@ -65,7 +66,7 @@ export class CrashReporterService implements ICrashReporterService {
 		@IConfigurationService configurationService: IConfigurationService
 	) {
 		const config = configurationService.getValue<ICrashReporterConfig>(TELEMETRY_SECTION_ID);
-		this.isEnabled = !!config.enableCrashReporter;
+		this.isEnabled = !!config.enableCrashReporter && configurationService.getValue(offlineModeSetting) !== true;
 
 		if (this.isEnabled) {
 			this.startCrashReporter();

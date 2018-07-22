@@ -68,6 +68,10 @@ export class TelemetryService implements ITelemetryService {
 	}
 
 	private _updateUserOptIn(): void {
+		if (this._configurationService.getValue('workbench.enableOfflineMode') === true) {
+			this._userOptIn = false;
+			return;
+		}
 		const config = this._configurationService.getValue<any>(TELEMETRY_SECTION_ID);
 		this._userOptIn = config ? config.enableTelemetry : this._userOptIn;
 	}

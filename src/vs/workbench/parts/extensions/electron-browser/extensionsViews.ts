@@ -41,6 +41,7 @@ import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace
 import { distinct } from 'vs/base/common/arrays';
 import URI from 'vs/base/common/uri';
 import { IExperimentService } from 'vs/workbench/parts/experiments/node/experimentService';
+import { offlineModeSetting } from 'vs/platform/common/offlineMode';
 
 export class ExtensionsListView extends ViewletPanel {
 
@@ -108,7 +109,10 @@ export class ExtensionsListView extends ViewletPanel {
 
 	async show(query: string): Promise<IPagedModel<IExtension>> {
 		const model = await this.query(query);
-		this.setModel(model);
+		const emptyListMessage = (!InstalledExtensionsView.isInstalledExtensionsQuery(query) && this.configurationService.getValue(offlineModeSetting) === true)
+			? localize('no extensions found in offline mode', "Marketplace search is not supported in offline mode.")
+			: localize('no extensions found', "No extensions found.");
+		this.setModel(model, emptyListMessage);
 		return model;
 	}
 
@@ -217,26 +221,6 @@ export class ExtensionsListView extends ViewletPanel {
 			return new PagedModel(this.sortExtensions(result, options));
 		}
 
-		const idMatch = /@id:(([a-z0-9A-Z][a-z0-9\-A-Z]*)\.([a-z0-9A-Z][a-z0-9\-A-Z]*))/.exec(value);
-
-		if (idMatch) {
-			const name = idMatch[1];
-
-			return this.extensionsWorkbenchService.queryGallery({ names: [name], source: 'queryById' })
-				.then(pager => new PagedModel(pager));
-		}
-
-		if (/@outdated/i.test(value)) {
-			value = value.replace(/@outdated/g, '').replace(/@sort:(\w+)(-\w*)?/g, '').trim().toLowerCase();
-
-			const local = await this.extensionsWorkbenchService.queryLocal();
-			const result = local
-				.sort((e1, e2) => e1.displayName.localeCompare(e2.displayName))
-				.filter(extension => extension.outdated && (extension.name.toLowerCase().indexOf(value) > -1 || extension.displayName.toLowerCase().indexOf(value) > -1));
-
-			return new PagedModel(this.sortExtensions(result, options));
-		}
-
 		if (/@disabled/i.test(value)) {
 			value = value.replace(/@disabled/g, '').replace(/@sort:(\w+)(-\w*)?/g, '').trim().toLowerCase();
 
@@ -261,6 +245,30 @@ export class ExtensionsListView extends ViewletPanel {
 					(e.enablementState === EnablementState.Enabled || e.enablementState === EnablementState.WorkspaceEnabled) &&
 					(e.name.toLowerCase().indexOf(value) > -1 || e.displayName.toLowerCase().indexOf(value) > -1)
 				);
+
+			return new PagedModel(this.sortExtensions(result, options));
+		}
+
+		if (this.configurationService.getValue(offlineModeSetting) === true) {
+			return new PagedModel([]);
+		}
+
+		const idMatch = /@id:(([a-z0-9A-Z][a-z0-9\-A-Z]*)\.([a-z0-9A-Z][a-z0-9\-A-Z]*))/.exec(value);
+
+		if (idMatch) {
+			const name = idMatch[1];
+
+			return this.extensionsWorkbenchService.queryGallery({ names: [name], source: 'queryById' })
+				.then(pager => new PagedModel(pager));
+		}
+
+		if (/@outdated/i.test(value)) {
+			value = value.replace(/@outdated/g, '').replace(/@sort:(\w+)(-\w*)?/g, '').trim().toLowerCase();
+
+			const local = await this.extensionsWorkbenchService.queryLocal();
+			const result = local
+				.sort((e1, e2) => e1.displayName.localeCompare(e2.displayName))
+				.filter(extension => extension.outdated && (extension.name.toLowerCase().indexOf(value) > -1 || extension.displayName.toLowerCase().indexOf(value) > -1));
 
 			return new PagedModel(this.sortExtensions(result, options));
 		}
@@ -544,7 +552,7 @@ export class ExtensionsListView extends ViewletPanel {
 		});
 	}
 
-	private setModel(model: IPagedModel<IExtension>) {
+	private setModel(model: IPagedModel<IExtension>, emptyListMessage: string) {
 		if (this.list) {
 			this.list.model = model;
 			this.list.scrollTop = 0;
@@ -555,7 +563,7 @@ export class ExtensionsListView extends ViewletPanel {
 			this.badge.setCount(count);
 
 			if (count === 0 && this.isVisible()) {
-				this.messageBox.textContent = localize('no extensions found', "No extensions found.");
+				this.messageBox.textContent = emptyListMessage;
 			} else {
 				this.messageBox.textContent = '';
 			}

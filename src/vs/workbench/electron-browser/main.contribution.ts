@@ -484,6 +484,12 @@ configurationRegistry.registerConfiguration({
 			'description': nls.localize('settingsTocVisible', "Controls whether the settings editor Table of Contents is visible."),
 			'default': true,
 			'scope': ConfigurationScope.WINDOW
+		},
+		'workbench.enableOfflineMode': {
+			'type': 'boolean',
+			'description': nls.localize('settingsOfflineMode', "Enables offline mode where no requests are made over the network by VS Code."),
+			'default': false,
+			'scope': ConfigurationScope.WINDOW
 		}
 	}
 });

@@ -30,6 +30,7 @@ import { IWindowService } from 'vs/platform/windows/common/windows';
 import { ReleaseNotesManager } from './releaseNotesEditor';
 import { isWindows } from 'vs/base/common/platform';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
+import { offlineModeSetting } from 'vs/platform/common/offlineMode';
 
 let releaseNotesManager: ReleaseNotesManager | undefined = undefined;
 
@@ -119,9 +120,10 @@ export class ProductContribution implements IWorkbenchContribution {
 	) {
 		const lastVersion = storageService.get(ProductContribution.KEY, StorageScope.GLOBAL, '');
 		const shouldShowReleaseNotes = configurationService.getValue<boolean>('update.showReleaseNotes');
+		const offlineMode = configurationService.getValue(offlineModeSetting) === true;
 
 		// was there an update? if so, open release notes
-		if (shouldShowReleaseNotes && !environmentService.skipReleaseNotes && product.releaseNotesUrl && lastVersion && pkg.version !== lastVersion) {
+		if (!offlineMode && shouldShowReleaseNotes && !environmentService.skipReleaseNotes && product.releaseNotesUrl && lastVersion && pkg.version !== lastVersion) {
 			showReleaseNotes(instantiationService, pkg.version)
 				.then(undefined, () => {
 					notificationService.prompt(

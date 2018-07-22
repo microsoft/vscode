@@ -65,6 +65,7 @@ import { IEditorOptions } from 'vs/editor/common/config/editorOptions';
 import { Range } from 'vs/editor/common/core/range';
 import { Position } from 'vs/editor/common/core/position';
 import { ITextModel } from 'vs/editor/common/model';
+import { offlineModeSetting } from 'vs/platform/common/offlineMode';
 
 interface SearchInputEvent extends Event {
 	target: HTMLInputElement;
@@ -297,7 +298,7 @@ export class ExtensionsViewlet extends ViewContainerViewlet implements IExtensio
 		this.recommendedExtensionsContextKey = RecommendedExtensionsContext.bindTo(contextKeyService);
 		this.groupByServersContextKey = GroupByServersContext.bindTo(contextKeyService);
 		this.defaultRecommendedExtensionsContextKey = DefaultRecommendedExtensionsContext.bindTo(contextKeyService);
-		this.defaultRecommendedExtensionsContextKey.set(!this.configurationService.getValue<boolean>(ShowRecommendationsOnlyOnDemandKey));
+		this.defaultRecommendedExtensionsContextKey.set(!this.configurationService.getValue<boolean>(ShowRecommendationsOnlyOnDemandKey) && !this.configurationService.getValue<boolean>(offlineModeSetting));
 		this.disposables.push(this.viewletService.onDidViewletOpen(this.onViewletOpen, this, this.disposables));
 
 		this.configurationService.onDidChangeConfiguration(e => {
@@ -305,8 +306,8 @@ export class ExtensionsViewlet extends ViewContainerViewlet implements IExtensio
 				this.secondaryActions = null;
 				this.updateTitleArea();
 			}
-			if (e.affectedKeys.indexOf(ShowRecommendationsOnlyOnDemandKey) > -1) {
-				this.defaultRecommendedExtensionsContextKey.set(!this.configurationService.getValue<boolean>(ShowRecommendationsOnlyOnDemandKey));
+			if (e.affectsConfiguration(ShowRecommendationsOnlyOnDemandKey) || e.affectsConfiguration(offlineModeSetting)) {
+				this.defaultRecommendedExtensionsContextKey.set(!this.configurationService.getValue<boolean>(ShowRecommendationsOnlyOnDemandKey) && !this.configurationService.getValue<boolean>(offlineModeSetting));
 			}
 		}, this, this.disposables);
 

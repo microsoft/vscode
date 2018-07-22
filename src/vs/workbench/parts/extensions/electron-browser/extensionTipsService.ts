@@ -44,6 +44,7 @@ import URI from 'vs/base/common/uri';
 import { areSameExtensions, getGalleryExtensionIdFromLocal } from 'vs/platform/extensionManagement/common/extensionManagementUtil';
 import { IExperimentService, ExperimentActionType, ExperimentState } from 'vs/workbench/parts/experiments/node/experimentService';
 import { Schemas } from 'vs/base/common/network';
+import { offlineModeSetting } from 'vs/platform/common/offlineMode';
 
 const milliSecondsInADay = 1000 * 60 * 60 * 24;
 const choiceNever = localize('neverShowAgain', "Don't Show Again");
@@ -163,7 +164,8 @@ export class ExtensionTipsService extends Disposable implements IExtensionTipsSe
 
 	private fetchProactiveRecommendations(calledDuringStartup?: boolean): TPromise<void> {
 		let fetchPromise = TPromise.as(null);
-		if (!this.proactiveRecommendationsFetched) {
+		if (!this.proactiveRecommendationsFetched
+			&& this.configurationService.getValue(offlineModeSetting) !== true) {
 			this.proactiveRecommendationsFetched = true;
 
 			// Executable based recommendations carry out a lot of file stats, so run them after 10 secs
@@ -500,7 +502,9 @@ export class ExtensionTipsService extends Disposable implements IExtensionTipsSe
 		let hasSuggestion = false;
 
 		const uri = model.uri;
-		if (!uri || uri.scheme !== Schemas.file) {
+		if (!uri
+			|| uri.scheme !== Schemas.file
+			|| this.configurationService.getValue(offlineModeSetting) === true) {
 			return;
 		}
 
@@ -718,7 +722,8 @@ export class ExtensionTipsService extends Disposable implements IExtensionTipsSe
 		if (filteredRecs.length === 0
 			|| config.ignoreRecommendations
 			|| config.showRecommendationsOnlyOnDemand
-			|| this.storageService.getBoolean(storageKey, StorageScope.WORKSPACE, false)) {
+			|| this.storageService.getBoolean(storageKey, StorageScope.WORKSPACE, false)
+			|| this.configurationService.getValue(offlineModeSetting) === true) {
 			return;
 		}
 

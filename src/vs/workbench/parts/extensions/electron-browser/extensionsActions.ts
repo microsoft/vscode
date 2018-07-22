@@ -52,6 +52,7 @@ import { IEditorGroupsService } from 'vs/workbench/services/group/common/editorG
 import { ExtensionsInput } from 'vs/workbench/parts/extensions/common/extensionsInput';
 import product from 'vs/platform/node/product';
 import { ContextSubMenu } from 'vs/base/browser/contextmenu';
+import { offlineModeSetting, NotifyUnsupportedFeatureInOfflineMode } from 'vs/platform/common/offlineMode';
 
 const promptDownloadManually = (extension: IGalleryExtension, message: string, instantiationService: IInstantiationService, notificationService: INotificationService, openerService: IOpenerService) => {
 	const downloadUrl = `${product.extensionsGallery.serviceUrl}/publishers/${extension.publisher}/vsextensions/${extension.name}/${extension.version}/vspackage`;
@@ -1157,27 +1158,36 @@ export class CheckForUpdatesAction extends Action {
 
 	static readonly ID = 'workbench.extensions.action.checkForUpdates';
 	static LABEL = localize('checkForUpdates', "Check for Updates");
+	private readonly notifyAction = new NotifyUnsupportedFeatureInOfflineMode(this.configurationService, this.notificationService);
 
 	constructor(
 		id = UpdateAllAction.ID,
 		label = UpdateAllAction.LABEL,
-		@IExtensionsWorkbenchService private extensionsWorkbenchService: IExtensionsWorkbenchService
+		@IExtensionsWorkbenchService private extensionsWorkbenchService: IExtensionsWorkbenchService,
+		@IConfigurationService private configurationService: IConfigurationService,
+		@INotificationService private notificationService: INotificationService
 	) {
 		super(id, label, '', true);
 	}
 
 	run(): TPromise<any> {
+		if (this.configurationService.getValue(offlineModeSetting) === true) {
+			return this.notifyAction.run();
+		}
 		return this.extensionsWorkbenchService.checkForUpdates();
 	}
 }
 
 export class ToggleAutoUpdateAction extends Action {
 
+	private readonly notifyAction = new NotifyUnsupportedFeatureInOfflineMode(this.configurationService, this.notificationService);
+
 	constructor(
 		id: string,
 		label: string,
 		private autoUpdateValue: boolean,
-		@IConfigurationService private configurationService: IConfigurationService
+		@IConfigurationService private configurationService: IConfigurationService,
+		@INotificationService private notificationService: INotificationService
 	) {
 		super(id, label, '', true);
 		this.updateEnablement();
@@ -1189,6 +1199,9 @@ export class ToggleAutoUpdateAction extends Action {
 	}
 
 	run(): TPromise<any> {
+		if (this.autoUpdateValue) {
+			return this.notifyAction.run();
+		}
 		return this.configurationService.updateValue(AutoUpdateConfigurationKey, this.autoUpdateValue);
 	}
 }
@@ -1201,9 +1214,10 @@ export class EnableAutoUpdateAction extends ToggleAutoUpdateAction {
 	constructor(
 		id = EnableAutoUpdateAction.ID,
 		label = EnableAutoUpdateAction.LABEL,
-		@IConfigurationService configurationService: IConfigurationService
+		@IConfigurationService configurationService: IConfigurationService,
+		@INotificationService notificationService: INotificationService
 	) {
-		super(id, label, true, configurationService);
+		super(id, label, true, configurationService, notificationService);
 	}
 }
 
@@ -1215,9 +1229,10 @@ export class DisableAutoUpdateAction extends ToggleAutoUpdateAction {
 	constructor(
 		id = EnableAutoUpdateAction.ID,
 		label = EnableAutoUpdateAction.LABEL,
-		@IConfigurationService configurationService: IConfigurationService
+		@IConfigurationService configurationService: IConfigurationService,
+		@INotificationService notificationService: INotificationService
 	) {
-		super(id, label, false, configurationService);
+		super(id, label, false, configurationService, notificationService);
 	}
 }
 

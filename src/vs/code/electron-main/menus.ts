@@ -23,6 +23,7 @@ import { KeybindingsResolver } from 'vs/code/electron-main/keyboard';
 import { IWindowsMainService, IWindowsCountChangedEvent } from 'vs/platform/windows/electron-main/windows';
 import { IHistoryMainService } from 'vs/platform/history/common/history';
 import { IWorkspaceIdentifier, getWorkspaceLabel, ISingleFolderWorkspaceIdentifier, isSingleFolderWorkspaceIdentifier } from 'vs/platform/workspaces/common/workspaces';
+import { offlineModeSetting } from 'vs/platform/common/offlineMode';
 
 interface IMenuItemClickHandler {
 	inDevTools: (contents: Electron.WebContents) => void;
@@ -441,6 +442,8 @@ export class CodeMenu {
 		const snippetsSettings = this.createMenuItem(nls.localize({ key: 'miOpenSnippets', comment: ['&& denotes a mnemonic'] }, "User &&Snippets"), 'workbench.action.openSnippets');
 		const colorThemeSelection = this.createMenuItem(nls.localize({ key: 'miSelectColorTheme', comment: ['&& denotes a mnemonic'] }, "&&Color Theme"), 'workbench.action.selectTheme');
 		const iconThemeSelection = this.createMenuItem(nls.localize({ key: 'miSelectIconTheme', comment: ['&& denotes a mnemonic'] }, "File &&Icon Theme"), 'workbench.action.selectIconTheme');
+		const enableOfflineMode = this.createMenuItem(nls.localize({ key: 'miEnableOfflineMode', comment: ['&& denotes a mnemonic'] }, "Enable Offline Mode"), 'workbench.action.enableOfflineMode');
+		const disableOfflineMode = this.createMenuItem(nls.localize({ key: 'miDisableOfflineMode', comment: ['&& denotes a mnemonic'] }, "Disable Offline Mode"), 'workbench.action.disableOfflineMode');
 
 		const preferencesMenu = new Menu();
 		preferencesMenu.append(settings);
@@ -452,6 +455,8 @@ export class CodeMenu {
 		preferencesMenu.append(__separator__());
 		preferencesMenu.append(colorThemeSelection);
 		preferencesMenu.append(iconThemeSelection);
+		preferencesMenu.append(__separator__());
+		preferencesMenu.append(this.configurationService.getValue(offlineModeSetting) === true ? disableOfflineMode : enableOfflineMode);
 
 		return new MenuItem({ label: this.mnemonicLabel(nls.localize({ key: 'miPreferences', comment: ['&& denotes a mnemonic'] }, "&&Preferences")), submenu: preferencesMenu });
 	}
@@ -1120,6 +1125,13 @@ export class CodeMenu {
 	}
 
 	private getUpdateMenuItems(): Electron.MenuItem[] {
+		if (this.configurationService.getValue(offlineModeSetting) === true) {
+			return [new MenuItem({
+				label: nls.localize('miCheckForUpdates', "Check for Updates..."), click: () => {
+					this.runActionInRenderer('workbench.action.notifyUnsupportedFeatureInOfflineMode');
+				}
+			})];
+		}
 		const state = this.updateService.state;
 
 		switch (state.type) {
