@@ -33,6 +33,7 @@ import { INotificationService } from 'vs/platform/notification/common/notificati
 import { isLinux } from 'vs/base/common/platform';
 import { IDisposable, toDisposable } from 'vs/base/common/lifecycle';
 import { ILogService } from 'vs/platform/log/common/log';
+import { isEqual, isEqualOrParent, hasToIgnoreCase } from 'vs/base/common/resources';
 
 /**
  * The text file editor model listens to changes to its underlying code editor model and saves these changes through the file service back to the disk.
@@ -778,13 +779,13 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 		}
 
 		// Check for global settings file
-		if (path.isEqual(this.resource.fsPath, this.environmentService.appSettingsPath, !isLinux)) {
+		if (isEqual(this.resource, URI.file(this.environmentService.appSettingsPath), !isLinux)) {
 			return true;
 		}
 
 		// Check for workspace settings file
 		return this.contextService.getWorkspace().folders.some(folder => {
-			return path.isEqualOrParent(this.resource.fsPath, path.join(folder.uri.fsPath, '.vscode'));
+			return isEqualOrParent(this.resource, folder.toResource('.vscode'), hasToIgnoreCase(this.resource));
 		});
 	}
 
