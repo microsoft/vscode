@@ -73,28 +73,28 @@ suite('BackupMainService', () => {
 		};
 	}
 
-	function ensureFolderExists(uri: Uri): void {
+	async function ensureFolderExists(uri: Uri): Promise<void> {
 		if (!fs.existsSync(uri.fsPath)) {
 			fs.mkdirSync(uri.fsPath);
 		}
 		const backupFolder = service.toBackupPath(uri);
-		createBackupFolder(backupFolder);
+		await createBackupFolder(backupFolder);
 	}
 
-	function ensureWorkspaceExists(workspace: IWorkspaceIdentifier): IWorkspaceIdentifier {
+	async function ensureWorkspaceExists(workspace: IWorkspaceIdentifier): Promise<IWorkspaceIdentifier> {
 		if (!fs.existsSync(workspace.configPath)) {
-			fs.writeFile(workspace.configPath, 'Hello');
+			await pfs.writeFile(workspace.configPath, 'Hello');
 		}
 		const backupFolder = service.toBackupPath(workspace.id);
-		createBackupFolder(backupFolder);
+		await createBackupFolder(backupFolder);
 		return workspace;
 	}
 
-	function createBackupFolder(backupFolder: string) {
+	async function createBackupFolder(backupFolder: string): Promise<void> {
 		if (!fs.existsSync(backupFolder)) {
 			fs.mkdirSync(backupFolder);
 			fs.mkdirSync(path.join(backupFolder, Schemas.file));
-			fs.writeFile(path.join(backupFolder, Schemas.file, 'foo.txt'), 'Hello');
+			await pfs.writeFile(path.join(backupFolder, Schemas.file, 'foo.txt'), 'Hello');
 		}
 	}
 
@@ -256,7 +256,7 @@ suite('BackupMainService', () => {
 
 	suite('migrate folderPath to folderURI', () => {
 
-		test('migration makes sure to preserve existing backups', () => {
+		test('migration makes sure to preserve existing backups', async () => {
 			let path1 = path.join(parentDir, 'folder1').toLowerCase();
 			let path2 = path.join(parentDir, 'folder2').toUpperCase();
 			let uri1 = Uri.file(path1);
@@ -272,17 +272,17 @@ suite('BackupMainService', () => {
 			if (!fs.existsSync(backupFolder1)) {
 				fs.mkdirSync(backupFolder1);
 				fs.mkdirSync(path.join(backupFolder1, Schemas.file));
-				fs.writeFile(path.join(backupFolder1, Schemas.file, 'unsaved1.txt'), 'Legacy');
+				await pfs.writeFile(path.join(backupFolder1, Schemas.file, 'unsaved1.txt'), 'Legacy');
 			}
 			const backupFolder2 = service.toLegacyBackupPath(path2);
 			if (!fs.existsSync(backupFolder2)) {
 				fs.mkdirSync(backupFolder2);
 				fs.mkdirSync(path.join(backupFolder2, Schemas.file));
-				fs.writeFile(path.join(backupFolder2, Schemas.file, 'unsaved2.txt'), 'Legacy');
+				await pfs.writeFile(path.join(backupFolder2, Schemas.file, 'unsaved2.txt'), 'Legacy');
 			}
 
 			const workspacesJson = { rootWorkspaces: [], folderWorkspaces: [path1, path2], emptyWorkspaces: [] };
-			return pfs.writeFile(backupWorkspacesPath, JSON.stringify(workspacesJson)).then(() => {
+			await pfs.writeFile(backupWorkspacesPath, JSON.stringify(workspacesJson)).then(() => {
 				service.loadSync();
 				return pfs.readFile(backupWorkspacesPath, 'utf-8').then(content => {
 					const json = <IBackupWorkspacesFormat>JSON.parse(content);
@@ -446,9 +446,9 @@ suite('BackupMainService', () => {
 	});
 
 	suite('dedupeFolderWorkspaces', () => {
-		test('should ignore duplicates (folder workspace)', () => {
+		test('should ignore duplicates (folder workspace)', async () => {
 
-			ensureFolderExists(existingTestFolder1);
+			await ensureFolderExists(existingTestFolder1);
 
 			const workspacesJson: IBackupWorkspacesFormat = {
 				rootWorkspaces: [],
@@ -464,9 +464,9 @@ suite('BackupMainService', () => {
 			});
 		});
 
-		test('should ignore duplicates on Windows and Mac (folder workspace)', () => {
+		test('should ignore duplicates on Windows and Mac (folder workspace)', async () => {
 
-			ensureFolderExists(existingTestFolder1);
+			await ensureFolderExists(existingTestFolder1);
 
 			const workspacesJson: IBackupWorkspacesFormat = {
 				rootWorkspaces: [],
@@ -482,11 +482,15 @@ suite('BackupMainService', () => {
 			});
 		});
 
-		test('should ignore duplicates on Windows and Mac (root workspace)', () => {
+		test('should ignore duplicates on Windows and Mac (root workspace)', async () => {
 			const workspacePath = path.join(parentDir, 'Foo.code-workspace');
 
+			const workspace1 = await ensureWorkspaceExists(toWorkspace(workspacePath));
+			const workspace2 = await ensureWorkspaceExists(toWorkspace(workspacePath.toUpperCase()));
+			const workspace3 = await ensureWorkspaceExists(toWorkspace(workspacePath.toLowerCase()));
+
 			const workspacesJson: IBackupWorkspacesFormat = {
-				rootWorkspaces: [ensureWorkspaceExists(toWorkspace(workspacePath)), ensureWorkspaceExists(toWorkspace(workspacePath.toUpperCase())), ensureWorkspaceExists(toWorkspace(workspacePath.toLowerCase()))],
+				rootWorkspaces: [workspace1, workspace2, workspace3],
 				folderURIWorkspaces: [],
 				emptyWorkspaces: []
 			};
@@ -603,9 +607,9 @@ suite('BackupMainService', () => {
 			});
 		});
 
-		test('should fail gracefully when removing a path that doesn\'t exist', () => {
+		test('should fail gracefully when removing a path that doesn\'t exist', async () => {
 
-			ensureFolderExists(existingTestFolder1); // make sure backup folder exists, so the folder is not removed on loadSync
+			await ensureFolderExists(existingTestFolder1); // make sure backup folder exists, so the folder is not removed on loadSync
 
 			const workspacesJson: IBackupWorkspacesFormat = { rootWorkspaces: [], folderURIWorkspaces: [existingTestFolder1.toString()], emptyWorkspaces: [] };
 			return pfs.writeFile(backupWorkspacesPath, JSON.stringify(workspacesJson)).then(() => {
