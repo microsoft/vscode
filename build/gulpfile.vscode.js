@@ -49,8 +49,6 @@ const builtInExtensions = require('./builtInExtensions.json');
 const excludedExtensions = [
 	'vscode-api-tests',
 	'vscode-colorize-tests',
-	'ms-vscode.node-debug',
-	'ms-vscode.node-debug2',
 ];
 
 const vscodeEntryPoints = _.flatten([
@@ -506,7 +504,7 @@ function getSettingsSearchBuildId(packageJson) {
 		const branch = process.env.BUILD_SOURCEBRANCH;
 		const branchId = branch.indexOf('/release/') >= 0 ? 0 :
 			/\/master$/.test(branch) ? 1 :
-			2; // Some unexpected branch
+				2; // Some unexpected branch
 
 		const out = cp.execSync(`git rev-list HEAD --count`);
 		const count = parseInt(out.toString());
