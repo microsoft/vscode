@@ -270,7 +270,6 @@ export class QueryBuilder {
 			return [uri.file(paths.normalize(searchPath))];
 		}
 
-		// 54483 Check with Rob
 		if (this.workspaceContextService.getWorkbenchState() === WorkbenchState.FOLDER) { // TODO: @Sandy Try checking workspace folders length instead.
 			const workspaceUri = this.workspaceContextService.getWorkspace().folders[0].uri;
 			return [workspaceUri.with({ path: paths.normalize(paths.join(workspaceUri.path, searchPath)) })];

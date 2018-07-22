@@ -79,7 +79,7 @@ export const ResourceSelectedForCompareContext = new RawContextKey<boolean>('res
 export const REMOVE_ROOT_FOLDER_COMMAND_ID = 'removeRootFolder';
 export const REMOVE_ROOT_FOLDER_LABEL = nls.localize('removeFolderFromWorkspace', "Remove Folder from Workspace");
 
-// support string paths for backward compatibility. TODO @bpasero remove if not necessary
+//TODO #54483 support string paths for backward compatibility. check with @bpasero and remove if not necessary
 export const openWindowCommand = (accessor: ServicesAccessor, paths: (string | URI)[], forceNewWindow: boolean) => {
 	const windowService = accessor.get(IWindowService);
 	windowService.openWindow(paths.map(p => typeof p === 'string' ? URI.file(p) : p), { forceNewWindow });
@@ -354,7 +354,6 @@ CommandsRegistry.registerCommand({
 });
 
 function revealResourcesInOS(resources: URI[], windowsService: IWindowsService, notificationService: INotificationService, workspaceContextService: IWorkspaceContextService): void {
-	// 54483: Check with @Isi
 	if (resources.length) {
 		sequence(resources.map(r => () => windowsService.showItemInFolder(paths.normalize(r.fsPath, true))));
 	} else if (workspaceContextService.getWorkspace().folders.length) {

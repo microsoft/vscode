@@ -546,7 +546,7 @@ export class WindowsManager implements IWindowsMainService {
 			// Special case: we started with --wait and we got back a folder to open. In this case
 			// we actually prefer to not open the folder but operate purely on the file.
 			if (typeof bestWindowOrFolder === 'string' && filesToWait) {
-				//TODO:Ben This should not happen
+				//TODO: #54483 Ben This should not happen
 				console.error(`This should not happen`, bestWindowOrFolder, WindowsManager.WINDOWS);
 				bestWindowOrFolder = !openFilesInNewWindow ? this.getLastActiveWindow() : null;
 			}
@@ -580,7 +580,7 @@ export class WindowsManager implements IWindowsMainService {
 
 			// We found a suitable folder to open: add it to foldersToOpen
 			else if (typeof bestWindowOrFolder === 'string') {
-				//TODO:Ben This should not happen
+				//TODO: #54483 Ben This should not happen
 				// foldersToOpen.push(bestWindowOrFolder);
 				console.error(`This should not happen`, bestWindowOrFolder, WindowsManager.WINDOWS);
 			}
