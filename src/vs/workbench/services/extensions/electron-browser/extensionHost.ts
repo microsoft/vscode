@@ -31,7 +31,7 @@ import { ICrashReporterService } from 'vs/workbench/services/crashReporter/elect
 import { IBroadcastService, IBroadcast } from 'vs/platform/broadcast/electron-browser/broadcastService';
 import { isEqual } from 'vs/base/common/paths';
 import { EXTENSION_CLOSE_EXTHOST_BROADCAST_CHANNEL, EXTENSION_RELOAD_BROADCAST_CHANNEL, EXTENSION_ATTACH_BROADCAST_CHANNEL, EXTENSION_LOG_BROADCAST_CHANNEL, EXTENSION_TERMINATE_BROADCAST_CHANNEL } from 'vs/platform/extensions/common/extensionHost';
-import { IDisposable, dispose } from 'vs/base/common/lifecycle';
+import { IDisposable, dispose, toDisposable } from 'vs/base/common/lifecycle';
 import { IRemoteConsoleLog, log, parse } from 'vs/base/node/console';
 import { getScopes } from 'vs/platform/configuration/common/configurationRegistry';
 import { ILogService } from 'vs/platform/log/common/log';
@@ -96,11 +96,9 @@ export class ExtensionHostProcessWorker {
 
 		const globalExitListener = () => this.terminate();
 		process.once('exit', globalExitListener);
-		this._toDispose.push({
-			dispose: () => {
-				process.removeListener('exit', globalExitListener);
-			}
-		});
+		this._toDispose.push(toDisposable(() => {
+			process.removeListener('exit', globalExitListener);
+		}));
 	}
 
 	public dispose(): void {
@@ -193,13 +191,13 @@ export class ExtensionHostProcessWorker {
 				}, 100);
 
 				// Print out extension host output
-				onDebouncedOutput(data => {
-					const inspectorUrlIndex = !this._environmentService.isBuilt && data.data && data.data.indexOf('chrome-devtools://');
-					if (inspectorUrlIndex >= 0) {
-						console.log(`%c[Extension Host] %cdebugger inspector at ${data.data.substr(inspectorUrlIndex)}`, 'color: blue', 'color: black');
+				onDebouncedOutput(output => {
+					const inspectorUrlMatch = !this._environmentService.isBuilt && output.data && output.data.match(/ws:\/\/([^\s]+)/);
+					if (inspectorUrlMatch) {
+						console.log(`%c[Extension Host] %cdebugger inspector at chrome-devtools://devtools/bundled/inspector.html?experiments=true&v8only=true&ws=${inspectorUrlMatch[1]}`, 'color: blue', 'color: black');
 					} else {
 						console.group('Extension Host');
-						console.log(data.data, ...data.format);
+						console.log(output.data, ...output.format);
 						console.groupEnd();
 					}
 				});

@@ -849,7 +849,8 @@ export class SettingsRenderer implements IRenderer {
 
 		const enumDescriptionText = element.setting.enumDescriptions && element.setting.enum && element.setting.enum.length < SettingsRenderer.MAX_ENUM_DESCRIPTIONS ?
 			'\n' + element.setting.enumDescriptions
-				.map((desc, i) => ` - \`${element.setting.enum[i]}\`: ${desc}`)
+				.map((desc, i) => desc && ` - \`${element.setting.enum[i]}\`: ${desc}`)
+				.filter(desc => !!desc)
 				.join('\n') :
 			'';
 		const descriptionText = element.description + enumDescriptionText;

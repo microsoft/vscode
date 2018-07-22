@@ -9,7 +9,7 @@ import * as path from 'path';
 import { CancellationToken, commands, Disposable, env, EventEmitter, Memento, MessageItem, Uri, window, workspace } from 'vscode';
 import * as nls from 'vscode-nls';
 import BufferSyncSupport from './features/bufferSyncSupport';
-import { DiagnosticKind } from './features/diagnostics';
+import { DiagnosticKind, DiagnosticsManager } from './features/diagnostics';
 import * as Proto from './protocol';
 import { ITypeScriptServiceClient } from './typescriptService';
 import API from './utils/api';
@@ -197,6 +197,7 @@ export default class TypeScriptServiceClient implements ITypeScriptServiceClient
 	private readonly disposables: Disposable[] = [];
 
 	public readonly bufferSyncSupport: BufferSyncSupport;
+	public readonly diagnosticsManager: DiagnosticsManager;
 
 	constructor(
 		private readonly workspaceState: Memento,
@@ -230,6 +231,11 @@ export default class TypeScriptServiceClient implements ITypeScriptServiceClient
 
 		this.bufferSyncSupport = new BufferSyncSupport(this, allModeIds);
 		this.onReady(() => { this.bufferSyncSupport.listen(); });
+
+		this.diagnosticsManager = new DiagnosticsManager('typescript');
+		this.bufferSyncSupport.onDelete(resource => {
+			this.diagnosticsManager.delete(resource);
+		}, null, this.disposables);
 
 		workspace.onDidChangeConfiguration(() => {
 			const oldConfiguration = this._configuration;

@@ -78,7 +78,10 @@ class TscTaskProvider implements vscode.TaskProvider {
 
 	private async getAllTsConfigs(token: vscode.CancellationToken): Promise<TSConfig[]> {
 		const out = new Set<TSConfig>();
-		const configs = (await this.getTsConfigForActiveFile(token)).concat(await this.getTsConfigsInWorkspace());
+		const configs = [
+			...await this.getTsConfigForActiveFile(token),
+			...await this.getTsConfigsInWorkspace()
+		];
 		for (const config of configs) {
 			if (await exists(config.path)) {
 				out.add(config);

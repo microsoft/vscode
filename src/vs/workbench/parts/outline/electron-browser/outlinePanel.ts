@@ -18,7 +18,7 @@ import { onUnexpectedError, isPromiseCanceledError } from 'vs/base/common/errors
 import { Emitter } from 'vs/base/common/event';
 import { defaultGenerator } from 'vs/base/common/idGenerator';
 import { KeyCode } from 'vs/base/common/keyCodes';
-import { dispose, IDisposable } from 'vs/base/common/lifecycle';
+import { dispose, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
 import { LRUCache } from 'vs/base/common/map';
 import { escape } from 'vs/base/common/strings';
 import URI from 'vs/base/common/uri';
@@ -567,9 +567,7 @@ export class OutlinePanel extends ViewletPanel {
 		}
 		this._editorDisposables.push(this._input.onDidChange(onInputValueChanged));
 
-		this._editorDisposables.push({
-			dispose: () => this._contextKeyFiltered.reset()
-		});
+		this._editorDisposables.push(toDisposable(() => this._contextKeyFiltered.reset()));
 
 		// feature: reveal outline selection in editor
 		// on change -> reveal/select defining range

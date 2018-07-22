@@ -17,7 +17,7 @@ import URI from 'vs/base/common/uri';
 import { IStringDictionary } from 'vs/base/common/collections';
 import { Action } from 'vs/base/common/actions';
 import * as Dom from 'vs/base/browser/dom';
-import { IDisposable, dispose } from 'vs/base/common/lifecycle';
+import { IDisposable, dispose, toDisposable } from 'vs/base/common/lifecycle';
 import { Event, Emitter } from 'vs/base/common/event';
 import * as Types from 'vs/base/common/types';
 import { KeyMod, KeyCode } from 'vs/base/common/keyCodes';
@@ -253,11 +253,9 @@ class BuildStatusBarItem extends Themable implements IStatusbarItem {
 
 		this.updateStyles();
 
-		return {
-			dispose: () => {
-				callOnDispose = dispose(callOnDispose);
-			}
-		};
+		return toDisposable(() => {
+			callOnDispose = dispose(callOnDispose);
+		});
 	}
 
 	private ignoreEvent(event: TaskEvent): boolean {
