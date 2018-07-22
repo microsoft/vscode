@@ -126,7 +126,7 @@ export class HistoryMainService implements IHistoryMainService {
 				if (isSingleFolderWorkspaceIdentifier(pathToRemove)) {
 					return isSingleFolderWorkspaceIdentifier(workspace) && areResourcesEqual(pathToRemove, workspace, hasToIgnoreCase(pathToRemove));
 				}
-				if (typeof pathsToRemove === 'string') {
+				if (typeof pathToRemove === 'string') {
 					if (isSingleFolderWorkspaceIdentifier(workspace)) {
 						return workspace.scheme === Schemas.file && areResourcesEqual(URI.file(pathToRemove), workspace, hasToIgnoreCase(workspace));
 					}
