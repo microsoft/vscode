@@ -629,7 +629,7 @@ configurationRegistry.registerConfiguration({
 		},
 		'search.openNewWindowOnScopeSelect': {
 			type: 'boolean',
-			description: nls.localize('search.openNewWindowOnScopeSelect', 'Controls whether a new window will open on folder scope change.'),
+			description: nls.localize('search.openNewWindowOnScopeSelect', "Controls whether a new window will open when scoping to a designated folder."),
 			default: true
 		}
 	}
