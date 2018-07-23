@@ -8,7 +8,7 @@ import URI from 'vs/base/common/uri';
 import { Event, Emitter, debounceEvent, anyEvent } from 'vs/base/common/event';
 import { IDecorationsService, IDecoration, IResourceDecorationChangeEvent, IDecorationsProvider, IDecorationData } from './decorations';
 import { TernarySearchTree } from 'vs/base/common/map';
-import { IDisposable, dispose } from 'vs/base/common/lifecycle';
+import { IDisposable, dispose, toDisposable } from 'vs/base/common/lifecycle';
 import { isThenable } from 'vs/base/common/async';
 import { LinkedList } from 'vs/base/common/linkedList';
 import { createStyleSheet, createCSSRule, removeCSSRulesContainingSelector } from 'vs/base/browser/dom';
@@ -402,15 +402,13 @@ export class FileDecorationsService implements IDecorationsService {
 			affectsResource() { return true; }
 		});
 
-		return {
-			dispose: () => {
-				// fire event that says 'yes' for any resource
-				// known to this provider. then dispose and remove it.
-				remove();
-				this._onDidChangeDecorations.fire({ affectsResource: uri => wrapper.knowsAbout(uri) });
-				wrapper.dispose();
-			}
-		};
+		return toDisposable(() => {
+			// fire event that says 'yes' for any resource
+			// known to this provider. then dispose and remove it.
+			remove();
+			this._onDidChangeDecorations.fire({ affectsResource: uri => wrapper.knowsAbout(uri) });
+			wrapper.dispose();
+		});
 	}
 
 	getDecoration(uri: URI, includeChildren: boolean, overwrite?: IDecorationData): IDecoration {

@@ -4,7 +4,10 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import { TaskDefinition, Task, TaskGroup, WorkspaceFolder, RelativePattern, ShellExecution, Uri, workspace } from 'vscode';
+import {
+	TaskDefinition, Task, TaskGroup, WorkspaceFolder, RelativePattern, ShellExecution, Uri, workspace,
+	DebugConfiguration, debug, TaskProvider, ExtensionContext
+} from 'vscode';
 import * as path from 'path';
 import * as fs from 'fs';
 import * as minimatch from 'minimatch';
@@ -21,6 +24,22 @@ export interface NpmTaskDefinition extends TaskDefinition {
 type AutoDetect = 'on' | 'off';
 
 let cachedTasks: Task[] | undefined = undefined;
+
+export class NpmTaskProvider implements TaskProvider {
+	private extensionContext: ExtensionContext;
+
+	constructor(context: ExtensionContext) {
+		this.extensionContext = context;
+	}
+
+	public provideTasks() {
+		return provideNpmScripts();
+	}
+
+	public resolveTask(_task: Task): Task | undefined {
+		return undefined;
+	}
+}
 
 export function invalidateScriptsCache() {
 	cachedTasks = undefined;
@@ -162,7 +181,7 @@ function isExcluded(folder: WorkspaceFolder, packageJsonUri: Uri) {
 }
 
 function isDebugScript(script: string): boolean {
-	let match = script.match(/--(inspect|debug)(-brk)?(=(\d*))?/);
+	let match = script.match(/--(inspect|debug)(-brk)?(=((\[[0-9a-fA-F:]*\]|[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+|[a-zA-Z0-9\.]*):)?(\d+))?/);
 	return match !== null;
 }
 
@@ -269,6 +288,52 @@ async function readFile(file: string): Promise<string> {
 	});
 }
 
+export function extractDebugArgFromScript(scriptValue: string): [string, number] | undefined {
+	// matches --debug, --debug=1234, --debug-brk, debug-brk=1234, --inspect, 
+	// --inspect=1234, --inspect-brk, --inspect-brk=1234, 
+	// --inspect=localhost:1245, --inspect=127.0.0.1:1234, --inspect=[aa:1:0:0:0]:1234, --inspect=:1234
+	let match = scriptValue.match(/--(inspect|debug)(-brk)?(=((\[[0-9a-fA-F:]*\]|[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+|[a-zA-Z0-9\.]*):)?(\d+))?/);
+
+	if (match) {
+		if (match[6]) {
+			return [match[1], parseInt(match[6])];
+		}
+		if (match[1] === 'inspect') {
+			return [match[1], 9229];
+		}
+		if (match[1] === 'debug') {
+			return [match[1], 5858];
+		}
+	}
+	return undefined;
+}
+
+export function startDebugging(scriptName: string, protocol: string, port: number, folder: WorkspaceFolder) {
+	let p = 'inspector';
+	if (protocol === 'debug') {
+		p = 'legacy';
+	}
+
+	let packageManager = getPackageManager(folder);
+	const config: DebugConfiguration = {
+		type: 'node',
+		request: 'launch',
+		name: `Debug ${scriptName}`,
+		runtimeExecutable: packageManager,
+		runtimeArgs: [
+			'run-script',
+			scriptName,
+		],
+		port: port,
+		protocol: p
+	};
+
+	if (folder) {
+		debug.startDebugging(folder, config);
+	}
+}
+
+
 export type StringMap = { [s: string]: string; };
 
 async function findAllScripts(buffer: string): Promise<StringMap> {
@@ -278,7 +343,6 @@ async function findAllScripts(buffer: string): Promise<StringMap> {
 
 	let visitor: JSONVisitor = {
 		onError(_error: ParseErrorCode, _offset: number, _length: number) {
-			// TODO: inform user about the parse error
 		},
 		onObjectEnd() {
 			if (inScripts) {
@@ -304,44 +368,38 @@ async function findAllScripts(buffer: string): Promise<StringMap> {
 	return scripts;
 }
 
-export function findScriptAtPosition(buffer: string, offset: number): string | undefined {
+export function findAllScriptRanges(buffer: string): Map<string, [number, number, string]> {
+	var scripts: Map<string, [number, number, string]> = new Map();
 	let script: string | undefined = undefined;
 	let inScripts = false;
-	let scriptStart: number | undefined;
 
 	let visitor: JSONVisitor = {
 		onError(_error: ParseErrorCode, _offset: number, _length: number) {
-			// TODO: inform user about the parse error
 		},
 		onObjectEnd() {
 			if (inScripts) {
 				inScripts = false;
-				scriptStart = undefined;
 			}
 		},
-		onLiteralValue(value: any, nodeOffset: number, nodeLength: number) {
-			if (inScripts && scriptStart) {
-				if (offset >= scriptStart && offset < nodeOffset + nodeLength) {
-					// found the script
-					inScripts = false;
-				} else {
-					script = undefined;
-				}
+		onLiteralValue(value: any, offset: number, length: number) {
+			if (script) {
+				scripts.set(script, [offset, length, value]);
+				script = undefined;
 			}
 		},
-		onObjectProperty(property: string, nodeOffset: number, nodeLength: number) {
+		onObjectProperty(property: string, offset: number, length: number) {
 			if (property === 'scripts') {
 				inScripts = true;
 			}
 			else if (inScripts) {
-				scriptStart = nodeOffset;
 				script = property;
 			}
 		}
 	};
 	visit(buffer, visitor);
-	return script;
+	return scripts;
 }
+
 
 export async function getScripts(packageJsonUri: Uri): Promise<StringMap | undefined> {
 

@@ -86,7 +86,7 @@ export class IssueReporter extends Disposable {
 				vscodeVersion: `${pkg.name} ${pkg.version} (${product.commit || 'Commit unknown'}, ${product.date || 'Date unknown'})`,
 				os: `${os.type()} ${os.arch()} ${os.release()}`
 			},
-			extensionsDisabled: this.environmentService.disableExtensions,
+			extensionsDisabled: !!this.environmentService.disableExtensions,
 		});
 
 		this.previewButton = new Button(document.getElementById('issue-reporter'));

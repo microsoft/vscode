@@ -213,6 +213,7 @@
 
 .settings-editor > .settings-body > .settings-tree-container .setting-item .setting-item-description code {
 	line-height: 15px; /** For some reason, this is needed, otherwise <code> will take up 20px height */
+	font-family: Menlo, Monaco, Consolas, "Droid Sans Mono", "Courier New", monospace, "Droid Sans Fallback";
 }
 
 .settings-editor > .settings-body > .settings-tree-container .setting-measure-container.monaco-tree-row {

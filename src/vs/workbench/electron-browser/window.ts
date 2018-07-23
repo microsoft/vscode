@@ -66,7 +66,7 @@ export class ElectronWindow extends Themable {
 	private previousConfiguredZoomLevel: number;
 
 	private addFoldersScheduler: RunOnceScheduler;
-	private pendingFoldersToAdd: IAddFoldersRequest[];
+	private pendingFoldersToAdd: URI[];
 
 	constructor(
 		@IEditorService private editorService: EditorServiceImpl,
@@ -404,7 +404,7 @@ export class ElectronWindow extends Themable {
 	private onAddFoldersRequest(request: IAddFoldersRequest): void {
 
 		// Buffer all pending requests
-		this.pendingFoldersToAdd.push(request);
+		this.pendingFoldersToAdd.push(...request.foldersToAdd.map(f => URI.revive(f)));
 
 		// Delay the adding of folders a bit to buffer in case more requests are coming
 		if (!this.addFoldersScheduler.isScheduled()) {
@@ -415,8 +415,8 @@ export class ElectronWindow extends Themable {
 	private doAddFolders(): void {
 		const foldersToAdd: IWorkspaceFolderCreationData[] = [];
 
-		this.pendingFoldersToAdd.forEach(request => {
-			foldersToAdd.push(...request.foldersToAdd.map(folderToAdd => ({ uri: URI.file(folderToAdd.filePath) })));
+		this.pendingFoldersToAdd.forEach(folder => {
+			foldersToAdd.push(({ uri: folder }));
 		});
 
 		this.pendingFoldersToAdd = [];

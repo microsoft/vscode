@@ -32,7 +32,7 @@ function code() {
 	VSCODE_DEV=1 \
 	ELECTRON_ENABLE_LOGGING=1 \
 	ELECTRON_ENABLE_STACK_DUMPING=1 \
-	"$CODE" --debug=5874 "$ROOT/out/cli.js" . "$@"
+	"$CODE" --inspect=5874 "$ROOT/out/cli.js" . "$@"
 }
 
 code "$@"

@@ -124,11 +124,11 @@ suite('WorkspaceContextService - Folder', () => {
 	});
 
 	test('isCurrentWorkspace() => true', () => {
-		assert.ok(workspaceContextService.isCurrentWorkspace(workspaceResource));
+		assert.ok(workspaceContextService.isCurrentWorkspace(URI.file(workspaceResource)));
 	});
 
 	test('isCurrentWorkspace() => false', () => {
-		assert.ok(!workspaceContextService.isCurrentWorkspace(workspaceResource + 'abc'));
+		assert.ok(!workspaceContextService.isCurrentWorkspace(URI.file(workspaceResource + 'abc')));
 	});
 });
 

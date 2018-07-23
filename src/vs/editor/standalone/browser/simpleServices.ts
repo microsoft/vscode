@@ -8,7 +8,7 @@ import Severity from 'vs/base/common/severity';
 import URI from 'vs/base/common/uri';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { IConfigurationService, IConfigurationChangeEvent, IConfigurationOverrides, IConfigurationData } from 'vs/platform/configuration/common/configuration';
-import { ISingleFolderWorkspaceIdentifier, IWorkspaceIdentifier } from 'vs/platform/workspaces/common/workspaces';
+import { IWorkspaceIdentifier, ISingleFolderWorkspaceIdentifier } from 'vs/platform/workspaces/common/workspaces';
 import { ICommandService, ICommand, ICommandEvent, ICommandHandler, CommandsRegistry } from 'vs/platform/commands/common/commands';
 import { AbstractKeybindingService } from 'vs/platform/keybinding/common/abstractKeybindingService';
 import { USLayoutResolvedKeybinding } from 'vs/platform/keybinding/common/usLayoutResolvedKeybinding';
@@ -24,7 +24,7 @@ import { IInstantiationService } from 'vs/platform/instantiation/common/instanti
 import { IProgressService, IProgressRunner } from 'vs/platform/progress/common/progress';
 import { ITextResourceConfigurationService } from 'vs/editor/common/services/resourceConfiguration';
 import { ITextModelService, ITextModelContentProvider, ITextEditorModel } from 'vs/editor/common/services/resolverService';
-import { IDisposable, IReference, ImmortalReference, combinedDisposable } from 'vs/base/common/lifecycle';
+import { IDisposable, IReference, ImmortalReference, combinedDisposable, toDisposable } from 'vs/base/common/lifecycle';
 import * as dom from 'vs/base/browser/dom';
 import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { KeybindingsRegistry, IKeybindingItem } from 'vs/platform/keybinding/common/keybindingsRegistry';
@@ -230,11 +230,9 @@ export class StandaloneCommandService implements ICommandService {
 	public addCommand(command: ICommand): IDisposable {
 		const { id } = command;
 		this._dynamicCommands[id] = command;
-		return {
-			dispose: () => {
-				delete this._dynamicCommands[id];
-			}
-		};
+		return toDisposable(() => {
+			delete this._dynamicCommands[id];
+		});
 	}
 
 	public executeCommand<T>(id: string, ...args: any[]): TPromise<T> {
@@ -289,18 +287,16 @@ export class StandaloneKeybindingService extends AbstractKeybindingService {
 			weight2: 0
 		});
 
-		toDispose.push({
-			dispose: () => {
-				for (let i = 0; i < this._dynamicKeybindings.length; i++) {
-					let kb = this._dynamicKeybindings[i];
-					if (kb.command === commandId) {
-						this._dynamicKeybindings.splice(i, 1);
-						this.updateResolver({ source: KeybindingSource.Default });
-						return;
-					}
+		toDispose.push(toDisposable(() => {
+			for (let i = 0; i < this._dynamicKeybindings.length; i++) {
+				let kb = this._dynamicKeybindings[i];
+				if (kb.command === commandId) {
+					this._dynamicKeybindings.splice(i, 1);
+					this.updateResolver({ source: KeybindingSource.Default });
+					return;
 				}
 			}
-		});
+		}));
 
 		let commandService = this._commandService;
 		if (commandService instanceof StandaloneCommandService) {

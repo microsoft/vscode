@@ -16,6 +16,7 @@ import { IEnvironmentService } from 'vs/platform/environment/common/environment'
 import { IWindowConfiguration, IWindowService } from 'vs/platform/windows/common/windows';
 import { IWorkbenchContribution } from 'vs/workbench/common/contributions';
 import { endsWith } from 'vs/base/common/strings';
+import { Schemas } from 'vs/base/common/network';
 
 const SshProtocolMatcher = /^([^@:]+@)?([^:]+):/;
 const SshUrlMatcher = /^([^@:]+@)?([^:]+):(.+)$/;
@@ -240,7 +241,8 @@ export class WorkspaceStats implements IWorkbenchContribution {
 				workspaceId = void 0;
 				break;
 			case WorkbenchState.FOLDER:
-				workspaceId = crypto.createHash('sha1').update(workspace.folders[0].uri.fsPath).digest('hex');
+				// TODO: #54483 @Ben
+				workspaceId = crypto.createHash('sha1').update(workspace.folders[0].uri.scheme === Schemas.file ? workspace.folders[0].uri.fsPath : workspace.folders[0].uri.toString()).digest('hex');
 				break;
 			case WorkbenchState.WORKSPACE:
 				workspaceId = crypto.createHash('sha1').update(workspace.configuration.fsPath).digest('hex');
