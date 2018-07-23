@@ -170,7 +170,8 @@
           "description": "%html.trace.server.desc%"
         }
       }
-    },
+    }
+  },
   "dependencies": {
     "vscode-extension-telemetry": "0.0.17",
     "vscode-languageclient": "^4.1.4",
