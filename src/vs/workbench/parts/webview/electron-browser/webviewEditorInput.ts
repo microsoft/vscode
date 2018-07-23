@@ -3,15 +3,16 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IDisposable, dispose } from 'vs/base/common/lifecycle';
+import { dispose, IDisposable } from 'vs/base/common/lifecycle';
 import URI from 'vs/base/common/uri';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { IEditorModel } from 'vs/platform/editor/common/editor';
-import { EditorInput, EditorModel, IEditorInput, GroupIdentifier } from 'vs/workbench/common/editor';
+import { EditorInput, EditorModel, GroupIdentifier, IEditorInput } from 'vs/workbench/common/editor';
 import { IPartService, Parts } from 'vs/workbench/services/part/common/partService';
+import * as vscode from 'vscode';
 import { WebviewEvents, WebviewInputOptions, WebviewReviver } from './webviewEditorService';
 import { WebviewElement } from './webviewElement';
-import * as vscode from 'vscode';
+import { Emitter } from 'vs/base/common/event';
 
 export class WebviewEditorInput extends EditorInput {
 	private static handlePool = 0;
@@ -19,6 +20,7 @@ export class WebviewEditorInput extends EditorInput {
 	public static readonly typeId = 'workbench.editors.webviewInput';
 
 	private _name: string;
+	private _iconPath?: URI | { light: URI, dark: URI };
 	private _options: WebviewInputOptions;
 	private _html: string = '';
 	private _currentWebviewHtml: string = '';
@@ -35,6 +37,7 @@ export class WebviewEditorInput extends EditorInput {
 	private _revived: boolean = false;
 
 	public readonly extensionLocation: URI | undefined;
+	private readonly _id: number;
 
 	constructor(
 		public readonly viewType: string,
@@ -47,6 +50,7 @@ export class WebviewEditorInput extends EditorInput {
 		@IPartService private readonly _partService: IPartService,
 	) {
 		super();
+		this._id = WebviewEditorInput.handlePool++;
 		this._name = name;
 		this._options = options;
 		this._events = events;
@@ -57,6 +61,13 @@ export class WebviewEditorInput extends EditorInput {
 	public getTypeId(): string {
 		return WebviewEditorInput.typeId;
 	}
+
+	public getId(): number {
+		return this._id;
+	}
+
+	private readonly _onDidChangeIcon = this._register(new Emitter<void>());
+	public readonly onDidChangeIcon = this._onDidChangeIcon.event;
 
 	public dispose() {
 		this.disposeWebview();
@@ -76,7 +87,10 @@ export class WebviewEditorInput extends EditorInput {
 	}
 
 	public getResource(): URI {
-		return null;
+		return URI.from({
+			scheme: 'webview-panel',
+			path: `webview-panel/webview-${this._id}`
+		});
 	}
 
 	public getName(): string {
@@ -94,6 +108,15 @@ export class WebviewEditorInput extends EditorInput {
 	public setName(value: string): void {
 		this._name = value;
 		this._onDidChangeLabel.fire();
+	}
+
+	public setIconPath(value: URI | { light: URI, dark: URI } | undefined): void {
+		this._iconPath = value;
+		this._onDidChangeIcon.fire();
+	}
+
+	public getIconPath(): URI | { light: URI, dark: URI } | undefined {
+		return this._iconPath;
 	}
 
 	public matches(other: IEditorInput): boolean {
@@ -169,9 +192,8 @@ export class WebviewEditorInput extends EditorInput {
 
 	public get container(): HTMLElement {
 		if (!this._container) {
-			const id = WebviewEditorInput.handlePool++;
 			this._container = document.createElement('div');
-			this._container.id = `webview-${id}`;
+			this._container.id = `webview-${this._id}`;
 			this._partService.getContainer(Parts.EDITOR_PART).appendChild(this._container);
 		}
 		return this._container;

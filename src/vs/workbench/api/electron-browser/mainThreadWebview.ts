@@ -96,6 +96,26 @@ export class MainThreadWebviews implements MainThreadWebviewsShape, WebviewReviv
 		webview.setName(value);
 	}
 
+	public $setIconPath(handle: WebviewPanelHandle, value: UriComponents | { light: UriComponents, dark: UriComponents } | undefined): void {
+		const webview = this.getWebview(handle);
+		if (!value) {
+			webview.setIconPath(undefined);
+			return;
+		}
+
+		const themeIcon = value as { light: UriComponents, dark: UriComponents };
+		if (themeIcon.light && themeIcon.dark) {
+			webview.setIconPath({
+				light: URI.revive(themeIcon.light),
+				dark: URI.revive(themeIcon.dark)
+			});
+			return;
+		}
+
+		webview.setIconPath(URI.revive(value));
+
+	}
+
 	public $setHtml(handle: WebviewPanelHandle, value: string): void {
 		const webview = this.getWebview(handle);
 		webview.html = value;
