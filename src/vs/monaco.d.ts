@@ -2813,17 +2813,17 @@ declare namespace monaco.editor {
 		iconsInSuggestions?: boolean;
 		/**
 		 * Options for auto closing brackets.
-		 * Defaults to language defined behavior
+		 * Defaults to language defined behavior.
 		 */
 		autoClosingBrackets?: EditorAutoClosingStrategy;
 		/**
 		 * Options for auto closing quotes.
-		 * Defaults to language defined behavior
+		 * Defaults to language defined behavior.
 		 */
 		autoClosingQuotes?: EditorAutoClosingStrategy;
 		/**
-		 * Options for autowrapping
-		 * Defaults to always allowing autowrapping
+		 * Options for autowrapping.
+		 * Defaults to always allowing autowrapping.
 		 */
 		autoWrapping?: EditorAutoWrappingStrategy;
 		/**

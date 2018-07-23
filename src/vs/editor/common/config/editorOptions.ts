@@ -471,17 +471,17 @@ export interface IEditorOptions {
 	iconsInSuggestions?: boolean;
 	/**
 	 * Options for auto closing brackets.
-	 * Defaults to language defined behavior
+	 * Defaults to language defined behavior.
 	 */
 	autoClosingBrackets?: EditorAutoClosingStrategy;
 	/**
 	 * Options for auto closing quotes.
-	 * Defaults to language defined behavior
+	 * Defaults to language defined behavior.
 	 */
 	autoClosingQuotes?: EditorAutoClosingStrategy;
 	/**
-	 * Options for autowrapping
-	 * Defaults to always allowing autowrapping
+	 * Options for autowrapping.
+	 * Defaults to always allowing autowrapping.
 	 */
 	autoWrapping?: EditorAutoWrappingStrategy;
 	/**
@@ -1684,13 +1684,18 @@ export class EditorOptionsValidator {
 		}
 		const multiCursorModifier = _stringSet<'altKey' | 'metaKey' | 'ctrlKey'>(configuredMulticursorModifier, defaults.multiCursorModifier, ['altKey', 'metaKey', 'ctrlKey']);
 
-		let autoClosingBracketsDefault = defaults.autoClosingBrackets;
-		let autoClosingQuotesDefault = defaults.autoClosingQuotes;
-		let autoWrappingDefault = defaults.autoWrapping;
+		let autoClosingBrackets: EditorAutoClosingStrategy;
+		let autoClosingQuotes: EditorAutoClosingStrategy;
+		let autoWrapping: EditorAutoWrappingStrategy;
 		if (typeof (opts.autoClosingBrackets) === 'boolean' && opts.autoClosingBrackets === false) {
-			autoClosingBracketsDefault = 'never';
-			autoClosingQuotesDefault = 'never';
-			autoWrappingDefault = 'never';
+			// backwards compatibility: disable all on boolean false
+			autoClosingBrackets = 'never';
+			autoClosingQuotes = 'never';
+			autoWrapping = 'never';
+		} else {
+			autoClosingBrackets = _stringSet<EditorAutoClosingStrategy>(opts.autoClosingBrackets, defaults.autoClosingBrackets, ['always', 'languageDefined', 'beforeWhitespace', 'never']);
+			autoClosingQuotes = _stringSet<EditorAutoClosingStrategy>(opts.autoClosingQuotes, defaults.autoClosingQuotes, ['always', 'languageDefined', 'beforeWhitespace', 'never']);
+			autoWrapping = _stringSet<EditorAutoWrappingStrategy>(opts.autoWrapping, defaults.autoWrapping, ['always', 'brackets', 'quotes', 'never'], );
 		}
 
 		return {
@@ -1709,9 +1714,9 @@ export class EditorOptionsValidator {
 			wordWrapBreakBeforeCharacters: _string(opts.wordWrapBreakBeforeCharacters, defaults.wordWrapBreakBeforeCharacters),
 			wordWrapBreakAfterCharacters: _string(opts.wordWrapBreakAfterCharacters, defaults.wordWrapBreakAfterCharacters),
 			wordWrapBreakObtrusiveCharacters: _string(opts.wordWrapBreakObtrusiveCharacters, defaults.wordWrapBreakObtrusiveCharacters),
-			autoClosingBrackets: _stringSet<EditorAutoClosingStrategy>(opts.autoClosingBrackets, autoClosingBracketsDefault, ['always', 'languageDefined', 'beforeWhitespace', 'never']),
-			autoClosingQuotes: _stringSet<EditorAutoClosingStrategy>(opts.autoClosingQuotes, autoClosingQuotesDefault, ['always', 'languageDefined', 'beforeWhitespace', 'never']),
-			autoWrapping: _stringSet<EditorAutoWrappingStrategy>(opts.autoWrapping, autoWrappingDefault, ['always', 'brackets', 'quotes', 'never'], ),
+			autoClosingBrackets,
+			autoClosingQuotes,
+			autoWrapping,
 			autoIndent: _boolean(opts.autoIndent, defaults.autoIndent),
 			dragAndDrop: _boolean(opts.dragAndDrop, defaults.dragAndDrop),
 			emptySelectionClipboard: _boolean(opts.emptySelectionClipboard, defaults.emptySelectionClipboard),
