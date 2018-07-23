@@ -205,7 +205,13 @@ export class TerminalInstance implements ITerminalInstance {
 		// order to be precise. font.charWidth/charHeight alone as insufficient
 		// when window.devicePixelRatio changes.
 		const scaledWidthAvailable = dimension.width * window.devicePixelRatio;
-		const scaledCharWidth = Math.floor(font.charWidth * window.devicePixelRatio) + font.letterSpacing;
+
+		let scaledCharWidth: number;
+		if (this._configHelper.config.rendererType === 'dom') {
+			scaledCharWidth = font.charWidth * window.devicePixelRatio;
+		} else {
+			scaledCharWidth = Math.floor(font.charWidth * window.devicePixelRatio) + font.letterSpacing;
+		}
 		this._cols = Math.max(Math.floor(scaledWidthAvailable / scaledCharWidth), 1);
 
 		const scaledHeightAvailable = dimension.height * window.devicePixelRatio;
@@ -659,6 +665,10 @@ export class TerminalInstance implements ITerminalInstance {
 				const width = parseInt(computedStyle.getPropertyValue('width').replace('px', ''), 10);
 				const height = parseInt(computedStyle.getPropertyValue('height').replace('px', ''), 10);
 				this.layout(new dom.Dimension(width, height));
+				// HACK: Trigger another async layout to ensure xterm's CharMeasure is ready to use,
+				// this hack can be removed when https://github.com/xtermjs/xterm.js/issues/702 is
+				// supported.
+				setTimeout(() => this.layout(new dom.Dimension(width, height)), 0);
 			}
 		}
 	}

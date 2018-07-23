@@ -11,6 +11,7 @@
 import { Diagnostic, DiagnosticRelatedInformation, DiagnosticSeverity, DiagnosticTag, Disposable, Memento, Range, Uri, workspace } from 'vscode';
 import { DiagnosticKind } from './features/diagnostics';
 import FileConfigurationManager from './features/fileConfigurationManager';
+import { UpdateImportsOnFileRenameHandler } from './features/updatePathsOnRename';
 import LanguageProvider from './languageProvider';
 import * as Proto from './protocol';
 import * as PConst from './protocol.const';
@@ -18,13 +19,12 @@ import TypeScriptServiceClient from './typescriptServiceClient';
 import API from './utils/api';
 import { CommandManager } from './utils/commandManager';
 import { disposeAll } from './utils/dispose';
-import { LanguageDescription } from './utils/languageDescription';
+import { LanguageDescription, DiagnosticLanguage } from './utils/languageDescription';
 import LogDirectoryProvider from './utils/logDirectoryProvider';
 import { TypeScriptServerPlugin } from './utils/plugins';
 import * as typeConverters from './utils/typeConverters';
 import TypingsStatus, { AtaProgressReporter } from './utils/typingsStatus';
 import VersionStatus from './utils/versionStatus';
-import { UpdateImportsOnFileRenameHandler } from './features/updatePathsOnRename';
 
 // Style check diagnostics that can be reported as warnings
 const styleCheckDiagnostics = [
@@ -119,7 +119,8 @@ export default class TypeScriptServiceClientHost {
 				const description: LanguageDescription = {
 					id: 'typescript-plugins',
 					modeIds: Array.from(languages.values()),
-					diagnosticSource: 'ts-plugins',
+					diagnosticSource: 'ts-plugin',
+					diagnosticLanguage: DiagnosticLanguage.TypeScript,
 					diagnosticOwner: 'typescript',
 					isExternal: true
 				};
@@ -286,8 +287,7 @@ export default class TypeScriptServiceClientHost {
 		if (diagnostic.code) {
 			converted.code = diagnostic.code;
 		}
-		// TODO: requires TS 3.0
-		const relatedInformation = (diagnostic as any).relatedInformation;
+		const relatedInformation = diagnostic.relatedInformation;
 		if (relatedInformation) {
 			converted.relatedInformation = relatedInformation.map((info: any) => {
 				let span = info.span;

@@ -17,7 +17,7 @@ import { PanelViewlet, ViewletPanel, IViewletPanelOptions } from 'vs/workbench/b
 import { append, $, addClass, toggleClass, trackFocus, Dimension, addDisposableListener } from 'vs/base/browser/dom';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { List } from 'vs/base/browser/ui/list/listWidget';
-import { IDelegate, IRenderer, IListContextMenuEvent, IListEvent } from 'vs/base/browser/ui/list/list';
+import { IVirtualDelegate, IRenderer, IListContextMenuEvent, IListEvent } from 'vs/base/browser/ui/list/list';
 import { VIEWLET_ID, VIEW_CONTAINER } from 'vs/workbench/parts/scm/common/scm';
 import { FileLabel } from 'vs/workbench/browser/labels';
 import { CountBadge } from 'vs/base/browser/ui/countBadge/countBadge';
@@ -75,7 +75,7 @@ export interface IViewModel {
 	hide(repository: ISCMRepository): void;
 }
 
-class ProvidersListDelegate implements IDelegate<ISCMRepository> {
+class ProvidersListDelegate implements IVirtualDelegate<ISCMRepository> {
 
 	getHeight(element: ISCMRepository): number {
 		return 22;
@@ -188,6 +188,10 @@ class ProviderRenderer implements IRenderer<ISCMRepository, RepositoryTemplateDa
 		update();
 
 		templateData.disposable = combinedDisposable(disposables);
+	}
+
+	disposeElement(): void {
+		// noop
 	}
 
 	disposeTemplate(templateData: RepositoryTemplateData): void {
@@ -437,6 +441,10 @@ class ResourceGroupRenderer implements IRenderer<ISCMResourceGroup, ResourceGrou
 		template.elementDisposable = combinedDisposable(disposables);
 	}
 
+	disposeElement(): void {
+		// noop
+	}
+
 	disposeTemplate(template: ResourceGroupTemplate): void {
 		template.dispose();
 	}
@@ -557,13 +565,17 @@ class ResourceRenderer implements IRenderer<ISCMResource, ResourceTemplate> {
 		template.elementDisposable = combinedDisposable(disposables);
 	}
 
+	disposeElement(): void {
+		// noop
+	}
+
 	disposeTemplate(template: ResourceTemplate): void {
 		template.elementDisposable.dispose();
 		template.dispose();
 	}
 }
 
-class ProviderListDelegate implements IDelegate<ISCMResourceGroup | ISCMResource> {
+class ProviderListDelegate implements IVirtualDelegate<ISCMResourceGroup | ISCMResource> {
 
 	getHeight() { return 22; }
 
@@ -765,19 +777,20 @@ export class RepositoryPanel extends ViewletPanel {
 	}
 
 	protected renderHeaderTitle(container: HTMLElement): void {
-		const header = append(container, $('.title.scm-provider'));
-		const name = append(header, $('.name'));
-		const title = append(name, $('span.title'));
-		const type = append(name, $('span.type'));
+		let title: string;
+		let type: string;
 
 		if (this.repository.provider.rootUri) {
-			title.textContent = basename(this.repository.provider.rootUri.fsPath);
-			type.textContent = this.repository.provider.label;
+			title = basename(this.repository.provider.rootUri.fsPath);
+			type = this.repository.provider.label;
 		} else {
-			title.textContent = this.repository.provider.label;
-			type.textContent = '';
+			title = this.repository.provider.label;
+			type = '';
 		}
 
+		super.renderHeaderTitle(container, title);
+		addClass(container, 'scm-provider');
+		append(container, $('span.type', null, type));
 		const onContextMenu = mapEvent(stop(domEvent(container, 'contextmenu')), e => new StandardMouseEvent(e));
 		onContextMenu(this.onContextMenu, this, this.disposables);
 	}
@@ -1272,7 +1285,8 @@ export class SCMViewlet extends PanelViewlet implements IViewModel, IViewsViewle
 			this.addPanels([{ panel, size: panel.minimumSize, index: index++ }]);
 			panel.repository.focus();
 			panel.onDidFocus(() => this.lastFocusedRepository = panel.repository);
-			if (newRepositoryPanels.length === 1 || this.lastFocusedRepository === panel.repository) {
+
+			if (this.lastFocusedRepository === panel.repository) {
 				panel.focus();
 			}
 		});

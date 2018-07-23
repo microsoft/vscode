@@ -732,6 +732,10 @@ export class SearchView extends Viewlet implements IViewlet, IPanel {
 		return promise;
 	}
 
+	public moveFocusToResults(): void {
+		this.tree.domFocus();
+	}
+
 	public focus(): void {
 		super.focus();
 
@@ -1355,7 +1359,7 @@ export class SearchView extends Viewlet implements IViewlet, IPanel {
 
 		this.searchWidget.setReplaceAllActionState(false);
 
-		this.viewModel.search(query).done(onComplete, onError, onProgress);
+		this.viewModel.search(query, onProgress).done(onComplete, onError);
 	}
 
 	private updateSearchResultCount(): void {

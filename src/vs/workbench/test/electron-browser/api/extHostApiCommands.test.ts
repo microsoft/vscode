@@ -450,6 +450,38 @@ suite('ExtHostLanguageFeatureCommands', function () {
 
 	});
 
+	test('"vscode.executeCompletionItemProvider" doesnot return a preselect field #53749', async function () {
+		disposables.push(extHost.registerCompletionItemProvider(defaultSelector, <vscode.CompletionItemProvider>{
+			provideCompletionItems(): any {
+				let a = new types.CompletionItem('item1');
+				a.preselect = true;
+				let b = new types.CompletionItem('item2');
+				let c = new types.CompletionItem('item3');
+				c.preselect = true;
+				let d = new types.CompletionItem('item4');
+				return new types.CompletionList([a, b, c, d], false);
+			}
+		}, []));
+
+		await rpcProtocol.sync();
+
+		let list = await commands.executeCommand<vscode.CompletionList>(
+			'vscode.executeCompletionItemProvider',
+			model.uri,
+			new types.Position(0, 4),
+			undefined
+		);
+
+		assert.ok(list instanceof types.CompletionList);
+		assert.equal(list.items.length, 4);
+
+		let [a, b, c, d] = list.items;
+		assert.equal(a.preselect, true);
+		assert.equal(b.preselect, undefined);
+		assert.equal(c.preselect, true);
+		assert.equal(d.preselect, undefined);
+	});
+
 	// --- quickfix
 
 	test('QuickFix, back and forth', function () {
@@ -632,6 +664,22 @@ suite('ExtHostLanguageFeatureCommands', function () {
 				assert.equal(first.additionalTextEdits[0].range.start.character, 20);
 				assert.equal(first.additionalTextEdits[0].range.end.line, 2);
 				assert.equal(first.additionalTextEdits[0].range.end.character, 20);
+			});
+		});
+	});
+
+	test('"TypeError: e.onCancellationRequested is not a function" calling hover provider in Insiders #54174', function () {
+
+		disposables.push(extHost.registerHoverProvider(defaultSelector, <vscode.HoverProvider>{
+			provideHover(): any {
+				return new types.Hover('fofofofo');
+			}
+		}));
+
+		return rpcProtocol.sync().then(() => {
+			return commands.executeCommand<vscode.Hover[]>('vscode.executeHoverProvider', model.uri, new types.Position(1, 1)).then(value => {
+				assert.equal(value.length, 1);
+				assert.equal(value[0].contents.length, 1);
 			});
 		});
 	});

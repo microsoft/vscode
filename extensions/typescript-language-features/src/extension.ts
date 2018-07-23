@@ -16,6 +16,7 @@ import LogDirectoryProvider from './utils/logDirectoryProvider';
 import ManagedFileContextManager from './utils/managedFileContext';
 import { getContributedTypeScriptServerPlugins, TypeScriptServerPlugin } from './utils/plugins';
 import * as ProjectStatus from './utils/projectStatus';
+import { flatten } from './utils/arrays';
 
 
 export function activate(
@@ -32,7 +33,14 @@ export function activate(
 	context.subscriptions.push(new TypeScriptTaskProviderManager(lazyClientHost.map(x => x.serviceClient)));
 	context.subscriptions.push(new LanguageConfigurationManager());
 
-	const supportedLanguage = [].concat.apply([], standardLanguageDescriptions.map(x => x.modeIds).concat(plugins.map(x => x.languages)));
+	import('./features/tsconfig').then(module => {
+		context.subscriptions.push(module.register());
+	});
+
+	const supportedLanguage = flatten([
+		...standardLanguageDescriptions.map(x => x.modeIds),
+		...plugins.map(x => x.languages)
+	]);
 	function didOpenTextDocument(textDocument: vscode.TextDocument): boolean {
 		if (isSupportedDocument(supportedLanguage, textDocument)) {
 			openListener.dispose();

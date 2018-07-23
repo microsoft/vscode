@@ -26,7 +26,7 @@ import { IWorkspaceConfigurationService, FOLDER_CONFIG_FOLDER_NAME, defaultSetti
 import { Registry } from 'vs/platform/registry/common/platform';
 import { IConfigurationNode, IConfigurationRegistry, Extensions, IConfigurationPropertySchema, allSettings, windowSettings, resourceSettings, applicationSettings } from 'vs/platform/configuration/common/configurationRegistry';
 import { createHash } from 'crypto';
-import { getWorkspaceLabel, IWorkspaceIdentifier, ISingleFolderWorkspaceIdentifier, isSingleFolderWorkspaceIdentifier, isWorkspaceIdentifier, IStoredWorkspaceFolder, isStoredWorkspaceFolder, IWorkspaceFolderCreationData } from 'vs/platform/workspaces/common/workspaces';
+import { getWorkspaceLabel, IWorkspaceIdentifier, isWorkspaceIdentifier, IStoredWorkspaceFolder, isStoredWorkspaceFolder, IWorkspaceFolderCreationData, ISingleFolderWorkspaceIdentifier, isSingleFolderWorkspaceIdentifier } from 'vs/platform/workspaces/common/workspaces';
 import { IWindowConfiguration } from 'vs/platform/windows/common/windows';
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
 import { ICommandService } from 'vs/platform/commands/common/commands';
@@ -38,9 +38,9 @@ import { JSONEditingService } from 'vs/workbench/services/configuration/node/jso
 import { Schemas } from 'vs/base/common/network';
 import { massageFolderPathForWorkspace } from 'vs/platform/workspaces/node/workspaces';
 import { UserConfiguration } from 'vs/platform/configuration/node/configuration';
-import { getBaseLabel } from 'vs/base/common/labels';
 import { IJSONSchema, IJSONSchemaMap } from 'vs/base/common/jsonSchema';
 import { localize } from 'vs/nls';
+import { isEqual, hasToIgnoreCase } from 'vs/base/common/resources';
 
 export class WorkspaceService extends Disposable implements IWorkspaceConfigurationService, IWorkspaceContextService {
 
@@ -131,7 +131,7 @@ export class WorkspaceService extends Disposable implements IWorkspaceConfigurat
 	public isCurrentWorkspace(workspaceIdentifier: ISingleFolderWorkspaceIdentifier | IWorkspaceIdentifier): boolean {
 		switch (this.getWorkbenchState()) {
 			case WorkbenchState.FOLDER:
-				return isSingleFolderWorkspaceIdentifier(workspaceIdentifier) && this.pathEquals(this.workspace.folders[0].uri.fsPath, workspaceIdentifier);
+				return isSingleFolderWorkspaceIdentifier(workspaceIdentifier) && isEqual(workspaceIdentifier, this.workspace.folders[0].uri, hasToIgnoreCase(workspaceIdentifier));
 			case WorkbenchState.WORKSPACE:
 				return isWorkspaceIdentifier(workspaceIdentifier) && this.workspace.id === workspaceIdentifier.id;
 		}
@@ -322,7 +322,7 @@ export class WorkspaceService extends Disposable implements IWorkspaceConfigurat
 		this.jsonEditingService = instantiationService.createInstance(JSONEditingService);
 	}
 
-	private createWorkspace(arg: IWorkspaceIdentifier | ISingleFolderWorkspaceIdentifier | IWindowConfiguration): TPromise<Workspace> {
+	private createWorkspace(arg: IWorkspaceIdentifier | URI | IWindowConfiguration): TPromise<Workspace> {
 		if (isWorkspaceIdentifier(arg)) {
 			return this.createMulitFolderWorkspace(arg);
 		}
@@ -345,15 +345,18 @@ export class WorkspaceService extends Disposable implements IWorkspaceConfigurat
 			});
 	}
 
-	private createSingleFolderWorkspace(singleFolderWorkspaceIdentifier: ISingleFolderWorkspaceIdentifier): TPromise<Workspace> {
-		const folderPath = URI.file(singleFolderWorkspaceIdentifier);
-		return stat(folderPath.fsPath)
-			.then(workspaceStat => {
-				const ctime = isLinux ? workspaceStat.ino : workspaceStat.birthtime.getTime(); // On Linux, birthtime is ctime, so we cannot use it! We use the ino instead!
-				const id = createHash('md5').update(folderPath.fsPath).update(ctime ? String(ctime) : '').digest('hex');
-				const folder = URI.file(folderPath.fsPath);
-				return new Workspace(id, getBaseLabel(folder), toWorkspaceFolders([{ path: folder.fsPath }]), null, ctime);
-			});
+	private createSingleFolderWorkspace(folder: URI): TPromise<Workspace> {
+		if (folder.scheme === Schemas.file) {
+			return stat(folder.fsPath)
+				.then(workspaceStat => {
+					const ctime = isLinux ? workspaceStat.ino : workspaceStat.birthtime.getTime(); // On Linux, birthtime is ctime, so we cannot use it! We use the ino instead!
+					const id = createHash('md5').update(folder.fsPath).update(ctime ? String(ctime) : '').digest('hex');
+					return new Workspace(id, getWorkspaceLabel(folder, this.environmentService), toWorkspaceFolders([{ path: folder.fsPath }]), null, ctime);
+				});
+		} else {
+			const id = createHash('md5').update(folder.toString()).digest('hex');
+			return TPromise.as(new Workspace(id, getWorkspaceLabel(folder, this.environmentService), toWorkspaceFolders([{ uri: folder.toString() }]), null));
+		}
 	}
 
 	private createEmptyWorkspace(configuration: IWindowConfiguration): TPromise<Workspace> {
@@ -669,15 +672,6 @@ export class WorkspaceService extends Disposable implements IWorkspaceConfigurat
 				return this._configuration.workspace.contents;
 		}
 		return {};
-	}
-
-	private pathEquals(path1: string, path2: string): boolean {
-		if (!isLinux) {
-			path1 = path1.toLowerCase();
-			path2 = path2.toLowerCase();
-		}
-
-		return path1 === path2;
 	}
 }
 

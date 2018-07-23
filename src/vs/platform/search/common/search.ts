@@ -24,7 +24,7 @@ export const ISearchService = createDecorator<ISearchService>('searchService');
  */
 export interface ISearchService {
 	_serviceBrand: any;
-	search(query: ISearchQuery): PPromise<ISearchComplete, ISearchProgressItem>;
+	search(query: ISearchQuery, onProgress?: (result: ISearchProgressItem) => void): TPromise<ISearchComplete>;
 	extendQuery(query: ISearchQuery): void;
 	clearCache(cacheKey: string): TPromise<void>;
 	registerSearchResultProvider(scheme: string, provider: ISearchResultProvider): IDisposable;

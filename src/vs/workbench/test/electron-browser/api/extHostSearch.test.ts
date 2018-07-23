@@ -606,37 +606,6 @@ suite('ExtHostSearch', () => {
 			assert.equal(cancels, 2, 'Expected all invocations to be canceled when hitting limit');
 		});
 
-		test('respects filePattern', async () => {
-			const reportedResults = [
-				joinPath(rootFolderA, 'file1.ts'),
-				joinPath(rootFolderA, 'file2.ts'),
-				joinPath(rootFolderA, 'file3.ts'),
-			];
-
-			await registerTestSearchProvider({
-				provideFileSearchResults(query: vscode.FileSearchQuery, options: vscode.FileSearchOptions, progress: vscode.Progress<URI>, token: vscode.CancellationToken): Thenable<void> {
-					reportedResults.forEach(r => progress.report(r));
-					return TPromise.wrap(null);
-				}
-			});
-
-			const query: ISearchQuery = {
-				type: QueryType.File,
-
-				filePattern: 'file3',
-
-				folderQueries: [
-					{
-						folder: rootFolderA
-					}
-				]
-			};
-
-			const { results } = await runFileSearch(query);
-			assert.equal(results.length, 1);
-			compareURIs(results, reportedResults.slice(2));
-		});
-
 		test('works with non-file schemes', async () => {
 			const reportedResults = [
 				joinPath(fancySchemeFolderA, 'file1.ts'),

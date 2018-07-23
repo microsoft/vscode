@@ -11,7 +11,7 @@ import * as nls from 'vs/nls';
 import * as lifecycle from 'vs/base/common/lifecycle';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { Builder, $ } from 'vs/base/browser/builder';
-import { SelectBox } from 'vs/base/browser/ui/selectBox/selectBox';
+import { SelectBox, ISelectBoxOptions } from 'vs/base/browser/ui/selectBox/selectBox';
 import { IAction, IActionRunner, Action, IActionChangeEvent, ActionRunner, IRunEvent } from 'vs/base/common/actions';
 import * as DOM from 'vs/base/browser/dom';
 import * as types from 'vs/base/common/types';
@@ -496,6 +496,28 @@ export class ActionBar implements IActionRunner {
 			this.actionsList.setAttribute('aria-label', this.options.ariaLabel);
 		}
 
+		if (this.options.isMenu) {
+			$(this.actionsList).on(DOM.EventType.MOUSE_OVER, (e) => {
+				let target = e.target as HTMLElement;
+				if (!target || !DOM.isAncestor(target, this.actionsList) || target === this.actionsList) {
+					return;
+				}
+
+				while (target.parentElement !== this.actionsList) {
+					target = target.parentElement;
+				}
+
+				if (DOM.hasClass(target, 'action-item') && !DOM.hasClass(target, 'disabled')) {
+					const lastFocusedItem = this.focusedItem;
+					this.setFocusedItem(target);
+
+					if (lastFocusedItem !== this.focusedItem) {
+						this.updateFocus();
+					}
+				}
+			});
+		}
+
 		this.domNode.appendChild(this.actionsList);
 
 		container.appendChild(this.domNode);
@@ -522,6 +544,16 @@ export class ActionBar implements IActionRunner {
 			this.actionsList.setAttribute('aria-label', label);
 		} else {
 			this.actionsList.removeAttribute('aria-label');
+		}
+	}
+
+	private setFocusedItem(element: HTMLElement): void {
+		for (let i = 0; i < this.actionsList.children.length; i++) {
+			let elem = this.actionsList.children[i];
+			if (element === elem) {
+				this.focusedItem = i;
+				break;
+			}
 		}
 	}
 
@@ -762,10 +794,10 @@ export class SelectActionItem extends BaseActionItem {
 	protected selectBox: SelectBox;
 	protected toDispose: lifecycle.IDisposable[];
 
-	constructor(ctx: any, action: IAction, options: string[], selected: number, contextViewProvider: IContextViewProvider
+	constructor(ctx: any, action: IAction, options: string[], selected: number, contextViewProvider: IContextViewProvider, selectBoxOptions?: ISelectBoxOptions
 	) {
 		super(ctx, action);
-		this.selectBox = new SelectBox(options, selected, contextViewProvider);
+		this.selectBox = new SelectBox(options, selected, contextViewProvider, null, selectBoxOptions);
 
 		this.toDispose = [];
 		this.toDispose.push(this.selectBox);

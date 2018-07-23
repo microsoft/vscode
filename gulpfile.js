@@ -15,12 +15,12 @@ const compilation = require('./build/lib/compilation');
 
 // Fast compile for development time
 gulp.task('clean-client', util.rimraf('out'));
-gulp.task('compile-client', ['clean-client'], compilation.compileTask('out', false));
+gulp.task('compile-client', ['clean-client'], compilation.compileTask('src', 'out', false));
 gulp.task('watch-client', ['clean-client'], compilation.watchTask('out', false));
 
 // Full compile, including nls and inline sources in sourcemaps, for build
 gulp.task('clean-client-build', util.rimraf('out-build'));
-gulp.task('compile-client-build', ['clean-client-build'], compilation.compileTask('out-build', true));
+gulp.task('compile-client-build', ['clean-client-build'], compilation.compileTask('src', 'out-build', true));
 gulp.task('watch-client-build', ['clean-client-build'], compilation.watchTask('out-build', true));
 
 // Default

@@ -3,30 +3,25 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as vscode from 'vscode';
 import { basename } from 'path';
-
-import TypeScriptServiceClient from './typescriptServiceClient';
-import TypingsStatus from './utils/typingsStatus';
-import FileConfigurationManager from './features/fileConfigurationManager';
-import { CommandManager } from './utils/commandManager';
-import { DiagnosticsManager, DiagnosticKind } from './features/diagnostics';
-import { LanguageDescription } from './utils/languageDescription';
-import * as fileSchemes from './utils/fileSchemes';
+import * as vscode from 'vscode';
 import { CachedNavTreeResponse } from './features/baseCodeLensProvider';
-import { memoize } from './utils/memoize';
+import { DiagnosticKind } from './features/diagnostics';
+import FileConfigurationManager from './features/fileConfigurationManager';
+import TypeScriptServiceClient from './typescriptServiceClient';
+import { CommandManager } from './utils/commandManager';
 import { disposeAll } from './utils/dispose';
+import * as fileSchemes from './utils/fileSchemes';
+import { LanguageDescription } from './utils/languageDescription';
+import { memoize } from './utils/memoize';
 import TelemetryReporter from './utils/telemetry';
+import TypingsStatus from './utils/typingsStatus';
+
 
 const validateSetting = 'validate.enable';
 const suggestionSetting = 'suggestionActions.enabled';
 
 export default class LanguageProvider {
-	private readonly diagnosticsManager: DiagnosticsManager;
-
-	private _validate: boolean = true;
-	private _enableSuggestionDiagnostics: boolean = true;
-
 	private readonly disposables: vscode.Disposable[] = [];
 
 	constructor(
@@ -37,12 +32,6 @@ export default class LanguageProvider {
 		private readonly typingsStatus: TypingsStatus,
 		private readonly fileConfigurationManager: FileConfigurationManager
 	) {
-		this.client.bufferSyncSupport.onDelete(resource => {
-			this.diagnosticsManager.delete(resource);
-		}, null, this.disposables);
-
-		this.diagnosticsManager = new DiagnosticsManager(description.diagnosticOwner);
-
 		vscode.workspace.onDidChangeConfiguration(this.configurationChanged, this, this.disposables);
 		this.configurationChanged();
 
@@ -53,8 +42,6 @@ export default class LanguageProvider {
 
 	public dispose(): void {
 		disposeAll(this.disposables);
-
-		this.diagnosticsManager.dispose();
 	}
 
 	@memoize
@@ -84,14 +71,14 @@ export default class LanguageProvider {
 		this.disposables.push((await import('./features/implementations')).register(selector, this.client));
 		this.disposables.push((await import('./features/implementationsCodeLens')).register(selector, this.description.id, this.client, cachedResponse));
 		this.disposables.push((await import('./features/jsDocCompletions')).register(selector, this.client, this.commandManager));
-		this.disposables.push((await import('./features/organizeImports')).register(selector, this.client, this.commandManager, this.fileConfigurationManager));
-		this.disposables.push((await import('./features/quickFix')).register(selector, this.client, this.fileConfigurationManager, this.commandManager, this.diagnosticsManager, this.telemetryReporter));
+		this.disposables.push((await import('./features/organizeImports')).register(selector, this.client, this.commandManager, this.fileConfigurationManager, this.telemetryReporter));
+		this.disposables.push((await import('./features/quickFix')).register(selector, this.client, this.fileConfigurationManager, this.commandManager, this.client.diagnosticsManager, this.telemetryReporter));
 		this.disposables.push((await import('./features/refactor')).register(selector, this.client, this.fileConfigurationManager, this.commandManager, this.telemetryReporter));
 		this.disposables.push((await import('./features/references')).register(selector, this.client));
 		this.disposables.push((await import('./features/referencesCodeLens')).register(selector, this.description.id, this.client, cachedResponse));
 		this.disposables.push((await import('./features/rename')).register(selector, this.client));
 		this.disposables.push((await import('./features/signatureHelp')).register(selector, this.client));
-		this.disposables.push((await import('./features/tagCompletion')).register(selector, this.client));
+		this.disposables.push((await import('./features/tagClosing')).register(selector, this.description.id, this.client));
 		this.disposables.push((await import('./features/typeDefinitions')).register(selector, this.client));
 		this.disposables.push((await import('./features/workspaceSymbols')).register(this.client, this.description.modeIds));
 	}
@@ -120,30 +107,15 @@ export default class LanguageProvider {
 	}
 
 	private updateValidate(value: boolean) {
-		if (this._validate === value) {
-			return;
-		}
-		this._validate = value;
-		this.diagnosticsManager.validate = value;
-		if (value) {
-			this.triggerAllDiagnostics();
-		}
+		this.client.diagnosticsManager.setValidate(this._diagnosticLanguage, value);
 	}
 
 	private updateSuggestionDiagnostics(value: boolean) {
-		if (this._enableSuggestionDiagnostics === value) {
-			return;
-		}
-
-		this._enableSuggestionDiagnostics = value;
-		this.diagnosticsManager.enableSuggestions = value;
-		if (value) {
-			this.triggerAllDiagnostics();
-		}
+		this.client.diagnosticsManager.setEnableSuggestions(this._diagnosticLanguage, value);
 	}
 
 	public reInitialize(): void {
-		this.diagnosticsManager.reInitialize();
+		this.client.diagnosticsManager.reInitialize();
 	}
 
 	public triggerAllDiagnostics(): void {
@@ -153,7 +125,7 @@ export default class LanguageProvider {
 	public diagnosticsReceived(diagnosticsKind: DiagnosticKind, file: vscode.Uri, diagnostics: (vscode.Diagnostic & { reportUnnecessary: any })[]): void {
 		const config = vscode.workspace.getConfiguration(this.id, file);
 		const reportUnnecessary = config.get<boolean>('showUnused', true);
-		this.diagnosticsManager.diagnosticsReceived(diagnosticsKind, file, diagnostics.filter(diag => {
+		this.client.diagnosticsManager.updateDiagnostics(file, this._diagnosticLanguage, diagnosticsKind, diagnostics.filter(diag => {
 			if (!reportUnnecessary) {
 				diag.tags = undefined;
 				if (diag.reportUnnecessary && diag.severity === vscode.DiagnosticSeverity.Hint) {
@@ -165,6 +137,10 @@ export default class LanguageProvider {
 	}
 
 	public configFileDiagnosticsReceived(file: vscode.Uri, diagnostics: vscode.Diagnostic[]): void {
-		this.diagnosticsManager.configFileDiagnosticsReceived(file, diagnostics);
+		this.client.diagnosticsManager.configFileDiagnosticsReceived(file, diagnostics);
+	}
+
+	private get _diagnosticLanguage() {
+		return this.description.diagnosticLanguage;
 	}
 }

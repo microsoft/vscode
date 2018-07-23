@@ -5,7 +5,7 @@
 'use strict';
 
 import { IntervalTimer, ShallowCancelThenPromise, wireCancellationToken } from 'vs/base/common/async';
-import { Disposable, IDisposable, dispose } from 'vs/base/common/lifecycle';
+import { Disposable, IDisposable, dispose, toDisposable } from 'vs/base/common/lifecycle';
 import URI from 'vs/base/common/uri';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { SimpleWorkerClient, logOnceWebWorkerWarning } from 'vs/base/common/worker/simpleWorker';
@@ -285,11 +285,9 @@ class EditorModelManager extends Disposable {
 		toDispose.push(model.onWillDispose(() => {
 			this._stopModelSync(modelUrl);
 		}));
-		toDispose.push({
-			dispose: () => {
-				this._proxy.acceptRemovedModel(modelUrl);
-			}
-		});
+		toDispose.push(toDisposable(() => {
+			this._proxy.acceptRemovedModel(modelUrl);
+		}));
 
 		this._syncedModels[modelUrl] = toDispose;
 	}

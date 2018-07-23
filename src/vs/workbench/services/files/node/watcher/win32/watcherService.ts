@@ -12,6 +12,7 @@ import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace
 import { normalize } from 'path';
 import { rtrim, endsWith } from 'vs/base/common/strings';
 import { sep } from 'vs/base/common/paths';
+import { Schemas } from 'vs/base/common/network';
 
 export class FileWatcher {
 	private isDisposed: boolean;
@@ -26,6 +27,9 @@ export class FileWatcher {
 	}
 
 	public startWatching(): () => void {
+		if (this.contextService.getWorkspace().folders[0].uri.scheme !== Schemas.file) {
+			return () => { };
+		}
 		let basePath: string = normalize(this.contextService.getWorkspace().folders[0].uri.fsPath);
 
 		if (basePath && basePath.indexOf('\\\\') === 0 && endsWith(basePath, sep)) {

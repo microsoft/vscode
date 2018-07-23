@@ -11,6 +11,8 @@
 		"list.activeSelectionBackground": "#75715E",
 		"list.focusBackground": "#414339",
 		"dropdown.listBackground": "#1e1f1c",
+		"settings.textInputBackground": "#32342d",
+		"settings.numberInputBackground": "#32342d",
 		"list.inactiveSelectionBackground": "#414339",
 		"list.hoverBackground": "#3e3d32",
 		"list.dropBackground": "#414339",

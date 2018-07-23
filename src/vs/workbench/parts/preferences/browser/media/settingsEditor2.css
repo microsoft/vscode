@@ -9,14 +9,15 @@
 
 .settings-editor {
 	padding-top: 11px;
+	padding-left: 5px;
 	max-width: 1100px;
 	margin: auto;
 }
 
 /* header styling */
 .settings-editor > .settings-header {
-	padding-left: 5px;
-	padding-right: 5px;
+	padding-left: 17px;
+	padding-right: 11px;
 	box-sizing: border-box;
 	margin: auto;
 }
@@ -71,7 +72,7 @@
 }
 
 .settings-editor > .settings-header > .settings-header-controls {
-	margin-top: 3px;
+	margin-top: 8px;
 	height: 30px;
 	display: flex;
 }
@@ -113,10 +114,16 @@
 	outline: none !important;
 }
 
+.settings-editor > .settings-body .settings-tree-container .monaco-tree-wrapper,
+.settings-editor > .settings-body > .settings-tree-container .setting-measure-container {
+	/** Allocate space for the scrollbar */
+	width: calc(100% - 11px)
+}
+
+
 .settings-editor > .settings-body .settings-toc-container {
 	width: 175px;
 	margin-right: 5px;
-	padding-top: 5px;
 }
 
 .settings-editor > .settings-body .settings-toc-container.hidden {
@@ -155,8 +162,8 @@
 }
 
 .settings-editor > .settings-body > .settings-tree-container .setting-item {
-	padding-top: 9px;
-	padding-bottom: 13px;
+	padding-top: 11px;
+	padding-bottom: 15px;
 	box-sizing: border-box;
 	cursor: default;
 	white-space: normal;
@@ -197,9 +204,17 @@
 	opacity: 0.9;
 	margin-top: 3px;
 	overflow: hidden;
-	white-space: pre;
 	text-overflow: ellipsis;
 	height: 18px;
+}
+
+.settings-editor > .settings-body > .settings-tree-container .setting-item .setting-item-description * {
+	margin: 0px;
+}
+
+.settings-editor > .settings-body > .settings-tree-container .setting-item .setting-item-description code {
+	line-height: 15px; /** For some reason, this is needed, otherwise <code> will take up 20px height */
+	font-family: Menlo, Monaco, Consolas, "Droid Sans Mono", "Courier New", monospace, "Droid Sans Fallback";
 }
 
 .settings-editor > .settings-body > .settings-tree-container .setting-measure-container.monaco-tree-row {
@@ -210,7 +225,6 @@
 .settings-editor > .settings-body > .settings-tree-container .setting-item.is-expanded .setting-item-description,
 .settings-editor > .settings-body > .settings-tree-container .setting-item.setting-measure-helper .setting-item-description {
 	height: initial;
-	white-space: pre-wrap;
 }
 
 .settings-editor > .settings-body > .settings-tree-container .setting-item-bool .setting-item-value-description {
@@ -242,17 +256,17 @@
 	display: flex;
 }
 
-.settings-editor > .settings-body > .settings-tree-container .setting-item .setting-item-value > .setting-item-control.setting-type-number {
+.settings-editor > .settings-body > .settings-tree-container .setting-item.setting-item-number .setting-item-value > .setting-item-control {
 	min-width: 200px;
 }
 
-.settings-editor > .settings-body > .settings-tree-container .setting-item .setting-item-value > .setting-item-control.setting-type-enum,
-.settings-editor > .settings-body > .settings-tree-container .setting-item .setting-item-value > .setting-item-control.setting-type-string {
+.settings-editor > .settings-body > .settings-tree-container .setting-item.setting-item-enum .setting-item-value > .setting-item-control,
+.settings-editor > .settings-body > .settings-tree-container .setting-item.setting-item-text .setting-item-value > .setting-item-control {
 	flex: 1;
 	min-width: initial;
 }
 
-.settings-editor > .settings-body > .settings-tree-container .setting-item .setting-item-value > .setting-item-control.setting-type-enum > select {
+.settings-editor > .settings-body > .settings-tree-container .setting-item.setting-item-enum .setting-item-value > .setting-item-control > select {
 	width: 100%;
 }
 
@@ -296,7 +310,7 @@
 }
 
 .settings-editor > .settings-body > .settings-tree-container .settings-group-level-1.settings-group-first {
-	padding-top: 7px;
+	padding-top: 4px;
 }
 
 .settings-editor > .settings-body .settings-feedback-button {

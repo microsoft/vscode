@@ -61,7 +61,7 @@ export const tocData: ITOCEntry = {
 				{
 					id: 'editor/suggestions',
 					label: localize('suggestions', "Suggestions"),
-					settings: ['editor.*suggestion*']
+					settings: ['editor.*suggest*']
 				},
 				{
 					id: 'editor/files',
@@ -83,6 +83,11 @@ export const tocData: ITOCEntry = {
 					id: 'workbench/appearance',
 					label: localize('appearance', "Appearance"),
 					settings: ['workbench.activityBar.*', 'workbench.*color*', 'workbench.fontAliasing', 'workbench.iconTheme', 'workbench.sidebar.location', 'workbench.*.visible', 'workbench.tips.enabled', 'workbench.tree.*', 'workbench.view.*']
+				},
+				{
+					id: 'workbench/breadcrumbs',
+					label: localize('breadcrumbs', "Breadcrumbs"),
+					settings: ['breadcrumbs.*']
 				},
 				{
 					id: 'workbench/editor',
@@ -128,7 +133,7 @@ export const tocData: ITOCEntry = {
 			children: [
 				{
 					id: 'features/explorer',
-					label: localize('fileExplorer', "File Explorer"),
+					label: localize('fileExplorer', "Explorer"),
 					settings: ['explorer.*', 'outline.*']
 				},
 				{

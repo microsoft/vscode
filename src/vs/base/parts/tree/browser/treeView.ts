@@ -220,7 +220,7 @@ export class ViewItem implements IViewItem {
 			this.element.removeAttribute('id');
 		}
 		if (this.model.hasChildren()) {
-			this.element.setAttribute('aria-expanded', String(!!this.model.isExpanded()));
+			this.element.setAttribute('aria-expanded', String(!!this._styles['expanded']));
 		} else {
 			this.element.removeAttribute('aria-expanded');
 		}

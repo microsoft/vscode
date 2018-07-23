@@ -9,9 +9,9 @@ import { ITypeScriptServiceClient } from '../typescriptService';
 import API from '../utils/api';
 import { Command, CommandManager } from '../utils/commandManager';
 import { VersionDependentRegistration } from '../utils/dependentRegistration';
+import TelemetryReporter from '../utils/telemetry';
 import * as typeConverters from '../utils/typeConverters';
 import FormattingOptionsManager from './fileConfigurationManager';
-import TelemetryReporter from '../utils/telemetry';
 
 
 class ApplyRefactoringCommand implements Command {
@@ -140,17 +140,18 @@ class TypeScriptRefactorProvider implements vscode.CodeActionProvider {
 		await this.formattingOptionsManager.ensureConfigurationForDocument(document, undefined);
 
 		const args: Proto.GetApplicableRefactorsRequestArgs = typeConverters.Range.toFileRangeRequestArgs(file, rangeOrSelection);
-		let response: Proto.GetApplicableRefactorsResponse;
+		let refactorings: Proto.ApplicableRefactorInfo[];
 		try {
-			response = await this.client.execute('getApplicableRefactors', args, token);
-			if (!response || !response.body) {
+			const response = await this.client.execute('getApplicableRefactors', args, token);
+			if (!response.body) {
 				return undefined;
 			}
+			refactorings = response.body;
 		} catch {
 			return undefined;
 		}
 
-		return this.convertApplicableRefactors(response.body, document, file, rangeOrSelection);
+		return this.convertApplicableRefactors(refactorings, document, file, rangeOrSelection);
 	}
 
 	private convertApplicableRefactors(

@@ -4,34 +4,34 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as cp from 'child_process';
-import * as path from 'path';
 import * as fs from 'fs';
-
-import * as electron from './utils/electron';
-import { Reader, ICallback } from './utils/wireProtocol';
-
-import { workspace, window, Uri, CancellationToken, Disposable, Memento, MessageItem, EventEmitter, commands, env } from 'vscode';
+import * as path from 'path';
+import { CancellationToken, commands, Disposable, env, EventEmitter, Memento, MessageItem, Uri, window, workspace } from 'vscode';
+import * as nls from 'vscode-nls';
+import BufferSyncSupport from './features/bufferSyncSupport';
+import { DiagnosticKind, DiagnosticsManager } from './features/diagnostics';
 import * as Proto from './protocol';
 import { ITypeScriptServiceClient } from './typescriptService';
-import { TypeScriptServerPlugin } from './utils/plugins';
-import Logger from './utils/logger';
-
+import API from './utils/api';
+import { TsServerLogLevel, TypeScriptServiceConfiguration } from './utils/configuration';
+import { disposeAll } from './utils/dispose';
+import * as electron from './utils/electron';
+import * as fileSchemes from './utils/fileSchemes';
 import * as is from './utils/is';
+import LogDirectoryProvider from './utils/logDirectoryProvider';
+import Logger from './utils/logger';
+import { TypeScriptPluginPathsProvider } from './utils/pluginPathsProvider';
+import { TypeScriptServerPlugin } from './utils/plugins';
 import TelemetryReporter from './utils/telemetry';
 import Tracer from './utils/tracer';
-import API from './utils/api';
-
-import * as nls from 'vscode-nls';
-import { TypeScriptServiceConfiguration, TsServerLogLevel } from './utils/configuration';
-import { TypeScriptVersionProvider, TypeScriptVersion } from './utils/versionProvider';
-import { TypeScriptVersionPicker } from './utils/versionPicker';
-import * as fileSchemes from './utils/fileSchemes';
 import { inferredProjectConfig } from './utils/tsconfig';
-import LogDirectoryProvider from './utils/logDirectoryProvider';
-import { disposeAll } from './utils/dispose';
-import { DiagnosticKind } from './features/diagnostics';
-import { TypeScriptPluginPathsProvider } from './utils/pluginPathsProvider';
-import BufferSyncSupport from './features/bufferSyncSupport';
+import { TypeScriptVersionPicker } from './utils/versionPicker';
+import { TypeScriptVersion, TypeScriptVersionProvider } from './utils/versionProvider';
+import { ICallback, Reader } from './utils/wireProtocol';
+
+
+
+
 
 const localize = nls.loadMessageBundle();
 
@@ -197,6 +197,7 @@ export default class TypeScriptServiceClient implements ITypeScriptServiceClient
 	private readonly disposables: Disposable[] = [];
 
 	public readonly bufferSyncSupport: BufferSyncSupport;
+	public readonly diagnosticsManager: DiagnosticsManager;
 
 	constructor(
 		private readonly workspaceState: Memento,
@@ -230,6 +231,11 @@ export default class TypeScriptServiceClient implements ITypeScriptServiceClient
 
 		this.bufferSyncSupport = new BufferSyncSupport(this, allModeIds);
 		this.onReady(() => { this.bufferSyncSupport.listen(); });
+
+		this.diagnosticsManager = new DiagnosticsManager('typescript');
+		this.bufferSyncSupport.onDelete(resource => {
+			this.diagnosticsManager.delete(resource);
+		}, null, this.disposables);
 
 		workspace.onDidChangeConfiguration(() => {
 			const oldConfiguration = this._configuration;
@@ -974,7 +980,7 @@ export default class TypeScriptServiceClient implements ITypeScriptServiceClient
 		}
 
 		if (this.apiVersion.gte(API.v222)) {
-			this.cancellationPipeName = electron.getTempSock('tscancellation');
+			this.cancellationPipeName = electron.getTempFile('tscancellation');
 			args.push('--cancellationPipeName', this.cancellationPipeName + '*');
 		}
 

@@ -22,6 +22,7 @@ export interface IIconLabelCreationOptions {
 export interface IIconLabelValueOptions {
 	title?: string;
 	descriptionTitle?: string;
+	hideIcon?: boolean;
 	extraClasses?: string[];
 	italic?: boolean;
 	matches?: IMatch[];

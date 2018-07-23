@@ -25,7 +25,7 @@ import { IProgress, IUncachedSearchStats } from 'vs/platform/search/common/searc
 
 import * as extfs from 'vs/base/node/extfs';
 import * as flow from 'vs/base/node/flow';
-import { IRawFileMatch, ISerializedSearchComplete, IRawSearch, ISearchEngine, IFolderSearch } from './search';
+import { IRawFileMatch, IRawSearch, ISearchEngine, IFolderSearch, ISerializedSearchSuccess } from './search';
 import { spawnRipgrepCmd } from './ripgrepFileSearch';
 import { rgErrorMsgForDisplay } from './ripgrepTextSearch';
 
@@ -206,7 +206,6 @@ export class FileWalker {
 
 		const useRipgrep = this.useRipgrep;
 		let noSiblingsClauses: boolean;
-		let filePatternSeen = false;
 		if (useRipgrep) {
 			const ripgrep = spawnRipgrepCmd(this.config, folderQuery, this.config.includePattern, this.folderExcludePatterns.get(folderQuery.folder).expression);
 			cmd = ripgrep.cmd;
@@ -265,9 +264,6 @@ export class FileWalker {
 
 			if (useRipgrep && noSiblingsClauses) {
 				for (const relativePath of relativeFiles) {
-					if (relativePath === this.filePattern) {
-						filePatternSeen = true;
-					}
 					const basename = path.basename(relativePath);
 					this.matchFile(onResult, { base: rootFolder, relativePath, basename });
 					if (this.isLimitHit) {
@@ -276,22 +272,9 @@ export class FileWalker {
 					}
 				}
 				if (last || this.isLimitHit) {
-					if (!filePatternSeen) {
-						this.checkFilePatternRelativeMatch(folderQuery.folder, (match, size) => {
-							if (match) {
-								this.resultCount++;
-								onResult({
-									base: folderQuery.folder,
-									relativePath: this.filePattern,
-									basename: path.basename(this.filePattern),
-								});
-							}
-							done();
-						});
-					} else {
-						done();
-					}
+					done();
 				}
+
 				return;
 			}
 
@@ -384,17 +367,22 @@ export class FileWalker {
 			cb(err, stdout, last);
 		};
 
+		let gotData = false;
 		if (cmd.stdout) {
 			// Should be non-null, but #38195
 			this.forwardData(cmd.stdout, encoding, onData);
+			cmd.stdout.once('data', () => gotData = true);
 		} else {
 			onMessage({ message: 'stdout is null' });
 		}
 
-		const stderr = this.collectData(cmd.stderr);
-
-		let gotData = false;
-		cmd.stdout.once('data', () => gotData = true);
+		let stderr: Buffer[];
+		if (cmd.stderr) {
+			// Should be non-null, but #38195
+			stderr = this.collectData(cmd.stderr);
+		} else {
+			onMessage({ message: 'stderr is null' });
+		}
 
 		cmd.on('error', (err: Error) => {
 			onData(err);
@@ -474,6 +462,7 @@ export class FileWalker {
 		const filePattern = this.filePattern;
 		function matchDirectory(entries: IDirectoryEntry[]) {
 			self.directoriesWalked++;
+			const hasSibling = glob.hasSiblingFn(() => entries.map(entry => entry.basename));
 			for (let i = 0, n = entries.length; i < n; i++) {
 				const entry = entries[i];
 				const { relativePath, basename } = entry;
@@ -482,7 +471,7 @@ export class FileWalker {
 				// If the user searches for the exact file name, we adjust the glob matching
 				// to ignore filtering by siblings because the user seems to know what she
 				// is searching for and we want to include the result in that case anyway
-				if (excludePattern.test(relativePath, basename, () => filePattern !== basename ? entries.map(entry => entry.basename) : [])) {
+				if (excludePattern.test(relativePath, basename, filePattern !== basename ? hasSibling : undefined)) {
 					continue;
 				}
 
@@ -513,25 +502,11 @@ export class FileWalker {
 				return done();
 			}
 
-			// Support relative paths to files from a root resource (ignores excludes)
-			return this.checkFilePatternRelativeMatch(folderQuery.folder, (match, size) => {
-				if (this.isCanceled || this.isLimitHit) {
-					return done();
-				}
+			if (this.isCanceled || this.isLimitHit) {
+				return done();
+			}
 
-				// Report result from file pattern if matching
-				if (match) {
-					this.resultCount++;
-					onResult({
-						base: folderQuery.folder,
-						relativePath: this.filePattern,
-						basename: path.basename(this.filePattern),
-						size
-					});
-				}
-
-				return this.doWalk(folderQuery, '', files, onResult, done);
-			});
+			return this.doWalk(folderQuery, '', files, onResult, done);
 		});
 	}
 
@@ -551,22 +526,11 @@ export class FileWalker {
 		};
 	}
 
-	private checkFilePatternRelativeMatch(basePath: string, clb: (matchPath: string, size?: number) => void): void {
-		if (!this.filePattern || path.isAbsolute(this.filePattern)) {
-			return clb(null);
-		}
-
-		const absolutePath = path.join(basePath, this.filePattern);
-
-		return fs.stat(absolutePath, (error, stat) => {
-			return clb(!error && !stat.isDirectory() ? absolutePath : null, stat && stat.size); // only existing files
-		});
-	}
-
 	private doWalk(folderQuery: IFolderSearch, relativeParentPath: string, files: string[], onResult: (result: IRawFileMatch) => void, done: (error: Error) => void): void {
 		const rootFolder = folderQuery.folder;
 
 		// Execute tasks on each file in parallel to optimize throughput
+		const hasSibling = glob.hasSiblingFn(() => files);
 		flow.parallel(files, (file: string, clb: (error: Error, result: {}) => void): void => {
 
 			// Check canceled
@@ -574,17 +538,12 @@ export class FileWalker {
 				return clb(null, undefined);
 			}
 
+			// Check exclude pattern
 			// If the user searches for the exact file name, we adjust the glob matching
 			// to ignore filtering by siblings because the user seems to know what she
 			// is searching for and we want to include the result in that case anyway
-			let siblings = files;
-			if (this.config.filePattern === file) {
-				siblings = [];
-			}
-
-			// Check exclude pattern
 			let currentRelativePath = relativeParentPath ? [relativeParentPath, file].join(path.sep) : file;
-			if (this.folderExcludePatterns.get(folderQuery.folder).test(currentRelativePath, file, () => siblings)) {
+			if (this.folderExcludePatterns.get(folderQuery.folder).test(currentRelativePath, file, this.config.filePattern !== file ? hasSibling : undefined)) {
 				return clb(null, undefined);
 			}
 
@@ -721,9 +680,10 @@ export class Engine implements ISearchEngine<IRawFileMatch> {
 		this.walker = new FileWalker(config);
 	}
 
-	public search(onResult: (result: IRawFileMatch) => void, onProgress: (progress: IProgress) => void, done: (error: Error, complete: ISerializedSearchComplete) => void): void {
+	public search(onResult: (result: IRawFileMatch) => void, onProgress: (progress: IProgress) => void, done: (error: Error, complete: ISerializedSearchSuccess) => void): void {
 		this.walker.walk(this.folderQueries, this.extraFiles, onResult, onProgress, (err: Error, isLimitHit: boolean) => {
 			done(err, {
+				type: 'success',
 				limitHit: isLimitHit,
 				stats: this.walker.getStats()
 			});
@@ -770,9 +730,9 @@ class AbsoluteAndRelativeParsedExpression {
 		this.relativeParsedExpr = relativeGlobExpr && glob.parse(relativeGlobExpr, { trimForExclusions: true });
 	}
 
-	public test(_path: string, basename?: string, siblingsFn?: () => string[] | TPromise<string[]>): string | TPromise<string> {
-		return (this.relativeParsedExpr && this.relativeParsedExpr(_path, basename, siblingsFn)) ||
-			(this.absoluteParsedExpr && this.absoluteParsedExpr(path.join(this.root, _path), basename, siblingsFn));
+	public test(_path: string, basename?: string, hasSibling?: (name: string) => boolean | TPromise<boolean>): string | TPromise<string> {
+		return (this.relativeParsedExpr && this.relativeParsedExpr(_path, basename, hasSibling)) ||
+			(this.absoluteParsedExpr && this.absoluteParsedExpr(path.join(this.root, _path), basename, hasSibling));
 	}
 
 	public getBasenameTerms(): string[] {

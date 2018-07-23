@@ -1,7 +1,7 @@
 {
   "name": "code-oss-dev",
   "version": "1.26.0",
-  "distro": "7ee5cda9f4f44b2ba1f1ab290e48f86416914794",
+  "distro": "ba277984505f7010dbff765d57412a25891b4dea",
   "author": {
     "name": "Microsoft Corporation"
   },
@@ -13,6 +13,7 @@
     "postinstall": "node build/npm/postinstall.js",
     "compile": "gulp compile --max_old_space_size=4095",
     "watch": "gulp watch --max_old_space_size=4095",
+    "watch-client": "gulp watch-client --max_old_space_size=4095",
     "monaco-editor-test": "mocha --only-monaco-editor",
     "precommit": "node build/gulpfile.hygiene.js",
     "gulp": "gulp --max_old_space_size=4095",
@@ -41,7 +42,7 @@
     "native-watchdog": "0.3.0",
     "node-pty": "0.7.6",
     "semver": "^5.5.0",
-    "spdlog": "0.6.0",
+    "spdlog": "0.7.1",
     "sudo-prompt": "8.2.0",
     "v8-inspect-profiler": "^0.0.8",
     "vscode-chokidar": "1.6.2",
@@ -49,7 +50,7 @@
     "vscode-nsfw": "1.0.17",
     "vscode-ripgrep": "^1.0.1",
     "vscode-textmate": "^4.0.1",
-    "vscode-xterm": "3.6.0-beta1",
+    "vscode-xterm": "3.6.0-beta3",
     "yauzl": "^2.9.1"
   },
   "devDependencies": {

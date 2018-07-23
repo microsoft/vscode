@@ -4,15 +4,15 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import { ITree, ITreeConfiguration, ITreeOptions } from 'vs/base/parts/tree/browser/tree';
+import { ITree, ITreeConfiguration, ITreeOptions, IRenderer as ITreeRenderer } from 'vs/base/parts/tree/browser/tree';
 import { List, IListOptions, isSelectionRangeChangeEvent, isSelectionSingleChangeEvent, IMultipleSelectionController, IOpenController, DefaultStyleController } from 'vs/base/browser/ui/list/listWidget';
 import { createDecorator, IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IDisposable, toDisposable, combinedDisposable, dispose, Disposable } from 'vs/base/common/lifecycle';
 import { IContextKeyService, IContextKey, RawContextKey, ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
 import { PagedList, IPagedRenderer } from 'vs/base/browser/ui/list/listPaging';
-import { IDelegate, IRenderer, IListMouseEvent, IListTouchEvent } from 'vs/base/browser/ui/list/list';
+import { IVirtualDelegate, IRenderer, IListMouseEvent, IListTouchEvent } from 'vs/base/browser/ui/list/list';
 import { Tree } from 'vs/base/parts/tree/browser/treeImpl';
-import { attachListStyler, defaultListStyles, computeStyles } from 'vs/platform/theme/common/styler';
+import { attachListStyler, defaultListStyles, computeStyles, attachInputBoxStyler } from 'vs/platform/theme/common/styler';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { InputFocusedContextKey } from 'vs/platform/workbench/common/contextkeys';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
@@ -23,8 +23,14 @@ import { DefaultController, IControllerOptions, OpenMode, ClickBehavior, Default
 import { isUndefinedOrNull } from 'vs/base/common/types';
 import { IEditorOptions } from 'vs/platform/editor/common/editor';
 import { Event, Emitter } from 'vs/base/common/event';
-import { createStyleSheet } from 'vs/base/browser/dom';
+import { createStyleSheet, addStandardDisposableListener, getTotalHeight, removeClass, addClass } from 'vs/base/browser/dom';
 import { ScrollbarVisibility } from 'vs/base/common/scrollable';
+import { InputBox, IInputOptions } from 'vs/base/browser/ui/inputbox/inputBox';
+import { IContextViewService } from 'vs/platform/contextview/browser/contextView';
+import { TPromise } from 'vs/base/common/winjs.base';
+import { onUnexpectedError, canceled } from 'vs/base/common/errors';
+import { KeyCode } from 'vs/base/common/keyCodes';
+import { IKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 
 export type ListWidget = List<any> | PagedList<any> | ITree;
 
@@ -90,16 +96,12 @@ export class ListService implements IListService {
 const RawWorkbenchListFocusContextKey = new RawContextKey<boolean>('listFocus', true);
 export const WorkbenchListSupportsMultiSelectContextKey = new RawContextKey<boolean>('listSupportsMultiselect', true);
 export const WorkbenchListFocusContextKey = ContextKeyExpr.and(RawWorkbenchListFocusContextKey, ContextKeyExpr.not(InputFocusedContextKey));
+export const WorkbenchListHasSelectionOrFocus = new RawContextKey<boolean>('listHasSelectionOrFocus', false);
 export const WorkbenchListDoubleSelection = new RawContextKey<boolean>('listDoubleSelection', false);
 export const WorkbenchListMultiSelection = new RawContextKey<boolean>('listMultiSelection', false);
 
 function createScopedContextKeyService(contextKeyService: IContextKeyService, widget: ListWidget): IContextKeyService {
 	const result = contextKeyService.createScoped(widget.getHTMLElement());
-
-	if (widget instanceof List || widget instanceof PagedList) {
-		WorkbenchListSupportsMultiSelectContextKey.bindTo(result);
-	}
-
 	RawWorkbenchListFocusContextKey.bindTo(result);
 	return result;
 }
@@ -199,6 +201,7 @@ export class WorkbenchList<T> extends List<T> {
 
 	readonly contextKeyService: IContextKeyService;
 
+	private listHasSelectionOrFocus: IContextKey<boolean>;
 	private listDoubleSelection: IContextKey<boolean>;
 	private listMultiSelection: IContextKey<boolean>;
 
@@ -206,7 +209,7 @@ export class WorkbenchList<T> extends List<T> {
 
 	constructor(
 		container: HTMLElement,
-		delegate: IDelegate<T>,
+		delegate: IVirtualDelegate<T>,
 		renderers: IRenderer<T, any>[],
 		options: IListOptions<T>,
 		@IContextKeyService contextKeyService: IContextKeyService,
@@ -225,6 +228,11 @@ export class WorkbenchList<T> extends List<T> {
 		);
 
 		this.contextKeyService = createScopedContextKeyService(contextKeyService, this);
+
+		const listSupportsMultiSelect = WorkbenchListSupportsMultiSelectContextKey.bindTo(this.contextKeyService);
+		listSupportsMultiSelect.set(!(options.multipleSelectionSupport === false));
+
+		this.listHasSelectionOrFocus = WorkbenchListHasSelectionOrFocus.bindTo(this.contextKeyService);
 		this.listDoubleSelection = WorkbenchListDoubleSelection.bindTo(this.contextKeyService);
 		this.listMultiSelection = WorkbenchListMultiSelection.bindTo(this.contextKeyService);
 
@@ -236,8 +244,17 @@ export class WorkbenchList<T> extends List<T> {
 			attachListStyler(this, themeService),
 			this.onSelectionChange(() => {
 				const selection = this.getSelection();
+				const focus = this.getFocus();
+
+				this.listHasSelectionOrFocus.set(selection.length > 0 || focus.length > 0);
 				this.listMultiSelection.set(selection.length > 1);
 				this.listDoubleSelection.set(selection.length === 2);
+			}),
+			this.onFocusChange(() => {
+				const selection = this.getSelection();
+				const focus = this.getFocus();
+
+				this.listHasSelectionOrFocus.set(selection.length > 0 || focus.length > 0);
 			})
 		]));
 
@@ -267,7 +284,7 @@ export class WorkbenchPagedList<T> extends PagedList<T> {
 
 	constructor(
 		container: HTMLElement,
-		delegate: IDelegate<number>,
+		delegate: IVirtualDelegate<number>,
 		renderers: IPagedRenderer<T, any>[],
 		options: IListOptions<T>,
 		@IContextKeyService contextKeyService: IContextKeyService,
@@ -286,6 +303,9 @@ export class WorkbenchPagedList<T> extends PagedList<T> {
 		);
 
 		this.contextKeyService = createScopedContextKeyService(contextKeyService, this);
+
+		const listSupportsMultiSelect = WorkbenchListSupportsMultiSelectContextKey.bindTo(this.contextKeyService);
+		listSupportsMultiSelect.set(!(options.multipleSelectionSupport === false));
 
 		this._useAltAsMultipleSelectionModifier = useAltAsMultipleSelectionModifier(configurationService);
 
@@ -323,6 +343,7 @@ export class WorkbenchTree extends Tree {
 
 	protected disposables: IDisposable[];
 
+	private listHasSelectionOrFocus: IContextKey<boolean>;
 	private listDoubleSelection: IContextKey<boolean>;
 	private listMultiSelection: IContextKey<boolean>;
 
@@ -352,6 +373,10 @@ export class WorkbenchTree extends Tree {
 
 		this.disposables = [];
 		this.contextKeyService = createScopedContextKeyService(contextKeyService, this);
+
+		WorkbenchListSupportsMultiSelectContextKey.bindTo(this.contextKeyService);
+
+		this.listHasSelectionOrFocus = WorkbenchListHasSelectionOrFocus.bindTo(this.contextKeyService);
 		this.listDoubleSelection = WorkbenchListDoubleSelection.bindTo(this.contextKeyService);
 		this.listMultiSelection = WorkbenchListMultiSelection.bindTo(this.contextKeyService);
 
@@ -366,8 +391,18 @@ export class WorkbenchTree extends Tree {
 
 		this.disposables.push(this.onDidChangeSelection(() => {
 			const selection = this.getSelection();
+			const focus = this.getFocus();
+
+			this.listHasSelectionOrFocus.set((selection && selection.length > 0) || !!focus);
 			this.listDoubleSelection.set(selection && selection.length === 2);
 			this.listMultiSelection.set(selection && selection.length > 1);
+		}));
+
+		this.disposables.push(this.onDidChangeFocus(() => {
+			const selection = this.getSelection();
+			const focus = this.getFocus();
+
+			this.listHasSelectionOrFocus.set((selection && selection.length > 0) || !!focus);
 		}));
 
 		this.disposables.push(configurationService.onDidChangeConfiguration(e => {
@@ -522,6 +557,169 @@ export class TreeResourceNavigator extends Disposable {
 				element: this.tree.getSelection()[0],
 				payload
 			});
+		}
+	}
+}
+
+
+export interface IHighlightingRenderer extends ITreeRenderer {
+	/**
+	 * Update hightlights and return the best matching element
+	 */
+	updateHighlights(tree: ITree, pattern: string): any;
+}
+
+export interface IHighlightingTreeConfiguration extends ITreeConfiguration {
+	renderer: IHighlightingRenderer & ITreeRenderer;
+}
+
+export class HighlightingTreeController extends WorkbenchTreeController {
+
+	constructor(
+		options: IControllerOptions,
+		private readonly onType: () => any,
+		@IConfigurationService configurationService: IConfigurationService
+	) {
+		super(options, configurationService);
+	}
+
+	onKeyDown(tree: ITree, event: IKeyboardEvent) {
+		let handled = super.onKeyDown(tree, event);
+		if (handled) {
+			return true;
+		}
+		if (this.upKeyBindingDispatcher.has(event.keyCode)) {
+			return false;
+		}
+		if (event.ctrlKey || event.metaKey) {
+			// ignore ctrl/cmd-combination but not shift/alt-combinatios
+			return false;
+		}
+		// crazy -> during keydown focus moves to the input box
+		// and because of that the keyup event is handled by the
+		// input field
+		if (event.keyCode >= KeyCode.KEY_A && event.keyCode <= KeyCode.KEY_Z) {
+			// todo@joh this is much weaker than using the KeyboardMapperFactory
+			// but due to layering-challanges that's not available here...
+			this.onType();
+			return true;
+		}
+		return false;
+	}
+}
+
+export class HighlightingWorkbenchTree extends WorkbenchTree {
+
+	protected readonly domNode: HTMLElement;
+	protected readonly inputContainer: HTMLElement;
+	protected readonly input: InputBox;
+
+	protected readonly renderer: IHighlightingRenderer;
+
+	constructor(
+		parent: HTMLElement,
+		treeConfiguration: IHighlightingTreeConfiguration,
+		treeOptions: ITreeOptions,
+		listOptions: IInputOptions,
+		@IContextKeyService contextKeyService: IContextKeyService,
+		@IContextViewService contextViewService: IContextViewService,
+		@IListService listService: IListService,
+		@IThemeService themeService: IThemeService,
+		@IInstantiationService instantiationService: IInstantiationService,
+		@IConfigurationService configurationService: IConfigurationService
+	) {
+		// build html skeleton
+		const container = document.createElement('div');
+		container.className = 'highlighting-tree';
+		const inputContainer = document.createElement('div');
+		inputContainer.className = 'input';
+		const treeContainer = document.createElement('div');
+		treeContainer.className = 'tree';
+		container.appendChild(inputContainer);
+		container.appendChild(treeContainer);
+		parent.appendChild(container);
+
+		// create tree
+		treeConfiguration.controller = treeConfiguration.controller || instantiationService.createInstance(HighlightingTreeController, {}, () => this.onTypeInTree());
+		super(treeContainer, treeConfiguration, treeOptions, contextKeyService, listService, themeService, instantiationService, configurationService);
+		this.renderer = treeConfiguration.renderer;
+
+		this.domNode = container;
+		addClass(this.domNode, 'inactive');
+
+		// create input
+		this.inputContainer = inputContainer;
+		this.input = new InputBox(inputContainer, contextViewService, listOptions);
+		this.input.setEnabled(false);
+		this.input.onDidChange(this.updateHighlights, this, this.disposables);
+		this.disposables.push(attachInputBoxStyler(this.input, themeService));
+		this.disposables.push(this.input);
+		this.disposables.push(addStandardDisposableListener(this.input.inputElement, 'keydown', event => {
+			//todo@joh make this command/context-key based
+			switch (event.keyCode) {
+				case KeyCode.DownArrow:
+				case KeyCode.UpArrow:
+					this.domFocus();
+					break;
+				case KeyCode.Enter:
+				case KeyCode.Tab:
+					this.setSelection(this.getSelection());
+					break;
+				case KeyCode.Escape:
+					this.input.value = '';
+					this.domFocus();
+					break;
+			}
+		}));
+	}
+
+	setInput(element: any): TPromise<any> {
+		this.input.setEnabled(false);
+		return super.setInput(element).then(value => {
+			if (!this.input.inputElement) {
+				// has been disposed in the meantime -> cancel
+				return Promise.reject(canceled());
+			}
+			this.input.setEnabled(true);
+			return value;
+		});
+	}
+
+	layout(height?: number, width?: number): void {
+		this.input.layout();
+		super.layout(isNaN(height) ? height : height - getTotalHeight(this.inputContainer), width);
+	}
+
+	private onTypeInTree(): void {
+		removeClass(this.domNode, 'inactive');
+		this.input.focus();
+		this.layout();
+	}
+
+	private lastSelection: any[];
+
+	private updateHighlights(pattern: string): void {
+
+		// remember old selection
+		let defaultSelection: any[];
+		if (!this.lastSelection && pattern) {
+			this.lastSelection = this.getSelection();
+			defaultSelection = [];
+		} else if (this.lastSelection && !pattern) {
+			defaultSelection = this.lastSelection;
+			this.lastSelection = [];
+		}
+
+		let topElement = this.renderer.updateHighlights(this, pattern);
+		if (topElement && pattern) {
+			this.reveal(topElement).then(_ => {
+				this.setSelection([topElement], this);
+				this.setFocus(topElement, this);
+				return this.refresh();
+			}, onUnexpectedError);
+		} else {
+			this.setSelection(defaultSelection, this);
+			this.refresh().then(undefined, onUnexpectedError);
 		}
 	}
 }

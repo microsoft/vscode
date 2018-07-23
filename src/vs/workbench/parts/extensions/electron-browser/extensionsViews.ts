@@ -71,9 +71,8 @@ export class ExtensionsListView extends ViewletPanel {
 		super({ ...(options as IViewletPanelOptions), ariaHeaderLabel: options.title }, keybindingService, contextMenuService, configurationService);
 	}
 
-	renderHeader(container: HTMLElement): void {
-		const titleDiv = append(container, $('div.title'));
-		append(titleDiv, $('span')).textContent = this.options.title;
+	renderHeaderTitle(container: HTMLElement): void {
+		super.renderHeaderTitle(container, this.options.title);
 
 		this.badgeContainer = append(container, $('.count-badge-wrapper'));
 		this.badge = new CountBadge(this.badgeContainer);
@@ -187,8 +186,8 @@ export class ExtensionsListView extends ViewletPanel {
 				const basics = result.filter(e => {
 					return e.local.manifest
 						&& e.local.manifest.contributes
-						&& Array.isArray(e.local.manifest.contributes.languages)
-						&& e.local.manifest.contributes.languages.length
+						&& Array.isArray(e.local.manifest.contributes.grammars)
+						&& e.local.manifest.contributes.grammars.length
 						&& e.local.identifier.id !== 'git';
 				});
 				return new PagedModel(this.sortExtensions(basics, options));
@@ -197,7 +196,7 @@ export class ExtensionsListView extends ViewletPanel {
 				const others = result.filter(e => {
 					return e.local.manifest
 						&& e.local.manifest.contributes
-						&& (!Array.isArray(e.local.manifest.contributes.languages) || e.local.identifier.id === 'git')
+						&& (!Array.isArray(e.local.manifest.contributes.grammars) || e.local.identifier.id === 'git')
 						&& !Array.isArray(e.local.manifest.contributes.themes);
 				});
 				return new PagedModel(this.sortExtensions(others, options));
@@ -640,6 +639,14 @@ export class ExtensionsListView extends ViewletPanel {
 
 	static isKeymapsRecommendedExtensionsQuery(query: string): boolean {
 		return /@recommended:keymaps/i.test(query);
+	}
+
+	focus(): void {
+		super.focus();
+		if (!(this.list.getFocus().length || this.list.getSelection().length)) {
+			this.list.focusNext();
+		}
+		this.list.domFocus();
 	}
 }
 

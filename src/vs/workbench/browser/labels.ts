@@ -199,11 +199,12 @@ export class ResourceLabel extends IconLabel {
 			iconLabelOptions.title = this.computedPathLabel;
 		}
 
-		if (!this.computedIconClasses) {
-			this.computedIconClasses = getIconClasses(this.modelService, this.modeService, resource, this.options && this.options.fileKind);
+		if (this.options && !this.options.hideIcon) {
+			if (!this.computedIconClasses) {
+				this.computedIconClasses = getIconClasses(this.modelService, this.modeService, resource, this.options && this.options.fileKind);
+			}
+			iconLabelOptions.extraClasses = this.computedIconClasses.slice(0);
 		}
-
-		iconLabelOptions.extraClasses = this.computedIconClasses.slice(0);
 		if (this.options && this.options.extraClasses) {
 			iconLabelOptions.extraClasses.push(...this.options.extraClasses);
 		}
@@ -341,15 +342,17 @@ export function getIconClasses(modelService: IModelService, modeService: IModeSe
 		// Files
 		else {
 
-			// Name
-			classes.push(`${name}-name-file-icon`);
+			// Name & Extension(s)
+			if (name) {
+				classes.push(`${name}-name-file-icon`);
 
-			// Extension(s)
-			const dotSegments = name.split('.');
-			for (let i = 1; i < dotSegments.length; i++) {
-				classes.push(`${dotSegments.slice(i).join('.')}-ext-file-icon`); // add each combination of all found extensions if more than one
+				const dotSegments = name.split('.');
+				for (let i = 1; i < dotSegments.length; i++) {
+					classes.push(`${dotSegments.slice(i).join('.')}-ext-file-icon`); // add each combination of all found extensions if more than one
+				}
+
+				classes.push(`ext-file-icon`); // extra segment to increase file-ext score
 			}
-			classes.push(`ext-file-icon`); // extra segment to increase file-ext score
 
 			// Configured Language
 			let configuredLangId = getConfiguredLangId(modelService, resource);

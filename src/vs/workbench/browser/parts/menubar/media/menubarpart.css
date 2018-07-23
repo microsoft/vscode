@@ -6,7 +6,6 @@
 .monaco-workbench > .part.menubar {
 	display: flex;
 	position: absolute;
-	font-size: 12px;
 	box-sizing: border-box;
 	padding-left: 35px;
 	padding-right: 138px;
@@ -32,16 +31,6 @@
 	zoom: 1;
 }
 
-.monaco-workbench > .part.menubar > .menubar-menu-button.open,
-.monaco-workbench > .part.menubar > .menubar-menu-button:hover {
-	background-color: rgba(255, 255, 255, 0.1);
-}
-
-.monaco-workbench > .part.menubar.light > .menubar-menu-button.open,
-.monaco-workbench > .part.menubar.light > .menubar-menu-button:hover {
-	background-color: rgba(0, 0, 0, 0.1);
-}
-
 .menubar-menu-items-holder {
 	position: absolute;
 	left: 0px;
@@ -49,9 +38,9 @@
 }
 
 .menubar-menu-items-holder.monaco-menu-container {
-	box-shadow: 0 2px 8px #A8A8A8;
+	box-shadow: 0 2px 4px;
 }
 
 .vs-dark .menubar-menu-items-holder.monaco-menu-container {
-	box-shadow: 0 2px 8px #000;
+	box-shadow: 0 2px 4px;
 }

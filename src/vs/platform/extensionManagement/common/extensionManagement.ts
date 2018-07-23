@@ -96,7 +96,7 @@ export interface IColor {
 
 export interface IExtensionContributions {
 	commands?: ICommand[];
-	configuration?: IConfiguration;
+	configuration?: IConfiguration | IConfiguration[];
 	debuggers?: IDebugger[];
 	grammars?: IGrammar[];
 	jsonValidation?: IJSONValidation[];
@@ -124,6 +124,7 @@ export interface IExtensionManifest {
 	categories?: string[];
 	activationEvents?: string[];
 	extensionDependencies?: string[];
+	extensionPack?: string[];
 	contributes?: IExtensionContributions;
 	repository?: {
 		url: string;
@@ -135,6 +136,7 @@ export interface IExtensionManifest {
 
 export interface IGalleryExtensionProperties {
 	dependencies?: string[];
+	extensionPack?: string[];
 	engine?: string;
 }
 
@@ -205,6 +207,7 @@ export enum LocalExtensionType {
 export interface ILocalExtension {
 	type: LocalExtensionType;
 	identifier: IExtensionIdentifier;
+	galleryIdentifier: IExtensionIdentifier;
 	manifest: IExtensionManifest;
 	metadata: IGalleryMetadata;
 	location: URI;
@@ -303,10 +306,10 @@ export interface IExtensionManagementService {
 	onUninstallExtension: Event<IExtensionIdentifier>;
 	onDidUninstallExtension: Event<DidUninstallExtensionEvent>;
 
-	install(zipPath: string): TPromise<ILocalExtension>;
-	installFromGallery(extension: IGalleryExtension): TPromise<ILocalExtension>;
+	install(zipPath: string): TPromise<void>;
+	installFromGallery(extension: IGalleryExtension): TPromise<void>;
 	uninstall(extension: ILocalExtension, force?: boolean): TPromise<void>;
-	reinstallFromGallery(extension: ILocalExtension): TPromise<ILocalExtension>;
+	reinstallFromGallery(extension: ILocalExtension): TPromise<void>;
 	getInstalled(type?: LocalExtensionType): TPromise<ILocalExtension[]>;
 	getExtensionsReport(): TPromise<IReportedExtension[]>;
 
@@ -340,6 +343,8 @@ export const IExtensionEnablementService = createDecorator<IExtensionEnablementS
 export interface IExtensionEnablementService {
 	_serviceBrand: any;
 
+	readonly allUserExtensionsDisabled: boolean;
+
 	/**
 	 * Event to listen on for extension enablement changes
 	 */
@@ -349,7 +354,7 @@ export interface IExtensionEnablementService {
 	 * Returns all disabled extension identifiers for current workspace
 	 * Returns an empty array if none exist
 	 */
-	getDisabledExtensions(): TPromise<IExtensionIdentifier[]>;
+	getDisabledExtensions(): Promise<IExtensionIdentifier[]>;
 
 	/**
 	 * Returns the enablement state for the given extension

@@ -3,12 +3,12 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { workspace as Workspace, FormattingOptions, TextDocument, CancellationToken, window, Disposable, workspace, WorkspaceConfiguration } from 'vscode';
-
+import { CancellationToken, Disposable, FormattingOptions, TextDocument, window, workspace as Workspace, workspace, WorkspaceConfiguration } from 'vscode';
 import * as Proto from '../protocol';
 import { ITypeScriptServiceClient } from '../typescriptService';
-import * as languageIds from '../utils/languageModeIds';
 import API from '../utils/api';
+import { isTypeScriptDocument } from '../utils/languageModeIds';
+
 
 function objsAreEqual<T>(a: T, b: T): boolean {
 	let keys = Object.keys(a);
@@ -89,12 +89,12 @@ export default class FileConfigurationManager {
 			return;
 		}
 
+		this.formatOptions[key] = currentOptions;
 		const args: Proto.ConfigureRequestArguments = {
 			file,
 			...currentOptions,
 		};
 		await this.client.execute('configure', args, token);
-		this.formatOptions[key] = currentOptions;
 	}
 
 	public reset() {
@@ -175,8 +175,4 @@ function getImportModuleSpecifierPreference(config: WorkspaceConfiguration) {
 		case 'non-relative': return 'non-relative';
 		default: return undefined;
 	}
-}
-
-function isTypeScriptDocument(document: TextDocument) {
-	return document.languageId === languageIds.typescript || document.languageId === languageIds.typescriptreact;
 }
