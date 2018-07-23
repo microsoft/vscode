@@ -5,15 +5,14 @@
 'use strict';
 
 import * as arrays from 'vs/base/common/arrays';
-import { onUnexpectedError } from 'vs/base/common/errors';
 import { Event } from 'vs/base/common/event';
-import { IDisposable, toDisposable } from 'vs/base/common/lifecycle';
+import { Disposable, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
 import { ResourceMap } from 'vs/base/common/map';
 import { Schemas } from 'vs/base/common/network';
 import * as objects from 'vs/base/common/objects';
 import * as strings from 'vs/base/common/strings';
 import uri from 'vs/base/common/uri';
-import { PPromise, TPromise } from 'vs/base/common/winjs.base';
+import { TPromise } from 'vs/base/common/winjs.base';
 import * as pfs from 'vs/base/node/pfs';
 import { getNextTickChannel } from 'vs/base/parts/ipc/common/ipc';
 import { Client, IIPCOptions } from 'vs/base/parts/ipc/node/ipc.cp';
@@ -28,13 +27,12 @@ import { IUntitledEditorService } from 'vs/workbench/services/untitled/common/un
 import { IRawSearch, IRawSearchService, ISerializedFileMatch, ISerializedSearchComplete, ISerializedSearchProgressItem, isSerializedSearchComplete, isSerializedSearchSuccess, ITelemetryEvent } from './search';
 import { ISearchChannel, SearchChannelClient } from './searchIpc';
 
-export class SearchService implements ISearchService {
+export class SearchService extends Disposable implements ISearchService {
 	public _serviceBrand: any;
 
 	private diskSearch: DiskSearch;
 	private readonly searchProviders: ISearchResultProvider[] = [];
 	private fileSearchProvider: ISearchResultProvider;
-	private forwardingTelemetry: PPromise<void, ITelemetryEvent>;
 
 	constructor(
 		@IModelService private modelService: IModelService,
@@ -45,7 +43,11 @@ export class SearchService implements ISearchService {
 		@ILogService private logService: ILogService,
 		@IExtensionService private extensionService: IExtensionService
 	) {
+		super();
 		this.diskSearch = new DiskSearch(!environmentService.isBuilt || environmentService.verbose, /*timeout=*/undefined, environmentService.debugSearch);
+		this._register(this.diskSearch.onTelemetry(event => {
+			this.telemetryService.publicLog(event.eventName, event.data);
+		}));
 	}
 
 	public registerSearchResultProvider(scheme: string, provider: ISearchResultProvider): IDisposable {
@@ -90,8 +92,6 @@ export class SearchService implements ISearchService {
 	}
 
 	public search(query: ISearchQuery, onProgress?: (item: ISearchProgressItem) => void): TPromise<ISearchComplete> {
-		this.forwardTelemetry();
-
 		let combinedPromise: TPromise<void>;
 
 		return new TPromise<ISearchComplete>((onComplete, onError) => {
@@ -268,15 +268,6 @@ export class SearchService implements ISearchService {
 		].map(provider => provider && provider.clearCache(cacheKey)))
 			.then(() => { });
 	}
-
-	private forwardTelemetry() {
-		if (!this.forwardingTelemetry) {
-			this.forwardingTelemetry = this.diskSearch.fetchTelemetry()
-				.then(null, onUnexpectedError, event => {
-					this.telemetryService.publicLog(event.eventName, event.data);
-				});
-		}
-	}
 }
 
 export class DiskSearch implements ISearchResultProvider {
@@ -314,6 +305,10 @@ export class DiskSearch implements ISearchResultProvider {
 
 		const channel = getNextTickChannel(client.getChannel<ISearchChannel>('search'));
 		this.raw = new SearchChannelClient(channel);
+	}
+
+	public get onTelemetry(): Event<ITelemetryEvent> {
+		return this.raw.onTelemetry;
 	}
 
 	public search(query: ISearchQuery, onProgress?: (p: ISearchProgressItem) => void): TPromise<ISearchComplete> {
@@ -435,11 +430,5 @@ export class DiskSearch implements ISearchResultProvider {
 
 	public clearCache(cacheKey: string): TPromise<void> {
 		return this.raw.clearCache(cacheKey);
-	}
-
-	public fetchTelemetry(): PPromise<void, ITelemetryEvent> {
-		return new PPromise<void, ITelemetryEvent>((c, e, p) => {
-			this.raw.onTelemetry(p);
-		});
 	}
 }

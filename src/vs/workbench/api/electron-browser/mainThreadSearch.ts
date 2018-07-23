@@ -97,7 +97,7 @@ class RemoteSearchProvider implements ISearchResultProvider, IDisposable {
 		dispose(this._registrations);
 	}
 
-	search(query: ISearchQuery): PPromise<ISearchComplete, ISearchProgressItem> {
+	search(query: ISearchQuery, onProgress?: (p: ISearchProgressItem) => void): TPromise<ISearchComplete> {
 
 		if (isFalsyOrEmpty(query.folderQueries)) {
 			return PPromise.as(undefined);
@@ -115,9 +115,9 @@ class RemoteSearchProvider implements ISearchResultProvider, IDisposable {
 
 		let outer: TPromise;
 
-		return new PPromise((resolve, reject, report) => {
+		return new TPromise((resolve, reject) => {
 
-			const search = new SearchOperation(report);
+			const search = new SearchOperation(onProgress);
 			this._searches.set(search.id, search);
 
 			outer = query.type === QueryType.File

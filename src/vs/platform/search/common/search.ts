@@ -46,7 +46,7 @@ export interface ISearchHistoryService {
 }
 
 export interface ISearchResultProvider {
-	search(query: ISearchQuery, onProgress: (p: ISearchProgressItem) => void): TPromise<ISearchComplete>;
+	search(query: ISearchQuery, onProgress?: (p: ISearchProgressItem) => void): TPromise<ISearchComplete>;
 	clearCache(cacheKey: string): TPromise<void>;
 }
 
