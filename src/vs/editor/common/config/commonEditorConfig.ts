@@ -361,17 +361,17 @@ const editorConfiguration: IConfigurationNode = {
 		'editor.find.seedSearchStringFromSelection': {
 			'type': 'boolean',
 			'default': EDITOR_DEFAULTS.contribInfo.find.seedSearchStringFromSelection,
-			'description': nls.localize('find.seedSearchStringFromSelection', "Controls if we seed the search string in Find Widget from editor selection.")
+			'description': nls.localize('find.seedSearchStringFromSelection', "Controls whether the search string in the Find Widget is seeded from the editor selection.")
 		},
 		'editor.find.autoFindInSelection': {
 			'type': 'boolean',
 			'default': EDITOR_DEFAULTS.contribInfo.find.autoFindInSelection,
-			'description': nls.localize('find.autoFindInSelection', "Controls if the Find in Selection flag is turned on when multiple characters or lines of text are selected in the editor.")
+			'description': nls.localize('find.autoFindInSelection', "Controls whether the Find in Selection flag is turned on when multiple characters or lines of text are selected in the editor.")
 		},
 		'editor.find.globalFindClipboard': {
 			'type': 'boolean',
 			'default': EDITOR_DEFAULTS.contribInfo.find.globalFindClipboard,
-			'description': nls.localize('find.globalFindClipboard', "Controls if the Find Widget should read or modify the shared find clipboard on macOS."),
+			'description': nls.localize('find.globalFindClipboard', "Controls whether the Find Widget should read or modify the shared find clipboard on macOS."),
 			'included': platform.isMacintosh
 		},
 		'editor.wordWrap': {
