@@ -82,12 +82,6 @@ declare module 'vscode' {
 		 * The maximum number of results to be returned.
 		 */
 		maxResults?: number;
-
-		/**
-		 * Whether a new isntance should be opened on scope select
-		 * See the vscode setting `"search.openNewWindowOnScopeSelect"`.
-		 */
-		openNewWindowOnScopeSelect?: boolean;
 	}
 
 	/**
