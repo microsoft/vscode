@@ -276,7 +276,7 @@ const editorConfiguration: IConfigurationNode = {
 		'editor.wordSeparators': {
 			'type': 'string',
 			'default': EDITOR_DEFAULTS.wordSeparators,
-			'description': nls.localize('wordSeparators', "Characters that will be used as word separators when doing word related navigations or operations")
+			'description': nls.localize('wordSeparators', "Characters that will be used as word separators when doing word related navigations or operations.")
 		},
 		'editor.tabSize': {
 			'type': 'number',
@@ -418,8 +418,14 @@ const editorConfiguration: IConfigurationNode = {
 		'editor.wrappingIndent': {
 			'type': 'string',
 			'enum': ['none', 'same', 'indent', 'deepIndent'],
+			enumDescriptions: [
+				nls.localize('wrappingIndent.none', "No indentation. Wrapped lines begin at column 1."),
+				nls.localize('wrappingIndent.same', "Wrapped lines get the same indentation as the parent."),
+				nls.localize('wrappingIndent.indent', "Wrapped lines get +1 indentation toward the parent."),
+				nls.localize('wrappingIndent.deepIndent', "Wrapped lines get +2 indentation toward the parent."),
+			],
 			'default': 'same',
-			'description': nls.localize('wrappingIndent', "Controls the indentation of wrapped lines. Can be one of 'none', 'same', 'indent' or 'deepIndent'.")
+			'description': nls.localize('wrappingIndent', "Controls the indentation of wrapped lines."),
 		},
 		'editor.mouseWheelScrollSensitivity': {
 			'type': 'number',
@@ -701,12 +707,12 @@ const editorConfiguration: IConfigurationNode = {
 		'editor.useTabStops': {
 			'type': 'boolean',
 			'default': EDITOR_DEFAULTS.useTabStops,
-			'description': nls.localize('useTabStops', "Inserting and deleting whitespace follows tab stops")
+			'description': nls.localize('useTabStops', "Inserting and deleting whitespace follows tab stops.")
 		},
 		'editor.trimAutoWhitespace': {
 			'type': 'boolean',
 			'default': EDITOR_MODEL_DEFAULTS.trimAutoWhitespace,
-			'description': nls.localize('trimAutoWhitespace', "Remove trailing auto inserted whitespace")
+			'description': nls.localize('trimAutoWhitespace', "Remove trailing auto inserted whitespace.")
 		},
 		'editor.stablePeek': {
 			'type': 'boolean',
