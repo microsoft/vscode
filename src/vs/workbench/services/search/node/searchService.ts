@@ -376,9 +376,10 @@ export class DiskSearch implements ISearchResultProvider {
 	}
 
 	public static collectResultsFromEvent(event: Event<ISerializedSearchProgressItem | ISerializedSearchComplete>): PPromise<ISearchComplete, ISearchProgressItem> {
+		let listener: IDisposable;
 		const promise = new PPromise<ISerializedSearchSuccess, ISerializedSearchProgressItem>((c, e, p) => {
 			setTimeout(() => {
-				const listener = event(ev => {
+				listener = event(ev => {
 					if (isSerializedSearchComplete(ev)) {
 						if (isSerializedSearchSuccess(ev)) {
 							c(ev);
@@ -391,7 +392,7 @@ export class DiskSearch implements ISearchResultProvider {
 					}
 				});
 			}, 0);
-		});
+		}, () => listener.dispose());
 
 		return DiskSearch.collectResults(promise);
 	}
