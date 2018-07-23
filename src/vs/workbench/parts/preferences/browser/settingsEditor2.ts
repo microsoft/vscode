@@ -828,7 +828,7 @@ export class SettingsEditor2 extends BaseEditor {
 	}
 
 	private layoutTrees(dimension: DOM.Dimension): void {
-		const listHeight = dimension.height - (DOM.getDomNodePagePosition(this.headerContainer).height + 12 /*padding*/);
+		const listHeight = dimension.height - (DOM.getDomNodePagePosition(this.headerContainer).height + 11 /*padding*/);
 		this.settingsTreeContainer.style.height = `${listHeight}px`;
 		this.settingsTree.layout(listHeight, 800);
 
@@ -837,8 +837,7 @@ export class SettingsEditor2 extends BaseEditor {
 			this.settingsTree.refresh(selectedSetting);
 		}
 
-		const tocHeight = listHeight - 5; // padding
-		this.tocTreeContainer.style.height = `${tocHeight}px`;
-		this.tocTree.layout(tocHeight, 175);
+		this.tocTreeContainer.style.height = `${listHeight}px`;
+		this.tocTree.layout(listHeight, 175);
 	}
 }
