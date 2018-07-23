@@ -30,7 +30,7 @@ import { IWindowService } from 'vs/platform/windows/common/windows';
 import { ReleaseNotesManager } from './releaseNotesEditor';
 import { isWindows } from 'vs/base/common/platform';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { offlineModeSetting } from 'vs/platform/common/offlineMode';
+import { offlineModeSetting } from 'vs/platform/actions/common/offlineMode';
 
 let releaseNotesManager: ReleaseNotesManager | undefined = undefined;
 

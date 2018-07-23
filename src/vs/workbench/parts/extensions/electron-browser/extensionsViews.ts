@@ -41,7 +41,7 @@ import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace
 import { distinct } from 'vs/base/common/arrays';
 import URI from 'vs/base/common/uri';
 import { IExperimentService } from 'vs/workbench/parts/experiments/node/experimentService';
-import { offlineModeSetting } from 'vs/platform/common/offlineMode';
+import { offlineModeSetting } from 'vs/platform/actions/common/offlineMode';
 
 export class ExtensionsListView extends ViewletPanel {
 

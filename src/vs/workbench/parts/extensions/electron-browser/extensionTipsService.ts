@@ -44,7 +44,7 @@ import URI from 'vs/base/common/uri';
 import { areSameExtensions, getGalleryExtensionIdFromLocal } from 'vs/platform/extensionManagement/common/extensionManagementUtil';
 import { IExperimentService, ExperimentActionType, ExperimentState } from 'vs/workbench/parts/experiments/node/experimentService';
 import { Schemas } from 'vs/base/common/network';
-import { offlineModeSetting } from 'vs/platform/common/offlineMode';
+import { offlineModeSetting } from 'vs/platform/actions/common/offlineMode';
 
 const milliSecondsInADay = 1000 * 60 * 60 * 24;
 const choiceNever = localize('neverShowAgain', "Don't Show Again");

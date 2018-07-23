@@ -65,7 +65,7 @@ import { IEditorOptions } from 'vs/editor/common/config/editorOptions';
 import { Range } from 'vs/editor/common/core/range';
 import { Position } from 'vs/editor/common/core/position';
 import { ITextModel } from 'vs/editor/common/model';
-import { offlineModeSetting } from 'vs/platform/common/offlineMode';
+import { offlineModeSetting } from 'vs/platform/actions/common/offlineMode';
 
 interface SearchInputEvent extends Event {
 	target: HTMLInputElement;

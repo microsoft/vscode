@@ -35,7 +35,7 @@ import { LifecyclePhase } from 'vs/platform/lifecycle/common/lifecycle';
 import { PreferencesSearchService } from 'vs/workbench/parts/preferences/electron-browser/preferencesSearch';
 import { IPreferencesService } from 'vs/workbench/services/preferences/common/preferences';
 import { Command } from 'vs/editor/browser/editorExtensions';
-import { EnableOfflineMode, DisableOfflineMode } from 'vs/platform/common/offlineMode';
+import { EnableOfflineMode, DisableOfflineMode, NotifyUnsupportedFeatureInOfflineMode } from 'vs/platform/actions/common/offlineMode';
 
 registerSingleton(IPreferencesSearchService, PreferencesSearchService);
 
@@ -200,6 +200,7 @@ registry.registerWorkbenchAction(new SyncActionDescriptor(OpenGlobalKeybindingsF
 registry.registerWorkbenchAction(new SyncActionDescriptor(ConfigureLanguageBasedSettingsAction, ConfigureLanguageBasedSettingsAction.ID, ConfigureLanguageBasedSettingsAction.LABEL), 'Preferences: Configure Language Specific Settings...', category);
 registry.registerWorkbenchAction(new SyncActionDescriptor(EnableOfflineMode, EnableOfflineMode.ID, EnableOfflineMode.LABEL), 'Preferences: Enable Offline Mode', category);
 registry.registerWorkbenchAction(new SyncActionDescriptor(DisableOfflineMode, DisableOfflineMode.ID, DisableOfflineMode.LABEL), 'Preferences: Disable Offline Mode', category);
+registry.registerWorkbenchAction(new SyncActionDescriptor(NotifyUnsupportedFeatureInOfflineMode, NotifyUnsupportedFeatureInOfflineMode.ID, ''), '');
 
 KeybindingsRegistry.registerCommandAndKeybindingRule({
 	id: KEYBINDINGS_EDITOR_COMMAND_DEFINE,

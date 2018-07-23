@@ -39,7 +39,7 @@ import { IExtensionService } from 'vs/workbench/services/extensions/common/exten
 import { groupBy } from 'vs/base/common/collections';
 import { Schemas } from 'vs/base/common/network';
 import { posix } from 'path';
-import { offlineModeSetting } from 'vs/platform/common/offlineMode';
+import { offlineModeSetting } from 'vs/platform/actions/common/offlineMode';
 
 interface IExtensionStateProvider<T> {
 	(extension: Extension): T;

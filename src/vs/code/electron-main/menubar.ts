@@ -22,7 +22,7 @@ import { IWindowsMainService, IWindowsCountChangedEvent } from 'vs/platform/wind
 import { IHistoryMainService } from 'vs/platform/history/common/history';
 import { IWorkspaceIdentifier, getWorkspaceLabel, ISingleFolderWorkspaceIdentifier, isSingleFolderWorkspaceIdentifier } from 'vs/platform/workspaces/common/workspaces';
 import { IMenubarData, IMenubarMenuItemAction, IMenubarMenuItemSeparator } from 'vs/platform/menubar/common/menubar';
-import { offlineModeSetting } from 'vs/platform/common/offlineMode';
+import { offlineModeSetting } from 'vs/platform/actions/common/offlineMode';
 
 // interface IExtensionViewlet {
 // 	id: string;

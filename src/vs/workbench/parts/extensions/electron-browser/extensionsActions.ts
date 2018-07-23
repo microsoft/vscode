@@ -52,7 +52,7 @@ import { IEditorGroupsService } from 'vs/workbench/services/group/common/editorG
 import { ExtensionsInput } from 'vs/workbench/parts/extensions/common/extensionsInput';
 import product from 'vs/platform/node/product';
 import { ContextSubMenu } from 'vs/base/browser/contextmenu';
-import { offlineModeSetting, NotifyUnsupportedFeatureInOfflineMode } from 'vs/platform/common/offlineMode';
+import { offlineModeSetting, NotifyUnsupportedFeatureInOfflineMode } from 'vs/platform/actions/common/offlineMode';
 
 const promptDownloadManually = (extension: IGalleryExtension, message: string, instantiationService: IInstantiationService, notificationService: INotificationService, openerService: IOpenerService) => {
 	const downloadUrl = `${product.extensionsGallery.serviceUrl}/publishers/${extension.publisher}/vsextensions/${extension.name}/${extension.version}/vspackage`;
@@ -1158,7 +1158,7 @@ export class CheckForUpdatesAction extends Action {
 
 	static readonly ID = 'workbench.extensions.action.checkForUpdates';
 	static LABEL = localize('checkForUpdates', "Check for Updates");
-	private readonly notifyAction = new NotifyUnsupportedFeatureInOfflineMode(this.configurationService, this.notificationService);
+	private readonly notifyAction = new NotifyUnsupportedFeatureInOfflineMode(NotifyUnsupportedFeatureInOfflineMode.ID, '', this.configurationService, this.notificationService);
 
 	constructor(
 		id = UpdateAllAction.ID,
@@ -1180,7 +1180,7 @@ export class CheckForUpdatesAction extends Action {
 
 export class ToggleAutoUpdateAction extends Action {
 
-	private readonly notifyAction = new NotifyUnsupportedFeatureInOfflineMode(this.configurationService, this.notificationService);
+	private readonly notifyAction = new NotifyUnsupportedFeatureInOfflineMode(NotifyUnsupportedFeatureInOfflineMode.ID, '', this.configurationService, this.notificationService);
 
 	constructor(
 		id: string,

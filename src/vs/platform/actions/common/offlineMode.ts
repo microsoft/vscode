@@ -62,7 +62,11 @@ export class DisableOfflineMode extends Action {
 
 
 export class NotifyUnsupportedFeatureInOfflineMode extends Action {
+	static readonly ID = 'workbench.action.notifyUnsupportedFeatureInOfflineMode';
+
 	constructor(
+		id: string = NotifyUnsupportedFeatureInOfflineMode.ID,
+		label: string = '',
 		@IConfigurationService private configurationService: IConfigurationService,
 		@INotificationService private notificationService: INotificationService
 	) {
