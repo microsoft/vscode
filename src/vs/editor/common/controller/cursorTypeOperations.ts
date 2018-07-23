@@ -19,7 +19,6 @@ import { SurroundSelectionCommand } from 'vs/editor/common/commands/surroundSele
 import { IElectricAction } from 'vs/editor/common/modes/supports/electricCharacter';
 import { getMapForWordSeparators, WordCharacterClass } from 'vs/editor/common/controller/wordCharacterClassifier';
 import { CharCode } from 'vs/base/common/charCode';
-import { CharacterPairSupport } from 'vs/editor/common/modes/supports/characterPair';
 
 export class TypeOperations {
 

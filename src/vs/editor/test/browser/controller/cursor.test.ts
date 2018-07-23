@@ -3947,6 +3947,21 @@ suite('autoClosingPairs', () => {
 				],
 			}));
 		}
+
+		public setAutocloseEnabledSet(chars: string) {
+			this._register(LanguageConfigurationRegistry.register(this.getLanguageIdentifier(), {
+				autoCloseBefore: chars,
+				autoClosingPairs: [
+					{ open: '{', close: '}' },
+					{ open: '[', close: ']' },
+					{ open: '(', close: ')' },
+					{ open: '\'', close: '\'', notIn: ['string', 'comment'] },
+					{ open: '\"', close: '\"', notIn: ['string'] },
+					{ open: '`', close: '`', notIn: ['string', 'comment'] },
+					{ open: '/**', close: ' */', notIn: ['string'] }
+				],
+			}));
+		}
 	}
 
 	const enum ColumnType {
@@ -4028,6 +4043,7 @@ suite('autoClosingPairs', () => {
 
 	test('configurable open parens', () => {
 		let mode = new AutoClosingMode();
+		mode.setAutocloseEnabledSet('abc');
 		usingCursor({
 			text: [
 				'var a = [];',
@@ -4041,11 +4057,7 @@ suite('autoClosingPairs', () => {
 			],
 			languageIdentifier: mode.getLanguageIdentifier(),
 			editorOpts: {
-				autoClosingBrackets: {
-					enabledBefore: 'abc',
-					autoClose: true,
-					autoWrap: true
-				}
+				autoClosingBrackets: 'languageDefined'
 			}
 		}, (model, cursor) => {
 
@@ -4091,16 +4103,8 @@ suite('autoClosingPairs', () => {
 			],
 			languageIdentifier: mode.getLanguageIdentifier(),
 			editorOpts: {
-				autoClosingBrackets: {
-					enabledBefore: 'abc',
-					autoClose: false,
-					autoWrap: true
-				},
-				autoClosingQuotes: {
-					enabledBefore: 'abc',
-					autoClose: false,
-					autoWrap: true
-				}
+				autoClosingBrackets: 'never',
+				autoClosingQuotes: 'never'
 			}
 		}, (model, cursor) => {
 
@@ -4152,17 +4156,14 @@ suite('autoClosingPairs', () => {
 
 			assert.equal(model.getValue(), '`var` a = `asd`');
 		});
+
 		usingCursor({
 			text: [
 				'var a = asd'
 			],
 			languageIdentifier: mode.getLanguageIdentifier(),
 			editorOpts: {
-				autoClosingQuotes: {
-					autoWrap: false,
-					autoClose: true,
-					enabledBefore: ''
-				}
+				autoWrapping: 'never'
 			}
 		}, (model, cursor) => {
 
@@ -4174,6 +4175,46 @@ suite('autoClosingPairs', () => {
 			cursorCommand(cursor, H.Type, { text: '`' }, 'keyboard');
 
 			assert.equal(model.getValue(), '` a = asd');
+		});
+
+		usingCursor({
+			text: [
+				'var a = asd'
+			],
+			languageIdentifier: mode.getLanguageIdentifier(),
+			editorOpts: {
+				autoWrapping: 'quotes'
+			}
+		}, (model, cursor) => {
+
+			cursor.setSelections('test', [
+				new Selection(1, 1, 1, 4),
+			]);
+
+			// type a `
+			cursorCommand(cursor, H.Type, { text: '`' }, 'keyboard');
+
+			assert.equal(model.getValue(), '`var` a = asd');
+		});
+
+		usingCursor({
+			text: [
+				'var a = asd'
+			],
+			languageIdentifier: mode.getLanguageIdentifier(),
+			editorOpts: {
+				autoWrapping: 'brackets'
+			}
+		}, (model, cursor) => {
+
+			cursor.setSelections('test', [
+				new Selection(1, 1, 1, 4),
+			]);
+
+			// type a `
+			cursorCommand(cursor, H.Type, { text: '(' }, 'keyboard');
+
+			assert.equal(model.getValue(), '(var) a = asd');
 		});
 		mode.dispose();
 	});
