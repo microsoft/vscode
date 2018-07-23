@@ -262,7 +262,12 @@ export class ExperimentService extends Disposable implements IExperimentService 
 
 			});
 			return TPromise.join(promises).then(() => {
-				this.telemetryService.publicLog('experiments', this._experiments);
+				/* __GDPR__
+					"experiments" : {
+						"experiments" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
+					}
+				*/
+				this.telemetryService.publicLog('experiments', { experiments: this._experiments });
 			});
 		});
 	}
