@@ -2446,22 +2446,14 @@ declare namespace monaco.editor {
 	}
 
 	/**
-	 * Configuration options for auto closing both quotes and brackets
+	 * Configuration options for auto closing quotes and brackets
 	 */
-	export interface EditorAutoClosingOptions {
-		/**
-		 * Controls if we wrap selections with the auto-pairing character
-		 */
-		autoWrap: boolean;
-		/**
-		 * Controls if we automatically insert a matching close to this pair
-		 */
-		autoClose: boolean;
-		/**
-		 * controls the set of characters that we may insert a matching close before
-		 */
-		enabledBefore: string;
-	}
+	export type EditorAutoClosingStrategy = 'always' | 'languageDefined' | 'beforeWhitespace' | 'never';
+
+	/**
+	 * Configuration options for auto wrapping quotes and brackets
+	 */
+	export type EditorAutoWrappingStrategy = 'always' | 'quotes' | 'brackets' | 'never';
 
 	/**
 	 * Configuration options for editor minimap
@@ -2821,14 +2813,19 @@ declare namespace monaco.editor {
 		iconsInSuggestions?: boolean;
 		/**
 		 * Options for auto closing brackets.
-		 * Defaults to allowing auto-closing before whitespace and punctuation and allowing auto-wrapping always.
+		 * Defaults to language defined behavior
 		 */
-		autoClosingBrackets?: EditorAutoClosingOptions;
+		autoClosingBrackets?: EditorAutoClosingStrategy;
 		/**
 		 * Options for auto closing quotes.
-		 * Defaults to allowing auto-closing before whitespace and allowing auto-wrapping always.
+		 * Defaults to language defined behavior
 		 */
-		autoClosingQuotes?: EditorAutoClosingOptions;
+		autoClosingQuotes?: EditorAutoClosingStrategy;
+		/**
+		 * Options for autowrapping
+		 * Defaults to always allowing autowrapping
+		 */
+		autoWrapping?: EditorAutoWrappingStrategy;
 		/**
 		 * Enable auto indentation adjustment.
 		 * Defaults to false.
@@ -3257,8 +3254,9 @@ declare namespace monaco.editor {
 		readonly multiCursorMergeOverlapping: boolean;
 		readonly showUnused: boolean;
 		readonly wordSeparators: string;
-		readonly autoClosingBrackets: EditorAutoClosingOptions;
-		readonly autoClosingQuotes: EditorAutoClosingOptions;
+		readonly autoClosingBrackets: EditorAutoClosingStrategy;
+		readonly autoClosingQuotes: EditorAutoClosingStrategy;
+		readonly autoWrapping: EditorAutoWrappingStrategy;
 		readonly autoIndent: boolean;
 		readonly useTabStops: boolean;
 		readonly tabFocusMode: boolean;
@@ -3398,6 +3396,7 @@ declare namespace monaco.editor {
 		readonly wordSeparators: boolean;
 		readonly autoClosingBrackets: boolean;
 		readonly autoClosingQuotes: boolean;
+		readonly autoWrapping: boolean;
 		readonly autoIndent: boolean;
 		readonly useTabStops: boolean;
 		readonly tabFocusMode: boolean;
