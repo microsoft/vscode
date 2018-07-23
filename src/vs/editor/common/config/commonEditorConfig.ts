@@ -491,38 +491,38 @@ const editorConfiguration: IConfigurationNode = {
 			type: 'string',
 			enum: ['always', 'languageDefined', 'beforeWhitespace', 'never'],
 			enumDescriptions: [
-				nls.localize('editor.autoClosingBrackets.always', "always autoclose brackets"),
-				nls.localize('editor.autoClosingBrackets.languageDefined', "use language configurations to determine when to autoclose brackets"),
-				nls.localize('editor.autoClosingBrackets.beforeWhitespace', "autoclose brackets only when the cursor is to the left of whitespace"),
-				nls.localize('editor.autoClosingBrackets.never', "never perform autoclosing on brackets"),
+				'',
+				nls.localize('editor.autoClosingBrackets.languageDefined', "Use language configurations to determine when to autoclose brackets."),
+				nls.localize('editor.autoClosingBrackets.beforeWhitespace', "Autoclose brackets only when the cursor is to the left of whitespace."),
+				'',
 
 			],
 			'default': EDITOR_DEFAULTS.autoClosingBrackets,
-			'description': nls.localize('autoClosingBrackets', "Controls if the editor should automatically close brackets after opening them.")
+			'description': nls.localize('autoClosingBrackets', "Controls whether the editor should automatically close brackets after opening them.")
 		},
 		'editor.autoClosingQuotes': {
 			type: 'string',
 			enum: ['always', 'languageDefined', 'beforeWhitespace', 'never'],
 			enumDescriptions: [
-				nls.localize('editor.autoClosingQuotes.always', "always autoclose quotes"),
-				nls.localize('editor.autoClosingQuotes.languageDefined', "use language configurations to determine when to autoclose quotes"),
-				nls.localize('editor.autoClosingQuotes.beforeWhitespace', "autoclose quotes only when the cursor is to the left of whitespace"),
-				nls.localize('editor.autoClosingQuotes.never', "never perform autoclosing on quotes"),
+				'',
+				nls.localize('editor.autoClosingQuotes.languageDefined', "Use language configurations to determine when to autoclose quotes."),
+				nls.localize('editor.autoClosingQuotes.beforeWhitespace', "Autoclose quotes only when the cursor is to the left of whitespace."),
+				'',
 			],
 			'default': EDITOR_DEFAULTS.autoClosingQuotes,
-			'description': nls.localize('autoClosingQuotes', "Controls if the editor should automatically close quotes after opening them.")
+			'description': nls.localize('autoClosingQuotes', "Controls whether the editor should automatically close quotes after opening them.")
 		},
 		'editor.autoWrapping': {
 			type: 'string',
 			enum: ['always', 'brackets', 'quotes', 'never'],
 			enumDescriptions: [
-				nls.localize('editor.autoWrapping.always', "wrap with both quotes and brackets"),
-				nls.localize('editor.autoWrapping.brackets', " wrap with brackets but not quotes"),
-				nls.localize('editor.autoWrapping.quotes', "wrap with quotes but not brackets"),
-				nls.localize('editor.autoWrapping.never', "do not autowrap selections")
+				'',
+				nls.localize('editor.autoWrapping.brackets', "Wrap with brackets but not quotes."),
+				nls.localize('editor.autoWrapping.quotes', "Wrap with quotes but not brackets."),
+				''
 			],
 			'default': EDITOR_DEFAULTS.autoWrapping,
-			'description': nls.localize('autoWrapping', "Controls if the editor should automatically wrap selections.")
+			'description': nls.localize('autoWrapping', "Controls whether the editor should automatically wrap selections.")
 		},
 		'editor.formatOnType': {
 			'type': 'boolean',
