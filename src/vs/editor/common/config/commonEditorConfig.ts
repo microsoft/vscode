@@ -510,13 +510,13 @@ const editorConfiguration: IConfigurationNode = {
 		'editor.suggestOnTriggerCharacters': {
 			'type': 'boolean',
 			'default': EDITOR_DEFAULTS.contribInfo.suggestOnTriggerCharacters,
-			'description': nls.localize('suggestOnTriggerCharacters', "Controls if suggestions should automatically show up when typing trigger characters")
+			'description': nls.localize('suggestOnTriggerCharacters', "Controls if suggestions should automatically show up when typing trigger characters.")
 		},
 		'editor.acceptSuggestionOnEnter': {
 			'type': 'string',
 			'enum': ['on', 'smart', 'off'],
 			'default': EDITOR_DEFAULTS.contribInfo.acceptSuggestionOnEnter,
-			'description': nls.localize('acceptSuggestionOnEnter', "Controls if suggestions should be accepted on 'Enter' - in addition to 'Tab'. Helps to avoid ambiguity between inserting new lines or accepting suggestions. The value 'smart' means only accept a suggestion with Enter when it makes a textual change")
+			'description': nls.localize('acceptSuggestionOnEnter', "Controls if suggestions should be accepted on 'Enter' - in addition to 'Tab'. Helps to avoid ambiguity between inserting new lines or accepting suggestions. The value 'smart' means only accept a suggestion with Enter when it makes a textual change.")
 		},
 		'editor.acceptSuggestionOnCommitCharacter': {
 			'type': 'boolean',
@@ -560,13 +560,13 @@ const editorConfiguration: IConfigurationNode = {
 			'type': 'integer',
 			'default': 0,
 			'minimum': 0,
-			'description': nls.localize('suggestFontSize', "Font size for the suggest widget")
+			'description': nls.localize('suggestFontSize', "Font size for the suggest widget.")
 		},
 		'editor.suggestLineHeight': {
 			'type': 'integer',
 			'default': 0,
 			'minimum': 0,
-			'description': nls.localize('suggestLineHeight', "Line height for the suggest widget")
+			'description': nls.localize('suggestLineHeight', "Line height for the suggest widget.")
 		},
 		'editor.suggest.filterGraceful': {
 			type: 'boolean',
@@ -586,12 +586,12 @@ const editorConfiguration: IConfigurationNode = {
 		'editor.occurrencesHighlight': {
 			'type': 'boolean',
 			'default': EDITOR_DEFAULTS.contribInfo.occurrencesHighlight,
-			'description': nls.localize('occurrencesHighlight', "Controls whether the editor should highlight semantic symbol occurrences")
+			'description': nls.localize('occurrencesHighlight', "Controls whether the editor should highlight semantic symbol occurrences.")
 		},
 		'editor.overviewRulerLanes': {
 			'type': 'integer',
 			'default': 3,
-			'description': nls.localize('overviewRulerLanes', "Controls the number of decorations that can show up at the same position in the overview ruler")
+			'description': nls.localize('overviewRulerLanes', "Controls the number of decorations that can show up at the same position in the overview ruler.")
 		},
 		'editor.overviewRulerBorder': {
 			'type': 'boolean',
@@ -607,7 +607,7 @@ const editorConfiguration: IConfigurationNode = {
 		'editor.mouseWheelZoom': {
 			'type': 'boolean',
 			'default': EDITOR_DEFAULTS.viewInfo.mouseWheelZoom,
-			'description': nls.localize('mouseWheelZoom', "Zoom the font of the editor when using mouse wheel and holding Ctrl")
+			'description': nls.localize('mouseWheelZoom', "Zoom the font of the editor when using mouse wheel and holding Ctrl.")
 		},
 		'editor.cursorStyle': {
 			'type': 'string',
@@ -644,12 +644,12 @@ const editorConfiguration: IConfigurationNode = {
 		'editor.renderControlCharacters': {
 			'type': 'boolean',
 			default: EDITOR_DEFAULTS.viewInfo.renderControlCharacters,
-			description: nls.localize('renderControlCharacters', "Controls whether the editor should render control characters")
+			description: nls.localize('renderControlCharacters', "Controls whether the editor should render control characters.")
 		},
 		'editor.renderIndentGuides': {
 			'type': 'boolean',
 			default: EDITOR_DEFAULTS.viewInfo.renderIndentGuides,
-			description: nls.localize('renderIndentGuides', "Controls whether the editor should render indent guides")
+			description: nls.localize('renderIndentGuides', "Controls whether the editor should render indent guides.")
 		},
 		'editor.highlightActiveIndentGuide': {
 			'type': 'boolean',
