@@ -230,7 +230,10 @@ export class CommandCenter {
 		}
 
 		if (!left) {
-			await commands.executeCommand<void>('vscode.open', right, opts);
+			const previousVisibleRanges = activeTextEditor.visibleRanges;
+			const document = await workspace.openTextDocument(right);
+			const editor = await window.showTextDocument(document, opts);
+			editor.revealRange(previousVisibleRanges[0]);
 		} else {
 			await commands.executeCommand<void>('vscode.diff', left, right, title, opts);
 		}
@@ -577,7 +580,10 @@ export class CommandCenter {
 				opts.selection = activeTextEditor.selection;
 			}
 
-			await commands.executeCommand<void>('vscode.open', uri, opts);
+			const previousVisibleRanges = activeTextEditor.visibleRanges;
+			const document = await workspace.openTextDocument(uri);
+			const editor = await window.showTextDocument(document, opts);
+			editor.revealRange(previousVisibleRanges[0]);
 		}
 	}
 
