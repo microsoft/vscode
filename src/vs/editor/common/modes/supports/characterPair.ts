@@ -9,7 +9,7 @@ import { CharacterPair, IAutoClosingPair, IAutoClosingPairConditional, StandardA
 
 export class CharacterPairSupport {
 
-	static readonly DEFAULT_AUTOCLOSE_BEFORE_LANGAGE_DEFINED = ';:.,=}])> \n\t';
+	static readonly DEFAULT_AUTOCLOSE_BEFORE_LANGUAGE_DEFINED = ';:.,=}])> \n\t';
 	static readonly DEFAULT_AUTOCLOSE_BEFORE_WHITESPACE = ' \n\t';
 
 	private readonly _autoClosingPairs: StandardAutoClosingPairConditional[];
@@ -25,7 +25,7 @@ export class CharacterPairSupport {
 			this._autoClosingPairs = [];
 		}
 
-		this._autoCloseBefore = typeof config.autoCloseBefore === 'string' ? config.autoCloseBefore : CharacterPairSupport.DEFAULT_AUTOCLOSE_BEFORE_LANGAGE_DEFINED;
+		this._autoCloseBefore = typeof config.autoCloseBefore === 'string' ? config.autoCloseBefore : CharacterPairSupport.DEFAULT_AUTOCLOSE_BEFORE_LANGUAGE_DEFINED;
 
 		this._surroundingPairs = config.surroundingPairs || this._autoClosingPairs;
 	}

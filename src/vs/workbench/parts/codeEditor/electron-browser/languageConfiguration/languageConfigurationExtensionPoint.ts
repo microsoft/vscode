@@ -38,6 +38,7 @@ interface ILanguageConfiguration {
 	wordPattern?: string | IRegExp;
 	indentationRules?: IIndentationRules;
 	folding?: FoldingRules;
+	autoCloseBefore?: string;
 }
 
 function isStringArr(something: string[]): boolean {
@@ -273,6 +274,12 @@ export class LanguageConfigurationFileHandler {
 		if (surroundingPairs) {
 			richEditConfig.surroundingPairs = surroundingPairs;
 		}
+
+		const autoCloseBefore = configuration.autoCloseBefore;
+		if (typeof autoCloseBefore === 'string') {
+			richEditConfig.autoCloseBefore = autoCloseBefore;
+		}
+
 
 		if (configuration.wordPattern) {
 			try {
