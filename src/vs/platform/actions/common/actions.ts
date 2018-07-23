@@ -93,6 +93,8 @@ export class MenuId {
 	static readonly MenubarAppearanceMenu = new MenuId();
 	static readonly MenubarLayoutMenu = new MenuId();
 	static readonly MenubarGoMenu = new MenuId();
+	static readonly MenubarSwitchEditorMenu = new MenuId();
+	static readonly MenubarSwitchGroupMenu = new MenuId();
 	static readonly MenubarDebugMenu = new MenuId();
 	static readonly MenubarTasksMenu = new MenuId();
 	static readonly MenubarWindowMenu = new MenuId();
