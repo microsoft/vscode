@@ -16,9 +16,8 @@ import { OpenContext, IWindowSettings } from 'vs/platform/windows/common/windows
 import { IWindowsMainService, ICodeWindow } from 'vs/platform/windows/electron-main/windows';
 import { whenDeleted } from 'vs/base/node/pfs';
 import { IWorkspacesMainService } from 'vs/platform/workspaces/common/workspaces';
-import { Schemas } from 'vs/base/common/network';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import URI from 'vs/base/common/uri';
+import URI, { UriComponents } from 'vs/base/common/uri';
 import { BrowserWindow } from 'electron';
 import { Event } from 'vs/base/common/event';
 
@@ -33,7 +32,7 @@ export interface IStartArguments {
 export interface IWindowInfo {
 	pid: number;
 	title: string;
-	folders: string[];
+	folderURIs: UriComponents[];
 }
 
 export interface IMainProcessInfo {
@@ -179,7 +178,7 @@ export class LaunchService implements ILaunchService {
 		}
 
 		// Start without file/folder arguments
-		else if (args._.length === 0) {
+		else if (args._.length === 0 && (args['folder-uri'] || []).length === 0) {
 			let openNewWindow = false;
 
 			// Force new window
@@ -275,27 +274,25 @@ export class LaunchService implements ILaunchService {
 	}
 
 	private codeWindowToInfo(window: ICodeWindow): IWindowInfo {
-		const folders: string[] = [];
+		const folderURIs: URI[] = [];
 
-		if (window.openedFolderPath) {
-			folders.push(window.openedFolderPath);
+		if (window.openedFolderUri) {
+			folderURIs.push(window.openedFolderUri);
 		} else if (window.openedWorkspace) {
 			const rootFolders = this.workspacesMainService.resolveWorkspaceSync(window.openedWorkspace.configPath).folders;
 			rootFolders.forEach(root => {
-				if (root.uri.scheme === Schemas.file) { // todo@remote signal remote folders?
-					folders.push(root.uri.fsPath);
-				}
+				folderURIs.push(root.uri);
 			});
 		}
 
-		return this.browserWindowToInfo(window.win, folders);
+		return this.browserWindowToInfo(window.win, folderURIs);
 	}
 
-	private browserWindowToInfo(win: BrowserWindow, folders: string[] = []): IWindowInfo {
+	private browserWindowToInfo(win: BrowserWindow, folderURIs: URI[] = []): IWindowInfo {
 		return {
 			pid: win.webContents.getOSProcessId(),
 			title: win.getTitle(),
-			folders
+			folderURIs
 		} as IWindowInfo;
 	}
 }

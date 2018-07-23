@@ -13,9 +13,10 @@ import { basename, dirname, join } from 'vs/base/common/paths';
 import { isLinux } from 'vs/base/common/platform';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { Event } from 'vs/base/common/event';
-import { tildify, getPathLabel } from 'vs/base/common/labels';
+import { getPathLabel, getBaseLabel } from 'vs/base/common/labels';
 import { IWorkspaceFolder } from 'vs/platform/workspace/common/workspace';
 import URI from 'vs/base/common/uri';
+import { Schemas } from 'vs/base/common/network';
 
 export const IWorkspacesMainService = createDecorator<IWorkspacesMainService>('workspacesMainService');
 export const IWorkspacesService = createDecorator<IWorkspacesService>('workspacesService');
@@ -27,7 +28,7 @@ export const UNTITLED_WORKSPACE_NAME = 'workspace.json';
 /**
  * A single folder workspace identifier is just the path to the folder.
  */
-export type ISingleFolderWorkspaceIdentifier = string;
+export type ISingleFolderWorkspaceIdentifier = URI;
 
 export interface IWorkspaceIdentifier {
 	id: string;
@@ -115,7 +116,13 @@ export function getWorkspaceLabel(workspace: (IWorkspaceIdentifier | ISingleFold
 
 	// Workspace: Single Folder
 	if (isSingleFolderWorkspaceIdentifier(workspace)) {
-		return tildify(workspace, environmentService.userHome);
+		// Folder on disk
+		if (workspace.scheme === Schemas.file) {
+			return options && options.verbose ? getPathLabel(workspace, environmentService) : getBaseLabel(workspace);
+		}
+
+		// Remote folder
+		return options && options.verbose ? getPathLabel(workspace, environmentService) : `${getBaseLabel(workspace)} (${workspace.scheme})`;
 	}
 
 	// Workspace: Untitled
@@ -134,7 +141,7 @@ export function getWorkspaceLabel(workspace: (IWorkspaceIdentifier | ISingleFold
 }
 
 export function isSingleFolderWorkspaceIdentifier(obj: any): obj is ISingleFolderWorkspaceIdentifier {
-	return typeof obj === 'string';
+	return obj instanceof URI;
 }
 
 export function isWorkspaceIdentifier(obj: any): obj is IWorkspaceIdentifier {

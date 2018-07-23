@@ -892,6 +892,7 @@ export class ExtensionTipsService extends Disposable implements IExtensionTipsSe
 
 	private fetchDynamicWorkspaceRecommendations(): TPromise<void> {
 		if (this.contextService.getWorkbenchState() !== WorkbenchState.FOLDER
+			|| this.contextService.getWorkspace().folders[0].uri.scheme !== Schemas.file // #54483: check with @Ramya
 			|| this._dynamicWorkspaceRecommendations.length
 			|| !this._extensionsRecommendationsUrl) {
 			return TPromise.as(null);

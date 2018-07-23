@@ -49,7 +49,7 @@ export class OpenFolderAPICommand {
 			return executor.executeCommand('_files.pickFolderAndOpen', forceNewWindow);
 		}
 
-		return executor.executeCommand('_files.windowOpen', [uri.fsPath], forceNewWindow);
+		return executor.executeCommand('_files.windowOpen', [uri], forceNewWindow);
 	}
 }
 CommandsRegistry.registerCommand(OpenFolderAPICommand.ID, adjustHandler(OpenFolderAPICommand.execute));

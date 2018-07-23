@@ -76,7 +76,6 @@ export class DebugService implements debug.IDebugService {
 	private configurationManager: ConfigurationManager;
 	private toDispose: lifecycle.IDisposable[];
 	private toDisposeOnSessionEnd: Map<string, lifecycle.IDisposable[]>;
-	private inDebugMode: IContextKey<boolean>;
 	private debugType: IContextKey<string>;
 	private debugState: IContextKey<string>;
 	private breakpointsToSendOnResourceSaved: Set<string>;
@@ -120,7 +119,6 @@ export class DebugService implements debug.IDebugService {
 
 		this.configurationManager = this.instantiationService.createInstance(ConfigurationManager);
 		this.toDispose.push(this.configurationManager);
-		this.inDebugMode = debug.CONTEXT_IN_DEBUG_MODE.bindTo(contextKeyService);
 		this.debugType = debug.CONTEXT_DEBUG_TYPE.bindTo(contextKeyService);
 		this.debugState = debug.CONTEXT_DEBUG_STATE.bindTo(contextKeyService);
 
@@ -909,7 +907,6 @@ export class DebugService implements debug.IDebugService {
 
 		const resolved = configuration.resolved;
 		resolved.__sessionId = sessionId;
-		this.inDebugMode.set(true);
 
 		const dbg = this.configurationManager.getDebugger(resolved.type);
 		return this.initializeRawSession(root, configuration, sessionId).then(session => {
@@ -984,9 +981,6 @@ export class DebugService implements debug.IDebugService {
 					// Show the repl if some error got logged there #5870
 					if (this.model.getReplElements().length > 0) {
 						this.panelService.openPanel(debug.REPL_ID, false).done(undefined, errors.onUnexpectedError);
-					}
-					if (this.model.getSessions().length === 0) {
-						this.inDebugMode.reset();
 					}
 
 					this.showError(errorMessage, errors.isErrorWithActions(error) ? error.actions : []);
@@ -1209,7 +1203,6 @@ export class DebugService implements debug.IDebugService {
 		this.updateStateAndEmit(raw.getId(), debug.State.Inactive);
 
 		if (this.model.getSessions().length === 0) {
-			this.inDebugMode.reset();
 			this.debugType.reset();
 			this.viewModel.setMultiSessionView(false);
 

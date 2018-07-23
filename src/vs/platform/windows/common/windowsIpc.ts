@@ -9,7 +9,7 @@ import { TPromise } from 'vs/base/common/winjs.base';
 import { Event, buffer } from 'vs/base/common/event';
 import { IChannel } from 'vs/base/parts/ipc/common/ipc';
 import { IWindowsService, INativeOpenDialogOptions, IEnterWorkspaceResult, CrashReporterStartOptions, IMessageBoxResult, MessageBoxOptions, SaveDialogOptions, OpenDialogOptions, IDevToolsOptions } from 'vs/platform/windows/common/windows';
-import { IWorkspaceIdentifier, ISingleFolderWorkspaceIdentifier, IWorkspaceFolderCreationData } from 'vs/platform/workspaces/common/workspaces';
+import { IWorkspaceIdentifier, IWorkspaceFolderCreationData, isSingleFolderWorkspaceIdentifier, ISingleFolderWorkspaceIdentifier, isWorkspaceIdentifier } from 'vs/platform/workspaces/common/workspaces';
 import { IRecentlyOpened } from 'vs/platform/history/common/history';
 import { ISerializableCommandAction } from 'vs/platform/actions/common/actions';
 import URI from 'vs/base/common/uri';
@@ -32,6 +32,7 @@ export interface IWindowsChannel extends IChannel {
 	call(command: 'showSaveDialog', arg: [number, SaveDialogOptions]): TPromise<string>;
 	call(command: 'showOpenDialog', arg: [number, OpenDialogOptions]): TPromise<string[]>;
 	call(command: 'reloadWindow', arg: [number, ParsedArgs]): TPromise<void>;
+	call(command: 'openDevTools', arg: [number, IDevToolsOptions]): TPromise<void>;
 	call(command: 'toggleDevTools', arg: number): TPromise<void>;
 	call(command: 'closeWorkspace', arg: number): TPromise<void>;
 	call(command: 'enterWorkspace', arg: [number, string]): TPromise<IEnterWorkspaceResult>;
@@ -40,14 +41,14 @@ export interface IWindowsChannel extends IChannel {
 	call(command: 'toggleFullScreen', arg: number): TPromise<void>;
 	call(command: 'setRepresentedFilename', arg: [number, string]): TPromise<void>;
 	call(command: 'addRecentlyOpened', arg: string[]): TPromise<void>;
-	call(command: 'removeFromRecentlyOpened', arg: (IWorkspaceIdentifier | ISingleFolderWorkspaceIdentifier)[]): TPromise<void>;
+	call(command: 'removeFromRecentlyOpened', arg: (IWorkspaceIdentifier | ISingleFolderWorkspaceIdentifier | string)[]): TPromise<void>;
 	call(command: 'clearRecentlyOpened'): TPromise<void>;
 	call(command: 'getRecentlyOpened', arg: number): TPromise<IRecentlyOpened>;
-	call(command: 'showPreviousWindowTab', arg: number): TPromise<void>;
-	call(command: 'showNextWindowTab', arg: number): TPromise<void>;
-	call(command: 'moveWindowTabToNewWindow', arg: number): TPromise<void>;
-	call(command: 'mergeAllWindowTabs', arg: number): TPromise<void>;
-	call(command: 'toggleWindowTabsBar', arg: number): TPromise<void>;
+	call(command: 'showPreviousWindowTab'): TPromise<void>;
+	call(command: 'showNextWindowTab'): TPromise<void>;
+	call(command: 'moveWindowTabToNewWindow'): TPromise<void>;
+	call(command: 'mergeAllWindowTabs'): TPromise<void>;
+	call(command: 'toggleWindowTabsBar'): TPromise<void>;
 	call(command: 'updateTouchBar', arg: [number, ISerializableCommandAction[][]]): TPromise<void>;
 	call(command: 'focusWindow', arg: number): TPromise<void>;
 	call(command: 'closeWindow', arg: number): TPromise<void>;
@@ -59,12 +60,12 @@ export interface IWindowsChannel extends IChannel {
 	call(command: 'onWindowTitleDoubleClick', arg: number): TPromise<void>;
 	call(command: 'setDocumentEdited', arg: [number, boolean]): TPromise<void>;
 	call(command: 'quit'): TPromise<void>;
-	call(command: 'openWindow', arg: [number, string[], { forceNewWindow?: boolean, forceReuseWindow?: boolean, forceOpenWorkspaceAsFile?: boolean }]): TPromise<void>;
+	call(command: 'openWindow', arg: [number, URI[], { forceNewWindow?: boolean, forceReuseWindow?: boolean, forceOpenWorkspaceAsFile?: boolean, args?: ParsedArgs }]): TPromise<void>;
 	call(command: 'openNewWindow'): TPromise<void>;
 	call(command: 'showWindow', arg: number): TPromise<void>;
-	call(command: 'getWindows'): TPromise<{ id: number; workspace?: IWorkspaceIdentifier; folderPath?: string; title: string; filename?: string; }[]>;
+	call(command: 'getWindows'): TPromise<{ id: number; workspace?: IWorkspaceIdentifier; folderUri?: ISingleFolderWorkspaceIdentifier; title: string; filename?: string; }[]>;
 	call(command: 'getWindowCount'): TPromise<number>;
-	call(command: 'relaunch', arg: { addArgs?: string[], removeArgs?: string[] }): TPromise<number>;
+	call(command: 'relaunch', arg: [{ addArgs?: string[], removeArgs?: string[] }]): TPromise<void>;
 	call(command: 'whenSharedProcessReady'): TPromise<void>;
 	call(command: 'toggleSharedProcess'): TPromise<void>;
 	call(command: 'log', arg: [string, string[]]): TPromise<void>;
@@ -74,7 +75,6 @@ export interface IWindowsChannel extends IChannel {
 	call(command: 'startCrashReporter', arg: CrashReporterStartOptions): TPromise<void>;
 	call(command: 'openAccessibilityOptions'): TPromise<void>;
 	call(command: 'openAboutDialog'): TPromise<void>;
-	call(command: string, arg?: any): TPromise<any>;
 }
 
 export class WindowsChannel implements IWindowsChannel {
@@ -140,7 +140,7 @@ export class WindowsChannel implements IWindowsChannel {
 			case 'toggleFullScreen': return this.service.toggleFullScreen(arg);
 			case 'setRepresentedFilename': return this.service.setRepresentedFilename(arg[0], arg[1]);
 			case 'addRecentlyOpened': return this.service.addRecentlyOpened(arg);
-			case 'removeFromRecentlyOpened': return this.service.removeFromRecentlyOpened(arg);
+			case 'removeFromRecentlyOpened': return this.service.removeFromRecentlyOpened(isSingleFolderWorkspaceIdentifier(arg) ? URI.revive(arg) : arg);
 			case 'clearRecentlyOpened': return this.service.clearRecentlyOpened();
 			case 'showPreviousWindowTab': return this.service.showPreviousWindowTab();
 			case 'showNextWindowTab': return this.service.showNextWindowTab();
@@ -158,7 +158,7 @@ export class WindowsChannel implements IWindowsChannel {
 			case 'minimizeWindow': return this.service.minimizeWindow(arg);
 			case 'onWindowTitleDoubleClick': return this.service.onWindowTitleDoubleClick(arg);
 			case 'setDocumentEdited': return this.service.setDocumentEdited(arg[0], arg[1]);
-			case 'openWindow': return this.service.openWindow(arg[0], arg[1], arg[2]);
+			case 'openWindow': return this.service.openWindow(arg[0], arg[1] ? (<URI[]>arg[1]).map(r => URI.revive(r)) : arg[1], arg[2]);
 			case 'openNewWindow': return this.service.openNewWindow();
 			case 'showWindow': return this.service.showWindow(arg);
 			case 'getWindows': return this.service.getWindows();
@@ -260,7 +260,7 @@ export class WindowsChannelClient implements IWindowsService {
 		return this.channel.call('addRecentlyOpened', files);
 	}
 
-	removeFromRecentlyOpened(paths: string[]): TPromise<void> {
+	removeFromRecentlyOpened(paths: (IWorkspaceIdentifier | ISingleFolderWorkspaceIdentifier | string)[]): TPromise<void> {
 		return this.channel.call('removeFromRecentlyOpened', paths);
 	}
 
@@ -269,7 +269,11 @@ export class WindowsChannelClient implements IWindowsService {
 	}
 
 	getRecentlyOpened(windowId: number): TPromise<IRecentlyOpened> {
-		return this.channel.call('getRecentlyOpened', windowId);
+		return this.channel.call('getRecentlyOpened', windowId)
+			.then(recentlyOpened => {
+				recentlyOpened.workspaces = recentlyOpened.workspaces.map(workspace => isWorkspaceIdentifier(workspace) ? workspace : URI.revive(workspace));
+				return recentlyOpened;
+			});
 	}
 
 	showPreviousWindowTab(): TPromise<void> {
@@ -344,7 +348,7 @@ export class WindowsChannelClient implements IWindowsService {
 		return this.channel.call('toggleSharedProcess');
 	}
 
-	openWindow(windowId: number, paths: string[], options?: { forceNewWindow?: boolean, forceReuseWindow?: boolean, forceOpenWorkspaceAsFile?: boolean }): TPromise<void> {
+	openWindow(windowId: number, paths: URI[], options?: { forceNewWindow?: boolean, forceReuseWindow?: boolean, forceOpenWorkspaceAsFile?: boolean, args?: ParsedArgs }): TPromise<void> {
 		return this.channel.call('openWindow', [windowId, paths, options]);
 	}
 
@@ -356,8 +360,8 @@ export class WindowsChannelClient implements IWindowsService {
 		return this.channel.call('showWindow', windowId);
 	}
 
-	getWindows(): TPromise<{ id: number; workspace?: IWorkspaceIdentifier; folderPath?: string; title: string; filename?: string; }[]> {
-		return this.channel.call('getWindows');
+	getWindows(): TPromise<{ id: number; workspace?: IWorkspaceIdentifier; folderUri?: ISingleFolderWorkspaceIdentifier; title: string; filename?: string; }[]> {
+		return this.channel.call('getWindows').then(result => { result.forEach(win => win.folderUri = win.folderUri ? URI.revive(win.folderUri) : win.folderUri); return result; });
 	}
 
 	getWindowCount(): TPromise<number> {

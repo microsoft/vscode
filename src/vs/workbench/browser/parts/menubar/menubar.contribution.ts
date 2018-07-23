@@ -10,7 +10,6 @@ import { isMacintosh } from 'vs/base/common/platform';
 editMenuRegistration();
 selectionMenuRegistration();
 goMenuRegistration();
-tasksMenuRegistration();
 
 if (isMacintosh) {
 	windowMenuRegistration();
@@ -445,75 +444,6 @@ function goMenuRegistration() {
 		},
 		order: 7
 	});
-}
-
-function tasksMenuRegistration() {
-	// Run Tasks
-	MenuRegistry.appendMenuItem(MenuId.MenubarTasksMenu, {
-		group: '1_run',
-		command: {
-			id: 'workbench.action.tasks.runTask',
-			title: nls.localize({ key: 'miRunTask', comment: ['&& denotes a mnemonic'] }, "&&Run Task...")
-		},
-		order: 1
-	});
-
-	MenuRegistry.appendMenuItem(MenuId.MenubarTasksMenu, {
-		group: '1_run',
-		command: {
-			id: 'workbench.action.tasks.build',
-			title: nls.localize({ key: 'miBuildTask', comment: ['&& denotes a mnemonic'] }, "Run &&Build Task...")
-		},
-		order: 2
-	});
-
-	// Manage Tasks
-	MenuRegistry.appendMenuItem(MenuId.MenubarTasksMenu, {
-		group: '2_manage',
-		command: {
-			id: 'workbench.action.tasks.showTasks',
-			title: nls.localize({ key: 'miRunningTask', comment: ['&& denotes a mnemonic'] }, "Show Runnin&&g Tasks...")
-		},
-		order: 1
-	});
-
-	MenuRegistry.appendMenuItem(MenuId.MenubarTasksMenu, {
-		group: '2_manage',
-		command: {
-			id: 'workbench.action.tasks.restartTask',
-			title: nls.localize({ key: 'miRestartTask', comment: ['&& denotes a mnemonic'] }, "R&&estart Running Task...")
-		},
-		order: 2
-	});
-
-	MenuRegistry.appendMenuItem(MenuId.MenubarTasksMenu, {
-		group: '2_manage',
-		command: {
-			id: 'workbench.action.tasks.terminate',
-			title: nls.localize({ key: 'miTerminateTask', comment: ['&& denotes a mnemonic'] }, "&&Terminate Task...")
-		},
-		order: 3
-	});
-
-	// Configure Tasks
-	MenuRegistry.appendMenuItem(MenuId.MenubarTasksMenu, {
-		group: '3_configure',
-		command: {
-			id: 'workbench.action.tasks.configureTaskRunner',
-			title: nls.localize({ key: 'miConfigureTask', comment: ['&& denotes a mnemonic'] }, "&&Configure Tasks...")
-		},
-		order: 1
-	});
-
-	MenuRegistry.appendMenuItem(MenuId.MenubarTasksMenu, {
-		group: '3_configure',
-		command: {
-			id: 'workbench.action.tasks.configureDefaultBuildTask',
-			title: nls.localize({ key: 'miConfigureBuildTask', comment: ['&& denotes a mnemonic'] }, "Configure De&&fault Build Task...")
-		},
-		order: 2
-	});
-
 }
 
 function windowMenuRegistration() {

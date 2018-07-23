@@ -19,7 +19,7 @@ import TypeScriptServiceClient from './typescriptServiceClient';
 import API from './utils/api';
 import { CommandManager } from './utils/commandManager';
 import { disposeAll } from './utils/dispose';
-import { LanguageDescription } from './utils/languageDescription';
+import { LanguageDescription, DiagnosticLanguage } from './utils/languageDescription';
 import LogDirectoryProvider from './utils/logDirectoryProvider';
 import { TypeScriptServerPlugin } from './utils/plugins';
 import * as typeConverters from './utils/typeConverters';
@@ -119,7 +119,8 @@ export default class TypeScriptServiceClientHost {
 				const description: LanguageDescription = {
 					id: 'typescript-plugins',
 					modeIds: Array.from(languages.values()),
-					diagnosticSource: 'ts-plugins',
+					diagnosticSource: 'ts-plugin',
+					diagnosticLanguage: DiagnosticLanguage.TypeScript,
 					diagnosticOwner: 'typescript',
 					isExternal: true
 				};

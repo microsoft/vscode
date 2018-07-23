@@ -28,13 +28,13 @@ import { IExtensionEnablementService, IExtensionManagementService, IExtensionGal
 import { used } from 'vs/workbench/parts/welcome/page/electron-browser/vs_code_welcome_page';
 import { ILifecycleService, StartupKind } from 'vs/platform/lifecycle/common/lifecycle';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
-import { tildify, getBaseLabel } from 'vs/base/common/labels';
+import { tildify, getBaseLabel, getPathLabel } from 'vs/base/common/labels';
 import { registerThemingParticipant } from 'vs/platform/theme/common/themeService';
 import { registerColor, focusBorder, textLinkForeground, textLinkActiveForeground, foreground, descriptionForeground, contrastBorder, activeContrastBorder } from 'vs/platform/theme/common/colorRegistry';
 import { getExtraColor } from 'vs/workbench/parts/welcome/walkThrough/node/walkThroughUtils';
 import { IExtensionsWorkbenchService } from 'vs/workbench/parts/extensions/common/extensions';
 import { IStorageService } from 'vs/platform/storage/common/storage';
-import { IWorkspaceIdentifier, getWorkspaceLabel, ISingleFolderWorkspaceIdentifier, isSingleFolderWorkspaceIdentifier } from 'vs/platform/workspaces/common/workspaces';
+import { IWorkspaceIdentifier, getWorkspaceLabel, ISingleFolderWorkspaceIdentifier, isSingleFolderWorkspaceIdentifier, isWorkspaceIdentifier } from 'vs/platform/workspaces/common/workspaces';
 import { IEditorInputFactory, EditorInput } from 'vs/workbench/common/editor';
 import { getIdAndVersionFromLocalExtensionId } from 'vs/platform/extensionManagement/node/extensionManagementUtil';
 import { INotificationService, Severity } from 'vs/platform/notification/common/notification';
@@ -278,33 +278,40 @@ class WelcomePage {
 			const before = ul.firstElementChild;
 			workspaces.slice(0, 5).forEach(workspace => {
 				let label: string;
-				let parent: string;
-				let wsPath: string;
+				let resource: URI;
 				if (isSingleFolderWorkspaceIdentifier(workspace)) {
-					label = getBaseLabel(workspace);
-					parent = path.dirname(workspace);
-					wsPath = workspace;
-				} else {
+					resource = workspace;
 					label = getWorkspaceLabel(workspace, this.environmentService);
-					parent = path.dirname(workspace.configPath);
-					wsPath = workspace.configPath;
+				} else if (isWorkspaceIdentifier(workspace)) {
+					label = getWorkspaceLabel(workspace, this.environmentService);
+					resource = URI.file(workspace.configPath);
+				} else {
+					label = getBaseLabel(workspace);
+					resource = URI.file(workspace);
 				}
 
 				const li = document.createElement('li');
 
 				const a = document.createElement('a');
 				let name = label;
-				let parentFolder = parent;
-				if (!name && parentFolder) {
-					const tmp = name;
-					name = parentFolder;
-					parentFolder = tmp;
+				let parentFolderPath: string;
+
+				if (resource.scheme === Schemas.file) {
+					let parentFolder = path.dirname(resource.fsPath);
+					if (!name && parentFolder) {
+						const tmp = name;
+						name = parentFolder;
+						parentFolder = tmp;
+					}
+					parentFolderPath = tildify(parentFolder, this.environmentService.userHome);
+				} else {
+					parentFolderPath = getPathLabel(resource, this.environmentService);
 				}
-				const tildifiedParentFolder = tildify(parentFolder, this.environmentService.userHome);
+
 
 				a.innerText = name;
 				a.title = label;
-				a.setAttribute('aria-label', localize('welcomePage.openFolderWithPath', "Open folder {0} with path {1}", name, tildifiedParentFolder));
+				a.setAttribute('aria-label', localize('welcomePage.openFolderWithPath', "Open folder {0} with path {1}", name, parentFolderPath));
 				a.href = 'javascript:void(0)';
 				a.addEventListener('click', e => {
 					/* __GDPR__
@@ -317,7 +324,7 @@ class WelcomePage {
 						id: 'openRecentFolder',
 						from: telemetryFrom
 					});
-					this.windowService.openWindow([wsPath], { forceNewWindow: e.ctrlKey || e.metaKey });
+					this.windowService.openWindow([resource], { forceNewWindow: e.ctrlKey || e.metaKey });
 					e.preventDefault();
 					e.stopPropagation();
 				});
@@ -326,7 +333,7 @@ class WelcomePage {
 				const span = document.createElement('span');
 				span.classList.add('path');
 				span.classList.add('detail');
-				span.innerText = tildifiedParentFolder;
+				span.innerText = parentFolderPath;
 				span.title = label;
 				li.appendChild(span);
 
