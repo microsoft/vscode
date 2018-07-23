@@ -21,5 +21,9 @@
   '2018-05-15 12:00, US/Pacific':    'development',
   '2018-05-28 18:00, US/Pacific':    'endgame',
   # 'release' not needed anymore, return to 'development' after releasing.
-  '2018-06-06 12:00, US/Pacific':    'development',
+  '2018-06-06 12:00, US/Pacific':    'development', # 1.24.0 released
+  '2018-06-25 18:00, US/Pacific':    'endgame',
+  '2018-07-05 12:00, US/Pacific':    'development', # 1.25.0 released
+  '2018-07-30 18:00, US/Pacific':    'endgame',
+  # '2018-08-08 12:00, US/Pacific':    'development', # 1.26.0 released
 }
