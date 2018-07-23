@@ -12,7 +12,6 @@ import { TPromise } from 'vs/base/common/winjs.base';
 import { INotificationService, Severity } from 'vs/platform/notification/common/notification';
 
 export const offlineModeSetting = 'workbench.enableOfflineMode';
-export const offlineModeUnsupportedFeatureMsg = localize('offlineModeUnsupportedFeature', "This feature is not supported in offline mode");
 
 export class EnableOfflineMode extends Action {
 	static readonly ID = 'workbench.action.enableOfflineMode';
@@ -70,11 +69,11 @@ export class NotifyUnsupportedFeatureInOfflineMode extends Action {
 		@IConfigurationService private configurationService: IConfigurationService,
 		@INotificationService private notificationService: INotificationService
 	) {
-		super('workbench.action.notifyUnsupportedFeatureInOfflineMode');
+		super(id);
 	}
 
 	run(): TPromise<any> {
-		this.notificationService.prompt(Severity.Info, offlineModeUnsupportedFeatureMsg, [
+		this.notificationService.prompt(Severity.Info, localize('offlineModeUnsupportedFeature', "This feature is not supported in offline mode"), [
 			{
 				label: DisableOfflineMode.LABEL,
 				run: () => {

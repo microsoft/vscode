@@ -1158,7 +1158,7 @@ export class CheckForUpdatesAction extends Action {
 
 	static readonly ID = 'workbench.extensions.action.checkForUpdates';
 	static LABEL = localize('checkForUpdates', "Check for Updates");
-	private readonly notifyAction = new NotifyUnsupportedFeatureInOfflineMode(NotifyUnsupportedFeatureInOfflineMode.ID, '', this.configurationService, this.notificationService);
+	private readonly notifyOfflineModeAction = new NotifyUnsupportedFeatureInOfflineMode(NotifyUnsupportedFeatureInOfflineMode.ID, '', this.configurationService, this.notificationService);
 
 	constructor(
 		id = UpdateAllAction.ID,
@@ -1172,7 +1172,7 @@ export class CheckForUpdatesAction extends Action {
 
 	run(): TPromise<any> {
 		if (this.configurationService.getValue(offlineModeSetting) === true) {
-			return this.notifyAction.run();
+			return this.notifyOfflineModeAction.run();
 		}
 		return this.extensionsWorkbenchService.checkForUpdates();
 	}
@@ -1180,7 +1180,7 @@ export class CheckForUpdatesAction extends Action {
 
 export class ToggleAutoUpdateAction extends Action {
 
-	private readonly notifyAction = new NotifyUnsupportedFeatureInOfflineMode(NotifyUnsupportedFeatureInOfflineMode.ID, '', this.configurationService, this.notificationService);
+	private readonly notifyOfflineModeAction = new NotifyUnsupportedFeatureInOfflineMode(NotifyUnsupportedFeatureInOfflineMode.ID, '', this.configurationService, this.notificationService);
 
 	constructor(
 		id: string,
@@ -1200,7 +1200,7 @@ export class ToggleAutoUpdateAction extends Action {
 
 	run(): TPromise<any> {
 		if (this.autoUpdateValue) {
-			return this.notifyAction.run();
+			return this.notifyOfflineModeAction.run();
 		}
 		return this.configurationService.updateValue(AutoUpdateConfigurationKey, this.autoUpdateValue);
 	}

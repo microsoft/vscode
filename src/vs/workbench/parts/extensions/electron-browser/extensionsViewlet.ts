@@ -484,7 +484,7 @@ export class ExtensionsViewlet extends ViewContainerViewlet implements IExtensio
 		this.searchInstalledExtensionsContextKey.set(InstalledExtensionsView.isInstalledExtensionsQuery(value));
 		this.searchBuiltInExtensionsContextKey.set(ExtensionsListView.isBuiltInExtensionsQuery(value));
 		this.groupByServersContextKey.set(ExtensionsListView.isGroupByServersExtensionsQuery(value));
-		this.recommendedExtensionsContextKey.set(ExtensionsListView.isRecommendedExtensionsQuery(value));
+		this.recommendedExtensionsContextKey.set(ExtensionsListView.isRecommendedExtensionsQuery(value) && this.configurationService.getValue(offlineModeSetting) !== true);
 		this.nonEmptyWorkspaceContextKey.set(this.contextService.getWorkbenchState() !== WorkbenchState.EMPTY);
 
 		if (value) {
