@@ -50,7 +50,7 @@
     "vscode-nsfw": "1.0.17",
     "vscode-ripgrep": "^1.0.1",
     "vscode-textmate": "^4.0.1",
-    "vscode-xterm": "3.6.0-beta3",
+    "vscode-xterm": "3.6.0-beta4",
     "yauzl": "^2.9.1"
   },
   "devDependencies": {
