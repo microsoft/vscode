@@ -4014,14 +4014,14 @@ suite('autoClosingPairs', () => {
 		}, (model, cursor) => {
 
 			let autoClosePositions = [
-				'var| a| =| [|]|;|',
-				'var| b| =| `asd`|;|',
-				'var| c| =| \'asd\'|;|',
-				'var| d| =| "asd"|;|',
-				'var| e| =| /*3*/|	3|;|',
-				'var| f| =| /**| 3| */3|;|',
-				'var| g| =| (3+5|)|;|',
-				'var| h| =| {| a|:| \'value\'| |}|;|',
+				'var| a| |=| [|]|;|',
+				'var| b| |=| `asd`|;|',
+				'var| c| |=| \'asd\'|;|',
+				'var| d| |=| "asd"|;|',
+				'var| e| |=| /*3*/|	3|;|',
+				'var| f| |=| /**| 3| */3|;|',
+				'var| g| |=| (3+5|)|;|',
+				'var| h| |=| {| a|:| \'value\'| |}|;|',
 			];
 			for (let i = 0, len = autoClosePositions.length; i < len; i++) {
 				const lineNumber = i + 1;
@@ -4120,7 +4120,7 @@ suite('autoClosingPairs', () => {
 
 		usingCursor({
 			text: [
-				'var a = [];',
+				'var b = [];',
 			],
 			languageIdentifier: mode.getLanguageIdentifier(),
 			editorOpts: {
@@ -4130,7 +4130,7 @@ suite('autoClosingPairs', () => {
 		}, (model, cursor) => {
 
 			let autoClosePositions = [
-				'var| a| =| [|];|',
+				'var b =| [|];|',
 			];
 			for (let i = 0, len = autoClosePositions.length; i < len; i++) {
 				const lineNumber = i + 1;
@@ -4310,7 +4310,7 @@ suite('autoClosingPairs', () => {
 			assert.equal(model.getValue(), '`var` a = asd');
 
 			// type a (
-			cursorCommand(cursor, H.Type, { text: '`' }, 'keyboard');
+			cursorCommand(cursor, H.Type, { text: '(' }, 'keyboard');
 			assert.equal(model.getValue(), '`(` a = asd');
 		});
 
@@ -4356,14 +4356,14 @@ suite('autoClosingPairs', () => {
 		}, (model, cursor) => {
 
 			let autoClosePositions = [
-				'var a =| [|];|',
-				'var b =| |`asd`;|',
-				'var c =| |\'asd!\';|',
-				'var d =| |"asd";|',
-				'var e =| /*3*/|	3;|',
-				'var f =| /**| 3 */3;|',
-				'var g =| (3+5);|',
-				'var h =| {| a:| |\'value!\'| |};|',
+				'var a |=| [|]|;|',
+				'var b |=| |`asd`|;|',
+				'var c |=| |\'asd!\'|;|',
+				'var d |=| |"asd"|;|',
+				'var e |=| /*3*/|	3;|',
+				'var f |=| /**| 3 */3;|',
+				'var g |=| (3+5)|;|',
+				'var h |=| {| a:| |\'value!\'| |}|;|',
 			];
 			for (let i = 0, len = autoClosePositions.length; i < len; i++) {
 				const lineNumber = i + 1;
