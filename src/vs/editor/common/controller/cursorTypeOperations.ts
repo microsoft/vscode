@@ -19,6 +19,7 @@ import { SurroundSelectionCommand } from 'vs/editor/common/commands/surroundSele
 import { IElectricAction } from 'vs/editor/common/modes/supports/electricCharacter';
 import { getMapForWordSeparators, WordCharacterClass } from 'vs/editor/common/controller/wordCharacterClassifier';
 import { CharCode } from 'vs/base/common/charCode';
+import { CharacterPairSupport } from 'vs/editor/common/modes/supports/characterPair';
 
 export class TypeOperations {
 
@@ -521,6 +522,8 @@ export class TypeOperations {
 			return false;
 		}
 
+		let shouldAutoCloseBefore = chIsQuote ? config.shouldAutoCloseBefore.quote : config.shouldAutoCloseBefore.bracket;
+
 		for (let i = 0, len = selections.length; i < len; i++) {
 			const selection = selections[i];
 			if (!selection.isEmpty()) {
@@ -546,7 +549,7 @@ export class TypeOperations {
 			if (characterAfter) {
 				let isBeforeCloseBrace = TypeOperations._isBeforeClosingBrace(config, ch, characterAfter);
 
-				if (!isBeforeCloseBrace && autoCloseConfig.enabledBefore.indexOf(characterAfter) === -1) {
+				if (!(isBeforeCloseBrace || shouldAutoCloseBefore(characterAfter))) {
 					return false;
 				}
 			}
@@ -589,8 +592,12 @@ export class TypeOperations {
 
 	private static _isSurroundSelectionType(config: CursorConfiguration, model: ITextModel, selections: Selection[], ch: string): boolean {
 		const chIsQuote = (ch === '\'' || ch === '"' || ch === '`');
-		const autoCloseConfig = chIsQuote ? config.autoClosingQuotes : config.autoClosingBrackets;
-		if (!autoCloseConfig.autoWrap || !config.surroundingPairs.hasOwnProperty(ch)) {
+		let autoWrapping = false;
+		if (chIsQuote && config.autoWrapping === 'quotes' || !chIsQuote && config.autoWrapping === 'brackets' || config.autoWrapping === 'always') {
+			autoWrapping = true;
+		}
+
+		if (!autoWrapping || !config.surroundingPairs.hasOwnProperty(ch)) {
 			return false;
 		}
 
@@ -716,7 +723,7 @@ export class TypeOperations {
 	}
 
 	public static compositionEndWithInterceptors(prevEditOperationType: EditOperationType, config: CursorConfiguration, model: ITextModel, selections: Selection[]): EditOperationResult {
-		if (!config.autoClosingQuotes.autoClose) {
+		if (config.autoClosingQuotes === 'never') {
 			return null;
 		}
 
@@ -757,9 +764,9 @@ export class TypeOperations {
 
 				if (characterAfter) {
 					let isBeforeCloseBrace = TypeOperations._isBeforeClosingBrace(config, ch, characterAfter);
-					const chIsQuote = (ch === '\'' || ch === '"');
-					const autoCloseConfig = chIsQuote ? config.autoClosingQuotes : config.autoClosingBrackets;
-					if (!autoCloseConfig.autoClose || (!isBeforeCloseBrace && autoCloseConfig.enabledBefore.indexOf(characterAfter) === -1)) {
+					const chIsQuote = (ch === '\'' || ch === '"' || ch === '`');
+					let shouldAutoCloseBefore = chIsQuote ? config.shouldAutoCloseBefore.quote : config.shouldAutoCloseBefore.bracket;
+					if (!(isBeforeCloseBrace || shouldAutoCloseBefore(characterAfter))) {
 						continue;
 					}
 				}

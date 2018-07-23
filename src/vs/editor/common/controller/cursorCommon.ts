@@ -20,6 +20,7 @@ import { IViewModel } from 'vs/editor/common/viewModel/viewModel';
 import { CursorChangeReason } from 'vs/editor/common/controller/cursorEvents';
 import { VerticalRevealType } from 'vs/editor/common/view/viewEvents';
 import { TextModelResolvedOptions, ITextModel } from 'vs/editor/common/model';
+import { CharacterPairSupport } from 'vs/editor/common/modes/supports/characterPair';
 
 export interface IColumnSelectData {
 	toViewLineNumber: number;
@@ -86,6 +87,7 @@ export class CursorConfiguration {
 	public readonly autoClosingPairsOpen: CharacterMap;
 	public readonly autoClosingPairsClose: CharacterMap;
 	public readonly surroundingPairs: CharacterMap;
+	public readonly shouldAutoCloseBefore: { quote: (ch: string) => boolean, bracket: (ch: string) => boolean };
 
 	private readonly _languageIdentifier: LanguageIdentifier;
 	private _electricChars: { [key: string]: boolean; };
@@ -135,6 +137,11 @@ export class CursorConfiguration {
 		this.surroundingPairs = {};
 		this._electricChars = null;
 
+		this.shouldAutoCloseBefore = {
+			quote: CursorConfiguration._getShouldAutoclose(languageIdentifier, this.autoClosingQuotes),
+			bracket: CursorConfiguration._getShouldAutoclose(languageIdentifier, this.autoClosingBrackets)
+		};
+
 		let autoClosingPairs = CursorConfiguration._getAutoClosingPairs(languageIdentifier);
 		if (autoClosingPairs) {
 			for (let i = 0; i < autoClosingPairs.length; i++) {
@@ -180,6 +187,23 @@ export class CursorConfiguration {
 	private static _getAutoClosingPairs(languageIdentifier: LanguageIdentifier): IAutoClosingPair[] {
 		try {
 			return LanguageConfigurationRegistry.getAutoClosingPairs(languageIdentifier.id);
+		} catch (e) {
+			onUnexpectedError(e);
+			return null;
+		}
+	}
+
+	private static _getShouldAutoclose(languageIdentifier: LanguageIdentifier, autoCloseConfig: EditorAutoClosingStrategy): (ch: string) => boolean {
+		let autoCloseBeforeSet = CursorConfiguration._getAutoCloseBeforeSet(languageIdentifier);
+		if (autoCloseConfig === 'beforeWhitespace') { return c => CharacterPairSupport.DEFAULT_AUTOCLOSE_BEFORE_WHITESPACE.indexOf(c) !== -1; }
+		if (autoCloseConfig === 'languageDefined') { return c => autoCloseBeforeSet.indexOf(c) !== -1; }
+		if (autoCloseConfig === 'always') { return c => true; }
+		return c => false;
+	}
+
+	private static _getAutoCloseBeforeSet(languageIdentifier: LanguageIdentifier): string {
+		try {
+			return LanguageConfigurationRegistry.getAutoCloseBeforeSet(languageIdentifier.id);
 		} catch (e) {
 			onUnexpectedError(e);
 			return null;

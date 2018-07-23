@@ -271,6 +271,14 @@ export class LanguageConfigurationRegistryImpl {
 		return characterPairSupport.getAutoClosingPairs();
 	}
 
+	public getAutoCloseBeforeSet(languageId: LanguageId): string {
+		let characterPairSupport = this._getCharacterPairSupport(languageId);
+		if (!characterPairSupport) {
+			return CharacterPairSupport.DEFAULT_AUTOCLOSE_BEFORE_LANGAGE_DEFINED;
+		}
+		return characterPairSupport.getAutoCloseBeforeSet();
+	}
+
 	public getSurroundingPairs(languageId: LanguageId): IAutoClosingPair[] {
 		let characterPairSupport = this._getCharacterPairSupport(languageId);
 		if (!characterPairSupport) {
