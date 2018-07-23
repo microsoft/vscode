@@ -207,6 +207,7 @@ export interface ISearchConfigurationProperties {
 	smartCase: boolean;
 	globalFindClipboard: boolean;
 	location: 'sidebar' | 'panel';
+	openNewWindowOnScopeSelect: boolean;
 }
 
 export interface ISearchConfiguration extends IFilesConfiguration {

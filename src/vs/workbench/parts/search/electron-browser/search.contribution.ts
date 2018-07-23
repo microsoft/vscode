@@ -435,7 +435,9 @@ CommandsRegistry.registerCommand({
 	id: SCOPE_TO_FOLDER,
 	handler: (accessor, args: any) => {
 		const windowService = accessor.get(IWindowService);
-		return windowService.openWindow([URI.file(args.path)]);
+		const configurationService = accessor.get(IConfigurationService);
+		const generateNewWindow = configurationService.getValue<ISearchConfigurationProperties>('search').openNewWindowOnScopeSelect;
+		return windowService.openWindow([URI.file(args.path)], { forceNewWindow: generateNewWindow });
 	}
 });
 
@@ -624,6 +626,11 @@ configurationRegistry.registerConfiguration({
 			enum: ['sidebar', 'panel'],
 			default: 'sidebar',
 			description: nls.localize('search.location', "Controls if the search will be shown as a view in the sidebar or as a panel in the panel area for more horizontal space."),
+		},
+		'search.openNewWindowOnScopeSelect': {
+			type: 'boolean',
+			description: nls.localize('search.openNewWindowOnScopeSelect', 'Controls whether a new window will open on folder scope change.'),
+			default: true
 		}
 	}
 });
