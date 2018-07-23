@@ -702,14 +702,6 @@ declare module 'vscode' {
 	export namespace window {
 
 		/**
-		 * A back button for [QuickPick](#QuickPick) and [InputBox](#InputBox).
-		 *
-		 * When a navigation 'back' button is needed this one should be used for consistency.
-		 * It comes with a predefined icon, tooltip and location.
-		 */
-		export const quickInputBackButton: QuickInputButton;
-
-		/**
 		 * Creates a [QuickPick](#QuickPick) to let the user pick an item from a list
 		 * of items of type T.
 		 *
@@ -975,6 +967,20 @@ declare module 'vscode' {
 		 * An optional tooltip.
 		 */
 		readonly tooltip?: string | undefined;
+	}
+
+	/**
+	 * Predefined buttons for [QuickPick](#QuickPick) and [InputBox](#InputBox).
+	 */
+	export namespace QuickInputButtons {
+
+		/**
+		 * A back button for [QuickPick](#QuickPick) and [InputBox](#InputBox).
+		 *
+		 * When a navigation 'back' button is needed this one should be used for consistency.
+		 * It comes with a predefined icon, tooltip and location.
+		 */
+		export const Back: QuickInputButton;
 	}
 
 	//#endregion
