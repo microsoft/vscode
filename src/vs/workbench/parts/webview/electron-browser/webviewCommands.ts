@@ -33,6 +33,17 @@ export class HideWebViewEditorFindCommand extends Command {
 	}
 }
 
+export class SelectAllWebviewEditorCommand extends Command {
+	public static readonly ID = 'editor.action.webvieweditor.selectAll';
+
+	public runCommand(accessor: ServicesAccessor, args: any): void {
+		const webViewEditor = getActiveWebviewEditor(accessor);
+		if (webViewEditor) {
+			webViewEditor.selectAll();
+		}
+	}
+}
+
 export class OpenWebviewDeveloperToolsAction extends Action {
 	static readonly ID = 'workbench.action.webview.openDeveloperTools';
 	static readonly LABEL = nls.localize('openToolsLabel', "Open Webview Developer Tools");

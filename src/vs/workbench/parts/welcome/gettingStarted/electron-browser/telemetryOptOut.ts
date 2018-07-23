@@ -45,29 +45,30 @@ export class TelemetryOptOut implements IWorkbenchContribution {
 			}
 			storageService.store(TelemetryOptOut.TELEMETRY_OPT_OUT_SHOWN, true);
 
+			const optOutUrl = product.telemetryOptOutUrl;
+			const privacyUrl = product.privacyStatementUrl || product.telemetryOptOutUrl;
+
 			if (experimentState && experimentState.state === ExperimentState.Run && telemetryService.isOptedIn) {
 				notificationService.prompt(
 					Severity.Info,
-					localize('telemetryOptOut.optOutOption', "Microsoft collects usage data to improve VS Code. You may choose to opt out."),
+					localize('telemetryOptOut.optOutOption', "Please help Microsoft improve Visual Studio Code by allowing the collection of usage data. Read our [privacy statement]({0}) for more details.", privacyUrl),
 					[
 						{
-							label: localize('telemetryOptOut.OptOut', "Opt out"),
+							label: localize('telemetryOptOut.OptIn', "Yes, glad to help"),
+							run: () => { }
+						},
+						{
+							label: localize('telemetryOptOut.OptOut', "No, thanks"),
 							run: () => {
 								configurationService.updateValue('telemetry.enableTelemetry', false);
 								configurationService.updateValue('telemetry.enableCrashReporter', false);
 							}
-						},
-						{
-							label: localize('telemetryOptOut.readMore', "Read More"),
-							run: () => openerService.open(URI.parse(product.telemetryOptOutUrl))
 						}]
 				);
 				experimentService.markAsCompleted(experimentId);
 				return;
 			}
 
-			const optOutUrl = product.telemetryOptOutUrl;
-			const privacyUrl = product.privacyStatementUrl || product.telemetryOptOutUrl;
 			const optOutNotice = localize('telemetryOptOut.optOutNotice', "Help improve VS Code by allowing Microsoft to collect usage data. Read our [privacy statement]({0}) and learn how to [opt out]({1}).", privacyUrl, optOutUrl);
 			const optInNotice = localize('telemetryOptOut.optInNotice', "Help improve VS Code by allowing Microsoft to collect usage data. Read our [privacy statement]({0}) and learn how to [opt in]({1}).", privacyUrl, optOutUrl);
 
