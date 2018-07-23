@@ -51,7 +51,7 @@
 	"command.stashPop": "Pop Stash...",
 	"command.stashPopLatest": "Pop Latest Stash",
 	"config.enabled": "Whether git is enabled",
-	"config.path": "Path to the git executable",
+	"config.path": "Path to the git executable.",
 	"config.autoRepositoryDetection": "Configures when repositories should be automatically detected.",
 	"config.autorefresh": "Whether auto refreshing is enabled",
 	"config.autofetch": "Whether auto fetching is enabled",
