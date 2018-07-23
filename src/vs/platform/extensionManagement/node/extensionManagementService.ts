@@ -31,7 +31,7 @@ import { Event, Emitter } from 'vs/base/common/event';
 import * as semver from 'semver';
 import URI from 'vs/base/common/uri';
 import pkg from 'vs/platform/node/package';
-import { isMacintosh, isWindows } from 'vs/base/common/platform';
+import { isMacintosh, isWindows, translationsConfigFile } from 'vs/base/common/platform';
 import { ILogService } from 'vs/platform/log/common/log';
 import { ExtensionsManifestCache } from 'vs/platform/extensionManagement/node/extensionsManifestCache';
 import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
@@ -82,19 +82,64 @@ export function validateLocalExtension(zipPath: string): TPromise<IExtensionMani
 }
 
 function readManifest(extensionPath: string): TPromise<{ manifest: IExtensionManifest; metadata: IGalleryMetadata; }> {
-	const promises = [
-		pfs.readFile(path.join(extensionPath, 'package.json'), 'utf8')
-			.then(raw => parseManifest(raw)),
-		pfs.readFile(path.join(extensionPath, 'package.nls.json'), 'utf8')
-			.then(null, err => err.code !== 'ENOENT' ? TPromise.wrapError<string>(err) : '{}')
-			.then(raw => JSON.parse(raw))
-	];
+	return pfs.readFile(path.join(extensionPath, 'package.json'), 'utf8').then(raw => parseManifest(raw)).then((data) => {
+		let manifest = data.manifest;
+		let metadata = data.metadata;
 
-	return TPromise.join<any>(promises).then(([{ manifest, metadata }, translations]) => {
-		return {
-			manifest: localizeManifest(manifest, translations),
-			metadata
-		};
+		interface TranslationConiguration {
+			[id: string]: string;
+		}
+
+		interface MessagesBag {
+			[key: string]: string;
+		}
+
+		interface TranslationBundle {
+			contents: {
+				package: MessagesBag;
+			};
+		}
+
+		const translationConfig: TPromise<TranslationConiguration> = translationsConfigFile
+			? pfs.readFile(translationsConfigFile, 'utf8').then((content) => {
+				try {
+					return JSON.parse(content) as TranslationConiguration;
+				} catch (err) {
+					return Object.create(null);
+				}
+			}, (err) => {
+				return Object.create(null);
+			})
+			: TPromise.as(Object.create(null));
+
+		return translationConfig.then((translationConfig) => {
+			const translationId = `${manifest.publisher}.${manifest.name}`;
+			let translationPath = translationConfig[translationId];
+			let readDefault = () => {
+				return pfs.readFile(path.join(extensionPath, 'package.nls.json'), 'utf8')
+					.then(null, err => err.code !== 'ENOENT' ? TPromise.wrapError<string>(err) : '{}')
+					.then(raw => JSON.parse(raw));
+			};
+
+			let translations: TPromise<MessagesBag> = translationPath
+				? pfs.readFile(translationPath, 'utf8').then(content => {
+					try {
+						let jsonContent: TranslationBundle = JSON.parse(content);
+						return jsonContent.contents && jsonContent.contents.package ? jsonContent.contents.package : readDefault();
+					} catch (err) {
+						return readDefault();
+					}
+				}, (error) => {
+					return readDefault();
+				})
+				: readDefault();
+			return translations.then((messages) => {
+				return {
+					manifest: localizeManifest(manifest, messages),
+					metadata
+				};
+			});
+		});
 	});
 }
 
