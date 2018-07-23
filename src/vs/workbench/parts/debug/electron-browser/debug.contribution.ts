@@ -358,40 +358,47 @@ MenuRegistry.appendMenuItem(MenuId.MenubarDebugMenu, {
 	order: 1
 });
 
-MenuRegistry.appendMenuItem(MenuId.MenubarDebugMenu, {
-	group: '4_new_breakpoint',
+MenuRegistry.appendMenuItem(MenuId.MenubarNewBreakpointMenu, {
+	group: '1_breakpoints',
 	command: {
 		id: TOGGLE_CONDITIONAL_BREAKPOINT_ID,
-		title: nls.localize({ key: 'miConditionalBreakpoint', comment: ['&& denotes a mnemonic'] }, "Toggle &&Conditional Breakpoint...")
+		title: nls.localize({ key: 'miConditionalBreakpoint', comment: ['&& denotes a mnemonic'] }, "&&Conditional Breakpoint...")
+	},
+	order: 1
+});
+
+MenuRegistry.appendMenuItem(MenuId.MenubarNewBreakpointMenu, {
+	group: '1_breakpoints',
+	command: {
+		id: TOGGLE_INLINE_BREAKPOINT_ID,
+		title: nls.localize({ key: 'miInlineBreakpoint', comment: ['&& denotes a mnemonic'] }, "Inline Breakp&&oint")
 	},
 	order: 2
 });
 
-MenuRegistry.appendMenuItem(MenuId.MenubarDebugMenu, {
-	group: '4_new_breakpoint',
+MenuRegistry.appendMenuItem(MenuId.MenubarNewBreakpointMenu, {
+	group: '1_breakpoints',
 	command: {
-		id: TOGGLE_INLINE_BREAKPOINT_ID,
-		title: nls.localize({ key: 'miInlineBreakpoint', comment: ['&& denotes a mnemonic'] }, "Toggle Inline Breakp&&oint")
+		id: AddFunctionBreakpointAction.ID,
+		title: nls.localize({ key: 'miFunctionBreakpoint', comment: ['&& denotes a mnemonic'] }, "&&Function Breakpoint...")
 	},
 	order: 3
 });
 
-MenuRegistry.appendMenuItem(MenuId.MenubarDebugMenu, {
-	group: '4_new_breakpoint',
+MenuRegistry.appendMenuItem(MenuId.MenubarNewBreakpointMenu, {
+	group: '1_breakpoints',
 	command: {
-		id: AddFunctionBreakpointAction.ID,
-		title: nls.localize({ key: 'miFunctionBreakpoint', comment: ['&& denotes a mnemonic'] }, "Toggle &&Function Breakpoint...")
+		id: TOGGLE_LOG_POINT_ID,
+		title: nls.localize({ key: 'miLogPoint', comment: ['&& denotes a mnemonic'] }, "&&Logpoint...")
 	},
 	order: 4
 });
 
 MenuRegistry.appendMenuItem(MenuId.MenubarDebugMenu, {
 	group: '4_new_breakpoint',
-	command: {
-		id: TOGGLE_LOG_POINT_ID,
-		title: nls.localize({ key: 'miLogPoint', comment: ['&& denotes a mnemonic'] }, "Toggle &&Logpoint...")
-	},
-	order: 5
+	title: nls.localize({ key: 'miNewBreakpoint', comment: ['&& denotes a mnemonic'] }, "&&New Breakpoint"),
+	submenu: MenuId.MenubarNewBreakpointMenu,
+	order: 2
 });
 
 // Modify Breakpoints
@@ -420,6 +427,16 @@ MenuRegistry.appendMenuItem(MenuId.MenubarDebugMenu, {
 		title: nls.localize({ key: 'miRemoveAllBreakpoints', comment: ['&& denotes a mnemonic'] }, "Remove &&All Breakpoints")
 	},
 	order: 3
+});
+
+// Install Debuggers
+MenuRegistry.appendMenuItem(MenuId.MenubarDebugMenu, {
+	group: 'z_install',
+	command: {
+		id: 'debug.installAdditionalDebuggers',
+		title: nls.localize({ key: 'miInstallAdditionalDebuggers', comment: ['&& denotes a mnemonic'] }, "&&Install Additional Debuggers...")
+	},
+	order: 1
 });
 
 // Touch Bar
