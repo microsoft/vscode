@@ -847,13 +847,20 @@ export class SettingsRenderer implements IRenderer {
 		template.labelElement.textContent = element.displayLabel;
 		template.labelElement.title = titleTooltip;
 
-		const enumDescriptionText = element.setting.enumDescriptions && element.setting.enum && element.setting.enum.length < SettingsRenderer.MAX_ENUM_DESCRIPTIONS ?
-			'\n' + element.setting.enumDescriptions
-				.map((desc, i) => desc && ` - \`${element.setting.enum[i]}\`: ${desc}`)
+		let enumDescriptionText = '';
+		if (element.setting.enumDescriptions && element.setting.enum && element.setting.enum.length < SettingsRenderer.MAX_ENUM_DESCRIPTIONS) {
+			enumDescriptionText = '\n' + element.setting.enumDescriptions
+				.map((desc, i) => desc ?
+					` - \`${element.setting.enum[i]}\` :
+					${desc}` : ` - \`${element.setting.enum[i]}\``)
 				.filter(desc => !!desc)
-				.join('\n') :
-			'';
-		const descriptionText = element.description + enumDescriptionText;
+				.join('\n');
+		}
+
+		// Rewrite `#editor.fontSize#` to link format
+		const descriptionText = (element.description + enumDescriptionText)
+			.replace(/`#(.*)#`/g, (match, settingName) => `[\`${settingName}\`](#${settingName})`);
+
 		const renderedDescription = renderMarkdown({ value: descriptionText }, {
 			actionHandler: {
 				callback: (content: string) => {

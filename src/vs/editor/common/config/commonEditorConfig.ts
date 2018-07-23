@@ -282,19 +282,19 @@ const editorConfiguration: IConfigurationNode = {
 			'type': 'number',
 			'default': EDITOR_MODEL_DEFAULTS.tabSize,
 			'minimum': 1,
-			'description': nls.localize('tabSize', "The number of spaces a tab is equal to. This setting is overridden based on the file contents when [`editor.detectIndentation`](#editor.detectIndentation) is on."),
+			'description': nls.localize('tabSize', "The number of spaces a tab is equal to. This setting is overridden based on the file contents when `#editor.detectIndentation#` is on."),
 			'errorMessage': nls.localize('tabSize.errorMessage', "Expected 'number'. Note that the value \"auto\" has been replaced by the `editor.detectIndentation` setting.")
 		},
 		'editor.insertSpaces': {
 			'type': 'boolean',
 			'default': EDITOR_MODEL_DEFAULTS.insertSpaces,
-			'description': nls.localize('insertSpaces', "Insert spaces when pressing Tab. This setting is overridden based on the file contents when [`editor.detectIndentation`](#editor.detectIndentation) is on."),
+			'description': nls.localize('insertSpaces', "Insert spaces when pressing Tab. This setting is overridden based on the file contents when `#editor.detectIndentation#` is on."),
 			'errorMessage': nls.localize('insertSpaces.errorMessage', "Expected 'boolean'. Note that the value \"auto\" has been replaced by the `editor.detectIndentation` setting.")
 		},
 		'editor.detectIndentation': {
 			'type': 'boolean',
 			'default': EDITOR_MODEL_DEFAULTS.detectIndentation,
-			'description': nls.localize('detectIndentation', "When opening a file, [`editor.tabSize`](#editor.tabSize) and [`editor.insertSpaces`](#editor.insertSpaces) will be detected based on the file contents.")
+			'description': nls.localize('detectIndentation', "When opening a file, `#editor.tabSize#` and `#editor.insertSpaces#` will be detected based on the file contents.")
 		},
 		'editor.roundedSelection': {
 			'type': 'boolean',
@@ -385,14 +385,14 @@ const editorConfiguration: IConfigurationNode = {
 					comment: [
 						'- `editor.wordWrapColumn` refers to a different setting and should not be localized.'
 					]
-				}, "Lines will wrap at `editor.wordWrapColumn`."),
+				}, "Lines will wrap at `#editor.wordWrapColumn#`."),
 				nls.localize({
 					key: 'wordWrap.bounded',
 					comment: [
 						'- viewport means the edge of the visible window size.',
 						'- `editor.wordWrapColumn` refers to a different setting and should not be localized.'
 					]
-				}, "Lines will wrap at the minimum of viewport and `editor.wordWrapColumn`."),
+				}, "Lines will wrap at the minimum of viewport and `#editor.wordWrapColumn#`."),
 			],
 			'default': EDITOR_DEFAULTS.wordWrap,
 			'description': nls.localize({
@@ -413,7 +413,7 @@ const editorConfiguration: IConfigurationNode = {
 					'- `editor.wordWrap` refers to a different setting and should not be localized.',
 					'- \'wordWrapColumn\' and \'bounded\' refer to values the different setting can take and should not be localized.'
 				]
-			}, "Controls the wrapping column of the editor when [`editor.wordWrap`](#editor.wordWrap) is `wordWrapColumn` or `bounded`.")
+			}, "Controls the wrapping column of the editor when `#editor.wordWrap#` is `wordWrapColumn` or `bounded`.")
 		},
 		'editor.wrappingIndent': {
 			'type': 'string',
@@ -618,7 +618,7 @@ const editorConfiguration: IConfigurationNode = {
 		'editor.cursorWidth': {
 			'type': 'integer',
 			'default': EDITOR_DEFAULTS.viewInfo.cursorWidth,
-			'description': nls.localize('cursorWidth', "Controls the width of the cursor when [`editor.cursorStyle`](#editor.cursorStyle) is set to `line`.")
+			'description': nls.localize('cursorWidth', "Controls the width of the cursor when `#editor.cursorStyle#` is set to `line`.")
 		},
 		'editor.fontLigatures': {
 			'type': 'boolean',

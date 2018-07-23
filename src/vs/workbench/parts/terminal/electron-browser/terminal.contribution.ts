@@ -137,7 +137,7 @@ configurationRegistry.registerConfiguration({
 			default: true
 		},
 		'terminal.integrated.fontFamily': {
-			description: nls.localize('terminal.integrated.fontFamily', "Controls the font family of the terminal, this defaults to [`editor.fontFamily`](#editor.fontFamily)'s value."),
+			description: nls.localize('terminal.integrated.fontFamily', "Controls the font family of the terminal, this defaults to `#editor.fontFamily#`'s value."),
 			type: 'string'
 		},
 		// TODO: Support font ligatures
