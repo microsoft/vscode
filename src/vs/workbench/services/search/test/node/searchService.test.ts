@@ -165,13 +165,15 @@ suite('SearchService', () => {
 		}
 
 		const progressResults = [];
-		return DiskSearch.collectResultsFromEvent(fileSearch(rawSearch, 10))
+		const onProgress = match => {
+			assert.strictEqual(match.resource.path, uriPath);
+			progressResults.push(match);
+		};
+
+		return DiskSearch.collectResultsFromEvent(fileSearch(rawSearch, 10), onProgress)
 			.then(result => {
 				assert.strictEqual(result.results.length, 25, 'Result');
 				assert.strictEqual(progressResults.length, 25, 'Progress');
-			}, null, match => {
-				assert.strictEqual(match.resource.path, uriPath);
-				progressResults.push(match);
 			});
 	});
 

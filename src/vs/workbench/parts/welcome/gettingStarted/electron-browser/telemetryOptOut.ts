@@ -14,6 +14,8 @@ import URI from 'vs/base/common/uri';
 import { localize } from 'vs/nls';
 import { onUnexpectedError } from 'vs/base/common/errors';
 import { IWindowService, IWindowsService } from 'vs/platform/windows/common/windows';
+import { IExperimentService, ExperimentState } from 'vs/workbench/parts/experiments/node/experimentService';
+import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 
 export class TelemetryOptOut implements IWorkbenchContribution {
 
@@ -25,19 +27,44 @@ export class TelemetryOptOut implements IWorkbenchContribution {
 		@INotificationService notificationService: INotificationService,
 		@IWindowService windowService: IWindowService,
 		@IWindowsService windowsService: IWindowsService,
-		@ITelemetryService telemetryService: ITelemetryService
+		@ITelemetryService telemetryService: ITelemetryService,
+		@IExperimentService experimentService: IExperimentService,
+		@IConfigurationService configurationService: IConfigurationService
 	) {
 		if (!product.telemetryOptOutUrl || storageService.get(TelemetryOptOut.TELEMETRY_OPT_OUT_SHOWN)) {
 			return;
 		}
+		const experimentId = 'telemetryOptOut';
 		Promise.all([
 			windowService.isFocused(),
-			windowsService.getWindowCount()
-		]).then(([focused, count]) => {
+			windowsService.getWindowCount(),
+			experimentService.getExperimentById(experimentId)
+		]).then(([focused, count, experimentState]) => {
 			if (!focused && count > 1) {
 				return null;
 			}
 			storageService.store(TelemetryOptOut.TELEMETRY_OPT_OUT_SHOWN, true);
+
+			if (experimentState && experimentState.state === ExperimentState.Run && telemetryService.isOptedIn) {
+				notificationService.prompt(
+					Severity.Info,
+					localize('telemetryOptOut.optOutOption', "Microsoft collects usage data to improve VS Code. You may choose to opt out."),
+					[
+						{
+							label: localize('telemetryOptOut.OptOut', "Opt out"),
+							run: () => {
+								configurationService.updateValue('telemetry.enableTelemetry', false);
+								configurationService.updateValue('telemetry.enableCrashReporter', false);
+							}
+						},
+						{
+							label: localize('telemetryOptOut.readMore', "Read More"),
+							run: () => openerService.open(URI.parse(product.telemetryOptOutUrl))
+						}]
+				);
+				experimentService.markAsCompleted(experimentId);
+				return;
+			}
 
 			const optOutUrl = product.telemetryOptOutUrl;
 			const privacyUrl = product.privacyStatementUrl || product.telemetryOptOutUrl;

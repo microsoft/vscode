@@ -442,7 +442,6 @@ class TreeDataSource implements IDataSource {
 }
 
 interface ITreeExplorerTemplateData {
-	label: HTMLElement;
 	resourceLabel: ResourceLabel;
 	icon: HTMLElement;
 	actionBar: ActionBar;
@@ -475,37 +474,31 @@ class TreeRenderer implements IRenderer {
 		DOM.addClass(container, 'custom-view-tree-node-item');
 
 		const icon = DOM.append(container, DOM.$('.custom-view-tree-node-item-icon'));
-		const label = DOM.append(container, DOM.$('.custom-view-tree-node-item-label'));
 		const resourceLabel = this.instantiationService.createInstance(ResourceLabel, container, {});
-		const actionsContainer = DOM.append(container, DOM.$('.actions'));
+		DOM.addClass(resourceLabel.element, 'custom-view-tree-node-item-resourceLabel');
+		const actionsContainer = DOM.append(resourceLabel.element, DOM.$('.actions'));
 		const actionBar = new ActionBar(actionsContainer, {
 			actionItemProvider: this.actionItemProvider,
 			actionRunner: new MultipleSelectionActionRunner(() => tree.getSelection())
 		});
 
-		return { label, resourceLabel, icon, actionBar, aligner: new Aligner(container, tree, this.themeService) };
+		return { resourceLabel, icon, actionBar, aligner: new Aligner(container, tree, this.themeService) };
 	}
 
 	renderElement(tree: ITree, node: ITreeItem, templateId: string, templateData: ITreeExplorerTemplateData): void {
 		const resource = node.resourceUri ? URI.revive(node.resourceUri) : null;
 		const label = node.label ? node.label : resource ? basename(resource.path) : '';
 		const icon = this.themeService.getTheme().type === LIGHT ? node.icon : node.iconDark;
+		const title = node.tooltip ? node.tooltip : resource ? void 0 : label;
 
 		// reset
 		templateData.resourceLabel.clear();
 		templateData.actionBar.clear();
-		templateData.label.textContent = '';
-		DOM.removeClass(templateData.label, 'custom-view-tree-node-item-label');
-		DOM.removeClass(templateData.resourceLabel.element, 'custom-view-tree-node-item-resourceLabel');
 
 		if ((resource || node.themeIcon) && !icon) {
-			const title = node.tooltip ? node.tooltip : resource ? void 0 : label;
-			templateData.resourceLabel.setLabel({ name: label, resource: resource ? resource : URI.parse('_icon_resource') }, { fileKind: this.getFileKind(node), title });
-			DOM.addClass(templateData.resourceLabel.element, 'custom-view-tree-node-item-resourceLabel');
+			templateData.resourceLabel.setLabel({ name: label, resource: resource ? resource : URI.parse('_icon_resource') }, { fileKind: this.getFileKind(node), title, fileDecorations: node.decorations, extraClasses: ['custom-view-tree-node-item-resourceLabel'] });
 		} else {
-			templateData.label.textContent = label;
-			DOM.addClass(templateData.label, 'custom-view-tree-node-item-label');
-			templateData.label.title = typeof node.tooltip === 'string' ? node.tooltip : label;
+			templateData.resourceLabel.setLabel({ name: label }, { title, hideIcon: true, extraClasses: ['custom-view-tree-node-item-resourceLabel'] });
 		}
 
 		templateData.icon.style.backgroundImage = icon ? `url('${icon}')` : '';
