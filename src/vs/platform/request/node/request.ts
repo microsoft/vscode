@@ -42,7 +42,7 @@ Registry.as<IConfigurationRegistry>(Extensions.Configuration)
 			'http.proxyStrictSSL': {
 				type: 'boolean',
 				default: true,
-				description: localize('strictSSL', "Whether the proxy server certificate should be verified against the list of supplied CAs.")
+				description: localize('strictSSL', "Controls whether the proxy server certificate should be verified against the list of supplied CAs.")
 			},
 			'http.proxyAuthorization': {
 				type: ['null', 'string'],
