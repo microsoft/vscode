@@ -23,6 +23,8 @@ import { asJson } from 'vs/base/node/request';
 import { ITextFileService, StateChange } from 'vs/workbench/services/textfile/common/textfiles';
 import { WorkspaceStats } from 'vs/workbench/parts/stats/node/workspaceStats';
 import { Emitter, Event } from 'vs/base/common/event';
+import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
+import { offlineModeSetting } from 'vs/platform/actions/common/offlineMode';
 
 
 interface IExperimentStorageState {
@@ -123,7 +125,8 @@ export class ExperimentService extends Disposable implements IExperimentService 
 		@IEnvironmentService private environmentService: IEnvironmentService,
 		@ITelemetryService private telemetryService: ITelemetryService,
 		@ILifecycleService private lifecycleService: ILifecycleService,
-		@IRequestService private requestService: IRequestService
+		@IRequestService private requestService: IRequestService,
+		@IConfigurationService private configurationService: IConfigurationService
 	) {
 		super();
 
@@ -169,6 +172,9 @@ export class ExperimentService extends Disposable implements IExperimentService 
 	protected getExperiments(): TPromise<IRawExperiment[]> {
 		if (!product.experimentsUrl) {
 			return TPromise.as([]);
+		}
+		if (this.configurationService.getValue(offlineModeSetting) === true) {
+			return TPromise.as(null);
 		}
 		return this.requestService.request({ type: 'GET', url: product.experimentsUrl }).then(context => {
 			if (context.res.statusCode !== 200) {
