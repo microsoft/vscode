@@ -25,8 +25,8 @@ export class DeleteWordPartLeft extends DeleteWordCommand {
 			precondition: EditorContextKeys.writable,
 			kbOpts: {
 				kbExpr: EditorContextKeys.textInputFocus,
-				primary: KeyMod.CtrlCmd | KeyMod.Alt | KeyCode.Backspace,
-				mac: { primary: KeyMod.WinCtrl | KeyMod.Alt | KeyCode.Backspace }
+				primary: KeyMod.Alt | KeyCode.Backspace,
+				mac: { primary: KeyMod.Alt | KeyCode.Backspace }
 			}
 		});
 	}
@@ -49,8 +49,8 @@ export class DeleteWordPartRight extends DeleteWordCommand {
 			precondition: EditorContextKeys.writable,
 			kbOpts: {
 				kbExpr: EditorContextKeys.textInputFocus,
-				primary: KeyMod.CtrlCmd | KeyMod.Alt | KeyCode.Delete,
-				mac: { primary: KeyMod.WinCtrl | KeyMod.Alt | KeyCode.Delete }
+				primary: KeyMod.Alt | KeyCode.Delete,
+				mac: { primary: KeyMod.Alt | KeyCode.Delete }
 			}
 		});
 	}
@@ -80,8 +80,8 @@ export class CursorWordPartLeft extends WordPartLeftCommand {
 			precondition: null,
 			kbOpts: {
 				kbExpr: EditorContextKeys.textInputFocus,
-				primary: KeyMod.CtrlCmd | KeyMod.Alt | KeyCode.LeftArrow,
-				mac: { primary: KeyMod.WinCtrl | KeyMod.Alt | KeyCode.LeftArrow }
+				primary: KeyMod.Alt | KeyCode.LeftArrow,
+				mac: { primary: KeyMod.Alt | KeyCode.LeftArrow }
 			}
 		});
 	}
@@ -95,8 +95,8 @@ export class CursorWordPartLeftSelect extends WordPartLeftCommand {
 			precondition: null,
 			kbOpts: {
 				kbExpr: EditorContextKeys.textInputFocus,
-				primary: KeyMod.CtrlCmd | KeyMod.Alt | KeyMod.Shift | KeyCode.LeftArrow,
-				mac: { primary: KeyMod.WinCtrl | KeyMod.Alt | KeyMod.Shift | KeyCode.LeftArrow }
+				primary: KeyMod.Alt | KeyMod.Shift | KeyCode.LeftArrow,
+				mac: { primary: KeyMod.Alt | KeyMod.Shift | KeyCode.LeftArrow }
 			}
 		});
 	}
@@ -116,8 +116,8 @@ export class CursorWordPartRight extends WordPartRightCommand {
 			precondition: null,
 			kbOpts: {
 				kbExpr: EditorContextKeys.textInputFocus,
-				primary: KeyMod.CtrlCmd | KeyMod.Alt | KeyCode.RightArrow,
-				mac: { primary: KeyMod.WinCtrl | KeyMod.Alt | KeyCode.RightArrow }
+				primary: KeyMod.Alt | KeyCode.RightArrow,
+				mac: { primary: KeyMod.Alt | KeyCode.RightArrow }
 			}
 		});
 	}
@@ -131,8 +131,8 @@ export class CursorWordPartRightSelect extends WordPartRightCommand {
 			precondition: null,
 			kbOpts: {
 				kbExpr: EditorContextKeys.textInputFocus,
-				primary: KeyMod.CtrlCmd | KeyMod.Alt | KeyMod.Shift | KeyCode.RightArrow,
-				mac: { primary: KeyMod.WinCtrl | KeyMod.Alt | KeyMod.Shift | KeyCode.RightArrow }
+				primary: KeyMod.Alt | KeyMod.Shift | KeyCode.RightArrow,
+				mac: { primary: KeyMod.Alt | KeyMod.Shift | KeyCode.RightArrow }
 			}
 		});
 	}
