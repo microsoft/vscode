@@ -171,21 +171,6 @@
         }
       }
     },
-    "configurationDefaults": {
-      "[html]": {
-        "editor.autoClosingQuotes": {
-          "autoClose": true,
-          "autoWrap": true,
-          "enabledBefore": "<> \n\t"
-        },
-        "editor.autoClosingBrackets": {
-          "autoClose": true,
-          "autoWrap": true,
-          "enabledBefore": ",.:;<> \n\t"
-        }
-      }
-    }
-  },
   "dependencies": {
     "vscode-extension-telemetry": "0.0.17",
     "vscode-languageclient": "^4.1.4",

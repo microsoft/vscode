@@ -440,7 +440,7 @@ export class TypeOperations {
 		const chIsQuote = (ch === '\'' || ch === '"' || ch === '`');
 		const autoCloseConfig = chIsQuote ? config.autoClosingQuotes : config.autoClosingBrackets;
 
-		if (!autoCloseConfig.autoClose || !config.autoClosingPairsClose.hasOwnProperty(ch)) {
+		if (autoCloseConfig === 'never' || !config.autoClosingPairsClose.hasOwnProperty(ch)) {
 			return false;
 		}
 
@@ -516,7 +516,8 @@ export class TypeOperations {
 	private static _isAutoClosingOpenCharType(config: CursorConfiguration, model: ITextModel, selections: Selection[], ch: string): boolean {
 		const chIsQuote = (ch === '\'' || ch === '"' || ch === '`');
 		const autoCloseConfig = chIsQuote ? config.autoClosingQuotes : config.autoClosingBrackets;
-		if (!autoCloseConfig.autoClose || !config.autoClosingPairsOpen.hasOwnProperty(ch)) {
+
+		if (autoCloseConfig === 'never' || !config.autoClosingPairsOpen.hasOwnProperty(ch)) {
 			return false;
 		}
 

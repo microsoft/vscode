@@ -15,7 +15,7 @@ import { LanguageConfigurationRegistry } from 'vs/editor/common/modes/languageCo
 import { onUnexpectedError } from 'vs/base/common/errors';
 import { LanguageIdentifier } from 'vs/editor/common/modes';
 import { IAutoClosingPair } from 'vs/editor/common/modes/languageConfiguration';
-import { IConfigurationChangedEvent, EditorAutoClosingOptions } from 'vs/editor/common/config/editorOptions';
+import { IConfigurationChangedEvent, EditorAutoClosingStrategy, EditorAutoWrappingStrategy } from 'vs/editor/common/config/editorOptions';
 import { IViewModel } from 'vs/editor/common/viewModel/viewModel';
 import { CursorChangeReason } from 'vs/editor/common/controller/cursorEvents';
 import { VerticalRevealType } from 'vs/editor/common/view/viewEvents';
@@ -79,8 +79,9 @@ export class CursorConfiguration {
 	public readonly wordSeparators: string;
 	public readonly emptySelectionClipboard: boolean;
 	public readonly multiCursorMergeOverlapping: boolean;
-	public readonly autoClosingBrackets: EditorAutoClosingOptions;
-	public readonly autoClosingQuotes: EditorAutoClosingOptions;
+	public readonly autoClosingBrackets: EditorAutoClosingStrategy;
+	public readonly autoClosingQuotes: EditorAutoClosingStrategy;
+	public readonly autoWrapping: EditorAutoWrappingStrategy;
 	public readonly autoIndent: boolean;
 	public readonly autoClosingPairsOpen: CharacterMap;
 	public readonly autoClosingPairsClose: CharacterMap;
@@ -97,6 +98,7 @@ export class CursorConfiguration {
 			|| e.multiCursorMergeOverlapping
 			|| e.autoClosingBrackets
 			|| e.autoClosingQuotes
+			|| e.autoWrapping
 			|| e.useTabStops
 			|| e.lineHeight
 			|| e.readOnly
@@ -125,6 +127,7 @@ export class CursorConfiguration {
 		this.multiCursorMergeOverlapping = c.multiCursorMergeOverlapping;
 		this.autoClosingBrackets = c.autoClosingBrackets;
 		this.autoClosingQuotes = c.autoClosingQuotes;
+		this.autoWrapping = c.autoWrapping;
 		this.autoIndent = c.autoIndent;
 
 		this.autoClosingPairsOpen = {};

@@ -96,22 +96,14 @@ export interface IEditorFindOptions {
 }
 
 /**
- * Configuration options for auto closing both quotes and brackets
+ * Configuration options for auto closing quotes and brackets
  */
-export interface EditorAutoClosingOptions {
-	/**
-	 * Controls if we wrap selections with the auto-pairing character
-	 */
-	autoWrap: boolean;
-	/**
-	 * Controls if we automatically insert a matching close to this pair
-	 */
-	autoClose: boolean;
-	/**
-	 * controls the set of characters that we may insert a matching close before
-	 */
-	enabledBefore: string;
-}
+export type EditorAutoClosingStrategy = 'always' | 'languageDefined' | 'beforeWhitespace' | 'never';
+
+/**
+ * Configuration options for auto wrapping quotes and brackets
+ */
+export type EditorAutoWrappingStrategy = 'always' | 'quotes' | 'brackets' | 'never';
 
 /**
  * Configuration options for editor minimap
@@ -479,14 +471,19 @@ export interface IEditorOptions {
 	iconsInSuggestions?: boolean;
 	/**
 	 * Options for auto closing brackets.
-	 * Defaults to allowing auto-closing before whitespace and punctuation and allowing auto-wrapping always.
+	 * Defaults to language defined behavior
 	 */
-	autoClosingBrackets?: EditorAutoClosingOptions;
+	autoClosingBrackets?: EditorAutoClosingStrategy;
 	/**
 	 * Options for auto closing quotes.
-	 * Defaults to allowing auto-closing before whitespace and allowing auto-wrapping always.
+	 * Defaults to language defined behavior
 	 */
-	autoClosingQuotes?: EditorAutoClosingOptions;
+	autoClosingQuotes?: EditorAutoClosingStrategy;
+	/**
+	 * Options for autowrapping
+	 * Defaults to always allowing autowrapping
+	 */
+	autoWrapping?: EditorAutoWrappingStrategy;
 	/**
 	 * Enable auto indentation adjustment.
 	 * Defaults to false.
@@ -982,8 +979,9 @@ export interface IValidatedEditorOptions {
 	readonly wordWrapBreakBeforeCharacters: string;
 	readonly wordWrapBreakAfterCharacters: string;
 	readonly wordWrapBreakObtrusiveCharacters: string;
-	readonly autoClosingBrackets: EditorAutoClosingOptions;
-	readonly autoClosingQuotes: EditorAutoClosingOptions;
+	readonly autoClosingBrackets: EditorAutoClosingStrategy;
+	readonly autoClosingQuotes: EditorAutoClosingStrategy;
+	readonly autoWrapping: EditorAutoWrappingStrategy;
 	readonly autoIndent: boolean;
 	readonly dragAndDrop: boolean;
 	readonly emptySelectionClipboard: boolean;
@@ -1018,8 +1016,9 @@ export class InternalEditorOptions {
 
 	// ---- cursor options
 	readonly wordSeparators: string;
-	readonly autoClosingBrackets: EditorAutoClosingOptions;
-	readonly autoClosingQuotes: EditorAutoClosingOptions;
+	readonly autoClosingBrackets: EditorAutoClosingStrategy;
+	readonly autoClosingQuotes: EditorAutoClosingStrategy;
+	readonly autoWrapping: EditorAutoWrappingStrategy;
 	readonly autoIndent: boolean;
 	readonly useTabStops: boolean;
 	readonly tabFocusMode: boolean;
@@ -1046,8 +1045,9 @@ export class InternalEditorOptions {
 		multiCursorModifier: 'altKey' | 'ctrlKey' | 'metaKey';
 		multiCursorMergeOverlapping: boolean;
 		wordSeparators: string;
-		autoClosingBrackets: EditorAutoClosingOptions;
-		autoClosingQuotes: EditorAutoClosingOptions;
+		autoClosingBrackets: EditorAutoClosingStrategy;
+		autoClosingQuotes: EditorAutoClosingStrategy;
+		autoWrapping: EditorAutoWrappingStrategy;
 		autoIndent: boolean;
 		useTabStops: boolean;
 		tabFocusMode: boolean;
@@ -1071,6 +1071,7 @@ export class InternalEditorOptions {
 		this.wordSeparators = source.wordSeparators;
 		this.autoClosingBrackets = source.autoClosingBrackets;
 		this.autoClosingQuotes = source.autoClosingQuotes;
+		this.autoWrapping = source.autoWrapping;
 		this.autoIndent = source.autoIndent;
 		this.useTabStops = source.useTabStops;
 		this.tabFocusMode = source.tabFocusMode;
@@ -1098,6 +1099,9 @@ export class InternalEditorOptions {
 			&& this.multiCursorModifier === other.multiCursorModifier
 			&& this.multiCursorMergeOverlapping === other.multiCursorMergeOverlapping
 			&& this.wordSeparators === other.wordSeparators
+			&& this.autoClosingBrackets === other.autoClosingBrackets
+			&& this.autoClosingQuotes === other.autoClosingQuotes
+			&& this.autoWrapping === other.autoWrapping
 			&& this.autoIndent === other.autoIndent
 			&& this.useTabStops === other.useTabStops
 			&& this.tabFocusMode === other.tabFocusMode
@@ -1106,8 +1110,6 @@ export class InternalEditorOptions {
 			&& this.emptySelectionClipboard === other.emptySelectionClipboard
 			&& InternalEditorOptions._equalsLayoutInfo(this.layoutInfo, other.layoutInfo)
 			&& this.fontInfo.equals(other.fontInfo)
-			&& InternalEditorOptions._equalsAutoClosingConfig(this.autoClosingBrackets, other.autoClosingBrackets)
-			&& InternalEditorOptions._equalsAutoClosingConfig(this.autoClosingQuotes, other.autoClosingQuotes)
 			&& InternalEditorOptions._equalsViewOptions(this.viewInfo, other.viewInfo)
 			&& InternalEditorOptions._equalsWrappingInfo(this.wrappingInfo, other.wrappingInfo)
 			&& InternalEditorOptions._equalsContribOptions(this.contribInfo, other.contribInfo)
@@ -1128,8 +1130,9 @@ export class InternalEditorOptions {
 			multiCursorModifier: (this.multiCursorModifier !== newOpts.multiCursorModifier),
 			multiCursorMergeOverlapping: (this.multiCursorMergeOverlapping !== newOpts.multiCursorMergeOverlapping),
 			wordSeparators: (this.wordSeparators !== newOpts.wordSeparators),
-			autoClosingBrackets: (!InternalEditorOptions._equalsAutoClosingConfig(this.autoClosingBrackets, newOpts.autoClosingBrackets)),
-			autoClosingQuotes: (!InternalEditorOptions._equalsAutoClosingConfig(this.autoClosingQuotes, newOpts.autoClosingQuotes)),
+			autoClosingBrackets: (this.autoClosingBrackets !== newOpts.autoClosingBrackets),
+			autoClosingQuotes: (this.autoClosingQuotes !== newOpts.autoClosingQuotes),
+			autoWrapping: (this.autoWrapping !== newOpts.autoWrapping),
 			autoIndent: (this.autoIndent !== newOpts.autoIndent),
 			useTabStops: (this.useTabStops !== newOpts.useTabStops),
 			tabFocusMode: (this.tabFocusMode !== newOpts.tabFocusMode),
@@ -1169,17 +1172,6 @@ export class InternalEditorOptions {
 			&& a.verticalScrollbarWidth === b.verticalScrollbarWidth
 			&& a.horizontalScrollbarHeight === b.horizontalScrollbarHeight
 			&& this._equalsOverviewRuler(a.overviewRuler, b.overviewRuler)
-		);
-	}
-
-	/**
-	 * @internal
-	 */
-	private static _equalsAutoClosingConfig(a: EditorAutoClosingOptions, b: EditorAutoClosingOptions) {
-		return (
-			a.autoClose === b.autoClose
-			&& a.autoWrap === b.autoWrap
-			&& a.enabledBefore === b.enabledBefore
 		);
 	}
 
@@ -1513,6 +1505,7 @@ export interface IConfigurationChangedEvent {
 	readonly wordSeparators: boolean;
 	readonly autoClosingBrackets: boolean;
 	readonly autoClosingQuotes: boolean;
+	readonly autoWrapping: boolean;
 	readonly autoIndent: boolean;
 	readonly useTabStops: boolean;
 	readonly tabFocusMode: boolean;
@@ -1678,16 +1671,6 @@ export class EditorOptionsValidator {
 			wordWrap = _stringSet<'off' | 'on' | 'wordWrapColumn' | 'bounded'>(wordWrap, defaults.wordWrap, ['off', 'on', 'wordWrapColumn', 'bounded']);
 		}
 
-		const _autoClosingOptions = (config: any, defaultValue: EditorAutoClosingOptions): EditorAutoClosingOptions => {
-			if (typeof config === 'boolean') { return { autoClose: config, autoWrap: config, enabledBefore: ' \t\n' }; }
-			if (!config) { config = {}; }
-			let copy: EditorAutoClosingOptions = { autoClose: defaultValue.autoClose, autoWrap: defaultValue.autoWrap, enabledBefore: defaultValue.enabledBefore };
-			if (typeof config.autoClose === 'boolean') { copy.autoClose = config.autoClose; }
-			if (typeof config.autoWrap === 'boolean') { copy.autoWrap = config.autoWrap; }
-			if (typeof config.enabledBefore === 'string') { copy.enabledBefore = config.enabledBefore; }
-			return copy;
-		};
-
 		const viewInfo = this._sanitizeViewInfo(opts, defaults.viewInfo);
 		const contribInfo = this._sanitizeContribInfo(opts, defaults.contribInfo);
 
@@ -1700,6 +1683,15 @@ export class EditorOptionsValidator {
 			}
 		}
 		const multiCursorModifier = _stringSet<'altKey' | 'metaKey' | 'ctrlKey'>(configuredMulticursorModifier, defaults.multiCursorModifier, ['altKey', 'metaKey', 'ctrlKey']);
+
+		let autoClosingBracketsDefault = defaults.autoClosingBrackets;
+		let autoClosingQuotesDefault = defaults.autoClosingQuotes;
+		let autoWrappingDefault = defaults.autoWrapping;
+		if (typeof (opts.autoClosingBrackets) === 'boolean' && opts.autoClosingBrackets === false) {
+			autoClosingBracketsDefault = 'never';
+			autoClosingQuotesDefault = 'never';
+			autoWrappingDefault = 'never';
+		}
 
 		return {
 			inDiffEditor: _boolean(opts.inDiffEditor, defaults.inDiffEditor),
@@ -1717,8 +1709,9 @@ export class EditorOptionsValidator {
 			wordWrapBreakBeforeCharacters: _string(opts.wordWrapBreakBeforeCharacters, defaults.wordWrapBreakBeforeCharacters),
 			wordWrapBreakAfterCharacters: _string(opts.wordWrapBreakAfterCharacters, defaults.wordWrapBreakAfterCharacters),
 			wordWrapBreakObtrusiveCharacters: _string(opts.wordWrapBreakObtrusiveCharacters, defaults.wordWrapBreakObtrusiveCharacters),
-			autoClosingBrackets: _autoClosingOptions(opts.autoClosingBrackets, defaults.autoClosingBrackets),
-			autoClosingQuotes: _autoClosingOptions(opts.autoClosingQuotes, defaults.autoClosingQuotes),
+			autoClosingBrackets: _stringSet<EditorAutoClosingStrategy>(opts.autoClosingBrackets, autoClosingBracketsDefault, ['always', 'languageDefined', 'beforeWhitespace', 'never']),
+			autoClosingQuotes: _stringSet<EditorAutoClosingStrategy>(opts.autoClosingQuotes, autoClosingQuotesDefault, ['always', 'languageDefined', 'beforeWhitespace', 'never']),
+			autoWrapping: _stringSet<EditorAutoWrappingStrategy>(opts.autoWrapping, autoWrappingDefault, ['always', 'brackets', 'quotes', 'never'], ),
 			autoIndent: _boolean(opts.autoIndent, defaults.autoIndent),
 			dragAndDrop: _boolean(opts.dragAndDrop, defaults.dragAndDrop),
 			emptySelectionClipboard: _boolean(opts.emptySelectionClipboard, defaults.emptySelectionClipboard),
@@ -1992,6 +1985,7 @@ export class InternalEditorOptionsFactory {
 			wordWrapBreakObtrusiveCharacters: opts.wordWrapBreakObtrusiveCharacters,
 			autoClosingBrackets: opts.autoClosingBrackets,
 			autoClosingQuotes: opts.autoClosingQuotes,
+			autoWrapping: opts.autoWrapping,
 			autoIndent: opts.autoIndent,
 			dragAndDrop: opts.dragAndDrop,
 			emptySelectionClipboard: opts.emptySelectionClipboard,
@@ -2214,6 +2208,7 @@ export class InternalEditorOptionsFactory {
 			wordSeparators: opts.wordSeparators,
 			autoClosingBrackets: opts.autoClosingBrackets,
 			autoClosingQuotes: opts.autoClosingQuotes,
+			autoWrapping: opts.autoWrapping,
 			autoIndent: opts.autoIndent,
 			useTabStops: opts.useTabStops,
 			tabFocusMode: opts.readOnly ? true : env.tabFocusMode,
@@ -2446,8 +2441,9 @@ export const EDITOR_DEFAULTS: IValidatedEditorOptions = {
 	wordWrapBreakBeforeCharacters: '([{‘“〈《「『【〔（［｛｢£¥＄￡￥+＋',
 	wordWrapBreakAfterCharacters: ' \t})]?|&,;¢°′″‰℃、。｡､￠，．：；？！％・･ゝゞヽヾーァィゥェォッャュョヮヵヶぁぃぅぇぉっゃゅょゎゕゖㇰㇱㇲㇳㇴㇵㇶㇷㇸㇹㇺㇻㇼㇽㇾㇿ々〻ｧｨｩｪｫｬｭｮｯｰ”〉》」』】〕）］｝｣',
 	wordWrapBreakObtrusiveCharacters: '.',
-	autoClosingBrackets: { autoClose: true, autoWrap: true, enabledBefore: ',.:; \n\t' },
-	autoClosingQuotes: { autoClose: true, autoWrap: true, enabledBefore: ' \n\t' },
+	autoClosingBrackets: 'languageDefined',
+	autoClosingQuotes: 'languageDefined',
+	autoWrapping: 'always',
 	autoIndent: true,
 	dragAndDrop: true,
 	emptySelectionClipboard: true,
