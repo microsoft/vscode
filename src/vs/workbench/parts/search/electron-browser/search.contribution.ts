@@ -61,7 +61,6 @@ import { IConfigurationService } from 'vs/platform/configuration/common/configur
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IWindowService } from 'vs/platform/windows/common/windows';
 
-
 registerSingleton(ISearchWorkbenchService, SearchWorkbenchService);
 replaceContributions();
 searchWidgetContributions();
