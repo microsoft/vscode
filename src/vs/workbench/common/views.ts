@@ -289,6 +289,11 @@ export interface ITreeItem {
 
 	children?: ITreeItem[];
 
+	decorations?: {
+		colors: boolean,
+		badges: boolean
+	};
+
 }
 
 export interface ITreeViewDataProvider {
