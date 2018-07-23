@@ -66,7 +66,17 @@ suite('ExtensionsWorkbenchServiceTest', () => {
 		instantiationService.stub(IURLService, URLService);
 
 		instantiationService.stub(IWorkspaceContextService, new TestContextService());
-		instantiationService.stub(IConfigurationService, { onDidUpdateConfiguration: () => { }, onDidChangeConfiguration: () => { }, getConfiguration: () => ({}) });
+		instantiationService.stub(IConfigurationService, {
+			onDidUpdateConfiguration: () => { },
+			onDidChangeConfiguration: () => { },
+			getConfiguration: () => ({}),
+			getValue: (s) => {
+				if (s === 'workbench.enableOfflineMode') {
+					return false;
+				}
+				return undefined;
+			}
+		});
 
 		instantiationService.stub(IExtensionManagementService, ExtensionManagementService);
 		instantiationService.stub(IExtensionManagementService, 'onInstallExtension', installEvent.event);
