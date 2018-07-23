@@ -443,6 +443,10 @@ export class WebviewElement extends Disposable {
 	public reload() {
 		this.contents = this._contents;
 	}
+
+	public selectAll() {
+		this._webview.selectAll();
+	}
 }
 
 

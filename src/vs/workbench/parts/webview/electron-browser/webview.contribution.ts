@@ -16,7 +16,7 @@ import { Extensions as ActionExtensions, IWorkbenchActionRegistry } from 'vs/wor
 import { Extensions as EditorInputExtensions, IEditorInputFactoryRegistry } from 'vs/workbench/common/editor';
 import { WebviewEditorInputFactory } from 'vs/workbench/parts/webview/electron-browser/webviewEditorInputFactory';
 import { KEYBINDING_CONTEXT_WEBVIEWEDITOR_FOCUS, KEYBINDING_CONTEXT_WEBVIEW_FIND_WIDGET_VISIBLE } from './baseWebviewEditor';
-import { HideWebViewEditorFindCommand, OpenWebviewDeveloperToolsAction, ReloadWebviewAction, ShowWebViewEditorFindWidgetCommand } from './webviewCommands';
+import { HideWebViewEditorFindCommand, OpenWebviewDeveloperToolsAction, ReloadWebviewAction, ShowWebViewEditorFindWidgetCommand, SelectAllWebviewEditorCommand } from './webviewCommands';
 import { WebviewEditor } from './webviewEditor';
 import { WebviewEditorInput } from './webviewEditorInput';
 import { IWebviewEditorService, WebviewEditorService } from './webviewEditorService';
@@ -58,6 +58,14 @@ const hideCommand = new HideWebViewEditorFindCommand({
 });
 KeybindingsRegistry.registerCommandAndKeybindingRule(hideCommand.toCommandAndKeybindingRule(KeybindingsRegistry.WEIGHT.editorContrib()));
 
+const selectAllCommand = new SelectAllWebviewEditorCommand({
+	id: SelectAllWebviewEditorCommand.ID,
+	precondition: KEYBINDING_CONTEXT_WEBVIEWEDITOR_FOCUS,
+	kbOpts: {
+		primary: KeyMod.CtrlCmd | KeyCode.KEY_A
+	}
+});
+KeybindingsRegistry.registerCommandAndKeybindingRule(selectAllCommand.toCommandAndKeybindingRule(KeybindingsRegistry.WEIGHT.editorContrib()));
 
 actionRegistry.registerWorkbenchAction(
 	new SyncActionDescriptor(OpenWebviewDeveloperToolsAction, OpenWebviewDeveloperToolsAction.ID, OpenWebviewDeveloperToolsAction.LABEL),
