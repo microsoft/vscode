@@ -17,16 +17,10 @@ import product from 'vs/platform/node/product';
 import { RunOnceScheduler } from 'vs/base/common/async';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { mnemonicMenuLabel as baseMnemonicLabel, unmnemonicLabel, getPathLabel } from 'vs/base/common/labels';
-import { IKeybinding } from 'vs/code/electron-main/keyboard';
 import { IWindowsMainService, IWindowsCountChangedEvent } from 'vs/platform/windows/electron-main/windows';
 import { IHistoryMainService } from 'vs/platform/history/common/history';
 import { IWorkspaceIdentifier, getWorkspaceLabel, ISingleFolderWorkspaceIdentifier, isSingleFolderWorkspaceIdentifier } from 'vs/platform/workspaces/common/workspaces';
-import { IMenubarData, isMenubarMenuItemSeparator, isMenubarMenuItemSubmenu, isMenubarMenuItemAction, MenubarMenuItem } from 'vs/platform/menubar/common/menubar';
-
-// interface IExtensionViewlet {
-// 	id: string;
-// 	label: string;
-// }
+import { IMenubarData, isMenubarMenuItemSeparator, isMenubarMenuItemSubmenu, isMenubarMenuItemAction, MenubarMenuItem, IMenubarKeybinding } from 'vs/platform/menubar/common/menubar';
 
 const telemetryFrom = 'menu';
 
@@ -42,7 +36,7 @@ export class Menubar {
 
 	private menubarMenus: IMenubarData = {};
 
-	private keybindings: { [commandId: string]: IKeybinding };
+	private keybindings: { [commandId: string]: IMenubarKeybinding };
 
 	constructor(
 		@IUpdateService private updateService: IUpdateService,
@@ -53,11 +47,8 @@ export class Menubar {
 		@ITelemetryService private telemetryService: ITelemetryService,
 		@IHistoryMainService private historyMainService: IHistoryMainService
 	) {
-		// this.extensionViewlets = [];
-		// this.nativeTabMenuItems = [];
-
 		this.menuUpdater = new RunOnceScheduler(() => this.doUpdateMenu(), 0);
-		// this.keybindingsResolver = instantiationService.createInstance(KeybindingsResolver);
+
 		this.keybindings = Object.create(null);
 
 		this.install();
@@ -99,9 +90,6 @@ export class Menubar {
 
 		// Listen to update service
 		// this.updateService.onStateChange(() => this.updateMenu());
-
-		// Listen to keybindings change
-		// this.keybindingsResolver.onKeybindingsChanged(() => this.scheduleUpdateMenu());
 	}
 
 	private get currentEnableMenuBarMnemonics(): boolean {
