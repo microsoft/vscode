@@ -75,12 +75,12 @@ configurationRegistry.registerConfiguration({
 	type: 'object',
 	properties: {
 		'terminal.integrated.shell.linux': {
-			description: nls.localize('terminal.integrated.shell.linux', "The path of the shell that the terminal uses on Linux."),
+			description: nls.localize('terminal.integrated.shell.linux', "The path of the shell that the terminal uses on Linux. [Read more about configuring the shell](https://code.visualstudio.com/docs/editor/integrated-terminal#_configuration)."),
 			type: 'string',
 			default: getTerminalDefaultShellUnixLike()
 		},
 		'terminal.integrated.shellArgs.linux': {
-			description: nls.localize('terminal.integrated.shellArgs.linux', "The command line arguments to use when on the Linux terminal."),
+			description: nls.localize('terminal.integrated.shellArgs.linux', "The command line arguments to use when on the Linux terminal. [Read more about configuring the shell](https://code.visualstudio.com/docs/editor/integrated-terminal#_configuration)."),
 			type: 'array',
 			items: {
 				type: 'string'
@@ -88,12 +88,12 @@ configurationRegistry.registerConfiguration({
 			default: []
 		},
 		'terminal.integrated.shell.osx': {
-			description: nls.localize('terminal.integrated.shell.osx', "The path of the shell that the terminal uses on macOS."),
+			description: nls.localize('terminal.integrated.shell.osx', "The path of the shell that the terminal uses on macOS. [Read more about configuring the shell](https://code.visualstudio.com/docs/editor/integrated-terminal#_configuration)."),
 			type: 'string',
 			default: getTerminalDefaultShellUnixLike()
 		},
 		'terminal.integrated.shellArgs.osx': {
-			description: nls.localize('terminal.integrated.shellArgs.osx', "The command line arguments to use when on the macOS terminal."),
+			description: nls.localize('terminal.integrated.shellArgs.osx', "The command line arguments to use when on the macOS terminal. [Read more about configuring the shell](https://code.visualstudio.com/docs/editor/integrated-terminal#_configuration)."),
 			type: 'array',
 			items: {
 				type: 'string'
@@ -104,12 +104,12 @@ configurationRegistry.registerConfiguration({
 			default: ['-l']
 		},
 		'terminal.integrated.shell.windows': {
-			description: nls.localize('terminal.integrated.shell.windows', "The path of the shell that the terminal uses on Windows. When using shells shipped with Windows (cmd, PowerShell or Bash on Ubuntu)."),
+			description: nls.localize('terminal.integrated.shell.windows', "The path of the shell that the terminal uses on Windows. [Read more about configuring the shell](https://code.visualstudio.com/docs/editor/integrated-terminal#_configuration)."),
 			type: 'string',
 			default: getTerminalDefaultShellWindows()
 		},
 		'terminal.integrated.shellArgs.windows': {
-			description: nls.localize('terminal.integrated.shellArgs.windows', "The command line arguments to use when on the Windows terminal."),
+			description: nls.localize('terminal.integrated.shellArgs.windows', "The command line arguments to use when on the Windows terminal. [Read more about configuring the shell](https://code.visualstudio.com/docs/editor/integrated-terminal#_configuration)."),
 			type: 'array',
 			items: {
 				type: 'string'
@@ -117,22 +117,22 @@ configurationRegistry.registerConfiguration({
 			default: []
 		},
 		'terminal.integrated.macOptionIsMeta': {
-			description: nls.localize('terminal.integrated.macOptionIsMeta', "Treat the option key as the meta key in the terminal on macOS."),
+			description: nls.localize('terminal.integrated.macOptionIsMeta', "Controls whather to treat the option key as the meta key in the terminal on macOS."),
 			type: 'boolean',
 			default: false
 		},
 		'terminal.integrated.macOptionClickForcesSelection': {
-			description: nls.localize('terminal.integrated.macOptionClickForcesSelection', "Whether to force selection when using Option+click on macOS. This will force a regular (line) selection and disallow the use of column selection mode. This enables copying and pasting using the regular terminal selection, for example, when mouse mode is enabled in tmux."),
+			description: nls.localize('terminal.integrated.macOptionClickForcesSelection', "Controls whether to force selection when using Option+click on macOS. This will force a regular (line) selection and disallow the use of column selection mode. This enables copying and pasting using the regular terminal selection, for example, when mouse mode is enabled in tmux."),
 			type: 'boolean',
 			default: false
 		},
 		'terminal.integrated.copyOnSelection': {
-			description: nls.localize('terminal.integrated.copyOnSelection', "When set, text selected in the terminal will be copied to the clipboard."),
+			description: nls.localize('terminal.integrated.copyOnSelection', "Controls whether text selected in the terminal will be copied to the clipboard."),
 			type: 'boolean',
 			default: false
 		},
 		'terminal.integrated.drawBoldTextInBrightColors': {
-			description: nls.localize('terminal.integrated.drawBoldTextInBrightColors', "When set, bold text in the terminal will always use the \"bright\" ANSI color variant."),
+			description: nls.localize('terminal.integrated.drawBoldTextInBrightColors', "Controls whether bold text in the terminal will always use the \"bright\" ANSI color variant."),
 			type: 'boolean',
 			default: true
 		},
@@ -221,12 +221,12 @@ configurationRegistry.registerConfiguration({
 			default: undefined
 		},
 		'terminal.integrated.confirmOnExit': {
-			description: nls.localize('terminal.integrated.confirmOnExit', "Whether to confirm on exit if there are active terminal sessions."),
+			description: nls.localize('terminal.integrated.confirmOnExit', "Controls whether to confirm on exit if there are active terminal sessions."),
 			type: 'boolean',
 			default: false
 		},
 		'terminal.integrated.enableBell': {
-			description: nls.localize('terminal.integrated.enableBell', "Whether the terminal bell is enabled or not."),
+			description: nls.localize('terminal.integrated.enableBell', "Controls whether the terminal bell is enabled."),
 			type: 'boolean',
 			default: false
 		},
@@ -353,12 +353,12 @@ configurationRegistry.registerConfiguration({
 			default: {}
 		},
 		'terminal.integrated.showExitAlert': {
-			description: nls.localize('terminal.integrated.showExitAlert', "Show alert \"The terminal process terminated with exit code\" when exit code is non-zero."),
+			description: nls.localize('terminal.integrated.showExitAlert', "Controls whether to show the alert \"The terminal process terminated with exit code\" when exit code is non-zero."),
 			type: 'boolean',
 			default: true
 		},
 		'terminal.integrated.experimentalRestore': {
-			description: nls.localize('terminal.integrated.experimentalRestore', "Whether to restore terminal sessions for the workspace automatically when launching VS Code. This is an experimental setting; it may be buggy and could change or be removed in the future."),
+			description: nls.localize('terminal.integrated.experimentalRestore', "Controls whether to restore terminal sessions for the workspace automatically when launching VS Code. This is an experimental setting; it may be buggy and could change or be removed in the future."),
 			type: 'boolean',
 			default: false
 		},
