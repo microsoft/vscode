@@ -278,9 +278,9 @@ export class StandardAutoClosingPairConditional {
 			*/
 		} else if (Array.isArray(source.onlyIn)) {
 			/**
-		* Use a string variable (_onlyInOptions) to keep track of which scopes
-		* have (already) been listed. The 'other' option is not considered.
-		*/
+			* Use a string variable (_onlyInOptions) to keep track of which scopes
+			* have (already) been listed. The 'other' option is not considered.
+			*/
 			this._onlyInFlag = 1;
 			this._onlyInOptions = '';
 
@@ -327,7 +327,7 @@ export class StandardAutoClosingPairConditional {
 					// AND result 0 only if standardToken = 'string' (2)
 					this._standardTokenMask = 5;
 					break;
-				case 3: // ['comment', 'string']
+				case 3: // ['comment', 'string'] or ['string', 'comment']
 					// AND result returns 0 only if standardToken = 'comment' (1) or 'string' (2)
 					this._standardTokenMask = 4;
 					break;
@@ -335,15 +335,15 @@ export class StandardAutoClosingPairConditional {
 					// AND result returns 0 only if standardToken 'regex' (4)
 					this._standardTokenMask = 3;
 					break;
-				case 5: // ['comment', 'regex']
+				case 5: // ['comment', 'regex'] or ['regex', 'comment']
 					// AND result returns 0 only if standardToken 'comment' (1) or 'regex' (4)
 					this._standardTokenMask = 2;
 					break;
-				case 6: // ['string', 'regex']
+				case 6: // ['string', 'regex'] or ['regex', 'string']
 					// AND result returns 0 only if standardToken 'string' (2) or 'regex' (4)
 					this._standardTokenMask = 1;
 					break;
-				case 7: // ['comment', 'string', 'regex']
+				case 7: // Any combination of ['comment', 'string', 'regex']
 					// AND result returns 0 for any given scope
 					this._standardTokenMask = 0;
 					break;
@@ -351,8 +351,10 @@ export class StandardAutoClosingPairConditional {
 		}
 	}
 
-	//*** Set a variable to determine if we have a notIn array or an onlyIn array (or neither)
-	//*** If the onlyIn array var is set, check if the StandardTokenType of isOK is "other". If so, return 1 (i.e. don't autoclose)
+	//*** Set a variable to determine if we have a notIn array or an onlyIn array (or neither). 
+	//*** If there's both a notIn array and onlyIn array set, the onlyIn array will be skipped (needs to be one or the other)
+	//*** If the onlyIn array var is set, check if the StandardTokenType of isOK is "other". If so, return false
+	//*** (i.e. don't autoclose)
 	public isOK(standardToken: StandardTokenType): boolean {
 		if (this._onlyInFlag && (standardToken === StandardTokenType.Other)) {
 			return false;
