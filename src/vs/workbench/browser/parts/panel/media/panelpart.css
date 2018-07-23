@@ -81,16 +81,19 @@
 }
 
 .monaco-workbench  > .part.panel > .title > .panel-switcher-container > .monaco-action-bar .badge {
-	margin-left: 4px;
+	margin-left: 8px;
 }
 
 .monaco-workbench  > .part.panel > .title > .panel-switcher-container > .monaco-action-bar .badge .badge-content {
-	padding: 0.2em 0.5em;
+	padding: 0.3em 0.5em;
 	border-radius: 1em;
 	font-weight: normal;
 	text-align: center;
-	display: inline;
-}
+	display: inline-block;
+	min-width: 1.6em;
+	line-height: 1em;
+	box-sizing: border-box;
+	}
 
 /** Actions */
 
