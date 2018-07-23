@@ -868,11 +868,13 @@ class SettingsContentBuilder {
 	}
 
 	private pushSettingDescription(setting: ISetting, indent: string): void {
+		const fixSettingLink = line => line.replace(/`#(.*)#`/g, (match, settingName) => `\`${settingName}\``);
+
 		setting.descriptionRanges = [];
 		const descriptionPreValue = indent + '// ';
 		for (let line of setting.description) {
 			// Remove setting link tag
-			line = line.replace(/`#(.*)#`/g, (match, settingName) => `\`${settingName}\``);
+			line = fixSettingLink(line);
 
 			this._contentByLines.push(descriptionPreValue + line);
 			setting.descriptionRanges.push({ startLineNumber: this.lineCountWithOffset, startColumn: this.lastLine.indexOf(line) + 1, endLineNumber: this.lineCountWithOffset, endColumn: this.lastLine.length });
@@ -881,7 +883,7 @@ class SettingsContentBuilder {
 		if (setting.enumDescriptions && setting.enumDescriptions.some(desc => !!desc)) {
 			setting.enumDescriptions.forEach((desc, i) => {
 				const line = desc ?
-					`${setting.enum[i]}: ${desc}` :
+					`${setting.enum[i]}: ${fixSettingLink(desc)}` :
 					setting.enum[i];
 
 				this._contentByLines.push(`  //  - ${line}`);
