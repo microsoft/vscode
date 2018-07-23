@@ -283,6 +283,7 @@ export enum Operation {
 	Clean = 'Clean',
 	Branch = 'Branch',
 	Checkout = 'Checkout',
+	CheckoutTracking = 'CheckoutTracking',
 	Reset = 'Reset',
 	Fetch = 'Fetch',
 	Pull = 'Pull',
@@ -767,6 +768,10 @@ export class Repository implements Disposable {
 
 	async checkout(treeish: string): Promise<void> {
 		await this.run(Operation.Checkout, () => this.repository.checkout(treeish, []));
+	}
+
+	async checkoutTracking(treeish: string): Promise<void> {
+		await this.run(Operation.CheckoutTracking, () => this.repository.checkout(treeish, [], { track: true }));
 	}
 
 	async getCommit(ref: string): Promise<Commit> {
