@@ -117,7 +117,7 @@ configurationRegistry.registerConfiguration({
 			default: []
 		},
 		'terminal.integrated.macOptionIsMeta': {
-			description: nls.localize('terminal.integrated.macOptionIsMeta', "Controls whather to treat the option key as the meta key in the terminal on macOS."),
+			description: nls.localize('terminal.integrated.macOptionIsMeta', "Controls whether to treat the option key as the meta key in the terminal on macOS."),
 			type: 'boolean',
 			default: false
 		},
