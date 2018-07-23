@@ -76,7 +76,10 @@ export class WebviewEditorInput extends EditorInput {
 	}
 
 	public getResource(): URI {
-		return null;
+		return URI.from({
+			scheme: 'webview-panel',
+			path: this.state ? `webview-panel/${this.state.viewType}` : ''
+		});
 	}
 
 	public getName(): string {

@@ -26,6 +26,15 @@
 		"onWebviewPanel:markdown.preview"
 	],
 	"contributes": {
+		"webviews": [
+			{
+				"viewType": "markdown.preview",
+				"icon": {
+					"light": "./media/Preview.svg",
+					"dark": "./media/Preview_inverse.svg"
+				}
+			}
+		],
 		"commands": [
 			{
 				"command": "markdown.showPreview",
