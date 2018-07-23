@@ -59,6 +59,7 @@ import { LifecyclePhase } from 'vs/platform/lifecycle/common/lifecycle';
 import { SearchViewLocationUpdater } from 'vs/workbench/parts/search/browser/searchViewLocationUpdater';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
+import { IWindowService } from 'vs/platform/windows/common/windows';
 
 registerSingleton(ISearchWorkbenchService, SearchWorkbenchService);
 replaceContributions();
@@ -418,6 +419,26 @@ MenuRegistry.appendMenuItem(MenuId.ExplorerContext, {
 	when: ContextKeyExpr.and(ExplorerRootContext, ExplorerFolderContext.toNegated())
 });
 
+const SCOPE_TO_FOLDER = 'filesExplorer.scopeToFolder';
+MenuRegistry.appendMenuItem(MenuId.ExplorerContext, {
+	group: '4_search',
+	order: 10,
+	command: {
+		id: SCOPE_TO_FOLDER,
+		title: nls.localize('scopeToFolder', "Scope to Folder")
+	},
+	when: ContextKeyExpr.and(ExplorerFolderContext, ResourceContextKey.Scheme.isEqualTo(Schemas.file))
+});
+
+CommandsRegistry.registerCommand({
+	id: SCOPE_TO_FOLDER,
+	handler: (accessor, args: any) => {
+		const windowService = accessor.get(IWindowService);
+		const configurationService = accessor.get(IConfigurationService);
+		const generateNewWindow = configurationService.getValue<ISearchConfigurationProperties>('search').openNewWindowOnScopeSelect;
+		return windowService.openWindow([URI.file(args.path)], { forceNewWindow: generateNewWindow });
+	}
+});
 
 class ShowAllSymbolsAction extends Action {
 	static readonly ID = 'workbench.action.showAllSymbols';
@@ -604,6 +625,11 @@ configurationRegistry.registerConfiguration({
 			enum: ['sidebar', 'panel'],
 			default: 'sidebar',
 			description: nls.localize('search.location', "Controls if the search will be shown as a view in the sidebar or as a panel in the panel area for more horizontal space."),
+		},
+		'search.openNewWindowOnScopeSelect': {
+			type: 'boolean',
+			description: nls.localize('search.openNewWindowOnScopeSelect', "Controls whether a new window will open when scoping to a designated folder."),
+			default: true
 		}
 	}
 });
