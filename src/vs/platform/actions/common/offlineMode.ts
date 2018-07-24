@@ -10,6 +10,8 @@ import { localize } from 'vs/nls';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { INotificationService, Severity } from 'vs/platform/notification/common/notification';
+import { MenuRegistry, MenuId } from 'vs/platform/actions/common/actions';
+import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
 
 export const offlineModeSetting = 'workbench.enableOfflineMode';
 
@@ -84,3 +86,23 @@ export class NotifyUnsupportedFeatureInOfflineMode extends Action {
 		return TPromise.as(null);
 	}
 }
+
+MenuRegistry.appendMenuItem(MenuId.MenubarPreferencesMenu, {
+	group: '5_offline',
+	command: {
+		id: EnableOfflineMode.ID,
+		title: localize({ key: 'miEnableOfflineMode', comment: ['&& denotes a mnemonic'] }, "Enable &&Offline Mode")
+	},
+	order: 1,
+	when: ContextKeyExpr.not('config.' + offlineModeSetting)
+});
+
+MenuRegistry.appendMenuItem(MenuId.MenubarPreferencesMenu, {
+	group: '5_offline',
+	command: {
+		id: DisableOfflineMode.ID,
+		title: localize({ key: 'miDisableOfflineMode', comment: ['&& denotes a mnemonic'] }, "Disable &&Offline Mode")
+	},
+	order: 1,
+	when: ContextKeyExpr.has('config.' + offlineModeSetting)
+});
