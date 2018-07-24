@@ -5501,6 +5501,11 @@ declare module 'vscode' {
 		title: string;
 
 		/**
+		 * Icon for the panel shown in UI.
+		 */
+		iconPath?: Uri | { light: Uri; dark: Uri };
+
+		/**
 		 * Webview belonging to the panel.
 		 */
 		readonly webview: Webview;

@@ -271,6 +271,14 @@ export class MarkdownPreview {
 		this.editor.title = MarkdownPreview.getPreviewTitle(this._resource, this._locked);
 	}
 
+	private get iconPath() {
+		const root = path.join(this._contributions.extensionPath, 'media');
+		return {
+			light: vscode.Uri.file(path.join(root, 'Preview.svg')),
+			dark: vscode.Uri.file(path.join(root, 'Preview_inverse.svg'))
+		};
+	}
+
 	private isPreviewOf(resource: vscode.Uri): boolean {
 		return this._resource.fsPath === resource.fsPath;
 	}
@@ -327,6 +335,7 @@ export class MarkdownPreview {
 		const content = await this._contentProvider.provideTextDocumentContent(document, this._previewConfigurations, this.line, this.state);
 		if (this._resource === resource) {
 			this.editor.title = MarkdownPreview.getPreviewTitle(this._resource, this._locked);
+			this.editor.iconPath = this.iconPath;
 			this.editor.webview.options = MarkdownPreview.getWebviewOptions(resource, this._contributions);
 			this.editor.webview.html = content;
 		}

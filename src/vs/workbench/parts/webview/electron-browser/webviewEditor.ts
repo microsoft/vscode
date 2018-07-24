@@ -5,6 +5,7 @@
 
 import * as DOM from 'vs/base/browser/dom';
 import { domEvent } from 'vs/base/browser/event';
+import { CancellationToken } from 'vs/base/common/cancellation';
 import { Emitter, Event } from 'vs/base/common/event';
 import { IDisposable } from 'vs/base/common/lifecycle';
 import URI from 'vs/base/common/uri';
@@ -14,13 +15,12 @@ import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { EditorOptions } from 'vs/workbench/common/editor';
-import { IEditorGroup } from 'vs/workbench/services/group/common/editorGroupsService';
 import { WebviewEditorInput } from 'vs/workbench/parts/webview/electron-browser/webviewEditorInput';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
+import { IEditorGroup } from 'vs/workbench/services/group/common/editorGroupsService';
 import { IPartService, Parts } from 'vs/workbench/services/part/common/partService';
 import { BaseWebviewEditor, KEYBINDING_CONTEXT_WEBVIEWEDITOR_FIND_WIDGET_INPUT_FOCUSED, KEYBINDING_CONTEXT_WEBVIEWEDITOR_FOCUS, KEYBINDING_CONTEXT_WEBVIEW_FIND_WIDGET_VISIBLE } from './baseWebviewEditor';
 import { WebviewElement } from './webviewElement';
-import { CancellationToken } from 'vs/base/common/cancellation';
 
 export class WebviewEditor extends BaseWebviewEditor {
 

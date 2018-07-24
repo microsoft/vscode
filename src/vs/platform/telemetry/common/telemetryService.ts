@@ -21,7 +21,6 @@ export interface ITelemetryServiceConfig {
 	appender: ITelemetryAppender;
 	commonProperties?: TPromise<{ [name: string]: any }>;
 	piiPaths?: string[];
-	userOptIn?: boolean;
 }
 
 export class TelemetryService implements ITelemetryService {
@@ -46,7 +45,7 @@ export class TelemetryService implements ITelemetryService {
 		this._appender = config.appender;
 		this._commonProperties = config.commonProperties || TPromise.as({});
 		this._piiPaths = config.piiPaths || [];
-		this._userOptIn = typeof config.userOptIn === 'undefined' ? true : config.userOptIn;
+		this._userOptIn = true;
 
 		// static cleanup pattern for: `file:///DANGEROUS/PATH/resources/app/Useful/Information`
 		this._cleanupPatterns = [/file:\/\/\/.*?\/resources\/app\//gi];

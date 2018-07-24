@@ -3,14 +3,17 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { MainContext, MainThreadWebviewsShape, IMainContext, ExtHostWebviewsShape, WebviewPanelHandle, WebviewPanelViewState } from './extHost.protocol';
-import * as vscode from 'vscode';
-import { Event, Emitter } from 'vs/base/common/event';
+import { Emitter, Event } from 'vs/base/common/event';
+import URI from 'vs/base/common/uri';
+import { TPromise } from 'vs/base/common/winjs.base';
 import * as typeConverters from 'vs/workbench/api/node/extHostTypeConverters';
 import { EditorViewColumn } from 'vs/workbench/api/shared/editor';
-import { TPromise } from 'vs/base/common/winjs.base';
+import * as vscode from 'vscode';
+import { ExtHostWebviewsShape, IMainContext, MainContext, MainThreadWebviewsShape, WebviewPanelHandle, WebviewPanelViewState } from './extHost.protocol';
 import { Disposable } from './extHostTypes';
-import URI from 'vs/base/common/uri';
+
+
+type IconPath = URI | { light: URI, dark: URI };
 
 export class ExtHostWebview implements vscode.Webview {
 	private readonly _handle: WebviewPanelHandle;
@@ -78,6 +81,7 @@ export class ExtHostWebviewPanel implements vscode.WebviewPanel {
 	private readonly _proxy: MainThreadWebviewsShape;
 	private readonly _viewType: string;
 	private _title: string;
+	private _iconPath: IconPath;
 
 	private readonly _options: vscode.WebviewPanelOptions;
 	private readonly _webview: ExtHostWebview;
@@ -147,6 +151,20 @@ export class ExtHostWebviewPanel implements vscode.WebviewPanel {
 		if (this._title !== value) {
 			this._title = value;
 			this._proxy.$setTitle(this._handle, value);
+		}
+	}
+
+	get iconPath(): IconPath | undefined {
+		this.assertNotDisposed();
+		return this._iconPath;
+	}
+
+	set iconPath(value: IconPath | undefined) {
+		this.assertNotDisposed();
+		if (this._iconPath !== value) {
+			this._iconPath = value;
+
+			this._proxy.$setIconPath(this._handle, URI.isUri(value) ? { light: value, dark: value } : value);
 		}
 	}
 
