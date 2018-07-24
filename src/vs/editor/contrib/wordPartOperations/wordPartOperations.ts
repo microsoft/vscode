@@ -15,7 +15,7 @@ import { WordNavigationType, WordPartOperations } from 'vs/editor/common/control
 import { WordCharacterClassifier } from 'vs/editor/common/controller/wordCharacterClassifier';
 import { DeleteWordCommand, MoveWordCommand } from '../wordOperations/wordOperations';
 import { Position } from 'vs/editor/common/core/position';
-import { KeybindingsRegistry } from 'vs/platform/keybinding/common/keybindingsRegistry';
+import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
 
 export class DeleteWordPartLeft extends DeleteWordCommand {
 	constructor() {
@@ -28,7 +28,7 @@ export class DeleteWordPartLeft extends DeleteWordCommand {
 				kbExpr: EditorContextKeys.textInputFocus,
 				primary: KeyMod.CtrlCmd | KeyMod.Alt | KeyCode.Backspace,
 				mac: { primary: KeyMod.WinCtrl | KeyMod.Alt | KeyCode.Backspace },
-				weight: KeybindingsRegistry.WEIGHT.editorContrib()
+				weight: KeybindingWeight.EditorContrib
 			}
 		});
 	}
@@ -53,7 +53,7 @@ export class DeleteWordPartRight extends DeleteWordCommand {
 				kbExpr: EditorContextKeys.textInputFocus,
 				primary: KeyMod.CtrlCmd | KeyMod.Alt | KeyCode.Delete,
 				mac: { primary: KeyMod.WinCtrl | KeyMod.Alt | KeyCode.Delete },
-				weight: KeybindingsRegistry.WEIGHT.editorContrib()
+				weight: KeybindingWeight.EditorContrib
 			}
 		});
 	}
@@ -85,7 +85,7 @@ export class CursorWordPartLeft extends WordPartLeftCommand {
 				kbExpr: EditorContextKeys.textInputFocus,
 				primary: KeyMod.CtrlCmd | KeyMod.Alt | KeyCode.LeftArrow,
 				mac: { primary: KeyMod.WinCtrl | KeyMod.Alt | KeyCode.LeftArrow },
-				weight: KeybindingsRegistry.WEIGHT.editorContrib()
+				weight: KeybindingWeight.EditorContrib
 			}
 		});
 	}
@@ -101,7 +101,7 @@ export class CursorWordPartLeftSelect extends WordPartLeftCommand {
 				kbExpr: EditorContextKeys.textInputFocus,
 				primary: KeyMod.CtrlCmd | KeyMod.Alt | KeyMod.Shift | KeyCode.LeftArrow,
 				mac: { primary: KeyMod.WinCtrl | KeyMod.Alt | KeyMod.Shift | KeyCode.LeftArrow },
-				weight: KeybindingsRegistry.WEIGHT.editorContrib()
+				weight: KeybindingWeight.EditorContrib
 			}
 		});
 	}
@@ -123,7 +123,7 @@ export class CursorWordPartRight extends WordPartRightCommand {
 				kbExpr: EditorContextKeys.textInputFocus,
 				primary: KeyMod.CtrlCmd | KeyMod.Alt | KeyCode.RightArrow,
 				mac: { primary: KeyMod.WinCtrl | KeyMod.Alt | KeyCode.RightArrow },
-				weight: KeybindingsRegistry.WEIGHT.editorContrib()
+				weight: KeybindingWeight.EditorContrib
 			}
 		});
 	}
@@ -139,7 +139,7 @@ export class CursorWordPartRightSelect extends WordPartRightCommand {
 				kbExpr: EditorContextKeys.textInputFocus,
 				primary: KeyMod.CtrlCmd | KeyMod.Alt | KeyMod.Shift | KeyCode.RightArrow,
 				mac: { primary: KeyMod.WinCtrl | KeyMod.Alt | KeyMod.Shift | KeyCode.RightArrow },
-				weight: KeybindingsRegistry.WEIGHT.editorContrib()
+				weight: KeybindingWeight.EditorContrib
 			}
 		});
 	}

@@ -14,7 +14,7 @@ import { KeyMod, KeyChord, KeyCode } from 'vs/base/common/keyCodes';
 import { openWindowCommand, REVEAL_IN_OS_COMMAND_ID, COPY_PATH_COMMAND_ID, REVEAL_IN_EXPLORER_COMMAND_ID, OPEN_TO_SIDE_COMMAND_ID, REVERT_FILE_COMMAND_ID, SAVE_FILE_COMMAND_ID, SAVE_FILE_LABEL, SAVE_FILE_AS_COMMAND_ID, SAVE_FILE_AS_LABEL, SAVE_ALL_IN_GROUP_COMMAND_ID, OpenEditorsGroupContext, COMPARE_WITH_SAVED_COMMAND_ID, COMPARE_RESOURCE_COMMAND_ID, SELECT_FOR_COMPARE_COMMAND_ID, ResourceSelectedForCompareContext, REVEAL_IN_OS_LABEL, DirtyEditorContext, COMPARE_SELECTED_COMMAND_ID, REMOVE_ROOT_FOLDER_COMMAND_ID, REMOVE_ROOT_FOLDER_LABEL, SAVE_FILES_COMMAND_ID, COPY_RELATIVE_PATH_COMMAND_ID } from 'vs/workbench/parts/files/electron-browser/fileCommands';
 import { CommandsRegistry, ICommandHandler } from 'vs/platform/commands/common/commands';
 import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
-import { KeybindingsRegistry } from 'vs/platform/keybinding/common/keybindingsRegistry';
+import { KeybindingsRegistry, KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { isWindows, isMacintosh } from 'vs/base/common/platform';
 import { FilesExplorerFocusCondition, ExplorerRootContext, ExplorerFolderContext, ExplorerResourceNotReadonlyContext } from 'vs/workbench/parts/files/common/files';
 import { ADD_ROOT_FOLDER_COMMAND_ID, ADD_ROOT_FOLDER_LABEL } from 'vs/workbench/browser/actions/workspaceCommands';
@@ -50,7 +50,7 @@ const explorerCommandsWeightBonus = 10; // give our commands a little bit more w
 const RENAME_ID = 'renameFile';
 KeybindingsRegistry.registerCommandAndKeybindingRule({
 	id: RENAME_ID,
-	weight: KeybindingsRegistry.WEIGHT.workbenchContrib() + explorerCommandsWeightBonus,
+	weight: KeybindingWeight.WorkbenchContrib + explorerCommandsWeightBonus,
 	when: ContextKeyExpr.and(FilesExplorerFocusCondition, ExplorerRootContext.toNegated(), ExplorerResourceNotReadonlyContext),
 	primary: KeyCode.F2,
 	mac: {
@@ -62,7 +62,7 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 const MOVE_FILE_TO_TRASH_ID = 'moveFileToTrash';
 KeybindingsRegistry.registerCommandAndKeybindingRule({
 	id: MOVE_FILE_TO_TRASH_ID,
-	weight: KeybindingsRegistry.WEIGHT.workbenchContrib() + explorerCommandsWeightBonus,
+	weight: KeybindingWeight.WorkbenchContrib + explorerCommandsWeightBonus,
 	when: ContextKeyExpr.and(FilesExplorerFocusCondition, ExplorerRootContext.toNegated(), ExplorerResourceNotReadonlyContext),
 	primary: KeyCode.Delete,
 	mac: {
@@ -74,7 +74,7 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 const DELETE_FILE_ID = 'deleteFile';
 KeybindingsRegistry.registerCommandAndKeybindingRule({
 	id: DELETE_FILE_ID,
-	weight: KeybindingsRegistry.WEIGHT.workbenchContrib() + explorerCommandsWeightBonus,
+	weight: KeybindingWeight.WorkbenchContrib + explorerCommandsWeightBonus,
 	when: ContextKeyExpr.and(FilesExplorerFocusCondition, ExplorerRootContext.toNegated(), ExplorerResourceNotReadonlyContext),
 	primary: KeyMod.Shift | KeyCode.Delete,
 	mac: {
@@ -86,7 +86,7 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 const COPY_FILE_ID = 'filesExplorer.copy';
 KeybindingsRegistry.registerCommandAndKeybindingRule({
 	id: COPY_FILE_ID,
-	weight: KeybindingsRegistry.WEIGHT.workbenchContrib() + explorerCommandsWeightBonus,
+	weight: KeybindingWeight.WorkbenchContrib + explorerCommandsWeightBonus,
 	when: ContextKeyExpr.and(FilesExplorerFocusCondition, ExplorerRootContext.toNegated()),
 	primary: KeyMod.CtrlCmd | KeyCode.KEY_C,
 	handler: copyFileHandler,
@@ -96,7 +96,7 @@ const PASTE_FILE_ID = 'filesExplorer.paste';
 
 KeybindingsRegistry.registerCommandAndKeybindingRule({
 	id: PASTE_FILE_ID,
-	weight: KeybindingsRegistry.WEIGHT.workbenchContrib() + explorerCommandsWeightBonus,
+	weight: KeybindingWeight.WorkbenchContrib + explorerCommandsWeightBonus,
 	when: ContextKeyExpr.and(FilesExplorerFocusCondition, ExplorerResourceNotReadonlyContext),
 	primary: KeyMod.CtrlCmd | KeyCode.KEY_V,
 	handler: pasteFileHandler

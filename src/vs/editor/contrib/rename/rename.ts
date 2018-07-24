@@ -25,7 +25,7 @@ import { alert } from 'vs/base/browser/ui/aria/aria';
 import { Range } from 'vs/editor/common/core/range';
 import { MessageController } from 'vs/editor/contrib/message/messageController';
 import { EditorState, CodeEditorStateFlag } from 'vs/editor/browser/core/editorState';
-import { KeybindingsRegistry } from 'vs/platform/keybinding/common/keybindingsRegistry';
+import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { INotificationService } from 'vs/platform/notification/common/notification';
 import { IBulkEditService } from 'vs/editor/browser/services/bulkEditService';
 import URI from 'vs/base/common/uri';
@@ -225,7 +225,7 @@ export class RenameAction extends EditorAction {
 			kbOpts: {
 				kbExpr: EditorContextKeys.editorTextFocus,
 				primary: KeyCode.F2,
-				weight: KeybindingsRegistry.WEIGHT.editorContrib()
+				weight: KeybindingWeight.EditorContrib
 			},
 			menuOpts: {
 				group: '1_modification',
@@ -270,7 +270,7 @@ registerEditorCommand(new RenameCommand({
 	precondition: CONTEXT_RENAME_INPUT_VISIBLE,
 	handler: x => x.acceptRenameInput(),
 	kbOpts: {
-		weight: KeybindingsRegistry.WEIGHT.editorContrib() + 99,
+		weight: KeybindingWeight.EditorContrib + 99,
 		kbExpr: EditorContextKeys.focus,
 		primary: KeyCode.Enter
 	}
@@ -281,7 +281,7 @@ registerEditorCommand(new RenameCommand({
 	precondition: CONTEXT_RENAME_INPUT_VISIBLE,
 	handler: x => x.cancelRenameInput(),
 	kbOpts: {
-		weight: KeybindingsRegistry.WEIGHT.editorContrib() + 99,
+		weight: KeybindingWeight.EditorContrib + 99,
 		kbExpr: EditorContextKeys.focus,
 		primary: KeyCode.Escape,
 		secondary: [KeyMod.Shift | KeyCode.Escape]

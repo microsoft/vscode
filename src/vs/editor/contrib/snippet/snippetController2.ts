@@ -18,7 +18,7 @@ import { Range } from 'vs/editor/common/core/range';
 import { Choice } from 'vs/editor/contrib/snippet/snippetParser';
 import { repeat } from 'vs/base/common/strings';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
-import { KeybindingsRegistry } from 'vs/platform/keybinding/common/keybindingsRegistry';
+import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { IEditorContribution } from 'vs/editor/common/editorCommon';
 import { ILogService } from 'vs/platform/log/common/log';
 
@@ -227,7 +227,7 @@ registerEditorCommand(new CommandCtor({
 	precondition: ContextKeyExpr.and(SnippetController2.InSnippetMode, SnippetController2.HasNextTabstop),
 	handler: ctrl => ctrl.next(),
 	kbOpts: {
-		weight: KeybindingsRegistry.WEIGHT.editorContrib() + 30,
+		weight: KeybindingWeight.EditorContrib + 30,
 		kbExpr: EditorContextKeys.editorTextFocus,
 		primary: KeyCode.Tab
 	}
@@ -237,7 +237,7 @@ registerEditorCommand(new CommandCtor({
 	precondition: ContextKeyExpr.and(SnippetController2.InSnippetMode, SnippetController2.HasPrevTabstop),
 	handler: ctrl => ctrl.prev(),
 	kbOpts: {
-		weight: KeybindingsRegistry.WEIGHT.editorContrib() + 30,
+		weight: KeybindingWeight.EditorContrib + 30,
 		kbExpr: EditorContextKeys.editorTextFocus,
 		primary: KeyMod.Shift | KeyCode.Tab
 	}
@@ -247,7 +247,7 @@ registerEditorCommand(new CommandCtor({
 	precondition: SnippetController2.InSnippetMode,
 	handler: ctrl => ctrl.cancel(),
 	kbOpts: {
-		weight: KeybindingsRegistry.WEIGHT.editorContrib() + 30,
+		weight: KeybindingWeight.EditorContrib + 30,
 		kbExpr: EditorContextKeys.editorTextFocus,
 		primary: KeyCode.Escape,
 		secondary: [KeyMod.Shift | KeyCode.Escape]
@@ -259,7 +259,7 @@ registerEditorCommand(new CommandCtor({
 	precondition: SnippetController2.InSnippetMode,
 	handler: ctrl => ctrl.finish(),
 	// kbOpts: {
-	// 	weight: KeybindingsRegistry.WEIGHT.editorContrib() + 30,
+	// 	weight: KeybindingWeight.EditorContrib + 30,
 	// 	kbExpr: EditorContextKeys.textFocus,
 	// 	primary: KeyCode.Enter,
 	// }

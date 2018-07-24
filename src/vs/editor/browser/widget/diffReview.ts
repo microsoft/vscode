@@ -30,7 +30,7 @@ import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { ITextModel, TextModelResolvedOptions } from 'vs/editor/common/model';
 import { ViewLineRenderingData } from 'vs/editor/common/viewModel/viewModel';
-import { KeybindingsRegistry } from 'vs/platform/keybinding/common/keybindingsRegistry';
+import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
 
 const DIFF_LINES_PADDING = 3;
 
@@ -812,7 +812,7 @@ class DiffReviewNext extends EditorAction {
 			kbOpts: {
 				kbExpr: null,
 				primary: KeyCode.F7,
-				weight: KeybindingsRegistry.WEIGHT.editorContrib()
+				weight: KeybindingWeight.EditorContrib
 			}
 		});
 	}
@@ -835,7 +835,7 @@ class DiffReviewPrev extends EditorAction {
 			kbOpts: {
 				kbExpr: null,
 				primary: KeyMod.Shift | KeyCode.F7,
-				weight: KeybindingsRegistry.WEIGHT.editorContrib()
+				weight: KeybindingWeight.EditorContrib
 			}
 		});
 	}

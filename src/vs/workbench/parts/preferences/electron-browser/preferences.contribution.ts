@@ -8,7 +8,7 @@ import 'vs/css!../browser/media/preferences';
 import * as nls from 'vs/nls';
 import URI from 'vs/base/common/uri';
 import { Registry } from 'vs/platform/registry/common/platform';
-import { KeybindingsRegistry } from 'vs/platform/keybinding/common/keybindingsRegistry';
+import { KeybindingsRegistry, KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { IWorkbenchActionRegistry, Extensions } from 'vs/workbench/common/actions';
 import { EditorInput, IEditorInputFactory, IEditorInputFactoryRegistry, Extensions as EditorInputExtensions } from 'vs/workbench/common/editor';
 import { SyncActionDescriptor, MenuRegistry, MenuId } from 'vs/platform/actions/common/actions';
@@ -201,7 +201,7 @@ registry.registerWorkbenchAction(new SyncActionDescriptor(ConfigureLanguageBased
 
 KeybindingsRegistry.registerCommandAndKeybindingRule({
 	id: KEYBINDINGS_EDITOR_COMMAND_DEFINE,
-	weight: KeybindingsRegistry.WEIGHT.workbenchContrib(),
+	weight: KeybindingWeight.WorkbenchContrib,
 	when: ContextKeyExpr.and(CONTEXT_KEYBINDINGS_EDITOR, CONTEXT_KEYBINDING_FOCUS),
 	primary: KeyChord(KeyMod.CtrlCmd | KeyCode.KEY_K, KeyMod.CtrlCmd | KeyCode.KEY_K),
 	handler: (accessor, args: any) => {
@@ -212,7 +212,7 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 
 KeybindingsRegistry.registerCommandAndKeybindingRule({
 	id: KEYBINDINGS_EDITOR_COMMAND_REMOVE,
-	weight: KeybindingsRegistry.WEIGHT.workbenchContrib(),
+	weight: KeybindingWeight.WorkbenchContrib,
 	when: ContextKeyExpr.and(CONTEXT_KEYBINDINGS_EDITOR, CONTEXT_KEYBINDING_FOCUS),
 	primary: KeyCode.Delete,
 	mac: {
@@ -226,7 +226,7 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 
 KeybindingsRegistry.registerCommandAndKeybindingRule({
 	id: KEYBINDINGS_EDITOR_COMMAND_RESET,
-	weight: KeybindingsRegistry.WEIGHT.workbenchContrib(),
+	weight: KeybindingWeight.WorkbenchContrib,
 	when: ContextKeyExpr.and(CONTEXT_KEYBINDINGS_EDITOR, CONTEXT_KEYBINDING_FOCUS),
 	primary: null,
 	handler: (accessor, args: any) => {
@@ -237,7 +237,7 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 
 KeybindingsRegistry.registerCommandAndKeybindingRule({
 	id: KEYBINDINGS_EDITOR_COMMAND_SEARCH,
-	weight: KeybindingsRegistry.WEIGHT.workbenchContrib(),
+	weight: KeybindingWeight.WorkbenchContrib,
 	when: ContextKeyExpr.and(CONTEXT_KEYBINDINGS_EDITOR, CONTEXT_KEYBINDING_FOCUS),
 	primary: KeyMod.CtrlCmd | KeyCode.KEY_F,
 	handler: (accessor, args: any) => (accessor.get(IEditorService).activeControl as IKeybindingsEditor).focusSearch()
@@ -245,7 +245,7 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 
 KeybindingsRegistry.registerCommandAndKeybindingRule({
 	id: KEYBINDINGS_EDITOR_COMMAND_SHOW_SIMILAR,
-	weight: KeybindingsRegistry.WEIGHT.workbenchContrib(),
+	weight: KeybindingWeight.WorkbenchContrib,
 	when: ContextKeyExpr.and(CONTEXT_KEYBINDINGS_EDITOR, CONTEXT_KEYBINDING_FOCUS),
 	primary: null,
 	handler: (accessor, args: any) => {
@@ -256,7 +256,7 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 
 KeybindingsRegistry.registerCommandAndKeybindingRule({
 	id: KEYBINDINGS_EDITOR_COMMAND_COPY,
-	weight: KeybindingsRegistry.WEIGHT.workbenchContrib(),
+	weight: KeybindingWeight.WorkbenchContrib,
 	when: ContextKeyExpr.and(CONTEXT_KEYBINDINGS_EDITOR, CONTEXT_KEYBINDING_FOCUS),
 	primary: KeyMod.CtrlCmd | KeyCode.KEY_C,
 	handler: (accessor, args: any) => {
@@ -267,7 +267,7 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 
 KeybindingsRegistry.registerCommandAndKeybindingRule({
 	id: KEYBINDINGS_EDITOR_COMMAND_COPY_COMMAND,
-	weight: KeybindingsRegistry.WEIGHT.workbenchContrib(),
+	weight: KeybindingWeight.WorkbenchContrib,
 	when: ContextKeyExpr.and(CONTEXT_KEYBINDINGS_EDITOR, CONTEXT_KEYBINDING_FOCUS),
 	primary: null,
 	handler: (accessor, args: any) => {
@@ -278,7 +278,7 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 
 KeybindingsRegistry.registerCommandAndKeybindingRule({
 	id: KEYBINDINGS_EDITOR_COMMAND_FOCUS_KEYBINDINGS,
-	weight: KeybindingsRegistry.WEIGHT.workbenchContrib(),
+	weight: KeybindingWeight.WorkbenchContrib,
 	when: ContextKeyExpr.and(CONTEXT_KEYBINDINGS_EDITOR, CONTEXT_KEYBINDINGS_SEARCH_FOCUS),
 	primary: KeyCode.DownArrow,
 	handler: (accessor, args: any) => {
@@ -289,7 +289,7 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 
 KeybindingsRegistry.registerCommandAndKeybindingRule({
 	id: KEYBINDINGS_EDITOR_COMMAND_CLEAR_SEARCH_RESULTS,
-	weight: KeybindingsRegistry.WEIGHT.workbenchContrib(),
+	weight: KeybindingWeight.WorkbenchContrib,
 	when: ContextKeyExpr.and(CONTEXT_KEYBINDINGS_EDITOR, CONTEXT_KEYBINDINGS_SEARCH_FOCUS),
 	primary: KeyCode.Escape,
 	handler: (accessor, args: any) => {
@@ -351,7 +351,7 @@ class StartSearchDefaultSettingsCommand extends SettingsCommand {
 const startSearchCommand = new StartSearchDefaultSettingsCommand({
 	id: SETTINGS_EDITOR_COMMAND_SEARCH,
 	precondition: ContextKeyExpr.and(CONTEXT_SETTINGS_EDITOR),
-	kbOpts: { primary: KeyMod.CtrlCmd | KeyCode.KEY_F, weight: KeybindingsRegistry.WEIGHT.editorContrib() }
+	kbOpts: { primary: KeyMod.CtrlCmd | KeyCode.KEY_F, weight: KeybindingWeight.EditorContrib }
 });
 startSearchCommand.register();
 
@@ -367,7 +367,7 @@ class FocusSearchFromSettingsCommand extends SettingsCommand {
 const focusSearchFromSettingsCommand = new FocusSearchFromSettingsCommand({
 	id: SETTINGS_EDITOR_COMMAND_FOCUS_SEARCH_FROM_SETTINGS,
 	precondition: ContextKeyExpr.and(CONTEXT_SETTINGS_EDITOR, CONTEXT_SETTINGS_FIRST_ROW_FOCUS),
-	kbOpts: { primary: KeyCode.UpArrow, weight: KeybindingsRegistry.WEIGHT.workbenchContrib() }
+	kbOpts: { primary: KeyCode.UpArrow, weight: KeybindingWeight.WorkbenchContrib }
 });
 focusSearchFromSettingsCommand.register();
 
@@ -384,7 +384,7 @@ class ClearSearchResultsCommand extends SettingsCommand {
 const clearSearchResultsCommand = new ClearSearchResultsCommand({
 	id: SETTINGS_EDITOR_COMMAND_CLEAR_SEARCH_RESULTS,
 	precondition: CONTEXT_SETTINGS_SEARCH_FOCUS,
-	kbOpts: { primary: KeyCode.Escape, weight: KeybindingsRegistry.WEIGHT.editorContrib() }
+	kbOpts: { primary: KeyCode.Escape, weight: KeybindingWeight.EditorContrib }
 });
 clearSearchResultsCommand.register();
 
@@ -402,14 +402,14 @@ class FocusSettingsFileEditorCommand extends SettingsCommand {
 const focusSettingsFileEditorCommand = new FocusSettingsFileEditorCommand({
 	id: SETTINGS_EDITOR_COMMAND_FOCUS_FILE,
 	precondition: CONTEXT_SETTINGS_SEARCH_FOCUS,
-	kbOpts: { primary: KeyCode.DownArrow, weight: KeybindingsRegistry.WEIGHT.editorContrib() }
+	kbOpts: { primary: KeyCode.DownArrow, weight: KeybindingWeight.EditorContrib }
 });
 focusSettingsFileEditorCommand.register();
 
 const focusSettingsFromSearchCommand = new FocusSettingsFileEditorCommand({
 	id: SETTINGS_EDITOR_COMMAND_FOCUS_SETTINGS_FROM_SEARCH,
 	precondition: CONTEXT_SETTINGS_SEARCH_FOCUS,
-	kbOpts: { primary: KeyCode.DownArrow, weight: KeybindingsRegistry.WEIGHT.workbenchContrib() }
+	kbOpts: { primary: KeyCode.DownArrow, weight: KeybindingWeight.WorkbenchContrib }
 });
 focusSettingsFromSearchCommand.register();
 
@@ -425,7 +425,7 @@ class FocusNextSearchResultCommand extends SettingsCommand {
 const focusNextSearchResultCommand = new FocusNextSearchResultCommand({
 	id: SETTINGS_EDITOR_COMMAND_FOCUS_NEXT_SETTING,
 	precondition: CONTEXT_SETTINGS_SEARCH_FOCUS,
-	kbOpts: { primary: KeyCode.Enter, weight: KeybindingsRegistry.WEIGHT.editorContrib() }
+	kbOpts: { primary: KeyCode.Enter, weight: KeybindingWeight.EditorContrib }
 });
 focusNextSearchResultCommand.register();
 
@@ -441,7 +441,7 @@ class FocusPreviousSearchResultCommand extends SettingsCommand {
 const focusPreviousSearchResultCommand = new FocusPreviousSearchResultCommand({
 	id: SETTINGS_EDITOR_COMMAND_FOCUS_PREVIOUS_SETTING,
 	precondition: CONTEXT_SETTINGS_SEARCH_FOCUS,
-	kbOpts: { primary: KeyMod.Shift | KeyCode.Enter, weight: KeybindingsRegistry.WEIGHT.editorContrib() }
+	kbOpts: { primary: KeyMod.Shift | KeyCode.Enter, weight: KeybindingWeight.EditorContrib }
 });
 focusPreviousSearchResultCommand.register();
 
@@ -457,7 +457,7 @@ class EditFocusedSettingCommand extends SettingsCommand {
 const editFocusedSettingCommand = new EditFocusedSettingCommand({
 	id: SETTINGS_EDITOR_COMMAND_EDIT_FOCUSED_SETTING,
 	precondition: CONTEXT_SETTINGS_SEARCH_FOCUS,
-	kbOpts: { primary: KeyMod.CtrlCmd | KeyCode.US_DOT, weight: KeybindingsRegistry.WEIGHT.editorContrib() }
+	kbOpts: { primary: KeyMod.CtrlCmd | KeyCode.US_DOT, weight: KeybindingWeight.EditorContrib }
 });
 editFocusedSettingCommand.register();
 
@@ -474,7 +474,7 @@ class EditFocusedSettingCommand2 extends SettingsCommand {
 const editFocusedSettingCommand2 = new EditFocusedSettingCommand2({
 	id: SETTINGS_EDITOR_COMMAND_EDIT_FOCUSED_SETTING,
 	precondition: ContextKeyExpr.and(CONTEXT_SETTINGS_EDITOR, CONTEXT_SETTINGS_ROW_FOCUS),
-	kbOpts: { primary: KeyCode.Enter, weight: KeybindingsRegistry.WEIGHT.workbenchContrib() }
+	kbOpts: { primary: KeyCode.Enter, weight: KeybindingWeight.WorkbenchContrib }
 });
 editFocusedSettingCommand2.register();
 
@@ -491,7 +491,7 @@ class FocusSettingsListCommand extends SettingsCommand {
 const focusSettingsListCommand = new FocusSettingsListCommand({
 	id: SETTINGS_EDITOR_COMMAND_FOCUS_SETTINGS_LIST,
 	precondition: ContextKeyExpr.and(CONTEXT_SETTINGS_EDITOR, CONTEXT_TOC_ROW_FOCUS),
-	kbOpts: { primary: KeyCode.Enter, weight: KeybindingsRegistry.WEIGHT.workbenchContrib() }
+	kbOpts: { primary: KeyCode.Enter, weight: KeybindingWeight.WorkbenchContrib }
 });
 focusSettingsListCommand.register();
 

@@ -22,7 +22,7 @@ import { registerEditorAction, ServicesAccessor } from 'vs/editor/browser/editor
 import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
 import { Range, IRange } from 'vs/editor/common/core/range';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
-import { KeybindingsRegistry } from 'vs/platform/keybinding/common/keybindingsRegistry';
+import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
 
 let SCOPE_PREFIX = ':';
 
@@ -122,7 +122,7 @@ export class QuickOutlineAction extends BaseEditorQuickOpenAction {
 			kbOpts: {
 				kbExpr: EditorContextKeys.focus,
 				primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KEY_O,
-				weight: KeybindingsRegistry.WEIGHT.editorContrib()
+				weight: KeybindingWeight.EditorContrib
 			},
 			menuOpts: {
 				group: 'navigation',

@@ -15,7 +15,7 @@ import { registerEditorAction, EditorAction, ServicesAccessor } from 'vs/editor/
 import { ReplaceCommand } from 'vs/editor/common/commands/replaceCommand';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { ITextModel } from 'vs/editor/common/model';
-import { KeybindingsRegistry } from 'vs/platform/keybinding/common/keybindingsRegistry';
+import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
 
 class TransposeLettersAction extends EditorAction {
 
@@ -69,7 +69,7 @@ class TransposeLettersAction extends EditorAction {
 				mac: {
 					primary: KeyMod.WinCtrl | KeyCode.KEY_T
 				},
-				weight: KeybindingsRegistry.WEIGHT.editorContrib()
+				weight: KeybindingWeight.EditorContrib
 			}
 		});
 	}

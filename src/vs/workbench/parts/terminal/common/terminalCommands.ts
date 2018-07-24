@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { KeybindingsRegistry } from 'vs/platform/keybinding/common/keybindingsRegistry';
+import { KeybindingsRegistry, KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { ITerminalService } from 'vs/workbench/parts/terminal/common/terminal';
 
 export const enum TERMINAL_COMMAND_ID {
@@ -69,7 +69,7 @@ function registerOpenTerminalAtIndexCommands(): void {
 
 		KeybindingsRegistry.registerCommandAndKeybindingRule({
 			id: `workbench.action.terminal.focusAtIndex${visibleIndex}`,
-			weight: KeybindingsRegistry.WEIGHT.workbenchContrib(),
+			weight: KeybindingWeight.WorkbenchContrib,
 			when: void 0,
 			primary: null,
 			handler: accessor => {

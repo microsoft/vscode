@@ -34,7 +34,7 @@ import { dispose, IDisposable } from 'vs/base/common/lifecycle';
 import Severity from 'vs/base/common/severity';
 import { IEditorGroupsService } from 'vs/workbench/services/group/common/editorGroupsService';
 import { IContextKeyService, RawContextKey, IContextKey } from 'vs/platform/contextkey/common/contextkey';
-import { ICommandAndKeybindingRule, KeybindingsRegistry } from 'vs/platform/keybinding/common/keybindingsRegistry';
+import { ICommandAndKeybindingRule, KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { inQuickOpenContext } from 'vs/workbench/browser/parts/quickopen/quickopen';
 import { ActionBar, ActionItem } from 'vs/base/browser/ui/actionbar/actionbar';
 import { Action } from 'vs/base/common/actions';
@@ -1206,7 +1206,7 @@ function getIconClass(iconPath: { dark: URI; light?: URI; }) {
 
 export const QuickPickManyToggle: ICommandAndKeybindingRule = {
 	id: 'workbench.action.quickPickManyToggle',
-	weight: KeybindingsRegistry.WEIGHT.workbenchContrib(),
+	weight: KeybindingWeight.WorkbenchContrib,
 	when: inQuickOpenContext,
 	primary: undefined,
 	handler: accessor => {

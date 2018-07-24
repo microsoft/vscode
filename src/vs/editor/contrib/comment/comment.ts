@@ -12,7 +12,7 @@ import { registerEditorAction, IActionOptions, EditorAction, ServicesAccessor } 
 import { BlockCommentCommand } from './blockCommentCommand';
 import { LineCommentCommand, Type } from './lineCommentCommand';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
-import { KeybindingsRegistry } from 'vs/platform/keybinding/common/keybindingsRegistry';
+import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
 
 abstract class CommentLineAction extends EditorAction {
 
@@ -54,7 +54,7 @@ class ToggleCommentLineAction extends CommentLineAction {
 			kbOpts: {
 				kbExpr: EditorContextKeys.editorTextFocus,
 				primary: KeyMod.CtrlCmd | KeyCode.US_SLASH,
-				weight: KeybindingsRegistry.WEIGHT.editorContrib()
+				weight: KeybindingWeight.EditorContrib
 			}
 		});
 	}
@@ -70,7 +70,7 @@ class AddLineCommentAction extends CommentLineAction {
 			kbOpts: {
 				kbExpr: EditorContextKeys.editorTextFocus,
 				primary: KeyChord(KeyMod.CtrlCmd | KeyCode.KEY_K, KeyMod.CtrlCmd | KeyCode.KEY_C),
-				weight: KeybindingsRegistry.WEIGHT.editorContrib()
+				weight: KeybindingWeight.EditorContrib
 			}
 		});
 	}
@@ -86,7 +86,7 @@ class RemoveLineCommentAction extends CommentLineAction {
 			kbOpts: {
 				kbExpr: EditorContextKeys.editorTextFocus,
 				primary: KeyChord(KeyMod.CtrlCmd | KeyCode.KEY_K, KeyMod.CtrlCmd | KeyCode.KEY_U),
-				weight: KeybindingsRegistry.WEIGHT.editorContrib()
+				weight: KeybindingWeight.EditorContrib
 			}
 		});
 	}
@@ -104,7 +104,7 @@ class BlockCommentAction extends EditorAction {
 				kbExpr: EditorContextKeys.editorTextFocus,
 				primary: KeyMod.Shift | KeyMod.Alt | KeyCode.KEY_A,
 				linux: { primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KEY_A },
-				weight: KeybindingsRegistry.WEIGHT.editorContrib()
+				weight: KeybindingWeight.EditorContrib
 			}
 		});
 	}

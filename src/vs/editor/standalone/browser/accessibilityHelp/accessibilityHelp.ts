@@ -30,7 +30,7 @@ import URI from 'vs/base/common/uri';
 import { Selection } from 'vs/editor/common/core/selection';
 import * as browser from 'vs/base/browser/browser';
 import { IEditorConstructionOptions } from 'vs/editor/standalone/browser/standaloneCodeEditor';
-import { KeybindingsRegistry } from 'vs/platform/keybinding/common/keybindingsRegistry';
+import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
 
 const CONTEXT_ACCESSIBILITY_WIDGET_VISIBLE = new RawContextKey<boolean>('accessibilityHelpWidgetVisible', false);
 
@@ -343,7 +343,7 @@ class ShowAccessibilityHelpAction extends EditorAction {
 			kbOpts: {
 				kbExpr: EditorContextKeys.focus,
 				primary: (browser.isIE ? KeyMod.CtrlCmd | KeyCode.F1 : KeyMod.Alt | KeyCode.F1),
-				weight: KeybindingsRegistry.WEIGHT.editorContrib()
+				weight: KeybindingWeight.EditorContrib
 			}
 		});
 	}
@@ -367,7 +367,7 @@ registerEditorCommand(
 		precondition: CONTEXT_ACCESSIBILITY_WIDGET_VISIBLE,
 		handler: x => x.hide(),
 		kbOpts: {
-			weight: KeybindingsRegistry.WEIGHT.editorContrib() + 100,
+			weight: KeybindingWeight.EditorContrib + 100,
 			kbExpr: EditorContextKeys.focus,
 			primary: KeyCode.Escape,
 			secondary: [KeyMod.Shift | KeyCode.Escape]

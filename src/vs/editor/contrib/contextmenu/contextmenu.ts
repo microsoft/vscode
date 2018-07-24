@@ -20,7 +20,7 @@ import { IEditorContribution, IScrollEvent, ScrollType } from 'vs/editor/common/
 import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
 import { registerEditorAction, registerEditorContribution, ServicesAccessor, EditorAction } from 'vs/editor/browser/editorExtensions';
 import { ICodeEditor, IEditorMouseEvent, MouseTargetType } from 'vs/editor/browser/editorBrowser';
-import { KeybindingsRegistry } from 'vs/platform/keybinding/common/keybindingsRegistry';
+import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
 
 export interface IPosition {
 	x: number;
@@ -229,7 +229,7 @@ class ShowContextMenu extends EditorAction {
 			kbOpts: {
 				kbExpr: EditorContextKeys.textInputFocus,
 				primary: KeyMod.Shift | KeyCode.F10,
-				weight: KeybindingsRegistry.WEIGHT.editorContrib()
+				weight: KeybindingWeight.EditorContrib
 			}
 		});
 	}

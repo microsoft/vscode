@@ -19,7 +19,7 @@ import { registerCommands, QUIT_ID } from 'vs/workbench/electron-browser/command
 import { AddRootFolderAction, GlobalRemoveRootFolderAction, OpenWorkspaceAction, SaveWorkspaceAsAction, OpenWorkspaceConfigFileAction, DuplicateWorkspaceInNewWindowAction, OpenFileFolderAction, OpenFileAction, OpenFolderAction } from 'vs/workbench/browser/actions/workspaceActions';
 import { ContextKeyExpr, RawContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { inQuickOpenContext, getQuickNavigateHandler } from 'vs/workbench/browser/parts/quickopen/quickopen';
-import { KeybindingsRegistry } from 'vs/platform/keybinding/common/keybindingsRegistry';
+import { KeybindingsRegistry, KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { CommandsRegistry } from 'vs/platform/commands/common/commands';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 
@@ -135,7 +135,7 @@ const recentFilesPickerContext = ContextKeyExpr.and(inQuickOpenContext, ContextK
 const quickOpenNavigateNextInRecentFilesPickerId = 'workbench.action.quickOpenNavigateNextInRecentFilesPicker';
 KeybindingsRegistry.registerCommandAndKeybindingRule({
 	id: quickOpenNavigateNextInRecentFilesPickerId,
-	weight: KeybindingsRegistry.WEIGHT.workbenchContrib() + 50,
+	weight: KeybindingWeight.WorkbenchContrib + 50,
 	handler: getQuickNavigateHandler(quickOpenNavigateNextInRecentFilesPickerId, true),
 	when: recentFilesPickerContext,
 	primary: KeyMod.CtrlCmd | KeyCode.KEY_R,
@@ -145,7 +145,7 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 const quickOpenNavigatePreviousInRecentFilesPicker = 'workbench.action.quickOpenNavigatePreviousInRecentFilesPicker';
 KeybindingsRegistry.registerCommandAndKeybindingRule({
 	id: quickOpenNavigatePreviousInRecentFilesPicker,
-	weight: KeybindingsRegistry.WEIGHT.workbenchContrib() + 50,
+	weight: KeybindingWeight.WorkbenchContrib + 50,
 	handler: getQuickNavigateHandler(quickOpenNavigatePreviousInRecentFilesPicker, false),
 	when: recentFilesPickerContext,
 	primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KEY_R,

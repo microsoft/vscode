@@ -26,7 +26,7 @@ import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
 import { MarkdownRenderer } from 'vs/editor/contrib/markdown/markdownRenderer';
 import { IEmptyContentData } from 'vs/editor/browser/controller/mouseTarget';
 import { HoverStartMode } from 'vs/editor/contrib/hover/hoverOperation';
-import { KeybindingsRegistry } from 'vs/platform/keybinding/common/keybindingsRegistry';
+import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
 
 export class ModesHoverController implements IEditorContribution {
 
@@ -252,7 +252,7 @@ class ShowHoverAction extends EditorAction {
 			kbOpts: {
 				kbExpr: EditorContextKeys.editorTextFocus,
 				primary: KeyChord(KeyMod.CtrlCmd | KeyCode.KEY_K, KeyMod.CtrlCmd | KeyCode.KEY_I),
-				weight: KeybindingsRegistry.WEIGHT.editorContrib()
+				weight: KeybindingWeight.EditorContrib
 			}
 		});
 	}

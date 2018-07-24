@@ -20,7 +20,7 @@ import { getDefaultTerminalWindows, getDefaultTerminalLinuxReady, DEFAULT_TERMIN
 import { WinTerminalService, MacTerminalService, LinuxTerminalService } from 'vs/workbench/parts/execution/electron-browser/terminalService';
 import { IHistoryService } from 'vs/workbench/services/history/common/history';
 import { ResourceContextKey } from 'vs/workbench/common/resources';
-import { KeybindingsRegistry } from 'vs/platform/keybinding/common/keybindingsRegistry';
+import { KeybindingsRegistry, KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { IFileService } from 'vs/platform/files/common/files';
 import { IListService } from 'vs/platform/list/browser/listService';
 import { getMultiSelectedResources } from 'vs/workbench/parts/files/browser/files';
@@ -113,7 +113,7 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 	id: OPEN_NATIVE_CONSOLE_COMMAND_ID,
 	primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KEY_C,
 	when: KEYBINDING_CONTEXT_TERMINAL_NOT_FOCUSED,
-	weight: KeybindingsRegistry.WEIGHT.workbenchContrib(),
+	weight: KeybindingWeight.WorkbenchContrib,
 	handler: (accessor) => {
 		const historyService = accessor.get(IHistoryService);
 		const terminalService = accessor.get(ITerminalService);

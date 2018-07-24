@@ -18,7 +18,7 @@ import { registerEditorAction, ServicesAccessor } from 'vs/editor/browser/editor
 import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
 import * as browser from 'vs/base/browser/browser';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
-import { KeybindingsRegistry } from 'vs/platform/keybinding/common/keybindingsRegistry';
+import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
 
 export class EditorActionCommandEntry extends QuickOpenEntryGroup {
 	private key: string;
@@ -81,7 +81,7 @@ export class QuickCommandAction extends BaseEditorQuickOpenAction {
 			kbOpts: {
 				kbExpr: EditorContextKeys.focus,
 				primary: (browser.isIE ? KeyMod.Alt | KeyCode.F1 : KeyCode.F1),
-				weight: KeybindingsRegistry.WEIGHT.editorContrib()
+				weight: KeybindingWeight.EditorContrib
 			},
 			menuOpts: {
 			}

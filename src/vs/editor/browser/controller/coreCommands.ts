@@ -16,7 +16,7 @@ import { registerEditorCommand, ICommandOptions, EditorCommand, Command } from '
 import { IColumnSelectResult, ColumnSelection } from 'vs/editor/common/controller/cursorColumnSelection';
 import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
 import { KeyMod, KeyCode } from 'vs/base/common/keyCodes';
-import { KeybindingsRegistry } from 'vs/platform/keybinding/common/keybindingsRegistry';
+import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import H = editorCommon.Handler;
 import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
 import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
@@ -27,7 +27,7 @@ import { DeleteOperations } from 'vs/editor/common/controller/cursorDeleteOperat
 import { VerticalRevealType } from 'vs/editor/common/view/viewEvents';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 
-const CORE_WEIGHT = KeybindingsRegistry.WEIGHT.editorCore();
+const CORE_WEIGHT = KeybindingWeight.EditorCore;
 
 export abstract class CoreEditorCommand extends EditorCommand {
 	public runEditorCommand(accessor: ServicesAccessor, editor: ICodeEditor, args: any): void {

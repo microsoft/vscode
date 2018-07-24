@@ -23,7 +23,7 @@ import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { FindWidget, IFindController } from 'vs/editor/contrib/find/findWidget';
 import { FindOptionsWidget } from 'vs/editor/contrib/find/findOptionsWidget';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
-import { KeybindingsRegistry } from 'vs/platform/keybinding/common/keybindingsRegistry';
+import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { optional } from 'vs/platform/instantiation/common/instantiation';
 
 export function getSelectionSearchString(editor: ICodeEditor): string {
@@ -387,7 +387,7 @@ export class StartFindAction extends EditorAction {
 			kbOpts: {
 				kbExpr: null,
 				primary: KeyMod.CtrlCmd | KeyCode.KEY_F,
-				weight: KeybindingsRegistry.WEIGHT.editorContrib()
+				weight: KeybindingWeight.EditorContrib
 			}
 		});
 	}
@@ -420,7 +420,7 @@ export class StartFindWithSelectionAction extends EditorAction {
 				mac: {
 					primary: KeyMod.CtrlCmd | KeyCode.KEY_E,
 				},
-				weight: KeybindingsRegistry.WEIGHT.editorContrib()
+				weight: KeybindingWeight.EditorContrib
 			}
 		});
 	}
@@ -470,7 +470,7 @@ export class NextMatchFindAction extends MatchFindAction {
 				kbExpr: EditorContextKeys.focus,
 				primary: KeyCode.F3,
 				mac: { primary: KeyMod.CtrlCmd | KeyCode.KEY_G, secondary: [KeyCode.F3] },
-				weight: KeybindingsRegistry.WEIGHT.editorContrib()
+				weight: KeybindingWeight.EditorContrib
 			}
 		});
 	}
@@ -492,7 +492,7 @@ export class PreviousMatchFindAction extends MatchFindAction {
 				kbExpr: EditorContextKeys.focus,
 				primary: KeyMod.Shift | KeyCode.F3,
 				mac: { primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KEY_G, secondary: [KeyMod.Shift | KeyCode.F3] },
-				weight: KeybindingsRegistry.WEIGHT.editorContrib()
+				weight: KeybindingWeight.EditorContrib
 			}
 		});
 	}
@@ -538,7 +538,7 @@ export class NextSelectionMatchFindAction extends SelectionMatchFindAction {
 			kbOpts: {
 				kbExpr: EditorContextKeys.focus,
 				primary: KeyMod.CtrlCmd | KeyCode.F3,
-				weight: KeybindingsRegistry.WEIGHT.editorContrib()
+				weight: KeybindingWeight.EditorContrib
 			}
 		});
 	}
@@ -559,7 +559,7 @@ export class PreviousSelectionMatchFindAction extends SelectionMatchFindAction {
 			kbOpts: {
 				kbExpr: EditorContextKeys.focus,
 				primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.F3,
-				weight: KeybindingsRegistry.WEIGHT.editorContrib()
+				weight: KeybindingWeight.EditorContrib
 			}
 		});
 	}
@@ -581,7 +581,7 @@ export class StartFindReplaceAction extends EditorAction {
 				kbExpr: null,
 				primary: KeyMod.CtrlCmd | KeyCode.KEY_H,
 				mac: { primary: KeyMod.CtrlCmd | KeyMod.Alt | KeyCode.KEY_F },
-				weight: KeybindingsRegistry.WEIGHT.editorContrib()
+				weight: KeybindingWeight.EditorContrib
 			}
 		});
 	}
@@ -631,7 +631,7 @@ registerEditorCommand(new FindCommand({
 	precondition: CONTEXT_FIND_WIDGET_VISIBLE,
 	handler: x => x.closeFindWidget(),
 	kbOpts: {
-		weight: KeybindingsRegistry.WEIGHT.editorContrib() + 5,
+		weight: KeybindingWeight.EditorContrib + 5,
 		kbExpr: EditorContextKeys.focus,
 		primary: KeyCode.Escape,
 		secondary: [KeyMod.Shift | KeyCode.Escape]
@@ -643,7 +643,7 @@ registerEditorCommand(new FindCommand({
 	precondition: null,
 	handler: x => x.toggleCaseSensitive(),
 	kbOpts: {
-		weight: KeybindingsRegistry.WEIGHT.editorContrib() + 5,
+		weight: KeybindingWeight.EditorContrib + 5,
 		kbExpr: EditorContextKeys.focus,
 		primary: ToggleCaseSensitiveKeybinding.primary,
 		mac: ToggleCaseSensitiveKeybinding.mac,
@@ -657,7 +657,7 @@ registerEditorCommand(new FindCommand({
 	precondition: null,
 	handler: x => x.toggleWholeWords(),
 	kbOpts: {
-		weight: KeybindingsRegistry.WEIGHT.editorContrib() + 5,
+		weight: KeybindingWeight.EditorContrib + 5,
 		kbExpr: EditorContextKeys.focus,
 		primary: ToggleWholeWordKeybinding.primary,
 		mac: ToggleWholeWordKeybinding.mac,
@@ -671,7 +671,7 @@ registerEditorCommand(new FindCommand({
 	precondition: null,
 	handler: x => x.toggleRegex(),
 	kbOpts: {
-		weight: KeybindingsRegistry.WEIGHT.editorContrib() + 5,
+		weight: KeybindingWeight.EditorContrib + 5,
 		kbExpr: EditorContextKeys.focus,
 		primary: ToggleRegexKeybinding.primary,
 		mac: ToggleRegexKeybinding.mac,
@@ -685,7 +685,7 @@ registerEditorCommand(new FindCommand({
 	precondition: null,
 	handler: x => x.toggleSearchScope(),
 	kbOpts: {
-		weight: KeybindingsRegistry.WEIGHT.editorContrib() + 5,
+		weight: KeybindingWeight.EditorContrib + 5,
 		kbExpr: EditorContextKeys.focus,
 		primary: ToggleSearchScopeKeybinding.primary,
 		mac: ToggleSearchScopeKeybinding.mac,
@@ -699,7 +699,7 @@ registerEditorCommand(new FindCommand({
 	precondition: CONTEXT_FIND_WIDGET_VISIBLE,
 	handler: x => x.replace(),
 	kbOpts: {
-		weight: KeybindingsRegistry.WEIGHT.editorContrib() + 5,
+		weight: KeybindingWeight.EditorContrib + 5,
 		kbExpr: EditorContextKeys.focus,
 		primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KEY_1
 	}
@@ -710,7 +710,7 @@ registerEditorCommand(new FindCommand({
 	precondition: CONTEXT_FIND_WIDGET_VISIBLE,
 	handler: x => x.replaceAll(),
 	kbOpts: {
-		weight: KeybindingsRegistry.WEIGHT.editorContrib() + 5,
+		weight: KeybindingWeight.EditorContrib + 5,
 		kbExpr: EditorContextKeys.focus,
 		primary: KeyMod.CtrlCmd | KeyMod.Alt | KeyCode.Enter
 	}
@@ -721,7 +721,7 @@ registerEditorCommand(new FindCommand({
 	precondition: CONTEXT_FIND_WIDGET_VISIBLE,
 	handler: x => x.selectAllMatches(),
 	kbOpts: {
-		weight: KeybindingsRegistry.WEIGHT.editorContrib() + 5,
+		weight: KeybindingWeight.EditorContrib + 5,
 		kbExpr: EditorContextKeys.focus,
 		primary: KeyMod.Alt | KeyCode.Enter
 	}

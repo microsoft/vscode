@@ -16,7 +16,7 @@ import { registerEditorAction, IActionOptions, EditorAction, ICommandKeybindings
 import { CopyOptions } from 'vs/editor/browser/controller/textAreaInput';
 import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
-import { KeybindingsRegistry } from 'vs/platform/keybinding/common/keybindingsRegistry';
+import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
 
 const CLIPBOARD_CONTEXT_MENU_GROUP = '9_cutcopypaste';
 
@@ -64,7 +64,7 @@ class ExecCommandCutAction extends ExecCommandAction {
 			kbExpr: EditorContextKeys.textInputFocus,
 			primary: KeyMod.CtrlCmd | KeyCode.KEY_X,
 			win: { primary: KeyMod.CtrlCmd | KeyCode.KEY_X, secondary: [KeyMod.Shift | KeyCode.Delete] },
-			weight: KeybindingsRegistry.WEIGHT.editorContrib()
+			weight: KeybindingWeight.EditorContrib
 		};
 		// Do not bind cut keybindings in the browser,
 		// since browsers do that for us and it avoids security prompts
@@ -102,7 +102,7 @@ class ExecCommandCopyAction extends ExecCommandAction {
 			kbExpr: EditorContextKeys.textInputFocus,
 			primary: KeyMod.CtrlCmd | KeyCode.KEY_C,
 			win: { primary: KeyMod.CtrlCmd | KeyCode.KEY_C, secondary: [KeyMod.CtrlCmd | KeyCode.Insert] },
-			weight: KeybindingsRegistry.WEIGHT.editorContrib()
+			weight: KeybindingWeight.EditorContrib
 		};
 		// Do not bind copy keybindings in the browser,
 		// since browsers do that for us and it avoids security prompts
@@ -141,7 +141,7 @@ class ExecCommandPasteAction extends ExecCommandAction {
 			kbExpr: EditorContextKeys.textInputFocus,
 			primary: KeyMod.CtrlCmd | KeyCode.KEY_V,
 			win: { primary: KeyMod.CtrlCmd | KeyCode.KEY_V, secondary: [KeyMod.Shift | KeyCode.Insert] },
-			weight: KeybindingsRegistry.WEIGHT.editorContrib()
+			weight: KeybindingWeight.EditorContrib
 		};
 		// Do not bind paste keybindings in the browser,
 		// since browsers do that for us and it avoids security prompts
@@ -174,7 +174,7 @@ class ExecCommandCopyWithSyntaxHighlightingAction extends ExecCommandAction {
 			kbOpts: {
 				kbExpr: EditorContextKeys.textInputFocus,
 				primary: null,
-				weight: KeybindingsRegistry.WEIGHT.editorContrib()
+				weight: KeybindingWeight.EditorContrib
 			}
 		});
 	}

@@ -33,7 +33,7 @@ import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
 import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
 import { Position } from 'vs/editor/common/core/position';
 import { rot } from 'vs/base/common/numbers';
-import { KeybindingsRegistry } from 'vs/platform/keybinding/common/keybindingsRegistry';
+import { KeybindingsRegistry, KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { peekViewBorder, peekViewTitleBackground, peekViewTitleForeground, peekViewTitleInfoForeground } from 'vs/editor/contrib/referenceSearch/referencesWidget';
 import { EmbeddedDiffEditorWidget } from 'vs/editor/browser/widget/embeddedCodeEditorWidget';
 import { IDiffEditorOptions } from 'vs/editor/common/config/editorOptions';
@@ -372,7 +372,7 @@ export class ShowPreviousChangeAction extends EditorAction {
 			label: nls.localize('show previous change', "Show Previous Change"),
 			alias: 'Show Previous Change',
 			precondition: null,
-			kbOpts: { kbExpr: EditorContextKeys.editorTextFocus, primary: KeyMod.Shift | KeyMod.Alt | KeyCode.F3, weight: KeybindingsRegistry.WEIGHT.editorContrib() }
+			kbOpts: { kbExpr: EditorContextKeys.editorTextFocus, primary: KeyMod.Shift | KeyMod.Alt | KeyCode.F3, weight: KeybindingWeight.EditorContrib }
 		});
 	}
 
@@ -406,7 +406,7 @@ export class ShowNextChangeAction extends EditorAction {
 			label: nls.localize('show next change', "Show Next Change"),
 			alias: 'Show Next Change',
 			precondition: null,
-			kbOpts: { kbExpr: EditorContextKeys.editorTextFocus, primary: KeyMod.Alt | KeyCode.F3, weight: KeybindingsRegistry.WEIGHT.editorContrib() }
+			kbOpts: { kbExpr: EditorContextKeys.editorTextFocus, primary: KeyMod.Alt | KeyCode.F3, weight: KeybindingWeight.EditorContrib }
 		});
 	}
 
@@ -440,7 +440,7 @@ export class MoveToPreviousChangeAction extends EditorAction {
 			label: nls.localize('move to previous change', "Move to Previous Change"),
 			alias: 'Move to Previous Change',
 			precondition: null,
-			kbOpts: { kbExpr: EditorContextKeys.editorTextFocus, primary: KeyMod.Shift | KeyMod.Alt | KeyCode.F5, weight: KeybindingsRegistry.WEIGHT.editorContrib() }
+			kbOpts: { kbExpr: EditorContextKeys.editorTextFocus, primary: KeyMod.Shift | KeyMod.Alt | KeyCode.F5, weight: KeybindingWeight.EditorContrib }
 		});
 	}
 
@@ -482,7 +482,7 @@ export class MoveToNextChangeAction extends EditorAction {
 			label: nls.localize('move to next change', "Move to Next Change"),
 			alias: 'Move to Next Change',
 			precondition: null,
-			kbOpts: { kbExpr: EditorContextKeys.editorTextFocus, primary: KeyMod.Alt | KeyCode.F5, weight: KeybindingsRegistry.WEIGHT.editorContrib() }
+			kbOpts: { kbExpr: EditorContextKeys.editorTextFocus, primary: KeyMod.Alt | KeyCode.F5, weight: KeybindingWeight.EditorContrib }
 		});
 	}
 
@@ -518,7 +518,7 @@ registerEditorAction(MoveToNextChangeAction);
 
 KeybindingsRegistry.registerCommandAndKeybindingRule({
 	id: 'closeDirtyDiff',
-	weight: KeybindingsRegistry.WEIGHT.editorContrib() + 50,
+	weight: KeybindingWeight.EditorContrib + 50,
 	primary: KeyCode.Escape,
 	secondary: [KeyMod.Shift | KeyCode.Escape],
 	when: ContextKeyExpr.and(isDirtyDiffVisible),
