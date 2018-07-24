@@ -124,24 +124,24 @@ export class ProductContribution implements IWorkbenchContribution {
 	) {
 		const lastVersion = storageService.get(ProductContribution.KEY, StorageScope.GLOBAL, '');
 		const shouldShowReleaseNotes = configurationService.getValue<boolean>('update.showReleaseNotes');
-		const offlineMode = configurationService.getValue(offlineModeSetting) === true;
+		const openInBrowser = () => notificationService.prompt(
+			severity.Info,
+			nls.localize('read the release notes', "Welcome to {0} v{1}! Would you like to read the Release Notes?", product.nameLong, pkg.version),
+			[{
+				label: nls.localize('releaseNotes', "Release Notes"),
+				run: () => {
+					const uri = URI.parse(product.releaseNotesUrl);
+					openerService.open(uri);
+				}
+			}]
+		);
 
 		// was there an update? if so, open release notes
-		if (!offlineMode && shouldShowReleaseNotes && !environmentService.skipReleaseNotes && product.releaseNotesUrl && lastVersion && pkg.version !== lastVersion) {
+		if (shouldShowReleaseNotes && !environmentService.skipReleaseNotes && product.releaseNotesUrl && lastVersion && pkg.version !== lastVersion) {
 			showReleaseNotes(instantiationService, pkg.version)
-				.then(undefined, () => {
-					notificationService.prompt(
-						severity.Info,
-						nls.localize('read the release notes', "Welcome to {0} v{1}! Would you like to read the Release Notes?", product.nameLong, pkg.version),
-						[{
-							label: nls.localize('releaseNotes', "Release Notes"),
-							run: () => {
-								const uri = URI.parse(product.releaseNotesUrl);
-								openerService.open(uri);
-							}
-						}]
-					);
-				});
+				.then(result => {
+					if (!result) { openInBrowser(); }
+				}, openInBrowser);
 		}
 
 		// should we show the new license?
