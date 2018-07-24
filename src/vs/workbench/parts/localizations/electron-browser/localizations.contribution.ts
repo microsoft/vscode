@@ -141,19 +141,15 @@ export class LocalizationWorkbenchContribution extends Disposable implements IWo
 					return;
 				}
 
-				const extensionIdPostfix = this.getPossibleChineseMapping(locale);
-				const ceintlExtensionSearch = this.galleryService.query({ names: [`MS-CEINTL.vscode-language-pack-${extensionIdPostfix}`], pageSize: 1 });
-				const tagSearch = this.galleryService.query({ text: `tag:lp-${locale}`, pageSize: 1 });
-
-				TPromise.join([ceintlExtensionSearch, tagSearch]).then(([ceintlResult, tagResult]) => {
-					if (ceintlResult.total === 0 && tagResult.total === 0) {
+				this.galleryService.query({ text: `tag:lp-${locale}` }).then(tagResult => {
+					if (tagResult.total === 0) {
 						return;
 					}
 
-					const extensionToInstall = ceintlResult.total === 1 ? ceintlResult.firstPage[0] : tagResult.total === 1 ? tagResult.firstPage[0] : null;
-					const extensionToFetchTranslationsFrom = extensionToInstall || (tagResult.total > 0 ? tagResult.firstPage[0] : null);
+					const extensionToInstall = tagResult.total === 1 ? tagResult.firstPage[0] : tagResult.firstPage.filter(e => e.publisher === 'MS-CEINTL' && e.name.indexOf('vscode-language-pack') === 0)[0];
+					const extensionToFetchTranslationsFrom = extensionToInstall || tagResult.firstPage[0];
 
-					if (!extensionToFetchTranslationsFrom || !extensionToFetchTranslationsFrom.assets.manifest) {
+					if (!extensionToFetchTranslationsFrom.assets.manifest) {
 						return;
 					}
 
@@ -234,11 +230,6 @@ export class LocalizationWorkbenchContribution extends Disposable implements IWo
 				});
 			});
 
-	}
-
-	private getPossibleChineseMapping(locale: string): string {
-		locale = locale.toLowerCase();
-		return locale === 'zh-cn' ? 'zh-hans' : locale === 'zh-tw' ? 'zh-hant' : locale;
 	}
 
 	private getLanguagePackExtension(language: string): TPromise<IGalleryExtension> {
