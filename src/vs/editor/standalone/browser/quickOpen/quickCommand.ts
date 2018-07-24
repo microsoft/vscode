@@ -84,6 +84,8 @@ export class QuickCommandAction extends BaseEditorQuickOpenAction {
 				weight: KeybindingWeight.EditorContrib
 			},
 			menuOpts: {
+				group: 'z_commands',
+				order: 1
 			}
 		});
 	}

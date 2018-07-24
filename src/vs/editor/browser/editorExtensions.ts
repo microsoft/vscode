@@ -9,13 +9,13 @@ import URI from 'vs/base/common/uri';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { ServicesAccessor, IConstructorSignature1 } from 'vs/platform/instantiation/common/instantiation';
 import { CommandsRegistry, ICommandHandlerDescription } from 'vs/platform/commands/common/commands';
-import { KeybindingsRegistry, ICommandAndKeybindingRule, IKeybindings } from 'vs/platform/keybinding/common/keybindingsRegistry';
+import { KeybindingsRegistry, IKeybindings } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { Position } from 'vs/editor/common/core/position';
 import * as editorCommon from 'vs/editor/common/editorCommon';
 import { IModelService } from 'vs/editor/common/services/modelService';
-import { MenuId, MenuRegistry, IMenuItem } from 'vs/platform/actions/common/actions';
+import { MenuId, MenuRegistry } from 'vs/platform/actions/common/actions';
 import { IContextKeyService, ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
 import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
@@ -31,23 +31,25 @@ export interface ICommandKeybindingsOptions extends IKeybindings {
 	kbExpr?: ContextKeyExpr;
 	weight: number;
 }
-// export interface ICommandMenubarOptions {
-// 	group?: string;
-// 	order?: number;
-// 	when?: ContextKeyExpr;
-// 	title?: string;
-// }
+export interface ICommandMenubarOptions {
+	menuId: MenuId;
+	group: string;
+	order: number;
+	when?: ContextKeyExpr;
+	title: string;
+}
 export interface ICommandOptions {
 	id: string;
 	precondition: ContextKeyExpr;
 	kbOpts?: ICommandKeybindingsOptions;
 	description?: ICommandHandlerDescription;
-	// menubarOpts?: ICommandMenubarOptions;
+	menubarOpts?: ICommandMenubarOptions;
 }
 export abstract class Command {
 	public readonly id: string;
 	public readonly precondition: ContextKeyExpr;
 	private readonly _kbOpts: ICommandKeybindingsOptions;
+	private readonly _menubarOpts: ICommandMenubarOptions;
 	private readonly _description: ICommandHandlerDescription;
 
 	constructor(opts: ICommandOptions) {
@@ -57,7 +59,21 @@ export abstract class Command {
 		this._description = opts.description;
 	}
 
-	private _toCommandAndKeybindingRule(): ICommandAndKeybindingRule {
+	public register(): void {
+
+		if (this._menubarOpts) {
+			MenuRegistry.appendMenuItem(this._menubarOpts.menuId, {
+				group: this._menubarOpts.group,
+				command: {
+					id: this.id,
+					title: this._menubarOpts.title,
+					// precondition: this.precondition
+				},
+				when: this._menubarOpts.when,
+				order: this._menubarOpts.order
+			});
+		}
+
 		if (this._kbOpts) {
 			let kbWhen = this._kbOpts.kbExpr;
 			if (this.precondition) {
@@ -68,7 +84,7 @@ export abstract class Command {
 				}
 			}
 
-			return {
+			KeybindingsRegistry.registerCommandAndKeybindingRule({
 				id: this.id,
 				handler: (accessor, args) => this.runCommand(accessor, args),
 				weight: this._kbOpts.weight,
@@ -79,25 +95,16 @@ export abstract class Command {
 				linux: this._kbOpts.linux,
 				mac: this._kbOpts.mac,
 				description: this._description
-			};
+			});
+
+		} else {
+
+			CommandsRegistry.registerCommand({
+				id: this.id,
+				handler: (accessor, args) => this.runCommand(accessor, args),
+				description: this._description
+			});
 		}
-
-		return {
-			id: this.id,
-			handler: (accessor, args) => this.runCommand(accessor, args),
-			weight: undefined,
-			when: undefined,
-			primary: 0,
-			secondary: undefined,
-			win: undefined,
-			linux: undefined,
-			mac: undefined,
-			description: this._description
-		};
-	}
-
-	public register(): void {
-		KeybindingsRegistry.registerCommandAndKeybindingRule(this._toCommandAndKeybindingRule());
 	}
 
 	public abstract runCommand(accessor: ServicesAccessor, args: any): void | TPromise<void>;
@@ -166,8 +173,8 @@ export abstract class EditorCommand extends Command {
 //#region EditorAction
 
 export interface IEditorCommandMenuOptions {
-	group?: string;
-	order?: number;
+	group: string;
+	order: number;
 	when?: ContextKeyExpr;
 }
 export interface IActionOptions extends ICommandOptions {
@@ -188,27 +195,18 @@ export abstract class EditorAction extends EditorCommand {
 		this.menuOpts = opts.menuOpts;
 	}
 
-	private _toMenuItem(): IMenuItem {
-		if (!this.menuOpts) {
-			return null;
-		}
-
-		return {
-			command: {
-				id: this.id,
-				title: this.label
-			},
-			when: ContextKeyExpr.and(this.precondition, this.menuOpts.when),
-			group: this.menuOpts.group,
-			order: this.menuOpts.order
-		};
-	}
-
 	public register(): void {
 
-		let menuItem = this._toMenuItem();
-		if (menuItem) {
-			MenuRegistry.appendMenuItem(MenuId.EditorContext, menuItem);
+		if (this.menuOpts) {
+			MenuRegistry.appendMenuItem(MenuId.EditorContext, {
+				command: {
+					id: this.id,
+					title: this.label
+				},
+				when: ContextKeyExpr.and(this.precondition, this.menuOpts.when),
+				group: this.menuOpts.group,
+				order: this.menuOpts.order
+			});
 		}
 
 		super.register();
