@@ -430,6 +430,7 @@ export interface MainThreadWebviewsShape extends IDisposable {
 	$disposeWebview(handle: WebviewPanelHandle): void;
 	$reveal(handle: WebviewPanelHandle, viewColumn: EditorViewColumn | null, preserveFocus: boolean): void;
 	$setTitle(handle: WebviewPanelHandle, value: string): void;
+	$setIconPath(handle: WebviewPanelHandle, value: { light: UriComponents, dark: UriComponents } | undefined): void;
 	$setHtml(handle: WebviewPanelHandle, value: string): void;
 	$setOptions(handle: WebviewPanelHandle, options: vscode.WebviewOptions): void;
 	$postMessage(handle: WebviewPanelHandle, value: any): Thenable<boolean>;
