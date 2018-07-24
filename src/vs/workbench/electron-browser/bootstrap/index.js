@@ -70,8 +70,8 @@ function uriFromPath(_path) {
 }
 
 function readFile(file) {
-	return new Promise(function(resolve, reject) {
-		fs.readFile(file, 'utf8', function(err, data) {
+	return new Promise(function (resolve, reject) {
+		fs.readFile(file, 'utf8', function (err, data) {
 			if (err) {
 				reject(err);
 				return;
@@ -79,6 +79,37 @@ function readFile(file) {
 			resolve(data);
 		});
 	});
+}
+
+function showPartsSplash(configuration) {
+
+	let key;
+	let keep = false;
+	// this is the logic of StorageService#getWorkspaceKey and StorageService#toStorageKey
+	if (configuration.folderUri) {
+		let workspaceKey = require('vscode-uri').default.revive(configuration.folderUri).toString().replace('file:///', '').replace(/^\//, '');
+		key = `storage://workspace/${workspaceKey}/parts-splash`;
+	} else if (configuration.workspace) {
+		key = `storage://workspace/root:${configuration.workspace.id}/parts-splash`;
+	} else {
+		key = `storage://global/parts-splash`;
+		keep = true;
+	}
+
+	// TODO@Ben remove me after a while
+	perf.mark('willAccessLocalStorage');
+	let storage = window.localStorage;
+	perf.mark('didAccessLocalStorage');
+
+	let structure = storage.getItem(key);
+	if (structure) {
+		let splash = document.createElement('div');
+		splash.innerHTML = structure;
+		document.body.appendChild(splash);
+	}
+	if (!keep) {
+		storage.removeItem(key);
+	}
 }
 
 const writeFile = (file, content) => new Promise((c, e) => fs.writeFile(file, content, 'utf8', err => err ? e(err) : c()));
@@ -159,6 +190,8 @@ function main() {
 	assign(process.env, configuration.userEnv);
 	perf.importEntries(configuration.perfEntries);
 
+	showPartsSplash(configuration);
+
 	// Get the nls configuration into the process.env as early as possible.
 	var nlsConfig = { availableLanguages: {} };
 	const config = process.env['VSCODE_NLS_CONFIG'];
@@ -171,7 +204,7 @@ function main() {
 
 	if (nlsConfig._resolvedLanguagePackCoreLocation) {
 		let bundles = Object.create(null);
-		nlsConfig.loadBundle = function(bundle, language, cb) {
+		nlsConfig.loadBundle = function (bundle, language, cb) {
 			let result = bundles[bundle];
 			if (result) {
 				cb(undefined, result);
