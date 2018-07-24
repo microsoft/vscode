@@ -67,7 +67,6 @@ export enum StorageScope {
 	WORKSPACE
 }
 
-
 export const NullStorageService: IStorageService = {
 	_serviceBrand: undefined,
 	store() { return undefined; },
