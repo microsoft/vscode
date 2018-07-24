@@ -11,6 +11,7 @@ import { TPromise } from 'vs/base/common/winjs.base';
 import * as errors from 'vs/base/common/errors';
 import { IAction } from 'vs/base/common/actions';
 import * as dom from 'vs/base/browser/dom';
+import * as aria from 'vs/base/browser/ui/aria/aria';
 import { isMacintosh } from 'vs/base/common/platform';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { KeyCode } from 'vs/base/common/keyCodes';
@@ -210,6 +211,7 @@ export class Repl extends Panel implements IPrivateReplService, IHistoryNavigati
 		const historyInput = previous ? this.history.previous() : this.history.next();
 		if (historyInput) {
 			this.replInput.setValue(historyInput);
+			aria.status(historyInput);
 			// always leave cursor at the end.
 			this.replInput.setPosition({ lineNumber: 1, column: historyInput.length + 1 });
 			this.historyNavigationEnablement.set(true);
