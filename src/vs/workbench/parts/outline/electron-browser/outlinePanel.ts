@@ -489,6 +489,10 @@ export class OutlinePanel extends ViewletPanel {
 			return;
 		}
 
+		if (TreeElement.empty(model)) {
+			return this._showMessage(localize('no-symbols', "No symbols found in document '{0}'", posix.basename(textModel.uri.path)));
+		}
+
 		let newSize = TreeElement.size(model);
 		if (newSize > 7500) {
 			// this is a workaround for performance issues with the tree: https://github.com/Microsoft/vscode/issues/18180
