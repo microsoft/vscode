@@ -485,9 +485,9 @@ export class WorkbenchKeybindingService extends AbstractKeybindingService {
 
 		let weight: number;
 		if (isBuiltin) {
-			weight = KeybindingsRegistry.WEIGHT.builtinExtension(idx);
+			weight = KeybindingsRegistry.WEIGHT.builtinExtension() + idx;
 		} else {
-			weight = KeybindingsRegistry.WEIGHT.externalExtension(idx);
+			weight = KeybindingsRegistry.WEIGHT.externalExtension() + idx;
 		}
 
 		let desc = {

@@ -345,7 +345,7 @@ export class TriggerSuggestAction extends EditorAction {
 registerEditorContribution(SuggestController);
 registerEditorAction(TriggerSuggestAction);
 
-const weight = KeybindingsRegistry.WEIGHT.editorContrib(90);
+const weight = KeybindingsRegistry.WEIGHT.editorContrib() + 90;
 
 const SuggestCommand = EditorCommand.bindToContribution<SuggestController>(SuggestController.get);
 

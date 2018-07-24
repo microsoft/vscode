@@ -70,8 +70,8 @@ MenuRegistry.appendMenuItem(MenuId.CommandPalette, {
 	command: { id: QUICKOPEN_ACTION_ID, title: QUICKOPEN_ACION_LABEL }
 });
 
-registry.registerWorkbenchAction(new SyncActionDescriptor(QuickOpenSelectNextAction, QuickOpenSelectNextAction.ID, QuickOpenSelectNextAction.LABEL, { primary: null, mac: { primary: KeyMod.WinCtrl | KeyCode.KEY_N } }, inQuickOpenContext, KeybindingsRegistry.WEIGHT.workbenchContrib(50)), 'Select Next in Quick Open');
-registry.registerWorkbenchAction(new SyncActionDescriptor(QuickOpenSelectPreviousAction, QuickOpenSelectPreviousAction.ID, QuickOpenSelectPreviousAction.LABEL, { primary: null, mac: { primary: KeyMod.WinCtrl | KeyCode.KEY_P } }, inQuickOpenContext, KeybindingsRegistry.WEIGHT.workbenchContrib(50)), 'Select Previous in Quick Open');
+registry.registerWorkbenchAction(new SyncActionDescriptor(QuickOpenSelectNextAction, QuickOpenSelectNextAction.ID, QuickOpenSelectNextAction.LABEL, { primary: null, mac: { primary: KeyMod.WinCtrl | KeyCode.KEY_N } }, inQuickOpenContext, KeybindingsRegistry.WEIGHT.workbenchContrib() + 50), 'Select Next in Quick Open');
+registry.registerWorkbenchAction(new SyncActionDescriptor(QuickOpenSelectPreviousAction, QuickOpenSelectPreviousAction.ID, QuickOpenSelectPreviousAction.LABEL, { primary: null, mac: { primary: KeyMod.WinCtrl | KeyCode.KEY_P } }, inQuickOpenContext, KeybindingsRegistry.WEIGHT.workbenchContrib() + 50), 'Select Previous in Quick Open');
 registry.registerWorkbenchAction(new SyncActionDescriptor(QuickOpenNavigateNextAction, QuickOpenNavigateNextAction.ID, QuickOpenNavigateNextAction.LABEL), 'Navigate Next in Quick Open');
 registry.registerWorkbenchAction(new SyncActionDescriptor(QuickOpenNavigatePreviousAction, QuickOpenNavigatePreviousAction.ID, QuickOpenNavigatePreviousAction.LABEL), 'Navigate Previous in Quick Open');
 registry.registerWorkbenchAction(new SyncActionDescriptor(RemoveFromEditorHistoryAction, RemoveFromEditorHistoryAction.ID, RemoveFromEditorHistoryAction.LABEL), 'Remove From History');
@@ -79,7 +79,7 @@ registry.registerWorkbenchAction(new SyncActionDescriptor(RemoveFromEditorHistor
 const quickOpenNavigateNextInFilePickerId = 'workbench.action.quickOpenNavigateNextInFilePicker';
 KeybindingsRegistry.registerCommandAndKeybindingRule({
 	id: quickOpenNavigateNextInFilePickerId,
-	weight: KeybindingsRegistry.WEIGHT.workbenchContrib(50),
+	weight: KeybindingsRegistry.WEIGHT.workbenchContrib() + 50,
 	handler: getQuickNavigateHandler(quickOpenNavigateNextInFilePickerId, true),
 	when: defaultQuickOpenContext,
 	primary: globalQuickOpenKeybinding.primary,
@@ -90,7 +90,7 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 const quickOpenNavigatePreviousInFilePickerId = 'workbench.action.quickOpenNavigatePreviousInFilePicker';
 KeybindingsRegistry.registerCommandAndKeybindingRule({
 	id: quickOpenNavigatePreviousInFilePickerId,
-	weight: KeybindingsRegistry.WEIGHT.workbenchContrib(50),
+	weight: KeybindingsRegistry.WEIGHT.workbenchContrib() + 50,
 	handler: getQuickNavigateHandler(quickOpenNavigatePreviousInFilePickerId, false),
 	when: defaultQuickOpenContext,
 	primary: globalQuickOpenKeybinding.primary | KeyMod.Shift,

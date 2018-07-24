@@ -85,7 +85,7 @@ export class TriggerParameterHintsAction extends EditorAction {
 registerEditorContribution(ParameterHintsController);
 registerEditorAction(TriggerParameterHintsAction);
 
-const weight = KeybindingsRegistry.WEIGHT.editorContrib(75);
+const weight = KeybindingsRegistry.WEIGHT.editorContrib() + 75;
 
 const ParameterHintsCommand = EditorCommand.bindToContribution<ParameterHintsController>(ParameterHintsController.get);
 

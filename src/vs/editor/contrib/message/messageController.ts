@@ -114,7 +114,7 @@ registerEditorCommand(new MessageCommand({
 	precondition: MessageController.MESSAGE_VISIBLE,
 	handler: c => c.closeMessage(),
 	kbOpts: {
-		weight: KeybindingsRegistry.WEIGHT.editorContrib(30),
+		weight: KeybindingsRegistry.WEIGHT.editorContrib() + 30,
 		primary: KeyCode.Escape
 	}
 }));

@@ -518,7 +518,7 @@ registerEditorAction(MoveToNextChangeAction);
 
 KeybindingsRegistry.registerCommandAndKeybindingRule({
 	id: 'closeDirtyDiff',
-	weight: KeybindingsRegistry.WEIGHT.editorContrib(50),
+	weight: KeybindingsRegistry.WEIGHT.editorContrib() + 50,
 	primary: KeyCode.Escape,
 	secondary: [KeyMod.Shift | KeyCode.Escape],
 	when: ContextKeyExpr.and(isDirtyDiffVisible),

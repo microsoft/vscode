@@ -439,7 +439,7 @@ registerEditorCommand(new MarkerCommand({
 	precondition: CONTEXT_MARKERS_NAVIGATION_VISIBLE,
 	handler: x => x.closeMarkersNavigation(),
 	kbOpts: {
-		weight: KeybindingsRegistry.WEIGHT.editorContrib(50),
+		weight: KeybindingsRegistry.WEIGHT.editorContrib() + 50,
 		kbExpr: EditorContextKeys.focus,
 		primary: KeyCode.Escape,
 		secondary: [KeyMod.Shift | KeyCode.Escape]

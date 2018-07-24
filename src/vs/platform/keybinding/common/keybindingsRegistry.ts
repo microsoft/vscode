@@ -57,6 +57,14 @@ export const enum KeybindingRuleSource {
 	Extension = 1
 }
 
+export const enum KeybindingWeight {
+	EditorCore = 0,
+	EditorContrib = 100,
+	WorkbenchContrib = 200,
+	BuiltinExtension = 300,
+	ExternalExtension = 400
+}
+
 export interface ICommandAndKeybindingRule extends IKeybindingRule {
 	handler: ICommandHandler;
 	description?: ICommandHandlerDescription;
@@ -69,11 +77,11 @@ export interface IKeybindingsRegistry {
 	getDefaultKeybindings(): IKeybindingItem[];
 
 	WEIGHT: {
-		editorCore(importance?: number): number;
-		editorContrib(importance?: number): number;
-		workbenchContrib(importance?: number): number;
-		builtinExtension(importance?: number): number;
-		externalExtension(importance?: number): number;
+		editorCore(): number;
+		editorContrib(): number;
+		workbenchContrib(): number;
+		builtinExtension(): number;
+		externalExtension(): number;
 	};
 }
 
@@ -83,20 +91,20 @@ class KeybindingsRegistryImpl implements IKeybindingsRegistry {
 	private _keybindingsSorted: boolean;
 
 	public WEIGHT = {
-		editorCore: (importance: number = 0): number => {
-			return 0 + importance;
+		editorCore: (): number => {
+			return KeybindingWeight.EditorCore;
 		},
-		editorContrib: (importance: number = 0): number => {
-			return 100 + importance;
+		editorContrib: (): number => {
+			return KeybindingWeight.EditorContrib;
 		},
-		workbenchContrib: (importance: number = 0): number => {
-			return 200 + importance;
+		workbenchContrib: (): number => {
+			return KeybindingWeight.WorkbenchContrib;
 		},
-		builtinExtension: (importance: number = 0): number => {
-			return 300 + importance;
+		builtinExtension: (): number => {
+			return KeybindingWeight.BuiltinExtension;
 		},
-		externalExtension: (importance: number = 0): number => {
-			return 400 + importance;
+		externalExtension: (): number => {
+			return KeybindingWeight.ExternalExtension;
 		}
 	};
 

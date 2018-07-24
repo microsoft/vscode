@@ -88,7 +88,7 @@ export function registerNotificationCommands(center: INotificationsCenterControl
 	// Hide Notifications Center
 	KeybindingsRegistry.registerCommandAndKeybindingRule({
 		id: HIDE_NOTIFICATIONS_CENTER,
-		weight: KeybindingsRegistry.WEIGHT.workbenchContrib(50),
+		weight: KeybindingsRegistry.WEIGHT.workbenchContrib() + 50,
 		when: NotificationsCenterVisibleContext,
 		primary: KeyCode.Escape,
 		handler: accessor => center.hide()
@@ -166,7 +166,7 @@ export function registerNotificationCommands(center: INotificationsCenterControl
 	// Hide Toasts
 	KeybindingsRegistry.registerCommandAndKeybindingRule({
 		id: HIDE_NOTIFICATION_TOAST,
-		weight: KeybindingsRegistry.WEIGHT.workbenchContrib(50),
+		weight: KeybindingsRegistry.WEIGHT.workbenchContrib() + 50,
 		when: NotificationsToastsVisibleContext,
 		primary: KeyCode.Escape,
 		handler: accessor => toasts.hide()

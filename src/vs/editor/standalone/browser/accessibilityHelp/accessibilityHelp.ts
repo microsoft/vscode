@@ -367,7 +367,7 @@ registerEditorCommand(
 		precondition: CONTEXT_ACCESSIBILITY_WIDGET_VISIBLE,
 		handler: x => x.hide(),
 		kbOpts: {
-			weight: KeybindingsRegistry.WEIGHT.editorContrib(100),
+			weight: KeybindingsRegistry.WEIGHT.editorContrib() + 100,
 			kbExpr: EditorContextKeys.focus,
 			primary: KeyCode.Escape,
 			secondary: [KeyMod.Shift | KeyCode.Escape]

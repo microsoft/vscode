@@ -380,7 +380,7 @@ registry.registerWorkbenchAction(new SyncActionDescriptor(OpenPreviousRecentlyUs
 const quickOpenNavigateNextInEditorPickerId = 'workbench.action.quickOpenNavigateNextInEditorPicker';
 KeybindingsRegistry.registerCommandAndKeybindingRule({
 	id: quickOpenNavigateNextInEditorPickerId,
-	weight: KeybindingsRegistry.WEIGHT.workbenchContrib(50),
+	weight: KeybindingsRegistry.WEIGHT.workbenchContrib() + 50,
 	handler: getQuickNavigateHandler(quickOpenNavigateNextInEditorPickerId, true),
 	when: editorPickerContext,
 	primary: openNextEditorKeybinding.primary,
@@ -390,7 +390,7 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 const quickOpenNavigatePreviousInEditorPickerId = 'workbench.action.quickOpenNavigatePreviousInEditorPicker';
 KeybindingsRegistry.registerCommandAndKeybindingRule({
 	id: quickOpenNavigatePreviousInEditorPickerId,
-	weight: KeybindingsRegistry.WEIGHT.workbenchContrib(50),
+	weight: KeybindingsRegistry.WEIGHT.workbenchContrib() + 50,
 	handler: getQuickNavigateHandler(quickOpenNavigatePreviousInEditorPickerId, false),
 	when: editorPickerContext,
 	primary: openPreviousEditorKeybinding.primary,

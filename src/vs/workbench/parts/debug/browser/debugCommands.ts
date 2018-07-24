@@ -32,7 +32,7 @@ export function registerCommands(): void {
 
 	KeybindingsRegistry.registerCommandAndKeybindingRule({
 		id: 'debug.toggleBreakpoint',
-		weight: KeybindingsRegistry.WEIGHT.workbenchContrib(5),
+		weight: KeybindingsRegistry.WEIGHT.workbenchContrib() + 5,
 		when: ContextKeyExpr.and(CONTEXT_BREAKPOINTS_FOCUSED, InputFocusedContext.toNegated()),
 		primary: KeyCode.Space,
 		handler: (accessor) => {
@@ -72,7 +72,7 @@ export function registerCommands(): void {
 
 	KeybindingsRegistry.registerCommandAndKeybindingRule({
 		id: 'debug.renameWatchExpression',
-		weight: KeybindingsRegistry.WEIGHT.workbenchContrib(5),
+		weight: KeybindingsRegistry.WEIGHT.workbenchContrib() + 5,
 		when: CONTEXT_WATCH_EXPRESSIONS_FOCUSED,
 		primary: KeyCode.F2,
 		mac: { primary: KeyCode.Enter },
@@ -93,7 +93,7 @@ export function registerCommands(): void {
 
 	KeybindingsRegistry.registerCommandAndKeybindingRule({
 		id: 'debug.setVariable',
-		weight: KeybindingsRegistry.WEIGHT.workbenchContrib(5),
+		weight: KeybindingsRegistry.WEIGHT.workbenchContrib() + 5,
 		when: CONTEXT_VARIABLES_FOCUSED,
 		primary: KeyCode.F2,
 		mac: { primary: KeyCode.Enter },

@@ -270,7 +270,7 @@ registerEditorCommand(new RenameCommand({
 	precondition: CONTEXT_RENAME_INPUT_VISIBLE,
 	handler: x => x.acceptRenameInput(),
 	kbOpts: {
-		weight: KeybindingsRegistry.WEIGHT.editorContrib(99),
+		weight: KeybindingsRegistry.WEIGHT.editorContrib() + 99,
 		kbExpr: EditorContextKeys.focus,
 		primary: KeyCode.Enter
 	}
@@ -281,7 +281,7 @@ registerEditorCommand(new RenameCommand({
 	precondition: CONTEXT_RENAME_INPUT_VISIBLE,
 	handler: x => x.cancelRenameInput(),
 	kbOpts: {
-		weight: KeybindingsRegistry.WEIGHT.editorContrib(99),
+		weight: KeybindingsRegistry.WEIGHT.editorContrib() + 99,
 		kbExpr: EditorContextKeys.focus,
 		primary: KeyCode.Escape,
 		secondary: [KeyMod.Shift | KeyCode.Escape]

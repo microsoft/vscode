@@ -135,7 +135,7 @@ const recentFilesPickerContext = ContextKeyExpr.and(inQuickOpenContext, ContextK
 const quickOpenNavigateNextInRecentFilesPickerId = 'workbench.action.quickOpenNavigateNextInRecentFilesPicker';
 KeybindingsRegistry.registerCommandAndKeybindingRule({
 	id: quickOpenNavigateNextInRecentFilesPickerId,
-	weight: KeybindingsRegistry.WEIGHT.workbenchContrib(50),
+	weight: KeybindingsRegistry.WEIGHT.workbenchContrib() + 50,
 	handler: getQuickNavigateHandler(quickOpenNavigateNextInRecentFilesPickerId, true),
 	when: recentFilesPickerContext,
 	primary: KeyMod.CtrlCmd | KeyCode.KEY_R,
@@ -145,7 +145,7 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 const quickOpenNavigatePreviousInRecentFilesPicker = 'workbench.action.quickOpenNavigatePreviousInRecentFilesPicker';
 KeybindingsRegistry.registerCommandAndKeybindingRule({
 	id: quickOpenNavigatePreviousInRecentFilesPicker,
-	weight: KeybindingsRegistry.WEIGHT.workbenchContrib(50),
+	weight: KeybindingsRegistry.WEIGHT.workbenchContrib() + 50,
 	handler: getQuickNavigateHandler(quickOpenNavigatePreviousInRecentFilesPicker, false),
 	when: recentFilesPickerContext,
 	primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KEY_R,

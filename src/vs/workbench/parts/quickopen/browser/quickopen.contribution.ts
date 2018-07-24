@@ -50,7 +50,7 @@ registry.registerWorkbenchAction(new SyncActionDescriptor(QuickOpenViewPickerAct
 const quickOpenNavigateNextInViewPickerId = 'workbench.action.quickOpenNavigateNextInViewPicker';
 KeybindingsRegistry.registerCommandAndKeybindingRule({
 	id: quickOpenNavigateNextInViewPickerId,
-	weight: KeybindingsRegistry.WEIGHT.workbenchContrib(50),
+	weight: KeybindingsRegistry.WEIGHT.workbenchContrib() + 50,
 	handler: getQuickNavigateHandler(quickOpenNavigateNextInViewPickerId, true),
 	when: inViewsPickerContext,
 	primary: viewPickerKeybinding.primary,
@@ -61,7 +61,7 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 const quickOpenNavigatePreviousInViewPickerId = 'workbench.action.quickOpenNavigatePreviousInViewPicker';
 KeybindingsRegistry.registerCommandAndKeybindingRule({
 	id: quickOpenNavigatePreviousInViewPickerId,
-	weight: KeybindingsRegistry.WEIGHT.workbenchContrib(50),
+	weight: KeybindingsRegistry.WEIGHT.workbenchContrib() + 50,
 	handler: getQuickNavigateHandler(quickOpenNavigatePreviousInViewPickerId, false),
 	when: inViewsPickerContext,
 	primary: viewPickerKeybinding.primary | KeyMod.Shift,

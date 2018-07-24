@@ -50,7 +50,7 @@ const explorerCommandsWeightBonus = 10; // give our commands a little bit more w
 const RENAME_ID = 'renameFile';
 KeybindingsRegistry.registerCommandAndKeybindingRule({
 	id: RENAME_ID,
-	weight: KeybindingsRegistry.WEIGHT.workbenchContrib(explorerCommandsWeightBonus),
+	weight: KeybindingsRegistry.WEIGHT.workbenchContrib() + explorerCommandsWeightBonus,
 	when: ContextKeyExpr.and(FilesExplorerFocusCondition, ExplorerRootContext.toNegated(), ExplorerResourceNotReadonlyContext),
 	primary: KeyCode.F2,
 	mac: {
@@ -62,7 +62,7 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 const MOVE_FILE_TO_TRASH_ID = 'moveFileToTrash';
 KeybindingsRegistry.registerCommandAndKeybindingRule({
 	id: MOVE_FILE_TO_TRASH_ID,
-	weight: KeybindingsRegistry.WEIGHT.workbenchContrib(explorerCommandsWeightBonus),
+	weight: KeybindingsRegistry.WEIGHT.workbenchContrib() + explorerCommandsWeightBonus,
 	when: ContextKeyExpr.and(FilesExplorerFocusCondition, ExplorerRootContext.toNegated(), ExplorerResourceNotReadonlyContext),
 	primary: KeyCode.Delete,
 	mac: {
@@ -74,7 +74,7 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 const DELETE_FILE_ID = 'deleteFile';
 KeybindingsRegistry.registerCommandAndKeybindingRule({
 	id: DELETE_FILE_ID,
-	weight: KeybindingsRegistry.WEIGHT.workbenchContrib(explorerCommandsWeightBonus),
+	weight: KeybindingsRegistry.WEIGHT.workbenchContrib() + explorerCommandsWeightBonus,
 	when: ContextKeyExpr.and(FilesExplorerFocusCondition, ExplorerRootContext.toNegated(), ExplorerResourceNotReadonlyContext),
 	primary: KeyMod.Shift | KeyCode.Delete,
 	mac: {
@@ -86,7 +86,7 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 const COPY_FILE_ID = 'filesExplorer.copy';
 KeybindingsRegistry.registerCommandAndKeybindingRule({
 	id: COPY_FILE_ID,
-	weight: KeybindingsRegistry.WEIGHT.workbenchContrib(explorerCommandsWeightBonus),
+	weight: KeybindingsRegistry.WEIGHT.workbenchContrib() + explorerCommandsWeightBonus,
 	when: ContextKeyExpr.and(FilesExplorerFocusCondition, ExplorerRootContext.toNegated()),
 	primary: KeyMod.CtrlCmd | KeyCode.KEY_C,
 	handler: copyFileHandler,
@@ -96,7 +96,7 @@ const PASTE_FILE_ID = 'filesExplorer.paste';
 
 KeybindingsRegistry.registerCommandAndKeybindingRule({
 	id: PASTE_FILE_ID,
-	weight: KeybindingsRegistry.WEIGHT.workbenchContrib(explorerCommandsWeightBonus),
+	weight: KeybindingsRegistry.WEIGHT.workbenchContrib() + explorerCommandsWeightBonus,
 	when: ContextKeyExpr.and(FilesExplorerFocusCondition, ExplorerResourceNotReadonlyContext),
 	primary: KeyMod.CtrlCmd | KeyCode.KEY_V,
 	handler: pasteFileHandler

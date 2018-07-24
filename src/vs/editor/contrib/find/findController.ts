@@ -631,7 +631,7 @@ registerEditorCommand(new FindCommand({
 	precondition: CONTEXT_FIND_WIDGET_VISIBLE,
 	handler: x => x.closeFindWidget(),
 	kbOpts: {
-		weight: KeybindingsRegistry.WEIGHT.editorContrib(5),
+		weight: KeybindingsRegistry.WEIGHT.editorContrib() + 5,
 		kbExpr: EditorContextKeys.focus,
 		primary: KeyCode.Escape,
 		secondary: [KeyMod.Shift | KeyCode.Escape]
@@ -643,7 +643,7 @@ registerEditorCommand(new FindCommand({
 	precondition: null,
 	handler: x => x.toggleCaseSensitive(),
 	kbOpts: {
-		weight: KeybindingsRegistry.WEIGHT.editorContrib(5),
+		weight: KeybindingsRegistry.WEIGHT.editorContrib() + 5,
 		kbExpr: EditorContextKeys.focus,
 		primary: ToggleCaseSensitiveKeybinding.primary,
 		mac: ToggleCaseSensitiveKeybinding.mac,
@@ -657,7 +657,7 @@ registerEditorCommand(new FindCommand({
 	precondition: null,
 	handler: x => x.toggleWholeWords(),
 	kbOpts: {
-		weight: KeybindingsRegistry.WEIGHT.editorContrib(5),
+		weight: KeybindingsRegistry.WEIGHT.editorContrib() + 5,
 		kbExpr: EditorContextKeys.focus,
 		primary: ToggleWholeWordKeybinding.primary,
 		mac: ToggleWholeWordKeybinding.mac,
@@ -671,7 +671,7 @@ registerEditorCommand(new FindCommand({
 	precondition: null,
 	handler: x => x.toggleRegex(),
 	kbOpts: {
-		weight: KeybindingsRegistry.WEIGHT.editorContrib(5),
+		weight: KeybindingsRegistry.WEIGHT.editorContrib() + 5,
 		kbExpr: EditorContextKeys.focus,
 		primary: ToggleRegexKeybinding.primary,
 		mac: ToggleRegexKeybinding.mac,
@@ -685,7 +685,7 @@ registerEditorCommand(new FindCommand({
 	precondition: null,
 	handler: x => x.toggleSearchScope(),
 	kbOpts: {
-		weight: KeybindingsRegistry.WEIGHT.editorContrib(5),
+		weight: KeybindingsRegistry.WEIGHT.editorContrib() + 5,
 		kbExpr: EditorContextKeys.focus,
 		primary: ToggleSearchScopeKeybinding.primary,
 		mac: ToggleSearchScopeKeybinding.mac,
@@ -699,7 +699,7 @@ registerEditorCommand(new FindCommand({
 	precondition: CONTEXT_FIND_WIDGET_VISIBLE,
 	handler: x => x.replace(),
 	kbOpts: {
-		weight: KeybindingsRegistry.WEIGHT.editorContrib(5),
+		weight: KeybindingsRegistry.WEIGHT.editorContrib() + 5,
 		kbExpr: EditorContextKeys.focus,
 		primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KEY_1
 	}
@@ -710,7 +710,7 @@ registerEditorCommand(new FindCommand({
 	precondition: CONTEXT_FIND_WIDGET_VISIBLE,
 	handler: x => x.replaceAll(),
 	kbOpts: {
-		weight: KeybindingsRegistry.WEIGHT.editorContrib(5),
+		weight: KeybindingsRegistry.WEIGHT.editorContrib() + 5,
 		kbExpr: EditorContextKeys.focus,
 		primary: KeyMod.CtrlCmd | KeyMod.Alt | KeyCode.Enter
 	}
@@ -721,7 +721,7 @@ registerEditorCommand(new FindCommand({
 	precondition: CONTEXT_FIND_WIDGET_VISIBLE,
 	handler: x => x.selectAllMatches(),
 	kbOpts: {
-		weight: KeybindingsRegistry.WEIGHT.editorContrib(5),
+		weight: KeybindingsRegistry.WEIGHT.editorContrib() + 5,
 		kbExpr: EditorContextKeys.focus,
 		primary: KeyMod.Alt | KeyCode.Enter
 	}

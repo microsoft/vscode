@@ -227,7 +227,7 @@ registerEditorCommand(new CommandCtor({
 	precondition: ContextKeyExpr.and(SnippetController2.InSnippetMode, SnippetController2.HasNextTabstop),
 	handler: ctrl => ctrl.next(),
 	kbOpts: {
-		weight: KeybindingsRegistry.WEIGHT.editorContrib(30),
+		weight: KeybindingsRegistry.WEIGHT.editorContrib() + 30,
 		kbExpr: EditorContextKeys.editorTextFocus,
 		primary: KeyCode.Tab
 	}
@@ -237,7 +237,7 @@ registerEditorCommand(new CommandCtor({
 	precondition: ContextKeyExpr.and(SnippetController2.InSnippetMode, SnippetController2.HasPrevTabstop),
 	handler: ctrl => ctrl.prev(),
 	kbOpts: {
-		weight: KeybindingsRegistry.WEIGHT.editorContrib(30),
+		weight: KeybindingsRegistry.WEIGHT.editorContrib() + 30,
 		kbExpr: EditorContextKeys.editorTextFocus,
 		primary: KeyMod.Shift | KeyCode.Tab
 	}
@@ -247,7 +247,7 @@ registerEditorCommand(new CommandCtor({
 	precondition: SnippetController2.InSnippetMode,
 	handler: ctrl => ctrl.cancel(),
 	kbOpts: {
-		weight: KeybindingsRegistry.WEIGHT.editorContrib(30),
+		weight: KeybindingsRegistry.WEIGHT.editorContrib() + 30,
 		kbExpr: EditorContextKeys.editorTextFocus,
 		primary: KeyCode.Escape,
 		secondary: [KeyMod.Shift | KeyCode.Escape]
@@ -259,7 +259,7 @@ registerEditorCommand(new CommandCtor({
 	precondition: SnippetController2.InSnippetMode,
 	handler: ctrl => ctrl.finish(),
 	// kbOpts: {
-	// 	weight: KeybindingsRegistry.WEIGHT.editorContrib(30),
+	// 	weight: KeybindingsRegistry.WEIGHT.editorContrib() + 30,
 	// 	kbExpr: EditorContextKeys.textFocus,
 	// 	primary: KeyCode.Enter,
 	// }
