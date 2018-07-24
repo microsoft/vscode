@@ -224,26 +224,24 @@ export class PreferencesService extends Disposable implements IPreferencesServic
 			const openDefaultKeybindings = !!this.configurationService.getValue('workbench.settings.openDefaultKeybindings');
 
 			// Create as needed and open in editor
-			if (openDefaultKeybindings) {
-				return this.createIfNotExists(editableKeybindings, emptyContents).then(() => {
+			return this.createIfNotExists(editableKeybindings, emptyContents).then(() => {
+				if (openDefaultKeybindings) {
 					const activeEditorGroup = this.editorGroupService.activeGroup;
 					const sideEditorGroup = this.editorGroupService.addGroup(activeEditorGroup.id, GroupDirection.RIGHT);
-
 					return TPromise.join([
 						this.editorService.openEditor({ resource: this.defaultKeybindingsResource, options: { pinned: true, preserveFocus: true }, label: nls.localize('defaultKeybindings', "Default Keybindings"), description: '' }),
 						this.editorService.openEditor({ resource: editableKeybindings, options: { pinned: true } }, sideEditorGroup.id)
 					]).then(editors => void 0);
-				});
-			}
-			return this.createIfNotExists(editableKeybindings, emptyContents).then(() => {
-				return this.editorService.openEditor({ resource: editableKeybindings, options: { pinned: true } }).then(editors => void 0);
+				} else {
+					return this.editorService.openEditor({ resource: editableKeybindings, options: { pinned: true } }).then(() => void 0);
+				}
 			});
 		}
 
 		return this.editorService.openEditor(this.instantiationService.createInstance(KeybindingsEditorInput), { pinned: true }).then(() => null);
 	}
 
-	openRawDefaultKeybindings(): TPromise<IEditor> {
+	openDefaultKeybindingsFile(): TPromise<IEditor> {
 		return this.editorService.openEditor({ resource: this.defaultKeybindingsResource });
 	}
 

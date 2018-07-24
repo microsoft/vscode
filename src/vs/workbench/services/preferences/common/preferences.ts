@@ -152,7 +152,7 @@ export interface IPreferencesService {
 	openFolderSettings(folder: URI, options?: IEditorOptions, group?: IEditorGroup): TPromise<IEditor>;
 	switchSettings(target: ConfigurationTarget, resource: URI): TPromise<void>;
 	openGlobalKeybindingSettings(textual: boolean): TPromise<void>;
-	openRawDefaultKeybindings(): TPromise<IEditor>;
+	openDefaultKeybindingsFile(): TPromise<IEditor>;
 
 	configureSettingsForLanguage(language: string): void;
 }

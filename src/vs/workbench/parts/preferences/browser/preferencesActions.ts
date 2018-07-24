@@ -125,10 +125,10 @@ export class OpenGlobalKeybindingsFileAction extends Action {
 	}
 }
 
-export class OpenRawDefaultKeybindingsAction extends Action {
+export class OpenDefaultKeybindingsFileAction extends Action {
 
-	public static readonly ID = 'workbench.action.openRawDefaultKeybindings';
-	public static readonly LABEL = nls.localize('openRawDefaultKeybindings', "Open Default Keyboard Shortcuts File");
+	public static readonly ID = 'workbench.action.openDefaultKeybindingsFile';
+	public static readonly LABEL = nls.localize('openDefaultKeybindingsFile', "Open Default Keyboard Shortcuts File");
 
 	constructor(
 		id: string,
@@ -139,7 +139,7 @@ export class OpenRawDefaultKeybindingsAction extends Action {
 	}
 
 	public run(event?: any): TPromise<any> {
-		return this.preferencesService.openRawDefaultKeybindings();
+		return this.preferencesService.openDefaultKeybindingsFile();
 	}
 }
 
