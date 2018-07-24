@@ -91,10 +91,6 @@ export class PreferencesService extends Disposable implements IPreferencesServic
 		return this.getEditableSettingsURI(ConfigurationTarget.USER);
 	}
 
-	get userKeybindingsResource(): URI {
-		return this.getEditableSettingsURI(ConfigurationTarget.USER);
-	}
-
 	get workspaceSettingsResource(): URI {
 		return this.getEditableSettingsURI(ConfigurationTarget.WORKSPACE);
 	}
@@ -221,11 +217,11 @@ export class PreferencesService extends Disposable implements IPreferencesServic
 				"textual" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true }
 			}
 		*/
-		const openDefaultKeybindings = !!this.configurationService.getValue('workbench.settings.openDefaultKeybindings');
 		this.telemetryService.publicLog('openKeybindings', { textual });
 		if (textual) {
 			const emptyContents = '// ' + nls.localize('emptyKeybindingsHeader', "Place your key bindings in this file to overwrite the defaults") + '\n[\n]';
 			const editableKeybindings = URI.file(this.environmentService.appKeybindingsPath);
+			const openDefaultKeybindings = !!this.configurationService.getValue('workbench.settings.openDefaultKeybindings');
 
 			// Create as needed and open in editor
 			if (openDefaultKeybindings) {
@@ -244,26 +240,11 @@ export class PreferencesService extends Disposable implements IPreferencesServic
 			});
 		}
 
-		const keybindingsEditorInput = this.instantiationService.createInstance(KeybindingsEditorInput);
-		if (openDefaultKeybindings) {
-			keybindingsEditorInput.setDefaultSearchValue('@source:uesr');
-		} else {
-			keybindingsEditorInput.setDefaultSearchValue();
-		}
-
-		return this.editorService.openEditor(keybindingsEditorInput, { pinned: true }).then(() => null);
+		return this.editorService.openEditor(this.instantiationService.createInstance(KeybindingsEditorInput), { pinned: true }).then(() => null);
 	}
 
 	openRawDefaultKeybindings(): TPromise<IEditor> {
 		return this.editorService.openEditor({ resource: this.defaultKeybindingsResource });
-	}
-
-	openRawUserKeybindings(): TPromise<IEditor> {
-		const emptyContents = '// ' + nls.localize('emptyKeybindingsHeader', "Place your key bindings in this file to overwrite the defaults") + '\n[\n]';
-		const editableKeybindings = URI.file(this.environmentService.appKeybindingsPath);
-		return this.createIfNotExists(editableKeybindings, emptyContents).then(() => {
-			return this.editorService.openEditor({ resource: editableKeybindings, options: { pinned: true } }).then(editors => void 0);
-		});
 	}
 
 	configureSettingsForLanguage(language: string): void {

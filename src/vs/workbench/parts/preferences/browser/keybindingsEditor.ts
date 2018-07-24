@@ -110,7 +110,6 @@ export class KeybindingsEditor extends BaseEditor implements IKeybindingsEditor 
 	}
 
 	setInput(input: KeybindingsEditorInput, options: EditorOptions, token: CancellationToken): Thenable<void> {
-		this.searchWidget.setValue(input.defaultSearchValue);
 		return super.setInput(input, options, token)
 			.then(() => this.render(options && options.preserveFocus, token));
 	}

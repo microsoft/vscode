@@ -143,24 +143,6 @@ export class OpenRawDefaultKeybindingsAction extends Action {
 	}
 }
 
-export class OpenRawUserKeybindingsAction extends Action {
-
-	public static readonly ID = 'workbench.action.openRawUserKeybindings';
-	public static readonly LABEL = nls.localize('openRawUserKeybindings', "Open User Keyboard Shortcuts File");
-
-	constructor(
-		id: string,
-		label: string,
-		@IPreferencesService private preferencesService: IPreferencesService
-	) {
-		super(id, label);
-	}
-
-	public run(event?: any): TPromise<any> {
-		return this.preferencesService.openRawUserKeybindings();
-	}
-}
-
 export class OpenWorkspaceSettingsAction extends Action {
 
 	public static readonly ID = 'workbench.action.openWorkspaceSettings';

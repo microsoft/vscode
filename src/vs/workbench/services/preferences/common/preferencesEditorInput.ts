@@ -56,7 +56,6 @@ export class KeybindingsEditorInput extends EditorInput {
 
 	public static readonly ID: string = 'workbench.input.keybindings';
 	public readonly keybindingsModel: KeybindingsEditorModel;
-	public defaultSearchValue: string;
 
 	constructor(@IInstantiationService instantiationService: IInstantiationService) {
 		super();
@@ -77,10 +76,6 @@ export class KeybindingsEditorInput extends EditorInput {
 
 	matches(otherInput: any): boolean {
 		return otherInput instanceof KeybindingsEditorInput;
-	}
-
-	setDefaultSearchValue(defaultSearchValue = ''): void {
-		this.defaultSearchValue = defaultSearchValue;
 	}
 }
 

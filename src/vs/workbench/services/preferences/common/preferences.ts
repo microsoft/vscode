@@ -152,7 +152,6 @@ export interface IPreferencesService {
 	switchSettings(target: ConfigurationTarget, resource: URI): TPromise<void>;
 	openGlobalKeybindingSettings(textual: boolean): TPromise<void>;
 	openRawDefaultKeybindings(): TPromise<IEditor>;
-	openRawUserKeybindings(): TPromise<IEditor>;
 
 	configureSettingsForLanguage(language: string): void;
 }
