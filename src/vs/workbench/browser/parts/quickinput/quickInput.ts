@@ -849,18 +849,22 @@ export class QuickInputService extends Component implements IQuickInputService {
 					break;
 				case KeyCode.Tab:
 					if (!event.altKey && !event.ctrlKey && !event.metaKey) {
-						const inputs = [].slice.call(container.querySelectorAll('.action-label.icon'));
+						const selectors = ['.action-label.icon'];
 						if (container.classList.contains('show-checkboxes')) {
-							inputs.push(...[].slice.call(container.querySelectorAll('input')));
+							selectors.push('input');
 						} else {
-							inputs.push(...[].slice.call(container.querySelectorAll('input[type=text]')));
+							selectors.push('input[type=text]');
 						}
-						if (event.shiftKey && event.target === inputs[0]) {
+						if (this.ui.list.isDisplayed()) {
+							selectors.push('.monaco-list');
+						}
+						const stops = container.querySelectorAll<HTMLElement>(selectors.join(', '));
+						if (event.shiftKey && event.target === stops[0]) {
 							dom.EventHelper.stop(e, true);
-							inputs[inputs.length - 1].focus();
-						} else if (!event.shiftKey && event.target === inputs[inputs.length - 1]) {
+							stops[stops.length - 1].focus();
+						} else if (!event.shiftKey && event.target === stops[stops.length - 1]) {
 							dom.EventHelper.stop(e, true);
-							inputs[0].focus();
+							stops[0].focus();
 						}
 					}
 					break;
