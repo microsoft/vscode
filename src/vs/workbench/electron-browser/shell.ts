@@ -91,7 +91,7 @@ import { NotificationService } from 'vs/workbench/services/notification/common/n
 import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
 import { DialogService } from 'vs/workbench/services/dialogs/electron-browser/dialogService';
 import { DialogChannel } from 'vs/platform/dialogs/common/dialogIpc';
-import { EventType, addDisposableListener, addClass, getDomNodePagePosition } from 'vs/base/browser/dom';
+import { EventType, addDisposableListener, addClass, getTotalHeight, getTotalWidth } from 'vs/base/browser/dom';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
 import { OpenerService } from 'vs/editor/browser/services/openerService';
 import { SearchHistoryService } from 'vs/workbench/services/search/node/searchHistoryService';
@@ -532,10 +532,10 @@ export class WorkbenchShell extends Disposable {
 		let titleHeight: number;
 		{
 			let part = this.workbench.getContainer(Parts.TITLEBAR_PART);
-			let pos = getDomNodePagePosition(part);
+			let height = getTotalHeight(part);
 			let bg = part.style.backgroundColor || 'inhert';
-			html += `<div style="position: absolute; width: 100%; left: 0; top: 0; height: ${pos.height}px; background-color: ${bg};"></div>`;
-			titleHeight = pos.height;
+			html += `<div style="position: absolute; width: 100%; left: 0; top: 0; height: ${height}px; background-color: ${bg};"></div>`;
+			titleHeight = height;
 		}
 
 		// activitybar-part
@@ -543,27 +543,26 @@ export class WorkbenchShell extends Disposable {
 		let activityPartWidth: number;
 		{
 			let part = this.workbench.getContainer(Parts.ACTIVITYBAR_PART);
-			let pos = getDomNodePagePosition(part);
+			let width = getTotalWidth(part);
 			let bg = part.style.backgroundColor || 'inhert';
-			html += `<div style="position: absolute; height: calc(100% - ${titleHeight}px); top: ${titleHeight}px; ${left ? 'left' : 'right'}: 0; width: ${pos.width}px; background-color: ${bg};"></div>`;
-			activityPartWidth = pos.width;
+			html += `<div style="position: absolute; height: calc(100% - ${titleHeight}px); top: ${titleHeight}px; ${left ? 'left' : 'right'}: 0; width: ${width}px; background-color: ${bg};"></div>`;
+			activityPartWidth = width;
 		}
 
 		// sidebar-part (only for folder/workspace cases)
 		if (state !== WorkbenchState.EMPTY) {
 			let part = this.workbench.getContainer(Parts.SIDEBAR_PART);
-			let pos = getDomNodePagePosition(part);
+			let width = getTotalWidth(part);
 			let bg = part.style.backgroundColor || 'inhert';
-			html += `<div style="position: absolute; height: calc(100% - ${titleHeight}px); top: ${titleHeight}px; ${left ? 'left' : 'right'}: ${activityPartWidth}px; width: ${pos.width}px; background-color: ${bg};"></div>`;
+			html += `<div style="position: absolute; height: calc(100% - ${titleHeight}px); top: ${titleHeight}px; ${left ? 'left' : 'right'}: ${activityPartWidth}px; width: ${width}px; background-color: ${bg};"></div>`;
 		}
 
 		// statusbar-part
 		{
 			let part = this.workbench.getContainer(Parts.STATUSBAR_PART);
-			let pos = getDomNodePagePosition(part);
+			let height = getTotalHeight(part);
 			let bg = part.style.backgroundColor || 'inhert';
-
-			html += `<div style="position: absolute; width: 100%; bottom: 0; left: 0; height: ${pos.height}px; background-color: ${bg};"></div>`;
+			html += `<div style="position: absolute; width: 100%; bottom: 0; left: 0; height: ${height}px; background-color: ${bg};"></div>`;
 		}
 
 		html += '\n</div>';
