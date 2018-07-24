@@ -13,10 +13,6 @@ interface SerializedWebview {
 	readonly viewType: string;
 	readonly title: string;
 	readonly options: WebviewInputOptions;
-	/**
-	 * compatibility with previous versions
-	 */
-	readonly extensionFolderPath?: string;
 	readonly extensionLocation: string;
 	readonly state: any;
 }
@@ -53,18 +49,11 @@ export class WebviewEditorInputFactory implements IEditorInputFactory {
 	}
 
 	public deserialize(
-		instantiationService: IInstantiationService,
+		_instantiationService: IInstantiationService,
 		serializedEditorInput: string
 	): WebviewEditorInput {
 		const data: SerializedWebview = JSON.parse(serializedEditorInput);
-		let extensionLocation: URI;
-		if (typeof data.extensionLocation === 'string') {
-			extensionLocation = URI.parse(data.extensionLocation);
-		}
-		if (typeof data.extensionFolderPath === 'string') {
-			// compatibility with previous versions
-			extensionLocation = URI.file(data.extensionFolderPath);
-		}
+		const extensionLocation = URI.parse(data.extensionLocation);
 		return this._webviewService.reviveWebview(data.viewType, data.title, data.state, data.options, extensionLocation);
 	}
 }
