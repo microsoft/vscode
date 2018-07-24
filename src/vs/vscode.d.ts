@@ -6498,6 +6498,14 @@ declare module 'vscode' {
 		contextValue?: string;
 
 		/**
+		 * Controls if decorations should use badges or colors or both when [resourceUri](#TreeItem.resourceUri) is provided.
+		 */
+		decorations?: {
+			colors: boolean,
+			badges: boolean
+		};
+
+		/**
 		 * @param label A human-readable string describing this item
 		 * @param collapsibleState [TreeItemCollapsibleState](#TreeItemCollapsibleState) of the tree item. Default is [TreeItemCollapsibleState.None](#TreeItemCollapsibleState.None)
 		 */

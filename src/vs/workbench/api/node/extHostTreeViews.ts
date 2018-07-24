@@ -380,7 +380,7 @@ class ExtHostTreeView<T> extends Disposable {
 
 		const handle = this.createHandle(element, extensionTreeItem, parent);
 		const icon = this.getLightIconPath(extensionTreeItem);
-		const item = {
+		const item = <ITreeItem>{
 			handle,
 			parentHandle: parent ? parent.item.handle : void 0,
 			label: extensionTreeItem.label,
@@ -391,7 +391,8 @@ class ExtHostTreeView<T> extends Disposable {
 			icon,
 			iconDark: this.getDarkIconPath(extensionTreeItem) || icon,
 			themeIcon: extensionTreeItem.iconPath instanceof ThemeIcon ? { id: extensionTreeItem.iconPath.id } : void 0,
-			collapsibleState: isUndefinedOrNull(extensionTreeItem.collapsibleState) ? TreeItemCollapsibleState.None : extensionTreeItem.collapsibleState
+			collapsibleState: isUndefinedOrNull(extensionTreeItem.collapsibleState) ? TreeItemCollapsibleState.None : extensionTreeItem.collapsibleState,
+			decorations: extensionTreeItem.decorations
 		};
 
 		return item;
