@@ -1121,7 +1121,8 @@ const showCommand = new ShowExtensionEditorFindCommand({
 	id: 'editor.action.extensioneditor.showfind',
 	precondition: KEYBINDING_CONTEXT_EXTENSIONEDITOR_WEBVIEW_FOCUS,
 	kbOpts: {
-		primary: KeyMod.CtrlCmd | KeyCode.KEY_F
+		primary: KeyMod.CtrlCmd | KeyCode.KEY_F,
+		weight: KeybindingsRegistry.WEIGHT.editorContrib()
 	}
 });
-showCommand.register(KeybindingsRegistry.WEIGHT.editorContrib());
+showCommand.register();

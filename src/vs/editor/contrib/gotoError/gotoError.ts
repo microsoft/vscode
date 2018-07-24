@@ -401,7 +401,8 @@ class NextMarkerInFilesAction extends MarkerNavigationAction {
 			precondition: EditorContextKeys.writable,
 			kbOpts: {
 				kbExpr: EditorContextKeys.focus,
-				primary: KeyCode.F8
+				primary: KeyCode.F8,
+				weight: KeybindingsRegistry.WEIGHT.editorContrib()
 			}
 		});
 	}
@@ -416,7 +417,8 @@ class PrevMarkerInFilesAction extends MarkerNavigationAction {
 			precondition: EditorContextKeys.writable,
 			kbOpts: {
 				kbExpr: EditorContextKeys.focus,
-				primary: KeyMod.Shift | KeyCode.F8
+				primary: KeyMod.Shift | KeyCode.F8,
+				weight: KeybindingsRegistry.WEIGHT.editorContrib()
 			}
 		});
 	}

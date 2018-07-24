@@ -33,6 +33,7 @@ import { transparent, editorForeground } from 'vs/platform/theme/common/colorReg
 import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
 import { IDecorationOptions } from 'vs/editor/common/editorCommon';
 import { CodeEditorWidget } from 'vs/editor/browser/widget/codeEditorWidget';
+import { KeybindingsRegistry } from 'vs/platform/keybinding/common/keybindingsRegistry';
 
 const $ = dom.$;
 const IPrivateBreakpointWidgetService = createDecorator<IPrivateBreakpointWidgetService>('privateBreakopintWidgetService');
@@ -296,7 +297,8 @@ class AcceptBreakpointWidgetInputAction extends EditorCommand {
 			precondition: CONTEXT_BREAKPOINT_WIDGET_VISIBLE,
 			kbOpts: {
 				kbExpr: CONTEXT_IN_BREAKPOINT_WIDGET,
-				primary: KeyCode.Enter
+				primary: KeyCode.Enter,
+				weight: KeybindingsRegistry.WEIGHT.editorContrib()
 			}
 		});
 	}
@@ -315,7 +317,8 @@ class CloseBreakpointWidgetCommand extends EditorCommand {
 			kbOpts: {
 				kbExpr: EditorContextKeys.textInputFocus,
 				primary: KeyCode.Escape,
-				secondary: [KeyMod.Shift | KeyCode.Escape]
+				secondary: [KeyMod.Shift | KeyCode.Escape],
+				weight: KeybindingsRegistry.WEIGHT.editorContrib()
 			}
 		});
 	}

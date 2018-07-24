@@ -22,6 +22,7 @@ import { ModelDecorationOptions } from 'vs/editor/common/model/textModel';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { CancelablePromise, createCancelablePromise, timeout } from 'vs/base/common/async';
 import { onUnexpectedError } from 'vs/base/common/errors';
+import { KeybindingsRegistry } from 'vs/platform/keybinding/common/keybindingsRegistry';
 
 class InPlaceReplaceController implements IEditorContribution {
 
@@ -142,7 +143,8 @@ class InPlaceReplaceUp extends EditorAction {
 			precondition: EditorContextKeys.writable,
 			kbOpts: {
 				kbExpr: EditorContextKeys.editorTextFocus,
-				primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.US_COMMA
+				primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.US_COMMA,
+				weight: KeybindingsRegistry.WEIGHT.editorContrib()
 			}
 		});
 	}
@@ -166,7 +168,8 @@ class InPlaceReplaceDown extends EditorAction {
 			precondition: EditorContextKeys.writable,
 			kbOpts: {
 				kbExpr: EditorContextKeys.editorTextFocus,
-				primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.US_DOT
+				primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.US_DOT,
+				weight: KeybindingsRegistry.WEIGHT.editorContrib()
 			}
 		});
 	}

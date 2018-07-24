@@ -70,7 +70,8 @@ export class ReferenceAction extends EditorAction {
 				EditorContextKeys.isInEmbeddedEditor.toNegated()),
 			kbOpts: {
 				kbExpr: EditorContextKeys.editorTextFocus,
-				primary: KeyMod.Shift | KeyCode.F12
+				primary: KeyMod.Shift | KeyCode.F12,
+				weight: KeybindingsRegistry.WEIGHT.editorContrib()
 			},
 			menuOpts: {
 				group: 'navigation',

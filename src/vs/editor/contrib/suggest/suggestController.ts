@@ -325,7 +325,8 @@ export class TriggerSuggestAction extends EditorAction {
 			kbOpts: {
 				kbExpr: EditorContextKeys.textInputFocus,
 				primary: KeyMod.CtrlCmd | KeyCode.Space,
-				mac: { primary: KeyMod.WinCtrl | KeyCode.Space }
+				mac: { primary: KeyMod.WinCtrl | KeyCode.Space },
+				weight: KeybindingsRegistry.WEIGHT.editorContrib()
 			}
 		});
 	}

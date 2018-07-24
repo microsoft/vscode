@@ -42,10 +42,11 @@ const showNextFindWdigetCommand = new ShowWebViewEditorFindWidgetCommand({
 	id: ShowWebViewEditorFindWidgetCommand.ID,
 	precondition: KEYBINDING_CONTEXT_WEBVIEWEDITOR_FOCUS,
 	kbOpts: {
-		primary: KeyMod.CtrlCmd | KeyCode.KEY_F
+		primary: KeyMod.CtrlCmd | KeyCode.KEY_F,
+		weight: KeybindingsRegistry.WEIGHT.editorContrib()
 	}
 });
-showNextFindWdigetCommand.register(KeybindingsRegistry.WEIGHT.editorContrib());
+showNextFindWdigetCommand.register();
 
 const hideCommand = new HideWebViewEditorFindCommand({
 	id: HideWebViewEditorFindCommand.ID,
@@ -53,19 +54,21 @@ const hideCommand = new HideWebViewEditorFindCommand({
 		KEYBINDING_CONTEXT_WEBVIEWEDITOR_FOCUS,
 		KEYBINDING_CONTEXT_WEBVIEW_FIND_WIDGET_VISIBLE),
 	kbOpts: {
-		primary: KeyCode.Escape
+		primary: KeyCode.Escape,
+		weight: KeybindingsRegistry.WEIGHT.editorContrib()
 	}
 });
-hideCommand.register(KeybindingsRegistry.WEIGHT.editorContrib());
+hideCommand.register();
 
 const selectAllCommand = new SelectAllWebviewEditorCommand({
 	id: SelectAllWebviewEditorCommand.ID,
 	precondition: KEYBINDING_CONTEXT_WEBVIEWEDITOR_FOCUS,
 	kbOpts: {
-		primary: KeyMod.CtrlCmd | KeyCode.KEY_A
+		primary: KeyMod.CtrlCmd | KeyCode.KEY_A,
+		weight: KeybindingsRegistry.WEIGHT.editorContrib()
 	}
 });
-selectAllCommand.register(KeybindingsRegistry.WEIGHT.editorContrib());
+selectAllCommand.register();
 
 actionRegistry.registerWorkbenchAction(
 	new SyncActionDescriptor(OpenWebviewDeveloperToolsAction, OpenWebviewDeveloperToolsAction.ID, OpenWebviewDeveloperToolsAction.LABEL),

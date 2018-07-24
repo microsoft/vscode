@@ -342,7 +342,8 @@ class ShowAccessibilityHelpAction extends EditorAction {
 			precondition: null,
 			kbOpts: {
 				kbExpr: EditorContextKeys.focus,
-				primary: (browser.isIE ? KeyMod.CtrlCmd | KeyCode.F1 : KeyMod.Alt | KeyCode.F1)
+				primary: (browser.isIE ? KeyMod.CtrlCmd | KeyCode.F1 : KeyMod.Alt | KeyCode.F1),
+				weight: KeybindingsRegistry.WEIGHT.editorContrib()
 			}
 		});
 	}

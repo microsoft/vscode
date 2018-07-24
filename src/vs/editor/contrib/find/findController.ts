@@ -386,7 +386,8 @@ export class StartFindAction extends EditorAction {
 			precondition: null,
 			kbOpts: {
 				kbExpr: null,
-				primary: KeyMod.CtrlCmd | KeyCode.KEY_F
+				primary: KeyMod.CtrlCmd | KeyCode.KEY_F,
+				weight: KeybindingsRegistry.WEIGHT.editorContrib()
 			}
 		});
 	}
@@ -418,7 +419,8 @@ export class StartFindWithSelectionAction extends EditorAction {
 				primary: null,
 				mac: {
 					primary: KeyMod.CtrlCmd | KeyCode.KEY_E,
-				}
+				},
+				weight: KeybindingsRegistry.WEIGHT.editorContrib()
 			}
 		});
 	}
@@ -467,7 +469,8 @@ export class NextMatchFindAction extends MatchFindAction {
 			kbOpts: {
 				kbExpr: EditorContextKeys.focus,
 				primary: KeyCode.F3,
-				mac: { primary: KeyMod.CtrlCmd | KeyCode.KEY_G, secondary: [KeyCode.F3] }
+				mac: { primary: KeyMod.CtrlCmd | KeyCode.KEY_G, secondary: [KeyCode.F3] },
+				weight: KeybindingsRegistry.WEIGHT.editorContrib()
 			}
 		});
 	}
@@ -488,7 +491,8 @@ export class PreviousMatchFindAction extends MatchFindAction {
 			kbOpts: {
 				kbExpr: EditorContextKeys.focus,
 				primary: KeyMod.Shift | KeyCode.F3,
-				mac: { primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KEY_G, secondary: [KeyMod.Shift | KeyCode.F3] }
+				mac: { primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KEY_G, secondary: [KeyMod.Shift | KeyCode.F3] },
+				weight: KeybindingsRegistry.WEIGHT.editorContrib()
 			}
 		});
 	}
@@ -533,7 +537,8 @@ export class NextSelectionMatchFindAction extends SelectionMatchFindAction {
 			precondition: null,
 			kbOpts: {
 				kbExpr: EditorContextKeys.focus,
-				primary: KeyMod.CtrlCmd | KeyCode.F3
+				primary: KeyMod.CtrlCmd | KeyCode.F3,
+				weight: KeybindingsRegistry.WEIGHT.editorContrib()
 			}
 		});
 	}
@@ -553,7 +558,8 @@ export class PreviousSelectionMatchFindAction extends SelectionMatchFindAction {
 			precondition: null,
 			kbOpts: {
 				kbExpr: EditorContextKeys.focus,
-				primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.F3
+				primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.F3,
+				weight: KeybindingsRegistry.WEIGHT.editorContrib()
 			}
 		});
 	}
@@ -574,7 +580,8 @@ export class StartFindReplaceAction extends EditorAction {
 			kbOpts: {
 				kbExpr: null,
 				primary: KeyMod.CtrlCmd | KeyCode.KEY_H,
-				mac: { primary: KeyMod.CtrlCmd | KeyMod.Alt | KeyCode.KEY_F }
+				mac: { primary: KeyMod.CtrlCmd | KeyMod.Alt | KeyCode.KEY_F },
+				weight: KeybindingsRegistry.WEIGHT.editorContrib()
 			}
 		});
 	}

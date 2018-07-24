@@ -286,7 +286,8 @@ class ShowAccessibilityHelpAction extends EditorAction {
 			precondition: null,
 			kbOpts: {
 				kbExpr: EditorContextKeys.focus,
-				primary: KeyMod.Alt | KeyCode.F1
+				primary: KeyMod.Alt | KeyCode.F1,
+				weight: KeybindingsRegistry.WEIGHT.editorContrib()
 			}
 		});
 	}

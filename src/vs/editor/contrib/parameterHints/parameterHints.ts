@@ -68,7 +68,8 @@ export class TriggerParameterHintsAction extends EditorAction {
 			precondition: EditorContextKeys.hasSignatureHelpProvider,
 			kbOpts: {
 				kbExpr: EditorContextKeys.editorTextFocus,
-				primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.Space
+				primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.Space,
+				weight: KeybindingsRegistry.WEIGHT.editorContrib()
 			}
 		});
 	}

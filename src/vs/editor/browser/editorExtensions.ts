@@ -29,7 +29,7 @@ export type IEditorContributionCtor = IConstructorSignature1<ICodeEditor, editor
 
 export interface ICommandKeybindingsOptions extends IKeybindings {
 	kbExpr?: ContextKeyExpr;
-	weight?: number;
+	weight: number;
 }
 // export interface ICommandMenubarOptions {
 // 	group?: string;
@@ -57,36 +57,47 @@ export abstract class Command {
 		this._description = opts.description;
 	}
 
-	private _toCommandAndKeybindingRule(defaultWeight: number): ICommandAndKeybindingRule {
-		const kbOpts = this._kbOpts || { primary: 0 };
-
-		let kbWhen = kbOpts.kbExpr;
-		if (this.precondition) {
-			if (kbWhen) {
-				kbWhen = ContextKeyExpr.and(kbWhen, this.precondition);
-			} else {
-				kbWhen = this.precondition;
+	private _toCommandAndKeybindingRule(): ICommandAndKeybindingRule {
+		if (this._kbOpts) {
+			let kbWhen = this._kbOpts.kbExpr;
+			if (this.precondition) {
+				if (kbWhen) {
+					kbWhen = ContextKeyExpr.and(kbWhen, this.precondition);
+				} else {
+					kbWhen = this.precondition;
+				}
 			}
-		}
 
-		const weight = (typeof kbOpts.weight === 'number' ? kbOpts.weight : defaultWeight);
+			return {
+				id: this.id,
+				handler: (accessor, args) => this.runCommand(accessor, args),
+				weight: this._kbOpts.weight,
+				when: kbWhen,
+				primary: this._kbOpts.primary,
+				secondary: this._kbOpts.secondary,
+				win: this._kbOpts.win,
+				linux: this._kbOpts.linux,
+				mac: this._kbOpts.mac,
+				description: this._description
+			};
+		}
 
 		return {
 			id: this.id,
 			handler: (accessor, args) => this.runCommand(accessor, args),
-			weight: weight,
-			when: kbWhen,
-			primary: kbOpts.primary,
-			secondary: kbOpts.secondary,
-			win: kbOpts.win,
-			linux: kbOpts.linux,
-			mac: kbOpts.mac,
+			weight: undefined,
+			when: undefined,
+			primary: 0,
+			secondary: undefined,
+			win: undefined,
+			linux: undefined,
+			mac: undefined,
 			description: this._description
 		};
 	}
 
-	public register(defaultWeight: number): void {
-		KeybindingsRegistry.registerCommandAndKeybindingRule(this._toCommandAndKeybindingRule(defaultWeight));
+	public register(): void {
+		KeybindingsRegistry.registerCommandAndKeybindingRule(this._toCommandAndKeybindingRule());
 	}
 
 	public abstract runCommand(accessor: ServicesAccessor, args: any): void | TPromise<void>;
@@ -193,14 +204,14 @@ export abstract class EditorAction extends EditorCommand {
 		};
 	}
 
-	public register(defaultWeight: number): void {
+	public register(): void {
 
 		let menuItem = this._toMenuItem();
 		if (menuItem) {
 			MenuRegistry.appendMenuItem(MenuId.EditorContext, menuItem);
 		}
 
-		super.register(defaultWeight);
+		super.register();
 	}
 
 	public runEditorCommand(accessor: ServicesAccessor, editor: ICodeEditor, args: any): void | TPromise<void> {
@@ -316,7 +327,7 @@ class EditorContributionRegistry {
 	}
 
 	public registerEditorAction(action: EditorAction) {
-		action.register(KeybindingsRegistry.WEIGHT.editorContrib());
+		action.register();
 		this.editorActions.push(action);
 	}
 
@@ -329,7 +340,7 @@ class EditorContributionRegistry {
 	}
 
 	public registerEditorCommand(editorCommand: EditorCommand) {
-		editorCommand.register(KeybindingsRegistry.WEIGHT.editorContrib());
+		editorCommand.register();
 		this.editorCommands[editorCommand.id] = editorCommand;
 	}
 

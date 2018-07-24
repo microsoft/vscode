@@ -224,7 +224,8 @@ export class RenameAction extends EditorAction {
 			precondition: ContextKeyExpr.and(EditorContextKeys.writable, EditorContextKeys.hasRenameProvider),
 			kbOpts: {
 				kbExpr: EditorContextKeys.editorTextFocus,
-				primary: KeyCode.F2
+				primary: KeyCode.F2,
+				weight: KeybindingsRegistry.WEIGHT.editorContrib()
 			},
 			menuOpts: {
 				group: '1_modification',

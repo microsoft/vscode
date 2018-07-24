@@ -10,6 +10,7 @@ import { registerEditorAction } from 'vs/editor/browser/editorExtensions';
 import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
 import { KeyCode } from 'vs/base/common/keyCodes';
 import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
+import { KeybindingsRegistry } from 'vs/platform/keybinding/common/keybindingsRegistry';
 
 class ExpandAbbreviationAction extends EmmetEditorAction {
 
@@ -26,7 +27,8 @@ class ExpandAbbreviationAction extends EmmetEditorAction {
 					EditorContextKeys.editorTextFocus,
 					EditorContextKeys.tabDoesNotMoveFocus,
 					ContextKeyExpr.has('config.emmet.triggerExpansionOnTab')
-				)
+				),
+				weight: KeybindingsRegistry.WEIGHT.editorContrib()
 			}
 		});
 

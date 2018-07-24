@@ -1620,7 +1620,7 @@ function findFocusedEditor(accessor: ServicesAccessor): ICodeEditor {
 }
 
 function registerCommand(command: Command) {
-	command.register(CORE_WEIGHT);
+	command.register();
 }
 
 /**

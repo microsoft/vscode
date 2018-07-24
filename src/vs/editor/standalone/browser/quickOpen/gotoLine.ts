@@ -18,6 +18,7 @@ import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
 import { Position } from 'vs/editor/common/core/position';
 import { Range } from 'vs/editor/common/core/range';
 import { ITextModel } from 'vs/editor/common/model';
+import { KeybindingsRegistry } from 'vs/platform/keybinding/common/keybindingsRegistry';
 
 interface ParseResult {
 	position: Position;
@@ -153,7 +154,8 @@ export class GotoLineAction extends BaseEditorQuickOpenAction {
 			kbOpts: {
 				kbExpr: EditorContextKeys.focus,
 				primary: KeyMod.CtrlCmd | KeyCode.KEY_G,
-				mac: { primary: KeyMod.WinCtrl | KeyCode.KEY_G }
+				mac: { primary: KeyMod.WinCtrl | KeyCode.KEY_G },
+				weight: KeybindingsRegistry.WEIGHT.editorContrib()
 			}
 		});
 	}

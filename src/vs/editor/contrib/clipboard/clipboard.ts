@@ -16,6 +16,7 @@ import { registerEditorAction, IActionOptions, EditorAction, ICommandKeybindings
 import { CopyOptions } from 'vs/editor/browser/controller/textAreaInput';
 import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
+import { KeybindingsRegistry } from 'vs/platform/keybinding/common/keybindingsRegistry';
 
 const CLIPBOARD_CONTEXT_MENU_GROUP = '9_cutcopypaste';
 
@@ -62,7 +63,8 @@ class ExecCommandCutAction extends ExecCommandAction {
 		let kbOpts: ICommandKeybindingsOptions = {
 			kbExpr: EditorContextKeys.textInputFocus,
 			primary: KeyMod.CtrlCmd | KeyCode.KEY_X,
-			win: { primary: KeyMod.CtrlCmd | KeyCode.KEY_X, secondary: [KeyMod.Shift | KeyCode.Delete] }
+			win: { primary: KeyMod.CtrlCmd | KeyCode.KEY_X, secondary: [KeyMod.Shift | KeyCode.Delete] },
+			weight: KeybindingsRegistry.WEIGHT.editorContrib()
 		};
 		// Do not bind cut keybindings in the browser,
 		// since browsers do that for us and it avoids security prompts
@@ -99,7 +101,8 @@ class ExecCommandCopyAction extends ExecCommandAction {
 		let kbOpts: ICommandKeybindingsOptions = {
 			kbExpr: EditorContextKeys.textInputFocus,
 			primary: KeyMod.CtrlCmd | KeyCode.KEY_C,
-			win: { primary: KeyMod.CtrlCmd | KeyCode.KEY_C, secondary: [KeyMod.CtrlCmd | KeyCode.Insert] }
+			win: { primary: KeyMod.CtrlCmd | KeyCode.KEY_C, secondary: [KeyMod.CtrlCmd | KeyCode.Insert] },
+			weight: KeybindingsRegistry.WEIGHT.editorContrib()
 		};
 		// Do not bind copy keybindings in the browser,
 		// since browsers do that for us and it avoids security prompts
@@ -137,7 +140,8 @@ class ExecCommandPasteAction extends ExecCommandAction {
 		let kbOpts: ICommandKeybindingsOptions = {
 			kbExpr: EditorContextKeys.textInputFocus,
 			primary: KeyMod.CtrlCmd | KeyCode.KEY_V,
-			win: { primary: KeyMod.CtrlCmd | KeyCode.KEY_V, secondary: [KeyMod.Shift | KeyCode.Insert] }
+			win: { primary: KeyMod.CtrlCmd | KeyCode.KEY_V, secondary: [KeyMod.Shift | KeyCode.Insert] },
+			weight: KeybindingsRegistry.WEIGHT.editorContrib()
 		};
 		// Do not bind paste keybindings in the browser,
 		// since browsers do that for us and it avoids security prompts
@@ -169,7 +173,8 @@ class ExecCommandCopyWithSyntaxHighlightingAction extends ExecCommandAction {
 			precondition: null,
 			kbOpts: {
 				kbExpr: EditorContextKeys.textInputFocus,
-				primary: null
+				primary: null,
+				weight: KeybindingsRegistry.WEIGHT.editorContrib()
 			}
 		});
 	}
