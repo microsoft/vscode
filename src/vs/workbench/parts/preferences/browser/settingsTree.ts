@@ -39,7 +39,7 @@ import { ISearchResult, ISetting, ISettingsGroup } from 'vs/workbench/services/p
 
 const $ = DOM.$;
 
-export const settingsHeaderForeground = registerColor('settings.headerForeground', { light: '#444444', dark: '#e7e7e7', hc: '#ffffff' }, localize('headerForeground', "(For settings editor preview) The foreground color for a section header/title."));
+export const settingsHeaderForeground = registerColor('settings.headerForeground', { light: '#444444', dark: '#e7e7e7', hc: '#ffffff' }, localize('headerForeground', "(For settings editor preview) The foreground color for a section header or active title in the editor."));
 export const modifiedItemForeground = registerColor('settings.modifiedItemForeground', { light: '#019001', dark: '#73C991', hc: '#73C991' }, localize('modifiedItemForeground', "(For settings editor preview) The foreground color for a modified setting."));
 export const settingItemInactiveSelectionBorder = registerColor('settings.inactiveSelectedItemBorder', { dark: '#3F3F46', light: '#CCCEDB', hc: null }, localize('settingItemInactiveSelectionBorder', "(For settings editor preview) The color of the selected setting row border, when the settings list does not have focus."));
 
@@ -88,7 +88,12 @@ registerThemingParticipant((theme: ITheme, collector: ICssStyleCollector) => {
 
 	const headerForegroundColor = theme.getColor(settingsHeaderForeground);
 	if (headerForegroundColor) {
-		collector.addRule(`.settings-editor > .settings-header > .settings-header-controls .settings-tabs-widget .action-label.checked { color: ${headerForegroundColor}; border-bottom-color: ${headerForegroundColor} };`);
+		collector.addRule(`.settings-editor > .settings-header > .settings-header-controls .settings-tabs-widget .action-label.checked { color: ${headerForegroundColor}; border-bottom-color: ${headerForegroundColor}; }`);
+	}
+
+	const foregroundColor = theme.getColor(foreground);
+	if (foregroundColor) {
+		collector.addRule(`.settings-editor > .settings-header > .settings-header-controls .settings-tabs-widget .action-label { color: ${foregroundColor}; };`);
 	}
 });
 

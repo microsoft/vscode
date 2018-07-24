@@ -8,14 +8,13 @@
 }
 
 .settings-editor {
-	padding: 11px 0px 24px 0px;
+	padding: 11px 24px 0px;
 	max-width: 1000px;
 	margin: auto;
 }
 
 /* header styling */
 .settings-editor > .settings-header {
-	padding-right: 24px;
 	box-sizing: border-box;
 	margin: auto;
 }
@@ -51,9 +50,9 @@
 	width: 100%;
 }
 
-.settings-editor > .settings-header .search-container > .settings-search-input > .monaco-inputbox .input {
+.settings-editor > .settings-header .search-container .settings-search-input > .monaco-inputbox .input {
 	font-size: 14px;
-	padding-left: 9px;
+	padding-left: 7px;
 }
 
 .settings-editor > .settings-header > .settings-header-controls {
@@ -62,12 +61,25 @@
 	border-bottom: solid 1px;
 }
 
+.settings-editor > .settings-header > .settings-header-controls .settings-tabs-widget .action-label {
+	opacity: 0.7;
+}
+
+.settings-editor > .settings-header > .settings-header-controls .settings-tabs-widget .action-label:hover {
+	opacity: 1;
+}
+
+.settings-editor > .settings-header > .settings-header-controls .settings-tabs-widget .action-label.checked {
+	font-weight: 500;
+	opacity: 1;
+}
+
 .vs .settings-editor > .settings-header > .settings-header-controls {
-	color: #6c6c6c;
+	border-color: #cccccc;
 }
 
 .vs-dark .settings-editor > .settings-header > .settings-header-controls {
-	color: #3c3c3c;
+	border-color: #3c3c3c;
 }
 
 .settings-editor > .settings-header .settings-tabs-widget > .monaco-action-bar .action-item .action-label {
@@ -130,8 +142,8 @@
 
 	padding-bottom: 4px;
 	padding-top: 7px;
-	padding-left: 9px;
-	padding-right: 9px;
+	padding-left: 8px;
+	padding-right: 8px;
 }
 
 .settings-editor > .settings-body {
@@ -148,13 +160,14 @@
 .settings-editor > .settings-body .settings-tree-container .monaco-tree-wrapper,
 .settings-editor > .settings-body > .settings-tree-container .setting-measure-container {
 	/** Match header padding, leave room for scrollbar on the outside */
-	width: calc(100% - 24px)
+	width: calc(100% - 11px);
 }
 
 
 .settings-editor > .settings-body .settings-toc-container {
 	width: 160px;
-	padding-top: 8px;
+	padding-top: 5px;
+	padding-left: 5px;
 	box-sizing: border-box;
 }
 
@@ -337,8 +350,8 @@
 
 .settings-editor > .settings-body > .settings-tree-container .group-title,
 .settings-editor > .settings-body > .settings-tree-container .setting-item {
-	padding-left: 10px;
-	padding-right: 10px;
+	padding-left: 9px;
+	padding-right: 9px;
 }
 
 .settings-editor > .settings-body > .settings-tree-container .group-title {
