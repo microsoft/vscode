@@ -208,9 +208,10 @@ export class ExtHostWebviewPanel implements vscode.WebviewPanel {
 
 	public reveal(viewColumn?: vscode.ViewColumn, preserveFocus?: boolean): void {
 		this.assertNotDisposed();
-		this._proxy.$reveal(this._handle,
-			viewColumn ? typeConverters.ViewColumn.from(viewColumn) : undefined,
-			!!preserveFocus);
+		this._proxy.$reveal(this._handle, {
+			viewColumn: viewColumn ? typeConverters.ViewColumn.from(viewColumn) : undefined,
+			preserveFocus: !!preserveFocus
+		});
 	}
 
 	private assertNotDisposed() {
