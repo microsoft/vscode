@@ -56,6 +56,7 @@ export abstract class Command {
 		this.id = opts.id;
 		this.precondition = opts.precondition;
 		this._kbOpts = opts.kbOpts;
+		this._menubarOpts = opts.menubarOpts;
 		this._description = opts.description;
 	}
 
