@@ -24,6 +24,7 @@ export class RequestService implements IRequestService {
 	private proxyUrl: string;
 	private strictSSL: boolean;
 	private authorization: string;
+	private isOfflineMode: boolean;
 	private disposables: IDisposable[] = [];
 
 	constructor(
@@ -38,9 +39,14 @@ export class RequestService implements IRequestService {
 		this.proxyUrl = config.http && config.http.proxy;
 		this.strictSSL = config.http && config.http.proxyStrictSSL;
 		this.authorization = config.http && config.http.proxyAuthorization;
+		this.isOfflineMode = config.workbench && config.workbench.enableOfflineMode === true;
 	}
 
 	request(options: IRequestOptions, requestFn: IRequestFunction = request): TPromise<IRequestContext> {
+		if (this.isOfflineMode) {
+			return TPromise.as({ res: { headers: {}, }, stream: null });
+		}
+
 		this.logService.trace('RequestService#request', options.url);
 
 		const { proxyUrl, strictSSL } = this;
