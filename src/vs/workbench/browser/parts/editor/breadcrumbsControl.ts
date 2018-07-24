@@ -75,6 +75,7 @@ class Item extends BreadcrumbsItem {
 			// file/folder
 			let label = this._instantiationService.createInstance(FileLabel, container, {});
 			label.setFile(this.element.uri, {
+				extraClasses: [FileKind[this.element.kind].toLowerCase()],
 				hidePath: true,
 				hideIcon: this.element.kind !== FileKind.FILE || !this.options.showFileIcons,
 				fileKind: this.element.kind,

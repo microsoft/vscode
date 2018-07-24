@@ -77,6 +77,15 @@ export interface IWorkspaceContextService {
 	isInsideWorkspace(resource: URI): boolean;
 }
 
+export namespace IWorkspace {
+	export function isIWorkspace(thing: any): thing is IWorkspace {
+		return thing && typeof thing === 'object'
+			&& typeof (thing as IWorkspace).id === 'string'
+			&& typeof (thing as IWorkspace).name === 'string'
+			&& Array.isArray((thing as IWorkspace).folders);
+	}
+}
+
 export interface IWorkspace {
 
 	/**
@@ -116,6 +125,15 @@ export interface IWorkspaceFolderData {
 	 * The ordinal number of this workspace folder.
 	 */
 	readonly index: number;
+}
+
+export namespace IWorkspaceFolder {
+	export function isIWorkspaceFolder(thing: any): thing is IWorkspaceFolder {
+		return thing && typeof thing === 'object'
+			&& URI.isUri((thing as IWorkspaceFolder).uri)
+			&& typeof (thing as IWorkspaceFolder).name === 'string'
+			&& typeof (thing as IWorkspaceFolder).toResource === 'function';
+	}
 }
 
 export interface IWorkspaceFolder extends IWorkspaceFolderData {
