@@ -70,12 +70,7 @@ suite('ExtensionsWorkbenchServiceTest', () => {
 			onDidUpdateConfiguration: () => { },
 			onDidChangeConfiguration: () => { },
 			getConfiguration: () => ({}),
-			getValue: (s) => {
-				if (s === 'workbench.enableOfflineMode') {
-					return false;
-				}
-				return undefined;
-			}
+			getValue: () => { }
 		});
 
 		instantiationService.stub(IExtensionManagementService, ExtensionManagementService);

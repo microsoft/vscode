@@ -17,6 +17,15 @@ import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { cloneAndChange, mixin } from 'vs/base/common/objects';
 import { Registry } from 'vs/platform/registry/common/platform';
 
+interface ITelemetryConfig {
+	telemetry: {
+		enableTelemetry?: boolean;
+	};
+	workbench: {
+		enableOfflineMode?: boolean
+	};
+}
+
 export interface ITelemetryServiceConfig {
 	appender: ITelemetryAppender;
 	commonProperties?: TPromise<{ [name: string]: any }>;
@@ -67,12 +76,12 @@ export class TelemetryService implements ITelemetryService {
 	}
 
 	private _updateUserOptIn(): void {
-		if (this._configurationService.getValue('workbench.enableOfflineMode') === true) {
+		const config: ITelemetryConfig = this._configurationService.getValue();
+		if (config.workbench.enableOfflineMode === true) {
 			this._userOptIn = false;
 			return;
 		}
-		const config = this._configurationService.getValue<any>(TELEMETRY_SECTION_ID);
-		this._userOptIn = config ? config.enableTelemetry : this._userOptIn;
+		this._userOptIn = config.telemetry.enableTelemetry === true;
 	}
 
 	get isOptedIn(): boolean {
@@ -159,11 +168,8 @@ export class TelemetryService implements ITelemetryService {
 	}
 }
 
-
-const TELEMETRY_SECTION_ID = 'telemetry';
-
 Registry.as<IConfigurationRegistry>(Extensions.Configuration).registerConfiguration({
-	'id': TELEMETRY_SECTION_ID,
+	'id': 'telemetry',
 	'order': 110,
 	'type': 'object',
 	'title': localize('telemetryConfigurationTitle', "Telemetry"),
