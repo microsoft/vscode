@@ -13,6 +13,8 @@ import { INotificationService, Severity } from 'vs/platform/notification/common/
 import { MenuRegistry, MenuId } from 'vs/platform/actions/common/actions';
 import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
 import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
+import { CommandsRegistry } from 'vs/platform/commands/common/commands';
+import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 
 export const offlineModeSetting = 'workbench.enableOfflineMode';
 
@@ -127,4 +129,30 @@ MenuRegistry.appendMenuItem(MenuId.MenubarPreferencesMenu, {
 	},
 	order: 1,
 	when: ContextKeyExpr.has('config.' + offlineModeSetting)
+});
+
+CommandsRegistry.registerCommand(EnableOfflineMode.ID, serviceAccesor => {
+	serviceAccesor.get(IInstantiationService).createInstance(EnableOfflineMode, EnableOfflineMode.ID, EnableOfflineMode.LABEL).run();
+});
+MenuRegistry.appendMenuItem(MenuId.CommandPalette, {
+	command: {
+		id: EnableOfflineMode.ID,
+		title: 'Preferences: Enable Offline Mode'
+	},
+	when: ContextKeyExpr.not('config.' + offlineModeSetting)
+});
+
+CommandsRegistry.registerCommand(DisableOfflineMode.ID, serviceAccesor => {
+	serviceAccesor.get(IInstantiationService).createInstance(DisableOfflineMode, DisableOfflineMode.ID, DisableOfflineMode.LABEL).run();
+});
+MenuRegistry.appendMenuItem(MenuId.CommandPalette, {
+	command: {
+		id: DisableOfflineMode.ID,
+		title: 'Preferences: Disable Offline Mode'
+	},
+	when: ContextKeyExpr.has('config.' + offlineModeSetting)
+});
+
+CommandsRegistry.registerCommand(NotifyUnsupportedFeatureInOfflineMode.ID, serviceAccesor => {
+	serviceAccesor.get(IInstantiationService).createInstance(NotifyUnsupportedFeatureInOfflineMode, NotifyUnsupportedFeatureInOfflineMode.ID, '').run();
 });
