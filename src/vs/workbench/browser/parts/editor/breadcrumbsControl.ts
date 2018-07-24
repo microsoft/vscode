@@ -76,9 +76,9 @@ class Item extends BreadcrumbsItem {
 			let label = this._instantiationService.createInstance(FileLabel, container, {});
 			label.setFile(this.element.uri, {
 				hidePath: true,
-				fileKind: this.element.isFile ? FileKind.FILE : FileKind.FOLDER,
 				hideIcon: !this.element.isFile || !this.options.showFileIcons,
-				fileDecorations: { colors: this.options.showDecorationColors, badges: false }
+				fileKind: this.element.isFile ? FileKind.FILE : FileKind.FOLDER,
+				fileDecorations: { colors: this.options.showDecorationColors, badges: false },
 			});
 			this._disposables.push(label);
 			dom.toggleClass(container, 'file', this.element.isFile);
@@ -105,7 +105,7 @@ class Item extends BreadcrumbsItem {
 			}
 			let label = new IconLabel(container);
 			let title = this.element.symbol.name.replace(/\r|\n|\r\n/g, '\u23CE');
-			label.setValue(title, undefined, { title });
+			label.setValue(title);
 			this._disposables.push(label);
 		}
 	}
