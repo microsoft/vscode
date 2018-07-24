@@ -129,7 +129,7 @@ suite('MainThreadEditors', () => {
 		});
 	});
 
-	test(`pasero applyWorkspaceEdit with only resource edit`, () => {
+	test(`applyWorkspaceEdit with only resource edit`, () => {
 		return editors.$tryApplyWorkspaceEdit({
 			edits: [
 				{ oldUri: resource, newUri: resource, options: undefined },
