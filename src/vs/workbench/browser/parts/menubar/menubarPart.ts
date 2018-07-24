@@ -867,8 +867,6 @@ export class MenubarPart extends Part {
 		let menuHolder = $(customMenu.buttonElement).div({ class: 'menubar-menu-items-holder' });
 
 		$(menuHolder.getHTMLElement().parentElement).addClass('open');
-
-		menuHolder.addClass('menubar-menu-items-holder-open context-view');
 		menuHolder.style({
 			'zoom': `${1 / browser.getZoomFactor()}`,
 			'top': `${this.container.getClientArea().height * browser.getZoomFactor()}px`
