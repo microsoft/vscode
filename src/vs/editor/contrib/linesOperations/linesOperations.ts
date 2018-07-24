@@ -23,6 +23,7 @@ import { MoveLinesCommand } from './moveLinesCommand';
 import { TypeOperations } from 'vs/editor/common/controller/cursorTypeOperations';
 import { CoreEditingCommands } from 'vs/editor/browser/controller/coreCommands';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
+import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
 
 // copy lines
 
@@ -60,7 +61,8 @@ class CopyLinesUpAction extends AbstractCopyLinesAction {
 			kbOpts: {
 				kbExpr: EditorContextKeys.editorTextFocus,
 				primary: KeyMod.Alt | KeyMod.Shift | KeyCode.UpArrow,
-				linux: { primary: KeyMod.CtrlCmd | KeyMod.Alt | KeyMod.Shift | KeyCode.UpArrow }
+				linux: { primary: KeyMod.CtrlCmd | KeyMod.Alt | KeyMod.Shift | KeyCode.UpArrow },
+				weight: KeybindingWeight.EditorContrib
 			}
 		});
 	}
@@ -76,7 +78,8 @@ class CopyLinesDownAction extends AbstractCopyLinesAction {
 			kbOpts: {
 				kbExpr: EditorContextKeys.editorTextFocus,
 				primary: KeyMod.Alt | KeyMod.Shift | KeyCode.DownArrow,
-				linux: { primary: KeyMod.CtrlCmd | KeyMod.Alt | KeyMod.Shift | KeyCode.DownArrow }
+				linux: { primary: KeyMod.CtrlCmd | KeyMod.Alt | KeyMod.Shift | KeyCode.DownArrow },
+				weight: KeybindingWeight.EditorContrib
 			}
 		});
 	}
@@ -119,7 +122,8 @@ class MoveLinesUpAction extends AbstractMoveLinesAction {
 			kbOpts: {
 				kbExpr: EditorContextKeys.editorTextFocus,
 				primary: KeyMod.Alt | KeyCode.UpArrow,
-				linux: { primary: KeyMod.Alt | KeyCode.UpArrow }
+				linux: { primary: KeyMod.Alt | KeyCode.UpArrow },
+				weight: KeybindingWeight.EditorContrib
 			}
 		});
 	}
@@ -135,7 +139,8 @@ class MoveLinesDownAction extends AbstractMoveLinesAction {
 			kbOpts: {
 				kbExpr: EditorContextKeys.editorTextFocus,
 				primary: KeyMod.Alt | KeyCode.DownArrow,
-				linux: { primary: KeyMod.Alt | KeyCode.DownArrow }
+				linux: { primary: KeyMod.Alt | KeyCode.DownArrow },
+				weight: KeybindingWeight.EditorContrib
 			}
 		});
 	}
@@ -204,7 +209,8 @@ export class TrimTrailingWhitespaceAction extends EditorAction {
 			precondition: EditorContextKeys.writable,
 			kbOpts: {
 				kbExpr: EditorContextKeys.editorTextFocus,
-				primary: KeyChord(KeyMod.CtrlCmd | KeyCode.KEY_K, KeyMod.CtrlCmd | KeyCode.KEY_X)
+				primary: KeyChord(KeyMod.CtrlCmd | KeyCode.KEY_K, KeyMod.CtrlCmd | KeyCode.KEY_X),
+				weight: KeybindingWeight.EditorContrib
 			}
 		});
 	}
@@ -245,7 +251,8 @@ class DeleteLinesAction extends EditorAction {
 			precondition: EditorContextKeys.writable,
 			kbOpts: {
 				kbExpr: EditorContextKeys.textInputFocus,
-				primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KEY_K
+				primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KEY_K,
+				weight: KeybindingWeight.EditorContrib
 			}
 		});
 	}
@@ -314,7 +321,8 @@ export class IndentLinesAction extends EditorAction {
 			precondition: EditorContextKeys.writable,
 			kbOpts: {
 				kbExpr: EditorContextKeys.editorTextFocus,
-				primary: KeyMod.CtrlCmd | KeyCode.US_CLOSE_SQUARE_BRACKET
+				primary: KeyMod.CtrlCmd | KeyCode.US_CLOSE_SQUARE_BRACKET,
+				weight: KeybindingWeight.EditorContrib
 			}
 		});
 	}
@@ -335,7 +343,8 @@ class OutdentLinesAction extends EditorAction {
 			precondition: EditorContextKeys.writable,
 			kbOpts: {
 				kbExpr: EditorContextKeys.editorTextFocus,
-				primary: KeyMod.CtrlCmd | KeyCode.US_OPEN_SQUARE_BRACKET
+				primary: KeyMod.CtrlCmd | KeyCode.US_OPEN_SQUARE_BRACKET,
+				weight: KeybindingWeight.EditorContrib
 			}
 		});
 	}
@@ -354,7 +363,8 @@ export class InsertLineBeforeAction extends EditorAction {
 			precondition: EditorContextKeys.writable,
 			kbOpts: {
 				kbExpr: EditorContextKeys.editorTextFocus,
-				primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.Enter
+				primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.Enter,
+				weight: KeybindingWeight.EditorContrib
 			}
 		});
 	}
@@ -374,7 +384,8 @@ export class InsertLineAfterAction extends EditorAction {
 			precondition: EditorContextKeys.writable,
 			kbOpts: {
 				kbExpr: EditorContextKeys.editorTextFocus,
-				primary: KeyMod.CtrlCmd | KeyCode.Enter
+				primary: KeyMod.CtrlCmd | KeyCode.Enter,
+				weight: KeybindingWeight.EditorContrib
 			}
 		});
 	}
@@ -434,7 +445,8 @@ export class DeleteAllLeftAction extends AbstractDeleteAllToBoundaryAction {
 			kbOpts: {
 				kbExpr: EditorContextKeys.textInputFocus,
 				primary: null,
-				mac: { primary: KeyMod.CtrlCmd | KeyCode.Backspace }
+				mac: { primary: KeyMod.CtrlCmd | KeyCode.Backspace },
+				weight: KeybindingWeight.EditorContrib
 			}
 		});
 	}
@@ -502,7 +514,8 @@ export class DeleteAllRightAction extends AbstractDeleteAllToBoundaryAction {
 			kbOpts: {
 				kbExpr: EditorContextKeys.textInputFocus,
 				primary: null,
-				mac: { primary: KeyMod.WinCtrl | KeyCode.KEY_K, secondary: [KeyMod.CtrlCmd | KeyCode.Delete] }
+				mac: { primary: KeyMod.WinCtrl | KeyCode.KEY_K, secondary: [KeyMod.CtrlCmd | KeyCode.Delete] },
+				weight: KeybindingWeight.EditorContrib
 			}
 		});
 	}
@@ -559,7 +572,8 @@ export class JoinLinesAction extends EditorAction {
 			kbOpts: {
 				kbExpr: EditorContextKeys.editorTextFocus,
 				primary: 0,
-				mac: { primary: KeyMod.WinCtrl | KeyCode.KEY_J }
+				mac: { primary: KeyMod.WinCtrl | KeyCode.KEY_J },
+				weight: KeybindingWeight.EditorContrib
 			}
 		});
 	}

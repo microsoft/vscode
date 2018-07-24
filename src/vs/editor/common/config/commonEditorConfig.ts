@@ -276,7 +276,7 @@ const editorConfiguration: IConfigurationNode = {
 		'editor.wordSeparators': {
 			'type': 'string',
 			'default': EDITOR_DEFAULTS.wordSeparators,
-			'description': nls.localize('wordSeparators', "Characters that will be used as word separators when doing word related navigations or operations")
+			'description': nls.localize('wordSeparators', "Characters that will be used as word separators when doing word related navigations or operations.")
 		},
 		'editor.tabSize': {
 			'type': 'number',
@@ -418,8 +418,14 @@ const editorConfiguration: IConfigurationNode = {
 		'editor.wrappingIndent': {
 			'type': 'string',
 			'enum': ['none', 'same', 'indent', 'deepIndent'],
+			enumDescriptions: [
+				nls.localize('wrappingIndent.none', "No indentation. Wrapped lines begin at column 1."),
+				nls.localize('wrappingIndent.same', "Wrapped lines get the same indentation as the parent."),
+				nls.localize('wrappingIndent.indent', "Wrapped lines get +1 indentation toward the parent."),
+				nls.localize('wrappingIndent.deepIndent', "Wrapped lines get +2 indentation toward the parent."),
+			],
 			'default': 'same',
-			'description': nls.localize('wrappingIndent', "Controls the indentation of wrapped lines. Can be one of 'none', 'same', 'indent' or 'deepIndent'.")
+			'description': nls.localize('wrappingIndent', "Controls the indentation of wrapped lines."),
 		},
 		'editor.mouseWheelScrollSensitivity': {
 			'type': 'number',
@@ -510,13 +516,13 @@ const editorConfiguration: IConfigurationNode = {
 		'editor.suggestOnTriggerCharacters': {
 			'type': 'boolean',
 			'default': EDITOR_DEFAULTS.contribInfo.suggestOnTriggerCharacters,
-			'description': nls.localize('suggestOnTriggerCharacters', "Controls if suggestions should automatically show up when typing trigger characters")
+			'description': nls.localize('suggestOnTriggerCharacters', "Controls if suggestions should automatically show up when typing trigger characters.")
 		},
 		'editor.acceptSuggestionOnEnter': {
 			'type': 'string',
 			'enum': ['on', 'smart', 'off'],
 			'default': EDITOR_DEFAULTS.contribInfo.acceptSuggestionOnEnter,
-			'description': nls.localize('acceptSuggestionOnEnter', "Controls if suggestions should be accepted on 'Enter' - in addition to 'Tab'. Helps to avoid ambiguity between inserting new lines or accepting suggestions. The value 'smart' means only accept a suggestion with Enter when it makes a textual change")
+			'description': nls.localize('acceptSuggestionOnEnter', "Controls if suggestions should be accepted on 'Enter' - in addition to 'Tab'. Helps to avoid ambiguity between inserting new lines or accepting suggestions. The value 'smart' means only accept a suggestion with Enter when it makes a textual change.")
 		},
 		'editor.acceptSuggestionOnCommitCharacter': {
 			'type': 'boolean',
@@ -560,13 +566,13 @@ const editorConfiguration: IConfigurationNode = {
 			'type': 'integer',
 			'default': 0,
 			'minimum': 0,
-			'description': nls.localize('suggestFontSize', "Font size for the suggest widget")
+			'description': nls.localize('suggestFontSize', "Font size for the suggest widget.")
 		},
 		'editor.suggestLineHeight': {
 			'type': 'integer',
 			'default': 0,
 			'minimum': 0,
-			'description': nls.localize('suggestLineHeight', "Line height for the suggest widget")
+			'description': nls.localize('suggestLineHeight', "Line height for the suggest widget.")
 		},
 		'editor.suggest.filterGraceful': {
 			type: 'boolean',
@@ -586,12 +592,12 @@ const editorConfiguration: IConfigurationNode = {
 		'editor.occurrencesHighlight': {
 			'type': 'boolean',
 			'default': EDITOR_DEFAULTS.contribInfo.occurrencesHighlight,
-			'description': nls.localize('occurrencesHighlight', "Controls whether the editor should highlight semantic symbol occurrences")
+			'description': nls.localize('occurrencesHighlight', "Controls whether the editor should highlight semantic symbol occurrences.")
 		},
 		'editor.overviewRulerLanes': {
 			'type': 'integer',
 			'default': 3,
-			'description': nls.localize('overviewRulerLanes', "Controls the number of decorations that can show up at the same position in the overview ruler")
+			'description': nls.localize('overviewRulerLanes', "Controls the number of decorations that can show up at the same position in the overview ruler.")
 		},
 		'editor.overviewRulerBorder': {
 			'type': 'boolean',
@@ -607,7 +613,7 @@ const editorConfiguration: IConfigurationNode = {
 		'editor.mouseWheelZoom': {
 			'type': 'boolean',
 			'default': EDITOR_DEFAULTS.viewInfo.mouseWheelZoom,
-			'description': nls.localize('mouseWheelZoom', "Zoom the font of the editor when using mouse wheel and holding Ctrl")
+			'description': nls.localize('mouseWheelZoom', "Zoom the font of the editor when using mouse wheel and holding Ctrl.")
 		},
 		'editor.cursorStyle': {
 			'type': 'string',
@@ -644,12 +650,12 @@ const editorConfiguration: IConfigurationNode = {
 		'editor.renderControlCharacters': {
 			'type': 'boolean',
 			default: EDITOR_DEFAULTS.viewInfo.renderControlCharacters,
-			description: nls.localize('renderControlCharacters', "Controls whether the editor should render control characters")
+			description: nls.localize('renderControlCharacters', "Controls whether the editor should render control characters.")
 		},
 		'editor.renderIndentGuides': {
 			'type': 'boolean',
 			default: EDITOR_DEFAULTS.viewInfo.renderIndentGuides,
-			description: nls.localize('renderIndentGuides', "Controls whether the editor should render indent guides")
+			description: nls.localize('renderIndentGuides', "Controls whether the editor should render indent guides.")
 		},
 		'editor.highlightActiveIndentGuide': {
 			'type': 'boolean',
@@ -701,12 +707,12 @@ const editorConfiguration: IConfigurationNode = {
 		'editor.useTabStops': {
 			'type': 'boolean',
 			'default': EDITOR_DEFAULTS.useTabStops,
-			'description': nls.localize('useTabStops', "Inserting and deleting whitespace follows tab stops")
+			'description': nls.localize('useTabStops', "Inserting and deleting whitespace follows tab stops.")
 		},
 		'editor.trimAutoWhitespace': {
 			'type': 'boolean',
 			'default': EDITOR_MODEL_DEFAULTS.trimAutoWhitespace,
-			'description': nls.localize('trimAutoWhitespace', "Remove trailing auto inserted whitespace")
+			'description': nls.localize('trimAutoWhitespace', "Remove trailing auto inserted whitespace.")
 		},
 		'editor.stablePeek': {
 			'type': 'boolean',

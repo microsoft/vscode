@@ -26,6 +26,7 @@ import { CodeActionModel, CodeActionsComputeEvent, SUPPORTED_CODE_ACTIONS } from
 import { CodeActionAutoApply, CodeActionFilter, CodeActionKind } from './codeActionTrigger';
 import { CodeActionContextMenu } from './codeActionWidget';
 import { LightBulbWidget } from './lightBulbWidget';
+import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
 
 function contextKeyForSupportedActions(kind: CodeActionKind) {
 	return ContextKeyExpr.regex(
@@ -192,7 +193,8 @@ export class QuickFixAction extends EditorAction {
 			precondition: ContextKeyExpr.and(EditorContextKeys.writable, EditorContextKeys.hasCodeActionsProvider),
 			kbOpts: {
 				kbExpr: EditorContextKeys.editorTextFocus,
-				primary: KeyMod.CtrlCmd | KeyCode.US_DOT
+				primary: KeyMod.CtrlCmd | KeyCode.US_DOT,
+				weight: KeybindingWeight.EditorContrib
 			}
 		});
 	}
@@ -272,7 +274,8 @@ export class RefactorAction extends EditorAction {
 				primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KEY_R,
 				mac: {
 					primary: KeyMod.WinCtrl | KeyMod.Shift | KeyCode.KEY_R
-				}
+				},
+				weight: KeybindingWeight.EditorContrib
 			},
 			menuOpts: {
 				group: '1_modification',
@@ -335,7 +338,8 @@ export class OrganizeImportsAction extends EditorAction {
 				contextKeyForSupportedActions(CodeActionKind.SourceOrganizeImports)),
 			kbOpts: {
 				kbExpr: EditorContextKeys.editorTextFocus,
-				primary: KeyMod.Shift | KeyMod.Alt | KeyCode.KEY_O
+				primary: KeyMod.Shift | KeyMod.Alt | KeyCode.KEY_O,
+				weight: KeybindingWeight.EditorContrib
 			}
 		});
 	}

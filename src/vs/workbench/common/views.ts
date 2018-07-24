@@ -288,12 +288,6 @@ export interface ITreeItem {
 	command?: Command;
 
 	children?: ITreeItem[];
-
-	decorations?: {
-		colors: boolean,
-		badges: boolean
-	};
-
 }
 
 export interface ITreeViewDataProvider {

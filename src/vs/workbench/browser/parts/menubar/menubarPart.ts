@@ -1166,6 +1166,9 @@ class ModifierKeyEmitter extends Emitter<IModifierKeyStatus> {
 				this.fire(this._keyStatus);
 			}
 		}));
+		this._subscriptions.push(domEvent(document.body, 'mousedown')(e => {
+			this._keyStatus.lastKeyPressed = undefined;
+		}));
 
 		this._subscriptions.push(domEvent(window, 'blur')(e => {
 			this._keyStatus.lastKeyPressed = undefined;

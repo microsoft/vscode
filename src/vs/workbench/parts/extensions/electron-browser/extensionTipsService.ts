@@ -43,7 +43,6 @@ import { assign } from 'vs/base/common/objects';
 import URI from 'vs/base/common/uri';
 import { areSameExtensions, getGalleryExtensionIdFromLocal } from 'vs/platform/extensionManagement/common/extensionManagementUtil';
 import { IExperimentService, ExperimentActionType, ExperimentState } from 'vs/workbench/parts/experiments/node/experimentService';
-import { Schemas } from 'vs/base/common/network';
 import { offlineModeSetting } from 'vs/platform/actions/common/offlineMode';
 
 const milliSecondsInADay = 1000 * 60 * 60 * 24;
@@ -502,9 +501,7 @@ export class ExtensionTipsService extends Disposable implements IExtensionTipsSe
 		let hasSuggestion = false;
 
 		const uri = model.uri;
-		if (!uri
-			|| uri.scheme !== Schemas.file
-			|| this.configurationService.getValue(offlineModeSetting) === true) {
+		if (!uri || !this.fileService.canHandleResource(uri) || this.configurationService.getValue(offlineModeSetting) === true) {
 			return;
 		}
 
@@ -897,7 +894,7 @@ export class ExtensionTipsService extends Disposable implements IExtensionTipsSe
 
 	private fetchDynamicWorkspaceRecommendations(): TPromise<void> {
 		if (this.contextService.getWorkbenchState() !== WorkbenchState.FOLDER
-			|| this.contextService.getWorkspace().folders[0].uri.scheme !== Schemas.file // #54483: check with @Ramya
+			|| !this.fileService.canHandleResource(this.contextService.getWorkspace().folders[0].uri)
 			|| this._dynamicWorkspaceRecommendations.length
 			|| !this._extensionsRecommendationsUrl) {
 			return TPromise.as(null);

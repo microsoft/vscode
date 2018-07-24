@@ -1550,6 +1550,8 @@ class EditorContextKeysManager extends Disposable {
 	private _editorReadonly: IContextKey<boolean>;
 	private _hasMultipleSelections: IContextKey<boolean>;
 	private _hasNonEmptySelection: IContextKey<boolean>;
+	private _canUndo: IContextKey<boolean>;
+	private _canRedo: IContextKey<boolean>;
 
 	constructor(
 		editor: CodeEditorWidget,
@@ -1567,6 +1569,8 @@ class EditorContextKeysManager extends Disposable {
 		this._editorReadonly = EditorContextKeys.readOnly.bindTo(contextKeyService);
 		this._hasMultipleSelections = EditorContextKeys.hasMultipleSelections.bindTo(contextKeyService);
 		this._hasNonEmptySelection = EditorContextKeys.hasNonEmptySelection.bindTo(contextKeyService);
+		this._canUndo = EditorContextKeys.canUndo.bindTo(contextKeyService);
+		this._canRedo = EditorContextKeys.canRedo.bindTo(contextKeyService);
 
 		this._register(this._editor.onDidChangeConfiguration(() => this._updateFromConfig()));
 		this._register(this._editor.onDidChangeCursorSelection(() => this._updateFromSelection()));
@@ -1574,10 +1578,13 @@ class EditorContextKeysManager extends Disposable {
 		this._register(this._editor.onDidBlurEditorWidget(() => this._updateFromFocus()));
 		this._register(this._editor.onDidFocusEditorText(() => this._updateFromFocus()));
 		this._register(this._editor.onDidBlurEditorText(() => this._updateFromFocus()));
+		this._register(this._editor.onDidChangeModel(() => this._updateFromModel()));
+		this._register(this._editor.onDidChangeConfiguration(() => this._updateFromModel()));
 
 		this._updateFromConfig();
 		this._updateFromSelection();
 		this._updateFromFocus();
+		this._updateFromModel();
 	}
 
 	private _updateFromConfig(): void {
@@ -1602,6 +1609,12 @@ class EditorContextKeysManager extends Disposable {
 		this._editorFocus.set(this._editor.hasWidgetFocus() && !this._editor.isSimpleWidget);
 		this._editorTextFocus.set(this._editor.hasTextFocus() && !this._editor.isSimpleWidget);
 		this._textInputFocus.set(this._editor.hasTextFocus());
+	}
+
+	private _updateFromModel(): void {
+		const model = this._editor.getModel();
+		this._canUndo.set(model && model.canUndo());
+		this._canRedo.set(model && model.canRedo());
 	}
 }
 
