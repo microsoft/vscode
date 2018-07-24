@@ -525,6 +525,7 @@ export class WorkbenchShell extends Disposable {
 	private _savePartsSplash() {
 
 		// capture html-structure
+		let state = this.contextService.getWorkbenchState();
 		let html = `<div id="${WorkbenchShell.PARTS_SPLASH_ID}">`;
 
 		// title part
@@ -548,8 +549,8 @@ export class WorkbenchShell extends Disposable {
 			activityPartWidth = pos.width;
 		}
 
-		// sidebar-part
-		{
+		// sidebar-part (only for folder/workspace cases)
+		if (state !== WorkbenchState.EMPTY) {
 			let part = this.workbench.getContainer(Parts.SIDEBAR_PART);
 			let pos = getDomNodePagePosition(part);
 			let bg = part.style.backgroundColor || 'inhert';
@@ -568,12 +569,7 @@ export class WorkbenchShell extends Disposable {
 		html += '\n</div>';
 
 		// store per workspace or globally
-		let state = this.contextService.getWorkbenchState();
-		if (state === WorkbenchState.EMPTY) {
-			this.storageService.store('parts-splash', html, StorageScope.GLOBAL);
-		} else {
-			this.storageService.store('parts-splash', html, StorageScope.WORKSPACE);
-		}
+		this.storageService.store('parts-splash', html, state === WorkbenchState.EMPTY ? StorageScope.GLOBAL : StorageScope.WORKSPACE);
 	}
 
 	private _removePartsSplash(): void {
