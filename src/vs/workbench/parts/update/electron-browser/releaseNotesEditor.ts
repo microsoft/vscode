@@ -27,6 +27,8 @@ import { IWebviewEditorService } from 'vs/workbench/parts/webview/electron-brows
 import { IEditorService, ACTIVE_GROUP } from 'vs/workbench/services/editor/common/editorService';
 import { KeybindingIO } from 'vs/workbench/services/keybinding/common/keybindingIO';
 import { WebviewEditorInput } from 'vs/workbench/parts/webview/electron-browser/webviewEditorInput';
+import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
+import { offlineModeSetting } from 'vs/platform/actions/common/offlineMode';
 
 function renderBody(
 	body: string,
@@ -61,7 +63,8 @@ export class ReleaseNotesManager {
 		@IRequestService private readonly _requestService: IRequestService,
 		@ITelemetryService private readonly _telemetryService: ITelemetryService,
 		@IEditorService private readonly _editorService: IEditorService,
-		@IWebviewEditorService private readonly _webviewEditorService: IWebviewEditorService
+		@IWebviewEditorService private readonly _webviewEditorService: IWebviewEditorService,
+		@IConfigurationService private readonly _configurationService: IConfigurationService
 	) {
 		TokenizationRegistry.onDidChange(async () => {
 			if (!this._currentReleaseNotes || !this._lastText) {
@@ -78,6 +81,9 @@ export class ReleaseNotesManager {
 		accessor: ServicesAccessor,
 		version: string
 	): Promise<boolean> {
+		if (this._configurationService.getValue(offlineModeSetting) === true) {
+			return false;
+		}
 		const releaseNoteText = await this.loadReleaseNotes(version);
 		this._lastText = releaseNoteText;
 		const html = await this.renderBody(releaseNoteText);

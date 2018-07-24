@@ -75,10 +75,14 @@ export abstract class AbstractShowReleaseNotesAction extends Action {
 		this.enabled = false;
 
 		return TPromise.wrap(showReleaseNotes(this.instantiationService, this.version)
-			.then(null, () => {
-				const action = this.instantiationService.createInstance(OpenLatestReleaseNotesInBrowserAction);
-				return action.run().then(() => false);
-			}));
+			.then(result => {
+				return result ? TPromise.as(null) : this.openInBrowser();
+			}, this.openInBrowser));
+	}
+
+	private openInBrowser(): TPromise<boolean> {
+		const action = this.instantiationService.createInstance(OpenLatestReleaseNotesInBrowserAction);
+		return action.run().then(() => false);
 	}
 }
 
