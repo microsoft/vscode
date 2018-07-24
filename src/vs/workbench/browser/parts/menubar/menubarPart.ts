@@ -867,8 +867,6 @@ export class MenubarPart extends Part {
 		let menuHolder = $(customMenu.buttonElement).div({ class: 'menubar-menu-items-holder' });
 
 		$(menuHolder.getHTMLElement().parentElement).addClass('open');
-
-		menuHolder.addClass('menubar-menu-items-holder-open context-view');
 		menuHolder.style({
 			'zoom': `${1 / browser.getZoomFactor()}`,
 			'top': `${this.container.getClientArea().height * browser.getZoomFactor()}px`
@@ -1165,6 +1163,9 @@ class ModifierKeyEmitter extends Emitter<IModifierKeyStatus> {
 			if (this._keyStatus.lastKeyReleased) {
 				this.fire(this._keyStatus);
 			}
+		}));
+		this._subscriptions.push(domEvent(document.body, 'mousedown')(e => {
+			this._keyStatus.lastKeyPressed = undefined;
 		}));
 
 		this._subscriptions.push(domEvent(window, 'blur')(e => {

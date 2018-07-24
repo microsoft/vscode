@@ -180,7 +180,7 @@
         },
         "npm.scriptCodeLens.enable": {
           "type": "boolean",
-          "default": true,
+          "default": false,
           "scope": "resource",
           "description": "%config.scriptCodeLens.enable%"
         },

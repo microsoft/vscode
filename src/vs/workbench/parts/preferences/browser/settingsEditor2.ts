@@ -5,46 +5,42 @@
 
 import * as DOM from 'vs/base/browser/dom';
 import { Button } from 'vs/base/browser/ui/button/button';
+import { ToolBar } from 'vs/base/browser/ui/toolbar/toolbar';
+import { Action } from 'vs/base/common/actions';
 import * as arrays from 'vs/base/common/arrays';
 import { Delayer, ThrottledDelayer } from 'vs/base/common/async';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import * as collections from 'vs/base/common/collections';
-import { Color, RGBA } from 'vs/base/common/color';
 import { getErrorMessage, isPromiseCanceledError } from 'vs/base/common/errors';
 import URI from 'vs/base/common/uri';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { ITree, ITreeConfiguration } from 'vs/base/parts/tree/browser/tree';
-import { DefaultTreestyler, OpenMode } from 'vs/base/parts/tree/browser/treeDefaults';
+import { OpenMode, DefaultTreestyler } from 'vs/base/parts/tree/browser/treeDefaults';
 import 'vs/css!./media/settingsEditor2';
 import { localize } from 'vs/nls';
 import { ConfigurationTarget, IConfigurationOverrides, IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
+import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { WorkbenchTree, WorkbenchTreeController } from 'vs/platform/list/browser/listService';
 import { ILogService } from 'vs/platform/log/common/log';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { editorBackground, focusBorder, foreground, registerColor } from 'vs/platform/theme/common/colorRegistry';
 import { attachButtonStyler, attachStyler } from 'vs/platform/theme/common/styler';
-import { ICssStyleCollector, ITheme, IThemeService, registerThemingParticipant } from 'vs/platform/theme/common/themeService';
+import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { BaseEditor } from 'vs/workbench/browser/parts/editor/baseEditor';
 import { EditorOptions, IEditor } from 'vs/workbench/common/editor';
 import { SearchWidget, SettingsTarget, SettingsTargetsWidget } from 'vs/workbench/parts/preferences/browser/preferencesWidgets';
 import { commonlyUsedData, tocData } from 'vs/workbench/parts/preferences/browser/settingsLayout';
-import { ISettingsEditorViewState, NonExpandableTree, resolveExtensionsSettings, resolveSettingsTree, SearchResultIdx, SearchResultModel, SettingsAccessibilityProvider, SettingsDataSource, SettingsRenderer, SettingsTreeController, SettingsTreeElement, SettingsTreeFilter, SettingsTreeGroupElement, SettingsTreeModel, SettingsTreeSettingElement } from 'vs/workbench/parts/preferences/browser/settingsTree';
+import { ISettingsEditorViewState, resolveExtensionsSettings, resolveSettingsTree, SearchResultIdx, SearchResultModel, SettingsRenderer, SettingsTree, SettingsTreeElement, SettingsTreeFilter, SettingsTreeGroupElement, SettingsTreeModel, SettingsTreeSettingElement, settingsHeaderForeground } from 'vs/workbench/parts/preferences/browser/settingsTree';
 import { TOCDataSource, TOCRenderer, TOCTreeModel } from 'vs/workbench/parts/preferences/browser/tocTree';
 import { CONTEXT_SETTINGS_EDITOR, CONTEXT_SETTINGS_FIRST_ROW_FOCUS, CONTEXT_SETTINGS_ROW_FOCUS, CONTEXT_SETTINGS_SEARCH_FOCUS, CONTEXT_TOC_ROW_FOCUS, IPreferencesSearchService, ISearchProvider } from 'vs/workbench/parts/preferences/common/preferences';
 import { IPreferencesService, ISearchResult, ISettingsEditorModel } from 'vs/workbench/services/preferences/common/preferences';
 import { SettingsEditor2Input } from 'vs/workbench/services/preferences/common/preferencesEditorInput';
 import { DefaultSettingsEditorModel } from 'vs/workbench/services/preferences/common/preferencesModels';
+import { editorBackground, foreground } from 'vs/platform/theme/common/colorRegistry';
 
 const $ = DOM.$;
-
-export const settingItemInactiveSelectionBorder = registerColor('settings.inactiveSelectedItemBorder', {
-	dark: '#3F3F46',
-	light: '#CCCEDB',
-	hc: null
-}, localize('settingItemInactiveSelectionBorder', "The color of the selected setting row border, when the settings list does not have focus."));
 
 export class SettingsEditor2 extends BaseEditor {
 
@@ -56,12 +52,10 @@ export class SettingsEditor2 extends BaseEditor {
 	private headerContainer: HTMLElement;
 	private searchWidget: SearchWidget;
 	private settingsTargetsWidget: SettingsTargetsWidget;
-
-	private showConfiguredSettingsOnlyCheckbox: HTMLInputElement;
+	private toolbar: ToolBar;
 
 	private settingsTreeContainer: HTMLElement;
 	private settingsTree: WorkbenchTree;
-	private treeDataSource: SettingsDataSource;
 	private tocTreeModel: TOCTreeModel;
 	private settingsTreeModel: SettingsTreeModel;
 
@@ -99,7 +93,8 @@ export class SettingsEditor2 extends BaseEditor {
 		@IPreferencesSearchService private preferencesSearchService: IPreferencesSearchService,
 		@ILogService private logService: ILogService,
 		@IEnvironmentService private environmentService: IEnvironmentService,
-		@IContextKeyService contextKeyService: IContextKeyService
+		@IContextKeyService contextKeyService: IContextKeyService,
+		@IContextMenuService private contextMenuService: IContextMenuService
 	) {
 		super(SettingsEditor2.ID, telemetryService, themeService);
 		this.delayedFilterLogging = new Delayer<void>(1000);
@@ -203,26 +198,13 @@ export class SettingsEditor2 extends BaseEditor {
 		}));
 		this._register(this.searchWidget.onDidChange(() => this.onSearchInputChanged()));
 
-		const advancedCustomization = DOM.append(this.headerContainer, $('.settings-advanced-customization'));
-		const advancedCustomizationLabel = DOM.append(advancedCustomization, $('span.settings-advanced-customization-label'));
-		advancedCustomizationLabel.textContent = localize('advancedCustomizationLabel', "For advanced customizations open and edit") + ' ';
-		const openSettingsButton = this._register(new Button(advancedCustomization, { title: true, buttonBackground: null, buttonHoverBackground: null }));
-		this._register(attachButtonStyler(openSettingsButton, this.themeService, {
-			buttonBackground: Color.transparent.toString(),
-			buttonHoverBackground: Color.transparent.toString(),
-			buttonForeground: foreground
-		}));
-		openSettingsButton.label = localize('openSettingsLabel', "settings.json");
-		openSettingsButton.element.classList.add('open-settings-button');
-
-		this._register(openSettingsButton.onDidClick(() => this.openSettingsFile()));
-
 		const headerControlsContainer = DOM.append(this.headerContainer, $('.settings-header-controls'));
 		const targetWidgetContainer = DOM.append(headerControlsContainer, $('.settings-target-container'));
 		this.settingsTargetsWidget = this._register(this.instantiationService.createInstance(SettingsTargetsWidget, targetWidgetContainer));
 		this.settingsTargetsWidget.settingsTarget = ConfigurationTarget.USER;
 		this.settingsTargetsWidget.onDidTargetChange(() => {
 			this.viewState.settingsTarget = this.settingsTargetsWidget.settingsTarget;
+			this.toolbar.context = this.settingsTargetsWidget.settingsTarget;
 
 			this.settingsTreeModel.update();
 			this.refreshTreeAndMaintainFocus();
@@ -234,13 +216,17 @@ export class SettingsEditor2 extends BaseEditor {
 	private createHeaderControls(parent: HTMLElement): void {
 		const headerControlsContainerRight = DOM.append(parent, $('.settings-header-controls-right'));
 
-		this.showConfiguredSettingsOnlyCheckbox = DOM.append(headerControlsContainerRight, $('input#configured-only-checkbox'));
-		this.showConfiguredSettingsOnlyCheckbox.type = 'checkbox';
-		const showConfiguredSettingsOnlyLabel = <HTMLLabelElement>DOM.append(headerControlsContainerRight, $('label.configured-only-label'));
-		showConfiguredSettingsOnlyLabel.textContent = localize('showOverriddenOnly', "Show modified only");
-		showConfiguredSettingsOnlyLabel.htmlFor = 'configured-only-checkbox';
+		this.toolbar = new ToolBar(headerControlsContainerRight, this.contextMenuService, {
+			ariaLabel: localize('settingsToolbarLabel', "Settings Editor Actions"),
+			actionRunner: this.actionRunner
+		});
 
-		this._register(DOM.addDisposableListener(this.showConfiguredSettingsOnlyCheckbox, 'change', e => this.onShowConfiguredOnlyClicked()));
+		const actions = [
+			this.instantiationService.createInstance(ToggleShowModifiedOnlyAction, this, this.viewState),
+			this.instantiationService.createInstance(OpenSettingsAction)
+		];
+		this.toolbar.setActions([], actions)();
+		this.toolbar.context = this.settingsTargetsWidget.settingsTarget;
 	}
 
 	private revealSetting(settingName: string): void {
@@ -288,12 +274,29 @@ export class SettingsEditor2 extends BaseEditor {
 				dataSource: tocDataSource,
 				renderer: tocRenderer,
 				controller: this.instantiationService.createInstance(WorkbenchTreeController, { openMode: OpenMode.DOUBLE_CLICK }),
-				filter: this.instantiationService.createInstance(SettingsTreeFilter, this.viewState)
+				filter: this.instantiationService.createInstance(SettingsTreeFilter, this.viewState),
+				styler: new DefaultTreestyler(DOM.createStyleSheet(), 'settings-toc-tree'),
 			},
 			{
 				showLoading: false,
 				twistiePixels: 15
 			});
+		this.tocTree.getHTMLElement().classList.add('settings-toc-tree');
+
+		this._register(attachStyler(this.themeService, {
+			listActiveSelectionBackground: editorBackground,
+			listActiveSelectionForeground: settingsHeaderForeground,
+			listFocusAndSelectionBackground: editorBackground,
+			listFocusAndSelectionForeground: settingsHeaderForeground,
+			listFocusBackground: editorBackground,
+			listFocusForeground: settingsHeaderForeground,
+			listHoverForeground: foreground,
+			listHoverBackground: editorBackground,
+			listInactiveSelectionBackground: editorBackground,
+			listInactiveSelectionForeground: settingsHeaderForeground,
+		}, colors => {
+			this.tocTree.style(colors);
+		}));
 
 		this._register(this.tocTree.onDidChangeFocus(e => {
 			const element = e.focus;
@@ -307,7 +310,6 @@ export class SettingsEditor2 extends BaseEditor {
 					this.settingsTree.setFocus(element);
 				}
 			}
-
 		}));
 
 		this._register(this.tocTree.onDidFocus(() => {
@@ -329,65 +331,17 @@ export class SettingsEditor2 extends BaseEditor {
 	private createSettingsTree(parent: HTMLElement): void {
 		this.settingsTreeContainer = DOM.append(parent, $('.settings-tree-container'));
 
-		this.treeDataSource = this.instantiationService.createInstance(SettingsDataSource, this.viewState);
 		const renderer = this.instantiationService.createInstance(SettingsRenderer, this.settingsTreeContainer);
 		this._register(renderer.onDidChangeSetting(e => this.onDidChangeSetting(e.key, e.value)));
 		this._register(renderer.onDidOpenSettings(() => this.openSettingsFile()));
 		this._register(renderer.onDidClickSettingLink(settingName => this.revealSetting(settingName)));
 
-		const treeClass = 'settings-editor-tree';
-		this.settingsTree = this.instantiationService.createInstance(NonExpandableTree, this.settingsTreeContainer,
-			<ITreeConfiguration>{
-				dataSource: this.treeDataSource,
-				renderer,
-				controller: this.instantiationService.createInstance(SettingsTreeController),
-				accessibilityProvider: this.instantiationService.createInstance(SettingsAccessibilityProvider),
-				filter: this.instantiationService.createInstance(SettingsTreeFilter, this.viewState),
-				styler: new DefaultTreestyler(DOM.createStyleSheet(), treeClass)
-			},
+		this.settingsTree = this.instantiationService.createInstance(SettingsTree,
+			this.settingsTreeContainer,
+			this.viewState,
 			{
-				ariaLabel: localize('treeAriaLabel', "Settings"),
-				showLoading: false,
-				indentPixels: 0,
-				twistiePixels: 0,
+				renderer
 			});
-
-		this._register(registerThemingParticipant((theme: ITheme, collector: ICssStyleCollector) => {
-			const activeBorderColor = theme.getColor(focusBorder);
-			if (activeBorderColor) {
-				collector.addRule(`.settings-editor > .settings-body > .settings-tree-container .monaco-tree:focus .monaco-tree-row.focused {outline: solid 1px ${activeBorderColor}; outline-offset: -1px; }`);
-			}
-
-			const inactiveBorderColor = theme.getColor(settingItemInactiveSelectionBorder);
-			if (inactiveBorderColor) {
-				collector.addRule(`.settings-editor > .settings-body > .settings-tree-container .monaco-tree .monaco-tree-row.focused {outline: solid 1px ${inactiveBorderColor}; outline-offset: -1px; }`);
-			}
-
-			const foregroundColor = theme.getColor(foreground);
-			if (foregroundColor) {
-				// Links appear inside other elements in markdown. CSS opacity acts like a mask. So we have to dynamically compute the description color to avoid
-				// applying an opacity to the link color.
-				const fgWithOpacity = new Color(new RGBA(foregroundColor.rgba.r, foregroundColor.rgba.g, foregroundColor.rgba.b, .7));
-				collector.addRule(`.settings-editor > .settings-body > .settings-tree-container .setting-item .setting-item-description { color: ${fgWithOpacity}; }`);
-			}
-		}));
-
-		this.settingsTree.getHTMLElement().classList.add(treeClass);
-
-		this._register(attachStyler(this.themeService, {
-			listActiveSelectionBackground: editorBackground,
-			listActiveSelectionForeground: foreground,
-			listFocusAndSelectionBackground: editorBackground,
-			listFocusAndSelectionForeground: foreground,
-			listFocusBackground: editorBackground,
-			listFocusForeground: foreground,
-			listHoverForeground: foreground,
-			listHoverBackground: editorBackground,
-			listInactiveSelectionBackground: editorBackground,
-			listInactiveSelectionForeground: foreground
-		}, colors => {
-			this.settingsTree.style(colors);
-		}));
 
 		this._register(this.settingsTree.onDidChangeFocus(e => {
 			this.settingsTree.setSelection([e.focus]);
@@ -444,12 +398,13 @@ export class SettingsEditor2 extends BaseEditor {
 		}));
 	}
 
-	private onShowConfiguredOnlyClicked(): void {
-		this.viewState.showConfiguredOnly = this.showConfiguredSettingsOnlyCheckbox.checked;
-		this.refreshTreeAndMaintainFocus();
-		this.tocTree.refresh();
-		this.settingsTree.setScrollPosition(0);
-		this.expandAll(this.settingsTree);
+	toggleShowModifiedOnly(): TPromise<void> {
+		this.viewState.showConfiguredOnly = !this.viewState.showConfiguredOnly;
+		DOM.toggleClass(this.rootElement, 'showing-modified-only', this.viewState.showConfiguredOnly);
+		return this.refreshTreeAndMaintainFocus().then(() => {
+			this.settingsTree.setScrollPosition(0);
+			this.expandAll(this.settingsTree);
+		});
 	}
 
 	private onDidChangeSetting(key: string, value: any): void {
@@ -828,7 +783,7 @@ export class SettingsEditor2 extends BaseEditor {
 	}
 
 	private layoutTrees(dimension: DOM.Dimension): void {
-		const listHeight = dimension.height - (DOM.getDomNodePagePosition(this.headerContainer).height + 12 /*padding*/);
+		const listHeight = dimension.height - (DOM.getDomNodePagePosition(this.headerContainer).height + 11 /*padding*/);
 		this.settingsTreeContainer.style.height = `${listHeight}px`;
 		this.settingsTree.layout(listHeight, 800);
 
@@ -837,8 +792,56 @@ export class SettingsEditor2 extends BaseEditor {
 			this.settingsTree.refresh(selectedSetting);
 		}
 
-		const tocHeight = listHeight - 5; // padding
-		this.tocTreeContainer.style.height = `${tocHeight}px`;
-		this.tocTree.layout(tocHeight, 175);
+		this.tocTreeContainer.style.height = `${listHeight}px`;
+		this.tocTree.layout(listHeight, 175);
+	}
+}
+
+class OpenSettingsAction extends Action {
+	static readonly ID = 'settings.openSettingsJson';
+	static readonly LABEL = localize('openSettingsJsonLabel', "Open settings.json for advanced customizations");
+
+	constructor(
+		@IPreferencesService private readonly preferencesService: IPreferencesService,
+	) {
+		super(OpenSettingsAction.ID, OpenSettingsAction.LABEL, 'open-settings-json');
+	}
+
+
+	run(context?: SettingsTarget): TPromise<void> {
+		return this._run(context)
+			.then(() => { });
+	}
+
+	private _run(context?: SettingsTarget): TPromise<any> {
+		if (context === ConfigurationTarget.USER) {
+			return this.preferencesService.openGlobalSettings();
+		} else if (context === ConfigurationTarget.WORKSPACE) {
+			return this.preferencesService.openWorkspaceSettings();
+		} else if (URI.isUri(context)) {
+			return this.preferencesService.openFolderSettings(context);
+		}
+
+		return TPromise.wrap(null);
+	}
+}
+
+class ToggleShowModifiedOnlyAction extends Action {
+	static readonly ID = 'settings.toggleShowModifiedOnly';
+	static readonly LABEL = localize('showModifiedOnlyLabel', "Show modified settings only");
+
+	get checked(): boolean {
+		return this.viewState.showConfiguredOnly;
+	}
+
+	constructor(
+		private settingsEditor: SettingsEditor2,
+		private viewState: ISettingsEditorViewState
+	) {
+		super(ToggleShowModifiedOnlyAction.ID, ToggleShowModifiedOnlyAction.LABEL, 'show-modified-only');
+	}
+
+	run(): TPromise<void> {
+		return this.settingsEditor.toggleShowModifiedOnly();
 	}
 }

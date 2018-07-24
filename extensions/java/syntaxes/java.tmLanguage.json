@@ -4,7 +4,7 @@
 		"If you want to provide a fix or improvement, please create a pull request against the original repository.",
 		"Once accepted there, we are happy to receive an update request."
 	],
-	"version": "https://github.com/atom/language-java/commit/b9f1a853a69184363b0fb15f52da07c9660bf730",
+	"version": "https://github.com/atom/language-java/commit/2f20bc5a5b07686ec0139e2969431210d81b6991",
 	"name": "Java",
 	"scopeName": "source.java",
 	"patterns": [
@@ -1424,7 +1424,7 @@
 		},
 		"variables": {
 			"begin": "(?x)\n(?=\n  (\n    (void|boolean|byte|char|short|int|float|long|double)\n    |\n    (?>(\\w+\\.)*[A-Z]+\\w*) # e.g. `javax.ws.rs.Response`, or `String`\n  )\n  (\n    <[\\w<>,\\.?\\s\\[\\]]*> # e.g. `HashMap<Integer, String>`, or `List<java.lang.String>`\n  )?\n  (\n    (\\[\\])* # int[][]\n  )?\n  \\s+\n  [A-Za-z_$][\\w$]* # At least one identifier after space\n  ([\\w\\[\\],$][\\w\\[\\],\\s]*)? # possibly primitive array or additional identifiers\n  \\s*(=|;)\n)",
-			"end": "(?=;)",
+			"end": "(?=\\=|;)",
 			"name": "meta.definition.variable.java",
 			"patterns": [
 				{
@@ -1439,27 +1439,13 @@
 					"include": "#all-types"
 				},
 				{
-					"begin": "=",
-					"beginCaptures": {
-						"0": {
-							"name": "keyword.operator.assignment.java"
-						}
-					},
-					"end": "(?=;)",
-					"patterns": [
-						{
-							"include": "#code"
-						}
-					]
-				},
-				{
 					"include": "#code"
 				}
 			]
 		},
 		"member-variables": {
 			"begin": "(?=private|protected|public|native|synchronized|abstract|threadsafe|transient|static|final)",
-			"end": "(?=;)",
+			"end": "(?=\\=|;)",
 			"patterns": [
 				{
 					"include": "#storage-modifiers"

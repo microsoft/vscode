@@ -8,16 +8,14 @@
 }
 
 .settings-editor {
-	padding-top: 11px;
-	padding-left: 5px;
-	max-width: 1100px;
+	padding: 11px 0px 24px 0px;
+	max-width: 1000px;
 	margin: auto;
 }
 
 /* header styling */
 .settings-editor > .settings-header {
-	padding-left: 17px;
-	padding-right: 11px;
+	padding-right: 24px;
 	box-sizing: border-box;
 	margin: auto;
 }
@@ -28,19 +26,6 @@
 
 .settings-editor > .settings-header > .settings-preview-header .settings-preview-label {
 	opacity: .7;
-}
-
-.settings-editor > .settings-header > .settings-advanced-customization .open-settings-button,
-.settings-editor > .settings-header > .settings-advanced-customization .open-settings-button:hover,
-.settings-editor > .settings-header > .settings-advanced-customization .open-settings-button:active {
-	padding: 0;
-	text-decoration: underline;
-	display: inline;
-}
-
-.settings-editor > .settings-header > .settings-advanced-customization {
-	opacity: .7;
-	margin-top: 8px;
 }
 
 .settings-editor > .settings-header > .settings-preview-header > .settings-preview-warning {
@@ -68,17 +53,25 @@
 
 .settings-editor > .settings-header .search-container > .settings-search-input > .monaco-inputbox .input {
 	font-size: 14px;
-	padding-left: 10px;
+	padding-left: 9px;
 }
 
 .settings-editor > .settings-header > .settings-header-controls {
-	margin-top: 8px;
-	height: 30px;
+	height: 29px;
 	display: flex;
+	border-bottom: solid 1px;
 }
 
-.settings-editor > .settings-header .settings-tabs-widget > .monaco-action-bar .action-item:not(:first-child) .action-label {
-	margin-left: 14px;
+.vs .settings-editor > .settings-header > .settings-header-controls {
+	color: #6c6c6c;
+}
+
+.vs-dark .settings-editor > .settings-header > .settings-header-controls {
+	color: #3c3c3c;
+}
+
+.settings-editor > .settings-header .settings-tabs-widget > .monaco-action-bar .action-item .action-label {
+	margin-right: 0px;
 }
 
 .settings-editor > .settings-header .settings-tabs-widget .monaco-action-bar .action-item .dropdown-icon {
@@ -88,25 +81,63 @@
 
 .settings-editor > .settings-header > .settings-header-controls .settings-header-controls-right {
 	margin-left: auto;
-	padding-top: 3px;
+	padding-top: 4px;
 	display: flex;
 }
 
-.settings-editor > .settings-header > .settings-header-controls .settings-header-controls-right #configured-only-checkbox {
-	flex-shrink: 0;
+.settings-editor > .settings-header > .settings-header-controls .settings-header-controls-right .toolbar-toggle-more {
+	display: block;
+	width: 22px;
+	height: 22px;
+	background-position: center;
+	background-repeat: no-repeat;
 }
 
-.settings-editor > .settings-header > .settings-header-controls .settings-header-controls-right .configured-only-label {
-	white-space: nowrap;
-	margin-right: 10px;
-	margin-left: 2px;
-	opacity: 0.7;
+.vs .settings-editor > .settings-header > .settings-header-controls .settings-header-controls-right .toolbar-toggle-more {
+	background-image: url('configure.svg');
+}
+
+.vs-dark .settings-editor > .settings-header > .settings-header-controls .settings-header-controls-right .toolbar-toggle-more {
+	background-image: url('configure-inverse.svg');
+}
+
+.vs .settings-editor.showing-modified-only > .settings-header > .settings-header-controls .settings-header-controls-right .toolbar-toggle-more::before {
+	border-color : #fff;
+}
+
+.vs-dark .settings-editor.showing-modified-only > .settings-header > .settings-header-controls .settings-header-controls-right .toolbar-toggle-more::before {
+	border-color : #000;
+}
+
+.settings-editor.showing-modified-only > .settings-header > .settings-header-controls .settings-header-controls-right .toolbar-toggle-more::before {
+	content: "";
+	width: 6px;
+	height: 6px;
+	position: absolute;
+	top: 3px;
+	right: 3px;
+	border-radius: 10px;
+	border: 1px solid;
+}
+
+.settings-editor > .settings-header > .settings-header-controls .settings-tabs-widget > .monaco-action-bar .action-item {
+	padding: 0px; /* padding must be on action-label because it has the bottom-border, because that's where the .checked class is */
+}
+
+.settings-editor > .settings-header > .settings-header-controls .settings-tabs-widget > .monaco-action-bar .action-item .action-label {
+	text-transform: none;
+	font-size: 13px;
+
+	padding-bottom: 4px;
+	padding-top: 7px;
+	padding-left: 9px;
+	padding-right: 9px;
 }
 
 .settings-editor > .settings-body {
 	display: flex;
 	margin: auto;
-	max-width: 1100px;
+	max-width: 1000px;
 	justify-content: space-between;
 }
 
@@ -116,14 +147,15 @@
 
 .settings-editor > .settings-body .settings-tree-container .monaco-tree-wrapper,
 .settings-editor > .settings-body > .settings-tree-container .setting-measure-container {
-	/** Allocate space for the scrollbar */
-	width: calc(100% - 11px)
+	/** Match header padding, leave room for scrollbar on the outside */
+	width: calc(100% - 24px)
 }
 
 
 .settings-editor > .settings-body .settings-toc-container {
-	width: 175px;
-	margin-right: 5px;
+	width: 160px;
+	padding-top: 8px;
+	box-sizing: border-box;
 }
 
 .settings-editor > .settings-body .settings-toc-container.hidden {
@@ -142,20 +174,40 @@
 	display: none;
 }
 
+.settings-editor > .settings-body .settings-toc-container .monaco-scrollable-element > .shadow {
+	display: none;
+}
+
 .settings-editor > .settings-body .settings-toc-container .monaco-tree-row .settings-toc-entry {
 	overflow: hidden;
 	text-overflow: ellipsis;
 	line-height: 22px;
+	opacity: 0.7;
+}
+
+.settings-editor > .settings-body .settings-toc-container .monaco-tree-row.has-children > .content:before {
+	opacity: 0.7;
+}
+
+.settings-editor > .settings-body .settings-toc-container .monaco-tree-row.has-children.selected > .content:before {
+	opacity: 1;
 }
 
 .settings-editor > .settings-body .settings-toc-container .monaco-tree-row .settings-toc-entry.no-results {
 	opacity: 0.5;
 }
 
+.settings-editor > .settings-body .settings-toc-container .monaco-tree-row.selected .settings-toc-entry {
+	font-weight: bold;
+	opacity: 1;
+}
+
 .settings-editor > .settings-body .settings-tree-container {
 	flex: 1;
-	max-width: 875px;
+	max-width: 792px;
 	margin-right: 1px; /* So the item doesn't blend into the edge of the view container  */
+	padding-top: 8px;
+	box-sizing: border-box;
 	border-spacing: 0;
 	border-collapse: separate;
 	position: relative;
@@ -309,7 +361,7 @@
 }
 
 .settings-editor > .settings-body > .settings-tree-container .settings-group-level-1.settings-group-first {
-	padding-top: 4px;
+	padding-top: 7px;
 }
 
 .settings-editor > .settings-body .settings-feedback-button {

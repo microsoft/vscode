@@ -18,6 +18,7 @@ import { asWinJsPromise } from 'vs/base/common/async';
 import { TreeItemCollapsibleState, ThemeIcon } from 'vs/workbench/api/node/extHostTypes';
 import { isUndefinedOrNull } from 'vs/base/common/types';
 import { equals } from 'vs/base/common/arrays';
+import { ILogService } from 'vs/platform/log/common/log';
 
 type TreeItemHandle = string;
 
@@ -27,7 +28,8 @@ export class ExtHostTreeViews implements ExtHostTreeViewsShape {
 
 	constructor(
 		private _proxy: MainThreadTreeViewsShape,
-		private commands: ExtHostCommands
+		private commands: ExtHostCommands,
+		private logService: ILogService
 	) {
 		commands.registerArgumentProcessor({
 			processArgument: arg => {
@@ -99,7 +101,7 @@ export class ExtHostTreeViews implements ExtHostTreeViewsShape {
 	}
 
 	private createExtHostTreeViewer<T>(id: string, dataProvider: vscode.TreeDataProvider<T>): ExtHostTreeView<T> {
-		const treeView = new ExtHostTreeView<T>(id, dataProvider, this._proxy, this.commands.converter);
+		const treeView = new ExtHostTreeView<T>(id, dataProvider, this._proxy, this.commands.converter, this.logService);
 		this.treeViews.set(id, treeView);
 		return treeView;
 	}
@@ -145,7 +147,7 @@ class ExtHostTreeView<T> extends Disposable {
 
 	private refreshPromise: TPromise<void> = TPromise.as(null);
 
-	constructor(private viewId: string, private dataProvider: vscode.TreeDataProvider<T>, private proxy: MainThreadTreeViewsShape, private commands: CommandsConverter) {
+	constructor(private viewId: string, private dataProvider: vscode.TreeDataProvider<T>, private proxy: MainThreadTreeViewsShape, private commands: CommandsConverter, private logService: ILogService) {
 		super();
 		this.proxy.$registerTreeViewDataProvider(viewId);
 		if (this.dataProvider.onDidChangeTreeData) {
@@ -192,7 +194,7 @@ class ExtHostTreeView<T> extends Disposable {
 		return this.refreshPromise
 			.then(() => this.resolveUnknownParentChain(element))
 			.then(parentChain => this.resolveTreeNode(element, parentChain[parentChain.length - 1])
-				.then(treeNode => this.proxy.$reveal(this.viewId, treeNode.item, parentChain.map(p => p.item), { select, focus })));
+				.then(treeNode => this.proxy.$reveal(this.viewId, treeNode.item, parentChain.map(p => p.item), { select, focus })), error => this.logService.error(error));
 	}
 
 	setExpanded(treeItemHandle: TreeItemHandle, expanded: boolean): void {

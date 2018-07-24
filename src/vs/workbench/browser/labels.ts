@@ -183,6 +183,7 @@ export class ResourceLabel extends IconLabel {
 			title: '',
 			italic: this.options && this.options.italic,
 			matches: this.options && this.options.matches,
+			extraClasses: []
 		};
 
 		const resource = this.label.resource;

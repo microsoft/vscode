@@ -21,14 +21,14 @@ export class KeybindingsEditor {
 		await this.code.waitForActiveElement(SEARCH_INPUT);
 		await this.code.waitForSetValue(SEARCH_INPUT, command);
 
-		await this.code.waitAndClick('div[aria-label="Keybindings"] .monaco-list-row.keybinding-item');
-		await this.code.waitForElement('div[aria-label="Keybindings"] .monaco-list-row.keybinding-item.focused.selected');
+		await this.code.waitAndClick('.keybindings-list-container .monaco-list-row.keybinding-item');
+		await this.code.waitForElement('.keybindings-list-container .monaco-list-row.keybinding-item.focused.selected');
 
-		await this.code.waitAndClick('div[aria-label="Keybindings"] .monaco-list-row.keybinding-item .action-item .icon.add');
+		await this.code.waitAndClick('.keybindings-list-container .monaco-list-row.keybinding-item .action-item .icon.add');
 		await this.code.waitForActiveElement('.defineKeybindingWidget .monaco-inputbox input');
 
 		await this.code.dispatchKeybinding(keybinding);
 		await this.code.dispatchKeybinding('enter');
-		await this.code.waitForElement(`div[aria-label="Keybindings"] div[aria-label="Keybinding is ${ariaLabel}."]`);
+		await this.code.waitForElement(`.keybindings-list-container div[aria-label="Keybinding is ${ariaLabel}."]`);
 	}
 }

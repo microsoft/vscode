@@ -150,6 +150,7 @@ export class Client implements IChannelClient, IDisposable {
 				}
 
 				this.activeRequests.splice(this.activeRequests.indexOf(listener), 1);
+				listener.dispose();
 
 				if (this.activeRequests.length === 0) {
 					this.disposeDelayer.trigger(() => this.disposeClient());
