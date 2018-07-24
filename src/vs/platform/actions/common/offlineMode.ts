@@ -12,6 +12,7 @@ import { IConfigurationService } from 'vs/platform/configuration/common/configur
 import { INotificationService, Severity } from 'vs/platform/notification/common/notification';
 import { MenuRegistry, MenuId } from 'vs/platform/actions/common/actions';
 import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
+import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
 
 export const offlineModeSetting = 'workbench.enableOfflineMode';
 
@@ -19,10 +20,14 @@ export class EnableOfflineMode extends Action {
 	static readonly ID = 'workbench.action.enableOfflineMode';
 	static LABEL = localize('enableOfflineMode', 'Enable Offline Mode');
 
+	private readonly disclaimerStorageKey = 'workbench.offlineMode.disclaimer.dontShowAgain';
+
 	constructor(
 		id: string = EnableOfflineMode.ID,
 		label: string = EnableOfflineMode.LABEL,
-		@IConfigurationService private configurationService: IConfigurationService
+		@IConfigurationService private configurationService: IConfigurationService,
+		@IStorageService private storageService: IStorageService,
+		@INotificationService private notificationService: INotificationService
 	) {
 		super(id, label);
 		this.updateEnabled();
@@ -38,6 +43,16 @@ export class EnableOfflineMode extends Action {
 	}
 
 	run(): TPromise<any> {
+		if (this.storageService.getBoolean(this.disclaimerStorageKey, StorageScope.GLOBAL, false) === false) {
+			this.notificationService.prompt(Severity.Info, localize('offlineModeDisclaimer', "VS Code cannot stop extensions from making network requests in offline mode. If extensions make such requests, please log an issue against them."), [
+				{
+					label: localize('DontShowAgain', "Don't Show Again"),
+					run: () => {
+						this.storageService.store(this.disclaimerStorageKey, true);
+					}
+				}
+			]);
+		}
 		return this.configurationService.updateValue(offlineModeSetting, true);
 	}
 }
