@@ -31,11 +31,18 @@ export interface ICommandKeybindingsOptions extends IKeybindings {
 	kbExpr?: ContextKeyExpr;
 	weight?: number;
 }
+// export interface ICommandMenubarOptions {
+// 	group?: string;
+// 	order?: number;
+// 	when?: ContextKeyExpr;
+// 	title?: string;
+// }
 export interface ICommandOptions {
 	id: string;
 	precondition: ContextKeyExpr;
 	kbOpts?: ICommandKeybindingsOptions;
 	description?: ICommandHandlerDescription;
+	// menubarOpts?: ICommandMenubarOptions;
 }
 export abstract class Command {
 	public readonly id: string;
@@ -50,7 +57,7 @@ export abstract class Command {
 		this._description = opts.description;
 	}
 
-	public toCommandAndKeybindingRule(defaultWeight: number): ICommandAndKeybindingRule {
+	private _toCommandAndKeybindingRule(defaultWeight: number): ICommandAndKeybindingRule {
 		const kbOpts = this._kbOpts || { primary: 0 };
 
 		let kbWhen = kbOpts.kbExpr;
@@ -76,6 +83,10 @@ export abstract class Command {
 			mac: kbOpts.mac,
 			description: this._description
 		};
+	}
+
+	public register(defaultWeight: number): void {
+		KeybindingsRegistry.registerCommandAndKeybindingRule(this._toCommandAndKeybindingRule(defaultWeight));
 	}
 
 	public abstract runCommand(accessor: ServicesAccessor, args: any): void | TPromise<void>;
@@ -166,7 +177,7 @@ export abstract class EditorAction extends EditorCommand {
 		this.menuOpts = opts.menuOpts;
 	}
 
-	public toMenuItem(): IMenuItem {
+	private _toMenuItem(): IMenuItem {
 		if (!this.menuOpts) {
 			return null;
 		}
@@ -180,6 +191,16 @@ export abstract class EditorAction extends EditorCommand {
 			group: this.menuOpts.group,
 			order: this.menuOpts.order
 		};
+	}
+
+	public register(defaultWeight: number): void {
+
+		let menuItem = this._toMenuItem();
+		if (menuItem) {
+			MenuRegistry.appendMenuItem(MenuId.EditorContext, menuItem);
+		}
+
+		super.register(defaultWeight);
 	}
 
 	public runEditorCommand(accessor: ServicesAccessor, editor: ICodeEditor, args: any): void | TPromise<void> {
@@ -295,14 +316,7 @@ class EditorContributionRegistry {
 	}
 
 	public registerEditorAction(action: EditorAction) {
-
-		let menuItem = action.toMenuItem();
-		if (menuItem) {
-			MenuRegistry.appendMenuItem(MenuId.EditorContext, menuItem);
-		}
-
-		KeybindingsRegistry.registerCommandAndKeybindingRule(action.toCommandAndKeybindingRule(KeybindingsRegistry.WEIGHT.editorContrib()));
-
+		action.register(KeybindingsRegistry.WEIGHT.editorContrib());
 		this.editorActions.push(action);
 	}
 
@@ -315,7 +329,7 @@ class EditorContributionRegistry {
 	}
 
 	public registerEditorCommand(editorCommand: EditorCommand) {
-		KeybindingsRegistry.registerCommandAndKeybindingRule(editorCommand.toCommandAndKeybindingRule(KeybindingsRegistry.WEIGHT.editorContrib()));
+		editorCommand.register(KeybindingsRegistry.WEIGHT.editorContrib());
 		this.editorCommands[editorCommand.id] = editorCommand;
 	}
 

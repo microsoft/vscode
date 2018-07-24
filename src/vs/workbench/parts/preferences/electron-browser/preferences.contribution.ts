@@ -353,7 +353,7 @@ const startSearchCommand = new StartSearchDefaultSettingsCommand({
 	precondition: ContextKeyExpr.and(CONTEXT_SETTINGS_EDITOR),
 	kbOpts: { primary: KeyMod.CtrlCmd | KeyCode.KEY_F }
 });
-KeybindingsRegistry.registerCommandAndKeybindingRule(startSearchCommand.toCommandAndKeybindingRule(KeybindingsRegistry.WEIGHT.editorContrib()));
+startSearchCommand.register(KeybindingsRegistry.WEIGHT.editorContrib());
 
 class FocusSearchFromSettingsCommand extends SettingsCommand {
 
@@ -369,7 +369,7 @@ const focusSearchFromSettingsCommand = new FocusSearchFromSettingsCommand({
 	precondition: ContextKeyExpr.and(CONTEXT_SETTINGS_EDITOR, CONTEXT_SETTINGS_FIRST_ROW_FOCUS),
 	kbOpts: { primary: KeyCode.UpArrow }
 });
-KeybindingsRegistry.registerCommandAndKeybindingRule(focusSearchFromSettingsCommand.toCommandAndKeybindingRule(KeybindingsRegistry.WEIGHT.workbenchContrib()));
+focusSearchFromSettingsCommand.register(KeybindingsRegistry.WEIGHT.workbenchContrib());
 
 
 class ClearSearchResultsCommand extends SettingsCommand {
@@ -386,7 +386,7 @@ const clearSearchResultsCommand = new ClearSearchResultsCommand({
 	precondition: CONTEXT_SETTINGS_SEARCH_FOCUS,
 	kbOpts: { primary: KeyCode.Escape }
 });
-KeybindingsRegistry.registerCommandAndKeybindingRule(clearSearchResultsCommand.toCommandAndKeybindingRule(KeybindingsRegistry.WEIGHT.editorContrib()));
+clearSearchResultsCommand.register(KeybindingsRegistry.WEIGHT.editorContrib());
 
 class FocusSettingsFileEditorCommand extends SettingsCommand {
 
@@ -404,14 +404,14 @@ const focusSettingsFileEditorCommand = new FocusSettingsFileEditorCommand({
 	precondition: CONTEXT_SETTINGS_SEARCH_FOCUS,
 	kbOpts: { primary: KeyCode.DownArrow }
 });
-KeybindingsRegistry.registerCommandAndKeybindingRule(focusSettingsFileEditorCommand.toCommandAndKeybindingRule(KeybindingsRegistry.WEIGHT.editorContrib()));
+focusSettingsFileEditorCommand.register(KeybindingsRegistry.WEIGHT.editorContrib());
 
 const focusSettingsFromSearchCommand = new FocusSettingsFileEditorCommand({
 	id: SETTINGS_EDITOR_COMMAND_FOCUS_SETTINGS_FROM_SEARCH,
 	precondition: CONTEXT_SETTINGS_SEARCH_FOCUS,
 	kbOpts: { primary: KeyCode.DownArrow }
 });
-KeybindingsRegistry.registerCommandAndKeybindingRule(focusSettingsFromSearchCommand.toCommandAndKeybindingRule(KeybindingsRegistry.WEIGHT.workbenchContrib()));
+focusSettingsFromSearchCommand.register(KeybindingsRegistry.WEIGHT.workbenchContrib());
 
 class FocusNextSearchResultCommand extends SettingsCommand {
 
@@ -427,7 +427,7 @@ const focusNextSearchResultCommand = new FocusNextSearchResultCommand({
 	precondition: CONTEXT_SETTINGS_SEARCH_FOCUS,
 	kbOpts: { primary: KeyCode.Enter }
 });
-KeybindingsRegistry.registerCommandAndKeybindingRule(focusNextSearchResultCommand.toCommandAndKeybindingRule(KeybindingsRegistry.WEIGHT.editorContrib()));
+focusNextSearchResultCommand.register(KeybindingsRegistry.WEIGHT.editorContrib());
 
 class FocusPreviousSearchResultCommand extends SettingsCommand {
 
@@ -443,7 +443,7 @@ const focusPreviousSearchResultCommand = new FocusPreviousSearchResultCommand({
 	precondition: CONTEXT_SETTINGS_SEARCH_FOCUS,
 	kbOpts: { primary: KeyMod.Shift | KeyCode.Enter }
 });
-KeybindingsRegistry.registerCommandAndKeybindingRule(focusPreviousSearchResultCommand.toCommandAndKeybindingRule(KeybindingsRegistry.WEIGHT.editorContrib()));
+focusPreviousSearchResultCommand.register(KeybindingsRegistry.WEIGHT.editorContrib());
 
 class EditFocusedSettingCommand extends SettingsCommand {
 
@@ -459,7 +459,7 @@ const editFocusedSettingCommand = new EditFocusedSettingCommand({
 	precondition: CONTEXT_SETTINGS_SEARCH_FOCUS,
 	kbOpts: { primary: KeyMod.CtrlCmd | KeyCode.US_DOT }
 });
-KeybindingsRegistry.registerCommandAndKeybindingRule(editFocusedSettingCommand.toCommandAndKeybindingRule(KeybindingsRegistry.WEIGHT.editorContrib()));
+editFocusedSettingCommand.register(KeybindingsRegistry.WEIGHT.editorContrib());
 
 class EditFocusedSettingCommand2 extends SettingsCommand {
 
@@ -476,7 +476,7 @@ const editFocusedSettingCommand2 = new EditFocusedSettingCommand2({
 	precondition: ContextKeyExpr.and(CONTEXT_SETTINGS_EDITOR, CONTEXT_SETTINGS_ROW_FOCUS),
 	kbOpts: { primary: KeyCode.Enter }
 });
-KeybindingsRegistry.registerCommandAndKeybindingRule(editFocusedSettingCommand2.toCommandAndKeybindingRule(KeybindingsRegistry.WEIGHT.workbenchContrib()));
+editFocusedSettingCommand2.register(KeybindingsRegistry.WEIGHT.workbenchContrib());
 
 class FocusSettingsListCommand extends SettingsCommand {
 
@@ -493,7 +493,7 @@ const focusSettingsListCommand = new FocusSettingsListCommand({
 	precondition: ContextKeyExpr.and(CONTEXT_SETTINGS_EDITOR, CONTEXT_TOC_ROW_FOCUS),
 	kbOpts: { primary: KeyCode.Enter }
 });
-KeybindingsRegistry.registerCommandAndKeybindingRule(focusSettingsListCommand.toCommandAndKeybindingRule(KeybindingsRegistry.WEIGHT.workbenchContrib()));
+focusSettingsListCommand.register(KeybindingsRegistry.WEIGHT.workbenchContrib());
 
 // Preferences menu
 

@@ -1620,7 +1620,7 @@ function findFocusedEditor(accessor: ServicesAccessor): ICodeEditor {
 }
 
 function registerCommand(command: Command) {
-	KeybindingsRegistry.registerCommandAndKeybindingRule(command.toCommandAndKeybindingRule(CORE_WEIGHT));
+	command.register(CORE_WEIGHT);
 }
 
 /**

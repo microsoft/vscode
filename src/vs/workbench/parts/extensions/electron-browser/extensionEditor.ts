@@ -1124,4 +1124,4 @@ const showCommand = new ShowExtensionEditorFindCommand({
 		primary: KeyMod.CtrlCmd | KeyCode.KEY_F
 	}
 });
-KeybindingsRegistry.registerCommandAndKeybindingRule(showCommand.toCommandAndKeybindingRule(KeybindingsRegistry.WEIGHT.editorContrib()));
+showCommand.register(KeybindingsRegistry.WEIGHT.editorContrib());
