@@ -50,7 +50,7 @@ export abstract class AbstractUpdateService implements IUpdateService {
 		@IRequestService protected requestService: IRequestService,
 		@ILogService protected logService: ILogService,
 	) {
-		if (this.environmentService.disableUpdates) {
+		if (this.environmentService.disableUpdates || this.configurationService.getValue(offlineModeSetting) === true) {
 			this.logService.info('update#ctor - updates are disabled');
 			return;
 		}
@@ -73,11 +73,6 @@ export abstract class AbstractUpdateService implements IUpdateService {
 		}
 
 		this.setState(State.Idle(this.getUpdateType()));
-
-		if (this.configurationService.getValue(offlineModeSetting) === true) {
-			this.logService.info('update#ctor - updates are disabled due to offline mode');
-			return;
-		}
 
 		// Start checking for updates after 30 seconds
 		this.scheduleCheckForUpdates(30 * 1000)

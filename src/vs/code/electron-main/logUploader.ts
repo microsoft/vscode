@@ -17,6 +17,8 @@ import product from 'vs/platform/node/product';
 import { IRequestService } from 'vs/platform/request/node/request';
 import { IRequestContext } from 'vs/base/node/request';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
+import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
+import { offlineModeSetting, unSupportedInOfflineModeMsg } from 'vs/platform/actions/common/offlineMode';
 
 interface PostResult {
 	readonly blob_id: string;
@@ -36,8 +38,14 @@ class Endpoint {
 export async function uploadLogs(
 	channel: ILaunchChannel,
 	requestService: IRequestService,
-	environmentService: IEnvironmentService
+	environmentService: IEnvironmentService,
+	configurationService: IConfigurationService
 ): Promise<any> {
+	if (configurationService.getValue(offlineModeSetting) === true) {
+		console.error(unSupportedInOfflineModeMsg);
+		return;
+	}
+
 	const endpoint = Endpoint.getFromProduct();
 	if (!endpoint) {
 		console.error(localize('invalidEndpoint', 'Invalid log uploader endpoint'));

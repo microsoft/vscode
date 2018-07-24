@@ -17,6 +17,7 @@ import { CommandsRegistry } from 'vs/platform/commands/common/commands';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 
 export const offlineModeSetting = 'workbench.enableOfflineMode';
+export const unSupportedInOfflineModeMsg = localize('offlineModeUnsupportedFeature', "This feature is not supported in offline mode");
 
 export class EnableOfflineMode extends Action {
 	static readonly ID = 'workbench.action.enableOfflineMode';
@@ -99,7 +100,7 @@ export class NotifyUnsupportedFeatureInOfflineMode extends Action {
 	}
 
 	run(): TPromise<any> {
-		this.notificationService.prompt(Severity.Info, localize('offlineModeUnsupportedFeature', "This feature is not supported in offline mode"), [
+		this.notificationService.prompt(Severity.Info, unSupportedInOfflineModeMsg, [
 			{
 				label: DisableOfflineMode.LABEL,
 				run: () => {

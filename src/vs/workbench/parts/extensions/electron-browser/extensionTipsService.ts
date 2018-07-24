@@ -899,7 +899,8 @@ export class ExtensionTipsService extends Disposable implements IExtensionTipsSe
 		if (this.contextService.getWorkbenchState() !== WorkbenchState.FOLDER
 			|| this.contextService.getWorkspace().folders[0].uri.scheme !== Schemas.file // #54483: check with @Ramya
 			|| this._dynamicWorkspaceRecommendations.length
-			|| !this._extensionsRecommendationsUrl) {
+			|| !this._extensionsRecommendationsUrl
+			|| this.configurationService.getValue(offlineModeSetting) === true) {
 			return TPromise.as(null);
 		}
 
