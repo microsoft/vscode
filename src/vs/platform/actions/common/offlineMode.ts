@@ -5,10 +5,10 @@
 
 'use strict';
 
-import { Action } from 'vs/base/common/actions';
 import { localize } from 'vs/nls';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
+import { Action } from 'vs/base/common/actions';
 import { TPromise } from 'vs/base/common/winjs.base';
+import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { INotificationService, Severity } from 'vs/platform/notification/common/notification';
 import { MenuRegistry, MenuId } from 'vs/platform/actions/common/actions';
 import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
@@ -25,12 +25,16 @@ export class EnableOfflineMode extends Action {
 		@IConfigurationService private configurationService: IConfigurationService
 	) {
 		super(id, label);
-		this.enabled = this.configurationService.getValue(offlineModeSetting) !== true;
+		this.updateEnabled();
 		this.configurationService.onDidChangeConfiguration(e => {
 			if (e.affectsConfiguration(offlineModeSetting)) {
-				this.enabled = this.configurationService.getValue(offlineModeSetting) !== true;
+				this.updateEnabled();
 			}
 		});
+	}
+
+	private updateEnabled() {
+		this.enabled = this.configurationService.getValue(offlineModeSetting) !== true;
 	}
 
 	run(): TPromise<any> {
@@ -48,19 +52,22 @@ export class DisableOfflineMode extends Action {
 		@IConfigurationService private configurationService: IConfigurationService
 	) {
 		super(id, label);
-		this.enabled = this.configurationService.getValue(offlineModeSetting) === true;
+		this.updateEnabled();
 		this.configurationService.onDidChangeConfiguration(e => {
 			if (e.affectsConfiguration(offlineModeSetting)) {
-				this.enabled = this.configurationService.getValue(offlineModeSetting) === true;
+				this.updateEnabled();
 			}
 		});
+	}
+
+	private updateEnabled() {
+		this.enabled = this.configurationService.getValue(offlineModeSetting) === true;
 	}
 
 	run(): TPromise<any> {
 		return this.configurationService.updateValue(offlineModeSetting, false);
 	}
 }
-
 
 export class NotifyUnsupportedFeatureInOfflineMode extends Action {
 	static readonly ID = 'workbench.action.notifyUnsupportedFeatureInOfflineMode';
