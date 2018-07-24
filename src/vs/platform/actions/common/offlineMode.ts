@@ -71,7 +71,7 @@ export class NotifyUnsupportedFeatureInOfflineMode extends Action {
 		@IConfigurationService private configurationService: IConfigurationService,
 		@INotificationService private notificationService: INotificationService
 	) {
-		super(id);
+		super(id, label);
 	}
 
 	run(): TPromise<any> {

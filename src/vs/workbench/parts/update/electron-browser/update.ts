@@ -30,7 +30,7 @@ import { IWindowService } from 'vs/platform/windows/common/windows';
 import { ReleaseNotesManager } from './releaseNotesEditor';
 import { isWindows } from 'vs/base/common/platform';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { offlineModeSetting } from 'vs/platform/actions/common/offlineMode';
+import { offlineModeSetting, NotifyUnsupportedFeatureInOfflineMode } from 'vs/platform/actions/common/offlineMode';
 
 let releaseNotesManager: ReleaseNotesManager | undefined = undefined;
 
@@ -322,7 +322,8 @@ export class UpdateContribution implements IGlobalActivity {
 		@IDialogService private dialogService: IDialogService,
 		@IUpdateService private updateService: IUpdateService,
 		@IActivityService private activityService: IActivityService,
-		@IWindowService private windowService: IWindowService
+		@IWindowService private windowService: IWindowService,
+		@IConfigurationService private configurationService: IConfigurationService
 	) {
 		this.state = updateService.state;
 
@@ -546,6 +547,15 @@ export class UpdateContribution implements IGlobalActivity {
 	}
 
 	private getUpdateAction(): IAction | null {
+		if (this.configurationService.getValue(offlineModeSetting) === true) {
+			return new NotifyUnsupportedFeatureInOfflineMode(
+				NotifyUnsupportedFeatureInOfflineMode.ID,
+				nls.localize('checkForUpdates', "Check for Updates..."),
+				this.configurationService,
+				this.notificationService
+			);
+		}
+
 		const state = this.updateService.state;
 
 		switch (state.type) {
