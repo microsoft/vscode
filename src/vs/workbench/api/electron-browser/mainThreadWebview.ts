@@ -32,9 +32,13 @@ export class MainThreadWebviews implements MainThreadWebviewsShape, WebviewReviv
 
 	private static _styleElement?: HTMLStyleElement;
 
-	private static _icons = new Map<number, URI | { light: URI, dark: URI }>();
+	private static _icons = new Map<number, { light: URI, dark: URI }>();
 
-	private static updateStyleElement(id: number, iconPath: URI | { light: URI, dark: URI } | undefined) {
+	private static updateStyleElement(
+		webview: WebviewEditorInput,
+		iconPath: { light: URI, dark: URI } | undefined
+	) {
+		const id = webview.getId();
 		if (!this._styleElement) {
 			this._styleElement = dom.createStyleSheet();
 			this._styleElement.className = 'webview-icons';
@@ -128,22 +132,7 @@ export class MainThreadWebviews implements MainThreadWebviewsShape, WebviewReviv
 
 	public $setIconPath(handle: WebviewPanelHandle, value: UriComponents | { light: UriComponents, dark: UriComponents } | undefined): void {
 		const webview = this.getWebview(handle);
-
-		if (!value) {
-			MainThreadWebviews.updateStyleElement(webview.getId(), undefined);
-			return;
-		}
-
-		const themeIcon = value as { light: UriComponents, dark: UriComponents };
-		if (themeIcon.light && themeIcon.dark) {
-			MainThreadWebviews.updateStyleElement(webview.getId(), {
-				light: URI.revive(themeIcon.light),
-				dark: URI.revive(themeIcon.dark)
-			});
-			return;
-		}
-
-		MainThreadWebviews.updateStyleElement(webview.getId(), URI.revive(value));
+		MainThreadWebviews.updateStyleElement(webview, reviveWebviewIcon(value));
 	}
 
 	public $setHtml(handle: WebviewPanelHandle, value: string): void {
@@ -235,9 +224,16 @@ export class MainThreadWebviews implements MainThreadWebviewsShape, WebviewReviv
 			onDidClickLink: uri => this.onDidClickLink(handle, uri),
 			onMessage: message => this._proxy.$onMessage(handle, message),
 			onDispose: () => {
+				const cleanUp = () => {
+					const webview = this._webviews.get(handle);
+					if (webview) {
+						MainThreadWebviews.updateStyleElement(webview, undefined);
+					}
+					this._webviews.delete(handle);
+				};
 				this._proxy.$onDidDisposeWebviewPanel(handle).then(
-					() => this._webviews.delete(handle),
-					() => this._webviews.delete(handle));
+					cleanUp,
+					cleanUp);
 			}
 		};
 	}
@@ -346,4 +342,23 @@ function reviveWebviewOptions(options: WebviewInputOptions): WebviewInputOptions
 		...options,
 		localResourceRoots: Array.isArray(options.localResourceRoots) ? options.localResourceRoots.map(URI.revive) : undefined
 	};
+}
+
+function reviveWebviewIcon(
+	value: UriComponents | { light: UriComponents, dark: UriComponents } | undefined
+): { light: URI, dark: URI } | undefined {
+	if (!value) {
+		return undefined;
+	}
+
+	const themeIcon = value as { light: UriComponents, dark: UriComponents };
+	if (themeIcon.light && themeIcon.dark) {
+		return {
+			light: URI.revive(themeIcon.light),
+			dark: URI.revive(themeIcon.dark)
+		};
+	}
+
+	const icon = URI.revive(value);
+	return { light: icon, dark: icon };
 }
