@@ -18,7 +18,7 @@ import URI from 'vs/base/common/uri';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { IPosition } from 'vs/editor/common/core/position';
 import { DocumentSymbolProviderRegistry } from 'vs/editor/common/modes';
-import { OutlineElement, OutlineGroup, OutlineModel } from 'vs/editor/contrib/documentSymbols/outlineModel';
+import { OutlineElement, OutlineGroup, OutlineModel, TreeElement } from 'vs/editor/contrib/documentSymbols/outlineModel';
 import { IWorkspaceContextService, IWorkspaceFolder, WorkbenchState } from 'vs/platform/workspace/common/workspace';
 import { Schemas } from 'vs/base/common/network';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
@@ -163,18 +163,23 @@ export class EditorBreadcrumbsModel {
 		});
 
 		OutlineModel.create(buffer, source.token).then(model => {
+			if (TreeElement.empty(model)) {
+				// empty -> no outline elements
+				this._updateOutlineElements([]);
 
-			// copy the model
-			model = model.adopt();
+			} else {
+				// copy the model
+				model = model.adopt();
 
-			this._updateOutlineElements(this._getOutlineElements(model, this._editor.getPosition()));
-			this._outlineDisposables.push(this._editor.onDidChangeCursorPosition(_ => {
-				timeout.cancelAndSet(() => {
-					if (!buffer.isDisposed() && versionIdThen === buffer.getVersionId()) {
-						this._updateOutlineElements(this._getOutlineElements(model, this._editor.getPosition()));
-					}
-				}, 150);
-			}));
+				this._updateOutlineElements(this._getOutlineElements(model, this._editor.getPosition()));
+				this._outlineDisposables.push(this._editor.onDidChangeCursorPosition(_ => {
+					timeout.cancelAndSet(() => {
+						if (!buffer.isDisposed() && versionIdThen === buffer.getVersionId()) {
+							this._updateOutlineElements(this._getOutlineElements(model, this._editor.getPosition()));
+						}
+					}, 150);
+				}));
+			}
 		}).catch(err => {
 			this._updateOutlineElements([]);
 			onUnexpectedError(err);
