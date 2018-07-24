@@ -5,6 +5,7 @@
 
 'use strict';
 
+import * as nls from 'vs/nls';
 import { Position } from 'vs/editor/common/core/position';
 import { Range } from 'vs/editor/common/core/range';
 import * as editorCommon from 'vs/editor/common/editorCommon';
@@ -26,6 +27,7 @@ import { TypeOperations } from 'vs/editor/common/controller/cursorTypeOperations
 import { DeleteOperations } from 'vs/editor/common/controller/cursorDeleteOperations';
 import { VerticalRevealType } from 'vs/editor/common/view/viewEvents';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
+import { MenuId } from 'vs/platform/actions/common/actions';
 
 const CORE_WEIGHT = KeybindingWeight.EditorCore;
 
@@ -1721,6 +1723,12 @@ registerCommand(new EditorOrNativeTextInputCommand({
 		weight: CORE_WEIGHT,
 		kbExpr: EditorContextKeys.textInputFocus,
 		primary: KeyMod.CtrlCmd | KeyCode.KEY_Z
+	},
+	menubarOpts: {
+		menuId: MenuId.MenubarEditMenu,
+		group: '1_do',
+		title: nls.localize({ key: 'miUndo', comment: ['&& denotes a mnemonic'] }, "&&Undo"),
+		order: 1
 	}
 }));
 registerCommand(new EditorHandlerCommand('default:' + H.Undo, H.Undo));
@@ -1736,6 +1744,12 @@ registerCommand(new EditorOrNativeTextInputCommand({
 		primary: KeyMod.CtrlCmd | KeyCode.KEY_Y,
 		secondary: [KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KEY_Z],
 		mac: { primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KEY_Z }
+	},
+	menubarOpts: {
+		menuId: MenuId.MenubarEditMenu,
+		group: '1_do',
+		title: nls.localize({ key: 'miRedo', comment: ['&& denotes a mnemonic'] }, "&&Redo"),
+		order: 2
 	}
 }));
 registerCommand(new EditorHandlerCommand('default:' + H.Redo, H.Redo));

@@ -17,6 +17,7 @@ import { CopyOptions } from 'vs/editor/browser/controller/textAreaInput';
 import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
+import { MenuId } from 'vs/platform/actions/common/actions';
 
 const CLIPBOARD_CONTEXT_MENU_GROUP = '9_cutcopypaste';
 
@@ -80,6 +81,12 @@ class ExecCommandCutAction extends ExecCommandAction {
 			menuOpts: {
 				group: CLIPBOARD_CONTEXT_MENU_GROUP,
 				order: 1
+			},
+			menubarOpts: {
+				menuId: MenuId.MenubarEditMenu,
+				group: '2_ccp',
+				title: nls.localize({ key: 'miCut', comment: ['&& denotes a mnemonic'] }, "Cu&&t"),
+				order: 1
 			}
 		});
 	}
@@ -119,6 +126,12 @@ class ExecCommandCopyAction extends ExecCommandAction {
 			menuOpts: {
 				group: CLIPBOARD_CONTEXT_MENU_GROUP,
 				order: 2
+			},
+			menubarOpts: {
+				menuId: MenuId.MenubarEditMenu,
+				group: '2_ccp',
+				title: nls.localize({ key: 'miCopy', comment: ['&& denotes a mnemonic'] }, "&&Copy"),
+				order: 2
 			}
 		});
 	}
@@ -157,6 +170,12 @@ class ExecCommandPasteAction extends ExecCommandAction {
 			kbOpts: kbOpts,
 			menuOpts: {
 				group: CLIPBOARD_CONTEXT_MENU_GROUP,
+				order: 3
+			},
+			menubarOpts: {
+				menuId: MenuId.MenubarEditMenu,
+				group: '2_ccp',
+				title: nls.localize({ key: 'miPaste', comment: ['&& denotes a mnemonic'] }, "&&Paste"),
 				order: 3
 			}
 		});

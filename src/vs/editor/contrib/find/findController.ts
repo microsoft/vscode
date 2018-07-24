@@ -25,6 +25,7 @@ import { FindOptionsWidget } from 'vs/editor/contrib/find/findOptionsWidget';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { optional } from 'vs/platform/instantiation/common/instantiation';
+import { MenuId } from 'vs/platform/actions/common/actions';
 
 export function getSelectionSearchString(editor: ICodeEditor): string {
 	let selection = editor.getSelection();
@@ -388,6 +389,12 @@ export class StartFindAction extends EditorAction {
 				kbExpr: null,
 				primary: KeyMod.CtrlCmd | KeyCode.KEY_F,
 				weight: KeybindingWeight.EditorContrib
+			},
+			menubarOpts: {
+				menuId: MenuId.MenubarEditMenu,
+				group: '3_find',
+				title: nls.localize({ key: 'miFind', comment: ['&& denotes a mnemonic'] }, "&&Find"),
+				order: 1
 			}
 		});
 	}
@@ -582,6 +589,12 @@ export class StartFindReplaceAction extends EditorAction {
 				primary: KeyMod.CtrlCmd | KeyCode.KEY_H,
 				mac: { primary: KeyMod.CtrlCmd | KeyMod.Alt | KeyCode.KEY_F },
 				weight: KeybindingWeight.EditorContrib
+			},
+			menubarOpts: {
+				menuId: MenuId.MenubarEditMenu,
+				group: '3_find',
+				title: nls.localize({ key: 'miReplace', comment: ['&& denotes a mnemonic'] }, "&&Replace"),
+				order: 2
 			}
 		});
 	}

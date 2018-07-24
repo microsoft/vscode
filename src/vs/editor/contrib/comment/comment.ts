@@ -13,6 +13,7 @@ import { BlockCommentCommand } from './blockCommentCommand';
 import { LineCommentCommand, Type } from './lineCommentCommand';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
+import { MenuId } from 'vs/platform/actions/common/actions';
 
 abstract class CommentLineAction extends EditorAction {
 
@@ -55,6 +56,12 @@ class ToggleCommentLineAction extends CommentLineAction {
 				kbExpr: EditorContextKeys.editorTextFocus,
 				primary: KeyMod.CtrlCmd | KeyCode.US_SLASH,
 				weight: KeybindingWeight.EditorContrib
+			},
+			menubarOpts: {
+				menuId: MenuId.MenubarEditMenu,
+				group: '5_insert',
+				title: nls.localize({ key: 'miToggleLineComment', comment: ['&& denotes a mnemonic'] }, "&&Toggle Line Comment"),
+				order: 1
 			}
 		});
 	}
@@ -105,6 +112,12 @@ class BlockCommentAction extends EditorAction {
 				primary: KeyMod.Shift | KeyMod.Alt | KeyCode.KEY_A,
 				linux: { primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KEY_A },
 				weight: KeybindingWeight.EditorContrib
+			},
+			menubarOpts: {
+				menuId: MenuId.MenubarEditMenu,
+				group: '5_insert',
+				title: nls.localize({ key: 'miToggleBlockComment', comment: ['&& denotes a mnemonic'] }, "Toggle &&Block Comment"),
+				order: 2
 			}
 		});
 	}
