@@ -58,6 +58,7 @@ export class RawDebugSession implements IRawSession {
 	private readonly _onDidThread: Emitter<DebugProtocol.ThreadEvent>;
 	private readonly _onDidOutput: Emitter<DebugProtocol.OutputEvent>;
 	private readonly _onDidBreakpoint: Emitter<DebugProtocol.BreakpointEvent>;
+	private readonly _onDidLoadedSource: Emitter<DebugProtocol.LoadedSourceEvent>;
 	private readonly _onDidCustomEvent: Emitter<DebugEvent>;
 	private readonly _onDidEvent: Emitter<DebugProtocol.Event>;
 
@@ -85,6 +86,7 @@ export class RawDebugSession implements IRawSession {
 		this._onDidThread = new Emitter<DebugProtocol.ThreadEvent>();
 		this._onDidOutput = new Emitter<DebugProtocol.OutputEvent>();
 		this._onDidBreakpoint = new Emitter<DebugProtocol.BreakpointEvent>();
+		this._onDidLoadedSource = new Emitter<DebugProtocol.LoadedSourceEvent>();
 		this._onDidCustomEvent = new Emitter<DebugEvent>();
 		this._onDidEvent = new Emitter<DebugProtocol.Event>();
 	}
@@ -127,6 +129,10 @@ export class RawDebugSession implements IRawSession {
 
 	public get onDidBreakpoint(): Event<DebugProtocol.BreakpointEvent> {
 		return this._onDidBreakpoint.event;
+	}
+
+	public get onDidLoadedSource(): Event<DebugProtocol.LoadedSourceEvent> {
+		return this._onDidLoadedSource.event;
 	}
 
 	public get onDidCustomEvent(): Event<DebugEvent> {
@@ -234,7 +240,9 @@ export class RawDebugSession implements IRawSession {
 	private onDapEvent(event: DebugEvent): void {
 		event.sessionId = this.id;
 
-		if (event.event === 'initialized') {
+		if (event.event === 'loadedSource') {	// most frequent comes first
+			this._onDidLoadedSource.fire(<DebugProtocol.LoadedSourceEvent>event);
+		} else if (event.event === 'initialized') {
 			this.readyForBreakpoints = true;
 			this._onDidInitialize.fire(event);
 		} else if (event.event === 'capabilities' && event.body) {
@@ -386,6 +394,11 @@ export class RawDebugSession implements IRawSession {
 	public source(args: DebugProtocol.SourceArguments): TPromise<DebugProtocol.SourceResponse> {
 		return this.send<DebugProtocol.SourceResponse>('source', args);
 	}
+
+	public loadedSources(args: DebugProtocol.LoadedSourcesArguments): TPromise<DebugProtocol.LoadedSourcesResponse> {
+		return this.send<DebugProtocol.LoadedSourcesResponse>('loadedSources', args);
+	}
+
 
 	public threads(): TPromise<DebugProtocol.ThreadsResponse> {
 		return this.send<DebugProtocol.ThreadsResponse>('threads', null);
