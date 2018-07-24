@@ -75,12 +75,12 @@ class Item extends BreadcrumbsItem {
 			// file/folder
 			let label = this._instantiationService.createInstance(FileLabel, container, {});
 			label.setFile(this.element.uri, {
-				extraClasses: [FileKind[this.element.kind].toLowerCase()],
 				hidePath: true,
-				hideIcon: this.element.kind !== FileKind.FILE || !this.options.showFileIcons,
+				hideIcon: this.element.kind === FileKind.FOLDER || !this.options.showFileIcons,
 				fileKind: this.element.kind,
 				fileDecorations: { colors: this.options.showDecorationColors, badges: false },
 			});
+			dom.addClass(container, FileKind[this.element.kind].toLowerCase());
 			this._disposables.push(label);
 
 		} else if (this.element instanceof OutlineModel) {
