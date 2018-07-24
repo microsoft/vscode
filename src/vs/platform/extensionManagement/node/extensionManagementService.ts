@@ -250,7 +250,7 @@ export class ExtensionManagementService extends Disposable implements IExtension
 						const existingExtension = installed.filter(i => areSameExtensions(i.galleryIdentifier, extension.identifier))[0];
 						operation = existingExtension ? InstallOperation.Update : InstallOperation.Install;
 						return this.downloadInstallableExtension(extension, operation)
-							.then(installableExtension => this.installExtension(installableExtension))
+							.then(installableExtension => this.installExtension(installableExtension).then(local => always(pfs.rimraf(installableExtension.zipPath), () => null).then(() => local)))
 							.then(local => this.installDependenciesAndPackExtensions(local, existingExtension)
 								.then(() => local, error => this.uninstall(local, true).then(() => TPromise.wrapError(error), () => TPromise.wrapError(error))));
 					})
@@ -331,7 +331,7 @@ export class ExtensionManagementService extends Disposable implements IExtension
 						return this.galleryService.download(extension, operation)
 							.then(
 								zipPath => {
-									this.logService.info('Downloaded extension:', extension.name);
+									this.logService.info('Downloaded extension:', extension.name, zipPath);
 									return validateLocalExtension(zipPath)
 										.then(
 											manifest => (<InstallableExtension>{ zipPath, id: getLocalExtensionIdFromManifest(manifest), metadata }),

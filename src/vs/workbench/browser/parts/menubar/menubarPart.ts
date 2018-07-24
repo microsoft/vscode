@@ -29,11 +29,12 @@ import { Event, Emitter } from 'vs/base/common/event';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { domEvent } from 'vs/base/browser/event';
 import { IRecentlyOpened } from 'vs/platform/history/common/history';
-import { IWorkspaceIdentifier, ISingleFolderWorkspaceIdentifier, isSingleFolderWorkspaceIdentifier, getWorkspaceLabel } from 'vs/platform/workspaces/common/workspaces';
+import { IWorkspaceIdentifier, getWorkspaceLabel, ISingleFolderWorkspaceIdentifier, isSingleFolderWorkspaceIdentifier, isWorkspaceIdentifier } from 'vs/platform/workspaces/common/workspaces';
 import { getPathLabel } from 'vs/base/common/labels';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { RunOnceScheduler } from 'vs/base/common/async';
 import { MENUBAR_SELECTION_FOREGROUND, MENUBAR_SELECTION_BACKGROUND, MENUBAR_SELECTION_BORDER, TITLE_BAR_ACTIVE_FOREGROUND, TITLE_BAR_INACTIVE_FOREGROUND, MENU_BACKGROUND, MENU_FOREGROUND, MENU_SELECTION_BACKGROUND, MENU_SELECTION_FOREGROUND, MENU_SELECTION_BORDER } from 'vs/workbench/common/theme';
+import URI from 'vs/base/common/uri';
 
 interface CustomMenu {
 	title: string;
@@ -511,20 +512,23 @@ export class MenubarPart extends Part {
 	private createOpenRecentMenuAction(workspace: IWorkspaceIdentifier | ISingleFolderWorkspaceIdentifier | string, commandId: string, isFile: boolean): IAction {
 
 		let label: string;
-		let path: string;
+		let uri: URI;
 
-		if (isSingleFolderWorkspaceIdentifier(workspace) || typeof workspace === 'string') {
-			label = getPathLabel(workspace, this.environmentService);
-			path = workspace;
-		} else {
+		if (isSingleFolderWorkspaceIdentifier(workspace)) {
 			label = getWorkspaceLabel(workspace, this.environmentService, { verbose: true });
-			path = workspace.configPath;
+			uri = workspace;
+		} else if (isWorkspaceIdentifier(workspace)) {
+			label = getWorkspaceLabel(workspace, this.environmentService, { verbose: true });
+			uri = URI.file(workspace.configPath);
+		} else {
+			label = getPathLabel(workspace, this.environmentService);
+			uri = URI.file(workspace);
 		}
 
 		return new Action(commandId, label, undefined, undefined, (event) => {
 			const openInNewWindow = event && ((!isMacintosh && (event.ctrlKey || event.shiftKey)) || (isMacintosh && (event.metaKey || event.altKey)));
 
-			return this.windowService.openWindow([path], {
+			return this.windowService.openWindow([uri], {
 				forceNewWindow: openInNewWindow,
 				forceOpenWorkspaceAsFile: isFile
 			});
@@ -863,8 +867,6 @@ export class MenubarPart extends Part {
 		let menuHolder = $(customMenu.buttonElement).div({ class: 'menubar-menu-items-holder' });
 
 		$(menuHolder.getHTMLElement().parentElement).addClass('open');
-
-		menuHolder.addClass('menubar-menu-items-holder-open context-view');
 		menuHolder.style({
 			'zoom': `${1 / browser.getZoomFactor()}`,
 			'top': `${this.container.getClientArea().height * browser.getZoomFactor()}px`
@@ -1161,6 +1163,9 @@ class ModifierKeyEmitter extends Emitter<IModifierKeyStatus> {
 			if (this._keyStatus.lastKeyReleased) {
 				this.fire(this._keyStatus);
 			}
+		}));
+		this._subscriptions.push(domEvent(document.body, 'mousedown')(e => {
+			this._keyStatus.lastKeyPressed = undefined;
 		}));
 
 		this._subscriptions.push(domEvent(window, 'blur')(e => {

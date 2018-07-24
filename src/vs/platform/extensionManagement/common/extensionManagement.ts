@@ -343,6 +343,8 @@ export const IExtensionEnablementService = createDecorator<IExtensionEnablementS
 export interface IExtensionEnablementService {
 	_serviceBrand: any;
 
+	readonly allUserExtensionsDisabled: boolean;
+
 	/**
 	 * Event to listen on for extension enablement changes
 	 */
@@ -352,7 +354,7 @@ export interface IExtensionEnablementService {
 	 * Returns all disabled extension identifiers for current workspace
 	 * Returns an empty array if none exist
 	 */
-	getDisabledExtensions(): TPromise<IExtensionIdentifier[]>;
+	getDisabledExtensions(): Promise<IExtensionIdentifier[]>;
 
 	/**
 	 * Returns the enablement state for the given extension

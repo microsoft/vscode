@@ -66,6 +66,7 @@ registerThemingParticipant((theme: ITheme, collector: ICssStyleCollector) => {
 	const modifiedItemForegroundColor = theme.getColor(modifiedItemForeground);
 	if (modifiedItemForegroundColor) {
 		collector.addRule(`.settings-editor > .settings-body > .settings-tree-container .setting-item.is-configured .setting-item-is-configured-label { color: ${modifiedItemForegroundColor}; }`);
+		collector.addRule(`.settings-editor > .settings-header > .settings-header-controls .settings-header-controls-right .toolbar-toggle-more::before { background-color: ${modifiedItemForegroundColor}; }`);
 	}
 
 	const checkboxBackgroundColor = theme.getColor(settingsCheckboxBackground);
@@ -483,6 +484,7 @@ export class SettingsRenderer implements IRenderer {
 
 	private static readonly SETTING_ROW_HEIGHT = 98;
 	private static readonly SETTING_BOOL_ROW_HEIGHT = 65;
+	public static readonly MAX_ENUM_DESCRIPTIONS = 10;
 
 	private readonly _onDidChangeSetting: Emitter<ISettingChangeEvent> = new Emitter<ISettingChangeEvent>();
 	public readonly onDidChangeSetting: Event<ISettingChangeEvent> = this._onDidChangeSetting.event;
@@ -507,7 +509,7 @@ export class SettingsRenderer implements IRenderer {
 	getHeight(tree: ITree, element: SettingsTreeElement): number {
 		if (element instanceof SettingsTreeGroupElement) {
 			if (element.isFirstGroup) {
-				return 28;
+				return 31;
 			}
 
 			return 40 + (7 * element.level);
@@ -846,12 +848,20 @@ export class SettingsRenderer implements IRenderer {
 		template.labelElement.textContent = element.displayLabel;
 		template.labelElement.title = titleTooltip;
 
-		const enumDescriptionText = element.setting.enumDescriptions ?
-			'\n' + element.setting.enumDescriptions
-				.map((desc, i) => ` - \`${element.setting.enum[i]}\`: ${desc}`)
-				.join('\n') :
-			'';
-		const descriptionText = element.description + enumDescriptionText;
+		let enumDescriptionText = '';
+		if (element.valueType === 'string' && element.setting.enumDescriptions && element.setting.enum && element.setting.enum.length < SettingsRenderer.MAX_ENUM_DESCRIPTIONS) {
+			enumDescriptionText = '\n' + element.setting.enumDescriptions
+				.map((desc, i) => desc ?
+					` - \`${element.setting.enum[i]}\` :
+					${desc}` : ` - \`${element.setting.enum[i]}\``)
+				.filter(desc => !!desc)
+				.join('\n');
+		}
+
+		// Rewrite `#editor.fontSize#` to link format
+		const descriptionText = (element.description + enumDescriptionText)
+			.replace(/`#(.*)#`/g, (match, settingName) => `[\`${settingName}\`](#${settingName})`);
+
 		const renderedDescription = renderMarkdown({ value: descriptionText }, {
 			actionHandler: {
 				callback: (content: string) => {
@@ -911,7 +921,7 @@ export class SettingsRenderer implements IRenderer {
 	}
 
 	private renderEnum(dataElement: SettingsTreeSettingElement, isSelected: boolean, template: ISettingEnumItemTemplate, onChange: (value: string) => void): void {
-		const displayOptions = dataElement.setting.enum.map(escapeInvisibleChars);
+		const displayOptions = getDisplayEnumOptions(dataElement.setting);
 		template.selectBox.setOptions(displayOptions);
 
 		const label = dataElement.displayCategory + ' ' + dataElement.displayLabel;
@@ -953,6 +963,20 @@ export class SettingsRenderer implements IRenderer {
 	disposeTemplate(tree: ITree, templateId: string, template: IDisposableTemplate): void {
 		dispose(template.toDispose);
 	}
+}
+
+function getDisplayEnumOptions(setting: ISetting): string[] {
+	if (setting.enum.length > SettingsRenderer.MAX_ENUM_DESCRIPTIONS && setting.enumDescriptions) {
+		return setting.enum
+			.map(escapeInvisibleChars)
+			.map((value, i) => {
+				return setting.enumDescriptions[i] ?
+					`${value}: ${setting.enumDescriptions[i]}` :
+					value;
+			});
+	}
+
+	return setting.enum.map(escapeInvisibleChars);
 }
 
 function escapeInvisibleChars(enumValue: string): string {

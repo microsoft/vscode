@@ -13,6 +13,7 @@ import { createDecorator } from 'vs/platform/instantiation/common/instantiation'
 import { IProcessEnvironment } from 'vs/base/common/platform';
 import { IWorkspaceIdentifier, IWorkspaceFolderCreationData } from 'vs/platform/workspaces/common/workspaces';
 import { ISerializableCommandAction } from 'vs/platform/actions/common/actions';
+import URI from 'vs/base/common/uri';
 
 export interface IWindowState {
 	width?: number;
@@ -35,7 +36,7 @@ export interface ICodeWindow {
 	win: Electron.BrowserWindow;
 	config: IWindowConfiguration;
 
-	openedFolderPath: string;
+	openedFolderUri: URI;
 	openedWorkspace: IWorkspaceIdentifier;
 	backupPath: string;
 
@@ -123,7 +124,7 @@ export interface IOpenConfiguration {
 	contextWindowId?: number;
 	cli: ParsedArgs;
 	userEnv?: IProcessEnvironment;
-	pathsToOpen?: string[];
+	urisToOpen?: URI[];
 	preferNewWindow?: boolean;
 	forceNewWindow?: boolean;
 	forceReuseWindow?: boolean;

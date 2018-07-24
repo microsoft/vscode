@@ -22,7 +22,8 @@ import { mnemonicMenuLabel as baseMnemonicLabel, unmnemonicLabel, getPathLabel }
 import { KeybindingsResolver } from 'vs/code/electron-main/keyboard';
 import { IWindowsMainService, IWindowsCountChangedEvent } from 'vs/platform/windows/electron-main/windows';
 import { IHistoryMainService } from 'vs/platform/history/common/history';
-import { IWorkspaceIdentifier, getWorkspaceLabel, ISingleFolderWorkspaceIdentifier, isSingleFolderWorkspaceIdentifier } from 'vs/platform/workspaces/common/workspaces';
+import { IWorkspaceIdentifier, getWorkspaceLabel, ISingleFolderWorkspaceIdentifier, isSingleFolderWorkspaceIdentifier, isWorkspaceIdentifier } from 'vs/platform/workspaces/common/workspaces';
+import URI from 'vs/base/common/uri';
 
 interface IMenuItemClickHandler {
 	inDevTools: (contents: Electron.WebContents) => void;
@@ -194,7 +195,7 @@ export class CodeMenu {
 	private updateWorkspaceMenuItems(): void {
 		const window = this.windowsMainService.getLastActiveWindow();
 		const isInWorkspaceContext = window && !!window.openedWorkspace;
-		const isInFolderContext = window && !!window.openedFolderPath;
+		const isInFolderContext = window && !!window.openedFolderUri;
 
 		this.closeWorkspace.visible = isInWorkspaceContext;
 		this.closeFolder.visible = !isInWorkspaceContext;
@@ -489,13 +490,16 @@ export class CodeMenu {
 
 	private createOpenRecentMenuItem(workspace: IWorkspaceIdentifier | ISingleFolderWorkspaceIdentifier | string, commandId: string, isFile: boolean): Electron.MenuItem {
 		let label: string;
-		let path: string;
-		if (isSingleFolderWorkspaceIdentifier(workspace) || typeof workspace === 'string') {
-			label = unmnemonicLabel(getPathLabel(workspace, this.environmentService));
-			path = workspace;
-		} else {
+		let uri: URI;
+		if (isSingleFolderWorkspaceIdentifier(workspace)) {
+			label = unmnemonicLabel(getWorkspaceLabel(workspace, this.environmentService, { verbose: true }));
+			uri = workspace;
+		} else if (isWorkspaceIdentifier(workspace)) {
 			label = getWorkspaceLabel(workspace, this.environmentService, { verbose: true });
-			path = workspace.configPath;
+			uri = URI.file(workspace.configPath);
+		} else {
+			label = unmnemonicLabel(getPathLabel(workspace, this.environmentService, null));
+			uri = URI.file(workspace);
 		}
 
 		return new MenuItem(this.likeAction(commandId, {
@@ -505,12 +509,12 @@ export class CodeMenu {
 				const success = this.windowsMainService.open({
 					context: OpenContext.MENU,
 					cli: this.environmentService.args,
-					pathsToOpen: [path], forceNewWindow: openInNewWindow,
+					urisToOpen: [uri], forceNewWindow: openInNewWindow,
 					forceOpenWorkspaceAsFile: isFile
 				}).length > 0;
 
 				if (!success) {
-					this.historyMainService.removeFromRecentlyOpened([isSingleFolderWorkspaceIdentifier(workspace) ? workspace : workspace.configPath]);
+					this.historyMainService.removeFromRecentlyOpened([workspace]);
 				}
 			}
 		}, false));

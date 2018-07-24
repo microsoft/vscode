@@ -5,6 +5,7 @@
 
 'use strict';
 
+import 'vs/css!./media/searchview';
 import { $, Builder } from 'vs/base/browser/builder';
 import * as dom from 'vs/base/browser/dom';
 import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
@@ -14,15 +15,14 @@ import { MessageType } from 'vs/base/browser/ui/inputbox/inputBox';
 import { IAction } from 'vs/base/common/actions';
 import { Delayer } from 'vs/base/common/async';
 import * as errors from 'vs/base/common/errors';
-import { debounceEvent, Emitter } from 'vs/base/common/event';
+import { debounceEvent, Emitter, anyEvent } from 'vs/base/common/event';
 import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
 import * as paths from 'vs/base/common/paths';
 import * as env from 'vs/base/common/platform';
 import * as strings from 'vs/base/common/strings';
 import URI from 'vs/base/common/uri';
 import { TPromise } from 'vs/base/common/winjs.base';
-import { IFocusEvent, ITree } from 'vs/base/parts/tree/browser/tree';
-import 'vs/css!./media/searchview';
+import { ITree } from 'vs/base/parts/tree/browser/tree';
 import { ICodeEditor, isCodeEditor, isDiffEditor } from 'vs/editor/browser/editorBrowser';
 import { IEditorOptions } from 'vs/editor/common/config/editorOptions';
 import * as nls from 'vs/nls';
@@ -582,14 +582,9 @@ export class SearchView extends Viewlet implements IViewlet, IPanel {
 				}
 			}));
 
-			let treeHasFocus = false;
-			this.tree.onDidFocus(() => {
-				treeHasFocus = true;
-			});
-
-			this._register(this.tree.onDidChangeFocus((e: IFocusEvent) => {
-				if (treeHasFocus) {
-					const focus = e.focus;
+			this._register(anyEvent<any>(this.tree.onDidFocus, this.tree.onDidChangeFocus)(() => {
+				if (this.tree.isDOMFocused()) {
+					const focus = this.tree.getFocus();
 					this.firstMatchFocused.set(this.tree.getNavigator().first() === focus);
 					this.fileMatchOrMatchFocused.set(!!focus);
 					this.fileMatchFocused.set(focus instanceof FileMatch);
@@ -600,7 +595,6 @@ export class SearchView extends Viewlet implements IViewlet, IPanel {
 			}));
 
 			this._register(this.tree.onDidBlur(e => {
-				treeHasFocus = false;
 				this.firstMatchFocused.reset();
 				this.fileMatchOrMatchFocused.reset();
 				this.fileMatchFocused.reset();

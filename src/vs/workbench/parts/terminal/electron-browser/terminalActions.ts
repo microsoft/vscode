@@ -1141,3 +1141,24 @@ export class SelectToNextLineAction extends Action {
 		return TPromise.as(void 0);
 	}
 }
+
+
+export class ToggleEscapeSequenceLoggingAction extends Action {
+	public static readonly ID = TERMINAL_COMMAND_ID.TOGGLE_ESCAPE_SEQUENCE_LOGGING;
+	public static readonly LABEL = nls.localize('workbench.action.terminal.toggleEscapeSequenceLogging', "Toggle Escape Sequence Logging");
+
+	constructor(
+		id: string, label: string,
+		@ITerminalService private terminalService: ITerminalService
+	) {
+		super(id, label);
+	}
+
+	public run(): TPromise<any> {
+		const instance = this.terminalService.getActiveInstance();
+		if (instance) {
+			instance.toggleEscapeSequenceLogging();
+		}
+		return TPromise.as(void 0);
+	}
+}

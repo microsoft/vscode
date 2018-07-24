@@ -260,7 +260,8 @@ export class ChannelClient implements IChannelClient, IDisposable {
 		let uninitializedPromise: TPromise<any> | null = null;
 		const emitter = new Emitter<any>({
 			onFirstListenerAdd: () => {
-				uninitializedPromise = this.whenInitialized().then(() => {
+				uninitializedPromise = this.whenInitialized();
+				uninitializedPromise.then(() => {
 					uninitializedPromise = null;
 					this.send(request.raw);
 				});

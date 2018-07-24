@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { KeybindingsRegistry } from 'vs/platform/keybinding/common/keybindingsRegistry';
+import { KeybindingsRegistry, KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { ITerminalService } from 'vs/workbench/parts/terminal/common/terminal';
 
 export const enum TERMINAL_COMMAND_ID {
@@ -54,6 +54,7 @@ export const enum TERMINAL_COMMAND_ID {
 	SELECT_TO_NEXT_COMMAND = 'workbench.action.terminal.selectToNextCommand',
 	SELECT_TO_PREVIOUS_LINE = 'workbench.action.terminal.selectToPreviousLine',
 	SELECT_TO_NEXT_LINE = 'workbench.action.terminal.selectToNextLine',
+	TOGGLE_ESCAPE_SEQUENCE_LOGGING = 'toggleEscapeSequenceLogging'
 }
 
 
@@ -68,7 +69,7 @@ function registerOpenTerminalAtIndexCommands(): void {
 
 		KeybindingsRegistry.registerCommandAndKeybindingRule({
 			id: `workbench.action.terminal.focusAtIndex${visibleIndex}`,
-			weight: KeybindingsRegistry.WEIGHT.workbenchContrib(),
+			weight: KeybindingWeight.WorkbenchContrib,
 			when: void 0,
 			primary: null,
 			handler: accessor => {

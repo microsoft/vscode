@@ -41,7 +41,7 @@ import { IIntegrityService } from 'vs/platform/integrity/common/integrity';
 import { EditorWorkerServiceImpl } from 'vs/editor/common/services/editorWorkerServiceImpl';
 import { IEditorWorkerService } from 'vs/editor/common/services/editorWorkerService';
 import { ExtensionService } from 'vs/workbench/services/extensions/electron-browser/extensionService';
-import { IStorageService } from 'vs/platform/storage/common/storage';
+import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
 import { InstantiationService } from 'vs/platform/instantiation/common/instantiationService';
@@ -91,12 +91,13 @@ import { NotificationService } from 'vs/workbench/services/notification/common/n
 import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
 import { DialogService } from 'vs/workbench/services/dialogs/electron-browser/dialogService';
 import { DialogChannel } from 'vs/platform/dialogs/common/dialogIpc';
-import { EventType, addDisposableListener, addClass } from 'vs/base/browser/dom';
+import { EventType, addDisposableListener, addClass, getTotalHeight, getTotalWidth } from 'vs/base/browser/dom';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
 import { OpenerService } from 'vs/editor/browser/services/openerService';
 import { SearchHistoryService } from 'vs/workbench/services/search/node/searchHistoryService';
 import { MulitExtensionManagementService } from 'vs/platform/extensionManagement/common/multiExtensionManagement';
 import { ExtensionManagementServerService } from 'vs/workbench/services/extensions/node/extensionManagementServerService';
+import { Parts, Position } from 'vs/workbench/services/part/common/partService';
 
 /**
  * Services that we require for the Shell
@@ -187,6 +188,9 @@ export class WorkbenchShell extends Disposable {
 
 			// Startup Workbench
 			workbench.startup().done(startupInfos => {
+
+				// Remove splash screen
+				this._removePartsSplash();
 
 				// Set lifecycle phase to `Runnning` so that other contributions can now do something
 				this.lifecycleService.phase = LifecyclePhase.Running;
@@ -508,12 +512,73 @@ export class WorkbenchShell extends Disposable {
 		// Keep font info for next startup around
 		saveFontInfo(this.storageService);
 
+		this._savePartsSplash();
+
 		// Dispose Workbench
 		if (this.workbench) {
 			this.workbench.dispose(reason);
 		}
 	}
+
+	private static readonly PARTS_SPLASH_ID = 'monaco-parts-splash';
+
+	private _savePartsSplash() {
+
+		// capture html-structure
+		let state = this.contextService.getWorkbenchState();
+		let html = `<div id="${WorkbenchShell.PARTS_SPLASH_ID}">`;
+
+		// title part
+		let titleHeight: number;
+		{
+			let part = this.workbench.getContainer(Parts.TITLEBAR_PART);
+			let height = getTotalHeight(part);
+			let bg = part.style.backgroundColor || 'inhert';
+			html += `<div style="position: absolute; width: 100%; left: 0; top: 0; height: ${height}px; background-color: ${bg};"></div>`;
+			titleHeight = height;
+		}
+
+		// activitybar-part
+		let left = this.workbench.getSideBarPosition() === Position.LEFT;
+		let activityPartWidth: number;
+		{
+			let part = this.workbench.getContainer(Parts.ACTIVITYBAR_PART);
+			let width = getTotalWidth(part);
+			let bg = part.style.backgroundColor || 'inhert';
+			html += `<div style="position: absolute; height: calc(100% - ${titleHeight}px); top: ${titleHeight}px; ${left ? 'left' : 'right'}: 0; width: ${width}px; background-color: ${bg};"></div>`;
+			activityPartWidth = width;
+		}
+
+		// sidebar-part (only for folder/workspace cases)
+		if (state !== WorkbenchState.EMPTY) {
+			let part = this.workbench.getContainer(Parts.SIDEBAR_PART);
+			let width = getTotalWidth(part);
+			let bg = part.style.backgroundColor || 'inhert';
+			html += `<div style="position: absolute; height: calc(100% - ${titleHeight}px); top: ${titleHeight}px; ${left ? 'left' : 'right'}: ${activityPartWidth}px; width: ${width}px; background-color: ${bg};"></div>`;
+		}
+
+		// statusbar-part
+		{
+			let part = this.workbench.getContainer(Parts.STATUSBAR_PART);
+			let height = getTotalHeight(part);
+			let bg = part.style.backgroundColor || 'inhert';
+			html += `<div style="position: absolute; width: 100%; bottom: 0; left: 0; height: ${height}px; background-color: ${bg};"></div>`;
+		}
+
+		html += '\n</div>';
+
+		// store per workspace or globally
+		this.storageService.store('parts-splash', html, state === WorkbenchState.EMPTY ? StorageScope.GLOBAL : StorageScope.WORKSPACE);
+	}
+
+	private _removePartsSplash(): void {
+		let element = document.getElementById(WorkbenchShell.PARTS_SPLASH_ID);
+		if (element) {
+			element.remove();
+		}
+	}
 }
+
 
 registerThemingParticipant((theme: ITheme, collector: ICssStyleCollector) => {
 

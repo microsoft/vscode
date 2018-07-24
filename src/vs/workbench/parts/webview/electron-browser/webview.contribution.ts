@@ -9,14 +9,14 @@ import { SyncActionDescriptor } from 'vs/platform/actions/common/actions';
 import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
 import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
-import { KeybindingsRegistry } from 'vs/platform/keybinding/common/keybindingsRegistry';
+import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { EditorDescriptor, Extensions as EditorExtensions, IEditorRegistry } from 'vs/workbench/browser/editor';
 import { Extensions as ActionExtensions, IWorkbenchActionRegistry } from 'vs/workbench/common/actions';
 import { Extensions as EditorInputExtensions, IEditorInputFactoryRegistry } from 'vs/workbench/common/editor';
 import { WebviewEditorInputFactory } from 'vs/workbench/parts/webview/electron-browser/webviewEditorInputFactory';
 import { KEYBINDING_CONTEXT_WEBVIEWEDITOR_FOCUS, KEYBINDING_CONTEXT_WEBVIEW_FIND_WIDGET_VISIBLE } from './baseWebviewEditor';
-import { HideWebViewEditorFindCommand, OpenWebviewDeveloperToolsAction, ReloadWebviewAction, ShowWebViewEditorFindWidgetCommand } from './webviewCommands';
+import { HideWebViewEditorFindCommand, OpenWebviewDeveloperToolsAction, ReloadWebviewAction, ShowWebViewEditorFindWidgetCommand, SelectAllWebviewEditorCommand } from './webviewCommands';
 import { WebviewEditor } from './webviewEditor';
 import { WebviewEditorInput } from './webviewEditorInput';
 import { IWebviewEditorService, WebviewEditorService } from './webviewEditorService';
@@ -42,10 +42,11 @@ const showNextFindWdigetCommand = new ShowWebViewEditorFindWidgetCommand({
 	id: ShowWebViewEditorFindWidgetCommand.ID,
 	precondition: KEYBINDING_CONTEXT_WEBVIEWEDITOR_FOCUS,
 	kbOpts: {
-		primary: KeyMod.CtrlCmd | KeyCode.KEY_F
+		primary: KeyMod.CtrlCmd | KeyCode.KEY_F,
+		weight: KeybindingWeight.EditorContrib
 	}
 });
-KeybindingsRegistry.registerCommandAndKeybindingRule(showNextFindWdigetCommand.toCommandAndKeybindingRule(KeybindingsRegistry.WEIGHT.editorContrib()));
+showNextFindWdigetCommand.register();
 
 const hideCommand = new HideWebViewEditorFindCommand({
 	id: HideWebViewEditorFindCommand.ID,
@@ -53,11 +54,21 @@ const hideCommand = new HideWebViewEditorFindCommand({
 		KEYBINDING_CONTEXT_WEBVIEWEDITOR_FOCUS,
 		KEYBINDING_CONTEXT_WEBVIEW_FIND_WIDGET_VISIBLE),
 	kbOpts: {
-		primary: KeyCode.Escape
+		primary: KeyCode.Escape,
+		weight: KeybindingWeight.EditorContrib
 	}
 });
-KeybindingsRegistry.registerCommandAndKeybindingRule(hideCommand.toCommandAndKeybindingRule(KeybindingsRegistry.WEIGHT.editorContrib()));
+hideCommand.register();
 
+const selectAllCommand = new SelectAllWebviewEditorCommand({
+	id: SelectAllWebviewEditorCommand.ID,
+	precondition: KEYBINDING_CONTEXT_WEBVIEWEDITOR_FOCUS,
+	kbOpts: {
+		primary: KeyMod.CtrlCmd | KeyCode.KEY_A,
+		weight: KeybindingWeight.EditorContrib
+	}
+});
+selectAllCommand.register();
 
 actionRegistry.registerWorkbenchAction(
 	new SyncActionDescriptor(OpenWebviewDeveloperToolsAction, OpenWebviewDeveloperToolsAction.ID, OpenWebviewDeveloperToolsAction.LABEL),

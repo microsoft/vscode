@@ -47,11 +47,14 @@ abstract class Recording {
 	abstract hasChanged(resource: URI): boolean;
 }
 
+type ValidationResult = { canApply: true } | { canApply: false, reason: URI };
+
 class ModelEditTask implements IDisposable {
 
 	private readonly _model: ITextModel;
 
 	protected _edits: IIdentifiedSingleEditOperation[];
+	private _expectedModelVersionId: number | undefined;
 	protected _newEol: EndOfLineSequence;
 
 	constructor(private readonly _modelReference: IReference<ITextEditorModel>) {
@@ -64,6 +67,7 @@ class ModelEditTask implements IDisposable {
 	}
 
 	addEdit(resourceEdit: ResourceTextEdit): void {
+		this._expectedModelVersionId = resourceEdit.modelVersionId;
 		for (const edit of resourceEdit.edits) {
 			if (typeof edit.eol === 'number') {
 				// honor eol-change
@@ -80,6 +84,13 @@ class ModelEditTask implements IDisposable {
 				this._edits.push(EditOperation.replaceMove(range, edit.text));
 			}
 		}
+	}
+
+	validate(): ValidationResult {
+		if (typeof this._expectedModelVersionId === 'undefined' || this._model.getVersionId() === this._expectedModelVersionId) {
+			return { canApply: true };
+		}
+		return { canApply: false, reason: this._model.uri };
 	}
 
 	apply(): void {
@@ -189,6 +200,16 @@ class BulkEditModel implements IDisposable {
 		await TPromise.join(promises);
 
 		return this;
+	}
+
+	validate(): ValidationResult {
+		for (const task of this._tasks) {
+			const result = task.validate();
+			if (!result.canApply) {
+				return result;
+			}
+		}
+		return { canApply: true };
 	}
 
 	apply(): void {
@@ -328,6 +349,11 @@ export class BulkEdit {
 		if (conflicts.length > 0) {
 			model.dispose();
 			throw new Error(localize('conflict', "These files have changed in the meantime: {0}", conflicts.join(', ')));
+		}
+
+		const validationResult = model.validate();
+		if (validationResult.canApply === false) {
+			throw new Error(`${validationResult.reason.toString()} has changed in the meantime`);
 		}
 
 		await model.apply();

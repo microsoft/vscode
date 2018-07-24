@@ -18,9 +18,11 @@ const options: minimist.Opts = {
 		'locale',
 		'user-data-dir',
 		'extensions-dir',
+		'folder-uri',
 		'extensionDevelopmentPath',
 		'extensionTestsPath',
 		'install-extension',
+		'disable-extension',
 		'uninstall-extension',
 		'debugId',
 		'debugPluginHost',
@@ -143,6 +145,7 @@ export function parseArgs(args: string[]): ParsedArgs {
 
 const optionsHelp: { [name: string]: string; } = {
 	'-d, --diff <file> <file>': localize('diff', "Compare two files with each other."),
+	'--folder-uri <uri>': localize('folder uri', "Opens a window with given folder uri(s)"),
 	'-a, --add <dir>': localize('add', "Add folder(s) to the last active window."),
 	'-g, --goto <file:line[:character]>': localize('goto', "Open a file at the path on the specified line and character position."),
 	'-n, --new-window': localize('newWindow', "Force to open a new window."),
@@ -170,6 +173,7 @@ const troubleshootingHelp: { [name: string]: string; } = {
 	'-p, --performance': localize('performance', "Start with the 'Developer: Startup Performance' command enabled."),
 	'--prof-startup': localize('prof-startup', "Run CPU profiler during startup"),
 	'--disable-extensions': localize('disableExtensions', "Disable all installed extensions."),
+	'--disable-extension <extension-id>': localize('disableExtension', "Disable an extension."),
 	'--inspect-extensions': localize('inspect-extensions', "Allow debugging and profiling of extensions. Check the developer tools for the connection URI."),
 	'--inspect-brk-extensions': localize('inspect-brk-extensions', "Allow debugging and profiling of extensions with the extension host being paused after start. Check the developer tools for the connection URI."),
 	'--disable-gpu': localize('disableGPU', "Disable GPU hardware acceleration."),

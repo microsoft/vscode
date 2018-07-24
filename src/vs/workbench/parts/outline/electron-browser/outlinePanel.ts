@@ -18,7 +18,7 @@ import { onUnexpectedError, isPromiseCanceledError } from 'vs/base/common/errors
 import { Emitter } from 'vs/base/common/event';
 import { defaultGenerator } from 'vs/base/common/idGenerator';
 import { KeyCode } from 'vs/base/common/keyCodes';
-import { dispose, IDisposable } from 'vs/base/common/lifecycle';
+import { dispose, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
 import { LRUCache } from 'vs/base/common/map';
 import { escape } from 'vs/base/common/strings';
 import URI from 'vs/base/common/uri';
@@ -39,7 +39,7 @@ import { ContextKeyExpr, IContextKey, IContextKeyService } from 'vs/platform/con
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
-import { KeybindingsRegistry } from 'vs/platform/keybinding/common/keybindingsRegistry';
+import { KeybindingsRegistry, KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { WorkbenchTree } from 'vs/platform/list/browser/listService';
 import { IMarkerService, MarkerSeverity } from 'vs/platform/markers/common/markers';
 import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
@@ -489,6 +489,10 @@ export class OutlinePanel extends ViewletPanel {
 			return;
 		}
 
+		if (TreeElement.empty(model)) {
+			return this._showMessage(localize('no-symbols', "No symbols found in document '{0}'", posix.basename(textModel.uri.path)));
+		}
+
 		let newSize = TreeElement.size(model);
 		if (newSize > 7500) {
 			// this is a workaround for performance issues with the tree: https://github.com/Microsoft/vscode/issues/18180
@@ -567,9 +571,7 @@ export class OutlinePanel extends ViewletPanel {
 		}
 		this._editorDisposables.push(this._input.onDidChange(onInputValueChanged));
 
-		this._editorDisposables.push({
-			dispose: () => this._contextKeyFiltered.reset()
-		});
+		this._editorDisposables.push(toDisposable(() => this._contextKeyFiltered.reset()));
 
 		// feature: reveal outline selection in editor
 		// on change -> reveal/select defining range
@@ -719,7 +721,7 @@ async function goUpOrDownToHighligthedElement(accessor: ServicesAccessor, prev: 
 
 KeybindingsRegistry.registerCommandAndKeybindingRule({
 	id: 'outline.focusDownHighlighted',
-	weight: KeybindingsRegistry.WEIGHT.workbenchContrib(),
+	weight: KeybindingWeight.WorkbenchContrib,
 	primary: KeyCode.DownArrow,
 	when: ContextKeyExpr.and(OutlineViewFiltered, OutlineViewFocused),
 	handler: accessor => goUpOrDownToHighligthedElement(accessor, false)
@@ -727,7 +729,7 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 
 KeybindingsRegistry.registerCommandAndKeybindingRule({
 	id: 'outline.focusUpHighlighted',
-	weight: KeybindingsRegistry.WEIGHT.workbenchContrib(),
+	weight: KeybindingWeight.WorkbenchContrib,
 	primary: KeyCode.UpArrow,
 	when: ContextKeyExpr.and(OutlineViewFiltered, OutlineViewFocused),
 	handler: accessor => goUpOrDownToHighligthedElement(accessor, true)

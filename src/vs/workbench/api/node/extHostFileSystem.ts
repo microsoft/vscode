@@ -9,7 +9,7 @@ import { TPromise } from 'vs/base/common/winjs.base';
 import { MainContext, IMainContext, ExtHostFileSystemShape, MainThreadFileSystemShape, IFileChangeDto } from './extHost.protocol';
 import * as vscode from 'vscode';
 import * as files from 'vs/platform/files/common/files';
-import { IDisposable } from 'vs/base/common/lifecycle';
+import { IDisposable, toDisposable } from 'vs/base/common/lifecycle';
 import { asWinJsPromise } from 'vs/base/common/async';
 import { values } from 'vs/base/common/map';
 import { Range, FileChangeType } from 'vs/workbench/api/node/extHostTypes';
@@ -132,15 +132,13 @@ export class ExtHostFileSystem implements ExtHostFileSystemShape {
 			this._proxy.$onFileSystemChange(handle, mapped);
 		});
 
-		return {
-			dispose: () => {
-				subscription.dispose();
-				this._linkProvider.delete(scheme);
-				this._usedSchemes.delete(scheme);
-				this._fsProvider.delete(handle);
-				this._proxy.$unregisterProvider(handle);
-			}
-		};
+		return toDisposable(() => {
+			subscription.dispose();
+			this._linkProvider.delete(scheme);
+			this._usedSchemes.delete(scheme);
+			this._fsProvider.delete(handle);
+			this._proxy.$unregisterProvider(handle);
+		});
 	}
 
 	private static _asIStat(stat: vscode.FileStat): files.IStat {

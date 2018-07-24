@@ -40,15 +40,18 @@
 	flex: 1 1 auto;
 	display: -ms-flexbox;
 	display: flex;
+	height: 2.6em;
+	align-items: center;
 }
 
 .monaco-menu .monaco-action-bar.vertical .action-label {
 	-ms-flex: 1 1 auto;
 	flex: 1 1 auto;
 	text-decoration: none;
-	padding: 0.8em 1em;
-	line-height: 1.1em;
+	padding: 0 1em;
 	background: none;
+	font-size: inherit;
+	line-height: 1;
 }
 
 .monaco-menu .monaco-action-bar.vertical .keybinding,
@@ -56,15 +59,12 @@
 	display: inline-block;
 	-ms-flex: 2 1 auto;
 	flex: 2 1 auto;
-	padding: 0.8em 1em;
-	line-height: 1.1em;
-	font-size: 12px;
+	padding: 0 1em;
 	text-align: right;
+	font-size: inherit;
+	line-height: 1;
 }
 
-.monaco-menu .monaco-action-bar.vertical .submenu-indicator {
-	padding: 0.8em .5em;
-}
 
 .monaco-menu .monaco-action-bar.vertical .action-item.disabled .keybinding,
 .monaco-menu .monaco-action-bar.vertical .action-item.disabled .submenu-indicator {

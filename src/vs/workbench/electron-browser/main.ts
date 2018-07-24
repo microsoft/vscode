@@ -39,7 +39,7 @@ import { IUpdateService } from 'vs/platform/update/common/update';
 import { URLHandlerChannel, URLServiceChannelClient } from 'vs/platform/url/common/urlIpc';
 import { IURLService } from 'vs/platform/url/common/url';
 import { WorkspacesChannelClient } from 'vs/platform/workspaces/common/workspacesIpc';
-import { IWorkspacesService } from 'vs/platform/workspaces/common/workspaces';
+import { IWorkspacesService, ISingleFolderWorkspaceIdentifier } from 'vs/platform/workspaces/common/workspaces';
 import { createSpdLogService } from 'vs/platform/log/node/spdlogService';
 import * as fs from 'fs';
 import { ConsoleLogService, MultiplexLogService, ILogService } from 'vs/platform/log/common/log';
@@ -116,7 +116,7 @@ function openWorkbench(configuration: IWindowConfiguration): TPromise<void> {
 }
 
 function createAndInitializeWorkspaceService(configuration: IWindowConfiguration, environmentService: EnvironmentService): TPromise<WorkspaceService> {
-	const folderUri = configuration.folderPath ? uri.file(configuration.folderPath) /* TODO:Sandy Change to URI.parse once main sends URIs*/ : null;
+	const folderUri = configuration.folderUri ? uri.revive(configuration.folderUri) : null;
 	return validateFolderUri(folderUri, configuration.verbose).then(validatedFolderUri => {
 
 		const workspaceService = new WorkspaceService(environmentService);
@@ -125,7 +125,7 @@ function createAndInitializeWorkspaceService(configuration: IWindowConfiguration
 	});
 }
 
-function validateFolderUri(folderUri: uri, verbose: boolean): TPromise<uri> {
+function validateFolderUri(folderUri: ISingleFolderWorkspaceIdentifier, verbose: boolean): TPromise<uri> {
 
 	// Return early if we do not have a single folder uri or if it is a non file uri
 	if (!folderUri || folderUri.scheme !== Schemas.file) {
@@ -195,10 +195,7 @@ function createStorageService(workspaceService: IWorkspaceContextService, enviro
 	if (disableStorage) {
 		storage = inMemoryLocalStorageInstance;
 	} else {
-		// TODO@Ben remove me after a while
-		perf.mark('willAccessLocalStorage');
 		storage = window.localStorage;
-		perf.mark('didAccessLocalStorage');
 	}
 
 	return new StorageService(storage, storage, workspaceId, secondaryWorkspaceId);

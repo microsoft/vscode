@@ -281,8 +281,8 @@ export class ExtensionService extends Disposable implements IExtensionService {
 
 		this.startDelayed(lifecycleService);
 
-		if (this._environmentService.disableExtensions) {
-			this._notificationService.prompt(Severity.Info, nls.localize('extensionsDisabled', "All extensions are temporarily disabled. Reload the window to return to the previous state."), [{
+		if (this._extensionEnablementService.allUserExtensionsDisabled) {
+			this._notificationService.prompt(Severity.Info, nls.localize('extensionsDisabled', "All installed extensions are temporarily disabled. Reload the window to return to the previous state."), [{
 				label: nls.localize('Reload', "Reload"),
 				run: () => {
 					this._windowService.reloadWindow();
@@ -513,7 +513,7 @@ export class ExtensionService extends Disposable implements IExtensionService {
 			this._logOrShowMessage(severity, this._isDev ? messageWithSource(source, message) : message);
 		});
 
-		return ExtensionService._scanInstalledExtensions(this._windowService, this._notificationService, this._environmentService, log)
+		return ExtensionService._scanInstalledExtensions(this._windowService, this._notificationService, this._environmentService, this._extensionEnablementService, log)
 			.then(({ system, user, development }) => {
 				let result: { [extensionId: string]: IExtensionDescription; } = {};
 				system.forEach((systemExtension) => {
@@ -536,7 +536,7 @@ export class ExtensionService extends Disposable implements IExtensionService {
 			});
 	}
 
-	private _getRuntimeExtensions(allExtensions: IExtensionDescription[]): TPromise<IExtensionDescription[]> {
+	private _getRuntimeExtensions(allExtensions: IExtensionDescription[]): Promise<IExtensionDescription[]> {
 		return this._extensionEnablementService.getDisabledExtensions()
 			.then(disabledExtensions => {
 
@@ -759,7 +759,7 @@ export class ExtensionService extends Disposable implements IExtensionService {
 		return result;
 	}
 
-	private static _scanInstalledExtensions(windowService: IWindowService, notificationService: INotificationService, environmentService: IEnvironmentService, log: ILog): TPromise<{ system: IExtensionDescription[], user: IExtensionDescription[], development: IExtensionDescription[] }> {
+	private static _scanInstalledExtensions(windowService: IWindowService, notificationService: INotificationService, environmentService: IEnvironmentService, extensionEnablementService: IExtensionEnablementService, log: ILog): TPromise<{ system: IExtensionDescription[], user: IExtensionDescription[], development: IExtensionDescription[] }> {
 
 		const translationConfig: TPromise<Translations> = platform.translationsConfigFile
 			? pfs.readFile(platform.translationsConfigFile, 'utf8').then((content) => {
@@ -831,7 +831,7 @@ export class ExtensionService extends Disposable implements IExtensionService {
 			}
 
 			const userExtensions = (
-				environmentService.disableExtensions || !environmentService.extensionsPath
+				extensionEnablementService.allUserExtensionsDisabled || !environmentService.extensionsPath
 					? TPromise.as([])
 					: this._scanExtensionsWithCache(
 						windowService,

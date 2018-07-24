@@ -268,6 +268,7 @@ export class ExtHostWorkspace implements ExtHostWorkspaceShape {
 		if (folders.length === 0) {
 			return undefined;
 		}
+		// #54483 @Joh Why are we still using fsPath?
 		return folders[0].uri.fsPath;
 	}
 

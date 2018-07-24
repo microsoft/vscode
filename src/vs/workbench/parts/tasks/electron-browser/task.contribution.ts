@@ -17,7 +17,7 @@ import URI from 'vs/base/common/uri';
 import { IStringDictionary } from 'vs/base/common/collections';
 import { Action } from 'vs/base/common/actions';
 import * as Dom from 'vs/base/browser/dom';
-import { IDisposable, dispose } from 'vs/base/common/lifecycle';
+import { IDisposable, dispose, toDisposable } from 'vs/base/common/lifecycle';
 import { Event, Emitter } from 'vs/base/common/event';
 import * as Types from 'vs/base/common/types';
 import { KeyMod, KeyCode } from 'vs/base/common/keyCodes';
@@ -31,7 +31,7 @@ import { OcticonLabel } from 'vs/base/browser/ui/octiconLabel/octiconLabel';
 
 import { Registry } from 'vs/platform/registry/common/platform';
 import { ILifecycleService } from 'vs/platform/lifecycle/common/lifecycle';
-import { MenuRegistry } from 'vs/platform/actions/common/actions';
+import { MenuRegistry, MenuId } from 'vs/platform/actions/common/actions';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { IMarkerService, MarkerStatistics } from 'vs/platform/markers/common/markers';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
@@ -39,7 +39,7 @@ import { IConfigurationService, ConfigurationTarget } from 'vs/platform/configur
 import { IFileService, IFileStat } from 'vs/platform/files/common/files';
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
 import { CommandsRegistry } from 'vs/platform/commands/common/commands';
-import { KeybindingsRegistry } from 'vs/platform/keybinding/common/keybindingsRegistry';
+import { KeybindingsRegistry, KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { ProblemMatcherRegistry, NamedProblemMatcher } from 'vs/workbench/parts/tasks/common/problemMatcher';
 import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
 import { IProgressService2, IProgressOptions, ProgressLocation } from 'vs/workbench/services/progress/common/progress';
@@ -75,7 +75,7 @@ import { ITaskSystem, ITaskResolver, ITaskSummary, TaskExecuteKind, TaskError, T
 import {
 	Task, CustomTask, ConfiguringTask, ContributedTask, InMemoryTask, TaskEvent,
 	TaskEventKind, TaskSet, TaskGroup, GroupType, ExecutionEngine, JsonSchemaVersion, TaskSourceKind,
-	TaskSorter, TaskIdentifier, KeyedTaskIdentifier
+	TaskSorter, TaskIdentifier, KeyedTaskIdentifier, TASK_RUNNING_STATE
 } from 'vs/workbench/parts/tasks/common/tasks';
 import { ITaskService, ITaskProvider, RunOptions, CustomizationProperties, TaskFilter } from 'vs/workbench/parts/tasks/common/taskService';
 import { getTemplates as getTaskTemplates } from 'vs/workbench/parts/tasks/common/taskTemplates';
@@ -253,11 +253,9 @@ class BuildStatusBarItem extends Themable implements IStatusbarItem {
 
 		this.updateStyles();
 
-		return {
-			dispose: () => {
-				callOnDispose = dispose(callOnDispose);
-			}
-		};
+		return toDisposable(() => {
+			callOnDispose = dispose(callOnDispose);
+		});
 	}
 
 	private ignoreEvent(event: TaskEvent): boolean {
@@ -459,6 +457,8 @@ class TaskService implements ITaskService {
 	private _taskSystemListener: IDisposable;
 	private _recentlyUsedTasks: LinkedMap<string, string>;
 
+	private _taskRunningState: IContextKey<boolean>;
+
 	private _outputChannel: IOutputChannel;
 	private readonly _onDidStateChange: Emitter<TaskEvent>;
 
@@ -482,7 +482,9 @@ class TaskService implements ITaskService {
 		@IOpenerService private openerService: IOpenerService,
 		@IWindowService private readonly _windowService: IWindowService,
 		@IDialogService private dialogService: IDialogService,
-		@INotificationService private notificationService: INotificationService
+		@INotificationService private notificationService: INotificationService,
+		@IContextKeyService contextKeyService: IContextKeyService,
+
 	) {
 		this._configHasErrors = false;
 		this._workspaceTasksPromise = undefined;
@@ -521,6 +523,7 @@ class TaskService implements ITaskService {
 			this.updateSetup(folderSetup);
 			this.updateWorkspaceTasks();
 		});
+		this._taskRunningState = TASK_RUNNING_STATE.bindTo(contextKeyService);
 		lifecycleService.onWillShutdown(event => event.veto(this.beforeShutdown()));
 		this._onDidStateChange = new Emitter();
 		this.registerCommands();
@@ -563,7 +566,7 @@ class TaskService implements ITaskService {
 
 		KeybindingsRegistry.registerKeybindingRule({
 			id: 'workbench.action.tasks.build',
-			weight: KeybindingsRegistry.WEIGHT.workbenchContrib(),
+			weight: KeybindingWeight.WorkbenchContrib,
 			when: undefined,
 			primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KEY_B
 		});
@@ -1292,6 +1295,9 @@ class TaskService implements ITaskService {
 			this._taskSystem = system;
 		}
 		this._taskSystemListener = this._taskSystem.onDidStateChange((event) => {
+			if (this._taskSystem) {
+				this._taskRunningState.set(this._taskSystem.isActiveSync());
+			}
 			this._onDidStateChange.fire(event);
 		});
 		return this._taskSystem;
@@ -2420,6 +2426,75 @@ class TaskService implements ITaskService {
 	}
 }
 
+MenuRegistry.appendMenuItem(MenuId.MenubarTasksMenu, {
+	group: '1_run',
+	command: {
+		id: 'workbench.action.tasks.runTask',
+		title: nls.localize({ key: 'miRunTask', comment: ['&& denotes a mnemonic'] }, "&&Run Task...")
+	},
+	order: 1
+});
+
+MenuRegistry.appendMenuItem(MenuId.MenubarTasksMenu, {
+	group: '1_run',
+	command: {
+		id: 'workbench.action.tasks.build',
+		title: nls.localize({ key: 'miBuildTask', comment: ['&& denotes a mnemonic'] }, "Run &&Build Task...")
+	},
+	order: 2
+});
+
+// Manage Tasks
+MenuRegistry.appendMenuItem(MenuId.MenubarTasksMenu, {
+	group: '2_manage',
+	command: {
+		precondition: TASK_RUNNING_STATE,
+		id: 'workbench.action.tasks.showTasks',
+		title: nls.localize({ key: 'miRunningTask', comment: ['&& denotes a mnemonic'] }, "Show Runnin&&g Tasks...")
+	},
+	order: 1
+});
+
+MenuRegistry.appendMenuItem(MenuId.MenubarTasksMenu, {
+	group: '2_manage',
+	command: {
+		precondition: TASK_RUNNING_STATE,
+		id: 'workbench.action.tasks.restartTask',
+		title: nls.localize({ key: 'miRestartTask', comment: ['&& denotes a mnemonic'] }, "R&&estart Running Task...")
+	},
+	order: 2
+});
+
+MenuRegistry.appendMenuItem(MenuId.MenubarTasksMenu, {
+	group: '2_manage',
+	command: {
+		precondition: TASK_RUNNING_STATE,
+		id: 'workbench.action.tasks.terminate',
+		title: nls.localize({ key: 'miTerminateTask', comment: ['&& denotes a mnemonic'] }, "&&Terminate Task...")
+	},
+	order: 3
+});
+
+// Configure Tasks
+MenuRegistry.appendMenuItem(MenuId.MenubarTasksMenu, {
+	group: '3_configure',
+	command: {
+		id: 'workbench.action.tasks.configureTaskRunner',
+		title: nls.localize({ key: 'miConfigureTask', comment: ['&& denotes a mnemonic'] }, "&&Configure Tasks...")
+	},
+	order: 1
+});
+
+MenuRegistry.appendMenuItem(MenuId.MenubarTasksMenu, {
+	group: '3_configure',
+	command: {
+		id: 'workbench.action.tasks.configureDefaultBuildTask',
+		title: nls.localize({ key: 'miConfigureBuildTask', comment: ['&& denotes a mnemonic'] }, "Configure De&&fault Build Task...")
+	},
+	order: 2
+});
+
+
 MenuRegistry.addCommand({ id: ConfigureTaskAction.ID, title: { value: ConfigureTaskAction.TEXT, original: 'Configure Task' }, category: { value: tasksCategory, original: 'Tasks' } });
 MenuRegistry.addCommand({ id: 'workbench.action.tasks.showLog', title: { value: nls.localize('ShowLogAction.label', "Show Task Log"), original: 'Show Task Log' }, category: { value: tasksCategory, original: 'Tasks' } });
 MenuRegistry.addCommand({ id: 'workbench.action.tasks.runTask', title: { value: nls.localize('RunTaskAction.label', "Run Task"), original: 'Run Task' }, category: { value: tasksCategory, original: 'Tasks' } });
@@ -2488,6 +2563,7 @@ let schema: IJSONSchema = {
 import schemaVersion1 from './jsonSchema_v1';
 import schemaVersion2 from './jsonSchema_v2';
 import { TaskDefinitionRegistry } from 'vs/workbench/parts/tasks/common/taskDefinitionRegistry';
+import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 schema.definitions = {
 	...schemaVersion1.definitions,
 	...schemaVersion2.definitions,

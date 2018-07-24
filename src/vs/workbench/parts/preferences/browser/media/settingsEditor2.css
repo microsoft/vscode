@@ -30,19 +30,6 @@
 	opacity: .7;
 }
 
-.settings-editor > .settings-header > .settings-advanced-customization .open-settings-button,
-.settings-editor > .settings-header > .settings-advanced-customization .open-settings-button:hover,
-.settings-editor > .settings-header > .settings-advanced-customization .open-settings-button:active {
-	padding: 0;
-	text-decoration: underline;
-	display: inline;
-}
-
-.settings-editor > .settings-header > .settings-advanced-customization {
-	opacity: .7;
-	margin-top: 8px;
-}
-
 .settings-editor > .settings-header > .settings-preview-header > .settings-preview-warning {
 	text-align: right;
 	text-transform: uppercase;
@@ -72,9 +59,9 @@
 }
 
 .settings-editor > .settings-header > .settings-header-controls {
-	margin-top: 8px;
-	height: 30px;
+	height: 27px;
 	display: flex;
+	border-bottom: solid #3c3c3c 1px;
 }
 
 .settings-editor > .settings-header .settings-tabs-widget > .monaco-action-bar .action-item:not(:first-child) .action-label {
@@ -92,15 +79,53 @@
 	display: flex;
 }
 
-.settings-editor > .settings-header > .settings-header-controls .settings-header-controls-right #configured-only-checkbox {
-	flex-shrink: 0;
+.settings-editor > .settings-header > .settings-header-controls .settings-header-controls-right .toolbar-toggle-more {
+	display: block;
+	width: 22px;
+	height: 22px;
+	background-position: center;
+	background-repeat: no-repeat;
 }
 
-.settings-editor > .settings-header > .settings-header-controls .settings-header-controls-right .configured-only-label {
-	white-space: nowrap;
-	margin-right: 10px;
-	margin-left: 2px;
-	opacity: 0.7;
+.vs .settings-editor > .settings-header > .settings-header-controls .settings-header-controls-right .toolbar-toggle-more {
+	background-image: url('configure.svg');
+}
+
+.vs-dark .settings-editor > .settings-header > .settings-header-controls .settings-header-controls-right .toolbar-toggle-more {
+	background-image: url('configure-inverse.svg');
+}
+
+.vs .settings-editor.showing-modified-only > .settings-header > .settings-header-controls .settings-header-controls-right .toolbar-toggle-more::before {
+	border-color : #fff;
+}
+
+.vs-dark .settings-editor.showing-modified-only > .settings-header > .settings-header-controls .settings-header-controls-right .toolbar-toggle-more::before {
+	border-color : #000;
+}
+
+.settings-editor.showing-modified-only > .settings-header > .settings-header-controls .settings-header-controls-right .toolbar-toggle-more::before {
+	content: "";
+	width: 6px;
+	height: 6px;
+	position: absolute;
+	top: 3px;
+	right: 3px;
+	border-radius: 10px;
+	border: 1px solid;
+}
+
+.settings-editor > .settings-header > .settings-header-controls .settings-tabs-widget > .monaco-action-bar .action-item {
+	padding: 0px; /* padding must be on action-label because it has the bottom-border, because that's where the .checked class is */
+}
+
+.settings-editor > .settings-header > .settings-header-controls .settings-tabs-widget > .monaco-action-bar .action-item .action-label {
+	text-transform: none;
+	font-size: 13px;
+
+	padding-bottom: 3px;
+	padding-top: 6px;
+	padding-left: 8px;
+	padding-right: 8px;
 }
 
 .settings-editor > .settings-body {
@@ -124,6 +149,8 @@
 .settings-editor > .settings-body .settings-toc-container {
 	width: 175px;
 	margin-right: 5px;
+	padding-top: 8px;
+	box-sizing: border-box;
 }
 
 .settings-editor > .settings-body .settings-toc-container.hidden {
@@ -142,6 +169,10 @@
 	display: none;
 }
 
+.settings-editor > .settings-body .settings-toc-container .monaco-scrollable-element > .shadow {
+	display: none;
+}
+
 .settings-editor > .settings-body .settings-toc-container .monaco-tree-row .settings-toc-entry {
 	overflow: hidden;
 	text-overflow: ellipsis;
@@ -156,6 +187,8 @@
 	flex: 1;
 	max-width: 875px;
 	margin-right: 1px; /* So the item doesn't blend into the edge of the view container  */
+	padding-top: 8px;
+	box-sizing: border-box;
 	border-spacing: 0;
 	border-collapse: separate;
 	position: relative;
@@ -213,6 +246,7 @@
 
 .settings-editor > .settings-body > .settings-tree-container .setting-item .setting-item-description code {
 	line-height: 15px; /** For some reason, this is needed, otherwise <code> will take up 20px height */
+	font-family: Menlo, Monaco, Consolas, "Droid Sans Mono", "Courier New", monospace, "Droid Sans Fallback";
 }
 
 .settings-editor > .settings-body > .settings-tree-container .setting-measure-container.monaco-tree-row {
@@ -308,7 +342,7 @@
 }
 
 .settings-editor > .settings-body > .settings-tree-container .settings-group-level-1.settings-group-first {
-	padding-top: 4px;
+	padding-top: 7px;
 }
 
 .settings-editor > .settings-body .settings-feedback-button {

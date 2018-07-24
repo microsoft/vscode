@@ -462,6 +462,11 @@
             "relative",
             "non-relative"
           ],
+          "enumDescriptions": [
+            "%typescript.preferences.importModuleSpecifier.auto%",
+            "%typescript.preferences.importModuleSpecifier.relative%",
+            "%typescript.preferences.importModuleSpecifier.nonRelative%"
+          ],
           "default": "auto",
           "description": "%typescript.preferences.importModuleSpecifier%",
           "scope": "resource"
@@ -475,18 +480,6 @@
           ],
           "default": "auto",
           "description": "%typescript.preferences.importModuleSpecifier%",
-          "scope": "resource"
-        },
-        "javascript.showUnused": {
-          "type": "boolean",
-          "default": true,
-          "description": "%typescript.showUnused%",
-          "scope": "resource"
-        },
-        "typescript.showUnused": {
-          "type": "boolean",
-          "default": true,
-          "description": "%typescript.showUnused%",
           "scope": "resource"
         },
         "typescript.updateImportsOnFileMove.enabled": {

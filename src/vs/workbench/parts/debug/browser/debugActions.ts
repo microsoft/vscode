@@ -9,6 +9,7 @@ import * as lifecycle from 'vs/base/common/lifecycle';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { ICommandService } from 'vs/platform/commands/common/commands';
+import * as aria from 'vs/base/browser/ui/aria/aria';
 import { IWorkspaceContextService, WorkbenchState } from 'vs/platform/workspace/common/workspace';
 import { IFileService } from 'vs/platform/files/common/files';
 import { IDebugService, State, ISession, IThread, IEnablement, IBreakpoint, IStackFrame, REPL_ID, SessionState }
@@ -691,6 +692,7 @@ export class ClearReplAction extends AbstractDebugAction {
 
 	public run(): TPromise<any> {
 		this.debugService.removeReplExpressions();
+		aria.status(nls.localize('debugConsoleCleared', "Debug console was cleared"));
 
 		// focus back to repl
 		return this.panelService.openPanel(REPL_ID, true);

@@ -39,6 +39,14 @@ import { ViewletPanel, IViewletPanelOptions } from 'vs/workbench/browser/parts/v
 
 const $ = dom.$;
 
+function createCheckbox(): HTMLInputElement {
+	const checkbox = <HTMLInputElement>$('input');
+	checkbox.type = 'checkbox';
+	checkbox.tabIndex = -1;
+
+	return checkbox;
+}
+
 export class BreakpointsView extends ViewletPanel {
 
 	private static readonly MAX_VISIBLE_FILES = 9;
@@ -297,8 +305,7 @@ class BreakpointsRenderer implements IRenderer<IBreakpoint, IBreakpointTemplateD
 		data.breakpoint = dom.append(container, $('.breakpoint'));
 
 		data.icon = $('.icon');
-		data.checkbox = <HTMLInputElement>$('input');
-		data.checkbox.type = 'checkbox';
+		data.checkbox = createCheckbox();
 		data.toDispose = [];
 		data.toDispose.push(dom.addStandardDisposableListener(data.checkbox, 'change', (e) => {
 			this.debugService.enableOrDisableBreakpoints(!data.context.enabled, data.context);
@@ -365,8 +372,7 @@ class ExceptionBreakpointsRenderer implements IRenderer<IExceptionBreakpoint, IB
 		const data: IBreakpointTemplateData = Object.create(null);
 		data.breakpoint = dom.append(container, $('.breakpoint'));
 
-		data.checkbox = <HTMLInputElement>$('input');
-		data.checkbox.type = 'checkbox';
+		data.checkbox = createCheckbox();
 		data.toDispose = [];
 		data.toDispose.push(dom.addStandardDisposableListener(data.checkbox, 'change', (e) => {
 			this.debugService.enableOrDisableBreakpoints(!data.context.enabled, data.context);
@@ -416,8 +422,7 @@ class FunctionBreakpointsRenderer implements IRenderer<FunctionBreakpoint, IBase
 		data.breakpoint = dom.append(container, $('.breakpoint'));
 
 		data.icon = $('.icon');
-		data.checkbox = <HTMLInputElement>$('input');
-		data.checkbox.type = 'checkbox';
+		data.checkbox = createCheckbox();
 		data.toDispose = [];
 		data.toDispose.push(dom.addStandardDisposableListener(data.checkbox, 'change', (e) => {
 			this.debugService.enableOrDisableBreakpoints(!data.context.enabled, data.context);

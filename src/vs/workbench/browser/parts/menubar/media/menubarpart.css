@@ -6,7 +6,6 @@
 .monaco-workbench > .part.menubar {
 	display: flex;
 	position: absolute;
-	font-size: 12px;
 	box-sizing: border-box;
 	padding-left: 35px;
 	padding-right: 138px;
@@ -36,12 +35,15 @@
 	position: absolute;
 	left: 0px;
 	opacity: 1;
+	z-index: 2000;
 }
 
 .menubar-menu-items-holder.monaco-menu-container {
-	box-shadow: 0 2px 4px;
+	font-family: "Segoe WPC", "Segoe UI", ".SFNSDisplay-Light", "SFUIText-Light", "HelveticaNeue-Light", sans-serif, "Droid Sans Fallback";
+	outline: 0;
+	border: none;
 }
 
-.vs-dark .menubar-menu-items-holder.monaco-menu-container {
-	box-shadow: 0 2px 4px;
+.menubar-menu-items-holder.monaco-menu-container :focus {
+	outline: 0;
 }

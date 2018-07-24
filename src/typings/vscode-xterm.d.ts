@@ -680,6 +680,8 @@ declare module 'vscode-xterm' {
 // Modifications to official .d.ts below
 declare module 'vscode-xterm' {
 	interface TerminalCore {
+		debug: boolean;
+
 		buffer: {
 			y: number;
 			ybase: number;

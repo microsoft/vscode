@@ -153,7 +153,21 @@ export class EnvironmentService implements IEnvironmentService {
 	@memoize
 	get extensionTestsPath(): string { return this._args.extensionTestsPath ? path.normalize(this._args.extensionTestsPath) : this._args.extensionTestsPath; }
 
-	get disableExtensions(): boolean { return this._args['disable-extensions']; }
+	get disableExtensions(): boolean | string[] {
+		if (this._args['disable-extensions']) {
+			return true;
+		}
+		const disableExtensions: string | string[] = this._args['disable-extension'];
+		if (disableExtensions) {
+			if (typeof disableExtensions === 'string') {
+				return [disableExtensions];
+			}
+			if (Array.isArray(disableExtensions) && disableExtensions.length > 0) {
+				return disableExtensions;
+			}
+		}
+		return false;
+	}
 
 	get skipGettingStarted(): boolean { return this._args['skip-getting-started']; }
 

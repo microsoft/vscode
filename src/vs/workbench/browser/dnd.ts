@@ -290,16 +290,16 @@ export class ResourcesDropHandler {
 			// Pass focus to window
 			this.windowService.focusWindow();
 
-			let workspacesToOpen: TPromise<string[]>;
+			let workspacesToOpen: TPromise<URI[]>;
 
 			// Open in separate windows if we drop workspaces or just one folder
 			if (workspaces.length > 0 || folders.length === 1) {
-				workspacesToOpen = TPromise.as([...workspaces, ...folders].map(resources => resources.fsPath));
+				workspacesToOpen = TPromise.as([...workspaces, ...folders].map(resources => resources));
 			}
 
 			// Multiple folders: Create new workspace with folders and open
 			else if (folders.length > 1) {
-				workspacesToOpen = this.workspacesService.createWorkspace(folders.map(folder => ({ uri: folder }))).then(workspace => [workspace.configPath]);
+				workspacesToOpen = this.workspacesService.createWorkspace(folders.map(folder => ({ uri: folder }))).then(workspace => [URI.file(workspace.configPath)]);
 			}
 
 			// Open

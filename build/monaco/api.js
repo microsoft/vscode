@@ -450,12 +450,12 @@ function execute() {
         var t = Date.now();
         var emitOutput = languageService.getEmitOutput(fileName, true);
         OUTPUT_FILES[SRC_FILE_TO_EXPECTED_NAME[fileName]] = emitOutput.outputFiles[0].text;
-        console.log("Generating .d.ts for " + fileName + " took " + (Date.now() - t) + " ms");
+        // console.log(`Generating .d.ts for ${fileName} took ${Date.now() - t} ms`);
     });
     console.log("Generating .d.ts took " + (Date.now() - t1) + " ms");
-    var result = run('src', OUTPUT_FILES);
-    console.log(result.filePath);
-    fs.writeFileSync(result.filePath, result.content.replace(/\r\n/gm, '\n'));
-    fs.writeFileSync(path.join(SRC, 'user.ts'), result.usageContent.replace(/\r\n/gm, '\n'));
+    // console.log(result.filePath);
+    // fs.writeFileSync(result.filePath, result.content.replace(/\r\n/gm, '\n'));
+    // fs.writeFileSync(path.join(SRC, 'user.ts'), result.usageContent.replace(/\r\n/gm, '\n'));
+    return run('src', OUTPUT_FILES);
 }
-// execute();
+exports.execute = execute;

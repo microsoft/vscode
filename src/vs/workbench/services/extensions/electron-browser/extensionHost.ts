@@ -31,7 +31,7 @@ import { ICrashReporterService } from 'vs/workbench/services/crashReporter/elect
 import { IBroadcastService, IBroadcast } from 'vs/platform/broadcast/electron-browser/broadcastService';
 import { isEqual } from 'vs/base/common/paths';
 import { EXTENSION_CLOSE_EXTHOST_BROADCAST_CHANNEL, EXTENSION_RELOAD_BROADCAST_CHANNEL, EXTENSION_ATTACH_BROADCAST_CHANNEL, EXTENSION_LOG_BROADCAST_CHANNEL, EXTENSION_TERMINATE_BROADCAST_CHANNEL } from 'vs/platform/extensions/common/extensionHost';
-import { IDisposable, dispose } from 'vs/base/common/lifecycle';
+import { IDisposable, dispose, toDisposable } from 'vs/base/common/lifecycle';
 import { IRemoteConsoleLog, log, parse } from 'vs/base/node/console';
 import { getScopes } from 'vs/platform/configuration/common/configurationRegistry';
 import { ILogService } from 'vs/platform/log/common/log';
@@ -96,11 +96,9 @@ export class ExtensionHostProcessWorker {
 
 		const globalExitListener = () => this.terminate();
 		process.once('exit', globalExitListener);
-		this._toDispose.push({
-			dispose: () => {
-				process.removeListener('exit', globalExitListener);
-			}
-		});
+		this._toDispose.push(toDisposable(() => {
+			process.removeListener('exit', globalExitListener);
+		}));
 	}
 
 	public dispose(): void {
@@ -369,7 +367,6 @@ export class ExtensionHostProcessWorker {
 					isExtensionDevelopmentDebug: this._isExtensionDevDebug,
 					appRoot: this._environmentService.appRoot,
 					appSettingsHome: this._environmentService.appSettingsHome,
-					disableExtensions: this._environmentService.disableExtensions,
 					extensionDevelopmentPath: this._environmentService.extensionDevelopmentPath,
 					extensionTestsPath: this._environmentService.extensionTestsPath
 				},

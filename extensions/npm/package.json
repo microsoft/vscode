@@ -60,10 +60,6 @@
         }
       },
       {
-        "command": "npm.runScriptFromSource",
-        "title": "%command.runScriptFromSource%"
-      },
-      {
         "command": "npm.debugScript",
         "title": "%command.debug%",
         "icon": {
@@ -99,10 +95,6 @@
           "when": "false"
         },
         {
-          "command": "npm.runScriptFromSource",
-          "when": "false"
-        },
-        {
           "command": "npm.debugScript",
           "when": "false"
         },
@@ -120,13 +112,6 @@
           "command": "npm.refresh",
           "when": "view == npm",
           "group": "navigation"
-        }
-      ],
-      "editor/context": [
-        {
-          "command": "npm.runScriptFromSource",
-          "when": "resourceFilename == 'package.json'",
-          "group": "navigation@+1"
         }
       ],
       "view/item/context": [
@@ -192,6 +177,12 @@
           "default": false,
           "scope": "resource",
           "description": "%config.npm.runSilent%"
+        },
+        "npm.scriptCodeLens.enable": {
+          "type": "boolean",
+          "default": false,
+          "scope": "resource",
+          "description": "%config.scriptCodeLens.enable%"
         },
         "npm.packageManager": {
           "scope": "resource",

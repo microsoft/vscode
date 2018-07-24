@@ -238,11 +238,11 @@ export class SearchRenderer extends Disposable implements IRenderer {
 	private renderFolderMatch(tree: ITree, folderMatch: FolderMatch, templateData: IFolderMatchTemplate): void {
 		if (folderMatch.hasRoot()) {
 			const workspaceFolder = this.contextService.getWorkspaceFolder(folderMatch.resource());
-			const fileKind = workspaceFolder && resources.isEqual(workspaceFolder.uri, folderMatch.resource()) ?
-				FileKind.ROOT_FOLDER :
-				FileKind.FOLDER;
-
-			templateData.label.setFile(folderMatch.resource(), { fileKind });
+			if (workspaceFolder && resources.isEqual(workspaceFolder.uri, folderMatch.resource())) {
+				templateData.label.setFile(folderMatch.resource(), { fileKind: FileKind.ROOT_FOLDER, hidePath: true });
+			} else {
+				templateData.label.setFile(folderMatch.resource(), { fileKind: FileKind.FOLDER });
+			}
 		} else {
 			templateData.label.setValue(nls.localize('searchFolderMatch.other.label', "Other files"));
 		}
