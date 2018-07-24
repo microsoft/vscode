@@ -76,12 +76,11 @@ class Item extends BreadcrumbsItem {
 			let label = this._instantiationService.createInstance(FileLabel, container, {});
 			label.setFile(this.element.uri, {
 				hidePath: true,
-				hideIcon: !this.element.isFile || !this.options.showFileIcons,
-				fileKind: this.element.isFile ? FileKind.FILE : FileKind.FOLDER,
+				hideIcon: this.element.kind !== FileKind.FILE || !this.options.showFileIcons,
+				fileKind: this.element.kind,
 				fileDecorations: { colors: this.options.showDecorationColors, badges: false },
 			});
 			this._disposables.push(label);
-			dom.toggleClass(container, 'file', this.element.isFile);
 
 		} else if (this.element instanceof OutlineModel) {
 			// has outline element but not in one
@@ -323,7 +322,7 @@ export class BreadcrumbsControl {
 
 	private _revealInEditor(event: IBreadcrumbsItemEvent, data: any): void {
 		if (data instanceof FileElement) {
-			if (data.isFile) {
+			if (data.kind === FileKind.FILE) {
 				// open file in editor
 				this._editorService.openEditor({ resource: data.uri });
 			} else {

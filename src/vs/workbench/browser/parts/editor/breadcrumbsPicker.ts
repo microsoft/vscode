@@ -259,7 +259,7 @@ export class BreadcrumbsFilePicker extends BreadcrumbsPicker {
 		let [first] = e.selection;
 		let stat = first as IFileStat;
 		if (stat && !stat.isDirectory) {
-			this._onDidPickElement.fire(new FileElement(stat.resource, true));
+			this._onDidPickElement.fire(new FileElement(stat.resource, FileKind.FILE));
 		}
 	}
 }
