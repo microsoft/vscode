@@ -163,7 +163,8 @@ export class ExtHostWebviewPanel implements vscode.WebviewPanel {
 		this.assertNotDisposed();
 		if (this._iconPath !== value) {
 			this._iconPath = value;
-			this._proxy.$setIconPath(this._handle, value);
+
+			this._proxy.$setIconPath(this._handle, URI.isUri(value) ? { light: value, dark: value } : value);
 		}
 	}
 

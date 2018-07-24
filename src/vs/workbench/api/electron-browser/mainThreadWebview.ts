@@ -130,7 +130,7 @@ export class MainThreadWebviews implements MainThreadWebviewsShape, WebviewReviv
 		webview.setName(value);
 	}
 
-	public $setIconPath(handle: WebviewPanelHandle, value: UriComponents | { light: UriComponents, dark: UriComponents } | undefined): void {
+	public $setIconPath(handle: WebviewPanelHandle, value: { light: UriComponents, dark: UriComponents } | undefined): void {
 		const webview = this.getWebview(handle);
 		MainThreadWebviews.updateStyleElement(webview, reviveWebviewIcon(value));
 	}
@@ -345,20 +345,14 @@ function reviveWebviewOptions(options: WebviewInputOptions): WebviewInputOptions
 }
 
 function reviveWebviewIcon(
-	value: UriComponents | { light: UriComponents, dark: UriComponents } | undefined
+	value: { light: UriComponents, dark: UriComponents } | undefined
 ): { light: URI, dark: URI } | undefined {
 	if (!value) {
 		return undefined;
 	}
 
-	const themeIcon = value as { light: UriComponents, dark: UriComponents };
-	if (themeIcon.light && themeIcon.dark) {
-		return {
-			light: URI.revive(themeIcon.light),
-			dark: URI.revive(themeIcon.dark)
-		};
-	}
-
-	const icon = URI.revive(value);
-	return { light: icon, dark: icon };
+	return {
+		light: URI.revive(value.light),
+		dark: URI.revive(value.dark)
+	};
 }
