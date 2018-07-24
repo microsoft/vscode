@@ -431,18 +431,15 @@ export class MenubarPart extends Part {
 		if (!isMacintosh && this.currentTitlebarStyleSetting === 'custom') {
 			this.setupCustomMenubar();
 		} else {
-			this.setupNativeMenubar();
+			// Send menus to main process to be rendered by Electron
+			this.menubarService.updateMenubar(this.windowService.getCurrentWindowId(), this.getMenubarMenus());
+
 		}
 	}
 
 	private setupMenubar(): void {
 		this.menuUpdater.schedule();
 	}
-
-	private setupNativeMenubar(): void {
-		this.menubarService.updateMenubar(this.windowService.getCurrentWindowId(), this.getMenubarMenus());
-	}
-
 
 	private clearMnemonic(topLevelElement: HTMLElement): void {
 		topLevelElement.accessKey = null;

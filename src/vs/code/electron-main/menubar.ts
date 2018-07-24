@@ -281,16 +281,18 @@ export class Menubar {
 		}
 
 		// Preferences
-		const preferencesMenu = new Menu();
-		const preferencesMenuItem = new MenuItem({ label: this.mnemonicLabel(nls.localize({ key: 'mPreferences', comment: ['&& denotes a mnemonic'] }, "&&Preferences")), submenu: preferencesMenu });
+		if (!isMacintosh) {
+			const preferencesMenu = new Menu();
+			const preferencesMenuItem = new MenuItem({ label: this.mnemonicLabel(nls.localize({ key: 'mPreferences', comment: ['&& denotes a mnemonic'] }, "&&Preferences")), submenu: preferencesMenu });
 
-		if (this.shouldDrawMenu('Preferences')) {
-			if (this.shouldFallback('Preferences')) {
-				this.setFallbackMenuById(preferencesMenu, 'Preferences');
-			} else {
-				this.setMenuById(preferencesMenu, 'Preferences');
+			if (this.shouldDrawMenu('Preferences')) {
+				if (this.shouldFallback('Preferences')) {
+					this.setFallbackMenuById(preferencesMenu, 'Preferences');
+				} else {
+					this.setMenuById(preferencesMenu, 'Preferences');
+				}
+				menubar.append(preferencesMenuItem);
 			}
-			menubar.append(preferencesMenuItem);
 		}
 
 		// Help
@@ -489,7 +491,9 @@ export class Menubar {
 	}
 
 	private setMenuById(menu: Electron.Menu, menuId: string): void {
-		this.setMenu(menu, this.menubarMenus[menuId].items);
+		if (this.menubarMenus[menuId]) {
+			this.setMenu(menu, this.menubarMenus[menuId].items);
+		}
 	}
 
 	private insertRecentMenuItems(menu: Electron.Menu) {
