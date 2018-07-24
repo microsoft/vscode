@@ -26,34 +26,6 @@ export class WebviewEditor extends BaseWebviewEditor {
 
 	public static readonly ID = 'WebviewEditor';
 
-	private static _styleElement?: HTMLStyleElement;
-
-	private static _icons = new Map<number, URI | { light: URI, dark: URI }>();
-
-	private static updateStyleElement(id: number, iconPath: URI | { light: URI, dark: URI } | undefined) {
-		if (!this._styleElement) {
-			this._styleElement = DOM.createStyleSheet();
-			this._styleElement.className = 'webview-icons';
-		}
-
-		if (!iconPath) {
-			this._icons.delete(id);
-		} else {
-			this._icons.set(id, iconPath);
-		}
-
-		const cssRules: string[] = [];
-		this._icons.forEach((value, key) => {
-			if (URI.isUri(value)) {
-				cssRules.push(`.show-file-icons .webview-${key}-name-file-icon::before { content: ""; background-image: url(${value.toString()}); }`);
-			} else {
-				cssRules.push(`.show-file-icons .webview-${key}-name-file-icon::before { content: ""; background-image: url(${value.light.toString()}); }`);
-				cssRules.push(`.vs-dark .show-file-icons .webview-${key}-name-file-icon::before { content: ""; background-image: url(${value.dark.toString()}); }`);
-			}
-		});
-		this._styleElement.innerHTML = cssRules.join('\n');
-	}
-
 	private _editorFrame: HTMLElement;
 	private _content: HTMLElement;
 	private _webviewContent: HTMLElement | undefined;
@@ -61,8 +33,6 @@ export class WebviewEditor extends BaseWebviewEditor {
 	private _webviewFocusTracker?: DOM.IFocusTracker;
 	private _webviewFocusListenerDisposable?: IDisposable;
 	private _onFocusWindowHandler?: IDisposable;
-	private _iconChangedHandler?: IDisposable;
-
 
 	private readonly _onDidFocusWebview = new Emitter<void>();
 
@@ -145,10 +115,6 @@ export class WebviewEditor extends BaseWebviewEditor {
 			this._onFocusWindowHandler.dispose();
 		}
 
-		if (this._iconChangedHandler) {
-			this._iconChangedHandler.dispose();
-		}
-
 		super.dispose();
 	}
 
@@ -225,14 +191,6 @@ export class WebviewEditor extends BaseWebviewEditor {
 			localResourceRoots: input.options.localResourceRoots || this.getDefaultLocalResourceRoots()
 		};
 		input.html = input.html;
-
-		const updateIcon = () => WebviewEditor.updateStyleElement(input.getId(), input.getIconPath());
-		if (this._onFocusWindowHandler) {
-			this._onFocusWindowHandler.dispose();
-		}
-
-		this._onFocusWindowHandler = input.onDidChangeIcon(updateIcon);
-		updateIcon();
 
 		if (this._webviewContent) {
 			this._webviewContent.style.visibility = 'visible';

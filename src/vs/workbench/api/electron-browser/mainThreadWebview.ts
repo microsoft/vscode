@@ -2,23 +2,24 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-import { IDisposable, dispose } from 'vs/base/common/lifecycle';
+import * as dom from 'vs/base/browser/dom';
+import { dispose, IDisposable } from 'vs/base/common/lifecycle';
 import * as map from 'vs/base/common/map';
 import URI, { UriComponents } from 'vs/base/common/uri';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { localize } from 'vs/nls';
-import { EditorViewColumn, viewColumnToEditorGroup, editorGroupToViewColumn } from 'vs/workbench/api/shared/editor';
 import { ILifecycleService } from 'vs/platform/lifecycle/common/lifecycle';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
 import { ExtHostContext, ExtHostWebviewsShape, IExtHostContext, MainContext, MainThreadWebviewsShape, WebviewPanelHandle } from 'vs/workbench/api/node/extHost.protocol';
+import { editorGroupToViewColumn, EditorViewColumn, viewColumnToEditorGroup } from 'vs/workbench/api/shared/editor';
 import { WebviewEditor } from 'vs/workbench/parts/webview/electron-browser/webviewEditor';
 import { WebviewEditorInput } from 'vs/workbench/parts/webview/electron-browser/webviewEditorInput';
-import { IWebviewEditorService, WebviewInputOptions, WebviewReviver, ICreateWebViewShowOptions } from 'vs/workbench/parts/webview/electron-browser/webviewEditorService';
+import { ICreateWebViewShowOptions, IWebviewEditorService, WebviewInputOptions, WebviewReviver } from 'vs/workbench/parts/webview/electron-browser/webviewEditorService';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
 import { IEditorGroupsService } from 'vs/workbench/services/group/common/editorGroupsService';
-import { extHostNamedCustomer } from './extHostCustomers';
 import * as vscode from 'vscode';
+import { extHostNamedCustomer } from './extHostCustomers';
 
 @extHostNamedCustomer(MainContext.MainThreadWebviews)
 export class MainThreadWebviews implements MainThreadWebviewsShape, WebviewReviver {
@@ -28,6 +29,35 @@ export class MainThreadWebviews implements MainThreadWebviewsShape, WebviewReviv
 	private static readonly standardSupportedLinkSchemes = ['http', 'https', 'mailto'];
 
 	private static revivalPool = 0;
+
+	private static _styleElement?: HTMLStyleElement;
+
+	private static _icons = new Map<number, URI | { light: URI, dark: URI }>();
+
+	private static updateStyleElement(id: number, iconPath: URI | { light: URI, dark: URI } | undefined) {
+		if (!this._styleElement) {
+			this._styleElement = dom.createStyleSheet();
+			this._styleElement.className = 'webview-icons';
+		}
+
+		if (!iconPath) {
+			this._icons.delete(id);
+		} else {
+			this._icons.set(id, iconPath);
+		}
+
+		const cssRules: string[] = [];
+		this._icons.forEach((value, key) => {
+			const webviewSelector = `.show-file-icons .webview-${key}-name-file-icon::before`;
+			if (URI.isUri(value)) {
+				cssRules.push(`${webviewSelector} { content: ""; background-image: url(${value.toString()}); }`);
+			} else {
+				cssRules.push(`${webviewSelector} { content: ""; background-image: url(${value.light.toString()}); }`);
+				cssRules.push(`.vs-dark ${webviewSelector} { content: ""; background-image: url(${value.dark.toString()}); }`);
+			}
+		});
+		this._styleElement.innerHTML = cssRules.join('\n');
+	}
 
 	private _toDispose: IDisposable[] = [];
 
@@ -98,22 +128,22 @@ export class MainThreadWebviews implements MainThreadWebviewsShape, WebviewReviv
 
 	public $setIconPath(handle: WebviewPanelHandle, value: UriComponents | { light: UriComponents, dark: UriComponents } | undefined): void {
 		const webview = this.getWebview(handle);
+
 		if (!value) {
-			webview.setIconPath(undefined);
+			MainThreadWebviews.updateStyleElement(webview.getId(), undefined);
 			return;
 		}
 
 		const themeIcon = value as { light: UriComponents, dark: UriComponents };
 		if (themeIcon.light && themeIcon.dark) {
-			webview.setIconPath({
+			MainThreadWebviews.updateStyleElement(webview.getId(), {
 				light: URI.revive(themeIcon.light),
 				dark: URI.revive(themeIcon.dark)
 			});
 			return;
 		}
 
-		webview.setIconPath(URI.revive(value));
-
+		MainThreadWebviews.updateStyleElement(webview.getId(), URI.revive(value));
 	}
 
 	public $setHtml(handle: WebviewPanelHandle, value: string): void {

@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { Emitter } from 'vs/base/common/event';
 import { dispose, IDisposable } from 'vs/base/common/lifecycle';
 import URI from 'vs/base/common/uri';
 import { TPromise } from 'vs/base/common/winjs.base';
@@ -12,7 +13,6 @@ import { IPartService, Parts } from 'vs/workbench/services/part/common/partServi
 import * as vscode from 'vscode';
 import { WebviewEvents, WebviewInputOptions, WebviewReviver } from './webviewEditorService';
 import { WebviewElement } from './webviewElement';
-import { Emitter } from 'vs/base/common/event';
 
 export class WebviewEditorInput extends EditorInput {
 	private static handlePool = 0;
@@ -20,7 +20,6 @@ export class WebviewEditorInput extends EditorInput {
 	public static readonly typeId = 'workbench.editors.webviewInput';
 
 	private _name: string;
-	private _iconPath?: URI | { light: URI, dark: URI };
 	private _options: WebviewInputOptions;
 	private _html: string = '';
 	private _currentWebviewHtml: string = '';
@@ -108,15 +107,6 @@ export class WebviewEditorInput extends EditorInput {
 	public setName(value: string): void {
 		this._name = value;
 		this._onDidChangeLabel.fire();
-	}
-
-	public setIconPath(value: URI | { light: URI, dark: URI } | undefined): void {
-		this._iconPath = value;
-		this._onDidChangeIcon.fire();
-	}
-
-	public getIconPath(): URI | { light: URI, dark: URI } | undefined {
-		return this._iconPath;
 	}
 
 	public matches(other: IEditorInput): boolean {
