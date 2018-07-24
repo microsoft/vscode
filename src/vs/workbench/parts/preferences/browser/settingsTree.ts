@@ -66,6 +66,7 @@ registerThemingParticipant((theme: ITheme, collector: ICssStyleCollector) => {
 	const modifiedItemForegroundColor = theme.getColor(modifiedItemForeground);
 	if (modifiedItemForegroundColor) {
 		collector.addRule(`.settings-editor > .settings-body > .settings-tree-container .setting-item.is-configured .setting-item-is-configured-label { color: ${modifiedItemForegroundColor}; }`);
+		collector.addRule(`.settings-editor > .settings-header > .settings-header-controls .settings-header-controls-right .toolbar-toggle-more::before { background-color: ${modifiedItemForegroundColor}; }`);
 	}
 
 	const checkboxBackgroundColor = theme.getColor(settingsCheckboxBackground);

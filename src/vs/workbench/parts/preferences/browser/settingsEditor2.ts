@@ -440,6 +440,7 @@ export class SettingsEditor2 extends BaseEditor {
 
 	toggleShowModifiedOnly(): TPromise<void> {
 		this.viewState.showConfiguredOnly = !this.viewState.showConfiguredOnly;
+		DOM.toggleClass(this.rootElement, 'showing-modified-only', this.viewState.showConfiguredOnly);
 		return this.refreshTreeAndMaintainFocus().then(() => {
 			this.settingsTree.setScrollPosition(0);
 			this.expandAll(this.settingsTree);
