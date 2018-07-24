@@ -125,6 +125,24 @@ export class OpenGlobalKeybindingsFileAction extends Action {
 	}
 }
 
+export class OpenRawDefaultKeybindingsAction extends Action {
+
+	public static readonly ID = 'workbench.action.openRawDefaultKeybindings';
+	public static readonly LABEL = nls.localize('openRawDefaultKeybindings', "Open Default Keyboard Shortcuts File");
+
+	constructor(
+		id: string,
+		label: string,
+		@IPreferencesService private preferencesService: IPreferencesService
+	) {
+		super(id, label);
+	}
+
+	public run(event?: any): TPromise<any> {
+		return this.preferencesService.openRawDefaultKeybindings();
+	}
+}
+
 export class OpenWorkspaceSettingsAction extends Action {
 
 	public static readonly ID = 'workbench.action.openWorkspaceSettings';
