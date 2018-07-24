@@ -75,38 +75,12 @@ export interface IKeybindingsRegistry {
 	registerKeybindingRule2(rule: IKeybindingRule2, source?: KeybindingRuleSource): void;
 	registerCommandAndKeybindingRule(desc: ICommandAndKeybindingRule, source?: KeybindingRuleSource): void;
 	getDefaultKeybindings(): IKeybindingItem[];
-
-	WEIGHT: {
-		editorCore(): number;
-		editorContrib(): number;
-		workbenchContrib(): number;
-		builtinExtension(): number;
-		externalExtension(): number;
-	};
 }
 
 class KeybindingsRegistryImpl implements IKeybindingsRegistry {
 
 	private _keybindings: IKeybindingItem[];
 	private _keybindingsSorted: boolean;
-
-	public WEIGHT = {
-		editorCore: (): number => {
-			return KeybindingWeight.EditorCore;
-		},
-		editorContrib: (): number => {
-			return KeybindingWeight.EditorContrib;
-		},
-		workbenchContrib: (): number => {
-			return KeybindingWeight.WorkbenchContrib;
-		},
-		builtinExtension: (): number => {
-			return KeybindingWeight.BuiltinExtension;
-		},
-		externalExtension: (): number => {
-			return KeybindingWeight.ExternalExtension;
-		}
-	};
 
 	constructor() {
 		this._keybindings = [];
