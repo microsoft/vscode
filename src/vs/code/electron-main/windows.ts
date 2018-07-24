@@ -964,7 +964,7 @@ export class WindowsManager implements IWindowsMainService {
 	}
 
 	private parseUri(anyUri: URI, options?: { ignoreFileNotFound?: boolean, gotoLineMode?: boolean, forceOpenWorkspaceAsFile?: boolean; }): IPathToOpen {
-		if (!anyUri) {
+		if (!anyUri || !anyUri.scheme) {
 			return null;
 		}
 
