@@ -24,7 +24,7 @@ export interface IHistoryMainService {
 
 	addRecentlyOpened(workspaces: (IWorkspaceIdentifier | ISingleFolderWorkspaceIdentifier)[], files: string[]): void;
 	getRecentlyOpened(currentWorkspace?: IWorkspaceIdentifier | ISingleFolderWorkspaceIdentifier, currentFiles?: IPath[]): IRecentlyOpened;
-	removeFromRecentlyOpened(paths: string[]): void;
+	removeFromRecentlyOpened(paths: (IWorkspaceIdentifier | ISingleFolderWorkspaceIdentifier | string)[]): void;
 	clearRecentlyOpened(): void;
 
 	updateWindowsJumpList(): void;

@@ -7,7 +7,7 @@
 import { basename, extname, join } from 'path';
 import { MarkdownString } from 'vs/base/common/htmlContent';
 import { IJSONSchema } from 'vs/base/common/jsonSchema';
-import { dispose, IDisposable } from 'vs/base/common/lifecycle';
+import { dispose, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
 import { values } from 'vs/base/common/map';
 import * as resources from 'vs/base/common/resources';
 import { compare, endsWith, isFalsyOrWhitespace } from 'vs/base/common/strings';
@@ -253,14 +253,12 @@ class SnippetsService implements ISnippetsService {
 					}
 				});
 			}, (error: string) => this._logService.error(error));
-			this._disposables.push({
-				dispose: () => {
-					if (watcher) {
-						watcher.removeAllListeners();
-						watcher.close();
-					}
+			this._disposables.push(toDisposable(() => {
+				if (watcher) {
+					watcher.removeAllListeners();
+					watcher.close();
 				}
-			});
+			}));
 
 		}).then(undefined, err => {
 			this._logService.error('Failed to load user snippets', err);

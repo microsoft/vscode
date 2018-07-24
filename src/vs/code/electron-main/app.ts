@@ -154,14 +154,14 @@ export class CodeApplication {
 			});
 		});
 
-		let macOpenFiles: string[] = [];
+		let macOpenFileURIs: URI[] = [];
 		let runningTimeout: number = null;
 		app.on('open-file', (event: Event, path: string) => {
 			this.logService.trace('App#open-file: ', path);
 			event.preventDefault();
 
 			// Keep in array because more might come!
-			macOpenFiles.push(path);
+			macOpenFileURIs.push(URI.file(path));
 
 			// Clear previous handler if any
 			if (runningTimeout !== null) {
@@ -175,10 +175,10 @@ export class CodeApplication {
 					this.windowsMainService.open({
 						context: OpenContext.DOCK /* can also be opening from finder while app is running */,
 						cli: this.environmentService.args,
-						pathsToOpen: macOpenFiles,
+						urisToOpen: macOpenFileURIs,
 						preferNewWindow: true /* dropping on the dock or opening from finder prefers to open in a new window */
 					});
-					macOpenFiles = [];
+					macOpenFileURIs = [];
 					runningTimeout = null;
 				}
 			}, 100);
@@ -462,10 +462,10 @@ export class CodeApplication {
 		// Open our first window
 		const macOpenFiles = (<any>global).macOpenFiles as string[];
 		const context = !!process.env['VSCODE_CLI'] ? OpenContext.CLI : OpenContext.DESKTOP;
-		if (args['new-window'] && args._.length === 0) {
+		if (args['new-window'] && args._.length === 0 && (args['folder-uri'] || []).length === 0) {
 			this.windowsMainService.open({ context, cli: args, forceNewWindow: true, forceEmpty: true, initialStartup: true }); // new window if "-n" was used without paths
-		} else if (macOpenFiles && macOpenFiles.length && (!args._ || !args._.length)) {
-			this.windowsMainService.open({ context: OpenContext.DOCK, cli: args, pathsToOpen: macOpenFiles, initialStartup: true }); // mac: open-file event received on startup
+		} else if (macOpenFiles && macOpenFiles.length && (!args._ || !args._.length || !args['folder-uri'] || !args['folder-uri'].length)) {
+			this.windowsMainService.open({ context: OpenContext.DOCK, cli: args, urisToOpen: macOpenFiles.map(file => URI.file(file)), initialStartup: true }); // mac: open-file event received on startup
 		} else {
 			this.windowsMainService.open({ context, cli: args, forceNewWindow: args['new-window'] || (!args._.length && args['unity-launch']), diffMode: args.diff, initialStartup: true }); // default: read paths from cli
 		}

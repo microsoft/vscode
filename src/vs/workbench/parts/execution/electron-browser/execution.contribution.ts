@@ -40,37 +40,41 @@ if (env.isWindows) {
 getDefaultTerminalLinuxReady().then(defaultTerminalLinux => {
 	let configurationRegistry = Registry.as<IConfigurationRegistry>(Extensions.Configuration);
 	configurationRegistry.registerConfiguration({
-		'id': 'externalTerminal',
-		'order': 100,
-		'title': nls.localize('terminalConfigurationTitle', "External Terminal"),
-		'type': 'object',
-		'properties': {
+		id: 'externalTerminal',
+		order: 100,
+		title: nls.localize('terminalConfigurationTitle', "External Terminal"),
+		type: 'object',
+		properties: {
 			'terminal.explorerKind': {
-				'type': 'string',
-				'enum': [
+				type: 'string',
+				enum: [
 					'integrated',
 					'external'
 				],
-				'description': nls.localize('explorer.openInTerminalKind', "Customizes what kind of terminal to launch."),
-				'default': 'integrated'
+				enumDescriptions: [
+					nls.localize('terminal.explorerKind.integrated', "Use VS Code's integrated terminal."),
+					nls.localize('terminal.explorerKind.external', "Use the configured external terminal.")
+				],
+				description: nls.localize('explorer.openInTerminalKind', "Customizes what kind of terminal to launch."),
+				default: 'integrated'
 			},
 			'terminal.external.windowsExec': {
-				'type': 'string',
-				'description': nls.localize('terminal.external.windowsExec', "Customizes which terminal to run on Windows."),
-				'default': getDefaultTerminalWindows(),
-				'scope': ConfigurationScope.APPLICATION
+				type: 'string',
+				description: nls.localize('terminal.external.windowsExec', "Customizes which terminal to run on Windows."),
+				default: getDefaultTerminalWindows(),
+				scope: ConfigurationScope.APPLICATION
 			},
 			'terminal.external.osxExec': {
-				'type': 'string',
-				'description': nls.localize('terminal.external.osxExec', "Customizes which terminal application to run on OS X."),
-				'default': DEFAULT_TERMINAL_OSX,
-				'scope': ConfigurationScope.APPLICATION
+				type: 'string',
+				description: nls.localize('terminal.external.osxExec', "Customizes which terminal application to run on macOS."),
+				default: DEFAULT_TERMINAL_OSX,
+				scope: ConfigurationScope.APPLICATION
 			},
 			'terminal.external.linuxExec': {
-				'type': 'string',
-				'description': nls.localize('terminal.external.linuxExec', "Customizes which terminal to run on Linux."),
-				'default': defaultTerminalLinux,
-				'scope': ConfigurationScope.APPLICATION
+				type: 'string',
+				description: nls.localize('terminal.external.linuxExec', "Customizes which terminal to run on Linux."),
+				default: defaultTerminalLinux,
+				scope: ConfigurationScope.APPLICATION
 			}
 		}
 	});

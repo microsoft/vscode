@@ -16,7 +16,7 @@ import * as editorCommon from 'vs/editor/common/editorCommon';
 import { Position, IPosition } from 'vs/editor/common/core/position';
 import { MirrorTextModel as BaseMirrorModel, IModelChangedEvent } from 'vs/editor/common/model/mirrorTextModel';
 import { IInplaceReplaceSupportResult, ILink, ISuggestResult, ISuggestion, TextEdit } from 'vs/editor/common/modes';
-import { computeLinks } from 'vs/editor/common/modes/linkComputer';
+import { computeLinks, ILinkComputerTarget } from 'vs/editor/common/modes/linkComputer';
 import { BasicInplaceReplace } from 'vs/editor/common/modes/supports/inplaceReplaceSupport';
 import { getWordAtText, ensureValidWordDefinition } from 'vs/editor/common/model/wordHelper';
 import { createMonacoBaseAPI } from 'vs/editor/common/standalone/standaloneBase';
@@ -50,7 +50,7 @@ export interface IRawModelData {
 /**
  * @internal
  */
-export interface ICommonModel {
+export interface ICommonModel extends ILinkComputerTarget, IMirrorModel {
 	uri: URI;
 	version: number;
 	eol: string;

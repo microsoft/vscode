@@ -5,7 +5,7 @@
 'use strict';
 
 import { Emitter, Event } from 'vs/base/common/event';
-import { IDisposable, dispose } from 'vs/base/common/lifecycle';
+import { IDisposable, dispose, toDisposable } from 'vs/base/common/lifecycle';
 import URI from 'vs/base/common/uri';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { FileWriteOptions, FileSystemProviderCapabilities, IFileChange, IFileService, IFileSystemProvider, IStat, IWatchOptions, FileType, FileOverwriteOptions, FileDeleteOptions } from 'vs/platform/files/common/files';
@@ -71,11 +71,9 @@ class RemoteFileSystemProvider implements IFileSystemProvider {
 	watch(resource: URI, opts: IWatchOptions) {
 		const session = Math.random();
 		this._proxy.$watch(this._handle, session, resource, opts);
-		return {
-			dispose: () => {
-				this._proxy.$unwatch(this._handle, session);
-			}
-		};
+		return toDisposable(() => {
+			this._proxy.$unwatch(this._handle, session);
+		});
 	}
 
 	$onFileSystemChange(changes: IFileChangeDto[]): void {

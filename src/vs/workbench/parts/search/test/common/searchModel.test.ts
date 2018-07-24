@@ -6,20 +6,20 @@
 
 import * as assert from 'assert';
 import * as sinon from 'sinon';
-import { TestInstantiationService } from 'vs/platform/instantiation/test/common/instantiationServiceMock';
-import { SearchModel } from 'vs/workbench/parts/search/common/searchModel';
-import URI from 'vs/base/common/uri';
-import { IFileMatch, IFolderQuery, ILineMatch, ISearchService, ISearchComplete, ISearchProgressItem, IUncachedSearchStats, ISearchQuery } from 'vs/platform/search/common/search';
-import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { NullTelemetryService } from 'vs/platform/telemetry/common/telemetryUtils';
-import { Range } from 'vs/editor/common/core/range';
-import { IModelService } from 'vs/editor/common/services/modelService';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { TestConfigurationService } from 'vs/platform/configuration/test/common/testConfigurationService';
-import { ModelServiceImpl } from 'vs/editor/common/services/modelServiceImpl';
 import { timeout } from 'vs/base/common/async';
+import URI from 'vs/base/common/uri';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { DeferredTPromise } from 'vs/base/test/common/utils';
+import { Range } from 'vs/editor/common/core/range';
+import { IModelService } from 'vs/editor/common/services/modelService';
+import { ModelServiceImpl } from 'vs/editor/common/services/modelServiceImpl';
+import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
+import { TestConfigurationService } from 'vs/platform/configuration/test/common/testConfigurationService';
+import { TestInstantiationService } from 'vs/platform/instantiation/test/common/instantiationServiceMock';
+import { IFileMatch, IFolderQuery, ILineMatch, ISearchComplete, ISearchProgressItem, ISearchQuery, ISearchService, IUncachedSearchStats } from 'vs/platform/search/common/search';
+import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
+import { NullTelemetryService } from 'vs/platform/telemetry/common/telemetryUtils';
+import { SearchModel } from 'vs/workbench/parts/search/common/searchModel';
 
 const nullEvent = new class {
 
@@ -158,7 +158,7 @@ suite('SearchModel', () => {
 		});
 	});
 
-	test.skip('Search Model: Search reports timed telemetry on search when progress is called', () => {
+	test('Search Model: Search reports timed telemetry on search when progress is called', () => {
 		let target2 = sinon.spy();
 		stub(nullEvent, 'stop', target2);
 		let target1 = sinon.stub().returns(nullEvent);
@@ -171,8 +171,10 @@ suite('SearchModel', () => {
 		let testObject = instantiationService.createInstance(SearchModel);
 		let result = testObject.search({ contentPattern: { pattern: 'somestring' }, type: 1, folderQueries });
 
-		return timeout(1).then(() => {
-			return result.then(() => {
+		return result.then(() => {
+			return timeout(1).then(() => {
+				// timeout because promise handlers may run in a different order. We only care that these
+				// are fired at some point.
 				assert.ok(target1.calledWith('searchResultsFirstRender'));
 				assert.ok(target1.calledWith('searchResultsFinished'));
 				// assert.equal(1, target2.callCount);

@@ -7,9 +7,93 @@ Object.defineProperty(exports, "__esModule", { value: true });
 var ts = require("typescript");
 var fs = require("fs");
 var path = require("path");
+var tss = require("./treeshaking");
 var REPO_ROOT = path.join(__dirname, '../../');
 var SRC_DIR = path.join(REPO_ROOT, 'src');
 var OUT_EDITOR = path.join(REPO_ROOT, 'out-editor');
+var dirCache = {};
+function writeFile(filePath, contents) {
+    function ensureDirs(dirPath) {
+        if (dirCache[dirPath]) {
+            return;
+        }
+        dirCache[dirPath] = true;
+        ensureDirs(path.dirname(dirPath));
+        if (fs.existsSync(dirPath)) {
+            return;
+        }
+        fs.mkdirSync(dirPath);
+    }
+    ensureDirs(path.dirname(filePath));
+    fs.writeFileSync(filePath, contents);
+}
+function extractEditor(options) {
+    var result = tss.shake(options);
+    for (var fileName in result) {
+        if (result.hasOwnProperty(fileName)) {
+            writeFile(path.join(options.destRoot, fileName), result[fileName]);
+        }
+    }
+    var copied = {};
+    var copyFile = function (fileName) {
+        if (copied[fileName]) {
+            return;
+        }
+        copied[fileName] = true;
+        var srcPath = path.join(options.sourcesRoot, fileName);
+        var dstPath = path.join(options.destRoot, fileName);
+        writeFile(dstPath, fs.readFileSync(srcPath));
+    };
+    var writeOutputFile = function (fileName, contents) {
+        writeFile(path.join(options.destRoot, fileName), contents);
+    };
+    for (var fileName in result) {
+        if (result.hasOwnProperty(fileName)) {
+            var fileContents = result[fileName];
+            var info = ts.preProcessFile(fileContents);
+            for (var i = info.importedFiles.length - 1; i >= 0; i--) {
+                var importedFileName = info.importedFiles[i].fileName;
+                var importedFilePath = void 0;
+                if (/^vs\/css!/.test(importedFileName)) {
+                    importedFilePath = importedFileName.substr('vs/css!'.length) + '.css';
+                }
+                else {
+                    importedFilePath = importedFileName;
+                }
+                if (/(^\.\/)|(^\.\.\/)/.test(importedFilePath)) {
+                    importedFilePath = path.join(path.dirname(fileName), importedFilePath);
+                }
+                if (/\.css$/.test(importedFilePath)) {
+                    transportCSS(importedFilePath, copyFile, writeOutputFile);
+                }
+                else {
+                    if (fs.existsSync(path.join(options.sourcesRoot, importedFilePath + '.js'))) {
+                        copyFile(importedFilePath + '.js');
+                    }
+                }
+            }
+        }
+    }
+    var tsConfig = JSON.parse(fs.readFileSync(path.join(options.sourcesRoot, 'tsconfig.json')).toString());
+    tsConfig.compilerOptions.noUnusedLocals = false;
+    writeOutputFile('tsconfig.json', JSON.stringify(tsConfig, null, '\t'));
+    [
+        'vs/css.build.js',
+        'vs/css.d.ts',
+        'vs/css.js',
+        'vs/loader.js',
+        'vs/monaco.d.ts',
+        'vs/nls.build.js',
+        'vs/nls.d.ts',
+        'vs/nls.js',
+        'vs/nls.mock.ts',
+        'typings/lib.ie11_safe_es6.d.ts',
+        'typings/thenable.d.ts',
+        'typings/es6-promise.d.ts',
+        'typings/require.d.ts',
+    ].forEach(copyFile);
+}
+exports.extractEditor = extractEditor;
 function createESMSourcesAndResources(options) {
     var OUT_FOLDER = path.join(REPO_ROOT, options.outFolder);
     var OUT_RESOURCES_FOLDER = path.join(REPO_ROOT, options.outResourcesFolder);
@@ -94,7 +178,7 @@ function createESMSourcesAndResources(options) {
     options.entryPoints.forEach(function (entryPoint) { return enqueue(entryPoint); });
     while (queue.length > 0) {
         var module_1 = queue.shift();
-        if (transportCSS(options, module_1, enqueue, write)) {
+        if (transportCSS(module_1, enqueue, write)) {
             continue;
         }
         if (transportResource(options, module_1, enqueue, write)) {
@@ -171,7 +255,7 @@ function createESMSourcesAndResources(options) {
     fs.writeFileSync(path.join(OUT_FOLDER, 'vs/monaco.d.ts'), monacodts);
 }
 exports.createESMSourcesAndResources = createESMSourcesAndResources;
-function transportCSS(options, module, enqueue, write) {
+function transportCSS(module, enqueue, write) {
     if (!/\.css/.test(module)) {
         return false;
     }
@@ -179,10 +263,10 @@ function transportCSS(options, module, enqueue, write) {
     var fileContents = fs.readFileSync(filename).toString();
     var inlineResources = 'base64'; // see https://github.com/Microsoft/monaco-editor/issues/148
     var inlineResourcesLimit = 300000; //3000; // see https://github.com/Microsoft/monaco-editor/issues/336
-    var newContents = _rewriteOrInlineUrls(filename, fileContents, inlineResources === 'base64', inlineResourcesLimit);
+    var newContents = _rewriteOrInlineUrls(fileContents, inlineResources === 'base64', inlineResourcesLimit);
     write(module, newContents);
     return true;
-    function _rewriteOrInlineUrls(originalFileFSPath, contents, forceBase64, inlineByteLimit) {
+    function _rewriteOrInlineUrls(contents, forceBase64, inlineByteLimit) {
         return _replaceURL(contents, function (url) {
             var imagePath = path.join(path.dirname(module), url);
             var fileContents = fs.readFileSync(path.join(SRC_DIR, imagePath));

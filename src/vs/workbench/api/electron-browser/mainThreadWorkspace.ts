@@ -20,6 +20,9 @@ import { ITextFileService } from 'vs/workbench/services/textfile/common/textfile
 import { IWorkspaceEditingService } from 'vs/workbench/services/workspace/common/workspaceEditing';
 import { ExtHostContext, ExtHostWorkspaceShape, IExtHostContext, MainContext, MainThreadWorkspaceShape } from '../node/extHost.protocol';
 import { CommandsRegistry } from 'vs/platform/commands/common/commands';
+import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
+import { areSameExtensions } from 'vs/platform/extensionManagement/common/extensionManagementUtil';
+import { IWindowService } from 'vs/platform/windows/common/windows';
 
 @extHostNamedCustomer(MainContext.MainThreadWorkspace)
 export class MainThreadWorkspace implements MainThreadWorkspaceShape {
@@ -213,8 +216,18 @@ export class MainThreadWorkspace implements MainThreadWorkspaceShape {
 	}
 }
 
-CommandsRegistry.registerCommand('_workbench.enterWorkspace', function (accessor: ServicesAccessor, workspace: URI) {
+CommandsRegistry.registerCommand('_workbench.enterWorkspace', async function (accessor: ServicesAccessor, workspace: URI, disableExtensions: string[]) {
 	const workspaceEditingService = accessor.get(IWorkspaceEditingService);
+	const extensionService = accessor.get(IExtensionService);
+	const windowService = accessor.get(IWindowService);
+
+	if (disableExtensions && disableExtensions.length) {
+		const runningExtensions = await extensionService.getExtensions();
+		// If requested extension to disable is running, then reload window with given workspace
+		if (disableExtensions && runningExtensions.some(runningExtension => disableExtensions.some(id => areSameExtensions({ id }, { id: runningExtension.id })))) {
+			return windowService.openWindow([URI.file(workspace.fsPath)], { args: { _: [], 'disable-extension': disableExtensions } });
+		}
+	}
 
 	return workspaceEditingService.enterWorkspace(workspace.fsPath);
 });

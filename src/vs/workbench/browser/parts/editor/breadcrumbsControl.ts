@@ -12,7 +12,7 @@ import { IconLabel } from 'vs/base/browser/ui/iconLabel/iconLabel';
 import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
 import { combinedDisposable, dispose, IDisposable } from 'vs/base/common/lifecycle';
 import { Schemas } from 'vs/base/common/network';
-import { basenameOrAuthority, isEqual } from 'vs/base/common/resources';
+import { isEqual } from 'vs/base/common/resources';
 import 'vs/css!./media/breadcrumbscontrol';
 import { ICodeEditor, isCodeEditor } from 'vs/editor/browser/editorBrowser';
 import { Range } from 'vs/editor/common/core/range';
@@ -22,7 +22,7 @@ import { IConfigurationService } from 'vs/platform/configuration/common/configur
 import { ContextKeyExpr, IContextKey, IContextKeyService, RawContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { IContextViewService } from 'vs/platform/contextview/browser/contextView';
 import { FileKind, IFileService } from 'vs/platform/files/common/files';
-import { IConstructorSignature1, IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
+import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { KeybindingsRegistry } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { IQuickOpenService } from 'vs/platform/quickOpen/common/quickOpen';
 import { attachBreadcrumbsStyler } from 'vs/platform/theme/common/styler';
@@ -31,10 +31,15 @@ import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace
 import { FileLabel } from 'vs/workbench/browser/labels';
 import { BreadcrumbsConfig, IBreadcrumbsService } from 'vs/workbench/browser/parts/editor/breadcrumbs';
 import { BreadcrumbElement, EditorBreadcrumbsModel, FileElement } from 'vs/workbench/browser/parts/editor/breadcrumbsModel';
-import { BreadcrumbsFilePicker, BreadcrumbsOutlinePicker, BreadcrumbsPicker } from 'vs/workbench/browser/parts/editor/breadcrumbsPicker';
+import { createBreadcrumbsPicker, BreadcrumbsPicker } from 'vs/workbench/browser/parts/editor/breadcrumbsPicker';
 import { EditorGroupView } from 'vs/workbench/browser/parts/editor/editorGroupView';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IEditorGroupsService } from 'vs/workbench/services/group/common/editorGroupsService';
+import { MenuRegistry, MenuId } from 'vs/platform/actions/common/actions';
+import { localize } from 'vs/nls';
+import { WorkbenchListFocusContextKey, IListService } from 'vs/platform/list/browser/listService';
+import { Tree } from 'vs/base/parts/tree/browser/treeImpl';
+import { CommandsRegistry } from 'vs/platform/commands/common/commands';
 
 class Item extends BreadcrumbsItem {
 
@@ -68,20 +73,21 @@ class Item extends BreadcrumbsItem {
 	render(container: HTMLElement): void {
 		if (this.element instanceof FileElement) {
 			// file/folder
-			if (this.options.showFileIcons) {
-				let label = this._instantiationService.createInstance(FileLabel, container, {});
-				label.setFile(this.element.uri, {
-					hidePath: true,
-					fileKind: this.element.isFile ? FileKind.FILE : FileKind.FOLDER,
-					fileDecorations: { colors: this.options.showDecorationColors, badges: false }
-				});
-				this._disposables.push(label);
+			let label = this._instantiationService.createInstance(FileLabel, container, {});
+			label.setFile(this.element.uri, {
+				hidePath: true,
+				fileKind: this.element.isFile ? FileKind.FILE : FileKind.FOLDER,
+				hideIcon: !this.element.isFile || !this.options.showFileIcons,
+				fileDecorations: { colors: this.options.showDecorationColors, badges: false }
+			});
+			this._disposables.push(label);
+			dom.toggleClass(container, 'file', this.element.isFile);
 
-			} else {
-				let label = new IconLabel(container);
-				label.setValue(basenameOrAuthority(this.element.uri));
-				this._disposables.push(label);
-			}
+		} else if (this.element instanceof OutlineModel) {
+			// has outline element but not in one
+			let label = document.createElement('div');
+			label.innerHTML = '&hellip;';
+			container.appendChild(label);
 
 		} else if (this.element instanceof OutlineGroup) {
 			// provider
@@ -91,16 +97,15 @@ class Item extends BreadcrumbsItem {
 
 		} else if (this.element instanceof OutlineElement) {
 			// symbol
-
 			if (this.options.showSymbolIcons) {
 				let icon = document.createElement('div');
-				icon.className = `symbol-icon ${symbolKindToCssClass(this.element.symbol.kind)}`;
+				icon.className = symbolKindToCssClass(this.element.symbol.kind);
 				container.appendChild(icon);
-				container.classList.add('shows-symbol-icon');
+				dom.addClass(container, 'shows-symbol-icon');
 			}
-
 			let label = new IconLabel(container);
-			label.setValue(this.element.symbol.name.replace(/\r|\n|\r\n/g, '\u23CE'));
+			let title = this.element.symbol.name.replace(/\r|\n|\r\n/g, '\u23CE');
+			label.setValue(title, undefined, { title });
 			this._disposables.push(label);
 		}
 	}
@@ -267,16 +272,11 @@ export class BreadcrumbsControl {
 		}
 
 		// show picker
+		let picker: BreadcrumbsPicker;
 		this._contextViewService.showContextView({
-			getAnchor() {
-				return event.node;
-			},
 			render: (parent: HTMLElement) => {
-				let ctor: IConstructorSignature1<HTMLElement, BreadcrumbsPicker> = element instanceof FileElement ? BreadcrumbsFilePicker : BreadcrumbsOutlinePicker;
-				let res = this._instantiationService.createInstance(ctor, parent);
-				res.layout({ width: Math.max(220, dom.getTotalWidth(event.node)), height: 330 });
-				res.setInput(element);
-				let listener = res.onDidPickElement(data => {
+				picker = createBreadcrumbsPicker(this._instantiationService, parent, element);
+				let listener = picker.onDidPickElement(data => {
 					this._contextViewService.hideContextView();
 					this._widget.setFocused(undefined);
 					this._widget.setSelection(undefined);
@@ -285,7 +285,29 @@ export class BreadcrumbsControl {
 				this._breadcrumbsPickerShowing = true;
 				this._updateCkBreadcrumbsActive();
 
-				return combinedDisposable([listener, res]);
+				return combinedDisposable([listener, picker]);
+			},
+			getAnchor() {
+
+				let pickerHeight = 330;
+				let pickerWidth = Math.max(220, dom.getTotalWidth(event.node));
+				let pickerArrowSize = 8;
+				let pickerArrowOffset: number;
+
+				let data = dom.getDomNodePagePosition(event.node.firstChild as HTMLElement);
+				let y = data.top + data.height - pickerArrowSize;
+				let x = data.left;
+				if (x + pickerWidth >= window.innerWidth) {
+					x = window.innerWidth - pickerWidth;
+				}
+				if (event.payload instanceof StandardMouseEvent) {
+					pickerArrowOffset = event.payload.posx - x - pickerArrowSize;
+				} else {
+					pickerArrowOffset = (data.left + (data.width * .3)) - x;
+				}
+				picker.layout(pickerHeight, pickerWidth, pickerArrowSize, Math.max(0, pickerArrowOffset));
+				picker.setInput(element);
+				return { x, y };
 			},
 			onHide: () => {
 				this._breadcrumbsPickerShowing = false;
@@ -328,6 +350,26 @@ export class BreadcrumbsControl {
 }
 
 //#region commands
+
+MenuRegistry.appendMenuItem(MenuId.CommandPalette, {
+	command: {
+		id: 'breadcrumbs.focus',
+		title: localize('cmd.focus', "Focus Breadcrumbs")
+	}
+});
+MenuRegistry.appendMenuItem(MenuId.MenubarViewMenu, {
+	group: '5_editor',
+	order: 99,
+	command: {
+		id: 'breadcrumbs.toggle',
+		title: localize('cmd.toggle', "Toggle Breadcrumbs")
+	}
+});
+CommandsRegistry.registerCommand('breadcrumbs.toggle', accessor => {
+	let config = accessor.get(IConfigurationService);
+	let value = BreadcrumbsConfig.IsEnabled.bindTo(config).value;
+	BreadcrumbsConfig.IsEnabled.bindTo(config).value = !value;
+});
 
 KeybindingsRegistry.registerCommandAndKeybindingRule({
 	id: 'breadcrumbs.focus',
@@ -405,5 +447,16 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 		groups.activeGroup.activeControl.focus();
 	}
 });
-
+KeybindingsRegistry.registerCommandAndKeybindingRule({
+	id: 'breadcrumbs.pickFromTree',
+	weight: KeybindingsRegistry.WEIGHT.workbenchContrib(),
+	primary: KeyCode.Tab,
+	when: ContextKeyExpr.and(BreadcrumbsControl.CK_BreadcrumbsVisible, BreadcrumbsControl.CK_BreadcrumbsActive, WorkbenchListFocusContextKey),
+	handler(accessor) {
+		const list = accessor.get(IListService).lastFocusedList;
+		if (list instanceof Tree) {
+			list.setSelection([list.getFocus()]);
+		}
+	}
+});
 //#endregion

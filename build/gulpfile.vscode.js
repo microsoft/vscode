@@ -95,6 +95,7 @@ const BUNDLED_FILE_HEADER = [
 
 gulp.task('clean-optimized-vscode', util.rimraf('out-vscode'));
 gulp.task('optimize-vscode', ['clean-optimized-vscode', 'compile-build', 'compile-extensions-build'], common.optimizeTask({
+	src: 'out-build',
 	entryPoints: vscodeEntryPoints,
 	otherSources: [],
 	resources: vscodeResources,

@@ -849,12 +849,8 @@ class SettingsContentBuilder {
 
 	private pushSetting(setting: ISetting, indent: string): void {
 		const settingStart = this.lineCountWithOffset + 1;
-		setting.descriptionRanges = [];
-		const descriptionPreValue = indent + '// ';
-		for (const line of setting.description) {
-			this._contentByLines.push(descriptionPreValue + line);
-			setting.descriptionRanges.push({ startLineNumber: this.lineCountWithOffset, startColumn: this.lastLine.indexOf(line) + 1, endLineNumber: this.lineCountWithOffset, endColumn: this.lastLine.length });
-		}
+
+		this.pushSettingDescription(setting, indent);
 
 		let preValueConent = indent;
 		const keyString = JSON.stringify(setting.key);
@@ -869,6 +865,32 @@ class SettingsContentBuilder {
 		this._contentByLines[this._contentByLines.length - 1] += ',';
 		this._contentByLines.push('');
 		setting.range = { startLineNumber: settingStart, startColumn: 1, endLineNumber: this.lineCountWithOffset, endColumn: this.lastLine.length };
+	}
+
+	private pushSettingDescription(setting: ISetting, indent: string): void {
+		const fixSettingLink = line => line.replace(/`#(.*)#`/g, (match, settingName) => `\`${settingName}\``);
+
+		setting.descriptionRanges = [];
+		const descriptionPreValue = indent + '// ';
+		for (let line of setting.description) {
+			// Remove setting link tag
+			line = fixSettingLink(line);
+
+			this._contentByLines.push(descriptionPreValue + line);
+			setting.descriptionRanges.push({ startLineNumber: this.lineCountWithOffset, startColumn: this.lastLine.indexOf(line) + 1, endLineNumber: this.lineCountWithOffset, endColumn: this.lastLine.length });
+		}
+
+		if (setting.enumDescriptions && setting.enumDescriptions.some(desc => !!desc)) {
+			setting.enumDescriptions.forEach((desc, i) => {
+				const line = desc ?
+					`${setting.enum[i]}: ${fixSettingLink(desc)}` :
+					setting.enum[i];
+
+				this._contentByLines.push(`  //  - ${line}`);
+
+				setting.descriptionRanges.push({ startLineNumber: this.lineCountWithOffset, startColumn: this.lastLine.indexOf(line) + 1, endLineNumber: this.lineCountWithOffset, endColumn: this.lastLine.length });
+			});
+		}
 	}
 
 	private pushValue(setting: ISetting, preValueConent: string, indent: string): void {

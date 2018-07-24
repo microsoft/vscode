@@ -640,6 +640,14 @@ export class ExtensionsListView extends ViewletPanel {
 	static isKeymapsRecommendedExtensionsQuery(query: string): boolean {
 		return /@recommended:keymaps/i.test(query);
 	}
+
+	focus(): void {
+		super.focus();
+		if (!(this.list.getFocus().length || this.list.getSelection().length)) {
+			this.list.focusNext();
+		}
+		this.list.domFocus();
+	}
 }
 
 export class InstalledExtensionsView extends ExtensionsListView {

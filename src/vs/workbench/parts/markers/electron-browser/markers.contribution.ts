@@ -212,3 +212,12 @@ function registerAction(desc: IActionDescriptor) {
 		});
 	}
 }
+
+MenuRegistry.appendMenuItem(MenuId.MenubarViewMenu, {
+	group: '4_panels',
+	command: {
+		id: ToggleMarkersPanelAction.ID,
+		title: localize({ key: 'miMarker', comment: ['&& denotes a mnemonic'] }, "&&Problems")
+	},
+	order: 4
+});
