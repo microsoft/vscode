@@ -5,6 +5,8 @@
 
 import * as DOM from 'vs/base/browser/dom';
 import { Button } from 'vs/base/browser/ui/button/button';
+import { ToolBar } from 'vs/base/browser/ui/toolbar/toolbar';
+import { Action } from 'vs/base/common/actions';
 import * as arrays from 'vs/base/common/arrays';
 import { Delayer, ThrottledDelayer } from 'vs/base/common/async';
 import { CancellationToken } from 'vs/base/common/cancellation';
@@ -19,6 +21,7 @@ import 'vs/css!./media/settingsEditor2';
 import { localize } from 'vs/nls';
 import { ConfigurationTarget, IConfigurationOverrides, IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
+import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { WorkbenchTree, WorkbenchTreeController } from 'vs/platform/list/browser/listService';
@@ -56,8 +59,7 @@ export class SettingsEditor2 extends BaseEditor {
 	private headerContainer: HTMLElement;
 	private searchWidget: SearchWidget;
 	private settingsTargetsWidget: SettingsTargetsWidget;
-
-	private showConfiguredSettingsOnlyCheckbox: HTMLInputElement;
+	private toolbar: ToolBar;
 
 	private settingsTreeContainer: HTMLElement;
 	private settingsTree: WorkbenchTree;
@@ -99,7 +101,8 @@ export class SettingsEditor2 extends BaseEditor {
 		@IPreferencesSearchService private preferencesSearchService: IPreferencesSearchService,
 		@ILogService private logService: ILogService,
 		@IEnvironmentService private environmentService: IEnvironmentService,
-		@IContextKeyService contextKeyService: IContextKeyService
+		@IContextKeyService contextKeyService: IContextKeyService,
+		@IContextMenuService private contextMenuService: IContextMenuService
 	) {
 		super(SettingsEditor2.ID, telemetryService, themeService);
 		this.delayedFilterLogging = new Delayer<void>(1000);
@@ -203,26 +206,13 @@ export class SettingsEditor2 extends BaseEditor {
 		}));
 		this._register(this.searchWidget.onDidChange(() => this.onSearchInputChanged()));
 
-		const advancedCustomization = DOM.append(this.headerContainer, $('.settings-advanced-customization'));
-		const advancedCustomizationLabel = DOM.append(advancedCustomization, $('span.settings-advanced-customization-label'));
-		advancedCustomizationLabel.textContent = localize('advancedCustomizationLabel', "For advanced customizations open and edit") + ' ';
-		const openSettingsButton = this._register(new Button(advancedCustomization, { title: true, buttonBackground: null, buttonHoverBackground: null }));
-		this._register(attachButtonStyler(openSettingsButton, this.themeService, {
-			buttonBackground: Color.transparent.toString(),
-			buttonHoverBackground: Color.transparent.toString(),
-			buttonForeground: foreground
-		}));
-		openSettingsButton.label = localize('openSettingsLabel', "settings.json");
-		openSettingsButton.element.classList.add('open-settings-button');
-
-		this._register(openSettingsButton.onDidClick(() => this.openSettingsFile()));
-
 		const headerControlsContainer = DOM.append(this.headerContainer, $('.settings-header-controls'));
 		const targetWidgetContainer = DOM.append(headerControlsContainer, $('.settings-target-container'));
 		this.settingsTargetsWidget = this._register(this.instantiationService.createInstance(SettingsTargetsWidget, targetWidgetContainer));
 		this.settingsTargetsWidget.settingsTarget = ConfigurationTarget.USER;
 		this.settingsTargetsWidget.onDidTargetChange(() => {
 			this.viewState.settingsTarget = this.settingsTargetsWidget.settingsTarget;
+			this.toolbar.context = this.settingsTargetsWidget.settingsTarget;
 
 			this.settingsTreeModel.update();
 			this.refreshTreeAndMaintainFocus();
@@ -234,13 +224,17 @@ export class SettingsEditor2 extends BaseEditor {
 	private createHeaderControls(parent: HTMLElement): void {
 		const headerControlsContainerRight = DOM.append(parent, $('.settings-header-controls-right'));
 
-		this.showConfiguredSettingsOnlyCheckbox = DOM.append(headerControlsContainerRight, $('input#configured-only-checkbox'));
-		this.showConfiguredSettingsOnlyCheckbox.type = 'checkbox';
-		const showConfiguredSettingsOnlyLabel = <HTMLLabelElement>DOM.append(headerControlsContainerRight, $('label.configured-only-label'));
-		showConfiguredSettingsOnlyLabel.textContent = localize('showOverriddenOnly', "Show modified only");
-		showConfiguredSettingsOnlyLabel.htmlFor = 'configured-only-checkbox';
+		this.toolbar = new ToolBar(headerControlsContainerRight, this.contextMenuService, {
+			ariaLabel: localize('settingsToolbarLabel', "Settings Editor Actions"),
+			actionRunner: this.actionRunner
+		});
 
-		this._register(DOM.addDisposableListener(this.showConfiguredSettingsOnlyCheckbox, 'change', e => this.onShowConfiguredOnlyClicked()));
+		const actions = [
+			this.instantiationService.createInstance(ToggleShowModifiedOnlyAction, this, this.viewState),
+			this.instantiationService.createInstance(OpenSettingsAction)
+		];
+		this.toolbar.setActions([], actions)();
+		this.toolbar.context = this.settingsTargetsWidget.settingsTarget;
 	}
 
 	private revealSetting(settingName: string): void {
@@ -444,12 +438,12 @@ export class SettingsEditor2 extends BaseEditor {
 		}));
 	}
 
-	private onShowConfiguredOnlyClicked(): void {
-		this.viewState.showConfiguredOnly = this.showConfiguredSettingsOnlyCheckbox.checked;
-		this.refreshTreeAndMaintainFocus();
-		this.tocTree.refresh();
-		this.settingsTree.setScrollPosition(0);
-		this.expandAll(this.settingsTree);
+	toggleShowModifiedOnly(): TPromise<void> {
+		this.viewState.showConfiguredOnly = !this.viewState.showConfiguredOnly;
+		return this.refreshTreeAndMaintainFocus().then(() => {
+			this.settingsTree.setScrollPosition(0);
+			this.expandAll(this.settingsTree);
+		});
 	}
 
 	private onDidChangeSetting(key: string, value: any): void {
@@ -839,5 +833,54 @@ export class SettingsEditor2 extends BaseEditor {
 
 		this.tocTreeContainer.style.height = `${listHeight}px`;
 		this.tocTree.layout(listHeight, 175);
+	}
+}
+
+class OpenSettingsAction extends Action {
+	static readonly ID = 'settings.openSettingsJson';
+	static readonly LABEL = localize('openSettingsJsonLabel', "Open settings.json for advanced customizations");
+
+	constructor(
+		@IPreferencesService private readonly preferencesService: IPreferencesService,
+	) {
+		super(OpenSettingsAction.ID, OpenSettingsAction.LABEL, 'open-settings-json');
+	}
+
+
+	run(context?: SettingsTarget): TPromise<void> {
+		return this._run(context)
+			.then(() => { });
+	}
+
+	private _run(context?: SettingsTarget): TPromise<any> {
+		if (context === ConfigurationTarget.USER) {
+			return this.preferencesService.openGlobalSettings();
+		} else if (context === ConfigurationTarget.WORKSPACE) {
+			return this.preferencesService.openWorkspaceSettings();
+		} else if (URI.isUri(context)) {
+			return this.preferencesService.openFolderSettings(context);
+		}
+
+		return TPromise.wrap(null);
+	}
+}
+
+class ToggleShowModifiedOnlyAction extends Action {
+	static readonly ID = 'settings.toggleShowModifiedOnly';
+	static readonly LABEL = localize('showModifiedOnlyLabel', "Show modified settings only");
+
+	get checked(): boolean {
+		return this.viewState.showConfiguredOnly;
+	}
+
+	constructor(
+		private settingsEditor: SettingsEditor2,
+		private viewState: ISettingsEditorViewState
+	) {
+		super(ToggleShowModifiedOnlyAction.ID, ToggleShowModifiedOnlyAction.LABEL, 'show-modified-only');
+	}
+
+	run(): TPromise<void> {
+		return this.settingsEditor.toggleShowModifiedOnly();
 	}
 }

@@ -30,19 +30,6 @@
 	opacity: .7;
 }
 
-.settings-editor > .settings-header > .settings-advanced-customization .open-settings-button,
-.settings-editor > .settings-header > .settings-advanced-customization .open-settings-button:hover,
-.settings-editor > .settings-header > .settings-advanced-customization .open-settings-button:active {
-	padding: 0;
-	text-decoration: underline;
-	display: inline;
-}
-
-.settings-editor > .settings-header > .settings-advanced-customization {
-	opacity: .7;
-	margin-top: 8px;
-}
-
 .settings-editor > .settings-header > .settings-preview-header > .settings-preview-warning {
 	text-align: right;
 	text-transform: uppercase;
@@ -92,15 +79,22 @@
 	display: flex;
 }
 
-.settings-editor > .settings-header > .settings-header-controls .settings-header-controls-right #configured-only-checkbox {
-	flex-shrink: 0;
+.settings-editor > .settings-header > .settings-header-controls .settings-header-controls-right .toolbar-toggle-more {
+	display: block;
+	width: 16px;
+	height: 22px;
+	margin-right: 4px;
+	margin-left: 4px;
+	background-position: center;
+	background-repeat: no-repeat;
 }
 
-.settings-editor > .settings-header > .settings-header-controls .settings-header-controls-right .configured-only-label {
-	white-space: nowrap;
-	margin-right: 10px;
-	margin-left: 2px;
-	opacity: 0.7;
+.vs .settings-editor > .settings-header > .settings-header-controls .settings-header-controls-right .toolbar-toggle-more {
+	background-image: url('configure.svg');
+}
+
+.vs-dark .settings-editor > .settings-header > .settings-header-controls .settings-header-controls-right .toolbar-toggle-more {
+	background-image: url('configure-inverse.svg');
 }
 
 .settings-editor > .settings-header > .settings-header-controls .settings-tabs-widget > .monaco-action-bar .action-item {
@@ -138,7 +132,7 @@
 .settings-editor > .settings-body .settings-toc-container {
 	width: 175px;
 	margin-right: 5px;
-	padding-top: 4px;
+	padding-top: 8px;
 	box-sizing: border-box;
 }
 
