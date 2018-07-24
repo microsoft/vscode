@@ -15,6 +15,7 @@ import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
 import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
 import { CommandsRegistry } from 'vs/platform/commands/common/commands';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
+import { dispose, IDisposable } from 'vs/base/common/lifecycle';
 
 export const offlineModeSetting = 'workbench.enableOfflineMode';
 export const unSupportedInOfflineModeMsg = localize('offlineModeUnsupportedFeature', "This feature is not supported in offline mode");
@@ -23,6 +24,7 @@ export class EnableOfflineMode extends Action {
 	static readonly ID = 'workbench.action.enableOfflineMode';
 	static LABEL = localize('enableOfflineMode', 'Enable Offline Mode');
 
+	private disposables: IDisposable[] = [];
 	private readonly disclaimerStorageKey = 'workbench.offlineMode.disclaimer.dontShowAgain';
 
 	constructor(
@@ -38,7 +40,7 @@ export class EnableOfflineMode extends Action {
 			if (e.affectsConfiguration(offlineModeSetting)) {
 				this.updateEnabled();
 			}
-		});
+		}, this, this.disposables);
 	}
 
 	private updateEnabled() {
@@ -58,11 +60,18 @@ export class EnableOfflineMode extends Action {
 		}
 		return this.configurationService.updateValue(offlineModeSetting, true);
 	}
+
+	dispose(): void {
+		this.disposables = dispose(this.disposables);
+		super.dispose();
+	}
 }
 
 export class DisableOfflineMode extends Action {
 	static readonly ID = 'workbench.action.disableOfflineMode';
 	static LABEL = localize('disableOfflineMode', 'Disable Offline Mode');
+
+	private disposables: IDisposable[] = [];
 
 	constructor(
 		id: string = DisableOfflineMode.ID,
@@ -75,7 +84,7 @@ export class DisableOfflineMode extends Action {
 			if (e.affectsConfiguration(offlineModeSetting)) {
 				this.updateEnabled();
 			}
-		});
+		}, this, this.disposables);
 	}
 
 	private updateEnabled() {
@@ -84,6 +93,11 @@ export class DisableOfflineMode extends Action {
 
 	run(): TPromise<any> {
 		return this.configurationService.updateValue(offlineModeSetting, false);
+	}
+
+	dispose(): void {
+		this.disposables = dispose(this.disposables);
+		super.dispose();
 	}
 }
 
