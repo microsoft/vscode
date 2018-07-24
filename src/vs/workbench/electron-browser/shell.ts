@@ -520,10 +520,12 @@ export class WorkbenchShell extends Disposable {
 		}
 	}
 
+	private static readonly PARTS_SPLASH_ID = 'monaco-parts-splash';
+
 	private _savePartsSplash() {
 
 		// capture html-structure
-		let html = '<div id="monaco-parts-splash">';
+		let html = `<div id="${WorkbenchShell.PARTS_SPLASH_ID}">`;
 
 		// title part
 		let titleHeight: number;
@@ -575,7 +577,7 @@ export class WorkbenchShell extends Disposable {
 	}
 
 	private _removePartsSplash(): void {
-		let element = document.getElementById('monaco-parts-splash');
+		let element = document.getElementById(WorkbenchShell.PARTS_SPLASH_ID);
 		if (element) {
 			element.remove();
 		}
