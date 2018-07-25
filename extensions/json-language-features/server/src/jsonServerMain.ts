@@ -19,7 +19,7 @@ import { formatError, runSafe, runSafeAsync } from './utils/runner';
 import { JSONDocument, JSONSchema, getLanguageService, DocumentLanguageSettings, SchemaConfiguration } from 'vscode-json-languageservice';
 import { getLanguageModelCache } from './languageModelCache';
 
-import { FoldingRangeRequest, FoldingRangeServerCapabilities } from 'vscode-languageserver-protocol-foldingprovider';
+import { FoldingRangeRequest, FoldingRangeServerCapabilities } from 'vscode-languageserver-protocol';
 
 interface ISchemaAssociations {
 	[pattern: string]: string[];

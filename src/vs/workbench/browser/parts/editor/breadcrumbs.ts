@@ -136,7 +136,7 @@ Registry.as<IConfigurationRegistry>(Extensions.Configuration).registerConfigurat
 			default: 'on',
 			enum: ['on', 'off', 'last'],
 			enumDescriptions: [
-				localize('symbolpath.on', "Show all symbols the breadcrumbs view."),
+				localize('symbolpath.on', "Show all symbols in the breadcrumbs view."),
 				localize('symbolpath.off', "Do not show symbols in the breadcrumbs view."),
 				localize('symbolpath.last', "Only show the current symbol in the breadcrumbs view."),
 			]

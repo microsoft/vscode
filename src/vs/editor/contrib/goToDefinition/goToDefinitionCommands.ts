@@ -25,6 +25,7 @@ import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { ITextModel, IWordAtPosition } from 'vs/editor/common/model';
 import { INotificationService } from 'vs/platform/notification/common/notification';
 import { createCancelablePromise } from 'vs/base/common/async';
+import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
 
 export class DefinitionActionConfig {
 
@@ -191,7 +192,8 @@ export class GoToDefinitionAction extends DefinitionAction {
 				EditorContextKeys.isInEmbeddedEditor.toNegated()),
 			kbOpts: {
 				kbExpr: EditorContextKeys.editorTextFocus,
-				primary: goToDeclarationKb
+				primary: goToDeclarationKb,
+				weight: KeybindingWeight.EditorContrib
 			},
 			menuOpts: {
 				group: 'navigation',
@@ -215,7 +217,8 @@ export class OpenDefinitionToSideAction extends DefinitionAction {
 				EditorContextKeys.isInEmbeddedEditor.toNegated()),
 			kbOpts: {
 				kbExpr: EditorContextKeys.editorTextFocus,
-				primary: KeyChord(KeyMod.CtrlCmd | KeyCode.KEY_K, goToDeclarationKb)
+				primary: KeyChord(KeyMod.CtrlCmd | KeyCode.KEY_K, goToDeclarationKb),
+				weight: KeybindingWeight.EditorContrib
 			}
 		});
 	}
@@ -234,7 +237,8 @@ export class PeekDefinitionAction extends DefinitionAction {
 			kbOpts: {
 				kbExpr: EditorContextKeys.editorTextFocus,
 				primary: KeyMod.Alt | KeyCode.F12,
-				linux: { primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.F10 }
+				linux: { primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.F10 },
+				weight: KeybindingWeight.EditorContrib
 			},
 			menuOpts: {
 				group: 'navigation',
@@ -274,7 +278,8 @@ export class GoToImplementationAction extends ImplementationAction {
 				EditorContextKeys.isInEmbeddedEditor.toNegated()),
 			kbOpts: {
 				kbExpr: EditorContextKeys.editorTextFocus,
-				primary: KeyMod.CtrlCmd | KeyCode.F12
+				primary: KeyMod.CtrlCmd | KeyCode.F12,
+				weight: KeybindingWeight.EditorContrib
 			}
 		});
 	}
@@ -294,7 +299,8 @@ export class PeekImplementationAction extends ImplementationAction {
 				EditorContextKeys.isInEmbeddedEditor.toNegated()),
 			kbOpts: {
 				kbExpr: EditorContextKeys.editorTextFocus,
-				primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.F12
+				primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.F12,
+				weight: KeybindingWeight.EditorContrib
 			}
 		});
 	}
@@ -330,7 +336,8 @@ export class GoToTypeDefinitionAction extends TypeDefinitionAction {
 				EditorContextKeys.isInEmbeddedEditor.toNegated()),
 			kbOpts: {
 				kbExpr: EditorContextKeys.editorTextFocus,
-				primary: 0
+				primary: 0,
+				weight: KeybindingWeight.EditorContrib
 			},
 			menuOpts: {
 				group: 'navigation',
@@ -354,7 +361,8 @@ export class PeekTypeDefinitionAction extends TypeDefinitionAction {
 				EditorContextKeys.isInEmbeddedEditor.toNegated()),
 			kbOpts: {
 				kbExpr: EditorContextKeys.editorTextFocus,
-				primary: 0
+				primary: 0,
+				weight: KeybindingWeight.EditorContrib
 			}
 		});
 	}

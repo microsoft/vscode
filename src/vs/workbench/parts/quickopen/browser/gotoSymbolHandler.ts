@@ -239,9 +239,10 @@ class SymbolEntry extends EditorQuickOpenEntryGroup {
 	private icon: string;
 	private description: string;
 	private range: IRange;
+	private revealRange: IRange;
 	private handler: GotoSymbolHandler;
 
-	constructor(index: number, name: string, type: string, description: string, icon: string, range: IRange, highlights: IHighlight[], editorService: IEditorService, handler: GotoSymbolHandler) {
+	constructor(index: number, name: string, type: string, description: string, icon: string, range: IRange, revealRange: IRange, highlights: IHighlight[], editorService: IEditorService, handler: GotoSymbolHandler) {
 		super();
 
 		this.index = index;
@@ -250,6 +251,7 @@ class SymbolEntry extends EditorQuickOpenEntryGroup {
 		this.icon = icon;
 		this.description = description;
 		this.range = range;
+		this.revealRange = revealRange || range;
 		this.setHighlights(highlights);
 		this.editorService = editorService;
 		this.handler = handler;
@@ -342,10 +344,10 @@ class SymbolEntry extends EditorQuickOpenEntryGroup {
 
 	private toSelection(): IRange {
 		return {
-			startLineNumber: this.range.startLineNumber,
-			startColumn: this.range.startColumn || 1,
-			endLineNumber: this.range.startLineNumber,
-			endColumn: this.range.startColumn || 1
+			startLineNumber: this.revealRange.startLineNumber,
+			startColumn: this.revealRange.startColumn || 1,
+			endLineNumber: this.revealRange.startLineNumber,
+			endColumn: this.revealRange.startColumn || 1
 		};
 	}
 }
@@ -450,7 +452,7 @@ export class GotoSymbolHandler extends QuickOpenHandler {
 			// Add
 			results.push(new SymbolEntry(i,
 				label, icon, description, `symbol-icon ${icon}`,
-				element.range, null, this.editorService, this
+				element.range, element.selectionRange, null, this.editorService, this
 			));
 		}
 

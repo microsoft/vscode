@@ -6,7 +6,7 @@
 
 import { TPromise } from 'vs/base/common/winjs.base';
 import { Registry } from 'vs/platform/registry/common/platform';
-import { KeybindingsRegistry } from 'vs/platform/keybinding/common/keybindingsRegistry';
+import { KeybindingsRegistry, KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { ICommandHandler, CommandsRegistry } from 'vs/platform/commands/common/commands';
 import { SyncActionDescriptor, MenuRegistry, MenuId } from 'vs/platform/actions/common/actions';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
@@ -41,7 +41,7 @@ Registry.add(Extensions.WorkbenchActions, new class implements IWorkbenchActionR
 
 		// keybinding
 		const when = descriptor.keybindingContext;
-		const weight = (typeof descriptor.keybindingWeight === 'undefined' ? KeybindingsRegistry.WEIGHT.workbenchContrib() : descriptor.keybindingWeight);
+		const weight = (typeof descriptor.keybindingWeight === 'undefined' ? KeybindingWeight.WorkbenchContrib : descriptor.keybindingWeight);
 		const keybindings = descriptor.keybindings;
 		KeybindingsRegistry.registerKeybindingRule({
 			id: descriptor.id,

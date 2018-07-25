@@ -9,6 +9,7 @@ import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
 import { registerEditorAction, ServicesAccessor, EditorAction } from 'vs/editor/browser/editorExtensions';
 import { TabFocus } from 'vs/editor/common/config/commonEditorConfig';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
+import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
 
 export class ToggleTabFocusModeAction extends EditorAction {
 
@@ -23,7 +24,8 @@ export class ToggleTabFocusModeAction extends EditorAction {
 			kbOpts: {
 				kbExpr: null,
 				primary: KeyMod.CtrlCmd | KeyCode.KEY_M,
-				mac: { primary: KeyMod.WinCtrl | KeyMod.Shift | KeyCode.KEY_M }
+				mac: { primary: KeyMod.WinCtrl | KeyMod.Shift | KeyCode.KEY_M },
+				weight: KeybindingWeight.EditorContrib
 			}
 		});
 	}

@@ -1068,6 +1068,11 @@ export class TerminalInstance implements ITerminalInstance {
 	private _updateTheme(theme?: ITheme): void {
 		this._xterm.setOption('theme', this._getXtermTheme(theme));
 	}
+
+	public toggleEscapeSequenceLogging(): void {
+		this._xterm._core.debug = !this._xterm._core.debug;
+		this._xterm.setOption('debug', this._xterm._core.debug);
+	}
 }
 
 registerThemingParticipant((theme: ITheme, collector: ICssStyleCollector) => {

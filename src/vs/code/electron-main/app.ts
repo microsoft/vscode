@@ -281,7 +281,7 @@ export class CodeApplication {
 		// See: https://github.com/Microsoft/vscode/issues/35361#issuecomment-399794085
 		try {
 			if (platform.isMacintosh && this.configurationService.getValue<boolean>('window.nativeTabs') === true && !systemPreferences.getUserDefault('NSUseImprovedLayoutPass', 'boolean')) {
-				systemPreferences.setUserDefault('NSUseImprovedLayoutPass', 'boolean', true as any);
+				systemPreferences.registerDefaults({ NSUseImprovedLayoutPass: true });
 			}
 		} catch (error) {
 			this.logService.error(error);
