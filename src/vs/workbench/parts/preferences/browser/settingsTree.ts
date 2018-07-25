@@ -35,7 +35,7 @@ import { attachButtonStyler, attachInputBoxStyler, attachSelectBoxStyler, attach
 import { ICssStyleCollector, ITheme, IThemeService, registerThemingParticipant } from 'vs/platform/theme/common/themeService';
 import { SettingsTarget } from 'vs/workbench/parts/preferences/browser/preferencesWidgets';
 import { ITOCEntry } from 'vs/workbench/parts/preferences/browser/settingsLayout';
-import { ExcludeSettingWidget, settingsNumberInputBackground, settingsNumberInputBorder, settingsNumberInputForeground, settingsSelectBackground, settingsSelectBorder, settingsSelectForeground, settingsTextInputBorder, settingsTextInputForeground, settingItemInactiveSelectionBorder, settingsHeaderForeground, settingsTextInputBackground } from 'vs/workbench/parts/preferences/browser/settingsWidgets';
+import { ExcludeSettingWidget, settingsNumberInputBackground, settingsNumberInputBorder, settingsNumberInputForeground, settingsSelectBackground, settingsSelectBorder, settingsSelectForeground, settingsTextInputBorder, settingsTextInputForeground, settingItemInactiveSelectionBorder, settingsHeaderForeground, settingsTextInputBackground, IExcludeDataItem } from 'vs/workbench/parts/preferences/browser/settingsWidgets';
 import { ISearchResult, ISetting, ISettingsGroup } from 'vs/workbench/services/preferences/common/preferences';
 
 const $ = DOM.$;
@@ -213,21 +213,23 @@ function createSettingsTreeSettingElement(setting: ISetting, parent: any, settin
 	return element;
 }
 
-function getExcludeDisplayValue(element: SettingsTreeSettingElement): any {
+function getExcludeDisplayValue(element: SettingsTreeSettingElement): IExcludeDataItem[] {
 	const data = element.isConfigured ?
-		{
-			...element.defaultValue,
-			...element.value
-		} :
+		objects.mixin({ ...element.scopeValue }, element.defaultValue, false) :
 		element.defaultValue;
 
-	for (let key in data) {
-		if (!data[key]) {
-			delete data[key];
-		}
-	}
+	return Object.keys(data)
+		.filter(key => !!data[key])
+		.map(key => {
+			const value = data[key];
+			const sibling = typeof value === 'boolean' ? undefined : value.when;
 
-	return data;
+			return {
+				id: key,
+				pattern: key,
+				sibling
+			};
+		});
 }
 
 interface IInspectResult {
@@ -551,7 +553,7 @@ export class SettingsRenderer implements ITreeRenderer {
 
 	_getExcludeSettingHeight(element: SettingsTreeSettingElement): number {
 		const displayValue = getExcludeDisplayValue(element);
-		return (Object.keys(displayValue).length + 1) * 22 + 72;
+		return (displayValue.length + 1) * 22 + 80;
 	}
 
 	_getUnexpandedSettingHeight(element: SettingsTreeSettingElement): number {

@@ -83,55 +83,32 @@ registerThemingParticipant((theme: ITheme, collector: ICssStyleCollector) => {
 	}
 });
 
-enum AddItemMode {
-	None,
-	Pattern,
-	PatternWithSibling
-}
-
 export class ExcludeSettingListModel {
-	private _dataItems: IExcludeItem[] = [];
-	// private _newItem = AddItemMode.None;
+	private _dataItems: IExcludeDataItem[] = [];
+	private _editKey: string;
 
-	get items(): IExcludeItem[] {
-		const items = [
-			...this._dataItems
-		];
-
-		// items.push(<INewExcludeItem>{
-		// 	id: 'newItem',
-		// 	mode: this._newItem
-		// });
-
-		return items;
+	get items(): IExcludeViewItem[] {
+		return this._dataItems.map(item => {
+			return <IExcludeViewItem>{
+				...item,
+				editing: item.pattern === this._editKey
+			};
+		});
 	}
 
-	setAddItemMode(mode: AddItemMode): void {
-		// this._newItem = mode;
+	setEditKey(key: string): void {
+		this._editKey = key;
 	}
 
-	setValue(excludeValue: any, defaultValue: any): void {
-		this._dataItems = this.excludeValueToItems(excludeValue);
-	}
-
-	private excludeValueToItems(excludeValue: any): IExcludeItem[] {
-		return Object.keys(excludeValue)
-			.map(key => {
-				const value = excludeValue[key];
-				const sibling = typeof value === 'boolean' ? undefined : value.when;
-
-				return {
-					id: key,
-					pattern: key,
-					sibling
-				};
-			});
+	setValue(excludeData: IExcludeDataItem[]): void {
+		this._dataItems = excludeData;
 	}
 }
 
 interface IExcludeChangeEvent {
 	originalPattern: string;
 	pattern: string;
+	sibling?: string;
 }
 
 export class ExcludeSettingWidget extends Disposable {
@@ -156,8 +133,8 @@ export class ExcludeSettingWidget extends Disposable {
 		this.update();
 	}
 
-	setValue(excludeValue: any): void {
-		this.model.setValue(excludeValue, void 0);
+	setValue(excludeData: IExcludeDataItem[]): void {
+		this.model.setValue(excludeData);
 		this.patternInput.value = '';
 		this.update();
 	}
@@ -190,14 +167,17 @@ export class ExcludeSettingWidget extends Disposable {
 			enabled: true,
 			id: 'workbench.action.editExcludeItem',
 			tooltip: localize('editExcludeItem', "Edit Exclude Item"),
-			run: () => { }
+			run: () => {
+				this.model.setEditKey(key);
+				this.update();
+			}
 		};
 	}
 
-	private renderItem(item: IExcludeItem): HTMLElement {
-		return isExcludeDataItem(item) ?
-			this.renderDataItem(item) :
-			this.renderEditItem(item);
+	private renderItem(item: IExcludeViewItem): HTMLElement {
+		return item.editing ?
+			this.renderEditItem(item) :
+			this.renderDataItem(item);
 	}
 
 	private renderDataItem(item: IExcludeDataItem): HTMLElement {
@@ -227,7 +207,7 @@ export class ExcludeSettingWidget extends Disposable {
 		this.patternInput = new InputBox(rowElement, this.contextViewService, {
 			placeholder: localize('excludePatternInputPlaceholder', "Exclude Pattern...")
 		});
-		this.patternInput.element.classList.add('setting-exclude-patternInput');
+		this.patternInput.element.classList.add('setting-exclude-newPatternInput');
 		this._register(attachInputBoxStyler(this.patternInput, this.themeService, {
 			inputBackground: settingsTextInputBackground,
 			inputForeground: settingsTextInputForeground,
@@ -237,7 +217,7 @@ export class ExcludeSettingWidget extends Disposable {
 
 		const addPatternButton = this._register(new Button(rowElement));
 		addPatternButton.label = localize('addPattern', "Add Pattern");
-		addPatternButton.element.classList.add('setting-exclude-addPattern', 'setting-exclude-addButton');
+		addPatternButton.element.classList.add('setting-exclude-addButton');
 		this._register(attachButtonStyler(addPatternButton, this.themeService));
 
 		const addItem = () => this._onDidChangeExclude.fire({
@@ -257,15 +237,25 @@ export class ExcludeSettingWidget extends Disposable {
 		return rowElement;
 	}
 
-	private renderEditItem(item: INewExcludeItem): HTMLElement {
+	private renderEditItem(item: IExcludeViewItem): HTMLElement {
 		const rowElement = $('.setting-exclude-edit-row');
+
+		const onSubmit = edited => {
+			this.model.setEditKey(null);
+			if (edited) {
+				this._onDidChangeExclude.fire({
+					originalPattern: item.pattern,
+					pattern: patternInput.value,
+					sibling: siblingInput && siblingInput.value
+				});
+			} else {
+				this.update();
+			}
+		};
 
 		const onKeydown = (e: StandardKeyboardEvent) => {
 			if (e.equals(KeyCode.Enter)) {
-				this._onDidChangeExclude.fire({
-					originalPattern: undefined,
-					pattern: patternInput.value
-				});
+				onSubmit(true);
 			}
 		};
 
@@ -279,31 +269,41 @@ export class ExcludeSettingWidget extends Disposable {
 			inputBorder: settingsTextInputBorder
 		}));
 		this.listDisposables.push(patternInput);
+		patternInput.value = item.pattern;
 		this.listDisposables.push(DOM.addStandardDisposableListener(patternInput.inputElement, DOM.EventType.KEY_DOWN, onKeydown));
 
-		const siblingInput = new InputBox(rowElement, this.contextViewService, {
-			placeholder: localize('excludeSiblingInputPlaceholder', "When Pattern Is Present...")
-		});
-		siblingInput.element.classList.add('setting-exclude-siblingInput');
-		this.listDisposables.push(siblingInput);
-		this.listDisposables.push(attachInputBoxStyler(siblingInput, this.themeService, {
-			inputBackground: settingsTextInputBackground,
-			inputForeground: settingsTextInputForeground,
-			inputBorder: settingsTextInputBorder
-		}));
-		this.listDisposables.push(DOM.addStandardDisposableListener(siblingInput.inputElement, DOM.EventType.KEY_DOWN, onKeydown));
+		let siblingInput: InputBox;
+		if (item.sibling) {
+			siblingInput = new InputBox(rowElement, this.contextViewService, {
+				placeholder: localize('excludeSiblingInputPlaceholder', "When Pattern Is Present...")
+			});
+			siblingInput.element.classList.add('setting-exclude-siblingInput');
+			this.listDisposables.push(siblingInput);
+			this.listDisposables.push(attachInputBoxStyler(siblingInput, this.themeService, {
+				inputBackground: settingsTextInputBackground,
+				inputForeground: settingsTextInputForeground,
+				inputBorder: settingsTextInputBorder
+			}));
+			siblingInput.value = item.sibling;
+			this.listDisposables.push(DOM.addStandardDisposableListener(siblingInput.inputElement, DOM.EventType.KEY_DOWN, onKeydown));
+		}
 
-		rowElement.classList.add('setting-exclude-newExcludeItem');
+		const okButton = this._register(new Button(rowElement));
+		okButton.label = localize('okButton', "OK");
+		okButton.element.classList.add('setting-exclude-okButton');
+		this.listDisposables.push(attachButtonStyler(okButton, this.themeService));
+		this.listDisposables.push(okButton.onDidClick(() => onSubmit(true)));
 
-		rowElement.classList.remove('setting-exclude-newPattern');
-		rowElement.classList.remove('setting-exclude-newPatternWithSibling');
-		if (item.mode === AddItemMode.Pattern) {
-			rowElement.classList.add('setting-exclude-newPattern');
+		const cancelButton = this._register(new Button(rowElement));
+		cancelButton.label = localize('cancelButton', "Cancel");
+		cancelButton.element.classList.add('setting-exclude-cancelButton');
+		this.listDisposables.push(attachButtonStyler(cancelButton, this.themeService));
+		this.listDisposables.push(cancelButton.onDidClick(() => onSubmit(false)));
+
+		setTimeout(() => {
 			patternInput.focus();
 			patternInput.select();
-		} else if (item.mode === AddItemMode.PatternWithSibling) {
-			rowElement.classList.add('setting-exclude-newPatternWithSibling');
-		}
+		}, 0);
 
 		return rowElement;
 	}
@@ -314,35 +314,11 @@ export class ExcludeSettingWidget extends Disposable {
 	}
 }
 
-interface IExcludeDataItem {
-	id: string;
+export interface IExcludeDataItem {
 	pattern: string;
 	sibling?: string;
 }
 
-interface INewExcludeItem {
-	id: string;
-	mode: AddItemMode;
+interface IExcludeViewItem extends IExcludeDataItem {
+	editing?: boolean;
 }
-
-type IExcludeItem = IExcludeDataItem | INewExcludeItem;
-
-function isExcludeDataItem(excludeItem: IExcludeItem): excludeItem is IExcludeDataItem {
-	return !!(<IExcludeDataItem>excludeItem).pattern;
-}
-
-// class EditExcludeItemAction extends Action {
-
-// 	static readonly ID = 'workbench.action.editExcludeItem';
-// 	static readonly LABEL = localize('editExcludeItem', "Edit Exclude Item");
-
-// 	constructor() {
-// 		super(EditExcludeItemAction.ID, EditExcludeItemAction.LABEL);
-
-// 		this.class = 'setting-excludeAction-edit';
-// 	}
-
-// 	run(item: IExcludeItem): TPromise<boolean> {
-// 		return TPromise.wrap(true);
-// 	}
-// }

@@ -74,35 +74,24 @@
 	padding: 4px 10px;
 }
 
-.settings-editor > .settings-body > .settings-tree-container .setting-item.setting-item-exclude .monaco-text-button.setting-exclude-addPattern {
+.settings-editor > .settings-body > .settings-tree-container .setting-item.setting-item-exclude .monaco-text-button.setting-exclude-addButton {
 	margin-right: 10px;
-}
-
-.settings-editor > .settings-body > .settings-tree-container .setting-item.setting-item-exclude.is-expanded .monaco-text-button.setting-exclude-addButton {
-	display: inline-block;
 }
 
 .settings-editor > .settings-body > .settings-tree-container .setting-item.setting-item-exclude .setting-exclude-edit-row.setting-exclude-newExcludeItem {
 	display: flex;
 }
 
-.settings-editor > .settings-body > .settings-tree-container .setting-item.setting-item-exclude .setting-exclude-patternInput {
+.settings-editor > .settings-body > .settings-tree-container .setting-item.setting-item-exclude .setting-exclude-patternInput,
+.settings-editor > .settings-body > .settings-tree-container .setting-item.setting-item-exclude .setting-exclude-siblingInput,
+.settings-editor > .settings-body > .settings-tree-container .setting-item.setting-item-exclude .setting-exclude-newPatternInput {
 	max-width: 300px;
 	display: inline-block;
 	margin-right: 10px;
 }
 
-.settings-editor > .settings-body > .settings-tree-container .setting-item.setting-item-exclude .setting-exclude-edit-row.setting-exclude-newPattern .setting-exclude-patternInput {
-	display: inline-block;
-}
-
-.settings-editor > .settings-body > .settings-tree-container .setting-item.setting-item-exclude .setting-exclude-edit-row.setting-exclude-newPatternWithSibling .setting-exclude-patternInput {
-	margin-right: 5px;
-}
-
-.settings-editor > .settings-body > .settings-tree-container .setting-item.setting-item-exclude .setting-exclude-edit-row.setting-exclude-newPatternWithSibling .setting-exclude-patternInput,
-.settings-editor > .settings-body > .settings-tree-container .setting-item.setting-item-exclude .setting-exclude-edit-row.setting-exclude-newPatternWithSibling .setting-exclude-siblingInput {
-	display: inline-block;
+.settings-editor > .settings-body > .settings-tree-container .setting-item.setting-item-exclude .setting-exclude-okButton {
+	margin-right: 10px;
 }
 
 .settings-editor > .settings-body > .settings-tree-container .setting-item.setting-item-exclude .setting-exclude-widget {
