@@ -10,7 +10,7 @@
 	background-position: center center;
 }
 
-.monaco-editor .comment-hint{
+.monaco-editor .comment-hint {
 	height: 20px;
 	width: 20px;
 	padding-left: 2px;
@@ -239,4 +239,27 @@
 .monaco-editor .review-widget>.body {
 	border-top: 1px solid;
 	position: relative;
+}
+
+.monaco-editor .comment-dirty-diff-glyph {
+	margin-left: 1px;
+	cursor: pointer;
+}
+
+.monaco-editor .comment-dirty-diff-glyph:before {
+	position: absolute;
+	content: '';
+	height: 100%;
+	width: 0;
+	left: -2px;
+	transition: width 80ms linear, left 80ms linear;
+}
+
+.monaco-editor .margin-view-overlays>div:hover>.comment-dirty-diff-glyph:before {
+	position: absolute;
+	content: '+';
+	height: 100%;
+	width: 8px;
+	left: -4px;
+	z-index: 10;
 }

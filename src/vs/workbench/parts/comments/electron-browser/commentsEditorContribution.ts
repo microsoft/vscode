@@ -10,18 +10,19 @@ import { $ } from 'vs/base/browser/builder';
 import { findFirstInSorted } from 'vs/base/common/arrays';
 import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
-import { ICodeEditor, IEditorMouseEvent, IViewZone } from 'vs/editor/browser/editorBrowser';
+import { ICodeEditor, IEditorMouseEvent, IViewZone, MouseTargetType } from 'vs/editor/browser/editorBrowser';
 import { registerEditorContribution, EditorAction, registerEditorAction } from 'vs/editor/browser/editorExtensions';
 import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
 import { EmbeddedCodeEditorWidget } from 'vs/editor/browser/widget/embeddedCodeEditorWidget';
 import { IEditorContribution } from 'vs/editor/common/editorCommon';
+import { Range } from 'vs/editor/common/core/range';
 import * as modes from 'vs/editor/common/modes';
 import { peekViewEditorBackground, peekViewResultsBackground, peekViewResultsSelectionBackground } from 'vs/editor/contrib/referenceSearch/referencesWidget';
 import { IContextKey, IContextKeyService, RawContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { ServicesAccessor, IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { KeybindingsRegistry, KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { INotificationService } from 'vs/platform/notification/common/notification';
-import { editorForeground } from 'vs/platform/theme/common/colorRegistry';
+import { editorForeground, registerColor } from 'vs/platform/theme/common/colorRegistry';
 import { IThemeService, registerThemingParticipant } from 'vs/platform/theme/common/themeService';
 import { CommentThreadCollapsibleState } from 'vs/workbench/api/node/extHostTypes';
 import { ReviewModel } from 'vs/workbench/parts/comments/common/reviewModel';
@@ -31,6 +32,10 @@ import { ICommentService } from 'vs/workbench/parts/comments/electron-browser/co
 import { IModelService } from 'vs/editor/common/services/modelService';
 import { IModeService } from 'vs/editor/common/services/modeService';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
+import { ModelDecorationOptions } from 'vs/editor/common/model/textModel';
+import { IModelDecorationOptions } from 'vs/editor/common/model';
+import { Color, RGBA } from 'vs/base/common/color';
+import { IMarginData } from 'vs/editor/browser/controller/mouseTarget';
 
 export const ctxReviewPanelVisible = new RawContextKey<boolean>('reviewPanelVisible', false);
 
@@ -53,6 +58,59 @@ export class ReviewViewZone implements IViewZone {
 	}
 }
 
+const overviewRulerDefault = new Color(new RGBA(255, 69, 0, 1));
+
+export const overviewRulerCommentingRangeForeground = registerColor('editorOverviewRuler.addedForeground', { dark: overviewRulerDefault, light: overviewRulerDefault, hc: overviewRulerDefault }, nls.localize('overviewRulerAddedForeground', 'Overview ruler marker color for added content.'));
+
+class CommentingRangeDecorator {
+
+	static createDecoration(className: string, foregroundColor: string, options: { gutter: boolean, overview: boolean }): ModelDecorationOptions {
+		const decorationOptions: IModelDecorationOptions = {
+			isWholeLine: true,
+		};
+
+		decorationOptions.linesDecorationsClassName = `comment-dirty-diff-glyph ${className}`;
+		return ModelDecorationOptions.createDynamic(decorationOptions);
+	}
+
+	private commentingOptions: ModelDecorationOptions;
+	private decorations: string[] = [];
+	private disposables: IDisposable[] = [];
+
+	constructor(
+	) {
+		const options = { gutter: true, overview: false };
+		this.commentingOptions = CommentingRangeDecorator.createDecoration('comment-diff-added', overviewRulerCommentingRangeForeground, options);
+	}
+
+	update(editor: ICodeEditor, ranges: Range[]) {
+		let model = editor.getModel();
+		if (!model) {
+			return;
+		}
+
+		let decorations = ranges.map((change) => {
+			const startLineNumber = change.startLineNumber;
+			const endLineNumber = change.endLineNumber;
+
+			return {
+				range: {
+					startLineNumber: startLineNumber, startColumn: 1,
+					endLineNumber: endLineNumber, endColumn: 1
+				},
+				options: this.commentingOptions
+			};
+		});
+
+		this.decorations = model.deltaDecorations(this.decorations, decorations);
+	}
+
+	dispose(): void {
+		this.disposables = dispose(this.disposables);
+		this.decorations = [];
+	}
+}
+
 export class ReviewController implements IEditorContribution {
 	private globalToDispose: IDisposable[];
 	private localToDispose: IDisposable[];
@@ -63,7 +121,10 @@ export class ReviewController implements IEditorContribution {
 	private _commentInfos: modes.CommentInfo[];
 	private _reviewModel: ReviewModel;
 	private _newCommentGlyph: CommentGlyphWidget;
-	private _hasSetComments: boolean;
+	// private _hasSetComments: boolean;
+	private _commentingRangeDecorator: CommentingRangeDecorator;
+	private mouseDownInfo: { lineNumber: number } | null = null;
+
 
 	constructor(
 		editor: ICodeEditor,
@@ -84,10 +145,11 @@ export class ReviewController implements IEditorContribution {
 		this._commentWidgets = [];
 		this._newCommentWidget = null;
 		this._newCommentGlyph = null;
-		this._hasSetComments = false;
+		// this._hasSetComments = false;
 
 		this._reviewPanelVisible = ctxReviewPanelVisible.bindTo(contextKeyService);
 		this._reviewModel = new ReviewModel();
+		this._commentingRangeDecorator = new CommentingRangeDecorator();
 
 		this._reviewModel.onDidChangeStyle(style => {
 			if (this._newCommentWidget) {
@@ -242,7 +304,8 @@ export class ReviewController implements IEditorContribution {
 		});
 		this._commentWidgets = [];
 
-		this.localToDispose.push(this.editor.onMouseMove(e => this.onEditorMouseMove(e)));
+		this.localToDispose.push(this.editor.onMouseDown(e => this.onEditorMouseDown(e)));
+		this.localToDispose.push(this.editor.onMouseUp(e => this.onEditorMouseUp(e)));
 		this.localToDispose.push(this.editor.onMouseLeave(() => this.onMouseLeave()));
 		this.localToDispose.push(this.editor.onDidChangeModelContent(() => {
 			if (this._newCommentGlyph) {
@@ -313,28 +376,94 @@ export class ReviewController implements IEditorContribution {
 		this._newCommentWidget.display(lineNumber);
 	}
 
-	private onEditorMouseMove(e: IEditorMouseEvent): void {
-		if (!this._hasSetComments) {
+	/* 	private onEditorMouseMove(e: IEditorMouseEvent): void {
+			if (!this._hasSetComments) {
+				return;
+			}
+
+			if (!this.editor.hasTextFocus()) {
+				return;
+			}
+
+			const hasCommentingRanges = this._commentInfos.length && this._commentInfos.some(info => !!info.commentingRanges.length);
+			if (hasCommentingRanges && e.target.position && e.target.position.lineNumber !== undefined) {
+				if (this._newCommentGlyph && e.target.element.className !== 'comment-hint') {
+					this.editor.removeContentWidget(this._newCommentGlyph);
+				}
+
+				const lineNumber = e.target.position.lineNumber;
+				if (!this.isExistingCommentThreadAtLine(lineNumber)) {
+					this._newCommentGlyph = this.isLineInCommentingRange(lineNumber)
+						? this._newCommentGlyph = new CommentGlyphWidget('comment-hint', this.editor, lineNumber, false, () => {
+							this.addComment(lineNumber);
+						})
+						: this._newCommentGlyph = new CommentGlyphWidget('comment-hint', this.editor, lineNumber, true, () => {
+							this.notificationService.warn('Commenting is not supported outside of diff hunk areas.');
+						});
+
+					this.editor.layoutContentWidget(this._newCommentGlyph);
+				}
+			}
+		} */
+
+	private onEditorMouseDown(e: IEditorMouseEvent): void {
+		this.mouseDownInfo = null;
+
+		const range = e.target.range;
+
+		if (!range) {
 			return;
 		}
 
-		const hasCommentingRanges = this._commentInfos.length && this._commentInfos.some(info => !!info.commentingRanges.length);
-		if (hasCommentingRanges && e.target.position && e.target.position.lineNumber !== undefined) {
-			if (this._newCommentGlyph && e.target.element.className !== 'comment-hint') {
-				this.editor.removeContentWidget(this._newCommentGlyph);
-			}
+		if (!e.event.leftButton) {
+			return;
+		}
 
+		if (e.target.type !== MouseTargetType.GUTTER_LINE_DECORATIONS) {
+			return;
+		}
+
+		const data = e.target.detail as IMarginData;
+		const gutterOffsetX = data.offsetX - data.glyphMarginWidth - data.lineNumbersWidth - data.glyphMarginLeft;
+
+		// TODO@joao TODO@alex TODO@martin this is such that we don't collide with folding
+		if (gutterOffsetX > 10) {
+			return;
+		}
+
+		this.mouseDownInfo = { lineNumber: range.startLineNumber };
+	}
+
+	private onEditorMouseUp(e: IEditorMouseEvent): void {
+		if (!this.mouseDownInfo) {
+			return;
+		}
+
+		const { lineNumber } = this.mouseDownInfo;
+		this.mouseDownInfo = null;
+
+		const range = e.target.range;
+
+		if (!range || range.startLineNumber !== lineNumber) {
+			return;
+		}
+
+		if (e.target.type !== MouseTargetType.GUTTER_LINE_DECORATIONS) {
+			return;
+		}
+
+		if (!e.target.element) {
+			return;
+		}
+
+		if (e.target.element.className.indexOf('comment-dirty-diff-glyph') >= 0) {
 			const lineNumber = e.target.position.lineNumber;
 			if (!this.isExistingCommentThreadAtLine(lineNumber)) {
-				this._newCommentGlyph = this.isLineInCommentingRange(lineNumber)
-					? this._newCommentGlyph = new CommentGlyphWidget('comment-hint', this.editor, lineNumber, false, () => {
-						this.addComment(lineNumber);
-					})
-					: this._newCommentGlyph = new CommentGlyphWidget('comment-hint', this.editor, lineNumber, true, () => {
-						this.notificationService.warn('Commenting is not supported outside of diff hunk areas.');
-					});
-
-				this.editor.layoutContentWidget(this._newCommentGlyph);
+				if (this.isLineInCommentingRange(lineNumber)) {
+					this.addComment(lineNumber);
+				} else {
+					this.notificationService.warn('Commenting is not supported outside of diff hunk areas.');
+				}
 			}
 		}
 	}
@@ -385,7 +514,7 @@ export class ReviewController implements IEditorContribution {
 
 	setComments(commentInfos: modes.CommentInfo[]): void {
 		this._commentInfos = commentInfos;
-		this._hasSetComments = true;
+		// this._hasSetComments = true;
 
 		// create viewzones
 		this._commentWidgets.forEach(zone => {
@@ -399,6 +528,10 @@ export class ReviewController implements IEditorContribution {
 				this._commentWidgets.push(zoneWidget);
 			});
 		});
+
+		const commentingRanges = [];
+		this._commentInfos.forEach(info => commentingRanges.push(...info.commentingRanges));
+		this._commentingRangeDecorator.update(this.editor, commentingRanges);
 	}
 
 
@@ -517,5 +650,17 @@ registerThemingParticipant((theme, collector) => {
 			`	animation: monaco-review-widget-focus 3s ease 0s;` +
 			`}`
 		);
+	}
+
+	const commentingRangeForeground = theme.getColor(overviewRulerCommentingRangeForeground);
+	if (commentingRangeForeground) {
+		collector.addRule(`
+			.monaco-editor .comment-diff-added {
+				border-left: 3px solid ${commentingRangeForeground};
+			}
+			.monaco-editor .comment-diff-added:before {
+				background: ${commentingRangeForeground};
+			}
+		`);
 	}
 });
