@@ -744,18 +744,23 @@ export class ExtensionsWorkbenchService implements IExtensionsWorkbenchService, 
 	private promptAndSetEnablement(extensions: IExtension[], enablementState: EnablementState): TPromise<any> {
 		const enable = enablementState === EnablementState.Enabled || enablementState === EnablementState.WorkspaceEnabled;
 		if (enable) {
-			return this.checkAndSetEnablementWithDependenciesAndPacked(extensions, enablementState);
+			const allDependenciesAndPackedExtensions = this.getExtensionsRecursively(extensions, this.local, enablementState, { dependencies: true, pack: true });
+			return this.checkAndSetEnablement(extensions, allDependenciesAndPackedExtensions, enablementState);
 		} else {
+			const packedExtensions = this.getExtensionsRecursively(extensions, this.local, enablementState, { dependencies: false, pack: true });
+			if (packedExtensions.length) {
+				return this.checkAndSetEnablement(extensions, packedExtensions, enablementState);
+			}
 			const dependencies = this.getExtensionsRecursively(extensions, this.local, enablementState, { dependencies: true, pack: false });
 			if (dependencies.length) {
-				return this.promptForDependenciesAndDisable(extensions, enablementState);
+				return this.promptForDependenciesAndDisable(extensions, dependencies, enablementState);
 			} else {
-				return this.checkAndSetEnablementWithDependenciesAndPacked(extensions, enablementState);
+				return this.checkAndSetEnablement(extensions, [], enablementState);
 			}
 		}
 	}
 
-	private promptForDependenciesAndDisable(extensions: IExtension[], enablementState: EnablementState): TPromise<void> {
+	private promptForDependenciesAndDisable(extensions: IExtension[], dependencies: IExtension[], enablementState: EnablementState): TPromise<void> {
 		const message = nls.localize('disableDependeciesConfirmation', "Would you like to disable the dependencies of the extensions also?");
 		const buttons = [
 			nls.localize('yes', "Yes"),
@@ -765,18 +770,13 @@ export class ExtensionsWorkbenchService implements IExtensionsWorkbenchService, 
 		return this.dialogService.show(Severity.Info, message, buttons, { cancelId: 2 })
 			.then<void>(value => {
 				if (value === 0) {
-					return this.checkAndSetEnablementWithDependenciesAndPacked(extensions, enablementState);
+					return this.checkAndSetEnablement(extensions, dependencies, enablementState);
 				}
 				if (value === 1) {
 					return this.checkAndSetEnablement(extensions, [], enablementState);
 				}
 				return TPromise.as(null);
 			});
-	}
-
-	private checkAndSetEnablementWithDependenciesAndPacked(extensions: IExtension[], enablementState: EnablementState): TPromise<any> {
-		const otherExtensions = this.getExtensionsRecursively(extensions, this.local, enablementState, { dependencies: true, pack: true });
-		return this.checkAndSetEnablement(extensions, otherExtensions, enablementState);
 	}
 
 	private checkAndSetEnablement(extensions: IExtension[], otherExtensions: IExtension[], enablementState: EnablementState): TPromise<any> {
