@@ -860,11 +860,11 @@ export class SettingsRenderer implements IRenderer {
 		template.labelElement.title = titleTooltip;
 
 		let enumDescriptionText = '';
-		if (element.valueType === 'string' && element.setting.enumDescriptions && element.setting.enum && element.setting.enum.length < SettingsRenderer.MAX_ENUM_DESCRIPTIONS) {
+		if (element.valueType === 'enum' && element.setting.enumDescriptions && element.setting.enum && element.setting.enum.length < SettingsRenderer.MAX_ENUM_DESCRIPTIONS) {
 			enumDescriptionText = '\n' + element.setting.enumDescriptions
 				.map((desc, i) => desc ?
-					` - \`${element.setting.enum[i]}\` :
-					${desc}` : ` - \`${element.setting.enum[i]}\``)
+					` - \`${element.setting.enum[i]}\`: ${desc}` :
+					` - \`${element.setting.enum[i]}\``)
 				.filter(desc => !!desc)
 				.join('\n');
 		}
