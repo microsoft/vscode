@@ -8,9 +8,8 @@
     "node": "*"
   },
   "dependencies": {
-    "vscode-css-languageservice": "^3.0.9-next.20",
-    "vscode-languageserver": "^4.1.3",
-    "vscode-languageserver-protocol-foldingprovider": "^2.0.1"
+    "vscode-css-languageservice": "^3.0.9",
+    "vscode-languageserver": "^4.4.0"
   },
   "devDependencies": {
     "@types/mocha": "2.2.33",
