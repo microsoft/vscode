@@ -742,38 +742,45 @@ export class ExtensionsWorkbenchService implements IExtensionsWorkbenchService, 
 	}
 
 	private promptAndSetEnablement(extensions: IExtension[], enablementState: EnablementState): TPromise<any> {
-		const allDependenciesAndPackedExtensions = this.getDependenciesAndPackedExtensionsRecursively(extensions, this.local, enablementState);
-		if (allDependenciesAndPackedExtensions.length > 0) {
-			if (extensions.length === 1 && (enablementState === EnablementState.Disabled || enablementState === EnablementState.WorkspaceDisabled)) {
-				return this.promptForDependenciesAndDisable(extensions[0], allDependenciesAndPackedExtensions, enablementState);
+		const enable = enablementState === EnablementState.Enabled || enablementState === EnablementState.WorkspaceEnabled;
+		if (enable) {
+			return this.checkAndSetEnablementWithDependenciesAndPacked(extensions, enablementState);
+		} else {
+			const dependencies = this.getExtensionsRecursively(extensions, this.local, enablementState, { dependencies: true, pack: false });
+			if (dependencies.length) {
+				return this.promptForDependenciesAndDisable(extensions, enablementState);
 			} else {
-				return this.checkAndSetEnablement(extensions, allDependenciesAndPackedExtensions, enablementState);
+				return this.checkAndSetEnablementWithDependenciesAndPacked(extensions, enablementState);
 			}
 		}
-		return this.checkAndSetEnablement(extensions, [], enablementState);
 	}
 
-	private promptForDependenciesAndDisable(extension: IExtension, dependencies: IExtension[], enablementState: EnablementState): TPromise<void> {
-		const message = nls.localize('disableExtensionPackConfirmation', "Would you like to disable '{0}' only or as a pack?", extension.displayName);
+	private promptForDependenciesAndDisable(extensions: IExtension[], enablementState: EnablementState): TPromise<void> {
+		const message = nls.localize('disableDependeciesConfirmation', "Would you like to disable the dependencies of the extensions also?");
 		const buttons = [
-			nls.localize('disablePack', "Disable Extension Pack"),
-			nls.localize('disableOnly', "Disable Extension Only"),
+			nls.localize('yes', "Yes"),
+			nls.localize('no', "No"),
 			nls.localize('cancel', "Cancel")
 		];
-		return this.dialogService.show(Severity.Info, message, buttons)
+		return this.dialogService.show(Severity.Info, message, buttons, { cancelId: 2 })
 			.then<void>(value => {
 				if (value === 0) {
-					return this.checkAndSetEnablement([extension], dependencies, enablementState);
+					return this.checkAndSetEnablementWithDependenciesAndPacked(extensions, enablementState);
 				}
 				if (value === 1) {
-					return this.checkAndSetEnablement([extension], [], enablementState);
+					return this.checkAndSetEnablement(extensions, [], enablementState);
 				}
 				return TPromise.as(null);
 			});
 	}
 
-	private checkAndSetEnablement(extensions: IExtension[], dependencies: IExtension[], enablementState: EnablementState): TPromise<any> {
-		const allExtensions = [...extensions, ...dependencies];
+	private checkAndSetEnablementWithDependenciesAndPacked(extensions: IExtension[], enablementState: EnablementState): TPromise<any> {
+		const otherExtensions = this.getExtensionsRecursively(extensions, this.local, enablementState, { dependencies: true, pack: true });
+		return this.checkAndSetEnablement(extensions, otherExtensions, enablementState);
+	}
+
+	private checkAndSetEnablement(extensions: IExtension[], otherExtensions: IExtension[], enablementState: EnablementState): TPromise<any> {
+		const allExtensions = [...extensions, ...otherExtensions];
 		const enable = enablementState === EnablementState.Enabled || enablementState === EnablementState.WorkspaceEnabled;
 		if (!enable) {
 			for (const extension of extensions) {
@@ -786,7 +793,7 @@ export class ExtensionsWorkbenchService implements IExtensionsWorkbenchService, 
 		return TPromise.join(allExtensions.map(e => this.doSetEnablement(e, enablementState)));
 	}
 
-	private getDependenciesAndPackedExtensionsRecursively(extensions: IExtension[], installed: IExtension[], enablementState: EnablementState, checked: IExtension[] = []): IExtension[] {
+	private getExtensionsRecursively(extensions: IExtension[], installed: IExtension[], enablementState: EnablementState, options: { dependencies: boolean, pack: boolean }, checked: IExtension[] = []): IExtension[] {
 		const toCheck = extensions.filter(e => checked.indexOf(e) === -1);
 		if (toCheck.length) {
 			for (const extension of toCheck) {
@@ -799,11 +806,15 @@ export class ExtensionsWorkbenchService implements IExtensionsWorkbenchService, 
 				if (i.enablementState === enablementState) {
 					return false;
 				}
-				return i.type === LocalExtensionType.User &&
-					extensions.some(extension => extension.dependencies.some(id => areSameExtensions({ id }, i)) || extension.extensionPack.some(id => areSameExtensions({ id }, i)));
+				return i.type === LocalExtensionType.User
+					&& (options.dependencies || options.pack)
+					&& extensions.some(extension =>
+						(options.dependencies && extension.dependencies.some(id => areSameExtensions({ id }, i)))
+						|| (options.pack && extension.extensionPack.some(id => areSameExtensions({ id }, i)))
+					);
 			});
 			if (extensionsToDisable.length) {
-				extensionsToDisable.push(...this.getDependenciesAndPackedExtensionsRecursively(extensionsToDisable, installed, enablementState, checked));
+				extensionsToDisable.push(...this.getExtensionsRecursively(extensionsToDisable, installed, enablementState, options, checked));
 			}
 			return extensionsToDisable;
 		}
