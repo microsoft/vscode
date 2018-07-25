@@ -98,10 +98,10 @@ export class ExcludeSettingListModel {
 			...this._dataItems
 		];
 
-		items.push(<INewExcludeItem>{
-			id: 'newItem',
-			mode: this._newItem
-		});
+		// items.push(<INewExcludeItem>{
+		// 	id: 'newItem',
+		// 	mode: this._newItem
+		// });
 
 		return items;
 	}
@@ -136,7 +136,8 @@ interface IExcludeChangeEvent {
 
 export class ExcludeSettingWidget extends Disposable {
 	private listElement: HTMLElement;
-	private renderedDisposables: IDisposable[] = [];
+	private listDisposables: IDisposable[] = [];
+	private patternInput: InputBox;
 
 	private model = new ExcludeSettingListModel();
 
@@ -151,27 +152,19 @@ export class ExcludeSettingWidget extends Disposable {
 		super();
 
 		this.listElement = DOM.append(container, $('.setting-exclude-widget'));
-
-		const addPatternButton = this._register(new Button(container));
-		addPatternButton.label = localize('addPattern', "Add Pattern");
-		addPatternButton.element.classList.add('setting-exclude-addPattern', 'setting-exclude-addButton');
-		this._register(attachButtonStyler(addPatternButton, this.themeService));
-		this._register(addPatternButton.onDidClick(() => {
-			this.model.setAddItemMode(AddItemMode.Pattern);
-			this.update();
-		}));
-
+		DOM.append(container, this.renderAddItem());
 		this.update();
 	}
 
 	setValue(excludeValue: any): void {
 		this.model.setValue(excludeValue, void 0);
+		this.patternInput.value = '';
 		this.update();
 	}
 
 	private update(): void {
 		DOM.clearNode(this.listElement);
-		this.renderedDisposables = dispose(this.renderedDisposables);
+		this.listDisposables = dispose(this.listDisposables);
 
 		this.model.items
 			.map(item => this.renderItem(item))
@@ -204,13 +197,13 @@ export class ExcludeSettingWidget extends Disposable {
 	private renderItem(item: IExcludeItem): HTMLElement {
 		return isExcludeDataItem(item) ?
 			this.renderDataItem(item) :
-			this.renderNewItem(item);
+			this.renderEditItem(item);
 	}
 
 	private renderDataItem(item: IExcludeDataItem): HTMLElement {
 		const rowElement = $('.setting-exclude-row');
 		const actionBar = new ActionBar(rowElement);
-		this.renderedDisposables.push(actionBar);
+		this.listDisposables.push(actionBar);
 
 		const patternElement = DOM.append(rowElement, $('.setting-exclude-pattern'));
 		const siblingElement = DOM.append(rowElement, $('.setting-exclude-sibling'));
@@ -229,15 +222,49 @@ export class ExcludeSettingWidget extends Disposable {
 		return rowElement;
 	}
 
-	private renderNewItem(item: INewExcludeItem): HTMLElement {
+	private renderAddItem(): HTMLElement {
 		const rowElement = $('.setting-exclude-new-row');
+		this.patternInput = new InputBox(rowElement, this.contextViewService, {
+			placeholder: localize('excludePatternInputPlaceholder', "Exclude Pattern...")
+		});
+		this.patternInput.element.classList.add('setting-exclude-patternInput');
+		this._register(attachInputBoxStyler(this.patternInput, this.themeService, {
+			inputBackground: settingsTextInputBackground,
+			inputForeground: settingsTextInputForeground,
+			inputBorder: settingsTextInputBorder
+		}));
+		this._register(this.patternInput);
+
+		const addPatternButton = this._register(new Button(rowElement));
+		addPatternButton.label = localize('addPattern', "Add Pattern");
+		addPatternButton.element.classList.add('setting-exclude-addPattern', 'setting-exclude-addButton');
+		this._register(attachButtonStyler(addPatternButton, this.themeService));
+
+		const addItem = () => this._onDidChangeExclude.fire({
+			originalPattern: undefined,
+			pattern: this.patternInput.value
+		});
+
+		this._register(addPatternButton.onDidClick(addItem));
+
+		const onKeydown = (e: StandardKeyboardEvent) => {
+			if (e.equals(KeyCode.Enter)) {
+				addItem();
+			}
+		};
+		this._register(DOM.addStandardDisposableListener(this.patternInput.inputElement, DOM.EventType.KEY_DOWN, onKeydown));
+
+		return rowElement;
+	}
+
+	private renderEditItem(item: INewExcludeItem): HTMLElement {
+		const rowElement = $('.setting-exclude-edit-row');
 
 		const onKeydown = (e: StandardKeyboardEvent) => {
 			if (e.equals(KeyCode.Enter)) {
 				this._onDidChangeExclude.fire({
 					originalPattern: undefined,
-					pattern: patternInput.value,
-					// sibling: siblingInput.value
+					pattern: patternInput.value
 				});
 			}
 		};
@@ -246,25 +273,25 @@ export class ExcludeSettingWidget extends Disposable {
 			placeholder: localize('excludePatternInputPlaceholder', "Exclude Pattern...")
 		});
 		patternInput.element.classList.add('setting-exclude-patternInput');
-		this.renderedDisposables.push(attachInputBoxStyler(patternInput, this.themeService, {
+		this.listDisposables.push(attachInputBoxStyler(patternInput, this.themeService, {
 			inputBackground: settingsTextInputBackground,
 			inputForeground: settingsTextInputForeground,
 			inputBorder: settingsTextInputBorder
 		}));
-		this.renderedDisposables.push(patternInput);
-		this.renderedDisposables.push(DOM.addStandardDisposableListener(patternInput.inputElement, DOM.EventType.KEY_DOWN, onKeydown));
+		this.listDisposables.push(patternInput);
+		this.listDisposables.push(DOM.addStandardDisposableListener(patternInput.inputElement, DOM.EventType.KEY_DOWN, onKeydown));
 
 		const siblingInput = new InputBox(rowElement, this.contextViewService, {
 			placeholder: localize('excludeSiblingInputPlaceholder', "When Pattern Is Present...")
 		});
 		siblingInput.element.classList.add('setting-exclude-siblingInput');
-		this.renderedDisposables.push(siblingInput);
-		this.renderedDisposables.push(attachInputBoxStyler(siblingInput, this.themeService, {
+		this.listDisposables.push(siblingInput);
+		this.listDisposables.push(attachInputBoxStyler(siblingInput, this.themeService, {
 			inputBackground: settingsTextInputBackground,
 			inputForeground: settingsTextInputForeground,
 			inputBorder: settingsTextInputBorder
 		}));
-		this.renderedDisposables.push(DOM.addStandardDisposableListener(siblingInput.inputElement, DOM.EventType.KEY_DOWN, onKeydown));
+		this.listDisposables.push(DOM.addStandardDisposableListener(siblingInput.inputElement, DOM.EventType.KEY_DOWN, onKeydown));
 
 		rowElement.classList.add('setting-exclude-newExcludeItem');
 
@@ -283,7 +310,7 @@ export class ExcludeSettingWidget extends Disposable {
 
 	dispose() {
 		super.dispose();
-		this.renderedDisposables = dispose(this.renderedDisposables);
+		this.listDisposables = dispose(this.listDisposables);
 	}
 }
 

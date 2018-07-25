@@ -35,7 +35,7 @@ import { attachButtonStyler, attachInputBoxStyler, attachSelectBoxStyler, attach
 import { ICssStyleCollector, ITheme, IThemeService, registerThemingParticipant } from 'vs/platform/theme/common/themeService';
 import { SettingsTarget } from 'vs/workbench/parts/preferences/browser/preferencesWidgets';
 import { ITOCEntry } from 'vs/workbench/parts/preferences/browser/settingsLayout';
-import { ExcludeSettingWidget, settingsNumberInputBackground, settingsNumberInputBorder, settingsNumberInputForeground, settingsSelectBackground, settingsSelectBorder, settingsSelectForeground, settingsTextInputBackground, settingsTextInputBorder, settingsTextInputForeground, settingItemInactiveSelectionBorder, settingsHeaderForeground } from 'vs/workbench/parts/preferences/browser/settingsWidgets';
+import { ExcludeSettingWidget, settingsNumberInputBackground, settingsNumberInputBorder, settingsNumberInputForeground, settingsSelectBackground, settingsSelectBorder, settingsSelectForeground, settingsTextInputBorder, settingsTextInputForeground, settingItemInactiveSelectionBorder, settingsHeaderForeground, settingsTextInputBackground } from 'vs/workbench/parts/preferences/browser/settingsWidgets';
 import { ISearchResult, ISetting, ISettingsGroup } from 'vs/workbench/services/preferences/common/preferences';
 
 const $ = DOM.$;
@@ -551,7 +551,7 @@ export class SettingsRenderer implements ITreeRenderer {
 
 	_getExcludeSettingHeight(element: SettingsTreeSettingElement): number {
 		const displayValue = getExcludeDisplayValue(element);
-		return (Object.keys(displayValue).length + 1) * 22 + 70;
+		return (Object.keys(displayValue).length + 1) * 22 + 72;
 	}
 
 	_getUnexpandedSettingHeight(element: SettingsTreeSettingElement): number {
@@ -825,15 +825,6 @@ export class SettingsRenderer implements ITreeRenderer {
 
 		const excludeWidget = this.instantiationService.createInstance(ExcludeSettingWidget, common.controlElement);
 		common.toDispose.push(excludeWidget);
-		// common.toDispose.push(excludeWidget.onDidClick(() => this._onDidOpenSettings.fire()));
-		// excludeWidget.label = localize('editInSettingsJson', "Edit in settings.json");
-		// excludeWidget.element.classList.add('edit-in-settings-button');
-
-		// common.toDispose.push(attachButtonStyler(excludeWidget, this.themeService, {
-		// 	buttonBackground: Color.transparent.toString(),
-		// 	buttonHoverBackground: Color.transparent.toString(),
-		// 	buttonForeground: 'foreground'
-		// }));
 
 		const template: ISettingExcludeItemTemplate = {
 			...common,
@@ -851,16 +842,19 @@ export class SettingsRenderer implements ITreeRenderer {
 						// editing something present in the value
 						newValue[e.pattern] = newValue[e.originalPattern];
 						delete newValue[e.originalPattern];
-					} else {
+					} else if (e.originalPattern) {
 						// editing a default
 						newValue[e.originalPattern] = false;
 						newValue[e.pattern] = template.context.defaultValue[e.originalPattern];
+					} else {
+						// adding a new pattern
+						newValue[e.pattern] = true;
 					}
 				} else {
 					if (e.originalPattern in newValue) {
 						// deleting a configured pattern
 						delete newValue[e.originalPattern];
-					} else {
+					} else if (e.originalPattern) {
 						// "deleting" a default by overriding it
 						newValue[e.originalPattern] = false;
 					}
