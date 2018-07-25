@@ -800,7 +800,7 @@ export class SettingsEditor2 extends BaseEditor {
 
 class OpenSettingsAction extends Action {
 	static readonly ID = 'settings.openSettingsJson';
-	static readonly LABEL = localize('openSettingsJsonLabel', "Open settings.json for advanced customizations");
+	static readonly LABEL = localize('openSettingsJsonLabel', "Open settings.json");
 
 	constructor(
 		@IPreferencesService private readonly preferencesService: IPreferencesService,
