@@ -85,6 +85,7 @@ class Item extends BreadcrumbsItem {
 			// has outline element but not in one
 			let label = document.createElement('div');
 			label.innerHTML = '&hellip;';
+			label.className = 'hint-more';
 			container.appendChild(label);
 
 		} else if (this.element instanceof OutlineGroup) {
