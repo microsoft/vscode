@@ -298,7 +298,7 @@ export class MenubarPart extends Part {
 				}
 
 				if (this.focusedMenu) {
-					this.showCustomMenu(this.focusedMenu.index);
+					this.showCustomMenu(this.focusedMenu.index, !!this._modifierKeyStatus && this._modifierKeyStatus.altKey);
 				}
 				break;
 		}
@@ -664,7 +664,7 @@ export class MenubarPart extends Part {
 							this.setUnfocusedState();
 						} else {
 							this.cleanupCustomMenu();
-							this.showCustomMenu(menuIndex);
+							this.showCustomMenu(menuIndex, !!this._modifierKeyStatus && this._modifierKeyStatus.altKey);
 						}
 					} else {
 						this.focusedMenu = { index: menuIndex };
@@ -679,7 +679,7 @@ export class MenubarPart extends Part {
 					if (this.isOpen && !this.isCurrentMenu(menuIndex)) {
 						this.customMenus[menuIndex].buttonElement.domFocus();
 						this.cleanupCustomMenu();
-						this.showCustomMenu(menuIndex);
+						this.showCustomMenu(menuIndex, false);
 					} else if (this.isFocused && !this.isOpen) {
 						this.focusedMenu = { index: menuIndex };
 						this.customMenus[menuIndex].buttonElement.domFocus();
@@ -881,7 +881,7 @@ export class MenubarPart extends Part {
 		}
 	}
 
-	private showCustomMenu(menuIndex: number): void {
+	private showCustomMenu(menuIndex: number, selectFirst = true): void {
 		const customMenu = this.customMenus[menuIndex];
 
 		let menuHolder = $(customMenu.buttonElement).div({ class: 'menubar-menu-items-holder' });
@@ -911,7 +911,7 @@ export class MenubarPart extends Part {
 			}, 100);
 		}));
 
-		menuWidget.focus();
+		menuWidget.focus(selectFirst);
 
 		this.focusedMenu = {
 			index: menuIndex,

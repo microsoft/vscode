@@ -93,9 +93,9 @@ export class Menu {
 		return this.actionBar.onDidBlur;
 	}
 
-	public focus() {
+	public focus(selectFirst = true) {
 		if (this.actionBar) {
-			this.actionBar.focus(true);
+			this.actionBar.focus(selectFirst);
 		}
 	}
 
@@ -256,7 +256,7 @@ class SubmenuActionItem extends MenuActionItem {
 		this.showScheduler = new RunOnceScheduler(() => {
 			if (this.mouseOver) {
 				this.cleanupExistingSubmenu(false);
-				this.createSubmenu();
+				this.createSubmenu(false);
 			}
 		}, 250);
 
@@ -280,7 +280,7 @@ class SubmenuActionItem extends MenuActionItem {
 			if (event.equals(KeyCode.RightArrow)) {
 				EventHelper.stop(e, true);
 
-				this.createSubmenu();
+				this.createSubmenu(true);
 			}
 		});
 
@@ -310,7 +310,7 @@ class SubmenuActionItem extends MenuActionItem {
 		// stop clicking from trying to run an action
 		EventHelper.stop(e, true);
 
-		this.createSubmenu();
+		this.createSubmenu(false);
 	}
 
 	private cleanupExistingSubmenu(force: boolean) {
@@ -325,7 +325,7 @@ class SubmenuActionItem extends MenuActionItem {
 		}
 	}
 
-	private createSubmenu() {
+	private createSubmenu(selectFirstItem = true) {
 		if (!this.parentData.submenu) {
 			this.submenuContainer = $(this.builder).div({ class: 'monaco-submenu menubar-menu-items-holder context-view' });
 
@@ -356,11 +356,11 @@ class SubmenuActionItem extends MenuActionItem {
 
 
 			this.parentData.submenu = new Menu(this.submenuContainer.getHTMLElement(), this.submenuActions, this.submenuOptions);
-			this.parentData.submenu.focus();
+			this.parentData.submenu.focus(selectFirstItem);
 
 			this.mysubmenu = this.parentData.submenu;
 		} else {
-			this.parentData.submenu.focus();
+			this.parentData.submenu.focus(false);
 		}
 	}
 
