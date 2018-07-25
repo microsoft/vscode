@@ -65,7 +65,7 @@ import { IEditorOptions } from 'vs/editor/common/config/editorOptions';
 import { Range } from 'vs/editor/common/core/range';
 import { Position } from 'vs/editor/common/core/position';
 import { ITextModel } from 'vs/editor/common/model';
-import { SimpleDebugEditor } from 'vs/workbench/parts/debug/electron-browser/simpleDebugEditor';
+import { SimpleWidgetEditorConfig } from 'vs/workbench/parts/codeEditor/electron-browser/simpleWidgetEditor';
 
 interface SearchInputEvent extends Event {
 	target: HTMLInputElement;
@@ -340,7 +340,10 @@ export class ExtensionsViewlet extends ViewContainerViewlet implements IExtensio
 
 		const header = append(this.root, $('.header'));
 		this.monacoStyleContainer = append(header, $('.monaco-container'));
-		this.searchBox = this.instantiationService.createInstance(CodeEditorWidget, this.monacoStyleContainer, SEARCH_INPUT_OPTIONS, SimpleDebugEditor.getCodeEditorWidgetOptions());
+		this.searchBox = this.instantiationService.createInstance(CodeEditorWidget, this.monacoStyleContainer,
+			SimpleWidgetEditorConfig.getEditorOptions('htmlinput', localize('searchExtensions', "Search Extensions in Marketplace")),
+			SimpleWidgetEditorConfig.getCodeEditorWidgetOptions());
+
 		this.placeholderText = append(this.monacoStyleContainer, $('.search-placeholder', null, localize('searchExtensions', "Search Extensions in Marketplace")));
 
 		this.extensionsBox = append(this.root, $('.extensions'));
@@ -665,32 +668,3 @@ export class MaliciousExtensionChecker implements IWorkbenchContribution {
 	}
 }
 
-let SEARCH_INPUT_OPTIONS: IEditorOptions =
-{
-	fontSize: 13,
-	lineHeight: 22,
-	wordWrap: 'off',
-	overviewRulerLanes: 0,
-	glyphMargin: false,
-	lineNumbers: 'off',
-	folding: false,
-	selectOnLineNumbers: false,
-	hideCursorInOverviewRuler: true,
-	selectionHighlight: false,
-	scrollbar: {
-		horizontal: 'hidden',
-		vertical: 'hidden'
-	},
-	ariaLabel: localize('searchExtensions', "Search Extensions in Marketplace"),
-	cursorWidth: 1,
-	lineDecorationsWidth: 0,
-	overviewRulerBorder: false,
-	scrollBeyondLastLine: false,
-	renderLineHighlight: 'none',
-	fixedOverflowWidgets: true,
-	acceptSuggestionOnEnter: 'smart',
-	minimap: {
-		enabled: false
-	},
-	fontFamily: ' -apple-system, BlinkMacSystemFont, "Segoe WPC", "Segoe UI", "HelveticaNeue-Light", "Ubuntu", "Droid Sans", sans-serif'
-};
