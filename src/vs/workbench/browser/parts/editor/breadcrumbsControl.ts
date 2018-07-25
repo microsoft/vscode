@@ -391,7 +391,11 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 	id: 'breadcrumbs.focusNext',
 	weight: KeybindingWeight.WorkbenchContrib,
 	primary: KeyCode.RightArrow,
-	secondary: [KeyMod.Shift | KeyCode.RightArrow],
+	secondary: [KeyMod.CtrlCmd | KeyCode.RightArrow],
+	mac: {
+		primary: KeyCode.RightArrow,
+		secondary: [KeyMod.Alt | KeyCode.RightArrow],
+	},
 	when: ContextKeyExpr.and(BreadcrumbsControl.CK_BreadcrumbsVisible, BreadcrumbsControl.CK_BreadcrumbsActive),
 	handler(accessor) {
 		const groups = accessor.get(IEditorGroupsService);
@@ -403,7 +407,11 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 	id: 'breadcrumbs.focusPrevious',
 	weight: KeybindingWeight.WorkbenchContrib,
 	primary: KeyCode.LeftArrow,
-	secondary: [KeyMod.Shift | KeyCode.LeftArrow],
+	secondary: [KeyMod.CtrlCmd | KeyCode.LeftArrow],
+	mac: {
+		primary: KeyCode.LeftArrow,
+		secondary: [KeyMod.Alt | KeyCode.LeftArrow],
+	},
 	when: ContextKeyExpr.and(BreadcrumbsControl.CK_BreadcrumbsVisible, BreadcrumbsControl.CK_BreadcrumbsActive),
 	handler(accessor) {
 		const groups = accessor.get(IEditorGroupsService);
@@ -427,8 +435,12 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 KeybindingsRegistry.registerCommandAndKeybindingRule({
 	id: 'breadcrumbs.revealFocused',
 	weight: KeybindingWeight.WorkbenchContrib,
-	primary: KeyMod.Shift | KeyCode.Enter,
-	secondary: [KeyCode.Space],
+	primary: KeyCode.Space,
+	secondary: [KeyMod.CtrlCmd | KeyCode.Enter],
+	mac: {
+		primary: KeyCode.Space,
+		secondary: [KeyMod.Alt | KeyCode.Enter],
+	},
 	when: ContextKeyExpr.and(BreadcrumbsControl.CK_BreadcrumbsVisible, BreadcrumbsControl.CK_BreadcrumbsActive),
 	handler(accessor) {
 		const groups = accessor.get(IEditorGroupsService);
@@ -441,7 +453,6 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 	id: 'breadcrumbs.selectEditor',
 	weight: KeybindingWeight.WorkbenchContrib + 1,
 	primary: KeyCode.Escape,
-	secondary: [KeyMod.Shift | KeyCode.Escape],
 	when: ContextKeyExpr.and(BreadcrumbsControl.CK_BreadcrumbsVisible, BreadcrumbsControl.CK_BreadcrumbsActive),
 	handler(accessor) {
 		const groups = accessor.get(IEditorGroupsService);
