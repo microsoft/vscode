@@ -15,6 +15,7 @@ interface SerializedWebview {
 	readonly options: WebviewInputOptions;
 	readonly extensionLocation: string;
 	readonly state: any;
+	readonly iconPath: { light: string, dark: string } | undefined;
 }
 
 export class WebviewEditorInputFactory implements IEditorInputFactory {
@@ -43,7 +44,8 @@ export class WebviewEditorInputFactory implements IEditorInputFactory {
 			title: input.getName(),
 			options: input.options,
 			extensionLocation: input.extensionLocation.toString(),
-			state: input.state
+			state: input.state,
+			iconPath: input.iconPath ? { light: input.iconPath.light.toString(), dark: input.iconPath.dark.toString(), } : undefined,
 		};
 		return JSON.stringify(data);
 	}
@@ -54,6 +56,7 @@ export class WebviewEditorInputFactory implements IEditorInputFactory {
 	): WebviewEditorInput {
 		const data: SerializedWebview = JSON.parse(serializedEditorInput);
 		const extensionLocation = URI.parse(data.extensionLocation);
-		return this._webviewService.reviveWebview(data.viewType, data.title, data.state, data.options, extensionLocation);
+		const iconPath = data.iconPath ? { light: URI.parse(data.iconPath.light), dark: URI.parse(data.iconPath.dark) } : undefined;
+		return this._webviewService.reviveWebview(data.viewType, data.title, iconPath, data.state, data.options, extensionLocation);
 	}
 }

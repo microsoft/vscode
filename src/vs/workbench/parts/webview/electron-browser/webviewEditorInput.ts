@@ -2,7 +2,7 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-
+import * as dom from 'vs/base/browser/dom';
 import { Emitter } from 'vs/base/common/event';
 import { dispose, IDisposable } from 'vs/base/common/lifecycle';
 import URI from 'vs/base/common/uri';
@@ -14,12 +14,47 @@ import * as vscode from 'vscode';
 import { WebviewEvents, WebviewInputOptions, WebviewReviver } from './webviewEditorService';
 import { WebviewElement } from './webviewElement';
 
+
 export class WebviewEditorInput extends EditorInput {
 	private static handlePool = 0;
+
+
+	private static _styleElement?: HTMLStyleElement;
+
+	private static _icons = new Map<number, { light: URI, dark: URI }>();
+
+	private static updateStyleElement(
+		id: number,
+		iconPath: { light: URI, dark: URI } | undefined
+	) {
+		if (!this._styleElement) {
+			this._styleElement = dom.createStyleSheet();
+			this._styleElement.className = 'webview-icons';
+		}
+
+		if (!iconPath) {
+			this._icons.delete(id);
+		} else {
+			this._icons.set(id, iconPath);
+		}
+
+		const cssRules: string[] = [];
+		this._icons.forEach((value, key) => {
+			const webviewSelector = `.show-file-icons .webview-${key}-name-file-icon::before`;
+			if (URI.isUri(value)) {
+				cssRules.push(`${webviewSelector} { content: ""; background-image: url(${value.toString()}); }`);
+			} else {
+				cssRules.push(`${webviewSelector} { content: ""; background-image: url(${value.light.toString()}); }`);
+				cssRules.push(`.vs-dark ${webviewSelector} { content: ""; background-image: url(${value.dark.toString()}); }`);
+			}
+		});
+		this._styleElement.innerHTML = cssRules.join('\n');
+	}
 
 	public static readonly typeId = 'workbench.editors.webviewInput';
 
 	private _name: string;
+	private _iconPath?: { light: URI, dark: URI };
 	private _options: WebviewInputOptions;
 	private _html: string = '';
 	private _currentWebviewHtml: string = '';
@@ -107,6 +142,15 @@ export class WebviewEditorInput extends EditorInput {
 	public setName(value: string): void {
 		this._name = value;
 		this._onDidChangeLabel.fire();
+	}
+
+	public get iconPath() {
+		return this._iconPath;
+	}
+
+	public set iconPath(value: { light: URI, dark: URI } | undefined) {
+		this._iconPath = value;
+		WebviewEditorInput.updateStyleElement(this._id, value);
 	}
 
 	public matches(other: IEditorInput): boolean {

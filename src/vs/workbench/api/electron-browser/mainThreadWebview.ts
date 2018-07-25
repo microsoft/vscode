@@ -2,7 +2,6 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-import * as dom from 'vs/base/browser/dom';
 import { dispose, IDisposable } from 'vs/base/common/lifecycle';
 import * as map from 'vs/base/common/map';
 import URI, { UriComponents } from 'vs/base/common/uri';
@@ -29,39 +28,6 @@ export class MainThreadWebviews implements MainThreadWebviewsShape, WebviewReviv
 	private static readonly standardSupportedLinkSchemes = ['http', 'https', 'mailto'];
 
 	private static revivalPool = 0;
-
-	private static _styleElement?: HTMLStyleElement;
-
-	private static _icons = new Map<number, { light: URI, dark: URI }>();
-
-	private static updateStyleElement(
-		webview: WebviewEditorInput,
-		iconPath: { light: URI, dark: URI } | undefined
-	) {
-		const id = webview.getId();
-		if (!this._styleElement) {
-			this._styleElement = dom.createStyleSheet();
-			this._styleElement.className = 'webview-icons';
-		}
-
-		if (!iconPath) {
-			this._icons.delete(id);
-		} else {
-			this._icons.set(id, iconPath);
-		}
-
-		const cssRules: string[] = [];
-		this._icons.forEach((value, key) => {
-			const webviewSelector = `.show-file-icons .webview-${key}-name-file-icon::before`;
-			if (URI.isUri(value)) {
-				cssRules.push(`${webviewSelector} { content: ""; background-image: url(${value.toString()}); }`);
-			} else {
-				cssRules.push(`${webviewSelector} { content: ""; background-image: url(${value.light.toString()}); }`);
-				cssRules.push(`.vs-dark ${webviewSelector} { content: ""; background-image: url(${value.dark.toString()}); }`);
-			}
-		});
-		this._styleElement.innerHTML = cssRules.join('\n');
-	}
 
 	private _toDispose: IDisposable[] = [];
 
@@ -132,7 +98,7 @@ export class MainThreadWebviews implements MainThreadWebviewsShape, WebviewReviv
 
 	public $setIconPath(handle: WebviewPanelHandle, value: { light: UriComponents, dark: UriComponents } | undefined): void {
 		const webview = this.getWebview(handle);
-		MainThreadWebviews.updateStyleElement(webview, reviveWebviewIcon(value));
+		webview.iconPath = reviveWebviewIcon(value);
 	}
 
 	public $setHtml(handle: WebviewPanelHandle, value: string): void {
@@ -225,10 +191,6 @@ export class MainThreadWebviews implements MainThreadWebviewsShape, WebviewReviv
 			onMessage: message => this._proxy.$onMessage(handle, message),
 			onDispose: () => {
 				const cleanUp = () => {
-					const webview = this._webviews.get(handle);
-					if (webview) {
-						MainThreadWebviews.updateStyleElement(webview, undefined);
-					}
 					this._webviews.delete(handle);
 				};
 				this._proxy.$onDidDisposeWebviewPanel(handle).then(
