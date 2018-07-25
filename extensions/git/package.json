@@ -911,7 +911,8 @@
         "git.autofetch": {
           "type": "boolean",
           "description": "%config.autofetch%",
-          "default": false
+          "default": false,
+          "tags": ["backgroundOnlineFeature"]
         },
         "git.confirmSync": {
           "type": "boolean",

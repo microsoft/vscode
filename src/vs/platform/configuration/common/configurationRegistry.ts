@@ -78,6 +78,7 @@ export interface IConfigurationPropertySchema extends IJSONSchema {
 	scope?: ConfigurationScope;
 	notMultiRootAdopted?: boolean;
 	included?: boolean;
+	tags?: string[];
 }
 
 export interface IConfigurationNode {

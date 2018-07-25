@@ -46,6 +46,11 @@ const configurationEntrySchema: IJSONSchema = {
 									nls.localize('scope.resource.description', "Resource specific configuration, which can be configured in the User, Workspace or Folder settings.")
 								],
 								description: nls.localize('scope.description', "Scope in which the configuration is applicable. Available scopes are `window` and `resource`.")
+							},
+							tags: {
+								type: 'array',
+								default: [],
+								description: nls.localize('tags.description', "Tags that can be used to filter settings in the settings editor.")
 							}
 						}
 					}

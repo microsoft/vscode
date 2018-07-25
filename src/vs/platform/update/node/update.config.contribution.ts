@@ -21,18 +21,21 @@ configurationRegistry.registerConfiguration({
 			'enum': ['none', 'default'],
 			'default': 'default',
 			'scope': ConfigurationScope.APPLICATION,
-			'description': nls.localize('updateChannel', "Configure whether you receive automatic updates from an update channel. Requires a restart after change.")
+			'description': nls.localize('updateChannel', "Configure whether you receive automatic updates from an update channel. Requires a restart after change."),
+			'tags': ['backgroundOnlineFeature']
 		},
 		'update.enableWindowsBackgroundUpdates': {
 			'type': 'boolean',
 			'default': true,
 			'scope': ConfigurationScope.APPLICATION,
-			'description': nls.localize('enableWindowsBackgroundUpdates', "Enables Windows background updates.")
+			'description': nls.localize('enableWindowsBackgroundUpdates', "Enables Windows background updates."),
+			'tags': ['backgroundOnlineFeature']
 		},
 		'update.showReleaseNotes': {
 			'type': 'boolean',
 			'default': true,
-			'description': nls.localize('showReleaseNotes', "Show Release Notes after an update.")
+			'description': nls.localize('showReleaseNotes', "Show Release Notes after an update."),
+			'tags': ['backgroundOnlineFeature']
 		}
 	}
 });
