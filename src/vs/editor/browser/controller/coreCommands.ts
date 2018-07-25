@@ -1711,6 +1711,12 @@ registerCommand(new EditorOrNativeTextInputCommand({
 		weight: CORE_WEIGHT,
 		kbExpr: null,
 		primary: KeyMod.CtrlCmd | KeyCode.KEY_A
+	},
+	menubarOpts: {
+		menuId: MenuId.MenubarSelectionMenu,
+		group: '1_basic',
+		title: nls.localize({ key: 'miSelectAll', comment: ['&& denotes a mnemonic'] }, "&&Select All"),
+		order: 1
 	}
 }));
 
