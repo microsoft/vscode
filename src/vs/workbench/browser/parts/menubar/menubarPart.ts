@@ -106,15 +106,7 @@ export class MenubarPart extends Part {
 	private _modifierKeyStatus: IModifierKeyStatus;
 	private _focusState: MenubarState;
 
-	private _onVisibilityChange: Emitter<Dimension>;
-
-	private initialSizing: {
-		menuButtonPaddingLeftRight?: number;
-		menubarHeight?: number;
-		menubarPaddingLeft?: number;
-		menubarPaddingRight?: number;
-		menubarFontSize?: number;
-	} = {};
+	private _onVisibilityChange: Emitter<boolean>;
 
 	private static MAX_MENU_RECENT_ENTRIES = 5;
 
@@ -155,7 +147,7 @@ export class MenubarPart extends Part {
 			this.setUnfocusedState();
 		}));
 
-		this._onVisibilityChange = this._register(new Emitter<Dimension>());
+		this._onVisibilityChange = this._register(new Emitter<boolean>());
 
 		if (isMacintosh || this.currentTitlebarStyleSetting !== 'custom') {
 			for (let topLevelMenuName of Object.keys(this.topLevelMenus)) {
@@ -340,26 +332,34 @@ export class MenubarPart extends Part {
 		if (this.keys.some(key => event.affectsConfiguration(key))) {
 			this.setupMenubar();
 		}
+
+		if (event.affectsConfiguration('window.menuBarVisibility')) {
+			this.setUnfocusedState();
+		}
 	}
 
 	private setUnfocusedState(): void {
-		this.focusState = this.currentMenubarVisibility === 'toggle' ? MenubarState.HIDDEN : MenubarState.VISIBLE;
+		this.focusState = this.currentMenubarVisibility === 'toggle' || this.currentMenubarVisibility === 'hidden' ? MenubarState.HIDDEN : MenubarState.VISIBLE;
 	}
 
 	private hideMenubar(): void {
-		this._onVisibilityChange.fire(new Dimension(0, 0));
-		this.container.style('visibility', 'hidden');
+		this.container.style('display', 'none');
+		this._onVisibilityChange.fire(false);
 	}
 
 	private showMenubar(): void {
-		this._onVisibilityChange.fire(this.getMenubarItemsDimensions());
-		this.container.style('visibility', null);
+		this.container.style('display', 'flex');
+		this._onVisibilityChange.fire(true);
 	}
 
 	private onModifierKeyToggled(modifierKeyStatus: IModifierKeyStatus): void {
 		this._modifierKeyStatus = modifierKeyStatus;
 		const altKeyAlone = modifierKeyStatus.lastKeyPressed === 'alt' && !modifierKeyStatus.ctrlKey && !modifierKeyStatus.shiftKey;
 		const allModifiersReleased = !modifierKeyStatus.altKey && !modifierKeyStatus.ctrlKey && !modifierKeyStatus.shiftKey;
+
+		if (this.currentMenubarVisibility === 'hidden') {
+			return;
+		}
 
 		if (this.currentMenubarVisibility === 'toggle') {
 			if (altKeyAlone) {
@@ -868,8 +868,8 @@ export class MenubarPart extends Part {
 
 		$(menuHolder.getHTMLElement().parentElement).addClass('open');
 		menuHolder.style({
-			'zoom': `${1 / browser.getZoomFactor()}`,
-			'top': `${this.container.getClientArea().height * browser.getZoomFactor()}px`
+			'top': `${this.container.getClientArea().height}px`,
+			'left': `${customMenu.buttonElement.getHTMLElement().getBoundingClientRect().left}px`
 		});
 
 		let menuOptions: IMenuOptions = {
@@ -900,48 +900,12 @@ export class MenubarPart extends Part {
 		};
 	}
 
-	public get onVisibilityChange(): Event<Dimension> {
+	public get onVisibilityChange(): Event<boolean> {
 		return this._onVisibilityChange.event;
 	}
 
 	public layout(dimension: Dimension): Dimension[] {
-		// To prevent zooming we need to adjust the font size with the zoom factor
-		if (this.customMenus) {
-			if (typeof this.initialSizing.menubarFontSize !== 'number') {
-				this.initialSizing.menubarFontSize = parseInt(this.container.getComputedStyle().fontSize, 10);
-			}
-
-			if (typeof this.initialSizing.menubarHeight !== 'number') {
-				this.initialSizing.menubarHeight = parseInt(this.container.getComputedStyle().height, 10);
-			}
-
-			if (typeof this.initialSizing.menubarPaddingLeft !== 'number') {
-				this.initialSizing.menubarPaddingLeft = parseInt(this.container.getComputedStyle().paddingLeft, 10);
-			}
-
-			if (typeof this.initialSizing.menubarPaddingRight !== 'number') {
-				this.initialSizing.menubarPaddingRight = parseInt(this.container.getComputedStyle().paddingRight, 10);
-			}
-
-			if (typeof this.initialSizing.menuButtonPaddingLeftRight !== 'number') {
-				this.initialSizing.menuButtonPaddingLeftRight = parseInt(this.customMenus[0].buttonElement.getComputedStyle().paddingLeft, 10);
-			}
-
-			this.container.style({
-				height: `${this.initialSizing.menubarHeight / browser.getZoomFactor()}px`,
-				'padding-left': `${this.initialSizing.menubarPaddingLeft / browser.getZoomFactor()}px`,
-				'padding-right': `${this.initialSizing.menubarPaddingRight / browser.getZoomFactor()}px`,
-				'font-size': `${this.initialSizing.menubarFontSize / browser.getZoomFactor()}px`,
-			});
-
-			this.customMenus.forEach(customMenu => {
-				customMenu.buttonElement.style({
-					'padding': `0 ${this.initialSizing.menuButtonPaddingLeftRight / browser.getZoomFactor()}px`
-				});
-			});
-		}
-
-		if (this.currentMenubarVisibility === 'toggle') {
+		if (!this.isVisible) {
 			this.hideMenubar();
 		} else {
 			this.showMenubar();
@@ -970,6 +934,10 @@ export class MenubarPart extends Part {
 		// Build the menubar
 		if (this.container) {
 			this.doSetupMenubar();
+
+			if (!isMacintosh && this.currentTitlebarStyleSetting === 'custom') {
+				this.setUnfocusedState();
+			}
 		}
 
 		return this.container.getHTMLElement();
@@ -980,7 +948,7 @@ registerThemingParticipant((theme: ITheme, collector: ICssStyleCollector) => {
 	const menubarActiveWindowFgColor = theme.getColor(TITLE_BAR_ACTIVE_FOREGROUND);
 	if (menubarActiveWindowFgColor) {
 		collector.addRule(`
-		.monaco-workbench > .part.menubar > .menubar-menu-button {
+		.monaco-workbench .part.menubar > .menubar-menu-button {
 			color: ${menubarActiveWindowFgColor};
 		}
 		`);
@@ -989,7 +957,7 @@ registerThemingParticipant((theme: ITheme, collector: ICssStyleCollector) => {
 	const menubarInactiveWindowFgColor = theme.getColor(TITLE_BAR_INACTIVE_FOREGROUND);
 	if (menubarInactiveWindowFgColor) {
 		collector.addRule(`
-			.monaco-workbench > .part.menubar.inactive > .menubar-menu-button {
+			.monaco-workbench .part.menubar.inactive > .menubar-menu-button {
 				color: ${menubarInactiveWindowFgColor};
 			}
 		`);
@@ -999,9 +967,9 @@ registerThemingParticipant((theme: ITheme, collector: ICssStyleCollector) => {
 	const menubarSelectedFgColor = theme.getColor(MENUBAR_SELECTION_FOREGROUND);
 	if (menubarSelectedFgColor) {
 		collector.addRule(`
-			.monaco-workbench > .part.menubar > .menubar-menu-button.open,
-			.monaco-workbench > .part.menubar > .menubar-menu-button:focus,
-			.monaco-workbench > .part.menubar > .menubar-menu-button:hover {
+			.monaco-workbench .part.menubar > .menubar-menu-button.open,
+			.monaco-workbench .part.menubar > .menubar-menu-button:focus,
+			.monaco-workbench .part.menubar > .menubar-menu-button:hover {
 				color: ${menubarSelectedFgColor};
 			}
 		`);
@@ -1010,9 +978,9 @@ registerThemingParticipant((theme: ITheme, collector: ICssStyleCollector) => {
 	const menubarSelectedBgColor = theme.getColor(MENUBAR_SELECTION_BACKGROUND);
 	if (menubarSelectedBgColor) {
 		collector.addRule(`
-			.monaco-workbench > .part.menubar > .menubar-menu-button.open,
-			.monaco-workbench > .part.menubar > .menubar-menu-button:focus,
-			.monaco-workbench > .part.menubar > .menubar-menu-button:hover {
+			.monaco-workbench .part.menubar > .menubar-menu-button.open,
+			.monaco-workbench .part.menubar > .menubar-menu-button:focus,
+			.monaco-workbench .part.menubar > .menubar-menu-button:hover {
 				background-color: ${menubarSelectedBgColor};
 			}
 		`);
@@ -1021,18 +989,18 @@ registerThemingParticipant((theme: ITheme, collector: ICssStyleCollector) => {
 	const menubarSelectedBorderColor = theme.getColor(MENUBAR_SELECTION_BORDER);
 	if (menubarSelectedBorderColor) {
 		collector.addRule(`
-			.monaco-workbench > .part.menubar > .menubar-menu-button:hover {
+			.monaco-workbench .part.menubar > .menubar-menu-button:hover {
 				outline: dashed 1px;
 			}
 
-			.monaco-workbench > .part.menubar > .menubar-menu-button.open,
-			.monaco-workbench > .part.menubar > .menubar-menu-button:focus {
+			.monaco-workbench .part.menubar > .menubar-menu-button.open,
+			.monaco-workbench .part.menubar > .menubar-menu-button:focus {
 				outline: solid 1px;
 			}
 
-			.monaco-workbench > .part.menubar > .menubar-menu-button.open,
-			.monaco-workbench > .part.menubar > .menubar-menu-button:focus,
-			.monaco-workbench > .part.menubar > .menubar-menu-button:hover {
+			.monaco-workbench .part.menubar > .menubar-menu-button.open,
+			.monaco-workbench .part.menubar > .menubar-menu-button:focus,
+			.monaco-workbench .part.menubar > .menubar-menu-button:hover {
 				outline-offset: -1px;
 				outline-color: ${menubarSelectedBorderColor};
 			}
