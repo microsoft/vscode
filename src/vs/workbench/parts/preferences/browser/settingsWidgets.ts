@@ -8,7 +8,6 @@ import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { ActionBar } from 'vs/base/browser/ui/actionbar/actionbar';
 import { Button } from 'vs/base/browser/ui/button/button';
 import { InputBox } from 'vs/base/browser/ui/inputbox/inputBox';
-import { IRenderer, IVirtualDelegate } from 'vs/base/browser/ui/list/list';
 import { IAction } from 'vs/base/common/actions';
 import { Emitter, Event } from 'vs/base/common/event';
 import { KeyCode } from 'vs/base/common/keyCodes';
@@ -16,9 +15,7 @@ import { Disposable, dispose, IDisposable } from 'vs/base/common/lifecycle';
 import 'vs/css!./media/settingsWidgets';
 import { localize } from 'vs/nls';
 import { IContextViewService } from 'vs/platform/contextview/browser/contextView';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { WorkbenchList } from 'vs/platform/list/browser/listService';
-import { foreground, inputBackground, inputBorder, inputForeground, registerColor, selectBackground, selectBorder, selectForeground, textLinkForeground } from 'vs/platform/theme/common/colorRegistry';
+import { foreground, inputBackground, inputBorder, inputForeground, listHoverBackground, registerColor, selectBackground, selectBorder, selectForeground, textLinkForeground } from 'vs/platform/theme/common/colorRegistry';
 import { attachButtonStyler, attachInputBoxStyler } from 'vs/platform/theme/common/styler';
 import { ICssStyleCollector, ITheme, IThemeService, registerThemingParticipant } from 'vs/platform/theme/common/themeService';
 
@@ -77,7 +74,12 @@ registerThemingParticipant((theme: ITheme, collector: ICssStyleCollector) => {
 
 	const foregroundColor = theme.getColor(foreground);
 	if (foregroundColor) {
-		collector.addRule(`.settings-editor > .settings-header > .settings-header-controls .settings-tabs-widget .action-label { color: ${foregroundColor}; };`);
+		collector.addRule(`.settings-editor > .settings-header > .settings-header-controls .settings-tabs-widget .action-label { color: ${foregroundColor}; }`);
+	}
+
+	const listHoverBackgroundColor = theme.getColor(listHoverBackground);
+	if (listHoverBackgroundColor) {
+		collector.addRule(`.settings-editor > .settings-body > .settings-tree-container .setting-item.setting-item-exclude .setting-exclude-row:hover { background-color: ${listHoverBackgroundColor}; }`);
 	}
 });
 
@@ -88,8 +90,8 @@ enum AddItemMode {
 }
 
 export class ExcludeSettingListModel {
-	private _dataItems: IExcludeItem[];
-	private _newItem: AddItemMode;
+	private _dataItems: IExcludeItem[] = [];
+	private _newItem = AddItemMode.None;
 
 	get items(): IExcludeItem[] {
 		const items = [
@@ -133,7 +135,8 @@ interface IExcludeChangeEvent {
 }
 
 export class ExcludeSettingWidget extends Disposable {
-	private list: WorkbenchList<IExcludeItem>;
+	private listElement: HTMLElement;
+	private renderedDisposables: IDisposable[] = [];
 
 	private model = new ExcludeSettingListModel();
 
@@ -143,23 +146,11 @@ export class ExcludeSettingWidget extends Disposable {
 	constructor(
 		container: HTMLElement,
 		@IThemeService private themeService: IThemeService,
-		@IInstantiationService private instantiationService: IInstantiationService
+		@IContextViewService private contextViewService: IContextViewService
 	) {
 		super();
 
-		const dataRenderer = new ExcludeDataItemRenderer();
-		this._register(dataRenderer.onDidRemoveExclude(key => this._onDidChangeExclude.fire({ originalPattern: key, pattern: undefined })));
-		this._register(dataRenderer.onEditExclude(key => {
-			// this.model
-		}));
-
-		const newItemRenderer = this.instantiationService.createInstance(NewExcludeRenderer);
-		const delegate = new ExcludeSettingListDelegate();
-		this.list = this.instantiationService.createInstance(WorkbenchList, container, delegate, [newItemRenderer, dataRenderer], {
-			identityProvider: element => element.id,
-			multipleSelectionSupport: false
-		}) as WorkbenchList<IExcludeItem>;
-		this._register(this.list);
+		this.listElement = DOM.append(container, $('.setting-exclude-widget'));
 
 		const addPatternButton = this._register(new Button(container));
 		addPatternButton.label = localize('addPattern', "Add Pattern");
@@ -169,6 +160,8 @@ export class ExcludeSettingWidget extends Disposable {
 			this.model.setAddItemMode(AddItemMode.Pattern);
 			this.update();
 		}));
+
+		this.update();
 	}
 
 	setValue(excludeValue: any): void {
@@ -177,11 +170,120 @@ export class ExcludeSettingWidget extends Disposable {
 	}
 
 	private update(): void {
-		this.list.splice(0, this.list.length, this.model.items);
+		DOM.clearNode(this.listElement);
+		this.renderedDisposables = dispose(this.renderedDisposables);
+
+		this.model.items
+			.map(item => this.renderItem(item))
+			.forEach(itemElement => this.listElement.appendChild(itemElement));
 
 		const listHeight = 22 * this.model.items.length;
-		this.list.layout(listHeight);
-		this.list.getHTMLElement().style.height = listHeight + 'px';
+		this.listElement.style.height = listHeight + 'px';
+	}
+
+	private createDeleteAction(key: string): IAction {
+		return <IAction>{
+			class: 'setting-excludeAction-remove',
+			enabled: true,
+			id: 'workbench.action.removeExcludeItem',
+			tooltip: localize('removeExcludeItem', "Remove Exclude Item"),
+			run: () => this._onDidChangeExclude.fire({ originalPattern: key, pattern: undefined })
+		};
+	}
+
+	private createEditAction(key: string): IAction {
+		return <IAction>{
+			class: 'setting-excludeAction-edit',
+			enabled: true,
+			id: 'workbench.action.editExcludeItem',
+			tooltip: localize('editExcludeItem', "Edit Exclude Item"),
+			run: () => { }
+		};
+	}
+
+	private renderItem(item: IExcludeItem): HTMLElement {
+		return isExcludeDataItem(item) ?
+			this.renderDataItem(item) :
+			this.renderNewItem(item);
+	}
+
+	private renderDataItem(item: IExcludeDataItem): HTMLElement {
+		const rowElement = $('.setting-exclude-row');
+		const actionBar = new ActionBar(rowElement);
+		this.renderedDisposables.push(actionBar);
+
+		const patternElement = DOM.append(rowElement, $('.setting-exclude-pattern'));
+		const siblingElement = DOM.append(rowElement, $('.setting-exclude-sibling'));
+		patternElement.textContent = item.pattern;
+		siblingElement.textContent = item.sibling && ('when: ' + item.sibling);
+
+		actionBar.push([
+			this.createEditAction(item.pattern),
+			this.createDeleteAction(item.pattern)
+		], { icon: true, label: false });
+
+		rowElement.title = item.sibling ?
+			localize('excludeSiblingHintLabel', "Exclude files matching `{0}`, only when a file matching `{1}` is present", item.pattern, item.sibling) :
+			localize('excludePatternHintLabel', "Exclude files matching `{0}`", item.pattern);
+
+		return rowElement;
+	}
+
+	private renderNewItem(item: INewExcludeItem): HTMLElement {
+		const rowElement = $('.setting-exclude-new-row');
+
+		const onKeydown = (e: StandardKeyboardEvent) => {
+			if (e.equals(KeyCode.Enter)) {
+				this._onDidChangeExclude.fire({
+					originalPattern: undefined,
+					pattern: patternInput.value,
+					// sibling: siblingInput.value
+				});
+			}
+		};
+
+		const patternInput = new InputBox(rowElement, this.contextViewService, {
+			placeholder: localize('excludePatternInputPlaceholder', "Exclude Pattern...")
+		});
+		patternInput.element.classList.add('setting-exclude-patternInput');
+		this.renderedDisposables.push(attachInputBoxStyler(patternInput, this.themeService, {
+			inputBackground: settingsTextInputBackground,
+			inputForeground: settingsTextInputForeground,
+			inputBorder: settingsTextInputBorder
+		}));
+		this.renderedDisposables.push(patternInput);
+		this.renderedDisposables.push(DOM.addStandardDisposableListener(patternInput.inputElement, DOM.EventType.KEY_DOWN, onKeydown));
+
+		const siblingInput = new InputBox(rowElement, this.contextViewService, {
+			placeholder: localize('excludeSiblingInputPlaceholder', "When Pattern Is Present...")
+		});
+		siblingInput.element.classList.add('setting-exclude-siblingInput');
+		this.renderedDisposables.push(siblingInput);
+		this.renderedDisposables.push(attachInputBoxStyler(siblingInput, this.themeService, {
+			inputBackground: settingsTextInputBackground,
+			inputForeground: settingsTextInputForeground,
+			inputBorder: settingsTextInputBorder
+		}));
+		this.renderedDisposables.push(DOM.addStandardDisposableListener(siblingInput.inputElement, DOM.EventType.KEY_DOWN, onKeydown));
+
+		rowElement.classList.add('setting-exclude-newExcludeItem');
+
+		rowElement.classList.remove('setting-exclude-newPattern');
+		rowElement.classList.remove('setting-exclude-newPatternWithSibling');
+		if (item.mode === AddItemMode.Pattern) {
+			rowElement.classList.add('setting-exclude-newPattern');
+			patternInput.focus();
+			patternInput.select();
+		} else if (item.mode === AddItemMode.PatternWithSibling) {
+			rowElement.classList.add('setting-exclude-newPatternWithSibling');
+		}
+
+		return rowElement;
+	}
+
+	dispose() {
+		super.dispose();
+		this.renderedDisposables = dispose(this.renderedDisposables);
 	}
 }
 
@@ -200,195 +302,6 @@ type IExcludeItem = IExcludeDataItem | INewExcludeItem;
 
 function isExcludeDataItem(excludeItem: IExcludeItem): excludeItem is IExcludeDataItem {
 	return !!(<IExcludeDataItem>excludeItem).pattern;
-}
-
-interface IExcludeDataItemTemplate {
-	container: HTMLElement;
-
-	actionBar: ActionBar;
-	patternElement: HTMLElement;
-	siblingElement: HTMLElement;
-	toDispose: IDisposable[];
-}
-
-class ExcludeDataItemRenderer implements IRenderer<IExcludeDataItem, IExcludeDataItemTemplate> {
-	static readonly templateId: string = 'excludeDataItem';
-
-	private readonly _onDidRemoveExclude: Emitter<string> = new Emitter<string>();
-	public readonly onDidRemoveExclude: Event<string> = this._onDidRemoveExclude.event;
-
-	private readonly _onEditExclude: Emitter<string> = new Emitter<string>();
-	public readonly onEditExclude: Event<string> = this._onEditExclude.event;
-
-	get templateId(): string {
-		return ExcludeDataItemRenderer.templateId;
-	}
-
-	renderTemplate(container: HTMLElement): IExcludeDataItemTemplate {
-		const toDispose = [];
-
-		const actionBar = new ActionBar(container);
-		toDispose.push(actionBar);
-
-		return {
-			container,
-			patternElement: DOM.append(container, $('.setting-exclude-pattern')),
-			siblingElement: DOM.append(container, $('.setting-exclude-sibling')),
-			toDispose,
-			actionBar
-		};
-	}
-
-	private createDeleteAction(key: string): IAction {
-		return <IAction>{
-			class: 'setting-excludeAction-remove',
-			enabled: true,
-			id: 'workbench.action.removeExcludeItem',
-			tooltip: localize('removeExcludeItem', "Remove Exclude Item"),
-			run: () => this._onDidRemoveExclude.fire(key)
-		};
-	}
-
-	private createEditAction(key: string): IAction {
-		return <IAction>{
-			class: 'setting-excludeAction-edit',
-			enabled: true,
-			id: 'workbench.action.editExcludeItem',
-			tooltip: localize('editExcludeItem', "Edit Exclude Item"),
-			run: () => this._onEditExclude.fire(key)
-		};
-	}
-
-	renderElement(element: IExcludeDataItem, index: number, templateData: IExcludeDataItemTemplate): void {
-		templateData.patternElement.textContent = element.pattern;
-		templateData.siblingElement.textContent = element.sibling && ('when: ' + element.sibling);
-
-		templateData.actionBar.clear();
-		templateData.actionBar.push([
-			this.createEditAction(element.pattern),
-			this.createDeleteAction(element.pattern)
-		], { icon: true, label: false });
-
-		templateData.container.title = element.sibling ?
-			localize('excludeSiblingHintLabel', "Exclude files matching `{0}`, only when a file matching `{1}` is present", element.pattern, element.sibling) :
-			localize('excludePatternHintLabel', "Exclude files matching `{0}`", element.pattern);
-	}
-
-	disposeElement(element: IExcludeDataItem, index: number, templateData: IExcludeDataItemTemplate): void {
-	}
-
-	disposeTemplate(templateData: IExcludeDataItemTemplate): void {
-		dispose(templateData.toDispose);
-	}
-}
-
-interface INewExcludeItemTemplate {
-	container: HTMLElement;
-
-	patternInput: InputBox;
-	siblingInput: InputBox;
-	toDispose: IDisposable[];
-}
-
-interface INewExcludeItemEvent {
-	pattern: string;
-	sibling?: string;
-}
-
-class NewExcludeRenderer implements IRenderer<INewExcludeItem, INewExcludeItemTemplate> {
-	static readonly templateId: string = 'newExcludeItem';
-
-	private readonly _onNewExcludeItem: Emitter<INewExcludeItemEvent> = new Emitter<INewExcludeItemEvent>();
-	public readonly onNewExcludeItem: Event<INewExcludeItemEvent> = this._onNewExcludeItem.event;
-
-	constructor(
-		@IContextViewService private contextViewService: IContextViewService,
-		@IThemeService private themeService: IThemeService
-	) {
-	}
-
-	get templateId(): string {
-		return NewExcludeRenderer.templateId;
-	}
-
-	renderTemplate(container: HTMLElement): INewExcludeItemTemplate {
-		const toDispose = [];
-
-		const onKeydown = (e: StandardKeyboardEvent) => {
-			if (e.equals(KeyCode.Enter)) {
-				this._onNewExcludeItem.fire({
-					pattern: patternInput.value,
-					sibling: siblingInput.value
-				});
-			}
-		};
-
-		const patternInput = new InputBox(container, this.contextViewService, {
-			placeholder: localize('excludePatternInputPlaceholder', "Exclude Pattern...")
-		});
-		patternInput.element.classList.add('setting-exclude-patternInput');
-		toDispose.push(attachInputBoxStyler(patternInput, this.themeService, {
-			inputBackground: settingsTextInputBackground,
-			inputForeground: settingsTextInputForeground,
-			inputBorder: settingsTextInputBorder
-		}));
-		toDispose.push(patternInput);
-		toDispose.push(DOM.addStandardDisposableListener(patternInput.inputElement, DOM.EventType.KEY_DOWN, onKeydown));
-
-		const siblingInput = new InputBox(container, this.contextViewService, {
-			placeholder: localize('excludeSiblingInputPlaceholder', "When Pattern Is Present...")
-		});
-		siblingInput.element.classList.add('setting-exclude-siblingInput');
-		toDispose.push(siblingInput);
-		toDispose.push(attachInputBoxStyler(siblingInput, this.themeService, {
-			inputBackground: settingsTextInputBackground,
-			inputForeground: settingsTextInputForeground,
-			inputBorder: settingsTextInputBorder
-		}));
-		toDispose.push(DOM.addStandardDisposableListener(siblingInput.inputElement, DOM.EventType.KEY_DOWN, onKeydown));
-
-		return {
-			container,
-			patternInput,
-			siblingInput,
-			toDispose
-		};
-	}
-
-	renderElement(element: INewExcludeItem, index: number, templateData: INewExcludeItemTemplate): void {
-		templateData.container.classList.add('setting-exclude-newExcludeItem');
-
-		templateData.container.classList.remove('setting-exclude-newPattern');
-		templateData.container.classList.remove('setting-exclude-newPatternWithSibling');
-		if (element.mode === AddItemMode.Pattern) {
-			templateData.container.classList.add('setting-exclude-newPattern');
-			templateData.patternInput.focus();
-			templateData.patternInput.select();
-		} else if (element.mode === AddItemMode.PatternWithSibling) {
-			templateData.container.classList.add('setting-exclude-newPatternWithSibling');
-		}
-	}
-
-	disposeElement(element: INewExcludeItem, index: number, templateData: INewExcludeItemTemplate): void {
-	}
-
-	disposeTemplate(templateData: INewExcludeItemTemplate): void {
-		dispose(templateData.toDispose);
-	}
-}
-
-class ExcludeSettingListDelegate implements IVirtualDelegate<IExcludeItem> {
-	getHeight(element: IExcludeItem): number {
-		return 22;
-	}
-
-	getTemplateId(element: IExcludeItem): string {
-		if (isExcludeDataItem(element)) {
-			return ExcludeDataItemRenderer.templateId;
-		} else {
-			return NewExcludeRenderer.templateId;
-		}
-	}
 }
 
 // class EditExcludeItemAction extends Action {
