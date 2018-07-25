@@ -9,7 +9,6 @@ import * as nls from 'vs/nls';
 import URI from 'vs/base/common/uri';
 import * as errors from 'vs/base/common/errors';
 import { TPromise } from 'vs/base/common/winjs.base';
-import * as arrays from 'vs/base/common/arrays';
 import * as objects from 'vs/base/common/objects';
 import * as DOM from 'vs/base/browser/dom';
 import { Separator } from 'vs/base/browser/ui/actionbar/actionbar';
@@ -21,13 +20,11 @@ import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IWorkspaceConfigurationService } from 'vs/workbench/services/configuration/common/configuration';
 import { IWindowsService, IWindowService, IWindowSettings, IPath, IOpenFileRequest, IWindowsConfiguration, IAddFoldersRequest, IRunActionInWindowRequest } from 'vs/platform/windows/common/windows';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
-import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { ITitleService } from 'vs/workbench/services/title/common/titleService';
 import { IWorkbenchThemeService, VS_HC_THEME, VS_DARK_THEME } from 'vs/workbench/services/themes/common/workbenchThemeService';
 import * as browser from 'vs/base/browser/browser';
 import { ICommandService } from 'vs/platform/commands/common/commands';
 import { IResourceInput } from 'vs/platform/editor/common/editor';
-import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
 import { KeyboardMapperFactory } from 'vs/workbench/services/keybinding/electron-browser/keybindingService';
 import { Themable } from 'vs/workbench/common/theme';
 import { ipcRenderer as ipc, webFrame } from 'electron';
@@ -77,9 +74,7 @@ export class ElectronWindow extends Themable {
 		@IWorkbenchThemeService protected themeService: IWorkbenchThemeService,
 		@INotificationService private notificationService: INotificationService,
 		@ICommandService private commandService: ICommandService,
-		@IExtensionService private extensionService: IExtensionService,
 		@IContextMenuService private contextMenuService: IContextMenuService,
-		@IKeybindingService private keybindingService: IKeybindingService,
 		@ITelemetryService private telemetryService: ITelemetryService,
 		@IWorkspaceEditingService private workspaceEditingService: IWorkspaceEditingService,
 		@IFileService private fileService: IFileService,
@@ -139,23 +134,6 @@ export class ElectronWindow extends Themable {
 			}, err => {
 				this.notificationService.error(err);
 			});
-		});
-
-		// Support resolve keybindings event
-		ipc.on('vscode:resolveKeybindings', (event: any, rawActionIds: string) => {
-			let actionIds: string[] = [];
-			try {
-				actionIds = JSON.parse(rawActionIds);
-			} catch (error) {
-				// should not happen
-			}
-
-			// Resolve keys using the keybinding service and send back to browser process
-			this.resolveKeybindings(actionIds).done(keybindings => {
-				if (keybindings.length) {
-					ipc.send('vscode:keybindingsResolved', JSON.stringify(keybindings));
-				}
-			}, () => errors.onUnexpectedError);
 		});
 
 		ipc.on('vscode:reportError', (event: any, error: string) => {
@@ -374,31 +352,6 @@ export class ElectronWindow extends Themable {
 			this.lastInstalledTouchedBar = items;
 			this.windowService.updateTouchBar(items);
 		}
-	}
-
-	private resolveKeybindings(actionIds: string[]): TPromise<{ id: string; label: string, isNative: boolean; }[]> {
-		return TPromise.join([this.lifecycleService.when(LifecyclePhase.Running), this.extensionService.whenInstalledExtensionsRegistered()]).then(() => {
-			return arrays.coalesce(actionIds.map(id => {
-				const binding = this.keybindingService.lookupKeybinding(id);
-				if (!binding) {
-					return null;
-				}
-
-				// first try to resolve a native accelerator
-				const electronAccelerator = binding.getElectronAccelerator();
-				if (electronAccelerator) {
-					return { id, label: electronAccelerator, isNative: true };
-				}
-
-				// we need this fallback to support keybindings that cannot show in electron menus (e.g. chords)
-				const acceleratorLabel = binding.getLabel();
-				if (acceleratorLabel) {
-					return { id, label: acceleratorLabel, isNative: false };
-				}
-
-				return null;
-			}));
-		});
 	}
 
 	private onAddFoldersRequest(request: IAddFoldersRequest): void {
