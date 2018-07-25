@@ -25,6 +25,7 @@ import { isFalsyOrEmpty } from 'vs/base/common/arrays';
 import { isObject } from 'vs/base/common/types';
 import { ISelection, Selection } from 'vs/editor/common/core/selection';
 import { IExtensionDescription } from 'vs/workbench/services/extensions/common/extensions';
+import { ILogService } from 'vs/platform/log/common/log';
 
 // --- adapter
 
@@ -273,7 +274,8 @@ class CodeActionAdapter {
 		private readonly _documents: ExtHostDocuments,
 		private readonly _commands: CommandsConverter,
 		private readonly _diagnostics: ExtHostDiagnostics,
-		private readonly _provider: vscode.CodeActionProvider
+		private readonly _provider: vscode.CodeActionProvider,
+		private readonly _logService: ILogService,
 	) { }
 
 	provideCodeActions(resource: URI, rangeOrSelection: IRange | ISelection, context: modes.CodeActionContext): TPromise<CodeActionDto[]> {
@@ -316,9 +318,9 @@ class CodeActionAdapter {
 				} else {
 					if (codeActionContext.only) {
 						if (!candidate.kind) {
-							console.warn(`INVALID - Code actions of kind '${codeActionContext.only.value} 'requested but returned code action does not have a 'kind'. Code action will be dropped. Please set 'CodeAction.kind'.`);
+							this._logService.warn(`Code actions of kind '${codeActionContext.only.value} 'requested but returned code action does not have a 'kind'. Code action will be dropped. Please set 'CodeAction.kind'.`);
 						} else if (!codeActionContext.only.contains(candidate.kind)) {
-							console.warn(`INVALID - Code actions of kind '${codeActionContext.only.value} 'requested but returned code action is of kind '${candidate.kind.value}'. Code action will be dropped. Please check 'CodeActionContext.only' to only return requested code actions.`);
+							this._logService.warn(`Code actions of kind '${codeActionContext.only.value} 'requested but returned code action is of kind '${candidate.kind.value}'. Code action will be dropped. Please check 'CodeActionContext.only' to only return requested code actions.`);
 						}
 					}
 
@@ -846,6 +848,7 @@ export class ExtHostLanguageFeatures implements ExtHostLanguageFeaturesShape {
 	private _heapService: ExtHostHeapService;
 	private _diagnostics: ExtHostDiagnostics;
 	private _adapter = new Map<number, Adapter>();
+	private readonly _logService: ILogService;
 
 	constructor(
 		mainContext: IMainContext,
@@ -853,7 +856,8 @@ export class ExtHostLanguageFeatures implements ExtHostLanguageFeaturesShape {
 		documents: ExtHostDocuments,
 		commands: ExtHostCommands,
 		heapMonitor: ExtHostHeapService,
-		diagnostics: ExtHostDiagnostics
+		diagnostics: ExtHostDiagnostics,
+		logService: ILogService
 	) {
 		this._schemeTransformer = schemeTransformer;
 		this._proxy = mainContext.getProxy(MainContext.MainThreadLanguageFeatures);
@@ -861,6 +865,7 @@ export class ExtHostLanguageFeatures implements ExtHostLanguageFeaturesShape {
 		this._commands = commands;
 		this._heapService = heapMonitor;
 		this._diagnostics = diagnostics;
+		this._logService = logService;
 	}
 
 	private _transformDocumentSelector(selector: vscode.DocumentSelector): ISerializedDocumentFilter[] {
@@ -1033,7 +1038,7 @@ export class ExtHostLanguageFeatures implements ExtHostLanguageFeaturesShape {
 	// --- quick fix
 
 	registerCodeActionProvider(selector: vscode.DocumentSelector, provider: vscode.CodeActionProvider, metadata?: vscode.CodeActionProviderMetadata): vscode.Disposable {
-		const handle = this._addNewAdapter(new CodeActionAdapter(this._documents, this._commands.converter, this._diagnostics, provider));
+		const handle = this._addNewAdapter(new CodeActionAdapter(this._documents, this._commands.converter, this._diagnostics, provider, this._logService));
 		this._proxy.$registerQuickFixSupport(handle, this._transformDocumentSelector(selector), metadata && metadata.providedCodeActionKinds ? metadata.providedCodeActionKinds.map(kind => kind.value) : undefined);
 		return this._createDisposable(handle);
 	}
