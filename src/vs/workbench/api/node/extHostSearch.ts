@@ -25,6 +25,7 @@ export class ExtHostSearch implements ExtHostSearchShape {
 
 	private readonly _proxy: MainThreadSearchShape;
 	private readonly _searchProvider = new Map<number, vscode.SearchProvider>();
+	private readonly _textSearchProvider = new Map<number, vscode.TextSearchProvider>();
 	private _handlePool: number = 0;
 
 	private _fileSearchManager: FileSearchManager;
@@ -44,6 +45,16 @@ export class ExtHostSearch implements ExtHostSearchShape {
 	registerSearchProvider(scheme: string, provider: vscode.SearchProvider) {
 		const handle = this._handlePool++;
 		this._searchProvider.set(handle, provider);
+		this._proxy.$registerSearchProvider(handle, this._transformScheme(scheme));
+		return toDisposable(() => {
+			this._searchProvider.delete(handle);
+			this._proxy.$unregisterProvider(handle);
+		});
+	}
+
+	registerTextSearchProvider(scheme: string, provider: vscode.TextSearchProvider) {
+		const handle = this._handlePool++;
+		this._textSearchProvider.set(handle, provider);
 		this._proxy.$registerSearchProvider(handle, this._transformScheme(scheme));
 		return toDisposable(() => {
 			this._searchProvider.delete(handle);
@@ -74,7 +85,7 @@ export class ExtHostSearch implements ExtHostSearchShape {
 	}
 
 	$provideTextSearchResults(handle: number, session: number, pattern: IPatternInfo, rawQuery: IRawSearchQuery): TPromise<ISearchCompleteStats> {
-		const provider = this._searchProvider.get(handle);
+		const provider = this._textSearchProvider.get(handle);
 		if (!provider.provideTextSearchResults) {
 			return TPromise.as(undefined);
 		}
@@ -363,7 +374,7 @@ class TextSearchEngine {
 	private resultCount = 0;
 	private isCanceled: boolean;
 
-	constructor(private pattern: IPatternInfo, private config: ISearchQuery, private provider: vscode.SearchProvider, private _extfs: typeof extfs) {
+	constructor(private pattern: IPatternInfo, private config: ISearchQuery, private provider: vscode.TextSearchProvider, private _extfs: typeof extfs) {
 	}
 
 	public cancel(): void {

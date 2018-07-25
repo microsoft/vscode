@@ -160,6 +160,25 @@ declare module 'vscode' {
 		preview: TextSearchResultPreview;
 	}
 
+	// interface FileIndexProvider {
+	// 	provideFileIndex(options: FileSearchOptions, token: CancellationToken): Thenable<Uri[]>
+	// }
+
+	// interface FileSearchProvider {
+	// 	provideFileSearchResults(query: FileSear, options, token): Thenable<Uri[]>
+	// }
+
+	interface TextSearchProvider {
+		/**
+		 * Provide results that match the given text pattern.
+		 * @param query The parameters for this query.
+		 * @param options A set of options to consider while searching.
+		 * @param progress A progress callback that must be invoked for all results.
+		 * @param token A cancellation token.
+		 */
+		provideTextSearchResults?(query: TextSearchQuery, options: TextSearchOptions, progress: Progress<TextSearchResult>, token: CancellationToken): Thenable<void>;
+	}
+
 	/**
 	 * A SearchProvider provides search results for files or text in files. It can be invoked by quickopen, the search viewlet, and other extensions.
 	 */
@@ -178,15 +197,6 @@ declare module 'vscode' {
 		 * @param cacheKey The same key that was passed as `query.cacheKey`.
 		 */
 		clearCache?(cacheKey: string): void;
-
-		/**
-		 * Provide results that match the given text pattern.
-		 * @param query The parameters for this query.
-		 * @param options A set of options to consider while searching.
-		 * @param progress A progress callback that must be invoked for all results.
-		 * @param token A cancellation token.
-		 */
-		provideTextSearchResults?(query: TextSearchQuery, options: TextSearchOptions, progress: Progress<TextSearchResult>, token: CancellationToken): Thenable<void>;
 	}
 
 	/**
@@ -242,6 +252,17 @@ declare module 'vscode' {
 		 * @return A [disposable](#Disposable) that unregisters this provider when being disposed.
 		 */
 		export function registerSearchProvider(scheme: string, provider: SearchProvider): Disposable;
+
+		/**
+		 * Register a text search provider.
+		 *
+		 * Only one provider can be registered per scheme.
+		 *
+		 * @param scheme The provider will be invoked for workspace folders that have this file scheme.
+		 * @param provider The provider.
+		 * @return A [disposable](#Disposable) that unregisters this provider when being disposed.
+		 */
+		export function registerTextSearchProvider(scheme: string, provider: TextSearchProvider): Disposable;
 
 
 		/**

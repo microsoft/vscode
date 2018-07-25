@@ -13,12 +13,13 @@ export function activate(): void {
 		const outputChannel = vscode.window.createOutputChannel('search-rg');
 		const provider = new RipgrepSearchProvider(outputChannel);
 		vscode.workspace.registerSearchProvider('file', provider);
+		vscode.workspace.registerTextSearchProvider('file', provider);
 	}
 }
 
 type SearchEngine = RipgrepFileSearchEngine | RipgrepTextSearchEngine;
 
-class RipgrepSearchProvider implements vscode.SearchProvider {
+class RipgrepSearchProvider implements vscode.SearchProvider, vscode.TextSearchProvider {
 	private cachedProvider: CachedSearchProvider;
 	private inProgress: Set<SearchEngine> = new Set();
 
