@@ -276,6 +276,7 @@ class CodeActionAdapter {
 		private readonly _diagnostics: ExtHostDiagnostics,
 		private readonly _provider: vscode.CodeActionProvider,
 		private readonly _logService: ILogService,
+		private readonly _extensionId: string
 	) { }
 
 	provideCodeActions(resource: URI, rangeOrSelection: IRange | ISelection, context: modes.CodeActionContext): TPromise<CodeActionDto[]> {
@@ -318,9 +319,9 @@ class CodeActionAdapter {
 				} else {
 					if (codeActionContext.only) {
 						if (!candidate.kind) {
-							this._logService.warn(`Code actions of kind '${codeActionContext.only.value} 'requested but returned code action does not have a 'kind'. Code action will be dropped. Please set 'CodeAction.kind'.`);
+							this._logService.warn(`${this._extensionId} - Code actions of kind '${codeActionContext.only.value} 'requested but returned code action does not have a 'kind'. Code action will be dropped. Please set 'CodeAction.kind'.`);
 						} else if (!codeActionContext.only.contains(candidate.kind)) {
-							this._logService.warn(`Code actions of kind '${codeActionContext.only.value} 'requested but returned code action is of kind '${candidate.kind.value}'. Code action will be dropped. Please check 'CodeActionContext.only' to only return requested code actions.`);
+							this._logService.warn(`${this._extensionId} -Code actions of kind '${codeActionContext.only.value} 'requested but returned code action is of kind '${candidate.kind.value}'. Code action will be dropped. Please check 'CodeActionContext.only' to only return requested code actions.`);
 						}
 					}
 
@@ -1037,8 +1038,8 @@ export class ExtHostLanguageFeatures implements ExtHostLanguageFeaturesShape {
 
 	// --- quick fix
 
-	registerCodeActionProvider(selector: vscode.DocumentSelector, provider: vscode.CodeActionProvider, metadata?: vscode.CodeActionProviderMetadata): vscode.Disposable {
-		const handle = this._addNewAdapter(new CodeActionAdapter(this._documents, this._commands.converter, this._diagnostics, provider, this._logService));
+	registerCodeActionProvider(selector: vscode.DocumentSelector, provider: vscode.CodeActionProvider, extension?: IExtensionDescription, metadata?: vscode.CodeActionProviderMetadata): vscode.Disposable {
+		const handle = this._addNewAdapter(new CodeActionAdapter(this._documents, this._commands.converter, this._diagnostics, provider, this._logService, extension.id));
 		this._proxy.$registerQuickFixSupport(handle, this._transformDocumentSelector(selector), metadata && metadata.providedCodeActionKinds ? metadata.providedCodeActionKinds.map(kind => kind.value) : undefined);
 		return this._createDisposable(handle);
 	}
