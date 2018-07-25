@@ -962,6 +962,7 @@ export class SettingsRenderer implements ITreeRenderer {
 				disposeables: template.toDispose
 			}
 		});
+		cleanRenderedMarkdown(renderedDescription);
 		renderedDescription.classList.add('setting-item-description-markdown');
 		template.descriptionElement.innerHTML = '';
 		template.descriptionElement.appendChild(renderedDescription);
@@ -1025,7 +1026,6 @@ export class SettingsRenderer implements ITreeRenderer {
 		if (template.controlElement.firstElementChild) {
 			template.controlElement.firstElementChild.setAttribute('tabindex', isSelected ? '0' : '-1');
 		}
-
 	}
 
 	private renderText(dataElement: SettingsTreeSettingElement, isSelected: boolean, template: ISettingTextItemTemplate, onChange: (value: string) => void): void {
@@ -1059,6 +1059,17 @@ export class SettingsRenderer implements ITreeRenderer {
 	disposeTemplate(tree: ITree, templateId: string, template: IDisposableTemplate): void {
 		dispose(template.toDispose);
 	}
+}
+
+function cleanRenderedMarkdown(element: Node): void {
+	element.childNodes.forEach(child => {
+		const tagName = (<Element>child).tagName && (<Element>child).tagName.toLowerCase();
+		if (tagName === 'img' || tagName === 'a') {
+			element.removeChild(child);
+		} else {
+			cleanRenderedMarkdown(child);
+		}
+	});
 }
 
 function getDisplayEnumOptions(setting: ISetting): string[] {
