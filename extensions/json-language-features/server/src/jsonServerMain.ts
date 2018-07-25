@@ -19,8 +19,6 @@ import { formatError, runSafe, runSafeAsync } from './utils/runner';
 import { JSONDocument, JSONSchema, getLanguageService, DocumentLanguageSettings, SchemaConfiguration } from 'vscode-json-languageservice';
 import { getLanguageModelCache } from './languageModelCache';
 
-import { FoldingRangeRequest, FoldingRangeServerCapabilities } from 'vscode-languageserver-protocol';
-
 interface ISchemaAssociations {
 	[pattern: string]: string[];
 }
@@ -81,7 +79,7 @@ connection.onInitialize((params: InitializeParams): InitializeResult => {
 	clientSnippetSupport = getClientCapability('textDocument.completion.completionItem.snippetSupport', false);
 	clientDynamicRegisterSupport = getClientCapability('workspace.symbol.dynamicRegistration', false);
 	foldingRangeLimit = getClientCapability('textDocument.foldingRange.rangeLimit', Number.MAX_VALUE);
-	const capabilities: ServerCapabilities & FoldingRangeServerCapabilities = {
+	const capabilities: ServerCapabilities = {
 		// Tell the client that the server works in FULL text document sync mode
 		textDocumentSync: documents.syncKind,
 		completionProvider: clientSnippetSupport ? { resolveProvider: true, triggerCharacters: ['"', ':'] } : void 0,
@@ -382,7 +380,7 @@ connection.onColorPresentation((params, token) => {
 	}, [], `Error while computing color presentations for ${params.textDocument.uri}`, token);
 });
 
-connection.onRequest(FoldingRangeRequest.type, (params, token) => {
+connection.onFoldingRanges((params, token) => {
 	return runSafe(() => {
 		const document = documents.get(params.textDocument.uri);
 		if (document) {
