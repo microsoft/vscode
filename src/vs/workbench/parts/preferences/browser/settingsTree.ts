@@ -1062,14 +1062,16 @@ export class SettingsRenderer implements ITreeRenderer {
 }
 
 function cleanRenderedMarkdown(element: Node): void {
-	element.childNodes.forEach(child => {
+	for (let i = 0; i < element.childNodes.length; i++) {
+		const child = element.childNodes.item(i);
+
 		const tagName = (<Element>child).tagName && (<Element>child).tagName.toLowerCase();
-		if (tagName === 'img' || tagName === 'a') {
+		if (tagName === 'img') {
 			element.removeChild(child);
 		} else {
 			cleanRenderedMarkdown(child);
 		}
-	});
+	}
 }
 
 function getDisplayEnumOptions(setting: ISetting): string[] {
