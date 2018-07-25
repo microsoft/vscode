@@ -658,16 +658,18 @@ export class HighlightingWorkbenchTree extends WorkbenchTree {
 			//todo@joh make this command/context-key based
 			switch (event.keyCode) {
 				case KeyCode.DownArrow:
-				case KeyCode.UpArrow:
+				case KeyCode.Tab:
 					this.domFocus();
+					event.preventDefault();
 					break;
 				case KeyCode.Enter:
-				case KeyCode.Tab:
 					this.setSelection(this.getSelection());
+					event.preventDefault();
 					break;
 				case KeyCode.Escape:
 					this.input.value = '';
 					this.domFocus();
+					event.preventDefault();
 					break;
 			}
 		}));
