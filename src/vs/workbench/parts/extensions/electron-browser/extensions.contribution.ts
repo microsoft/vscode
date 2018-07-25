@@ -204,7 +204,7 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration)
 		properties: {
 			'extensions.autoUpdate': {
 				type: 'boolean',
-				description: localize('extensionsAutoUpdate', "Automatically update extensions"),
+				description: localize('extensionsAutoUpdate', "Automatically update extensions."),
 				default: true,
 				scope: ConfigurationScope.APPLICATION
 			},

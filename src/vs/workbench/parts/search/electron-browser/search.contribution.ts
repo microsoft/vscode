@@ -596,7 +596,7 @@ configurationRegistry.registerConfiguration({
 		},
 		'search.quickOpen.includeSymbols': {
 			type: 'boolean',
-			description: nls.localize('search.quickOpen.includeSymbols', "Configure to include results from a global symbol search in the file results for Quick Open."),
+			description: nls.localize('search.quickOpen.includeSymbols', "Whether to include results from a global symbol search in the file results for Quick Open."),
 			default: false
 		},
 		'search.followSymlinks': {
@@ -606,7 +606,7 @@ configurationRegistry.registerConfiguration({
 		},
 		'search.smartCase': {
 			type: 'boolean',
-			description: nls.localize('search.smartCase', "Searches case-insensitively if the pattern is all lowercase, otherwise, searches case-sensitively"),
+			description: nls.localize('search.smartCase', "Search case-insensitively if the pattern is all lowercase, otherwise, search case-sensitively."),
 			default: false
 		},
 		'search.globalFindClipboard': {
@@ -619,7 +619,7 @@ configurationRegistry.registerConfiguration({
 			type: 'string',
 			enum: ['sidebar', 'panel'],
 			default: 'sidebar',
-			description: nls.localize('search.location', "Controls if the search will be shown as a view in the sidebar or as a panel in the panel area for more horizontal space."),
+			description: nls.localize('search.location', "Controls whether the search will be shown as a view in the sidebar or as a panel in the panel area for more horizontal space."),
 		}
 	}
 });

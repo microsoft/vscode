@@ -384,6 +384,12 @@
             "build",
             "watch"
           ],
+          "enumDescriptions": [
+            "%typescript.tsc.autoDetect.on%",
+            "%typescript.tsc.autoDetect.off%",
+            "%typescript.tsc.autoDetect.build%",
+            "%typescript.tsc.autoDetect.watch%"
+          ],
           "description": "%typescript.tsc.autoDetect%",
           "scope": "window"
         },

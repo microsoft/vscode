@@ -361,7 +361,7 @@ configurationRegistry.registerConfiguration({
 				nls.localize('sortOrder.type', 'Files and folders are sorted by their extensions, in alphabetical order. Folders are displayed before files.'),
 				nls.localize('sortOrder.modified', 'Files and folders are sorted by last modified date, in descending order. Folders are displayed before files.')
 			],
-			'description': nls.localize({ key: 'sortOrder', comment: ['This is the description for a setting. Values surrounded by single quotes are not to be translated.'] }, "Controls sorting order of files and folders in the explorer. In addition to the default sorting, you can set the order to 'mixed' (files and folders sorted combined), 'type' (by file type), 'modified' (by last modified date) or 'filesFirst' (sort files before folders).")
+			'description': nls.localize('sortOrder', "Controls sorting order of files and folders in the explorer.")
 		},
 		'explorer.decorations.colors': {
 			type: 'boolean',

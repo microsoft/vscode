@@ -387,7 +387,7 @@ configurationRegistry.registerConfiguration({
 		},
 		'workbench.editor.closeOnFileDelete': {
 			'type': 'boolean',
-			'description': nls.localize('closeOnFileDelete', "Controls if editors showing a file should close automatically when the file is deleted or renamed by some other process. Disabling this will keep the editor open as dirty on such an event. Note that deleting from within the application will always close the editor and that dirty files will never close to preserve your data."),
+			'description': nls.localize('closeOnFileDelete', "Controls whether editors showing a file should close automatically when the file is deleted or renamed by some other process. Disabling this will keep the editor open as dirty on such an event. Note that deleting from within the application will always close the editor and that dirty files will never close to preserve your data."),
 			'default': true
 		},
 		'workbench.editor.openPositioning': {
@@ -680,12 +680,12 @@ configurationRegistry.registerConfiguration({
 		'zenMode.hideTabs': {
 			'type': 'boolean',
 			'default': true,
-			'description': nls.localize('zenMode.hideTabs', "Controls if turning on Zen Mode also hides workbench tabs.")
+			'description': nls.localize('zenMode.hideTabs', "Controls whether turning on Zen Mode also hides workbench tabs.")
 		},
 		'zenMode.hideStatusBar': {
 			'type': 'boolean',
 			'default': true,
-			'description': nls.localize('zenMode.hideStatusBar', "Controls if turning on Zen Mode also hides the status bar at the bottom of the workbench.")
+			'description': nls.localize('zenMode.hideStatusBar', "Controls whether turning on Zen Mode also hides the status bar at the bottom of the workbench.")
 		},
 		'zenMode.hideActivityBar': {
 			'type': 'boolean',
@@ -695,7 +695,7 @@ configurationRegistry.registerConfiguration({
 		'zenMode.restore': {
 			'type': 'boolean',
 			'default': false,
-			'description': nls.localize('zenMode.restore', "Controls if a window should restore to zen mode if it was exited in zen mode.")
+			'description': nls.localize('zenMode.restore', "Controls whether a window should restore to zen mode if it was exited in zen mode.")
 		}
 	}
 });
