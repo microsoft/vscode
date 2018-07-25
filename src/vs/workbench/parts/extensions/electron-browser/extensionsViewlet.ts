@@ -61,7 +61,6 @@ import { SingleServerExtensionManagementServerService } from 'vs/workbench/servi
 import { Query } from 'vs/workbench/parts/extensions/common/extensionQuery';
 import { CodeEditorWidget } from 'vs/editor/browser/widget/codeEditorWidget';
 import { IModelService } from 'vs/editor/common/services/modelService';
-import { IEditorOptions } from 'vs/editor/common/config/editorOptions';
 import { Range } from 'vs/editor/common/core/range';
 import { Position } from 'vs/editor/common/core/position';
 import { ITextModel } from 'vs/editor/common/model';
