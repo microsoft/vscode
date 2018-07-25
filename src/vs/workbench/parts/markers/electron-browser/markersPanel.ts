@@ -19,7 +19,7 @@ import { Marker, ResourceMarkers, RelatedInformation } from 'vs/workbench/parts/
 import { Controller } from 'vs/workbench/parts/markers/electron-browser/markersTreeController';
 import * as Viewer from 'vs/workbench/parts/markers/electron-browser/markersTreeViewer';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { CollapseAllAction, MarkersFilterActionItem, MarkersFilterAction } from 'vs/workbench/parts/markers/electron-browser/markersPanelActions';
+import { CollapseAllAction, MarkersFilterActionItem, MarkersFilterAction, QuickFixAction, QuickFixActionItem } from 'vs/workbench/parts/markers/electron-browser/markersPanelActions';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import Messages from 'vs/workbench/parts/markers/electron-browser/messages';
 import { RangeHighlightDecorations } from 'vs/workbench/browser/parts/editor/rangeDecorations';
@@ -196,7 +196,7 @@ export class MarkersPanel extends Panel {
 
 	private createTree(parent: HTMLElement): void {
 		this.treeContainer = dom.append(parent, dom.$('.tree-container.show-file-icons'));
-		const renderer = this.instantiationService.createInstance(Viewer.Renderer);
+		const renderer = this.instantiationService.createInstance(Viewer.Renderer, (action) => this.getActionItem(action));
 		const dnd = this.instantiationService.createInstance(SimpleFileResourceDragAndDrop, obj => obj instanceof ResourceMarkers ? obj.uri : void 0);
 		const controller = this.instantiationService.createInstance(Controller);
 		this.tree = this.instantiationService.createInstance(WorkbenchTree, this.treeContainer, {
@@ -432,6 +432,9 @@ export class MarkersPanel extends Panel {
 	public getActionItem(action: IAction): IActionItem {
 		if (action.id === MarkersFilterAction.ID) {
 			return this.filterInputActionItem;
+		}
+		if (action.id === QuickFixAction.ID) {
+			return this.instantiationService.createInstance(QuickFixActionItem, action);
 		}
 		return super.getActionItem(action);
 	}
