@@ -19,7 +19,6 @@ import { IBulkEditService } from 'vs/editor/browser/services/bulkEditService';
 import { applyCodeAction } from 'vs/editor/contrib/codeAction/codeActionCommands';
 import { ICommandService } from 'vs/platform/commands/common/commands';
 import { IEditorService, ACTIVE_GROUP } from 'vs/workbench/services/editor/common/editorService';
-import { localize } from 'vs/nls';
 
 export class Controller extends WorkbenchTreeController {
 
@@ -85,10 +84,8 @@ export class Controller extends WorkbenchTreeController {
 			const quickFixActions = await this._getQuickFixActions(tree, element);
 			if (quickFixActions.length) {
 				result.push(...quickFixActions);
-			} else {
-				result.push(new Action('problems.no.fixes', localize('no fixes available', "No fixes available"), void 0, false));
+				result.push(new Separator());
 			}
-			result.push(new Separator());
 		}
 
 		const menu = this.menuService.createMenu(MenuId.ProblemsPanelContext, tree.contextKeyService);
