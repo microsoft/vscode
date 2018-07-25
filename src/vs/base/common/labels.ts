@@ -5,8 +5,8 @@
 'use strict';
 
 import URI from 'vs/base/common/uri';
-import { nativeSep, basename as pathsBasename, sep } from 'vs/base/common/paths';
-import { endsWith, startsWithIgnoreCase, rtrim, startsWith } from 'vs/base/common/strings';
+import { nativeSep, normalize, basename as pathsBasename, sep } from 'vs/base/common/paths';
+import { endsWith, ltrim, startsWithIgnoreCase, rtrim, startsWith } from 'vs/base/common/strings';
 import { Schemas } from 'vs/base/common/network';
 import { isLinux, isWindows, isMacintosh } from 'vs/base/common/platform';
 import { isEqual } from 'vs/base/common/resources';
@@ -20,11 +20,6 @@ export interface IWorkspaceFolderProvider {
 
 export interface IUserHomeProvider {
 	userHome: string;
-}
-
-function resourceToLabel(resource: URI, labelProvider: UriLabelProvider, ): string {
-	// TODO@Isidor take into account labelProvider.uriDisplay.label and convert the resource into string representation
-	return '';
 }
 
 /**
@@ -41,11 +36,6 @@ export function getPathLabel(resource: URI | string, userHomeProvider: IUserHome
 		resource = URI.file(resource);
 	}
 
-	const labelProvider = UriLabelProviderRegistry.getUriLabelProvider(resource.scheme);
-	if (!labelProvider) {
-		return resource.with({ query: null, fragment: null }).toString(true);
-	}
-
 	// return early if we can resolve a relative path label from the root
 	const baseResource = rootProvider ? rootProvider.getWorkspaceFolder(resource) : null;
 	if (baseResource) {
@@ -55,32 +45,34 @@ export function getPathLabel(resource: URI | string, userHomeProvider: IUserHome
 		if (isEqual(baseResource.uri, resource, !isLinux)) {
 			pathLabel = ''; // no label if paths are identical
 		} else {
-			const baseResourceLabel = resourceToLabel(baseResource.uri, labelProvider);
-			pathLabel = resourceToLabel(resource, labelProvider).substr(baseResourceLabel.length);
+			pathLabel = normalize(ltrim(resource.path.substr(baseResource.uri.path.length), sep), true);
 		}
 
 		if (hasMultipleRoots) {
-			const rootName = (baseResource && baseResource.name) ? baseResource.name : pathsBasename(baseResource.uri.path);
+			const rootName = (baseResource && baseResource.name) ? baseResource.name : pathsBasename(baseResource.uri.fsPath);
 			pathLabel = pathLabel ? (rootName + ' • ' + pathLabel) : rootName; // always show root basename if there are multiple
 		}
 
 		return pathLabel;
 	}
 
+	// return if the resource is neither file:// nor untitled:// and no baseResource was provided
+	if (resource.scheme !== Schemas.file && resource.scheme !== Schemas.untitled) {
+		return resource.with({ query: null, fragment: null }).toString(true);
+	}
 
-
-	let label = resourceToLabel(resource, labelProvider);
 	// convert c:\something => C:\something
-	if (labelProvider.uriDisplay.normalizeDriveLetter && hasDriveLetter(label)) {
-		label = normalizeDriveLetter(label);
+	if (hasDriveLetter(resource.fsPath)) {
+		return normalize(normalizeDriveLetter(resource.fsPath), true);
 	}
 
 	// normalize and tildify (macOS, Linux only)
-	if (labelProvider.uriDisplay.tildify && userHomeProvider) {
-		label = tildify(label, userHomeProvider.userHome);
+	let res = normalize(resource.fsPath, true);
+	if (!isWindows && userHomeProvider) {
+		res = tildify(res, userHomeProvider.userHome);
 	}
 
-	return label;
+	return res;
 }
 
 export function getBaseLabel(resource: URI | string): string {
@@ -392,31 +384,3 @@ export function mnemonicButtonLabel(label: string): string {
 export function unmnemonicLabel(label: string): string {
 	return label.replace(/&/g, '&&');
 }
-
-export interface UriLabelProvider {
-	schema: string;
-	label?: string;
-	uriDisplay: {
-		label: string;
-		forwardSlash?: boolean;
-		tildify?: boolean;
-		normalizeDriveLetter?: boolean;
-	};
-}
-
-export interface IUriLabelProviderRegistry {
-	registerUriLabelProvider(descriptor: UriLabelProvider): void;
-	getUriLabelProvider(scheme: string): UriLabelProvider;
-}
-
-export const UriLabelProviderRegistry: IUriLabelProviderRegistry = new class UriLabelProviderRegistry implements IUriLabelProviderRegistry {
-	private uriLabelProviders = new Map<string, UriLabelProvider>();
-
-	registerUriLabelProvider(descriptor: UriLabelProvider): void {
-		this.uriLabelProviders.set(descriptor.schema, descriptor);
-	}
-
-	getUriLabelProvider(scheme: string): UriLabelProvider {
-		return this.uriLabelProviders.get(scheme);
-	}
-};

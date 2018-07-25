@@ -121,6 +121,12 @@ export class FileService extends Disposable implements IFileService {
 		this.fileChangesWatchDelayer = new ThrottledDelayer<void>(FileService.FS_EVENT_DELAY);
 		this.undeliveredRawFileChangesEvents = [];
 
+		// this.toDispose.push(uriDisplayService.registerFormater(Schemas.file, {
+		// 	label: '${path}',
+		// 	forwardSlash: !isWindows,
+		// 	tildify: !isWindows,
+		// 	normalizeDriveLetter: isWindows
+		// }));
 		this._encoding = new ResourceEncodings(textResourceConfigurationService, environmentService, contextService, this.options.encodingOverride);
 
 		this.registerListeners();
