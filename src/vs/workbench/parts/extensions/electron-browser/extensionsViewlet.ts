@@ -340,7 +340,7 @@ export class ExtensionsViewlet extends ViewContainerViewlet implements IExtensio
 		const header = append(this.root, $('.header'));
 		this.monacoStyleContainer = append(header, $('.monaco-container'));
 		this.searchBox = this.instantiationService.createInstance(CodeEditorWidget, this.monacoStyleContainer,
-			SimpleWidgetEditorConfig.getEditorOptions('htmlinput', localize('searchExtensions', "Search Extensions in Marketplace")),
+			SimpleWidgetEditorConfig.getEditorAsInputBoxOptions(localize('searchExtensions', "Search Extensions in Marketplace")),
 			SimpleWidgetEditorConfig.getCodeEditorWidgetOptions());
 
 		this.placeholderText = append(this.monacoStyleContainer, $('.search-placeholder', null, localize('searchExtensions', "Search Extensions in Marketplace")));

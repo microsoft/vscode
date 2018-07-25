@@ -173,7 +173,7 @@ export class Repl extends Panel implements IPrivateReplService, IHistoryNavigati
 
 		const scopedInstantiationService = this.instantiationService.createChild(new ServiceCollection(
 			[IContextKeyService, scopedContextKeyService], [IPrivateReplService, this]));
-		this.replInput = scopedInstantiationService.createInstance(CodeEditorWidget, this.replInputContainer, SimpleWidgetEditorConfig.getEditorOptions('editor'), SimpleWidgetEditorConfig.getCodeEditorWidgetOptions());
+		this.replInput = scopedInstantiationService.createInstance(CodeEditorWidget, this.replInputContainer, SimpleWidgetEditorConfig.getEditorOptions(), SimpleWidgetEditorConfig.getCodeEditorWidgetOptions());
 
 		modes.SuggestRegistry.register({ scheme: DEBUG_SCHEME, pattern: '**/replinput', hasAccessToAllModels: true }, {
 			triggerCharacters: ['.'],

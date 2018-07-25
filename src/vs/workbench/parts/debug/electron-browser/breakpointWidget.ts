@@ -200,7 +200,7 @@ export class BreakpointWidget extends ZoneWidget implements IPrivateBreakpointWi
 		const scopedInstatiationService = this.instantiationService.createChild(new ServiceCollection(
 			[IContextKeyService, scopedContextKeyService], [IPrivateBreakpointWidgetService, this]));
 
-		const options = SimpleWidgetEditorConfig.getEditorOptions('editor');
+		const options = SimpleWidgetEditorConfig.getEditorOptions();
 		const codeEditorWidgetOptions = SimpleWidgetEditorConfig.getCodeEditorWidgetOptions();
 		this.input = scopedInstatiationService.createInstance(CodeEditorWidget, container, options, codeEditorWidgetOptions);
 		CONTEXT_IN_BREAKPOINT_WIDGET.bindTo(scopedContextKeyService).set(true);

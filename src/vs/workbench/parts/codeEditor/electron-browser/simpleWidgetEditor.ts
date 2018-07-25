@@ -30,61 +30,59 @@ export class SimpleWidgetEditorConfig {
 		};
 	}
 
-	public static getEditorOptions(style: 'editor' | 'htmlinput', ariaLabel?: string): IEditorOptions {
-		if (style === 'editor') {
-			return {
-				wordWrap: 'on',
-				overviewRulerLanes: 0,
-				glyphMargin: false,
-				lineNumbers: 'off',
-				folding: false,
-				selectOnLineNumbers: false,
-				hideCursorInOverviewRuler: true,
-				selectionHighlight: false,
-				scrollbar: {
-					horizontal: 'hidden'
-				},
-				ariaLabel: ariaLabel || '',
-				lineDecorationsWidth: 0,
-				overviewRulerBorder: false,
-				scrollBeyondLastLine: false,
-				renderLineHighlight: 'none',
-				fixedOverflowWidgets: true,
-				acceptSuggestionOnEnter: 'smart',
-				minimap: {
-					enabled: false
-				}
-			};
-		}
-		else {
-			return {
-				fontSize: 13,
-				lineHeight: 22,
-				wordWrap: 'off',
-				overviewRulerLanes: 0,
-				glyphMargin: false,
-				lineNumbers: 'off',
-				folding: false,
-				selectOnLineNumbers: false,
-				hideCursorInOverviewRuler: true,
-				selectionHighlight: false,
-				scrollbar: {
-					horizontal: 'hidden',
-					vertical: 'hidden'
-				},
-				ariaLabel: ariaLabel || '',
-				cursorWidth: 1,
-				lineDecorationsWidth: 0,
-				overviewRulerBorder: false,
-				scrollBeyondLastLine: false,
-				renderLineHighlight: 'none',
-				fixedOverflowWidgets: true,
-				acceptSuggestionOnEnter: 'smart',
-				minimap: {
-					enabled: false
-				},
-				fontFamily: ' -apple-system, BlinkMacSystemFont, "Segoe WPC", "Segoe UI", "HelveticaNeue-Light", "Ubuntu", "Droid Sans", sans-serif'
-			};
-		}
+	public static getEditorOptions(): IEditorOptions {
+		return {
+			wordWrap: 'on',
+			overviewRulerLanes: 0,
+			glyphMargin: false,
+			lineNumbers: 'off',
+			folding: false,
+			selectOnLineNumbers: false,
+			hideCursorInOverviewRuler: true,
+			selectionHighlight: false,
+			scrollbar: {
+				horizontal: 'hidden'
+			},
+			lineDecorationsWidth: 0,
+			overviewRulerBorder: false,
+			scrollBeyondLastLine: false,
+			renderLineHighlight: 'none',
+			fixedOverflowWidgets: true,
+			acceptSuggestionOnEnter: 'smart',
+			minimap: {
+				enabled: false
+			}
+		};
+	}
+
+	public static getEditorAsInputBoxOptions(ariaLabel?: string): IEditorOptions {
+		return {
+			fontSize: 13,
+			lineHeight: 22,
+			wordWrap: 'off',
+			overviewRulerLanes: 0,
+			glyphMargin: false,
+			lineNumbers: 'off',
+			folding: false,
+			selectOnLineNumbers: false,
+			hideCursorInOverviewRuler: true,
+			selectionHighlight: false,
+			scrollbar: {
+				horizontal: 'hidden',
+				vertical: 'hidden'
+			},
+			ariaLabel: ariaLabel || '',
+			cursorWidth: 1,
+			lineDecorationsWidth: 0,
+			overviewRulerBorder: false,
+			scrollBeyondLastLine: false,
+			renderLineHighlight: 'none',
+			fixedOverflowWidgets: true,
+			acceptSuggestionOnEnter: 'smart',
+			minimap: {
+				enabled: false
+			},
+			fontFamily: ' -apple-system, BlinkMacSystemFont, "Segoe WPC", "Segoe UI", "HelveticaNeue-Light", "Ubuntu", "Droid Sans", sans-serif'
+		};
 	}
 }
