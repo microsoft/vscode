@@ -1,7 +1,7 @@
 Package: @@NAME@@
 Version: @@VERSION@@
 Section: devel
-Depends: libnotify4, libnss3, gnupg, apt, libxkbfile1, libgconf-2-4, libsecret-1-0, libgtk-3-0 (>= 3.10.0)
+Depends: libnotify4, libnss3 (>= 3.26), gnupg, apt, libxkbfile1, libgconf-2-4, libsecret-1-0, libgtk-3-0 (>= 3.10.0)
 Priority: optional
 Architecture: @@ARCHITECTURE@@
 Maintainer: Microsoft Corporation <vscode-linux@microsoft.com>
@@ -12,4 +12,3 @@ Conflicts: visual-studio-@@NAME@@
 Replaces: visual-studio-@@NAME@@
 Description: Code editing. Redefined.
  Visual Studio Code is a new choice of tool that combines the simplicity of a code editor with what developers need for the core edit-build-debug cycle. See https://code.visualstudio.com/docs/setup/linux for installation instructions and FAQ.
- 
