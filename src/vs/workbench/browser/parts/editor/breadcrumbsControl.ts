@@ -357,6 +357,12 @@ MenuRegistry.appendMenuItem(MenuId.CommandPalette, {
 		title: localize('cmd.focus', "Focus Breadcrumbs")
 	}
 });
+MenuRegistry.appendMenuItem(MenuId.CommandPalette, {
+	command: {
+		id: 'breadcrumbs.toggle',
+		title: localize('cmd.toggle', "Toggle Breadcrumbs")
+	}
+});
 MenuRegistry.appendMenuItem(MenuId.MenubarViewMenu, {
 	group: '5_editor',
 	order: 99,
