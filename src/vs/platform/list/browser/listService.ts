@@ -701,26 +701,26 @@ export class HighlightingWorkbenchTree extends WorkbenchTree {
 	private updateHighlights(pattern: string): void {
 
 		// remember old selection
-		let defaultSelection: any[];
+		let defaultSelection: any[] = [];
 		if (!this.lastSelection && pattern) {
 			this.lastSelection = this.getSelection();
-			defaultSelection = [];
 		} else if (this.lastSelection && !pattern) {
 			defaultSelection = this.lastSelection;
 			this.lastSelection = [];
 		}
 
-		let topElement = this.renderer.updateHighlights(this, pattern);
-		if (topElement && pattern) {
-			this.reveal(topElement).then(_ => {
-				this.setSelection([topElement], this);
-				this.setFocus(topElement, this);
-				return this.refresh();
-			}, onUnexpectedError);
-		} else {
-			this.setSelection(defaultSelection, this);
-			this.refresh().then(undefined, onUnexpectedError);
-		}
+		const topElement = this.renderer.updateHighlights(this, pattern);
+
+		this.refresh().then(() => {
+			if (topElement && pattern) {
+				this.reveal(topElement, .5).then(_ => {
+					this.setSelection([topElement], this);
+					this.setFocus(topElement, this);
+				});
+			} else {
+				this.setSelection(defaultSelection, this);
+			}
+		}, onUnexpectedError);
 	}
 }
 
