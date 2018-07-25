@@ -480,7 +480,8 @@ interface ISettingExcludeItemTemplate extends ISettingItemTemplate<void> {
 }
 
 function isExcludeSetting(setting: ISetting): boolean {
-	return setting.key === 'files.exclude';
+	return setting.key === 'files.exclude' ||
+		setting.key === 'search.exclude';
 }
 
 interface IGroupTitleTemplate extends IDisposableTemplate {
