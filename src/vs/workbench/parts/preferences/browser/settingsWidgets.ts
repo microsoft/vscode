@@ -7,14 +7,12 @@ import * as DOM from 'vs/base/browser/dom';
 import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { ActionBar } from 'vs/base/browser/ui/actionbar/actionbar';
 import { Button } from 'vs/base/browser/ui/button/button';
-import { Checkbox } from 'vs/base/browser/ui/checkbox/checkbox';
 import { InputBox } from 'vs/base/browser/ui/inputbox/inputBox';
 import { IRenderer, IVirtualDelegate } from 'vs/base/browser/ui/list/list';
-import { Action } from 'vs/base/common/actions';
+import { IAction } from 'vs/base/common/actions';
 import { Emitter, Event } from 'vs/base/common/event';
 import { KeyCode } from 'vs/base/common/keyCodes';
 import { Disposable, dispose, IDisposable } from 'vs/base/common/lifecycle';
-import { TPromise } from 'vs/base/common/winjs.base';
 import 'vs/css!./media/settingsWidgets';
 import { localize } from 'vs/nls';
 import { IContextViewService } from 'vs/platform/contextview/browser/contextView';
@@ -110,30 +108,37 @@ export class ExcludeSettingListModel {
 		this._newItem = mode;
 	}
 
-	setValue(excludeValue: any): void {
+	setValue(excludeValue: any, defaultValue: any): void {
 		this._dataItems = this.excludeValueToItems(excludeValue);
 	}
 
 	private excludeValueToItems(excludeValue: any): IExcludeItem[] {
-		return Object.keys(excludeValue).map(key => {
-			const value = excludeValue[key];
-			const enabled = !!value;
-			const sibling = typeof value === 'boolean' ? undefined : value.when;
+		return Object.keys(excludeValue)
+			.map(key => {
+				const value = excludeValue[key];
+				const sibling = typeof value === 'boolean' ? undefined : value.when;
 
-			return {
-				id: key,
-				enabled,
-				pattern: key,
-				sibling
-			};
-		});
+				return {
+					id: key,
+					pattern: key,
+					sibling
+				};
+			});
 	}
+}
+
+interface IExcludeChangeEvent {
+	originalPattern: string;
+	pattern: string;
 }
 
 export class ExcludeSettingWidget extends Disposable {
 	private list: WorkbenchList<IExcludeItem>;
 
 	private model = new ExcludeSettingListModel();
+
+	private readonly _onDidChangeExclude: Emitter<IExcludeChangeEvent> = new Emitter<IExcludeChangeEvent>();
+	public readonly onDidChangeExclude: Event<IExcludeChangeEvent> = this._onDidChangeExclude.event;
 
 	constructor(
 		container: HTMLElement,
@@ -143,6 +148,11 @@ export class ExcludeSettingWidget extends Disposable {
 		super();
 
 		const dataRenderer = new ExcludeDataItemRenderer();
+		this._register(dataRenderer.onDidRemoveExclude(key => this._onDidChangeExclude.fire({ originalPattern: key, pattern: undefined })));
+		this._register(dataRenderer.onEditExclude(key => {
+			// this.model
+		}));
+
 		const newItemRenderer = this.instantiationService.createInstance(NewExcludeRenderer);
 		const delegate = new ExcludeSettingListDelegate();
 		this.list = this.instantiationService.createInstance(WorkbenchList, container, delegate, [newItemRenderer, dataRenderer], {
@@ -159,19 +169,10 @@ export class ExcludeSettingWidget extends Disposable {
 			this.model.setAddItemMode(AddItemMode.Pattern);
 			this.update();
 		}));
-
-		const addSiblingPatternButton = this._register(new Button(container));
-		addSiblingPatternButton.label = localize('addSiblingPattern', "Add Sibling Pattern");
-		addSiblingPatternButton.element.classList.add('setting-exclude-addButton');
-		this._register(attachButtonStyler(addSiblingPatternButton, this.themeService));
-		this._register(addSiblingPatternButton.onDidClick(() => {
-			this.model.setAddItemMode(AddItemMode.PatternWithSibling);
-			this.update();
-		}));
 	}
 
 	setValue(excludeValue: any): void {
-		this.model.setValue(excludeValue);
+		this.model.setValue(excludeValue, void 0);
 		this.update();
 	}
 
@@ -186,7 +187,6 @@ export class ExcludeSettingWidget extends Disposable {
 
 interface IExcludeDataItem {
 	id: string;
-	enabled: boolean;
 	pattern: string;
 	sibling?: string;
 }
@@ -205,7 +205,6 @@ function isExcludeDataItem(excludeItem: IExcludeItem): excludeItem is IExcludeDa
 interface IExcludeDataItemTemplate {
 	container: HTMLElement;
 
-	checkbox: Checkbox;
 	actionBar: ActionBar;
 	patternElement: HTMLElement;
 	siblingElement: HTMLElement;
@@ -215,6 +214,12 @@ interface IExcludeDataItemTemplate {
 class ExcludeDataItemRenderer implements IRenderer<IExcludeDataItem, IExcludeDataItemTemplate> {
 	static readonly templateId: string = 'excludeDataItem';
 
+	private readonly _onDidRemoveExclude: Emitter<string> = new Emitter<string>();
+	public readonly onDidRemoveExclude: Event<string> = this._onDidRemoveExclude.event;
+
+	private readonly _onEditExclude: Emitter<string> = new Emitter<string>();
+	public readonly onEditExclude: Event<string> = this._onEditExclude.event;
+
 	get templateId(): string {
 		return ExcludeDataItemRenderer.templateId;
 	}
@@ -222,28 +227,11 @@ class ExcludeDataItemRenderer implements IRenderer<IExcludeDataItem, IExcludeDat
 	renderTemplate(container: HTMLElement): IExcludeDataItemTemplate {
 		const toDispose = [];
 
-		const checkbox = new Checkbox({ actionClassName: 'setting-exclude-checkbox', isChecked: true, title: '', inputActiveOptionBorder: null });
-		container.appendChild(checkbox.domNode);
-		toDispose.push(checkbox);
-		toDispose.push(checkbox.onChange(() => {
-			// if (template.onChange) {
-			// 	template.onChange(checkbox.checked);
-			// }
-		}));
-
 		const actionBar = new ActionBar(container);
 		toDispose.push(actionBar);
 
-		const editAction = new EditExcludeItemAction();
-		const removeAction = new RemoveExcludeItemAction();
-		toDispose.push(editAction, removeAction);
-		actionBar.push([
-			editAction, removeAction
-		], { icon: true, label: false });
-
 		return {
 			container,
-			checkbox,
 			patternElement: DOM.append(container, $('.setting-exclude-pattern')),
 			siblingElement: DOM.append(container, $('.setting-exclude-sibling')),
 			toDispose,
@@ -251,9 +239,35 @@ class ExcludeDataItemRenderer implements IRenderer<IExcludeDataItem, IExcludeDat
 		};
 	}
 
+	private createDeleteAction(key: string): IAction {
+		return <IAction>{
+			class: 'setting-excludeAction-remove',
+			enabled: true,
+			id: 'workbench.action.removeExcludeItem',
+			tooltip: localize('removeExcludeItem', "Remove Exclude Item"),
+			run: () => this._onDidRemoveExclude.fire(key)
+		};
+	}
+
+	private createEditAction(key: string): IAction {
+		return <IAction>{
+			class: 'setting-excludeAction-edit',
+			enabled: true,
+			id: 'workbench.action.editExcludeItem',
+			tooltip: localize('editExcludeItem', "Edit Exclude Item"),
+			run: () => this._onEditExclude.fire(key)
+		};
+	}
+
 	renderElement(element: IExcludeDataItem, index: number, templateData: IExcludeDataItemTemplate): void {
 		templateData.patternElement.textContent = element.pattern;
-		templateData.siblingElement.textContent = element.sibling;
+		templateData.siblingElement.textContent = element.sibling && ('when: ' + element.sibling);
+
+		templateData.actionBar.clear();
+		templateData.actionBar.push([
+			this.createEditAction(element.pattern),
+			this.createDeleteAction(element.pattern)
+		], { icon: true, label: false });
 
 		templateData.container.title = element.sibling ?
 			localize('excludeSiblingHintLabel', "Exclude files matching `{0}`, only when a file matching `{1}` is present", element.pattern, element.sibling) :
@@ -348,6 +362,8 @@ class NewExcludeRenderer implements IRenderer<INewExcludeItem, INewExcludeItemTe
 		templateData.container.classList.remove('setting-exclude-newPatternWithSibling');
 		if (element.mode === AddItemMode.Pattern) {
 			templateData.container.classList.add('setting-exclude-newPattern');
+			templateData.patternInput.focus();
+			templateData.patternInput.select();
 		} else if (element.mode === AddItemMode.PatternWithSibling) {
 			templateData.container.classList.add('setting-exclude-newPatternWithSibling');
 		}
@@ -375,34 +391,18 @@ class ExcludeSettingListDelegate implements IVirtualDelegate<IExcludeItem> {
 	}
 }
 
-class EditExcludeItemAction extends Action {
+// class EditExcludeItemAction extends Action {
 
-	static readonly ID = 'workbench.action.editExcludeItem';
-	static readonly LABEL = localize('editExcludeItem', "Edit Exclude Item");
+// 	static readonly ID = 'workbench.action.editExcludeItem';
+// 	static readonly LABEL = localize('editExcludeItem', "Edit Exclude Item");
 
-	constructor() {
-		super(EditExcludeItemAction.ID, EditExcludeItemAction.LABEL);
+// 	constructor() {
+// 		super(EditExcludeItemAction.ID, EditExcludeItemAction.LABEL);
 
-		this.class = 'setting-excludeAction-edit';
-	}
+// 		this.class = 'setting-excludeAction-edit';
+// 	}
 
-	run(item: IExcludeItem): TPromise<boolean> {
-		return TPromise.wrap(true);
-	}
-}
-
-class RemoveExcludeItemAction extends Action {
-
-	static readonly ID = 'workbench.action.removeExcludeItem';
-	static readonly LABEL = localize('removeExcludeItem', "Remove Exclude Item");
-
-	constructor() {
-		super(RemoveExcludeItemAction.ID, RemoveExcludeItemAction.LABEL);
-
-		this.class = 'setting-excludeAction-remove';
-	}
-
-	run(item: IExcludeItem): TPromise<boolean> {
-		return TPromise.wrap(true);
-	}
-}
+// 	run(item: IExcludeItem): TPromise<boolean> {
+// 		return TPromise.wrap(true);
+// 	}
+// }

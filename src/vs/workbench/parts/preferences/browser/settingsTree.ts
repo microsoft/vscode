@@ -57,11 +57,30 @@ export class SettingsTreeSettingElement extends SettingsTreeElement {
 
 	displayCategory: string;
 	displayLabel: string;
+
+	/**
+	 * scopeValue || defaultValue, for rendering convenience.
+	 */
 	value: any;
+
+	/**
+	 * The value in the current settings scope.
+	 */
+	scopeValue: any;
+
+	/**
+	 * The default value
+	 */
+	defaultValue?: any;
+
+	/**
+	 * Whether the setting is configured in the selected scope.
+	 */
 	isConfigured: boolean;
+
 	overriddenScopeList: string[];
 	description: string;
-	valueType: 'enum' | 'string' | 'integer' | 'number' | 'boolean' | 'complex';
+	valueType: 'enum' | 'string' | 'integer' | 'number' | 'boolean' | 'exclude' | 'complex';
 }
 
 export interface ITOCEntry {
@@ -149,7 +168,8 @@ function createSettingsTreeSettingElement(setting: ISetting, parent: any, settin
 	element.id = sanitizeId(parent.id + '_' + setting.key);
 	element.parent = parent;
 
-	const { isConfigured, inspected, targetSelector } = inspectSetting(setting.key, settingsTarget, configurationService);
+	const inspectResult = inspectSetting(setting.key, settingsTarget, configurationService);
+	const { isConfigured, inspected, targetSelector } = inspectResult;
 
 	const displayValue = isConfigured ? inspected[targetSelector] : inspected.default;
 	const overriddenScopeList = [];
@@ -167,21 +187,56 @@ function createSettingsTreeSettingElement(setting: ISetting, parent: any, settin
 	element.displayCategory = displayKeyFormat.category;
 
 	element.value = displayValue;
+	element.scopeValue = isConfigured && inspected[targetSelector];
+	element.defaultValue = inspected.default;
+
 	element.isConfigured = isConfigured;
 	element.overriddenScopeList = overriddenScopeList;
 	element.description = setting.description.join('\n');
 
-	element.valueType = (setting.enum && (setting.type === 'string' || !setting.type)) ? 'enum' :
-		setting.type === 'string' ? 'string' :
-			setting.type === 'integer' ? 'integer' :
-				setting.type === 'number' ? 'number' :
-					setting.type === 'boolean' ? 'boolean' :
-						'complex';
+	if (setting.enum && (setting.type === 'string' || !setting.type)) {
+		element.valueType = 'enum';
+	} else if (setting.type === 'string') {
+		element.valueType = 'string';
+	} else if (isExcludeSetting(setting)) {
+		element.valueType = 'exclude';
+	} else if (setting.type === 'integer') {
+		element.valueType = 'integer';
+	} else if (setting.type === 'number') {
+		element.valueType = 'number';
+	} else if (setting.type === 'boolean') {
+		element.valueType = 'boolean';
+	} else {
+		element.valueType = 'complex';
+	}
 
 	return element;
 }
 
-function inspectSetting(key: string, target: SettingsTarget, configurationService: IConfigurationService): { isConfigured: boolean, inspected: any, targetSelector: string } {
+function getExcludeDisplayValue(element: SettingsTreeSettingElement): any {
+	const data = element.isConfigured ?
+		{
+			...element.defaultValue,
+			...element.value
+		} :
+		element.defaultValue;
+
+	for (let key in data) {
+		if (!data[key]) {
+			delete data[key];
+		}
+	}
+
+	return data;
+}
+
+interface IInspectResult {
+	isConfigured: boolean;
+	inspected: any;
+	targetSelector: string;
+}
+
+function inspectSetting(key: string, target: SettingsTarget, configurationService: IConfigurationService): IInspectResult {
 	const inspectOverrides = URI.isUri(target) ? { resource: target } : undefined;
 	const inspected = configurationService.inspect(key, inspectOverrides);
 	const targetSelector = target === ConfigurationTarget.USER ? 'user' :
@@ -419,10 +474,11 @@ interface ISettingComplexItemTemplate extends ISettingItemTemplate<void> {
 
 interface ISettingExcludeItemTemplate extends ISettingItemTemplate<void> {
 	excludeWidget: ExcludeSettingWidget;
+	context?: SettingsTreeSettingElement;
 }
 
-function isExcludeSetting(element: SettingsTreeSettingElement): boolean {
-	return element.setting.key === 'files.exclude';
+function isExcludeSetting(setting: ISetting): boolean {
+	return setting.key === 'files.exclude';
 }
 
 interface IGroupTitleTemplate extends IDisposableTemplate {
@@ -483,14 +539,19 @@ export class SettingsRenderer implements ITreeRenderer {
 			const isSelected = this.elementIsSelected(tree, element);
 			if (isSelected) {
 				return this.measureSettingElementHeight(tree, element);
-			} else if (isExcludeSetting(element)) {
-				return (Object.keys(element.value).length + 1) * 22 + 70;
+			} else if (isExcludeSetting(element.setting)) {
+				return this._getExcludeSettingHeight(element);
 			} else {
 				return this._getUnexpandedSettingHeight(element);
 			}
 		}
 
 		return 0;
+	}
+
+	_getExcludeSettingHeight(element: SettingsTreeSettingElement): number {
+		const displayValue = getExcludeDisplayValue(element);
+		return (Object.keys(displayValue).length + 1) * 22 + 70;
 	}
 
 	_getUnexpandedSettingHeight(element: SettingsTreeSettingElement): number {
@@ -536,7 +597,7 @@ export class SettingsRenderer implements ITreeRenderer {
 				return SETTINGS_ENUM_TEMPLATE_ID;
 			}
 
-			if (isExcludeSetting(element)) {
+			if (element.valueType === 'exclude') {
 				return SETTINGS_EXCLUDE_TEMPLATE_ID;
 			}
 
@@ -779,6 +840,39 @@ export class SettingsRenderer implements ITreeRenderer {
 			excludeWidget
 		};
 
+		common.toDispose.push(excludeWidget.onDidChangeExclude(e => {
+			if (template.context) {
+				const newValue = {
+					...template.context.scopeValue
+				};
+
+				if (e.pattern) {
+					if (e.originalPattern in newValue) {
+						// editing something present in the value
+						newValue[e.pattern] = newValue[e.originalPattern];
+						delete newValue[e.originalPattern];
+					} else {
+						// editing a default
+						newValue[e.originalPattern] = false;
+						newValue[e.pattern] = template.context.defaultValue[e.originalPattern];
+					}
+				} else {
+					if (e.originalPattern in newValue) {
+						// deleting a configured pattern
+						delete newValue[e.originalPattern];
+					} else {
+						// "deleting" a default by overriding it
+						newValue[e.originalPattern] = false;
+					}
+				}
+
+				this._onDidChangeSetting.fire({
+					key: template.context.setting.key,
+					value: newValue
+				});
+			}
+		}));
+
 		return template;
 	}
 
@@ -954,7 +1048,9 @@ export class SettingsRenderer implements ITreeRenderer {
 	}
 
 	private renderExcludeSetting(dataElement: SettingsTreeSettingElement, isSelected: boolean, template: ISettingExcludeItemTemplate): void {
-		template.excludeWidget.setValue(dataElement.value);
+		const value = getExcludeDisplayValue(dataElement);
+		template.excludeWidget.setValue(value);
+		template.context = dataElement;
 	}
 
 	private renderComplexSetting(dataElement: SettingsTreeSettingElement, isSelected: boolean, template: ISettingComplexItemTemplate): void {
