@@ -128,6 +128,10 @@ class DiagnosticsSet {
 	public get values(): Iterable<vscode.Diagnostic> {
 		return this._values.values();
 	}
+
+	public get size() {
+		return this._values.size;
+	}
 }
 
 class SupportedCodeActionProvider {
@@ -137,10 +141,9 @@ class SupportedCodeActionProvider {
 		private readonly client: ITypeScriptServiceClient
 	) { }
 
-	public async getFixableDiagnosticsForContext(context: vscode.CodeActionContext): Promise<vscode.Diagnostic[]> {
+	public async getFixableDiagnosticsForContext(context: vscode.CodeActionContext): Promise<DiagnosticsSet> {
 		const supportedActions = await this.supportedCodeActions;
-		const fixableDiagnostics = DiagnosticsSet.from(context.diagnostics.filter(diagnostic => supportedActions.has(+(diagnostic.code!))));
-		return Array.from(fixableDiagnostics.values);
+		return DiagnosticsSet.from(context.diagnostics.filter(diagnostic => supportedActions.has(+(diagnostic.code!))));
 	}
 
 	private get supportedCodeActions(): Thenable<Set<number>> {
@@ -187,7 +190,7 @@ class TypeScriptQuickFixProvider implements vscode.CodeActionProvider {
 		}
 
 		const fixableDiagnostics = await this.supportedCodeActionProvider.getFixableDiagnosticsForContext(context);
-		if (!fixableDiagnostics.length) {
+		if (!fixableDiagnostics.size) {
 			return [];
 		}
 
@@ -198,7 +201,7 @@ class TypeScriptQuickFixProvider implements vscode.CodeActionProvider {
 		await this.formattingConfigurationManager.ensureConfigurationForDocument(document, token);
 
 		const results: vscode.CodeAction[] = [];
-		for (const diagnostic of fixableDiagnostics) {
+		for (const diagnostic of fixableDiagnostics.values) {
 			results.push(...await this.getFixesForDiagnostic(document, file, diagnostic, token));
 		}
 		return results;
