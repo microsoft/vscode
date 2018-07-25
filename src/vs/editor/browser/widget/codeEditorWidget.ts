@@ -1818,7 +1818,7 @@ registerThemingParticipant((theme, collector) => {
 
 	const unnecessaryForeground = theme.getColor(editorUnnecessaryCodeOpacity);
 	if (unnecessaryForeground) {
-		collector.addRule(`.${SHOW_UNUSED_ENABLED_CLASS} .monaco-editor .${ClassName.EditorUnnecessaryInlineDecoration} { opacity: ${unnecessaryForeground.rgba.a}; }`);
+		collector.addRule(`.${SHOW_UNUSED_ENABLED_CLASS} .monaco-editor .${ClassName.EditorUnnecessaryInlineDecoration} { opacity: ${unnecessaryForeground.rgba.a}; will-change: opacity; }`); // TODO@Ben: 'will-change: opacity' is a workaround for https://github.com/Microsoft/vscode/issues/52196
 	}
 
 	const unnecessaryBorder = theme.getColor(editorUnnecessaryCodeBorder);
