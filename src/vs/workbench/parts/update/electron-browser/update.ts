@@ -30,6 +30,7 @@ import { IWindowService } from 'vs/platform/windows/common/windows';
 import { ReleaseNotesManager } from './releaseNotesEditor';
 import { isWindows } from 'vs/base/common/platform';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
+import { offlineModeSetting, NotifyUnsupportedFeatureInOfflineMode } from 'vs/platform/actions/common/offlineMode';
 
 let releaseNotesManager: ReleaseNotesManager | undefined = undefined;
 
@@ -74,10 +75,14 @@ export abstract class AbstractShowReleaseNotesAction extends Action {
 		this.enabled = false;
 
 		return TPromise.wrap(showReleaseNotes(this.instantiationService, this.version)
-			.then(null, () => {
-				const action = this.instantiationService.createInstance(OpenLatestReleaseNotesInBrowserAction);
-				return action.run().then(() => false);
-			}));
+			.then(result => {
+				return result ? TPromise.as(null) : this.openInBrowser();
+			}, this.openInBrowser));
+	}
+
+	private openInBrowser(): TPromise<boolean> {
+		const action = this.instantiationService.createInstance(OpenLatestReleaseNotesInBrowserAction);
+		return action.run().then(() => false);
 	}
 }
 
@@ -119,23 +124,24 @@ export class ProductContribution implements IWorkbenchContribution {
 	) {
 		const lastVersion = storageService.get(ProductContribution.KEY, StorageScope.GLOBAL, '');
 		const shouldShowReleaseNotes = configurationService.getValue<boolean>('update.showReleaseNotes');
+		const openInBrowser = () => notificationService.prompt(
+			severity.Info,
+			nls.localize('read the release notes', "Welcome to {0} v{1}! Would you like to read the Release Notes?", product.nameLong, pkg.version),
+			[{
+				label: nls.localize('releaseNotes', "Release Notes"),
+				run: () => {
+					const uri = URI.parse(product.releaseNotesUrl);
+					openerService.open(uri);
+				}
+			}]
+		);
 
 		// was there an update? if so, open release notes
 		if (shouldShowReleaseNotes && !environmentService.skipReleaseNotes && product.releaseNotesUrl && lastVersion && pkg.version !== lastVersion) {
 			showReleaseNotes(instantiationService, pkg.version)
-				.then(undefined, () => {
-					notificationService.prompt(
-						severity.Info,
-						nls.localize('read the release notes', "Welcome to {0} v{1}! Would you like to read the Release Notes?", product.nameLong, pkg.version),
-						[{
-							label: nls.localize('releaseNotes', "Release Notes"),
-							run: () => {
-								const uri = URI.parse(product.releaseNotesUrl);
-								openerService.open(uri);
-							}
-						}]
-					);
-				});
+				.then(result => {
+					if (!result) { openInBrowser(); }
+				}, openInBrowser);
 		}
 
 		// should we show the new license?
@@ -320,7 +326,8 @@ export class UpdateContribution implements IGlobalActivity {
 		@IDialogService private dialogService: IDialogService,
 		@IUpdateService private updateService: IUpdateService,
 		@IActivityService private activityService: IActivityService,
-		@IWindowService private windowService: IWindowService
+		@IWindowService private windowService: IWindowService,
+		@IConfigurationService private configurationService: IConfigurationService
 	) {
 		this.state = updateService.state;
 
@@ -544,6 +551,15 @@ export class UpdateContribution implements IGlobalActivity {
 	}
 
 	private getUpdateAction(): IAction | null {
+		if (this.configurationService.getValue(offlineModeSetting) === true) {
+			return new NotifyUnsupportedFeatureInOfflineMode(
+				NotifyUnsupportedFeatureInOfflineMode.ID,
+				nls.localize('checkForUpdates', "Check for Updates..."),
+				this.configurationService,
+				this.notificationService
+			);
+		}
+
 		const state = this.updateService.state;
 
 		switch (state.type) {

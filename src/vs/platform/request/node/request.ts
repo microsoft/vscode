@@ -25,6 +25,9 @@ export interface IHTTPConfiguration {
 		proxyStrictSSL?: boolean;
 		proxyAuthorization?: string;
 	};
+	workbench?: {
+		enableOfflineMode?: boolean;
+	};
 }
 
 Registry.as<IConfigurationRegistry>(Extensions.Configuration)

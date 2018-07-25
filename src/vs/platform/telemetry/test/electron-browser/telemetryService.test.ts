@@ -730,6 +730,7 @@ suite('TelemetryService', () => {
 	test('Telemetry Service checks with config service', function () {
 
 		let enableTelemetry = false;
+		let enableOfflineMode = false;
 		let emitter = new Emitter<any>();
 
 		let testAppender = new TestTelemetryAppender();
@@ -739,7 +740,12 @@ suite('TelemetryService', () => {
 				_serviceBrand: undefined,
 				getValue() {
 					return {
-						enableTelemetry: enableTelemetry
+						telemetry: {
+							enableTelemetry: enableTelemetry
+						},
+						workbench: {
+							enableOfflineMode: enableOfflineMode
+						}
 					} as any;
 				},
 				updateValue(): TPromise<void> {
@@ -763,6 +769,14 @@ suite('TelemetryService', () => {
 		assert.equal(service.isOptedIn, false);
 
 		enableTelemetry = true;
+		emitter.fire({});
+		assert.equal(service.isOptedIn, true);
+
+		enableOfflineMode = true;
+		emitter.fire({});
+		assert.equal(service.isOptedIn, false);
+
+		enableOfflineMode = false;
 		emitter.fire({});
 		assert.equal(service.isOptedIn, true);
 

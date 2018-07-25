@@ -23,6 +23,7 @@ import { IHistoryMainService } from 'vs/platform/history/common/history';
 import { IWorkspaceIdentifier, getWorkspaceLabel, ISingleFolderWorkspaceIdentifier, isSingleFolderWorkspaceIdentifier, isWorkspaceIdentifier } from 'vs/platform/workspaces/common/workspaces';
 import { IMenubarData, IMenubarMenuItemAction, IMenubarMenuItemSeparator } from 'vs/platform/menubar/common/menubar';
 import URI from 'vs/base/common/uri';
+import { offlineModeSetting } from 'vs/platform/actions/common/offlineMode';
 
 // interface IExtensionViewlet {
 // 	id: string;
@@ -581,6 +582,13 @@ export class Menubar {
 	}
 
 	private getUpdateMenuItems(): Electron.MenuItem[] {
+		if (this.configurationService.getValue(offlineModeSetting) === true) {
+			return [new MenuItem({
+				label: nls.localize('miCheckForUpdates', "Check for Updates..."), click: () => {
+					this.runActionInRenderer('workbench.action.notifyUnsupportedFeatureInOfflineMode');
+				}
+			})];
+		}
 		const state = this.updateService.state;
 
 		switch (state.type) {

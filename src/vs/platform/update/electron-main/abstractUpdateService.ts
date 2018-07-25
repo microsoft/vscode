@@ -15,6 +15,7 @@ import { IUpdateService, State, StateType, AvailableForDownload, UpdateType } fr
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { ILogService } from 'vs/platform/log/common/log';
 import { IRequestService } from 'vs/platform/request/node/request';
+import { offlineModeSetting } from 'vs/platform/actions/common/offlineMode';
 
 export function createUpdateURL(platform: string, quality: string): string {
 	return `${product.updateUrl}/api/update/${platform}/${quality}/${product.commit}`;
@@ -49,7 +50,7 @@ export abstract class AbstractUpdateService implements IUpdateService {
 		@IRequestService protected requestService: IRequestService,
 		@ILogService protected logService: ILogService,
 	) {
-		if (this.environmentService.disableUpdates) {
+		if (this.environmentService.disableUpdates || this.configurationService.getValue(offlineModeSetting) === true) {
 			this.logService.info('update#ctor - updates are disabled');
 			return;
 		}
@@ -60,7 +61,6 @@ export abstract class AbstractUpdateService implements IUpdateService {
 		}
 
 		const quality = this.getProductQuality();
-
 		if (!quality) {
 			this.logService.info('update#ctor - updates are disabled');
 			return;

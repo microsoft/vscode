@@ -26,7 +26,7 @@ interface IConfiguration extends IWindowsConfiguration {
 	update: { channel: string; };
 	telemetry: { enableCrashReporter: boolean };
 	keyboard: { touchbar: { enabled: boolean } };
-	workbench: { tree: { horizontalScrolling: boolean } };
+	workbench: { tree: { horizontalScrolling: boolean }, enableOfflineMode: boolean };
 	files: { useExperimentalFileWatcher: boolean, watcherExclude: object };
 }
 
@@ -37,6 +37,7 @@ export class SettingsChangeRelauncher extends Disposable implements IWorkbenchCo
 	private clickThroughInactive: boolean;
 	private updateChannel: string;
 	private enableCrashReporter: boolean;
+	private enableOfflineMode: boolean;
 	private touchbarEnabled: boolean;
 	private treeHorizontalScrolling: boolean;
 	private windowsSmoothScrollingWorkaround: boolean;
@@ -104,6 +105,12 @@ export class SettingsChangeRelauncher extends Disposable implements IWorkbenchCo
 		// Crash reporter
 		if (config.telemetry && typeof config.telemetry.enableCrashReporter === 'boolean' && config.telemetry.enableCrashReporter !== this.enableCrashReporter) {
 			this.enableCrashReporter = config.telemetry.enableCrashReporter;
+			changed = true;
+		}
+
+		// Offline Mode
+		if (config.workbench && typeof config.workbench.enableOfflineMode === 'boolean' && config.workbench.enableOfflineMode !== this.enableOfflineMode) {
+			this.enableOfflineMode = config.workbench.enableOfflineMode;
 			changed = true;
 		}
 
