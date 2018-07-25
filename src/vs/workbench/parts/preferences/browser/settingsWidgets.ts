@@ -91,7 +91,7 @@ enum AddItemMode {
 
 export class ExcludeSettingListModel {
 	private _dataItems: IExcludeItem[] = [];
-	private _newItem = AddItemMode.None;
+	// private _newItem = AddItemMode.None;
 
 	get items(): IExcludeItem[] {
 		const items = [
@@ -107,7 +107,7 @@ export class ExcludeSettingListModel {
 	}
 
 	setAddItemMode(mode: AddItemMode): void {
-		this._newItem = mode;
+		// this._newItem = mode;
 	}
 
 	setValue(excludeValue: any, defaultValue: any): void {
