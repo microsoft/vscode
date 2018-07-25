@@ -183,10 +183,6 @@ export class MenubarPart extends Part {
 		return enableMenuBarMnemonics;
 	}
 
-	private get currentMultiCursorSetting(): string {
-		return this.configurationService.getValue<string>('editor.multiCursorModifier');
-	}
-
 	private get currentAutoSaveSetting(): string {
 		return this.configurationService.getValue<string>('files.autoSave');
 	}
@@ -463,16 +459,6 @@ export class MenubarPart extends Part {
 	private calculateActionLabel(action: IAction | IMenubarMenuItemAction): string {
 		let label = action.label;
 		switch (action.id) {
-			case 'workbench.action.toggleMultiCursorModifier':
-				if (this.currentMultiCursorSetting === 'ctrlCmd') {
-					label = nls.localize('miMultiCursorAlt', "Switch to Alt+Click for Multi-Cursor");
-				} else {
-					label = isMacintosh
-						? nls.localize('miMultiCursorCmd', "Switch to Cmd+Click for Multi-Cursor")
-						: nls.localize('miMultiCursorCtrl', "Switch to Ctrl+Click for Multi-Cursor");
-				}
-				break;
-
 			case 'workbench.action.toggleSidebarPosition':
 				if (this.currentSidebarPosition !== 'right') {
 					label = nls.localize({ key: 'miMoveSidebarRight', comment: ['&& denotes a mnemonic'] }, "&&Move Side Bar Right");
