@@ -18,8 +18,14 @@ const localize = nls.loadMessageBundle();
 let cachedDocument: Uri | undefined = undefined;
 let cachedScriptsMap: Map<string, [number, number, string]> | undefined = undefined;
 
-export function invalidateHoverScriptsCache() {
-	cachedDocument = undefined;
+export function invalidateHoverScriptsCache(document?: TextDocument) {
+	if (!document) {
+		cachedDocument = undefined;
+		return;
+	}
+	if (document.uri === cachedDocument) {
+		cachedDocument = undefined;
+	}
 }
 
 export class NpmScriptHoverProvider implements HoverProvider {

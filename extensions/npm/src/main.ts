@@ -17,7 +17,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
 	const hoverProvider = registerHoverProvider(context);
 
 	configureHttpRequest();
-	vscode.workspace.onDidChangeConfiguration((e) => {
+	let d = vscode.workspace.onDidChangeConfiguration((e) => {
 		configureHttpRequest();
 		if (e.affectsConfiguration('npm.exclude')) {
 			invalidateTasksCache();
@@ -31,6 +31,13 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
 			}
 		}
 	});
+	context.subscriptions.push(d);
+
+	d = vscode.workspace.onDidChangeTextDocument((e) => {
+		invalidateHoverScriptsCache(e.document);
+	});
+	context.subscriptions.push(d);
+
 	context.subscriptions.push(addJSONProviders(httpRequest.xhr));
 }
 
