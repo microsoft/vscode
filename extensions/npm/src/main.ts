@@ -8,8 +8,8 @@ import * as httpRequest from 'request-light';
 import * as vscode from 'vscode';
 import { addJSONProviders } from './features/jsonContributions';
 import { NpmScriptsTreeDataProvider } from './npmView';
-import { invalidateScriptsCache, NpmTaskProvider } from './tasks';
-import { NpmScriptHoverProvider } from './scriptHover';
+import { invalidateTasksCache, NpmTaskProvider } from './tasks';
+import { invalidateHoverScriptsCache, NpmScriptHoverProvider } from './scriptHover';
 
 export async function activate(context: vscode.ExtensionContext): Promise<void> {
 	const taskProvider = registerTaskProvider(context);
@@ -20,7 +20,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
 	vscode.workspace.onDidChangeConfiguration((e) => {
 		configureHttpRequest();
 		if (e.affectsConfiguration('npm.exclude')) {
-			invalidateScriptsCache();
+			invalidateTasksCache();
 			if (treeDataProvider) {
 				treeDataProvider.refresh();
 			}
@@ -35,11 +35,17 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
 }
 
 function registerTaskProvider(context: vscode.ExtensionContext): vscode.Disposable | undefined {
+
+	function invalidateScriptCaches() {
+		invalidateHoverScriptsCache();
+		invalidateTasksCache();
+	}
+
 	if (vscode.workspace.workspaceFolders) {
 		let watcher = vscode.workspace.createFileSystemWatcher('**/package.json');
-		watcher.onDidChange((_e) => invalidateScriptsCache());
-		watcher.onDidDelete((_e) => invalidateScriptsCache());
-		watcher.onDidCreate((_e) => invalidateScriptsCache());
+		watcher.onDidChange((_e) => invalidateScriptCaches());
+		watcher.onDidDelete((_e) => invalidateScriptCaches());
+		watcher.onDidCreate((_e) => invalidateScriptCaches());
 		context.subscriptions.push(watcher);
 
 		let provider: vscode.TaskProvider = new NpmTaskProvider(context);
@@ -73,7 +79,6 @@ function registerHoverProvider(context: vscode.ExtensionContext): NpmScriptHover
 	}
 	return undefined;
 }
-
 
 function configureHttpRequest() {
 	const httpSettings = vscode.workspace.getConfiguration('http');

@@ -41,7 +41,7 @@ export class NpmTaskProvider implements TaskProvider {
 	}
 }
 
-export function invalidateScriptsCache() {
+export function invalidateTasksCache() {
 	cachedTasks = undefined;
 }
 

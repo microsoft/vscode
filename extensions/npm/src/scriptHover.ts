@@ -15,6 +15,13 @@ import * as nls from 'vscode-nls';
 
 const localize = nls.loadMessageBundle();
 
+let cachedDocument: Uri | undefined = undefined;
+let cachedScriptsMap: Map<string, [number, number, string]> | undefined = undefined;
+
+export function invalidateHoverScriptsCache() {
+	cachedDocument = undefined;
+}
+
 export class NpmScriptHoverProvider implements HoverProvider {
 	private extensionContext: ExtensionContext;
 
@@ -25,10 +32,14 @@ export class NpmScriptHoverProvider implements HoverProvider {
 	}
 
 	public provideHover(document: TextDocument, position: Position, _token: CancellationToken): ProviderResult<Hover> {
-		let result = findAllScriptRanges(document.getText());
 		let hover: Hover | undefined = undefined;
 
-		result.forEach((value, key) => {
+		if (!cachedDocument || cachedDocument.fsPath !== document.uri.fsPath) {
+			cachedScriptsMap = findAllScriptRanges(document.getText());
+			cachedDocument = document.uri;
+		}
+
+		cachedScriptsMap!.forEach((value, key) => {
 			let start = document.positionAt(value[0]);
 			let end = document.positionAt(value[0] + value[1]);
 			let range = new Range(start, end);
