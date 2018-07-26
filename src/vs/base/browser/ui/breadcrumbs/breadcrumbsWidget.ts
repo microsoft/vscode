@@ -192,7 +192,6 @@ export class BreadcrumbsWidget {
 	}
 
 	private _focus(nth: number, payload: any): void {
-		const oldIdx = this._focusedItemIdx;
 		this._focusedItemIdx = -1;
 		for (let i = 0; i < this._nodes.length; i++) {
 			const node = this._nodes[i];
@@ -204,10 +203,8 @@ export class BreadcrumbsWidget {
 				node.focus();
 			}
 		}
-		if (this._focusedItemIdx !== oldIdx) {
-			this._reveal(this._focusedItemIdx);
-			this._onDidFocusItem.fire({ type: 'focus', item: this._items[this._focusedItemIdx], node: this._nodes[this._focusedItemIdx], payload });
-		}
+		this._reveal(this._focusedItemIdx);
+		this._onDidFocusItem.fire({ type: 'focus', item: this._items[this._focusedItemIdx], node: this._nodes[this._focusedItemIdx], payload });
 	}
 
 	reveal(item: BreadcrumbsItem): void {
@@ -235,7 +232,6 @@ export class BreadcrumbsWidget {
 	}
 
 	private _select(nth: number, payload: any): void {
-		const oldIdx = this._selectedItemIdx;
 		this._selectedItemIdx = -1;
 		for (let i = 0; i < this._nodes.length; i++) {
 			const node = this._nodes[i];
@@ -246,9 +242,7 @@ export class BreadcrumbsWidget {
 				dom.addClass(node, 'selected');
 			}
 		}
-		if (this._selectedItemIdx !== oldIdx) {
-			this._onDidSelectItem.fire({ type: 'select', item: this._items[this._selectedItemIdx], node: this._nodes[this._selectedItemIdx], payload });
-		}
+		this._onDidSelectItem.fire({ type: 'select', item: this._items[this._selectedItemIdx], node: this._nodes[this._selectedItemIdx], payload });
 	}
 
 	getItems(): ReadonlyArray<BreadcrumbsItem> {
