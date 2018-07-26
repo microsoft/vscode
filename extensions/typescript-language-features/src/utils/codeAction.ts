@@ -27,15 +27,15 @@ export async function applyCodeAction(
 			return false;
 		}
 	}
-	return applyCodeActionCommands(client, action);
+	return applyCodeActionCommands(client, action.commands);
 }
 
 export async function applyCodeActionCommands(
 	client: ITypeScriptServiceClient,
-	action: Proto.CodeAction
+	commands: ReadonlyArray<{}> | undefined
 ): Promise<boolean> {
-	if (action.commands && action.commands.length) {
-		for (const command of action.commands) {
+	if (commands && commands.length) {
+		for (const command of commands) {
 			const response = await client.execute('applyCodeActionCommand', { command });
 			if (!response || !response.body) {
 				return false;

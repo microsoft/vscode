@@ -43,7 +43,7 @@ class ApplyCodeActionCommand implements Command {
 				fixName: action.fixName
 			});
 		}
-		return applyCodeActionCommands(this.client, action);
+		return applyCodeActionCommands(this.client, action.commands);
 	}
 }
 
@@ -86,17 +86,14 @@ class ApplyFixAllCodeAction implements Command {
 		};
 
 		try {
-			const combinedCodeFixesResponse = await this.client.execute('getCombinedCodeFix', args);
-			if (!combinedCodeFixesResponse.body) {
+			const { body } = await this.client.execute('getCombinedCodeFix', args);
+			if (!body) {
 				return;
 			}
 
-			const edit = typeConverters.WorkspaceEdit.fromFileCodeEdits(this.client, combinedCodeFixesResponse.body.changes);
+			const edit = typeConverters.WorkspaceEdit.fromFileCodeEdits(this.client, body.changes);
 			await vscode.workspace.applyEdit(edit);
-
-			if (combinedCodeFixesResponse.command) {
-				await vscode.commands.executeCommand(ApplyCodeActionCommand.ID, combinedCodeFixesResponse.command);
-			}
+			await applyCodeActionCommands(this.client, body.commands);
 		} catch {
 			// noop
 		}
