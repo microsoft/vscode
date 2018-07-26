@@ -5,14 +5,14 @@
 'use strict';
 
 import { isFalsyOrEmpty } from 'vs/base/common/arrays';
-import { IDisposable, dispose } from 'vs/base/common/lifecycle';
+import { dispose, IDisposable } from 'vs/base/common/lifecycle';
 import { values } from 'vs/base/common/map';
 import URI, { UriComponents } from 'vs/base/common/uri';
-import { PPromise, TPromise } from 'vs/base/common/winjs.base';
-import { IFileMatch, ISearchComplete, ISearchProgressItem, ISearchQuery, ISearchResultProvider, ISearchService, QueryType, IRawFileMatch2, ISearchCompleteStats } from 'vs/platform/search/common/search';
+import { TPromise } from 'vs/base/common/winjs.base';
+import { IFileMatch, IRawFileMatch2, ISearchComplete, ISearchCompleteStats, ISearchProgressItem, ISearchQuery, ISearchResultProvider, ISearchService, QueryType } from 'vs/platform/search/common/search';
+import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { extHostNamedCustomer } from 'vs/workbench/api/electron-browser/extHostCustomers';
 import { ExtHostContext, ExtHostSearchShape, IExtHostContext, MainContext, MainThreadSearchShape } from '../node/extHost.protocol';
-import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 
 @extHostNamedCustomer(MainContext.MainThreadSearch)
 export class MainThreadSearch implements MainThreadSearchShape {
@@ -97,10 +97,10 @@ class RemoteSearchProvider implements ISearchResultProvider, IDisposable {
 		dispose(this._registrations);
 	}
 
-	search(query: ISearchQuery): PPromise<ISearchComplete, ISearchProgressItem> {
+	search(query: ISearchQuery, onProgress?: (p: ISearchProgressItem) => void): TPromise<ISearchComplete> {
 
 		if (isFalsyOrEmpty(query.folderQueries)) {
-			return PPromise.as(undefined);
+			return TPromise.as(undefined);
 		}
 
 		const folderQueriesForScheme = query.folderQueries.filter(fq => fq.folder.scheme === this._scheme);
@@ -115,9 +115,9 @@ class RemoteSearchProvider implements ISearchResultProvider, IDisposable {
 
 		let outer: TPromise;
 
-		return new PPromise((resolve, reject, report) => {
+		return new TPromise((resolve, reject) => {
 
-			const search = new SearchOperation(report);
+			const search = new SearchOperation(onProgress);
 			this._searches.set(search.id, search);
 
 			outer = query.type === QueryType.File

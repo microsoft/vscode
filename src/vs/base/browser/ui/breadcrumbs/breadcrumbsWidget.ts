@@ -13,7 +13,7 @@ import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { IMouseEvent } from 'vs/base/browser/mouseEvent';
 import { Event, Emitter } from 'vs/base/common/event';
 import { Color } from 'vs/base/common/color';
-import { commonPrefixLength, tail } from 'vs/base/common/arrays';
+import { commonPrefixLength } from 'vs/base/common/arrays';
 
 export abstract class BreadcrumbsItem {
 	dispose(): void { }
@@ -86,7 +86,8 @@ export class BreadcrumbsWidget {
 	) {
 		this._domNode = document.createElement('div');
 		this._domNode.className = 'monaco-breadcrumbs';
-		this._domNode.tabIndex = -1;
+		this._domNode.tabIndex = 0;
+		this._domNode.setAttribute('role', 'list');
 		this._scrollable = new DomScrollableElement(this._domNode, {
 			vertical: ScrollbarVisibility.Hidden,
 			horizontal: ScrollbarVisibility.Auto,
@@ -152,13 +153,23 @@ export class BreadcrumbsWidget {
 	}
 
 	domFocus(): void {
-		const focused = this.getFocused() || tail(this._items);
-		this.setFocused(focused);
-		this._domNode.focus();
+		let idx = this._focusedItemIdx >= 0 ? this._focusedItemIdx : this._items.length - 1;
+		if (idx >= 0 && idx < this._items.length) {
+			this._focus(idx, undefined);
+		} else {
+			this._domNode.focus();
+		}
 	}
 
 	isDOMFocused(): boolean {
-		return this._domNode === document.activeElement;
+		let candidate = document.activeElement;
+		while (candidate) {
+			if (this._domNode === candidate) {
+				return true;
+			}
+			candidate = candidate.parentElement;
+		}
+		return false;
 	}
 
 	getFocused(): BreadcrumbsItem {
@@ -190,6 +201,7 @@ export class BreadcrumbsWidget {
 			} else {
 				this._focusedItemIdx = i;
 				dom.addClass(node, 'focused');
+				node.focus();
 			}
 		}
 		this._reveal(this._focusedItemIdx);
@@ -274,7 +286,8 @@ export class BreadcrumbsWidget {
 		dom.clearNode(container);
 		container.className = '';
 		item.render(container);
-		dom.append(container);
+		container.tabIndex = -1;
+		container.setAttribute('role', 'listitem');
 		dom.addClass(container, 'monaco-breadcrumb-item');
 	}
 

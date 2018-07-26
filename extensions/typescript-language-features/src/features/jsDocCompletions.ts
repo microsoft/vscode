@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { CancellationToken, CompletionItem, CompletionItemKind, CompletionItemProvider, Disposable, DocumentSelector, languages, Position, Range, SnippetString, TextDocument, TextEditor, Uri, window } from 'vscode';
+import * as vscode from 'vscode';
 import * as nls from 'vscode-nls';
 import * as Proto from '../protocol';
 import { ITypeScriptServiceClient } from '../typescriptService';
@@ -14,12 +14,12 @@ import * as typeConverters from '../utils/typeConverters';
 
 const localize = nls.loadMessageBundle();
 
-class JsDocCompletionItem extends CompletionItem {
+class JsDocCompletionItem extends vscode.CompletionItem {
 	constructor(
-		document: TextDocument,
-		position: Position
+		document: vscode.TextDocument,
+		position: vscode.Position
 	) {
-		super('/** */', CompletionItemKind.Snippet);
+		super('/** */', vscode.CompletionItemKind.Snippet);
 		this.detail = localize('typescript.jsDocCompletionItem.documentation', 'JSDoc comment');
 		this.insertText = '';
 		this.sortText = '\0';
@@ -28,7 +28,7 @@ class JsDocCompletionItem extends CompletionItem {
 		const prefix = line.slice(0, position.character).match(/\/\**\s*$/);
 		const suffix = line.slice(position.character).match(/^\s*\**\//);
 		const start = position.translate(0, prefix ? -prefix[0].length : 0);
-		this.range = new Range(
+		this.range = new vscode.Range(
 			start,
 			position.translate(0, suffix ? suffix[0].length : 0));
 
@@ -40,7 +40,7 @@ class JsDocCompletionItem extends CompletionItem {
 	}
 }
 
-class JsDocCompletionProvider implements CompletionItemProvider {
+class JsDocCompletionProvider implements vscode.CompletionItemProvider {
 
 	constructor(
 		private readonly client: ITypeScriptServiceClient,
@@ -50,10 +50,10 @@ class JsDocCompletionProvider implements CompletionItemProvider {
 	}
 
 	public async provideCompletionItems(
-		document: TextDocument,
-		position: Position,
-		token: CancellationToken
-	): Promise<CompletionItem[]> {
+		document: vscode.TextDocument,
+		position: vscode.Position,
+		token: vscode.CancellationToken
+	): Promise<vscode.CompletionItem[]> {
 		const file = this.client.toPath(document.uri);
 		if (!file) {
 			return [];
@@ -72,8 +72,8 @@ class JsDocCompletionProvider implements CompletionItemProvider {
 
 	private async isCommentableLocation(
 		file: string,
-		position: Position,
-		token: CancellationToken
+		position: vscode.Position,
+		token: vscode.CancellationToken
 	): Promise<boolean> {
 		const args: Proto.FileRequestArgs = {
 			file
@@ -104,7 +104,7 @@ class JsDocCompletionProvider implements CompletionItemProvider {
 		return matchesPosition(body);
 	}
 
-	private isValidCursorPosition(document: TextDocument, position: Position): boolean {
+	private isValidCursorPosition(document: vscode.TextDocument, position: vscode.Position): boolean {
 		// Only show the JSdoc completion when the everything before the cursor is whitespace
 		// or could be the opening of a comment
 		const line = document.lineAt(position.line).text;
@@ -112,7 +112,7 @@ class JsDocCompletionProvider implements CompletionItemProvider {
 		return prefix.match(/^\s*$|\/\*\*\s*$|^\s*\/\*\*+\s*$/) !== null;
 	}
 
-	public resolveCompletionItem(item: CompletionItem, _token: CancellationToken) {
+	public resolveCompletionItem(item: vscode.CompletionItem, _token: vscode.CancellationToken) {
 		return item;
 	}
 }
@@ -129,13 +129,13 @@ class TryCompleteJsDocCommand implements Command {
 	 * Try to insert a jsdoc comment, using a template provide by typescript
 	 * if possible, otherwise falling back to a default comment format.
 	 */
-	public async execute(resource: Uri, start: Position): Promise<boolean> {
+	public async execute(resource: vscode.Uri, start: vscode.Position): Promise<boolean> {
 		const file = this.client.toPath(resource);
 		if (!file) {
 			return false;
 		}
 
-		const editor = window.activeTextEditor;
+		const editor = vscode.window.activeTextEditor;
 		if (!editor || editor.document.uri.fsPath !== resource.fsPath) {
 			return false;
 		}
@@ -148,7 +148,7 @@ class TryCompleteJsDocCommand implements Command {
 		return this.tryInsertDefaultDoc(editor, start);
 	}
 
-	private async tryInsertJsDocFromTemplate(editor: TextEditor, file: string, position: Position): Promise<boolean> {
+	private async tryInsertJsDocFromTemplate(editor: vscode.TextEditor, file: string, position: vscode.Position): Promise<boolean> {
 		const snippet = await TryCompleteJsDocCommand.getSnippetTemplate(this.client, file, position);
 		if (!snippet) {
 			return false;
@@ -159,7 +159,7 @@ class TryCompleteJsDocCommand implements Command {
 			{ undoStopBefore: false, undoStopAfter: true });
 	}
 
-	public static getSnippetTemplate(client: ITypeScriptServiceClient, file: string, position: Position): Promise<SnippetString | undefined> {
+	public static getSnippetTemplate(client: ITypeScriptServiceClient, file: string, position: vscode.Position): Promise<vscode.SnippetString | undefined> {
 		const args = typeConverters.Position.toFileLocationRequestArgs(file, position);
 		return Promise.race([
 			client.execute('docCommentTemplate', args),
@@ -181,14 +181,14 @@ class TryCompleteJsDocCommand implements Command {
 	/**
 	 * Insert the default JSDoc
 	 */
-	private tryInsertDefaultDoc(editor: TextEditor, position: Position): Thenable<boolean> {
-		const snippet = new SnippetString(`/**\n * $0\n */`);
+	private tryInsertDefaultDoc(editor: vscode.TextEditor, position: vscode.Position): Thenable<boolean> {
+		const snippet = new vscode.SnippetString(`/**\n * $0\n */`);
 		return editor.insertSnippet(snippet, position, { undoStopBefore: false, undoStopAfter: true });
 	}
 }
 
 
-export function templateToSnippet(template: string): SnippetString {
+export function templateToSnippet(template: string): vscode.SnippetString {
 	// TODO: use append placeholder
 	let snippetIndex = 1;
 	template = template.replace(/\$/g, '\\$');
@@ -204,16 +204,16 @@ export function templateToSnippet(template: string): SnippetString {
 		out += post + ` \${${snippetIndex++}}`;
 		return out;
 	});
-	return new SnippetString(template);
+	return new vscode.SnippetString(template);
 }
 
 export function register(
-	selector: DocumentSelector,
+	selector: vscode.DocumentSelector,
 	client: ITypeScriptServiceClient,
 	commandManager: CommandManager
-): Disposable {
+): vscode.Disposable {
 	return new ConfigurationDependentRegistration('jsDocCompletion', 'enabled', () => {
-		return languages.registerCompletionItemProvider(selector,
+		return vscode.languages.registerCompletionItemProvider(selector,
 			new JsDocCompletionProvider(client, commandManager),
 			'*');
 	});

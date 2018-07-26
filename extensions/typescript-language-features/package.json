@@ -73,7 +73,8 @@
           "type": "boolean",
           "default": false,
           "description": "%typescript.disableAutomaticTypeAcquisition%",
-          "scope": "window"
+          "scope": "window",
+          "tags": ["backgroundOnlineFeature"]
         },
         "typescript.npm": {
           "type": [
@@ -384,6 +385,12 @@
             "build",
             "watch"
           ],
+          "enumDescriptions": [
+            "%typescript.tsc.autoDetect.on%",
+            "%typescript.tsc.autoDetect.off%",
+            "%typescript.tsc.autoDetect.build%",
+            "%typescript.tsc.autoDetect.watch%"
+          ],
           "description": "%typescript.tsc.autoDetect%",
           "scope": "window"
         },
@@ -462,6 +469,11 @@
             "relative",
             "non-relative"
           ],
+          "enumDescriptions": [
+            "%typescript.preferences.importModuleSpecifier.auto%",
+            "%typescript.preferences.importModuleSpecifier.relative%",
+            "%typescript.preferences.importModuleSpecifier.nonRelative%"
+          ],
           "default": "auto",
           "description": "%typescript.preferences.importModuleSpecifier%",
           "scope": "resource"
@@ -475,18 +487,6 @@
           ],
           "default": "auto",
           "description": "%typescript.preferences.importModuleSpecifier%",
-          "scope": "resource"
-        },
-        "javascript.showUnused": {
-          "type": "boolean",
-          "default": true,
-          "description": "%typescript.showUnused%",
-          "scope": "resource"
-        },
-        "typescript.showUnused": {
-          "type": "boolean",
-          "default": true,
-          "description": "%typescript.showUnused%",
           "scope": "resource"
         },
         "typescript.updateImportsOnFileMove.enabled": {

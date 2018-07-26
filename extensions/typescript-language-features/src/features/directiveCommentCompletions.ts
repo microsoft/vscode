@@ -12,8 +12,8 @@ import { VersionDependentRegistration } from '../utils/dependentRegistration';
 const localize = nls.loadMessageBundle();
 
 interface Directive {
-	value: string;
-	description: string;
+	readonly value: string;
+	readonly description: string;
 }
 
 const directives: Directive[] = [
@@ -21,17 +21,17 @@ const directives: Directive[] = [
 		value: '@ts-check',
 		description: localize(
 			'ts-check',
-			'Enables semantic checking in a JavaScript file. Must be at the top of a file.')
+			"Enables semantic checking in a JavaScript file. Must be at the top of a file.")
 	}, {
 		value: '@ts-nocheck',
 		description: localize(
 			'ts-nocheck',
-			'Disables semantic checking in a JavaScript file. Must be at the top of a file.')
+			"Disables semantic checking in a JavaScript file. Must be at the top of a file.")
 	}, {
 		value: '@ts-ignore',
 		description: localize(
 			'ts-ignore',
-			'Suppresses @ts-check errors on the next line of a file.')
+			"Suppresses @ts-check errors on the next line of a file.")
 	}
 ];
 
@@ -62,13 +62,6 @@ class DirectiveCommentCompletionProvider implements vscode.CompletionItemProvide
 			});
 		}
 		return [];
-	}
-
-	public resolveCompletionItem(
-		item: vscode.CompletionItem,
-		_token: vscode.CancellationToken
-	) {
-		return item;
 	}
 }
 

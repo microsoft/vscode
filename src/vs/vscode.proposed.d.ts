@@ -697,64 +697,6 @@ declare module 'vscode' {
 
 	//#endregion
 
-	//#region joh: https://github.com/Microsoft/vscode/issues/10659
-
-	/**
-	 * A workspace edit is a collection of textual and files changes for
-	 * multiple resources and documents. Use the [applyEdit](#workspace.applyEdit)-function
-	 * to apply a workspace edit. Note that all changes are applied in the same order in which
-	 * they have been added and that invalid sequences like 'delete file a' -> 'insert text in
-	 * file a' causes failure of the operation.
-	 */
-	export interface WorkspaceEdit {
-
-		/**
-		 * The number of affected resources of textual or resource changes.
-		 */
-		readonly size: number;
-
-		/**
-		 * Create a regular file.
-		 *
-		 * @param uri Uri of the new file..
-		 * @param options Defines if an existing file should be overwritten or be ignored.
-		 */
-		createFile(uri: Uri, options?: { overwrite?: boolean, ignoreIfExists?: boolean }): void;
-
-		/**
-		 * Delete a file or folder.
-		 *
-		 * @param uri The uri of the file that is to be deleted.
-		 */
-		deleteFile(uri: Uri, options?: { recursive?: boolean, ignoreIfNotExists?: boolean }): void;
-
-		/**
-		 * Rename a file or folder.
-		 *
-		 * @param oldUri The existing file.
-		 * @param newUri The new location.
-		 * @param options Defines if existing files should be overwritten.
-		 */
-		renameFile(oldUri: Uri, newUri: Uri, options?: { overwrite?: boolean, ignoreIfExists?: boolean }): void;
-	}
-
-	export namespace workspace {
-		/**
-		 * Make changes to one or many resources as defined by the given
-		 * [workspace edit](#WorkspaceEdit).
-		 *
-		 * The editor implements an 'all-or-nothing'-strategy and that means failure to modify,
-		 * delete, rename, or create one file will abort the operation. In that case, the thenable returned
-		 * by this function resolves to `false`.
-		 *
-		 * @param edit A workspace edit.
-		 * @return A thenable that resolves when the edit could be applied.
-		 */
-		export function applyEdit(edit: WorkspaceEdit): Thenable<boolean>;
-	}
-
-	//#endregion
-
 	//#region mjbvz,joh: https://github.com/Microsoft/vscode/issues/43768
 	export interface FileRenameEvent {
 		readonly oldUri: Uri;

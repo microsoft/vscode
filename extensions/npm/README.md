@@ -29,5 +29,5 @@ The extension provides code lense actions to run or debug a script from the edit
 - `npm.exclude` - Glob patterns for folders that should be excluded from automatic script detection. The pattern is matched against the **absolute path** of the package.json. For example, to exclude all test folders use '&ast;&ast;/test/&ast;&ast;'.
 - `npm.enableScriptExplorer` - Enable an explorer view for npm scripts.
 - `npm.scriptExplorerAction` - The default click action: `open` or `run`, the default is `open`.
-- `npm.scriptCodeLens.enable` - Enable/disable the code lenses to run a script.
+- `npm.scriptCodeLens.enable` - Enable/disable the code lenses to run a script, the default is `false`.
 

@@ -16,7 +16,7 @@ import { KeybindingResolver } from 'vs/platform/keybinding/common/keybindingReso
 import { ICommandService } from 'vs/platform/commands/common/commands';
 import { IKeybindingEvent, IUserFriendlyKeybinding, KeybindingSource, IKeyboardEvent } from 'vs/platform/keybinding/common/keybinding';
 import { ContextKeyExpr, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
-import { IKeybindingItem, KeybindingsRegistry, IKeybindingRule2, KeybindingRuleSource } from 'vs/platform/keybinding/common/keybindingsRegistry';
+import { IKeybindingItem, KeybindingsRegistry, IKeybindingRule2, KeybindingRuleSource, KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { keybindingsTelemetry } from 'vs/platform/telemetry/common/telemetryUtils';
@@ -485,9 +485,9 @@ export class WorkbenchKeybindingService extends AbstractKeybindingService {
 
 		let weight: number;
 		if (isBuiltin) {
-			weight = KeybindingsRegistry.WEIGHT.builtinExtension(idx);
+			weight = KeybindingWeight.BuiltinExtension + idx;
 		} else {
-			weight = KeybindingsRegistry.WEIGHT.externalExtension(idx);
+			weight = KeybindingWeight.ExternalExtension + idx;
 		}
 
 		let desc = {

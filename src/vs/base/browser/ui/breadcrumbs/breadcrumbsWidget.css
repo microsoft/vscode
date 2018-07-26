@@ -20,6 +20,7 @@
 	cursor: pointer;
 	align-self: center;
 	height: 100%;
+	outline: none;
 }
 
 .monaco-breadcrumbs .monaco-breadcrumb-item:not(:first-child)::before {

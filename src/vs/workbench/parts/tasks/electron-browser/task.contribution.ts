@@ -39,7 +39,7 @@ import { IConfigurationService, ConfigurationTarget } from 'vs/platform/configur
 import { IFileService, IFileStat } from 'vs/platform/files/common/files';
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
 import { CommandsRegistry } from 'vs/platform/commands/common/commands';
-import { KeybindingsRegistry } from 'vs/platform/keybinding/common/keybindingsRegistry';
+import { KeybindingsRegistry, KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { ProblemMatcherRegistry, NamedProblemMatcher } from 'vs/workbench/parts/tasks/common/problemMatcher';
 import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
 import { IProgressService2, IProgressOptions, ProgressLocation } from 'vs/workbench/services/progress/common/progress';
@@ -566,7 +566,7 @@ class TaskService implements ITaskService {
 
 		KeybindingsRegistry.registerKeybindingRule({
 			id: 'workbench.action.tasks.build',
-			weight: KeybindingsRegistry.WEIGHT.workbenchContrib(),
+			weight: KeybindingWeight.WorkbenchContrib,
 			when: undefined,
 			primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KEY_B
 		});

@@ -542,6 +542,8 @@ export interface ITerminalInstance {
 	setDimensions(dimensions: ITerminalDimensions): void;
 
 	addDisposable(disposable: IDisposable): void;
+
+	toggleEscapeSequenceLogging(): void;
 }
 
 export interface ITerminalCommandTracker {

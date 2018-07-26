@@ -177,7 +177,7 @@ class WatchExpressionsActionProvider implements IActionProvider {
 			if (element instanceof Variable) {
 				const variable = <Variable>element;
 				if (!variable.hasChildren) {
-					actions.push(new CopyValueAction(CopyValueAction.ID, CopyValueAction.LABEL, variable.value, this.debugService));
+					actions.push(new CopyValueAction(CopyValueAction.ID, CopyValueAction.LABEL, variable, this.debugService));
 				}
 				actions.push(new Separator());
 			}

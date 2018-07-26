@@ -16,13 +16,7 @@ agent-base@4, agent-base@^4.1.0:
   dependencies:
     es6-promisify "^5.0.0"
 
-debug@2:
-  version "2.6.9"
-  resolved "https://registry.yarnpkg.com/debug/-/debug-2.6.9.tgz#5d128515df134ff327e90a4c93f4e077a536341f"
-  dependencies:
-    ms "2.0.0"
-
-debug@^3.1.0:
+debug@3.1.0, debug@^3.1.0:
   version "3.1.0"
   resolved "https://registry.yarnpkg.com/debug/-/debug-3.1.0.tgz#5bb5a0672628b64149566ba16819e61518c67261"
   dependencies:
@@ -38,23 +32,19 @@ es6-promisify@^5.0.0:
   dependencies:
     es6-promise "^4.0.3"
 
-http-proxy-agent@2.0.0:
-  version "2.0.0"
-  resolved "https://registry.yarnpkg.com/http-proxy-agent/-/http-proxy-agent-2.0.0.tgz#46482a2f0523a4d6082551709f469cb3e4a85ff4"
+http-proxy-agent@^2.1.0:
+  version "2.1.0"
+  resolved "https://registry.yarnpkg.com/http-proxy-agent/-/http-proxy-agent-2.1.0.tgz#e4821beef5b2142a2026bd73926fe537631c5405"
   dependencies:
     agent-base "4"
-    debug "2"
+    debug "3.1.0"
 
-https-proxy-agent@2.1.1:
-  version "2.1.1"
-  resolved "https://registry.yarnpkg.com/https-proxy-agent/-/https-proxy-agent-2.1.1.tgz#a7ce4382a1ba8266ee848578778122d491260fd9"
+https-proxy-agent@^2.2.1:
+  version "2.2.1"
+  resolved "https://registry.yarnpkg.com/https-proxy-agent/-/https-proxy-agent-2.2.1.tgz#51552970fa04d723e04c56d04178c3f92592bbc0"
   dependencies:
     agent-base "^4.1.0"
     debug "^3.1.0"
-
-jsonc-parser@^2.0.0-next.1:
-  version "2.0.0-next.1"
-  resolved "https://registry.yarnpkg.com/jsonc-parser/-/jsonc-parser-2.0.0-next.1.tgz#445a824f765a96abfbb286d759a9b1d226b18088"
 
 jsonc-parser@^2.0.1:
   version "2.0.1"
@@ -64,68 +54,53 @@ ms@2.0.0:
   version "2.0.0"
   resolved "https://registry.yarnpkg.com/ms/-/ms-2.0.0.tgz#5608aeadfc00be6c2901df5f9861788de0d597c8"
 
-request-light@^0.2.2:
-  version "0.2.2"
-  resolved "https://registry.yarnpkg.com/request-light/-/request-light-0.2.2.tgz#53e48af32ad1514e45221ea5ece5ce782720f712"
+request-light@^0.2.3:
+  version "0.2.3"
+  resolved "https://registry.yarnpkg.com/request-light/-/request-light-0.2.3.tgz#a18635ec6dd92f8705c019c42ef645f684d94f7e"
   dependencies:
-    http-proxy-agent "2.0.0"
-    https-proxy-agent "2.1.1"
-    vscode-nls "^2.0.2"
+    http-proxy-agent "^2.1.0"
+    https-proxy-agent "^2.2.1"
+    vscode-nls "^3.2.2"
 
-vscode-json-languageservice@^3.1.2:
-  version "3.1.2"
-  resolved "https://registry.yarnpkg.com/vscode-json-languageservice/-/vscode-json-languageservice-3.1.2.tgz#5c70fc32ad389e6da48452e7b0187ea5e70f68bf"
+vscode-json-languageservice@^3.1.4:
+  version "3.1.4"
+  resolved "https://registry.yarnpkg.com/vscode-json-languageservice/-/vscode-json-languageservice-3.1.4.tgz#72e84e2754ad117f9e8d36876c1a66fe16234235"
   dependencies:
     jsonc-parser "^2.0.1"
-    vscode-languageserver-types "^3.7.2"
-    vscode-nls "^3.2.2"
-    vscode-uri "^1.0.3"
+    vscode-languageserver-types "^3.10.0"
+    vscode-nls "^3.2.4"
+    vscode-uri "^1.0.5"
 
 vscode-jsonrpc@^3.6.2:
   version "3.6.2"
   resolved "https://registry.yarnpkg.com/vscode-jsonrpc/-/vscode-jsonrpc-3.6.2.tgz#3b5eef691159a15556ecc500e9a8a0dd143470c8"
 
-vscode-languageserver-protocol-foldingprovider@^2.0.1:
-  version "2.0.1"
-  resolved "https://registry.yarnpkg.com/vscode-languageserver-protocol-foldingprovider/-/vscode-languageserver-protocol-foldingprovider-2.0.1.tgz#051d0d9e58d1b79dc4681acd48f21797f5515bfd"
-  dependencies:
-    vscode-languageserver-protocol "^3.7.2"
-    vscode-languageserver-types "^3.7.2"
-
-vscode-languageserver-protocol@^3.7.2:
-  version "3.7.2"
-  resolved "https://registry.yarnpkg.com/vscode-languageserver-protocol/-/vscode-languageserver-protocol-3.7.2.tgz#df58621c032139010888b6a9ddc969423f9ba9d6"
+vscode-languageserver-protocol@^3.10.0:
+  version "3.10.0"
+  resolved "https://registry.yarnpkg.com/vscode-languageserver-protocol/-/vscode-languageserver-protocol-3.10.0.tgz#f8dcdf987687f64a26e7c32d498fc781a0e886dc"
   dependencies:
     vscode-jsonrpc "^3.6.2"
-    vscode-languageserver-types "^3.7.2"
+    vscode-languageserver-types "^3.10.0"
 
-vscode-languageserver-types@^3.7.2:
-  version "3.7.2"
-  resolved "https://registry.yarnpkg.com/vscode-languageserver-types/-/vscode-languageserver-types-3.7.2.tgz#aad8846f8e3e27962648554de5a8417e358f34eb"
+vscode-languageserver-types@^3.10.0:
+  version "3.10.0"
+  resolved "https://registry.yarnpkg.com/vscode-languageserver-types/-/vscode-languageserver-types-3.10.0.tgz#944e5308f3b36a3f372c766f1a344e903ec9c389"
 
-vscode-languageserver@^4.1.3:
-  version "4.1.3"
-  resolved "https://registry.yarnpkg.com/vscode-languageserver/-/vscode-languageserver-4.1.3.tgz#937d37c955b6b9c2409388413cd6f54d1eb9fe7d"
+vscode-languageserver@^4.4.0:
+  version "4.4.0"
+  resolved "https://registry.yarnpkg.com/vscode-languageserver/-/vscode-languageserver-4.4.0.tgz#b6e8b37a739ccb629d92f3635f0099d191c856fa"
   dependencies:
-    vscode-languageserver-protocol "^3.7.2"
-    vscode-uri "^1.0.1"
+    vscode-languageserver-protocol "^3.10.0"
+    vscode-uri "^1.0.3"
 
-vscode-nls@^2.0.2:
-  version "2.0.2"
-  resolved "https://registry.yarnpkg.com/vscode-nls/-/vscode-nls-2.0.2.tgz#808522380844b8ad153499af5c3b03921aea02da"
-
-vscode-nls@^3.2.2:
-  version "3.2.2"
-  resolved "https://registry.yarnpkg.com/vscode-nls/-/vscode-nls-3.2.2.tgz#3817eca5b985c2393de325197cf4e15eb2aa5350"
-
-vscode-nls@^3.2.4:
+vscode-nls@^3.2.2, vscode-nls@^3.2.4:
   version "3.2.4"
   resolved "https://registry.yarnpkg.com/vscode-nls/-/vscode-nls-3.2.4.tgz#2166b4183c8aea884d20727f5449e62be69fd398"
-
-vscode-uri@^1.0.1:
-  version "1.0.1"
-  resolved "https://registry.yarnpkg.com/vscode-uri/-/vscode-uri-1.0.1.tgz#11a86befeac3c4aa3ec08623651a3c81a6d0bbc8"
 
 vscode-uri@^1.0.3:
   version "1.0.3"
   resolved "https://registry.yarnpkg.com/vscode-uri/-/vscode-uri-1.0.3.tgz#631bdbf716dccab0e65291a8dc25c23232085a52"
+
+vscode-uri@^1.0.5:
+  version "1.0.5"
+  resolved "https://registry.yarnpkg.com/vscode-uri/-/vscode-uri-1.0.5.tgz#3b899a8ef71c37f3054d79bdbdda31c7bf36f20d"

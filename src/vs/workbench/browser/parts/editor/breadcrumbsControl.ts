@@ -23,7 +23,7 @@ import { ContextKeyExpr, IContextKey, IContextKeyService, RawContextKey } from '
 import { IContextViewService } from 'vs/platform/contextview/browser/contextView';
 import { FileKind, IFileService } from 'vs/platform/files/common/files';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { KeybindingsRegistry } from 'vs/platform/keybinding/common/keybindingsRegistry';
+import { KeybindingsRegistry, KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { IQuickOpenService } from 'vs/platform/quickOpen/common/quickOpen';
 import { attachBreadcrumbsStyler } from 'vs/platform/theme/common/styler';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
@@ -33,13 +33,13 @@ import { BreadcrumbsConfig, IBreadcrumbsService } from 'vs/workbench/browser/par
 import { BreadcrumbElement, EditorBreadcrumbsModel, FileElement } from 'vs/workbench/browser/parts/editor/breadcrumbsModel';
 import { createBreadcrumbsPicker, BreadcrumbsPicker } from 'vs/workbench/browser/parts/editor/breadcrumbsPicker';
 import { EditorGroupView } from 'vs/workbench/browser/parts/editor/editorGroupView';
-import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
+import { IEditorService, SIDE_GROUP, SIDE_GROUP_TYPE, ACTIVE_GROUP_TYPE, ACTIVE_GROUP } from 'vs/workbench/services/editor/common/editorService';
 import { IEditorGroupsService } from 'vs/workbench/services/group/common/editorGroupsService';
 import { MenuRegistry, MenuId } from 'vs/platform/actions/common/actions';
 import { localize } from 'vs/nls';
-import { WorkbenchListFocusContextKey, IListService } from 'vs/platform/list/browser/listService';
-import { Tree } from 'vs/base/parts/tree/browser/treeImpl';
 import { CommandsRegistry } from 'vs/platform/commands/common/commands';
+import { tail } from 'vs/base/common/arrays';
+import { WorkbenchListFocusContextKey } from 'vs/platform/list/browser/listService';
 
 class Item extends BreadcrumbsItem {
 
@@ -76,17 +76,18 @@ class Item extends BreadcrumbsItem {
 			let label = this._instantiationService.createInstance(FileLabel, container, {});
 			label.setFile(this.element.uri, {
 				hidePath: true,
-				fileKind: this.element.isFile ? FileKind.FILE : FileKind.FOLDER,
-				hideIcon: !this.element.isFile || !this.options.showFileIcons,
-				fileDecorations: { colors: this.options.showDecorationColors, badges: false }
+				hideIcon: this.element.kind === FileKind.FOLDER || !this.options.showFileIcons,
+				fileKind: this.element.kind,
+				fileDecorations: { colors: this.options.showDecorationColors, badges: false },
 			});
+			dom.addClass(container, FileKind[this.element.kind].toLowerCase());
 			this._disposables.push(label);
-			dom.toggleClass(container, 'file', this.element.isFile);
 
 		} else if (this.element instanceof OutlineModel) {
 			// has outline element but not in one
 			let label = document.createElement('div');
 			label.innerHTML = '&hellip;';
+			label.className = 'hint-more';
 			container.appendChild(label);
 
 		} else if (this.element instanceof OutlineGroup) {
@@ -105,7 +106,7 @@ class Item extends BreadcrumbsItem {
 			}
 			let label = new IconLabel(container);
 			let title = this.element.symbol.name.replace(/\r|\n|\r\n/g, '\u23CE');
-			label.setValue(title, undefined, { title });
+			label.setValue(title);
 			this._disposables.push(label);
 		}
 	}
@@ -123,6 +124,7 @@ export class BreadcrumbsControl {
 	static HEIGHT = 25;
 
 	static readonly Payload_Reveal = {};
+	static readonly Payload_RevealAside = {};
 	static readonly Payload_Pick = {};
 
 	static CK_BreadcrumbsVisible = new RawContextKey('breadcrumbsVisible', false);
@@ -233,7 +235,7 @@ export class BreadcrumbsControl {
 		this._breadcrumbsDisposables.push({
 			dispose: () => {
 				if (this._breadcrumbsPickerShowing) {
-					this._contextViewService.hideContextView();
+					this._contextViewService.hideContextView(this);
 				}
 			}
 		});
@@ -255,11 +257,12 @@ export class BreadcrumbsControl {
 		this._editorGroup.focus();
 		const { element } = event.item as Item;
 
-		if (this._shouldRevealItem(event)) {
+		const group = this._getEditorGroup(event.payload);
+		if (group !== undefined) {
 			// reveal the item
 			this._widget.setFocused(undefined);
 			this._widget.setSelection(undefined);
-			this._revealInEditor(event, element);
+			this._revealInEditor(event, element, group);
 			return;
 		}
 
@@ -277,10 +280,8 @@ export class BreadcrumbsControl {
 			render: (parent: HTMLElement) => {
 				picker = createBreadcrumbsPicker(this._instantiationService, parent, element);
 				let listener = picker.onDidPickElement(data => {
-					this._contextViewService.hideContextView();
-					this._widget.setFocused(undefined);
-					this._widget.setSelection(undefined);
-					this._revealInEditor(event, data);
+					this._contextViewService.hideContextView(this);
+					this._revealInEditor(event, data.target, this._getEditorGroup(data.payload && data.payload.originalEvent));
 				});
 				this._breadcrumbsPickerShowing = true;
 				this._updateCkBreadcrumbsActive();
@@ -309,9 +310,13 @@ export class BreadcrumbsControl {
 				picker.setInput(element);
 				return { x, y };
 			},
-			onHide: () => {
+			onHide: (data) => {
 				this._breadcrumbsPickerShowing = false;
 				this._updateCkBreadcrumbsActive();
+				if (data === this) {
+					this._widget.setFocused(undefined);
+					this._widget.setSelection(undefined);
+				}
 			}
 		});
 	}
@@ -321,11 +326,11 @@ export class BreadcrumbsControl {
 		this._ckBreadcrumbsActive.set(value);
 	}
 
-	private _revealInEditor(event: IBreadcrumbsItemEvent, data: any): void {
-		if (data instanceof FileElement) {
-			if (data.isFile) {
+	private _revealInEditor(event: IBreadcrumbsItemEvent, element: any, group: SIDE_GROUP_TYPE | ACTIVE_GROUP_TYPE): void {
+		if (element instanceof FileElement) {
+			if (element.kind === FileKind.FILE) {
 				// open file in editor
-				this._editorService.openEditor({ resource: data.uri });
+				this._editorService.openEditor({ resource: element.uri }, group);
 			} else {
 				// show next picker
 				let items = this._widget.getItems();
@@ -334,18 +339,24 @@ export class BreadcrumbsControl {
 				this._widget.setSelection(items[idx + 1], BreadcrumbsControl.Payload_Pick);
 			}
 
-		} else if (data instanceof OutlineElement) {
+		} else if (element instanceof OutlineElement) {
 			// open symbol in editor
-			let model = OutlineModel.get(data);
+			let model = OutlineModel.get(element);
 			this._editorService.openEditor({
 				resource: model.textModel.uri,
-				options: { selection: Range.collapseToStart(data.symbol.selectionRange) }
-			});
+				options: { selection: Range.collapseToStart(element.symbol.selectionRange) }
+			}, group);
 		}
 	}
 
-	private _shouldRevealItem({ payload }: IBreadcrumbsItemEvent): boolean {
-		return payload === BreadcrumbsControl.Payload_Reveal || (payload instanceof StandardMouseEvent && payload.metaKey);
+	private _getEditorGroup(data: StandardMouseEvent | object): SIDE_GROUP_TYPE | ACTIVE_GROUP_TYPE | undefined {
+		if (data === BreadcrumbsControl.Payload_RevealAside || (data instanceof StandardMouseEvent && data.altKey)) {
+			return SIDE_GROUP;
+		} else if (data === BreadcrumbsControl.Payload_Reveal || (data instanceof StandardMouseEvent && data.metaKey)) {
+			return ACTIVE_GROUP;
+		} else {
+			return undefined;
+		}
 	}
 }
 
@@ -355,6 +366,12 @@ MenuRegistry.appendMenuItem(MenuId.CommandPalette, {
 	command: {
 		id: 'breadcrumbs.focus',
 		title: localize('cmd.focus', "Focus Breadcrumbs")
+	}
+});
+MenuRegistry.appendMenuItem(MenuId.CommandPalette, {
+	command: {
+		id: 'breadcrumbs.toggle',
+		title: localize('cmd.toggle', "Toggle Breadcrumbs")
 	}
 });
 MenuRegistry.appendMenuItem(MenuId.MenubarViewMenu, {
@@ -373,21 +390,40 @@ CommandsRegistry.registerCommand('breadcrumbs.toggle', accessor => {
 
 KeybindingsRegistry.registerCommandAndKeybindingRule({
 	id: 'breadcrumbs.focus',
-	weight: KeybindingsRegistry.WEIGHT.workbenchContrib(),
+	weight: KeybindingWeight.WorkbenchContrib,
+	primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.US_SEMICOLON,
+	when: BreadcrumbsControl.CK_BreadcrumbsVisible,
+	handler(accessor) {
+		const groups = accessor.get(IEditorGroupsService);
+		const breadcrumbs = accessor.get(IBreadcrumbsService);
+		const widget = breadcrumbs.getWidget(groups.activeGroup.id);
+		const item = tail(widget.getItems());
+		widget.setFocused(item);
+	}
+});
+KeybindingsRegistry.registerCommandAndKeybindingRule({
+	id: 'breadcrumbs.focusAndSelect',
+	weight: KeybindingWeight.WorkbenchContrib,
 	primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.US_DOT,
 	when: BreadcrumbsControl.CK_BreadcrumbsVisible,
 	handler(accessor) {
 		const groups = accessor.get(IEditorGroupsService);
 		const breadcrumbs = accessor.get(IBreadcrumbsService);
-		//todo@joh focus last?
-		breadcrumbs.getWidget(groups.activeGroup.id).domFocus();
+		const widget = breadcrumbs.getWidget(groups.activeGroup.id);
+		const item = tail(widget.getItems());
+		widget.setFocused(item);
+		widget.setSelection(item, BreadcrumbsControl.Payload_Pick);
 	}
 });
 KeybindingsRegistry.registerCommandAndKeybindingRule({
 	id: 'breadcrumbs.focusNext',
-	weight: KeybindingsRegistry.WEIGHT.workbenchContrib(),
+	weight: KeybindingWeight.WorkbenchContrib,
 	primary: KeyCode.RightArrow,
-	secondary: [KeyMod.Shift | KeyCode.RightArrow],
+	secondary: [KeyMod.CtrlCmd | KeyCode.RightArrow],
+	mac: {
+		primary: KeyCode.RightArrow,
+		secondary: [KeyMod.Alt | KeyCode.RightArrow],
+	},
 	when: ContextKeyExpr.and(BreadcrumbsControl.CK_BreadcrumbsVisible, BreadcrumbsControl.CK_BreadcrumbsActive),
 	handler(accessor) {
 		const groups = accessor.get(IEditorGroupsService);
@@ -397,9 +433,13 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 });
 KeybindingsRegistry.registerCommandAndKeybindingRule({
 	id: 'breadcrumbs.focusPrevious',
-	weight: KeybindingsRegistry.WEIGHT.workbenchContrib(),
+	weight: KeybindingWeight.WorkbenchContrib,
 	primary: KeyCode.LeftArrow,
-	secondary: [KeyMod.Shift | KeyCode.LeftArrow],
+	secondary: [KeyMod.CtrlCmd | KeyCode.LeftArrow],
+	mac: {
+		primary: KeyCode.LeftArrow,
+		secondary: [KeyMod.Alt | KeyCode.LeftArrow],
+	},
 	when: ContextKeyExpr.and(BreadcrumbsControl.CK_BreadcrumbsVisible, BreadcrumbsControl.CK_BreadcrumbsActive),
 	handler(accessor) {
 		const groups = accessor.get(IEditorGroupsService);
@@ -409,7 +449,7 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 });
 KeybindingsRegistry.registerCommandAndKeybindingRule({
 	id: 'breadcrumbs.selectFocused',
-	weight: KeybindingsRegistry.WEIGHT.workbenchContrib(),
+	weight: KeybindingWeight.WorkbenchContrib,
 	primary: KeyCode.Enter,
 	secondary: [KeyCode.DownArrow],
 	when: ContextKeyExpr.and(BreadcrumbsControl.CK_BreadcrumbsVisible, BreadcrumbsControl.CK_BreadcrumbsActive),
@@ -422,9 +462,9 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 });
 KeybindingsRegistry.registerCommandAndKeybindingRule({
 	id: 'breadcrumbs.revealFocused',
-	weight: KeybindingsRegistry.WEIGHT.workbenchContrib(),
-	primary: KeyMod.Shift | KeyCode.Enter,
-	secondary: [KeyCode.Space],
+	weight: KeybindingWeight.WorkbenchContrib,
+	primary: KeyCode.Space,
+	secondary: [KeyMod.CtrlCmd | KeyCode.Enter],
 	when: ContextKeyExpr.and(BreadcrumbsControl.CK_BreadcrumbsVisible, BreadcrumbsControl.CK_BreadcrumbsActive),
 	handler(accessor) {
 		const groups = accessor.get(IEditorGroupsService);
@@ -435,9 +475,8 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 });
 KeybindingsRegistry.registerCommandAndKeybindingRule({
 	id: 'breadcrumbs.selectEditor',
-	weight: KeybindingsRegistry.WEIGHT.workbenchContrib(),
+	weight: KeybindingWeight.WorkbenchContrib + 1,
 	primary: KeyCode.Escape,
-	secondary: [KeyMod.Shift | KeyCode.Escape],
 	when: ContextKeyExpr.and(BreadcrumbsControl.CK_BreadcrumbsVisible, BreadcrumbsControl.CK_BreadcrumbsActive),
 	handler(accessor) {
 		const groups = accessor.get(IEditorGroupsService);
@@ -448,15 +487,15 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 	}
 });
 KeybindingsRegistry.registerCommandAndKeybindingRule({
-	id: 'breadcrumbs.pickFromTree',
-	weight: KeybindingsRegistry.WEIGHT.workbenchContrib(),
-	primary: KeyCode.Tab,
+	id: 'breadcrumbs.revealFocusedFromTreeAside',
+	weight: KeybindingWeight.WorkbenchContrib,
+	primary: KeyMod.CtrlCmd | KeyCode.Enter,
 	when: ContextKeyExpr.and(BreadcrumbsControl.CK_BreadcrumbsVisible, BreadcrumbsControl.CK_BreadcrumbsActive, WorkbenchListFocusContextKey),
 	handler(accessor) {
-		const list = accessor.get(IListService).lastFocusedList;
-		if (list instanceof Tree) {
-			list.setSelection([list.getFocus()]);
-		}
+		const groups = accessor.get(IEditorGroupsService);
+		const breadcrumbs = accessor.get(IBreadcrumbsService);
+		const widget = breadcrumbs.getWidget(groups.activeGroup.id);
+		widget.setSelection(widget.getFocused(), BreadcrumbsControl.Payload_RevealAside);
 	}
 });
 //#endregion

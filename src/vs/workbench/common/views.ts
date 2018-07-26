@@ -288,7 +288,6 @@ export interface ITreeItem {
 	command?: Command;
 
 	children?: ITreeItem[];
-
 }
 
 export interface ITreeViewDataProvider {

@@ -41,7 +41,7 @@ export class NpmTaskProvider implements TaskProvider {
 	}
 }
 
-export function invalidateScriptsCache() {
+export function invalidateTasksCache() {
 	cachedTasks = undefined;
 }
 
@@ -371,6 +371,9 @@ async function findAllScripts(buffer: string): Promise<StringMap> {
 export function findAllScriptRanges(buffer: string): Map<string, [number, number, string]> {
 	var scripts: Map<string, [number, number, string]> = new Map();
 	let script: string | undefined = undefined;
+	let offset: number;
+	let length: number;
+
 	let inScripts = false;
 
 	let visitor: JSONVisitor = {
@@ -381,18 +384,20 @@ export function findAllScriptRanges(buffer: string): Map<string, [number, number
 				inScripts = false;
 			}
 		},
-		onLiteralValue(value: any, offset: number, length: number) {
+		onLiteralValue(value: any, _offset: number, _length: number) {
 			if (script) {
 				scripts.set(script, [offset, length, value]);
 				script = undefined;
 			}
 		},
-		onObjectProperty(property: string, offset: number, length: number) {
+		onObjectProperty(property: string, off: number, len: number) {
 			if (property === 'scripts') {
 				inScripts = true;
 			}
 			else if (inScripts) {
 				script = property;
+				offset = off;
+				length = len;
 			}
 		}
 	};

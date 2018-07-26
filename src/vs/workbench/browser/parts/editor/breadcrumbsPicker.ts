@@ -26,6 +26,8 @@ import { BreadcrumbElement, FileElement } from 'vs/workbench/browser/parts/edito
 import { onUnexpectedError } from 'vs/base/common/errors';
 import { breadcrumbsPickerBackground } from 'vs/platform/theme/common/colorRegistry';
 import { FuzzyScore, createMatches, fuzzyScore } from 'vs/base/common/filters';
+import { IWorkspaceContextService, IWorkspace, IWorkspaceFolder } from 'vs/platform/workspace/common/workspace';
+import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 
 export function createBreadcrumbsPicker(instantiationService: IInstantiationService, parent: HTMLElement, element: BreadcrumbElement): BreadcrumbsPicker {
 	let ctor: IConstructorSignature1<HTMLElement, BreadcrumbsPicker> = element instanceof FileElement ? BreadcrumbsFilePicker : BreadcrumbsOutlinePicker;
@@ -41,9 +43,8 @@ export abstract class BreadcrumbsPicker {
 	protected readonly _tree: HighlightingWorkbenchTree;
 	protected readonly _focus: dom.IFocusTracker;
 
-	protected readonly _onDidPickElement = new Emitter<any>();
-
-	readonly onDidPickElement: Event<any> = this._onDidPickElement.event;
+	private readonly _onDidPickElement = new Emitter<{ target: any, payload: any }>();
+	readonly onDidPickElement: Event<{ target: any, payload: any }> = this._onDidPickElement.event;
 
 	constructor(
 		parent: HTMLElement,
@@ -55,7 +56,7 @@ export abstract class BreadcrumbsPicker {
 		parent.appendChild(this._domNode);
 
 		this._focus = dom.trackFocus(this._domNode);
-		this._focus.onDidBlur(_ => this._onDidPickElement.fire(undefined), undefined, this._disposables);
+		this._focus.onDidBlur(_ => this._onDidPickElement.fire({ target: undefined, payload: undefined }), undefined, this._disposables);
 
 		const theme = this._themeService.getTheme();
 		const color = theme.getColor(breadcrumbsPickerBackground);
@@ -83,7 +84,13 @@ export abstract class BreadcrumbsPicker {
 		);
 		this._disposables.push(this._tree.onDidChangeSelection(e => {
 			if (e.payload !== this._tree) {
-				setTimeout(_ => this._onDidChangeSelection(e)); // need to debounce here because this disposes the tree and the tree doesn't like to be disposed on click
+				const target = this._getTargetFromSelectionEvent(e);
+				if (!target) {
+					return;
+				}
+				setTimeout(_ => {// need to debounce here because this disposes the tree and the tree doesn't like to be disposed on click
+					this._onDidPickElement.fire({ target, payload: e.payload });
+				}, 0);
 			}
 		}));
 
@@ -102,7 +109,7 @@ export abstract class BreadcrumbsPicker {
 		this._tree.setInput(actualInput).then(() => {
 			let selection = this._getInitialSelection(this._tree, input);
 			if (selection) {
-				this._tree.reveal(selection).then(() => {
+				this._tree.reveal(selection, .5).then(() => {
 					this._tree.setSelection([selection], this._tree);
 					this._tree.setFocus(selection);
 					this._tree.domFocus();
@@ -129,49 +136,72 @@ export abstract class BreadcrumbsPicker {
 	protected abstract _getInput(input: BreadcrumbElement): any;
 	protected abstract _getInitialSelection(tree: ITree, input: BreadcrumbElement): any;
 	protected abstract _completeTreeConfiguration(config: IHighlightingTreeConfiguration): IHighlightingTreeConfiguration;
-	protected abstract _onDidChangeSelection(e: ISelectionEvent): void;
+	protected abstract _getTargetFromSelectionEvent(e: ISelectionEvent): any | undefined;
 }
 
 //#region - Files
 
 export class FileDataSource implements IDataSource {
 
-	private readonly _parents = new WeakMap<IFileStat, IFileStat>();
+	private readonly _parents = new WeakMap<object, IWorkspaceFolder | IFileStat>();
 
 	constructor(
 		@IFileService private readonly _fileService: IFileService,
 	) { }
 
-	getId(tree: ITree, element: IFileStat | URI): string {
-		return URI.isUri(element) ? element.toString() : element.resource.toString();
+	getId(tree: ITree, element: IWorkspace | IWorkspaceFolder | IFileStat | URI): string {
+		if (URI.isUri(element)) {
+			return element.toString();
+		} else if (IWorkspace.isIWorkspace(element)) {
+			return element.id;
+		} else if (IWorkspaceFolder.isIWorkspaceFolder(element)) {
+			return element.uri.toString();
+		} else {
+			return element.resource.toString();
+		}
 	}
 
-	hasChildren(tree: ITree, element: IFileStat | URI): boolean {
-		return URI.isUri(element) || element.isDirectory;
+	hasChildren(tree: ITree, element: IWorkspace | IWorkspaceFolder | IFileStat | URI): boolean {
+		return URI.isUri(element) || IWorkspace.isIWorkspace(element) || IWorkspaceFolder.isIWorkspaceFolder(element) || element.isDirectory;
 	}
 
-	getChildren(tree: ITree, element: IFileStat | URI): TPromise<IFileStat[]> {
-		return this._fileService.resolveFile(
-			URI.isUri(element) ? element : element.resource
-		).then(stat => {
-			for (const child of stat.children) {
-				this._parents.set(child, stat);
+	getChildren(tree: ITree, element: IWorkspace | IWorkspaceFolder | IFileStat | URI): TPromise<IWorkspaceFolder[] | IFileStat[]> {
+		if (IWorkspace.isIWorkspace(element)) {
+			return TPromise.as(element.folders).then(folders => {
+				for (let child of folders) {
+					this._parents.set(element, child);
+				}
+				return folders;
+			});
+		}
+		let uri: URI;
+		if (IWorkspaceFolder.isIWorkspaceFolder(element)) {
+			uri = element.uri;
+		} else if (URI.isUri(element)) {
+			uri = element;
+		} else {
+			uri = element.resource;
+		}
+		return this._fileService.resolveFile(uri).then(stat => {
+			for (let child of stat.children) {
+				this._parents.set(stat, child);
 			}
 			return stat.children;
 		});
 	}
 
-	getParent(tree: ITree, element: IFileStat | URI): TPromise<IFileStat> {
-		return TPromise.as(URI.isUri(element) ? undefined : this._parents.get(element));
+	getParent(tree: ITree, element: IWorkspace | URI | IWorkspaceFolder | IFileStat): TPromise<IWorkspaceFolder | IFileStat> {
+		return TPromise.as(this._parents.get(element));
 	}
 }
 
 export class FileRenderer implements IRenderer, IHighlightingRenderer {
 
-	private readonly _scores = new Map<string, FuzzyScore>();
+	private readonly _scores = new Map<object, FuzzyScore>();
 
 	constructor(
-		@IInstantiationService private readonly _instantiationService: IInstantiationService
+		@IInstantiationService private readonly _instantiationService: IInstantiationService,
+		@IConfigurationService private readonly _configService: IConfigurationService,
 	) { }
 
 	getHeight(tree: ITree, element: any): number {
@@ -186,13 +216,23 @@ export class FileRenderer implements IRenderer, IHighlightingRenderer {
 		return this._instantiationService.createInstance(FileLabel, container, { supportHighlights: true });
 	}
 
-	renderElement(tree: ITree, element: IFileStat, templateId: string, templateData: FileLabel): void {
-		templateData.setFile(element.resource, {
-			hidePath: true,
-			fileKind: element.isDirectory ? FileKind.FOLDER : FileKind.FILE,
-			fileDecorations: { colors: true, badges: true },
-			matches: createMatches((this._scores.get(element.resource.toString()) || [, []])[1])
-		});
+	renderElement(tree: ITree, element: IFileStat | IWorkspaceFolder, templateId: string, templateData: FileLabel): void {
+		let fileDecorations = this._configService.getValue<{ colors: boolean, badges: boolean }>('explorer.decorations');
+		if (IWorkspaceFolder.isIWorkspaceFolder(element)) {
+			templateData.setFile(element.uri, {
+				hidePath: true,
+				fileKind: FileKind.ROOT_FOLDER,
+				fileDecorations: fileDecorations,
+				matches: createMatches((this._scores.get(element) || [, []])[1])
+			});
+		} else {
+			templateData.setFile(element.resource, {
+				hidePath: true,
+				fileKind: element.isDirectory ? FileKind.FOLDER : FileKind.FILE,
+				fileDecorations: fileDecorations,
+				matches: createMatches((this._scores.get(element) || [, []])[1])
+			});
+		}
 	}
 
 	disposeTemplate(tree: ITree, templateId: string, templateData: FileLabel): void {
@@ -204,9 +244,9 @@ export class FileRenderer implements IRenderer, IHighlightingRenderer {
 		let topScore: FuzzyScore;
 		let topElement: any;
 		while (nav.next()) {
-			let element = nav.current() as IFileStat;
+			let element = nav.current() as IFileStat | IWorkspaceFolder;
 			let score = fuzzyScore(pattern, element.name, undefined, true);
-			this._scores.set(element.resource.toString(), score);
+			this._scores.set(element, score);
 			if (!topScore || score && topScore[0] < score[0]) {
 				topScore = score;
 				topElement = element;
@@ -217,31 +257,50 @@ export class FileRenderer implements IRenderer, IHighlightingRenderer {
 }
 
 export class FileSorter implements ISorter {
-	compare(tree: ITree, a: IFileStat, b: IFileStat): number {
-		if (a.isDirectory === b.isDirectory) {
-			// same type -> compare on names
-			return compareFileNames(a.name, b.name);
-		} else if (a.isDirectory) {
-			return -1;
+	compare(tree: ITree, a: IFileStat | IWorkspaceFolder, b: IFileStat | IWorkspaceFolder): number {
+		if (IWorkspaceFolder.isIWorkspaceFolder(a) && IWorkspaceFolder.isIWorkspaceFolder(b)) {
+			return a.index - b.index;
 		} else {
-			return 1;
+			if ((a as IFileStat).isDirectory === (b as IFileStat).isDirectory) {
+				// same type -> compare on names
+				return compareFileNames(a.name, b.name);
+			} else if ((a as IFileStat).isDirectory) {
+				return -1;
+			} else {
+				return 1;
+			}
 		}
 	}
 }
 
 export class BreadcrumbsFilePicker extends BreadcrumbsPicker {
 
+	constructor(
+		parent: HTMLElement,
+		@IInstantiationService instantiationService: IInstantiationService,
+		@IThemeService themeService: IThemeService,
+		@IWorkspaceContextService private readonly _workspaceService: IWorkspaceContextService,
+	) {
+		super(parent, instantiationService, themeService);
+	}
+
 	protected _getInput(input: BreadcrumbElement): any {
-		let { uri } = (input as FileElement);
-		return dirname(uri);
+		let { uri, kind } = (input as FileElement);
+		if (kind === FileKind.ROOT_FOLDER) {
+			return this._workspaceService.getWorkspace();
+		} else {
+			return dirname(uri);
+		}
 	}
 
 	protected _getInitialSelection(tree: ITree, input: BreadcrumbElement): any {
 		let { uri } = (input as FileElement);
 		let nav = tree.getNavigator();
 		while (nav.next()) {
-			if (isEqual(uri, (nav.current() as IFileStat).resource)) {
-				return nav.current();
+			let cur = nav.current();
+			let candidate = IWorkspaceFolder.isIWorkspaceFolder(cur) ? cur.uri : (cur as IFileStat).resource;
+			if (isEqual(uri, candidate)) {
+				return cur;
 			}
 		}
 		return undefined;
@@ -255,11 +314,10 @@ export class BreadcrumbsFilePicker extends BreadcrumbsPicker {
 		return config;
 	}
 
-	protected _onDidChangeSelection(e: ISelectionEvent): void {
+	protected _getTargetFromSelectionEvent(e: ISelectionEvent): any | undefined {
 		let [first] = e.selection;
-		let stat = first as IFileStat;
-		if (stat && !stat.isDirectory) {
-			this._onDidPickElement.fire(new FileElement(stat.resource, true));
+		if (first && !IWorkspaceFolder.isIWorkspaceFolder(first) && !(first as IFileStat).isDirectory) {
+			return new FileElement((first as IFileStat).resource, FileKind.FILE);
 		}
 	}
 }
@@ -295,13 +353,13 @@ export class BreadcrumbsOutlinePicker extends BreadcrumbsPicker {
 		return config;
 	}
 
-	protected _onDidChangeSelection(e: ISelectionEvent): void {
+	protected _getTargetFromSelectionEvent(e: ISelectionEvent): any | undefined {
 		if (e.payload && e.payload.didClickOnTwistie) {
 			return;
 		}
 		let [first] = e.selection;
 		if (first instanceof OutlineElement) {
-			this._onDidPickElement.fire(first);
+			return first;
 		}
 	}
 }

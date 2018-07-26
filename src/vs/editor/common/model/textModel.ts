@@ -1416,6 +1416,10 @@ export class TextModel extends Disposable implements model.ITextModel {
 		}
 	}
 
+	public canUndo(): boolean {
+		return this._commandManager.canUndo();
+	}
+
 	private _redo(): Selection[] {
 		this._isRedoing = true;
 		let r = this._commandManager.redo();
@@ -1439,6 +1443,10 @@ export class TextModel extends Disposable implements model.ITextModel {
 			this._eventEmitter.endDeferredEmit();
 			this._onDidChangeDecorations.endDeferredEmit();
 		}
+	}
+
+	public canRedo(): boolean {
+		return this._commandManager.canRedo();
 	}
 
 	//#endregion

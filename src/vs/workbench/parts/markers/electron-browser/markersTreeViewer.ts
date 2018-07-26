@@ -22,6 +22,8 @@ import { IDisposable } from 'vs/base/common/lifecycle';
 import { getPathLabel } from 'vs/base/common/labels';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
+import { ActionBar, IActionItemProvider } from 'vs/base/browser/ui/actionbar/actionbar';
+import { QuickFixAction } from 'vs/workbench/parts/markers/electron-browser/markersPanelActions';
 
 interface IResourceMarkersTemplateData {
 	resourceLabel: ResourceLabel;
@@ -31,7 +33,7 @@ interface IResourceMarkersTemplateData {
 
 interface IMarkerTemplateData {
 	icon: HTMLElement;
-	lightbulb: HTMLElement;
+	actionBar: ActionBar;
 	source: HighlightedLabel;
 	description: HighlightedLabel;
 	lnCol: HTMLElement;
@@ -96,6 +98,7 @@ export class Renderer implements IRenderer {
 	private static readonly RELATED_INFO_TEMPLATE_ID = 'related-info-template';
 
 	constructor(
+		private actionItemProvider: IActionItemProvider,
 		@IInstantiationService private instantiationService: IInstantiationService,
 		@IThemeService private themeService: IThemeService,
 		@IEnvironmentService private environmentService: IEnvironmentService,
@@ -167,6 +170,9 @@ export class Renderer implements IRenderer {
 	private renderRelatedInfoTemplate(container: HTMLElement): IRelatedInformationTemplateData {
 		const data: IRelatedInformationTemplateData = Object.create(null);
 
+		dom.append(container, dom.$('.actions'));
+		dom.append(container, dom.$('.icon'));
+
 		data.resourceLabel = new HighlightedLabel(dom.append(container, dom.$('.related-info-resource')));
 		data.lnCol = dom.append(container, dom.$('span.marker-line'));
 
@@ -180,8 +186,9 @@ export class Renderer implements IRenderer {
 
 	private renderMarkerTemplate(container: HTMLElement): IMarkerTemplateData {
 		const data: IMarkerTemplateData = Object.create(null);
-		data.icon = dom.append(container, dom.$('.marker-icon'));
-		data.lightbulb = dom.append(container, dom.$('.icon.lightbulb'));
+		const actionsContainer = dom.append(container, dom.$('.actions'));
+		data.actionBar = new ActionBar(actionsContainer, { actionItemProvider: this.actionItemProvider });
+		data.icon = dom.append(container, dom.$('.icon'));
 		data.source = new HighlightedLabel(dom.append(container, dom.$('')));
 		data.description = new HighlightedLabel(dom.append(container, dom.$('.marker-description')));
 		data.lnCol = dom.append(container, dom.$('span.marker-line'));
@@ -213,20 +220,20 @@ export class Renderer implements IRenderer {
 		let marker = element.raw;
 
 		templateData.icon.className = 'icon ' + Renderer.iconClassNameFor(marker);
-		dom.removeClass(templateData.lightbulb, 'quick-fixes');
 
 		templateData.source.set(marker.source, element.sourceMatches);
 		dom.toggleClass(templateData.source.element, 'marker-source', !!marker.source);
+
+		templateData.actionBar.clear();
+		const resourceMarkers: ResourceMarkers = tree.getNavigator(element).parent();
+		const quickFixAction = this.instantiationService.createInstance(QuickFixAction, element, resourceMarkers);
+		templateData.actionBar.push([quickFixAction], { icon: true, label: false });
 
 		templateData.description.set(marker.message, element.messageMatches);
 		templateData.description.element.title = marker.message;
 
 		templateData.lnCol.textContent = Messages.MARKERS_PANEL_AT_LINE_COL_NUMBER(marker.startLineNumber, marker.startColumn);
 
-		const parent = tree.getNavigator(element).parent();
-		if (parent instanceof ResourceMarkers) {
-			parent.hasFixes(element).then(hasFixes => dom.toggleClass(templateData.lightbulb, 'quick-fixes', hasFixes));
-		}
 	}
 
 	private renderRelatedInfoElement(tree: ITree, element: RelatedInformation, templateData: IRelatedInformationTemplateData) {

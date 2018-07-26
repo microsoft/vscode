@@ -27,6 +27,10 @@
 	height: calc(100% - 38px);
 }
 
+.extensions-viewlet > .extensions .list-actionbar-container {
+	margin-right: 10px;
+}
+
 .extensions-viewlet > .extensions .list-actionbar-container .monaco-action-bar .action-item > .octicon {
 	font-size: 12px;
 	line-height: 1;

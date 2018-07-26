@@ -21,9 +21,13 @@ export abstract class TreeElement {
 
 	abstract id: string;
 	abstract children: { [id: string]: TreeElement };
-	abstract parent: TreeElement | any;
+	abstract parent: TreeElement;
 
 	abstract adopt(newParent: TreeElement): TreeElement;
+
+	remove(): void {
+		delete this.parent.children[this.id];
+	}
 
 	static findId(candidate: DocumentSymbol | string, container: TreeElement): string {
 		// complex id-computation which contains the origin/extension,
@@ -72,6 +76,13 @@ export abstract class TreeElement {
 			res += TreeElement.size(element.children[key]);
 		}
 		return res;
+	}
+
+	static empty(element: TreeElement): boolean {
+		for (const _key in element.children) {
+			return false;
+		}
+		return true;
 	}
 }
 
@@ -297,7 +308,11 @@ export class OutlineModel extends TreeElement {
 				onUnexpectedExternalError(err);
 				return group;
 			}).then(group => {
-				result._groups[id] = group;
+				if (!TreeElement.empty(group)) {
+					result._groups[id] = group;
+				} else {
+					group.remove();
+				}
 			});
 		});
 
