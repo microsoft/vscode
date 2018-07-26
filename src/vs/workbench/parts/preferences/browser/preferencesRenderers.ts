@@ -90,7 +90,6 @@ export class UserSettingsRenderer extends Disposable implements IPreferencesRend
 		this._register(this.editSettingActionRenderer.onUpdateSetting(({ key, value, source }) => this._updatePreference(key, value, source)));
 		this._register(this.editor.getModel().onDidChangeContent(() => this.modelChangeDelayer.trigger(() => this.onModelChanged())));
 
-		this.createHeader();
 	}
 
 	public getAssociatedPreferencesModel(): IPreferencesEditorModel<ISetting> {
@@ -100,6 +99,9 @@ export class UserSettingsRenderer extends Disposable implements IPreferencesRend
 	public setAssociatedPreferencesModel(associatedPreferencesModel: IPreferencesEditorModel<ISetting>): void {
 		this.associatedPreferencesModel = associatedPreferencesModel;
 		this.editSettingActionRenderer.associatedPreferencesModel = associatedPreferencesModel;
+
+		// Create header only in Settings editor mode
+		this.createHeader();
 	}
 
 	protected createHeader(): void {
