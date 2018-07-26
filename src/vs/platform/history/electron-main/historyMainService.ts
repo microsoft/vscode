@@ -177,8 +177,9 @@ export class HistoryMainService implements IHistoryMainService {
 		let maxEntries = HistoryMainService.MAX_MACOS_DOCK_RECENT_ENTRIES;
 
 		// Take up to maxEntries/2 workspaces
-		for (let i = 0; i < mru.workspaces.length && i < HistoryMainService.MAX_MACOS_DOCK_RECENT_ENTRIES / 2; i++) {
-			const workspace = mru.workspaces[i];
+		const workspaces = mru.workspaces.filter(w => !(isSingleFolderWorkspaceIdentifier(w) && w.scheme !== Schemas.file));
+		for (let i = 0; i < workspaces.length && i < HistoryMainService.MAX_MACOS_DOCK_RECENT_ENTRIES / 2; i++) {
+			const workspace = workspaces[i];
 			app.addRecentDocument(isSingleFolderWorkspaceIdentifier(workspace) ? workspace.scheme === Schemas.file ? workspace.fsPath : workspace.toString() : workspace.configPath);
 			maxEntries--;
 		}
