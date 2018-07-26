@@ -79,7 +79,7 @@ import { IBroadcastService, BroadcastService } from 'vs/platform/broadcast/elect
 import { HashService } from 'vs/workbench/services/hash/node/hashService';
 import { IHashService } from 'vs/workbench/services/hash/common/hashService';
 import { ILogService } from 'vs/platform/log/common/log';
-import { WORKBENCH_BACKGROUND } from 'vs/workbench/common/theme';
+import { WORKBENCH_BACKGROUND, SIDE_BAR_BACKGROUND, ACTIVITY_BAR_BACKGROUND, STATUS_BAR_BACKGROUND, STATUS_BAR_NO_FOLDER_BACKGROUND, TITLE_BAR_ACTIVE_BACKGROUND } from 'vs/workbench/common/theme';
 import { stat } from 'fs';
 import { join } from 'path';
 import { ILocalizationsChannel, LocalizationsChannelClient } from 'vs/platform/localizations/common/localizationsIpc';
@@ -524,51 +524,23 @@ export class WorkbenchShell extends Disposable {
 
 	private _savePartsSplash() {
 
-		// capture html-structure
-		let state = this.contextService.getWorkbenchState();
-		let html = `<div id="${WorkbenchShell.PARTS_SPLASH_ID}">`;
-
-		// title part
-		let titleHeight: number;
-		{
-			let part = this.workbench.getContainer(Parts.TITLEBAR_PART);
-			let height = getTotalHeight(part);
-			let bg = part.style.backgroundColor || 'inhert';
-			html += `<div style="position: absolute; width: 100%; left: 0; top: 0; height: ${height}px; background-color: ${bg};"></div>`;
-			titleHeight = height;
-		}
-
-		// activitybar-part
-		let left = this.workbench.getSideBarPosition() === Position.LEFT;
-		let activityPartWidth: number;
-		{
-			let part = this.workbench.getContainer(Parts.ACTIVITYBAR_PART);
-			let width = getTotalWidth(part);
-			let bg = part.style.backgroundColor || 'inhert';
-			html += `<div style="position: absolute; height: calc(100% - ${titleHeight}px); top: ${titleHeight}px; ${left ? 'left' : 'right'}: 0; width: ${width}px; background-color: ${bg};"></div>`;
-			activityPartWidth = width;
-		}
-
-		// sidebar-part (only for folder/workspace cases)
-		if (state !== WorkbenchState.EMPTY) {
-			let part = this.workbench.getContainer(Parts.SIDEBAR_PART);
-			let width = getTotalWidth(part);
-			let bg = part.style.backgroundColor || 'inhert';
-			html += `<div style="position: absolute; height: calc(100% - ${titleHeight}px); top: ${titleHeight}px; ${left ? 'left' : 'right'}: ${activityPartWidth}px; width: ${width}px; background-color: ${bg};"></div>`;
-		}
-
-		// statusbar-part
-		{
-			let part = this.workbench.getContainer(Parts.STATUSBAR_PART);
-			let height = getTotalHeight(part);
-			let bg = part.style.backgroundColor || 'inhert';
-			html += `<div style="position: absolute; width: 100%; bottom: 0; left: 0; height: ${height}px; background-color: ${bg};"></div>`;
-		}
-
-		html += '\n</div>';
-
-		// store per workspace or globally
-		this.storageService.store('parts-splash', html, state === WorkbenchState.EMPTY ? StorageScope.GLOBAL : StorageScope.WORKSPACE);
+		// capture color/layout data
+		const theme = this.themeService.getTheme();
+		const colorInfo = {
+			titleBarBackground: theme.getColor(TITLE_BAR_ACTIVE_BACKGROUND).toString(),
+			activityBarBackground: theme.getColor(ACTIVITY_BAR_BACKGROUND).toString(),
+			sideBarBackground: theme.getColor(SIDE_BAR_BACKGROUND).toString(),
+			statusBarBackground: theme.getColor(STATUS_BAR_BACKGROUND).toString(),
+			statusBarNoFolderBackground: theme.getColor(STATUS_BAR_NO_FOLDER_BACKGROUND).toString(),
+		};
+		const layoutInfo = {
+			titleBarHeight: getTotalHeight(this.workbench.getContainer(Parts.TITLEBAR_PART)),
+			sideBarSide: this.workbench.getSideBarPosition() === Position.RIGHT ? 'right' : 'left',
+			activityBarWidth: getTotalWidth(this.workbench.getContainer(Parts.ACTIVITYBAR_PART)),
+			sideBarWidth: getTotalWidth(this.workbench.getContainer(Parts.SIDEBAR_PART)),
+			statusBarHeight: getTotalHeight(this.workbench.getContainer(Parts.STATUSBAR_PART)),
+		};
+		this.storageService.store('parts-splash-data', JSON.stringify({ id: WorkbenchShell.PARTS_SPLASH_ID, colorInfo, layoutInfo }), StorageScope.GLOBAL);
 	}
 
 	private _removePartsSplash(): void {
