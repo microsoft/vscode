@@ -88,13 +88,16 @@
 	-webkit-font-smoothing: antialiased;
 }
 
+.tree-explorer-viewlet-tree-view .monaco-tree .monaco-tree-row .custom-view-tree-node-item > .custom-view-tree-node-item-resourceLabel .monaco-icon-label-description-container {
+	flex: 1;
+}
+
 .tree-explorer-viewlet-tree-view .monaco-tree .monaco-tree-row .custom-view-tree-node-item > .custom-view-tree-node-item-resourceLabel::after {
 	padding-right: 0px;
 }
 
 .tree-explorer-viewlet-tree-view .monaco-tree .monaco-tree-row .custom-view-tree-node-item > .custom-view-tree-node-item-resourceLabel > .actions {
 	display: none;
-	flex-grow: 100;
 }
 
 .tree-explorer-viewlet-tree-view .monaco-tree .monaco-tree-row:hover .custom-view-tree-node-item > .custom-view-tree-node-item-resourceLabel > .actions,

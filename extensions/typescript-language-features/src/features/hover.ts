@@ -27,12 +27,11 @@ class TypeScriptHoverProvider implements vscode.HoverProvider {
 		}
 		const args = typeConverters.Position.toFileLocationRequestArgs(filepath, position);
 		try {
-			const response = await this.client.execute('quickinfo', args, token);
-			if (response && response.body) {
-				const data = response.body;
+			const { body } = await this.client.execute('quickinfo', args, token);
+			if (body) {
 				return new vscode.Hover(
-					TypeScriptHoverProvider.getContents(data),
-					typeConverters.Range.fromTextSpan(data));
+					TypeScriptHoverProvider.getContents(body),
+					typeConverters.Range.fromTextSpan(body));
 			}
 		} catch (e) {
 			// noop

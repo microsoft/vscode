@@ -9,7 +9,7 @@ import 'vs/css!./media/actions';
 
 import URI from 'vs/base/common/uri';
 import { TPromise } from 'vs/base/common/winjs.base';
-import { Action } from 'vs/base/common/actions';
+import { Action, IAction } from 'vs/base/common/actions';
 import { IWindowService, IWindowsService, MenuBarVisibility } from 'vs/platform/windows/common/windows';
 import * as nls from 'vs/nls';
 import product from 'vs/platform/node/product';
@@ -697,7 +697,6 @@ export class QuickSwitchWindow extends BaseSwitchWindow {
 export const inRecentFilesPickerContextKey = 'inRecentFilesPicker';
 
 export abstract class BaseOpenRecentAction extends Action {
-	private removeAction: RemoveFromRecentlyOpened;
 
 	constructor(
 		id: string,
@@ -707,11 +706,9 @@ export abstract class BaseOpenRecentAction extends Action {
 		private contextService: IWorkspaceContextService,
 		private environmentService: IEnvironmentService,
 		private keybindingService: IKeybindingService,
-		instantiationService: IInstantiationService
+		private instantiationService: IInstantiationService
 	) {
 		super(id, label);
-
-		this.removeAction = instantiationService.createInstance(RemoveFromRecentlyOpened);
 	}
 
 	protected abstract isQuickNavigate(): boolean;
@@ -723,7 +720,7 @@ export abstract class BaseOpenRecentAction extends Action {
 
 	private openRecent(recentWorkspaces: (IWorkspaceIdentifier | ISingleFolderWorkspaceIdentifier)[], recentFiles: string[]): void {
 
-		function toPick(workspace: IWorkspaceIdentifier | ISingleFolderWorkspaceIdentifier | string, separator: ISeparator, fileKind: FileKind, environmentService: IEnvironmentService, removeAction?: RemoveFromRecentlyOpened): IFilePickOpenEntry {
+		function toPick(workspace: IWorkspaceIdentifier | ISingleFolderWorkspaceIdentifier | string, separator: ISeparator, fileKind: FileKind, environmentService: IEnvironmentService, action: IAction): IFilePickOpenEntry {
 			let resource: URI;
 			let label: string;
 			let description: string;
@@ -754,7 +751,7 @@ export abstract class BaseOpenRecentAction extends Action {
 						runPick(resource, fileKind === FileKind.FILE, context);
 					});
 				},
-				action: removeAction
+				action
 			};
 		}
 
@@ -763,8 +760,8 @@ export abstract class BaseOpenRecentAction extends Action {
 			this.windowService.openWindow([resource], { forceNewWindow, forceOpenWorkspaceAsFile: isFile });
 		};
 
-		const workspacePicks: IFilePickOpenEntry[] = recentWorkspaces.map((workspace, index) => toPick(workspace, index === 0 ? { label: nls.localize('workspaces', "workspaces") } : void 0, isSingleFolderWorkspaceIdentifier(workspace) ? FileKind.FOLDER : FileKind.ROOT_FOLDER, this.environmentService, !this.isQuickNavigate() ? this.removeAction : void 0));
-		const filePicks: IFilePickOpenEntry[] = recentFiles.map((p, index) => toPick(p, index === 0 ? { label: nls.localize('files', "files"), border: true } : void 0, FileKind.FILE, this.environmentService, !this.isQuickNavigate() ? this.removeAction : void 0));
+		const workspacePicks: IFilePickOpenEntry[] = recentWorkspaces.map((workspace, index) => toPick(workspace, index === 0 ? { label: nls.localize('workspaces', "workspaces") } : void 0, isSingleFolderWorkspaceIdentifier(workspace) ? FileKind.FOLDER : FileKind.ROOT_FOLDER, this.environmentService, !this.isQuickNavigate() ? this.instantiationService.createInstance(RemoveFromRecentlyOpened, workspace) : void 0));
+		const filePicks: IFilePickOpenEntry[] = recentFiles.map((p, index) => toPick(p, index === 0 ? { label: nls.localize('files', "files"), border: true } : void 0, FileKind.FILE, this.environmentService, !this.isQuickNavigate() ? this.instantiationService.createInstance(RemoveFromRecentlyOpened, p) : void 0));
 
 		// focus second entry if the first recent workspace is the current workspace
 		let autoFocusSecondEntry: boolean = recentWorkspaces[0] && this.contextService.isCurrentWorkspace(recentWorkspaces[0]);
@@ -777,12 +774,6 @@ export abstract class BaseOpenRecentAction extends Action {
 			quickNavigateConfiguration: this.isQuickNavigate() ? { keybindings: this.keybindingService.lookupKeybindings(this.id) } : void 0
 		}).done(null, errors.onUnexpectedError);
 	}
-
-	dispose(): void {
-		super.dispose();
-
-		this.removeAction.dispose();
-	}
 }
 
 class RemoveFromRecentlyOpened extends Action implements IPickOpenAction {
@@ -791,6 +782,7 @@ class RemoveFromRecentlyOpened extends Action implements IPickOpenAction {
 	static readonly LABEL = nls.localize('remove', "Remove from Recently Opened");
 
 	constructor(
+		private path: (IWorkspaceIdentifier | ISingleFolderWorkspaceIdentifier | string),
 		@IWindowsService private windowsService: IWindowsService
 	) {
 		super(RemoveFromRecentlyOpened.ID, RemoveFromRecentlyOpened.LABEL);
@@ -799,7 +791,7 @@ class RemoveFromRecentlyOpened extends Action implements IPickOpenAction {
 	}
 
 	run(item: IPickOpenItem): TPromise<boolean> {
-		return this.windowsService.removeFromRecentlyOpened([item.getResource().fsPath]).then(() => {
+		return this.windowsService.removeFromRecentlyOpened([this.path]).then(() => {
 			item.remove();
 
 			return true;

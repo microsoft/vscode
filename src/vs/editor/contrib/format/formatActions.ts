@@ -26,6 +26,7 @@ import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { ISingleEditOperation } from 'vs/editor/common/model';
 import { INotificationService } from 'vs/platform/notification/common/notification';
+import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
 
 
 function alertFormattingEdits(edits: ISingleEditOperation[]): void {
@@ -310,7 +311,8 @@ export class FormatDocumentAction extends AbstractFormatAction {
 				kbExpr: EditorContextKeys.editorTextFocus,
 				primary: KeyMod.Shift | KeyMod.Alt | KeyCode.KEY_F,
 				// secondary: [KeyChord(KeyMod.CtrlCmd | KeyCode.KEY_K, KeyMod.CtrlCmd | KeyCode.KEY_D)],
-				linux: { primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KEY_I }
+				linux: { primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KEY_I },
+				weight: KeybindingWeight.EditorContrib
 			},
 			menuOpts: {
 				when: EditorContextKeys.hasDocumentFormattingProvider,
@@ -341,7 +343,8 @@ export class FormatSelectionAction extends AbstractFormatAction {
 			precondition: ContextKeyExpr.and(EditorContextKeys.writable, EditorContextKeys.hasNonEmptySelection),
 			kbOpts: {
 				kbExpr: EditorContextKeys.editorTextFocus,
-				primary: KeyChord(KeyMod.CtrlCmd | KeyCode.KEY_K, KeyMod.CtrlCmd | KeyCode.KEY_F)
+				primary: KeyChord(KeyMod.CtrlCmd | KeyCode.KEY_K, KeyMod.CtrlCmd | KeyCode.KEY_F),
+				weight: KeybindingWeight.EditorContrib
 			},
 			menuOpts: {
 				when: ContextKeyExpr.and(EditorContextKeys.hasDocumentSelectionFormattingProvider, EditorContextKeys.hasNonEmptySelection),

@@ -47,8 +47,7 @@ class ApplyRefactoringCommand implements Command {
 			refactor,
 			action
 		};
-		const response = await this.client.execute('getEditsForRefactor', args);
-		const body = response && response.body;
+		const { body } = await this.client.execute('getEditsForRefactor', args);
 		if (!body || !body.edits.length) {
 			return false;
 		}
@@ -142,11 +141,11 @@ class TypeScriptRefactorProvider implements vscode.CodeActionProvider {
 		const args: Proto.GetApplicableRefactorsRequestArgs = typeConverters.Range.toFileRangeRequestArgs(file, rangeOrSelection);
 		let refactorings: Proto.ApplicableRefactorInfo[];
 		try {
-			const response = await this.client.execute('getApplicableRefactors', args, token);
-			if (!response.body) {
+			const { body } = await this.client.execute('getApplicableRefactors', args, token);
+			if (!body) {
 				return undefined;
 			}
-			refactorings = response.body;
+			refactorings = body;
 		} catch {
 			return undefined;
 		}

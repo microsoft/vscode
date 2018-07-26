@@ -210,6 +210,10 @@ export class EditStack {
 		return null;
 	}
 
+	public canUndo(): boolean {
+		return (this.past.length > 0);
+	}
+
 	public redo(): IUndoRedoResult {
 
 		if (this.future.length > 0) {
@@ -232,5 +236,9 @@ export class EditStack {
 		}
 
 		return null;
+	}
+
+	public canRedo(): boolean {
+		return (this.future.length > 0);
 	}
 }

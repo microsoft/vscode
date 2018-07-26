@@ -71,6 +71,10 @@ export class ExtensionsListView extends ViewletPanel {
 		super({ ...(options as IViewletPanelOptions), ariaHeaderLabel: options.title }, keybindingService, contextMenuService, configurationService);
 	}
 
+	protected renderHeader(container: HTMLElement): void {
+		this.renderHeaderTitle(container);
+	}
+
 	renderHeaderTitle(container: HTMLElement): void {
 		super.renderHeaderTitle(container, this.options.title);
 

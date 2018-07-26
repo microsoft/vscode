@@ -18,6 +18,7 @@ import { InternalEditorOptions, EDITOR_DEFAULTS } from 'vs/editor/common/config/
 import { ITextResourceConfigurationService } from 'vs/editor/common/services/resourceConfiguration';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { INotificationService } from 'vs/platform/notification/common/notification';
+import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
 
 const transientWordWrapState = 'transientWordWrapState';
 const isWordWrapMinifiedKey = 'isWordWrapMinified';
@@ -141,7 +142,8 @@ class ToggleWordWrapAction extends EditorAction {
 			precondition: null,
 			kbOpts: {
 				kbExpr: null,
-				primary: KeyMod.Alt | KeyCode.KEY_Z
+				primary: KeyMod.Alt | KeyCode.KEY_Z,
+				weight: KeybindingWeight.EditorContrib
 			}
 		});
 	}

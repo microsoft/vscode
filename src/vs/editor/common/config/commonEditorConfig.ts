@@ -288,7 +288,7 @@ const editorConfiguration: IConfigurationNode = {
 		'editor.insertSpaces': {
 			'type': 'boolean',
 			'default': EDITOR_MODEL_DEFAULTS.insertSpaces,
-			'description': nls.localize('insertSpaces', "Insert spaces when pressing Tab. This setting is overridden based on the file contents when `#editor.detectIndentation#` is on."),
+			'description': nls.localize('insertSpaces', "Insert spaces when pressing `Tab`. This setting is overridden based on the file contents when `#editor.detectIndentation#` is on."),
 			'errorMessage': nls.localize('insertSpaces.errorMessage', "Expected 'boolean'. Note that the value \"auto\" has been replaced by the `editor.detectIndentation` setting.")
 		},
 		'editor.detectIndentation': {
@@ -314,7 +314,7 @@ const editorConfiguration: IConfigurationNode = {
 		'editor.smoothScrolling': {
 			'type': 'boolean',
 			'default': EDITOR_DEFAULTS.viewInfo.smoothScrolling,
-			'description': nls.localize('smoothScrolling', "Controls if the editor will scroll using an animation")
+			'description': nls.localize('smoothScrolling', "Controls whether the editor will scroll using an animation.")
 		},
 		'editor.minimap.enabled': {
 			'type': 'boolean',
@@ -522,12 +522,17 @@ const editorConfiguration: IConfigurationNode = {
 			'type': 'string',
 			'enum': ['on', 'smart', 'off'],
 			'default': EDITOR_DEFAULTS.contribInfo.acceptSuggestionOnEnter,
-			'description': nls.localize('acceptSuggestionOnEnter', "Controls if suggestions should be accepted on 'Enter' - in addition to 'Tab'. Helps to avoid ambiguity between inserting new lines or accepting suggestions. The value 'smart' means only accept a suggestion with Enter when it makes a textual change.")
+			'enumDescriptions': [
+				'',
+				nls.localize('acceptSuggestionOnEnterSmart', "Only accept a suggestion with `Enter` when it makes a textual change."),
+				''
+			],
+			'description': nls.localize('acceptSuggestionOnEnter', "Controls whether suggestions should be accepted on `Enter`, in addition to `Tab`. Helps to avoid ambiguity between inserting new lines or accepting suggestions.")
 		},
 		'editor.acceptSuggestionOnCommitCharacter': {
 			'type': 'boolean',
 			'default': EDITOR_DEFAULTS.contribInfo.acceptSuggestionOnCommitCharacter,
-			'description': nls.localize('acceptSuggestionOnCommitCharacter', "Controls if suggestions should be accepted on commit characters. For instance in JavaScript the semi-colon (';') can be a commit character that accepts a suggestion and types that character.")
+			'description': nls.localize('acceptSuggestionOnCommitCharacter', "Controls whether suggestions should be accepted on commit characters. For example, in JavaScript, the semi-colon (`;`) can be a commit character that accepts a suggestion and types that character.")
 		},
 		'editor.snippetSuggestions': {
 			'type': 'string',
@@ -717,7 +722,7 @@ const editorConfiguration: IConfigurationNode = {
 		'editor.stablePeek': {
 			'type': 'boolean',
 			'default': false,
-			'description': nls.localize('stablePeek', "Keep peek editors open even when double clicking their content or when hitting Escape.")
+			'description': nls.localize('stablePeek', "Keep peek editors open even when double clicking their content or when hitting `Escape`.")
 		},
 		'editor.dragAndDrop': {
 			'type': 'boolean',
@@ -783,7 +788,7 @@ const editorConfiguration: IConfigurationNode = {
 		'diffEditor.renderSideBySide': {
 			'type': 'boolean',
 			'default': true,
-			'description': nls.localize('sideBySide', "Controls if the diff editor shows the diff side by side or inline")
+			'description': nls.localize('sideBySide', "Controls whether the diff editor shows the diff side by side or inline.")
 		},
 		'diffEditor.ignoreTrimWhitespace': {
 			'type': 'boolean',

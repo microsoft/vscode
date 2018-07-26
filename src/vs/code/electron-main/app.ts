@@ -63,8 +63,6 @@ import { serve as serveDriver } from 'vs/platform/driver/electron-main/driver';
 import { IMenubarService } from 'vs/platform/menubar/common/menubar';
 import { MenubarService } from 'vs/platform/menubar/electron-main/menubarService';
 import { MenubarChannel } from 'vs/platform/menubar/common/menubarIpc';
-// TODO@sbatten: Remove after conversion to new dynamic menubar
-import { CodeMenu } from 'vs/code/electron-main/menus';
 
 export class CodeApplication {
 
@@ -283,7 +281,7 @@ export class CodeApplication {
 		// See: https://github.com/Microsoft/vscode/issues/35361#issuecomment-399794085
 		try {
 			if (platform.isMacintosh && this.configurationService.getValue<boolean>('window.nativeTabs') === true && !systemPreferences.getUserDefault('NSUseImprovedLayoutPass', 'boolean')) {
-				systemPreferences.setUserDefault('NSUseImprovedLayoutPass', 'boolean', true as any);
+				systemPreferences.registerDefaults({ NSUseImprovedLayoutPass: true });
 			}
 		} catch (error) {
 			this.logService.error(error);
@@ -509,14 +507,6 @@ export class CodeApplication {
 					});
 				}
 			}
-		}
-
-		// TODO@sbatten: Remove when menu is converted
-		// Install Menu
-		const instantiationService = accessor.get(IInstantiationService);
-		const configurationService = accessor.get(IConfigurationService);
-		if (platform.isMacintosh || configurationService.getValue<string>('window.titleBarStyle') !== 'custom') {
-			instantiationService.createInstance(CodeMenu);
 		}
 
 		// Jump List

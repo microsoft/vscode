@@ -39,7 +39,7 @@ import { ContextKeyExpr, IContextKey, IContextKeyService } from 'vs/platform/con
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
-import { KeybindingsRegistry } from 'vs/platform/keybinding/common/keybindingsRegistry';
+import { KeybindingsRegistry, KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { WorkbenchTree } from 'vs/platform/list/browser/listService';
 import { IMarkerService, MarkerSeverity } from 'vs/platform/markers/common/markers';
 import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
@@ -721,7 +721,7 @@ async function goUpOrDownToHighligthedElement(accessor: ServicesAccessor, prev: 
 
 KeybindingsRegistry.registerCommandAndKeybindingRule({
 	id: 'outline.focusDownHighlighted',
-	weight: KeybindingsRegistry.WEIGHT.workbenchContrib(),
+	weight: KeybindingWeight.WorkbenchContrib,
 	primary: KeyCode.DownArrow,
 	when: ContextKeyExpr.and(OutlineViewFiltered, OutlineViewFocused),
 	handler: accessor => goUpOrDownToHighligthedElement(accessor, false)
@@ -729,7 +729,7 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 
 KeybindingsRegistry.registerCommandAndKeybindingRule({
 	id: 'outline.focusUpHighlighted',
-	weight: KeybindingsRegistry.WEIGHT.workbenchContrib(),
+	weight: KeybindingWeight.WorkbenchContrib,
 	primary: KeyCode.UpArrow,
 	when: ContextKeyExpr.and(OutlineViewFiltered, OutlineViewFocused),
 	handler: accessor => goUpOrDownToHighligthedElement(accessor, true)

@@ -23,17 +23,18 @@ import { IWorkspaceContextService, IWorkspaceFolder, WorkbenchState } from 'vs/p
 import { Schemas } from 'vs/base/common/network';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { BreadcrumbsConfig } from 'vs/workbench/browser/parts/editor/breadcrumbs';
+import { FileKind } from 'vs/platform/files/common/files';
 
 export class FileElement {
 	constructor(
 		readonly uri: URI,
-		readonly isFile: boolean
+		readonly kind: FileKind
 	) { }
 }
 
 export type BreadcrumbElement = FileElement | OutlineModel | OutlineGroup | OutlineElement;
 
-type FileInfo = { path: FileElement[], folder: IWorkspaceFolder, showFolder: boolean };
+type FileInfo = { path: FileElement[], folder: IWorkspaceFolder };
 
 export class EditorBreadcrumbsModel {
 
@@ -101,14 +102,12 @@ export class EditorBreadcrumbsModel {
 
 		if (uri.scheme === Schemas.untitled) {
 			return {
-				showFolder: false,
 				folder: undefined,
 				path: []
 			};
 		}
 
 		let info: FileInfo = {
-			showFolder: workspaceService.getWorkbenchState() === WorkbenchState.WORKSPACE,
 			folder: workspaceService.getWorkspaceFolder(uri),
 			path: []
 		};
@@ -117,8 +116,12 @@ export class EditorBreadcrumbsModel {
 			if (info.folder && isEqual(info.folder.uri, uri)) {
 				break;
 			}
-			info.path.unshift(new FileElement(uri, info.path.length === 0));
+			info.path.unshift(new FileElement(uri, info.path.length === 0 ? FileKind.FILE : FileKind.FOLDER));
 			uri = uri.with({ path: paths.dirname(uri.path) });
+		}
+
+		if (info.folder && workspaceService.getWorkbenchState() === WorkbenchState.WORKSPACE) {
+			info.path.unshift(new FileElement(info.folder.uri, FileKind.ROOT_FOLDER));
 		}
 		return info;
 	}

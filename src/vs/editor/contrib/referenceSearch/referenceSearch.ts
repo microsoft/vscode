@@ -8,7 +8,7 @@ import * as nls from 'vs/nls';
 import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { IContextKeyService, ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
-import { KeybindingsRegistry } from 'vs/platform/keybinding/common/keybindingsRegistry';
+import { KeybindingsRegistry, KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { Position, IPosition } from 'vs/editor/common/core/position';
 import * as editorCommon from 'vs/editor/common/editorCommon';
 import { registerEditorAction, ServicesAccessor, EditorAction, registerEditorContribution, registerDefaultLanguageCommand } from 'vs/editor/browser/editorExtensions';
@@ -70,7 +70,8 @@ export class ReferenceAction extends EditorAction {
 				EditorContextKeys.isInEmbeddedEditor.toNegated()),
 			kbOpts: {
 				kbExpr: EditorContextKeys.editorTextFocus,
-				primary: KeyMod.Shift | KeyCode.F12
+				primary: KeyMod.Shift | KeyCode.F12,
+				weight: KeybindingWeight.EditorContrib
 			},
 			menuOpts: {
 				group: 'navigation',
@@ -192,7 +193,7 @@ function withController(accessor: ServicesAccessor, fn: (controller: ReferencesC
 
 KeybindingsRegistry.registerCommandAndKeybindingRule({
 	id: 'goToNextReference',
-	weight: KeybindingsRegistry.WEIGHT.workbenchContrib(50),
+	weight: KeybindingWeight.WorkbenchContrib + 50,
 	primary: KeyCode.F4,
 	when: ctxReferenceSearchVisible,
 	handler(accessor) {
@@ -204,7 +205,7 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 
 KeybindingsRegistry.registerCommandAndKeybindingRule({
 	id: 'goToNextReferenceFromEmbeddedEditor',
-	weight: KeybindingsRegistry.WEIGHT.editorContrib(50),
+	weight: KeybindingWeight.EditorContrib + 50,
 	primary: KeyCode.F4,
 	when: PeekContext.inPeekEditor,
 	handler(accessor) {
@@ -216,7 +217,7 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 
 KeybindingsRegistry.registerCommandAndKeybindingRule({
 	id: 'goToPreviousReference',
-	weight: KeybindingsRegistry.WEIGHT.workbenchContrib(50),
+	weight: KeybindingWeight.WorkbenchContrib + 50,
 	primary: KeyMod.Shift | KeyCode.F4,
 	when: ctxReferenceSearchVisible,
 	handler(accessor) {
@@ -228,7 +229,7 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 
 KeybindingsRegistry.registerCommandAndKeybindingRule({
 	id: 'goToPreviousReferenceFromEmbeddedEditor',
-	weight: KeybindingsRegistry.WEIGHT.editorContrib(50),
+	weight: KeybindingWeight.EditorContrib + 50,
 	primary: KeyMod.Shift | KeyCode.F4,
 	when: PeekContext.inPeekEditor,
 	handler(accessor) {
@@ -240,7 +241,7 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 
 KeybindingsRegistry.registerCommandAndKeybindingRule({
 	id: 'closeReferenceSearch',
-	weight: KeybindingsRegistry.WEIGHT.workbenchContrib(50),
+	weight: KeybindingWeight.WorkbenchContrib + 50,
 	primary: KeyCode.Escape,
 	secondary: [KeyMod.Shift | KeyCode.Escape],
 	when: ContextKeyExpr.and(ctxReferenceSearchVisible, ContextKeyExpr.not('config.editor.stablePeek')),
@@ -249,7 +250,7 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 
 KeybindingsRegistry.registerCommandAndKeybindingRule({
 	id: 'closeReferenceSearchEditor',
-	weight: KeybindingsRegistry.WEIGHT.editorContrib(-101),
+	weight: KeybindingWeight.EditorContrib - 101,
 	primary: KeyCode.Escape,
 	secondary: [KeyMod.Shift | KeyCode.Escape],
 	when: ContextKeyExpr.and(PeekContext.inPeekEditor, ContextKeyExpr.not('config.editor.stablePeek')),
@@ -258,7 +259,7 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 
 KeybindingsRegistry.registerCommandAndKeybindingRule({
 	id: 'openReferenceToSide',
-	weight: KeybindingsRegistry.WEIGHT.editorContrib(),
+	weight: KeybindingWeight.EditorContrib,
 	primary: KeyMod.CtrlCmd | KeyCode.Enter,
 	mac: {
 		primary: KeyMod.WinCtrl | KeyCode.Enter

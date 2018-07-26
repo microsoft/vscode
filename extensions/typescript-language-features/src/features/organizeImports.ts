@@ -45,12 +45,8 @@ class OrganizeImportsCommand implements Command {
 				}
 			}
 		};
-		const response = await this.client.execute('organizeImports', args);
-		if (!response || !response.success) {
-			return false;
-		}
-
-		const edits = typeconverts.WorkspaceEdit.fromFileCodeEdits(this.client, response.body);
+		const { body } = await this.client.execute('organizeImports', args);
+		const edits = typeconverts.WorkspaceEdit.fromFileCodeEdits(this.client, body);
 		return vscode.workspace.applyEdit(edits);
 	}
 }

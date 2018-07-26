@@ -741,6 +741,9 @@ export class DefaultSettingsEditorModel extends AbstractSettingsModel implements
 	private copySetting(setting: ISetting): ISetting {
 		return <ISetting>{
 			description: setting.description,
+			type: setting.type,
+			enum: setting.enum,
+			enumDescriptions: setting.enumDescriptions,
 			key: setting.key,
 			value: setting.value,
 			range: setting.range,

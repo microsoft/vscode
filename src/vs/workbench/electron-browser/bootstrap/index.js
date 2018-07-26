@@ -82,7 +82,7 @@ function readFile(file) {
 }
 
 function showPartsSplash(configuration) {
-
+	perf.mark('willShowPartsSplash');
 	let key;
 	let keep = false;
 	// this is the logic of StorageService#getWorkspaceKey and StorageService#toStorageKey
@@ -110,6 +110,7 @@ function showPartsSplash(configuration) {
 	if (!keep) {
 		storage.removeItem(key);
 	}
+	perf.mark('didShowPartsSplash');
 }
 
 const writeFile = (file, content) => new Promise((c, e) => fs.writeFile(file, content, 'utf8', err => err ? e(err) : c()));

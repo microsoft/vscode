@@ -8,13 +8,11 @@ import * as path from 'path';
 import * as nls from 'vscode-nls';
 const localize = nls.loadMessageBundle();
 
-import { languages, ExtensionContext, IndentAction, Position, TextDocument, Range, CompletionItem, CompletionItemKind, SnippetString, FoldingRangeKind, FoldingRange, FoldingContext } from 'vscode';
-import { LanguageClient, LanguageClientOptions, ServerOptions, TransportKind, RequestType, TextDocumentPositionParams, Disposable, CancellationToken } from 'vscode-languageclient';
+import { languages, ExtensionContext, IndentAction, Position, TextDocument, Range, CompletionItem, CompletionItemKind, SnippetString } from 'vscode';
+import { LanguageClient, LanguageClientOptions, ServerOptions, TransportKind, RequestType, TextDocumentPositionParams } from 'vscode-languageclient';
 import { EMPTY_ELEMENTS } from './htmlEmptyTagsShared';
 import { activateTagClosing } from './tagClosing';
 import TelemetryReporter from 'vscode-extension-telemetry';
-
-import { FoldingRangeRequest, FoldingRangeRequestParam, FoldingRangeClientCapabilities, FoldingRangeKind as LSFoldingRangeKind } from 'vscode-languageserver-protocol-foldingprovider';
 
 namespace TagCloseRequest {
 	export const type: RequestType<TextDocumentPositionParams, string, any, any> = new RequestType('html/tag');
@@ -64,21 +62,6 @@ export function activate(context: ExtensionContext) {
 	// Create the language client and start the client.
 	let client = new LanguageClient('html', localize('htmlserver.name', 'HTML Language Server'), serverOptions, clientOptions);
 	client.registerProposedFeatures();
-	client.registerFeature({
-		fillClientCapabilities(capabilities: FoldingRangeClientCapabilities): void {
-			let textDocumentCap = capabilities.textDocument;
-			if (!textDocumentCap) {
-				textDocumentCap = capabilities.textDocument = {};
-			}
-			textDocumentCap.foldingRange = {
-				dynamicRegistration: false,
-				rangeLimit: 5000,
-				lineFoldingOnly: true
-			};
-		},
-		initialize(capabilities, documentSelector): void {
-		}
-	});
 
 	let disposable = client.start();
 	toDispose.push(disposable);
@@ -96,7 +79,6 @@ export function activate(context: ExtensionContext) {
 			}
 		});
 		toDispose.push(disposable);
-		toDispose.push(initFoldingProvider());
 	});
 
 	languages.setLanguageConfiguration('html', {
@@ -172,38 +154,6 @@ export function activate(context: ExtensionContext) {
 			return null;
 		}
 	});
-
-	function initFoldingProvider(): Disposable {
-		function getKind(kind: string | undefined): FoldingRangeKind | undefined {
-			if (kind) {
-				switch (kind) {
-					case LSFoldingRangeKind.Comment:
-						return FoldingRangeKind.Comment;
-					case LSFoldingRangeKind.Imports:
-						return FoldingRangeKind.Imports;
-					case LSFoldingRangeKind.Region:
-						return FoldingRangeKind.Region;
-				}
-			}
-			return void 0;
-		}
-		return languages.registerFoldingRangeProvider('html', {
-			provideFoldingRanges(document: TextDocument, context: FoldingContext, token: CancellationToken) {
-				const param: FoldingRangeRequestParam = {
-					textDocument: client.code2ProtocolConverter.asTextDocumentIdentifier(document)
-				};
-				return client.sendRequest(FoldingRangeRequest.type, param, token).then(ranges => {
-					if (Array.isArray(ranges)) {
-						return ranges.map(r => new FoldingRange(r.startLine, r.endLine, getKind(r.kind)));
-					}
-					return null;
-				}, error => {
-					client.logFailedRequest(FoldingRangeRequest.type, error);
-					return null;
-				});
-			}
-		});
-	}
 }
 
 function getPackageInfo(context: ExtensionContext): IPackageInfo | null {

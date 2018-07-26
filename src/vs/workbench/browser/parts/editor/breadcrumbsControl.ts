@@ -23,7 +23,7 @@ import { ContextKeyExpr, IContextKey, IContextKeyService, RawContextKey } from '
 import { IContextViewService } from 'vs/platform/contextview/browser/contextView';
 import { FileKind, IFileService } from 'vs/platform/files/common/files';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { KeybindingsRegistry } from 'vs/platform/keybinding/common/keybindingsRegistry';
+import { KeybindingsRegistry, KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { IQuickOpenService } from 'vs/platform/quickOpen/common/quickOpen';
 import { attachBreadcrumbsStyler } from 'vs/platform/theme/common/styler';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
@@ -37,9 +37,8 @@ import { IEditorService } from 'vs/workbench/services/editor/common/editorServic
 import { IEditorGroupsService } from 'vs/workbench/services/group/common/editorGroupsService';
 import { MenuRegistry, MenuId } from 'vs/platform/actions/common/actions';
 import { localize } from 'vs/nls';
-import { WorkbenchListFocusContextKey, IListService } from 'vs/platform/list/browser/listService';
-import { Tree } from 'vs/base/parts/tree/browser/treeImpl';
 import { CommandsRegistry } from 'vs/platform/commands/common/commands';
+import { tail } from 'vs/base/common/arrays';
 
 class Item extends BreadcrumbsItem {
 
@@ -76,17 +75,18 @@ class Item extends BreadcrumbsItem {
 			let label = this._instantiationService.createInstance(FileLabel, container, {});
 			label.setFile(this.element.uri, {
 				hidePath: true,
-				hideIcon: !this.element.isFile || !this.options.showFileIcons,
-				fileKind: this.element.isFile ? FileKind.FILE : FileKind.FOLDER,
+				hideIcon: this.element.kind === FileKind.FOLDER || !this.options.showFileIcons,
+				fileKind: this.element.kind,
 				fileDecorations: { colors: this.options.showDecorationColors, badges: false },
 			});
+			dom.addClass(container, FileKind[this.element.kind].toLowerCase());
 			this._disposables.push(label);
-			dom.toggleClass(container, 'file', this.element.isFile);
 
 		} else if (this.element instanceof OutlineModel) {
 			// has outline element but not in one
 			let label = document.createElement('div');
 			label.innerHTML = '&hellip;';
+			label.className = 'hint-more';
 			container.appendChild(label);
 
 		} else if (this.element instanceof OutlineGroup) {
@@ -323,7 +323,7 @@ export class BreadcrumbsControl {
 
 	private _revealInEditor(event: IBreadcrumbsItemEvent, data: any): void {
 		if (data instanceof FileElement) {
-			if (data.isFile) {
+			if (data.kind === FileKind.FILE) {
 				// open file in editor
 				this._editorService.openEditor({ resource: data.uri });
 			} else {
@@ -357,6 +357,12 @@ MenuRegistry.appendMenuItem(MenuId.CommandPalette, {
 		title: localize('cmd.focus', "Focus Breadcrumbs")
 	}
 });
+MenuRegistry.appendMenuItem(MenuId.CommandPalette, {
+	command: {
+		id: 'breadcrumbs.toggle',
+		title: localize('cmd.toggle', "Toggle Breadcrumbs")
+	}
+});
 MenuRegistry.appendMenuItem(MenuId.MenubarViewMenu, {
 	group: '5_editor',
 	order: 99,
@@ -373,21 +379,40 @@ CommandsRegistry.registerCommand('breadcrumbs.toggle', accessor => {
 
 KeybindingsRegistry.registerCommandAndKeybindingRule({
 	id: 'breadcrumbs.focus',
-	weight: KeybindingsRegistry.WEIGHT.workbenchContrib(),
+	weight: KeybindingWeight.WorkbenchContrib,
+	primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.US_SEMICOLON,
+	when: BreadcrumbsControl.CK_BreadcrumbsVisible,
+	handler(accessor) {
+		const groups = accessor.get(IEditorGroupsService);
+		const breadcrumbs = accessor.get(IBreadcrumbsService);
+		const widget = breadcrumbs.getWidget(groups.activeGroup.id);
+		const item = tail(widget.getItems());
+		widget.setFocused(item);
+	}
+});
+KeybindingsRegistry.registerCommandAndKeybindingRule({
+	id: 'breadcrumbs.focusAndSelect',
+	weight: KeybindingWeight.WorkbenchContrib,
 	primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.US_DOT,
 	when: BreadcrumbsControl.CK_BreadcrumbsVisible,
 	handler(accessor) {
 		const groups = accessor.get(IEditorGroupsService);
 		const breadcrumbs = accessor.get(IBreadcrumbsService);
-		//todo@joh focus last?
-		breadcrumbs.getWidget(groups.activeGroup.id).domFocus();
+		const widget = breadcrumbs.getWidget(groups.activeGroup.id);
+		const item = tail(widget.getItems());
+		widget.setFocused(item);
+		widget.setSelection(item, BreadcrumbsControl.Payload_Pick);
 	}
 });
 KeybindingsRegistry.registerCommandAndKeybindingRule({
 	id: 'breadcrumbs.focusNext',
-	weight: KeybindingsRegistry.WEIGHT.workbenchContrib(),
+	weight: KeybindingWeight.WorkbenchContrib,
 	primary: KeyCode.RightArrow,
-	secondary: [KeyMod.Shift | KeyCode.RightArrow],
+	secondary: [KeyMod.CtrlCmd | KeyCode.RightArrow],
+	mac: {
+		primary: KeyCode.RightArrow,
+		secondary: [KeyMod.Alt | KeyCode.RightArrow],
+	},
 	when: ContextKeyExpr.and(BreadcrumbsControl.CK_BreadcrumbsVisible, BreadcrumbsControl.CK_BreadcrumbsActive),
 	handler(accessor) {
 		const groups = accessor.get(IEditorGroupsService);
@@ -397,9 +422,13 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 });
 KeybindingsRegistry.registerCommandAndKeybindingRule({
 	id: 'breadcrumbs.focusPrevious',
-	weight: KeybindingsRegistry.WEIGHT.workbenchContrib(),
+	weight: KeybindingWeight.WorkbenchContrib,
 	primary: KeyCode.LeftArrow,
-	secondary: [KeyMod.Shift | KeyCode.LeftArrow],
+	secondary: [KeyMod.CtrlCmd | KeyCode.LeftArrow],
+	mac: {
+		primary: KeyCode.LeftArrow,
+		secondary: [KeyMod.Alt | KeyCode.LeftArrow],
+	},
 	when: ContextKeyExpr.and(BreadcrumbsControl.CK_BreadcrumbsVisible, BreadcrumbsControl.CK_BreadcrumbsActive),
 	handler(accessor) {
 		const groups = accessor.get(IEditorGroupsService);
@@ -409,7 +438,7 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 });
 KeybindingsRegistry.registerCommandAndKeybindingRule({
 	id: 'breadcrumbs.selectFocused',
-	weight: KeybindingsRegistry.WEIGHT.workbenchContrib(),
+	weight: KeybindingWeight.WorkbenchContrib,
 	primary: KeyCode.Enter,
 	secondary: [KeyCode.DownArrow],
 	when: ContextKeyExpr.and(BreadcrumbsControl.CK_BreadcrumbsVisible, BreadcrumbsControl.CK_BreadcrumbsActive),
@@ -422,9 +451,13 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 });
 KeybindingsRegistry.registerCommandAndKeybindingRule({
 	id: 'breadcrumbs.revealFocused',
-	weight: KeybindingsRegistry.WEIGHT.workbenchContrib(),
-	primary: KeyMod.Shift | KeyCode.Enter,
-	secondary: [KeyCode.Space],
+	weight: KeybindingWeight.WorkbenchContrib,
+	primary: KeyCode.Space,
+	secondary: [KeyMod.CtrlCmd | KeyCode.Enter],
+	mac: {
+		primary: KeyCode.Space,
+		secondary: [KeyMod.Alt | KeyCode.Enter],
+	},
 	when: ContextKeyExpr.and(BreadcrumbsControl.CK_BreadcrumbsVisible, BreadcrumbsControl.CK_BreadcrumbsActive),
 	handler(accessor) {
 		const groups = accessor.get(IEditorGroupsService);
@@ -435,9 +468,8 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 });
 KeybindingsRegistry.registerCommandAndKeybindingRule({
 	id: 'breadcrumbs.selectEditor',
-	weight: KeybindingsRegistry.WEIGHT.workbenchContrib(),
+	weight: KeybindingWeight.WorkbenchContrib + 1,
 	primary: KeyCode.Escape,
-	secondary: [KeyMod.Shift | KeyCode.Escape],
 	when: ContextKeyExpr.and(BreadcrumbsControl.CK_BreadcrumbsVisible, BreadcrumbsControl.CK_BreadcrumbsActive),
 	handler(accessor) {
 		const groups = accessor.get(IEditorGroupsService);
@@ -445,18 +477,6 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 		breadcrumbs.getWidget(groups.activeGroup.id).setFocused(undefined);
 		breadcrumbs.getWidget(groups.activeGroup.id).setSelection(undefined);
 		groups.activeGroup.activeControl.focus();
-	}
-});
-KeybindingsRegistry.registerCommandAndKeybindingRule({
-	id: 'breadcrumbs.pickFromTree',
-	weight: KeybindingsRegistry.WEIGHT.workbenchContrib(),
-	primary: KeyCode.Tab,
-	when: ContextKeyExpr.and(BreadcrumbsControl.CK_BreadcrumbsVisible, BreadcrumbsControl.CK_BreadcrumbsActive, WorkbenchListFocusContextKey),
-	handler(accessor) {
-		const list = accessor.get(IListService).lastFocusedList;
-		if (list instanceof Tree) {
-			list.setSelection([list.getFocus()]);
-		}
 	}
 });
 //#endregion

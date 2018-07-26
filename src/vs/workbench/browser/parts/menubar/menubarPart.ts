@@ -10,7 +10,7 @@ import 'vs/css!./media/menubarpart';
 import * as nls from 'vs/nls';
 import * as browser from 'vs/base/browser/browser';
 import { Part } from 'vs/workbench/browser/part';
-import { IMenubarService, IMenubarMenu, IMenubarMenuItemAction, IMenubarData } from 'vs/platform/menubar/common/menubar';
+import { IMenubarService, IMenubarMenu, IMenubarMenuItemAction, IMenubarData, IMenubarMenuItemSubmenu, IMenubarKeybinding } from 'vs/platform/menubar/common/menubar';
 import { IMenuService, MenuId, IMenu, SubmenuItemAction } from 'vs/platform/actions/common/actions';
 import { IThemeService, registerThemingParticipant, ITheme, ICssStyleCollector } from 'vs/platform/theme/common/themeService';
 import { IWindowService, MenuBarVisibility, IWindowsService } from 'vs/platform/windows/common/windows';
@@ -145,6 +145,7 @@ export class MenubarPart extends Part {
 		};
 
 		if (isMacintosh) {
+			this.topLevelMenus['Preferences'] = this._register(this.menuService.createMenu(MenuId.MenubarPreferencesMenu, this.contextKeyService));
 			this.topLevelMenus['Window'] = this._register(this.menuService.createMenu(MenuId.MenubarWindowMenu, this.contextKeyService));
 		}
 
@@ -180,10 +181,6 @@ export class MenubarPart extends Part {
 		}
 
 		return enableMenuBarMnemonics;
-	}
-
-	private get currentMultiCursorSetting(): string {
-		return this.configurationService.getValue<string>('editor.multiCursorModifier');
 	}
 
 	private get currentAutoSaveSetting(): string {
@@ -301,7 +298,7 @@ export class MenubarPart extends Part {
 				}
 
 				if (this.focusedMenu) {
-					this.showCustomMenu(this.focusedMenu.index);
+					this.showCustomMenu(this.focusedMenu.index, !!this._modifierKeyStatus && this._modifierKeyStatus.altKey);
 				}
 				break;
 		}
@@ -430,21 +427,15 @@ export class MenubarPart extends Part {
 		if (!isMacintosh && this.currentTitlebarStyleSetting === 'custom') {
 			this.setupCustomMenubar();
 		} else {
-			this.setupNativeMenubar();
+			// Send menus to main process to be rendered by Electron
+			this.menubarService.updateMenubar(this.windowService.getCurrentWindowId(), this.getMenubarMenus());
+
 		}
 	}
 
 	private setupMenubar(): void {
 		this.menuUpdater.schedule();
 	}
-
-	private setupNativeMenubar(): void {
-		// TODO@sbatten: Remove once native menubar is ready
-		if (isMacintosh && isWindows) {
-			this.menubarService.updateMenubar(this.windowService.getCurrentWindowId(), this.getMenubarMenus());
-		}
-	}
-
 
 	private clearMnemonic(topLevelElement: HTMLElement): void {
 		topLevelElement.accessKey = null;
@@ -468,16 +459,6 @@ export class MenubarPart extends Part {
 	private calculateActionLabel(action: IAction | IMenubarMenuItemAction): string {
 		let label = action.label;
 		switch (action.id) {
-			case 'workbench.action.toggleMultiCursorModifier':
-				if (this.currentMultiCursorSetting === 'ctrlCmd') {
-					label = nls.localize('miMultiCursorAlt', "Switch to Alt+Click for Multi-Cursor");
-				} else {
-					label = isMacintosh
-						? nls.localize('miMultiCursorCmd', "Switch to Cmd+Click for Multi-Cursor")
-						: nls.localize('miMultiCursorCtrl', "Switch to Ctrl+Click for Multi-Cursor");
-				}
-				break;
-
 			case 'workbench.action.toggleSidebarPosition':
 				if (this.currentSidebarPosition !== 'right') {
 					label = nls.localize({ key: 'miMoveSidebarRight', comment: ['&& denotes a mnemonic'] }, "&&Move Side Bar Right");
@@ -683,7 +664,7 @@ export class MenubarPart extends Part {
 							this.setUnfocusedState();
 						} else {
 							this.cleanupCustomMenu();
-							this.showCustomMenu(menuIndex);
+							this.showCustomMenu(menuIndex, !!this._modifierKeyStatus && this._modifierKeyStatus.altKey);
 						}
 					} else {
 						this.focusedMenu = { index: menuIndex };
@@ -698,7 +679,7 @@ export class MenubarPart extends Part {
 					if (this.isOpen && !this.isCurrentMenu(menuIndex)) {
 						this.customMenus[menuIndex].buttonElement.domFocus();
 						this.cleanupCustomMenu();
-						this.showCustomMenu(menuIndex);
+						this.showCustomMenu(menuIndex, false);
 					} else if (this.isFocused && !this.isOpen) {
 						this.focusedMenu = { index: menuIndex };
 						this.customMenus[menuIndex].buttonElement.domFocus();
@@ -800,37 +781,76 @@ export class MenubarPart extends Part {
 		}
 	}
 
+	private getMenubarKeybinding(id: string): IMenubarKeybinding {
+		const binding = this.keybindingService.lookupKeybinding(id);
+		if (!binding) {
+			return null;
+		}
+
+		// first try to resolve a native accelerator
+		const electronAccelerator = binding.getElectronAccelerator();
+		if (electronAccelerator) {
+			return { id, label: electronAccelerator, isNative: true };
+		}
+
+		// we need this fallback to support keybindings that cannot show in electron menus (e.g. chords)
+		const acceleratorLabel = binding.getLabel();
+		if (acceleratorLabel) {
+			return { id, label: acceleratorLabel, isNative: false };
+		}
+
+		return null;
+	}
+
+	private populateMenuItems(menu: IMenu, menuToPopulate: IMenubarMenu) {
+		let groups = menu.getActions();
+		for (let group of groups) {
+			const [, actions] = group;
+
+			actions.forEach(menuItem => {
+
+				if (menuItem instanceof SubmenuItemAction) {
+					const submenu = { items: [] };
+					this.populateMenuItems(this.menuService.createMenu(menuItem.item.submenu, this.contextKeyService), submenu);
+
+					let menubarSubmenuItem: IMenubarMenuItemSubmenu = {
+						id: menuItem.id,
+						label: menuItem.label,
+						submenu: submenu
+					};
+
+					menuToPopulate.items.push(menubarSubmenuItem);
+				} else {
+					let menubarMenuItem: IMenubarMenuItemAction = {
+						id: menuItem.id,
+						label: menuItem.label,
+						checked: menuItem.checked,
+						enabled: menuItem.enabled,
+						keybinding: this.getMenubarKeybinding(menuItem.id)
+					};
+
+					this.setCheckedStatus(menubarMenuItem);
+					menubarMenuItem.label = this.calculateActionLabel(menubarMenuItem);
+
+					menuToPopulate.items.push(menubarMenuItem);
+				}
+			});
+
+			menuToPopulate.items.push({ id: 'vscode.menubar.separator' });
+		}
+
+		if (menuToPopulate.items.length > 0) {
+			menuToPopulate.items.pop();
+		}
+	}
+
 	private getMenubarMenus(): IMenubarData {
 		let ret: IMenubarData = {};
 
 		for (let topLevelMenuName of Object.keys(this.topLevelMenus)) {
 			const menu = this.topLevelMenus[topLevelMenuName];
 			let menubarMenu: IMenubarMenu = { items: [] };
-			let groups = menu.getActions();
-			for (let group of groups) {
-				const [, actions] = group;
-
-				actions.forEach(menuItemAction => {
-					let menubarMenuItem: IMenubarMenuItemAction = {
-						id: menuItemAction.id,
-						label: menuItemAction.label,
-						checked: menuItemAction.checked,
-						enabled: menuItemAction.enabled
-					};
-
-					this.setCheckedStatus(menubarMenuItem);
-					menubarMenuItem.label = this.calculateActionLabel(menubarMenuItem);
-
-					menubarMenu.items.push(menubarMenuItem);
-				});
-
-				menubarMenu.items.push({ id: 'vscode.menubar.separator' });
-			}
-
-			if (menubarMenu.items.length > 0) {
-				menubarMenu.items.pop();
-			}
-
+			this.populateMenuItems(menu, menubarMenu);
 			ret[topLevelMenuName] = menubarMenu;
 		}
 
@@ -861,14 +881,12 @@ export class MenubarPart extends Part {
 		}
 	}
 
-	private showCustomMenu(menuIndex: number): void {
+	private showCustomMenu(menuIndex: number, selectFirst = true): void {
 		const customMenu = this.customMenus[menuIndex];
 
 		let menuHolder = $(customMenu.buttonElement).div({ class: 'menubar-menu-items-holder' });
 
 		$(menuHolder.getHTMLElement().parentElement).addClass('open');
-
-		menuHolder.addClass('menubar-menu-items-holder-open context-view');
 		menuHolder.style({
 			'zoom': `${1 / browser.getZoomFactor()}`,
 			'top': `${this.container.getClientArea().height * browser.getZoomFactor()}px`
@@ -893,7 +911,7 @@ export class MenubarPart extends Part {
 			}, 100);
 		}));
 
-		menuWidget.focus();
+		menuWidget.focus(selectFirst);
 
 		this.focusedMenu = {
 			index: menuIndex,
@@ -1165,6 +1183,9 @@ class ModifierKeyEmitter extends Emitter<IModifierKeyStatus> {
 			if (this._keyStatus.lastKeyReleased) {
 				this.fire(this._keyStatus);
 			}
+		}));
+		this._subscriptions.push(domEvent(document.body, 'mousedown')(e => {
+			this._keyStatus.lastKeyPressed = undefined;
 		}));
 
 		this._subscriptions.push(domEvent(window, 'blur')(e => {

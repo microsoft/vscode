@@ -36,6 +36,7 @@ export interface IWebviewEditorService {
 	reviveWebview(
 		viewType: string,
 		title: string,
+		iconPath: { light: URI, dark: URI } | undefined,
 		state: any,
 		options: WebviewInputOptions,
 		extensionLocation: URI
@@ -126,6 +127,7 @@ export class WebviewEditorService implements IWebviewEditorService {
 	reviveWebview(
 		viewType: string,
 		title: string,
+		iconPath: { light: URI, dark: URI } | undefined,
 		state: any,
 		options: WebviewInputOptions,
 		extensionLocation: URI
@@ -148,7 +150,7 @@ export class WebviewEditorService implements IWebviewEditorService {
 				});
 			}
 		});
-
+		webviewInput.iconPath = iconPath;
 		return webviewInput;
 	}
 
