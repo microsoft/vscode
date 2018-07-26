@@ -12,7 +12,7 @@ import { IActionRunner, IAction, Action } from 'vs/base/common/actions';
 import { ActionBar, IActionItemProvider, ActionsOrientation, Separator, ActionItem, IActionItemOptions, BaseActionItem } from 'vs/base/browser/ui/actionbar/actionbar';
 import { ResolvedKeybinding, KeyCode } from 'vs/base/common/keyCodes';
 import { Event } from 'vs/base/common/event';
-import { addClass, EventType, EventHelper, EventLike, removeTabIndexAndUpdateFocus } from 'vs/base/browser/dom';
+import { addClass, EventType, EventHelper, EventLike, removeTabIndexAndUpdateFocus, isAncestor } from 'vs/base/browser/dom';
 import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { $, Builder } from 'vs/base/browser/builder';
 import { RunOnceScheduler } from 'vs/base/common/async';
@@ -241,8 +241,6 @@ class MenuActionItem extends BaseActionItem {
 class SubmenuActionItem extends MenuActionItem {
 	private mysubmenu: Menu;
 	private submenuContainer: Builder;
-	private mouseOver: boolean;
-	private showScheduler: RunOnceScheduler;
 	private hideScheduler: RunOnceScheduler;
 
 	constructor(
@@ -253,16 +251,9 @@ class SubmenuActionItem extends MenuActionItem {
 	) {
 		super(action, action, { label: true, isMenu: true });
 
-		this.showScheduler = new RunOnceScheduler(() => {
-			if (this.mouseOver) {
-				this.cleanupExistingSubmenu(false);
-				this.createSubmenu(false);
-			}
-		}, 250);
-
 		this.hideScheduler = new RunOnceScheduler(() => {
-			if (!this.mouseOver && this.parentData.submenu === this.mysubmenu) {
-				this.parentData.parent.focus();
+			if ((!isAncestor(document.activeElement, this.builder.getHTMLElement()) && this.parentData.submenu === this.mysubmenu)) {
+				this.parentData.parent.focus(false);
 				this.cleanupExistingSubmenu(true);
 			}
 		}, 750);
@@ -292,17 +283,14 @@ class SubmenuActionItem extends MenuActionItem {
 		});
 
 		$(this.builder).on(EventType.MOUSE_OVER, (e) => {
-			if (!this.mouseOver) {
-				this.mouseOver = true;
-
-				this.showScheduler.schedule();
-			}
+			this.cleanupExistingSubmenu(false);
+			this.createSubmenu(false);
 		});
 
-		$(this.builder).on(EventType.MOUSE_LEAVE, (e) => {
-			this.mouseOver = false;
-
-			this.hideScheduler.schedule();
+		$(this.builder).on(EventType.FOCUS_OUT, (e) => {
+			if (!isAncestor(document.activeElement, this.builder.getHTMLElement())) {
+				this.hideScheduler.schedule();
+			}
 		});
 	}
 
@@ -368,7 +356,6 @@ class SubmenuActionItem extends MenuActionItem {
 		super.dispose();
 
 		this.hideScheduler.dispose();
-		this.showScheduler.dispose();
 
 		if (this.mysubmenu) {
 			this.mysubmenu.dispose();
