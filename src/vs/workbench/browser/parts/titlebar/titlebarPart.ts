@@ -264,16 +264,6 @@ export class TitlebarPart extends Part implements ITitleService {
 		// Draggable region that we can manipulate for #52522
 		this.dragRegion = $(this.titleContainer).div({ class: 'titlebar-drag-region' });
 
-		// Create the menubar part which is responsible for populating both the custom and native menubars
-		this.menubarPart = this.instantiationService.createInstance(MenubarPart, 'workbench.parts.menubar');
-		this.menubar = $(this.titleContainer).div({
-			'class': ['part', 'menubar'],
-			id: 'workbench.parts.menubar',
-			role: 'menubar'
-		});
-
-		this.menubarPart.create(this.menubar.getHTMLElement());
-
 		// App Icon (Windows/Linux)
 		if (!isMacintosh) {
 			this.appIcon = $(this.titleContainer).div({ class: 'window-appicon' });
@@ -285,10 +275,21 @@ export class TitlebarPart extends Part implements ITitleService {
 					this.windowService.closeWindow().then(null, errors.onUnexpectedError);
 				});
 			}
-
-			this._register(this.menubarPart.onVisibilityChange(e => this.onMenubarVisibilityChanged(e)));
 		}
 
+		// Menubar: the menubar part which is responsible for populating both the custom and native menubars
+		this.menubarPart = this.instantiationService.createInstance(MenubarPart, 'workbench.parts.menubar');
+		this.menubar = $(this.titleContainer).div({
+			'class': ['part', 'menubar'],
+			id: 'workbench.parts.menubar',
+			role: 'menubar'
+		});
+
+		this.menubarPart.create(this.menubar.getHTMLElement());
+
+		if (!isMacintosh) {
+			this._register(this.menubarPart.onVisibilityChange(e => this.onMenubarVisibilityChanged(e)));
+		}
 
 		// Title
 		this.title = $(this.titleContainer).div({ class: 'window-title' });

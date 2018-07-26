@@ -20,7 +20,7 @@ import { Builder, $ } from 'vs/base/browser/builder';
 import { Separator } from 'vs/base/browser/ui/actionbar/actionbar';
 import { EventType, Dimension } from 'vs/base/browser/dom';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
-import { isWindows, isMacintosh } from 'vs/base/common/platform';
+import { isMacintosh } from 'vs/base/common/platform';
 import { Menu, IMenuOptions, SubmenuAction } from 'vs/base/browser/ui/menu/menu';
 import { KeyCode } from 'vs/base/common/keyCodes';
 import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
@@ -946,10 +946,6 @@ export class MenubarPart extends Part {
 
 	public createContentArea(parent: HTMLElement): HTMLElement {
 		this.container = $(parent);
-
-		if (!isWindows) {
-			return this.container.getHTMLElement();
-		}
 
 		// Build the menubar
 		if (this.container) {
