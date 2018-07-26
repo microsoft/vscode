@@ -62,7 +62,7 @@
 }
 
 .settings-editor > .settings-header > .settings-header-controls .settings-tabs-widget .action-label {
-	opacity: 0.7;
+	opacity: 0.9;
 }
 
 .settings-editor > .settings-header > .settings-header-controls .settings-tabs-widget .action-label:hover {
@@ -198,11 +198,11 @@
 	overflow: hidden;
 	text-overflow: ellipsis;
 	line-height: 22px;
-	opacity: 0.7;
+	opacity: 0.9;
 }
 
 .settings-editor > .settings-body .settings-toc-container .monaco-tree-row.has-children > .content:before {
-	opacity: 0.7;
+	opacity: 0.9;
 }
 
 .settings-editor > .settings-body .settings-toc-container .monaco-tree-row.has-children.selected > .content:before {
@@ -269,7 +269,6 @@
 }
 
 .settings-editor > .settings-body > .settings-tree-container .setting-item .setting-item-description {
-	opacity: 0.9;
 	margin-top: 3px;
 	overflow: hidden;
 	text-overflow: ellipsis;
