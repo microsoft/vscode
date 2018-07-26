@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { CancellationToken, Location, Position, TextDocument } from 'vscode';
+import * as vscode from 'vscode';
 import * as Proto from '../protocol';
 import { ITypeScriptServiceClient } from '../typescriptService';
 import * as typeConverters from '../utils/typeConverters';
@@ -16,10 +16,10 @@ export default class TypeScriptDefinitionProviderBase {
 
 	protected async getSymbolLocations(
 		definitionType: 'definition' | 'implementation' | 'typeDefinition',
-		document: TextDocument,
-		position: Position,
-		token: CancellationToken | boolean
-	): Promise<Location[] | undefined> {
+		document: vscode.TextDocument,
+		position: vscode.Position,
+		token: vscode.CancellationToken | boolean
+	): Promise<vscode.Location[] | undefined> {
 		const filepath = this.client.toPath(document.uri);
 		if (!filepath) {
 			return undefined;

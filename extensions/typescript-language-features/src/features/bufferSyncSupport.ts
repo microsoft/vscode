@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as fs from 'fs';
-import { CancellationTokenSource, EventEmitter, TextDocument, TextDocumentChangeEvent, TextDocumentContentChangeEvent, Uri, workspace } from 'vscode';
+import * as vscode from 'vscode';
 import * as Proto from '../protocol';
 import { ITypeScriptServiceClient } from '../typescriptService';
 import API from '../utils/api';
@@ -32,7 +32,7 @@ function mode2ScriptKind(mode: string): 'TS' | 'TSX' | 'JS' | 'JSX' | undefined 
 class SyncedBuffer {
 
 	constructor(
-		private readonly document: TextDocument,
+		private readonly document: vscode.TextDocument,
 		public readonly filepath: string,
 		private readonly client: ITypeScriptServiceClient
 	) { }
@@ -66,7 +66,7 @@ class SyncedBuffer {
 		this.client.execute('open', args, false);
 	}
 
-	public get resource(): Uri {
+	public get resource(): vscode.Uri {
 		return this.document.uri;
 	}
 
@@ -94,7 +94,7 @@ class SyncedBuffer {
 		this.client.execute('close', args, false);
 	}
 
-	public onContentChanged(events: TextDocumentContentChangeEvent[]): void {
+	public onContentChanged(events: vscode.TextDocumentContentChangeEvent[]): void {
 		for (const { range, text } of events) {
 			const args: Proto.ChangeRequestArgs = {
 				insertString: text,
@@ -108,7 +108,7 @@ class SyncedBuffer {
 class SyncedBufferMap extends ResourceMap<SyncedBuffer> {
 
 	public getForPath(filePath: string): SyncedBuffer | undefined {
-		return this.get(Uri.file(filePath));
+		return this.get(vscode.Uri.file(filePath));
 	}
 
 	public get allBuffers(): Iterable<SyncedBuffer> {
@@ -131,7 +131,7 @@ class GetErrRequest {
 		files: string[],
 		onDone: () => void
 	) {
-		const token = new CancellationTokenSource();
+		const token = new vscode.CancellationTokenSource();
 		return new GetErrRequest(client, files, token, onDone);
 	}
 
@@ -140,7 +140,7 @@ class GetErrRequest {
 	private constructor(
 		client: ITypeScriptServiceClient,
 		public readonly files: string[],
-		private readonly _token: CancellationTokenSource,
+		private readonly _token: vscode.CancellationTokenSource,
 		onDone: () => void
 	) {
 		const args: Proto.GeterrRequestArgs = {
@@ -191,15 +191,15 @@ export default class BufferSyncSupport extends Disposable {
 
 		this.diagnosticDelayer = new Delayer<any>(300);
 
-		const pathNormalizer = (path: Uri) => this.client.normalizedPath(path);
+		const pathNormalizer = (path: vscode.Uri) => this.client.normalizedPath(path);
 		this.syncedBuffers = new SyncedBufferMap(pathNormalizer);
 		this.pendingDiagnostics = new PendingDiagnostics(pathNormalizer);
 
 		this.updateConfiguration();
-		workspace.onDidChangeConfiguration(this.updateConfiguration, this, this._disposables);
+		vscode.workspace.onDidChangeConfiguration(this.updateConfiguration, this, this._disposables);
 	}
 
-	private readonly _onDelete = this._register(new EventEmitter<Uri>());
+	private readonly _onDelete = this._register(new vscode.EventEmitter<vscode.Uri>());
 	public readonly onDelete = this._onDelete.event;
 
 	public listen(): void {
@@ -207,22 +207,22 @@ export default class BufferSyncSupport extends Disposable {
 			return;
 		}
 		this.listening = true;
-		workspace.onDidOpenTextDocument(this.openTextDocument, this, this._disposables);
-		workspace.onDidCloseTextDocument(this.onDidCloseTextDocument, this, this._disposables);
-		workspace.onDidChangeTextDocument(this.onDidChangeTextDocument, this, this._disposables);
-		workspace.textDocuments.forEach(this.openTextDocument, this);
+		vscode.workspace.onDidOpenTextDocument(this.openTextDocument, this, this._disposables);
+		vscode.workspace.onDidCloseTextDocument(this.onDidCloseTextDocument, this, this._disposables);
+		vscode.workspace.onDidChangeTextDocument(this.onDidChangeTextDocument, this, this._disposables);
+		vscode.workspace.textDocuments.forEach(this.openTextDocument, this);
 	}
 
-	public handles(resource: Uri): boolean {
+	public handles(resource: vscode.Uri): boolean {
 		return this.syncedBuffers.has(resource);
 	}
 
-	public toResource(filePath: string): Uri {
+	public toResource(filePath: string): vscode.Uri {
 		const buffer = this.syncedBuffers.getForPath(filePath);
 		if (buffer) {
 			return buffer.resource;
 		}
-		return Uri.file(filePath);
+		return vscode.Uri.file(filePath);
 	}
 
 	public reOpenDocuments(): void {
@@ -231,7 +231,7 @@ export default class BufferSyncSupport extends Disposable {
 		}
 	}
 
-	public openTextDocument(document: TextDocument): void {
+	public openTextDocument(document: vscode.TextDocument): void {
 		if (!this.modeIds.has(document.languageId)) {
 			return;
 		}
@@ -251,7 +251,7 @@ export default class BufferSyncSupport extends Disposable {
 		this.requestDiagnostic(syncedBuffer);
 	}
 
-	public closeResource(resource: Uri): void {
+	public closeResource(resource: vscode.Uri): void {
 		const syncedBuffer = this.syncedBuffers.get(resource);
 		if (!syncedBuffer) {
 			return;
@@ -264,11 +264,11 @@ export default class BufferSyncSupport extends Disposable {
 		}
 	}
 
-	private onDidCloseTextDocument(document: TextDocument): void {
+	private onDidCloseTextDocument(document: vscode.TextDocument): void {
 		this.closeResource(document.uri);
 	}
 
-	private onDidChangeTextDocument(e: TextDocumentChangeEvent): void {
+	private onDidChangeTextDocument(e: vscode.TextDocumentChangeEvent): void {
 		const syncedBuffer = this.syncedBuffers.get(e.document.uri);
 		if (!syncedBuffer) {
 			return;
@@ -294,7 +294,7 @@ export default class BufferSyncSupport extends Disposable {
 		this.triggerDiagnostics();
 	}
 
-	public getErr(resources: Uri[]): any {
+	public getErr(resources: vscode.Uri[]): any {
 		const handledResources = resources.filter(resource => this.handles(resource));
 		if (!handledResources.length) {
 			return;
@@ -325,7 +325,7 @@ export default class BufferSyncSupport extends Disposable {
 		return true;
 	}
 
-	public hasPendingDiagnostics(resource: Uri): boolean {
+	public hasPendingDiagnostics(resource: vscode.Uri): boolean {
 		return this.pendingDiagnostics.has(resource);
 	}
 
@@ -361,8 +361,8 @@ export default class BufferSyncSupport extends Disposable {
 	}
 
 	private updateConfiguration() {
-		const jsConfig = workspace.getConfiguration('javascript', null);
-		const tsConfig = workspace.getConfiguration('typescript', null);
+		const jsConfig = vscode.workspace.getConfiguration('javascript', null);
+		const tsConfig = vscode.workspace.getConfiguration('typescript', null);
 
 		this._validateJavaScript = jsConfig.get<boolean>('validate.enable', true);
 		this._validateTypeScript = tsConfig.get<boolean>('validate.enable', true);
