@@ -582,11 +582,14 @@ export function createApiFactory(
 			registerFileSystemProvider(scheme, provider, options) {
 				return extHostFileSystem.registerFileSystemProvider(scheme, provider, options);
 			},
-			registerSearchProvider: proposedApiFunction(extension, (scheme, provider) => {
-				return extHostSearch.registerSearchProvider(scheme, provider);
+			registerFileSearchProvider: proposedApiFunction(extension, (scheme, provider) => {
+				return extHostSearch.registerFileSearchProvider(scheme, provider);
 			}),
 			registerTextSearchProvider: proposedApiFunction(extension, (scheme, provider) => {
 				return extHostSearch.registerTextSearchProvider(scheme, provider);
+			}),
+			registerFileIndexProvider: proposedApiFunction(extension, (scheme, provider) => {
+				return extHostSearch.registerFileIndexProvider(scheme, provider);
 			}),
 			registerDocumentCommentProvider: proposedApiFunction(extension, (provider: vscode.DocumentCommentProvider) => {
 				return exthostCommentProviders.registerDocumentCommentProvider(provider);

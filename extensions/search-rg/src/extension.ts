@@ -4,27 +4,26 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as vscode from 'vscode';
-import { RipgrepTextSearchEngine } from './ripgrepTextSearch';
 import { RipgrepFileSearchEngine } from './ripgrepFileSearch';
-import { CachedSearchProvider } from './cachedSearchProvider';
+import { RipgrepTextSearchEngine } from './ripgrepTextSearch';
+import { joinPath } from './utils';
 
 export function activate(): void {
 	if (vscode.workspace.getConfiguration('searchRipgrep').get('enable')) {
 		const outputChannel = vscode.window.createOutputChannel('search-rg');
+
 		const provider = new RipgrepSearchProvider(outputChannel);
-		vscode.workspace.registerSearchProvider('file', provider);
+		vscode.workspace.registerFileIndexProvider('file', provider);
 		vscode.workspace.registerTextSearchProvider('file', provider);
 	}
 }
 
 type SearchEngine = RipgrepFileSearchEngine | RipgrepTextSearchEngine;
 
-class RipgrepSearchProvider implements vscode.SearchProvider, vscode.TextSearchProvider {
-	private cachedProvider: CachedSearchProvider;
+class RipgrepSearchProvider implements vscode.FileIndexProvider, vscode.TextSearchProvider {
 	private inProgress: Set<SearchEngine> = new Set();
 
 	constructor(private outputChannel: vscode.OutputChannel) {
-		this.cachedProvider = new CachedSearchProvider();
 		process.once('exit', () => this.dispose());
 	}
 
@@ -33,13 +32,16 @@ class RipgrepSearchProvider implements vscode.SearchProvider, vscode.TextSearchP
 		return this.withEngine(engine, () => engine.provideTextSearchResults(query, options, progress, token));
 	}
 
-	provideFileSearchResults(query: vscode.FileSearchQuery, options: vscode.SearchOptions, progress: vscode.Progress<vscode.Uri>, token: vscode.CancellationToken): Thenable<void> {
+	provideFileIndex(options: vscode.FileSearchOptions, token: vscode.CancellationToken): Thenable<vscode.Uri[]> {
 		const engine = new RipgrepFileSearchEngine(this.outputChannel);
-		return this.withEngine(engine, () => this.cachedProvider.provideFileSearchResults(engine, query, options, progress, token));
-	}
 
-	clearCache(cacheKey: string): void {
-		this.cachedProvider.clearCache(cacheKey);
+		const results: vscode.Uri[] = [];
+		const onResult = relativePathMatch => {
+			results.push(joinPath(options.folder, relativePathMatch));
+		};
+
+		return this.withEngine(engine, () => engine.provideFileSearchResults(options, { report: onResult }, token))
+			.then(() => results);
 	}
 
 	private withEngine(engine: SearchEngine, fn: () => Thenable<void>): Thenable<void> {

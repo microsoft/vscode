@@ -9,7 +9,7 @@ import { dispose, IDisposable } from 'vs/base/common/lifecycle';
 import { values } from 'vs/base/common/map';
 import URI, { UriComponents } from 'vs/base/common/uri';
 import { TPromise } from 'vs/base/common/winjs.base';
-import { IFileMatch, IRawFileMatch2, ISearchComplete, ISearchCompleteStats, ISearchProgressItem, ISearchQuery, ISearchResultProvider, ISearchService, QueryType } from 'vs/platform/search/common/search';
+import { IFileMatch, IRawFileMatch2, ISearchComplete, ISearchCompleteStats, ISearchProgressItem, ISearchQuery, ISearchResultProvider, ISearchService, QueryType, SearchProviderType } from 'vs/platform/search/common/search';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { extHostNamedCustomer } from 'vs/workbench/api/electron-browser/extHostCustomers';
 import { ExtHostContext, ExtHostSearchShape, IExtHostContext, MainContext, MainThreadSearchShape } from '../node/extHost.protocol';
@@ -33,8 +33,16 @@ export class MainThreadSearch implements MainThreadSearchShape {
 		this._searchProvider.clear();
 	}
 
-	$registerSearchProvider(handle: number, scheme: string): void {
-		this._searchProvider.set(handle, new RemoteSearchProvider(this._searchService, scheme, handle, this._proxy));
+	$registerTextSearchProvider(handle: number, scheme: string): void {
+		this._searchProvider.set(handle, new RemoteSearchProvider(this._searchService, SearchProviderType.text, scheme, handle, this._proxy));
+	}
+
+	$registerFileSearchProvider(handle: number, scheme: string): void {
+		this._searchProvider.set(handle, new RemoteSearchProvider(this._searchService, SearchProviderType.file, scheme, handle, this._proxy));
+	}
+
+	$registerFileIndexProvider(handle: number, scheme: string): void {
+		this._searchProvider.set(handle, new RemoteSearchProvider(this._searchService, SearchProviderType.fileIndex, scheme, handle, this._proxy));
 	}
 
 	$unregisterProvider(handle: number): void {
@@ -86,11 +94,12 @@ class RemoteSearchProvider implements ISearchResultProvider, IDisposable {
 
 	constructor(
 		searchService: ISearchService,
+		type: SearchProviderType,
 		private readonly _scheme: string,
 		private readonly _handle: number,
 		private readonly _proxy: ExtHostSearchShape
 	) {
-		this._registrations = [searchService.registerSearchResultProvider(this._scheme, this)];
+		this._registrations = [searchService.registerSearchResultProvider(this._scheme, type, this)];
 	}
 
 	dispose(): void {
@@ -102,16 +111,6 @@ class RemoteSearchProvider implements ISearchResultProvider, IDisposable {
 		if (isFalsyOrEmpty(query.folderQueries)) {
 			return TPromise.as(undefined);
 		}
-
-		const folderQueriesForScheme = query.folderQueries.filter(fq => fq.folder.scheme === this._scheme);
-		if (!folderQueriesForScheme.length) {
-			return TPromise.wrap(null);
-		}
-
-		query = {
-			...query,
-			folderQueries: folderQueriesForScheme
-		};
 
 		let outer: TPromise;
 

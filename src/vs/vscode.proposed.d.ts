@@ -160,15 +160,11 @@ declare module 'vscode' {
 		preview: TextSearchResultPreview;
 	}
 
-	// interface FileIndexProvider {
-	// 	provideFileIndex(options: FileSearchOptions, token: CancellationToken): Thenable<Uri[]>
-	// }
+	export interface FileIndexProvider {
+		provideFileIndex(options: FileSearchOptions, token: CancellationToken): Thenable<Uri[]>;
+	}
 
-	// interface FileSearchProvider {
-	// 	provideFileSearchResults(query: FileSear, options, token): Thenable<Uri[]>
-	// }
-
-	interface TextSearchProvider {
+	export interface TextSearchProvider {
 		/**
 		 * Provide results that match the given text pattern.
 		 * @param query The parameters for this query.
@@ -251,7 +247,7 @@ declare module 'vscode' {
 		 * @param provider The provider.
 		 * @return A [disposable](#Disposable) that unregisters this provider when being disposed.
 		 */
-		export function registerSearchProvider(scheme: string, provider: SearchProvider): Disposable;
+		export function registerFileSearchProvider(scheme: string, provider: SearchProvider): Disposable;
 
 		/**
 		 * Register a text search provider.
@@ -263,6 +259,17 @@ declare module 'vscode' {
 		 * @return A [disposable](#Disposable) that unregisters this provider when being disposed.
 		 */
 		export function registerTextSearchProvider(scheme: string, provider: TextSearchProvider): Disposable;
+
+		/**
+		 * Register a file index provider.
+		 *
+		 * Only one provider can be registered per scheme.
+		 *
+		 * @param scheme The provider will be invoked for workspace folders that have this file scheme.
+		 * @param provider The provider.
+		 * @return A [disposable](#Disposable) that unregisters this provider when being disposed.
+		 */
+		export function registerFileIndexProvider(scheme: string, provider: FileIndexProvider): Disposable;
 
 
 		/**

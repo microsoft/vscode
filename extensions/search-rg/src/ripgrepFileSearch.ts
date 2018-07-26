@@ -7,18 +7,17 @@ import * as cp from 'child_process';
 import { Readable } from 'stream';
 import { NodeStringDecoder, StringDecoder } from 'string_decoder';
 import * as vscode from 'vscode';
-import { normalizeNFC, normalizeNFD } from './common/normalization';
+import { normalizeNFC, normalizeNFD } from './normalization';
 import { rgPath } from './ripgrep';
-import { anchorGlob } from './utils';
 import { rgErrorMsgForDisplay } from './ripgrepTextSearch';
-import { IInternalFileSearchProvider } from './cachedSearchProvider';
+import { anchorGlob } from './utils';
 
 const isMac = process.platform === 'darwin';
 
 // If vscode-ripgrep is in an .asar file, then the binary is unpacked.
 const rgDiskPath = rgPath.replace(/\bnode_modules\.asar\b/, 'node_modules.asar.unpacked');
 
-export class RipgrepFileSearchEngine implements IInternalFileSearchProvider {
+export class RipgrepFileSearchEngine {
 	private rgProc: cp.ChildProcess;
 	private isDone: boolean;
 
