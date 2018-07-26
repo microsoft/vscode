@@ -14,13 +14,14 @@ import { isLinux, isWindows } from 'vs/base/common/platform';
 import { tildify, normalizeDriveLetter } from 'vs/base/common/labels';
 
 export interface IUriDisplayService {
+	_serviceBrand: any;
 	getLabel(resource: URI, relative: boolean): string;
 	registerFormater(schema: string, formater: UriDisplayRules): IDisposable;
 }
 
 export interface UriDisplayRules {
-	label: string;
-	forwardSlash?: boolean;
+	label: string; // myLabel:/${path}
+	separator: '/' | '\\' | undefined;
 	tildify?: boolean;
 	normalizeDriveLetter?: boolean;
 }
@@ -32,7 +33,8 @@ function hasDriveLetter(path: string): boolean {
 }
 
 class UriDisplayService implements IUriDisplayService {
-	public _serviceBrand: any;
+	_serviceBrand: any;
+
 	private formaters = new Map<string, UriDisplayRules>();
 
 	constructor(
@@ -100,5 +102,5 @@ class UriDisplayService implements IUriDisplayService {
 }
 
 // register service
-const IUriDisplayService = createDecorator<IUriDisplayService>(URI_DISPLAY_SERVICE_ID);
+export const IUriDisplayService = createDecorator<IUriDisplayService>(URI_DISPLAY_SERVICE_ID);
 registerSingleton(IUriDisplayService, UriDisplayService);
