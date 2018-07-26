@@ -6847,7 +6847,7 @@ declare module 'vscode' {
 		/**
 		 * Icon for the button.
 		 */
-		readonly iconPath: string | Uri | { light: string | Uri; dark: string | Uri } | ThemeIcon;
+		readonly iconPath: Uri | { light: Uri; dark: Uri } | ThemeIcon;
 
 		/**
 		 * An optional tooltip.
