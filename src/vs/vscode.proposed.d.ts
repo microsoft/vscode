@@ -113,13 +113,6 @@ declare module 'vscode' {
 		 * The search pattern to match against file paths.
 		 */
 		pattern: string;
-
-		/**
-		 * `cacheKey` has the same value when `provideFileSearchResults` is invoked multiple times during a single quickopen session.
-		 * Providers can optionally use this to cache results at the beginning of a quickopen session and filter results as the user types.
-		 * It will have a different value for each folder searched.
-		 */
-		cacheKey?: string;
 	}
 
 	/**
@@ -176,9 +169,9 @@ declare module 'vscode' {
 	}
 
 	/**
-	 * A SearchProvider provides search results for files or text in files. It can be invoked by quickopen, the search viewlet, and other extensions.
+	 * A FileSearchProvider provides search results for files or text in files. It can be invoked by quickopen and other extensions.
 	 */
-	export interface SearchProvider {
+	export interface FileSearchProvider {
 		/**
 		 * Provide the set of files that match a certain file path pattern.
 		 * @param query The parameters for this query.
@@ -187,12 +180,6 @@ declare module 'vscode' {
 		 * @param token A cancellation token.
 		 */
 		provideFileSearchResults?(query: FileSearchQuery, options: FileSearchOptions, progress: Progress<Uri>, token: CancellationToken): Thenable<void>;
-
-		/**
-		 * Optional - if the provider makes use of `query.cacheKey`, it can implement this method which is invoked when the cache can be cleared.
-		 * @param cacheKey The same key that was passed as `query.cacheKey`.
-		 */
-		clearCache?(cacheKey: string): void;
 	}
 
 	/**
@@ -247,7 +234,7 @@ declare module 'vscode' {
 		 * @param provider The provider.
 		 * @return A [disposable](#Disposable) that unregisters this provider when being disposed.
 		 */
-		export function registerFileSearchProvider(scheme: string, provider: SearchProvider): Disposable;
+		export function registerFileSearchProvider(scheme: string, provider: FileSearchProvider): Disposable;
 
 		/**
 		 * Register a text search provider.

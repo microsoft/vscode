@@ -138,7 +138,7 @@ class RemoteSearchProvider implements ISearchResultProvider, IDisposable {
 	}
 
 	clearCache(cacheKey: string): TPromise<void> {
-		return this._proxy.$clearCache(this._handle, cacheKey);
+		return this._proxy.$clearCache(cacheKey);
 	}
 
 	handleFindMatch(session: number, dataOrUri: (UriComponents | IRawFileMatch2)[]): void {

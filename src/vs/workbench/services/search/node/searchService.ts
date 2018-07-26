@@ -7,7 +7,7 @@
 import * as arrays from 'vs/base/common/arrays';
 import { Event } from 'vs/base/common/event';
 import { Disposable, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
-import { ResourceMap } from 'vs/base/common/map';
+import { ResourceMap, values } from 'vs/base/common/map';
 import { Schemas } from 'vs/base/common/network';
 import * as objects from 'vs/base/common/objects';
 import * as strings from 'vs/base/common/strings';
@@ -52,9 +52,6 @@ export class SearchService extends Disposable implements ISearchService {
 	}
 
 	public registerSearchResultProvider(scheme: string, type: SearchProviderType, provider: ISearchResultProvider): IDisposable {
-		// if (scheme === 'file') {
-		// 	this.fileSearchProvider = provider;
-
 		let list: Map<string, ISearchResultProvider>;
 		if (type === SearchProviderType.file) {
 			list = this.fileSearchProviders;
@@ -137,11 +134,19 @@ export class SearchService extends Disposable implements ISearchService {
 						}
 					};
 
-					const provider = query.type === QueryType.File ?
+					let provider = query.type === QueryType.File ?
 						this.fileSearchProviders.get(fq.folder.scheme) || this.fileIndexProviders.get(fq.folder.scheme) :
 						this.textSearchProviders.get(fq.folder.scheme);
 
-					return TPromise.as(provider.search(oneFolderQuery, onProviderProgress));
+					if (!provider && fq.folder.scheme === 'file') {
+						provider = this.diskSearch;
+					}
+
+					if (!provider) {
+						return TPromise.wrapError(new Error('No search provider registered for scheme: ' + fq.folder.scheme));
+					}
+
+					return provider.search(oneFolderQuery, onProviderProgress);
 				})).then(completes => {
 					completes = completes.filter(c => !!c);
 					if (!completes.length) {
@@ -268,9 +273,12 @@ export class SearchService extends Disposable implements ISearchService {
 	}
 
 	public clearCache(cacheKey: string): TPromise<void> {
-		return TPromise.join([
-			this.diskSearch
-		].map(provider => provider && provider.clearCache(cacheKey)))
+		const clearPs = [
+			this.diskSearch,
+			...values(this.fileIndexProviders)
+		].map(provider => provider && provider.clearCache(cacheKey));
+
+		return TPromise.join(clearPs)
 			.then(() => { });
 	}
 }

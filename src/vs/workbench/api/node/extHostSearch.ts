@@ -25,7 +25,7 @@ export interface ISchemeTransformer {
 export class ExtHostSearch implements ExtHostSearchShape {
 
 	private readonly _proxy: MainThreadSearchShape;
-	private readonly _fileSearchProvider = new Map<number, vscode.SearchProvider>();
+	private readonly _fileSearchProvider = new Map<number, vscode.FileSearchProvider>();
 	private readonly _textSearchProvider = new Map<number, vscode.TextSearchProvider>();
 	private readonly _fileIndexProvider = new Map<number, vscode.FileIndexProvider>();
 	private _handlePool: number = 0;
@@ -46,7 +46,7 @@ export class ExtHostSearch implements ExtHostSearchShape {
 		return scheme;
 	}
 
-	registerFileSearchProvider(scheme: string, provider: vscode.SearchProvider) {
+	registerFileSearchProvider(scheme: string, provider: vscode.FileSearchProvider) {
 		const handle = this._handlePool++;
 		this._fileSearchProvider.set(handle, provider);
 		this._proxy.$registerFileSearchProvider(handle, this._transformScheme(scheme));
@@ -95,14 +95,9 @@ export class ExtHostSearch implements ExtHostSearchShape {
 		}
 	}
 
-	$clearCache(handle: number, cacheKey: string): TPromise<void> {
-		const provider = this._fileSearchProvider.get(handle);
-		if (!provider.clearCache) {
-			return TPromise.as(undefined);
-		}
-
-		return TPromise.as(
-			this._fileSearchManager.clearCache(cacheKey, provider));
+	$clearCache(cacheKey: string): TPromise<void> {
+		// Only relevant to file index search
+		return this._fileIndexSearchManager.clearCache(cacheKey);
 	}
 
 	$provideTextSearchResults(handle: number, session: number, pattern: IPatternInfo, rawQuery: IRawSearchQuery): TPromise<ISearchCompleteStats> {
@@ -421,7 +416,7 @@ class FileSearchEngine {
 
 	private globalExcludePattern: glob.ParsedExpression;
 
-	constructor(private config: ISearchQuery, private provider: vscode.SearchProvider) {
+	constructor(private config: ISearchQuery, private provider: vscode.FileSearchProvider) {
 		this.filePattern = config.filePattern;
 		this.includePattern = config.includePattern && glob.parse(config.includePattern);
 		this.maxResults = config.maxResults || null;
@@ -450,7 +445,7 @@ class FileSearchEngine {
 
 			// Support that the file pattern is a full path to a file that exists
 			if (this.isCanceled) {
-				return resolve({ limitHit: this.isLimitHit, cacheKeys: [] });
+				return resolve({ limitHit: this.isLimitHit });
 			}
 
 			// For each extra file
@@ -471,8 +466,8 @@ class FileSearchEngine {
 			// For each root folder
 			TPromise.join(folderQueries.map(fq => {
 				return this.searchInFolder(fq, onResult);
-			})).then(cacheKeys => {
-				resolve({ limitHit: this.isLimitHit, cacheKeys });
+			})).then(() => {
+				resolve({ limitHit: this.isLimitHit });
 			}, (errs: Error[]) => {
 				const errMsg = errs
 					.map(err => toErrorMessage(err))
@@ -483,7 +478,7 @@ class FileSearchEngine {
 		});
 	}
 
-	private searchInFolder(fq: IFolderQuery<URI>, onResult: (match: IInternalFileMatch) => void): TPromise<string> {
+	private searchInFolder(fq: IFolderQuery<URI>, onResult: (match: IInternalFileMatch) => void): TPromise<void> {
 		let cancellation = new CancellationTokenSource();
 		return new TPromise((resolve, reject) => {
 			const options = this.getSearchOptionsForFolder(fq);
@@ -510,17 +505,13 @@ class FileSearchEngine {
 				this.addDirectoryEntries(tree, fq.folder, relativePath, onResult);
 			};
 
-			let folderCacheKey: string;
 			new TPromise(_resolve => process.nextTick(_resolve))
 				.then(() => {
 					this.activeCancellationTokens.add(cancellation);
 
-					folderCacheKey = this.config.cacheKey && (this.config.cacheKey + '_' + fq.folder.fsPath);
-
 					return this.provider.provideFileSearchResults(
 						{
-							pattern: this.config.filePattern || '',
-							cacheKey: folderCacheKey
+							pattern: this.config.filePattern || ''
 						},
 						options,
 						{ report: onProviderResult },
@@ -537,7 +528,7 @@ class FileSearchEngine {
 				}).then(
 					() => {
 						cancellation.dispose();
-						resolve(folderCacheKey);
+						resolve(null);
 					},
 					err => {
 						cancellation.dispose();
@@ -646,30 +637,23 @@ class FileSearchEngine {
 
 interface IInternalSearchComplete {
 	limitHit: boolean;
-	cacheKeys: string[];
 }
 
 class FileSearchManager {
 
 	private static readonly BATCH_SIZE = 512;
 
-	private readonly expandedCacheKeys = new Map<string, string[]>();
-
-	fileSearch(config: ISearchQuery, provider: vscode.SearchProvider, onResult: (matches: IFileMatch[]) => void): TPromise<ISearchCompleteStats> {
+	fileSearch(config: ISearchQuery, provider: vscode.FileSearchProvider, onBatch: (matches: IFileMatch[]) => void): TPromise<ISearchCompleteStats> {
 		let searchP: TPromise;
 		return new TPromise<ISearchCompleteStats>((c, e) => {
 			const engine = new FileSearchEngine(config, provider);
 
-			const onInternalResult = (progress: IInternalFileMatch[]) => {
-				onResult(progress.map(m => this.rawMatchToSearchItem(m)));
+			const onInternalResult = (batch: IInternalFileMatch[]) => {
+				onBatch(batch.map(m => this.rawMatchToSearchItem(m)));
 			};
 
 			searchP = this.doSearch(engine, FileSearchManager.BATCH_SIZE, onInternalResult).then(
 				result => {
-					if (config.cacheKey) {
-						this.expandedCacheKeys.set(config.cacheKey, result.cacheKeys);
-					}
-
 					c({
 						limitHit: result.limitHit
 					});
@@ -680,15 +664,6 @@ class FileSearchManager {
 				searchP.cancel();
 			}
 		});
-	}
-
-	clearCache(cacheKey: string, provider: vscode.SearchProvider): void {
-		if (!this.expandedCacheKeys.has(cacheKey)) {
-			return;
-		}
-
-		this.expandedCacheKeys.get(cacheKey).forEach(key => provider.clearCache(key));
-		this.expandedCacheKeys.delete(cacheKey);
 	}
 
 	private rawMatchToSearchItem(match: IInternalFileMatch): IFileMatch {

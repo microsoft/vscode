@@ -66,7 +66,7 @@ suite('ExtHostSearch', () => {
 		await rpcProtocol.sync();
 	}
 
-	async function registerTestFileSearchProvider(provider: vscode.SearchProvider, scheme = 'file'): Promise<void> {
+	async function registerTestFileSearchProvider(provider: vscode.FileSearchProvider, scheme = 'file'): Promise<void> {
 		disposables.push(extHostSearch.registerFileSearchProvider(scheme, provider));
 		await rpcProtocol.sync();
 	}
@@ -646,34 +646,6 @@ suite('ExtHostSearch', () => {
 
 			const { results } = await runFileSearch(query);
 			compareURIs(results, reportedResults);
-		});
-
-		test('uses different cache keys for different folders', async () => {
-			const cacheKeys: string[] = [];
-			await registerTestFileSearchProvider({
-				provideFileSearchResults(query: vscode.FileSearchQuery, options: vscode.FileSearchOptions, progress: vscode.Progress<URI>, token: vscode.CancellationToken): Thenable<void> {
-					cacheKeys.push(query.cacheKey);
-					return TPromise.wrap(null);
-				}
-			});
-
-			const query: ISearchQuery = {
-				type: QueryType.File,
-				filePattern: '',
-				cacheKey: 'cacheKey',
-				folderQueries: [
-					{
-						folder: rootFolderA
-					},
-					{
-						folder: rootFolderB
-					}
-				]
-			};
-
-			await runFileSearch(query);
-			assert.equal(cacheKeys.length, 2);
-			assert.notEqual(cacheKeys[0], cacheKeys[1]);
 		});
 	});
 
