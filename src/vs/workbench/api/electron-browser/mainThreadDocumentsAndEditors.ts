@@ -315,7 +315,7 @@ export class MainThreadDocumentsAndEditors {
 		const mainThreadDocuments = new MainThreadDocuments(this, extHostContext, this._modelService, modeService, this._textFileService, fileService, textModelResolverService, untitledEditorService);
 		extHostContext.set(MainContext.MainThreadDocuments, mainThreadDocuments);
 
-		const mainThreadTextEditors = new MainThreadTextEditors(this, extHostContext, codeEditorService, bulkEditService, this._editorService, this._editorGroupService);
+		const mainThreadTextEditors = new MainThreadTextEditors(this, extHostContext, this._modelService, modeService, codeEditorService, bulkEditService, this._editorService, this._editorGroupService);
 		extHostContext.set(MainContext.MainThreadTextEditors, mainThreadTextEditors);
 
 		// It is expected that the ctor of the state computer calls our `_onDelta`.

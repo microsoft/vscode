@@ -94,13 +94,15 @@ suite('MainThreadEditors', () => {
 			}
 		});
 
+		const emptyModeService = null;
+
 		const documentAndEditor = new MainThreadDocumentsAndEditors(
 			rpcProtocol,
 			modelService,
 			textFileService,
 			workbenchEditorService,
 			codeEditorService,
-			null,
+			emptyModeService,
 			fileService,
 			null,
 			null,
@@ -111,6 +113,8 @@ suite('MainThreadEditors', () => {
 		editors = new MainThreadTextEditors(
 			documentAndEditor,
 			SingleProxyRPCProtocol(null),
+			modelService,
+			emptyModeService,
 			codeEditorService,
 			bulkEditService,
 			workbenchEditorService,

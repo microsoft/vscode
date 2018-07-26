@@ -193,6 +193,7 @@ export interface MainThreadTextEditorsShape extends IDisposable {
 	$tryShowEditor(id: string, position: EditorViewColumn): TPromise<void>;
 	$tryHideEditor(id: string): TPromise<void>;
 	$trySetOptions(id: string, options: ITextEditorConfigurationUpdate): TPromise<void>;
+	$trySetLanguageById(id: string, languageId: string): TPromise<void>;
 	$trySetDecorations(id: string, key: string, ranges: editorCommon.IDecorationOptions[]): TPromise<void>;
 	$trySetDecorationsFast(id: string, key: string, ranges: number[]): TPromise<void>;
 	$tryRevealRange(id: string, range: IRange, revealType: TextEditorRevealType): TPromise<void>;
