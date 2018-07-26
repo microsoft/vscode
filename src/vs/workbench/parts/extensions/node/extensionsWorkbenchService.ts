@@ -761,7 +761,7 @@ export class ExtensionsWorkbenchService implements IExtensionsWorkbenchService, 
 	}
 
 	private promptForDependenciesAndDisable(extensions: IExtension[], dependencies: IExtension[], enablementState: EnablementState): TPromise<void> {
-		const message = nls.localize('disableDependeciesConfirmation', "Would you like to disable the dependencies of the extensions also?");
+		const message = extensions.length > 1 ? nls.localize('disableDependeciesConfirmation', "Would you like to disable the dependencies of the extensions also?") : nls.localize('disableDependeciesSingleExtensionConfirmation', "Would you like to disable the dependencies of the extension also?");
 		const buttons = [
 			nls.localize('yes', "Yes"),
 			nls.localize('no', "No"),
