@@ -16,7 +16,7 @@ import { ltrim } from 'vs/base/common/strings';
 
 export interface IUriDisplayService {
 	_serviceBrand: any;
-	getLabel(resource: URI, relative: boolean): string;
+	getLabel(resource: URI, relative?: boolean): string;
 	registerFormater(schema: string, formater: UriDisplayRules): IDisposable;
 }
 
