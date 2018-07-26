@@ -4,7 +4,7 @@
 		"If you want to provide a fix or improvement, please create a pull request against the original repository.",
 		"Once accepted there, we are happy to receive an update request."
 	],
-	"version": "https://github.com/Microsoft/TypeScript-TmLanguage/commit/27425437b2144f43607047ae7ee9b826e36856a5",
+	"version": "https://github.com/Microsoft/TypeScript-TmLanguage/commit/32208c2b11569d08a925f56fd69d28b18a5cc308",
 	"name": "TypeScript",
 	"scopeName": "source.ts",
 	"patterns": [
@@ -292,7 +292,7 @@
 					"name": "storage.type.ts"
 				}
 			},
-			"end": "(?=$|^|;|}|(\\s+(of|in)\\s+))",
+			"end": "((?=;|}|(\\s+(of|in)\\s+)|^\\s*$|;|^\\s*abstract\\b|^\\s*async\\b|^\\s*class\\b|^\\s*const\\b|^\\s*declare\\b|^\\s*enum\\b|^\\s*export\\b|^\\s*function\\b|^\\s*import\\b|^\\s*interface\\b|^\\s*let\\b|^\\s*module\\b|^\\s*namespace\\b|^\\s*return\\b|^\\s*type\\b|^\\s*var\\b)|((?<=\\S)(?<!^const|[^\\._$[:alnum:]]const|^let|[^\\._$[:alnum:]]let|^var|[^\\._$[:alnum:]]var)(?=\\s*$)))",
 			"patterns": [
 				{
 					"include": "#destructuring-variable"
@@ -1591,7 +1591,7 @@
 					"name": "storage.type.namespace.ts"
 				}
 			},
-			"end": "(?<=\\})|(?=;|\\babstract\\b|\\basync\\b|\\bclass\\b|\\bconst\\b|\\bdeclare\\b|\\benum\\b|\\bexport\\b|\\bfunction\\b|\\bimport\\b|\\binterface\\b|\\blet\\b|\\bmodule\\b|\\bnamespace\\b|\\breturn\\b|\\btype\\b|\\bvar\\b)",
+			"end": "(?<=\\})|(?=;|^\\s*abstract\\b|^\\s*async\\b|^\\s*class\\b|^\\s*const\\b|^\\s*declare\\b|^\\s*enum\\b|^\\s*export\\b|^\\s*function\\b|^\\s*import\\b|^\\s*interface\\b|^\\s*let\\b|^\\s*module\\b|^\\s*namespace\\b|^\\s*return\\b|^\\s*type\\b|^\\s*var\\b)",
 			"patterns": [
 				{
 					"include": "#comment"
@@ -1625,7 +1625,7 @@
 					"name": "entity.name.type.alias.ts"
 				}
 			},
-			"end": "(?=\\}|;|\\babstract\\b|\\basync\\b|\\bclass\\b|\\bconst\\b|\\bdeclare\\b|\\benum\\b|\\bexport\\b|\\bfunction\\b|\\bimport\\b|\\binterface\\b|\\blet\\b|\\bmodule\\b|\\bnamespace\\b|\\breturn\\b|\\btype\\b|\\bvar\\b)",
+			"end": "(?=\\}|;|^\\s*abstract\\b|^\\s*async\\b|^\\s*class\\b|^\\s*const\\b|^\\s*declare\\b|^\\s*enum\\b|^\\s*export\\b|^\\s*function\\b|^\\s*import\\b|^\\s*interface\\b|^\\s*let\\b|^\\s*module\\b|^\\s*namespace\\b|^\\s*return\\b|^\\s*type\\b|^\\s*var\\b)",
 			"patterns": [
 				{
 					"include": "#comment"
@@ -1640,7 +1640,7 @@
 							"name": "keyword.operator.assignment.ts"
 						}
 					},
-					"end": "(?=\\}|;|\\babstract\\b|\\basync\\b|\\bclass\\b|\\bconst\\b|\\bdeclare\\b|\\benum\\b|\\bexport\\b|\\bfunction\\b|\\bimport\\b|\\binterface\\b|\\blet\\b|\\bmodule\\b|\\bnamespace\\b|\\breturn\\b|\\btype\\b|\\bvar\\b)",
+					"end": "(?=\\}|;|^\\s*abstract\\b|^\\s*async\\b|^\\s*class\\b|^\\s*const\\b|^\\s*declare\\b|^\\s*enum\\b|^\\s*export\\b|^\\s*function\\b|^\\s*import\\b|^\\s*interface\\b|^\\s*let\\b|^\\s*module\\b|^\\s*namespace\\b|^\\s*return\\b|^\\s*type\\b|^\\s*var\\b)",
 					"patterns": [
 						{
 							"include": "#type"
@@ -1804,7 +1804,7 @@
 							"name": "keyword.control.default.ts"
 						}
 					},
-					"end": "(?=$|;|\\babstract\\b|\\basync\\b|\\bclass\\b|\\bconst\\b|\\bdeclare\\b|\\benum\\b|\\bexport\\b|\\bfunction\\b|\\bimport\\b|\\binterface\\b|\\blet\\b|\\bmodule\\b|\\bnamespace\\b|\\breturn\\b|\\btype\\b|\\bvar\\b)",
+					"end": "(?=$|;|^\\s*abstract\\b|^\\s*async\\b|^\\s*class\\b|^\\s*const\\b|^\\s*declare\\b|^\\s*enum\\b|^\\s*export\\b|^\\s*function\\b|^\\s*import\\b|^\\s*interface\\b|^\\s*let\\b|^\\s*module\\b|^\\s*namespace\\b|^\\s*return\\b|^\\s*type\\b|^\\s*var\\b)",
 					"patterns": [
 						{
 							"include": "#expression"
@@ -1819,7 +1819,7 @@
 							"name": "keyword.control.export.ts"
 						}
 					},
-					"end": "(?=$|;|\\babstract\\b|\\basync\\b|\\bclass\\b|\\bconst\\b|\\bdeclare\\b|\\benum\\b|\\bexport\\b|\\bfunction\\b|\\bimport\\b|\\binterface\\b|\\blet\\b|\\bmodule\\b|\\bnamespace\\b|\\breturn\\b|\\btype\\b|\\bvar\\b)",
+					"end": "(?=$|;|^\\s*abstract\\b|^\\s*async\\b|^\\s*class\\b|^\\s*const\\b|^\\s*declare\\b|^\\s*enum\\b|^\\s*export\\b|^\\s*function\\b|^\\s*import\\b|^\\s*interface\\b|^\\s*let\\b|^\\s*module\\b|^\\s*namespace\\b|^\\s*return\\b|^\\s*type\\b|^\\s*var\\b)",
 					"patterns": [
 						{
 							"include": "#import-export-declaration"
@@ -3880,7 +3880,7 @@
 			"patterns": [
 				{
 					"name": "string.regexp.ts",
-					"begin": "(?<!\\+\\+|--)(?<=[=(:,\\[?+!]|^return|[^\\._$[:alnum:]]return|^case|[^\\._$[:alnum:]]case|=>|&&|\\|\\||\\*\\/)\\s*(\\/)(?![\\/*])(?=(?:[^\\/\\\\\\[]|\\\\.|\\[([^\\]\\\\]|\\\\.)+\\])+\\/[gimsuy]*(?!\\s*[a-zA-Z0-9_$]))",
+					"begin": "(?<!\\+\\+|--|})(?<=[=(:,\\[?+!]|^return|[^\\._$[:alnum:]]return|^case|[^\\._$[:alnum:]]case|=>|&&|\\|\\||\\*\\/)\\s*(\\/)(?![\\/*])(?=(?:[^\\/\\\\\\[]|\\\\.|\\[([^\\]\\\\]|\\\\.)+\\])+\\/[gimsuy]*(?!\\s*[a-zA-Z0-9_$]))",
 					"beginCaptures": {
 						"1": {
 							"name": "punctuation.definition.string.begin.ts"
@@ -3903,7 +3903,7 @@
 				},
 				{
 					"name": "string.regexp.ts",
-					"begin": "(?<![_$[:alnum:])\\]]|\\+\\+|--)\\/(?![\\/*])(?=(?:[^\\/\\\\\\[]|\\\\.|\\[([^\\]\\\\]|\\\\.)+\\])+\\/[gimsuy]*(?!\\s*[a-zA-Z0-9_$]))",
+					"begin": "(?<![_$[:alnum:])\\]]|\\+\\+|--|})\\/(?![\\/*])(?=(?:[^\\/\\\\\\[]|\\\\.|\\[([^\\]\\\\]|\\\\.)+\\])+\\/[gimsuy]*(?!\\s*[a-zA-Z0-9_$]))",
 					"beginCaptures": {
 						"0": {
 							"name": "punctuation.definition.string.begin.ts"
