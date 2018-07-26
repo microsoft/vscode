@@ -27,6 +27,7 @@ import { onUnexpectedError } from 'vs/base/common/errors';
 import { breadcrumbsPickerBackground } from 'vs/platform/theme/common/colorRegistry';
 import { FuzzyScore, createMatches, fuzzyScore } from 'vs/base/common/filters';
 import { IWorkspaceContextService, IWorkspace, IWorkspaceFolder } from 'vs/platform/workspace/common/workspace';
+import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 
 export function createBreadcrumbsPicker(instantiationService: IInstantiationService, parent: HTMLElement, element: BreadcrumbElement): BreadcrumbsPicker {
 	let ctor: IConstructorSignature1<HTMLElement, BreadcrumbsPicker> = element instanceof FileElement ? BreadcrumbsFilePicker : BreadcrumbsOutlinePicker;
@@ -194,7 +195,8 @@ export class FileRenderer implements IRenderer, IHighlightingRenderer {
 	private readonly _scores = new Map<object, FuzzyScore>();
 
 	constructor(
-		@IInstantiationService private readonly _instantiationService: IInstantiationService
+		@IInstantiationService private readonly _instantiationService: IInstantiationService,
+		@IConfigurationService private readonly _configService: IConfigurationService,
 	) { }
 
 	getHeight(tree: ITree, element: any): number {
@@ -210,18 +212,19 @@ export class FileRenderer implements IRenderer, IHighlightingRenderer {
 	}
 
 	renderElement(tree: ITree, element: IFileStat | IWorkspaceFolder, templateId: string, templateData: FileLabel): void {
+		let fileDecorations = this._configService.getValue<{ colors: boolean, badges: boolean }>('explorer.decorations');
 		if (IWorkspaceFolder.isIWorkspaceFolder(element)) {
 			templateData.setFile(element.uri, {
 				hidePath: true,
 				fileKind: FileKind.ROOT_FOLDER,
-				fileDecorations: { colors: true, badges: true },
+				fileDecorations: fileDecorations,
 				matches: createMatches((this._scores.get(element) || [, []])[1])
 			});
 		} else {
 			templateData.setFile(element.resource, {
 				hidePath: true,
 				fileKind: element.isDirectory ? FileKind.FOLDER : FileKind.FILE,
-				fileDecorations: { colors: true, badges: true },
+				fileDecorations: fileDecorations,
 				matches: createMatches((this._scores.get(element) || [, []])[1])
 			});
 		}
