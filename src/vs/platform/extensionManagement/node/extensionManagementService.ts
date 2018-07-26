@@ -561,19 +561,19 @@ export class ExtensionManagementService extends Disposable implements IExtension
 	}
 
 	private promptForDependenciesAndUninstall(extension: ILocalExtension, dependencies: ILocalExtension[], installed: ILocalExtension[]): TPromise<void> {
-		const message = nls.localize('uninstallDependeciesConfirmation', "Would you like to uninstall '{0}' only or its dependencies also?", extension.manifest.displayName || extension.manifest.name);
+		const message = nls.localize('uninstallDependeciesConfirmation', "Also uninstall the dependencies of the extension '{0}'?", extension.manifest.displayName || extension.manifest.name);
 		const buttons = [
-			nls.localize('uninstallOnly', "Extension Only"),
-			nls.localize('uninstallAll', "Uninstall All"),
+			nls.localize('yes', "Yes"),
+			nls.localize('no', "No"),
 			nls.localize('cancel', "Cancel")
 		];
 		return this.dialogService.show(Severity.Info, message, buttons, { cancelId: 2 })
 			.then<void>(value => {
 				if (value === 0) {
-					return this.uninstallExtensions(extension, [], installed);
+					return this.uninstallExtensions(extension, dependencies, installed);
 				}
 				if (value === 1) {
-					return this.uninstallExtensions(extension, dependencies, installed);
+					return this.uninstallExtensions(extension, [], installed);
 				}
 				this.logService.info('Cancelled uninstalling extension:', extension.identifier.id);
 				return TPromise.wrapError(errors.canceled());
