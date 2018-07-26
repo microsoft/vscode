@@ -806,8 +806,7 @@ export class ExtensionsWorkbenchService implements IExtensionsWorkbenchService, 
 				if (i.enablementState === enablementState) {
 					return false;
 				}
-				return i.type === LocalExtensionType.User
-					&& (options.dependencies || options.pack)
+				return (options.dependencies || options.pack)
 					&& extensions.some(extension =>
 						(options.dependencies && extension.dependencies.some(id => areSameExtensions({ id }, i)))
 						|| (options.pack && extension.extensionPack.some(id => areSameExtensions({ id }, i)))
