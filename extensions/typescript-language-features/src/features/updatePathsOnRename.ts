@@ -84,11 +84,11 @@ class UpdateImportsOnFileRenameHandler {
 			// Workaround for https://github.com/Microsoft/vscode/issues/52967
 			// Never attempt to update import paths if the file does not contain something the looks like an export
 			try {
-				const tree = await this.client.execute('navtree', { file: newFile });
+				const { body } = await this.client.execute('navtree', { file: newFile });
 				const hasExport = (node: Proto.NavigationTree): boolean => {
 					return !!node.kindModifiers.match(/\bexports?\b/g) || !!(node.childItems && node.childItems.some(hasExport));
 				};
-				if (!tree.body || !tree.body || !hasExport(tree.body)) {
+				if (!body || !hasExport(body)) {
 					return;
 				}
 			} catch {

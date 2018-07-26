@@ -88,16 +88,16 @@ class TagClosing extends Disposable {
 			}
 
 			let position = new vscode.Position(rangeStart.line, rangeStart.character + lastChange.text.length);
-			let body: Proto.TextInsertion | undefined = undefined;
+			let insertion: Proto.TextInsertion;
 			const args: Proto.JsxClosingTagRequestArgs = typeConverters.Position.toFileLocationRequestArgs(filepath, position);
 
 			this._cancel = new vscode.CancellationTokenSource();
 			try {
-				const response = await this.client.execute('jsxClosingTag', args, this._cancel.token);
-				body = response && response.body;
+				const { body } = await this.client.execute('jsxClosingTag', args, this._cancel.token);
 				if (!body) {
 					return;
 				}
+				insertion = body;
 			} catch {
 				return;
 			}
@@ -114,7 +114,7 @@ class TagClosing extends Disposable {
 			const activeDocument = activeEditor.document;
 			if (document === activeDocument && activeDocument.version === version) {
 				activeEditor.insertSnippet(
-					this.getTagSnippet(body),
+					this.getTagSnippet(insertion),
 					this.getInsertionPositions(activeEditor, position));
 			}
 		}, 100);

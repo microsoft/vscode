@@ -36,10 +36,7 @@ export async function applyCodeActionCommands(
 ): Promise<boolean> {
 	if (commands && commands.length) {
 		for (const command of commands) {
-			const response = await client.execute('applyCodeActionCommand', { command });
-			if (!response || !response.body) {
-				return false;
-			}
+			await client.execute('applyCodeActionCommand', { command });
 		}
 	}
 	return true;

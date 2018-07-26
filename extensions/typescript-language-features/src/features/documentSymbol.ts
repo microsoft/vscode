@@ -41,11 +41,14 @@ class TypeScriptDocumentSymbolProvider implements vscode.DocumentSymbolProvider 
 		}
 
 
-		let tree: Proto.NavigationTree | undefined;
+		let tree: Proto.NavigationTree;
 		try {
 			const args: Proto.FileRequestArgs = { file };
-			const response = await this.client.execute('navtree', args, token);
-			tree = response.body;
+			const { body } = await this.client.execute('navtree', args, token);
+			if (!body) {
+				return undefined;
+			}
+			tree = body;
 		} catch {
 			return undefined;
 		}
