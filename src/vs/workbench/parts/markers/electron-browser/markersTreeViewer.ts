@@ -170,6 +170,9 @@ export class Renderer implements IRenderer {
 	private renderRelatedInfoTemplate(container: HTMLElement): IRelatedInformationTemplateData {
 		const data: IRelatedInformationTemplateData = Object.create(null);
 
+		dom.append(container, dom.$('.actions'));
+		dom.append(container, dom.$('.icon'));
+
 		data.resourceLabel = new HighlightedLabel(dom.append(container, dom.$('.related-info-resource')));
 		data.lnCol = dom.append(container, dom.$('span.marker-line'));
 
@@ -185,7 +188,7 @@ export class Renderer implements IRenderer {
 		const data: IMarkerTemplateData = Object.create(null);
 		const actionsContainer = dom.append(container, dom.$('.actions'));
 		data.actionBar = new ActionBar(actionsContainer, { actionItemProvider: this.actionItemProvider });
-		data.icon = dom.append(container, dom.$('.marker-icon'));
+		data.icon = dom.append(container, dom.$('.icon'));
 		data.source = new HighlightedLabel(dom.append(container, dom.$('')));
 		data.description = new HighlightedLabel(dom.append(container, dom.$('.marker-description')));
 		data.lnCol = dom.append(container, dom.$('span.marker-line'));
@@ -222,14 +225,15 @@ export class Renderer implements IRenderer {
 		dom.toggleClass(templateData.source.element, 'marker-source', !!marker.source);
 
 		templateData.actionBar.clear();
-		const parent = tree.getNavigator(element).parent();
-		const quickFixAction = this.instantiationService.createInstance(QuickFixAction, element, parent);
+		const resourceMarkers: ResourceMarkers = tree.getNavigator(element).parent();
+		const quickFixAction = this.instantiationService.createInstance(QuickFixAction, element, resourceMarkers);
 		templateData.actionBar.push([quickFixAction], { icon: true, label: false });
 
 		templateData.description.set(marker.message, element.messageMatches);
 		templateData.description.element.title = marker.message;
 
 		templateData.lnCol.textContent = Messages.MARKERS_PANEL_AT_LINE_COL_NUMBER(marker.startLineNumber, marker.startColumn);
+
 	}
 
 	private renderRelatedInfoElement(tree: ITree, element: RelatedInformation, templateData: IRelatedInformationTemplateData) {
