@@ -12,6 +12,7 @@ import { createDecorator } from 'vs/platform/instantiation/common/instantiation'
 import { isEqual, basenameOrAuthority } from 'vs/base/common/resources';
 import { isLinux, isWindows } from 'vs/base/common/platform';
 import { tildify, normalizeDriveLetter } from 'vs/base/common/labels';
+import { ltrim } from 'vs/base/common/strings';
 
 export interface IUriDisplayService {
 	_serviceBrand: any;
@@ -21,18 +22,20 @@ export interface IUriDisplayService {
 
 export interface UriDisplayRules {
 	label: string; // myLabel:/${path}
-	separator: '/' | '\\' | undefined;
+	separator: '/' | '\\' | '';
 	tildify?: boolean;
 	normalizeDriveLetter?: boolean;
 }
 
 const URI_DISPLAY_SERVICE_ID = 'uriDisplay';
+const sepRegexp = /\//g;
+const labelMatchingRegexp = /\$\{scheme\}|\$\{authority\}|\$\{path\}/g;
 
 function hasDriveLetter(path: string): boolean {
 	return isWindows && path && path[1] === ':';
 }
 
-class UriDisplayService implements IUriDisplayService {
+export class UriDisplayService implements IUriDisplayService {
 	_serviceBrand: any;
 
 	private formaters = new Map<string, UriDisplayRules>();
@@ -46,28 +49,33 @@ class UriDisplayService implements IUriDisplayService {
 		if (!resource) {
 			return undefined;
 		}
-
-		if (relative) {
-			const hasMultipleRoots = this.contextService.getWorkspace().folders.length > 1;
-			const baseResource = this.contextService.getWorkspaceFolder(resource);
-
-			let pathLabel: string;
-			if (isEqual(baseResource.uri, resource, !isLinux)) {
-				pathLabel = ''; // no label if paths are identical
-			} else {
-				const baseResourceLabel = this.formatUri(baseResource.uri);
-				pathLabel = this.formatUri(resource).substring(baseResourceLabel.length);
-			}
-
-			if (hasMultipleRoots) {
-				const rootName = (baseResource && baseResource.name) ? baseResource.name : basenameOrAuthority(baseResource.uri);
-				pathLabel = pathLabel ? (rootName + ' • ' + pathLabel) : rootName; // always show root basename if there are multiple
-			}
-
-			return pathLabel;
+		const formater = this.formaters.get(resource.scheme);
+		if (!formater) {
+			return resource.with({ query: null, fragment: null }).toString(true);
 		}
 
-		return this.formatUri(resource);
+		if (relative) {
+			const baseResource = this.contextService.getWorkspaceFolder(resource);
+			if (baseResource) {
+				let relativeLabel: string;
+				if (isEqual(baseResource.uri, resource, !isLinux)) {
+					relativeLabel = ''; // no label if resources are identical
+				} else {
+					const baseResourceLabel = this.formatUri(baseResource.uri, formater);
+					relativeLabel = ltrim(this.formatUri(resource, formater).substring(baseResourceLabel.length), formater.separator);
+				}
+
+				const hasMultipleRoots = this.contextService.getWorkspace().folders.length > 1;
+				if (hasMultipleRoots) {
+					const rootName = (baseResource && baseResource.name) ? baseResource.name : basenameOrAuthority(baseResource.uri);
+					relativeLabel = relativeLabel ? (rootName + ' • ' + relativeLabel) : rootName; // always show root basename if there are multiple
+				}
+
+				return relativeLabel;
+			}
+		}
+
+		return this.formatUri(resource, formater);
 	}
 
 	registerFormater(scheme: string, formater: UriDisplayRules): IDisposable {
@@ -78,26 +86,26 @@ class UriDisplayService implements IUriDisplayService {
 		};
 	}
 
-	private formatUri(resource: URI): string {
-		const formater = this.formaters.get(resource.scheme);
-		if (!formater) {
-			return resource.with({ query: null, fragment: null }).toString(true);
-		}
-
-		// TODO@isidor transform
-		let label = resource.path;
+	private formatUri(resource: URI, formater: UriDisplayRules): string {
+		let label = formater.label.replace(labelMatchingRegexp, match => {
+			switch (match) {
+				case '${scheme}': return resource.scheme;
+				case '${authority}': return resource.authority;
+				case '${path}': return resource.path;
+				default: return '';
+			}
+		});
 
 		// convert c:\something => C:\something
 		if (formater.normalizeDriveLetter && hasDriveLetter(label)) {
 			label = normalizeDriveLetter(label);
 		}
 
-		// normalize and tildify (macOS, Linux only)
 		if (formater.tildify) {
 			label = tildify(label, this.environmentService.userHome);
 		}
 
-		return label;
+		return label.replace(sepRegexp, formater.separator);
 	}
 }
 
