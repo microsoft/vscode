@@ -32,7 +32,7 @@ import { BaseEditor } from 'vs/workbench/browser/parts/editor/baseEditor';
 import { EditorOptions, IEditor } from 'vs/workbench/common/editor';
 import { SearchWidget, SettingsTarget, SettingsTargetsWidget } from 'vs/workbench/parts/preferences/browser/preferencesWidgets';
 import { commonlyUsedData, tocData } from 'vs/workbench/parts/preferences/browser/settingsLayout';
-import { ISettingsEditorViewState, resolveExtensionsSettings, resolveSettingsTree, SearchResultIdx, SearchResultModel, SettingsRenderer, SettingsTree, SettingsTreeElement, SettingsTreeFilter, SettingsTreeGroupElement, SettingsTreeModel, SettingsTreeSettingElement } from 'vs/workbench/parts/preferences/browser/settingsTree';
+import { ISettingsEditorViewState, resolveExtensionsSettings, resolveSettingsTree, SearchResultIdx, SearchResultModel, SettingsRenderer, SettingsTree, SettingsTreeElement, SettingsTreeFilter, SettingsTreeGroupElement, SettingsTreeModel, SettingsTreeSettingElement, MODIFIED_SETTING_TAG } from 'vs/workbench/parts/preferences/browser/settingsTree';
 import { TOCDataSource, TOCRenderer, TOCTreeModel } from 'vs/workbench/parts/preferences/browser/tocTree';
 import { CONTEXT_SETTINGS_EDITOR, CONTEXT_SETTINGS_FIRST_ROW_FOCUS, CONTEXT_SETTINGS_ROW_FOCUS, CONTEXT_SETTINGS_SEARCH_FOCUS, CONTEXT_TOC_ROW_FOCUS, IPreferencesSearchService, ISearchProvider } from 'vs/workbench/parts/preferences/common/preferences';
 import { IPreferencesService, ISearchResult, ISettingsEditorModel } from 'vs/workbench/services/preferences/common/preferences';
@@ -223,10 +223,14 @@ export class SettingsEditor2 extends BaseEditor {
 		});
 
 		const actions = [
-			this.instantiationService.createInstance(ToggleShowModifiedOnlyAction, this, this.viewState),
+			this.instantiationService.createInstance(ToggleFilterByTagAction,
+				localize('filterModifiedLabel', "Show modified settings only"),
+				MODIFIED_SETTING_TAG,
+				this,
+				this.viewState),
 			this.instantiationService.createInstance(
 				ToggleFilterByTagAction,
-				localize('filterBackgroundOnlineLabel', "Show background online settings only"),
+				localize('filterBackgroundOnlineLabel', "Control background online features"),
 				'backgroundOnlineFeature',
 				this,
 				this.viewState),
@@ -405,22 +409,11 @@ export class SettingsEditor2 extends BaseEditor {
 		}));
 	}
 
-	toggleShowModifiedOnly(): TPromise<void> {
-		this.viewState.showConfiguredOnly = !this.viewState.showConfiguredOnly;
-		DOM.toggleClass(this.rootElement, 'showing-modified-only', this.viewState.showConfiguredOnly);
-		return this.refreshTreeAndMaintainFocus().then(() => {
-			this.settingsTree.setScrollPosition(0);
-			this.expandAll(this.settingsTree);
-		});
-	}
-
 	toggleFilterByTag(tag: string): TPromise<void> {
-		// Clear other filters
-		this.viewState.showConfiguredOnly = false;
-
-		this.viewState.tagFilters = this.viewState.tagFilters || new Set<string>();
-		const wasFiltered = this.viewState.tagFilters.delete(tag);
+		// Reset other tags, toggle this tag
+		const wasFiltered = this.viewState.tagFilters && this.viewState.tagFilters.has(tag);
 		const isFiltered = !wasFiltered;
+		this.viewState.tagFilters = new Set<string>();
 		if (isFiltered) {
 			this.viewState.tagFilters.add(tag);
 		}
@@ -498,7 +491,7 @@ export class SettingsEditor2 extends BaseEditor {
 					query: this.searchWidget.getValue(),
 					searchResults: this.searchResultModel && this.searchResultModel.getUniqueResults(),
 					rawResults: this.searchResultModel && this.searchResultModel.getRawResults(),
-					showConfiguredOnly: this.viewState.showConfiguredOnly,
+					showConfiguredOnly: this.viewState.tagFilters && this.viewState.tagFilters.has(MODIFIED_SETTING_TAG),
 					isReset: typeof value === 'undefined',
 					settingsTarget: this.settingsTargetsWidget.settingsTarget as SettingsTarget
 				};
@@ -848,26 +841,6 @@ class OpenSettingsAction extends Action {
 		}
 
 		return TPromise.wrap(null);
-	}
-}
-
-class ToggleShowModifiedOnlyAction extends Action {
-	static readonly ID = 'settings.toggleShowModifiedOnly';
-	static readonly LABEL = localize('showModifiedOnlyLabel', "Show modified settings only");
-
-	get checked(): boolean {
-		return this.viewState.showConfiguredOnly;
-	}
-
-	constructor(
-		private settingsEditor: SettingsEditor2,
-		private viewState: ISettingsEditorViewState
-	) {
-		super(ToggleShowModifiedOnlyAction.ID, ToggleShowModifiedOnlyAction.LABEL, 'show-modified-only');
-	}
-
-	run(): TPromise<void> {
-		return this.settingsEditor.toggleShowModifiedOnly();
 	}
 }
 

@@ -40,6 +40,8 @@ import { ISearchResult, ISetting, ISettingsGroup } from 'vs/workbench/services/p
 
 const $ = DOM.$;
 
+export const MODIFIED_SETTING_TAG = 'modified';
+
 export abstract class SettingsTreeElement {
 	id: string;
 	parent: any; // SearchResultModel or group element... TODO search should be more similar to the normal case
@@ -78,6 +80,7 @@ export class SettingsTreeSettingElement extends SettingsTreeElement {
 	 */
 	isConfigured: boolean;
 
+	tags?: Set<string>;
 	overriddenScopeList: string[];
 	description: string;
 	valueType: 'enum' | 'string' | 'integer' | 'number' | 'boolean' | 'exclude' | 'complex';
@@ -191,6 +194,17 @@ function createSettingsTreeSettingElement(setting: ISetting, parent: any, settin
 	element.defaultValue = inspected.default;
 
 	element.isConfigured = isConfigured;
+	if (isConfigured || setting.tags) {
+		element.tags = new Set<string>();
+		if (isConfigured) {
+			element.tags.add(MODIFIED_SETTING_TAG);
+		}
+
+		if (setting.tags) {
+			setting.tags.forEach(tag => element.tags.add(tag));
+		}
+	}
+
 	element.overriddenScopeList = overriddenScopeList;
 	element.description = setting.description.join('\n');
 
@@ -436,7 +450,6 @@ function trimCategoryForGroup(category: string, groupId: string): string {
 
 export interface ISettingsEditorViewState {
 	settingsTarget: SettingsTarget;
-	showConfiguredOnly?: boolean;
 	tagFilters?: Set<string>;
 	filterToCategory?: SettingsTreeGroupElement;
 }
@@ -1107,17 +1120,15 @@ export class SettingsTreeFilter implements IFilter {
 			}
 		}
 
-		if (element instanceof SettingsTreeSettingElement && this.viewState.showConfiguredOnly) {
-			return element.isConfigured;
-		}
-
-		if (element instanceof SettingsTreeGroupElement && this.viewState.showConfiguredOnly) {
-			return this.groupHasConfiguredSetting(element);
-		}
-
 		if (element instanceof SettingsTreeSettingElement && this.viewState.tagFilters && this.viewState.tagFilters.size) {
-			if (element.setting.tags) {
-				return element.setting.tags.some(tag => this.viewState.tagFilters.has(tag));
+			if (element.tags) {
+				let hasFilteredTag = false;
+				element.tags.forEach(tag => {
+					if (this.viewState.tagFilters.has(tag)) {
+						hasFilteredTag = true;
+					}
+				});
+				return hasFilteredTag;
 			} else {
 				return false;
 			}
@@ -1140,22 +1151,6 @@ export class SettingsTreeFilter implements IFilter {
 				return false;
 			}
 		});
-	}
-
-	private groupHasConfiguredSetting(element: SettingsTreeGroupElement): boolean {
-		for (let child of element.children) {
-			if (child instanceof SettingsTreeSettingElement) {
-				if (child.isConfigured) {
-					return true;
-				}
-			} else if (child instanceof SettingsTreeGroupElement) {
-				if (this.groupHasConfiguredSetting(child)) {
-					return true;
-				}
-			}
-		}
-
-		return false;
 	}
 }
 
