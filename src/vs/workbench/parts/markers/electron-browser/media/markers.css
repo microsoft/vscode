@@ -136,7 +136,7 @@
 	font-weight: bold;
 }
 
-.markers-panel .icon {
+.markers-panel .monaco-tree .markers-panel-tree-entry > .icon {
 	height: 22px;
 	margin-right: 6px;
 	flex: 0 0 16px;
@@ -166,13 +166,17 @@
 	background: url('status-info-inverse.svg') center center no-repeat;
 }
 
-.vs-dark .markers-panel .icon.markers-panel-action-quickfix {
+.markers-panel .monaco-tree .markers-panel-tree-entry .actions .action-label.icon.markers-panel-action-quickfix {
+	background: url('lightbulb.svg') center/80% no-repeat;
+	margin-right: 0px;
+}
+
+.vs-dark .markers-panel .monaco-tree .markers-panel-tree-entry .actions .action-label.icon.markers-panel-action-quickfix {
 	background: url('lightbulb-dark.svg') center/80% no-repeat;
-	background-position: 50% 55%;
 }
 
 .markers-panel .monaco-tree .monaco-tree-row .markers-panel-tree-entry > .actions {
-	width: 22px;
+	width: 16px;
 }
 
 .markers-panel .monaco-tree .monaco-tree-row .markers-panel-tree-entry > .actions .monaco-action-bar {
