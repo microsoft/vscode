@@ -6,16 +6,15 @@
 
 import * as httpRequest from 'request-light';
 import * as vscode from 'vscode';
-
 import { addJSONProviders } from './features/jsonContributions';
 import { NpmScriptsTreeDataProvider } from './npmView';
 import { invalidateScriptsCache, NpmTaskProvider } from './tasks';
-import { NpmLensProvider } from './lenses';
+import { NpmScriptHoverProvider } from './scriptHover';
 
 export async function activate(context: vscode.ExtensionContext): Promise<void> {
 	const taskProvider = registerTaskProvider(context);
 	const treeDataProvider = registerExplorer(context);
-	const lensProvider = registerLensProvider(context);
+	const hoverProvider = registerHoverProvider(context);
 
 	configureHttpRequest();
 	vscode.workspace.onDidChangeConfiguration((e) => {
@@ -29,11 +28,6 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
 		if (e.affectsConfiguration('npm.scriptExplorerAction')) {
 			if (treeDataProvider) {
 				treeDataProvider.refresh();
-			}
-		}
-		if (e.affectsConfiguration('npm.scriptCodeLens.enable')) {
-			if (lensProvider) {
-				lensProvider.refresh();
 			}
 		}
 	});
@@ -66,19 +60,20 @@ function registerExplorer(context: vscode.ExtensionContext): NpmScriptsTreeDataP
 	return undefined;
 }
 
-function registerLensProvider(context: vscode.ExtensionContext): NpmLensProvider | undefined {
+function registerHoverProvider(context: vscode.ExtensionContext): NpmScriptHoverProvider | undefined {
 	if (vscode.workspace.workspaceFolders) {
 		let npmSelector: vscode.DocumentSelector = {
 			language: 'json',
 			scheme: 'file',
 			pattern: '**/package.json'
 		};
-		let provider = new NpmLensProvider(context);
-		context.subscriptions.push(vscode.languages.registerCodeLensProvider(npmSelector, provider));
+		let provider = new NpmScriptHoverProvider(context);
+		context.subscriptions.push(vscode.languages.registerHoverProvider(npmSelector, provider));
 		return provider;
 	}
 	return undefined;
 }
+
 
 function configureHttpRequest() {
 	const httpSettings = vscode.workspace.getConfiguration('http');
