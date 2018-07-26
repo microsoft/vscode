@@ -80,14 +80,14 @@ export class ExtHostSearch implements ExtHostSearchShape {
 		const provider = this._fileSearchProvider.get(handle);
 		const query = reviveQuery(rawQuery);
 		if (provider) {
-			return this._fileSearchManager.fileSearch(query, provider, progress => {
-				this._proxy.$handleFileMatch(handle, session, progress.map(p => p.resource));
+			return this._fileSearchManager.fileSearch(query, provider, batch => {
+				this._proxy.$handleFileMatch(handle, session, batch.map(p => p.resource));
 			});
 		} else {
 			const indexProvider = this._fileIndexProvider.get(handle);
 			if (indexProvider) {
-				return this._fileIndexSearchManager.fileSearch(query, indexProvider, progress => {
-					this._proxy.$handleFileMatch(handle, session, progress.map(p => p.resource));
+				return this._fileIndexSearchManager.fileSearch(query, indexProvider, batch => {
+					this._proxy.$handleFileMatch(handle, session, batch.map(p => p.resource));
 				});
 			} else {
 				throw new Error('something went wrong');
