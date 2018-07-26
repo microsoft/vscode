@@ -233,7 +233,7 @@ export class BreadcrumbsControl {
 		this._breadcrumbsDisposables.push({
 			dispose: () => {
 				if (this._breadcrumbsPickerShowing) {
-					this._contextViewService.hideContextView();
+					this._contextViewService.hideContextView(this);
 				}
 			}
 		});
@@ -277,9 +277,7 @@ export class BreadcrumbsControl {
 			render: (parent: HTMLElement) => {
 				picker = createBreadcrumbsPicker(this._instantiationService, parent, element);
 				let listener = picker.onDidPickElement(data => {
-					this._contextViewService.hideContextView();
-					this._widget.setFocused(undefined);
-					this._widget.setSelection(undefined);
+					this._contextViewService.hideContextView(this);
 					this._revealInEditor(event, data);
 				});
 				this._breadcrumbsPickerShowing = true;
@@ -309,9 +307,13 @@ export class BreadcrumbsControl {
 				picker.setInput(element);
 				return { x, y };
 			},
-			onHide: () => {
+			onHide: (data) => {
 				this._breadcrumbsPickerShowing = false;
 				this._updateCkBreadcrumbsActive();
+				if (data === this) {
+					this._widget.setFocused(undefined);
+					this._widget.setSelection(undefined);
+				}
 			}
 		});
 	}
