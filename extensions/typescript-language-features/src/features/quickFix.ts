@@ -30,19 +30,18 @@ class ApplyCodeActionCommand implements Command {
 	public async execute(
 		action: Proto.CodeFixAction
 	): Promise<boolean> {
-		if (action.fixName) {
-			/* __GDPR__
-				"quickFix.execute" : {
-					"fixName" : { "classification": "PublicNonPersonalData", "purpose": "FeatureInsight" },
-					"${include}": [
-						"${TypeScriptCommonProperties}"
-					]
-				}
-			*/
-			this.telemetryReporter.logTelemetry('quickFix.execute', {
-				fixName: action.fixName
-			});
-		}
+		/* __GDPR__
+			"quickFix.execute" : {
+				"fixName" : { "classification": "PublicNonPersonalData", "purpose": "FeatureInsight" },
+				"${include}": [
+					"${TypeScriptCommonProperties}"
+				]
+			}
+		*/
+		this.telemetryReporter.logTelemetry('quickFix.execute', {
+			fixName: action.fixName
+		});
+
 		return applyCodeActionCommands(this.client, action.commands);
 	}
 }
@@ -264,13 +263,11 @@ class TypeScriptQuickFixProvider implements vscode.CodeActionProvider {
 		const codeAction = new vscode.CodeAction(tsAction.description, vscode.CodeActionKind.QuickFix);
 		codeAction.edit = getEditForCodeAction(this.client, tsAction);
 		codeAction.diagnostics = [diagnostic];
-		if (tsAction.commands) {
-			codeAction.command = {
-				command: ApplyCodeActionCommand.ID,
-				arguments: [tsAction],
-				title: tsAction.description
-			};
-		}
+		codeAction.command = {
+			command: ApplyCodeActionCommand.ID,
+			arguments: [tsAction],
+			title: ''
+		};
 		return codeAction;
 	}
 
