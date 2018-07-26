@@ -11,7 +11,7 @@ import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { isEqual, basenameOrAuthority } from 'vs/base/common/resources';
 import { isLinux, isWindows } from 'vs/base/common/platform';
-import { tildify, normalizeDriveLetter } from 'vs/base/common/labels';
+import { tildify } from 'vs/base/common/labels';
 import { ltrim } from 'vs/base/common/strings';
 
 export interface IUriDisplayService {
@@ -32,7 +32,7 @@ const sepRegexp = /\//g;
 const labelMatchingRegexp = /\$\{scheme\}|\$\{authority\}|\$\{path\}/g;
 
 function hasDriveLetter(path: string): boolean {
-	return isWindows && path && path[1] === ':';
+	return isWindows && path && path[2] === ':';
 }
 
 export class UriDisplayService implements IUriDisplayService {
@@ -96,9 +96,9 @@ export class UriDisplayService implements IUriDisplayService {
 			}
 		});
 
-		// convert c:\something => C:\something
+		// convert \c:\something => C:\something
 		if (formater.normalizeDriveLetter && hasDriveLetter(label)) {
-			label = normalizeDriveLetter(label);
+			label = label.charAt(1).toUpperCase() + label.substr(2);
 		}
 
 		if (formater.tildify) {

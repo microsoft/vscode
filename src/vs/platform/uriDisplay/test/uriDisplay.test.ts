@@ -30,7 +30,7 @@ suite('URI Display', () => {
 
 		const uri1 = TestWorkspace.folders[0].uri.with({ path: TestWorkspace.folders[0].uri.path.concat('/a/b/c/d') });
 		assert.equal(uriDisplayService.getLabel(uri1, true), isWindows ? 'a\\b\\c\\d' : 'a/b/c/d');
-		assert.equal(uriDisplayService.getLabel(uri1, false), isWindows ? '\\testWorkspace\\a\\b\\c\\d' : '/testWorkspace/a/b/c/d');
+		assert.equal(uriDisplayService.getLabel(uri1, false), isWindows ? 'C:\\testWorkspace\\a\\b\\c\\d' : '/testWorkspace/a/b/c/d');
 
 		const uri2 = URI.file('c:\\1/2/3');
 		assert.equal(uriDisplayService.getLabel(uri2, false), isWindows ? 'C:\\1\\2\\3' : '/c:\\1/2/3');
