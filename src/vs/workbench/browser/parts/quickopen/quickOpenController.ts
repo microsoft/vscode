@@ -21,7 +21,6 @@ import { Mode, IEntryRunContext, IAutoFocus, IQuickNavigateConfiguration, IModel
 import { QuickOpenEntry, QuickOpenModel, QuickOpenEntryGroup, compareEntries, QuickOpenItemAccessorClass } from 'vs/base/parts/quickopen/browser/quickOpenModel';
 import { QuickOpenWidget, HideReason } from 'vs/base/parts/quickopen/browser/quickOpenWidget';
 import { ContributableActionProvider } from 'vs/workbench/browser/actions';
-import * as labels from 'vs/base/common/labels';
 import { ITextFileService, AutoSaveMode } from 'vs/workbench/services/textfile/common/textfiles';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { IResourceInput } from 'vs/platform/editor/common/editor';
@@ -37,7 +36,6 @@ import * as errors from 'vs/base/common/errors';
 import { IPickOpenEntry, IFilePickOpenEntry, IQuickOpenService, IShowOptions, IPickOpenItem, IStringPickOptions, ITypedPickOptions } from 'vs/platform/quickOpen/common/quickOpen';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { IContextKeyService, RawContextKey, IContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { IHistoryService } from 'vs/workbench/services/history/common/history';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
@@ -57,6 +55,7 @@ import { INotificationService } from 'vs/platform/notification/common/notificati
 import { Dimension, addClass } from 'vs/base/browser/dom';
 import { IEditorService, ACTIVE_GROUP, SIDE_GROUP } from 'vs/workbench/services/editor/common/editorService';
 import { IEditorGroupsService } from 'vs/workbench/services/group/common/editorGroupsService';
+import { IUriDisplayService } from 'vs/platform/uriDisplay/common/uriDisplay';
 
 const HELP_PREFIX = '?';
 
@@ -1149,9 +1148,8 @@ export class EditorHistoryEntry extends EditorQuickOpenEntry {
 		@IModeService private modeService: IModeService,
 		@IModelService private modelService: IModelService,
 		@ITextFileService private textFileService: ITextFileService,
-		@IWorkspaceContextService contextService: IWorkspaceContextService,
 		@IConfigurationService private configurationService: IConfigurationService,
-		@IEnvironmentService environmentService: IEnvironmentService,
+		@IUriDisplayService uriDisplayService: IUriDisplayService,
 		@IFileService fileService: IFileService
 	) {
 		super(editorService);
@@ -1166,8 +1164,8 @@ export class EditorHistoryEntry extends EditorQuickOpenEntry {
 		} else {
 			const resourceInput = input as IResourceInput;
 			this.resource = resourceInput.resource;
-			this.label = labels.getBaseLabel(resourceInput.resource);
-			this.description = labels.getPathLabel(resources.dirname(this.resource), environmentService, contextService);
+			this.label = resources.basenameOrAuthority(resourceInput.resource);
+			this.description = uriDisplayService.getLabel(resources.dirname(this.resource), true);
 			this.dirty = this.resource && this.textFileService.isDirty(this.resource);
 
 			if (this.dirty && this.textFileService.getAutoSaveMode() === AutoSaveMode.AFTER_SHORT_DELAY) {
