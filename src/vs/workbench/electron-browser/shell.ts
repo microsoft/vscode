@@ -41,7 +41,7 @@ import { IIntegrityService } from 'vs/platform/integrity/common/integrity';
 import { EditorWorkerServiceImpl } from 'vs/editor/common/services/editorWorkerServiceImpl';
 import { IEditorWorkerService } from 'vs/editor/common/services/editorWorkerService';
 import { ExtensionService } from 'vs/workbench/services/extensions/electron-browser/extensionService';
-import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
+import { IStorageService } from 'vs/platform/storage/common/storage';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
 import { InstantiationService } from 'vs/platform/instantiation/common/instantiationService';
@@ -79,7 +79,7 @@ import { IBroadcastService, BroadcastService } from 'vs/platform/broadcast/elect
 import { HashService } from 'vs/workbench/services/hash/node/hashService';
 import { IHashService } from 'vs/workbench/services/hash/common/hashService';
 import { ILogService } from 'vs/platform/log/common/log';
-import { WORKBENCH_BACKGROUND, SIDE_BAR_BACKGROUND, ACTIVITY_BAR_BACKGROUND, STATUS_BAR_BACKGROUND, STATUS_BAR_NO_FOLDER_BACKGROUND, TITLE_BAR_ACTIVE_BACKGROUND } from 'vs/workbench/common/theme';
+import { WORKBENCH_BACKGROUND } from 'vs/workbench/common/theme';
 import { stat } from 'fs';
 import { join } from 'path';
 import { ILocalizationsChannel, LocalizationsChannelClient } from 'vs/platform/localizations/common/localizationsIpc';
@@ -91,13 +91,12 @@ import { NotificationService } from 'vs/workbench/services/notification/common/n
 import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
 import { DialogService } from 'vs/workbench/services/dialogs/electron-browser/dialogService';
 import { DialogChannel } from 'vs/platform/dialogs/common/dialogIpc';
-import { EventType, addDisposableListener, addClass, getTotalHeight, getTotalWidth } from 'vs/base/browser/dom';
+import { EventType, addDisposableListener, addClass } from 'vs/base/browser/dom';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
 import { OpenerService } from 'vs/editor/browser/services/openerService';
 import { SearchHistoryService } from 'vs/workbench/services/search/node/searchHistoryService';
 import { MulitExtensionManagementService } from 'vs/platform/extensionManagement/common/multiExtensionManagement';
 import { ExtensionManagementServerService } from 'vs/workbench/services/extensions/node/extensionManagementServerService';
-import { Parts, Position } from 'vs/workbench/services/part/common/partService';
 
 /**
  * Services that we require for the Shell
@@ -188,9 +187,6 @@ export class WorkbenchShell extends Disposable {
 
 			// Startup Workbench
 			workbench.startup().done(startupInfos => {
-
-				// Remove splash screen
-				this._removePartsSplash();
 
 				// Set lifecycle phase to `Runnning` so that other contributions can now do something
 				this.lifecycleService.phase = LifecyclePhase.Running;
@@ -512,41 +508,9 @@ export class WorkbenchShell extends Disposable {
 		// Keep font info for next startup around
 		saveFontInfo(this.storageService);
 
-		this._savePartsSplash();
-
 		// Dispose Workbench
 		if (this.workbench) {
 			this.workbench.dispose(reason);
-		}
-	}
-
-	private static readonly PARTS_SPLASH_ID = 'monaco-parts-splash';
-
-	private _savePartsSplash() {
-
-		// capture color/layout data
-		const theme = this.themeService.getTheme();
-		const colorInfo = {
-			titleBarBackground: theme.getColor(TITLE_BAR_ACTIVE_BACKGROUND).toString(),
-			activityBarBackground: theme.getColor(ACTIVITY_BAR_BACKGROUND).toString(),
-			sideBarBackground: theme.getColor(SIDE_BAR_BACKGROUND).toString(),
-			statusBarBackground: theme.getColor(STATUS_BAR_BACKGROUND).toString(),
-			statusBarNoFolderBackground: theme.getColor(STATUS_BAR_NO_FOLDER_BACKGROUND).toString(),
-		};
-		const layoutInfo = {
-			titleBarHeight: getTotalHeight(this.workbench.getContainer(Parts.TITLEBAR_PART)),
-			sideBarSide: this.workbench.getSideBarPosition() === Position.RIGHT ? 'right' : 'left',
-			activityBarWidth: getTotalWidth(this.workbench.getContainer(Parts.ACTIVITYBAR_PART)),
-			sideBarWidth: getTotalWidth(this.workbench.getContainer(Parts.SIDEBAR_PART)),
-			statusBarHeight: getTotalHeight(this.workbench.getContainer(Parts.STATUSBAR_PART)),
-		};
-		this.storageService.store('parts-splash-data', JSON.stringify({ id: WorkbenchShell.PARTS_SPLASH_ID, colorInfo, layoutInfo }), StorageScope.GLOBAL);
-	}
-
-	private _removePartsSplash(): void {
-		let element = document.getElementById(WorkbenchShell.PARTS_SPLASH_ID);
-		if (element) {
-			element.remove();
 		}
 	}
 }
