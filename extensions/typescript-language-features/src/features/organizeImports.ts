@@ -69,11 +69,15 @@ export class OrganizeImportsCodeActionProvider implements vscode.CodeActionProvi
 	public provideCodeActions(
 		document: vscode.TextDocument,
 		_range: vscode.Range,
-		_context: vscode.CodeActionContext,
+		context: vscode.CodeActionContext,
 		token: vscode.CancellationToken
 	): vscode.CodeAction[] {
 		const file = this.client.toPath(document.uri);
 		if (!file) {
+			return [];
+		}
+
+		if (!context.only || !context.only.contains(vscode.CodeActionKind.SourceOrganizeImports)) {
 			return [];
 		}
 
