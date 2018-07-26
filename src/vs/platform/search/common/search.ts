@@ -27,7 +27,7 @@ export interface ISearchService {
 	search(query: ISearchQuery, onProgress?: (result: ISearchProgressItem) => void): TPromise<ISearchComplete>;
 	extendQuery(query: ISearchQuery): void;
 	clearCache(cacheKey: string): TPromise<void>;
-	registerSearchResultProvider(scheme: string, provider: ISearchResultProvider): IDisposable;
+	registerSearchResultProvider(scheme: string, type: SearchProviderType, provider: ISearchResultProvider): IDisposable;
 }
 
 export interface ISearchHistoryValues {
@@ -43,6 +43,15 @@ export interface ISearchHistoryService {
 	clearHistory(): void;
 	load(): ISearchHistoryValues;
 	save(history: ISearchHistoryValues): void;
+}
+
+/**
+ * TODO@roblou - split text from file search entirely, or share code in a more natural way.
+ */
+export enum SearchProviderType {
+	file,
+	fileIndex,
+	text
 }
 
 export interface ISearchResultProvider {

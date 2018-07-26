@@ -10,16 +10,13 @@ import * as tree from 'vs/base/parts/tree/browser/tree';
 import { MarkersModel, Marker, ResourceMarkers } from 'vs/workbench/parts/markers/electron-browser/markersModel';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 import { IMenuService, MenuId } from 'vs/platform/actions/common/actions';
-import { IAction, Action } from 'vs/base/common/actions';
+import { IAction } from 'vs/base/common/actions';
 import { ActionItem, Separator } from 'vs/base/browser/ui/actionbar/actionbar';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { WorkbenchTree, WorkbenchTreeController } from 'vs/platform/list/browser/listService';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { IBulkEditService } from 'vs/editor/browser/services/bulkEditService';
-import { applyCodeAction } from 'vs/editor/contrib/codeAction/codeActionCommands';
-import { ICommandService } from 'vs/platform/commands/common/commands';
-import { IEditorService, ACTIVE_GROUP } from 'vs/workbench/services/editor/common/editorService';
-import { localize } from 'vs/nls';
+import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
+import { QuickFixAction } from 'vs/workbench/parts/markers/electron-browser/markersPanelActions';
 
 export class Controller extends WorkbenchTreeController {
 
@@ -28,9 +25,7 @@ export class Controller extends WorkbenchTreeController {
 		@IMenuService private menuService: IMenuService,
 		@IKeybindingService private readonly _keybindingService: IKeybindingService,
 		@IConfigurationService configurationService: IConfigurationService,
-		@IBulkEditService private bulkEditService: IBulkEditService,
-		@ICommandService private commandService: ICommandService,
-		@IEditorService private editorService: IEditorService
+		@IInstantiationService private instantiationService: IInstantiationService
 	) {
 		super({}, configurationService);
 	}
@@ -80,15 +75,16 @@ export class Controller extends WorkbenchTreeController {
 	private async _getMenuActions(tree: WorkbenchTree, element: any): Promise<IAction[]> {
 		const result: IAction[] = [];
 
-
 		if (element instanceof Marker) {
-			const quickFixActions = await this._getQuickFixActions(tree, element);
-			if (quickFixActions.length) {
-				result.push(...quickFixActions);
-			} else {
-				result.push(new Action('problems.no.fixes', localize('no fixes available', "No fixes available"), void 0, false));
+			const parent = tree.getNavigator(element).parent();
+			if (parent instanceof ResourceMarkers) {
+				const quickFixAction = this.instantiationService.createInstance(QuickFixAction, element, parent);
+				const quickFixActions = await quickFixAction.getQuickFixActions();
+				if (quickFixActions.length) {
+					result.push(...quickFixActions);
+					result.push(new Separator());
+				}
 			}
-			result.push(new Separator());
 		}
 
 		const menu = this.menuService.createMenu(MenuId.ProblemsPanelContext, tree.contextKeyService);
@@ -103,35 +99,5 @@ export class Controller extends WorkbenchTreeController {
 
 		result.pop(); // remove last separator
 		return result;
-	}
-
-	private async _getQuickFixActions(tree: WorkbenchTree, element: Marker): Promise<IAction[]> {
-		const parent = tree.getNavigator(element).parent();
-		if (parent instanceof ResourceMarkers) {
-			const codeActions = await parent.getFixes(element);
-			return codeActions.map(codeAction => new Action(
-				codeAction.command ? codeAction.command.id : codeAction.title,
-				codeAction.title,
-				void 0,
-				true,
-				() => {
-					return this.openFileAtMarker(element)
-						.then(() => applyCodeAction(codeAction, this.bulkEditService, this.commandService));
-				}));
-		}
-		return [];
-	}
-
-	public openFileAtMarker(element: Marker): TPromise<void> {
-		const { resource, selection } = { resource: element.resource, selection: element.range };
-		return this.editorService.openEditor({
-			resource,
-			options: {
-				selection,
-				preserveFocus: true,
-				pinned: false,
-				revealIfVisible: true
-			},
-		}, ACTIVE_GROUP).then(() => null);
 	}
 }

@@ -163,23 +163,34 @@ MenuRegistry.appendMenuItem(MenuId.MenubarFileMenu, {
 	order: 2
 });
 
-MenuRegistry.appendMenuItem(MenuId.MenubarFileMenu, {
-	group: '2_open',
-	command: {
-		id: OpenFileAction.ID,
-		title: nls.localize({ key: 'miOpenFile', comment: ['&& denotes a mnemonic'] }, "&&Open File...")
-	},
-	order: 1
-});
+if (!isMacintosh) {
+	MenuRegistry.appendMenuItem(MenuId.MenubarFileMenu, {
+		group: '2_open',
+		command: {
+			id: OpenFileAction.ID,
+			title: nls.localize({ key: 'miOpenFile', comment: ['&& denotes a mnemonic'] }, "&&Open File...")
+		},
+		order: 1
+	});
 
-MenuRegistry.appendMenuItem(MenuId.MenubarFileMenu, {
-	group: '2_open',
-	command: {
-		id: OpenFolderAction.ID,
-		title: nls.localize({ key: 'miOpenFolder', comment: ['&& denotes a mnemonic'] }, "Open &&Folder...")
-	},
-	order: 2
-});
+	MenuRegistry.appendMenuItem(MenuId.MenubarFileMenu, {
+		group: '2_open',
+		command: {
+			id: OpenFolderAction.ID,
+			title: nls.localize({ key: 'miOpenFolder', comment: ['&& denotes a mnemonic'] }, "Open &&Folder...")
+		},
+		order: 2
+	});
+} else {
+	MenuRegistry.appendMenuItem(MenuId.MenubarFileMenu, {
+		group: '2_open',
+		command: {
+			id: OpenFileFolderAction.ID,
+			title: nls.localize({ key: 'miOpen', comment: ['&& denotes a mnemonic'] }, "&&Open...")
+		},
+		order: 1
+	});
+}
 
 MenuRegistry.appendMenuItem(MenuId.MenubarFileMenu, {
 	group: '2_open',
@@ -226,12 +237,14 @@ MenuRegistry.appendMenuItem(MenuId.MenubarFileMenu, {
 	order: 2
 });
 
-MenuRegistry.appendMenuItem(MenuId.MenubarFileMenu, {
-	title: nls.localize({ key: 'miPreferences', comment: ['&& denotes a mnemonic'] }, "&&Preferences"),
-	submenu: MenuId.MenubarPreferencesMenu,
-	group: '5_autosave',
-	order: 2
-});
+if (!isMacintosh) {
+	MenuRegistry.appendMenuItem(MenuId.MenubarFileMenu, {
+		title: nls.localize({ key: 'miPreferences', comment: ['&& denotes a mnemonic'] }, "&&Preferences"),
+		submenu: MenuId.MenubarPreferencesMenu,
+		group: '5_autosave',
+		order: 2
+	});
+}
 
 MenuRegistry.appendMenuItem(MenuId.MenubarFileMenu, {
 	group: '6_close',
@@ -374,7 +387,7 @@ configurationRegistry.registerConfiguration({
 		},
 		'workbench.editor.closeOnFileDelete': {
 			'type': 'boolean',
-			'description': nls.localize('closeOnFileDelete', "Controls if editors showing a file should close automatically when the file is deleted or renamed by some other process. Disabling this will keep the editor open as dirty on such an event. Note that deleting from within the application will always close the editor and that dirty files will never close to preserve your data."),
+			'description': nls.localize('closeOnFileDelete', "Controls whether editors showing a file should close automatically when the file is deleted or renamed by some other process. Disabling this will keep the editor open as dirty on such an event. Note that deleting from within the application will always close the editor and that dirty files will never close to preserve your data."),
 			'default': true
 		},
 		'workbench.editor.openPositioning': {
@@ -475,7 +488,8 @@ configurationRegistry.registerConfiguration({
 			'type': 'boolean',
 			'description': nls.localize('enableNaturalLanguageSettingsSearch', "Controls whether to enable the natural language search mode for settings."),
 			'default': true,
-			'scope': ConfigurationScope.WINDOW
+			'scope': ConfigurationScope.WINDOW,
+			'tags': ['backgroundOnlineFeature']
 		},
 		'workbench.settings.settingsSearchTocBehavior': {
 			'type': 'string',
@@ -667,12 +681,12 @@ configurationRegistry.registerConfiguration({
 		'zenMode.hideTabs': {
 			'type': 'boolean',
 			'default': true,
-			'description': nls.localize('zenMode.hideTabs', "Controls if turning on Zen Mode also hides workbench tabs.")
+			'description': nls.localize('zenMode.hideTabs', "Controls whether turning on Zen Mode also hides workbench tabs.")
 		},
 		'zenMode.hideStatusBar': {
 			'type': 'boolean',
 			'default': true,
-			'description': nls.localize('zenMode.hideStatusBar', "Controls if turning on Zen Mode also hides the status bar at the bottom of the workbench.")
+			'description': nls.localize('zenMode.hideStatusBar', "Controls whether turning on Zen Mode also hides the status bar at the bottom of the workbench.")
 		},
 		'zenMode.hideActivityBar': {
 			'type': 'boolean',
@@ -682,7 +696,7 @@ configurationRegistry.registerConfiguration({
 		'zenMode.restore': {
 			'type': 'boolean',
 			'default': false,
-			'description': nls.localize('zenMode.restore', "Controls if a window should restore to zen mode if it was exited in zen mode.")
+			'description': nls.localize('zenMode.restore', "Controls whether a window should restore to zen mode if it was exited in zen mode.")
 		}
 	}
 });

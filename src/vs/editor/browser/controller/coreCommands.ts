@@ -1706,11 +1706,17 @@ registerCommand(new EditorOrNativeTextInputCommand({
 	editorHandler: CoreNavigationCommands.SelectAll,
 	inputHandler: 'selectAll',
 	id: 'editor.action.selectAll',
-	precondition: EditorContextKeys.focus,
+	precondition: EditorContextKeys.textInputFocus,
 	kbOpts: {
 		weight: CORE_WEIGHT,
 		kbExpr: null,
 		primary: KeyMod.CtrlCmd | KeyCode.KEY_A
+	},
+	menubarOpts: {
+		menuId: MenuId.MenubarSelectionMenu,
+		group: '1_basic',
+		title: nls.localize({ key: 'miSelectAll', comment: ['&& denotes a mnemonic'] }, "&&Select All"),
+		order: 1
 	}
 }));
 

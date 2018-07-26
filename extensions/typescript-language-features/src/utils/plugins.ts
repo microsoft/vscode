@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { extensions } from 'vscode';
+import * as vscode from 'vscode';
 
 export interface TypeScriptServerPlugin {
 	readonly path: string;
@@ -13,7 +13,7 @@ export interface TypeScriptServerPlugin {
 
 export function getContributedTypeScriptServerPlugins(): TypeScriptServerPlugin[] {
 	const plugins: TypeScriptServerPlugin[] = [];
-	for (const extension of extensions.all) {
+	for (const extension of vscode.extensions.all) {
 		const pack = extension.packageJSON;
 		if (pack.contributes && pack.contributes.typescriptServerPlugins && Array.isArray(pack.contributes.typescriptServerPlugins)) {
 			for (const plugin of pack.contributes.typescriptServerPlugins) {

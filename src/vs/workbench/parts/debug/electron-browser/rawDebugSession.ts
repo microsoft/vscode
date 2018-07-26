@@ -348,8 +348,7 @@ export class RawDebugSession implements IRawSession {
 			return this.send('terminate', { restart });
 		}
 
-		this.dispose(restart);
-		return TPromise.as(null);
+		return this.disconnect(restart);
 	}
 
 	public setBreakpoints(args: DebugProtocol.SetBreakpointsArguments): TPromise<DebugProtocol.SetBreakpointsResponse> {
@@ -475,24 +474,25 @@ export class RawDebugSession implements IRawSession {
 		});
 	}
 
-	public dispose(restart = false): void {
+	public disconnect(restart = false): TPromise<any> {
 		if (this.disconnected) {
-			this.stopServer().done(undefined, errors.onUnexpectedError);
-		} else {
-
-			// Cancel all sent promises on disconnect so debug trees are not left in a broken state #3666.
-			// Give a 1s timeout to give a chance for some promises to complete.
-			setTimeout(() => {
-				this.sentPromises.forEach(p => p && p.cancel());
-				this.sentPromises = [];
-			}, 1000);
-
-			if (this.debugAdapter && !this.disconnected) {
-				// point of no return: from now on don't report any errors
-				this.disconnected = true;
-				this.send('disconnect', { restart }, false).then(() => this.stopServer(), () => this.stopServer()).done(undefined, errors.onUnexpectedError);
-			}
+			return this.stopServer();
 		}
+
+		// Cancel all sent promises on disconnect so debug trees are not left in a broken state #3666.
+		// Give a 1s timeout to give a chance for some promises to complete.
+		setTimeout(() => {
+			this.sentPromises.forEach(p => p && p.cancel());
+			this.sentPromises = [];
+		}, 1000);
+
+		if (this.debugAdapter && !this.disconnected) {
+			// point of no return: from now on don't report any errors
+			this.disconnected = true;
+			return this.send('disconnect', { restart }, false).then(() => this.stopServer(), () => this.stopServer());
+		}
+
+		return TPromise.as(null);
 	}
 
 	private stopServer(): TPromise<any> {

@@ -92,7 +92,9 @@ export class QuickOpenEntry {
 	 * The label of the entry to use when a screen reader wants to read about the entry
 	 */
 	getAriaLabel(): string {
-		return this.getLabel();
+		return [this.getLabel(), this.getDescription(), this.getDetail()]
+			.filter(s => !!s)
+			.join(', ');
 	}
 
 	/**

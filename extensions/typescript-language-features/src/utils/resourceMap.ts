@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as fs from 'fs';
-import { Uri } from 'vscode';
+import * as vscode from 'vscode';
 import { memoize } from './memoize';
 import { getTempFile } from './temp';
 
@@ -18,27 +18,27 @@ export class ResourceMap<T> {
 	private readonly _map = new Map<string, T>();
 
 	constructor(
-		private readonly _normalizePath?: (resource: Uri) => string | null
+		private readonly _normalizePath?: (resource: vscode.Uri) => string | null
 	) { }
 
-	public has(resource: Uri): boolean {
+	public has(resource: vscode.Uri): boolean {
 		const file = this.toKey(resource);
 		return !!file && this._map.has(file);
 	}
 
-	public get(resource: Uri): T | undefined {
+	public get(resource: vscode.Uri): T | undefined {
 		const file = this.toKey(resource);
 		return file ? this._map.get(file) : undefined;
 	}
 
-	public set(resource: Uri, value: T) {
+	public set(resource: vscode.Uri, value: T) {
 		const file = this.toKey(resource);
 		if (file) {
 			this._map.set(file, value);
 		}
 	}
 
-	public delete(resource: Uri): void {
+	public delete(resource: vscode.Uri): void {
 		const file = this.toKey(resource);
 		if (file) {
 			this._map.delete(file);
@@ -57,7 +57,7 @@ export class ResourceMap<T> {
 		return this._map.entries();
 	}
 
-	private toKey(resource: Uri): string | null {
+	private toKey(resource: vscode.Uri): string | null {
 		const key = this._normalizePath ? this._normalizePath(resource) : resource.fsPath;
 		if (!key) {
 			return key;

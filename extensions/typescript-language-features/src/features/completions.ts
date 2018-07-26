@@ -366,8 +366,8 @@ class TypeScriptCompletionItemProvider implements vscode.CompletionItemProvider 
 
 		let details: Proto.CompletionEntryDetails[] | undefined;
 		try {
-			const response = await this.client.execute('completionEntryDetails', args, token);
-			details = response.body;
+			const { body } = await this.client.execute('completionEntryDetails', args, token);
+			details = body;
 		} catch {
 			return item;
 		}
@@ -529,9 +529,8 @@ class TypeScriptCompletionItemProvider implements vscode.CompletionItemProvider 
 		// Workaround for https://github.com/Microsoft/TypeScript/issues/12677
 		// Don't complete function calls inside of destructive assigments or imports
 		try {
-			const infoResponse = await this.client.execute('quickinfo', typeConverters.Position.toFileLocationRequestArgs(filepath, position));
-			const info = infoResponse.body;
-			switch (info && info.kind) {
+			const { body } = await this.client.execute('quickinfo', typeConverters.Position.toFileLocationRequestArgs(filepath, position));
+			switch (body && body.kind) {
 				case 'var':
 				case 'let':
 				case 'const':

@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { OutputChannel, window } from 'vscode';
+import * as vscode from 'vscode';
 import * as nls from 'vscode-nls';
 import * as is from './is';
 import { memoize } from './memoize';
@@ -13,8 +13,8 @@ const localize = nls.loadMessageBundle();
 export default class Logger {
 
 	@memoize
-	private get output(): OutputChannel {
-		return window.createOutputChannel(localize('channelName', 'TypeScript'));
+	private get output(): vscode.OutputChannel {
+		return vscode.window.createOutputChannel(localize('channelName', 'TypeScript'));
 	}
 
 	private data2String(data: any): string {
