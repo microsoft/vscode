@@ -1111,7 +1111,7 @@ export class DebugService implements debug.IDebugService {
 			this.skipRunningTask = !!restartData;
 
 			// If the restart is automatic disconnect, otherwise send the terminate signal #55064
-			return (!restartData ? (<RawDebugSession>session.raw).disconnect(true) : session.raw.terminate(true)).then(() => {
+			return (!!restartData ? (<RawDebugSession>session.raw).disconnect(true) : session.raw.terminate(true)).then(() => {
 				if (strings.equalsIgnoreCase(session.configuration.type, 'extensionHost') && session.raw.root) {
 					return this.broadcastService.broadcast({
 						channel: EXTENSION_RELOAD_BROADCAST_CHANNEL,
