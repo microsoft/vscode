@@ -11,7 +11,7 @@
 import { Diagnostic, DiagnosticRelatedInformation, DiagnosticSeverity, DiagnosticTag, Disposable, Memento, Range, Uri, workspace } from 'vscode';
 import { DiagnosticKind } from './features/diagnostics';
 import FileConfigurationManager from './features/fileConfigurationManager';
-import { UpdateImportsOnFileRenameHandler } from './features/updatePathsOnRename';
+import { register as registerUpdatePathsOnRename } from './features/updatePathsOnRename';
 import LanguageProvider from './languageProvider';
 import * as Proto from './protocol';
 import * as PConst from './protocol.const';
@@ -45,7 +45,6 @@ export default class TypeScriptServiceClientHost {
 	private readonly disposables: Disposable[] = [];
 	private readonly versionStatus: VersionStatus;
 	private readonly fileConfigurationManager: FileConfigurationManager;
-	private readonly updateImportsOnFileRenameHandler: UpdateImportsOnFileRenameHandler;
 
 	private reportStyleCheckAsWarnings: boolean = true;
 
@@ -101,7 +100,7 @@ export default class TypeScriptServiceClientHost {
 			this.languagePerId.set(description.id, manager);
 		}
 
-		this.updateImportsOnFileRenameHandler = new UpdateImportsOnFileRenameHandler(this.client, this.fileConfigurationManager, uri => this.handles(uri));
+		this.disposables.push(registerUpdatePathsOnRename(this.client, this.fileConfigurationManager, uri => this.handles(uri)));
 
 		this.client.ensureServiceStarted();
 		this.client.onReady(() => {
@@ -152,7 +151,6 @@ export default class TypeScriptServiceClientHost {
 		this.typingsStatus.dispose();
 		this.ataProgressReporter.dispose();
 		this.fileConfigurationManager.dispose();
-		this.updateImportsOnFileRenameHandler.dispose();
 	}
 
 	public get serviceClient(): TypeScriptServiceClient {
