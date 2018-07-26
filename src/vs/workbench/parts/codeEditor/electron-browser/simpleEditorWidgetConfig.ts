@@ -14,7 +14,7 @@ import { SuggestController } from 'vs/editor/contrib/suggest/suggestController';
 import { SnippetController2 } from 'vs/editor/contrib/snippet/snippetController2';
 import { TabCompletionController } from 'vs/workbench/parts/snippets/electron-browser/tabCompletion';
 
-export class SimpleWidgetEditorConfig {
+export class SimpleEditorWidgetConfig {
 
 	public static getCodeEditorWidgetOptions(): ICodeEditorWidgetOptions {
 		return {
@@ -52,37 +52,6 @@ export class SimpleWidgetEditorConfig {
 			minimap: {
 				enabled: false
 			}
-		};
-	}
-
-	public static getEditorAsInputBoxOptions(ariaLabel?: string): IEditorOptions {
-		return {
-			fontSize: 13,
-			lineHeight: 22,
-			wordWrap: 'off',
-			overviewRulerLanes: 0,
-			glyphMargin: false,
-			lineNumbers: 'off',
-			folding: false,
-			selectOnLineNumbers: false,
-			hideCursorInOverviewRuler: true,
-			selectionHighlight: false,
-			scrollbar: {
-				horizontal: 'hidden',
-				vertical: 'hidden'
-			},
-			ariaLabel: ariaLabel || '',
-			cursorWidth: 1,
-			lineDecorationsWidth: 0,
-			overviewRulerBorder: false,
-			scrollBeyondLastLine: false,
-			renderLineHighlight: 'none',
-			fixedOverflowWidgets: true,
-			acceptSuggestionOnEnter: 'smart',
-			minimap: {
-				enabled: false
-			},
-			fontFamily: ' -apple-system, BlinkMacSystemFont, "Segoe WPC", "Segoe UI", "HelveticaNeue-Light", "Ubuntu", "Droid Sans", sans-serif'
 		};
 	}
 }

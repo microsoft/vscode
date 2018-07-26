@@ -17,7 +17,7 @@ import { IContextViewService } from 'vs/platform/contextview/browser/contextView
 import { IDebugService, IBreakpoint, BreakpointWidgetContext as Context, CONTEXT_BREAKPOINT_WIDGET_VISIBLE, DEBUG_SCHEME, IDebugEditorContribution, EDITOR_CONTRIBUTION_ID, CONTEXT_IN_BREAKPOINT_WIDGET } from 'vs/workbench/parts/debug/common/debug';
 import { attachSelectBoxStyler } from 'vs/platform/theme/common/styler';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
-import { SimpleWidgetEditorConfig } from 'vs/workbench/parts/codeEditor/electron-browser/simpleWidgetEditor';
+import { SimpleEditorWidgetConfig } from 'vs/workbench/parts/codeEditor/electron-browser/simpleEditorWidgetConfig';
 import { createDecorator, IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { ServicesAccessor, EditorCommand, registerEditorCommand } from 'vs/editor/browser/editorExtensions';
@@ -200,8 +200,8 @@ export class BreakpointWidget extends ZoneWidget implements IPrivateBreakpointWi
 		const scopedInstatiationService = this.instantiationService.createChild(new ServiceCollection(
 			[IContextKeyService, scopedContextKeyService], [IPrivateBreakpointWidgetService, this]));
 
-		const options = SimpleWidgetEditorConfig.getEditorOptions();
-		const codeEditorWidgetOptions = SimpleWidgetEditorConfig.getCodeEditorWidgetOptions();
+		const options = SimpleEditorWidgetConfig.getEditorOptions();
+		const codeEditorWidgetOptions = SimpleEditorWidgetConfig.getCodeEditorWidgetOptions();
 		this.input = scopedInstatiationService.createInstance(CodeEditorWidget, container, options, codeEditorWidgetOptions);
 		CONTEXT_IN_BREAKPOINT_WIDGET.bindTo(scopedContextKeyService).set(true);
 		const model = this.modelService.createModel('', null, uri.parse(`${DEBUG_SCHEME}:${this.editor.getId()}:breakpointinput`), true);

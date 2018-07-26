@@ -64,7 +64,8 @@ import { IModelService } from 'vs/editor/common/services/modelService';
 import { Range } from 'vs/editor/common/core/range';
 import { Position } from 'vs/editor/common/core/position';
 import { ITextModel } from 'vs/editor/common/model';
-import { SimpleWidgetEditorConfig } from 'vs/workbench/parts/codeEditor/electron-browser/simpleWidgetEditor';
+import { SimpleEditorWidgetConfig } from 'vs/workbench/parts/codeEditor/electron-browser/simpleEditorWidgetConfig';
+import { IEditorOptions } from 'vs/editor/common/config/editorOptions';
 
 interface SearchInputEvent extends Event {
 	target: HTMLInputElement;
@@ -340,8 +341,8 @@ export class ExtensionsViewlet extends ViewContainerViewlet implements IExtensio
 		const header = append(this.root, $('.header'));
 		this.monacoStyleContainer = append(header, $('.monaco-container'));
 		this.searchBox = this.instantiationService.createInstance(CodeEditorWidget, this.monacoStyleContainer,
-			SimpleWidgetEditorConfig.getEditorAsInputBoxOptions(localize('searchExtensions', "Search Extensions in Marketplace")),
-			SimpleWidgetEditorConfig.getCodeEditorWidgetOptions());
+			mixinHTMLInputStyleOptions(SimpleEditorWidgetConfig.getEditorOptions(), localize('searchExtensions', "Search Extensions in Marketplace")),
+			SimpleEditorWidgetConfig.getCodeEditorWidgetOptions());
 
 		this.placeholderText = append(this.monacoStyleContainer, $('.search-placeholder', null, localize('searchExtensions', "Search Extensions in Marketplace")));
 
@@ -667,3 +668,13 @@ export class MaliciousExtensionChecker implements IWorkbenchContribution {
 	}
 }
 
+function mixinHTMLInputStyleOptions(config: IEditorOptions, ariaLabel?: string): IEditorOptions {
+	config.fontSize = 13;
+	config.lineHeight = 22;
+	config.wordWrap = 'off';
+	config.scrollbar.vertical = 'hidden';
+	config.ariaLabel = ariaLabel || '';
+	config.cursorWidth = 1;
+	config.fontFamily = ' -apple-system, BlinkMacSystemFont, "Segoe WPC", "Segoe UI", "HelveticaNeue-Light", "Ubuntu", "Droid Sans", sans-serif';
+	return config;
+}
