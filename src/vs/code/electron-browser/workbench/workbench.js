@@ -23,8 +23,13 @@ bootstrapWindow.load([
 	function (workbench, configuration) {
 		perf.mark('didLoadWorkbenchMain');
 
-		return process['lazyEnv'].then(function () {
+		return process['lazyEnv'].then(function (lazyEnv) {
 			perf.mark('main/startup');
+
+			// Assign the shell environment if not launched from cli
+			if (configuration.userEnv['VSCODE_CLI'] !== '1') {
+				bootstrapWindow.assign(process.env, lazyEnv);
+			}
 
 			// @ts-ignore
 			return require('vs/workbench/electron-browser/main').startup(configuration);
@@ -131,9 +136,8 @@ function getLazyEnv() {
 
 		ipc.once('vscode:acceptShellEnv', function (event, shellEnv) {
 			clearTimeout(handle);
-			bootstrapWindow.assign(process.env, shellEnv);
 			// @ts-ignore
-			resolve(process.env);
+			resolve(shellEnv);
 		});
 
 		ipc.send('vscode:fetchShellEnv');

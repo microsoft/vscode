@@ -81,8 +81,6 @@ export function getShellEnvironment(): Promise<typeof process.env> {
 	if (_shellEnv === undefined) {
 		if (isWindows) {
 			_shellEnv = Promise.resolve({});
-		} else if (process.env['VSCODE_CLI'] === '1') {
-			_shellEnv = Promise.resolve({});
 		} else {
 			_shellEnv = getUnixShellEnvironment();
 		}
