@@ -437,6 +437,7 @@ function trimCategoryForGroup(category: string, groupId: string): string {
 export interface ISettingsEditorViewState {
 	settingsTarget: SettingsTarget;
 	showConfiguredOnly?: boolean;
+	tagFilters?: Set<string>;
 	filterToCategory?: SettingsTreeGroupElement;
 }
 
@@ -1112,6 +1113,18 @@ export class SettingsTreeFilter implements IFilter {
 
 		if (element instanceof SettingsTreeGroupElement && this.viewState.showConfiguredOnly) {
 			return this.groupHasConfiguredSetting(element);
+		}
+
+		if (element instanceof SettingsTreeSettingElement && this.viewState.tagFilters && this.viewState.tagFilters.size) {
+			if (element.setting.tags) {
+				return element.setting.tags.some(tag => this.viewState.tagFilters.has(tag));
+			} else {
+				return false;
+			}
+		}
+
+		if (element instanceof SettingsTreeGroupElement && this.viewState.tagFilters && this.viewState.tagFilters.size) {
+			return element.children.some(child => this.isVisible(tree, child));
 		}
 
 		return true;

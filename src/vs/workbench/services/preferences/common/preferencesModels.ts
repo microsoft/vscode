@@ -555,7 +555,20 @@ export class DefaultSettings extends Disposable {
 				const value = prop.default;
 				const description = (prop.description || '').split('\n');
 				const overrides = OVERRIDE_PROPERTY_PATTERN.test(key) ? this.parseOverrideSettings(prop.default) : [];
-				result.push({ key, value, description, range: null, keyRange: null, valueRange: null, descriptionRanges: [], overrides, type: prop.type, enum: prop.enum, enumDescriptions: prop.enumDescriptions });
+				result.push({
+					key,
+					value,
+					description,
+					range: null,
+					keyRange: null,
+					valueRange: null,
+					descriptionRanges: [],
+					overrides,
+					type: prop.type,
+					enum: prop.enum,
+					enumDescriptions: prop.enumDescriptions,
+					tags: prop.tags
+				});
 			}
 		}
 		return result;
@@ -748,7 +761,8 @@ export class DefaultSettingsEditorModel extends AbstractSettingsModel implements
 			value: setting.value,
 			range: setting.range,
 			overrides: [],
-			overrideOf: setting.overrideOf
+			overrideOf: setting.overrideOf,
+			tags: setting.tags
 		};
 	}
 

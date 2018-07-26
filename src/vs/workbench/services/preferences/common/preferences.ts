@@ -49,6 +49,7 @@ export interface ISetting {
 	type?: string | string[];
 	enum?: string[];
 	enumDescriptions?: string[];
+	tags?: string[];
 }
 
 export interface IExtensionSetting extends ISetting {

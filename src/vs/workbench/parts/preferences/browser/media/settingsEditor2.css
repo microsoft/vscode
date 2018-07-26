@@ -113,15 +113,18 @@
 	background-image: url('configure-inverse.svg');
 }
 
-.vs .settings-editor.showing-modified-only > .settings-header > .settings-header-controls .settings-header-controls-right .toolbar-toggle-more::before {
+.vs .settings-editor.showing-modified-only > .settings-header > .settings-header-controls .settings-header-controls-right .toolbar-toggle-more::before,
+.vs .settings-editor.settings-filtered-by-tag > .settings-header > .settings-header-controls .settings-header-controls-right .toolbar-toggle-more::before {
 	border-color : #fff;
 }
 
-.vs-dark .settings-editor.showing-modified-only > .settings-header > .settings-header-controls .settings-header-controls-right .toolbar-toggle-more::before {
+.vs-dark .settings-editor.showing-modified-only > .settings-header > .settings-header-controls .settings-header-controls-right .toolbar-toggle-more::before,
+.vs-dark .settings-editor.settings-filtered-by-tag > .settings-header > .settings-header-controls .settings-header-controls-right .toolbar-toggle-more::before {
 	border-color : #000;
 }
 
-.settings-editor.showing-modified-only > .settings-header > .settings-header-controls .settings-header-controls-right .toolbar-toggle-more::before {
+.settings-editor.showing-modified-only > .settings-header > .settings-header-controls .settings-header-controls-right .toolbar-toggle-more::before,
+.settings-editor.settings-filtered-by-tag > .settings-header > .settings-header-controls .settings-header-controls-right .toolbar-toggle-more::before {
 	content: "";
 	width: 6px;
 	height: 6px;

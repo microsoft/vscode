@@ -224,6 +224,12 @@ export class SettingsEditor2 extends BaseEditor {
 
 		const actions = [
 			this.instantiationService.createInstance(ToggleShowModifiedOnlyAction, this, this.viewState),
+			this.instantiationService.createInstance(
+				ToggleFilterByTagAction,
+				localize('filterBackgroundOnlineLabel', "Show background online settings only"),
+				'backgroundOnlineFeature',
+				this,
+				this.viewState),
 			this.instantiationService.createInstance(OpenSettingsAction)
 		];
 		this.toolbar.setActions([], actions)();
@@ -402,6 +408,24 @@ export class SettingsEditor2 extends BaseEditor {
 	toggleShowModifiedOnly(): TPromise<void> {
 		this.viewState.showConfiguredOnly = !this.viewState.showConfiguredOnly;
 		DOM.toggleClass(this.rootElement, 'showing-modified-only', this.viewState.showConfiguredOnly);
+		return this.refreshTreeAndMaintainFocus().then(() => {
+			this.settingsTree.setScrollPosition(0);
+			this.expandAll(this.settingsTree);
+		});
+	}
+
+	toggleFilterByTag(tag: string): TPromise<void> {
+		// Clear other filters
+		this.viewState.showConfiguredOnly = false;
+
+		this.viewState.tagFilters = this.viewState.tagFilters || new Set<string>();
+		const wasFiltered = this.viewState.tagFilters.delete(tag);
+		const isFiltered = !wasFiltered;
+		if (isFiltered) {
+			this.viewState.tagFilters.add(tag);
+		}
+
+		DOM.toggleClass(this.rootElement, 'settings-filtered-by-tag', isFiltered);
 		return this.refreshTreeAndMaintainFocus().then(() => {
 			this.settingsTree.setScrollPosition(0);
 			this.expandAll(this.settingsTree);
@@ -844,5 +868,26 @@ class ToggleShowModifiedOnlyAction extends Action {
 
 	run(): TPromise<void> {
 		return this.settingsEditor.toggleShowModifiedOnly();
+	}
+}
+
+class ToggleFilterByTagAction extends Action {
+	static readonly ID = 'settings.toggleFilterByTag';
+
+	get checked(): boolean {
+		return this.viewState.tagFilters && this.viewState.tagFilters.has(this.tag);
+	}
+
+	constructor(
+		label: string,
+		private tag: string,
+		private settingsEditor: SettingsEditor2,
+		private viewState: ISettingsEditorViewState
+	) {
+		super(ToggleFilterByTagAction.ID, label, 'toggle-filter-tag');
+	}
+
+	run(): TPromise<void> {
+		return this.settingsEditor.toggleFilterByTag(this.tag);
 	}
 }
