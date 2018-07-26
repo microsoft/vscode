@@ -101,6 +101,10 @@ function showPartsSplash(configuration) {
 		const splash = document.createElement('div');
 		splash.id = data.id;
 		const { layoutInfo, colorInfo } = data;
+
+		// ensure there is enough space
+		layoutInfo.sideBarWidth = Math.min(layoutInfo.sideBarWidth, window.innerWidth - (layoutInfo.activityBarWidth + layoutInfo.editorPartMinWidth));
+
 		if (configuration.folderUri || configuration.workspace) {
 			// folder or workspace -> status bar color, sidebar
 			splash.innerHTML = `

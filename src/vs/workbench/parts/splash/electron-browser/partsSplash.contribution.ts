@@ -13,10 +13,15 @@ import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { Extensions, IWorkbenchContributionsRegistry } from 'vs/workbench/common/contributions';
 import * as themes from 'vs/workbench/common/theme';
 import { IPartService, Parts, Position } from 'vs/workbench/services/part/common/partService';
+import { IDisposable, dispose } from 'vs/base/common/lifecycle';
+import { debounceEvent } from 'vs/base/common/event';
+import { DEFAULT_EDITOR_MIN_DIMENSIONS } from 'vs/workbench/browser/parts/editor/editor';
 
 class PartsSplash {
 
 	private static readonly _splashElementId = 'monaco-parts-splash';
+
+	private readonly _disposables: IDisposable[] = [];
 
 	constructor(
 		@IThemeService private readonly _themeService: IThemeService,
@@ -25,7 +30,11 @@ class PartsSplash {
 		@ILifecycleService lifecycleService: ILifecycleService,
 	) {
 		lifecycleService.when(LifecyclePhase.Running).then(_ => this._removePartsSplash());
-		lifecycleService.onShutdown(() => this._savePartsSplash());
+		debounceEvent(_partService.onEditorLayout, () => { }, 50)(this._savePartsSplash, this, this._disposables);
+	}
+
+	dispose(): void {
+		dispose(this._disposables);
 	}
 
 	private _savePartsSplash() {
@@ -38,8 +47,9 @@ class PartsSplash {
 			statusBarNoFolderBackground: theme.getColor(themes.STATUS_BAR_NO_FOLDER_BACKGROUND).toString(),
 		};
 		const layoutInfo = {
-			titleBarHeight: getTotalHeight(this._partService.getContainer(Parts.TITLEBAR_PART)),
 			sideBarSide: this._partService.getSideBarPosition() === Position.RIGHT ? 'right' : 'left',
+			editorPartMinWidth: DEFAULT_EDITOR_MIN_DIMENSIONS.width,
+			titleBarHeight: getTotalHeight(this._partService.getContainer(Parts.TITLEBAR_PART)),
 			activityBarWidth: getTotalWidth(this._partService.getContainer(Parts.ACTIVITYBAR_PART)),
 			sideBarWidth: getTotalWidth(this._partService.getContainer(Parts.SIDEBAR_PART)),
 			statusBarHeight: getTotalHeight(this._partService.getContainer(Parts.STATUSBAR_PART)),
