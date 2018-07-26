@@ -6,7 +6,7 @@
 import * as cp from 'child_process';
 import * as fs from 'fs';
 import * as path from 'path';
-import { CancellationToken, commands, Disposable, env, EventEmitter, Memento, MessageItem, Uri, window, workspace } from 'vscode';
+import { CancellationToken, commands, env, EventEmitter, Memento, MessageItem, Uri, window, workspace } from 'vscode';
 import * as nls from 'vscode-nls';
 import BufferSyncSupport from './features/bufferSyncSupport';
 import { DiagnosticKind, DiagnosticsManager } from './features/diagnostics';
@@ -14,7 +14,7 @@ import * as Proto from './protocol';
 import { ITypeScriptServiceClient } from './typescriptService';
 import API from './utils/api';
 import { TsServerLogLevel, TypeScriptServiceConfiguration } from './utils/configuration';
-import { disposeAll } from './utils/dispose';
+import { Disposable } from './utils/dispose';
 import * as electron from './utils/electron';
 import * as fileSchemes from './utils/fileSchemes';
 import * as is from './utils/is';
@@ -28,9 +28,6 @@ import { inferredProjectConfig } from './utils/tsconfig';
 import { TypeScriptVersionPicker } from './utils/versionPicker';
 import { TypeScriptVersion, TypeScriptVersionProvider } from './utils/versionProvider';
 import { ICallback, Reader } from './utils/wireProtocol';
-
-
-
 
 
 const localize = nls.loadMessageBundle();
@@ -159,7 +156,7 @@ export interface TsDiagnostics {
 	readonly diagnostics: Proto.Diagnostic[];
 }
 
-export default class TypeScriptServiceClient implements ITypeScriptServiceClient {
+export default class TypeScriptServiceClient extends Disposable implements ITypeScriptServiceClient {
 	private static readonly WALK_THROUGH_SNIPPET_SCHEME_COLON = `${fileSchemes.walkThroughSnippet}:`;
 
 	private pathSeparator: string;
@@ -194,8 +191,6 @@ export default class TypeScriptServiceClient implements ITypeScriptServiceClient
 	 */
 	private _tsserverVersion: string | undefined;
 
-	private readonly disposables: Disposable[] = [];
-
 	public readonly bufferSyncSupport: BufferSyncSupport;
 	public readonly diagnosticsManager: DiagnosticsManager;
 
@@ -206,6 +201,7 @@ export default class TypeScriptServiceClient implements ITypeScriptServiceClient
 		private readonly logDirectoryProvider: LogDirectoryProvider,
 		allModeIds: string[]
 	) {
+		super();
 		this.pathSeparator = path.sep;
 		this.lastStart = Date.now();
 
@@ -235,7 +231,7 @@ export default class TypeScriptServiceClient implements ITypeScriptServiceClient
 		this.diagnosticsManager = new DiagnosticsManager('typescript');
 		this.bufferSyncSupport.onDelete(resource => {
 			this.diagnosticsManager.delete(resource);
-		}, null, this.disposables);
+		}, null, this._disposables);
 
 		workspace.onDidChangeConfiguration(() => {
 			const oldConfiguration = this._configuration;
@@ -256,9 +252,9 @@ export default class TypeScriptServiceClient implements ITypeScriptServiceClient
 					this.restartTsServer();
 				}
 			}
-		}, this, this.disposables);
+		}, this, this._disposables);
 		this.telemetryReporter = new TelemetryReporter(() => this._tsserverVersion || this._apiVersion.versionString);
-		this.disposables.push(this.telemetryReporter);
+		this._register(this.telemetryReporter);
 	}
 
 	public get configuration() {
@@ -266,22 +262,15 @@ export default class TypeScriptServiceClient implements ITypeScriptServiceClient
 	}
 
 	public dispose() {
+		super.dispose();
+
 		this.bufferSyncSupport.dispose();
-		this._onTsServerStarted.dispose();
-		this._onDidBeginInstallTypings.dispose();
-		this._onDidEndInstallTypings.dispose();
-		this._onTypesInstallerInitializationFailed.dispose();
 
 		if (this.servicePromise) {
 			this.servicePromise.then(childProcess => {
 				childProcess.kill();
 			}).then(undefined, () => void 0);
 		}
-
-		disposeAll(this.disposables);
-		this._onDiagnosticsReceived.dispose();
-		this._onConfigDiagnosticsReceived.dispose();
-		this._onResendModelsRequested.dispose();
 	}
 
 	public restartTsServer(): void {
@@ -302,28 +291,28 @@ export default class TypeScriptServiceClient implements ITypeScriptServiceClient
 		}
 	}
 
-	private readonly _onTsServerStarted = new EventEmitter<API>();
+	private readonly _onTsServerStarted = this._register(new EventEmitter<API>());
 	public readonly onTsServerStarted = this._onTsServerStarted.event;
 
-	private readonly _onDiagnosticsReceived = new EventEmitter<TsDiagnostics>();
+	private readonly _onDiagnosticsReceived = this._register(new EventEmitter<TsDiagnostics>());
 	public readonly onDiagnosticsReceived = this._onDiagnosticsReceived.event;
 
-	private readonly _onConfigDiagnosticsReceived = new EventEmitter<Proto.ConfigFileDiagnosticEvent>();
+	private readonly _onConfigDiagnosticsReceived = this._register(new EventEmitter<Proto.ConfigFileDiagnosticEvent>());
 	public readonly onConfigDiagnosticsReceived = this._onConfigDiagnosticsReceived.event;
 
-	private readonly _onResendModelsRequested = new EventEmitter<void>();
+	private readonly _onResendModelsRequested = this._register(new EventEmitter<void>());
 	public readonly onResendModelsRequested = this._onResendModelsRequested.event;
 
-	private readonly _onProjectLanguageServiceStateChanged = new EventEmitter<Proto.ProjectLanguageServiceStateEventBody>();
+	private readonly _onProjectLanguageServiceStateChanged = this._register(new EventEmitter<Proto.ProjectLanguageServiceStateEventBody>());
 	public readonly onProjectLanguageServiceStateChanged = this._onProjectLanguageServiceStateChanged.event;
 
-	private readonly _onDidBeginInstallTypings = new EventEmitter<Proto.BeginInstallTypesEventBody>();
+	private readonly _onDidBeginInstallTypings = this._register(new EventEmitter<Proto.BeginInstallTypesEventBody>());
 	public readonly onDidBeginInstallTypings = this._onDidBeginInstallTypings.event;
 
-	private readonly _onDidEndInstallTypings = new EventEmitter<Proto.EndInstallTypesEventBody>();
+	private readonly _onDidEndInstallTypings = this._register(new EventEmitter<Proto.EndInstallTypesEventBody>());
 	public readonly onDidEndInstallTypings = this._onDidEndInstallTypings.event;
 
-	private readonly _onTypesInstallerInitializationFailed = new EventEmitter<Proto.TypesInstallerInitializationFailedEventBody>();
+	private readonly _onTypesInstallerInitializationFailed = this._register(new EventEmitter<Proto.TypesInstallerInitializationFailedEventBody>());
 	public readonly onTypesInstallerInitializationFailed = this._onTypesInstallerInitializationFailed.event;
 
 	public get apiVersion(): API {

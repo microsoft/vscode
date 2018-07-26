@@ -4,12 +4,12 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as fs from 'fs';
-import { CancellationTokenSource, Disposable, EventEmitter, TextDocument, TextDocumentChangeEvent, TextDocumentContentChangeEvent, Uri, workspace } from 'vscode';
+import { CancellationTokenSource, EventEmitter, TextDocument, TextDocumentChangeEvent, TextDocumentContentChangeEvent, Uri, workspace } from 'vscode';
 import * as Proto from '../protocol';
 import { ITypeScriptServiceClient } from '../typescriptService';
 import API from '../utils/api';
 import { Delayer } from '../utils/async';
-import { disposeAll } from '../utils/dispose';
+import { Disposable } from '../utils/dispose';
 import * as languageModeIds from '../utils/languageModeIds';
 import { ResourceMap } from '../utils/resourceMap';
 import * as typeConverters from '../utils/typeConverters';
@@ -168,14 +168,13 @@ class GetErrRequest {
 	}
 }
 
-export default class BufferSyncSupport {
+export default class BufferSyncSupport extends Disposable {
 
 	private readonly client: ITypeScriptServiceClient;
 
 	private _validateJavaScript: boolean = true;
 	private _validateTypeScript: boolean = true;
 	private readonly modeIds: Set<string>;
-	private readonly disposables: Disposable[] = [];
 	private readonly syncedBuffers: SyncedBufferMap;
 	private readonly pendingDiagnostics: PendingDiagnostics;
 	private readonly diagnosticDelayer: Delayer<any>;
@@ -186,6 +185,7 @@ export default class BufferSyncSupport {
 		client: ITypeScriptServiceClient,
 		modeIds: string[]
 	) {
+		super();
 		this.client = client;
 		this.modeIds = new Set<string>(modeIds);
 
@@ -196,10 +196,10 @@ export default class BufferSyncSupport {
 		this.pendingDiagnostics = new PendingDiagnostics(pathNormalizer);
 
 		this.updateConfiguration();
-		workspace.onDidChangeConfiguration(this.updateConfiguration, this, this.disposables);
+		workspace.onDidChangeConfiguration(this.updateConfiguration, this, this._disposables);
 	}
 
-	private readonly _onDelete = new EventEmitter<Uri>();
+	private readonly _onDelete = this._register(new EventEmitter<Uri>());
 	public readonly onDelete = this._onDelete.event;
 
 	public listen(): void {
@@ -207,9 +207,9 @@ export default class BufferSyncSupport {
 			return;
 		}
 		this.listening = true;
-		workspace.onDidOpenTextDocument(this.openTextDocument, this, this.disposables);
-		workspace.onDidCloseTextDocument(this.onDidCloseTextDocument, this, this.disposables);
-		workspace.onDidChangeTextDocument(this.onDidChangeTextDocument, this, this.disposables);
+		workspace.onDidOpenTextDocument(this.openTextDocument, this, this._disposables);
+		workspace.onDidCloseTextDocument(this.onDidCloseTextDocument, this, this._disposables);
+		workspace.onDidChangeTextDocument(this.onDidChangeTextDocument, this, this._disposables);
 		workspace.textDocuments.forEach(this.openTextDocument, this);
 	}
 
@@ -229,11 +229,6 @@ export default class BufferSyncSupport {
 		for (const buffer of this.syncedBuffers.allBuffers) {
 			buffer.open();
 		}
-	}
-
-	public dispose(): void {
-		disposeAll(this.disposables);
-		this._onDelete.dispose();
 	}
 
 	public openTextDocument(document: TextDocument): void {

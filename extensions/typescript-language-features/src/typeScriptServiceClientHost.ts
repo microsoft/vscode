@@ -8,7 +8,7 @@
  * https://github.com/Microsoft/TypeScript-Sublime-Plugin/blob/master/TypeScript%20Indent.tmPreferences
  * ------------------------------------------------------------------------------------------ */
 
-import { Diagnostic, DiagnosticRelatedInformation, DiagnosticSeverity, DiagnosticTag, Disposable, Memento, Range, Uri, workspace } from 'vscode';
+import { Diagnostic, DiagnosticRelatedInformation, DiagnosticSeverity, DiagnosticTag, Memento, Range, Uri, workspace } from 'vscode';
 import { DiagnosticKind } from './features/diagnostics';
 import FileConfigurationManager from './features/fileConfigurationManager';
 import { register as registerUpdatePathsOnRename } from './features/updatePathsOnRename';
@@ -18,7 +18,7 @@ import * as PConst from './protocol.const';
 import TypeScriptServiceClient from './typescriptServiceClient';
 import API from './utils/api';
 import { CommandManager } from './utils/commandManager';
-import { disposeAll } from './utils/dispose';
+import { Disposable } from './utils/dispose';
 import { LanguageDescription, DiagnosticLanguage } from './utils/languageDescription';
 import LogDirectoryProvider from './utils/logDirectoryProvider';
 import { TypeScriptServerPlugin } from './utils/plugins';
@@ -36,13 +36,11 @@ const styleCheckDiagnostics = [
 	7030	// not all code paths return a value
 ];
 
-export default class TypeScriptServiceClientHost {
-	private readonly ataProgressReporter: AtaProgressReporter;
+export default class TypeScriptServiceClientHost extends Disposable {
 	private readonly typingsStatus: TypingsStatus;
 	private readonly client: TypeScriptServiceClient;
 	private readonly languages: LanguageProvider[] = [];
 	private readonly languagePerId = new Map<string, LanguageProvider>();
-	private readonly disposables: Disposable[] = [];
 	private readonly versionStatus: VersionStatus;
 	private readonly fileConfigurationManager: FileConfigurationManager;
 
@@ -55,6 +53,7 @@ export default class TypeScriptServiceClientHost {
 		private readonly commandManager: CommandManager,
 		logDirectoryProvider: LogDirectoryProvider
 	) {
+		super();
 		const handleProjectCreateOrDelete = () => {
 			this.client.execute('reloadProjects', null, false);
 			this.triggerAllDiagnostics();
@@ -65,10 +64,10 @@ export default class TypeScriptServiceClientHost {
 			}, 1500);
 		};
 		const configFileWatcher = workspace.createFileSystemWatcher('**/[tj]sconfig.json');
-		this.disposables.push(configFileWatcher);
-		configFileWatcher.onDidCreate(handleProjectCreateOrDelete, this, this.disposables);
-		configFileWatcher.onDidDelete(handleProjectCreateOrDelete, this, this.disposables);
-		configFileWatcher.onDidChange(handleProjectChange, this, this.disposables);
+		this._register(configFileWatcher);
+		configFileWatcher.onDidCreate(handleProjectCreateOrDelete, this, this._disposables);
+		configFileWatcher.onDidDelete(handleProjectCreateOrDelete, this, this._disposables);
+		configFileWatcher.onDidChange(handleProjectChange, this, this._disposables);
 
 		const allModeIds = this.getAllModeIds(descriptions);
 		this.client = new TypeScriptServiceClient(
@@ -77,30 +76,30 @@ export default class TypeScriptServiceClientHost {
 			plugins,
 			logDirectoryProvider,
 			allModeIds);
-		this.disposables.push(this.client);
+		this._register(this.client);
 
 		this.client.onDiagnosticsReceived(({ kind, resource, diagnostics }) => {
 			this.diagnosticsReceived(kind, resource, diagnostics);
-		}, null, this.disposables);
+		}, null, this._disposables);
 
-		this.client.onConfigDiagnosticsReceived(diag => this.configFileDiagnosticsReceived(diag), null, this.disposables);
-		this.client.onResendModelsRequested(() => this.populateService(), null, this.disposables);
+		this.client.onConfigDiagnosticsReceived(diag => this.configFileDiagnosticsReceived(diag), null, this._disposables);
+		this.client.onResendModelsRequested(() => this.populateService(), null, this._disposables);
 
 		this.versionStatus = new VersionStatus(resource => this.client.toPath(resource));
-		this.disposables.push(this.versionStatus);
+		this._register(this.versionStatus);
 
-		this.typingsStatus = new TypingsStatus(this.client);
-		this.ataProgressReporter = new AtaProgressReporter(this.client);
-		this.fileConfigurationManager = new FileConfigurationManager(this.client);
+		this._register(new AtaProgressReporter(this.client));
+		this.typingsStatus = this._register(new TypingsStatus(this.client));
+		this.fileConfigurationManager = this._register(new FileConfigurationManager(this.client));
 
 		for (const description of descriptions) {
 			const manager = new LanguageProvider(this.client, description, this.commandManager, this.client.telemetryReporter, this.typingsStatus, this.fileConfigurationManager);
 			this.languages.push(manager);
-			this.disposables.push(manager);
+			this._register(manager);
 			this.languagePerId.set(description.id, manager);
 		}
 
-		this.disposables.push(registerUpdatePathsOnRename(this.client, this.fileConfigurationManager, uri => this.handles(uri)));
+		this._register(registerUpdatePathsOnRename(this.client, this.fileConfigurationManager, uri => this.handles(uri)));
 
 		this.client.ensureServiceStarted();
 		this.client.onReady(() => {
@@ -125,7 +124,7 @@ export default class TypeScriptServiceClientHost {
 				};
 				const manager = new LanguageProvider(this.client, description, this.commandManager, this.client.telemetryReporter, this.typingsStatus, this.fileConfigurationManager);
 				this.languages.push(manager);
-				this.disposables.push(manager);
+				this._register(manager);
 				this.languagePerId.set(description.id, manager);
 			}
 		});
@@ -134,7 +133,7 @@ export default class TypeScriptServiceClientHost {
 			this.triggerAllDiagnostics();
 		});
 
-		workspace.onDidChangeConfiguration(this.configurationChanged, this, this.disposables);
+		workspace.onDidChangeConfiguration(this.configurationChanged, this, this._disposables);
 		this.configurationChanged();
 	}
 
@@ -144,13 +143,6 @@ export default class TypeScriptServiceClientHost {
 			allModeIds.push(...description.modeIds);
 		}
 		return allModeIds;
-	}
-
-	public dispose(): void {
-		disposeAll(this.disposables);
-		this.typingsStatus.dispose();
-		this.ataProgressReporter.dispose();
-		this.fileConfigurationManager.dispose();
 	}
 
 	public get serviceClient(): TypeScriptServiceClient {

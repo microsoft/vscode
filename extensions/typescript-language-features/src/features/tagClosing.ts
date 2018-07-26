@@ -8,19 +8,19 @@ import * as Proto from '../protocol';
 import { ITypeScriptServiceClient } from '../typescriptService';
 import API from '../utils/api';
 import { ConditionalRegistration, ConfigurationDependentRegistration, VersionDependentRegistration } from '../utils/dependentRegistration';
-import { disposeAll } from '../utils/dispose';
+import { Disposable } from '../utils/dispose';
 import * as typeConverters from '../utils/typeConverters';
 
-class TagClosing {
+class TagClosing extends Disposable {
 
 	private _disposed = false;
 	private _timeout: NodeJS.Timer | undefined = undefined;
 	private _cancel: vscode.CancellationTokenSource | undefined = undefined;
-	private readonly _disposables: vscode.Disposable[] = [];
 
 	constructor(
 		private readonly client: ITypeScriptServiceClient
 	) {
+		super();
 		vscode.workspace.onDidChangeTextDocument(
 			event => this.onDidChangeTextDocument(event.document, event.contentChanges),
 			null,
@@ -28,9 +28,8 @@ class TagClosing {
 	}
 
 	public dispose() {
+		super.dispose();
 		this._disposed = true;
-
-		disposeAll(this._disposables);
 
 		if (this._timeout) {
 			clearTimeout(this._timeout);
@@ -136,22 +135,17 @@ class TagClosing {
 	}
 }
 
-export class ActiveDocumentDependentRegistration {
+export class ActiveDocumentDependentRegistration extends Disposable {
 	private readonly _registration: ConditionalRegistration;
-	private readonly _disposables: vscode.Disposable[] = [];
 
 	constructor(
 		private readonly selector: vscode.DocumentSelector,
 		register: () => vscode.Disposable,
 	) {
-		this._registration = new ConditionalRegistration(register);
+		super();
+		this._registration = this._register(new ConditionalRegistration(register));
 		vscode.window.onDidChangeActiveTextEditor(this.update, this, this._disposables);
 		this.update();
-	}
-
-	public dispose() {
-		disposeAll(this._disposables);
-		this._registration.dispose();
 	}
 
 	private update() {
