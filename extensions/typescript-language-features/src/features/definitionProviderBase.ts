@@ -32,7 +32,7 @@ export default class TypeScriptDefinitionProviderBase {
 			return locations.map(location =>
 				typeConverters.Location.fromTextSpan(this.client.toResource(location.file), location));
 		} catch {
-			return [];
+			return undefined;
 		}
 	}
 }

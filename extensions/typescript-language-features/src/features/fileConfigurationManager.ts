@@ -8,6 +8,7 @@ import * as Proto from '../protocol';
 import { ITypeScriptServiceClient } from '../typescriptService';
 import API from '../utils/api';
 import { isTypeScriptDocument } from '../utils/languageModeIds';
+import { ResourceMap } from '../utils/resourceMap';
 
 
 function objsAreEqual<T>(a: T, b: T): boolean {
@@ -22,8 +23,8 @@ function objsAreEqual<T>(a: T, b: T): boolean {
 }
 
 interface FileConfiguration {
-	formatOptions: Proto.FormatCodeSettings;
-	preferences: Proto.UserPreferences;
+	readonly formatOptions: Proto.FormatCodeSettings;
+	readonly preferences: Proto.UserPreferences;
 }
 
 function areFileConfigurationsEqual(a: FileConfiguration, b: FileConfiguration): boolean {
@@ -35,18 +36,17 @@ function areFileConfigurationsEqual(a: FileConfiguration, b: FileConfiguration):
 
 export default class FileConfigurationManager {
 	private onDidCloseTextDocumentSub: Disposable | undefined;
-	private formatOptions: { [key: string]: FileConfiguration | undefined } = Object.create(null);
+	private formatOptions = new ResourceMap<FileConfiguration>();
 
 	public constructor(
 		private readonly client: ITypeScriptServiceClient
 	) {
 		this.onDidCloseTextDocumentSub = Workspace.onDidCloseTextDocument((textDocument) => {
-			const key = textDocument.uri.toString();
 			// When a document gets closed delete the cached formatting options.
 			// This is necessary since the tsserver now closed a project when its
 			// last file in it closes which drops the stored formatting options
 			// as well.
-			delete this.formatOptions[key];
+			this.formatOptions.delete(textDocument.uri);
 		});
 	}
 
@@ -81,15 +81,13 @@ export default class FileConfigurationManager {
 			return;
 		}
 
-		const key = document.uri.toString();
-		const cachedOptions = this.formatOptions[key];
+		const cachedOptions = this.formatOptions.get(document.uri);
 		const currentOptions = this.getFileOptions(document, options);
-
 		if (cachedOptions && areFileConfigurationsEqual(cachedOptions, currentOptions)) {
 			return;
 		}
 
-		this.formatOptions[key] = currentOptions;
+		this.formatOptions.set(document.uri, currentOptions);
 		const args: Proto.ConfigureRequestArguments = {
 			file,
 			...currentOptions,
@@ -98,9 +96,8 @@ export default class FileConfigurationManager {
 	}
 
 	public reset() {
-		this.formatOptions = Object.create(null);
+		this.formatOptions.clear();
 	}
-
 
 	private getFileOptions(
 		document: TextDocument,
