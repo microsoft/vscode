@@ -38,6 +38,7 @@ import { IEditorGroupsService } from 'vs/workbench/services/group/common/editorG
 import { MenuRegistry, MenuId } from 'vs/platform/actions/common/actions';
 import { localize } from 'vs/nls';
 import { CommandsRegistry } from 'vs/platform/commands/common/commands';
+import { tail } from 'vs/base/common/arrays';
 
 class Item extends BreadcrumbsItem {
 
@@ -379,13 +380,28 @@ CommandsRegistry.registerCommand('breadcrumbs.toggle', accessor => {
 KeybindingsRegistry.registerCommandAndKeybindingRule({
 	id: 'breadcrumbs.focus',
 	weight: KeybindingWeight.WorkbenchContrib,
+	primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.US_SEMICOLON,
+	when: BreadcrumbsControl.CK_BreadcrumbsVisible,
+	handler(accessor) {
+		const groups = accessor.get(IEditorGroupsService);
+		const breadcrumbs = accessor.get(IBreadcrumbsService);
+		const widget = breadcrumbs.getWidget(groups.activeGroup.id);
+		const item = tail(widget.getItems());
+		widget.setFocused(item);
+	}
+});
+KeybindingsRegistry.registerCommandAndKeybindingRule({
+	id: 'breadcrumbs.focusAndSelect',
+	weight: KeybindingWeight.WorkbenchContrib,
 	primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.US_DOT,
 	when: BreadcrumbsControl.CK_BreadcrumbsVisible,
 	handler(accessor) {
 		const groups = accessor.get(IEditorGroupsService);
 		const breadcrumbs = accessor.get(IBreadcrumbsService);
-		//todo@joh focus last?
-		breadcrumbs.getWidget(groups.activeGroup.id).domFocus();
+		const widget = breadcrumbs.getWidget(groups.activeGroup.id);
+		const item = tail(widget.getItems());
+		widget.setFocused(item);
+		widget.setSelection(item, BreadcrumbsControl.Payload_Pick);
 	}
 });
 KeybindingsRegistry.registerCommandAndKeybindingRule({
