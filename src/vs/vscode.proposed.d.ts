@@ -701,10 +701,9 @@ declare module 'vscode' {
 
 	/**
 	 * A workspace edit is a collection of textual and files changes for
-	 * multiple resources and documents. Use the [applyEdit](#workspace.applyEdit)-function
-	 * to apply a workspace edit. Note that all changes are applied in the same order in which
-	 * they have been added and that invalid sequences like 'delete file a' -> 'insert text in
-	 * file a' causes failure of the operation.
+	 * multiple resources and documents.
+	 *
+	 * Use the [applyEdit](#workspace.applyEdit)-function to apply a workspace edit.
 	 */
 	export interface WorkspaceEdit {
 
@@ -739,13 +738,18 @@ declare module 'vscode' {
 	}
 
 	export namespace workspace {
+
 		/**
-		 * Make changes to one or many resources as defined by the given
-		 * [workspace edit](#WorkspaceEdit).
+		 * Make changes to one or many resources or create, delete, and rename resources.
 		 *
-		 * The editor implements an 'all-or-nothing'-strategy and that means failure to modify,
-		 * delete, rename, or create one file will abort the operation. In that case, the thenable returned
-		 * by this function resolves to `false`.
+		 * All changes of a workspace edit are applied in the same order in which they have been added. If
+		 * multiple textual inserts are made at the same position, these strings appear in the resulting text
+		 * in the order the 'inserts' were made. Invalid sequences like 'delete file a' -> 'insert text in file a'
+		 * cause failure of the operation.
+		 *
+		 * When applying a workspace edit that consists only of text edits an 'all-or-nothing'-strategy is used.
+		 * A workspace edit with resource creations or deletions aborts the operation, e.g. consective edits will
+		 * not be attempted, when a single edit fails.
 		 *
 		 * @param edit A workspace edit.
 		 * @return A thenable that resolves when the edit could be applied.
