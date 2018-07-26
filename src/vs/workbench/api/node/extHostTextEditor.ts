@@ -497,6 +497,11 @@ export class ExtHostTextEditor implements vscode.TextEditor {
 	private _applyEdit(editBuilder: TextEditorEdit): TPromise<boolean> {
 		let editData = editBuilder.finalize();
 
+		// return when there is nothing to do
+		if (editData.edits.length === 0 && !editData.setEndOfLine) {
+			return TPromise.wrap(true);
+		}
+
 		// check that the edits are not overlapping (i.e. illegal)
 		let editRanges = editData.edits.map(edit => edit.range);
 
