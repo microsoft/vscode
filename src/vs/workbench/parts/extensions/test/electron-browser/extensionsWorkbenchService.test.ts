@@ -66,7 +66,7 @@ suite('ExtensionsWorkbenchServiceTest', () => {
 		instantiationService.stub(IURLService, URLService);
 
 		instantiationService.stub(IWorkspaceContextService, new TestContextService());
-		instantiationService.stub(IConfigurationService, { onDidUpdateConfiguration: () => { }, onDidChangeConfiguration: () => { }, getConfiguration: () => ({}) });
+		instantiationService.stub(IConfigurationService, { onDidUpdateConfiguration: () => { }, onDidChangeConfiguration: () => { }, getConfiguration: () => ({}), getValue: () => { } });
 
 		instantiationService.stub(IExtensionManagementService, ExtensionManagementService);
 		instantiationService.stub(IExtensionManagementService, 'onInstallExtension', installEvent.event);

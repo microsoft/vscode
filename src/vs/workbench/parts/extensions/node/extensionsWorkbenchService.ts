@@ -26,7 +26,7 @@ import { IConfigurationService } from 'vs/platform/configuration/common/configur
 import { IWindowService } from 'vs/platform/windows/common/windows';
 import Severity from 'vs/base/common/severity';
 import URI from 'vs/base/common/uri';
-import { IExtension, IExtensionDependencies, ExtensionState, IExtensionsWorkbenchService, AutoUpdateConfigurationKey } from 'vs/workbench/parts/extensions/common/extensions';
+import { IExtension, IExtensionDependencies, ExtensionState, IExtensionsWorkbenchService, AutoUpdateConfigurationKey, AutoCheckUpdatesConfigurationKey } from 'vs/workbench/parts/extensions/common/extensions';
 import { IEditorService, SIDE_GROUP, ACTIVE_GROUP } from 'vs/workbench/services/editor/common/editorService';
 import { IURLService, IURLHandler } from 'vs/platform/url/common/url';
 import { ExtensionsInput } from 'vs/workbench/parts/extensions/common/extensionsInput';
@@ -415,6 +415,11 @@ export class ExtensionsWorkbenchService implements IExtensionsWorkbenchService, 
 					this.checkForUpdates();
 				}
 			}
+			if (e.affectsConfiguration(AutoCheckUpdatesConfigurationKey)) {
+				if (this.isAutoCheckUpdatesEnabled()) {
+					this.checkForUpdates();
+				}
+			}
 		}, this, this.disposables);
 
 		this.queryLocal().done(() => this.eventuallySyncWithGallery(true));
@@ -610,8 +615,13 @@ export class ExtensionsWorkbenchService implements IExtensionsWorkbenchService, 
 		return this.configurationService.getValue(AutoUpdateConfigurationKey);
 	}
 
+	private isAutoCheckUpdatesEnabled(): boolean {
+		return this.configurationService.getValue(AutoCheckUpdatesConfigurationKey);
+	}
+
 	private eventuallySyncWithGallery(immediate = false): void {
-		const loop = () => this.syncWithGallery().then(() => this.eventuallySyncWithGallery());
+		const shouldSync = this.isAutoUpdateEnabled() || this.isAutoCheckUpdatesEnabled();
+		const loop = () => (shouldSync ? this.syncWithGallery() : TPromise.as(null)).then(() => this.eventuallySyncWithGallery());
 		const delay = immediate ? 0 : ExtensionsWorkbenchService.SyncPeriod;
 
 		this.syncDelayer.trigger(loop, delay)
