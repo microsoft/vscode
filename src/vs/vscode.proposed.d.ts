@@ -716,7 +716,8 @@ declare module 'vscode' {
 		 * Create a regular file.
 		 *
 		 * @param uri Uri of the new file..
-		 * @param options Defines if an existing file should be overwritten or be ignored.
+		 * @param options Defines if an existing file should be overwritten or be
+		 * ignored. When overwrite and ignoreIfExists are both set overwrite wins.
 		 */
 		createFile(uri: Uri, options?: { overwrite?: boolean, ignoreIfExists?: boolean }): void;
 
@@ -732,7 +733,8 @@ declare module 'vscode' {
 		 *
 		 * @param oldUri The existing file.
 		 * @param newUri The new location.
-		 * @param options Defines if existing files should be overwritten.
+		 * @param options Defines if existing files should be overwritten or be
+		 * ignored. When overwrite and ignoreIfExists are both set overwrite wins.
 		 */
 		renameFile(oldUri: Uri, newUri: Uri, options?: { overwrite?: boolean, ignoreIfExists?: boolean }): void;
 	}
