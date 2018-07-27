@@ -41,6 +41,7 @@ import { DefaultSettingsEditorModel } from 'vs/workbench/services/preferences/co
 import { editorBackground, foreground } from 'vs/platform/theme/common/colorRegistry';
 import { settingsHeaderForeground } from 'vs/workbench/parts/preferences/browser/settingsWidgets';
 import { Separator } from 'vs/base/browser/ui/actionbar/actionbar';
+import { PreferencesEditor } from 'vs/workbench/parts/preferences/browser/preferencesEditor';
 
 const $ = DOM.$;
 
@@ -351,7 +352,13 @@ export class SettingsEditor2 extends BaseEditor {
 
 		const renderer = this.instantiationService.createInstance(SettingsRenderer, this.settingsTreeContainer);
 		this._register(renderer.onDidChangeSetting(e => this.onDidChangeSetting(e.key, e.value)));
-		this._register(renderer.onDidOpenSettings(() => this.openSettingsFile()));
+		this._register(renderer.onDidOpenSettings(settingKey => {
+			this.openSettingsFile().then(editor => {
+				if (editor instanceof PreferencesEditor && settingKey) {
+					editor.focusSearch(settingKey);
+				}
+			});
+		}));
 		this._register(renderer.onDidClickSettingLink(settingName => this.revealSetting(settingName)));
 
 		this.settingsTree = this.instantiationService.createInstance(SettingsTree,

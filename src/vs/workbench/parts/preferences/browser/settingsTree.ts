@@ -537,8 +537,8 @@ export class SettingsRenderer implements ITreeRenderer {
 	private readonly _onDidChangeSetting: Emitter<ISettingChangeEvent> = new Emitter<ISettingChangeEvent>();
 	public readonly onDidChangeSetting: Event<ISettingChangeEvent> = this._onDidChangeSetting.event;
 
-	private readonly _onDidOpenSettings: Emitter<void> = new Emitter<void>();
-	public readonly onDidOpenSettings: Event<void> = this._onDidOpenSettings.event;
+	private readonly _onDidOpenSettings: Emitter<string> = new Emitter<string>();
+	public readonly onDidOpenSettings: Event<string> = this._onDidOpenSettings.event;
 
 	private readonly _onDidClickSettingLink: Emitter<string> = new Emitter<string>();
 	public readonly onDidClickSettingLink: Event<string> = this._onDidClickSettingLink.event;
@@ -917,7 +917,7 @@ export class SettingsRenderer implements ITreeRenderer {
 
 		const openSettingsButton = new Button(common.controlElement, { title: true, buttonBackground: null, buttonHoverBackground: null });
 		common.toDispose.push(openSettingsButton);
-		common.toDispose.push(openSettingsButton.onDidClick(() => this._onDidOpenSettings.fire()));
+		common.toDispose.push(openSettingsButton.onDidClick(() => template.onChange(null)));
 		openSettingsButton.label = localize('editInSettingsJson', "Edit in settings.json");
 		openSettingsButton.element.classList.add('edit-in-settings-button');
 
@@ -1126,8 +1126,7 @@ export class SettingsRenderer implements ITreeRenderer {
 
 	private renderComplexSetting(dataElement: SettingsTreeSettingElement, isSelected: boolean, template: ISettingComplexItemTemplate): void {
 		template.button.element.tabIndex = isSelected ? 0 : -1;
-
-		template.onChange = () => this._onDidOpenSettings.fire();
+		template.onChange = () => this._onDidOpenSettings.fire(dataElement.setting.key);
 	}
 
 	disposeTemplate(tree: ITree, templateId: string, template: IDisposableTemplate): void {
