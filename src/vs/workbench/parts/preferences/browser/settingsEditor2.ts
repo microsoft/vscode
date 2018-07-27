@@ -40,6 +40,7 @@ import { SettingsEditor2Input } from 'vs/workbench/services/preferences/common/p
 import { DefaultSettingsEditorModel } from 'vs/workbench/services/preferences/common/preferencesModels';
 import { editorBackground, foreground } from 'vs/platform/theme/common/colorRegistry';
 import { settingsHeaderForeground } from 'vs/workbench/parts/preferences/browser/settingsWidgets';
+import { Separator } from 'vs/base/browser/ui/actionbar/actionbar';
 
 const $ = DOM.$;
 
@@ -238,6 +239,7 @@ export class SettingsEditor2 extends BaseEditor {
 				localize('filterBackgroundOnlineLabel', "Control background online features"),
 				BACKGROUND_ONLINE_TAG,
 				this),
+			new Separator(),
 			this.instantiationService.createInstance(OpenSettingsAction)
 		];
 		this.toolbar.setActions([], actions)();
