@@ -209,6 +209,13 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration)
 				scope: ConfigurationScope.APPLICATION,
 				tags: ['usesOnlineServices']
 			},
+			'extensions.autoCheckUpdates': {
+				type: 'boolean',
+				description: localize('extensionsCheckUpdates', "Automatically checks for extension updates. If an extension update is available and the extension auto update feature is disabled, then the extension will appear as outdated in the Extensions view."),
+				default: true,
+				scope: ConfigurationScope.APPLICATION,
+				tags: ['usesOnlineServices']
+			},
 			'extensions.ignoreRecommendations': {
 				type: 'boolean',
 				description: localize('extensionsIgnoreRecommendations', "When enabled, the notifications for extension recommendations will not be shown."),
