@@ -21,14 +21,13 @@ import { RemoveAction, ReplaceAllAction, ReplaceAction, ReplaceAllInFolderAction
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { attachBadgeStyler } from 'vs/platform/theme/common/styler';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
-import { getPathLabel } from 'vs/base/common/labels';
 import { FileKind } from 'vs/platform/files/common/files';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 import { IMenuService, MenuId, IMenu } from 'vs/platform/actions/common/actions';
 import { WorkbenchTreeController, WorkbenchTree } from 'vs/platform/list/browser/listService';
 import { fillInContextMenuActions } from 'vs/platform/actions/browser/menuItemActionItem';
-import { IEnvironmentService } from 'vs/platform/environment/common/environment';
+import { IUriDisplayService } from 'vs/platform/uriDisplay/common/uriDisplay';
 
 export class SearchDataSource implements IDataSource {
 
@@ -321,8 +320,7 @@ export class SearchRenderer extends Disposable implements IRenderer {
 export class SearchAccessibilityProvider implements IAccessibilityProvider {
 
 	constructor(
-		@IWorkspaceContextService private contextService: IWorkspaceContextService,
-		@IEnvironmentService private environmentService: IEnvironmentService
+		@IUriDisplayService private uriDisplayService: IUriDisplayService
 	) {
 	}
 
@@ -332,7 +330,7 @@ export class SearchAccessibilityProvider implements IAccessibilityProvider {
 		}
 
 		if (element instanceof FileMatch) {
-			const path = getPathLabel(element.resource(), this.environmentService, this.contextService) || element.resource().fsPath;
+			const path = this.uriDisplayService.getLabel(element.resource(), true) || element.resource().fsPath;
 
 			return nls.localize('fileMatchAriaLabel', "{0} matches in file {1} of folder {2}, Search result", element.count(), element.name(), paths.dirname(path));
 		}
