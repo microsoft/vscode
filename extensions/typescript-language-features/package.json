@@ -74,7 +74,7 @@
           "default": false,
           "description": "%typescript.disableAutomaticTypeAcquisition%",
           "scope": "window",
-          "tags": ["backgroundOnlineFeature"]
+          "tags": ["usesOnlineServices"]
         },
         "typescript.npm": {
           "type": [

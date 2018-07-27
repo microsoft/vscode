@@ -912,7 +912,7 @@
           "type": "boolean",
           "description": "%config.autofetch%",
           "default": false,
-          "tags": ["backgroundOnlineFeature"]
+          "tags": ["usesOnlineServices"]
         },
         "git.confirmSync": {
           "type": "boolean",

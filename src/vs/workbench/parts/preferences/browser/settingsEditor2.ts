@@ -32,7 +32,7 @@ import { BaseEditor } from 'vs/workbench/browser/parts/editor/baseEditor';
 import { EditorOptions, IEditor } from 'vs/workbench/common/editor';
 import { SearchWidget, SettingsTarget, SettingsTargetsWidget } from 'vs/workbench/parts/preferences/browser/preferencesWidgets';
 import { commonlyUsedData, tocData } from 'vs/workbench/parts/preferences/browser/settingsLayout';
-import { ISettingsEditorViewState, resolveExtensionsSettings, resolveSettingsTree, SearchResultIdx, SearchResultModel, SettingsRenderer, SettingsTree, SettingsTreeElement, SettingsTreeFilter, SettingsTreeGroupElement, SettingsTreeModel, SettingsTreeSettingElement, MODIFIED_SETTING_TAG, BACKGROUND_ONLINE_TAG } from 'vs/workbench/parts/preferences/browser/settingsTree';
+import { ISettingsEditorViewState, resolveExtensionsSettings, resolveSettingsTree, SearchResultIdx, SearchResultModel, SettingsRenderer, SettingsTree, SettingsTreeElement, SettingsTreeFilter, SettingsTreeGroupElement, SettingsTreeModel, SettingsTreeSettingElement, MODIFIED_SETTING_TAG, ONLINE_SERVICES_SETTING_TAG } from 'vs/workbench/parts/preferences/browser/settingsTree';
 import { TOCDataSource, TOCRenderer, TOCTreeModel } from 'vs/workbench/parts/preferences/browser/tocTree';
 import { CONTEXT_SETTINGS_EDITOR, CONTEXT_SETTINGS_FIRST_ROW_FOCUS, CONTEXT_SETTINGS_ROW_FOCUS, CONTEXT_SETTINGS_SEARCH_FOCUS, CONTEXT_TOC_ROW_FOCUS, IPreferencesSearchService, ISearchProvider } from 'vs/workbench/parts/preferences/common/preferences';
 import { IPreferencesService, ISearchResult, ISettingsEditorModel } from 'vs/workbench/services/preferences/common/preferences';
@@ -236,8 +236,8 @@ export class SettingsEditor2 extends BaseEditor {
 				this),
 			this.instantiationService.createInstance(
 				FilterByTagAction,
-				localize('filterBackgroundOnlineLabel', "Control background online features"),
-				BACKGROUND_ONLINE_TAG,
+				localize('filterOnlineServicesLabel', "Show settings for online services"),
+				ONLINE_SERVICES_SETTING_TAG,
 				this),
 			new Separator(),
 			this.instantiationService.createInstance(OpenSettingsAction)

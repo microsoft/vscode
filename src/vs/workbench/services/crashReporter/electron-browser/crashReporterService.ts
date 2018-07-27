@@ -38,7 +38,7 @@ configurationRegistry.registerConfiguration({
 			'type': 'boolean',
 			'description': nls.localize('telemetry.enableCrashReporting', "Enable crash reports to be sent to Microsoft.\nThis option requires restart to take effect."),
 			'default': true,
-			'tags': ['backgroundOnlineFeature']
+			'tags': ['usesOnlineServices']
 		}
 	}
 });
