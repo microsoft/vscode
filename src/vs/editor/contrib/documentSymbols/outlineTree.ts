@@ -23,7 +23,7 @@ import { MarkerSeverity } from 'vs/platform/markers/common/markers';
 import { listErrorForeground, listWarningForeground } from 'vs/platform/theme/common/colorRegistry';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 
-export enum OutlineItemCompareType {
+export const enum OutlineItemCompareType {
 	ByPosition,
 	ByName,
 	ByKind

@@ -364,7 +364,7 @@ export class BreadcrumbsControl {
 
 MenuRegistry.appendMenuItem(MenuId.CommandPalette, {
 	command: {
-		id: 'breadcrumbs.focus',
+		id: 'breadcrumbs.focusAndSelect',
 		title: localize('cmd.focus', "Focus Breadcrumbs")
 	}
 });

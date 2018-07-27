@@ -28,6 +28,7 @@ import { BulkEditService } from 'vs/workbench/services/bulkEdit/electron-browser
 import { NullLogService } from 'vs/platform/log/common/log';
 import { ITextModelService, ITextEditorModel } from 'vs/editor/common/services/resolverService';
 import { IReference, ImmortalReference } from 'vs/base/common/lifecycle';
+import { UriDisplayService } from 'vs/platform/uriDisplay/common/uriDisplay';
 
 suite('MainThreadEditors', () => {
 
@@ -82,7 +83,7 @@ suite('MainThreadEditors', () => {
 			}
 		};
 
-		const bulkEditService = new BulkEditService(new NullLogService(), modelService, new TestEditorService(), textModelService, new TestFileService(), textFileService, TestEnvironmentService, new TestContextService());
+		const bulkEditService = new BulkEditService(new NullLogService(), modelService, new TestEditorService(), textModelService, new TestFileService(), textFileService, new UriDisplayService(TestEnvironmentService, new TestContextService()));
 
 		const rpcProtocol = new TestRPCProtocol();
 		rpcProtocol.set(ExtHostContext.ExtHostDocuments, new class extends mock<ExtHostDocumentsShape>() {

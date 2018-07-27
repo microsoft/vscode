@@ -5,14 +5,13 @@
 
 'use strict';
 
-import * as path from 'path';
 import * as nls from 'vs/nls';
 import * as arrays from 'vs/base/common/arrays';
 import { trim } from 'vs/base/common/strings';
 import { IStateService } from 'vs/platform/state/common/state';
 import { app } from 'electron';
 import { ILogService } from 'vs/platform/log/common/log';
-import { getPathLabel, getBaseLabel } from 'vs/base/common/labels';
+import { getBaseLabel } from 'vs/base/common/labels';
 import { IPath } from 'vs/platform/windows/common/windows';
 import { Event as CommonEvent, Emitter } from 'vs/base/common/event';
 import { isWindows, isMacintosh, isLinux } from 'vs/base/common/platform';
@@ -21,9 +20,10 @@ import { IHistoryMainService, IRecentlyOpened } from 'vs/platform/history/common
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { isEqual } from 'vs/base/common/paths';
 import { RunOnceScheduler } from 'vs/base/common/async';
-import { getComparisonKey, isEqual as areResourcesEqual, hasToIgnoreCase } from 'vs/base/common/resources';
+import { getComparisonKey, isEqual as areResourcesEqual, hasToIgnoreCase, dirname } from 'vs/base/common/resources';
 import URI, { UriComponents } from 'vs/base/common/uri';
 import { Schemas } from 'vs/base/common/network';
+import { IUriDisplayService } from 'vs/platform/uriDisplay/common/uriDisplay';
 
 interface ISerializedRecentlyOpened {
 	workspaces: (IWorkspaceIdentifier | string | UriComponents)[];
@@ -48,7 +48,8 @@ export class HistoryMainService implements IHistoryMainService {
 		@IStateService private stateService: IStateService,
 		@ILogService private logService: ILogService,
 		@IWorkspacesMainService private workspacesMainService: IWorkspacesMainService,
-		@IEnvironmentService private environmentService: IEnvironmentService
+		@IEnvironmentService private environmentService: IEnvironmentService,
+		@IUriDisplayService private uriDisplayService: IUriDisplayService
 	) {
 		this.macOSRecentDocumentsUpdater = new RunOnceScheduler(() => this.updateMacOSRecentDocuments(), 800);
 
@@ -308,8 +309,8 @@ export class HistoryMainService implements IHistoryMainService {
 				type: 'custom',
 				name: nls.localize('recentFolders', "Recent Workspaces"),
 				items: this.getRecentlyOpened().workspaces.slice(0, 7 /* limit number of entries here */).map(workspace => {
-					const title = getWorkspaceLabel(workspace, this.environmentService);
-					const description = isSingleFolderWorkspaceIdentifier(workspace) ? nls.localize('folderDesc', "{0} {1}", getBaseLabel(workspace), getPathLabel(path.dirname(workspace.path), this.environmentService)) : nls.localize('codeWorkspace', "Code Workspace");
+					const title = getWorkspaceLabel(workspace, this.environmentService, this.uriDisplayService);
+					const description = isSingleFolderWorkspaceIdentifier(workspace) ? nls.localize('folderDesc', "{0} {1}", getBaseLabel(workspace), this.uriDisplayService.getLabel(dirname(workspace))) : nls.localize('codeWorkspace', "Code Workspace");
 					let args;
 					// use quotes to support paths with whitespaces
 					if (isSingleFolderWorkspaceIdentifier(workspace)) {

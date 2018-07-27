@@ -19,6 +19,7 @@ import * as vscode from 'vscode';
 
 export interface IInternalFileMatch {
 	base: URI;
+	original?: URI;
 	relativePath?: string; // Not present for extraFiles or absolute path matches
 	basename: string;
 	size?: number;
@@ -239,7 +240,7 @@ export class FileIndexSearchEngine {
 				const relativePath = path.relative(fq.folder.path, uri.path);
 				if (noSiblingsClauses) {
 					const basename = path.basename(uri.path);
-					this.matchFile(onResult, { base: fq.folder, relativePath, basename });
+					this.matchFile(onResult, { base: fq.folder, relativePath, basename, original: uri });
 
 					return;
 				}
@@ -360,22 +361,6 @@ export class FileIndexSearchEngine {
 		matchDirectory(rootEntries);
 	}
 
-	public getStats(): any {
-		return null;
-		// return {
-		// 	fromCache: false,
-		// 	traversal: Traversal[this.traversal],
-		// 	errors: this.errors,
-		// 	fileWalkStartTime: this.fileWalkStartTime,
-		// 	fileWalkResultTime: Date.now(),
-		// 	directoriesWalked: this.directoriesWalked,
-		// 	filesWalked: this.filesWalked,
-		// 	resultCount: this.resultCount,
-		// 	cmdForkResultTime: this.cmdForkResultTime,
-		// 	cmdResultCount: this.cmdResultCount
-		// };
-	}
-
 	private matchFile(onResult: (result: IInternalFileMatch) => void, candidate: IInternalFileMatch): void {
 		if (this.isFilePatternMatch(candidate.relativePath) && (!this.includePattern || this.includePattern(candidate.relativePath, candidate.basename))) {
 			if (this.exists || (this.maxResults && this.resultCount >= this.maxResults)) {
@@ -411,8 +396,6 @@ export class FileIndexSearchManager {
 	private caches: { [cacheKey: string]: Cache; } = Object.create(null);
 
 	public fileSearch(config: ISearchQuery, provider: vscode.FileIndexProvider, onBatch: (matches: IFileMatch[]) => void): TPromise<ISearchCompleteStats> {
-		// if (config.cacheKey)
-
 		if (config.sortByScore) {
 			let sortedSearch = this.trySortedSearchFromCache(config);
 			if (!sortedSearch) {
@@ -449,7 +432,7 @@ export class FileIndexSearchManager {
 
 	private rawMatchToSearchItem(match: IInternalFileMatch): IFileMatch {
 		return {
-			resource: resources.joinPath(match.base, match.relativePath)
+			resource: match.original || resources.joinPath(match.base, match.relativePath)
 		};
 	}
 
@@ -617,7 +600,7 @@ export class FileIndexSearchManager {
 		return TPromise.as(undefined);
 	}
 
-	private preventCancellation<C, P>(promise: TPromise<C>): TPromise<C> {
+	private preventCancellation<C>(promise: TPromise<C>): TPromise<C> {
 		return new TPromise<C>((c, e) => {
 			// Allow for piled up cancellations to come through first.
 			process.nextTick(() => {

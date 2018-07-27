@@ -49,7 +49,7 @@ export class TOCTreeModel {
 
 	private getSearchResultChildrenCount(group: SettingsTreeGroupElement): number {
 		return this._currentSearchModel.getChildren().filter(child => {
-			return this.groupContainsSetting(group, child.setting);
+			return child instanceof SettingsTreeSettingElement && this.groupContainsSetting(group, child.setting);
 		}).length;
 	}
 

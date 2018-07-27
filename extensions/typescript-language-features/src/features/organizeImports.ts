@@ -13,6 +13,7 @@ import { VersionDependentRegistration } from '../utils/dependentRegistration';
 import * as typeconverts from '../utils/typeConverters';
 import FileConfigurationManager from './fileConfigurationManager';
 import TelemetryReporter from '../utils/telemetry';
+import { nulToken } from '../utils/cancellation';
 
 const localize = nls.loadMessageBundle();
 
@@ -45,7 +46,7 @@ class OrganizeImportsCommand implements Command {
 				}
 			}
 		};
-		const { body } = await this.client.execute('organizeImports', args);
+		const { body } = await this.client.execute('organizeImports', args, nulToken);
 		const edits = typeconverts.WorkspaceEdit.fromFileCodeEdits(this.client, body);
 		return vscode.workspace.applyEdit(edits);
 	}

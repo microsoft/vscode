@@ -2752,13 +2752,16 @@ CommandsRegistry.registerCommand('workbench.extensions.action.showExtensionsForL
 		});
 });
 
-CommandsRegistry.registerCommand('workbench.extensions.action.showExtensionsWithId', function (accessor: ServicesAccessor, extensionId: string) {
+CommandsRegistry.registerCommand('workbench.extensions.action.showExtensionsWithIds', function (accessor: ServicesAccessor, extensionIds: string[]) {
 	const viewletService = accessor.get(IViewletService);
 
 	return viewletService.openViewlet(VIEWLET_ID, true)
 		.then(viewlet => viewlet as IExtensionsViewlet)
 		.then(viewlet => {
-			viewlet.search(`@id:${extensionId}`);
+			const query = extensionIds
+				.map(id => `@id:${id}`)
+				.join(' ');
+			viewlet.search(query);
 			viewlet.focus();
 		});
 });

@@ -1039,7 +1039,7 @@ export class ExtHostLanguageFeatures implements ExtHostLanguageFeaturesShape {
 	// --- quick fix
 
 	registerCodeActionProvider(selector: vscode.DocumentSelector, provider: vscode.CodeActionProvider, extension?: IExtensionDescription, metadata?: vscode.CodeActionProviderMetadata): vscode.Disposable {
-		const handle = this._addNewAdapter(new CodeActionAdapter(this._documents, this._commands.converter, this._diagnostics, provider, this._logService, extension.id));
+		const handle = this._addNewAdapter(new CodeActionAdapter(this._documents, this._commands.converter, this._diagnostics, provider, this._logService, extension ? extension.id : ''));
 		this._proxy.$registerQuickFixSupport(handle, this._transformDocumentSelector(selector), metadata && metadata.providedCodeActionKinds ? metadata.providedCodeActionKinds.map(kind => kind.value) : undefined);
 		return this._createDisposable(handle);
 	}

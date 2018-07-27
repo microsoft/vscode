@@ -7,7 +7,6 @@
 import 'vs/css!./media/referencesWidget';
 import * as nls from 'vs/nls';
 import { onUnexpectedError } from 'vs/base/common/errors';
-import { getPathLabel } from 'vs/base/common/labels';
 import { Event, Emitter } from 'vs/base/common/event';
 import { IDisposable, dispose, IReference } from 'vs/base/common/lifecycle';
 import { Schemas } from 'vs/base/common/network';
@@ -44,6 +43,9 @@ import { WorkbenchTree, WorkbenchTreeController } from 'vs/platform/list/browser
 import { RawContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { Location } from 'vs/editor/common/modes';
 import { ClickBehavior } from 'vs/base/parts/tree/browser/treeDefaults';
+import { IUriDisplayService } from 'vs/platform/uriDisplay/common/uriDisplay';
+import { dirname, basenameOrAuthority } from 'vs/base/common/resources';
+
 
 class DecorationsManager implements IDisposable {
 
@@ -530,11 +532,10 @@ export class ReferenceWidget extends PeekViewWidget {
 		editor: ICodeEditor,
 		private _defaultTreeKeyboardSupport: boolean,
 		public layoutData: LayoutData,
-		private _textModelResolverService: ITextModelService,
-		private _contextService: IWorkspaceContextService,
-		themeService: IThemeService,
-		private _instantiationService: IInstantiationService,
-		private _environmentService: IEnvironmentService
+		@IThemeService themeService: IThemeService,
+		@ITextModelService private _textModelResolverService: ITextModelService,
+		@IInstantiationService private _instantiationService: IInstantiationService,
+		@IUriDisplayService private _uriDisplay: IUriDisplayService
 	) {
 		super(editor, { showFrame: false, showArrow: true, isResizeable: true, isAccessible: true });
 
@@ -780,7 +781,7 @@ export class ReferenceWidget extends PeekViewWidget {
 
 		// Update widget header
 		if (reference.uri.scheme !== Schemas.inMemory) {
-			this.setTitle(reference.name, getPathLabel(reference.directory, this._environmentService, this._contextService));
+			this.setTitle(basenameOrAuthority(reference.uri), this._uriDisplay.getLabel(dirname(reference.uri), false));
 		} else {
 			this.setTitle(nls.localize('peekView.alternateTitle', "References"));
 		}

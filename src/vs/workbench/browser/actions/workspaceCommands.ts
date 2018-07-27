@@ -16,13 +16,14 @@ import { IViewletService } from 'vs/workbench/services/viewlet/browser/viewlet';
 import { dirname } from 'vs/base/common/paths';
 import { IQuickOpenService, IFilePickOpenEntry, IPickOptions } from 'vs/platform/quickOpen/common/quickOpen';
 import { CancellationToken } from 'vs/base/common/cancellation';
-import { mnemonicButtonLabel, getPathLabel } from 'vs/base/common/labels';
+import { mnemonicButtonLabel } from 'vs/base/common/labels';
 import { CommandsRegistry } from 'vs/platform/commands/common/commands';
 import { IHistoryService } from 'vs/workbench/services/history/common/history';
 import { FileKind, isParent } from 'vs/platform/files/common/files';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { isLinux } from 'vs/base/common/platform';
+import { IUriDisplayService } from 'vs/platform/uriDisplay/common/uriDisplay';
 
 export const ADD_ROOT_FOLDER_COMMAND_ID = 'addRootFolder';
 export const ADD_ROOT_FOLDER_LABEL = nls.localize('addFolderToWorkspace', "Add Folder to Workspace...");
@@ -158,9 +159,9 @@ CommandsRegistry.registerCommand({
 });
 
 CommandsRegistry.registerCommand(PICK_WORKSPACE_FOLDER_COMMAND_ID, function (accessor, args?: [IPickOptions, CancellationToken]) {
-	const contextService = accessor.get(IWorkspaceContextService);
 	const quickOpenService = accessor.get(IQuickOpenService);
-	const environmentService = accessor.get(IEnvironmentService);
+	const uriDisplayService = accessor.get(IUriDisplayService);
+	const contextService = accessor.get(IWorkspaceContextService);
 
 	const folders = contextService.getWorkspace().folders;
 	if (!folders.length) {
@@ -170,7 +171,7 @@ CommandsRegistry.registerCommand(PICK_WORKSPACE_FOLDER_COMMAND_ID, function (acc
 	const folderPicks = folders.map(folder => {
 		return {
 			label: folder.name,
-			description: getPathLabel(resources.dirname(folder.uri), environmentService, contextService),
+			description: uriDisplayService.getLabel(resources.dirname(folder.uri), true),
 			folder,
 			resource: folder.uri,
 			fileKind: FileKind.ROOT_FOLDER

@@ -585,6 +585,10 @@ export function createApiFactory(
 			registerFileSearchProvider: proposedApiFunction(extension, (scheme, provider) => {
 				return extHostSearch.registerFileSearchProvider(scheme, provider);
 			}),
+			registerSearchProvider: proposedApiFunction(extension, () => {
+				// Temp for live share in Insiders
+				return { dispose: () => { } };
+			}),
 			registerTextSearchProvider: proposedApiFunction(extension, (scheme, provider) => {
 				return extHostSearch.registerTextSearchProvider(scheme, provider);
 			}),

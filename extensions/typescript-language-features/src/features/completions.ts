@@ -16,6 +16,7 @@ import * as typeConverters from '../utils/typeConverters';
 import TypingsStatus from '../utils/typingsStatus';
 import FileConfigurationManager from './fileConfigurationManager';
 import { memoize } from '../utils/memoize';
+import { nulToken } from '../utils/cancellation';
 
 const localize = nls.loadMessageBundle();
 
@@ -205,7 +206,7 @@ class ApplyCompletionCodeActionCommand implements Command {
 		}
 
 		if (codeActions.length === 1) {
-			return applyCodeAction(this.client, codeActions[0]);
+			return applyCodeAction(this.client, codeActions[0], nulToken);
 		}
 
 		interface MyQuickPickItem extends vscode.QuickPickItem {
@@ -230,7 +231,7 @@ class ApplyCompletionCodeActionCommand implements Command {
 		if (!action) {
 			return false;
 		}
-		return applyCodeAction(this.client, action);
+		return applyCodeAction(this.client, action, nulToken);
 	}
 }
 
@@ -303,7 +304,7 @@ class TypeScriptCompletionItemProvider implements vscode.CompletionItemProvider 
 			return null;
 		}
 
-		await this.fileConfigurationManager.ensureConfigurationForDocument(document, token);
+		await this.client.interuptGetErr(() => this.fileConfigurationManager.ensureConfigurationForDocument(document, token));
 
 		const args: Proto.CompletionsRequestArgs = {
 			...typeConverters.Position.toFileLocationRequestArgs(file, position),
@@ -312,19 +313,18 @@ class TypeScriptCompletionItemProvider implements vscode.CompletionItemProvider 
 			triggerCharacter: context.triggerCharacter as Proto.CompletionsTriggerCharacter
 		};
 
-
 		let enableCommitCharacters = true;
 		let msg: ReadonlyArray<Proto.CompletionEntry> | undefined = undefined;
 		try {
 			if (this.client.apiVersion.gte(API.v300)) {
-				const { body } = await this.client.execute('completionInfo', args, token);
+				const { body } = await this.client.interuptGetErr(() => this.client.execute('completionInfo', args, token));
 				if (!body) {
 					return null;
 				}
 				enableCommitCharacters = !body.isNewIdentifierLocation;
 				msg = body.entries;
 			} else {
-				const { body } = await this.client.execute('completions', args, token);
+				const { body } = await this.client.interuptGetErr(() => this.client.execute('completions', args, token));
 				if (!body) {
 					return null;
 				}
@@ -384,7 +384,7 @@ class TypeScriptCompletionItemProvider implements vscode.CompletionItemProvider 
 		item.additionalTextEdits = additionalTextEdits;
 
 		if (detail && item.useCodeSnippet) {
-			const shouldCompleteFunction = await this.isValidFunctionCompletionContext(filepath, item.position);
+			const shouldCompleteFunction = await this.isValidFunctionCompletionContext(filepath, item.position, token);
 			if (shouldCompleteFunction) {
 				item.insertText = this.snippetForFunctionCall(item, detail);
 			}
@@ -524,12 +524,13 @@ class TypeScriptCompletionItemProvider implements vscode.CompletionItemProvider 
 
 	private async isValidFunctionCompletionContext(
 		filepath: string,
-		position: vscode.Position
+		position: vscode.Position,
+		token: vscode.CancellationToken
 	): Promise<boolean> {
 		// Workaround for https://github.com/Microsoft/TypeScript/issues/12677
 		// Don't complete function calls inside of destructive assigments or imports
 		try {
-			const { body } = await this.client.execute('quickinfo', typeConverters.Position.toFileLocationRequestArgs(filepath, position));
+			const { body } = await this.client.execute('quickinfo', typeConverters.Position.toFileLocationRequestArgs(filepath, position), token);
 			switch (body && body.kind) {
 				case 'var':
 				case 'let':

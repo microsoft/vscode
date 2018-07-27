@@ -30,11 +30,11 @@ import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { domEvent } from 'vs/base/browser/event';
 import { IRecentlyOpened } from 'vs/platform/history/common/history';
 import { IWorkspaceIdentifier, getWorkspaceLabel, ISingleFolderWorkspaceIdentifier, isSingleFolderWorkspaceIdentifier, isWorkspaceIdentifier } from 'vs/platform/workspaces/common/workspaces';
-import { getPathLabel } from 'vs/base/common/labels';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { RunOnceScheduler } from 'vs/base/common/async';
 import { MENUBAR_SELECTION_FOREGROUND, MENUBAR_SELECTION_BACKGROUND, MENUBAR_SELECTION_BORDER, TITLE_BAR_ACTIVE_FOREGROUND, TITLE_BAR_INACTIVE_FOREGROUND, MENU_BACKGROUND, MENU_FOREGROUND, MENU_SELECTION_BACKGROUND, MENU_SELECTION_FOREGROUND, MENU_SELECTION_BORDER } from 'vs/workbench/common/theme';
 import URI from 'vs/base/common/uri';
+import { IUriDisplayService } from 'vs/platform/uriDisplay/common/uriDisplay';
 
 interface CustomMenu {
 	title: string;
@@ -120,7 +120,8 @@ export class MenubarPart extends Part {
 		@IContextKeyService private contextKeyService: IContextKeyService,
 		@IKeybindingService private keybindingService: IKeybindingService,
 		@IConfigurationService private configurationService: IConfigurationService,
-		@IEnvironmentService private environmentService: IEnvironmentService
+		@IEnvironmentService private environmentService: IEnvironmentService,
+		@IUriDisplayService private uriDisplayService: IUriDisplayService
 	) {
 		super(id, { hasTitle: false }, themeService);
 
@@ -496,14 +497,14 @@ export class MenubarPart extends Part {
 		let uri: URI;
 
 		if (isSingleFolderWorkspaceIdentifier(workspace)) {
-			label = getWorkspaceLabel(workspace, this.environmentService, { verbose: true });
+			label = getWorkspaceLabel(workspace, this.environmentService, this.uriDisplayService, { verbose: true });
 			uri = workspace;
 		} else if (isWorkspaceIdentifier(workspace)) {
-			label = getWorkspaceLabel(workspace, this.environmentService, { verbose: true });
+			label = getWorkspaceLabel(workspace, this.environmentService, this.uriDisplayService, { verbose: true });
 			uri = URI.file(workspace.configPath);
 		} else {
-			label = getPathLabel(workspace, this.environmentService);
 			uri = URI.file(workspace);
+			label = this.uriDisplayService.getLabel(uri);
 		}
 
 		return new Action(commandId, label, undefined, undefined, (event) => {
