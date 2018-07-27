@@ -84,7 +84,7 @@ export class SettingsEditor2 extends BaseEditor {
 	private inSettingsEditorContextKey: IContextKey<boolean>;
 	private searchFocusContextKey: IContextKey<boolean>;
 
-	private tagRegex = /@tag:("([^"]*)"|[^"]\S*)(\s+|\b|$)/g;
+	private tagRegex = /(^|\s)@tag:("([^"]*)"|[^"]\S*)/g;
 
 	/** Don't spam warnings */
 	private hasWarnedMissingSettings: boolean;
@@ -666,7 +666,7 @@ export class SettingsEditor2 extends BaseEditor {
 	private triggerSearch(query: string): TPromise<void> {
 		this.viewState.tagFilters = new Set<string>();
 		if (query) {
-			query = query.replace(this.tagRegex, (_, quotedTag, tag) => {
+			query = query.replace(this.tagRegex, (_, __, quotedTag, tag) => {
 				this.viewState.tagFilters.add(tag || quotedTag);
 				return '';
 			});
@@ -675,6 +675,7 @@ export class SettingsEditor2 extends BaseEditor {
 				return '';
 			});
 		}
+		query = query.trim();
 		if (query) {
 			return this.searchInProgress = TPromise.join([
 				this.localSearchDelayer.trigger(() => this.localFilterPreferences(query)),
