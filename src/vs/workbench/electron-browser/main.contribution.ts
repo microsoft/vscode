@@ -644,6 +644,12 @@ configurationRegistry.registerConfiguration({
 			'description': nls.localize('window.nativeTabs', "Enables macOS Sierra window tabs. Note that changes require a full restart to apply and that native tabs will disable a custom title bar style if configured."),
 			'included': isMacintosh && parseFloat(os.release()) >= 16 // Minimum: macOS Sierra (10.12.x = darwin 16.x)
 		},
+		'window.nonNativeFullscreen': {
+			'type': 'boolean',
+			'default': false,
+			'description': nls.localize('window.nonNativeFullscreen', "Uses non-native (or simple) fullscreen as to not create a new space when fullscreen is toggled."),
+			'included': isMacintosh
+		},
 		'window.smoothScrollingWorkaround': {
 			'type': 'boolean',
 			'default': false,
