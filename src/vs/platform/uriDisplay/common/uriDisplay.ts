@@ -5,6 +5,7 @@
 
 import URI from 'vs/base/common/uri';
 import { IDisposable } from 'vs/base/common/lifecycle';
+import { Event, Emitter } from 'vs/base/common/event';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
@@ -17,6 +18,7 @@ export interface IUriDisplayService {
 	_serviceBrand: any;
 	getLabel(resource: URI, relative?: boolean): string;
 	registerFormater(schema: string, formater: UriDisplayRules): IDisposable;
+	onDidRegisterFormater: Event<{ scheme: string, formater: UriDisplayRules }>;
 }
 
 export interface UriDisplayRules {
@@ -37,12 +39,18 @@ function hasDriveLetter(path: string): boolean {
 export class UriDisplayService implements IUriDisplayService {
 	_serviceBrand: any;
 
-	private formaters = new Map<string, UriDisplayRules>();
+	private readonly formaters = new Map<string, UriDisplayRules>();
+	private readonly _onDidRegisterFormater = new Emitter<{ scheme: string, formater: UriDisplayRules }>();
 
 	constructor(
 		@IEnvironmentService private environmentService: IEnvironmentService,
 		@IWorkspaceContextService private contextService: IWorkspaceContextService
 	) { }
+
+
+	get onDidRegisterFormater(): Event<{ scheme: string, formater: UriDisplayRules }> {
+		return this._onDidRegisterFormater.event;
+	}
 
 	getLabel(resource: URI, relative: boolean): string {
 		if (!resource) {
@@ -54,7 +62,7 @@ export class UriDisplayService implements IUriDisplayService {
 		}
 
 		if (relative) {
-			const baseResource = this.contextService.getWorkspaceFolder(resource);
+			const baseResource = this.contextService && this.contextService.getWorkspaceFolder(resource);
 			if (baseResource) {
 				let relativeLabel: string;
 				if (isEqual(baseResource.uri, resource, !isLinux)) {
@@ -79,6 +87,7 @@ export class UriDisplayService implements IUriDisplayService {
 
 	registerFormater(scheme: string, formater: UriDisplayRules): IDisposable {
 		this.formaters.set(scheme, formater);
+		this._onDidRegisterFormater.fire({ scheme, formater });
 
 		return {
 			dispose: () => this.formaters.delete(scheme)
