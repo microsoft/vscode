@@ -117,10 +117,16 @@ class SyncedBufferMap extends ResourceMap<SyncedBuffer> {
 }
 
 class PendingDiagnostics extends ResourceMap<number> {
-	public getFileList(): Set<string> {
-		return new Set(Array.from(this.entries)
-			.sort((a, b) => a[1] - b[1])
-			.map(entry => entry[0]));
+	public getOrderedFileSet(): ResourceMap<void> {
+		const orderedResources = Array.from(this.entries)
+			.sort((a, b) => a.value - b.value)
+			.map(entry => entry.resource);
+
+		const map = new ResourceMap<void>();
+		for (const resource of orderedResources) {
+			map.set(resource, void 0);
+		}
+		return map;
 	}
 }
 
@@ -128,7 +134,7 @@ class GetErrRequest {
 
 	public static executeGetErrRequest(
 		client: ITypeScriptServiceClient,
-		files: string[],
+		files: ResourceMap<void>,
 		onDone: () => void
 	) {
 		const token = new vscode.CancellationTokenSource();
@@ -139,13 +145,15 @@ class GetErrRequest {
 
 	private constructor(
 		client: ITypeScriptServiceClient,
-		public readonly files: string[],
+		public readonly files: ResourceMap<void>,
 		private readonly _token: vscode.CancellationTokenSource,
 		onDone: () => void
 	) {
 		const args: Proto.GeterrRequestArgs = {
 			delay: 0,
-			files
+			files: Array.from(files.entries)
+				.map(entry => client.normalizedPath(entry.resource))
+				.filter(x => !!x) as string[]
 		};
 
 		client.executeAsync('geterr', args, _token.token)
@@ -345,27 +353,25 @@ export default class BufferSyncSupport extends Disposable {
 	}
 
 	private sendPendingDiagnostics(): void {
-		const fileList = this.pendingDiagnostics.getFileList();
+		const orderedFileSet = this.pendingDiagnostics.getOrderedFileSet();
 
 		// Add all open TS buffers to the geterr request. They might be visible
 		for (const buffer of this.syncedBuffers.values) {
 			if (!this.pendingDiagnostics.has(buffer.resource)) {
-				fileList.add(buffer.filepath);
+				orderedFileSet.set(buffer.resource, void 0);
 			}
 		}
 
-		if (this.pendingGetErr) {
-			for (const file of this.pendingGetErr.files) {
-				fileList.add(file);
-			}
-		}
-
-		if (fileList.size) {
+		if (orderedFileSet.size) {
 			if (this.pendingGetErr) {
 				this.pendingGetErr.cancel();
+
+				for (const file of this.pendingGetErr.files.entries) {
+					orderedFileSet.set(file.resource, void 0);
+				}
 			}
 
-			const getErr = this.pendingGetErr = GetErrRequest.executeGetErrRequest(this.client, Array.from(fileList), () => {
+			const getErr = this.pendingGetErr = GetErrRequest.executeGetErrRequest(this.client, orderedFileSet, () => {
 				if (this.pendingGetErr === getErr) {
 					this.pendingGetErr = undefined;
 				}
