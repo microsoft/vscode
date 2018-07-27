@@ -62,6 +62,7 @@ interface QuickInputUI {
 	rightActionBar: ActionBar;
 	checkAll: HTMLInputElement;
 	inputBox: QuickInputBox;
+	visibleCount: CountBadge;
 	count: CountBadge;
 	message: HTMLElement;
 	progressBar: ProgressBar;
@@ -79,6 +80,7 @@ type Visibilities = {
 	title?: boolean;
 	checkAll?: boolean;
 	inputBox?: boolean;
+	visibleCount?: boolean;
 	count?: boolean;
 	message?: boolean;
 	list?: boolean;
@@ -481,6 +483,7 @@ class QuickPick<T extends IQuickPickItem> extends QuickInput implements IQuickPi
 			this.ui.list.setElements(this.items);
 			this.ui.list.filter(this.ui.inputBox.value);
 			this.ui.checkAll.checked = this.ui.list.getAllVisibleChecked();
+			this.ui.visibleCount.setCount(this.ui.list.getVisibleCount());
 			this.ui.count.setCount(this.ui.list.getCheckedCount());
 			if (!this.canSelectMany) {
 				this.ui.list.focus('First');
@@ -515,7 +518,7 @@ class QuickPick<T extends IQuickPickItem> extends QuickInput implements IQuickPi
 		}
 		this.ui.list.matchOnDescription = this.matchOnDescription;
 		this.ui.list.matchOnDetail = this.matchOnDetail;
-		this.ui.setVisibilities(this.canSelectMany ? { title: !!this.title || !!this.step, checkAll: true, inputBox: true, count: true, ok: true, list: true } : { title: !!this.title || !!this.step, inputBox: true, list: true });
+		this.ui.setVisibilities(this.canSelectMany ? { title: !!this.title || !!this.step, checkAll: true, inputBox: true, visibleCount: true, count: true, ok: true, list: true } : { title: !!this.title || !!this.step, inputBox: true, visibleCount: true, list: true });
 	}
 
 	configureQuickNavigate(quickNavigate: IQuickNavigateConfiguration) {
@@ -705,6 +708,7 @@ export class QuickInputService extends Component implements IQuickInputService {
 	private layoutDimensions: dom.Dimension;
 	private titleBar: HTMLElement;
 	private filterContainer: HTMLElement;
+	private visibleCountContainer: HTMLElement;
 	private countContainer: HTMLElement;
 	private okContainer: HTMLElement;
 	private ok: Button;
@@ -789,7 +793,12 @@ export class QuickInputService extends Component implements IQuickInputService {
 
 		const inputBox = this._register(new QuickInputBox(this.filterContainer));
 
+		this.visibleCountContainer = dom.append(this.filterContainer, $('.quick-input-visible-count'));
+		this.visibleCountContainer.setAttribute('aria-live', 'polite');
+		const visibleCount = new CountBadge(this.visibleCountContainer, { countFormat: localize({ key: 'quickInput.visibleCount', comment: ['This tells the user how many items are shown in a list of items to select from. The items can be anything. Currently not visible, but read by screen readers.'] }, "{0} Results") });
+
 		this.countContainer = dom.append(this.filterContainer, $('.quick-input-count'));
+		this.countContainer.setAttribute('aria-live', 'polite');
 		const count = new CountBadge(this.countContainer, { countFormat: localize({ key: 'quickInput.countSelected', comment: ['This tells the user how many items are selected in a list of items to select from. The items can be anything.'] }, "{0} Selected") });
 		this._register(attachBadgeStyler(count, this.themeService));
 
@@ -810,6 +819,9 @@ export class QuickInputService extends Component implements IQuickInputService {
 		const list = this._register(this.instantiationService.createInstance(QuickInputList, container));
 		this._register(list.onChangedAllVisibleChecked(checked => {
 			checkAll.checked = checked;
+		}));
+		this._register(list.onChangedVisibleCount(c => {
+			visibleCount.setCount(c);
 		}));
 		this._register(list.onChangedCheckedCount(c => {
 			count.setCount(c);
@@ -880,6 +892,7 @@ export class QuickInputService extends Component implements IQuickInputService {
 			rightActionBar,
 			checkAll,
 			inputBox,
+			visibleCount,
 			count,
 			message,
 			progressBar,
@@ -1047,6 +1060,7 @@ export class QuickInputService extends Component implements IQuickInputService {
 		this.ui.inputBox.placeholder = '';
 		this.ui.inputBox.password = false;
 		this.ui.inputBox.showDecoration(Severity.Ignore);
+		this.ui.visibleCount.setCount(0);
 		this.ui.count.setCount(0);
 		this.ui.message.textContent = '';
 		this.ui.progressBar.stop();
@@ -1069,6 +1083,7 @@ export class QuickInputService extends Component implements IQuickInputService {
 		this.ui.title.style.display = visibilities.title ? '' : 'none';
 		this.ui.checkAll.style.display = visibilities.checkAll ? '' : 'none';
 		this.filterContainer.style.display = visibilities.inputBox ? '' : 'none';
+		this.visibleCountContainer.style.display = visibilities.visibleCount ? '' : 'none';
 		this.countContainer.style.display = visibilities.count ? '' : 'none';
 		this.okContainer.style.display = visibilities.ok ? '' : 'none';
 		this.ui.message.style.display = visibilities.message ? '' : 'none';

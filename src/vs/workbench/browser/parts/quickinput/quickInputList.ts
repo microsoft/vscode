@@ -160,6 +160,8 @@ export class QuickInputList {
 	onChangedAllVisibleChecked: Event<boolean> = this._onChangedAllVisibleChecked.event;
 	private _onChangedCheckedCount = new Emitter<number>();
 	onChangedCheckedCount: Event<number> = this._onChangedCheckedCount.event;
+	private _onChangedVisibleCount = new Emitter<number>();
+	onChangedVisibleCount: Event<number> = this._onChangedVisibleCount.event;
 	private _onChangedCheckedElements = new Emitter<IQuickPickItem[]>();
 	onChangedCheckedElements: Event<IQuickPickItem[]> = this._onChangedCheckedElements.event;
 	private _onLeave = new Emitter<void>();
@@ -255,6 +257,17 @@ export class QuickInputList {
 		return count;
 	}
 
+	getVisibleCount() {
+		let count = 0;
+		const elements = this.elements;
+		for (let i = 0, n = elements.length; i < n; i++) {
+			if (!elements[i].hidden) {
+				count++;
+			}
+		}
+		return count;
+	}
+
 	setAllVisibleChecked(checked: boolean) {
 		try {
 			this._fireCheckedEvents = false;
@@ -284,6 +297,7 @@ export class QuickInputList {
 		}, new Map<IQuickPickItem, number>());
 		this.list.splice(0, this.list.length, this.elements);
 		this.list.setFocus([]);
+		this._onChangedVisibleCount.fire(this.elements.length);
 	}
 
 	getFocusedElements() {
@@ -415,6 +429,7 @@ export class QuickInputList {
 		this.list.layout();
 
 		this._onChangedAllVisibleChecked.fire(this.getAllVisibleChecked());
+		this._onChangedVisibleCount.fire(shownElements.length);
 	}
 
 	toggleCheckbox() {
