@@ -362,6 +362,11 @@ export class Menubar {
 	}
 
 	private shouldDrawMenu(menuId: string): boolean {
+		// We need to draw an empty menu to override the electron default
+		if (!isMacintosh && this.configurationService.getValue('window.titleBarStyle') === 'custom') {
+			return false;
+		}
+
 		switch (menuId) {
 			case 'File':
 			case 'Help':

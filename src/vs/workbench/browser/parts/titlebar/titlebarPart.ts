@@ -31,7 +31,8 @@ import URI from 'vs/base/common/uri';
 import { Color } from 'vs/base/common/color';
 import { trim } from 'vs/base/common/strings';
 import { addDisposableListener, EventType, EventHelper, Dimension } from 'vs/base/browser/dom';
-import { IPartService } from 'vs/workbench/services/part/common/partService';
+import { MenubarPart } from 'vs/workbench/browser/parts/menubar/menubarPart';
+import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { template, getBaseLabel } from 'vs/base/common/labels';
 import { IUriDisplayService } from 'vs/platform/uriDisplay/common/uriDisplay';
 
@@ -51,10 +52,11 @@ export class TitlebarPart extends Part implements ITitleService {
 	private windowControls: Builder;
 	private maxRestoreControl: Builder;
 	private appIcon: Builder;
+	private menubarPart: MenubarPart;
+	private menubar: Builder;
 
 	private pendingTitle: string;
 	private representedFileName: string;
-	private menubarWidth: number;
 
 	private initialSizing: {
 		titleFontSize?: number;
@@ -78,7 +80,7 @@ export class TitlebarPart extends Part implements ITitleService {
 		@IEditorService private editorService: IEditorService,
 		@IEnvironmentService private environmentService: IEnvironmentService,
 		@IWorkspaceContextService private contextService: IWorkspaceContextService,
-		@IPartService private partService: IPartService,
+		@IInstantiationService private instantiationService: IInstantiationService,
 		@IThemeService themeService: IThemeService,
 		@IUriDisplayService private uriDisplayService: IUriDisplayService
 	) {
@@ -98,7 +100,6 @@ export class TitlebarPart extends Part implements ITitleService {
 		this._register(this.contextService.onDidChangeWorkspaceFolders(() => this.setTitle(this.getWindowTitle())));
 		this._register(this.contextService.onDidChangeWorkbenchState(() => this.setTitle(this.getWindowTitle())));
 		this._register(this.contextService.onDidChangeWorkspaceName(() => this.setTitle(this.getWindowTitle())));
-		this._register(this.partService.onMenubarVisibilityChange(this.onMenubarVisibilityChanged, this));
 	}
 
 	private onBlur(): void {
@@ -117,10 +118,19 @@ export class TitlebarPart extends Part implements ITitleService {
 		}
 	}
 
-	private onMenubarVisibilityChanged(dimension: Dimension): void {
-		this.menubarWidth = dimension.width;
+	private onMenubarVisibilityChanged(visible: boolean) {
+		if (isWindows || isLinux) {
+			// Hide title when toggling menu bar
+			if (this.configurationService.getValue<MenuBarVisibility>('window.menuBarVisibility') === 'toggle' && visible) {
+				this.title.style('visibility', 'hidden');
 
-		this.updateLayout();
+				// Hack to fix issue #52522 with layered webkit-app-region elements appearing under cursor
+				this.dragRegion.hide();
+				this.dragRegion.showDelayed(50);
+			} else {
+				this.title.style('visibility', null);
+			}
+		}
 	}
 
 	private onActiveEditorChange(): void {
@@ -269,6 +279,20 @@ export class TitlebarPart extends Part implements ITitleService {
 			}
 		}
 
+		// Menubar: the menubar part which is responsible for populating both the custom and native menubars
+		this.menubarPart = this.instantiationService.createInstance(MenubarPart, 'workbench.parts.menubar');
+		this.menubar = $(this.titleContainer).div({
+			'class': ['part', 'menubar'],
+			id: 'workbench.parts.menubar',
+			role: 'menubar'
+		});
+
+		this.menubarPart.create(this.menubar.getHTMLElement());
+
+		if (!isMacintosh) {
+			this._register(this.menubarPart.onVisibilityChange(e => this.onMenubarVisibilityChanged(e)));
+		}
+
 		// Title
 		this.title = $(this.titleContainer).div({ class: 'window-title' });
 		if (this.pendingTitle) {
@@ -278,7 +302,7 @@ export class TitlebarPart extends Part implements ITitleService {
 		}
 
 		// Maximize/Restore on doubleclick
-		this.titleContainer.on(EventType.DBLCLICK, (e) => {
+		this.title.on(EventType.DBLCLICK, (e) => {
 			EventHelper.stop(e);
 
 			this.onTitleDoubleclick();
@@ -438,88 +462,84 @@ export class TitlebarPart extends Part implements ITitleService {
 		}
 	}
 
-	private updateLayout() {
-
-		// To prevent zooming we need to adjust the font size with the zoom factor
+	private updateLayout(dimension: Dimension) {
+		// Store initital title sizing if we need to prevent zooming
 		if (typeof this.initialSizing.titleFontSize !== 'number') {
-			this.initialSizing.titleFontSize = parseInt(this.titleContainer.getComputedStyle().fontSize, 10);
+			this.initialSizing.titleFontSize = parseInt(this.title.getComputedStyle().fontSize, 10);
 		}
 
 		if (typeof this.initialSizing.titlebarHeight !== 'number') {
-			this.initialSizing.titlebarHeight = parseInt(this.titleContainer.getComputedStyle().height, 10);
+			this.initialSizing.titlebarHeight = parseInt(this.title.getComputedStyle().height, 10);
 		}
 
-		// Set font size and line height
-		const newHeight = this.initialSizing.titlebarHeight / getZoomFactor();
-		this.titleContainer.style({
-			fontSize: `${this.initialSizing.titleFontSize / getZoomFactor()}px`,
-			'line-height': `${newHeight}px`
-		});
+		// Only prevent zooming behavior on macOS or when the menubar is not visible
+		if (isMacintosh || this.configurationService.getValue<MenuBarVisibility>('window.menuBarVisibility') === 'hidden') {
+			// To prevent zooming we need to adjust the font size with the zoom factor
+			const newHeight = this.initialSizing.titlebarHeight / getZoomFactor();
+			this.title.style({
+				fontSize: `${this.initialSizing.titleFontSize / getZoomFactor()}px`,
+				'line-height': `${newHeight}px`
+			});
 
-		// Windows/Linux specific layout
-		if (isWindows || isLinux) {
-			if (typeof this.initialSizing.controlsWidth !== 'number') {
-				this.initialSizing.controlsWidth = parseInt(this.windowControls.getComputedStyle().width, 10);
+			// Windows/Linux specific layout
+			if (isWindows || isLinux) {
+				if (typeof this.initialSizing.controlsWidth !== 'number') {
+					this.initialSizing.controlsWidth = parseInt(this.windowControls.getComputedStyle().width, 10);
+				}
+
+				if (typeof this.initialSizing.appIconWidth !== 'number') {
+					this.initialSizing.appIconWidth = parseInt(this.appIcon.getComputedStyle().width, 10);
+				}
+
+				if (typeof this.initialSizing.appIconSize !== 'number') {
+					this.initialSizing.appIconSize = parseInt(this.appIcon.getComputedStyle().backgroundSize, 10);
+				}
+
+				const currentAppIconHeight = parseInt(this.appIcon.getComputedStyle().height, 10);
+				const newControlsWidth = this.initialSizing.controlsWidth / getZoomFactor();
+				const newAppIconWidth = this.initialSizing.appIconWidth / getZoomFactor();
+				const newAppIconSize = this.initialSizing.appIconSize / getZoomFactor();
+
+				// Adjust app icon mimic menubar
+				this.appIcon.style({
+					'width': `${newAppIconWidth}px`,
+					'background-size': `${newAppIconSize}px`,
+					'padding-top': `${(newHeight - currentAppIconHeight) / 2.0}px`,
+					'padding-bottom': `${(newHeight - currentAppIconHeight) / 2.0}px`
+				});
+
+				// Adjust windows controls
+				this.windowControls.style({
+					'width': `${newControlsWidth}px`
+				});
 			}
+		} else {
+			// We need to undo zoom prevention
+			this.title.style({
+				fontSize: null,
+				'line-height': null
+			});
 
-			if (typeof this.initialSizing.appIconWidth !== 'number') {
-				this.initialSizing.appIconWidth = parseInt(this.appIcon.getComputedStyle().width, 10);
-			}
-
-			if (typeof this.initialSizing.appIconSize !== 'number') {
-				this.initialSizing.appIconSize = parseInt(this.appIcon.getComputedStyle().backgroundSize, 10);
-			}
-
-			const currentAppIconHeight = parseInt(this.appIcon.getComputedStyle().height, 10);
-			const newControlsWidth = this.initialSizing.controlsWidth / getZoomFactor();
-			const newAppIconWidth = this.initialSizing.appIconWidth / getZoomFactor();
-			const newAppIconSize = this.initialSizing.appIconSize / getZoomFactor();
-
-			if (!this.menubarWidth) {
-				this.menubarWidth = 0;
-			}
-
-			// If we can center the title in the titlebar, we should
-			const fullWidth = parseInt(this.titleContainer.getComputedStyle().width, 10);
-			const titleWidth = parseInt(this.title.getComputedStyle().width, 10);
-			const freeSpace = fullWidth - newAppIconWidth - newControlsWidth - titleWidth;
-			const leftSideTitle = newAppIconWidth + (freeSpace / 2);
-
-			let bufferWidth = this.menubarWidth;
-			if (newAppIconWidth + this.menubarWidth < leftSideTitle) {
-				bufferWidth = 0;
-			}
-
-			// Adjust app icon mimic menubar
 			this.appIcon.style({
-				'width': `${newAppIconWidth}px`,
-				'background-size': `${newAppIconSize}px`,
-				'margin-right': `${newControlsWidth - newAppIconWidth + bufferWidth}px`,
-				'padding-top': `${(newHeight - currentAppIconHeight) / 2.0}px`,
-				'padding-bottom': `${(newHeight - currentAppIconHeight) / 2.0}px`
+				'width': null,
+				'background-size': null,
+				'padding-top': null,
+				'padding-bottom': null
 			});
 
-			// Adjust windows controls
 			this.windowControls.style({
-				'width': `${newControlsWidth}px`
+				'width': null
 			});
+		}
 
-			// Hide title when toggling menu bar
-			let menubarToggled = this.configurationService.getValue<MenuBarVisibility>('window.menuBarVisibility') === 'toggle';
-			if (menubarToggled && this.menubarWidth) {
-				this.title.style('visibility', 'hidden');
-
-				// Hack to fix issue #52522 with layered webkit-app-region elements appearing under cursor
-				this.dragRegion.hide();
-				this.dragRegion.showDelayed(50);
-			} else {
-				this.title.style('visibility', null);
-			}
+		if (this.menubarPart) {
+			const menubarDimension = new Dimension(undefined, dimension.height);
+			this.menubarPart.layout(menubarDimension);
 		}
 	}
 
 	layout(dimension: Dimension): Dimension[] {
-		this.updateLayout();
+		this.updateLayout(dimension);
 
 		return super.layout(dimension);
 	}
