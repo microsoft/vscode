@@ -218,21 +218,21 @@ export class FileRenderer implements IRenderer, IHighlightingRenderer {
 
 	renderElement(tree: ITree, element: IFileStat | IWorkspaceFolder, templateId: string, templateData: FileLabel): void {
 		let fileDecorations = this._configService.getValue<{ colors: boolean, badges: boolean }>('explorer.decorations');
+		let resource: URI;
+		let fileKind: FileKind;
 		if (IWorkspaceFolder.isIWorkspaceFolder(element)) {
-			templateData.setFile(element.uri, {
-				hidePath: true,
-				fileKind: FileKind.ROOT_FOLDER,
-				fileDecorations: fileDecorations,
-				matches: createMatches((this._scores.get(element.uri.toString()) || [, []])[1])
-			});
+			resource = element.uri;
+			fileKind = FileKind.ROOT_FOLDER;
 		} else {
-			templateData.setFile(element.resource, {
-				hidePath: true,
-				fileKind: element.isDirectory ? FileKind.FOLDER : FileKind.FILE,
-				fileDecorations: fileDecorations,
-				matches: createMatches((this._scores.get(element.resource.toString()) || [, []])[1])
-			});
+			resource = element.resource;
+			fileKind = element.isDirectory ? FileKind.FOLDER : FileKind.FILE;
 		}
+		templateData.setFile(resource, {
+			fileKind,
+			hidePath: true,
+			fileDecorations: fileDecorations,
+			matches: createMatches((this._scores.get(resource.toString()) || [, []])[1])
+		});
 	}
 
 	disposeTemplate(tree: ITree, templateId: string, templateData: FileLabel): void {
