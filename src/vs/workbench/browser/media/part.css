@@ -36,6 +36,9 @@
 	font-weight: normal;
 	-webkit-margin-before: 0;
 	-webkit-margin-after: 0;
+	overflow: hidden;
+	white-space: nowrap;
+	text-overflow: ellipsis;
 }
 
 .monaco-workbench > .part > .title > .title-label a {
