@@ -511,6 +511,23 @@ export class TitlebarPart extends Part implements ITitleService {
 					'width': `${newControlsWidth}px`
 				});
 			}
+		} else {
+			// We need to undo zoom prevention
+			this.title.style({
+				fontSize: null,
+				'line-height': null
+			});
+
+			this.appIcon.style({
+				'width': null,
+				'background-size': null,
+				'padding-top': null,
+				'padding-bottom': null
+			});
+
+			this.windowControls.style({
+				'width': null
+			});
 		}
 
 		if (this.menubarPart) {
