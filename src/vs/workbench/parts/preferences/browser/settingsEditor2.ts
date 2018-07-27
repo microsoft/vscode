@@ -214,7 +214,7 @@ export class SettingsEditor2 extends BaseEditor {
 		this.settingsTargetsWidget.settingsTarget = ConfigurationTarget.USER;
 		this.settingsTargetsWidget.onDidTargetChange(() => {
 			this.viewState.settingsTarget = this.settingsTargetsWidget.settingsTarget;
-			this.toolbar.context = this.settingsTargetsWidget.settingsTarget;
+			this.toolbar.context = <ISettingsToolbarContext>{ target: this.settingsTargetsWidget.settingsTarget };
 
 			this.settingsTreeModel.update();
 			this.refreshTreeAndMaintainFocus();
@@ -245,7 +245,7 @@ export class SettingsEditor2 extends BaseEditor {
 			this.instantiationService.createInstance(OpenSettingsAction)
 		];
 		this.toolbar.setActions([], actions)();
-		this.toolbar.context = this.settingsTargetsWidget.settingsTarget;
+		this.toolbar.context = <ISettingsToolbarContext>{ target: this.settingsTargetsWidget.settingsTarget };
 	}
 
 	private revealSetting(settingName: string): void {
@@ -810,6 +810,10 @@ export class SettingsEditor2 extends BaseEditor {
 	}
 }
 
+interface ISettingsToolbarContext {
+	target: SettingsTarget;
+}
+
 class OpenSettingsAction extends Action {
 	static readonly ID = 'settings.openSettingsJson';
 	static readonly LABEL = localize('openSettingsJsonLabel', "Open settings.json");
@@ -821,18 +825,19 @@ class OpenSettingsAction extends Action {
 	}
 
 
-	run(context?: SettingsTarget): TPromise<void> {
+	run(context?: ISettingsToolbarContext): TPromise<void> {
 		return this._run(context)
 			.then(() => { });
 	}
 
-	private _run(context?: SettingsTarget): TPromise<any> {
-		if (context === ConfigurationTarget.USER) {
+	private _run(context?: ISettingsToolbarContext): TPromise<any> {
+		const target = context && context.target;
+		if (target === ConfigurationTarget.USER) {
 			return this.preferencesService.openGlobalSettings();
-		} else if (context === ConfigurationTarget.WORKSPACE) {
+		} else if (target === ConfigurationTarget.WORKSPACE) {
 			return this.preferencesService.openWorkspaceSettings();
-		} else if (URI.isUri(context)) {
-			return this.preferencesService.openFolderSettings(context);
+		} else if (URI.isUri(target)) {
+			return this.preferencesService.openFolderSettings(target);
 		}
 
 		return TPromise.wrap(null);
