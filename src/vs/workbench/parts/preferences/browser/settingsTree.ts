@@ -1181,11 +1181,9 @@ export class SettingsTreeFilter implements IFilter {
 
 		if (element instanceof SettingsTreeSettingElement && this.viewState.tagFilters && this.viewState.tagFilters.size) {
 			if (element.tags) {
-				let hasFilteredTag = false;
-				element.tags.forEach(tag => {
-					if (this.viewState.tagFilters.has(tag)) {
-						hasFilteredTag = true;
-					}
+				let hasFilteredTag = true;
+				this.viewState.tagFilters.forEach(tag => {
+					hasFilteredTag = hasFilteredTag && element.tags.has(tag);
 				});
 				return hasFilteredTag;
 			} else {

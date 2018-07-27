@@ -84,6 +84,8 @@ export class SettingsEditor2 extends BaseEditor {
 	private inSettingsEditorContextKey: IContextKey<boolean>;
 	private searchFocusContextKey: IContextKey<boolean>;
 
+	private tagRegex = /(^|\s)@tag:("([^"]*)"|[^"]\S*)/g;
+
 	/** Don't spam warnings */
 	private hasWarnedMissingSettings: boolean;
 
@@ -181,10 +183,10 @@ export class SettingsEditor2 extends BaseEditor {
 		this.searchWidget.clear();
 	}
 
-	filterByTag(tag: string): void {
+	search(text: string): void {
 		if (this.searchWidget) {
 			this.searchWidget.focus();
-			this.searchWidget.setValue(`@tag:${tag} `);
+			this.searchWidget.setValue(text);
 		}
 	}
 
@@ -233,7 +235,7 @@ export class SettingsEditor2 extends BaseEditor {
 
 		const actions = [
 			this.instantiationService.createInstance(FilterByTagAction,
-				localize('filterModifiedLabel', "Show modified settings only"),
+				localize('filterModifiedLabel', "Show modified settings"),
 				MODIFIED_SETTING_TAG,
 				this),
 			this.instantiationService.createInstance(
@@ -664,12 +666,16 @@ export class SettingsEditor2 extends BaseEditor {
 	private triggerSearch(query: string): TPromise<void> {
 		this.viewState.tagFilters = new Set<string>();
 		if (query) {
-			const tagMatches = query.match(/\s*@tag:(\S+)(.*)/); // For now, we support single tag at a time.
-			if (tagMatches) {
-				this.viewState.tagFilters.add(tagMatches[1]);
-				query = tagMatches[2];
-			}
+			query = query.replace(this.tagRegex, (_, __, quotedTag, tag) => {
+				this.viewState.tagFilters.add(tag || quotedTag);
+				return '';
+			});
+			query = query.replace(`@${MODIFIED_SETTING_TAG}`, () => {
+				this.viewState.tagFilters.add(MODIFIED_SETTING_TAG);
+				return '';
+			});
 		}
+		query = query.trim();
 		if (query) {
 			return this.searchInProgress = TPromise.join([
 				this.localSearchDelayer.trigger(() => this.localFilterPreferences(query)),
@@ -856,7 +862,7 @@ class FilterByTagAction extends Action {
 	}
 
 	run(): TPromise<void> {
-		this.settingsEditor.filterByTag(this.tag);
+		this.settingsEditor.search(this.tag === MODIFIED_SETTING_TAG ? `@${this.tag} ` : `@tag:${this.tag} `);
 		return TPromise.as(null);
 	}
 }
