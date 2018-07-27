@@ -182,7 +182,8 @@ export class SettingsEditor2 extends BaseEditor {
 
 	filterByTag(tag: string): void {
 		if (this.searchWidget) {
-			this.searchWidget.setValue(`@tag:${tag}`);
+			this.searchWidget.focus();
+			this.searchWidget.setValue(`@tag:${tag} `);
 		}
 	}
 
