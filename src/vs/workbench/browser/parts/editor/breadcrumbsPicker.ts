@@ -197,7 +197,7 @@ export class FileDataSource implements IDataSource {
 
 export class FileRenderer implements IRenderer, IHighlightingRenderer {
 
-	private readonly _scores = new Map<object, FuzzyScore>();
+	private readonly _scores = new Map<string, FuzzyScore>();
 
 	constructor(
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
@@ -223,14 +223,14 @@ export class FileRenderer implements IRenderer, IHighlightingRenderer {
 				hidePath: true,
 				fileKind: FileKind.ROOT_FOLDER,
 				fileDecorations: fileDecorations,
-				matches: createMatches((this._scores.get(element) || [, []])[1])
+				matches: createMatches((this._scores.get(element.uri.toString()) || [, []])[1])
 			});
 		} else {
 			templateData.setFile(element.resource, {
 				hidePath: true,
 				fileKind: element.isDirectory ? FileKind.FOLDER : FileKind.FILE,
 				fileDecorations: fileDecorations,
-				matches: createMatches((this._scores.get(element) || [, []])[1])
+				matches: createMatches((this._scores.get(element.resource.toString()) || [, []])[1])
 			});
 		}
 	}
@@ -246,7 +246,7 @@ export class FileRenderer implements IRenderer, IHighlightingRenderer {
 		while (nav.next()) {
 			let element = nav.current() as IFileStat | IWorkspaceFolder;
 			let score = fuzzyScore(pattern, element.name, undefined, true);
-			this._scores.set(element, score);
+			this._scores.set(IWorkspaceFolder.isIWorkspaceFolder(element) ? element.uri.toString() : element.resource.toString(), score);
 			if (!topScore || score && topScore[0] < score[0]) {
 				topScore = score;
 				topElement = element;
