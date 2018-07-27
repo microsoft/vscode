@@ -16,12 +16,13 @@ import { IUpdateService, StateType } from 'vs/platform/update/common/update';
 import product from 'vs/platform/node/product';
 import { RunOnceScheduler } from 'vs/base/common/async';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { mnemonicMenuLabel as baseMnemonicLabel, unmnemonicLabel, getPathLabel } from 'vs/base/common/labels';
+import { mnemonicMenuLabel as baseMnemonicLabel, unmnemonicLabel } from 'vs/base/common/labels';
 import { IWindowsMainService, IWindowsCountChangedEvent } from 'vs/platform/windows/electron-main/windows';
 import { IHistoryMainService } from 'vs/platform/history/common/history';
 import { IWorkspaceIdentifier, getWorkspaceLabel, ISingleFolderWorkspaceIdentifier, isSingleFolderWorkspaceIdentifier, isWorkspaceIdentifier } from 'vs/platform/workspaces/common/workspaces';
 import { IMenubarData, IMenubarKeybinding, MenubarMenuItem, isMenubarMenuItemSeparator, isMenubarMenuItemSubmenu, isMenubarMenuItemAction } from 'vs/platform/menubar/common/menubar';
 import URI from 'vs/base/common/uri';
+import { IUriDisplayService } from 'vs/platform/uriDisplay/common/uriDisplay';
 
 const telemetryFrom = 'menu';
 
@@ -46,7 +47,8 @@ export class Menubar {
 		@IWindowsMainService private windowsMainService: IWindowsMainService,
 		@IEnvironmentService private environmentService: IEnvironmentService,
 		@ITelemetryService private telemetryService: ITelemetryService,
-		@IHistoryMainService private historyMainService: IHistoryMainService
+		@IHistoryMainService private historyMainService: IHistoryMainService,
+		@IUriDisplayService private uriDisplayService: IUriDisplayService
 	) {
 		this.menuUpdater = new RunOnceScheduler(() => this.doUpdateMenu(), 0);
 
@@ -528,8 +530,8 @@ export class Menubar {
 			label = getWorkspaceLabel(workspace, this.environmentService, { verbose: true });
 			uri = URI.file(workspace.configPath);
 		} else {
-			label = unmnemonicLabel(getPathLabel(workspace, this.environmentService, null));
 			uri = URI.file(workspace);
+			label = unmnemonicLabel(this.uriDisplayService.getLabel(uri));
 		}
 
 		return new MenuItem(this.likeAction(commandId, {
