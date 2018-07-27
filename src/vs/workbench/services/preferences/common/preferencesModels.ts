@@ -899,9 +899,10 @@ class SettingsContentBuilder {
 
 		if (setting.enumDescriptions && setting.enumDescriptions.some(desc => !!desc)) {
 			setting.enumDescriptions.forEach((desc, i) => {
+				const displayEnum = escapeInvisibleChars(setting.enum[i]);
 				const line = desc ?
-					`${setting.enum[i]}: ${fixSettingLink(desc)}` :
-					setting.enum[i];
+					`${displayEnum}: ${fixSettingLink(desc)}` :
+					displayEnum;
 
 				this._contentByLines.push(`  //  - ${line}`);
 
@@ -940,6 +941,12 @@ class SettingsContentBuilder {
 			result.push(indent + '// ' + line);
 		}
 	}
+}
+
+function escapeInvisibleChars(enumValue: string): string {
+	return enumValue && enumValue
+		.replace(/\n/g, '\\n')
+		.replace(/\r/g, '\\r');
 }
 
 export function defaultKeybindingsContents(keybindingService: IKeybindingService): string {

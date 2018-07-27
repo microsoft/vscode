@@ -1010,9 +1010,12 @@ export class SettingsRenderer implements ITreeRenderer {
 		let enumDescriptionText = '';
 		if (element.valueType === 'enum' && element.setting.enumDescriptions && element.setting.enum && element.setting.enum.length < SettingsRenderer.MAX_ENUM_DESCRIPTIONS) {
 			enumDescriptionText = '\n' + element.setting.enumDescriptions
-				.map((desc, i) => desc ?
-					` - \`${element.setting.enum[i]}\`: ${desc}` :
-					` - \`${element.setting.enum[i]}\``)
+				.map((desc, i) => {
+					const displayEnum = escapeInvisibleChars(setting.enum[i]);
+					return desc ?
+						` - \`${displayEnum}\`: ${desc}` :
+						` - \`${setting.enum[i]}\``;
+				})
 				.filter(desc => !!desc)
 				.join('\n');
 		}
