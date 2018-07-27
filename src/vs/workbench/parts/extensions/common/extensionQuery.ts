@@ -21,7 +21,11 @@ export class Query {
 			'ext': ['']
 		};
 
-		return flatten(commands.map(command => subcommands[command] ? subcommands[command].map(subcommand => `${command}:${subcommand}`) : [command]));
+		return flatten(
+			commands.map(command =>
+				subcommands[command]
+					? subcommands[command].map(subcommand => `@${command}:${subcommand}${subcommand === '' ? '' : ' '}`)
+					: [`@${command} `]));
 	}
 
 	static parse(value: string): Query {

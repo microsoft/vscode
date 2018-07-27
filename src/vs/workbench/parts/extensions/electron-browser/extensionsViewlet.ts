@@ -359,7 +359,7 @@ export class ExtensionsViewlet extends ViewContainerViewlet implements IExtensio
 
 		const onKeyDownMonaco = chain(this.searchBox.onKeyDown);
 		onKeyDownMonaco.filter(e => e.keyCode === KeyCode.Enter).on(e => e.preventDefault(), this, this.disposables);
-		onKeyDownMonaco.filter(e => e.keyCode === KeyCode.DownArrow).on(() => this.focusListView(), this, this.disposables);
+		onKeyDownMonaco.filter(e => e.keyCode === KeyCode.DownArrow && e.ctrlKey).on(() => this.focusListView(), this, this.disposables);
 
 		const searchChangeEvent = new Emitter<string>();
 		this.onSearchChange = searchChangeEvent.event;
@@ -521,10 +521,11 @@ export class ExtensionsViewlet extends ViewContainerViewlet implements IExtensio
 	}
 
 	private autoComplete(query: string, position: number): { fullText: string, overwrite: number }[] {
-		if (query.lastIndexOf('@', position - 1) !== query.lastIndexOf(' ', position - 1) + 1) { return []; }
-
-		let wordStart = query.lastIndexOf('@', position - 1) + 1;
+		let wordStart = query.lastIndexOf(' ', position - 1) + 1;
 		let alreadyTypedCount = position - wordStart - 1;
+
+		// dont show autosuggestions if the user has typed something, but hasn't used the trigger character
+		if (alreadyTypedCount > 0 && query[wordStart] !== '@') { return []; }
 
 		return Query.autocompletions().map(replacement => ({ fullText: replacement, overwrite: alreadyTypedCount }));
 	}
