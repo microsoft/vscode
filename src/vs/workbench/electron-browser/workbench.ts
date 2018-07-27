@@ -336,7 +336,9 @@ export class Workbench extends Disposable implements IPartService {
 		serviceCollection.set(IClipboardService, new ClipboardService());
 
 		// Uri Display
-		serviceCollection.set(IUriDisplayService, new UriDisplayService(this.environmentService, this.contextService));
+		const uriDisplayService = new UriDisplayService(this.environmentService, this.contextService);
+		serviceCollection.set(IUriDisplayService, uriDisplayService);
+		this.configurationService.acquireUriDisplayService(uriDisplayService);
 
 		// Status bar
 		this.statusbarPart = this.instantiationService.createInstance(StatusbarPart, Identifiers.STATUSBAR_PART);
