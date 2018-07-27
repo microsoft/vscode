@@ -468,6 +468,7 @@ export class ExtensionsViewlet extends ViewContainerViewlet implements IExtensio
 		event.immediate = true;
 
 		this.searchBox.setValue(value);
+		this.searchBox.setSelection(new Range(1, value.length + 1, 1, value.length + 1));
 	}
 
 	private triggerSearch(immediate = false): void {
