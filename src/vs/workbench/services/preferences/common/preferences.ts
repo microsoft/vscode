@@ -49,6 +49,7 @@ export interface ISetting {
 	type?: string | string[];
 	enum?: string[];
 	enumDescriptions?: string[];
+	tags?: string[];
 }
 
 export interface IExtensionSetting extends ISetting {
@@ -58,6 +59,7 @@ export interface IExtensionSetting extends ISetting {
 
 export interface ISearchResult {
 	filterMatches: ISettingMatch[];
+	exactMatch?: boolean;
 	metadata?: IFilterMetadata;
 }
 
@@ -74,6 +76,7 @@ export interface IFilterResult {
 	allGroups: ISettingsGroup[];
 	matches: IRange[];
 	metadata?: IStringDictionary<IFilterMetadata>;
+	exactMatch?: boolean;
 }
 
 export interface ISettingMatch {

@@ -7,7 +7,7 @@
 
 import { CharCode } from 'vs/base/common/charCode';
 
-export enum TokenType {
+export const enum TokenType {
 	Dollar,
 	Colon,
 	Comma,

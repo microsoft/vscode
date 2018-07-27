@@ -23,9 +23,7 @@ export interface IUserHomeProvider {
 }
 
 /**
- * @param resource for which to compute the path label
- * @param userHomeProvider if a resource has a file schema userHomeProvider is used for tildifiying the label
- * @param rootProvider only passed in if the label should be relative to the workspace root
+ * @deprecated use UriLabelService instead
  */
 export function getPathLabel(resource: URI | string, userHomeProvider: IUserHomeProvider, rootProvider?: IWorkspaceFolderProvider): string {
 	if (!resource) {

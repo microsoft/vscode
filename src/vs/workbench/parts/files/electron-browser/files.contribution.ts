@@ -12,7 +12,7 @@ import { SyncActionDescriptor, MenuId, MenuRegistry } from 'vs/platform/actions/
 import { Registry } from 'vs/platform/registry/common/platform';
 import { IConfigurationRegistry, Extensions as ConfigurationExtensions, ConfigurationScope } from 'vs/platform/configuration/common/configurationRegistry';
 import { IWorkbenchActionRegistry, Extensions as ActionExtensions } from 'vs/workbench/common/actions';
-import { IWorkbenchContributionsRegistry, Extensions as WorkbenchExtensions } from 'vs/workbench/common/contributions';
+import { IWorkbenchContributionsRegistry, Extensions as WorkbenchExtensions, IWorkbenchContribution } from 'vs/workbench/common/contributions';
 import { IEditorInputFactory, EditorInput, IFileEditorInput, IEditorInputFactoryRegistry, Extensions as EditorInputExtensions } from 'vs/workbench/common/editor';
 import { AutoSaveConfiguration, HotExitConfiguration, SUPPORTED_ENCODINGS } from 'vs/platform/files/common/files';
 import { VIEWLET_ID, SortOrderConfiguration, FILE_EDITOR_INPUT_ID } from 'vs/workbench/parts/files/common/files';
@@ -34,6 +34,9 @@ import { DataUriEditorInput } from 'vs/workbench/common/editor/dataUriEditorInpu
 import { LifecyclePhase } from 'vs/platform/lifecycle/common/lifecycle';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IEditorGroupsService } from 'vs/workbench/services/group/common/editorGroupsService';
+import { IUriDisplayService } from 'vs/platform/uriDisplay/common/uriDisplay';
+import { Schemas } from 'vs/base/common/network';
+import { nativeSep } from 'vs/base/common/paths';
 
 // Viewlet Action
 export class OpenExplorerViewletAction extends ToggleViewletAction {
@@ -47,6 +50,18 @@ export class OpenExplorerViewletAction extends ToggleViewletAction {
 		@IEditorGroupsService editorGroupService: IEditorGroupsService
 	) {
 		super(id, label, VIEWLET_ID, viewletService, editorGroupService);
+	}
+}
+
+class FileUriDisplayContribution implements IWorkbenchContribution {
+
+	constructor(@IUriDisplayService uriDisplayService: IUriDisplayService) {
+		uriDisplayService.registerFormater(Schemas.file, {
+			label: '${path}',
+			separator: nativeSep,
+			tildify: !platform.isWindows,
+			normalizeDriveLetter: platform.isWindows
+		});
 	}
 }
 
@@ -155,6 +170,10 @@ Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench).regi
 
 // Register Dirty Files Tracker
 Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench).registerWorkbenchContribution(DirtyFilesTracker, LifecyclePhase.Starting);
+
+// Register uri display for file uris
+Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench).registerWorkbenchContribution(FileUriDisplayContribution, LifecyclePhase.Starting);
+
 
 // Configuration
 const configurationRegistry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration);

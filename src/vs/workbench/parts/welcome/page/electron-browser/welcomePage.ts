@@ -28,7 +28,7 @@ import { IExtensionEnablementService, IExtensionManagementService, IExtensionGal
 import { used } from 'vs/workbench/parts/welcome/page/electron-browser/vs_code_welcome_page';
 import { ILifecycleService, StartupKind } from 'vs/platform/lifecycle/common/lifecycle';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
-import { tildify, getBaseLabel, getPathLabel } from 'vs/base/common/labels';
+import { tildify, getBaseLabel } from 'vs/base/common/labels';
 import { registerThemingParticipant } from 'vs/platform/theme/common/themeService';
 import { registerColor, focusBorder, textLinkForeground, textLinkActiveForeground, foreground, descriptionForeground, contrastBorder, activeContrastBorder } from 'vs/platform/theme/common/colorRegistry';
 import { getExtraColor } from 'vs/workbench/parts/welcome/walkThrough/node/walkThroughUtils';
@@ -40,6 +40,7 @@ import { getIdAndVersionFromLocalExtensionId } from 'vs/platform/extensionManage
 import { INotificationService, Severity } from 'vs/platform/notification/common/notification';
 import { TimeoutTimer } from 'vs/base/common/async';
 import { areSameExtensions } from 'vs/platform/extensionManagement/common/extensionManagementUtil';
+import { IUriDisplayService } from 'vs/platform/uriDisplay/common/uriDisplay';
 
 used();
 
@@ -225,6 +226,7 @@ class WelcomePage {
 		@IWorkspaceContextService private contextService: IWorkspaceContextService,
 		@IConfigurationService private configurationService: IConfigurationService,
 		@IEnvironmentService private environmentService: IEnvironmentService,
+		@IUriDisplayService private uriDisplayService: IUriDisplayService,
 		@INotificationService private notificationService: INotificationService,
 		@IExtensionEnablementService private extensionEnablementService: IExtensionEnablementService,
 		@IExtensionGalleryService private extensionGalleryService: IExtensionGalleryService,
@@ -281,9 +283,9 @@ class WelcomePage {
 				let resource: URI;
 				if (isSingleFolderWorkspaceIdentifier(workspace)) {
 					resource = workspace;
-					label = getWorkspaceLabel(workspace, this.environmentService);
+					label = getWorkspaceLabel(workspace, this.environmentService, this.uriDisplayService);
 				} else if (isWorkspaceIdentifier(workspace)) {
-					label = getWorkspaceLabel(workspace, this.environmentService);
+					label = getWorkspaceLabel(workspace, this.environmentService, this.uriDisplayService);
 					resource = URI.file(workspace.configPath);
 				} else {
 					label = getBaseLabel(workspace);
@@ -305,7 +307,7 @@ class WelcomePage {
 					}
 					parentFolderPath = tildify(parentFolder, this.environmentService.userHome);
 				} else {
-					parentFolderPath = getPathLabel(resource, this.environmentService);
+					parentFolderPath = this.uriDisplayService.getLabel(resource);
 				}
 
 

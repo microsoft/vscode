@@ -408,8 +408,6 @@ export class ActionBar implements IActionRunner {
 		this.domNode = document.createElement('div');
 		this.domNode.className = 'monaco-action-bar';
 
-		this.domNode.tabIndex = 0;
-
 		if (options.animated !== false) {
 			DOM.addClass(this.domNode, 'animated');
 		}
@@ -499,6 +497,8 @@ export class ActionBar implements IActionRunner {
 		}
 
 		if (this.options.isMenu) {
+			this.domNode.tabIndex = 0;
+
 			$(this.domNode).on(DOM.EventType.MOUSE_OUT, (e) => {
 				let relatedTarget = (e as MouseEvent).relatedTarget as HTMLElement;
 				if (!DOM.isAncestor(relatedTarget, this.domNode)) {

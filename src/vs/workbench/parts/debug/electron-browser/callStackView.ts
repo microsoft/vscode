@@ -27,8 +27,7 @@ import { IConfigurationService } from 'vs/platform/configuration/common/configur
 import { Separator } from 'vs/base/browser/ui/actionbar/actionbar';
 import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IViewletPanelOptions } from 'vs/workbench/browser/parts/views/panelViewlet';
-import { getPathLabel } from 'vs/base/common/labels';
-import { IEnvironmentService } from 'vs/platform/environment/common/environment';
+import { IUriDisplayService } from 'vs/platform/uriDisplay/common/uriDisplay';
 
 const $ = dom.$;
 
@@ -399,7 +398,7 @@ class CallStackRenderer implements IRenderer {
 
 	constructor(
 		@IWorkspaceContextService private contextService: IWorkspaceContextService,
-		@IEnvironmentService private environmentService: IEnvironmentService
+		@IUriDisplayService private uriDisplayService: IUriDisplayService
 	) {
 		// noop
 	}
@@ -518,8 +517,7 @@ class CallStackRenderer implements IRenderer {
 		dom.toggleClass(data.stackFrame, 'label', stackFrame.presentationHint === 'label');
 		dom.toggleClass(data.stackFrame, 'subtle', stackFrame.presentationHint === 'subtle');
 
-		const path = stackFrame.source.raw.path || stackFrame.source.name;
-		data.file.title = getPathLabel(path, this.environmentService);
+		data.file.title = stackFrame.source.inMemory ? stackFrame.source.name : this.uriDisplayService.getLabel(stackFrame.source.uri);
 		if (stackFrame.source.raw.origin) {
 			data.file.title += `\n${stackFrame.source.raw.origin}`;
 		}

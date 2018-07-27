@@ -489,7 +489,7 @@ configurationRegistry.registerConfiguration({
 			'description': nls.localize('enableNaturalLanguageSettingsSearch', "Controls whether to enable the natural language search mode for settings."),
 			'default': true,
 			'scope': ConfigurationScope.WINDOW,
-			'tags': ['backgroundOnlineFeature']
+			'tags': ['usesOnlineServices']
 		},
 		'workbench.settings.settingsSearchTocBehavior': {
 			'type': 'string',

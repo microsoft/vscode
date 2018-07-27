@@ -68,6 +68,7 @@ export class MarkersPanel extends Panel {
 		this.delayedRefresh = new Delayer<void>(500);
 		this.autoExpanded = new Set<string>();
 		this.panelSettings = this.getMemento(storageService, Scope.WORKSPACE);
+		this.setCurrentActiveEditor();
 	}
 
 	public create(parent: HTMLElement): TPromise<void> {
@@ -269,9 +270,13 @@ export class MarkersPanel extends Panel {
 	}
 
 	private onActiveEditorChanged(): void {
+		this.setCurrentActiveEditor();
+		this.autoReveal();
+	}
+
+	private setCurrentActiveEditor(): void {
 		const activeEditor = this.editorService.activeEditor;
 		this.currentActiveResource = activeEditor ? activeEditor.getResource() : void 0;
-		this.autoReveal();
 	}
 
 	private onSelected(): void {

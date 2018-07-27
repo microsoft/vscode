@@ -113,13 +113,6 @@ declare module 'vscode' {
 		 * The search pattern to match against file paths.
 		 */
 		pattern: string;
-
-		/**
-		 * `cacheKey` has the same value when `provideFileSearchResults` is invoked multiple times during a single quickopen session.
-		 * Providers can optionally use this to cache results at the beginning of a quickopen session and filter results as the user types.
-		 * It will have a different value for each folder searched.
-		 */
-		cacheKey?: string;
 	}
 
 	/**
@@ -160,25 +153,11 @@ declare module 'vscode' {
 		preview: TextSearchResultPreview;
 	}
 
-	/**
-	 * A SearchProvider provides search results for files or text in files. It can be invoked by quickopen, the search viewlet, and other extensions.
-	 */
-	export interface SearchProvider {
-		/**
-		 * Provide the set of files that match a certain file path pattern.
-		 * @param query The parameters for this query.
-		 * @param options A set of options to consider while searching files.
-		 * @param progress A progress callback that must be invoked for all results.
-		 * @param token A cancellation token.
-		 */
-		provideFileSearchResults?(query: FileSearchQuery, options: FileSearchOptions, progress: Progress<Uri>, token: CancellationToken): Thenable<void>;
+	export interface FileIndexProvider {
+		provideFileIndex(options: FileSearchOptions, token: CancellationToken): Thenable<Uri[]>;
+	}
 
-		/**
-		 * Optional - if the provider makes use of `query.cacheKey`, it can implement this method which is invoked when the cache can be cleared.
-		 * @param cacheKey The same key that was passed as `query.cacheKey`.
-		 */
-		clearCache?(cacheKey: string): void;
-
+	export interface TextSearchProvider {
 		/**
 		 * Provide results that match the given text pattern.
 		 * @param query The parameters for this query.
@@ -186,7 +165,21 @@ declare module 'vscode' {
 		 * @param progress A progress callback that must be invoked for all results.
 		 * @param token A cancellation token.
 		 */
-		provideTextSearchResults?(query: TextSearchQuery, options: TextSearchOptions, progress: Progress<TextSearchResult>, token: CancellationToken): Thenable<void>;
+		provideTextSearchResults(query: TextSearchQuery, options: TextSearchOptions, progress: Progress<TextSearchResult>, token: CancellationToken): Thenable<void>;
+	}
+
+	/**
+	 * A FileSearchProvider provides search results for files or text in files. It can be invoked by quickopen and other extensions.
+	 */
+	export interface FileSearchProvider {
+		/**
+		 * Provide the set of files that match a certain file path pattern.
+		 * @param query The parameters for this query.
+		 * @param options A set of options to consider while searching files.
+		 * @param progress A progress callback that must be invoked for all results.
+		 * @param token A cancellation token.
+		 */
+		provideFileSearchResults(query: FileSearchQuery, options: FileSearchOptions, progress: Progress<Uri>, token: CancellationToken): Thenable<void>;
 	}
 
 	/**
@@ -233,6 +226,11 @@ declare module 'vscode' {
 
 	export namespace workspace {
 		/**
+		 * DEPRECATED
+		 */
+		export function registerSearchProvider(): Disposable;
+
+		/**
 		 * Register a search provider.
 		 *
 		 * Only one provider can be registered per scheme.
@@ -241,7 +239,29 @@ declare module 'vscode' {
 		 * @param provider The provider.
 		 * @return A [disposable](#Disposable) that unregisters this provider when being disposed.
 		 */
-		export function registerSearchProvider(scheme: string, provider: SearchProvider): Disposable;
+		export function registerFileSearchProvider(scheme: string, provider: FileSearchProvider): Disposable;
+
+		/**
+		 * Register a text search provider.
+		 *
+		 * Only one provider can be registered per scheme.
+		 *
+		 * @param scheme The provider will be invoked for workspace folders that have this file scheme.
+		 * @param provider The provider.
+		 * @return A [disposable](#Disposable) that unregisters this provider when being disposed.
+		 */
+		export function registerTextSearchProvider(scheme: string, provider: TextSearchProvider): Disposable;
+
+		/**
+		 * Register a file index provider.
+		 *
+		 * Only one provider can be registered per scheme.
+		 *
+		 * @param scheme The provider will be invoked for workspace folders that have this file scheme.
+		 * @param provider The provider.
+		 * @return A [disposable](#Disposable) that unregisters this provider when being disposed.
+		 */
+		export function registerFileIndexProvider(scheme: string, provider: FileIndexProvider): Disposable;
 
 
 		/**
@@ -693,64 +713,6 @@ declare module 'vscode' {
 
 	export interface DocumentFilter {
 		exclusive?: boolean;
-	}
-
-	//#endregion
-
-	//#region joh: https://github.com/Microsoft/vscode/issues/10659
-
-	/**
-	 * A workspace edit is a collection of textual and files changes for
-	 * multiple resources and documents. Use the [applyEdit](#workspace.applyEdit)-function
-	 * to apply a workspace edit. Note that all changes are applied in the same order in which
-	 * they have been added and that invalid sequences like 'delete file a' -> 'insert text in
-	 * file a' causes failure of the operation.
-	 */
-	export interface WorkspaceEdit {
-
-		/**
-		 * The number of affected resources of textual or resource changes.
-		 */
-		readonly size: number;
-
-		/**
-		 * Create a regular file.
-		 *
-		 * @param uri Uri of the new file..
-		 * @param options Defines if an existing file should be overwritten or be ignored.
-		 */
-		createFile(uri: Uri, options?: { overwrite?: boolean, ignoreIfExists?: boolean }): void;
-
-		/**
-		 * Delete a file or folder.
-		 *
-		 * @param uri The uri of the file that is to be deleted.
-		 */
-		deleteFile(uri: Uri, options?: { recursive?: boolean, ignoreIfNotExists?: boolean }): void;
-
-		/**
-		 * Rename a file or folder.
-		 *
-		 * @param oldUri The existing file.
-		 * @param newUri The new location.
-		 * @param options Defines if existing files should be overwritten.
-		 */
-		renameFile(oldUri: Uri, newUri: Uri, options?: { overwrite?: boolean, ignoreIfExists?: boolean }): void;
-	}
-
-	export namespace workspace {
-		/**
-		 * Make changes to one or many resources as defined by the given
-		 * [workspace edit](#WorkspaceEdit).
-		 *
-		 * The editor implements an 'all-or-nothing'-strategy and that means failure to modify,
-		 * delete, rename, or create one file will abort the operation. In that case, the thenable returned
-		 * by this function resolves to `false`.
-		 *
-		 * @param edit A workspace edit.
-		 * @return A thenable that resolves when the edit could be applied.
-		 */
-		export function applyEdit(edit: WorkspaceEdit): Thenable<boolean>;
 	}
 
 	//#endregion

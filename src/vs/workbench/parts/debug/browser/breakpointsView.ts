@@ -16,11 +16,7 @@ import { IInstantiationService } from 'vs/platform/instantiation/common/instanti
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { Constants } from 'vs/editor/common/core/uint';
-import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
-import { getPathLabel } from 'vs/base/common/labels';
 import { dispose, IDisposable } from 'vs/base/common/lifecycle';
-import { basename } from 'vs/base/common/paths';
-import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { Separator } from 'vs/base/browser/ui/actionbar/actionbar';
 import { IVirtualDelegate, IListContextMenuEvent, IRenderer } from 'vs/base/browser/ui/list/list';
@@ -36,6 +32,7 @@ import { IConfigurationService } from 'vs/platform/configuration/common/configur
 import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
 import { IEditorService, SIDE_GROUP, ACTIVE_GROUP } from 'vs/workbench/services/editor/common/editorService';
 import { ViewletPanel, IViewletPanelOptions } from 'vs/workbench/browser/parts/views/panelViewlet';
+import { IUriDisplayService } from 'vs/platform/uriDisplay/common/uriDisplay';
 
 const $ = dom.$;
 
@@ -287,8 +284,7 @@ class BreakpointsRenderer implements IRenderer<IBreakpoint, IBreakpointTemplateD
 
 	constructor(
 		@IDebugService private debugService: IDebugService,
-		@IWorkspaceContextService private contextService: IWorkspaceContextService,
-		@IEnvironmentService private environmentService: IEnvironmentService,
+		@IUriDisplayService private uriDisplayService: IUriDisplayService,
 		@ITextFileService private textFileService: ITextFileService
 	) {
 		// noop
@@ -327,12 +323,12 @@ class BreakpointsRenderer implements IRenderer<IBreakpoint, IBreakpointTemplateD
 		data.context = breakpoint;
 		dom.toggleClass(data.breakpoint, 'disabled', !this.debugService.getModel().areBreakpointsActivated());
 
-		data.name.textContent = basename(getPathLabel(breakpoint.uri, this.environmentService, this.contextService));
+		data.name.textContent = resources.basenameOrAuthority(breakpoint.uri);
 		data.lineNumber.textContent = breakpoint.lineNumber.toString();
 		if (breakpoint.column) {
 			data.lineNumber.textContent += `:${breakpoint.column}`;
 		}
-		data.filePath.textContent = getPathLabel(resources.dirname(breakpoint.uri), this.environmentService, this.contextService);
+		data.filePath.textContent = this.uriDisplayService.getLabel(resources.dirname(breakpoint.uri), true);
 		data.checkbox.checked = breakpoint.enabled;
 
 		const { message, className } = getBreakpointMessageAndClassName(this.debugService, this.textFileService, breakpoint);

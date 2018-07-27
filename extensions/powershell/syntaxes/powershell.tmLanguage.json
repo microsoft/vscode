@@ -4,7 +4,7 @@
 		"If you want to provide a fix or improvement, please create a pull request against the original repository.",
 		"Once accepted there, we are happy to receive an update request."
 	],
-	"version": "https://github.com/PowerShell/EditorSyntax/commit/146e421358945dbfbd24a9dcf56d759bdb0693db",
+	"version": "https://github.com/PowerShell/EditorSyntax/commit/472c9447da4e3160bef211d5e1a0c2dee3cce497",
 	"name": "PowerShell",
 	"scopeName": "source.powershell",
 	"patterns": [
@@ -262,7 +262,7 @@
 					"name": "punctuation.definition.comment.powershell"
 				}
 			},
-			"end": "$",
+			"end": "$\\n?",
 			"name": "comment.line.powershell",
 			"patterns": [
 				{

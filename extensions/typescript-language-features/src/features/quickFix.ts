@@ -15,6 +15,7 @@ import TelemetryReporter from '../utils/telemetry';
 import * as typeConverters from '../utils/typeConverters';
 import { DiagnosticsManager } from './diagnostics';
 import FileConfigurationManager from './fileConfigurationManager';
+import { nulToken } from '../utils/cancellation';
 
 const localize = nls.loadMessageBundle();
 
@@ -42,7 +43,7 @@ class ApplyCodeActionCommand implements Command {
 			fixName: action.fixName
 		});
 
-		return applyCodeActionCommands(this.client, action.commands);
+		return applyCodeActionCommands(this.client, action.commands, nulToken);
 	}
 }
 
@@ -85,14 +86,14 @@ class ApplyFixAllCodeAction implements Command {
 		};
 
 		try {
-			const { body } = await this.client.execute('getCombinedCodeFix', args);
+			const { body } = await this.client.execute('getCombinedCodeFix', args, nulToken);
 			if (!body) {
 				return;
 			}
 
 			const edit = typeConverters.WorkspaceEdit.fromFileCodeEdits(this.client, body.changes);
 			await vscode.workspace.applyEdit(edit);
-			await applyCodeActionCommands(this.client, body.commands);
+			await applyCodeActionCommands(this.client, body.commands, nulToken);
 		} catch {
 			// noop
 		}
@@ -167,7 +168,7 @@ class SupportedCodeActionProvider {
 
 	private get supportedCodeActions(): Thenable<Set<number>> {
 		if (!this._supportedCodeActions) {
-			this._supportedCodeActions = this.client.execute('getSupportedCodeFixes', null, undefined)
+			this._supportedCodeActions = this.client.execute('getSupportedCodeFixes', null, nulToken)
 				.then(response => response.body || [])
 				.then(codes => codes.map(code => +code).filter(code => !isNaN(code)))
 				.then(codes => new Set(codes));

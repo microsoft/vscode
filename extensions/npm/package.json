@@ -178,12 +178,6 @@
           "scope": "resource",
           "description": "%config.npm.runSilent%"
         },
-        "npm.scriptCodeLens.enable": {
-          "type": "boolean",
-          "default": false,
-          "scope": "resource",
-          "description": "%config.scriptCodeLens.enable%"
-        },
         "npm.packageManager": {
           "scope": "resource",
           "type": "string",

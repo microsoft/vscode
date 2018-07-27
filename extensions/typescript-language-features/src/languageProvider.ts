@@ -10,7 +10,7 @@ import { DiagnosticKind } from './features/diagnostics';
 import FileConfigurationManager from './features/fileConfigurationManager';
 import TypeScriptServiceClient from './typescriptServiceClient';
 import { CommandManager } from './utils/commandManager';
-import { disposeAll } from './utils/dispose';
+import { Disposable } from './utils/dispose';
 import * as fileSchemes from './utils/fileSchemes';
 import { LanguageDescription } from './utils/languageDescription';
 import { memoize } from './utils/memoize';
@@ -21,8 +21,7 @@ import TypingsStatus from './utils/typingsStatus';
 const validateSetting = 'validate.enable';
 const suggestionSetting = 'suggestionActions.enabled';
 
-export default class LanguageProvider {
-	private readonly disposables: vscode.Disposable[] = [];
+export default class LanguageProvider extends Disposable {
 
 	constructor(
 		private readonly client: TypeScriptServiceClient,
@@ -32,7 +31,8 @@ export default class LanguageProvider {
 		private readonly typingsStatus: TypingsStatus,
 		private readonly fileConfigurationManager: FileConfigurationManager
 	) {
-		vscode.workspace.onDidChangeConfiguration(this.configurationChanged, this, this.disposables);
+		super();
+		vscode.workspace.onDidChangeConfiguration(this.configurationChanged, this, this._disposables);
 		this.configurationChanged();
 
 		client.onReady(async () => {
@@ -40,9 +40,6 @@ export default class LanguageProvider {
 		});
 	}
 
-	public dispose(): void {
-		disposeAll(this.disposables);
-	}
 
 	@memoize
 	private get documentSelector(): vscode.DocumentFilter[] {
@@ -60,27 +57,27 @@ export default class LanguageProvider {
 
 		const cachedResponse = new CachedNavTreeResponse();
 
-		this.disposables.push((await import('./features/completions')).register(selector, this.client, this.typingsStatus, this.fileConfigurationManager, this.commandManager));
-		this.disposables.push((await import('./features/definitions')).register(selector, this.client));
-		this.disposables.push((await import('./features/directiveCommentCompletions')).register(selector, this.client));
-		this.disposables.push((await import('./features/documentHighlight')).register(selector, this.client));
-		this.disposables.push((await import('./features/documentSymbol')).register(selector, this.client));
-		this.disposables.push((await import('./features/folding')).register(selector, this.client));
-		this.disposables.push((await import('./features/formatting')).register(selector, this.description.id, this.client, this.fileConfigurationManager));
-		this.disposables.push((await import('./features/hover')).register(selector, this.client));
-		this.disposables.push((await import('./features/implementations')).register(selector, this.client));
-		this.disposables.push((await import('./features/implementationsCodeLens')).register(selector, this.description.id, this.client, cachedResponse));
-		this.disposables.push((await import('./features/jsDocCompletions')).register(selector, this.client, this.commandManager));
-		this.disposables.push((await import('./features/organizeImports')).register(selector, this.client, this.commandManager, this.fileConfigurationManager, this.telemetryReporter));
-		this.disposables.push((await import('./features/quickFix')).register(selector, this.client, this.fileConfigurationManager, this.commandManager, this.client.diagnosticsManager, this.telemetryReporter));
-		this.disposables.push((await import('./features/refactor')).register(selector, this.client, this.fileConfigurationManager, this.commandManager, this.telemetryReporter));
-		this.disposables.push((await import('./features/references')).register(selector, this.client));
-		this.disposables.push((await import('./features/referencesCodeLens')).register(selector, this.description.id, this.client, cachedResponse));
-		this.disposables.push((await import('./features/rename')).register(selector, this.client));
-		this.disposables.push((await import('./features/signatureHelp')).register(selector, this.client));
-		this.disposables.push((await import('./features/tagClosing')).register(selector, this.description.id, this.client));
-		this.disposables.push((await import('./features/typeDefinitions')).register(selector, this.client));
-		this.disposables.push((await import('./features/workspaceSymbols')).register(this.client, this.description.modeIds));
+		this._register((await import('./features/completions')).register(selector, this.client, this.typingsStatus, this.fileConfigurationManager, this.commandManager));
+		this._register((await import('./features/definitions')).register(selector, this.client));
+		this._register((await import('./features/directiveCommentCompletions')).register(selector, this.client));
+		this._register((await import('./features/documentHighlight')).register(selector, this.client));
+		this._register((await import('./features/documentSymbol')).register(selector, this.client));
+		this._register((await import('./features/folding')).register(selector, this.client));
+		this._register((await import('./features/formatting')).register(selector, this.description.id, this.client, this.fileConfigurationManager));
+		this._register((await import('./features/hover')).register(selector, this.client));
+		this._register((await import('./features/implementations')).register(selector, this.client));
+		this._register((await import('./features/implementationsCodeLens')).register(selector, this.description.id, this.client, cachedResponse));
+		this._register((await import('./features/jsDocCompletions')).register(selector, this.client, this.commandManager));
+		this._register((await import('./features/organizeImports')).register(selector, this.client, this.commandManager, this.fileConfigurationManager, this.telemetryReporter));
+		this._register((await import('./features/quickFix')).register(selector, this.client, this.fileConfigurationManager, this.commandManager, this.client.diagnosticsManager, this.telemetryReporter));
+		this._register((await import('./features/refactor')).register(selector, this.client, this.fileConfigurationManager, this.commandManager, this.telemetryReporter));
+		this._register((await import('./features/references')).register(selector, this.client));
+		this._register((await import('./features/referencesCodeLens')).register(selector, this.description.id, this.client, cachedResponse));
+		this._register((await import('./features/rename')).register(selector, this.client));
+		this._register((await import('./features/signatureHelp')).register(selector, this.client));
+		this._register((await import('./features/tagClosing')).register(selector, this.description.id, this.client));
+		this._register((await import('./features/typeDefinitions')).register(selector, this.client));
+		this._register((await import('./features/workspaceSymbols')).register(this.client, this.description.modeIds));
 	}
 
 	private configurationChanged(): void {

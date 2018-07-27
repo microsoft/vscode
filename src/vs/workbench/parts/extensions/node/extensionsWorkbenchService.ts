@@ -761,18 +761,18 @@ export class ExtensionsWorkbenchService implements IExtensionsWorkbenchService, 
 	}
 
 	private promptForDependenciesAndDisable(extensions: IExtension[], dependencies: IExtension[], enablementState: EnablementState): TPromise<void> {
-		const message = nls.localize('disableDependeciesConfirmation', "Would you like to disable the dependencies of the extensions also?");
+		const message = extensions.length > 1 ? nls.localize('disableDependeciesConfirmation', "Also disable the dependencies of the extensions?") : nls.localize('disableDependeciesSingleExtensionConfirmation', "Also disable the dependencies of the extension '{0}'?", extensions[0].displayName);
 		const buttons = [
 			nls.localize('yes', "Yes"),
+			nls.localize('cancel', "Cancel"),
 			nls.localize('no', "No"),
-			nls.localize('cancel', "Cancel")
 		];
 		return this.dialogService.show(Severity.Info, message, buttons, { cancelId: 2 })
 			.then<void>(value => {
 				if (value === 0) {
 					return this.checkAndSetEnablement(extensions, dependencies, enablementState);
 				}
-				if (value === 1) {
+				if (value === 2) {
 					return this.checkAndSetEnablement(extensions, [], enablementState);
 				}
 				return TPromise.as(null);
@@ -806,8 +806,7 @@ export class ExtensionsWorkbenchService implements IExtensionsWorkbenchService, 
 				if (i.enablementState === enablementState) {
 					return false;
 				}
-				return i.type === LocalExtensionType.User
-					&& (options.dependencies || options.pack)
+				return (options.dependencies || options.pack)
 					&& extensions.some(extension =>
 						(options.dependencies && extension.dependencies.some(id => areSameExtensions({ id }, i)))
 						|| (options.pack && extension.extensionPack.some(id => areSameExtensions({ id }, i)))

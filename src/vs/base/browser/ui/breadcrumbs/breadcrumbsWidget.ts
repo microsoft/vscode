@@ -87,6 +87,7 @@ export class BreadcrumbsWidget {
 		this._domNode = document.createElement('div');
 		this._domNode.className = 'monaco-breadcrumbs';
 		this._domNode.tabIndex = 0;
+		this._domNode.setAttribute('role', 'list');
 		this._scrollable = new DomScrollableElement(this._domNode, {
 			vertical: ScrollbarVisibility.Hidden,
 			horizontal: ScrollbarVisibility.Auto,
@@ -286,6 +287,7 @@ export class BreadcrumbsWidget {
 		container.className = '';
 		item.render(container);
 		container.tabIndex = -1;
+		container.setAttribute('role', 'listitem');
 		dom.addClass(container, 'monaco-breadcrumb-item');
 	}
 

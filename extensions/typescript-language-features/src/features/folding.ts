@@ -26,12 +26,12 @@ class TypeScriptFoldingProvider implements vscode.FoldingRangeProvider {
 		}
 
 		const args: Proto.FileRequestArgs = { file };
-		const response: Proto.OutliningSpansResponse = await this.client.execute('getOutliningSpans', args, token);
-		if (!response || !response.body) {
+		const { body } = await this.client.execute('getOutliningSpans', args, token);
+		if (!body) {
 			return;
 		}
 
-		return response.body
+		return body
 			.map(span => this.convertOutliningSpan(span, document))
 			.filter(foldingRange => !!foldingRange) as vscode.FoldingRange[];
 	}

@@ -41,6 +41,7 @@ import { UserConfiguration } from 'vs/platform/configuration/node/configuration'
 import { IJSONSchema, IJSONSchemaMap } from 'vs/base/common/jsonSchema';
 import { localize } from 'vs/nls';
 import { isEqual, hasToIgnoreCase } from 'vs/base/common/resources';
+import { IUriDisplayService } from 'vs/platform/uriDisplay/common/uriDisplay';
 
 export class WorkspaceService extends Disposable implements IWorkspaceConfigurationService, IWorkspaceContextService {
 
@@ -68,6 +69,7 @@ export class WorkspaceService extends Disposable implements IWorkspaceConfigurat
 	public readonly onDidChangeWorkbenchState: Event<WorkbenchState> = this._onDidChangeWorkbenchState.event;
 
 	private fileService: IFileService;
+	private uriDisplayService: IUriDisplayService;
 	private configurationEditingService: ConfigurationEditingService;
 	private jsonEditingService: JSONEditingService;
 
@@ -317,6 +319,10 @@ export class WorkspaceService extends Disposable implements IWorkspaceConfigurat
 			});
 	}
 
+	acquireUriDisplayService(uriDisplayService: IUriDisplayService): void {
+		this.uriDisplayService = uriDisplayService;
+	}
+
 	acquireInstantiationService(instantiationService: IInstantiationService): void {
 		this.configurationEditingService = instantiationService.createInstance(ConfigurationEditingService);
 		this.jsonEditingService = instantiationService.createInstance(JSONEditingService);
@@ -340,7 +346,7 @@ export class WorkspaceService extends Disposable implements IWorkspaceConfigurat
 			.then(() => {
 				const workspaceFolders = toWorkspaceFolders(this.workspaceConfiguration.getFolders(), URI.file(dirname(workspaceConfigPath.fsPath)));
 				const workspaceId = workspaceIdentifier.id;
-				const workspaceName = getWorkspaceLabel({ id: workspaceId, configPath: workspaceConfigPath.fsPath }, this.environmentService);
+				const workspaceName = getWorkspaceLabel({ id: workspaceId, configPath: workspaceConfigPath.fsPath }, this.environmentService, this.uriDisplayService);
 				return new Workspace(workspaceId, workspaceName, workspaceFolders, workspaceConfigPath);
 			});
 	}
@@ -363,11 +369,11 @@ export class WorkspaceService extends Disposable implements IWorkspaceConfigurat
 					}
 
 					const id = createHash('md5').update(folder.fsPath).update(ctime ? String(ctime) : '').digest('hex');
-					return new Workspace(id, getWorkspaceLabel(folder, this.environmentService), toWorkspaceFolders([{ path: folder.fsPath }]), null, ctime);
+					return new Workspace(id, getWorkspaceLabel(folder, this.environmentService, this.uriDisplayService), toWorkspaceFolders([{ path: folder.fsPath }]), null, ctime);
 				});
 		} else {
 			const id = createHash('md5').update(folder.toString()).digest('hex');
-			return TPromise.as(new Workspace(id, getWorkspaceLabel(folder, this.environmentService), toWorkspaceFolders([{ uri: folder.toString() }]), null));
+			return TPromise.as(new Workspace(id, getWorkspaceLabel(folder, this.environmentService, this.uriDisplayService), toWorkspaceFolders([{ uri: folder.toString() }]), null));
 		}
 	}
 

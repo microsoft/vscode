@@ -12,7 +12,7 @@
 		"activityBarBadge.background": "#007ACC",
 		"sideBarTitle.foreground": "#6F6F6F",
 		"list.hoverBackground": "#E8E8E8",
-		"input.placeholderForeground": "#ADADAD",
+		"input.placeholderForeground": "#767676",
 		"settings.textInputBorder": "#CECECE",
 		"settings.numberInputBorder": "#CECECE"
 	}
