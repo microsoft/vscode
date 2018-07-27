@@ -91,4 +91,9 @@ export interface ITypeScriptServiceClient {
 	executeWithoutWaitingForResponse(command: 'reloadProjects', args: null): void;
 
 	executeAsync(command: 'geterr', args: Proto.GeterrRequestArgs, token: vscode.CancellationToken): Promise<any>;
+
+	/**
+	 * Cancel on going geterr requests and re-queue them after `f` has been evaluated.
+	 */
+	interuptGetErr<R>(f: () => R): R;
 }

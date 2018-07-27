@@ -738,6 +738,10 @@ export default class TypeScriptServiceClient extends Disposable implements IType
 		return result;
 	}
 
+	public interuptGetErr<R>(f: () => R): R {
+		return this.bufferSyncSupport.interuptGetErr(f);
+	}
+
 	/**
 	 * Given a `errorText` from a tsserver request indicating failure in handling a request,
 	 * prepares a payload for telemetry-logging.
