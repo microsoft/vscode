@@ -737,17 +737,14 @@ export class SettingsEditor2 extends BaseEditor {
 	}
 
 	private filterOrSearchPreferences(query: string, type: SearchResultIdx, searchProvider: ISearchProvider): TPromise<void> {
-		const filterPs: TPromise<ISearchResult>[] = [this._filterOrSearchPreferencesModel(query, this.defaultSettingsEditorModel, searchProvider)];
-
 		let isCanceled = false;
 		return new TPromise(resolve => {
-			return TPromise.join(filterPs).then(results => {
+			return this._filterOrSearchPreferencesModel(query, this.defaultSettingsEditorModel, searchProvider).then(result => {
 				if (isCanceled) {
 					// Handle cancellation like this because cancellation is lost inside the search provider due to async/await
 					return null;
 				}
 
-				const [result] = results;
 				if (!this.searchResultModel) {
 					this.searchResultModel = this.instantiationService.createInstance(SearchResultModel, this.viewState);
 					this.searchResultModel.setResult(type, result);
@@ -793,7 +790,7 @@ export class SettingsEditor2 extends BaseEditor {
 	private layoutTrees(dimension: DOM.Dimension): void {
 		const listHeight = dimension.height - (DOM.getDomNodePagePosition(this.headerContainer).height + 11 /*padding*/);
 		this.settingsTreeContainer.style.height = `${listHeight}px`;
-		this.settingsTree.layout(listHeight, 800);
+		this.settingsTree.layout(listHeight - 8, 800);
 
 		const selectedSetting = this.settingsTree.getSelection()[0];
 		if (selectedSetting) {
@@ -801,7 +798,7 @@ export class SettingsEditor2 extends BaseEditor {
 		}
 
 		this.tocTreeContainer.style.height = `${listHeight}px`;
-		this.tocTree.layout(listHeight, 175);
+		this.tocTree.layout(listHeight - 5, 175);
 	}
 }
 

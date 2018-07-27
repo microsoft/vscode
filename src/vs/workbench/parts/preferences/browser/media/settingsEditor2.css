@@ -148,9 +148,8 @@
 
 .settings-editor > .settings-body .settings-toc-container {
 	width: 160px;
-	padding-top: 5px;
+	margin-top: 5px;
 	padding-left: 5px;
-	box-sizing: border-box;
 }
 
 .settings-editor > .settings-body .settings-toc-container.hidden {
@@ -201,8 +200,7 @@
 	flex: 1;
 	max-width: 792px;
 	margin-right: 1px; /* So the item doesn't blend into the edge of the view container  */
-	padding-top: 8px;
-	box-sizing: border-box;
+	margin-top: 8px;
 	border-spacing: 0;
 	border-collapse: separate;
 	position: relative;
@@ -328,6 +326,16 @@
 	width: initial;
 	font: inherit;
 	height: 26px;
+}
+
+.settings-editor > .settings-body > .settings-tree-container .setting-item-new-extensions {
+	display: flex;
+}
+
+.settings-editor > .settings-body > .settings-tree-container .setting-item-new-extensions .settings-new-extensions-button {
+	margin: auto;
+	width: initial;
+	padding: 4px 10px;
 }
 
 .settings-editor > .settings-body > .settings-tree-container .group-title,

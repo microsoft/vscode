@@ -227,12 +227,16 @@ export class ExtensionsListView extends ViewletPanel {
 			return new PagedModel(this.sortExtensions(result, options));
 		}
 
-		const idMatch = /@id:(([a-z0-9A-Z][a-z0-9\-A-Z]*)\.([a-z0-9A-Z][a-z0-9\-A-Z]*))/.exec(value);
-
-		if (idMatch) {
+		const idRegex = /@id:(([a-z0-9A-Z][a-z0-9\-A-Z]*)\.([a-z0-9A-Z][a-z0-9\-A-Z]*))/g;
+		let idMatch;
+		const names: string[] = [];
+		while ((idMatch = idRegex.exec(value)) !== null) {
 			const name = idMatch[1];
+			names.push(name);
+		}
 
-			return this.extensionsWorkbenchService.queryGallery({ names: [name], source: 'queryById' })
+		if (names.length) {
+			return this.extensionsWorkbenchService.queryGallery({ names, source: 'queryById' })
 				.then(pager => new PagedModel(pager));
 		}
 
