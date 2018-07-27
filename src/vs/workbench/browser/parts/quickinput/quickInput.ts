@@ -834,16 +834,9 @@ export class QuickInputService extends Component implements IQuickInputService {
 			}, 0);
 		}));
 
-		this._register(dom.addDisposableListener(container, 'focusout', (e: FocusEvent) => {
-			if (e.relatedTarget === container) {
-				(<HTMLElement>e.target).focus();
-				return;
-			}
-			for (let element = <Element>e.relatedTarget; element; element = element.parentElement) {
-				if (element === container) {
-					return;
-				}
-			}
+		const focusTracker = dom.trackFocus(container);
+		this._register(focusTracker);
+		this._register(focusTracker.onDidBlur(() => {
 			if (!this.ui.ignoreFocusOut && !this.environmentService.args['sticky-quickopen'] && this.configurationService.getValue(CLOSE_ON_FOCUS_LOST_CONFIG)) {
 				this.hide(true);
 			}
