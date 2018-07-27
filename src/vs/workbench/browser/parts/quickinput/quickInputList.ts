@@ -193,12 +193,14 @@ export class QuickInputList {
 					}
 					break;
 				case KeyCode.UpArrow:
+				case KeyCode.PageUp:
 					const focus1 = this.list.getFocus();
 					if (focus1.length === 1 && focus1[0] === 0) {
 						this._onLeave.fire();
 					}
 					break;
 				case KeyCode.DownArrow:
+				case KeyCode.PageDown:
 					const focus2 = this.list.getFocus();
 					if (focus2.length === 1 && focus2[0] === this.list.length - 1) {
 						this._onLeave.fire();
@@ -352,10 +354,10 @@ export class QuickInputList {
 			return;
 		}
 
-		if (what === 'Next' && this.list.getFocus()[0] === this.list.length - 1) {
+		if ((what === 'Next' || what === 'NextPage') && this.list.getFocus()[0] === this.list.length - 1) {
 			what = 'First';
 		}
-		if (what === 'Previous' && this.list.getFocus()[0] === 0) {
+		if ((what === 'Previous' || what === 'PreviousPage') && this.list.getFocus()[0] === 0) {
 			what = 'Last';
 		}
 

@@ -417,7 +417,31 @@ class QuickPick<T extends IQuickPickItem> extends QuickInput implements IQuickPi
 							}
 							break;
 						case KeyCode.UpArrow:
-							this.ui.list.focus('Previous');
+							if (this.ui.list.getFocusedElements().length) {
+								this.ui.list.focus('Previous');
+							} else {
+								this.ui.list.focus('Last');
+							}
+							if (this.canSelectMany) {
+								this.ui.list.domFocus();
+							}
+							break;
+						case KeyCode.PageDown:
+							if (this.ui.list.getFocusedElements().length) {
+								this.ui.list.focus('NextPage');
+							} else {
+								this.ui.list.focus('First');
+							}
+							if (this.canSelectMany) {
+								this.ui.list.domFocus();
+							}
+							break;
+						case KeyCode.PageUp:
+							if (this.ui.list.getFocusedElements().length) {
+								this.ui.list.focus('PreviousPage');
+							} else {
+								this.ui.list.focus('Last');
+							}
 							if (this.canSelectMany) {
 								this.ui.list.domFocus();
 							}
@@ -830,7 +854,9 @@ export class QuickInputService extends Component implements IQuickInputService {
 			// Defer to avoid the input field reacting to the triggering key.
 			setTimeout(() => {
 				inputBox.setFocus();
-				list.clearFocus();
+				if (this.controller instanceof QuickPick && this.controller.canSelectMany) {
+					list.clearFocus();
+				}
 			}, 0);
 		}));
 
