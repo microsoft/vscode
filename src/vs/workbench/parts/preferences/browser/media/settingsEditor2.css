@@ -30,7 +30,7 @@
 .settings-editor > .settings-header > .settings-preview-header > .settings-preview-warning {
 	text-align: right;
 	text-transform: uppercase;
-	background: rgba(136, 136, 136, 0.3);
+	background: rgba(136, 136, 136, 0.2);
 	border-radius: 2px;
 	font-size: 0.8em;
 	padding: 0 3px;
@@ -62,7 +62,7 @@
 }
 
 .settings-editor > .settings-header > .settings-header-controls .settings-tabs-widget .action-label {
-	opacity: 0.7;
+	opacity: 0.9;
 }
 
 .settings-editor > .settings-header > .settings-header-controls .settings-tabs-widget .action-label:hover {
@@ -176,11 +176,11 @@
 	overflow: hidden;
 	text-overflow: ellipsis;
 	line-height: 22px;
-	opacity: 0.7;
+	opacity: 0.9;
 }
 
 .settings-editor > .settings-body .settings-toc-container .monaco-tree-row.has-children > .content:before {
-	opacity: 0.7;
+	opacity: 0.9;
 }
 
 .settings-editor > .settings-body .settings-toc-container .monaco-tree-row.has-children.selected > .content:before {
@@ -242,7 +242,7 @@
 }
 
 .settings-editor > .settings-body > .settings-tree-container .setting-item .setting-item-category {
-	opacity: 0.7;
+	opacity: 0.9;
 }
 
 .settings-editor > .settings-body > .settings-tree-container .setting-item .setting-item-description {

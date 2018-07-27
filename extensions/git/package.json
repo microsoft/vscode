@@ -1072,7 +1072,7 @@
         "id": "gitDecoration.untrackedResourceForeground",
         "description": "%colors.untracked%",
         "defaults": {
-          "light": "#019001",
+          "light": "#018101",
           "dark": "#73C991",
           "highContrast": "#73C991"
         }
