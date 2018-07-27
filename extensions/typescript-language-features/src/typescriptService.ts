@@ -11,69 +11,38 @@ import { TypeScriptServiceConfiguration } from './utils/configuration';
 import Logger from './utils/logger';
 import { TypeScriptServerPlugin } from './utils/plugins';
 
-interface TypeScriptArgsMap {
-	'applyCodeActionCommand': Proto.ApplyCodeActionCommandRequestArgs;
-	'completionEntryDetails': Proto.CompletionDetailsRequestArgs;
-	'completionInfo': Proto.CompletionsRequestArgs;
-	'completions': Proto.CompletionsRequestArgs;
-	'configure': Proto.ConfigureRequestArguments;
-	'definition': Proto.FileLocationRequestArgs;
-	'definitionAndBoundSpan': Proto.FileLocationRequestArgs;
-	'docCommentTemplate': Proto.FileLocationRequestArgs;
-	'format': Proto.FormatRequestArgs;
-	'formatonkey': Proto.FormatOnKeyRequestArgs;
-	'getApplicableRefactors': Proto.GetApplicableRefactorsRequestArgs;
-	'getCodeFixes': Proto.CodeFixRequestArgs;
-	'getCombinedCodeFix': Proto.GetCombinedCodeFixRequestArgs;
-	'getEditsForFileRename': Proto.GetEditsForFileRenameRequestArgs;
-	'getEditsForRefactor': Proto.GetEditsForRefactorRequestArgs;
-	'getOutliningSpans': Proto.FileRequestArgs;
-	'getSupportedCodeFixes': null;
-	'implementation': Proto.FileLocationRequestArgs;
-	'jsxClosingTag': Proto.JsxClosingTagRequestArgs;
-	'navto': Proto.NavtoRequestArgs;
-	'navtree': Proto.FileRequestArgs;
-	'occurrences': Proto.FileLocationRequestArgs;
-	'organizeImports': Proto.OrganizeImportsRequestArgs;
-	'projectInfo': Proto.ProjectInfoRequestArgs;
-	'quickinfo': Proto.FileLocationRequestArgs;
-	'references': Proto.FileLocationRequestArgs;
-	'rename': Proto.RenameRequestArgs;
-	'signatureHelp': Proto.SignatureHelpRequestArgs;
-	'typeDefinition': Proto.FileLocationRequestArgs;
+interface TypeScriptRequestTypes {
+	'applyCodeActionCommand': [Proto.ApplyCodeActionCommandRequestArgs, Proto.ApplyCodeActionCommandResponse];
+	'completionEntryDetails': [Proto.CompletionDetailsRequestArgs, Proto.CompletionDetailsResponse];
+	'completionInfo': [Proto.CompletionsRequestArgs, Proto.CompletionInfoResponse];
+	'completions': [Proto.CompletionsRequestArgs, Proto.CompletionsResponse];
+	'configure': [Proto.ConfigureRequestArguments, Proto.ConfigureResponse];
+	'definition': [Proto.FileLocationRequestArgs, Proto.DefinitionResponse];
+	'definitionAndBoundSpan': [Proto.FileLocationRequestArgs, Proto.DefinitionInfoAndBoundSpanReponse];
+	'docCommentTemplate': [Proto.FileLocationRequestArgs, Proto.DocCommandTemplateResponse];
+	'format': [Proto.FormatRequestArgs, Proto.FormatResponse];
+	'formatonkey': [Proto.FormatOnKeyRequestArgs, Proto.FormatResponse];
+	'getApplicableRefactors': [Proto.GetApplicableRefactorsRequestArgs, Proto.GetApplicableRefactorsResponse];
+	'getCodeFixes': [Proto.CodeFixRequestArgs, Proto.GetCodeFixesResponse];
+	'getCombinedCodeFix': [Proto.GetCombinedCodeFixRequestArgs, Proto.GetCombinedCodeFixResponse];
+	'getEditsForFileRename': [Proto.GetEditsForFileRenameRequestArgs, Proto.GetEditsForFileRenameResponse];
+	'getEditsForRefactor': [Proto.GetEditsForRefactorRequestArgs, Proto.GetEditsForRefactorResponse];
+	'getOutliningSpans': [Proto.FileRequestArgs, Proto.OutliningSpansResponse];
+	'getSupportedCodeFixes': [null, Proto.GetSupportedCodeFixesResponse];
+	'implementation': [Proto.FileLocationRequestArgs, Proto.ImplementationResponse];
+	'jsxClosingTag': [Proto.JsxClosingTagRequestArgs, Proto.JsxClosingTagResponse];
+	'navto': [Proto.NavtoRequestArgs, Proto.NavtoResponse];
+	'navtree': [Proto.FileRequestArgs, Proto.NavTreeResponse];
+	'occurrences': [Proto.FileLocationRequestArgs, Proto.OccurrencesResponse];
+	'organizeImports': [Proto.OrganizeImportsRequestArgs, Proto.OrganizeImportsResponse];
+	'projectInfo': [Proto.ProjectInfoRequestArgs, Proto.ProjectInfoResponse];
+	'quickinfo': [Proto.FileLocationRequestArgs, Proto.QuickInfoResponse];
+	'references': [Proto.FileLocationRequestArgs, Proto.ReferencesResponse];
+	'rename': [Proto.RenameRequestArgs, Proto.RenameResponse];
+	'signatureHelp': [Proto.SignatureHelpRequestArgs, Proto.SignatureHelpResponse];
+	'typeDefinition': [Proto.FileLocationRequestArgs, Proto.TypeDefinitionResponse];
 }
 
-interface TypeScriptResultMap {
-	'applyCodeActionCommand': Proto.ApplyCodeActionCommandResponse;
-	'completionEntryDetails': Proto.CompletionDetailsResponse;
-	'completionInfo': Proto.CompletionInfoResponse;
-	'completions': Proto.CompletionsResponse;
-	'configure': Proto.ConfigureResponse;
-	'definition': Proto.DefinitionResponse;
-	'definitionAndBoundSpan': Proto.DefinitionInfoAndBoundSpanReponse;
-	'docCommentTemplate': Proto.DocCommandTemplateResponse;
-	'format': Proto.FormatResponse;
-	'formatonkey': Proto.FormatResponse;
-	'getApplicableRefactors': Proto.GetApplicableRefactorsResponse;
-	'getCodeFixes': Proto.GetCodeFixesResponse;
-	'getCombinedCodeFix': Proto.GetCombinedCodeFixResponse;
-	'getEditsForFileRename': Proto.GetEditsForFileRenameResponse;
-	'getEditsForRefactor': Proto.GetEditsForRefactorResponse;
-	'getOutliningSpans': Proto.OutliningSpansResponse;
-	'getSupportedCodeFixes': Proto.GetSupportedCodeFixesResponse;
-	'implementation': Proto.ImplementationResponse;
-	'jsxClosingTag': Proto.JsxClosingTagResponse;
-	'navto': Proto.NavtoResponse;
-	'navtree': Proto.NavTreeResponse;
-	'occurrences': Proto.OccurrencesResponse;
-	'organizeImports': Proto.OrganizeImportsResponse;
-	'projectInfo': Proto.ProjectInfoResponse;
-	'quickinfo': Proto.QuickInfoResponse;
-	'references': Proto.ReferencesResponse;
-	'rename': Proto.RenameResponse;
-	'signatureHelp': Proto.SignatureHelpResponse;
-	'typeDefinition': Proto.TypeDefinitionResponse;
-}
 
 export interface ITypeScriptServiceClient {
 	/**
@@ -109,11 +78,11 @@ export interface ITypeScriptServiceClient {
 	readonly logger: Logger;
 	readonly bufferSyncSupport: BufferSyncSupport;
 
-	execute<K extends keyof TypeScriptArgsMap>(
+	execute<K extends keyof TypeScriptRequestTypes>(
 		command: K,
-		args: TypeScriptArgsMap[K],
+		args: TypeScriptRequestTypes[K][0],
 		token: vscode.CancellationToken
-	): Promise<TypeScriptResultMap[K]>;
+	): Promise<TypeScriptRequestTypes[K][1]>;
 
 	executeWithoutWaitingForResponse(command: 'open', args: Proto.OpenRequestArgs): void;
 	executeWithoutWaitingForResponse(command: 'close', args: Proto.FileRequestArgs): void;
