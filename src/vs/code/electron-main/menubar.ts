@@ -678,6 +678,17 @@ export class Menubar {
 			commandId = arg2[0];
 		}
 
+		// Add role for special case menu items
+		if (isMacintosh) {
+			if (commandId === 'editor.action.clipboardCutAction') {
+				options['role'] = 'cut';
+			} else if (commandId === 'editor.action.clipboardCopyAction') {
+				options['role'] = 'copy';
+			} else if (commandId === 'editor.action.clipboardPasteAction') {
+				options['role'] = 'paste';
+			}
+		}
+
 		return new MenuItem(this.withKeybinding(commandId, options));
 	}
 
