@@ -6256,9 +6256,9 @@ vscode-textmate@^4.0.1:
   dependencies:
     oniguruma "^7.0.0"
 
-vscode-xterm@3.6.0-beta5:
-  version "3.6.0-beta5"
-  resolved "https://registry.yarnpkg.com/vscode-xterm/-/vscode-xterm-3.6.0-beta5.tgz#b44fd70451944624f148bd9f0be4925b52b7a7e0"
+vscode-xterm@3.6.0-beta6:
+  version "3.6.0-beta6"
+  resolved "https://registry.yarnpkg.com/vscode-xterm/-/vscode-xterm-3.6.0-beta6.tgz#22feaf1d1a92f88ac977c9b387b8cb69a2347da5"
 
 vso-node-api@^6.1.2-preview:
   version "6.1.2-preview"
