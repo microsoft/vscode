@@ -230,7 +230,7 @@ class UpdateImportsOnFileRenameHandler {
 		newFile: string,
 	) {
 		const isDirectoryRename = fs.lstatSync(newFile).isDirectory();
-		await this.fileConfigurationManager.ensureConfigurationForDocument(document, nulToken);
+		await this.fileConfigurationManager.setGlobalConfigurationFromDocument(document, nulToken);
 
 		const args: Proto.GetEditsForFileRenameRequestArgs & { file: string } = {
 			file: targetResource,

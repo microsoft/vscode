@@ -61,14 +61,22 @@ export default class FileConfigurationManager {
 		document: vscode.TextDocument,
 		token: vscode.CancellationToken
 	): Promise<void> {
-		const editor = vscode.window.visibleTextEditors.find(editor => editor.document.fileName === document.fileName);
-		if (editor) {
-			const formattingOptions = {
-				tabSize: editor.options.tabSize,
-				insertSpaces: editor.options.insertSpaces
-			} as vscode.FormattingOptions;
+		const formattingOptions = this.getFormattingOptions(document);
+		if (formattingOptions) {
 			return this.ensureConfigurationOptions(document, formattingOptions, token);
 		}
+	}
+
+	private getFormattingOptions(
+		document: vscode.TextDocument
+	): vscode.FormattingOptions | undefined {
+		const editor = vscode.window.visibleTextEditors.find(editor => editor.document.fileName === document.fileName);
+		return editor
+			? {
+				tabSize: editor.options.tabSize,
+				insertSpaces: editor.options.insertSpaces
+			} as vscode.FormattingOptions
+			: undefined;
 	}
 
 	public async ensureConfigurationOptions(
@@ -91,6 +99,22 @@ export default class FileConfigurationManager {
 		const args: Proto.ConfigureRequestArguments = {
 			file,
 			...currentOptions,
+		};
+		await this.client.execute('configure', args, token);
+	}
+
+	public async setGlobalConfigurationFromDocument(
+		document: vscode.TextDocument,
+		token: vscode.CancellationToken,
+	): Promise<void> {
+		const formattingOptions = this.getFormattingOptions(document);
+		if (!formattingOptions) {
+			return;
+		}
+
+		const args: Proto.ConfigureRequestArguments = {
+			file: undefined /*global*/,
+			...this.getFileOptions(document, formattingOptions),
 		};
 		await this.client.execute('configure', args, token);
 	}
