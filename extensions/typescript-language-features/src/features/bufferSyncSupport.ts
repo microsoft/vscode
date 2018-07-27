@@ -266,16 +266,17 @@ export default class BufferSyncSupport extends Disposable {
 	}
 
 	public interuptGetErr<R>(f: () => R): R {
-		console.log('try inter');
-		if (!this.pendingGetErr) {
-			return f();
-		}
+		// TODO: re-enable for 1.27 insiders
+		return f();
+		// if (!this.pendingGetErr) {
+		// 	return f();
+		// }
 
-		this.pendingGetErr.cancel();
-		this.pendingGetErr = undefined;
-		const result = f();
-		this.triggerDiagnostics();
-		return result;
+		// this.pendingGetErr.cancel();
+		// this.pendingGetErr = undefined;
+		// const result = f();
+		// this.triggerDiagnostics();
+		// return result;
 	}
 
 	private onDidCloseTextDocument(document: vscode.TextDocument): void {
