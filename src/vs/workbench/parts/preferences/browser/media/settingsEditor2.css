@@ -103,14 +103,15 @@
 	height: 22px;
 	background-position: center;
 	background-repeat: no-repeat;
+	background-size: 16px;
 }
 
 .vs .settings-editor > .settings-header > .settings-header-controls .settings-header-controls-right .toolbar-toggle-more {
-	background-image: url('configure.svg');
+	background-image: url('ellipsis.svg');
 }
 
 .vs-dark .settings-editor > .settings-header > .settings-header-controls .settings-header-controls-right .toolbar-toggle-more {
-	background-image: url('configure-inverse.svg');
+	background-image: url('ellipsis-inverse.svg');
 }
 
 .settings-editor > .settings-header > .settings-header-controls .settings-tabs-widget > .monaco-action-bar .action-item {
