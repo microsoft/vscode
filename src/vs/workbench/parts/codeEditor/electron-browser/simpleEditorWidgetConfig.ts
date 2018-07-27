@@ -14,7 +14,7 @@ import { SuggestController } from 'vs/editor/contrib/suggest/suggestController';
 import { SnippetController2 } from 'vs/editor/contrib/snippet/snippetController2';
 import { TabCompletionController } from 'vs/workbench/parts/snippets/electron-browser/tabCompletion';
 
-export class SimpleDebugEditor {
+export class SimpleEditorWidgetConfig {
 
 	public static getCodeEditorWidgetOptions(): ICodeEditorWidgetOptions {
 		return {
