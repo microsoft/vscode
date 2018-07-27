@@ -96,7 +96,8 @@ export class ExtHostSearch implements ExtHostSearchShape {
 	}
 
 	$clearCache(cacheKey: string): TPromise<void> {
-		// Only relevant to file index search
+		// Actually called once per provider.
+		// Only relevant to file index search.
 		return this._fileIndexSearchManager.clearCache(cacheKey);
 	}
 

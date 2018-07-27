@@ -395,6 +395,8 @@ export class FileIndexSearchManager {
 
 	private caches: { [cacheKey: string]: Cache; } = Object.create(null);
 
+	private readonly folderCacheKeys = new Map<string, Set<string>>();
+
 	public fileSearch(config: ISearchQuery, provider: vscode.FileIndexProvider, onBatch: (matches: IFileMatch[]) => void): TPromise<ISearchCompleteStats> {
 		if (config.sortByScore) {
 			let sortedSearch = this.trySortedSearchFromCache(config);
@@ -430,13 +432,25 @@ export class FileIndexSearchManager {
 			});
 	}
 
+	private getFolderCacheKey(config: ISearchQuery): string {
+		const uri = config.folderQueries[0].folder.toString();
+		const folderCacheKey = config.cacheKey && `${uri}_${config.cacheKey}`;
+		if (!this.folderCacheKeys.get(config.cacheKey)) {
+			this.folderCacheKeys.set(config.cacheKey, new Set());
+		}
+
+		this.folderCacheKeys.get(config.cacheKey).add(folderCacheKey);
+
+		return folderCacheKey;
+	}
+
 	private rawMatchToSearchItem(match: IInternalFileMatch): IFileMatch {
 		return {
 			resource: match.original || resources.joinPath(match.base, match.relativePath)
 		};
 	}
 
-	private doSortedSearch(engine: FileIndexSearchEngine, config: IRawSearchQuery): TPromise<IInternalSearchComplete> {
+	private doSortedSearch(engine: FileIndexSearchEngine, config: ISearchQuery): TPromise<IInternalSearchComplete> {
 		let searchPromise: TPromise<void>;
 		let allResultsPromise = new TPromise<IInternalSearchComplete>((c, e) => {
 			searchPromise = this.doSearch(engine).then(c, e);
@@ -444,9 +458,10 @@ export class FileIndexSearchManager {
 			searchPromise.cancel();
 		});
 
+		const folderCacheKey = this.getFolderCacheKey(config);
 		let cache: Cache;
-		if (config.cacheKey) {
-			cache = this.getOrCreateCache(config.cacheKey);
+		if (folderCacheKey) {
+			cache = this.getOrCreateCache(folderCacheKey);
 			cache.resultsToSearchCache[config.filePattern] = allResultsPromise;
 			allResultsPromise.then(null, err => {
 				delete cache.resultsToSearchCache[config.filePattern];
@@ -480,8 +495,9 @@ export class FileIndexSearchManager {
 		return this.caches[cacheKey] = new Cache();
 	}
 
-	private trySortedSearchFromCache(config: IRawSearchQuery): TPromise<IInternalSearchComplete> {
-		const cache = config.cacheKey && this.caches[config.cacheKey];
+	private trySortedSearchFromCache(config: ISearchQuery): TPromise<IInternalSearchComplete> {
+		const folderCacheKey = this.getFolderCacheKey(config);
+		const cache = folderCacheKey && this.caches[folderCacheKey];
 		if (!cache) {
 			return undefined;
 		}
@@ -596,7 +612,15 @@ export class FileIndexSearchManager {
 	}
 
 	public clearCache(cacheKey: string): TPromise<void> {
-		delete this.caches[cacheKey];
+		if (!this.folderCacheKeys.has(cacheKey)) {
+			return TPromise.wrap(undefined);
+		}
+
+		const expandedKeys = this.folderCacheKeys.get(cacheKey);
+		expandedKeys.forEach(key => delete this.caches[key]);
+
+		this.folderCacheKeys.delete(cacheKey);
+
 		return TPromise.as(undefined);
 	}
 
