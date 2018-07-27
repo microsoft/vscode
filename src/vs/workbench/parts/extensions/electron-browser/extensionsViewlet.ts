@@ -64,8 +64,8 @@ import { IModelService } from 'vs/editor/common/services/modelService';
 import { Range } from 'vs/editor/common/core/range';
 import { Position } from 'vs/editor/common/core/position';
 import { ITextModel } from 'vs/editor/common/model';
-import { SimpleEditorWidgetConfig } from 'vs/workbench/parts/codeEditor/electron-browser/simpleEditorWidgetConfig';
 import { IEditorOptions } from 'vs/editor/common/config/editorOptions';
+import { getSimpleEditorOptions, getSimpleCodeEditorWidgetOptions } from 'vs/workbench/parts/codeEditor/electron-browser/simpleEditorOptions';
 
 interface SearchInputEvent extends Event {
 	target: HTMLInputElement;
@@ -341,8 +341,8 @@ export class ExtensionsViewlet extends ViewContainerViewlet implements IExtensio
 		const header = append(this.root, $('.header'));
 		this.monacoStyleContainer = append(header, $('.monaco-container'));
 		this.searchBox = this.instantiationService.createInstance(CodeEditorWidget, this.monacoStyleContainer,
-			mixinHTMLInputStyleOptions(SimpleEditorWidgetConfig.getEditorOptions(), localize('searchExtensions', "Search Extensions in Marketplace")),
-			SimpleEditorWidgetConfig.getCodeEditorWidgetOptions());
+			mixinHTMLInputStyleOptions(getSimpleEditorOptions(), localize('searchExtensions', "Search Extensions in Marketplace")),
+			getSimpleCodeEditorWidgetOptions());
 
 		this.placeholderText = append(this.monacoStyleContainer, $('.search-placeholder', null, localize('searchExtensions', "Search Extensions in Marketplace")));
 

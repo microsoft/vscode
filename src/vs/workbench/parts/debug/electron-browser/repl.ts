@@ -30,7 +30,6 @@ import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IInstantiationService, createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
 import { ReplExpressionsRenderer, ReplExpressionsController, ReplExpressionsDataSource, ReplExpressionsActionProvider, ReplExpressionsAccessibilityProvider } from 'vs/workbench/parts/debug/electron-browser/replViewer';
-import { SimpleEditorWidgetConfig } from 'vs/workbench/parts/codeEditor/electron-browser/simpleEditorWidgetConfig';
 import { ClearReplAction } from 'vs/workbench/parts/debug/browser/debugActions';
 import { Panel } from 'vs/workbench/browser/panel';
 import { IPanelService } from 'vs/workbench/services/panel/common/panelService';
@@ -48,6 +47,7 @@ import { HistoryNavigator } from 'vs/base/common/history';
 import { IHistoryNavigationWidget } from 'vs/base/browser/history';
 import { createAndBindHistoryNavigationWidgetScopedContextKeyService } from 'vs/platform/widget/browser/contextScopedHistoryWidget';
 import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
+import { getSimpleEditorOptions, getSimpleCodeEditorWidgetOptions } from 'vs/workbench/parts/codeEditor/electron-browser/simpleEditorOptions';
 
 const $ = dom.$;
 
@@ -173,7 +173,7 @@ export class Repl extends Panel implements IPrivateReplService, IHistoryNavigati
 
 		const scopedInstantiationService = this.instantiationService.createChild(new ServiceCollection(
 			[IContextKeyService, scopedContextKeyService], [IPrivateReplService, this]));
-		this.replInput = scopedInstantiationService.createInstance(CodeEditorWidget, this.replInputContainer, SimpleEditorWidgetConfig.getEditorOptions(), SimpleEditorWidgetConfig.getCodeEditorWidgetOptions());
+		this.replInput = scopedInstantiationService.createInstance(CodeEditorWidget, this.replInputContainer, getSimpleEditorOptions(), getSimpleCodeEditorWidgetOptions());
 
 		modes.SuggestRegistry.register({ scheme: DEBUG_SCHEME, pattern: '**/replinput', hasAccessToAllModels: true }, {
 			triggerCharacters: ['.'],
