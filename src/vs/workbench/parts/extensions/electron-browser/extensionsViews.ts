@@ -111,7 +111,10 @@ export class ExtensionsListView extends ViewletPanel {
 	}
 
 	async show(query: string): Promise<IPagedModel<IExtension>> {
-		const model = await this.query(query);
+		const model = await this.query(query).catch(e => {
+			console.warn('Error querying extensions gallery', e);
+			return new PagedModel([]);
+		});
 		this.setModel(model);
 		return model;
 	}
