@@ -161,9 +161,13 @@ class TryCompleteJsDocCommand implements Command {
 
 	public static getSnippetTemplate(client: ITypeScriptServiceClient, file: string, position: vscode.Position): Promise<vscode.SnippetString | undefined> {
 		const args = typeConverters.Position.toFileLocationRequestArgs(file, position);
+		const tokenSource = new vscode.CancellationTokenSource();
 		return Promise.race([
-			client.execute('docCommentTemplate', args),
-			new Promise<Proto.DocCommandTemplateResponse>((_, reject) => setTimeout(reject, 250))
+			client.execute('docCommentTemplate', args, tokenSource.token),
+			new Promise<Proto.DocCommandTemplateResponse>((_, reject) => setTimeout(() => {
+				tokenSource.cancel();
+				reject();
+			}, 250))
 		]).then((res: Proto.DocCommandTemplateResponse) => {
 			if (!res || !res.body) {
 				return undefined;

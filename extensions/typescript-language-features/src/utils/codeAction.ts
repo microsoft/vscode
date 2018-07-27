@@ -19,7 +19,8 @@ export function getEditForCodeAction(
 
 export async function applyCodeAction(
 	client: ITypeScriptServiceClient,
-	action: Proto.CodeAction
+	action: Proto.CodeAction,
+	token: vscode.CancellationToken
 ): Promise<boolean> {
 	const workspaceEdit = getEditForCodeAction(client, action);
 	if (workspaceEdit) {
@@ -27,16 +28,17 @@ export async function applyCodeAction(
 			return false;
 		}
 	}
-	return applyCodeActionCommands(client, action.commands);
+	return applyCodeActionCommands(client, action.commands, token);
 }
 
 export async function applyCodeActionCommands(
 	client: ITypeScriptServiceClient,
-	commands: ReadonlyArray<{}> | undefined
+	commands: ReadonlyArray<{}> | undefined,
+	token: vscode.CancellationToken,
 ): Promise<boolean> {
 	if (commands && commands.length) {
 		for (const command of commands) {
-			await client.execute('applyCodeActionCommand', { command });
+			await client.execute('applyCodeActionCommand', { command }, token);
 		}
 	}
 	return true;

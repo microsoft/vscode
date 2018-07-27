@@ -63,7 +63,7 @@ class SyncedBuffer {
 			}
 		}
 
-		this.client.execute('open', args, false);
+		this.client.executeWithoutWaitingForResponse('open', args);
 	}
 
 	public get resource(): vscode.Uri {
@@ -91,7 +91,7 @@ class SyncedBuffer {
 		const args: Proto.FileRequestArgs = {
 			file: this.filepath
 		};
-		this.client.execute('close', args, false);
+		this.client.executeWithoutWaitingForResponse('close', args);
 	}
 
 	public onContentChanged(events: vscode.TextDocumentContentChangeEvent[]): void {
@@ -100,7 +100,7 @@ class SyncedBuffer {
 				insertString: text,
 				...typeConverters.Range.toFormattingRequestArgs(this.filepath, range)
 			};
-			this.client.execute('change', args, false);
+			this.client.executeWithoutWaitingForResponse('change', args);
 		}
 	}
 }

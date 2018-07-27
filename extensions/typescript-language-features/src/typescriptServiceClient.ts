@@ -521,7 +521,7 @@ export default class TypeScriptServiceClient extends Disposable implements IType
 		const configureOptions: Proto.ConfigureRequestArguments = {
 			hostInfo: 'vscode'
 		};
-		this.execute('configure', configureOptions);
+		this.executeWithoutWaitingForResponse('configure', configureOptions);
 		this.setCompilerOptionsForInferredProjects(this._configuration);
 		if (resendModels) {
 			this._onResendModelsRequested.fire();
@@ -536,7 +536,7 @@ export default class TypeScriptServiceClient extends Disposable implements IType
 		const args: Proto.SetCompilerOptionsForInferredProjectsArgs = {
 			options: this.getCompilerOptionsForInferredProjects(configuration)
 		};
-		this.execute('compilerOptionsForInferredProjects', args, true);
+		this.executeWithoutWaitingForResponse('compilerOptionsForInferredProjects', args);
 	}
 
 	private getCompilerOptionsForInferredProjects(configuration: TypeScriptServiceConfiguration): Proto.ExternalProjectCompilerOptions {
@@ -679,19 +679,28 @@ export default class TypeScriptServiceClient extends Disposable implements IType
 		return undefined;
 	}
 
-	public executeAsync(command: string, args: Proto.GeterrRequestArgs, token: vscode.CancellationToken): Promise<any> {
-		return this.executeImpl(command, args, { isAsync: true, token, expectsResult: true });
+	public execute(command: string, args: any, token: vscode.CancellationToken): Promise<any> {
+		return this.executeImpl(command, args, {
+			isAsync: false,
+			token,
+			expectsResult: true
+		});
 	}
 
-	public execute(command: string, args: any, expectsResultOrToken?: boolean | vscode.CancellationToken): Promise<any> {
-		let token: vscode.CancellationToken | undefined = undefined;
-		let expectsResult = true;
-		if (typeof expectsResultOrToken === 'boolean') {
-			expectsResult = expectsResultOrToken;
-		} else {
-			token = expectsResultOrToken;
-		}
-		return this.executeImpl(command, args, { isAsync: false, token, expectsResult });
+	public executeWithoutWaitingForResponse(command: string, args: any): void {
+		this.executeImpl(command, args, {
+			isAsync: false,
+			token: undefined,
+			expectsResult: false
+		});
+	}
+
+	public executeAsync(command: string, args: Proto.GeterrRequestArgs, token: vscode.CancellationToken): Promise<any> {
+		return this.executeImpl(command, args, {
+			isAsync: true,
+			token,
+			expectsResult: true
+		});
 	}
 
 	private executeImpl(command: string, args: any, executeInfo: { isAsync: boolean, token?: vscode.CancellationToken, expectsResult: boolean }): Promise<any> {

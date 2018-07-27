@@ -16,6 +16,7 @@ import { escapeRegExp } from '../utils/regexp';
 import * as typeConverters from '../utils/typeConverters';
 import FileConfigurationManager from './fileConfigurationManager';
 import { VersionDependentRegistration } from '../utils/dependentRegistration';
+import { nulToken } from '../utils/cancellation';
 
 const localize = nls.loadMessageBundle();
 
@@ -84,7 +85,7 @@ class UpdateImportsOnFileRenameHandler {
 			// Workaround for https://github.com/Microsoft/vscode/issues/52967
 			// Never attempt to update import paths if the file does not contain something the looks like an export
 			try {
-				const { body } = await this.client.execute('navtree', { file: newFile });
+				const { body } = await this.client.execute('navtree', { file: newFile }, nulToken);
 				const hasExport = (node: Proto.NavigationTree): boolean => {
 					return !!node.kindModifiers.match(/\bexports?\b/g) || !!(node.childItems && node.childItems.some(hasExport));
 				};
@@ -229,14 +230,14 @@ class UpdateImportsOnFileRenameHandler {
 		newFile: string,
 	) {
 		const isDirectoryRename = fs.lstatSync(newFile).isDirectory();
-		await this.fileConfigurationManager.ensureConfigurationForDocument(document, undefined);
+		await this.fileConfigurationManager.ensureConfigurationForDocument(document, nulToken);
 
 		const args: Proto.GetEditsForFileRenameRequestArgs & { file: string } = {
 			file: targetResource,
 			oldFilePath: oldFile,
 			newFilePath: newFile,
 		};
-		const response = await this.client.execute('getEditsForFileRename', args);
+		const response = await this.client.execute('getEditsForFileRename', args, nulToken);
 		if (!response || !response.body) {
 			return;
 		}

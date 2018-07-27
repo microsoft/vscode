@@ -18,7 +18,7 @@ export default class TypeScriptDefinitionProviderBase {
 		definitionType: 'definition' | 'implementation' | 'typeDefinition',
 		document: vscode.TextDocument,
 		position: vscode.Position,
-		token: vscode.CancellationToken | boolean
+		token: vscode.CancellationToken
 	): Promise<vscode.Location[] | undefined> {
 		const filepath = this.client.toPath(document.uri);
 		if (!filepath) {

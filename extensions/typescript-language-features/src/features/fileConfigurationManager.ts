@@ -59,7 +59,7 @@ export default class FileConfigurationManager {
 
 	public async ensureConfigurationForDocument(
 		document: vscode.TextDocument,
-		token: vscode.CancellationToken | undefined
+		token: vscode.CancellationToken
 	): Promise<void> {
 		const editor = vscode.window.visibleTextEditors.find(editor => editor.document.fileName === document.fileName);
 		if (editor) {
@@ -74,7 +74,7 @@ export default class FileConfigurationManager {
 	public async ensureConfigurationOptions(
 		document: vscode.TextDocument,
 		options: vscode.FormattingOptions,
-		token: vscode.CancellationToken | undefined
+		token: vscode.CancellationToken
 	): Promise<void> {
 		const file = this.client.toPath(document.uri);
 		if (!file) {
