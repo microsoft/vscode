@@ -58,7 +58,7 @@ export class ReviewViewZone implements IViewZone {
 	}
 }
 
-const overviewRulerDefault = new Color(new RGBA(255, 69, 0, 1));
+const overviewRulerDefault = new Color(new RGBA(197, 197, 197, 1));
 
 export const overviewRulerCommentingRangeForeground = registerColor('editorOverviewRuler.addedForeground', { dark: overviewRulerDefault, light: overviewRulerDefault, hc: overviewRulerDefault }, nls.localize('overviewRulerAddedForeground', 'Overview ruler marker color for added content.'));
 
