@@ -15,11 +15,15 @@ For more information about auto detection of Tasks, see the [documentation](http
 
 ### Script Explorer
 
-The Npm Script Explorer shows the npm scripts found in your workspace. The explorer view is enabled by the setting `npm.enableScriptExplorer`. A script can be opened, run, or debug from the explorer. 
+The Npm Script Explorer shows the npm scripts found in your workspace. The explorer view is enabled by the setting `npm.enableScriptExplorer`. A script can be opened, run, or debug from the explorer.
 
 ### Run Scripts from the Editor
 
 The extension provides code lense actions to run or debug a script from the editor.
+
+### Others
+
+The extension fetches data from https://registry.npmjs/org and https://registry.bower.io to provide auto-completion and information on hover features on npm dependencies.
 
 ## Settings
 

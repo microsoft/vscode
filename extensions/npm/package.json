@@ -214,6 +214,13 @@
           "description": "%config.npm.scriptExplorerAction%",
           "scope": "window",
           "default": "open"
+        },
+        "npm.fetchOnlinePackageInfo": {
+          "type": "boolean",
+          "description": "%config.npm.fetchOnlinePackageInfo%",
+          "default": true,
+          "scope": "window",
+          "tags": ["usesOnlineServices"]
         }
       }
     },

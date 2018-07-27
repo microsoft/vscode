@@ -7,6 +7,7 @@
 	"config.npm.exclude": "Configure glob patterns for folders that should be excluded from automatic script detection.",
 	"config.npm.enableScriptExplorer": "Enable an explorer view for npm scripts.",
 	"config.npm.scriptExplorerAction": "The default click action used in the scripts explorer: 'open' or 'run', the default is 'open'.",
+	"config.npm.fetchOnlinePackageInfo": "Fetch data from https://registry.npmjs/org and https://registry.bower.io to provide auto-completion and information on hover features on npm dependencies.",
 	"npm.parseError": "Npm task detection: failed to parse the file {0}",
 	"taskdef.script": "The npm script to customize.",
 	"taskdef.path": "The path to the folder of the package.json file that provides the script. Can be omitted.",
