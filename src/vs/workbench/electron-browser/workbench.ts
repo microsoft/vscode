@@ -1182,6 +1182,9 @@ export class Workbench extends Disposable implements IPartService {
 		let offset = 0;
 		if (this.isVisible(Parts.TITLEBAR_PART)) {
 			offset = this.workbenchLayout.partLayoutInfo.titlebar.height;
+			if (isMacintosh || this.menubarVisibility === 'hidden') {
+				offset /= browser.getZoomFactor();
+			}
 		}
 
 		return offset;
