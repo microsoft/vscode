@@ -21,7 +21,6 @@ import { IConfigurationService, IConfigurationChangeEvent } from 'vs/platform/co
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import * as nls from 'vs/nls';
-import * as labels from 'vs/base/common/labels';
 import { EditorInput, toResource, Verbosity } from 'vs/workbench/common/editor';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { IWorkspaceContextService, WorkbenchState } from 'vs/platform/workspace/common/workspace';
@@ -33,6 +32,8 @@ import { Color } from 'vs/base/common/color';
 import { trim } from 'vs/base/common/strings';
 import { addDisposableListener, EventType, EventHelper, Dimension } from 'vs/base/browser/dom';
 import { IPartService } from 'vs/workbench/services/part/common/partService';
+import { template, getBaseLabel } from 'vs/base/common/labels';
+import { IUriDisplayService } from 'vs/platform/uriDisplay/common/uriDisplay';
 
 export class TitlebarPart extends Part implements ITitleService {
 
@@ -78,7 +79,8 @@ export class TitlebarPart extends Part implements ITitleService {
 		@IEnvironmentService private environmentService: IEnvironmentService,
 		@IWorkspaceContextService private contextService: IWorkspaceContextService,
 		@IPartService private partService: IPartService,
-		@IThemeService themeService: IThemeService
+		@IThemeService themeService: IThemeService,
+		@IUriDisplayService private uriDisplayService: IUriDisplayService
 	) {
 		super(id, { hasTitle: false }, themeService);
 
@@ -226,15 +228,15 @@ export class TitlebarPart extends Part implements ITitleService {
 		const activeEditorMedium = editor ? editor.getTitle(Verbosity.MEDIUM) : activeEditorShort;
 		const activeEditorLong = editor ? editor.getTitle(Verbosity.LONG) : activeEditorMedium;
 		const rootName = workspace.name;
-		const rootPath = root ? labels.getPathLabel(root, this.environmentService) : '';
+		const rootPath = root ? this.uriDisplayService.getLabel(root) : '';
 		const folderName = folder ? folder.name : '';
-		const folderPath = folder ? labels.getPathLabel(folder.uri, this.environmentService) : '';
+		const folderPath = folder ? this.uriDisplayService.getLabel(folder.uri) : '';
 		const dirty = editor && editor.isDirty() ? TitlebarPart.TITLE_DIRTY : '';
 		const appName = this.environmentService.appNameLong;
 		const separator = TitlebarPart.TITLE_SEPARATOR;
 		const titleTemplate = this.configurationService.getValue<string>('window.title');
 
-		return labels.template(titleTemplate, {
+		return template(titleTemplate, {
 			activeEditorShort,
 			activeEditorLong,
 			activeEditorMedium,
@@ -411,9 +413,9 @@ export class TitlebarPart extends Part implements ITitleService {
 
 				let label: string;
 				if (!isFile) {
-					label = labels.getBaseLabel(paths.dirname(path));
+					label = getBaseLabel(paths.dirname(path));
 				} else {
-					label = labels.getBaseLabel(path);
+					label = getBaseLabel(path);
 				}
 
 				actions.push(new ShowItemInFolderAction(path, label || paths.sep, this.windowsService));
