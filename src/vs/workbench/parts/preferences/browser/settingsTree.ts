@@ -41,6 +41,7 @@ import { ISearchResult, ISetting, ISettingsGroup } from 'vs/workbench/services/p
 const $ = DOM.$;
 
 export const MODIFIED_SETTING_TAG = 'modified';
+export const BACKGROUND_ONLINE_TAG = 'backgroundOnlineFeature';
 
 export abstract class SettingsTreeElement {
 	id: string;

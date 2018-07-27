@@ -113,28 +113,6 @@
 	background-image: url('configure-inverse.svg');
 }
 
-.vs .settings-editor.showing-modified-only > .settings-header > .settings-header-controls .settings-header-controls-right .toolbar-toggle-more::before,
-.vs .settings-editor.settings-filtered-by-tag > .settings-header > .settings-header-controls .settings-header-controls-right .toolbar-toggle-more::before {
-	border-color : #fff;
-}
-
-.vs-dark .settings-editor.showing-modified-only > .settings-header > .settings-header-controls .settings-header-controls-right .toolbar-toggle-more::before,
-.vs-dark .settings-editor.settings-filtered-by-tag > .settings-header > .settings-header-controls .settings-header-controls-right .toolbar-toggle-more::before {
-	border-color : #000;
-}
-
-.settings-editor.showing-modified-only > .settings-header > .settings-header-controls .settings-header-controls-right .toolbar-toggle-more::before,
-.settings-editor.settings-filtered-by-tag > .settings-header > .settings-header-controls .settings-header-controls-right .toolbar-toggle-more::before {
-	content: "";
-	width: 6px;
-	height: 6px;
-	position: absolute;
-	top: 3px;
-	right: 3px;
-	border-radius: 10px;
-	border: 1px solid;
-}
-
 .settings-editor > .settings-header > .settings-header-controls .settings-tabs-widget > .monaco-action-bar .action-item {
 	padding: 0px; /* padding must be on action-label because it has the bottom-border, because that's where the .checked class is */
 }

@@ -14,7 +14,7 @@ import * as collections from 'vs/base/common/collections';
 import { getErrorMessage, isPromiseCanceledError } from 'vs/base/common/errors';
 import URI from 'vs/base/common/uri';
 import { TPromise } from 'vs/base/common/winjs.base';
-import { ITree, ITreeConfiguration } from 'vs/base/parts/tree/browser/tree';
+import { ITreeConfiguration } from 'vs/base/parts/tree/browser/tree';
 import { OpenMode, DefaultTreestyler } from 'vs/base/parts/tree/browser/treeDefaults';
 import 'vs/css!./media/settingsEditor2';
 import { localize } from 'vs/nls';
@@ -32,7 +32,7 @@ import { BaseEditor } from 'vs/workbench/browser/parts/editor/baseEditor';
 import { EditorOptions, IEditor } from 'vs/workbench/common/editor';
 import { SearchWidget, SettingsTarget, SettingsTargetsWidget } from 'vs/workbench/parts/preferences/browser/preferencesWidgets';
 import { commonlyUsedData, tocData } from 'vs/workbench/parts/preferences/browser/settingsLayout';
-import { ISettingsEditorViewState, resolveExtensionsSettings, resolveSettingsTree, SearchResultIdx, SearchResultModel, SettingsRenderer, SettingsTree, SettingsTreeElement, SettingsTreeFilter, SettingsTreeGroupElement, SettingsTreeModel, SettingsTreeSettingElement, MODIFIED_SETTING_TAG } from 'vs/workbench/parts/preferences/browser/settingsTree';
+import { ISettingsEditorViewState, resolveExtensionsSettings, resolveSettingsTree, SearchResultIdx, SearchResultModel, SettingsRenderer, SettingsTree, SettingsTreeElement, SettingsTreeFilter, SettingsTreeGroupElement, SettingsTreeModel, SettingsTreeSettingElement, MODIFIED_SETTING_TAG, BACKGROUND_ONLINE_TAG } from 'vs/workbench/parts/preferences/browser/settingsTree';
 import { TOCDataSource, TOCRenderer, TOCTreeModel } from 'vs/workbench/parts/preferences/browser/tocTree';
 import { CONTEXT_SETTINGS_EDITOR, CONTEXT_SETTINGS_FIRST_ROW_FOCUS, CONTEXT_SETTINGS_ROW_FOCUS, CONTEXT_SETTINGS_SEARCH_FOCUS, CONTEXT_TOC_ROW_FOCUS, IPreferencesSearchService, ISearchProvider } from 'vs/workbench/parts/preferences/common/preferences';
 import { IPreferencesService, ISearchResult, ISettingsEditorModel } from 'vs/workbench/services/preferences/common/preferences';
@@ -40,6 +40,7 @@ import { SettingsEditor2Input } from 'vs/workbench/services/preferences/common/p
 import { DefaultSettingsEditorModel } from 'vs/workbench/services/preferences/common/preferencesModels';
 import { editorBackground, foreground } from 'vs/platform/theme/common/colorRegistry';
 import { settingsHeaderForeground } from 'vs/workbench/parts/preferences/browser/settingsWidgets';
+import { Separator } from 'vs/base/browser/ui/actionbar/actionbar';
 
 const $ = DOM.$;
 
@@ -179,6 +180,12 @@ export class SettingsEditor2 extends BaseEditor {
 		this.searchWidget.clear();
 	}
 
+	filterByTag(tag: string): void {
+		if (this.searchWidget) {
+			this.searchWidget.setValue(`@tag:${tag}`);
+		}
+	}
+
 	private createHeader(parent: HTMLElement): void {
 		this.headerContainer = DOM.append(parent, $('.settings-header'));
 
@@ -223,17 +230,16 @@ export class SettingsEditor2 extends BaseEditor {
 		});
 
 		const actions = [
-			this.instantiationService.createInstance(ToggleFilterByTagAction,
+			this.instantiationService.createInstance(FilterByTagAction,
 				localize('filterModifiedLabel', "Show modified settings only"),
 				MODIFIED_SETTING_TAG,
-				this,
-				this.viewState),
+				this),
 			this.instantiationService.createInstance(
-				ToggleFilterByTagAction,
+				FilterByTagAction,
 				localize('filterBackgroundOnlineLabel', "Control background online features"),
-				'backgroundOnlineFeature',
-				this,
-				this.viewState),
+				BACKGROUND_ONLINE_TAG,
+				this),
+			new Separator(),
 			this.instantiationService.createInstance(OpenSettingsAction)
 		];
 		this.toolbar.setActions([], actions)();
@@ -407,22 +413,6 @@ export class SettingsEditor2 extends BaseEditor {
 			// Github master issue
 			window.open('https://go.microsoft.com/fwlink/?linkid=2000807');
 		}));
-	}
-
-	toggleFilterByTag(tag: string): TPromise<void> {
-		// Reset other tags, toggle this tag
-		const wasFiltered = this.viewState.tagFilters && this.viewState.tagFilters.has(tag);
-		const isFiltered = !wasFiltered;
-		this.viewState.tagFilters = new Set<string>();
-		if (isFiltered) {
-			this.viewState.tagFilters.add(tag);
-		}
-
-		DOM.toggleClass(this.rootElement, 'settings-filtered-by-tag', isFiltered);
-		return this.refreshTreeAndMaintainFocus().then(() => {
-			this.settingsTree.setScrollPosition(0);
-			this.expandAll(this.settingsTree);
-		});
 	}
 
 	private onDidChangeSetting(key: string, value: any): void {
@@ -664,6 +654,14 @@ export class SettingsEditor2 extends BaseEditor {
 	}
 
 	private triggerSearch(query: string): TPromise<void> {
+		this.viewState.tagFilters = new Set<string>();
+		if (query) {
+			const tagMatches = query.match(/\s*@tag:(\S+)(.*)/); // For now, we support single tag at a time.
+			if (tagMatches) {
+				this.viewState.tagFilters.add(tagMatches[1]);
+				query = tagMatches[2];
+			}
+		}
 		if (query) {
 			return this.searchInProgress = TPromise.join([
 				this.localSearchDelayer.trigger(() => this.localFilterPreferences(query)),
@@ -686,14 +684,6 @@ export class SettingsEditor2 extends BaseEditor {
 			this.settingsTree.setInput(this.settingsTreeModel.root);
 
 			return TPromise.wrap(null);
-		}
-	}
-
-	private expandAll(tree: ITree): void {
-		const nav = tree.getNavigator();
-		let cur;
-		while (cur = nav.next()) {
-			tree.expand(cur);
 		}
 	}
 
@@ -844,23 +834,19 @@ class OpenSettingsAction extends Action {
 	}
 }
 
-class ToggleFilterByTagAction extends Action {
-	static readonly ID = 'settings.toggleFilterByTag';
-
-	get checked(): boolean {
-		return this.viewState.tagFilters && this.viewState.tagFilters.has(this.tag);
-	}
+class FilterByTagAction extends Action {
+	static readonly ID = 'settings.filterByTag';
 
 	constructor(
 		label: string,
 		private tag: string,
-		private settingsEditor: SettingsEditor2,
-		private viewState: ISettingsEditorViewState
+		private settingsEditor: SettingsEditor2
 	) {
-		super(ToggleFilterByTagAction.ID, label, 'toggle-filter-tag');
+		super(FilterByTagAction.ID, label, 'toggle-filter-tag');
 	}
 
 	run(): TPromise<void> {
-		return this.settingsEditor.toggleFilterByTag(this.tag);
+		this.settingsEditor.filterByTag(this.tag);
+		return TPromise.as(null);
 	}
 }
