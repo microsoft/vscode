@@ -246,7 +246,7 @@ const editorConfiguration: IConfigurationNode = {
 		'editor.lineHeight': {
 			'type': 'number',
 			'default': EDITOR_FONT_DEFAULTS.lineHeight,
-			'description': nls.localize('lineHeight', "Controls the line height. Use 0 to compute the lineHeight from the fontSize.")
+			'description': nls.localize('lineHeight', "Controls the line height. Use 0 to compute the line height from the font size.")
 		},
 		'editor.letterSpacing': {
 			'type': 'number',
@@ -271,7 +271,7 @@ const editorConfiguration: IConfigurationNode = {
 				'type': 'number'
 			},
 			'default': EDITOR_DEFAULTS.viewInfo.rulers,
-			'description': nls.localize('rulers', "Render vertical rulers after a certain number of monospace characters. Use multiple values for multiple rulers. No rulers are drawn if array is empty")
+			'description': nls.localize('rulers', "Render vertical rulers after a certain number of monospace characters. Use multiple values for multiple rulers. No rulers are drawn if array is empty.")
 		},
 		'editor.wordSeparators': {
 			'type': 'string',
@@ -299,17 +299,17 @@ const editorConfiguration: IConfigurationNode = {
 		'editor.roundedSelection': {
 			'type': 'boolean',
 			'default': EDITOR_DEFAULTS.viewInfo.roundedSelection,
-			'description': nls.localize('roundedSelection', "Controls if selections have rounded corners")
+			'description': nls.localize('roundedSelection', "Controls whether selections have rounded corners.")
 		},
 		'editor.scrollBeyondLastLine': {
 			'type': 'boolean',
 			'default': EDITOR_DEFAULTS.viewInfo.scrollBeyondLastLine,
-			'description': nls.localize('scrollBeyondLastLine', "Controls if the editor will scroll beyond the last line")
+			'description': nls.localize('scrollBeyondLastLine', "Controls whether the editor will scroll beyond the last line.")
 		},
 		'editor.scrollBeyondLastColumn': {
 			'type': 'number',
 			'default': EDITOR_DEFAULTS.viewInfo.scrollBeyondLastColumn,
-			'description': nls.localize('scrollBeyondLastColumn', "Controls the number of extra characters beyond which the editor will scroll horizontally")
+			'description': nls.localize('scrollBeyondLastColumn', "Controls the number of extra characters beyond which the editor will scroll horizontally.")
 		},
 		'editor.smoothScrolling': {
 			'type': 'boolean',
@@ -319,7 +319,7 @@ const editorConfiguration: IConfigurationNode = {
 		'editor.minimap.enabled': {
 			'type': 'boolean',
 			'default': EDITOR_DEFAULTS.viewInfo.minimap.enabled,
-			'description': nls.localize('minimap.enabled', "Controls if the minimap is shown")
+			'description': nls.localize('minimap.enabled', "Controls whether the minimap is shown.")
 		},
 		'editor.minimap.side': {
 			'type': 'string',
@@ -336,12 +336,12 @@ const editorConfiguration: IConfigurationNode = {
 		'editor.minimap.renderCharacters': {
 			'type': 'boolean',
 			'default': EDITOR_DEFAULTS.viewInfo.minimap.renderCharacters,
-			'description': nls.localize('minimap.renderCharacters', "Render the actual characters on a line (as opposed to color blocks)")
+			'description': nls.localize('minimap.renderCharacters', "Render the actual characters on a line as opposed to color blocks.")
 		},
 		'editor.minimap.maxColumn': {
 			'type': 'number',
 			'default': EDITOR_DEFAULTS.viewInfo.minimap.maxColumn,
-			'description': nls.localize('minimap.maxColumn', "Limit the width of the minimap to render at most a certain number of columns")
+			'description': nls.localize('minimap.maxColumn', "Limit the width of the minimap to render at most a certain number of columns.")
 		},
 		'editor.hover.enabled': {
 			'type': 'boolean',
@@ -480,18 +480,18 @@ const editorConfiguration: IConfigurationNode = {
 				}
 			],
 			'default': EDITOR_DEFAULTS.contribInfo.quickSuggestions,
-			'description': nls.localize('quickSuggestions', "Controls if suggestions should automatically show up while typing")
+			'description': nls.localize('quickSuggestions', "Controls whether suggestions should automatically show up while typing.")
 		},
 		'editor.quickSuggestionsDelay': {
 			'type': 'integer',
 			'default': EDITOR_DEFAULTS.contribInfo.quickSuggestionsDelay,
 			'minimum': 0,
-			'description': nls.localize('quickSuggestionsDelay', "Controls the delay in ms after which quick suggestions will show up")
+			'description': nls.localize('quickSuggestionsDelay', "Controls the delay in milliseconds after which quick suggestions will show up.")
 		},
 		'editor.parameterHints': {
 			'type': 'boolean',
 			'default': EDITOR_DEFAULTS.contribInfo.parameterHints,
-			'description': nls.localize('parameterHints', "Enables pop-up that shows parameter documentation and type information as you type")
+			'description': nls.localize('parameterHints', "Enables a pop-up that shows parameter documentation and type information as you type.")
 		},
 		'editor.autoClosingBrackets': {
 			'type': 'boolean',
@@ -607,7 +607,7 @@ const editorConfiguration: IConfigurationNode = {
 		'editor.overviewRulerBorder': {
 			'type': 'boolean',
 			'default': EDITOR_DEFAULTS.viewInfo.overviewRulerBorder,
-			'description': nls.localize('overviewRulerBorder', "Controls if a border should be drawn around the overview ruler.")
+			'description': nls.localize('overviewRulerBorder', "Controls whether a border should be drawn around the overview ruler.")
 		},
 		'editor.cursorBlinking': {
 			'type': 'string',
@@ -618,7 +618,7 @@ const editorConfiguration: IConfigurationNode = {
 		'editor.mouseWheelZoom': {
 			'type': 'boolean',
 			'default': EDITOR_DEFAULTS.viewInfo.mouseWheelZoom,
-			'description': nls.localize('mouseWheelZoom', "Zoom the font of the editor when using mouse wheel and holding Ctrl.")
+			'description': nls.localize('mouseWheelZoom', "Zoom the font of the editor when using mouse wheel and holding `Ctrl`.")
 		},
 		'editor.cursorStyle': {
 			'type': 'string',
@@ -670,8 +670,14 @@ const editorConfiguration: IConfigurationNode = {
 		'editor.renderLineHighlight': {
 			'type': 'string',
 			'enum': ['none', 'gutter', 'line', 'all'],
+			'enumDescriptions': [
+				'',
+				'',
+				'',
+				nls.localize('renderLineHighlight.all', "Highlights both the gutter and the current line."),
+			],
 			default: EDITOR_DEFAULTS.viewInfo.renderLineHighlight,
-			description: nls.localize('renderLineHighlight', "Controls how the editor should render the current line highlight, possibilities are 'none', 'gutter', 'line', and 'all'.")
+			description: nls.localize('renderLineHighlight', "Controls how the editor should render the current line highlight.")
 		},
 		'editor.codeLens': {
 			'type': 'boolean',
@@ -748,7 +754,7 @@ const editorConfiguration: IConfigurationNode = {
 		'editor.links': {
 			'type': 'boolean',
 			'default': EDITOR_DEFAULTS.contribInfo.links,
-			'description': nls.localize('links', "Controls whether the editor should detect links and make them clickable")
+			'description': nls.localize('links', "Controls whether the editor should detect links and make them clickable.")
 		},
 		'editor.colorDecorators': {
 			'type': 'boolean',
@@ -758,7 +764,7 @@ const editorConfiguration: IConfigurationNode = {
 		'editor.lightbulb.enabled': {
 			'type': 'boolean',
 			'default': EDITOR_DEFAULTS.contribInfo.lightbulbEnabled,
-			'description': nls.localize('codeActions', "Enables the code action lightbulb")
+			'description': nls.localize('codeActions', "Enables the code action lightbulb in the editor.")
 		},
 		'editor.codeActionsOnSave': {
 			'type': 'object',
@@ -782,7 +788,7 @@ const editorConfiguration: IConfigurationNode = {
 		'editor.selectionClipboard': {
 			'type': 'boolean',
 			'default': EDITOR_DEFAULTS.contribInfo.selectionClipboard,
-			'description': nls.localize('selectionClipboard', "Controls if the Linux primary clipboard should be supported."),
+			'description': nls.localize('selectionClipboard', "Controls whether the Linux primary clipboard should be supported."),
 			'included': platform.isLinux
 		},
 		'diffEditor.renderSideBySide': {
