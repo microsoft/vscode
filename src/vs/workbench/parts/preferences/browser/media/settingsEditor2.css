@@ -56,9 +56,10 @@
 }
 
 .settings-editor > .settings-header > .settings-header-controls {
-	height: 29px;
+	height: 32px;
 	display: flex;
 	border-bottom: solid 1px;
+	margin-top: 10px;
 }
 
 .settings-editor > .settings-header > .settings-header-controls .settings-tabs-widget .action-label {
@@ -122,7 +123,7 @@
 	text-transform: none;
 	font-size: 13px;
 
-	padding-bottom: 4px;
+	padding-bottom: 7px;
 	padding-top: 7px;
 	padding-left: 8px;
 	padding-right: 8px;
@@ -148,7 +149,7 @@
 
 .settings-editor > .settings-body .settings-toc-container {
 	width: 160px;
-	margin-top: 5px;
+	margin-top: 16px;
 	padding-left: 5px;
 }
 
@@ -200,15 +201,15 @@
 	flex: 1;
 	max-width: 792px;
 	margin-right: 1px; /* So the item doesn't blend into the edge of the view container  */
-	margin-top: 8px;
+	margin-top: 14px;
 	border-spacing: 0;
 	border-collapse: separate;
 	position: relative;
 }
 
 .settings-editor > .settings-body > .settings-tree-container .setting-item {
-	padding-top: 11px;
-	padding-bottom: 15px;
+	padding-top: 8px;
+	padding-bottom: 14px;
 	box-sizing: border-box;
 	cursor: default;
 	white-space: normal;
@@ -276,15 +277,15 @@
 }
 
 .settings-editor > .settings-body > .settings-tree-container .setting-item-bool .setting-value-checkbox {
-	height: 16px;
-	width: 16px;
+	height: 18px;
+	width: 18px;
 	border: 1px solid transparent;
 	border-radius: 3px;
-	margin-right: 4px;
+	margin-right: 9px;
 	margin-left: 0px;
-	margin-top: 2px;
+	margin-top: 4px;
 	padding: 0px;
-	background-size: 14px !important;
+	background-size: 16px !important;
 }
 
 .vs .settings-editor > .settings-body > .settings-tree-container .setting-item-bool .setting-value-checkbox.checked {
@@ -296,12 +297,16 @@
 }
 
 .settings-editor > .settings-body > .settings-tree-container .setting-item .setting-item-value {
-	margin-top: 7px;
+	margin-top: 9px;
 	display: flex;
 }
 
 .settings-editor > .settings-body > .settings-tree-container .setting-item.setting-item-number .setting-item-value > .setting-item-control {
 	min-width: 200px;
+}
+
+.settings-editor > .settings-body > .settings-tree-container .setting-item.setting-item-text {
+	width: 500px;
 }
 
 .settings-editor > .settings-body > .settings-tree-container .setting-item.setting-item-enum .setting-item-value > .setting-item-control,
@@ -311,7 +316,7 @@
 }
 
 .settings-editor > .settings-body > .settings-tree-container .setting-item.setting-item-enum .setting-item-value > .setting-item-control > select {
-	width: 100%;
+	width: 320px;
 }
 
 .settings-editor > .settings-body > .settings-tree-container .setting-item .setting-item-value .edit-in-settings-button,
@@ -350,7 +355,7 @@
 
 .settings-editor > .settings-body > .settings-tree-container .settings-group-title-label {
 	margin: 0px;
-	font-weight: bold;
+	font-weight: 500;
 }
 
 .settings-editor > .settings-body > .settings-tree-container .settings-group-level-1 {

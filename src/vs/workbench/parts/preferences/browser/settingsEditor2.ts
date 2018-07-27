@@ -803,16 +803,18 @@ export class SettingsEditor2 extends BaseEditor {
 
 	private layoutTrees(dimension: DOM.Dimension): void {
 		const listHeight = dimension.height - (DOM.getDomNodePagePosition(this.headerContainer).height + 11 /*padding*/);
-		this.settingsTreeContainer.style.height = `${listHeight}px`;
-		this.settingsTree.layout(listHeight - 8, 800);
+		const settingsTreeHeight = listHeight - 14;
+		this.settingsTreeContainer.style.height = `${settingsTreeHeight}px`;
+		this.settingsTree.layout(settingsTreeHeight, 800);
 
 		const selectedSetting = this.settingsTree.getSelection()[0];
 		if (selectedSetting) {
 			this.settingsTree.refresh(selectedSetting);
 		}
 
-		this.tocTreeContainer.style.height = `${listHeight}px`;
-		this.tocTree.layout(listHeight - 5, 175);
+		const tocTreeHeight = listHeight - 16;
+		this.tocTreeContainer.style.height = `${tocTreeHeight}px`;
+		this.tocTree.layout(tocTreeHeight, 175);
 	}
 }
 

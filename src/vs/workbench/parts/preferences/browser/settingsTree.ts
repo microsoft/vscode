@@ -530,7 +530,7 @@ export interface ISettingChangeEvent {
 
 export class SettingsRenderer implements ITreeRenderer {
 
-	private static readonly SETTING_ROW_HEIGHT = 98;
+	private static readonly SETTING_ROW_HEIGHT = 96;
 	private static readonly SETTING_BOOL_ROW_HEIGHT = 65;
 	public static readonly MAX_ENUM_DESCRIPTIONS = 10;
 
