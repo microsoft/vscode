@@ -58,7 +58,7 @@ export class UriDisplayService implements IUriDisplayService {
 		}
 		const formater = this.formaters.get(resource.scheme);
 		if (!formater) {
-			return resource.with({ query: null, fragment: null }).toString(true);
+			return resource.path;
 		}
 
 		if (relative) {
