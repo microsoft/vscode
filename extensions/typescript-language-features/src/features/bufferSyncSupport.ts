@@ -357,9 +357,7 @@ export default class BufferSyncSupport extends Disposable {
 
 		// Add all open TS buffers to the geterr request. They might be visible
 		for (const buffer of this.syncedBuffers.values) {
-			if (!this.pendingDiagnostics.has(buffer.resource)) {
-				orderedFileSet.set(buffer.resource, void 0);
-			}
+			orderedFileSet.set(buffer.resource, void 0);
 		}
 
 		if (orderedFileSet.size) {
