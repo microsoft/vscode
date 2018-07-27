@@ -9,22 +9,19 @@ import { TPromise } from 'vs/base/common/winjs.base';
 import { memoize } from 'vs/base/common/decorators';
 import * as paths from 'vs/base/common/paths';
 import * as resources from 'vs/base/common/resources';
-import * as labels from 'vs/base/common/labels';
 import URI from 'vs/base/common/uri';
 import { EncodingMode, ConfirmResult, EditorInput, IFileEditorInput, ITextEditorModel, Verbosity, IRevertOptions } from 'vs/workbench/common/editor';
 import { TextFileEditorModel } from 'vs/workbench/services/textfile/common/textFileEditorModel';
 import { BinaryEditorModel } from 'vs/workbench/common/editor/binaryEditorModel';
 import { FileOperationError, FileOperationResult } from 'vs/platform/files/common/files';
 import { ITextFileService, AutoSaveMode, ModelState, TextFileModelChangeEvent, LoadReason } from 'vs/workbench/services/textfile/common/textfiles';
-import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IReference } from 'vs/base/common/lifecycle';
 import { telemetryURIDescriptor } from 'vs/platform/telemetry/common/telemetryUtils';
-import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { ITextModelService } from 'vs/editor/common/services/resolverService';
 import { IHashService } from 'vs/workbench/services/hash/common/hashService';
 import { FILE_EDITOR_INPUT_ID, TEXT_FILE_EDITOR_ID, BINARY_FILE_EDITOR_ID } from 'vs/workbench/parts/files/common/files';
-import { Schemas } from 'vs/base/common/network';
+import { IUriDisplayService } from 'vs/platform/uriDisplay/common/uriDisplay';
 
 /**
  * A file editor input is the input type for the file editor of file system resources.
@@ -43,11 +40,10 @@ export class FileEditorInput extends EditorInput implements IFileEditorInput {
 		private resource: URI,
 		preferredEncoding: string,
 		@IInstantiationService private instantiationService: IInstantiationService,
-		@IWorkspaceContextService private contextService: IWorkspaceContextService,
 		@ITextFileService private textFileService: ITextFileService,
-		@IEnvironmentService private environmentService: IEnvironmentService,
 		@ITextModelService private textModelResolverService: ITextModelService,
-		@IHashService private hashService: IHashService
+		@IHashService private hashService: IHashService,
+		@IUriDisplayService private uriDisplayService: IUriDisplayService
 	) {
 		super();
 
@@ -136,18 +132,17 @@ export class FileEditorInput extends EditorInput implements IFileEditorInput {
 
 	@memoize
 	private get shortDescription(): string {
-		return paths.basename(labels.getPathLabel(resources.dirname(this.resource), this.environmentService));
+		return paths.basename(this.uriDisplayService.getLabel(resources.dirname(this.resource)));
 	}
 
 	@memoize
 	private get mediumDescription(): string {
-		return labels.getPathLabel(resources.dirname(this.resource), this.environmentService, this.contextService);
+		return this.uriDisplayService.getLabel(resources.dirname(this.resource), true);
 	}
 
 	@memoize
 	private get longDescription(): string {
-		const rootProvider = this.resource.scheme !== Schemas.file ? this.contextService : undefined;
-		return labels.getPathLabel(resources.dirname(this.resource), this.environmentService, rootProvider);
+		return this.uriDisplayService.getLabel(resources.dirname(this.resource), true);
 	}
 
 	getDescription(verbosity: Verbosity = Verbosity.MEDIUM): string {
@@ -175,13 +170,12 @@ export class FileEditorInput extends EditorInput implements IFileEditorInput {
 
 	@memoize
 	private get mediumTitle(): string {
-		return labels.getPathLabel(this.resource, this.environmentService, this.contextService);
+		return this.uriDisplayService.getLabel(this.resource, true);
 	}
 
 	@memoize
 	private get longTitle(): string {
-		const rootProvider = this.resource.scheme !== Schemas.file ? this.contextService : undefined;
-		return labels.getPathLabel(this.resource, this.environmentService, rootProvider);
+		return this.uriDisplayService.getLabel(this.resource, true);
 	}
 
 	getTitle(verbosity: Verbosity): string {
