@@ -19,7 +19,8 @@ The Npm Script Explorer shows the npm scripts found in your workspace. The explo
 
 ### Run Scripts from the Editor
 
-The extension provides code lense actions to run or debug a script from the editor.
+The extension supports to run the selected script as a task when editing the `package.json`file. You can either run a script from
+the hover shown on a script or using the command `Run Selected Npm Script`.
 
 ### Others
 

@@ -6,7 +6,7 @@
 
 import {
 	TaskDefinition, Task, TaskGroup, WorkspaceFolder, RelativePattern, ShellExecution, Uri, workspace,
-	DebugConfiguration, debug, TaskProvider, ExtensionContext
+	DebugConfiguration, debug, TaskProvider, ExtensionContext, TextDocument, tasks
 } from 'vscode';
 import * as path from 'path';
 import * as fs from 'fs';
@@ -288,6 +288,15 @@ async function readFile(file: string): Promise<string> {
 	});
 }
 
+export function runScript(script: string, document: TextDocument) {
+	let uri = document.uri;
+	let folder = workspace.getWorkspaceFolder(uri);
+	if (folder) {
+		let task = createTask(script, `run ${script}`, folder, uri);
+		tasks.executeTask(task);
+	}
+}
+
 export function extractDebugArgFromScript(scriptValue: string): [string, number] | undefined {
 	// matches --debug, --debug=1234, --debug-brk, debug-brk=1234, --inspect,
 	// --inspect=1234, --inspect-brk, --inspect-brk=1234,
@@ -405,6 +414,42 @@ export function findAllScriptRanges(buffer: string): Map<string, [number, number
 	return scripts;
 }
 
+export function findScriptAtPosition(buffer: string, offset: number): string | undefined {
+	let script: string | undefined = undefined;
+	let inScripts = false;
+	let scriptStart: number | undefined;
+	let visitor: JSONVisitor = {
+		onError(_error: ParseErrorCode, _offset: number, _length: number) {
+		},
+		onObjectEnd() {
+			if (inScripts) {
+				inScripts = false;
+				scriptStart = undefined;
+			}
+		},
+		onLiteralValue(value: any, nodeOffset: number, nodeLength: number) {
+			if (inScripts && scriptStart) {
+				if (offset >= scriptStart && offset < nodeOffset + nodeLength) {
+					// found the script
+					inScripts = false;
+				} else {
+					script = undefined;
+				}
+			}
+		},
+		onObjectProperty(property: string, nodeOffset: number, nodeLength: number) {
+			if (property === 'scripts') {
+				inScripts = true;
+			}
+			else if (inScripts) {
+				scriptStart = nodeOffset;
+				script = property;
+			}
+		}
+	};
+	visit(buffer, visitor);
+	return script;
+}
 
 export async function getScripts(packageJsonUri: Uri): Promise<StringMap | undefined> {
 

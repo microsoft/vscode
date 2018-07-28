@@ -82,6 +82,10 @@
           "light": "resources/light/refresh.svg",
           "dark": "resources/dark/refresh.svg"
         }
+      },
+      {
+        "command": "npm.runSelectedScript",
+        "title": "%command.runSelectedScript%"
       }
     ],
     "menus": {
