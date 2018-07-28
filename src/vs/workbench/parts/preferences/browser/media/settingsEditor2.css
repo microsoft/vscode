@@ -140,14 +140,22 @@
 	outline: none !important;
 }
 
+.settings-editor.search-mode > .settings-body .settings-tree-container .monaco-tree-wrapper,
+.settings-editor.search-mode > .settings-body > .settings-tree-container .setting-measure-container {
+	width: calc(100% - 11px);
+	margin-left: 0px;
+}
+
 .settings-editor > .settings-body .settings-tree-container .monaco-tree-wrapper,
 .settings-editor > .settings-body > .settings-tree-container .setting-measure-container {
-	/** Match header padding, leave room for scrollbar on the outside */
-	width: calc(100% - 11px);
+	/** 11px for scrollbar + 208px for TOC margin */
+	width: calc(100% - 219px);
+	margin-left: 208px;
 }
 
 
 .settings-editor > .settings-body .settings-toc-container {
+	position: absolute;
 	width: 160px;
 	margin-top: 16px;
 	padding-left: 5px;
@@ -159,10 +167,6 @@
 
 .settings-editor.search-mode .settings-toc-container {
 	display: none;
-}
-
-.settings-editor.search-mode > .settings-body .settings-tree-container {
-	max-width: 1100px;
 }
 
 .settings-editor.narrow > .settings-body .settings-toc-container {
@@ -199,7 +203,6 @@
 
 .settings-editor > .settings-body .settings-tree-container {
 	flex: 1;
-	max-width: 792px;
 	margin-right: 1px; /* So the item doesn't blend into the edge of the view container  */
 	margin-top: 14px;
 	border-spacing: 0;

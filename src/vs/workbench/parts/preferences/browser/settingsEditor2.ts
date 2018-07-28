@@ -280,8 +280,8 @@ export class SettingsEditor2 extends BaseEditor {
 	private createBody(parent: HTMLElement): void {
 		const bodyContainer = DOM.append(parent, $('.settings-body'));
 
-		this.createTOC(bodyContainer);
 		this.createSettingsTree(bodyContainer);
+		this.createTOC(bodyContainer);
 
 		if (this.environmentService.appQuality !== 'stable') {
 			this.createFeedbackButton(bodyContainer);
