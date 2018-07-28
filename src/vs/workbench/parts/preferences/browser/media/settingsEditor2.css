@@ -325,7 +325,7 @@
 	min-width: 200px;
 }
 
-.settings-editor > .settings-body > .settings-tree-container .setting-item.setting-item-text {
+.settings-editor > .settings-body > .settings-tree-container .setting-item.setting-item-text .setting-item-value {
 	width: 500px;
 }
 
@@ -335,6 +335,7 @@
 	min-width: initial;
 }
 
+.settings-editor > .settings-body > .settings-tree-container .setting-item.setting-item-enum .setting-item-value,
 .settings-editor > .settings-body > .settings-tree-container .setting-item.setting-item-enum .setting-item-value > .setting-item-control > select {
 	width: 320px;
 }

@@ -1069,7 +1069,7 @@ export class SettingsRenderer implements ITreeRenderer {
 				return size.width;
 			}
 
-			const nextBreakMatch = fullDescription.slice(i + 1).match(/[\s.,$]/);
+			const nextBreakMatch = fullDescription.slice(i + 1).match(/([\s.,]|$)/);
 			if (nextBreakMatch) {
 				i = nextBreakMatch.index + i + 1;
 			} else {
