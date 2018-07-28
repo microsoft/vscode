@@ -545,8 +545,8 @@ export class SettingsRenderer implements ITreeRenderer {
 	public readonly onDidClickSettingLink: Event<string> = this._onDidClickSettingLink.event;
 
 	private measureContainer: HTMLElement;
-	private measureDescriptionContainer: HTMLElement;
-	private measureDescriptionTemplates = new Map<string, ISettingItemTemplate>();
+	// private measureDescriptionContainer: HTMLElement;
+	// private measureDescriptionTemplates = new Map<string, ISettingItemTemplate>();
 
 	constructor(
 		_measureContainer: HTMLElement,
@@ -557,7 +557,7 @@ export class SettingsRenderer implements ITreeRenderer {
 		@ICommandService private readonly commandService: ICommandService,
 	) {
 		this.measureContainer = DOM.append(_measureContainer, $('.setting-measure-container.monaco-tree-row'));
-		this.measureDescriptionContainer = DOM.append(_measureContainer, $('.setting-measure-container.setting-description-measure-container.monaco-tree-row'));
+		// this.measureDescriptionContainer = DOM.append(_measureContainer, $('.setting-measure-container.setting-description-measure-container.monaco-tree-row'));
 	}
 
 	getHeight(tree: ITree, element: SettingsTreeElement): number {
@@ -612,39 +612,39 @@ export class SettingsRenderer implements ITreeRenderer {
 		return Math.max(height, this._getUnexpandedSettingHeight(element));
 	}
 
-	private measureSettingDescriptionHeight(tree: ITree, element: SettingsTreeSettingElement): number {
-		const measureHelper = DOM.append(this.measureContainer, $('.setting-measure-helper'));
+	// private measureSettingDescriptionHeight(tree: ITree, element: SettingsTreeSettingElement): number {
+	// 	const measureHelper = DOM.append(this.measureContainer, $('.setting-measure-helper'));
 
-		const templateId = this.getTemplateId(tree, element);
-		const template = this.renderTemplate(tree, templateId, measureHelper);
-		this.renderDescription(element.description, <ISettingItemTemplate>template, true);
+	// 	const templateId = this.getTemplateId(tree, element);
+	// 	const template = this.renderTemplate(tree, templateId, measureHelper);
+	// 	this.renderDescription(element.description, <ISettingItemTemplate>template, true);
 
-		const height = (<ISettingItemTemplate>template).descriptionElement.offsetHeight;
-		this.measureContainer.removeChild(this.measureContainer.firstChild);
-		return height;
-	}
+	// 	const height = (<ISettingItemTemplate>template).descriptionElement.offsetHeight;
+	// 	this.measureContainer.removeChild(this.measureContainer.firstChild);
+	// 	return height;
+	// }
 
-	private measureSettingDescription(tree: ITree, element: SettingsTreeSettingElement, text: string): { height: number, width: number } {
-		const templateId = this.getTemplateId(tree, element);
-		if (!this.measureDescriptionTemplates.has(templateId)) {
-			const measureHelper = $('.setting-measure-helper');
-			this.measureDescriptionTemplates.set(templateId, <ISettingItemTemplate>this.renderTemplate(tree, templateId, measureHelper));
-		}
+	// private measureSettingDescription(tree: ITree, element: SettingsTreeSettingElement, text: string): { height: number, width: number } {
+	// 	const templateId = this.getTemplateId(tree, element);
+	// 	if (!this.measureDescriptionTemplates.has(templateId)) {
+	// 		const measureHelper = $('.setting-measure-helper');
+	// 		this.measureDescriptionTemplates.set(templateId, <ISettingItemTemplate>this.renderTemplate(tree, templateId, measureHelper));
+	// 	}
 
-		const template = this.measureDescriptionTemplates.get(templateId);
-		this.measureDescriptionContainer.appendChild(template.containerElement);
-		this.renderDescription(text, <ISettingItemTemplate>template, true);
+	// 	const template = this.measureDescriptionTemplates.get(templateId);
+	// 	this.measureDescriptionContainer.appendChild(template.containerElement);
+	// 	this.renderDescription(text, <ISettingItemTemplate>template, true);
 
-		const descriptionElement = (<ISettingItemTemplate>template).descriptionElement;
-		const width = descriptionElement.offsetWidth;
-		const height = descriptionElement.offsetHeight;
+	// 	const descriptionElement = (<ISettingItemTemplate>template).descriptionElement;
+	// 	const width = descriptionElement.offsetWidth;
+	// 	const height = descriptionElement.offsetHeight;
 
-		if (this.measureDescriptionContainer.firstChild) {
-			this.measureDescriptionContainer.removeChild(this.measureDescriptionContainer.firstChild);
-		}
+	// 	if (this.measureDescriptionContainer.firstChild) {
+	// 		this.measureDescriptionContainer.removeChild(this.measureDescriptionContainer.firstChild);
+	// 	}
 
-		return { height, width };
-	}
+	// 	return { height, width };
+	// }
 
 	getTemplateId(tree: ITree, element: SettingsTreeElement): string {
 
@@ -1039,53 +1039,53 @@ export class SettingsRenderer implements ITreeRenderer {
 		template.context = element;
 	}
 
-	private isSettingExpandable(tree: ITree, element: SettingsTreeSettingElement): boolean {
-		// Shortcuts before measuring
-		if (element.valueType === 'enum' && element.setting.enumDescriptions && element.setting.enum && element.setting.enum.length < SettingsRenderer.MAX_ENUM_DESCRIPTIONS) {
-			return true;
-		}
+	// private isSettingExpandable(tree: ITree, element: SettingsTreeSettingElement): boolean {
+	// 	// Shortcuts before measuring
+	// 	if (element.valueType === 'enum' && element.setting.enumDescriptions && element.setting.enum && element.setting.enum.length < SettingsRenderer.MAX_ENUM_DESCRIPTIONS) {
+	// 		return true;
+	// 	}
 
-		if (element.setting.description.indexOf('\n') >= 0) {
-			return true;
-		}
+	// 	if (element.setting.description.indexOf('\n') >= 0) {
+	// 		return true;
+	// 	}
 
-		const height = this.measureSettingDescriptionHeight(tree, element);
-		return height > 18;
-	}
+	// 	const height = this.measureSettingDescriptionHeight(tree, element);
+	// 	return height > 18;
+	// }
 
-	private settingDescriptionFirstLineLength(tree: ITree, element: SettingsTreeSettingElement): number {
-		const fullDescription = element.description
-			.replace(/\[(.*)\]\(.*\)/, '$1')
-			.split('\n')[0];
+	// private settingDescriptionFirstLineLength(tree: ITree, element: SettingsTreeSettingElement): number {
+	// 	const fullDescription = element.description
+	// 		.replace(/\[(.*)\]\(.*\)/, '$1')
+	// 		.split('\n')[0];
 
-		// Add characters one at a time, measure the width. Start from some safe number.
-		// const startPos = Math.min(50, fullDescription.length - 1);
-		let size: { height: number, width: number };
-		for (let i = 10; i <= fullDescription.length;) {
-			let description = fullDescription.substr(0, i);
-			size = this.measureSettingDescription(tree, element, description);
-			if (size.height > 20) {
-				// It wrapped
-				return size.width;
-			}
+	// 	// Add characters one at a time, measure the width. Start from some safe number.
+	// 	// const startPos = Math.min(50, fullDescription.length - 1);
+	// 	let size: { height: number, width: number };
+	// 	for (let i = 10; i <= fullDescription.length;) {
+	// 		let description = fullDescription.substr(0, i);
+	// 		size = this.measureSettingDescription(tree, element, description);
+	// 		if (size.height > 20) {
+	// 			// It wrapped
+	// 			return size.width;
+	// 		}
 
-			const nextBreakMatch = fullDescription.slice(i + 1).match(/([\s.,]|$)/);
-			if (nextBreakMatch) {
-				i = nextBreakMatch.index + i + 1;
-			} else {
-				return size.width;
-			}
-		}
+	// 		const nextBreakMatch = fullDescription.slice(i + 1).match(/([\s.,]|$)/);
+	// 		if (nextBreakMatch) {
+	// 			i = nextBreakMatch.index + i + 1;
+	// 		} else {
+	// 			return size.width;
+	// 		}
+	// 	}
 
-		return size ? size.width : 0;
-	}
+	// 	return size ? size.width : 0;
+	// }
 
 	private renderSettingElement(tree: ITree, element: SettingsTreeSettingElement, templateId: string, template: ISettingItemTemplate | ISettingBoolItemTemplate): void {
 		const isSelected = !!this.elementIsSelected(tree, element);
 		const setting = element.setting;
 
-		const isExpandable = this.isSettingExpandable(tree, element);
-		DOM.toggleClass(template.containerElement, 'is-expandable', isExpandable);
+		// const isExpandable = this.isSettingExpandable(tree, element);
+		// DOM.toggleClass(template.containerElement, 'is-expandable', isExpandable);
 		DOM.toggleClass(template.containerElement, 'is-expanded', isSelected);
 		DOM.toggleClass(template.containerElement, 'is-configured', element.isConfigured);
 		template.containerElement.id = element.id.replace(/\./g, '_');
@@ -1097,10 +1097,10 @@ export class SettingsRenderer implements ITreeRenderer {
 		template.labelElement.textContent = element.displayLabel;
 		template.labelElement.title = titleTooltip;
 
-		if (isExpandable) {
-			const widthInFirstLine = this.settingDescriptionFirstLineLength(tree, element);
-			template.expandIndicatorElement.style.left = (widthInFirstLine + 8) + 'px';
-		}
+		// if (isExpandable) {
+		// 	const widthInFirstLine = this.settingDescriptionFirstLineLength(tree, element);
+		// 	template.expandIndicatorElement.style.left = (widthInFirstLine + 8) + 'px';
+		// }
 
 		const descriptionText = element.description + this.getEnumDescriptionText(element);
 		this.renderDescription(descriptionText, template, isSelected);
