@@ -289,8 +289,8 @@ async function readFile(file: string): Promise<string> {
 }
 
 export function extractDebugArgFromScript(scriptValue: string): [string, number] | undefined {
-	// matches --debug, --debug=1234, --debug-brk, debug-brk=1234, --inspect, 
-	// --inspect=1234, --inspect-brk, --inspect-brk=1234, 
+	// matches --debug, --debug=1234, --debug-brk, debug-brk=1234, --inspect,
+	// --inspect=1234, --inspect-brk, --inspect-brk=1234,
 	// --inspect=localhost:1245, --inspect=127.0.0.1:1234, --inspect=[aa:1:0:0:0]:1234, --inspect=:1234
 	let match = scriptValue.match(/--(inspect|debug)(-brk)?(=((\[[0-9a-fA-F:]*\]|[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+|[a-zA-Z0-9\.]*):)?(\d+))?/);
 
@@ -321,7 +321,7 @@ export function startDebugging(scriptName: string, protocol: string, port: numbe
 		name: `Debug ${scriptName}`,
 		runtimeExecutable: packageManager,
 		runtimeArgs: [
-			'run-script',
+			'run',
 			scriptName,
 		],
 		port: port,
