@@ -3940,6 +3940,7 @@ suite('autoClosingPairs', () => {
 					{ open: '{', close: '}' },
 					{ open: '[', close: ']' },
 					{ open: '(', close: ')' },
+					{ open: 'b"', close: '"' },
 					{ open: '\'', close: '\'', notIn: ['string', 'comment'] },
 					{ open: '\"', close: '\"', notIn: ['string'] },
 					{ open: '`', close: '`', notIn: ['string', 'comment'] },
@@ -4066,6 +4067,19 @@ suite('autoClosingPairs', () => {
 					}
 				}
 			}
+		});
+		mode.dispose();
+	});
+
+	test('issue #55314: Do not auto-close when ending with open', () => {
+		let mode = new AutoClosingMode();
+		usingCursor({
+			text: [
+				'little lamb',
+			],
+			languageIdentifier: mode.getLanguageIdentifier()
+		}, (model, cursor) => {
+			assertType(model, cursor, 1, 4, '"', '"', `does not double quote when ending with open`);
 		});
 		mode.dispose();
 	});
