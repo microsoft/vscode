@@ -10,6 +10,7 @@ import { addJSONProviders } from './features/jsonContributions';
 import { NpmScriptsTreeDataProvider } from './npmView';
 import { invalidateTasksCache, NpmTaskProvider } from './tasks';
 import { invalidateHoverScriptsCache, NpmScriptHoverProvider } from './scriptHover';
+import { runSelectedScript } from './commands';
 
 export async function activate(context: vscode.ExtensionContext): Promise<void> {
 	const taskProvider = registerTaskProvider(context);
@@ -37,7 +38,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
 		invalidateHoverScriptsCache(e.document);
 	});
 	context.subscriptions.push(d);
-
+	context.subscriptions.push(vscode.commands.registerCommand('npm.runSelectedScript', runSelectedScript));
 	context.subscriptions.push(addJSONProviders(httpRequest.xhr));
 }
 
