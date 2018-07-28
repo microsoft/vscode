@@ -489,6 +489,8 @@ export class Menubar {
 				// Store the keybinding
 				if (item.keybinding) {
 					this.keybindings[item.id] = item.keybinding;
+				} else if (this.keybindings[item.id]) {
+					this.keybindings[item.id] = undefined;
 				}
 
 				const menuItem = this.createMenuItem(item.label, item.id, item.enabled, item.checked);
