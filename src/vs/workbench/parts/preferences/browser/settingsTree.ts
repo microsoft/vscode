@@ -1053,12 +1053,15 @@ export class SettingsRenderer implements ITreeRenderer {
 		return height > 18;
 	}
 
-	private settingDescriptionFirstLine(tree: ITree, element: SettingsTreeSettingElement): number {
-		const fullDescription = element.description;
+	private settingDescriptionFirstLineLength(tree: ITree, element: SettingsTreeSettingElement): number {
+		const fullDescription = element.description
+			.replace(/\[(.*)\]\(.*\)/, '$1')
+			.split('\n')[0];
 
 		// Add characters one at a time, measure the width. Start from some safe number.
+		// const startPos = Math.min(50, fullDescription.length - 1);
 		let size: { height: number, width: number };
-		for (let i = 0; i < fullDescription.length;) {
+		for (let i = 10; i <= fullDescription.length;) {
 			let description = fullDescription.substr(0, i);
 			size = this.measureSettingDescription(tree, element, description);
 			if (size.height > 20) {
@@ -1068,11 +1071,7 @@ export class SettingsRenderer implements ITreeRenderer {
 
 			const nextBreakMatch = fullDescription.slice(i + 1).match(/[\s.,$]/);
 			if (nextBreakMatch) {
-				if (nextBreakMatch[0] === '\n') {
-					return size.width;
-				} else {
-					i = nextBreakMatch.index + i + 1;
-				}
+				i = nextBreakMatch.index + i + 1;
 			} else {
 				return size.width;
 			}
@@ -1099,7 +1098,7 @@ export class SettingsRenderer implements ITreeRenderer {
 		template.labelElement.title = titleTooltip;
 
 		if (isExpandable) {
-			const widthInFirstLine = this.settingDescriptionFirstLine(tree, element);
+			const widthInFirstLine = this.settingDescriptionFirstLineLength(tree, element);
 			template.expandIndicatorElement.style.left = (widthInFirstLine + 8) + 'px';
 		}
 
@@ -1138,30 +1137,38 @@ export class SettingsRenderer implements ITreeRenderer {
 		return enumDescriptionText;
 	}
 
-	private renderDescription(text: string, template: ISettingItemTemplate | ISettingBoolItemTemplate, isSelected: boolean): void {
+	private renderDescription(text: string, template: ISettingItemTemplate | ISettingBoolItemTemplate, isSelected: boolean, measuring = false): void {
 		// Rewrite `#editor.fontSize#` to link format
 		const descriptionText = text
 			.replace(/`#(.*)#`/g, (match, settingName) => `[\`${settingName}\`](#${settingName})`);
 
 		const renderedDescription = renderMarkdown({ value: descriptionText }, {
-			actionHandler: {
-				callback: (content: string) => {
-					if (startsWith(content, '#')) {
-						this._onDidClickSettingLink.fire(content.substr(1));
-					} else {
-						this.openerService.open(URI.parse(content)).then(void 0, onUnexpectedError);
-					}
-				},
-				disposeables: template.toDispose
-			}
+			actionHandler: measuring ?
+				undefined :
+				{
+					callback: (content: string) => {
+						if (startsWith(content, '#')) {
+							this._onDidClickSettingLink.fire(content.substr(1));
+						} else {
+							this.openerService.open(URI.parse(content)).then(void 0, onUnexpectedError);
+						}
+					},
+					disposeables: template.toDispose
+				}
 		});
-		cleanRenderedMarkdown(renderedDescription);
+		if (!measuring) {
+			cleanRenderedMarkdown(renderedDescription);
+		}
+
 		renderedDescription.classList.add('setting-item-description-markdown');
 		template.descriptionElement.innerHTML = '';
 		template.descriptionElement.appendChild(renderedDescription);
-		(<any>renderedDescription.querySelectorAll('a')).forEach(aElement => {
-			aElement.tabIndex = isSelected ? 0 : -1;
-		});
+
+		if (!measuring) {
+			(<any>renderedDescription.querySelectorAll('a')).forEach(aElement => {
+				aElement.tabIndex = isSelected ? 0 : -1;
+			});
+		}
 	}
 
 	private renderValue(element: SettingsTreeSettingElement, isSelected: boolean, templateId: string, template: ISettingItemTemplate | ISettingBoolItemTemplate): void {
