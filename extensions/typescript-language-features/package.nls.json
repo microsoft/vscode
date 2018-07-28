@@ -61,6 +61,9 @@
 	"typescript.preferences.importModuleSpecifier.auto": "Infer the shortest path type.",
 	"typescript.preferences.importModuleSpecifier.relative": "Relative to the file location.",
 	"typescript.preferences.importModuleSpecifier.nonRelative": "Based on the `baseUrl` configured in your `jsconfig.json` / `tsconfig.json`.",
-	"typescript.updateImportsOnFileMove.enabled": "Enable/disable automatic updating of import paths when you rename or move a file in VS Code. Possible values are: 'prompt' on each rename, 'always' update paths automatically, and 'never' rename paths and don't prompt me. Requires using TypeScript 2.9 or newer in the workspace.",
+	"typescript.updateImportsOnFileMove.enabled": "Enable/disable automatic updating of import paths when you rename or move a file in VS Code. Requires using TypeScript 2.9 or newer in the workspace.",
+	"typescript.updateImportsOnFileMove.enabled.prompt": "Prompt on each rename.",
+	"typescript.updateImportsOnFileMove.enabled.always": "Always update paths automatically.",
+	"typescript.updateImportsOnFileMove.enabled.never": "Never rename paths and don't prompt.",
 	"typescript.autoClosingTags": "Enable/disable automatic closing of JSX tags. Requires using TypeScript 3.0 or newer in the workspace."
 }
