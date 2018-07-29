@@ -1553,4 +1553,45 @@ export class SettingsTree extends NonExpandableTree {
 			this.style(colors);
 		}));
 	}
+
+	public setFocus(element?: any, eventPayload?: any): void {
+		if (element instanceof SettingsTreeGroupElement) {
+			const nav = this.getNavigator(element, false);
+			do {
+				element = nav.next();
+			} while (element instanceof SettingsTreeGroupElement);
+		}
+
+		super.setFocus(element, eventPayload);
+	}
+
+	public focusNext(count?: number, eventPayload?: any): void {
+		const focus = this.getFocus();
+		if (!focus) {
+			return super.focusFirst();
+		}
+
+		const nav = this.getNavigator(focus, false);
+		let current;
+		do {
+			current = nav.next();
+		} while (current instanceof SettingsTreeGroupElement);
+
+		this.setFocus(current, eventPayload);
+	}
+
+	public focusPrevious(count?: number, eventPayload?: any): void {
+		const focus = this.getFocus();
+		if (!focus) {
+			return super.focusFirst();
+		}
+
+		const nav = this.getNavigator(focus, false);
+		let current;
+		do {
+			current = nav.previous();
+		} while (current instanceof SettingsTreeGroupElement);
+
+		this.setFocus(current, eventPayload);
+	}
 }
