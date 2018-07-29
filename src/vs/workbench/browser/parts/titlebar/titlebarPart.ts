@@ -269,14 +269,6 @@ export class TitlebarPart extends Part implements ITitleService {
 		// App Icon (Windows/Linux)
 		if (!isMacintosh) {
 			this.appIcon = $(this.titleContainer).div({ class: 'window-appicon' });
-
-			if (isWindows) {
-				this.appIcon.on(EventType.DBLCLICK, e => {
-					EventHelper.stop(e, true);
-
-					this.windowService.closeWindow().then(null, errors.onUnexpectedError);
-				});
-			}
 		}
 
 		// Menubar: the menubar part which is responsible for populating both the custom and native menubars
