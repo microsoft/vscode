@@ -109,6 +109,17 @@
         {
           "command": "npm.runInstall",
           "when": "false"
+        },
+        {
+          "command": "npm.runSelectedScript",
+          "when": "false"
+        }
+      ],
+      "editor/context": [
+        {
+          "command": "npm.runSelectedScript",
+          "when": "resourceFilename == 'package.json'",
+          "group": "navigation@+1"
         }
       ],
       "view/title": [
