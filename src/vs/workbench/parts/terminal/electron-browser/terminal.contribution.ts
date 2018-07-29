@@ -202,7 +202,7 @@ configurationRegistry.registerConfiguration({
 				nls.localize('terminal.integrated.rendererType.dom', "Use the fallback DOM-based renderer.")
 			],
 			default: 'auto',
-			description: nls.localize('terminal.integrated.rendererType', "Controls how the terminal is rendered. This setting needs VS Code to reload in order to take effect.")
+			description: nls.localize('terminal.integrated.rendererType', "Controls how the terminal is rendered.")
 		},
 		'terminal.integrated.rightClickBehavior': {
 			type: 'string',
