@@ -69,7 +69,6 @@
 .monaco-workbench > .part.titlebar > .window-appicon {
 	width: 35px;
 	height: 100%;
-	-webkit-app-region: no-drag;
 	position: relative;
 	z-index: 99;
 	background-image: url('code-icon.svg');
