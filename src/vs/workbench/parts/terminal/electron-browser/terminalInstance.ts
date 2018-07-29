@@ -481,7 +481,7 @@ export class TerminalInstance implements ITerminalInstance {
 						label: nls.localize('yes', "Yes"),
 						run: () => {
 							this._configurationService.updateValue('terminal.integrated.rendererType', 'dom', ConfigurationTarget.USER).then(() => {
-								this._notificationService.info(nls.localize('terminal.rendererInAllNewTerminals', "All newly created terminals will use the non-GPU renderer."));
+								this._notificationService.info(nls.localize('terminal.rendererInAllNewTerminals', "The termnial is now using the fallback renderer."));
 							});
 						}
 					} as IPromptChoice,
@@ -884,6 +884,7 @@ export class TerminalInstance implements ITerminalInstance {
 		this._safeSetOption('macOptionIsMeta', config.macOptionIsMeta);
 		this._safeSetOption('macOptionClickForcesSelection', config.macOptionClickForcesSelection);
 		this._safeSetOption('rightClickSelectsWord', config.rightClickBehavior === 'selectWord');
+		this._safeSetOption('rendererType', config.rendererType === 'auto' ? 'canvas' : config.rendererType);
 	}
 
 	public updateAccessibilitySupport(): void {
