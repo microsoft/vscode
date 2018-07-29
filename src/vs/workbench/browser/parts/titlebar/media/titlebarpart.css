@@ -99,65 +99,52 @@
 	display: none;
 }
 
-.monaco-workbench > .part.titlebar > .window-controls-container > .window-icon {
+.monaco-workbench > .part.titlebar > .window-controls-container > .window-icon-bg {
 	display: inline-block;
 	-webkit-app-region: no-drag;
-	-webkit-transition: background-color .1s;
-	transition: background-color .1s;
 	height: 100%;
 	width: 33.34%;
-	background-size: 21.74%;
-	background-position: center center;
-	background-repeat: no-repeat;
 }
 
-.monaco-workbench > .part.titlebar > .window-controls-container > .window-icon svg {
+.monaco-workbench > .part.titlebar > .window-controls-container .window-icon svg {
 	shape-rendering: crispEdges;
 	text-align: center;
 }
 
-.monaco-workbench > .part.titlebar.titlebar > .window-controls-container > .window-close {
-	background-image: url('chrome-close-dark.svg');
+.monaco-workbench > .part.titlebar.titlebar > .window-controls-container .window-close {
+	-webkit-mask: url('chrome-close.svg') no-repeat 50% 50%;
 }
 
-.monaco-workbench > .part.titlebar.titlebar.light > .window-controls-container > .window-close {
-	background-image: url('chrome-close.svg');
+.monaco-workbench > .part.titlebar.titlebar > .window-controls-container .window-unmaximize {
+	-webkit-mask: url('chrome-restore.svg') no-repeat 50% 50%;
 }
 
-.monaco-workbench > .part.titlebar.titlebar > .window-controls-container > .window-unmaximize {
-	background-image: url('chrome-restore-dark.svg');
+.monaco-workbench > .part.titlebar > .window-controls-container .window-maximize {
+	-webkit-mask: url('chrome-maximize.svg') no-repeat 50% 50%;
 }
 
-.monaco-workbench > .part.titlebar.titlebar.light > .window-controls-container > .window-unmaximize {
-	background-image: url('chrome-restore.svg');
+.monaco-workbench > .part.titlebar > .window-controls-container .window-minimize {
+	-webkit-mask: url('chrome-minimize.svg') no-repeat 50% 50%;
 }
 
-.monaco-workbench > .part.titlebar > .window-controls-container > .window-maximize {
-	background-image: url('chrome-maximize-dark.svg');
+.monaco-workbench > .part.titlebar > .window-controls-container > .window-icon-bg > .window-icon {
+	height: 100%;
+	width: 100%;
+	-webkit-mask-size: 23.1%;
 }
 
-.monaco-workbench > .part.titlebar.light > .window-controls-container > .window-maximize {
-	background-image: url('chrome-maximize.svg');
-}
-
-.monaco-workbench > .part.titlebar > .window-controls-container > .window-minimize {
-	background-image: url('chrome-minimize-dark.svg');
-}
-
-.monaco-workbench > .part.titlebar.light > .window-controls-container > .window-minimize {
-	background-image: url('chrome-minimize.svg');
-}
-
-.monaco-workbench > .part.titlebar > .window-controls-container > .window-icon:hover {
+.monaco-workbench > .part.titlebar > .window-controls-container > .window-icon-bg:hover {
 	background-color: rgba(255, 255, 255, 0.1);
 }
 
-.monaco-workbench > .part.titlebar.light > .window-controls-container > .window-icon:hover {
+.monaco-workbench > .part.titlebar.light > .window-controls-container > .window-icon-bg:hover {
 	background-color: rgba(0, 0, 0, 0.1);
 }
 
-.monaco-workbench > .part.titlebar > .window-controls-container > .window-close:hover,
-	.monaco-workbench > .part.titlebar.light > .window-controls-container > .window-close:hover {
+.monaco-workbench > .part.titlebar > .window-controls-container > .window-icon-bg.window-close-bg:hover {
 	background-color: rgba(232, 17, 35, 0.9);
-	background-image: url('chrome-close-dark.svg');
+}
+
+.monaco-workbench > .part.titlebar > .window-controls-container .window-icon.window-close:hover {
+	background-color: white;
 }
