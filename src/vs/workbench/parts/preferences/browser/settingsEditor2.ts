@@ -139,8 +139,8 @@ export class SettingsEditor2 extends BaseEditor {
 		this.inSettingsEditorContextKey.set(true);
 		return super.setInput(input, options, token)
 			.then(() => {
-				this.render(token);
-			});
+				return this.render(token);
+			}).then(() => new Promise(process.nextTick)); // Force setInput to be async
 	}
 
 	clearInput(): void {
@@ -573,7 +573,7 @@ export class SettingsEditor2 extends BaseEditor {
 
 					this._register(model.onDidChangeGroups(() => this.onConfigUpdate()));
 					this.defaultSettingsEditorModel = model;
-					this.onConfigUpdate();
+					return this.onConfigUpdate();
 				});
 		}
 		return TPromise.as(null);
