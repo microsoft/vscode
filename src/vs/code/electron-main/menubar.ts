@@ -67,7 +67,7 @@ export class Menubar {
 		});
 
 		// // Listen to some events from window service to update menu
-		// this.historyMainService.onRecentlyOpenedChange(() => this.updateMenu());
+		this.historyMainService.onRecentlyOpenedChange(() => this.scheduleUpdateMenu());
 		this.windowsMainService.onWindowsCountChanged(e => this.onWindowsCountChanged(e));
 		// this.windowsMainService.onActiveWindowChanged(() => this.updateWorkspaceMenuItems());
 		// this.windowsMainService.onWindowReady(() => this.updateWorkspaceMenuItems());
@@ -391,11 +391,16 @@ export class Menubar {
 
 				const openWorkspace = new MenuItem(this.likeAction('workbench.action.openWorkspace', { label: this.mnemonicLabel(nls.localize({ key: 'miOpenWorkspace', comment: ['&& denotes a mnemonic'] }, "Open Wor&&kspace...")), click: (menuItem, win, event) => this.windowsMainService.pickWorkspaceAndOpen({ forceNewWindow: this.isOptionClick(event), telemetryExtraData: { from: telemetryFrom } }) }));
 
+				const openRecentMenu = new Menu();
+				this.setFallbackMenuById(openRecentMenu, 'Recent');
+				const openRecent = new MenuItem({ label: this.mnemonicLabel(nls.localize({ key: 'miOpenRecent', comment: ['&& denotes a mnemonic'] }, "Open &&Recent")), submenu: openRecentMenu });
+
 				menu.append(newFile);
 				menu.append(newWindow);
 				menu.append(__separator__());
 				menu.append(open);
 				menu.append(openWorkspace);
+				menu.append(openRecent);
 
 				break;
 
