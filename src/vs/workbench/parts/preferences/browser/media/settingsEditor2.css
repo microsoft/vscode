@@ -133,11 +133,16 @@
 	display: flex;
 	margin: auto;
 	max-width: 1000px;
-	justify-content: space-between;
 }
 
 .settings-editor.search-mode > .settings-body .settings-tree-container .monaco-tree-wrapper,
 .settings-editor.search-mode > .settings-body > .settings-tree-container .setting-measure-container {
+	width: calc(100% - 11px);
+	margin-left: 0px;
+}
+
+.settings-editor.narrow > .settings-body .settings-tree-container .monaco-tree-wrapper,
+.settings-editor.narrow > .settings-body > .settings-tree-container .setting-measure-container {
 	width: calc(100% - 11px);
 	margin-left: 0px;
 }
@@ -148,7 +153,6 @@
 	width: calc(100% - 219px);
 	margin-left: 208px;
 }
-
 
 .settings-editor > .settings-body .settings-toc-container {
 	position: absolute;
