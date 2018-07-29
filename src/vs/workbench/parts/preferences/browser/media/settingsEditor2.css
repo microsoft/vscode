@@ -136,10 +136,6 @@
 	justify-content: space-between;
 }
 
-.settings-editor > .settings-body .settings-tree-container .monaco-tree::before {
-	outline: none !important;
-}
-
 .settings-editor.search-mode > .settings-body .settings-tree-container .monaco-tree-wrapper,
 .settings-editor.search-mode > .settings-body > .settings-tree-container .setting-measure-container {
 	width: calc(100% - 11px);
