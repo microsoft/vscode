@@ -437,11 +437,9 @@ export class SettingsEditor2 extends BaseEditor {
 		if (element && this.tocTree.getSelection()[0] !== element) {
 			this.tocTree.reveal(element);
 			const elementTop = this.tocTree.getRelativeTop(element);
-			collapseAll(this.tocTree);
-			if (elementTop < 0) {
-				this.tocTree.reveal(element, 0);
-			} else if (elementTop > 1) {
-				this.tocTree.reveal(element, 1);
+			collapseAll(this.tocTree, element);
+			if (elementTop < 0 || elementTop > 1) {
+				this.tocTree.reveal(element);
 			} else {
 				this.tocTree.reveal(element, elementTop);
 			}
