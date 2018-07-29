@@ -17,5 +17,5 @@
 	"command.debug": "Debug",
 	"command.openScript": "Open",
 	"command.runInstall": "Run Install",
-	"command.runSelectedScript": "Npm: Run Selected Script"
+	"command.runSelectedScript": "Run Script"
 }
