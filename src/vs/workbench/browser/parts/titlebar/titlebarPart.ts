@@ -24,7 +24,7 @@ import * as nls from 'vs/nls';
 import { EditorInput, toResource, Verbosity } from 'vs/workbench/common/editor';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { IWorkspaceContextService, WorkbenchState } from 'vs/platform/workspace/common/workspace';
-import { IThemeService } from 'vs/platform/theme/common/themeService';
+import { IThemeService, registerThemingParticipant, ITheme, ICssStyleCollector } from 'vs/platform/theme/common/themeService';
 import { TITLE_BAR_ACTIVE_BACKGROUND, TITLE_BAR_ACTIVE_FOREGROUND, TITLE_BAR_INACTIVE_FOREGROUND, TITLE_BAR_INACTIVE_BACKGROUND, TITLE_BAR_BORDER } from 'vs/workbench/common/theme';
 import { isMacintosh, isWindows, isLinux } from 'vs/base/common/platform';
 import URI from 'vs/base/common/uri';
@@ -322,12 +322,12 @@ export class TitlebarPart extends Part implements ITitleService {
 			this.windowControls = $(this.titleContainer).div({ class: 'window-controls-container' });
 
 			// Minimize
-			$(this.windowControls).div({ class: 'window-icon window-minimize' }).on(EventType.CLICK, () => {
+			$($(this.windowControls).div({ class: 'window-icon-bg' })).div({ class: 'window-icon window-minimize' }).on(EventType.CLICK, () => {
 				this.windowService.minimizeWindow().then(null, errors.onUnexpectedError);
 			});
 
 			// Restore
-			this.maxRestoreControl = $(this.windowControls).div({ class: 'window-icon window-max-restore' }).on(EventType.CLICK, () => {
+			this.maxRestoreControl = $($(this.windowControls).div({ class: 'window-icon-bg' })).div({ class: 'window-icon window-max-restore' }).on(EventType.CLICK, () => {
 				this.windowService.isMaximized().then((maximized) => {
 					if (maximized) {
 						return this.windowService.unmaximizeWindow();
@@ -338,7 +338,7 @@ export class TitlebarPart extends Part implements ITitleService {
 			});
 
 			// Close
-			$(this.windowControls).div({ class: 'window-icon window-close' }).on(EventType.CLICK, () => {
+			$($(this.windowControls).div({ class: 'window-icon-bg window-close-bg' })).div({ class: 'window-icon window-close' }).on(EventType.CLICK, () => {
 				this.windowService.closeWindow().then(null, errors.onUnexpectedError);
 			});
 
@@ -383,6 +383,12 @@ export class TitlebarPart extends Part implements ITitleService {
 
 		// Part container
 		if (this.titleContainer) {
+			if (this.isInactive) {
+				this.titleContainer.addClass('inactive');
+			} else {
+				this.titleContainer.removeClass('inactive');
+			}
+
 			const titleBackground = this.getColor(this.isInactive ? TITLE_BAR_INACTIVE_BACKGROUND : TITLE_BAR_ACTIVE_BACKGROUND);
 			this.titleContainer.style('background-color', titleBackground);
 			if (Color.fromHex(titleBackground).isLighter()) {
@@ -555,3 +561,23 @@ class ShowItemInFolderAction extends Action {
 		return this.windowsService.showItemInFolder(this.path);
 	}
 }
+
+registerThemingParticipant((theme: ITheme, collector: ICssStyleCollector) => {
+	const titlebarActiveFg = theme.getColor(TITLE_BAR_ACTIVE_FOREGROUND);
+	if (titlebarActiveFg) {
+		collector.addRule(`
+		.monaco-workbench > .part.titlebar > .window-controls-container .window-icon {
+			background-color: ${titlebarActiveFg};
+		}
+		`);
+	}
+
+	const titlebarInactiveFg = theme.getColor(TITLE_BAR_INACTIVE_FOREGROUND);
+	if (titlebarInactiveFg) {
+		collector.addRule(`
+		.monaco-workbench > .part.titlebar.inactive > .window-controls-container .window-icon {
+				background-color: ${titlebarInactiveFg};
+			}
+		`);
+	}
+});
