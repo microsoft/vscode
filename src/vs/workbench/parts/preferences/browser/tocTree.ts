@@ -5,10 +5,18 @@
 
 import * as DOM from 'vs/base/browser/dom';
 import { TPromise } from 'vs/base/common/winjs.base';
-import { IDataSource, IRenderer, ITree } from 'vs/base/parts/tree/browser/tree';
-import { SearchResultModel, SettingsTreeElement, SettingsTreeGroupElement, SettingsTreeSettingElement } from 'vs/workbench/parts/preferences/browser/settingsTree';
-import { ISetting } from 'vs/workbench/services/preferences/common/preferences';
+import { IDataSource, IRenderer, ITree, ITreeConfiguration } from 'vs/base/parts/tree/browser/tree';
+import { DefaultTreestyler, OpenMode } from 'vs/base/parts/tree/browser/treeDefaults';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
+import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
+import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
+import { IListService, WorkbenchTree, WorkbenchTreeController } from 'vs/platform/list/browser/listService';
+import { editorBackground, focusBorder, foreground } from 'vs/platform/theme/common/colorRegistry';
+import { attachStyler } from 'vs/platform/theme/common/styler';
+import { ICssStyleCollector, ITheme, IThemeService, registerThemingParticipant } from 'vs/platform/theme/common/themeService';
+import { ISettingsEditorViewState, SearchResultModel, SettingsAccessibilityProvider, SettingsTreeElement, SettingsTreeFilter, SettingsTreeGroupElement, SettingsTreeSettingElement } from 'vs/workbench/parts/preferences/browser/settingsTree';
+import { settingsHeaderForeground } from 'vs/workbench/parts/preferences/browser/settingsWidgets';
+import { ISetting } from 'vs/workbench/services/preferences/common/preferences';
 
 const $ = DOM.$;
 
@@ -135,5 +143,68 @@ export class TOCRenderer implements IRenderer {
 	}
 
 	disposeTemplate(tree: ITree, templateId: string, templateData: any): void {
+	}
+}
+
+export class TOCTree extends WorkbenchTree {
+	constructor(
+		container: HTMLElement,
+		viewState: ISettingsEditorViewState,
+		configuration: Partial<ITreeConfiguration>,
+		@IContextKeyService contextKeyService: IContextKeyService,
+		@IListService listService: IListService,
+		@IThemeService themeService: IThemeService,
+		@IInstantiationService instantiationService: IInstantiationService,
+		@IConfigurationService configurationService: IConfigurationService
+	) {
+		const treeClass = 'settings-toc-tree';
+
+		const fullConfiguration = <ITreeConfiguration>{
+			controller: instantiationService.createInstance(WorkbenchTreeController, { openMode: OpenMode.DOUBLE_CLICK }),
+			filter: instantiationService.createInstance(SettingsTreeFilter, viewState),
+			styler: new DefaultTreestyler(DOM.createStyleSheet(), treeClass),
+			dataSource: instantiationService.createInstance(TOCDataSource),
+			accessibilityProvider: instantiationService.createInstance(SettingsAccessibilityProvider),
+
+			...configuration
+		};
+
+		const options = {
+			showLoading: false,
+			twistiePixels: 15
+		};
+
+		super(container,
+			fullConfiguration,
+			options,
+			contextKeyService,
+			listService,
+			themeService,
+			instantiationService,
+			configurationService);
+
+		this.disposables.push(registerThemingParticipant((theme: ITheme, collector: ICssStyleCollector) => {
+			const activeBorderColor = theme.getColor(focusBorder);
+			if (activeBorderColor) {
+				collector.addRule(`.settings-editor > .settings-body > .settings-toc-container .monaco-tree:focus .monaco-tree-row.focused { outline-color: ${activeBorderColor}; }`);
+			}
+		}));
+
+		this.getHTMLElement().classList.add(treeClass);
+
+		this.disposables.push(attachStyler(themeService, {
+			listActiveSelectionBackground: editorBackground,
+			listActiveSelectionForeground: settingsHeaderForeground,
+			listFocusAndSelectionBackground: editorBackground,
+			listFocusAndSelectionForeground: settingsHeaderForeground,
+			listFocusBackground: editorBackground,
+			listFocusForeground: settingsHeaderForeground,
+			listHoverForeground: foreground,
+			listHoverBackground: editorBackground,
+			listInactiveSelectionBackground: editorBackground,
+			listInactiveSelectionForeground: settingsHeaderForeground,
+		}, colors => {
+			this.style(colors);
+		}));
 	}
 }
