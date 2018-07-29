@@ -102,10 +102,6 @@ export class TOCDataSource implements IDataSource {
 	getParent(tree: ITree, element: TOCTreeElement): TPromise<any, any> {
 		return TPromise.wrap(element instanceof SettingsTreeGroupElement && element.parent);
 	}
-
-	shouldAutoexpand() {
-		return true;
-	}
 }
 
 const TOC_ENTRY_TEMPLATE_ID = 'settings.toc.entry';
