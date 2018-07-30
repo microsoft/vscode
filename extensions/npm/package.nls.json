@@ -1,7 +1,7 @@
 {
 	"description": "Extension to add task support for npm scripts.",
 	"displayName": "Npm support for VS Code",
-	"config.npm.autoDetect": "Controls whether auto detection of npm scripts is on or off. Default is on.",
+	"config.npm.autoDetect": "Controls whether npm scripts should be automatically detected.",
 	"config.npm.runSilent": "Run npm commands with the `--silent` option.",
 	"config.npm.packageManager": "The package manager used to run scripts.",
 	"config.npm.exclude": "Configure glob patterns for folders that should be excluded from automatic script detection.",
