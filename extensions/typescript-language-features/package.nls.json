@@ -32,7 +32,7 @@
 	"goToProjectConfig.title": "Go to Project Configuration",
 	"javascript.referencesCodeLens.enabled": "Enable/disable references CodeLens in JavaScript files.",
 	"typescript.referencesCodeLens.enabled": "Enable/disable references CodeLens in TypeScript files.",
-	"typescript.implementationsCodeLens.enabled": "Enable/disable implementations CodeLens.",
+	"typescript.implementationsCodeLens.enabled": "Enable/disable implementations CodeLens. This CodeLens shows the implementers of an interface.",
 	"typescript.openTsServerLog.title": "Open TS Server log.",
 	"typescript.restartTsServer": "Restart TS server.",
 	"typescript.selectTypeScriptVersion.title": "Select TypeScript Version.",
