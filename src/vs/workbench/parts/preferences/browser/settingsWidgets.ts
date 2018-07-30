@@ -87,12 +87,22 @@ export class ExcludeSettingListModel {
 	private _editKey: string;
 
 	get items(): IExcludeViewItem[] {
-		return this._dataItems.map(item => {
+		const items = this._dataItems.map(item => {
 			return <IExcludeViewItem>{
 				...item,
 				editing: item.pattern === this._editKey
 			};
 		});
+
+		if (this._editKey === '') {
+			items.push({
+				editing: true,
+				pattern: '',
+				sibling: ''
+			});
+		}
+
+		return items;
 	}
 
 	setEditKey(key: string): void {
@@ -113,7 +123,6 @@ interface IExcludeChangeEvent {
 export class ExcludeSettingWidget extends Disposable {
 	private listElement: HTMLElement;
 	private listDisposables: IDisposable[] = [];
-	private patternInput: InputBox;
 
 	private model = new ExcludeSettingListModel();
 
@@ -121,26 +130,28 @@ export class ExcludeSettingWidget extends Disposable {
 	public readonly onDidChangeExclude: Event<IExcludeChangeEvent> = this._onDidChangeExclude.event;
 
 	constructor(
-		container: HTMLElement,
+		private container: HTMLElement,
 		@IThemeService private themeService: IThemeService,
 		@IContextViewService private contextViewService: IContextViewService
 	) {
 		super();
 
 		this.listElement = DOM.append(container, $('.setting-exclude-widget'));
-		DOM.append(container, this.renderAddItem());
-		this.update();
+		DOM.append(container, this.renderAddButton());
+		this.renderList();
 	}
 
 	setValue(excludeData: IExcludeDataItem[]): void {
 		this.model.setValue(excludeData);
-		this.patternInput.value = '';
-		this.update();
+		this.renderList();
 	}
 
-	private update(): void {
+	private renderList(): void {
 		DOM.clearNode(this.listElement);
 		this.listDisposables = dispose(this.listDisposables);
+
+		const newMode = this.model.items.some(item => item.editing && !item.pattern);
+		DOM.toggleClass(this.container, 'setting-exclude-new-mode', newMode);
 
 		this.model.items
 			.map(item => this.renderItem(item))
@@ -168,7 +179,7 @@ export class ExcludeSettingWidget extends Disposable {
 			tooltip: localize('editExcludeItem', "Edit Exclude Item"),
 			run: () => {
 				this.model.setEditKey(key);
-				this.update();
+				this.renderList();
 			}
 		};
 	}
@@ -201,37 +212,18 @@ export class ExcludeSettingWidget extends Disposable {
 		return rowElement;
 	}
 
-	private renderAddItem(): HTMLElement {
+	private renderAddButton(): HTMLElement {
 		const rowElement = $('.setting-exclude-new-row');
-		this.patternInput = new InputBox(rowElement, this.contextViewService, {
-			placeholder: localize('excludePatternInputPlaceholder', "Exclude Pattern...")
-		});
-		this.patternInput.element.classList.add('setting-exclude-newPatternInput');
-		this._register(attachInputBoxStyler(this.patternInput, this.themeService, {
-			inputBackground: settingsTextInputBackground,
-			inputForeground: settingsTextInputForeground,
-			inputBorder: settingsTextInputBorder
+
+		const startAddButton = this._register(new Button(rowElement));
+		startAddButton.label = localize('addPattern', "Add Pattern");
+		startAddButton.element.classList.add('setting-exclude-addButton');
+		this._register(attachButtonStyler(startAddButton, this.themeService));
+
+		this._register(startAddButton.onDidClick(() => {
+			this.model.setEditKey('');
+			this.renderList();
 		}));
-		this._register(this.patternInput);
-
-		const addPatternButton = this._register(new Button(rowElement));
-		addPatternButton.label = localize('addPattern', "Add Pattern");
-		addPatternButton.element.classList.add('setting-exclude-addButton');
-		this._register(attachButtonStyler(addPatternButton, this.themeService));
-
-		const addItem = () => this._onDidChangeExclude.fire({
-			originalPattern: undefined,
-			pattern: this.patternInput.value
-		});
-
-		this._register(addPatternButton.onDidClick(addItem));
-
-		const onKeydown = (e: StandardKeyboardEvent) => {
-			if (e.equals(KeyCode.Enter)) {
-				addItem();
-			}
-		};
-		this._register(DOM.addStandardDisposableListener(this.patternInput.inputElement, DOM.EventType.KEY_DOWN, onKeydown));
 
 		return rowElement;
 	}
@@ -248,7 +240,7 @@ export class ExcludeSettingWidget extends Disposable {
 					sibling: siblingInput && siblingInput.value
 				});
 			} else {
-				this.update();
+				this.renderList();
 			}
 		};
 
