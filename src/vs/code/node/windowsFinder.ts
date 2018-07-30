@@ -9,14 +9,13 @@ import * as platform from 'vs/base/common/platform';
 import * as paths from 'vs/base/common/paths';
 import { OpenContext } from 'vs/platform/windows/common/windows';
 import { IWorkspaceIdentifier, IResolvedWorkspace, ISingleFolderWorkspaceIdentifier, isSingleFolderWorkspaceIdentifier } from 'vs/platform/workspaces/common/workspaces';
-import { Schemas } from 'vs/base/common/network';
 import URI from 'vs/base/common/uri';
-import { hasToIgnoreCase, isEqual } from 'vs/base/common/resources';
+import { hasToIgnoreCase, isEqual, isEqualOrParent } from 'vs/base/common/resources';
 
 export interface ISimpleWindow {
 	openedWorkspace?: IWorkspaceIdentifier;
 	openedFolderUri?: URI;
-	openedFilePath?: string;
+	openedFileUri?: URI;
 	extensionDevelopmentPath?: string;
 	lastFocusTime: number;
 }
@@ -26,15 +25,15 @@ export interface IBestWindowOrFolderOptions<W extends ISimpleWindow> {
 	newWindow: boolean;
 	reuseWindow: boolean;
 	context: OpenContext;
-	filePath?: string;
+	fileUri?: URI;
 	userHome?: string;
 	codeSettingsFolder?: string;
 	workspaceResolver: (workspace: IWorkspaceIdentifier) => IResolvedWorkspace;
 }
 
-export function findBestWindowOrFolderForFile<W extends ISimpleWindow>({ windows, newWindow, reuseWindow, context, filePath, workspaceResolver }: IBestWindowOrFolderOptions<W>): W {
-	if (!newWindow && filePath && (context === OpenContext.DESKTOP || context === OpenContext.CLI || context === OpenContext.DOCK)) {
-		const windowOnFilePath = findWindowOnFilePath(windows, filePath, workspaceResolver);
+export function findBestWindowOrFolderForFile<W extends ISimpleWindow>({ windows, newWindow, reuseWindow, context, fileUri, workspaceResolver }: IBestWindowOrFolderOptions<W>): W {
+	if (!newWindow && fileUri && (context === OpenContext.DESKTOP || context === OpenContext.CLI || context === OpenContext.DOCK)) {
+		const windowOnFilePath = findWindowOnFilePath(windows, fileUri, workspaceResolver);
 		if (windowOnFilePath) {
 			return windowOnFilePath;
 		}
@@ -43,20 +42,20 @@ export function findBestWindowOrFolderForFile<W extends ISimpleWindow>({ windows
 	return !newWindow ? getLastActiveWindow(windows) : null;
 }
 
-function findWindowOnFilePath<W extends ISimpleWindow>(windows: W[], filePath: string, workspaceResolver: (workspace: IWorkspaceIdentifier) => IResolvedWorkspace): W {
+function findWindowOnFilePath<W extends ISimpleWindow>(windows: W[], fileUri: URI, workspaceResolver: (workspace: IWorkspaceIdentifier) => IResolvedWorkspace): W {
 
 	// First check for windows with workspaces that have a parent folder of the provided path opened
 	const workspaceWindows = windows.filter(window => !!window.openedWorkspace);
 	for (let i = 0; i < workspaceWindows.length; i++) {
 		const window = workspaceWindows[i];
 		const resolvedWorkspace = workspaceResolver(window.openedWorkspace);
-		if (resolvedWorkspace && resolvedWorkspace.folders.some(folder => folder.uri.scheme === Schemas.file && paths.isEqualOrParent(filePath, folder.uri.fsPath, !platform.isLinux /* ignorecase */))) {
+		if (resolvedWorkspace && resolvedWorkspace.folders.some(folder => isEqualOrParent(fileUri, folder.uri, hasToIgnoreCase(fileUri)))) {
 			return window;
 		}
 	}
 
 	// Then go with single folder windows that are parent of the provided file path
-	const singleFolderWindowsOnFilePath = windows.filter(window => window.openedFolderUri && window.openedFolderUri.scheme === Schemas.file && paths.isEqualOrParent(filePath, window.openedFolderUri.fsPath, !platform.isLinux /* ignorecase */));
+	const singleFolderWindowsOnFilePath = windows.filter(window => window.openedFolderUri && isEqualOrParent(fileUri, window.openedFolderUri, hasToIgnoreCase(fileUri)));
 	if (singleFolderWindowsOnFilePath.length) {
 		return singleFolderWindowsOnFilePath.sort((a, b) => -(a.openedFolderUri.path.length - b.openedFolderUri.path.length))[0];
 	}

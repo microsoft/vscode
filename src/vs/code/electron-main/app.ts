@@ -64,6 +64,7 @@ import { IMenubarService } from 'vs/platform/menubar/common/menubar';
 import { MenubarService } from 'vs/platform/menubar/electron-main/menubarService';
 import { MenubarChannel } from 'vs/platform/menubar/common/menubarIpc';
 import { IUriDisplayService } from 'vs/platform/uriDisplay/common/uriDisplay';
+import { asArray } from 'vs/code/node/args';
 
 export class CodeApplication {
 
@@ -466,12 +467,16 @@ export class CodeApplication {
 		// Open our first window
 		const macOpenFiles = (<any>global).macOpenFiles as string[];
 		const context = !!process.env['VSCODE_CLI'] ? OpenContext.CLI : OpenContext.DESKTOP;
-		if (args['new-window'] && args._.length === 0 && (args['folder-uri'] || []).length === 0) {
+		const cliArgs = args._ || [];
+		const folderURIs = asArray(args['folder-uri']);
+		const fileURIs = asArray(args['file-uri']);
+
+		if (args['new-window'] && !cliArgs.length && !folderURIs.length && !fileURIs.length) {
 			this.windowsMainService.open({ context, cli: args, forceNewWindow: true, forceEmpty: true, initialStartup: true }); // new window if "-n" was used without paths
-		} else if (macOpenFiles && macOpenFiles.length && (!args._ || !args._.length || !args['folder-uri'] || !args['folder-uri'].length)) {
+		} else if (macOpenFiles && macOpenFiles.length && !cliArgs.length && !folderURIs.length && !fileURIs.length) {
 			this.windowsMainService.open({ context: OpenContext.DOCK, cli: args, urisToOpen: macOpenFiles.map(file => URI.file(file)), initialStartup: true }); // mac: open-file event received on startup
 		} else {
-			this.windowsMainService.open({ context, cli: args, forceNewWindow: args['new-window'] || (!args._.length && args['unity-launch']), diffMode: args.diff, initialStartup: true }); // default: read paths from cli
+			this.windowsMainService.open({ context, cli: args, forceNewWindow: args['new-window'] || (!cliArgs.length && args['unity-launch']), diffMode: args.diff, initialStartup: true }); // default: read paths from cli
 		}
 	}
 

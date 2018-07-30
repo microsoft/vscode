@@ -721,13 +721,13 @@ export abstract class BaseOpenRecentAction extends Action {
 			.then(({ workspaces, files }) => this.openRecent(workspaces, files));
 	}
 
-	private openRecent(recentWorkspaces: (IWorkspaceIdentifier | ISingleFolderWorkspaceIdentifier)[], recentFiles: string[]): void {
+	private openRecent(recentWorkspaces: (IWorkspaceIdentifier | ISingleFolderWorkspaceIdentifier)[], recentFiles: URI[]): void {
 
-		function toPick(workspace: IWorkspaceIdentifier | ISingleFolderWorkspaceIdentifier | string, separator: ISeparator, fileKind: FileKind, environmentService: IEnvironmentService, uriDisplayService: IUriDisplayService, action: IAction): IFilePickOpenEntry {
+		function toPick(workspace: IWorkspaceIdentifier | ISingleFolderWorkspaceIdentifier | URI, separator: ISeparator, fileKind: FileKind, environmentService: IEnvironmentService, uriDisplayService: IUriDisplayService, action: IAction): IFilePickOpenEntry {
 			let resource: URI;
 			let label: string;
 			let description: string;
-			if (isSingleFolderWorkspaceIdentifier(workspace)) {
+			if (isSingleFolderWorkspaceIdentifier(workspace) && fileKind !== FileKind.FILE) {
 				resource = workspace;
 				label = getWorkspaceLabel(workspace, environmentService, uriDisplayService);
 				description = uriDisplayService.getLabel(resource.with({ path: paths.dirname(resource.path) }));
@@ -736,7 +736,7 @@ export abstract class BaseOpenRecentAction extends Action {
 				label = getWorkspaceLabel(workspace, environmentService, uriDisplayService);
 				description = uriDisplayService.getLabel(dirname(resource));
 			} else {
-				resource = URI.file(workspace);
+				resource = workspace;
 				label = getBaseLabel(workspace);
 				description = uriDisplayService.getLabel(dirname(resource));
 			}
@@ -785,7 +785,7 @@ class RemoveFromRecentlyOpened extends Action implements IPickOpenAction {
 	static readonly LABEL = nls.localize('remove', "Remove from Recently Opened");
 
 	constructor(
-		private path: (IWorkspaceIdentifier | ISingleFolderWorkspaceIdentifier | string),
+		private path: (IWorkspaceIdentifier | ISingleFolderWorkspaceIdentifier | URI),
 		@IWindowsService private windowsService: IWindowsService
 	) {
 		super(RemoveFromRecentlyOpened.ID, RemoveFromRecentlyOpened.LABEL);

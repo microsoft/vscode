@@ -126,8 +126,8 @@ export interface IWindowsService {
 	saveAndEnterWorkspace(windowId: number, path: string): TPromise<IEnterWorkspaceResult>;
 	toggleFullScreen(windowId: number): TPromise<void>;
 	setRepresentedFilename(windowId: number, fileName: string): TPromise<void>;
-	addRecentlyOpened(files: string[]): TPromise<void>;
-	removeFromRecentlyOpened(paths: (IWorkspaceIdentifier | ISingleFolderWorkspaceIdentifier | string)[]): TPromise<void>;
+	addRecentlyOpened(files: URI[]): TPromise<void>;
+	removeFromRecentlyOpened(paths: (IWorkspaceIdentifier | ISingleFolderWorkspaceIdentifier | URI | string)[]): TPromise<void>;
 	clearRecentlyOpened(): TPromise<void>;
 	getRecentlyOpened(windowId: number): TPromise<IRecentlyOpened>;
 	focusWindow(windowId: number): TPromise<void>;
@@ -295,7 +295,7 @@ export enum ReadyState {
 export interface IPath {
 
 	// the file path to open within a Code instance
-	filePath?: string;
+	fileUri?: URI;
 
 	// the line number in the file path to open
 	lineNumber?: number;

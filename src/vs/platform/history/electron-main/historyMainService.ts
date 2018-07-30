@@ -7,7 +7,7 @@
 
 import * as nls from 'vs/nls';
 import * as arrays from 'vs/base/common/arrays';
-import { trim } from 'vs/base/common/strings';
+import { trim, startsWith } from 'vs/base/common/strings';
 import { IStateService } from 'vs/platform/state/common/state';
 import { app } from 'electron';
 import { ILogService } from 'vs/platform/log/common/log';
@@ -27,7 +27,7 @@ import { IUriDisplayService } from 'vs/platform/uriDisplay/common/uriDisplay';
 
 interface ISerializedRecentlyOpened {
 	workspaces: (IWorkspaceIdentifier | string | UriComponents)[];
-	files: string[];
+	files: (string | UriComponents)[];
 }
 
 export class HistoryMainService implements IHistoryMainService {
@@ -66,7 +66,7 @@ export class HistoryMainService implements IHistoryMainService {
 		this.addRecentlyOpened([e.workspace], []);
 	}
 
-	addRecentlyOpened(workspaces: (IWorkspaceIdentifier | ISingleFolderWorkspaceIdentifier)[], files: string[]): void {
+	addRecentlyOpened(workspaces: (IWorkspaceIdentifier | ISingleFolderWorkspaceIdentifier)[], files: URI[]): void {
 		if ((workspaces && workspaces.length > 0) || (files && files.length > 0)) {
 			const mru = this.getRecentlyOpened();
 
@@ -88,13 +88,13 @@ export class HistoryMainService implements IHistoryMainService {
 
 			// Files
 			if (Array.isArray(files)) {
-				files.forEach((path) => {
-					mru.files.unshift(path);
+				files.forEach((fileUri) => {
+					mru.files.unshift(fileUri);
 					mru.files = arrays.distinct(mru.files, file => this.distinctFn(file));
 
 					// Add to recent documents (Windows only, macOS later)
-					if (isWindows) {
-						app.addRecentDocument(path);
+					if (isWindows && fileUri.scheme === Schemas.file) {
+						app.addRecentDocument(fileUri.fsPath);
 					}
 				});
 			}
@@ -113,7 +113,7 @@ export class HistoryMainService implements IHistoryMainService {
 		}
 	}
 
-	removeFromRecentlyOpened(pathsToRemove: (IWorkspaceIdentifier | ISingleFolderWorkspaceIdentifier | string)[]): void {
+	removeFromRecentlyOpened(pathsToRemove: (IWorkspaceIdentifier | ISingleFolderWorkspaceIdentifier | URI | string)[]): void {
 		const mru = this.getRecentlyOpened();
 		let update = false;
 
@@ -143,7 +143,10 @@ export class HistoryMainService implements IHistoryMainService {
 			}
 
 			// Remove file
-			index = arrays.firstIndex(mru.files, file => typeof pathToRemove === 'string' && isEqual(file, pathToRemove, !isLinux /* ignorecase */));
+			const pathToRemoveURI = pathToRemove instanceof URI ? pathToRemove : typeof pathToRemove === 'string' ? URI.file(pathToRemove) : null;
+			if (pathToRemoveURI) {
+				index = arrays.firstIndex(mru.files, file => areResourcesEqual(file, pathToRemoveURI, hasToIgnoreCase(pathToRemoveURI)));
+			}
 			if (index >= 0) {
 				mru.files.splice(index, 1);
 				update = true;
@@ -178,17 +181,27 @@ export class HistoryMainService implements IHistoryMainService {
 		let maxEntries = HistoryMainService.MAX_MACOS_DOCK_RECENT_ENTRIES;
 
 		// Take up to maxEntries/2 workspaces
-		const workspaces = mru.workspaces.filter(w => !(isSingleFolderWorkspaceIdentifier(w) && w.scheme !== Schemas.file));
-		for (let i = 0; i < workspaces.length && i < HistoryMainService.MAX_MACOS_DOCK_RECENT_ENTRIES / 2; i++) {
-			const workspace = workspaces[i];
-			app.addRecentDocument(isSingleFolderWorkspaceIdentifier(workspace) ? workspace.scheme === Schemas.file ? workspace.fsPath : workspace.toString() : workspace.configPath);
-			maxEntries--;
+		let nEntries = 0;
+		for (let i = 0; i < mru.workspaces.length && nEntries < HistoryMainService.MAX_MACOS_DOCK_RECENT_ENTRIES / 2; i++) {
+			const workspace = mru.workspaces[i];
+			if (isSingleFolderWorkspaceIdentifier(workspace)) {
+				if (workspace.scheme === Schemas.file) {
+					app.addRecentDocument(workspace.fsPath);
+					nEntries++;
+				}
+			} else {
+				app.addRecentDocument(workspace.configPath);
+				nEntries++;
+			}
 		}
 
 		// Take up to maxEntries files
-		for (let i = 0; i < mru.files.length && i < maxEntries; i++) {
+		for (let i = 0; i < mru.files.length && nEntries < maxEntries; i++) {
 			const file = mru.files[i];
-			app.addRecentDocument(file);
+			if (file.scheme === Schemas.file) {
+				app.addRecentDocument(file.fsPath);
+				nEntries++;
+			}
 		}
 	}
 
@@ -202,7 +215,7 @@ export class HistoryMainService implements IHistoryMainService {
 
 	getRecentlyOpened(currentWorkspace?: IWorkspaceIdentifier | ISingleFolderWorkspaceIdentifier, currentFiles?: IPath[]): IRecentlyOpened {
 		let workspaces: (IWorkspaceIdentifier | ISingleFolderWorkspaceIdentifier)[];
-		let files: string[];
+		let files: URI[];
 
 		// Get from storage
 		const storedRecents = this.getRecentlyOpenedFromStorage();
@@ -221,7 +234,7 @@ export class HistoryMainService implements IHistoryMainService {
 
 		// Add currently files to open to the beginning if any
 		if (currentFiles) {
-			files.unshift(...currentFiles.map(f => f.filePath));
+			files.unshift(...currentFiles.map(f => f.fileUri));
 		}
 
 		// Clear those dupes
@@ -234,22 +247,19 @@ export class HistoryMainService implements IHistoryMainService {
 		return { workspaces, files };
 	}
 
-	private distinctFn(workspaceOrFile: IWorkspaceIdentifier | ISingleFolderWorkspaceIdentifier | string): string {
-		if (isSingleFolderWorkspaceIdentifier(workspaceOrFile)) {
+	private distinctFn(workspaceOrFile: IWorkspaceIdentifier | ISingleFolderWorkspaceIdentifier | URI): string {
+		if (workspaceOrFile instanceof URI) {
 			return getComparisonKey(workspaceOrFile);
 		}
-		if (typeof workspaceOrFile === 'string') {
-			return isLinux ? workspaceOrFile : workspaceOrFile.toLowerCase();
-		}
-
 		return workspaceOrFile.id;
 	}
 
 	private getRecentlyOpenedFromStorage(): IRecentlyOpened {
 		const storedRecents: ISerializedRecentlyOpened = this.stateService.getItem<ISerializedRecentlyOpened>(HistoryMainService.recentlyOpenedStorageKey) || { workspaces: [], files: [] };
-		const result: IRecentlyOpened = { workspaces: [], files: storedRecents.files };
+		const result: IRecentlyOpened = { workspaces: [], files: [] };
 		for (const workspace of storedRecents.workspaces) {
 			if (typeof workspace === 'string') {
+				// folder paths were strings <= 1.25
 				result.workspaces.push(URI.file(workspace));
 			} else if (isWorkspaceIdentifier(workspace)) {
 				result.workspaces.push(workspace);
@@ -257,17 +267,28 @@ export class HistoryMainService implements IHistoryMainService {
 				result.workspaces.push(URI.revive(workspace));
 			}
 		}
+		for (const file of storedRecents.files) {
+			if (typeof file === 'string') {
+				// file paths were strings <= 1.25
+				result.workspaces.push(URI.file(file));
+			} else {
+				result.workspaces.push(URI.revive(file));
+			}
+		}
 		return result;
 	}
 
 	private saveRecentlyOpened(recent: IRecentlyOpened): void {
-		const serialized: ISerializedRecentlyOpened = { workspaces: [], files: recent.files };
+		const serialized: ISerializedRecentlyOpened = { workspaces: [], files: [] };
 		for (const workspace of recent.workspaces) {
 			if (isSingleFolderWorkspaceIdentifier(workspace)) {
 				serialized.workspaces.push(<UriComponents>workspace.toJSON());
 			} else {
 				serialized.workspaces.push(workspace);
 			}
+		}
+		for (const file of recent.files) {
+			serialized.workspaces.push(<UriComponents>file.toJSON());
 		}
 		this.stateService.setItem(HistoryMainService.recentlyOpenedStorageKey, recent);
 	}
@@ -302,7 +323,19 @@ export class HistoryMainService implements IHistoryMainService {
 			// so we need to update our list of recent paths with the choice of the user to not add them again
 			// Also: Windows will not show our custom category at all if there is any entry which was removed
 			// by the user! See https://github.com/Microsoft/vscode/issues/15052
-			this.removeFromRecentlyOpened(app.getJumpListSettings().removedItems.filter(r => !!r.args).map(r => trim(r.args, '"')));
+			let toRemove: (ISingleFolderWorkspaceIdentifier | IWorkspaceIdentifier)[] = [];
+			for (let item of app.getJumpListSettings().removedItems) {
+				const args = item.args;
+				if (args) {
+					if (startsWith(args, '--folderUri')) {
+						toRemove.push(URI.parse(args.substring(13, args.length - 1)));
+					} else {
+						let configPath = trim(args, '"');
+						toRemove.push({ id: this.workspacesMainService.getWorkspaceId(configPath), configPath });
+					}
+				}
+			}
+			this.removeFromRecentlyOpened(toRemove);
 
 			// Add entries
 			jumpList.push({
@@ -310,19 +343,15 @@ export class HistoryMainService implements IHistoryMainService {
 				name: nls.localize('recentFolders', "Recent Workspaces"),
 				items: this.getRecentlyOpened().workspaces.slice(0, 7 /* limit number of entries here */).map(workspace => {
 					const title = getWorkspaceLabel(workspace, this.environmentService, this.uriDisplayService);
-					const description = isSingleFolderWorkspaceIdentifier(workspace) ? nls.localize('folderDesc', "{0} {1}", getBaseLabel(workspace), this.uriDisplayService.getLabel(dirname(workspace))) : nls.localize('codeWorkspace', "Code Workspace");
+					let description;
 					let args;
-					// use quotes to support paths with whitespaces
 					if (isSingleFolderWorkspaceIdentifier(workspace)) {
-						if (workspace.scheme === Schemas.file) {
-							args = `"${workspace.fsPath}"`;
-						} else {
-							args = `--folderUri "${workspace.path}"`;
-						}
+						description = nls.localize('folderDesc', "{0} {1}", getBaseLabel(workspace), this.uriDisplayService.getLabel(dirname(workspace)));
+						args = `--folderUri "${workspace.toString()}"`;
 					} else {
+						description = nls.localize('codeWorkspace', "Code Workspace");
 						args = `"${workspace.configPath}"`;
 					}
-
 					return <Electron.JumpListItem>{
 						type: 'task',
 						title,

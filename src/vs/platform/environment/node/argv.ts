@@ -19,6 +19,7 @@ const options: minimist.Opts = {
 		'user-data-dir',
 		'extensions-dir',
 		'folder-uri',
+		'file-uri',
 		'extensionDevelopmentPath',
 		'extensionTestsPath',
 		'install-extension',
@@ -145,7 +146,6 @@ export function parseArgs(args: string[]): ParsedArgs {
 
 const optionsHelp: { [name: string]: string; } = {
 	'-d, --diff <file> <file>': localize('diff', "Compare two files with each other."),
-	'--folder-uri <uri>': localize('folder uri', "Opens a window with given folder uri(s)"),
 	'-a, --add <dir>': localize('add', "Add folder(s) to the last active window."),
 	'-g, --goto <file:line[:character]>': localize('goto', "Open a file at the path on the specified line and character position."),
 	'-n, --new-window': localize('newWindow', "Force to open a new window."),
@@ -154,7 +154,9 @@ const optionsHelp: { [name: string]: string; } = {
 	'--locale <locale>': localize('locale', "The locale to use (e.g. en-US or zh-TW)."),
 	'--user-data-dir <dir>': localize('userDataDir', "Specifies the directory that user data is kept in. Can be used to open multiple distinct instances of Code."),
 	'-v, --version': localize('version', "Print version."),
-	'-h, --help': localize('help', "Print usage.")
+	'-h, --help': localize('help', "Print usage."),
+	'--folder-uri <uri>': localize('folder uri', "Opens a window with given folder uri(s)"),
+	'--file-uri <uri>': localize('file uri', "Opens a window with given file uri(s)")
 };
 
 const extensionsHelp: { [name: string]: string; } = {

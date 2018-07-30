@@ -401,7 +401,7 @@ export class ElectronWindow extends Themable {
 			// In wait mode, listen to changes to the editors and wait until the files
 			// are closed that the user wants to wait for. When this happens we delete
 			// the wait marker file to signal to the outside that editing is done.
-			const resourcesToWaitFor = request.filesToWait.paths.map(p => URI.file(p.filePath));
+			const resourcesToWaitFor = request.filesToWait.paths.map(p => p.fileUri);
 			const waitMarkerFile = URI.file(request.filesToWait.waitMarkerFilePath);
 			const unbind = this.editorService.onDidCloseEditor(() => {
 				if (resourcesToWaitFor.every(resource => !this.editorService.isOpen({ resource }))) {
@@ -432,7 +432,7 @@ export class ElectronWindow extends Themable {
 
 	private toInputs(paths: IPath[], isNew: boolean): IResourceEditor[] {
 		return paths.map(p => {
-			const resource = URI.file(p.filePath);
+			const resource = p.fileUri;
 			let input: IResourceInput | IUntitledResourceInput;
 			if (isNew) {
 				input = { filePath: resource.fsPath, options: { pinned: true } } as IUntitledResourceInput;
