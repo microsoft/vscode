@@ -65,7 +65,11 @@ import { Range } from 'vs/editor/common/core/range';
 import { Position } from 'vs/editor/common/core/position';
 import { ITextModel } from 'vs/editor/common/model';
 import { IEditorOptions } from 'vs/editor/common/config/editorOptions';
-import { getSimpleEditorOptions, getSimpleCodeEditorWidgetOptions } from 'vs/workbench/parts/codeEditor/electron-browser/simpleEditorOptions';
+import { getSimpleEditorOptions } from 'vs/workbench/parts/codeEditor/electron-browser/simpleEditorOptions';
+import { SuggestController } from 'vs/editor/contrib/suggest/suggestController';
+import { ContextMenuController } from 'vs/editor/contrib/contextmenu/contextmenu';
+import { MenuPreventer } from 'vs/workbench/parts/codeEditor/electron-browser/menuPreventer';
+import { SnippetController2 } from 'vs/editor/contrib/snippet/snippetController2';
 
 interface SearchInputEvent extends Event {
 	target: HTMLInputElement;
@@ -342,7 +346,14 @@ export class ExtensionsViewlet extends ViewContainerViewlet implements IExtensio
 		this.monacoStyleContainer = append(header, $('.monaco-container'));
 		this.searchBox = this.instantiationService.createInstance(CodeEditorWidget, this.monacoStyleContainer,
 			mixinHTMLInputStyleOptions(getSimpleEditorOptions(), localize('searchExtensions', "Search Extensions in Marketplace")),
-			getSimpleCodeEditorWidgetOptions());
+			{
+				isSimpleWidget: true, contributions: [
+					SuggestController,
+					SnippetController2,
+					ContextMenuController,
+					MenuPreventer
+				]
+			});
 
 		this.placeholderText = append(this.monacoStyleContainer, $('.search-placeholder', null, localize('searchExtensions', "Search Extensions in Marketplace")));
 
@@ -680,6 +691,7 @@ function mixinHTMLInputStyleOptions(config: IEditorOptions, ariaLabel?: string):
 	config.scrollbar.vertical = 'hidden';
 	config.ariaLabel = ariaLabel || '';
 	config.cursorWidth = 1;
+	config.snippetSuggestions = 'none';
 	config.fontFamily = ' -apple-system, BlinkMacSystemFont, "Segoe WPC", "Segoe UI", "HelveticaNeue-Light", "Ubuntu", "Droid Sans", sans-serif';
 	return config;
 }
