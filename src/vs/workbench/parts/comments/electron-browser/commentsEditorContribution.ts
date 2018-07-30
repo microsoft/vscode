@@ -15,13 +15,12 @@ import { registerEditorContribution, EditorAction, registerEditorAction } from '
 import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
 import { EmbeddedCodeEditorWidget } from 'vs/editor/browser/widget/embeddedCodeEditorWidget';
 import { IEditorContribution } from 'vs/editor/common/editorCommon';
-import { Range } from 'vs/editor/common/core/range';
+import { IRange } from 'vs/editor/common/core/range';
 import * as modes from 'vs/editor/common/modes';
 import { peekViewEditorBackground, peekViewResultsBackground, peekViewResultsSelectionBackground } from 'vs/editor/contrib/referenceSearch/referencesWidget';
 import { IContextKey, IContextKeyService, RawContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { ServicesAccessor, IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { KeybindingsRegistry, KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
-import { INotificationService } from 'vs/platform/notification/common/notification';
 import { editorForeground, registerColor } from 'vs/platform/theme/common/colorRegistry';
 import { IThemeService, registerThemingParticipant } from 'vs/platform/theme/common/themeService';
 import { CommentThreadCollapsibleState } from 'vs/workbench/api/node/extHostTypes';
@@ -61,6 +60,41 @@ const overviewRulerDefault = new Color(new RGBA(197, 197, 197, 1));
 
 export const overviewRulerCommentingRangeForeground = registerColor('editorOverviewRuler.addedForeground', { dark: overviewRulerDefault, light: overviewRulerDefault, hc: overviewRulerDefault }, nls.localize('overviewRulerAddedForeground', 'Overview ruler marker color for added content.'));
 
+class CommentingRangeDecoration {
+	private _decorationId: string;
+
+	constructor(private _editor: ICodeEditor, private _ownerId: number, private _range: IRange, private _reply: modes.Command, commentingOptions: ModelDecorationOptions) {
+		const startLineNumber = _range.startLineNumber;
+		const endLineNumber = _range.endLineNumber;
+		let commentingRangeDecorations = [{
+			range: {
+				startLineNumber: startLineNumber, startColumn: 1,
+				endLineNumber: endLineNumber, endColumn: 1
+			},
+			options: commentingOptions
+		}];
+
+		let model = this._editor.getModel();
+		if (model) {
+			this._decorationId = model.deltaDecorations([this._decorationId], commentingRangeDecorations)[0];
+		}
+	}
+
+	getCommentAction(): { replyCommand: modes.Command, ownerId: number } {
+		return {
+			replyCommand: this._reply,
+			ownerId: this._ownerId
+		};
+	}
+
+	getOriginalRange() {
+		return this._range;
+	}
+
+	getActiveRange() {
+		return this._editor.getModel().getDecorationRange(this._decorationId);
+	}
+}
 class CommentingRangeDecorator {
 
 	static createDecoration(className: string, foregroundColor: string, options: { gutter: boolean, overview: boolean }): ModelDecorationOptions {
@@ -74,7 +108,7 @@ class CommentingRangeDecorator {
 
 	private commentingOptions: ModelDecorationOptions;
 	public commentsOptions: ModelDecorationOptions;
-	private commentingRangeDecorations: string[] = [];
+	private commentingRangeDecorations: CommentingRangeDecoration[] = [];
 	private disposables: IDisposable[] = [];
 
 	constructor(
@@ -84,41 +118,33 @@ class CommentingRangeDecorator {
 		this.commentsOptions = CommentingRangeDecorator.createDecoration('comment-thread', overviewRulerCommentingRangeForeground, options);
 	}
 
-	update(editor: ICodeEditor, commentsRanges: Range[], commentingRanges: Range[]) {
+	update(editor: ICodeEditor, commentInfos: modes.CommentInfo[]) {
 		let model = editor.getModel();
 		if (!model) {
 			return;
 		}
 
-		let commentingRangesDecorations = commentingRanges.map((change) => {
-			const startLineNumber = change.startLineNumber;
-			const endLineNumber = change.endLineNumber;
+		let commentingRangeDecorations = [];
+		for (let i = 0; i < commentInfos.length; i++) {
+			let info = commentInfos[i];
+			info.commentingRanges.forEach(range => {
+				commentingRangeDecorations.push(new CommentingRangeDecoration(editor, info.owner, range, info.reply, this.commentingOptions));
+			});
+		}
 
-			return {
-				range: {
-					startLineNumber: startLineNumber, startColumn: 1,
-					endLineNumber: endLineNumber, endColumn: 1
-				},
-				options: this.commentingOptions
-			};
-		});
-
-		this.commentingRangeDecorations = model.deltaDecorations(this.commentingRangeDecorations, commentingRangesDecorations);
+		this.commentingRangeDecorations = commentingRangeDecorations;
 	}
 
-
-	getActiveRanges(editor: ICodeEditor): Range[] {
-		let model = editor.getModel();
-		if (!model) {
-			return [];
-		}
-
-		let ranges = [];
+	getMatchedCommentAction(line: number) {
 		for (let i = 0; i < this.commentingRangeDecorations.length; i++) {
-			ranges.push(model.getDecorationRange(this.commentingRangeDecorations[i]));
+			let range = this.commentingRangeDecorations[i].getActiveRange();
+
+			if (range.startLineNumber <= line && line <= range.endLineNumber) {
+				return this.commentingRangeDecorations[i].getCommentAction();
+			}
 		}
 
-		return ranges;
+		return null;
 	}
 
 	dispose(): void {
@@ -147,7 +173,6 @@ export class ReviewController implements IEditorContribution {
 		@IContextKeyService contextKeyService: IContextKeyService,
 		@IThemeService private themeService: IThemeService,
 		@ICommentService private commentService: ICommentService,
-		@INotificationService private notificationService: INotificationService,
 		@IInstantiationService private instantiationService: IInstantiationService,
 		@IModeService private modeService: IModeService,
 		@IModelService private modelService: IModelService,
@@ -348,7 +373,7 @@ export class ReviewController implements IEditorContribution {
 	}
 
 	private addComment(lineNumber: number) {
-		let newCommentInfo = this.getNewCommentAction(lineNumber);
+		let newCommentInfo = this._commentingRangeDecorator.getMatchedCommentAction(lineNumber);
 		if (!newCommentInfo) {
 			return;
 		}
@@ -429,51 +454,8 @@ export class ReviewController implements IEditorContribution {
 
 		if (e.target.element.className.indexOf('comment-diff-added') >= 0) {
 			const lineNumber = e.target.position.lineNumber;
-			if (!this.isExistingCommentThreadAtLine(lineNumber)) {
-				if (this.isLineInCommentingRange(lineNumber)) {
-					this.addComment(lineNumber);
-				} else {
-					this.notificationService.warn('Commenting is not supported outside of diff hunk areas.');
-				}
-			}
+			this.addComment(lineNumber);
 		}
-	}
-
-	private getNewCommentAction(line: number): { replyCommand: modes.Command, ownerId: number } {
-		for (let i = 0; i < this._commentInfos.length; i++) {
-			const commentInfo = this._commentInfos[i];
-			const lineWithinRange = commentInfo.commentingRanges.some(range =>
-				range.startLineNumber <= line && line <= range.endLineNumber
-			);
-
-			if (lineWithinRange) {
-				return {
-					replyCommand: commentInfo.reply,
-					ownerId: commentInfo.owner
-				};
-			}
-		}
-
-		return null;
-	}
-
-	private isLineInCommentingRange(line: number): boolean {
-		let ranges = this._commentingRangeDecorator.getActiveRanges(this.editor);
-		return ranges.some(range =>
-			range.startLineNumber <= line && line <= range.endLineNumber
-		);
-	}
-
-	private isExistingCommentThreadAtLine(line: number): boolean {
-		const existingThread = this._commentInfos.some(commentInfo => {
-			return commentInfo.threads.some(thread =>
-				thread.range.startLineNumber === line
-			);
-		});
-
-		const existingNewComment = this._newCommentWidget && this._newCommentWidget.position && this._newCommentWidget.position.lineNumber === line;
-
-		return existingThread || existingNewComment;
 	}
 
 	setComments(commentInfos: modes.CommentInfo[]): void {
@@ -517,14 +499,10 @@ export class ReviewController implements IEditorContribution {
 		});
 
 		const commentingRanges = [];
-		const commentsRanges = [];
 		this._commentInfos.forEach(info => {
 			commentingRanges.push(...info.commentingRanges);
-			info.threads.forEach(thread => {
-				commentsRanges.push(thread.range);
-			});
 		});
-		this._commentingRangeDecorator.update(this.editor, commentsRanges, commentingRanges);
+		this._commentingRangeDecorator.update(this.editor, this._commentInfos);
 	}
 
 	public closeWidget(): void {

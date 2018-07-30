@@ -556,10 +556,6 @@ export class ReviewZoneWidget extends ZoneWidget {
 			return;
 		}
 
-		if (!this.position && lineNumber !== this._commentThread.range.startLineNumber) {
-			return;
-		}
-
 		if (e.target.element.className.indexOf('comment-thread') >= 0) {
 			if (this._isCollapsed) {
 				this.show({ lineNumber: lineNumber, column: 1 }, 2);
