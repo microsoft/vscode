@@ -298,17 +298,22 @@ export class SettingsEditor2 extends BaseEditor {
 			});
 
 		this._register(this.tocTree.onDidChangeFocus(e => {
-			const element = e.focus;
-			if (this.searchResultModel) {
-				this.viewState.filterToCategory = element;
-				this.refreshTreeAndMaintainFocus();
-			} else if (this.settingsTreeModel) {
-				if (element && !e.payload.fromScroll) {
-					this.settingsTree.reveal(element, 0);
-					this.settingsTree.setSelection([element]);
-					this.settingsTree.setFocus(element);
+			// Let the caller finish before trying to sync with settings tree.
+			// e.g. clicking this twistie, which will toggle the row's expansion state _after_ this event is fired.
+			process.nextTick(() => {
+				const element = e.focus;
+				if (this.searchResultModel) {
+					this.viewState.filterToCategory = element;
+					this.refreshTreeAndMaintainFocus();
+				} else if (this.settingsTreeModel) {
+					if (element && !e.payload.fromScroll) {
+						const payload = { fromTOC: true };
+						this.settingsTree.reveal(element, 0);
+						this.settingsTree.setSelection([element], payload);
+						this.settingsTree.setFocus(element, payload);
+					}
 				}
-			}
+			});
 		}));
 
 		this._register(this.tocTree.onDidFocus(() => {
@@ -349,7 +354,7 @@ export class SettingsEditor2 extends BaseEditor {
 			});
 
 		this._register(this.settingsTree.onDidChangeFocus(e => {
-			this.settingsTree.setSelection([e.focus]);
+			this.settingsTree.setSelection([e.focus], e.payload);
 			if (this.selectedElement) {
 				this.settingsTree.refresh(this.selectedElement);
 			}
@@ -367,7 +372,9 @@ export class SettingsEditor2 extends BaseEditor {
 		}));
 
 		this._register(this.settingsTree.onDidChangeSelection(e => {
-			this.updateTreeScrollSync();
+			if (!e.payload || !e.payload.fromTOC) {
+				this.updateTreeScrollSync();
+			}
 
 			let firstRowFocused = false;
 			let rowFocused = false;
