@@ -211,8 +211,8 @@
 }
 
 .settings-editor > .settings-body > .settings-tree-container .setting-item {
-	padding-top: 8px;
-	padding-bottom: 14px;
+	padding-top: 12px;
+	padding-bottom: 18px;
 	box-sizing: border-box;
 	cursor: default;
 	white-space: normal;
@@ -254,7 +254,7 @@
 
 .settings-editor > .settings-body > .settings-tree-container .setting-item .setting-item-label,
 .settings-editor > .settings-body > .settings-tree-container .setting-item .setting-item-category {
-	font-weight: bold;
+	font-weight: 600;
 }
 
 .settings-editor > .settings-body > .settings-tree-container .setting-item .setting-item-category {
@@ -379,7 +379,7 @@
 
 .settings-editor > .settings-body > .settings-tree-container .settings-group-title-label {
 	margin: 0px;
-	font-weight: 500;
+	font-weight: 600;
 }
 
 .settings-editor > .settings-body > .settings-tree-container .settings-group-level-1 {
