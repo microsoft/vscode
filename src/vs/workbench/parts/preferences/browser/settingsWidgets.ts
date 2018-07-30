@@ -15,7 +15,7 @@ import { Disposable, dispose, IDisposable } from 'vs/base/common/lifecycle';
 import 'vs/css!./media/settingsWidgets';
 import { localize } from 'vs/nls';
 import { IContextViewService } from 'vs/platform/contextview/browser/contextView';
-import { foreground, inputBackground, inputBorder, inputForeground, listHoverBackground, registerColor, selectBackground, selectBorder, selectForeground, textLinkForeground, listHoverForeground, listActiveSelectionBackground, listActiveSelectionForeground } from 'vs/platform/theme/common/colorRegistry';
+import { foreground, inputBackground, inputBorder, inputForeground, listHoverBackground, registerColor, selectBackground, selectBorder, selectForeground, textLinkForeground, listHoverForeground, listActiveSelectionBackground, listActiveSelectionForeground, listInactiveSelectionBackground, listInactiveSelectionForeground } from 'vs/platform/theme/common/colorRegistry';
 import { attachButtonStyler, attachInputBoxStyler } from 'vs/platform/theme/common/styler';
 import { ICssStyleCollector, ITheme, IThemeService, registerThemingParticipant } from 'vs/platform/theme/common/themeService';
 
@@ -89,7 +89,17 @@ registerThemingParticipant((theme: ITheme, collector: ICssStyleCollector) => {
 
 	const listSelectBackgroundColor = theme.getColor(listActiveSelectionBackground);
 	if (listSelectBackgroundColor) {
-		collector.addRule(`.settings-editor > .settings-body > .settings-tree-container .setting-item.setting-item-exclude .setting-exclude-row.selected { background-color: ${listSelectBackgroundColor}; }`);
+		collector.addRule(`.settings-editor > .settings-body > .settings-tree-container .setting-item.setting-item-exclude .setting-exclude-row:focus { background-color: ${listSelectBackgroundColor}; }`);
+	}
+
+	const listInactiveSelectionBackgroundColor = theme.getColor(listInactiveSelectionBackground);
+	if (listInactiveSelectionBackgroundColor) {
+		collector.addRule(`.settings-editor > .settings-body > .settings-tree-container .setting-item.setting-item-exclude .setting-exclude-row.selected:not(:focus) { background-color: ${listInactiveSelectionBackgroundColor}; }`);
+	}
+
+	const listInactiveSelectionForegroundColor = theme.getColor(listInactiveSelectionForeground);
+	if (listInactiveSelectionForegroundColor) {
+		collector.addRule(`.settings-editor > .settings-body > .settings-tree-container .setting-item.setting-item-exclude .setting-exclude-row.selected:not(:focus) { color: ${listInactiveSelectionForegroundColor}; }`);
 	}
 
 	const listSelectForegroundColor = theme.getColor(listActiveSelectionForeground);
@@ -207,9 +217,13 @@ export class ExcludeSettingWidget extends Disposable {
 			if (e.keyCode === KeyCode.UpArrow) {
 				this.model.selectPrevious();
 				this.renderList();
+				e.preventDefault();
+				e.stopPropagation();
 			} else if (e.keyCode === KeyCode.DownArrow) {
 				this.model.selectNext();
 				this.renderList();
+				e.preventDefault();
+				e.stopPropagation();
 			}
 		}));
 	}
@@ -220,6 +234,8 @@ export class ExcludeSettingWidget extends Disposable {
 	}
 
 	private renderList(): void {
+		const focused = DOM.isAncestor(document.activeElement, this.listElement);
+
 		DOM.clearNode(this.listElement);
 		this.listDisposables = dispose(this.listDisposables);
 
@@ -227,7 +243,7 @@ export class ExcludeSettingWidget extends Disposable {
 		DOM.toggleClass(this.container, 'setting-exclude-new-mode', newMode);
 
 		this.model.items
-			.map((item, i) => this.renderItem(item, i))
+			.map((item, i) => this.renderItem(item, i, focused))
 			.forEach(itemElement => this.listElement.appendChild(itemElement));
 
 		const listHeight = 22 * this.model.items.length;
@@ -257,13 +273,13 @@ export class ExcludeSettingWidget extends Disposable {
 		};
 	}
 
-	private renderItem(item: IExcludeViewItem, idx: number): HTMLElement {
+	private renderItem(item: IExcludeViewItem, idx: number, listFocused: boolean): HTMLElement {
 		return item.editing ?
 			this.renderEditItem(item) :
-			this.renderDataItem(item, idx);
+			this.renderDataItem(item, idx, listFocused);
 	}
 
-	private renderDataItem(item: IExcludeViewItem, idx: number): HTMLElement {
+	private renderDataItem(item: IExcludeViewItem, idx: number, listFocused: boolean): HTMLElement {
 		const rowElement = $('.setting-exclude-row');
 		rowElement.setAttribute('data-index', idx + '');
 		rowElement.setAttribute('tabindex', item.selected ? '0' : '-1');
@@ -287,9 +303,11 @@ export class ExcludeSettingWidget extends Disposable {
 			localize('excludePatternHintLabel', "Exclude files matching `{0}`", item.pattern);
 
 		if (item.selected) {
-			setTimeout(() => {
-				rowElement.focus();
-			}, 10);
+			if (listFocused) {
+				setTimeout(() => {
+					rowElement.focus();
+				}, 10);
+			}
 		}
 
 		return rowElement;
