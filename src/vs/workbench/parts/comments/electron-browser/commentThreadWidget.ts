@@ -34,6 +34,8 @@ import { Range, IRange } from 'vs/editor/common/core/range';
 import { IPosition } from 'vs/editor/common/core/position';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
 import { MarkdownRenderer } from 'vs/editor/contrib/markdown/markdownRenderer';
+import { IMarginData } from 'vs/editor/browser/controller/mouseTarget';
+import { ModelDecorationOptions } from 'vs/editor/common/model/textModel';
 
 export const COMMENTEDITOR_DECORATION_KEY = 'commenteditordecoration';
 const EXPAND_ACTION_CLASS = 'expand-review-action octicon octicon-chevron-down';
@@ -287,11 +289,10 @@ export class ReviewZoneWidget extends ZoneWidget {
 		this._commentEditor.layout({ height: (this._commentEditor.hasWidgetFocus() ? 5 : 1) * 18, width: widthInPixel - 40 /* margin */ });
 	}
 
-	display(lineNumber: number) {
-		this._commentGlyph = new CommentGlyphWidget(`review_${lineNumber}`, this.editor, lineNumber, false, () => {
+	display(lineNumber: number, commentsOptions: ModelDecorationOptions) {
+		this._commentGlyph = new CommentGlyphWidget(this.editor, lineNumber, commentsOptions, () => {
 			this.toggleExpand();
 		});
-		this.editor.layoutContentWidget(this._commentGlyph);
 
 		this._localToDispose.push(this.editor.onMouseDown(e => this.onEditorMouseDown(e)));
 		this._localToDispose.push(this.editor.onMouseUp(e => this.onEditorMouseUp(e)));
@@ -300,7 +301,6 @@ export class ReviewZoneWidget extends ZoneWidget {
 			if (this.position) {
 				if (this.position.lineNumber !== this._commentGlyph.getPosition().position.lineNumber) {
 					this._commentGlyph.setLineNumber(this.position.lineNumber);
-					this.editor.layoutContentWidget(this._commentGlyph);
 				}
 			} else {
 				// Otherwise manually calculate position change :(
@@ -312,7 +312,6 @@ export class ReviewZoneWidget extends ZoneWidget {
 					}
 				}).reduce((prev, curr) => prev + curr, 0);
 				this._commentGlyph.setLineNumber(this._commentGlyph.getPosition().position.lineNumber + positionChange);
-				this.editor.layoutContentWidget(this._commentGlyph);
 			}
 		}));
 		var headHeight = Math.ceil(this.editor.getConfiguration().lineHeight * 1.2);
@@ -501,39 +500,55 @@ export class ReviewZoneWidget extends ZoneWidget {
 		}
 	}
 
-	private mouseDownInfo: { lineNumber: number, iconClicked: boolean };
+	private mouseDownInfo: { lineNumber: number };
 
 	private onEditorMouseDown(e: IEditorMouseEvent): void {
-		if (!e.event.leftButton) {
-			return;
-		}
+		this.mouseDownInfo = null;
 
-		let range = e.target.range;
+		const range = e.target.range;
+
 		if (!range) {
 			return;
 		}
 
-		let iconClicked = false;
-		switch (e.target.type) {
-			case MouseTargetType.GUTTER_GLYPH_MARGIN:
-				iconClicked = true;
-				break;
-			default:
-				return;
+		if (!e.event.leftButton) {
+			return;
 		}
 
-		this.mouseDownInfo = { lineNumber: range.startLineNumber, iconClicked };
+		if (e.target.type !== MouseTargetType.GUTTER_LINE_DECORATIONS) {
+			return;
+		}
+
+		const data = e.target.detail as IMarginData;
+		const gutterOffsetX = data.offsetX - data.glyphMarginWidth - data.lineNumbersWidth - data.glyphMarginLeft;
+
+		// don't collide with folding and git decorations
+		if (gutterOffsetX < 10 && gutterOffsetX > 19) {
+			return;
+		}
+
+		this.mouseDownInfo = { lineNumber: range.startLineNumber };
 	}
 
 	private onEditorMouseUp(e: IEditorMouseEvent): void {
 		if (!this.mouseDownInfo) {
 			return;
 		}
-		let lineNumber = this.mouseDownInfo.lineNumber;
-		let iconClicked = this.mouseDownInfo.iconClicked;
 
-		let range = e.target.range;
+		const { lineNumber } = this.mouseDownInfo;
+		this.mouseDownInfo = null;
+
+		const range = e.target.range;
+
 		if (!range || range.startLineNumber !== lineNumber) {
+			return;
+		}
+
+		if (e.target.type !== MouseTargetType.GUTTER_LINE_DECORATIONS) {
+			return;
+		}
+
+		if (!e.target.element) {
 			return;
 		}
 
@@ -545,16 +560,13 @@ export class ReviewZoneWidget extends ZoneWidget {
 			return;
 		}
 
-		if (iconClicked) {
-			if (e.target.type !== MouseTargetType.GUTTER_GLYPH_MARGIN) {
-				return;
+		if (e.target.element.className.indexOf('comment-thread') >= 0) {
+			if (this._isCollapsed) {
+				this.show({ lineNumber: lineNumber, column: 1 }, 2);
+			} else {
+				this.hide();
+				this._onDidClose.fire();
 			}
-		}
-
-		if (this._isCollapsed) {
-			this.show({ lineNumber: lineNumber, column: 1 }, 2);
-		} else {
-			this.hide();
 		}
 	}
 
@@ -623,7 +635,7 @@ export class ReviewZoneWidget extends ZoneWidget {
 		}
 
 		if (this._commentGlyph) {
-			this.editor.removeContentWidget(this._commentGlyph);
+			this._commentGlyph.dispose();
 			this._commentGlyph = null;
 		}
 

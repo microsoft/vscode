@@ -242,7 +242,7 @@
 }
 
 .monaco-editor .comment-dirty-diff-glyph {
-	margin-left: 1px;
+	margin-left: 14px;
 	cursor: pointer;
 }
 
@@ -255,11 +255,26 @@
 	transition: width 80ms linear, left 80ms linear;
 }
 
-.monaco-editor .margin-view-overlays>div:hover>.comment-dirty-diff-glyph:before {
+.monaco-editor .margin-view-overlays>div:hover>.comment-dirty-diff-glyph.comment-diff-added:before {
 	position: absolute;
 	content: '+';
 	height: 100%;
-	width: 8px;
-	left: -4px;
+	width: 9px;
+	left: -6px;
 	z-index: 10;
+	color: black;
+}
+
+.monaco-editor .comment-dirty-diff-glyph.comment-thread:before {
+	position: absolute;
+	content: '·';
+	height: 100%;
+	width: 9px;
+	left: -6px;
+	z-index: 20;
+	color: black;
+}
+
+.monaco-editor.inline-comment .margin-view-overlays .folding {
+	margin-left: 14px;
 }
