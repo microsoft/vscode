@@ -309,11 +309,28 @@ export interface IPathsToWaitFor {
 	waitMarkerFilePath: string;
 }
 
+export interface IPathData {
+
+	// the file path to open within a Code instance
+	fileUri?: UriComponents;
+
+	// the line number in the file path to open
+	lineNumber?: number;
+
+	// the column number in the file path to open
+	columnNumber?: number;
+}
+
+export interface IPathsToWaitForData {
+	paths: IPathData[];
+	waitMarkerFilePath: string;
+}
+
 export interface IOpenFileRequest {
-	filesToOpen?: IPath[];
-	filesToCreate?: IPath[];
-	filesToDiff?: IPath[];
-	filesToWait?: IPathsToWaitFor;
+	filesToOpen?: IPathData[];
+	filesToCreate?: IPathData[];
+	filesToDiff?: IPathData[];
+	filesToWait?: IPathsToWaitForData;
 	termProgram?: string;
 }
 
@@ -321,7 +338,7 @@ export interface IAddFoldersRequest {
 	foldersToAdd: UriComponents[];
 }
 
-export interface IWindowConfiguration extends ParsedArgs, IOpenFileRequest {
+export interface IWindowConfiguration extends ParsedArgs {
 	machineId: string;
 	windowId: number;
 	logLevel: LogLevel;
@@ -351,6 +368,12 @@ export interface IWindowConfiguration extends ParsedArgs, IOpenFileRequest {
 	perfStartTime?: number;
 	perfAppReady?: number;
 	perfWindowLoadTime?: number;
+
+	filesToOpen?: IPath[];
+	filesToCreate?: IPath[];
+	filesToDiff?: IPath[];
+	filesToWait?: IPathsToWaitFor;
+	termProgram?: string;
 }
 
 export interface IRunActionInWindowRequest {

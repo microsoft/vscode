@@ -278,6 +278,7 @@ export class WindowsChannelClient implements IWindowsService {
 		return this.channel.call('getRecentlyOpened', windowId)
 			.then(recentlyOpened => {
 				recentlyOpened.workspaces = recentlyOpened.workspaces.map(workspace => isWorkspaceIdentifier(workspace) ? workspace : URI.revive(workspace));
+				recentlyOpened.files = recentlyOpened.files.map(URI.revive);
 				return recentlyOpened;
 			});
 	}
