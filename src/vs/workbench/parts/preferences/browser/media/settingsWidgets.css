@@ -37,8 +37,12 @@
 	position: relative;
 }
 
+.settings-editor > .settings-body > .settings-tree-container .setting-item.setting-item-exclude .setting-exclude-row:focus {
+	outline: none;
+}
+
 .settings-editor > .settings-body > .settings-tree-container .setting-item.setting-item-exclude .setting-exclude-row:hover .monaco-action-bar,
-.settings-editor > .settings-body > .settings-tree-container .setting-item.setting-item-exclude .setting-exclude-row.focused .monaco-action-bar {
+.settings-editor > .settings-body > .settings-tree-container .setting-item.setting-item-exclude .setting-exclude-row.selected .monaco-action-bar {
 	display: block;
 }
 
