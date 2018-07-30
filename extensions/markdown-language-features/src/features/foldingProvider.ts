@@ -19,8 +19,8 @@ export default class MarkdownFoldingProvider implements vscode.FoldingRangeProvi
 
 	private async getRegions(document: vscode.TextDocument): Promise<vscode.FoldingRange[]> {
 
-		const isStartRegion = (t: string) => /\s*<!--\s*#region\b.*-->/.test(t);
-		const isEndRegion = (t: string) => /\s*<!--\s*#endregion\b.*-->/.test(t);
+		const isStartRegion = (t: string) => /^\s*<!--\s*#?region\b.*-->/.test(t);
+		const isEndRegion = (t: string) => /^\s*<!--\s*#?endregion\b.*-->/.test(t);
 
 		const isRegionMarker = (token: Token) => token.type === 'html_block' &&
 			(isStartRegion(token.content) || isEndRegion(token.content));
