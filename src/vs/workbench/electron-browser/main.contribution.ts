@@ -519,41 +519,41 @@ configurationRegistry.registerConfiguration({
 			'type': 'string',
 			'enum': ['on', 'off', 'default'],
 			'enumDescriptions': [
-				nls.localize('window.openFilesInNewWindow.on', "Files will open in a new window"),
-				nls.localize('window.openFilesInNewWindow.off', "Files will open in the window with the files' folder open or the last active window"),
+				nls.localize('window.openFilesInNewWindow.on', "Files will open in a new window."),
+				nls.localize('window.openFilesInNewWindow.off', "Files will open in the window with the files' folder open or the last active window."),
 				isMacintosh ?
-					nls.localize('window.openFilesInNewWindow.defaultMac', "Files will open in the window with the files' folder open or the last active window unless opened via the Dock or from Finder") :
-					nls.localize('window.openFilesInNewWindow.default', "Files will open in a new window unless picked from within the application (e.g. via the File menu)")
+					nls.localize('window.openFilesInNewWindow.defaultMac', "Files will open in the window with the files' folder open or the last active window unless opened via the Dock or from Finder.") :
+					nls.localize('window.openFilesInNewWindow.default', "Files will open in a new window unless picked from within the application (e.g. via the File menu).")
 			],
 			'default': 'off',
 			'scope': ConfigurationScope.APPLICATION,
 			'description':
 				isMacintosh ?
-					nls.localize('openFilesInNewWindowMac', "Controls if files should open in a new window.\n- default: files will open in the window with the files' folder open or the last active window unless opened via the Dock or from Finder\n- on: files will open in a new window\n- off: files will open in the window with the files' folder open or the last active window\nNote that there can still be cases where this setting is ignored (e.g. when using the -new-window or -reuse-window command line option).") :
-					nls.localize('openFilesInNewWindow', "Controls if files should open in a new window.\n- default: files will open in a new window unless picked from within the application (e.g. via the File menu)\n- on: files will open in a new window\n- off: files will open in the window with the files' folder open or the last active window\nNote that there can still be cases where this setting is ignored (e.g. when using the -new-window or -reuse-window command line option).")
+					nls.localize('openFilesInNewWindowMac', "Controls whether files should open in a new window.\nNote that there can still be cases where this setting is ignored (e.g. when using the -new-window or -reuse-window command line option).") :
+					nls.localize('openFilesInNewWindow', "Controls whether files should open in a new window.\nNote that there can still be cases where this setting is ignored (e.g. when using the -new-window or -reuse-window command line option).")
 		},
 		'window.openFoldersInNewWindow': {
 			'type': 'string',
 			'enum': ['on', 'off', 'default'],
 			'enumDescriptions': [
-				nls.localize('window.openFoldersInNewWindow.on', "Folders will open in a new window"),
-				nls.localize('window.openFoldersInNewWindow.off', "Folders will replace the last active window"),
-				nls.localize('window.openFoldersInNewWindow.default', "Folders will open in a new window unless a folder is picked from within the application (e.g. via the File menu)")
+				nls.localize('window.openFoldersInNewWindow.on', "Folders will open in a new window."),
+				nls.localize('window.openFoldersInNewWindow.off', "Folders will replace the last active window."),
+				nls.localize('window.openFoldersInNewWindow.default', "Folders will open in a new window unless a folder is picked from within the application (e.g. via the File menu).")
 			],
 			'default': 'default',
 			'scope': ConfigurationScope.APPLICATION,
-			'description': nls.localize('openFoldersInNewWindow', "Controls if folders should open in a new window or replace the last active window.\n- default: folders will open in a new window unless a folder is picked from within the application (e.g. via the File menu)\n- on: folders will open in a new window\n- off: folders will replace the last active window\nNote that there can still be cases where this setting is ignored (e.g. when using the -new-window or -reuse-window command line option).")
+			'description': nls.localize('openFoldersInNewWindow', "Controls whether folders should open in a new window or replace the last active window.\nNote that there can still be cases where this setting is ignored (e.g. when using the -new-window or -reuse-window command line option).")
 		},
 		'window.openWithoutArgumentsInNewWindow': {
 			'type': 'string',
 			'enum': ['on', 'off'],
 			'enumDescriptions': [
-				nls.localize('window.openWithoutArgumentsInNewWindow.on', "Open a new empty window"),
-				nls.localize('window.openWithoutArgumentsInNewWindow.off', "Focus the last active running instance")
+				nls.localize('window.openWithoutArgumentsInNewWindow.on', "Open a new empty window."),
+				nls.localize('window.openWithoutArgumentsInNewWindow.off', "Focus the last active running instance.")
 			],
 			'default': isMacintosh ? 'off' : 'on',
 			'scope': ConfigurationScope.APPLICATION,
-			'description': nls.localize('openWithoutArgumentsInNewWindow', "Controls if a new empty window should open when starting a second instance without arguments or if the last running instance should get focus.\n- on: open a new empty window\n- off: the last active running instance will get focus\nNote that there can still be cases where this setting is ignored (e.g. when using the -new-window or -reuse-window command line option).")
+			'description': nls.localize('openWithoutArgumentsInNewWindow', "Controls whether a new empty window should open when starting a second instance without arguments or if the last running instance should get focus.\nNote that there can still be cases where this setting is ignored (e.g. when using the -new-window or -reuse-window command line option).")
 		},
 		'window.restoreWindows': {
 			'type': 'string',
