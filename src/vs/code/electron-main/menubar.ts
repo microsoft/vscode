@@ -310,7 +310,11 @@ export class Menubar {
 			menubar.append(helpMenuItem);
 		}
 
-		Menu.setApplicationMenu(menubar);
+		if (menubar.items && menubar.items.length > 0) {
+			Menu.setApplicationMenu(menubar);
+		} else {
+			Menu.setApplicationMenu(null);
+		}
 	}
 
 	private setMacApplicationMenu(macApplicationMenu: Electron.Menu): void {
@@ -370,14 +374,14 @@ export class Menubar {
 		switch (menuId) {
 			case 'File':
 			case 'Help':
-				return true;
+				return isMacintosh || !!this.menubarMenus[menuId];
 			default:
 				return this.windowsMainService.getWindowCount() > 0 && !!this.menubarMenus[menuId];
 		}
 	}
 
 	private shouldFallback(menuId: string): boolean {
-		return this.shouldDrawMenu(menuId) && (this.windowsMainService.getWindowCount() === 0);
+		return this.shouldDrawMenu(menuId) && (this.windowsMainService.getWindowCount() === 0 && isMacintosh);
 	}
 
 	private setFallbackMenuById(menu: Electron.Menu, menuId: string): void {
