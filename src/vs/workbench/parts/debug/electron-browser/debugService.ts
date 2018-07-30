@@ -78,6 +78,7 @@ export class DebugService implements debug.IDebugService {
 	private toDisposeOnSessionEnd: Map<string, lifecycle.IDisposable[]>;
 	private debugType: IContextKey<string>;
 	private debugState: IContextKey<string>;
+	private inDebugMode: IContextKey<boolean>;
 	private breakpointsToSendOnResourceSaved: Set<string>;
 	private firstSessionStart: boolean;
 	private skipRunningTask: boolean;
@@ -121,6 +122,7 @@ export class DebugService implements debug.IDebugService {
 		this.toDispose.push(this.configurationManager);
 		this.debugType = debug.CONTEXT_DEBUG_TYPE.bindTo(contextKeyService);
 		this.debugState = debug.CONTEXT_DEBUG_STATE.bindTo(contextKeyService);
+		this.inDebugMode = debug.CONTEXT_IN_DEBUG_MODE.bindTo(contextKeyService);
 
 		this.model = new Model(this.loadBreakpoints(), this.storageService.getBoolean(DEBUG_BREAKPOINTS_ACTIVATED_KEY, StorageScope.WORKSPACE, true), this.loadFunctionBreakpoints(),
 			this.loadExceptionBreakpoints(), this.loadWatchExpressions());
@@ -558,6 +560,7 @@ export class DebugService implements debug.IDebugService {
 			const stateLabel = debug.State[state];
 			if (stateLabel) {
 				this.debugState.set(stateLabel.toLowerCase());
+				this.inDebugMode.set(state !== debug.State.Inactive);
 			}
 			this.previousState = state;
 			this._onDidChangeState.fire(state);
