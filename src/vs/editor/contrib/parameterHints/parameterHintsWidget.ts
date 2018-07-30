@@ -476,14 +476,20 @@ export class ParameterHintsWidget implements IContentWidget, IDisposable {
 	next(): boolean {
 		const length = this.hints.signatures.length;
 		const last = (this.currentSignature % length) === (length - 1);
+		const cycleParameterHints = this.editor.getConfiguration().contribInfo.cycleParameterHints;
 
 		// If there is only one signature, or we're on last signature of list
-		if (length < 2 || last) {
+		if ((length < 2 || last) && !cycleParameterHints) {
 			this.cancel();
 			return false;
 		}
 
-		this.currentSignature++;
+		if (last && cycleParameterHints) {
+			this.currentSignature = 0;
+		} else {
+			this.currentSignature++;
+		}
+
 		this.render();
 		return true;
 	}
@@ -491,13 +497,20 @@ export class ParameterHintsWidget implements IContentWidget, IDisposable {
 	previous(): boolean {
 		const length = this.hints.signatures.length;
 		const first = this.currentSignature === 0;
+		const cycleParameterHints = this.editor.getConfiguration().contribInfo.cycleParameterHints;
 
-		if (length < 2 || first) {
+		// If there is only one signature, or we're on first signature of list
+		if ((length < 2 || first) && !cycleParameterHints) {
 			this.cancel();
 			return false;
 		}
 
-		this.currentSignature--;
+		if (first && cycleParameterHints) {
+			this.currentSignature = length - 1;
+		} else {
+			this.currentSignature--;
+		}
+
 		this.render();
 		return true;
 	}

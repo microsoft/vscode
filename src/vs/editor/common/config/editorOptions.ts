@@ -417,6 +417,11 @@ export interface IEditorOptions {
 	 */
 	contextmenu?: boolean;
 	/**
+	 * Enable cycling through parameter hints.
+	 * Defaults to false.
+	 */
+	cycleParameterHints?: boolean;
+	/**
 	 * A multiplier to be used on the `deltaX` and `deltaY` of mouse wheel scroll events.
 	 * Defaults to 1.
 	 */
@@ -909,6 +914,7 @@ export interface EditorContribOptions {
 	readonly hover: InternalEditorHoverOptions;
 	readonly links: boolean;
 	readonly contextmenu: boolean;
+	readonly cycleParameterHints: boolean;
 	readonly quickSuggestions: boolean | { other: boolean, comments: boolean, strings: boolean };
 	readonly quickSuggestionsDelay: number;
 	readonly parameterHints: boolean;
@@ -1289,6 +1295,7 @@ export class InternalEditorOptions {
 			&& this._equalsHoverOptions(a.hover, b.hover)
 			&& a.links === b.links
 			&& a.contextmenu === b.contextmenu
+			&& a.cycleParameterHints === b.cycleParameterHints
 			&& InternalEditorOptions._equalsQuickSuggestions(a.quickSuggestions, b.quickSuggestions)
 			&& a.quickSuggestionsDelay === b.quickSuggestionsDelay
 			&& a.parameterHints === b.parameterHints
@@ -1884,6 +1891,7 @@ export class EditorOptionsValidator {
 			hover: this._santizeHoverOpts(opts.hover, defaults.hover),
 			links: _boolean(opts.links, defaults.links),
 			contextmenu: _boolean(opts.contextmenu, defaults.contextmenu),
+			cycleParameterHints: _boolean(opts.cycleParameterHints, defaults.cycleParameterHints),
 			quickSuggestions: quickSuggestions,
 			quickSuggestionsDelay: _clampedInt(opts.quickSuggestionsDelay, defaults.quickSuggestionsDelay, Constants.MIN_SAFE_SMALL_INTEGER, Constants.MAX_SAFE_SMALL_INTEGER),
 			parameterHints: _boolean(opts.parameterHints, defaults.parameterHints),
@@ -1992,6 +2000,7 @@ export class InternalEditorOptionsFactory {
 				hover: opts.contribInfo.hover,
 				links: (accessibilityIsOn ? false : opts.contribInfo.links), // DISABLED WHEN SCREEN READER IS ATTACHED
 				contextmenu: opts.contribInfo.contextmenu,
+				cycleParameterHints: opts.contribInfo.cycleParameterHints,
 				quickSuggestions: opts.contribInfo.quickSuggestions,
 				quickSuggestionsDelay: opts.contribInfo.quickSuggestionsDelay,
 				parameterHints: opts.contribInfo.parameterHints,
@@ -2463,6 +2472,7 @@ export const EDITOR_DEFAULTS: IValidatedEditorOptions = {
 		},
 		links: true,
 		contextmenu: true,
+		cycleParameterHints: false,
 		quickSuggestions: { other: true, comments: false, strings: false },
 		quickSuggestionsDelay: 10,
 		parameterHints: true,

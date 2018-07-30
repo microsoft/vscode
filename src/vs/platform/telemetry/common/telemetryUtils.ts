@@ -113,6 +113,7 @@ const configurationValueWhitelist = [
 	'editor.multiCursorModifier',
 	'editor.quickSuggestions',
 	'editor.quickSuggestionsDelay',
+	'editor.cycleParameterHints',
 	'editor.parameterHints',
 	'editor.autoClosingBrackets',
 	'editor.autoIndent',

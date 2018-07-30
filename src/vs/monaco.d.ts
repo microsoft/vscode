@@ -2755,6 +2755,11 @@ declare namespace monaco.editor {
 		 */
 		contextmenu?: boolean;
 		/**
+		 * Enable cycling through parameter hints.
+		 * Defaults to false.
+		 */
+		cycleParameterHints?: boolean;
+		/**
 		 * A multiplier to be used on the `deltaX` and `deltaY` of mouse wheel scroll events.
 		 * Defaults to 1.
 		 */
@@ -3188,6 +3193,7 @@ declare namespace monaco.editor {
 		readonly hover: InternalEditorHoverOptions;
 		readonly links: boolean;
 		readonly contextmenu: boolean;
+		readonly cycleParameterHints: boolean;
 		readonly quickSuggestions: boolean | {
 			other: boolean;
 			comments: boolean;

@@ -684,6 +684,11 @@ const editorConfiguration: IConfigurationNode = {
 			'default': EDITOR_DEFAULTS.contribInfo.codeLens,
 			'description': nls.localize('codeLens', "Controls whether the editor shows CodeLens")
 		},
+		'editor.cycleParameterHints': {
+			'type': 'boolean',
+			'default': EDITOR_DEFAULTS.contribInfo.cycleParameterHints,
+			'description': nls.localize('cycleParameterHints', "Controls whether the parameter hints menu cycles or closes when reaching the end of the list.")
+		},
 		'editor.folding': {
 			'type': 'boolean',
 			'default': EDITOR_DEFAULTS.contribInfo.folding,
