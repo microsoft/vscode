@@ -33,7 +33,7 @@ export class Snippet {
 		readonly isFromExtension?: boolean,
 	) {
 		//
-		this.prefixLow = prefix.toLowerCase();
+		this.prefixLow = prefix ? prefix.toLowerCase() : prefix;
 	}
 
 	get codeSnippet(): string {
