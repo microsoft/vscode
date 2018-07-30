@@ -18,7 +18,7 @@
   "dependencies": {
     "jsonc-parser": "^2.0.1",
     "semver": "4.3.6",
-    "vscode-extension-telemetry": "0.0.17",
+    "vscode-extension-telemetry": "0.0.18",
     "vscode-nls": "^3.2.4"
   },
   "devDependencies": {
