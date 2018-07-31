@@ -153,23 +153,36 @@ declare module 'vscode' {
 		preview: TextSearchResultPreview;
 	}
 
+	/**
+	 * A FileIndexProvider provides a list of files in the given folder. VS Code will filter that list for searching with quickopen or from other extensions.
+	 *
+	 * A FileIndexProvider is the simpler of two ways to implement file search in VS Code. Use a FileIndexProvider if you are able to provide a listing of all files
+	 * in a folder, and want VS Code to filter them according to the user's search query.
+	 *
+	 * The FileIndexProvider will be invoked once when quickopen is opened, and VS Code will filter the returned list. It will also be invoked when
+	 * `workspace.findFiles` is called.
+	 *
+	 * If a [`FileSearchProvider`](#FileSearchProvider) is registered for the scheme, that provider will be used instead.
+	 */
 	export interface FileIndexProvider {
+		/**
+		 * Provide the set of files in the folder.
+		 * @param options A set of options to consider while searching.
+		 * @param token A cancellation token.
+		 */
 		provideFileIndex(options: FileSearchOptions, token: CancellationToken): Thenable<Uri[]>;
 	}
 
-	export interface TextSearchProvider {
-		/**
-		 * Provide results that match the given text pattern.
-		 * @param query The parameters for this query.
-		 * @param options A set of options to consider while searching.
-		 * @param progress A progress callback that must be invoked for all results.
-		 * @param token A cancellation token.
-		 */
-		provideTextSearchResults(query: TextSearchQuery, options: TextSearchOptions, progress: Progress<TextSearchResult>, token: CancellationToken): Thenable<void>;
-	}
-
 	/**
-	 * A FileSearchProvider provides search results for files or text in files. It can be invoked by quickopen and other extensions.
+	 * A FileSearchProvider provides search results for files in the given folder that match a query string. It can be invoked by quickopen or other extensions.
+	 *
+	 * A FileSearchProvider is the more powerful of two ways to implement file search in VS Code. Use a FileSearchProvider if you wish to search within a folder for
+	 * all files that match the user's query.
+	 *
+	 * The FileSearchProvider will be invoked on every keypress in quickopen. When `workspace.findFiles` is called, it will be invoked with an empty query string,
+	 * and in that case, every file in the folder should be returned.
+	 *
+	 * @see [FileIndexProvider](#FileIndexProvider)
 	 */
 	export interface FileSearchProvider {
 		/**
@@ -180,6 +193,20 @@ declare module 'vscode' {
 		 * @param token A cancellation token.
 		 */
 		provideFileSearchResults(query: FileSearchQuery, options: FileSearchOptions, progress: Progress<Uri>, token: CancellationToken): Thenable<void>;
+	}
+
+	/**
+	 * A TextSearchProvider provides search results for text results inside files in the workspace.
+	 */
+	export interface TextSearchProvider {
+		/**
+		 * Provide results that match the given text pattern.
+		 * @param query The parameters for this query.
+		 * @param options A set of options to consider while searching.
+		 * @param progress A progress callback that must be invoked for all results.
+		 * @param token A cancellation token.
+		 */
+		provideTextSearchResults(query: TextSearchQuery, options: TextSearchOptions, progress: Progress<TextSearchResult>, token: CancellationToken): Thenable<void>;
 	}
 
 	/**
@@ -231,6 +258,17 @@ declare module 'vscode' {
 		export function registerSearchProvider(): Disposable;
 
 		/**
+		 * Register a file index provider.
+		 *
+		 * Only one provider can be registered per scheme.
+		 *
+		 * @param scheme The provider will be invoked for workspace folders that have this file scheme.
+		 * @param provider The provider.
+		 * @return A [disposable](#Disposable) that unregisters this provider when being disposed.
+		 */
+		export function registerFileIndexProvider(scheme: string, provider: FileIndexProvider): Disposable;
+
+		/**
 		 * Register a search provider.
 		 *
 		 * Only one provider can be registered per scheme.
@@ -251,18 +289,6 @@ declare module 'vscode' {
 		 * @return A [disposable](#Disposable) that unregisters this provider when being disposed.
 		 */
 		export function registerTextSearchProvider(scheme: string, provider: TextSearchProvider): Disposable;
-
-		/**
-		 * Register a file index provider.
-		 *
-		 * Only one provider can be registered per scheme.
-		 *
-		 * @param scheme The provider will be invoked for workspace folders that have this file scheme.
-		 * @param provider The provider.
-		 * @return A [disposable](#Disposable) that unregisters this provider when being disposed.
-		 */
-		export function registerFileIndexProvider(scheme: string, provider: FileIndexProvider): Disposable;
-
 
 		/**
 		 * Search text in files across all [workspace folders](#workspace.workspaceFolders) in the workspace.
