@@ -332,10 +332,13 @@ export class FoldingController implements IEditorContribution {
 		switch (e.target.type) {
 			case MouseTargetType.GUTTER_LINE_DECORATIONS:
 				const data = e.target.detail as IMarginData;
-				const gutterOffsetX = data.offsetX - data.glyphMarginWidth - data.lineNumbersWidth - data.glyphMarginLeft;
+				const offsetLeftInGutter = (e.target.element as HTMLElement).offsetLeft;
+				const gutterOffsetX = data.offsetX - offsetLeftInGutter;
+
+				// const gutterOffsetX = data.offsetX - data.glyphMarginWidth - data.lineNumbersWidth - data.glyphMarginLeft;
 
 				// TODO@joao TODO@alex TODO@martin this is such that we don't collide with dirty diff
-				if (gutterOffsetX <= 10) {
+				if (gutterOffsetX < 10) {
 					return;
 				}
 

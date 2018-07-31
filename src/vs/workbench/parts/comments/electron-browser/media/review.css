@@ -241,12 +241,14 @@
 	position: relative;
 }
 
-.monaco-editor .comment-dirty-diff-glyph {
-	margin-left: 14px;
+.monaco-editor .comment-range-glyph {
+	margin-left: 5px;
+	width: 4px !important;
 	cursor: pointer;
+	z-index: 10;
 }
 
-.monaco-editor .comment-dirty-diff-glyph:before {
+.monaco-editor .comment-range-glyph:before {
 	position: absolute;
 	content: '';
 	height: 100%;
@@ -255,7 +257,7 @@
 	transition: width 80ms linear, left 80ms linear;
 }
 
-.monaco-editor .margin-view-overlays>div:hover>.comment-dirty-diff-glyph.comment-diff-added:before {
+.monaco-editor .margin-view-overlays>div:hover>.comment-range-glyph.comment-diff-added:before {
 	position: absolute;
 	content: '+';
 	height: 100%;
@@ -265,7 +267,11 @@
 	color: black;
 }
 
-.monaco-editor .comment-dirty-diff-glyph.comment-thread:before {
+.monaco-editor .comment-range-glyph.comment-thread {
+	z-index: 20;
+}
+
+.monaco-editor .comment-range-glyph.comment-thread:before {
 	position: absolute;
 	content: '·';
 	height: 100%;
@@ -276,5 +282,9 @@
 }
 
 .monaco-editor.inline-comment .margin-view-overlays .folding {
+	margin-left: 14px;
+}
+
+.monaco-editor.inline-comment .margin-view-overlays .dirty-diff-glyph {
 	margin-left: 14px;
 }

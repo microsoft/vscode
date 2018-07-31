@@ -523,7 +523,7 @@ export class ReviewZoneWidget extends ZoneWidget {
 		const gutterOffsetX = data.offsetX - data.glyphMarginWidth - data.lineNumbersWidth - data.glyphMarginLeft;
 
 		// don't collide with folding and git decorations
-		if (gutterOffsetX < 10 && gutterOffsetX > 19) {
+		if (gutterOffsetX > 14) {
 			return;
 		}
 

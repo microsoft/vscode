@@ -102,7 +102,7 @@ class CommentingRangeDecorator {
 			isWholeLine: true,
 		};
 
-		decorationOptions.linesDecorationsClassName = `comment-dirty-diff-glyph ${className}`;
+		decorationOptions.linesDecorationsClassName = `comment-range-glyph ${className}`;
 		return ModelDecorationOptions.createDynamic(decorationOptions);
 	}
 
@@ -423,7 +423,7 @@ export class ReviewController implements IEditorContribution {
 		const gutterOffsetX = data.offsetX - data.glyphMarginWidth - data.lineNumbersWidth - data.glyphMarginLeft;
 
 		// don't collide with folding and git decorations
-		if (gutterOffsetX < 10 && gutterOffsetX > 19) {
+		if (gutterOffsetX > 14) {
 			return;
 		}
 
