@@ -246,16 +246,21 @@ export class HistoryMainService implements IHistoryMainService {
 	}
 
 	private getRecentlyOpenedFromStorage(): IRecentlyOpened {
-		const storedRecents: ISerializedRecentlyOpened = this.stateService.getItem<ISerializedRecentlyOpened>(HistoryMainService.recentlyOpenedStorageKey) || { workspaces: [], files: [] };
-		const result: IRecentlyOpened = { workspaces: [], files: storedRecents.files };
-		for (const workspace of storedRecents.workspaces) {
-			if (typeof workspace === 'string') {
-				result.workspaces.push(URI.file(workspace));
-			} else if (isWorkspaceIdentifier(workspace)) {
-				result.workspaces.push(workspace);
-			} else {
-				result.workspaces.push(URI.revive(workspace));
+		const storedRecents: ISerializedRecentlyOpened = this.stateService.getItem<ISerializedRecentlyOpened>(HistoryMainService.recentlyOpenedStorageKey);
+		const result: IRecentlyOpened = { workspaces: [], files: [] };
+		if (storedRecents && Array.isArray(storedRecents.workspaces)) {
+			for (const workspace of storedRecents.workspaces) {
+				if (typeof workspace === 'string') {
+					result.workspaces.push(URI.file(workspace));
+				} else if (isWorkspaceIdentifier(workspace)) {
+					result.workspaces.push(workspace);
+				} else {
+					result.workspaces.push(URI.revive(workspace));
+				}
 			}
+		}
+		if (storedRecents && Array.isArray(storedRecents.files)) {
+			result.files.push(...storedRecents.files);
 		}
 		return result;
 	}

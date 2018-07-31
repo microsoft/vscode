@@ -132,7 +132,7 @@ export class ExtensionsViewletViewsContribution implements IWorkbenchContributio
 			container: VIEW_CONTAINER,
 			ctor: EnabledExtensionsView,
 			when: ContextKeyExpr.not('searchExtensions'),
-			weight: 30,
+			weight: 40,
 			canToggleVisibility: true,
 			order: 1
 		};
@@ -181,7 +181,7 @@ export class ExtensionsViewletViewsContribution implements IWorkbenchContributio
 			container: VIEW_CONTAINER,
 			ctor: DefaultRecommendedExtensionsView,
 			when: ContextKeyExpr.and(ContextKeyExpr.not('searchExtensions'), ContextKeyExpr.has('defaultRecommendedExtensions')),
-			weight: 70,
+			weight: 60,
 			order: 2,
 			canToggleVisibility: true
 		};

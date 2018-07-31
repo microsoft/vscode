@@ -377,9 +377,8 @@ export abstract class ViewContainerViewlet extends PanelViewlet implements IView
 	private computeInitialSizes(): { [id: string]: number } {
 		let sizes = {};
 		if (this.dimension) {
-			let totalWeight = 0;
 			for (const viewDescriptor of this.viewsModel.visibleViewDescriptors) {
-				sizes[viewDescriptor.id] = this.dimension.height * (viewDescriptor.weight || 20) / totalWeight;
+				sizes[viewDescriptor.id] = this.dimension.height * (viewDescriptor.weight || 20) / 100;
 			}
 		}
 		return sizes;
