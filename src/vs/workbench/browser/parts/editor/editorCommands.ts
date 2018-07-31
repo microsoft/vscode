@@ -224,7 +224,7 @@ function registerDiffEditorCommands(): void {
 		id: 'workbench.action.compareEditor.nextChange',
 		weight: KeybindingWeight.WorkbenchContrib,
 		when: TextCompareEditorVisibleContext,
-		primary: null,
+		primary: KeyMod.Alt | KeyCode.F5,
 		handler: accessor => navigateInDiffEditor(accessor, true)
 	});
 
@@ -232,7 +232,7 @@ function registerDiffEditorCommands(): void {
 		id: 'workbench.action.compareEditor.previousChange',
 		weight: KeybindingWeight.WorkbenchContrib,
 		when: TextCompareEditorVisibleContext,
-		primary: null,
+		primary: KeyMod.Alt | KeyMod.Shift | KeyCode.F5,
 		handler: accessor => navigateInDiffEditor(accessor, false)
 	});
 
