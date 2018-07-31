@@ -689,11 +689,8 @@ export class JoinLinesAction extends EditorAction {
 
 					trimmedLinesContent += (insertSpace ? ' ' : '') + lineTextWithoutIndent;
 
-					if (insertSpace) {
-						columnDeltaOffset = lineTextWithoutIndent.length + 1;
-					} else {
-						columnDeltaOffset = lineTextWithoutIndent.length;
-					}
+					columnDeltaOffset = insertSpace ? lineTextWithoutIndent.length + 1 : lineTextWithoutIndent.length;
+
 				} else {
 					columnDeltaOffset = 0;
 				}
