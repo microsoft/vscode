@@ -1543,7 +1543,7 @@ function _stringSet<T>(value: T, defaultValue: T, allowedValues: T[]): T {
 	return value;
 }
 
-export function _clampedInt(value: any, defaultValue: number, minimum: number, maximum: number): number {
+function _clampedInt(value: any, defaultValue: number, minimum: number, maximum: number): number {
 	let r: number;
 	if (typeof value === 'undefined') {
 		r = defaultValue;
