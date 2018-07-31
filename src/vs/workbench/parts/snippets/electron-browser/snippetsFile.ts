@@ -195,7 +195,7 @@ export class SnippetFile {
 
 	load(): Promise<this> {
 		if (!this._loadPromise) {
-			this._loadPromise = Promise.resolve(this._fileService.resolveContent(this.location)).then(content => {
+			this._loadPromise = Promise.resolve(this._fileService.resolveContent(this.location, { encoding: 'utf8' })).then(content => {
 				const data = <JsonSerializedSnippets>jsonParse(content.value.toString());
 				if (typeof data === 'object') {
 					forEach(data, entry => {

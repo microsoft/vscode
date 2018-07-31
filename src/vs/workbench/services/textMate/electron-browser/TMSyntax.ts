@@ -219,7 +219,7 @@ export class TextMateService implements ITextMateService {
 							this._logService.info(`No grammar found for scope ${scopeName}`);
 							return null;
 						}
-						return this._fileService.resolveContent(location).then(content => {
+						return this._fileService.resolveContent(location, { encoding: 'utf8' }).then(content => {
 							return parseRawGrammar(content.value, location.path);
 						}, e => {
 							this._logService.error(`Unable to load and parse grammar for scope ${scopeName} from ${location}`, e);
