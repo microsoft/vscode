@@ -122,7 +122,7 @@ export class ExtensionHostProcessManager extends Disposable {
 	/**
 	 * winjs believes a proxy is a promise because it has a `then` method, so wrap the result in an object.
 	 */
-	private readonly _extensionHostProcessProxy: TPromise<{ value: ExtHostExtensionServiceShape; }>;
+	private _extensionHostProcessProxy: TPromise<{ value: ExtHostExtensionServiceShape; }>;
 
 	constructor(
 		extensionHostProcessWorker: ExtensionHostProcessWorker,
@@ -134,7 +134,6 @@ export class ExtensionHostProcessManager extends Disposable {
 		this._extensionHostProcessFinishedActivateEvents = Object.create(null);
 		this._extensionHostProcessRPCProtocol = null;
 		this._extensionHostProcessCustomers = [];
-		this._extensionHostProcessProxy = null;
 
 		this._extensionHostProcessWorker = extensionHostProcessWorker;
 		this.onDidCrash = this._extensionHostProcessWorker.onCrashed;
@@ -168,6 +167,7 @@ export class ExtensionHostProcessManager extends Disposable {
 				errors.onUnexpectedError(err);
 			}
 		}
+		this._extensionHostProcessProxy = null;
 
 		super.dispose();
 	}
@@ -218,6 +218,11 @@ export class ExtensionHostProcessManager extends Disposable {
 			return NO_OP_VOID_PROMISE;
 		}
 		return this._extensionHostProcessProxy.then((proxy) => {
+			if (!proxy) {
+				// this case is already covered above and logged.
+				// i.e. the extension host could not be started
+				return NO_OP_VOID_PROMISE;
+			}
 			return proxy.value.$activateByEvent(activationEvent);
 		}).then(() => {
 			this._extensionHostProcessFinishedActivateEvents[activationEvent] = true;
