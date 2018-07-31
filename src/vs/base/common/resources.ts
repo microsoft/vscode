@@ -30,7 +30,7 @@ export function isEqualOrParent(resource: uri, candidate: uri, ignoreCase?: bool
 			return paths.isEqualOrParent(resource.fsPath, candidate.fsPath, ignoreCase);
 		}
 
-		return paths.isEqualOrParent(resource.path, candidate.path, ignoreCase);
+		return paths.isEqualOrParent(resource.path, candidate.path, ignoreCase, '/');
 	}
 
 	return false;
