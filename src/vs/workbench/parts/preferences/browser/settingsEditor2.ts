@@ -83,8 +83,6 @@ export class SettingsEditor2 extends BaseEditor {
 
 	private tagRegex = /(^|\s)@tag:("([^"]*)"|[^"]\S*)/g;
 
-	private layoutDelayer: Delayer<void>;
-
 	/** Don't spam warnings */
 	private hasWarnedMissingSettings: boolean;
 
@@ -105,7 +103,6 @@ export class SettingsEditor2 extends BaseEditor {
 		this.localSearchDelayer = new Delayer(100);
 		this.remoteSearchThrottle = new ThrottledDelayer(200);
 		this.viewState = { settingsTarget: ConfigurationTarget.USER };
-		this.layoutDelayer = new Delayer(100);
 
 		this.settingUpdateDelayer = new Delayer<void>(500);
 
@@ -150,8 +147,6 @@ export class SettingsEditor2 extends BaseEditor {
 		this.layoutTrees(dimension);
 
 		DOM.toggleClass(this.rootElement, 'narrow', dimension.width < 600);
-
-		this.layoutDelayer.trigger(() => this.refreshTreeAndMaintainFocus());
 	}
 
 	focus(): void {

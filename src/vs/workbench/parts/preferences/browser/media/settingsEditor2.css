@@ -219,18 +219,6 @@
 	height: 100%;
 }
 
-.settings-editor > .settings-body > .settings-tree-container .setting-item .setting-expand-indicator {
-	display: none;
-}
-
-.settings-editor > .settings-body > .settings-tree-container .setting-item.is-expandable:not(.is-expanded) .setting-expand-indicator {
-	display: block;
-	position: absolute;
-	left: 7px;
-	top: 0px;
-	opacity: .9;
-}
-
 .settings-editor > .settings-body > .settings-tree-container .setting-item .setting-item-title {
 	white-space: nowrap;
 	overflow: hidden;
@@ -261,13 +249,10 @@
 	opacity: 0.9;
 }
 
-.settings-editor > .settings-body > .settings-tree-container .setting-item .setting-item-description-container {
-	margin-top: 3px;
-	position: relative;
-}
-
 .settings-editor > .settings-body > .settings-tree-container .setting-item .setting-item-description {
+	margin-top: 3px;
 	overflow: hidden;
+	text-overflow: ellipsis;
 	height: 18px;
 	display: -webkit-box;
 	-webkit-line-clamp: 1;
@@ -293,11 +278,6 @@
 .settings-editor > .settings-body > .settings-tree-container .setting-item.setting-measure-helper .setting-item-description {
 	height: initial;
 	-webkit-line-clamp: initial;
-}
-
-.settings-editor > .settings-body > .settings-tree-container .setting-description-measure-container .setting-item .setting-item-description,
-.settings-editor > .settings-body > .settings-tree-container .setting-description-measure-container .setting-item .setting-item-description * {
-	display: inline;
 }
 
 .settings-editor > .settings-body > .settings-tree-container .setting-item-bool .setting-item-value-description {
@@ -333,7 +313,7 @@
 	min-width: 200px;
 }
 
-.settings-editor > .settings-body > .settings-tree-container .setting-item.setting-item-text .setting-item-value {
+.settings-editor > .settings-body > .settings-tree-container .setting-item.setting-item-text {
 	width: 500px;
 }
 
@@ -343,7 +323,6 @@
 	min-width: initial;
 }
 
-.settings-editor > .settings-body > .settings-tree-container .setting-item.setting-item-enum .setting-item-value,
 .settings-editor > .settings-body > .settings-tree-container .setting-item.setting-item-enum .setting-item-value > .setting-item-control > select {
 	width: 320px;
 }

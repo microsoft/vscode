@@ -472,7 +472,6 @@ interface ISettingItemTemplate<T = any> extends IDisposableTemplate {
 	categoryElement: HTMLElement;
 	labelElement: HTMLElement;
 	descriptionElement: HTMLElement;
-	expandIndicatorElement: HTMLElement;
 	controlElement: HTMLElement;
 	isConfiguredElement: HTMLElement;
 	otherOverridesElement: HTMLElement;
@@ -546,8 +545,6 @@ export class SettingsRenderer implements ITreeRenderer {
 	public readonly onDidClickSettingLink: Event<string> = this._onDidClickSettingLink.event;
 
 	private measureContainer: HTMLElement;
-	// private measureDescriptionContainer: HTMLElement;
-	// private measureDescriptionTemplates = new Map<string, ISettingItemTemplate>();
 
 	constructor(
 		_measureContainer: HTMLElement,
@@ -558,7 +555,6 @@ export class SettingsRenderer implements ITreeRenderer {
 		@ICommandService private readonly commandService: ICommandService,
 	) {
 		this.measureContainer = DOM.append(_measureContainer, $('.setting-measure-container.monaco-tree-row'));
-		// this.measureDescriptionContainer = DOM.append(_measureContainer, $('.setting-measure-container.setting-description-measure-container.monaco-tree-row'));
 	}
 
 	getHeight(tree: ITree, element: SettingsTreeElement): number {
@@ -612,40 +608,6 @@ export class SettingsRenderer implements ITreeRenderer {
 		this.measureContainer.removeChild(this.measureContainer.firstChild);
 		return Math.max(height, this._getUnexpandedSettingHeight(element));
 	}
-
-	// private measureSettingDescriptionHeight(tree: ITree, element: SettingsTreeSettingElement): number {
-	// 	const measureHelper = DOM.append(this.measureContainer, $('.setting-measure-helper'));
-
-	// 	const templateId = this.getTemplateId(tree, element);
-	// 	const template = this.renderTemplate(tree, templateId, measureHelper);
-	// 	this.renderDescription(element.description, <ISettingItemTemplate>template, true);
-
-	// 	const height = (<ISettingItemTemplate>template).descriptionElement.offsetHeight;
-	// 	this.measureContainer.removeChild(this.measureContainer.firstChild);
-	// 	return height;
-	// }
-
-	// private measureSettingDescription(tree: ITree, element: SettingsTreeSettingElement, text: string): { height: number, width: number } {
-	// 	const templateId = this.getTemplateId(tree, element);
-	// 	if (!this.measureDescriptionTemplates.has(templateId)) {
-	// 		const measureHelper = $('.setting-measure-helper');
-	// 		this.measureDescriptionTemplates.set(templateId, <ISettingItemTemplate>this.renderTemplate(tree, templateId, measureHelper));
-	// 	}
-
-	// 	const template = this.measureDescriptionTemplates.get(templateId);
-	// 	this.measureDescriptionContainer.appendChild(template.containerElement);
-	// 	this.renderDescription(text, <ISettingItemTemplate>template, true);
-
-	// 	const descriptionElement = (<ISettingItemTemplate>template).descriptionElement;
-	// 	const width = descriptionElement.offsetWidth;
-	// 	const height = descriptionElement.offsetHeight;
-
-	// 	if (this.measureDescriptionContainer.firstChild) {
-	// 		this.measureDescriptionContainer.removeChild(this.measureDescriptionContainer.firstChild);
-	// 	}
-
-	// 	return { height, width };
-	// }
 
 	getTemplateId(tree: ITree, element: SettingsTreeElement): string {
 
@@ -741,14 +703,10 @@ export class SettingsRenderer implements ITreeRenderer {
 		const labelElement = DOM.append(titleElement, $('span.setting-item-label'));
 		const isConfiguredElement = DOM.append(titleElement, $('span.setting-item-is-configured-label'));
 		const otherOverridesElement = DOM.append(titleElement, $('span.setting-item-overrides'));
-		const descriptionContainerElement = DOM.append(container, $('.setting-item-description-container'));
-		const descriptionElement = DOM.append(descriptionContainerElement, $('.setting-item-description'));
+		const descriptionElement = DOM.append(container, $('.setting-item-description'));
 
 		const valueElement = DOM.append(container, $('.setting-item-value'));
 		const controlElement = DOM.append(valueElement, $('div.setting-item-control'));
-
-		const expandIndicatorElement = DOM.append(descriptionContainerElement, $('.setting-expand-indicator'));
-		expandIndicatorElement.textContent = '…';
 
 		const toDispose = [];
 		const template: ISettingItemTemplate = {
@@ -760,7 +718,6 @@ export class SettingsRenderer implements ITreeRenderer {
 			descriptionElement,
 			controlElement,
 			isConfiguredElement,
-			expandIndicatorElement,
 			otherOverridesElement
 		};
 
@@ -841,10 +798,7 @@ export class SettingsRenderer implements ITreeRenderer {
 
 		const descriptionAndValueElement = DOM.append(container, $('.setting-item-value-description'));
 		const controlElement = DOM.append(descriptionAndValueElement, $('.setting-item-bool-control'));
-		const descriptionContainerElement = DOM.append(descriptionAndValueElement, $('.setting-item-description-container'));
-		const descriptionElement = DOM.append(descriptionContainerElement, $('.setting-item-description'));
-		const expandIndicatorElement = DOM.append(descriptionContainerElement, $('.setting-expand-indicator'));
-		expandIndicatorElement.textContent = '…';
+		const descriptionElement = DOM.append(descriptionAndValueElement, $('.setting-item-description'));
 
 		const toDispose = [];
 		const checkbox = new Checkbox({ actionClassName: 'setting-value-checkbox', isChecked: true, title: '', inputActiveOptionBorder: null });
@@ -865,7 +819,6 @@ export class SettingsRenderer implements ITreeRenderer {
 			controlElement,
 			checkbox,
 			descriptionElement,
-			expandIndicatorElement,
 			isConfiguredElement,
 			otherOverridesElement
 		};
@@ -1040,55 +993,12 @@ export class SettingsRenderer implements ITreeRenderer {
 		template.context = element;
 	}
 
-	// private isSettingExpandable(tree: ITree, element: SettingsTreeSettingElement): boolean {
-	// 	// Shortcuts before measuring
-	// 	if (element.valueType === 'enum' && element.setting.enumDescriptions && element.setting.enum && element.setting.enum.length < SettingsRenderer.MAX_ENUM_DESCRIPTIONS) {
-	// 		return true;
-	// 	}
-
-	// 	if (element.setting.description.indexOf('\n') >= 0) {
-	// 		return true;
-	// 	}
-
-	// 	const height = this.measureSettingDescriptionHeight(tree, element);
-	// 	return height > 18;
-	// }
-
-	// private settingDescriptionFirstLineLength(tree: ITree, element: SettingsTreeSettingElement): number {
-	// 	const fullDescription = element.description
-	// 		.replace(/\[(.*)\]\(.*\)/, '$1')
-	// 		.split('\n')[0];
-
-	// 	// Add characters one at a time, measure the width. Start from some safe number.
-	// 	// const startPos = Math.min(50, fullDescription.length - 1);
-	// 	let size: { height: number, width: number };
-	// 	for (let i = 10; i <= fullDescription.length;) {
-	// 		let description = fullDescription.substr(0, i);
-	// 		size = this.measureSettingDescription(tree, element, description);
-	// 		if (size.height > 20) {
-	// 			// It wrapped
-	// 			return size.width;
-	// 		}
-
-	// 		const nextBreakMatch = fullDescription.slice(i + 1).match(/([\s.,]|$)/);
-	// 		if (nextBreakMatch) {
-	// 			i = nextBreakMatch.index + i + 1;
-	// 		} else {
-	// 			return size.width;
-	// 		}
-	// 	}
-
-	// 	return size ? size.width : 0;
-	// }
-
 	private renderSettingElement(tree: ITree, element: SettingsTreeSettingElement, templateId: string, template: ISettingItemTemplate | ISettingBoolItemTemplate): void {
 		const isSelected = !!this.elementIsSelected(tree, element);
 		const setting = element.setting;
 
-		// const isExpandable = this.isSettingExpandable(tree, element);
-		// DOM.toggleClass(template.containerElement, 'is-expandable', isExpandable);
-		DOM.toggleClass(template.containerElement, 'is-expanded', isSelected);
 		DOM.toggleClass(template.containerElement, 'is-configured', element.isConfigured);
+		DOM.toggleClass(template.containerElement, 'is-expanded', isSelected);
 		template.containerElement.id = element.id.replace(/\./g, '_');
 
 		const titleTooltip = setting.key;
@@ -1098,33 +1008,9 @@ export class SettingsRenderer implements ITreeRenderer {
 		template.labelElement.textContent = element.displayLabel;
 		template.labelElement.title = titleTooltip;
 
-		// if (isExpandable) {
-		// 	const widthInFirstLine = this.settingDescriptionFirstLineLength(tree, element);
-		// 	template.expandIndicatorElement.style.left = (widthInFirstLine + 8) + 'px';
-		// }
-
-		const descriptionText = element.description + this.getEnumDescriptionText(element);
-		this.renderDescription(descriptionText, template, isSelected);
-		this.renderValue(element, isSelected, templateId, <ISettingItemTemplate>template);
-
-		template.isConfiguredElement.textContent = element.isConfigured ? localize('configured', "Modified") : '';
-
-		if (element.overriddenScopeList.length) {
-			const otherOverridesLabel = element.isConfigured ?
-				localize('alsoConfiguredIn', "Also modified in") :
-				localize('configuredIn', "Modified in");
-
-			template.otherOverridesElement.textContent = `(${otherOverridesLabel}: ${element.overriddenScopeList.join(', ')})`;
-		} else {
-			template.otherOverridesElement.textContent = '';
-		}
-	}
-
-	private getEnumDescriptionText(element: SettingsTreeSettingElement): string {
-		const setting = element.setting;
 		let enumDescriptionText = '';
-		if (element.valueType === 'enum' && setting.enumDescriptions && setting.enum && setting.enum.length < SettingsRenderer.MAX_ENUM_DESCRIPTIONS) {
-			enumDescriptionText = '\n' + setting.enumDescriptions
+		if (element.valueType === 'enum' && element.setting.enumDescriptions && element.setting.enum && element.setting.enum.length < SettingsRenderer.MAX_ENUM_DESCRIPTIONS) {
+			enumDescriptionText = '\n' + element.setting.enumDescriptions
 				.map((desc, i) => {
 					const displayEnum = escapeInvisibleChars(setting.enum[i]);
 					return desc ?
@@ -1135,40 +1021,42 @@ export class SettingsRenderer implements ITreeRenderer {
 				.join('\n');
 		}
 
-		return enumDescriptionText;
-	}
-
-	private renderDescription(text: string, template: ISettingItemTemplate | ISettingBoolItemTemplate, isSelected: boolean, measuring = false): void {
 		// Rewrite `#editor.fontSize#` to link format
-		const descriptionText = text
+		const descriptionText = (element.description + enumDescriptionText)
 			.replace(/`#(.*)#`/g, (match, settingName) => `[\`${settingName}\`](#${settingName})`);
 
 		const renderedDescription = renderMarkdown({ value: descriptionText }, {
-			actionHandler: measuring ?
-				undefined :
-				{
-					callback: (content: string) => {
-						if (startsWith(content, '#')) {
-							this._onDidClickSettingLink.fire(content.substr(1));
-						} else {
-							this.openerService.open(URI.parse(content)).then(void 0, onUnexpectedError);
-						}
-					},
-					disposeables: template.toDispose
-				}
+			actionHandler: {
+				callback: (content: string) => {
+					if (startsWith(content, '#')) {
+						this._onDidClickSettingLink.fire(content.substr(1));
+					} else {
+						this.openerService.open(URI.parse(content)).then(void 0, onUnexpectedError);
+					}
+				},
+				disposeables: template.toDispose
+			}
 		});
-		if (!measuring) {
-			cleanRenderedMarkdown(renderedDescription);
-		}
-
+		cleanRenderedMarkdown(renderedDescription);
 		renderedDescription.classList.add('setting-item-description-markdown');
 		template.descriptionElement.innerHTML = '';
 		template.descriptionElement.appendChild(renderedDescription);
+		(<any>renderedDescription.querySelectorAll('a')).forEach(aElement => {
+			aElement.tabIndex = isSelected ? 0 : -1;
+		});
 
-		if (!measuring) {
-			(<any>renderedDescription.querySelectorAll('a')).forEach(aElement => {
-				aElement.tabIndex = isSelected ? 0 : -1;
-			});
+		this.renderValue(element, isSelected, templateId, <ISettingItemTemplate>template);
+
+		template.isConfiguredElement.textContent = element.isConfigured ? localize('configured', "Modified") : '';
+
+		if (element.overriddenScopeList.length) {
+			let otherOverridesLabel = element.isConfigured ?
+				localize('alsoConfiguredIn', "Also modified in") :
+				localize('configuredIn', "Modified in");
+
+			template.otherOverridesElement.textContent = `(${otherOverridesLabel}: ${element.overriddenScopeList.join(', ')})`;
+		} else {
+			template.otherOverridesElement.textContent = '';
 		}
 	}
 
