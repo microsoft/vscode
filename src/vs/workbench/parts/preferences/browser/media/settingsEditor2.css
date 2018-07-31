@@ -260,11 +260,11 @@
 	transform: translate3d(0px, 0px, 0px);
 }
 
-.settings-editor > .settings-body > .settings-tree-container .setting-item .setting-item-description * {
+.settings-editor > .settings-body > .settings-tree-container .setting-item .setting-item-description-markdown * {
 	margin: 0px;
 }
 
-.settings-editor > .settings-body > .settings-tree-container .setting-item .setting-item-description code {
+.settings-editor > .settings-body > .settings-tree-container .setting-item .setting-item-description-markdown code {
 	line-height: 15px; /** For some reason, this is needed, otherwise <code> will take up 20px height */
 	font-family: Menlo, Monaco, Consolas, "Droid Sans Mono", "Courier New", monospace, "Droid Sans Fallback";
 }
@@ -278,6 +278,15 @@
 .settings-editor > .settings-body > .settings-tree-container .setting-item.setting-measure-helper .setting-item-description {
 	height: initial;
 	-webkit-line-clamp: initial;
+}
+
+.settings-editor > .settings-body > .settings-tree-container .setting-item .setting-item-enumDescription {
+	display: none;
+}
+
+.settings-editor > .settings-body > .settings-tree-container .setting-item.is-expanded .setting-item-enumDescription,
+.settings-editor > .settings-body > .settings-tree-container .setting-item.setting-measure-helper .setting-item-enumDescription {
+	display: block;
 }
 
 .settings-editor > .settings-body > .settings-tree-container .setting-item-bool .setting-item-value-description {

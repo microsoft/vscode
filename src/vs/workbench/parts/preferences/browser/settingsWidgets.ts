@@ -62,8 +62,8 @@ registerThemingParticipant((theme: ITheme, collector: ICssStyleCollector) => {
 
 	const link = theme.getColor(textLinkForeground);
 	if (link) {
-		collector.addRule(`.settings-editor > .settings-body > .settings-tree-container .setting-item .setting-item-description a { color: ${link}; }`);
-		collector.addRule(`.settings-editor > .settings-body > .settings-tree-container .setting-item .setting-item-description a > code { color: ${link}; }`);
+		collector.addRule(`.settings-editor > .settings-body > .settings-tree-container .setting-item .setting-item-description-markdown a { color: ${link}; }`);
+		collector.addRule(`.settings-editor > .settings-body > .settings-tree-container .setting-item .setting-item-description-markdown a > code { color: ${link}; }`);
 	}
 
 	const headerForegroundColor = theme.getColor(settingsHeaderForeground);

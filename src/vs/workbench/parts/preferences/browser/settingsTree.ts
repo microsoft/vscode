@@ -489,6 +489,7 @@ type ISettingNumberItemTemplate = ISettingTextItemTemplate;
 
 interface ISettingEnumItemTemplate extends ISettingItemTemplate<number> {
 	selectBox: SelectBox;
+	enumDescriptionElement: HTMLElement;
 }
 
 interface ISettingComplexItemTemplate extends ISettingItemTemplate<void> {
@@ -855,9 +856,12 @@ export class SettingsRenderer implements ITreeRenderer {
 				}
 			}));
 
+		const enumDescriptionElement = common.containerElement.insertBefore($('.setting-item-enumDescription'), common.descriptionElement.nextSibling);
+
 		const template: ISettingEnumItemTemplate = {
 			...common,
-			selectBox
+			selectBox,
+			enumDescriptionElement
 		};
 
 		return template;
@@ -1008,37 +1012,10 @@ export class SettingsRenderer implements ITreeRenderer {
 		template.labelElement.textContent = element.displayLabel;
 		template.labelElement.title = titleTooltip;
 
-		let enumDescriptionText = '';
-		if (element.valueType === 'enum' && element.setting.enumDescriptions && element.setting.enum && element.setting.enum.length < SettingsRenderer.MAX_ENUM_DESCRIPTIONS) {
-			enumDescriptionText = '\n' + element.setting.enumDescriptions
-				.map((desc, i) => {
-					const displayEnum = escapeInvisibleChars(setting.enum[i]);
-					return desc ?
-						` - \`${displayEnum}\`: ${desc}` :
-						` - \`${setting.enum[i]}\``;
-				})
-				.filter(desc => !!desc)
-				.join('\n');
-		}
-
 		// Rewrite `#editor.fontSize#` to link format
-		const descriptionText = (element.description + enumDescriptionText)
-			.replace(/`#(.*)#`/g, (match, settingName) => `[\`${settingName}\`](#${settingName})`);
+		const descriptionText = fixSettingLinks(element.description);
+		const renderedDescription = this.renderDescriptionMarkdown(descriptionText, template.toDispose);
 
-		const renderedDescription = renderMarkdown({ value: descriptionText }, {
-			actionHandler: {
-				callback: (content: string) => {
-					if (startsWith(content, '#')) {
-						this._onDidClickSettingLink.fire(content.substr(1));
-					} else {
-						this.openerService.open(URI.parse(content)).then(void 0, onUnexpectedError);
-					}
-				},
-				disposeables: template.toDispose
-			}
-		});
-		cleanRenderedMarkdown(renderedDescription);
-		renderedDescription.classList.add('setting-item-description-markdown');
 		template.descriptionElement.innerHTML = '';
 		template.descriptionElement.appendChild(renderedDescription);
 		(<any>renderedDescription.querySelectorAll('a')).forEach(aElement => {
@@ -1058,6 +1035,25 @@ export class SettingsRenderer implements ITreeRenderer {
 		} else {
 			template.otherOverridesElement.textContent = '';
 		}
+	}
+
+	private renderDescriptionMarkdown(text: string, disposeables: IDisposable[]): HTMLElement {
+		const renderedMarkdown = renderMarkdown({ value: text }, {
+			actionHandler: {
+				callback: (content: string) => {
+					if (startsWith(content, '#')) {
+						this._onDidClickSettingLink.fire(content.substr(1));
+					} else {
+						this.openerService.open(URI.parse(content)).then(void 0, onUnexpectedError);
+					}
+				},
+				disposeables
+			}
+		});
+
+		renderedMarkdown.classList.add('setting-item-description-markdown');
+		cleanRenderedMarkdown(renderedMarkdown);
+		return renderedMarkdown;
 	}
 
 	private renderValue(element: SettingsTreeSettingElement, isSelected: boolean, templateId: string, template: ISettingItemTemplate | ISettingBoolItemTemplate): void {
@@ -1100,6 +1096,22 @@ export class SettingsRenderer implements ITreeRenderer {
 
 		if (template.controlElement.firstElementChild) {
 			template.controlElement.firstElementChild.setAttribute('tabindex', isSelected ? '0' : '-1');
+		}
+
+		template.enumDescriptionElement.innerHTML = '';
+		if (dataElement.setting.enumDescriptions && dataElement.setting.enum && dataElement.setting.enum.length < SettingsRenderer.MAX_ENUM_DESCRIPTIONS) {
+			let enumDescriptionText = '\n' + dataElement.setting.enumDescriptions
+				.map((desc, i) => {
+					const displayEnum = escapeInvisibleChars(dataElement.setting.enum[i]);
+					return desc ?
+						` - \`${displayEnum}\`: ${desc}` :
+						` - \`${dataElement.setting.enum[i]}\``;
+				})
+				.filter(desc => !!desc)
+				.join('\n');
+
+			const renderedMarkdown = this.renderDescriptionMarkdown(fixSettingLinks(enumDescriptionText), template.toDispose);
+			template.enumDescriptionElement.appendChild(renderedMarkdown);
 		}
 	}
 
@@ -1146,6 +1158,10 @@ function cleanRenderedMarkdown(element: Node): void {
 			cleanRenderedMarkdown(child);
 		}
 	}
+}
+
+function fixSettingLinks(text: string): string {
+	return text.replace(/`#(.*)#`/g, (match, settingName) => `[\`${settingName}\`](#${settingName})`);
 }
 
 function getDisplayEnumOptions(setting: ISetting): string[] {
