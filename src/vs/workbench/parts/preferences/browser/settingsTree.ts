@@ -402,17 +402,18 @@ export class SettingsDataSource implements IDataSource {
 }
 
 export function settingKeyToDisplayFormat(key: string, groupId = ''): { category: string, label: string } {
-	let label = wordifyKey(key);
-	const lastDotIdx = label.lastIndexOf('.');
+	const lastDotIdx = key.lastIndexOf('.');
 	let category = '';
 	if (lastDotIdx >= 0) {
-		category = label.substr(0, lastDotIdx);
-		label = label.substr(lastDotIdx + 1);
+		category = key.substr(0, lastDotIdx);
+		key = key.substr(lastDotIdx + 1);
 	}
 
-	groupId = wordifyKey(groupId.replace(/\//g, '.'));
+	groupId = groupId.replace(/\//g, '.');
 	category = trimCategoryForGroup(category, groupId);
+	category = wordifyKey(category);
 
+	const label = wordifyKey(key);
 	return { category, label };
 }
 

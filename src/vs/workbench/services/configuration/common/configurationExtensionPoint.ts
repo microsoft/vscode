@@ -113,7 +113,7 @@ configurationExtPoint.setHandler(extensions => {
 
 		validateProperties(configuration, extension);
 
-		configuration.id = node.id || extension.description.uuid || extension.description.id;
+		configuration.id = node.id || extension.description.id || extension.description.uuid;
 		configuration.contributedByExtension = true;
 		configuration.title = configuration.title || extension.description.displayName || extension.description.id;
 		configurations.push(configuration);
