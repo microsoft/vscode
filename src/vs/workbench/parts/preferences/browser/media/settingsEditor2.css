@@ -269,6 +269,9 @@
 .settings-editor > .settings-body > .settings-tree-container .setting-item .setting-item-description {
 	overflow: hidden;
 	height: 18px;
+	display: -webkit-box;
+	-webkit-line-clamp: 1;
+	-webkit-box-orient: vertical;
 }
 
 .settings-editor > .settings-body > .settings-tree-container .setting-item .setting-item-description * {
@@ -288,6 +291,7 @@
 .settings-editor > .settings-body > .settings-tree-container .setting-item.is-expanded .setting-item-description,
 .settings-editor > .settings-body > .settings-tree-container .setting-item.setting-measure-helper .setting-item-description {
 	height: initial;
+	-webkit-line-clamp: initial;
 }
 
 .settings-editor > .settings-body > .settings-tree-container .setting-description-measure-container .setting-item .setting-item-description,
