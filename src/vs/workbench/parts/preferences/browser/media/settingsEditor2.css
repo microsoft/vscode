@@ -272,6 +272,7 @@
 	display: -webkit-box;
 	-webkit-line-clamp: 1;
 	-webkit-box-orient: vertical;
+	transform: translate3d(0px, 0px, 0px);
 }
 
 .settings-editor > .settings-body > .settings-tree-container .setting-item .setting-item-description * {
