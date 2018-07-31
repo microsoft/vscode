@@ -1031,11 +1031,23 @@ export interface ITextModel {
 	undo(): Selection[];
 
 	/**
+	 * Is there anything in the undo stack?
+	 * @internal
+	 */
+	canUndo(): boolean;
+
+	/**
 	 * Redo edit operations until the next stop point created by `pushStackElement`.
 	 * The inverse edit operations will be pushed on the undo stack.
 	 * @internal
 	 */
 	redo(): Selection[];
+
+	/**
+	 * Is there anything in the redo stack?
+	 * @internal
+	 */
+	canRedo(): boolean;
 
 	/**
 	 * @deprecated Please use `onDidChangeContent` instead.

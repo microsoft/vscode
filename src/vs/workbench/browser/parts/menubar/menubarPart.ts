@@ -10,7 +10,7 @@ import 'vs/css!./media/menubarpart';
 import * as nls from 'vs/nls';
 import * as browser from 'vs/base/browser/browser';
 import { Part } from 'vs/workbench/browser/part';
-import { IMenubarService, IMenubarMenu, IMenubarMenuItemAction, IMenubarData } from 'vs/platform/menubar/common/menubar';
+import { IMenubarService, IMenubarMenu, IMenubarMenuItemAction, IMenubarData, IMenubarMenuItemSubmenu, IMenubarKeybinding } from 'vs/platform/menubar/common/menubar';
 import { IMenuService, MenuId, IMenu, SubmenuItemAction } from 'vs/platform/actions/common/actions';
 import { IThemeService, registerThemingParticipant, ITheme, ICssStyleCollector } from 'vs/platform/theme/common/themeService';
 import { IWindowService, MenuBarVisibility, IWindowsService } from 'vs/platform/windows/common/windows';
@@ -20,7 +20,7 @@ import { Builder, $ } from 'vs/base/browser/builder';
 import { Separator } from 'vs/base/browser/ui/actionbar/actionbar';
 import { EventType, Dimension } from 'vs/base/browser/dom';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
-import { isWindows, isMacintosh } from 'vs/base/common/platform';
+import { isMacintosh } from 'vs/base/common/platform';
 import { Menu, IMenuOptions, SubmenuAction } from 'vs/base/browser/ui/menu/menu';
 import { KeyCode } from 'vs/base/common/keyCodes';
 import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
@@ -30,11 +30,11 @@ import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { domEvent } from 'vs/base/browser/event';
 import { IRecentlyOpened } from 'vs/platform/history/common/history';
 import { IWorkspaceIdentifier, getWorkspaceLabel, ISingleFolderWorkspaceIdentifier, isSingleFolderWorkspaceIdentifier, isWorkspaceIdentifier } from 'vs/platform/workspaces/common/workspaces';
-import { getPathLabel } from 'vs/base/common/labels';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { RunOnceScheduler } from 'vs/base/common/async';
 import { MENUBAR_SELECTION_FOREGROUND, MENUBAR_SELECTION_BACKGROUND, MENUBAR_SELECTION_BORDER, TITLE_BAR_ACTIVE_FOREGROUND, TITLE_BAR_INACTIVE_FOREGROUND, MENU_BACKGROUND, MENU_FOREGROUND, MENU_SELECTION_BACKGROUND, MENU_SELECTION_FOREGROUND, MENU_SELECTION_BORDER } from 'vs/workbench/common/theme';
 import URI from 'vs/base/common/uri';
+import { IUriDisplayService } from 'vs/platform/uriDisplay/common/uriDisplay';
 
 interface CustomMenu {
 	title: string;
@@ -106,15 +106,7 @@ export class MenubarPart extends Part {
 	private _modifierKeyStatus: IModifierKeyStatus;
 	private _focusState: MenubarState;
 
-	private _onVisibilityChange: Emitter<Dimension>;
-
-	private initialSizing: {
-		menuButtonPaddingLeftRight?: number;
-		menubarHeight?: number;
-		menubarPaddingLeft?: number;
-		menubarPaddingRight?: number;
-		menubarFontSize?: number;
-	} = {};
+	private _onVisibilityChange: Emitter<boolean>;
 
 	private static MAX_MENU_RECENT_ENTRIES = 5;
 
@@ -128,7 +120,8 @@ export class MenubarPart extends Part {
 		@IContextKeyService private contextKeyService: IContextKeyService,
 		@IKeybindingService private keybindingService: IKeybindingService,
 		@IConfigurationService private configurationService: IConfigurationService,
-		@IEnvironmentService private environmentService: IEnvironmentService
+		@IEnvironmentService private environmentService: IEnvironmentService,
+		@IUriDisplayService private uriDisplayService: IUriDisplayService
 	) {
 		super(id, { hasTitle: false }, themeService);
 
@@ -145,6 +138,7 @@ export class MenubarPart extends Part {
 		};
 
 		if (isMacintosh) {
+			this.topLevelMenus['Preferences'] = this._register(this.menuService.createMenu(MenuId.MenubarPreferencesMenu, this.contextKeyService));
 			this.topLevelMenus['Window'] = this._register(this.menuService.createMenu(MenuId.MenubarWindowMenu, this.contextKeyService));
 		}
 
@@ -155,7 +149,7 @@ export class MenubarPart extends Part {
 			this.setUnfocusedState();
 		}));
 
-		this._onVisibilityChange = this._register(new Emitter<Dimension>());
+		this._onVisibilityChange = this._register(new Emitter<boolean>());
 
 		if (isMacintosh || this.currentTitlebarStyleSetting !== 'custom') {
 			for (let topLevelMenuName of Object.keys(this.topLevelMenus)) {
@@ -180,10 +174,6 @@ export class MenubarPart extends Part {
 		}
 
 		return enableMenuBarMnemonics;
-	}
-
-	private get currentMultiCursorSetting(): string {
-		return this.configurationService.getValue<string>('editor.multiCursorModifier');
 	}
 
 	private get currentAutoSaveSetting(): string {
@@ -301,7 +291,7 @@ export class MenubarPart extends Part {
 				}
 
 				if (this.focusedMenu) {
-					this.showCustomMenu(this.focusedMenu.index);
+					this.showCustomMenu(this.focusedMenu.index, !!this._modifierKeyStatus && this._modifierKeyStatus.altKey);
 				}
 				break;
 		}
@@ -340,26 +330,34 @@ export class MenubarPart extends Part {
 		if (this.keys.some(key => event.affectsConfiguration(key))) {
 			this.setupMenubar();
 		}
+
+		if (event.affectsConfiguration('window.menuBarVisibility')) {
+			this.setUnfocusedState();
+		}
 	}
 
 	private setUnfocusedState(): void {
-		this.focusState = this.currentMenubarVisibility === 'toggle' ? MenubarState.HIDDEN : MenubarState.VISIBLE;
+		this.focusState = this.currentMenubarVisibility === 'toggle' || this.currentMenubarVisibility === 'hidden' ? MenubarState.HIDDEN : MenubarState.VISIBLE;
 	}
 
 	private hideMenubar(): void {
-		this._onVisibilityChange.fire(new Dimension(0, 0));
-		this.container.style('visibility', 'hidden');
+		this.container.style('display', 'none');
+		this._onVisibilityChange.fire(false);
 	}
 
 	private showMenubar(): void {
-		this._onVisibilityChange.fire(this.getMenubarItemsDimensions());
-		this.container.style('visibility', null);
+		this.container.style('display', 'flex');
+		this._onVisibilityChange.fire(true);
 	}
 
 	private onModifierKeyToggled(modifierKeyStatus: IModifierKeyStatus): void {
 		this._modifierKeyStatus = modifierKeyStatus;
 		const altKeyAlone = modifierKeyStatus.lastKeyPressed === 'alt' && !modifierKeyStatus.ctrlKey && !modifierKeyStatus.shiftKey;
 		const allModifiersReleased = !modifierKeyStatus.altKey && !modifierKeyStatus.ctrlKey && !modifierKeyStatus.shiftKey;
+
+		if (this.currentMenubarVisibility === 'hidden') {
+			return;
+		}
 
 		if (this.currentMenubarVisibility === 'toggle') {
 			if (altKeyAlone) {
@@ -430,21 +428,15 @@ export class MenubarPart extends Part {
 		if (!isMacintosh && this.currentTitlebarStyleSetting === 'custom') {
 			this.setupCustomMenubar();
 		} else {
-			this.setupNativeMenubar();
+			// Send menus to main process to be rendered by Electron
+			this.menubarService.updateMenubar(this.windowService.getCurrentWindowId(), this.getMenubarMenus());
+
 		}
 	}
 
 	private setupMenubar(): void {
 		this.menuUpdater.schedule();
 	}
-
-	private setupNativeMenubar(): void {
-		// TODO@sbatten: Remove once native menubar is ready
-		if (isMacintosh && isWindows) {
-			this.menubarService.updateMenubar(this.windowService.getCurrentWindowId(), this.getMenubarMenus());
-		}
-	}
-
 
 	private clearMnemonic(topLevelElement: HTMLElement): void {
 		topLevelElement.accessKey = null;
@@ -468,16 +460,6 @@ export class MenubarPart extends Part {
 	private calculateActionLabel(action: IAction | IMenubarMenuItemAction): string {
 		let label = action.label;
 		switch (action.id) {
-			case 'workbench.action.toggleMultiCursorModifier':
-				if (this.currentMultiCursorSetting === 'ctrlCmd') {
-					label = nls.localize('miMultiCursorAlt', "Switch to Alt+Click for Multi-Cursor");
-				} else {
-					label = isMacintosh
-						? nls.localize('miMultiCursorCmd', "Switch to Cmd+Click for Multi-Cursor")
-						: nls.localize('miMultiCursorCtrl', "Switch to Ctrl+Click for Multi-Cursor");
-				}
-				break;
-
 			case 'workbench.action.toggleSidebarPosition':
 				if (this.currentSidebarPosition !== 'right') {
 					label = nls.localize({ key: 'miMoveSidebarRight', comment: ['&& denotes a mnemonic'] }, "&&Move Side Bar Right");
@@ -515,14 +497,14 @@ export class MenubarPart extends Part {
 		let uri: URI;
 
 		if (isSingleFolderWorkspaceIdentifier(workspace)) {
-			label = getWorkspaceLabel(workspace, this.environmentService, { verbose: true });
+			label = getWorkspaceLabel(workspace, this.environmentService, this.uriDisplayService, { verbose: true });
 			uri = workspace;
 		} else if (isWorkspaceIdentifier(workspace)) {
-			label = getWorkspaceLabel(workspace, this.environmentService, { verbose: true });
+			label = getWorkspaceLabel(workspace, this.environmentService, this.uriDisplayService, { verbose: true });
 			uri = URI.file(workspace.configPath);
 		} else {
-			label = getPathLabel(workspace, this.environmentService);
 			uri = URI.file(workspace);
+			label = this.uriDisplayService.getLabel(uri);
 		}
 
 		return new Action(commandId, label, undefined, undefined, (event) => {
@@ -683,7 +665,7 @@ export class MenubarPart extends Part {
 							this.setUnfocusedState();
 						} else {
 							this.cleanupCustomMenu();
-							this.showCustomMenu(menuIndex);
+							this.showCustomMenu(menuIndex, !!this._modifierKeyStatus && this._modifierKeyStatus.altKey);
 						}
 					} else {
 						this.focusedMenu = { index: menuIndex };
@@ -698,7 +680,7 @@ export class MenubarPart extends Part {
 					if (this.isOpen && !this.isCurrentMenu(menuIndex)) {
 						this.customMenus[menuIndex].buttonElement.domFocus();
 						this.cleanupCustomMenu();
-						this.showCustomMenu(menuIndex);
+						this.showCustomMenu(menuIndex, false);
 					} else if (this.isFocused && !this.isOpen) {
 						this.focusedMenu = { index: menuIndex };
 						this.customMenus[menuIndex].buttonElement.domFocus();
@@ -800,37 +782,76 @@ export class MenubarPart extends Part {
 		}
 	}
 
+	private getMenubarKeybinding(id: string): IMenubarKeybinding {
+		const binding = this.keybindingService.lookupKeybinding(id);
+		if (!binding) {
+			return null;
+		}
+
+		// first try to resolve a native accelerator
+		const electronAccelerator = binding.getElectronAccelerator();
+		if (electronAccelerator) {
+			return { id, label: electronAccelerator, isNative: true };
+		}
+
+		// we need this fallback to support keybindings that cannot show in electron menus (e.g. chords)
+		const acceleratorLabel = binding.getLabel();
+		if (acceleratorLabel) {
+			return { id, label: acceleratorLabel, isNative: false };
+		}
+
+		return null;
+	}
+
+	private populateMenuItems(menu: IMenu, menuToPopulate: IMenubarMenu) {
+		let groups = menu.getActions();
+		for (let group of groups) {
+			const [, actions] = group;
+
+			actions.forEach(menuItem => {
+
+				if (menuItem instanceof SubmenuItemAction) {
+					const submenu = { items: [] };
+					this.populateMenuItems(this.menuService.createMenu(menuItem.item.submenu, this.contextKeyService), submenu);
+
+					let menubarSubmenuItem: IMenubarMenuItemSubmenu = {
+						id: menuItem.id,
+						label: menuItem.label,
+						submenu: submenu
+					};
+
+					menuToPopulate.items.push(menubarSubmenuItem);
+				} else {
+					let menubarMenuItem: IMenubarMenuItemAction = {
+						id: menuItem.id,
+						label: menuItem.label,
+						checked: menuItem.checked,
+						enabled: menuItem.enabled,
+						keybinding: this.getMenubarKeybinding(menuItem.id)
+					};
+
+					this.setCheckedStatus(menubarMenuItem);
+					menubarMenuItem.label = this.calculateActionLabel(menubarMenuItem);
+
+					menuToPopulate.items.push(menubarMenuItem);
+				}
+			});
+
+			menuToPopulate.items.push({ id: 'vscode.menubar.separator' });
+		}
+
+		if (menuToPopulate.items.length > 0) {
+			menuToPopulate.items.pop();
+		}
+	}
+
 	private getMenubarMenus(): IMenubarData {
 		let ret: IMenubarData = {};
 
 		for (let topLevelMenuName of Object.keys(this.topLevelMenus)) {
 			const menu = this.topLevelMenus[topLevelMenuName];
 			let menubarMenu: IMenubarMenu = { items: [] };
-			let groups = menu.getActions();
-			for (let group of groups) {
-				const [, actions] = group;
-
-				actions.forEach(menuItemAction => {
-					let menubarMenuItem: IMenubarMenuItemAction = {
-						id: menuItemAction.id,
-						label: menuItemAction.label,
-						checked: menuItemAction.checked,
-						enabled: menuItemAction.enabled
-					};
-
-					this.setCheckedStatus(menubarMenuItem);
-					menubarMenuItem.label = this.calculateActionLabel(menubarMenuItem);
-
-					menubarMenu.items.push(menubarMenuItem);
-				});
-
-				menubarMenu.items.push({ id: 'vscode.menubar.separator' });
-			}
-
-			if (menubarMenu.items.length > 0) {
-				menubarMenu.items.pop();
-			}
-
+			this.populateMenuItems(menu, menubarMenu);
 			ret[topLevelMenuName] = menubarMenu;
 		}
 
@@ -861,17 +882,15 @@ export class MenubarPart extends Part {
 		}
 	}
 
-	private showCustomMenu(menuIndex: number): void {
+	private showCustomMenu(menuIndex: number, selectFirst = true): void {
 		const customMenu = this.customMenus[menuIndex];
 
 		let menuHolder = $(customMenu.buttonElement).div({ class: 'menubar-menu-items-holder' });
 
 		$(menuHolder.getHTMLElement().parentElement).addClass('open');
-
-		menuHolder.addClass('menubar-menu-items-holder-open context-view');
 		menuHolder.style({
-			'zoom': `${1 / browser.getZoomFactor()}`,
-			'top': `${this.container.getClientArea().height * browser.getZoomFactor()}px`
+			'top': `${this.container.getClientArea().height}px`,
+			'left': `${customMenu.buttonElement.getHTMLElement().getBoundingClientRect().left}px`
 		});
 
 		let menuOptions: IMenuOptions = {
@@ -893,7 +912,7 @@ export class MenubarPart extends Part {
 			}, 100);
 		}));
 
-		menuWidget.focus();
+		menuWidget.focus(selectFirst);
 
 		this.focusedMenu = {
 			index: menuIndex,
@@ -902,48 +921,12 @@ export class MenubarPart extends Part {
 		};
 	}
 
-	public get onVisibilityChange(): Event<Dimension> {
+	public get onVisibilityChange(): Event<boolean> {
 		return this._onVisibilityChange.event;
 	}
 
 	public layout(dimension: Dimension): Dimension[] {
-		// To prevent zooming we need to adjust the font size with the zoom factor
-		if (this.customMenus) {
-			if (typeof this.initialSizing.menubarFontSize !== 'number') {
-				this.initialSizing.menubarFontSize = parseInt(this.container.getComputedStyle().fontSize, 10);
-			}
-
-			if (typeof this.initialSizing.menubarHeight !== 'number') {
-				this.initialSizing.menubarHeight = parseInt(this.container.getComputedStyle().height, 10);
-			}
-
-			if (typeof this.initialSizing.menubarPaddingLeft !== 'number') {
-				this.initialSizing.menubarPaddingLeft = parseInt(this.container.getComputedStyle().paddingLeft, 10);
-			}
-
-			if (typeof this.initialSizing.menubarPaddingRight !== 'number') {
-				this.initialSizing.menubarPaddingRight = parseInt(this.container.getComputedStyle().paddingRight, 10);
-			}
-
-			if (typeof this.initialSizing.menuButtonPaddingLeftRight !== 'number') {
-				this.initialSizing.menuButtonPaddingLeftRight = parseInt(this.customMenus[0].buttonElement.getComputedStyle().paddingLeft, 10);
-			}
-
-			this.container.style({
-				height: `${this.initialSizing.menubarHeight / browser.getZoomFactor()}px`,
-				'padding-left': `${this.initialSizing.menubarPaddingLeft / browser.getZoomFactor()}px`,
-				'padding-right': `${this.initialSizing.menubarPaddingRight / browser.getZoomFactor()}px`,
-				'font-size': `${this.initialSizing.menubarFontSize / browser.getZoomFactor()}px`,
-			});
-
-			this.customMenus.forEach(customMenu => {
-				customMenu.buttonElement.style({
-					'padding': `0 ${this.initialSizing.menuButtonPaddingLeftRight / browser.getZoomFactor()}px`
-				});
-			});
-		}
-
-		if (this.currentMenubarVisibility === 'toggle') {
+		if (!this.isVisible) {
 			this.hideMenubar();
 		} else {
 			this.showMenubar();
@@ -965,13 +948,13 @@ export class MenubarPart extends Part {
 	public createContentArea(parent: HTMLElement): HTMLElement {
 		this.container = $(parent);
 
-		if (!isWindows) {
-			return this.container.getHTMLElement();
-		}
-
 		// Build the menubar
 		if (this.container) {
 			this.doSetupMenubar();
+
+			if (!isMacintosh && this.currentTitlebarStyleSetting === 'custom') {
+				this.setUnfocusedState();
+			}
 		}
 
 		return this.container.getHTMLElement();
@@ -982,7 +965,7 @@ registerThemingParticipant((theme: ITheme, collector: ICssStyleCollector) => {
 	const menubarActiveWindowFgColor = theme.getColor(TITLE_BAR_ACTIVE_FOREGROUND);
 	if (menubarActiveWindowFgColor) {
 		collector.addRule(`
-		.monaco-workbench > .part.menubar > .menubar-menu-button {
+		.monaco-workbench .part.menubar > .menubar-menu-button {
 			color: ${menubarActiveWindowFgColor};
 		}
 		`);
@@ -991,7 +974,7 @@ registerThemingParticipant((theme: ITheme, collector: ICssStyleCollector) => {
 	const menubarInactiveWindowFgColor = theme.getColor(TITLE_BAR_INACTIVE_FOREGROUND);
 	if (menubarInactiveWindowFgColor) {
 		collector.addRule(`
-			.monaco-workbench > .part.menubar.inactive > .menubar-menu-button {
+			.monaco-workbench .part.menubar.inactive > .menubar-menu-button {
 				color: ${menubarInactiveWindowFgColor};
 			}
 		`);
@@ -1001,9 +984,9 @@ registerThemingParticipant((theme: ITheme, collector: ICssStyleCollector) => {
 	const menubarSelectedFgColor = theme.getColor(MENUBAR_SELECTION_FOREGROUND);
 	if (menubarSelectedFgColor) {
 		collector.addRule(`
-			.monaco-workbench > .part.menubar > .menubar-menu-button.open,
-			.monaco-workbench > .part.menubar > .menubar-menu-button:focus,
-			.monaco-workbench > .part.menubar > .menubar-menu-button:hover {
+			.monaco-workbench .part.menubar > .menubar-menu-button.open,
+			.monaco-workbench .part.menubar > .menubar-menu-button:focus,
+			.monaco-workbench .part.menubar > .menubar-menu-button:hover {
 				color: ${menubarSelectedFgColor};
 			}
 		`);
@@ -1012,9 +995,9 @@ registerThemingParticipant((theme: ITheme, collector: ICssStyleCollector) => {
 	const menubarSelectedBgColor = theme.getColor(MENUBAR_SELECTION_BACKGROUND);
 	if (menubarSelectedBgColor) {
 		collector.addRule(`
-			.monaco-workbench > .part.menubar > .menubar-menu-button.open,
-			.monaco-workbench > .part.menubar > .menubar-menu-button:focus,
-			.monaco-workbench > .part.menubar > .menubar-menu-button:hover {
+			.monaco-workbench .part.menubar > .menubar-menu-button.open,
+			.monaco-workbench .part.menubar > .menubar-menu-button:focus,
+			.monaco-workbench .part.menubar > .menubar-menu-button:hover {
 				background-color: ${menubarSelectedBgColor};
 			}
 		`);
@@ -1023,18 +1006,18 @@ registerThemingParticipant((theme: ITheme, collector: ICssStyleCollector) => {
 	const menubarSelectedBorderColor = theme.getColor(MENUBAR_SELECTION_BORDER);
 	if (menubarSelectedBorderColor) {
 		collector.addRule(`
-			.monaco-workbench > .part.menubar > .menubar-menu-button:hover {
+			.monaco-workbench .part.menubar > .menubar-menu-button:hover {
 				outline: dashed 1px;
 			}
 
-			.monaco-workbench > .part.menubar > .menubar-menu-button.open,
-			.monaco-workbench > .part.menubar > .menubar-menu-button:focus {
+			.monaco-workbench .part.menubar > .menubar-menu-button.open,
+			.monaco-workbench .part.menubar > .menubar-menu-button:focus {
 				outline: solid 1px;
 			}
 
-			.monaco-workbench > .part.menubar > .menubar-menu-button.open,
-			.monaco-workbench > .part.menubar > .menubar-menu-button:focus,
-			.monaco-workbench > .part.menubar > .menubar-menu-button:hover {
+			.monaco-workbench .part.menubar > .menubar-menu-button.open,
+			.monaco-workbench .part.menubar > .menubar-menu-button:focus,
+			.monaco-workbench .part.menubar > .menubar-menu-button:hover {
 				outline-offset: -1px;
 				outline-color: ${menubarSelectedBorderColor};
 			}
@@ -1165,6 +1148,9 @@ class ModifierKeyEmitter extends Emitter<IModifierKeyStatus> {
 			if (this._keyStatus.lastKeyReleased) {
 				this.fire(this._keyStatus);
 			}
+		}));
+		this._subscriptions.push(domEvent(document.body, 'mousedown')(e => {
+			this._keyStatus.lastKeyPressed = undefined;
 		}));
 
 		this._subscriptions.push(domEvent(window, 'blur')(e => {

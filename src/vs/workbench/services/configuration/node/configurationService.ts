@@ -16,8 +16,8 @@ import { Queue } from 'vs/base/common/async';
 import { stat, writeFile } from 'vs/base/node/pfs';
 import { IJSONContributionRegistry, Extensions as JSONExtensions } from 'vs/platform/jsonschemas/common/jsonContributionRegistry';
 import { IWorkspaceContextService, Workspace, WorkbenchState, IWorkspaceFolder, toWorkspaceFolders, IWorkspaceFoldersChangeEvent, WorkspaceFolder } from 'vs/platform/workspace/common/workspace';
+import { isLinux, isWindows, isMacintosh } from 'vs/base/common/platform';
 import { IFileService } from 'vs/platform/files/common/files';
-import { isLinux } from 'vs/base/common/platform';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { ConfigurationChangeEvent, ConfigurationModel, DefaultConfigurationModel } from 'vs/platform/configuration/common/configurationModels';
 import { IConfigurationChangeEvent, ConfigurationTarget, IConfigurationOverrides, keyFromOverrideIdentifier, isConfigurationOverrides, IConfigurationData } from 'vs/platform/configuration/common/configuration';
@@ -41,6 +41,7 @@ import { UserConfiguration } from 'vs/platform/configuration/node/configuration'
 import { IJSONSchema, IJSONSchemaMap } from 'vs/base/common/jsonSchema';
 import { localize } from 'vs/nls';
 import { isEqual, hasToIgnoreCase } from 'vs/base/common/resources';
+import { IUriDisplayService } from 'vs/platform/uriDisplay/common/uriDisplay';
 
 export class WorkspaceService extends Disposable implements IWorkspaceConfigurationService, IWorkspaceContextService {
 
@@ -68,6 +69,7 @@ export class WorkspaceService extends Disposable implements IWorkspaceConfigurat
 	public readonly onDidChangeWorkbenchState: Event<WorkbenchState> = this._onDidChangeWorkbenchState.event;
 
 	private fileService: IFileService;
+	private uriDisplayService: IUriDisplayService;
 	private configurationEditingService: ConfigurationEditingService;
 	private jsonEditingService: JSONEditingService;
 
@@ -317,6 +319,10 @@ export class WorkspaceService extends Disposable implements IWorkspaceConfigurat
 			});
 	}
 
+	acquireUriDisplayService(uriDisplayService: IUriDisplayService): void {
+		this.uriDisplayService = uriDisplayService;
+	}
+
 	acquireInstantiationService(instantiationService: IInstantiationService): void {
 		this.configurationEditingService = instantiationService.createInstance(ConfigurationEditingService);
 		this.jsonEditingService = instantiationService.createInstance(JSONEditingService);
@@ -340,7 +346,7 @@ export class WorkspaceService extends Disposable implements IWorkspaceConfigurat
 			.then(() => {
 				const workspaceFolders = toWorkspaceFolders(this.workspaceConfiguration.getFolders(), URI.file(dirname(workspaceConfigPath.fsPath)));
 				const workspaceId = workspaceIdentifier.id;
-				const workspaceName = getWorkspaceLabel({ id: workspaceId, configPath: workspaceConfigPath.fsPath }, this.environmentService);
+				const workspaceName = getWorkspaceLabel({ id: workspaceId, configPath: workspaceConfigPath.fsPath }, this.environmentService, this.uriDisplayService);
 				return new Workspace(workspaceId, workspaceName, workspaceFolders, workspaceConfigPath);
 			});
 	}
@@ -349,13 +355,25 @@ export class WorkspaceService extends Disposable implements IWorkspaceConfigurat
 		if (folder.scheme === Schemas.file) {
 			return stat(folder.fsPath)
 				.then(workspaceStat => {
-					const ctime = isLinux ? workspaceStat.ino : workspaceStat.birthtime.getTime(); // On Linux, birthtime is ctime, so we cannot use it! We use the ino instead!
+					let ctime: number;
+					if (isLinux) {
+						ctime = workspaceStat.ino; // Linux: birthtime is ctime, so we cannot use it! We use the ino instead!
+					} else if (isMacintosh) {
+						ctime = workspaceStat.birthtime.getTime(); // macOS: birthtime is fine to use as is
+					} else if (isWindows) {
+						if (typeof workspaceStat.birthtimeMs === 'number') {
+							ctime = Math.floor(workspaceStat.birthtimeMs); // Windows: fix precision issue in node.js 8.x to get 7.x results (see https://github.com/nodejs/node/issues/19897)
+						} else {
+							ctime = workspaceStat.birthtime.getTime();
+						}
+					}
+
 					const id = createHash('md5').update(folder.fsPath).update(ctime ? String(ctime) : '').digest('hex');
-					return new Workspace(id, getWorkspaceLabel(folder, this.environmentService), toWorkspaceFolders([{ path: folder.fsPath }]), null, ctime);
+					return new Workspace(id, getWorkspaceLabel(folder, this.environmentService, this.uriDisplayService), toWorkspaceFolders([{ path: folder.fsPath }]), null, ctime);
 				});
 		} else {
 			const id = createHash('md5').update(folder.toString()).digest('hex');
-			return TPromise.as(new Workspace(id, getWorkspaceLabel(folder, this.environmentService), toWorkspaceFolders([{ uri: folder.toString() }]), null));
+			return TPromise.as(new Workspace(id, getWorkspaceLabel(folder, this.environmentService, this.uriDisplayService), toWorkspaceFolders([{ uri: folder.toString() }]), null));
 		}
 	}
 

@@ -69,6 +69,11 @@
 	margin-left: 5px;
 }
 
+.quick-input-visible-count {
+	position: absolute;
+	left: -10000px;
+}
+
 .quick-input-count {
 	align-self: center;
 	position: absolute;

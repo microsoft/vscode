@@ -15,11 +15,16 @@ For more information about auto detection of Tasks, see the [documentation](http
 
 ### Script Explorer
 
-The Npm Script Explorer shows the npm scripts found in your workspace. The explorer view is enabled by the setting `npm.enableScriptExplorer`. A script can be opened, run, or debug from the explorer. 
+The Npm Script Explorer shows the npm scripts found in your workspace. The explorer view is enabled by the setting `npm.enableScriptExplorer`. A script can be opened, run, or debug from the explorer.
 
 ### Run Scripts from the Editor
 
-The extension provides code lense actions to run or debug a script from the editor.
+The extension supports to run the selected script as a task when editing the `package.json`file. You can either run a script from
+the hover shown on a script or using the command `Run Selected Npm Script`.
+
+### Others
+
+The extension fetches data from https://registry.npmjs/org and https://registry.bower.io to provide auto-completion and information on hover features on npm dependencies.
 
 ## Settings
 
@@ -29,5 +34,5 @@ The extension provides code lense actions to run or debug a script from the edit
 - `npm.exclude` - Glob patterns for folders that should be excluded from automatic script detection. The pattern is matched against the **absolute path** of the package.json. For example, to exclude all test folders use '&ast;&ast;/test/&ast;&ast;'.
 - `npm.enableScriptExplorer` - Enable an explorer view for npm scripts.
 - `npm.scriptExplorerAction` - The default click action: `open` or `run`, the default is `open`.
-- `npm.scriptCodeLens.enable` - Enable/disable the code lenses to run a script.
+- `npm.scriptCodeLens.enable` - Enable/disable the code lenses to run a script, the default is `false`.
 

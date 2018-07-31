@@ -43,7 +43,6 @@ import { assign } from 'vs/base/common/objects';
 import URI from 'vs/base/common/uri';
 import { areSameExtensions, getGalleryExtensionIdFromLocal } from 'vs/platform/extensionManagement/common/extensionManagementUtil';
 import { IExperimentService, ExperimentActionType, ExperimentState } from 'vs/workbench/parts/experiments/node/experimentService';
-import { Schemas } from 'vs/base/common/network';
 
 const milliSecondsInADay = 1000 * 60 * 60 * 24;
 const choiceNever = localize('neverShowAgain', "Don't Show Again");
@@ -312,7 +311,7 @@ export class ExtensionTipsService extends Disposable implements IExtensionTipsSe
 			.then(content => <IExtensionsConfigContent>json.parse(content.value), err => null);
 	}
 
-	private validateExtensions(contents: IExtensionsConfigContent[]): TPromise<{ invalidExtensions: string[], message: string }> {
+	private async validateExtensions(contents: IExtensionsConfigContent[]): TPromise<{ invalidExtensions: string[], message: string }> {
 		const extensionsContent: IExtensionsConfigContent = {
 			recommendations: distinct(flatten(contents.map(content => content.recommendations || []))),
 			unwantedRecommendations: distinct(flatten(contents.map(content => content.unwantedRecommendations || [])))
@@ -340,27 +339,24 @@ export class ExtensionTipsService extends Disposable implements IExtensionTipsSe
 
 		const filteredWanted = regexFilter(extensionsContent.recommendations || []).map(x => x.toLowerCase());
 
-		if (!filteredWanted.length) {
-			return TPromise.as({ invalidExtensions, message });
-		}
+		if (filteredWanted.length) {
+			try {
+				let validRecommendations = (await this._galleryService.query({ names: filteredWanted })).firstPage
+					.map(extension => extension.identifier.id.toLowerCase());
 
-		return this._galleryService.query({ names: filteredWanted }).then(pager => {
-			let page = pager.firstPage;
-			let validRecommendations = page.map(extension => {
-				return extension.identifier.id.toLowerCase();
-			});
-
-			if (validRecommendations.length !== filteredWanted.length) {
-				filteredWanted.forEach(element => {
-					if (validRecommendations.indexOf(element.toLowerCase()) === -1) {
-						invalidExtensions.push(element.toLowerCase());
-						message += `${element} (not found in marketplace)\n`;
-					}
-				});
+				if (validRecommendations.length !== filteredWanted.length) {
+					filteredWanted.forEach(element => {
+						if (validRecommendations.indexOf(element.toLowerCase()) === -1) {
+							invalidExtensions.push(element.toLowerCase());
+							message += `${element} (not found in marketplace)\n`;
+						}
+					});
+				}
+			} catch (e) {
+				console.warn('Error querying extensions gallery', e);
 			}
-
-			return TPromise.as({ invalidExtensions, message });
-		});
+		}
+		return { invalidExtensions, message };
 	}
 
 	private isExtensionAllowedToBeRecommended(id: string): boolean {
@@ -500,7 +496,7 @@ export class ExtensionTipsService extends Disposable implements IExtensionTipsSe
 		let hasSuggestion = false;
 
 		const uri = model.uri;
-		if (!uri || uri.scheme !== Schemas.file) {
+		if (!uri || !this.fileService.canHandleResource(uri)) {
 			return;
 		}
 
@@ -892,7 +888,7 @@ export class ExtensionTipsService extends Disposable implements IExtensionTipsSe
 
 	private fetchDynamicWorkspaceRecommendations(): TPromise<void> {
 		if (this.contextService.getWorkbenchState() !== WorkbenchState.FOLDER
-			|| this.contextService.getWorkspace().folders[0].uri.scheme !== Schemas.file // #54483: check with @Ramya
+			|| !this.fileService.canHandleResource(this.contextService.getWorkspace().folders[0].uri)
 			|| this._dynamicWorkspaceRecommendations.length
 			|| !this._extensionsRecommendationsUrl) {
 			return TPromise.as(null);

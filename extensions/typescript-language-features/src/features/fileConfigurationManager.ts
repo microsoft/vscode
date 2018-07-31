@@ -3,11 +3,12 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { CancellationToken, Disposable, FormattingOptions, TextDocument, window, workspace as Workspace, workspace, WorkspaceConfiguration } from 'vscode';
+import * as vscode from 'vscode';
 import * as Proto from '../protocol';
 import { ITypeScriptServiceClient } from '../typescriptService';
 import API from '../utils/api';
 import { isTypeScriptDocument } from '../utils/languageModeIds';
+import { ResourceMap } from '../utils/resourceMap';
 
 
 function objsAreEqual<T>(a: T, b: T): boolean {
@@ -22,8 +23,8 @@ function objsAreEqual<T>(a: T, b: T): boolean {
 }
 
 interface FileConfiguration {
-	formatOptions: Proto.FormatCodeSettings;
-	preferences: Proto.UserPreferences;
+	readonly formatOptions: Proto.FormatCodeSettings;
+	readonly preferences: Proto.UserPreferences;
 }
 
 function areFileConfigurationsEqual(a: FileConfiguration, b: FileConfiguration): boolean {
@@ -34,19 +35,18 @@ function areFileConfigurationsEqual(a: FileConfiguration, b: FileConfiguration):
 }
 
 export default class FileConfigurationManager {
-	private onDidCloseTextDocumentSub: Disposable | undefined;
-	private formatOptions: { [key: string]: FileConfiguration | undefined } = Object.create(null);
+	private onDidCloseTextDocumentSub: vscode.Disposable | undefined;
+	private formatOptions = new ResourceMap<FileConfiguration>();
 
 	public constructor(
 		private readonly client: ITypeScriptServiceClient
 	) {
-		this.onDidCloseTextDocumentSub = Workspace.onDidCloseTextDocument((textDocument) => {
-			const key = textDocument.uri.toString();
+		this.onDidCloseTextDocumentSub = vscode.workspace.onDidCloseTextDocument((textDocument) => {
 			// When a document gets closed delete the cached formatting options.
 			// This is necessary since the tsserver now closed a project when its
 			// last file in it closes which drops the stored formatting options
 			// as well.
-			delete this.formatOptions[key];
+			this.formatOptions.delete(textDocument.uri);
 		});
 	}
 
@@ -58,38 +58,44 @@ export default class FileConfigurationManager {
 	}
 
 	public async ensureConfigurationForDocument(
-		document: TextDocument,
-		token: CancellationToken | undefined
+		document: vscode.TextDocument,
+		token: vscode.CancellationToken
 	): Promise<void> {
-		const editor = window.visibleTextEditors.find(editor => editor.document.fileName === document.fileName);
-		if (editor) {
-			const formattingOptions = {
-				tabSize: editor.options.tabSize,
-				insertSpaces: editor.options.insertSpaces
-			} as FormattingOptions;
+		const formattingOptions = this.getFormattingOptions(document);
+		if (formattingOptions) {
 			return this.ensureConfigurationOptions(document, formattingOptions, token);
 		}
 	}
 
+	private getFormattingOptions(
+		document: vscode.TextDocument
+	): vscode.FormattingOptions | undefined {
+		const editor = vscode.window.visibleTextEditors.find(editor => editor.document.fileName === document.fileName);
+		return editor
+			? {
+				tabSize: editor.options.tabSize,
+				insertSpaces: editor.options.insertSpaces
+			} as vscode.FormattingOptions
+			: undefined;
+	}
+
 	public async ensureConfigurationOptions(
-		document: TextDocument,
-		options: FormattingOptions,
-		token: CancellationToken | undefined
+		document: vscode.TextDocument,
+		options: vscode.FormattingOptions,
+		token: vscode.CancellationToken
 	): Promise<void> {
 		const file = this.client.toPath(document.uri);
 		if (!file) {
 			return;
 		}
 
-		const key = document.uri.toString();
-		const cachedOptions = this.formatOptions[key];
+		const cachedOptions = this.formatOptions.get(document.uri);
 		const currentOptions = this.getFileOptions(document, options);
-
 		if (cachedOptions && areFileConfigurationsEqual(cachedOptions, currentOptions)) {
 			return;
 		}
 
-		this.formatOptions[key] = currentOptions;
+		this.formatOptions.set(document.uri, currentOptions);
 		const args: Proto.ConfigureRequestArguments = {
 			file,
 			...currentOptions,
@@ -97,14 +103,29 @@ export default class FileConfigurationManager {
 		await this.client.execute('configure', args, token);
 	}
 
-	public reset() {
-		this.formatOptions = Object.create(null);
+	public async setGlobalConfigurationFromDocument(
+		document: vscode.TextDocument,
+		token: vscode.CancellationToken,
+	): Promise<void> {
+		const formattingOptions = this.getFormattingOptions(document);
+		if (!formattingOptions) {
+			return;
+		}
+
+		const args: Proto.ConfigureRequestArguments = {
+			file: undefined /*global*/,
+			...this.getFileOptions(document, formattingOptions),
+		};
+		await this.client.execute('configure', args, token);
 	}
 
+	public reset() {
+		this.formatOptions.clear();
+	}
 
 	private getFileOptions(
-		document: TextDocument,
-		options: FormattingOptions
+		document: vscode.TextDocument,
+		options: vscode.FormattingOptions
 	): FileConfiguration {
 		return {
 			formatOptions: this.getFormatOptions(document, options),
@@ -113,10 +134,10 @@ export default class FileConfigurationManager {
 	}
 
 	private getFormatOptions(
-		document: TextDocument,
-		options: FormattingOptions
+		document: vscode.TextDocument,
+		options: vscode.FormattingOptions
 	): Proto.FormatCodeSettings {
-		const config = workspace.getConfiguration(
+		const config = vscode.workspace.getConfiguration(
 			isTypeScriptDocument(document) ? 'typescript.format' : 'javascript.format',
 			document.uri);
 
@@ -144,12 +165,12 @@ export default class FileConfigurationManager {
 		};
 	}
 
-	private getPreferences(document: TextDocument): Proto.UserPreferences {
+	private getPreferences(document: vscode.TextDocument): Proto.UserPreferences {
 		if (!this.client.apiVersion.gte(API.v290)) {
 			return {};
 		}
 
-		const preferences = workspace.getConfiguration(
+		const preferences = vscode.workspace.getConfiguration(
 			isTypeScriptDocument(document) ? 'typescript.preferences' : 'javascript.preferences',
 			document.uri);
 
@@ -161,7 +182,7 @@ export default class FileConfigurationManager {
 	}
 }
 
-function getQuoteStylePreference(config: WorkspaceConfiguration) {
+function getQuoteStylePreference(config: vscode.WorkspaceConfiguration) {
 	switch (config.get<string>('quoteStyle')) {
 		case 'single': return 'single';
 		case 'double': return 'double';
@@ -169,7 +190,7 @@ function getQuoteStylePreference(config: WorkspaceConfiguration) {
 	}
 }
 
-function getImportModuleSpecifierPreference(config: WorkspaceConfiguration) {
+function getImportModuleSpecifierPreference(config: vscode.WorkspaceConfiguration) {
 	switch (config.get<string>('importModuleSpecifier')) {
 		case 'relative': return 'relative';
 		case 'non-relative': return 'non-relative';

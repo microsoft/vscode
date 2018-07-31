@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 import { TextDocument, CancellationToken, Position, Range } from 'vscode-languageserver';
-import { FoldingRange } from 'vscode-languageserver-protocol-foldingprovider';
+import { FoldingRange } from 'vscode-languageserver-types';
 import { LanguageModes } from './languageModes';
 
 export function getFoldingRanges(languageModes: LanguageModes, document: TextDocument, maxRanges: number | undefined, cancellationToken: CancellationToken | null): FoldingRange[] {

@@ -1752,13 +1752,11 @@ export class EditorOptionsValidator {
 	}
 
 	private static _sanitizeSuggestOpts(opts: IEditorOptions, defaults: InternalSuggestOptions): InternalSuggestOptions {
-		if (!opts.suggest) {
-			return defaults;
-		}
+		const suggestOpts = opts.suggest || {};
 		return {
-			filterGraceful: _boolean(opts.suggest.filterGraceful, defaults.filterGraceful),
+			filterGraceful: _boolean(suggestOpts.filterGraceful, defaults.filterGraceful),
 			snippets: _stringSet<'top' | 'bottom' | 'inline' | 'none'>(opts.snippetSuggestions, defaults.snippets, ['top', 'bottom', 'inline', 'none']),
-			snippetsPreventQuickSuggestions: _boolean(opts.suggest.snippetsPreventQuickSuggestions, defaults.filterGraceful),
+			snippetsPreventQuickSuggestions: _boolean(suggestOpts.snippetsPreventQuickSuggestions, defaults.filterGraceful),
 		};
 	}
 

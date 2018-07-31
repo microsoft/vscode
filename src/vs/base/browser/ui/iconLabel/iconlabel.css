@@ -40,7 +40,6 @@
 }
 
 .monaco-icon-label > .monaco-icon-label-description-container > .label-description {
-	opacity: 0.7;
 	margin-left: 0.5em;
 	font-size: 0.9em;
 	white-space: pre; /* enable to show labels that include multiple whitespaces */

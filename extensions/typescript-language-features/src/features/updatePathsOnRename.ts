@@ -15,6 +15,8 @@ import { isTypeScriptDocument } from '../utils/languageModeIds';
 import { escapeRegExp } from '../utils/regexp';
 import * as typeConverters from '../utils/typeConverters';
 import FileConfigurationManager from './fileConfigurationManager';
+import { VersionDependentRegistration } from '../utils/dependentRegistration';
+import { nulToken } from '../utils/cancellation';
 
 const localize = nls.loadMessageBundle();
 
@@ -26,7 +28,7 @@ enum UpdateImportsOnFileMoveSetting {
 	Never = 'never',
 }
 
-export class UpdateImportsOnFileRenameHandler {
+class UpdateImportsOnFileRenameHandler {
 	private readonly _onDidRenameSub: vscode.Disposable;
 
 	public constructor(
@@ -47,10 +49,6 @@ export class UpdateImportsOnFileRenameHandler {
 		oldResource: vscode.Uri,
 		newResource: vscode.Uri,
 	): Promise<void> {
-		if (!this.client.apiVersion.gte(API.v290)) {
-			return;
-		}
-
 		const targetResource = await this.getTargetResource(newResource);
 		if (!targetResource) {
 			return;
@@ -87,11 +85,11 @@ export class UpdateImportsOnFileRenameHandler {
 			// Workaround for https://github.com/Microsoft/vscode/issues/52967
 			// Never attempt to update import paths if the file does not contain something the looks like an export
 			try {
-				const tree = await this.client.execute('navtree', { file: newFile });
+				const { body } = await this.client.execute('navtree', { file: newFile }, nulToken);
 				const hasExport = (node: Proto.NavigationTree): boolean => {
 					return !!node.kindModifiers.match(/\bexports?\b/g) || !!(node.childItems && node.childItems.some(hasExport));
 				};
-				if (!tree.body || !tree.body || !hasExport(tree.body)) {
+				if (!body || !hasExport(body)) {
 					return;
 				}
 			} catch {
@@ -232,14 +230,14 @@ export class UpdateImportsOnFileRenameHandler {
 		newFile: string,
 	) {
 		const isDirectoryRename = fs.lstatSync(newFile).isDirectory();
-		await this.fileConfigurationManager.ensureConfigurationForDocument(document, undefined);
+		await this.fileConfigurationManager.setGlobalConfigurationFromDocument(document, nulToken);
 
 		const args: Proto.GetEditsForFileRenameRequestArgs & { file: string } = {
 			file: targetResource,
 			oldFilePath: oldFile,
 			newFilePath: newFile,
 		};
-		const response = await this.client.execute('getEditsForFileRename', args);
+		const response = await this.client.execute('getEditsForFileRename', args, nulToken);
 		if (!response || !response.body) {
 			return;
 		}
@@ -304,3 +302,11 @@ export class UpdateImportsOnFileRenameHandler {
 	}
 }
 
+export function register(
+	client: ITypeScriptServiceClient,
+	fileConfigurationManager: FileConfigurationManager,
+	handles: (uri: vscode.Uri) => Promise<boolean>,
+) {
+	return new VersionDependentRegistration(client, API.v290, () =>
+		new UpdateImportsOnFileRenameHandler(client, fileConfigurationManager, handles));
+}

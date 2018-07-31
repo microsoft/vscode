@@ -12,6 +12,7 @@ import { VersionDependentRegistration } from '../utils/dependentRegistration';
 import TelemetryReporter from '../utils/telemetry';
 import * as typeConverters from '../utils/typeConverters';
 import FormattingOptionsManager from './fileConfigurationManager';
+import { nulToken } from '../utils/cancellation';
 
 
 class ApplyRefactoringCommand implements Command {
@@ -47,8 +48,7 @@ class ApplyRefactoringCommand implements Command {
 			refactor,
 			action
 		};
-		const response = await this.client.execute('getEditsForRefactor', args);
-		const body = response && response.body;
+		const { body } = await this.client.execute('getEditsForRefactor', args, nulToken);
 		if (!body || !body.edits.length) {
 			return false;
 		}
@@ -137,16 +137,16 @@ class TypeScriptRefactorProvider implements vscode.CodeActionProvider {
 			return undefined;
 		}
 
-		await this.formattingOptionsManager.ensureConfigurationForDocument(document, undefined);
+		await this.formattingOptionsManager.ensureConfigurationForDocument(document, token);
 
 		const args: Proto.GetApplicableRefactorsRequestArgs = typeConverters.Range.toFileRangeRequestArgs(file, rangeOrSelection);
 		let refactorings: Proto.ApplicableRefactorInfo[];
 		try {
-			const response = await this.client.execute('getApplicableRefactors', args, token);
-			if (!response.body) {
+			const { body } = await this.client.execute('getApplicableRefactors', args, token);
+			if (!body) {
 				return undefined;
 			}
-			refactorings = response.body;
+			refactorings = body;
 		} catch {
 			return undefined;
 		}

@@ -202,12 +202,18 @@ export class CustomTreeViewer extends Disposable implements ITreeViewer {
 		@IExtensionService private extensionService: IExtensionService,
 		@IWorkbenchThemeService private themeService: IWorkbenchThemeService,
 		@IInstantiationService private instantiationService: IInstantiationService,
-		@ICommandService private commandService: ICommandService
+		@ICommandService private commandService: ICommandService,
+		@IConfigurationService private configurationService: IConfigurationService
 	) {
 		super();
 		this.root = new Root();
 		this._register(this.themeService.onDidFileIconThemeChange(() => this.doRefresh([this.root]) /** soft refresh **/));
 		this._register(this.themeService.onThemeChange(() => this.doRefresh([this.root]) /** soft refresh **/));
+		this._register(this.configurationService.onDidChangeConfiguration(e => {
+			if (e.affectsConfiguration('explorer.decorations')) {
+				this.doRefresh([this.root]); /** soft refresh **/
+			}
+		}));
 	}
 
 	get dataProvider(): ITreeViewDataProvider {
@@ -458,7 +464,8 @@ class TreeRenderer implements IRenderer {
 		private menus: TreeMenus,
 		private actionItemProvider: IActionItemProvider,
 		@IInstantiationService private instantiationService: IInstantiationService,
-		@IWorkbenchThemeService private themeService: IWorkbenchThemeService
+		@IWorkbenchThemeService private themeService: IWorkbenchThemeService,
+		@IConfigurationService private configurationService: IConfigurationService,
 	) {
 	}
 
@@ -496,7 +503,8 @@ class TreeRenderer implements IRenderer {
 		templateData.actionBar.clear();
 
 		if ((resource || node.themeIcon) && !icon) {
-			templateData.resourceLabel.setLabel({ name: label, resource: resource ? resource : URI.parse('_icon_resource') }, { fileKind: this.getFileKind(node), title, fileDecorations: node.decorations, extraClasses: ['custom-view-tree-node-item-resourceLabel'] });
+			const fileDecorations = this.configurationService.getValue<{ colors: boolean, badges: boolean }>('explorer.decorations');
+			templateData.resourceLabel.setLabel({ name: label, resource: resource ? resource : URI.parse('_icon_resource') }, { fileKind: this.getFileKind(node), title, fileDecorations: fileDecorations, extraClasses: ['custom-view-tree-node-item-resourceLabel'] });
 		} else {
 			templateData.resourceLabel.setLabel({ name: label }, { title, hideIcon: true, extraClasses: ['custom-view-tree-node-item-resourceLabel'] });
 		}

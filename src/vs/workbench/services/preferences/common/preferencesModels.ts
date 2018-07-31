@@ -555,7 +555,20 @@ export class DefaultSettings extends Disposable {
 				const value = prop.default;
 				const description = (prop.description || '').split('\n');
 				const overrides = OVERRIDE_PROPERTY_PATTERN.test(key) ? this.parseOverrideSettings(prop.default) : [];
-				result.push({ key, value, description, range: null, keyRange: null, valueRange: null, descriptionRanges: [], overrides, type: prop.type, enum: prop.enum, enumDescriptions: prop.enumDescriptions });
+				result.push({
+					key,
+					value,
+					description,
+					range: null,
+					keyRange: null,
+					valueRange: null,
+					descriptionRanges: [],
+					overrides,
+					type: prop.type,
+					enum: prop.enum,
+					enumDescriptions: prop.enumDescriptions,
+					tags: prop.tags
+				});
 			}
 		}
 		return result;
@@ -741,11 +754,15 @@ export class DefaultSettingsEditorModel extends AbstractSettingsModel implements
 	private copySetting(setting: ISetting): ISetting {
 		return <ISetting>{
 			description: setting.description,
+			type: setting.type,
+			enum: setting.enum,
+			enumDescriptions: setting.enumDescriptions,
 			key: setting.key,
 			value: setting.value,
 			range: setting.range,
 			overrides: [],
-			overrideOf: setting.overrideOf
+			overrideOf: setting.overrideOf,
+			tags: setting.tags
 		};
 	}
 
@@ -882,9 +899,10 @@ class SettingsContentBuilder {
 
 		if (setting.enumDescriptions && setting.enumDescriptions.some(desc => !!desc)) {
 			setting.enumDescriptions.forEach((desc, i) => {
+				const displayEnum = escapeInvisibleChars(setting.enum[i]);
 				const line = desc ?
-					`${setting.enum[i]}: ${fixSettingLink(desc)}` :
-					setting.enum[i];
+					`${displayEnum}: ${fixSettingLink(desc)}` :
+					displayEnum;
 
 				this._contentByLines.push(`  //  - ${line}`);
 
@@ -923,6 +941,12 @@ class SettingsContentBuilder {
 			result.push(indent + '// ' + line);
 		}
 	}
+}
+
+function escapeInvisibleChars(enumValue: string): string {
+	return enumValue && enumValue
+		.replace(/\n/g, '\\n')
+		.replace(/\r/g, '\\r');
 }
 
 export function defaultKeybindingsContents(keybindingService: IKeybindingService): string {

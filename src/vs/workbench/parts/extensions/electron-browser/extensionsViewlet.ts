@@ -61,10 +61,15 @@ import { SingleServerExtensionManagementServerService } from 'vs/workbench/servi
 import { Query } from 'vs/workbench/parts/extensions/common/extensionQuery';
 import { CodeEditorWidget } from 'vs/editor/browser/widget/codeEditorWidget';
 import { IModelService } from 'vs/editor/common/services/modelService';
-import { IEditorOptions } from 'vs/editor/common/config/editorOptions';
 import { Range } from 'vs/editor/common/core/range';
 import { Position } from 'vs/editor/common/core/position';
 import { ITextModel } from 'vs/editor/common/model';
+import { IEditorOptions } from 'vs/editor/common/config/editorOptions';
+import { getSimpleEditorOptions } from 'vs/workbench/parts/codeEditor/electron-browser/simpleEditorOptions';
+import { SuggestController } from 'vs/editor/contrib/suggest/suggestController';
+import { ContextMenuController } from 'vs/editor/contrib/contextmenu/contextmenu';
+import { MenuPreventer } from 'vs/workbench/parts/codeEditor/electron-browser/menuPreventer';
+import { SnippetController2 } from 'vs/editor/contrib/snippet/snippetController2';
 
 interface SearchInputEvent extends Event {
 	target: HTMLInputElement;
@@ -339,19 +344,33 @@ export class ExtensionsViewlet extends ViewContainerViewlet implements IExtensio
 
 		const header = append(this.root, $('.header'));
 		this.monacoStyleContainer = append(header, $('.monaco-container'));
-		this.searchBox = this.instantiationService.createInstance(CodeEditorWidget, this.monacoStyleContainer, SEARCH_INPUT_OPTIONS, { isSimpleWidget: true });
+		this.searchBox = this.instantiationService.createInstance(CodeEditorWidget, this.monacoStyleContainer,
+			mixinHTMLInputStyleOptions(getSimpleEditorOptions(), localize('searchExtensions', "Search Extensions in Marketplace")),
+			{
+				isSimpleWidget: true, contributions: [
+					SuggestController,
+					SnippetController2,
+					ContextMenuController,
+					MenuPreventer
+				]
+			});
+
 		this.placeholderText = append(this.monacoStyleContainer, $('.search-placeholder', null, localize('searchExtensions', "Search Extensions in Marketplace")));
 
 		this.extensionsBox = append(this.root, $('.extensions'));
 
 		this.searchBox.setModel(this.modelService.createModel('', null, uri.parse('extensions:searchinput'), true));
 
+		this.disposables.push(this.searchBox.onDidPaste(() => {
+			this.searchBox.setValue(this.searchBox.getValue().replace(/\s+/g, ' '));
+			this.searchBox.setScrollTop(0);
+		}));
 		this.disposables.push(this.searchBox.onDidFocusEditorText(() => addClass(this.monacoStyleContainer, 'synthetic-focus')));
 		this.disposables.push(this.searchBox.onDidBlurEditorText(() => removeClass(this.monacoStyleContainer, 'synthetic-focus')));
 
 		const onKeyDownMonaco = chain(this.searchBox.onKeyDown);
 		onKeyDownMonaco.filter(e => e.keyCode === KeyCode.Enter).on(e => e.preventDefault(), this, this.disposables);
-		onKeyDownMonaco.filter(e => e.keyCode === KeyCode.DownArrow).on(() => this.focusListView(), this, this.disposables);
+		onKeyDownMonaco.filter(e => e.keyCode === KeyCode.DownArrow && e.ctrlKey).on(() => this.focusListView(), this, this.disposables);
 
 		const searchChangeEvent = new Emitter<string>();
 		this.onSearchChange = searchChangeEvent.event;
@@ -467,6 +486,7 @@ export class ExtensionsViewlet extends ViewContainerViewlet implements IExtensio
 		event.immediate = true;
 
 		this.searchBox.setValue(value);
+		this.searchBox.setPosition(new Position(1, value.length + 1));
 	}
 
 	private triggerSearch(immediate = false): void {
@@ -513,10 +533,11 @@ export class ExtensionsViewlet extends ViewContainerViewlet implements IExtensio
 	}
 
 	private autoComplete(query: string, position: number): { fullText: string, overwrite: number }[] {
-		if (query.lastIndexOf('@', position - 1) !== query.lastIndexOf(' ', position - 1) + 1) { return []; }
-
-		let wordStart = query.lastIndexOf('@', position - 1) + 1;
+		let wordStart = query.lastIndexOf(' ', position - 1) + 1;
 		let alreadyTypedCount = position - wordStart - 1;
+
+		// dont show autosuggestions if the user has typed something, but hasn't used the trigger character
+		if (alreadyTypedCount > 0 && query[wordStart] !== '@') { return []; }
 
 		return Query.autocompletions().map(replacement => ({ fullText: replacement, overwrite: alreadyTypedCount }));
 	}
@@ -664,32 +685,14 @@ export class MaliciousExtensionChecker implements IWorkbenchContribution {
 	}
 }
 
-let SEARCH_INPUT_OPTIONS: IEditorOptions =
-{
-	fontSize: 13,
-	lineHeight: 22,
-	wordWrap: 'off',
-	overviewRulerLanes: 0,
-	glyphMargin: false,
-	lineNumbers: 'off',
-	folding: false,
-	selectOnLineNumbers: false,
-	hideCursorInOverviewRuler: true,
-	selectionHighlight: false,
-	scrollbar: {
-		horizontal: 'hidden',
-		vertical: 'hidden'
-	},
-	ariaLabel: localize('searchExtensions', "Search Extensions in Marketplace"),
-	cursorWidth: 1,
-	lineDecorationsWidth: 0,
-	overviewRulerBorder: false,
-	scrollBeyondLastLine: false,
-	renderLineHighlight: 'none',
-	fixedOverflowWidgets: true,
-	acceptSuggestionOnEnter: 'smart',
-	minimap: {
-		enabled: false
-	},
-	fontFamily: ' -apple-system, BlinkMacSystemFont, "Segoe WPC", "Segoe UI", "HelveticaNeue-Light", "Ubuntu", "Droid Sans", sans-serif'
-};
+function mixinHTMLInputStyleOptions(config: IEditorOptions, ariaLabel?: string): IEditorOptions {
+	config.fontSize = 13;
+	config.lineHeight = 22;
+	config.wordWrap = 'off';
+	config.scrollbar.vertical = 'hidden';
+	config.ariaLabel = ariaLabel || '';
+	config.cursorWidth = 1;
+	config.snippetSuggestions = 'none';
+	config.fontFamily = ' -apple-system, BlinkMacSystemFont, "Segoe WPC", "Segoe UI", "HelveticaNeue-Light", "Ubuntu", "Droid Sans", sans-serif';
+	return config;
+}

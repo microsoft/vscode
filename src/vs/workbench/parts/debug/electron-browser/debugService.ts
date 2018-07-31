@@ -78,6 +78,7 @@ export class DebugService implements debug.IDebugService {
 	private toDisposeOnSessionEnd: Map<string, lifecycle.IDisposable[]>;
 	private debugType: IContextKey<string>;
 	private debugState: IContextKey<string>;
+	private inDebugMode: IContextKey<boolean>;
 	private breakpointsToSendOnResourceSaved: Set<string>;
 	private firstSessionStart: boolean;
 	private skipRunningTask: boolean;
@@ -121,6 +122,7 @@ export class DebugService implements debug.IDebugService {
 		this.toDispose.push(this.configurationManager);
 		this.debugType = debug.CONTEXT_DEBUG_TYPE.bindTo(contextKeyService);
 		this.debugState = debug.CONTEXT_DEBUG_STATE.bindTo(contextKeyService);
+		this.inDebugMode = debug.CONTEXT_IN_DEBUG_MODE.bindTo(contextKeyService);
 
 		this.model = new Model(this.loadBreakpoints(), this.storageService.getBoolean(DEBUG_BREAKPOINTS_ACTIVATED_KEY, StorageScope.WORKSPACE, true), this.loadFunctionBreakpoints(),
 			this.loadExceptionBreakpoints(), this.loadWatchExpressions());
@@ -166,7 +168,7 @@ export class DebugService implements debug.IDebugService {
 				});
 			} else {
 				const root = raw.root;
-				raw.dispose();
+				raw.disconnect().done(undefined, errors.onUnexpectedError);
 				this.doCreateSession(root, { resolved: session.configuration, unresolved: session.unresolvedConfiguration }, session.getId());
 			}
 
@@ -291,7 +293,7 @@ export class DebugService implements debug.IDebugService {
 					return raw.configurationDone().done(null, e => {
 						// Disconnect the debug session on configuration done error #10596
 						if (raw) {
-							raw.dispose();
+							raw.disconnect().done(undefined, errors.onUnexpectedError);
 						}
 						this.notificationService.error(e.message);
 					});
@@ -341,7 +343,7 @@ export class DebugService implements debug.IDebugService {
 				if (event.body && event.body.restart && session) {
 					this.restartSession(session, event.body.restart).done(null, err => this.notificationService.error(err.message));
 				} else {
-					raw.dispose();
+					raw.disconnect().done(undefined, errors.onUnexpectedError);
 				}
 			}
 		}));
@@ -558,6 +560,7 @@ export class DebugService implements debug.IDebugService {
 			const stateLabel = debug.State[state];
 			if (stateLabel) {
 				this.debugState.set(stateLabel.toLowerCase());
+				this.inDebugMode.set(state !== debug.State.Inactive);
 			}
 			this.previousState = state;
 			this._onDidChangeState.fire(state);
@@ -973,7 +976,7 @@ export class DebugService implements debug.IDebugService {
 					this.telemetryService.publicLog('debugMisconfiguration', { type: resolved ? resolved.type : undefined, error: errorMessage });
 					this.updateStateAndEmit(raw.getId(), debug.State.Inactive);
 					if (!raw.disconnected) {
-						raw.dispose();
+						raw.disconnect();
 					} else if (session) {
 						this.model.removeSession(session.getId());
 					}
@@ -1110,7 +1113,8 @@ export class DebugService implements debug.IDebugService {
 			// Do not run preLaunch and postDebug tasks for automatic restarts
 			this.skipRunningTask = !!restartData;
 
-			return session.raw.terminate(true).then(() => {
+			// If the restart is automatic disconnect, otherwise send the terminate signal #55064
+			return (!!restartData ? (<RawDebugSession>session.raw).disconnect(true) : session.raw.terminate(true)).then(() => {
 				if (strings.equalsIgnoreCase(session.configuration.type, 'extensionHost') && session.raw.root) {
 					return this.broadcastService.broadcast({
 						channel: EXTENSION_RELOAD_BROADCAST_CHANNEL,

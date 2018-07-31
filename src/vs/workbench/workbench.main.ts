@@ -17,6 +17,7 @@ import 'vs/editor/editor.all';
 
 // Platform
 import 'vs/platform/widget/browser/contextScopedHistoryWidget';
+import 'vs/platform/uriDisplay/electron-browser/uriDisplay.contribution';
 
 // Menus/Actions
 import 'vs/workbench/services/actions/electron-browser/menusExtensionPoint';
@@ -53,6 +54,8 @@ import 'vs/workbench/parts/files/electron-browser/files.contribution';
 import 'vs/workbench/parts/backup/common/backup.contribution';
 
 import 'vs/workbench/parts/stats/node/stats.contribution';
+
+import 'vs/workbench/parts/splash/electron-browser/partsSplash.contribution';
 
 import 'vs/workbench/parts/search/electron-browser/search.contribution';
 import 'vs/workbench/parts/search/browser/searchView'; // can be packaged separately

@@ -30,7 +30,6 @@ import { SidebarPart } from 'vs/workbench/browser/parts/sidebar/sidebarPart';
 import { PanelPart } from 'vs/workbench/browser/parts/panel/panelPart';
 import { StatusbarPart } from 'vs/workbench/browser/parts/statusbar/statusbarPart';
 import { TitlebarPart } from 'vs/workbench/browser/parts/titlebar/titlebarPart';
-import { MenubarPart } from 'vs/workbench/browser/parts/menubar/menubarPart';
 import { EditorPart } from 'vs/workbench/browser/parts/editor/editorPart';
 import { WorkbenchLayout } from 'vs/workbench/browser/layout';
 import { IActionBarRegistry, Extensions as ActionBarExtensions } from 'vs/workbench/browser/actions';
@@ -118,6 +117,7 @@ import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { TelemetryService } from 'vs/platform/telemetry/common/telemetryService';
 import { WorkbenchThemeService } from 'vs/workbench/services/themes/electron-browser/workbenchThemeService';
 import { IWorkbenchThemeService } from 'vs/workbench/services/themes/common/workbenchThemeService';
+import { IUriDisplayService, UriDisplayService } from 'vs/platform/uriDisplay/common/uriDisplay';
 
 interface WorkbenchParams {
 	configuration: IWindowConfiguration;
@@ -151,8 +151,7 @@ const Identifiers = {
 	SIDEBAR_PART: 'workbench.parts.sidebar',
 	PANEL_PART: 'workbench.parts.panel',
 	EDITOR_PART: 'workbench.parts.editor',
-	STATUSBAR_PART: 'workbench.parts.statusbar',
-	MENUBAR_PART: 'workbench.parts.menubar'
+	STATUSBAR_PART: 'workbench.parts.statusbar'
 };
 
 function getWorkbenchStateString(state: WorkbenchState): string {
@@ -209,7 +208,6 @@ export class Workbench extends Disposable implements IPartService {
 	private workbenchLayout: WorkbenchLayout;
 
 	private titlebarPart: TitlebarPart;
-	private menubarPart: MenubarPart;
 	private activitybarPart: ActivitybarPart;
 	private sidebarPart: SidebarPart;
 	private panelPart: PanelPart;
@@ -334,6 +332,11 @@ export class Workbench extends Disposable implements IPartService {
 		// Clipboard
 		serviceCollection.set(IClipboardService, new ClipboardService());
 
+		// Uri Display
+		const uriDisplayService = new UriDisplayService(this.environmentService, this.contextService);
+		serviceCollection.set(IUriDisplayService, uriDisplayService);
+		this.configurationService.acquireUriDisplayService(uriDisplayService);
+
 		// Status bar
 		this.statusbarPart = this.instantiationService.createInstance(StatusbarPart, Identifiers.STATUSBAR_PART);
 		this._register(toDisposable(() => this.statusbarPart.shutdown()));
@@ -411,9 +414,6 @@ export class Workbench extends Disposable implements IPartService {
 
 		// History
 		serviceCollection.set(IHistoryService, new SyncDescriptor(HistoryService));
-
-		// Menubar
-		this.menubarPart = this.instantiationService.createInstance(MenubarPart, Identifiers.MENUBAR_PART);
 
 		// Backup File Service
 		if (this.workbenchParams.configuration.backupPath) {
@@ -950,7 +950,6 @@ export class Workbench extends Disposable implements IPartService {
 			this.workbench.getHTMLElement(),
 			{
 				titlebar: this.titlebarPart,
-				menubar: this.menubarPart,
 				activitybar: this.activitybarPart,
 				editor: this.editorPart,
 				sidebar: this.sidebarPart,
@@ -987,7 +986,6 @@ export class Workbench extends Disposable implements IPartService {
 
 		// Create Parts
 		this.createTitlebarPart();
-		this.createMenubarPart();
 		this.createActivityBarPart();
 		this.createSidebarPart();
 		this.createEditorPart();
@@ -1009,20 +1007,6 @@ export class Workbench extends Disposable implements IPartService {
 		});
 
 		this.titlebarPart.create(titlebarContainer.getHTMLElement());
-	}
-
-	private createMenubarPart(): void {
-		const menubarContainer = $(this.workbench).div({
-			'class': ['part', 'menubar'],
-			id: Identifiers.MENUBAR_PART,
-			role: 'menubar'
-		});
-
-		this.menubarPart.create(menubarContainer.getHTMLElement());
-
-		this._register(this.menubarPart.onVisibilityChange((dimension => {
-			this._onMenubarVisibilityChange.fire(dimension);
-		})));
 	}
 
 	private createActivityBarPart(): void {
@@ -1139,9 +1123,6 @@ export class Workbench extends Disposable implements IPartService {
 	private _onTitleBarVisibilityChange: Emitter<void> = this._register(new Emitter<void>());
 	get onTitleBarVisibilityChange(): Event<void> { return this._onTitleBarVisibilityChange.event; }
 
-	private _onMenubarVisibilityChange: Emitter<DOM.Dimension> = this._register(new Emitter<DOM.Dimension>());
-	get onMenubarVisibilityChange(): Event<DOM.Dimension> { return this._onMenubarVisibilityChange.event; }
-
 	get onEditorLayout(): Event<IDimension> { return this.editorPart.onDidLayout; }
 
 	isCreated(): boolean {
@@ -1163,9 +1144,6 @@ export class Workbench extends Disposable implements IPartService {
 		switch (part) {
 			case Parts.TITLEBAR_PART:
 				container = this.titlebarPart.getContainer();
-				break;
-			case Parts.MENUBAR_PART:
-				container = this.menubarPart.getContainer();
 				break;
 			case Parts.ACTIVITYBAR_PART:
 				container = this.activitybarPart.getContainer();
@@ -1190,9 +1168,7 @@ export class Workbench extends Disposable implements IPartService {
 	isVisible(part: Parts): boolean {
 		switch (part) {
 			case Parts.TITLEBAR_PART:
-				return this.getCustomTitleBarStyle() === 'custom' && !browser.isFullscreen();
-			case Parts.MENUBAR_PART:
-				return !isMacintosh && this.isVisible(Parts.TITLEBAR_PART) && !(this.menubarVisibility === 'hidden' || (this.menubarVisibility === 'default' && browser.isFullscreen()));
+				return this.getCustomTitleBarStyle() === 'custom' && (!browser.isFullscreen() || this.menubarVisibility === 'visible' || this.menubarVisibility === 'toggle');
 			case Parts.SIDEBAR_PART:
 				return !this.sideBarHidden;
 			case Parts.PANEL_PART:
@@ -1210,6 +1186,9 @@ export class Workbench extends Disposable implements IPartService {
 		let offset = 0;
 		if (this.isVisible(Parts.TITLEBAR_PART)) {
 			offset = this.workbenchLayout.partLayoutInfo.titlebar.height;
+			if (isMacintosh || this.menubarVisibility === 'hidden') {
+				offset /= browser.getZoomFactor();
+			}
 		}
 
 		return offset;
@@ -1469,6 +1448,10 @@ export class Workbench extends Disposable implements IPartService {
 		if (!skipLayout) {
 			this.workbenchLayout.layout();
 		}
+	}
+
+	getMenubarVisibility(): MenuBarVisibility {
+		return this.menubarVisibility;
 	}
 
 	getPanelPosition(): Position {

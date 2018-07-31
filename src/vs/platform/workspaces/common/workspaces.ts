@@ -13,10 +13,11 @@ import { basename, dirname, join } from 'vs/base/common/paths';
 import { isLinux } from 'vs/base/common/platform';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { Event } from 'vs/base/common/event';
-import { getPathLabel, getBaseLabel } from 'vs/base/common/labels';
+import { getBaseLabel } from 'vs/base/common/labels';
 import { IWorkspaceFolder } from 'vs/platform/workspace/common/workspace';
 import URI from 'vs/base/common/uri';
 import { Schemas } from 'vs/base/common/network';
+import { IUriDisplayService } from 'vs/platform/uriDisplay/common/uriDisplay';
 
 export const IWorkspacesMainService = createDecorator<IWorkspacesMainService>('workspacesMainService');
 export const IWorkspacesService = createDecorator<IWorkspacesService>('workspacesService');
@@ -112,17 +113,17 @@ export interface IWorkspacesService {
 	createWorkspace(folders?: IWorkspaceFolderCreationData[]): TPromise<IWorkspaceIdentifier>;
 }
 
-export function getWorkspaceLabel(workspace: (IWorkspaceIdentifier | ISingleFolderWorkspaceIdentifier), environmentService: IEnvironmentService, options?: { verbose: boolean }): string {
+export function getWorkspaceLabel(workspace: (IWorkspaceIdentifier | ISingleFolderWorkspaceIdentifier), environmentService: IEnvironmentService, uriDisplayService: IUriDisplayService, options?: { verbose: boolean }): string {
 
 	// Workspace: Single Folder
 	if (isSingleFolderWorkspaceIdentifier(workspace)) {
 		// Folder on disk
 		if (workspace.scheme === Schemas.file) {
-			return options && options.verbose ? getPathLabel(workspace, environmentService) : getBaseLabel(workspace);
+			return options && options.verbose ? uriDisplayService.getLabel(workspace) : getBaseLabel(workspace);
 		}
 
 		// Remote folder
-		return options && options.verbose ? getPathLabel(workspace, environmentService) : `${getBaseLabel(workspace)} (${workspace.scheme})`;
+		return options && options.verbose ? uriDisplayService.getLabel(workspace) : `${getBaseLabel(workspace)} (${workspace.scheme})`;
 	}
 
 	// Workspace: Untitled
@@ -134,7 +135,7 @@ export function getWorkspaceLabel(workspace: (IWorkspaceIdentifier | ISingleFold
 	const filename = basename(workspace.configPath);
 	const workspaceName = filename.substr(0, filename.length - WORKSPACE_EXTENSION.length - 1);
 	if (options && options.verbose) {
-		return localize('workspaceNameVerbose', "{0} (Workspace)", getPathLabel(join(dirname(workspace.configPath), workspaceName), environmentService));
+		return localize('workspaceNameVerbose', "{0} (Workspace)", uriDisplayService.getLabel(URI.file(join(dirname(workspace.configPath), workspaceName))));
 	}
 
 	return localize('workspaceName', "{0} (Workspace)", workspaceName);

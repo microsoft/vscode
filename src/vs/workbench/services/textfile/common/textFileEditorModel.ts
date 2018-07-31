@@ -754,6 +754,12 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 				// Emit File Saved Event
 				this._onDidStateChange.fire(StateChange.SAVED);
 			}, error => {
+				if (!FileOperationError.isFileOperationError(error)) {
+					// TODO@ben, workaround issue #55051
+					this.logService.error(`doSave(${versionId}) - Unexpected error type ${error}`, this.resource);
+					return;
+				}
+
 				this.logService.error(`doSave(${versionId}) - exit - resulted in a save error: ${error.toString()}`, this.resource);
 
 				// Flag as error state in the model

@@ -19,7 +19,7 @@ import * as modes from 'vs/editor/common/modes';
 import { peekViewEditorBackground, peekViewResultsBackground, peekViewResultsSelectionBackground } from 'vs/editor/contrib/referenceSearch/referencesWidget';
 import { IContextKey, IContextKeyService, RawContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { ServicesAccessor, IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { KeybindingsRegistry } from 'vs/platform/keybinding/common/keybindingsRegistry';
+import { KeybindingsRegistry, KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { INotificationService } from 'vs/platform/notification/common/notification';
 import { editorForeground } from 'vs/platform/theme/common/colorRegistry';
 import { IThemeService, registerThemingParticipant } from 'vs/platform/theme/common/themeService';
@@ -243,7 +243,7 @@ export class ReviewController implements IEditorContribution {
 		this._commentWidgets = [];
 
 		this.localToDispose.push(this.editor.onMouseMove(e => this.onEditorMouseMove(e)));
-		this.localToDispose.push(this.editor.onDidBlurEditorText(() => this.onDidBlurEditorText()));
+		this.localToDispose.push(this.editor.onMouseLeave(() => this.onMouseLeave()));
 		this.localToDispose.push(this.editor.onDidChangeModelContent(() => {
 			if (this._newCommentGlyph) {
 				this.editor.removeContentWidget(this._newCommentGlyph);
@@ -318,10 +318,6 @@ export class ReviewController implements IEditorContribution {
 			return;
 		}
 
-		if (!this.editor.hasTextFocus()) {
-			return;
-		}
-
 		const hasCommentingRanges = this._commentInfos.length && this._commentInfos.some(info => !!info.commentingRanges.length);
 		if (hasCommentingRanges && e.target.position && e.target.position.lineNumber !== undefined) {
 			if (this._newCommentGlyph && e.target.element.className !== 'comment-hint') {
@@ -343,7 +339,7 @@ export class ReviewController implements IEditorContribution {
 		}
 	}
 
-	private onDidBlurEditorText(): void {
+	private onMouseLeave(): void {
 		if (this._newCommentGlyph) {
 			this.editor.removeContentWidget(this._newCommentGlyph);
 		}
@@ -447,7 +443,7 @@ registerEditorAction(NextCommentThreadAction);
 
 KeybindingsRegistry.registerCommandAndKeybindingRule({
 	id: 'closeReviewPanel',
-	weight: KeybindingsRegistry.WEIGHT.editorContrib(),
+	weight: KeybindingWeight.EditorContrib,
 	primary: KeyCode.Escape,
 	secondary: [KeyMod.Shift | KeyCode.Escape],
 	when: ctxReviewPanelVisible,

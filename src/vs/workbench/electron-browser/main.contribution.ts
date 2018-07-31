@@ -19,7 +19,7 @@ import { registerCommands, QUIT_ID } from 'vs/workbench/electron-browser/command
 import { AddRootFolderAction, GlobalRemoveRootFolderAction, OpenWorkspaceAction, SaveWorkspaceAsAction, OpenWorkspaceConfigFileAction, DuplicateWorkspaceInNewWindowAction, OpenFileFolderAction, OpenFileAction, OpenFolderAction } from 'vs/workbench/browser/actions/workspaceActions';
 import { ContextKeyExpr, RawContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { inQuickOpenContext, getQuickNavigateHandler } from 'vs/workbench/browser/parts/quickopen/quickopen';
-import { KeybindingsRegistry } from 'vs/platform/keybinding/common/keybindingsRegistry';
+import { KeybindingsRegistry, KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { CommandsRegistry } from 'vs/platform/commands/common/commands';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 
@@ -135,7 +135,7 @@ const recentFilesPickerContext = ContextKeyExpr.and(inQuickOpenContext, ContextK
 const quickOpenNavigateNextInRecentFilesPickerId = 'workbench.action.quickOpenNavigateNextInRecentFilesPicker';
 KeybindingsRegistry.registerCommandAndKeybindingRule({
 	id: quickOpenNavigateNextInRecentFilesPickerId,
-	weight: KeybindingsRegistry.WEIGHT.workbenchContrib(50),
+	weight: KeybindingWeight.WorkbenchContrib + 50,
 	handler: getQuickNavigateHandler(quickOpenNavigateNextInRecentFilesPickerId, true),
 	when: recentFilesPickerContext,
 	primary: KeyMod.CtrlCmd | KeyCode.KEY_R,
@@ -145,7 +145,7 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 const quickOpenNavigatePreviousInRecentFilesPicker = 'workbench.action.quickOpenNavigatePreviousInRecentFilesPicker';
 KeybindingsRegistry.registerCommandAndKeybindingRule({
 	id: quickOpenNavigatePreviousInRecentFilesPicker,
-	weight: KeybindingsRegistry.WEIGHT.workbenchContrib(50),
+	weight: KeybindingWeight.WorkbenchContrib + 50,
 	handler: getQuickNavigateHandler(quickOpenNavigatePreviousInRecentFilesPicker, false),
 	when: recentFilesPickerContext,
 	primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KEY_R,
@@ -163,23 +163,34 @@ MenuRegistry.appendMenuItem(MenuId.MenubarFileMenu, {
 	order: 2
 });
 
-MenuRegistry.appendMenuItem(MenuId.MenubarFileMenu, {
-	group: '2_open',
-	command: {
-		id: OpenFileAction.ID,
-		title: nls.localize({ key: 'miOpenFile', comment: ['&& denotes a mnemonic'] }, "&&Open File...")
-	},
-	order: 1
-});
+if (!isMacintosh) {
+	MenuRegistry.appendMenuItem(MenuId.MenubarFileMenu, {
+		group: '2_open',
+		command: {
+			id: OpenFileAction.ID,
+			title: nls.localize({ key: 'miOpenFile', comment: ['&& denotes a mnemonic'] }, "&&Open File...")
+		},
+		order: 1
+	});
 
-MenuRegistry.appendMenuItem(MenuId.MenubarFileMenu, {
-	group: '2_open',
-	command: {
-		id: OpenFolderAction.ID,
-		title: nls.localize({ key: 'miOpenFolder', comment: ['&& denotes a mnemonic'] }, "Open &&Folder...")
-	},
-	order: 2
-});
+	MenuRegistry.appendMenuItem(MenuId.MenubarFileMenu, {
+		group: '2_open',
+		command: {
+			id: OpenFolderAction.ID,
+			title: nls.localize({ key: 'miOpenFolder', comment: ['&& denotes a mnemonic'] }, "Open &&Folder...")
+		},
+		order: 2
+	});
+} else {
+	MenuRegistry.appendMenuItem(MenuId.MenubarFileMenu, {
+		group: '2_open',
+		command: {
+			id: OpenFileFolderAction.ID,
+			title: nls.localize({ key: 'miOpen', comment: ['&& denotes a mnemonic'] }, "&&Open...")
+		},
+		order: 1
+	});
+}
 
 MenuRegistry.appendMenuItem(MenuId.MenubarFileMenu, {
 	group: '2_open',
@@ -226,12 +237,14 @@ MenuRegistry.appendMenuItem(MenuId.MenubarFileMenu, {
 	order: 2
 });
 
-MenuRegistry.appendMenuItem(MenuId.MenubarFileMenu, {
-	title: nls.localize({ key: 'miPreferences', comment: ['&& denotes a mnemonic'] }, "&&Preferences"),
-	submenu: MenuId.MenubarPreferencesMenu,
-	group: '5_autosave',
-	order: 2
-});
+if (!isMacintosh) {
+	MenuRegistry.appendMenuItem(MenuId.MenubarFileMenu, {
+		title: nls.localize({ key: 'miPreferences', comment: ['&& denotes a mnemonic'] }, "&&Preferences"),
+		submenu: MenuId.MenubarPreferencesMenu,
+		group: '5_autosave',
+		order: 2
+	});
+}
 
 MenuRegistry.appendMenuItem(MenuId.MenubarFileMenu, {
 	group: '6_close',
@@ -374,7 +387,7 @@ configurationRegistry.registerConfiguration({
 		},
 		'workbench.editor.closeOnFileDelete': {
 			'type': 'boolean',
-			'description': nls.localize('closeOnFileDelete', "Controls if editors showing a file should close automatically when the file is deleted or renamed by some other process. Disabling this will keep the editor open as dirty on such an event. Note that deleting from within the application will always close the editor and that dirty files will never close to preserve your data."),
+			'description': nls.localize('closeOnFileDelete', "Controls whether editors showing a file should close automatically when the file is deleted or renamed by some other process. Disabling this will keep the editor open as dirty on such an event. Note that deleting from within the application will always close the editor and that dirty files will never close to preserve your data."),
 			'default': true
 		},
 		'workbench.editor.openPositioning': {
@@ -425,6 +438,11 @@ configurationRegistry.registerConfiguration({
 			'description': nls.localize('openDefaultSettings', "Controls if opening settings also opens an editor showing all default settings."),
 			'default': true
 		},
+		'workbench.settings.openDefaultKeybindings': {
+			'type': 'boolean',
+			'description': nls.localize('openDefaultKeybindings', "Controls if opening keybinding settings also opens an editor showing all default keybindings."),
+			'default': true
+		},
 		'workbench.sideBar.location': {
 			'type': 'string',
 			'enum': ['left', 'right'],
@@ -470,7 +488,8 @@ configurationRegistry.registerConfiguration({
 			'type': 'boolean',
 			'description': nls.localize('enableNaturalLanguageSettingsSearch', "Controls whether to enable the natural language search mode for settings."),
 			'default': true,
-			'scope': ConfigurationScope.WINDOW
+			'scope': ConfigurationScope.WINDOW,
+			'tags': ['usesOnlineServices']
 		},
 		'workbench.settings.settingsSearchTocBehavior': {
 			'type': 'string',
@@ -500,41 +519,41 @@ configurationRegistry.registerConfiguration({
 			'type': 'string',
 			'enum': ['on', 'off', 'default'],
 			'enumDescriptions': [
-				nls.localize('window.openFilesInNewWindow.on', "Files will open in a new window"),
-				nls.localize('window.openFilesInNewWindow.off', "Files will open in the window with the files' folder open or the last active window"),
+				nls.localize('window.openFilesInNewWindow.on', "Files will open in a new window."),
+				nls.localize('window.openFilesInNewWindow.off', "Files will open in the window with the files' folder open or the last active window."),
 				isMacintosh ?
-					nls.localize('window.openFilesInNewWindow.defaultMac', "Files will open in the window with the files' folder open or the last active window unless opened via the Dock or from Finder") :
-					nls.localize('window.openFilesInNewWindow.default', "Files will open in a new window unless picked from within the application (e.g. via the File menu)")
+					nls.localize('window.openFilesInNewWindow.defaultMac', "Files will open in the window with the files' folder open or the last active window unless opened via the Dock or from Finder.") :
+					nls.localize('window.openFilesInNewWindow.default', "Files will open in a new window unless picked from within the application (e.g. via the File menu).")
 			],
 			'default': 'off',
 			'scope': ConfigurationScope.APPLICATION,
 			'description':
 				isMacintosh ?
-					nls.localize('openFilesInNewWindowMac', "Controls if files should open in a new window.\n- default: files will open in the window with the files' folder open or the last active window unless opened via the Dock or from Finder\n- on: files will open in a new window\n- off: files will open in the window with the files' folder open or the last active window\nNote that there can still be cases where this setting is ignored (e.g. when using the -new-window or -reuse-window command line option).") :
-					nls.localize('openFilesInNewWindow', "Controls if files should open in a new window.\n- default: files will open in a new window unless picked from within the application (e.g. via the File menu)\n- on: files will open in a new window\n- off: files will open in the window with the files' folder open or the last active window\nNote that there can still be cases where this setting is ignored (e.g. when using the -new-window or -reuse-window command line option).")
+					nls.localize('openFilesInNewWindowMac', "Controls whether files should open in a new window.\nNote that there can still be cases where this setting is ignored (e.g. when using the -new-window or -reuse-window command line option).") :
+					nls.localize('openFilesInNewWindow', "Controls whether files should open in a new window.\nNote that there can still be cases where this setting is ignored (e.g. when using the -new-window or -reuse-window command line option).")
 		},
 		'window.openFoldersInNewWindow': {
 			'type': 'string',
 			'enum': ['on', 'off', 'default'],
 			'enumDescriptions': [
-				nls.localize('window.openFoldersInNewWindow.on', "Folders will open in a new window"),
-				nls.localize('window.openFoldersInNewWindow.off', "Folders will replace the last active window"),
-				nls.localize('window.openFoldersInNewWindow.default', "Folders will open in a new window unless a folder is picked from within the application (e.g. via the File menu)")
+				nls.localize('window.openFoldersInNewWindow.on', "Folders will open in a new window."),
+				nls.localize('window.openFoldersInNewWindow.off', "Folders will replace the last active window."),
+				nls.localize('window.openFoldersInNewWindow.default', "Folders will open in a new window unless a folder is picked from within the application (e.g. via the File menu).")
 			],
 			'default': 'default',
 			'scope': ConfigurationScope.APPLICATION,
-			'description': nls.localize('openFoldersInNewWindow', "Controls if folders should open in a new window or replace the last active window.\n- default: folders will open in a new window unless a folder is picked from within the application (e.g. via the File menu)\n- on: folders will open in a new window\n- off: folders will replace the last active window\nNote that there can still be cases where this setting is ignored (e.g. when using the -new-window or -reuse-window command line option).")
+			'description': nls.localize('openFoldersInNewWindow', "Controls whether folders should open in a new window or replace the last active window.\nNote that there can still be cases where this setting is ignored (e.g. when using the -new-window or -reuse-window command line option).")
 		},
 		'window.openWithoutArgumentsInNewWindow': {
 			'type': 'string',
 			'enum': ['on', 'off'],
 			'enumDescriptions': [
-				nls.localize('window.openWithoutArgumentsInNewWindow.on', "Open a new empty window"),
-				nls.localize('window.openWithoutArgumentsInNewWindow.off', "Focus the last active running instance")
+				nls.localize('window.openWithoutArgumentsInNewWindow.on', "Open a new empty window."),
+				nls.localize('window.openWithoutArgumentsInNewWindow.off', "Focus the last active running instance.")
 			],
 			'default': isMacintosh ? 'off' : 'on',
 			'scope': ConfigurationScope.APPLICATION,
-			'description': nls.localize('openWithoutArgumentsInNewWindow', "Controls if a new empty window should open when starting a second instance without arguments or if the last running instance should get focus.\n- on: open a new empty window\n- off: the last active running instance will get focus\nNote that there can still be cases where this setting is ignored (e.g. when using the -new-window or -reuse-window command line option).")
+			'description': nls.localize('openWithoutArgumentsInNewWindow', "Controls whether a new empty window should open when starting a second instance without arguments or if the last running instance should get focus.\nNote that there can still be cases where this setting is ignored (e.g. when using the -new-window or -reuse-window command line option).")
 		},
 		'window.restoreWindows': {
 			'type': 'string',
@@ -547,13 +566,13 @@ configurationRegistry.registerConfiguration({
 			],
 			'default': 'one',
 			'scope': ConfigurationScope.APPLICATION,
-			'description': nls.localize('restoreWindows', "Controls how windows are being reopened after a restart. Select 'none' to always start with an empty workspace, 'one' to reopen the last window you worked on, 'folders' to reopen all windows that had folders opened or 'all' to reopen all windows of your last session.")
+			'description': nls.localize('restoreWindows', "Controls how windows are being reopened after a restart.")
 		},
 		'window.restoreFullscreen': {
 			'type': 'boolean',
 			'default': false,
 			'scope': ConfigurationScope.APPLICATION,
-			'description': nls.localize('restoreFullscreen', "Controls if a window should restore to full screen mode if it was exited in full screen mode.")
+			'description': nls.localize('restoreFullscreen', "Controls whether a window should restore to full screen mode if it was exited in full screen mode.")
 		},
 		'window.zoomLevel': {
 			'type': 'number',
@@ -564,7 +583,7 @@ configurationRegistry.registerConfiguration({
 			'type': 'string',
 			'default': isMacintosh ? '${activeEditorShort}${separator}${rootName}' : '${dirty}${activeEditorShort}${separator}${rootName}${separator}${appName}',
 			'description': nls.localize({ comment: ['This is the description for a setting. Values surrounded by parenthesis are not to be translated.'], key: 'title' },
-				"Controls the window title based on the active editor. Variables are substituted based on the context:\n\${activeEditorShort}: the file name (e.g. myFile.txt)\n\${activeEditorMedium}: the path of the file relative to the workspace folder (e.g. myFolder/myFile.txt)\n\${activeEditorLong}: the full path of the file (e.g. /Users/Development/myProject/myFolder/myFile.txt)\n\${folderName}: name of the workspace folder the file is contained in (e.g. myFolder)\n\${folderPath}: file path of the workspace folder the file is contained in (e.g. /Users/Development/myFolder)\n\${rootName}: name of the workspace (e.g. myFolder or myWorkspace)\n\${rootPath}: file path of the workspace (e.g. /Users/Development/myWorkspace)\n\${appName}: e.g. VS Code\n\${dirty}: a dirty indicator if the active editor is dirty\n\${separator}: a conditional separator (\" - \") that only shows when surrounded by variables with values or static text")
+				"Controls the window title based on the active editor. Variables are substituted based on the context:\n- `\${activeEditorShort}`: the file name (e.g. myFile.txt).\n- `\${activeEditorMedium}`: the path of the file relative to the workspace folder (e.g. myFolder/myFile.txt).\n- `\${activeEditorLong}`: the full path of the file (e.g. /Users/Development/myProject/myFolder/myFile.txt).\n- `\${folderName}`: name of the workspace folder the file is contained in (e.g. myFolder).\n- `\${folderPath}`: file path of the workspace folder the file is contained in (e.g. /Users/Development/myFolder).\n- `\${rootName}`: name of the workspace (e.g. myFolder or myWorkspace).\n- `\${rootPath}`: file path of the workspace (e.g. /Users/Development/myWorkspace).\n- `\${appName}`: e.g. VS Code.\n- `\${dirty}`: a dirty indicator if the active editor is dirty.\n- `\${separator}`: a conditional separator (\" - \") that only shows when surrounded by variables with values or static text.")
 		},
 		'window.newWindowDimensions': {
 			'type': 'string',
@@ -577,7 +596,7 @@ configurationRegistry.registerConfiguration({
 			],
 			'default': 'default',
 			'scope': ConfigurationScope.APPLICATION,
-			'description': nls.localize('newWindowDimensions', "Controls the dimensions of opening a new window when at least one window is already opened. By default, a new window will open in the center of the screen with small dimensions. When set to 'inherit', the window will get the same dimensions as the last window that was active. When set to 'maximized', the window will open maximized and fullscreen if configured to 'fullscreen'. Note that this setting does not have an impact on the first window that is opened. The first window will always restore the size and location as you left it before closing.")
+			'description': nls.localize('newWindowDimensions', "Controls the dimensions of opening a new window when at least one window is already opened. Note that this setting does not have an impact on the first window that is opened. The first window will always restore the size and location as you left it before closing.")
 		},
 		'window.closeWhenEmpty': {
 			'type': 'boolean',
@@ -629,7 +648,7 @@ configurationRegistry.registerConfiguration({
 			'type': 'boolean',
 			'default': false,
 			'scope': ConfigurationScope.APPLICATION,
-			'description': nls.localize('window.smoothScrollingWorkaround', "Enable this workaround if scrolling is no longer smooth after restoring a minimized VS Code window. This is a workaround for an issue (https://github.com/Microsoft/vscode/issues/13612) where scrolling starts to lag on devices with precision trackpads like the Surface devices from Microsoft. Enabling this workaround can result in a little bit of layout flickering after restoring the window from minimized state but is otherwise harmless. Note: in order for this workaround to function, make sure to also set 'window.titleBarStyle: native'."),
+			'description': nls.localize('window.smoothScrollingWorkaround', "Enable this workaround if scrolling is no longer smooth after restoring a minimized VS Code window. This is a workaround for an issue (https://github.com/Microsoft/vscode/issues/13612) where scrolling starts to lag on devices with precision trackpads like the Surface devices from Microsoft. Enabling this workaround can result in a little bit of layout flickering after restoring the window from minimized state but is otherwise harmless. Note: in order for this workaround to function, make sure to also set `#window.titleBarStyle#` to `native`."),
 			'included': isWindows
 		},
 		'window.clickThroughInactive': {
@@ -662,12 +681,12 @@ configurationRegistry.registerConfiguration({
 		'zenMode.hideTabs': {
 			'type': 'boolean',
 			'default': true,
-			'description': nls.localize('zenMode.hideTabs', "Controls if turning on Zen Mode also hides workbench tabs.")
+			'description': nls.localize('zenMode.hideTabs', "Controls whether turning on Zen Mode also hides workbench tabs.")
 		},
 		'zenMode.hideStatusBar': {
 			'type': 'boolean',
 			'default': true,
-			'description': nls.localize('zenMode.hideStatusBar', "Controls if turning on Zen Mode also hides the status bar at the bottom of the workbench.")
+			'description': nls.localize('zenMode.hideStatusBar', "Controls whether turning on Zen Mode also hides the status bar at the bottom of the workbench.")
 		},
 		'zenMode.hideActivityBar': {
 			'type': 'boolean',
@@ -677,7 +696,7 @@ configurationRegistry.registerConfiguration({
 		'zenMode.restore': {
 			'type': 'boolean',
 			'default': false,
-			'description': nls.localize('zenMode.restore', "Controls if a window should restore to zen mode if it was exited in zen mode.")
+			'description': nls.localize('zenMode.restore', "Controls whether a window should restore to zen mode if it was exited in zen mode.")
 		}
 	}
 });

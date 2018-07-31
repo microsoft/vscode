@@ -111,6 +111,15 @@
 	background-image: url('Class_16x_darkp.svg');
 }
 
+/* constructor */
+.monaco-workbench .symbol-icon.constructor {
+	background-image: url('Method_16x.svg');
+}
+.vs-dark .monaco-workbench .symbol-icon.constructor,
+.hc-black .monaco-workbench .symbol-icon.constructor {
+	background-image: url('Method_16x_darkp.svg');
+}
+
 /* file */
 .monaco-workbench .symbol-icon.file {
 	background-image: url('Document_16x.svg');

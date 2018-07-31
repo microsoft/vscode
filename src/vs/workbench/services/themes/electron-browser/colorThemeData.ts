@@ -272,7 +272,7 @@ function toCSSSelector(str: string) {
 
 function _loadColorTheme(fileService: IFileService, themeLocation: URI, resultRules: ITokenColorizationRule[], resultColors: IColorMap): TPromise<any> {
 	if (Paths.extname(themeLocation.path) === '.json') {
-		return fileService.resolveContent(themeLocation).then(content => {
+		return fileService.resolveContent(themeLocation, { encoding: 'utf8' }).then(content => {
 			let errors: Json.ParseError[] = [];
 			let contentValue = Json.parse(content.value.toString(), errors);
 			if (errors.length > 0) {
@@ -325,7 +325,7 @@ function getPListParser() {
 }
 
 function _loadSyntaxTokens(fileService: IFileService, themeLocation: URI, resultRules: ITokenColorizationRule[], resultColors: IColorMap): TPromise<any> {
-	return fileService.resolveContent(themeLocation).then(content => {
+	return fileService.resolveContent(themeLocation, { encoding: 'utf8' }).then(content => {
 		return getPListParser().then(parser => {
 			try {
 				let contentValue = parser.parse(content.value.toString());

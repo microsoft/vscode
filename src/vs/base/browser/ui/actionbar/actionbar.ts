@@ -497,6 +497,17 @@ export class ActionBar implements IActionRunner {
 		}
 
 		if (this.options.isMenu) {
+			this.domNode.tabIndex = 0;
+
+			$(this.domNode).on(DOM.EventType.MOUSE_OUT, (e) => {
+				let relatedTarget = (e as MouseEvent).relatedTarget as HTMLElement;
+				if (!DOM.isAncestor(relatedTarget, this.domNode)) {
+					this.focusedItem = undefined;
+					this.updateFocus();
+					e.stopPropagation();
+				}
+			});
+
 			$(this.actionsList).on(DOM.EventType.MOUSE_OVER, (e) => {
 				let target = e.target as HTMLElement;
 				if (!target || !DOM.isAncestor(target, this.actionsList) || target === this.actionsList) {
@@ -507,7 +518,7 @@ export class ActionBar implements IActionRunner {
 					target = target.parentElement;
 				}
 
-				if (DOM.hasClass(target, 'action-item') && !DOM.hasClass(target, 'disabled')) {
+				if (DOM.hasClass(target, 'action-item')) {
 					const lastFocusedItem = this.focusedItem;
 					this.setFocusedItem(target);
 
@@ -728,7 +739,6 @@ export class ActionBar implements IActionRunner {
 	private updateFocus(fromRight?: boolean): void {
 		if (typeof this.focusedItem === 'undefined') {
 			this.domNode.focus();
-			return;
 		}
 
 		for (let i = 0; i < this.items.length; i++) {
@@ -737,8 +747,12 @@ export class ActionBar implements IActionRunner {
 			let actionItem = <any>item;
 
 			if (i === this.focusedItem) {
-				if (types.isFunction(actionItem.focus)) {
-					actionItem.focus(fromRight);
+				if (types.isFunction(actionItem.isEnabled)) {
+					if (actionItem.isEnabled() && types.isFunction(actionItem.focus)) {
+						actionItem.focus(fromRight);
+					} else {
+						this.domNode.focus();
+					}
 				}
 			} else {
 				if (types.isFunction(actionItem.blur)) {

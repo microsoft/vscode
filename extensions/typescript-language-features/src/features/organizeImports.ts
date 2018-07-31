@@ -13,6 +13,7 @@ import { VersionDependentRegistration } from '../utils/dependentRegistration';
 import * as typeconverts from '../utils/typeConverters';
 import FileConfigurationManager from './fileConfigurationManager';
 import TelemetryReporter from '../utils/telemetry';
+import { nulToken } from '../utils/cancellation';
 
 const localize = nls.loadMessageBundle();
 
@@ -45,12 +46,8 @@ class OrganizeImportsCommand implements Command {
 				}
 			}
 		};
-		const response = await this.client.execute('organizeImports', args);
-		if (!response || !response.success) {
-			return false;
-		}
-
-		const edits = typeconverts.WorkspaceEdit.fromFileCodeEdits(this.client, response.body);
+		const { body } = await this.client.execute('organizeImports', args, nulToken);
+		const edits = typeconverts.WorkspaceEdit.fromFileCodeEdits(this.client, body);
 		return vscode.workspace.applyEdit(edits);
 	}
 }
@@ -73,11 +70,15 @@ export class OrganizeImportsCodeActionProvider implements vscode.CodeActionProvi
 	public provideCodeActions(
 		document: vscode.TextDocument,
 		_range: vscode.Range,
-		_context: vscode.CodeActionContext,
+		context: vscode.CodeActionContext,
 		token: vscode.CancellationToken
 	): vscode.CodeAction[] {
 		const file = this.client.toPath(document.uri);
 		if (!file) {
+			return [];
+		}
+
+		if (!context.only || !context.only.contains(vscode.CodeActionKind.SourceOrganizeImports)) {
 			return [];
 		}
 

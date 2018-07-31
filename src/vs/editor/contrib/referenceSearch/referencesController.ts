@@ -9,20 +9,16 @@ import { onUnexpectedError } from 'vs/base/common/errors';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
-import { IInstantiationService, optional } from 'vs/platform/instantiation/common/instantiation';
+import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IContextKey, IContextKeyService, RawContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { IStorageService } from 'vs/platform/storage/common/storage';
 import * as editorCommon from 'vs/editor/common/editorCommon';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { ReferencesModel } from './referencesModel';
 import { ReferenceWidget, LayoutData } from './referencesWidget';
 import { Range } from 'vs/editor/common/core/range';
-import { ITextModelService } from 'vs/editor/common/services/resolverService';
-import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { Position } from 'vs/editor/common/core/position';
-import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { Location } from 'vs/editor/common/modes';
 import { INotificationService } from 'vs/platform/notification/common/notification';
 import { CancelablePromise } from 'vs/base/common/async';
@@ -56,14 +52,10 @@ export abstract class ReferencesController implements editorCommon.IEditorContri
 		editor: ICodeEditor,
 		@IContextKeyService contextKeyService: IContextKeyService,
 		@ICodeEditorService private readonly _editorService: ICodeEditorService,
-		@ITextModelService private readonly _textModelResolverService: ITextModelService,
 		@INotificationService private readonly _notificationService: INotificationService,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
-		@IWorkspaceContextService private readonly _contextService: IWorkspaceContextService,
 		@IStorageService private readonly _storageService: IStorageService,
-		@IThemeService private readonly _themeService: IThemeService,
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
-		@optional(IEnvironmentService) private _environmentService: IEnvironmentService
 	) {
 		this._editor = editor;
 		this._referenceSearchVisible = ctxReferenceSearchVisible.bindTo(contextKeyService);
@@ -106,7 +98,7 @@ export abstract class ReferencesController implements editorCommon.IEditorContri
 		}));
 		const storageKey = 'peekViewLayout';
 		const data = <LayoutData>JSON.parse(this._storageService.get(storageKey, undefined, '{}'));
-		this._widget = new ReferenceWidget(this._editor, this._defaultTreeKeyboardSupport, data, this._textModelResolverService, this._contextService, this._themeService, this._instantiationService, this._environmentService);
+		this._widget = this._instantiationService.createInstance(ReferenceWidget, this._editor, this._defaultTreeKeyboardSupport, data);
 		this._widget.setTitle(nls.localize('labelLoading', "Loading..."));
 		this._widget.show(range);
 		this._disposables.push(this._widget.onDidClose(() => {

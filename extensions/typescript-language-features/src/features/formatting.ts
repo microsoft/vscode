@@ -29,16 +29,19 @@ class TypeScriptFormattingProvider implements vscode.DocumentRangeFormattingEdit
 
 		await this.formattingOptionsManager.ensureConfigurationOptions(document, options, token);
 
-		let edits: Proto.CodeEdit[] | undefined;
+		let edits: Proto.CodeEdit[];
 		try {
 			const args = typeConverters.Range.toFormattingRequestArgs(file, range);
-			const response = await this.client.execute('format', args, token);
-			edits = response.body;
+			const { body } = await this.client.execute('format', args, token);
+			if (!body) {
+				return undefined;
+			}
+			edits = body;
 		} catch {
-			// noop
+			return undefined;
 		}
 
-		return (edits || []).map(typeConverters.TextEdit.fromCodeEdit);
+		return edits.map(typeConverters.TextEdit.fromCodeEdit);
 	}
 
 	public async provideOnTypeFormattingEdits(
@@ -60,8 +63,8 @@ class TypeScriptFormattingProvider implements vscode.DocumentRangeFormattingEdit
 			key: ch
 		};
 		try {
-			const response = await this.client.execute('formatonkey', args, token);
-			const edits = response.body;
+			const { body } = await this.client.execute('formatonkey', args, token);
+			const edits = body;
 			const result: vscode.TextEdit[] = [];
 			if (!edits) {
 				return result;

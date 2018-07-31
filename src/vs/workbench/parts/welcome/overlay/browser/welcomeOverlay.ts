@@ -28,7 +28,7 @@ import { Color } from 'vs/base/common/color';
 
 interface Key {
 	id: string;
-	arrow: string;
+	arrow?: string;
 	label: string;
 	command?: string;
 	arrowLast?: boolean;
@@ -77,6 +77,11 @@ const keys: Key[] = [
 		arrow: '&larrpl;',
 		label: localize('welcomeOverlay.problems', "View errors and warnings"),
 		command: 'workbench.actions.view.problems'
+	},
+	{
+		id: 'terminal',
+		label: localize('welcomeOverlay.terminal', "Toggle integrated terminal"),
+		command: 'workbench.action.terminal.toggleTerminal'
 	},
 	// {
 	// 	id: 'openfile',
@@ -182,7 +187,7 @@ class WelcomeOverlay {
 		keys.filter(key => !('withEditor' in key) || key.withEditor === editorOpen)
 			.forEach(({ id, arrow, label, command, arrowLast }) => {
 				const div = $(this._overlay).div({ 'class': ['key', id] });
-				if (!arrowLast) {
+				if (arrow && !arrowLast) {
 					$(div).span({ 'class': 'arrow' }).innerHtml(arrow);
 				}
 				$(div).span({ 'class': 'label' }).text(label);
@@ -192,7 +197,7 @@ class WelcomeOverlay {
 						$(div).span({ 'class': 'shortcut' }).text(shortcut.getLabel());
 					}
 				}
-				if (arrowLast) {
+				if (arrow && arrowLast) {
 					$(div).span({ 'class': 'arrow' }).innerHtml(arrow);
 				}
 			});

@@ -851,7 +851,7 @@ export class WindowsManager implements IWindowsMainService {
 		if (cli['folder-uri'] && cli['folder-uri'].length) {
 			const arg = cli['folder-uri'];
 			const folderUris: string[] = typeof arg === 'string' ? [arg] : arg;
-			pathsToOpen.push(...arrays.coalesce(folderUris.map(candidate => this.parseUri(URI.parse(candidate), { ignoreFileNotFound: true, gotoLineMode: cli.goto }))));
+			pathsToOpen.push(...arrays.coalesce(folderUris.map(candidate => this.parseUri(this.parseFolderUriArg(candidate), { ignoreFileNotFound: true, gotoLineMode: cli.goto }))));
 		}
 
 		// folder or file paths
@@ -963,8 +963,16 @@ export class WindowsManager implements IWindowsMainService {
 		return restoreWindows;
 	}
 
+	private parseFolderUriArg(arg: string): URI {
+		// Do not support if user has passed folder path on Windows
+		if (isWindows && /^([a-z])\:(.*)$/i.test(arg)) {
+			return null;
+		}
+		return URI.parse(arg);
+	}
+
 	private parseUri(anyUri: URI, options?: { ignoreFileNotFound?: boolean, gotoLineMode?: boolean, forceOpenWorkspaceAsFile?: boolean; }): IPathToOpen {
-		if (!anyUri) {
+		if (!anyUri || !anyUri.scheme) {
 			return null;
 		}
 
@@ -1110,7 +1118,7 @@ export class WindowsManager implements IWindowsMainService {
 		if (openConfig.cli['folder-uri']) {
 			const arg = openConfig.cli['folder-uri'];
 			const folderUris: string[] = typeof arg === 'string' ? [arg] : arg;
-			if (folderUris.some(uri => !!findWindowOnWorkspaceOrFolderUri(WindowsManager.WINDOWS, URI.parse(uri)))) {
+			if (folderUris.some(uri => !!findWindowOnWorkspaceOrFolderUri(WindowsManager.WINDOWS, this.parseFolderUriArg(uri)))) {
 				openConfig.cli['folder-uri'] = [];
 			}
 		}

@@ -10,7 +10,7 @@ import { KeyMod, KeyCode } from 'vs/base/common/keyCodes';
 import { SyncActionDescriptor, MenuRegistry, MenuId } from 'vs/platform/actions/common/actions';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
-import { KeybindingsRegistry, IKeybindings } from 'vs/platform/keybinding/common/keybindingsRegistry';
+import { KeybindingWeight, IKeybindings } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { IConfigurationRegistry, Extensions as ConfigurationExtensions } from 'vs/platform/configuration/common/configurationRegistry';
 import { IWorkbenchActionRegistry, Extensions as WorkbenchActionRegistryExtensions } from 'vs/workbench/common/actions';
 import { ToggleViewletAction, Extensions as ViewletExtensions, ViewletRegistry, ViewletDescriptor } from 'vs/workbench/browser/viewlet';
@@ -130,7 +130,7 @@ const debugCategory = nls.localize('debugCategory', "Debug");
 registry.registerWorkbenchAction(new SyncActionDescriptor(
 	StartAction, StartAction.ID, StartAction.LABEL, { primary: KeyCode.F5 }, CONTEXT_NOT_IN_DEBUG_MODE), 'Debug: Start Debugging', debugCategory);
 registry.registerWorkbenchAction(new SyncActionDescriptor(StepOverAction, StepOverAction.ID, StepOverAction.LABEL, { primary: KeyCode.F10 }, CONTEXT_IN_DEBUG_MODE), 'Debug: Step Over', debugCategory);
-registry.registerWorkbenchAction(new SyncActionDescriptor(StepIntoAction, StepIntoAction.ID, StepIntoAction.LABEL, { primary: KeyCode.F11 }, CONTEXT_IN_DEBUG_MODE, KeybindingsRegistry.WEIGHT.workbenchContrib(1)), 'Debug: Step Into', debugCategory);
+registry.registerWorkbenchAction(new SyncActionDescriptor(StepIntoAction, StepIntoAction.ID, StepIntoAction.LABEL, { primary: KeyCode.F11 }, CONTEXT_IN_DEBUG_MODE, KeybindingWeight.WorkbenchContrib + 1), 'Debug: Step Into', debugCategory);
 registry.registerWorkbenchAction(new SyncActionDescriptor(StepOutAction, StepOutAction.ID, StepOutAction.LABEL, { primary: KeyMod.Shift | KeyCode.F11 }, CONTEXT_IN_DEBUG_MODE), 'Debug: Step Out', debugCategory);
 registry.registerWorkbenchAction(new SyncActionDescriptor(RestartAction, RestartAction.ID, RestartAction.LABEL, { primary: KeyMod.Shift | KeyMod.CtrlCmd | KeyCode.F5 }, CONTEXT_IN_DEBUG_MODE), 'Debug: Restart', debugCategory);
 registry.registerWorkbenchAction(new SyncActionDescriptor(StopAction, StopAction.ID, StopAction.LABEL, { primary: KeyMod.Shift | KeyCode.F5 }, CONTEXT_IN_DEBUG_MODE), 'Debug: Stop', debugCategory);
@@ -178,17 +178,17 @@ configurationRegistry.registerConfiguration({
 	properties: {
 		'debug.allowBreakpointsEverywhere': {
 			type: 'boolean',
-			description: nls.localize({ comment: ['This is the description for a setting'], key: 'allowBreakpointsEverywhere' }, "Allows setting breakpoint in any file"),
+			description: nls.localize({ comment: ['This is the description for a setting'], key: 'allowBreakpointsEverywhere' }, "Allow setting breakpoints in any file."),
 			default: false
 		},
 		'debug.openExplorerOnEnd': {
 			type: 'boolean',
-			description: nls.localize({ comment: ['This is the description for a setting'], key: 'openExplorerOnEnd' }, "Automatically open explorer view on the end of a debug session"),
+			description: nls.localize({ comment: ['This is the description for a setting'], key: 'openExplorerOnEnd' }, "Automatically open the explorer view at the end of a debug session"),
 			default: false
 		},
 		'debug.inlineValues': {
 			type: 'boolean',
-			description: nls.localize({ comment: ['This is the description for a setting'], key: 'inlineValues' }, "Show variable values inline in editor while debugging"),
+			description: nls.localize({ comment: ['This is the description for a setting'], key: 'inlineValues' }, "Show variable values inline in editor while debugging."),
 			default: false
 		},
 		'debug.toolBarLocation': {
@@ -199,18 +199,18 @@ configurationRegistry.registerConfiguration({
 		'debug.showInStatusBar': {
 			enum: ['never', 'always', 'onFirstSessionStart'],
 			enumDescriptions: [nls.localize('never', "Never show debug in status bar"), nls.localize('always', "Always show debug in status bar"), nls.localize('onFirstSessionStart', "Show debug in status bar only after debug was started for the first time")],
-			description: nls.localize({ comment: ['This is the description for a setting'], key: 'showInStatusBar' }, "Controls when the debug status bar should be visible"),
+			description: nls.localize({ comment: ['This is the description for a setting'], key: 'showInStatusBar' }, "Controls when the debug status bar should be visible."),
 			default: 'onFirstSessionStart'
 		},
 		'debug.internalConsoleOptions': INTERNAL_CONSOLE_OPTIONS_SCHEMA,
 		'debug.openDebug': {
 			enum: ['neverOpen', 'openOnSessionStart', 'openOnFirstSessionStart', 'openOnDebugBreak'],
 			default: 'openOnFirstSessionStart',
-			description: nls.localize('openDebug', "Controls whether debug view should be open on debugging session start.")
+			description: nls.localize('openDebug', "Controls when the debug view should open.")
 		},
 		'debug.enableAllHovers': {
 			type: 'boolean',
-			description: nls.localize({ comment: ['This is the description for a setting'], key: 'enableAllHovers' }, "Controls if the non debug hovers should be enabled while debugging. If true the hover providers will be called to provide a hover. Regular hovers will not be shown even if this setting is true."),
+			description: nls.localize({ comment: ['This is the description for a setting'], key: 'enableAllHovers' }, "Controls whether the non-debug hovers should be enabled while debugging. When enabled the hover providers will be called to provide a hover. Regular hovers will not be shown even if this setting is enabled."),
 			default: false
 		},
 		'launch': {
@@ -358,40 +358,47 @@ MenuRegistry.appendMenuItem(MenuId.MenubarDebugMenu, {
 	order: 1
 });
 
-MenuRegistry.appendMenuItem(MenuId.MenubarDebugMenu, {
-	group: '4_new_breakpoint',
+MenuRegistry.appendMenuItem(MenuId.MenubarNewBreakpointMenu, {
+	group: '1_breakpoints',
 	command: {
 		id: TOGGLE_CONDITIONAL_BREAKPOINT_ID,
-		title: nls.localize({ key: 'miConditionalBreakpoint', comment: ['&& denotes a mnemonic'] }, "Toggle &&Conditional Breakpoint...")
+		title: nls.localize({ key: 'miConditionalBreakpoint', comment: ['&& denotes a mnemonic'] }, "&&Conditional Breakpoint...")
+	},
+	order: 1
+});
+
+MenuRegistry.appendMenuItem(MenuId.MenubarNewBreakpointMenu, {
+	group: '1_breakpoints',
+	command: {
+		id: TOGGLE_INLINE_BREAKPOINT_ID,
+		title: nls.localize({ key: 'miInlineBreakpoint', comment: ['&& denotes a mnemonic'] }, "Inline Breakp&&oint")
 	},
 	order: 2
 });
 
-MenuRegistry.appendMenuItem(MenuId.MenubarDebugMenu, {
-	group: '4_new_breakpoint',
+MenuRegistry.appendMenuItem(MenuId.MenubarNewBreakpointMenu, {
+	group: '1_breakpoints',
 	command: {
-		id: TOGGLE_INLINE_BREAKPOINT_ID,
-		title: nls.localize({ key: 'miInlineBreakpoint', comment: ['&& denotes a mnemonic'] }, "Toggle Inline Breakp&&oint")
+		id: AddFunctionBreakpointAction.ID,
+		title: nls.localize({ key: 'miFunctionBreakpoint', comment: ['&& denotes a mnemonic'] }, "&&Function Breakpoint...")
 	},
 	order: 3
 });
 
-MenuRegistry.appendMenuItem(MenuId.MenubarDebugMenu, {
-	group: '4_new_breakpoint',
+MenuRegistry.appendMenuItem(MenuId.MenubarNewBreakpointMenu, {
+	group: '1_breakpoints',
 	command: {
-		id: AddFunctionBreakpointAction.ID,
-		title: nls.localize({ key: 'miFunctionBreakpoint', comment: ['&& denotes a mnemonic'] }, "Toggle &&Function Breakpoint...")
+		id: TOGGLE_LOG_POINT_ID,
+		title: nls.localize({ key: 'miLogPoint', comment: ['&& denotes a mnemonic'] }, "&&Logpoint...")
 	},
 	order: 4
 });
 
 MenuRegistry.appendMenuItem(MenuId.MenubarDebugMenu, {
 	group: '4_new_breakpoint',
-	command: {
-		id: TOGGLE_LOG_POINT_ID,
-		title: nls.localize({ key: 'miLogPoint', comment: ['&& denotes a mnemonic'] }, "Toggle &&Logpoint...")
-	},
-	order: 5
+	title: nls.localize({ key: 'miNewBreakpoint', comment: ['&& denotes a mnemonic'] }, "&&New Breakpoint"),
+	submenu: MenuId.MenubarNewBreakpointMenu,
+	order: 2
 });
 
 // Modify Breakpoints
@@ -420,6 +427,16 @@ MenuRegistry.appendMenuItem(MenuId.MenubarDebugMenu, {
 		title: nls.localize({ key: 'miRemoveAllBreakpoints', comment: ['&& denotes a mnemonic'] }, "Remove &&All Breakpoints")
 	},
 	order: 3
+});
+
+// Install Debuggers
+MenuRegistry.appendMenuItem(MenuId.MenubarDebugMenu, {
+	group: 'z_install',
+	command: {
+		id: 'debug.installAdditionalDebuggers',
+		title: nls.localize({ key: 'miInstallAdditionalDebuggers', comment: ['&& denotes a mnemonic'] }, "&&Install Additional Debuggers...")
+	},
+	order: 1
 });
 
 // Touch Bar
