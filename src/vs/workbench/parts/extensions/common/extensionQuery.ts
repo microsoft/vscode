@@ -12,7 +12,7 @@ export class Query {
 		this.value = value.trim();
 	}
 
-	static autocompletions(): string[] {
+	static autocompletions(query: string): string[] {
 		const commands = ['installed', 'outdated', 'enabled', 'disabled', 'builtin', 'recommended', 'sort', 'category', 'tag', 'ext'];
 		const subcommands = {
 			'sort': ['installs', 'rating', 'name'],
@@ -21,11 +21,25 @@ export class Query {
 			'ext': ['']
 		};
 
+		let containsSub = (haystack: string) => (needle: string) => haystack.indexOf(needle) !== -1;
+		let queryContains = containsSub(query);
+		let hasSort = subcommands.sort.some(subcommand => queryContains(`@sort:${subcommand}`));
+		let hasCategory = subcommands.category.some(subcommand => queryContains(`@category:${subcommand}`));
+
 		return flatten(
-			commands.map(command =>
-				subcommands[command]
-					? subcommands[command].map(subcommand => `@${command}:${subcommand}${subcommand === '' ? '' : ' '}`)
-					: [`@${command} `]));
+			commands.map(command => {
+				let commandContains = containsSub(command);
+				if (hasSort && commandContains('sort') || hasCategory && commandContains('category')) {
+					return [];
+				}
+				if (subcommands[command]) {
+					return subcommands[command].map(subcommand => `@${command}:${subcommand}${subcommand === '' ? '' : ' '}`);
+				}
+				else {
+					return [`@${command} `];
+				}
+			}));
+
 	}
 
 	static parse(value: string): Query {
