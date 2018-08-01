@@ -106,6 +106,7 @@ export class MenubarPart extends Part {
 	private updatePending: boolean;
 	private _modifierKeyStatus: IModifierKeyStatus;
 	private _focusState: MenubarState;
+	private openedViaKeyboard: boolean;
 
 	private _onVisibilityChange: Emitter<boolean>;
 
@@ -292,7 +293,7 @@ export class MenubarPart extends Part {
 				}
 
 				if (this.focusedMenu) {
-					this.showCustomMenu(this.focusedMenu.index, !!this._modifierKeyStatus && this._modifierKeyStatus.altKey);
+					this.showCustomMenu(this.focusedMenu.index, this.openedViaKeyboard);
 				}
 				break;
 		}
@@ -644,6 +645,7 @@ export class MenubarPart extends Part {
 
 					if ((event.equals(KeyCode.DownArrow) || event.equals(KeyCode.Enter)) && !this.isOpen) {
 						this.focusedMenu = { index: menuIndex };
+						this.openedViaKeyboard = true;
 						this.focusState = MenubarState.OPEN;
 					} else {
 						eventHandled = false;
@@ -670,10 +672,11 @@ export class MenubarPart extends Part {
 							this.setUnfocusedState();
 						} else {
 							this.cleanupCustomMenu();
-							this.showCustomMenu(menuIndex, !!this._modifierKeyStatus && this._modifierKeyStatus.altKey);
+							this.showCustomMenu(menuIndex, this.openedViaKeyboard);
 						}
 					} else {
 						this.focusedMenu = { index: menuIndex };
+						this.openedViaKeyboard = (e as MouseEvent).detail === 0; // Indicates mouse was not clicked
 						this.focusState = MenubarState.OPEN;
 					}
 
