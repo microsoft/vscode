@@ -144,7 +144,7 @@ export class MenubarPart extends Part {
 			this.topLevelMenus['Window'] = this._register(this.menuService.createMenu(MenuId.MenubarWindowMenu, this.contextKeyService));
 		}
 
-		this.menuUpdater = this._register(new RunOnceScheduler(() => this.doSetupMenubar(), 0));
+		this.menuUpdater = this._register(new RunOnceScheduler(() => this.doSetupMenubar(), 100));
 
 		this.actionRunner = this._register(new ActionRunner());
 		this._register(this.actionRunner.onDidBeforeRun(() => {
