@@ -70,18 +70,18 @@ declare module 'vscode' {
 		 * Whether external files that exclude files, like .gitignore, should be respected.
 		 * See the vscode setting `"search.useIgnoreFiles"`.
 		 */
-		useIgnoreFiles?: boolean;
+		useIgnoreFiles: boolean;
 
 		/**
 		 * Whether symlinks should be followed while searching.
 		 * See the vscode setting `"search.followSymlinks"`.
 		 */
-		followSymlinks?: boolean;
+		followSymlinks: boolean;
 
 		/**
 		 * The maximum number of results to be returned.
 		 */
-		maxResults?: number;
+		maxResults: number;
 	}
 
 	/**
