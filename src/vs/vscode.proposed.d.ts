@@ -77,17 +77,17 @@ declare module 'vscode' {
 		 * See the vscode setting `"search.followSymlinks"`.
 		 */
 		followSymlinks: boolean;
-
-		/**
-		 * The maximum number of results to be returned.
-		 */
-		maxResults: number;
 	}
 
 	/**
 	 * Options that apply to text search.
 	 */
 	export interface TextSearchOptions extends SearchOptions {
+		/**
+		 * The maximum number of results to be returned.
+		 */
+		maxResults: number;
+
 		/**
 		 *  TODO@roblou - total length? # of context lines? leading and trailing # of chars?
 		 */
@@ -118,7 +118,17 @@ declare module 'vscode' {
 	/**
 	 * Options that apply to file search.
 	 */
-	export interface FileSearchOptions extends SearchOptions { }
+	export interface FileSearchOptions extends SearchOptions {
+		/**
+		 * The maximum number of results to be returned.
+		 */
+		maxResults: number;
+	}
+
+	/**
+	 * Options that apply to requesting the file index.
+	 */
+	export interface FileIndexOptions extends SearchOptions { }
 
 	export interface TextSearchResultPreview {
 		/**
