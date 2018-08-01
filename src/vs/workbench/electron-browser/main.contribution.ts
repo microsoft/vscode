@@ -358,7 +358,7 @@ configurationRegistry.registerConfiguration({
 			'description': nls.localize({
 				comment: ['This is the description for a setting. Values surrounded by parenthesis are not to be translated.'],
 				key: 'tabDescription'
-			}, "Controls the format of editor's label."),
+			}, "Controls the format of the label for an editor."),
 		},
 		'workbench.editor.tabCloseButton': {
 			'type': 'string',
