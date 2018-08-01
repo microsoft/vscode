@@ -493,7 +493,9 @@ export class ShowStartupPerformance extends Action {
 			}
 
 			i += 1;
-			ticks[stat.type].push(new Tick(stat, nextStat));
+			if (ticks[stat.type]) {
+				ticks[stat.type].push(new Tick(stat, nextStat));
+			}
 		}
 
 		ticks[LoaderEventType.BeginInvokeFactory].sort(Tick.compareUsingStartTimestamp);
