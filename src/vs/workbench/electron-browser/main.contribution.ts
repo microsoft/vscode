@@ -342,7 +342,7 @@ configurationRegistry.registerConfiguration({
 	'properties': {
 		'workbench.editor.showTabs': {
 			'type': 'boolean',
-			'description': nls.localize('showEditorTabs', "Controls if opened editors should show in tabs or not."),
+			'description': nls.localize('showEditorTabs', "Controls whether opened editors should show in tabs or not."),
 			'default': true
 		},
 		'workbench.editor.labelFormat': {
@@ -362,27 +362,31 @@ configurationRegistry.registerConfiguration({
 			'type': 'string',
 			'enum': ['left', 'right', 'off'],
 			'default': 'right',
-			'description': nls.localize({ comment: ['This is the description for a setting. Values surrounded by single quotes are not to be translated.'], key: 'editorTabCloseButton' }, "Controls the position of the editor's tabs close buttons or disables them when set to 'off'.")
+			'description': nls.localize({ comment: ['This is the description for a setting. Values surrounded by single quotes are not to be translated.'], key: 'editorTabCloseButton' }, "Controls the position of the editor's tabs close buttons, or disables them when set to 'off'.")
 		},
 		'workbench.editor.tabSizing': {
 			'type': 'string',
 			'enum': ['fit', 'shrink'],
 			'default': 'fit',
-			'description': nls.localize({ comment: ['This is the description for a setting. Values surrounded by single quotes are not to be translated.'], key: 'tabSizing' }, "Controls the sizing of editor tabs. Set to 'fit' to keep tabs always large enough to show the full editor label. Set to 'shrink' to allow tabs to get smaller when the available space is not enough to show all tabs at once.")
+			'enumDescriptions': [
+				nls.localize('workbench.editor.tabSizing.fit', "Always keep tabs large enough to show the full editor label."),
+				nls.localize('workbench.editor.tabSizing.shrink', "Allow tabs to get smaller when the available space is not enough to show all tabs at once.")
+			],
+			'description': nls.localize({ comment: ['This is the description for a setting. Values surrounded by single quotes are not to be translated.'], key: 'tabSizing' }, "Controls the sizing of editor tabs.")
 		},
 		'workbench.editor.showIcons': {
 			'type': 'boolean',
-			'description': nls.localize('showIcons', "Controls if opened editors should show with an icon or not. This requires an icon theme to be enabled as well."),
+			'description': nls.localize('showIcons', "Controls whether opened editors should show with an icon or not. This requires an icon theme to be enabled as well."),
 			'default': true
 		},
 		'workbench.editor.enablePreview': {
 			'type': 'boolean',
-			'description': nls.localize('enablePreview', "Controls if opened editors show as preview. Preview editors are reused until they are kept (e.g. via double click or editing) and show up with an italic font style."),
+			'description': nls.localize('enablePreview', "Controls whether opened editors show as preview. Preview editors are reused until they are kept (e.g. via double click or editing) and show up with an italic font style."),
 			'default': true
 		},
 		'workbench.editor.enablePreviewFromQuickOpen': {
 			'type': 'boolean',
-			'description': nls.localize('enablePreviewFromQuickOpen', "Controls if opened editors from Quick Open show as preview. Preview editors are reused until they are kept (e.g. via double click or editing)."),
+			'description': nls.localize('enablePreviewFromQuickOpen', "Controls whether opened editors from Quick Open show as preview. Preview editors are reused until they are kept (e.g. via double click or editing)."),
 			'default': true
 		},
 		'workbench.editor.closeOnFileDelete': {
@@ -409,7 +413,7 @@ configurationRegistry.registerConfiguration({
 		},
 		'workbench.editor.revealIfOpen': {
 			'type': 'boolean',
-			'description': nls.localize('revealIfOpen', "Controls if an editor is revealed in any of the visible groups if opened. If disabled, an editor will prefer to open in the currently active editor group. If enabled, an already opened editor will be revealed instead of opened again in the currently active editor group. Note that there are some cases where this setting is ignored, e.g. when forcing an editor to open in a specific group or to the side of the currently active group."),
+			'description': nls.localize('revealIfOpen', "Controls whether an editor is revealed in any of the visible groups if opened. If disabled, an editor will prefer to open in the currently active editor group. If enabled, an already opened editor will be revealed instead of opened again in the currently active editor group. Note that there are some cases where this setting is ignored, e.g. when forcing an editor to open in a specific group or to the side of the currently active group."),
 			'default': false
 		},
 		'workbench.editor.swipeToNavigate': {
@@ -425,22 +429,22 @@ configurationRegistry.registerConfiguration({
 		},
 		'workbench.commandPalette.preserveInput': {
 			'type': 'boolean',
-			'description': nls.localize('preserveInput', "Controls if the last typed input to the command palette should be restored when opening it the next time."),
+			'description': nls.localize('preserveInput', "Controls whether the last typed input to the command palette should be restored when opening it the next time."),
 			'default': false
 		},
 		'workbench.quickOpen.closeOnFocusLost': {
 			'type': 'boolean',
-			'description': nls.localize('closeOnFocusLost', "Controls if Quick Open should close automatically once it loses focus."),
+			'description': nls.localize('closeOnFocusLost', "Controls whether Quick Open should close automatically once it loses focus."),
 			'default': true
 		},
 		'workbench.settings.openDefaultSettings': {
 			'type': 'boolean',
-			'description': nls.localize('openDefaultSettings', "Controls if opening settings also opens an editor showing all default settings."),
+			'description': nls.localize('openDefaultSettings', "Controls whether opening settings also opens an editor showing all default settings."),
 			'default': true
 		},
 		'workbench.settings.openDefaultKeybindings': {
 			'type': 'boolean',
-			'description': nls.localize('openDefaultKeybindings', "Controls if opening keybinding settings also opens an editor showing all default keybindings."),
+			'description': nls.localize('openDefaultKeybindings', "Controls whether opening keybinding settings also opens an editor showing all default keybindings."),
 			'default': true
 		},
 		'workbench.sideBar.location': {
@@ -475,7 +479,7 @@ configurationRegistry.registerConfiguration({
 			'enum': ['default', 'antialiased', 'none', 'auto'],
 			'default': 'default',
 			'description':
-				nls.localize('fontAliasing', "Controls font aliasing method in the workbench.\n- default: Sub-pixel font smoothing. On most non-retina displays this will give the sharpest text\n- antialiased: Smooth the font on the level of the pixel, as opposed to the subpixel. Can make the font appear lighter overall\n- none: Disables font smoothing. Text will show with jagged sharp edges\n- auto: Applies `default` or `antialiased` automatically based on the DPI of displays."),
+				nls.localize('fontAliasing', "Controls font aliasing method in the workbench."),
 			'enumDescriptions': [
 				nls.localize('workbench.fontAliasing.default', "Sub-pixel font smoothing. On most non-retina displays this will give the sharpest text."),
 				nls.localize('workbench.fontAliasing.antialiased', "Smooth the font on the level of the pixel, as opposed to the subpixel. Can make the font appear lighter overall."),
@@ -601,7 +605,7 @@ configurationRegistry.registerConfiguration({
 		'window.closeWhenEmpty': {
 			'type': 'boolean',
 			'default': false,
-			'description': nls.localize('closeWhenEmpty', "Controls if closing the last editor should also close the window. This setting only applies for windows that do not show folders.")
+			'description': nls.localize('closeWhenEmpty', "Controls whether closing the last editor should also close the window. This setting only applies for windows that do not show folders.")
 		},
 		'window.menuBarVisibility': {
 			'type': 'string',
@@ -671,12 +675,12 @@ configurationRegistry.registerConfiguration({
 		'zenMode.fullScreen': {
 			'type': 'boolean',
 			'default': true,
-			'description': nls.localize('zenMode.fullScreen', "Controls if turning on Zen Mode also puts the workbench into full screen mode.")
+			'description': nls.localize('zenMode.fullScreen', "Controls whether turning on Zen Mode also puts the workbench into full screen mode.")
 		},
 		'zenMode.centerLayout': {
 			'type': 'boolean',
 			'default': true,
-			'description': nls.localize('zenMode.centerLayout', "Controls if turning on Zen Mode also centers the layout.")
+			'description': nls.localize('zenMode.centerLayout', "Controls whether turning on Zen Mode also centers the layout.")
 		},
 		'zenMode.hideTabs': {
 			'type': 'boolean',
@@ -691,7 +695,7 @@ configurationRegistry.registerConfiguration({
 		'zenMode.hideActivityBar': {
 			'type': 'boolean',
 			'default': true,
-			'description': nls.localize('zenMode.hideActivityBar', "Controls if turning on Zen Mode also hides the activity bar at the left of the workbench.")
+			'description': nls.localize('zenMode.hideActivityBar', "Controls whether turning on Zen Mode also hides the activity bar at the left of the workbench.")
 		},
 		'zenMode.restore': {
 			'type': 'boolean',
