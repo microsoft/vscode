@@ -21,15 +21,13 @@ export class Query {
 			'ext': ['']
 		};
 
-		let containsSub = (haystack: string) => (needle: string) => haystack.indexOf(needle) !== -1;
-		let queryContains = containsSub(query);
+		let queryContains = (substr: string) => query.indexOf(substr) > -1;
 		let hasSort = subcommands.sort.some(subcommand => queryContains(`@sort:${subcommand}`));
 		let hasCategory = subcommands.category.some(subcommand => queryContains(`@category:${subcommand}`));
 
 		return flatten(
 			commands.map(command => {
-				let commandContains = containsSub(command);
-				if (hasSort && commandContains('sort') || hasCategory && commandContains('category')) {
+				if (hasSort && command === 'sort' || hasCategory && command === 'category') {
 					return [];
 				}
 				if (subcommands[command]) {
