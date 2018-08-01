@@ -428,7 +428,7 @@ export class ExtensionsViewlet extends ViewContainerViewlet implements IExtensio
 
 	layout(dimension: Dimension): void {
 		toggleClass(this.root, 'narrow', dimension.width <= 300);
-		this.searchBox.layout({ height: 20, width: dimension.width - 30 });
+		this.searchBox.layout({ height: 20, width: dimension.width - 34 });
 		this.placeholderText.style.width = '' + (dimension.width - 30) + 'px';
 
 		super.layout(new Dimension(dimension.width, dimension.height - 38));
