@@ -334,11 +334,12 @@ export class ExcludeSettingWidget extends Disposable {
 
 		const onSubmit = edited => {
 			this.model.setEditKey(null);
-			if (edited) {
+			const pattern = patternInput.value.trim();
+			if (edited && pattern) {
 				this._onDidChangeExclude.fire({
 					originalPattern: item.pattern,
-					pattern: patternInput.value,
-					sibling: siblingInput && siblingInput.value
+					pattern,
+					sibling: siblingInput && siblingInput.value.trim()
 				});
 			} else {
 				this.renderList();
