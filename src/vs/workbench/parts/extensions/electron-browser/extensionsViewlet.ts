@@ -691,6 +691,7 @@ function mixinHTMLInputStyleOptions(config: IEditorOptions, ariaLabel?: string):
 	config.wordWrap = 'off';
 	config.scrollbar.vertical = 'hidden';
 	config.ariaLabel = ariaLabel || '';
+	config.renderIndentGuides = false;
 	config.cursorWidth = 1;
 	config.snippetSuggestions = 'none';
 	config.suggest = { filterGraceful: false };
