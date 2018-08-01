@@ -539,7 +539,7 @@ export class ExtensionsViewlet extends ViewContainerViewlet implements IExtensio
 		// dont show autosuggestions if the user has typed something, but hasn't used the trigger character
 		if (alreadyTypedCount > 0 && query[wordStart] !== '@') { return []; }
 
-		return Query.autocompletions().map(replacement => ({ fullText: replacement, overwrite: alreadyTypedCount }));
+		return Query.autocompletions(query).map(replacement => ({ fullText: replacement, overwrite: alreadyTypedCount }));
 	}
 
 	private count(): number {
