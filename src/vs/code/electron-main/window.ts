@@ -686,18 +686,10 @@ export class CodeWindow implements ICodeWindow {
 		let mode: WindowMode;
 
 		// get window mode
-		if (!isMacintosh && this._win.isMaximized()) {
-			mode = WindowMode.Maximized;
-		} else {
-			mode = WindowMode.Normal;
-		}
+		mode = !isMacintosh && this._win.isMaximized() ? WindowMode.Maximized : WindowMode.Normal;
 
 		// we don't want to save minimized state, only maximized or normal
-		if (mode === WindowMode.Maximized) {
-			state.mode = WindowMode.Maximized;
-		} else {
-			state.mode = WindowMode.Normal;
-		}
+		state.mode = mode === WindowMode.Maximized ? WindowMode.Maximized : WindowMode.Normal;
 
 		// only consider non-minimized window states
 		if (mode === WindowMode.Normal || mode === WindowMode.Maximized) {
@@ -853,10 +845,8 @@ export class CodeWindow implements ICodeWindow {
 			return; // ignore for macOS platform
 		}
 
-		if (visibility === 'toggle') {
-			if (notify) {
-				this.send('vscode:showInfoMessage', nls.localize('hiddenMenuBar', "You can still access the menu bar by pressing the Alt-key."));
-			}
+		if (visibility === 'toggle' && notify) {
+			this.send('vscode:showInfoMessage', nls.localize('hiddenMenuBar', "You can still access the menu bar by pressing the Alt-key."));
 		}
 
 		if (visibility === 'hidden') {
