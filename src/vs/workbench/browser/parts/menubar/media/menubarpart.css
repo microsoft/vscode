@@ -24,6 +24,7 @@
 	cursor: default;
 	-webkit-app-region: no-drag;
 	zoom: 1;
+	white-space: nowrap;
 }
 
 .monaco-workbench .part.menubar .menubar-menu-items-holder {
