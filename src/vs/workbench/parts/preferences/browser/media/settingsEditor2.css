@@ -260,6 +260,24 @@
 	transform: translate3d(0px, 0px, 0px);
 }
 
+.settings-editor > .settings-body > .settings-tree-container .setting-item .setting-item-description.setting-item-description-artificial-overflow {
+	display: block;
+}
+
+.settings-editor > .settings-body > .settings-tree-container .setting-item .setting-item-description-artificial-overflow .setting-item-description-markdown {
+	display: inline-block;
+	margin-right: 3px;
+}
+
+.settings-editor > .settings-body > .settings-tree-container .setting-item .setting-item-description-artificial-overflow::after {
+	display: inline-block;
+	content: '…';
+	width: 16px;
+	height: 16px;
+	position: absolute;
+	transform: translate3d(0px, 0px, 0px);
+}
+
 .settings-editor > .settings-body > .settings-tree-container .setting-item .setting-item-description-markdown * {
 	margin: 0px;
 }
@@ -328,7 +346,6 @@
 
 .settings-editor > .settings-body > .settings-tree-container .setting-item.setting-item-enum .setting-item-value > .setting-item-control,
 .settings-editor > .settings-body > .settings-tree-container .setting-item.setting-item-text .setting-item-value > .setting-item-control {
-	flex: 1;
 	min-width: initial;
 }
 

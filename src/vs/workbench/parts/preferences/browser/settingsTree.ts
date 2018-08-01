@@ -516,6 +516,10 @@ interface IGroupTitleTemplate extends IDisposableTemplate {
 	parent: HTMLElement;
 }
 
+interface IValueRenderResult {
+	overflows?: boolean;
+}
+
 const SETTINGS_TEXT_TEMPLATE_ID = 'settings.text.template';
 const SETTINGS_NUMBER_TEMPLATE_ID = 'settings.number.template';
 const SETTINGS_ENUM_TEMPLATE_ID = 'settings.enum.template';
@@ -1012,17 +1016,19 @@ export class SettingsRenderer implements ITreeRenderer {
 		template.labelElement.textContent = element.displayLabel;
 		template.labelElement.title = titleTooltip;
 
-		// Rewrite `#editor.fontSize#` to link format
-		const descriptionText = fixSettingLinks(element.description);
-		const renderedDescription = this.renderDescriptionMarkdown(descriptionText, template.toDispose);
-
+		const renderedDescription = this.renderDescriptionMarkdown(element.description, template.toDispose);
 		template.descriptionElement.innerHTML = '';
 		template.descriptionElement.appendChild(renderedDescription);
 		(<any>renderedDescription.querySelectorAll('a')).forEach(aElement => {
 			aElement.tabIndex = isSelected ? 0 : -1;
 		});
 
-		this.renderValue(element, isSelected, templateId, <ISettingItemTemplate>template);
+		const result = this.renderValue(element, isSelected, templateId, <ISettingItemTemplate>template);
+
+		const firstLineOverflows = renderedDescription.firstElementChild.clientHeight > 18;
+		const hasExtraLines = renderedDescription.childElementCount > 1;
+		const needsManualOverflowIndicator = (hasExtraLines || result.overflows) && !firstLineOverflows && !isSelected;
+		DOM.toggleClass(template.descriptionElement, 'setting-item-description-artificial-overflow', needsManualOverflowIndicator);
 
 		template.isConfiguredElement.textContent = element.isConfigured ? localize('configured', "Modified") : '';
 
@@ -1038,6 +1044,9 @@ export class SettingsRenderer implements ITreeRenderer {
 	}
 
 	private renderDescriptionMarkdown(text: string, disposeables: IDisposable[]): HTMLElement {
+		// Rewrite `#editor.fontSize#` to link format
+		text = fixSettingLinks(text);
+
 		const renderedMarkdown = renderMarkdown({ value: text }, {
 			actionHandler: {
 				callback: (content: string) => {
@@ -1056,11 +1065,11 @@ export class SettingsRenderer implements ITreeRenderer {
 		return renderedMarkdown;
 	}
 
-	private renderValue(element: SettingsTreeSettingElement, isSelected: boolean, templateId: string, template: ISettingItemTemplate | ISettingBoolItemTemplate): void {
+	private renderValue(element: SettingsTreeSettingElement, isSelected: boolean, templateId: string, template: ISettingItemTemplate | ISettingBoolItemTemplate): IValueRenderResult {
 		const onChange = value => this._onDidChangeSetting.fire({ key: element.setting.key, value });
 
 		if (templateId === SETTINGS_ENUM_TEMPLATE_ID) {
-			this.renderEnum(element, isSelected, <ISettingEnumItemTemplate>template, onChange);
+			return this.renderEnum(element, isSelected, <ISettingEnumItemTemplate>template, onChange);
 		} else if (templateId === SETTINGS_TEXT_TEMPLATE_ID) {
 			this.renderText(element, isSelected, <ISettingTextItemTemplate>template, onChange);
 		} else if (templateId === SETTINGS_NUMBER_TEMPLATE_ID) {
@@ -1072,6 +1081,8 @@ export class SettingsRenderer implements ITreeRenderer {
 		} else if (templateId === SETTINGS_COMPLEX_TEMPLATE_ID) {
 			this.renderComplexSetting(element, isSelected, <ISettingComplexItemTemplate>template);
 		}
+
+		return { overflows: false };
 	}
 
 	private renderBool(dataElement: SettingsTreeSettingElement, isSelected: boolean, template: ISettingBoolItemTemplate, onChange: (value: boolean) => void): void {
@@ -1082,7 +1093,7 @@ export class SettingsRenderer implements ITreeRenderer {
 		template.checkbox.domNode.tabIndex = isSelected ? 0 : -1;
 	}
 
-	private renderEnum(dataElement: SettingsTreeSettingElement, isSelected: boolean, template: ISettingEnumItemTemplate, onChange: (value: string) => void): void {
+	private renderEnum(dataElement: SettingsTreeSettingElement, isSelected: boolean, template: ISettingEnumItemTemplate, onChange: (value: string) => void): IValueRenderResult {
 		const displayOptions = getDisplayEnumOptions(dataElement.setting);
 		template.selectBox.setOptions(displayOptions);
 
@@ -1100,19 +1111,25 @@ export class SettingsRenderer implements ITreeRenderer {
 
 		template.enumDescriptionElement.innerHTML = '';
 		if (dataElement.setting.enumDescriptions && dataElement.setting.enum && dataElement.setting.enum.length < SettingsRenderer.MAX_ENUM_DESCRIPTIONS) {
-			let enumDescriptionText = '\n' + dataElement.setting.enumDescriptions
-				.map((desc, i) => {
-					const displayEnum = escapeInvisibleChars(dataElement.setting.enum[i]);
-					return desc ?
-						` - \`${displayEnum}\`: ${desc}` :
-						` - \`${dataElement.setting.enum[i]}\``;
-				})
-				.filter(desc => !!desc)
-				.join('\n');
+			if (isSelected) {
+				let enumDescriptionText = '\n' + dataElement.setting.enumDescriptions
+					.map((desc, i) => {
+						const displayEnum = escapeInvisibleChars(dataElement.setting.enum[i]);
+						return desc ?
+							` - \`${displayEnum}\`: ${desc}` :
+							` - \`${dataElement.setting.enum[i]}\``;
+					})
+					.filter(desc => !!desc)
+					.join('\n');
 
-			const renderedMarkdown = this.renderDescriptionMarkdown(fixSettingLinks(enumDescriptionText), template.toDispose);
-			template.enumDescriptionElement.appendChild(renderedMarkdown);
+				const renderedMarkdown = this.renderDescriptionMarkdown(fixSettingLinks(enumDescriptionText), template.toDispose);
+				template.enumDescriptionElement.appendChild(renderedMarkdown);
+			}
+
+			return { overflows: true };
 		}
+
+		return { overflows: false };
 	}
 
 	private renderText(dataElement: SettingsTreeSettingElement, isSelected: boolean, template: ISettingTextItemTemplate, onChange: (value: string) => void): void {
