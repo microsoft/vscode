@@ -656,6 +656,11 @@ export class MenubarPart extends Part {
 				});
 
 				this.customMenus[menuIndex].buttonElement.on(EventType.CLICK, (e) => {
+					// This should only happen for mnemonics and we shouldn't trigger them
+					if (!this.isVisible) {
+						return;
+					}
+
 					if (this._modifierKeyStatus && (this._modifierKeyStatus.shiftKey || this._modifierKeyStatus.ctrlKey)) {
 						return; // supress keyboard shortcuts that shouldn't conflict
 					}
