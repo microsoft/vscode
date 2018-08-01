@@ -389,15 +389,6 @@ function helpMenuRegistration() {
 	});
 
 	if (!isMacintosh) {
-		MenuRegistry.appendMenuItem(MenuId.MenubarHelpMenu, {
-			group: '5_tools',
-			command: {
-				id: 'workbench.action.showAccessibilityOptions',
-				title: nls.localize({ key: 'miAccessibilityOptions', comment: ['&& denotes a mnemonic'] }, "Accessibility &&Options")
-			},
-			order: 3
-		});
-
 		// About
 		MenuRegistry.appendMenuItem(MenuId.MenubarHelpMenu, {
 			group: 'z_about',
