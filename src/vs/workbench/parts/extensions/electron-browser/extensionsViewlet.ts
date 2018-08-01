@@ -693,6 +693,7 @@ function mixinHTMLInputStyleOptions(config: IEditorOptions, ariaLabel?: string):
 	config.ariaLabel = ariaLabel || '';
 	config.cursorWidth = 1;
 	config.snippetSuggestions = 'none';
+	config.suggest = { filterGraceful: false };
 	config.fontFamily = ' -apple-system, BlinkMacSystemFont, "Segoe WPC", "Segoe UI", "HelveticaNeue-Light", "Ubuntu", "Droid Sans", sans-serif';
 	return config;
 }
