@@ -1572,6 +1572,8 @@ export class SettingsTree extends NonExpandableTree {
 			current = nav.previous();
 		} while (current instanceof SettingsTreeGroupElement);
 
-		this.setFocus(current, eventPayload);
+		if (current) {
+			this.setFocus(current, eventPayload);
+		}
 	}
 }
