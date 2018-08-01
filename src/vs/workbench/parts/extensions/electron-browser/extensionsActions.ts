@@ -879,15 +879,13 @@ export class ManageExtensionAction extends Action {
 export class ExtensionInfoAction extends Action implements IExtensionAction {
 
 	static readonly ID = 'extensions.extensionInfo';
-	static LABEL = localize('extensionInfoAction', "Copy Extension info to clipboard");
+	static LABEL = localize('extensionInfoAction', "Copy Extension information");
 
 	private _extension: IExtension;
 	get extension(): IExtension { return this._extension; }
 	set extension(extension: IExtension) { this._extension = extension; }
 
-	constructor(label: string,
-		@INotificationService private notificationService: INotificationService
-	) {
+	constructor(label: string) {
 		super(ExtensionInfoAction.ID, label);
 	}
 
@@ -903,7 +901,6 @@ export class ExtensionInfoAction extends Action implements IExtensionAction {
 		const clipboardStr = `${localizedExtension}\n${localizedDescription}\n${localizedVersion}\n${localizedPublisher}\n${localizedVSMarketplaceLink}`;
 
 		clipboard.writeText(clipboardStr);
-		this.notificationService.info(localize('extensionInfoActionNotification', 'Extension info copied to clipboard'));
 		return TPromise.wrap(null);
 	}
 
