@@ -193,7 +193,7 @@ configurationRegistry.registerConfiguration({
 		},
 		'debug.toolBarLocation': {
 			enum: ['floating', 'docked', 'hidden'],
-			description: nls.localize({ comment: ['This is the description for a setting'], key: 'toolBarLocation' }, "Controls the location of the debug toolbar. Either \"floating\" in all views, \"docked\" in the debug view, or \"hidden\""),
+			description: nls.localize({ comment: ['This is the description for a setting'], key: 'toolBarLocation' }, "Controls the location of the debug toolbar. Either `floating` in all views, `docked` in the debug view, or `hidden`"),
 			default: 'floating'
 		},
 		'debug.showInStatusBar': {

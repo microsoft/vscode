@@ -355,8 +355,10 @@ configurationRegistry.registerConfiguration({
 				nls.localize('workbench.editor.labelFormat.long', "Show the name of the file followed by it's absolute path.")
 			],
 			'default': 'default',
-			'description': nls.localize({ comment: ['This is the description for a setting. Values surrounded by parenthesis are not to be translated.'], key: 'tabDescription' },
-				"Controls the format of the label for an editor. Changing this setting can for example make it easier to understand the location of a file:\n- short:   'parent'\n- medium:  'workspace/src/parent'\n- long:    '/home/user/workspace/src/parent'\n- default: '.../parent', when another tab shares the same title, or the relative workspace path if tabs are disabled"),
+			'description': nls.localize({
+				comment: ['This is the description for a setting. Values surrounded by parenthesis are not to be translated.'],
+				key: 'tabDescription'
+			}, "Controls the format of the label for an editor."),
 		},
 		'workbench.editor.tabCloseButton': {
 			'type': 'string',
@@ -398,13 +400,13 @@ configurationRegistry.registerConfiguration({
 			'type': 'string',
 			'enum': ['left', 'right', 'first', 'last'],
 			'default': 'right',
-			'description': nls.localize({ comment: ['This is the description for a setting. Values surrounded by single quotes are not to be translated.'], key: 'editorOpenPositioning' }, "Controls where editors open. Select 'left' or 'right' to open editors to the left or right of the currently active one. Select 'first' or 'last' to open editors independently from the currently active one.")
+			'description': nls.localize({ comment: ['This is the description for a setting. Values surrounded by single quotes are not to be translated.'], key: 'editorOpenPositioning' }, "Controls where editors open. Select `left` or `right` to open editors to the left or right of the currently active one. Select `first` or `last` to open editors independently from the currently active one.")
 		},
 		'workbench.editor.openSideBySideDirection': {
 			'type': 'string',
 			'enum': ['right', 'down'],
 			'default': 'right',
-			'description': nls.localize('sideBySideDirection', "Controls the default direction of editors that are opened side by side (e.g. from the explorer). By default, editors will open on the right hand side of the currently active one. If changed to open down, the editors will open below the currently active one.")
+			'description': nls.localize('sideBySideDirection', "Controls the default direction of editors that are opened side by side (e.g. from the explorer). By default, editors will open on the right hand side of the currently active one. If changed to `down`, the editors will open below the currently active one.")
 		},
 		'workbench.editor.closeEmptyGroups': {
 			'type': 'boolean',
