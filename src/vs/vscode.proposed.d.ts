@@ -180,7 +180,7 @@ declare module 'vscode' {
 		 * @param options A set of options to consider while searching.
 		 * @param token A cancellation token.
 		 */
-		provideFileIndex(options: FileSearchOptions, token: CancellationToken): Thenable<Uri[]>;
+		provideFileIndex(options: FileIndexOptions, token: CancellationToken): Thenable<Uri[]>;
 	}
 
 	/**

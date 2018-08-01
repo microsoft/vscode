@@ -504,19 +504,21 @@ class FileSearchEngine {
 						return;
 					}
 
-					results.forEach(result => {
-						const relativePath = path.relative(fq.folder.fsPath, result.fsPath);
+					if (results) {
+						results.forEach(result => {
+							const relativePath = path.relative(fq.folder.fsPath, result.fsPath);
 
-						if (noSiblingsClauses) {
-							const basename = path.basename(result.fsPath);
-							this.matchFile(onResult, { base: fq.folder, relativePath, basename });
+							if (noSiblingsClauses) {
+								const basename = path.basename(result.fsPath);
+								this.matchFile(onResult, { base: fq.folder, relativePath, basename });
 
-							return;
-						}
+								return;
+							}
 
-						// TODO: Optimize siblings clauses with ripgrep here.
-						this.addDirectoryEntries(tree, fq.folder, relativePath, onResult);
-					});
+							// TODO: Optimize siblings clauses with ripgrep here.
+							this.addDirectoryEntries(tree, fq.folder, relativePath, onResult);
+						});
+					}
 
 					this.activeCancellationTokens.delete(cancellation);
 					if (this.isCanceled) {
