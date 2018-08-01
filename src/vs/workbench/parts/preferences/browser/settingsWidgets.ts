@@ -349,6 +349,9 @@ export class ExcludeSettingWidget extends Disposable {
 		const onKeydown = (e: StandardKeyboardEvent) => {
 			if (e.equals(KeyCode.Enter)) {
 				onSubmit(true);
+			} else if (e.equals(KeyCode.Escape)) {
+				onSubmit(false);
+				e.preventDefault();
 			}
 		};
 
