@@ -430,8 +430,7 @@ export class MenubarPart extends Part {
 			this.setupCustomMenubar();
 		} else {
 			// Send menus to main process to be rendered by Electron
-			this.menubarService.updateMenubar(this.windowService.getCurrentWindowId(), this.getMenubarMenus());
-
+			this.menubarService.updateMenubar(this.windowService.getCurrentWindowId(), this.getMenubarMenus(), this.getAdditionalKeybindings());
 		}
 	}
 
@@ -844,6 +843,15 @@ export class MenubarPart extends Part {
 		if (menuToPopulate.items.length > 0) {
 			menuToPopulate.items.pop();
 		}
+	}
+
+	private getAdditionalKeybindings(): Array<IMenubarKeybinding> {
+		const keybindings = [];
+		if (isMacintosh) {
+			keybindings.push(this.getMenubarKeybinding('workbench.action.quit'));
+		}
+
+		return keybindings;
 	}
 
 	private getMenubarMenus(): IMenubarData {

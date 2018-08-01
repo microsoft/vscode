@@ -112,8 +112,14 @@ export class Menubar {
 		return enableNativeTabs;
 	}
 
-	updateMenu(menus: IMenubarData, windowId: number) {
+	updateMenu(menus: IMenubarData, windowId: number, additionalKeybindings?: Array<IMenubarKeybinding>) {
 		this.menubarMenus = menus;
+		if (additionalKeybindings) {
+			additionalKeybindings.forEach(keybinding => {
+				this.keybindings[keybinding.id] = keybinding;
+			});
+		}
+
 		this.scheduleUpdateMenu();
 	}
 
