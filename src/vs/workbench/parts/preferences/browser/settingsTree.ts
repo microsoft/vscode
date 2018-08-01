@@ -1025,7 +1025,7 @@ export class SettingsRenderer implements ITreeRenderer {
 
 		const result = this.renderValue(element, isSelected, templateId, <ISettingItemTemplate>template);
 
-		const firstLineOverflows = renderedDescription.firstElementChild.clientHeight > 18;
+		const firstLineOverflows = renderedDescription.firstElementChild && renderedDescription.firstElementChild.clientHeight > 18;
 		const hasExtraLines = renderedDescription.childElementCount > 1;
 		const needsManualOverflowIndicator = (hasExtraLines || result.overflows) && !firstLineOverflows && !isSelected;
 		DOM.toggleClass(template.descriptionElement, 'setting-item-description-artificial-overflow', needsManualOverflowIndicator);
