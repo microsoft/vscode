@@ -140,10 +140,10 @@ class Main {
 							if (installedExtension) {
 								const outdated = semver.gt(extension.version, installedExtension.manifest.version);
 								if (outdated) {
-									const updateMessage = localize('updateMessage', "Extension '{0}' v{1} is already installed, but a newer version {2} is available in the marketplace. Would you like to update?", id, installedExtension.manifest.version, extension.version);
+									const updateMessage = localize('updateMessage', "Extension '{0}' v{1} is already installed, but a newer version v{2} is available in the marketplace. Would you like to update?", id, installedExtension.manifest.version, extension.version);
 									return this.dialogService.show(Severity.Info, updateMessage, [localize('yes', "Yes"), localize('no', "No")])
 										.then(option => {
-											if (option === 0) {
+											if (option === 0 || option === "y" || option === "Y" || option === "yes" || option === "Yes") {
 												return this.installFromGallery(id, extension);
 											}
 											console.log(localize('cancelInstall', "Cancelled installing Extension '{0}'.", id));
