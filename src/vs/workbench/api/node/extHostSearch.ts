@@ -669,9 +669,16 @@ class FileSearchManager {
 	}
 
 	private rawMatchToSearchItem(match: IInternalFileMatch): IFileMatch {
-		return {
-			resource: resources.joinPath(match.base, match.relativePath)
-		};
+		if (match.relativePath) {
+			return {
+				resource: resources.joinPath(match.base, match.relativePath)
+			};
+		} else {
+			// extraFileResources
+			return {
+				resource: match.base
+			};
+		}
 	}
 
 	private doSearch(engine: FileSearchEngine, batchSize: number, onResultBatch: (matches: IInternalFileMatch[]) => void): TPromise<IInternalSearchComplete> {
