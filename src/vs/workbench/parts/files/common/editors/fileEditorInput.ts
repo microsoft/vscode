@@ -127,7 +127,7 @@ export class FileEditorInput extends EditorInput implements IFileEditorInput {
 			this.name = resources.basenameOrAuthority(this.resource);
 		}
 
-		return this.decorateOrphanedFiles(this.name);
+		return this.decorateLabel(this.name);
 	}
 
 	@memoize
@@ -192,13 +192,16 @@ export class FileEditorInput extends EditorInput implements IFileEditorInput {
 				break;
 		}
 
-		return this.decorateOrphanedFiles(title);
+		return this.decorateLabel(title);
 	}
 
-	private decorateOrphanedFiles(label: string): string {
+	private decorateLabel(label: string): string {
 		const model = this.textFileService.models.get(this.resource);
 		if (model && model.hasState(ModelState.ORPHAN)) {
 			return localize('orphanedFile', "{0} (deleted from disk)", label);
+		}
+		if (model && model.isReadonly) {
+			return localize('readonlyFile', "{0} (read-only)", label);
 		}
 
 		return label;
