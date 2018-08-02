@@ -230,19 +230,23 @@ export class SettingsEditor2 extends BaseEditor {
 			actionRunner: this.actionRunner
 		});
 
-		const actions = [
+		const actions: Action[] = [
 			this.instantiationService.createInstance(FilterByTagAction,
 				localize('filterModifiedLabel', "Show modified settings"),
 				MODIFIED_SETTING_TAG,
-				this),
-			this.instantiationService.createInstance(
-				FilterByTagAction,
-				localize('filterOnlineServicesLabel', "Show settings for online services"),
-				ONLINE_SERVICES_SETTING_TAG,
-				this),
-			new Separator(),
-			this.instantiationService.createInstance(OpenSettingsAction)
+				this)
 		];
+		if (this.environmentService.appQuality !== 'stable') {
+			actions.push(
+				this.instantiationService.createInstance(
+					FilterByTagAction,
+					localize('filterOnlineServicesLabel', "Show settings for online services"),
+					ONLINE_SERVICES_SETTING_TAG,
+					this));
+			actions.push(new Separator());
+		}
+		actions.push(this.instantiationService.createInstance(OpenSettingsAction));
+
 		this.toolbar.setActions([], actions)();
 		this.toolbar.context = <ISettingsToolbarContext>{ target: this.settingsTargetsWidget.settingsTarget };
 	}
