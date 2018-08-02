@@ -79,7 +79,7 @@ export class CursorWordPartLeft extends WordPartLeftCommand {
 		super({
 			inSelectionMode: false,
 			wordNavigationType: WordNavigationType.WordStart,
-			id: 'cursorWordPartStartLeft',
+			id: 'cursorWordPartLeft',
 			precondition: null,
 			kbOpts: {
 				kbExpr: EditorContextKeys.textInputFocus,
@@ -95,7 +95,7 @@ export class CursorWordPartLeftSelect extends WordPartLeftCommand {
 		super({
 			inSelectionMode: true,
 			wordNavigationType: WordNavigationType.WordStart,
-			id: 'cursorWordPartStartLeftSelect',
+			id: 'cursorWordPartLeftSelect',
 			precondition: null,
 			kbOpts: {
 				kbExpr: EditorContextKeys.textInputFocus,
