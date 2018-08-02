@@ -72,6 +72,7 @@ export class StartDebugActionItem implements IActionItem {
 		dom.addClass(container, 'start-debug-action-item');
 		this.start = dom.append(container, $('.icon'));
 		this.start.title = this.action.label;
+		this.start.setAttribute('role', 'button');
 		this.start.tabIndex = 0;
 
 		this.toDispose.push(dom.addDisposableListener(this.start, dom.EventType.CLICK, () => {
