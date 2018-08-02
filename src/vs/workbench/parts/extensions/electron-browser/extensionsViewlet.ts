@@ -379,11 +379,14 @@ export class ExtensionsViewlet extends ViewContainerViewlet implements IExtensio
 		const searchChangeEvent = new Emitter<string>();
 		this.onSearchChange = searchChangeEvent.event;
 
+		let existingContent = this.searchBox.getValue().trim();
 		this.disposables.push(this.searchBox.getModel().onDidChangeContent(() => {
+			this.placeholderText.style.visibility = this.searchBox.getValue() ? 'hidden' : 'visible';
+			let content = this.searchBox.getValue().trim();
+			if (existingContent === content) { return; }
 			this.triggerSearch();
-			const content = this.searchBox.getValue();
 			searchChangeEvent.fire(content);
-			this.placeholderText.style.visibility = content ? 'hidden' : 'visible';
+			existingContent = content;
 		}));
 
 		return super.create(this.extensionsBox)
