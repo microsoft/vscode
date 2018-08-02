@@ -316,6 +316,7 @@ export class MenubarPart extends Part {
 	}
 
 	private onDidChangeFullscreen(): void {
+		this.setUnfocusedState();
 		this.updateStyles();
 	}
 
@@ -356,22 +357,12 @@ export class MenubarPart extends Part {
 
 	private onModifierKeyToggled(modifierKeyStatus: IModifierKeyStatus): void {
 		this._modifierKeyStatus = modifierKeyStatus;
-		const altKeyAlone = modifierKeyStatus.lastKeyPressed === 'alt' && !modifierKeyStatus.ctrlKey && !modifierKeyStatus.shiftKey;
 		const allModifiersReleased = !modifierKeyStatus.altKey && !modifierKeyStatus.ctrlKey && !modifierKeyStatus.shiftKey;
 
 		if (this.currentMenubarVisibility === 'hidden') {
 			return;
 		}
 
-		if (this.currentMenubarVisibility === 'toggle') {
-			if (altKeyAlone) {
-				if (!this.isVisible) {
-					this.focusState = MenubarState.VISIBLE;
-				}
-			} else if (!allModifiersReleased && !this.isFocused) {
-				this.focusState = MenubarState.HIDDEN;
-			}
-		}
 
 		if (allModifiersReleased && modifierKeyStatus.lastKeyPressed === 'alt' && modifierKeyStatus.lastKeyReleased === 'alt') {
 			if (!this.isFocused) {
@@ -707,7 +698,7 @@ export class MenubarPart extends Part {
 
 				this.customMenus[menuIndex].buttonElement.on(EventType.CLICK, (e) => {
 					// This should only happen for mnemonics and we shouldn't trigger them
-					if (!this.isVisible) {
+					if (this.currentMenubarVisibility === 'hidden') {
 						return;
 					}
 
