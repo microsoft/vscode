@@ -442,14 +442,12 @@ class Launch implements ILaunch {
 	}
 
 	public openConfigFile(sideBySide: boolean, type?: string): TPromise<{ editor: IEditor, created: boolean }> {
-		return this.configurationManager.activateDebuggers().then(() => {
-			const resource = this.uri;
-			let created = false;
+		const resource = this.uri;
+		let created = false;
 
-			return this.fileService.resolveContent(resource).then(content => content.value, err => {
-
-				// launch.json not found: create one by collecting launch configs from debugConfigProviders
-
+		return this.fileService.resolveContent(resource).then(content => content.value, err => {
+			// launch.json not found: create one by collecting launch configs from debugConfigProviders
+			return this.configurationManager.activateDebuggers().then(() => {
 				return this.configurationManager.guessDebugger(type).then(adapter => {
 					if (adapter) {
 						return this.configurationManager.provideDebugConfigurations(this.workspace.uri, adapter.type).then(initialConfigs => {
@@ -470,30 +468,30 @@ class Launch implements ILaunch {
 						return content;
 					});
 				});
-			}).then(content => {
-				if (!content) {
-					return { editor: undefined, created: false };
-				}
-				const index = content.indexOf(`"${this.configurationManager.selectedConfiguration.name}"`);
-				let startLineNumber = 1;
-				for (let i = 0; i < index; i++) {
-					if (content.charAt(i) === '\n') {
-						startLineNumber++;
-					}
-				}
-				const selection = startLineNumber > 1 ? { startLineNumber, startColumn: 4 } : undefined;
-
-				return this.editorService.openEditor({
-					resource: resource,
-					options: {
-						selection,
-						pinned: created,
-						revealIfVisible: true
-					},
-				}, sideBySide ? SIDE_GROUP : ACTIVE_GROUP).then(editor => ({ editor, created }));
-			}, (error) => {
-				throw new Error(nls.localize('DebugConfig.failed', "Unable to create 'launch.json' file inside the '.vscode' folder ({0}).", error));
 			});
+		}).then(content => {
+			if (!content) {
+				return { editor: undefined, created: false };
+			}
+			const index = content.indexOf(`"${this.configurationManager.selectedConfiguration.name}"`);
+			let startLineNumber = 1;
+			for (let i = 0; i < index; i++) {
+				if (content.charAt(i) === '\n') {
+					startLineNumber++;
+				}
+			}
+			const selection = startLineNumber > 1 ? { startLineNumber, startColumn: 4 } : undefined;
+
+			return this.editorService.openEditor({
+				resource,
+				options: {
+					selection,
+					pinned: created,
+					revealIfVisible: true
+				},
+			}, sideBySide ? SIDE_GROUP : ACTIVE_GROUP).then(editor => ({ editor, created }));
+		}, (error) => {
+			throw new Error(nls.localize('DebugConfig.failed', "Unable to create 'launch.json' file inside the '.vscode' folder ({0}).", error));
 		});
 	}
 }
