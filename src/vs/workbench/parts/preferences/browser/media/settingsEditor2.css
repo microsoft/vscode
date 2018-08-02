@@ -184,6 +184,10 @@
 	opacity: 0.9;
 }
 
+.settings-editor > .settings-body .settings-toc-container .monaco-tree-row .settings-toc-entry .settings-toc-count {
+	opacity: 0.7;
+}
+
 .settings-editor > .settings-body .settings-toc-container .monaco-tree-row.has-children > .content:before {
 	opacity: 0.9;
 }

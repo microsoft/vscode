@@ -134,12 +134,17 @@ export class TOCRenderer implements IRenderer {
 	}
 
 	renderElement(tree: ITree, element: SettingsTreeGroupElement, templateId: string, template: ITOCEntryTemplate): void {
-		const label = (<any>element).count ?
-			`${element.label} (${(<any>element).count})` :
-			element.label;
+		const count = (<any>element).count;
+		const label = element.label;
 
-		DOM.toggleClass(template.element, 'no-results', (<any>element).count === 0);
+		DOM.toggleClass(template.element, 'no-results', count === 0);
 		template.element.textContent = label;
+
+		if (count) {
+			const countElement = $('span.settings-toc-count');
+			countElement.textContent = ` (${count})`;
+			template.element.appendChild(countElement);
+		}
 	}
 
 	disposeTemplate(tree: ITree, templateId: string, templateData: any): void {
