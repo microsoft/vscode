@@ -70,6 +70,7 @@ import { SuggestController } from 'vs/editor/contrib/suggest/suggestController';
 import { ContextMenuController } from 'vs/editor/contrib/contextmenu/contextmenu';
 import { MenuPreventer } from 'vs/workbench/parts/codeEditor/electron-browser/menuPreventer';
 import { SnippetController2 } from 'vs/editor/contrib/snippet/snippetController2';
+import { isMacintosh } from 'vs/base/common/platform';
 
 interface SearchInputEvent extends Event {
 	target: HTMLInputElement;
@@ -370,7 +371,7 @@ export class ExtensionsViewlet extends ViewContainerViewlet implements IExtensio
 
 		const onKeyDownMonaco = chain(this.searchBox.onKeyDown);
 		onKeyDownMonaco.filter(e => e.keyCode === KeyCode.Enter).on(e => e.preventDefault(), this, this.disposables);
-		onKeyDownMonaco.filter(e => e.keyCode === KeyCode.DownArrow && e.ctrlKey).on(() => this.focusListView(), this, this.disposables);
+		onKeyDownMonaco.filter(e => e.keyCode === KeyCode.DownArrow && (isMacintosh ? e.metaKey : e.ctrlKey)).on(() => this.focusListView(), this, this.disposables);
 
 		const searchChangeEvent = new Emitter<string>();
 		this.onSearchChange = searchChangeEvent.event;
