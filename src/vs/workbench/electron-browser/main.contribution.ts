@@ -500,7 +500,7 @@ configurationRegistry.registerConfiguration({
 			'type': 'string',
 			'enum': ['hide', 'filter', 'show'],
 			'description': nls.localize('settingsSearchTocBehavior', "Controls the behavior of the settings editor Table of Contents while searching."),
-			'default': 'hide',
+			'default': 'filter',
 			'scope': ConfigurationScope.WINDOW
 		},
 		'workbench.settings.tocVisible': {
