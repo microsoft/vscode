@@ -97,7 +97,7 @@ function findChildProcesses(rootPid: number, inTerminal: boolean, cb: (pid: numb
 
 	function walker(node: ProcessTreeNode, terminal: boolean, renderer: number) {
 
-		if (node.args.indexOf('--type=terminal') >= 0 && (renderer === 0 || node.ppid === renderer)) {
+		if ((node.args.indexOf('--type=terminal') >= 0 || node.command.indexOf('\\winpty-agent.exe') >= 0) && (renderer === 0 || node.ppid === renderer)) {
 			terminal = true;
 		}
 
