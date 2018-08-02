@@ -278,7 +278,7 @@ export class Menubar {
 
 		// Mac: Window
 		let macWindowMenuItem: Electron.MenuItem;
-		if (isMacintosh) {
+		if (this.shouldDrawMenu('Window')) {
 			const windowMenu = new Menu();
 			macWindowMenuItem = new MenuItem({ label: this.mnemonicLabel(nls.localize('mWindow', "Window")), submenu: windowMenu, role: 'window' });
 			this.setMacWindowMenu(windowMenu);
@@ -379,8 +379,9 @@ export class Menubar {
 
 		switch (menuId) {
 			case 'File':
+			case 'Window':
 			case 'Help':
-				return isMacintosh || !!this.menubarMenus[menuId];
+				return isMacintosh && (this.windowsMainService.getWindowCount() === 0 || !!this.menubarMenus[menuId]);
 			default:
 				return this.windowsMainService.getWindowCount() > 0 && !!this.menubarMenus[menuId];
 		}
