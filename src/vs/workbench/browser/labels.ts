@@ -191,7 +191,7 @@ export class ResourceLabel extends IconLabel {
 			iconLabelOptions.title = this.options.title;
 		} else if (resource && resource.scheme !== Schemas.data /* do not accidentally inline Data URIs */) {
 			if (!this.computedPathLabel) {
-				this.computedPathLabel = this.uriDisplayService.getLabel(resource, true);
+				this.computedPathLabel = this.uriDisplayService.getLabel(resource);
 			}
 
 			iconLabelOptions.title = this.computedPathLabel;
@@ -298,7 +298,7 @@ export class FileLabel extends ResourceLabel {
 		let description: string;
 		const hidePath = (options && options.hidePath) || (resource.scheme === Schemas.untitled && !this.untitledEditorService.hasAssociatedFilePath(resource));
 		if (!hidePath) {
-			description = this.uriDisplayService.getLabel(resources.dirname(resource), true);
+			description = this.uriDisplayService.getLabel(resources.dirname(resource));
 		}
 
 		this.setLabel({ resource, name, description }, options);
