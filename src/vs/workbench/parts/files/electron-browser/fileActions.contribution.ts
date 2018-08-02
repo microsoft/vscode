@@ -216,7 +216,7 @@ MenuRegistry.appendMenuItem(MenuId.OpenEditorsContext, {
 		title: SAVE_FILE_LABEL,
 		precondition: DirtyEditorContext
 	},
-	when: ContextKeyExpr.and(ResourceContextKey.Scheme.isEqualTo(Schemas.file), AutoSaveContext.notEqualsTo('afterDelay') && AutoSaveContext.notEqualsTo(''))
+	when: ContextKeyExpr.and(ResourceContextKey.HasResource, AutoSaveContext.notEqualsTo('afterDelay') && AutoSaveContext.notEqualsTo(''))
 });
 
 MenuRegistry.appendMenuItem(MenuId.OpenEditorsContext, {
@@ -227,7 +227,7 @@ MenuRegistry.appendMenuItem(MenuId.OpenEditorsContext, {
 		title: nls.localize('revert', "Revert File"),
 		precondition: DirtyEditorContext
 	},
-	when: ContextKeyExpr.and(ResourceContextKey.Scheme.isEqualTo(Schemas.file), AutoSaveContext.notEqualsTo('afterDelay') && AutoSaveContext.notEqualsTo(''))
+	when: ContextKeyExpr.and(ResourceContextKey.HasResource, AutoSaveContext.notEqualsTo('afterDelay') && AutoSaveContext.notEqualsTo(''))
 });
 
 MenuRegistry.appendMenuItem(MenuId.OpenEditorsContext, {
@@ -256,7 +256,7 @@ MenuRegistry.appendMenuItem(MenuId.OpenEditorsContext, {
 		title: nls.localize('compareWithSaved', "Compare with Saved"),
 		precondition: DirtyEditorContext
 	},
-	when: ContextKeyExpr.and(ResourceContextKey.Scheme.isEqualTo(Schemas.file), AutoSaveContext.notEqualsTo('afterDelay') && AutoSaveContext.notEqualsTo(''), WorkbenchListDoubleSelection.toNegated())
+	when: ContextKeyExpr.and(ResourceContextKey.HasResource, AutoSaveContext.notEqualsTo('afterDelay') && AutoSaveContext.notEqualsTo(''), WorkbenchListDoubleSelection.toNegated())
 });
 
 const compareResourceCommand = {
