@@ -381,7 +381,9 @@ export class Menubar {
 			case 'File':
 			case 'Window':
 			case 'Help':
-				return isMacintosh && (this.windowsMainService.getWindowCount() === 0 || !!this.menubarMenus[menuId]);
+				if (isMacintosh) {
+					return this.windowsMainService.getWindowCount() === 0 || !!this.menubarMenus[menuId];
+				}
 			default:
 				return this.windowsMainService.getWindowCount() > 0 && !!this.menubarMenus[menuId];
 		}
