@@ -36,6 +36,7 @@ import { MENUBAR_SELECTION_FOREGROUND, MENUBAR_SELECTION_BACKGROUND, MENUBAR_SEL
 import URI from 'vs/base/common/uri';
 import { IUriDisplayService } from 'vs/platform/uriDisplay/common/uriDisplay';
 import { foreground } from 'vs/platform/theme/common/colorRegistry';
+import { IUpdateService, StateType } from 'vs/platform/update/common/update';
 
 interface CustomMenu {
 	title: string;
@@ -123,7 +124,8 @@ export class MenubarPart extends Part {
 		@IKeybindingService private keybindingService: IKeybindingService,
 		@IConfigurationService private configurationService: IConfigurationService,
 		@IEnvironmentService private environmentService: IEnvironmentService,
-		@IUriDisplayService private uriDisplayService: IUriDisplayService
+		@IUriDisplayService private uriDisplayService: IUriDisplayService,
+		@IUpdateService private updateService: IUpdateService
 	) {
 		super(id, { hasTitle: false }, themeService);
 
@@ -402,7 +404,7 @@ export class MenubarPart extends Part {
 		this._register(this.configurationService.onDidChangeConfiguration(e => this.onConfigurationUpdated(e)));
 
 		// Listen to update service
-		// this.updateService.onStateChange(() => this.setupMenubar());
+		this.updateService.onStateChange(() => this.setupMenubar());
 
 		// Listen for context changes
 		this._register(this.contextKeyService.onDidChangeContext(() => this.setupMenubar()));
@@ -546,10 +548,54 @@ export class MenubarPart extends Part {
 		return result;
 	}
 
+	private getUpdateAction(): IAction | null {
+		const state = this.updateService.state;
+
+		switch (state.type) {
+			case StateType.Uninitialized:
+				return null;
+
+			case StateType.Idle:
+				const windowId = this.windowService.getCurrentWindowId();
+				return new Action('update.check', nls.localize('checkForUpdates', "Check for Updates..."), undefined, true, () =>
+					this.updateService.checkForUpdates({ windowId }));
+
+			case StateType.CheckingForUpdates:
+				return new Action('update.checking', nls.localize('checkingForUpdates', "Checking For Updates..."), undefined, false);
+
+			case StateType.AvailableForDownload:
+				return new Action('update.downloadNow', nls.localize('download now', "Download Now"), null, true, () =>
+					this.updateService.downloadUpdate());
+
+			case StateType.Downloading:
+				return new Action('update.downloading', nls.localize('DownloadingUpdate', "Downloading Update..."), undefined, false);
+
+			case StateType.Downloaded:
+				return new Action('update.install', nls.localize('installUpdate...', "Install Update..."), undefined, true, () =>
+					this.updateService.applyUpdate());
+
+			case StateType.Updating:
+				return new Action('update.updating', nls.localize('installingUpdate', "Installing Update..."), undefined, false);
+
+			case StateType.Ready:
+				return new Action('update.restart', nls.localize('restartToUpdate', "Restart to Update..."), undefined, true, () =>
+					this.updateService.quitAndInstall());
+		}
+	}
+
 	private insertActionsBefore(nextAction: IAction, target: IAction[]): void {
 		switch (nextAction.id) {
 			case 'workbench.action.openRecent':
 				target.push(...this.getOpenRecentActions());
+				break;
+
+			case 'workbench.action.showAboutDialog':
+				const updateAction = this.getUpdateAction();
+				if (updateAction) {
+					target.push(updateAction);
+					target.push(new Separator());
+				}
+
 				break;
 
 			default:

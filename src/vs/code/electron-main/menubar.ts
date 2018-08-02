@@ -502,6 +502,8 @@ export class Menubar {
 			} else if (isMenubarMenuItemAction(item)) {
 				if (item.id === 'workbench.action.openRecent') {
 					this.insertRecentMenuItems(menu);
+				} else if (item.id === 'workbench.action.showAboutDialog') {
+					this.insertCheckForUpdatesItems(menu);
 				}
 
 				// Store the keybinding
@@ -520,6 +522,14 @@ export class Menubar {
 	private setMenuById(menu: Electron.Menu, menuId: string): void {
 		if (this.menubarMenus[menuId]) {
 			this.setMenu(menu, this.menubarMenus[menuId].items);
+		}
+	}
+
+	private insertCheckForUpdatesItems(menu: Electron.Menu) {
+		const updateItems = this.getUpdateMenuItems();
+		if (updateItems.length) {
+			updateItems.forEach(i => menu.append(i));
+			menu.append(__separator__());
 		}
 	}
 
