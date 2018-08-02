@@ -298,7 +298,7 @@ export class FileLabel extends ResourceLabel {
 		let description: string;
 		const hidePath = (options && options.hidePath) || (resource.scheme === Schemas.untitled && !this.untitledEditorService.hasAssociatedFilePath(resource));
 		if (!hidePath) {
-			description = this.uriDisplayService.getLabel(resources.dirname(resource));
+			description = this.uriDisplayService.getLabel(resources.dirname(resource), true);
 		}
 
 		this.setLabel({ resource, name, description }, options);
