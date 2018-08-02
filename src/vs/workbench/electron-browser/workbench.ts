@@ -300,6 +300,8 @@ export class Workbench extends Disposable implements IPartService {
 			'class': `monaco-workbench ${isWindows ? 'windows' : isLinux ? 'linux' : 'mac'}`,
 			id: Identifiers.WORKBENCH_CONTAINER
 		});
+
+		this.workbench.on(DOM.EventType.SCROLL, e => { this.workbench.getHTMLElement().scrollTop = 0; }); // Prevent workbench from scrolling #55456
 	}
 
 	private createGlobalActions(): void {
