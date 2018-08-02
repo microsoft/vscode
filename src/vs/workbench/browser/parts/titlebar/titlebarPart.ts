@@ -295,11 +295,13 @@ export class TitlebarPart extends Part implements ITitleService {
 		}
 
 		// Maximize/Restore on doubleclick
-		this.title.on(EventType.DBLCLICK, (e) => {
-			EventHelper.stop(e);
+		if (isMacintosh) {
+			this.titleContainer.on(EventType.DBLCLICK, (e) => {
+				EventHelper.stop(e);
 
-			this.onTitleDoubleclick();
-		});
+				this.onTitleDoubleclick();
+			});
+		}
 
 		// Context menu on title
 		this.title.on([EventType.CONTEXT_MENU, EventType.MOUSE_DOWN], (e: MouseEvent) => {
