@@ -590,10 +590,12 @@ export class MenubarPart extends Part {
 				break;
 
 			case 'workbench.action.showAboutDialog':
-				const updateAction = this.getUpdateAction();
-				if (updateAction) {
-					target.push(updateAction);
-					target.push(new Separator());
+				if (!isMacintosh) {
+					const updateAction = this.getUpdateAction();
+					if (updateAction) {
+						target.push(updateAction);
+						target.push(new Separator());
+					}
 				}
 
 				break;
