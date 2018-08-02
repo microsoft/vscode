@@ -53,14 +53,19 @@ export function status(msg: string): void {
 let repeatedTimes = 0;
 let prevText: string | undefined = undefined;
 function insertMessage(target: HTMLElement, msg: string): void {
-
 	if (!ariaContainer) {
 		// console.warn('ARIA support needs a container. Call setARIAContainer() first.');
 		return;
 	}
 
-	if (prevText === msg) { repeatedTimes++; }
-	prevText = msg;
+	if (prevText === msg) {
+		repeatedTimes++;
+	}
+	else {
+		prevText = msg;
+		repeatedTimes = 0;
+	}
+
 
 	switch (repeatedTimes) {
 		case 0: break;
