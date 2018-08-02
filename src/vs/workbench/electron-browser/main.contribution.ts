@@ -249,9 +249,21 @@ MenuRegistry.appendMenuItem(MenuId.MenubarFileMenu, {
 	group: '6_close',
 	command: {
 		id: CloseWorkspaceAction.ID,
-		title: nls.localize({ key: 'miCloseFolder', comment: ['&& denotes a mnemonic'] }, "Close &&Folder")
+		title: nls.localize({ key: 'miCloseFolder', comment: ['&& denotes a mnemonic'] }, "Close &&Folder"),
+		precondition: new RawContextKey<number>('workspaceFolderCount', 0).notEqualsTo('0')
 	},
-	order: 3
+	order: 3,
+	when: new RawContextKey<string>('workbenchState', '').notEqualsTo('workspace')
+});
+
+MenuRegistry.appendMenuItem(MenuId.MenubarFileMenu, {
+	group: '6_close',
+	command: {
+		id: CloseWorkspaceAction.ID,
+		title: nls.localize({ key: 'miCloseWorkspace', comment: ['&& denotes a mnemonic'] }, "Close &&Workspace")
+	},
+	order: 3,
+	when: new RawContextKey<string>('workbenchState', '').isEqualTo('workspace')
 });
 
 MenuRegistry.appendMenuItem(MenuId.MenubarFileMenu, {
