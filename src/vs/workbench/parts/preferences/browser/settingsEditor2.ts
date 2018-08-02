@@ -625,6 +625,9 @@ export class SettingsEditor2 extends BaseEditor {
 				}
 			})
 			.then(() => {
+				// TODO@roblou - hack
+				this.tocTreeModel.update();
+
 				return this.tocTree.refresh();
 			});
 	}
