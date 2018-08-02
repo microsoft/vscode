@@ -351,7 +351,7 @@
 	min-width: 200px;
 }
 
-.settings-editor > .settings-body > .settings-tree-container .setting-item.setting-item-text {
+.settings-editor > .settings-body > .settings-tree-container .setting-item.setting-item-text .setting-item-control {
 	width: 500px;
 }
 
