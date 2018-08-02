@@ -115,7 +115,8 @@ export class TOCDataSource implements IDataSource {
 const TOC_ENTRY_TEMPLATE_ID = 'settings.toc.entry';
 
 interface ITOCEntryTemplate {
-	element: HTMLElement;
+	labelElement: HTMLElement;
+	countElement: HTMLElement;
 }
 
 export class TOCRenderer implements IRenderer {
@@ -129,7 +130,8 @@ export class TOCRenderer implements IRenderer {
 
 	renderTemplate(tree: ITree, templateId: string, container: HTMLElement): ITOCEntryTemplate {
 		return {
-			element: DOM.append(container, $('.settings-toc-entry'))
+			labelElement: DOM.append(container, $('.settings-toc-entry')),
+			countElement: DOM.append(container, $('.settings-toc-count'))
 		};
 	}
 
@@ -137,13 +139,13 @@ export class TOCRenderer implements IRenderer {
 		const count = (<any>element).count;
 		const label = element.label;
 
-		DOM.toggleClass(template.element, 'no-results', count === 0);
-		template.element.textContent = label;
+		DOM.toggleClass(template.labelElement, 'no-results', count === 0);
+		template.labelElement.textContent = label;
 
 		if (count) {
-			const countElement = $('span.settings-toc-count');
-			countElement.textContent = ` (${count})`;
-			template.element.appendChild(countElement);
+			template.countElement.textContent = ` (${count})`;
+		} else {
+			template.countElement.textContent = '';
 		}
 	}
 
