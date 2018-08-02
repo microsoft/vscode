@@ -46,6 +46,7 @@ export interface ICommandHandlerDescription {
 export interface ICommandRegistry {
 	registerCommand(id: string, command: ICommandHandler): IDisposable;
 	registerCommand(command: ICommand): IDisposable;
+	registerCommandAlias(oldId: string, newId: string): IDisposable;
 	getCommand(id: string): ICommand;
 	getCommands(): ICommandsMap;
 }
@@ -96,6 +97,12 @@ export const CommandsRegistry: ICommandRegistry = new class implements ICommandR
 			if (this._commands.get(id).isEmpty()) {
 				this._commands.delete(id);
 			}
+		});
+	}
+
+	registerCommandAlias(oldId: string, newId: string): IDisposable {
+		return CommandsRegistry.registerCommand(oldId, (accessor, ...args) => {
+			accessor.get(ICommandService).executeCommand(newId, ...args);
 		});
 	}
 
