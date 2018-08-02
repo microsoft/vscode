@@ -393,7 +393,7 @@ export class SettingsDataSource implements IDataSource {
 	}
 
 	getParent(tree: ITree, element: SettingsTreeElement): TPromise<any, any> {
-		return TPromise.wrap(element.parent);
+		return TPromise.wrap(element && element.parent);
 	}
 
 	shouldAutoexpand(): boolean {
