@@ -362,9 +362,12 @@ export class ExtensionsViewlet extends ViewContainerViewlet implements IExtensio
 		this.searchBox.setModel(this.modelService.createModel('', null, uri.parse('extensions:searchinput'), true));
 
 		this.disposables.push(this.searchBox.onDidPaste(() => {
-			this.searchBox.setValue(this.searchBox.getValue().replace(/\s+/g, ' '));
+			let trimmed = this.searchBox.getValue().replace(/\s+/g, ' ');
+			this.searchBox.setValue(trimmed);
 			this.searchBox.setScrollTop(0);
+			this.searchBox.setPosition(new Position(1, trimmed.length + 1));
 		}));
+
 		this.disposables.push(this.searchBox.onDidFocusEditorText(() => addClass(this.monacoStyleContainer, 'synthetic-focus')));
 		this.disposables.push(this.searchBox.onDidBlurEditorText(() => removeClass(this.monacoStyleContainer, 'synthetic-focus')));
 
