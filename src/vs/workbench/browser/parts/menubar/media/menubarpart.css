@@ -9,7 +9,8 @@
 	box-sizing: border-box;
 	height: 30px;
 	-webkit-app-region: no-drag;
-	overflow-x: hidden;
+	overflow: hidden;
+	flex-wrap: wrap;
 }
 
 .monaco-workbench.fullscreen .part.menubar {
