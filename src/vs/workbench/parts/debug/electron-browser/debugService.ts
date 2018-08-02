@@ -1105,7 +1105,8 @@ export class DebugService implements debug.IDebugService {
 			const unresolvedConfiguration = (<Session>session).unresolvedConfiguration;
 			if (session.raw.capabilities.supportsRestartRequest) {
 				return this.runTask(session.getId(), session.raw.root, session.configuration.postDebugTask, session.configuration, unresolvedConfiguration,
-					() => session.raw.custom('restart', null));
+					() => this.runTask(session.getId(), session.raw.root, session.configuration.preLaunchTask, session.configuration, unresolvedConfiguration,
+						() => session.raw.custom('restart', null)));
 			}
 
 			const focusedSession = this.viewModel.focusedSession;
