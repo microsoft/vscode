@@ -200,7 +200,7 @@ export class FileEditorInput extends EditorInput implements IFileEditorInput {
 		if (model && model.hasState(ModelState.ORPHAN)) {
 			return localize('orphanedFile', "{0} (deleted from disk)", label);
 		}
-		if (model && model.isReadonly) {
+		if (model && model.isReadonly()) {
 			return localize('readonlyFile', "{0} (read-only)", label);
 		}
 
