@@ -552,7 +552,7 @@ export class ReviewZoneWidget extends ZoneWidget {
 			return;
 		}
 
-		if (this.position && this.position.lineNumber !== lineNumber) {
+		if (this._commentGlyph && this._commentGlyph.getPosition().position.lineNumber !== lineNumber) {
 			return;
 		}
 
