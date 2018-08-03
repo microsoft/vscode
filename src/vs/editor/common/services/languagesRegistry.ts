@@ -211,6 +211,10 @@ export class LanguagesRegistry {
 		return Object.keys(this._nameMap);
 	}
 
+	public isRegisteredModeExact(modeId: string): boolean {
+		return hasOwnProperty.call(this._languages, modeId);
+	}
+
 	public getLanguageName(modeId: string): string {
 		if (!hasOwnProperty.call(this._languages, modeId)) {
 			return null;

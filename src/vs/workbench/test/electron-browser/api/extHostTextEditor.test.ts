@@ -61,6 +61,7 @@ suite('ExtHostTextEditorOptions', () => {
 			$tryShowEditor: undefined,
 			$tryHideEditor: undefined,
 			$trySetLanguageById: undefined,
+			$trySetLanguageByName: undefined,
 			$trySetDecorations: undefined,
 			$trySetDecorationsFast: undefined,
 			$tryRevealRange: undefined,

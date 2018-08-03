@@ -132,6 +132,15 @@ export class ModeServiceImpl implements IModeService {
 		});
 	}
 
+	public getOrCreateModeByLanguageId(modeId: string): TPromise<IMode> {
+		return this._onReady().then(() => {
+			if (!this._registry.isRegisteredModeExact(modeId)) {
+				modeId = 'plaintext';
+			}
+			return this._getOrCreateMode(modeId);
+		});
+	}
+
 	private _getModeIdByLanguageName(languageName: string): string {
 		const modeIds = this._registry.getModeIdsFromLanguageName(languageName);
 

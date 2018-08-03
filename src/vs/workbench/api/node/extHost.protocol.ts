@@ -194,6 +194,7 @@ export interface MainThreadTextEditorsShape extends IDisposable {
 	$tryHideEditor(id: string): TPromise<void>;
 	$trySetOptions(id: string, options: ITextEditorConfigurationUpdate): TPromise<void>;
 	$trySetLanguageById(id: string, languageId: string): TPromise<void>;
+	$trySetLanguageByName(id: string, languageName: string): TPromise<void>;
 	$trySetDecorations(id: string, key: string, ranges: editorCommon.IDecorationOptions[]): TPromise<void>;
 	$trySetDecorationsFast(id: string, key: string, ranges: number[]): TPromise<void>;
 	$tryRevealRange(id: string, range: IRange, revealType: TextEditorRevealType): TPromise<void>;
@@ -288,6 +289,7 @@ export interface MainThreadLanguageFeaturesShape extends IDisposable {
 
 export interface MainThreadLanguagesShape extends IDisposable {
 	$getLanguages(): TPromise<string[]>;
+	$setLanguageById(resource: UriComponents, languageId: string): TPromise<void>;
 }
 
 export interface MainThreadMessageOptions {

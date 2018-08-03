@@ -435,8 +435,12 @@ export class ExtHostTextEditor implements vscode.TextEditor {
 		this._trySetSelection();
 	}
 
-	setLanguageById(language_id: string): void {
-		this._runOnProxy(() => this._proxy.$trySetLanguageById(this._id, language_id));
+	setLanguageById(languageId: string): void {
+		this._runOnProxy(() => this._proxy.$trySetLanguageById(this._id, languageId));
+	}
+
+	setLanguageByName(languageName: string): void {
+		this._runOnProxy(() => this._proxy.$trySetLanguageByName(this._id, languageName));
 	}
 
 	setDecorations(decorationType: vscode.TextEditorDecorationType, ranges: Range[] | vscode.DecorationOptions[]): void {

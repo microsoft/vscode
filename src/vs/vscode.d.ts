@@ -1120,6 +1120,21 @@ declare module 'vscode' {
 		edit(callback: (editBuilder: TextEditorEdit) => void, options?: { undoStopBefore: boolean; undoStopAfter: boolean; }): Thenable<boolean>;
 
 		/**
+		 * Change document language by Id
+		 *
+		 * @param languageId new language identifier
+		 */
+		setLanguageById(languageId: string): void;
+
+		/**
+		 * Change document language by Name
+		 *
+		 * @param languageName new language name
+		 */
+		setLanguageByName(languageName: string): void;
+
+
+		/**
 		 * Insert a [snippet](#SnippetString) and put the editor into snippet mode. "Snippet mode"
 		 * means the editor adds placeholders and additional cursors so that the user can complete
 		 * or accept the snippet.
@@ -1141,6 +1156,7 @@ declare module 'vscode' {
 		 * @param decorationType A decoration type.
 		 * @param rangesOrOptions Either [ranges](#Range) or more detailed [options](#DecorationOptions).
 		 */
+
 		setDecorations(decorationType: TextEditorDecorationType, rangesOrOptions: Range[] | DecorationOptions[]): void;
 
 		/**
@@ -7374,6 +7390,8 @@ declare module 'vscode' {
 	 * score is used for determining the order in which providers are asked to participate.
 	 */
 	export namespace languages {
+
+		export function setLanguageById(documentUri: Uri, languageId: string): Thenable<void>;
 
 		/**
 		 * Return the identifiers of all known languages.

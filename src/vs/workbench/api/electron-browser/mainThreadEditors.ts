@@ -179,14 +179,18 @@ export class MainThreadTextEditors implements MainThreadTextEditorsShape {
 		if (!mainThreadEditor) {
 			return TPromise.wrapError(disposed(`TextEditor(${id})`));
 		}
-		let textModel = mainThreadEditor.getModel();
-		let modelService = this._modelService;
-		let modeService = this._modeService;
-		if (!modelService || !modeService) {
-			return TPromise.wrapError(new Error('modeService is null for some unit tests'));
+		let mode = this._modeService.getOrCreateModeByLanguageId(languageId);
+		this._modelService.setMode(mainThreadEditor.getModel(), mode);
+		return TPromise.as(null);
+	}
+
+	$trySetLanguageByName(id: string, languageName: string): TPromise<void> {
+		let mainThreadEditor = this._documentsAndEditors.getEditor(id);
+		if (!mainThreadEditor) {
+			return TPromise.wrapError(disposed(`TextEditor(${id})`));
 		}
-		let mode = modeService.getOrCreateModeByLanguageName(languageId);
-		modelService.setMode(textModel, mode);
+		let mode = this._modeService.getOrCreateModeByLanguageName(languageName);
+		this._modelService.setMode(mainThreadEditor.getModel(), mode);
 		return TPromise.as(null);
 	}
 
