@@ -386,11 +386,12 @@ export class Menubar {
 				if (isMacintosh) {
 					return (this.windowsMainService.getWindowCount() === 0 && this.closedLastWindow) || (!!this.menubarMenus && !!this.menubarMenus[menuId]);
 				}
-				break;
+
 			case 'Window':
 				if (isMacintosh) {
 					return (this.windowsMainService.getWindowCount() === 0 && this.closedLastWindow) || !!this.menubarMenus;
 				}
+
 			default:
 				return this.windowsMainService.getWindowCount() > 0 && (!!this.menubarMenus && !!this.menubarMenus[menuId]);
 		}
@@ -482,16 +483,12 @@ export class Menubar {
 					});
 				}
 
-				const openProcessExplorer = new MenuItem({ label: this.mnemonicLabel(nls.localize({ key: 'miOpenProcessExplorerer', comment: ['&& denotes a mnemonic'] }, "Open &&Process Explorer")), click: () => this.runActionInRenderer('workbench.action.openProcessExplorer') });
-
 				if (twitterItem) { menu.append(twitterItem); }
 				if (featureRequestsItem) { menu.append(featureRequestsItem); }
 				if (reportIssuesItem) { menu.append(reportIssuesItem); }
-				if (twitterItem || featureRequestsItem || reportIssuesItem) { menu.append(__separator__()); }
+				if ((twitterItem || featureRequestsItem || reportIssuesItem) && (licenseItem || privacyStatementItem)) { menu.append(__separator__()); }
 				if (licenseItem) { menu.append(licenseItem); }
 				if (privacyStatementItem) { menu.append(privacyStatementItem); }
-				if (licenseItem || privacyStatementItem) { menu.append(__separator__()); }
-				menu.append(openProcessExplorer);
 
 				break;
 		}
