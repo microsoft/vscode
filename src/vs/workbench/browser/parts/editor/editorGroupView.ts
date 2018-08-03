@@ -1373,6 +1373,7 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 		this._onWillDispose.fire();
 
 		this.titleAreaControl.dispose();
+		// this.editorControl = null;
 
 		super.dispose();
 	}

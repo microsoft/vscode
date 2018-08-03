@@ -1462,9 +1462,10 @@ export class SettingsTree extends NonExpandableTree {
 	) {
 		const treeClass = 'settings-editor-tree';
 
+		const controller = instantiationService.createInstance(SettingsTreeController);
 		const fullConfiguration = <ITreeConfiguration>{
 			dataSource: instantiationService.createInstance(SettingsDataSource, viewState),
-			controller: instantiationService.createInstance(SettingsTreeController),
+			controller,
 			accessibilityProvider: instantiationService.createInstance(SettingsAccessibilityProvider),
 			filter: instantiationService.createInstance(SettingsTreeFilter, viewState),
 			styler: new DefaultTreestyler(DOM.createStyleSheet(), treeClass),
@@ -1487,6 +1488,8 @@ export class SettingsTree extends NonExpandableTree {
 			themeService,
 			instantiationService,
 			configurationService);
+
+		this.disposables.push(controller);
 
 		this.disposables.push(registerThemingParticipant((theme: ITheme, collector: ICssStyleCollector) => {
 			const activeBorderColor = theme.getColor(focusBorder);

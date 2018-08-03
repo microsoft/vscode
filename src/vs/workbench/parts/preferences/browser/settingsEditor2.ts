@@ -225,10 +225,10 @@ export class SettingsEditor2 extends BaseEditor {
 	private createHeaderControls(parent: HTMLElement): void {
 		const headerControlsContainerRight = DOM.append(parent, $('.settings-header-controls-right'));
 
-		this.toolbar = new ToolBar(headerControlsContainerRight, this.contextMenuService, {
+		this.toolbar = this._register(new ToolBar(headerControlsContainerRight, this.contextMenuService, {
 			ariaLabel: localize('settingsToolbarLabel', "Settings Editor Actions"),
 			actionRunner: this.actionRunner
-		});
+		}));
 
 		const actions: Action[] = [
 			this.instantiationService.createInstance(FilterByTagAction,
@@ -290,11 +290,11 @@ export class SettingsEditor2 extends BaseEditor {
 
 		const tocRenderer = this.instantiationService.createInstance(TOCRenderer);
 
-		this.tocTree = this.instantiationService.createInstance(TOCTree, this.tocTreeContainer,
+		this.tocTree = this._register(this.instantiationService.createInstance(TOCTree, this.tocTreeContainer,
 			this.viewState,
 			{
 				renderer: tocRenderer
-			});
+			}));
 
 		this._register(this.tocTree.onDidChangeFocus(e => {
 			// Let the caller finish before trying to sync with settings tree.
@@ -345,12 +345,12 @@ export class SettingsEditor2 extends BaseEditor {
 		}));
 		this._register(renderer.onDidClickSettingLink(settingName => this.revealSetting(settingName)));
 
-		this.settingsTree = this.instantiationService.createInstance(SettingsTree,
+		this.settingsTree = this._register(this.instantiationService.createInstance(SettingsTree,
 			this.settingsTreeContainer,
 			this.viewState,
 			{
 				renderer
-			});
+			}));
 
 		this._register(this.settingsTree.onDidChangeFocus(e => {
 			this.settingsTree.setSelection([e.focus], e.payload);
