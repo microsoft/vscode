@@ -440,6 +440,7 @@ export function isValidLocationForEmmetAbbreviation(document: vscode.TextDocumen
 	const endAngle = '>';
 	const escape = '\\';
 	const question = '?';
+	const space = ' ';
 	const currentHtmlNode = <HtmlNode>currentNode;
 	let start = new vscode.Position(0, 0);
 
@@ -495,6 +496,12 @@ export function isValidLocationForEmmetAbbreviation(document: vscode.TextDocumen
 			continue;
 		}
 		if (char === question && textToBackTrack[i] === startAngle) {
+			i--;
+			continue;
+		}
+		// Fix for https://github.com/Microsoft/vscode/issues/55411
+		// A space is not a valid character right after < in a tag name.
+		if (char === space && textToBackTrack[i] === startAngle) {
 			i--;
 			continue;
 		}
