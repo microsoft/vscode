@@ -62,7 +62,7 @@ export class MenubarPart extends Part {
 		'workbench.statusBar.visible',
 		'workbench.activityBar.visible',
 		'window.enableMenuBarMnemonics',
-		// 'window.nativeTabs'
+		'window.nativeTabs'
 	];
 
 	private topLevelMenus: {
@@ -143,7 +143,6 @@ export class MenubarPart extends Part {
 
 		if (isMacintosh) {
 			this.topLevelMenus['Preferences'] = this._register(this.menuService.createMenu(MenuId.MenubarPreferencesMenu, this.contextKeyService));
-			this.topLevelMenus['Window'] = this._register(this.menuService.createMenu(MenuId.MenubarWindowMenu, this.contextKeyService));
 		}
 
 		this.menuUpdater = this._register(new RunOnceScheduler(() => this.doSetupMenubar(), 100));
