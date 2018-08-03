@@ -1468,7 +1468,7 @@ export class SettingsTree extends NonExpandableTree {
 			controller,
 			accessibilityProvider: instantiationService.createInstance(SettingsAccessibilityProvider),
 			filter: instantiationService.createInstance(SettingsTreeFilter, viewState),
-			styler: new DefaultTreestyler(DOM.createStyleSheet(container), treeClass),
+			styler: new DefaultTreestyler(DOM.createStyleSheet(), treeClass),
 
 			...configuration
 		};

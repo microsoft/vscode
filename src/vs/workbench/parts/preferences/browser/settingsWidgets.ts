@@ -89,7 +89,7 @@ registerThemingParticipant((theme: ITheme, collector: ICssStyleCollector) => {
 
 	const listSelectBackgroundColor = theme.getColor(listActiveSelectionBackground);
 	if (listSelectBackgroundColor) {
-		collector.addRule(`.settings-editor > .settings-body > .settings-tree-container .setting-item.setting-item-exclude .setting-exclude-row.selected:focus { background-color: ${listSelectBackgroundColor}; }`);
+		collector.addRule(`.settings-editor > .settings-body > .settings-tree-container .setting-item.setting-item-exclude .setting-exclude-row:focus { background-color: ${listSelectBackgroundColor}; }`);
 	}
 
 	const listInactiveSelectionBackgroundColor = theme.getColor(listInactiveSelectionBackground);
@@ -104,7 +104,7 @@ registerThemingParticipant((theme: ITheme, collector: ICssStyleCollector) => {
 
 	const listSelectForegroundColor = theme.getColor(listActiveSelectionForeground);
 	if (listSelectForegroundColor) {
-		collector.addRule(`.settings-editor > .settings-body > .settings-tree-container .setting-item.setting-item-exclude .setting-exclude-row.selected:focus { color: ${listSelectForegroundColor}; }`);
+		collector.addRule(`.settings-editor > .settings-body > .settings-tree-container .setting-item.setting-item-exclude .setting-exclude-row.selected { color: ${listSelectForegroundColor}; }`);
 	}
 
 	const codeTextForegroundColor = theme.getColor(textPreformatForeground);
@@ -150,10 +150,6 @@ export class ExcludeSettingListModel {
 
 	select(idx: number): void {
 		this._selectedIdx = idx;
-	}
-
-	getSelected(): number {
-		return this._selectedIdx;
 	}
 
 	selectNext(): void {
@@ -210,18 +206,12 @@ export class ExcludeSettingWidget extends Disposable {
 				return;
 			}
 
-			const targetIdxStr = element.getAttribute('data-index');
-			if (!targetIdxStr) {
+			const targetIdx = element.getAttribute('data-index');
+			if (!targetIdx) {
 				return;
 			}
 
-			const targetIdx = parseInt(targetIdxStr);
-
-			if (this.model.getSelected() === targetIdx) {
-				return;
-			}
-
-			this.model.select(targetIdx);
+			this.model.select(parseInt(targetIdx));
 			this.renderList();
 			e.preventDefault();
 			e.stopPropagation();
