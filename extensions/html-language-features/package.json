@@ -125,13 +125,13 @@
         "html.suggest.angular1": {
           "type": "boolean",
           "scope": "resource",
-          "default": true,
+          "default": false,
           "description": "%html.suggest.angular1.desc%"
         },
         "html.suggest.ionic": {
           "type": "boolean",
           "scope": "resource",
-          "default": true,
+          "default": false,
           "description": "%html.suggest.ionic.desc%"
         },
         "html.suggest.html5": {
