@@ -17,6 +17,7 @@
 .settings-editor > .settings-header {
 	box-sizing: border-box;
 	margin: auto;
+	overflow: hidden;
 }
 
 .settings-editor > .settings-header > .settings-preview-header {
@@ -25,6 +26,7 @@
 
 .settings-editor > .settings-header > .settings-preview-header .settings-preview-label {
 	opacity: .7;
+	white-space: nowrap;
 }
 
 .settings-editor > .settings-header > .settings-preview-header > .settings-preview-warning {
