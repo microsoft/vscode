@@ -169,7 +169,7 @@ export class TOCTree extends WorkbenchTree {
 		const fullConfiguration = <ITreeConfiguration>{
 			controller: instantiationService.createInstance(WorkbenchTreeController, { openMode: OpenMode.DOUBLE_CLICK }),
 			filter: instantiationService.createInstance(SettingsTreeFilter, viewState),
-			styler: new DefaultTreestyler(DOM.createStyleSheet(), treeClass),
+			styler: new DefaultTreestyler(DOM.createStyleSheet(container), treeClass),
 			dataSource: instantiationService.createInstance(TOCDataSource),
 			accessibilityProvider: instantiationService.createInstance(SettingsAccessibilityProvider),
 
