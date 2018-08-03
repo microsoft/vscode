@@ -6,7 +6,7 @@
 import { Viewlet } from '../workbench/viewlet';
 import { Code } from '../../vscode/code';
 
-const SEARCH_BOX = 'div.extensions-viewlet[id="workbench.view.extensions"] input.search-box';
+const SEARCH_BOX = 'div.extensions-viewlet[id="workbench.view.extensions"] .monaco-editor textarea';
 
 export class Extensions extends Viewlet {
 
@@ -27,7 +27,7 @@ export class Extensions extends Viewlet {
 	async searchForExtension(name: string): Promise<any> {
 		await this.code.waitAndClick(SEARCH_BOX);
 		await this.code.waitForActiveElement(SEARCH_BOX);
-		await this.code.waitForSetValue(SEARCH_BOX, `name:"${name}"`);
+		await this.code.waitForTypeInEditor(SEARCH_BOX, `name:"${name}"`);
 	}
 
 	async installExtension(name: string): Promise<void> {
