@@ -59,12 +59,22 @@ import { createStyleSheet } from 'vs/base/browser/dom';
 // existing users
 class DiffMenuItemActionItem extends MenuItemActionItem {
 
+	constructor(
+		action: MenuItemAction,
+		@IKeybindingService keybindingService: IKeybindingService,
+		@INotificationService notificationService: INotificationService,
+		@IContextMenuService contextMenuService: IContextMenuService,
+		@IInstantiationService private instantiationService: IInstantiationService
+	) {
+		super(action, keybindingService, notificationService, contextMenuService);
+	}
+
 	onClick(event: MouseEvent): void {
 		event.preventDefault();
 		event.stopPropagation();
 
 		this.actionRunner.run(this._commandAction, this._context)
-			.done(undefined, err => this._notificationService.error(err));
+			.done(() => this.instantiationService.invokeFunction(closeDirtyDiffWidget), err => this._notificationService.error(err));
 	}
 }
 
@@ -195,10 +205,7 @@ class DirtyDiffWidget extends PeekViewWidget {
 		@IThemeService private themeService: IThemeService,
 		@IInstantiationService private instantiationService: IInstantiationService,
 		@IMenuService menuService: IMenuService,
-		@IKeybindingService private keybindingService: IKeybindingService,
-		@INotificationService private notificationService: INotificationService,
 		@IContextKeyService contextKeyService: IContextKeyService,
-		@IContextMenuService private contextMenuService: IContextMenuService
 	) {
 		super(editor, { isResizeable: true, frameWidth: 1, keepEditorSelection: true });
 
@@ -288,8 +295,7 @@ class DirtyDiffWidget extends PeekViewWidget {
 		if (!(action instanceof MenuItemAction)) {
 			return undefined;
 		}
-
-		return new DiffMenuItemActionItem(action, this.keybindingService, this.notificationService, this.contextMenuService);
+		return this.instantiationService.createInstance(DiffMenuItemActionItem, action);
 	}
 
 	protected _fillBody(container: HTMLElement): void {
@@ -522,22 +528,24 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 	primary: KeyCode.Escape,
 	secondary: [KeyMod.Shift | KeyCode.Escape],
 	when: ContextKeyExpr.and(isDirtyDiffVisible),
-	handler: (accessor: ServicesAccessor) => {
-		const outerEditor = getOuterEditorFromDiffEditor(accessor);
-
-		if (!outerEditor) {
-			return;
-		}
-
-		const controller = DirtyDiffController.get(outerEditor);
-
-		if (!controller) {
-			return;
-		}
-
-		controller.close();
-	}
+	handler: closeDirtyDiffWidget
 });
+
+function closeDirtyDiffWidget(accessor: ServicesAccessor) {
+	const outerEditor = getOuterEditorFromDiffEditor(accessor);
+
+	if (!outerEditor) {
+		return;
+	}
+
+	const controller = DirtyDiffController.get(outerEditor);
+
+	if (!controller) {
+		return;
+	}
+
+	controller.close();
+}
 
 export class DirtyDiffController implements IEditorContribution {
 
