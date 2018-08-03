@@ -424,7 +424,10 @@ export class MenubarPart extends Part {
 			this.setupCustomMenubar();
 		} else {
 			// Send menus to main process to be rendered by Electron
-			this.menubarService.updateMenubar(this.windowService.getCurrentWindowId(), this.getMenubarMenus(), this.getAdditionalKeybindings());
+			const menubarData = {};
+			if (this.getMenubarMenus(menubarData)) {
+				this.menubarService.updateMenubar(this.windowService.getCurrentWindowId(), menubarData, this.getAdditionalKeybindings());
+			}
 		}
 	}
 
@@ -901,17 +904,23 @@ export class MenubarPart extends Part {
 		return keybindings;
 	}
 
-	private getMenubarMenus(): IMenubarData {
-		let ret: IMenubarData = {};
+	private getMenubarMenus(menubarData: IMenubarData): boolean {
+		if (!menubarData) {
+			return false;
+		}
 
 		for (let topLevelMenuName of Object.keys(this.topLevelMenus)) {
 			const menu = this.topLevelMenus[topLevelMenuName];
 			let menubarMenu: IMenubarMenu = { items: [] };
 			this.populateMenuItems(menu, menubarMenu);
-			ret[topLevelMenuName] = menubarMenu;
+			if (menubarMenu.items.length === 0) {
+				// Menus are incomplete
+				return false;
+			}
+			menubarData[topLevelMenuName] = menubarMenu;
 		}
 
-		return ret;
+		return true;
 	}
 
 	private isCurrentMenu(menuIndex: number): boolean {
