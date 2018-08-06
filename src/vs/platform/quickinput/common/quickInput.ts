@@ -50,6 +50,11 @@ export interface IPickOptions<T extends IQuickPickItem> {
 	 */
 	canPickMany?: boolean;
 
+	/**
+	 * an optional property for the item to focus initially.
+	 */
+	activeItem?: TPromise<T> | T;
+
 	onDidFocus?: (entry: T) => void;
 }
 
@@ -179,7 +184,7 @@ export interface IQuickInputService {
 	/**
 	 * Opens the quick input box for selecting items and returns a promise with the user selected item(s) if any.
 	 */
-	pick<T extends IQuickPickItem, O extends IPickOptions<T>>(picks: TPromise<T[]>, options?: O, token?: CancellationToken): TPromise<O extends { canPickMany: true } ? T[] : T>;
+	pick<T extends IQuickPickItem, O extends IPickOptions<T>>(picks: TPromise<T[]> | T[], options?: O, token?: CancellationToken): TPromise<O extends { canPickMany: true } ? T[] : T>;
 
 	/**
 	 * Opens the quick input box for text input and returns a promise with the user typed value if any.

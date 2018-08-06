@@ -927,7 +927,7 @@ export class QuickInputService extends Component implements IQuickInputService {
 		this.updateStyles();
 	}
 
-	pick<T extends IQuickPickItem, O extends IPickOptions<T>>(picks: TPromise<T[]>, options: O = <O>{}, token: CancellationToken = CancellationToken.None): TPromise<O extends { canPickMany: true } ? T[] : T> {
+	pick<T extends IQuickPickItem, O extends IPickOptions<T>>(picks: TPromise<T[]> | T[], options: O = <O>{}, token: CancellationToken = CancellationToken.None): TPromise<O extends { canPickMany: true } ? T[] : T> {
 		return new TPromise<O extends { canPickMany: true } ? T[] : T>((resolve, reject) => {
 			if (token.isCancellationRequested) {
 				resolve(undefined);
@@ -977,15 +977,19 @@ export class QuickInputService extends Component implements IQuickInputService {
 			input.matchOnDescription = options.matchOnDescription;
 			input.matchOnDetail = options.matchOnDetail;
 			input.busy = true;
-			picks.then(items => {
-				input.busy = false;
-				input.items = items;
-				if (input.canSelectMany) {
-					input.selectedItems = items.filter(item => item.picked);
-				}
-			});
+			TPromise.join([picks, options.activeItem])
+				.then(([items, activeItem]) => {
+					input.busy = false;
+					input.items = items;
+					if (input.canSelectMany) {
+						input.selectedItems = items.filter(item => item.picked);
+					}
+					if (activeItem) {
+						input.activeItems = [activeItem];
+					}
+				});
 			input.show();
-			picks.then(null, err => {
+			TPromise.wrap(picks).then(null, err => {
 				reject(err);
 				input.hide();
 			});
