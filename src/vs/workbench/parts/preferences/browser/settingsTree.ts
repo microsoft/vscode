@@ -1250,7 +1250,9 @@ function getDisplayEnumOptions(setting: ISetting): string[] {
 			});
 	}
 
-	return setting.enum.map(escapeInvisibleChars);
+	return setting.enum
+		.map(String)
+		.map(escapeInvisibleChars);
 }
 
 function escapeInvisibleChars(enumValue: string): string {
