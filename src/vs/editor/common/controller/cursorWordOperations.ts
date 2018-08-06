@@ -466,22 +466,37 @@ export class WordOperations {
 }
 
 export function _lastWordPartEnd(str: string, startIndex: number = str.length - 1): number {
+	let ignoreUpperCase = !strings.isLowerAsciiLetter(str.charCodeAt(startIndex + 1));
 	for (let i = startIndex; i >= 0; i--) {
 		let chCode = str.charCodeAt(i);
-		if (chCode === CharCode.Space || chCode === CharCode.Tab || strings.isUpperAsciiLetter(chCode) || chCode === CharCode.Underline) {
+		if (chCode === CharCode.Space || chCode === CharCode.Tab || (!ignoreUpperCase && strings.isUpperAsciiLetter(chCode)) || chCode === CharCode.Underline) {
 			return i - 1;
 		}
+		if (ignoreUpperCase && i < startIndex && strings.isLowerAsciiLetter(chCode)) {
+			return i;
+		}
+		ignoreUpperCase = ignoreUpperCase && strings.isUpperAsciiLetter(chCode);
 	}
 	return -1;
 }
 
-export function _nextWordPartBegin(str: string, startIndex: number = str.length - 1): number {
-	const checkLowerCase = str.charCodeAt(startIndex - 1) === CharCode.Space; // does a lc char count as a part start?
+export function _nextWordPartBegin(str: string, startIndex: number = 0): number {
+	let prevChCode = str.charCodeAt(startIndex - 1);
+	let chCode = str.charCodeAt(startIndex);
+	// handle the special case ' X' and ' x' which is different from the standard methods
+	if ((prevChCode === CharCode.Space || prevChCode === CharCode.Tab) && (strings.isLowerAsciiLetter(chCode) || strings.isUpperAsciiLetter(chCode))) {
+		return startIndex + 1;
+	}
+	let ignoreUpperCase = strings.isUpperAsciiLetter(chCode);
 	for (let i = startIndex; i < str.length; ++i) {
-		let chCode = str.charCodeAt(i);
-		if (chCode === CharCode.Space || chCode === CharCode.Tab || strings.isUpperAsciiLetter(chCode) || (checkLowerCase && strings.isLowerAsciiLetter(chCode))) {
+		chCode = str.charCodeAt(i);
+		if (chCode === CharCode.Space || chCode === CharCode.Tab || (!ignoreUpperCase && strings.isUpperAsciiLetter(chCode))) {
 			return i + 1;
 		}
+		if (ignoreUpperCase && strings.isLowerAsciiLetter(chCode)) {
+			return i; // multiple UPPERCase : assume an upper case word and a CamelCase word - like DSLModel
+		}
+		ignoreUpperCase = ignoreUpperCase && strings.isUpperAsciiLetter(chCode);
 		if (chCode === CharCode.Underline) {
 			return i + 2;
 		}

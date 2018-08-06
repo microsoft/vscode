@@ -123,6 +123,12 @@ export enum SaveReason {
 	WINDOW_CHANGE = 4
 }
 
+export enum LoadReason {
+	EDITOR = 1,
+	REFERENCE = 2,
+	OTHER = 3
+}
+
 export const ITextFileService = createDecorator<ITextFileService>(TEXT_FILE_SERVICE_ID);
 
 export interface IRawTextContent extends IBaseStat {
@@ -140,6 +146,10 @@ export interface IRawTextContent extends IBaseStat {
 
 export interface IModelLoadOrCreateOptions {
 
+	/**
+	 * Context why the model is being loaded or created.
+	 */
+	reason?: LoadReason;
 
 	/**
 	 * The encoding to use when resolving the model text content.
@@ -210,6 +220,11 @@ export interface ILoadOptions {
 	 * Allow to load a model even if we think it is a binary file.
 	 */
 	allowBinary?: boolean;
+
+	/**
+	 * Context why the model is being loaded.
+	 */
+	reason?: LoadReason;
 }
 
 export interface ITextFileEditorModel extends ITextEditorModel, IEncodingSupport {

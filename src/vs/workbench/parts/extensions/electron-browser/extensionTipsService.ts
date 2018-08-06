@@ -42,7 +42,7 @@ import { Emitter, Event } from 'vs/base/common/event';
 import { assign } from 'vs/base/common/objects';
 import URI from 'vs/base/common/uri';
 import { areSameExtensions, getGalleryExtensionIdFromLocal } from 'vs/platform/extensionManagement/common/extensionManagementUtil';
-import { IExperimentService, ExperimentActionType } from 'vs/workbench/parts/experiments/node/experimentService';
+import { IExperimentService, ExperimentActionType, ExperimentState } from 'vs/workbench/parts/experiments/node/experimentService';
 
 const milliSecondsInADay = 1000 * 60 * 60 * 24;
 const choiceNever = localize('neverShowAgain', "Don't Show Again");
@@ -86,6 +86,7 @@ export class ExtensionTipsService extends Disposable implements IExtensionTipsSe
 
 	private readonly _onRecommendationChange: Emitter<RecommendationChangeNotification> = new Emitter<RecommendationChangeNotification>();
 	onRecommendationChange: Event<RecommendationChangeNotification> = this._onRecommendationChange.event;
+	private sessionSeed: number;
 
 	constructor(
 		@IExtensionGalleryService private readonly _galleryService: IExtensionGalleryService,
@@ -108,7 +109,6 @@ export class ExtensionTipsService extends Disposable implements IExtensionTipsSe
 	) {
 		super();
 
-
 		if (!this.isEnabled()) {
 			return;
 		}
@@ -116,6 +116,8 @@ export class ExtensionTipsService extends Disposable implements IExtensionTipsSe
 		if (product.extensionsGallery && product.extensionsGallery.recommendationsUrl) {
 			this._extensionsRecommendationsUrl = product.extensionsGallery.recommendationsUrl;
 		}
+
+		this.sessionSeed = +new Date();
 
 		let globallyIgnored = <string[]>JSON.parse(this.storageService.get('extensionsAssistant/ignored_recommendations', StorageScope.GLOBAL, '[]'));
 		this._globallyIgnoredRecommendations = globallyIgnored.map(id => id.toLowerCase());
@@ -309,7 +311,7 @@ export class ExtensionTipsService extends Disposable implements IExtensionTipsSe
 			.then(content => <IExtensionsConfigContent>json.parse(content.value), err => null);
 	}
 
-	private validateExtensions(contents: IExtensionsConfigContent[]): TPromise<{ invalidExtensions: string[], message: string }> {
+	private async validateExtensions(contents: IExtensionsConfigContent[]): TPromise<{ invalidExtensions: string[], message: string }> {
 		const extensionsContent: IExtensionsConfigContent = {
 			recommendations: distinct(flatten(contents.map(content => content.recommendations || []))),
 			unwantedRecommendations: distinct(flatten(contents.map(content => content.unwantedRecommendations || [])))
@@ -337,27 +339,24 @@ export class ExtensionTipsService extends Disposable implements IExtensionTipsSe
 
 		const filteredWanted = regexFilter(extensionsContent.recommendations || []).map(x => x.toLowerCase());
 
-		if (!filteredWanted.length) {
-			return TPromise.as({ invalidExtensions, message });
-		}
+		if (filteredWanted.length) {
+			try {
+				let validRecommendations = (await this._galleryService.query({ names: filteredWanted })).firstPage
+					.map(extension => extension.identifier.id.toLowerCase());
 
-		return this._galleryService.query({ names: filteredWanted }).then(pager => {
-			let page = pager.firstPage;
-			let validRecommendations = page.map(extension => {
-				return extension.identifier.id.toLowerCase();
-			});
-
-			if (validRecommendations.length !== filteredWanted.length) {
-				filteredWanted.forEach(element => {
-					if (validRecommendations.indexOf(element.toLowerCase()) === -1) {
-						invalidExtensions.push(element.toLowerCase());
-						message += `${element} (not found in marketplace)\n`;
-					}
-				});
+				if (validRecommendations.length !== filteredWanted.length) {
+					filteredWanted.forEach(element => {
+						if (validRecommendations.indexOf(element.toLowerCase()) === -1) {
+							invalidExtensions.push(element.toLowerCase());
+							message += `${element} (not found in marketplace)\n`;
+						}
+					});
+				}
+			} catch (e) {
+				console.warn('Error querying extensions gallery', e);
 			}
-
-			return TPromise.as({ invalidExtensions, message });
-		});
+		}
+		return { invalidExtensions, message };
 	}
 
 	private isExtensionAllowedToBeRecommended(id: string): boolean {
@@ -402,7 +401,7 @@ export class ExtensionTipsService extends Disposable implements IExtensionTipsSe
 				...this._dynamicWorkspaceRecommendations,
 				...Object.keys(this._experimentalRecommendations),
 			]).filter(extensionId => this.isExtensionAllowedToBeRecommended(extensionId));
-			shuffle(others);
+			shuffle(others, this.sessionSeed);
 			return others.map(extensionId => {
 				const sources: ExtensionRecommendationSource[] = [];
 				if (this._exeBasedRecommendations[extensionId]) {
@@ -497,7 +496,7 @@ export class ExtensionTipsService extends Disposable implements IExtensionTipsSe
 		let hasSuggestion = false;
 
 		const uri = model.uri;
-		if (!uri) {
+		if (!uri || !this.fileService.canHandleResource(uri)) {
 			return;
 		}
 
@@ -523,6 +522,7 @@ export class ExtensionTipsService extends Disposable implements IExtensionTipsSe
 							recommendationsToSuggest.push(id);
 						}
 						const filedBasedRecommendation = this._fileBasedRecommendations[id.toLowerCase()] || { recommendedTime: now, sources: [] };
+						filedBasedRecommendation.recommendedTime = now;
 						if (!filedBasedRecommendation.sources.some(s => s instanceof URI && s.toString() === uri.toString())) {
 							filedBasedRecommendation.sources.push(uri);
 						}
@@ -888,6 +888,7 @@ export class ExtensionTipsService extends Disposable implements IExtensionTipsSe
 
 	private fetchDynamicWorkspaceRecommendations(): TPromise<void> {
 		if (this.contextService.getWorkbenchState() !== WorkbenchState.FOLDER
+			|| !this.fileService.canHandleResource(this.contextService.getWorkspace().folders[0].uri)
 			|| this._dynamicWorkspaceRecommendations.length
 			|| !this._extensionsRecommendationsUrl) {
 			return TPromise.as(null);
@@ -937,9 +938,9 @@ export class ExtensionTipsService extends Disposable implements IExtensionTipsSe
 	}
 
 	private fetchExperimentalRecommendations() {
-		this.experimentService.getExperimentsToRunByType(ExperimentActionType.AddToRecommendations).then(experiments => {
+		this.experimentService.getExperimentsByType(ExperimentActionType.AddToRecommendations).then(experiments => {
 			(experiments || []).forEach(experiment => {
-				if (experiment.action.properties && Array.isArray(experiment.action.properties.recommendations) && experiment.action.properties.recommendationReason) {
+				if (experiment.state === ExperimentState.Run && experiment.action.properties && Array.isArray(experiment.action.properties.recommendations) && experiment.action.properties.recommendationReason) {
 					experiment.action.properties.recommendations.forEach(id => {
 						this._experimentalRecommendations[id] = experiment.action.properties.recommendationReason;
 					});

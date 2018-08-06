@@ -390,7 +390,7 @@ export class FileRenderer implements IRenderer {
 export class FileAccessibilityProvider implements IAccessibilityProvider {
 
 	public getAriaLabel(tree: ITree, stat: ExplorerItem): string {
-		return nls.localize('filesExplorerViewerAriaLabel', "{0}, Files Explorer", stat.name);
+		return stat.name;
 	}
 }
 
@@ -685,18 +685,21 @@ export class FileSorter implements ISorter {
 }
 
 // Explorer Filter
+interface CachedParsedExpression {
+	original: glob.IExpression;
+	parsed: glob.ParsedExpression;
+}
+
 export class FileFilter implements IFilter {
 
-	private static readonly MAX_SIBLINGS_FILTER_THRESHOLD = 2000;
-
-	private hiddenExpressionPerRoot: Map<string, glob.IExpression>;
+	private hiddenExpressionPerRoot: Map<string, CachedParsedExpression>;
 	private workspaceFolderChangeListener: IDisposable;
 
 	constructor(
 		@IWorkspaceContextService private contextService: IWorkspaceContextService,
 		@IConfigurationService private configurationService: IConfigurationService
 	) {
-		this.hiddenExpressionPerRoot = new Map<string, glob.IExpression>();
+		this.hiddenExpressionPerRoot = new Map<string, CachedParsedExpression>();
 
 		this.registerListeners();
 	}
@@ -709,9 +712,16 @@ export class FileFilter implements IFilter {
 		let needsRefresh = false;
 		this.contextService.getWorkspace().folders.forEach(folder => {
 			const configuration = this.configurationService.getValue<IFilesConfiguration>({ resource: folder.uri });
-			const excludesConfig = (configuration && configuration.files && configuration.files.exclude) || Object.create(null);
-			needsRefresh = needsRefresh || !objects.equals(this.hiddenExpressionPerRoot.get(folder.uri.toString()), excludesConfig);
-			this.hiddenExpressionPerRoot.set(folder.uri.toString(), objects.deepClone(excludesConfig)); // do not keep the config, as it gets mutated under our hoods
+			const excludesConfig: glob.IExpression = (configuration && configuration.files && configuration.files.exclude) || Object.create(null);
+
+			if (!needsRefresh) {
+				const cached = this.hiddenExpressionPerRoot.get(folder.uri.toString());
+				needsRefresh = !cached || !objects.equals(cached.original, excludesConfig);
+			}
+
+			const excludesConfigCopy = objects.deepClone(excludesConfig); // do not keep the config, as it gets mutated under our hoods
+
+			this.hiddenExpressionPerRoot.set(folder.uri.toString(), { original: excludesConfigCopy, parsed: glob.parse(excludesConfigCopy) } as CachedParsedExpression);
 		});
 
 		return needsRefresh;
@@ -726,18 +736,9 @@ export class FileFilter implements IFilter {
 			return true; // always visible
 		}
 
-		// Workaround for O(N^2) complexity (https://github.com/Microsoft/vscode/issues/9962)
-		let siblingsFn: () => string[];
-		let siblingCount = stat.parent && stat.parent.getChildrenCount();
-		if (siblingCount && siblingCount > FileFilter.MAX_SIBLINGS_FILTER_THRESHOLD) {
-			siblingsFn = () => void 0;
-		} else {
-			siblingsFn = () => stat.parent ? stat.parent.getChildrenNames() : void 0;
-		}
-
 		// Hide those that match Hidden Patterns
-		const expression = this.hiddenExpressionPerRoot.get(stat.root.resource.toString()) || Object.create(null);
-		if (glob.match(expression, paths.normalize(path.relative(stat.root.resource.path, stat.resource.path), true), siblingsFn)) {
+		const cached = this.hiddenExpressionPerRoot.get(stat.root.resource.toString());
+		if (cached && cached.parsed(paths.normalize(path.relative(stat.root.resource.path, stat.resource.path), true), stat.name, name => !!stat.parent.getChild(name))) {
 			return false; // hidden through pattern
 		}
 

@@ -9,9 +9,10 @@ import { ITypeScriptServiceClient } from '../typescriptService';
 import API from '../utils/api';
 import { Command, CommandManager } from '../utils/commandManager';
 import { VersionDependentRegistration } from '../utils/dependentRegistration';
+import TelemetryReporter from '../utils/telemetry';
 import * as typeConverters from '../utils/typeConverters';
 import FormattingOptionsManager from './fileConfigurationManager';
-import TelemetryReporter from '../utils/telemetry';
+import { nulToken } from '../utils/cancellation';
 
 
 class ApplyRefactoringCommand implements Command {
@@ -47,8 +48,7 @@ class ApplyRefactoringCommand implements Command {
 			refactor,
 			action
 		};
-		const response = await this.client.execute('getEditsForRefactor', args);
-		const body = response && response.body;
+		const { body } = await this.client.execute('getEditsForRefactor', args, nulToken);
 		if (!body || !body.edits.length) {
 			return false;
 		}
@@ -137,20 +137,21 @@ class TypeScriptRefactorProvider implements vscode.CodeActionProvider {
 			return undefined;
 		}
 
-		await this.formattingOptionsManager.ensureConfigurationForDocument(document, undefined);
+		await this.formattingOptionsManager.ensureConfigurationForDocument(document, token);
 
 		const args: Proto.GetApplicableRefactorsRequestArgs = typeConverters.Range.toFileRangeRequestArgs(file, rangeOrSelection);
-		let response: Proto.GetApplicableRefactorsResponse;
+		let refactorings: Proto.ApplicableRefactorInfo[];
 		try {
-			response = await this.client.execute('getApplicableRefactors', args, token);
-			if (!response || !response.body) {
+			const { body } = await this.client.execute('getApplicableRefactors', args, token);
+			if (!body) {
 				return undefined;
 			}
+			refactorings = body;
 		} catch {
 			return undefined;
 		}
 
-		return this.convertApplicableRefactors(response.body, document, file, rangeOrSelection);
+		return this.convertApplicableRefactors(refactorings, document, file, rangeOrSelection);
 	}
 
 	private convertApplicableRefactors(

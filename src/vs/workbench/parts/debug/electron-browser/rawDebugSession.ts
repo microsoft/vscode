@@ -10,32 +10,32 @@ import { Action } from 'vs/base/common/actions';
 import * as errors from 'vs/base/common/errors';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import * as debug from 'vs/workbench/parts/debug/common/debug';
 import { Debugger } from 'vs/workbench/parts/debug/node/debugger';
 import { IOutputService } from 'vs/workbench/parts/output/common/output';
 import { IWorkspaceFolder } from 'vs/platform/workspace/common/workspace';
 import { INotificationService } from 'vs/platform/notification/common/notification';
 import { formatPII } from 'vs/workbench/parts/debug/common/debugUtils';
 import { SocketDebugAdapter } from 'vs/workbench/parts/debug/node/debugAdapter';
+import { SessionState, DebugEvent, IRawSession, IDebugAdapter } from 'vs/workbench/parts/debug/common/debug';
 
 
-export interface SessionExitedEvent extends debug.DebugEvent {
+export interface SessionExitedEvent extends DebugEvent {
 	body: {
 		exitCode: number,
 		sessionId: string
 	};
 }
 
-export interface SessionTerminatedEvent extends debug.DebugEvent {
+export interface SessionTerminatedEvent extends DebugEvent {
 	body: {
 		restart?: boolean,
 		sessionId: string
 	};
 }
 
-export class RawDebugSession implements debug.IRawSession {
+export class RawDebugSession implements IRawSession {
 
-	private debugAdapter: debug.IDebugAdapter;
+	private debugAdapter: IDebugAdapter;
 
 	public emittedStopped: boolean;
 	public readyForBreakpoints: boolean;
@@ -43,9 +43,11 @@ export class RawDebugSession implements debug.IRawSession {
 	private cachedInitServerP: TPromise<void>;
 	private startTime: number;
 	public disconnected: boolean;
+	private terminated: boolean;
 	private sentPromises: TPromise<DebugProtocol.Response>[];
 	private _capabilities: DebugProtocol.Capabilities;
 	private allThreadsContinued: boolean;
+	private state: SessionState = SessionState.LAUNCH;
 
 	private readonly _onDidInitialize: Emitter<DebugProtocol.InitializedEvent>;
 	private readonly _onDidStop: Emitter<DebugProtocol.StoppedEvent>;
@@ -56,7 +58,8 @@ export class RawDebugSession implements debug.IRawSession {
 	private readonly _onDidThread: Emitter<DebugProtocol.ThreadEvent>;
 	private readonly _onDidOutput: Emitter<DebugProtocol.OutputEvent>;
 	private readonly _onDidBreakpoint: Emitter<DebugProtocol.BreakpointEvent>;
-	private readonly _onDidCustomEvent: Emitter<debug.DebugEvent>;
+	private readonly _onDidLoadedSource: Emitter<DebugProtocol.LoadedSourceEvent>;
+	private readonly _onDidCustomEvent: Emitter<DebugEvent>;
 	private readonly _onDidEvent: Emitter<DebugProtocol.Event>;
 
 	constructor(
@@ -83,7 +86,8 @@ export class RawDebugSession implements debug.IRawSession {
 		this._onDidThread = new Emitter<DebugProtocol.ThreadEvent>();
 		this._onDidOutput = new Emitter<DebugProtocol.OutputEvent>();
 		this._onDidBreakpoint = new Emitter<DebugProtocol.BreakpointEvent>();
-		this._onDidCustomEvent = new Emitter<debug.DebugEvent>();
+		this._onDidLoadedSource = new Emitter<DebugProtocol.LoadedSourceEvent>();
+		this._onDidCustomEvent = new Emitter<DebugEvent>();
 		this._onDidEvent = new Emitter<DebugProtocol.Event>();
 	}
 
@@ -127,7 +131,11 @@ export class RawDebugSession implements debug.IRawSession {
 		return this._onDidBreakpoint.event;
 	}
 
-	public get onDidCustomEvent(): Event<debug.DebugEvent> {
+	public get onDidLoadedSource(): Event<DebugProtocol.LoadedSourceEvent> {
+		return this._onDidLoadedSource.event;
+	}
+
+	public get onDidCustomEvent(): Event<DebugEvent> {
 		return this._onDidCustomEvent.event;
 	}
 
@@ -229,10 +237,12 @@ export class RawDebugSession implements debug.IRawSession {
 		}, () => errorCallback(errors.canceled()));
 	}
 
-	private onDapEvent(event: debug.DebugEvent): void {
+	private onDapEvent(event: DebugEvent): void {
 		event.sessionId = this.id;
 
-		if (event.event === 'initialized') {
+		if (event.event === 'loadedSource') {	// most frequent comes first
+			this._onDidLoadedSource.fire(<DebugProtocol.LoadedSourceEvent>event);
+		} else if (event.event === 'initialized') {
 			this.readyForBreakpoints = true;
 			this._onDidInitialize.fire(event);
 		} else if (event.event === 'capabilities' && event.body) {
@@ -282,6 +292,7 @@ export class RawDebugSession implements debug.IRawSession {
 	}
 
 	public attach(args: DebugProtocol.AttachRequestArguments): TPromise<DebugProtocol.AttachResponse> {
+		this.state = SessionState.ATTACH;
 		return this.send('attach', args).then(response => this.readCapabilities(response));
 	}
 
@@ -339,25 +350,13 @@ export class RawDebugSession implements debug.IRawSession {
 		return this.send<DebugProtocol.CompletionsResponse>('completions', args);
 	}
 
-	public disconnect(restart = false, force = false): TPromise<DebugProtocol.DisconnectResponse> {
-		if (this.disconnected && force) {
-			return this.stopServer();
+	public terminate(restart = false): TPromise<DebugProtocol.TerminateResponse> {
+		if (this.capabilities.supportsTerminateRequest && !this.terminated && this.state === SessionState.LAUNCH) {
+			this.terminated = true;
+			return this.send('terminate', { restart });
 		}
 
-		// Cancel all sent promises on disconnect so debug trees are not left in a broken state #3666.
-		// Give a 1s timeout to give a chance for some promises to complete.
-		setTimeout(() => {
-			this.sentPromises.forEach(p => p && p.cancel());
-			this.sentPromises = [];
-		}, 1000);
-
-		if (this.debugAdapter && !this.disconnected) {
-			// point of no return: from now on don't report any errors
-			this.disconnected = true;
-			return this.send('disconnect', { restart: restart }, false).then(() => this.stopServer(), () => this.stopServer());
-		}
-
-		return TPromise.as(null);
+		return this.disconnect(restart);
 	}
 
 	public setBreakpoints(args: DebugProtocol.SetBreakpointsArguments): TPromise<DebugProtocol.SetBreakpointsResponse> {
@@ -395,6 +394,11 @@ export class RawDebugSession implements debug.IRawSession {
 	public source(args: DebugProtocol.SourceArguments): TPromise<DebugProtocol.SourceResponse> {
 		return this.send<DebugProtocol.SourceResponse>('source', args);
 	}
+
+	public loadedSources(args: DebugProtocol.LoadedSourcesArguments): TPromise<DebugProtocol.LoadedSourcesResponse> {
+		return this.send<DebugProtocol.LoadedSourcesResponse>('loadedSources', args);
+	}
+
 
 	public threads(): TPromise<DebugProtocol.ThreadsResponse> {
 		return this.send<DebugProtocol.ThreadsResponse>('threads', null);
@@ -483,6 +487,27 @@ export class RawDebugSession implements debug.IRawSession {
 		});
 	}
 
+	public disconnect(restart = false): TPromise<any> {
+		if (this.disconnected) {
+			return this.stopServer();
+		}
+
+		// Cancel all sent promises on disconnect so debug trees are not left in a broken state #3666.
+		// Give a 1s timeout to give a chance for some promises to complete.
+		setTimeout(() => {
+			this.sentPromises.forEach(p => p && p.cancel());
+			this.sentPromises = [];
+		}, 1000);
+
+		if (this.debugAdapter && !this.disconnected) {
+			// point of no return: from now on don't report any errors
+			this.disconnected = true;
+			return this.send('disconnect', { restart }, false).then(() => this.stopServer(), () => this.stopServer());
+		}
+
+		return TPromise.as(null);
+	}
+
 	private stopServer(): TPromise<any> {
 
 		if (/* this.socket !== null */ this.debugAdapter instanceof SocketDebugAdapter) {
@@ -512,9 +537,5 @@ export class RawDebugSession implements debug.IRawSession {
 			this.notificationService.error(nls.localize('debugAdapterCrash', "Debug adapter process has terminated unexpectedly"));
 		}
 		this._onDidExitAdapter.fire({ sessionId: this.getId() });
-	}
-
-	public dispose(): void {
-		this.disconnect().done(null, errors.onUnexpectedError);
 	}
 }

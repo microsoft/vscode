@@ -7,12 +7,12 @@ import * as dom from 'vs/base/browser/dom';
 import { GlobalMouseMoveMonitor, IStandardMouseMoveEventData, standardMouseMoveMerger } from 'vs/base/browser/globalMouseMoveMonitor';
 import { CancellationTokenSource } from 'vs/base/common/cancellation';
 import { Emitter, Event } from 'vs/base/common/event';
-import { IDisposable, dispose } from 'vs/base/common/lifecycle';
+import { dispose, IDisposable } from 'vs/base/common/lifecycle';
 import 'vs/css!./lightBulbWidget';
 import { ContentWidgetPositionPreference, ICodeEditor, IContentWidget, IContentWidgetPosition } from 'vs/editor/browser/editorBrowser';
 import { TextModel } from 'vs/editor/common/model/textModel';
-import { CodeActionsComputeEvent } from './codeActionModel';
 import { CodeActionKind } from 'vs/editor/contrib/codeAction/codeActionTrigger';
+import { CodeActionsComputeEvent } from './codeActionModel';
 
 export class LightBulbWidget implements IDisposable, IContentWidget {
 

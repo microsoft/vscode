@@ -70,24 +70,24 @@ declare module 'vscode' {
 		 * Whether external files that exclude files, like .gitignore, should be respected.
 		 * See the vscode setting `"search.useIgnoreFiles"`.
 		 */
-		useIgnoreFiles?: boolean;
+		useIgnoreFiles: boolean;
 
 		/**
 		 * Whether symlinks should be followed while searching.
 		 * See the vscode setting `"search.followSymlinks"`.
 		 */
-		followSymlinks?: boolean;
-
-		/**
-		 * The maximum number of results to be returned.
-		 */
-		maxResults?: number;
+		followSymlinks: boolean;
 	}
 
 	/**
 	 * Options that apply to text search.
 	 */
 	export interface TextSearchOptions extends SearchOptions {
+		/**
+		 * The maximum number of results to be returned.
+		 */
+		maxResults: number;
+
 		/**
 		 *  TODO@roblou - total length? # of context lines? leading and trailing # of chars?
 		 */
@@ -113,19 +113,22 @@ declare module 'vscode' {
 		 * The search pattern to match against file paths.
 		 */
 		pattern: string;
-
-		/**
-		 * `cacheKey` has the same value when `provideFileSearchResults` is invoked multiple times during a single quickopen session.
-		 * Providers can optionally use this to cache results at the beginning of a quickopen session and filter results as the user types.
-		 * It will have a different value for each folder searched.
-		 */
-		cacheKey?: string;
 	}
 
 	/**
 	 * Options that apply to file search.
 	 */
-	export interface FileSearchOptions extends SearchOptions { }
+	export interface FileSearchOptions extends SearchOptions {
+		/**
+		 * The maximum number of results to be returned.
+		 */
+		maxResults: number;
+	}
+
+	/**
+	 * Options that apply to requesting the file index.
+	 */
+	export interface FileIndexOptions extends SearchOptions { }
 
 	export interface TextSearchResultPreview {
 		/**
@@ -161,9 +164,37 @@ declare module 'vscode' {
 	}
 
 	/**
-	 * A SearchProvider provides search results for files or text in files. It can be invoked by quickopen, the search viewlet, and other extensions.
+	 * A FileIndexProvider provides a list of files in the given folder. VS Code will filter that list for searching with quickopen or from other extensions.
+	 *
+	 * A FileIndexProvider is the simpler of two ways to implement file search in VS Code. Use a FileIndexProvider if you are able to provide a listing of all files
+	 * in a folder, and want VS Code to filter them according to the user's search query.
+	 *
+	 * The FileIndexProvider will be invoked once when quickopen is opened, and VS Code will filter the returned list. It will also be invoked when
+	 * `workspace.findFiles` is called.
+	 *
+	 * If a [`FileSearchProvider`](#FileSearchProvider) is registered for the scheme, that provider will be used instead.
 	 */
-	export interface SearchProvider {
+	export interface FileIndexProvider {
+		/**
+		 * Provide the set of files in the folder.
+		 * @param options A set of options to consider while searching.
+		 * @param token A cancellation token.
+		 */
+		provideFileIndex(options: FileIndexOptions, token: CancellationToken): Thenable<Uri[]>;
+	}
+
+	/**
+	 * A FileSearchProvider provides search results for files in the given folder that match a query string. It can be invoked by quickopen or other extensions.
+	 *
+	 * A FileSearchProvider is the more powerful of two ways to implement file search in VS Code. Use a FileSearchProvider if you wish to search within a folder for
+	 * all files that match the user's query.
+	 *
+	 * The FileSearchProvider will be invoked on every keypress in quickopen. When `workspace.findFiles` is called, it will be invoked with an empty query string,
+	 * and in that case, every file in the folder should be returned.
+	 *
+	 * @see [FileIndexProvider](#FileIndexProvider)
+	 */
+	export interface FileSearchProvider {
 		/**
 		 * Provide the set of files that match a certain file path pattern.
 		 * @param query The parameters for this query.
@@ -171,14 +202,13 @@ declare module 'vscode' {
 		 * @param progress A progress callback that must be invoked for all results.
 		 * @param token A cancellation token.
 		 */
-		provideFileSearchResults?(query: FileSearchQuery, options: FileSearchOptions, progress: Progress<Uri>, token: CancellationToken): Thenable<void>;
+		provideFileSearchResults(query: FileSearchQuery, options: FileSearchOptions, token: CancellationToken): Thenable<Uri[]>;
+	}
 
-		/**
-		 * Optional - if the provider makes use of `query.cacheKey`, it can implement this method which is invoked when the cache can be cleared.
-		 * @param cacheKey The same key that was passed as `query.cacheKey`.
-		 */
-		clearCache?(cacheKey: string): void;
-
+	/**
+	 * A TextSearchProvider provides search results for text results inside files in the workspace.
+	 */
+	export interface TextSearchProvider {
 		/**
 		 * Provide results that match the given text pattern.
 		 * @param query The parameters for this query.
@@ -186,19 +216,68 @@ declare module 'vscode' {
 		 * @param progress A progress callback that must be invoked for all results.
 		 * @param token A cancellation token.
 		 */
-		provideTextSearchResults?(query: TextSearchQuery, options: TextSearchOptions, progress: Progress<TextSearchResult>, token: CancellationToken): Thenable<void>;
+		provideTextSearchResults(query: TextSearchQuery, options: TextSearchOptions, progress: Progress<TextSearchResult>, token: CancellationToken): Thenable<void>;
 	}
 
+	/**
+	 * Options that can be set on a findTextInFiles search.
+	 */
 	export interface FindTextInFilesOptions {
+		/**
+		 * A [glob pattern](#GlobPattern) that defines the files to search for. The glob pattern
+		 * will be matched against the file paths of files relative to their workspace. Use a [relative pattern](#RelativePattern)
+		 * to restrict the search results to a [workspace folder](#WorkspaceFolder).
+		 */
 		include?: GlobPattern;
-		exclude?: GlobPattern;
+
+		/**
+		 * A [glob pattern](#GlobPattern) that defines files and folders to exclude. The glob pattern
+		 * will be matched against the file paths of resulting matches relative to their workspace. When `undefined` only default excludes will
+		 * apply, when `null` no excludes will apply.
+		 */
+		exclude?: GlobPattern | null;
+
+		/**
+		 * The maximum number of results to search for
+		 */
 		maxResults?: number;
+
+		/**
+		 * Whether external files that exclude files, like .gitignore, should be respected.
+		 * See the vscode setting `"search.useIgnoreFiles"`.
+		 */
 		useIgnoreFiles?: boolean;
+
+		/**
+		 * Whether symlinks should be followed while searching.
+		 * See the vscode setting `"search.followSymlinks"`.
+		 */
 		followSymlinks?: boolean;
+
+		/**
+		 * Interpret files using this encoding.
+		 * See the vscode setting `"files.encoding"`
+		 */
 		encoding?: string;
 	}
 
 	export namespace workspace {
+		/**
+		 * DEPRECATED
+		 */
+		export function registerSearchProvider(): Disposable;
+
+		/**
+		 * Register a file index provider.
+		 *
+		 * Only one provider can be registered per scheme.
+		 *
+		 * @param scheme The provider will be invoked for workspace folders that have this file scheme.
+		 * @param provider The provider.
+		 * @return A [disposable](#Disposable) that unregisters this provider when being disposed.
+		 */
+		export function registerFileIndexProvider(scheme: string, provider: FileIndexProvider): Disposable;
+
 		/**
 		 * Register a search provider.
 		 *
@@ -208,8 +287,36 @@ declare module 'vscode' {
 		 * @param provider The provider.
 		 * @return A [disposable](#Disposable) that unregisters this provider when being disposed.
 		 */
-		export function registerSearchProvider(scheme: string, provider: SearchProvider): Disposable;
+		export function registerFileSearchProvider(scheme: string, provider: FileSearchProvider): Disposable;
 
+		/**
+		 * Register a text search provider.
+		 *
+		 * Only one provider can be registered per scheme.
+		 *
+		 * @param scheme The provider will be invoked for workspace folders that have this file scheme.
+		 * @param provider The provider.
+		 * @return A [disposable](#Disposable) that unregisters this provider when being disposed.
+		 */
+		export function registerTextSearchProvider(scheme: string, provider: TextSearchProvider): Disposable;
+
+		/**
+		 * Search text in files across all [workspace folders](#workspace.workspaceFolders) in the workspace.
+		 * @param query The query parameters for the search - the search string, whether it's case-sensitive, or a regex, or matches whole words.
+		 * @param callback A callback, called for each result
+		 * @param token A token that can be used to signal cancellation to the underlying search engine.
+		 * @return A thenable that resolves when the search is complete.
+		 */
+		export function findTextInFiles(query: TextSearchQuery, callback: (result: TextSearchResult) => void, token?: CancellationToken): Thenable<void>;
+
+		/**
+		 * Search text in files across all [workspace folders](#workspace.workspaceFolders) in the workspace.
+		 * @param query The query parameters for the search - the search string, whether it's case-sensitive, or a regex, or matches whole words.
+		 * @param options An optional set of query options. Include and exclude patterns, maxResults, etc.
+		 * @param callback A callback, called for each result
+		 * @param token A token that can be used to signal cancellation to the underlying search engine.
+		 * @return A thenable that resolves when the search is complete.
+		 */
 		export function findTextInFiles(query: TextSearchQuery, options: FindTextInFilesOptions, callback: (result: TextSearchResult) => void, token?: CancellationToken): Thenable<void>;
 	}
 
@@ -646,345 +753,6 @@ declare module 'vscode' {
 
 	//#endregion
 
-	//#region QuickInput API
-
-	export namespace window {
-
-		/**
-		 * A back button for [QuickPick](#QuickPick) and [InputBox](#InputBox).
-		 *
-		 * When a navigation 'back' button is needed this one should be used for consistency.
-		 * It comes with a predefined icon, tooltip and location.
-		 */
-		export const quickInputBackButton: QuickInputButton;
-
-		/**
-		 * Creates a [QuickPick](#QuickPick) to let the user pick an item from a list
-		 * of items of type T.
-		 *
-		 * Note that in many cases the more convenient [window.showQuickPick](#window.showQuickPick)
-		 * is easier to use. [window.createQuickPick](#window.createQuickPick) should be used
-		 * when [window.showQuickPick](#window.showQuickPick) does not offer the required flexibility.
-		 *
-		 * @return A new [QuickPick](#QuickPick).
-		 */
-		export function createQuickPick<T extends QuickPickItem>(): QuickPick<T>;
-
-		/**
-		 * Creates a [InputBox](#InputBox) to let the user enter some text input.
-		 *
-		 * Note that in many cases the more convenient [window.showInputBox](#window.showInputBox)
-		 * is easier to use. [window.createInputBox](#window.createInputBox) should be used
-		 * when [window.showInputBox](#window.showInputBox) does not offer the required flexibility.
-		 *
-		 * @return A new [InputBox](#InputBox).
-		 */
-		export function createInputBox(): InputBox;
-	}
-
-	/**
-	 * A light-weight user input UI that is intially not visible. After
-	 * configuring it through its properties the extension can make it
-	 * visible by calling [QuickInput.show](#QuickInput.show).
-	 *
-	 * There are several reasons why this UI might have to be hidden and
-	 * the extension will be notified through [QuickInput.onDidHide](#QuickInput.onDidHide).
-	 * (Examples include: an explict call to [QuickInput.hide](#QuickInput.hide),
-	 * the user pressing Esc, some other input UI opening, etc.)
-	 *
-	 * A user pressing Enter or some other gesture implying acceptance
-	 * of the current state does not automatically hide this UI component.
-	 * It is up to the extension to decide whether to accept the user's input
-	 * and if the UI should indeed be hidden through a call to [QuickInput.hide](#QuickInput.hide).
-	 *
-	 * When the extension no longer needs this input UI, it should
-	 * [QuickInput.dispose](#QuickInput.dispose) it to allow for freeing up
-	 * any resources associated with it.
-	 *
-	 * See [QuickPick](#QuickPick) and [InputBox](#InputBox) for concrete UIs.
-	 */
-	export interface QuickInput {
-
-		/**
-		 * An optional title.
-		 */
-		title: string | undefined;
-
-		/**
-		 * An optional current step count.
-		 */
-		step: number | undefined;
-
-		/**
-		 * An optional total step count.
-		 */
-		totalSteps: number | undefined;
-
-		/**
-		 * If the UI should allow for user input. Defaults to true.
-		 *
-		 * Change this to false, e.g., while validating user input or
-		 * loading data for the next step in user input.
-		 */
-		enabled: boolean;
-
-		/**
-		 * If the UI should show a progress indicator. Defaults to false.
-		 *
-		 * Change this to true, e.g., while loading more data or validating
-		 * user input.
-		 */
-		busy: boolean;
-
-		/**
-		 * If the UI should stay open even when loosing UI focus. Defaults to false.
-		 */
-		ignoreFocusOut: boolean;
-
-		/**
-		 * Makes the input UI visible in its current configuration. Any other input
-		 * UI will first fire an [QuickInput.onDidHide](#QuickInput.onDidHide) event.
-		 */
-		show(): void;
-
-		/**
-		 * Hides this input UI. This will also fire an [QuickInput.onDidHide](#QuickInput.onDidHide)
-		 * event.
-		 */
-		hide(): void;
-
-		/**
-		 * An event signaling when this input UI is hidden.
-		 *
-		 * There are several reasons why this UI might have to be hidden and
-		 * the extension will be notified through [QuickInput.onDidHide](#QuickInput.onDidHide).
-		 * (Examples include: an explict call to [QuickInput.hide](#QuickInput.hide),
-		 * the user pressing Esc, some other input UI opening, etc.)
-		 */
-		onDidHide: Event<void>;
-
-		/**
-		 * Dispose of this input UI and any associated resources. If it is still
-		 * visible, it is first hidden. After this call the input UI is no longer
-		 * functional and no additional methods or properties on it should be
-		 * accessed. Instead a new input UI should be created.
-		 */
-		dispose(): void;
-	}
-
-	/**
-	 * A concrete [QuickInput](#QuickInput) to let the user pick an item from a
-	 * list of items of type T. The items can be filtered through a filter text field and
-	 * there is an option [canSelectMany](#QuickPick.canSelectMany) to allow for
-	 * selecting multiple items.
-	 *
-	 * Note that in many cases the more convenient [window.showQuickPick](#window.showQuickPick)
-	 * is easier to use. [window.createQuickPick](#window.createQuickPick) should be used
-	 * when [window.showQuickPick](#window.showQuickPick) does not offer the required flexibility.
-	 */
-	export interface QuickPick<T extends QuickPickItem> extends QuickInput {
-
-		/**
-		 * Current value of the filter text.
-		 */
-		value: string;
-
-		/**
-		 * Optional placeholder in the filter text.
-		 */
-		placeholder: string | undefined;
-
-		/**
-		 * An event signaling when the value of the filter text has changed.
-		 */
-		readonly onDidChangeValue: Event<string>;
-
-		/**
-		 * An event signaling when the user indicated acceptance of the selected item(s).
-		 */
-		readonly onDidAccept: Event<void>;
-
-		/**
-		 * Buttons for actions in the UI.
-		 */
-		buttons: ReadonlyArray<QuickInputButton>;
-
-		/**
-		 * An event signaling when a button was triggered.
-		 */
-		readonly onDidTriggerButton: Event<QuickInputButton>;
-
-		/**
-		 * Items to pick from.
-		 */
-		items: ReadonlyArray<T>;
-
-		/**
-		 * If multiple items can be selected at the same time. Defaults to false.
-		 */
-		canSelectMany: boolean;
-
-		/**
-		 * If the filter text should also be matched against the description of the items. Defaults to false.
-		 */
-		matchOnDescription: boolean;
-
-		/**
-		 * If the filter text should also be matched against the detail of the items. Defaults to false.
-		 */
-		matchOnDetail: boolean;
-
-		/**
-		 * Active items. This can be read and updated by the extension.
-		 */
-		activeItems: ReadonlyArray<T>;
-
-		/**
-		 * An event signaling when the active items have changed.
-		 */
-		readonly onDidChangeActive: Event<T[]>;
-
-		/**
-		 * Selected items. This can be read and updated by the extension.
-		 */
-		selectedItems: ReadonlyArray<T>;
-
-		/**
-		 * An event signaling when the selected items have changed.
-		 */
-		readonly onDidChangeSelection: Event<T[]>;
-	}
-
-	/**
-	 * A concrete [QuickInput](#QuickInput) to let the user input a text value.
-	 *
-	 * Note that in many cases the more convenient [window.showInputBox](#window.showInputBox)
-	 * is easier to use. [window.createInputBox](#window.createInputBox) should be used
-	 * when [window.showInputBox](#window.showInputBox) does not offer the required flexibility.
-	 */
-	export interface InputBox extends QuickInput {
-
-		/**
-		 * Current input value.
-		 */
-		value: string;
-
-		/**
-		 * Optional placeholder in the filter text.
-		 */
-		placeholder: string | undefined;
-
-		/**
-		 * If the input value should be hidden. Defaults to false.
-		 */
-		password: boolean;
-
-		/**
-		 * An event signaling when the value has changed.
-		 */
-		readonly onDidChangeValue: Event<string>;
-
-		/**
-		 * An event signaling when the user indicated acceptance of the input value.
-		 */
-		readonly onDidAccept: Event<void>;
-
-		/**
-		 * Buttons for actions in the UI.
-		 */
-		buttons: ReadonlyArray<QuickInputButton>;
-
-		/**
-		 * An event signaling when a button was triggered.
-		 */
-		readonly onDidTriggerButton: Event<QuickInputButton>;
-
-		/**
-		 * An optional prompt text providing some ask or explanation to the user.
-		 */
-		prompt: string | undefined;
-
-		/**
-		 * An optional validation message indicating a problem with the current input value.
-		 */
-		validationMessage: string | undefined;
-	}
-
-	/**
-	 * Button for an action in a [QuickPick](#QuickPick) or [InputBox](#InputBox).
-	 */
-	export interface QuickInputButton {
-
-		/**
-		 * Icon for the button.
-		 */
-		readonly iconPath: string | Uri | { light: string | Uri; dark: string | Uri } | ThemeIcon;
-
-		/**
-		 * An optional tooltip.
-		 */
-		readonly tooltip?: string | undefined;
-	}
-
-	//#endregion
-
-	//#region joh: https://github.com/Microsoft/vscode/issues/10659
-
-	/**
-	 * A workspace edit is a collection of textual and files changes for
-	 * multiple resources and documents. Use the [applyEdit](#workspace.applyEdit)-function
-	 * to apply a workspace edit. Note that all changes are applied in the same order in which
-	 * they have been added and that invalid sequences like 'delete file a' -> 'insert text in
-	 * file a' causes failure of the operation.
-	 */
-	export interface WorkspaceEdit {
-
-		/**
-		 * Create a regular file.
-		 *
-		 * @param uri Uri of the new file..
-		 * @param options Defines if an existing file should be overwritten or be ignored.
-		 */
-		createFile(uri: Uri, options?: { overwrite?: boolean, ignoreIfExists?: boolean }): void;
-
-		/**
-		 * Delete a file or folder.
-		 *
-		 * @param uri The uri of the file that is to be deleted.
-		 */
-		deleteFile(uri: Uri, options?: { recursive?: boolean }): void;
-
-		/**
-		 * Rename a file or folder.
-		 *
-		 * @param oldUri The existing file.
-		 * @param newUri The new location.
-		 * @param options Defines if existing files should be overwritten.
-		 */
-		renameFile(oldUri: Uri, newUri: Uri, options?: { overwrite?: boolean }): void;
-
-		// replaceText(uri: Uri, range: Range, newText: string): void;
-		// insertText(uri: Uri, position: Position, newText: string): void;
-		// deleteText(uri: Uri, range: Range): void;
-	}
-
-	export namespace workspace {
-		/**
-		 * Make changes to one or many resources as defined by the given
-		 * [workspace edit](#WorkspaceEdit).
-		 *
-		 * The editor implements an 'all-or-nothing'-strategy and that means failure to modify,
-		 * delete, rename, or create one file will abort the operation. In that case, the thenable returned
-		 * by this function resolves to `false`.
-		 *
-		 * @param edit A workspace edit.
-		 * @return A thenable that resolves when the edit could be applied.
-		 */
-		export function applyEdit(edit: WorkspaceEdit): Thenable<boolean>;
-	}
-
-	//#endregion
-
 	//#region mjbvz,joh: https://github.com/Microsoft/vscode/issues/43768
 	export interface FileRenameEvent {
 		readonly oldUri: Uri;
@@ -1001,48 +769,5 @@ declare module 'vscode' {
 		export const onWillRenameFile: Event<FileWillRenameEvent>;
 		export const onDidRenameFile: Event<FileRenameEvent>;
 	}
-	//#endregion
-
-	//#region Matt: Deinition range
-
-	/**
-	 * Information about where a symbol is defined.
-	 *
-	 * Provides additional metadata over normal [location](#Location) definitions, including the range of
-	 * the defining symbol
-	 */
-	export interface DefinitionLink {
-		/**
-		 * Span of the symbol being defined in the source file.
-		 *
-		 * Used as the underlined span for mouse definition hover. Defaults to the word range at
-		 * the definition position.
-		 */
-		origin?: Range;
-
-		/**
-		 * The resource identifier of the definition.
-		 */
-		uri: Uri;
-
-		/**
-		 * The full range of the definition.
-		 *
-		 * For a class definition for example, this would be the entire body of the class definition.
-		 */
-		range: Range;
-
-		/**
-		 * The span of the symbol definition.
-		 *
-		 * For a class definition, this would be the class name itself in the class definition.
-		 */
-		selectionRange?: Range;
-	}
-
-	export interface DefinitionProvider {
-		provideDefinition2?(document: TextDocument, position: Position, token: CancellationToken): ProviderResult<Definition | DefinitionLink[]>;
-	}
-
 	//#endregion
 }

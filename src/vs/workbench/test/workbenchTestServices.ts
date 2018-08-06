@@ -10,6 +10,7 @@ import { FileEditorInput } from 'vs/workbench/parts/files/common/editors/fileEdi
 import { TPromise } from 'vs/base/common/winjs.base';
 import { TestInstantiationService } from 'vs/platform/instantiation/test/common/instantiationServiceMock';
 import * as paths from 'vs/base/common/paths';
+import * as resources from 'vs/base/common/resources';
 import URI from 'vs/base/common/uri';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { NullTelemetryService } from 'vs/platform/telemetry/common/telemetryUtils';
@@ -26,7 +27,7 @@ import { TextModelResolverService } from 'vs/workbench/services/textmodelResolve
 import { ITextModelService } from 'vs/editor/common/services/resolverService';
 import { IEditorOptions, IResourceInput } from 'vs/platform/editor/common/editor';
 import { IUntitledEditorService, UntitledEditorService } from 'vs/workbench/services/untitled/common/untitledEditorService';
-import { IWorkspaceContextService, IWorkspace as IWorkbenchWorkspace, WorkbenchState, IWorkspaceFolder, IWorkspaceFoldersChangeEvent } from 'vs/platform/workspace/common/workspace';
+import { IWorkspaceContextService, IWorkspace as IWorkbenchWorkspace, WorkbenchState, IWorkspaceFolder, IWorkspaceFoldersChangeEvent, Workspace } from 'vs/platform/workspace/common/workspace';
 import { ILifecycleService, ShutdownEvent, ShutdownReason, StartupKind, LifecyclePhase } from 'vs/platform/lifecycle/common/lifecycle';
 import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
 import { TextFileService } from 'vs/workbench/services/textfile/common/textFileService';
@@ -41,15 +42,14 @@ import { IModeService } from 'vs/editor/common/services/modeService';
 import { IHistoryService } from 'vs/workbench/services/history/common/history';
 import { IInstantiationService, ServicesAccessor, ServiceIdentifier } from 'vs/platform/instantiation/common/instantiation';
 import { TestConfigurationService } from 'vs/platform/configuration/test/common/testConfigurationService';
-import { IWindowsService, IWindowService, INativeOpenDialogOptions, IEnterWorkspaceResult, IMessageBoxResult, IWindowConfiguration } from 'vs/platform/windows/common/windows';
+import { IWindowsService, IWindowService, INativeOpenDialogOptions, IEnterWorkspaceResult, IMessageBoxResult, IWindowConfiguration, MenuBarVisibility } from 'vs/platform/windows/common/windows';
 import { TestWorkspace } from 'vs/platform/workspace/test/common/testWorkspace';
 import { createTextBufferFactory } from 'vs/editor/common/model/textModel';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
-import { isLinux } from 'vs/base/common/platform';
 import { generateUuid } from 'vs/base/common/uuid';
 import { TestThemeService } from 'vs/platform/theme/test/common/testThemeService';
-import { IWorkspaceIdentifier, ISingleFolderWorkspaceIdentifier, isSingleFolderWorkspaceIdentifier, IWorkspaceFolderCreationData } from 'vs/platform/workspaces/common/workspaces';
+import { IWorkspaceIdentifier, IWorkspaceFolderCreationData, ISingleFolderWorkspaceIdentifier, isSingleFolderWorkspaceIdentifier } from 'vs/platform/workspaces/common/workspaces';
 import { IRecentlyOpened } from 'vs/platform/history/common/history';
 import { ITextResourceConfigurationService } from 'vs/editor/common/services/resourceConfiguration';
 import { IPosition, Position as EditorPosition } from 'vs/editor/common/core/position';
@@ -74,6 +74,8 @@ import { ICodeEditor, IDiffEditor } from 'vs/editor/browser/editorBrowser';
 import { IDecorationRenderOptions } from 'vs/editor/common/editorCommon';
 import { EditorGroup } from 'vs/workbench/common/editor/editorGroup';
 import { Dimension } from 'vs/base/browser/dom';
+import { ILogService, LogLevel } from 'vs/platform/log/common/log';
+import { IUriDisplayService, UriDisplayService } from 'vs/platform/uriDisplay/common/uriDisplay';
 
 export function createFileInput(instantiationService: IInstantiationService, resource: URI): FileEditorInput {
 	return instantiationService.createInstance(FileEditorInput, resource, void 0);
@@ -84,7 +86,7 @@ export const TestEnvironmentService = new EnvironmentService(parseArgs(process.a
 export class TestContextService implements IWorkspaceContextService {
 	public _serviceBrand: any;
 
-	private workspace: IWorkbenchWorkspace;
+	private workspace: Workspace;
 	private options: any;
 
 	private readonly _onDidChangeWorkspaceName: Emitter<void>;
@@ -131,7 +133,7 @@ export class TestContextService implements IWorkspaceContextService {
 	}
 
 	public getWorkspaceFolder(resource: URI): IWorkspaceFolder {
-		return this.isInsideWorkspace(resource) ? this.workspace.folders[0] : null;
+		return this.workspace.getFolder(resource);
 	}
 
 	public setWorkspace(workspace: any): void {
@@ -148,7 +150,7 @@ export class TestContextService implements IWorkspaceContextService {
 
 	public isInsideWorkspace(resource: URI): boolean {
 		if (resource && this.workspace) {
-			return paths.isEqualOrParent(resource.fsPath, this.workspace.folders[0].uri.fsPath, !isLinux /* ignorecase */);
+			return resources.isEqualOrParent(resource, this.workspace.folders[0].uri, resources.hasToIgnoreCase(resource));
 		}
 
 		return false;
@@ -159,16 +161,7 @@ export class TestContextService implements IWorkspaceContextService {
 	}
 
 	public isCurrentWorkspace(workspaceIdentifier: ISingleFolderWorkspaceIdentifier | IWorkspaceIdentifier): boolean {
-		return isSingleFolderWorkspaceIdentifier(workspaceIdentifier) && this.pathEquals(this.workspace.folders[0].uri.fsPath, workspaceIdentifier);
-	}
-
-	private pathEquals(path1: string, path2: string): boolean {
-		if (!isLinux) {
-			path1 = path1.toLowerCase();
-			path2 = path2.toLowerCase();
-		}
-
-		return path1 === path2;
+		return isSingleFolderWorkspaceIdentifier(workspaceIdentifier) && resources.isEqual(this.workspace.folders[0].uri, workspaceIdentifier, resources.hasToIgnoreCase(workspaceIdentifier));
 	}
 }
 
@@ -249,7 +242,8 @@ export class TestTextFileService extends TextFileService {
 export function workbenchInstantiationService(): IInstantiationService {
 	let instantiationService = new TestInstantiationService(new ServiceCollection([ILifecycleService, new TestLifecycleService()]));
 	instantiationService.stub(IContextKeyService, <IContextKeyService>instantiationService.createInstance(MockContextKeyService));
-	instantiationService.stub(IWorkspaceContextService, new TestContextService(TestWorkspace));
+	const workspaceContextService = new TestContextService(TestWorkspace);
+	instantiationService.stub(IWorkspaceContextService, workspaceContextService);
 	const configService = new TestConfigurationService();
 	instantiationService.stub(IConfigurationService, configService);
 	instantiationService.stub(ITextResourceConfigurationService, new TestTextResourceConfigurationService(configService));
@@ -275,12 +269,27 @@ export function workbenchInstantiationService(): IInstantiationService {
 	instantiationService.stub(IEnvironmentService, TestEnvironmentService);
 	instantiationService.stub(IThemeService, new TestThemeService());
 	instantiationService.stub(IHashService, new TestHashService());
+	instantiationService.stub(ILogService, new TestLogService());
 	instantiationService.stub(IEditorGroupsService, new TestEditorGroupsService([new TestEditorGroup(0)]));
+	instantiationService.stub(IUriDisplayService, new UriDisplayService(TestEnvironmentService, workspaceContextService));
 	const editorService = new TestEditorService();
 	instantiationService.stub(IEditorService, editorService);
 	instantiationService.stub(ICodeEditorService, new TestCodeEditorService());
 
 	return instantiationService;
+}
+
+export class TestLogService implements ILogService {
+	_serviceBrand: any; onDidChangeLogLevel: Event<LogLevel>;
+	getLevel(): LogLevel { return LogLevel.Info; }
+	setLevel(level: LogLevel): void { }
+	trace(message: string, ...args: any[]): void { }
+	debug(message: string, ...args: any[]): void { }
+	info(message: string, ...args: any[]): void { }
+	warn(message: string, ...args: any[]): void { }
+	error(message: string | Error, ...args: any[]): void { }
+	critical(message: string | Error, ...args: any[]): void { }
+	dispose(): void { }
 }
 
 export class TestDecorationsService implements IDecorationsService {
@@ -442,6 +451,10 @@ export class TestPartService implements IPartService {
 
 	public isPanelMaximized(): boolean {
 		return false;
+	}
+
+	public getMenubarVisibility(): MenuBarVisibility {
+		return null;
 	}
 
 	public getSideBarPosition() {
@@ -1009,6 +1022,10 @@ export class TestWindowService implements IWindowService {
 		return TPromise.as(void 0);
 	}
 
+	enterWorkspace(path: string): TPromise<IEnterWorkspaceResult> {
+		return TPromise.as(void 0);
+	}
+
 	createAndEnterWorkspace(folders?: IWorkspaceFolderCreationData[], path?: string): TPromise<IEnterWorkspaceResult> {
 		return TPromise.as(void 0);
 	}
@@ -1045,7 +1062,7 @@ export class TestWindowService implements IWindowService {
 		return TPromise.as(void 0);
 	}
 
-	openWindow(paths: string[], options?: { forceNewWindow?: boolean, forceReuseWindow?: boolean, forceOpenWorkspaceAsFile?: boolean }): TPromise<void> {
+	openWindow(paths: URI[], options?: { forceNewWindow?: boolean, forceReuseWindow?: boolean, forceOpenWorkspaceAsFile?: boolean }): TPromise<void> {
 		return TPromise.as(void 0);
 	}
 
@@ -1162,6 +1179,10 @@ export class TestWindowsService implements IWindowsService {
 		return TPromise.as(void 0);
 	}
 
+	enterWorkspace(windowId: number, path: string): TPromise<IEnterWorkspaceResult> {
+		return TPromise.as(void 0);
+	}
+
 	createAndEnterWorkspace(windowId: number, folders?: IWorkspaceFolderCreationData[], path?: string): TPromise<IEnterWorkspaceResult> {
 		return TPromise.as(void 0);
 	}
@@ -1243,7 +1264,7 @@ export class TestWindowsService implements IWindowsService {
 	}
 
 	// Global methods
-	openWindow(windowId: number, paths: string[], options?: { forceNewWindow?: boolean, forceReuseWindow?: boolean, forceOpenWorkspaceAsFile?: boolean }): TPromise<void> {
+	openWindow(windowId: number, paths: URI[], options?: { forceNewWindow?: boolean, forceReuseWindow?: boolean, forceOpenWorkspaceAsFile?: boolean }): TPromise<void> {
 		return TPromise.as(void 0);
 	}
 
@@ -1255,7 +1276,7 @@ export class TestWindowsService implements IWindowsService {
 		return TPromise.as(void 0);
 	}
 
-	getWindows(): TPromise<{ id: number; workspace?: IWorkspaceIdentifier; folderPath?: string; title: string; filename?: string; }[]> {
+	getWindows(): TPromise<{ id: number; workspace?: IWorkspaceIdentifier; folderUri?: ISingleFolderWorkspaceIdentifier; title: string; filename?: string; }[]> {
 		return TPromise.as(void 0);
 	}
 
@@ -1295,6 +1316,10 @@ export class TestWindowsService implements IWindowsService {
 		return TPromise.as(void 0);
 	}
 
+	getActiveWindowId(): TPromise<number | undefined> {
+		return TPromise.as(undefined);
+	}
+
 	// This needs to be handled from browser process to prevent
 	// foreground ordering issues on Windows
 	openExternal(url: string): TPromise<boolean> {
@@ -1315,10 +1340,6 @@ export class TestWindowsService implements IWindowsService {
 	}
 
 	showOpenDialog(windowId: number, options: Electron.OpenDialogOptions): TPromise<string[]> {
-		return TPromise.as(void 0);
-	}
-
-	openAccessibilityOptions(): TPromise<void> {
 		return TPromise.as(void 0);
 	}
 

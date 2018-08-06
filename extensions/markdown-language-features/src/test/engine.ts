@@ -9,6 +9,7 @@ import { MarkdownContributions } from '../markdownExtensions';
 import { githubSlugifier } from '../slugify';
 
 const emptyContributions = new class implements MarkdownContributions {
+	readonly extensionPath = '';
 	readonly previewScripts: vscode.Uri[] = [];
 	readonly previewStyles: vscode.Uri[] = [];
 	readonly previewResourceRoots: vscode.Uri[] = [];

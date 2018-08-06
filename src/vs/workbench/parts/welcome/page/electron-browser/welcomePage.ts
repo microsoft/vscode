@@ -24,7 +24,7 @@ import { IEnvironmentService } from 'vs/platform/environment/common/environment'
 import { Schemas } from 'vs/base/common/network';
 import { IBackupFileService } from 'vs/workbench/services/backup/common/backup';
 import { getInstalledExtensions, IExtensionStatus, onExtensionChanged, isKeymapExtension } from 'vs/workbench/parts/extensions/electron-browser/extensionsUtils';
-import { IExtensionEnablementService, IExtensionManagementService, IExtensionGalleryService, IExtensionTipsService, EnablementState } from 'vs/platform/extensionManagement/common/extensionManagement';
+import { IExtensionEnablementService, IExtensionManagementService, IExtensionGalleryService, IExtensionTipsService, EnablementState, LocalExtensionType } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { used } from 'vs/workbench/parts/welcome/page/electron-browser/vs_code_welcome_page';
 import { ILifecycleService, StartupKind } from 'vs/platform/lifecycle/common/lifecycle';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
@@ -34,11 +34,13 @@ import { registerColor, focusBorder, textLinkForeground, textLinkActiveForegroun
 import { getExtraColor } from 'vs/workbench/parts/welcome/walkThrough/node/walkThroughUtils';
 import { IExtensionsWorkbenchService } from 'vs/workbench/parts/extensions/common/extensions';
 import { IStorageService } from 'vs/platform/storage/common/storage';
-import { IWorkspaceIdentifier, getWorkspaceLabel, ISingleFolderWorkspaceIdentifier, isSingleFolderWorkspaceIdentifier } from 'vs/platform/workspaces/common/workspaces';
+import { IWorkspaceIdentifier, getWorkspaceLabel, ISingleFolderWorkspaceIdentifier, isSingleFolderWorkspaceIdentifier, isWorkspaceIdentifier } from 'vs/platform/workspaces/common/workspaces';
 import { IEditorInputFactory, EditorInput } from 'vs/workbench/common/editor';
 import { getIdAndVersionFromLocalExtensionId } from 'vs/platform/extensionManagement/node/extensionManagementUtil';
 import { INotificationService, Severity } from 'vs/platform/notification/common/notification';
 import { TimeoutTimer } from 'vs/base/common/async';
+import { areSameExtensions } from 'vs/platform/extensionManagement/common/extensionManagementUtil';
+import { IUriDisplayService } from 'vs/platform/uriDisplay/common/uriDisplay';
 
 used();
 
@@ -224,6 +226,7 @@ class WelcomePage {
 		@IWorkspaceContextService private contextService: IWorkspaceContextService,
 		@IConfigurationService private configurationService: IConfigurationService,
 		@IEnvironmentService private environmentService: IEnvironmentService,
+		@IUriDisplayService private uriDisplayService: IUriDisplayService,
 		@INotificationService private notificationService: INotificationService,
 		@IExtensionEnablementService private extensionEnablementService: IExtensionEnablementService,
 		@IExtensionGalleryService private extensionGalleryService: IExtensionGalleryService,
@@ -277,33 +280,40 @@ class WelcomePage {
 			const before = ul.firstElementChild;
 			workspaces.slice(0, 5).forEach(workspace => {
 				let label: string;
-				let parent: string;
-				let wsPath: string;
+				let resource: URI;
 				if (isSingleFolderWorkspaceIdentifier(workspace)) {
-					label = getBaseLabel(workspace);
-					parent = path.dirname(workspace);
-					wsPath = workspace;
+					resource = workspace;
+					label = getWorkspaceLabel(workspace, this.environmentService, this.uriDisplayService);
+				} else if (isWorkspaceIdentifier(workspace)) {
+					label = getWorkspaceLabel(workspace, this.environmentService, this.uriDisplayService);
+					resource = URI.file(workspace.configPath);
 				} else {
-					label = getWorkspaceLabel(workspace, this.environmentService);
-					parent = path.dirname(workspace.configPath);
-					wsPath = workspace.configPath;
+					label = getBaseLabel(workspace);
+					resource = URI.file(workspace);
 				}
 
 				const li = document.createElement('li');
 
 				const a = document.createElement('a');
 				let name = label;
-				let parentFolder = parent;
-				if (!name && parentFolder) {
-					const tmp = name;
-					name = parentFolder;
-					parentFolder = tmp;
+				let parentFolderPath: string;
+
+				if (resource.scheme === Schemas.file) {
+					let parentFolder = path.dirname(resource.fsPath);
+					if (!name && parentFolder) {
+						const tmp = name;
+						name = parentFolder;
+						parentFolder = tmp;
+					}
+					parentFolderPath = tildify(parentFolder, this.environmentService.userHome);
+				} else {
+					parentFolderPath = this.uriDisplayService.getLabel(resource);
 				}
-				const tildifiedParentFolder = tildify(parentFolder, this.environmentService.userHome);
+
 
 				a.innerText = name;
 				a.title = label;
-				a.setAttribute('aria-label', localize('welcomePage.openFolderWithPath', "Open folder {0} with path {1}", name, tildifiedParentFolder));
+				a.setAttribute('aria-label', localize('welcomePage.openFolderWithPath', "Open folder {0} with path {1}", name, parentFolderPath));
 				a.href = 'javascript:void(0)';
 				a.addEventListener('click', e => {
 					/* __GDPR__
@@ -316,7 +326,7 @@ class WelcomePage {
 						id: 'openRecentFolder',
 						from: telemetryFrom
 					});
-					this.windowService.openWindow([wsPath], { forceNewWindow: e.ctrlKey || e.metaKey });
+					this.windowService.openWindow([resource], { forceNewWindow: e.ctrlKey || e.metaKey });
 					e.preventDefault();
 					e.stopPropagation();
 				});
@@ -325,7 +335,7 @@ class WelcomePage {
 				const span = document.createElement('span');
 				span.classList.add('path');
 				span.classList.add('detail');
-				span.innerText = tildifiedParentFolder;
+				span.innerText = parentFolderPath;
 				span.title = label;
 				li.appendChild(span);
 
@@ -420,7 +430,9 @@ class WelcomePage {
 						return null;
 					}
 					return this.extensionManagementService.installFromGallery(extension)
-						.then(local => {
+						.then(() => this.extensionManagementService.getInstalled(LocalExtensionType.User))
+						.then(installed => {
+							const local = installed.filter(i => areSameExtensions(extension.identifier, i.galleryIdentifier))[0];
 							// TODO: Do this as part of the install to avoid multiple events.
 							return this.extensionEnablementService.setEnablement(local, EnablementState.Disabled).then(() => local);
 						});

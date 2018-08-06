@@ -9,7 +9,7 @@ import 'vs/css!./media/statusbarpart';
 import * as nls from 'vs/nls';
 import { toErrorMessage } from 'vs/base/common/errorMessage';
 import { TPromise } from 'vs/base/common/winjs.base';
-import { dispose, IDisposable } from 'vs/base/common/lifecycle';
+import { dispose, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
 import { $ } from 'vs/base/browser/builder';
 import { OcticonLabel } from 'vs/base/browser/ui/octiconLabel/octiconLabel';
 import { Registry } from 'vs/platform/registry/common/platform';
@@ -86,15 +86,13 @@ export class StatusbarPart extends Part implements IStatusbarService {
 			container.appendChild(el);
 		}
 
-		return {
-			dispose: () => {
-				$(el).destroy();
+		return toDisposable(() => {
+			$(el).destroy();
 
-				if (toDispose) {
-					toDispose.dispose();
-				}
+			if (toDispose) {
+				toDispose.dispose();
 			}
-		};
+		});
 	}
 
 	private getEntries(alignment: StatusbarAlignment): HTMLElement[] {

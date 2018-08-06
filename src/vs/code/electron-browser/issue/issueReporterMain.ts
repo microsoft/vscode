@@ -23,7 +23,7 @@ import { getDelayedChannel } from 'vs/base/parts/ipc/common/ipc';
 import { connect as connectNet } from 'vs/base/parts/ipc/node/ipc.net';
 import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
 import { IWindowConfiguration, IWindowsService } from 'vs/platform/windows/common/windows';
-import { NullTelemetryService } from 'vs/platform/telemetry/common/telemetryUtils';
+import { NullTelemetryService, combinedAppender, LogAppender } from 'vs/platform/telemetry/common/telemetryUtils';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { ITelemetryServiceConfig, TelemetryService } from 'vs/platform/telemetry/common/telemetryService';
 import { ITelemetryAppenderChannel, TelemetryAppenderClient } from 'vs/platform/telemetry/common/telemetryIpc';
@@ -86,7 +86,7 @@ export class IssueReporter extends Disposable {
 				vscodeVersion: `${pkg.name} ${pkg.version} (${product.commit || 'Commit unknown'}, ${product.date || 'Date unknown'})`,
 				os: `${os.type()} ${os.arch()} ${os.release()}`
 			},
-			extensionsDisabled: this.environmentService.disableExtensions,
+			extensionsDisabled: !!this.environmentService.disableExtensions,
 		});
 
 		this.previewButton = new Button(document.getElementById('issue-reporter'));
@@ -287,9 +287,9 @@ export class IssueReporter extends Disposable {
 			.then(() => connectNet(this.environmentService.sharedIPCHandle, `window:${configuration.windowId}`));
 
 		const instantiationService = new InstantiationService(serviceCollection, true);
-		if (this.environmentService.isBuilt && !this.environmentService.isExtensionDevelopment && !this.environmentService.args['disable-telemetry'] && !!product.enableTelemetry) {
+		if (!this.environmentService.isExtensionDevelopment && !this.environmentService.args['disable-telemetry'] && !!product.enableTelemetry) {
 			const channel = getDelayedChannel<ITelemetryAppenderChannel>(sharedProcess.then(c => c.getChannel('telemetryAppender')));
-			const appender = new TelemetryAppenderClient(channel);
+			const appender = combinedAppender(new TelemetryAppenderClient(channel), new LogAppender(logService));
 			const commonProperties = resolveCommonProperties(product.commit, pkg.version, configuration.machineId, this.environmentService.installSourcePath);
 			const piiPaths = [this.environmentService.appRoot, this.environmentService.extensionsPath];
 			const config: ITelemetryServiceConfig = { appender, commonProperties, piiPaths };
@@ -412,6 +412,16 @@ export class IssueReporter extends Disposable {
 			// Cmd/Ctrl - zooms out
 			if (cmdOrCtrlKey && e.keyCode === 189) {
 				this.applyZoom(webFrame.getZoomLevel() - 1);
+			}
+
+			// With latest electron upgrade, cmd+a is no longer propagating correctly for inputs in this window on mac
+			// Manually perform the selection
+			if (platform.isMacintosh) {
+				if (cmdOrCtrlKey && e.keyCode === 65 && e.target) {
+					if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) {
+						(<HTMLInputElement>e.target).select();
+					}
+				}
 			}
 		};
 	}

@@ -29,13 +29,12 @@ let _source: string = null;
 function getSource(): string {
 	if (!_source) {
 		const root = URI.parse(require.toUrl('')).fsPath;
-		_source = path.resolve(root, '..', 'resources', 'darwin', 'bin', 'code.sh');
+		_source = path.resolve(root, '..', 'bin', 'code');
 	}
 	return _source;
 }
 
 function isAvailable(): TPromise<boolean> {
-	console.log(getSource());
 	return pfs.exists(getSource());
 }
 

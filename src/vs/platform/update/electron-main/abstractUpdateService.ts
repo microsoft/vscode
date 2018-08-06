@@ -11,7 +11,7 @@ import { IConfigurationService } from 'vs/platform/configuration/common/configur
 import { ILifecycleService } from 'vs/platform/lifecycle/electron-main/lifecycleMain';
 import product from 'vs/platform/node/product';
 import { TPromise } from 'vs/base/common/winjs.base';
-import { IUpdateService, State, StateType, AvailableForDownload } from 'vs/platform/update/common/update';
+import { IUpdateService, State, StateType, AvailableForDownload, UpdateType } from 'vs/platform/update/common/update';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { ILogService } from 'vs/platform/log/common/log';
 import { IRequestService } from 'vs/platform/request/node/request';
@@ -72,7 +72,7 @@ export abstract class AbstractUpdateService implements IUpdateService {
 			return;
 		}
 
-		this.setState({ type: StateType.Idle });
+		this.setState(State.Idle(this.getUpdateType()));
 
 		// Start checking for updates after 30 seconds
 		this.scheduleCheckForUpdates(30 * 1000)
@@ -171,6 +171,10 @@ export abstract class AbstractUpdateService implements IUpdateService {
 				return false;
 			}
 		});
+	}
+
+	protected getUpdateType(): UpdateType {
+		return UpdateType.Archive;
 	}
 
 	protected doQuitAndInstall(): void {

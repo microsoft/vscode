@@ -236,10 +236,16 @@ interface SuggestController extends IEditorContribution {
 	triggerSuggest(onlyFrom?: ISuggestSupport[]): void;
 }
 
-let _suggestions: ISuggestion[];
+
 let _provider = new class implements ISuggestSupport {
+
+	onlyOnceSuggestions: ISuggestion[] = [];
+
 	provideCompletionItems(): ISuggestResult {
-		return _suggestions && { suggestions: _suggestions };
+		let suggestions = this.onlyOnceSuggestions.slice(0);
+		let result = { suggestions };
+		this.onlyOnceSuggestions.length = 0;
+		return result;
 	}
 };
 
@@ -247,8 +253,7 @@ SuggestRegistry.register('*', _provider);
 
 export function showSimpleSuggestions(editor: ICodeEditor, suggestions: ISuggestion[]) {
 	setTimeout(() => {
-		_suggestions = suggestions;
+		_provider.onlyOnceSuggestions.push(...suggestions);
 		editor.getContribution<SuggestController>('editor.contrib.suggestController').triggerSuggest([_provider]);
-		_suggestions = undefined;
 	}, 0);
 }

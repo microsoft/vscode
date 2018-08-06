@@ -23,6 +23,7 @@ export interface ISelectBoxDelegate {
 	readonly onDidSelect: Event<ISelectData>;
 	setOptions(options: string[], selected?: number, disabled?: number): void;
 	select(index: number): void;
+	setAriaLabel(label: string);
 	focus(): void;
 	blur(): void;
 	dispose(): void;
@@ -34,6 +35,7 @@ export interface ISelectBoxDelegate {
 }
 
 export interface ISelectBoxOptions {
+	ariaLabel?: string;
 	minBottomMargin?: number;
 }
 
@@ -67,7 +69,7 @@ export class SelectBox extends Widget implements ISelectBoxDelegate {
 
 		// Instantiate select implementation based on platform
 		if (isMacintosh) {
-			this.selectBoxDelegate = new SelectBoxNative(options, selected, styles);
+			this.selectBoxDelegate = new SelectBoxNative(options, selected, styles, selectBoxOptions);
 		} else {
 			this.selectBoxDelegate = new SelectBoxList(options, selected, contextViewProvider, styles, selectBoxOptions);
 		}
@@ -87,6 +89,10 @@ export class SelectBox extends Widget implements ISelectBoxDelegate {
 
 	public select(index: number): void {
 		this.selectBoxDelegate.select(index);
+	}
+
+	public setAriaLabel(label: string): void {
+		this.selectBoxDelegate.setAriaLabel(label);
 	}
 
 	public focus(): void {

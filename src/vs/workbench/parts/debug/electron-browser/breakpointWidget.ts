@@ -17,7 +17,6 @@ import { IContextViewService } from 'vs/platform/contextview/browser/contextView
 import { IDebugService, IBreakpoint, BreakpointWidgetContext as Context, CONTEXT_BREAKPOINT_WIDGET_VISIBLE, DEBUG_SCHEME, IDebugEditorContribution, EDITOR_CONTRIBUTION_ID, CONTEXT_IN_BREAKPOINT_WIDGET } from 'vs/workbench/parts/debug/common/debug';
 import { attachSelectBoxStyler } from 'vs/platform/theme/common/styler';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
-import { SimpleDebugEditor } from 'vs/workbench/parts/debug/electron-browser/simpleDebugEditor';
 import { createDecorator, IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { ServicesAccessor, EditorCommand, registerEditorCommand } from 'vs/editor/browser/editorExtensions';
@@ -33,6 +32,8 @@ import { transparent, editorForeground } from 'vs/platform/theme/common/colorReg
 import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
 import { IDecorationOptions } from 'vs/editor/common/editorCommon';
 import { CodeEditorWidget } from 'vs/editor/browser/widget/codeEditorWidget';
+import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
+import { getSimpleEditorOptions, getSimpleCodeEditorWidgetOptions } from 'vs/workbench/parts/codeEditor/electron-browser/simpleEditorOptions';
 
 const $ = dom.$;
 const IPrivateBreakpointWidgetService = createDecorator<IPrivateBreakpointWidgetService>('privateBreakopintWidgetService');
@@ -127,7 +128,7 @@ export class BreakpointWidget extends ZoneWidget implements IPrivateBreakpointWi
 
 	protected _fillContainer(container: HTMLElement): void {
 		this.setCssClass('breakpoint-widget');
-		const selectBox = new SelectBox([nls.localize('expression', "Expression"), nls.localize('hitCount', "Hit Count"), nls.localize('logMessage', "Log Message")], this.context, this.contextViewService);
+		const selectBox = new SelectBox([nls.localize('expression', "Expression"), nls.localize('hitCount', "Hit Count"), nls.localize('logMessage', "Log Message")], this.context, this.contextViewService, null, { ariaLabel: nls.localize('breakpointType', 'Breakpoint Type') });
 		this.toDispose.push(attachSelectBoxStyler(selectBox, this.themeService));
 		this.selectContainer = $('.breakpoint-select-container');
 		selectBox.render(dom.append(container, this.selectContainer));
@@ -199,11 +200,11 @@ export class BreakpointWidget extends ZoneWidget implements IPrivateBreakpointWi
 		const scopedInstatiationService = this.instantiationService.createChild(new ServiceCollection(
 			[IContextKeyService, scopedContextKeyService], [IPrivateBreakpointWidgetService, this]));
 
-		const options = SimpleDebugEditor.getEditorOptions();
-		const codeEditorWidgetOptions = SimpleDebugEditor.getCodeEditorWidgetOptions();
+		const options = getSimpleEditorOptions();
+		const codeEditorWidgetOptions = getSimpleCodeEditorWidgetOptions();
 		this.input = scopedInstatiationService.createInstance(CodeEditorWidget, container, options, codeEditorWidgetOptions);
 		CONTEXT_IN_BREAKPOINT_WIDGET.bindTo(scopedContextKeyService).set(true);
-		const model = this.modelService.createModel('', null, uri.parse(`${DEBUG_SCHEME}:breakpointinput`), true);
+		const model = this.modelService.createModel('', null, uri.parse(`${DEBUG_SCHEME}:${this.editor.getId()}:breakpointinput`), true);
 		this.input.setModel(model);
 		this.toDispose.push(model);
 		const setDecorations = () => {
@@ -296,7 +297,8 @@ class AcceptBreakpointWidgetInputAction extends EditorCommand {
 			precondition: CONTEXT_BREAKPOINT_WIDGET_VISIBLE,
 			kbOpts: {
 				kbExpr: CONTEXT_IN_BREAKPOINT_WIDGET,
-				primary: KeyCode.Enter
+				primary: KeyCode.Enter,
+				weight: KeybindingWeight.EditorContrib
 			}
 		});
 	}
@@ -315,7 +317,8 @@ class CloseBreakpointWidgetCommand extends EditorCommand {
 			kbOpts: {
 				kbExpr: EditorContextKeys.textInputFocus,
 				primary: KeyCode.Escape,
-				secondary: [KeyMod.Shift | KeyCode.Escape]
+				secondary: [KeyMod.Shift | KeyCode.Escape],
+				weight: KeybindingWeight.EditorContrib
 			}
 		});
 	}

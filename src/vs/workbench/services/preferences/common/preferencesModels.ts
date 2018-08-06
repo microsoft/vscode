@@ -493,7 +493,8 @@ export class DefaultSettings extends Disposable {
 		};
 	}
 
-	private parseConfig(config: IConfigurationNode, result: ISettingsGroup[], configurations: IConfigurationNode[], settingsGroup?: ISettingsGroup): ISettingsGroup[] {
+	private parseConfig(config: IConfigurationNode, result: ISettingsGroup[], configurations: IConfigurationNode[], settingsGroup?: ISettingsGroup, seenSettings?: { [key: string]: boolean }): ISettingsGroup[] {
+		seenSettings = seenSettings ? seenSettings : {};
 		let title = config.title;
 		if (!title) {
 			const configWithTitleAndSameId = configurations.filter(c => c.id === config.id && c.title)[0];
@@ -517,14 +518,20 @@ export class DefaultSettings extends Disposable {
 				settingsGroup = { sections: [{ settings: [] }], id: config.id, title: config.id, titleRange: null, range: null, contributedByExtension: !!config.contributedByExtension };
 				result.push(settingsGroup);
 			}
-			const configurationSettings: ISetting[] = [...settingsGroup.sections[settingsGroup.sections.length - 1].settings, ...this.parseSettings(config.properties)];
+			const configurationSettings: ISetting[] = [];
+			for (const setting of [...settingsGroup.sections[settingsGroup.sections.length - 1].settings, ...this.parseSettings(config.properties)]) {
+				if (!seenSettings[setting.key]) {
+					configurationSettings.push(setting);
+					seenSettings[setting.key] = true;
+				}
+			}
 			if (configurationSettings.length) {
 				configurationSettings.sort((a, b) => a.key.localeCompare(b.key));
 				settingsGroup.sections[settingsGroup.sections.length - 1].settings = configurationSettings;
 			}
 		}
 		if (config.allOf) {
-			config.allOf.forEach(c => this.parseConfig(c, result, configurations, settingsGroup));
+			config.allOf.forEach(c => this.parseConfig(c, result, configurations, settingsGroup, seenSettings));
 		}
 		return result;
 	}
@@ -548,7 +555,20 @@ export class DefaultSettings extends Disposable {
 				const value = prop.default;
 				const description = (prop.description || '').split('\n');
 				const overrides = OVERRIDE_PROPERTY_PATTERN.test(key) ? this.parseOverrideSettings(prop.default) : [];
-				result.push({ key, value, description, range: null, keyRange: null, valueRange: null, descriptionRanges: [], overrides, type: prop.type, enum: prop.enum, enumDescriptions: prop.enumDescriptions });
+				result.push({
+					key,
+					value,
+					description,
+					range: null,
+					keyRange: null,
+					valueRange: null,
+					descriptionRanges: [],
+					overrides,
+					type: prop.type,
+					enum: prop.enum,
+					enumDescriptions: prop.enumDescriptions,
+					tags: prop.tags
+				});
 			}
 		}
 		return result;
@@ -734,11 +754,15 @@ export class DefaultSettingsEditorModel extends AbstractSettingsModel implements
 	private copySetting(setting: ISetting): ISetting {
 		return <ISetting>{
 			description: setting.description,
+			type: setting.type,
+			enum: setting.enum,
+			enumDescriptions: setting.enumDescriptions,
 			key: setting.key,
 			value: setting.value,
 			range: setting.range,
 			overrides: [],
-			overrideOf: setting.overrideOf
+			overrideOf: setting.overrideOf,
+			tags: setting.tags
 		};
 	}
 
@@ -842,12 +866,8 @@ class SettingsContentBuilder {
 
 	private pushSetting(setting: ISetting, indent: string): void {
 		const settingStart = this.lineCountWithOffset + 1;
-		setting.descriptionRanges = [];
-		const descriptionPreValue = indent + '// ';
-		for (const line of setting.description) {
-			this._contentByLines.push(descriptionPreValue + line);
-			setting.descriptionRanges.push({ startLineNumber: this.lineCountWithOffset, startColumn: this.lastLine.indexOf(line) + 1, endLineNumber: this.lineCountWithOffset, endColumn: this.lastLine.length });
-		}
+
+		this.pushSettingDescription(setting, indent);
 
 		let preValueConent = indent;
 		const keyString = JSON.stringify(setting.key);
@@ -862,6 +882,33 @@ class SettingsContentBuilder {
 		this._contentByLines[this._contentByLines.length - 1] += ',';
 		this._contentByLines.push('');
 		setting.range = { startLineNumber: settingStart, startColumn: 1, endLineNumber: this.lineCountWithOffset, endColumn: this.lastLine.length };
+	}
+
+	private pushSettingDescription(setting: ISetting, indent: string): void {
+		const fixSettingLink = line => line.replace(/`#(.*)#`/g, (match, settingName) => `\`${settingName}\``);
+
+		setting.descriptionRanges = [];
+		const descriptionPreValue = indent + '// ';
+		for (let line of setting.description) {
+			// Remove setting link tag
+			line = fixSettingLink(line);
+
+			this._contentByLines.push(descriptionPreValue + line);
+			setting.descriptionRanges.push({ startLineNumber: this.lineCountWithOffset, startColumn: this.lastLine.indexOf(line) + 1, endLineNumber: this.lineCountWithOffset, endColumn: this.lastLine.length });
+		}
+
+		if (setting.enumDescriptions && setting.enumDescriptions.some(desc => !!desc)) {
+			setting.enumDescriptions.forEach((desc, i) => {
+				const displayEnum = escapeInvisibleChars(setting.enum[i]);
+				const line = desc ?
+					`${displayEnum}: ${fixSettingLink(desc)}` :
+					displayEnum;
+
+				this._contentByLines.push(`  //  - ${line}`);
+
+				setting.descriptionRanges.push({ startLineNumber: this.lineCountWithOffset, startColumn: this.lastLine.indexOf(line) + 1, endLineNumber: this.lineCountWithOffset, endColumn: this.lastLine.length });
+			});
+		}
 	}
 
 	private pushValue(setting: ISetting, preValueConent: string, indent: string): void {
@@ -894,6 +941,12 @@ class SettingsContentBuilder {
 			result.push(indent + '// ' + line);
 		}
 	}
+}
+
+function escapeInvisibleChars(enumValue: string): string {
+	return enumValue && enumValue
+		.replace(/\n/g, '\\n')
+		.replace(/\r/g, '\\r');
 }
 
 export function defaultKeybindingsContents(keybindingService: IKeybindingService): string {

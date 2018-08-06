@@ -257,6 +257,25 @@
 
 /* Breadcrumbs */
 
-.monaco-workbench > .part.editor > .content .editor-group-container > .title .breadcrumbs-control {
+.monaco-workbench > .part.editor > .content .editor-group-container > .title .tabs-breadcrumbs .breadcrumbs-control {
 	flex: 1 100%;
+	height: 25px;
+	cursor: default;
 }
+
+.monaco-workbench > .part.editor > .content .editor-group-container > .title .tabs-breadcrumbs .breadcrumbs-control .monaco-icon-label::before {
+	height: 18px; /* tweak the icon size of the editor labels when icons are enabled */
+}
+
+.monaco-workbench > .part.editor > .content .editor-group-container > .title .tabs-breadcrumbs  .breadcrumbs-control .monaco-breadcrumb-item {
+	max-width: 260px;
+}
+
+.monaco-workbench > .part.editor > .content .editor-group-container > .title .tabs-breadcrumbs  .breadcrumbs-control .monaco-breadcrumb-item:last-child {
+	padding-right: 8px;
+}
+
+/* .monaco-workbench > .part.editor > .content .editor-group-container > .title .tabs-breadcrumbs  .breadcrumbs-control .monaco-breadcrumb-item:not(:last-child):not(:hover):not(.focused):not(.file) {
+	min-width: 33px;
+} */
+

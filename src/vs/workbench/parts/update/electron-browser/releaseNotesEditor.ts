@@ -99,6 +99,11 @@ export class ReleaseNotesManager {
 					onDispose: () => { this._currentReleaseNotes = undefined; }
 				});
 
+			const iconPath = URI.parse(require.toUrl('./media/code-icon.svg'));
+			this._currentReleaseNotes.iconPath = {
+				light: iconPath,
+				dark: iconPath
+			};
 			this._currentReleaseNotes.html = html;
 		}
 

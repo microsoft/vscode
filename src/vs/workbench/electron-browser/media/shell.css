@@ -65,13 +65,21 @@
 	cursor: pointer;
 }
 
+.monaco-shell .monaco-menu-container .monaco-menu {
+	font-family: -apple-system, BlinkMacSystemFont, "Segoe WPC", "Segoe UI", "HelveticaNeue-Light", "Ubuntu", "Droid Sans", sans-serif;
+}
+
 .monaco-shell .monaco-menu .monaco-action-bar.vertical {
 	padding: .5em 0;
 }
 
+.monaco-shell .monaco-menu .monaco-action-bar.vertical .action-menu-item {
+	height: 1.8em;
+}
+
 .monaco-shell .monaco-menu .monaco-action-bar.vertical .action-label:not(.separator),
 .monaco-shell .monaco-menu .monaco-action-bar.vertical .keybinding {
-	padding: 0.5em 2em;
+	padding: 0 1.5em;
 }
 
 .monaco-shell .monaco-menu .monaco-action-bar.vertical .action-label.separator {
@@ -80,7 +88,7 @@
 }
 
 .monaco-shell .monaco-menu .monaco-action-bar.vertical .submenu-indicator {
-	padding: 0.5em 1em;
+	padding: 0 1em;
 }
 
 .monaco-shell .monaco-menu .action-item {
@@ -107,7 +115,6 @@
 .monaco-shell input[type="button"]:active,
 .monaco-shell input[type="checkbox"]:active,
 .monaco-shell .monaco-tree .monaco-tree-row
-.monaco-action-bar .action-item [tabindex="0"]:hover,
 .monaco-shell .monaco-tree.focused.no-focused-item:active:before {
 	outline: 0 !important; /* fixes some flashing outlines from showing up when clicking */
 }

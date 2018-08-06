@@ -73,20 +73,24 @@ export class QueryBuilder {
 
 		if (contentPattern) {
 			this.resolveSmartCaseToCaseSensitive(contentPattern);
+
+			contentPattern.wordSeparators = this.configurationService.getValue<ISearchConfiguration>().editor.wordSeparators;
 		}
 
-		const query = <ISearchQuery>{
+		const query: ISearchQuery = {
 			type,
 			folderQueries,
 			usingSearchPaths: !!(searchPaths && searchPaths.length),
 			extraFileResources: options.extraFileResources,
-			filePattern: options.filePattern,
+			filePattern: options.filePattern
+				? options.filePattern.trim()
+				: options.filePattern,
 			excludePattern,
 			includePattern,
 			maxResults: options.maxResults,
 			sortByScore: options.sortByScore,
 			cacheKey: options.cacheKey,
-			contentPattern: contentPattern,
+			contentPattern,
 			useRipgrep,
 			disregardIgnoreFiles: options.disregardIgnoreFiles || !useIgnoreFiles,
 			disregardExcludeSettings: options.disregardExcludeSettings,

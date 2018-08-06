@@ -136,7 +136,7 @@
 	font-weight: bold;
 }
 
-.markers-panel .icon {
+.markers-panel .monaco-tree .markers-panel-tree-entry > .icon {
 	height: 22px;
 	margin-right: 6px;
 	flex: 0 0 16px;
@@ -164,4 +164,38 @@
 
 .vs-dark .markers-panel .icon.info {
 	background: url('status-info-inverse.svg') center center no-repeat;
+}
+
+.markers-panel .monaco-tree .markers-panel-tree-entry .actions .action-label.icon.markers-panel-action-quickfix {
+	background: url('lightbulb.svg') center/80% no-repeat;
+	margin-right: 0px;
+}
+
+.vs-dark .markers-panel .monaco-tree .markers-panel-tree-entry .actions .action-label.icon.markers-panel-action-quickfix {
+	background: url('lightbulb-dark.svg') center/80% no-repeat;
+}
+
+.markers-panel .monaco-tree .monaco-tree-row .markers-panel-tree-entry > .actions {
+	width: 16px;
+}
+
+.markers-panel .monaco-tree .monaco-tree-row .markers-panel-tree-entry > .actions .monaco-action-bar {
+	display: none;
+}
+
+.markers-panel .monaco-tree .monaco-tree-row:hover .markers-panel-tree-entry > .actions .monaco-action-bar,
+.markers-panel .monaco-tree .monaco-tree-row.selected .markers-panel-tree-entry > .actions .monaco-action-bar,
+.markers-panel .monaco-tree .monaco-tree-row.focused .markers-panel-tree-entry > .actions .monaco-action-bar {
+	display: block;
+}
+
+.markers-panel .monaco-tree .markers-panel-tree-entry .actions .action-label {
+	width: 16px;
+	height: 100%;
+	background-position: 50% 50%;
+	background-repeat: no-repeat;
+}
+
+.markers-panel .monaco-tree .markers-panel-tree-entry .actions .action-item.disabled {
+	display: none;
 }

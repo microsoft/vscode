@@ -10,7 +10,7 @@ import { Registry } from 'vs/platform/registry/common/platform';
 import { IWorkbenchActionRegistry, Extensions as ActionExtensions } from 'vs/workbench/common/actions';
 import { Action } from 'vs/base/common/actions';
 import { TPromise } from 'vs/base/common/winjs.base';
-import { SyncActionDescriptor } from 'vs/platform/actions/common/actions';
+import { SyncActionDescriptor, MenuRegistry, MenuId } from 'vs/platform/actions/common/actions';
 
 export class ToggleRenderWhitespaceAction extends Action {
 
@@ -41,3 +41,12 @@ export class ToggleRenderWhitespaceAction extends Action {
 
 const registry = Registry.as<IWorkbenchActionRegistry>(ActionExtensions.WorkbenchActions);
 registry.registerWorkbenchAction(new SyncActionDescriptor(ToggleRenderWhitespaceAction, ToggleRenderWhitespaceAction.ID, ToggleRenderWhitespaceAction.LABEL), 'View: Toggle Render Whitespace');
+
+MenuRegistry.appendMenuItem(MenuId.MenubarViewMenu, {
+	group: '5_editor',
+	command: {
+		id: ToggleRenderWhitespaceAction.ID,
+		title: nls.localize({ key: 'miToggleRenderWhitespace', comment: ['&& denotes a mnemonic'] }, "Toggle &&Render Whitespace")
+	},
+	order: 3
+});

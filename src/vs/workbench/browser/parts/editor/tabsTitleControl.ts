@@ -39,8 +39,8 @@ import { addClass, addDisposableListener, hasClass, EventType, EventHelper, remo
 import { localize } from 'vs/nls';
 import { IEditorGroupsAccessor, IEditorPartOptions, IEditorGroupView } from 'vs/workbench/browser/parts/editor/editor';
 import { CloseOneEditorAction } from 'vs/workbench/browser/parts/editor/editorActions';
-import { BreadcrumbsControl, BreadcrumbsConfig } from 'vs/workbench/browser/parts/editor/breadcrumbsControl';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
+import { BreadcrumbsControl } from 'vs/workbench/browser/parts/editor/breadcrumbsControl';
 
 interface IEditorInputLabel {
 	name: string;
@@ -57,7 +57,6 @@ export class TabsTitleControl extends TitleControl {
 	private editorToolbarContainer: HTMLElement;
 	private scrollbar: ScrollableElement;
 	private closeOneEditorAction: CloseOneEditorAction;
-	private breadcrumbs: BreadcrumbsControl;
 
 	private tabLabelWidgets: ResourceLabel[] = [];
 	private tabLabels: IEditorInputLabel[] = [];
@@ -114,7 +113,10 @@ export class TabsTitleControl extends TitleControl {
 		this.closeOneEditorAction = this._register(this.instantiationService.createInstance(CloseOneEditorAction, CloseOneEditorAction.ID, CloseOneEditorAction.LABEL));
 
 		// Breadcrumbs
-		this.createBreadcrumbsControl();
+		const breadcrumbsContainer = document.createElement('div');
+		addClass(breadcrumbsContainer, 'tabs-breadcrumbs');
+		this.titleContainer.appendChild(breadcrumbsContainer);
+		this.createBreadcrumbsControl(breadcrumbsContainer, { showFileIcons: true, showSymbolIcons: true, showDecorationColors: false, extraClasses: [] });
 	}
 
 	private createScrollbar(): void {
@@ -135,21 +137,11 @@ export class TabsTitleControl extends TitleControl {
 		this.titleContainer.appendChild(this.scrollbar.getDomNode());
 	}
 
-	private createBreadcrumbsControl(): void {
-		const config = this._register(BreadcrumbsConfig.IsEnabled.bindTo(this.configurationService));
-		config.onDidChange(value => {
-			if (!value && this.breadcrumbs) {
-				this.breadcrumbs.dispose();
-				this.breadcrumbs = undefined;
-				this.group.relayout();
-			} else if (value && !this.breadcrumbs) {
-				this.breadcrumbs = this.instantiationService.createInstance(BreadcrumbsControl, this.titleContainer, this.group);
-				this.breadcrumbs.update();
-				this.group.relayout();
-			}
-		});
-		if (config.value) {
-			this.breadcrumbs = this.instantiationService.createInstance(BreadcrumbsControl, this.titleContainer, this.group);
+	private updateBreadcrumbsControl(): void {
+		if (this.breadcrumbsControl && this.breadcrumbsControl.update()) {
+			// relayout when we have a breadcrumbs and when update changed
+			// its hidden-status
+			this.group.relayout();
 		}
 	}
 
@@ -267,9 +259,7 @@ export class TabsTitleControl extends TitleControl {
 		this.redraw();
 
 		// Update Breadcrumbs
-		if (this.breadcrumbs) {
-			this.breadcrumbs.update();
-		}
+		this.updateBreadcrumbsControl();
 	}
 
 	closeEditor(editor: IEditorInput): void {
@@ -319,9 +309,7 @@ export class TabsTitleControl extends TitleControl {
 		}
 
 		// Update Breadcrumbs
-		if (this.breadcrumbs) {
-			this.breadcrumbs.update();
-		}
+		this.updateBreadcrumbsControl();
 	}
 
 	moveEditor(editor: IEditorInput, fromIndex: number, targetIndex: number): void {
@@ -920,10 +908,6 @@ export class TabsTitleControl extends TitleControl {
 		}
 	}
 
-	getPreferredHeight(): number {
-		return super.getPreferredHeight() + (this.breadcrumbs ? this.breadcrumbs.getPreferredHeight() : 0);
-	}
-
 	layout(dimension: Dimension): void {
 		const activeTab = this.getTab(this.group.activeEditor);
 		if (!activeTab || !dimension) {
@@ -949,11 +933,9 @@ export class TabsTitleControl extends TitleControl {
 			return;
 		}
 
-		let breadcrumbsHeight = 0;
-		if (this.breadcrumbs) {
-			breadcrumbsHeight = this.breadcrumbs.getPreferredHeight();
-			this.breadcrumbs.layout({ width: dimension.width, height: dimension.height - super.getPreferredHeight() });
-			this.scrollbar.getDomNode().style.height = `${dimension.height - breadcrumbsHeight}px`;
+		if (this.breadcrumbsControl && !this.breadcrumbsControl.isHidden()) {
+			this.breadcrumbsControl.layout({ width: dimension.width, height: BreadcrumbsControl.HEIGHT });
+			this.scrollbar.getDomNode().style.height = `${dimension.height - BreadcrumbsControl.HEIGHT}px`;
 		}
 
 		const visibleContainerWidth = this.tabsContainer.offsetWidth;
@@ -1085,7 +1067,6 @@ export class TabsTitleControl extends TitleControl {
 	dispose(): void {
 		super.dispose();
 
-		this.breadcrumbs = dispose(this.breadcrumbs);
 		this.layoutScheduled = dispose(this.layoutScheduled);
 	}
 }

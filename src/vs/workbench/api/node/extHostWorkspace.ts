@@ -268,6 +268,7 @@ export class ExtHostWorkspace implements ExtHostWorkspaceShape {
 		if (folders.length === 0) {
 			return undefined;
 		}
+		// #54483 @Joh Why are we still using fsPath?
 		return folders[0].uri.fsPath;
 	}
 
@@ -394,7 +395,13 @@ export class ExtHostWorkspace implements ExtHostWorkspaceShape {
 			excludePattern: options.exclude && globPatternToString(options.exclude)
 		};
 
+		let isCanceled = false;
+
 		this._activeSearchCallbacks[requestId] = p => {
+			if (isCanceled) {
+				return;
+			}
+
 			p.lineMatches.forEach(lineMatch => {
 				lineMatch.offsetAndLengths.forEach(offsetAndLength => {
 					const range = new Range(lineMatch.lineNumber, offsetAndLength[0], lineMatch.lineNumber, offsetAndLength[0] + offsetAndLength[1]);
@@ -408,7 +415,10 @@ export class ExtHostWorkspace implements ExtHostWorkspaceShape {
 		};
 
 		if (token) {
-			token.onCancellationRequested(() => this._proxy.$cancelSearch(requestId));
+			token.onCancellationRequested(() => {
+				isCanceled = true;
+				this._proxy.$cancelSearch(requestId);
+			});
 		}
 
 		return this._proxy.$startTextSearch(query, queryOptions, requestId).then(

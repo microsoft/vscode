@@ -9,7 +9,7 @@ import { IContextKeyService, IContextKey } from 'vs/platform/contextkey/common/c
 import { ILifecycleService, LifecyclePhase } from 'vs/platform/lifecycle/common/lifecycle';
 import { IPanelService } from 'vs/workbench/services/panel/common/panelService';
 import { IPartService } from 'vs/workbench/services/part/common/partService';
-import { ITerminalService, ITerminalInstance, IShellLaunchConfig, ITerminalConfigHelper, KEYBINDING_CONTEXT_TERMINAL_FOCUS, KEYBINDING_CONTEXT_TERMINAL_FIND_WIDGET_VISIBLE, TERMINAL_PANEL_ID, ITerminalTab, ITerminalProcessExtHostProxy, ITerminalProcessExtHostRequest } from 'vs/workbench/parts/terminal/common/terminal';
+import { ITerminalService, ITerminalInstance, IShellLaunchConfig, ITerminalConfigHelper, KEYBINDING_CONTEXT_TERMINAL_FOCUS, KEYBINDING_CONTEXT_TERMINAL_FIND_WIDGET_VISIBLE, TERMINAL_PANEL_ID, ITerminalTab, ITerminalProcessExtHostProxy, ITerminalProcessExtHostRequest, KEYBINDING_CONTEXT_TERMINAL_IS_OPEN } from 'vs/workbench/parts/terminal/common/terminal';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
 
@@ -71,6 +71,18 @@ export abstract class TerminalService implements ITerminalService {
 		this.onTabDisposed(tab => this._removeTab(tab));
 
 		lifecycleService.when(LifecyclePhase.Restoring).then(() => this._restoreTabs());
+
+		this._handleContextKeys();
+	}
+
+	private _handleContextKeys(): void {
+		const terminalIsOpenContext = KEYBINDING_CONTEXT_TERMINAL_IS_OPEN.bindTo(this._contextKeyService);
+
+		const updateTerminalContextKeys = () => {
+			terminalIsOpenContext.set(this.terminalInstances.length > 0);
+		};
+
+		this.onInstancesChanged(() => updateTerminalContextKeys());
 	}
 
 	protected abstract _showTerminalCloseConfirmation(): TPromise<boolean>;

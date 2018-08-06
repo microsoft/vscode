@@ -10,7 +10,7 @@ import { Action, IAction } from 'vs/base/common/actions';
 import { HistoryInputBox } from 'vs/base/browser/ui/inputbox/inputBox';
 import { KeyCode } from 'vs/base/common/keyCodes';
 import { IKeyboardEvent } from 'vs/base/browser/keyboardEvent';
-import { IContextViewService } from 'vs/platform/contextview/browser/contextView';
+import { IContextViewService, IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 import { TogglePanelAction } from 'vs/workbench/browser/panel';
 import Messages from 'vs/workbench/parts/markers/electron-browser/messages';
 import Constants from 'vs/workbench/parts/markers/electron-browser/constants';
@@ -24,12 +24,17 @@ import { attachInputBoxStyler, attachStylerCallback, attachCheckboxStyler } from
 import { IMarkersWorkbenchService } from 'vs/workbench/parts/markers/electron-browser/markers';
 import { Event, Emitter } from 'vs/base/common/event';
 import { IDisposable } from 'vs/base/common/lifecycle';
-import { BaseActionItem } from 'vs/base/browser/ui/actionbar/actionbar';
+import { BaseActionItem, ActionItem } from 'vs/base/browser/ui/actionbar/actionbar';
 import { badgeBackground, contrastBorder } from 'vs/platform/theme/common/colorRegistry';
 import { localize } from 'vs/nls';
 import { Checkbox } from 'vs/base/browser/ui/checkbox/checkbox';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { ContextScopedHistoryInputBox } from 'vs/platform/widget/browser/contextScopedHistoryWidget';
+import { Marker, ResourceMarkers } from 'vs/workbench/parts/markers/electron-browser/markersModel';
+import { applyCodeAction } from 'vs/editor/contrib/codeAction/codeActionCommands';
+import { IBulkEditService } from 'vs/editor/browser/services/bulkEditService';
+import { ICommandService } from 'vs/platform/commands/common/commands';
+import { IEditorService, ACTIVE_GROUP } from 'vs/workbench/services/editor/common/editorService';
 
 export class ToggleMarkersPanelAction extends TogglePanelAction {
 
@@ -269,4 +274,65 @@ export class MarkersFilterActionItem extends BaseActionItem {
 		this._toDispose.push(t);
 		return t;
 	}
+}
+
+export class QuickFixAction extends Action {
+
+	public static readonly ID: string = 'workbench.actions.problems.quickfix';
+
+	constructor(
+		readonly marker: Marker,
+		readonly resourceMarkers: ResourceMarkers,
+		@IBulkEditService private bulkEditService: IBulkEditService,
+		@ICommandService private commandService: ICommandService,
+		@IEditorService private editorService: IEditorService
+	) {
+		super(QuickFixAction.ID, Messages.MARKERS_PANEL_ACTION_TOOLTIP_QUICKFIX, 'markers-panel-action-quickfix', false);
+		resourceMarkers.hasFixes(marker).then(hasFixes => this.enabled = hasFixes);
+	}
+
+	async getQuickFixActions(): Promise<IAction[]> {
+		const codeActions = await this.resourceMarkers.getFixes(this.marker);
+		return codeActions.map(codeAction => new Action(
+			codeAction.command ? codeAction.command.id : codeAction.title,
+			codeAction.title,
+			void 0,
+			true,
+			() => {
+				return this.openFileAtMarker(this.marker)
+					.then(() => applyCodeAction(codeAction, this.bulkEditService, this.commandService));
+			}));
+	}
+
+	public openFileAtMarker(element: Marker): TPromise<void> {
+		const { resource, selection } = { resource: element.resource, selection: element.range };
+		return this.editorService.openEditor({
+			resource,
+			options: {
+				selection,
+				preserveFocus: true,
+				pinned: false,
+				revealIfVisible: true
+			},
+		}, ACTIVE_GROUP).then(() => null);
+	}
+}
+
+export class QuickFixActionItem extends ActionItem {
+
+	constructor(action: QuickFixAction,
+		@IContextMenuService private contextMenuService: IContextMenuService
+	) {
+		super(null, action, { icon: true, label: false });
+	}
+
+	public onClick(event: DOM.EventLike): void {
+		DOM.EventHelper.stop(event, true);
+		const elementPosition = DOM.getDomNodePagePosition(this.builder.getHTMLElement());
+		this.contextMenuService.showContextMenu({
+			getAnchor: () => ({ x: elementPosition.left + 10, y: elementPosition.top + elementPosition.height }),
+			getActions: () => TPromise.wrap((<QuickFixAction>this.getAction()).getQuickFixActions()),
+		});
+	}
+
 }

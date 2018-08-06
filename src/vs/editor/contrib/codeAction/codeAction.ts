@@ -3,18 +3,18 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { isFalsyOrEmpty, mergeSort, flatten } from 'vs/base/common/arrays';
+import { flatten, isFalsyOrEmpty, mergeSort } from 'vs/base/common/arrays';
 import { asWinJsPromise } from 'vs/base/common/async';
-import { illegalArgument, onUnexpectedExternalError, isPromiseCanceledError } from 'vs/base/common/errors';
+import { CancellationToken } from 'vs/base/common/cancellation';
+import { illegalArgument, isPromiseCanceledError, onUnexpectedExternalError } from 'vs/base/common/errors';
 import URI from 'vs/base/common/uri';
 import { registerLanguageCommand } from 'vs/editor/browser/editorExtensions';
 import { Range } from 'vs/editor/common/core/range';
+import { Selection } from 'vs/editor/common/core/selection';
 import { ITextModel } from 'vs/editor/common/model';
-import { CodeAction, CodeActionProviderRegistry, CodeActionContext, CodeActionTrigger as CodeActionTriggerKind } from 'vs/editor/common/modes';
+import { CodeAction, CodeActionContext, CodeActionProviderRegistry, CodeActionTrigger as CodeActionTriggerKind } from 'vs/editor/common/modes';
 import { IModelService } from 'vs/editor/common/services/modelService';
 import { CodeActionFilter, CodeActionKind, CodeActionTrigger } from './codeActionTrigger';
-import { Selection } from 'vs/editor/common/core/selection';
-import { CancellationToken } from 'vs/base/common/cancellation';
 
 export function getCodeActions(model: ITextModel, rangeOrSelection: Range | Selection, trigger?: CodeActionTrigger, token: CancellationToken = CancellationToken.None): Promise<CodeAction[]> {
 	const codeActionContext: CodeActionContext = {

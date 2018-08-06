@@ -5,9 +5,13 @@
 
 import * as dom from 'vs/base/browser/dom';
 import { renderMarkdown } from 'vs/base/browser/htmlContentRenderer';
+import { onUnexpectedError } from 'vs/base/common/errors';
+import { Disposable } from 'vs/base/common/lifecycle';
+import URI from 'vs/base/common/uri';
 import { Promise, TPromise } from 'vs/base/common/winjs.base';
 import { IDataSource, IFilter, IRenderer as ITreeRenderer, ITree } from 'vs/base/parts/tree/browser/tree';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
+import { IOpenerService } from 'vs/platform/opener/common/opener';
 import { FileLabel } from 'vs/workbench/browser/labels';
 import { CommentNode, CommentsModel, ResourceWithCommentThreads } from 'vs/workbench/parts/comments/common/commentModel';
 
@@ -59,6 +63,7 @@ interface ICommentThreadTemplateData {
 	icon: HTMLImageElement;
 	userName: HTMLSpanElement;
 	commentText: HTMLElement;
+	disposables: Disposable[];
 }
 
 export class CommentsModelRenderer implements ITreeRenderer {
@@ -67,7 +72,8 @@ export class CommentsModelRenderer implements ITreeRenderer {
 
 
 	constructor(
-		@IInstantiationService private instantiationService: IInstantiationService
+		@IInstantiationService private instantiationService: IInstantiationService,
+		@IOpenerService private openerService: IOpenerService
 	) {
 	}
 
@@ -99,6 +105,10 @@ export class CommentsModelRenderer implements ITreeRenderer {
 		switch (templateId) {
 			case CommentsModelRenderer.RESOURCE_ID:
 				(<IResourceTemplateData>templateData).resourceLabel.dispose();
+				break;
+			case CommentsModelRenderer.COMMENT_ID:
+				(<ICommentThreadTemplateData>templateData).disposables.forEach(disposeable => disposeable.dispose());
+				break;
 		}
 	}
 
@@ -124,6 +134,7 @@ export class CommentsModelRenderer implements ITreeRenderer {
 		const labelContainer = dom.append(container, dom.$('.comment-container'));
 		data.userName = dom.append(labelContainer, dom.$('.user'));
 		data.commentText = dom.append(labelContainer, dom.$('.text'));
+		data.disposables = [];
 
 		return data;
 	}
@@ -134,7 +145,18 @@ export class CommentsModelRenderer implements ITreeRenderer {
 
 	private renderCommentElement(tree: ITree, element: CommentNode, templateData: ICommentThreadTemplateData) {
 		templateData.userName.textContent = element.comment.userName;
-		templateData.commentText.innerHTML = renderMarkdown(element.comment.body, { inline: true }).innerHTML;
+		templateData.commentText.innerHTML = '';
+		const renderedComment = renderMarkdown(element.comment.body, {
+			inline: true,
+			actionHandler: {
+				callback: (content) => {
+					this.openerService.open(URI.parse(content)).then(void 0, onUnexpectedError);
+				},
+				disposeables: templateData.disposables
+			}
+		});
+
+		templateData.commentText.appendChild(renderedComment);
 	}
 }
 

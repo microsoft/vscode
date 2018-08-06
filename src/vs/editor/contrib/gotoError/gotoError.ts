@@ -19,7 +19,7 @@ import { registerEditorAction, registerEditorContribution, ServicesAccessor, IAc
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
-import { KeybindingsRegistry } from 'vs/platform/keybinding/common/keybindingsRegistry';
+import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { MarkerNavigationWidget } from './gotoErrorWidget';
 import { compare } from 'vs/base/common/strings';
 import { binarySearch } from 'vs/base/common/arrays';
@@ -401,7 +401,8 @@ class NextMarkerInFilesAction extends MarkerNavigationAction {
 			precondition: EditorContextKeys.writable,
 			kbOpts: {
 				kbExpr: EditorContextKeys.focus,
-				primary: KeyCode.F8
+				primary: KeyCode.F8,
+				weight: KeybindingWeight.EditorContrib
 			}
 		});
 	}
@@ -416,7 +417,8 @@ class PrevMarkerInFilesAction extends MarkerNavigationAction {
 			precondition: EditorContextKeys.writable,
 			kbOpts: {
 				kbExpr: EditorContextKeys.focus,
-				primary: KeyMod.Shift | KeyCode.F8
+				primary: KeyMod.Shift | KeyCode.F8,
+				weight: KeybindingWeight.EditorContrib
 			}
 		});
 	}
@@ -437,7 +439,7 @@ registerEditorCommand(new MarkerCommand({
 	precondition: CONTEXT_MARKERS_NAVIGATION_VISIBLE,
 	handler: x => x.closeMarkersNavigation(),
 	kbOpts: {
-		weight: KeybindingsRegistry.WEIGHT.editorContrib(50),
+		weight: KeybindingWeight.EditorContrib + 50,
 		kbExpr: EditorContextKeys.focus,
 		primary: KeyCode.Escape,
 		secondary: [KeyMod.Shift | KeyCode.Escape]

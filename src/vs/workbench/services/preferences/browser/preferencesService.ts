@@ -7,7 +7,6 @@ import * as network from 'vs/base/common/network';
 import { TPromise } from 'vs/base/common/winjs.base';
 import * as nls from 'vs/nls';
 import URI from 'vs/base/common/uri';
-import * as labels from 'vs/base/common/labels';
 import * as strings from 'vs/base/common/strings';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { Emitter } from 'vs/base/common/event';
@@ -37,6 +36,7 @@ import { INotificationService } from 'vs/platform/notification/common/notificati
 import { assign } from 'vs/base/common/objects';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IEditorGroup, IEditorGroupsService, GroupDirection } from 'vs/workbench/services/group/common/editorGroupsService';
+import { IUriDisplayService } from 'vs/platform/uriDisplay/common/uriDisplay';
 
 const emptyEditableSettingsContent = '{\n}';
 
@@ -69,7 +69,8 @@ export class PreferencesService extends Disposable implements IPreferencesServic
 		@IKeybindingService keybindingService: IKeybindingService,
 		@IModelService private modelService: IModelService,
 		@IJSONEditingService private jsonEditingService: IJSONEditingService,
-		@IModeService private modeService: IModeService
+		@IModeService private modeService: IModeService,
+		@IUriDisplayService private uriDisplayService: IUriDisplayService
 	) {
 		super();
 		// The default keybindings.json updates based on keyboard layouts, so here we make sure
@@ -221,19 +222,28 @@ export class PreferencesService extends Disposable implements IPreferencesServic
 		if (textual) {
 			const emptyContents = '// ' + nls.localize('emptyKeybindingsHeader', "Place your key bindings in this file to overwrite the defaults") + '\n[\n]';
 			const editableKeybindings = URI.file(this.environmentService.appKeybindingsPath);
+			const openDefaultKeybindings = !!this.configurationService.getValue('workbench.settings.openDefaultKeybindings');
 
 			// Create as needed and open in editor
 			return this.createIfNotExists(editableKeybindings, emptyContents).then(() => {
-				const activeEditorGroup = this.editorGroupService.activeGroup;
-				const sideEditorGroup = this.editorGroupService.addGroup(activeEditorGroup.id, GroupDirection.RIGHT);
-
-				return TPromise.join([
-					this.editorService.openEditor({ resource: this.defaultKeybindingsResource, options: { pinned: true, preserveFocus: true }, label: nls.localize('defaultKeybindings', "Default Keybindings"), description: '' }),
-					this.editorService.openEditor({ resource: editableKeybindings, options: { pinned: true } }, sideEditorGroup.id)
-				]).then(editors => void 0);
+				if (openDefaultKeybindings) {
+					const activeEditorGroup = this.editorGroupService.activeGroup;
+					const sideEditorGroup = this.editorGroupService.addGroup(activeEditorGroup.id, GroupDirection.RIGHT);
+					return TPromise.join([
+						this.editorService.openEditor({ resource: this.defaultKeybindingsResource, options: { pinned: true, preserveFocus: true }, label: nls.localize('defaultKeybindings', "Default Keybindings"), description: '' }),
+						this.editorService.openEditor({ resource: editableKeybindings, options: { pinned: true } }, sideEditorGroup.id)
+					]).then(editors => void 0);
+				} else {
+					return this.editorService.openEditor({ resource: editableKeybindings, options: { pinned: true } }).then(() => void 0);
+				}
 			});
 		}
+
 		return this.editorService.openEditor(this.instantiationService.createInstance(KeybindingsEditorInput), { pinned: true }).then(() => null);
+	}
+
+	openDefaultKeybindingsFile(): TPromise<IEditor> {
+		return this.editorService.openEditor({ resource: this.defaultKeybindingsResource });
 	}
 
 	configureSettingsForLanguage(language: string): void {
@@ -435,7 +445,7 @@ export class PreferencesService extends Disposable implements IPreferencesServic
 		return this.fileService.resolveContent(resource, { acceptTextOnly: true }).then(null, error => {
 			if ((<FileOperationError>error).fileOperationResult === FileOperationResult.FILE_NOT_FOUND) {
 				return this.fileService.updateContent(resource, contents).then(null, error => {
-					return TPromise.wrapError(new Error(nls.localize('fail.createSettings', "Unable to create '{0}' ({1}).", labels.getPathLabel(resource, this.environmentService, this.contextService), error)));
+					return TPromise.wrapError(new Error(nls.localize('fail.createSettings', "Unable to create '{0}' ({1}).", this.uriDisplayService.getLabel(resource, true), error)));
 				});
 			}
 

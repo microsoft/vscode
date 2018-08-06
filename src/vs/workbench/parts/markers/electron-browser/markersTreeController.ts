@@ -7,7 +7,7 @@
 import { TPromise } from 'vs/base/common/winjs.base';
 import * as mouse from 'vs/base/browser/mouseEvent';
 import * as tree from 'vs/base/parts/tree/browser/tree';
-import { MarkersModel } from 'vs/workbench/parts/markers/electron-browser/markersModel';
+import { MarkersModel, Marker, ResourceMarkers } from 'vs/workbench/parts/markers/electron-browser/markersModel';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 import { IMenuService, MenuId } from 'vs/platform/actions/common/actions';
 import { IAction } from 'vs/base/common/actions';
@@ -15,6 +15,8 @@ import { ActionItem, Separator } from 'vs/base/browser/ui/actionbar/actionbar';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { WorkbenchTree, WorkbenchTreeController } from 'vs/platform/list/browser/listService';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
+import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
+import { QuickFixAction } from 'vs/workbench/parts/markers/electron-browser/markersPanelActions';
 
 export class Controller extends WorkbenchTreeController {
 
@@ -22,7 +24,8 @@ export class Controller extends WorkbenchTreeController {
 		@IContextMenuService private contextMenuService: IContextMenuService,
 		@IMenuService private menuService: IMenuService,
 		@IKeybindingService private readonly _keybindingService: IKeybindingService,
-		@IConfigurationService configurationService: IConfigurationService
+		@IConfigurationService configurationService: IConfigurationService,
+		@IInstantiationService private instantiationService: IInstantiationService
 	) {
 		super({}, configurationService);
 	}
@@ -45,17 +48,11 @@ export class Controller extends WorkbenchTreeController {
 	public onContextMenu(tree: WorkbenchTree, element: any, event: tree.ContextMenuEvent): boolean {
 		tree.setFocus(element, { preventOpenOnFocus: true });
 
-		const actions = this._getMenuActions(tree);
-		if (!actions.length) {
-			return true;
-		}
 		const anchor = { x: event.posx, y: event.posy };
 		this.contextMenuService.showContextMenu({
 			getAnchor: () => anchor,
 
-			getActions: () => {
-				return TPromise.as(actions);
-			},
+			getActions: () => TPromise.wrap(this._getMenuActions(tree, element)),
 
 			getActionItem: (action) => {
 				const keybinding = this._keybindingService.lookupKeybinding(action.id);
@@ -75,8 +72,21 @@ export class Controller extends WorkbenchTreeController {
 		return true;
 	}
 
-	private _getMenuActions(tree: WorkbenchTree): IAction[] {
+	private async _getMenuActions(tree: WorkbenchTree, element: any): Promise<IAction[]> {
 		const result: IAction[] = [];
+
+		if (element instanceof Marker) {
+			const parent = tree.getNavigator(element).parent();
+			if (parent instanceof ResourceMarkers) {
+				const quickFixAction = this.instantiationService.createInstance(QuickFixAction, element, parent);
+				const quickFixActions = await quickFixAction.getQuickFixActions();
+				if (quickFixActions.length) {
+					result.push(...quickFixActions);
+					result.push(new Separator());
+				}
+			}
+		}
+
 		const menu = this.menuService.createMenu(MenuId.ProblemsPanelContext, tree.contextKeyService);
 		const groups = menu.getActions();
 		menu.dispose();
@@ -86,6 +96,7 @@ export class Controller extends WorkbenchTreeController {
 			result.push(...actions);
 			result.push(new Separator());
 		}
+
 		result.pop(); // remove last separator
 		return result;
 	}

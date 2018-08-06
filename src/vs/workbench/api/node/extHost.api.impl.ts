@@ -110,11 +110,11 @@ export function createApiFactory(
 	const extHostDocumentSaveParticipant = rpcProtocol.set(ExtHostContext.ExtHostDocumentSaveParticipant, new ExtHostDocumentSaveParticipant(extHostLogService, extHostDocuments, rpcProtocol.getProxy(MainContext.MainThreadTextEditors)));
 	const extHostEditors = rpcProtocol.set(ExtHostContext.ExtHostEditors, new ExtHostEditors(rpcProtocol, extHostDocumentsAndEditors));
 	const extHostCommands = rpcProtocol.set(ExtHostContext.ExtHostCommands, new ExtHostCommands(rpcProtocol, extHostHeapService, extHostLogService));
-	const extHostTreeViews = rpcProtocol.set(ExtHostContext.ExtHostTreeViews, new ExtHostTreeViews(rpcProtocol.getProxy(MainContext.MainThreadTreeViews), extHostCommands));
+	const extHostTreeViews = rpcProtocol.set(ExtHostContext.ExtHostTreeViews, new ExtHostTreeViews(rpcProtocol.getProxy(MainContext.MainThreadTreeViews), extHostCommands, extHostLogService));
 	rpcProtocol.set(ExtHostContext.ExtHostWorkspace, extHostWorkspace);
 	rpcProtocol.set(ExtHostContext.ExtHostConfiguration, extHostConfiguration);
 	const extHostDiagnostics = rpcProtocol.set(ExtHostContext.ExtHostDiagnostics, new ExtHostDiagnostics(rpcProtocol));
-	const extHostLanguageFeatures = rpcProtocol.set(ExtHostContext.ExtHostLanguageFeatures, new ExtHostLanguageFeatures(rpcProtocol, schemeTransformer, extHostDocuments, extHostCommands, extHostHeapService, extHostDiagnostics));
+	const extHostLanguageFeatures = rpcProtocol.set(ExtHostContext.ExtHostLanguageFeatures, new ExtHostLanguageFeatures(rpcProtocol, schemeTransformer, extHostDocuments, extHostCommands, extHostHeapService, extHostDiagnostics, extHostLogService));
 	const extHostFileSystem = rpcProtocol.set(ExtHostContext.ExtHostFileSystem, new ExtHostFileSystem(rpcProtocol, extHostLanguageFeatures));
 	const extHostFileSystemEvent = rpcProtocol.set(ExtHostContext.ExtHostFileSystemEventService, new ExtHostFileSystemEventService(rpcProtocol, extHostDocumentsAndEditors));
 	const extHostQuickOpen = rpcProtocol.set(ExtHostContext.ExtHostQuickOpen, new ExtHostQuickOpen(rpcProtocol, extHostWorkspace, extHostCommands));
@@ -262,7 +262,7 @@ export function createApiFactory(
 				return score(typeConverters.LanguageSelector.from(selector), document.uri, document.languageId, true);
 			},
 			registerCodeActionsProvider(selector: vscode.DocumentSelector, provider: vscode.CodeActionProvider, metadata?: vscode.CodeActionProviderMetadata): vscode.Disposable {
-				return extHostLanguageFeatures.registerCodeActionProvider(checkSelector(selector), provider, metadata);
+				return extHostLanguageFeatures.registerCodeActionProvider(checkSelector(selector), provider, extension, metadata);
 			},
 			registerCodeLensProvider(selector: vscode.DocumentSelector, provider: vscode.CodeLensProvider): vscode.Disposable {
 				return extHostLanguageFeatures.registerCodeLensProvider(checkSelector(selector), provider);
@@ -425,7 +425,7 @@ export function createApiFactory(
 				return extHostOutputService.createOutputChannel(name);
 			},
 			createWebviewPanel(viewType: string, title: string, showOptions: vscode.ViewColumn | { viewColumn: vscode.ViewColumn, preserveFocus?: boolean }, options: vscode.WebviewPanelOptions & vscode.WebviewOptions): vscode.WebviewPanel {
-				return extHostWebviews.createWebview(viewType, title, showOptions, options, extension.extensionLocation);
+				return extHostWebviews.createWebview(extension.extensionLocation, viewType, title, showOptions, options);
 			},
 			createTerminal(nameOrOptions: vscode.TerminalOptions | string, shellPath?: string, shellArgs?: string[]): vscode.Terminal {
 				if (typeof nameOrOptions === 'object') {
@@ -455,17 +455,12 @@ export function createApiFactory(
 			registerUriHandler(handler: vscode.UriHandler) {
 				return extHostUrls.registerUriHandler(extension.id, handler);
 			},
-			get quickInputBackButton() {
-				return proposedApiFunction(extension, (): vscode.QuickInputButton => {
-					return extHostQuickOpen.backButton;
-				})();
-			},
-			createQuickPick: proposedApiFunction(extension, <T extends vscode.QuickPickItem>(): vscode.QuickPick<T> => {
+			createQuickPick<T extends vscode.QuickPickItem>(): vscode.QuickPick<T> {
 				return extHostQuickOpen.createQuickPick(extension.id);
-			}),
-			createInputBox: proposedApiFunction(extension, (): vscode.InputBox => {
+			},
+			createInputBox(): vscode.InputBox {
 				return extHostQuickOpen.createInputBox(extension.id);
-			}),
+			},
 		};
 
 		// namespace: workspace
@@ -500,7 +495,19 @@ export function createApiFactory(
 			findFiles: (include, exclude, maxResults?, token?) => {
 				return extHostWorkspace.findFiles(typeConverters.GlobPattern.from(include), typeConverters.GlobPattern.from(exclude), maxResults, extension.id, token);
 			},
-			findTextInFiles: (query: vscode.TextSearchQuery, options: vscode.FindTextInFilesOptions, callback: (result: vscode.TextSearchResult) => void, token?: vscode.CancellationToken) => {
+			findTextInFiles: (query: vscode.TextSearchQuery, optionsOrCallback, callbackOrToken?, token?: vscode.CancellationToken) => {
+				let options: vscode.FindTextInFilesOptions;
+				let callback: (result: vscode.TextSearchResult) => void;
+
+				if (typeof optionsOrCallback === 'object') {
+					options = optionsOrCallback;
+					callback = callbackOrToken;
+				} else {
+					options = {};
+					callback = optionsOrCallback;
+					token = callbackOrToken;
+				}
+
 				return extHostWorkspace.findTextInFiles(query, options || {}, callback, extension.id, token);
 			},
 			saveAll: (includeUntitled?) => {
@@ -570,8 +577,18 @@ export function createApiFactory(
 			registerFileSystemProvider(scheme, provider, options) {
 				return extHostFileSystem.registerFileSystemProvider(scheme, provider, options);
 			},
-			registerSearchProvider: proposedApiFunction(extension, (scheme, provider) => {
-				return extHostSearch.registerSearchProvider(scheme, provider);
+			registerFileSearchProvider: proposedApiFunction(extension, (scheme, provider) => {
+				return extHostSearch.registerFileSearchProvider(scheme, provider);
+			}),
+			registerSearchProvider: proposedApiFunction(extension, () => {
+				// Temp for live share in Insiders
+				return { dispose: () => { } };
+			}),
+			registerTextSearchProvider: proposedApiFunction(extension, (scheme, provider) => {
+				return extHostSearch.registerTextSearchProvider(scheme, provider);
+			}),
+			registerFileIndexProvider: proposedApiFunction(extension, (scheme, provider) => {
+				return extHostSearch.registerFileIndexProvider(scheme, provider);
 			}),
 			registerDocumentCommentProvider: proposedApiFunction(extension, (provider: vscode.DocumentCommentProvider) => {
 				return exthostCommentProviders.registerDocumentCommentProvider(provider);
@@ -710,6 +727,7 @@ export function createApiFactory(
 			OverviewRulerLane: OverviewRulerLane,
 			ParameterInformation: extHostTypes.ParameterInformation,
 			Position: extHostTypes.Position,
+			QuickInputButtons: extHostTypes.QuickInputButtons,
 			Range: extHostTypes.Range,
 			Selection: extHostTypes.Selection,
 			SignatureHelp: extHostTypes.SignatureHelp,

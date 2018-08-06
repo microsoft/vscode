@@ -69,6 +69,11 @@ loader.config({
 	nodeCachedDataDir: process.env['VSCODE_NODE_CACHED_DATA_DIR_' + process.pid]
 });
 
+if (process.env['ELECTRON_RUN_AS_NODE'] || process.versions.electron) {
+	// running in Electron
+	loader.define('fs', ['original-fs'], function (originalFS) { return originalFS; }); // replace the patched electron fs with the original node fs for all AMD code
+}
+
 if (nlsConfig.pseudo) {
 	loader(['vs/nls'], function (nlsPlugin) {
 		nlsPlugin.setPseudoTranslation(nlsConfig.pseudo);

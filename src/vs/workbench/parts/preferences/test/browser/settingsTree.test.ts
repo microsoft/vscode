@@ -48,6 +48,13 @@ suite('SettingsTree', () => {
 			});
 
 		assert.deepEqual(
+			settingKeyToDisplayFormat('disableligatures.ligatures', 'disableligatures'),
+			{
+				category: '',
+				label: 'Ligatures'
+			});
+
+		assert.deepEqual(
 			settingKeyToDisplayFormat('foo.bar.etc', 'foo'),
 			{
 				category: 'Bar',
@@ -62,14 +69,14 @@ suite('SettingsTree', () => {
 			});
 
 		assert.deepEqual(
-			settingKeyToDisplayFormat('foo.bar.etc', 'foo.bar'),
+			settingKeyToDisplayFormat('foo.bar.etc', 'foo/bar'),
 			{
 				category: '',
 				label: 'Etc'
 			});
 
 		assert.deepEqual(
-			settingKeyToDisplayFormat('foo.bar.etc', 'something.foo'),
+			settingKeyToDisplayFormat('foo.bar.etc', 'something/foo'),
 			{
 				category: 'Bar',
 				label: 'Etc'

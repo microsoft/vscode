@@ -10,7 +10,7 @@ import { IDisposable } from 'vs/base/common/lifecycle';
 import * as objects from 'vs/base/common/objects';
 import * as paths from 'vs/base/common/paths';
 import uri, { UriComponents } from 'vs/base/common/uri';
-import { PPromise, TPromise } from 'vs/base/common/winjs.base';
+import { TPromise } from 'vs/base/common/winjs.base';
 import { IFilesConfiguration } from 'vs/platform/files/common/files';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 
@@ -24,10 +24,10 @@ export const ISearchService = createDecorator<ISearchService>('searchService');
  */
 export interface ISearchService {
 	_serviceBrand: any;
-	search(query: ISearchQuery): PPromise<ISearchComplete, ISearchProgressItem>;
+	search(query: ISearchQuery, onProgress?: (result: ISearchProgressItem) => void): TPromise<ISearchComplete>;
 	extendQuery(query: ISearchQuery): void;
 	clearCache(cacheKey: string): TPromise<void>;
-	registerSearchResultProvider(scheme: string, provider: ISearchResultProvider): IDisposable;
+	registerSearchResultProvider(scheme: string, type: SearchProviderType, provider: ISearchResultProvider): IDisposable;
 }
 
 export interface ISearchHistoryValues {
@@ -45,8 +45,17 @@ export interface ISearchHistoryService {
 	save(history: ISearchHistoryValues): void;
 }
 
+/**
+ * TODO@roblou - split text from file search entirely, or share code in a more natural way.
+ */
+export enum SearchProviderType {
+	file,
+	fileIndex,
+	text
+}
+
 export interface ISearchResultProvider {
-	search(query: ISearchQuery): PPromise<ISearchComplete, ISearchProgressItem>;
+	search(query: ISearchQuery, onProgress?: (p: ISearchProgressItem) => void): TPromise<ISearchComplete>;
 	clearCache(cacheKey: string): TPromise<void>;
 }
 

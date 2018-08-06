@@ -345,7 +345,7 @@ function getGitErrorCode(stderr: string): string | undefined {
 		return GitErrorCodes.RepositoryIsLocked;
 	} else if (/Authentication failed/.test(stderr)) {
 		return GitErrorCodes.AuthenticationFailed;
-	} else if (/Not a git repository/.test(stderr)) {
+	} else if (/Not a git repository/i.test(stderr)) {
 		return GitErrorCodes.NotAGitRepository;
 	} else if (/bad config file/.test(stderr)) {
 		return GitErrorCodes.BadConfigFile;

@@ -5,7 +5,7 @@
 
 import { IViewletService } from 'vs/workbench/services/viewlet/browser/viewlet';
 import { INotificationService, Severity, IPromptChoice } from 'vs/platform/notification/common/notification';
-import { IExperimentService, IExperiment, ExperimentActionType, IExperimentActionPromptProperties, ExperimentState } from 'vs/workbench/parts/experiments/node/experimentService';
+import { IExperimentService, IExperiment, ExperimentActionType, IExperimentActionPromptProperties, IExperimentActionPromptCommand, ExperimentState } from 'vs/workbench/parts/experiments/node/experimentService';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IExtensionsViewlet } from 'vs/workbench/parts/extensions/common/extensions';
 import { IWorkbenchContribution } from 'vs/workbench/common/contributions';
@@ -57,7 +57,7 @@ export class ExperimentalPrompts extends Disposable implements IWorkbenchContrib
 			actionProperties.commands = [];
 		}
 
-		const choices: IPromptChoice[] = actionProperties.commands.map(command => {
+		const choices: IPromptChoice[] = actionProperties.commands.map((command: IExperimentActionPromptCommand) => {
 			return {
 				label: command.text,
 				run: () => {

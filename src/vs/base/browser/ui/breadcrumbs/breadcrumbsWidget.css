@@ -9,6 +9,7 @@
 	flex-direction: row;
 	flex-wrap: nowrap;
 	justify-content: flex-start;
+	outline-style: none;
 }
 
 .monaco-breadcrumbs .monaco-breadcrumb-item {
@@ -16,12 +17,13 @@
 	align-items: center;
 	flex: 0 1 auto;
 	white-space: nowrap;
-	cursor: default;
+	cursor: pointer;
 	align-self: center;
 	height: 100%;
+	outline: none;
 }
 
-.monaco-breadcrumbs .monaco-breadcrumb-item:not(:last-child)::after {
+.monaco-breadcrumbs .monaco-breadcrumb-item:not(:first-child)::before {
 	background-image: url(./collapsed.svg);
 	opacity: .7;
 	width: 16px;
@@ -32,7 +34,7 @@
 	content: ' ';
 }
 
-.vs-dark .monaco-breadcrumbs .monaco-breadcrumb-item:not(:last-child)::after {
+.vs-dark .monaco-breadcrumbs .monaco-breadcrumb-item:not(:first-child)::before {
 	background-image: url(./collpased-dark.svg);
 }
 

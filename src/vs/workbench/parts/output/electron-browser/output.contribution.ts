@@ -187,3 +187,12 @@ CommandsRegistry.registerCommand(COMMAND_OPEN_LOG_VIEWER, function (accessor: Se
 	}
 	return null;
 });
+
+MenuRegistry.appendMenuItem(MenuId.MenubarViewMenu, {
+	group: '4_panels',
+	command: {
+		id: ToggleOutputAction.ID,
+		title: nls.localize({ key: 'miToggleOutput', comment: ['&& denotes a mnemonic'] }, "&&Output")
+	},
+	order: 1
+});

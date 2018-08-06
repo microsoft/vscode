@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Event, Emitter } from 'vs/base/common/event';
-import { CONTEXT_EXPRESSION_SELECTED, IViewModel, IStackFrame, ISession, IThread, IExpression, IFunctionBreakpoint, CONTEXT_BREAKPOINT_SELECTED } from 'vs/workbench/parts/debug/common/debug';
+import { CONTEXT_EXPRESSION_SELECTED, IViewModel, IStackFrame, ISession, IThread, IExpression, IFunctionBreakpoint, CONTEXT_BREAKPOINT_SELECTED, CONTEXT_LOADED_SCRIPTS_SUPPORTED } from 'vs/workbench/parts/debug/common/debug';
 import { IContextKeyService, IContextKey } from 'vs/platform/contextkey/common/contextkey';
 
 export class ViewModel implements IViewModel {
@@ -20,6 +20,7 @@ export class ViewModel implements IViewModel {
 	private multiSessionView: boolean;
 	private expressionSelectedContextKey: IContextKey<boolean>;
 	private breakpointSelectedContextKey: IContextKey<boolean>;
+	private loadedScriptsSupportedContextKey: IContextKey<boolean>;
 
 	constructor(contextKeyService: IContextKeyService) {
 		this._onDidFocusSession = new Emitter<ISession | undefined>();
@@ -28,6 +29,7 @@ export class ViewModel implements IViewModel {
 		this.multiSessionView = false;
 		this.expressionSelectedContextKey = CONTEXT_EXPRESSION_SELECTED.bindTo(contextKeyService);
 		this.breakpointSelectedContextKey = CONTEXT_BREAKPOINT_SELECTED.bindTo(contextKeyService);
+		this.loadedScriptsSupportedContextKey = CONTEXT_LOADED_SCRIPTS_SUPPORTED.bindTo(contextKeyService);
 	}
 
 	public getId(): string {
@@ -65,6 +67,8 @@ export class ViewModel implements IViewModel {
 		}
 		this._focusedThread = thread;
 		this._focusedStackFrame = stackFrame;
+
+		this.loadedScriptsSupportedContextKey.set(session && session.raw.capabilities.supportsLoadedSourcesRequest);
 
 		if (shouldEmit) {
 			this._onDidFocusStackFrame.fire({ stackFrame, explicit });

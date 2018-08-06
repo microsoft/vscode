@@ -32,6 +32,7 @@ import { FoldingRangeProviderRegistry, FoldingRangeKind } from 'vs/editor/common
 import { SyntaxRangeProvider, ID_SYNTAX_PROVIDER } from './syntaxRangeProvider';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { InitializingRangeProvider, ID_INIT_PROVIDER } from 'vs/editor/contrib/folding/intializingRangeProvider';
+import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
 
 export const ID = 'editor.contrib.folding';
 
@@ -486,7 +487,8 @@ class UnfoldAction extends FoldingAction<FoldingArguments> {
 				primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.US_CLOSE_SQUARE_BRACKET,
 				mac: {
 					primary: KeyMod.CtrlCmd | KeyMod.Alt | KeyCode.US_CLOSE_SQUARE_BRACKET
-				}
+				},
+				weight: KeybindingWeight.EditorContrib
 			},
 			description: {
 				description: 'Unfold the content in the editor',
@@ -495,7 +497,7 @@ class UnfoldAction extends FoldingAction<FoldingArguments> {
 						name: 'Unfold editor argument',
 						description: `Property-value pairs that can be passed through this argument:
 						* 'levels': Number of levels to unfold. If not set, defaults to 1.
-						* 'direction': If 'up', unfold given number of levels up otherwise unfolds down
+						* 'direction': If 'up', unfold given number of levels up otherwise unfolds down.
 						* 'selectionLines': The start lines (0-based) of the editor selections to apply the unfold action to. If not set, the active selection(s) will be used.
 						`,
 						constraint: foldingArgumentsConstraint
@@ -526,7 +528,8 @@ class UnFoldRecursivelyAction extends FoldingAction<void> {
 			precondition: null,
 			kbOpts: {
 				kbExpr: EditorContextKeys.editorTextFocus,
-				primary: KeyChord(KeyMod.CtrlCmd | KeyCode.KEY_K, KeyMod.CtrlCmd | KeyCode.US_CLOSE_SQUARE_BRACKET)
+				primary: KeyChord(KeyMod.CtrlCmd | KeyCode.KEY_K, KeyMod.CtrlCmd | KeyCode.US_CLOSE_SQUARE_BRACKET),
+				weight: KeybindingWeight.EditorContrib
 			}
 		});
 	}
@@ -549,7 +552,8 @@ class FoldAction extends FoldingAction<FoldingArguments> {
 				primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.US_OPEN_SQUARE_BRACKET,
 				mac: {
 					primary: KeyMod.CtrlCmd | KeyMod.Alt | KeyCode.US_OPEN_SQUARE_BRACKET
-				}
+				},
+				weight: KeybindingWeight.EditorContrib
 			},
 			description: {
 				description: 'Fold the content in the editor',
@@ -557,8 +561,8 @@ class FoldAction extends FoldingAction<FoldingArguments> {
 					{
 						name: 'Fold editor argument',
 						description: `Property-value pairs that can be passed through this argument:
-							* 'levels': Number of levels to fold. Defaults to 1
-							* 'direction': If 'up', folds given number of levels up otherwise folds down
+							* 'levels': Number of levels to fold. Defaults to 1.
+							* 'direction': If 'up', folds given number of levels up otherwise folds down.
 							* 'selectionLines': The start lines (0-based) of the editor selections to apply the fold action to. If not set, the active selection(s) will be used.
 						`,
 						constraint: foldingArgumentsConstraint
@@ -589,7 +593,8 @@ class FoldRecursivelyAction extends FoldingAction<void> {
 			precondition: null,
 			kbOpts: {
 				kbExpr: EditorContextKeys.editorTextFocus,
-				primary: KeyChord(KeyMod.CtrlCmd | KeyCode.KEY_K, KeyMod.CtrlCmd | KeyCode.US_OPEN_SQUARE_BRACKET)
+				primary: KeyChord(KeyMod.CtrlCmd | KeyCode.KEY_K, KeyMod.CtrlCmd | KeyCode.US_OPEN_SQUARE_BRACKET),
+				weight: KeybindingWeight.EditorContrib
 			}
 		});
 	}
@@ -610,7 +615,8 @@ class FoldAllBlockCommentsAction extends FoldingAction<void> {
 			precondition: null,
 			kbOpts: {
 				kbExpr: EditorContextKeys.editorTextFocus,
-				primary: KeyChord(KeyMod.CtrlCmd | KeyCode.KEY_K, KeyMod.CtrlCmd | KeyCode.US_SLASH)
+				primary: KeyChord(KeyMod.CtrlCmd | KeyCode.KEY_K, KeyMod.CtrlCmd | KeyCode.US_SLASH),
+				weight: KeybindingWeight.EditorContrib
 			}
 		});
 	}
@@ -638,7 +644,8 @@ class FoldAllRegionsAction extends FoldingAction<void> {
 			precondition: null,
 			kbOpts: {
 				kbExpr: EditorContextKeys.editorTextFocus,
-				primary: KeyChord(KeyMod.CtrlCmd | KeyCode.KEY_K, KeyMod.CtrlCmd | KeyCode.KEY_8)
+				primary: KeyChord(KeyMod.CtrlCmd | KeyCode.KEY_K, KeyMod.CtrlCmd | KeyCode.KEY_8),
+				weight: KeybindingWeight.EditorContrib
 			}
 		});
 	}
@@ -666,7 +673,8 @@ class UnfoldAllRegionsAction extends FoldingAction<void> {
 			precondition: null,
 			kbOpts: {
 				kbExpr: EditorContextKeys.editorTextFocus,
-				primary: KeyChord(KeyMod.CtrlCmd | KeyCode.KEY_K, KeyMod.CtrlCmd | KeyCode.KEY_9)
+				primary: KeyChord(KeyMod.CtrlCmd | KeyCode.KEY_K, KeyMod.CtrlCmd | KeyCode.KEY_9),
+				weight: KeybindingWeight.EditorContrib
 			}
 		});
 	}
@@ -694,7 +702,8 @@ class FoldAllAction extends FoldingAction<void> {
 			precondition: null,
 			kbOpts: {
 				kbExpr: EditorContextKeys.editorTextFocus,
-				primary: KeyChord(KeyMod.CtrlCmd | KeyCode.KEY_K, KeyMod.CtrlCmd | KeyCode.KEY_0)
+				primary: KeyChord(KeyMod.CtrlCmd | KeyCode.KEY_K, KeyMod.CtrlCmd | KeyCode.KEY_0),
+				weight: KeybindingWeight.EditorContrib
 			}
 		});
 	}
@@ -714,7 +723,8 @@ class UnfoldAllAction extends FoldingAction<void> {
 			precondition: null,
 			kbOpts: {
 				kbExpr: EditorContextKeys.editorTextFocus,
-				primary: KeyChord(KeyMod.CtrlCmd | KeyCode.KEY_K, KeyMod.CtrlCmd | KeyCode.KEY_J)
+				primary: KeyChord(KeyMod.CtrlCmd | KeyCode.KEY_K, KeyMod.CtrlCmd | KeyCode.KEY_J),
+				weight: KeybindingWeight.EditorContrib
 			}
 		});
 	}
@@ -757,7 +767,8 @@ for (let i = 1; i <= 7; i++) {
 			precondition: null,
 			kbOpts: {
 				kbExpr: EditorContextKeys.editorTextFocus,
-				primary: KeyChord(KeyMod.CtrlCmd | KeyCode.KEY_K, KeyMod.CtrlCmd | (KeyCode.KEY_0 + i))
+				primary: KeyChord(KeyMod.CtrlCmd | KeyCode.KEY_K, KeyMod.CtrlCmd | (KeyCode.KEY_0 + i)),
+				weight: KeybindingWeight.EditorContrib
 			}
 		})
 	);

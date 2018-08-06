@@ -233,7 +233,34 @@ export class CollapseDeepestExpandedLevelAction extends Action {
 				return TPromise.as(null); // Global action disabled if user is in edit mode from another action
 			}
 
-			viewer.collapseDeepestExpandedLevel();
+			/**
+			 * The hierarchy is FolderMatch, FileMatch, Match. If the top level is FileMatches, then there is only
+			 * one level to collapse so collapse everything. If FolderMatch, check if there are visible grandchildren,
+			 * i.e. if Matches are returned by the navigator, and if so, collapse to them, otherwise collapse all levels.
+			 */
+			const navigator = viewer.getNavigator();
+			let node = navigator.first();
+			let collapseFileMatchLevel = false;
+			if (node instanceof FolderMatch) {
+				while (node = navigator.next()) {
+					if (node instanceof Match) {
+						collapseFileMatchLevel = true;
+						break;
+					}
+				}
+			}
+
+			if (collapseFileMatchLevel) {
+				node = navigator.first();
+				do {
+					if (node instanceof FileMatch) {
+						viewer.collapse(node);
+					}
+				} while (node = navigator.next());
+			} else {
+				viewer.collapseAll();
+			}
+
 			viewer.clearSelection();
 			viewer.clearFocus();
 			viewer.domFocus();
@@ -670,4 +697,12 @@ export const copyAllCommand: ICommandHandler = accessor => {
 export const clearHistoryCommand: ICommandHandler = accessor => {
 	const searchHistoryService = accessor.get(ISearchHistoryService);
 	searchHistoryService.clearHistory();
+};
+
+export const focusSearchListCommand: ICommandHandler = accessor => {
+	const viewletService = accessor.get(IViewletService);
+	const panelService = accessor.get(IPanelService);
+	openSearchView(viewletService, panelService).then(searchView => {
+		searchView.moveFocusToResults();
+	});
 };

@@ -7,7 +7,7 @@
 
 import 'vs/css!./media/extensionEditor';
 import { localize } from 'vs/nls';
-import { TPromise } from 'vs/base/common/winjs.base';
+import { TPromise, Promise } from 'vs/base/common/winjs.base';
 import { marked } from 'vs/base/common/marked/marked';
 import { always } from 'vs/base/common/async';
 import * as arrays from 'vs/base/common/arrays';
@@ -27,7 +27,6 @@ import { IExtensionManifest, IKeyBinding, IView, IExtensionTipsService, LocalExt
 import { ResolvedKeybinding, KeyMod, KeyCode } from 'vs/base/common/keyCodes';
 import { ExtensionsInput } from 'vs/workbench/parts/extensions/common/extensionsInput';
 import { IExtensionsWorkbenchService, IExtensionsViewlet, VIEWLET_ID, IExtension, IExtensionDependencies } from 'vs/workbench/parts/extensions/common/extensions';
-import { Renderer, DataSource, Controller } from 'vs/workbench/parts/extensions/browser/dependenciesViewer';
 import { RatingsWidget, InstallCountWidget } from 'vs/workbench/parts/extensions/browser/extensionsWidgets';
 import { EditorOptions } from 'vs/workbench/common/editor';
 import { ActionBar } from 'vs/base/browser/ui/actionbar/actionbar';
@@ -44,12 +43,13 @@ import { KeybindingLabel } from 'vs/base/browser/ui/keybindingLabel/keybindingLa
 import { IContextKeyService, RawContextKey, IContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { Command } from 'vs/editor/browser/editorExtensions';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
-import { KeybindingsRegistry } from 'vs/platform/keybinding/common/keybindingsRegistry';
+import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { Color } from 'vs/base/common/color';
-import { WorkbenchTree } from 'vs/platform/list/browser/listService';
 import { assign } from 'vs/base/common/objects';
 import { INotificationService } from 'vs/platform/notification/common/notification';
 import { CancellationToken } from 'vs/base/common/cancellation';
+import { ExtensionsTree, IExtensionData } from 'vs/workbench/parts/extensions/browser/extensionsViewer';
+import { ShowCurrentReleaseNotesAction } from 'vs/workbench/parts/update/electron-browser/update';
 
 /**  A context key that is set when an extension editor webview has focus. */
 export const KEYBINDING_CONTEXT_EXTENSIONEDITOR_WEBVIEW_FOCUS = new RawContextKey<boolean>('extensionEditorWebviewFocus', undefined);
@@ -138,7 +138,8 @@ const NavbarSection = {
 	Readme: 'readme',
 	Contributions: 'contributions',
 	Changelog: 'changelog',
-	Dependencies: 'dependencies'
+	Dependencies: 'dependencies',
+	ExtensionPack: 'extensionPack'
 };
 
 interface ILayoutParticipant {
@@ -423,12 +424,27 @@ export class ExtensionEditor extends BaseEditor {
 
 		this.navbar.clear();
 		this.navbar.onChange(this.onNavbarChange.bind(this, extension), this, this.transientDisposables);
-		this.navbar.push(NavbarSection.Readme, localize('details', "Details"), localize('detailstooltip', "Extension details, rendered from the extension's 'README.md' file"));
-		this.navbar.push(NavbarSection.Contributions, localize('contributions', "Contributions"), localize('contributionstooltip', "Lists contributions to VS Code by this extension"));
-		this.navbar.push(NavbarSection.Changelog, localize('changelog', "Changelog"), localize('changelogtooltip', "Extension update history, rendered from the extension's 'CHANGELOG.md' file"));
-		this.navbar.push(NavbarSection.Dependencies, localize('dependencies', "Dependencies"), localize('dependenciestooltip', "Lists extensions this extension depends on"));
 
-		this.editorLoadComplete = true;
+		if (extension.hasReadme()) {
+			this.navbar.push(NavbarSection.Readme, localize('details', "Details"), localize('detailstooltip', "Extension details, rendered from the extension's 'README.md' file"));
+		}
+		this.extensionManifest.get()
+			.then(manifest => {
+				if (extension.extensionPack.length) {
+					this.navbar.push(NavbarSection.ExtensionPack, localize('extensionPack', "Extension Pack"), localize('extensionsPack', "Set of extensions that can be installed together"));
+				}
+				if (manifest.contributes) {
+					this.navbar.push(NavbarSection.Contributions, localize('contributions', "Contributions"), localize('contributionstooltip', "Lists contributions to VS Code by this extension"));
+				}
+				if (extension.hasChangelog()) {
+					this.navbar.push(NavbarSection.Changelog, localize('changelog', "Changelog"), localize('changelogtooltip', "Extension update history, rendered from the extension's 'CHANGELOG.md' file"));
+				}
+				if (extension.dependencies.length) {
+					this.navbar.push(NavbarSection.Dependencies, localize('dependencies', "Dependencies"), localize('dependenciestooltip', "Lists extensions this extension depends on"));
+				}
+				this.editorLoadComplete = true;
+			});
+
 		return super.setInput(input, options, token);
 	}
 
@@ -459,6 +475,7 @@ export class ExtensionEditor extends BaseEditor {
 			case NavbarSection.Contributions: return this.openContributions();
 			case NavbarSection.Changelog: return this.openChangelog();
 			case NavbarSection.Dependencies: return this.openDependencies(extension);
+			case NavbarSection.ExtensionPack: return this.openExtensionPack(extension);
 		}
 	}
 
@@ -477,8 +494,11 @@ export class ExtensionEditor extends BaseEditor {
 				this.activeWebview.contents = body;
 
 				this.activeWebview.onDidClickLink(link => {
+					if (!link) {
+						return;
+					}
 					// Whitelist supported schemes for links
-					if (link && ['http', 'https', 'mailto'].indexOf(link.scheme) >= 0) {
+					if (['http', 'https', 'mailto'].indexOf(link.scheme) >= 0 || (link.scheme === 'command' && link.path === ShowCurrentReleaseNotesAction.ID)) {
 						this.openerService.open(link);
 					}
 				}, null, this.contentDisposables);
@@ -550,16 +570,16 @@ export class ExtensionEditor extends BaseEditor {
 				append(this.content, scrollableContent.getDomNode());
 				this.contentDisposables.push(scrollableContent);
 
-				const tree = this.renderDependencies(content, extensionDependencies);
+				const dependenciesTree = this.renderDependencies(content, extensionDependencies);
 				const layout = () => {
 					scrollableContent.scanDomNode();
 					const scrollDimensions = scrollableContent.getScrollDimensions();
-					tree.layout(scrollDimensions.height);
+					dependenciesTree.layout(scrollDimensions.height);
 				};
 				const removeLayoutParticipant = arrays.insert(this.layoutParticipants, { layout });
 				this.contentDisposables.push(toDisposable(removeLayoutParticipant));
 
-				this.contentDisposables.push(tree);
+				this.contentDisposables.push(dependenciesTree);
 				scrollableContent.scanDomNode();
 			}, error => {
 				append(this.content, $('p.nocontent')).textContent = error;
@@ -569,32 +589,96 @@ export class ExtensionEditor extends BaseEditor {
 	}
 
 	private renderDependencies(container: HTMLElement, extensionDependencies: IExtensionDependencies): Tree {
-		const renderer = this.instantiationService.createInstance(Renderer);
-		const controller = this.instantiationService.createInstance(Controller);
-		const tree = this.instantiationService.createInstance(WorkbenchTree, container, {
-			dataSource: new DataSource(),
-			renderer,
-			controller
-		}, {
-				indentPixels: 40,
-				twistiePixels: 20
-			});
+		class ExtensionData implements IExtensionData {
 
-		tree.setInput(extensionDependencies);
+			private readonly extensionDependencies: IExtensionDependencies;
 
-		this.contentDisposables.push(tree.onDidChangeSelection(event => {
-			if (event && event.payload && event.payload.origin === 'keyboard') {
-				controller.openExtension(tree, false);
+			constructor(extensionDependencies: IExtensionDependencies) {
+				this.extensionDependencies = extensionDependencies;
 			}
-		}));
 
-		return tree;
+			get extension(): IExtension {
+				return this.extensionDependencies.extension;
+			}
+
+			get parent(): IExtensionData {
+				return this.extensionDependencies.dependent ? new ExtensionData(this.extensionDependencies.dependent) : null;
+			}
+
+			get hasChildren(): boolean {
+				return this.extensionDependencies.hasDependencies;
+			}
+
+			getChildren(): Promise<IExtensionData[]> {
+				return this.extensionDependencies.dependencies ? TPromise.as(this.extensionDependencies.dependencies.map(d => new ExtensionData(d))) : null;
+			}
+		}
+
+		return this.instantiationService.createInstance(ExtensionsTree, new ExtensionData(extensionDependencies), container);
+	}
+
+	private openExtensionPack(extension: IExtension) {
+		return this.loadContents(() => {
+			const content = $('div', { class: 'subcontent' });
+			const scrollableContent = new DomScrollableElement(content, {});
+			append(this.content, scrollableContent.getDomNode());
+			this.contentDisposables.push(scrollableContent);
+
+			const dependenciesTree = this.renderExtensionPack(content, extension);
+			const layout = () => {
+				scrollableContent.scanDomNode();
+				const scrollDimensions = scrollableContent.getScrollDimensions();
+				dependenciesTree.layout(scrollDimensions.height);
+			};
+			const removeLayoutParticipant = arrays.insert(this.layoutParticipants, { layout });
+			this.contentDisposables.push(toDisposable(removeLayoutParticipant));
+
+			this.contentDisposables.push(dependenciesTree);
+			scrollableContent.scanDomNode();
+			return TPromise.as(null);
+		});
+	}
+
+	private renderExtensionPack(container: HTMLElement, extension: IExtension): Tree {
+		const extensionsWorkbenchService = this.extensionsWorkbenchService;
+		class ExtensionData implements IExtensionData {
+
+			readonly extension: IExtension;
+			readonly parent: IExtensionData;
+
+			constructor(extension: IExtension, parent?: IExtensionData) {
+				this.extension = extension;
+				this.parent = parent;
+			}
+
+			get hasChildren(): boolean {
+				return this.extension.extensionPack.length > 0;
+			}
+
+			getChildren(): Promise<IExtensionData[]> {
+				if (this.hasChildren) {
+					const names = arrays.distinct(this.extension.extensionPack, e => e.toLowerCase());
+					return extensionsWorkbenchService.queryGallery({ names, pageSize: names.length })
+						.then(result => result.firstPage.map(extension => new ExtensionData(extension, this)));
+				}
+				return TPromise.as(null);
+			}
+		}
+
+		return this.instantiationService.createInstance(ExtensionsTree, new ExtensionData(extension), container);
 	}
 
 	private renderSettings(container: HTMLElement, manifest: IExtensionManifest, onDetailsToggle: Function): boolean {
 		const contributes = manifest.contributes;
 		const configuration = contributes && contributes.configuration;
-		const properties = configuration && configuration.properties;
+		let properties = {};
+		if (Array.isArray(configuration)) {
+			configuration.forEach(config => {
+				properties = { ...properties, ...config.properties };
+			});
+		} else if (configuration) {
+			properties = configuration.properties;
+		}
 		const contrib = properties ? Object.keys(properties) : [];
 
 		if (!contrib.length) {
@@ -1037,7 +1121,8 @@ const showCommand = new ShowExtensionEditorFindCommand({
 	id: 'editor.action.extensioneditor.showfind',
 	precondition: KEYBINDING_CONTEXT_EXTENSIONEDITOR_WEBVIEW_FOCUS,
 	kbOpts: {
-		primary: KeyMod.CtrlCmd | KeyCode.KEY_F
+		primary: KeyMod.CtrlCmd | KeyCode.KEY_F,
+		weight: KeybindingWeight.EditorContrib
 	}
 });
-KeybindingsRegistry.registerCommandAndKeybindingRule(showCommand.toCommandAndKeybindingRule(KeybindingsRegistry.WEIGHT.editorContrib()));
+showCommand.register();

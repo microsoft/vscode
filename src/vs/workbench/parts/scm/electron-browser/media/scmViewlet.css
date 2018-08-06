@@ -15,7 +15,6 @@
 
 .scm-viewlet .empty-message {
 	padding: 10px 22px 0 22px;
-	opacity: 0.5;
 }
 
 .scm-viewlet:not(.empty) .empty-message,
@@ -51,7 +50,8 @@
 	display: none;
 }
 
-.scm-viewlet .scm-provider > .type {
+.scm-viewlet .scm-provider > .type,
+.scm-viewlet .scm-provider > .name > .type {
 	opacity: 0.7;
 	margin-left: 0.5em;
 	font-size: 0.9em;

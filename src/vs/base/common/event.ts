@@ -413,6 +413,7 @@ export interface IChainableEvent<T> {
 	filter(fn: (e: T) => boolean): IChainableEvent<T>;
 	latch(): IChainableEvent<T>;
 	on(listener: (e: T) => any, thisArgs?: any, disposables?: IDisposable[]): IDisposable;
+	once(listener: (e: T) => any, thisArgs?: any, disposables?: IDisposable[]): IDisposable;
 }
 
 export function mapEvent<I, O>(event: Event<I>, map: (i: I) => O): Event<O> {
@@ -453,6 +454,10 @@ class ChainableEvent<T> implements IChainableEvent<T> {
 
 	on(listener: (e: T) => any, thisArgs: any, disposables: IDisposable[]) {
 		return this._event(listener, thisArgs, disposables);
+	}
+
+	once(listener: (e: T) => any, thisArgs: any, disposables: IDisposable[]) {
+		return once(this._event)(listener, thisArgs, disposables);
 	}
 }
 

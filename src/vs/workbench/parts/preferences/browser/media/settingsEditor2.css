@@ -8,18 +8,16 @@
 }
 
 .settings-editor {
-	padding-top: 11px;
-	padding-left: 2px;
-	max-width: 1100px;
+	padding: 11px 24px 0px;
+	max-width: 1000px;
 	margin: auto;
 }
 
 /* header styling */
 .settings-editor > .settings-header {
-	padding-left: 5px;
-	padding-right: 5px;
 	box-sizing: border-box;
 	margin: auto;
+	overflow: hidden;
 }
 
 .settings-editor > .settings-header > .settings-preview-header {
@@ -28,25 +26,13 @@
 
 .settings-editor > .settings-header > .settings-preview-header .settings-preview-label {
 	opacity: .7;
-}
-
-.settings-editor > .settings-header > .settings-advanced-customization .open-settings-button,
-.settings-editor > .settings-header > .settings-advanced-customization .open-settings-button:hover,
-.settings-editor > .settings-header > .settings-advanced-customization .open-settings-button:active {
-	padding: 0;
-	text-decoration: underline;
-	display: inline;
-}
-
-.settings-editor > .settings-header > .settings-advanced-customization {
-	opacity: .7;
-	margin-top: 8px;
+	white-space: nowrap;
 }
 
 .settings-editor > .settings-header > .settings-preview-header > .settings-preview-warning {
 	text-align: right;
 	text-transform: uppercase;
-	background: rgba(136, 136, 136, 0.3);
+	background: rgba(136, 136, 136, 0.2);
 	border-radius: 2px;
 	font-size: 0.8em;
 	padding: 0 3px;
@@ -66,19 +52,41 @@
 	width: 100%;
 }
 
-.settings-editor > .settings-header .search-container > .settings-search-input > .monaco-inputbox .input {
+.settings-editor > .settings-header .search-container .settings-search-input > .monaco-inputbox .input {
 	font-size: 14px;
-	padding-left: 10px;
+	padding-left: 7px;
 }
 
 .settings-editor > .settings-header > .settings-header-controls {
-	margin-top: 3px;
-	height: 30px;
+	height: 32px;
 	display: flex;
+	border-bottom: solid 1px;
+	margin-top: 10px;
 }
 
-.settings-editor > .settings-header .settings-tabs-widget > .monaco-action-bar .action-item:not(:first-child) .action-label {
-	margin-left: 14px;
+.settings-editor > .settings-header > .settings-header-controls .settings-tabs-widget .action-label {
+	opacity: 0.9;
+}
+
+.settings-editor > .settings-header > .settings-header-controls .settings-tabs-widget .action-label:hover {
+	opacity: 1;
+}
+
+.settings-editor > .settings-header > .settings-header-controls .settings-tabs-widget .action-label.checked {
+	font-weight: 500;
+	opacity: 1;
+}
+
+.vs .settings-editor > .settings-header > .settings-header-controls {
+	border-color: #cccccc;
+}
+
+.vs-dark .settings-editor > .settings-header > .settings-header-controls {
+	border-color: #3c3c3c;
+}
+
+.settings-editor > .settings-header .settings-tabs-widget > .monaco-action-bar .action-item .action-label {
+	margin-right: 0px;
 }
 
 .settings-editor > .settings-header .settings-tabs-widget .monaco-action-bar .action-item .dropdown-icon {
@@ -88,35 +96,71 @@
 
 .settings-editor > .settings-header > .settings-header-controls .settings-header-controls-right {
 	margin-left: auto;
-	padding-top: 3px;
+	padding-top: 4px;
 	display: flex;
 }
 
-.settings-editor > .settings-header > .settings-header-controls .settings-header-controls-right #configured-only-checkbox {
-	flex-shrink: 0;
+.settings-editor > .settings-header > .settings-header-controls .settings-header-controls-right .toolbar-toggle-more {
+	display: block;
+	width: 22px;
+	height: 22px;
+	background-position: center;
+	background-repeat: no-repeat;
+	background-size: 16px;
 }
 
-.settings-editor > .settings-header > .settings-header-controls .settings-header-controls-right .configured-only-label {
-	white-space: nowrap;
-	margin-right: 10px;
-	margin-left: 2px;
-	opacity: 0.7;
+.vs .settings-editor > .settings-header > .settings-header-controls .settings-header-controls-right .toolbar-toggle-more {
+	background-image: url('ellipsis.svg');
+}
+
+.vs-dark .settings-editor > .settings-header > .settings-header-controls .settings-header-controls-right .toolbar-toggle-more {
+	background-image: url('ellipsis-inverse.svg');
+}
+
+.settings-editor > .settings-header > .settings-header-controls .settings-tabs-widget > .monaco-action-bar .action-item {
+	padding: 0px; /* padding must be on action-label because it has the bottom-border, because that's where the .checked class is */
+}
+
+.settings-editor > .settings-header > .settings-header-controls .settings-tabs-widget > .monaco-action-bar .action-item .action-label {
+	text-transform: none;
+	font-size: 13px;
+
+	padding-bottom: 7px;
+	padding-top: 7px;
+	padding-left: 8px;
+	padding-right: 8px;
 }
 
 .settings-editor > .settings-body {
 	display: flex;
 	margin: auto;
-	max-width: 1100px;
-	justify-content: space-between;
+	max-width: 1000px;
 }
 
-.settings-editor > .settings-body .settings-tree-container .monaco-tree::before {
-	outline: none !important;
+.settings-editor.search-mode > .settings-body .settings-tree-container .monaco-tree-wrapper,
+.settings-editor.search-mode > .settings-body > .settings-tree-container .setting-measure-container {
+	width: calc(100% - 11px);
+	margin-left: 0px;
+}
+
+.settings-editor.narrow > .settings-body .settings-tree-container .monaco-tree-wrapper,
+.settings-editor.narrow > .settings-body > .settings-tree-container .setting-measure-container {
+	width: calc(100% - 11px);
+	margin-left: 0px;
+}
+
+.settings-editor > .settings-body .settings-tree-container .monaco-tree-wrapper,
+.settings-editor > .settings-body > .settings-tree-container .setting-measure-container {
+	/** 11px for scrollbar + 208px for TOC margin */
+	width: calc(100% - 219px);
+	margin-left: 208px;
 }
 
 .settings-editor > .settings-body .settings-toc-container {
-	width: 175px;
-	margin-right: 5px;
+	position: absolute;
+	width: 160px;
+	margin-top: 16px;
+	padding-left: 5px;
 }
 
 .settings-editor > .settings-body .settings-toc-container.hidden {
@@ -127,36 +171,61 @@
 	display: none;
 }
 
-.settings-editor.search-mode > .settings-body .settings-tree-container {
-	max-width: 1100px;
-}
-
 .settings-editor.narrow > .settings-body .settings-toc-container {
 	display: none;
+}
+
+.settings-editor > .settings-body .settings-toc-container .monaco-scrollable-element > .shadow {
+	display: none;
+}
+
+.settings-editor > .settings-body .settings-toc-container .monaco-tree-row .content {
+	display: flex;
 }
 
 .settings-editor > .settings-body .settings-toc-container .monaco-tree-row .settings-toc-entry {
 	overflow: hidden;
 	text-overflow: ellipsis;
 	line-height: 22px;
+	opacity: 0.9;
+	flex-shrink: 1;
+}
+
+.settings-editor > .settings-body .settings-toc-container .monaco-tree-row .settings-toc-count {
+	line-height: 22px;
+	opacity: 0.7;
+	margin-left: 3px;
+}
+
+.settings-editor > .settings-body .settings-toc-container .monaco-tree-row.has-children > .content:before {
+	opacity: 0.9;
+}
+
+.settings-editor > .settings-body .settings-toc-container .monaco-tree-row.has-children.selected > .content:before {
+	opacity: 1;
 }
 
 .settings-editor > .settings-body .settings-toc-container .monaco-tree-row .settings-toc-entry.no-results {
 	opacity: 0.5;
 }
 
+.settings-editor > .settings-body .settings-toc-container .monaco-tree-row.selected .settings-toc-entry {
+	font-weight: bold;
+	opacity: 1;
+}
+
 .settings-editor > .settings-body .settings-tree-container {
 	flex: 1;
-	max-width: 875px;
 	margin-right: 1px; /* So the item doesn't blend into the edge of the view container  */
+	margin-top: 14px;
 	border-spacing: 0;
 	border-collapse: separate;
 	position: relative;
 }
 
 .settings-editor > .settings-body > .settings-tree-container .setting-item {
-	padding-top: 9px;
-	padding-bottom: 13px;
+	padding-top: 12px;
+	padding-bottom: 18px;
 	box-sizing: border-box;
 	cursor: default;
 	white-space: normal;
@@ -186,27 +255,49 @@
 
 .settings-editor > .settings-body > .settings-tree-container .setting-item .setting-item-label,
 .settings-editor > .settings-body > .settings-tree-container .setting-item .setting-item-category {
-	font-weight: bold;
+	font-weight: 600;
 }
 
 .settings-editor > .settings-body > .settings-tree-container .setting-item .setting-item-category {
-	opacity: 0.7;
+	opacity: 0.9;
 }
 
 .settings-editor > .settings-body > .settings-tree-container .setting-item .setting-item-description {
-	opacity: 0.7;
 	margin-top: 3px;
 	overflow: hidden;
 	text-overflow: ellipsis;
 	height: 18px;
+	display: -webkit-box;
+	-webkit-line-clamp: 1;
+	-webkit-box-orient: vertical;
+	transform: translate3d(0px, 0px, 0px);
 }
 
-.settings-editor > .settings-body > .settings-tree-container .setting-item .setting-item-description * {
+.settings-editor > .settings-body > .settings-tree-container .setting-item .setting-item-description.setting-item-description-artificial-overflow {
+	display: block;
+}
+
+.settings-editor > .settings-body > .settings-tree-container .setting-item .setting-item-description-artificial-overflow .setting-item-description-markdown {
+	display: inline-block;
+	margin-right: 3px;
+}
+
+.settings-editor > .settings-body > .settings-tree-container .setting-item .setting-item-description-artificial-overflow::after {
+	display: inline-block;
+	content: '…';
+	width: 16px;
+	height: 16px;
+	position: absolute;
+	transform: translate3d(0px, 0px, 0px);
+}
+
+.settings-editor > .settings-body > .settings-tree-container .setting-item .setting-item-description-markdown * {
 	margin: 0px;
 }
 
-.settings-editor > .settings-body > .settings-tree-container .setting-item .setting-item-description code {
+.settings-editor > .settings-body > .settings-tree-container .setting-item .setting-item-description-markdown code {
 	line-height: 15px; /** For some reason, this is needed, otherwise <code> will take up 20px height */
+	font-family: Menlo, Monaco, Consolas, "Droid Sans Mono", "Courier New", monospace, "Droid Sans Fallback";
 }
 
 .settings-editor > .settings-body > .settings-tree-container .setting-measure-container.monaco-tree-row {
@@ -217,6 +308,16 @@
 .settings-editor > .settings-body > .settings-tree-container .setting-item.is-expanded .setting-item-description,
 .settings-editor > .settings-body > .settings-tree-container .setting-item.setting-measure-helper .setting-item-description {
 	height: initial;
+	-webkit-line-clamp: initial;
+}
+
+.settings-editor > .settings-body > .settings-tree-container .setting-item .setting-item-enumDescription {
+	display: none;
+}
+
+.settings-editor > .settings-body > .settings-tree-container .setting-item.is-expanded .setting-item-enumDescription,
+.settings-editor > .settings-body > .settings-tree-container .setting-item.setting-measure-helper .setting-item-enumDescription {
+	display: block;
 }
 
 .settings-editor > .settings-body > .settings-tree-container .setting-item-bool .setting-item-value-description {
@@ -224,15 +325,15 @@
 }
 
 .settings-editor > .settings-body > .settings-tree-container .setting-item-bool .setting-value-checkbox {
-	height: 16px;
-	width: 16px;
+	height: 18px;
+	width: 18px;
 	border: 1px solid transparent;
 	border-radius: 3px;
-	margin-right: 4px;
+	margin-right: 9px;
 	margin-left: 0px;
 	margin-top: 4px;
 	padding: 0px;
-	background-size: 14px !important;
+	background-size: 16px !important;
 }
 
 .vs .settings-editor > .settings-body > .settings-tree-container .setting-item-bool .setting-value-checkbox.checked {
@@ -244,22 +345,25 @@
 }
 
 .settings-editor > .settings-body > .settings-tree-container .setting-item .setting-item-value {
-	margin-top: 7px;
+	margin-top: 9px;
 	display: flex;
 }
 
-.settings-editor > .settings-body > .settings-tree-container .setting-item .setting-item-value > .setting-item-control.setting-type-number {
+.settings-editor > .settings-body > .settings-tree-container .setting-item.setting-item-number .setting-item-value > .setting-item-control {
 	min-width: 200px;
 }
 
-.settings-editor > .settings-body > .settings-tree-container .setting-item .setting-item-value > .setting-item-control.setting-type-enum,
-.settings-editor > .settings-body > .settings-tree-container .setting-item .setting-item-value > .setting-item-control.setting-type-string {
-	flex: 1;
+.settings-editor > .settings-body > .settings-tree-container .setting-item.setting-item-text .setting-item-control {
+	width: 500px;
+}
+
+.settings-editor > .settings-body > .settings-tree-container .setting-item.setting-item-enum .setting-item-value > .setting-item-control,
+.settings-editor > .settings-body > .settings-tree-container .setting-item.setting-item-text .setting-item-value > .setting-item-control {
 	min-width: initial;
 }
 
-.settings-editor > .settings-body > .settings-tree-container .setting-item .setting-item-value > .setting-item-control.setting-type-enum > select {
-	width: 100%;
+.settings-editor > .settings-body > .settings-tree-container .setting-item.setting-item-enum .setting-item-value > .setting-item-control > select {
+	width: 320px;
 }
 
 .settings-editor > .settings-body > .settings-tree-container .setting-item .setting-item-value .edit-in-settings-button,
@@ -276,10 +380,20 @@
 	height: 26px;
 }
 
+.settings-editor > .settings-body > .settings-tree-container .setting-item-new-extensions {
+	display: flex;
+}
+
+.settings-editor > .settings-body > .settings-tree-container .setting-item-new-extensions .settings-new-extensions-button {
+	margin: auto;
+	width: initial;
+	padding: 4px 10px;
+}
+
 .settings-editor > .settings-body > .settings-tree-container .group-title,
 .settings-editor > .settings-body > .settings-tree-container .setting-item {
-	padding-left: 10px;
-	padding-right: 10px;
+	padding-left: 9px;
+	padding-right: 9px;
 }
 
 .settings-editor > .settings-body > .settings-tree-container .group-title {
@@ -288,7 +402,7 @@
 
 .settings-editor > .settings-body > .settings-tree-container .settings-group-title-label {
 	margin: 0px;
-	font-weight: bold;
+	font-weight: 600;
 }
 
 .settings-editor > .settings-body > .settings-tree-container .settings-group-level-1 {
@@ -297,12 +411,12 @@
 }
 
 .settings-editor > .settings-body > .settings-tree-container .settings-group-level-2 {
-	padding-top: 27px;
+	padding-top: 32px;
 	font-size: 20px;
 }
 
 .settings-editor > .settings-body > .settings-tree-container .settings-group-level-1.settings-group-first {
-	padding-top: 4px;
+	padding-top: 7px;
 }
 
 .settings-editor > .settings-body .settings-feedback-button {

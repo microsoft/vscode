@@ -42,31 +42,33 @@ define([], function () {
 	function getEntries(type, name) {
 		const result = [];
 		const entries = global._performanceEntries;
-		for (let i = 0; i < entries.length; i += 4) {
+		for (let i = 0; i < entries.length; i += 5) {
 			if (entries[i] === type && (name === void 0 || entries[i + 1] === name)) {
 				result.push({
 					type: entries[i],
 					name: entries[i + 1],
 					startTime: entries[i + 2],
 					duration: entries[i + 3],
+					seq: entries[i + 4],
 				});
 			}
 		}
 
 		return result.sort((a, b) => {
-			return a.startTime - b.startTime;
+			return a.startTime - b.startTime || a.seq - b.seq;
 		});
 	}
 
 	function getEntry(type, name) {
 		const entries = global._performanceEntries;
-		for (let i = 0; i < entries.length; i += 4) {
+		for (let i = 0; i < entries.length; i += 5) {
 			if (entries[i] === type && entries[i + 1] === name) {
 				return {
 					type: entries[i],
 					name: entries[i + 1],
 					startTime: entries[i + 2],
 					duration: entries[i + 3],
+					seq: entries[i + 4],
 				};
 			}
 		}
@@ -76,7 +78,7 @@ define([], function () {
 		const entries = global._performanceEntries;
 		let name = from;
 		let startTime = 0;
-		for (let i = 0; i < entries.length; i += 4) {
+		for (let i = 0; i < entries.length; i += 5) {
 			if (entries[i + 1] === name) {
 				if (name === from) {
 					// found `from` (start of interval)
@@ -91,8 +93,10 @@ define([], function () {
 		return 0;
 	}
 
+	let seq = 0;
+
 	function mark(name) {
-		global._performanceEntries.push('mark', name, _now(), 0);
+		global._performanceEntries.push('mark', name, _now(), 0, seq++);
 		if (typeof console.timeStamp === 'function') {
 			console.timeStamp(name);
 		}
@@ -121,9 +125,9 @@ define([], function () {
 
 	function _getLastStartTime(name) {
 		const entries = global._performanceEntries;
-		for (let i = entries.length - 1; i >= 0; i -= 4) {
-			if (entries[i - 2] === name) {
-				return entries[i - 1];
+		for (let i = entries.length - 1; i >= 0; i -= 5) {
+			if (entries[i - 3] === name) {
+				return entries[i - 2];
 			}
 		}
 

@@ -43,7 +43,12 @@ function update(idOrPath) {
 		let apiToken = process.env.TRANSIFEX_API_TOKEN;
 		let languageId = localization.transifexId || localization.languageId;
 		let translationDataFolder = path.join(locExtFolder, 'translations');
-
+		if (languageId === "zh-cn") {
+			languageId = "zh-hans";
+		}
+		if (languageId === "zh-tw") {
+			languageId = "zh-hant";
+		}
 		if (fs.existsSync(translationDataFolder) && fs.existsSync(path.join(translationDataFolder, 'main.i18n.json'))) {
 			console.log('Clearing  \'' + translationDataFolder + '\'...');
 			rimraf.sync(translationDataFolder);

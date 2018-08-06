@@ -413,6 +413,23 @@ export const location = {
 	}
 };
 
+export namespace DefinitionLink {
+	export function from(value: vscode.Location | vscode.DefinitionLink): modes.DefinitionLink {
+		const definitionLink = <vscode.DefinitionLink>value;
+		const location = <vscode.Location>value;
+		return {
+			origin: definitionLink.originSelectionRange
+				? Range.from(definitionLink.originSelectionRange)
+				: undefined,
+			uri: definitionLink.targetUri ? definitionLink.targetUri : location.uri,
+			range: Range.from(definitionLink.targetRange ? definitionLink.targetRange : location.range),
+			selectionRange: definitionLink.targetSelectionRange
+				? Range.from(definitionLink.targetSelectionRange)
+				: undefined,
+		};
+	}
+}
+
 export namespace Hover {
 	export function from(hover: vscode.Hover): modes.Hover {
 		return <modes.Hover>{

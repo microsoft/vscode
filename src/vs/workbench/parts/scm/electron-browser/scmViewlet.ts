@@ -1285,7 +1285,8 @@ export class SCMViewlet extends PanelViewlet implements IViewModel, IViewsViewle
 			this.addPanels([{ panel, size: panel.minimumSize, index: index++ }]);
 			panel.repository.focus();
 			panel.onDidFocus(() => this.lastFocusedRepository = panel.repository);
-			if (newRepositoryPanels.length === 1 || this.lastFocusedRepository === panel.repository) {
+
+			if (this.lastFocusedRepository === panel.repository) {
 				panel.focus();
 			}
 		});

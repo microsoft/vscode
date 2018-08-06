@@ -79,7 +79,7 @@ export class RipgrepEngine {
 		this.ripgrepParser = new RipgrepParser(this.config.maxResults, cwd, this.config.extraFiles);
 		this.ripgrepParser.on('result', (match: ISerializedFileMatch) => {
 			if (this.postProcessExclusions) {
-				const handleResultP = (<TPromise<string>>this.postProcessExclusions(match.path, undefined, () => getSiblings(match.path)))
+				const handleResultP = (<TPromise<string>>this.postProcessExclusions(match.path, undefined, glob.hasSiblingPromiseFn(() => getSiblings(match.path))))
 					.then(globMatch => {
 						if (!globMatch) {
 							onResult(match);

@@ -12,7 +12,7 @@ import { ISplice } from 'vs/base/common/sequence';
  * @param array The array.
  * @param n Which element from the end (default is zero).
  */
-export function tail<T>(array: T[], n: number = 0): T {
+export function tail<T>(array: ArrayLike<T>, n: number = 0): T {
 	return array[array.length - (1 + n)];
 }
 
@@ -474,14 +474,19 @@ export function arrayInsert<T>(target: T[], insertIndex: number, insertArr: T[])
  * Uses Fisher-Yates shuffle to shuffle the given array
  * @param array
  */
-export function shuffle<T>(array: T[]): void {
-	var i = 0
-		, j = 0
-		, temp = null;
+export function shuffle<T>(array: T[], seed?: number): void {
+	// Seeded random number generator in JS. Modified from:
+	// https://stackoverflow.com/questions/521295/seeding-the-random-number-generator-in-javascript
+	const random = () => {
+		var x = Math.sin(seed++) * 179426549; // throw away most significant digits and reduce any potential bias
+		return x - Math.floor(x);
+	};
 
-	for (i = array.length - 1; i > 0; i -= 1) {
-		j = Math.floor(Math.random() * (i + 1));
-		temp = array[i];
+	const rand = typeof seed === 'number' ? random : Math.random;
+
+	for (let i = array.length - 1; i > 0; i -= 1) {
+		let j = Math.floor(rand() * (i + 1));
+		let temp = array[i];
 		array[i] = array[j];
 		array[j] = temp;
 	}

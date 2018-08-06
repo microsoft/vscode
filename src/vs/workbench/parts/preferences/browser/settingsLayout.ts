@@ -85,6 +85,11 @@ export const tocData: ITOCEntry = {
 					settings: ['workbench.activityBar.*', 'workbench.*color*', 'workbench.fontAliasing', 'workbench.iconTheme', 'workbench.sidebar.location', 'workbench.*.visible', 'workbench.tips.enabled', 'workbench.tree.*', 'workbench.view.*']
 				},
 				{
+					id: 'workbench/breadcrumbs',
+					label: localize('breadcrumbs', "Breadcrumbs"),
+					settings: ['breadcrumbs.*']
+				},
+				{
 					id: 'workbench/editor',
 					label: localize('editorManagement', "Editor Management"),
 					settings: ['workbench.editor.*']
@@ -128,7 +133,7 @@ export const tocData: ITOCEntry = {
 			children: [
 				{
 					id: 'features/explorer',
-					label: localize('fileExplorer', "File Explorer"),
+					label: localize('fileExplorer', "Explorer"),
 					settings: ['explorer.*', 'outline.*']
 				},
 				{

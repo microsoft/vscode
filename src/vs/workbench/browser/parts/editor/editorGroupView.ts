@@ -337,8 +337,10 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 				target = (e as GestureEvent).initialTarget as HTMLElement;
 			}
 
-			if (findParentWithClass(target, 'monaco-action-bar', this.titleContainer)) {
-				return; // not when clicking on actions
+			if (findParentWithClass(target, 'monaco-action-bar', this.titleContainer) ||
+				findParentWithClass(target, 'monaco-breadcrumb-item', this.titleContainer)
+			) {
+				return; // not when clicking on actions or breadcrumbs
 			}
 
 			// timeout to keep focus in editor after mouse up
@@ -1371,6 +1373,7 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 		this._onWillDispose.fire();
 
 		this.titleAreaControl.dispose();
+		// this.editorControl = null;
 
 		super.dispose();
 	}

@@ -4,11 +4,11 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as vscode from 'vscode';
-
 import * as Proto from '../protocol';
-
 import { ITypeScriptServiceClient } from '../typescriptService';
 import * as typeConverters from '../utils/typeConverters';
+
+
 
 class TypeScriptDocumentHighlightProvider implements vscode.DocumentHighlightProvider {
 	public constructor(
@@ -26,18 +26,20 @@ class TypeScriptDocumentHighlightProvider implements vscode.DocumentHighlightPro
 		}
 
 		const args = typeConverters.Position.toFileLocationRequestArgs(file, position);
+		let items: Proto.OccurrencesResponseItem[];
 		try {
-			const response = await this.client.execute('occurrences', args, token);
-			if (response && response.body) {
-				return response.body
-					.filter(x => !x.isInString)
-					.map(documentHighlightFromOccurance);
+			const { body } = await this.client.execute('occurrences', args, token);
+			if (!body) {
+				return [];
 			}
+			items = body;
 		} catch {
-			// noop
+			return [];
 		}
 
-		return [];
+		return items
+			.filter(x => !x.isInString)
+			.map(documentHighlightFromOccurance);
 	}
 }
 

@@ -14,9 +14,7 @@ import { ExtHostWorkspace } from 'vs/workbench/api/node/extHostWorkspace';
 import { InputBox, InputBoxOptions, QuickInput, QuickInputButton, QuickPick, QuickPickItem, QuickPickOptions, WorkspaceFolder, WorkspaceFolderPickOptions } from 'vscode';
 import { ExtHostQuickOpenShape, IMainContext, MainContext, MainThreadQuickOpenShape, TransferQuickPickItems, TransferQuickInput, TransferQuickInputButton } from './extHost.protocol';
 import URI from 'vs/base/common/uri';
-import { ThemeIcon } from 'vs/workbench/api/node/extHostTypes';
-
-const backButton: QuickInputButton = { iconPath: 'back.svg' };
+import { ThemeIcon, QuickInputButtons } from 'vs/workbench/api/node/extHostTypes';
 
 export type Item = string | QuickPickItem;
 
@@ -152,8 +150,6 @@ export class ExtHostQuickOpen implements ExtHostQuickOpenShape {
 	}
 
 	// ---- QuickInput
-
-	backButton = backButton;
 
 	createQuickPick<T extends QuickPickItem>(extensionId: string): QuickPick<T> {
 		const session = new ExtHostQuickPick(this._proxy, extensionId, () => this._sessions.delete(session._id));
@@ -328,14 +324,14 @@ class ExtHostQuickInput implements QuickInput {
 		this._buttons = buttons.slice();
 		this._handlesToButtons.clear();
 		buttons.forEach((button, i) => {
-			const handle = button === backButton ? -1 : i;
+			const handle = button === QuickInputButtons.Back ? -1 : i;
 			this._handlesToButtons.set(handle, button);
 		});
 		this.update({
 			buttons: buttons.map<TransferQuickInputButton>((button, i) => ({
 				iconPath: getIconUris(button.iconPath),
 				tooltip: button.tooltip,
-				handle: button === backButton ? -1 : i,
+				handle: button === QuickInputButtons.Back ? -1 : i,
 			}))
 		});
 	}

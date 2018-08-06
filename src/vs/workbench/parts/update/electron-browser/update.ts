@@ -21,7 +21,7 @@ import { IOpenerService } from 'vs/platform/opener/common/opener';
 import { ICommandService } from 'vs/platform/commands/common/commands';
 import { IWorkbenchContribution } from 'vs/workbench/common/contributions';
 import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
-import { IUpdateService, State as UpdateState, StateType, IUpdate } from 'vs/platform/update/common/update';
+import { IUpdateService, State as UpdateState, StateType, IUpdate, UpdateType } from 'vs/platform/update/common/update';
 import * as semver from 'semver';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { INotificationService, INotificationHandle } from 'vs/platform/notification/common/notification';
@@ -221,23 +221,39 @@ export class WinUserSetupContribution implements IWorkbenchContribution {
 	// TODO@joao this needs to change to the 1.26 release notes
 	private static readonly READ_MORE = 'https://aka.ms/vscode-win32-user-setup';
 
+	private disposables: IDisposable[] = [];
+
 	constructor(
-		@IStorageService storageService: IStorageService,
-		@INotificationService notificationService: INotificationService,
-		@IEnvironmentService environmentService: IEnvironmentService,
-		@IOpenerService private openerService: IOpenerService
+		@IStorageService private storageService: IStorageService,
+		@INotificationService private notificationService: INotificationService,
+		@IEnvironmentService private environmentService: IEnvironmentService,
+		@IOpenerService private openerService: IOpenerService,
+		@IUpdateService private updateService: IUpdateService
 	) {
-		if (!environmentService.isBuilt || environmentService.disableUpdates) {
+		updateService.onStateChange(this.onUpdateStateChange, this, this.disposables);
+		this.onUpdateStateChange(this.updateService.state);
+	}
+
+	private onUpdateStateChange(state: UpdateState): void {
+		if (state.type !== StateType.Idle) {
 			return;
 		}
 
-		const neverShowAgain = new NeverShowAgain(WinUserSetupContribution.KEY, storageService);
+		if (state.updateType !== UpdateType.Setup) {
+			return;
+		}
+
+		if (!this.environmentService.isBuilt || this.environmentService.disableUpdates) {
+			return;
+		}
+
+		const neverShowAgain = new NeverShowAgain(WinUserSetupContribution.KEY, this.storageService);
 
 		if (!neverShowAgain.shouldShow()) {
 			return;
 		}
 
-		const handle = notificationService.prompt(
+		const handle = this.notificationService.prompt(
 			severity.Info,
 			nls.localize('usersetup', "We recommend switching to our new User Setup distribution of {0} for Windows! Click [here]({1}) to learn more.", product.nameShort, WinUserSetupContribution.READ_MORE),
 			[
@@ -261,6 +277,10 @@ export class WinUserSetupContribution implements IWorkbenchContribution {
 				}]
 		);
 	}
+
+	dispose(): void {
+		this.disposables = dispose(this.disposables);
+	}
 }
 
 class CommandAction extends Action {
@@ -277,7 +297,7 @@ class CommandAction extends Action {
 export class UpdateContribution implements IGlobalActivity {
 
 	private static readonly showCommandsId = 'workbench.action.showCommands';
-	private static readonly openSettingsId = 'workbench.action.openSettings2';
+	private static readonly openSettingsId = 'workbench.action.openSettings';
 	private static readonly openKeybindingsId = 'workbench.action.openGlobalKeybindings';
 	private static readonly openUserSnippets = 'workbench.action.openSnippets';
 	private static readonly selectColorThemeId = 'workbench.action.selectTheme';

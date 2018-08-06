@@ -282,11 +282,6 @@ export class ListView<T> implements ISpliceable<T>, IDisposable {
 	private insertItemInDOM(index: number, beforeElement: HTMLElement | null): void {
 		const item = this.items[index];
 
-		if (!item) {
-			console.log(this.items);
-			throw new Error(`Got index ${index} and there are ${this.items.length} items. File issue to joao!`);
-		}
-
 		if (!item.row) {
 			item.row = this.cache.alloc(item.templateId);
 		}
@@ -316,12 +311,6 @@ export class ListView<T> implements ISpliceable<T>, IDisposable {
 
 	private removeItemFromDOM(index: number): void {
 		const item = this.items[index];
-
-		if (!item) {
-			console.log(this.items);
-			throw new Error(`Got index ${index} and there are ${this.items.length} items. File issue to joao!`);
-		}
-
 		const renderer = this.renderers.get(item.templateId);
 
 		if (renderer.disposeElement) {

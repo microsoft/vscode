@@ -16,10 +16,9 @@ import { toErrorMessage } from 'vs/base/common/errorMessage';
 import product from 'vs/platform/node/product';
 import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
 import pkg from 'vs/platform/node/package';
-import { ContextViewService } from 'vs/platform/contextview/browser/contextViewService';
 import { Workbench, IWorkbenchStartedInfo } from 'vs/workbench/electron-browser/workbench';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { NullTelemetryService, configurationTelemetry } from 'vs/platform/telemetry/common/telemetryUtils';
+import { NullTelemetryService, configurationTelemetry, combinedAppender, LogAppender } from 'vs/platform/telemetry/common/telemetryUtils';
 import { ITelemetryAppenderChannel, TelemetryAppenderClient } from 'vs/platform/telemetry/common/telemetryIpc';
 import { TelemetryService, ITelemetryServiceConfig } from 'vs/platform/telemetry/common/telemetryService';
 import ErrorTelemetry from 'vs/platform/telemetry/browser/errorTelemetry';
@@ -46,7 +45,6 @@ import { IStorageService } from 'vs/platform/storage/common/storage';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
 import { InstantiationService } from 'vs/platform/instantiation/common/instantiationService';
-import { IContextViewService } from 'vs/platform/contextview/browser/contextView';
 import { ILifecycleService, LifecyclePhase, ShutdownReason, StartupKind } from 'vs/platform/lifecycle/common/lifecycle';
 import { IMarkerService } from 'vs/platform/markers/common/markers';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
@@ -93,7 +91,7 @@ import { NotificationService } from 'vs/workbench/services/notification/common/n
 import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
 import { DialogService } from 'vs/workbench/services/dialogs/electron-browser/dialogService';
 import { DialogChannel } from 'vs/platform/dialogs/common/dialogIpc';
-import { EventType, addDisposableListener, addClass, getClientArea } from 'vs/base/browser/dom';
+import { EventType, addDisposableListener, addClass } from 'vs/base/browser/dom';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
 import { OpenerService } from 'vs/editor/browser/services/openerService';
 import { SearchHistoryService } from 'vs/workbench/services/search/node/searchHistoryService';
@@ -120,7 +118,6 @@ export class WorkbenchShell extends Disposable {
 	private storageService: IStorageService;
 	private environmentService: IEnvironmentService;
 	private logService: ILogService;
-	private contextViewService: ContextViewService;
 	private configurationService: IConfigurationService;
 	private contextService: IWorkspaceContextService;
 	private telemetryService: ITelemetryService;
@@ -135,8 +132,6 @@ export class WorkbenchShell extends Disposable {
 	private container: HTMLElement;
 	private previousErrorValue: string;
 	private previousErrorTime: number;
-	private content: HTMLElement;
-	private contentsContainer: HTMLElement;
 
 	private configuration: IWindowConfiguration;
 	private workbench: Workbench;
@@ -160,20 +155,15 @@ export class WorkbenchShell extends Disposable {
 		this.previousErrorTime = 0;
 	}
 
-	private createContents(parent: HTMLElement): HTMLElement {
-
+	private renderContents(): void {
 		// ARIA
 		aria.setARIAContainer(document.body);
 
-		// Workbench Container
-		const workbenchContainer = document.createElement('div');
-		parent.appendChild(workbenchContainer);
-
 		// Instantiation service with services
-		const [instantiationService, serviceCollection] = this.initServiceCollection(parent);
+		const [instantiationService, serviceCollection] = this.initServiceCollection(this.container);
 
 		// Workbench
-		this.workbench = this.createWorkbench(instantiationService, serviceCollection, parent, workbenchContainer);
+		this.workbench = this.createWorkbench(instantiationService, serviceCollection, this.container);
 
 		// Window
 		this.workbench.getInstantiationService().createInstance(ElectronWindow);
@@ -186,13 +176,11 @@ export class WorkbenchShell extends Disposable {
 		this.lifecycleService.when(LifecyclePhase.Running).then(() => {
 			clearTimeout(timeoutHandle);
 		});
-
-		return workbenchContainer;
 	}
 
-	private createWorkbench(instantiationService: IInstantiationService, serviceCollection: ServiceCollection, parent: HTMLElement, workbenchContainer: HTMLElement): Workbench {
+	private createWorkbench(instantiationService: IInstantiationService, serviceCollection: ServiceCollection, container: HTMLElement): Workbench {
 		try {
-			const workbench = instantiationService.createInstance(Workbench, parent, workbenchContainer, this.configuration, serviceCollection, this.lifecycleService, this.mainProcessClient);
+			const workbench = instantiationService.createInstance(Workbench, container, this.configuration, serviceCollection, this.lifecycleService, this.mainProcessClient);
 
 			// Set lifecycle phase to `Restoring`
 			this.lifecycleService.phase = LifecyclePhase.Restoring;
@@ -362,14 +350,12 @@ export class WorkbenchShell extends Disposable {
 		serviceCollection.set(IHashService, new SyncDescriptor(HashService));
 
 		// Telemetry
-		if (this.environmentService.isBuilt && !this.environmentService.isExtensionDevelopment && !this.environmentService.args['disable-telemetry'] && !!product.enableTelemetry) {
-			const channel = getDelayedChannel<ITelemetryAppenderChannel>(sharedProcess.then(c => c.getChannel('telemetryAppender')));
-			const commit = product.commit;
-			const version = pkg.version;
 
+		if (!this.environmentService.isExtensionDevelopment && !this.environmentService.args['disable-telemetry'] && !!product.enableTelemetry) {
+			const channel = getDelayedChannel<ITelemetryAppenderChannel>(sharedProcess.then(c => c.getChannel('telemetryAppender')));
 			const config: ITelemetryServiceConfig = {
-				appender: new TelemetryAppenderClient(channel),
-				commonProperties: resolveWorkbenchCommonProperties(this.storageService, commit, version, this.configuration.machineId, this.environmentService.installSourcePath),
+				appender: combinedAppender(new TelemetryAppenderClient(channel), new LogAppender(this.logService)),
+				commonProperties: resolveWorkbenchCommonProperties(this.storageService, product.commit, pkg.version, this.configuration.machineId, this.environmentService.installSourcePath),
 				piiPaths: [this.environmentService.appRoot, this.environmentService.extensionsPath]
 			};
 
@@ -417,9 +403,6 @@ export class WorkbenchShell extends Disposable {
 		serviceCollection.set(IWorkbenchThemeService, this.themeService);
 
 		serviceCollection.set(ICommandService, new SyncDescriptor(CommandService));
-
-		this.contextViewService = instantiationService.createInstance(ContextViewService, this.container);
-		serviceCollection.set(IContextViewService, this.contextViewService);
 
 		serviceCollection.set(IMarkerService, new SyncDescriptor(MarkerService));
 
@@ -472,13 +455,8 @@ export class WorkbenchShell extends Disposable {
 		// Shell Class for CSS Scoping
 		addClass(this.container, 'monaco-shell');
 
-		// Controls
-		this.content = document.createElement('div');
-		addClass(this.content, 'monaco-shell-content');
-		this.container.appendChild(this.content);
-
 		// Create Contents
-		this.contentsContainer = this.createContents(this.content);
+		this.renderContents();
 
 		// Layout
 		this.layout();
@@ -521,12 +499,6 @@ export class WorkbenchShell extends Disposable {
 	}
 
 	private layout(): void {
-		const clientArea = getClientArea(this.container);
-
-		this.contentsContainer.style.width = `${clientArea.width}px`;
-		this.contentsContainer.style.height = `${clientArea.height}px`;
-
-		this.contextViewService.layout();
 		this.workbench.layout();
 	}
 
@@ -542,6 +514,7 @@ export class WorkbenchShell extends Disposable {
 		}
 	}
 }
+
 
 registerThemingParticipant((theme: ITheme, collector: ICssStyleCollector) => {
 

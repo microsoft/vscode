@@ -122,7 +122,7 @@ suite('ExtHostLanguageFeatureCommands', function () {
 		const diagnostics = new ExtHostDiagnostics(rpcProtocol);
 		rpcProtocol.set(ExtHostContext.ExtHostDiagnostics, diagnostics);
 
-		extHost = new ExtHostLanguageFeatures(rpcProtocol, null, extHostDocuments, commands, heapService, diagnostics);
+		extHost = new ExtHostLanguageFeatures(rpcProtocol, null, extHostDocuments, commands, heapService, diagnostics, new NullLogService());
 		rpcProtocol.set(ExtHostContext.ExtHostLanguageFeatures, extHost);
 
 		mainThread = rpcProtocol.set(MainContext.MainThreadLanguageFeatures, inst.createInstance(MainThreadLanguageFeatures, rpcProtocol));
@@ -664,6 +664,22 @@ suite('ExtHostLanguageFeatureCommands', function () {
 				assert.equal(first.additionalTextEdits[0].range.start.character, 20);
 				assert.equal(first.additionalTextEdits[0].range.end.line, 2);
 				assert.equal(first.additionalTextEdits[0].range.end.character, 20);
+			});
+		});
+	});
+
+	test('"TypeError: e.onCancellationRequested is not a function" calling hover provider in Insiders #54174', function () {
+
+		disposables.push(extHost.registerHoverProvider(defaultSelector, <vscode.HoverProvider>{
+			provideHover(): any {
+				return new types.Hover('fofofofo');
+			}
+		}));
+
+		return rpcProtocol.sync().then(() => {
+			return commands.executeCommand<vscode.Hover[]>('vscode.executeHoverProvider', model.uri, new types.Position(1, 1)).then(value => {
+				assert.equal(value.length, 1);
+				assert.equal(value[0].contents.length, 1);
 			});
 		});
 	});

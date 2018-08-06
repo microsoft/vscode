@@ -481,7 +481,7 @@ export class TerminalInstance implements ITerminalInstance {
 						label: nls.localize('yes', "Yes"),
 						run: () => {
 							this._configurationService.updateValue('terminal.integrated.rendererType', 'dom', ConfigurationTarget.USER).then(() => {
-								this._notificationService.info(nls.localize('terminal.rendererInAllNewTerminals', "All newly created terminals will use the non-GPU renderer."));
+								this._notificationService.info(nls.localize('terminal.rendererInAllNewTerminals', "The termnial is now using the fallback renderer."));
 							});
 						}
 					} as IPromptChoice,
@@ -665,6 +665,10 @@ export class TerminalInstance implements ITerminalInstance {
 				const width = parseInt(computedStyle.getPropertyValue('width').replace('px', ''), 10);
 				const height = parseInt(computedStyle.getPropertyValue('height').replace('px', ''), 10);
 				this.layout(new dom.Dimension(width, height));
+				// HACK: Trigger another async layout to ensure xterm's CharMeasure is ready to use,
+				// this hack can be removed when https://github.com/xtermjs/xterm.js/issues/702 is
+				// supported.
+				setTimeout(() => this.layout(new dom.Dimension(width, height)), 0);
 			}
 		}
 	}
@@ -880,6 +884,7 @@ export class TerminalInstance implements ITerminalInstance {
 		this._safeSetOption('macOptionIsMeta', config.macOptionIsMeta);
 		this._safeSetOption('macOptionClickForcesSelection', config.macOptionClickForcesSelection);
 		this._safeSetOption('rightClickSelectsWord', config.rightClickBehavior === 'selectWord');
+		this._safeSetOption('rendererType', config.rendererType === 'auto' ? 'canvas' : config.rendererType);
 	}
 
 	public updateAccessibilitySupport(): void {
@@ -1063,6 +1068,11 @@ export class TerminalInstance implements ITerminalInstance {
 
 	private _updateTheme(theme?: ITheme): void {
 		this._xterm.setOption('theme', this._getXtermTheme(theme));
+	}
+
+	public toggleEscapeSequenceLogging(): void {
+		this._xterm._core.debug = !this._xterm._core.debug;
+		this._xterm.setOption('debug', this._xterm._core.debug);
 	}
 }
 

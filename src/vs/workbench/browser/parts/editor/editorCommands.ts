@@ -6,7 +6,7 @@
 import * as nls from 'vs/nls';
 import * as types from 'vs/base/common/types';
 import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
-import { KeybindingsRegistry } from 'vs/platform/keybinding/common/keybindingsRegistry';
+import { KeybindingsRegistry, KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { TextCompareEditorVisibleContext, EditorInput, IEditorIdentifier, IEditorCommandsContext, ActiveEditorGroupEmptyContext, MultipleEditorGroupsContext, CloseDirection, IEditor, IEditorInput } from 'vs/workbench/common/editor';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
@@ -75,7 +75,7 @@ const isActiveEditorMoveArg = function (arg: ActiveEditorMoveArguments): boolean
 function registerActiveEditorMoveCommand(): void {
 	KeybindingsRegistry.registerCommandAndKeybindingRule({
 		id: MOVE_ACTIVE_EDITOR_COMMAND_ID,
-		weight: KeybindingsRegistry.WEIGHT.workbenchContrib(),
+		weight: KeybindingWeight.WorkbenchContrib,
 		when: EditorContextKeys.editorTextFocus,
 		primary: null,
 		handler: (accessor, args: any) => moveActiveEditor(args, accessor),
@@ -222,7 +222,7 @@ export function mergeAllGroups(editorGroupService: IEditorGroupsService): void {
 function registerDiffEditorCommands(): void {
 	KeybindingsRegistry.registerCommandAndKeybindingRule({
 		id: 'workbench.action.compareEditor.nextChange',
-		weight: KeybindingsRegistry.WEIGHT.workbenchContrib(),
+		weight: KeybindingWeight.WorkbenchContrib,
 		when: TextCompareEditorVisibleContext,
 		primary: null,
 		handler: accessor => navigateInDiffEditor(accessor, true)
@@ -230,7 +230,7 @@ function registerDiffEditorCommands(): void {
 
 	KeybindingsRegistry.registerCommandAndKeybindingRule({
 		id: 'workbench.action.compareEditor.previousChange',
-		weight: KeybindingsRegistry.WEIGHT.workbenchContrib(),
+		weight: KeybindingWeight.WorkbenchContrib,
 		when: TextCompareEditorVisibleContext,
 		primary: null,
 		handler: accessor => navigateInDiffEditor(accessor, false)
@@ -247,7 +247,7 @@ function registerDiffEditorCommands(): void {
 
 	KeybindingsRegistry.registerCommandAndKeybindingRule({
 		id: TOGGLE_DIFF_INLINE_MODE,
-		weight: KeybindingsRegistry.WEIGHT.workbenchContrib(),
+		weight: KeybindingWeight.WorkbenchContrib,
 		when: void 0,
 		primary: void 0,
 		handler: (accessor, resourceOrContext: URI | IEditorCommandsContext, context?: IEditorCommandsContext) => {
@@ -274,7 +274,7 @@ function registerOpenEditorAtIndexCommands(): void {
 
 		KeybindingsRegistry.registerCommandAndKeybindingRule({
 			id: 'workbench.action.openEditorAtIndex' + visibleIndex,
-			weight: KeybindingsRegistry.WEIGHT.workbenchContrib(),
+			weight: KeybindingWeight.WorkbenchContrib,
 			when: void 0,
 			primary: KeyMod.Alt | toKeyCode(visibleIndex),
 			mac: { primary: KeyMod.WinCtrl | toKeyCode(visibleIndex) },
@@ -318,7 +318,7 @@ function registerFocusEditorGroupAtIndexCommands(): void {
 	for (let groupIndex = 1; groupIndex < 8; groupIndex++) {
 		KeybindingsRegistry.registerCommandAndKeybindingRule({
 			id: toCommandId(groupIndex),
-			weight: KeybindingsRegistry.WEIGHT.workbenchContrib(),
+			weight: KeybindingWeight.WorkbenchContrib,
 			when: void 0,
 			primary: KeyMod.CtrlCmd | toKeyCode(groupIndex),
 			handler: accessor => {
@@ -422,7 +422,7 @@ function registerCloseEditorCommands() {
 
 	KeybindingsRegistry.registerCommandAndKeybindingRule({
 		id: CLOSE_SAVED_EDITORS_COMMAND_ID,
-		weight: KeybindingsRegistry.WEIGHT.workbenchContrib(),
+		weight: KeybindingWeight.WorkbenchContrib,
 		when: void 0,
 		primary: KeyChord(KeyMod.CtrlCmd | KeyCode.KEY_K, KeyCode.KEY_U),
 		handler: (accessor, resourceOrContext: URI | IEditorCommandsContext, context?: IEditorCommandsContext) => {
@@ -442,7 +442,7 @@ function registerCloseEditorCommands() {
 
 	KeybindingsRegistry.registerCommandAndKeybindingRule({
 		id: CLOSE_EDITORS_IN_GROUP_COMMAND_ID,
-		weight: KeybindingsRegistry.WEIGHT.workbenchContrib(),
+		weight: KeybindingWeight.WorkbenchContrib,
 		when: void 0,
 		primary: KeyChord(KeyMod.CtrlCmd | KeyCode.KEY_K, KeyCode.KEY_W),
 		handler: (accessor, resourceOrContext: URI | IEditorCommandsContext, context?: IEditorCommandsContext) => {
@@ -462,7 +462,7 @@ function registerCloseEditorCommands() {
 
 	KeybindingsRegistry.registerCommandAndKeybindingRule({
 		id: CLOSE_EDITOR_COMMAND_ID,
-		weight: KeybindingsRegistry.WEIGHT.workbenchContrib(),
+		weight: KeybindingWeight.WorkbenchContrib,
 		when: void 0,
 		primary: KeyMod.CtrlCmd | KeyCode.KEY_W,
 		win: { primary: KeyMod.CtrlCmd | KeyCode.F4, secondary: [KeyMod.CtrlCmd | KeyCode.KEY_W] },
@@ -490,7 +490,7 @@ function registerCloseEditorCommands() {
 
 	KeybindingsRegistry.registerCommandAndKeybindingRule({
 		id: CLOSE_EDITOR_GROUP_COMMAND_ID,
-		weight: KeybindingsRegistry.WEIGHT.workbenchContrib(),
+		weight: KeybindingWeight.WorkbenchContrib,
 		when: ContextKeyExpr.and(ActiveEditorGroupEmptyContext, MultipleEditorGroupsContext),
 		primary: KeyMod.CtrlCmd | KeyCode.KEY_W,
 		win: { primary: KeyMod.CtrlCmd | KeyCode.F4, secondary: [KeyMod.CtrlCmd | KeyCode.KEY_W] },
@@ -511,7 +511,7 @@ function registerCloseEditorCommands() {
 
 	KeybindingsRegistry.registerCommandAndKeybindingRule({
 		id: CLOSE_OTHER_EDITORS_IN_GROUP_COMMAND_ID,
-		weight: KeybindingsRegistry.WEIGHT.workbenchContrib(),
+		weight: KeybindingWeight.WorkbenchContrib,
 		when: void 0,
 		primary: void 0,
 		mac: { primary: KeyMod.CtrlCmd | KeyMod.Alt | KeyCode.KEY_T },
@@ -540,7 +540,7 @@ function registerCloseEditorCommands() {
 
 	KeybindingsRegistry.registerCommandAndKeybindingRule({
 		id: CLOSE_EDITORS_TO_THE_RIGHT_COMMAND_ID,
-		weight: KeybindingsRegistry.WEIGHT.workbenchContrib(),
+		weight: KeybindingWeight.WorkbenchContrib,
 		when: void 0,
 		primary: void 0,
 		handler: (accessor, resourceOrContext: URI | IEditorCommandsContext, context?: IEditorCommandsContext) => {
@@ -557,7 +557,7 @@ function registerCloseEditorCommands() {
 
 	KeybindingsRegistry.registerCommandAndKeybindingRule({
 		id: KEEP_EDITOR_COMMAND_ID,
-		weight: KeybindingsRegistry.WEIGHT.workbenchContrib(),
+		weight: KeybindingWeight.WorkbenchContrib,
 		when: void 0,
 		primary: KeyChord(KeyMod.CtrlCmd | KeyCode.KEY_K, KeyCode.Enter),
 		handler: (accessor, resourceOrContext: URI | IEditorCommandsContext, context?: IEditorCommandsContext) => {
@@ -574,7 +574,7 @@ function registerCloseEditorCommands() {
 
 	KeybindingsRegistry.registerCommandAndKeybindingRule({
 		id: SHOW_EDITORS_IN_GROUP,
-		weight: KeybindingsRegistry.WEIGHT.workbenchContrib(),
+		weight: KeybindingWeight.WorkbenchContrib,
 		when: void 0,
 		primary: void 0,
 		handler: (accessor, resourceOrContext: URI | IEditorCommandsContext, context?: IEditorCommandsContext) => {

@@ -3,11 +3,11 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { TextDocument, Position, CancellationToken, Location } from 'vscode';
-
+import * as vscode from 'vscode';
 import * as Proto from '../protocol';
 import { ITypeScriptServiceClient } from '../typescriptService';
 import * as typeConverters from '../utils/typeConverters';
+
 
 export default class TypeScriptDefinitionProviderBase {
 	constructor(
@@ -16,10 +16,10 @@ export default class TypeScriptDefinitionProviderBase {
 
 	protected async getSymbolLocations(
 		definitionType: 'definition' | 'implementation' | 'typeDefinition',
-		document: TextDocument,
-		position: Position,
-		token: CancellationToken | boolean
-	): Promise<Location[] | undefined> {
+		document: vscode.TextDocument,
+		position: vscode.Position,
+		token: vscode.CancellationToken
+	): Promise<vscode.Location[] | undefined> {
 		const filepath = this.client.toPath(document.uri);
 		if (!filepath) {
 			return undefined;
@@ -32,7 +32,7 @@ export default class TypeScriptDefinitionProviderBase {
 			return locations.map(location =>
 				typeConverters.Location.fromTextSpan(this.client.toResource(location.file), location));
 		} catch {
-			return [];
+			return undefined;
 		}
 	}
 }

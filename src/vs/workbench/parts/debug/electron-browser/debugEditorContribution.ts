@@ -47,6 +47,7 @@ import { memoize } from 'vs/base/common/decorators';
 import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
 import { getHover } from 'vs/editor/contrib/hover/getHover';
 import { IEditorHoverOptions } from 'vs/editor/common/config/editorOptions';
+import { CancellationToken } from 'vs/base/common/cancellation';
 
 const HOVER_DELAY = 300;
 const LAUNCH_JSON_REGEX = /launch\.json$/;
@@ -379,7 +380,7 @@ export class DebugEditorContribution implements IDebugEditorContribution {
 	@memoize
 	private get provideNonDebugHoverScheduler(): RunOnceScheduler {
 		const scheduler = new RunOnceScheduler(() => {
-			getHover(this.editor.getModel(), this.nonDebugHoverPosition);
+			getHover(this.editor.getModel(), this.nonDebugHoverPosition, CancellationToken.None);
 		}, HOVER_DELAY);
 		this.toDispose.push(scheduler);
 

@@ -94,11 +94,11 @@ function _generateMarkdown(description: string | ICommandHandlerDescription): st
 		parts.push('\n\n');
 		if (description.args) {
 			for (let arg of description.args) {
-				parts.push(`* _${arg.name}_ ${arg.description || ''}\n`);
+				parts.push(`* _${arg.name}_ - ${arg.description || ''}\n`);
 			}
 		}
 		if (description.returns) {
-			parts.push(`* _(returns)_ ${description.returns}`);
+			parts.push(`* _(returns)_ - ${description.returns}`);
 		}
 		parts.push('\n\n');
 		return parts.join('');

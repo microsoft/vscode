@@ -4,13 +4,14 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as vscode from 'vscode';
-
+import * as nls from 'vscode-nls';
 import TypeScriptServiceClientHost from './typeScriptServiceClientHost';
 import { Command } from './utils/commandManager';
 import { Lazy } from './utils/lazy';
-import { openOrCreateConfigFile, isImplicitProjectConfigFile } from './utils/tsconfig';
+import { isImplicitProjectConfigFile, openOrCreateConfigFile } from './utils/tsconfig';
+import { nulToken } from './utils/cancellation';
 
-import * as nls from 'vscode-nls';
+
 const localize = nls.loadMessageBundle();
 
 
@@ -131,7 +132,7 @@ async function goToProjectConfig(
 
 	let res: protocol.ProjectInfoResponse | undefined = undefined;
 	try {
-		res = await client.execute('projectInfo', { file, needFileNameList: false } as protocol.ProjectInfoRequestArgs);
+		res = await client.execute('projectInfo', { file, needFileNameList: false }, nulToken);
 	} catch {
 		// noop
 	}
