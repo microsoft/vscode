@@ -362,9 +362,9 @@ declare module 'vscode' {
 		priority?: number;
 		title?: string;
 		bubble?: boolean;
-		abbreviation?: string;
+		abbreviation?: string; // letter, not optional
 		color?: ThemeColor;
-		source?: string;
+		source?: string; // hacky... we should remove it and use equality under the hood
 	}
 
 	export interface SourceControlResourceDecorations {
