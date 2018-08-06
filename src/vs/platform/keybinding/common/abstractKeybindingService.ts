@@ -5,7 +5,7 @@
 'use strict';
 
 import * as nls from 'vs/nls';
-import { ResolvedKeybinding, Keybinding } from 'vs/base/common/keyCodes';
+import { ResolvedKeybinding, Keybinding, KeyCode } from 'vs/base/common/keyCodes';
 import { IDisposable, Disposable } from 'vs/base/common/lifecycle';
 import { ICommandService } from 'vs/platform/commands/common/commands';
 import { KeybindingResolver, IResolveResult } from 'vs/platform/keybinding/common/keybindingResolver';
@@ -203,5 +203,19 @@ export abstract class AbstractKeybindingService extends Disposable implements IK
 		}
 
 		return shouldPreventDefault;
+	}
+
+	mightProducePrintableCharacter(event: IKeyboardEvent): boolean {
+		if (event.ctrlKey || event.metaKey) {
+			// ignore ctrl/cmd-combination but not shift/alt-combinatios
+			return false;
+		}
+		// weak check for certain ranges. this is properly implemented in a subclass
+		// with access to the KeyboardMapperFactory.
+		if ((event.keyCode >= KeyCode.KEY_A && event.keyCode <= KeyCode.KEY_Z)
+			|| (event.keyCode >= KeyCode.KEY_0 && event.keyCode <= KeyCode.KEY_9)) {
+			return true;
+		}
+		return false;
 	}
 }

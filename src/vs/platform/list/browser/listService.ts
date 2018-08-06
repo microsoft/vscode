@@ -31,6 +31,7 @@ import { TPromise } from 'vs/base/common/winjs.base';
 import { onUnexpectedError, canceled } from 'vs/base/common/errors';
 import { KeyCode } from 'vs/base/common/keyCodes';
 import { IKeyboardEvent } from 'vs/base/browser/keyboardEvent';
+import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 
 export type ListWidget = List<any> | PagedList<any> | ITree;
 
@@ -578,7 +579,8 @@ export class HighlightingTreeController extends WorkbenchTreeController {
 	constructor(
 		options: IControllerOptions,
 		private readonly onType: () => any,
-		@IConfigurationService configurationService: IConfigurationService
+		@IConfigurationService configurationService: IConfigurationService,
+		@IKeybindingService private readonly _keybindingService: IKeybindingService,
 	) {
 		super(options, configurationService);
 	}
@@ -591,16 +593,7 @@ export class HighlightingTreeController extends WorkbenchTreeController {
 		if (this.upKeyBindingDispatcher.has(event.keyCode)) {
 			return false;
 		}
-		if (event.ctrlKey || event.metaKey) {
-			// ignore ctrl/cmd-combination but not shift/alt-combinatios
-			return false;
-		}
-		// crazy -> during keydown focus moves to the input box
-		// and because of that the keyup event is handled by the
-		// input field
-		if (event.keyCode >= KeyCode.KEY_A && event.keyCode <= KeyCode.KEY_Z) {
-			// todo@joh this is much weaker than using the KeyboardMapperFactory
-			// but due to layering-challanges that's not available here...
+		if (this._keybindingService.mightProducePrintableCharacter(event)) {
 			this.onType();
 			return true;
 		}
