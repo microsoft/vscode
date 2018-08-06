@@ -97,7 +97,6 @@ export interface ITerminalConfiguration {
 		windows: { [key: string]: string };
 	};
 	showExitAlert: boolean;
-	experimentalRestore: boolean;
 }
 
 export interface ITerminalConfigHelper {

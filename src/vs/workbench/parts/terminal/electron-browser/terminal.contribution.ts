@@ -356,11 +356,6 @@ configurationRegistry.registerConfiguration({
 			description: nls.localize('terminal.integrated.showExitAlert', "Controls whether to show the alert \"The terminal process terminated with exit code\" when exit code is non-zero."),
 			type: 'boolean',
 			default: true
-		},
-		'terminal.integrated.experimentalRestore': {
-			description: nls.localize('terminal.integrated.experimentalRestore', "Controls whether to restore terminal sessions for the workspace automatically when launching VS Code. This is an experimental setting; it may be buggy and could change or be removed in the future."),
-			type: 'boolean',
-			default: false
 		}
 	}
 });
