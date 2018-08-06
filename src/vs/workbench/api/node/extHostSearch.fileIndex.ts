@@ -416,7 +416,7 @@ export class FileIndexSearchManager {
 				sortedSearch.then(complete => {
 					this.sendAsBatches(complete.results, onBatch, FileIndexSearchManager.BATCH_SIZE);
 					c(complete);
-				}, e, onBatch);
+				}, e);
 			}, () => {
 				sortedSearch.cancel();
 			});
