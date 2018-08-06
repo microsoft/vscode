@@ -747,7 +747,7 @@ export class CodeMenu {
 		const twoRowsRightEditorLayout = this.createMenuItem(nls.localize({ key: 'miTwoRowsRightEditorLayout', comment: ['&& denotes a mnemonic'] }, "Two R&&ows Right"), 'workbench.action.editorLayoutTwoRowsRight');
 		const twoColumnsBottomEditorLayout = this.createMenuItem(nls.localize({ key: 'miTwoColumnsBottomEditorLayout', comment: ['&& denotes a mnemonic'] }, "Two &&Columns Bottom"), 'workbench.action.editorLayoutTwoColumnsBottom');
 
-		const toggleEditorLayout = this.createMenuItem(nls.localize({ key: 'miToggleEditorLayout', comment: ['&& denotes a mnemonic'] }, "Toggle Vertical/Horizontal &&Layout"), 'workbench.action.toggleEditorGroupLayout');
+		const toggleEditorLayout = this.createMenuItem(nls.localize({ key: 'miToggleEditorLayout', comment: ['&& denotes a mnemonic'] }, "Flip &&Layout"), 'workbench.action.toggleEditorGroupLayout');
 
 		[
 			splitEditorUp,
