@@ -10,6 +10,7 @@ import { CancellationToken } from 'vs/base/common/cancellation';
 import { ResolvedKeybinding } from 'vs/base/common/keyCodes';
 import URI from 'vs/base/common/uri';
 import { Event } from 'vs/base/common/event';
+import { FileKind } from 'vs/platform/files/common/files';
 
 export interface IQuickPickItem {
 	id?: string;
@@ -17,6 +18,11 @@ export interface IQuickPickItem {
 	description?: string;
 	detail?: string;
 	picked?: boolean;
+}
+
+export interface IFilePickItem extends IQuickPickItem {
+	resource: URI;
+	fileKind?: FileKind;
 }
 
 export interface IQuickNavigateConfiguration {
