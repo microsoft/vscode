@@ -25,7 +25,6 @@ enum MessageType {
 function isResponse(messageType: MessageType): boolean {
 	return messageType === MessageType.ResponseInitialize
 		|| messageType === MessageType.ResponsePromiseSuccess
-		|| messageType === MessageType.ResponsePromiseProgress
 		|| messageType === MessageType.ResponsePromiseError
 		|| messageType === MessageType.ResponsePromiseErrorObj
 		|| messageType === MessageType.ResponseEventFire;
