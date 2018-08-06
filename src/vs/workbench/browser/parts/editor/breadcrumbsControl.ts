@@ -364,12 +364,6 @@ export class BreadcrumbsControl {
 
 MenuRegistry.appendMenuItem(MenuId.CommandPalette, {
 	command: {
-		id: 'breadcrumbs.focusAndSelect',
-		title: localize('cmd.focus', "Focus Breadcrumbs")
-	}
-});
-MenuRegistry.appendMenuItem(MenuId.CommandPalette, {
-	command: {
 		id: 'breadcrumbs.toggle',
 		title: localize('cmd.toggle', "Toggle Breadcrumbs")
 	}
@@ -388,17 +382,11 @@ CommandsRegistry.registerCommand('breadcrumbs.toggle', accessor => {
 	BreadcrumbsConfig.IsEnabled.bindTo(config).value = !value;
 });
 
-KeybindingsRegistry.registerCommandAndKeybindingRule({
-	id: 'breadcrumbs.focus',
-	weight: KeybindingWeight.WorkbenchContrib,
-	primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.US_SEMICOLON,
-	when: BreadcrumbsControl.CK_BreadcrumbsVisible,
-	handler(accessor) {
-		const groups = accessor.get(IEditorGroupsService);
-		const breadcrumbs = accessor.get(IBreadcrumbsService);
-		const widget = breadcrumbs.getWidget(groups.activeGroup.id);
-		const item = tail(widget.getItems());
-		widget.setFocused(item);
+MenuRegistry.appendMenuItem(MenuId.CommandPalette, {
+	command: {
+		id: 'breadcrumbs.focusAndSelect',
+		title: localize('cmd.focus', "Focus Breadcrumbs"),
+		precondition: BreadcrumbsControl.CK_BreadcrumbsVisible
 	}
 });
 KeybindingsRegistry.registerCommandAndKeybindingRule({
@@ -410,11 +398,29 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 		const groups = accessor.get(IEditorGroupsService);
 		const breadcrumbs = accessor.get(IBreadcrumbsService);
 		const widget = breadcrumbs.getWidget(groups.activeGroup.id);
-		const item = tail(widget.getItems());
-		widget.setFocused(item);
-		widget.setSelection(item, BreadcrumbsControl.Payload_Pick);
+		if (widget) {
+			const item = tail(widget.getItems());
+			widget.setFocused(item);
+			widget.setSelection(item, BreadcrumbsControl.Payload_Pick);
+		}
 	}
 });
+KeybindingsRegistry.registerCommandAndKeybindingRule({
+	id: 'breadcrumbs.focus',
+	weight: KeybindingWeight.WorkbenchContrib,
+	primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.US_SEMICOLON,
+	when: BreadcrumbsControl.CK_BreadcrumbsVisible,
+	handler(accessor) {
+		const groups = accessor.get(IEditorGroupsService);
+		const breadcrumbs = accessor.get(IBreadcrumbsService);
+		const widget = breadcrumbs.getWidget(groups.activeGroup.id);
+		if (widget) {
+			const item = tail(widget.getItems());
+			widget.setFocused(item);
+		}
+	}
+});
+
 KeybindingsRegistry.registerCommandAndKeybindingRule({
 	id: 'breadcrumbs.focusNext',
 	weight: KeybindingWeight.WorkbenchContrib,

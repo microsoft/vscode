@@ -493,7 +493,9 @@ export class ShowStartupPerformance extends Action {
 			}
 
 			i += 1;
-			ticks[stat.type].push(new Tick(stat, nextStat));
+			if (ticks[stat.type]) {
+				ticks[stat.type].push(new Tick(stat, nextStat));
+			}
 		}
 
 		ticks[LoaderEventType.BeginInvokeFactory].sort(Tick.compareUsingStartTimestamp);
@@ -1640,25 +1642,6 @@ export class OpenPrivacyStatementUrlAction extends Action {
 		return TPromise.as(false);
 	}
 }
-
-export class ShowAccessibilityOptionsAction extends Action {
-
-	static readonly ID = 'workbench.action.showAccessibilityOptions';
-	static LABEL = nls.localize('accessibilityOptions', "Accessibility Options");
-
-	constructor(
-		id: string,
-		label: string,
-		@IWindowsService private windowsService: IWindowsService
-	) {
-		super(id, label);
-	}
-
-	run(): TPromise<void> {
-		return this.windowsService.openAccessibilityOptions();
-	}
-}
-
 
 export class ShowAboutDialogAction extends Action {
 

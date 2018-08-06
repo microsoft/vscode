@@ -69,6 +69,7 @@ export class DebugService implements debug.IDebugService {
 	private readonly _onDidChangeState: Emitter<debug.State>;
 	private readonly _onDidNewSession: Emitter<debug.ISession>;
 	private readonly _onDidEndSession: Emitter<debug.ISession>;
+	private readonly _onDidLoadedSource: Emitter<debug.LoadedSourceEvent>;
 	private readonly _onDidCustomEvent: Emitter<debug.DebugEvent>;
 	private model: Model;
 	private viewModel: ViewModel;
@@ -113,6 +114,7 @@ export class DebugService implements debug.IDebugService {
 		this._onDidChangeState = new Emitter<debug.State>();
 		this._onDidNewSession = new Emitter<debug.ISession>();
 		this._onDidEndSession = new Emitter<debug.ISession>();
+		this._onDidLoadedSource = new Emitter<debug.LoadedSourceEvent>();
 		this._onDidCustomEvent = new Emitter<debug.DebugEvent>();
 		this.sessionStates = new Map<string, debug.State>();
 		this.allSessions = new Map<string, debug.ISession>();
@@ -450,6 +452,14 @@ export class DebugService implements debug.IDebugService {
 			}
 		}));
 
+		this.toDisposeOnSessionEnd.get(session.getId()).push(raw.onDidLoadedSource(event => {
+			this._onDidLoadedSource.fire({
+				session: session,
+				reason: event.body.reason,
+				source: session.getSource(event.body.source)
+			});
+		}));
+
 		this.toDisposeOnSessionEnd.get(session.getId()).push(raw.onDidCustomEvent(event => {
 			this._onDidCustomEvent.fire(event);
 		}));
@@ -540,6 +550,10 @@ export class DebugService implements debug.IDebugService {
 
 	public get onDidEndSession(): Event<debug.ISession> {
 		return this._onDidEndSession.event;
+	}
+
+	public get onDidLoadedSource(): Event<debug.LoadedSourceEvent> {
+		return this._onDidLoadedSource.event;
 	}
 
 	public get onDidCustomEvent(): Event<debug.DebugEvent> {
@@ -1105,7 +1119,8 @@ export class DebugService implements debug.IDebugService {
 			const unresolvedConfiguration = (<Session>session).unresolvedConfiguration;
 			if (session.raw.capabilities.supportsRestartRequest) {
 				return this.runTask(session.getId(), session.raw.root, session.configuration.postDebugTask, session.configuration, unresolvedConfiguration,
-					() => session.raw.custom('restart', null));
+					() => this.runTask(session.getId(), session.raw.root, session.configuration.preLaunchTask, session.configuration, unresolvedConfiguration,
+						() => session.raw.custom('restart', null)));
 			}
 
 			const focusedSession = this.viewModel.focusedSession;

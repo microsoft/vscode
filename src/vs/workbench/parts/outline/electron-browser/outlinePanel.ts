@@ -50,7 +50,6 @@ import { IViewletViewOptions } from 'vs/workbench/browser/parts/views/viewsViewl
 import { CollapseAction } from 'vs/workbench/browser/viewlet';
 import { IViewsService } from 'vs/workbench/common/views';
 import { ACTIVE_GROUP, IEditorService, SIDE_GROUP } from 'vs/workbench/services/editor/common/editorService';
-import { KeyboardMapperFactory } from 'vs/workbench/services/keybinding/electron-browser/keybindingService';
 import { OutlineConfigKeys, OutlineViewFiltered, OutlineViewFocused, OutlineViewId } from './outline';
 import { OutlineController, OutlineDataSource, OutlineItemComparator, OutlineItemCompareType, OutlineItemFilter, OutlineRenderer, OutlineTreeState } from '../../../../editor/contrib/documentSymbols/outlineTree';
 import { IResourceInput } from 'vs/platform/editor/common/editor';
@@ -256,12 +255,12 @@ export class OutlinePanel extends ViewletPanel {
 		@IEditorService private readonly _editorService: IEditorService,
 		@IMarkerService private readonly _markerService: IMarkerService,
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
+		@IKeybindingService private readonly _keybindingService: IKeybindingService,
 		@IConfigurationService configurationService: IConfigurationService,
-		@IKeybindingService keybindingService: IKeybindingService,
 		@IContextKeyService contextKeyService: IContextKeyService,
 		@IContextMenuService contextMenuService: IContextMenuService,
 	) {
-		super(options, keybindingService, contextMenuService, configurationService);
+		super(options, _keybindingService, contextMenuService, configurationService);
 		this._outlineViewState.restore(this._storageService);
 		this._contextKeyFocused = OutlineViewFocused.bindTo(contextKeyService);
 		this._contextKeyFiltered = OutlineViewFiltered.bindTo(contextKeyService);
@@ -326,8 +325,6 @@ export class OutlinePanel extends ViewletPanel {
 		const $this = this;
 		const controller = new class extends OutlineController {
 
-			private readonly _mapper = KeyboardMapperFactory.INSTANCE;
-
 			constructor() {
 				super({}, $this.configurationService);
 			}
@@ -340,22 +337,10 @@ export class OutlinePanel extends ViewletPanel {
 				if (this.upKeyBindingDispatcher.has(event.keyCode)) {
 					return false;
 				}
-				if (event.ctrlKey || event.metaKey) {
-					// ignore ctrl/cmd-combination but not shift/alt-combinatios
-					return false;
-				}
 				// crazy -> during keydown focus moves to the input box
 				// and because of that the keyup event is handled by the
 				// input field
-				const mapping = this._mapper.getRawKeyboardMapping();
-				if (!mapping) {
-					return false;
-				}
-				const keyInfo = mapping[event.code];
-				if (!keyInfo) {
-					return false;
-				}
-				if (keyInfo.value) {
+				if ($this._keybindingService.mightProducePrintableCharacter(event)) {
 					$this._input.focus();
 					return true;
 				}

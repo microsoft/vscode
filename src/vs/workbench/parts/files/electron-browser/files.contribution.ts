@@ -186,7 +186,7 @@ configurationRegistry.registerConfiguration({
 	'properties': {
 		'files.exclude': {
 			'type': 'object',
-			'description': nls.localize('exclude', "Configure glob patterns for excluding files and folders. For example, the files explorer decides which files and folders to show or hide based on this setting."),
+			'description': nls.localize('exclude', "Configure glob patterns for excluding files and folders. For example, the files explorer decides which files and folders to show or hide based on this setting. Read more about glob patterns [here](https://code.visualstudio.com/docs/editor/codebasics#_advanced-search-options)."),
 			'default': { '**/.git': true, '**/.svn': true, '**/.hg': true, '**/CVS': true, '**/.DS_Store': true },
 			'scope': ConfigurationScope.RESOURCE,
 			'additionalProperties': {
@@ -351,22 +351,22 @@ configurationRegistry.registerConfiguration({
 		},
 		'explorer.autoReveal': {
 			'type': 'boolean',
-			'description': nls.localize('autoReveal', "Controls if the explorer should automatically reveal and select files when opening them."),
+			'description': nls.localize('autoReveal', "Controls whether the explorer should automatically reveal and select files when opening them."),
 			'default': true
 		},
 		'explorer.enableDragAndDrop': {
 			'type': 'boolean',
-			'description': nls.localize('enableDragAndDrop', "Controls if the explorer should allow to move files and folders via drag and drop."),
+			'description': nls.localize('enableDragAndDrop', "Controls whether the explorer should allow to move files and folders via drag and drop."),
 			'default': true
 		},
 		'explorer.confirmDragAndDrop': {
 			'type': 'boolean',
-			'description': nls.localize('confirmDragAndDrop', "Controls if the explorer should ask for confirmation to move files and folders via drag and drop."),
+			'description': nls.localize('confirmDragAndDrop', "Controls whether the explorer should ask for confirmation to move files and folders via drag and drop."),
 			'default': true
 		},
 		'explorer.confirmDelete': {
 			'type': 'boolean',
-			'description': nls.localize('confirmDelete', "Controls if the explorer should ask for confirmation when deleting a file via the trash."),
+			'description': nls.localize('confirmDelete', "Controls whether the explorer should ask for confirmation when deleting a file via the trash."),
 			'default': true
 		},
 		'explorer.sortOrder': {
@@ -384,12 +384,12 @@ configurationRegistry.registerConfiguration({
 		},
 		'explorer.decorations.colors': {
 			type: 'boolean',
-			description: nls.localize('explorer.decorations.colors', "Controls if file decorations should use colors."),
+			description: nls.localize('explorer.decorations.colors', "Controls whether file decorations should use colors."),
 			default: true
 		},
 		'explorer.decorations.badges': {
 			type: 'boolean',
-			description: nls.localize('explorer.decorations.badges', "Controls if file decorations should use badges."),
+			description: nls.localize('explorer.decorations.badges', "Controls whether file decorations should use badges."),
 			default: true
 		},
 	}

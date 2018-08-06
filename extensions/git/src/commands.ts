@@ -1021,8 +1021,8 @@ export class CommandCenter {
 
 			if (unsavedTextDocuments.length > 0) {
 				const message = unsavedTextDocuments.length === 1
-					? localize('unsaved files single', "The following file is unsaved: {0}.\n\nWould you like to save it before comitting?", path.basename(unsavedTextDocuments[0].uri.fsPath))
-					: localize('unsaved files', "There are {0} unsaved files.\n\nWould you like to save them before comitting?", unsavedTextDocuments.length);
+					? localize('unsaved files single', "The following file is unsaved: {0}.\n\nWould you like to save it before committing?", path.basename(unsavedTextDocuments[0].uri.fsPath))
+					: localize('unsaved files', "There are {0} unsaved files.\n\nWould you like to save them before committing?", unsavedTextDocuments.length);
 				const saveAndCommit = localize('save and commit', "Save All & Commit");
 				const commit = localize('commit', "Commit Anyway");
 				const pick = await window.showWarningMessage(message, { modal: true }, saveAndCommit, commit);

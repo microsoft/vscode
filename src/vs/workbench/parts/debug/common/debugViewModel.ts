@@ -69,8 +69,6 @@ export class ViewModel implements IViewModel {
 		this._focusedStackFrame = stackFrame;
 
 		this.loadedScriptsSupportedContextKey.set(session && session.raw.capabilities.supportsLoadedSourcesRequest);
-		// @weinand remove the next line which always disables the context for the view to be shown
-		this.loadedScriptsSupportedContextKey.set(false);
 
 		if (shouldEmit) {
 			this._onDidFocusStackFrame.fire({ stackFrame, explicit });

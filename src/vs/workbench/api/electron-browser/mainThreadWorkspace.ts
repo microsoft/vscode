@@ -172,29 +172,29 @@ export class MainThreadWorkspace implements MainThreadWorkspaceShape {
 		const queryBuilder = this._instantiationService.createInstance(QueryBuilder);
 		const query = queryBuilder.text(pattern, folders, options);
 
-		return new TPromise((resolve, reject) => {
-			const onProgress = (p: ISearchProgressItem) => {
-				if (p.lineMatches) {
-					this._proxy.$handleTextSearchResult(p, requestId);
+		const onProgress = (p: ISearchProgressItem) => {
+			if (p.lineMatches) {
+				this._proxy.$handleTextSearchResult(p, requestId);
+			}
+		};
+
+		const search = this._searchService.search(query, onProgress).then(
+			() => {
+				delete this._activeSearches[requestId];
+				return null;
+			},
+			err => {
+				delete this._activeSearches[requestId];
+				if (!isPromiseCanceledError(err)) {
+					return TPromise.wrapError(err);
 				}
-			};
 
-			const search = this._searchService.search(query, onProgress).then(
-				() => {
-					delete this._activeSearches[requestId];
-					resolve(null);
-				},
-				err => {
-					delete this._activeSearches[requestId];
-					if (!isPromiseCanceledError(err)) {
-						reject(TPromise.wrapError(err));
-					}
+				return undefined;
+			});
 
-					return undefined;
-				});
+		this._activeSearches[requestId] = search;
 
-			this._activeSearches[requestId] = search;
-		});
+		return search;
 	}
 
 	$cancelSearch(requestId: number): Thenable<boolean> {

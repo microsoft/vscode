@@ -5,38 +5,38 @@
 'use strict';
 
 import * as paths from 'vs/base/common/paths';
-import uri from 'vs/base/common/uri';
+import URI from 'vs/base/common/uri';
 import { equalsIgnoreCase } from 'vs/base/common/strings';
 import { Schemas } from 'vs/base/common/network';
 import { isLinux } from 'vs/base/common/platform';
 
-export function getComparisonKey(resource: uri): string {
+export function getComparisonKey(resource: URI): string {
 	return hasToIgnoreCase(resource) ? resource.toString().toLowerCase() : resource.toString();
 }
 
-export function hasToIgnoreCase(resource: uri): boolean {
+export function hasToIgnoreCase(resource: URI): boolean {
 	// A file scheme resource is in the same platform as code, so ignore case for non linux platforms
 	// Resource can be from another platform. Lowering the case as an hack. Should come from File system provider
 	return resource.scheme === Schemas.file ? !isLinux : true;
 }
 
-export function basenameOrAuthority(resource: uri): string {
+export function basenameOrAuthority(resource: URI): string {
 	return paths.basename(resource.path) || resource.authority;
 }
 
-export function isEqualOrParent(resource: uri, candidate: uri, ignoreCase?: boolean): boolean {
+export function isEqualOrParent(resource: URI, candidate: URI, ignoreCase?: boolean): boolean {
 	if (resource.scheme === candidate.scheme && resource.authority === candidate.authority) {
 		if (resource.scheme === 'file') {
 			return paths.isEqualOrParent(resource.fsPath, candidate.fsPath, ignoreCase);
 		}
 
-		return paths.isEqualOrParent(resource.path, candidate.path, ignoreCase);
+		return paths.isEqualOrParent(resource.path, candidate.path, ignoreCase, '/');
 	}
 
 	return false;
 }
 
-export function isEqual(first: uri, second: uri, ignoreCase?: boolean): boolean {
+export function isEqual(first: URI, second: URI, ignoreCase?: boolean): boolean {
 	const identityEquals = (first === second);
 	if (identityEquals) {
 		return true;
@@ -53,7 +53,7 @@ export function isEqual(first: uri, second: uri, ignoreCase?: boolean): boolean 
 	return first.toString() === second.toString();
 }
 
-export function dirname(resource: uri): uri {
+export function dirname(resource: URI): URI {
 	const dirname = paths.dirname(resource.path);
 	if (resource.authority && dirname && !paths.isAbsolute(dirname)) {
 		return null; // If a URI contains an authority component, then the path component must either be empty or begin with a slash ("/") character
@@ -64,14 +64,14 @@ export function dirname(resource: uri): uri {
 	});
 }
 
-export function joinPath(resource: uri, pathFragment: string): uri {
+export function joinPath(resource: URI, pathFragment: string): URI {
 	const joinedPath = paths.join(resource.path || '/', pathFragment);
 	return resource.with({
 		path: joinedPath
 	});
 }
 
-export function distinctParents<T>(items: T[], resourceAccessor: (item: T) => uri): T[] {
+export function distinctParents<T>(items: T[], resourceAccessor: (item: T) => URI): T[] {
 	const distinctParents: T[] = [];
 	for (let i = 0; i < items.length; i++) {
 		const candidateResource = resourceAccessor(items[i]);

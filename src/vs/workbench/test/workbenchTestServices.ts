@@ -1343,10 +1343,6 @@ export class TestWindowsService implements IWindowsService {
 		return TPromise.as(void 0);
 	}
 
-	openAccessibilityOptions(): TPromise<void> {
-		return TPromise.as(void 0);
-	}
-
 	openAboutDialog(): TPromise<void> {
 		return TPromise.as(void 0);
 	}

@@ -194,9 +194,9 @@ supports-color@5.4.0:
   dependencies:
     has-flag "^3.0.0"
 
-vscode-css-languageservice@^3.0.9:
-  version "3.0.9"
-  resolved "https://registry.yarnpkg.com/vscode-css-languageservice/-/vscode-css-languageservice-3.0.9.tgz#770471350120c5bcf6918632a125638fc0ece3be"
+vscode-css-languageservice@^3.0.10-next.1:
+  version "3.0.10-next.1"
+  resolved "https://registry.yarnpkg.com/vscode-css-languageservice/-/vscode-css-languageservice-3.0.10-next.1.tgz#1df5c9f306ad22f5c4f45ea8a2f96664ecc19de8"
   dependencies:
     vscode-languageserver-types "^3.10.0"
     vscode-nls "^3.2.4"

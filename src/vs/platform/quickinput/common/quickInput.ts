@@ -10,6 +10,7 @@ import { CancellationToken } from 'vs/base/common/cancellation';
 import { ResolvedKeybinding } from 'vs/base/common/keyCodes';
 import URI from 'vs/base/common/uri';
 import { Event } from 'vs/base/common/event';
+import { FileKind } from 'vs/platform/files/common/files';
 
 export interface IQuickPickItem {
 	id?: string;
@@ -17,6 +18,11 @@ export interface IQuickPickItem {
 	description?: string;
 	detail?: string;
 	picked?: boolean;
+}
+
+export interface IFilePickItem extends IQuickPickItem {
+	resource: URI;
+	fileKind?: FileKind;
 }
 
 export interface IQuickNavigateConfiguration {
@@ -49,6 +55,11 @@ export interface IPickOptions<T extends IQuickPickItem> {
 	 * an optional flag to make this picker multi-select
 	 */
 	canPickMany?: boolean;
+
+	/**
+	 * an optional property for the item to focus initially.
+	 */
+	activeItem?: TPromise<T> | T;
 
 	onDidFocus?: (entry: T) => void;
 }
@@ -172,6 +183,8 @@ export interface IQuickInputButton {
 
 export const IQuickInputService = createDecorator<IQuickInputService>('quickInputService');
 
+export type Omit<T, K extends keyof T> = Pick<T, Exclude<keyof T, K>>;
+
 export interface IQuickInputService {
 
 	_serviceBrand: any;
@@ -179,7 +192,9 @@ export interface IQuickInputService {
 	/**
 	 * Opens the quick input box for selecting items and returns a promise with the user selected item(s) if any.
 	 */
-	pick<T extends IQuickPickItem, O extends IPickOptions<T>>(picks: TPromise<T[]>, options?: O, token?: CancellationToken): TPromise<O extends { canPickMany: true } ? T[] : T>;
+	pick<T extends IQuickPickItem>(picks: TPromise<T[]> | T[], options?: IPickOptions<T> & { canPickMany: true }, token?: CancellationToken): TPromise<T[]>;
+	pick<T extends IQuickPickItem>(picks: TPromise<T[]> | T[], options?: IPickOptions<T> & { canPickMany: false }, token?: CancellationToken): TPromise<T>;
+	pick<T extends IQuickPickItem>(picks: TPromise<T[]> | T[], options?: Omit<IPickOptions<T>, 'canPickMany'>, token?: CancellationToken): TPromise<T>;
 
 	/**
 	 * Opens the quick input box for text input and returns a promise with the user typed value if any.

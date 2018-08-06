@@ -1054,7 +1054,7 @@
         "id": "gitDecoration.modifiedResourceForeground",
         "description": "%colors.modified%",
         "defaults": {
-          "light": "#a76e12",
+          "light": "#895503",
           "dark": "#E2C08D",
           "highContrast": "#E2C08D"
         }

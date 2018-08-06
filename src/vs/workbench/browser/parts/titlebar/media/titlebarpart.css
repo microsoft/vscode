@@ -51,6 +51,10 @@
 	overflow: visible;
 }
 
+.monaco-workbench.linux > .part.titlebar > .window-title {
+	font-size: inherit;
+}
+
 .monaco-workbench.windows > .part.titlebar > .resizer,
 .monaco-workbench.linux > .part.titlebar > .resizer {
 	-webkit-app-region: no-drag;

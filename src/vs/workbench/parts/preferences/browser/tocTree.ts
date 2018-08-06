@@ -11,7 +11,7 @@ import { IConfigurationService } from 'vs/platform/configuration/common/configur
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IListService, WorkbenchTree, WorkbenchTreeController } from 'vs/platform/list/browser/listService';
-import { editorBackground, focusBorder, foreground } from 'vs/platform/theme/common/colorRegistry';
+import { editorBackground, focusBorder } from 'vs/platform/theme/common/colorRegistry';
 import { attachStyler } from 'vs/platform/theme/common/styler';
 import { ICssStyleCollector, ITheme, IThemeService, registerThemingParticipant } from 'vs/platform/theme/common/themeService';
 import { ISettingsEditorViewState, SearchResultModel, SettingsAccessibilityProvider, SettingsTreeElement, SettingsTreeFilter, SettingsTreeGroupElement, SettingsTreeSettingElement } from 'vs/workbench/parts/preferences/browser/settingsTree';
@@ -115,7 +115,8 @@ export class TOCDataSource implements IDataSource {
 const TOC_ENTRY_TEMPLATE_ID = 'settings.toc.entry';
 
 interface ITOCEntryTemplate {
-	element: HTMLElement;
+	labelElement: HTMLElement;
+	countElement: HTMLElement;
 }
 
 export class TOCRenderer implements IRenderer {
@@ -129,17 +130,23 @@ export class TOCRenderer implements IRenderer {
 
 	renderTemplate(tree: ITree, templateId: string, container: HTMLElement): ITOCEntryTemplate {
 		return {
-			element: DOM.append(container, $('.settings-toc-entry'))
+			labelElement: DOM.append(container, $('.settings-toc-entry')),
+			countElement: DOM.append(container, $('.settings-toc-count'))
 		};
 	}
 
 	renderElement(tree: ITree, element: SettingsTreeGroupElement, templateId: string, template: ITOCEntryTemplate): void {
-		const label = (<any>element).count ?
-			`${element.label} (${(<any>element).count})` :
-			element.label;
+		const count = (<any>element).count;
+		const label = element.label;
 
-		DOM.toggleClass(template.element, 'no-results', (<any>element).count === 0);
-		template.element.textContent = label;
+		DOM.toggleClass(template.labelElement, 'no-results', count === 0);
+		template.labelElement.textContent = label;
+
+		if (count) {
+			template.countElement.textContent = ` (${count})`;
+		} else {
+			template.countElement.textContent = '';
+		}
 	}
 
 	disposeTemplate(tree: ITree, templateId: string, templateData: any): void {
@@ -162,7 +169,7 @@ export class TOCTree extends WorkbenchTree {
 		const fullConfiguration = <ITreeConfiguration>{
 			controller: instantiationService.createInstance(WorkbenchTreeController, { openMode: OpenMode.DOUBLE_CLICK }),
 			filter: instantiationService.createInstance(SettingsTreeFilter, viewState),
-			styler: new DefaultTreestyler(DOM.createStyleSheet(), treeClass),
+			styler: new DefaultTreestyler(DOM.createStyleSheet(container), treeClass),
 			dataSource: instantiationService.createInstance(TOCDataSource),
 			accessibilityProvider: instantiationService.createInstance(SettingsAccessibilityProvider),
 
@@ -199,7 +206,7 @@ export class TOCTree extends WorkbenchTree {
 			listFocusAndSelectionForeground: settingsHeaderForeground,
 			listFocusBackground: editorBackground,
 			listFocusForeground: settingsHeaderForeground,
-			listHoverForeground: foreground,
+			listHoverForeground: settingsHeaderForeground,
 			listHoverBackground: editorBackground,
 			listInactiveSelectionBackground: editorBackground,
 			listInactiveSelectionForeground: settingsHeaderForeground,

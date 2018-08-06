@@ -49,6 +49,7 @@ export const CONTEXT_EXPRESSION_SELECTED = new RawContextKey<boolean>('expressio
 export const CONTEXT_BREAKPOINT_SELECTED = new RawContextKey<boolean>('breakpointSelected', false);
 export const CONTEXT_CALLSTACK_ITEM_TYPE = new RawContextKey<string>('callStackItemType', undefined);
 export const CONTEXT_LOADED_SCRIPTS_SUPPORTED = new RawContextKey<boolean>('loadedScriptsSupported', false);
+export const CONTEXT_LOADED_SCRIPTS_ITEM_TYPE = new RawContextKey<string>('loadedScriptsItemType', undefined);
 
 export const EDITOR_CONTRIBUTION_ID = 'editor.contrib.debug';
 export const DEBUG_SCHEME = 'debug';
@@ -135,6 +136,8 @@ export interface IRawSession {
 	completions(args: DebugProtocol.CompletionsArguments): TPromise<DebugProtocol.CompletionsResponse>;
 	setVariable(args: DebugProtocol.SetVariableArguments): TPromise<DebugProtocol.SetVariableResponse>;
 	source(args: DebugProtocol.SourceArguments): TPromise<DebugProtocol.SourceResponse>;
+	loadedSources(args: DebugProtocol.LoadedSourcesArguments): TPromise<DebugProtocol.LoadedSourcesResponse>;
+
 }
 
 export enum SessionState {
@@ -151,6 +154,7 @@ export interface ISession extends ITreeElement {
 	getThread(threadId: number): IThread;
 	getAllThreads(): ReadonlyArray<IThread>;
 	getSource(raw: DebugProtocol.Source): Source;
+	getLoadedSources(): TPromise<Source[]>;
 	completions(frameId: number, text: string, position: Position, overwriteBefore: number): TPromise<ISuggestion[]>;
 }
 
@@ -572,6 +576,12 @@ export interface DebugEvent extends DebugProtocol.Event {
 	sessionId?: string;
 }
 
+export interface LoadedSourceEvent {
+	session: ISession;
+	reason: string;
+	source: Source;
+}
+
 export interface IDebugService {
 	_serviceBrand: any;
 
@@ -594,6 +604,11 @@ export interface IDebugService {
 	 * Allows to register on end session events.
 	 */
 	onDidEndSession: Event<ISession>;
+
+	/**
+	 * Allows to register on loaded source events.
+	 */
+	onDidLoadedSource: Event<LoadedSourceEvent>;
 
 	/**
 	 * Allows to register on custom DAP events.

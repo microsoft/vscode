@@ -413,6 +413,16 @@ export class IssueReporter extends Disposable {
 			if (cmdOrCtrlKey && e.keyCode === 189) {
 				this.applyZoom(webFrame.getZoomLevel() - 1);
 			}
+
+			// With latest electron upgrade, cmd+a is no longer propagating correctly for inputs in this window on mac
+			// Manually perform the selection
+			if (platform.isMacintosh) {
+				if (cmdOrCtrlKey && e.keyCode === 65 && e.target) {
+					if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) {
+						(<HTMLInputElement>e.target).select();
+					}
+				}
+			}
 		};
 	}
 

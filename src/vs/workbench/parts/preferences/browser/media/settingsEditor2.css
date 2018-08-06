@@ -17,6 +17,7 @@
 .settings-editor > .settings-header {
 	box-sizing: border-box;
 	margin: auto;
+	overflow: hidden;
 }
 
 .settings-editor > .settings-header > .settings-preview-header {
@@ -25,6 +26,7 @@
 
 .settings-editor > .settings-header > .settings-preview-header .settings-preview-label {
 	opacity: .7;
+	white-space: nowrap;
 }
 
 .settings-editor > .settings-header > .settings-preview-header > .settings-preview-warning {
@@ -177,11 +179,22 @@
 	display: none;
 }
 
+.settings-editor > .settings-body .settings-toc-container .monaco-tree-row .content {
+	display: flex;
+}
+
 .settings-editor > .settings-body .settings-toc-container .monaco-tree-row .settings-toc-entry {
 	overflow: hidden;
 	text-overflow: ellipsis;
 	line-height: 22px;
 	opacity: 0.9;
+	flex-shrink: 1;
+}
+
+.settings-editor > .settings-body .settings-toc-container .monaco-tree-row .settings-toc-count {
+	line-height: 22px;
+	opacity: 0.7;
+	margin-left: 3px;
 }
 
 .settings-editor > .settings-body .settings-toc-container .monaco-tree-row.has-children > .content:before {
@@ -219,18 +232,6 @@
 	height: 100%;
 }
 
-.settings-editor > .settings-body > .settings-tree-container .setting-item .setting-expand-indicator {
-	display: none;
-}
-
-.settings-editor > .settings-body > .settings-tree-container .setting-item.is-expandable:not(.is-expanded) .setting-expand-indicator {
-	display: block;
-	position: absolute;
-	left: 7px;
-	top: 0px;
-	opacity: .9;
-}
-
 .settings-editor > .settings-body > .settings-tree-container .setting-item .setting-item-title {
 	white-space: nowrap;
 	overflow: hidden;
@@ -261,24 +262,40 @@
 	opacity: 0.9;
 }
 
-.settings-editor > .settings-body > .settings-tree-container .setting-item .setting-item-description-container {
-	margin-top: 3px;
-	position: relative;
-}
-
 .settings-editor > .settings-body > .settings-tree-container .setting-item .setting-item-description {
+	margin-top: 3px;
 	overflow: hidden;
+	text-overflow: ellipsis;
 	height: 18px;
 	display: -webkit-box;
 	-webkit-line-clamp: 1;
 	-webkit-box-orient: vertical;
+	transform: translate3d(0px, 0px, 0px);
 }
 
-.settings-editor > .settings-body > .settings-tree-container .setting-item .setting-item-description * {
+.settings-editor > .settings-body > .settings-tree-container .setting-item .setting-item-description.setting-item-description-artificial-overflow {
+	display: block;
+}
+
+.settings-editor > .settings-body > .settings-tree-container .setting-item .setting-item-description-artificial-overflow .setting-item-description-markdown {
+	display: inline-block;
+	margin-right: 3px;
+}
+
+.settings-editor > .settings-body > .settings-tree-container .setting-item .setting-item-description-artificial-overflow::after {
+	display: inline-block;
+	content: '…';
+	width: 16px;
+	height: 16px;
+	position: absolute;
+	transform: translate3d(0px, 0px, 0px);
+}
+
+.settings-editor > .settings-body > .settings-tree-container .setting-item .setting-item-description-markdown * {
 	margin: 0px;
 }
 
-.settings-editor > .settings-body > .settings-tree-container .setting-item .setting-item-description code {
+.settings-editor > .settings-body > .settings-tree-container .setting-item .setting-item-description-markdown code {
 	line-height: 15px; /** For some reason, this is needed, otherwise <code> will take up 20px height */
 	font-family: Menlo, Monaco, Consolas, "Droid Sans Mono", "Courier New", monospace, "Droid Sans Fallback";
 }
@@ -294,9 +311,13 @@
 	-webkit-line-clamp: initial;
 }
 
-.settings-editor > .settings-body > .settings-tree-container .setting-description-measure-container .setting-item .setting-item-description,
-.settings-editor > .settings-body > .settings-tree-container .setting-description-measure-container .setting-item .setting-item-description * {
-	display: inline;
+.settings-editor > .settings-body > .settings-tree-container .setting-item .setting-item-enumDescription {
+	display: none;
+}
+
+.settings-editor > .settings-body > .settings-tree-container .setting-item.is-expanded .setting-item-enumDescription,
+.settings-editor > .settings-body > .settings-tree-container .setting-item.setting-measure-helper .setting-item-enumDescription {
+	display: block;
 }
 
 .settings-editor > .settings-body > .settings-tree-container .setting-item-bool .setting-item-value-description {
@@ -332,17 +353,15 @@
 	min-width: 200px;
 }
 
-.settings-editor > .settings-body > .settings-tree-container .setting-item.setting-item-text .setting-item-value {
+.settings-editor > .settings-body > .settings-tree-container .setting-item.setting-item-text .setting-item-control {
 	width: 500px;
 }
 
 .settings-editor > .settings-body > .settings-tree-container .setting-item.setting-item-enum .setting-item-value > .setting-item-control,
 .settings-editor > .settings-body > .settings-tree-container .setting-item.setting-item-text .setting-item-value > .setting-item-control {
-	flex: 1;
 	min-width: initial;
 }
 
-.settings-editor > .settings-body > .settings-tree-container .setting-item.setting-item-enum .setting-item-value,
 .settings-editor > .settings-body > .settings-tree-container .setting-item.setting-item-enum .setting-item-value > .setting-item-control > select {
 	width: 320px;
 }

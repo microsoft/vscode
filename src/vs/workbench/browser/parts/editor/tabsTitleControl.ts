@@ -145,6 +145,11 @@ export class TabsTitleControl extends TitleControl {
 		}
 	}
 
+	protected handleBreadcrumbsEnablementChange(): void {
+		// relayout when breadcrumbs are enable/disabled
+		this.group.relayout();
+	}
+
 	private registerContainerListeners(): void {
 
 		// Group dragging

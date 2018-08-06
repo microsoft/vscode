@@ -121,7 +121,7 @@ export class TextAreaState {
 			// See https://github.com/Microsoft/vscode/issues/42251
 			// where typing always happens at offset 0 in the textarea
 			// when using a custom title area in OSX and moving the window
-			if (strings.endsWith(currentValue, previousValue)) {
+			if (!strings.startsWith(currentValue, previousValue) && strings.endsWith(currentValue, previousValue)) {
 				// Looks like something was typed at offset 0
 				// ==> pretend we placed the cursor at offset 0 to begin with...
 				previousSelectionStart = 0;

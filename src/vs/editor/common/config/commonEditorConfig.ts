@@ -592,7 +592,7 @@ const editorConfiguration: IConfigurationNode = {
 		'editor.selectionHighlight': {
 			'type': 'boolean',
 			'default': EDITOR_DEFAULTS.contribInfo.selectionHighlight,
-			'description': nls.localize('selectionHighlight', "Controls whether the editor should highlight similar matches to the selection")
+			'description': nls.localize('selectionHighlight', "Controls whether the editor should highlight matches similar to the selection")
 		},
 		'editor.occurrencesHighlight': {
 			'type': 'boolean',

@@ -83,8 +83,6 @@ export class SettingsEditor2 extends BaseEditor {
 
 	private tagRegex = /(^|\s)@tag:("([^"]*)"|[^"]\S*)/g;
 
-	private layoutDelayer: Delayer<void>;
-
 	/** Don't spam warnings */
 	private hasWarnedMissingSettings: boolean;
 
@@ -105,7 +103,6 @@ export class SettingsEditor2 extends BaseEditor {
 		this.localSearchDelayer = new Delayer(100);
 		this.remoteSearchThrottle = new ThrottledDelayer(200);
 		this.viewState = { settingsTarget: ConfigurationTarget.USER };
-		this.layoutDelayer = new Delayer(100);
 
 		this.settingUpdateDelayer = new Delayer<void>(500);
 
@@ -150,8 +147,6 @@ export class SettingsEditor2 extends BaseEditor {
 		this.layoutTrees(dimension);
 
 		DOM.toggleClass(this.rootElement, 'narrow', dimension.width < 600);
-
-		this.layoutDelayer.trigger(() => this.refreshTreeAndMaintainFocus());
 	}
 
 	focus(): void {
@@ -230,24 +225,28 @@ export class SettingsEditor2 extends BaseEditor {
 	private createHeaderControls(parent: HTMLElement): void {
 		const headerControlsContainerRight = DOM.append(parent, $('.settings-header-controls-right'));
 
-		this.toolbar = new ToolBar(headerControlsContainerRight, this.contextMenuService, {
+		this.toolbar = this._register(new ToolBar(headerControlsContainerRight, this.contextMenuService, {
 			ariaLabel: localize('settingsToolbarLabel', "Settings Editor Actions"),
 			actionRunner: this.actionRunner
-		});
+		}));
 
-		const actions = [
+		const actions: Action[] = [
 			this.instantiationService.createInstance(FilterByTagAction,
 				localize('filterModifiedLabel', "Show modified settings"),
 				MODIFIED_SETTING_TAG,
-				this),
-			this.instantiationService.createInstance(
-				FilterByTagAction,
-				localize('filterOnlineServicesLabel', "Show settings for online services"),
-				ONLINE_SERVICES_SETTING_TAG,
-				this),
-			new Separator(),
-			this.instantiationService.createInstance(OpenSettingsAction)
+				this)
 		];
+		if (this.environmentService.appQuality !== 'stable') {
+			actions.push(
+				this.instantiationService.createInstance(
+					FilterByTagAction,
+					localize('filterOnlineServicesLabel', "Show settings for online services"),
+					ONLINE_SERVICES_SETTING_TAG,
+					this));
+			actions.push(new Separator());
+		}
+		actions.push(this.instantiationService.createInstance(OpenSettingsAction));
+
 		this.toolbar.setActions([], actions)();
 		this.toolbar.context = <ISettingsToolbarContext>{ target: this.settingsTargetsWidget.settingsTarget };
 	}
@@ -291,11 +290,11 @@ export class SettingsEditor2 extends BaseEditor {
 
 		const tocRenderer = this.instantiationService.createInstance(TOCRenderer);
 
-		this.tocTree = this.instantiationService.createInstance(TOCTree, this.tocTreeContainer,
+		this.tocTree = this._register(this.instantiationService.createInstance(TOCTree, this.tocTreeContainer,
 			this.viewState,
 			{
 				renderer: tocRenderer
-			});
+			}));
 
 		this._register(this.tocTree.onDidChangeFocus(e => {
 			// Let the caller finish before trying to sync with settings tree.
@@ -346,12 +345,12 @@ export class SettingsEditor2 extends BaseEditor {
 		}));
 		this._register(renderer.onDidClickSettingLink(settingName => this.revealSetting(settingName)));
 
-		this.settingsTree = this.instantiationService.createInstance(SettingsTree,
+		this.settingsTree = this._register(this.instantiationService.createInstance(SettingsTree,
 			this.settingsTreeContainer,
 			this.viewState,
 			{
 				renderer
-			});
+			}));
 
 		this._register(this.settingsTree.onDidChangeFocus(e => {
 			this.settingsTree.setSelection([e.focus], e.payload);
@@ -626,13 +625,16 @@ export class SettingsEditor2 extends BaseEditor {
 				}
 			})
 			.then(() => {
+				// TODO@roblou - hack
+				this.tocTreeModel.update();
+
 				return this.tocTree.refresh();
 			});
 	}
 
 	private focusEditControlForRow(id: string, selection?: number): void {
 		const rowSelector = `.setting-item#${id}`;
-		const inputElementToFocus: HTMLElement = this.settingsTreeContainer.querySelector(`${rowSelector} input, ${rowSelector} select, ${rowSelector} a, ${rowSelector} .monaco-custom-checkbox`);
+		const inputElementToFocus: HTMLElement = this.settingsTreeContainer.querySelector(`${rowSelector} input, ${rowSelector} select, ${rowSelector} .monaco-custom-checkbox`);
 		if (inputElementToFocus) {
 			inputElementToFocus.focus();
 			if (typeof selection === 'number') {

@@ -73,6 +73,8 @@ export class QueryBuilder {
 
 		if (contentPattern) {
 			this.resolveSmartCaseToCaseSensitive(contentPattern);
+
+			contentPattern.wordSeparators = this.configurationService.getValue<ISearchConfiguration>().editor.wordSeparators;
 		}
 
 		const query: ISearchQuery = {
@@ -88,7 +90,7 @@ export class QueryBuilder {
 			maxResults: options.maxResults,
 			sortByScore: options.sortByScore,
 			cacheKey: options.cacheKey,
-			contentPattern: contentPattern,
+			contentPattern,
 			useRipgrep,
 			disregardIgnoreFiles: options.disregardIgnoreFiles || !useIgnoreFiles,
 			disregardExcludeSettings: options.disregardExcludeSettings,

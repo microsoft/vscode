@@ -70,24 +70,24 @@ declare module 'vscode' {
 		 * Whether external files that exclude files, like .gitignore, should be respected.
 		 * See the vscode setting `"search.useIgnoreFiles"`.
 		 */
-		useIgnoreFiles?: boolean;
+		useIgnoreFiles: boolean;
 
 		/**
 		 * Whether symlinks should be followed while searching.
 		 * See the vscode setting `"search.followSymlinks"`.
 		 */
-		followSymlinks?: boolean;
-
-		/**
-		 * The maximum number of results to be returned.
-		 */
-		maxResults?: number;
+		followSymlinks: boolean;
 	}
 
 	/**
 	 * Options that apply to text search.
 	 */
 	export interface TextSearchOptions extends SearchOptions {
+		/**
+		 * The maximum number of results to be returned.
+		 */
+		maxResults: number;
+
 		/**
 		 *  TODO@roblou - total length? # of context lines? leading and trailing # of chars?
 		 */
@@ -118,7 +118,17 @@ declare module 'vscode' {
 	/**
 	 * Options that apply to file search.
 	 */
-	export interface FileSearchOptions extends SearchOptions { }
+	export interface FileSearchOptions extends SearchOptions {
+		/**
+		 * The maximum number of results to be returned.
+		 */
+		maxResults: number;
+	}
+
+	/**
+	 * Options that apply to requesting the file index.
+	 */
+	export interface FileIndexOptions extends SearchOptions { }
 
 	export interface TextSearchResultPreview {
 		/**
@@ -170,7 +180,7 @@ declare module 'vscode' {
 		 * @param options A set of options to consider while searching.
 		 * @param token A cancellation token.
 		 */
-		provideFileIndex(options: FileSearchOptions, token: CancellationToken): Thenable<Uri[]>;
+		provideFileIndex(options: FileIndexOptions, token: CancellationToken): Thenable<Uri[]>;
 	}
 
 	/**
@@ -192,7 +202,7 @@ declare module 'vscode' {
 		 * @param progress A progress callback that must be invoked for all results.
 		 * @param token A cancellation token.
 		 */
-		provideFileSearchResults(query: FileSearchQuery, options: FileSearchOptions, progress: Progress<Uri>, token: CancellationToken): Thenable<void>;
+		provideFileSearchResults(query: FileSearchQuery, options: FileSearchOptions, token: CancellationToken): Thenable<Uri[]>;
 	}
 
 	/**
@@ -352,9 +362,9 @@ declare module 'vscode' {
 		priority?: number;
 		title?: string;
 		bubble?: boolean;
-		abbreviation?: string;
+		abbreviation?: string; // letter, not optional
 		color?: ThemeColor;
-		source?: string;
+		source?: string; // hacky... we should remove it and use equality under the hood
 	}
 
 	export interface SourceControlResourceDecorations {

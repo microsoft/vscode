@@ -73,7 +73,6 @@ export interface IWindowsChannel extends IChannel {
 	call(command: 'getActiveWindowId'): TPromise<number>;
 	call(command: 'openExternal', arg: string): TPromise<boolean>;
 	call(command: 'startCrashReporter', arg: CrashReporterStartOptions): TPromise<void>;
-	call(command: 'openAccessibilityOptions'): TPromise<void>;
 	call(command: 'openAboutDialog'): TPromise<void>;
 }
 
@@ -178,7 +177,6 @@ export class WindowsChannel implements IWindowsChannel {
 			case 'getActiveWindowId': return this.service.getActiveWindowId();
 			case 'openExternal': return this.service.openExternal(arg);
 			case 'startCrashReporter': return this.service.startCrashReporter(arg);
-			case 'openAccessibilityOptions': return this.service.openAccessibilityOptions();
 			case 'openAboutDialog': return this.service.openAboutDialog();
 		}
 		return undefined;
@@ -396,10 +394,6 @@ export class WindowsChannelClient implements IWindowsService {
 
 	updateTouchBar(windowId: number, items: ISerializableCommandAction[][]): TPromise<void> {
 		return this.channel.call('updateTouchBar', [windowId, items]);
-	}
-
-	openAccessibilityOptions(): TPromise<void> {
-		return this.channel.call('openAccessibilityOptions');
 	}
 
 	openAboutDialog(): TPromise<void> {

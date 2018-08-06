@@ -173,7 +173,6 @@ export interface IWindowsService {
 	// TODO: this is a bit backwards
 	startCrashReporter(config: CrashReporterStartOptions): TPromise<void>;
 
-	openAccessibilityOptions(): TPromise<void>;
 	openAboutDialog(): TPromise<void>;
 }
 

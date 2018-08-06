@@ -604,8 +604,10 @@ export class CompositeActionItem extends ActivityActionItem {
 	protected _updateChecked(): void {
 		if (this.getAction().checked) {
 			this.$container.addClass('checked');
+			this.$container.attr('aria-label', nls.localize('compositeActive', "{0} active", this.$container.getHTMLElement().title));
 		} else {
 			this.$container.removeClass('checked');
+			this.$container.attr('aria-label', this.$container.getHTMLElement().title);
 		}
 	}
 

@@ -70,6 +70,7 @@ import { SuggestController } from 'vs/editor/contrib/suggest/suggestController';
 import { ContextMenuController } from 'vs/editor/contrib/contextmenu/contextmenu';
 import { MenuPreventer } from 'vs/workbench/parts/codeEditor/electron-browser/menuPreventer';
 import { SnippetController2 } from 'vs/editor/contrib/snippet/snippetController2';
+import { isMacintosh } from 'vs/base/common/platform';
 
 interface SearchInputEvent extends Event {
 	target: HTMLInputElement;
@@ -132,7 +133,7 @@ export class ExtensionsViewletViewsContribution implements IWorkbenchContributio
 			container: VIEW_CONTAINER,
 			ctor: EnabledExtensionsView,
 			when: ContextKeyExpr.not('searchExtensions'),
-			weight: 30,
+			weight: 40,
 			canToggleVisibility: true,
 			order: 1
 		};
@@ -181,7 +182,7 @@ export class ExtensionsViewletViewsContribution implements IWorkbenchContributio
 			container: VIEW_CONTAINER,
 			ctor: DefaultRecommendedExtensionsView,
 			when: ContextKeyExpr.and(ContextKeyExpr.not('searchExtensions'), ContextKeyExpr.has('defaultRecommendedExtensions')),
-			weight: 70,
+			weight: 60,
 			order: 2,
 			canToggleVisibility: true
 		};
@@ -362,24 +363,30 @@ export class ExtensionsViewlet extends ViewContainerViewlet implements IExtensio
 		this.searchBox.setModel(this.modelService.createModel('', null, uri.parse('extensions:searchinput'), true));
 
 		this.disposables.push(this.searchBox.onDidPaste(() => {
-			this.searchBox.setValue(this.searchBox.getValue().replace(/\s+/g, ' '));
+			let trimmed = this.searchBox.getValue().replace(/\s+/g, ' ');
+			this.searchBox.setValue(trimmed);
 			this.searchBox.setScrollTop(0);
+			this.searchBox.setPosition(new Position(1, trimmed.length + 1));
 		}));
+
 		this.disposables.push(this.searchBox.onDidFocusEditorText(() => addClass(this.monacoStyleContainer, 'synthetic-focus')));
 		this.disposables.push(this.searchBox.onDidBlurEditorText(() => removeClass(this.monacoStyleContainer, 'synthetic-focus')));
 
 		const onKeyDownMonaco = chain(this.searchBox.onKeyDown);
 		onKeyDownMonaco.filter(e => e.keyCode === KeyCode.Enter).on(e => e.preventDefault(), this, this.disposables);
-		onKeyDownMonaco.filter(e => e.keyCode === KeyCode.DownArrow && e.ctrlKey).on(() => this.focusListView(), this, this.disposables);
+		onKeyDownMonaco.filter(e => e.keyCode === KeyCode.DownArrow && (isMacintosh ? e.metaKey : e.ctrlKey)).on(() => this.focusListView(), this, this.disposables);
 
 		const searchChangeEvent = new Emitter<string>();
 		this.onSearchChange = searchChangeEvent.event;
 
+		let existingContent = this.searchBox.getValue().trim();
 		this.disposables.push(this.searchBox.getModel().onDidChangeContent(() => {
+			this.placeholderText.style.visibility = this.searchBox.getValue() ? 'hidden' : 'visible';
+			let content = this.searchBox.getValue().trim();
+			if (existingContent === content) { return; }
 			this.triggerSearch();
-			const content = this.searchBox.getValue();
 			searchChangeEvent.fire(content);
-			this.placeholderText.style.visibility = content ? 'hidden' : 'visible';
+			existingContent = content;
 		}));
 
 		return super.create(this.extensionsBox)
@@ -428,7 +435,7 @@ export class ExtensionsViewlet extends ViewContainerViewlet implements IExtensio
 
 	layout(dimension: Dimension): void {
 		toggleClass(this.root, 'narrow', dimension.width <= 300);
-		this.searchBox.layout({ height: 20, width: dimension.width - 30 });
+		this.searchBox.layout({ height: 20, width: dimension.width - 34 });
 		this.placeholderText.style.width = '' + (dimension.width - 30) + 'px';
 
 		super.layout(new Dimension(dimension.width, dimension.height - 38));
@@ -539,7 +546,7 @@ export class ExtensionsViewlet extends ViewContainerViewlet implements IExtensio
 		// dont show autosuggestions if the user has typed something, but hasn't used the trigger character
 		if (alreadyTypedCount > 0 && query[wordStart] !== '@') { return []; }
 
-		return Query.autocompletions().map(replacement => ({ fullText: replacement, overwrite: alreadyTypedCount }));
+		return Query.autocompletions(query).map(replacement => ({ fullText: replacement, overwrite: alreadyTypedCount }));
 	}
 
 	private count(): number {
@@ -691,8 +698,10 @@ function mixinHTMLInputStyleOptions(config: IEditorOptions, ariaLabel?: string):
 	config.wordWrap = 'off';
 	config.scrollbar.vertical = 'hidden';
 	config.ariaLabel = ariaLabel || '';
+	config.renderIndentGuides = false;
 	config.cursorWidth = 1;
 	config.snippetSuggestions = 'none';
+	config.suggest = { filterGraceful: false };
 	config.fontFamily = ' -apple-system, BlinkMacSystemFont, "Segoe WPC", "Segoe UI", "HelveticaNeue-Light", "Ubuntu", "Droid Sans", sans-serif';
 	return config;
 }

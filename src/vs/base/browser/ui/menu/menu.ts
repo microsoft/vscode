@@ -241,6 +241,8 @@ class MenuActionItem extends BaseActionItem {
 class SubmenuActionItem extends MenuActionItem {
 	private mysubmenu: Menu;
 	private submenuContainer: Builder;
+	private mouseOver: boolean;
+	private showScheduler: RunOnceScheduler;
 	private hideScheduler: RunOnceScheduler;
 
 	constructor(
@@ -250,6 +252,13 @@ class SubmenuActionItem extends MenuActionItem {
 		private submenuOptions?: IMenuOptions
 	) {
 		super(action, action, { label: true, isMenu: true });
+
+		this.showScheduler = new RunOnceScheduler(() => {
+			if (this.mouseOver) {
+				this.cleanupExistingSubmenu(false);
+				this.createSubmenu(false);
+			}
+		}, 250);
 
 		this.hideScheduler = new RunOnceScheduler(() => {
 			if ((!isAncestor(document.activeElement, this.builder.getHTMLElement()) && this.parentData.submenu === this.mysubmenu)) {
@@ -283,8 +292,15 @@ class SubmenuActionItem extends MenuActionItem {
 		});
 
 		$(this.builder).on(EventType.MOUSE_OVER, (e) => {
-			this.cleanupExistingSubmenu(false);
-			this.createSubmenu(false);
+			if (!this.mouseOver) {
+				this.mouseOver = true;
+
+				this.showScheduler.schedule();
+			}
+		});
+
+		$(this.builder).on(EventType.MOUSE_LEAVE, (e) => {
+			this.mouseOver = false;
 		});
 
 		$(this.builder).on(EventType.FOCUS_OUT, (e) => {

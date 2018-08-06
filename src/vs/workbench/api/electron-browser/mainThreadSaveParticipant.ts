@@ -37,6 +37,7 @@ import { applyCodeAction } from 'vs/editor/contrib/codeAction/codeActionCommands
 import { getCodeActions } from 'vs/editor/contrib/codeAction/codeAction';
 import { ICodeActionsOnSaveOptions } from 'vs/editor/common/config/editorOptions';
 import { IBulkEditService } from 'vs/editor/browser/services/bulkEditService';
+import { CancellationTokenSource } from 'vs/base/common/cancellation';
 
 export interface ISaveParticipantParticipant extends ISaveParticipant {
 	// progressMessage: string;
@@ -215,11 +216,12 @@ class FormatOnSaveParticipant implements ISaveParticipantParticipant {
 		const timeout = this._configurationService.getValue('editor.formatOnSaveTimeout', { overrideIdentifier: model.getLanguageIdentifier().language, resource: editorModel.getResource() });
 
 		return new Promise<ISingleEditOperation[]>((resolve, reject) => {
-			let request = getDocumentFormattingEdits(model, { tabSize, insertSpaces });
+			let source = new CancellationTokenSource();
+			let request = getDocumentFormattingEdits(model, { tabSize, insertSpaces }, source.token);
 
 			setTimeout(() => {
 				reject(localize('timeout.formatOnSave', "Aborted format on save after {0}ms", timeout));
-				request.cancel();
+				source.cancel();
 			}, timeout);
 
 			request.then(edits => this._editorWorkerService.computeMoreMinimalEdits(model.uri, edits)).then(resolve, err => {
