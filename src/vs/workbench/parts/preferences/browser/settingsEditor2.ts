@@ -31,7 +31,7 @@ import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { BaseEditor } from 'vs/workbench/browser/parts/editor/baseEditor';
 import { EditorOptions, IEditor } from 'vs/workbench/common/editor';
 import { PreferencesEditor } from 'vs/workbench/parts/preferences/browser/preferencesEditor';
-import { SearchWidget, SettingsTarget, SettingsTargetsWidget } from 'vs/workbench/parts/preferences/browser/preferencesWidgets';
+import { SettingsTarget, SettingsTargetsWidget } from 'vs/workbench/parts/preferences/browser/preferencesWidgets';
 import { commonlyUsedData, tocData } from 'vs/workbench/parts/preferences/browser/settingsLayout';
 import { ISettingsEditorViewState, MODIFIED_SETTING_TAG, ONLINE_SERVICES_SETTING_TAG, resolveExtensionsSettings, resolveSettingsTree, SearchResultIdx, SearchResultModel, SettingsRenderer, SettingsTree, SettingsTreeElement, SettingsTreeGroupElement, SettingsTreeModel, SettingsTreeSettingElement } from 'vs/workbench/parts/preferences/browser/settingsTree';
 import { TOCRenderer, TOCTree, TOCTreeModel } from 'vs/workbench/parts/preferences/browser/tocTree';
@@ -39,6 +39,8 @@ import { CONTEXT_SETTINGS_EDITOR, CONTEXT_SETTINGS_FIRST_ROW_FOCUS, CONTEXT_SETT
 import { IPreferencesService, ISearchResult, ISettingsEditorModel } from 'vs/workbench/services/preferences/common/preferences';
 import { SettingsEditor2Input } from 'vs/workbench/services/preferences/common/preferencesEditorInput';
 import { DefaultSettingsEditorModel } from 'vs/workbench/services/preferences/common/preferencesModels';
+import { AutosuggestEnabledInput } from 'vs/workbench/parts/codeEditor/browser/autosuggestEnabledInput';
+import { IEditorGroup } from 'vs/workbench/services/group/common/editorGroupsService';
 
 const $ = DOM.$;
 
@@ -50,7 +52,7 @@ export class SettingsEditor2 extends BaseEditor {
 
 	private rootElement: HTMLElement;
 	private headerContainer: HTMLElement;
-	private searchWidget: SearchWidget;
+	private searchWidget: AutosuggestEnabledInput;
 	private settingsTargetsWidget: SettingsTargetsWidget;
 	private toolbar: ToolBar;
 
@@ -127,6 +129,7 @@ export class SettingsEditor2 extends BaseEditor {
 
 		this.createHeader(this.rootElement);
 		this.createBody(this.rootElement);
+		this.updateStyles();
 	}
 
 	setInput(input: SettingsEditor2Input, options: EditorOptions, token: CancellationToken): Thenable<void> {
@@ -143,7 +146,7 @@ export class SettingsEditor2 extends BaseEditor {
 	}
 
 	layout(dimension: DOM.Dimension): void {
-		this.searchWidget.layout(dimension);
+		this.searchWidget.layout({ height: 20, width: dimension.width });
 		this.layoutTrees(dimension);
 
 		DOM.toggleClass(this.rootElement, 'narrow', dimension.width < 600);
@@ -177,7 +180,7 @@ export class SettingsEditor2 extends BaseEditor {
 	}
 
 	clearSearchResults(): void {
-		this.searchWidget.clear();
+		this.searchWidget.setValue('');
 	}
 
 	search(text: string): void {
@@ -199,13 +202,20 @@ export class SettingsEditor2 extends BaseEditor {
 		previewTextLabel.textContent = localize('previewLabel', "This is a preview of our new settings editor");
 
 		const searchContainer = DOM.append(this.headerContainer, $('.search-container'));
-		this.searchWidget = this._register(this.instantiationService.createInstance(SearchWidget, searchContainer, {
-			ariaLabel: localize('SearchSettings.AriaLabel', "Search settings"),
-			placeholder: localize('SearchSettings.Placeholder', "Search settings"),
-			focusKey: this.searchFocusContextKey,
-			ariaLive: 'assertive'
-		}));
-		this._register(this.searchWidget.onDidChange(() => this.onSearchInputChanged()));
+
+		let searchBoxLabel = localize('SearchSettings.AriaLabel', "Search settings");
+		this.searchWidget = this._register(this.instantiationService.createInstance(AutosuggestEnabledInput, `${SettingsEditor2.ID}.searchbox`, searchContainer, {
+			triggerCharacters: ['@'],
+			provideResults: (query: string) => {
+				return ['@modified', '@tag:usesOnlineServices'].filter(tag => query.indexOf(tag) === -1).map(tag => tag + ' ');
+			}
+		}, searchBoxLabel, 'settingseditor:searchinput', {
+				placeholderText: searchBoxLabel,
+				focusContextKey: this.searchFocusContextKey,
+				// TODO: Aria-live
+			}));
+
+		this._register(this.searchWidget.onInputDidChange(() => this.onSearchInputChanged()));
 
 		const headerControlsContainer = DOM.append(this.headerContainer, $('.settings-header-controls'));
 		const targetWidgetContainer = DOM.append(headerControlsContainer, $('.settings-target-container'));
@@ -806,6 +816,20 @@ export class SettingsEditor2 extends BaseEditor {
 		const tocTreeHeight = listHeight - 16;
 		this.tocTreeContainer.style.height = `${tocTreeHeight}px`;
 		this.tocTree.layout(tocTreeHeight, 175);
+	}
+
+	public updateStyles(): void {
+		super.updateStyles();
+		this.searchWidget.updateStyles();
+	}
+
+	setVisible(visible: boolean, group?: IEditorGroup): TPromise<void> {
+		if (visible) {
+			this.searchWidget.focus();
+			this.searchWidget.selectAll();
+		}
+
+		return TPromise.as(super.setVisible(visible, group));
 	}
 }
 

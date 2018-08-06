@@ -1,0 +1,31 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+.autosuggest-input-container {
+	padding: 3px 4px 5px;
+}
+
+.autosuggest-input-container .suggest-widget {
+	width: 275px;
+}
+
+.autosuggest-input-container .monaco-editor-background,
+.autosuggest-input-container .monaco-editor,
+.autosuggest-input-container .mtk1 {
+	/* allow the embedded monaco to be styled from the outer context */
+	background-color: inherit;
+	color: inherit;
+}
+
+.autosuggest-input-container .autosuggest-input-placeholder {
+	position: absolute;
+	z-index: 1;
+	overflow: hidden;
+	white-space: nowrap;
+	text-overflow: ellipsis;
+	pointer-events: none;
+	margin-top: 2px;
+	margin-left: 1px;
+}

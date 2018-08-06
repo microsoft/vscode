@@ -142,10 +142,10 @@ suite('Extension query', () => {
 	});
 
 	test('autocomplete', () => {
-		Query.autocompletions('@sort:in').some(x => x === '@sort:installs ');
-		Query.autocompletions('@sort:installs').every(x => x !== '@sort:rating ');
+		Query.autosuggestions('@sort:in').some(x => x === '@sort:installs ');
+		Query.autosuggestions('@sort:installs').every(x => x !== '@sort:rating ');
 
-		Query.autocompletions('@category:blah').some(x => x === '@category:"extension packs" ');
-		Query.autocompletions('@category:"extension packs"').every(x => x !== '@category:formatters ');
+		Query.autosuggestions('@category:blah').some(x => x === '@category:"extension packs" ');
+		Query.autosuggestions('@category:"extension packs"').every(x => x !== '@category:formatters ');
 	});
 });
