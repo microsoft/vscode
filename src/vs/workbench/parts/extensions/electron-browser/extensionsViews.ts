@@ -801,7 +801,8 @@ export class WorkspaceRecommendedExtensionsView extends ExtensionsListView {
 	}
 
 	async show(query: string): Promise<IPagedModel<IExtension>> {
-		let model = await (/@recommended/.test(query) ? super.show(this.recommendedExtensionsQuery) : this.showEmptyModel());
+		let shouldShowWorkspaceRecommended = query && (query.trim() === '@recommended' || query.trim() === '@recommended:workspace');
+		let model = await (shouldShowWorkspaceRecommended ? super.show(this.recommendedExtensionsQuery) : this.showEmptyModel());
 		this.setExpanded(model.length > 0);
 		return model;
 	}
