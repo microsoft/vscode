@@ -7,12 +7,12 @@
 
 import * as assert from 'assert';
 import { Client } from 'vs/base/parts/ipc/node/ipc.cp';
-import uri from 'vs/base/common/uri';
 import { always } from 'vs/base/common/async';
 import { ITestChannel, TestServiceClient, ITestService } from './testService';
+import { getPathFromAmdModule } from 'vs/base/common/amd';
 
 function createClient(): Client {
-	return new Client(uri.parse(require.toUrl('bootstrap')).fsPath, {
+	return new Client(getPathFromAmdModule(require, 'bootstrap'), {
 		serverName: 'TestServer',
 		env: { AMD_ENTRYPOINT: 'vs/base/parts/ipc/test/node/testApp', verbose: true }
 	});

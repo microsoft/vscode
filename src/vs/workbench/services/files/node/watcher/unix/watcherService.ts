@@ -7,7 +7,6 @@
 
 import { getNextTickChannel } from 'vs/base/parts/ipc/common/ipc';
 import { Client } from 'vs/base/parts/ipc/node/ipc.cp';
-import uri from 'vs/base/common/uri';
 import { toFileChangesEvent, IRawFileChange } from 'vs/workbench/services/files/node/watcher/common';
 import { IWatcherChannel, WatcherChannelClient } from 'vs/workbench/services/files/node/watcher/unix/watcherIpc';
 import { FileChangesEvent, IFilesConfiguration } from 'vs/platform/files/common/files';
@@ -17,6 +16,7 @@ import { IConfigurationService } from 'vs/platform/configuration/common/configur
 import { Schemas } from 'vs/base/common/network';
 import { filterEvent } from 'vs/base/common/event';
 import { IWatchError } from 'vs/workbench/services/files/node/watcher/unix/watcher';
+import { getPathFromAmdModule } from 'vs/base/common/amd';
 
 export class FileWatcher {
 	private static readonly MAX_RESTARTS = 5;
@@ -42,7 +42,7 @@ export class FileWatcher {
 		const args = ['--type=watcherService'];
 
 		const client = new Client(
-			uri.parse(require.toUrl('bootstrap')).fsPath,
+			getPathFromAmdModule(require, 'bootstrap'),
 			{
 				serverName: 'Watcher',
 				args,

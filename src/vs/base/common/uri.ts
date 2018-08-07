@@ -12,6 +12,12 @@ const _singleSlashStart = /^\//;
 const _doubleSlashStart = /^\/\//;
 
 function _validateUri(ret: URI): void {
+
+	// // scheme, must be set
+	// if (!ret.scheme) {
+	// 	throw new Error('[UriError]: Scheme is missing.');
+	// }
+
 	// scheme, https://tools.ietf.org/html/rfc3986#section-3.1
 	// ALPHA *( ALPHA / DIGIT / "+" / "-" / "." )
 	if (ret.scheme && !_schemePattern.test(ret.scheme)) {
