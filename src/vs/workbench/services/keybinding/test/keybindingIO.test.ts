@@ -160,4 +160,21 @@ suite('keybindingIO', () => {
 		let keybindingItem = KeybindingIO.readUserKeybindingItem(userKeybinding, OS);
 		assert.equal(keybindingItem.commandArgs.text, 'theText');
 	});
+
+	test('issue #45679 - platform specific user keybinding', () => {
+		const strJSON = `[{ "key": "ctrl+k ctrl+f", "mac": "cmd+k cmd+f", "win": "alt+k alt+f", "command": "firstcommand", "when": [], "args": { "text": "theText" } }]`;
+		const userKeybinding = <IUserFriendlyKeybinding>JSON.parse(strJSON)[0];
+		const macKeybindingItem = KeybindingIO.readUserKeybindingItem(userKeybinding, OperatingSystem.Macintosh);
+		const winKeybindingItem = KeybindingIO.readUserKeybindingItem(userKeybinding, OperatingSystem.Windows);
+		const linuxKeyBindingItem = KeybindingIO.readUserKeybindingItem(userKeybinding, OperatingSystem.Linux);
+
+		assert.equal(macKeybindingItem.firstPart.metaKey, true); // override
+		assert.equal(macKeybindingItem.chordPart.metaKey, true);
+
+		assert.equal(winKeybindingItem.firstPart.altKey, true); // override
+		assert.equal(winKeybindingItem.chordPart.altKey, true);
+
+		assert.equal(linuxKeyBindingItem.firstPart.ctrlKey, true); // default
+		assert.equal(linuxKeyBindingItem.chordPart.ctrlKey, true);
+	});
 });

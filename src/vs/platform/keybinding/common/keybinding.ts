@@ -13,6 +13,9 @@ import { Event } from 'vs/base/common/event';
 
 export interface IUserFriendlyKeybinding {
 	key: string;
+	win?: string;
+	mac?: string;
+	linux?: string;
 	command: string;
 	args?: any;
 	when?: string;
