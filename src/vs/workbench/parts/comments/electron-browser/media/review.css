@@ -126,6 +126,29 @@
 	padding: 8px 0;
 }
 
+.monaco-editor .review-widget .body .comment-form .validation-error {
+	display: inline-block;
+	overflow: hidden;
+	text-align: left;
+	width: 100%;
+	box-sizing:	border-box;
+	-webkit-box-sizing:	border-box;
+	-o-box-sizing:		border-box;
+	-moz-box-sizing:	border-box;
+	-ms-box-sizing:		border-box;
+	padding: 0.4em;
+	font-size: 12px;
+	line-height: 17px;
+	min-height: 34px;
+	margin-top: -1px;
+	margin-left: -1px;
+	word-wrap: break-word;
+}
+
+.monaco-editor .review-widget .body .comment-form .validation-error.hidden {
+	display: none;
+}
+
 .monaco-editor .review-widget .body .comment-form.expand .review-thread-reply-button {
 	display: none;
 }
