@@ -828,14 +828,14 @@ export class CodeWindow implements ICodeWindow {
 	toggleFullScreen(): void {
 		const windowConfig = this.configurationService.getValue<IWindowSettings>('window');
 
-		if (windowConfig && windowConfig.nonNativeFullscreen) {
-			const willBeFullScreen = !this._win.isSimpleFullScreen();
-			this._win.setFullScreen(false);
-			this._win.setSimpleFullScreen(willBeFullScreen);
-		} else {
+		if (windowConfig && windowConfig.nativeFullscreen) {
 			const willBeFullScreen = !this._win.isFullScreen();
 			this._win.setSimpleFullScreen(false);
 			this._win.setFullScreen(willBeFullScreen);
+		} else {
+			const willBeFullScreen = !this._win.isSimpleFullScreen();
+			this._win.setFullScreen(false);
+			this._win.setSimpleFullScreen(willBeFullScreen);
 		}
 
 		// respect configured menu bar visibility or default to toggle if not set

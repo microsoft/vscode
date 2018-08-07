@@ -242,7 +242,7 @@ export interface IWindowSettings {
 	menuBarVisibility: MenuBarVisibility;
 	newWindowDimensions: 'default' | 'inherit' | 'maximized' | 'fullscreen';
 	nativeTabs: boolean;
-	nonNativeFullscreen: boolean;
+	nativeFullscreen: boolean;
 	enableMenuBarMnemonics: boolean;
 	closeWhenEmpty: boolean;
 	smoothScrollingWorkaround: boolean;
