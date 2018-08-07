@@ -121,6 +121,7 @@ class ListElementRenderer implements IRenderer<ListElement, IListElementTemplate
 		options.matches = labelHighlights || [];
 		options.descriptionTitle = element.item.description;
 		options.descriptionMatches = descriptionHighlights || [];
+		options.extraClasses = element.item.iconClasses;
 		data.label.setValue(element.item.label, element.item.description, options);
 
 		// Meta

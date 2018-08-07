@@ -23,7 +23,10 @@ import { IEnvironmentService } from 'vs/platform/environment/common/environment'
 import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { isLinux } from 'vs/base/common/platform';
 import { IUriDisplayService } from 'vs/platform/uriDisplay/common/uriDisplay';
-import { IQuickInputService, IPickOptions, IFilePickItem } from 'vs/platform/quickinput/common/quickInput';
+import { IQuickInputService, IPickOptions, IQuickPickItem } from 'vs/platform/quickinput/common/quickInput';
+import { getIconClasses } from 'vs/workbench/browser/labels';
+import { IModelService } from 'vs/editor/common/services/modelService';
+import { IModeService } from 'vs/editor/common/services/modeService';
 
 export const ADD_ROOT_FOLDER_COMMAND_ID = 'addRootFolder';
 export const ADD_ROOT_FOLDER_LABEL = nls.localize('addFolderToWorkspace', "Add Folder to Workspace...");
@@ -158,10 +161,12 @@ CommandsRegistry.registerCommand({
 	}
 });
 
-CommandsRegistry.registerCommand(PICK_WORKSPACE_FOLDER_COMMAND_ID, function (accessor, args?: [IPickOptions<IFilePickItem>, CancellationToken]) {
+CommandsRegistry.registerCommand(PICK_WORKSPACE_FOLDER_COMMAND_ID, function (accessor, args?: [IPickOptions<IQuickPickItem>, CancellationToken]) {
 	const quickInputService = accessor.get(IQuickInputService);
 	const uriDisplayService = accessor.get(IUriDisplayService);
 	const contextService = accessor.get(IWorkspaceContextService);
+	const modelService = accessor.get(IModelService);
+	const modeService = accessor.get(IModeService);
 
 	const folders = contextService.getWorkspace().folders;
 	if (!folders.length) {
@@ -173,12 +178,11 @@ CommandsRegistry.registerCommand(PICK_WORKSPACE_FOLDER_COMMAND_ID, function (acc
 			label: folder.name,
 			description: uriDisplayService.getLabel(resources.dirname(folder.uri), true),
 			folder,
-			resource: folder.uri,
-			fileKind: FileKind.ROOT_FOLDER
-		} as IFilePickItem;
+			iconClasses: getIconClasses(modelService, modeService, folder.uri, FileKind.ROOT_FOLDER)
+		} as IQuickPickItem;
 	});
 
-	let options: IPickOptions<IFilePickItem>;
+	let options: IPickOptions<IQuickPickItem>;
 	if (args) {
 		options = args[0];
 	}
