@@ -240,7 +240,8 @@ export class ExtensionsListView extends ViewletPanel {
 
 		if (names.length) {
 			return this.extensionsWorkbenchService.queryGallery({ names, source: 'queryById' })
-				.then(pager => new PagedModel(pager));
+				.then(pager => new PagedModel(pager),
+					e => TPromise.wrapError(e));
 		}
 
 		if (/@outdated/i.test(value)) {
