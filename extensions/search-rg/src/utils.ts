@@ -20,8 +20,6 @@ export function anchorGlob(glob: string): string {
 }
 
 export function joinPath(resource: vscode.Uri, pathFragment: string): vscode.Uri {
-	const joinedPath = path.join(resource.path || '/', pathFragment);
-	return resource.with({
-		path: joinedPath
-	});
+	const joinedPath = path.join(resource.fsPath || '/', pathFragment);
+	return vscode.Uri.file(joinedPath);
 }
