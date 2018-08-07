@@ -30,6 +30,7 @@ import { IWindowService } from 'vs/platform/windows/common/windows';
 import { ReleaseNotesManager } from './releaseNotesEditor';
 import { isWindows } from 'vs/base/common/platform';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
+import * as Registry from 'winreg';
 
 let releaseNotesManager: ReleaseNotesManager | undefined = undefined;
 
@@ -209,9 +210,27 @@ export class Win3264BitContribution implements IWorkbenchContribution {
 	}
 }
 
+async function isUserSetupInstalled(): Promise<boolean> {
+	const rawUserAppId = process.arch === 'x64' ? product.win32x64UserAppId : product.win32UserAppId;
+	const userAppId = rawUserAppId.replace(/^\{\{/, '{');
+	const key = new Registry({
+		hive: Registry.HKCU,
+		key: `\\SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\Uninstall\\${userAppId}_is1`
+	});
+
+	try {
+		await new Promise((c, e) => key.get('', (err, result) => err ? e(err) : c(result)));
+	} catch (err) {
+		return false;
+	}
+
+	return true;
+}
+
 export class WinUserSetupContribution implements IWorkbenchContribution {
 
 	private static readonly KEY = 'update/win32-usersetup';
+	private static readonly KEY_BOTH = 'update/win32-usersetup-both';
 
 	private static readonly STABLE_URL = 'https://vscode-update.azurewebsites.net/latest/win32-x64-user/stable';
 	private static readonly STABLE_URL_32BIT = 'https://vscode-update.azurewebsites.net/latest/win32-user/stable';
@@ -247,35 +266,63 @@ export class WinUserSetupContribution implements IWorkbenchContribution {
 			return;
 		}
 
-		const neverShowAgain = new NeverShowAgain(WinUserSetupContribution.KEY, this.storageService);
+		isUserSetupInstalled().then(userSetupIsInstalled => {
+			if (userSetupIsInstalled) {
+				const neverShowAgain = new NeverShowAgain(WinUserSetupContribution.KEY_BOTH, this.storageService);
 
-		if (!neverShowAgain.shouldShow()) {
-			return;
-		}
+				if (!neverShowAgain.shouldShow()) {
+					return;
+				}
 
-		const handle = this.notificationService.prompt(
-			severity.Info,
-			nls.localize('usersetup', "We recommend switching to our new User Setup distribution of {0} for Windows! Click [here]({1}) to learn more.", product.nameShort, WinUserSetupContribution.READ_MORE),
-			[
-				{
-					label: nls.localize('downloadnow', "Download"),
-					run: () => {
-						const url = product.quality === 'insider'
-							? (process.arch === 'ia32' ? WinUserSetupContribution.INSIDER_URL_32BIT : WinUserSetupContribution.INSIDER_URL)
-							: (process.arch === 'ia32' ? WinUserSetupContribution.STABLE_URL_32BIT : WinUserSetupContribution.STABLE_URL);
+				const handle = this.notificationService.prompt(
+					severity.Warning,
+					nls.localize('usersetupsystem', "You are running the system-wide installation of {0}, while having the user-wide distribution installed as well. Make sure you're running the {0} version you expect.", product.nameShort),
+					[
+						{
+							label: nls.localize('ok', "OK"),
+							run: () => null
+						},
+						{
+							label: nls.localize('neveragain', "Don't Show Again"),
+							isSecondary: true,
+							run: () => {
+								neverShowAgain.action.run(handle);
+								neverShowAgain.action.dispose();
+							}
+						}]
+				);
+			} else {
+				const neverShowAgain = new NeverShowAgain(WinUserSetupContribution.KEY, this.storageService);
 
-						return this.openerService.open(URI.parse(url));
-					}
-				},
-				{
-					label: nls.localize('neveragain', "Don't Show Again"),
-					isSecondary: true,
-					run: () => {
-						neverShowAgain.action.run(handle);
-						neverShowAgain.action.dispose();
-					}
-				}]
-		);
+				if (!neverShowAgain.shouldShow()) {
+					return;
+				}
+
+				const handle = this.notificationService.prompt(
+					severity.Info,
+					nls.localize('usersetup', "We recommend switching to our new User Setup distribution of {0} for Windows! Click [here]({1}) to learn more.", product.nameShort, WinUserSetupContribution.READ_MORE),
+					[
+						{
+							label: nls.localize('downloadnow', "Download"),
+							run: () => {
+								const url = product.quality === 'insider'
+									? (process.arch === 'ia32' ? WinUserSetupContribution.INSIDER_URL_32BIT : WinUserSetupContribution.INSIDER_URL)
+									: (process.arch === 'ia32' ? WinUserSetupContribution.STABLE_URL_32BIT : WinUserSetupContribution.STABLE_URL);
+
+								return this.openerService.open(URI.parse(url));
+							}
+						},
+						{
+							label: nls.localize('neveragain', "Don't Show Again"),
+							isSecondary: true,
+							run: () => {
+								neverShowAgain.action.run(handle);
+								neverShowAgain.action.dispose();
+							}
+						}]
+				);
+			}
+		});
 	}
 
 	dispose(): void {
