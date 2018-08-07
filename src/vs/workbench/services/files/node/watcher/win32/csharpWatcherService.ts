@@ -10,9 +10,9 @@ import * as cp from 'child_process';
 import { FileChangeType } from 'vs/platform/files/common/files';
 import * as decoder from 'vs/base/node/decoder';
 import * as glob from 'vs/base/common/glob';
-import uri from 'vs/base/common/uri';
 
 import { IRawFileChange } from 'vs/workbench/services/files/node/watcher/common';
+import { getPathFromAmdModule } from 'vs/base/common/amd';
 
 export class OutOfProcessWin32FolderWatcher {
 
@@ -41,7 +41,7 @@ export class OutOfProcessWin32FolderWatcher {
 			args.push('-verbose');
 		}
 
-		this.handle = cp.spawn(uri.parse(require.toUrl('vs/workbench/services/files/node/watcher/win32/CodeHelper.exe')).fsPath, args);
+		this.handle = cp.spawn(getPathFromAmdModule(require, 'vs/workbench/services/files/node/watcher/win32/CodeHelper.exe'), args);
 
 		const stdoutLineDecoder = new decoder.LineDecoder();
 

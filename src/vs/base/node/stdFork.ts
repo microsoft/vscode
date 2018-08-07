@@ -9,7 +9,7 @@ import * as path from 'path';
 import * as os from 'os';
 import * as net from 'net';
 import * as cp from 'child_process';
-import uri from 'vs/base/common/uri';
+import { getPathFromAmdModule } from 'vs/base/common/amd';
 
 export interface IForkOpts {
 	cwd?: string;
@@ -117,7 +117,7 @@ export function fork(modulePath: string, args: string[], options: IForkOpts, cal
 	};
 
 	// Create the process
-	let bootstrapperPath = (uri.parse(require.toUrl('./stdForkStart.js')).fsPath);
+	let bootstrapperPath = (getPathFromAmdModule(require, './stdForkStart.js'));
 	childProcess = cp.fork(bootstrapperPath, [modulePath].concat(args), {
 		silent: true,
 		cwd: options.cwd,
