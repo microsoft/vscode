@@ -616,9 +616,11 @@ export abstract class BaseSwitchWindow extends Action {
 				action: (!this.isQuickNavigate() && currentWindowId !== win.id) ? this.closeWindowAction : void 0
 			} as IFilePickOpenEntry));
 
+			const autoFocusIndex = (picks.indexOf(picks.filter(pick => pick.payload === currentWindowId)[0]) + 1) % picks.length;
+
 			this.quickOpenService.pick(picks, {
 				contextKey: 'inWindowsPicker',
-				autoFocus: { autoFocusFirstEntry: true },
+				autoFocus: { autoFocusIndex },
 				placeHolder,
 				quickNavigateConfiguration: this.isQuickNavigate() ? { keybindings: this.keybindingService.lookupKeybindings(this.id) } : void 0
 			});

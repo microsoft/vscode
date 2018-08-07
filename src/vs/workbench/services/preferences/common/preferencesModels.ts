@@ -899,7 +899,7 @@ class SettingsContentBuilder {
 
 		if (setting.enumDescriptions && setting.enumDescriptions.some(desc => !!desc)) {
 			setting.enumDescriptions.forEach((desc, i) => {
-				const displayEnum = escapeInvisibleChars(setting.enum[i]);
+				const displayEnum = escapeInvisibleChars(String(setting.enum[i]));
 				const line = desc ?
 					`${displayEnum}: ${fixSettingLink(desc)}` :
 					displayEnum;

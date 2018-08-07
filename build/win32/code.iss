@@ -975,7 +975,7 @@ begin
       RegKey := 'SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall\' + copy('{#IncompatibleTargetAppId}', 2, 38) + '_is1';
 
       if RegKeyExists({#IncompatibleArchRootKey}, RegKey) then begin
-        if MsgBox('{#NameShort} is already installed on this system for all users. Are you sure you want to install it for this user?', mbConfirmation, MB_YESNO) = IDNO then begin
+        if MsgBox('{#NameShort} is already installed on this system for all users. Note that both versions will be installed simultaneously; you might want to first uninstall the system-wide installation. Are you sure you want to continue?', mbConfirmation, MB_YESNO) = IDNO then begin
           Result := false;
         end;
       end;

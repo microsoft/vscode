@@ -111,7 +111,7 @@ export class MenubarPart extends Part {
 
 	private _onVisibilityChange: Emitter<boolean>;
 
-	private static MAX_MENU_RECENT_ENTRIES = 5;
+	private static MAX_MENU_RECENT_ENTRIES = 10;
 
 	constructor(
 		id: string,

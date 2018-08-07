@@ -49,17 +49,28 @@ export class TelemetryOptOut implements IWorkbenchContribution {
 			const privacyUrl = product.privacyStatementUrl || product.telemetryOptOutUrl;
 
 			if (experimentState && experimentState.state === ExperimentState.Run && telemetryService.isOptedIn) {
+				const logTelemetry = (optout: boolean) => {
+					/* __GDPR__
+						"experiments:optout" : {
+							"optOut": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true }
+						}
+					*/
+					telemetryService.publicLog('experiments:optout', { optout });
+				};
 				notificationService.prompt(
 					Severity.Info,
 					localize('telemetryOptOut.optOutOption', "Please help Microsoft improve Visual Studio Code by allowing the collection of usage data. Read our [privacy statement]({0}) for more details.", privacyUrl),
 					[
 						{
 							label: localize('telemetryOptOut.OptIn', "Yes, glad to help"),
-							run: () => { }
+							run: () => {
+								logTelemetry(false);
+							}
 						},
 						{
 							label: localize('telemetryOptOut.OptOut', "No, thanks"),
 							run: () => {
+								logTelemetry(true);
 								configurationService.updateValue('telemetry.enableTelemetry', false);
 								configurationService.updateValue('telemetry.enableCrashReporter', false);
 							}

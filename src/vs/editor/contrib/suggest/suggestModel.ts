@@ -123,6 +123,9 @@ export class SuggestModel implements IDisposable {
 			this._updateTriggerCharacters();
 			this.cancel();
 		}));
+		this._toDispose.push(this._editor.onDidBlurEditorText(() => {
+			this.cancel();
+		}));
 		this._toDispose.push(this._editor.onDidChangeConfiguration(() => {
 			this._updateTriggerCharacters();
 			this._updateQuickSuggest();

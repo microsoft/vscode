@@ -42,6 +42,7 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 
 	static DEFAULT_CONTENT_CHANGE_BUFFER_DELAY = CONTENT_CHANGE_EVENT_BUFFER_DELAY;
 	static DEFAULT_ORPHANED_CHANGE_BUFFER_DELAY = 100;
+	static WHITELIST_JSON = ['package.json', 'package-lock.json', 'tsconfig.json', 'jsconfig.json', 'bower.json', '.eslintrc.json', 'tslint.json', 'composer.json'];
 
 	private static saveErrorHandler: ISaveErrorHandler;
 	static setSaveErrorHandler(handler: ISaveErrorHandler): void { TextFileEditorModel.saveErrorHandler = handler; }
@@ -360,18 +361,12 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 			} else {
 				/* __GDPR__
 					"fileGet" : {
-						"mimeType" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
-						"ext": { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
-						"path": { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
-						"reason": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true }
+						"${include}": [
+							"${FileTelemetryData}"
+						]
 					}
 				*/
-				this.telemetryService.publicLog('fileGet', {
-					mimeType: guessMimeTypes(this.resource.fsPath).join(', '),
-					ext: path.extname(this.resource.fsPath),
-					path: this.hashService.createSHA1(this.resource.fsPath),
-					reason: options && options.reason ? options.reason : LoadReason.OTHER
-				});
+				this.telemetryService.publicLog('fileGet', this.getTelemetryData(options && options.reason ? options.reason : LoadReason.OTHER));
 			}
 
 			return model;
@@ -725,16 +720,12 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 				} else {
 					/* __GDPR__
 						"filePUT" : {
-							"mimeType" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
-							"ext": { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
-							"reason": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true }
+							"${include}": [
+								"${FileTelemetryData}"
+							]
 						}
 					*/
-					this.telemetryService.publicLog('filePUT', {
-						mimeType: guessMimeTypes(this.resource.fsPath).join(', '),
-						ext: path.extname(this.resource.fsPath),
-						reason: options.reason
-					});
+					this.telemetryService.publicLog('filePUT', this.getTelemetryData(options.reason));
 				}
 
 				// Update dirty state unless model has changed meanwhile
@@ -793,6 +784,32 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 		return this.contextService.getWorkspace().folders.some(folder => {
 			return isEqualOrParent(this.resource, folder.toResource('.vscode'), hasToIgnoreCase(this.resource));
 		});
+	}
+
+	private getTelemetryData(reason: number): Object {
+		const ext = path.extname(this.resource.fsPath);
+		const fileName = path.basename(this.resource.fsPath);
+		const telemetryData = {
+			mimeType: guessMimeTypes(this.resource.fsPath).join(', '),
+			ext,
+			path: this.hashService.createSHA1(this.resource.fsPath),
+			reason
+		};
+
+		if (ext === '.json' && TextFileEditorModel.WHITELIST_JSON.indexOf(fileName) > -1) {
+			telemetryData['whitelistedjson'] = fileName;
+		}
+
+		/* __GDPR__FRAGMENT__
+			"FileTelemetryData" : {
+				"mimeType" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
+				"ext": { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
+				"path": { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
+				"reason": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
+				"whitelistedjson": { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
+			}
+		*/
+		return telemetryData;
 	}
 
 	private doTouch(versionId: number): TPromise<void> {

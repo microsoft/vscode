@@ -33,7 +33,7 @@ function initLoader(opts) {
 		nodeRequire: require,
 		nodeMain: __filename,
 		catchError: true,
-		baseUrl: path.join(__dirname, '../../src'),
+		baseUrl: `file://${path.posix.join(__dirname, '../../src')}`,
 		paths: {
 			'vs': `../${outdir}/vs`,
 			'lib': `../${outdir}/lib`,

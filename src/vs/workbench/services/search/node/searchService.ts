@@ -26,6 +26,7 @@ import { IExtensionService } from 'vs/workbench/services/extensions/common/exten
 import { IUntitledEditorService } from 'vs/workbench/services/untitled/common/untitledEditorService';
 import { IRawSearch, IRawSearchService, ISerializedFileMatch, ISerializedSearchComplete, ISerializedSearchProgressItem, isSerializedSearchComplete, isSerializedSearchSuccess, ITelemetryEvent } from './search';
 import { ISearchChannel, SearchChannelClient } from './searchIpc';
+import { getPathFromAmdModule } from 'vs/base/common/amd';
 
 export class SearchService extends Disposable implements ISearchService {
 	public _serviceBrand: any;
@@ -331,7 +332,7 @@ export class DiskSearch implements ISearchResultProvider {
 		}
 
 		const client = new Client(
-			uri.parse(require.toUrl('bootstrap')).fsPath,
+			getPathFromAmdModule(require, 'bootstrap'),
 			opts);
 
 		const channel = getNextTickChannel(client.getChannel<ISearchChannel>('search'));

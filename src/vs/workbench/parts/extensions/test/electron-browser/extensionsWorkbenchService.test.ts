@@ -218,7 +218,7 @@ suite('ExtensionsWorkbenchServiceTest', () => {
 		assert.equal('1.2.0', actual.version);
 		assert.equal('1.2.0', actual.latestVersion);
 		assert.equal('localDescription2', actual.description);
-		assert.ok(fs.existsSync(actual.iconUrl));
+		assert.ok(fs.existsSync(URI.parse(actual.iconUrl).fsPath));
 		assert.equal(null, actual.licenseUrl);
 		assert.equal(ExtensionState.Installed, actual.state);
 		assert.equal(null, actual.installCount);
@@ -311,7 +311,7 @@ suite('ExtensionsWorkbenchServiceTest', () => {
 			assert.equal('1.2.0', actual.version);
 			assert.equal('1.2.0', actual.latestVersion);
 			assert.equal('localDescription2', actual.description);
-			assert.ok(fs.existsSync(actual.iconUrl));
+			assert.ok(fs.existsSync(URI.parse(actual.iconUrl).fsPath));
 			assert.equal(null, actual.licenseUrl);
 			assert.equal(ExtensionState.Installed, actual.state);
 			assert.equal(null, actual.installCount);

@@ -147,6 +147,10 @@ export class NoTabsTitleControl extends TitleControl {
 		this.redraw();
 	}
 
+	protected handleBreadcrumbsEnablementChange(): void {
+		this.redraw();
+	}
+
 	private ifActiveEditorChanged(fn: () => void): void {
 		if (
 			!this.lastRenderedActiveEditor && this.group.activeEditor || 	// active editor changed from null => editor

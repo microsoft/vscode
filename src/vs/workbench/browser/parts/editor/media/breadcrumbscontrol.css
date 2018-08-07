@@ -23,6 +23,10 @@
 
 /* todo@joh move somewhere else */
 
+.monaco-workbench .monaco-breadcrumbs-picker .picker-item {
+	line-height: 22px;
+}
+
 .monaco-workbench .monaco-breadcrumbs-picker .highlighting-tree {
 	height: 100%;
 	overflow: hidden;
