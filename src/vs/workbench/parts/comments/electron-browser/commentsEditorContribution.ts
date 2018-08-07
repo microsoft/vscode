@@ -58,7 +58,7 @@ export class ReviewViewZone implements IViewZone {
 
 const overviewRulerDefault = new Color(new RGBA(197, 197, 197, 1));
 
-export const overviewRulerCommentingRangeForeground = registerColor('editorOverviewRuler.addedForeground', { dark: overviewRulerDefault, light: overviewRulerDefault, hc: overviewRulerDefault }, nls.localize('overviewRulerAddedForeground', 'Overview ruler marker color for added content.'));
+export const overviewRulerCommentingRangeForeground = registerColor('editorGutter.commentRangeForeground', { dark: overviewRulerDefault, light: overviewRulerDefault, hc: overviewRulerDefault }, nls.localize('editorGutterCommentRangeForeground', 'Editor gutter decoration color for commenting ranges.'));
 
 class CommentingRangeDecoration {
 	private _decorationId: string;
