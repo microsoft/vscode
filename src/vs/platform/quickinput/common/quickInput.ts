@@ -52,6 +52,11 @@ export interface IPickOptions<T extends IQuickPickItem> {
 	canPickMany?: boolean;
 
 	/**
+	 * enables quick navigate in the picker to open an element without typing
+	 */
+	quickNavigate?: IQuickNavigateConfiguration;
+
+	/**
 	 * a context key to set when this picker is active
 	 */
 	contextKey?: string;
@@ -145,6 +150,8 @@ export interface IQuickPick<T extends IQuickPickItem> extends IQuickInput {
 	matchOnDescription: boolean;
 
 	matchOnDetail: boolean;
+
+	quickNavigate: IQuickNavigateConfiguration | undefined;
 
 	activeItems: ReadonlyArray<T>;
 

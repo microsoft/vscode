@@ -311,7 +311,8 @@ class QuickPick<T extends IQuickPickItem> extends QuickInput implements IQuickPi
 	private selectedItemsUpdated = false;
 	private selectedItemsToConfirm: T[] = [];
 	private onDidChangeSelectionEmitter = new Emitter<T[]>();
-	private quickNavigate = false;
+
+	quickNavigate: IQuickNavigateConfiguration;
 
 	constructor(ui: QuickInputUI) {
 		super(ui);
@@ -498,9 +499,58 @@ class QuickPick<T extends IQuickPickItem> extends QuickInput implements IQuickPi
 					this._selectedItems = checkedItems as T[];
 					this.onDidChangeSelectionEmitter.fire(checkedItems as T[]);
 				}),
+				this.registerQuickNavigation()
 			);
 		}
 		super.show();
+	}
+
+	private registerQuickNavigation() {
+		return dom.addDisposableListener(this.ui.container, dom.EventType.KEY_UP, (e: KeyboardEvent) => {
+			if (this.canSelectMany || !this.quickNavigate) {
+				return;
+			}
+
+			const keyboardEvent: StandardKeyboardEvent = new StandardKeyboardEvent(e as KeyboardEvent);
+			const keyCode = keyboardEvent.keyCode;
+
+			// Select element when keys are pressed that signal it
+			const quickNavKeys = this.quickNavigate.keybindings;
+			const wasTriggerKeyPressed = keyCode === KeyCode.Enter || quickNavKeys.some(k => {
+				const [firstPart, chordPart] = k.getParts();
+				if (chordPart) {
+					return false;
+				}
+
+				if (firstPart.shiftKey && keyCode === KeyCode.Shift) {
+					if (keyboardEvent.ctrlKey || keyboardEvent.altKey || keyboardEvent.metaKey) {
+						return false; // this is an optimistic check for the shift key being used to navigate back in quick open
+					}
+
+					return true;
+				}
+
+				if (firstPart.altKey && keyCode === KeyCode.Alt) {
+					return true;
+				}
+
+				if (firstPart.ctrlKey && keyCode === KeyCode.Ctrl) {
+					return true;
+				}
+
+				if (firstPart.metaKey && keyCode === KeyCode.Meta) {
+					return true;
+				}
+
+				return false;
+			});
+
+			if (wasTriggerKeyPressed && this.activeItems[0]) {
+				this._selectedItems = [this.activeItems[0]];
+				this.onDidChangeSelectionEmitter.fire(this.selectedItems);
+				this.onDidAcceptEmitter.fire();
+			}
+		});
 	}
 
 	protected update() {
@@ -555,55 +605,6 @@ class QuickPick<T extends IQuickPickItem> extends QuickInput implements IQuickPi
 		this.ui.list.matchOnDescription = this.matchOnDescription;
 		this.ui.list.matchOnDetail = this.matchOnDetail;
 		this.ui.setVisibilities(this.canSelectMany ? { title: !!this.title || !!this.step, checkAll: true, inputBox: true, visibleCount: true, count: true, ok: true, list: true } : { title: !!this.title || !!this.step, inputBox: true, visibleCount: true, list: true });
-	}
-
-	configureQuickNavigate(quickNavigate: IQuickNavigateConfiguration) {
-		if (this.canSelectMany || this.quickNavigate) {
-			return;
-		}
-		this.quickNavigate = true;
-
-		this.disposables.push(dom.addDisposableListener(this.ui.container, dom.EventType.KEY_UP, (e: KeyboardEvent) => {
-			const keyboardEvent: StandardKeyboardEvent = new StandardKeyboardEvent(e as KeyboardEvent);
-			const keyCode = keyboardEvent.keyCode;
-
-			// Select element when keys are pressed that signal it
-			const quickNavKeys = quickNavigate.keybindings;
-			const wasTriggerKeyPressed = keyCode === KeyCode.Enter || quickNavKeys.some(k => {
-				const [firstPart, chordPart] = k.getParts();
-				if (chordPart) {
-					return false;
-				}
-
-				if (firstPart.shiftKey && keyCode === KeyCode.Shift) {
-					if (keyboardEvent.ctrlKey || keyboardEvent.altKey || keyboardEvent.metaKey) {
-						return false; // this is an optimistic check for the shift key being used to navigate back in quick open
-					}
-
-					return true;
-				}
-
-				if (firstPart.altKey && keyCode === KeyCode.Alt) {
-					return true;
-				}
-
-				if (firstPart.ctrlKey && keyCode === KeyCode.Ctrl) {
-					return true;
-				}
-
-				if (firstPart.metaKey && keyCode === KeyCode.Meta) {
-					return true;
-				}
-
-				return false;
-			});
-
-			if (wasTriggerKeyPressed && this.activeItems[0]) {
-				this._selectedItems = [this.activeItems[0]];
-				this.onDidChangeSelectionEmitter.fire(this.selectedItems);
-				this.onDidAcceptEmitter.fire();
-			}
-		}));
 	}
 }
 
@@ -1020,6 +1021,7 @@ export class QuickInputService extends Component implements IQuickInputService {
 			input.ignoreFocusOut = options.ignoreFocusLost;
 			input.matchOnDescription = options.matchOnDescription;
 			input.matchOnDetail = options.matchOnDetail;
+			input.quickNavigate = options.quickNavigate;
 			input.contextKey = options.contextKey;
 			input.busy = true;
 			TPromise.join([picks, options.activeItem])
@@ -1207,7 +1209,7 @@ export class QuickInputService extends Component implements IQuickInputService {
 		if (this.isDisplayed() && this.ui.list.isDisplayed()) {
 			this.ui.list.focus(next ? 'Next' : 'Previous');
 			if (quickNavigate && this.controller instanceof QuickPick) {
-				this.controller.configureQuickNavigate(quickNavigate);
+				this.controller.quickNavigate = quickNavigate;
 			}
 		}
 	}
