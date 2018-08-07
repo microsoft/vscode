@@ -169,7 +169,9 @@ export class DebugService implements debug.IDebugService {
 			} else {
 				const root = raw.root;
 				raw.disconnect().done(undefined, errors.onUnexpectedError);
-				this.doCreateSession(root, { resolved: session.configuration, unresolved: session.unresolvedConfiguration }, session.getId());
+				setTimeout(_ => {
+					this.doCreateSession(root, { resolved: session.configuration, unresolved: session.unresolvedConfiguration }, session.getId());
+				}, 50);
 			}
 
 			return;
