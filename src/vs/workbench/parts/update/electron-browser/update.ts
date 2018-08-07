@@ -251,6 +251,33 @@ export class WinUserSetupContribution implements IWorkbenchContribution {
 	) {
 		updateService.onStateChange(this.onUpdateStateChange, this, this.disposables);
 		this.onUpdateStateChange(this.updateService.state);
+
+		const neverShowAgain = new NeverShowAgain(WinUserSetupContribution.KEY_BOTH, this.storageService);
+
+		if (!neverShowAgain.shouldShow()) {
+			return;
+		}
+
+		isUserSetupInstalled().then(userSetupIsInstalled => {
+			if (!userSetupIsInstalled) {
+				return;
+			}
+
+			const handle = this.notificationService.prompt(
+				severity.Warning,
+				nls.localize('usersetupsystem', "You are running the system-wide installation of {0}, while having the user-wide distribution installed as well. Make sure you're running the {0} version you expect.", product.nameShort),
+				[
+					{ label: nls.localize('ok', "OK"), run: () => null },
+					{
+						label: nls.localize('neveragain', "Don't Show Again"),
+						isSecondary: true,
+						run: () => {
+							neverShowAgain.action.run(handle);
+							neverShowAgain.action.dispose();
+						}
+					}]
+			);
+		});
 	}
 
 	private onUpdateStateChange(state: UpdateState): void {
@@ -266,63 +293,35 @@ export class WinUserSetupContribution implements IWorkbenchContribution {
 			return;
 		}
 
-		isUserSetupInstalled().then(userSetupIsInstalled => {
-			if (userSetupIsInstalled) {
-				const neverShowAgain = new NeverShowAgain(WinUserSetupContribution.KEY_BOTH, this.storageService);
+		const neverShowAgain = new NeverShowAgain(WinUserSetupContribution.KEY, this.storageService);
 
-				if (!neverShowAgain.shouldShow()) {
-					return;
-				}
+		if (!neverShowAgain.shouldShow()) {
+			return;
+		}
 
-				const handle = this.notificationService.prompt(
-					severity.Warning,
-					nls.localize('usersetupsystem', "You are running the system-wide installation of {0}, while having the user-wide distribution installed as well. Make sure you're running the {0} version you expect.", product.nameShort),
-					[
-						{
-							label: nls.localize('ok', "OK"),
-							run: () => null
-						},
-						{
-							label: nls.localize('neveragain', "Don't Show Again"),
-							isSecondary: true,
-							run: () => {
-								neverShowAgain.action.run(handle);
-								neverShowAgain.action.dispose();
-							}
-						}]
-				);
-			} else {
-				const neverShowAgain = new NeverShowAgain(WinUserSetupContribution.KEY, this.storageService);
+		const handle = this.notificationService.prompt(
+			severity.Info,
+			nls.localize('usersetup', "We recommend switching to our new User Setup distribution of {0} for Windows! Click [here]({1}) to learn more.", product.nameShort, WinUserSetupContribution.READ_MORE),
+			[
+				{
+					label: nls.localize('downloadnow', "Download"),
+					run: () => {
+						const url = product.quality === 'insider'
+							? (process.arch === 'ia32' ? WinUserSetupContribution.INSIDER_URL_32BIT : WinUserSetupContribution.INSIDER_URL)
+							: (process.arch === 'ia32' ? WinUserSetupContribution.STABLE_URL_32BIT : WinUserSetupContribution.STABLE_URL);
 
-				if (!neverShowAgain.shouldShow()) {
-					return;
-				}
-
-				const handle = this.notificationService.prompt(
-					severity.Info,
-					nls.localize('usersetup', "We recommend switching to our new User Setup distribution of {0} for Windows! Click [here]({1}) to learn more.", product.nameShort, WinUserSetupContribution.READ_MORE),
-					[
-						{
-							label: nls.localize('downloadnow', "Download"),
-							run: () => {
-								const url = product.quality === 'insider'
-									? (process.arch === 'ia32' ? WinUserSetupContribution.INSIDER_URL_32BIT : WinUserSetupContribution.INSIDER_URL)
-									: (process.arch === 'ia32' ? WinUserSetupContribution.STABLE_URL_32BIT : WinUserSetupContribution.STABLE_URL);
-
-								return this.openerService.open(URI.parse(url));
-							}
-						},
-						{
-							label: nls.localize('neveragain', "Don't Show Again"),
-							isSecondary: true,
-							run: () => {
-								neverShowAgain.action.run(handle);
-								neverShowAgain.action.dispose();
-							}
-						}]
-				);
-			}
-		});
+						return this.openerService.open(URI.parse(url));
+					}
+				},
+				{
+					label: nls.localize('neveragain', "Don't Show Again"),
+					isSecondary: true,
+					run: () => {
+						neverShowAgain.action.run(handle);
+						neverShowAgain.action.dispose();
+					}
+				}]
+		);
 	}
 
 	dispose(): void {
