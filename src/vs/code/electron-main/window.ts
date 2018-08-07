@@ -209,6 +209,10 @@ export class CodeWindow implements ICodeWindow {
 			}
 		}
 
+		if (isMacintosh && windowConfig && !windowConfig.nativeFullscreen) {
+			this._win.setFullScreenable(false);
+		}
+
 		this._lastFocusTime = Date.now(); // since we show directly, we need to set the last focus time too
 	}
 
