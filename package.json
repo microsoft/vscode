@@ -51,6 +51,7 @@
     "vscode-ripgrep": "^1.0.1",
     "vscode-textmate": "^4.0.1",
     "vscode-xterm": "3.6.0-beta13",
+    "winreg": "^1.2.4",
     "yauzl": "^2.9.1"
   },
   "devDependencies": {

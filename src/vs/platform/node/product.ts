@@ -10,6 +10,10 @@ export interface IProductConfiguration {
 	nameShort: string;
 	nameLong: string;
 	applicationName: string;
+	win32AppId: string;
+	win32x64AppId: string;
+	win32UserAppId: string;
+	win32x64UserAppId: string;
 	win32AppUserModelId: string;
 	win32MutexName: string;
 	darwinBundleIdentifier: string;
