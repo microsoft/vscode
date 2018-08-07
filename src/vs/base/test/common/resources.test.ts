@@ -5,8 +5,7 @@
 'use strict';
 
 import * as assert from 'assert';
-import { normalize } from 'vs/base/common/paths';
-import { dirname, distinctParents, joinPath, isEqual, isEqualOrParent, hasToIgnoreCase } from 'vs/base/common/resources';
+import { dirname, basename, distinctParents, joinPath, isEqual, isEqualOrParent, hasToIgnoreCase } from 'vs/base/common/resources';
 import URI from 'vs/base/common/uri';
 import { isWindows } from 'vs/base/common/platform';
 
@@ -44,26 +43,62 @@ suite('Resources', () => {
 	});
 
 	test('dirname', () => {
-		const f = URI.file('/some/file/test.txt');
-		const d = dirname(f);
-		assert.equal(d.fsPath, normalize('/some/file', true));
+		if (isWindows) {
+			assert.equal(dirname(URI.file('c:\\some\\file\\test.txt')).toString(), 'file:///c%3A/some/file');
+			assert.equal(dirname(URI.file('c:\\some\\file')).toString(), 'file:///c%3A/some');
+			assert.equal(dirname(URI.file('c:\\some\\file\\')).toString(), 'file:///c%3A/some');
+			assert.equal(dirname(URI.file('c:\\some')).toString(), 'file:///c%3A/');
+		} else {
+			assert.equal(dirname(URI.file('/some/file/test.txt')).toString(), 'file:///some/file');
+			assert.equal(dirname(URI.file('/some/file/')).toString(), 'file:///some');
+			assert.equal(dirname(URI.file('/some/file')).toString(), 'file:///some');
+			assert.equal(dirname(URI.file('/some/file')).toString(), 'file:///some');
+		}
+		assert.equal(dirname(URI.parse('foo://a/some/file/test.txt')).toString(), 'foo://a/some/file');
+		assert.equal(dirname(URI.parse('foo://a/some/file/')).toString(), 'foo://a/some');
+		assert.equal(dirname(URI.parse('foo://a/some/file')).toString(), 'foo://a/some');
+		assert.equal(dirname(URI.parse('foo://a/some')).toString(), 'foo://a/');
+
+		// does not explode (https://github.com/Microsoft/vscode/issues/41987)
+		dirname(URI.from({ scheme: 'file', authority: '/users/someone/portal.h' }));
+	});
+
+	test('basename', () => {
+		if (isWindows) {
+			assert.equal(basename(URI.file('c:\\some\\file\\test.txt')).toString(), 'test.txt');
+			assert.equal(basename(URI.file('c:\\some\\file')).toString(), 'file');
+			assert.equal(basename(URI.file('c:\\some\\file\\')).toString(), 'file');
+		} else {
+			assert.equal(basename(URI.file('/some/file/test.txt')).toString(), 'test.txt');
+			assert.equal(basename(URI.file('/some/file/')).toString(), 'file');
+			assert.equal(basename(URI.file('/some/file')).toString(), 'file');
+			assert.equal(basename(URI.file('/some')).toString(), 'some');
+		}
+		assert.equal(basename(URI.parse('foo://a/some/file/test.txt')).toString(), 'test.txt');
+		assert.equal(basename(URI.parse('foo://a/some/file/')).toString(), 'file');
+		assert.equal(basename(URI.parse('foo://a/some/file')).toString(), 'file');
+		assert.equal(basename(URI.parse('foo://a/some')).toString(), 'some');
 
 		// does not explode (https://github.com/Microsoft/vscode/issues/41987)
 		dirname(URI.from({ scheme: 'file', authority: '/users/someone/portal.h' }));
 	});
 
 	test('joinPath', () => {
-		assert.equal(
-			joinPath(URI.file('/foo/bar'), '/file.js').toString(),
-			'file:///foo/bar/file.js');
-
-		assert.equal(
-			joinPath(URI.file('/foo/bar/'), '/file.js').toString(),
-			'file:///foo/bar/file.js');
-
-		assert.equal(
-			joinPath(URI.file('/'), '/file.js').toString(),
-			'file:///file.js');
+		if (isWindows) {
+			assert.equal(joinPath(URI.file('c:\\foo\\bar'), '/file.js').toString(), 'file:///c%3A/foo/bar/file.js');
+			assert.equal(joinPath(URI.file('c:\\foo\\bar\\'), 'file.js').toString(), 'file:///c%3A/foo/bar/file.js');
+			assert.equal(joinPath(URI.file('c:\\foo\\bar\\'), '/file.js').toString(), 'file:///c%3A/foo/bar/file.js');
+			assert.equal(joinPath(URI.file('c:\\'), '/file.js').toString(), 'file:///c%3A/file.js');
+		} else {
+			assert.equal(joinPath(URI.file('/foo/bar'), '/file.js').toString(), 'file:///foo/bar/file.js');
+			assert.equal(joinPath(URI.file('/foo/bar'), 'file.js').toString(), 'file:///foo/bar/file.js');
+			assert.equal(joinPath(URI.file('/foo/bar/'), '/file.js').toString(), 'file:///foo/bar/file.js');
+			assert.equal(joinPath(URI.file('/'), '/file.js').toString(), 'file:///file.js');
+		}
+		assert.equal(joinPath(URI.parse('foo://a/foo/bar'), '/file.js').toString(), 'foo://a/foo/bar/file.js');
+		assert.equal(joinPath(URI.parse('foo://a/foo/bar'), 'file.js').toString(), 'foo://a/foo/bar/file.js');
+		assert.equal(joinPath(URI.parse('foo://a/foo/bar/'), '/file.js').toString(), 'foo://a/foo/bar/file.js');
+		assert.equal(joinPath(URI.parse('foo://a/'), '/file.js').toString(), 'foo://a/file.js');
 
 		assert.equal(
 			joinPath(URI.from({ scheme: 'myScheme', authority: 'authority', path: '/path', query: 'query', fragment: 'fragment' }), '/file.js').toString(),
