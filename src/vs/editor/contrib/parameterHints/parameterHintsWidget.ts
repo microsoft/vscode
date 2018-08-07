@@ -169,7 +169,7 @@ export class ParameterHintsModel extends Disposable {
 	}
 
 	private onEditorConfigurationChange(): void {
-		this.enabled = this.editor.getConfiguration().contribInfo.parameterHints;
+		this.enabled = this.editor.getConfiguration().contribInfo.parameterHints.enabled;
 
 		if (!this.enabled) {
 			this.cancel();
@@ -476,14 +476,20 @@ export class ParameterHintsWidget implements IContentWidget, IDisposable {
 	next(): boolean {
 		const length = this.hints.signatures.length;
 		const last = (this.currentSignature % length) === (length - 1);
+		const cycle = this.editor.getConfiguration().contribInfo.parameterHints.cycle;
 
 		// If there is only one signature, or we're on last signature of list
-		if (length < 2 || last) {
+		if ((length < 2 || last) && !cycle) {
 			this.cancel();
 			return false;
 		}
 
-		this.currentSignature++;
+		if (last && cycle) {
+			this.currentSignature = 0;
+		} else {
+			this.currentSignature++;
+		}
+
 		this.render();
 		return true;
 	}
@@ -491,13 +497,20 @@ export class ParameterHintsWidget implements IContentWidget, IDisposable {
 	previous(): boolean {
 		const length = this.hints.signatures.length;
 		const first = this.currentSignature === 0;
+		const cycle = this.editor.getConfiguration().contribInfo.parameterHints.cycle;
 
-		if (length < 2 || first) {
+		// If there is only one signature, or we're on first signature of list
+		if ((length < 2 || first) && !cycle) {
 			this.cancel();
 			return false;
 		}
 
-		this.currentSignature--;
+		if (first && cycle) {
+			this.currentSignature = length - 1;
+		} else {
+			this.currentSignature--;
+		}
+
 		this.render();
 		return true;
 	}
