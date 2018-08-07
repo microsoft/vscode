@@ -249,9 +249,6 @@ export class WinUserSetupContribution implements IWorkbenchContribution {
 		@IOpenerService private openerService: IOpenerService,
 		@IUpdateService private updateService: IUpdateService
 	) {
-		updateService.onStateChange(this.onUpdateStateChange, this, this.disposables);
-		this.onUpdateStateChange(this.updateService.state);
-
 		const neverShowAgain = new NeverShowAgain(WinUserSetupContribution.KEY_BOTH, this.storageService);
 
 		if (!neverShowAgain.shouldShow()) {
@@ -260,6 +257,8 @@ export class WinUserSetupContribution implements IWorkbenchContribution {
 
 		isUserSetupInstalled().then(userSetupIsInstalled => {
 			if (!userSetupIsInstalled) {
+				updateService.onStateChange(this.onUpdateStateChange, this, this.disposables);
+				this.onUpdateStateChange(this.updateService.state);
 				return;
 			}
 
