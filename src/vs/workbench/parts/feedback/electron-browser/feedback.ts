@@ -216,7 +216,7 @@ export class FeedbackDropdown extends Dropdown {
 				dom.EventHelper.stop(event);
 				const actionId = 'workbench.action.openIssueReporter';
 				this.commandService.executeCommand(actionId).done(null, errors.onUnexpectedError);
-
+				this.hide();
 				/* __GDPR__
 					"workbenchActionExecuted" : {
 						"id" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
