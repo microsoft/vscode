@@ -173,6 +173,12 @@ export class ContextView {
 	}
 
 	private doLayout(): void {
+
+		// Check that we still have a delegate - this.delegate.layout may have hidden
+		if (!this.isVisible()) {
+			return;
+		}
+
 		// Get anchor
 		let anchor = this.delegate.getAnchor();
 
@@ -222,9 +228,11 @@ export class ContextView {
 		this.$view.addClass(anchorPosition === AnchorPosition.BELOW ? 'bottom' : 'top');
 		this.$view.addClass(anchorAlignment === AnchorAlignment.LEFT ? 'left' : 'right');
 		this.$view.style({ top: `${top}px`, left: `${left}px`, width: 'initial' });
+		console.debug('End ContextV doLayout');
 	}
 
 	public hide(data?: any): void {
+		console.debug('contextV hide');
 		if (this.delegate && this.delegate.onHide) {
 			this.delegate.onHide(data);
 		}
