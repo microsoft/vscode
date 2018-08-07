@@ -73,6 +73,7 @@ interface QuickInputUI {
 	show(controller: QuickInput): void;
 	setVisibilities(visibilities: Visibilities): void;
 	setEnabled(enabled: boolean): void;
+	setContextKey(contextKey?: string): void;
 	hide(): void;
 }
 
@@ -94,6 +95,7 @@ class QuickInput implements IQuickInput {
 	private _totalSteps: number;
 	protected visible = false;
 	private _enabled = true;
+	private _contextKey: string;
 	private _busy = false;
 	private _ignoreFocusOut = false;
 	private _buttons: IQuickInputButton[] = [];
@@ -145,6 +147,15 @@ class QuickInput implements IQuickInput {
 
 	set enabled(enabled: boolean) {
 		this._enabled = enabled;
+		this.update();
+	}
+
+	get contextKey() {
+		return this._contextKey;
+	}
+
+	set contextKey(contextKey: string) {
+		this._contextKey = contextKey;
 		this.update();
 	}
 
@@ -249,6 +260,7 @@ class QuickInput implements IQuickInput {
 		}
 		this.ui.ignoreFocusOut = this.ignoreFocusOut;
 		this.ui.setEnabled(this.enabled);
+		this.ui.setContextKey(this.contextKey);
 	}
 
 	private getTitle() {
@@ -740,6 +752,7 @@ export class QuickInputService extends Component implements IQuickInputService {
 	private enabled = true;
 	private inQuickOpenWidgets: Record<string, boolean> = {};
 	private inQuickOpenContext: IContextKey<boolean>;
+	private contexts: { [id: string]: IContextKey<boolean>; } = Object.create(null);
 	private onDidAcceptEmitter = this._register(new Emitter<void>());
 	private onDidTriggerButtonEmitter = this._register(new Emitter<IQuickInputButton>());
 
@@ -753,7 +766,7 @@ export class QuickInputService extends Component implements IQuickInputService {
 		@IQuickOpenService private quickOpenService: IQuickOpenService,
 		@IEditorGroupsService private editorGroupService: IEditorGroupsService,
 		@IKeybindingService private keybindingService: IKeybindingService,
-		@IContextKeyService contextKeyService: IContextKeyService,
+		@IContextKeyService private contextKeyService: IContextKeyService,
 		@IThemeService themeService: IThemeService
 	) {
 		super(QuickInputService.ID, themeService);
@@ -775,6 +788,36 @@ export class QuickInputService extends Component implements IQuickInputService {
 		} else {
 			if (this.inQuickOpenContext.get()) {
 				this.inQuickOpenContext.reset();
+			}
+		}
+	}
+
+	private setContextKey(id?: string) {
+		let key: IContextKey<boolean>;
+		if (id) {
+			key = this.contexts[id];
+			if (!key) {
+				key = new RawContextKey<boolean>(id, false)
+					.bindTo(this.contextKeyService);
+				this.contexts[id] = key;
+			}
+		}
+
+		if (key && key.get()) {
+			return; // already active context
+		}
+
+		this.resetContextKeys();
+
+		if (key) {
+			key.set(true);
+		}
+	}
+
+	private resetContextKeys() {
+		for (const key in this.contexts) {
+			if (this.contexts[key].get()) {
+				this.contexts[key].reset();
 			}
 		}
 	}
@@ -923,6 +966,7 @@ export class QuickInputService extends Component implements IQuickInputService {
 			hide: () => this.hide(),
 			setVisibilities: visibilities => this.setVisibilities(visibilities),
 			setEnabled: enabled => this.setEnabled(enabled),
+			setContextKey: contextKey => this.setContextKey(contextKey),
 		};
 		this.updateStyles();
 	}
@@ -976,6 +1020,7 @@ export class QuickInputService extends Component implements IQuickInputService {
 			input.ignoreFocusOut = options.ignoreFocusLost;
 			input.matchOnDescription = options.matchOnDescription;
 			input.matchOnDetail = options.matchOnDetail;
+			input.contextKey = options.contextKey;
 			input.busy = true;
 			TPromise.join([picks, options.activeItem])
 				.then(([items, activeItem]) => {
@@ -1096,6 +1141,7 @@ export class QuickInputService extends Component implements IQuickInputService {
 		backButton.tooltip = keybinding ? localize('quickInput.backWithKeybinding', "Back ({0})", keybinding.getLabel()) : localize('quickInput.back', "Back");
 
 		this.inQuickOpen('quickInput', true);
+		this.resetContextKeys();
 
 		this.ui.container.style.display = '';
 		this.updateLayout();
@@ -1136,6 +1182,7 @@ export class QuickInputService extends Component implements IQuickInputService {
 		if (controller) {
 			this.controller = null;
 			this.inQuickOpen('quickInput', false);
+			this.resetContextKeys();
 			this.ui.container.style.display = 'none';
 			if (!focusLost) {
 				this.editorGroupService.activeGroup.focus();

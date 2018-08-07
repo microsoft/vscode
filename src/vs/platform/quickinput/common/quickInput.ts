@@ -52,6 +52,11 @@ export interface IPickOptions<T extends IQuickPickItem> {
 	canPickMany?: boolean;
 
 	/**
+	 * a context key to set when this picker is active
+	 */
+	contextKey?: string;
+
+	/**
 	 * an optional property for the item to focus initially.
 	 */
 	activeItem?: TPromise<T> | T;
@@ -103,6 +108,8 @@ export interface IQuickInput {
 	totalSteps: number | undefined;
 
 	enabled: boolean;
+
+	contextKey: string | undefined;
 
 	busy: boolean;
 
