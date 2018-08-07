@@ -23,7 +23,7 @@ export class DebugStatus extends Themable implements IStatusbarItem {
 	private statusBarItem: HTMLElement;
 	private label: HTMLElement;
 	private icon: HTMLElement;
-	private showInStatusBar: string;
+	private showInStatusBar: 'never' | 'always' | 'onFirstSessionStart' | 'whenViewHidden';
 	private viewletId: string;
 
 	constructor(
@@ -48,13 +48,11 @@ export class DebugStatus extends Themable implements IStatusbarItem {
 				this.showInStatusBar = configurationService.getValue<IDebugConfiguration>('debug').showInStatusBar;
 				if (this.showInStatusBar === 'never' && this.statusBarItem) {
 					this.statusBarItem.hidden = true;
-				}
-				else if (this.showInStatusBar === 'whenViewHidden' && this.viewletId !== VIEWLET_ID) {
+				} else if (this.showInStatusBar === 'whenViewHidden' && this.viewletId !== VIEWLET_ID) {
 					if (!this.statusBarItem) {
 						this.doRender();
 					}
-				}
-				else {
+				} else {
 					if (this.statusBarItem) {
 						this.statusBarItem.hidden = false;
 					}
@@ -67,18 +65,10 @@ export class DebugStatus extends Themable implements IStatusbarItem {
 
 		this.toDispose.push(viewletService.onDidViewletOpen(e => {
 			this.viewletId = e.getId();
-			if (this.showInStatusBar === 'whenViewHidden') {
-				//Show status bar item if new view is not debug
-				if (this.viewletId !== VIEWLET_ID) {
-					if (!this.statusBarItem) {
-						this.doRender();
-					}
-				}
-				//Remove item if the new view is debug
-				else if (this.statusBarItem) {
-					this.statusBarItem.remove();
-					this.statusBarItem = null;
-				}
+			///Remove item if the new view is debug
+			if (this.showInStatusBar === 'whenViewHidden' && e.getId() === VIEWLET_ID && this.statusBarItem) {
+				this.statusBarItem.remove();
+				this.statusBarItem = null;
 			}
 		}));
 
