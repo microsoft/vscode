@@ -43,6 +43,7 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 	static DEFAULT_CONTENT_CHANGE_BUFFER_DELAY = CONTENT_CHANGE_EVENT_BUFFER_DELAY;
 	static DEFAULT_ORPHANED_CHANGE_BUFFER_DELAY = 100;
 	static WHITELIST_JSON = ['package.json', 'package-lock.json', 'tsconfig.json', 'jsconfig.json', 'bower.json', '.eslintrc.json', 'tslint.json', 'composer.json'];
+	static WHITELIST_WORKSPACE_JSON = ['settings.json', 'extensions.json', 'tasks.json', 'launch.json'];
 
 	private static saveErrorHandler: ISaveErrorHandler;
 	static setSaveErrorHandler(handler: ISaveErrorHandler): void { TextFileEditorModel.saveErrorHandler = handler; }
@@ -351,13 +352,15 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 
 	private loadWithContent(content: IRawTextContent, options?: ILoadOptions, backup?: URI): TPromise<TextFileEditorModel> {
 		return this.doLoadWithContent(content, backup).then(model => {
-
 			// Telemetry: We log the fileGet telemetry event after the model has been loaded to ensure a good mimetype
-			if (this.isSettingsFile()) {
+			const settingsType = this.getTypeIfSettings();
+			if (settingsType) {
 				/* __GDPR__
-					"settingsRead" : {}
+					"settingsRead" : {
+						"settingsType": { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
+					}
 				*/
-				this.telemetryService.publicLog('settingsRead'); // Do not log read to user settings.json and .vscode folder as a fileGet event as it ruins our JSON usage data
+				this.telemetryService.publicLog('settingsRead', { settingsType }); // Do not log read to user settings.json and .vscode folder as a fileGet event as it ruins our JSON usage data
 			} else {
 				/* __GDPR__
 					"fileGet" : {
@@ -712,11 +715,14 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 				this.logService.trace(`doSave(${versionId}) - after updateContent()`, this.resource);
 
 				// Telemetry
-				if (this.isSettingsFile()) {
+				const settingsType = this.getTypeIfSettings();
+				if (settingsType) {
 					/* __GDPR__
-						"settingsWritten" : {}
+						"settingsWritten" : {
+							"settingsType": { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
+						}
 					*/
-					this.telemetryService.publicLog('settingsWritten'); // Do not log write to user settings.json and .vscode folder as a filePUT event as it ruins our JSON usage data
+					this.telemetryService.publicLog('settingsWritten', { settingsType }); // Do not log write to user settings.json and .vscode folder as a filePUT event as it ruins our JSON usage data
 				} else {
 					/* __GDPR__
 						"filePUT" : {
@@ -770,20 +776,43 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 		}));
 	}
 
-	private isSettingsFile(): boolean {
+	private getTypeIfSettings(): string {
 		if (path.extname(this.resource.fsPath) !== '.json') {
-			return false;
+			return '';
 		}
 
 		// Check for global settings file
 		if (isEqual(this.resource, URI.file(this.environmentService.appSettingsPath), !isLinux)) {
-			return true;
+			return 'global-settings';
+		}
+
+		// Check for keybindings file
+		if (isEqual(this.resource, URI.file(this.environmentService.appKeybindingsPath), !isLinux)) {
+			return 'keybindings';
+		}
+
+		// Check for locale file
+		if (isEqual(this.resource, URI.file(path.join(this.environmentService.appSettingsHome, 'locale.json')), !isLinux)) {
+			return 'locale';
+		}
+
+		// Check for snippets
+		if (isEqualOrParent(this.resource, URI.file(path.join(this.environmentService.appSettingsHome, 'snippets')), hasToIgnoreCase(this.resource))) {
+			return 'snippets';
 		}
 
 		// Check for workspace settings file
-		return this.contextService.getWorkspace().folders.some(folder => {
-			return isEqualOrParent(this.resource, folder.toResource('.vscode'), hasToIgnoreCase(this.resource));
-		});
+		const folders = this.contextService.getWorkspace().folders;
+		for (let i = 0; i < folders.length; i++) {
+			if (isEqualOrParent(this.resource, folders[i].toResource('.vscode'), hasToIgnoreCase(this.resource))) {
+				const filename = path.basename(this.resource.fsPath);
+				if (TextFileEditorModel.WHITELIST_WORKSPACE_JSON.indexOf(filename) > -1) {
+					return `.vscode/${filename}`;
+				}
+			}
+		}
+
+		return '';
 	}
 
 	private getTelemetryData(reason: number): Object {
