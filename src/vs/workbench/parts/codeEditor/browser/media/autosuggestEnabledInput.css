@@ -7,10 +7,6 @@
 	padding: 3px 4px 5px;
 }
 
-.autosuggest-input-container .suggest-widget {
-	width: 275px;
-}
-
 .autosuggest-input-container .monaco-editor-background,
 .autosuggest-input-container .monaco-editor,
 .autosuggest-input-container .mtk1 {
