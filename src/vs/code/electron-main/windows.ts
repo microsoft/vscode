@@ -81,6 +81,7 @@ interface IOpenBrowserWindowOptions {
 	filesToWait?: IPathsToWaitFor;
 
 	forceNewWindow?: boolean;
+	forceNewTabbedWindow?: boolean;
 	windowToUse?: ICodeWindow;
 
 	emptyWindowBackupFolder?: string;
@@ -546,7 +547,7 @@ export class WindowsManager implements IWindowsMainService {
 			// Special case: we started with --wait and we got back a folder to open. In this case
 			// we actually prefer to not open the folder but operate purely on the file.
 			if (typeof bestWindowOrFolder === 'string' && filesToWait) {
-				//TODO: #54483 Ben This should not happen
+				//TODO@Ben: #54483 This should not happen
 				console.error(`This should not happen`, bestWindowOrFolder, WindowsManager.WINDOWS);
 				bestWindowOrFolder = !openFilesInNewWindow ? this.getLastActiveWindow() : null;
 			}
@@ -580,7 +581,7 @@ export class WindowsManager implements IWindowsMainService {
 
 			// We found a suitable folder to open: add it to foldersToOpen
 			else if (typeof bestWindowOrFolder === 'string') {
-				//TODO: #54483 Ben This should not happen
+				//TODO@Ben: #54483 Ben This should not happen
 				// foldersToOpen.push(bestWindowOrFolder);
 				console.error(`This should not happen`, bestWindowOrFolder, WindowsManager.WINDOWS);
 			}
@@ -595,7 +596,8 @@ export class WindowsManager implements IWindowsMainService {
 					filesToCreate,
 					filesToDiff,
 					filesToWait,
-					forceNewWindow: true
+					forceNewWindow: true,
+					forceNewTabbedWindow: openConfig.forceNewTabbedWindow
 				}));
 
 				// Reset these because we handled them
@@ -700,6 +702,7 @@ export class WindowsManager implements IWindowsMainService {
 					filesToDiff,
 					filesToWait,
 					forceNewWindow: true,
+					forceNewTabbedWindow: openConfig.forceNewTabbedWindow,
 					emptyWindowBackupFolder
 				}));
 
@@ -720,7 +723,8 @@ export class WindowsManager implements IWindowsMainService {
 					userEnv: openConfig.userEnv,
 					cli: openConfig.cli,
 					initialStartup: openConfig.initialStartup,
-					forceNewWindow: openFolderInNewWindow
+					forceNewWindow: openFolderInNewWindow,
+					forceNewTabbedWindow: openConfig.forceNewTabbedWindow
 				}));
 
 				openFolderInNewWindow = true; // any other window to open must open in new window then
@@ -767,6 +771,7 @@ export class WindowsManager implements IWindowsMainService {
 			filesToDiff,
 			filesToWait,
 			forceNewWindow,
+			forceNewTabbedWindow: openConfig.forceNewTabbedWindow,
 			windowToUse
 		});
 
@@ -1128,6 +1133,7 @@ export class WindowsManager implements IWindowsMainService {
 	}
 
 	private openInBrowserWindow(options: IOpenBrowserWindowOptions): ICodeWindow {
+
 		// Build IWindowConfiguration from config and options
 		const configuration: IWindowConfiguration = mixin({}, options.cli); // inherit all properties from CLI
 		configuration.appRoot = this.environmentService.appRoot;
@@ -1152,7 +1158,7 @@ export class WindowsManager implements IWindowsMainService {
 		}
 
 		let window: ICodeWindow;
-		if (!options.forceNewWindow) {
+		if (!options.forceNewWindow && !options.forceNewTabbedWindow) {
 			window = options.windowToUse || this.getLastActiveWindow();
 			if (window) {
 				window.focus();
@@ -1179,11 +1185,20 @@ export class WindowsManager implements IWindowsMainService {
 				state.mode = WindowMode.Normal;
 			}
 
+			// Create the window
 			window = this.instantiationService.createInstance(CodeWindow, {
 				state,
 				extensionDevelopmentPath: configuration.extensionDevelopmentPath,
 				isExtensionTestHost: !!configuration.extensionTestsPath
 			});
+
+			// Add as window tab if configured (macOS only)
+			if (options.forceNewTabbedWindow) {
+				const activeWindow = this.getLastActiveWindow();
+				if (activeWindow) {
+					activeWindow.addTabbedWindow(window);
+				}
+			}
 
 			// Add to our list of windows
 			WindowsManager.WINDOWS.push(window);
@@ -1473,6 +1488,10 @@ export class WindowsManager implements IWindowsMainService {
 
 	openNewWindow(context: OpenContext): ICodeWindow[] {
 		return this.open({ context, cli: this.environmentService.args, forceNewWindow: true, forceEmpty: true });
+	}
+
+	openNewTabbedWindow(context: OpenContext): ICodeWindow[] {
+		return this.open({ context, cli: this.environmentService.args, forceNewTabbedWindow: true, forceEmpty: true });
 	}
 
 	waitForWindowCloseOrLoad(windowId: number): TPromise<void> {

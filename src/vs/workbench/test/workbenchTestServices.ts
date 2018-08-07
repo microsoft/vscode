@@ -7,7 +7,7 @@
 
 import 'vs/workbench/parts/files/electron-browser/files.contribution'; // load our contribution into the test
 import { FileEditorInput } from 'vs/workbench/parts/files/common/editors/fileEditorInput';
-import { Promise, TPromise } from 'vs/base/common/winjs.base';
+import { TPromise } from 'vs/base/common/winjs.base';
 import { TestInstantiationService } from 'vs/platform/instantiation/test/common/instantiationServiceMock';
 import * as paths from 'vs/base/common/paths';
 import * as resources from 'vs/base/common/resources';
@@ -303,13 +303,13 @@ export class TestExtensionService implements IExtensionService {
 	_serviceBrand: any;
 	onDidRegisterExtensions: Event<void> = Event.None;
 	onDidChangeExtensionsStatus: Event<string[]> = Event.None;
-	activateByEvent(activationEvent: string): Promise<void> { return TPromise.as(void 0); }
-	whenInstalledExtensionsRegistered(): Promise<boolean> { return TPromise.as(true); }
-	getExtensions(): Promise<IExtensionDescription[]> { return TPromise.as([]); }
-	readExtensionPointContributions<T>(extPoint: IExtensionPoint<T>): Promise<ExtensionPointContribution<T>[]> { return TPromise.as(Object.create(null)); }
+	activateByEvent(activationEvent: string): TPromise<void> { return TPromise.as(void 0); }
+	whenInstalledExtensionsRegistered(): TPromise<boolean> { return TPromise.as(true); }
+	getExtensions(): TPromise<IExtensionDescription[]> { return TPromise.as([]); }
+	readExtensionPointContributions<T>(extPoint: IExtensionPoint<T>): TPromise<ExtensionPointContribution<T>[]> { return TPromise.as(Object.create(null)); }
 	getExtensionsStatus(): { [id: string]: IExtensionsStatus; } { return Object.create(null); }
 	canProfileExtensionHost(): boolean { return false; }
-	startExtensionHostProfile(): Promise<ProfileSession> { return TPromise.as(Object.create(null)); }
+	startExtensionHostProfile(): TPromise<ProfileSession> { return TPromise.as(Object.create(null)); }
 	restartExtensionHost(): void { }
 	startExtensionHost(): void { }
 	stopExtensionHost(): void { }
@@ -370,11 +370,11 @@ export class TestDialogService implements IDialogService {
 
 	public _serviceBrand: any;
 
-	public confirm(confirmation: IConfirmation): Promise<IConfirmationResult> {
+	public confirm(confirmation: IConfirmation): TPromise<IConfirmationResult> {
 		return TPromise.as({ confirmed: false });
 	}
 
-	public show(severity: Severity, message: string, buttons: string[], options?: IDialogOptions): Promise<number, any> {
+	public show(severity: Severity, message: string, buttons: string[], options?: IDialogOptions): TPromise<number> {
 		return TPromise.as(0);
 	}
 }
@@ -603,7 +603,7 @@ export class TestEditorGroup implements IEditorGroupView {
 	disposed: boolean;
 	editors: ReadonlyArray<IEditorInput> = [];
 	label: string;
-	whenRestored: Promise<void, any> = TPromise.as(void 0);
+	whenRestored: TPromise<void> = TPromise.as(void 0);
 	element: HTMLElement;
 	minimumWidth: number;
 	maximumWidth: number;
@@ -1094,7 +1094,7 @@ export class TestWindowService implements IWindowService {
 		return TPromise.wrap(void 0);
 	}
 
-	updateTouchBar(items: ISerializableCommandAction[][]): Promise<void> {
+	updateTouchBar(items: ISerializableCommandAction[][]): TPromise<void> {
 		return TPromise.as(void 0);
 	}
 }
@@ -1292,27 +1292,31 @@ export class TestWindowsService implements IWindowsService {
 		return TPromise.as(void 0);
 	}
 
-	showPreviousWindowTab(): Promise<void> {
+	newWindowTab(): TPromise<void> {
 		return TPromise.as(void 0);
 	}
 
-	showNextWindowTab(): Promise<void> {
+	showPreviousWindowTab(): TPromise<void> {
 		return TPromise.as(void 0);
 	}
 
-	moveWindowTabToNewWindow(): Promise<void> {
+	showNextWindowTab(): TPromise<void> {
 		return TPromise.as(void 0);
 	}
 
-	mergeAllWindowTabs(): Promise<void> {
+	moveWindowTabToNewWindow(): TPromise<void> {
 		return TPromise.as(void 0);
 	}
 
-	toggleWindowTabsBar(): Promise<void> {
+	mergeAllWindowTabs(): TPromise<void> {
 		return TPromise.as(void 0);
 	}
 
-	updateTouchBar(windowId: number, items: ISerializableCommandAction[][]): Promise<void> {
+	toggleWindowTabsBar(): TPromise<void> {
+		return TPromise.as(void 0);
+	}
+
+	updateTouchBar(windowId: number, items: ISerializableCommandAction[][]): TPromise<void> {
 		return TPromise.as(void 0);
 	}
 

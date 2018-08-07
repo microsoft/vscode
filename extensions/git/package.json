@@ -900,6 +900,12 @@
             "subFolders",
             "openEditors"
           ],
+          "enumDescriptions": [
+            "%config.autoRepositoryDetection.true%",
+            "%config.autoRepositoryDetection.false%",
+            "%config.autoRepositoryDetection.subFolders%",
+            "%config.autoRepositoryDetection.openEditors%"
+          ],
           "description": "%config.autoRepositoryDetection%",
           "default": true
         },
@@ -912,7 +918,9 @@
           "type": "boolean",
           "description": "%config.autofetch%",
           "default": false,
-          "tags": ["usesOnlineServices"]
+          "tags": [
+            "usesOnlineServices"
+          ]
         },
         "git.confirmSync": {
           "type": "boolean",

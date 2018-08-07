@@ -44,6 +44,7 @@ export interface IWindowsChannel extends IChannel {
 	call(command: 'removeFromRecentlyOpened', arg: (IWorkspaceIdentifier | ISingleFolderWorkspaceIdentifier | string)[]): TPromise<void>;
 	call(command: 'clearRecentlyOpened'): TPromise<void>;
 	call(command: 'getRecentlyOpened', arg: number): TPromise<IRecentlyOpened>;
+	call(command: 'newWindowTab'): TPromise<void>;
 	call(command: 'showPreviousWindowTab'): TPromise<void>;
 	call(command: 'showNextWindowTab'): TPromise<void>;
 	call(command: 'moveWindowTabToNewWindow'): TPromise<void>;
@@ -147,6 +148,7 @@ export class WindowsChannel implements IWindowsChannel {
 				return this.service.removeFromRecentlyOpened(paths);
 			}
 			case 'clearRecentlyOpened': return this.service.clearRecentlyOpened();
+			case 'newWindowTab': return this.service.newWindowTab();
 			case 'showPreviousWindowTab': return this.service.showPreviousWindowTab();
 			case 'showNextWindowTab': return this.service.showNextWindowTab();
 			case 'moveWindowTabToNewWindow': return this.service.moveWindowTabToNewWindow();
@@ -278,6 +280,10 @@ export class WindowsChannelClient implements IWindowsService {
 				recentlyOpened.workspaces = recentlyOpened.workspaces.map(workspace => isWorkspaceIdentifier(workspace) ? workspace : URI.revive(workspace));
 				return recentlyOpened;
 			});
+	}
+
+	newWindowTab(): TPromise<void> {
+		return this.channel.call('newWindowTab');
 	}
 
 	showPreviousWindowTab(): TPromise<void> {

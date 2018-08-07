@@ -171,7 +171,7 @@ function goMenuRegistration() {
 		order: 3
 	});
 
-	MenuRegistry.appendMenuItem(MenuId.MenubarGoMenu, {
+	MenuRegistry.appendMenuItem(MenuId.MenubarSwitchGroupMenu, {
 		group: '3_directional',
 		command: {
 			id: 'workbench.action.focusBelowGroup',
@@ -228,7 +228,7 @@ function goMenuRegistration() {
 		group: 'z_go_to',
 		command: {
 			id: 'editor.action.goToTypeDefinition',
-			title: nls.localize({ key: 'miGotoDefinition', comment: ['&& denotes a mnemonic'] }, "Go to &&Definition")
+			title: nls.localize({ key: 'miGotoTypeDefinition', comment: ['&& denotes a mnemonic'] }, "Go to &&Type Definition")
 		},
 		order: 5
 	});

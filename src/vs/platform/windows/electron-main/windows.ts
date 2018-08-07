@@ -48,6 +48,8 @@ export interface ICodeWindow {
 	readyState: ReadyState;
 	ready(): TPromise<ICodeWindow>;
 
+	addTabbedWindow(window: ICodeWindow): void;
+
 	load(config: IWindowConfiguration, isReload?: boolean, disableExtensions?: boolean): void;
 	reload(configuration?: IWindowConfiguration, cli?: ParsedArgs): void;
 
@@ -110,6 +112,7 @@ export interface IWindowsMainService {
 	getLastActiveWindow(): ICodeWindow;
 	waitForWindowCloseOrLoad(windowId: number): TPromise<void>;
 	openNewWindow(context: OpenContext): ICodeWindow[];
+	openNewTabbedWindow(context: OpenContext): ICodeWindow[];
 	sendToFocused(channel: string, ...args: any[]): void;
 	sendToAll(channel: string, payload: any, windowIdsToIgnore?: number[]): void;
 	getFocusedWindow(): ICodeWindow;
@@ -127,6 +130,7 @@ export interface IOpenConfiguration {
 	urisToOpen?: URI[];
 	preferNewWindow?: boolean;
 	forceNewWindow?: boolean;
+	forceNewTabbedWindow?: boolean;
 	forceReuseWindow?: boolean;
 	forceEmpty?: boolean;
 	diffMode?: boolean;
