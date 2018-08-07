@@ -1459,6 +1459,24 @@ export class DecreaseViewSizeAction extends BaseResizeViewAction {
 	}
 }
 
+export class NewWindowTab extends Action {
+
+	static readonly ID = 'workbench.action.newWindowTab';
+	static readonly LABEL = nls.localize('newTab', "New Window Tab");
+
+	constructor(
+		id: string,
+		label: string,
+		@IWindowsService private windowsService: IWindowsService
+	) {
+		super(NewWindowTab.ID, NewWindowTab.LABEL);
+	}
+
+	run(): TPromise<boolean> {
+		return this.windowsService.newWindowTab().then(() => true);
+	}
+}
+
 export class ShowPreviousWindowTab extends Action {
 
 	static readonly ID = 'workbench.action.showPreviousWindowTab';

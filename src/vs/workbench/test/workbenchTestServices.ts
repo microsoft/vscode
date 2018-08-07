@@ -1292,6 +1292,10 @@ export class TestWindowsService implements IWindowsService {
 		return TPromise.as(void 0);
 	}
 
+	newWindowTab(): TPromise<void> {
+		return TPromise.as(void 0);
+	}
+
 	showPreviousWindowTab(): TPromise<void> {
 		return TPromise.as(void 0);
 	}

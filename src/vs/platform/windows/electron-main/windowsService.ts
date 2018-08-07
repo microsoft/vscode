@@ -258,6 +258,14 @@ export class WindowsService implements IWindowsService, IURLHandler, IDisposable
 		return TPromise.as(this.historyService.getRecentlyOpened());
 	}
 
+	newWindowTab(): TPromise<void> {
+		this.logService.trace('windowsService#newWindowTab');
+
+		this.windowsMainService.openNewTabbedWindow(OpenContext.API);
+
+		return TPromise.as(void 0);
+	}
+
 	showPreviousWindowTab(): TPromise<void> {
 		this.logService.trace('windowsService#showPreviousWindowTab');
 		Menu.sendActionToFirstResponder('selectPreviousTab:');
@@ -413,7 +421,9 @@ export class WindowsService implements IWindowsService, IURLHandler, IDisposable
 
 	openNewWindow(): TPromise<void> {
 		this.logService.trace('windowsService#openNewWindow');
+
 		this.windowsMainService.openNewWindow(OpenContext.API);
+
 		return TPromise.as(null);
 	}
 
