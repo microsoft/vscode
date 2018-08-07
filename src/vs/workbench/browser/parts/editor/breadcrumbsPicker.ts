@@ -239,7 +239,8 @@ export class FileRenderer implements IRenderer, IHighlightingRenderer {
 			fileKind,
 			hidePath: true,
 			fileDecorations: fileDecorations,
-			matches: createMatches((this._scores.get(resource.toString()) || [, []])[1])
+			matches: createMatches((this._scores.get(resource.toString()) || [, []])[1]),
+			extraClasses: ['picker-item']
 		});
 	}
 
