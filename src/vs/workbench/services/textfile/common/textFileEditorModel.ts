@@ -42,6 +42,7 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 
 	static DEFAULT_CONTENT_CHANGE_BUFFER_DELAY = CONTENT_CHANGE_EVENT_BUFFER_DELAY;
 	static DEFAULT_ORPHANED_CHANGE_BUFFER_DELAY = 100;
+	static WHITELIST_JSON = ['package.json', 'package-lock.json', 'tsconfig.json', 'jsconfig.json', 'bower.json', '.eslintrc.json', 'tslint.json'];
 
 	private static saveErrorHandler: ISaveErrorHandler;
 	static setSaveErrorHandler(handler: ISaveErrorHandler): void { TextFileEditorModel.saveErrorHandler = handler; }
@@ -786,39 +787,17 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 	}
 
 	private getTelemetryData(reason: number): Object {
+		const ext = path.extname(this.resource.fsPath);
+		const fileName = path.basename(this.resource.fsPath);
 		const telemetryData = {
 			mimeType: guessMimeTypes(this.resource.fsPath).join(', '),
-			ext: path.extname(this.resource.fsPath),
+			ext,
 			path: this.hashService.createSHA1(this.resource.fsPath),
 			reason
 		};
 
-		if (path.extname(this.resource.fsPath) === '.json') {
-			switch (path.basename(this.resource.fsPath)) {
-				case 'package.json':
-					telemetryData['whitelistedjson'] = 'package.json';
-					break;
-				case 'package-lock.json':
-					telemetryData['whitelistedjson'] = 'package-lock.json';
-					break;
-				case 'tsconfig.json':
-					telemetryData['whitelistedjson'] = 'tsconfig.json';
-					break;
-				case 'bower.json':
-					telemetryData['whitelistedjson'] = 'bower.json';
-					break;
-				case 'tslint.json':
-					telemetryData['whitelistedjson'] = 'tslint.json';
-					break;
-				case 'jsconfig.json':
-					telemetryData['whitelistedjson'] = 'jsconfig.json';
-					break;
-				case '.eslintrc.json':
-					telemetryData['whitelistedjson'] = 'eslintrc.json';
-					break;
-				default:
-					break;
-			}
+		if (ext === '.json' && TextFileEditorModel.WHITELIST_JSON.indexOf(fileName) > -1) {
+			telemetryData['whitelistedjson'] = fileName;
 		}
 
 		/* __GDPR__FRAGMENT__
