@@ -83,6 +83,7 @@ export abstract class CommonEditorConfiguration extends Disposable implements ed
 		this._rawOptions.minimap = objects.mixin({}, this._rawOptions.minimap || {});
 		this._rawOptions.find = objects.mixin({}, this._rawOptions.find || {});
 		this._rawOptions.hover = objects.mixin({}, this._rawOptions.hover || {});
+		this._rawOptions.parameterHints = objects.mixin({}, this._rawOptions.parameterHints || {});
 
 		this._validatedOptions = editorOptions.EditorOptionsValidator.validate(this._rawOptions, EDITOR_DEFAULTS);
 		this.editor = null;
@@ -488,10 +489,15 @@ const editorConfiguration: IConfigurationNode = {
 			'minimum': 0,
 			'description': nls.localize('quickSuggestionsDelay', "Controls the delay in milliseconds after which quick suggestions will show up.")
 		},
-		'editor.parameterHints': {
+		'editor.parameterHints.enabled': {
 			'type': 'boolean',
-			'default': EDITOR_DEFAULTS.contribInfo.parameterHints,
-			'description': nls.localize('parameterHints', "Enables a pop-up that shows parameter documentation and type information as you type.")
+			'default': EDITOR_DEFAULTS.contribInfo.parameterHints.enabled,
+			'description': nls.localize('parameterHints.enabled', "Enables a pop-up that shows parameter documentation and type information as you type.")
+		},
+		'editor.parameterHints.cycle': {
+			'type': 'boolean',
+			'default': EDITOR_DEFAULTS.contribInfo.parameterHints.cycle,
+			'description': nls.localize('parameterHints.cycle', "Controls whether the parameter hints menu cycles or closes when reaching the end of the list.")
 		},
 		'editor.autoClosingBrackets': {
 			'type': 'boolean',
@@ -683,11 +689,6 @@ const editorConfiguration: IConfigurationNode = {
 			'type': 'boolean',
 			'default': EDITOR_DEFAULTS.contribInfo.codeLens,
 			'description': nls.localize('codeLens', "Controls whether the editor shows CodeLens")
-		},
-		'editor.cycleParameterHints': {
-			'type': 'boolean',
-			'default': EDITOR_DEFAULTS.contribInfo.cycleParameterHints,
-			'description': nls.localize('cycleParameterHints', "Controls whether the parameter hints menu cycles or closes when reaching the end of the list.")
 		},
 		'editor.folding': {
 			'type': 'boolean',
