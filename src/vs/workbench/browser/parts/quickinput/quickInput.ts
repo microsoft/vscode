@@ -182,7 +182,7 @@ class QuickInput implements IQuickInput {
 		if (this.visible) {
 			return;
 		}
-		this.disposables.push(
+		this.visibleDisposables.push(
 			this.ui.onDidTriggerButton(button => {
 				if (this.buttons.indexOf(button) !== -1) {
 					this.onDidTriggerButtonEmitter.fire(button);
