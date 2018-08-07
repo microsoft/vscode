@@ -551,7 +551,7 @@ export class DefaultSettings extends Disposable {
 		let result: ISetting[] = [];
 		for (let key in settingsObject) {
 			const prop = settingsObject[key];
-			if (!prop.deprecationMessage && this.matchesScope(prop)) {
+			if (this.matchesScope(prop)) {
 				const value = prop.default;
 				const description = (prop.description || '').split('\n');
 				const overrides = OVERRIDE_PROPERTY_PATTERN.test(key) ? this.parseOverrideSettings(prop.default) : [];
@@ -567,7 +567,8 @@ export class DefaultSettings extends Disposable {
 					type: prop.type,
 					enum: prop.enum,
 					enumDescriptions: prop.enumDescriptions,
-					tags: prop.tags
+					tags: prop.tags,
+					deprecationMessage: prop.deprecationMessage,
 				});
 			}
 		}
