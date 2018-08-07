@@ -597,6 +597,10 @@ export class Workbench extends Disposable implements IPartService {
 	private handleContextKeys(): void {
 		this.inZenMode = InEditorZenModeContext.bindTo(this.contextKeyService);
 
+		(new RawContextKey<boolean>('isMac', isMacintosh)).bindTo(this.contextKeyService);
+		(new RawContextKey<boolean>('isLinux', isLinux)).bindTo(this.contextKeyService);
+		(new RawContextKey<boolean>('isWindows', isWindows)).bindTo(this.contextKeyService);
+
 		const sidebarVisibleContextRaw = new RawContextKey<boolean>('sidebarVisible', false);
 		this.sideBarVisibleContext = sidebarVisibleContextRaw.bindTo(this.contextKeyService);
 
