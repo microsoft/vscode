@@ -8,7 +8,6 @@
 import 'vs/css!./media/activitybarpart';
 import * as nls from 'vs/nls';
 import { illegalArgument } from 'vs/base/common/errors';
-import { $ } from 'vs/base/browser/builder';
 import { ActionsOrientation, ActionBar } from 'vs/base/browser/ui/actionbar/actionbar';
 import { GlobalActivityExtensions, IGlobalActivityRegistry } from 'vs/workbench/common/activity';
 import { Registry } from 'vs/platform/registry/common/platform';
@@ -26,7 +25,7 @@ import { contrastBorder } from 'vs/platform/theme/common/colorRegistry';
 import { CompositeBar } from 'vs/workbench/browser/parts/compositebar/compositeBar';
 import { isMacintosh } from 'vs/base/common/platform';
 import { ILifecycleService, LifecyclePhase } from 'vs/platform/lifecycle/common/lifecycle';
-import { scheduleAtNextAnimationFrame, Dimension } from 'vs/base/browser/dom';
+import { scheduleAtNextAnimationFrame, Dimension, addClass } from 'vs/base/browser/dom';
 import { Color } from 'vs/base/common/color';
 import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
@@ -156,14 +155,19 @@ export class ActivitybarPart extends Part {
 	}
 
 	createContentArea(parent: HTMLElement): HTMLElement {
-		const $el = $(parent);
-		const $result = $('.content').appendTo($el);
+		const content = document.createElement('div');
+		addClass(content, 'content');
+		parent.appendChild(content);
 
 		// Top Actionbar with action items for each viewlet action
-		this.compositeBar.create($result.getHTMLElement());
+		this.compositeBar.create(content);
 
 		// Top Actionbar with action items for each viewlet action
-		this.createGlobalActivityActionBar($('.global-activity').appendTo($result).getHTMLElement());
+		const globalActivities = document.createElement('div');
+		addClass(globalActivities, 'global-activity');
+		content.appendChild(globalActivities);
+
+		this.createGlobalActivityActionBar(globalActivities);
 
 		// TODO@Ben: workaround for https://github.com/Microsoft/vscode/issues/45700
 		// It looks like there are rendering glitches on macOS with Chrome 61 when
@@ -186,26 +190,26 @@ export class ActivitybarPart extends Part {
 			});
 		}
 
-		return $result.getHTMLElement();
+		return content;
 	}
 
 	updateStyles(): void {
 		super.updateStyles();
 
 		// Part container
-		const container = $(this.getContainer());
+		const container = this.getContainer();
 		const background = this.getColor(ACTIVITY_BAR_BACKGROUND);
-		container.style('background-color', background);
+		container.style.backgroundColor = background;
 
 		const borderColor = this.getColor(ACTIVITY_BAR_BORDER) || this.getColor(contrastBorder);
 		const isPositionLeft = this.partService.getSideBarPosition() === SideBarPosition.LEFT;
-		container.style('box-sizing', borderColor && isPositionLeft ? 'border-box' : null);
-		container.style('border-right-width', borderColor && isPositionLeft ? '1px' : null);
-		container.style('border-right-style', borderColor && isPositionLeft ? 'solid' : null);
-		container.style('border-right-color', isPositionLeft ? borderColor : null);
-		container.style('border-left-width', borderColor && !isPositionLeft ? '1px' : null);
-		container.style('border-left-style', borderColor && !isPositionLeft ? 'solid' : null);
-		container.style('border-left-color', !isPositionLeft ? borderColor : null);
+		container.style.boxSizing = borderColor && isPositionLeft ? 'border-box' : null;
+		container.style.borderRightWidth = borderColor && isPositionLeft ? '1px' : null;
+		container.style.borderRightStyle = borderColor && isPositionLeft ? 'solid' : null;
+		container.style.borderRightColor = isPositionLeft ? borderColor : null;
+		container.style.borderLeftWidth = borderColor && !isPositionLeft ? '1px' : null;
+		container.style.borderLeftStyle = borderColor && !isPositionLeft ? 'solid' : null;
+		container.style.borderLeftColor = !isPositionLeft ? borderColor : null;
 	}
 
 	private createGlobalActivityActionBar(container: HTMLElement): void {
