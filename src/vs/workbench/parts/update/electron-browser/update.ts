@@ -30,7 +30,6 @@ import { IWindowService } from 'vs/platform/windows/common/windows';
 import { ReleaseNotesManager } from './releaseNotesEditor';
 import { isWindows } from 'vs/base/common/platform';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import * as Registry from 'winreg';
 
 let releaseNotesManager: ReleaseNotesManager | undefined = undefined;
 
@@ -213,6 +212,7 @@ export class Win3264BitContribution implements IWorkbenchContribution {
 async function isUserSetupInstalled(): Promise<boolean> {
 	const rawUserAppId = process.arch === 'x64' ? product.win32x64UserAppId : product.win32UserAppId;
 	const userAppId = rawUserAppId.replace(/^\{\{/, '{');
+	const Registry = await import('winreg');
 	const key = new Registry({
 		hive: Registry.HKCU,
 		key: `\\SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\Uninstall\\${userAppId}_is1`
