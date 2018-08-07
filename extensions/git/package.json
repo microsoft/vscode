@@ -15,7 +15,7 @@
   "activationEvents": [
     "*"
   ],
-  "main": "./out/main",
+  "main": "./dist/main",
   "icon": "resources/icons/git.png",
   "scripts": {
     "compile": "gulp compile-extension:git",
@@ -912,7 +912,9 @@
           "type": "boolean",
           "description": "%config.autofetch%",
           "default": false,
-          "tags": ["usesOnlineServices"]
+          "tags": [
+            "usesOnlineServices"
+          ]
         },
         "git.confirmSync": {
           "type": "boolean",
@@ -1199,6 +1201,8 @@
     "@types/mocha": "2.2.43",
     "@types/node": "7.0.43",
     "@types/which": "^1.0.28",
-    "mocha": "^3.2.0"
+    "mocha": "^3.2.0",
+    "webpack": "^4.16.5",
+    "webpack-cli": "^3.1.0"
   }
 }
