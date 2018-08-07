@@ -48,6 +48,9 @@ export class OpenFolderAPICommand {
 		if (!uri) {
 			return executor.executeCommand('_files.pickFolderAndOpen', forceNewWindow);
 		}
+		if (!uri.scheme) {
+			throw new Error(`Invalid URI, schema required: '${uri.toString()}'.`);
+		}
 
 		return executor.executeCommand('_files.windowOpen', [uri], forceNewWindow);
 	}
