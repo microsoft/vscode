@@ -123,12 +123,20 @@ export abstract class BreadcrumbsPicker {
 	}
 
 	layout(height: number, width: number, arrowSize: number, arrowOffset: number) {
-		this._domNode.style.height = `${height}px`;
+
+		let treeHeight = height - 2 * arrowSize;
+		let elementHeight = 22;
+		let elementCount = treeHeight / elementHeight;
+		if (elementCount % 2 !== 1) {
+			treeHeight = elementHeight * (elementCount + 1);
+		}
+		let totalHeight = treeHeight + 2 + arrowSize;
+
+		this._domNode.style.height = `${totalHeight}px`;
 		this._domNode.style.width = `${width}px`;
 		this._arrow.style.borderWidth = `${arrowSize}px`;
 		this._arrow.style.marginLeft = `${arrowOffset}px`;
-
-		this._treeContainer.style.height = `${height - 2 * arrowSize}px`;
+		this._treeContainer.style.height = `${treeHeight}px`;
 		this._treeContainer.style.width = `${width}px`;
 		this._tree.layout();
 	}
