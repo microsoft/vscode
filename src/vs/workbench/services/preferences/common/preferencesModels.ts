@@ -557,7 +557,6 @@ export class DefaultSettings extends Disposable {
 				if (prop.deprecationMessage) {
 					description.push(
 						'',
-						nls.localize('deprecatedSetting', "Warning: deprecated setting."),
 						prop.deprecationMessage,
 						nls.localize('deprecatedSetting.unstable', "This setting should not be used, and will be removed in a future release."));
 				}
