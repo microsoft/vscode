@@ -55,7 +55,7 @@ import { ExtensionsWorkbenchService } from 'vs/workbench/parts/extensions/node/e
 import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
 import { SingleServerExtensionManagementServerService } from 'vs/workbench/services/extensions/node/extensionManagementServerService';
 import { Query } from 'vs/workbench/parts/extensions/common/extensionQuery';
-import { AutosuggestEnabledInput } from 'vs/workbench/parts/codeEditor/browser/autosuggestEnabledInput';
+import { SuggestEnabledInput } from 'vs/workbench/parts/codeEditor/browser/suggestEnabledInput';
 
 interface SearchInputEvent extends Event {
 	target: HTMLInputElement;
@@ -250,7 +250,7 @@ export class ExtensionsViewlet extends ViewContainerViewlet implements IExtensio
 	private searchDelayer: ThrottledDelayer<any>;
 	private root: HTMLElement;
 
-	private searchBox: AutosuggestEnabledInput;
+	private searchBox: SuggestEnabledInput;
 	private extensionsBox: HTMLElement;
 	private primaryActions: IAction[];
 	private secondaryActions: IAction[];
@@ -307,7 +307,7 @@ export class ExtensionsViewlet extends ViewContainerViewlet implements IExtensio
 
 		const placeholder = localize('searchExtensions', "Search Extensions in Marketplace");
 
-		this.searchBox = this.instantiationService.createInstance(AutosuggestEnabledInput, `${VIEWLET_ID}.searchbox`, header, {
+		this.searchBox = this.instantiationService.createInstance(SuggestEnabledInput, `${VIEWLET_ID}.searchbox`, header, {
 			triggerCharacters: ['@'],
 			sortKey: item => {
 				if (item.indexOf(':') === -1) { return 'a'; }
@@ -315,7 +315,7 @@ export class ExtensionsViewlet extends ViewContainerViewlet implements IExtensio
 				else if (/sort:/.test(item)) { return 'c'; }
 				else { return 'd'; }
 			},
-			provideResults: (query) => Query.autosuggestions(query)
+			provideResults: (query) => Query.suggestions(query)
 		}, placeholder, 'extensions:searchinput', { placeholderText: placeholder });
 
 		this.disposables.push(this.searchBox);

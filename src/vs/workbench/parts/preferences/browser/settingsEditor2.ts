@@ -39,7 +39,7 @@ import { CONTEXT_SETTINGS_EDITOR, CONTEXT_SETTINGS_FIRST_ROW_FOCUS, CONTEXT_SETT
 import { IPreferencesService, ISearchResult, ISettingsEditorModel } from 'vs/workbench/services/preferences/common/preferences';
 import { SettingsEditor2Input } from 'vs/workbench/services/preferences/common/preferencesEditorInput';
 import { DefaultSettingsEditorModel } from 'vs/workbench/services/preferences/common/preferencesModels';
-import { AutosuggestEnabledInput } from 'vs/workbench/parts/codeEditor/browser/autosuggestEnabledInput';
+import { SuggestEnabledInput } from 'vs/workbench/parts/codeEditor/browser/suggestEnabledInput';
 import { IEditorGroup } from 'vs/workbench/services/group/common/editorGroupsService';
 
 const $ = DOM.$;
@@ -52,7 +52,7 @@ export class SettingsEditor2 extends BaseEditor {
 
 	private rootElement: HTMLElement;
 	private headerContainer: HTMLElement;
-	private searchWidget: AutosuggestEnabledInput;
+	private searchWidget: SuggestEnabledInput;
 	private settingsTargetsWidget: SettingsTargetsWidget;
 	private toolbar: ToolBar;
 
@@ -207,7 +207,7 @@ export class SettingsEditor2 extends BaseEditor {
 		const searchContainer = DOM.append(this.headerContainer, $('.search-container'));
 
 		let searchBoxLabel = localize('SearchSettings.AriaLabel', "Search settings");
-		this.searchWidget = this._register(this.instantiationService.createInstance(AutosuggestEnabledInput, `${SettingsEditor2.ID}.searchbox`, searchContainer, {
+		this.searchWidget = this._register(this.instantiationService.createInstance(SuggestEnabledInput, `${SettingsEditor2.ID}.searchbox`, searchContainer, {
 			triggerCharacters: ['@'],
 			provideResults: (query: string) => {
 				return ['@modified', '@tag:usesOnlineServices'].filter(tag => query.indexOf(tag) === -1).map(tag => tag + ' ');

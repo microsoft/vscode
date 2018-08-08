@@ -5,7 +5,7 @@
 
 'use strict';
 
-import 'vs/css!./media/autosuggestEnabledInput';
+import 'vs/css!./media/suggestEnabledInput';
 import { $, addClass, append, removeClass, Dimension } from 'vs/base/browser/dom';
 import { chain, Emitter, Event } from 'vs/base/common/event';
 import { KeyCode } from 'vs/base/common/keyCodes';
@@ -30,16 +30,16 @@ import { Range } from 'vs/editor/common/core/range';
 import { ITextModel } from 'vs/editor/common/model';
 import { IContextKey } from 'vs/platform/contextkey/common/contextkey';
 
-interface AutosuggestResultsProvider {
+interface SuggestResultsProvider {
 	/**
-	 * Provider function for autosuggest results.
+	 * Provider function for suggestion results.
 	 *
 	 * @param query the full text of the input.
 	 */
 	provideResults: (query: string) => string[];
 
 	/**
-	 * Trigger characters for this input. Autocompletions will appear when one of these is typed,
+	 * Trigger characters for this input. Suggestions will appear when one of these is typed,
 	 * or upon `ctrl+space` triggering at a word boundary.
 	 *
 	 * Defaults to the empty array.
@@ -54,7 +54,7 @@ interface AutosuggestResultsProvider {
 	sortKey?: (result: string) => string;
 }
 
-interface AutosuggestEnabledInputOptions {
+interface SuggestEnabledInputOptions {
 	/**
 	 * The text to show when no input is present.
 	 *
@@ -68,7 +68,7 @@ interface AutosuggestEnabledInputOptions {
 	focusContextKey?: IContextKey<boolean>;
 }
 
-export class AutosuggestEnabledInput extends Component {
+export class SuggestEnabledInput extends Component {
 
 	private _onShouldFocusResults = new Emitter<void>();
 	readonly onShouldFocusResults: Event<void> = this._onShouldFocusResults.event;
@@ -87,18 +87,18 @@ export class AutosuggestEnabledInput extends Component {
 	constructor(
 		id: string,
 		parent: HTMLElement,
-		autosuggestProvider: AutosuggestResultsProvider,
+		suggestionProvider: SuggestResultsProvider,
 		ariaLabel: string,
 		resourceHandle: string,
-		options: AutosuggestEnabledInputOptions,
+		options: SuggestEnabledInputOptions,
 		@IThemeService themeService: IThemeService,
 		@IInstantiationService instantiationService: IInstantiationService,
 		@IModelService modelService: IModelService,
 	) {
 		super(id, themeService);
 
-		this.stylingContainer = append(parent, $('.autosuggest-input-container'));
-		this.placeholderText = append(this.stylingContainer, $('.autosuggest-input-placeholder', null, options.placeholderText || ''));
+		this.stylingContainer = append(parent, $('.suggest-input-container'));
+		this.placeholderText = append(this.stylingContainer, $('.suggest-input-placeholder', null, options.placeholderText || ''));
 
 		this.inputWidget = instantiationService.createInstance(CodeEditorWidget, this.stylingContainer,
 			mixinHTMLInputStyleOptions(getSimpleEditorOptions(), ariaLabel),
@@ -134,30 +134,30 @@ export class AutosuggestEnabledInput extends Component {
 			preexistingContent = content;
 		}));
 
-		let validatedAutoSuggestProvider = {
-			provideResults: autosuggestProvider.provideResults,
-			sortKey: autosuggestProvider.sortKey || (a => a),
-			triggerCharacters: autosuggestProvider.triggerCharacters || []
+		let validatedSuggestProvider = {
+			provideResults: suggestionProvider.provideResults,
+			sortKey: suggestionProvider.sortKey || (a => a),
+			triggerCharacters: suggestionProvider.triggerCharacters || []
 		};
 
 		this.disposables.push(modes.SuggestRegistry.register({ scheme: scopeHandle.scheme, pattern: '**/' + scopeHandle.path, hasAccessToAllModels: true }, {
-			triggerCharacters: validatedAutoSuggestProvider.triggerCharacters,
+			triggerCharacters: validatedSuggestProvider.triggerCharacters,
 			provideCompletionItems: (model: ITextModel, position: Position, _context: modes.SuggestContext) => {
 				let query = model.getValue();
 
 				let wordStart = query.lastIndexOf(' ', position.column - 1) + 1;
 				let alreadyTypedCount = position.column - wordStart - 1;
 
-				// dont show autosuggestions if the user has typed something, but hasn't used the trigger character
-				if (alreadyTypedCount > 0 && (validatedAutoSuggestProvider.triggerCharacters).indexOf(query[wordStart]) === -1) { return { suggestions: [] }; }
+				// dont show suggestions if the user has typed something, but hasn't used the trigger character
+				if (alreadyTypedCount > 0 && (validatedSuggestProvider.triggerCharacters).indexOf(query[wordStart]) === -1) { return { suggestions: [] }; }
 
 				return {
-					suggestions: autosuggestProvider.provideResults(query).map(result => {
+					suggestions: suggestionProvider.provideResults(query).map(result => {
 						return {
 							label: result,
 							insertText: result,
 							overwriteBefore: alreadyTypedCount,
-							sortText: validatedAutoSuggestProvider.sortKey(result),
+							sortText: validatedSuggestProvider.sortKey(result),
 							type: <modes.SuggestionType>'keyword'
 						};
 					})
