@@ -26,8 +26,12 @@ import { Schemas } from 'vs/base/common/network';
 import { IUriDisplayService } from 'vs/platform/uriDisplay/common/uriDisplay';
 
 interface ISerializedRecentlyOpened {
-	workspaces: (IWorkspaceIdentifier | string | UriComponents)[];
+	workspaces2: (IWorkspaceIdentifier | string)[]; // IWorkspaceIdentifier or URI.toString()
 	files: string[];
+}
+
+interface ILegacySerializedRecentlyOpened {
+	workspaces: (IWorkspaceIdentifier | string | UriComponents)[]; // legacy (UriComponents was also supported for a few insider builds)
 }
 
 export class HistoryMainService implements IHistoryMainService {
@@ -246,35 +250,51 @@ export class HistoryMainService implements IHistoryMainService {
 	}
 
 	private getRecentlyOpenedFromStorage(): IRecentlyOpened {
-		const storedRecents: ISerializedRecentlyOpened = this.stateService.getItem<ISerializedRecentlyOpened>(HistoryMainService.recentlyOpenedStorageKey);
+		const storedRecents = this.stateService.getItem<ISerializedRecentlyOpened & ILegacySerializedRecentlyOpened>(HistoryMainService.recentlyOpenedStorageKey);
 		const result: IRecentlyOpened = { workspaces: [], files: [] };
-		if (storedRecents && Array.isArray(storedRecents.workspaces)) {
-			for (const workspace of storedRecents.workspaces) {
-				if (typeof workspace === 'string') {
-					result.workspaces.push(URI.file(workspace));
-				} else if (isWorkspaceIdentifier(workspace)) {
-					result.workspaces.push(workspace);
-				} else {
-					result.workspaces.push(URI.revive(workspace));
+		if (storedRecents) {
+			if (Array.isArray(storedRecents.workspaces2)) {
+				for (const workspace of storedRecents.workspaces2) {
+					if (isWorkspaceIdentifier(workspace)) {
+						result.workspaces.push(workspace);
+					} else if (typeof workspace === 'string') {
+						result.workspaces.push(URI.parse(workspace));
+					}
+				}
+			} else if (Array.isArray(storedRecents.workspaces)) {
+				// format of 1.25 and before
+				for (const workspace of storedRecents.workspaces) {
+					if (typeof workspace === 'string') {
+						result.workspaces.push(URI.file(workspace));
+					} else if (isWorkspaceIdentifier(workspace)) {
+						result.workspaces.push(workspace);
+					} else if (workspace && typeof workspace.path === 'string' && typeof workspace.scheme === 'string') {
+						// added by 1.26-insiders
+						result.workspaces.push(URI.revive(workspace));
+					}
 				}
 			}
-		}
-		if (storedRecents && Array.isArray(storedRecents.files)) {
-			result.files.push(...storedRecents.files);
+			if (Array.isArray(storedRecents.files)) {
+				for (const file of storedRecents.files) {
+					if (typeof file === 'string') {
+						result.files.push(file);
+					}
+				}
+			}
 		}
 		return result;
 	}
 
 	private saveRecentlyOpened(recent: IRecentlyOpened): void {
-		const serialized: ISerializedRecentlyOpened = { workspaces: [], files: recent.files };
+		const serialized: ISerializedRecentlyOpened = { workspaces2: [], files: recent.files };
 		for (const workspace of recent.workspaces) {
 			if (isSingleFolderWorkspaceIdentifier(workspace)) {
-				serialized.workspaces.push(<UriComponents>workspace.toJSON());
+				serialized.workspaces2.push(workspace.toString());
 			} else {
-				serialized.workspaces.push(workspace);
+				serialized.workspaces2.push(workspace);
 			}
 		}
-		this.stateService.setItem(HistoryMainService.recentlyOpenedStorageKey, recent);
+		this.stateService.setItem(HistoryMainService.recentlyOpenedStorageKey, serialized);
 	}
 
 	updateWindowsJumpList(): void {
