@@ -100,7 +100,6 @@ export class MenuId {
 	static readonly MenubarTasksMenu = new MenuId();
 	static readonly MenubarPreferencesMenu = new MenuId();
 	static readonly MenubarHelpMenu = new MenuId();
-	static readonly MenubarTerminalMenu = new MenuId();
 
 	readonly id: string = String(MenuId.ID++);
 }
