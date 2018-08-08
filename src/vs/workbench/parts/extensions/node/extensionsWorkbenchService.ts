@@ -38,7 +38,7 @@ import { INotificationService } from 'vs/platform/notification/common/notificati
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
 import { groupBy } from 'vs/base/common/collections';
 import { Schemas } from 'vs/base/common/network';
-import { posix } from 'path';
+import * as resources from 'vs/base/common/resources';
 
 interface IExtensionStateProvider<T> {
 	(extension: Extension): T;
@@ -131,7 +131,7 @@ class Extension implements IExtension {
 
 	private get localIconUrl(): string {
 		if (this.local && this.local.manifest.icon) {
-			return this.local.location.with({ path: posix.join(this.local.location.path, this.local.manifest.icon) }).toString();
+			return resources.joinPath(this.local.location, this.local.manifest.icon).toString();
 		}
 		return null;
 	}

@@ -19,7 +19,6 @@ import { IWorkspaceContextService, WorkbenchState } from 'vs/platform/workspace/
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { IConfigurationService, ConfigurationTarget } from 'vs/platform/configuration/common/configuration';
 import { IWorkspaceConfigurationService } from 'vs/workbench/services/configuration/common/configuration';
-import * as paths from 'vs/base/common/paths';
 import { isMacintosh, isLinux, language } from 'vs/base/common/platform';
 import { IQuickOpenService, IFilePickOpenEntry, ISeparator, IPickOpenAction, IPickOpenItem } from 'vs/platform/quickOpen/common/quickOpen';
 import * as browser from 'vs/base/browser/browser';
@@ -723,7 +722,7 @@ export abstract class BaseOpenRecentAction extends Action {
 			if (isSingleFolderWorkspaceIdentifier(workspace)) {
 				resource = workspace;
 				label = getWorkspaceLabel(workspace, environmentService, uriDisplayService);
-				description = uriDisplayService.getLabel(resource.with({ path: paths.dirname(resource.path) }));
+				description = uriDisplayService.getLabel(dirname(resource));
 			} else if (isWorkspaceIdentifier(workspace)) {
 				resource = URI.file(workspace.configPath);
 				label = getWorkspaceLabel(workspace, environmentService, uriDisplayService);

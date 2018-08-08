@@ -279,7 +279,7 @@ export class FileRenderer implements IRenderer {
 		const parent = stat.name ? resources.dirname(stat.resource) : stat.resource;
 		const value = stat.name || '';
 
-		label.setFile(parent.with({ path: paths.join(parent.path, value || ' ') }), labelOptions); // Use icon for ' ' if name is empty.
+		label.setFile(resources.joinPath(parent, value || ' '), labelOptions); // Use icon for ' ' if name is empty.
 
 		// Input field for name
 		const inputBox = new InputBox(label.element, this.contextViewService, {
@@ -291,7 +291,7 @@ export class FileRenderer implements IRenderer {
 		const styler = attachInputBoxStyler(inputBox, this.themeService);
 
 		inputBox.onDidChange(value => {
-			label.setFile(parent.with({ path: paths.join(parent.path, value || ' ') }), labelOptions); // update label icon while typing!
+			label.setFile(resources.joinPath(parent, value || ' '), labelOptions); // update label icon while typing!
 		});
 
 		const lastDot = value.lastIndexOf('.');
@@ -1058,7 +1058,7 @@ export class FileDragAndDrop extends SimpleFileResourceDragAndDrop {
 			}
 
 			// Otherwise move
-			const targetResource = target.resource.with({ path: paths.join(target.resource.path, source.name) });
+			const targetResource = resources.joinPath(target.resource, source.name);
 
 			return this.textFileService.move(source.resource, targetResource).then(null, error => {
 

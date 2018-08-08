@@ -4,13 +4,13 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import { posix, relative, join } from 'path';
+import { relative, join } from 'path';
 import { delta as arrayDelta } from 'vs/base/common/arrays';
 import { Emitter, Event } from 'vs/base/common/event';
 import { TernarySearchTree } from 'vs/base/common/map';
 import { normalize } from 'vs/base/common/paths';
 import { isLinux } from 'vs/base/common/platform';
-import { basenameOrAuthority, isEqual } from 'vs/base/common/resources';
+import { basenameOrAuthority, isEqual, dirname } from 'vs/base/common/resources';
 import { compare } from 'vs/base/common/strings';
 import URI from 'vs/base/common/uri';
 import { TPromise } from 'vs/base/common/winjs.base';
@@ -124,7 +124,7 @@ class ExtHostWorkspaceImpl extends Workspace {
 	getWorkspaceFolder(uri: URI, resolveParent?: boolean): vscode.WorkspaceFolder {
 		if (resolveParent && this._structure.get(uri.toString())) {
 			// `uri` is a workspace folder so we check for its parent
-			uri = uri.with({ path: posix.dirname(uri.path) });
+			uri = dirname(uri);
 		}
 		return this._structure.findSubstr(uri.toString());
 	}
