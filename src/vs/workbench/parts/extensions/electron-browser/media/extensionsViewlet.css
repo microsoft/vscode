@@ -44,7 +44,7 @@
 }
 
 .extensions-viewlet > .extensions .panel-header {
-	padding-right: 12px;
+	padding-right: 28px;
 }
 
 .extensions-viewlet > .extensions .panel-header > .title {
@@ -179,8 +179,13 @@
 	flex: 1;
 	font-size: 90%;
 	padding-right: 6px;
-	opacity: 0.6;
+	opacity: 0.9;
 	font-weight: 600;
+}
+
+.extensions-viewlet > .extensions .selected .extension > .details > .footer > .author,
+.extensions-viewlet > .extensions .selected.focused .extension > .details > .footer > .author {
+	opacity: 1;
 }
 
 .extensions-viewlet > .extensions .extension > .details > .footer > .monaco-action-bar > .actions-container {

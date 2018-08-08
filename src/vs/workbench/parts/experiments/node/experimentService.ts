@@ -10,20 +10,17 @@ import { IStorageService, StorageScope } from 'vs/platform/storage/common/storag
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { ILifecycleService, LifecyclePhase } from 'vs/platform/lifecycle/common/lifecycle';
-
+import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IExtensionManagementService, LocalExtensionType } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { IRequestService } from 'vs/platform/request/node/request';
-
 import { TPromise } from 'vs/base/common/winjs.base';
 import { language } from 'vs/base/common/platform';
 import { Disposable, IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { match } from 'vs/base/common/glob';
 import { asJson } from 'vs/base/node/request';
-
+import { Emitter, Event } from 'vs/base/common/event';
 import { ITextFileService, StateChange } from 'vs/workbench/services/textfile/common/textfiles';
 import { WorkspaceStats } from 'vs/workbench/parts/stats/node/workspaceStats';
-import { Emitter, Event } from 'vs/base/common/event';
-
 
 interface IExperimentStorageState {
 	enabled: boolean;
@@ -123,7 +120,8 @@ export class ExperimentService extends Disposable implements IExperimentService 
 		@IEnvironmentService private environmentService: IEnvironmentService,
 		@ITelemetryService private telemetryService: ITelemetryService,
 		@ILifecycleService private lifecycleService: ILifecycleService,
-		@IRequestService private requestService: IRequestService
+		@IRequestService private requestService: IRequestService,
+		@IConfigurationService private configurationService: IConfigurationService
 	) {
 		super();
 
@@ -167,7 +165,7 @@ export class ExperimentService extends Disposable implements IExperimentService 
 	}
 
 	protected getExperiments(): TPromise<IRawExperiment[]> {
-		if (!product.experimentsUrl) {
+		if (!product.experimentsUrl || this.configurationService.getValue('workbench.enableExperiments') === false) {
 			return TPromise.as([]);
 		}
 		return this.requestService.request({ type: 'GET', url: product.experimentsUrl }).then(context => {

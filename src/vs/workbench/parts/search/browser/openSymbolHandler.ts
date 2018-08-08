@@ -16,16 +16,14 @@ import * as filters from 'vs/base/common/filters';
 import * as strings from 'vs/base/common/strings';
 import { Range } from 'vs/editor/common/core/range';
 import { EditorInput, IWorkbenchEditorConfiguration } from 'vs/workbench/common/editor';
-import * as labels from 'vs/base/common/labels';
 import { symbolKindToCssClass } from 'vs/editor/common/modes';
 import { IResourceInput } from 'vs/platform/editor/common/editor';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IWorkspaceSymbolProvider, getWorkspaceSymbols, IWorkspaceSymbol } from 'vs/workbench/parts/search/common/search';
-import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { basename } from 'vs/base/common/paths';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
+import { IUriDisplayService } from 'vs/platform/uriDisplay/common/uriDisplay';
 
 class SymbolEntry extends EditorQuickOpenEntry {
 
@@ -35,9 +33,8 @@ class SymbolEntry extends EditorQuickOpenEntry {
 		private _bearing: IWorkspaceSymbol,
 		private _provider: IWorkspaceSymbolProvider,
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
-		@IWorkspaceContextService private readonly _contextService: IWorkspaceContextService,
 		@IEditorService editorService: IEditorService,
-		@IEnvironmentService private readonly _environmentService: IEnvironmentService
+		@IUriDisplayService private _uriDisplayService: IUriDisplayService
 	) {
 		super(editorService);
 	}
@@ -56,7 +53,7 @@ class SymbolEntry extends EditorQuickOpenEntry {
 			if (containerName) {
 				return `${containerName} — ${basename(this._bearing.location.uri.fsPath)}`;
 			} else {
-				return labels.getPathLabel(this._bearing.location.uri, this._environmentService, this._contextService);
+				return this._uriDisplayService.getLabel(this._bearing.location.uri, true);
 			}
 		}
 		return containerName;

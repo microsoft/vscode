@@ -466,6 +466,16 @@ suite('Tests for jsx, xml and xsl', () => {
 		});
 	});
 
+	test('Expand abbreviation with condition containing less than sign for jsx', () => {
+		return withRandomFileEditor('if (foo < 10) { span.bar', 'javascriptreact', (editor, doc) => {
+			editor.selection = new Selection(0, 27, 0, 27);
+			return expandEmmetAbbreviation({ language: 'javascriptreact' }).then(() => {
+				assert.equal(editor.document.getText(), 'if (foo < 10) { <span className="bar"></span>');
+				return Promise.resolve();
+			});
+		});
+	});
+
 	test('No expanding text inside open tag in completion list (jsx)', () => {
 		return testNoCompletion('jsx', htmlContents, new Selection(2, 4, 2, 4));
 	});

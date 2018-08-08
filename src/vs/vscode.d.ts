@@ -2707,13 +2707,15 @@ declare module 'vscode' {
 	}
 
 	/**
-	 * A workspace edit represents textual and files changes for
+	 * A workspace edit is a collection of textual and files changes for
 	 * multiple resources and documents.
+	 *
+	 * Use the [applyEdit](#workspace.applyEdit)-function to apply a workspace edit.
 	 */
 	export class WorkspaceEdit {
 
 		/**
-		 * The number of affected resources.
+		 * The number of affected resources of textual or resource changes.
 		 */
 		readonly size: number;
 
@@ -2744,7 +2746,8 @@ declare module 'vscode' {
 		delete(uri: Uri, range: Range): void;
 
 		/**
-		 * Check if this edit affects the given resource.
+		 * Check if a text edit for a resource exists.
+		 *
 		 * @param uri A resource identifier.
 		 * @return `true` if the given resource will be touched by this edit.
 		 */
@@ -2765,6 +2768,33 @@ declare module 'vscode' {
 		 * @return An array of text edits.
 		 */
 		get(uri: Uri): TextEdit[];
+
+		/**
+		 * Create a regular file.
+		 *
+		 * @param uri Uri of the new file..
+		 * @param options Defines if an existing file should be overwritten or be
+		 * ignored. When overwrite and ignoreIfExists are both set overwrite wins.
+		 */
+		createFile(uri: Uri, options?: { overwrite?: boolean, ignoreIfExists?: boolean }): void;
+
+		/**
+		 * Delete a file or folder.
+		 *
+		 * @param uri The uri of the file that is to be deleted.
+		 */
+		deleteFile(uri: Uri, options?: { recursive?: boolean, ignoreIfNotExists?: boolean }): void;
+
+		/**
+		 * Rename a file or folder.
+		 *
+		 * @param oldUri The existing file.
+		 * @param newUri The new location.
+		 * @param options Defines if existing files should be overwritten or be
+		 * ignored. When overwrite and ignoreIfExists are both set overwrite wins.
+		 */
+		renameFile(oldUri: Uri, newUri: Uri, options?: { overwrite?: boolean, ignoreIfExists?: boolean }): void;
+
 
 		/**
 		 * Get all text edits grouped by resource.
@@ -3522,6 +3552,7 @@ declare module 'vscode' {
 		 * [Region](#FoldingRangeKind.Region). The kind is used to categorize folding ranges and used by commands
 		 * like 'Fold all comments'. See
 		 * [FoldingRangeKind](#FoldingRangeKind) for an enumeration of all kinds.
+		 * If not set, the range is originated from a syntax element.
 		 */
 		kind?: FoldingRangeKind;
 
@@ -3536,7 +3567,10 @@ declare module 'vscode' {
 	}
 
 	/**
-	 * An enumeration of all folding range kinds. The kind is used to categorize folding ranges.
+	 * An enumeration of specific folding range kinds. The kind is an optional field of a [FoldingRange](#FoldingRange)
+	 * and is used to distinguish specific folding ranges such as ranges originated from comments. The kind is used by commands like
+	 * `Fold all comments` or `Fold all regions`.
+	 * If the kind is not set on the range, the range originated from a syntax element other than comments, imports or region markers.
 	 */
 	export enum FoldingRangeKind {
 		/**
@@ -3548,7 +3582,7 @@ declare module 'vscode' {
 		 */
 		Imports = 2,
 		/**
-		 * Kind for folding range representing regions (for example a folding range marked by `#region` and `#endregion`).
+		 * Kind for folding range representing regions originating from folding markers like `#region` and `#endregion`.
 		 */
 		Region = 3
 	}
@@ -5501,6 +5535,11 @@ declare module 'vscode' {
 		title: string;
 
 		/**
+		 * Icon for the panel shown in UI.
+		 */
+		iconPath?: Uri | { light: Uri; dark: Uri };
+
+		/**
 		 * Webview belonging to the panel.
 		 */
 		readonly webview: Webview;
@@ -6842,7 +6881,7 @@ declare module 'vscode' {
 		/**
 		 * Icon for the button.
 		 */
-		readonly iconPath: string | Uri | { light: string | Uri; dark: string | Uri } | ThemeIcon;
+		readonly iconPath: Uri | { light: Uri; dark: Uri } | ThemeIcon;
 
 		/**
 		 * An optional tooltip.
@@ -6853,7 +6892,7 @@ declare module 'vscode' {
 	/**
 	 * Predefined buttons for [QuickPick](#QuickPick) and [InputBox](#InputBox).
 	 */
-	export namespace QuickInputButtons {
+	export class QuickInputButtons {
 
 		/**
 		 * A back button for [QuickPick](#QuickPick) and [InputBox](#InputBox).
@@ -6861,7 +6900,12 @@ declare module 'vscode' {
 		 * When a navigation 'back' button is needed this one should be used for consistency.
 		 * It comes with a predefined icon, tooltip and location.
 		 */
-		export const Back: QuickInputButton;
+		static readonly Back: QuickInputButton;
+
+		/**
+		 * @hidden
+		 */
+		private constructor();
 	}
 
 	/**
@@ -7168,12 +7212,17 @@ declare module 'vscode' {
 		export function saveAll(includeUntitled?: boolean): Thenable<boolean>;
 
 		/**
-		 * Make changes to one or many resources as defined by the given
+		 * Make changes to one or many resources or create, delete, and rename resources as defined by the given
 		 * [workspace edit](#WorkspaceEdit).
 		 *
-		 * When applying a workspace edit, the editor implements an 'all-or-nothing'-strategy,
-		 * that means failure to load one document or make changes to one document will cause
-		 * the edit to be rejected.
+		 * All changes of a workspace edit are applied in the same order in which they have been added. If
+		 * multiple textual inserts are made at the same position, these strings appear in the resulting text
+		 * in the order the 'inserts' were made. Invalid sequences like 'delete file a' -> 'insert text in file a'
+		 * cause failure of the operation.
+		 *
+		 * When applying a workspace edit that consists only of text edits an 'all-or-nothing'-strategy is used.
+		 * A workspace edit with resource creations or deletions aborts the operation, e.g. consective edits will
+		 * not be attempted, when a single edit fails.
 		 *
 		 * @param edit A workspace edit.
 		 * @return A thenable that resolves when the edit could be applied.

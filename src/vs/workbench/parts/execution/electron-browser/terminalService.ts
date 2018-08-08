@@ -15,8 +15,8 @@ import { TPromise } from 'vs/base/common/winjs.base';
 import { ITerminalService } from 'vs/workbench/parts/execution/common/execution';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { ITerminalConfiguration, getDefaultTerminalWindows, getDefaultTerminalLinuxReady, DEFAULT_TERMINAL_OSX } from 'vs/workbench/parts/execution/electron-browser/terminal';
-import uri from 'vs/base/common/uri';
 import { IProcessEnvironment } from 'vs/base/common/platform';
+import { getPathFromAmdModule } from 'vs/base/common/amd';
 
 const TERMINAL_TITLE = nls.localize('console.title', "VS Code Console");
 
@@ -143,7 +143,7 @@ export class MacTerminalService implements ITerminalService {
 				// and then launches the program inside that window.
 
 				const script = terminalApp === DEFAULT_TERMINAL_OSX ? 'TerminalHelper' : 'iTermHelper';
-				const scriptpath = uri.parse(require.toUrl(`vs/workbench/parts/execution/electron-browser/${script}.scpt`)).fsPath;
+				const scriptpath = getPathFromAmdModule(require, `vs/workbench/parts/execution/electron-browser/${script}.scpt`);
 
 				const osaArgs = [
 					scriptpath,

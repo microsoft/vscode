@@ -234,7 +234,7 @@ export class WorkspaceFolder implements IWorkspaceFolder {
 	}
 
 	toResource(relativePath: string): URI {
-		return this.uri.with({ path: paths.join(this.uri.path, relativePath) });
+		return resources.joinPath(this.uri, relativePath);
 	}
 
 	toJSON(): IWorkspaceFolderData {
@@ -278,7 +278,7 @@ function toUri(path: string, relativeTo: URI): URI {
 			return URI.file(path);
 		}
 		if (relativeTo) {
-			return relativeTo.with({ path: paths.join(relativeTo.path, path) });
+			return resources.joinPath(relativeTo, path);
 		}
 	}
 	return null;

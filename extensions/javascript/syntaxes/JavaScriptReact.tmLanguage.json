@@ -4,7 +4,7 @@
 		"If you want to provide a fix or improvement, please create a pull request against the original repository.",
 		"Once accepted there, we are happy to receive an update request."
 	],
-	"version": "https://github.com/Microsoft/TypeScript-TmLanguage/commit/27425437b2144f43607047ae7ee9b826e36856a5",
+	"version": "https://github.com/Microsoft/TypeScript-TmLanguage/commit/858d33f03943e4ec040e81cbabbc3f7892157c18",
 	"name": "JavaScript (with React support)",
 	"scopeName": "source.js.jsx",
 	"patterns": [
@@ -285,42 +285,20 @@
 			]
 		},
 		"var-expr": {
-			"name": "meta.var.expr.js.jsx",
-			"begin": "(?<![_$[:alnum:]])(?:(?<=\\.\\.\\.)|(?<!\\.))(?:(\\bexport)\\s+)?\\b(var|let|const(?!\\s+enum\\b))(?![_$[:alnum:]])(?:(?=\\.\\.\\.)|(?!\\.))",
-			"beginCaptures": {
-				"1": {
-					"name": "keyword.control.export.js.jsx"
-				},
-				"2": {
-					"name": "storage.type.js.jsx"
-				}
-			},
-			"end": "(?=$|^|;|}|(\\s+(of|in)\\s+))",
 			"patterns": [
 				{
-					"include": "#destructuring-variable"
-				},
-				{
-					"include": "#var-single-variable"
-				},
-				{
-					"include": "#variable-initializer"
-				},
-				{
-					"include": "#comment"
-				},
-				{
-					"begin": "(,)\\s*(?!\\S)",
+					"name": "meta.var.expr.js.jsx",
+					"begin": "(?<![_$[:alnum:]])(?:(?<=\\.\\.\\.)|(?<!\\.))(?:(\\bexport)\\s+)?\\b(var|let)(?![_$[:alnum:]])(?:(?=\\.\\.\\.)|(?!\\.))",
 					"beginCaptures": {
 						"1": {
-							"name": "punctuation.separator.comma.js.jsx"
+							"name": "keyword.control.export.js.jsx"
+						},
+						"2": {
+							"name": "storage.type.js.jsx"
 						}
 					},
-					"end": "(?<!,)(((?==|;|}|(\\s+(of|in)\\s+)|^\\s*$))|((?<=\\S)(?=\\s*$)))",
+					"end": "((?=;|}|(\\s+(of|in)\\s+)|^\\s*$|;|^\\s*abstract\\b|^\\s*async\\b|^\\s*class\\b|^\\s*const\\b|^\\s*declare\\b|^\\s*enum\\b|^\\s*export\\b|^\\s*function\\b|^\\s*import\\b|^\\s*interface\\b|^\\s*let\\b|^\\s*module\\b|^\\s*namespace\\b|^\\s*return\\b|^\\s*type\\b|^\\s*var\\b)|((?<=\\S)(?<!^let|[^\\._$[:alnum:]]let|^var|[^\\._$[:alnum:]]var)(?=\\s*$)))",
 					"patterns": [
-						{
-							"include": "#comment"
-						},
 						{
 							"include": "#destructuring-variable"
 						},
@@ -328,12 +306,91 @@
 							"include": "#var-single-variable"
 						},
 						{
+							"include": "#variable-initializer"
+						},
+						{
+							"include": "#comment"
+						},
+						{
+							"begin": "(,)\\s*(?!\\S)",
+							"beginCaptures": {
+								"1": {
+									"name": "punctuation.separator.comma.js.jsx"
+								}
+							},
+							"end": "(?<!,)(((?==|;|}|(\\s+(of|in)\\s+)|^\\s*$))|((?<=\\S)(?=\\s*$)))",
+							"patterns": [
+								{
+									"include": "#comment"
+								},
+								{
+									"include": "#destructuring-variable"
+								},
+								{
+									"include": "#var-single-variable"
+								},
+								{
+									"include": "#punctuation-comma"
+								}
+							]
+						},
+						{
 							"include": "#punctuation-comma"
 						}
 					]
 				},
 				{
-					"include": "#punctuation-comma"
+					"name": "meta.var.expr.js.jsx",
+					"begin": "(?<![_$[:alnum:]])(?:(?<=\\.\\.\\.)|(?<!\\.))(?:(\\bexport)\\s+)?\\b(const(?!\\s+enum\\b))(?![_$[:alnum:]])(?:(?=\\.\\.\\.)|(?!\\.))",
+					"beginCaptures": {
+						"1": {
+							"name": "keyword.control.export.js.jsx"
+						},
+						"2": {
+							"name": "storage.type.js.jsx"
+						}
+					},
+					"end": "((?=;|}|(\\s+(of|in)\\s+)|^\\s*$|;|^\\s*abstract\\b|^\\s*async\\b|^\\s*class\\b|^\\s*const\\b|^\\s*declare\\b|^\\s*enum\\b|^\\s*export\\b|^\\s*function\\b|^\\s*import\\b|^\\s*interface\\b|^\\s*let\\b|^\\s*module\\b|^\\s*namespace\\b|^\\s*return\\b|^\\s*type\\b|^\\s*var\\b)|((?<=\\S)(?<!^const|[^\\._$[:alnum:]]const)(?=\\s*$)))",
+					"patterns": [
+						{
+							"include": "#destructuring-const"
+						},
+						{
+							"include": "#var-single-const"
+						},
+						{
+							"include": "#variable-initializer"
+						},
+						{
+							"include": "#comment"
+						},
+						{
+							"begin": "(,)\\s*(?!\\S)",
+							"beginCaptures": {
+								"1": {
+									"name": "punctuation.separator.comma.js.jsx"
+								}
+							},
+							"end": "(?<!,)(((?==|;|}|(\\s+(of|in)\\s+)|^\\s*$))|((?<=\\S)(?=\\s*$)))",
+							"patterns": [
+								{
+									"include": "#comment"
+								},
+								{
+									"include": "#destructuring-const"
+								},
+								{
+									"include": "#var-single-const"
+								},
+								{
+									"include": "#punctuation-comma"
+								}
+							]
+						},
+						{
+							"include": "#punctuation-comma"
+						}
+					]
 				}
 			]
 		},
@@ -375,6 +432,40 @@
 					"beginCaptures": {
 						"1": {
 							"name": "meta.definition.variable.js.jsx variable.other.readwrite.js.jsx"
+						}
+					},
+					"end": "(?=$|^|[;,=}]|(\\s+(of|in)\\s+))",
+					"patterns": [
+						{
+							"include": "#var-single-variable-type-annotation"
+						}
+					]
+				}
+			]
+		},
+		"var-single-const": {
+			"patterns": [
+				{
+					"name": "meta.var-single-variable.expr.js.jsx",
+					"begin": "(?x)([_$[:alpha:]][_$[:alnum:]]*)(?=\\s*\n# function assignment |\n(=\\s*(\n  ((async\\s+)?(\n    (function\\s*[(<*]) |\n    (function\\s+) |\n    ([_$[:alpha:]][_$[:alnum:]]*\\s*=>)\n  )) |\n  ((async\\s*)?(\n    ((<\\s*$)|([\\(]\\s*([\\{\\[]\\s*)?$)) |\n    # sure shot arrow functions even if => is on new line\n(\n  (<\\s*([_$[:alpha:]]|(\\{([^\\{\\}]|(\\{[^\\{\\}]*\\}))*\\})|(\\(([^\\(\\)]|(\\([^\\(\\)]*\\)))*\\))|(\\[([^\\[\\]]|(\\[[^\\[\\]]*\\]))*\\]))([^=<>]|=[^<]|\\<\\s*([_$[:alpha:]]|(\\{([^\\{\\}]|(\\{[^\\{\\}]*\\}))*\\})|(\\(([^\\(\\)]|(\\([^\\(\\)]*\\)))*\\))|(\\[([^\\[\\]]|(\\[[^\\[\\]]*\\]))*\\]))([^=<>]|=[^<])*\\>)*>\\s*)?\n  [(]\\s*\n  (\n    ([)]\\s*:) |                                                                                       # ():\n    ((\\.\\.\\.\\s*)?[_$[:alpha:]][_$[:alnum:]]*\\s*:)                                                                  # [(]param: | [(]...param:\n  )\n) |\n(\n  [<]\\s*[_$[:alpha:]][_$[:alnum:]]*\\s+extends\\s*[^=>]                                                              # < typeparam extends\n) |\n# arrow function possible to detect only with => on same line\n(\n  (<\\s*([_$[:alpha:]]|(\\{([^\\{\\}]|(\\{[^\\{\\}]*\\}))*\\})|(\\(([^\\(\\)]|(\\([^\\(\\)]*\\)))*\\))|(\\[([^\\[\\]]|(\\[[^\\[\\]]*\\]))*\\]))([^=<>]|=[^<]|\\<\\s*([_$[:alpha:]]|(\\{([^\\{\\}]|(\\{[^\\{\\}]*\\}))*\\})|(\\(([^\\(\\)]|(\\([^\\(\\)]*\\)))*\\))|(\\[([^\\[\\]]|(\\[[^\\[\\]]*\\]))*\\]))([^=<>]|=[^<])*\\>)*>\\s*)?                                                                                 # typeparameters\n  \\(\\s*(([_$[:alpha:]]|(\\{([^\\{\\}]|(\\{[^\\{\\}]*\\}))*\\})|(\\[([^\\[\\]]|(\\[[^\\[\\]]*\\]))*\\])|(\\.\\.\\.\\s*[_$[:alpha:]]))([^()]|(\\(([^\\(\\)]|(\\([^\\(\\)]*\\)))*\\)))*)?\\)   # parameters\n  (\\s*:\\s*([^<>\\(\\)]|\\<[^<>]+\\>|\\([^\\(\\)]+\\))+)?                                                                        # return type\n  \\s*=>                                                                                               # arrow operator\n)\n  ))\n)) |\n# typeannotation is fn type: < | () | (... | (param: | (param, | (param? | (param= | (param) =>\n(:\\s*(\n  (<) |\n  ([(]\\s*(\n    ([)]) |\n    (\\.\\.\\.) |\n    ([_$[:alnum:]]+\\s*(\n      ([:,?=])|\n      ([)]\\s*=>)\n    ))\n  ))\n)) |\n(:\\s*((<\\s*$)|([\\(]\\s*([\\{\\[]\\s*)?$))) |\n(:\\s*(=>|(\\(([^\\(\\)]|(\\([^\\(\\)]*\\)))*\\))|(<[^<>]*>)|[^<>(),=])+=\\s*(\n  ((async\\s+)?(\n    (function\\s*[(<*]) |\n    (function\\s+) |\n    ([_$[:alpha:]][_$[:alnum:]]*\\s*=>)\n  )) |\n  ((async\\s*)?(\n    ((<\\s*$)|([\\(]\\s*([\\{\\[]\\s*)?$)) |\n    # sure shot arrow functions even if => is on new line\n(\n  (<\\s*([_$[:alpha:]]|(\\{([^\\{\\}]|(\\{[^\\{\\}]*\\}))*\\})|(\\(([^\\(\\)]|(\\([^\\(\\)]*\\)))*\\))|(\\[([^\\[\\]]|(\\[[^\\[\\]]*\\]))*\\]))([^=<>]|=[^<]|\\<\\s*([_$[:alpha:]]|(\\{([^\\{\\}]|(\\{[^\\{\\}]*\\}))*\\})|(\\(([^\\(\\)]|(\\([^\\(\\)]*\\)))*\\))|(\\[([^\\[\\]]|(\\[[^\\[\\]]*\\]))*\\]))([^=<>]|=[^<])*\\>)*>\\s*)?\n  [(]\\s*\n  (\n    ([)]\\s*:) |                                                                                       # ():\n    ((\\.\\.\\.\\s*)?[_$[:alpha:]][_$[:alnum:]]*\\s*:)                                                                  # [(]param: | [(]...param:\n  )\n) |\n(\n  [<]\\s*[_$[:alpha:]][_$[:alnum:]]*\\s+extends\\s*[^=>]                                                              # < typeparam extends\n) |\n# arrow function possible to detect only with => on same line\n(\n  (<\\s*([_$[:alpha:]]|(\\{([^\\{\\}]|(\\{[^\\{\\}]*\\}))*\\})|(\\(([^\\(\\)]|(\\([^\\(\\)]*\\)))*\\))|(\\[([^\\[\\]]|(\\[[^\\[\\]]*\\]))*\\]))([^=<>]|=[^<]|\\<\\s*([_$[:alpha:]]|(\\{([^\\{\\}]|(\\{[^\\{\\}]*\\}))*\\})|(\\(([^\\(\\)]|(\\([^\\(\\)]*\\)))*\\))|(\\[([^\\[\\]]|(\\[[^\\[\\]]*\\]))*\\]))([^=<>]|=[^<])*\\>)*>\\s*)?                                                                                 # typeparameters\n  \\(\\s*(([_$[:alpha:]]|(\\{([^\\{\\}]|(\\{[^\\{\\}]*\\}))*\\})|(\\[([^\\[\\]]|(\\[[^\\[\\]]*\\]))*\\])|(\\.\\.\\.\\s*[_$[:alpha:]]))([^()]|(\\(([^\\(\\)]|(\\([^\\(\\)]*\\)))*\\)))*)?\\)   # parameters\n  (\\s*:\\s*([^<>\\(\\)]|\\<[^<>]+\\>|\\([^\\(\\)]+\\))+)?                                                                        # return type\n  \\s*=>                                                                                               # arrow operator\n)\n  ))\n)))",
+					"beginCaptures": {
+						"1": {
+							"name": "meta.definition.variable.js.jsx variable.other.constant.js.jsx entity.name.function.js.jsx"
+						}
+					},
+					"end": "(?=$|^|[;,=}]|(\\s+(of|in)\\s+))",
+					"patterns": [
+						{
+							"include": "#var-single-variable-type-annotation"
+						}
+					]
+				},
+				{
+					"name": "meta.var-single-variable.expr.js.jsx",
+					"begin": "([_$[:alpha:]][_$[:alnum:]]*)",
+					"beginCaptures": {
+						"1": {
+							"name": "meta.definition.variable.js.jsx variable.other.constant.js.jsx"
 						}
 					},
 					"end": "(?=$|^|[;,=}]|(\\s+(of|in)\\s+))",
@@ -435,6 +526,42 @@
 				}
 			]
 		},
+		"destructuring-const": {
+			"patterns": [
+				{
+					"name": "meta.object-binding-pattern-variable.js.jsx",
+					"begin": "(?<!=|:|^of|[^\\._$[:alnum:]]of|^in|[^\\._$[:alnum:]]in)\\s*(?=\\{)",
+					"end": "(?=$|^|[;,=}]|(\\s+(of|in)\\s+))",
+					"patterns": [
+						{
+							"include": "#object-binding-pattern-const"
+						},
+						{
+							"include": "#type-annotation"
+						},
+						{
+							"include": "#comment"
+						}
+					]
+				},
+				{
+					"name": "meta.array-binding-pattern-variable.js.jsx",
+					"begin": "(?<!=|:|^of|[^\\._$[:alnum:]]of|^in|[^\\._$[:alnum:]]in)\\s*(?=\\[)",
+					"end": "(?=$|^|[;,=}]|(\\s+(of|in)\\s+))",
+					"patterns": [
+						{
+							"include": "#array-binding-pattern-const"
+						},
+						{
+							"include": "#type-annotation"
+						},
+						{
+							"include": "#comment"
+						}
+					]
+				}
+			]
+		},
 		"object-binding-element": {
 			"patterns": [
 				{
@@ -457,6 +584,37 @@
 				},
 				{
 					"include": "#destructuring-variable-rest"
+				},
+				{
+					"include": "#variable-initializer"
+				},
+				{
+					"include": "#punctuation-comma"
+				}
+			]
+		},
+		"object-binding-element-const": {
+			"patterns": [
+				{
+					"include": "#comment"
+				},
+				{
+					"begin": "(?x)(?=((\\b(?<!\\$)0(x|X)[0-9a-fA-F][0-9a-fA-F_]*\\b(?!\\$))|(\\b(?<!\\$)0(b|B)[01][01_]*\\b(?!\\$))|(\\b(?<!\\$)0(o|O)?[0-7][0-7_]*\\b(?!\\$))|((?<!\\$)(?:\n  (?:\\b[0-9][0-9_]*(\\.)[0-9][0-9_]*[eE][+-]?[0-9][0-9_]*\\b)| # 1.1E+3\n  (?:\\b[0-9][0-9_]*(\\.)[eE][+-]?[0-9][0-9_]*\\b)|             # 1.E+3\n  (?:\\B(\\.)[0-9][0-9_]*[eE][+-]?[0-9][0-9_]*\\b)|             # .1E+3\n  (?:\\b[0-9][0-9_]*[eE][+-]?[0-9][0-9_]*\\b)|                 # 1E+3\n  (?:\\b[0-9][0-9_]*(\\.)[0-9][0-9_]*\\b)|                      # 1.1\n  (?:\\b[0-9][0-9_]*(\\.)\\B)|                                  # 1.\n  (?:\\B(\\.)[0-9][0-9_]*\\b)|                                  # .1\n  (?:\\b[0-9][0-9_]*\\b(?!\\.))                                 # 1\n)(?!\\$))|([_$[:alpha:]][_$[:alnum:]]*)|(\\'([^\\'\\\\]|\\\\\\'|\\\\)*\\')|(\\\"([^\\\"\\\\]|\\\\\\\"|\\\\)*\\\")|(\\[([^\\[\\]]|\\[[^\\[\\]]*\\])+\\]))\\s*(:))",
+					"end": "(?=,|\\})",
+					"patterns": [
+						{
+							"include": "#object-binding-element-propertyName"
+						},
+						{
+							"include": "#binding-element-const"
+						}
+					]
+				},
+				{
+					"include": "#object-binding-pattern-const"
+				},
+				{
+					"include": "#destructuring-variable-rest-const"
 				},
 				{
 					"include": "#variable-initializer"
@@ -512,6 +670,28 @@
 				}
 			]
 		},
+		"binding-element-const": {
+			"patterns": [
+				{
+					"include": "#comment"
+				},
+				{
+					"include": "#string"
+				},
+				{
+					"include": "#object-binding-pattern-const"
+				},
+				{
+					"include": "#array-binding-pattern-const"
+				},
+				{
+					"include": "#destructuring-variable-rest-const"
+				},
+				{
+					"include": "#variable-initializer"
+				}
+			]
+		},
 		"destructuring-variable-rest": {
 			"match": "(?:(\\.\\.\\.)\\s*)?([_$[:alpha:]][_$[:alnum:]]*)",
 			"captures": {
@@ -520,6 +700,17 @@
 				},
 				"2": {
 					"name": "meta.definition.variable.js.jsx variable.other.readwrite.js.jsx"
+				}
+			}
+		},
+		"destructuring-variable-rest-const": {
+			"match": "(?:(\\.\\.\\.)\\s*)?([_$[:alpha:]][_$[:alnum:]]*)",
+			"captures": {
+				"1": {
+					"name": "keyword.operator.rest.js.jsx"
+				},
+				"2": {
+					"name": "meta.definition.variable.js.jsx variable.other.constant.js.jsx"
 				}
 			}
 		},
@@ -545,6 +736,28 @@
 				}
 			]
 		},
+		"object-binding-pattern-const": {
+			"begin": "(?:(\\.\\.\\.)\\s*)?(\\{)",
+			"beginCaptures": {
+				"1": {
+					"name": "keyword.operator.rest.js.jsx"
+				},
+				"2": {
+					"name": "punctuation.definition.binding-pattern.object.js.jsx"
+				}
+			},
+			"end": "\\}",
+			"endCaptures": {
+				"0": {
+					"name": "punctuation.definition.binding-pattern.object.js.jsx"
+				}
+			},
+			"patterns": [
+				{
+					"include": "#object-binding-element-const"
+				}
+			]
+		},
 		"array-binding-pattern": {
 			"begin": "(?:(\\.\\.\\.)\\s*)?(\\[)",
 			"beginCaptures": {
@@ -564,6 +777,31 @@
 			"patterns": [
 				{
 					"include": "#binding-element"
+				},
+				{
+					"include": "#punctuation-comma"
+				}
+			]
+		},
+		"array-binding-pattern-const": {
+			"begin": "(?:(\\.\\.\\.)\\s*)?(\\[)",
+			"beginCaptures": {
+				"1": {
+					"name": "keyword.operator.rest.js.jsx"
+				},
+				"2": {
+					"name": "punctuation.definition.binding-pattern.array.js.jsx"
+				}
+			},
+			"end": "\\]",
+			"endCaptures": {
+				"0": {
+					"name": "punctuation.definition.binding-pattern.array.js.jsx"
+				}
+			},
+			"patterns": [
+				{
+					"include": "#binding-element-const"
 				},
 				{
 					"include": "#punctuation-comma"
@@ -1594,7 +1832,7 @@
 					"name": "storage.type.namespace.js.jsx"
 				}
 			},
-			"end": "(?<=\\})|(?=;|\\babstract\\b|\\basync\\b|\\bclass\\b|\\bconst\\b|\\bdeclare\\b|\\benum\\b|\\bexport\\b|\\bfunction\\b|\\bimport\\b|\\binterface\\b|\\blet\\b|\\bmodule\\b|\\bnamespace\\b|\\breturn\\b|\\btype\\b|\\bvar\\b)",
+			"end": "(?<=\\})|(?=;|^\\s*abstract\\b|^\\s*async\\b|^\\s*class\\b|^\\s*const\\b|^\\s*declare\\b|^\\s*enum\\b|^\\s*export\\b|^\\s*function\\b|^\\s*import\\b|^\\s*interface\\b|^\\s*let\\b|^\\s*module\\b|^\\s*namespace\\b|^\\s*return\\b|^\\s*type\\b|^\\s*var\\b)",
 			"patterns": [
 				{
 					"include": "#comment"
@@ -1628,7 +1866,7 @@
 					"name": "entity.name.type.alias.js.jsx"
 				}
 			},
-			"end": "(?=\\}|;|\\babstract\\b|\\basync\\b|\\bclass\\b|\\bconst\\b|\\bdeclare\\b|\\benum\\b|\\bexport\\b|\\bfunction\\b|\\bimport\\b|\\binterface\\b|\\blet\\b|\\bmodule\\b|\\bnamespace\\b|\\breturn\\b|\\btype\\b|\\bvar\\b)",
+			"end": "(?=\\}|;|^\\s*abstract\\b|^\\s*async\\b|^\\s*class\\b|^\\s*const\\b|^\\s*declare\\b|^\\s*enum\\b|^\\s*export\\b|^\\s*function\\b|^\\s*import\\b|^\\s*interface\\b|^\\s*let\\b|^\\s*module\\b|^\\s*namespace\\b|^\\s*return\\b|^\\s*type\\b|^\\s*var\\b)",
 			"patterns": [
 				{
 					"include": "#comment"
@@ -1643,7 +1881,7 @@
 							"name": "keyword.operator.assignment.js.jsx"
 						}
 					},
-					"end": "(?=\\}|;|\\babstract\\b|\\basync\\b|\\bclass\\b|\\bconst\\b|\\bdeclare\\b|\\benum\\b|\\bexport\\b|\\bfunction\\b|\\bimport\\b|\\binterface\\b|\\blet\\b|\\bmodule\\b|\\bnamespace\\b|\\breturn\\b|\\btype\\b|\\bvar\\b)",
+					"end": "(?=\\}|;|^\\s*abstract\\b|^\\s*async\\b|^\\s*class\\b|^\\s*const\\b|^\\s*declare\\b|^\\s*enum\\b|^\\s*export\\b|^\\s*function\\b|^\\s*import\\b|^\\s*interface\\b|^\\s*let\\b|^\\s*module\\b|^\\s*namespace\\b|^\\s*return\\b|^\\s*type\\b|^\\s*var\\b)",
 					"patterns": [
 						{
 							"include": "#type"
@@ -1807,7 +2045,7 @@
 							"name": "keyword.control.default.js.jsx"
 						}
 					},
-					"end": "(?=$|;|\\babstract\\b|\\basync\\b|\\bclass\\b|\\bconst\\b|\\bdeclare\\b|\\benum\\b|\\bexport\\b|\\bfunction\\b|\\bimport\\b|\\binterface\\b|\\blet\\b|\\bmodule\\b|\\bnamespace\\b|\\breturn\\b|\\btype\\b|\\bvar\\b)",
+					"end": "(?=$|;|^\\s*abstract\\b|^\\s*async\\b|^\\s*class\\b|^\\s*const\\b|^\\s*declare\\b|^\\s*enum\\b|^\\s*export\\b|^\\s*function\\b|^\\s*import\\b|^\\s*interface\\b|^\\s*let\\b|^\\s*module\\b|^\\s*namespace\\b|^\\s*return\\b|^\\s*type\\b|^\\s*var\\b)",
 					"patterns": [
 						{
 							"include": "#expression"
@@ -1822,7 +2060,7 @@
 							"name": "keyword.control.export.js.jsx"
 						}
 					},
-					"end": "(?=$|;|\\babstract\\b|\\basync\\b|\\bclass\\b|\\bconst\\b|\\bdeclare\\b|\\benum\\b|\\bexport\\b|\\bfunction\\b|\\bimport\\b|\\binterface\\b|\\blet\\b|\\bmodule\\b|\\bnamespace\\b|\\breturn\\b|\\btype\\b|\\bvar\\b)",
+					"end": "(?=$|;|^\\s*abstract\\b|^\\s*async\\b|^\\s*class\\b|^\\s*const\\b|^\\s*declare\\b|^\\s*enum\\b|^\\s*export\\b|^\\s*function\\b|^\\s*import\\b|^\\s*interface\\b|^\\s*let\\b|^\\s*module\\b|^\\s*namespace\\b|^\\s*return\\b|^\\s*type\\b|^\\s*var\\b)",
 					"patterns": [
 						{
 							"include": "#import-export-declaration"
@@ -3846,7 +4084,7 @@
 			"patterns": [
 				{
 					"name": "string.regexp.js.jsx",
-					"begin": "(?<!\\+\\+|--)(?<=[=(:,\\[?+!]|^return|[^\\._$[:alnum:]]return|^case|[^\\._$[:alnum:]]case|=>|&&|\\|\\||\\*\\/)\\s*(\\/)(?![\\/*])(?=(?:[^\\/\\\\\\[]|\\\\.|\\[([^\\]\\\\]|\\\\.)+\\])+\\/[gimsuy]*(?!\\s*[a-zA-Z0-9_$]))",
+					"begin": "(?<!\\+\\+|--|})(?<=[=(:,\\[?+!]|^return|[^\\._$[:alnum:]]return|^case|[^\\._$[:alnum:]]case|=>|&&|\\|\\||\\*\\/)\\s*(\\/)(?![\\/*])(?=(?:[^\\/\\\\\\[]|\\\\.|\\[([^\\]\\\\]|\\\\.)+\\])+\\/[gimsuy]*(?!\\s*[a-zA-Z0-9_$]))",
 					"beginCaptures": {
 						"1": {
 							"name": "punctuation.definition.string.begin.js.jsx"
@@ -3869,7 +4107,7 @@
 				},
 				{
 					"name": "string.regexp.js.jsx",
-					"begin": "(?<![_$[:alnum:])\\]]|\\+\\+|--)\\/(?![\\/*])(?=(?:[^\\/\\\\\\[]|\\\\.|\\[([^\\]\\\\]|\\\\.)+\\])+\\/[gimsuy]*(?!\\s*[a-zA-Z0-9_$]))",
+					"begin": "(?<![_$[:alnum:])\\]]|\\+\\+|--|})\\/(?![\\/*])(?=(?:[^\\/\\\\\\[]|\\\\.|\\[([^\\]\\\\]|\\\\.)+\\])+\\/[gimsuy]*(?!\\s*[a-zA-Z0-9_$]))",
 					"beginCaptures": {
 						"0": {
 							"name": "punctuation.definition.string.begin.js.jsx"
@@ -4608,8 +4846,8 @@
 			]
 		},
 		"jsx-tag-without-attributes-in-expression": {
-			"begin": "(?<!\\+\\+|--)(?<=[({\\[,?=>:*]|&&|\\|\\||\\?|^await|[^\\._$[:alnum:]]await|^return|[^\\._$[:alnum:]]return|^default|[^\\._$[:alnum:]]default|^yield|[^\\._$[:alnum:]]yield|^)\\s*(?=(<)\\s*(?:([_$a-zA-Z][-$\\w.]*)(?<!\\.|-)(:))?((?:[a-z][a-z0-9]*|([_$a-zA-Z][-$\\w.]*))(?<!\\.|-))?\\s*(>))",
-			"end": "(?!(<)\\s*(?:([_$a-zA-Z][-$\\w.]*)(?<!\\.|-)(:))?((?:[a-z][a-z0-9]*|([_$a-zA-Z][-$\\w.]*))(?<!\\.|-))?\\s*(>))",
+			"begin": "(?<!\\+\\+|--)(?<=[({\\[,?=>:*]|&&|\\|\\||\\?|^await|[^\\._$[:alnum:]]await|^return|[^\\._$[:alnum:]]return|^default|[^\\._$[:alnum:]]default|^yield|[^\\._$[:alnum:]]yield|^)\\s*(?=(<)\\s*(?:([_$[:alpha:]][-$[:alnum:].]*)(?<!\\.|-)(:))?((?:[a-z][a-z0-9]*|([_$[:alpha:]][-$[:alnum:].]*))(?<!\\.|-))?\\s*(>))",
+			"end": "(?!(<)\\s*(?:([_$[:alpha:]][-$[:alnum:].]*)(?<!\\.|-)(:))?((?:[a-z][a-z0-9]*|([_$[:alpha:]][-$[:alnum:].]*))(?<!\\.|-))?\\s*(>))",
 			"patterns": [
 				{
 					"include": "#jsx-tag-without-attributes"
@@ -4618,8 +4856,8 @@
 		},
 		"jsx-tag-without-attributes": {
 			"name": "meta.tag.without-attributes.js.jsx",
-			"begin": "(<)\\s*(?:([_$a-zA-Z][-$\\w.]*)(?<!\\.|-)(:))?((?:[a-z][a-z0-9]*|([_$a-zA-Z][-$\\w.]*))(?<!\\.|-))?\\s*(>)",
-			"end": "(</)\\s*(?:([_$a-zA-Z][-$\\w.]*)(?<!\\.|-)(:))?((?:[a-z][a-z0-9]*|([_$a-zA-Z][-$\\w.]*))(?<!\\.|-))?\\s*(>)",
+			"begin": "(<)\\s*(?:([_$[:alpha:]][-$[:alnum:].]*)(?<!\\.|-)(:))?((?:[a-z][a-z0-9]*|([_$[:alpha:]][-$[:alnum:].]*))(?<!\\.|-))?\\s*(>)",
+			"end": "(</)\\s*(?:([_$[:alpha:]][-$[:alnum:].]*)(?<!\\.|-)(:))?((?:[a-z][a-z0-9]*|([_$[:alpha:]][-$[:alnum:].]*))(?<!\\.|-))?\\s*(>)",
 			"beginCaptures": {
 				"1": {
 					"name": "punctuation.definition.tag.begin.js.jsx"
@@ -4668,8 +4906,8 @@
 			]
 		},
 		"jsx-tag-in-expression": {
-			"begin": "(?x)\n  (?<!\\+\\+|--)(?<=[({\\[,?=>:*]|&&|\\|\\||\\?|^await|[^\\._$[:alnum:]]await|^return|[^\\._$[:alnum:]]return|^default|[^\\._$[:alnum:]]default|^yield|[^\\._$[:alnum:]]yield|^)\\s*\n  (?!<\\s*[_$[:alpha:]][_$[:alnum:]]*((\\s+extends\\s+[^=>])|,)) # look ahead is not type parameter of arrow\n  (?=(<)\\s*(?:([_$a-zA-Z][-$\\w.]*)(?<!\\.|-)(:))?((?:[a-z][a-z0-9]*|([_$a-zA-Z][-$\\w.]*))(?<!\\.|-))(?=((<\\s*)|(\\s+))(?!\\?)|\\/?>))",
-			"end": "(?!(<)\\s*(?:([_$a-zA-Z][-$\\w.]*)(?<!\\.|-)(:))?((?:[a-z][a-z0-9]*|([_$a-zA-Z][-$\\w.]*))(?<!\\.|-))(?=((<\\s*)|(\\s+))(?!\\?)|\\/?>))",
+			"begin": "(?x)\n  (?<!\\+\\+|--)(?<=[({\\[,?=>:*]|&&|\\|\\||\\?|^await|[^\\._$[:alnum:]]await|^return|[^\\._$[:alnum:]]return|^default|[^\\._$[:alnum:]]default|^yield|[^\\._$[:alnum:]]yield|^)\\s*\n  (?!<\\s*[_$[:alpha:]][_$[:alnum:]]*((\\s+extends\\s+[^=>])|,)) # look ahead is not type parameter of arrow\n  (?=(<)\\s*(?:([_$[:alpha:]][-$[:alnum:].]*)(?<!\\.|-)(:))?((?:[a-z][a-z0-9]*|([_$[:alpha:]][-$[:alnum:].]*))(?<!\\.|-))(?=((<\\s*)|(\\s+))(?!\\?)|\\/?>))",
+			"end": "(?!(<)\\s*(?:([_$[:alpha:]][-$[:alnum:].]*)(?<!\\.|-)(:))?((?:[a-z][a-z0-9]*|([_$[:alpha:]][-$[:alnum:].]*))(?<!\\.|-))(?=((<\\s*)|(\\s+))(?!\\?)|\\/?>))",
 			"patterns": [
 				{
 					"include": "#jsx-tag"
@@ -4678,8 +4916,8 @@
 		},
 		"jsx-tag": {
 			"name": "meta.tag.js.jsx",
-			"begin": "(?=(<)\\s*(?:([_$a-zA-Z][-$\\w.]*)(?<!\\.|-)(:))?((?:[a-z][a-z0-9]*|([_$a-zA-Z][-$\\w.]*))(?<!\\.|-))(?=((<\\s*)|(\\s+))(?!\\?)|\\/?>))",
-			"end": "(/>)|(?:(</)\\s*(?:([_$a-zA-Z][-$\\w.]*)(?<!\\.|-)(:))?((?:[a-z][a-z0-9]*|([_$a-zA-Z][-$\\w.]*))(?<!\\.|-))?\\s*(>))",
+			"begin": "(?=(<)\\s*(?:([_$[:alpha:]][-$[:alnum:].]*)(?<!\\.|-)(:))?((?:[a-z][a-z0-9]*|([_$[:alpha:]][-$[:alnum:].]*))(?<!\\.|-))(?=((<\\s*)|(\\s+))(?!\\?)|\\/?>))",
+			"end": "(/>)|(?:(</)\\s*(?:([_$[:alpha:]][-$[:alnum:].]*)(?<!\\.|-)(:))?((?:[a-z][a-z0-9]*|([_$[:alpha:]][-$[:alnum:].]*))(?<!\\.|-))?\\s*(>))",
 			"endCaptures": {
 				"1": {
 					"name": "punctuation.definition.tag.end.js.jsx"
@@ -4705,7 +4943,7 @@
 			},
 			"patterns": [
 				{
-					"begin": "(<)\\s*(?:([_$a-zA-Z][-$\\w.]*)(?<!\\.|-)(:))?((?:[a-z][a-z0-9]*|([_$a-zA-Z][-$\\w.]*))(?<!\\.|-))(?=((<\\s*)|(\\s+))(?!\\?)|\\/?>)",
+					"begin": "(<)\\s*(?:([_$[:alpha:]][-$[:alnum:].]*)(?<!\\.|-)(:))?((?:[a-z][a-z0-9]*|([_$[:alpha:]][-$[:alnum:].]*))(?<!\\.|-))(?=((<\\s*)|(\\s+))(?!\\?)|\\/?>)",
 					"beginCaptures": {
 						"1": {
 							"name": "punctuation.definition.tag.begin.js.jsx"
@@ -4838,7 +5076,7 @@
 			]
 		},
 		"jsx-tag-attribute-name": {
-			"match": "(?x)\n  \\s*\n  (?:([_$a-zA-Z][-$\\w.]*)(:))?\n  ([_$a-zA-Z][-$\\w]*)\n  (?=\\s|=|/?>|/\\*|//)",
+			"match": "(?x)\n  \\s*\n  (?:([_$[:alpha:]][-$[:alnum:].]*)(:))?\n  ([_$[:alpha:]][-$[:alnum:]]*)\n  (?=\\s|=|/?>|/\\*|//)",
 			"captures": {
 				"1": {
 					"name": "entity.other.attribute-name.namespace.js.jsx"

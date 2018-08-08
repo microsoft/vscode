@@ -204,23 +204,32 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration)
 		properties: {
 			'extensions.autoUpdate': {
 				type: 'boolean',
-				description: localize('extensionsAutoUpdate', "Automatically update extensions"),
+				description: localize('extensionsAutoUpdate', "When enabled, automatically installs updates for extensions. The updates are fetched from an online service."),
 				default: true,
-				scope: ConfigurationScope.APPLICATION
+				scope: ConfigurationScope.APPLICATION,
+				tags: ['usesOnlineServices']
+			},
+			'extensions.autoCheckUpdates': {
+				type: 'boolean',
+				description: localize('extensionsCheckUpdates', "When enabled, automatically checks extensions for updates. If an extension has an update, it is marked as outdated in the Extensions view. The updates are fetched from an online service."),
+				default: true,
+				scope: ConfigurationScope.APPLICATION,
+				tags: ['usesOnlineServices']
 			},
 			'extensions.ignoreRecommendations': {
 				type: 'boolean',
-				description: localize('extensionsIgnoreRecommendations', "If set to true, the notifications for extension recommendations will stop showing up."),
+				description: localize('extensionsIgnoreRecommendations', "When enabled, the notifications for extension recommendations will not be shown."),
 				default: false
 			},
 			'extensions.showRecommendationsOnlyOnDemand': {
 				type: 'boolean',
-				description: localize('extensionsShowRecommendationsOnlyOnDemand', "If set to true, recommendations will not be fetched or shown unless specifically requested by the user."),
-				default: false
+				description: localize('extensionsShowRecommendationsOnlyOnDemand', "When enabled, recommendations will not be fetched or shown unless specifically requested by the user. Some recommendations are fetched from an online service."),
+				default: false,
+				tags: ['usesOnlineServices']
 			},
 			'extensions.closeExtensionDetailsOnViewChange': {
 				type: 'boolean',
-				description: localize('extensionsCloseExtensionDetailsOnViewChange', "If set to true, editors with extension details will be automatically closed upon navigating away from the Extensions View."),
+				description: localize('extensionsCloseExtensionDetailsOnViewChange', "When enabled, editors with extension details will be automatically closed upon navigating away from the Extensions View."),
 				default: false
 			}
 		}

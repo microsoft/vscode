@@ -11,7 +11,7 @@ import * as dom from 'vs/base/browser/dom';
 import { dispose, IDisposable } from 'vs/base/common/lifecycle';
 import { WorkbenchList } from 'vs/platform/list/browser/listService';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { IQuickPickItem } from 'vs/platform/quickinput/common/quickInput';
+import { IQuickPickItem, IQuickPickItemButtonEvent } from 'vs/platform/quickinput/common/quickInput';
 import { IMatch } from 'vs/base/common/filters';
 import { matchesFuzzyOcticonAware, parseOcticons } from 'vs/base/common/octicon';
 import { compareAnything } from 'vs/base/common/comparers';
@@ -26,6 +26,9 @@ import { range } from 'vs/base/common/arrays';
 import * as platform from 'vs/base/common/platform';
 import { listFocusBackground } from 'vs/platform/theme/common/colorRegistry';
 import { registerThemingParticipant } from 'vs/platform/theme/common/themeService';
+import { ActionBar } from 'vs/base/browser/ui/actionbar/actionbar';
+import { Action } from 'vs/base/common/actions';
+import { getIconClass } from 'vs/workbench/browser/parts/quickinput/quickInputUtils';
 
 const $ = dom.$;
 
@@ -33,6 +36,7 @@ interface IListElement {
 	index: number;
 	item: IQuickPickItem;
 	checked: boolean;
+	fireButtonTriggered: (event: IQuickPickItemButtonEvent<IQuickPickItem>) => void;
 }
 
 class ListElement implements IListElement {
@@ -55,6 +59,7 @@ class ListElement implements IListElement {
 	labelHighlights?: IMatch[];
 	descriptionHighlights?: IMatch[];
 	detailHighlights?: IMatch[];
+	fireButtonTriggered: (event: IQuickPickItemButtonEvent<IQuickPickItem>) => void;
 
 	constructor(init: IListElement) {
 		assign(this, init);
@@ -65,6 +70,7 @@ interface IListElementTemplateData {
 	checkbox: HTMLInputElement;
 	label: IconLabel;
 	detail: HighlightedLabel;
+	actionBar: ActionBar;
 	element: ListElement;
 	toDisposeElement: IDisposable[];
 	toDisposeTemplate: IDisposable[];
@@ -105,6 +111,11 @@ class ListElementRenderer implements IRenderer<ListElement, IListElementTemplate
 		const detailContainer = dom.append(row2, $('.quick-input-list-label-meta'));
 		data.detail = new HighlightedLabel(detailContainer);
 
+		// Actions
+		data.actionBar = new ActionBar(entry);
+		data.actionBar.domNode.classList.add('quick-input-list-entry-action-bar');
+		data.toDisposeTemplate.push(data.actionBar);
+
 		return data;
 	}
 
@@ -121,14 +132,31 @@ class ListElementRenderer implements IRenderer<ListElement, IListElementTemplate
 		options.matches = labelHighlights || [];
 		options.descriptionTitle = element.item.description;
 		options.descriptionMatches = descriptionHighlights || [];
+		options.extraClasses = element.item.iconClasses;
 		data.label.setValue(element.item.label, element.item.description, options);
 
 		// Meta
 		data.detail.set(element.item.detail, detailHighlights);
+
+		// Actions
+		data.actionBar.clear();
+		if (element.item.buttons) {
+			data.actionBar.push(element.item.buttons.map((button, index) => {
+				const action = new Action(`id-${index}`, '', button.iconClass || getIconClass(button.iconPath), true, () => {
+					element.fireButtonTriggered({
+						button,
+						item: element.item
+					});
+					return null;
+				});
+				action.tooltip = button.tooltip;
+				return action;
+			}), { icon: true, label: false });
+		}
 	}
 
-	disposeElement(): void {
-		// noop
+	disposeElement(element: ListElement, index: number, data: IListElementTemplateData): void {
+		data.toDisposeElement = dispose(data.toDisposeElement);
 	}
 
 	disposeTemplate(data: IListElementTemplateData): void {
@@ -160,8 +188,12 @@ export class QuickInputList {
 	onChangedAllVisibleChecked: Event<boolean> = this._onChangedAllVisibleChecked.event;
 	private _onChangedCheckedCount = new Emitter<number>();
 	onChangedCheckedCount: Event<number> = this._onChangedCheckedCount.event;
+	private _onChangedVisibleCount = new Emitter<number>();
+	onChangedVisibleCount: Event<number> = this._onChangedVisibleCount.event;
 	private _onChangedCheckedElements = new Emitter<IQuickPickItem[]>();
 	onChangedCheckedElements: Event<IQuickPickItem[]> = this._onChangedCheckedElements.event;
+	private _onButtonTriggered = new Emitter<IQuickPickItemButtonEvent<IQuickPickItem>>();
+	onButtonTriggered = this._onButtonTriggered.event;
 	private _onLeave = new Emitter<void>();
 	onLeave: Event<void> = this._onLeave.event;
 	private _fireCheckedEvents = true;
@@ -191,12 +223,14 @@ export class QuickInputList {
 					}
 					break;
 				case KeyCode.UpArrow:
+				case KeyCode.PageUp:
 					const focus1 = this.list.getFocus();
 					if (focus1.length === 1 && focus1[0] === 0) {
 						this._onLeave.fire();
 					}
 					break;
 				case KeyCode.DownArrow:
+				case KeyCode.PageDown:
 					const focus2 = this.list.getFocus();
 					if (focus2.length === 1 && focus2[0] === this.list.length - 1) {
 						this._onLeave.fire();
@@ -255,6 +289,17 @@ export class QuickInputList {
 		return count;
 	}
 
+	getVisibleCount() {
+		let count = 0;
+		const elements = this.elements;
+		for (let i = 0, n = elements.length; i < n; i++) {
+			if (!elements[i].hidden) {
+				count++;
+			}
+		}
+		return count;
+	}
+
 	setAllVisibleChecked(checked: boolean) {
 		try {
 			this._fireCheckedEvents = false;
@@ -271,10 +316,12 @@ export class QuickInputList {
 
 	setElements(elements: IQuickPickItem[]): void {
 		this.elementDisposables = dispose(this.elementDisposables);
+		const fireButtonTriggered = (event: IQuickPickItemButtonEvent<IQuickPickItem>) => this.fireButtonTriggered(event);
 		this.elements = elements.map((item, index) => new ListElement({
 			index,
 			item,
-			checked: false
+			checked: false,
+			fireButtonTriggered
 		}));
 		this.elementDisposables.push(...this.elements.map(element => element.onChecked(() => this.fireCheckedEvents())));
 
@@ -284,6 +331,7 @@ export class QuickInputList {
 		}, new Map<IQuickPickItem, number>());
 		this.list.splice(0, this.list.length, this.elements);
 		this.list.setFocus([]);
+		this._onChangedVisibleCount.fire(this.elements.length);
 	}
 
 	getFocusedElements() {
@@ -338,10 +386,10 @@ export class QuickInputList {
 			return;
 		}
 
-		if (what === 'Next' && this.list.getFocus()[0] === this.list.length - 1) {
+		if ((what === 'Next' || what === 'NextPage') && this.list.getFocus()[0] === this.list.length - 1) {
 			what = 'First';
 		}
-		if (what === 'Previous' && this.list.getFocus()[0] === 0) {
+		if ((what === 'Previous' || what === 'PreviousPage') && this.list.getFocus()[0] === 0) {
 			what = 'Last';
 		}
 
@@ -415,6 +463,7 @@ export class QuickInputList {
 		this.list.layout();
 
 		this._onChangedAllVisibleChecked.fire(this.getAllVisibleChecked());
+		this._onChangedVisibleCount.fire(shownElements.length);
 	}
 
 	toggleCheckbox() {
@@ -450,6 +499,10 @@ export class QuickInputList {
 			this._onChangedCheckedCount.fire(this.getCheckedCount());
 			this._onChangedCheckedElements.fire(this.getCheckedElements());
 		}
+	}
+
+	private fireButtonTriggered(event: IQuickPickItemButtonEvent<IQuickPickItem>) {
+		this._onButtonTriggered.fire(event);
 	}
 }
 

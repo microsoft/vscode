@@ -11,8 +11,9 @@ import { OpenContext } from 'vs/platform/windows/common/windows';
 import { IWorkspaceIdentifier } from 'vs/platform/workspaces/common/workspaces';
 import { toWorkspaceFolders } from 'vs/platform/workspace/common/workspace';
 import URI from 'vs/base/common/uri';
+import { getPathFromAmdModule } from 'vs/base/common/amd';
 
-const fixturesFolder = require.toUrl('./fixtures');
+const fixturesFolder = getPathFromAmdModule(require, './fixtures');
 
 const testWorkspace: IWorkspaceIdentifier = {
 	id: Date.now().toString(),

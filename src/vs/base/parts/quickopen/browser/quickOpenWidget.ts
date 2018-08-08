@@ -103,6 +103,7 @@ export class QuickOpenWidget extends Disposable implements IModelProvider {
 	private inputBox: InputBox;
 	private inputContainer: Builder;
 	private helpText: Builder;
+	private resultCount: Builder;
 	private treeContainer: Builder;
 	private progressBar: ProgressBar;
 	private visible: boolean;
@@ -231,6 +232,12 @@ export class QuickOpenWidget extends Disposable implements IModelProvider {
 					this.onType();
 				});
 			});
+
+			// Result count for screen readers
+			this.resultCount = div.div({
+				'class': 'quick-open-result-count',
+				'aria-live': 'polite'
+			}).clone();
 
 			// Tree
 			this.treeContainer = div.div({
@@ -628,9 +635,12 @@ export class QuickOpenWidget extends Disposable implements IModelProvider {
 			// Indicate entries to tree
 			this.tree.layout();
 
+			const entries = input ? input.entries.filter(e => this.isElementVisible(input, e)) : [];
+			this.updateResultCount(entries.length);
+
 			// Handle auto focus
-			if (input && input.entries.some(e => this.isElementVisible(input, e))) {
-				this.autoFocus(input, autoFocus);
+			if (entries.length) {
+				this.autoFocus(input, entries, autoFocus);
 			}
 		}, errors.onUnexpectedError);
 	}
@@ -643,8 +653,7 @@ export class QuickOpenWidget extends Disposable implements IModelProvider {
 		return input.filter.isVisible(e);
 	}
 
-	private autoFocus(input: IModel<any>, autoFocus: IAutoFocus = {}): void {
-		const entries = input.entries.filter(e => this.isElementVisible(input, e));
+	private autoFocus(input: IModel<any>, entries: any[], autoFocus: IAutoFocus = {}): void {
 
 		// First check for auto focus of prefix matches
 		if (autoFocus.autoFocusPrefixMatch) {
@@ -725,11 +734,13 @@ export class QuickOpenWidget extends Disposable implements IModelProvider {
 			// Indicate entries to tree
 			this.tree.layout();
 
+			const entries = input ? input.entries.filter(e => this.isElementVisible(input, e)) : [];
+			this.updateResultCount(entries.length);
+
 			// Handle auto focus
 			if (autoFocus) {
-				let doAutoFocus = autoFocus && input && input.entries.some(e => this.isElementVisible(input, e));
-				if (doAutoFocus) {
-					this.autoFocus(input, autoFocus);
+				if (entries.length) {
+					this.autoFocus(input, entries, autoFocus);
 				}
 			}
 		}, errors.onUnexpectedError);
@@ -767,6 +778,10 @@ export class QuickOpenWidget extends Disposable implements IModelProvider {
 		}
 
 		return height;
+	}
+
+	updateResultCount(count: number) {
+		this.resultCount.text(nls.localize({ key: 'quickInput.visibleCount', comment: ['This tells the user how many items are shown in a list of items to select from. The items can be anything. Currently not visible, but read by screen readers.'] }, "{0} Results", count));
 	}
 
 	hide(reason?: HideReason): void {

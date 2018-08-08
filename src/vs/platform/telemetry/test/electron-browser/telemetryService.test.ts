@@ -14,8 +14,6 @@ import * as Errors from 'vs/base/common/errors';
 import * as sinon from 'sinon';
 import { getConfigurationValue } from 'vs/platform/configuration/common/configuration';
 
-const optInStatusEventName: string = 'optInStatus';
-
 class TestTelemetryAppender implements ITelemetryAppender {
 
 	public events: any[];
@@ -719,29 +717,9 @@ suite('TelemetryService', () => {
 		}
 	}));
 
-	test('Telemetry Service respects user opt-in settings', sinon.test(function () {
+	test('Telemetry Service sends events when enableTelemetry is on', sinon.test(function () {
 		let testAppender = new TestTelemetryAppender();
-		let service = new TelemetryService({ userOptIn: false, appender: testAppender }, undefined);
-
-		return service.publicLog('testEvent').then(() => {
-			assert.equal(testAppender.getEventsCount(), 0);
-			service.dispose();
-		});
-	}));
-
-	test('Telemetry Service does not sent optInStatus when user opted out', sinon.test(function () {
-		let testAppender = new TestTelemetryAppender();
-		let service = new TelemetryService({ userOptIn: false, appender: testAppender }, undefined);
-
-		return service.publicLog(optInStatusEventName, { optIn: false }).then(() => {
-			assert.equal(testAppender.getEventsCount(), 0);
-			service.dispose();
-		});
-	}));
-
-	test('Telemetry Service sends events when enableTelemetry is on even user optin is on', sinon.test(function () {
-		let testAppender = new TestTelemetryAppender();
-		let service = new TelemetryService({ userOptIn: true, appender: testAppender }, undefined);
+		let service = new TelemetryService({ appender: testAppender }, undefined);
 
 		return service.publicLog('testEvent').then(() => {
 			assert.equal(testAppender.getEventsCount(), 1);

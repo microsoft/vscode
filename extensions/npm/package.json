@@ -82,6 +82,10 @@
           "light": "resources/light/refresh.svg",
           "dark": "resources/dark/refresh.svg"
         }
+      },
+      {
+        "command": "npm.runSelectedScript",
+        "title": "%command.runSelectedScript%"
       }
     ],
     "menus": {
@@ -105,6 +109,17 @@
         {
           "command": "npm.runInstall",
           "when": "false"
+        },
+        {
+          "command": "npm.runSelectedScript",
+          "when": "false"
+        }
+      ],
+      "editor/context": [
+        {
+          "command": "npm.runSelectedScript",
+          "when": "resourceFilename == 'package.json'",
+          "group": "navigation@+1"
         }
       ],
       "view/title": [
@@ -178,12 +193,6 @@
           "scope": "resource",
           "description": "%config.npm.runSilent%"
         },
-        "npm.scriptCodeLens.enable": {
-          "type": "boolean",
-          "default": false,
-          "scope": "resource",
-          "description": "%config.scriptCodeLens.enable%"
-        },
         "npm.packageManager": {
           "scope": "resource",
           "type": "string",
@@ -220,6 +229,13 @@
           "description": "%config.npm.scriptExplorerAction%",
           "scope": "window",
           "default": "open"
+        },
+        "npm.fetchOnlinePackageInfo": {
+          "type": "boolean",
+          "description": "%config.npm.fetchOnlinePackageInfo%",
+          "default": true,
+          "scope": "window",
+          "tags": ["usesOnlineServices"]
         }
       }
     },

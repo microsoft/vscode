@@ -13,8 +13,9 @@ import * as platform from 'vs/base/common/platform';
 
 import { FileWalker, Engine as FileSearchEngine } from 'vs/workbench/services/search/node/fileSearch';
 import { IRawFileMatch, IFolderSearch } from 'vs/workbench/services/search/node/search';
+import { getPathFromAmdModule } from 'vs/base/common/amd';
 
-const TEST_FIXTURES = path.normalize(require.toUrl('./fixtures'));
+const TEST_FIXTURES = path.normalize(getPathFromAmdModule(require, './fixtures'));
 const EXAMPLES_FIXTURES = path.join(TEST_FIXTURES, 'examples');
 const MORE_FIXTURES = path.join(TEST_FIXTURES, 'more');
 const TEST_ROOT_FOLDER: IFolderSearch = { folder: TEST_FIXTURES };
@@ -23,7 +24,7 @@ const ROOT_FOLDER_QUERY: IFolderSearch[] = [
 ];
 
 const ROOT_FOLDER_QUERY_36438: IFolderSearch[] = [
-	{ folder: path.normalize(require.toUrl('./fixtures2/36438')) }
+	{ folder: path.normalize(getPathFromAmdModule(require, './fixtures2/36438')) }
 ];
 
 const MULTIROOT_QUERIES: IFolderSearch[] = [
@@ -629,9 +630,9 @@ suite('FileSearchEngine', () => {
 		let engine = new FileSearchEngine({
 			folderQueries: [],
 			extraFiles: [
-				path.normalize(path.join(require.toUrl('./fixtures'), 'site.css')),
-				path.normalize(path.join(require.toUrl('./fixtures'), 'examples', 'company.js')),
-				path.normalize(path.join(require.toUrl('./fixtures'), 'index.html'))
+				path.normalize(path.join(getPathFromAmdModule(require, './fixtures'), 'site.css')),
+				path.normalize(path.join(getPathFromAmdModule(require, './fixtures'), 'examples', 'company.js')),
+				path.normalize(path.join(getPathFromAmdModule(require, './fixtures'), 'index.html'))
 			],
 			filePattern: '*.js'
 		});
@@ -656,9 +657,9 @@ suite('FileSearchEngine', () => {
 		let engine = new FileSearchEngine({
 			folderQueries: [],
 			extraFiles: [
-				path.normalize(path.join(require.toUrl('./fixtures'), 'site.css')),
-				path.normalize(path.join(require.toUrl('./fixtures'), 'examples', 'company.js')),
-				path.normalize(path.join(require.toUrl('./fixtures'), 'index.html'))
+				path.normalize(path.join(getPathFromAmdModule(require, './fixtures'), 'site.css')),
+				path.normalize(path.join(getPathFromAmdModule(require, './fixtures'), 'examples', 'company.js')),
+				path.normalize(path.join(getPathFromAmdModule(require, './fixtures'), 'index.html'))
 			],
 			filePattern: '*.*',
 			includePattern: { '**/*.css': true }
@@ -684,9 +685,9 @@ suite('FileSearchEngine', () => {
 		let engine = new FileSearchEngine({
 			folderQueries: [],
 			extraFiles: [
-				path.normalize(path.join(require.toUrl('./fixtures'), 'site.css')),
-				path.normalize(path.join(require.toUrl('./fixtures'), 'examples', 'company.js')),
-				path.normalize(path.join(require.toUrl('./fixtures'), 'index.html'))
+				path.normalize(path.join(getPathFromAmdModule(require, './fixtures'), 'site.css')),
+				path.normalize(path.join(getPathFromAmdModule(require, './fixtures'), 'examples', 'company.js')),
+				path.normalize(path.join(getPathFromAmdModule(require, './fixtures'), 'index.html'))
 			],
 			filePattern: '*.*',
 			excludePattern: { '**/*.css': true }

@@ -263,6 +263,9 @@ export class ExtensionLinter {
 	}
 
 	private async loadPackageJson(folder: Uri) {
+		if (folder.scheme === 'git') { // #36236
+			return undefined;
+		}
 		const file = folder.with({ path: path.posix.join(folder.path, 'package.json') });
 		try {
 			const document = await workspace.openTextDocument(file);

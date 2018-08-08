@@ -40,8 +40,9 @@ import { ExtensionsLifecycle } from 'vs/platform/extensionManagement/node/extens
 import { toErrorMessage } from 'vs/base/common/errorMessage';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { isEngineValid } from 'vs/platform/extensions/node/extensionValidator';
+import { getPathFromAmdModule } from 'vs/base/common/amd';
 
-const SystemExtensionsRoot = path.normalize(path.join(URI.parse(require.toUrl('')).fsPath, '..', 'extensions'));
+const SystemExtensionsRoot = path.normalize(path.join(getPathFromAmdModule(require, ''), '..', 'extensions'));
 const ERROR_SCANNING_SYS_EXTENSIONS = 'scanningSystem';
 const ERROR_SCANNING_USER_EXTENSIONS = 'scanningUser';
 const INSTALL_ERROR_UNSET_UNINSTALLED = 'unsetUninstalled';
@@ -538,12 +539,20 @@ export class ExtensionManagementService extends Disposable implements IExtension
 	private checkForDependenciesAndUninstall(extension: ILocalExtension, installed: ILocalExtension[], force: boolean): TPromise<void> {
 		return this.preUninstallExtension(extension)
 			.then(() => {
-				if (force) {
-					return this.uninstallExtensionAsPack(extension, installed);
+				const packedExtensions = this.getAllPackExtensionsToUninstall(extension, installed);
+				if (packedExtensions.length) {
+					return this.uninstallExtensions(extension, packedExtensions, installed);
 				}
-				const hasInstalledExtensionPack = extension.manifest.extensionPack && extension.manifest.extensionPack.length && installed.some(i => extension.manifest.extensionPack.some(dep => areSameExtensions({ id: dep }, i.galleryIdentifier)));
-				const hasDependencies = extension.manifest.extensionDependencies && extension.manifest.extensionDependencies.length > 0;
-				return hasInstalledExtensionPack || hasDependencies ? this.promptForPackAndUninstall(extension, installed) : this.uninstallExtensions(extension, [], installed);
+				const dependencies = this.getDependenciesToUninstall(extension, installed);
+				if (dependencies.length) {
+					if (force) {
+						return this.uninstallExtensions(extension, dependencies, installed);
+					} else {
+						return this.promptForDependenciesAndUninstall(extension, dependencies, installed);
+					}
+				} else {
+					return this.uninstallExtensions(extension, [], installed);
+				}
 			})
 			.then(() => this.postUninstallExtension(extension),
 				error => {
@@ -552,17 +561,17 @@ export class ExtensionManagementService extends Disposable implements IExtension
 				});
 	}
 
-	private promptForPackAndUninstall(extension: ILocalExtension, installed: ILocalExtension[]): TPromise<void> {
-		const message = nls.localize('uninstallExtensionPackConfirmation', "Would you like to uninstall '{0}' only or as a pack?", extension.manifest.displayName || extension.manifest.name);
+	private promptForDependenciesAndUninstall(extension: ILocalExtension, dependencies: ILocalExtension[], installed: ILocalExtension[]): TPromise<void> {
+		const message = nls.localize('uninstallDependeciesConfirmation', "Also uninstall the dependencies of the extension '{0}'?", extension.manifest.displayName || extension.manifest.name);
 		const buttons = [
-			nls.localize('uninstallPack', "Uninstall Extension Pack"),
-			nls.localize('uninstallOnly', "Uninstall Extension Only"),
+			nls.localize('yes', "Yes"),
+			nls.localize('no', "No"),
 			nls.localize('cancel', "Cancel")
 		];
 		return this.dialogService.show(Severity.Info, message, buttons, { cancelId: 2 })
 			.then<void>(value => {
 				if (value === 0) {
-					return this.uninstallExtensionAsPack(extension, installed);
+					return this.uninstallExtensions(extension, dependencies, installed);
 				}
 				if (value === 1) {
 					return this.uninstallExtensions(extension, [], installed);
@@ -570,16 +579,6 @@ export class ExtensionManagementService extends Disposable implements IExtension
 				this.logService.info('Cancelled uninstalling extension:', extension.identifier.id);
 				return TPromise.wrapError(errors.canceled());
 			}, error => TPromise.wrapError(errors.canceled()));
-	}
-
-	private uninstallExtensionAsPack(extension: ILocalExtension, installed: ILocalExtension[]): TPromise<void> {
-		const extensionsToUninstall = this.getDependenciesToUninstall(extension, installed);
-		for (const packExtensionToUninstall of this.getAllPackExtensionsToUninstall(extension, installed)) {
-			if (extensionsToUninstall.indexOf(packExtensionToUninstall) === -1) {
-				extensionsToUninstall.push(packExtensionToUninstall);
-			}
-		}
-		return this.uninstallExtensions(extension, extensionsToUninstall, installed);
 	}
 
 	private uninstallExtensions(extension: ILocalExtension, otherExtensionsToUninstall: ILocalExtension[], installed: ILocalExtension[]): TPromise<void> {

@@ -58,6 +58,9 @@ class SelectListRenderer implements IRenderer<ISelectOptionItem, ISelectListTemp
 		data.optionText.textContent = optionText;
 		data.root.setAttribute('aria-label', nls.localize('selectAriaOption', "{0}", optionText));
 
+		// Workaround for list labels
+		data.root.setAttribute('aria-selected', 'true');
+
 		// pseudo-select disabled option
 		if (optionDisabled) {
 			dom.addClass((<HTMLElement>data.root), 'option-disabled');

@@ -19,6 +19,7 @@
   "scripts": {
     "compile": "gulp compile-extension:css-language-features-client compile-extension:css-language-features-server",
     "watch": "gulp watch-extension:css-language-features-client watch-extension:css-language-features-server",
+    "test": "mocha",
     "postinstall": "cd server && yarn install",
     "install-client-next": "yarn add vscode-languageclient@next"
   },
@@ -707,8 +708,7 @@
     ]
   },
   "dependencies": {
-    "vscode-languageclient": "^4.1.4",
-    "vscode-languageserver-protocol-foldingprovider": "^2.0.1",
+    "vscode-languageclient": "^4.4.0",
     "vscode-nls": "^3.2.4"
   },
   "devDependencies": {

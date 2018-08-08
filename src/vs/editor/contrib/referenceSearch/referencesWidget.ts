@@ -7,7 +7,6 @@
 import 'vs/css!./media/referencesWidget';
 import * as nls from 'vs/nls';
 import { onUnexpectedError } from 'vs/base/common/errors';
-import { getPathLabel } from 'vs/base/common/labels';
 import { Event, Emitter } from 'vs/base/common/event';
 import { IDisposable, dispose, IReference } from 'vs/base/common/lifecycle';
 import { Schemas } from 'vs/base/common/network';
@@ -21,10 +20,9 @@ import { IKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { IMouseEvent } from 'vs/base/browser/mouseEvent';
 import { GestureEvent } from 'vs/base/browser/touch';
 import { CountBadge } from 'vs/base/browser/ui/countBadge/countBadge';
-import { FileLabel } from 'vs/base/browser/ui/iconLabel/iconLabel';
+import { IconLabel } from 'vs/base/browser/ui/iconLabel/iconLabel';
 import * as tree from 'vs/base/parts/tree/browser/tree';
-import { IInstantiationService, optional } from 'vs/platform/instantiation/common/instantiation';
-import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
+import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { Range, IRange } from 'vs/editor/common/core/range';
 import * as editorCommon from 'vs/editor/common/editorCommon';
 import { TextModel, ModelDecorationOptions } from 'vs/editor/common/model/textModel';
@@ -37,13 +35,15 @@ import { registerColor, activeContrastBorder, contrastBorder } from 'vs/platform
 import { registerThemingParticipant, ITheme, IThemeService } from 'vs/platform/theme/common/themeService';
 import { attachBadgeStyler } from 'vs/platform/theme/common/styler';
 import { IEditorOptions } from 'vs/editor/common/config/editorOptions';
-import { IEnvironmentService } from 'vs/platform/environment/common/environment';
-import URI from 'vs/base/common/uri';
 import { TrackedRangeStickiness, IModelDeltaDecoration } from 'vs/editor/common/model';
 import { WorkbenchTree, WorkbenchTreeController } from 'vs/platform/list/browser/listService';
 import { RawContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { Location } from 'vs/editor/common/modes';
 import { ClickBehavior } from 'vs/base/parts/tree/browser/treeDefaults';
+import { IUriDisplayService } from 'vs/platform/uriDisplay/common/uriDisplay';
+import { dirname, basenameOrAuthority } from 'vs/base/common/resources';
+import { getBaseLabel } from 'vs/base/common/labels';
+
 
 class DecorationsManager implements IDisposable {
 
@@ -294,20 +294,19 @@ class Controller extends WorkbenchTreeController {
 
 class FileReferencesTemplate {
 
-	readonly file: FileLabel;
+	readonly file: IconLabel;
 	readonly badge: CountBadge;
 	readonly dispose: () => void;
 
 	constructor(
 		container: HTMLElement,
-		@IWorkspaceContextService private readonly _contextService: IWorkspaceContextService,
-		@optional(IEnvironmentService) private _environmentService: IEnvironmentService,
+		@IUriDisplayService private readonly _uriDisplay: IUriDisplayService,
 		@IThemeService themeService: IThemeService,
 	) {
 		const parent = document.createElement('div');
 		dom.addClass(parent, 'reference-file');
 		container.appendChild(parent);
-		this.file = new FileLabel(parent, URI.parse('no:file'), this._contextService, this._environmentService);
+		this.file = new IconLabel(parent);
 
 		this.badge = new CountBadge($('.count').appendTo(parent).getHTMLElement());
 		const styler = attachBadgeStyler(this.badge, themeService);
@@ -319,7 +318,8 @@ class FileReferencesTemplate {
 	}
 
 	set(element: FileReferences) {
-		this.file.setFile(element.uri, this._contextService, this._environmentService);
+		let parent = dirname(element.uri);
+		this.file.setValue(getBaseLabel(element.uri), parent ? this._uriDisplay.getLabel(parent, true) : undefined, { title: this._uriDisplay.getLabel(element.uri) });
 		const len = element.children.length;
 		this.badge.setCount(len);
 		if (element.failure) {
@@ -367,9 +367,8 @@ class Renderer implements tree.IRenderer {
 	};
 
 	constructor(
-		@IWorkspaceContextService private readonly _contextService: IWorkspaceContextService,
 		@IThemeService private readonly _themeService: IThemeService,
-		@optional(IEnvironmentService) private _environmentService: IEnvironmentService,
+		@IUriDisplayService private readonly _uriDisplay: IUriDisplayService,
 	) {
 		//
 	}
@@ -389,7 +388,7 @@ class Renderer implements tree.IRenderer {
 
 	renderTemplate(tree: tree.ITree, templateId: string, container: HTMLElement) {
 		if (templateId === Renderer._ids.FileReferences) {
-			return new FileReferencesTemplate(container, this._contextService, this._environmentService, this._themeService);
+			return new FileReferencesTemplate(container, this._uriDisplay, this._themeService);
 		} else if (templateId === Renderer._ids.OneReference) {
 			return new OneReferenceTemplate(container);
 		}
@@ -530,11 +529,10 @@ export class ReferenceWidget extends PeekViewWidget {
 		editor: ICodeEditor,
 		private _defaultTreeKeyboardSupport: boolean,
 		public layoutData: LayoutData,
-		private _textModelResolverService: ITextModelService,
-		private _contextService: IWorkspaceContextService,
-		themeService: IThemeService,
-		private _instantiationService: IInstantiationService,
-		private _environmentService: IEnvironmentService
+		@IThemeService themeService: IThemeService,
+		@ITextModelService private _textModelResolverService: ITextModelService,
+		@IInstantiationService private _instantiationService: IInstantiationService,
+		@IUriDisplayService private _uriDisplay: IUriDisplayService
 	) {
 		super(editor, { showFrame: false, showArrow: true, isResizeable: true, isAccessible: true });
 
@@ -780,7 +778,7 @@ export class ReferenceWidget extends PeekViewWidget {
 
 		// Update widget header
 		if (reference.uri.scheme !== Schemas.inMemory) {
-			this.setTitle(reference.name, getPathLabel(reference.directory, this._environmentService, this._contextService));
+			this.setTitle(basenameOrAuthority(reference.uri), this._uriDisplay.getLabel(dirname(reference.uri), false));
 		} else {
 			this.setTitle(nls.localize('peekView.alternateTitle', "References"));
 		}

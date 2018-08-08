@@ -958,7 +958,7 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 			this.doCloseInactiveEditor(editor);
 		}
 
-		// Forward to title control & breadcrumbs
+		// Forward to title control
 		this.titleAreaControl.closeEditor(editor);
 	}
 
@@ -1373,6 +1373,7 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 		this._onWillDispose.fire();
 
 		this.titleAreaControl.dispose();
+		// this.editorControl = null;
 
 		super.dispose();
 	}

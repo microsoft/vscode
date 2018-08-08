@@ -16,7 +16,7 @@ export default class Messages {
 	public static MARKERS_PANEL_SHOW_LABEL: string = nls.localize('problems.view.focus.label', "Focus Problems (Errors, Warnings, Infos)");
 
 	public static PROBLEMS_PANEL_CONFIGURATION_TITLE: string = nls.localize('problems.panel.configuration.title', "Problems View");
-	public static PROBLEMS_PANEL_CONFIGURATION_AUTO_REVEAL: string = nls.localize('problems.panel.configuration.autoreveal', "Controls if Problems view should automatically reveal files when opening them");
+	public static PROBLEMS_PANEL_CONFIGURATION_AUTO_REVEAL: string = nls.localize('problems.panel.configuration.autoreveal', "Controls whether Problems view should automatically reveal files when opening them.");
 
 	public static MARKERS_PANEL_TITLE_PROBLEMS: string = nls.localize('markers.panel.title.problems', "Problems");
 	public static MARKERS_PANEL_ARIA_LABEL_PROBLEMS_TREE: string = nls.localize('markers.panel.aria.label.problems.tree', "Problems grouped by files");
@@ -28,6 +28,7 @@ export default class Messages {
 	public static MARKERS_PANEL_ACTION_TOOLTIP_USE_FILES_EXCLUDE: string = nls.localize('markers.panel.action.useFilesExclude', "Filter using Files Exclude Setting");
 	public static MARKERS_PANEL_ACTION_TOOLTIP_DO_NOT_USE_FILES_EXCLUDE: string = nls.localize('markers.panel.action.donotUseFilesExclude', "Do not use Files Exclude Setting");
 	public static MARKERS_PANEL_ACTION_TOOLTIP_FILTER: string = nls.localize('markers.panel.action.filter', "Filter Problems");
+	public static MARKERS_PANEL_ACTION_TOOLTIP_QUICKFIX: string = nls.localize('markers.panel.action.quickfix', "Show fixes");
 	public static MARKERS_PANEL_FILTER_ARIA_LABEL: string = nls.localize('markers.panel.filter.ariaLabel', "Filter Problems");
 	public static MARKERS_PANEL_FILTER_PLACEHOLDER: string = nls.localize('markers.panel.filter.placeholder', "Filter. Eg: text, **/*.ts, !**/node_modules/**");
 	public static MARKERS_PANEL_FILTER_ERRORS: string = nls.localize('markers.panel.filter.errors', "errors");

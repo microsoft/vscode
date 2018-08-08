@@ -31,6 +31,7 @@ import { TPromise } from 'vs/base/common/winjs.base';
 import { onUnexpectedError, canceled } from 'vs/base/common/errors';
 import { KeyCode } from 'vs/base/common/keyCodes';
 import { IKeyboardEvent } from 'vs/base/browser/keyboardEvent';
+import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 
 export type ListWidget = List<any> | PagedList<any> | ITree;
 
@@ -578,7 +579,8 @@ export class HighlightingTreeController extends WorkbenchTreeController {
 	constructor(
 		options: IControllerOptions,
 		private readonly onType: () => any,
-		@IConfigurationService configurationService: IConfigurationService
+		@IConfigurationService configurationService: IConfigurationService,
+		@IKeybindingService private readonly _keybindingService: IKeybindingService,
 	) {
 		super(options, configurationService);
 	}
@@ -591,16 +593,7 @@ export class HighlightingTreeController extends WorkbenchTreeController {
 		if (this.upKeyBindingDispatcher.has(event.keyCode)) {
 			return false;
 		}
-		if (event.ctrlKey || event.metaKey) {
-			// ignore ctrl/cmd-combination but not shift/alt-combinatios
-			return false;
-		}
-		// crazy -> during keydown focus moves to the input box
-		// and because of that the keyup event is handled by the
-		// input field
-		if (event.keyCode >= KeyCode.KEY_A && event.keyCode <= KeyCode.KEY_Z) {
-			// todo@joh this is much weaker than using the KeyboardMapperFactory
-			// but due to layering-challanges that's not available here...
+		if (this._keybindingService.mightProducePrintableCharacter(event)) {
 			this.onType();
 			return true;
 		}
@@ -658,16 +651,18 @@ export class HighlightingWorkbenchTree extends WorkbenchTree {
 			//todo@joh make this command/context-key based
 			switch (event.keyCode) {
 				case KeyCode.DownArrow:
-				case KeyCode.UpArrow:
+				case KeyCode.Tab:
 					this.domFocus();
+					event.preventDefault();
 					break;
 				case KeyCode.Enter:
-				case KeyCode.Tab:
 					this.setSelection(this.getSelection());
+					event.preventDefault();
 					break;
 				case KeyCode.Escape:
 					this.input.value = '';
 					this.domFocus();
+					event.preventDefault();
 					break;
 			}
 		}));
@@ -701,26 +696,26 @@ export class HighlightingWorkbenchTree extends WorkbenchTree {
 	private updateHighlights(pattern: string): void {
 
 		// remember old selection
-		let defaultSelection: any[];
+		let defaultSelection: any[] = [];
 		if (!this.lastSelection && pattern) {
 			this.lastSelection = this.getSelection();
-			defaultSelection = [];
 		} else if (this.lastSelection && !pattern) {
 			defaultSelection = this.lastSelection;
 			this.lastSelection = [];
 		}
 
-		let topElement = this.renderer.updateHighlights(this, pattern);
-		if (topElement && pattern) {
-			this.reveal(topElement).then(_ => {
-				this.setSelection([topElement], this);
-				this.setFocus(topElement, this);
-				return this.refresh();
-			}, onUnexpectedError);
-		} else {
-			this.setSelection(defaultSelection, this);
-			this.refresh().then(undefined, onUnexpectedError);
-		}
+		const topElement = this.renderer.updateHighlights(this, pattern);
+
+		this.refresh().then(() => {
+			if (topElement && pattern) {
+				this.reveal(topElement, .5).then(_ => {
+					this.setSelection([topElement], this);
+					this.setFocus(topElement, this);
+				});
+			} else {
+				this.setSelection(defaultSelection, this);
+			}
+		}, onUnexpectedError);
 	}
 }
 
@@ -746,20 +741,16 @@ configurationRegistry.registerConfiguration({
 					'- `ctrlCmd` refers to a value the setting can take and should not be localized.',
 					'- `Control` and `Command` refer to the modifier keys Ctrl or Cmd on the keyboard and can be localized.'
 				]
-			}, "The modifier to be used to add an item in trees and lists to a multi-selection with the mouse (for example in the explorer, open editors and scm view). `ctrlCmd` maps to `Control` on Windows and Linux and to `Command` on macOS. The 'Open to Side' mouse gestures - if supported - will adapt such that they do not conflict with the multiselect modifier.")
+			}, "The modifier to be used to add an item in trees and lists to a multi-selection with the mouse (for example in the explorer, open editors and scm view). The 'Open to Side' mouse gestures - if supported - will adapt such that they do not conflict with the multiselect modifier.")
 		},
 		[openModeSettingKey]: {
 			'type': 'string',
 			'enum': ['singleClick', 'doubleClick'],
-			'enumDescriptions': [
-				localize('openMode.singleClick', "Opens items on mouse single click."),
-				localize('openMode.doubleClick', "Open items on mouse double click.")
-			],
 			'default': 'singleClick',
 			'description': localize({
 				key: 'openModeModifier',
 				comment: ['`singleClick` and `doubleClick` refers to a value the setting can take and should not be localized.']
-			}, "Controls how to open items in trees and lists using the mouse (if supported). Set to `singleClick` to open items with a single mouse click and `doubleClick` to only open via mouse double click. For parents with children in trees, this setting will control if a single click expands the parent or a double click. Note that some trees and lists might choose to ignore this setting if it is not applicable. ")
+			}, "Controls how to open items in trees and lists using the mouse (if supported). For parents with children in trees, this setting will control if a single click expands the parent or a double click. Note that some trees and lists might choose to ignore this setting if it is not applicable. ")
 		},
 		[horizontalScrollingKey]: {
 			'type': 'boolean',

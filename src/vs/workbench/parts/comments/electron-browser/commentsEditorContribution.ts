@@ -243,7 +243,7 @@ export class ReviewController implements IEditorContribution {
 		this._commentWidgets = [];
 
 		this.localToDispose.push(this.editor.onMouseMove(e => this.onEditorMouseMove(e)));
-		this.localToDispose.push(this.editor.onDidBlurEditorText(() => this.onDidBlurEditorText()));
+		this.localToDispose.push(this.editor.onMouseLeave(() => this.onMouseLeave()));
 		this.localToDispose.push(this.editor.onDidChangeModelContent(() => {
 			if (this._newCommentGlyph) {
 				this.editor.removeContentWidget(this._newCommentGlyph);
@@ -318,10 +318,6 @@ export class ReviewController implements IEditorContribution {
 			return;
 		}
 
-		if (!this.editor.hasTextFocus()) {
-			return;
-		}
-
 		const hasCommentingRanges = this._commentInfos.length && this._commentInfos.some(info => !!info.commentingRanges.length);
 		if (hasCommentingRanges && e.target.position && e.target.position.lineNumber !== undefined) {
 			if (this._newCommentGlyph && e.target.element.className !== 'comment-hint') {
@@ -343,7 +339,7 @@ export class ReviewController implements IEditorContribution {
 		}
 	}
 
-	private onDidBlurEditorText(): void {
+	private onMouseLeave(): void {
 		if (this._newCommentGlyph) {
 			this.editor.removeContentWidget(this._newCommentGlyph);
 		}

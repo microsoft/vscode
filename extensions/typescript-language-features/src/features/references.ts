@@ -26,13 +26,13 @@ class TypeScriptReferenceSupport implements vscode.ReferenceProvider {
 
 		const args = typeConverters.Position.toFileLocationRequestArgs(filepath, position);
 		try {
-			const msg = await this.client.execute('references', args, token);
-			if (!msg.body) {
+			const { body } = await this.client.execute('references', args, token);
+			if (!body) {
 				return [];
 			}
 			const result: vscode.Location[] = [];
 			const has203Features = this.client.apiVersion.gte(API.v203);
-			for (const ref of msg.body.refs) {
+			for (const ref of body.refs) {
 				if (!options.includeDeclaration && has203Features && ref.isDefinition) {
 					continue;
 				}

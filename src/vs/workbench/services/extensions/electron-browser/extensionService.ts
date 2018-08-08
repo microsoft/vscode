@@ -43,18 +43,19 @@ import { RPCProtocol } from 'vs/workbench/services/extensions/node/rpcProtocol';
 import { INotificationService, Severity } from 'vs/platform/notification/common/notification';
 import { isFalsyOrEmpty } from 'vs/base/common/arrays';
 import { Schemas } from 'vs/base/common/network';
+import { getPathFromAmdModule } from 'vs/base/common/amd';
 
 let _SystemExtensionsRoot: string = null;
 function getSystemExtensionsRoot(): string {
 	if (!_SystemExtensionsRoot) {
-		_SystemExtensionsRoot = path.normalize(path.join(URI.parse(require.toUrl('')).fsPath, '..', 'extensions'));
+		_SystemExtensionsRoot = path.normalize(path.join(getPathFromAmdModule(require, ''), '..', 'extensions'));
 	}
 	return _SystemExtensionsRoot;
 }
 let _ExtraDevSystemExtensionsRoot: string = null;
 function getExtraDevSystemExtensionsRoot(): string {
 	if (!_ExtraDevSystemExtensionsRoot) {
-		_ExtraDevSystemExtensionsRoot = path.normalize(path.join(URI.parse(require.toUrl('')).fsPath, '..', '.build', 'builtInExtensions'));
+		_ExtraDevSystemExtensionsRoot = path.normalize(path.join(getPathFromAmdModule(require, ''), '..', '.build', 'builtInExtensions'));
 	}
 	return _ExtraDevSystemExtensionsRoot;
 }
@@ -122,7 +123,7 @@ export class ExtensionHostProcessManager extends Disposable {
 	/**
 	 * winjs believes a proxy is a promise because it has a `then` method, so wrap the result in an object.
 	 */
-	private readonly _extensionHostProcessProxy: TPromise<{ value: ExtHostExtensionServiceShape; }>;
+	private _extensionHostProcessProxy: TPromise<{ value: ExtHostExtensionServiceShape; }>;
 
 	constructor(
 		extensionHostProcessWorker: ExtensionHostProcessWorker,
@@ -134,7 +135,6 @@ export class ExtensionHostProcessManager extends Disposable {
 		this._extensionHostProcessFinishedActivateEvents = Object.create(null);
 		this._extensionHostProcessRPCProtocol = null;
 		this._extensionHostProcessCustomers = [];
-		this._extensionHostProcessProxy = null;
 
 		this._extensionHostProcessWorker = extensionHostProcessWorker;
 		this.onDidCrash = this._extensionHostProcessWorker.onCrashed;
@@ -168,6 +168,7 @@ export class ExtensionHostProcessManager extends Disposable {
 				errors.onUnexpectedError(err);
 			}
 		}
+		this._extensionHostProcessProxy = null;
 
 		super.dispose();
 	}
@@ -218,6 +219,11 @@ export class ExtensionHostProcessManager extends Disposable {
 			return NO_OP_VOID_PROMISE;
 		}
 		return this._extensionHostProcessProxy.then((proxy) => {
+			if (!proxy) {
+				// this case is already covered above and logged.
+				// i.e. the extension host could not be started
+				return NO_OP_VOID_PROMISE;
+			}
 			return proxy.value.$activateByEvent(activationEvent);
 		}).then(() => {
 			this._extensionHostProcessFinishedActivateEvents[activationEvent] = true;
@@ -791,7 +797,7 @@ export class ExtensionService extends Disposable implements IExtensionService {
 			let finalBuiltinExtensions: TPromise<IExtensionDescription[]> = TPromise.wrap(builtinExtensions);
 
 			if (devMode) {
-				const builtInExtensionsFilePath = path.normalize(path.join(URI.parse(require.toUrl('')).fsPath, '..', 'build', 'builtInExtensions.json'));
+				const builtInExtensionsFilePath = path.normalize(path.join(getPathFromAmdModule(require, ''), '..', 'build', 'builtInExtensions.json'));
 				const builtInExtensions = pfs.readFile(builtInExtensionsFilePath, 'utf8')
 					.then<IBuiltInExtension[]>(raw => JSON.parse(raw));
 

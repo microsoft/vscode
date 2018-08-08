@@ -48,26 +48,21 @@ declare namespace monaco {
 
 	export type TValueCallback<T = any> = (value: T | PromiseLike<T>) => void;
 
-	export type ProgressCallback<TProgress = any> = (progress: TProgress) => void;
 
-
-	export class Promise<T = any, TProgress = any> {
+	export class Promise<T = any> {
 		constructor(
 			executor: (
 				resolve: (value: T | PromiseLike<T>) => void,
-				reject: (reason: any) => void,
-				progress: (progress: TProgress) => void) => void,
+				reject: (reason: any) => void) => void,
 			oncancel?: () => void);
 
 		public then<TResult1 = T, TResult2 = never>(
 			onfulfilled?: ((value: T) => TResult1 | PromiseLike<TResult1>) | null,
-			onrejected?: ((reason: any) => TResult2 | PromiseLike<TResult2>) | null,
-			onprogress?: (progress: TProgress) => void): Promise<TResult1 | TResult2, TProgress>;
+			onrejected?: ((reason: any) => TResult2 | PromiseLike<TResult2>) | null): Promise<TResult1 | TResult2>;
 
 		public done(
 			onfulfilled?: (value: T) => void,
-			onrejected?: (reason: any) => void,
-			onprogress?: (progress: TProgress) => void): void;
+			onrejected?: (reason: any) => void): void;
 
 		public cancel(): void;
 
@@ -2518,6 +2513,22 @@ declare namespace monaco.editor {
 		sticky?: boolean;
 	}
 
+	/**
+	 * Configuration options for parameter hints
+	 */
+	export interface IEditorParameterHintOptions {
+		/**
+		 * Enable parameter hints.
+		 * Defaults to true.
+		 */
+		enabled?: boolean;
+		/**
+		 * Enable cycling of parameter hints.
+		 * Defaults to false.
+		 */
+		cycle?: boolean;
+	}
+
 	export interface ISuggestOptions {
 		/**
 		 * Enable graceful matching. Defaults to true.
@@ -2803,9 +2814,9 @@ declare namespace monaco.editor {
 		 */
 		quickSuggestionsDelay?: number;
 		/**
-		 * Enables parameter hints
+		 * Parameter hint options.
 		 */
-		parameterHints?: boolean;
+		parameterHints?: IEditorParameterHintOptions;
 		/**
 		 * Render icons in suggestions box.
 		 * Defaults to true.
@@ -3150,6 +3161,11 @@ declare namespace monaco.editor {
 		readonly snippetsPreventQuickSuggestions: boolean;
 	}
 
+	export interface InternalParameterHintOptions {
+		readonly enabled: boolean;
+		readonly cycle: boolean;
+	}
+
 	export interface EditorWrappingInfo {
 		readonly inDiffEditor: boolean;
 		readonly isDominatedByLongLines: boolean;
@@ -3214,7 +3230,7 @@ declare namespace monaco.editor {
 			strings: boolean;
 		};
 		readonly quickSuggestionsDelay: number;
-		readonly parameterHints: boolean;
+		readonly parameterHints: InternalParameterHintOptions;
 		readonly iconsInSuggestions: boolean;
 		readonly formatOnType: boolean;
 		readonly formatOnPaste: boolean;
@@ -5196,11 +5212,11 @@ declare namespace monaco.languages {
 
 	export interface FoldingRange {
 		/**
-		 * The zero-based start line of the range to fold. The folded area starts after the line's last character.
+		 * The one-based start line of the range to fold. The folded area starts after the line's last character.
 		 */
 		start: number;
 		/**
-		 * The zero-based end line of the range to fold. The folded area ends with the line's last character.
+		 * The one-based end line of the range to fold. The folded area ends with the line's last character.
 		 */
 		end: number;
 		/**

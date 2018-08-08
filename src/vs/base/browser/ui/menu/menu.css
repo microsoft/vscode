@@ -117,7 +117,9 @@
 	animation: fadeIn 0.083s linear;
 }
 
-.context-view.monaco-menu-container :focus {
+.context-view.monaco-menu-container :focus,
+.context-view.monaco-menu-container .monaco-action-bar.vertical:focus,
+.context-view.monaco-menu-container .monaco-action-bar.vertical :focus {
 	outline: 0;
 }
 

@@ -12,7 +12,7 @@ import { IActionRunner, IAction, Action } from 'vs/base/common/actions';
 import { ActionBar, IActionItemProvider, ActionsOrientation, Separator, ActionItem, IActionItemOptions, BaseActionItem } from 'vs/base/browser/ui/actionbar/actionbar';
 import { ResolvedKeybinding, KeyCode } from 'vs/base/common/keyCodes';
 import { Event } from 'vs/base/common/event';
-import { addClass, EventType, EventHelper, EventLike, removeTabIndexAndUpdateFocus } from 'vs/base/browser/dom';
+import { addClass, EventType, EventHelper, EventLike, removeTabIndexAndUpdateFocus, isAncestor } from 'vs/base/browser/dom';
 import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { $, Builder } from 'vs/base/browser/builder';
 import { RunOnceScheduler } from 'vs/base/common/async';
@@ -93,9 +93,9 @@ export class Menu {
 		return this.actionBar.onDidBlur;
 	}
 
-	public focus() {
+	public focus(selectFirst = true) {
 		if (this.actionBar) {
-			this.actionBar.focus(true);
+			this.actionBar.focus(selectFirst);
 		}
 	}
 
@@ -256,13 +256,13 @@ class SubmenuActionItem extends MenuActionItem {
 		this.showScheduler = new RunOnceScheduler(() => {
 			if (this.mouseOver) {
 				this.cleanupExistingSubmenu(false);
-				this.createSubmenu();
+				this.createSubmenu(false);
 			}
 		}, 250);
 
 		this.hideScheduler = new RunOnceScheduler(() => {
-			if (!this.mouseOver && this.parentData.submenu === this.mysubmenu) {
-				this.parentData.parent.focus();
+			if ((!isAncestor(document.activeElement, this.builder.getHTMLElement()) && this.parentData.submenu === this.mysubmenu)) {
+				this.parentData.parent.focus(false);
 				this.cleanupExistingSubmenu(true);
 			}
 		}, 750);
@@ -280,7 +280,7 @@ class SubmenuActionItem extends MenuActionItem {
 			if (event.equals(KeyCode.RightArrow)) {
 				EventHelper.stop(e, true);
 
-				this.createSubmenu();
+				this.createSubmenu(true);
 			}
 		});
 
@@ -301,8 +301,12 @@ class SubmenuActionItem extends MenuActionItem {
 
 		$(this.builder).on(EventType.MOUSE_LEAVE, (e) => {
 			this.mouseOver = false;
+		});
 
-			this.hideScheduler.schedule();
+		$(this.builder).on(EventType.FOCUS_OUT, (e) => {
+			if (!isAncestor(document.activeElement, this.builder.getHTMLElement())) {
+				this.hideScheduler.schedule();
+			}
 		});
 	}
 
@@ -310,7 +314,7 @@ class SubmenuActionItem extends MenuActionItem {
 		// stop clicking from trying to run an action
 		EventHelper.stop(e, true);
 
-		this.createSubmenu();
+		this.createSubmenu(false);
 	}
 
 	private cleanupExistingSubmenu(force: boolean) {
@@ -325,7 +329,7 @@ class SubmenuActionItem extends MenuActionItem {
 		}
 	}
 
-	private createSubmenu() {
+	private createSubmenu(selectFirstItem = true) {
 		if (!this.parentData.submenu) {
 			this.submenuContainer = $(this.builder).div({ class: 'monaco-submenu menubar-menu-items-holder context-view' });
 
@@ -356,11 +360,11 @@ class SubmenuActionItem extends MenuActionItem {
 
 
 			this.parentData.submenu = new Menu(this.submenuContainer.getHTMLElement(), this.submenuActions, this.submenuOptions);
-			this.parentData.submenu.focus();
+			this.parentData.submenu.focus(selectFirstItem);
 
 			this.mysubmenu = this.parentData.submenu;
 		} else {
-			this.parentData.submenu.focus();
+			this.parentData.submenu.focus(false);
 		}
 	}
 
@@ -368,7 +372,6 @@ class SubmenuActionItem extends MenuActionItem {
 		super.dispose();
 
 		this.hideScheduler.dispose();
-		this.showScheduler.dispose();
 
 		if (this.mysubmenu) {
 			this.mysubmenu.dispose();

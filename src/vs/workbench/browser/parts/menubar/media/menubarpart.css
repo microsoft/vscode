@@ -3,47 +3,48 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-.monaco-workbench > .part.menubar {
+.monaco-workbench .part.menubar {
 	display: flex;
-	position: absolute;
+	flex-shrink: 1;
 	box-sizing: border-box;
-	padding-left: 35px;
-	padding-right: 138px;
 	height: 30px;
+	-webkit-app-region: no-drag;
+	overflow: hidden;
+	flex-wrap: wrap;
 }
 
-.monaco-workbench.fullscreen > .part.menubar {
-	position: absolute;
-	width: 100%;
+.monaco-workbench.fullscreen .part.menubar {
 	margin: 0px;
 	padding: 0px 5px;
 }
 
-.monaco-workbench > .part.menubar > .menubar-menu-button {
-	display: flex;
-	flex-shrink: 0;
+.monaco-workbench .part.menubar > .menubar-menu-button {
 	align-items: center;
 	box-sizing: border-box;
 	padding: 0px 8px;
-	position: relative;
 	cursor: default;
 	-webkit-app-region: no-drag;
 	zoom: 1;
+	white-space: nowrap;
 }
 
-.menubar-menu-items-holder {
+.monaco-workbench .part.menubar .menubar-menu-items-holder {
 	position: absolute;
 	left: 0px;
 	opacity: 1;
 	z-index: 2000;
 }
 
-.menubar-menu-items-holder.monaco-menu-container {
+.monaco-workbench .part.menubar .menubar-menu-items-holder.monaco-menu-container {
 	font-family: "Segoe WPC", "Segoe UI", ".SFNSDisplay-Light", "SFUIText-Light", "HelveticaNeue-Light", sans-serif, "Droid Sans Fallback";
 	outline: 0;
 	border: none;
 }
 
-.menubar-menu-items-holder.monaco-menu-container :focus {
+.monaco-workbench .part.menubar .menubar-menu-items-holder.monaco-menu-container :focus {
 	outline: 0;
+}
+
+.hc-black .monaco-workbench .part.menubar .menubar-menu-items-holder.monaco-menu-container {
+	border: 2px solid #6FC3DF;
 }

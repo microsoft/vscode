@@ -18,12 +18,13 @@ import { IUpdateService, StateType } from 'vs/platform/update/common/update';
 import product from 'vs/platform/node/product';
 import { RunOnceScheduler } from 'vs/base/common/async';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { mnemonicMenuLabel as baseMnemonicLabel, unmnemonicLabel, getPathLabel } from 'vs/base/common/labels';
+import { mnemonicMenuLabel as baseMnemonicLabel, unmnemonicLabel } from 'vs/base/common/labels';
 import { KeybindingsResolver } from 'vs/code/electron-main/keyboard';
 import { IWindowsMainService, IWindowsCountChangedEvent } from 'vs/platform/windows/electron-main/windows';
 import { IHistoryMainService } from 'vs/platform/history/common/history';
 import { IWorkspaceIdentifier, getWorkspaceLabel, ISingleFolderWorkspaceIdentifier, isSingleFolderWorkspaceIdentifier, isWorkspaceIdentifier } from 'vs/platform/workspaces/common/workspaces';
 import URI from 'vs/base/common/uri';
+import { IUriDisplayService } from 'vs/platform/uriDisplay/common/uriDisplay';
 
 interface IMenuItemClickHandler {
 	inDevTools: (contents: Electron.WebContents) => void;
@@ -66,7 +67,8 @@ export class CodeMenu {
 		@IWindowsService private windowsService: IWindowsService,
 		@IEnvironmentService private environmentService: IEnvironmentService,
 		@ITelemetryService private telemetryService: ITelemetryService,
-		@IHistoryMainService private historyMainService: IHistoryMainService
+		@IHistoryMainService private historyMainService: IHistoryMainService,
+		@IUriDisplayService private uriDisplayService: IUriDisplayService
 	) {
 		this.nativeTabMenuItems = [];
 
@@ -492,14 +494,14 @@ export class CodeMenu {
 		let label: string;
 		let uri: URI;
 		if (isSingleFolderWorkspaceIdentifier(workspace)) {
-			label = unmnemonicLabel(getWorkspaceLabel(workspace, this.environmentService, { verbose: true }));
+			label = unmnemonicLabel(getWorkspaceLabel(workspace, this.environmentService, this.uriDisplayService, { verbose: true }));
 			uri = workspace;
 		} else if (isWorkspaceIdentifier(workspace)) {
-			label = getWorkspaceLabel(workspace, this.environmentService, { verbose: true });
+			label = getWorkspaceLabel(workspace, this.environmentService, this.uriDisplayService, { verbose: true });
 			uri = URI.file(workspace.configPath);
 		} else {
-			label = unmnemonicLabel(getPathLabel(workspace, this.environmentService, null));
 			uri = URI.file(workspace);
+			label = unmnemonicLabel(this.uriDisplayService.getLabel(uri));
 		}
 
 		return new MenuItem(this.likeAction(commandId, {
@@ -509,7 +511,8 @@ export class CodeMenu {
 				const success = this.windowsMainService.open({
 					context: OpenContext.MENU,
 					cli: this.environmentService.args,
-					urisToOpen: [uri], forceNewWindow: openInNewWindow,
+					urisToOpen: [uri],
+					forceNewWindow: openInNewWindow,
 					forceOpenWorkspaceAsFile: isFile
 				}).length > 0;
 
@@ -744,7 +747,7 @@ export class CodeMenu {
 		const twoRowsRightEditorLayout = this.createMenuItem(nls.localize({ key: 'miTwoRowsRightEditorLayout', comment: ['&& denotes a mnemonic'] }, "Two R&&ows Right"), 'workbench.action.editorLayoutTwoRowsRight');
 		const twoColumnsBottomEditorLayout = this.createMenuItem(nls.localize({ key: 'miTwoColumnsBottomEditorLayout', comment: ['&& denotes a mnemonic'] }, "Two &&Columns Bottom"), 'workbench.action.editorLayoutTwoColumnsBottom');
 
-		const toggleEditorLayout = this.createMenuItem(nls.localize({ key: 'miToggleEditorLayout', comment: ['&& denotes a mnemonic'] }, "Toggle Vertical/Horizontal &&Layout"), 'workbench.action.toggleEditorGroupLayout');
+		const toggleEditorLayout = this.createMenuItem(nls.localize({ key: 'miToggleEditorLayout', comment: ['&& denotes a mnemonic'] }, "Flip &&Layout"), 'workbench.action.toggleEditorGroupLayout');
 
 		[
 			splitEditorUp,
@@ -968,6 +971,7 @@ export class CodeMenu {
 		if (this.currentEnableNativeTabs) {
 			const hasMultipleWindows = this.windowsMainService.getWindowCount() > 1;
 
+			this.nativeTabMenuItems.push(this.createMenuItem(nls.localize('mNewTab', "New Tab"), 'workbench.action.newWindowTab'));
 			this.nativeTabMenuItems.push(this.createMenuItem(nls.localize('mShowPreviousTab', "Show Previous Tab"), 'workbench.action.showPreviousWindowTab', hasMultipleWindows));
 			this.nativeTabMenuItems.push(this.createMenuItem(nls.localize('mShowNextTab', "Show Next Tab"), 'workbench.action.showNextWindowTab', hasMultipleWindows));
 			this.nativeTabMenuItems.push(this.createMenuItem(nls.localize('mMoveTabToNewWindow', "Move Tab to New Window"), 'workbench.action.moveWindowTabToNewWindow', hasMultipleWindows));

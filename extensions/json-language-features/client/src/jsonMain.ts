@@ -8,11 +8,9 @@ import * as path from 'path';
 import * as nls from 'vscode-nls';
 const localize = nls.loadMessageBundle();
 
-import { workspace, languages, ExtensionContext, extensions, Uri, LanguageConfiguration, TextDocument, FoldingRangeKind, FoldingRange, Disposable, FoldingContext } from 'vscode';
-import { LanguageClient, LanguageClientOptions, RequestType, ServerOptions, TransportKind, NotificationType, DidChangeConfigurationNotification, CancellationToken } from 'vscode-languageclient';
+import { workspace, languages, ExtensionContext, extensions, Uri, LanguageConfiguration } from 'vscode';
+import { LanguageClient, LanguageClientOptions, RequestType, ServerOptions, TransportKind, NotificationType, DidChangeConfigurationNotification } from 'vscode-languageclient';
 import TelemetryReporter from 'vscode-extension-telemetry';
-
-import { FoldingRangeRequest, FoldingRangeRequestParam, FoldingRangeClientCapabilities, FoldingRangeKind as LSFoldingRangeKind } from 'vscode-languageserver-protocol-foldingprovider';
 
 import { hash } from './utils/hash';
 
@@ -97,21 +95,6 @@ export function activate(context: ExtensionContext) {
 	// Create the language client and start the client.
 	let client = new LanguageClient('json', localize('jsonserver.name', 'JSON Language Server'), serverOptions, clientOptions);
 	client.registerProposedFeatures();
-	client.registerFeature({
-		fillClientCapabilities(capabilities: FoldingRangeClientCapabilities): void {
-			let textDocumentCap = capabilities.textDocument;
-			if (!textDocumentCap) {
-				textDocumentCap = capabilities.textDocument = {};
-			}
-			textDocumentCap.foldingRange = {
-				dynamicRegistration: false,
-				rangeLimit: 5000,
-				lineFoldingOnly: true
-			};
-		},
-		initialize(capabilities, documentSelector): void {
-		}
-	});
 
 	let disposable = client.start();
 	toDispose.push(disposable);
@@ -141,8 +124,6 @@ export function activate(context: ExtensionContext) {
 		toDispose.push(workspace.onDidCloseTextDocument(d => handleContentChange(d.uri)));
 
 		client.sendNotification(SchemaAssociationNotification.type, getSchemaAssociation(context));
-
-		toDispose.push(initFoldingProvider());
 	});
 
 	let languageConfiguration: LanguageConfiguration = {
@@ -154,38 +135,6 @@ export function activate(context: ExtensionContext) {
 	};
 	languages.setLanguageConfiguration('json', languageConfiguration);
 	languages.setLanguageConfiguration('jsonc', languageConfiguration);
-
-	function initFoldingProvider(): Disposable {
-		function getKind(kind: string | undefined): FoldingRangeKind | undefined {
-			if (kind) {
-				switch (kind) {
-					case LSFoldingRangeKind.Comment:
-						return FoldingRangeKind.Comment;
-					case LSFoldingRangeKind.Imports:
-						return FoldingRangeKind.Imports;
-					case LSFoldingRangeKind.Region:
-						return FoldingRangeKind.Region;
-				}
-			}
-			return void 0;
-		}
-		return languages.registerFoldingRangeProvider(documentSelector, {
-			provideFoldingRanges(document: TextDocument, context: FoldingContext, token: CancellationToken) {
-				const param: FoldingRangeRequestParam = {
-					textDocument: client.code2ProtocolConverter.asTextDocumentIdentifier(document)
-				};
-				return client.sendRequest(FoldingRangeRequest.type, param, token).then(ranges => {
-					if (Array.isArray(ranges)) {
-						return ranges.map(r => new FoldingRange(r.startLine, r.endLine, getKind(r.kind)));
-					}
-					return null;
-				}, error => {
-					client.logFailedRequest(FoldingRangeRequest.type, error);
-					return null;
-				});
-			}
-		});
-	}
 }
 
 export function deactivate(): Promise<any> {

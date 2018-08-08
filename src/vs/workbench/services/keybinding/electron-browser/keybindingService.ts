@@ -540,6 +540,27 @@ export class WorkbenchKeybindingService extends AbstractKeybindingService {
 		let pretty = unboundCommands.sort().join('\n// - ');
 		return '// ' + nls.localize('unboundCommands', "Here are other available commands: ") + '\n// - ' + pretty;
 	}
+
+	mightProducePrintableCharacter(event: IKeyboardEvent): boolean {
+		if (event.ctrlKey || event.metaKey) {
+			// ignore ctrl/cmd-combination but not shift/alt-combinatios
+			return false;
+		}
+		// consult the KeyboardMapperFactory to check the given event for
+		// a printable value.
+		const mapping = KeyboardMapperFactory.INSTANCE.getRawKeyboardMapping();
+		if (!mapping) {
+			return false;
+		}
+		const keyInfo = mapping[event.code];
+		if (!keyInfo) {
+			return false;
+		}
+		if (keyInfo.value) {
+			return true;
+		}
+		return false;
+	}
 }
 
 let schemaId = 'vscode://schemas/keybindings';

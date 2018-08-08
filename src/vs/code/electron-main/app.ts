@@ -63,7 +63,7 @@ import { serve as serveDriver } from 'vs/platform/driver/electron-main/driver';
 import { IMenubarService } from 'vs/platform/menubar/common/menubar';
 import { MenubarService } from 'vs/platform/menubar/electron-main/menubarService';
 import { MenubarChannel } from 'vs/platform/menubar/common/menubarIpc';
-// TODO@sbatten: Remove after conversion to new dynamic menubar
+import { IUriDisplayService } from 'vs/platform/uriDisplay/common/uriDisplay';
 import { CodeMenu } from 'vs/code/electron-main/menus';
 
 export class CodeApplication {
@@ -87,7 +87,8 @@ export class CodeApplication {
 		@ILifecycleService private lifecycleService: ILifecycleService,
 		@IConfigurationService private configurationService: ConfigurationService,
 		@IStateService private stateService: IStateService,
-		@IHistoryMainService private historyMainService: IHistoryMainService
+		@IHistoryMainService private historyMainService: IHistoryMainService,
+		@IUriDisplayService private uriDisplayService: IUriDisplayService
 	) {
 		this.toDispose = [mainIpcServer, configurationService];
 
@@ -222,6 +223,10 @@ export class CodeApplication {
 			}
 		});
 
+		ipc.on('vscode:uriDisplayRegisterFormater', (event: any, { scheme, formater }) => {
+			this.uriDisplayService.registerFormater(scheme, formater);
+		});
+
 		// Keyboard layout changes
 		KeyboardLayoutMonitor.INSTANCE.onDidChangeKeyboardLayout(() => {
 			if (this.windowsMainService) {
@@ -283,7 +288,7 @@ export class CodeApplication {
 		// See: https://github.com/Microsoft/vscode/issues/35361#issuecomment-399794085
 		try {
 			if (platform.isMacintosh && this.configurationService.getValue<boolean>('window.nativeTabs') === true && !systemPreferences.getUserDefault('NSUseImprovedLayoutPass', 'boolean')) {
-				systemPreferences.setUserDefault('NSUseImprovedLayoutPass', 'boolean', true as any);
+				systemPreferences.registerDefaults({ NSUseImprovedLayoutPass: true });
 			}
 		} catch (error) {
 			this.logService.error(error);
@@ -511,7 +516,7 @@ export class CodeApplication {
 			}
 		}
 
-		// TODO@sbatten: Remove when menu is converted
+		// TODO@sbatten: Remove when switching back to dynamic menu
 		// Install Menu
 		const instantiationService = accessor.get(IInstantiationService);
 		const configurationService = accessor.get(IConfigurationService);

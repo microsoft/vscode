@@ -54,51 +54,46 @@ export interface ISize {
 
 export interface IView extends IPosition, ISize { }
 
-function layout(view: ISize, around: IView, viewport: IView, anchorPosition: AnchorPosition, anchorAlignment: AnchorAlignment): IPosition {
+export enum LayoutAnchorPosition {
+	Before,
+	After
+}
 
-	let chooseBiased = (a: number, aIsGood: boolean, b: number, bIsGood: boolean) => {
-		if (aIsGood) {
-			return a;
+export interface ILayoutAnchor {
+	offset: number;
+	size: number;
+	position: LayoutAnchorPosition;
+}
+
+/**
+ * Lays out a one dimensional view next to an anchor in a viewport.
+ *
+ * @returns The view offset within the viewport.
+ */
+export function layout(viewportSize: number, viewSize: number, anchor: ILayoutAnchor): number {
+	const anchorEnd = anchor.offset + anchor.size;
+
+	if (anchor.position === LayoutAnchorPosition.Before) {
+		if (viewSize <= viewportSize - anchorEnd) {
+			return anchorEnd; // happy case, lay it out after the anchor
 		}
-		if (bIsGood) {
-			return b;
+
+		if (viewSize <= anchor.offset) {
+			return anchor.offset - viewSize; // ok case, lay it out before the anchor
 		}
-		return a;
-	};
 
-	let chooseOne = (a: number, aIsGood: boolean, b: number, bIsGood: boolean, aIsPreferred: boolean) => {
-		if (aIsPreferred) {
-			return chooseBiased(a, aIsGood, b, bIsGood);
-		} else {
-			return chooseBiased(b, bIsGood, a, aIsGood);
+		return Math.max(viewportSize - viewSize, 0); // sad case, lay it over the anchor
+	} else {
+		if (viewSize <= anchor.offset) {
+			return anchor.offset - viewSize; // happy case, lay it out before the anchor
 		}
-	};
 
-	let top = (() => {
-		// Compute both options (putting the segment above and below)
-		let posAbove = around.top - view.height;
-		let posBelow = around.top + around.height;
+		if (viewSize <= viewportSize - anchorEnd) {
+			return anchorEnd; // ok case, lay it out after the anchor
+		}
 
-		// Check for both options if they are good
-		let aboveIsGood = (posAbove >= viewport.top && posAbove + view.height <= viewport.top + viewport.height);
-		let belowIsGood = (posBelow >= viewport.top && posBelow + view.height <= viewport.top + viewport.height);
-
-		return chooseOne(posAbove, aboveIsGood, posBelow, belowIsGood, anchorPosition === AnchorPosition.ABOVE);
-	})();
-
-	let left = (() => {
-		// Compute both options (aligning left and right)
-		let posLeft = around.left;
-		let posRight = around.left + around.width - view.width;
-
-		// Check for both options if they are good
-		let leftIsGood = (posLeft >= viewport.left && posLeft + view.width <= viewport.left + viewport.width);
-		let rightIsGood = (posRight >= viewport.left && posRight + view.width <= viewport.left + viewport.width);
-
-		return chooseOne(posLeft, leftIsGood, posRight, rightIsGood, anchorAlignment === AnchorAlignment.LEFT);
-	})();
-
-	return { top: top, left: left };
+		return 0; // sad case, lay it over the anchor
+	}
 }
 
 export class ContextView {
@@ -205,30 +200,28 @@ export class ContextView {
 			};
 		}
 
-		let viewport = {
-			top: DOM.StandardWindow.scrollY,
-			left: DOM.StandardWindow.scrollX,
-			height: window.innerHeight,
-			width: window.innerWidth
-		};
+		const viewSize = this.$view.getTotalSize();
+		const anchorPosition = this.delegate.anchorPosition || AnchorPosition.BELOW;
+		const anchorAlignment = this.delegate.anchorAlignment || AnchorAlignment.LEFT;
 
-		// Get the view's size
-		let viewSize = this.$view.getTotalSize();
-		let view = { width: viewSize.width, height: viewSize.height };
+		const verticalAnchor: ILayoutAnchor = { offset: around.top, size: around.height, position: anchorPosition === AnchorPosition.BELOW ? LayoutAnchorPosition.Before : LayoutAnchorPosition.After };
 
-		let anchorPosition = this.delegate.anchorPosition || AnchorPosition.BELOW;
-		let anchorAlignment = this.delegate.anchorAlignment || AnchorAlignment.LEFT;
+		let horizontalAnchor: ILayoutAnchor;
 
-		let result = layout(view, around, viewport, anchorPosition, anchorAlignment);
+		if (anchorAlignment === AnchorAlignment.LEFT) {
+			horizontalAnchor = { offset: around.left, size: 0, position: LayoutAnchorPosition.Before };
+		} else {
+			horizontalAnchor = { offset: around.left + around.width, size: 0, position: LayoutAnchorPosition.After };
+		}
 
-		let containerPosition = DOM.getDomNodePagePosition(this.$container.getHTMLElement());
-		result.top -= containerPosition.top;
-		result.left -= containerPosition.left;
+		const containerPosition = DOM.getDomNodePagePosition(this.$container.getHTMLElement());
+		const top = layout(window.innerHeight, viewSize.height, verticalAnchor) - containerPosition.top;
+		const left = layout(window.innerWidth, viewSize.width, horizontalAnchor) - containerPosition.left;
 
 		this.$view.removeClass('top', 'bottom', 'left', 'right');
 		this.$view.addClass(anchorPosition === AnchorPosition.BELOW ? 'bottom' : 'top');
 		this.$view.addClass(anchorAlignment === AnchorAlignment.LEFT ? 'left' : 'right');
-		this.$view.style({ top: result.top + 'px', left: result.left + 'px', width: 'initial' });
+		this.$view.style({ top: `${top}px`, left: `${left}px`, width: 'initial' });
 	}
 
 	public hide(data?: any): void {

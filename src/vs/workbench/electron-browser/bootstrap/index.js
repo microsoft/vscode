@@ -82,34 +82,48 @@ function readFile(file) {
 }
 
 function showPartsSplash(configuration) {
-
-	let key;
-	let keep = false;
-	// this is the logic of StorageService#getWorkspaceKey and StorageService#toStorageKey
-	if (configuration.folderUri) {
-		let workspaceKey = require('vscode-uri').default.revive(configuration.folderUri).toString().replace('file:///', '').replace(/^\//, '');
-		key = `storage://workspace/${workspaceKey}/parts-splash`;
-	} else if (configuration.workspace) {
-		key = `storage://workspace/root:${configuration.workspace.id}/parts-splash`;
-	} else {
-		key = `storage://global/parts-splash`;
-		keep = true;
-	}
+	perf.mark('willShowPartsSplash');
 
 	// TODO@Ben remove me after a while
 	perf.mark('willAccessLocalStorage');
 	let storage = window.localStorage;
 	perf.mark('didAccessLocalStorage');
 
-	let structure = storage.getItem(key);
-	if (structure) {
-		let splash = document.createElement('div');
-		splash.innerHTML = structure;
+	let data;
+	try {
+		let raw = storage.getItem('storage://global/parts-splash-data');
+		data = JSON.parse(raw);
+	} catch (e) {
+		// ignore
+	}
+
+	if (data) {
+		const splash = document.createElement('div');
+		splash.id = data.id;
+		const { layoutInfo, colorInfo } = data;
+
+		// ensure there is enough space
+		layoutInfo.sideBarWidth = Math.min(layoutInfo.sideBarWidth, window.innerWidth - (layoutInfo.activityBarWidth + layoutInfo.editorPartMinWidth));
+
+		if (configuration.folderUri || configuration.workspace) {
+			// folder or workspace -> status bar color, sidebar
+			splash.innerHTML = `
+			<div style="position: absolute; width: 100%; left: 0; top: 0; height: ${layoutInfo.titleBarHeight}px; background-color: ${colorInfo.titleBarBackground};"></div>
+			<div style="position: absolute; height: calc(100% - ${layoutInfo.titleBarHeight}px); top: ${layoutInfo.titleBarHeight}px; ${layoutInfo.sideBarSide}: 0; width: ${layoutInfo.activityBarWidth}px; background-color: ${colorInfo.activityBarBackground};"></div>
+			<div style="position: absolute; height: calc(100% - ${layoutInfo.titleBarHeight}px); top: ${layoutInfo.titleBarHeight}px; ${layoutInfo.sideBarSide}: ${layoutInfo.activityBarWidth}px; width: ${layoutInfo.sideBarWidth}px; background-color: ${colorInfo.sideBarBackground};"></div>
+			<div style="position: absolute; width: 100%; bottom: 0; left: 0; height: ${layoutInfo.statusBarHeight}px; background-color: ${colorInfo.statusBarBackground};"></div>
+			`;
+		} else {
+			// empty -> speical status bar color, no sidebar
+			splash.innerHTML = `
+			<div style="position: absolute; width: 100%; left: 0; top: 0; height: ${layoutInfo.titleBarHeight}px; background-color: ${colorInfo.titleBarBackground};"></div>
+			<div style="position: absolute; height: calc(100% - ${layoutInfo.titleBarHeight}px); top: ${layoutInfo.titleBarHeight}px; ${layoutInfo.sideBarSide}: 0; width: ${layoutInfo.activityBarWidth}px; background-color: ${colorInfo.activityBarBackground};"></div>
+			<div style="position: absolute; width: 100%; bottom: 0; left: 0; height: ${layoutInfo.statusBarHeight}px; background-color: ${colorInfo.statusBarNoFolderBackground};"></div>
+			`;
+		}
 		document.body.appendChild(splash);
 	}
-	if (!keep) {
-		storage.removeItem(key);
-	}
+	perf.mark('didShowPartsSplash');
 }
 
 const writeFile = (file, content) => new Promise((c, e) => fs.writeFile(file, content, 'utf8', err => err ? e(err) : c()));

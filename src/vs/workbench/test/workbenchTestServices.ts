@@ -7,7 +7,7 @@
 
 import 'vs/workbench/parts/files/electron-browser/files.contribution'; // load our contribution into the test
 import { FileEditorInput } from 'vs/workbench/parts/files/common/editors/fileEditorInput';
-import { Promise, TPromise } from 'vs/base/common/winjs.base';
+import { TPromise } from 'vs/base/common/winjs.base';
 import { TestInstantiationService } from 'vs/platform/instantiation/test/common/instantiationServiceMock';
 import * as paths from 'vs/base/common/paths';
 import * as resources from 'vs/base/common/resources';
@@ -42,7 +42,7 @@ import { IModeService } from 'vs/editor/common/services/modeService';
 import { IHistoryService } from 'vs/workbench/services/history/common/history';
 import { IInstantiationService, ServicesAccessor, ServiceIdentifier } from 'vs/platform/instantiation/common/instantiation';
 import { TestConfigurationService } from 'vs/platform/configuration/test/common/testConfigurationService';
-import { IWindowsService, IWindowService, INativeOpenDialogOptions, IEnterWorkspaceResult, IMessageBoxResult, IWindowConfiguration } from 'vs/platform/windows/common/windows';
+import { IWindowsService, IWindowService, INativeOpenDialogOptions, IEnterWorkspaceResult, IMessageBoxResult, IWindowConfiguration, MenuBarVisibility } from 'vs/platform/windows/common/windows';
 import { TestWorkspace } from 'vs/platform/workspace/test/common/testWorkspace';
 import { createTextBufferFactory } from 'vs/editor/common/model/textModel';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
@@ -75,6 +75,7 @@ import { IDecorationRenderOptions } from 'vs/editor/common/editorCommon';
 import { EditorGroup } from 'vs/workbench/common/editor/editorGroup';
 import { Dimension } from 'vs/base/browser/dom';
 import { ILogService, LogLevel } from 'vs/platform/log/common/log';
+import { IUriDisplayService, UriDisplayService } from 'vs/platform/uriDisplay/common/uriDisplay';
 
 export function createFileInput(instantiationService: IInstantiationService, resource: URI): FileEditorInput {
 	return instantiationService.createInstance(FileEditorInput, resource, void 0);
@@ -241,7 +242,8 @@ export class TestTextFileService extends TextFileService {
 export function workbenchInstantiationService(): IInstantiationService {
 	let instantiationService = new TestInstantiationService(new ServiceCollection([ILifecycleService, new TestLifecycleService()]));
 	instantiationService.stub(IContextKeyService, <IContextKeyService>instantiationService.createInstance(MockContextKeyService));
-	instantiationService.stub(IWorkspaceContextService, new TestContextService(TestWorkspace));
+	const workspaceContextService = new TestContextService(TestWorkspace);
+	instantiationService.stub(IWorkspaceContextService, workspaceContextService);
 	const configService = new TestConfigurationService();
 	instantiationService.stub(IConfigurationService, configService);
 	instantiationService.stub(ITextResourceConfigurationService, new TestTextResourceConfigurationService(configService));
@@ -269,6 +271,7 @@ export function workbenchInstantiationService(): IInstantiationService {
 	instantiationService.stub(IHashService, new TestHashService());
 	instantiationService.stub(ILogService, new TestLogService());
 	instantiationService.stub(IEditorGroupsService, new TestEditorGroupsService([new TestEditorGroup(0)]));
+	instantiationService.stub(IUriDisplayService, new UriDisplayService(TestEnvironmentService, workspaceContextService));
 	const editorService = new TestEditorService();
 	instantiationService.stub(IEditorService, editorService);
 	instantiationService.stub(ICodeEditorService, new TestCodeEditorService());
@@ -300,13 +303,13 @@ export class TestExtensionService implements IExtensionService {
 	_serviceBrand: any;
 	onDidRegisterExtensions: Event<void> = Event.None;
 	onDidChangeExtensionsStatus: Event<string[]> = Event.None;
-	activateByEvent(activationEvent: string): Promise<void> { return TPromise.as(void 0); }
-	whenInstalledExtensionsRegistered(): Promise<boolean> { return TPromise.as(true); }
-	getExtensions(): Promise<IExtensionDescription[]> { return TPromise.as([]); }
-	readExtensionPointContributions<T>(extPoint: IExtensionPoint<T>): Promise<ExtensionPointContribution<T>[]> { return TPromise.as(Object.create(null)); }
+	activateByEvent(activationEvent: string): TPromise<void> { return TPromise.as(void 0); }
+	whenInstalledExtensionsRegistered(): TPromise<boolean> { return TPromise.as(true); }
+	getExtensions(): TPromise<IExtensionDescription[]> { return TPromise.as([]); }
+	readExtensionPointContributions<T>(extPoint: IExtensionPoint<T>): TPromise<ExtensionPointContribution<T>[]> { return TPromise.as(Object.create(null)); }
 	getExtensionsStatus(): { [id: string]: IExtensionsStatus; } { return Object.create(null); }
 	canProfileExtensionHost(): boolean { return false; }
-	startExtensionHostProfile(): Promise<ProfileSession> { return TPromise.as(Object.create(null)); }
+	startExtensionHostProfile(): TPromise<ProfileSession> { return TPromise.as(Object.create(null)); }
 	restartExtensionHost(): void { }
 	startExtensionHost(): void { }
 	stopExtensionHost(): void { }
@@ -367,11 +370,11 @@ export class TestDialogService implements IDialogService {
 
 	public _serviceBrand: any;
 
-	public confirm(confirmation: IConfirmation): Promise<IConfirmationResult> {
+	public confirm(confirmation: IConfirmation): TPromise<IConfirmationResult> {
 		return TPromise.as({ confirmed: false });
 	}
 
-	public show(severity: Severity, message: string, buttons: string[], options?: IDialogOptions): Promise<number, any> {
+	public show(severity: Severity, message: string, buttons: string[], options?: IDialogOptions): TPromise<number> {
 		return TPromise.as(0);
 	}
 }
@@ -448,6 +451,10 @@ export class TestPartService implements IPartService {
 
 	public isPanelMaximized(): boolean {
 		return false;
+	}
+
+	public getMenubarVisibility(): MenuBarVisibility {
+		return null;
 	}
 
 	public getSideBarPosition() {
@@ -596,7 +603,7 @@ export class TestEditorGroup implements IEditorGroupView {
 	disposed: boolean;
 	editors: ReadonlyArray<IEditorInput> = [];
 	label: string;
-	whenRestored: Promise<void, any> = TPromise.as(void 0);
+	whenRestored: TPromise<void> = TPromise.as(void 0);
 	element: HTMLElement;
 	minimumWidth: number;
 	maximumWidth: number;
@@ -1087,7 +1094,7 @@ export class TestWindowService implements IWindowService {
 		return TPromise.wrap(void 0);
 	}
 
-	updateTouchBar(items: ISerializableCommandAction[][]): Promise<void> {
+	updateTouchBar(items: ISerializableCommandAction[][]): TPromise<void> {
 		return TPromise.as(void 0);
 	}
 }
@@ -1285,27 +1292,31 @@ export class TestWindowsService implements IWindowsService {
 		return TPromise.as(void 0);
 	}
 
-	showPreviousWindowTab(): Promise<void> {
+	newWindowTab(): TPromise<void> {
 		return TPromise.as(void 0);
 	}
 
-	showNextWindowTab(): Promise<void> {
+	showPreviousWindowTab(): TPromise<void> {
 		return TPromise.as(void 0);
 	}
 
-	moveWindowTabToNewWindow(): Promise<void> {
+	showNextWindowTab(): TPromise<void> {
 		return TPromise.as(void 0);
 	}
 
-	mergeAllWindowTabs(): Promise<void> {
+	moveWindowTabToNewWindow(): TPromise<void> {
 		return TPromise.as(void 0);
 	}
 
-	toggleWindowTabsBar(): Promise<void> {
+	mergeAllWindowTabs(): TPromise<void> {
 		return TPromise.as(void 0);
 	}
 
-	updateTouchBar(windowId: number, items: ISerializableCommandAction[][]): Promise<void> {
+	toggleWindowTabsBar(): TPromise<void> {
+		return TPromise.as(void 0);
+	}
+
+	updateTouchBar(windowId: number, items: ISerializableCommandAction[][]): TPromise<void> {
 		return TPromise.as(void 0);
 	}
 
@@ -1333,10 +1344,6 @@ export class TestWindowsService implements IWindowsService {
 	}
 
 	showOpenDialog(windowId: number, options: Electron.OpenDialogOptions): TPromise<string[]> {
-		return TPromise.as(void 0);
-	}
-
-	openAccessibilityOptions(): TPromise<void> {
 		return TPromise.as(void 0);
 	}
 

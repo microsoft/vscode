@@ -168,6 +168,22 @@ export interface IEditorHoverOptions {
 	sticky?: boolean;
 }
 
+/**
+ * Configuration options for parameter hints
+ */
+export interface IEditorParameterHintOptions {
+	/**
+	 * Enable parameter hints.
+	 * Defaults to true.
+	 */
+	enabled?: boolean;
+	/**
+	 * Enable cycling of parameter hints.
+	 * Defaults to false.
+	 */
+	cycle?: boolean;
+}
+
 export interface ISuggestOptions {
 	/**
 	 * Enable graceful matching. Defaults to true.
@@ -461,9 +477,9 @@ export interface IEditorOptions {
 	 */
 	quickSuggestionsDelay?: number;
 	/**
-	 * Enables parameter hints
+	 * Parameter hint options.
 	 */
-	parameterHints?: boolean;
+	parameterHints?: IEditorParameterHintOptions;
 	/**
 	 * Render icons in suggestions box.
 	 * Defaults to true.
@@ -871,6 +887,11 @@ export interface InternalSuggestOptions {
 	readonly snippetsPreventQuickSuggestions: boolean;
 }
 
+export interface InternalParameterHintOptions {
+	readonly enabled: boolean;
+	readonly cycle: boolean;
+}
+
 export interface EditorWrappingInfo {
 	readonly inDiffEditor: boolean;
 	readonly isDominatedByLongLines: boolean;
@@ -931,7 +952,7 @@ export interface EditorContribOptions {
 	readonly contextmenu: boolean;
 	readonly quickSuggestions: boolean | { other: boolean, comments: boolean, strings: boolean };
 	readonly quickSuggestionsDelay: number;
-	readonly parameterHints: boolean;
+	readonly parameterHints: InternalParameterHintOptions;
 	readonly iconsInSuggestions: boolean;
 	readonly formatOnType: boolean;
 	readonly formatOnPaste: boolean;
@@ -1272,6 +1293,16 @@ export class InternalEditorOptions {
 	/**
 	 * @internal
 	 */
+	private static _equalsParameterHintOptions(a: InternalParameterHintOptions, b: InternalParameterHintOptions): boolean {
+		return (
+			a.enabled === b.enabled
+			&& a.cycle === b.cycle
+		);
+	}
+
+	/**
+	 * @internal
+	 */
 	private static _equalsHoverOptions(a: InternalEditorHoverOptions, b: InternalEditorHoverOptions): boolean {
 		return (
 			a.enabled === b.enabled
@@ -1323,7 +1354,7 @@ export class InternalEditorOptions {
 			&& a.contextmenu === b.contextmenu
 			&& InternalEditorOptions._equalsQuickSuggestions(a.quickSuggestions, b.quickSuggestions)
 			&& a.quickSuggestionsDelay === b.quickSuggestionsDelay
-			&& a.parameterHints === b.parameterHints
+			&& this._equalsParameterHintOptions(a.parameterHints, b.parameterHints)
 			&& a.iconsInSuggestions === b.iconsInSuggestions
 			&& a.formatOnType === b.formatOnType
 			&& a.formatOnPaste === b.formatOnPaste
@@ -1782,6 +1813,17 @@ export class EditorOptionsValidator {
 		};
 	}
 
+	private static _sanitizeParameterHintOpts(opts: IEditorParameterHintOptions, defaults: InternalParameterHintOptions): InternalParameterHintOptions {
+		if (typeof opts !== 'object') {
+			return defaults;
+		}
+
+		return {
+			enabled: _boolean(opts.enabled, defaults.enabled),
+			cycle: _boolean(opts.cycle, defaults.cycle)
+		};
+	}
+
 	private static _santizeHoverOpts(_opts: boolean | IEditorHoverOptions, defaults: InternalEditorHoverOptions): InternalEditorHoverOptions {
 		let opts: IEditorHoverOptions;
 		if (typeof _opts === 'boolean') {
@@ -1802,13 +1844,11 @@ export class EditorOptionsValidator {
 	}
 
 	private static _sanitizeSuggestOpts(opts: IEditorOptions, defaults: InternalSuggestOptions): InternalSuggestOptions {
-		if (!opts.suggest) {
-			return defaults;
-		}
+		const suggestOpts = opts.suggest || {};
 		return {
-			filterGraceful: _boolean(opts.suggest.filterGraceful, defaults.filterGraceful),
+			filterGraceful: _boolean(suggestOpts.filterGraceful, defaults.filterGraceful),
 			snippets: _stringSet<'top' | 'bottom' | 'inline' | 'none'>(opts.snippetSuggestions, defaults.snippets, ['top', 'bottom', 'inline', 'none']),
-			snippetsPreventQuickSuggestions: _boolean(opts.suggest.snippetsPreventQuickSuggestions, defaults.filterGraceful),
+			snippetsPreventQuickSuggestions: _boolean(suggestOpts.snippetsPreventQuickSuggestions, defaults.filterGraceful),
 		};
 	}
 
@@ -1936,7 +1976,7 @@ export class EditorOptionsValidator {
 			contextmenu: _boolean(opts.contextmenu, defaults.contextmenu),
 			quickSuggestions: quickSuggestions,
 			quickSuggestionsDelay: _clampedInt(opts.quickSuggestionsDelay, defaults.quickSuggestionsDelay, Constants.MIN_SAFE_SMALL_INTEGER, Constants.MAX_SAFE_SMALL_INTEGER),
-			parameterHints: _boolean(opts.parameterHints, defaults.parameterHints),
+			parameterHints: this._sanitizeParameterHintOpts(opts.parameterHints, defaults.parameterHints),
 			iconsInSuggestions: _boolean(opts.iconsInSuggestions, defaults.iconsInSuggestions),
 			formatOnType: _boolean(opts.formatOnType, defaults.formatOnType),
 			formatOnPaste: _boolean(opts.formatOnPaste, defaults.formatOnPaste),
@@ -2521,7 +2561,10 @@ export const EDITOR_DEFAULTS: IValidatedEditorOptions = {
 		contextmenu: true,
 		quickSuggestions: { other: true, comments: false, strings: false },
 		quickSuggestionsDelay: 10,
-		parameterHints: true,
+		parameterHints: {
+			enabled: true,
+			cycle: false
+		},
 		iconsInSuggestions: true,
 		formatOnType: false,
 		formatOnPaste: false,

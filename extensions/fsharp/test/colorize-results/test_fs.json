@@ -3,9 +3,9 @@
 		"c": "// from https://msdn.microsoft.com/en-us/library/dd233160.aspx",
 		"t": "source.fsharp comment.line.double-slash.fsharp",
 		"r": {
-			"dark_plus": "comment: #608B4E",
+			"dark_plus": "comment: #6A9955",
 			"light_plus": "comment: #008000",
-			"dark_vs": "comment: #608B4E",
+			"dark_vs": "comment: #6A9955",
 			"light_vs": "comment: #008000",
 			"hc_black": "comment: #7CA668"
 		}
@@ -14,9 +14,9 @@
 		"c": "// The declaration creates a constructor that takes two values, name and age.",
 		"t": "source.fsharp comment.line.double-slash.fsharp",
 		"r": {
-			"dark_plus": "comment: #608B4E",
+			"dark_plus": "comment: #6A9955",
 			"light_plus": "comment: #008000",
-			"dark_vs": "comment: #608B4E",
+			"dark_vs": "comment: #6A9955",
 			"light_vs": "comment: #008000",
 			"hc_black": "comment: #7CA668"
 		}
@@ -520,9 +520,9 @@
 		"c": "// A read/write property.",
 		"t": "source.fsharp comment.line.double-slash.fsharp",
 		"r": {
-			"dark_plus": "comment: #608B4E",
+			"dark_plus": "comment: #6A9955",
 			"light_plus": "comment: #008000",
-			"dark_vs": "comment: #608B4E",
+			"dark_vs": "comment: #6A9955",
 			"light_vs": "comment: #008000",
 			"hc_black": "comment: #7CA668"
 		}

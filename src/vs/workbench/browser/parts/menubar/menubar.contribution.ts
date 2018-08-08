@@ -16,7 +16,6 @@ if (isMacintosh) {
 helpMenuRegistration();
 
 // Menu registration
-
 function goMenuRegistration() {
 	// Forward/Back
 	MenuRegistry.appendMenuItem(MenuId.MenubarGoMenu, {
@@ -38,8 +37,8 @@ function goMenuRegistration() {
 	});
 
 	// Switch Editor
-	MenuRegistry.appendMenuItem(MenuId.MenubarGoMenu, {
-		group: '2_switch_editor',
+	MenuRegistry.appendMenuItem(MenuId.MenubarSwitchEditorMenu, {
+		group: '1_any',
 		command: {
 			id: 'workbench.action.nextEditor',
 			title: nls.localize({ key: 'miNextEditor', comment: ['&& denotes a mnemonic'] }, "&&Next Editor")
@@ -47,8 +46,8 @@ function goMenuRegistration() {
 		order: 1
 	});
 
-	MenuRegistry.appendMenuItem(MenuId.MenubarGoMenu, {
-		group: '2_switch_editor',
+	MenuRegistry.appendMenuItem(MenuId.MenubarSwitchEditorMenu, {
+		group: '1_any',
 		command: {
 			id: 'workbench.action.previousEditor',
 			title: nls.localize({ key: 'miPreviousEditor', comment: ['&& denotes a mnemonic'] }, "&&Previous Editor")
@@ -56,27 +55,79 @@ function goMenuRegistration() {
 		order: 2
 	});
 
-	MenuRegistry.appendMenuItem(MenuId.MenubarGoMenu, {
-		group: '2_switch_editor',
+	MenuRegistry.appendMenuItem(MenuId.MenubarSwitchEditorMenu, {
+		group: '2_used',
 		command: {
 			id: 'workbench.action.openNextRecentlyUsedEditorInGroup',
 			title: nls.localize({ key: 'miNextEditorInGroup', comment: ['&& denotes a mnemonic'] }, "&&Next Used Editor in Group")
 		},
-		order: 3
+		order: 1
 	});
 
-	MenuRegistry.appendMenuItem(MenuId.MenubarGoMenu, {
-		group: '2_switch_editor',
+	MenuRegistry.appendMenuItem(MenuId.MenubarSwitchEditorMenu, {
+		group: '2_used',
 		command: {
 			id: 'workbench.action.openPreviousRecentlyUsedEditorInGroup',
 			title: nls.localize({ key: 'miPreviousEditorInGroup', comment: ['&& denotes a mnemonic'] }, "&&Previous Used Editor in Group")
 		},
-		order: 4
+		order: 2
+	});
+
+	MenuRegistry.appendMenuItem(MenuId.MenubarGoMenu, {
+		group: '2_switch',
+		title: nls.localize({ key: 'miSwitchEditor', comment: ['&& denotes a mnemonic'] }, "Switch &&Editor"),
+		submenu: MenuId.MenubarSwitchEditorMenu,
+		order: 1
 	});
 
 	// Switch Group
-	MenuRegistry.appendMenuItem(MenuId.MenubarGoMenu, {
-		group: '3_switch_group',
+	MenuRegistry.appendMenuItem(MenuId.MenubarSwitchGroupMenu, {
+		group: '1_focus_index',
+		command: {
+			id: 'workbench.action.focusFirstEditorGroup',
+			title: nls.localize({ key: 'miFocusFirstGroup', comment: ['&& denotes a mnemonic'] }, "Group &&1")
+		},
+		order: 1
+	});
+
+	MenuRegistry.appendMenuItem(MenuId.MenubarSwitchGroupMenu, {
+		group: '1_focus_index',
+		command: {
+			id: 'workbench.action.focusSecondEditorGroup',
+			title: nls.localize({ key: 'miFocusSecondGroup', comment: ['&& denotes a mnemonic'] }, "Group &&2")
+		},
+		order: 2
+	});
+
+	MenuRegistry.appendMenuItem(MenuId.MenubarSwitchGroupMenu, {
+		group: '1_focus_index',
+		command: {
+			id: 'workbench.action.focusThirdEditorGroup',
+			title: nls.localize({ key: 'miFocusThirdGroup', comment: ['&& denotes a mnemonic'] }, "Group &&3")
+		},
+		order: 3
+	});
+
+	MenuRegistry.appendMenuItem(MenuId.MenubarSwitchGroupMenu, {
+		group: '1_focus_index',
+		command: {
+			id: 'workbench.action.focusFourthEditorGroup',
+			title: nls.localize({ key: 'miFocusFourthGroup', comment: ['&& denotes a mnemonic'] }, "Group &&4")
+		},
+		order: 4
+	});
+
+	MenuRegistry.appendMenuItem(MenuId.MenubarSwitchGroupMenu, {
+		group: '1_focus_index',
+		command: {
+			id: 'workbench.action.focusFifthEditorGroup',
+			title: nls.localize({ key: 'miFocusFifthGroup', comment: ['&& denotes a mnemonic'] }, "Group &&5")
+		},
+		order: 5
+	});
+
+	MenuRegistry.appendMenuItem(MenuId.MenubarSwitchGroupMenu, {
+		group: '2_next_prev',
 		command: {
 			id: 'workbench.action.focusNextGroup',
 			title: nls.localize({ key: 'miNextGroup', comment: ['&& denotes a mnemonic'] }, "&&Next Group")
@@ -84,8 +135,8 @@ function goMenuRegistration() {
 		order: 1
 	});
 
-	MenuRegistry.appendMenuItem(MenuId.MenubarGoMenu, {
-		group: '3_switch_group',
+	MenuRegistry.appendMenuItem(MenuId.MenubarSwitchGroupMenu, {
+		group: '2_next_prev',
 		command: {
 			id: 'workbench.action.focusPreviousGroup',
 			title: nls.localize({ key: 'miPreviousGroup', comment: ['&& denotes a mnemonic'] }, "&&Previous Group")
@@ -93,40 +144,47 @@ function goMenuRegistration() {
 		order: 2
 	});
 
-	MenuRegistry.appendMenuItem(MenuId.MenubarGoMenu, {
-		group: '3_switch_group',
+	MenuRegistry.appendMenuItem(MenuId.MenubarSwitchGroupMenu, {
+		group: '3_directional',
 		command: {
 			id: 'workbench.action.focusLeftGroup',
 			title: nls.localize({ key: 'miFocusLeftGroup', comment: ['&& denotes a mnemonic'] }, "Group &&Left")
 		},
-		order: 3
+		order: 1
 	});
 
-	MenuRegistry.appendMenuItem(MenuId.MenubarGoMenu, {
-		group: '3_switch_group',
+	MenuRegistry.appendMenuItem(MenuId.MenubarSwitchGroupMenu, {
+		group: '3_directional',
 		command: {
 			id: 'workbench.action.focusRightGroup',
 			title: nls.localize({ key: 'miFocusRightGroup', comment: ['&& denotes a mnemonic'] }, "Group &&Right")
+		},
+		order: 2
+	});
+
+	MenuRegistry.appendMenuItem(MenuId.MenubarSwitchGroupMenu, {
+		group: '3_directional',
+		command: {
+			id: 'workbench.action.focusAboveGroup',
+			title: nls.localize({ key: 'miFocusAboveGroup', comment: ['&& denotes a mnemonic'] }, "Group &&Above")
+		},
+		order: 3
+	});
+
+	MenuRegistry.appendMenuItem(MenuId.MenubarSwitchGroupMenu, {
+		group: '3_directional',
+		command: {
+			id: 'workbench.action.focusBelowGroup',
+			title: nls.localize({ key: 'miFocusBelowGroup', comment: ['&& denotes a mnemonic'] }, "Group &&Below")
 		},
 		order: 4
 	});
 
 	MenuRegistry.appendMenuItem(MenuId.MenubarGoMenu, {
-		group: '3_switch_group',
-		command: {
-			id: 'workbench.action.focusAboveGroup',
-			title: nls.localize({ key: 'miFocusAboveGroup', comment: ['&& denotes a mnemonic'] }, "Group &&Above")
-		},
-		order: 5
-	});
-
-	MenuRegistry.appendMenuItem(MenuId.MenubarGoMenu, {
-		group: '3_switch_group',
-		command: {
-			id: 'workbench.action.focusBelowGroup',
-			title: nls.localize({ key: 'miFocusBelowGroup', comment: ['&& denotes a mnemonic'] }, "Group &&Below")
-		},
-		order: 6
+		group: '2_switch',
+		title: nls.localize({ key: 'miSwitchGroup', comment: ['&& denotes a mnemonic'] }, "Switch &&Group"),
+		submenu: MenuId.MenubarSwitchGroupMenu,
+		order: 2
 	});
 
 	// Go to
@@ -170,7 +228,7 @@ function goMenuRegistration() {
 		group: 'z_go_to',
 		command: {
 			id: 'editor.action.goToTypeDefinition',
-			title: nls.localize({ key: 'miGotoDefinition', comment: ['&& denotes a mnemonic'] }, "Go to &&Definition")
+			title: nls.localize({ key: 'miGotoTypeDefinition', comment: ['&& denotes a mnemonic'] }, "Go to &&Type Definition")
 		},
 		order: 5
 	});
@@ -330,22 +388,15 @@ function helpMenuRegistration() {
 		order: 2
 	});
 
-	MenuRegistry.appendMenuItem(MenuId.MenubarHelpMenu, {
-		group: '5_tools',
-		command: {
-			id: 'workbench.action.showAccessibilityOptions',
-			title: nls.localize({ key: 'miAccessibilityOptions', comment: ['&& denotes a mnemonic'] }, "Accessibility &&Options")
-		},
-		order: 3
-	});
-
-	// About
-	MenuRegistry.appendMenuItem(MenuId.MenubarHelpMenu, {
-		group: 'z_about',
-		command: {
-			id: 'workbench.action.showAboutDialog',
-			title: nls.localize({ key: 'miAbout', comment: ['&& denotes a mnemonic'] }, "&&About")
-		},
-		order: 1
-	});
+	if (!isMacintosh) {
+		// About
+		MenuRegistry.appendMenuItem(MenuId.MenubarHelpMenu, {
+			group: 'z_about',
+			command: {
+				id: 'workbench.action.showAboutDialog',
+				title: nls.localize({ key: 'miAbout', comment: ['&& denotes a mnemonic'] }, "&&About")
+			},
+			order: 1
+		});
+	}
 }

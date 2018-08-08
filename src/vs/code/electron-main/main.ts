@@ -50,6 +50,7 @@ import { uploadLogs } from 'vs/code/electron-main/logUploader';
 import { setUnexpectedErrorHandler } from 'vs/base/common/errors';
 import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
 import { CommandLineDialogService } from 'vs/platform/dialogs/node/dialogService';
+import { IUriDisplayService, UriDisplayService } from 'vs/platform/uriDisplay/common/uriDisplay';
 
 function createServices(args: ParsedArgs, bufferLogService: BufferLogService): IInstantiationService {
 	const services = new ServiceCollection();
@@ -57,6 +58,7 @@ function createServices(args: ParsedArgs, bufferLogService: BufferLogService): I
 	const environmentService = new EnvironmentService(args, process.execPath);
 	const consoleLogService = new ConsoleLogMainService(getLogLevel(environmentService));
 	const logService = new MultiplexLogService([consoleLogService, bufferLogService]);
+	const uriDisplayService = new UriDisplayService(environmentService, undefined);
 
 	process.once('exit', () => logService.dispose());
 
@@ -64,6 +66,7 @@ function createServices(args: ParsedArgs, bufferLogService: BufferLogService): I
 	setTimeout(() => cleanupOlderLogs(environmentService).then(null, err => console.error(err)), 10000);
 
 	services.set(IEnvironmentService, environmentService);
+	services.set(IUriDisplayService, uriDisplayService);
 	services.set(ILogService, logService);
 	services.set(IWorkspacesMainService, new SyncDescriptor(WorkspacesMainService));
 	services.set(IHistoryMainService, new SyncDescriptor(HistoryMainService));

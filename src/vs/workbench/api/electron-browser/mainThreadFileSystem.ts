@@ -92,36 +92,36 @@ class RemoteFileSystemProvider implements IFileSystemProvider {
 		});
 	}
 
-	readFile(resource: URI): TPromise<Uint8Array, any> {
+	readFile(resource: URI): TPromise<Uint8Array> {
 		return this._proxy.$readFile(this._handle, resource).then(encoded => {
 			return Buffer.from(encoded, 'base64');
 		});
 	}
 
-	writeFile(resource: URI, content: Uint8Array, opts: FileWriteOptions): TPromise<void, any> {
+	writeFile(resource: URI, content: Uint8Array, opts: FileWriteOptions): TPromise<void> {
 		let encoded = Buffer.isBuffer(content)
 			? content.toString('base64')
 			: Buffer.from(content.buffer, content.byteOffset, content.byteLength).toString('base64');
 		return this._proxy.$writeFile(this._handle, resource, encoded, opts);
 	}
 
-	delete(resource: URI, opts: FileDeleteOptions): TPromise<void, any> {
+	delete(resource: URI, opts: FileDeleteOptions): TPromise<void> {
 		return this._proxy.$delete(this._handle, resource, opts);
 	}
 
-	mkdir(resource: URI): TPromise<void, any> {
+	mkdir(resource: URI): TPromise<void> {
 		return this._proxy.$mkdir(this._handle, resource);
 	}
 
-	readdir(resource: URI): TPromise<[string, FileType][], any> {
+	readdir(resource: URI): TPromise<[string, FileType][]> {
 		return this._proxy.$readdir(this._handle, resource);
 	}
 
-	rename(resource: URI, target: URI, opts: FileOverwriteOptions): TPromise<void, any> {
+	rename(resource: URI, target: URI, opts: FileOverwriteOptions): TPromise<void> {
 		return this._proxy.$rename(this._handle, resource, target, opts);
 	}
 
-	copy(resource: URI, target: URI, opts: FileOverwriteOptions): TPromise<void, any> {
+	copy(resource: URI, target: URI, opts: FileOverwriteOptions): TPromise<void> {
 		return this._proxy.$copy(this._handle, resource, target, opts);
 	}
 }

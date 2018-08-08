@@ -4,8 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import { MarkedString, CompletionItemKind, CompletionItem, DocumentSelector, SnippetString } from 'vscode';
-import { IJSONContribution, ISuggestionsCollector } from './jsonContributions';
+import { MarkedString, CompletionItemKind, CompletionItem, DocumentSelector, SnippetString, workspace } from 'vscode';
+import { IJSONContribution, ISuggestionsCollector, xhrDisabled } from './jsonContributions';
 import { XHRRequest } from 'request-light';
 import { Location } from 'jsonc-parser';
 import { textToMarkedString } from './markedTextUtil';
@@ -28,12 +28,22 @@ export class PackageJSONContribution implements IJSONContribution {
 		'jsdom', 'stylus', 'when', 'readable-stream', 'aws-sdk', 'concat-stream', 'chai', 'Thenable', 'wrench'];
 
 	private knownScopes = ['@types', '@angular'];
+	private xhr: XHRRequest;
 
 	public getDocumentSelector(): DocumentSelector {
 		return [{ language: 'json', scheme: '*', pattern: '**/package.json' }];
 	}
 
-	public constructor(private xhr: XHRRequest) {
+	public constructor(httprequestxhr: XHRRequest) {
+		const getxhr = () => {
+			return workspace.getConfiguration('npm').get('fetchOnlinePackageInfo') === false ? xhrDisabled : httprequestxhr;
+		};
+		this.xhr = getxhr();
+		workspace.onDidChangeConfiguration((e) => {
+			if (e.affectsConfiguration('npm.fetchOnlinePackageInfo')) {
+				this.xhr = getxhr();
+			}
+		});
 	}
 
 	public collectDefaultSuggestions(_fileName: string, result: ISuggestionsCollector): Thenable<any> {

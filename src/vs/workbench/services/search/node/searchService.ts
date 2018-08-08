@@ -7,7 +7,7 @@
 import * as arrays from 'vs/base/common/arrays';
 import { Event } from 'vs/base/common/event';
 import { Disposable, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
-import { ResourceMap } from 'vs/base/common/map';
+import { ResourceMap, values } from 'vs/base/common/map';
 import { Schemas } from 'vs/base/common/network';
 import * as objects from 'vs/base/common/objects';
 import * as strings from 'vs/base/common/strings';
@@ -20,19 +20,21 @@ import { IModelService } from 'vs/editor/common/services/modelService';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IDebugParams, IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { ILogService } from 'vs/platform/log/common/log';
-import { FileMatch, IFileMatch, IFolderQuery, IProgress, ISearchComplete, ISearchConfiguration, ISearchProgressItem, ISearchQuery, ISearchResultProvider, ISearchService, LineMatch, pathIncludedInQuery, QueryType } from 'vs/platform/search/common/search';
+import { FileMatch, IFileMatch, IFolderQuery, IProgress, ISearchComplete, ISearchConfiguration, ISearchProgressItem, ISearchQuery, ISearchResultProvider, ISearchService, LineMatch, pathIncludedInQuery, QueryType, SearchProviderType } from 'vs/platform/search/common/search';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
 import { IUntitledEditorService } from 'vs/workbench/services/untitled/common/untitledEditorService';
 import { IRawSearch, IRawSearchService, ISerializedFileMatch, ISerializedSearchComplete, ISerializedSearchProgressItem, isSerializedSearchComplete, isSerializedSearchSuccess, ITelemetryEvent } from './search';
 import { ISearchChannel, SearchChannelClient } from './searchIpc';
+import { getPathFromAmdModule } from 'vs/base/common/amd';
 
 export class SearchService extends Disposable implements ISearchService {
 	public _serviceBrand: any;
 
 	private diskSearch: DiskSearch;
-	private readonly searchProviders: ISearchResultProvider[] = [];
-	private fileSearchProvider: ISearchResultProvider;
+	private readonly fileSearchProviders = new Map<string, ISearchResultProvider>();
+	private readonly textSearchProviders = new Map<string, ISearchResultProvider>();
+	private readonly fileIndexProviders = new Map<string, ISearchResultProvider>();
 
 	constructor(
 		@IModelService private modelService: IModelService,
@@ -50,22 +52,20 @@ export class SearchService extends Disposable implements ISearchService {
 		}));
 	}
 
-	public registerSearchResultProvider(scheme: string, provider: ISearchResultProvider): IDisposable {
-		if (scheme === 'file') {
-			this.fileSearchProvider = provider;
-		} else {
-			this.searchProviders.push(provider);
+	public registerSearchResultProvider(scheme: string, type: SearchProviderType, provider: ISearchResultProvider): IDisposable {
+		let list: Map<string, ISearchResultProvider>;
+		if (type === SearchProviderType.file) {
+			list = this.fileSearchProviders;
+		} else if (type === SearchProviderType.text) {
+			list = this.textSearchProviders;
+		} else if (type === SearchProviderType.fileIndex) {
+			list = this.fileIndexProviders;
 		}
 
+		list.set(scheme, provider);
+
 		return toDisposable(() => {
-			if (scheme === 'file') {
-				this.fileSearchProvider = null;
-			} else {
-				const idx = this.searchProviders.indexOf(provider);
-				if (idx >= 0) {
-					this.searchProviders.splice(idx, 1);
-				}
-			}
+			list.delete(scheme);
 		});
 	}
 
@@ -122,39 +122,31 @@ export class SearchService extends Disposable implements ISearchService {
 			};
 
 			const startTime = Date.now();
-			const searchWithProvider = (provider: ISearchResultProvider) => TPromise.as(provider.search(query, onProviderProgress));
 
 			const schemesInQuery = query.folderQueries.map(fq => fq.folder.scheme);
 			const providerActivations = schemesInQuery.map(scheme => this.extensionService.activateByEvent(`onSearch:${scheme}`));
 
-			const providerPromise = TPromise.join(providerActivations).then(() => {
-				// TODO@roblou this is not properly waiting for search-rg to finish registering itself
-				// If no search provider has been registered for the 'file' schema, fall back on DiskSearch
-				const providers = [
-					this.fileSearchProvider || this.diskSearch,
-					...this.searchProviders
-				];
-				return TPromise.join(providers.map(p => searchWithProvider(p)))
-					.then(completes => {
-						completes = completes.filter(c => !!c);
-						if (!completes.length) {
-							return null;
-						}
+			const providerPromise = TPromise.join(providerActivations)
+				.then(() => this.searchWithProviders(query, onProviderProgress))
+				.then(completes => {
+					completes = completes.filter(c => !!c);
+					if (!completes.length) {
+						return null;
+					}
 
-						return <ISearchComplete>{
-							limitHit: completes[0] && completes[0].limitHit,
-							stats: completes[0].stats,
-							results: arrays.flatten(completes.map(c => c.results))
-						};
-					}, errs => {
-						if (!Array.isArray(errs)) {
-							errs = [errs];
-						}
+					return <ISearchComplete>{
+						limitHit: completes[0] && completes[0].limitHit,
+						stats: completes[0].stats,
+						results: arrays.flatten(completes.map(c => c.results))
+					};
+				}, errs => {
+					if (!Array.isArray(errs)) {
+						errs = [errs];
+					}
 
-						errs = errs.filter(e => !!e);
-						return TPromise.wrapError(errs[0]);
-					});
-			});
+					errs = errs.filter(e => !!e);
+					return TPromise.wrapError(errs[0]);
+				});
 
 			combinedPromise = providerPromise.then(value => {
 				this.logService.debug(`SearchService#search: ${Date.now() - startTime}ms`);
@@ -188,6 +180,45 @@ export class SearchService extends Disposable implements ISearchService {
 			}).then(onComplete, onError);
 
 		}, () => combinedPromise && combinedPromise.cancel());
+	}
+
+	private searchWithProviders(query: ISearchQuery, onProviderProgress: (progress: ISearchProgressItem) => void) {
+		const diskSearchQueries: IFolderQuery[] = [];
+		const searchPs = [];
+
+		query.folderQueries.forEach(fq => {
+			let provider = query.type === QueryType.File ?
+				this.fileSearchProviders.get(fq.folder.scheme) || this.fileIndexProviders.get(fq.folder.scheme) :
+				this.textSearchProviders.get(fq.folder.scheme);
+
+			if (!provider && fq.folder.scheme === 'file') {
+				diskSearchQueries.push(fq);
+			} else if (!provider) {
+				throw new Error('No search provider registered for scheme: ' + fq.folder.scheme);
+			} else {
+				const oneFolderQuery = {
+					...query,
+					...{
+						folderQueries: [fq]
+					}
+				};
+
+				searchPs.push(provider.search(oneFolderQuery, onProviderProgress));
+			}
+		});
+
+		if (diskSearchQueries.length) {
+			const diskSearchQuery = {
+				...query,
+				...{
+					folderQueries: diskSearchQueries
+				}
+			};
+
+			searchPs.push(this.diskSearch.search(diskSearchQuery, onProviderProgress));
+		}
+
+		return TPromise.join(searchPs);
 	}
 
 	private getLocalResults(query: ISearchQuery): ResourceMap<IFileMatch> {
@@ -261,11 +292,12 @@ export class SearchService extends Disposable implements ISearchService {
 	}
 
 	public clearCache(cacheKey: string): TPromise<void> {
-		return TPromise.join([
-			...this.searchProviders,
-			this.fileSearchProvider,
-			this.diskSearch
-		].map(provider => provider && provider.clearCache(cacheKey)))
+		const clearPs = [
+			this.diskSearch,
+			...values(this.fileIndexProviders)
+		].map(provider => provider && provider.clearCache(cacheKey));
+
+		return TPromise.join(clearPs)
 			.then(() => { });
 	}
 }
@@ -300,7 +332,7 @@ export class DiskSearch implements ISearchResultProvider {
 		}
 
 		const client = new Client(
-			uri.parse(require.toUrl('bootstrap')).fsPath,
+			getPathFromAmdModule(require, 'bootstrap'),
 			opts);
 
 		const channel = getNextTickChannel(client.getChannel<ISearchChannel>('search'));

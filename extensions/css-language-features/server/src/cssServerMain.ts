@@ -15,7 +15,6 @@ import { getLanguageModelCache } from './languageModelCache';
 import { formatError, runSafe } from './utils/runner';
 import URI from 'vscode-uri';
 import { getPathCompletionParticipant } from './pathCompletion';
-import { FoldingRangeServerCapabilities, FoldingRangeRequest } from 'vscode-languageserver-protocol-foldingprovider';
 
 export interface Settings {
 	css: LanguageSettings;
@@ -78,7 +77,7 @@ connection.onInitialize((params: InitializeParams): InitializeResult => {
 	scopedSettingsSupport = !!getClientCapability('workspace.configuration', false);
 	foldingRangeLimit = getClientCapability('textDocument.foldingRange.rangeLimit', Number.MAX_VALUE);
 
-	const capabilities: ServerCapabilities & FoldingRangeServerCapabilities = {
+	const capabilities: ServerCapabilities = {
 		// Tell the client that the server works in FULL text document sync mode
 		textDocumentSync: documents.syncKind,
 		completionProvider: snippetSupport ? { resolveProvider: false, triggerCharacters: ['/'] } : undefined,
@@ -306,7 +305,7 @@ connection.onRenameRequest((renameParameters, token) => {
 	}, null, `Error while computing renames for ${renameParameters.textDocument.uri}`, token);
 });
 
-connection.onRequest(FoldingRangeRequest.type, (params, token) => {
+connection.onFoldingRanges((params, token) => {
 	return runSafe(() => {
 		const document = documents.get(params.textDocument.uri);
 		if (document) {

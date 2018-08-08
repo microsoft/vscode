@@ -99,6 +99,11 @@ export class ReleaseNotesManager {
 					onDispose: () => { this._currentReleaseNotes = undefined; }
 				});
 
+			const iconPath = URI.parse(require.toUrl('./media/code-icon.svg'));
+			this._currentReleaseNotes.iconPath = {
+				light: iconPath,
+				dark: iconPath
+			};
 			this._currentReleaseNotes.html = html;
 		}
 
@@ -153,6 +158,13 @@ export class ReleaseNotesManager {
 		if (!this._releaseNotesCache[version]) {
 			this._releaseNotesCache[version] = this._requestService.request({ url })
 				.then(asText)
+				.then(text => {
+					if (!/^#\s/.test(text)) { // release notes always starts with `#` followed by whitespace
+						return TPromise.wrapError<string>(new Error('Invalid release notes'));
+					}
+
+					return TPromise.wrap(text);
+				})
 				.then(text => patchKeybindings(text));
 		}
 

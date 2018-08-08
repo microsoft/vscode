@@ -5,14 +5,13 @@
 
 'use strict';
 
-import * as path from 'path';
 import * as nls from 'vs/nls';
 import * as arrays from 'vs/base/common/arrays';
 import { trim } from 'vs/base/common/strings';
 import { IStateService } from 'vs/platform/state/common/state';
 import { app } from 'electron';
 import { ILogService } from 'vs/platform/log/common/log';
-import { getPathLabel, getBaseLabel } from 'vs/base/common/labels';
+import { getBaseLabel } from 'vs/base/common/labels';
 import { IPath } from 'vs/platform/windows/common/windows';
 import { Event as CommonEvent, Emitter } from 'vs/base/common/event';
 import { isWindows, isMacintosh, isLinux } from 'vs/base/common/platform';
@@ -21,13 +20,18 @@ import { IHistoryMainService, IRecentlyOpened } from 'vs/platform/history/common
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { isEqual } from 'vs/base/common/paths';
 import { RunOnceScheduler } from 'vs/base/common/async';
-import { getComparisonKey, isEqual as areResourcesEqual, hasToIgnoreCase } from 'vs/base/common/resources';
+import { getComparisonKey, isEqual as areResourcesEqual, hasToIgnoreCase, dirname } from 'vs/base/common/resources';
 import URI, { UriComponents } from 'vs/base/common/uri';
 import { Schemas } from 'vs/base/common/network';
+import { IUriDisplayService } from 'vs/platform/uriDisplay/common/uriDisplay';
 
 interface ISerializedRecentlyOpened {
-	workspaces: (IWorkspaceIdentifier | string | UriComponents)[];
+	workspaces2: (IWorkspaceIdentifier | string)[]; // IWorkspaceIdentifier or URI.toString()
 	files: string[];
+}
+
+interface ILegacySerializedRecentlyOpened {
+	workspaces: (IWorkspaceIdentifier | string | UriComponents)[]; // legacy (UriComponents was also supported for a few insider builds)
 }
 
 export class HistoryMainService implements IHistoryMainService {
@@ -48,7 +52,8 @@ export class HistoryMainService implements IHistoryMainService {
 		@IStateService private stateService: IStateService,
 		@ILogService private logService: ILogService,
 		@IWorkspacesMainService private workspacesMainService: IWorkspacesMainService,
-		@IEnvironmentService private environmentService: IEnvironmentService
+		@IEnvironmentService private environmentService: IEnvironmentService,
+		@IUriDisplayService private uriDisplayService: IUriDisplayService
 	) {
 		this.macOSRecentDocumentsUpdater = new RunOnceScheduler(() => this.updateMacOSRecentDocuments(), 800);
 
@@ -177,8 +182,9 @@ export class HistoryMainService implements IHistoryMainService {
 		let maxEntries = HistoryMainService.MAX_MACOS_DOCK_RECENT_ENTRIES;
 
 		// Take up to maxEntries/2 workspaces
-		for (let i = 0; i < mru.workspaces.length && i < HistoryMainService.MAX_MACOS_DOCK_RECENT_ENTRIES / 2; i++) {
-			const workspace = mru.workspaces[i];
+		const workspaces = mru.workspaces.filter(w => !(isSingleFolderWorkspaceIdentifier(w) && w.scheme !== Schemas.file));
+		for (let i = 0; i < workspaces.length && i < HistoryMainService.MAX_MACOS_DOCK_RECENT_ENTRIES / 2; i++) {
+			const workspace = workspaces[i];
 			app.addRecentDocument(isSingleFolderWorkspaceIdentifier(workspace) ? workspace.scheme === Schemas.file ? workspace.fsPath : workspace.toString() : workspace.configPath);
 			maxEntries--;
 		}
@@ -244,30 +250,52 @@ export class HistoryMainService implements IHistoryMainService {
 	}
 
 	private getRecentlyOpenedFromStorage(): IRecentlyOpened {
-		const storedRecents: ISerializedRecentlyOpened = this.stateService.getItem<ISerializedRecentlyOpened>(HistoryMainService.recentlyOpenedStorageKey) || { workspaces: [], files: [] };
-		const result: IRecentlyOpened = { workspaces: [], files: storedRecents.files };
-		for (const workspace of storedRecents.workspaces) {
-			if (typeof workspace === 'string') {
-				result.workspaces.push(URI.file(workspace));
-			} else if (isWorkspaceIdentifier(workspace)) {
-				result.workspaces.push(workspace);
-			} else {
-				result.workspaces.push(URI.revive(workspace));
+		const storedRecents = this.stateService.getItem<ISerializedRecentlyOpened & ILegacySerializedRecentlyOpened>(HistoryMainService.recentlyOpenedStorageKey);
+		const result: IRecentlyOpened = { workspaces: [], files: [] };
+		if (storedRecents) {
+			if (Array.isArray(storedRecents.workspaces2)) {
+				for (const workspace of storedRecents.workspaces2) {
+					if (isWorkspaceIdentifier(workspace)) {
+						result.workspaces.push(workspace);
+					} else if (typeof workspace === 'string') {
+						result.workspaces.push(URI.parse(workspace));
+					}
+				}
+			} else if (Array.isArray(storedRecents.workspaces)) {
+				// TODO legacy support can be removed at some point (6 month?)
+				// format of 1.25 and before
+				for (const workspace of storedRecents.workspaces) {
+					if (typeof workspace === 'string') {
+						result.workspaces.push(URI.file(workspace));
+					} else if (isWorkspaceIdentifier(workspace)) {
+						result.workspaces.push(workspace);
+					} else if (workspace && typeof workspace.path === 'string' && typeof workspace.scheme === 'string') {
+						// added by 1.26-insiders
+						result.workspaces.push(URI.revive(workspace));
+					}
+				}
+			}
+			if (Array.isArray(storedRecents.files)) {
+				for (const file of storedRecents.files) {
+					if (typeof file === 'string') {
+						result.files.push(file);
+					}
+				}
 			}
 		}
 		return result;
 	}
 
 	private saveRecentlyOpened(recent: IRecentlyOpened): void {
-		const serialized: ISerializedRecentlyOpened = { workspaces: [], files: recent.files };
+		const serialized: ISerializedRecentlyOpened = { workspaces2: [], files: recent.files };
 		for (const workspace of recent.workspaces) {
 			if (isSingleFolderWorkspaceIdentifier(workspace)) {
-				serialized.workspaces.push(<UriComponents>workspace.toJSON());
+				serialized.workspaces2.push(workspace.toString());
 			} else {
-				serialized.workspaces.push(workspace);
+				serialized.workspaces2.push(workspace);
 			}
 		}
-		this.stateService.setItem(HistoryMainService.recentlyOpenedStorageKey, recent);
+		this.stateService.setItem(HistoryMainService.recentlyOpenedStorageKey, serialized);
 	}
 
 	updateWindowsJumpList(): void {
@@ -307,8 +335,8 @@ export class HistoryMainService implements IHistoryMainService {
 				type: 'custom',
 				name: nls.localize('recentFolders', "Recent Workspaces"),
 				items: this.getRecentlyOpened().workspaces.slice(0, 7 /* limit number of entries here */).map(workspace => {
-					const title = getWorkspaceLabel(workspace, this.environmentService);
-					const description = isSingleFolderWorkspaceIdentifier(workspace) ? nls.localize('folderDesc', "{0} {1}", getBaseLabel(workspace), getPathLabel(path.dirname(workspace.path), this.environmentService)) : nls.localize('codeWorkspace', "Code Workspace");
+					const title = getWorkspaceLabel(workspace, this.environmentService, this.uriDisplayService);
+					const description = isSingleFolderWorkspaceIdentifier(workspace) ? nls.localize('folderDesc', "{0} {1}", getBaseLabel(workspace), this.uriDisplayService.getLabel(dirname(workspace))) : nls.localize('codeWorkspace', "Code Workspace");
 					let args;
 					// use quotes to support paths with whitespaces
 					if (isSingleFolderWorkspaceIdentifier(workspace)) {
