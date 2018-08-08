@@ -1321,6 +1321,11 @@ export class SCMViewlet extends PanelViewlet implements IViewModel, IViewsViewle
 
 			this.updateTitleArea();
 		}
+
+		if (this.isVisible()) {
+			panelsToRemove.forEach(p => p.repository.setSelected(false));
+			newRepositoryPanels.forEach(p => p.repository.setSelected(true));
+		}
 	}
 
 	private getContributableViewsSize(): number {

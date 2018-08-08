@@ -395,6 +395,15 @@ class ExtHostSourceControl implements vscode.SourceControl {
 		this._proxy.$updateSourceControl(this.handle, { statusBarCommands: internal });
 	}
 
+	private _selected: boolean = false;
+
+	get selected(): boolean {
+		return this._selected;
+	}
+
+	private _onDidChangeSelection = new Emitter<boolean>();
+	readonly onDidChangeSelection = this._onDidChangeSelection.event;
+
 	private handle: number = ExtHostSourceControl._handlePool++;
 
 	constructor(
@@ -454,6 +463,11 @@ class ExtHostSourceControl implements vscode.SourceControl {
 		return this._groups.get(handle);
 	}
 
+	setSelectionState(selected: boolean): void {
+		this._selected = selected;
+		this._onDidChangeSelection.fire(selected);
+	}
+
 	dispose(): void {
 		this._groups.forEach(group => group.dispose());
 		this._proxy.$unregisterSourceControl(this.handle);
@@ -470,6 +484,8 @@ export class ExtHostSCM implements ExtHostSCMShape {
 
 	private _onDidChangeActiveProvider = new Emitter<vscode.SourceControl>();
 	get onDidChangeActiveProvider(): Event<vscode.SourceControl> { return this._onDidChangeActiveProvider.event; }
+
+	private _selectedSourceControlHandles = new Set<number>();
 
 	constructor(
 		mainContext: IMainContext,
@@ -606,5 +622,42 @@ export class ExtHostSCM implements ExtHostSCMShape {
 
 			return TPromise.as<[string, number]>([result.message, result.type]);
 		});
+	}
+
+	$setSelectedSourceControls(selectedSourceControlHandles: number[]): TPromise<void> {
+		this.logService.trace('ExtHostSCM#$setSelectedSourceControls', selectedSourceControlHandles);
+
+		const set = new Set<number>();
+
+		for (const handle of selectedSourceControlHandles) {
+			set.add(handle);
+		}
+
+		set.forEach(handle => {
+			if (!this._selectedSourceControlHandles.has(handle)) {
+				const sourceControl = this._sourceControls.get(handle);
+
+				if (!sourceControl) {
+					return;
+				}
+
+				sourceControl.setSelectionState(true);
+			}
+		});
+
+		this._selectedSourceControlHandles.forEach(handle => {
+			if (!set.has(handle)) {
+				const sourceControl = this._sourceControls.get(handle);
+
+				if (!sourceControl) {
+					return;
+				}
+
+				sourceControl.setSelectionState(false);
+			}
+		});
+
+		this._selectedSourceControlHandles = set;
+		return TPromise.as(null);
 	}
 }
