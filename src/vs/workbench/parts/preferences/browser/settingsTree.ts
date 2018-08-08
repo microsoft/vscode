@@ -469,6 +469,7 @@ interface IDisposableTemplate {
 interface ISettingItemTemplate<T = any> extends IDisposableTemplate {
 	onChange?: (value: T) => void;
 
+	context?: SettingsTreeSettingElement;
 	containerElement: HTMLElement;
 	categoryElement: HTMLElement;
 	labelElement: HTMLElement;
@@ -499,7 +500,6 @@ interface ISettingComplexItemTemplate extends ISettingItemTemplate<void> {
 
 interface ISettingExcludeItemTemplate extends ISettingItemTemplate<void> {
 	excludeWidget: ExcludeSettingWidget;
-	context?: SettingsTreeSettingElement;
 }
 
 interface ISettingNewExtensionsTemplate extends IDisposableTemplate {
@@ -550,7 +550,11 @@ export class SettingsRenderer implements ITreeRenderer {
 	private readonly _onDidClickSettingLink: Emitter<string> = new Emitter<string>();
 	public readonly onDidClickSettingLink: Event<string> = this._onDidClickSettingLink.event;
 
+	private readonly _onDidFocusSetting: Emitter<SettingsTreeSettingElement> = new Emitter<SettingsTreeSettingElement>();
+	public readonly onDidFocusSetting: Event<SettingsTreeSettingElement> = this._onDidFocusSetting.event;
+
 	private measureContainer: HTMLElement;
+	private measureTemplatesPool = new Map<string, ISettingItemTemplate>();
 
 	constructor(
 		_measureContainer: HTMLElement,
@@ -607,7 +611,7 @@ export class SettingsRenderer implements ITreeRenderer {
 		const measureHelper = DOM.append(this.measureContainer, $('.setting-measure-helper'));
 
 		const templateId = this.getTemplateId(tree, element);
-		const template = this.renderTemplate(tree, templateId, measureHelper);
+		const template = this.measureTemplatesPool.get(templateId) || this.renderTemplate(tree, templateId, measureHelper);
 		this.renderElement(tree, element, templateId, template);
 
 		const height = this.measureContainer.offsetHeight;
@@ -703,7 +707,6 @@ export class SettingsRenderer implements ITreeRenderer {
 	private renderCommonTemplate(tree: ITree, container: HTMLElement, typeClass: string): ISettingItemTemplate {
 		DOM.addClass(container, 'setting-item');
 		DOM.addClass(container, 'setting-item-' + typeClass);
-
 		const titleElement = DOM.append(container, $('.setting-item-title'));
 		const categoryElement = DOM.append(titleElement, $('span.setting-item-category'));
 		const labelElement = DOM.append(titleElement, $('span.setting-item-label'));
@@ -740,6 +743,14 @@ export class SettingsRenderer implements ITreeRenderer {
 		return template;
 	}
 
+	private addSettingElementFocusHandler(template: ISettingItemTemplate): void {
+		template.toDispose.push(DOM.addDisposableListener(template.containerElement, 'focus', e => {
+			if (template.context) {
+				this._onDidFocusSetting.fire(template.context);
+			}
+		}, true));
+	}
+
 	private renderSettingTextTemplate(tree: ITree, container: HTMLElement, type = 'text'): ISettingTextItemTemplate {
 		const common = this.renderCommonTemplate(tree, container, 'text');
 
@@ -762,6 +773,8 @@ export class SettingsRenderer implements ITreeRenderer {
 			...common,
 			inputBox
 		};
+
+		this.addSettingElementFocusHandler(template);
 
 		return template;
 	}
@@ -788,6 +801,8 @@ export class SettingsRenderer implements ITreeRenderer {
 			...common,
 			inputBox
 		};
+
+		this.addSettingElementFocusHandler(template);
 
 		return template;
 	}
@@ -829,6 +844,8 @@ export class SettingsRenderer implements ITreeRenderer {
 			otherOverridesElement
 		};
 
+		this.addSettingElementFocusHandler(template);
+
 		// Prevent clicks from being handled by list
 		toDispose.push(DOM.addDisposableListener(controlElement, 'mousedown', (e: IMouseEvent) => e.stopPropagation()));
 
@@ -869,6 +886,8 @@ export class SettingsRenderer implements ITreeRenderer {
 			enumDescriptionElement
 		};
 
+		this.addSettingElementFocusHandler(template);
+
 		return template;
 	}
 
@@ -882,6 +901,8 @@ export class SettingsRenderer implements ITreeRenderer {
 			...common,
 			excludeWidget
 		};
+
+		this.addSettingElementFocusHandler(template);
 
 		common.toDispose.push(excludeWidget.onDidChangeExclude(e => {
 			if (template.context) {
@@ -942,6 +963,8 @@ export class SettingsRenderer implements ITreeRenderer {
 			button: openSettingsButton
 		};
 
+		this.addSettingElementFocusHandler(template);
+
 		return template;
 	}
 
@@ -965,6 +988,8 @@ export class SettingsRenderer implements ITreeRenderer {
 			button,
 			toDispose
 		};
+
+		// this.addSettingElementFocusHandler(template);
 
 		return template;
 	}
@@ -993,9 +1018,10 @@ export class SettingsRenderer implements ITreeRenderer {
 	}
 
 	private elementIsSelected(tree: ITree, element: SettingsTreeElement): boolean {
-		const selection = tree.getSelection();
-		const selectedElement: SettingsTreeElement = selection && selection[0];
-		return selectedElement && selectedElement.id === element.id;
+		// const selection = tree.getSelection();
+		// const selectedElement: SettingsTreeElement = selection && selection[0];
+		// return selectedElement && selectedElement.id === element.id;
+		return true;
 	}
 
 	private renderNewExtensionsElement(element: SettingsTreeNewExtensionsElement, template: ISettingNewExtensionsTemplate): void {
@@ -1003,6 +1029,8 @@ export class SettingsRenderer implements ITreeRenderer {
 	}
 
 	private renderSettingElement(tree: ITree, element: SettingsTreeSettingElement, templateId: string, template: ISettingItemTemplate | ISettingBoolItemTemplate): void {
+		template.context = element;
+
 		const isSelected = !!this.elementIsSelected(tree, element);
 		const setting = element.setting;
 
@@ -1023,9 +1051,9 @@ export class SettingsRenderer implements ITreeRenderer {
 		if (element.setting.descriptionIsMarkdown) {
 			const renderedDescription = this.renderDescriptionMarkdown(element.description, template.toDispose);
 			template.descriptionElement.appendChild(renderedDescription);
-			(<any>renderedDescription.querySelectorAll('a')).forEach(aElement => {
-				aElement.tabIndex = isSelected ? 0 : -1;
-			});
+			// (<any>renderedDescription.querySelectorAll('a')).forEach(aElement => {
+			// 	aElement.tabIndex = isSelected ? 0 : -1;
+			// });
 
 			const firstLineOverflows = renderedDescription.firstElementChild && renderedDescription.firstElementChild.clientHeight > 18;
 			const hasExtraLines = renderedDescription.childElementCount > 1;
@@ -1096,7 +1124,7 @@ export class SettingsRenderer implements ITreeRenderer {
 		template.checkbox.checked = dataElement.value;
 		template.onChange = onChange;
 
-		template.checkbox.domNode.tabIndex = isSelected ? 0 : -1;
+		// template.checkbox.domNode.tabIndex = isSelected ? 0 : -1;
 
 		// Setup and add ARIA attributes
 		// Create id and label for control/input element - parent is wrapper div
@@ -1131,30 +1159,30 @@ export class SettingsRenderer implements ITreeRenderer {
 		template.onChange = idx => onChange(dataElement.setting.enum[idx]);
 
 		if (template.controlElement.firstElementChild) {
-			template.controlElement.firstElementChild.setAttribute('tabindex', isSelected ? '0' : '-1');
+			// template.controlElement.firstElementChild.setAttribute('tabindex', isSelected ? '0' : '-1');
 			// SelectBox needs to be treeitem to read correctly within tree
 			template.controlElement.firstElementChild.setAttribute('role', 'treeitem');
 		}
 
 		template.enumDescriptionElement.innerHTML = '';
-		if (dataElement.setting.enumDescriptions && dataElement.setting.enum && dataElement.setting.enum.length < SettingsRenderer.MAX_ENUM_DESCRIPTIONS) {
-			if (isSelected) {
-				let enumDescriptionText = '\n' + dataElement.setting.enumDescriptions
-					.map((desc, i) => {
-						const displayEnum = escapeInvisibleChars(dataElement.setting.enum[i]);
-						return desc ?
-							` - \`${displayEnum}\`: ${desc}` :
-							` - \`${dataElement.setting.enum[i]}\``;
-					})
-					.filter(desc => !!desc)
-					.join('\n');
+		// if (dataElement.setting.enumDescriptions && dataElement.setting.enum && dataElement.setting.enum.length < SettingsRenderer.MAX_ENUM_DESCRIPTIONS) {
+		// 	if (isSelected) {
+		// 		let enumDescriptionText = '\n' + dataElement.setting.enumDescriptions
+		// 			.map((desc, i) => {
+		// 				const displayEnum = escapeInvisibleChars(dataElement.setting.enum[i]);
+		// 				return desc ?
+		// 					` - \`${displayEnum}\`: ${desc}` :
+		// 					` - \`${dataElement.setting.enum[i]}\``;
+		// 			})
+		// 			.filter(desc => !!desc)
+		// 			.join('\n');
 
-				const renderedMarkdown = this.renderDescriptionMarkdown(fixSettingLinks(enumDescriptionText), template.toDispose);
-				template.enumDescriptionElement.appendChild(renderedMarkdown);
-			}
+		// 		const renderedMarkdown = this.renderDescriptionMarkdown(fixSettingLinks(enumDescriptionText), template.toDispose);
+		// 		template.enumDescriptionElement.appendChild(renderedMarkdown);
+		// 	}
 
-			return { overflows: true };
-		}
+		// 	return { overflows: true };
+		// }
 
 		return { overflows: false };
 	}
@@ -1163,7 +1191,7 @@ export class SettingsRenderer implements ITreeRenderer {
 		template.onChange = null;
 		template.inputBox.value = dataElement.value;
 		template.onChange = value => onChange(value);
-		template.inputBox.inputElement.tabIndex = isSelected ? 0 : -1;
+		// template.inputBox.inputElement.tabIndex = isSelected ? 0 : -1;
 
 		// Setup and add ARIA attributes
 		// Create id and label for control/input element - parent is wrapper div
@@ -1189,7 +1217,7 @@ export class SettingsRenderer implements ITreeRenderer {
 		template.onChange = null;
 		template.inputBox.value = dataElement.value;
 		template.onChange = value => onChange(parseFn(value));
-		template.inputBox.inputElement.tabIndex = isSelected ? 0 : -1;
+		// template.inputBox.inputElement.tabIndex = isSelected ? 0 : -1;
 
 		const parseFn = dataElement.valueType === 'integer' ? parseInt : parseFloat;
 
@@ -1219,7 +1247,7 @@ export class SettingsRenderer implements ITreeRenderer {
 	}
 
 	private renderComplexSetting(dataElement: SettingsTreeSettingElement, isSelected: boolean, template: ISettingComplexItemTemplate): void {
-		template.button.element.tabIndex = isSelected ? 0 : -1;
+		// template.button.element.tabIndex = isSelected ? 0 : -1;
 		template.onChange = () => this._onDidOpenSettings.fire(dataElement.setting.key);
 	}
 

@@ -295,6 +295,11 @@
 	margin: 0px;
 }
 
+.settings-editor > .settings-body > .settings-tree-container .setting-item .setting-item-description-markdown a:focus {
+	outline: 1px solid -webkit-focus-ring-color;
+	outline-offset: -1px;
+}
+
 .settings-editor > .settings-body > .settings-tree-container .setting-item .setting-item-description-markdown code {
 	line-height: 15px; /** For some reason, this is needed, otherwise <code> will take up 20px height */
 	font-family: Menlo, Monaco, Consolas, "Droid Sans Mono", "Courier New", monospace, "Droid Sans Fallback";
