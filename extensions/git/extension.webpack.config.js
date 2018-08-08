@@ -8,16 +8,20 @@
 const path = require('path');
 
 module.exports = {
-	mode: 'production',
+	mode: 'none',
 	target: 'node',
-	entry: './out/main.js',
+	context: __dirname,
+	entry: {
+		main: './out/main.js',
+		askpass: './out/askpass-main.js'
+	},
 	output: {
-		filename: 'main.js',
-		path: path.resolve(__dirname, 'dist'),
+		filename: '[name].bundle.js',
+		path: path.join(__dirname, 'dist'),
 		libraryTarget: "commonjs"
 	},
 	externals: {
 		'vscode': 'commonjs vscode',
 	},
-	devtool: 'source-map'
+	stats: 'errors-only'
 };

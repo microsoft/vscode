@@ -15,7 +15,7 @@
   "activationEvents": [
     "*"
   ],
-  "main": "./dist/main",
+  "main": "./out/main",
   "icon": "resources/icons/git.png",
   "scripts": {
     "compile": "gulp compile-extension:git",
