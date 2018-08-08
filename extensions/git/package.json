@@ -39,6 +39,11 @@
         }
       },
       {
+        "command": "git.openRepository",
+        "title": "%command.openRepository%",
+        "category": "Git"
+      },
+      {
         "command": "git.close",
         "title": "%command.close%",
         "category": "Git"
@@ -334,6 +339,10 @@
         },
         {
           "command": "git.init",
+          "when": "config.git.enabled"
+        },
+        {
+          "command": "git.openRepository",
           "when": "config.git.enabled"
         },
         {
@@ -881,7 +890,22 @@
           "scope": "application"
         },
         "git.autoRepositoryDetection": {
-          "type": "boolean",
+          "type": [
+            "boolean",
+            "string"
+          ],
+          "enum": [
+            true,
+            false,
+            "subFolders",
+            "openEditors"
+          ],
+          "enumDescriptions": [
+            "%config.autoRepositoryDetection.true%",
+            "%config.autoRepositoryDetection.false%",
+            "%config.autoRepositoryDetection.subFolders%",
+            "%config.autoRepositoryDetection.openEditors%"
+          ],
           "description": "%config.autoRepositoryDetection%",
           "default": true
         },
@@ -893,7 +917,10 @@
         "git.autofetch": {
           "type": "boolean",
           "description": "%config.autofetch%",
-          "default": false
+          "default": false,
+          "tags": [
+            "usesOnlineServices"
+          ]
         },
         "git.confirmSync": {
           "type": "boolean",
@@ -907,6 +934,11 @@
             "tracked",
             "off"
           ],
+          "enumDescriptions": [
+            "%config.countBadge.all%",
+            "%config.countBadge.tracked%",
+            "%config.countBadge.off%"
+          ],
           "description": "%config.countBadge%",
           "default": "all"
         },
@@ -917,6 +949,12 @@
             "local",
             "tags",
             "remote"
+          ],
+          "enumDescriptions": [
+            "%config.checkoutType.all%",
+            "%config.checkoutType.local%",
+            "%config.checkoutType.tags%",
+            "%config.checkoutType.remote%"
           ],
           "description": "%config.checkoutType%",
           "default": "all"
@@ -943,11 +981,13 @@
         },
         "git.enableSmartCommit": {
           "type": "boolean",
+          "scope": "resource",
           "description": "%config.enableSmartCommit%",
           "default": false
         },
         "git.enableCommitSigning": {
           "type": "boolean",
+          "scope": "resource",
           "description": "%config.enableCommitSigning%",
           "default": false
         },
@@ -958,6 +998,7 @@
         },
         "git.promptToSaveFilesBeforeCommit": {
           "type": "boolean",
+          "scope": "resource",
           "default": false,
           "description": "%config.promptToSaveFilesBeforeCommit%"
         },
@@ -965,6 +1006,11 @@
           "type": "boolean",
           "default": true,
           "description": "%config.showInlineOpenFileAction%"
+        },
+        "git.showPushSuccessNotification": {
+          "type": "boolean",
+          "description": "%config.showPushSuccessNotification%",
+          "default": false
         },
         "git.inputValidation": {
           "type": "string",
@@ -993,6 +1039,18 @@
           "scope": "resource",
           "default": false,
           "description": "%config.showStagedChangesResourceGroup%"
+        },
+        "git.alwaysSignOff": {
+          "type": "boolean",
+          "scope": "resource",
+          "default": false,
+          "description": "%config.alwaysSignOff%"
+        },
+        "git.ignoredRepositories": {
+          "type": "array",
+          "default": [],
+          "scope": "window",
+          "description": "%config.ignoredRepositories%"
         }
       }
     },
@@ -1010,7 +1068,7 @@
         "id": "gitDecoration.modifiedResourceForeground",
         "description": "%colors.modified%",
         "defaults": {
-          "light": "#a76e12",
+          "light": "#895503",
           "dark": "#E2C08D",
           "highContrast": "#E2C08D"
         }
@@ -1028,7 +1086,7 @@
         "id": "gitDecoration.untrackedResourceForeground",
         "description": "%colors.untracked%",
         "defaults": {
-          "light": "#019001",
+          "light": "#018101",
           "dark": "#73C991",
           "highContrast": "#73C991"
         }
@@ -1145,8 +1203,8 @@
     "file-type": "^7.2.0",
     "iconv-lite": "0.4.19",
     "jschardet": "^1.6.0",
-    "vscode-extension-telemetry": "0.0.17",
-    "vscode-nls": "^3.2.1",
+    "vscode-extension-telemetry": "0.0.18",
+    "vscode-nls": "^3.2.4",
     "which": "^1.3.0"
   },
   "devDependencies": {

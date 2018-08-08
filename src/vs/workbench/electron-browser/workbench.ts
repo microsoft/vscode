@@ -12,7 +12,6 @@ import { TPromise } from 'vs/base/common/winjs.base';
 import { IDisposable, dispose, toDisposable, Disposable } from 'vs/base/common/lifecycle';
 import { Event, Emitter } from 'vs/base/common/event';
 import * as DOM from 'vs/base/browser/dom';
-import { Builder, $ } from 'vs/base/browser/builder';
 import { RunOnceScheduler } from 'vs/base/common/async';
 import * as browser from 'vs/base/browser/browser';
 import * as perf from 'vs/base/common/performance';
@@ -23,14 +22,13 @@ import { Registry } from 'vs/platform/registry/common/platform';
 import { isWindows, isLinux, isMacintosh } from 'vs/base/common/platform';
 import { IResourceInput } from 'vs/platform/editor/common/editor';
 import { IWorkbenchContributionsRegistry, Extensions as WorkbenchExtensions } from 'vs/workbench/common/contributions';
-import { IEditorInputFactoryRegistry, Extensions as EditorExtensions, TextCompareEditorVisibleContext, TEXT_DIFF_EDITOR_ID, EditorsVisibleContext, InEditorZenModeContext, ActiveEditorGroupEmptyContext, MultipleEditorGroupsContext, IUntitledResourceInput, IResourceDiffInput, SplitEditorsVertically } from 'vs/workbench/common/editor';
+import { IEditorInputFactoryRegistry, Extensions as EditorExtensions, TextCompareEditorVisibleContext, TEXT_DIFF_EDITOR_ID, EditorsVisibleContext, InEditorZenModeContext, ActiveEditorGroupEmptyContext, MultipleEditorGroupsContext, IUntitledResourceInput, IResourceDiffInput, SplitEditorsVertically, TextCompareEditorActiveContext } from 'vs/workbench/common/editor';
 import { HistoryService } from 'vs/workbench/services/history/electron-browser/history';
 import { ActivitybarPart } from 'vs/workbench/browser/parts/activitybar/activitybarPart';
 import { SidebarPart } from 'vs/workbench/browser/parts/sidebar/sidebarPart';
 import { PanelPart } from 'vs/workbench/browser/parts/panel/panelPart';
 import { StatusbarPart } from 'vs/workbench/browser/parts/statusbar/statusbarPart';
 import { TitlebarPart } from 'vs/workbench/browser/parts/titlebar/titlebarPart';
-import { MenubarPart } from 'vs/workbench/browser/parts/menubar/menubarPart';
 import { EditorPart } from 'vs/workbench/browser/parts/editor/editorPart';
 import { WorkbenchLayout } from 'vs/workbench/browser/layout';
 import { IActionBarRegistry, Extensions as ActionBarExtensions } from 'vs/workbench/browser/actions';
@@ -86,7 +84,7 @@ import { MenuService } from 'vs/workbench/services/actions/common/menuService';
 import { IContextMenuService, IContextViewService } from 'vs/platform/contextview/browser/contextView';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { IWorkbenchActionRegistry, Extensions } from 'vs/workbench/common/actions';
-import { OpenRecentAction, ToggleDevToolsAction, ReloadWindowAction, ShowPreviousWindowTab, MoveWindowTabToNewWindow, MergeAllWindowTabs, ShowNextWindowTab, ToggleWindowTabsBar, ReloadWindowWithExtensionsDisabledAction } from 'vs/workbench/electron-browser/actions';
+import { OpenRecentAction, ToggleDevToolsAction, ReloadWindowAction, ShowPreviousWindowTab, MoveWindowTabToNewWindow, MergeAllWindowTabs, ShowNextWindowTab, ToggleWindowTabsBar, ReloadWindowWithExtensionsDisabledAction, NewWindowTab } from 'vs/workbench/electron-browser/actions';
 import { KeyMod, KeyCode } from 'vs/base/common/keyCodes';
 import { IWorkspaceEditingService } from 'vs/workbench/services/workspace/common/workspaceEditing';
 import { WorkspaceEditingService } from 'vs/workbench/services/workspace/node/workspaceEditingService';
@@ -118,6 +116,7 @@ import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { TelemetryService } from 'vs/platform/telemetry/common/telemetryService';
 import { WorkbenchThemeService } from 'vs/workbench/services/themes/electron-browser/workbenchThemeService';
 import { IWorkbenchThemeService } from 'vs/workbench/services/themes/common/workbenchThemeService';
+import { IUriDisplayService, UriDisplayService } from 'vs/platform/uriDisplay/common/uriDisplay';
 
 interface WorkbenchParams {
 	configuration: IWindowConfiguration;
@@ -151,8 +150,7 @@ const Identifiers = {
 	SIDEBAR_PART: 'workbench.parts.sidebar',
 	PANEL_PART: 'workbench.parts.panel',
 	EDITOR_PART: 'workbench.parts.editor',
-	STATUSBAR_PART: 'workbench.parts.statusbar',
-	MENUBAR_PART: 'workbench.parts.menubar'
+	STATUSBAR_PART: 'workbench.parts.statusbar'
 };
 
 function getWorkbenchStateString(state: WorkbenchState): string {
@@ -191,8 +189,7 @@ export class Workbench extends Disposable implements IPartService {
 	_serviceBrand: any;
 
 	private workbenchParams: WorkbenchParams;
-	private workbenchContainer: Builder;
-	private workbench: Builder;
+	private workbench: HTMLElement;
 	private workbenchStarted: boolean;
 	private workbenchCreated: boolean;
 	private workbenchShutdown: boolean;
@@ -200,6 +197,7 @@ export class Workbench extends Disposable implements IPartService {
 	private editorService: EditorService;
 	private editorGroupService: IEditorGroupsService;
 	private viewletService: IViewletService;
+	private contextViewService: ContextViewService;
 	private contextKeyService: IContextKeyService;
 	private keybindingService: IKeybindingService;
 	private backupFileService: IBackupFileService;
@@ -209,7 +207,6 @@ export class Workbench extends Disposable implements IPartService {
 	private workbenchLayout: WorkbenchLayout;
 
 	private titlebarPart: TitlebarPart;
-	private menubarPart: MenubarPart;
 	private activitybarPart: ActivitybarPart;
 	private sidebarPart: SidebarPart;
 	private panelPart: PanelPart;
@@ -236,7 +233,6 @@ export class Workbench extends Disposable implements IPartService {
 	private closeEmptyWindowScheduler: RunOnceScheduler = this._register(new RunOnceScheduler(() => this.onAllEditorsClosed(), 50));
 
 	constructor(
-		private parent: HTMLElement,
 		private container: HTMLElement,
 		private configuration: IWindowConfiguration,
 		serviceCollection: ServiceCollection,
@@ -250,7 +246,6 @@ export class Workbench extends Disposable implements IPartService {
 		@IEnvironmentService private environmentService: IEnvironmentService,
 		@IWindowService private windowService: IWindowService,
 		@INotificationService private notificationService: NotificationService,
-		@IContextViewService private contextViewService: ContextViewService,
 		@ITelemetryService private telemetryService: TelemetryService
 	) {
 		super();
@@ -300,11 +295,13 @@ export class Workbench extends Disposable implements IPartService {
 	}
 
 	private createWorkbench(): void {
-		this.workbenchContainer = $('.monaco-workbench-container');
-		this.workbench = $().div({
-			'class': `monaco-workbench ${isWindows ? 'windows' : isLinux ? 'linux' : 'mac'}`,
-			id: Identifiers.WORKBENCH_CONTAINER
-		}).appendTo(this.workbenchContainer);
+		this.workbench = document.createElement('div');
+		this.workbench.id = Identifiers.WORKBENCH_CONTAINER;
+		DOM.addClasses(this.workbench, 'monaco-workbench', isWindows ? 'windows' : isLinux ? 'linux' : 'mac');
+
+		this._register(DOM.addDisposableListener(this.workbench, DOM.EventType.SCROLL, () => {
+			this.workbench.scrollTop = 0; // Prevent workbench from scrolling #55456
+		}));
 	}
 
 	private createGlobalActions(): void {
@@ -320,6 +317,7 @@ export class Workbench extends Disposable implements IPartService {
 		// Actions for macOS native tabs management (only when enabled)
 		const windowConfig = this.configurationService.getValue<IWindowConfiguration>();
 		if (windowConfig && windowConfig.window && windowConfig.window.nativeTabs) {
+			registry.registerWorkbenchAction(new SyncActionDescriptor(NewWindowTab, NewWindowTab.ID, NewWindowTab.LABEL), 'New Window Tab');
 			registry.registerWorkbenchAction(new SyncActionDescriptor(ShowPreviousWindowTab, ShowPreviousWindowTab.ID, ShowPreviousWindowTab.LABEL), 'Show Previous Window Tab');
 			registry.registerWorkbenchAction(new SyncActionDescriptor(ShowNextWindowTab, ShowNextWindowTab.ID, ShowNextWindowTab.LABEL), 'Show Next Window Tab');
 			registry.registerWorkbenchAction(new SyncActionDescriptor(MoveWindowTabToNewWindow, MoveWindowTabToNewWindow.ID, MoveWindowTabToNewWindow.LABEL), 'Move Window Tab to New Window');
@@ -336,6 +334,11 @@ export class Workbench extends Disposable implements IPartService {
 
 		// Clipboard
 		serviceCollection.set(IClipboardService, new ClipboardService());
+
+		// Uri Display
+		const uriDisplayService = new UriDisplayService(this.environmentService, this.contextService);
+		serviceCollection.set(IUriDisplayService, uriDisplayService);
+		this.configurationService.acquireUriDisplayService(uriDisplayService);
 
 		// Status bar
 		this.statusbarPart = this.instantiationService.createInstance(StatusbarPart, Identifiers.STATUSBAR_PART);
@@ -354,6 +357,10 @@ export class Workbench extends Disposable implements IPartService {
 
 		// List
 		serviceCollection.set(IListService, this.instantiationService.createInstance(ListService));
+
+		// Context view service
+		this.contextViewService = this.instantiationService.createInstance(ContextViewService, this.workbench);
+		serviceCollection.set(IContextViewService, this.contextViewService);
 
 		// Use themable context menus when custom titlebar is enabled to match custom menubar
 		if (!isMacintosh && this.getCustomTitleBarStyle() === 'custom') {
@@ -410,9 +417,6 @@ export class Workbench extends Disposable implements IPartService {
 
 		// History
 		serviceCollection.set(IHistoryService, new SyncDescriptor(HistoryService));
-
-		// Menubar
-		this.menubarPart = this.instantiationService.createInstance(MenubarPart, Identifiers.MENUBAR_PART);
 
 		// Backup File Service
 		if (this.workbenchParams.configuration.backupPath) {
@@ -511,9 +515,10 @@ export class Workbench extends Disposable implements IPartService {
 		// Apply as CSS class
 		const isFullscreen = browser.isFullscreen();
 		if (isFullscreen) {
-			this.workbench.addClass('fullscreen');
+			DOM.addClass(this.workbench, 'fullscreen');
 		} else {
-			this.workbench.removeClass('fullscreen');
+			DOM.removeClass(this.workbench, 'fullscreen');
+
 			if (this.zenMode.transitionedToFullScreen && this.zenMode.active) {
 				this.toggleZenMode();
 			}
@@ -594,17 +599,24 @@ export class Workbench extends Disposable implements IPartService {
 	private handleContextKeys(): void {
 		this.inZenMode = InEditorZenModeContext.bindTo(this.contextKeyService);
 
+		(new RawContextKey<boolean>('isMac', isMacintosh)).bindTo(this.contextKeyService);
+		(new RawContextKey<boolean>('isLinux', isLinux)).bindTo(this.contextKeyService);
+		(new RawContextKey<boolean>('isWindows', isWindows)).bindTo(this.contextKeyService);
+
 		const sidebarVisibleContextRaw = new RawContextKey<boolean>('sidebarVisible', false);
 		this.sideBarVisibleContext = sidebarVisibleContextRaw.bindTo(this.contextKeyService);
 
 		const editorsVisibleContext = EditorsVisibleContext.bindTo(this.contextKeyService);
 		const textCompareEditorVisible = TextCompareEditorVisibleContext.bindTo(this.contextKeyService);
+		const textCompareEditorActive = TextCompareEditorActiveContext.bindTo(this.contextKeyService);
 		const activeEditorGroupEmpty = ActiveEditorGroupEmptyContext.bindTo(this.contextKeyService);
 		const multipleEditorGroups = MultipleEditorGroupsContext.bindTo(this.contextKeyService);
 
 		const updateEditorContextKeys = () => {
+			const activeControl = this.editorService.activeControl;
 			const visibleEditors = this.editorService.visibleControls;
 
+			textCompareEditorActive.set(activeControl && activeControl.getId() === TEXT_DIFF_EDITOR_ID);
 			textCompareEditorVisible.set(visibleEditors.some(control => control.getId() === TEXT_DIFF_EDITOR_ID));
 
 			if (visibleEditors.length > 0) {
@@ -707,7 +719,12 @@ export class Workbench extends Disposable implements IPartService {
 		const panelRegistry = Registry.as<PanelRegistry>(PanelExtensions.Panels);
 		const panelId = this.storageService.get(PanelPart.activePanelSettingsKey, StorageScope.WORKSPACE, panelRegistry.getDefaultPanelId());
 		if (!this.panelHidden && !!panelId) {
-			restorePromises.push(this.panelPart.openPanel(panelId, false));
+			const isPanelToRestoreEnabled = !!this.panelPart.getPanels().filter(p => p.id === panelId).length;
+			if (isPanelToRestoreEnabled) {
+				restorePromises.push(this.panelPart.openPanel(panelId, false));
+			} else {
+				restorePromises.push(this.panelPart.openPanel(panelRegistry.getDefaultPanelId(), false));
+			}
 		}
 
 		// Restore Zen Mode if active
@@ -910,9 +927,9 @@ export class Workbench extends Disposable implements IPartService {
 
 		// Adjust CSS
 		if (hidden) {
-			this.workbench.addClass('nostatusbar');
+			DOM.addClass(this.workbench, 'nostatusbar');
 		} else {
-			this.workbench.removeClass('nostatusbar');
+			DOM.removeClass(this.workbench, 'nostatusbar');
 		}
 
 		// Layout
@@ -937,10 +954,9 @@ export class Workbench extends Disposable implements IPartService {
 		this.workbenchLayout = this.instantiationService.createInstance(
 			WorkbenchLayout,
 			this.container,
-			this.workbench.getHTMLElement(),
+			this.workbench,
 			{
 				titlebar: this.titlebarPart,
-				menubar: this.menubarPart,
 				activitybar: this.activitybarPart,
 				editor: this.editorPart,
 				sidebar: this.sidebarPart,
@@ -958,32 +974,27 @@ export class Workbench extends Disposable implements IPartService {
 
 		// Apply sidebar state as CSS class
 		if (this.sideBarHidden) {
-			this.workbench.addClass('nosidebar');
+			DOM.addClass(this.workbench, 'nosidebar');
 		}
+
 		if (this.panelHidden) {
-			this.workbench.addClass('nopanel');
+			DOM.addClass(this.workbench, 'nopanel');
 		}
+
 		if (this.statusBarHidden) {
-			this.workbench.addClass('nostatusbar');
+			DOM.addClass(this.workbench, 'nostatusbar');
 		}
 
 		// Apply font aliasing
 		this.setFontAliasing(this.fontAliasing);
 
-		// Apply title style if shown
-		const titleStyle = this.getCustomTitleBarStyle();
-		if (titleStyle) {
-			DOM.addClass(this.parent, `titlebar-style-${titleStyle}`);
-		}
-
 		// Apply fullscreen state
 		if (browser.isFullscreen()) {
-			this.workbench.addClass('fullscreen');
+			DOM.addClass(this.workbench, 'fullscreen');
 		}
 
 		// Create Parts
 		this.createTitlebarPart();
-		this.createMenubarPart();
 		this.createActivityBarPart();
 		this.createSidebarPart();
 		this.createEditorPart();
@@ -994,94 +1005,63 @@ export class Workbench extends Disposable implements IPartService {
 		this.createNotificationsHandlers();
 
 		// Add Workbench to DOM
-		this.workbenchContainer.build(this.container);
+		this.container.appendChild(this.workbench);
 	}
 
 	private createTitlebarPart(): void {
-		const titlebarContainer = $(this.workbench).div({
-			'class': ['part', 'titlebar'],
-			id: Identifiers.TITLEBAR_PART,
-			role: 'contentinfo'
-		});
+		const titlebarContainer = this.createPart(Identifiers.TITLEBAR_PART, ['part', 'titlebar'], 'contentinfo');
 
-		this.titlebarPart.create(titlebarContainer.getHTMLElement());
-	}
-
-	private createMenubarPart(): void {
-		const menubarContainer = $(this.workbench).div({
-			'class': ['part', 'menubar'],
-			id: Identifiers.MENUBAR_PART,
-			role: 'menubar'
-		});
-
-		this.menubarPart.create(menubarContainer.getHTMLElement());
-
-		this._register(this.menubarPart.onVisibilityChange((dimension => {
-			this._onMenubarVisibilityChange.fire(dimension);
-		})));
+		this.titlebarPart.create(titlebarContainer);
 	}
 
 	private createActivityBarPart(): void {
-		const activitybarPartContainer = $(this.workbench)
-			.div({
-				'class': ['part', 'activitybar', this.sideBarPosition === Position.LEFT ? 'left' : 'right'],
-				id: Identifiers.ACTIVITYBAR_PART,
-				role: 'navigation'
-			});
+		const activitybarPartContainer = this.createPart(Identifiers.ACTIVITYBAR_PART, ['part', 'activitybar', this.sideBarPosition === Position.LEFT ? 'left' : 'right'], 'navigation');
 
-		this.activitybarPart.create(activitybarPartContainer.getHTMLElement());
+		this.activitybarPart.create(activitybarPartContainer);
 	}
 
 	private createSidebarPart(): void {
-		const sidebarPartContainer = $(this.workbench)
-			.div({
-				'class': ['part', 'sidebar', this.sideBarPosition === Position.LEFT ? 'left' : 'right'],
-				id: Identifiers.SIDEBAR_PART,
-				role: 'complementary'
-			});
+		const sidebarPartContainer = this.createPart(Identifiers.SIDEBAR_PART, ['part', 'sidebar', this.sideBarPosition === Position.LEFT ? 'left' : 'right'], 'complementary');
 
-		this.sidebarPart.create(sidebarPartContainer.getHTMLElement());
+		this.sidebarPart.create(sidebarPartContainer);
 	}
 
 	private createPanelPart(): void {
-		const panelPartContainer = $(this.workbench)
-			.div({
-				'class': ['part', 'panel', this.panelPosition === Position.BOTTOM ? 'bottom' : 'right'],
-				id: Identifiers.PANEL_PART,
-				role: 'complementary'
-			});
+		const panelPartContainer = this.createPart(Identifiers.PANEL_PART, ['part', 'panel', this.panelPosition === Position.BOTTOM ? 'bottom' : 'right'], 'complementary');
 
-		this.panelPart.create(panelPartContainer.getHTMLElement());
+		this.panelPart.create(panelPartContainer);
 	}
 
 	private createEditorPart(): void {
-		const editorContainer = $(this.workbench)
-			.div({
-				'class': ['part', 'editor'],
-				id: Identifiers.EDITOR_PART,
-				role: 'main'
-			});
+		const editorContainer = this.createPart(Identifiers.EDITOR_PART, ['part', 'editor'], 'main');
 
-		this.editorPart.create(editorContainer.getHTMLElement());
+		this.editorPart.create(editorContainer);
 	}
 
 	private createStatusbarPart(): void {
-		const statusbarContainer = $(this.workbench).div({
-			'class': ['part', 'statusbar'],
-			id: Identifiers.STATUSBAR_PART,
-			role: 'contentinfo'
-		});
+		const statusbarContainer = this.createPart(Identifiers.STATUSBAR_PART, ['part', 'statusbar'], 'contentinfo');
 
-		this.statusbarPart.create(statusbarContainer.getHTMLElement());
+		this.statusbarPart.create(statusbarContainer);
+	}
+
+	private createPart(id: string, classes: string[], role: string): HTMLElement {
+		const part = document.createElement('div');
+		classes.forEach(clazz => DOM.addClass(part, clazz));
+		part.id = id;
+		part.setAttribute('role', role);
+
+		this.workbench.appendChild(part);
+
+		return part;
 	}
 
 	private createNotificationsHandlers(): void {
 
 		// Notifications Center
-		this.notificationsCenter = this._register(this.instantiationService.createInstance(NotificationsCenter, this.workbench.getHTMLElement(), this.notificationService.model));
+		this.notificationsCenter = this._register(this.instantiationService.createInstance(NotificationsCenter, this.workbench, this.notificationService.model));
 
 		// Notifications Toasts
-		this.notificationsToasts = this._register(this.instantiationService.createInstance(NotificationsToasts, this.workbench.getHTMLElement(), this.notificationService.model));
+		this.notificationsToasts = this._register(this.instantiationService.createInstance(NotificationsToasts, this.workbench, this.notificationService.model));
 
 		// Notifications Alerts
 		this._register(this.instantiationService.createInstance(NotificationsAlerts, this.notificationService.model));
@@ -1135,9 +1115,6 @@ export class Workbench extends Disposable implements IPartService {
 	private _onTitleBarVisibilityChange: Emitter<void> = this._register(new Emitter<void>());
 	get onTitleBarVisibilityChange(): Event<void> { return this._onTitleBarVisibilityChange.event; }
 
-	private _onMenubarVisibilityChange: Emitter<DOM.Dimension> = this._register(new Emitter<DOM.Dimension>());
-	get onMenubarVisibilityChange(): Event<DOM.Dimension> { return this._onMenubarVisibilityChange.event; }
-
 	get onEditorLayout(): Event<IDimension> { return this.editorPart.onDidLayout; }
 
 	isCreated(): boolean {
@@ -1159,9 +1136,6 @@ export class Workbench extends Disposable implements IPartService {
 		switch (part) {
 			case Parts.TITLEBAR_PART:
 				container = this.titlebarPart.getContainer();
-				break;
-			case Parts.MENUBAR_PART:
-				container = this.menubarPart.getContainer();
 				break;
 			case Parts.ACTIVITYBAR_PART:
 				container = this.activitybarPart.getContainer();
@@ -1186,9 +1160,7 @@ export class Workbench extends Disposable implements IPartService {
 	isVisible(part: Parts): boolean {
 		switch (part) {
 			case Parts.TITLEBAR_PART:
-				return this.getCustomTitleBarStyle() === 'custom' && !browser.isFullscreen();
-			case Parts.MENUBAR_PART:
-				return !isMacintosh && this.isVisible(Parts.TITLEBAR_PART) && !(this.menubarVisibility === 'hidden' || (this.menubarVisibility === 'default' && browser.isFullscreen()));
+				return this.getCustomTitleBarStyle() === 'custom' && (!browser.isFullscreen() || this.menubarVisibility === 'visible' || this.menubarVisibility === 'toggle');
 			case Parts.SIDEBAR_PART:
 				return !this.sideBarHidden;
 			case Parts.PANEL_PART:
@@ -1205,7 +1177,10 @@ export class Workbench extends Disposable implements IPartService {
 	getTitleBarOffset(): number {
 		let offset = 0;
 		if (this.isVisible(Parts.TITLEBAR_PART)) {
-			offset = 22 / browser.getZoomFactor(); // adjust the position based on title bar size and zoom factor
+			offset = this.workbenchLayout.partLayoutInfo.titlebar.height;
+			if (isMacintosh || this.menubarVisibility === 'hidden') {
+				offset /= browser.getZoomFactor();
+			}
 		}
 
 		return offset;
@@ -1287,6 +1262,8 @@ export class Workbench extends Disposable implements IPartService {
 	}
 
 	layout(options?: ILayoutOptions): void {
+		this.contextViewService.layout();
+
 		if (this.workbenchStarted && !this.workbenchShutdown) {
 			this.workbenchLayout.layout(options);
 		}
@@ -1334,9 +1311,9 @@ export class Workbench extends Disposable implements IPartService {
 
 		// Adjust CSS
 		if (hidden) {
-			this.workbench.addClass('nosidebar');
+			DOM.addClass(this.workbench, 'nosidebar');
 		} else {
-			this.workbench.removeClass('nosidebar');
+			DOM.removeClass(this.workbench, 'nosidebar');
 		}
 
 		// If sidebar becomes hidden, also hide the current active Viewlet if any
@@ -1385,9 +1362,9 @@ export class Workbench extends Disposable implements IPartService {
 
 		// Adjust CSS
 		if (hidden) {
-			this.workbench.addClass('nopanel');
+			DOM.addClass(this.workbench, 'nopanel');
 		} else {
-			this.workbench.removeClass('nopanel');
+			DOM.removeClass(this.workbench, 'nopanel');
 		}
 
 		// If panel part becomes hidden, also hide the current active panel if any
@@ -1463,6 +1440,10 @@ export class Workbench extends Disposable implements IPartService {
 		if (!skipLayout) {
 			this.workbenchLayout.layout();
 		}
+	}
+
+	getMenubarVisibility(): MenuBarVisibility {
+		return this.menubarVisibility;
 	}
 
 	getPanelPosition(): Position {

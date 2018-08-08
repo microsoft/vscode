@@ -21,7 +21,6 @@ import { Mode, IEntryRunContext, IAutoFocus, IQuickNavigateConfiguration, IModel
 import { QuickOpenEntry, QuickOpenModel, QuickOpenEntryGroup, compareEntries, QuickOpenItemAccessorClass } from 'vs/base/parts/quickopen/browser/quickOpenModel';
 import { QuickOpenWidget, HideReason } from 'vs/base/parts/quickopen/browser/quickOpenWidget';
 import { ContributableActionProvider } from 'vs/workbench/browser/actions';
-import * as labels from 'vs/base/common/labels';
 import { ITextFileService, AutoSaveMode } from 'vs/workbench/services/textfile/common/textfiles';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { IResourceInput } from 'vs/platform/editor/common/editor';
@@ -34,10 +33,9 @@ import { Event, Emitter } from 'vs/base/common/event';
 import { IPartService } from 'vs/workbench/services/part/common/partService';
 import { QuickOpenHandler, QuickOpenHandlerDescriptor, IQuickOpenRegistry, Extensions, EditorQuickOpenEntry, CLOSE_ON_FOCUS_LOST_CONFIG } from 'vs/workbench/browser/quickopen';
 import * as errors from 'vs/base/common/errors';
-import { IPickOpenEntry, IFilePickOpenEntry, IQuickOpenService, IPickOptions, IShowOptions, IPickOpenItem } from 'vs/platform/quickOpen/common/quickOpen';
+import { IPickOpenEntry, IFilePickOpenEntry, IQuickOpenService, IShowOptions, IPickOpenItem, IStringPickOptions, ITypedPickOptions } from 'vs/platform/quickOpen/common/quickOpen';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { IContextKeyService, RawContextKey, IContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { IHistoryService } from 'vs/workbench/services/history/common/history';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
@@ -57,6 +55,7 @@ import { INotificationService } from 'vs/platform/notification/common/notificati
 import { Dimension, addClass } from 'vs/base/browser/dom';
 import { IEditorService, ACTIVE_GROUP, SIDE_GROUP } from 'vs/workbench/services/editor/common/editorService';
 import { IEditorGroupsService } from 'vs/workbench/services/group/common/editorGroupsService';
+import { IUriDisplayService } from 'vs/platform/uriDisplay/common/uriDisplay';
 
 const HELP_PREFIX = '?';
 
@@ -73,6 +72,7 @@ interface IInternalPickOptions {
 	ignoreFocusLost?: boolean;
 	quickNavigateConfiguration?: IQuickNavigateConfiguration;
 	onDidType?: (value: string) => any;
+	onDidFocus?: (item: any) => void;
 }
 
 export class QuickOpenController extends Component implements IQuickOpenService {
@@ -145,11 +145,11 @@ export class QuickOpenController extends Component implements IQuickOpenService 
 		}
 	}
 
-	pick(picks: TPromise<string[]>, options?: IPickOptions, token?: CancellationToken): TPromise<string>;
-	pick<T extends IPickOpenEntry>(picks: TPromise<T[]>, options?: IPickOptions, token?: CancellationToken): TPromise<string>;
-	pick(picks: string[], options?: IPickOptions, token?: CancellationToken): TPromise<string>;
-	pick<T extends IPickOpenEntry>(picks: T[], options?: IPickOptions, token?: CancellationToken): TPromise<T>;
-	pick(arg1: string[] | TPromise<string[]> | IPickOpenEntry[] | TPromise<IPickOpenEntry[]>, options?: IPickOptions, token?: CancellationToken): TPromise<string | IPickOpenEntry> {
+	pick(picks: TPromise<string[]>, options?: IStringPickOptions, token?: CancellationToken): TPromise<string>;
+	pick<T extends IPickOpenEntry>(picks: TPromise<T[]>, options?: ITypedPickOptions<T>, token?: CancellationToken): TPromise<string>;
+	pick(picks: string[], options?: IStringPickOptions, token?: CancellationToken): TPromise<string>;
+	pick<T extends IPickOpenEntry>(picks: T[], options?: ITypedPickOptions<T>, token?: CancellationToken): TPromise<T>;
+	pick(arg1: string[] | TPromise<string[]> | IPickOpenEntry[] | TPromise<IPickOpenEntry[]>, options?: IStringPickOptions | ITypedPickOptions<IPickOpenEntry>, token?: CancellationToken): TPromise<string | IPickOpenEntry> {
 		if (!options) {
 			options = Object.create(null);
 		}
@@ -180,13 +180,13 @@ export class QuickOpenController extends Component implements IQuickOpenService 
 			this.pickOpenWidget.hide(HideReason.CANCELED);
 		}
 
-		return new TPromise<string | IPickOpenEntry>((resolve, reject, progress) => {
+		return new TPromise<string | IPickOpenEntry>((resolve, reject) => {
 
 			function onItem(item: IPickOpenEntry): string | IPickOpenEntry {
 				return item && isAboutStrings ? item.label : item;
 			}
 
-			this.doPick(entryPromise, options, token).then(item => resolve(onItem(item)), err => reject(err), item => progress(onItem(item)));
+			this.doPick(entryPromise, options, token).then(item => resolve(onItem(item)), err => reject(err));
 		});
 	}
 
@@ -248,7 +248,7 @@ export class QuickOpenController extends Component implements IQuickOpenService 
 			this.pickOpenWidget.layout(this.layoutDimensions);
 		}
 
-		return new TPromise<IPickOpenEntry>((complete, error, progress) => {
+		return new TPromise<IPickOpenEntry>((complete, error) => {
 
 			// Detect cancellation while pick promise is loading
 			this.pickOpenWidget.setCallbacks({
@@ -279,7 +279,14 @@ export class QuickOpenController extends Component implements IQuickOpenService 
 
 				// Model
 				const model = new QuickOpenModel([], new PickOpenActionProvider());
-				const entries = picks.map((e, index) => this.instantiationService.createInstance(PickOpenEntry, e, index, () => progress(e), () => this.pickOpenWidget.refresh()));
+				const entries = picks.map((e, index) => {
+					const onPreview = () => {
+						if (options.onDidFocus) {
+							options.onDidFocus(e);
+						}
+					};
+					return this.instantiationService.createInstance(PickOpenEntry, e, index, onPreview, () => this.pickOpenWidget.refresh());
+				});
 				if (picks.length === 0) {
 					entries.push(this.instantiationService.createInstance(PickOpenEntry, { label: nls.localize('emptyPicks', "There are no entries to pick from") }, 0, null, null));
 				}
@@ -1067,17 +1074,7 @@ class EditorHistoryHandler {
 		// Massage search for scoring
 		const query = prepareQuery(searchValue);
 
-		// Just return all if we are not searching
-		const history = this.historyService.getHistory();
-		if (!query.value) {
-			return history.map(input => this.instantiationService.createInstance(EditorHistoryEntry, input));
-		}
-
-		// Otherwise filter by search value and sort by score. Include matches on description
-		// in case the user is explicitly including path separators.
-		const accessor = query.containsPathSeparator ? MatchOnDescription : DoNotMatchOnDescription;
-		return history
-
+		const history = this.historyService.getHistory()
 			// For now, only support to match on inputs that provide resource information
 			.filter(input => {
 				let resource: URI;
@@ -1091,8 +1088,17 @@ class EditorHistoryHandler {
 			})
 
 			// Conver to quick open entries
-			.map(input => this.instantiationService.createInstance(EditorHistoryEntry, input))
+			.map(input => this.instantiationService.createInstance(EditorHistoryEntry, input));
 
+		// Just return all if we are not searching
+		if (!query.value) {
+			return history;
+		}
+
+		// Otherwise filter by search value and sort by score. Include matches on description
+		// in case the user is explicitly including path separators.
+		const accessor = query.containsPathSeparator ? MatchOnDescription : DoNotMatchOnDescription;
+		return history
 			// Make sure the search value is matching
 			.filter(e => {
 				const itemScore = scoreItem(e, query, false, accessor, this.scorerCache);
@@ -1142,9 +1148,8 @@ export class EditorHistoryEntry extends EditorQuickOpenEntry {
 		@IModeService private modeService: IModeService,
 		@IModelService private modelService: IModelService,
 		@ITextFileService private textFileService: ITextFileService,
-		@IWorkspaceContextService contextService: IWorkspaceContextService,
 		@IConfigurationService private configurationService: IConfigurationService,
-		@IEnvironmentService environmentService: IEnvironmentService,
+		@IUriDisplayService uriDisplayService: IUriDisplayService,
 		@IFileService fileService: IFileService
 	) {
 		super(editorService);
@@ -1159,8 +1164,8 @@ export class EditorHistoryEntry extends EditorQuickOpenEntry {
 		} else {
 			const resourceInput = input as IResourceInput;
 			this.resource = resourceInput.resource;
-			this.label = labels.getBaseLabel(resourceInput.resource);
-			this.description = labels.getPathLabel(resources.dirname(this.resource), environmentService, contextService);
+			this.label = resources.basenameOrAuthority(resourceInput.resource);
+			this.description = uriDisplayService.getLabel(resources.dirname(this.resource), true);
 			this.dirty = this.resource && this.textFileService.isDirty(this.resource);
 
 			if (this.dirty && this.textFileService.getAutoSaveMode() === AutoSaveMode.AFTER_SHORT_DELAY) {

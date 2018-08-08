@@ -528,9 +528,9 @@ suite('ExtHostWorkspace', function () {
 				assert.throws(() => {
 					(<any>e).added = [];
 				});
-				assert.throws(() => {
-					(<any>e.added)[0] = null;
-				});
+				// assert.throws(() => {
+				// 	(<any>e.added)[0] = null;
+				// });
 			} catch (error) {
 				finish(error);
 			}

@@ -23,10 +23,12 @@ import { IModelService } from 'vs/editor/common/services/modelService';
 import { EditOperation } from 'vs/editor/common/core/editOperation';
 import { TestFileService, TestEditorService, TestEditorGroupsService, TestEnvironmentService, TestContextService } from 'vs/workbench/test/workbenchTestServices';
 import { TPromise } from 'vs/base/common/winjs.base';
-import { IFileStat } from 'vs/platform/files/common/files';
 import { ResourceTextEdit } from 'vs/editor/common/modes';
 import { BulkEditService } from 'vs/workbench/services/bulkEdit/electron-browser/bulkEditService';
 import { NullLogService } from 'vs/platform/log/common/log';
+import { ITextModelService, ITextEditorModel } from 'vs/editor/common/services/resolverService';
+import { IReference, ImmortalReference } from 'vs/base/common/lifecycle';
+import { UriDisplayService } from 'vs/platform/uriDisplay/common/uriDisplay';
 
 suite('MainThreadEditors', () => {
 
@@ -48,16 +50,14 @@ suite('MainThreadEditors', () => {
 		createdResources.clear();
 		deletedResources.clear();
 
-		const fileService = new class extends TestFileService {
-			createFile(uri: URI): TPromise<IFileStat> {
-				createdResources.add(uri);
-				return TPromise.wrap(createMockFileStat(uri));
-			}
-		};
-
+		const fileService = new TestFileService();
 
 		const textFileService = new class extends mock<ITextFileService>() {
 			isDirty() { return false; }
+			create(uri: URI, contents?: string, options?: any) {
+				createdResources.add(uri);
+				return TPromise.as(void 0);
+			}
 			delete(resource: URI) {
 				deletedResources.add(resource);
 				return TPromise.as(void 0);
@@ -74,8 +74,16 @@ suite('MainThreadEditors', () => {
 		};
 		const workbenchEditorService = new TestEditorService();
 		const editorGroupService = new TestEditorGroupsService();
+		const textModelService = new class extends mock<ITextModelService>() {
+			createModelReference(resource: URI): TPromise<IReference<ITextEditorModel>> {
+				const textEditorModel: ITextEditorModel = new class extends mock<ITextEditorModel>() {
+					textEditorModel = modelService.getModel(resource);
+				};
+				return TPromise.as(new ImmortalReference(textEditorModel));
+			}
+		};
 
-		const bulkEditService = new BulkEditService(new NullLogService(), modelService, new TestEditorService(), null, fileService, textFileService, TestEnvironmentService, new TestContextService());
+		const bulkEditService = new BulkEditService(new NullLogService(), modelService, new TestEditorService(), textModelService, new TestFileService(), textFileService, new UriDisplayService(TestEnvironmentService, new TestContextService()));
 
 		const rpcProtocol = new TestRPCProtocol();
 		rpcProtocol.set(ExtHostContext.ExtHostDocuments, new class extends mock<ExtHostDocumentsShape>() {
@@ -132,6 +140,38 @@ suite('MainThreadEditors', () => {
 		});
 	});
 
+	test(`issue #54773: applyWorkspaceEdit checks model version in race situation`, () => {
+
+		let model = modelService.createModel('something', null, resource);
+
+		let workspaceResourceEdit1: ResourceTextEdit = {
+			resource: resource,
+			modelVersionId: model.getVersionId(),
+			edits: [{
+				text: 'asdfg',
+				range: new Range(1, 1, 1, 1)
+			}]
+		};
+		let workspaceResourceEdit2: ResourceTextEdit = {
+			resource: resource,
+			modelVersionId: model.getVersionId(),
+			edits: [{
+				text: 'asdfg',
+				range: new Range(1, 1, 1, 1)
+			}]
+		};
+
+		let p1 = editors.$tryApplyWorkspaceEdit({ edits: [workspaceResourceEdit1] }).then((result) => {
+			// first edit request succeeds
+			assert.equal(result, true);
+		});
+		let p2 = editors.$tryApplyWorkspaceEdit({ edits: [workspaceResourceEdit2] }).then((result) => {
+			// second edit request fails
+			assert.equal(result, false);
+		});
+		return TPromise.join([p1, p2]);
+	});
+
 	test(`applyWorkspaceEdit with only resource edit`, () => {
 		return editors.$tryApplyWorkspaceEdit({
 			edits: [
@@ -147,14 +187,3 @@ suite('MainThreadEditors', () => {
 		});
 	});
 });
-
-
-function createMockFileStat(target: URI): IFileStat {
-	return {
-		etag: '',
-		isDirectory: false,
-		name: target.path,
-		mtime: 0,
-		resource: target
-	};
-}

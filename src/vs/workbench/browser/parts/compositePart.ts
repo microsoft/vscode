@@ -434,7 +434,7 @@ export abstract class CompositePart<T extends Composite> extends Part {
 		$(parent).div({
 			'class': 'title-label'
 		}, div => {
-			titleLabel = div.span();
+			titleLabel = div.element('h2');
 		});
 
 		const $this = this;

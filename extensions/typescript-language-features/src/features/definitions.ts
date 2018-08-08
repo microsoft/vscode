@@ -4,7 +4,6 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as vscode from 'vscode';
-import * as Proto from '../protocol';
 import { ITypeScriptServiceClient } from '../typescriptService';
 import API from '../utils/api';
 import * as typeConverters from '../utils/typeConverters';
@@ -17,15 +16,10 @@ export default class TypeScriptDefinitionProvider extends DefinitionProviderBase
 		super(client);
 	}
 
-	public async provideDefinition() {
-		// Implemented by provideDefinition2
-		return undefined;
-	}
-
-	public async provideDefinition2(
+	public async provideDefinition(
 		document: vscode.TextDocument,
 		position: vscode.Position,
-		token: vscode.CancellationToken | boolean
+		token: vscode.CancellationToken
 	): Promise<vscode.DefinitionLink[] | vscode.Definition | undefined> {
 		if (this.client.apiVersion.gte(API.v270)) {
 			const filepath = this.client.toPath(document.uri);
@@ -35,19 +29,19 @@ export default class TypeScriptDefinitionProvider extends DefinitionProviderBase
 
 			const args = typeConverters.Position.toFileLocationRequestArgs(filepath, position);
 			try {
-				const response = await this.client.execute('definitionAndBoundSpan', args, token);
-				const locations: Proto.FileSpan[] = (response && response.body && response.body.definitions) || [];
-				if (!locations) {
+				const { body } = await this.client.execute('definitionAndBoundSpan', args, token);
+				if (!body) {
 					return undefined;
 				}
 
-				const span = response.body.textSpan ? typeConverters.Range.fromTextSpan(response.body.textSpan) : undefined;
-				return locations
+				const span = body.textSpan ? typeConverters.Range.fromTextSpan(body.textSpan) : undefined;
+				return body.definitions
 					.map(location => {
-						const loc = typeConverters.Location.fromTextSpan(this.client.toResource(location.file), location);
-						return {
-							origin: span,
-							...loc,
+						const target = typeConverters.Location.fromTextSpan(this.client.toResource(location.file), location);
+						return <vscode.DefinitionLink>{
+							originSelectionRange: span,
+							targetRange: target.range,
+							targetUri: target.uri,
 						};
 					});
 			} catch {

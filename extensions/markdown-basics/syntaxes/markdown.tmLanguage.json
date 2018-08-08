@@ -4,7 +4,7 @@
 		"If you want to provide a fix or improvement, please create a pull request against the original repository.",
 		"Once accepted there, we are happy to receive an update request."
 	],
-	"version": "https://github.com/microsoft/vscode-markdown-tm-grammar/commit/fc14af6c0ca3c2bdaa1681f6f51834fe6a0a4279",
+	"version": "https://github.com/microsoft/vscode-markdown-tm-grammar/commit/4504240cdb13a4640f64fc98a0adb858226a879e",
 	"name": "Markdown",
 	"scopeName": "text.html.markdown",
 	"patterns": [
@@ -722,7 +722,7 @@
 							"contentName": "meta.embedded.block.dosbatch",
 							"patterns": [
 								{
-									"include": "source.dosbatch"
+									"include": "source.batchfile"
 								}
 							]
 						}

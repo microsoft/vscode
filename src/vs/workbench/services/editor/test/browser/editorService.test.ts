@@ -494,7 +494,7 @@ suite('Editor service', () => {
 		assertActiveEditorChangedEvent(true);
 		assertVisibleEditorsChangedEvent(true);
 
-		editor = await service.openEditor(input, { forceOpen: true });
+		editor = await service.openEditor(input, { forceReload: true });
 		assertActiveEditorChangedEvent(false);
 		assertVisibleEditorsChangedEvent(false);
 

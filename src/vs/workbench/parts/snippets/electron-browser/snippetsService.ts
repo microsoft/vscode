@@ -4,33 +4,33 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import { localize } from 'vs/nls';
-import { ITextModel } from 'vs/editor/common/model';
-import { ISuggestSupport, ISuggestResult, ISuggestion, LanguageId, SuggestionType, SnippetType, SuggestContext } from 'vs/editor/common/modes';
-import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
-import { setSnippetSuggestSupport } from 'vs/editor/contrib/suggest/suggest';
-import { IModeService } from 'vs/editor/common/services/modeService';
-import { Position } from 'vs/editor/common/core/position';
-import { overlap, compare, startsWith, isFalsyOrWhitespace, endsWith } from 'vs/base/common/strings';
-import { SnippetParser } from 'vs/editor/contrib/snippet/snippetParser';
-import { IEnvironmentService } from 'vs/platform/environment/common/environment';
-import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
-import { IDisposable, dispose } from 'vs/base/common/lifecycle';
-import { join, basename, extname } from 'path';
-import * as resources from 'vs/base/common/resources';
-import { mkdirp, readdir, exists } from 'vs/base/node/pfs';
-import { watch } from 'vs/base/node/extfs';
-import { SnippetFile, Snippet } from 'vs/workbench/parts/snippets/electron-browser/snippetsFile';
-import { ISnippetsService } from 'vs/workbench/parts/snippets/electron-browser/snippets.contribution';
-import { IJSONSchema } from 'vs/base/common/jsonSchema';
-import { ExtensionsRegistry, IExtensionPointUser } from 'vs/workbench/services/extensions/common/extensionsRegistry';
-import { languagesExtPoint } from 'vs/workbench/services/mode/common/workbenchModeService';
+import { basename, extname, join } from 'path';
 import { MarkdownString } from 'vs/base/common/htmlContent';
+import { IJSONSchema } from 'vs/base/common/jsonSchema';
+import { dispose, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
+import { values } from 'vs/base/common/map';
+import * as resources from 'vs/base/common/resources';
+import { compare, endsWith, isFalsyOrWhitespace } from 'vs/base/common/strings';
+import URI from 'vs/base/common/uri';
+import { watch } from 'vs/base/node/extfs';
+import { exists, mkdirp, readdir } from 'vs/base/node/pfs';
+import { Position } from 'vs/editor/common/core/position';
+import { ITextModel } from 'vs/editor/common/model';
+import { ISuggestion, ISuggestResult, ISuggestSupport, LanguageId, SnippetType, SuggestContext, SuggestionType } from 'vs/editor/common/modes';
+import { IModeService } from 'vs/editor/common/services/modeService';
+import { SnippetParser } from 'vs/editor/contrib/snippet/snippetParser';
+import { setSnippetSuggestSupport } from 'vs/editor/contrib/suggest/suggest';
+import { localize } from 'vs/nls';
+import { IEnvironmentService } from 'vs/platform/environment/common/environment';
+import { IFileService } from 'vs/platform/files/common/files';
+import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { ILifecycleService, LifecyclePhase } from 'vs/platform/lifecycle/common/lifecycle';
 import { ILogService } from 'vs/platform/log/common/log';
-import { values } from 'vs/base/common/map';
-import URI from 'vs/base/common/uri';
-import { IFileService } from 'vs/platform/files/common/files';
+import { ISnippetsService } from 'vs/workbench/parts/snippets/electron-browser/snippets.contribution';
+import { Snippet, SnippetFile } from 'vs/workbench/parts/snippets/electron-browser/snippetsFile';
+import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
+import { ExtensionsRegistry, IExtensionPointUser } from 'vs/workbench/services/extensions/common/extensionsRegistry';
+import { languagesExtPoint } from 'vs/workbench/services/mode/common/workbenchModeService';
 
 namespace schema {
 
@@ -253,14 +253,12 @@ class SnippetsService implements ISnippetsService {
 					}
 				});
 			}, (error: string) => this._logService.error(error));
-			this._disposables.push({
-				dispose: () => {
-					if (watcher) {
-						watcher.removeAllListeners();
-						watcher.close();
-					}
+			this._disposables.push(toDisposable(() => {
+				if (watcher) {
+					watcher.removeAllListeners();
+					watcher.close();
 				}
-			});
+			}));
 
 		}).then(undefined, err => {
 			this._logService.error('Failed to load user snippets', err);
@@ -326,35 +324,46 @@ export class SnippetSuggestProvider implements ISuggestSupport {
 		const languageId = this._getLanguageIdAtPosition(model, position);
 		return this._snippets.getSnippets(languageId).then(snippets => {
 
-			const suggestions: SnippetSuggestion[] = [];
+			let suggestions: SnippetSuggestion[];
+			let pos = { lineNumber: position.lineNumber, column: Math.max(1, position.column - 100) };
+			let lineOffsets: number[] = [];
+			let linePrefixLow = model.getLineContent(position.lineNumber).substr(Math.max(0, position.column - 100), position.column - 1).toLowerCase();
 
-			const lowWordUntil = model.getWordUntilPosition(position).word.toLowerCase();
-			const lowLineUntil = model.getLineContent(position.lineNumber).substr(Math.max(0, position.column - 100), position.column - 1).toLowerCase();
+			while (pos.column < position.column) {
+				let word = model.getWordAtPosition(pos);
+				if (word) {
+					// at a word
+					lineOffsets.push(word.startColumn - 1);
+					pos.column = word.endColumn + 1;
 
-			for (const snippet of snippets) {
+					if (word.endColumn - 1 < linePrefixLow.length && !/\s/.test(linePrefixLow[word.endColumn - 1])) {
+						lineOffsets.push(word.endColumn - 1);
+					}
 
-				const lowPrefix = snippet.prefix.toLowerCase();
-				let overwriteBefore = 0;
-				let accetSnippet = true;
-
-				if (typeof context.triggerCharacter === 'string') {
-					// cheap match on the trigger-character
-					overwriteBefore = context.triggerCharacter.length;
-					accetSnippet = startsWith(lowPrefix, context.triggerCharacter.toLowerCase());
-
-				} else if (lowWordUntil.length > 0 && startsWith(lowPrefix, lowWordUntil)) {
-					// cheap match on the (none-empty) current word
-					overwriteBefore = lowWordUntil.length;
-					accetSnippet = true;
-
-				} else if (lowLineUntil.length > 0 && lowLineUntil.match(/[^\s]$/)) {
-					// compute overlap between snippet and (none-empty) line on text
-					overwriteBefore = overlap(lowLineUntil, snippet.prefix.toLowerCase());
-					accetSnippet = overwriteBefore > 0 && !model.getWordAtPosition(new Position(position.lineNumber, position.column - overwriteBefore));
+				} else if (!/\s/.test(linePrefixLow[pos.column - 1])) {
+					// at a none-whitespace character
+					lineOffsets.push(pos.column - 1);
+					pos.column += 1;
+				} else {
+					// always advance!
+					pos.column += 1;
 				}
+			}
 
-				if (accetSnippet) {
-					suggestions.push(new SnippetSuggestion(snippet, overwriteBefore));
+			if (lineOffsets.length === 0) {
+				// no interesting spans found -> pick all snippets
+				suggestions = snippets.map(snippet => new SnippetSuggestion(snippet, 0));
+
+			} else {
+				let consumed = new Set<Snippet>();
+				suggestions = [];
+				for (const start of lineOffsets) {
+					for (const snippet of snippets) {
+						if (!consumed.has(snippet) && matches(linePrefixLow, start, snippet.prefixLow, 0)) {
+							suggestions.push(new SnippetSuggestion(snippet, linePrefixLow.length - start));
+							consumed.add(snippet);
+						}
+					}
 				}
 			}
 
@@ -392,6 +401,16 @@ export class SnippetSuggestProvider implements ISuggestSupport {
 		}
 		return languageId;
 	}
+}
+
+function matches(pattern: string, patternStart: number, word: string, wordStart: number): boolean {
+	while (patternStart < pattern.length && wordStart < word.length) {
+		if (pattern[patternStart] === word[wordStart]) {
+			patternStart += 1;
+		}
+		wordStart += 1;
+	}
+	return patternStart === pattern.length;
 }
 
 export function getNonWhitespacePrefix(model: ISimpleModel, position: Position): string {

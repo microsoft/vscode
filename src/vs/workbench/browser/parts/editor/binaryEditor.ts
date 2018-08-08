@@ -73,7 +73,7 @@ export abstract class BaseBinaryResourceEditor extends BaseEditor {
 
 	setInput(input: EditorInput, options: EditorOptions, token: CancellationToken): Thenable<void> {
 		return super.setInput(input, options, token).then(() => {
-			return input.resolve(true).then(model => {
+			return input.resolve().then(model => {
 
 				// Check for cancellation
 				if (token.isCancellationRequested) {

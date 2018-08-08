@@ -268,6 +268,7 @@ export class ExtHostWorkspace implements ExtHostWorkspaceShape {
 		if (folders.length === 0) {
 			return undefined;
 		}
+		// #54483 @Joh Why are we still using fsPath?
 		return folders[0].uri.fsPath;
 	}
 
@@ -329,8 +330,8 @@ export class ExtHostWorkspace implements ExtHostWorkspaceShape {
 
 		// Events
 		this._onDidChangeWorkspace.fire(Object.freeze({
-			added: Object.freeze<vscode.WorkspaceFolder[]>(added),
-			removed: Object.freeze<vscode.WorkspaceFolder[]>(removed)
+			added,
+			removed,
 		}));
 	}
 
@@ -386,20 +387,26 @@ export class ExtHostWorkspace implements ExtHostWorkspaceShape {
 		const queryOptions: IQueryOptions = {
 			ignoreSymlinks: typeof options.followSymlinks === 'boolean' ? !options.followSymlinks : undefined,
 			disregardIgnoreFiles: typeof options.useIgnoreFiles === 'boolean' ? !options.useIgnoreFiles : undefined,
-			disregardExcludeSettings: options.excludes === null,
+			disregardExcludeSettings: options.exclude === null,
 			fileEncoding: options.encoding,
 			maxResults: options.maxResults,
 
-			includePattern: options.includes && options.includes.map(include => globPatternToString(include)).join(', '),
-			excludePattern: options.excludes && options.excludes.map(exclude => globPatternToString(exclude)).join(', ')
+			includePattern: options.include && globPatternToString(options.include),
+			excludePattern: options.exclude && globPatternToString(options.exclude)
 		};
 
+		let isCanceled = false;
+
 		this._activeSearchCallbacks[requestId] = p => {
+			if (isCanceled) {
+				return;
+			}
+
 			p.lineMatches.forEach(lineMatch => {
 				lineMatch.offsetAndLengths.forEach(offsetAndLength => {
 					const range = new Range(lineMatch.lineNumber, offsetAndLength[0], lineMatch.lineNumber, offsetAndLength[0] + offsetAndLength[1]);
 					callback({
-						path: URI.revive(p.resource).fsPath,
+						uri: URI.revive(p.resource),
 						preview: { text: lineMatch.preview, match: range },
 						range
 					});
@@ -408,7 +415,10 @@ export class ExtHostWorkspace implements ExtHostWorkspaceShape {
 		};
 
 		if (token) {
-			token.onCancellationRequested(() => this._proxy.$cancelSearch(requestId));
+			token.onCancellationRequested(() => {
+				isCanceled = true;
+				this._proxy.$cancelSearch(requestId);
+			});
 		}
 
 		return this._proxy.$startTextSearch(query, queryOptions, requestId).then(

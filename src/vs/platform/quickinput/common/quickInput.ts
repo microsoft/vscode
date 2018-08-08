@@ -16,6 +16,7 @@ export interface IQuickPickItem {
 	label: string;
 	description?: string;
 	detail?: string;
+	iconClasses?: string[];
 	picked?: boolean;
 }
 
@@ -23,7 +24,7 @@ export interface IQuickNavigateConfiguration {
 	keybindings: ResolvedKeybinding[];
 }
 
-export interface IPickOptions {
+export interface IPickOptions<T extends IQuickPickItem> {
 
 	/**
 	 * an optional string to show as place holder in the input box to guide the user what she picks on
@@ -49,6 +50,13 @@ export interface IPickOptions {
 	 * an optional flag to make this picker multi-select
 	 */
 	canPickMany?: boolean;
+
+	/**
+	 * an optional property for the item to focus initially.
+	 */
+	activeItem?: TPromise<T> | T;
+
+	onDidFocus?: (entry: T) => void;
 }
 
 export interface IInputOptions {
@@ -170,6 +178,8 @@ export interface IQuickInputButton {
 
 export const IQuickInputService = createDecorator<IQuickInputService>('quickInputService');
 
+export type Omit<T, K extends keyof T> = Pick<T, Exclude<keyof T, K>>;
+
 export interface IQuickInputService {
 
 	_serviceBrand: any;
@@ -177,7 +187,9 @@ export interface IQuickInputService {
 	/**
 	 * Opens the quick input box for selecting items and returns a promise with the user selected item(s) if any.
 	 */
-	pick<T extends IQuickPickItem, O extends IPickOptions>(picks: TPromise<T[]>, options?: O, token?: CancellationToken): TPromise<O extends { canPickMany: true } ? T[] : T>;
+	pick<T extends IQuickPickItem>(picks: TPromise<T[]> | T[], options?: IPickOptions<T> & { canPickMany: true }, token?: CancellationToken): TPromise<T[]>;
+	pick<T extends IQuickPickItem>(picks: TPromise<T[]> | T[], options?: IPickOptions<T> & { canPickMany: false }, token?: CancellationToken): TPromise<T>;
+	pick<T extends IQuickPickItem>(picks: TPromise<T[]> | T[], options?: Omit<IPickOptions<T>, 'canPickMany'>, token?: CancellationToken): TPromise<T>;
 
 	/**
 	 * Opens the quick input box for text input and returns a promise with the user typed value if any.

@@ -9,6 +9,7 @@ import { isObject } from 'vs/base/common/types';
 import { safeStringify, mixin } from 'vs/base/common/objects';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { ITelemetryAppender } from 'vs/platform/telemetry/common/telemetryUtils';
+import { ILogService } from 'vs/platform/log/common/log';
 
 let _initialized = false;
 
@@ -53,7 +54,8 @@ export class AppInsightsAppender implements ITelemetryAppender {
 	constructor(
 		private _eventPrefix: string,
 		private _defaultData: { [key: string]: any },
-		aiKeyOrClientFactory: string | (() => typeof appInsights.client) // allow factory function for testing
+		aiKeyOrClientFactory: string | (() => typeof appInsights.client), // allow factory function for testing
+		@ILogService private _logService?: ILogService
 	) {
 		if (!this._defaultData) {
 			this._defaultData = Object.create(null);
@@ -133,8 +135,12 @@ export class AppInsightsAppender implements ITelemetryAppender {
 			return;
 		}
 		data = mixin(data, this._defaultData);
-		let { properties, measurements } = AppInsightsAppender._getData(data);
-		this._aiClient.trackEvent(this._eventPrefix + '/' + eventName, properties, measurements);
+		data = AppInsightsAppender._getData(data);
+
+		if (this._logService) {
+			this._logService.trace(`telemetry/${eventName}`, data);
+		}
+		this._aiClient.trackEvent(this._eventPrefix + '/' + eventName, data.properties, data.measurements);
 	}
 
 	dispose(): TPromise<any> {

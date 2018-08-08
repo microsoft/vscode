@@ -9,7 +9,7 @@ import product from 'vs/platform/node/product';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { ILifecycleService } from 'vs/platform/lifecycle/electron-main/lifecycleMain';
 import { IRequestService } from 'vs/platform/request/node/request';
-import { State, IUpdate, AvailableForDownload } from 'vs/platform/update/common/update';
+import { State, IUpdate, AvailableForDownload, UpdateType } from 'vs/platform/update/common/update';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { ILogService } from 'vs/platform/log/common/log';
@@ -55,7 +55,7 @@ export class LinuxUpdateService extends AbstractUpdateService {
 						*/
 					this.telemetryService.publicLog('update:notAvailable', { explicit: !!context });
 
-					this.setState(State.Idle);
+					this.setState(State.Idle(UpdateType.Archive));
 				} else {
 					this.setState(State.AvailableForDownload(update));
 				}
@@ -69,7 +69,7 @@ export class LinuxUpdateService extends AbstractUpdateService {
 					}
 					*/
 				this.telemetryService.publicLog('update:notAvailable', { explicit: !!context });
-				this.setState(State.Idle);
+				this.setState(State.Idle(UpdateType.Archive));
 			});
 	}
 
@@ -82,7 +82,7 @@ export class LinuxUpdateService extends AbstractUpdateService {
 			shell.openExternal(state.update.url);
 		}
 
-		this.setState(State.Idle);
+		this.setState(State.Idle(UpdateType.Archive));
 		return TPromise.as(null);
 	}
 }

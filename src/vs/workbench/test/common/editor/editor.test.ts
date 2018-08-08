@@ -35,7 +35,7 @@ class FileEditorInput extends EditorInput {
 		return this.resource;
 	}
 
-	resolve(refresh?: boolean): TPromise<IEditorModel> {
+	resolve(): TPromise<IEditorModel> {
 		return TPromise.as(null);
 	}
 }

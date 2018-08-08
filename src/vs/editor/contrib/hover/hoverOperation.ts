@@ -4,16 +4,16 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import { RunOnceScheduler } from 'vs/base/common/async';
+import { RunOnceScheduler, CancelablePromise, createCancelablePromise } from 'vs/base/common/async';
 import { onUnexpectedError } from 'vs/base/common/errors';
-import { TPromise } from 'vs/base/common/winjs.base';
+import { CancellationToken } from 'vs/base/common/cancellation';
 
 export interface IHoverComputer<Result> {
 
 	/**
 	 * This is called after half the hover time
 	 */
-	computeAsync?: () => TPromise<Result>;
+	computeAsync?: (token: CancellationToken) => Promise<Result>;
 
 	/**
 	 * This is called after all the hover time
@@ -57,7 +57,7 @@ export class HoverOperation<Result> {
 	private _firstWaitScheduler: RunOnceScheduler;
 	private _secondWaitScheduler: RunOnceScheduler;
 	private _loadingMessageScheduler: RunOnceScheduler;
-	private _asyncComputationPromise: TPromise<void>;
+	private _asyncComputationPromise: CancelablePromise<void>;
 	private _asyncComputationPromiseDone: boolean;
 
 	private _completeCallback: (r: Result) => void;
@@ -103,10 +103,13 @@ export class HoverOperation<Result> {
 
 		if (this._computer.computeAsync) {
 			this._asyncComputationPromiseDone = false;
-			this._asyncComputationPromise = this._computer.computeAsync().then((asyncResult: Result) => {
-				this._asyncComputationPromiseDone = true;
-				this._withAsyncResult(asyncResult);
-			}, (e) => this._onError(e));
+			this._asyncComputationPromise = createCancelablePromise(token => {
+				return this._computer.computeAsync(token).then((asyncResult: Result) => {
+					this._asyncComputationPromiseDone = true;
+					this._withAsyncResult(asyncResult);
+				}, (e) => this._onError(e));
+			});
+
 		} else {
 			this._asyncComputationPromiseDone = true;
 		}

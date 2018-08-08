@@ -6,14 +6,14 @@
 
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { WalkThroughPart, WALK_THROUGH_FOCUS } from 'vs/workbench/parts/welcome/walkThrough/electron-browser/walkThroughPart';
-import { ICommandAndKeybindingRule, KeybindingsRegistry } from 'vs/platform/keybinding/common/keybindingsRegistry';
+import { ICommandAndKeybindingRule, KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
 import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
 import { KeyCode } from 'vs/base/common/keyCodes';
 
 export const WalkThroughArrowUp: ICommandAndKeybindingRule = {
 	id: 'workbench.action.interactivePlayground.arrowUp',
-	weight: KeybindingsRegistry.WEIGHT.workbenchContrib(),
+	weight: KeybindingWeight.WorkbenchContrib,
 	when: ContextKeyExpr.and(WALK_THROUGH_FOCUS, EditorContextKeys.editorTextFocus.toNegated()),
 	primary: KeyCode.UpArrow,
 	handler: accessor => {
@@ -27,7 +27,7 @@ export const WalkThroughArrowUp: ICommandAndKeybindingRule = {
 
 export const WalkThroughArrowDown: ICommandAndKeybindingRule = {
 	id: 'workbench.action.interactivePlayground.arrowDown',
-	weight: KeybindingsRegistry.WEIGHT.workbenchContrib(),
+	weight: KeybindingWeight.WorkbenchContrib,
 	when: ContextKeyExpr.and(WALK_THROUGH_FOCUS, EditorContextKeys.editorTextFocus.toNegated()),
 	primary: KeyCode.DownArrow,
 	handler: accessor => {
@@ -41,7 +41,7 @@ export const WalkThroughArrowDown: ICommandAndKeybindingRule = {
 
 export const WalkThroughPageUp: ICommandAndKeybindingRule = {
 	id: 'workbench.action.interactivePlayground.pageUp',
-	weight: KeybindingsRegistry.WEIGHT.workbenchContrib(),
+	weight: KeybindingWeight.WorkbenchContrib,
 	when: ContextKeyExpr.and(WALK_THROUGH_FOCUS, EditorContextKeys.editorTextFocus.toNegated()),
 	primary: KeyCode.PageUp,
 	handler: accessor => {
@@ -55,7 +55,7 @@ export const WalkThroughPageUp: ICommandAndKeybindingRule = {
 
 export const WalkThroughPageDown: ICommandAndKeybindingRule = {
 	id: 'workbench.action.interactivePlayground.pageDown',
-	weight: KeybindingsRegistry.WEIGHT.workbenchContrib(),
+	weight: KeybindingWeight.WorkbenchContrib,
 	when: ContextKeyExpr.and(WALK_THROUGH_FOCUS, EditorContextKeys.editorTextFocus.toNegated()),
 	primary: KeyCode.PageDown,
 	handler: accessor => {

@@ -561,6 +561,8 @@ export class SettingsTargetsWidget extends Widget {
 export interface SearchOptions extends IInputOptions {
 	focusKey?: IContextKey<boolean>;
 	showResultCount?: boolean;
+	ariaLive?: string;
+	ariaLabelledBy?: string;
 }
 
 export class SearchWidget extends Widget {
@@ -608,7 +610,10 @@ export class SearchWidget extends Widget {
 			}));
 		}
 
-		this.inputBox.inputElement.setAttribute('aria-live', 'assertive');
+		this.inputBox.inputElement.setAttribute('aria-live', this.options.ariaLive || 'off');
+		if (this.options.ariaLabelledBy) {
+			this.inputBox.inputElement.setAttribute('aria-labelledBy', this.options.ariaLabelledBy);
+		}
 		const focusTracker = this._register(DOM.trackFocus(this.inputBox.inputElement));
 		this._register(focusTracker.onDidFocus(() => this._onFocus.fire()));
 

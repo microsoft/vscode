@@ -133,7 +133,7 @@ export class IntegrityServiceImpl implements IIntegrityService {
 
 	private _resolve(filename: string, expected: string): TPromise<ChecksumPair> {
 		let fileUri = URI.parse(require.toUrl(filename));
-		return new TPromise<ChecksumPair>((c, e, p) => {
+		return new TPromise<ChecksumPair>((c, e) => {
 			fs.readFile(fileUri.fsPath, (err, buff) => {
 				if (err) {
 					return e(err);

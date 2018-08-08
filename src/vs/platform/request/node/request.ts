@@ -37,12 +37,12 @@ Registry.as<IConfigurationRegistry>(Extensions.Configuration)
 			'http.proxy': {
 				type: 'string',
 				pattern: '^https?://([^:]*(:[^@]*)?@)?([^:]+)(:\\d+)?/?$|^$',
-				description: localize('proxy', "The proxy setting to use. If not set will be taken from the http_proxy and https_proxy environment variables")
+				description: localize('proxy', "The proxy setting to use. If not set will be taken from the http_proxy and https_proxy environment variables.")
 			},
 			'http.proxyStrictSSL': {
 				type: 'boolean',
 				default: true,
-				description: localize('strictSSL', "Whether the proxy server certificate should be verified against the list of supplied CAs.")
+				description: localize('strictSSL', "Controls whether the proxy server certificate should be verified against the list of supplied CAs.")
 			},
 			'http.proxyAuthorization': {
 				type: ['null', 'string'],

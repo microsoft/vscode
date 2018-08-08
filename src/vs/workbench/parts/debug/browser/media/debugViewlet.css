@@ -372,6 +372,7 @@
 .debug-viewlet .debug-breakpoints .breakpoint > .icon {
 	width: 19px;
 	height: 19px;
+	min-width: 19px;
 }
 
 .debug-viewlet .debug-breakpoints .breakpoint > .file-path {
@@ -381,6 +382,11 @@
 	flex: 1;
 	text-overflow: ellipsis;
 	overflow: hidden;
+}
+
+.debug-viewlet .debug-breakpoints .breakpoint .name {
+	overflow: hidden;
+	text-overflow: ellipsis
 }
 
 .debug-viewlet .debug-action.remove {

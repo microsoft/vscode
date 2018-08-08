@@ -17,6 +17,7 @@ import { IWorkspaceContextService, toWorkspaceFolders, Workspace } from 'vs/plat
 import { ISearchPathsResult, QueryBuilder } from 'vs/workbench/parts/search/common/queryBuilder';
 import { TestContextService, TestEnvironmentService } from 'vs/workbench/test/workbenchTestServices';
 
+const DEFAULT_EDITOR_CONFIG = {};
 const DEFAULT_USER_CONFIG = { useRipgrep: true, useIgnoreFiles: true };
 const DEFAULT_QUERY_PROPS = { useRipgrep: true, disregardIgnoreFiles: false };
 
@@ -36,6 +37,7 @@ suite('QueryBuilder', () => {
 
 		mockConfigService = new TestConfigurationService();
 		mockConfigService.setUserConfiguration('search', DEFAULT_USER_CONFIG);
+		mockConfigService.setUserConfiguration('editor', DEFAULT_EDITOR_CONFIG);
 		instantiationService.stub(IConfigurationService, mockConfigService);
 
 		mockContextService = new TestContextService();
@@ -230,6 +232,21 @@ suite('QueryBuilder', () => {
 				}],
 				type: QueryType.Text,
 				excludePattern: patternsToIExpression(...globalGlob('foo'))
+			});
+	});
+
+	test('file pattern trimming', () => {
+		const content = 'content';
+		assertEqualQueries(
+			queryBuilder.text(
+				PATTERN_INFO,
+				undefined,
+				{ filePattern: ` ${content} ` }
+			),
+			<ISearchQuery>{
+				contentPattern: PATTERN_INFO,
+				filePattern: content,
+				type: QueryType.Text
 			});
 	});
 

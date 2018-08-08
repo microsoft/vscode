@@ -57,56 +57,57 @@ export class ExtensionUrlHandler implements IExtensionUrlHandler, IURLHandler {
 		]);
 	}
 
-	async handleURL(uri: URI): TPromise<boolean> {
+	handleURL(uri: URI): TPromise<boolean> {
 		if (!isExtensionId(uri.authority)) {
-			return false;
+			return TPromise.as(false);
 		}
 
 		const extensionId = uri.authority;
 		const wasHandlerAvailable = this.extensionHandlers.has(extensionId);
 
-		const extensions = await this.extensionService.getExtensions();
-		const extension = extensions.filter(e => e.id === extensionId)[0];
+		return this.extensionService.getExtensions().then(extensions => {
+			const extension = extensions.filter(e => e.id === extensionId)[0];
 
-		if (!extension) {
-			return false;
-		}
-
-		const result = await this.dialogService.confirm({
-			message: localize('confirmUrl', "Allow an extension to open this URL?", extensionId),
-			detail: `${extension.displayName || extension.name} (${extensionId}) wants to open a URL:\n\n${uri.toString()}`
-		});
-
-		if (!result.confirmed) {
-			return true;
-		}
-
-		const handler = this.extensionHandlers.get(extensionId);
-		if (handler) {
-			if (!wasHandlerAvailable) {
-				// forward it directly
-				return handler.handleURL(uri);
+			if (!extension) {
+				return TPromise.as(false);
 			}
 
-			// let the ExtensionUrlHandler instance handle this
-			return TPromise.as(false);
-		}
+			return this.dialogService.confirm({
+				message: localize('confirmUrl', "Allow an extension to open this URL?", extensionId),
+				detail: `${extension.displayName || extension.name} (${extensionId}) wants to open a URL:\n\n${uri.toString()}`
+			}).then(result => {
 
-		// collect URI for eventual extension activation
-		const timestamp = new Date().getTime();
-		let uris = this.uriBuffer.get(extensionId);
+				if (!result.confirmed) {
+					return TPromise.as(true);
+				}
 
-		if (!uris) {
-			uris = [];
-			this.uriBuffer.set(extensionId, uris);
-		}
+				const handler = this.extensionHandlers.get(extensionId);
+				if (handler) {
+					if (!wasHandlerAvailable) {
+						// forward it directly
+						return handler.handleURL(uri);
+					}
 
-		uris.push({ timestamp, uri });
+					// let the ExtensionUrlHandler instance handle this
+					return TPromise.as(false);
+				}
 
-		// activate the extension
-		await this.extensionService.activateByEvent(`onUri:${extensionId}`);
+				// collect URI for eventual extension activation
+				const timestamp = new Date().getTime();
+				let uris = this.uriBuffer.get(extensionId);
 
-		return true;
+				if (!uris) {
+					uris = [];
+					this.uriBuffer.set(extensionId, uris);
+				}
+
+				uris.push({ timestamp, uri });
+
+				// activate the extension
+				return this.extensionService.activateByEvent(`onUri:${extensionId}`)
+					.then(() => true);
+			});
+		});
 	}
 
 	registerExtensionHandler(extensionId: string, handler: IURLHandler): void {

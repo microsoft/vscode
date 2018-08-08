@@ -12,6 +12,8 @@ import { IMessagePassingProtocol, ClientConnectionEvent, IPCServer, IPCClient } 
 import { join } from 'path';
 import { tmpdir } from 'os';
 import { generateUuid } from 'vs/base/common/uuid';
+import { IDisposable } from 'vs/base/common/lifecycle';
+import { TimeoutTimer } from 'vs/base/common/async';
 
 export function generateRandomPipeName(): string {
 	const randomSuffix = generateUuid();
@@ -23,17 +25,28 @@ export function generateRandomPipeName(): string {
 	}
 }
 
-export class Protocol implements IMessagePassingProtocol {
+export class Protocol implements IDisposable, IMessagePassingProtocol {
 
-	private static readonly _headerLen = 17;
+	private static readonly _headerLen = 5;
+
+	private _isDisposed: boolean;
+	private _chunks: Buffer[];
+
+	private _firstChunkTimer: TimeoutTimer;
+	private _socketDataListener: (data: Buffer) => void;
+	private _socketEndListener: () => void;
+	private _socketCloseListener: () => void;
 
 	private _onMessage = new Emitter<any>();
-
 	readonly onMessage: Event<any> = this._onMessage.event;
 
-	constructor(private _socket: Socket, firstDataChunk?: Buffer) {
+	private _onClose = new Emitter<void>();
+	readonly onClose: Event<void> = this._onClose.event;
 
-		let chunks: Buffer[] = [];
+	constructor(private _socket: Socket, firstDataChunk?: Buffer) {
+		this._isDisposed = false;
+		this._chunks = [];
+
 		let totalLength = 0;
 
 		const state = {
@@ -44,16 +57,16 @@ export class Protocol implements IMessagePassingProtocol {
 
 		const acceptChunk = (data: Buffer) => {
 
-			chunks.push(data);
+			this._chunks.push(data);
 			totalLength += data.length;
 
 			while (totalLength > 0) {
 
 				if (state.readHead) {
-					// expecting header -> read 17bytes for header
+					// expecting header -> read 5bytes for header
 					// information: `bodyIsJson` and `bodyLen`
 					if (totalLength >= Protocol._headerLen) {
-						const all = Buffer.concat(chunks);
+						const all = Buffer.concat(this._chunks);
 
 						state.bodyIsJson = all.readInt8(0) === 1;
 						state.bodyLen = all.readInt32BE(1);
@@ -61,7 +74,7 @@ export class Protocol implements IMessagePassingProtocol {
 
 						const rest = all.slice(Protocol._headerLen);
 						totalLength = rest.length;
-						chunks = [rest];
+						this._chunks = [rest];
 
 					} else {
 						break;
@@ -73,21 +86,27 @@ export class Protocol implements IMessagePassingProtocol {
 					// the actual message or wait for more data
 					if (totalLength >= state.bodyLen) {
 
-						const all = Buffer.concat(chunks);
+						const all = Buffer.concat(this._chunks);
 						let message = all.toString('utf8', 0, state.bodyLen);
 						if (state.bodyIsJson) {
 							message = JSON.parse(message);
 						}
-						this._onMessage.fire(message);
 
+						// ensure the public getBuffer returns a valid value if invoked from the event listeners
 						const rest = all.slice(state.bodyLen);
 						totalLength = rest.length;
-						chunks = [rest];
+						this._chunks = [rest];
 
 						state.bodyIsJson = false;
 						state.bodyLen = -1;
 						state.readHead = true;
 
+						this._onMessage.fire(message);
+
+						if (this._isDisposed) {
+							// check if an event listener lead to our disposal
+							break;
+						}
 					} else {
 						break;
 					}
@@ -103,14 +122,43 @@ export class Protocol implements IMessagePassingProtocol {
 			}
 		};
 
-		_socket.on('data', (data: Buffer) => {
+		// Make sure to always handle the firstDataChunk if no more `data` event comes in
+		this._firstChunkTimer = new TimeoutTimer();
+		this._firstChunkTimer.setIfNotSet(() => {
+			acceptFirstDataChunk();
+		}, 0);
+
+		this._socketDataListener = (data: Buffer) => {
 			acceptFirstDataChunk();
 			acceptChunk(data);
-		});
+		};
+		_socket.on('data', this._socketDataListener);
 
-		_socket.on('end', () => {
+		this._socketEndListener = () => {
 			acceptFirstDataChunk();
-		});
+		};
+		_socket.on('end', this._socketEndListener);
+
+		this._socketCloseListener = () => {
+			this._onClose.fire();
+		};
+		_socket.once('close', this._socketCloseListener);
+	}
+
+	public dispose(): void {
+		this._isDisposed = true;
+		this._firstChunkTimer.dispose();
+		this._socket.removeListener('data', this._socketDataListener);
+		this._socket.removeListener('end', this._socketEndListener);
+		this._socket.removeListener('close', this._socketCloseListener);
+	}
+
+	public end(): void {
+		this._socket.end();
+	}
+
+	public getBuffer(): Buffer {
+		return Buffer.concat(this._chunks);
 	}
 
 	public send(message: any): void {
@@ -123,10 +171,10 @@ export class Protocol implements IMessagePassingProtocol {
 		// ensure string
 		if (typeof message !== 'string') {
 			message = JSON.stringify(message);
-			header.writeInt8(1, 0);
+			header.writeInt8(1, 0, true);
 		}
 		const data = Buffer.from(message);
-		header.writeInt32BE(data.length, 1);
+		header.writeInt32BE(data.length, 1, true);
 
 		this._writeSoon(header, data);
 	}
@@ -193,18 +241,19 @@ export class Server extends IPCServer {
 
 export class Client extends IPCClient {
 
-	private _onClose = new Emitter<void>();
-	get onClose(): Event<void> { return this._onClose.event; }
+	public static fromSocket(socket: Socket, id: string): Client {
+		return new Client(new Protocol(socket), id);
+	}
 
-	constructor(private socket: Socket, id: string) {
-		super(new Protocol(socket), id);
-		socket.once('close', () => this._onClose.fire());
+	get onClose(): Event<void> { return this.protocol.onClose; }
+
+	constructor(private protocol: Protocol, id: string) {
+		super(protocol, id);
 	}
 
 	dispose(): void {
 		super.dispose();
-		this.socket.end();
-		this.socket = null;
+		this.protocol.end();
 	}
 }
 
@@ -229,7 +278,7 @@ export function connect(hook: any, clientId: string): TPromise<Client> {
 	return new TPromise<Client>((c, e) => {
 		const socket = createConnection(hook, () => {
 			socket.removeListener('error', e);
-			c(new Client(socket, clientId));
+			c(Client.fromSocket(socket, clientId));
 		});
 
 		socket.once('error', e);

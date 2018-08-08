@@ -9,10 +9,11 @@ import { TPromise } from 'vs/base/common/winjs.base';
 import URI from 'vs/base/common/uri';
 import { TextFileEditorModel } from 'vs/workbench/services/textfile/common/textFileEditorModel';
 import { dispose, IDisposable, Disposable } from 'vs/base/common/lifecycle';
-import { ITextFileEditorModel, ITextFileEditorModelManager, TextFileModelChangeEvent, StateChange, IModelLoadOrCreateOptions, ILoadOptions } from 'vs/workbench/services/textfile/common/textfiles';
+import { ITextFileEditorModel, ITextFileEditorModelManager, TextFileModelChangeEvent, StateChange, IModelLoadOrCreateOptions } from 'vs/workbench/services/textfile/common/textfiles';
 import { ILifecycleService } from 'vs/platform/lifecycle/common/lifecycle';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { ResourceMap } from 'vs/base/common/map';
+import { onUnexpectedError } from 'vs/base/common/errors';
 
 export class TextFileEditorModelManager extends Disposable implements ITextFileEditorModelManager {
 
@@ -131,18 +132,23 @@ export class TextFileEditorModelManager extends Disposable implements ITextFileE
 			return pendingLoad;
 		}
 
-		let modelLoadOptions: ILoadOptions;
-		if (options && options.allowBinary) {
-			modelLoadOptions = { allowBinary: true };
-		}
-
 		let modelPromise: TPromise<ITextFileEditorModel>;
 
 		// Model exists
 		let model = this.get(resource);
 		if (model) {
 			if (options && options.reload) {
-				modelPromise = model.load(modelLoadOptions);
+
+				// async reload: trigger a reload but return immediately
+				if (options.reload.async) {
+					modelPromise = TPromise.as(model);
+					model.load(options).then(null, onUnexpectedError);
+				}
+
+				// sync reload: do not return until model reloaded
+				else {
+					modelPromise = model.load(options);
+				}
 			} else {
 				modelPromise = TPromise.as(model);
 			}
@@ -151,7 +157,7 @@ export class TextFileEditorModelManager extends Disposable implements ITextFileE
 		// Model does not exist
 		else {
 			model = this.instantiationService.createInstance(TextFileEditorModel, resource, options ? options.encoding : void 0);
-			modelPromise = model.load(modelLoadOptions);
+			modelPromise = model.load(options);
 
 			// Install state change listener
 			this.mapResourceToStateChangeListener.set(resource, model.onDidStateChange(state => {

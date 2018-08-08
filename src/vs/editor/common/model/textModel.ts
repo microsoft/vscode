@@ -46,7 +46,7 @@ export function createTextBufferFactory(text: string): model.ITextBufferFactory 
 }
 
 export function createTextBufferFactoryFromStream(stream: IStringStream, filter?: (chunk: string) => string): TPromise<model.ITextBufferFactory> {
-	return new TPromise<model.ITextBufferFactory>((c, e, p) => {
+	return new TPromise<model.ITextBufferFactory>((c, e) => {
 		let done = false;
 		let builder = createTextBufferBuilder();
 
@@ -1416,6 +1416,10 @@ export class TextModel extends Disposable implements model.ITextModel {
 		}
 	}
 
+	public canUndo(): boolean {
+		return this._commandManager.canUndo();
+	}
+
 	private _redo(): Selection[] {
 		this._isRedoing = true;
 		let r = this._commandManager.redo();
@@ -1439,6 +1443,10 @@ export class TextModel extends Disposable implements model.ITextModel {
 			this._eventEmitter.endDeferredEmit();
 			this._onDidChangeDecorations.endDeferredEmit();
 		}
+	}
+
+	public canRedo(): boolean {
+		return this._commandManager.canRedo();
 	}
 
 	//#endregion

@@ -5,8 +5,8 @@
 
 import * as assert from 'assert';
 import { TreeModel, ITreeNode } from 'vs/base/browser/ui/tree/treeModel';
-import { ISpliceable } from 'vs/base/browser/ui/list/splice';
-import { iter } from 'vs/base/common/iterator';
+import { ISpliceable } from 'vs/base/common/sequence';
+import { Iterator } from 'vs/base/common/iterator';
 
 function toSpliceable<T>(arr: T[]): ISpliceable<T> {
 	return {
@@ -33,7 +33,7 @@ suite('TreeModel2', function () {
 		const list = [] as ITreeNode<number>[];
 		const model = new TreeModel<number>(toSpliceable(list));
 
-		model.splice([0], 0, iter([
+		model.splice([0], 0, Iterator.iterate([
 			{ element: 0 },
 			{ element: 1 },
 			{ element: 2 }
@@ -55,9 +55,9 @@ suite('TreeModel2', function () {
 		const list = [] as ITreeNode<number>[];
 		const model = new TreeModel<number>(toSpliceable(list));
 
-		model.splice([0], 0, iter([
+		model.splice([0], 0, Iterator.iterate([
 			{
-				element: 0, children: iter([
+				element: 0, children: Iterator.iterate([
 					{ element: 10 },
 					{ element: 11 },
 					{ element: 12 },
@@ -92,9 +92,9 @@ suite('TreeModel2', function () {
 		const list = [] as ITreeNode<number>[];
 		const model = new TreeModel<number>(toSpliceable(list));
 
-		model.splice([0], 0, iter([
+		model.splice([0], 0, Iterator.iterate([
 			{
-				element: 0, collapsed: true, children: iter([
+				element: 0, collapsed: true, children: Iterator.iterate([
 					{ element: 10 },
 					{ element: 11 },
 					{ element: 12 },
@@ -120,7 +120,7 @@ suite('TreeModel2', function () {
 		const list = [] as ITreeNode<number>[];
 		const model = new TreeModel<number>(toSpliceable(list));
 
-		model.splice([0], 0, iter([
+		model.splice([0], 0, Iterator.iterate([
 			{ element: 0 },
 			{ element: 1 },
 			{ element: 2 }
@@ -145,9 +145,9 @@ suite('TreeModel2', function () {
 		const list = [] as ITreeNode<number>[];
 		const model = new TreeModel<number>(toSpliceable(list));
 
-		model.splice([0], 0, iter([
+		model.splice([0], 0, Iterator.iterate([
 			{
-				element: 0, children: iter([
+				element: 0, children: Iterator.iterate([
 					{ element: 10 },
 					{ element: 11 },
 					{ element: 12 },
@@ -179,9 +179,9 @@ suite('TreeModel2', function () {
 		const list = [] as ITreeNode<number>[];
 		const model = new TreeModel<number>(toSpliceable(list));
 
-		model.splice([0], 0, iter([
+		model.splice([0], 0, Iterator.iterate([
 			{
-				element: 0, children: iter([
+				element: 0, children: Iterator.iterate([
 					{ element: 10 },
 					{ element: 11 },
 					{ element: 12 },
@@ -207,9 +207,9 @@ suite('TreeModel2', function () {
 		const list = [] as ITreeNode<number>[];
 		const model = new TreeModel<number>(toSpliceable(list));
 
-		model.splice([0], 0, iter([
+		model.splice([0], 0, Iterator.iterate([
 			{
-				element: 0, collapsed: true, children: iter([
+				element: 0, collapsed: true, children: Iterator.iterate([
 					{ element: 10 },
 					{ element: 11 },
 					{ element: 12 },
@@ -232,9 +232,9 @@ suite('TreeModel2', function () {
 		const list = [] as ITreeNode<number>[];
 		const model = new TreeModel<number>(toSpliceable(list));
 
-		model.splice([0], 0, iter([
+		model.splice([0], 0, Iterator.iterate([
 			{
-				element: 0, children: iter([
+				element: 0, children: Iterator.iterate([
 					{ element: 10 },
 					{ element: 11 },
 					{ element: 12 },
@@ -263,9 +263,9 @@ suite('TreeModel2', function () {
 		const list = [] as ITreeNode<number>[];
 		const model = new TreeModel<number>(toSpliceable(list));
 
-		model.splice([0], 0, iter([
+		model.splice([0], 0, Iterator.iterate([
 			{
-				element: 0, collapsed: true, children: iter([
+				element: 0, collapsed: true, children: Iterator.iterate([
 					{ element: 10 },
 					{ element: 11 },
 					{ element: 12 },
@@ -303,7 +303,7 @@ suite('TreeModel2', function () {
 		const list = [] as ITreeNode<number>[];
 		const model = new TreeModel<number>(toSpliceable(list));
 
-		model.splice([0], 0, iter([
+		model.splice([0], 0, Iterator.iterate([
 			{
 				element: 1, children: [
 					{

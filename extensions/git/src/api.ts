@@ -42,19 +42,24 @@ export interface API {
 
 export class APIImpl implements API {
 
-	constructor(private modelPromise: Promise<Model>) { }
+	constructor(private model: Model) { }
 
 	async getGitPath(): Promise<string> {
-		const model = await this.modelPromise;
-		return model.git.path;
+		return this.model.git.path;
 	}
 
 	async getRepositories(): Promise<Repository[]> {
-		const model = await this.modelPromise;
-		return model.repositories.map(repository => new RepositoryImpl(repository));
+		return this.model.repositories.map(repository => new RepositoryImpl(repository));
 	}
 }
 
-export function createApi(modelPromise: Promise<Model>): API {
-	return new APIImpl(modelPromise);
+export class NoopAPIImpl implements API {
+
+	async getGitPath(): Promise<string> {
+		throw new Error('Git model not found');
+	}
+
+	async getRepositories(): Promise<Repository[]> {
+		throw new Error('Git model not found');
+	}
 }

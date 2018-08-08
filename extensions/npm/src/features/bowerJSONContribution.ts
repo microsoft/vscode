@@ -4,8 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import { MarkedString, CompletionItemKind, CompletionItem, DocumentSelector, SnippetString } from 'vscode';
-import { IJSONContribution, ISuggestionsCollector } from './jsonContributions';
+import { MarkedString, CompletionItemKind, CompletionItem, DocumentSelector, SnippetString, workspace } from 'vscode';
+import { IJSONContribution, ISuggestionsCollector, xhrDisabled } from './jsonContributions';
 import { XHRRequest } from 'request-light';
 import { Location } from 'jsonc-parser';
 import { textToMarkedString } from './markedTextUtil';
@@ -25,7 +25,19 @@ export class BowerJSONContribution implements IJSONContribution {
 		'hui', 'bootstrap-languages', 'async', 'gulp', 'jquery-pjax', 'coffeescript', 'hammer.js', 'ace', 'leaflet', 'jquery-mobile', 'sweetalert', 'typeahead.js', 'soup', 'typehead.js',
 		'sails', 'codeigniter2'];
 
-	public constructor(private xhr: XHRRequest) {
+	private xhr: XHRRequest;
+
+	public constructor(httprequestxhr: XHRRequest) {
+
+		const getxhr = () => {
+			return workspace.getConfiguration('npm').get('fetchOnlinePackageInfo') === false ? xhrDisabled : httprequestxhr;
+		};
+		this.xhr = getxhr();
+		workspace.onDidChangeConfiguration((e) => {
+			if (e.affectsConfiguration('npm.fetchOnlinePackageInfo')) {
+				this.xhr = getxhr();
+			}
+		});
 	}
 
 	public getDocumentSelector(): DocumentSelector {

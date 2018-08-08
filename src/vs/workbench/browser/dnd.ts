@@ -35,6 +35,7 @@ import { IEditorService, IResourceEditor } from 'vs/workbench/services/editor/co
 import { Disposable } from 'vs/base/common/lifecycle';
 import { addDisposableListener, EventType } from 'vs/base/browser/dom';
 import { IEditorGroup } from 'vs/workbench/services/group/common/editorGroupsService';
+import { IUriDisplayService } from 'vs/platform/uriDisplay/common/uriDisplay';
 
 export interface IDraggedResource {
 	resource: URI;
@@ -165,7 +166,8 @@ export class ResourcesDropHandler {
 		@IBackupFileService private backupFileService: IBackupFileService,
 		@IUntitledEditorService private untitledEditorService: IUntitledEditorService,
 		@IEditorService private editorService: IEditorService,
-		@IConfigurationService private configurationService: IConfigurationService
+		@IConfigurationService private configurationService: IConfigurationService,
+		@IUriDisplayService private uriDisplayService: IUriDisplayService
 	) {
 	}
 
@@ -187,7 +189,7 @@ export class ResourcesDropHandler {
 				// Add external ones to recently open list unless dropped resource is a workspace
 				const filesToAddToHistory = untitledOrFileResources.filter(d => d.isExternal && d.resource.scheme === Schemas.file).map(d => d.resource);
 				if (filesToAddToHistory.length) {
-					this.windowsService.addRecentlyOpened(filesToAddToHistory.map(resource => resource.fsPath));
+					this.windowsService.addRecentlyOpened(filesToAddToHistory.map(resource => this.uriDisplayService.getLabel(resource)));
 				}
 
 				const editors: IResourceEditor[] = untitledOrFileResources.map(untitledOrFileResource => ({
@@ -290,16 +292,16 @@ export class ResourcesDropHandler {
 			// Pass focus to window
 			this.windowService.focusWindow();
 
-			let workspacesToOpen: TPromise<string[]>;
+			let workspacesToOpen: TPromise<URI[]>;
 
 			// Open in separate windows if we drop workspaces or just one folder
 			if (workspaces.length > 0 || folders.length === 1) {
-				workspacesToOpen = TPromise.as([...workspaces, ...folders].map(resources => resources.fsPath));
+				workspacesToOpen = TPromise.as([...workspaces, ...folders].map(resources => resources));
 			}
 
 			// Multiple folders: Create new workspace with folders and open
 			else if (folders.length > 1) {
-				workspacesToOpen = this.workspacesService.createWorkspace(folders.map(folder => ({ uri: folder }))).then(workspace => [workspace.configPath]);
+				workspacesToOpen = this.workspacesService.createWorkspace(folders.map(folder => ({ uri: folder }))).then(workspace => [URI.file(workspace.configPath)]);
 			}
 
 			// Open

@@ -49,11 +49,14 @@ export interface IExtension {
 	outdated: boolean;
 	enablementState: EnablementState;
 	dependencies: string[];
+	extensionPack: string[];
 	telemetryData: any;
 	preview: boolean;
 	getManifest(): TPromise<IExtensionManifest>;
 	getReadme(): TPromise<string>;
+	hasReadme(): boolean;
 	getChangelog(): TPromise<string>;
+	hasChangelog(): boolean;
 	local?: ILocalExtension;
 	locals?: ILocalExtension[];
 	gallery?: IGalleryExtension;
@@ -93,11 +96,13 @@ export interface IExtensionsWorkbenchService {
 
 export const ConfigurationKey = 'extensions';
 export const AutoUpdateConfigurationKey = 'extensions.autoUpdate';
+export const AutoCheckUpdatesConfigurationKey = 'extensions.autoCheckUpdates';
 export const ShowRecommendationsOnlyOnDemandKey = 'extensions.showRecommendationsOnlyOnDemand';
 export const CloseExtensionDetailsOnViewChangeKey = 'extensions.closeExtensionDetailsOnViewChange';
 
 export interface IExtensionsConfiguration {
 	autoUpdate: boolean;
+	autoCheckUpdates: boolean;
 	ignoreRecommendations: boolean;
 	showRecommendationsOnlyOnDemand: boolean;
 	closeExtensionDetailsOnViewChange: boolean;

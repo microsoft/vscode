@@ -38,7 +38,7 @@ export class MainThreadQuickOpen implements MainThreadQuickOpenShape {
 	public dispose(): void {
 	}
 
-	$show(options: IPickOptions): TPromise<number | number[]> {
+	$show(options: IPickOptions<TransferQuickPickItems>): TPromise<number | number[]> {
 		const myToken = ++this._token;
 
 		this._contents = new TPromise<TransferQuickPickItems[]>((c, e) => {
@@ -55,16 +55,21 @@ export class MainThreadQuickOpen implements MainThreadQuickOpenShape {
 			};
 		});
 
+		options = {
+			...options,
+			onDidFocus: el => {
+				if (el) {
+					this._proxy.$onItemSelected((<TransferQuickPickItems>el).handle);
+				}
+			}
+		};
+
 		if (options.canPickMany) {
 			return asWinJsPromise(token => this._quickInputService.pick(this._contents, options as { canPickMany: true }, token)).then(items => {
 				if (items) {
 					return items.map(item => item.handle);
 				}
 				return undefined;
-			}, undefined, progress => {
-				if (progress) {
-					this._proxy.$onItemSelected((<TransferQuickPickItems>progress).handle);
-				}
 			});
 		} else {
 			return asWinJsPromise(token => this._quickInputService.pick(this._contents, options, token)).then(item => {
@@ -72,10 +77,6 @@ export class MainThreadQuickOpen implements MainThreadQuickOpenShape {
 					return item.handle;
 				}
 				return undefined;
-			}, undefined, progress => {
-				if (progress) {
-					this._proxy.$onItemSelected((<TransferQuickPickItems>progress).handle);
-				}
 			});
 		}
 	}

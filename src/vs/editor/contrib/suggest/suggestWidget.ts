@@ -10,12 +10,11 @@ import * as nls from 'vs/nls';
 import { createMatches } from 'vs/base/common/filters';
 import * as strings from 'vs/base/common/strings';
 import { Event, Emitter, chain } from 'vs/base/common/event';
-import { TPromise } from 'vs/base/common/winjs.base';
-import { isPromiseCanceledError, onUnexpectedError } from 'vs/base/common/errors';
+import { onUnexpectedError } from 'vs/base/common/errors';
 import { IDisposable, dispose, toDisposable } from 'vs/base/common/lifecycle';
 import { addClass, append, $, hide, removeClass, show, toggleClass, getDomNodePagePosition, hasClass } from 'vs/base/browser/dom';
 import { HighlightedLabel } from 'vs/base/browser/ui/highlightedlabel/highlightedLabel';
-import { IDelegate, IListEvent, IRenderer } from 'vs/base/browser/ui/list/list';
+import { IVirtualDelegate, IListEvent, IRenderer } from 'vs/base/browser/ui/list/list';
 import { List } from 'vs/base/browser/ui/list/listWidget';
 import { DomScrollableElement } from 'vs/base/browser/ui/scrollbar/scrollableElement';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
@@ -33,6 +32,8 @@ import { IStorageService, StorageScope } from 'vs/platform/storage/common/storag
 import { MarkdownRenderer } from 'vs/editor/contrib/markdown/markdownRenderer';
 import { IModeService } from 'vs/editor/common/services/modeService';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
+import { TimeoutTimer, CancelablePromise, createCancelablePromise } from 'vs/base/common/async';
+import { CancellationToken } from 'vs/base/common/cancellation';
 
 const sticky = false; // for development purposes
 const expandSuggestionDocsByDefault = false;
@@ -172,7 +173,10 @@ class Renderer implements IRenderer<ICompletionItem, ISuggestionTemplateData> {
 			data.readMore.onmousedown = null;
 			data.readMore.onclick = null;
 		}
+	}
 
+	disposeElement(): void {
+		// noop
 	}
 
 	disposeTemplate(templateData: ISuggestionTemplateData): void {
@@ -348,7 +352,7 @@ export interface ISelectedSuggestion {
 	model: CompletionModel;
 }
 
-export class SuggestWidget implements IContentWidget, IDelegate<ICompletionItem>, IDisposable {
+export class SuggestWidget implements IContentWidget, IVirtualDelegate<ICompletionItem>, IDisposable {
 
 	private static readonly ID: string = 'editor.widget.suggestWidget';
 
@@ -361,7 +365,7 @@ export class SuggestWidget implements IContentWidget, IDelegate<ICompletionItem>
 	private state: State;
 	private isAuto: boolean;
 	private loadingTimeout: number;
-	private currentSuggestionDetails: TPromise<void>;
+	private currentSuggestionDetails: CancelablePromise<void>;
 	private focusedItem: ICompletionItem;
 	private ignoreFocusEvents = false;
 	private completionModel: CompletionModel;
@@ -377,8 +381,8 @@ export class SuggestWidget implements IContentWidget, IDelegate<ICompletionItem>
 	private suggestWidgetMultipleSuggestions: IContextKey<boolean>;
 	private suggestionSupportsAutoAccept: IContextKey<boolean>;
 
-	private editorBlurTimeout: TPromise<void>;
-	private showTimeout: TPromise<void>;
+	private readonly editorBlurTimeout = new TimeoutTimer();
+	private readonly showTimeout = new TimeoutTimer();
 	private toDispose: IDisposable[];
 
 	private onDidSelectEmitter = new Emitter<ISelectedSuggestion>();
@@ -482,11 +486,11 @@ export class SuggestWidget implements IContentWidget, IDelegate<ICompletionItem>
 			return;
 		}
 
-		this.editorBlurTimeout = TPromise.timeout(150).then(() => {
+		this.editorBlurTimeout.cancelAndSet(() => {
 			if (!this.editor.hasTextFocus()) {
 				this.setState(State.Hidden);
 			}
-		});
+		}, 150);
 	}
 
 	private onEditorLayoutChange(): void {
@@ -502,7 +506,7 @@ export class SuggestWidget implements IContentWidget, IDelegate<ICompletionItem>
 
 		const item = e.elements[0];
 		const index = e.indexes[0];
-		item.resolve().then(() => {
+		item.resolve(CancellationToken.None).then(() => {
 			this.onDidSelectEmitter.fire({ item, index, model: this.completionModel });
 			alert(nls.localize('suggestionAriaAccepted', "{0}, accepted", item.suggestion.label));
 			this.editor.focus();
@@ -586,22 +590,25 @@ export class SuggestWidget implements IContentWidget, IDelegate<ICompletionItem>
 
 		this.list.reveal(index);
 
-		this.currentSuggestionDetails = item.resolve()
-			.then(() => {
-				// item can have extra information, so re-render
-				this.ignoreFocusEvents = true;
-				this.list.splice(index, 1, [item]);
-				this.list.setFocus([index]);
-				this.ignoreFocusEvents = false;
+		this.currentSuggestionDetails = createCancelablePromise(token => item.resolve(token));
 
-				if (this.expandDocsSettingFromStorage()) {
-					this.showDetails();
-				} else {
-					removeClass(this.element, 'docs-side');
-				}
-			})
-			.then(null, err => !isPromiseCanceledError(err) && onUnexpectedError(err))
-			.then(() => this.currentSuggestionDetails = null);
+		this.currentSuggestionDetails.then(() => {
+			// item can have extra information, so re-render
+			this.ignoreFocusEvents = true;
+			this.list.splice(index, 1, [item]);
+			this.list.setFocus([index]);
+			this.ignoreFocusEvents = false;
+
+			if (this.expandDocsSettingFromStorage()) {
+				this.showDetails();
+			} else {
+				removeClass(this.element, 'docs-side');
+			}
+		}).catch(onUnexpectedError).then(() => {
+			if (this.focusedItem === item) {
+				this.currentSuggestionDetails = null;
+			}
+		});
 
 		// emit an event
 		this.onDidFocusEmitter.fire({ item, index, model: this.completionModel });
@@ -878,7 +885,7 @@ export class SuggestWidget implements IContentWidget, IDelegate<ICompletionItem>
 			*/
 			this.telemetryService.publicLog('suggestWidget:collapseDetails', this.editor.getTelemetryData());
 		} else {
-			if (this.state !== State.Open && this.state !== State.Details) {
+			if (this.state !== State.Open && this.state !== State.Details && this.state !== State.Frozen) {
 				return;
 			}
 
@@ -925,10 +932,10 @@ export class SuggestWidget implements IContentWidget, IDelegate<ICompletionItem>
 
 		this.suggestWidgetVisible.set(true);
 
-		this.showTimeout = TPromise.timeout(100).then(() => {
+		this.showTimeout.cancelAndSet(() => {
 			addClass(this.element, 'visible');
 			this.onDidShowEmitter.fire(this);
-		});
+		}, 100);
 	}
 
 	private hide(): void {
@@ -1082,15 +1089,8 @@ export class SuggestWidget implements IContentWidget, IDelegate<ICompletionItem>
 			this.loadingTimeout = null;
 		}
 
-		if (this.editorBlurTimeout) {
-			this.editorBlurTimeout.cancel();
-			this.editorBlurTimeout = null;
-		}
-
-		if (this.showTimeout) {
-			this.showTimeout.cancel();
-			this.showTimeout = null;
-		}
+		this.editorBlurTimeout.dispose();
+		this.showTimeout.dispose();
 	}
 }
 

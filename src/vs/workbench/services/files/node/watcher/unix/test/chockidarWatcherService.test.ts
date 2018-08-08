@@ -137,19 +137,15 @@ suite.skip('Chockidar watching', () => {
 		await pfs.mkdirp(bFolder);
 		await pfs.mkdirp(b2Folder);
 
-		const promise = service.initialize({ verboseLogging: false, pollingInterval: 200 });
-		promise.then(null,
-			e => {
-				console.log('set error', e);
-				error = e;
-			},
-			p => {
-				if (Array.isArray(p)) {
-					result.push(...p);
-				}
+		const opts = { verboseLogging: false, pollingInterval: 200 };
+		service.watch(opts)(e => {
+			if (Array.isArray(e)) {
+				result.push(...e);
+			} else {
+				console.log('set error', e.message);
+				error = e.message;
 			}
-		);
-
+		});
 	});
 
 	suiteTeardown(async () => {

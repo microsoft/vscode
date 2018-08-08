@@ -524,6 +524,10 @@ export class HistoryInputBox extends InputBox implements IHistoryNavigationWidge
 	}
 
 	public showNextValue(): void {
+		if (!this.history.has(this.value)) {
+			this.addToHistory();
+		}
+
 		let next = this.getNextValue();
 		if (next) {
 			next = next === this.value ? this.getNextValue() : next;
@@ -531,6 +535,7 @@ export class HistoryInputBox extends InputBox implements IHistoryNavigationWidge
 
 		if (next) {
 			this.value = next;
+			aria.status(this.value);
 		}
 	}
 
@@ -546,6 +551,7 @@ export class HistoryInputBox extends InputBox implements IHistoryNavigationWidge
 
 		if (previous) {
 			this.value = previous;
+			aria.status(this.value);
 		}
 	}
 

@@ -167,7 +167,7 @@ suite('CompletionModel', function () {
 		], 1, {
 				leadingLineContent: 's',
 				characterCountDelta: 0
-			}, { snippets: 'top', filterGraceful: true });
+			}, { snippets: 'top', snippetsPreventQuickSuggestions: true, filterGraceful: true });
 
 		assert.equal(model.items.length, 2);
 		const [a, b] = model.items;
@@ -186,7 +186,7 @@ suite('CompletionModel', function () {
 		], 1, {
 				leadingLineContent: 's',
 				characterCountDelta: 0
-			}, { snippets: 'bottom', filterGraceful: true });
+			}, { snippets: 'bottom', snippetsPreventQuickSuggestions: true, filterGraceful: true });
 
 		assert.equal(model.items.length, 2);
 		const [a, b] = model.items;
@@ -204,7 +204,7 @@ suite('CompletionModel', function () {
 		], 1, {
 				leadingLineContent: 's',
 				characterCountDelta: 0
-			}, { snippets: 'inline', filterGraceful: true });
+			}, { snippets: 'inline', snippetsPreventQuickSuggestions: true, filterGraceful: true });
 
 		assert.equal(model.items.length, 2);
 		const [a, b] = model.items;

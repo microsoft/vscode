@@ -39,7 +39,7 @@ import { IUpdateService } from 'vs/platform/update/common/update';
 import { URLHandlerChannel, URLServiceChannelClient } from 'vs/platform/url/common/urlIpc';
 import { IURLService } from 'vs/platform/url/common/url';
 import { WorkspacesChannelClient } from 'vs/platform/workspaces/common/workspacesIpc';
-import { IWorkspacesService } from 'vs/platform/workspaces/common/workspaces';
+import { IWorkspacesService, ISingleFolderWorkspaceIdentifier } from 'vs/platform/workspaces/common/workspaces';
 import { createSpdLogService } from 'vs/platform/log/node/spdlogService';
 import * as fs from 'fs';
 import { ConsoleLogService, MultiplexLogService, ILogService } from 'vs/platform/log/common/log';
@@ -49,6 +49,7 @@ import { LogLevelSetterChannelClient, FollowerLogService } from 'vs/platform/log
 import { RelayURLService } from 'vs/platform/url/common/urlService';
 import { MenubarChannelClient } from 'vs/platform/menubar/common/menubarIpc';
 import { IMenubarService } from 'vs/platform/menubar/common/menubar';
+import { Schemas } from 'vs/base/common/network';
 
 gracefulFs.gracefulify(fs); // enable gracefulFs
 
@@ -115,22 +116,24 @@ function openWorkbench(configuration: IWindowConfiguration): TPromise<void> {
 }
 
 function createAndInitializeWorkspaceService(configuration: IWindowConfiguration, environmentService: EnvironmentService): TPromise<WorkspaceService> {
-	return validateSingleFolderPath(configuration).then(() => {
+	const folderUri = configuration.folderUri ? uri.revive(configuration.folderUri) : null;
+	return validateFolderUri(folderUri, configuration.verbose).then(validatedFolderUri => {
+
 		const workspaceService = new WorkspaceService(environmentService);
 
-		return workspaceService.initialize(configuration.workspace || configuration.folderPath || configuration).then(() => workspaceService, error => workspaceService);
+		return workspaceService.initialize(configuration.workspace || validatedFolderUri || configuration).then(() => workspaceService, error => workspaceService);
 	});
 }
 
-function validateSingleFolderPath(configuration: IWindowConfiguration): TPromise<void> {
+function validateFolderUri(folderUri: ISingleFolderWorkspaceIdentifier, verbose: boolean): TPromise<uri> {
 
-	// Return early if we do not have a single folder path
-	if (!configuration.folderPath) {
-		return TPromise.as(void 0);
+	// Return early if we do not have a single folder uri or if it is a non file uri
+	if (!folderUri || folderUri.scheme !== Schemas.file) {
+		return TPromise.as(folderUri);
 	}
 
 	// Otherwise: use realpath to resolve symbolic links to the truth
-	return realpath(configuration.folderPath).then(realFolderPath => {
+	return realpath(folderUri.fsPath).then(realFolderPath => {
 
 		// For some weird reason, node adds a trailing slash to UNC paths
 		// we never ever want trailing slashes as our workspace path unless
@@ -140,19 +143,19 @@ function validateSingleFolderPath(configuration: IWindowConfiguration): TPromise
 			realFolderPath = strings.rtrim(realFolderPath, paths.nativeSep);
 		}
 
-		return realFolderPath;
+		return uri.file(realFolderPath);
 	}, error => {
-		if (configuration.verbose) {
+		if (verbose) {
 			errors.onUnexpectedError(error);
 		}
 
 		// Treat any error case as empty workbench case (no folder path)
 		return null;
 
-	}).then(realFolderPathOrNull => {
+	}).then(realFolderUriOrNull => {
 
 		// Update config with real path if we have one
-		configuration.folderPath = realFolderPathOrNull;
+		return realFolderUriOrNull;
 	});
 }
 
@@ -192,10 +195,7 @@ function createStorageService(workspaceService: IWorkspaceContextService, enviro
 	if (disableStorage) {
 		storage = inMemoryLocalStorageInstance;
 	} else {
-		// TODO@Ben remove me after a while
-		perf.mark('willAccessLocalStorage');
 		storage = window.localStorage;
-		perf.mark('didAccessLocalStorage');
 	}
 
 	return new StorageService(storage, storage, workspaceId, secondaryWorkspaceId);

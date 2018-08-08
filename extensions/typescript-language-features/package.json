@@ -16,9 +16,10 @@
     "Programming Languages"
   ],
   "dependencies": {
+    "jsonc-parser": "^2.0.1",
     "semver": "4.3.6",
-    "vscode-extension-telemetry": "0.0.17",
-    "vscode-nls": "^3.2.1"
+    "vscode-extension-telemetry": "0.0.18",
+    "vscode-nls": "^3.2.4"
   },
   "devDependencies": {
     "@types/node": "8.0.33",
@@ -40,7 +41,11 @@
     "onCommand:javascript.goToProjectConfig",
     "onCommand:typescript.goToProjectConfig",
     "onCommand:typescript.openTsServerLog",
-    "onCommand:workbench.action.tasks.runTask"
+    "onCommand:workbench.action.tasks.runTask",
+    "workspaceContains:**/tsconfig.json",
+    "workspaceContains:**/jsconfig.json",
+    "workspaceContains:**/tsconfig.*.json",
+    "workspaceContains:**/jsconfig.*.json"
   ],
   "main": "./out/extension",
   "contributes": {
@@ -68,7 +73,8 @@
           "type": "boolean",
           "default": false,
           "description": "%typescript.disableAutomaticTypeAcquisition%",
-          "scope": "window"
+          "scope": "window",
+          "tags": ["usesOnlineServices"]
         },
         "typescript.npm": {
           "type": [
@@ -379,6 +385,12 @@
             "build",
             "watch"
           ],
+          "enumDescriptions": [
+            "%typescript.tsc.autoDetect.on%",
+            "%typescript.tsc.autoDetect.off%",
+            "%typescript.tsc.autoDetect.build%",
+            "%typescript.tsc.autoDetect.watch%"
+          ],
           "description": "%typescript.tsc.autoDetect%",
           "scope": "window"
         },
@@ -457,6 +469,11 @@
             "relative",
             "non-relative"
           ],
+          "enumDescriptions": [
+            "%typescript.preferences.importModuleSpecifier.auto%",
+            "%typescript.preferences.importModuleSpecifier.relative%",
+            "%typescript.preferences.importModuleSpecifier.nonRelative%"
+          ],
           "default": "auto",
           "description": "%typescript.preferences.importModuleSpecifier%",
           "scope": "resource"
@@ -468,20 +485,13 @@
             "relative",
             "non-relative"
           ],
+          "enumDescriptions": [
+            "%typescript.preferences.importModuleSpecifier.auto%",
+            "%typescript.preferences.importModuleSpecifier.relative%",
+            "%typescript.preferences.importModuleSpecifier.nonRelative%"
+          ],
           "default": "auto",
           "description": "%typescript.preferences.importModuleSpecifier%",
-          "scope": "resource"
-        },
-        "javascript.showUnused": {
-          "type": "boolean",
-          "default": true,
-          "description": "%typescript.showUnused%",
-          "scope": "resource"
-        },
-        "typescript.showUnused": {
-          "type": "boolean",
-          "default": true,
-          "description": "%typescript.showUnused%",
           "scope": "resource"
         },
         "typescript.updateImportsOnFileMove.enabled": {
@@ -490,6 +500,11 @@
             "prompt",
             "always",
             "never"
+          ],
+          "enumDescriptions": [
+            "%typescript.updateImportsOnFileMove.enabled.prompt%",
+            "%typescript.updateImportsOnFileMove.enabled.always%",
+            "%typescript.updateImportsOnFileMove.enabled.never%"
           ],
           "default": "prompt",
           "description": "%typescript.updateImportsOnFileMove.enabled%",
@@ -505,6 +520,16 @@
           "default": "prompt",
           "description": "%typescript.updateImportsOnFileMove.enabled%",
           "scope": "resource"
+        },
+        "typescript.autoClosingTags": {
+          "type": "boolean",
+          "default": true,
+          "description": "%typescript.autoClosingTags%"
+        },
+        "javascript.autoClosingTags": {
+          "type": "boolean",
+          "default": true,
+          "description": "%typescript.autoClosingTags%"
         }
       }
     },

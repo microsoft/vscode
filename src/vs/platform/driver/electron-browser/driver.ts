@@ -14,7 +14,6 @@ import { getTopLeftOffset, getClientArea } from 'vs/base/browser/dom';
 import * as electron from 'electron';
 import { IWindowService } from 'vs/platform/windows/common/windows';
 import { Terminal } from 'vscode-xterm';
-import { toWinJsPromise } from 'vs/base/common/async';
 
 function serializeElement(element: Element, recursive: boolean): IElement {
 	const attributes = Object.create(null);
@@ -52,14 +51,14 @@ class WindowDriver implements IWindowDriver {
 	) { }
 
 	click(selector: string, xoffset?: number, yoffset?: number): TPromise<void> {
-		return toWinJsPromise(this._click(selector, 1, xoffset, yoffset));
+		return this._click(selector, 1, xoffset, yoffset);
 	}
 
 	doubleClick(selector: string): TPromise<void> {
-		return toWinJsPromise(this._click(selector, 2));
+		return this._click(selector, 2);
 	}
 
-	private async _getElementXY(selector: string, xoffset?: number, yoffset?: number): Promise<{ x: number; y: number; }> {
+	private _getElementXY(selector: string, xoffset?: number, yoffset?: number): TPromise<{ x: number; y: number; }> {
 		const element = document.querySelector(selector);
 
 		if (!element) {
@@ -81,18 +80,20 @@ class WindowDriver implements IWindowDriver {
 		x = Math.round(x);
 		y = Math.round(y);
 
-		return { x, y };
+		return TPromise.as({ x, y });
 	}
 
-	private async _click(selector: string, clickCount: number, xoffset?: number, yoffset?: number): Promise<void> {
-		const { x, y } = await this._getElementXY(selector, xoffset, yoffset);
-		const webContents = electron.remote.getCurrentWebContents();
+	private _click(selector: string, clickCount: number, xoffset?: number, yoffset?: number): TPromise<void> {
+		return this._getElementXY(selector, xoffset, yoffset).then(({ x, y }) => {
 
-		webContents.sendInputEvent({ type: 'mouseDown', x, y, button: 'left', clickCount } as any);
-		await TPromise.timeout(10);
-		webContents.sendInputEvent({ type: 'mouseUp', x, y, button: 'left', clickCount } as any);
+			const webContents = electron.remote.getCurrentWebContents();
+			webContents.sendInputEvent({ type: 'mouseDown', x, y, button: 'left', clickCount } as any);
 
-		await TPromise.timeout(100);
+			return TPromise.timeout(10).then(() => {
+				webContents.sendInputEvent({ type: 'mouseUp', x, y, button: 'left', clickCount } as any);
+				return TPromise.timeout(100);
+			});
+		});
 	}
 
 	setValue(selector: string, text: string): TPromise<void> {
@@ -206,7 +207,7 @@ class WindowDriver implements IWindowDriver {
 			return TPromise.wrapError(new Error('Xterm not found'));
 		}
 
-		xterm._core.send(text);
+		xterm._core.handler(text);
 
 		return TPromise.as(null);
 	}
@@ -220,7 +221,7 @@ export async function registerWindowDriver(
 	client: IPCClient,
 	windowId: number,
 	instantiationService: IInstantiationService
-): TPromise<IDisposable> {
+): Promise<IDisposable> {
 	const windowDriver = instantiationService.createInstance(WindowDriver);
 	const windowDriverChannel = new WindowDriverChannel(windowDriver);
 	client.registerChannel('windowDriver', windowDriverChannel);
@@ -231,7 +232,7 @@ export async function registerWindowDriver(
 	const options = await windowDriverRegistry.registerWindowDriver(windowId);
 
 	if (options.verbose) {
-		// windowDriver.openDevTools();
+		windowDriver.openDevTools();
 	}
 
 	const disposable = toDisposable(() => windowDriverRegistry.reloadWindowDriver(windowId));

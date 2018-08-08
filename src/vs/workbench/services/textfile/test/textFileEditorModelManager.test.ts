@@ -105,7 +105,7 @@ suite('Files - TextFileEditorModelManager', () => {
 		const resource = URI.file('/test.html');
 		const encoding = 'utf8';
 
-		return manager.loadOrCreate(resource, { encoding, reload: true }).then(model => {
+		return manager.loadOrCreate(resource, { encoding }).then(model => {
 			assert.ok(model);
 			assert.equal(model.getEncoding(), encoding);
 			assert.equal(manager.get(resource), model);

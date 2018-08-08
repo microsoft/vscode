@@ -8,6 +8,7 @@
 import { TPromise } from 'vs/base/common/winjs.base';
 import { IChannel } from 'vs/base/parts/ipc/common/ipc';
 import { IIssueService, IssueReporterData, ProcessExplorerData } from './issue';
+import { Event } from 'vs/base/common/event';
 
 export interface IIssueChannel extends IChannel {
 	call(command: 'openIssueReporter', arg: IssueReporterData): TPromise<void>;
@@ -18,6 +19,10 @@ export interface IIssueChannel extends IChannel {
 export class IssueChannel implements IIssueChannel {
 
 	constructor(private service: IIssueService) { }
+
+	listen<T>(event: string): Event<T> {
+		throw new Error('No event found');
+	}
 
 	call(command: string, arg?: any): TPromise<any> {
 		switch (command) {

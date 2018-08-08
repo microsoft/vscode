@@ -12,6 +12,7 @@ import { Range } from 'vs/editor/common/core/range';
 import { IMarker, MarkerSeverity } from 'vs/platform/markers/common/markers';
 import { TextModel } from 'vs/editor/common/model/textModel';
 import URI from 'vs/base/common/uri';
+import { CancellationToken, CancellationTokenSource } from 'vs/base/common/cancellation';
 
 suite('OutlineModel', function () {
 
@@ -26,16 +27,16 @@ suite('OutlineModel', function () {
 			}
 		});
 
-		await OutlineModel.create(model);
+		await OutlineModel.create(model, CancellationToken.None);
 		assert.equal(count, 1);
 
 		// cached
-		await OutlineModel.create(model);
+		await OutlineModel.create(model, CancellationToken.None);
 		assert.equal(count, 1);
 
 		// new version
 		model.applyEdits([{ text: 'XXX', range: new Range(1, 1, 1, 1) }]);
-		await OutlineModel.create(model);
+		await OutlineModel.create(model, CancellationToken.None);
 		assert.equal(count, 2);
 
 		reg.dispose();
@@ -58,13 +59,15 @@ suite('OutlineModel', function () {
 		});
 
 		assert.equal(isCancelled, false);
-		let p1 = OutlineModel.create(model);
-		let p2 = OutlineModel.create(model);
+		let s1 = new CancellationTokenSource();
+		OutlineModel.create(model, s1.token);
+		let s2 = new CancellationTokenSource();
+		OutlineModel.create(model, s2.token);
 
-		p1.cancel();
+		s1.cancel();
 		assert.equal(isCancelled, false);
 
-		p2.cancel();
+		s2.cancel();
 		assert.equal(isCancelled, true);
 
 		reg.dispose();

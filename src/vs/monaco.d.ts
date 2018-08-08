@@ -48,26 +48,21 @@ declare namespace monaco {
 
 	export type TValueCallback<T = any> = (value: T | PromiseLike<T>) => void;
 
-	export type ProgressCallback<TProgress = any> = (progress: TProgress) => void;
 
-
-	export class Promise<T = any, TProgress = any> {
+	export class Promise<T = any> {
 		constructor(
 			executor: (
 				resolve: (value: T | PromiseLike<T>) => void,
-				reject: (reason: any) => void,
-				progress: (progress: TProgress) => void) => void,
+				reject: (reason: any) => void) => void,
 			oncancel?: () => void);
 
 		public then<TResult1 = T, TResult2 = never>(
 			onfulfilled?: ((value: T) => TResult1 | PromiseLike<TResult1>) | null,
-			onrejected?: ((reason: any) => TResult2 | PromiseLike<TResult2>) | null,
-			onprogress?: (progress: TProgress) => void): Promise<TResult1 | TResult2, TProgress>;
+			onrejected?: ((reason: any) => TResult2 | PromiseLike<TResult2>) | null): Promise<TResult1 | TResult2>;
 
 		public done(
 			onfulfilled?: (value: T) => void,
-			onrejected?: (reason: any) => void,
-			onprogress?: (progress: TProgress) => void): void;
+			onrejected?: (reason: any) => void): void;
 
 		public cancel(): void;
 
@@ -83,7 +78,6 @@ declare namespace monaco {
 
 		public static join<T1, T2>(promises: [T1 | PromiseLike<T1>, T2 | PromiseLike<T2>]): Promise<[T1, T2]>;
 		public static join<T>(promises: (T | PromiseLike<T>)[]): Promise<T[]>;
-		public static join<T>(promises: { [n: string]: T | PromiseLike<T> }): Promise<{ [n: string]: T }>;
 
 		public static any<T>(promises: (T | PromiseLike<T>)[]): Promise<{ key: string; value: Promise<T>; }>;
 
@@ -2509,11 +2503,31 @@ declare namespace monaco.editor {
 		sticky?: boolean;
 	}
 
+	/**
+	 * Configuration options for parameter hints
+	 */
+	export interface IEditorParameterHintOptions {
+		/**
+		 * Enable parameter hints.
+		 * Defaults to true.
+		 */
+		enabled?: boolean;
+		/**
+		 * Enable cycling of parameter hints.
+		 * Defaults to false.
+		 */
+		cycle?: boolean;
+	}
+
 	export interface ISuggestOptions {
 		/**
 		 * Enable graceful matching. Defaults to true.
 		 */
 		filterGraceful?: boolean;
+		/**
+		 * Prevent quick suggestions when a snippet is active. Defaults to true.
+		 */
+		snippetsPreventQuickSuggestions?: boolean;
 	}
 
 	/**
@@ -2736,7 +2750,7 @@ declare namespace monaco.editor {
 		/**
 		 * Configure the editor's hover.
 		 */
-		hover?: boolean | IEditorHoverOptions;
+		hover?: IEditorHoverOptions;
 		/**
 		 * Enable detecting links and making them clickable.
 		 * Defaults to true.
@@ -2790,9 +2804,9 @@ declare namespace monaco.editor {
 		 */
 		quickSuggestionsDelay?: number;
 		/**
-		 * Enables parameter hints
+		 * Parameter hint options.
 		 */
-		parameterHints?: boolean;
+		parameterHints?: IEditorParameterHintOptions;
 		/**
 		 * Render icons in suggestions box.
 		 * Defaults to true.
@@ -3124,6 +3138,12 @@ declare namespace monaco.editor {
 	export interface InternalSuggestOptions {
 		readonly filterGraceful: boolean;
 		readonly snippets: 'top' | 'bottom' | 'inline' | 'none';
+		readonly snippetsPreventQuickSuggestions: boolean;
+	}
+
+	export interface InternalParameterHintOptions {
+		readonly enabled: boolean;
+		readonly cycle: boolean;
 	}
 
 	export interface EditorWrappingInfo {
@@ -3190,7 +3210,7 @@ declare namespace monaco.editor {
 			strings: boolean;
 		};
 		readonly quickSuggestionsDelay: number;
-		readonly parameterHints: boolean;
+		readonly parameterHints: InternalParameterHintOptions;
 		readonly iconsInSuggestions: boolean;
 		readonly formatOnType: boolean;
 		readonly formatOnPaste: boolean;
@@ -3866,9 +3886,9 @@ declare namespace monaco.editor {
 		 * The edits will land on the undo-redo stack, but no "undo stop" will be pushed.
 		 * @param source The source of the call.
 		 * @param edits The edits to execute.
-		 * @param endCursoState Cursor state after the edits were applied.
+		 * @param endCursorState Cursor state after the edits were applied.
 		 */
-		executeEdits(source: string, edits: IIdentifiedSingleEditOperation[], endCursoState?: Selection[]): boolean;
+		executeEdits(source: string, edits: IIdentifiedSingleEditOperation[], endCursorState?: Selection[]): boolean;
 		/**
 		 * Execute multiple (concommitent) commands on the editor.
 		 * @param source The source of the call.
@@ -4918,7 +4938,7 @@ declare namespace monaco.languages {
 		/**
 		 * Provide the definition of the symbol at the given position and document.
 		 */
-		provideDefinition(model: editor.ITextModel, position: Position, token: CancellationToken): DefinitionLink | Thenable<DefinitionLink[]>;
+		provideDefinition(model: editor.ITextModel, position: Position, token: CancellationToken): Definition | DefinitionLink[] | Thenable<Definition | DefinitionLink[]>;
 	}
 
 	/**
@@ -4929,7 +4949,7 @@ declare namespace monaco.languages {
 		/**
 		 * Provide the implementation of the symbol at the given position and document.
 		 */
-		provideImplementation(model: editor.ITextModel, position: Position, token: CancellationToken): Definition | Thenable<Definition>;
+		provideImplementation(model: editor.ITextModel, position: Position, token: CancellationToken): Definition | DefinitionLink[] | Thenable<Definition | DefinitionLink[]>;
 	}
 
 	/**
@@ -4940,7 +4960,7 @@ declare namespace monaco.languages {
 		/**
 		 * Provide the type definition of the symbol at the given position and document.
 		 */
-		provideTypeDefinition(model: editor.ITextModel, position: Position, token: CancellationToken): Definition | Thenable<Definition>;
+		provideTypeDefinition(model: editor.ITextModel, position: Position, token: CancellationToken): Definition | DefinitionLink[] | Thenable<Definition | DefinitionLink[]>;
 	}
 
 	/**
@@ -5206,6 +5226,7 @@ declare namespace monaco.languages {
 		newUri: Uri;
 		options: {
 			overwrite?: boolean;
+			ignoreIfNotExists?: boolean;
 			ignoreIfExists?: boolean;
 			recursive?: boolean;
 		};

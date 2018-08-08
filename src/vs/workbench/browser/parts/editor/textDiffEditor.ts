@@ -104,7 +104,7 @@ export class TextDiffEditor extends BaseTextEditor implements ITextDiffEditor {
 
 		// Set input and resolve
 		return super.setInput(input, options, token).then(() => {
-			return input.resolve(true).then(resolvedModel => {
+			return input.resolve().then(resolvedModel => {
 
 				// Check for cancellation
 				if (token.isCancellationRequested) {

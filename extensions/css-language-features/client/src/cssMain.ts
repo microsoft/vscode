@@ -8,9 +8,8 @@ import * as path from 'path';
 import * as nls from 'vscode-nls';
 const localize = nls.loadMessageBundle();
 
-import { languages, window, commands, ExtensionContext, Range, Position, TextDocument, CompletionItem, CompletionItemKind, TextEdit, SnippetString, FoldingRangeKind, FoldingRange, FoldingContext, CancellationToken } from 'vscode';
+import { languages, window, commands, ExtensionContext, Range, Position, CompletionItem, CompletionItemKind, TextEdit, SnippetString } from 'vscode';
 import { LanguageClient, LanguageClientOptions, ServerOptions, TransportKind, Disposable } from 'vscode-languageclient';
-import { FoldingRangeRequest, FoldingRangeRequestParam, FoldingRangeClientCapabilities, FoldingRangeKind as LSFoldingRangeKind } from 'vscode-languageserver-protocol-foldingprovider';
 
 // this method is called when vs code is activated
 export function activate(context: ExtensionContext) {
@@ -42,21 +41,6 @@ export function activate(context: ExtensionContext) {
 	// Create the language client and start the client.
 	let client = new LanguageClient('css', localize('cssserver.name', 'CSS Language Server'), serverOptions, clientOptions);
 	client.registerProposedFeatures();
-	client.registerFeature({
-		fillClientCapabilities(capabilities: FoldingRangeClientCapabilities): void {
-			let textDocumentCap = capabilities.textDocument;
-			if (!textDocumentCap) {
-				textDocumentCap = capabilities.textDocument = {};
-			}
-			textDocumentCap.foldingRange = {
-				dynamicRegistration: false,
-				rangeLimit: 5000,
-				lineFoldingOnly: true
-			};
-		},
-		initialize(capabilities, documentSelector): void {
-		}
-	});
 
 	let disposable = client.start();
 	// Push the disposable to the context's subscriptions so that the
@@ -85,7 +69,6 @@ export function activate(context: ExtensionContext) {
 
 	client.onReady().then(() => {
 		context.subscriptions.push(initCompletionProvider());
-		context.subscriptions.push(initFoldingProvider());
 	});
 
 	function initCompletionProvider(): Disposable {
@@ -112,38 +95,6 @@ export function activate(context: ExtensionContext) {
 					return [beginProposal, endProposal];
 				}
 				return null;
-			}
-		});
-	}
-
-	function initFoldingProvider(): Disposable {
-		function getKind(kind: string | undefined): FoldingRangeKind | undefined {
-			if (kind) {
-				switch (kind) {
-					case LSFoldingRangeKind.Comment:
-						return FoldingRangeKind.Comment;
-					case LSFoldingRangeKind.Imports:
-						return FoldingRangeKind.Imports;
-					case LSFoldingRangeKind.Region:
-						return FoldingRangeKind.Region;
-				}
-			}
-			return void 0;
-		}
-		return languages.registerFoldingRangeProvider(documentSelector, {
-			provideFoldingRanges(document: TextDocument, context: FoldingContext, token: CancellationToken) {
-				const param: FoldingRangeRequestParam = {
-					textDocument: client.code2ProtocolConverter.asTextDocumentIdentifier(document)
-				};
-				return client.sendRequest(FoldingRangeRequest.type, param, token).then(ranges => {
-					if (Array.isArray(ranges)) {
-						return ranges.map(r => new FoldingRange(r.startLine, r.endLine, getKind(r.kind)));
-					}
-					return null;
-				}, error => {
-					client.logFailedRequest(FoldingRangeRequest.type, error);
-					return null;
-				});
 			}
 		});
 	}

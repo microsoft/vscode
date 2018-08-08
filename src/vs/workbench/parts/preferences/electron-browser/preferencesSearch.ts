@@ -90,6 +90,9 @@ export class PreferencesSearchService extends Disposable implements IPreferences
 }
 
 export class LocalSearchProvider implements ISearchProvider {
+	static readonly EXACT_MATCH_SCORE = 10000;
+	static readonly START_SCORE = 1000;
+
 	constructor(private _filter: string) {
 		// Remove " and : which are likely to be copypasted as part of a setting name.
 		// Leave other special characters which the user might want to search for.
@@ -104,25 +107,36 @@ export class LocalSearchProvider implements ISearchProvider {
 			return TPromise.wrap(null);
 		}
 
-		let score = 1000; // Sort is not stable
+		let orderedScore = LocalSearchProvider.START_SCORE; // Sort is not stable
 		const settingMatcher = (setting: ISetting) => {
 			const matches = new SettingMatches(this._filter, setting, true, true, (filter, setting) => preferencesModel.findValueMatches(filter, setting)).matches;
+			const score = this._filter === setting.key ?
+				LocalSearchProvider.EXACT_MATCH_SCORE :
+				orderedScore--;
+
 			return matches && matches.length ?
 				{
 					matches,
-					score: score--
+					score
 				} :
 				null;
 		};
 
 		const filterMatches = preferencesModel.filterSettings(this._filter, this.getGroupFilter(this._filter), settingMatcher);
-		return TPromise.wrap({
-			filterMatches
-		});
+		if (filterMatches[0] && filterMatches[0].score === LocalSearchProvider.EXACT_MATCH_SCORE) {
+			return TPromise.wrap({
+				filterMatches: filterMatches.slice(0, 1),
+				exactMatch: true
+			});
+		} else {
+			return TPromise.wrap({
+				filterMatches
+			});
+		}
 	}
 
 	private getGroupFilter(filter: string): IGroupFilter {
-		const regex = strings.createRegExp(this._filter, false, { global: true });
+		const regex = strings.createRegExp(filter, false, { global: true });
 		return (group: ISettingsGroup) => {
 			return regex.test(group.title);
 		};
@@ -155,7 +169,7 @@ class RemoteSearchProvider implements ISearchProvider {
 		@ILogService private logService: ILogService
 	) {
 		this._remoteSearchP = this.options.filter ?
-			this.getSettingsForFilter(this.options.filter) :
+			TPromise.wrap(this.getSettingsForFilter(this.options.filter)) :
 			TPromise.wrap(null);
 	}
 
@@ -196,7 +210,7 @@ class RemoteSearchProvider implements ISearchProvider {
 		});
 	}
 
-	private async getSettingsForFilter(filter: string): TPromise<IFilterMetadata> {
+	private async getSettingsForFilter(filter: string): Promise<IFilterMetadata> {
 		const allRequestDetails: IBingRequestDetails[] = [];
 
 		// Only send MAX_REQUESTS requests in total just to keep it sane
@@ -308,7 +322,7 @@ class RemoteSearchProvider implements ISearchProvider {
 		};
 	}
 
-	private async prepareRequest(query: string, filterPage = 0): TPromise<IBingRequestDetails> {
+	private async prepareRequest(query: string, filterPage = 0): Promise<IBingRequestDetails> {
 		const verbatimQuery = query;
 		query = escapeSpecialChars(query);
 		const boost = 10;

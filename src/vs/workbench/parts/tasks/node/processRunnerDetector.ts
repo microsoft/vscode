@@ -12,7 +12,7 @@ import * as Strings from 'vs/base/common/strings';
 import * as Collections from 'vs/base/common/collections';
 
 import { CommandOptions, Source, ErrorData } from 'vs/base/common/processes';
-import { LineProcess } from 'vs/base/node/processes';
+import { LineProcess, LineData } from 'vs/base/node/processes';
 
 import { IFileService } from 'vs/platform/files/common/files';
 
@@ -269,7 +269,20 @@ export class ProcessRunnerDetector {
 	private runDetection(process: LineProcess, command: string, isShellCommand: boolean, matcher: TaskDetectorMatcher, problemMatchers: string[], list: boolean): TPromise<DetectorResult> {
 		let tasks: string[] = [];
 		matcher.init();
-		return process.start().then((success) => {
+
+		const onProgress = (progress: LineData) => {
+			if (progress.source === Source.stderr) {
+				this._stderr.push(progress.line);
+				return;
+			}
+			let line = Strings.removeAnsiEscapeCodes(progress.line);
+			let matches = matcher.match(tasks, line);
+			if (matches && matches.length > 0) {
+				tasks.push(matches[1]);
+			}
+		};
+
+		return process.start(onProgress).then((success) => {
 			if (tasks.length === 0) {
 				if (success.cmdCode !== 0) {
 					if (command === 'gulp') {
@@ -305,16 +318,6 @@ export class ProcessRunnerDetector {
 				this._stderr.push(nls.localize('TaskSystemDetector.noProgram', 'Program {0} was not found. Message is {1}', command, error.message));
 			}
 			return { config: null, stdout: this._stdout, stderr: this._stderr };
-		}, (progress) => {
-			if (progress.source === Source.stderr) {
-				this._stderr.push(progress.line);
-				return;
-			}
-			let line = Strings.removeAnsiEscapeCodes(progress.line);
-			let matches = matcher.match(tasks, line);
-			if (matches && matches.length > 0) {
-				tasks.push(matches[1]);
-			}
 		});
 	}
 

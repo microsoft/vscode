@@ -48,6 +48,8 @@ export interface ISetting {
 	// TODO@roblou maybe need new type and new EditorModel for GUI editor instead of ISetting which is used for text settings editor
 	type?: string | string[];
 	enum?: string[];
+	enumDescriptions?: string[];
+	tags?: string[];
 }
 
 export interface IExtensionSetting extends ISetting {
@@ -57,6 +59,7 @@ export interface IExtensionSetting extends ISetting {
 
 export interface ISearchResult {
 	filterMatches: ISettingMatch[];
+	exactMatch?: boolean;
 	metadata?: IFilterMetadata;
 }
 
@@ -73,6 +76,7 @@ export interface IFilterResult {
 	allGroups: ISettingsGroup[];
 	matches: IRange[];
 	metadata?: IStringDictionary<IFilterMetadata>;
+	exactMatch?: boolean;
 }
 
 export interface ISettingMatch {
@@ -151,6 +155,7 @@ export interface IPreferencesService {
 	openFolderSettings(folder: URI, options?: IEditorOptions, group?: IEditorGroup): TPromise<IEditor>;
 	switchSettings(target: ConfigurationTarget, resource: URI): TPromise<void>;
 	openGlobalKeybindingSettings(textual: boolean): TPromise<void>;
+	openDefaultKeybindingsFile(): TPromise<IEditor>;
 
 	configureSettingsForLanguage(language: string): void;
 }

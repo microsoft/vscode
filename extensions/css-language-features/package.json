@@ -707,9 +707,8 @@
     ]
   },
   "dependencies": {
-    "vscode-languageclient": "^4.1.4",
-    "vscode-languageserver-protocol-foldingprovider": "^2.0.1",
-    "vscode-nls": "^3.2.2"
+    "vscode-languageclient": "^4.4.0",
+    "vscode-nls": "^3.2.4"
   },
   "devDependencies": {
     "@types/node": "7.0.43",

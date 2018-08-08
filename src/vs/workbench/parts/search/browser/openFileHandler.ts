@@ -8,7 +8,6 @@ import { TPromise } from 'vs/base/common/winjs.base';
 import * as errors from 'vs/base/common/errors';
 import * as nls from 'vs/nls';
 import * as paths from 'vs/base/common/paths';
-import * as labels from 'vs/base/common/labels';
 import * as objects from 'vs/base/common/objects';
 import { defaultGenerator } from 'vs/base/common/idGenerator';
 import URI from 'vs/base/common/uri';
@@ -34,6 +33,8 @@ import { getOutOfWorkspaceEditorResources } from 'vs/workbench/parts/search/comm
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { prepareQuery, IPreparedQuery } from 'vs/base/parts/quickopen/common/quickOpenScorer';
 import { IFileService } from 'vs/platform/files/common/files';
+import { IUriDisplayService } from 'vs/platform/uriDisplay/common/uriDisplay';
+import { untildify } from 'vs/base/common/labels';
 
 export class FileQuickOpenModel extends QuickOpenModel {
 
@@ -125,7 +126,8 @@ export class OpenFileHandler extends QuickOpenHandler {
 		@IWorkspaceContextService private contextService: IWorkspaceContextService,
 		@ISearchService private searchService: ISearchService,
 		@IEnvironmentService private environmentService: IEnvironmentService,
-		@IFileService private fileService: IFileService
+		@IFileService private fileService: IFileService,
+		@IUriDisplayService private uriDisplayService: IUriDisplayService
 	) {
 		super();
 
@@ -145,7 +147,7 @@ export class OpenFileHandler extends QuickOpenHandler {
 		}
 
 		// Untildify file pattern
-		query.value = labels.untildify(query.value, this.environmentService.userHome);
+		query.value = untildify(query.value, this.environmentService.userHome);
 
 		// Do find results
 		return this.doFindResults(query, this.cacheState.cacheKey, maxSortedResults);
@@ -171,7 +173,7 @@ export class OpenFileHandler extends QuickOpenHandler {
 				const fileMatch = complete.results[i];
 
 				const label = paths.basename(fileMatch.resource.fsPath);
-				const description = labels.getPathLabel(resources.dirname(fileMatch.resource), this.environmentService, this.contextService);
+				const description = this.uriDisplayService.getLabel(resources.dirname(fileMatch.resource), true);
 
 				results.push(this.instantiationService.createInstance(FileEntry, fileMatch.resource, label, description, iconClass));
 			}

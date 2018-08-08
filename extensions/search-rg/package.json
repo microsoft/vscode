@@ -13,8 +13,8 @@
   },
   "categories": [],
   "dependencies": {
-    "vscode-extension-telemetry": "0.0.15",
-    "vscode-nls": "^3.2.1",
+    "vscode-extension-telemetry": "0.0.18",
+    "vscode-nls": "^3.2.4",
     "vscode-ripgrep": "^1.0.1"
   },
   "devDependencies": {
@@ -24,6 +24,7 @@
   },
   "scripts": {},
   "activationEvents": [
+    "onSearch:file",
     "*"
   ],
   "main": "./out/extension",

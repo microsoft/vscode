@@ -7,7 +7,6 @@ import 'vs/css!./media/panelpart';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { IAction } from 'vs/base/common/actions';
 import { Event } from 'vs/base/common/event';
-import { $ } from 'vs/base/browser/builder';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { ActionsOrientation } from 'vs/base/browser/ui/actionbar/actionbar';
 import { IPanel } from 'vs/workbench/common/panel';
@@ -151,12 +150,12 @@ export class PanelPart extends CompositePart<Panel> implements IPanelService {
 	updateStyles(): void {
 		super.updateStyles();
 
-		const container = $(this.getContainer());
-		container.style('background-color', this.getColor(PANEL_BACKGROUND));
-		container.style('border-left-color', this.getColor(PANEL_BORDER) || this.getColor(contrastBorder));
+		const container = this.getContainer();
+		container.style.backgroundColor = this.getColor(PANEL_BACKGROUND);
+		container.style.borderLeftColor = this.getColor(PANEL_BORDER) || this.getColor(contrastBorder);
 
-		const title = $(this.getTitleArea());
-		title.style('border-top-color', this.getColor(PANEL_BORDER) || this.getColor(contrastBorder));
+		const title = this.getTitleArea();
+		title.style.borderTopColor = this.getColor(PANEL_BORDER) || this.getColor(contrastBorder);
 	}
 
 	openPanel(id: string, focus?: boolean): TPromise<Panel> {

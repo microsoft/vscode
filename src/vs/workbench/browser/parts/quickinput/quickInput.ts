@@ -34,7 +34,7 @@ import { dispose, IDisposable } from 'vs/base/common/lifecycle';
 import Severity from 'vs/base/common/severity';
 import { IEditorGroupsService } from 'vs/workbench/services/group/common/editorGroupsService';
 import { IContextKeyService, RawContextKey, IContextKey } from 'vs/platform/contextkey/common/contextkey';
-import { ICommandAndKeybindingRule, KeybindingsRegistry } from 'vs/platform/keybinding/common/keybindingsRegistry';
+import { ICommandAndKeybindingRule, KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { inQuickOpenContext } from 'vs/workbench/browser/parts/quickopen/quickopen';
 import { ActionBar, ActionItem } from 'vs/base/browser/ui/actionbar/actionbar';
 import { Action } from 'vs/base/common/actions';
@@ -42,6 +42,7 @@ import URI from 'vs/base/common/uri';
 import { IdGenerator } from 'vs/base/common/idGenerator';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { equals } from 'vs/base/common/arrays';
+import { TimeoutTimer } from 'vs/base/common/async';
 
 const $ = dom.$;
 
@@ -61,6 +62,7 @@ interface QuickInputUI {
 	rightActionBar: ActionBar;
 	checkAll: HTMLInputElement;
 	inputBox: QuickInputBox;
+	visibleCount: CountBadge;
 	count: CountBadge;
 	message: HTMLElement;
 	progressBar: ProgressBar;
@@ -78,6 +80,7 @@ type Visibilities = {
 	title?: boolean;
 	checkAll?: boolean;
 	inputBox?: boolean;
+	visibleCount?: boolean;
 	count?: boolean;
 	message?: boolean;
 	list?: boolean;
@@ -104,7 +107,7 @@ class QuickInput implements IQuickInput {
 		this.onDidHideEmitter,
 	];
 
-	private busyDelay: TPromise<void>;
+	private busyDelay: TimeoutTimer;
 
 	constructor(protected ui: QuickInputUI) {
 	}
@@ -179,7 +182,7 @@ class QuickInput implements IQuickInput {
 		if (this.visible) {
 			return;
 		}
-		this.disposables.push(
+		this.visibleDisposables.push(
 			this.ui.onDidTriggerButton(button => {
 				if (this.buttons.indexOf(button) !== -1) {
 					this.onDidTriggerButtonEmitter.fire(button);
@@ -215,12 +218,12 @@ class QuickInput implements IQuickInput {
 			this.ui.title.textContent = title;
 		}
 		if (this.busy && !this.busyDelay) {
-			this.busyDelay = TPromise.timeout(800);
-			this.busyDelay.then(() => {
+			this.busyDelay = new TimeoutTimer();
+			this.busyDelay.setIfNotSet(() => {
 				if (this.visible) {
 					this.ui.progressBar.infinite();
 				}
-			}, () => { /* ignore */ });
+			}, 800);
 		}
 		if (!this.busy && this.busyDelay) {
 			this.ui.progressBar.stop();
@@ -414,7 +417,31 @@ class QuickPick<T extends IQuickPickItem> extends QuickInput implements IQuickPi
 							}
 							break;
 						case KeyCode.UpArrow:
-							this.ui.list.focus('Previous');
+							if (this.ui.list.getFocusedElements().length) {
+								this.ui.list.focus('Previous');
+							} else {
+								this.ui.list.focus('Last');
+							}
+							if (this.canSelectMany) {
+								this.ui.list.domFocus();
+							}
+							break;
+						case KeyCode.PageDown:
+							if (this.ui.list.getFocusedElements().length) {
+								this.ui.list.focus('NextPage');
+							} else {
+								this.ui.list.focus('First');
+							}
+							if (this.canSelectMany) {
+								this.ui.list.domFocus();
+							}
+							break;
+						case KeyCode.PageUp:
+							if (this.ui.list.getFocusedElements().length) {
+								this.ui.list.focus('PreviousPage');
+							} else {
+								this.ui.list.focus('Last');
+							}
 							if (this.canSelectMany) {
 								this.ui.list.domFocus();
 							}
@@ -480,6 +507,7 @@ class QuickPick<T extends IQuickPickItem> extends QuickInput implements IQuickPi
 			this.ui.list.setElements(this.items);
 			this.ui.list.filter(this.ui.inputBox.value);
 			this.ui.checkAll.checked = this.ui.list.getAllVisibleChecked();
+			this.ui.visibleCount.setCount(this.ui.list.getVisibleCount());
 			this.ui.count.setCount(this.ui.list.getCheckedCount());
 			if (!this.canSelectMany) {
 				this.ui.list.focus('First');
@@ -514,7 +542,7 @@ class QuickPick<T extends IQuickPickItem> extends QuickInput implements IQuickPi
 		}
 		this.ui.list.matchOnDescription = this.matchOnDescription;
 		this.ui.list.matchOnDetail = this.matchOnDetail;
-		this.ui.setVisibilities(this.canSelectMany ? { title: !!this.title || !!this.step, checkAll: true, inputBox: true, count: true, ok: true, list: true } : { title: !!this.title || !!this.step, inputBox: true, list: true });
+		this.ui.setVisibilities(this.canSelectMany ? { title: !!this.title || !!this.step, checkAll: true, inputBox: true, visibleCount: true, count: true, ok: true, list: true } : { title: !!this.title || !!this.step, inputBox: true, visibleCount: true, list: true });
 	}
 
 	configureQuickNavigate(quickNavigate: IQuickNavigateConfiguration) {
@@ -704,6 +732,7 @@ export class QuickInputService extends Component implements IQuickInputService {
 	private layoutDimensions: dom.Dimension;
 	private titleBar: HTMLElement;
 	private filterContainer: HTMLElement;
+	private visibleCountContainer: HTMLElement;
 	private countContainer: HTMLElement;
 	private okContainer: HTMLElement;
 	private ok: Button;
@@ -756,7 +785,7 @@ export class QuickInputService extends Component implements IQuickInputService {
 		}
 
 		const workbench = document.getElementById(this.partService.getWorkbenchElementId());
-		const container = dom.append(workbench, $('.quick-input-widget'));
+		const container = dom.append(workbench, $('.quick-input-widget.show-file-icons'));
 		container.tabIndex = -1;
 		container.style.display = 'none';
 
@@ -788,7 +817,12 @@ export class QuickInputService extends Component implements IQuickInputService {
 
 		const inputBox = this._register(new QuickInputBox(this.filterContainer));
 
+		this.visibleCountContainer = dom.append(this.filterContainer, $('.quick-input-visible-count'));
+		this.visibleCountContainer.setAttribute('aria-live', 'polite');
+		const visibleCount = new CountBadge(this.visibleCountContainer, { countFormat: localize({ key: 'quickInput.visibleCount', comment: ['This tells the user how many items are shown in a list of items to select from. The items can be anything. Currently not visible, but read by screen readers.'] }, "{0} Results") });
+
 		this.countContainer = dom.append(this.filterContainer, $('.quick-input-count'));
+		this.countContainer.setAttribute('aria-live', 'polite');
 		const count = new CountBadge(this.countContainer, { countFormat: localize({ key: 'quickInput.countSelected', comment: ['This tells the user how many items are selected in a list of items to select from. The items can be anything.'] }, "{0} Selected") });
 		this._register(attachBadgeStyler(count, this.themeService));
 
@@ -810,6 +844,9 @@ export class QuickInputService extends Component implements IQuickInputService {
 		this._register(list.onChangedAllVisibleChecked(checked => {
 			checkAll.checked = checked;
 		}));
+		this._register(list.onChangedVisibleCount(c => {
+			visibleCount.setCount(c);
+		}));
 		this._register(list.onChangedCheckedCount(c => {
 			count.setCount(c);
 		}));
@@ -817,20 +854,15 @@ export class QuickInputService extends Component implements IQuickInputService {
 			// Defer to avoid the input field reacting to the triggering key.
 			setTimeout(() => {
 				inputBox.setFocus();
-				list.clearFocus();
+				if (this.controller instanceof QuickPick && this.controller.canSelectMany) {
+					list.clearFocus();
+				}
 			}, 0);
 		}));
 
-		this._register(dom.addDisposableListener(container, 'focusout', (e: FocusEvent) => {
-			if (e.relatedTarget === container) {
-				(<HTMLElement>e.target).focus();
-				return;
-			}
-			for (let element = <Element>e.relatedTarget; element; element = element.parentElement) {
-				if (element === container) {
-					return;
-				}
-			}
+		const focusTracker = dom.trackFocus(container);
+		this._register(focusTracker);
+		this._register(focusTracker.onDidBlur(() => {
 			if (!this.ui.ignoreFocusOut && !this.environmentService.args['sticky-quickopen'] && this.configurationService.getValue(CLOSE_ON_FOCUS_LOST_CONFIG)) {
 				this.hide(true);
 			}
@@ -848,18 +880,22 @@ export class QuickInputService extends Component implements IQuickInputService {
 					break;
 				case KeyCode.Tab:
 					if (!event.altKey && !event.ctrlKey && !event.metaKey) {
-						const inputs = [].slice.call(container.querySelectorAll('.action-label.icon'));
+						const selectors = ['.action-label.icon'];
 						if (container.classList.contains('show-checkboxes')) {
-							inputs.push(...[].slice.call(container.querySelectorAll('input')));
+							selectors.push('input');
 						} else {
-							inputs.push(...[].slice.call(container.querySelectorAll('input[type=text]')));
+							selectors.push('input[type=text]');
 						}
-						if (event.shiftKey && event.target === inputs[0]) {
+						if (this.ui.list.isDisplayed()) {
+							selectors.push('.monaco-list');
+						}
+						const stops = container.querySelectorAll<HTMLElement>(selectors.join(', '));
+						if (event.shiftKey && event.target === stops[0]) {
 							dom.EventHelper.stop(e, true);
-							inputs[inputs.length - 1].focus();
-						} else if (!event.shiftKey && event.target === inputs[inputs.length - 1]) {
+							stops[stops.length - 1].focus();
+						} else if (!event.shiftKey && event.target === stops[stops.length - 1]) {
 							dom.EventHelper.stop(e, true);
-							inputs[0].focus();
+							stops[0].focus();
 						}
 					}
 					break;
@@ -875,6 +911,7 @@ export class QuickInputService extends Component implements IQuickInputService {
 			rightActionBar,
 			checkAll,
 			inputBox,
+			visibleCount,
 			count,
 			message,
 			progressBar,
@@ -890,8 +927,8 @@ export class QuickInputService extends Component implements IQuickInputService {
 		this.updateStyles();
 	}
 
-	pick<T extends IQuickPickItem, O extends IPickOptions>(picks: TPromise<T[]>, options: O = <O>{}, token: CancellationToken = CancellationToken.None): TPromise<O extends { canPickMany: true } ? T[] : T> {
-		return new TPromise<O extends { canPickMany: true } ? T[] : T>((resolve, reject, progress) => {
+	pick<T extends IQuickPickItem, O extends IPickOptions<T>>(picks: TPromise<T[]> | T[], options: O = <O>{}, token: CancellationToken = CancellationToken.None): TPromise<O extends { canPickMany: true } ? T[] : T> {
+		return new TPromise<O extends { canPickMany: true } ? T[] : T>((resolve, reject) => {
 			if (token.isCancellationRequested) {
 				resolve(undefined);
 				return;
@@ -913,8 +950,8 @@ export class QuickInputService extends Component implements IQuickInputService {
 				}),
 				input.onDidChangeActive(items => {
 					const focused = items[0];
-					if (focused) {
-						progress(focused);
+					if (focused && options.onDidFocus) {
+						options.onDidFocus(focused);
 					}
 				}),
 				input.onDidChangeSelection(items => {
@@ -940,15 +977,19 @@ export class QuickInputService extends Component implements IQuickInputService {
 			input.matchOnDescription = options.matchOnDescription;
 			input.matchOnDetail = options.matchOnDetail;
 			input.busy = true;
-			picks.then(items => {
-				input.busy = false;
-				input.items = items;
-				if (input.canSelectMany) {
-					input.selectedItems = items.filter(item => item.picked);
-				}
-			});
+			TPromise.join([picks, options.activeItem])
+				.then(([items, activeItem]) => {
+					input.busy = false;
+					input.items = items;
+					if (input.canSelectMany) {
+						input.selectedItems = items.filter(item => item.picked);
+					}
+					if (activeItem) {
+						input.activeItems = [activeItem];
+					}
+				});
 			input.show();
-			picks.then(null, err => {
+			TPromise.wrap(picks).then(null, err => {
 				reject(err);
 				input.hide();
 			});
@@ -1042,6 +1083,7 @@ export class QuickInputService extends Component implements IQuickInputService {
 		this.ui.inputBox.placeholder = '';
 		this.ui.inputBox.password = false;
 		this.ui.inputBox.showDecoration(Severity.Ignore);
+		this.ui.visibleCount.setCount(0);
 		this.ui.count.setCount(0);
 		this.ui.message.textContent = '';
 		this.ui.progressBar.stop();
@@ -1064,6 +1106,7 @@ export class QuickInputService extends Component implements IQuickInputService {
 		this.ui.title.style.display = visibilities.title ? '' : 'none';
 		this.ui.checkAll.style.display = visibilities.checkAll ? '' : 'none';
 		this.filterContainer.style.display = visibilities.inputBox ? '' : 'none';
+		this.visibleCountContainer.style.display = visibilities.visibleCount ? '' : 'none';
 		this.countContainer.style.display = visibilities.count ? '' : 'none';
 		this.okContainer.style.display = visibilities.ok ? '' : 'none';
 		this.ui.message.style.display = visibilities.message ? '' : 'none';
@@ -1201,7 +1244,7 @@ function getIconClass(iconPath: { dark: URI; light?: URI; }) {
 
 export const QuickPickManyToggle: ICommandAndKeybindingRule = {
 	id: 'workbench.action.quickPickManyToggle',
-	weight: KeybindingsRegistry.WEIGHT.workbenchContrib(),
+	weight: KeybindingWeight.WorkbenchContrib,
 	when: inQuickOpenContext,
 	primary: undefined,
 	handler: accessor => {

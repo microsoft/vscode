@@ -30,9 +30,15 @@
 	padding-left: 12px;
 }
 
-.monaco-workbench > .part > .title > .title-label span {
+.monaco-workbench > .part > .title > .title-label h2 {
 	font-size: 11px;
 	cursor: default;
+	font-weight: normal;
+	-webkit-margin-before: 0;
+	-webkit-margin-after: 0;
+	overflow: hidden;
+	white-space: nowrap;
+	text-overflow: ellipsis;
 }
 
 .monaco-workbench > .part > .title > .title-label a {

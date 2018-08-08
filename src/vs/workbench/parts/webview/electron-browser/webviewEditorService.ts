@@ -36,6 +36,7 @@ export interface IWebviewEditorService {
 	reviveWebview(
 		viewType: string,
 		title: string,
+		iconPath: { light: URI, dark: URI } | undefined,
 		state: any,
 		options: WebviewInputOptions,
 		extensionLocation: URI
@@ -126,6 +127,7 @@ export class WebviewEditorService implements IWebviewEditorService {
 	reviveWebview(
 		viewType: string,
 		title: string,
+		iconPath: { light: URI, dark: URI } | undefined,
 		state: any,
 		options: WebviewInputOptions,
 		extensionLocation: URI
@@ -134,19 +136,21 @@ export class WebviewEditorService implements IWebviewEditorService {
 			canRevive: (_webview) => {
 				return true;
 			},
-			reviveWebview: async (webview: WebviewEditorInput): TPromise<void> => {
-				const didRevive = await this.tryRevive(webview);
-				if (didRevive) {
-					return;
-				}
-				// A reviver may not be registered yet. Put into queue and resolve promise when we can revive
-				let resolve: (value: void) => void;
-				const promise = new TPromise<void>(r => { resolve = r; });
-				this._awaitingRevival.push({ input: webview, resolve });
-				return promise;
+			reviveWebview: (webview: WebviewEditorInput): TPromise<void> => {
+				return TPromise.wrap(this.tryRevive(webview)).then(didRevive => {
+					if (didRevive) {
+						return TPromise.as(void 0);
+					}
+
+					// A reviver may not be registered yet. Put into queue and resolve promise when we can revive
+					let resolve: (value: void) => void;
+					const promise = new TPromise<void>(r => { resolve = r; });
+					this._awaitingRevival.push({ input: webview, resolve });
+					return promise;
+				});
 			}
 		});
-
+		webviewInput.iconPath = iconPath;
 		return webviewInput;
 	}
 
@@ -183,7 +187,7 @@ export class WebviewEditorService implements IWebviewEditorService {
 
 	private async tryRevive(
 		webview: WebviewEditorInput
-	): TPromise<boolean> {
+	): Promise<boolean> {
 		const revivers = this._revivers.get(webview.viewType);
 		if (!revivers) {
 			return false;

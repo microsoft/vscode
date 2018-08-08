@@ -9,7 +9,6 @@ import 'vs/css!./links';
 import * as nls from 'vs/nls';
 import { onUnexpectedError } from 'vs/base/common/errors';
 import * as platform from 'vs/base/common/platform';
-import { TPromise } from 'vs/base/common/winjs.base';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
 import * as editorCommon from 'vs/editor/common/editorCommon';
 import { registerEditorAction, registerEditorContribution, ServicesAccessor, EditorAction } from 'vs/editor/browser/editorExtensions';
@@ -25,6 +24,7 @@ import { ClickLinkGesture, ClickLinkMouseEvent, ClickLinkKeyboardEvent } from 'v
 import { MarkdownString } from 'vs/base/common/htmlContent';
 import { TrackedRangeStickiness, IModelDeltaDecoration, IModelDecorationsChangeAccessor } from 'vs/editor/common/model';
 import { INotificationService } from 'vs/platform/notification/common/notification';
+import * as async from 'vs/base/common/async';
 
 const HOVER_MESSAGE_GENERAL_META = new MarkdownString().appendText(
 	platform.isMacintosh
@@ -149,8 +149,8 @@ class LinkDetector implements editorCommon.IEditorContribution {
 	private editor: ICodeEditor;
 	private enabled: boolean;
 	private listenersToRemove: IDisposable[];
-	private timeoutPromise: TPromise<void>;
-	private computePromise: TPromise<void>;
+	private timeoutPromise: async.CancelablePromise<void>;
+	private computePromise: async.CancelablePromise<Link[]>;
 	private activeLinkDecorationId: string;
 	private openerService: IOpenerService;
 	private notificationService: INotificationService;
@@ -226,7 +226,7 @@ class LinkDetector implements editorCommon.IEditorContribution {
 
 	private onChange(): void {
 		if (!this.timeoutPromise) {
-			this.timeoutPromise = TPromise.timeout(LinkDetector.RECOMPUTE_TIME);
+			this.timeoutPromise = async.timeout(LinkDetector.RECOMPUTE_TIME);
 			this.timeoutPromise.then(() => {
 				this.timeoutPromise = null;
 				this.beginCompute();
@@ -234,7 +234,7 @@ class LinkDetector implements editorCommon.IEditorContribution {
 		}
 	}
 
-	private beginCompute(): void {
+	private async beginCompute(): Promise<void> {
 		if (!this.editor.getModel() || !this.enabled) {
 			return;
 		}
@@ -243,10 +243,15 @@ class LinkDetector implements editorCommon.IEditorContribution {
 			return;
 		}
 
-		this.computePromise = getLinks(this.editor.getModel()).then(links => {
+		this.computePromise = async.createCancelablePromise(token => getLinks(this.editor.getModel(), token));
+		try {
+			const links = await this.computePromise;
 			this.updateDecorations(links);
+		} catch (err) {
+			onUnexpectedError(err);
+		} finally {
 			this.computePromise = null;
-		});
+		}
 	}
 
 	private updateDecorations(links: Link[]): void {

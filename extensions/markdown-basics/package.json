@@ -19,7 +19,8 @@
 					".md",
 					".mdown",
 					".markdown",
-					".markdn"
+					".markdn",
+					".workbook"
 				],
 				"configuration": "./language-configuration.json"
 			}

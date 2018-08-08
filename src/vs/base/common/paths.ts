@@ -328,7 +328,7 @@ export function isEqual(pathA: string, pathB: string, ignoreCase?: boolean): boo
 	return equalsIgnoreCase(pathA, pathB);
 }
 
-export function isEqualOrParent(path: string, candidate: string, ignoreCase?: boolean): boolean {
+export function isEqualOrParent(path: string, candidate: string, ignoreCase?: boolean, separator = nativeSep): boolean {
 	if (path === candidate) {
 		return true;
 	}
@@ -352,15 +352,15 @@ export function isEqualOrParent(path: string, candidate: string, ignoreCase?: bo
 		}
 
 		let sepOffset = candidate.length;
-		if (candidate.charAt(candidate.length - 1) === nativeSep) {
+		if (candidate.charAt(candidate.length - 1) === separator) {
 			sepOffset--; // adjust the expected sep offset in case our candidate already ends in separator character
 		}
 
-		return path.charAt(sepOffset) === nativeSep;
+		return path.charAt(sepOffset) === separator;
 	}
 
-	if (candidate.charAt(candidate.length - 1) !== nativeSep) {
-		candidate += nativeSep;
+	if (candidate.charAt(candidate.length - 1) !== separator) {
+		candidate += separator;
 	}
 
 	return path.indexOf(candidate) === 0;

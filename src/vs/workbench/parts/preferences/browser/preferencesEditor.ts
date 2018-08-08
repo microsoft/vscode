@@ -126,7 +126,8 @@ export class PreferencesEditor extends BaseEditor {
 			ariaLabel: nls.localize('SearchSettingsWidget.AriaLabel', "Search settings"),
 			placeholder: nls.localize('SearchSettingsWidget.Placeholder', "Search Settings"),
 			focusKey: this.searchFocusContextKey,
-			showResultCount: true
+			showResultCount: true,
+			ariaLive: 'assertive'
 		}));
 		this._register(this.searchWidget.onDidChange(value => this.onInputChanged()));
 		this._register(this.searchWidget.onFocus(() => this.lastFocusedWidget = this.searchWidget));
@@ -241,8 +242,8 @@ export class PreferencesEditor extends BaseEditor {
 	private triggerSearch(query: string): TPromise<void> {
 		if (query) {
 			return TPromise.join([
-				this.localSearchDelayer.trigger(() => this.preferencesRenderers.localFilterPreferences(query)),
-				this.remoteSearchThrottle.trigger(() => this.progressService.showWhile(this.preferencesRenderers.remoteSearchPreferences(query), 500))
+				this.localSearchDelayer.trigger(() => this.preferencesRenderers.localFilterPreferences(query).then(() => { })),
+				this.remoteSearchThrottle.trigger(() => TPromise.wrap(this.progressService.showWhile(this.preferencesRenderers.remoteSearchPreferences(query), 500)))
 			]) as TPromise;
 		} else {
 			// When clearing the input, update immediately to clear it
@@ -435,8 +436,10 @@ class PreferencesRenderersController extends Disposable {
 	}
 
 	private async _onEditableContentDidChange(): Promise<void> {
-		await this.localFilterPreferences(this._lastQuery, true);
-		await this.remoteSearchPreferences(this._lastQuery, true);
+		const foundExactMatch = await this.localFilterPreferences(this._lastQuery, true);
+		if (!foundExactMatch) {
+			await this.remoteSearchPreferences(this._lastQuery, true);
+		}
 	}
 
 	onHidden(): void {
@@ -445,6 +448,11 @@ class PreferencesRenderersController extends Disposable {
 	}
 
 	remoteSearchPreferences(query: string, updateCurrentResults?: boolean): TPromise<void> {
+		if (this.lastFilterResult && this.lastFilterResult.exactMatch) {
+			// Skip and clear remote search
+			query = '';
+		}
+
 		if (this._remoteFilterInProgress && this._remoteFilterInProgress.cancel) {
 			// Resolved/rejected promises have no .cancel()
 			this._remoteFilterInProgress.cancel();
@@ -465,7 +473,7 @@ class PreferencesRenderersController extends Disposable {
 		});
 	}
 
-	localFilterPreferences(query: string, updateCurrentResults?: boolean): TPromise<void> {
+	localFilterPreferences(query: string, updateCurrentResults?: boolean): TPromise<boolean> {
 		if (this._settingsNavigator) {
 			this._settingsNavigator.reset();
 		}
@@ -474,14 +482,15 @@ class PreferencesRenderersController extends Disposable {
 		return this.filterOrSearchPreferences(query, this._currentLocalSearchProvider, 'filterResult', nls.localize('filterResult', "Filtered Results"), 0, updateCurrentResults);
 	}
 
-	private filterOrSearchPreferences(query: string, searchProvider: ISearchProvider, groupId: string, groupLabel: string, groupOrder: number, editableContentOnly?: boolean): TPromise<void> {
+	private filterOrSearchPreferences(query: string, searchProvider: ISearchProvider, groupId: string, groupLabel: string, groupOrder: number, editableContentOnly?: boolean): TPromise<boolean> {
 		this._lastQuery = query;
 
-		const filterPs: TPromise<any>[] = [this._filterOrSearchPreferences(query, this.editablePreferencesRenderer, searchProvider, groupId, groupLabel, groupOrder)];
+		const filterPs: TPromise<IFilterResult>[] = [this._filterOrSearchPreferences(query, this.editablePreferencesRenderer, searchProvider, groupId, groupLabel, groupOrder)];
 		if (!editableContentOnly) {
 			filterPs.push(
 				this._filterOrSearchPreferences(query, this.defaultPreferencesRenderer, searchProvider, groupId, groupLabel, groupOrder));
-			filterPs.push(this.searchAllSettingsTargets(query, searchProvider, groupId, groupLabel, groupOrder));
+			filterPs.push(
+				this.searchAllSettingsTargets(query, searchProvider, groupId, groupLabel, groupOrder).then(() => null));
 		}
 
 		return TPromise.join(filterPs).then(results => {
@@ -493,6 +502,8 @@ class PreferencesRenderersController extends Disposable {
 
 			this.consolidateAndUpdate(defaultFilterResult, editableFilterResult);
 			this._lastFilterResult = defaultFilterResult;
+
+			return defaultFilterResult && defaultFilterResult.exactMatch;
 		});
 	}
 
@@ -623,7 +634,9 @@ class PreferencesRenderersController extends Disposable {
 
 				if (filterResult) {
 					filterResult.query = filter;
+					filterResult.exactMatch = searchResult && searchResult.exactMatch;
 				}
+
 
 				return filterResult;
 			});

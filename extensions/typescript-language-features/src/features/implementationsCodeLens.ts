@@ -23,9 +23,9 @@ export default class TypeScriptImplementationsCodeLensProvider extends TypeScrip
 		const codeLens = inputCodeLens as ReferencesCodeLens;
 		const args = typeConverters.Position.toFileLocationRequestArgs(codeLens.file, codeLens.range.start);
 		try {
-			const response = await this.client.execute('implementation', args, token);
-			if (response && response.body) {
-				const locations = response.body
+			const { body } = await this.client.execute('implementation', args, token);
+			if (body) {
+				const locations = body
 					.map(reference =>
 						// Only take first line on implementation: https://github.com/Microsoft/vscode/issues/23924
 						new vscode.Location(this.client.toResource(reference.file),

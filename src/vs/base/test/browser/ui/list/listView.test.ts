@@ -5,7 +5,7 @@
 
 import * as assert from 'assert';
 import { ListView } from 'vs/base/browser/ui/list/listView';
-import { IDelegate, IRenderer } from 'vs/base/browser/ui/list/list';
+import { IVirtualDelegate, IRenderer } from 'vs/base/browser/ui/list/list';
 import { range } from 'vs/base/common/arrays';
 
 suite('ListView', function () {
@@ -14,7 +14,7 @@ suite('ListView', function () {
 		element.style.height = '200px';
 		element.style.width = '200px';
 
-		const delegate: IDelegate<number> = {
+		const delegate: IVirtualDelegate<number> = {
 			getHeight() { return 20; },
 			getTemplateId() { return 'template'; }
 		};
@@ -25,6 +25,7 @@ suite('ListView', function () {
 			templateId: 'template',
 			renderTemplate() { templatesCount++; },
 			renderElement() { },
+			disposeElement() { },
 			disposeTemplate() { templatesCount--; }
 		};
 

@@ -36,23 +36,13 @@ export class DiffEditorInput extends SideBySideEditorInput {
 		return this.master;
 	}
 
-	resolve(refresh?: boolean): TPromise<EditorModel> {
-		let modelPromise: TPromise<EditorModel>;
-
-		// Use Cached Model
-		if (this.cachedModel && !refresh) {
-			modelPromise = TPromise.as<EditorModel>(this.cachedModel);
-		}
+	resolve(): TPromise<EditorModel> {
 
 		// Create Model - we never reuse our cached model if refresh is true because we cannot
 		// decide for the inputs within if the cached model can be reused or not. There may be
 		// inputs that need to be loaded again and thus we always recreate the model and dispose
 		// the previous one - if any.
-		else {
-			modelPromise = this.createModel(refresh);
-		}
-
-		return modelPromise.then((resolvedModel: DiffEditorModel) => {
+		return this.createModel().then(resolvedModel => {
 			if (this.cachedModel) {
 				this.cachedModel.dispose();
 			}
@@ -71,9 +61,9 @@ export class DiffEditorInput extends SideBySideEditorInput {
 
 		// Join resolve call over two inputs and build diff editor model
 		return TPromise.join([
-			this.originalInput.resolve(refresh),
-			this.modifiedInput.resolve(refresh)
-		]).then((models) => {
+			this.originalInput.resolve(),
+			this.modifiedInput.resolve()
+		]).then(models => {
 			const originalEditorModel = models[0];
 			const modifiedEditorModel = models[1];
 

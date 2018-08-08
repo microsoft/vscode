@@ -65,7 +65,7 @@ export class DataUriEditorInput extends EditorInput {
 		return this.description;
 	}
 
-	resolve(refresh?: boolean): TPromise<BinaryEditorModel> {
+	resolve(): TPromise<BinaryEditorModel> {
 		return this.instantiationService.createInstance(BinaryEditorModel, this.resource, this.getName()).load().then(m => m as BinaryEditorModel);
 	}
 

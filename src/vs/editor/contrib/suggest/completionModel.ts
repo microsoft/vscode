@@ -9,7 +9,7 @@ import { fuzzyScore, fuzzyScoreGracefulAggressive, anyScore } from 'vs/base/comm
 import { isDisposable } from 'vs/base/common/lifecycle';
 import { ISuggestResult, ISuggestSupport } from 'vs/editor/common/modes';
 import { ISuggestionItem } from './suggest';
-import { InternalSuggestOptions } from 'vs/editor/common/config/editorOptions';
+import { InternalSuggestOptions, EDITOR_DEFAULTS } from 'vs/editor/common/config/editorOptions';
 
 export interface ICompletionItem extends ISuggestionItem {
 	matches?: number[];
@@ -58,7 +58,7 @@ export class CompletionModel {
 	private _isIncomplete: Set<ISuggestSupport>;
 	private _stats: ICompletionStats;
 
-	constructor(items: ISuggestionItem[], column: number, lineContext: LineContext, options: InternalSuggestOptions = { filterGraceful: true, snippets: 'inline' }) {
+	constructor(items: ISuggestionItem[], column: number, lineContext: LineContext, options: InternalSuggestOptions = EDITOR_DEFAULTS.contribInfo.suggest) {
 		this._items = items;
 		this._column = column;
 		this._options = options;

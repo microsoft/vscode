@@ -30,7 +30,8 @@ suite('FolderSettingsModelParser', () => {
 				'FolderSettingsModelParser.resource': {
 					'type': 'string',
 					'default': 'isSet',
-					scope: ConfigurationScope.RESOURCE
+					scope: ConfigurationScope.RESOURCE,
+					overridable: true
 				},
 				'FolderSettingsModelParser.application': {
 					'type': 'string',
@@ -55,6 +56,14 @@ suite('FolderSettingsModelParser', () => {
 		testObject.parse(JSON.stringify({ 'FolderSettingsModelParser.window': 'window', 'FolderSettingsModelParser.resource': 'resource', 'FolderSettingsModelParser.application': 'executable' }));
 
 		assert.deepEqual(testObject.configurationModel.contents, { 'FolderSettingsModelParser': { 'resource': 'resource' } });
+	});
+
+	test('parse overridable resource settings', () => {
+		const testObject = new FolderSettingsModelParser('settings', [ConfigurationScope.RESOURCE]);
+
+		testObject.parse(JSON.stringify({ '[json]': { 'FolderSettingsModelParser.window': 'window', 'FolderSettingsModelParser.resource': 'resource', 'FolderSettingsModelParser.application': 'executable' } }));
+
+		assert.deepEqual(testObject.configurationModel.overrides, [{ 'contents': { 'FolderSettingsModelParser': { 'resource': 'resource' } }, 'identifiers': ['json'] }]);
 	});
 
 	test('reprocess folder settings excludes application setting', () => {

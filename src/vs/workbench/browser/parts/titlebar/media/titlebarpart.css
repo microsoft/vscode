@@ -6,26 +6,37 @@
 .monaco-workbench > .part.titlebar {
 	box-sizing: border-box;
 	width: 100%;
-	font-size: 12px;
 	padding: 0 70px;
 	overflow: hidden;
 	flex-shrink: 0;
 	align-items: center;
 	justify-content: center;
 	user-select: none;
-	-webkit-app-region: drag;
 	zoom: 1; /* prevent zooming */
 	line-height: 22px;
 	height: 22px;
 	display: flex;
 }
 
+.monaco-workbench > .part.titlebar > .titlebar-drag-region {
+	top: 0;
+	left: 0;
+	display: block;
+	position: absolute;
+	width: 100%;
+	height: 100%;
+	z-index: -1;
+	-webkit-app-region: drag;
+}
+
 .monaco-workbench > .part.titlebar > .window-title {
 	flex: 0 1 auto;
+	font-size: 12px;
 	overflow: hidden;
 	white-space: nowrap;
 	text-overflow: ellipsis;
-	-webkit-app-region: drag;
+	margin-left: auto;
+	margin-right: auto;
 	zoom: 1; /* prevent zooming */
 }
 
@@ -36,7 +47,12 @@
 	padding: 0;
 	height: 30px;
 	line-height: 30px;
-	justify-content: space-between;
+	justify-content: left;
+	overflow: visible;
+}
+
+.monaco-workbench.linux > .part.titlebar > .window-title {
+	font-size: inherit;
 }
 
 .monaco-workbench.windows > .part.titlebar > .resizer,
@@ -48,22 +64,26 @@
 	height: 20%;
 }
 
-.monaco-workbench.windows > .part.titlebar > .window-title,
-.monaco-workbench.linux > .part.titlebar > .window-title  {
-	order: 2;
+.monaco-workbench.windows.fullscreen > .part.titlebar > .resizer,
+.monaco-workbench.linux.fullscreen > .part.titlebar > .resizer {
+	display: none;
 }
+
 
 .monaco-workbench > .part.titlebar > .window-appicon {
 	width: 35px;
-	margin-right: 113px;
-	-webkit-app-region: no-drag;
+	height: 100%;
 	position: relative;
 	z-index: 99;
-	order: 1;
 	background-image: url('code-icon.svg');
 	background-repeat: no-repeat;
 	background-position: center center;
 	background-size: 16px;
+	flex-shrink: 0;
+}
+
+.monaco-workbench.fullscreen > .part.titlebar > .window-appicon {
+	display: none;
 }
 
 .monaco-workbench > .part.titlebar > .window-controls-container {
@@ -76,76 +96,58 @@
 	-webkit-app-region: no-drag;
 	height: 100%;
 	width: 138px;
-	order: 3;
 }
 
-.monaco-workbench > .part.titlebar > .window-controls-container > .window-icon {
+.monaco-workbench.fullscreen > .part.titlebar > .window-controls-container {
+	display: none;
+}
+
+.monaco-workbench > .part.titlebar > .window-controls-container > .window-icon-bg {
 	display: inline-block;
 	-webkit-app-region: no-drag;
-	-webkit-transition: background-color .1s;
-	transition: background-color .1s;
 	height: 100%;
 	width: 33.34%;
-	background-size: 21.74%;
-	background-position: center center;
-	background-repeat: no-repeat;
 }
 
-.monaco-workbench > .part.titlebar > .window-controls-container > .window-icon svg {
+.monaco-workbench > .part.titlebar > .window-controls-container .window-icon svg {
 	shape-rendering: crispEdges;
 	text-align: center;
 }
 
-.monaco-workbench > .part.titlebar.titlebar > .window-controls-container > .window-close {
-	background-image: url('chrome-close-dark.svg');
-	order: 3;
+.monaco-workbench > .part.titlebar.titlebar > .window-controls-container .window-close {
+	-webkit-mask: url('chrome-close.svg') no-repeat 50% 50%;
 }
 
-.monaco-workbench > .part.titlebar.titlebar.light > .window-controls-container > .window-close {
-	background-image: url('chrome-close.svg');
-	order: 3;
+.monaco-workbench > .part.titlebar.titlebar > .window-controls-container .window-unmaximize {
+	-webkit-mask: url('chrome-restore.svg') no-repeat 50% 50%;
 }
 
-.monaco-workbench > .part.titlebar.titlebar > .window-controls-container > .window-unmaximize {
-	background-image: url('chrome-restore-dark.svg');
-	order: 2;
+.monaco-workbench > .part.titlebar > .window-controls-container .window-maximize {
+	-webkit-mask: url('chrome-maximize.svg') no-repeat 50% 50%;
 }
 
-.monaco-workbench > .part.titlebar.titlebar.light > .window-controls-container > .window-unmaximize {
-	background-image: url('chrome-restore.svg');
-	order: 2;
+.monaco-workbench > .part.titlebar > .window-controls-container .window-minimize {
+	-webkit-mask: url('chrome-minimize.svg') no-repeat 50% 50%;
 }
 
-.monaco-workbench > .part.titlebar > .window-controls-container > .window-maximize {
-	background-image: url('chrome-maximize-dark.svg');
-	order: 2;
+.monaco-workbench > .part.titlebar > .window-controls-container > .window-icon-bg > .window-icon {
+	height: 100%;
+	width: 100%;
+	-webkit-mask-size: 23.1%;
 }
 
-.monaco-workbench > .part.titlebar.light > .window-controls-container > .window-maximize {
-	background-image: url('chrome-maximize.svg');
-	order: 2;
-}
-
-.monaco-workbench > .part.titlebar > .window-controls-container > .window-minimize {
-	background-image: url('chrome-minimize-dark.svg');
-	order: 1;
-}
-
-.monaco-workbench > .part.titlebar.light > .window-controls-container > .window-minimize {
-	background-image: url('chrome-minimize.svg');
-	order: 1;
-}
-
-.monaco-workbench > .part.titlebar > .window-controls-container > .window-icon:hover {
+.monaco-workbench > .part.titlebar > .window-controls-container > .window-icon-bg:hover {
 	background-color: rgba(255, 255, 255, 0.1);
 }
 
-.monaco-workbench > .part.titlebar.light > .window-controls-container > .window-icon:hover {
+.monaco-workbench > .part.titlebar.light > .window-controls-container > .window-icon-bg:hover {
 	background-color: rgba(0, 0, 0, 0.1);
 }
 
-.monaco-workbench > .part.titlebar > .window-controls-container > .window-close:hover,
-	.monaco-workbench > .part.titlebar.light > .window-controls-container > .window-close:hover {
+.monaco-workbench > .part.titlebar > .window-controls-container > .window-icon-bg.window-close-bg:hover {
 	background-color: rgba(232, 17, 35, 0.9);
-	background-image: url('chrome-close-dark.svg');
+}
+
+.monaco-workbench > .part.titlebar > .window-controls-container .window-icon.window-close:hover {
+	background-color: white;
 }

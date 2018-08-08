@@ -5,7 +5,7 @@
 
 'use strict';
 
-import { IDelegate, IRenderer } from 'vs/base/browser/ui/list/list';
+import { IVirtualDelegate, IRenderer } from 'vs/base/browser/ui/list/list';
 import { clearNode, addClass, removeClass, toggleClass, addDisposableListener, EventType, EventHelper } from 'vs/base/browser/dom';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
 import URI from 'vs/base/common/uri';
@@ -26,7 +26,7 @@ import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { ProgressBar } from 'vs/base/browser/ui/progressbar/progressbar';
 import { Severity } from 'vs/platform/notification/common/notification';
 
-export class NotificationsListDelegate implements IDelegate<INotificationViewItem> {
+export class NotificationsListDelegate implements IVirtualDelegate<INotificationViewItem> {
 
 	private static readonly ROW_HEIGHT = 42;
 	private static readonly LINE_HEIGHT = 22;
@@ -276,6 +276,10 @@ export class NotificationRenderer implements IRenderer<INotificationViewItem, IN
 
 	renderElement(notification: INotificationViewItem, index: number, data: INotificationTemplateData): void {
 		data.renderer.setInput(notification);
+	}
+
+	disposeElement(): void {
+		// noop
 	}
 
 	disposeTemplate(templateData: INotificationTemplateData): void {

@@ -6,6 +6,7 @@
 import URI from 'vs/base/common/uri';
 import { createHash } from 'crypto';
 import * as paths from 'vs/base/common/paths';
+import * as resources from 'vs/base/common/resources';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { Event, Emitter } from 'vs/base/common/event';
 import * as pfs from 'vs/base/node/pfs';
@@ -284,7 +285,7 @@ export class FileServiceBasedFolderConfiguration extends AbstractFolderConfigura
 				}
 			}).then(null, err => [] /* never fail this call */);
 
-		return bulkContentFetchromise.then(() => TPromise.join(workspaceFilePathToConfiguration).then(result => collections.values(result)));
+		return bulkContentFetchromise.then(() => TPromise.join(collections.values(workspaceFilePathToConfiguration)));
 	}
 
 	private handleWorkspaceFileEvents(event: FileChangesEvent): void {
@@ -337,7 +338,7 @@ export class FileServiceBasedFolderConfiguration extends AbstractFolderConfigura
 				return paths.normalize(relative(this.folderConfigurationPath.fsPath, resource.fsPath));
 			}
 		} else {
-			if (paths.isEqualOrParent(resource.path, this.folderConfigurationPath.path, true /* ignorecase */)) {
+			if (resources.isEqualOrParent(resource, this.folderConfigurationPath, resources.hasToIgnoreCase(resource))) {
 				return paths.normalize(relative(this.folderConfigurationPath.path, resource.path));
 			}
 		}

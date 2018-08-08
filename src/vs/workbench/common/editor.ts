@@ -25,6 +25,7 @@ export const EditorsVisibleContext = new RawContextKey<boolean>('editorIsOpen', 
 export const EditorGroupActiveEditorDirtyContext = new RawContextKey<boolean>('groupActiveEditorDirty', false);
 export const NoEditorsVisibleContext: ContextKeyExpr = EditorsVisibleContext.toNegated();
 export const TextCompareEditorVisibleContext = new RawContextKey<boolean>('textCompareEditorVisible', false);
+export const TextCompareEditorActiveContext = new RawContextKey<boolean>('textCompareEditorActive', false);
 export const ActiveEditorGroupEmptyContext = new RawContextKey<boolean>('activeEditorGroupEmpty', false);
 export const MultipleEditorGroupsContext = new RawContextKey<boolean>('multipleEditorGroups', false);
 export const SingleEditorGroupsContext = MultipleEditorGroupsContext.toNegated();
@@ -395,11 +396,9 @@ export abstract class EditorInput extends Disposable implements IEditorInput {
 
 	/**
 	 * Returns a type of EditorModel that represents the resolved input. Subclasses should
-	 * override to provide a meaningful model. The optional second argument allows to specify
-	 * if the EditorModel should be refreshed before returning it. Depending on the implementation
-	 * this could mean to refresh the editor model contents with the version from disk.
+	 * override to provide a meaningful model.
 	 */
-	abstract resolve(refresh?: boolean): TPromise<IEditorModel>;
+	abstract resolve(): TPromise<IEditorModel>;
 
 	/**
 	 * An editor that is dirty will be asked to be saved once it closes.
@@ -582,7 +581,7 @@ export class SideBySideEditorInput extends EditorInput {
 		this._register(this.master.onDidChangeLabel(() => this._onDidChangeLabel.fire()));
 	}
 
-	resolve(refresh?: boolean): TPromise<EditorModel> {
+	resolve(): TPromise<EditorModel> {
 		return TPromise.as(null);
 	}
 
@@ -677,7 +676,7 @@ export class EditorOptions implements IEditorOptions {
 		const options = new EditorOptions();
 
 		options.preserveFocus = settings.preserveFocus;
-		options.forceOpen = settings.forceOpen;
+		options.forceReload = settings.forceReload;
 		options.revealIfVisible = settings.revealIfVisible;
 		options.revealIfOpened = settings.revealIfOpened;
 		options.pinned = settings.pinned;
@@ -694,11 +693,11 @@ export class EditorOptions implements IEditorOptions {
 	preserveFocus: boolean;
 
 	/**
-	 * Tells the editor to replace the editor input in the editor even if it is identical to the one
-	 * already showing. By default, the editor will not replace the input if it is identical to the
+	 * Tells the editor to reload the editor input in the editor even if it is identical to the one
+	 * already showing. By default, the editor will not reload the input if it is identical to the
 	 * one showing.
 	 */
-	forceOpen: boolean;
+	forceReload: boolean;
 
 	/**
 	 * Will reveal the editor if it is already opened and visible in any of the opened editor groups.
@@ -763,8 +762,8 @@ export class TextEditorOptions extends EditorOptions {
 			textEditorOptions.editorViewState = options.viewState as IEditorViewState;
 		}
 
-		if (options.forceOpen) {
-			textEditorOptions.forceOpen = true;
+		if (options.forceReload) {
+			textEditorOptions.forceReload = true;
 		}
 
 		if (options.revealIfVisible) {

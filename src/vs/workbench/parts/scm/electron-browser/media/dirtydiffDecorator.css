@@ -19,6 +19,7 @@
 	border-top: 4px solid transparent;
 	border-bottom: 4px solid transparent;
 	transition: border-top-width 80ms linear, border-bottom-width 80ms linear, bottom 80ms linear;
+	pointer-events: none;
 }
 
 .monaco-editor .dirty-diff-glyph:before {

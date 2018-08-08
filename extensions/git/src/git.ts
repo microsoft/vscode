@@ -336,7 +336,8 @@ export const GitErrorCodes = {
 	NoStashFound: 'NoStashFound',
 	LocalChangesOverwritten: 'LocalChangesOverwritten',
 	NoUpstreamBranch: 'NoUpstreamBranch',
-	IsInSubmodule: 'IsInSubmodule'
+	IsInSubmodule: 'IsInSubmodule',
+	WrongCase: 'WrongCase',
 };
 
 function getGitErrorCode(stderr: string): string | undefined {
@@ -344,7 +345,7 @@ function getGitErrorCode(stderr: string): string | undefined {
 		return GitErrorCodes.RepositoryIsLocked;
 	} else if (/Authentication failed/.test(stderr)) {
 		return GitErrorCodes.AuthenticationFailed;
-	} else if (/Not a git repository/.test(stderr)) {
+	} else if (/Not a git repository/i.test(stderr)) {
 		return GitErrorCodes.NotAGitRepository;
 	} else if (/bad config file/.test(stderr)) {
 		return GitErrorCodes.BadConfigFile;
@@ -501,6 +502,7 @@ export class Git {
 export interface Commit {
 	hash: string;
 	message: string;
+	parents: string[];
 }
 
 export class GitStatusParser {
@@ -631,6 +633,47 @@ export function parseGitmodules(raw: string): Submodule[] {
 	return result;
 }
 
+export function parseGitCommit(raw: string): Commit | null {
+	const match = /^([0-9a-f]{40})\n(.*)\n([^]*)$/m.exec(raw.trim());
+	if (!match) {
+		return null;
+	}
+
+	const parents = match[2] ? match[2].split(' ') : [];
+	return { hash: match[1], message: match[3], parents };
+}
+
+interface LsTreeElement {
+	mode: string;
+	type: string;
+	object: string;
+	size: string;
+	file: string;
+}
+
+export function parseLsTree(raw: string): LsTreeElement[] {
+	return raw.split('\n')
+		.filter(l => !!l)
+		.map(line => /^(\S+)\s+(\S+)\s+(\S+)\s+(\S+)\s+(.*)$/.exec(line)!)
+		.filter(m => !!m)
+		.map(([, mode, type, object, size, file]) => ({ mode, type, object, size, file }));
+}
+
+interface LsFilesElement {
+	mode: string;
+	object: string;
+	stage: string;
+	file: string;
+}
+
+export function parseLsFiles(raw: string): LsFilesElement[] {
+	return raw.split('\n')
+		.filter(l => !!l)
+		.map(line => /^(\S+)\s+(\S+)\s+(\S+)\s+(.*)$/.exec(line)!)
+		.filter(m => !!m)
+		.map(([, mode, object, stage, file]) => ({ mode, object, stage, file }));
+}
+
 export interface DiffOptions {
 	cached?: boolean;
 }
@@ -699,45 +742,70 @@ export class Repository {
 			return Promise.reject<Buffer>('Can\'t open file from git');
 		}
 
-		const { exitCode, stdout } = await exec(child);
+		const { exitCode, stdout, stderr } = await exec(child);
 
 		if (exitCode) {
-			return Promise.reject<Buffer>(new GitError({
+			const err = new GitError({
 				message: 'Could not show object.',
 				exitCode
-			}));
+			});
+
+			if (/exists on disk, but not in/.test(stderr)) {
+				err.gitErrorCode = GitErrorCodes.WrongCase;
+			}
+
+			return Promise.reject<Buffer>(err);
 		}
 
 		return stdout;
 	}
 
-	async lstree(treeish: string, path: string): Promise<{ mode: string, object: string, size: number }> {
+	async getObjectDetails(treeish: string, path: string): Promise<{ mode: string, object: string, size: number }> {
 		if (!treeish) { // index
-			const { stdout } = await this.run(['ls-files', '--stage', '--', path]);
+			const elements = await this.lsfiles(path);
 
-			const match = /^(\d+)\s+([0-9a-f]{40})\s+(\d+)/.exec(stdout);
-
-			if (!match) {
+			if (elements.length === 0) {
 				throw new GitError({ message: 'Error running ls-files' });
 			}
 
-			const [, mode, object] = match;
+			const { mode, object } = elements[0];
 			const catFile = await this.run(['cat-file', '-s', object]);
 			const size = parseInt(catFile.stdout);
 
 			return { mode, object, size };
 		}
 
-		const { stdout } = await this.run(['ls-tree', '-l', treeish, '--', path]);
+		const elements = await this.lstree(treeish, path);
 
-		const match = /^(\d+)\s+(\w+)\s+([0-9a-f]{40})\s+(\d+)/.exec(stdout);
-
-		if (!match) {
-			throw new GitError({ message: 'Error running ls-tree' });
+		if (elements.length === 0) {
+			throw new GitError({ message: 'Error running ls-files' });
 		}
 
-		const [, mode, , object, size] = match;
+		const { mode, object, size } = elements[0];
 		return { mode, object, size: parseInt(size) };
+	}
+
+	async lstree(treeish: string, path: string): Promise<LsTreeElement[]> {
+		const { stdout } = await this.run(['ls-tree', '-l', treeish, '--', path]);
+		return parseLsTree(stdout);
+	}
+
+	async lsfiles(path: string): Promise<LsFilesElement[]> {
+		const { stdout } = await this.run(['ls-files', '--stage', '--', path]);
+		return parseLsFiles(stdout);
+	}
+
+	async getGitRelativePath(ref: string, relativePath: string): Promise<string> {
+		const relativePathLowercase = relativePath.toLowerCase();
+		const dirname = path.posix.dirname(relativePath) + '/';
+		const elements: { file: string; }[] = ref ? await this.lstree(ref, dirname) : await this.lsfiles(dirname);
+		const element = elements.filter(file => file.file.toLowerCase() === relativePathLowercase)[0];
+
+		if (!element) {
+			throw new GitError({ message: 'Git relative path not found.' });
+		}
+
+		return element.file;
 	}
 
 	async detectObjectType(object: string): Promise<{ mimetype: string, encoding?: string }> {
@@ -822,7 +890,7 @@ export class Repository {
 		let mode: string;
 
 		try {
-			const details = await this.lstree('HEAD', path);
+			const details = await this.getObjectDetails('HEAD', path);
 			mode = details.mode;
 		} catch (err) {
 			mode = '100644';
@@ -876,27 +944,41 @@ export class Repository {
 		try {
 			await this.run(args, { input: message || '' });
 		} catch (commitErr) {
-			if (/not possible because you have unmerged files/.test(commitErr.stderr || '')) {
-				commitErr.gitErrorCode = GitErrorCodes.UnmergedChanges;
-				throw commitErr;
-			}
+			await this.handleCommitError(commitErr);
+		}
+	}
 
-			try {
-				await this.run(['config', '--get-all', 'user.name']);
-			} catch (err) {
-				err.gitErrorCode = GitErrorCodes.NoUserNameConfigured;
-				throw err;
-			}
+	async rebaseContinue(): Promise<void> {
+		const args = ['rebase', '--continue'];
 
-			try {
-				await this.run(['config', '--get-all', 'user.email']);
-			} catch (err) {
-				err.gitErrorCode = GitErrorCodes.NoUserEmailConfigured;
-				throw err;
-			}
+		try {
+			await this.run(args);
+		} catch (commitErr) {
+			await this.handleCommitError(commitErr);
+		}
+	}
 
+	private async handleCommitError(commitErr: any): Promise<void> {
+		if (/not possible because you have unmerged files/.test(commitErr.stderr || '')) {
+			commitErr.gitErrorCode = GitErrorCodes.UnmergedChanges;
 			throw commitErr;
 		}
+
+		try {
+			await this.run(['config', '--get-all', 'user.name']);
+		} catch (err) {
+			err.gitErrorCode = GitErrorCodes.NoUserNameConfigured;
+			throw err;
+		}
+
+		try {
+			await this.run(['config', '--get-all', 'user.email']);
+		} catch (err) {
+			err.gitErrorCode = GitErrorCodes.NoUserEmailConfigured;
+			throw err;
+		}
+
+		throw commitErr;
 	}
 
 	async branch(name: string, checkout: boolean): Promise<void> {
@@ -911,6 +993,11 @@ export class Repository {
 
 	async renameBranch(name: string): Promise<void> {
 		const args = ['branch', '-m', name];
+		await this.run(args);
+	}
+
+	async deleteRef(ref: string): Promise<void> {
+		const args = ['update-ref', '-d', ref];
 		await this.run(args);
 	}
 
@@ -1328,14 +1415,8 @@ export class Repository {
 	}
 
 	async getCommit(ref: string): Promise<Commit> {
-		const result = await this.run(['show', '-s', '--format=%H\n%B', ref]);
-		const match = /^([0-9a-f]{40})\n([^]*)$/m.exec(result.stdout.trim());
-
-		if (!match) {
-			return Promise.reject<Commit>('bad commit format');
-		}
-
-		return { hash: match[1], message: match[2] };
+		const result = await this.run(['show', '-s', '--format=%H\n%P\n%B', ref]);
+		return parseGitCommit(result.stdout) || Promise.reject<Commit>('bad commit format');
 	}
 
 	async updateSubmodules(paths: string[]): Promise<void> {

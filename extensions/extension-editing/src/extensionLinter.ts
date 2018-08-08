@@ -3,7 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as fs from 'fs';
 import * as path from 'path';
 
 import * as nls from 'vscode-nls';
@@ -264,13 +263,16 @@ export class ExtensionLinter {
 	}
 
 	private async loadPackageJson(folder: Uri) {
-		const file = folder.with({ path: path.posix.join(folder.path, 'package.json') });
-		const exists = await fileExists(file.fsPath);
-		if (!exists) {
+		if (folder.scheme === 'git') { // #36236
 			return undefined;
 		}
-		const document = await workspace.openTextDocument(file);
-		return parseTree(document.getText());
+		const file = folder.with({ path: path.posix.join(folder.path, 'package.json') });
+		try {
+			const document = await workspace.openTextDocument(file);
+			return parseTree(document.getText());
+		} catch (err) {
+			return undefined;
+		}
 	}
 
 	private packageJsonChanged(folder: Uri) {
@@ -336,20 +338,6 @@ function endsWith(haystack: string, needle: string): boolean {
 	} else {
 		return false;
 	}
-}
-
-function fileExists(path: string): Promise<boolean> {
-	return new Promise((resolve, reject) => {
-		fs.lstat(path, (err, stats) => {
-			if (!err) {
-				resolve(true);
-			} else if (err.code === 'ENOENT') {
-				resolve(false);
-			} else {
-				reject(err);
-			}
-		});
-	});
 }
 
 function parseUri(src: string) {

@@ -27,8 +27,12 @@ class WindowRouter implements IClientRouter {
 
 	constructor(private windowId: number) { }
 
-	route(command: string, arg: any): string {
-		return `window:${this.windowId}`;
+	routeCall(): TPromise<string> {
+		return TPromise.as(`window:${this.windowId}`);
+	}
+
+	routeEvent(): TPromise<string> {
+		return TPromise.as(`window:${this.windowId}`);
 	}
 }
 
@@ -216,7 +220,7 @@ export async function serve(
 	handle: string,
 	environmentService: IEnvironmentService,
 	instantiationService: IInstantiationService
-): TPromise<IDisposable> {
+): Promise<IDisposable> {
 	const verbose = environmentService.driverVerbose;
 	const driver = instantiationService.createInstance(Driver, windowServer, { verbose });
 

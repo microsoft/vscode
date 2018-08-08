@@ -426,9 +426,9 @@ export class ExtHostDebugService implements ExtHostDebugServiceShape {
 	private fireBreakpointChanges(added: vscode.Breakpoint[], removed: vscode.Breakpoint[], changed: vscode.Breakpoint[]) {
 		if (added.length > 0 || removed.length > 0 || changed.length > 0) {
 			this._onDidChangeBreakpoints.fire(Object.freeze({
-				added: Object.freeze<vscode.Breakpoint[]>(added),
-				removed: Object.freeze<vscode.Breakpoint[]>(removed),
-				changed: Object.freeze<vscode.Breakpoint[]>(changed)
+				added,
+				removed,
+				changed,
 			}));
 		}
 	}
