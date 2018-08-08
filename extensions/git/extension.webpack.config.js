@@ -14,11 +14,11 @@ module.exports = {
 	context: __dirname,
 	entry: {
 		main: './out/main.js',
-		askpass: './out/askpass-main.js'
+		['askpass-main']: './out/askpass-main.js'
 	},
 	output: {
 		filename: '[name].bundle.js',
-		path: path.join(__dirname, 'dist'),
+		path: path.join(__dirname, 'out'),
 		libraryTarget: "commonjs"
 	},
 	externals: {

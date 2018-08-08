@@ -40,7 +40,7 @@ function fromLocal(extensionPath) {
             var patchFilesStream = filesStream
                 .pipe(packageJsonFilter)
                 .pipe(buffer())
-                .pipe(json({ main: './dist/main.bundle' })) // hardcoded entry point!
+                .pipe(json({ main: './out/main.bundle' })) // hardcoded entry point!
                 .pipe(packageJsonFilter.restore);
             var webpackConfig = require(path.join(extensionPath, 'extension.webpack.config.js'));
             var webpackStream = webpackGulp(webpackConfig, webpack)
