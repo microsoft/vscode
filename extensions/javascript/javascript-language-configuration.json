@@ -25,7 +25,6 @@
 		["\"", "\""],
 		["`", "`"]
 	],
-	// add ` as an autocloseBefore because templated backtick strings are common
 	"autoCloseBefore": ";:.,=}])>` \n\t",
 	"folding": {
 		"markers": {
