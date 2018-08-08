@@ -72,6 +72,7 @@
 	"config.detectSubmodules": "Controls whether to automatically detect git submodules.",
 	"colors.added": "Color for added resources.",
 	"config.detectSubmodulesLimit": "Controls the limit of git submodules detected.",
+	"config.showStagedChangesResourceGroup": "Always show the Staged Changes resource group.",
 	"colors.modified": "Color for modified resources.",
 	"colors.deleted": "Color for deleted resources.",
 	"colors.untracked": "Color for untracked resources.",

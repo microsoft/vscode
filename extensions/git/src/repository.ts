@@ -509,6 +509,8 @@ export class Repository implements Disposable {
 		private readonly repository: BaseRepository,
 		globalState: Memento
 	) {
+		const config = workspace.getConfiguration('git');
+		const gitShowStagedChangesResourceGroup = config.get<string>('showStagedChangesResourceGroup');
 		const fsWatcher = workspace.createFileSystemWatcher('**');
 		this.disposables.push(fsWatcher);
 
@@ -532,7 +534,7 @@ export class Repository implements Disposable {
 		this._workingTreeGroup = this._sourceControl.createResourceGroup('workingTree', localize('changes', "Changes"));
 
 		this.mergeGroup.hideWhenEmpty = true;
-		this.indexGroup.hideWhenEmpty = true;
+		this.indexGroup.hideWhenEmpty = !gitShowStagedChangesResourceGroup;
 
 		this.disposables.push(this.mergeGroup);
 		this.disposables.push(this.indexGroup);
