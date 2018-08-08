@@ -6,7 +6,7 @@
 
 export type ErrorCallback = (error: any) => void;
 
-export declare class Promise<T = any> {
+export class Promise<T = any> {
 	constructor(
 		executor: (
 			resolve: (value: T | PromiseLike<T>) => void,
