@@ -10,6 +10,7 @@ import { XHRRequest } from 'request-light';
 import { Location } from 'jsonc-parser';
 import { textToMarkedString } from './markedTextUtil';
 
+import * as cp from 'child_process';
 import * as nls from 'vscode-nls';
 const localize = nls.loadMessageBundle();
 
@@ -281,34 +282,34 @@ export class PackageJSONContribution implements IJSONContribution {
 	}
 
 	private getInfo(pack: string): Thenable<string[]> {
-
-		const queryUrl = 'https://registry.npmjs.org/' + encodeURIComponent(pack).replace('%40', '@');
-		return this.xhr({
-			url: queryUrl,
-			agent: USER_AGENT
-		}).then((success) => {
-			try {
-				const obj = JSON.parse(success.responseText);
-				if (obj) {
-					const result: string[] = [];
-					if (obj.description) {
-						result.push(obj.description);
-					}
-					const latest = obj && obj['dist-tags'] && obj['dist-tags']['latest'];
-					if (latest) {
-						result.push(localize('json.npm.version.hover', 'Latest version: {0}', latest));
-					}
-					if (obj.homepage) {
-						result.push(obj.homepage);
-					}
-					return result;
+		return new Promise((resolve, reject) => {
+			const command = 'npm view ' + pack + ' description dist-tags.latest homepage';
+			cp.exec(command, (error: object, stdout: string, stderr: string) => {
+				if (error) {
+					return resolve([]);
 				}
-			} catch (e) {
-				// ignore
-			}
-			return [];
-		}, () => {
-			return [];
+				const lines = stdout.split('\n');
+				if (lines.length) {
+					const info: any = {};
+					lines.forEach((line) => {
+						const nameval = line.split(' = ');
+						if (nameval.length === 2) {
+							/* tslint:disable:no-unexternalized-strings */
+							const fq = nameval[1].indexOf("'");
+							const lq = nameval[1].lastIndexOf("'");
+							const val = nameval[1].slice(fq + 1, lq).replace("\'", "'");
+							/* tslint:enable:no-unexternalized-strings */
+							info[nameval[0]] = val;
+						}
+					});
+					const result: string[] = [];
+					result.push(info.description || '');
+					result.push(info['dist-tags.latest'] ? localize('json.npm.version.hover', 'Latest version: {0}', info['dist-tags.latest']) : '');
+					result.push(info.homepage || '');
+					return resolve(result);
+				}
+				return resolve([]);
+			});
 		});
 	}
 
