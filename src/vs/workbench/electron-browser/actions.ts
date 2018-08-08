@@ -52,6 +52,10 @@ import { IWorkbenchIssueService } from 'vs/workbench/services/issue/common/issue
 import { INotificationService } from 'vs/platform/notification/common/notification';
 import { IUriDisplayService } from 'vs/platform/uriDisplay/common/uriDisplay';
 import { dirname } from 'vs/base/common/resources';
+import { IModelService } from 'vs/editor/common/services/modelService';
+import { IModeService } from 'vs/editor/common/services/modeService';
+import { IQuickInputService, IQuickPickItem, IQuickInputButton } from 'vs/platform/quickinput/common/quickInput';
+import { getIconClasses } from 'vs/workbench/browser/labels';
 
 // --- actions
 
@@ -577,20 +581,24 @@ export class ReloadWindowWithExtensionsDisabledAction extends Action {
 }
 
 export abstract class BaseSwitchWindow extends Action {
-	private closeWindowAction: CloseWindowAction;
+
+	private closeWindowAction: IQuickInputButton = {
+		iconClass: 'action-remove-from-recently-opened',
+		tooltip: nls.localize('close', "Close Window")
+	};
 
 	constructor(
 		id: string,
 		label: string,
 		private windowsService: IWindowsService,
 		private windowService: IWindowService,
-		private quickOpenService: IQuickOpenService,
+		private quickInputService: IQuickInputService,
 		private keybindingService: IKeybindingService,
-		private instantiationService: IInstantiationService
+		private modelService: IModelService,
+		private modeService: IModeService,
 	) {
 		super(id, label);
 
-		this.closeWindowAction = this.instantiationService.createInstance(CloseWindowAction);
 	}
 
 	protected abstract isQuickNavigate(): boolean;
@@ -600,58 +608,35 @@ export abstract class BaseSwitchWindow extends Action {
 
 		return this.windowsService.getWindows().then(windows => {
 			const placeHolder = nls.localize('switchWindowPlaceHolder', "Select a window to switch to");
-			const picks = windows.map(win => ({
-				payload: win.id,
-				resource: win.filename ? URI.file(win.filename) : win.folderUri ? win.folderUri : win.workspace ? URI.file(win.workspace.configPath) : void 0,
-				fileKind: win.filename ? FileKind.FILE : win.workspace ? FileKind.ROOT_FOLDER : win.folderUri ? FileKind.FOLDER : FileKind.FILE,
-				label: win.title,
-				description: (currentWindowId === win.id) ? nls.localize('current', "Current Window") : void 0,
-				run: () => {
-					setTimeout(() => {
-						// Bug: somehow when not running this code in a timeout, it is not possible to use this picker
-						// with quick navigate keys (not able to trigger quick navigate once running it once).
-						this.windowsService.showWindow(win.id).done(null, errors.onUnexpectedError);
-					});
-				},
-				action: (!this.isQuickNavigate() && currentWindowId !== win.id) ? this.closeWindowAction : void 0
-			} as IFilePickOpenEntry));
+			const picks = windows.map(win => {
+				const resource = win.filename ? URI.file(win.filename) : win.folderUri ? win.folderUri : win.workspace ? URI.file(win.workspace.configPath) : void 0;
+				const fileKind = win.filename ? FileKind.FILE : win.workspace ? FileKind.ROOT_FOLDER : win.folderUri ? FileKind.FOLDER : FileKind.FILE;
+				return {
+					payload: win.id,
+					label: win.title,
+					iconClasses: getIconClasses(this.modelService, this.modeService, resource, fileKind),
+					description: (currentWindowId === win.id) ? nls.localize('current', "Current Window") : void 0,
+					buttons: (!this.isQuickNavigate() && currentWindowId !== win.id) ? [this.closeWindowAction] : void 0
+				} as (IQuickPickItem & { payload: number });
+			});
 
 			const autoFocusIndex = (picks.indexOf(picks.filter(pick => pick.payload === currentWindowId)[0]) + 1) % picks.length;
 
-			this.quickOpenService.pick(picks, {
+			return this.quickInputService.pick(picks, {
 				contextKey: 'inWindowsPicker',
-				autoFocus: { autoFocusIndex },
+				activeItem: picks[autoFocusIndex],
 				placeHolder,
-				quickNavigateConfiguration: this.isQuickNavigate() ? { keybindings: this.keybindingService.lookupKeybindings(this.id) } : void 0
+				quickNavigate: this.isQuickNavigate() ? { keybindings: this.keybindingService.lookupKeybindings(this.id) } : void 0,
+				onDidTriggerItemButton: context => {
+					this.windowsService.closeWindow(context.item.payload).then(() => {
+						context.removeItem();
+					});
+				}
 			});
-		});
-	}
-
-	dispose(): void {
-		super.dispose();
-
-		this.closeWindowAction.dispose();
-	}
-}
-
-class CloseWindowAction extends Action implements IPickOpenAction {
-
-	static readonly ID = 'workbench.action.closeWindow';
-	static readonly LABEL = nls.localize('close', "Close Window");
-
-	constructor(
-		@IWindowsService private windowsService: IWindowsService
-	) {
-		super(CloseWindowAction.ID, CloseWindowAction.LABEL);
-
-		this.class = 'action-remove-from-recently-opened';
-	}
-
-	run(item: IPickOpenItem): TPromise<boolean> {
-		return this.windowsService.closeWindow(item.getPayload()).then(() => {
-			item.remove();
-
-			return true;
+		}).then(pick => {
+			if (pick) {
+				this.windowsService.showWindow(pick.payload).done(null, errors.onUnexpectedError);
+			}
 		});
 	}
 }
@@ -666,11 +651,13 @@ export class SwitchWindow extends BaseSwitchWindow {
 		label: string,
 		@IWindowsService windowsService: IWindowsService,
 		@IWindowService windowService: IWindowService,
-		@IQuickOpenService quickOpenService: IQuickOpenService,
+		@IQuickInputService quickInputService: IQuickInputService,
 		@IKeybindingService keybindingService: IKeybindingService,
+		@IModelService modelService: IModelService,
+		@IModeService modeService: IModeService,
 		@IInstantiationService instantiationService: IInstantiationService
 	) {
-		super(id, label, windowsService, windowService, quickOpenService, keybindingService, instantiationService);
+		super(id, label, windowsService, windowService, quickInputService, keybindingService, modelService, modeService);
 	}
 
 	protected isQuickNavigate(): boolean {
@@ -688,11 +675,13 @@ export class QuickSwitchWindow extends BaseSwitchWindow {
 		label: string,
 		@IWindowsService windowsService: IWindowsService,
 		@IWindowService windowService: IWindowService,
-		@IQuickOpenService quickOpenService: IQuickOpenService,
+		@IQuickInputService quickInputService: IQuickInputService,
 		@IKeybindingService keybindingService: IKeybindingService,
+		@IModelService modelService: IModelService,
+		@IModeService modeService: IModeService,
 		@IInstantiationService instantiationService: IInstantiationService
 	) {
-		super(id, label, windowsService, windowService, quickOpenService, keybindingService, instantiationService);
+		super(id, label, windowsService, windowService, quickInputService, keybindingService, modelService, modeService);
 	}
 
 	protected isQuickNavigate(): boolean {
