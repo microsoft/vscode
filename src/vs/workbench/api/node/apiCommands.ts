@@ -11,6 +11,7 @@ import { CommandsRegistry, ICommandService, ICommandHandler } from 'vs/platform/
 import { ITextEditorOptions } from 'vs/platform/editor/common/editor';
 import { EditorViewColumn } from 'vs/workbench/api/shared/editor';
 import { EditorGroupLayout } from 'vs/workbench/services/group/common/editorGroupsService';
+import { isWindows } from 'vs/base/common/platform';
 
 // -----------------------------------------------------------------
 // The following commands are registered on both sides separately.
@@ -48,8 +49,9 @@ export class OpenFolderAPICommand {
 		if (!uri) {
 			return executor.executeCommand('_files.pickFolderAndOpen', forceNewWindow);
 		}
-		if (!uri.scheme) {
-			console.warn(`'vscode.openFolder' command invoked with an invalid URI (scheme missing): '${uri}'. Converted to a 'file://' URI.`);
+		if (!uri.scheme || isWindows && uri.scheme.match(/^[a-zA-Z]$/)) {
+			// workaround for #55916 and #55891, will be removed in 1.28
+			console.warn(`'vscode.openFolder' command invoked with an invalid URI (file:// scheme missing): '${uri}'. Converted to a 'file://' URI.`);
 			uri = URI.file(uri.toString());
 		}
 
