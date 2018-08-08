@@ -702,7 +702,7 @@ export class EditorPart extends Part implements EditorGroupsServiceImpl, IEditor
 		// Move/Copy editors over into target
 		let index = (options && typeof options.index === 'number') ? options.index : targetView.count;
 		sourceView.editors.forEach(editor => {
-			const inactive = !sourceView.isActive(editor);
+			const inactive = !sourceView.isActive(editor) || this._activeGroup !== sourceView;
 			const copyOptions: ICopyEditorOptions = { index, inactive, preserveFocus: inactive };
 
 			if (options && options.mode === MergeGroupMode.COPY_EDITORS) {
