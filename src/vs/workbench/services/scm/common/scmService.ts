@@ -134,6 +134,7 @@ export class SCMService implements ISCMService {
 			this._providerIds.delete(provider.id);
 			this._repositories.splice(index, 1);
 			this._onDidRemoveProvider.fire(repository);
+			this.onDidChangeSelection();
 		});
 
 		const repository = new SCMRepository(provider, disposable);
