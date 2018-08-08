@@ -9,7 +9,7 @@ import { Emitter, Event } from 'vs/base/common/event';
 import { JSONVisitor, visit } from 'vs/base/common/json';
 import { Disposable, IReference } from 'vs/base/common/lifecycle';
 import * as map from 'vs/base/common/map';
-import { assign } from 'vs/base/common/objects';
+import { assign, deepClone } from 'vs/base/common/objects';
 import URI from 'vs/base/common/uri';
 import { IRange, Range } from 'vs/editor/common/core/range';
 import { Selection } from 'vs/editor/common/core/selection';
@@ -667,7 +667,13 @@ export class DefaultSettingsEditorModel extends AbstractSettingsModel implements
 		// Grab current result groups, only render non-empty groups
 		const resultGroups = map
 			.values(this._currentResultGroups)
+			.map(group => {
+				let groupCopy = deepClone(group);
+				groupCopy.result.filterMatches = group.result.filterMatches.filter(match => !match.setting.deprecationMessage);
+				return groupCopy;
+			})
 			.sort((a, b) => a.order - b.order);
+
 		const nonEmptyResultGroups = resultGroups.filter(group => group.result.filterMatches.length);
 
 		const startLine = tail(this.settingsGroups).range.endLineNumber + 2;
