@@ -41,6 +41,7 @@ export interface ISetting {
 	value: any;
 	valueRange: IRange;
 	description: string[];
+	descriptionIsMarkdown: boolean;
 	descriptionRanges: IRange[];
 	overrides?: ISetting[];
 	overrideOf?: ISetting;
@@ -50,6 +51,7 @@ export interface ISetting {
 	type?: string | string[];
 	enum?: string[];
 	enumDescriptions?: string[];
+	enumDescriptionsAreMarkdown?: boolean;
 	tags?: string[];
 }
 

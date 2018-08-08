@@ -1017,18 +1017,23 @@ export class SettingsRenderer implements ITreeRenderer {
 		template.labelElement.textContent = element.displayLabel;
 		template.labelElement.title = titleTooltip;
 
-		const renderedDescription = this.renderDescriptionMarkdown(element.description, template.toDispose);
-		template.descriptionElement.innerHTML = '';
-		template.descriptionElement.appendChild(renderedDescription);
-		(<any>renderedDescription.querySelectorAll('a')).forEach(aElement => {
-			aElement.tabIndex = isSelected ? 0 : -1;
-		});
-
 		const result = this.renderValue(element, isSelected, templateId, <ISettingItemTemplate>template);
+		template.descriptionElement.innerHTML = '';
+		let needsManualOverflowIndicator = false;
+		if (element.setting.descriptionIsMarkdown) {
+			const renderedDescription = this.renderDescriptionMarkdown(element.description, template.toDispose);
+			template.descriptionElement.appendChild(renderedDescription);
+			(<any>renderedDescription.querySelectorAll('a')).forEach(aElement => {
+				aElement.tabIndex = isSelected ? 0 : -1;
+			});
 
-		const firstLineOverflows = renderedDescription.firstElementChild && renderedDescription.firstElementChild.clientHeight > 18;
-		const hasExtraLines = renderedDescription.childElementCount > 1;
-		const needsManualOverflowIndicator = (hasExtraLines || result.overflows) && !firstLineOverflows && !isSelected;
+			const firstLineOverflows = renderedDescription.firstElementChild && renderedDescription.firstElementChild.clientHeight > 18;
+			const hasExtraLines = renderedDescription.childElementCount > 1;
+			needsManualOverflowIndicator = (hasExtraLines || result.overflows) && !firstLineOverflows && !isSelected;
+		} else {
+			template.descriptionElement.innerText = element.description;
+		}
+
 		DOM.toggleClass(template.descriptionElement, 'setting-item-description-artificial-overflow', needsManualOverflowIndicator);
 
 		template.isConfiguredElement.textContent = element.isConfigured ? localize('configured', "Modified") : '';
