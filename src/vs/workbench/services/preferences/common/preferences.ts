@@ -44,6 +44,7 @@ export interface ISetting {
 	descriptionRanges: IRange[];
 	overrides?: ISetting[];
 	overrideOf?: ISetting;
+	deprecationMessage?: string;
 
 	// TODO@roblou maybe need new type and new EditorModel for GUI editor instead of ISetting which is used for text settings editor
 	type?: string | string[];
