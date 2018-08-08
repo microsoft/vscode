@@ -396,7 +396,6 @@ export class ReviewController implements IEditorContribution {
 		}, {});
 
 		this._newCommentWidget.onDidClose(e => {
-			this._newCommentWidget.dispose();
 			this._newCommentWidget = null;
 		});
 		this._newCommentWidget.display(lineNumber, this._commentingRangeDecorator.commentsOptions);

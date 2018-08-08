@@ -582,7 +582,9 @@ export class ReviewZoneWidget extends ZoneWidget {
 				this.show({ lineNumber: lineNumber, column: 1 }, 2);
 			} else {
 				this.hide();
-				this._onDidClose.fire();
+				if (this._commentThread === null) {
+					this.dispose();
+				}
 			}
 		}
 	}
