@@ -117,6 +117,12 @@ export const TAB_UNFOCUSED_INACTIVE_FOREGROUND = registerColor('tab.unfocusedIna
 
 // < --- Editors --- >
 
+export const EDITOR_PANE_BACKGROUND = registerColor('editorPane.background', {
+	dark: editorBackground,
+	light: editorBackground,
+	hc: editorBackground
+}, nls.localize('editorPaneBackground', "Background color of the editor pane visible on the left and right side of the centered editor layout."));
+
 registerColor('editorGroup.background', {
 	dark: null,
 	light: null,
