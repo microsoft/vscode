@@ -8,7 +8,8 @@
 const path = require('path');
 
 module.exports = {
-	mode: 'none',
+	// mode: 'none',
+	mode: 'production',
 	target: 'node',
 	context: __dirname,
 	entry: {
