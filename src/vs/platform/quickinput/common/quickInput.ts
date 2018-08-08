@@ -17,6 +17,7 @@ export interface IQuickPickItem {
 	description?: string;
 	detail?: string;
 	iconClasses?: string[];
+	buttons?: IQuickInputButton[];
 	picked?: boolean;
 }
 
@@ -67,6 +68,7 @@ export interface IPickOptions<T extends IQuickPickItem> {
 	activeItem?: TPromise<T> | T;
 
 	onDidFocus?: (entry: T) => void;
+	onDidTriggerItemButton?: (context: IQuickPickItemButtonContext<T>) => void;
 }
 
 export interface IInputOptions {
@@ -143,6 +145,8 @@ export interface IQuickPick<T extends IQuickPickItem> extends IQuickInput {
 
 	readonly onDidTriggerButton: Event<IQuickInputButton>;
 
+	readonly onDidTriggerItemButton: Event<IQuickPickItemButtonEvent<T>>;
+
 	items: ReadonlyArray<T>;
 
 	canSelectMany: boolean;
@@ -186,8 +190,18 @@ export interface IInputBox extends IQuickInput {
 }
 
 export interface IQuickInputButton {
-	iconPath: { dark: URI; light?: URI; };
-	tooltip?: string | undefined;
+	iconPath?: { dark: URI; light?: URI; };
+	iconClass?: string;
+	tooltip?: string;
+}
+
+export interface IQuickPickItemButtonEvent<T extends IQuickPickItem> {
+	button: IQuickInputButton;
+	item: T;
+}
+
+export interface IQuickPickItemButtonContext<T extends IQuickPickItem> extends IQuickPickItemButtonEvent<T> {
+	removeItem(): void;
 }
 
 export const IQuickInputService = createDecorator<IQuickInputService>('quickInputService');

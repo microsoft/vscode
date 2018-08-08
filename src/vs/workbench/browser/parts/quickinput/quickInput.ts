@@ -7,7 +7,7 @@
 
 import 'vs/css!./quickInput';
 import { Component } from 'vs/workbench/common/component';
-import { IQuickInputService, IQuickPickItem, IPickOptions, IInputOptions, IQuickNavigateConfiguration, IQuickPick, IQuickInput, IQuickInputButton, IInputBox } from 'vs/platform/quickinput/common/quickInput';
+import { IQuickInputService, IQuickPickItem, IPickOptions, IInputOptions, IQuickNavigateConfiguration, IQuickPick, IQuickInput, IQuickInputButton, IInputBox, IQuickPickItemButtonEvent } from 'vs/platform/quickinput/common/quickInput';
 import { IPartService } from 'vs/workbench/services/part/common/partService';
 import * as dom from 'vs/base/browser/dom';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
@@ -39,10 +39,10 @@ import { inQuickOpenContext } from 'vs/workbench/browser/parts/quickopen/quickop
 import { ActionBar, ActionItem } from 'vs/base/browser/ui/actionbar/actionbar';
 import { Action } from 'vs/base/common/actions';
 import URI from 'vs/base/common/uri';
-import { IdGenerator } from 'vs/base/common/idGenerator';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { equals } from 'vs/base/common/arrays';
 import { TimeoutTimer } from 'vs/base/common/async';
+import { getIconClass } from 'vs/workbench/browser/parts/quickinput/quickInputUtils';
 
 const $ = dom.$;
 
@@ -246,14 +246,14 @@ class QuickInput implements IQuickInput {
 			this.ui.leftActionBar.clear();
 			const leftButtons = this.buttons.filter(button => button === backButton);
 			this.ui.leftActionBar.push(leftButtons.map((button, index) => {
-				const action = new Action(`id-${index}`, '', getIconClass(button.iconPath), true, () => this.onDidTriggerButtonEmitter.fire(button));
+				const action = new Action(`id-${index}`, '', button.iconClass || getIconClass(button.iconPath), true, () => this.onDidTriggerButtonEmitter.fire(button));
 				action.tooltip = button.tooltip;
 				return action;
 			}), { icon: true, label: false });
 			this.ui.rightActionBar.clear();
 			const rightButtons = this.buttons.filter(button => button !== backButton);
 			this.ui.rightActionBar.push(rightButtons.map((button, index) => {
-				const action = new Action(`id-${index}`, '', getIconClass(button.iconPath), true, () => this.onDidTriggerButtonEmitter.fire(button));
+				const action = new Action(`id-${index}`, '', button.iconClass || getIconClass(button.iconPath), true, () => this.onDidTriggerButtonEmitter.fire(button));
 				action.tooltip = button.tooltip;
 				return action;
 			}), { icon: true, label: false });
@@ -311,6 +311,7 @@ class QuickPick<T extends IQuickPickItem> extends QuickInput implements IQuickPi
 	private selectedItemsUpdated = false;
 	private selectedItemsToConfirm: T[] = [];
 	private onDidChangeSelectionEmitter = new Emitter<T[]>();
+	private onDidTriggerItemButtonEmitter = new Emitter<IQuickPickItemButtonEvent<T>>();
 
 	quickNavigate: IQuickNavigateConfiguration;
 
@@ -321,6 +322,7 @@ class QuickPick<T extends IQuickPickItem> extends QuickInput implements IQuickPi
 			this.onDidAcceptEmitter,
 			this.onDidChangeActiveEmitter,
 			this.onDidChangeSelectionEmitter,
+			this.onDidTriggerItemButtonEmitter,
 		);
 	}
 
@@ -406,6 +408,8 @@ class QuickPick<T extends IQuickPickItem> extends QuickInput implements IQuickPi
 	}
 
 	onDidChangeSelection = this.onDidChangeSelectionEmitter.event;
+
+	onDidTriggerItemButton = this.onDidTriggerItemButtonEmitter.event;
 
 	show() {
 		if (!this.visible) {
@@ -499,6 +503,7 @@ class QuickPick<T extends IQuickPickItem> extends QuickInput implements IQuickPi
 					this._selectedItems = checkedItems as T[];
 					this.onDidChangeSelectionEmitter.fire(checkedItems as T[]);
 				}),
+				this.ui.list.onButtonTriggered(event => this.onDidTriggerItemButtonEmitter.fire(event as IQuickPickItemButtonEvent<T>)),
 				this.registerQuickNavigation()
 			);
 		}
@@ -1008,6 +1013,17 @@ export class QuickInputService extends Component implements IQuickInputService {
 						}
 					}
 				}),
+				input.onDidTriggerItemButton(event => options.onDidTriggerItemButton && options.onDidTriggerItemButton({
+					...event,
+					removeItem: () => {
+						const index = input.items.indexOf(event.item);
+						if (index !== -1) {
+							const items = input.items.slice();
+							items.splice(index, 1);
+							input.items = items;
+						}
+					}
+				})),
 				token.onCancellationRequested(() => {
 					input.hide();
 				}),
@@ -1270,25 +1286,6 @@ export class QuickInputService extends Component implements IQuickInputService {
 	private isDisplayed() {
 		return this.ui && this.ui.container.style.display !== 'none';
 	}
-}
-
-const iconPathToClass = {};
-const iconClassGenerator = new IdGenerator('quick-input-button-icon-');
-
-function getIconClass(iconPath: { dark: URI; light?: URI; }) {
-	let iconClass: string;
-
-	const key = iconPath.dark.toString();
-	if (iconPathToClass[key]) {
-		iconClass = iconPathToClass[key];
-	} else {
-		iconClass = iconClassGenerator.nextId();
-		dom.createCSSRule(`.${iconClass}`, `background-image: url("${(iconPath.light || iconPath.dark).toString()}")`);
-		dom.createCSSRule(`.vs-dark .${iconClass}, .hc-black .${iconClass}`, `background-image: url("${iconPath.dark.toString()}")`);
-		iconPathToClass[key] = iconClass;
-	}
-
-	return iconClass;
 }
 
 export const QuickPickManyToggle: ICommandAndKeybindingRule = {

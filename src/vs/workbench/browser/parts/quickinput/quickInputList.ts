@@ -11,7 +11,7 @@ import * as dom from 'vs/base/browser/dom';
 import { dispose, IDisposable } from 'vs/base/common/lifecycle';
 import { WorkbenchList } from 'vs/platform/list/browser/listService';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { IQuickPickItem } from 'vs/platform/quickinput/common/quickInput';
+import { IQuickPickItem, IQuickPickItemButtonEvent } from 'vs/platform/quickinput/common/quickInput';
 import { IMatch } from 'vs/base/common/filters';
 import { matchesFuzzyOcticonAware, parseOcticons } from 'vs/base/common/octicon';
 import { compareAnything } from 'vs/base/common/comparers';
@@ -26,6 +26,9 @@ import { range } from 'vs/base/common/arrays';
 import * as platform from 'vs/base/common/platform';
 import { listFocusBackground } from 'vs/platform/theme/common/colorRegistry';
 import { registerThemingParticipant } from 'vs/platform/theme/common/themeService';
+import { ActionBar } from 'vs/base/browser/ui/actionbar/actionbar';
+import { Action } from 'vs/base/common/actions';
+import { getIconClass } from 'vs/workbench/browser/parts/quickinput/quickInputUtils';
 
 const $ = dom.$;
 
@@ -33,6 +36,7 @@ interface IListElement {
 	index: number;
 	item: IQuickPickItem;
 	checked: boolean;
+	fireButtonTriggered: (event: IQuickPickItemButtonEvent<IQuickPickItem>) => void;
 }
 
 class ListElement implements IListElement {
@@ -55,6 +59,7 @@ class ListElement implements IListElement {
 	labelHighlights?: IMatch[];
 	descriptionHighlights?: IMatch[];
 	detailHighlights?: IMatch[];
+	fireButtonTriggered: (event: IQuickPickItemButtonEvent<IQuickPickItem>) => void;
 
 	constructor(init: IListElement) {
 		assign(this, init);
@@ -65,6 +70,7 @@ interface IListElementTemplateData {
 	checkbox: HTMLInputElement;
 	label: IconLabel;
 	detail: HighlightedLabel;
+	actionBar: ActionBar;
 	element: ListElement;
 	toDisposeElement: IDisposable[];
 	toDisposeTemplate: IDisposable[];
@@ -105,6 +111,11 @@ class ListElementRenderer implements IRenderer<ListElement, IListElementTemplate
 		const detailContainer = dom.append(row2, $('.quick-input-list-label-meta'));
 		data.detail = new HighlightedLabel(detailContainer);
 
+		// Actions
+		data.actionBar = new ActionBar(entry);
+		data.actionBar.domNode.classList.add('quick-input-list-entry-action-bar');
+		data.toDisposeTemplate.push(data.actionBar);
+
 		return data;
 	}
 
@@ -126,6 +137,22 @@ class ListElementRenderer implements IRenderer<ListElement, IListElementTemplate
 
 		// Meta
 		data.detail.set(element.item.detail, detailHighlights);
+
+		// Actions
+		data.actionBar.clear();
+		if (element.item.buttons) {
+			data.actionBar.push(element.item.buttons.map((button, index) => {
+				const action = new Action(`id-${index}`, '', button.iconClass || getIconClass(button.iconPath), true, () => {
+					element.fireButtonTriggered({
+						button,
+						item: element.item
+					});
+					return null;
+				});
+				action.tooltip = button.tooltip;
+				return action;
+			}), { icon: true, label: false });
+		}
 	}
 
 	disposeElement(element: ListElement, index: number, data: IListElementTemplateData): void {
@@ -165,6 +192,8 @@ export class QuickInputList {
 	onChangedVisibleCount: Event<number> = this._onChangedVisibleCount.event;
 	private _onChangedCheckedElements = new Emitter<IQuickPickItem[]>();
 	onChangedCheckedElements: Event<IQuickPickItem[]> = this._onChangedCheckedElements.event;
+	private _onButtonTriggered = new Emitter<IQuickPickItemButtonEvent<IQuickPickItem>>();
+	onButtonTriggered = this._onButtonTriggered.event;
 	private _onLeave = new Emitter<void>();
 	onLeave: Event<void> = this._onLeave.event;
 	private _fireCheckedEvents = true;
@@ -287,10 +316,12 @@ export class QuickInputList {
 
 	setElements(elements: IQuickPickItem[]): void {
 		this.elementDisposables = dispose(this.elementDisposables);
+		const fireButtonTriggered = (event: IQuickPickItemButtonEvent<IQuickPickItem>) => this.fireButtonTriggered(event);
 		this.elements = elements.map((item, index) => new ListElement({
 			index,
 			item,
-			checked: false
+			checked: false,
+			fireButtonTriggered
 		}));
 		this.elementDisposables.push(...this.elements.map(element => element.onChecked(() => this.fireCheckedEvents())));
 
@@ -468,6 +499,10 @@ export class QuickInputList {
 			this._onChangedCheckedCount.fire(this.getCheckedCount());
 			this._onChangedCheckedElements.fire(this.getCheckedElements());
 		}
+	}
+
+	private fireButtonTriggered(event: IQuickPickItemButtonEvent<IQuickPickItem>) {
+		this._onButtonTriggered.fire(event);
 	}
 }
 
