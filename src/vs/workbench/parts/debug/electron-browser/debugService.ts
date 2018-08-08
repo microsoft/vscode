@@ -171,7 +171,7 @@ export class DebugService implements debug.IDebugService {
 				raw.disconnect().done(undefined, errors.onUnexpectedError);
 				setTimeout(_ => {
 					this.doCreateSession(root, { resolved: session.configuration, unresolved: session.unresolvedConfiguration }, session.getId());
-				}, 50);
+				}, 1000);
 			}
 
 			return;
