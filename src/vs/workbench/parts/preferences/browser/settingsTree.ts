@@ -145,7 +145,8 @@ export class SettingsTreeModel {
 		if (tocEntry.children) {
 			element.children = tocEntry.children.map(child => this.createSettingsTreeGroupElement(child, element));
 		} else if (tocEntry.settings) {
-			element.children = tocEntry.settings.map(s => this.createSettingsTreeSettingElement(<ISetting>s, element));
+			element.children = tocEntry.settings.map(s => this.createSettingsTreeSettingElement(<ISetting>s, element))
+				.filter(el => el.setting.deprecationMessage ? el.isConfigured : true);
 		}
 
 		this._treeElementsById.set(element.id, element);
@@ -1413,7 +1414,8 @@ export class SearchResultModel {
 
 	updateChildren(): void {
 		this.children = this.getFlatSettings()
-			.map(s => createSettingsTreeSettingElement(s, this, this._viewState.settingsTarget, this._configurationService));
+			.map(s => createSettingsTreeSettingElement(s, this, this._viewState.settingsTarget, this._configurationService))
+			.filter(el => el.setting.deprecationMessage ? el.isConfigured : true);
 
 		if (this.newExtensionSearchResults) {
 			const newExtElement = new SettingsTreeNewExtensionsElement();
