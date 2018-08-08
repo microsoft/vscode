@@ -187,7 +187,7 @@ function saveAll(saveAllArguments: any, editorService: IEditorService, untitledE
 					encoding: untitledEditorService.getEncoding(resource),
 					resource,
 					options: {
-						inactive: g.activeEditor ? g.activeEditor.getResource().toString() !== resource.toString() : true,
+						inactive: g.activeEditor && g.activeEditor.getResource() ? g.activeEditor.getResource().toString() !== resource.toString() : true,
 						pinned: true,
 						preserveFocus: true,
 						index: g.getIndexOfEditor(e)
@@ -510,7 +510,7 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 	handler: (accessor, resource: URI | object) => {
 		const editorService = accessor.get(IEditorService);
 		const resources = getMultiSelectedResources(resource, accessor.get(IListService), editorService);
-
+		if (resources.length === 0) { return undefined; }
 		if (resources.length === 1) {
 			// If only one resource is selected explictly call save since the behavior is a bit different than save all #41841
 			return save(resources[0], false, editorService, accessor.get(IFileService), accessor.get(IUntitledEditorService), accessor.get(ITextFileService), accessor.get(IEditorGroupsService));
