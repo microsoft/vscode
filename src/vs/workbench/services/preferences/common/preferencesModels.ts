@@ -554,6 +554,13 @@ export class DefaultSettings extends Disposable {
 			if (this.matchesScope(prop)) {
 				const value = prop.default;
 				const description = (prop.description || '').split('\n');
+				if (prop.deprecationMessage) {
+					description.push(
+						'',
+						nls.localize('deprecatedSetting', "Warning: deprecated setting."),
+						prop.deprecationMessage,
+						nls.localize('deprecatedSetting.unstable', "This setting should not be used, and will be removed in a future release."));
+				}
 				const overrides = OVERRIDE_PROPERTY_PATTERN.test(key) ? this.parseOverrideSettings(prop.default) : [];
 				result.push({
 					key,
