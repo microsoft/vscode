@@ -76,8 +76,9 @@
 	color: inherit !important;
 }
 
-.monaco-tree.focused .selected .outline-element-label .monaco-highlighted-label .highlight{
-	/* allows text color to overwrite highlight text when selected  */
+.monaco-tree.focused .selected .outline-element-label .monaco-highlighted-label .highlight,
+.monaco-tree.focused .selected .monaco-icon-label .monaco-highlighted-label .highlight{
+	/* allows text color to use the default when selected  */
 	color: inherit !important;
 }
 
