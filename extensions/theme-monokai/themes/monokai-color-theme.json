@@ -23,8 +23,8 @@
 		"selection.background": "#ccccc7",
 		"editor.selectionHighlightBackground": "#575b6180",
 		"editor.selectionBackground": "#878b9180",
-        "editor.wordHighlightBackground": "#4a4a7680",
-        "editor.wordHighlightStrongBackground": "#6a6a9680",
+		"editor.wordHighlightBackground": "#4a4a7680",
+		"editor.wordHighlightStrongBackground": "#6a6a9680",
 		"editor.lineHighlightBackground": "#3e3d32",
 		"editorLineNumber.activeForeground": "#c2c2bf",
 		"editorCursor.foreground": "#f8f8f0",
@@ -118,14 +118,14 @@
 			"name": "Comment",
 			"scope": "comment",
 			"settings": {
-				"foreground": "#75715E"
+				"foreground": "#75705B"
 			}
 		},
 		{
 			"name": "String",
 			"scope": "string",
 			"settings": {
-				"foreground": "#E6DB74"
+				"foreground": "#E8DC61"
 			}
 		},
 		{
@@ -135,7 +135,7 @@
 				"punctuation.section.embedded"
 			],
 			"settings": {
-				"foreground": "#F92672"
+				"foreground": "#FF0071"
 			}
 		},
 		{
@@ -151,21 +151,21 @@
 			"name": "Number",
 			"scope": "constant.numeric",
 			"settings": {
-				"foreground": "#AE81FF"
+				"foreground": "#B679FF"
 			}
 		},
 		{
 			"name": "Built-in constant",
 			"scope": "constant.language",
 			"settings": {
-				"foreground": "#AE81FF"
+				"foreground": "#B679FF"
 			}
 		},
 		{
 			"name": "User-defined constant",
 			"scope": "constant.character, constant.other",
 			"settings": {
-				"foreground": "#AE81FF"
+				"foreground": "#B679FF"
 			}
 		},
 		{
@@ -173,14 +173,14 @@
 			"scope": "variable",
 			"settings": {
 				"fontStyle": "",
-				"foreground": "#F8F8F2"
+				"foreground": "#F8F8F1"
 			}
 		},
 		{
 			"name": "Keyword",
 			"scope": "keyword",
 			"settings": {
-				"foreground": "#F92672"
+				"foreground": "#FF0071"
 			}
 		},
 		{
@@ -188,7 +188,7 @@
 			"scope": "storage",
 			"settings": {
 				"fontStyle": "",
-				"foreground": "#F92672"
+				"foreground": "#FF0071"
 			}
 		},
 		{
@@ -203,16 +203,16 @@
 			"name": "Class name",
 			"scope": "entity.name.type, entity.name.class",
 			"settings": {
-				"fontStyle": "underline",
-				"foreground": "#A6E22E"
+				"fontStyle": "",
+				"foreground": "#92E600"
 			}
 		},
 		{
 			"name": "Inherited class",
 			"scope": "entity.other.inherited-class",
 			"settings": {
-				"fontStyle": "italic underline",
-				"foreground": "#A6E22E"
+				"fontStyle": "italic",
+				"foreground": "#92E600"
 			}
 		},
 		{
@@ -220,7 +220,7 @@
 			"scope": "entity.name.function",
 			"settings": {
 				"fontStyle": "",
-				"foreground": "#A6E22E"
+				"foreground": "#92E600"
 			}
 		},
 		{
@@ -228,7 +228,7 @@
 			"scope": "variable.parameter",
 			"settings": {
 				"fontStyle": "italic",
-				"foreground": "#FD971F"
+				"foreground": "#FF9100"
 			}
 		},
 		{
@@ -252,7 +252,7 @@
 			"scope": "support.function",
 			"settings": {
 				"fontStyle": "",
-				"foreground": "#66D9EF"
+				"foreground": "#28DAF1"
 			}
 		},
 		{
@@ -260,7 +260,7 @@
 			"scope": "support.constant",
 			"settings": {
 				"fontStyle": "",
-				"foreground": "#66D9EF"
+				"foreground": "#26DBF2"
 			}
 		},
 		{
@@ -414,7 +414,8 @@
 			"name": "this.self",
 			"scope": "variable.language",
 			"settings": {
-				"foreground": "#FD971F"
+				"fontStyle": "italic",
+				"foreground": "#FF8F00"
 			}
 		}
 	]
