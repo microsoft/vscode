@@ -37,7 +37,6 @@ import { TogglePanelAction } from 'vs/workbench/browser/parts/panel/panelActions
 import { TerminalPanel } from 'vs/workbench/parts/terminal/electron-browser/terminalPanel';
 import { TerminalPickerHandler } from 'vs/workbench/parts/terminal/browser/terminalQuickOpen';
 import { setupTerminalCommands, TERMINAL_COMMAND_ID } from 'vs/workbench/parts/terminal/common/terminalCommands';
-import { setupTerminalMenu } from 'vs/workbench/parts/terminal/common/terminalMenu';
 
 const quickOpenRegistry = (Registry.as<IQuickOpenRegistry>(QuickOpenExtensions.Quickopen));
 
@@ -547,6 +546,5 @@ actionRegistry.registerWorkbenchAction(new SyncActionDescriptor(SelectToNextLine
 actionRegistry.registerWorkbenchAction(new SyncActionDescriptor(ToggleEscapeSequenceLoggingAction, ToggleEscapeSequenceLoggingAction.ID, ToggleEscapeSequenceLoggingAction.LABEL), 'Terminal: Toggle Escape Sequence Logging', category);
 
 setupTerminalCommands();
-setupTerminalMenu();
 
 registerColors();
