@@ -222,7 +222,7 @@ export class MockSession implements IRawSession {
 		return TPromise.as(null);
 	}
 
-	public terminateThreads(args: DebugProtocol.TerminateThreadsArguments): TPromise<DebugProtocol.TerminateThreadsResponse, any> {
+	public terminateThreads(args: DebugProtocol.TerminateThreadsArguments): TPromise<DebugProtocol.TerminateThreadsResponse> {
 		return TPromise.as(null);
 	}
 

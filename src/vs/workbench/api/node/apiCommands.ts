@@ -48,6 +48,10 @@ export class OpenFolderAPICommand {
 		if (!uri) {
 			return executor.executeCommand('_files.pickFolderAndOpen', forceNewWindow);
 		}
+		if (!uri.scheme) {
+			console.warn('`vscode.openFolder` command invoked with an invalid URI (scheme missing): `${uri}`. Converted to a `file://` URI.');
+			uri = URI.file(uri.fsPath);
+		}
 
 		return executor.executeCommand('_files.windowOpen', [uri], forceNewWindow);
 	}

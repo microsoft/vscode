@@ -48,8 +48,6 @@ declare namespace monaco {
 
 	export type TValueCallback<T = any> = (value: T | PromiseLike<T>) => void;
 
-	export type ProgressCallback<TProgress = any> = (progress: TProgress) => void;
-
 
 	export class Promise<T = any, TProgress = any> {
 		constructor(
@@ -2508,6 +2506,22 @@ declare namespace monaco.editor {
 		sticky?: boolean;
 	}
 
+	/**
+	 * Configuration options for parameter hints
+	 */
+	export interface IEditorParameterHintOptions {
+		/**
+		 * Enable parameter hints.
+		 * Defaults to true.
+		 */
+		enabled?: boolean;
+		/**
+		 * Enable cycling of parameter hints.
+		 * Defaults to false.
+		 */
+		cycle?: boolean;
+	}
+
 	export interface ISuggestOptions {
 		/**
 		 * Enable graceful matching. Defaults to true.
@@ -2793,9 +2807,9 @@ declare namespace monaco.editor {
 		 */
 		quickSuggestionsDelay?: number;
 		/**
-		 * Enables parameter hints
+		 * Parameter hint options.
 		 */
-		parameterHints?: boolean;
+		parameterHints?: IEditorParameterHintOptions;
 		/**
 		 * Render icons in suggestions box.
 		 * Defaults to true.
@@ -3130,6 +3144,11 @@ declare namespace monaco.editor {
 		readonly snippetsPreventQuickSuggestions: boolean;
 	}
 
+	export interface InternalParameterHintOptions {
+		readonly enabled: boolean;
+		readonly cycle: boolean;
+	}
+
 	export interface EditorWrappingInfo {
 		readonly inDiffEditor: boolean;
 		readonly isDominatedByLongLines: boolean;
@@ -3194,7 +3213,7 @@ declare namespace monaco.editor {
 			strings: boolean;
 		};
 		readonly quickSuggestionsDelay: number;
-		readonly parameterHints: boolean;
+		readonly parameterHints: InternalParameterHintOptions;
 		readonly iconsInSuggestions: boolean;
 		readonly formatOnType: boolean;
 		readonly formatOnPaste: boolean;

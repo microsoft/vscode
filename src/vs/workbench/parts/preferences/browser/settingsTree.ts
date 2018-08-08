@@ -377,7 +377,7 @@ export class SettingsDataSource implements IDataSource {
 		return false;
 	}
 
-	getChildren(tree: ITree, element: SettingsTreeElement): TPromise<any, any> {
+	getChildren(tree: ITree, element: SettingsTreeElement): TPromise<any> {
 		return TPromise.as(this._getChildren(element));
 	}
 
@@ -392,7 +392,7 @@ export class SettingsDataSource implements IDataSource {
 		}
 	}
 
-	getParent(tree: ITree, element: SettingsTreeElement): TPromise<any, any> {
+	getParent(tree: ITree, element: SettingsTreeElement): TPromise<any> {
 		return TPromise.wrap(element && element.parent);
 	}
 
@@ -1250,7 +1250,9 @@ function getDisplayEnumOptions(setting: ISetting): string[] {
 			});
 	}
 
-	return setting.enum.map(escapeInvisibleChars);
+	return setting.enum
+		.map(String)
+		.map(escapeInvisibleChars);
 }
 
 function escapeInvisibleChars(enumValue: string): string {
@@ -1440,11 +1442,11 @@ export class SearchResultModel {
 }
 
 class NonExpandableTree extends WorkbenchTree {
-	expand(): TPromise<any, any> {
+	expand(): TPromise<any> {
 		return TPromise.wrap(null);
 	}
 
-	collapse(): TPromise<any, any> {
+	collapse(): TPromise<any> {
 		return TPromise.wrap(null);
 	}
 }

@@ -9,6 +9,7 @@ import URI from 'vs/base/common/uri';
 import { equalsIgnoreCase } from 'vs/base/common/strings';
 import { Schemas } from 'vs/base/common/network';
 import { isLinux } from 'vs/base/common/platform';
+import { CharCode } from 'vs/base/common/charCode';
 
 export function getComparisonKey(resource: URI): string {
 	return hasToIgnoreCase(resource) ? resource.toString().toLowerCase() : resource.toString();
@@ -21,7 +22,7 @@ export function hasToIgnoreCase(resource: URI): boolean {
 }
 
 export function basenameOrAuthority(resource: URI): string {
-	return paths.basename(resource.path) || resource.authority;
+	return basename_urlpath(resource.path) || resource.authority;
 }
 
 export function isEqualOrParent(resource: URI, candidate: URI, ignoreCase?: boolean): boolean {
@@ -53,21 +54,45 @@ export function isEqual(first: URI, second: URI, ignoreCase?: boolean): boolean 
 	return first.toString() === second.toString();
 }
 
+export function basename(resource: URI): string {
+	if (resource.scheme === 'file') {
+		return paths.basename(resource.fsPath);
+	}
+	return basename_urlpath(resource.path);
+}
+
 export function dirname(resource: URI): URI {
-	const dirname = paths.dirname(resource.path);
-	if (resource.authority && dirname && !paths.isAbsolute(dirname)) {
+	if (resource.scheme === 'file') {
+		return URI.file(paths.dirname(resource.fsPath));
+	}
+	let dirname = dirname_urlpath(resource.path);
+	if (resource.authority && dirname.length && dirname.charCodeAt(0) !== CharCode.Slash) {
 		return null; // If a URI contains an authority component, then the path component must either be empty or begin with a slash ("/") character
 	}
-
 	return resource.with({
 		path: dirname
 	});
 }
 
 export function joinPath(resource: URI, pathFragment: string): URI {
-	const joinedPath = paths.join(resource.path || '/', pathFragment);
+	if (resource.scheme === 'file') {
+		return URI.file(paths.join(resource.path || '/', pathFragment));
+	}
+
+	let path = resource.path || '';
+	let last = path.charCodeAt(path.length - 1);
+	let next = pathFragment.charCodeAt(0);
+	if (last !== CharCode.Slash) {
+		if (next !== CharCode.Slash) {
+			path += '/';
+		}
+	} else {
+		if (next === CharCode.Slash) {
+			pathFragment = pathFragment.substr(1);
+		}
+	}
 	return resource.with({
-		path: joinedPath
+		path: path + pathFragment
 	});
 }
 
@@ -89,4 +114,28 @@ export function distinctParents<T>(items: T[], resourceAccessor: (item: T) => UR
 	}
 
 	return distinctParents;
+}
+
+function dirname_urlpath(path: string): string {
+	const idx = ~path.lastIndexOf('/');
+	if (idx === 0) {
+		return '';
+	} else if (~idx === 0) {
+		return path[0];
+	} else if (~idx === path.length - 1) {
+		return dirname_urlpath(path.substring(0, path.length - 1));
+	} else {
+		return path.substring(0, ~idx);
+	}
+}
+
+function basename_urlpath(path: string): string {
+	const idx = ~path.lastIndexOf('/');
+	if (idx === 0) {
+		return path;
+	} else if (~idx === path.length - 1) {
+		return basename_urlpath(path.substring(0, path.length - 1));
+	} else {
+		return path.substr(~idx + 1);
+	}
 }

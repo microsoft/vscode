@@ -143,6 +143,7 @@ export interface IWindowsService {
 	relaunch(options: { addArgs?: string[], removeArgs?: string[] }): TPromise<void>;
 
 	// macOS Native Tabs
+	newWindowTab(): TPromise<void>;
 	showPreviousWindowTab(): TPromise<void>;
 	showNextWindowTab(): TPromise<void>;
 	moveWindowTabToNewWindow(): TPromise<void>;

@@ -19,10 +19,10 @@ import { IOutputService } from 'vs/workbench/parts/output/common/output';
 import { DebugAdapter, SocketDebugAdapter } from 'vs/workbench/parts/debug/node/debugAdapter';
 import { IConfigurationResolverService } from 'vs/workbench/services/configurationResolver/common/configurationResolver';
 import { TelemetryService } from 'vs/platform/telemetry/common/telemetryService';
-import uri from 'vs/base/common/uri';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { memoize } from 'vs/base/common/decorators';
 import { TaskDefinitionRegistry } from 'vs/workbench/parts/tasks/common/taskDefinitionRegistry';
+import { getPathFromAmdModule } from 'vs/base/common/amd';
 
 export class Debugger {
 
@@ -173,7 +173,7 @@ export class Debugger {
 			return telemetryInfo;
 		}).then(data => {
 			const client = new TelemetryClient(
-				uri.parse(require.toUrl('bootstrap')).fsPath,
+				getPathFromAmdModule(require, 'bootstrap'),
 				{
 					serverName: 'Debug Telemetry',
 					timeout: 1000 * 60 * 5,

@@ -616,9 +616,11 @@ export abstract class BaseSwitchWindow extends Action {
 				action: (!this.isQuickNavigate() && currentWindowId !== win.id) ? this.closeWindowAction : void 0
 			} as IFilePickOpenEntry));
 
+			const autoFocusIndex = (picks.indexOf(picks.filter(pick => pick.payload === currentWindowId)[0]) + 1) % picks.length;
+
 			this.quickOpenService.pick(picks, {
 				contextKey: 'inWindowsPicker',
-				autoFocus: { autoFocusFirstEntry: true },
+				autoFocus: { autoFocusIndex },
 				placeHolder,
 				quickNavigateConfiguration: this.isQuickNavigate() ? { keybindings: this.keybindingService.lookupKeybindings(this.id) } : void 0
 			});
@@ -1454,6 +1456,24 @@ export class DecreaseViewSizeAction extends BaseResizeViewAction {
 	run(): TPromise<boolean> {
 		this.resizePart(-BaseResizeViewAction.RESIZE_INCREMENT);
 		return TPromise.as(true);
+	}
+}
+
+export class NewWindowTab extends Action {
+
+	static readonly ID = 'workbench.action.newWindowTab';
+	static readonly LABEL = nls.localize('newTab', "New Window Tab");
+
+	constructor(
+		id: string,
+		label: string,
+		@IWindowsService private windowsService: IWindowsService
+	) {
+		super(NewWindowTab.ID, NewWindowTab.LABEL);
+	}
+
+	run(): TPromise<boolean> {
+		return this.windowsService.newWindowTab().then(() => true);
 	}
 }
 

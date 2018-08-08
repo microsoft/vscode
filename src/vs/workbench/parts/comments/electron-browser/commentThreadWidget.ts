@@ -25,7 +25,7 @@ import { IInstantiationService } from 'vs/platform/instantiation/common/instanti
 import { IModelService } from 'vs/editor/common/services/modelService';
 import { SimpleCommentEditor } from './simpleCommentEditor';
 import URI from 'vs/base/common/uri';
-import { transparent, editorForeground, inputValidationErrorBorder, textLinkActiveForeground, textLinkForeground, focusBorder, textBlockQuoteBackground, textBlockQuoteBorder, contrastBorder, inputValidationErrorBackground } from 'vs/platform/theme/common/colorRegistry';
+import { transparent, editorForeground, textLinkActiveForeground, textLinkForeground, focusBorder, textBlockQuoteBackground, textBlockQuoteBorder, contrastBorder, inputValidationErrorBorder, inputValidationErrorBackground } from 'vs/platform/theme/common/colorRegistry';
 import { IModeService } from 'vs/editor/common/services/modeService';
 import { IKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { KeyCode } from 'vs/base/common/keyCodes';
@@ -119,7 +119,6 @@ export class ReviewZoneWidget extends ZoneWidget {
 	private _localToDispose: IDisposable[];
 	private _markdownRenderer: MarkdownRenderer;
 	private _styleElement: HTMLStyleElement;
-	private _error: HTMLElement;
 
 	public get owner(): number {
 		return this._owner;
@@ -368,8 +367,6 @@ export class ReviewZoneWidget extends ZoneWidget {
 			}
 		}));
 
-		this._error = $('.validation-error.hidden').appendTo(this._commentForm).getHTMLElement();
-
 		const formActions = $('.form-actions').appendTo(this._commentForm).getHTMLElement();
 
 		const button = new Button(formActions);
@@ -386,8 +383,38 @@ export class ReviewZoneWidget extends ZoneWidget {
 		}));
 
 		button.onDidClick(async () => {
-			this.createComment(lineNumber);
+			let newCommentThread;
+			if (this._commentThread.threadId) {
+				// reply
+				newCommentThread = await this.commentService.replyToCommentThread(
+					this._owner,
+					this.editor.getModel().uri,
+					new Range(lineNumber, 1, lineNumber, 1),
+					this._commentThread,
+					this._commentEditor.getValue()
+				);
+			} else {
+				newCommentThread = await this.commentService.createNewCommentThread(
+					this._owner,
+					this.editor.getModel().uri,
+					new Range(lineNumber, 1, lineNumber, 1),
+					this._commentEditor.getValue()
+				);
+
+				this.createReplyButton();
+				this.createParticipantsLabel();
+			}
+
+			this._commentEditor.setValue('');
+			if (dom.hasClass(this._commentForm, 'expand')) {
+				dom.removeClass(this._commentForm, 'expand');
+			}
+
+			if (newCommentThread) {
+				this.update(newCommentThread);
+			}
 		});
+
 
 		this._resizeObserver = new MutationObserver(this._refresh.bind(this));
 
@@ -405,50 +432,6 @@ export class ReviewZoneWidget extends ZoneWidget {
 		// If there are no existing comments, place focus on the text area. This must be done after show, which also moves focus.
 		if (this._commentThread.reply && !this._commentThread.comments.length) {
 			this._commentEditor.focus();
-		}
-	}
-
-	private async createComment(lineNumber: number): Promise<void> {
-		let newCommentThread;
-
-		if (this._commentThread.threadId) {
-			// reply
-			newCommentThread = await this.commentService.replyToCommentThread(
-				this._owner,
-				this.editor.getModel().uri,
-				new Range(lineNumber, 1, lineNumber, 1),
-				this._commentThread,
-				this._commentEditor.getValue()
-			);
-		} else {
-			newCommentThread = await this.commentService.createNewCommentThread(
-				this._owner,
-				this.editor.getModel().uri,
-				new Range(lineNumber, 1, lineNumber, 1),
-				this._commentEditor.getValue()
-			);
-
-			if (newCommentThread) {
-				this.createReplyButton();
-				this.createParticipantsLabel();
-			}
-		}
-
-		if (newCommentThread) {
-			this._commentEditor.setValue('');
-			if (dom.hasClass(this._commentForm, 'expand')) {
-				dom.removeClass(this._commentForm, 'expand');
-			}
-
-			this._commentEditor.getDomNode().style.outline = '';
-			this._error.textContent = '';
-			dom.addClass(this._error, 'hidden');
-
-			this.update(newCommentThread);
-		} else {
-			this._commentEditor.getDomNode().style.outline = `1px solid ${this.themeService.getTheme().getColor(inputValidationErrorBorder)}`;
-			this._error.textContent = nls.localize('commentCreationError', "Adding a comment failed. Please try again or report an issue with the extension if the problem persists.");
-			dom.removeClass(this._error, 'hidden');
 		}
 	}
 
