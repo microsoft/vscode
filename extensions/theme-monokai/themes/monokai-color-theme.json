@@ -333,7 +333,7 @@
 		{
 			"scope": "constant.numeric.line-number.find-in-files - match",
 			"settings": {
-				"foreground": "#B679FF"
+				"foreground": "#B679FFA0"
 			}
 		},
 		{
