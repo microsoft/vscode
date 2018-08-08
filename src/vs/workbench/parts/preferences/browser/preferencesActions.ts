@@ -10,11 +10,13 @@ import URI from 'vs/base/common/uri';
 import { Action } from 'vs/base/common/actions';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { IModeService } from 'vs/editor/common/services/modeService';
-import { IQuickOpenService, IPickOpenEntry, IFilePickOpenEntry } from 'vs/platform/quickOpen/common/quickOpen';
 import { IPreferencesService } from 'vs/workbench/services/preferences/common/preferences';
 import { IWorkspaceContextService, WorkbenchState, IWorkspaceFolder } from 'vs/platform/workspace/common/workspace';
 import { ICommandService } from 'vs/platform/commands/common/commands';
 import { PICK_WORKSPACE_FOLDER_COMMAND_ID } from 'vs/workbench/browser/actions/workspaceCommands';
+import { IQuickInputService, IQuickPickItem } from 'vs/platform/quickinput/common/quickInput';
+import { getIconClasses } from 'vs/workbench/browser/labels';
+import { IModelService } from 'vs/editor/common/services/modelService';
 
 export class OpenRawDefaultSettingsAction extends Action {
 
@@ -225,8 +227,9 @@ export class ConfigureLanguageBasedSettingsAction extends Action {
 	constructor(
 		id: string,
 		label: string,
+		@IModelService private modelService: IModelService,
 		@IModeService private modeService: IModeService,
-		@IQuickOpenService private quickOpenService: IQuickOpenService,
+		@IQuickInputService private quickInputService: IQuickInputService,
 		@IPreferencesService private preferencesService: IPreferencesService
 	) {
 		super(id, label);
@@ -234,7 +237,7 @@ export class ConfigureLanguageBasedSettingsAction extends Action {
 
 	public run(): TPromise<any> {
 		const languages = this.modeService.getRegisteredLanguageNames();
-		const picks: IPickOpenEntry[] = languages.sort().map((lang, index) => {
+		const picks: IQuickPickItem[] = languages.sort().map((lang, index) => {
 			let description: string = nls.localize('languageDescriptionConfigured', "({0})", this.modeService.getModeIdForLanguageName(lang.toLowerCase()));
 			// construct a fake resource to be able to show nice icons if any
 			let fakeResource: URI;
@@ -247,14 +250,14 @@ export class ConfigureLanguageBasedSettingsAction extends Action {
 					fakeResource = URI.file(filenames[0]);
 				}
 			}
-			return <IFilePickOpenEntry>{
+			return {
 				label: lang,
-				resource: fakeResource,
+				iconClasses: getIconClasses(this.modelService, this.modeService, fakeResource),
 				description
-			};
+			} as IQuickPickItem;
 		});
 
-		return this.quickOpenService.pick(picks, { placeHolder: nls.localize('pickLanguage', "Select Language") })
+		return this.quickInputService.pick(picks, { placeHolder: nls.localize('pickLanguage', "Select Language") })
 			.then(pick => {
 				if (pick) {
 					return this.modeService.getOrCreateModeByLanguageName(pick.label)
