@@ -221,6 +221,7 @@ function mixinHTMLInputStyleOptions(config: IEditorOptions, ariaLabel?: string):
 	config.lineHeight = 22;
 	config.wordWrap = 'off';
 	config.scrollbar.vertical = 'hidden';
+	config.roundedSelection = false;
 	config.ariaLabel = ariaLabel || '';
 	config.renderIndentGuides = false;
 	config.cursorWidth = 1;
