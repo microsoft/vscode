@@ -187,6 +187,10 @@ export class ExcludeSettingWidget extends Disposable {
 	private readonly _onDidChangeExclude: Emitter<IExcludeChangeEvent> = new Emitter<IExcludeChangeEvent>();
 	public readonly onDidChangeExclude: Event<IExcludeChangeEvent> = this._onDidChangeExclude.event;
 
+	get domNode(): HTMLElement {
+		return this.listElement;
+	}
+
 	constructor(
 		private container: HTMLElement,
 		@IThemeService private themeService: IThemeService,

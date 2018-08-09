@@ -155,7 +155,7 @@ export class SettingsEditor2 extends BaseEditor {
 	}
 
 	focusSettings(): void {
-		const firstFocusable = this.settingsTree.getHTMLElement().querySelector('a, input, [tabindex="0"]');
+		const firstFocusable = this.settingsTree.getHTMLElement().querySelector(SettingsRenderer.CONTROL_SELECTOR);
 		if (firstFocusable) {
 			(<HTMLElement>firstFocusable).focus();
 		}
@@ -251,7 +251,7 @@ export class SettingsEditor2 extends BaseEditor {
 	private revealSetting(settingName: string): void {
 		const element = this.settingsTreeModel.getElementByName(settingName);
 		if (element) {
-			this.settingsTree.reveal(element, 0);
+			this.settingsTree.reveal(element, .1);
 		}
 	}
 
@@ -281,12 +281,20 @@ export class SettingsEditor2 extends BaseEditor {
 
 		this.createFocusSink(
 			bodyContainer,
-			() => {
-				if (this.settingsTree.getScrollPosition() > 0) {
-					const firstElement = this.settingsTree.getFirstVisibleElement();
-					this.settingsTree.reveal(firstElement, 0.1);
-					return true;
+			e => {
+				if (DOM.findParentWithClass(e.relatedTarget, 'settings-editor-tree')) {
+					if (this.settingsTree.getScrollPosition() > 0) {
+						const firstElement = this.settingsTree.getFirstVisibleElement();
+						this.settingsTree.reveal(firstElement, 0.1);
+						return true;
+					}
+				} else {
+					const firstControl = this.settingsTree.getHTMLElement().querySelector(SettingsRenderer.CONTROL_SELECTOR);
+					if (firstControl) {
+						(<HTMLElement>firstControl).focus();
+					}
 				}
+
 				return false;
 			},
 			'settings list focus helper');
@@ -295,12 +303,21 @@ export class SettingsEditor2 extends BaseEditor {
 
 		this.createFocusSink(
 			bodyContainer,
-			() => {
-				if (this.settingsTree.getScrollPosition() < 1) {
-					const lastElement = this.settingsTree.getLastVisibleElement();
-					this.settingsTree.reveal(lastElement, 0.9);
-					return true;
+			e => {
+				if (DOM.findParentWithClass(e.relatedTarget, 'settings-editor-tree')) {
+					if (this.settingsTree.getScrollPosition() < 1) {
+						const lastElement = this.settingsTree.getLastVisibleElement();
+						this.settingsTree.reveal(lastElement, 0.9);
+						return true;
+					}
+				} else {
+					const controls = this.settingsTree.getHTMLElement().querySelectorAll(SettingsRenderer.CONTROL_SELECTOR);
+					const lastControl = controls && controls[controls.length];
+					if (lastControl) {
+						(<HTMLElement>lastControl).focus();
+					}
 				}
+
 				return false;
 			},
 			'settings list focus helper'
@@ -313,15 +330,13 @@ export class SettingsEditor2 extends BaseEditor {
 		}
 	}
 
-	private createFocusSink(container: HTMLElement, callback: () => boolean, label: string): HTMLElement {
+	private createFocusSink(container: HTMLElement, callback: (e: any) => boolean, label: string): HTMLElement {
 		const listFocusSink = DOM.append(container, $('.settings-tree-focus-sink'));
 		listFocusSink.setAttribute('aria-label', label);
 		listFocusSink.tabIndex = 0;
-		this._register(DOM.addDisposableListener(listFocusSink, 'focus', e => {
-			if (e.relatedTarget && DOM.findParentWithClass(e.relatedTarget, 'settings-editor-tree')) {
-				if (callback()) {
-					e.relatedTarget.focus();
-				}
+		this._register(DOM.addDisposableListener(listFocusSink, 'focus', (e: any) => {
+			if (e.relatedTarget && callback(e)) {
+				e.relatedTarget.focus();
 			}
 		}));
 
