@@ -27,6 +27,9 @@ export function basenameOrAuthority(resource: URI): string {
 
 export function isEqualOrParent(resource: URI, candidate: URI, ignoreCase?: boolean): boolean {
 	if (resource.scheme === candidate.scheme && resource.authority === candidate.authority) {
+		if (resource.scheme === Schemas.file) {
+			return paths.isEqualOrParent(resource.fsPath, candidate.fsPath, ignoreCase);
+		}
 		return paths.isEqualOrParent(resource.path, candidate.path, ignoreCase, '/');
 	}
 
