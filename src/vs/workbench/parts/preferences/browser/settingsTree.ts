@@ -556,6 +556,8 @@ export class SettingsRenderer implements ITreeRenderer {
 
 	private measureContainer: HTMLElement;
 	private measureTemplatesPool = new Map<string, ISettingItemTemplate>();
+	private rowHeightCache = new Map<string, number>();
+	private lastRenderedWidth: number;
 
 	constructor(
 		_measureContainer: HTMLElement,
@@ -568,7 +570,25 @@ export class SettingsRenderer implements ITreeRenderer {
 		this.measureContainer = DOM.append(_measureContainer, $('.setting-measure-container.monaco-tree-row'));
 	}
 
+	updateWidth(width: number): void {
+		if (this.lastRenderedWidth !== width) {
+			this.rowHeightCache = new Map<string, number>();
+		}
+
+		this.lastRenderedWidth = width;
+	}
+
 	getHeight(tree: ITree, element: SettingsTreeElement): number {
+		if (this.rowHeightCache.has(element.id)) {
+			return this.rowHeightCache.get(element.id);
+		}
+
+		const h = this._getHeight(tree, element);
+		this.rowHeightCache.set(element.id, h);
+		return h;
+	}
+
+	_getHeight(tree: ITree, element: SettingsTreeElement): number {
 		if (element instanceof SettingsTreeGroupElement) {
 			if (element.isFirstGroup) {
 				return 31;
