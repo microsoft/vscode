@@ -13,13 +13,12 @@ module.exports = {
 	target: 'node',
 	context: __dirname,
 	entry: {
-		main: './out/main.js',
-		['askpass-main']: './out/askpass-main.js'
+		main: './out/extension.js',
 	},
 	output: {
 		filename: '[name].bundle.js',
 		path: path.join(__dirname, 'out'),
-		libraryTarget: "commonjs"
+		libraryTarget: "commonjs",
 	},
 	externals: {
 		'vscode': 'commonjs vscode',
