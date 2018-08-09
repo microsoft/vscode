@@ -341,6 +341,131 @@ MenuRegistry.appendMenuItem(MenuId.MenubarAppearanceMenu, {
 	order: 3
 });
 
+// Help
+
+MenuRegistry.appendMenuItem(MenuId.MenubarHelpMenu, {
+	group: '1_welcome',
+	command: {
+		id: 'workbench.action.openDocumentationUrl',
+		title: nls.localize({ key: 'miDocumentation', comment: ['&& denotes a mnemonic'] }, "&&Documentation")
+	},
+	order: 3
+});
+
+MenuRegistry.appendMenuItem(MenuId.MenubarHelpMenu, {
+	group: '1_welcome',
+	command: {
+		id: 'update.showCurrentReleaseNotes',
+		title: nls.localize({ key: 'miReleaseNotes', comment: ['&& denotes a mnemonic'] }, "&&Release Notes")
+	},
+	order: 4
+});
+
+// Reference
+MenuRegistry.appendMenuItem(MenuId.MenubarHelpMenu, {
+	group: '2_reference',
+	command: {
+		id: 'workbench.action.keybindingsReference',
+		title: nls.localize({ key: 'miKeyboardShortcuts', comment: ['&& denotes a mnemonic'] }, "&&Keyboard Shortcuts Reference")
+	},
+	order: 1
+});
+
+MenuRegistry.appendMenuItem(MenuId.MenubarHelpMenu, {
+	group: '2_reference',
+	command: {
+		id: 'workbench.action.openIntroductoryVideosUrl',
+		title: nls.localize({ key: 'miIntroductoryVideos', comment: ['&& denotes a mnemonic'] }, "Introductory &&Videos")
+	},
+	order: 2
+});
+
+MenuRegistry.appendMenuItem(MenuId.MenubarHelpMenu, {
+	group: '2_reference',
+	command: {
+		id: 'workbench.action.openTipsAndTricksUrl',
+		title: nls.localize({ key: 'miTipsAndTricks', comment: ['&& denotes a mnemonic'] }, "&&Tips and Tricks")
+	},
+	order: 3
+});
+
+// Feedback
+MenuRegistry.appendMenuItem(MenuId.MenubarHelpMenu, {
+	group: '3_feedback',
+	command: {
+		id: 'workbench.action.openTwitterUrl',
+		title: nls.localize({ key: 'miTwitter', comment: ['&& denotes a mnemonic'] }, "&&Join us on Twitter")
+	},
+	order: 1
+});
+
+MenuRegistry.appendMenuItem(MenuId.MenubarHelpMenu, {
+	group: '3_feedback',
+	command: {
+		id: 'workbench.action.openRequestFeatureUrl',
+		title: nls.localize({ key: 'miUserVoice', comment: ['&& denotes a mnemonic'] }, "&&Search Feature Requests")
+	},
+	order: 2
+});
+
+MenuRegistry.appendMenuItem(MenuId.MenubarHelpMenu, {
+	group: '3_feedback',
+	command: {
+		id: 'workbench.action.openIssueReporter',
+		title: nls.localize({ key: 'miReportIssue', comment: ['&& denotes a mnemonic', 'Translate this to "Report Issue in English" in all languages please!'] }, "Report &&Issue")
+	},
+	order: 3
+});
+
+// Legal
+MenuRegistry.appendMenuItem(MenuId.MenubarHelpMenu, {
+	group: '4_legal',
+	command: {
+		id: 'workbench.action.openLicenseUrl',
+		title: nls.localize({ key: 'miLicense', comment: ['&& denotes a mnemonic'] }, "View &&License")
+	},
+	order: 1
+});
+
+MenuRegistry.appendMenuItem(MenuId.MenubarHelpMenu, {
+	group: '4_legal',
+	command: {
+		id: 'workbench.action.openPrivacyStatementUrl',
+		title: nls.localize({ key: 'miPrivacyStatement', comment: ['&& denotes a mnemonic'] }, "&&Privacy Statement")
+	},
+	order: 2
+});
+
+// Tools
+MenuRegistry.appendMenuItem(MenuId.MenubarHelpMenu, {
+	group: '5_tools',
+	command: {
+		id: 'workbench.action.toggleDevTools',
+		title: nls.localize({ key: 'miToggleDevTools', comment: ['&& denotes a mnemonic'] }, "&&Toggle Developer Tools")
+	},
+	order: 1
+});
+
+MenuRegistry.appendMenuItem(MenuId.MenubarHelpMenu, {
+	group: '5_tools',
+	command: {
+		id: 'workbench.action.openProcessExplorer',
+		title: nls.localize({ key: 'miOpenProcessExplorerer', comment: ['&& denotes a mnemonic'] }, "Open &&Process Explorer")
+	},
+	order: 2
+});
+
+// About
+if (!isMacintosh) {
+	MenuRegistry.appendMenuItem(MenuId.MenubarHelpMenu, {
+		group: 'z_about',
+		command: {
+			id: 'workbench.action.showAboutDialog',
+			title: nls.localize({ key: 'miAbout', comment: ['&& denotes a mnemonic'] }, "&&About")
+		},
+		order: 1
+	});
+}
 
 // Configuration: Workbench
 const configurationRegistry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration);
