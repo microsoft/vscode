@@ -252,8 +252,9 @@ function main() {
 	const enableDeveloperTools = (process.env['VSCODE_DEV'] || !!configuration.extensionDevelopmentPath) && !configuration.extensionTestsPath;
 	const unbind = registerListeners(enableDeveloperTools);
 
-	// Apply zoom level early to avoid glitches
+	// disable pinch zoom & apply zoom level early to avoid glitches
 	const zoomLevel = configuration.zoomLevel;
+	webFrame.setVisualZoomLevelLimits(1, 1);
 	if (typeof zoomLevel === 'number' && zoomLevel !== 0) {
 		webFrame.setZoomLevel(zoomLevel);
 	}
