@@ -518,10 +518,6 @@ interface IGroupTitleTemplate extends IDisposableTemplate {
 	parent: HTMLElement;
 }
 
-interface IValueRenderResult {
-	overflows?: boolean;
-}
-
 const SETTINGS_TEXT_TEMPLATE_ID = 'settings.text.template';
 const SETTINGS_NUMBER_TEMPLATE_ID = 'settings.number.template';
 const SETTINGS_ENUM_TEMPLATE_ID = 'settings.enum.template';
@@ -538,8 +534,6 @@ export interface ISettingChangeEvent {
 
 export class SettingsRenderer implements ITreeRenderer {
 
-	private static readonly SETTING_ROW_HEIGHT = 104;
-	private static readonly SETTING_BOOL_ROW_HEIGHT = 73;
 	public static readonly MAX_ENUM_DESCRIPTIONS = 10;
 
 	private static readonly CONTROL_CLASS = 'setting-control-focus-target';
@@ -601,13 +595,10 @@ export class SettingsRenderer implements ITreeRenderer {
 		}
 
 		if (element instanceof SettingsTreeSettingElement) {
-			const isSelected = this.elementIsSelected(tree, element);
 			if (isExcludeSetting(element.setting)) {
 				return this._getExcludeSettingHeight(element);
-			} else if (isSelected) {
-				return this.measureSettingElementHeight(tree, element);
 			} else {
-				return this._getUnexpandedSettingHeight(element);
+				return this.measureSettingElementHeight(tree, element);
 			}
 		}
 
@@ -623,14 +614,6 @@ export class SettingsRenderer implements ITreeRenderer {
 		return (displayValue.length + 1) * 22 + 80;
 	}
 
-	_getUnexpandedSettingHeight(element: SettingsTreeSettingElement): number {
-		if (element.valueType === 'boolean') {
-			return SettingsRenderer.SETTING_BOOL_ROW_HEIGHT;
-		} else {
-			return SettingsRenderer.SETTING_ROW_HEIGHT;
-		}
-	}
-
 	private measureSettingElementHeight(tree: ITree, element: SettingsTreeSettingElement): number {
 		const templateId = this.getTemplateId(tree, element);
 		const template: ISettingItemTemplate = this.measureTemplatesPool.get(templateId) || this.renderTemplate(tree, templateId, $('.setting-measure-helper')) as ISettingItemTemplate;
@@ -639,7 +622,7 @@ export class SettingsRenderer implements ITreeRenderer {
 		this.measureContainer.appendChild(template.containerElement);
 		const height = this.measureContainer.offsetHeight;
 		this.measureContainer.removeChild(this.measureContainer.firstChild);
-		return Math.max(height, this._getUnexpandedSettingHeight(element));
+		return height;
 	}
 
 	getTemplateId(tree: ITree, element: SettingsTreeElement): string {
@@ -1048,13 +1031,6 @@ export class SettingsRenderer implements ITreeRenderer {
 		}
 	}
 
-	private elementIsSelected(tree: ITree, element: SettingsTreeElement): boolean {
-		// const selection = tree.getSelection();
-		// const selectedElement: SettingsTreeElement = selection && selection[0];
-		// return selectedElement && selectedElement.id === element.id;
-		return true;
-	}
-
 	private renderNewExtensionsElement(element: SettingsTreeNewExtensionsElement, template: ISettingNewExtensionsTemplate): void {
 		template.context = element;
 	}
@@ -1062,11 +1038,10 @@ export class SettingsRenderer implements ITreeRenderer {
 	private renderSettingElement(tree: ITree, element: SettingsTreeSettingElement, templateId: string, template: ISettingItemTemplate | ISettingBoolItemTemplate): void {
 		template.context = element;
 
-		const isSelected = !!this.elementIsSelected(tree, element);
 		const setting = element.setting;
 
 		DOM.toggleClass(template.containerElement, 'is-configured', element.isConfigured);
-		DOM.toggleClass(template.containerElement, 'is-expanded', isSelected);
+		DOM.toggleClass(template.containerElement, 'is-expanded', true);
 		template.containerElement.id = element.id.replace(/\./g, '_');
 
 		const titleTooltip = setting.key;
@@ -1076,24 +1051,14 @@ export class SettingsRenderer implements ITreeRenderer {
 		template.labelElement.textContent = element.displayLabel;
 		template.labelElement.title = titleTooltip;
 
-		const result = this.renderValue(element, isSelected, templateId, <ISettingItemTemplate>template);
+		this.renderValue(element, templateId, <ISettingItemTemplate>template);
 		template.descriptionElement.innerHTML = '';
-		let needsManualOverflowIndicator = false;
 		if (element.setting.descriptionIsMarkdown) {
 			const renderedDescription = this.renderDescriptionMarkdown(element.description, template.toDispose);
 			template.descriptionElement.appendChild(renderedDescription);
-			// (<any>renderedDescription.querySelectorAll('a')).forEach(aElement => {
-			// 	aElement.tabIndex = isSelected ? 0 : -1;
-			// });
-
-			const firstLineOverflows = renderedDescription.firstElementChild && renderedDescription.firstElementChild.clientHeight > 18;
-			const hasExtraLines = renderedDescription.childElementCount > 1;
-			needsManualOverflowIndicator = (hasExtraLines || result.overflows) && !firstLineOverflows && !isSelected;
 		} else {
 			template.descriptionElement.innerText = element.description;
 		}
-
-		DOM.toggleClass(template.descriptionElement, 'setting-item-description-artificial-overflow', needsManualOverflowIndicator);
 
 		template.isConfiguredElement.textContent = element.isConfigured ? localize('configured', "Modified") : '';
 
@@ -1130,32 +1095,28 @@ export class SettingsRenderer implements ITreeRenderer {
 		return renderedMarkdown;
 	}
 
-	private renderValue(element: SettingsTreeSettingElement, isSelected: boolean, templateId: string, template: ISettingItemTemplate | ISettingBoolItemTemplate): IValueRenderResult {
+	private renderValue(element: SettingsTreeSettingElement, templateId: string, template: ISettingItemTemplate | ISettingBoolItemTemplate): void {
 		const onChange = value => this._onDidChangeSetting.fire({ key: element.setting.key, value });
 
 		if (templateId === SETTINGS_ENUM_TEMPLATE_ID) {
-			return this.renderEnum(element, isSelected, <ISettingEnumItemTemplate>template, onChange);
+			this.renderEnum(element, <ISettingEnumItemTemplate>template, onChange);
 		} else if (templateId === SETTINGS_TEXT_TEMPLATE_ID) {
-			this.renderText(element, isSelected, <ISettingTextItemTemplate>template, onChange);
+			this.renderText(element, <ISettingTextItemTemplate>template, onChange);
 		} else if (templateId === SETTINGS_NUMBER_TEMPLATE_ID) {
-			this.renderNumber(element, isSelected, <ISettingTextItemTemplate>template, onChange);
+			this.renderNumber(element, <ISettingTextItemTemplate>template, onChange);
 		} else if (templateId === SETTINGS_BOOL_TEMPLATE_ID) {
-			this.renderBool(element, isSelected, <ISettingBoolItemTemplate>template, onChange);
+			this.renderBool(element, <ISettingBoolItemTemplate>template, onChange);
 		} else if (templateId === SETTINGS_EXCLUDE_TEMPLATE_ID) {
-			this.renderExcludeSetting(element, isSelected, <ISettingExcludeItemTemplate>template);
+			this.renderExcludeSetting(element, <ISettingExcludeItemTemplate>template);
 		} else if (templateId === SETTINGS_COMPLEX_TEMPLATE_ID) {
-			this.renderComplexSetting(element, isSelected, <ISettingComplexItemTemplate>template);
+			this.renderComplexSetting(element, <ISettingComplexItemTemplate>template);
 		}
-
-		return { overflows: false };
 	}
 
-	private renderBool(dataElement: SettingsTreeSettingElement, isSelected: boolean, template: ISettingBoolItemTemplate, onChange: (value: boolean) => void): void {
+	private renderBool(dataElement: SettingsTreeSettingElement, template: ISettingBoolItemTemplate, onChange: (value: boolean) => void): void {
 		template.onChange = null;
 		template.checkbox.checked = dataElement.value;
 		template.onChange = onChange;
-
-		// template.checkbox.domNode.tabIndex = isSelected ? 0 : -1;
 
 		// Setup and add ARIA attributes
 		// Create id and label for control/input element - parent is wrapper div
@@ -1176,7 +1137,7 @@ export class SettingsRenderer implements ITreeRenderer {
 
 	}
 
-	private renderEnum(dataElement: SettingsTreeSettingElement, isSelected: boolean, template: ISettingEnumItemTemplate, onChange: (value: string) => void): IValueRenderResult {
+	private renderEnum(dataElement: SettingsTreeSettingElement, template: ISettingEnumItemTemplate, onChange: (value: string) => void): void {
 		const displayOptions = getDisplayEnumOptions(dataElement.setting);
 		template.selectBox.setOptions(displayOptions);
 
@@ -1190,7 +1151,6 @@ export class SettingsRenderer implements ITreeRenderer {
 		template.onChange = idx => onChange(dataElement.setting.enum[idx]);
 
 		if (template.controlElement.firstElementChild) {
-			// template.controlElement.firstElementChild.setAttribute('tabindex', isSelected ? '0' : '-1');
 			// SelectBox needs to be treeitem to read correctly within tree
 			template.controlElement.firstElementChild.setAttribute('role', 'treeitem');
 		}
@@ -1214,11 +1174,9 @@ export class SettingsRenderer implements ITreeRenderer {
 
 		// 	return { overflows: true };
 		// }
-
-		return { overflows: false };
 	}
 
-	private renderText(dataElement: SettingsTreeSettingElement, isSelected: boolean, template: ISettingTextItemTemplate, onChange: (value: string) => void): void {
+	private renderText(dataElement: SettingsTreeSettingElement, template: ISettingTextItemTemplate, onChange: (value: string) => void): void {
 		template.onChange = null;
 		template.inputBox.value = dataElement.value;
 		template.onChange = value => onChange(value);
@@ -1243,7 +1201,7 @@ export class SettingsRenderer implements ITreeRenderer {
 	}
 
 
-	private renderNumber(dataElement: SettingsTreeSettingElement, isSelected: boolean, template: ISettingTextItemTemplate, onChange: (value: number) => void): void {
+	private renderNumber(dataElement: SettingsTreeSettingElement, template: ISettingTextItemTemplate, onChange: (value: number) => void): void {
 		template.onChange = null;
 		template.inputBox.value = dataElement.value;
 		template.onChange = value => onChange(parseFn(value));
@@ -1269,13 +1227,13 @@ export class SettingsRenderer implements ITreeRenderer {
 
 	}
 
-	private renderExcludeSetting(dataElement: SettingsTreeSettingElement, isSelected: boolean, template: ISettingExcludeItemTemplate): void {
+	private renderExcludeSetting(dataElement: SettingsTreeSettingElement, template: ISettingExcludeItemTemplate): void {
 		const value = getExcludeDisplayValue(dataElement);
 		template.excludeWidget.setValue(value);
 		template.context = dataElement;
 	}
 
-	private renderComplexSetting(dataElement: SettingsTreeSettingElement, isSelected: boolean, template: ISettingComplexItemTemplate): void {
+	private renderComplexSetting(dataElement: SettingsTreeSettingElement, template: ISettingComplexItemTemplate): void {
 		template.onChange = () => this._onDidOpenSettings.fire(dataElement.setting.key);
 	}
 

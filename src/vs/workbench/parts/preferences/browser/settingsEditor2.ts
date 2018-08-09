@@ -165,14 +165,6 @@ export class SettingsEditor2 extends BaseEditor {
 		this.searchWidget.focus();
 	}
 
-	editSelectedSetting(): void {
-		const focus = this.settingsTree.getFocus();
-		if (focus instanceof SettingsTreeSettingElement) {
-			const itemId = focus.id.replace(/\./g, '_');
-			this.focusEditControlForRow(itemId);
-		}
-	}
-
 	clearSearchResults(): void {
 		this.searchWidget.clear();
 	}
@@ -441,15 +433,7 @@ export class SettingsEditor2 extends BaseEditor {
 			return;
 		}
 
-		let elementToSync = this.settingsTree.getFirstVisibleElement();
-		const selection = this.settingsTree.getSelection()[0];
-		if (selection) {
-			const selectionPos = this.settingsTree.getRelativeTop(selection);
-			if (selectionPos >= 0 && selectionPos <= 1) {
-				elementToSync = selection;
-			}
-		}
-
+		const elementToSync = this.settingsTree.getFirstVisibleElement();
 		const element = elementToSync instanceof SettingsTreeSettingElement ? elementToSync.parent :
 			elementToSync instanceof SettingsTreeGroupElement ? elementToSync :
 				null;
@@ -812,11 +796,6 @@ export class SettingsEditor2 extends BaseEditor {
 		const settingsTreeHeight = listHeight - 14;
 		this.settingsTreeContainer.style.height = `${settingsTreeHeight}px`;
 		this.settingsTree.layout(settingsTreeHeight, 800);
-
-		const selectedSetting = this.settingsTree.getSelection()[0];
-		if (selectedSetting) {
-			this.settingsTree.refresh(selectedSetting);
-		}
 
 		const tocTreeHeight = listHeight - 16;
 		this.tocTreeContainer.style.height = `${tocTreeHeight}px`;
