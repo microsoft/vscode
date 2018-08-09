@@ -32,6 +32,7 @@ import { IInstantiationService } from 'vs/platform/instantiation/common/instanti
 import { ResourceGlobMatcher } from 'vs/workbench/electron-browser/resources';
 import { Schemas } from 'vs/base/common/network';
 import { EditorServiceImpl } from 'vs/workbench/browser/parts/editor/editor';
+import { IPartService } from 'vs/workbench/services/part/common/partService';
 
 /**
  * Stores the selection & view state of an editor and allows to compare it to other selection states.
@@ -132,6 +133,7 @@ export class HistoryService extends Disposable implements IHistoryService {
 		@IFileService private fileService: IFileService,
 		@IWindowsService private windowService: IWindowsService,
 		@IInstantiationService private instantiationService: IInstantiationService,
+		@IPartService private partService: IPartService
 	) {
 		super();
 
@@ -658,7 +660,12 @@ export class HistoryService extends Disposable implements IHistoryService {
 		if (arg2 instanceof EditorInput) {
 			const inputResource = arg2.getResource();
 
-			return inputResource && this.fileService.canHandleResource(inputResource) && inputResource.toString() === resource.toString();
+			let isSupportedFile = true;
+			if (this.partService.isCreated() && !this.fileService.canHandleResource(inputResource)) {
+				isSupportedFile = false; // make sure to only check this when workbench has started (for https://github.com/Microsoft/vscode/issues/48275)
+			}
+
+			return inputResource && isSupportedFile && inputResource.toString() === resource.toString();
 		}
 
 		const resourceInput = arg2 as IResourceInput;
