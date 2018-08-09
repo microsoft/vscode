@@ -84,7 +84,7 @@ export interface IEditorConstructionOptions extends IEditorOptions {
 	/**
 	 * The initial model associated with this code editor.
 	 */
-	model?: ITextModel;
+	model?: ITextModel | null;
 	/**
 	 * The initial value of the auto created model in the editor.
 	 * To not create automatically a model, use `model: null`.
