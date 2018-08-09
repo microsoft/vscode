@@ -7,7 +7,6 @@
 
 import * as nls from 'vs/nls';
 import * as arrays from 'vs/base/common/arrays';
-import { trim, startsWith } from 'vs/base/common/strings';
 import { IStateService } from 'vs/platform/state/common/state';
 import { app } from 'electron';
 import { ILogService } from 'vs/platform/log/common/log';
@@ -351,11 +350,14 @@ export class HistoryMainService implements IHistoryMainService {
 			for (let item of app.getJumpListSettings().removedItems) {
 				const args = item.args;
 				if (args) {
-					if (startsWith(args, '--folderUri')) {
-						toRemove.push(URI.parse(args.substring(13, args.length - 1)));
-					} else {
-						let configPath = trim(args, '"');
-						toRemove.push({ id: this.workspacesMainService.getWorkspaceId(configPath), configPath });
+					const match = /^--folderUri\s+"([^"]+)"$/.exec(args);
+					if (match) {
+						if (args[0] === '-') {
+							toRemove.push(URI.parse(match[1]));
+						} else {
+							let configPath = match[1];
+							toRemove.push({ id: this.workspacesMainService.getWorkspaceId(configPath), configPath });
+						}
 					}
 				}
 			}
