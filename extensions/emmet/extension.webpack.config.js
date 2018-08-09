@@ -8,23 +8,22 @@
 const path = require('path');
 
 module.exports = {
-	// mode: 'none',
-	mode: 'production',
-	target: 'node',
+	stats: 'errors-only',
+	// mode: 'none', // default is production
 	context: __dirname,
+	target: 'node',
+	resolve: {
+		mainFields: ['main']
+	},
 	entry: {
-		main: './out/extension.js',
+		extension: './out/extension.js',
 	},
 	output: {
-		filename: '[name].bundle.js',
-		path: path.join(__dirname, 'out'),
+		filename: '[name].js',
+		path: path.join(__dirname, 'dist'),
 		libraryTarget: "commonjs",
 	},
 	externals: {
 		'vscode': 'commonjs vscode',
 	},
-	resolve: {
-		mainFields: ['main']
-	},
-	stats: 'errors-only'
 };

@@ -40,11 +40,16 @@ function fromLocal(extensionPath) {
             var patchFilesStream = filesStream
                 .pipe(packageJsonFilter)
                 .pipe(buffer())
-                .pipe(json({ main: './out/main.bundle' })) // hardcoded entry point!
+                .pipe(json(function (data) {
+                // hardcoded entry point directory!
+                data.main = data.main.replace('/out/', /dist/);
+                return data;
+            }))
                 .pipe(packageJsonFilter.restore);
             var webpackConfig = require(path.join(extensionPath, 'extension.webpack.config.js'));
             var webpackStream = webpackGulp(webpackConfig, webpack)
                 .pipe(es.through(function (data) {
+                data.stat = data.stat || {};
                 data.base = extensionPath;
                 this.emit('data', data);
             }));

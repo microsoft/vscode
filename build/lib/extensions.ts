@@ -20,7 +20,6 @@ import * as fs from 'fs';
 import * as path from 'path';
 import * as vsce from 'vsce';
 import * as File from 'vinyl';
-import { rebase } from './util';
 
 export function fromLocal(extensionPath: string): Stream {
 	let result = es.through();
@@ -46,12 +45,17 @@ export function fromLocal(extensionPath: string): Stream {
 			const patchFilesStream = filesStream
 				.pipe(packageJsonFilter)
 				.pipe(buffer())
-				.pipe(json({ main: './out/main.bundle' })) // hardcoded entry point!
+				.pipe(json(data => {
+					// hardcoded entry point directory!
+					data.main = data.main.replace('/out/', /dist/);
+					return data;
+				}))
 				.pipe(packageJsonFilter.restore);
 
 			const webpackConfig = require(path.join(extensionPath, 'extension.webpack.config.js'));
 			const webpackStream = webpackGulp(webpackConfig, webpack)
 				.pipe(es.through(function (data) {
+					data.stat = data.stat || {};
 					data.base = extensionPath;
 					this.emit('data', data);
 				}));

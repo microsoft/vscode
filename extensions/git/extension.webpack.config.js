@@ -6,26 +6,32 @@
 'use strict';
 
 const path = require('path');
+const CopyWebpackPlugin = require('copy-webpack-plugin');
 
 module.exports = {
-	// mode: 'none',
-	mode: 'production',
-	target: 'node',
+	stats: 'errors-only',
+	// mode: 'none', // default is production
 	context: __dirname,
+	target: 'node',
+	node: {
+		__dirname: false
+	},
+	resolve: {
+		mainFields: ['main']
+	},
 	entry: {
 		main: './out/main.js',
 		['askpass-main']: './out/askpass-main.js'
 	},
 	output: {
-		filename: '[name].bundle.js',
-		path: path.join(__dirname, 'out'),
+		filename: '[name].js',
+		path: path.join(__dirname, 'dist'),
 		libraryTarget: "commonjs"
 	},
 	externals: {
 		'vscode': 'commonjs vscode',
 	},
-	resolve: {
-		mainFields: ['main']
-	},
-	stats: 'errors-only'
+	plugins: [
+		new CopyWebpackPlugin([{ from: './out/*.sh', to: '[name].sh' }])
+	]
 };
