@@ -8,7 +8,7 @@ import * as paths from 'vs/base/common/paths';
 import URI from 'vs/base/common/uri';
 import { equalsIgnoreCase } from 'vs/base/common/strings';
 import { Schemas } from 'vs/base/common/network';
-import { isLinux } from 'vs/base/common/platform';
+import { isLinux, isWindows } from 'vs/base/common/platform';
 import { CharCode } from 'vs/base/common/charCode';
 
 export function getComparisonKey(resource: URI): string {
@@ -133,3 +133,11 @@ export function distinctParents<T>(items: T[], resourceAccessor: (item: T) => UR
 
 	return distinctParents;
 }
+
+export function isMalformedFileUri(candidate: URI): URI | undefined {
+	if (!candidate.scheme || isWindows && candidate.scheme.match(/^[a-zA-Z]$/)) {
+		return URI.file((candidate.scheme ? candidate.scheme + ':' : '') + candidate.path);
+	}
+	return void 0;
+}
+

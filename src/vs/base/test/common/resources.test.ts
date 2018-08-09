@@ -5,7 +5,7 @@
 'use strict';
 
 import * as assert from 'assert';
-import { dirname, basename, distinctParents, joinPath, isEqual, isEqualOrParent, hasToIgnoreCase, normalizePath, isAbsolutePath } from 'vs/base/common/resources';
+import { dirname, basename, distinctParents, joinPath, isEqual, isEqualOrParent, hasToIgnoreCase, normalizePath, isAbsolutePath, isMalformedFileUri } from 'vs/base/common/resources';
 import URI from 'vs/base/common/uri';
 import { isWindows } from 'vs/base/common/platform';
 
@@ -203,5 +203,25 @@ suite('Resources', () => {
 		assert.equal(isEqualOrParent(fileURI3, fileURI4, false), true, '14');
 		assert.equal(isEqualOrParent(fileURI3, fileURI, true), false, '15');
 		assert.equal(isEqualOrParent(fileURI5, fileURI5, true), true, '16');
+	});
+
+	function assertMalformedFileUri(path: string, expected: string) {
+		const newURI = isMalformedFileUri(URI.parse(path));
+		assert.equal(newURI && newURI.toString(), expected);
+	}
+
+	test('isMalformedFileUri', () => {
+		if (isWindows) {
+			assertMalformedFileUri('c:/foo/bar', 'file:///c%3A/foo/bar');
+			assertMalformedFileUri('c:\\foo\\bar', 'file:///c%3A/foo/bar');
+			assertMalformedFileUri('\\\\localhost\\c$\\devel\\test', 'file://localhost/c%24/devel/test');
+		}
+		assertMalformedFileUri('/foo/bar', 'file:///foo/bar');
+
+		assertMalformedFileUri('file:///foo/bar', void 0);
+		assertMalformedFileUri('file:///c%3A/foo/bar', void 0);
+		assertMalformedFileUri('file://localhost/c$/devel/test', void 0);
+		assertMalformedFileUri('foo://dadie/foo/bar', void 0);
+		assertMalformedFileUri('foo:///dadie/foo/bar', void 0);
 	});
 });
