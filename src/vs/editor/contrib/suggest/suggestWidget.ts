@@ -206,6 +206,7 @@ class SuggestionDetails {
 	private disposables: IDisposable[];
 	private renderDisposeable: IDisposable;
 	private borderWidth: number = 1;
+	private _isFocused: boolean;
 
 	constructor(
 		container: HTMLElement,
@@ -277,6 +278,7 @@ class SuggestionDetails {
 		}
 
 		this.el.style.height = this.header.offsetHeight + this.docs.offsetHeight + (this.borderWidth * 2) + 'px';
+		this.el.style.userSelect = 'text';
 
 		this.close.onmousedown = e => {
 			e.preventDefault();
@@ -287,11 +289,17 @@ class SuggestionDetails {
 			e.stopPropagation();
 			this.widget.toggleDetails();
 		};
+		this.el.onmouseenter = () => this._isFocused = true;
+		this.el.onmouseleave = () => this._isFocused = false;
 
 		this.body.scrollTop = 0;
 		this.scrollbar.scanDomNode();
 
 		this.ariaLabel = strings.format('{0}\n{1}\n{2}', item.suggestion.label || '', item.suggestion.detail || '', item.suggestion.documentation || '');
+	}
+
+	isFocused(): boolean {
+		return this._isFocused;
 	}
 
 	getAriaLabel(): string {
@@ -381,7 +389,6 @@ export class SuggestWidget implements IContentWidget, IVirtualDelegate<ICompleti
 	private suggestWidgetMultipleSuggestions: IContextKey<boolean>;
 	private suggestionSupportsAutoAccept: IContextKey<boolean>;
 
-	private readonly editorBlurTimeout = new TimeoutTimer();
 	private readonly showTimeout = new TimeoutTimer();
 	private toDispose: IDisposable[];
 
@@ -456,7 +463,8 @@ export class SuggestWidget implements IContentWidget, IVirtualDelegate<ICompleti
 				listInactiveFocusOutline: activeContrastBorder
 			}),
 			themeService.onThemeChange(t => this.onThemeChange(t)),
-			editor.onDidBlurEditorText(() => this.onEditorBlur()),
+			editor.onDidFocusEditorText(() => this.onEditorTextEvent()),
+			editor.onDidBlurEditorText(() => this.onEditorTextEvent()),
 			editor.onDidLayoutChange(() => this.onEditorLayoutChange()),
 			this.list.onSelectionChange(e => this.onListSelection(e)),
 			this.list.onFocusChange(e => this.onListFocus(e)),
@@ -481,16 +489,10 @@ export class SuggestWidget implements IContentWidget, IVirtualDelegate<ICompleti
 		this.editor.layoutContentWidget(this);
 	}
 
-	private onEditorBlur(): void {
-		if (sticky) {
-			return;
+	private onEditorTextEvent(): void {
+		if (!sticky && !this.details.isFocused()) {
+			this.setState(State.Hidden);
 		}
-
-		this.editorBlurTimeout.cancelAndSet(() => {
-			if (!this.editor.hasTextFocus()) {
-				this.setState(State.Hidden);
-			}
-		}, 150);
 	}
 
 	private onEditorLayoutChange(): void {
@@ -923,6 +925,10 @@ export class SuggestWidget implements IContentWidget, IVirtualDelegate<ICompleti
 		this._ariaAlert(this.details.getAriaLabel());
 	}
 
+	isDetailsFocused(): boolean {
+		return this.details.isFocused();
+	}
+
 	private show(): void {
 		const newHeight = this.updateListHeight();
 		if (newHeight !== this.listHeight) {
@@ -1089,7 +1095,6 @@ export class SuggestWidget implements IContentWidget, IVirtualDelegate<ICompleti
 			this.loadingTimeout = null;
 		}
 
-		this.editorBlurTimeout.dispose();
 		this.showTimeout.dispose();
 	}
 }
