@@ -15,7 +15,7 @@ import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace
 import { toResource, IEditorIdentifier, IEditorInput } from 'vs/workbench/common/editor';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { Schemas } from 'vs/base/common/network';
-import { startsWith, startsWithIgnoreCase, rtrim } from 'vs/base/common/strings';
+import { rtrim } from 'vs/base/common/strings';
 import { IEditorGroup } from 'vs/workbench/services/group/common/editorGroupsService';
 
 export class Model {
@@ -342,9 +342,7 @@ export class ExplorerItem {
 	 */
 	public find(resource: URI): ExplorerItem {
 		// Return if path found
-		if (resource && this.resource.scheme === resource.scheme && this.resource.authority === resource.authority &&
-			(isLinux ? startsWith(resource.path, this.resource.path) : startsWithIgnoreCase(resource.path, this.resource.path))
-		) {
+		if (resource && resources.isEqualOrParent(resource, this.resource)) {
 			return this.findByPath(rtrim(resource.path, paths.sep), this.resource.path.length);
 		}
 
