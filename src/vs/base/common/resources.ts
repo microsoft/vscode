@@ -27,10 +27,6 @@ export function basenameOrAuthority(resource: URI): string {
 
 export function isEqualOrParent(resource: URI, candidate: URI, ignoreCase?: boolean): boolean {
 	if (resource.scheme === candidate.scheme && resource.authority === candidate.authority) {
-		if (resource.scheme === Schemas.file) {
-			return paths.isEqualOrParent(resource.path, candidate.path, ignoreCase);
-		}
-
 		return paths.isEqualOrParent(resource.path, candidate.path, ignoreCase, '/');
 	}
 
@@ -82,7 +78,12 @@ export function dirname(resource: URI): URI {
  * @returns The resulting URI.
  */
 export function joinPath(resource: URI, pathFragment: string): URI {
-	const joinedPath = paths.join(resource.path || '/', pathFragment);
+	let joinedPath: string;
+	if (resource.scheme === Schemas.file) {
+		joinedPath = URI.file(paths.join(resource.fsPath, pathFragment)).path;
+	} else {
+		joinedPath = paths.join(resource.path, pathFragment);
+	}
 	return resource.with({
 		path: joinedPath
 	});
@@ -95,7 +96,12 @@ export function joinPath(resource: URI, pathFragment: string): URI {
  * @returns The URI with the normalized path.
  */
 export function normalizePath(resource: URI): URI {
-	const normalizedPath = paths.normalize(resource.path, false);
+	let normalizedPath: string;
+	if (resource.scheme === Schemas.file) {
+		normalizedPath = URI.file(paths.normalize(resource.fsPath)).path;
+	} else {
+		normalizedPath = paths.normalize(resource.path);
+	}
 	return resource.with({
 		path: normalizedPath
 	});

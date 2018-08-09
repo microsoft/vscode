@@ -34,7 +34,7 @@ export function dirname(path: string, separator = nativeSep): string {
 		return dirname(path.substring(0, path.length - 1));
 	} else {
 		let res = path.substring(0, ~idx);
-		if (isWindows && res.length === 2 && res[res.length - 1] === ':') {
+		if (isWindows && res[res.length - 1] === ':') {
 			res += separator; // make sure drive letters end with backslash
 		}
 		return res;
