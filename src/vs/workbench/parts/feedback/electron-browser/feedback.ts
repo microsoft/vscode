@@ -15,6 +15,7 @@ import product from 'vs/platform/node/product';
 import * as dom from 'vs/base/browser/dom';
 import { ICommandService } from 'vs/platform/commands/common/commands';
 import * as errors from 'vs/base/common/errors';
+import { shell } from 'electron';
 import { IIntegrityService } from 'vs/platform/integrity/common/integrity';
 import { IThemeService, registerThemingParticipant, ITheme, ICssStyleCollector } from 'vs/platform/theme/common/themeService';
 import { attachButtonStyler, attachStylerCallback } from 'vs/platform/theme/common/styler';
@@ -227,7 +228,14 @@ export class FeedbackDropdown extends Dropdown {
 			})
 			.appendTo($contactUsContainer);
 
-		$('div').append($('a').attr('target', '_blank').attr('href', this.requestFeatureLink).text(nls.localize("request a missing feature", "Request a missing feature")).attr('tabindex', '0'))
+		$('div').append($('a').attr('target', '_blank').attr('href', '#').text(nls.localize("request a missing feature", "Request a missing feature")).attr('tabindex', '0'))
+			.on('click', event => {
+				dom.EventHelper.stop(event);
+				if(!!this.requestFeatureLink){
+					shell.openExternal(this.requestFeatureLink);
+				}
+				this.hide();
+			})
 			.appendTo($contactUsContainer);
 
 		this.remainingCharacterCount = $('span.char-counter').text(this.getCharCountText(0));
