@@ -1,4 +1,4 @@
-// Type definitions for Electron 3.0.0-beta.3
+// Type definitions for Electron 3.0.0-beta.4
 // Project: http://electronjs.org/
 // Definitions by: The Electron Team <https://github.com/electron/electron>
 // Definitions: https://github.com/electron/electron-typescript-definitions
@@ -1686,7 +1686,7 @@ declare namespace Electron {
 		 * Sets a 16 x 16 pixel overlay onto the current taskbar icon, usually used to
 		 * convey some sort of application status or to passively notify the user.
 		 */
-		setOverlayIcon(overlay: NativeImage, description: string): void;
+		setOverlayIcon(overlay: NativeImage | null, description: string): void;
 		/**
 		 * Sets parent as current window's parent window, passing null will turn current
 		 * window into a top-level window.
@@ -4816,7 +4816,7 @@ declare namespace Electron {
 		/**
 		 * Sets the image associated with this tray icon when pressed on macOS.
 		 */
-		setPressedImage(image: NativeImage): void;
+		setPressedImage(image: NativeImage | string): void;
 		/**
 		 * Sets the title displayed aside of the tray icon in the status bar (Support ANSI
 		 * colors).
