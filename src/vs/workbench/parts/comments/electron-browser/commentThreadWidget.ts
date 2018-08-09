@@ -366,6 +366,11 @@ export class ReviewZoneWidget extends ZoneWidget {
 					this.dispose();
 				}
 			}
+
+			if (this._commentEditor.getModel().getValueLength() !== 0 && ev.keyCode === KeyCode.Enter && ev.ctrlKey) {
+				let lineNumber = this._commentGlyph.getPosition().position.lineNumber;
+				this.createComment(lineNumber);
+			}
 		}));
 
 		this._error = $('.validation-error.hidden').appendTo(this._commentForm).getHTMLElement();
@@ -386,6 +391,7 @@ export class ReviewZoneWidget extends ZoneWidget {
 		}));
 
 		button.onDidClick(async () => {
+			let lineNumber = this._commentGlyph.getPosition().position.lineNumber;
 			this.createComment(lineNumber);
 		});
 
@@ -501,7 +507,7 @@ export class ReviewZoneWidget extends ZoneWidget {
 		if (model) {
 			let valueLength = model.getValueLength();
 			const hasExistingComments = this._commentThread.comments.length > 0;
-			let placeholder = valueLength > 0 ? '' : (hasExistingComments ? 'Reply...' : 'Type a new comment');
+			let placeholder = valueLength > 0 ? '' : (hasExistingComments ? 'Reply... (press Ctrl+Enter to submit)' : 'Type a new comment (press Ctrl+Enter to submit)');
 			const decorations = [{
 				range: {
 					startLineNumber: 0,
