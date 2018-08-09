@@ -542,6 +542,9 @@ export class SettingsRenderer implements ITreeRenderer {
 	private static readonly SETTING_BOOL_ROW_HEIGHT = 73;
 	public static readonly MAX_ENUM_DESCRIPTIONS = 10;
 
+	private static readonly CONTROL_CLASS = 'setting-control-focus-target';
+	public static readonly CONTROL_SELECTOR = '.' + SettingsRenderer.CONTROL_CLASS;
+
 	private readonly _onDidChangeSetting: Emitter<ISettingChangeEvent> = new Emitter<ISettingChangeEvent>();
 	public readonly onDidChangeSetting: Event<ISettingChangeEvent> = this._onDidChangeSetting.event;
 
@@ -788,6 +791,7 @@ export class SettingsRenderer implements ITreeRenderer {
 				}
 			}));
 		common.toDispose.push(inputBox);
+		inputBox.inputElement.classList.add(SettingsRenderer.CONTROL_CLASS);
 
 		const template: ISettingTextItemTemplate = {
 			...common,
@@ -816,6 +820,7 @@ export class SettingsRenderer implements ITreeRenderer {
 				}
 			}));
 		common.toDispose.push(inputBox);
+		inputBox.inputElement.classList.add(SettingsRenderer.CONTROL_CLASS);
 
 		const template: ISettingNumberItemTemplate = {
 			...common,
@@ -850,6 +855,7 @@ export class SettingsRenderer implements ITreeRenderer {
 				template.onChange(checkbox.checked);
 			}
 		}));
+		checkbox.domNode.classList.add(SettingsRenderer.CONTROL_CLASS);
 
 		const template: ISettingBoolItemTemplate = {
 			toDispose,
@@ -890,6 +896,10 @@ export class SettingsRenderer implements ITreeRenderer {
 			selectBorder: settingsSelectBorder
 		}));
 		selectBox.render(common.controlElement);
+		const selectElement = common.controlElement.querySelector('select');
+		if (selectElement) {
+			selectElement.classList.add(SettingsRenderer.CONTROL_CLASS);
+		}
 
 		common.toDispose.push(
 			selectBox.onDidSelect(e => {
@@ -915,6 +925,7 @@ export class SettingsRenderer implements ITreeRenderer {
 		const common = this.renderCommonTemplate(tree, container, 'exclude');
 
 		const excludeWidget = this.instantiationService.createInstance(ExcludeSettingWidget, common.controlElement);
+		excludeWidget.domNode.classList.add(SettingsRenderer.CONTROL_CLASS);
 		common.toDispose.push(excludeWidget);
 
 		const template: ISettingExcludeItemTemplate = {
@@ -1211,7 +1222,6 @@ export class SettingsRenderer implements ITreeRenderer {
 		template.onChange = null;
 		template.inputBox.value = dataElement.value;
 		template.onChange = value => onChange(value);
-		// template.inputBox.inputElement.tabIndex = isSelected ? 0 : -1;
 
 		// Setup and add ARIA attributes
 		// Create id and label for control/input element - parent is wrapper div
@@ -1237,7 +1247,6 @@ export class SettingsRenderer implements ITreeRenderer {
 		template.onChange = null;
 		template.inputBox.value = dataElement.value;
 		template.onChange = value => onChange(parseFn(value));
-		// template.inputBox.inputElement.tabIndex = isSelected ? 0 : -1;
 
 		const parseFn = dataElement.valueType === 'integer' ? parseInt : parseFloat;
 
@@ -1267,7 +1276,6 @@ export class SettingsRenderer implements ITreeRenderer {
 	}
 
 	private renderComplexSetting(dataElement: SettingsTreeSettingElement, isSelected: boolean, template: ISettingComplexItemTemplate): void {
-		// template.button.element.tabIndex = isSelected ? 0 : -1;
 		template.onChange = () => this._onDidOpenSettings.fire(dataElement.setting.key);
 	}
 
