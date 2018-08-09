@@ -6,7 +6,7 @@
 import * as nls from 'vs/nls';
 
 import { first2, createCancelablePromise, CancelablePromise } from 'vs/base/common/async';
-import { onUnexpectedExternalError } from 'vs/base/common/errors';
+import { onUnexpectedExternalError, onUnexpectedError } from 'vs/base/common/errors';
 import { Range } from 'vs/editor/common/core/range';
 import * as editorCommon from 'vs/editor/common/editorCommon';
 import { registerEditorContribution, EditorAction, IActionOptions, registerEditorAction, registerDefaultLanguageCommand } from 'vs/editor/browser/editorExtensions';
@@ -300,7 +300,7 @@ class WordHighlighter {
 					this.workerRequestValue = data || [];
 					this._beginRenderDecorations();
 				}
-			});
+			}, onUnexpectedError);
 		}
 
 		this._lastWordRange = currentWordRange;

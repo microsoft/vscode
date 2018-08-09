@@ -17,6 +17,7 @@ import { getColors, IColorData } from 'vs/editor/contrib/colorPicker/color';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { ModelDecorationOptions } from 'vs/editor/common/model/textModel';
 import { TimeoutTimer, CancelablePromise, createCancelablePromise } from 'vs/base/common/async';
+import { onUnexpectedError } from 'vs/base/common/errors';
 
 const MAX_DECORATORS = 500;
 
@@ -28,7 +29,7 @@ export class ColorDetector implements IEditorContribution {
 
 	private _globalToDispose: IDisposable[] = [];
 	private _localToDispose: IDisposable[] = [];
-	private _computePromise: CancelablePromise<void>;
+	private _computePromise: CancelablePromise<IColorData[]>;
 	private _timeoutTimer: TimeoutTimer;
 
 	private _decorationsIds: string[] = [];
@@ -127,13 +128,12 @@ export class ColorDetector implements IEditorContribution {
 	}
 
 	private beginCompute(): void {
-		this._computePromise = createCancelablePromise(token => {
-			return getColors(this._editor.getModel(), token).then(colorInfos => {
-				this.updateDecorations(colorInfos);
-				this.updateColorDecorators(colorInfos);
-				this._computePromise = null;
-			});
-		});
+		this._computePromise = createCancelablePromise(token => getColors(this._editor.getModel(), token));
+		this._computePromise.then((colorInfos) => {
+			this.updateDecorations(colorInfos);
+			this.updateColorDecorators(colorInfos);
+			this._computePromise = null;
+		}, onUnexpectedError);
 	}
 
 	private stop(): void {
