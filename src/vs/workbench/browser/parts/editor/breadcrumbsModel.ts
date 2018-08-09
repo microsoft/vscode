@@ -12,8 +12,7 @@ import { size } from 'vs/base/common/collections';
 import { onUnexpectedError } from 'vs/base/common/errors';
 import { debounceEvent, Emitter, Event } from 'vs/base/common/event';
 import { dispose, IDisposable } from 'vs/base/common/lifecycle';
-import * as paths from 'vs/base/common/paths';
-import { isEqual } from 'vs/base/common/resources';
+import { isEqual, dirname } from 'vs/base/common/resources';
 import URI from 'vs/base/common/uri';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { IPosition } from 'vs/editor/common/core/position';
@@ -117,7 +116,7 @@ export class EditorBreadcrumbsModel {
 				break;
 			}
 			info.path.unshift(new FileElement(uri, info.path.length === 0 ? FileKind.FILE : FileKind.FOLDER));
-			uri = uri.with({ path: paths.dirname(uri.path) });
+			uri = dirname(uri);
 		}
 
 		if (info.folder && workspaceService.getWorkbenchState() === WorkbenchState.WORKSPACE) {

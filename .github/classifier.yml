@@ -15,7 +15,7 @@
         css-less-scss: [ aeschli ],
         debug-console: [],
         debug: {
-            assignees: [ isidorn ],
+            assignees: [ weinand ],
             assignLabel: false
         },
         diff-editor: [],

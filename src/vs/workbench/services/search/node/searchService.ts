@@ -26,6 +26,7 @@ import { IExtensionService } from 'vs/workbench/services/extensions/common/exten
 import { IUntitledEditorService } from 'vs/workbench/services/untitled/common/untitledEditorService';
 import { IRawSearch, IRawSearchService, ISerializedFileMatch, ISerializedSearchComplete, ISerializedSearchProgressItem, isSerializedSearchComplete, isSerializedSearchSuccess, ITelemetryEvent } from './search';
 import { ISearchChannel, SearchChannelClient } from './searchIpc';
+import { getPathFromAmdModule } from 'vs/base/common/amd';
 
 export class SearchService extends Disposable implements ISearchService {
 	public _serviceBrand: any;
@@ -125,29 +126,9 @@ export class SearchService extends Disposable implements ISearchService {
 			const schemesInQuery = query.folderQueries.map(fq => fq.folder.scheme);
 			const providerActivations = schemesInQuery.map(scheme => this.extensionService.activateByEvent(`onSearch:${scheme}`));
 
-			const providerPromise = TPromise.join(providerActivations).then(() => {
-				return TPromise.join(query.folderQueries.map(fq => {
-					const oneFolderQuery = {
-						...query,
-						...{
-							folderQueries: [fq]
-						}
-					};
-
-					let provider = query.type === QueryType.File ?
-						this.fileSearchProviders.get(fq.folder.scheme) || this.fileIndexProviders.get(fq.folder.scheme) :
-						this.textSearchProviders.get(fq.folder.scheme);
-
-					if (!provider && fq.folder.scheme === 'file') {
-						provider = this.diskSearch;
-					}
-
-					if (!provider) {
-						return TPromise.wrapError(new Error('No search provider registered for scheme: ' + fq.folder.scheme));
-					}
-
-					return provider.search(oneFolderQuery, onProviderProgress);
-				})).then(completes => {
+			const providerPromise = TPromise.join(providerActivations)
+				.then(() => this.searchWithProviders(query, onProviderProgress))
+				.then(completes => {
 					completes = completes.filter(c => !!c);
 					if (!completes.length) {
 						return null;
@@ -166,7 +147,6 @@ export class SearchService extends Disposable implements ISearchService {
 					errs = errs.filter(e => !!e);
 					return TPromise.wrapError(errs[0]);
 				});
-			});
 
 			combinedPromise = providerPromise.then(value => {
 				this.logService.debug(`SearchService#search: ${Date.now() - startTime}ms`);
@@ -200,6 +180,45 @@ export class SearchService extends Disposable implements ISearchService {
 			}).then(onComplete, onError);
 
 		}, () => combinedPromise && combinedPromise.cancel());
+	}
+
+	private searchWithProviders(query: ISearchQuery, onProviderProgress: (progress: ISearchProgressItem) => void) {
+		const diskSearchQueries: IFolderQuery[] = [];
+		const searchPs = [];
+
+		query.folderQueries.forEach(fq => {
+			let provider = query.type === QueryType.File ?
+				this.fileSearchProviders.get(fq.folder.scheme) || this.fileIndexProviders.get(fq.folder.scheme) :
+				this.textSearchProviders.get(fq.folder.scheme);
+
+			if (!provider && fq.folder.scheme === 'file') {
+				diskSearchQueries.push(fq);
+			} else if (!provider) {
+				throw new Error('No search provider registered for scheme: ' + fq.folder.scheme);
+			} else {
+				const oneFolderQuery = {
+					...query,
+					...{
+						folderQueries: [fq]
+					}
+				};
+
+				searchPs.push(provider.search(oneFolderQuery, onProviderProgress));
+			}
+		});
+
+		if (diskSearchQueries.length) {
+			const diskSearchQuery = {
+				...query,
+				...{
+					folderQueries: diskSearchQueries
+				}
+			};
+
+			searchPs.push(this.diskSearch.search(diskSearchQuery, onProviderProgress));
+		}
+
+		return TPromise.join(searchPs);
 	}
 
 	private getLocalResults(query: ISearchQuery): ResourceMap<IFileMatch> {
@@ -313,7 +332,7 @@ export class DiskSearch implements ISearchResultProvider {
 		}
 
 		const client = new Client(
-			uri.parse(require.toUrl('bootstrap')).fsPath,
+			getPathFromAmdModule(require, 'bootstrap'),
 			opts);
 
 		const channel = getNextTickChannel(client.getChannel<ISearchChannel>('search'));

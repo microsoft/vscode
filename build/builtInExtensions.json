@@ -1,12 +1,12 @@
 [
 	{
 		"name": "ms-vscode.node-debug",
-		"version": "1.26.6",
+		"version": "1.27.1",
 		"repo": "https://github.com/Microsoft/vscode-node-debug"
 	},
 	{
 		"name": "ms-vscode.node-debug2",
-		"version": "1.26.7",
+		"version": "1.26.8",
 		"repo": "https://github.com/Microsoft/vscode-node-debug2"
 	}
 ]

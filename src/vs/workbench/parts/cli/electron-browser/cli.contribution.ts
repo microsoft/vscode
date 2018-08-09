@@ -10,7 +10,6 @@ import * as pfs from 'vs/base/node/pfs';
 import * as platform from 'vs/base/common/platform';
 import { nfcall } from 'vs/base/common/async';
 import { TPromise } from 'vs/base/common/winjs.base';
-import URI from 'vs/base/common/uri';
 import { Action } from 'vs/base/common/actions';
 import { IWorkbenchActionRegistry, Extensions as ActionExtensions } from 'vs/workbench/common/actions';
 import { Registry } from 'vs/platform/registry/common/platform';
@@ -20,6 +19,7 @@ import { INotificationService } from 'vs/platform/notification/common/notificati
 import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
 import Severity from 'vs/base/common/severity';
 import { ILogService } from 'vs/platform/log/common/log';
+import { getPathFromAmdModule } from 'vs/base/common/amd';
 
 function ignore<T>(code: string, value: T = null): (err: any) => TPromise<T> {
 	return err => err.code === code ? TPromise.as<T>(value) : TPromise.wrapError<T>(err);
@@ -28,7 +28,7 @@ function ignore<T>(code: string, value: T = null): (err: any) => TPromise<T> {
 let _source: string = null;
 function getSource(): string {
 	if (!_source) {
-		const root = URI.parse(require.toUrl('')).fsPath;
+		const root = getPathFromAmdModule(require, '');
 		_source = path.resolve(root, '..', 'bin', 'code');
 	}
 	return _source;

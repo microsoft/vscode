@@ -3552,6 +3552,7 @@ declare module 'vscode' {
 		 * [Region](#FoldingRangeKind.Region). The kind is used to categorize folding ranges and used by commands
 		 * like 'Fold all comments'. See
 		 * [FoldingRangeKind](#FoldingRangeKind) for an enumeration of all kinds.
+		 * If not set, the range is originated from a syntax element.
 		 */
 		kind?: FoldingRangeKind;
 
@@ -3566,7 +3567,10 @@ declare module 'vscode' {
 	}
 
 	/**
-	 * An enumeration of all folding range kinds. The kind is used to categorize folding ranges.
+	 * An enumeration of specific folding range kinds. The kind is an optional field of a [FoldingRange](#FoldingRange)
+	 * and is used to distinguish specific folding ranges such as ranges originated from comments. The kind is used by commands like
+	 * `Fold all comments` or `Fold all regions`.
+	 * If the kind is not set on the range, the range originated from a syntax element other than comments, imports or region markers.
 	 */
 	export enum FoldingRangeKind {
 		/**
@@ -3578,7 +3582,7 @@ declare module 'vscode' {
 		 */
 		Imports = 2,
 		/**
-		 * Kind for folding range representing regions (for example a folding range marked by `#region` and `#endregion`).
+		 * Kind for folding range representing regions originating from folding markers like `#region` and `#endregion`.
 		 */
 		Region = 3
 	}
@@ -6888,7 +6892,7 @@ declare module 'vscode' {
 	/**
 	 * Predefined buttons for [QuickPick](#QuickPick) and [InputBox](#InputBox).
 	 */
-	export namespace QuickInputButtons {
+	export class QuickInputButtons {
 
 		/**
 		 * A back button for [QuickPick](#QuickPick) and [InputBox](#InputBox).
@@ -6896,7 +6900,12 @@ declare module 'vscode' {
 		 * When a navigation 'back' button is needed this one should be used for consistency.
 		 * It comes with a predefined icon, tooltip and location.
 		 */
-		export const Back: QuickInputButton;
+		static readonly Back: QuickInputButton;
+
+		/**
+		 * @hidden
+		 */
+		private constructor();
 	}
 
 	/**

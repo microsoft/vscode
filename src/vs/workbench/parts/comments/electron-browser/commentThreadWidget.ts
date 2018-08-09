@@ -25,7 +25,7 @@ import { IInstantiationService } from 'vs/platform/instantiation/common/instanti
 import { IModelService } from 'vs/editor/common/services/modelService';
 import { SimpleCommentEditor } from './simpleCommentEditor';
 import URI from 'vs/base/common/uri';
-import { transparent, editorForeground, inputValidationErrorBorder, textLinkActiveForeground, textLinkForeground, focusBorder, textBlockQuoteBackground, textBlockQuoteBorder, contrastBorder } from 'vs/platform/theme/common/colorRegistry';
+import { transparent, editorForeground, textLinkActiveForeground, textLinkForeground, focusBorder, textBlockQuoteBackground, textBlockQuoteBorder, contrastBorder } from 'vs/platform/theme/common/colorRegistry';
 import { IModeService } from 'vs/editor/common/services/modeService';
 import { IKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { KeyCode } from 'vs/base/common/keyCodes';
@@ -354,9 +354,14 @@ export class ReviewZoneWidget extends ZoneWidget {
 
 		this._localToDispose.push(this._commentEditor.onKeyDown((ev: IKeyboardEvent) => {
 			const hasExistingComments = this._commentThread.comments.length > 0;
-			if (this._commentEditor.getModel().getValueLength() === 0 && ev.keyCode === KeyCode.Escape && hasExistingComments) {
-				if (dom.hasClass(this._commentForm, 'expand')) {
-					dom.removeClass(this._commentForm, 'expand');
+
+			if (this._commentEditor.getModel().getValueLength() === 0 && ev.keyCode === KeyCode.Escape) {
+				if (hasExistingComments) {
+					if (dom.hasClass(this._commentForm, 'expand')) {
+						dom.removeClass(this._commentForm, 'expand');
+					}
+				} else {
+					this.dispose();
 				}
 			}
 		}));
@@ -366,23 +371,17 @@ export class ReviewZoneWidget extends ZoneWidget {
 		const button = new Button(formActions);
 		attachButtonStyler(button, this.themeService);
 		button.label = 'Add comment';
-		button.onDidClick(async () => {
-			if (!this._commentEditor.getValue()) {
-				this._commentEditor.focus();
-				this._commentEditor.getDomNode().style.outline = `1px solid ${this.themeService.getTheme().getColor(inputValidationErrorBorder)}`;
 
-
-				this._disposables.push(this._commentEditor.onDidChangeModelContent(_ => {
-					if (!this._commentEditor.getValue()) {
-						this._commentEditor.getDomNode().style.outline = `1px solid ${this.themeService.getTheme().getColor(inputValidationErrorBorder)}`;
-					} else {
-						this._commentEditor.getDomNode().style.outline = '';
-					}
-				}));
-
-				return;
+		button.enabled = false;
+		this._localToDispose.push(this._commentEditor.onDidChangeModelContent(_ => {
+			if (this._commentEditor.getValue()) {
+				button.enabled = true;
+			} else {
+				button.enabled = false;
 			}
+		}));
 
+		button.onDidClick(async () => {
 			let newCommentThread;
 			if (this._commentThread.threadId) {
 				// reply

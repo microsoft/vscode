@@ -85,9 +85,12 @@ class ModelMarkerHandler {
 
 		let ret = Range.lift(rawMarker);
 
-		if (rawMarker.severity === MarkerSeverity.Hint && Range.spansMultipleLines(ret)) {
-			// never render hints on multiple lines
-			ret = ret.setEndPosition(ret.startLineNumber, ret.startColumn);
+		if (rawMarker.severity === MarkerSeverity.Hint) {
+			// * never render hints on multiple lines
+			// * make enough space for three dots
+			if (Range.spansMultipleLines(ret) || ret.endColumn - ret.startColumn < 2) {
+				ret = ret.setEndPosition(ret.startLineNumber, ret.startColumn + 2);
+			}
 		}
 
 		ret = model.validateRange(ret);

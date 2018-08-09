@@ -7,7 +7,7 @@ import uri from 'vs/base/common/uri';
 import { Event, Emitter } from 'vs/base/common/event';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { IWorkspaceFolder } from 'vs/platform/workspace/common/workspace';
-import { ILaunch, IDebugService, State, DebugEvent, ISession, IConfigurationManager, IStackFrame, IBreakpointData, IBreakpointUpdateData, IConfig, IModel, IViewModel, IRawSession, IBreakpoint } from 'vs/workbench/parts/debug/common/debug';
+import { ILaunch, IDebugService, State, DebugEvent, ISession, IConfigurationManager, IStackFrame, IBreakpointData, IBreakpointUpdateData, IConfig, IModel, IViewModel, IRawSession, IBreakpoint, LoadedSourceEvent } from 'vs/workbench/parts/debug/common/debug';
 
 export class MockDebugService implements IDebugService {
 	public _serviceBrand: any;
@@ -29,6 +29,10 @@ export class MockDebugService implements IDebugService {
 	}
 
 	public get onDidChangeState(): Event<State> {
+		return null;
+	}
+
+	public get onDidLoadedSource(): Event<LoadedSourceEvent> {
 		return null;
 	}
 
@@ -218,7 +222,7 @@ export class MockSession implements IRawSession {
 		return TPromise.as(null);
 	}
 
-	public terminateThreads(args: DebugProtocol.TerminateThreadsArguments): TPromise<DebugProtocol.TerminateThreadsResponse, any> {
+	public terminateThreads(args: DebugProtocol.TerminateThreadsArguments): TPromise<DebugProtocol.TerminateThreadsResponse> {
 		return TPromise.as(null);
 	}
 
@@ -239,6 +243,10 @@ export class MockSession implements IRawSession {
 	}
 
 	public source(args: DebugProtocol.SourceArguments): TPromise<DebugProtocol.SourceResponse> {
+		return TPromise.as(null);
+	}
+
+	public loadedSources(args: DebugProtocol.LoadedSourcesArguments): TPromise<DebugProtocol.LoadedSourcesResponse> {
 		return TPromise.as(null);
 	}
 

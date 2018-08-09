@@ -95,10 +95,10 @@ export function attachToProcess(folder: vscode.WorkspaceFolder | undefined, name
 
 function findChildProcesses(rootPid: number, inTerminal: boolean, cb: (pid: number, cmd: string, args: string) => void): Promise<void> {
 
-	function walker(node: ProcessTreeNode, terminal: boolean, renderer: number) {
+	function walker(node: ProcessTreeNode, terminal: boolean, terminalPids: number[]) {
 
-		if (node.args.indexOf('--type=terminal') >= 0 && (renderer === 0 || node.ppid === renderer)) {
-			terminal = true;
+		if (terminalPids.indexOf(node.pid) >= 0) {
+			terminal = true;	// found the terminal shell
 		}
 
 		let { protocol } = analyseArguments(node.args);
@@ -107,32 +107,17 @@ function findChildProcesses(rootPid: number, inTerminal: boolean, cb: (pid: numb
 		}
 
 		for (const child of node.children || []) {
-			walker(child, terminal, renderer);
+			walker(child, terminal, terminalPids);
 		}
-	}
-
-	function finder(node: ProcessTreeNode, pid: number): ProcessTreeNode | undefined {
-		if (node.pid === pid) {
-			return node;
-		}
-		for (const child of node.children || []) {
-			const p = finder(child, pid);
-			if (p) {
-				return p;
-			}
-		}
-		return undefined;
 	}
 
 	return getProcessTree(rootPid).then(tree => {
 		if (tree) {
-
-			// find the pid of the renderer process
-			const extensionHost = finder(tree, process.pid);
-			let rendererPid = extensionHost ? extensionHost.ppid : 0;
-
-			for (const child of tree.children || []) {
-				walker(child, !inTerminal, rendererPid);
+			const terminals = vscode.window.terminals;
+			if (terminals.length > 0) {
+				Promise.all(terminals.map(terminal => terminal.processId)).then(terminalPids => {
+					walker(tree, !inTerminal, terminalPids);
+				});
 			}
 		}
 	});

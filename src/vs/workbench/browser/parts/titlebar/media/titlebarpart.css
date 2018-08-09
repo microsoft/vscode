@@ -51,6 +51,10 @@
 	overflow: visible;
 }
 
+.monaco-workbench.linux > .part.titlebar > .window-title {
+	font-size: inherit;
+}
+
 .monaco-workbench.windows > .part.titlebar > .resizer,
 .monaco-workbench.linux > .part.titlebar > .resizer {
 	-webkit-app-region: no-drag;
@@ -146,4 +150,52 @@
 
 .monaco-workbench > .part.titlebar > .window-controls-container .window-icon.window-close:hover {
 	background-color: white;
+}
+
+/* Menubar styles */
+
+.monaco-workbench .menubar {
+	display: flex;
+	flex-shrink: 1;
+	box-sizing: border-box;
+	height: 30px;
+	-webkit-app-region: no-drag;
+	overflow: hidden;
+	flex-wrap: wrap;
+}
+
+.monaco-workbench.fullscreen .menubar {
+	margin: 0px;
+	padding: 0px 5px;
+}
+
+.monaco-workbench .menubar > .menubar-menu-button {
+	align-items: center;
+	box-sizing: border-box;
+	padding: 0px 8px;
+	cursor: default;
+	-webkit-app-region: no-drag;
+	zoom: 1;
+	white-space: nowrap;
+}
+
+.monaco-workbench .menubar .menubar-menu-items-holder {
+	position: absolute;
+	left: 0px;
+	opacity: 1;
+	z-index: 2000;
+}
+
+.monaco-workbench .menubar .menubar-menu-items-holder.monaco-menu-container {
+	font-family: "Segoe WPC", "Segoe UI", ".SFNSDisplay-Light", "SFUIText-Light", "HelveticaNeue-Light", sans-serif, "Droid Sans Fallback";
+	outline: 0;
+	border: none;
+}
+
+.monaco-workbench .menubar .menubar-menu-items-holder.monaco-menu-container :focus {
+	outline: 0;
+}
+
+.hc-black .monaco-workbench .menubar .menubar-menu-items-holder.monaco-menu-container {
+	border: 2px solid #6FC3DF;
 }

@@ -488,24 +488,6 @@ class FileSearchEngine {
 			const queryTester = new QueryGlobTester(this.config, fq);
 			const noSiblingsClauses = !queryTester.hasSiblingExcludeClauses();
 
-			const onProviderResult = (result: URI) => {
-				if (this.isCanceled) {
-					return;
-				}
-
-				const relativePath = path.relative(fq.folder.fsPath, result.fsPath);
-
-				if (noSiblingsClauses) {
-					const basename = path.basename(result.fsPath);
-					this.matchFile(onResult, { base: fq.folder, relativePath, basename });
-
-					return;
-				}
-
-				// TODO: Optimize siblings clauses with ripgrep here.
-				this.addDirectoryEntries(tree, fq.folder, relativePath, onResult);
-			};
-
 			new TPromise(_resolve => process.nextTick(_resolve))
 				.then(() => {
 					this.activeCancellationTokens.add(cancellation);
@@ -515,10 +497,29 @@ class FileSearchEngine {
 							pattern: this.config.filePattern || ''
 						},
 						options,
-						{ report: onProviderResult },
 						cancellation.token);
 				})
-				.then(() => {
+				.then(results => {
+					if (this.isCanceled) {
+						return;
+					}
+
+					if (results) {
+						results.forEach(result => {
+							const relativePath = path.relative(fq.folder.fsPath, result.fsPath);
+
+							if (noSiblingsClauses) {
+								const basename = path.basename(result.fsPath);
+								this.matchFile(onResult, { base: fq.folder, relativePath, basename });
+
+								return;
+							}
+
+							// TODO: Optimize siblings clauses with ripgrep here.
+							this.addDirectoryEntries(tree, fq.folder, relativePath, onResult);
+						});
+					}
+
 					this.activeCancellationTokens.delete(cancellation);
 					if (this.isCanceled) {
 						return null;
@@ -668,9 +669,16 @@ class FileSearchManager {
 	}
 
 	private rawMatchToSearchItem(match: IInternalFileMatch): IFileMatch {
-		return {
-			resource: resources.joinPath(match.base, match.relativePath)
-		};
+		if (match.relativePath) {
+			return {
+				resource: resources.joinPath(match.base, match.relativePath)
+			};
+		} else {
+			// extraFileResources
+			return {
+				resource: match.base
+			};
+		}
 	}
 
 	private doSearch(engine: FileSearchEngine, batchSize: number, onResultBatch: (matches: IInternalFileMatch[]) => void): TPromise<IInternalSearchComplete> {

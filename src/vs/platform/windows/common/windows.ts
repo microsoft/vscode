@@ -143,6 +143,7 @@ export interface IWindowsService {
 	relaunch(options: { addArgs?: string[], removeArgs?: string[] }): TPromise<void>;
 
 	// macOS Native Tabs
+	newWindowTab(): TPromise<void>;
 	showPreviousWindowTab(): TPromise<void>;
 	showNextWindowTab(): TPromise<void>;
 	moveWindowTabToNewWindow(): TPromise<void>;
@@ -173,7 +174,6 @@ export interface IWindowsService {
 	// TODO: this is a bit backwards
 	startCrashReporter(config: CrashReporterStartOptions): TPromise<void>;
 
-	openAccessibilityOptions(): TPromise<void>;
 	openAboutDialog(): TPromise<void>;
 }
 

@@ -262,7 +262,9 @@ export class CommentsPanel extends Panel {
 	}
 
 	private onCommentsUpdated(e: CommentThreadChangedEvent): void {
-		this.commentsModel.updateCommentThreads(e);
-		this.refresh();
+		const didUpdate = this.commentsModel.updateCommentThreads(e);
+		if (didUpdate) {
+			this.refresh();
+		}
 	}
 }

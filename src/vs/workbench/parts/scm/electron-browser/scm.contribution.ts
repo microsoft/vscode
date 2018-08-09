@@ -71,7 +71,7 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).regis
 	properties: {
 		'scm.alwaysShowProviders': {
 			type: 'boolean',
-			description: localize('alwaysShowProviders', "Whether to always show the Source Control Provider section."),
+			description: localize('alwaysShowProviders', "Controls whether to always show the Source Control Provider section."),
 			default: false
 		},
 		'scm.diffDecorations': {

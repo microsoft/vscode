@@ -120,6 +120,7 @@ export interface IEnvironmentService {
 	performance: boolean;
 
 	// logging
+	log: string;
 	logsPath: string;
 	verbose: boolean;
 

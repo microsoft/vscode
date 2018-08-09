@@ -16,6 +16,7 @@ import { IPartService, Parts, Position } from 'vs/workbench/services/part/common
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { debounceEvent } from 'vs/base/common/event';
 import { DEFAULT_EDITOR_MIN_DIMENSIONS } from 'vs/workbench/browser/parts/editor/editor';
+import { ColorIdentifier } from 'vs/platform/theme/common/colorRegistry';
 
 class PartsSplash {
 
@@ -38,13 +39,12 @@ class PartsSplash {
 	}
 
 	private _savePartsSplash() {
-		const theme = this._themeService.getTheme();
 		const colorInfo = {
-			titleBarBackground: theme.getColor(themes.TITLE_BAR_ACTIVE_BACKGROUND).toString(),
-			activityBarBackground: theme.getColor(themes.ACTIVITY_BAR_BACKGROUND).toString(),
-			sideBarBackground: theme.getColor(themes.SIDE_BAR_BACKGROUND).toString(),
-			statusBarBackground: theme.getColor(themes.STATUS_BAR_BACKGROUND).toString(),
-			statusBarNoFolderBackground: theme.getColor(themes.STATUS_BAR_NO_FOLDER_BACKGROUND).toString(),
+			titleBarBackground: this._getThemeColor(themes.TITLE_BAR_ACTIVE_BACKGROUND),
+			activityBarBackground: this._getThemeColor(themes.ACTIVITY_BAR_BACKGROUND),
+			sideBarBackground: this._getThemeColor(themes.SIDE_BAR_BACKGROUND),
+			statusBarBackground: this._getThemeColor(themes.STATUS_BAR_BACKGROUND),
+			statusBarNoFolderBackground: this._getThemeColor(themes.STATUS_BAR_NO_FOLDER_BACKGROUND),
 		};
 		const layoutInfo = {
 			sideBarSide: this._partService.getSideBarPosition() === Position.RIGHT ? 'right' : 'left',
@@ -55,6 +55,12 @@ class PartsSplash {
 			statusBarHeight: getTotalHeight(this._partService.getContainer(Parts.STATUSBAR_PART)),
 		};
 		this._storageService.store('parts-splash-data', JSON.stringify({ id: PartsSplash._splashElementId, colorInfo, layoutInfo }), StorageScope.GLOBAL);
+	}
+
+	private _getThemeColor(id: ColorIdentifier): string {
+		const theme = this._themeService.getTheme();
+		const color = theme.getColor(id);
+		return color ? color.toString() : undefined;
 	}
 
 	private _removePartsSplash(): void {

@@ -267,6 +267,7 @@ function parse(model: ITextModel, isSettingsProperty: (currentProperty: string, 
 				let settingStartPosition = model.getPositionAt(offset);
 				const setting: ISetting = {
 					description: [],
+					descriptionIsMarkdown: false,
 					key: name,
 					keyRange: {
 						startLineNumber: settingStartPosition.lineNumber,
@@ -551,14 +552,21 @@ export class DefaultSettings extends Disposable {
 		let result: ISetting[] = [];
 		for (let key in settingsObject) {
 			const prop = settingsObject[key];
-			if (!prop.deprecationMessage && this.matchesScope(prop)) {
+			if (this.matchesScope(prop)) {
 				const value = prop.default;
-				const description = (prop.description || '').split('\n');
+				const description = (prop.description || prop.markdownDescription || '').split('\n');
+				if (prop.deprecationMessage) {
+					description.push(
+						'',
+						prop.deprecationMessage,
+						nls.localize('deprecatedSetting.unstable', "This setting should not be used, and will be removed in a future release."));
+				}
 				const overrides = OVERRIDE_PROPERTY_PATTERN.test(key) ? this.parseOverrideSettings(prop.default) : [];
 				result.push({
 					key,
 					value,
 					description,
+					descriptionIsMarkdown: !prop.description,
 					range: null,
 					keyRange: null,
 					valueRange: null,
@@ -566,8 +574,10 @@ export class DefaultSettings extends Disposable {
 					overrides,
 					type: prop.type,
 					enum: prop.enum,
-					enumDescriptions: prop.enumDescriptions,
-					tags: prop.tags
+					enumDescriptions: prop.enumDescriptions || prop.markdownEnumDescriptions,
+					enumDescriptionsAreMarkdown: !prop.enumDescriptions,
+					tags: prop.tags,
+					deprecationMessage: prop.deprecationMessage,
 				});
 			}
 		}
@@ -575,7 +585,17 @@ export class DefaultSettings extends Disposable {
 	}
 
 	private parseOverrideSettings(overrideSettings: any): ISetting[] {
-		return Object.keys(overrideSettings).map((key) => ({ key, value: overrideSettings[key], description: [], range: null, keyRange: null, valueRange: null, descriptionRanges: [], overrides: [] }));
+		return Object.keys(overrideSettings).map((key) => ({
+			key,
+			value: overrideSettings[key],
+			description: [],
+			descriptionIsMarkdown: false,
+			range: null,
+			keyRange: null,
+			valueRange: null,
+			descriptionRanges: [],
+			overrides: []
+		}));
 	}
 
 	private matchesScope(property: IConfigurationNode): boolean {
@@ -899,7 +919,7 @@ class SettingsContentBuilder {
 
 		if (setting.enumDescriptions && setting.enumDescriptions.some(desc => !!desc)) {
 			setting.enumDescriptions.forEach((desc, i) => {
-				const displayEnum = escapeInvisibleChars(setting.enum[i]);
+				const displayEnum = escapeInvisibleChars(String(setting.enum[i]));
 				const line = desc ?
 					`${displayEnum}: ${fixSettingLink(desc)}` :
 					displayEnum;

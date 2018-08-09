@@ -4,7 +4,7 @@
 		"If you want to provide a fix or improvement, please create a pull request against the original repository.",
 		"Once accepted there, we are happy to receive an update request."
 	],
-	"version": "https://github.com/octref/language-css/commit/f8a70d3f2540a7bf12a7cbc13c1d7bb76cc8cdd0",
+	"version": "https://github.com/octref/language-css/commit/aadd130de82cf2351b459041109b49f586142f11",
 	"name": "CSS",
 	"scopeName": "source.css",
 	"patterns": [
@@ -508,7 +508,7 @@
 					]
 				},
 				{
-					"begin": "(?i)((@)viewport)(?=[\\s'\"{;]|/\\*|$)",
+					"begin": "(?i)((@)(-ms-|-o-)?viewport)(?=[\\s'\"{;]|/\\*|$)",
 					"beginCaptures": {
 						"1": {
 							"name": "keyword.control.at-rule.viewport.css"

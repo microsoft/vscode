@@ -14,12 +14,13 @@ import { SearchService as RawSearchService } from 'vs/workbench/services/search/
 import { DiskSearch } from 'vs/workbench/services/search/node/searchService';
 import { Emitter, Event } from 'vs/base/common/event';
 import { TPromise } from 'vs/base/common/winjs.base';
+import { getPathFromAmdModule } from 'vs/base/common/amd';
 
 const TEST_FOLDER_QUERIES = [
 	{ folder: path.normalize('/some/where') }
 ];
 
-const TEST_FIXTURES = path.normalize(require.toUrl('./fixtures'));
+const TEST_FIXTURES = path.normalize(getPathFromAmdModule(require, './fixtures'));
 const MULTIROOT_QUERIES: IFolderSearch[] = [
 	{ folder: path.join(TEST_FIXTURES, 'examples') },
 	{ folder: path.join(TEST_FIXTURES, 'more') }

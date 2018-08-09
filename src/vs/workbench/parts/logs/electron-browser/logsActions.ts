@@ -9,13 +9,13 @@ import * as paths from 'vs/base/common/paths';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { IWindowsService, IWindowService } from 'vs/platform/windows/common/windows';
 import { TPromise } from 'vs/base/common/winjs.base';
-import { IQuickOpenService, IPickOpenEntry } from 'vs/platform/quickOpen/common/quickOpen';
 import { ILogService, LogLevel, DEFAULT_LOG_LEVEL } from 'vs/platform/log/common/log';
 import { IOutputService, COMMAND_OPEN_LOG_VIEWER } from 'vs/workbench/parts/output/common/output';
 import * as Constants from 'vs/workbench/parts/logs/common/logConstants';
 import { ICommandService } from 'vs/platform/commands/common/commands';
 import URI from 'vs/base/common/uri';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
+import { IQuickPickItem, IQuickInputService } from 'vs/platform/quickinput/common/quickInput';
 
 export class OpenLogsFolderAction extends Action {
 
@@ -40,7 +40,7 @@ export class ShowLogsAction extends Action {
 	static LABEL = nls.localize('showLogs', "Show Logs...");
 
 	constructor(id: string, label: string,
-		@IQuickOpenService private quickOpenService: IQuickOpenService,
+		@IQuickInputService private quickInputService: IQuickInputService,
 		@IOutputService private outputService: IOutputService,
 		@IWorkspaceContextService private contextService: IWorkspaceContextService
 	) {
@@ -48,14 +48,14 @@ export class ShowLogsAction extends Action {
 	}
 
 	run(): TPromise<void> {
-		const entries: IPickOpenEntry[] = [
+		const entries: IQuickPickItem[] = [
 			{ id: Constants.rendererLogChannelId, label: this.contextService.getWorkspace().name ? nls.localize('rendererProcess', "Window ({0})", this.contextService.getWorkspace().name) : nls.localize('emptyWindow', "Window") },
 			{ id: Constants.extHostLogChannelId, label: nls.localize('extensionHost', "Extension Host") },
 			{ id: Constants.sharedLogChannelId, label: nls.localize('sharedProcess', "Shared") },
 			{ id: Constants.mainLogChannelId, label: nls.localize('mainProcess', "Main") }
 		];
 
-		return this.quickOpenService.pick(entries, { placeHolder: nls.localize('selectProcess', "Select Log for Process") })
+		return this.quickInputService.pick(entries, { placeHolder: nls.localize('selectProcess', "Select Log for Process") })
 			.then(entry => {
 				if (entry) {
 					return this.outputService.showChannel(entry.id);
@@ -71,7 +71,7 @@ export class OpenLogFileAction extends Action {
 	static LABEL = nls.localize('openLogFile', "Open Log File...");
 
 	constructor(id: string, label: string,
-		@IQuickOpenService private quickOpenService: IQuickOpenService,
+		@IQuickInputService private quickInputService: IQuickInputService,
 		@IEnvironmentService private environmentService: IEnvironmentService,
 		@ICommandService private commandService: ICommandService,
 		@IWindowService private windowService: IWindowService,
@@ -81,7 +81,7 @@ export class OpenLogFileAction extends Action {
 	}
 
 	run(): TPromise<void> {
-		const entries: IPickOpenEntry[] = [
+		const entries: IQuickPickItem[] = [
 			{ id: URI.file(paths.join(this.environmentService.logsPath, `renderer${this.windowService.getCurrentWindowId()}.log`)).fsPath, label: this.contextService.getWorkspace().name ? nls.localize('rendererProcess', "Window ({0})", this.contextService.getWorkspace().name) : nls.localize('emptyWindow', "Window") },
 			{ id: URI.file(paths.join(this.environmentService.logsPath, `exthost${this.windowService.getCurrentWindowId()}.log`)).fsPath, label: nls.localize('extensionHost', "Extension Host") },
 			{ id: URI.file(paths.join(this.environmentService.logsPath, `sharedprocess.log`)).fsPath, label: nls.localize('sharedProcess', "Shared") },
@@ -89,7 +89,7 @@ export class OpenLogFileAction extends Action {
 			{ id: URI.file(paths.join(this.environmentService.logsPath, `telemetry.log`)).fsPath, label: nls.localize('telemetry', "Telemetry") }
 		];
 
-		return this.quickOpenService.pick(entries, { placeHolder: nls.localize('selectProcess', "Select Log for Process") })
+		return this.quickInputService.pick(entries, { placeHolder: nls.localize('selectProcess', "Select Log for Process") })
 			.then(entry => {
 				if (entry) {
 					return this.commandService.executeCommand(COMMAND_OPEN_LOG_VIEWER, URI.file(entry.id));
@@ -105,7 +105,7 @@ export class SetLogLevelAction extends Action {
 	static LABEL = nls.localize('setLogLevel', "Set Log Level...");
 
 	constructor(id: string, label: string,
-		@IQuickOpenService private quickOpenService: IQuickOpenService,
+		@IQuickInputService private quickInputService: IQuickInputService,
 		@ILogService private logService: ILogService
 	) {
 		super(id, label);
@@ -123,7 +123,7 @@ export class SetLogLevelAction extends Action {
 			{ label: nls.localize('off', "Off"), level: LogLevel.Off, description: this.getDescription(LogLevel.Off, current) },
 		];
 
-		return this.quickOpenService.pick(entries, { placeHolder: nls.localize('selectLogLevel', "Select log level"), autoFocus: { autoFocusIndex: this.logService.getLevel() } }).then(entry => {
+		return this.quickInputService.pick(entries, { placeHolder: nls.localize('selectLogLevel', "Select log level"), activeItem: entries[this.logService.getLevel()] }).then(entry => {
 			if (entry) {
 				this.logService.setLevel(entry.level);
 			}

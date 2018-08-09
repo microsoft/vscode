@@ -673,8 +673,7 @@ export class ExtensionTipsService extends Disposable implements IExtensionTipsSe
 									});
 							}
 						}, {
-							label: choiceNever,
-							isSecondary: true,
+							label: localize('dontShowAgainExtension', "Don't Show Again for '.{0}' files", fileExtension),
 							run: () => {
 								fileExtensionSuggestionIgnoreList.push(fileExtension);
 								this.storageService.store(

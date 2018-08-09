@@ -69,6 +69,7 @@ export class DebugService implements debug.IDebugService {
 	private readonly _onDidChangeState: Emitter<debug.State>;
 	private readonly _onDidNewSession: Emitter<debug.ISession>;
 	private readonly _onDidEndSession: Emitter<debug.ISession>;
+	private readonly _onDidLoadedSource: Emitter<debug.LoadedSourceEvent>;
 	private readonly _onDidCustomEvent: Emitter<debug.DebugEvent>;
 	private model: Model;
 	private viewModel: ViewModel;
@@ -78,6 +79,7 @@ export class DebugService implements debug.IDebugService {
 	private toDisposeOnSessionEnd: Map<string, lifecycle.IDisposable[]>;
 	private debugType: IContextKey<string>;
 	private debugState: IContextKey<string>;
+	private inDebugMode: IContextKey<boolean>;
 	private breakpointsToSendOnResourceSaved: Set<string>;
 	private firstSessionStart: boolean;
 	private skipRunningTask: boolean;
@@ -112,6 +114,7 @@ export class DebugService implements debug.IDebugService {
 		this._onDidChangeState = new Emitter<debug.State>();
 		this._onDidNewSession = new Emitter<debug.ISession>();
 		this._onDidEndSession = new Emitter<debug.ISession>();
+		this._onDidLoadedSource = new Emitter<debug.LoadedSourceEvent>();
 		this._onDidCustomEvent = new Emitter<debug.DebugEvent>();
 		this.sessionStates = new Map<string, debug.State>();
 		this.allSessions = new Map<string, debug.ISession>();
@@ -121,6 +124,7 @@ export class DebugService implements debug.IDebugService {
 		this.toDispose.push(this.configurationManager);
 		this.debugType = debug.CONTEXT_DEBUG_TYPE.bindTo(contextKeyService);
 		this.debugState = debug.CONTEXT_DEBUG_STATE.bindTo(contextKeyService);
+		this.inDebugMode = debug.CONTEXT_IN_DEBUG_MODE.bindTo(contextKeyService);
 
 		this.model = new Model(this.loadBreakpoints(), this.storageService.getBoolean(DEBUG_BREAKPOINTS_ACTIVATED_KEY, StorageScope.WORKSPACE, true), this.loadFunctionBreakpoints(),
 			this.loadExceptionBreakpoints(), this.loadWatchExpressions());
@@ -448,6 +452,14 @@ export class DebugService implements debug.IDebugService {
 			}
 		}));
 
+		this.toDisposeOnSessionEnd.get(session.getId()).push(raw.onDidLoadedSource(event => {
+			this._onDidLoadedSource.fire({
+				session: session,
+				reason: event.body.reason,
+				source: session.getSource(event.body.source)
+			});
+		}));
+
 		this.toDisposeOnSessionEnd.get(session.getId()).push(raw.onDidCustomEvent(event => {
 			this._onDidCustomEvent.fire(event);
 		}));
@@ -540,6 +552,10 @@ export class DebugService implements debug.IDebugService {
 		return this._onDidEndSession.event;
 	}
 
+	public get onDidLoadedSource(): Event<debug.LoadedSourceEvent> {
+		return this._onDidLoadedSource.event;
+	}
+
 	public get onDidCustomEvent(): Event<debug.DebugEvent> {
 		return this._onDidCustomEvent.event;
 	}
@@ -558,6 +574,7 @@ export class DebugService implements debug.IDebugService {
 			const stateLabel = debug.State[state];
 			if (stateLabel) {
 				this.debugState.set(stateLabel.toLowerCase());
+				this.inDebugMode.set(state !== debug.State.Inactive);
 			}
 			this.previousState = state;
 			this._onDidChangeState.fire(state);
@@ -1102,7 +1119,8 @@ export class DebugService implements debug.IDebugService {
 			const unresolvedConfiguration = (<Session>session).unresolvedConfiguration;
 			if (session.raw.capabilities.supportsRestartRequest) {
 				return this.runTask(session.getId(), session.raw.root, session.configuration.postDebugTask, session.configuration, unresolvedConfiguration,
-					() => session.raw.custom('restart', null));
+					() => this.runTask(session.getId(), session.raw.root, session.configuration.preLaunchTask, session.configuration, unresolvedConfiguration,
+						() => session.raw.custom('restart', null)));
 			}
 
 			const focusedSession = this.viewModel.focusedSession;

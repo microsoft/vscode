@@ -1074,7 +1074,17 @@ class EditorHistoryHandler {
 		// Massage search for scoring
 		const query = prepareQuery(searchValue);
 
-		const history = this.historyService.getHistory()
+		// Just return all if we are not searching
+		const history = this.historyService.getHistory();
+		if (!query.value) {
+			return history.map(input => this.instantiationService.createInstance(EditorHistoryEntry, input));
+		}
+
+		// Otherwise filter by search value and sort by score. Include matches on description
+		// in case the user is explicitly including path separators.
+		const accessor = query.containsPathSeparator ? MatchOnDescription : DoNotMatchOnDescription;
+		return history
+
 			// For now, only support to match on inputs that provide resource information
 			.filter(input => {
 				let resource: URI;
@@ -1088,17 +1098,8 @@ class EditorHistoryHandler {
 			})
 
 			// Conver to quick open entries
-			.map(input => this.instantiationService.createInstance(EditorHistoryEntry, input));
+			.map(input => this.instantiationService.createInstance(EditorHistoryEntry, input))
 
-		// Just return all if we are not searching
-		if (!query.value) {
-			return history;
-		}
-
-		// Otherwise filter by search value and sort by score. Include matches on description
-		// in case the user is explicitly including path separators.
-		const accessor = query.containsPathSeparator ? MatchOnDescription : DoNotMatchOnDescription;
-		return history
 			// Make sure the search value is matching
 			.filter(e => {
 				const itemScore = scoreItem(e, query, false, accessor, this.scorerCache);
