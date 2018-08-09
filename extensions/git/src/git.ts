@@ -940,6 +940,9 @@ export class Repository {
 		if (opts.signCommit) {
 			args.push('-S');
 		}
+		if (opts.empty) {
+			args.push('--allow-empty');
+		}
 
 		try {
 			await this.run(args, { input: message || '' });
