@@ -365,7 +365,8 @@ export class BreadcrumbsControl {
 MenuRegistry.appendMenuItem(MenuId.CommandPalette, {
 	command: {
 		id: 'breadcrumbs.toggle',
-		title: localize('cmd.toggle', "Toggle Breadcrumbs")
+		title: localize('cmd.toggle', "Toggle Breadcrumbs"),
+		category: localize('cmd.category', "View")
 	}
 });
 MenuRegistry.appendMenuItem(MenuId.MenubarViewMenu, {

@@ -10,19 +10,15 @@ import { CancellationToken } from 'vs/base/common/cancellation';
 import { ResolvedKeybinding } from 'vs/base/common/keyCodes';
 import URI from 'vs/base/common/uri';
 import { Event } from 'vs/base/common/event';
-import { FileKind } from 'vs/platform/files/common/files';
 
 export interface IQuickPickItem {
 	id?: string;
 	label: string;
 	description?: string;
 	detail?: string;
+	iconClasses?: string[];
+	buttons?: IQuickInputButton[];
 	picked?: boolean;
-}
-
-export interface IFilePickItem extends IQuickPickItem {
-	resource: URI;
-	fileKind?: FileKind;
 }
 
 export interface IQuickNavigateConfiguration {
@@ -57,11 +53,22 @@ export interface IPickOptions<T extends IQuickPickItem> {
 	canPickMany?: boolean;
 
 	/**
+	 * enables quick navigate in the picker to open an element without typing
+	 */
+	quickNavigate?: IQuickNavigateConfiguration;
+
+	/**
+	 * a context key to set when this picker is active
+	 */
+	contextKey?: string;
+
+	/**
 	 * an optional property for the item to focus initially.
 	 */
 	activeItem?: TPromise<T> | T;
 
 	onDidFocus?: (entry: T) => void;
+	onDidTriggerItemButton?: (context: IQuickPickItemButtonContext<T>) => void;
 }
 
 export interface IInputOptions {
@@ -109,6 +116,8 @@ export interface IQuickInput {
 
 	enabled: boolean;
 
+	contextKey: string | undefined;
+
 	busy: boolean;
 
 	ignoreFocusOut: boolean;
@@ -136,6 +145,8 @@ export interface IQuickPick<T extends IQuickPickItem> extends IQuickInput {
 
 	readonly onDidTriggerButton: Event<IQuickInputButton>;
 
+	readonly onDidTriggerItemButton: Event<IQuickPickItemButtonEvent<T>>;
+
 	items: ReadonlyArray<T>;
 
 	canSelectMany: boolean;
@@ -143,6 +154,8 @@ export interface IQuickPick<T extends IQuickPickItem> extends IQuickInput {
 	matchOnDescription: boolean;
 
 	matchOnDetail: boolean;
+
+	quickNavigate: IQuickNavigateConfiguration | undefined;
 
 	activeItems: ReadonlyArray<T>;
 
@@ -177,8 +190,18 @@ export interface IInputBox extends IQuickInput {
 }
 
 export interface IQuickInputButton {
-	iconPath: { dark: URI; light?: URI; };
-	tooltip?: string | undefined;
+	iconPath?: { dark: URI; light?: URI; };
+	iconClass?: string;
+	tooltip?: string;
+}
+
+export interface IQuickPickItemButtonEvent<T extends IQuickPickItem> {
+	button: IQuickInputButton;
+	item: T;
+}
+
+export interface IQuickPickItemButtonContext<T extends IQuickPickItem> extends IQuickPickItemButtonEvent<T> {
+	removeItem(): void;
 }
 
 export const IQuickInputService = createDecorator<IQuickInputService>('quickInputService');

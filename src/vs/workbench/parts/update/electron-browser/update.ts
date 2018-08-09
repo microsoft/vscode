@@ -209,9 +209,28 @@ export class Win3264BitContribution implements IWorkbenchContribution {
 	}
 }
 
+async function isUserSetupInstalled(): Promise<boolean> {
+	const rawUserAppId = process.arch === 'x64' ? product.win32x64UserAppId : product.win32UserAppId;
+	const userAppId = rawUserAppId.replace(/^\{\{/, '{');
+	const Registry = await import('winreg');
+	const key = new Registry({
+		hive: Registry.HKCU,
+		key: `\\SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\Uninstall\\${userAppId}_is1`
+	});
+
+	try {
+		await new Promise((c, e) => key.get('', (err, result) => err ? e(err) : c(result)));
+	} catch (err) {
+		return false;
+	}
+
+	return true;
+}
+
 export class WinUserSetupContribution implements IWorkbenchContribution {
 
 	private static readonly KEY = 'update/win32-usersetup';
+	private static readonly KEY_BOTH = 'update/win32-usersetup-both';
 
 	private static readonly STABLE_URL = 'https://vscode-update.azurewebsites.net/latest/win32-x64-user/stable';
 	private static readonly STABLE_URL_32BIT = 'https://vscode-update.azurewebsites.net/latest/win32-user/stable';
@@ -230,8 +249,34 @@ export class WinUserSetupContribution implements IWorkbenchContribution {
 		@IOpenerService private openerService: IOpenerService,
 		@IUpdateService private updateService: IUpdateService
 	) {
-		updateService.onStateChange(this.onUpdateStateChange, this, this.disposables);
-		this.onUpdateStateChange(this.updateService.state);
+		const neverShowAgain = new NeverShowAgain(WinUserSetupContribution.KEY_BOTH, this.storageService);
+
+		if (!neverShowAgain.shouldShow()) {
+			return;
+		}
+
+		isUserSetupInstalled().then(userSetupIsInstalled => {
+			if (!userSetupIsInstalled) {
+				updateService.onStateChange(this.onUpdateStateChange, this, this.disposables);
+				this.onUpdateStateChange(this.updateService.state);
+				return;
+			}
+
+			const handle = this.notificationService.prompt(
+				severity.Warning,
+				nls.localize('usersetupsystem', "You are running the system-wide installation of {0}, while having the user-wide distribution installed as well. Make sure you're running the {0} version you expect.", product.nameShort),
+				[
+					{ label: nls.localize('ok', "OK"), run: () => null },
+					{
+						label: nls.localize('neveragain', "Don't Show Again"),
+						isSecondary: true,
+						run: () => {
+							neverShowAgain.action.run(handle);
+							neverShowAgain.action.dispose();
+						}
+					}]
+			);
+		});
 	}
 
 	private onUpdateStateChange(state: UpdateState): void {

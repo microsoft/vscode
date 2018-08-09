@@ -134,22 +134,22 @@ export class StatusbarPart extends Part implements IStatusbarService {
 	protected updateStyles(): void {
 		super.updateStyles();
 
-		const container = $(this.getContainer());
+		const container = this.getContainer();
 
 		// Background colors
 		const backgroundColor = this.getColor(this.contextService.getWorkbenchState() !== WorkbenchState.EMPTY ? STATUS_BAR_BACKGROUND : STATUS_BAR_NO_FOLDER_BACKGROUND);
-		container.style('background-color', backgroundColor);
-		container.style('color', this.getColor(this.contextService.getWorkbenchState() !== WorkbenchState.EMPTY ? STATUS_BAR_FOREGROUND : STATUS_BAR_NO_FOLDER_FOREGROUND));
+		container.style.backgroundColor = backgroundColor;
+		container.style.color = this.getColor(this.contextService.getWorkbenchState() !== WorkbenchState.EMPTY ? STATUS_BAR_FOREGROUND : STATUS_BAR_NO_FOLDER_FOREGROUND);
 
 		// Border color
 		const borderColor = this.getColor(this.contextService.getWorkbenchState() !== WorkbenchState.EMPTY ? STATUS_BAR_BORDER : STATUS_BAR_NO_FOLDER_BORDER) || this.getColor(contrastBorder);
-		container.style('border-top-width', borderColor ? '1px' : null);
-		container.style('border-top-style', borderColor ? 'solid' : null);
-		container.style('border-top-color', borderColor);
+		container.style.borderTopWidth = borderColor ? '1px' : null;
+		container.style.borderTopStyle = borderColor ? 'solid' : null;
+		container.style.borderTopColor = borderColor;
 
 		// Notification Beak
 		if (!this.styleElement) {
-			this.styleElement = createStyleSheet(container.getHTMLElement());
+			this.styleElement = createStyleSheet(container);
 		}
 
 		this.styleElement.innerHTML = `.monaco-workbench > .part.statusbar > .statusbar-item.has-beak:before { border-bottom-color: ${backgroundColor}; }`;

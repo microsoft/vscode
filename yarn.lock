@@ -7855,9 +7855,9 @@ vscode-textmate@^4.0.1:
   dependencies:
     oniguruma "^7.0.0"
 
-vscode-xterm@3.7.0-beta2:
-  version "3.7.0-beta2"
-  resolved "https://registry.yarnpkg.com/vscode-xterm/-/vscode-xterm-3.7.0-beta2.tgz#b46417f740ee6a90875ab956b4583f20a09cc2db"
+vscode-xterm@3.7.0-beta3:
+  version "3.7.0-beta3"
+  resolved "https://registry.yarnpkg.com/vscode-xterm/-/vscode-xterm-3.7.0-beta3.tgz#2306f9650ee2f55637ba1804d10c5ffb9ef944f6"
 
 vso-node-api@^6.1.2-preview:
   version "6.1.2-preview"
@@ -7987,6 +7987,10 @@ windows-process-tree@0.2.2:
   resolved "https://registry.yarnpkg.com/windows-process-tree/-/windows-process-tree-0.2.2.tgz#1ab2518588d6f389c10e5a6c9c0d5550989506f4"
   dependencies:
     nan "^2.6.2"
+
+winreg@^1.2.4:
+  version "1.2.4"
+  resolved "https://registry.yarnpkg.com/winreg/-/winreg-1.2.4.tgz#ba065629b7a925130e15779108cf540990e98d1b"
 
 wordwrap@0.0.2:
   version "0.0.2"

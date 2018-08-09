@@ -885,7 +885,7 @@
             "string",
             "null"
           ],
-          "description": "%config.path%",
+          "markdownDescription": "%config.path%",
           "default": null,
           "scope": "application"
         },
@@ -899,6 +899,12 @@
             false,
             "subFolders",
             "openEditors"
+          ],
+          "enumDescriptions": [
+            "%config.autoRepositoryDetection.true%",
+            "%config.autoRepositoryDetection.false%",
+            "%config.autoRepositoryDetection.subFolders%",
+            "%config.autoRepositoryDetection.openEditors%"
           ],
           "description": "%config.autoRepositoryDetection%",
           "default": true
@@ -950,7 +956,7 @@
             "%config.checkoutType.tags%",
             "%config.checkoutType.remote%"
           ],
-          "description": "%config.checkoutType%",
+          "markdownDescription": "%config.checkoutType%",
           "default": "all"
         },
         "git.ignoreLegacyWarning": {

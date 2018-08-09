@@ -157,7 +157,7 @@ export class ExplorerItem {
 			// the folder is fully resolved if either it has a list of children or the client requested this by using the resolveTo
 			// array of resource path to resolve.
 			stat.isDirectoryResolved = !!raw.children || (!!resolveTo && resolveTo.some((r) => {
-				return resources.isEqualOrParent(r, stat.resource, !isLinux /* ignorecase */);
+				return resources.isEqualOrParent(r, stat.resource, resources.hasToIgnoreCase(r));
 			}));
 
 			// Recurse into children
@@ -311,7 +311,7 @@ export class ExplorerItem {
 	}
 
 	private updateResource(recursive: boolean): void {
-		this.resource = this.parent.resource.with({ path: paths.join(this.parent.resource.path, this.name) });
+		this.resource = resources.joinPath(this.parent.resource, this.name);
 
 		if (recursive) {
 			if (this.isDirectory && this.children) {

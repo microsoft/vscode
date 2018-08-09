@@ -882,6 +882,7 @@ export interface ExtHostSCMShape {
 	$onInputBoxValueChange(sourceControlHandle: number, value: string): TPromise<void>;
 	$executeResourceCommand(sourceControlHandle: number, groupHandle: number, handle: number): TPromise<void>;
 	$validateInput(sourceControlHandle: number, value: string, cursorPosition: number): TPromise<[string, number] | undefined>;
+	$setSelectedSourceControls(selectedSourceControlHandles: number[]): TPromise<void>;
 }
 
 export interface ExtHostTaskShape {

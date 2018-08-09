@@ -33,11 +33,11 @@ suite('Completions', () => {
 		}
 	};
 
-	function assertCompletions(value: string, expected: { count?: number, items?: ItemDescription[] }, testUri: string, workspaceFolders?: WorkspaceFolder[]): void {
+	function assertCompletions(value: string, expected: { count?: number, items?: ItemDescription[] }, testUri: string, workspaceFolders?: WorkspaceFolder[], lang: string = 'css'): void {
 		const offset = value.indexOf('|');
 		value = value.substr(0, offset) + value.substr(offset + 1);
 
-		const document = TextDocument.create(testUri, 'css', 0, value);
+		const document = TextDocument.create(testUri, lang, 0, value);
 		const position = document.positionAt(offset);
 
 		if (!workspaceFolders) {
@@ -61,7 +61,7 @@ suite('Completions', () => {
 		}
 	}
 
-	test('CSS Path completion', function () {
+	test('CSS url() Path completion', function () {
 		let testUri = Uri.file(path.resolve(__dirname, '../../test/pathCompletionFixtures/about/about.css')).toString();
 		let folders = [{ name: 'x', uri: Uri.file(path.resolve(__dirname, '../../test')).toString() }];
 
@@ -121,7 +121,7 @@ suite('Completions', () => {
 		}, testUri, folders);
 	});
 
-	test('CSS Path Completion - Unquoted url', function () {
+	test('CSS url() Path Completion - Unquoted url', function () {
 		let testUri = Uri.file(path.resolve(__dirname, '../../test/pathCompletionFixtures/about/about.css')).toString();
 		let folders = [{ name: 'x', uri: Uri.file(path.resolve(__dirname, '../../test')).toString() }];
 
@@ -148,5 +148,51 @@ suite('Completions', () => {
 				{ label: 'about/', resultText: 'html { background-image: url(../about/)' }
 			]
 		}, testUri, folders);
+	});
+
+	test('CSS @import Path completion', function () {
+		let testUri = Uri.file(path.resolve(__dirname, '../../test/pathCompletionFixtures/about/about.css')).toString();
+		let folders = [{ name: 'x', uri: Uri.file(path.resolve(__dirname, '../../test')).toString() }];
+
+		assertCompletions(`@import './|'`, {
+			items: [
+				{ label: 'about.css', resultText: `@import './about.css'` },
+				{ label: 'about.html', resultText: `@import './about.html'` },
+			]
+		}, testUri, folders);
+
+		assertCompletions(`@import '../|'`, {
+			items: [
+				{ label: 'about/', resultText: `@import '../about/'` },
+				{ label: 'scss/', resultText: `@import '../scss/'` },
+				{ label: 'index.html', resultText: `@import '../index.html'` },
+				{ label: 'src/', resultText: `@import '../src/'` }
+			]
+		}, testUri, folders);
+	});
+
+	/**
+	 * For SCSS, `@import 'foo';` can be used for importing partial file `_foo.scss`
+	 */
+	test('SCSS @import Path completion', function () {
+		let testCSSUri = Uri.file(path.resolve(__dirname, '../../test/pathCompletionFixtures/about/about.css')).toString();
+		let folders = [{ name: 'x', uri: Uri.file(path.resolve(__dirname, '../../test')).toString() }];
+
+		/**
+		 * We are in a CSS file, so no special treatment for SCSS partial files
+		*/
+		assertCompletions(`@import '../scss/|'`, {
+			items: [
+				{ label: 'main.scss', resultText: `@import '../scss/main.scss'` },
+				{ label: '_foo.scss', resultText: `@import '../scss/_foo.scss'` }
+			]
+		}, testCSSUri, folders);
+
+		let testSCSSUri = Uri.file(path.resolve(__dirname, '../../test/pathCompletionFixtures/scss/main.scss')).toString();
+		assertCompletions(`@import './|'`, {
+			items: [
+				{ label: '_foo.scss', resultText: `@import './foo'` }
+			]
+		}, testSCSSUri, folders, 'scss');
 	});
 });
