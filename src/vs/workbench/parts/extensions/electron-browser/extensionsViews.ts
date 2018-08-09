@@ -240,8 +240,7 @@ export class ExtensionsListView extends ViewletPanel {
 
 		if (names.length) {
 			return this.extensionsWorkbenchService.queryGallery({ names, source: 'queryById' })
-				.then(pager => new PagedModel(pager),
-					e => TPromise.wrapError(e));
+				.then(pager => new PagedModel(pager));
 		}
 
 		if (/@outdated/i.test(value)) {
@@ -317,8 +316,7 @@ export class ExtensionsListView extends ViewletPanel {
 
 			if (text !== query.value) {
 				options = assign(options, { text: text.substr(0, 350), source: 'file-extension-tags' });
-				const pager = await this.extensionsWorkbenchService.queryGallery(options);
-				return new PagedModel(pager);
+				return this.extensionsWorkbenchService.queryGallery(options).then(pager => new PagedModel(pager));
 			}
 		}
 
@@ -328,8 +326,7 @@ export class ExtensionsListView extends ViewletPanel {
 			options.source = 'viewlet';
 		}
 
-		const pager = await this.extensionsWorkbenchService.queryGallery(options);
-		return new PagedModel(pager);
+		return this.extensionsWorkbenchService.queryGallery(options).then(pager => new PagedModel(pager));
 	}
 
 	private sortExtensions(extensions: IExtension[], options: IQueryOptions): IExtension[] {
