@@ -18,7 +18,7 @@
   "dependencies": {
     "jsonc-parser": "^2.0.1",
     "semver": "4.3.6",
-    "vscode-extension-telemetry": "0.0.17",
+    "vscode-extension-telemetry": "0.0.18",
     "vscode-nls": "^3.2.4"
   },
   "devDependencies": {
@@ -73,7 +73,8 @@
           "type": "boolean",
           "default": false,
           "description": "%typescript.disableAutomaticTypeAcquisition%",
-          "scope": "window"
+          "scope": "window",
+          "tags": ["usesOnlineServices"]
         },
         "typescript.npm": {
           "type": [
@@ -366,7 +367,7 @@
         "javascript.implicitProjectConfig.experimentalDecorators": {
           "type": "boolean",
           "default": false,
-          "description": "%javascript.implicitProjectConfig.experimentalDecorators%",
+          "markdownDescription": "%javascript.implicitProjectConfig.experimentalDecorators%",
           "scope": "window"
         },
         "javascript.nameSuggestions": {
@@ -383,6 +384,12 @@
             "off",
             "build",
             "watch"
+          ],
+          "enumDescriptions": [
+            "%typescript.tsc.autoDetect.on%",
+            "%typescript.tsc.autoDetect.off%",
+            "%typescript.tsc.autoDetect.build%",
+            "%typescript.tsc.autoDetect.watch%"
           ],
           "description": "%typescript.tsc.autoDetect%",
           "scope": "window"
@@ -418,7 +425,7 @@
             null
           ],
           "default": null,
-          "description": "%typescript.locale%",
+          "markdownDescription": "%typescript.locale%",
           "scope": "window"
         },
         "javascript.suggestionActions.enabled": {
@@ -441,7 +448,7 @@
             "double"
           ],
           "default": "auto",
-          "description": "%typescript.preferences.quoteStyle%",
+          "markdownDescription": "%typescript.preferences.quoteStyle%",
           "scope": "resource"
         },
         "typescript.preferences.quoteStyle": {
@@ -452,7 +459,7 @@
             "double"
           ],
           "default": "auto",
-          "description": "%typescript.preferences.quoteStyle%",
+          "markdownDescription": "%typescript.preferences.quoteStyle%",
           "scope": "resource"
         },
         "javascript.preferences.importModuleSpecifier": {
@@ -461,6 +468,11 @@
             "auto",
             "relative",
             "non-relative"
+          ],
+          "markdownEnumDescriptions": [
+            "%typescript.preferences.importModuleSpecifier.auto%",
+            "%typescript.preferences.importModuleSpecifier.relative%",
+            "%typescript.preferences.importModuleSpecifier.nonRelative%"
           ],
           "default": "auto",
           "description": "%typescript.preferences.importModuleSpecifier%",
@@ -473,20 +485,13 @@
             "relative",
             "non-relative"
           ],
+          "enumDescriptions": [
+            "%typescript.preferences.importModuleSpecifier.auto%",
+            "%typescript.preferences.importModuleSpecifier.relative%",
+            "%typescript.preferences.importModuleSpecifier.nonRelative%"
+          ],
           "default": "auto",
           "description": "%typescript.preferences.importModuleSpecifier%",
-          "scope": "resource"
-        },
-        "javascript.showUnused": {
-          "type": "boolean",
-          "default": true,
-          "description": "%typescript.showUnused%",
-          "scope": "resource"
-        },
-        "typescript.showUnused": {
-          "type": "boolean",
-          "default": true,
-          "description": "%typescript.showUnused%",
           "scope": "resource"
         },
         "typescript.updateImportsOnFileMove.enabled": {
@@ -495,6 +500,11 @@
             "prompt",
             "always",
             "never"
+          ],
+          "enumDescriptions": [
+            "%typescript.updateImportsOnFileMove.enabled.prompt%",
+            "%typescript.updateImportsOnFileMove.enabled.always%",
+            "%typescript.updateImportsOnFileMove.enabled.never%"
           ],
           "default": "prompt",
           "description": "%typescript.updateImportsOnFileMove.enabled%",

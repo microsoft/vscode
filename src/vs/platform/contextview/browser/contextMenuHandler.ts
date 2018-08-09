@@ -82,7 +82,7 @@ export class ContextMenuHandler {
 					menu.onDidCancel(() => this.contextViewService.hideContextView(true), null, menuDisposables);
 					menu.onDidBlur(() => this.contextViewService.hideContextView(true), null, menuDisposables);
 
-					menu.focus();
+					menu.focus(!!delegate.autoSelectFirstItem);
 
 					return combinedDisposable([...menuDisposables, menu]);
 				},

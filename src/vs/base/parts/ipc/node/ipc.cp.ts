@@ -107,9 +107,8 @@ export class Client implements IChannelClient, IDisposable {
 		const channel = this.channels[channelName] || (this.channels[channelName] = this.client.getChannel(channelName));
 		const request: TPromise<void> = channel.call(name, arg);
 
-		// Progress doesn't propagate across 'then', we need to create a promise wrapper
-		const result = new TPromise<void>((c, e, p) => {
-			request.then(c, e, p).done(() => {
+		const result = new TPromise<void>((c, e) => {
+			request.then(c, e).done(() => {
 				if (!this.activeRequests) {
 					return;
 				}
@@ -150,6 +149,7 @@ export class Client implements IChannelClient, IDisposable {
 				}
 
 				this.activeRequests.splice(this.activeRequests.indexOf(listener), 1);
+				listener.dispose();
 
 				if (this.activeRequests.length === 0) {
 					this.disposeDelayer.trigger(() => this.disposeClient());

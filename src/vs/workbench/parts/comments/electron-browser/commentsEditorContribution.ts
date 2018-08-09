@@ -5,11 +5,13 @@
 'use strict';
 
 import 'vs/css!./media/review';
+import * as nls from 'vs/nls';
 import { $ } from 'vs/base/browser/builder';
+import { findFirstInSorted } from 'vs/base/common/arrays';
 import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { ICodeEditor, IEditorMouseEvent, IViewZone } from 'vs/editor/browser/editorBrowser';
-import { registerEditorContribution } from 'vs/editor/browser/editorExtensions';
+import { registerEditorContribution, EditorAction, registerEditorAction } from 'vs/editor/browser/editorExtensions';
 import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
 import { EmbeddedCodeEditorWidget } from 'vs/editor/browser/widget/embeddedCodeEditorWidget';
 import { IEditorContribution } from 'vs/editor/common/editorCommon';
@@ -17,7 +19,7 @@ import * as modes from 'vs/editor/common/modes';
 import { peekViewEditorBackground, peekViewResultsBackground, peekViewResultsSelectionBackground } from 'vs/editor/contrib/referenceSearch/referencesWidget';
 import { IContextKey, IContextKeyService, RawContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { ServicesAccessor, IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { KeybindingsRegistry } from 'vs/platform/keybinding/common/keybindingsRegistry';
+import { KeybindingsRegistry, KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { INotificationService } from 'vs/platform/notification/common/notification';
 import { editorForeground } from 'vs/platform/theme/common/colorRegistry';
 import { IThemeService, registerThemingParticipant } from 'vs/platform/theme/common/themeService';
@@ -155,6 +157,56 @@ export class ReviewController implements IEditorContribution {
 		}
 	}
 
+	public nextCommentThread(): void {
+		if (!this._commentWidgets.length) {
+			return;
+		}
+
+		const after = this.editor.getSelection().getEndPosition();
+		const sortedWidgets = this._commentWidgets.sort((a, b) => {
+			if (a.commentThread.range.startLineNumber < b.commentThread.range.startLineNumber) {
+				return -1;
+			}
+
+			if (a.commentThread.range.startLineNumber > b.commentThread.range.startLineNumber) {
+				return 1;
+			}
+
+			if (a.commentThread.range.startColumn < b.commentThread.range.startColumn) {
+				return -1;
+			}
+
+			if (a.commentThread.range.startColumn > b.commentThread.range.startColumn) {
+				return 1;
+			}
+
+			return 0;
+		});
+
+		let idx = findFirstInSorted(sortedWidgets, widget => {
+			if (widget.commentThread.range.startLineNumber > after.lineNumber) {
+				return true;
+			}
+
+			if (widget.commentThread.range.startLineNumber < after.lineNumber) {
+				return false;
+			}
+
+			if (widget.commentThread.range.startColumn > after.column) {
+				return true;
+			}
+			return false;
+		});
+
+		if (idx === this._commentWidgets.length) {
+			this._commentWidgets[0].reveal();
+			this.editor.setSelection(this._commentWidgets[0].commentThread.range);
+		} else {
+			sortedWidgets[idx].reveal();
+			this.editor.setSelection(sortedWidgets[idx].commentThread.range);
+		}
+	}
+
 	getId(): string {
 		return ID;
 	}
@@ -191,6 +243,7 @@ export class ReviewController implements IEditorContribution {
 		this._commentWidgets = [];
 
 		this.localToDispose.push(this.editor.onMouseMove(e => this.onEditorMouseMove(e)));
+		this.localToDispose.push(this.editor.onMouseLeave(() => this.onMouseLeave()));
 		this.localToDispose.push(this.editor.onDidChangeModelContent(() => {
 			if (this._newCommentGlyph) {
 				this.editor.removeContentWidget(this._newCommentGlyph);
@@ -286,6 +339,12 @@ export class ReviewController implements IEditorContribution {
 		}
 	}
 
+	private onMouseLeave(): void {
+		if (this._newCommentGlyph) {
+			this.editor.removeContentWidget(this._newCommentGlyph);
+		}
+	}
+
 	private getNewCommentAction(line: number): { replyCommand: modes.Command, ownerId: number } {
 		for (let i = 0; i < this._commentInfos.length; i++) {
 			const commentInfo = this._commentInfos[i];
@@ -360,12 +419,31 @@ export class ReviewController implements IEditorContribution {
 	}
 }
 
-registerEditorContribution(ReviewController);
+export class NextCommentThreadAction extends EditorAction {
 
+	constructor() {
+		super({
+			id: 'editor.action.nextCommentThreadAction',
+			label: nls.localize('nextCommentThreadAction', "Go to Next Comment Thread"),
+			alias: 'Go to Next Comment Thread',
+			precondition: null,
+		});
+	}
+
+	public run(accessor: ServicesAccessor, editor: ICodeEditor): void {
+		let controller = ReviewController.get(editor);
+		if (controller) {
+			controller.nextCommentThread();
+		}
+	}
+}
+
+registerEditorContribution(ReviewController);
+registerEditorAction(NextCommentThreadAction);
 
 KeybindingsRegistry.registerCommandAndKeybindingRule({
 	id: 'closeReviewPanel',
-	weight: KeybindingsRegistry.WEIGHT.editorContrib(),
+	weight: KeybindingWeight.EditorContrib,
 	primary: KeyCode.Escape,
 	secondary: [KeyMod.Shift | KeyCode.Escape],
 	when: ctxReviewPanelVisible,

@@ -6,7 +6,7 @@
 
 import { localize } from 'vs/nls';
 import { Event, Emitter } from 'vs/base/common/event';
-import { basename, dirname } from 'vs/base/common/paths';
+import { basename } from 'vs/base/common/paths';
 import { IDisposable, dispose, IReference } from 'vs/base/common/lifecycle';
 import * as strings from 'vs/base/common/strings';
 import URI from 'vs/base/common/uri';
@@ -44,14 +44,6 @@ export class OneReference {
 
 	public get uri(): URI {
 		return this._parent.uri;
-	}
-
-	public get name(): string {
-		return this._parent.name;
-	}
-
-	public get directory(): string {
-		return this._parent.directory;
 	}
 
 	public get range(): IRange {
@@ -133,14 +125,6 @@ export class FileReferences implements IDisposable {
 
 	public get uri(): URI {
 		return this._uri;
-	}
-
-	public get name(): string {
-		return basename(this.uri.fsPath);
-	}
-
-	public get directory(): string {
-		return dirname(this.uri.fsPath);
 	}
 
 	public get preview(): FilePreview {

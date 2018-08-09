@@ -6,10 +6,100 @@
 import * as ts from 'typescript';
 import * as fs from 'fs';
 import * as path from 'path';
+import * as tss from './treeshaking';
 
 const REPO_ROOT = path.join(__dirname, '../../');
 const SRC_DIR = path.join(REPO_ROOT, 'src');
 const OUT_EDITOR = path.join(REPO_ROOT, 'out-editor');
+
+let dirCache: { [dir: string]: boolean; } = {};
+
+function writeFile(filePath: string, contents: Buffer | string): void {
+	function ensureDirs(dirPath: string): void {
+		if (dirCache[dirPath]) {
+			return;
+		}
+		dirCache[dirPath] = true;
+
+		ensureDirs(path.dirname(dirPath));
+		if (fs.existsSync(dirPath)) {
+			return;
+		}
+		fs.mkdirSync(dirPath);
+	}
+	ensureDirs(path.dirname(filePath));
+	fs.writeFileSync(filePath, contents);
+}
+
+export function extractEditor(options: tss.ITreeShakingOptions & { destRoot: string }): void {
+	let result = tss.shake(options);
+	for (let fileName in result) {
+		if (result.hasOwnProperty(fileName)) {
+			writeFile(path.join(options.destRoot, fileName), result[fileName]);
+		}
+	}
+	let copied: { [fileName:string]: boolean; } = {};
+	const copyFile = (fileName: string) => {
+		if (copied[fileName]) {
+			return;
+		}
+		copied[fileName] = true;
+		const srcPath = path.join(options.sourcesRoot, fileName);
+		const dstPath = path.join(options.destRoot, fileName);
+		writeFile(dstPath, fs.readFileSync(srcPath));
+	};
+	const writeOutputFile = (fileName: string, contents: string) => {
+		writeFile(path.join(options.destRoot, fileName), contents);
+	};
+	for (let fileName in result) {
+		if (result.hasOwnProperty(fileName)) {
+			const fileContents = result[fileName];
+			const info = ts.preProcessFile(fileContents);
+
+			for (let i = info.importedFiles.length - 1; i >= 0; i--) {
+				const importedFileName = info.importedFiles[i].fileName;
+
+				let importedFilePath: string;
+				if (/^vs\/css!/.test(importedFileName)) {
+					importedFilePath = importedFileName.substr('vs/css!'.length) + '.css';
+				} else {
+					importedFilePath = importedFileName;
+				}
+				if (/(^\.\/)|(^\.\.\/)/.test(importedFilePath)) {
+					importedFilePath = path.join(path.dirname(fileName), importedFilePath);
+				}
+
+				if (/\.css$/.test(importedFilePath)) {
+					transportCSS(importedFilePath, copyFile, writeOutputFile);
+				} else {
+					if (fs.existsSync(path.join(options.sourcesRoot, importedFilePath + '.js'))) {
+						copyFile(importedFilePath + '.js');
+					}
+				}
+			}
+		}
+	}
+
+	const tsConfig = JSON.parse(fs.readFileSync(path.join(options.sourcesRoot, 'tsconfig.json')).toString());
+	tsConfig.compilerOptions.noUnusedLocals = false;
+	writeOutputFile('tsconfig.json', JSON.stringify(tsConfig, null, '\t'));
+
+	[
+		'vs/css.build.js',
+		'vs/css.d.ts',
+		'vs/css.js',
+		'vs/loader.js',
+		'vs/monaco.d.ts',
+		'vs/nls.build.js',
+		'vs/nls.d.ts',
+		'vs/nls.js',
+		'vs/nls.mock.ts',
+		'typings/lib.ie11_safe_es6.d.ts',
+		'typings/thenable.d.ts',
+		'typings/es6-promise.d.ts',
+		'typings/require.d.ts',
+	].forEach(copyFile);
+}
 
 export interface IOptions {
 	entryPoints: string[];
@@ -111,7 +201,7 @@ export function createESMSourcesAndResources(options: IOptions): void {
 
 	while (queue.length > 0) {
 		const module = queue.shift();
-		if (transportCSS(options, module, enqueue, write)) {
+		if (transportCSS(module, enqueue, write)) {
 			continue;
 		}
 		if (transportResource(options, module, enqueue, write)) {
@@ -198,7 +288,7 @@ export function createESMSourcesAndResources(options: IOptions): void {
 
 }
 
-function transportCSS(options: IOptions, module: string, enqueue: (module: string) => void, write: (path: string, contents: string | Buffer) => void): boolean {
+function transportCSS(module: string, enqueue: (module: string) => void, write: (path: string, contents: string | Buffer) => void): boolean {
 
 	if (!/\.css/.test(module)) {
 		return false;
@@ -209,11 +299,11 @@ function transportCSS(options: IOptions, module: string, enqueue: (module: strin
 	const inlineResources = 'base64'; // see https://github.com/Microsoft/monaco-editor/issues/148
 	const inlineResourcesLimit = 300000;//3000; // see https://github.com/Microsoft/monaco-editor/issues/336
 
-	const newContents = _rewriteOrInlineUrls(filename, fileContents, inlineResources === 'base64', inlineResourcesLimit);
+	const newContents = _rewriteOrInlineUrls(fileContents, inlineResources === 'base64', inlineResourcesLimit);
 	write(module, newContents);
 	return true;
 
-	function _rewriteOrInlineUrls(originalFileFSPath: string, contents: string, forceBase64: boolean, inlineByteLimit: number): string {
+	function _rewriteOrInlineUrls(contents: string, forceBase64: boolean, inlineByteLimit: number): string {
 		return _replaceURL(contents, (url) => {
 			let imagePath = path.join(path.dirname(module), url);
 			let fileContents = fs.readFileSync(path.join(SRC_DIR, imagePath));

@@ -6,14 +6,14 @@
 
 import * as path from 'path';
 import {
-	DebugConfiguration, Event, EventEmitter, ExtensionContext, Task,
+	Event, EventEmitter, ExtensionContext, Task,
 	TextDocument, ThemeIcon, TreeDataProvider, TreeItem, TreeItemCollapsibleState, Uri,
-	WorkspaceFolder, commands, debug, window, workspace, tasks, Selection, TaskGroup
+	WorkspaceFolder, commands, window, workspace, tasks, Selection, TaskGroup
 } from 'vscode';
 import { visit, JSONVisitor } from 'jsonc-parser';
 import {
 	NpmTaskDefinition, getPackageJsonUriFromTask, getScripts,
-	isWorkspaceFolder, getPackageManager, getTaskName, createTask
+	isWorkspaceFolder, getTaskName, createTask, extractDebugArgFromScript, startDebugging
 } from './tasks';
 import * as nls from 'vscode-nls';
 
@@ -162,25 +162,7 @@ export class NpmScriptsTreeDataProvider implements TreeDataProvider<TreeItem> {
 	}
 
 	private extractDebugArg(scripts: any, task: Task): [string, number] | undefined {
-		let script: string = scripts[task.name];
-
-		// matches --debug, --debug=1234, --debug-brk, debug-brk=1234, --inspect, 
-		// --inspect=1234, --inspect-brk, --inspect-brk=1234, 
-		// --inspect=localhost:1245, --inspect=127.0.0.1:1234, --inspect=[aa:1:0:0:0]:1234, --inspect=:1234
-		let match = script.match(/--(inspect|debug)(-brk)?(=((\[[0-9a-fA-F:]*\]|[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+|[a-zA-Z0-9\.]*):)?(\d+))?/);
-
-		if (match) {
-			if (match[6]) {
-				return [match[1], parseInt(match[6])];
-			}
-			if (match[1] === 'inspect') {
-				return [match[1], 9229];
-			}
-			if (match[1] === 'debug') {
-				return [match[1], 5858];
-			}
-		}
-		return undefined;
+		return extractDebugArgFromScript(scripts[task.name]);
 	}
 
 	private async debugScript(script: NpmScript) {
@@ -193,7 +175,7 @@ export class NpmScriptsTreeDataProvider implements TreeDataProvider<TreeItem> {
 			return;
 		}
 
-		let debugArg = await this.extractDebugArg(scripts, task);
+		let debugArg = this.extractDebugArg(scripts, task);
 		if (!debugArg) {
 			let message = localize('noDebugOptions', 'Could not launch "{0}" for debugging because the scripts lacks a node debug option, e.g. "--inspect-brk".', task.name);
 			let learnMore = localize('learnMore', 'Learn More');
@@ -204,29 +186,7 @@ export class NpmScriptsTreeDataProvider implements TreeDataProvider<TreeItem> {
 			}
 			return;
 		}
-
-		let protocol = 'inspector';
-		if (debugArg[0] === 'debug') {
-			protocol = 'legacy';
-		}
-
-		let packageManager = getPackageManager(script.getFolder());
-		const config: DebugConfiguration = {
-			type: 'node',
-			request: 'launch',
-			name: `Debug ${task.name}`,
-			runtimeExecutable: packageManager,
-			runtimeArgs: [
-				'run-script',
-				task.name,
-			],
-			port: debugArg[1],
-			protocol: protocol
-		};
-
-		if (isWorkspaceFolder(task.scope)) {
-			debug.startDebugging(task.scope, config);
-		}
+		startDebugging(task.name, debugArg[0], debugArg[1], script.getFolder());
 	}
 
 	private scriptNotValid(task: Task) {

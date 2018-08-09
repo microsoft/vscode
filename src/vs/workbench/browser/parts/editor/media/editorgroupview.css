@@ -48,6 +48,7 @@
 	flex-wrap: nowrap;
 	box-sizing:	border-box;
 	overflow: hidden;
+	justify-content: space-between;
 }
 
 .monaco-workbench > .part.editor > .content .editor-group-container > .title.tabs {

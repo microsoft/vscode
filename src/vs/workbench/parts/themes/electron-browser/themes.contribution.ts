@@ -10,7 +10,7 @@ import { TPromise } from 'vs/base/common/winjs.base';
 import { Action } from 'vs/base/common/actions';
 import { firstIndex } from 'vs/base/common/arrays';
 import { KeyMod, KeyChord, KeyCode } from 'vs/base/common/keyCodes';
-import { SyncActionDescriptor } from 'vs/platform/actions/common/actions';
+import { SyncActionDescriptor, MenuRegistry, MenuId } from 'vs/platform/actions/common/actions';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { IWorkbenchActionRegistry, Extensions } from 'vs/workbench/common/actions';
 import { IQuickOpenService, IPickOpenEntry } from 'vs/platform/quickOpen/common/quickOpen';
@@ -228,3 +228,21 @@ const developerCategory = localize('developer', "Developer");
 
 const generateColorThemeDescriptor = new SyncActionDescriptor(GenerateColorThemeAction, GenerateColorThemeAction.ID, GenerateColorThemeAction.LABEL);
 Registry.as<IWorkbenchActionRegistry>(Extensions.WorkbenchActions).registerWorkbenchAction(generateColorThemeDescriptor, 'Developer: Generate Color Theme From Current Settings', developerCategory);
+
+MenuRegistry.appendMenuItem(MenuId.MenubarPreferencesMenu, {
+	group: '4_themes',
+	command: {
+		id: SelectColorThemeAction.ID,
+		title: localize({ key: 'miSelectColorTheme', comment: ['&& denotes a mnemonic'] }, "&&Color Theme")
+	},
+	order: 1
+});
+
+MenuRegistry.appendMenuItem(MenuId.MenubarPreferencesMenu, {
+	group: '4_themes',
+	command: {
+		id: SelectIconThemeAction.ID,
+		title: localize({ key: 'miSelectIconTheme', comment: ['&& denotes a mnemonic'] }, "File &&Icon Theme")
+	},
+	order: 2
+});

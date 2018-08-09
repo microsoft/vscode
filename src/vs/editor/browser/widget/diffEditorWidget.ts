@@ -1177,7 +1177,7 @@ interface IDataSource {
 	getModifiedEditor(): editorBrowser.ICodeEditor;
 }
 
-abstract class DiffEditorWidgetStyle extends Disposable {
+abstract class DiffEditorWidgetStyle extends Disposable implements IDiffEditorWidgetStyle {
 
 	_dataSource: IDataSource;
 	_insertColor: Color;
@@ -1228,6 +1228,9 @@ abstract class DiffEditorWidgetStyle extends Disposable {
 	protected abstract _getViewZones(lineChanges: editorCommon.ILineChange[], originalForeignVZ: IEditorWhitespace[], modifiedForeignVZ: IEditorWhitespace[], originalEditor: editorBrowser.ICodeEditor, modifiedEditor: editorBrowser.ICodeEditor, renderIndicators: boolean): IEditorsZones;
 	protected abstract _getOriginalEditorDecorations(lineChanges: editorCommon.ILineChange[], ignoreTrimWhitespace: boolean, renderIndicators: boolean, originalEditor: editorBrowser.ICodeEditor, modifiedEditor: editorBrowser.ICodeEditor): IEditorDiffDecorations;
 	protected abstract _getModifiedEditorDecorations(lineChanges: editorCommon.ILineChange[], ignoreTrimWhitespace: boolean, renderIndicators: boolean, originalEditor: editorBrowser.ICodeEditor, modifiedEditor: editorBrowser.ICodeEditor): IEditorDiffDecorations;
+
+	public abstract setEnableSplitViewResizing(enableSplitViewResizing: boolean): void;
+	public abstract layout(): number;
 }
 
 interface IMyViewZone extends editorBrowser.IViewZone {
@@ -1529,10 +1532,6 @@ class DiffEdtorWidgetSideBySide extends DiffEditorWidgetStyle implements IDiffEd
 		this._sash.onDidReset(() => this.onSashReset());
 	}
 
-	public dispose(): void {
-		super.dispose();
-	}
-
 	public setEnableSplitViewResizing(enableSplitViewResizing: boolean): void {
 		let newDisableSash = (enableSplitViewResizing === false);
 		if (this._disableSash !== newDisableSash) {
@@ -1776,10 +1775,6 @@ class DiffEdtorWidgetInline extends DiffEditorWidgetStyle implements IDiffEditor
 				dataSource.relayoutEditors();
 			}
 		}));
-	}
-
-	public dispose(): void {
-		super.dispose();
 	}
 
 	public setEnableSplitViewResizing(enableSplitViewResizing: boolean): void {

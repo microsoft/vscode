@@ -11,6 +11,7 @@ import { Workspace, WorkspaceFolder } from 'vs/platform/workspace/common/workspa
 import { EditorBreadcrumbsModel, FileElement } from 'vs/workbench/browser/parts/editor/breadcrumbsModel';
 import { TestContextService } from 'vs/workbench/test/workbenchTestServices';
 import { TestConfigurationService } from 'vs/platform/configuration/test/common/testConfigurationService';
+import { FileKind } from 'vs/platform/files/common/files';
 
 
 suite('Breadcrumb Model', function () {
@@ -35,9 +36,9 @@ suite('Breadcrumb Model', function () {
 
 		assert.equal(elements.length, 3);
 		let [one, two, three] = elements as FileElement[];
-		assert.equal(one.isFile, false);
-		assert.equal(two.isFile, false);
-		assert.equal(three.isFile, true);
+		assert.equal(one.kind, FileKind.FOLDER);
+		assert.equal(two.kind, FileKind.FOLDER);
+		assert.equal(three.kind, FileKind.FILE);
 		assert.equal(one.uri.toString(), 'foo:/bar/baz/ws/some');
 		assert.equal(two.uri.toString(), 'foo:/bar/baz/ws/some/path');
 		assert.equal(three.uri.toString(), 'foo:/bar/baz/ws/some/path/file.ts');
@@ -50,8 +51,8 @@ suite('Breadcrumb Model', function () {
 
 		assert.equal(elements.length, 2);
 		let [one, two] = elements as FileElement[];
-		assert.equal(one.isFile, false);
-		assert.equal(two.isFile, true);
+		assert.equal(one.kind, FileKind.FOLDER);
+		assert.equal(two.kind, FileKind.FILE);
 		assert.equal(one.uri.toString(), 'foo:/outside');
 		assert.equal(two.uri.toString(), 'foo:/outside/file.ts');
 	});

@@ -11,13 +11,12 @@
     "vscode-json-languageserver": "./bin/vscode-json-languageserver"
   },
   "dependencies": {
-    "jsonc-parser": "^2.0.0-next.1",
-    "request-light": "^0.2.2",
-    "vscode-json-languageservice": "^3.1.2",
-    "vscode-languageserver": "^4.1.3",
-    "vscode-languageserver-protocol-foldingprovider": "^2.0.1",
+    "jsonc-parser": "^2.0.1",
+    "request-light": "^0.2.3",
+    "vscode-json-languageservice": "^3.1.4",
+    "vscode-languageserver": "^4.4.0",
     "vscode-nls": "^3.2.4",
-    "vscode-uri": "^1.0.3"
+    "vscode-uri": "^1.0.5"
   },
   "devDependencies": {
     "@types/mocha": "2.2.33",

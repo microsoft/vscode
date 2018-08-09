@@ -26,6 +26,9 @@ import { TPromise } from 'vs/base/common/winjs.base';
 import { ResourceTextEdit } from 'vs/editor/common/modes';
 import { BulkEditService } from 'vs/workbench/services/bulkEdit/electron-browser/bulkEditService';
 import { NullLogService } from 'vs/platform/log/common/log';
+import { ITextModelService, ITextEditorModel } from 'vs/editor/common/services/resolverService';
+import { IReference, ImmortalReference } from 'vs/base/common/lifecycle';
+import { UriDisplayService } from 'vs/platform/uriDisplay/common/uriDisplay';
 
 suite('MainThreadEditors', () => {
 
@@ -71,8 +74,16 @@ suite('MainThreadEditors', () => {
 		};
 		const workbenchEditorService = new TestEditorService();
 		const editorGroupService = new TestEditorGroupsService();
+		const textModelService = new class extends mock<ITextModelService>() {
+			createModelReference(resource: URI): TPromise<IReference<ITextEditorModel>> {
+				const textEditorModel: ITextEditorModel = new class extends mock<ITextEditorModel>() {
+					textEditorModel = modelService.getModel(resource);
+				};
+				return TPromise.as(new ImmortalReference(textEditorModel));
+			}
+		};
 
-		const bulkEditService = new BulkEditService(new NullLogService(), modelService, new TestEditorService(), null, new TestFileService(), textFileService, TestEnvironmentService, new TestContextService());
+		const bulkEditService = new BulkEditService(new NullLogService(), modelService, new TestEditorService(), textModelService, new TestFileService(), textFileService, new UriDisplayService(TestEnvironmentService, new TestContextService()));
 
 		const rpcProtocol = new TestRPCProtocol();
 		rpcProtocol.set(ExtHostContext.ExtHostDocuments, new class extends mock<ExtHostDocumentsShape>() {
@@ -129,7 +140,39 @@ suite('MainThreadEditors', () => {
 		});
 	});
 
-	test(`pasero applyWorkspaceEdit with only resource edit`, () => {
+	test(`issue #54773: applyWorkspaceEdit checks model version in race situation`, () => {
+
+		let model = modelService.createModel('something', null, resource);
+
+		let workspaceResourceEdit1: ResourceTextEdit = {
+			resource: resource,
+			modelVersionId: model.getVersionId(),
+			edits: [{
+				text: 'asdfg',
+				range: new Range(1, 1, 1, 1)
+			}]
+		};
+		let workspaceResourceEdit2: ResourceTextEdit = {
+			resource: resource,
+			modelVersionId: model.getVersionId(),
+			edits: [{
+				text: 'asdfg',
+				range: new Range(1, 1, 1, 1)
+			}]
+		};
+
+		let p1 = editors.$tryApplyWorkspaceEdit({ edits: [workspaceResourceEdit1] }).then((result) => {
+			// first edit request succeeds
+			assert.equal(result, true);
+		});
+		let p2 = editors.$tryApplyWorkspaceEdit({ edits: [workspaceResourceEdit2] }).then((result) => {
+			// second edit request fails
+			assert.equal(result, false);
+		});
+		return TPromise.join([p1, p2]);
+	});
+
+	test(`applyWorkspaceEdit with only resource edit`, () => {
 		return editors.$tryApplyWorkspaceEdit({
 			edits: [
 				{ oldUri: resource, newUri: resource, options: undefined },

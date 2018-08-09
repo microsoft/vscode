@@ -85,7 +85,13 @@ export abstract class BreadcrumbsConfig<T> {
 
 				return {
 					name,
-					get value() { return value; },
+					get value() {
+						return value;
+					},
+					set value(newValue: T) {
+						service.updateValue(name, newValue);
+						value = newValue;
+					},
 					onDidChange: onDidChange.event,
 					dispose(): void {
 						listener.dispose();
@@ -108,13 +114,13 @@ Registry.as<IConfigurationRegistry>(Extensions.Configuration).registerConfigurat
 			type: 'boolean',
 			default: false
 		},
-		'breadcrumbs.useQuickPick': {
-			description: localize('useQuickPick', "Use quick pick instead of breadcrumb-pickers."),
-			type: 'boolean',
-			default: false
-		},
+		// 'breadcrumbs.useQuickPick': {
+		// 	description: localize('useQuickPick', "Use quick pick instead of breadcrumb-pickers."),
+		// 	type: 'boolean',
+		// 	default: false
+		// },
 		'breadcrumbs.filePath': {
-			description: localize('filepath', "Controls if and how file paths are shown in the breadcrumbs view."),
+			description: localize('filepath', "Controls whether and how file paths are shown in the breadcrumbs view."),
 			type: 'string',
 			default: 'on',
 			enum: ['on', 'off', 'last'],
@@ -125,12 +131,12 @@ Registry.as<IConfigurationRegistry>(Extensions.Configuration).registerConfigurat
 			]
 		},
 		'breadcrumbs.symbolPath': {
-			description: localize('symbolpath', "Controls if and how symbols are shown in the breadcrumbs view."),
+			description: localize('symbolpath', "Controls whether and how symbols are shown in the breadcrumbs view."),
 			type: 'string',
 			default: 'on',
 			enum: ['on', 'off', 'last'],
 			enumDescriptions: [
-				localize('symbolpath.on', "Show all symbols the breadcrumbs view."),
+				localize('symbolpath.on', "Show all symbols in the breadcrumbs view."),
 				localize('symbolpath.off', "Do not show symbols in the breadcrumbs view."),
 				localize('symbolpath.last', "Only show the current symbol in the breadcrumbs view."),
 			]

@@ -38,11 +38,11 @@ export function setup() {
 			await app.workbench.quickopen.waitForQuickOpenOpened();
 			await app.workbench.quickopen.closeQuickOpen();
 			await app.workbench.statusbar.clickOn(StatusBarElement.ENCODING_STATUS);
-			await app.workbench.quickopen.waitForQuickOpenOpened();
-			await app.workbench.quickopen.closeQuickOpen();
+			await app.workbench.quickinput.waitForQuickInputOpened();
+			await app.workbench.quickinput.closeQuickInput();
 			await app.workbench.statusbar.clickOn(StatusBarElement.EOL_STATUS);
-			await app.workbench.quickopen.waitForQuickOpenOpened();
-			await app.workbench.quickopen.closeQuickOpen();
+			await app.workbench.quickinput.waitForQuickInputOpened();
+			await app.workbench.quickinput.closeQuickInput();
 			await app.workbench.statusbar.clickOn(StatusBarElement.LANGUAGE_STATUS);
 			await app.workbench.quickopen.waitForQuickOpenOpened();
 			await app.workbench.quickopen.closeQuickOpen();
@@ -84,8 +84,8 @@ export function setup() {
 			await app.workbench.quickopen.openFile('app.js');
 			await app.workbench.statusbar.clickOn(StatusBarElement.EOL_STATUS);
 
-			await app.workbench.quickopen.waitForQuickOpenOpened();
-			await app.workbench.quickopen.selectQuickOpenElement(1);
+			await app.workbench.quickinput.waitForQuickInputOpened();
+			await app.workbench.quickinput.selectQuickInputElement(1);
 
 			await app.workbench.statusbar.waitForEOL('CRLF');
 		});

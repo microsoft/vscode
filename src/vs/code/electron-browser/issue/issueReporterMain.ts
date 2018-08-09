@@ -86,7 +86,7 @@ export class IssueReporter extends Disposable {
 				vscodeVersion: `${pkg.name} ${pkg.version} (${product.commit || 'Commit unknown'}, ${product.date || 'Date unknown'})`,
 				os: `${os.type()} ${os.arch()} ${os.release()}`
 			},
-			extensionsDisabled: this.environmentService.disableExtensions,
+			extensionsDisabled: !!this.environmentService.disableExtensions,
 		});
 
 		this.previewButton = new Button(document.getElementById('issue-reporter'));
@@ -412,6 +412,16 @@ export class IssueReporter extends Disposable {
 			// Cmd/Ctrl - zooms out
 			if (cmdOrCtrlKey && e.keyCode === 189) {
 				this.applyZoom(webFrame.getZoomLevel() - 1);
+			}
+
+			// With latest electron upgrade, cmd+a is no longer propagating correctly for inputs in this window on mac
+			// Manually perform the selection
+			if (platform.isMacintosh) {
+				if (cmdOrCtrlKey && e.keyCode === 65 && e.target) {
+					if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) {
+						(<HTMLInputElement>e.target).select();
+					}
+				}
 			}
 		};
 	}

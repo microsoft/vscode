@@ -616,6 +616,14 @@ export class Session implements ISession {
 		return result;
 	}
 
+	public getLoadedSources(): TPromise<Source[]> {
+		return this.raw.loadedSources({}).then(response => {
+			return response.body.sources.map(src => this.getSource(src));
+		}, error => {
+			return [];
+		});
+	}
+
 	public getId(): string {
 		return this.session.getId();
 	}

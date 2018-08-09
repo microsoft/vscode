@@ -267,6 +267,7 @@ function parse(model: ITextModel, isSettingsProperty: (currentProperty: string, 
 				let settingStartPosition = model.getPositionAt(offset);
 				const setting: ISetting = {
 					description: [],
+					descriptionIsMarkdown: false,
 					key: name,
 					keyRange: {
 						startLineNumber: settingStartPosition.lineNumber,
@@ -551,18 +552,50 @@ export class DefaultSettings extends Disposable {
 		let result: ISetting[] = [];
 		for (let key in settingsObject) {
 			const prop = settingsObject[key];
-			if (!prop.deprecationMessage && this.matchesScope(prop)) {
+			if (this.matchesScope(prop)) {
 				const value = prop.default;
-				const description = (prop.description || '').split('\n');
+				const description = (prop.description || prop.markdownDescription || '').split('\n');
+				if (prop.deprecationMessage) {
+					description.push(
+						'',
+						prop.deprecationMessage,
+						nls.localize('deprecatedSetting.unstable', "This setting should not be used, and will be removed in a future release."));
+				}
 				const overrides = OVERRIDE_PROPERTY_PATTERN.test(key) ? this.parseOverrideSettings(prop.default) : [];
-				result.push({ key, value, description, range: null, keyRange: null, valueRange: null, descriptionRanges: [], overrides, type: prop.type, enum: prop.enum, enumDescriptions: prop.enumDescriptions });
+				result.push({
+					key,
+					value,
+					description,
+					descriptionIsMarkdown: !prop.description,
+					range: null,
+					keyRange: null,
+					valueRange: null,
+					descriptionRanges: [],
+					overrides,
+					type: prop.type,
+					enum: prop.enum,
+					enumDescriptions: prop.enumDescriptions || prop.markdownEnumDescriptions,
+					enumDescriptionsAreMarkdown: !prop.enumDescriptions,
+					tags: prop.tags,
+					deprecationMessage: prop.deprecationMessage,
+				});
 			}
 		}
 		return result;
 	}
 
 	private parseOverrideSettings(overrideSettings: any): ISetting[] {
-		return Object.keys(overrideSettings).map((key) => ({ key, value: overrideSettings[key], description: [], range: null, keyRange: null, valueRange: null, descriptionRanges: [], overrides: [] }));
+		return Object.keys(overrideSettings).map((key) => ({
+			key,
+			value: overrideSettings[key],
+			description: [],
+			descriptionIsMarkdown: false,
+			range: null,
+			keyRange: null,
+			valueRange: null,
+			descriptionRanges: [],
+			overrides: []
+		}));
 	}
 
 	private matchesScope(property: IConfigurationNode): boolean {
@@ -741,11 +774,15 @@ export class DefaultSettingsEditorModel extends AbstractSettingsModel implements
 	private copySetting(setting: ISetting): ISetting {
 		return <ISetting>{
 			description: setting.description,
+			type: setting.type,
+			enum: setting.enum,
+			enumDescriptions: setting.enumDescriptions,
 			key: setting.key,
 			value: setting.value,
 			range: setting.range,
 			overrides: [],
-			overrideOf: setting.overrideOf
+			overrideOf: setting.overrideOf,
+			tags: setting.tags
 		};
 	}
 
@@ -849,12 +886,8 @@ class SettingsContentBuilder {
 
 	private pushSetting(setting: ISetting, indent: string): void {
 		const settingStart = this.lineCountWithOffset + 1;
-		setting.descriptionRanges = [];
-		const descriptionPreValue = indent + '// ';
-		for (const line of setting.description) {
-			this._contentByLines.push(descriptionPreValue + line);
-			setting.descriptionRanges.push({ startLineNumber: this.lineCountWithOffset, startColumn: this.lastLine.indexOf(line) + 1, endLineNumber: this.lineCountWithOffset, endColumn: this.lastLine.length });
-		}
+
+		this.pushSettingDescription(setting, indent);
 
 		let preValueConent = indent;
 		const keyString = JSON.stringify(setting.key);
@@ -869,6 +902,33 @@ class SettingsContentBuilder {
 		this._contentByLines[this._contentByLines.length - 1] += ',';
 		this._contentByLines.push('');
 		setting.range = { startLineNumber: settingStart, startColumn: 1, endLineNumber: this.lineCountWithOffset, endColumn: this.lastLine.length };
+	}
+
+	private pushSettingDescription(setting: ISetting, indent: string): void {
+		const fixSettingLink = line => line.replace(/`#(.*)#`/g, (match, settingName) => `\`${settingName}\``);
+
+		setting.descriptionRanges = [];
+		const descriptionPreValue = indent + '// ';
+		for (let line of setting.description) {
+			// Remove setting link tag
+			line = fixSettingLink(line);
+
+			this._contentByLines.push(descriptionPreValue + line);
+			setting.descriptionRanges.push({ startLineNumber: this.lineCountWithOffset, startColumn: this.lastLine.indexOf(line) + 1, endLineNumber: this.lineCountWithOffset, endColumn: this.lastLine.length });
+		}
+
+		if (setting.enumDescriptions && setting.enumDescriptions.some(desc => !!desc)) {
+			setting.enumDescriptions.forEach((desc, i) => {
+				const displayEnum = escapeInvisibleChars(String(setting.enum[i]));
+				const line = desc ?
+					`${displayEnum}: ${fixSettingLink(desc)}` :
+					displayEnum;
+
+				this._contentByLines.push(`  //  - ${line}`);
+
+				setting.descriptionRanges.push({ startLineNumber: this.lineCountWithOffset, startColumn: this.lastLine.indexOf(line) + 1, endLineNumber: this.lineCountWithOffset, endColumn: this.lastLine.length });
+			});
+		}
 	}
 
 	private pushValue(setting: ISetting, preValueConent: string, indent: string): void {
@@ -901,6 +961,12 @@ class SettingsContentBuilder {
 			result.push(indent + '// ' + line);
 		}
 	}
+}
+
+function escapeInvisibleChars(enumValue: string): string {
+	return enumValue && enumValue
+		.replace(/\n/g, '\\n')
+		.replace(/\r/g, '\\r');
 }
 
 export function defaultKeybindingsContents(keybindingService: IKeybindingService): string {

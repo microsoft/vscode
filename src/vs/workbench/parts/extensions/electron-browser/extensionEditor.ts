@@ -43,12 +43,13 @@ import { KeybindingLabel } from 'vs/base/browser/ui/keybindingLabel/keybindingLa
 import { IContextKeyService, RawContextKey, IContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { Command } from 'vs/editor/browser/editorExtensions';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
-import { KeybindingsRegistry } from 'vs/platform/keybinding/common/keybindingsRegistry';
+import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { Color } from 'vs/base/common/color';
 import { assign } from 'vs/base/common/objects';
 import { INotificationService } from 'vs/platform/notification/common/notification';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { ExtensionsTree, IExtensionData } from 'vs/workbench/parts/extensions/browser/extensionsViewer';
+import { ShowCurrentReleaseNotesAction } from 'vs/workbench/parts/update/electron-browser/update';
 
 /**  A context key that is set when an extension editor webview has focus. */
 export const KEYBINDING_CONTEXT_EXTENSIONEDITOR_WEBVIEW_FOCUS = new RawContextKey<boolean>('extensionEditorWebviewFocus', undefined);
@@ -493,8 +494,11 @@ export class ExtensionEditor extends BaseEditor {
 				this.activeWebview.contents = body;
 
 				this.activeWebview.onDidClickLink(link => {
+					if (!link) {
+						return;
+					}
 					// Whitelist supported schemes for links
-					if (link && ['http', 'https', 'mailto'].indexOf(link.scheme) >= 0) {
+					if (['http', 'https', 'mailto'].indexOf(link.scheme) >= 0 || (link.scheme === 'command' && link.path === ShowCurrentReleaseNotesAction.ID)) {
 						this.openerService.open(link);
 					}
 				}, null, this.contentDisposables);
@@ -1117,7 +1121,8 @@ const showCommand = new ShowExtensionEditorFindCommand({
 	id: 'editor.action.extensioneditor.showfind',
 	precondition: KEYBINDING_CONTEXT_EXTENSIONEDITOR_WEBVIEW_FOCUS,
 	kbOpts: {
-		primary: KeyMod.CtrlCmd | KeyCode.KEY_F
+		primary: KeyMod.CtrlCmd | KeyCode.KEY_F,
+		weight: KeybindingWeight.EditorContrib
 	}
 });
-KeybindingsRegistry.registerCommandAndKeybindingRule(showCommand.toCommandAndKeybindingRule(KeybindingsRegistry.WEIGHT.editorContrib()));
+showCommand.register();

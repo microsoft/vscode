@@ -6,9 +6,6 @@
 import { addClass, addDisposableListener } from 'vs/base/browser/dom';
 import { Emitter } from 'vs/base/common/event';
 import { Disposable } from 'vs/base/common/lifecycle';
-import { getMediaMime, guessMimeTypes } from 'vs/base/common/mime';
-import { extname, nativeSep } from 'vs/base/common/paths';
-import { startsWith } from 'vs/base/common/strings';
 import URI from 'vs/base/common/uri';
 import { IContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
@@ -16,8 +13,9 @@ import { IFileService } from 'vs/platform/files/common/files';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import * as colorRegistry from 'vs/platform/theme/common/colorRegistry';
 import { DARK, ITheme, IThemeService, LIGHT } from 'vs/platform/theme/common/themeService';
-import { WebviewFindWidget } from './webviewFindWidget';
+import { registerFileProtocol, WebviewProtocol } from 'vs/workbench/parts/webview/electron-browser/webviewProtocols';
 import { areWebviewInputOptionsEqual } from './webviewEditorService';
+import { WebviewFindWidget } from './webviewFindWidget';
 
 export interface WebviewOptions {
 	readonly allowScripts?: boolean;
@@ -27,9 +25,6 @@ export interface WebviewOptions {
 	readonly useSameOriginForRoot?: boolean;
 	readonly localResourceRoots?: ReadonlyArray<URI>;
 }
-
-const CORE_RESOURCE_PROTOCOL = 'vscode-core-resource';
-const VSCODE_RESOURCE_PROTOCOL = 'vscode-resource';
 
 export class WebviewElement extends Disposable {
 	private _webview: Electron.WebviewTag;
@@ -376,11 +371,11 @@ export class WebviewElement extends Disposable {
 
 		const appRootUri = URI.file(this._environmentService.appRoot);
 
-		registerFileProtocol(contents, CORE_RESOURCE_PROTOCOL, this._fileService, () => [
+		registerFileProtocol(contents, WebviewProtocol.CoreResource, this._fileService, () => [
 			appRootUri
 		]);
 
-		registerFileProtocol(contents, VSCODE_RESOURCE_PROTOCOL, this._fileService, () =>
+		registerFileProtocol(contents, WebviewProtocol.VsCodeResource, this._fileService, () =>
 			(this._options.localResourceRoots || [])
 		);
 	}
@@ -443,6 +438,10 @@ export class WebviewElement extends Disposable {
 	public reload() {
 		this.contents = this._contents;
 	}
+
+	public selectAll() {
+		this._webview.selectAll();
+	}
 }
 
 
@@ -462,45 +461,4 @@ namespace ApiThemeClassName {
 			return ApiThemeClassName.highContrast;
 		}
 	}
-}
-
-function registerFileProtocol(
-	contents: Electron.WebContents,
-	protocol: string,
-	fileService: IFileService,
-	getRoots: () => ReadonlyArray<URI>
-) {
-	contents.session.protocol.registerBufferProtocol(protocol, (request, callback: any) => {
-		const requestPath = URI.parse(request.url).path;
-		const normalizedPath = URI.file(requestPath);
-		for (const root of getRoots()) {
-			if (startsWith(normalizedPath.fsPath, root.fsPath + nativeSep)) {
-				fileService.resolveContent(normalizedPath, { encoding: 'binary' }).then(contents => {
-					const mime = getMimeType(normalizedPath);
-					callback({
-						data: Buffer.from(contents.value, contents.encoding),
-						mimeType: mime
-					});
-				}, () => {
-					callback({ error: -2 /* FAILED: https://cs.chromium.org/chromium/src/net/base/net_error_list.h */ });
-				});
-				return;
-			}
-		}
-		console.error('Webview: Cannot load resource outside of protocol root');
-		callback({ error: -10 /* ACCESS_DENIED: https://cs.chromium.org/chromium/src/net/base/net_error_list.h */ });
-	}, (error) => {
-		if (error) {
-			console.error('Failed to register protocol ' + protocol);
-		}
-	});
-}
-
-const webviewMimeTypes = {
-	'.svg': 'image/svg+xml'
-};
-
-function getMimeType(normalizedPath: URI) {
-	const ext = extname(normalizedPath.fsPath).toLowerCase();
-	return webviewMimeTypes[ext] || getMediaMime(normalizedPath.fsPath) || guessMimeTypes(normalizedPath.fsPath)[0];
 }

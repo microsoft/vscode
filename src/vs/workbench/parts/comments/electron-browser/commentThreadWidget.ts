@@ -25,7 +25,7 @@ import { IInstantiationService } from 'vs/platform/instantiation/common/instanti
 import { IModelService } from 'vs/editor/common/services/modelService';
 import { SimpleCommentEditor } from './simpleCommentEditor';
 import URI from 'vs/base/common/uri';
-import { transparent, editorForeground, inputValidationErrorBorder, textLinkActiveForeground, textLinkForeground, focusBorder } from 'vs/platform/theme/common/colorRegistry';
+import { transparent, editorForeground, textLinkActiveForeground, textLinkForeground, focusBorder, textBlockQuoteBackground, textBlockQuoteBorder, contrastBorder } from 'vs/platform/theme/common/colorRegistry';
 import { IModeService } from 'vs/editor/common/services/modeService';
 import { IKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { KeyCode } from 'vs/base/common/keyCodes';
@@ -354,9 +354,14 @@ export class ReviewZoneWidget extends ZoneWidget {
 
 		this._localToDispose.push(this._commentEditor.onKeyDown((ev: IKeyboardEvent) => {
 			const hasExistingComments = this._commentThread.comments.length > 0;
-			if (this._commentEditor.getModel().getValueLength() === 0 && ev.keyCode === KeyCode.Escape && hasExistingComments) {
-				if (dom.hasClass(this._commentForm, 'expand')) {
-					dom.removeClass(this._commentForm, 'expand');
+
+			if (this._commentEditor.getModel().getValueLength() === 0 && ev.keyCode === KeyCode.Escape) {
+				if (hasExistingComments) {
+					if (dom.hasClass(this._commentForm, 'expand')) {
+						dom.removeClass(this._commentForm, 'expand');
+					}
+				} else {
+					this.dispose();
 				}
 			}
 		}));
@@ -366,23 +371,17 @@ export class ReviewZoneWidget extends ZoneWidget {
 		const button = new Button(formActions);
 		attachButtonStyler(button, this.themeService);
 		button.label = 'Add comment';
-		button.onDidClick(async () => {
-			if (!this._commentEditor.getValue()) {
-				this._commentEditor.focus();
-				this._commentEditor.getDomNode().style.outline = `1px solid ${this.themeService.getTheme().getColor(inputValidationErrorBorder)}`;
 
-
-				this._disposables.push(this._commentEditor.onDidChangeModelContent(_ => {
-					if (!this._commentEditor.getValue()) {
-						this._commentEditor.getDomNode().style.outline = `1px solid ${this.themeService.getTheme().getColor(inputValidationErrorBorder)}`;
-					} else {
-						this._commentEditor.getDomNode().style.outline = '';
-					}
-				}));
-
-				return;
+		button.enabled = false;
+		this._localToDispose.push(this._commentEditor.onDidChangeModelContent(_ => {
+			if (this._commentEditor.getValue()) {
+				button.enabled = true;
+			} else {
+				button.enabled = false;
 			}
+		}));
 
+		button.onDidClick(async () => {
 			let newCommentThread;
 			if (this._commentThread.threadId) {
 				// reply
@@ -477,26 +476,28 @@ export class ReviewZoneWidget extends ZoneWidget {
 	}
 
 	private setCommentEditorDecorations() {
-		let model = this._commentEditor.getModel();
-		let valueLength = model.getValueLength();
-		const hasExistingComments = this._commentThread.comments.length > 0;
-		let placeholder = valueLength > 0 ? '' : (hasExistingComments ? 'Reply...' : 'Type a new comment');
-		const decorations = [{
-			range: {
-				startLineNumber: 0,
-				endLineNumber: 0,
-				startColumn: 0,
-				endColumn: 1
-			},
-			renderOptions: {
-				after: {
-					contentText: placeholder,
-					color: transparent(editorForeground, 0.4)(this.themeService.getTheme()).toString()
+		const model = this._commentEditor && this._commentEditor.getModel();
+		if (model) {
+			let valueLength = model.getValueLength();
+			const hasExistingComments = this._commentThread.comments.length > 0;
+			let placeholder = valueLength > 0 ? '' : (hasExistingComments ? 'Reply...' : 'Type a new comment');
+			const decorations = [{
+				range: {
+					startLineNumber: 0,
+					endLineNumber: 0,
+					startColumn: 0,
+					endColumn: 1
+				},
+				renderOptions: {
+					after: {
+						contentText: placeholder,
+						color: transparent(editorForeground, 0.4)(this.themeService.getTheme()).toString()
+					}
 				}
-			}
-		}];
+			}];
 
-		this._commentEditor.setDecorations(COMMENTEDITOR_DECORATION_KEY, decorations);
+			this._commentEditor.setDecorations(COMMENTEDITOR_DECORATION_KEY, decorations);
+		}
 	}
 
 	private mouseDownInfo: { lineNumber: number, iconClicked: boolean };
@@ -577,9 +578,29 @@ export class ReviewZoneWidget extends ZoneWidget {
 		const focusColor = theme.getColor(focusBorder);
 		if (focusColor) {
 			content.push(`.monaco-editor .review-widget .body .review-comment a:focus { outline: 1px solid ${focusColor}; }`);
+			content.push(`.monaco-editor .review-widget .body .comment-form .monaco-editor.focused { outline: 1px solid ${focusColor}; }`);
+		}
+
+		const blockQuoteBackground = theme.getColor(textBlockQuoteBackground);
+		if (blockQuoteBackground) {
+			content.push(`.monaco-editor .review-widget .body .review-comment blockquote { background: ${blockQuoteBackground}; }`);
+		}
+
+		const blockQuoteBOrder = theme.getColor(textBlockQuoteBorder);
+		if (blockQuoteBOrder) {
+			content.push(`.monaco-editor .review-widget .body .review-comment blockquote { border-color: ${blockQuoteBOrder}; }`);
+		}
+
+		const hcBorder = theme.getColor(contrastBorder);
+		if (hcBorder) {
+			content.push(`.monaco-editor .review-widget .body .comment-form .review-thread-reply-button { outline-color: ${hcBorder}; }`);
+			content.push(`.monaco-editor .review-widget .body .comment-form .monaco-editor { outline: 1px solid ${hcBorder}; }`);
 		}
 
 		this._styleElement.innerHTML = content.join('\n');
+
+		// Editor decorations should also be responsive to theme changes
+		this.setCommentEditorDecorations();
 	}
 
 	show(rangeOrPos: IRange | IPosition, heightInLines: number): void {

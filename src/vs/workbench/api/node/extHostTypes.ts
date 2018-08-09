@@ -1956,3 +1956,10 @@ export enum CommentThreadCollapsibleState {
 	 */
 	Expanded = 1
 }
+
+export class QuickInputButtons {
+
+	static readonly Back: vscode.QuickInputButton = { iconPath: 'back.svg' };
+
+	private constructor() { }
+}

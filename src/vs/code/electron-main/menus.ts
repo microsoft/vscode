@@ -18,11 +18,13 @@ import { IUpdateService, StateType } from 'vs/platform/update/common/update';
 import product from 'vs/platform/node/product';
 import { RunOnceScheduler } from 'vs/base/common/async';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { mnemonicMenuLabel as baseMnemonicLabel, unmnemonicLabel, getPathLabel } from 'vs/base/common/labels';
+import { mnemonicMenuLabel as baseMnemonicLabel, unmnemonicLabel } from 'vs/base/common/labels';
 import { KeybindingsResolver } from 'vs/code/electron-main/keyboard';
 import { IWindowsMainService, IWindowsCountChangedEvent } from 'vs/platform/windows/electron-main/windows';
 import { IHistoryMainService } from 'vs/platform/history/common/history';
-import { IWorkspaceIdentifier, getWorkspaceLabel, ISingleFolderWorkspaceIdentifier, isSingleFolderWorkspaceIdentifier } from 'vs/platform/workspaces/common/workspaces';
+import { IWorkspaceIdentifier, getWorkspaceLabel, ISingleFolderWorkspaceIdentifier, isSingleFolderWorkspaceIdentifier, isWorkspaceIdentifier } from 'vs/platform/workspaces/common/workspaces';
+import URI from 'vs/base/common/uri';
+import { IUriDisplayService } from 'vs/platform/uriDisplay/common/uriDisplay';
 
 interface IMenuItemClickHandler {
 	inDevTools: (contents: Electron.WebContents) => void;
@@ -65,7 +67,8 @@ export class CodeMenu {
 		@IWindowsService private windowsService: IWindowsService,
 		@IEnvironmentService private environmentService: IEnvironmentService,
 		@ITelemetryService private telemetryService: ITelemetryService,
-		@IHistoryMainService private historyMainService: IHistoryMainService
+		@IHistoryMainService private historyMainService: IHistoryMainService,
+		@IUriDisplayService private uriDisplayService: IUriDisplayService
 	) {
 		this.nativeTabMenuItems = [];
 
@@ -194,7 +197,7 @@ export class CodeMenu {
 	private updateWorkspaceMenuItems(): void {
 		const window = this.windowsMainService.getLastActiveWindow();
 		const isInWorkspaceContext = window && !!window.openedWorkspace;
-		const isInFolderContext = window && !!window.openedFolderPath;
+		const isInFolderContext = window && !!window.openedFolderUri;
 
 		this.closeWorkspace.visible = isInWorkspaceContext;
 		this.closeFolder.visible = !isInWorkspaceContext;
@@ -489,13 +492,16 @@ export class CodeMenu {
 
 	private createOpenRecentMenuItem(workspace: IWorkspaceIdentifier | ISingleFolderWorkspaceIdentifier | string, commandId: string, isFile: boolean): Electron.MenuItem {
 		let label: string;
-		let path: string;
-		if (isSingleFolderWorkspaceIdentifier(workspace) || typeof workspace === 'string') {
-			label = unmnemonicLabel(getPathLabel(workspace, this.environmentService));
-			path = workspace;
+		let uri: URI;
+		if (isSingleFolderWorkspaceIdentifier(workspace)) {
+			label = unmnemonicLabel(getWorkspaceLabel(workspace, this.environmentService, this.uriDisplayService, { verbose: true }));
+			uri = workspace;
+		} else if (isWorkspaceIdentifier(workspace)) {
+			label = getWorkspaceLabel(workspace, this.environmentService, this.uriDisplayService, { verbose: true });
+			uri = URI.file(workspace.configPath);
 		} else {
-			label = getWorkspaceLabel(workspace, this.environmentService, { verbose: true });
-			path = workspace.configPath;
+			uri = URI.file(workspace);
+			label = unmnemonicLabel(this.uriDisplayService.getLabel(uri));
 		}
 
 		return new MenuItem(this.likeAction(commandId, {
@@ -505,12 +511,13 @@ export class CodeMenu {
 				const success = this.windowsMainService.open({
 					context: OpenContext.MENU,
 					cli: this.environmentService.args,
-					pathsToOpen: [path], forceNewWindow: openInNewWindow,
+					urisToOpen: [uri],
+					forceNewWindow: openInNewWindow,
 					forceOpenWorkspaceAsFile: isFile
 				}).length > 0;
 
 				if (!success) {
-					this.historyMainService.removeFromRecentlyOpened([isSingleFolderWorkspaceIdentifier(workspace) ? workspace : workspace.configPath]);
+					this.historyMainService.removeFromRecentlyOpened([workspace]);
 				}
 			}
 		}, false));
@@ -740,7 +747,7 @@ export class CodeMenu {
 		const twoRowsRightEditorLayout = this.createMenuItem(nls.localize({ key: 'miTwoRowsRightEditorLayout', comment: ['&& denotes a mnemonic'] }, "Two R&&ows Right"), 'workbench.action.editorLayoutTwoRowsRight');
 		const twoColumnsBottomEditorLayout = this.createMenuItem(nls.localize({ key: 'miTwoColumnsBottomEditorLayout', comment: ['&& denotes a mnemonic'] }, "Two &&Columns Bottom"), 'workbench.action.editorLayoutTwoColumnsBottom');
 
-		const toggleEditorLayout = this.createMenuItem(nls.localize({ key: 'miToggleEditorLayout', comment: ['&& denotes a mnemonic'] }, "Toggle Vertical/Horizontal &&Layout"), 'workbench.action.toggleEditorGroupLayout');
+		const toggleEditorLayout = this.createMenuItem(nls.localize({ key: 'miToggleEditorLayout', comment: ['&& denotes a mnemonic'] }, "Flip &&Layout"), 'workbench.action.toggleEditorGroupLayout');
 
 		[
 			splitEditorUp,
@@ -766,6 +773,7 @@ export class CodeMenu {
 		const toggleMinimap = this.createMenuItem(nls.localize({ key: 'miToggleMinimap', comment: ['&& denotes a mnemonic'] }, "Toggle &&Minimap"), 'editor.action.toggleMinimap');
 		const toggleRenderWhitespace = this.createMenuItem(nls.localize({ key: 'miToggleRenderWhitespace', comment: ['&& denotes a mnemonic'] }, "Toggle &&Render Whitespace"), 'editor.action.toggleRenderWhitespace');
 		const toggleRenderControlCharacters = this.createMenuItem(nls.localize({ key: 'miToggleRenderControlCharacters', comment: ['&& denotes a mnemonic'] }, "Toggle &&Control Characters"), 'editor.action.toggleRenderControlCharacter');
+		const toggleBreadcrumbs = this.createMenuItem(nls.localize({ key: 'miToggleBreadcrumbs', comment: ['&& denotes a mnemonic'] }, "Toggle &&Breadcrumbs"), 'breadcrumbs.toggle');
 
 		arrays.coalesce([
 			commands,
@@ -788,7 +796,8 @@ export class CodeMenu {
 			toggleWordWrap,
 			toggleMinimap,
 			toggleRenderWhitespace,
-			toggleRenderControlCharacters
+			toggleRenderControlCharacters,
+			toggleBreadcrumbs
 		]).forEach(item => viewMenu.append(item));
 	}
 
@@ -962,6 +971,7 @@ export class CodeMenu {
 		if (this.currentEnableNativeTabs) {
 			const hasMultipleWindows = this.windowsMainService.getWindowCount() > 1;
 
+			this.nativeTabMenuItems.push(this.createMenuItem(nls.localize('mNewTab', "New Tab"), 'workbench.action.newWindowTab'));
 			this.nativeTabMenuItems.push(this.createMenuItem(nls.localize('mShowPreviousTab', "Show Previous Tab"), 'workbench.action.showPreviousWindowTab', hasMultipleWindows));
 			this.nativeTabMenuItems.push(this.createMenuItem(nls.localize('mShowNextTab', "Show Next Tab"), 'workbench.action.showNextWindowTab', hasMultipleWindows));
 			this.nativeTabMenuItems.push(this.createMenuItem(nls.localize('mMoveTabToNewWindow', "Move Tab to New Window"), 'workbench.action.moveWindowTabToNewWindow', hasMultipleWindows));

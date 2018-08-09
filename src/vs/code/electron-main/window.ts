@@ -280,8 +280,8 @@ export class CodeWindow implements ICodeWindow {
 		return this.currentConfig ? this.currentConfig.workspace : void 0;
 	}
 
-	get openedFolderPath(): string {
-		return this.currentConfig ? this.currentConfig.folderPath : void 0;
+	get openedFolderUri(): URI {
+		return this.currentConfig ? this.currentConfig.folderUri : void 0;
 	}
 
 	setReady(): void {
@@ -498,6 +498,12 @@ export class CodeWindow implements ICodeWindow {
 				this.send('vscode:runAction', { id: acrossEditors ? 'workbench.action.openNextRecentlyUsedEditor' : 'workbench.action.navigateForward', from: 'mouse' } as IRunActionInWindowRequest);
 			}
 		});
+	}
+
+	addTabbedWindow(window: ICodeWindow): void {
+		if (isMacintosh) {
+			this._win.addTabbedWindow(window.win);
+		}
 	}
 
 	load(config: IWindowConfiguration, isReload?: boolean, disableExtensions?: boolean): void {

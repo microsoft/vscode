@@ -220,7 +220,7 @@ export class ViewItem implements IViewItem {
 			this.element.removeAttribute('id');
 		}
 		if (this.model.hasChildren()) {
-			this.element.setAttribute('aria-expanded', String(!!this.model.isExpanded()));
+			this.element.setAttribute('aria-expanded', String(!!this._styles['expanded']));
 		} else {
 			this.element.removeAttribute('aria-expanded');
 		}
@@ -655,6 +655,11 @@ export class TreeView extends HeightMap {
 
 	public getFirstVisibleElement(): any {
 		const item = this.itemAtIndex(this.indexAt(this.lastRenderTop));
+		return item && item.model.getElement();
+	}
+
+	public getLastVisibleElement(): any {
+		const item = this.itemAtIndex(this.indexAt(this.lastRenderTop + this.lastRenderHeight));
 		return item && item.model.getElement();
 	}
 

@@ -96,9 +96,12 @@ export interface ISCMInput {
 
 export interface ISCMRepository extends IDisposable {
 	readonly onDidFocus: Event<void>;
+	readonly selected: boolean;
+	readonly onDidChangeSelection: Event<boolean>;
 	readonly provider: ISCMProvider;
 	readonly input: ISCMInput;
 	focus(): void;
+	setSelected(selected: boolean): void;
 }
 
 export interface ISCMService {
@@ -108,6 +111,8 @@ export interface ISCMService {
 	readonly onDidRemoveRepository: Event<ISCMRepository>;
 
 	readonly repositories: ISCMRepository[];
+	readonly selectedRepositories: ISCMRepository[];
+	readonly onDidChangeSelectedRepositories: Event<ISCMRepository[]>;
 
 	registerSCMProvider(provider: ISCMProvider): ISCMRepository;
 }

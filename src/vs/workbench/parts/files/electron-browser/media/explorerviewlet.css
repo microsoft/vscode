@@ -59,7 +59,7 @@
 }
 
 .explorer-viewlet .explorer-open-editors .monaco-list .monaco-list-row:hover > .monaco-action-bar,
-.explorer-viewlet .explorer-open-editors .monaco-list.focused .monaco-list-row.focused > .monaco-action-bar,
+.explorer-viewlet .explorer-open-editors .monaco-list .monaco-list-row.focused > .monaco-action-bar,
 .explorer-viewlet .explorer-open-editors .monaco-list .monaco-list-row.dirty > .monaco-action-bar {
 	visibility: visible;
 }

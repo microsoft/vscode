@@ -554,7 +554,7 @@ export interface DefinitionProvider {
 	/**
 	 * Provide the definition of the symbol at the given position and document.
 	 */
-	provideDefinition(model: model.ITextModel, position: Position, token: CancellationToken): DefinitionLink | Thenable<DefinitionLink[]>;
+	provideDefinition(model: model.ITextModel, position: Position, token: CancellationToken): Definition | DefinitionLink[] | Thenable<Definition | DefinitionLink[]>;
 }
 
 /**
@@ -565,7 +565,7 @@ export interface ImplementationProvider {
 	/**
 	 * Provide the implementation of the symbol at the given position and document.
 	 */
-	provideImplementation(model: model.ITextModel, position: Position, token: CancellationToken): Definition | Thenable<Definition>;
+	provideImplementation(model: model.ITextModel, position: Position, token: CancellationToken): Definition | DefinitionLink[] | Thenable<Definition | DefinitionLink[]>;
 }
 
 /**
@@ -576,7 +576,7 @@ export interface TypeDefinitionProvider {
 	/**
 	 * Provide the type definition of the symbol at the given position and document.
 	 */
-	provideTypeDefinition(model: model.ITextModel, position: Position, token: CancellationToken): Definition | Thenable<Definition>;
+	provideTypeDefinition(model: model.ITextModel, position: Position, token: CancellationToken): Definition | DefinitionLink[] | Thenable<Definition | DefinitionLink[]>;
 }
 
 /**
@@ -646,7 +646,7 @@ export const symbolKindToCssClass = (function () {
 	_fromMapping[SymbolKind.TypeParameter] = 'type-parameter';
 
 	return function toCssClassName(kind: SymbolKind): string {
-		return _fromMapping[kind] || 'property';
+		return `symbol-icon ${_fromMapping[kind] || 'property'}`;
 	};
 })();
 
@@ -848,12 +848,12 @@ export interface FoldingRangeProvider {
 export interface FoldingRange {
 
 	/**
-	 * The zero-based start line of the range to fold. The folded area starts after the line's last character.
+	 * The one-based start line of the range to fold. The folded area starts after the line's last character.
 	 */
 	start: number;
 
 	/**
-	 * The zero-based end line of the range to fold. The folded area ends with the line's last character.
+	 * The one-based end line of the range to fold. The folded area ends with the line's last character.
 	 */
 	end: number;
 

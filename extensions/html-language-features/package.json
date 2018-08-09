@@ -125,13 +125,13 @@
         "html.suggest.angular1": {
           "type": "boolean",
           "scope": "resource",
-          "default": true,
+          "default": false,
           "description": "%html.suggest.angular1.desc%"
         },
         "html.suggest.ionic": {
           "type": "boolean",
           "scope": "resource",
-          "default": true,
+          "default": false,
           "description": "%html.suggest.ionic.desc%"
         },
         "html.suggest.html5": {
@@ -173,9 +173,8 @@
     }
   },
   "dependencies": {
-    "vscode-extension-telemetry": "0.0.17",
-    "vscode-languageclient": "^4.1.4",
-    "vscode-languageserver-protocol-foldingprovider": "^2.0.1",
+    "vscode-extension-telemetry": "0.0.18",
+    "vscode-languageclient": "^4.4.0",
     "vscode-nls": "^3.2.4"
   },
   "devDependencies": {

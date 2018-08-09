@@ -134,6 +134,10 @@ export class DefaultController implements _.IController {
 					return false; // Ignore event if target is a form input field (avoids browser specific issues)
 				}
 
+				if (dom.findParentWithClass(event.target, 'scrollbar', 'monaco-tree')) {
+					return false;
+				}
+
 				if (dom.findParentWithClass(event.target, 'monaco-action-bar', 'row')) { // TODO@Joao not very nice way of checking for the action bar (implicit knowledge)
 					return false; // Ignore event if target is over an action bar of the row
 				}

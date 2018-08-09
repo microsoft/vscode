@@ -26,6 +26,7 @@ import { CodeActionModel, CodeActionsComputeEvent, SUPPORTED_CODE_ACTIONS } from
 import { CodeActionAutoApply, CodeActionFilter, CodeActionKind } from './codeActionTrigger';
 import { CodeActionContextMenu } from './codeActionWidget';
 import { LightBulbWidget } from './lightBulbWidget';
+import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
 
 function contextKeyForSupportedActions(kind: CodeActionKind) {
 	return ContextKeyExpr.regex(
@@ -192,12 +193,13 @@ export class QuickFixAction extends EditorAction {
 			precondition: ContextKeyExpr.and(EditorContextKeys.writable, EditorContextKeys.hasCodeActionsProvider),
 			kbOpts: {
 				kbExpr: EditorContextKeys.editorTextFocus,
-				primary: KeyMod.CtrlCmd | KeyCode.US_DOT
+				primary: KeyMod.CtrlCmd | KeyCode.US_DOT,
+				weight: KeybindingWeight.EditorContrib
 			}
 		});
 	}
 
-	public run(accessor: ServicesAccessor, editor: ICodeEditor): void {
+	public run(_accessor: ServicesAccessor, editor: ICodeEditor): void {
 		return showCodeActionsForEditorSelection(editor, nls.localize('editor.action.quickFix.noneMessage', "No code actions available"));
 	}
 }
@@ -250,7 +252,7 @@ export class CodeActionCommand extends EditorCommand {
 		});
 	}
 
-	public runEditorCommand(accessor: ServicesAccessor, editor: ICodeEditor, userArg: any) {
+	public runEditorCommand(_accessor: ServicesAccessor, editor: ICodeEditor, userArg: any) {
 		const args = CodeActionCommandArgs.fromUser(userArg);
 		return showCodeActionsForEditorSelection(editor, nls.localize('editor.action.quickFix.noneMessage', "No code actions available"), { kind: args.kind, includeSourceActions: true }, args.apply);
 	}
@@ -272,7 +274,8 @@ export class RefactorAction extends EditorAction {
 				primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KEY_R,
 				mac: {
 					primary: KeyMod.WinCtrl | KeyMod.Shift | KeyCode.KEY_R
-				}
+				},
+				weight: KeybindingWeight.EditorContrib
 			},
 			menuOpts: {
 				group: '1_modification',
@@ -284,7 +287,7 @@ export class RefactorAction extends EditorAction {
 		});
 	}
 
-	public run(accessor: ServicesAccessor, editor: ICodeEditor): void {
+	public run(_accessor: ServicesAccessor, editor: ICodeEditor): void {
 		return showCodeActionsForEditorSelection(editor,
 			nls.localize('editor.action.refactor.noneMessage', "No refactorings available"),
 			{ kind: CodeActionKind.Refactor },
@@ -313,7 +316,7 @@ export class SourceAction extends EditorAction {
 		});
 	}
 
-	public run(accessor: ServicesAccessor, editor: ICodeEditor): void {
+	public run(_accessor: ServicesAccessor, editor: ICodeEditor): void {
 		return showCodeActionsForEditorSelection(editor,
 			nls.localize('editor.action.source.noneMessage', "No source actions available"),
 			{ kind: CodeActionKind.Source, includeSourceActions: true },
@@ -335,12 +338,13 @@ export class OrganizeImportsAction extends EditorAction {
 				contextKeyForSupportedActions(CodeActionKind.SourceOrganizeImports)),
 			kbOpts: {
 				kbExpr: EditorContextKeys.editorTextFocus,
-				primary: KeyMod.Shift | KeyMod.Alt | KeyCode.KEY_O
+				primary: KeyMod.Shift | KeyMod.Alt | KeyCode.KEY_O,
+				weight: KeybindingWeight.EditorContrib
 			}
 		});
 	}
 
-	public run(accessor: ServicesAccessor, editor: ICodeEditor): void {
+	public run(_accessor: ServicesAccessor, editor: ICodeEditor): void {
 		return showCodeActionsForEditorSelection(editor,
 			nls.localize('editor.action.organize.noneMessage', "No organize imports action available"),
 			{ kind: CodeActionKind.SourceOrganizeImports, includeSourceActions: true },

@@ -58,6 +58,7 @@ import { Schemas } from 'vs/base/common/network';
 import { IAnchor } from 'vs/base/browser/ui/contextview/contextview';
 import { Themable } from 'vs/workbench/common/theme';
 import { IPreferencesService } from 'vs/workbench/services/preferences/common/preferences';
+import { IQuickInputService, IQuickPickItem } from 'vs/platform/quickinput/common/quickInput';
 
 class SideBySideEditorEncodingSupport implements IEncodingSupport {
 	constructor(private master: IEncodingSupport, private details: IEncodingSupport) { }
@@ -834,6 +835,7 @@ export class ChangeModeAction extends Action {
 		@IEditorService private editorService: IEditorService,
 		@IWorkspaceConfigurationService private configurationService: IWorkspaceConfigurationService,
 		@IQuickOpenService private quickOpenService: IQuickOpenService,
+		@IQuickInputService private quickInputService: IQuickInputService,
 		@IPreferencesService private preferencesService: IPreferencesService,
 		@IInstantiationService private instantiationService: IInstantiationService,
 		@IUntitledEditorService private untitledEditorService: IUntitledEditorService
@@ -844,7 +846,7 @@ export class ChangeModeAction extends Action {
 	run(): TPromise<any> {
 		const activeTextEditorWidget = getCodeEditor(this.editorService.activeTextEditorWidget);
 		if (!activeTextEditorWidget) {
-			return this.quickOpenService.pick([{ label: nls.localize('noEditor', "No text editor active at this time") }]);
+			return this.quickInputService.pick([{ label: nls.localize('noEditor', "No text editor active at this time") }]);
 		}
 
 		const textModel = activeTextEditorWidget.getModel();
@@ -987,10 +989,10 @@ export class ChangeModeAction extends Action {
 		const currentAssociation = this.modeService.getModeIdByFilenameOrFirstLine(basename);
 
 		const languages = this.modeService.getRegisteredLanguageNames();
-		const picks: IPickOpenEntry[] = languages.sort().map((lang, index) => {
+		const picks: IQuickPickItem[] = languages.sort().map((lang, index) => {
 			const id = this.modeService.getModeIdForLanguageName(lang.toLowerCase());
 
-			return <IPickOpenEntry>{
+			return <IQuickPickItem>{
 				id,
 				label: lang,
 				description: (id === currentAssociation) ? nls.localize('currentAssociation', "Current Association") : void 0
@@ -998,7 +1000,7 @@ export class ChangeModeAction extends Action {
 		});
 
 		TPromise.timeout(50 /* quick open is sensitive to being opened so soon after another */).done(() => {
-			this.quickOpenService.pick(picks, { placeHolder: nls.localize('pickLanguageToConfigure', "Select Language Mode to Associate with '{0}'", extension || basename) }).done(language => {
+			this.quickInputService.pick(picks, { placeHolder: nls.localize('pickLanguageToConfigure', "Select Language Mode to Associate with '{0}'", extension || basename) }).done(language => {
 				if (language) {
 					const fileAssociationsConfig = this.configurationService.inspect(FILES_ASSOCIATIONS_CONFIG);
 
@@ -1030,7 +1032,7 @@ export class ChangeModeAction extends Action {
 	}
 }
 
-export interface IChangeEOLEntry extends IPickOpenEntry {
+export interface IChangeEOLEntry extends IQuickPickItem {
 	eol: EndOfLineSequence;
 }
 
@@ -1043,7 +1045,8 @@ class ChangeIndentationAction extends Action {
 		actionId: string,
 		actionLabel: string,
 		@IEditorService private editorService: IEditorService,
-		@IQuickOpenService private quickOpenService: IQuickOpenService
+		@IQuickOpenService private quickOpenService: IQuickOpenService,
+		@IQuickInputService private quickInputService: IQuickInputService
 	) {
 		super(actionId, actionLabel);
 	}
@@ -1051,11 +1054,11 @@ class ChangeIndentationAction extends Action {
 	run(): TPromise<any> {
 		const activeTextEditorWidget = getCodeEditor(this.editorService.activeTextEditorWidget);
 		if (!activeTextEditorWidget) {
-			return this.quickOpenService.pick([{ label: nls.localize('noEditor', "No text editor active at this time") }]);
+			return this.quickInputService.pick([{ label: nls.localize('noEditor', "No text editor active at this time") }]);
 		}
 
 		if (!isWritableCodeEditor(activeTextEditorWidget)) {
-			return this.quickOpenService.pick([{ label: nls.localize('noWritableCodeEditor', "The active code editor is read-only.") }]);
+			return this.quickInputService.pick([{ label: nls.localize('noWritableCodeEditor', "The active code editor is read-only.") }]);
 		}
 
 		const picks = [
@@ -1093,7 +1096,7 @@ export class ChangeEOLAction extends Action {
 		actionId: string,
 		actionLabel: string,
 		@IEditorService private editorService: IEditorService,
-		@IQuickOpenService private quickOpenService: IQuickOpenService
+		@IQuickInputService private quickInputService: IQuickInputService
 	) {
 		super(actionId, actionLabel);
 	}
@@ -1101,11 +1104,11 @@ export class ChangeEOLAction extends Action {
 	run(): TPromise<any> {
 		const activeTextEditorWidget = getCodeEditor(this.editorService.activeTextEditorWidget);
 		if (!activeTextEditorWidget) {
-			return this.quickOpenService.pick([{ label: nls.localize('noEditor', "No text editor active at this time") }]);
+			return this.quickInputService.pick([{ label: nls.localize('noEditor', "No text editor active at this time") }]);
 		}
 
 		if (!isWritableCodeEditor(activeTextEditorWidget)) {
-			return this.quickOpenService.pick([{ label: nls.localize('noWritableCodeEditor', "The active code editor is read-only.") }]);
+			return this.quickInputService.pick([{ label: nls.localize('noWritableCodeEditor', "The active code editor is read-only.") }]);
 		}
 
 		const textModel = activeTextEditorWidget.getModel();
@@ -1117,7 +1120,7 @@ export class ChangeEOLAction extends Action {
 
 		const selectedIndex = (textModel && textModel.getEOL() === '\n') ? 0 : 1;
 
-		return this.quickOpenService.pick(EOLOptions, { placeHolder: nls.localize('pickEndOfLine', "Select End of Line Sequence"), autoFocus: { autoFocusIndex: selectedIndex } }).then(eol => {
+		return this.quickInputService.pick(EOLOptions, { placeHolder: nls.localize('pickEndOfLine', "Select End of Line Sequence"), activeItem: EOLOptions[selectedIndex] }).then(eol => {
 			if (eol) {
 				const activeCodeEditor = getCodeEditor(this.editorService.activeTextEditorWidget);
 				if (activeCodeEditor && isWritableCodeEditor(activeCodeEditor)) {
@@ -1139,6 +1142,7 @@ export class ChangeEncodingAction extends Action {
 		actionLabel: string,
 		@IEditorService private editorService: IEditorService,
 		@IQuickOpenService private quickOpenService: IQuickOpenService,
+		@IQuickInputService private quickInputService: IQuickInputService,
 		@ITextResourceConfigurationService private textResourceConfigurationService: ITextResourceConfigurationService,
 		@IFileService private fileService: IFileService
 	) {
@@ -1147,19 +1151,19 @@ export class ChangeEncodingAction extends Action {
 
 	run(): TPromise<any> {
 		if (!getCodeEditor(this.editorService.activeTextEditorWidget)) {
-			return this.quickOpenService.pick([{ label: nls.localize('noEditor', "No text editor active at this time") }]);
+			return this.quickInputService.pick([{ label: nls.localize('noEditor', "No text editor active at this time") }]);
 		}
 
 		let activeControl = this.editorService.activeControl;
 		let encodingSupport: IEncodingSupport = toEditorWithEncodingSupport(activeControl.input);
 		if (!encodingSupport) {
-			return this.quickOpenService.pick([{ label: nls.localize('noFileEditor', "No file active at this time") }]);
+			return this.quickInputService.pick([{ label: nls.localize('noFileEditor', "No file active at this time") }]);
 		}
 
-		let pickActionPromise: TPromise<IPickOpenEntry>;
+		let pickActionPromise: TPromise<IQuickPickItem>;
 
-		let saveWithEncodingPick: IPickOpenEntry;
-		let reopenWithEncodingPick: IPickOpenEntry;
+		let saveWithEncodingPick: IQuickPickItem;
+		let reopenWithEncodingPick: IQuickPickItem;
 		if (language === LANGUAGE_DEFAULT) {
 			saveWithEncodingPick = { label: nls.localize('saveWithEncoding', "Save with Encoding") };
 			reopenWithEncodingPick = { label: nls.localize('reopenWithEncoding', "Reopen with Encoding") };
@@ -1173,7 +1177,7 @@ export class ChangeEncodingAction extends Action {
 		} else if (!isWritableBaseEditor(activeControl)) {
 			pickActionPromise = TPromise.as(reopenWithEncodingPick);
 		} else {
-			pickActionPromise = this.quickOpenService.pick([reopenWithEncodingPick, saveWithEncodingPick], { placeHolder: nls.localize('pickAction', "Select Action"), matchOnDetail: true });
+			pickActionPromise = this.quickInputService.pick([reopenWithEncodingPick, saveWithEncodingPick], { placeHolder: nls.localize('pickAction', "Select Action"), matchOnDetail: true });
 		}
 
 		return pickActionPromise.then(action => {

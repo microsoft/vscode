@@ -21,7 +21,7 @@ class TypeScriptReferencesCodeLensProvider extends TypeScriptBaseCodeLensProvide
 		const codeLens = inputCodeLens as ReferencesCodeLens;
 		const args = typeConverters.Position.toFileLocationRequestArgs(codeLens.file, codeLens.range.start);
 		return this.client.execute('references', args, token).then(response => {
-			if (!response || !response.body) {
+			if (!response.body) {
 				throw codeLens;
 			}
 

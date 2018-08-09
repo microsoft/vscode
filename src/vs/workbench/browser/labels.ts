@@ -11,12 +11,10 @@ import { IconLabel, IIconLabelValueOptions, IIconLabelCreationOptions } from 'vs
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
 import { IModeService } from 'vs/editor/common/services/modeService';
 import { toResource, IEditorInput } from 'vs/workbench/common/editor';
-import { getPathLabel, IWorkspaceFolderProvider } from 'vs/base/common/labels';
 import { PLAINTEXT_MODE_ID } from 'vs/editor/common/modes/modesRegistry';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IModelService } from 'vs/editor/common/services/modelService';
-import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { IUntitledEditorService } from 'vs/workbench/services/untitled/common/untitledEditorService';
 import { IDecorationsService, IResourceDecorationChangeEvent, IDecorationData } from 'vs/workbench/services/decorations/browser/decorations';
 import { Schemas } from 'vs/base/common/network';
@@ -25,6 +23,7 @@ import { ITextModel } from 'vs/editor/common/model';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { Event, Emitter } from 'vs/base/common/event';
 import { DataUri } from 'vs/workbench/common/resources';
+import { IUriDisplayService } from 'vs/platform/uriDisplay/common/uriDisplay';
 
 export interface IResourceLabel {
 	name: string;
@@ -52,13 +51,12 @@ export class ResourceLabel extends IconLabel {
 		container: HTMLElement,
 		options: IIconLabelCreationOptions,
 		@IExtensionService private extensionService: IExtensionService,
-		@IWorkspaceContextService protected contextService: IWorkspaceContextService,
 		@IConfigurationService private configurationService: IConfigurationService,
 		@IModeService private modeService: IModeService,
 		@IModelService private modelService: IModelService,
-		@IEnvironmentService protected environmentService: IEnvironmentService,
 		@IDecorationsService protected decorationsService: IDecorationsService,
-		@IThemeService private themeService: IThemeService
+		@IThemeService private themeService: IThemeService,
+		@IUriDisplayService protected uriDisplayService: IUriDisplayService
 	) {
 		super(container, options);
 
@@ -183,6 +181,7 @@ export class ResourceLabel extends IconLabel {
 			title: '',
 			italic: this.options && this.options.italic,
 			matches: this.options && this.options.matches,
+			extraClasses: []
 		};
 
 		const resource = this.label.resource;
@@ -192,18 +191,18 @@ export class ResourceLabel extends IconLabel {
 			iconLabelOptions.title = this.options.title;
 		} else if (resource && resource.scheme !== Schemas.data /* do not accidentally inline Data URIs */) {
 			if (!this.computedPathLabel) {
-				const rootProvider = resource.scheme !== Schemas.file ? this.contextService : undefined;
-				this.computedPathLabel = getPathLabel(resource, this.environmentService, rootProvider);
+				this.computedPathLabel = this.uriDisplayService.getLabel(resource);
 			}
 
 			iconLabelOptions.title = this.computedPathLabel;
 		}
 
-		if (!this.computedIconClasses) {
-			this.computedIconClasses = getIconClasses(this.modelService, this.modeService, resource, this.options && this.options.fileKind);
+		if (this.options && !this.options.hideIcon) {
+			if (!this.computedIconClasses) {
+				this.computedIconClasses = getIconClasses(this.modelService, this.modeService, resource, this.options && this.options.fileKind);
+			}
+			iconLabelOptions.extraClasses = this.computedIconClasses.slice(0);
 		}
-
-		iconLabelOptions.extraClasses = this.computedIconClasses.slice(0);
 		if (this.options && this.options.extraClasses) {
 			iconLabelOptions.extraClasses.push(...this.options.extraClasses);
 		}
@@ -260,7 +259,6 @@ export class EditorLabel extends ResourceLabel {
 export interface IFileLabelOptions extends IResourceLabelOptions {
 	hideLabel?: boolean;
 	hidePath?: boolean;
-	root?: uri;
 }
 
 export class FileLabel extends ResourceLabel {
@@ -269,16 +267,16 @@ export class FileLabel extends ResourceLabel {
 		container: HTMLElement,
 		options: IIconLabelCreationOptions,
 		@IExtensionService extensionService: IExtensionService,
-		@IWorkspaceContextService contextService: IWorkspaceContextService,
+		@IWorkspaceContextService private contextService: IWorkspaceContextService,
 		@IConfigurationService configurationService: IConfigurationService,
 		@IModeService modeService: IModeService,
 		@IModelService modelService: IModelService,
-		@IEnvironmentService environmentService: IEnvironmentService,
 		@IDecorationsService decorationsService: IDecorationsService,
 		@IThemeService themeService: IThemeService,
 		@IUntitledEditorService private untitledEditorService: IUntitledEditorService,
+		@IUriDisplayService uriDisplayService: IUriDisplayService
 	) {
-		super(container, options, extensionService, contextService, configurationService, modeService, modelService, environmentService, decorationsService, themeService);
+		super(container, options, extensionService, configurationService, modeService, modelService, decorationsService, themeService, uriDisplayService);
 	}
 
 	setFile(resource: uri, options?: IFileLabelOptions): void {
@@ -300,17 +298,7 @@ export class FileLabel extends ResourceLabel {
 		let description: string;
 		const hidePath = (options && options.hidePath) || (resource.scheme === Schemas.untitled && !this.untitledEditorService.hasAssociatedFilePath(resource));
 		if (!hidePath) {
-			let rootProvider: IWorkspaceFolderProvider;
-			if (options && options.root) {
-				rootProvider = {
-					getWorkspaceFolder(): { uri } { return { uri: options.root }; },
-					getWorkspace(): { folders: { uri: uri }[]; } { return { folders: [{ uri: options.root }] }; },
-				};
-			} else {
-				rootProvider = this.contextService;
-			}
-
-			description = getPathLabel(resources.dirname(resource), this.environmentService, rootProvider);
+			description = this.uriDisplayService.getLabel(resources.dirname(resource), true);
 		}
 
 		this.setLabel({ resource, name, description }, options);

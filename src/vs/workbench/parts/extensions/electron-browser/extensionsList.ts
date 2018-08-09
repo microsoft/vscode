@@ -191,7 +191,7 @@ export class Renderer implements IPagedRenderer<IExtension, ITemplateData> {
 		extension.getManifest().then(manifest => {
 			const name = manifest && manifest.contributes && manifest.contributes.localizations && manifest.contributes.localizations.length > 0 && manifest.contributes.localizations[0].localizedLanguageName;
 			if (name) { data.description.textContent = name[0].toLocaleUpperCase() + name.slice(1); }
-		});
+		}, () => { });
 	}
 
 	disposeElement(): void {

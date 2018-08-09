@@ -42,7 +42,7 @@ export class SearchService implements IRawSearchService {
 		let promise: TPromise<ISerializedSearchSuccess>;
 
 		const emitter = new Emitter<ISerializedSearchProgressItem | ISerializedSearchComplete>({
-			onFirstListenerAdd: () => {
+			onFirstListenerDidAdd: () => {
 				promise = this.doFileSearch(FileSearchEngine, config, p => emitter.fire(p), batchSize)
 					.then(c => emitter.fire(c), err => emitter.fire({ type: 'error', error: { message: err.message, stack: err.stack } }));
 			},
@@ -58,7 +58,7 @@ export class SearchService implements IRawSearchService {
 		let promise: TPromise<ISerializedSearchSuccess>;
 
 		const emitter = new Emitter<ISerializedSearchProgressItem | ISerializedSearchComplete>({
-			onFirstListenerAdd: () => {
+			onFirstListenerDidAdd: () => {
 				promise = (config.useRipgrep ? this.ripgrepTextSearch(config, p => emitter.fire(p)) : this.legacyTextSearch(config, p => emitter.fire(p)))
 					.then(c => emitter.fire(c), err => emitter.fire({ type: 'error', error: { message: err.message, stack: err.stack } }));
 			},

@@ -496,6 +496,39 @@ export class ActionBar implements IActionRunner {
 			this.actionsList.setAttribute('aria-label', this.options.ariaLabel);
 		}
 
+		if (this.options.isMenu) {
+			this.domNode.tabIndex = 0;
+
+			$(this.domNode).on(DOM.EventType.MOUSE_OUT, (e) => {
+				let relatedTarget = (e as MouseEvent).relatedTarget as HTMLElement;
+				if (!DOM.isAncestor(relatedTarget, this.domNode)) {
+					this.focusedItem = undefined;
+					this.updateFocus();
+					e.stopPropagation();
+				}
+			});
+
+			$(this.actionsList).on(DOM.EventType.MOUSE_OVER, (e) => {
+				let target = e.target as HTMLElement;
+				if (!target || !DOM.isAncestor(target, this.actionsList) || target === this.actionsList) {
+					return;
+				}
+
+				while (target.parentElement !== this.actionsList) {
+					target = target.parentElement;
+				}
+
+				if (DOM.hasClass(target, 'action-item')) {
+					const lastFocusedItem = this.focusedItem;
+					this.setFocusedItem(target);
+
+					if (lastFocusedItem !== this.focusedItem) {
+						this.updateFocus();
+					}
+				}
+			});
+		}
+
 		this.domNode.appendChild(this.actionsList);
 
 		container.appendChild(this.domNode);
@@ -522,6 +555,16 @@ export class ActionBar implements IActionRunner {
 			this.actionsList.setAttribute('aria-label', label);
 		} else {
 			this.actionsList.removeAttribute('aria-label');
+		}
+	}
+
+	private setFocusedItem(element: HTMLElement): void {
+		for (let i = 0; i < this.actionsList.children.length; i++) {
+			let elem = this.actionsList.children[i];
+			if (element === elem) {
+				this.focusedItem = i;
+				break;
+			}
 		}
 	}
 
@@ -696,7 +739,6 @@ export class ActionBar implements IActionRunner {
 	private updateFocus(fromRight?: boolean): void {
 		if (typeof this.focusedItem === 'undefined') {
 			this.domNode.focus();
-			return;
 		}
 
 		for (let i = 0; i < this.items.length; i++) {
@@ -705,8 +747,12 @@ export class ActionBar implements IActionRunner {
 			let actionItem = <any>item;
 
 			if (i === this.focusedItem) {
-				if (types.isFunction(actionItem.focus)) {
-					actionItem.focus(fromRight);
+				if (types.isFunction(actionItem.isEnabled)) {
+					if (actionItem.isEnabled() && types.isFunction(actionItem.focus)) {
+						actionItem.focus(fromRight);
+					} else {
+						this.domNode.focus();
+					}
 				}
 			} else {
 				if (types.isFunction(actionItem.blur)) {
