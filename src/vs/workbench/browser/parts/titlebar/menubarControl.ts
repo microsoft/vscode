@@ -5,7 +5,6 @@
 
 'use strict';
 
-import 'vs/workbench/browser/parts/titlebar/titlebar.contribution';
 import * as nls from 'vs/nls';
 import * as browser from 'vs/base/browser/browser';
 import { IMenubarMenu, IMenubarMenuItemAction, IMenubarMenuItemSubmenu, IMenubarKeybinding } from 'vs/platform/menubar/common/menubar';

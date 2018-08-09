@@ -33,6 +33,7 @@ import { ResourceGlobMatcher } from 'vs/workbench/electron-browser/resources';
 import { Schemas } from 'vs/base/common/network';
 import { EditorServiceImpl } from 'vs/workbench/browser/parts/editor/editor';
 import { IPartService } from 'vs/workbench/services/part/common/partService';
+import { IContextKeyService, RawContextKey, IContextKey } from 'vs/platform/contextkey/common/contextkey';
 
 /**
  * Stores the selection & view state of an editor and allows to compare it to other selection states.
@@ -123,6 +124,9 @@ export class HistoryService extends Disposable implements IHistoryService {
 
 	private fileInputFactory: IFileInputFactory;
 
+	private canNavigateBackContextKey: IContextKey<boolean>;
+	private canNavigateForwardContextKey: IContextKey<boolean>;
+
 	constructor(
 		@IEditorService private editorService: EditorServiceImpl,
 		@IEditorGroupsService private editorGroupService: IEditorGroupsService,
@@ -133,11 +137,15 @@ export class HistoryService extends Disposable implements IHistoryService {
 		@IFileService private fileService: IFileService,
 		@IWindowsService private windowService: IWindowsService,
 		@IInstantiationService private instantiationService: IInstantiationService,
-		@IPartService private partService: IPartService
+		@IPartService private partService: IPartService,
+		@IContextKeyService private contextKeyService: IContextKeyService
 	) {
 		super();
 
 		this.activeEditorListeners = [];
+
+		this.canNavigateBackContextKey = (new RawContextKey<boolean>('canNavigateBack', false)).bindTo(this.contextKeyService);
+		this.canNavigateForwardContextKey = (new RawContextKey<boolean>('canNavigateForward', false)).bindTo(this.contextKeyService);
 
 		this.fileInputFactory = Registry.as<IEditorInputFactoryRegistry>(EditorInputExtensions.EditorInputFactories).getFileInputFactory();
 
@@ -268,6 +276,8 @@ export class HistoryService extends Disposable implements IHistoryService {
 	private setIndex(value: number): void {
 		this.lastIndex = this.index;
 		this.index = value;
+
+		this.updateContextKeys();
 	}
 
 	private doForwardAcrossEditors(): void {
@@ -338,6 +348,13 @@ export class HistoryService extends Disposable implements IHistoryService {
 		this.stack.splice(0);
 		this.history = [];
 		this.recentlyClosedFiles = [];
+
+		this.updateContextKeys();
+	}
+
+	private updateContextKeys(): void {
+		this.canNavigateBackContextKey.set(this.stack.length > 0 && this.index > 0);
+		this.canNavigateForwardContextKey.set(this.stack.length > 0 && this.index < this.stack.length - 1);
 	}
 
 	private navigate(acrossEditors?: boolean): void {
@@ -569,6 +586,9 @@ export class HistoryService extends Disposable implements IHistoryService {
 		if (stackInput instanceof EditorInput) {
 			once(stackInput.onDispose)(() => this.removeFromStack(input));
 		}
+
+		// Context
+		this.updateContextKeys();
 	}
 
 	private preferResourceInput(input: IEditorInput): IEditorInput | IResourceInput {
@@ -595,6 +615,8 @@ export class HistoryService extends Disposable implements IHistoryService {
 		this.stack = this.stack.filter(e => !this.matches(arg1, e.input));
 		this.index = this.stack.length - 1; // reset index
 		this.lastIndex = -1;
+
+		this.updateContextKeys();
 	}
 
 	private removeFromRecentlyClosedFiles(arg1: IEditorInput | IResourceInput | FileChangesEvent): void {
