@@ -57,6 +57,7 @@ export class SettingsEditor2 extends BaseEditor {
 
 	private settingsTreeContainer: HTMLElement;
 	private settingsTree: Tree;
+	private settingsTreeRenderer: SettingsRenderer;
 	private tocTreeModel: TOCTreeModel;
 	private settingsTreeModel: SettingsTreeModel;
 
@@ -67,6 +68,7 @@ export class SettingsEditor2 extends BaseEditor {
 	private localSearchDelayer: Delayer<void>;
 	private remoteSearchThrottle: ThrottledDelayer<void>;
 	private searchInProgress: TPromise<void>;
+	private delayRefreshOnLayout: Delayer<void>;
 
 	private settingUpdateDelayer: Delayer<void>;
 	private pendingSettingUpdate: { key: string, value: any };
@@ -100,6 +102,7 @@ export class SettingsEditor2 extends BaseEditor {
 		this.localSearchDelayer = new Delayer(100);
 		this.remoteSearchThrottle = new ThrottledDelayer(200);
 		this.viewState = { settingsTarget: ConfigurationTarget.USER };
+		this.delayRefreshOnLayout = new Delayer(100);
 
 		this.settingUpdateDelayer = new Delayer<void>(500);
 
@@ -143,6 +146,8 @@ export class SettingsEditor2 extends BaseEditor {
 		this.layoutTrees(dimension);
 
 		DOM.toggleClass(this.rootElement, 'narrow', dimension.width < 600);
+
+		this.delayRefreshOnLayout.trigger(() => this.refreshTreeAndMaintainFocus());
 	}
 
 	focus(): void {
@@ -366,23 +371,23 @@ export class SettingsEditor2 extends BaseEditor {
 	private createSettingsTree(parent: HTMLElement): void {
 		this.settingsTreeContainer = DOM.append(parent, $('.settings-tree-container'));
 
-		const renderer = this.instantiationService.createInstance(SettingsRenderer, this.settingsTreeContainer);
-		this._register(renderer.onDidChangeSetting(e => this.onDidChangeSetting(e.key, e.value)));
-		this._register(renderer.onDidOpenSettings(settingKey => {
+		this.settingsTreeRenderer = this.instantiationService.createInstance(SettingsRenderer, this.settingsTreeContainer);
+		this._register(this.settingsTreeRenderer.onDidChangeSetting(e => this.onDidChangeSetting(e.key, e.value)));
+		this._register(this.settingsTreeRenderer.onDidOpenSettings(settingKey => {
 			this.openSettingsFile().then(editor => {
 				if (editor instanceof PreferencesEditor && settingKey) {
 					editor.focusSearch(settingKey);
 				}
 			});
 		}));
-		this._register(renderer.onDidClickSettingLink(settingName => this.revealSetting(settingName)));
-		this._register(renderer.onDidFocusSetting(element => this.revealSettingElement(element)));
+		this._register(this.settingsTreeRenderer.onDidClickSettingLink(settingName => this.revealSetting(settingName)));
+		this._register(this.settingsTreeRenderer.onDidFocusSetting(element => this.revealSettingElement(element)));
 
 		this.settingsTree = this._register(this.instantiationService.createInstance(SettingsTree,
 			this.settingsTreeContainer,
 			this.viewState,
 			{
-				renderer
+				renderer: this.settingsTreeRenderer
 			}));
 		this.settingsTree.getHTMLElement().attributes.removeNamedItem('tabindex');
 
@@ -801,6 +806,8 @@ export class SettingsEditor2 extends BaseEditor {
 		const tocTreeHeight = listHeight - 16;
 		this.tocTreeContainer.style.height = `${tocTreeHeight}px`;
 		this.tocTree.layout(tocTreeHeight, 175);
+
+		this.settingsTreeRenderer.updateWidth(dimension.width);
 	}
 }
 
