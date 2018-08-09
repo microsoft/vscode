@@ -216,7 +216,7 @@ export class TextMateService implements ITextMateService {
 					loadGrammar: (scopeName: string) => {
 						const location = this._scopeRegistry.getGrammarLocation(scopeName);
 						if (!location) {
-							this._logService.info(`No grammar found for scope ${scopeName}`);
+							this._logService.trace(`No grammar found for scope ${scopeName}`);
 							return null;
 						}
 						return this._fileService.resolveContent(location, { encoding: 'utf8' }).then(content => {

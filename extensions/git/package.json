@@ -885,7 +885,7 @@
             "string",
             "null"
           ],
-          "description": "%config.path%",
+          "markdownDescription": "%config.path%",
           "default": null,
           "scope": "application"
         },
@@ -956,7 +956,7 @@
             "%config.checkoutType.tags%",
             "%config.checkoutType.remote%"
           ],
-          "description": "%config.checkoutType%",
+          "markdownDescription": "%config.checkoutType%",
           "default": "all"
         },
         "git.ignoreLegacyWarning": {

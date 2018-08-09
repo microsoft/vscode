@@ -191,7 +191,7 @@
           "type": "boolean",
           "default": false,
           "scope": "resource",
-          "description": "%config.npm.runSilent%"
+          "markdownDescription": "%config.npm.runSilent%"
         },
         "npm.packageManager": {
           "scope": "resource",
@@ -226,7 +226,7 @@
             "open",
             "run"
           ],
-          "description": "%config.npm.scriptExplorerAction%",
+          "markdownDescription": "%config.npm.scriptExplorerAction%",
           "scope": "window",
           "default": "open"
         },

@@ -79,6 +79,7 @@
 	display: flex;
 	flex: initial;
 	opacity: 0.5;
+	height: 35px;
 }
 
 .monaco-workbench > .part.editor > .content .editor-group-container.active > .title .title-actions {

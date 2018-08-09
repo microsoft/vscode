@@ -8,7 +8,7 @@ import * as paths from 'vs/base/common/paths';
 import URI from 'vs/base/common/uri';
 import { equalsIgnoreCase } from 'vs/base/common/strings';
 import { Schemas } from 'vs/base/common/network';
-import { isLinux } from 'vs/base/common/platform';
+import { isLinux, isWindows } from 'vs/base/common/platform';
 import { CharCode } from 'vs/base/common/charCode';
 
 export function getComparisonKey(resource: URI): string {
@@ -18,19 +18,18 @@ export function getComparisonKey(resource: URI): string {
 export function hasToIgnoreCase(resource: URI): boolean {
 	// A file scheme resource is in the same platform as code, so ignore case for non linux platforms
 	// Resource can be from another platform. Lowering the case as an hack. Should come from File system provider
-	return resource.scheme === Schemas.file ? !isLinux : true;
+	return resource && resource.scheme === Schemas.file ? !isLinux : true;
 }
 
 export function basenameOrAuthority(resource: URI): string {
-	return basename_urlpath(resource.path) || resource.authority;
+	return basename(resource) || resource.authority;
 }
 
 export function isEqualOrParent(resource: URI, candidate: URI, ignoreCase?: boolean): boolean {
 	if (resource.scheme === candidate.scheme && resource.authority === candidate.authority) {
-		if (resource.scheme === 'file') {
+		if (resource.scheme === Schemas.file) {
 			return paths.isEqualOrParent(resource.fsPath, candidate.fsPath, ignoreCase);
 		}
-
 		return paths.isEqualOrParent(resource.path, candidate.path, ignoreCase, '/');
 	}
 
@@ -55,45 +54,67 @@ export function isEqual(first: URI, second: URI, ignoreCase?: boolean): boolean 
 }
 
 export function basename(resource: URI): string {
-	if (resource.scheme === 'file') {
-		return paths.basename(resource.fsPath);
-	}
-	return basename_urlpath(resource.path);
+	return paths.basename(resource.path);
 }
 
+/**
+ * Return a URI representing the directory of a URI path.
+ *
+ * @param resource The input URI.
+ * @returns The URI representing the directory of the input URI.
+ */
 export function dirname(resource: URI): URI {
-	if (resource.scheme === 'file') {
-		return URI.file(paths.dirname(resource.fsPath));
-	}
-	let dirname = dirname_urlpath(resource.path);
+	let dirname = paths.dirname(resource.path, '/');
 	if (resource.authority && dirname.length && dirname.charCodeAt(0) !== CharCode.Slash) {
-		return null; // If a URI contains an authority component, then the path component must either be empty or begin with a slash ("/") character
+		return null; // If a URI contains an authority component, then the path component must either be empty or begin with a CharCode.Slash ("/") character
 	}
 	return resource.with({
 		path: dirname
 	});
 }
 
+/**
+ * Join a URI path with a path fragment and normalizes the resulting path.
+ *
+ * @param resource The input URI.
+ * @param pathFragment The path fragment to add to the URI path.
+ * @returns The resulting URI.
+ */
 export function joinPath(resource: URI, pathFragment: string): URI {
-	if (resource.scheme === 'file') {
-		return URI.file(paths.join(resource.path || '/', pathFragment));
-	}
-
-	let path = resource.path || '';
-	let last = path.charCodeAt(path.length - 1);
-	let next = pathFragment.charCodeAt(0);
-	if (last !== CharCode.Slash) {
-		if (next !== CharCode.Slash) {
-			path += '/';
-		}
+	let joinedPath: string;
+	if (resource.scheme === Schemas.file) {
+		joinedPath = URI.file(paths.join(resource.fsPath, pathFragment)).path;
 	} else {
-		if (next === CharCode.Slash) {
-			pathFragment = pathFragment.substr(1);
-		}
+		joinedPath = paths.join(resource.path, pathFragment);
 	}
 	return resource.with({
-		path: path + pathFragment
+		path: joinedPath
 	});
+}
+
+/**
+ * Normalizes the path part of a URI: Resolves `.` and `..` elements with directory names.
+ *
+ * @param resource The URI to normalize the path.
+ * @returns The URI with the normalized path.
+ */
+export function normalizePath(resource: URI): URI {
+	let normalizedPath: string;
+	if (resource.scheme === Schemas.file) {
+		normalizedPath = URI.file(paths.normalize(resource.fsPath)).path;
+	} else {
+		normalizedPath = paths.normalize(resource.path);
+	}
+	return resource.with({
+		path: normalizedPath
+	});
+}
+
+/**
+ * Returns true if the URI path is absolute.
+ */
+export function isAbsolutePath(resource: URI): boolean {
+	return paths.isAbsolute(resource.path);
 }
 
 export function distinctParents<T>(items: T[], resourceAccessor: (item: T) => URI): T[] {
@@ -116,26 +137,10 @@ export function distinctParents<T>(items: T[], resourceAccessor: (item: T) => UR
 	return distinctParents;
 }
 
-function dirname_urlpath(path: string): string {
-	const idx = ~path.lastIndexOf('/');
-	if (idx === 0) {
-		return '';
-	} else if (~idx === 0) {
-		return path[0];
-	} else if (~idx === path.length - 1) {
-		return dirname_urlpath(path.substring(0, path.length - 1));
-	} else {
-		return path.substring(0, ~idx);
+export function isMalformedFileUri(candidate: URI): URI | undefined {
+	if (!candidate.scheme || isWindows && candidate.scheme.match(/^[a-zA-Z]$/)) {
+		return URI.file((candidate.scheme ? candidate.scheme + ':' : '') + candidate.path);
 	}
+	return void 0;
 }
 
-function basename_urlpath(path: string): string {
-	const idx = ~path.lastIndexOf('/');
-	if (idx === 0) {
-		return path;
-	} else if (~idx === path.length - 1) {
-		return basename_urlpath(path.substring(0, path.length - 1));
-	} else {
-		return path.substr(~idx + 1);
-	}
-}

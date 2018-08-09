@@ -19,9 +19,12 @@ export const sep = '/';
 export const nativeSep = isWindows ? '\\' : '/';
 
 /**
+ * @param path the path to get the dirname from
+ * @param separator the separator to use
  * @returns the directory name of a path.
+ *
  */
-export function dirname(path: string): string {
+export function dirname(path: string, separator = nativeSep): string {
 	const idx = ~path.lastIndexOf('/') || ~path.lastIndexOf('\\');
 	if (idx === 0) {
 		return '.';
@@ -32,7 +35,7 @@ export function dirname(path: string): string {
 	} else {
 		let res = path.substring(0, ~idx);
 		if (isWindows && res[res.length - 1] === ':') {
-			res += nativeSep; // make sure drive letters end with backslash
+			res += separator; // make sure drive letters end with backslash
 		}
 		return res;
 	}

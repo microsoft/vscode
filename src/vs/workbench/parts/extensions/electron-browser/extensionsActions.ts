@@ -46,12 +46,12 @@ import { INotificationService, Severity } from 'vs/platform/notification/common/
 import { IOpenerService } from 'vs/platform/opener/common/opener';
 import { mnemonicButtonLabel } from 'vs/base/common/labels';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
-import { IQuickOpenService, IPickOpenEntry } from 'vs/platform/quickOpen/common/quickOpen';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IEditorGroupsService } from 'vs/workbench/services/group/common/editorGroupsService';
 import { ExtensionsInput } from 'vs/workbench/parts/extensions/common/extensionsInput';
 import product from 'vs/platform/node/product';
 import { ContextSubMenu } from 'vs/base/browser/contextmenu';
+import { IQuickPickItem, IQuickInputService } from 'vs/platform/quickinput/common/quickInput';
 
 const promptDownloadManually = (extension: IGalleryExtension, message: string, instantiationService: IInstantiationService, notificationService: INotificationService, openerService: IOpenerService) => {
 	const downloadUrl = `${product.extensionsGallery.serviceUrl}/publishers/${extension.publisher}/vsextensions/${extension.name}/${extension.version}/vspackage`;
@@ -2694,7 +2694,7 @@ export class ReinstallAction extends Action {
 	constructor(
 		id: string = ReinstallAction.ID, label: string = ReinstallAction.LABEL,
 		@IExtensionsWorkbenchService private extensionsWorkbenchService: IExtensionsWorkbenchService,
-		@IQuickOpenService private quickOpenService: IQuickOpenService,
+		@IQuickInputService private quickInputService: IQuickInputService,
 		@INotificationService private notificationService: INotificationService,
 		@IWindowService private windowService: IWindowService
 	) {
@@ -2706,21 +2706,22 @@ export class ReinstallAction extends Action {
 	}
 
 	run(): TPromise<any> {
-		return this.quickOpenService.pick(this.getEntries(), { placeHolder: localize('selectExtension', "Select Extension to Reinstall") });
+		return this.quickInputService.pick(this.getEntries(), { placeHolder: localize('selectExtension', "Select Extension to Reinstall") })
+			.then(pick => pick && this.reinstallExtension(pick.extension));
 	}
 
-	private getEntries(): TPromise<IPickOpenEntry[]> {
+	private getEntries() {
 		return this.extensionsWorkbenchService.queryLocal()
 			.then(local => {
-				const entries: IPickOpenEntry[] = local
+				const entries = local
 					.filter(extension => extension.type === LocalExtensionType.User)
 					.map(extension => {
-						return <IPickOpenEntry>{
+						return {
 							id: extension.id,
 							label: extension.displayName,
 							description: extension.id,
-							run: () => this.reinstallExtension(extension),
-						};
+							extension,
+						} as (IQuickPickItem & { extension: IExtension });
 					});
 				return entries;
 			});

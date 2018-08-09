@@ -5182,11 +5182,11 @@ declare namespace monaco.languages {
 
 	export interface FoldingRange {
 		/**
-		 * The zero-based start line of the range to fold. The folded area starts after the line's last character.
+		 * The one-based start line of the range to fold. The folded area starts after the line's last character.
 		 */
 		start: number;
 		/**
-		 * The zero-based end line of the range to fold. The folded area ends with the line's last character.
+		 * The one-based end line of the range to fold. The folded area ends with the line's last character.
 		 */
 		end: number;
 		/**

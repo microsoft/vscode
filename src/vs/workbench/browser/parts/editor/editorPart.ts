@@ -10,20 +10,20 @@ import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { Part } from 'vs/workbench/browser/part';
 import { Dimension, isAncestor, toggleClass, addClass, $ } from 'vs/base/browser/dom';
 import { Event, Emitter, once, Relay, anyEvent } from 'vs/base/common/event';
-import { contrastBorder, editorBackground, registerColor } from 'vs/platform/theme/common/colorRegistry';
+import { contrastBorder, editorBackground } from 'vs/platform/theme/common/colorRegistry';
 import { GroupDirection, IAddGroupOptions, GroupsArrangement, GroupOrientation, IMergeGroupOptions, MergeGroupMode, ICopyEditorOptions, GroupsOrder, GroupChangeKind, GroupLocation, IFindGroupScope, EditorGroupLayout, GroupLayoutArgument } from 'vs/workbench/services/group/common/editorGroupsService';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { Direction, SerializableGrid, Sizing, ISerializedGrid, Orientation, ISerializedNode, GridBranchNode, isGridBranchNode, GridNode, createSerializedGrid, Grid } from 'vs/base/browser/ui/grid/grid';
+import { Direction, SerializableGrid, Sizing, ISerializedGrid, Orientation, GridBranchNode, isGridBranchNode, GridNode, createSerializedGrid, Grid } from 'vs/base/browser/ui/grid/grid';
 import { GroupIdentifier, IWorkbenchEditorConfiguration } from 'vs/workbench/common/editor';
 import { values } from 'vs/base/common/map';
-import { EDITOR_GROUP_BORDER } from 'vs/workbench/common/theme';
+import { EDITOR_GROUP_BORDER, EDITOR_PANE_BACKGROUND } from 'vs/workbench/common/theme';
 import { distinct } from 'vs/base/common/arrays';
 import { IEditorGroupsAccessor, IEditorGroupView, IEditorPartOptions, getEditorPartOptions, impactsEditorPartOptions, IEditorPartOptionsChangeEvent, EditorGroupsServiceImpl } from 'vs/workbench/browser/parts/editor/editor';
 import { EditorGroupView } from 'vs/workbench/browser/parts/editor/editorGroupView';
 import { IConfigurationService, IConfigurationChangeEvent } from 'vs/platform/configuration/common/configuration';
 import { IDisposable, dispose, toDisposable } from 'vs/base/common/lifecycle';
 import { assign } from 'vs/base/common/objects';
-import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
+import { IStorageService } from 'vs/platform/storage/common/storage';
 import { Scope } from 'vs/workbench/common/memento';
 import { ISerializedEditorGroup, isSerializedEditorGroup } from 'vs/workbench/common/editor/editorGroup';
 import { TValueCallback, TPromise } from 'vs/base/common/winjs.base';
@@ -81,12 +81,6 @@ class GridWidgetView<T extends IView> implements IView {
 		this._onDidChange.dispose();
 	}
 }
-
-export const EDITOR_PANE_BACKGROUND = registerColor('editorPane.background', {
-	dark: editorBackground,
-	light: editorBackground,
-	hc: editorBackground
-}, localize('editorPaneBackground', "Background color of the editor pane visible on the left and right side of the centered editor layout."));
 
 export class EditorPart extends Part implements EditorGroupsServiceImpl, IEditorGroupsAccessor {
 
@@ -708,7 +702,7 @@ export class EditorPart extends Part implements EditorGroupsServiceImpl, IEditor
 		// Move/Copy editors over into target
 		let index = (options && typeof options.index === 'number') ? options.index : targetView.count;
 		sourceView.editors.forEach(editor => {
-			const inactive = !sourceView.isActive(editor);
+			const inactive = !sourceView.isActive(editor) || this._activeGroup !== sourceView;
 			const copyOptions: ICopyEditorOptions = { index, inactive, preserveFocus: inactive };
 
 			if (options && options.mode === MergeGroupMode.COPY_EDITORS) {
@@ -828,7 +822,7 @@ export class EditorPart extends Part implements EditorGroupsServiceImpl, IEditor
 	}
 
 	private doCreateGridControlWithPreviousState(): void {
-		const uiState = this.doGetPreviousState();
+		const uiState = this.memento[EditorPart.EDITOR_PART_UI_STATE_STORAGE_KEY] as IEditorPartUIState;
 		if (uiState && uiState.serializedGrid) {
 
 			// MRU
@@ -887,123 +881,6 @@ export class EditorPart extends Part implements EditorGroupsServiceImpl, IEditor
 		}
 
 		this.onDidSetGridWidget.fire();
-	}
-
-	private doGetPreviousState(): IEditorPartUIState {
-		const legacyState = this.doGetPreviousLegacyState();
-		if (legacyState) {
-			return legacyState; // TODO@ben remove after a while
-		}
-
-		return this.memento[EditorPart.EDITOR_PART_UI_STATE_STORAGE_KEY] as IEditorPartUIState;
-	}
-
-	private doGetPreviousLegacyState(): IEditorPartUIState {
-		const LEGACY_EDITOR_PART_UI_STATE_STORAGE_KEY = 'editorpart.uiState';
-		const LEGACY_STACKS_MODEL_STORAGE_KEY = 'editorStacks.model';
-
-		interface ILegacyEditorPartUIState {
-			ratio: number[];
-			groupOrientation: 'vertical' | 'horizontal';
-		}
-
-		interface ISerializedLegacyEditorStacksModel {
-			groups: ISerializedEditorGroup[];
-			active: number;
-		}
-
-		let legacyUIState: ISerializedLegacyEditorStacksModel;
-		const legacyUIStateRaw = this.storageService.get(LEGACY_STACKS_MODEL_STORAGE_KEY, StorageScope.WORKSPACE);
-		if (legacyUIStateRaw) {
-			try {
-				legacyUIState = JSON.parse(legacyUIStateRaw);
-			} catch (error) { /* ignore */ }
-		}
-
-		if (legacyUIState) {
-			this.storageService.remove(LEGACY_STACKS_MODEL_STORAGE_KEY, StorageScope.WORKSPACE);
-		}
-
-		const legacyPartState = this.memento[LEGACY_EDITOR_PART_UI_STATE_STORAGE_KEY] as ILegacyEditorPartUIState;
-		if (legacyPartState) {
-			delete this.memento[LEGACY_EDITOR_PART_UI_STATE_STORAGE_KEY];
-		}
-
-		if (legacyUIState && Array.isArray(legacyUIState.groups) && legacyUIState.groups.length > 0) {
-			const splitHorizontally = legacyPartState && legacyPartState.groupOrientation === 'horizontal';
-
-			const legacyState: IEditorPartUIState = Object.create(null);
-
-			const positionOneGroup = legacyUIState.groups[0];
-			const positionTwoGroup = legacyUIState.groups[1];
-			const positionThreeGroup = legacyUIState.groups[2];
-
-			legacyState.activeGroup = legacyUIState.active;
-			legacyState.mostRecentActiveGroups = [legacyUIState.active];
-
-			if (positionTwoGroup || positionThreeGroup) {
-				if (!positionThreeGroup) {
-					legacyState.mostRecentActiveGroups.push(legacyState.activeGroup === 0 ? 1 : 0);
-				} else {
-					if (legacyState.activeGroup === 0) {
-						legacyState.mostRecentActiveGroups.push(1, 2);
-					} else if (legacyState.activeGroup === 1) {
-						legacyState.mostRecentActiveGroups.push(0, 2);
-					} else {
-						legacyState.mostRecentActiveGroups.push(0, 1);
-					}
-				}
-			}
-
-			const toNode = function (group: ISerializedEditorGroup, size: number): ISerializedNode {
-				return {
-					data: group,
-					size,
-					type: 'leaf'
-				};
-			};
-
-			const baseSize = 1200; // just some number because layout() was not called yet, but we only need the proportions
-
-			// No split editor
-			if (!positionTwoGroup) {
-				legacyState.serializedGrid = {
-					width: baseSize,
-					height: baseSize,
-					orientation: splitHorizontally ? Orientation.VERTICAL : Orientation.HORIZONTAL,
-					root: toNode(positionOneGroup, baseSize)
-				};
-			}
-
-			// Split editor (2 or 3 columns)
-			else {
-				const children: ISerializedNode[] = [];
-
-				const size = positionThreeGroup ? baseSize / 3 : baseSize / 2;
-
-				children.push(toNode(positionOneGroup, size));
-				children.push(toNode(positionTwoGroup, size));
-
-				if (positionThreeGroup) {
-					children.push(toNode(positionThreeGroup, size));
-				}
-
-				legacyState.serializedGrid = {
-					width: baseSize,
-					height: baseSize,
-					orientation: splitHorizontally ? Orientation.VERTICAL : Orientation.HORIZONTAL,
-					root: {
-						data: children,
-						size: baseSize,
-						type: 'branch'
-					}
-				};
-			}
-
-			return legacyState;
-		}
-
-		return void 0;
 	}
 
 	private updateContainer(): void {

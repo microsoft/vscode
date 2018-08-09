@@ -169,3 +169,26 @@
 .quick-input-list .monaco-highlighted-label .highlight {
 	font-weight: bold;
 }
+
+.quick-input-list .quick-input-list-entry-action-bar {
+	display: none;
+	flex: 0;
+	overflow: visible;
+}
+
+.quick-input-list .quick-input-list-entry-action-bar .action-label.icon {
+	margin: 0;
+	width: 19px;
+	height: 100%;
+	background-position: center;
+	background-repeat: no-repeat;
+}
+
+.quick-input-list .quick-input-list-entry-action-bar ul:last-child .action-label.icon {
+	margin-right: 3px;
+}
+
+.quick-input-list .quick-input-list-entry:hover .quick-input-list-entry-action-bar,
+.quick-input-list .monaco-list-row.focused .quick-input-list-entry-action-bar {
+	display: flex;
+}

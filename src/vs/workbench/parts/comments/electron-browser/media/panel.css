@@ -30,8 +30,15 @@
 	opacity: 0.5;
 }
 
+.comments-panel .comments-panel-container .tree-container .comment-container .text {
+	flex: 1;
+	min-width: 0;
+}
+
 .comments-panel .comments-panel-container .tree-container .comment-container .text * {
 	margin: 0;
+	text-overflow: ellipsis;
+	overflow: hidden;
 }
 
 .comments-panel .comments-panel-container .message-box-container {
@@ -49,6 +56,5 @@
 
 .comments-panel .comments-panel-container .tree-container .comment-container {
 	line-height: 22px;
-	text-overflow: ellipsis;
-	overflow: hidden;
+	margin-right: 5px;
 }

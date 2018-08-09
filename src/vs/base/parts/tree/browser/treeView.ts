@@ -658,6 +658,11 @@ export class TreeView extends HeightMap {
 		return item && item.model.getElement();
 	}
 
+	public getLastVisibleElement(): any {
+		const item = this.itemAtIndex(this.indexAt(this.lastRenderTop + this.lastRenderHeight));
+		return item && item.model.getElement();
+	}
+
 	private render(scrollTop: number, viewHeight: number, scrollLeft: number, viewWidth: number, scrollWidth: number): void {
 		var i: number;
 		var stop: number;
