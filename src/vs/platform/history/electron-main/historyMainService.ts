@@ -27,11 +27,12 @@ import { IUriDisplayService } from 'vs/platform/uriDisplay/common/uriDisplay';
 
 interface ISerializedRecentlyOpened {
 	workspaces2: (IWorkspaceIdentifier | string)[]; // IWorkspaceIdentifier or URI.toString()
-	files: string[];
+	files2: string[]; // files as URI.toString()
 }
 
 interface ILegacySerializedRecentlyOpened {
 	workspaces: (IWorkspaceIdentifier | string | UriComponents)[]; // legacy (UriComponents was also supported for a few insider builds)
+	files: string[]; // files as paths
 }
 
 export class HistoryMainService implements IHistoryMainService {
@@ -284,27 +285,25 @@ export class HistoryMainService implements IHistoryMainService {
 					}
 				}
 			}
-			if (Array.isArray(storedRecents.files)) {
-				for (const file of storedRecents.files) {
+			if (Array.isArray(storedRecents.files2)) {
+				for (const file of storedRecents.files2) {
 					if (typeof file === 'string') {
-						result.files.push(file);
+						result.files.push(URI.parse(file));
 					}
 				}
-			}
-		}
-		for (const file of storedRecents.files) {
-			if (typeof file === 'string') {
-				// file paths were strings <= 1.25
-				result.workspaces.push(URI.file(file));
-			} else {
-				result.workspaces.push(URI.revive(file));
+			} else if (Array.isArray(storedRecents.files)) {
+				for (const file of storedRecents.files) {
+					if (typeof file === 'string') {
+						result.files.push(URI.file(file));
+					}
+				}
 			}
 		}
 		return result;
 	}
 
 	private saveRecentlyOpened(recent: IRecentlyOpened): void {
-		const serialized: ISerializedRecentlyOpened = { workspaces2: [], files: [] };
+		const serialized: ISerializedRecentlyOpened = { workspaces2: [], files2: [] };
 		for (const workspace of recent.workspaces) {
 			if (isSingleFolderWorkspaceIdentifier(workspace)) {
 				serialized.workspaces2.push(workspace.toString());
@@ -313,7 +312,7 @@ export class HistoryMainService implements IHistoryMainService {
 			}
 		}
 		for (const file of recent.files) {
-			serialized.files.push(file.toString());
+			serialized.files2.push(file.toString());
 		}
 		this.stateService.setItem(HistoryMainService.recentlyOpenedStorageKey, serialized);
 	}
