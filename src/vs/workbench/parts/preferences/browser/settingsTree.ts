@@ -23,20 +23,21 @@ import URI from 'vs/base/common/uri';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { IAccessibilityProvider, IDataSource, IFilter, IRenderer as ITreeRenderer, ITree, ITreeConfiguration } from 'vs/base/parts/tree/browser/tree';
 import { DefaultTreestyler } from 'vs/base/parts/tree/browser/treeDefaults';
+import { Tree } from 'vs/base/parts/tree/browser/treeImpl';
 import { localize } from 'vs/nls';
 import { ICommandService } from 'vs/platform/commands/common/commands';
 import { ConfigurationTarget, IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IContextViewService } from 'vs/platform/contextview/browser/contextView';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { IListService, WorkbenchTree, WorkbenchTreeController } from 'vs/platform/list/browser/listService';
+import { IListService, WorkbenchTreeController } from 'vs/platform/list/browser/listService';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
 import { editorBackground, focusBorder, foreground } from 'vs/platform/theme/common/colorRegistry';
 import { attachButtonStyler, attachInputBoxStyler, attachSelectBoxStyler, attachStyler } from 'vs/platform/theme/common/styler';
 import { ICssStyleCollector, ITheme, IThemeService, registerThemingParticipant } from 'vs/platform/theme/common/themeService';
 import { SettingsTarget } from 'vs/workbench/parts/preferences/browser/preferencesWidgets';
 import { ITOCEntry } from 'vs/workbench/parts/preferences/browser/settingsLayout';
-import { ExcludeSettingWidget, IExcludeDataItem, settingItemInactiveSelectionBorder, settingsHeaderForeground, settingsNumberInputBackground, settingsNumberInputBorder, settingsNumberInputForeground, settingsSelectBackground, settingsSelectBorder, settingsSelectForeground, settingsTextInputBackground, settingsTextInputBorder, settingsTextInputForeground } from 'vs/workbench/parts/preferences/browser/settingsWidgets';
+import { ExcludeSettingWidget, IExcludeDataItem, settingsHeaderForeground, settingsNumberInputBackground, settingsNumberInputBorder, settingsNumberInputForeground, settingsSelectBackground, settingsSelectBorder, settingsSelectForeground, settingsTextInputBackground, settingsTextInputBorder, settingsTextInputForeground } from 'vs/workbench/parts/preferences/browser/settingsWidgets';
 import { IExtensionSetting, ISearchResult, ISetting, ISettingsGroup } from 'vs/workbench/services/preferences/common/preferences';
 
 const $ = DOM.$;
@@ -578,10 +579,10 @@ export class SettingsRenderer implements ITreeRenderer {
 
 		if (element instanceof SettingsTreeSettingElement) {
 			const isSelected = this.elementIsSelected(tree, element);
-			if (isSelected) {
-				return this.measureSettingElementHeight(tree, element);
-			} else if (isExcludeSetting(element.setting)) {
+			if (isExcludeSetting(element.setting)) {
 				return this._getExcludeSettingHeight(element);
+			} else if (isSelected) {
+				return this.measureSettingElementHeight(tree, element);
 			} else {
 				return this._getUnexpandedSettingHeight(element);
 			}
@@ -613,9 +614,8 @@ export class SettingsRenderer implements ITreeRenderer {
 		this.renderElement(tree, element, templateId, template);
 
 		this.measureContainer.appendChild(template.containerElement);
-		this.measureContainer.removeChild(this.measureContainer.firstChild);
 		const height = this.measureContainer.offsetHeight;
-
+		this.measureContainer.removeChild(this.measureContainer.firstChild);
 		return Math.max(height, this._getUnexpandedSettingHeight(element));
 	}
 
@@ -1476,7 +1476,7 @@ export class SearchResultModel {
 	}
 }
 
-class NonExpandableTree extends WorkbenchTree {
+class NonExpandableOrSelectableTree extends Tree {
 	expand(): TPromise<any> {
 		return TPromise.wrap(null);
 	}
@@ -1484,9 +1484,23 @@ class NonExpandableTree extends WorkbenchTree {
 	collapse(): TPromise<any> {
 		return TPromise.wrap(null);
 	}
+
+	public setFocus(element?: any, eventPayload?: any): void {
+		return;
+	}
+
+	public focusNext(count?: number, eventPayload?: any): void {
+		return;
+	}
+
+	public focusPrevious(count?: number, eventPayload?: any): void {
+		return;
+	}
 }
 
-export class SettingsTree extends NonExpandableTree {
+export class SettingsTree extends NonExpandableOrSelectableTree {
+	protected disposables: IDisposable[];
+
 	constructor(
 		container: HTMLElement,
 		viewState: ISettingsEditorViewState,
@@ -1519,27 +1533,16 @@ export class SettingsTree extends NonExpandableTree {
 
 		super(container,
 			fullConfiguration,
-			options,
-			contextKeyService,
-			listService,
-			themeService,
-			instantiationService,
-			configurationService);
+			options);
 
+		this.disposables = [];
 		this.disposables.push(controller);
 
 		this.disposables.push(registerThemingParticipant((theme: ITheme, collector: ICssStyleCollector) => {
 			const activeBorderColor = theme.getColor(focusBorder);
 			if (activeBorderColor) {
-				collector.addRule(`.settings-editor > .settings-body > .settings-tree-container .monaco-tree:focus .monaco-tree-row.focused {outline: solid 1px ${activeBorderColor}; outline-offset: -1px; }`);
-
 				// TODO@rob - why isn't this applied when added to the stylesheet from tocTree.ts? Seems like a chromium glitch.
 				collector.addRule(`.settings-editor > .settings-body > .settings-toc-container .monaco-tree:focus .monaco-tree-row.focused {outline: solid 1px ${activeBorderColor}; outline-offset: -1px;  }`);
-			}
-
-			const inactiveBorderColor = theme.getColor(settingItemInactiveSelectionBorder);
-			if (inactiveBorderColor) {
-				collector.addRule(`.settings-editor > .settings-body > .settings-tree-container .monaco-tree .monaco-tree-row.focused {outline: solid 1px ${inactiveBorderColor}; outline-offset: -1px; }`);
 			}
 
 			const foregroundColor = theme.getColor(foreground);
@@ -1572,50 +1575,5 @@ export class SettingsTree extends NonExpandableTree {
 		}, colors => {
 			this.style(colors);
 		}));
-	}
-
-	public setFocus(element?: any, eventPayload?: any): void {
-		if (element instanceof SettingsTreeGroupElement) {
-			const nav = this.getNavigator(element, false);
-			do {
-				element = nav.next();
-			} while (element instanceof SettingsTreeGroupElement);
-		}
-
-		super.setFocus(element, eventPayload);
-	}
-
-	public focusNext(count?: number, eventPayload?: any): void {
-		const focus = this.getFocus();
-		if (!focus) {
-			return super.focusFirst();
-		}
-
-		const nav = this.getNavigator(focus, false);
-		let current;
-		do {
-			current = nav.next();
-		} while (current instanceof SettingsTreeGroupElement);
-
-		if (current) {
-			this.setFocus(current, eventPayload);
-		}
-	}
-
-	public focusPrevious(count?: number, eventPayload?: any): void {
-		const focus = this.getFocus();
-		if (!focus) {
-			return super.focusFirst();
-		}
-
-		const nav = this.getNavigator(focus, false);
-		let current;
-		do {
-			current = nav.previous();
-		} while (current instanceof SettingsTreeGroupElement);
-
-		if (current) {
-			this.setFocus(current, eventPayload);
-		}
 	}
 }

@@ -15,6 +15,7 @@ import * as collections from 'vs/base/common/collections';
 import { getErrorMessage, isPromiseCanceledError } from 'vs/base/common/errors';
 import URI from 'vs/base/common/uri';
 import { TPromise } from 'vs/base/common/winjs.base';
+import { Tree } from 'vs/base/parts/tree/browser/treeImpl';
 import { collapseAll, expandAll } from 'vs/base/parts/tree/browser/treeUtils';
 import 'vs/css!./media/settingsEditor2';
 import { localize } from 'vs/nls';
@@ -55,7 +56,7 @@ export class SettingsEditor2 extends BaseEditor {
 	private toolbar: ToolBar;
 
 	private settingsTreeContainer: HTMLElement;
-	private settingsTree: WorkbenchTree;
+	private settingsTree: Tree;
 	private tocTreeModel: TOCTreeModel;
 	private settingsTreeModel: SettingsTreeModel;
 
@@ -126,9 +127,10 @@ export class SettingsEditor2 extends BaseEditor {
 	setInput(input: SettingsEditor2Input, options: EditorOptions, token: CancellationToken): Thenable<void> {
 		this.inSettingsEditorContextKey.set(true);
 		return super.setInput(input, options, token)
+			.then(() => new Promise(process.nextTick)) // Force setInput to be async
 			.then(() => {
 				return this.render(token);
-			}).then(() => new Promise(process.nextTick)); // Force setInput to be async
+			});
 	}
 
 	clearInput(): void {
@@ -272,15 +274,32 @@ export class SettingsEditor2 extends BaseEditor {
 	private createBody(parent: HTMLElement): void {
 		const bodyContainer = DOM.append(parent, $('.settings-body'));
 
-		this.createFocusSink(bodyContainer, () => {
-			const firstElement = this.settingsTree.getFirstVisibleElement();
-			this.settingsTree.reveal(firstElement, 0.1);
-		});
+		this.createFocusSink(
+			bodyContainer,
+			() => {
+				if (this.settingsTree.getScrollPosition() > 0) {
+					const firstElement = this.settingsTree.getFirstVisibleElement();
+					this.settingsTree.reveal(firstElement, 0.1);
+					return true;
+				}
+				return false;
+			},
+			'settings list focus helper');
+
 		this.createSettingsTree(bodyContainer);
-		this.createFocusSink(bodyContainer, () => {
-			const lastElement = this.settingsTree.getLastVisibleElement();
-			this.settingsTree.reveal(lastElement, 0.9);
-		});
+
+		this.createFocusSink(
+			bodyContainer,
+			() => {
+				if (this.settingsTree.getScrollPosition() < 1) {
+					const lastElement = this.settingsTree.getLastVisibleElement();
+					this.settingsTree.reveal(lastElement, 0.9);
+					return true;
+				}
+				return false;
+			},
+			'settings list focus helper'
+		);
 
 		this.createTOC(bodyContainer);
 
@@ -289,13 +308,15 @@ export class SettingsEditor2 extends BaseEditor {
 		}
 	}
 
-	private createFocusSink(container: HTMLElement, callback: () => void): HTMLElement {
+	private createFocusSink(container: HTMLElement, callback: () => boolean, label: string): HTMLElement {
 		const listFocusSink = DOM.append(container, $('.settings-tree-focus-sink'));
+		listFocusSink.setAttribute('aria-label', label);
 		listFocusSink.tabIndex = 0;
 		this._register(DOM.addDisposableListener(listFocusSink, 'focus', e => {
-			if (e.relatedTarget && DOM.findParentWithClass(e.relatedTarget, 'monaco-tree')) {
-				callback();
-				e.relatedTarget.focus();
+			if (e.relatedTarget && DOM.findParentWithClass(e.relatedTarget, 'settings-editor-tree')) {
+				if (callback()) {
+					e.relatedTarget.focus();
+				}
 			}
 		}));
 
@@ -315,15 +336,15 @@ export class SettingsEditor2 extends BaseEditor {
 			}));
 
 		this._register(this.tocTree.onDidChangeFocus(e => {
-			// Let the caller finish before trying to sync with settings tree.
-			// e.g. clicking this twistie, which will toggle the row's expansion state _after_ this event is fired.
-			process.nextTick(() => {
-				const element = e.focus;
-				if (this.searchResultModel) {
-					this.viewState.filterToCategory = element;
-					this.refreshTreeAndMaintainFocus();
-				}
-			});
+			const element = e.focus;
+			if (this.searchResultModel) {
+				this.viewState.filterToCategory = element;
+				this.refreshTreeAndMaintainFocus();
+			}
+
+			if (element && (!e.payload || !e.payload.fromScroll)) {
+				this.settingsTree.reveal(element, 0);
+			}
 		}));
 
 		this._register(this.tocTree.onDidFocus(() => {
@@ -363,7 +384,7 @@ export class SettingsEditor2 extends BaseEditor {
 			{
 				renderer
 			}));
-		this.settingsTree.getHTMLElement().tabIndex = -1;
+		this.settingsTree.getHTMLElement().attributes.removeNamedItem('tabindex');
 
 		this._register(this.settingsTree.onDidScroll(() => {
 			this.updateTreeScrollSync();
@@ -568,6 +589,7 @@ export class SettingsEditor2 extends BaseEditor {
 
 		if (this.settingsTreeModel) {
 			this.settingsTreeModel.update(resolvedSettingsRoot);
+			return this.refreshTreeAndMaintainFocus();
 		} else {
 			this.settingsTreeModel = this.instantiationService.createInstance(SettingsTreeModel, this.viewState, resolvedSettingsRoot);
 			this.settingsTree.setInput(this.settingsTreeModel.root);
@@ -580,7 +602,7 @@ export class SettingsEditor2 extends BaseEditor {
 			}
 		}
 
-		return this.refreshTreeAndMaintainFocus();
+		return TPromise.wrap(null);
 	}
 
 	private refreshTreeAndMaintainFocus(): TPromise<any> {
