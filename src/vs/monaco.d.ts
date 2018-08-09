@@ -1058,7 +1058,7 @@ declare namespace monaco.editor {
 		/**
 		 * The initial model associated with this code editor.
 		 */
-		model?: ITextModel;
+		model?: ITextModel | null;
 		/**
 		 * The initial value of the auto created model in the editor.
 		 * To not create automatically a model, use `model: null`.
@@ -2197,7 +2197,7 @@ declare namespace monaco.editor {
 		/**
 		 * Gets the current model attached to this editor.
 		 */
-		getModel(): IEditorModel;
+		getModel(): IEditorModel | null;
 		/**
 		 * Sets the current model attached to this editor.
 		 * If the previous model was created by the editor via the value key in the options
@@ -2206,7 +2206,7 @@ declare namespace monaco.editor {
 		 * will not be destroyed.
 		 * It is safe to call setModel(null) to simply detach the current model from the editor.
 		 */
-		setModel(model: IEditorModel): void;
+		setModel(model: IEditorModel | null): void;
 	}
 
 	/**
