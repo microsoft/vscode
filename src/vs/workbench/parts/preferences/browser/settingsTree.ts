@@ -608,14 +608,14 @@ export class SettingsRenderer implements ITreeRenderer {
 	}
 
 	private measureSettingElementHeight(tree: ITree, element: SettingsTreeSettingElement): number {
-		const measureHelper = DOM.append(this.measureContainer, $('.setting-measure-helper'));
-
 		const templateId = this.getTemplateId(tree, element);
-		const template = this.measureTemplatesPool.get(templateId) || this.renderTemplate(tree, templateId, measureHelper);
+		const template: ISettingItemTemplate = this.measureTemplatesPool.get(templateId) || this.renderTemplate(tree, templateId, $('.setting-measure-helper')) as ISettingItemTemplate;
 		this.renderElement(tree, element, templateId, template);
 
-		const height = this.measureContainer.offsetHeight;
+		this.measureContainer.appendChild(template.containerElement);
 		this.measureContainer.removeChild(this.measureContainer.firstChild);
+		const height = this.measureContainer.offsetHeight;
+
 		return Math.max(height, this._getUnexpandedSettingHeight(element));
 	}
 
