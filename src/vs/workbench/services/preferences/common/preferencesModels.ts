@@ -575,6 +575,7 @@ export class DefaultSettings extends Disposable {
 					enumDescriptions: prop.enumDescriptions,
 					tags: prop.tags,
 					deprecationMessage: prop.deprecationMessage,
+					validator: createValidator(prop)
 				});
 			}
 		}
@@ -948,6 +949,111 @@ class SettingsContentBuilder {
 			result.push(indent + '// ' + line);
 		}
 	}
+}
+
+function createValidator(prop: IConfigurationPropertySchema): (value: string) => string[] {
+	let exclusiveMax: number | undefined;
+	let exclusiveMin: number | undefined;
+
+	if (typeof prop.exclusiveMaximum === 'boolean') {
+		exclusiveMax = prop.exclusiveMaximum ? prop.maximum : undefined;
+	} else {
+		exclusiveMax = prop.exclusiveMaximum;
+	}
+
+	if (typeof prop.exclusiveMinimum === 'boolean') {
+		exclusiveMin = prop.exclusiveMinimum ? prop.minimum : undefined;
+	} else {
+		exclusiveMin = prop.exclusiveMinimum;
+	}
+
+	let patternRegex: RegExp | undefined;
+	if (typeof prop.pattern === 'string') {
+		patternRegex = new RegExp(prop.pattern);
+	}
+
+	type Validator<T> = { enabled: boolean, isValid: (value: T) => boolean; message: string };
+
+	let generalValidations: Validator<any>[] = [
+		{
+			enabled: prop.deprecationMessage !== undefined,
+			isValid: (value => false),
+			message: prop.deprecationMessage
+		}
+	].filter(validation => validation.enabled);
+
+	let numericValidations: Validator<number>[] = [
+		{
+			enabled: exclusiveMax !== undefined,
+			isValid: (value => value < exclusiveMax),
+			message: nls.localize('validations.exclusiveMax', "Value must be strictly less than {0}.", exclusiveMax)
+		},
+		{
+			enabled: exclusiveMin !== undefined,
+			isValid: (value => value > exclusiveMin),
+			message: nls.localize('validations.exclusiveMin', "Value must be strictly greater than {0}.", exclusiveMin)
+		},
+
+		{
+			enabled: prop.maximum !== undefined && exclusiveMax === undefined,
+			isValid: (value => value <= prop.maximum),
+			message: nls.localize('validations.max', "Value must be less than or equal to {0}.", prop.maximum)
+		},
+		{
+			enabled: prop.minimum !== undefined && exclusiveMin === undefined,
+			isValid: (value => value >= prop.minimum),
+			message: nls.localize('validations.min', "Value must be greater than or equal to {0}.", prop.minimum)
+		},
+
+		{
+			enabled: prop.multipleOf !== undefined,
+			isValid: (value => value % prop.multipleOf === 0),
+			message: nls.localize('validations.multipleOf', "Value must be a multiple of {0}.", prop.multipleOf)
+		},
+		{
+			enabled: prop.type === 'integer',
+			isValid: (value => value % 1 === 0),
+			message: nls.localize('validations.expectedInteger', "Value must be an integer.")
+		},
+	].filter(validation => validation.enabled);
+
+	let stringValidations: Validator<string>[] = [
+		{
+			enabled: prop.maxLength !== undefined,
+			isValid: (value => value.length <= prop.maxLength),
+			message: nls.localize('validations.maxLength', "Value must be fewer than {0} characters long.", prop.maxLength)
+		},
+		{
+			enabled: prop.minLength !== undefined,
+			isValid: (value => value.length >= prop.minLength),
+			message: nls.localize('validations.minLength', "Value must be more than {0} characters long.", prop.minLength)
+		},
+		{
+			enabled: patternRegex !== undefined,
+			isValid: (value => patternRegex.test(value)),
+			message: prop.patternErrorMessage || nls.localize('validations.regex', "Value must match regex `{0}`.", prop.pattern)
+		},
+	].filter(validation => validation.enabled);
+
+	return value => {
+		let errors = [];
+
+		errors.push(...generalValidations.filter(validator => !validator.isValid(value)).map(validator => validator.message));
+
+		if (prop.type === 'number' || prop.type === 'integer') {
+			if (value === '' || isNaN(+value)) {
+				errors.push(nls.localize('validations.expectedNumeric', "Value must be a number."));
+			} else {
+				errors.push(...numericValidations.filter(validator => !validator.isValid(+value)).map(validator => validator.message));
+			}
+		}
+
+		if (prop.type === 'string') {
+			errors.push(...stringValidations.filter(validator => !validator.isValid(value)).map(validator => validator.message));
+		}
+
+		return errors;
+	};
 }
 
 function escapeInvisibleChars(enumValue: string): string {

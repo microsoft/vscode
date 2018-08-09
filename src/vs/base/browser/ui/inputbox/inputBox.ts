@@ -326,6 +326,10 @@ export class InputBox extends Widget {
 		this.applyStyles();
 	}
 
+	public attachValidator(validator: IInputValidator) {
+		this.validation = validator;
+	}
+
 	public isInputValid(): boolean {
 		return !!this.validation && !this.validation(this.value);
 	}

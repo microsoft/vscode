@@ -9,7 +9,7 @@ import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { IMouseEvent } from 'vs/base/browser/mouseEvent';
 import { Button } from 'vs/base/browser/ui/button/button';
 import { Checkbox } from 'vs/base/browser/ui/checkbox/checkbox';
-import { InputBox } from 'vs/base/browser/ui/inputbox/inputBox';
+import { InputBox, MessageType, IInputValidator } from 'vs/base/browser/ui/inputbox/inputBox';
 import { SelectBox } from 'vs/base/browser/ui/selectBox/selectBox';
 import * as arrays from 'vs/base/common/arrays';
 import { Color, RGBA } from 'vs/base/common/color';
@@ -1157,6 +1157,7 @@ export class SettingsRenderer implements ITreeRenderer {
 	private renderText(dataElement: SettingsTreeSettingElement, isSelected: boolean, template: ISettingTextItemTemplate, onChange: (value: string) => void): void {
 		template.onChange = null;
 		template.inputBox.value = dataElement.value;
+		template.inputBox.attachValidator(makeValidator(dataElement));
 		template.onChange = value => onChange(value);
 		template.inputBox.inputElement.tabIndex = isSelected ? 0 : -1;
 
@@ -1183,6 +1184,7 @@ export class SettingsRenderer implements ITreeRenderer {
 	private renderNumber(dataElement: SettingsTreeSettingElement, isSelected: boolean, template: ISettingTextItemTemplate, onChange: (value: number) => void): void {
 		template.onChange = null;
 		template.inputBox.value = dataElement.value;
+		template.inputBox.attachValidator(makeValidator(dataElement));
 		template.onChange = value => onChange(parseFn(value));
 		template.inputBox.inputElement.tabIndex = isSelected ? 0 : -1;
 
@@ -1221,6 +1223,13 @@ export class SettingsRenderer implements ITreeRenderer {
 	disposeTemplate(tree: ITree, templateId: string, template: IDisposableTemplate): void {
 		dispose(template.toDispose);
 	}
+}
+
+function makeValidator(dataElement: SettingsTreeSettingElement): IInputValidator | null {
+	return value => {
+		let message = dataElement.setting.validator(value).join(' ');
+		return message ? { content: dataElement.setting.validator(value).join(' '), type: MessageType.ERROR } : null;
+	};
 }
 
 function cleanRenderedMarkdown(element: Node): void {
