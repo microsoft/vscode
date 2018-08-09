@@ -14,7 +14,7 @@ import { IBackupMainService } from 'vs/platform/backup/common/backup';
 import { IEnvironmentService, ParsedArgs } from 'vs/platform/environment/common/environment';
 import { IStateService } from 'vs/platform/state/common/state';
 import { CodeWindow, defaultWindowState } from 'vs/code/electron-main/window';
-import { asArray } from 'vs/code/node/args';
+import { asArray, hasArgs } from 'vs/code/node/args';
 import { ipcMain as ipc, screen, BrowserWindow, dialog, systemPreferences, app } from 'electron';
 import { IPathWithLineAndColumn, parseLineAndColumnAware } from 'vs/code/node/paths';
 import { ILifecycleService, UnloadReason, IWindowUnloadEvent } from 'vs/platform/lifecycle/electron-main/lifecycleMain';
@@ -423,7 +423,7 @@ export class WindowsManager implements IWindowsMainService {
 		// Make sure to pass focus to the most relevant of the windows if we open multiple
 		if (usedWindows.length > 1) {
 
-			let focusLastActive = this.windowsState.lastActiveWindow && !openConfig.forceEmpty && !openConfig.cli._.length && !asArray(openConfig.cli['file-uri']).length && !asArray(openConfig.cli['folder-uri']).length && !asArray(openConfig.urisToOpen).length;
+			let focusLastActive = this.windowsState.lastActiveWindow && !openConfig.forceEmpty && !hasArgs(openConfig.cli._) && !hasArgs(openConfig.cli['file-uri']) && !hasArgs(openConfig.cli['folder-uri']) && !hasArgs(openConfig.urisToOpen);
 			let focusLastOpened = true;
 			let focusLastWindow = true;
 
@@ -795,7 +795,7 @@ export class WindowsManager implements IWindowsMainService {
 		}
 
 		// Extract paths: from CLI
-		else if (openConfig.cli._.length > 0 || asArray(openConfig.cli['folder-uri']).length > 0 || asArray(openConfig.cli['file-uri']).length > 0) {
+		else if (hasArgs(openConfig.cli._) || hasArgs(openConfig.cli['folder-uri']) || hasArgs(openConfig.cli['file-uri'])) {
 			windowsToOpen = this.doExtractPathsFromCLI(openConfig.cli);
 			isCommandLineOrAPICall = true;
 		}
@@ -824,53 +824,74 @@ export class WindowsManager implements IWindowsMainService {
 	}
 
 	private doExtractPathsFromAPI(openConfig: IOpenConfiguration): IPath[] {
-		let pathsToOpen = openConfig.urisToOpen.map(pathToOpen => {
-			const path = this.parseUri(pathToOpen, openConfig.forceOpenWorkspaceAsFile, { gotoLineMode: openConfig.cli && openConfig.cli.goto, forceOpenWorkspaceAsFile: openConfig.forceOpenWorkspaceAsFile });
+		let pathsToOpen = [];
+		let parseOptions = { gotoLineMode: openConfig.cli && openConfig.cli.goto, forceOpenWorkspaceAsFile: openConfig.forceOpenWorkspaceAsFile };
+		for (const pathToOpen of openConfig.urisToOpen) {
+			if (!pathToOpen) {
+				continue;
+			}
 
-			// Warn if the requested path to open does not exist
-			if (!path) {
+			const path = this.parseUri(pathToOpen, openConfig.forceOpenWorkspaceAsFile, parseOptions);
+			if (path) {
+				pathsToOpen.push(path);
+			} else {
+				// Warn about the invalid URI or path
+
+				let message, detail;
+				if (pathToOpen.scheme === Schemas.file) {
+					message = localize('pathNotExistTitle', "Path does not exist");
+					detail = localize('pathNotExistDetail', "The path '{0}' does not seem to exist anymore on disk.", pathToOpen.fsPath);
+				} else {
+					message = localize('uriInvalidTitle', "URI can not be opened");
+					detail = localize('uriInvalidDetail', "The URI '{0}' is not valid and can not be opened.", pathToOpen.toString());
+				}
 				const options: Electron.MessageBoxOptions = {
 					title: product.nameLong,
 					type: 'info',
 					buttons: [localize('ok', "OK")],
-					message: localize('pathNotExistTitle', "Path does not exist"),
-					detail: localize('pathNotExistDetail', "The path '{0}' does not seem to exist anymore on disk.", pathToOpen.scheme === Schemas.file ? pathToOpen.fsPath : pathToOpen.path),
+					message,
+					detail,
 					noLink: true
 				};
 
 				this.dialogs.showMessageBox(options, this.getFocusedWindow());
 			}
-
-			return path;
-		});
-
-		// get rid of nulls
-		pathsToOpen = arrays.coalesce(pathsToOpen);
-
+		}
 		return pathsToOpen;
 	}
 
 	private doExtractPathsFromCLI(cli: ParsedArgs): IPath[] {
 		const pathsToOpen = [];
+		const parseOptions = { ignoreFileNotFound: true, gotoLineMode: cli.goto };
 
 		// folder uris
 		const folderUris = asArray(cli['folder-uri']);
-		if (folderUris.length) {
-			pathsToOpen.push(...arrays.coalesce(folderUris.map(candidate => this.parseUri(this.parseUriArg(candidate), false, { ignoreFileNotFound: true, gotoLineMode: cli.goto }))));
+		for (let folderUri of folderUris) {
+			const path = this.parseUri(this.argToUri(folderUri), false, parseOptions);
+			if (path) {
+				pathsToOpen.push(path);
+			}
 		}
 
 		// file uris
 		const fileUris = asArray(cli['file-uri']);
-		if (fileUris.length) {
-			pathsToOpen.push(...arrays.coalesce(fileUris.map(candidate => this.parseUri(this.parseUriArg(candidate), true, { ignoreFileNotFound: true, gotoLineMode: cli.goto }))));
+		for (let fileUri of fileUris) {
+			const path = this.parseUri(this.argToUri(fileUri), true, parseOptions);
+			if (path) {
+				pathsToOpen.push(path);
+			}
 		}
 
 		// folder or file paths
-		if (cli._ && cli._.length) {
-			pathsToOpen.push(...arrays.coalesce(cli._.map(candidate => this.parsePath(candidate, { ignoreFileNotFound: true, gotoLineMode: cli.goto }))));
+		const cliArgs = asArray(cli._);
+		for (let cliArg of cliArgs) {
+			const path = this.parsePath(cliArg, parseOptions);
+			if (path) {
+				pathsToOpen.push(path);
+			}
 		}
 
-		if (pathsToOpen.length > 0) {
+		if (pathsToOpen.length) {
 			return pathsToOpen;
 		}
 
@@ -974,29 +995,34 @@ export class WindowsManager implements IWindowsMainService {
 		return restoreWindows;
 	}
 
-	private parseUriArg(arg: string): URI {
-		// Do not support if user has passed folder path on Windows
-		if (isWindows && /^([a-z])\:(.*)$/i.test(arg)) {
-			return null;
+	private argToUri(arg: string): URI {
+		try {
+			let uri = URI.parse(arg);
+			if (!uri.scheme) {
+				console.log(`Invalid URI string, scheme missing: ${arg}`);
+				return null;
+			}
+			return uri;
+		} catch (e) {
+			console.log(`Invalid URI string, scheme missing: ${e.message}`);
 		}
-		return URI.parse(arg);
+		return null;
 	}
 
-	private parseUri(anyUri: URI, isFile: boolean, options?: { ignoreFileNotFound?: boolean, gotoLineMode?: boolean, forceOpenWorkspaceAsFile?: boolean; }): IPathToOpen {
-		if (!anyUri || !anyUri.scheme) {
+	private parseUri(uri: URI, isFile: boolean, options?: { ignoreFileNotFound?: boolean, gotoLineMode?: boolean, forceOpenWorkspaceAsFile?: boolean; }): IPathToOpen {
+		if (!uri || !uri.scheme) {
 			return null;
 		}
-
-		if (anyUri.scheme === Schemas.file) {
-			return this.parsePath(anyUri.fsPath, options);
+		if (uri.scheme === Schemas.file) {
+			return this.parsePath(uri.fsPath, options);
 		}
 		if (isFile) {
 			return {
-				fileUri: anyUri
+				fileUri: uri
 			};
 		}
 		return {
-			folderUri: anyUri
+			folderUri: uri
 		};
 	}
 
@@ -1135,11 +1161,11 @@ export class WindowsManager implements IWindowsMainService {
 			cliArgs = [];
 		}
 
-		if (folderUris.length && folderUris.some(uri => !!findWindowOnWorkspaceOrFolderUri(WindowsManager.WINDOWS, this.parseUriArg(uri)))) {
+		if (folderUris.length && folderUris.some(uri => !!findWindowOnWorkspaceOrFolderUri(WindowsManager.WINDOWS, this.argToUri(uri)))) {
 			folderUris = [];
 		}
 
-		if (fileUris.length && fileUris.some(uri => !!findWindowOnWorkspaceOrFolderUri(WindowsManager.WINDOWS, this.parseUriArg(uri)))) {
+		if (fileUris.length && fileUris.some(uri => !!findWindowOnWorkspaceOrFolderUri(WindowsManager.WINDOWS, this.argToUri(uri)))) {
 			fileUris = [];
 		}
 

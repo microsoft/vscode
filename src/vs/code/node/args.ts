@@ -6,7 +6,7 @@
 'use strict';
 
 /**
- * Converts an arument into to an array
+ * Converts an argument into an array
  * @param arg a argument value. Can be undefined, en entry or an array
  */
 export function asArray<T>(arg: T | T[] | undefined): T[] {
@@ -17,4 +17,17 @@ export function asArray<T>(arg: T | T[] | undefined): T[] {
 		return [arg];
 	}
 	return [];
+}
+
+/**
+ * Returns whether an argument is present.
+ */
+export function hasArgs<T>(arg: T | T[] | undefined): boolean {
+	if (arg) {
+		if (Array.isArray(arg)) {
+			return !!arg.length;
+		}
+		return true;
+	}
+	return false;
 }

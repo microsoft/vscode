@@ -8,7 +8,7 @@
 import * as platform from 'vs/base/common/platform';
 import * as paths from 'vs/base/common/paths';
 import { OpenContext } from 'vs/platform/windows/common/windows';
-import { IWorkspaceIdentifier, IResolvedWorkspace, ISingleFolderWorkspaceIdentifier, isSingleFolderWorkspaceIdentifier } from 'vs/platform/workspaces/common/workspaces';
+import { IWorkspaceIdentifier, IResolvedWorkspace, ISingleFolderWorkspaceIdentifier, isSingleFolderWorkspaceIdentifier, isWorkspaceIdentifier } from 'vs/platform/workspaces/common/workspaces';
 import URI from 'vs/base/common/uri';
 import { hasToIgnoreCase, isEqual, isEqualOrParent } from 'vs/base/common/resources';
 
@@ -70,51 +70,50 @@ export function getLastActiveWindow<W extends ISimpleWindow>(windows: W[]): W {
 }
 
 export function findWindowOnWorkspace<W extends ISimpleWindow>(windows: W[], workspace: (IWorkspaceIdentifier | ISingleFolderWorkspaceIdentifier)): W {
-	return windows.filter(window => {
-
-		// match on folder
-		if (isSingleFolderWorkspaceIdentifier(workspace)) {
-			if (window.openedFolderUri && isEqual(window.openedFolderUri, workspace, hasToIgnoreCase(window.openedFolderUri))) {
-				return true;
+	if (isSingleFolderWorkspaceIdentifier(workspace)) {
+		for (const window of windows) {
+			// match on folder
+			if (isSingleFolderWorkspaceIdentifier(workspace)) {
+				if (window.openedFolderUri && isEqual(window.openedFolderUri, workspace, hasToIgnoreCase(window.openedFolderUri))) {
+					return window;
+				}
 			}
 		}
-
-		// match on workspace
-		else {
+	} else if (isWorkspaceIdentifier(workspace)) {
+		for (const window of windows) {
+			// match on workspace
 			if (window.openedWorkspace && window.openedWorkspace.id === workspace.id) {
-				return true;
+				return window;
 			}
 		}
-
-		return false;
-	})[0];
+	}
+	return null;
 }
 
 export function findWindowOnExtensionDevelopmentPath<W extends ISimpleWindow>(windows: W[], extensionDevelopmentPath: string): W {
-	return windows.filter(window => {
-
+	for (const window of windows) {
 		// match on extension development path
 		if (paths.isEqual(window.extensionDevelopmentPath, extensionDevelopmentPath, !platform.isLinux /* ignorecase */)) {
-			return true;
+			return window;
 		}
-
-		return false;
-	})[0];
+	}
+	return null;
 }
 
 export function findWindowOnWorkspaceOrFolderUri<W extends ISimpleWindow>(windows: W[], uri: URI): W {
-	return windows.filter(window => {
-
+	if (!uri) {
+		return null;
+	}
+	for (const window of windows) {
 		// check for workspace config path
 		if (window.openedWorkspace && isEqual(URI.file(window.openedWorkspace.configPath), uri, !platform.isLinux /* ignorecase */)) {
-			return true;
+			return window;
 		}
 
 		// check for folder path
 		if (window.openedFolderUri && isEqual(window.openedFolderUri, uri, hasToIgnoreCase(uri))) {
-			return true;
+			return window;
 		}
-
-		return false;
-	})[0];
+	}
+	return null;
 }
