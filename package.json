@@ -117,6 +117,7 @@
     "rimraf": "^2.2.8",
     "sinon": "^1.17.2",
     "source-map": "^0.4.4",
+    "source-map-loader": "^0.2.3",
     "tslint": "^5.9.1",
     "typescript": "2.9.2",
     "typescript-formatter": "7.1.0",

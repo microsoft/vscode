@@ -9,8 +9,8 @@ const path = require('path');
 const CopyWebpackPlugin = require('copy-webpack-plugin');
 
 module.exports = {
-	stats: 'errors-only',
-	// mode: 'none', // default is production
+	mode: 'production',
+	// mode: 'none',
 	context: __dirname,
 	target: 'node',
 	node: {
@@ -33,5 +33,14 @@ module.exports = {
 	},
 	plugins: [
 		new CopyWebpackPlugin([{ from: './out/*.sh', to: '[name].sh' }])
-	]
+	],
+	stats: 'errors-only',
+	devtool: 'source-map',
+	module: {
+		rules: [{
+			test: /\.js$/,
+			use: ["source-map-loader"],
+			enforce: "pre"
+		}]
+	}
 };
