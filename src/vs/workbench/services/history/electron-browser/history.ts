@@ -681,13 +681,15 @@ export class HistoryService extends Disposable implements IHistoryService {
 
 		if (arg2 instanceof EditorInput) {
 			const inputResource = arg2.getResource();
-
-			let isSupportedFile = true;
-			if (this.partService.isCreated() && !this.fileService.canHandleResource(inputResource)) {
-				isSupportedFile = false; // make sure to only check this when workbench has started (for https://github.com/Microsoft/vscode/issues/48275)
+			if (!inputResource) {
+				return false;
 			}
 
-			return inputResource && isSupportedFile && inputResource.toString() === resource.toString();
+			if (this.partService.isCreated() && !this.fileService.canHandleResource(inputResource)) {
+				return false; // make sure to only check this when workbench has started (for https://github.com/Microsoft/vscode/issues/48275)
+			}
+
+			return inputResource.toString() === resource.toString();
 		}
 
 		const resourceInput = arg2 as IResourceInput;
