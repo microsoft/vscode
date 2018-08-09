@@ -831,7 +831,7 @@ export class CodeWindow implements ICodeWindow {
 	toggleFullScreen(toFullScreen?: boolean): void {
 		const windowConfig = this.configurationService.getValue<IWindowSettings>('window');
 
-		if(typeof toFullScreen === 'undefined') {
+		if (typeof toFullScreen === 'undefined') {
 			toFullScreen = !this.isFullScreen();
 		}
 		if (windowConfig && windowConfig.nativeFullscreen) {
