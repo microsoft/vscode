@@ -29,7 +29,7 @@ import { ansiColorIdentifiers, TERMINAL_BACKGROUND_COLOR, TERMINAL_FOREGROUND_CO
 import { PANEL_BACKGROUND } from 'vs/workbench/common/theme';
 import { IConfigurationService, ConfigurationTarget } from 'vs/platform/configuration/common/configuration';
 import { IEditorOptions } from 'vs/editor/common/config/editorOptions';
-import { INotificationService, Severity, IPromptChoice } from 'vs/platform/notification/common/notification';
+import { INotificationService } from 'vs/platform/notification/common/notification';
 import { ILogService } from 'vs/platform/log/common/log';
 import { TerminalCommandTracker } from 'vs/workbench/parts/terminal/node/terminalCommandTracker';
 import { TerminalProcessManager } from './terminalProcessManager';
@@ -477,30 +477,9 @@ export class TerminalInstance implements ITerminalInstance {
 
 			const averageTime = frameTimes.reduce((p, c) => p + c) / frameTimes.length;
 			if (averageTime > SLOW_CANVAS_RENDER_THRESHOLD) {
-				const promptChoices: IPromptChoice[] = [
-					{
-						label: nls.localize('yes', "Yes"),
-						run: () => {
-							this._configurationService.updateValue('terminal.integrated.rendererType', 'dom', ConfigurationTarget.USER).then(() => {
-								this._notificationService.info(nls.localize('terminal.rendererInAllNewTerminals', "The termnial is now using the fallback renderer."));
-							});
-						}
-					} as IPromptChoice,
-					{
-						label: nls.localize('no', "No"),
-						run: () => { }
-					} as IPromptChoice,
-					{
-						label: nls.localize('dontShowAgain', "Don't Show Again"),
-						isSecondary: true,
-						run: () => this._storageService.store(NEVER_MEASURE_RENDER_TIME_STORAGE_KEY, true)
-					} as IPromptChoice
-				];
-				this._notificationService.prompt(
-					Severity.Warning,
-					nls.localize('terminal.slowRendering', 'The standard renderer for the integrated terminal appears to be slow on your computer. Would you like to switch to the alternative DOM-based renderer which may improve performance? [Read more about terminal settings](https://code.visualstudio.com/docs/editor/integrated-terminal#_changing-how-the-terminal-is-rendered).'),
-					promptChoices
-				);
+				this._configurationService.updateValue('terminal.integrated.rendererType', 'dom', ConfigurationTarget.USER).then(() => {
+					this._logService.info(`Terminal canvas rendere detected to be slow (${averageTime}ms/frame), falling back to DOM-based renderer.`);
+				});
 			}
 		};
 
