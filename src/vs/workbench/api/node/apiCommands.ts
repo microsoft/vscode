@@ -52,7 +52,7 @@ export class OpenFolderAPICommand {
 		if (!uri.scheme || isWindows && uri.scheme.match(/^[a-zA-Z]$/)) {
 			// workaround for #55916 and #55891, will be removed in 1.28
 			console.warn(`'vscode.openFolder' command invoked with an invalid URI (file:// scheme missing): '${uri}'. Converted to a 'file://' URI.`);
-			uri = URI.file(uri.toString());
+			uri = URI.file((uri.scheme ? uri.scheme + ':' : '') + uri.path);
 		}
 
 		return executor.executeCommand('_files.windowOpen', [uri], forceNewWindow);
