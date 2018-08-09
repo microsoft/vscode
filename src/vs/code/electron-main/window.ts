@@ -201,7 +201,7 @@ export class CodeWindow implements ICodeWindow {
 			this._win.maximize();
 
 			if (this.windowState.mode === WindowMode.Fullscreen) {
-				this._win.setFullScreen(true);
+				this.toggleFullScreen(true);
 			}
 
 			if (!this._win.isVisible()) {
@@ -671,7 +671,7 @@ export class CodeWindow implements ICodeWindow {
 		}
 
 		// fullscreen gets special treatment
-		if (this._win.isFullScreen()) {
+		if (this.isFullScreen()) {
 			const display = screen.getDisplayMatching(this.getBounds());
 
 			return {
@@ -828,22 +828,38 @@ export class CodeWindow implements ICodeWindow {
 		return { x: pos[0], y: pos[1], width: dimension[0], height: dimension[1] };
 	}
 
-
-	toggleFullScreen(): void {
+	toggleFullScreen(toFullScreen?: boolean): void {
 		const windowConfig = this.configurationService.getValue<IWindowSettings>('window');
 
-		if (windowConfig && windowConfig.nativeFullscreen) {
-			const willBeFullScreen = !this._win.isFullScreen();
-			this._win.setSimpleFullScreen(false);
-			this._win.setFullScreen(willBeFullScreen);
-		} else {
-			const willBeFullScreen = !this._win.isSimpleFullScreen();
-			this._win.setFullScreen(false);
-			this._win.setSimpleFullScreen(willBeFullScreen);
+		if(typeof toFullScreen === 'undefined') {
+			toFullScreen = !this.isFullScreen();
 		}
+		if (windowConfig && windowConfig.nativeFullscreen) {
+			this.setFullScreen(toFullScreen);
+		} else {
+			this.setSimpleFullScreen(toFullScreen);
+		}
+	}
 
+	private isFullScreen(): boolean {
+		return this._win.isFullScreen() || this._win.isSimpleFullScreen();
+	}
+
+	private setFullScreen(willBeFullScreen: boolean): void {
+		if (this._win.isSimpleFullScreen()) {
+			this._win.setSimpleFullScreen(false);
+		}
+		this._win.setFullScreen(willBeFullScreen);
 		// respect configured menu bar visibility or default to toggle if not set
 		this.setMenuBarVisibility(this.currentMenuBarVisibility, false);
+	}
+
+	private setSimpleFullScreen(willBeFullScreen: boolean): void {
+		if (this._win.isFullScreen()) {
+			this._win.setFullScreen(false);
+		}
+		this._win.setSimpleFullScreen(willBeFullScreen);
+		this._win.webContents.focus();
 	}
 
 	private getMenuBarVisibility(): MenuBarVisibility {
