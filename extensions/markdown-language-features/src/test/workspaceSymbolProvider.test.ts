@@ -22,7 +22,7 @@ suite('markdown.WorkspaceSymbolProvider', () => {
 	});
 
 	test('Should return symbols from workspace with one markdown file', async () => {
-		const testFileName = vscode.Uri.parse('test.md');
+		const testFileName = vscode.Uri.file('test.md');
 
 		const provider = new MarkdownWorkspaceSymbolProvider(symbolProvider, new InMemoryWorkspaceMarkdownDocumentProvider([
 			new InMemoryDocument(testFileName, `# header1\nabc\n## header2`)
@@ -49,7 +49,7 @@ suite('markdown.WorkspaceSymbolProvider', () => {
 	});
 
 	test('Should update results when markdown file changes symbols', async () => {
-		const testFileName = vscode.Uri.parse('test.md');
+		const testFileName = vscode.Uri.file('test.md');
 
 		const workspaceFileProvider = new InMemoryWorkspaceMarkdownDocumentProvider([
 			new InMemoryDocument(testFileName, `# header1`)
@@ -68,7 +68,7 @@ suite('markdown.WorkspaceSymbolProvider', () => {
 	});
 
 	test('Should remove results when file is deleted', async () => {
-		const testFileName = vscode.Uri.parse('test.md');
+		const testFileName = vscode.Uri.file('test.md');
 
 		const workspaceFileProvider = new InMemoryWorkspaceMarkdownDocumentProvider([
 			new InMemoryDocument(testFileName, `# header1`)
@@ -84,7 +84,7 @@ suite('markdown.WorkspaceSymbolProvider', () => {
 	});
 
 	test('Should update results when markdown file is created', async () => {
-		const testFileName = vscode.Uri.parse('test.md');
+		const testFileName = vscode.Uri.file('test.md');
 
 		const workspaceFileProvider = new InMemoryWorkspaceMarkdownDocumentProvider([
 			new InMemoryDocument(testFileName, `# header1`)
@@ -94,7 +94,7 @@ suite('markdown.WorkspaceSymbolProvider', () => {
 		assert.strictEqual((await provider.provideWorkspaceSymbols('')).length, 1);
 
 		// Creat file
-		workspaceFileProvider.createDocument(new InMemoryDocument(vscode.Uri.parse('test2.md'), `# new header\nabc\n## header2`));
+		workspaceFileProvider.createDocument(new InMemoryDocument(vscode.Uri.file('test2.md'), `# new header\nabc\n## header2`));
 		const newSymbols = await provider.provideWorkspaceSymbols('');
 		assert.strictEqual(newSymbols.length, 3);
 	});
@@ -105,7 +105,7 @@ class InMemoryWorkspaceMarkdownDocumentProvider implements WorkspaceMarkdownDocu
 	private readonly _documents = new Map<string, vscode.TextDocument>();
 
 	constructor(documents: vscode.TextDocument[]) {
-		for( const doc of documents) {
+		for (const doc of documents) {
 			this._documents.set(doc.fileName, doc);
 		}
 	}

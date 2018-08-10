@@ -39,24 +39,6 @@
 	margin-right: 7px;
 }
 
-.settings-editor > .settings-header > .search-container {
-	position: relative;
-}
-
-.settings-editor > .settings-header .search-container > .settings-search-input {
-	vertical-align: middle;
-}
-
-.settings-editor > .settings-header .search-container > .settings-search-input > .monaco-inputbox {
-	height: 30px;
-	width: 100%;
-}
-
-.settings-editor > .settings-header .search-container .settings-search-input > .monaco-inputbox .input {
-	font-size: 14px;
-	padding-left: 7px;
-}
-
 .settings-editor > .settings-header > .settings-header-controls {
 	height: 32px;
 	display: flex;
@@ -109,14 +91,6 @@
 	background-size: 16px;
 }
 
-.vs .settings-editor > .settings-header > .settings-header-controls .settings-header-controls-right .toolbar-toggle-more {
-	background-image: url('ellipsis.svg');
-}
-
-.vs-dark .settings-editor > .settings-header > .settings-header-controls .settings-header-controls-right .toolbar-toggle-more {
-	background-image: url('ellipsis-inverse.svg');
-}
-
 .settings-editor > .settings-header > .settings-header-controls .settings-tabs-widget > .monaco-action-bar .action-item {
 	padding: 0px; /* padding must be on action-label because it has the bottom-border, because that's where the .checked class is */
 }
@@ -161,10 +135,6 @@
 	width: 160px;
 	margin-top: 16px;
 	padding-left: 5px;
-}
-
-.settings-editor > .settings-body .settings-toc-container.hidden {
-	display: none;
 }
 
 .settings-editor.search-mode .settings-toc-container {
@@ -273,26 +243,13 @@
 	transform: translate3d(0px, 0px, 0px);
 }
 
-.settings-editor > .settings-body > .settings-tree-container .setting-item .setting-item-description.setting-item-description-artificial-overflow {
-	display: block;
-}
-
-.settings-editor > .settings-body > .settings-tree-container .setting-item .setting-item-description-artificial-overflow .setting-item-description-markdown {
-	display: inline-block;
-	margin-right: 3px;
-}
-
-.settings-editor > .settings-body > .settings-tree-container .setting-item .setting-item-description-artificial-overflow::after {
-	display: inline-block;
-	content: '…';
-	width: 16px;
-	height: 16px;
-	position: absolute;
-	transform: translate3d(0px, 0px, 0px);
-}
-
 .settings-editor > .settings-body > .settings-tree-container .setting-item .setting-item-description-markdown * {
 	margin: 0px;
+}
+
+.settings-editor > .settings-body > .settings-tree-container .setting-item .setting-item-description-markdown a:focus {
+	outline: 1px solid -webkit-focus-ring-color;
+	outline-offset: -1px;
 }
 
 .settings-editor > .settings-body > .settings-tree-container .setting-item .setting-item-description-markdown code {
@@ -340,7 +297,8 @@
 	background: url('check.svg') center center no-repeat;
 }
 
-.vs-dark .settings-editor > .settings-body > .settings-tree-container .setting-item-bool .setting-value-checkbox.checked {
+.vs-dark .settings-editor > .settings-body > .settings-tree-container .setting-item-bool .setting-value-checkbox.checked,
+.hc-black .settings-editor > .settings-body > .settings-tree-container .setting-item-bool .setting-value-checkbox.checked {
 	background: url('check-inverse.svg') center center no-repeat;
 }
 

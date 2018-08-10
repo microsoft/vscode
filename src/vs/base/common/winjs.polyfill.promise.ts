@@ -5,6 +5,7 @@
 
 import { Promise as WinJSPromise } from './winjs.base';
 import * as platform from 'vs/base/common/platform';
+import { isWinJSPromise } from 'vs/base/common/async';
 
 /**
  * A polyfill for the native promises. The implementation is based on
@@ -45,7 +46,7 @@ export class PolyfillPromise<T = any> implements Promise<T> {
 	constructor(callback: (resolve: (value?: T) => void, reject: (err?: any) => void) => any);
 	constructor(initOrPromise: WinJSPromise | ((resolve: (value?: T) => void, reject: (err?: any) => void) => any)) {
 
-		if (WinJSPromise.is(initOrPromise)) {
+		if (isWinJSPromise(initOrPromise)) {
 			this._winjsPromise = initOrPromise;
 		} else {
 			this._winjsPromise = new WinJSPromise((resolve, reject) => {

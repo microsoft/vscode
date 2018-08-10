@@ -9,7 +9,6 @@ import { CommandsRegistry } from 'vs/platform/commands/common/commands';
 import { writeFile, exists } from 'vs/base/node/pfs';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { IModeService } from 'vs/editor/common/services/modeService';
-import { IQuickOpenService, IPickOpenEntry } from 'vs/platform/quickOpen/common/quickOpen';
 import { IWindowService } from 'vs/platform/windows/common/windows';
 import { join, basename, dirname, extname } from 'path';
 import { MenuRegistry, MenuId } from 'vs/platform/actions/common/actions';
@@ -18,6 +17,7 @@ import { IOpenerService } from 'vs/platform/opener/common/opener';
 import URI from 'vs/base/common/uri';
 import { ISnippetsService } from 'vs/workbench/parts/snippets/electron-browser/snippets.contribution';
 import { values } from 'vs/base/common/map';
+import { IQuickPickItem, IQuickInputService, QuickPickInput } from 'vs/platform/quickinput/common/quickInput';
 
 const id = 'workbench.action.openSnippets';
 
@@ -27,7 +27,7 @@ namespace ISnippetPick {
 	}
 }
 
-interface ISnippetPick extends IPickOpenEntry {
+interface ISnippetPick extends IQuickPickItem {
 	filepath: string;
 	hint?: true;
 }
@@ -179,22 +179,23 @@ async function createLanguageSnippetFile(pick: ISnippetPick) {
 CommandsRegistry.registerCommand(id, async accessor => {
 
 	const snippetService = accessor.get(ISnippetsService);
-	const quickOpenService = accessor.get(IQuickOpenService);
+	const quickInputService = accessor.get(IQuickInputService);
 	const opener = accessor.get(IOpenerService);
 	const windowService = accessor.get(IWindowService);
 	const modeService = accessor.get(IModeService);
 	const envService = accessor.get(IEnvironmentService);
 
-	const { existing, future } = await computePicks(snippetService, envService, modeService);
-	const newGlobalPick = <IPickOpenEntry>{ label: nls.localize('new.global', "New Global Snippets file...") };
+	const picks = await computePicks(snippetService, envService, modeService);
+	const existing: QuickPickInput[] = picks.existing;
+	const newGlobalPick = <IQuickPickItem>{ label: nls.localize('new.global', "New Global Snippets file...") };
 	if (existing.length > 0) {
-		existing[0].separator = { label: nls.localize('group.global', "Existing Snippets") };
-		newGlobalPick.separator = { border: true, label: nls.localize('new.global.sep', "New Snippets") };
+		existing.unshift({ type: 'separator', label: nls.localize('group.global', "Existing Snippets") });
+		existing.push({ type: 'separator', label: nls.localize('new.global.sep', "New Snippets") });
 	} else {
-		newGlobalPick.separator = { label: nls.localize('new.global.sep', "New Snippets") };
+		existing.push({ type: 'separator', label: nls.localize('new.global.sep', "New Snippets") });
 	}
 
-	const pick = await quickOpenService.pick(<(IPickOpenEntry | ISnippetPick)[]>[].concat(existing, newGlobalPick, future), {
+	const pick = await quickInputService.pick(<(IQuickPickItem | ISnippetPick)[]>[].concat(existing, newGlobalPick, picks.future), {
 		placeHolder: nls.localize('openSnippet.pickLanguage', "Select Snippets File or Create Snippets"),
 		matchOnDescription: true
 	});

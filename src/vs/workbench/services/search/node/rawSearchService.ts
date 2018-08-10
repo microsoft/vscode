@@ -21,6 +21,8 @@ import { Engine as TextSearchEngine } from 'vs/workbench/services/search/node/te
 import { TextSearchWorkerProvider } from 'vs/workbench/services/search/node/textSearchWorkerProvider';
 import { IFileSearchProgressItem, IRawFileMatch, IRawSearch, IRawSearchService, ISearchEngine, ISerializedFileMatch, ISerializedSearchComplete, ISerializedSearchProgressItem, ITelemetryEvent, ISerializedSearchSuccess } from './search';
 import { Event, Emitter } from 'vs/base/common/event';
+import { createCancelablePromise, CancelablePromise } from 'vs/base/common/async';
+import { CancellationToken } from 'vs/base/common/cancellation';
 
 gracefulFs.gracefulify(fs);
 
@@ -55,12 +57,14 @@ export class SearchService implements IRawSearchService {
 	}
 
 	public textSearch(config: IRawSearch): Event<ISerializedSearchProgressItem | ISerializedSearchComplete> {
-		let promise: TPromise<ISerializedSearchSuccess>;
+		let promise: CancelablePromise<void>;
 
 		const emitter = new Emitter<ISerializedSearchProgressItem | ISerializedSearchComplete>({
 			onFirstListenerDidAdd: () => {
-				promise = (config.useRipgrep ? this.ripgrepTextSearch(config, p => emitter.fire(p)) : this.legacyTextSearch(config, p => emitter.fire(p)))
-					.then(c => emitter.fire(c), err => emitter.fire({ type: 'error', error: { message: err.message, stack: err.stack } }));
+				promise = createCancelablePromise(token => {
+					return (config.useRipgrep ? this.ripgrepTextSearch(config, p => emitter.fire(p), token) : this.legacyTextSearch(config, p => emitter.fire(p), token))
+						.then(c => emitter.fire(c), err => emitter.fire({ type: 'error', error: { message: err.message, stack: err.stack } }));
+				});
 			},
 			onLastListenerRemove: () => {
 				promise.cancel();
@@ -70,11 +74,13 @@ export class SearchService implements IRawSearchService {
 		return emitter.event;
 	}
 
-	private ripgrepTextSearch(config: IRawSearch, progressCallback: IProgressCallback): TPromise<ISerializedSearchSuccess> {
+	private ripgrepTextSearch(config: IRawSearch, progressCallback: IProgressCallback, token: CancellationToken): Promise<ISerializedSearchSuccess> {
 		config.maxFilesize = MAX_FILE_SIZE;
 		let engine = new RipgrepEngine(config);
 
-		return new TPromise<ISerializedSearchSuccess>((c, e) => {
+		token.onCancellationRequested(() => engine.cancel());
+
+		return new Promise<ISerializedSearchSuccess>((c, e) => {
 			// Use BatchedCollector to get new results to the frontend every 2s at least, until 50 results have been returned
 			const collector = new BatchedCollector<ISerializedFileMatch>(SearchService.BATCH_SIZE, progressCallback);
 			engine.search((match) => {
@@ -90,12 +96,10 @@ export class SearchService implements IRawSearchService {
 					c(stats);
 				}
 			});
-		}, () => {
-			engine.cancel();
 		});
 	}
 
-	private legacyTextSearch(config: IRawSearch, progressCallback: IProgressCallback): TPromise<ISerializedSearchComplete> {
+	private legacyTextSearch(config: IRawSearch, progressCallback: IProgressCallback, token: CancellationToken): Promise<ISerializedSearchComplete> {
 		if (!this.textSearchWorkerProvider) {
 			this.textSearchWorkerProvider = new TextSearchWorkerProvider();
 		}
@@ -113,7 +117,7 @@ export class SearchService implements IRawSearchService {
 			}),
 			this.textSearchWorkerProvider);
 
-		return this.doTextSearch(engine, progressCallback, SearchService.BATCH_SIZE);
+		return this.doTextSearch(engine, progressCallback, SearchService.BATCH_SIZE, token);
 	}
 
 	doFileSearch(EngineClass: { new(config: IRawSearch): ISearchEngine<IRawFileMatch>; }, config: IRawSearch, progressCallback: IProgressCallback, batchSize?: number): TPromise<ISerializedSearchSuccess> {
@@ -241,6 +245,7 @@ export class SearchService implements IRawSearchService {
 		const cached = this.getResultsFromCache(cache, config.filePattern, progressCallback);
 		if (cached) {
 			let chained: TPromise<void>;
+
 			return new TPromise<[ISerializedSearchSuccess, IRawFileMatch[]]>((c, e) => {
 				chained = cached.then(([result, results, cacheStats]) => {
 					const cacheLookupResultTime = Date.now();
@@ -361,8 +366,10 @@ export class SearchService implements IRawSearchService {
 		});
 	}
 
-	private doTextSearch(engine: TextSearchEngine, progressCallback: IProgressCallback, batchSize: number): TPromise<ISerializedSearchSuccess> {
-		return new TPromise<ISerializedSearchSuccess>((c, e) => {
+	private doTextSearch(engine: TextSearchEngine, progressCallback: IProgressCallback, batchSize: number, token: CancellationToken): Promise<ISerializedSearchSuccess> {
+		token.onCancellationRequested(() => engine.cancel());
+
+		return new Promise<ISerializedSearchSuccess>((c, e) => {
 			// Use BatchedCollector to get new results to the frontend every 2s at least, until 50 results have been returned
 			const collector = new BatchedCollector<ISerializedFileMatch>(batchSize, progressCallback);
 			engine.search((matches) => {
@@ -379,8 +386,6 @@ export class SearchService implements IRawSearchService {
 					c(stats);
 				}
 			});
-		}, () => {
-			engine.cancel();
 		});
 	}
 

@@ -202,32 +202,6 @@
 	opacity: 0.9;
 }
 
-.extensions-viewlet .header .monaco-container {
-	padding: 3px 4px 5px;
-}
-
-.extensions-viewlet .header .monaco-container .suggest-widget {
-	width: 275px;
-}
-
-.extensions-viewlet .header .monaco-container .monaco-editor-background,
-.extensions-viewlet .header .monaco-container .monaco-editor,
-.extensions-viewlet .header .monaco-container .mtk1 {
-	/* allow the embedded monaco to be styled from the outer context */
-	background-color: inherit;
-	color: inherit;
-}
-
-.extensions-viewlet .header .search-placeholder {
-	position: absolute;
-	z-index: 1;
-	overflow: hidden;
-	white-space: nowrap;
-	text-overflow: ellipsis;
-	pointer-events: none;
-	margin-top: 2px;
-}
-
 .vs .extensions-viewlet > .extensions .monaco-list-row.disabled > .bookmark,
 .vs-dark  .extensions-viewlet > .extensions .monaco-list-row.disabled > .bookmark,
 .vs .extensions-viewlet > .extensions .monaco-list-row.disabled > .extension > .icon,
