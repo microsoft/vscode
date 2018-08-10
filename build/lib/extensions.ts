@@ -16,12 +16,14 @@ const buffer = require('gulp-buffer');
 const json = require('gulp-json-editor');
 const webpack = require('webpack');
 const webpackGulp = require('webpack-stream');
+import * as sourcemaps from 'gulp-sourcemaps';
 import * as fs from 'fs';
 import * as path from 'path';
 import * as vsce from 'vsce';
 import * as File from 'vinyl';
+import { stripSourceMappingURL } from './util';
 
-export function fromLocal(extensionPath: string): Stream {
+export function fromLocal(extensionPath: string, sourceMappingURLBase?: string): Stream {
 	let result = es.through();
 
 	vsce.listFiles({ cwd: extensionPath, packageManager: vsce.PackageManager.Yarn }).then(fileNames => {
@@ -58,12 +60,20 @@ export function fromLocal(extensionPath: string): Stream {
 					data.stat = data.stat || {};
 					data.base = extensionPath;
 					this.emit('data', data);
+				}))
+				.pipe(sourcemaps.init())
+				.pipe(Boolean(sourceMappingURLBase) ? stripSourceMappingURL() : es.through())
+				.pipe(sourcemaps.write('.', {
+					sourceMappingURLPrefix: sourceMappingURLBase && `${sourceMappingURLBase}/dist`,
+					addComment: !!sourceMappingURLBase,
+					includeContent: !!sourceMappingURLBase,
+					sourceRoot: '../src',
 				}));
 
 			es.merge(webpackStream, patchFilesStream)
 				// .pipe(es.through(function (data) {
 				// 	// debug
-				// 	console.log('out', data.path, data.base, data.contents.length);
+				// 	console.log('out', data.path, data.contents.length);
 				// 	this.emit('data', data);
 				// }))
 				.pipe(result);

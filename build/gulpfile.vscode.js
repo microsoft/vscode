@@ -113,9 +113,9 @@ gulp.task('optimize-index-js', ['optimize-vscode'], () => {
 	fs.writeFileSync(fullpath, newContents);
 });
 
-const baseUrl = `https://ticino.blob.core.windows.net/sourcemaps/${commit}/core`;
+const sourceMappingURLBase = `https://ticino.blob.core.windows.net/sourcemaps/${commit}`;
 gulp.task('clean-minified-vscode', util.rimraf('out-vscode-min'));
-gulp.task('minify-vscode', ['clean-minified-vscode', 'optimize-index-js'], common.minifyTask('out-vscode', baseUrl));
+gulp.task('minify-vscode', ['clean-minified-vscode', 'optimize-index-js'], common.minifyTask('out-vscode', `${sourceMappingURLBase}/core`));
 
 // Package
 
@@ -241,7 +241,7 @@ function packageTask(platform, arch, opts) {
 			.filter(({ name }) => builtInExtensions.every(b => b.name !== name));
 
 		const localExtensions = es.merge(...localExtensionDescriptions.map(extension => {
-			return ext.fromLocal(extension.path)
+			return ext.fromLocal(extension.path, sourceMappingURLBase)
 				.pipe(rename(p => p.dirname = `extensions/${extension.name}/${p.dirname}`));
 		}));
 
@@ -459,9 +459,10 @@ gulp.task('upload-vscode-sourcemaps', ['minify-vscode'], () => {
 			return f;
 		}));
 
-	const extensions = gulp.src('extensions/**/out/**/*.map', { base: '.' });
+	const extensionsOut = gulp.src('extensions/**/out/**/*.map', { base: '.' });
+	const extensionsDist = gulp.src('extensions/**/dist/**/*.map', { base: '.' });
 
-	return es.merge(vs, extensions)
+	return es.merge(vs, extensionsOut, extensionsDist)
 		.pipe(azure.upload({
 			account: process.env.AZURE_STORAGE_ACCOUNT,
 			key: process.env.AZURE_STORAGE_ACCESS_KEY,
@@ -506,7 +507,7 @@ function getSettingsSearchBuildId(packageJson) {
 		const branch = process.env.BUILD_SOURCEBRANCH;
 		const branchId = branch.indexOf('/release/') >= 0 ? 0 :
 			/\/master$/.test(branch) ? 1 :
-			2; // Some unexpected branch
+				2; // Some unexpected branch
 
 		const out = cp.execSync(`git rev-list HEAD --count`);
 		const count = parseInt(out.toString());

@@ -16,11 +16,13 @@ var buffer = require('gulp-buffer');
 var json = require('gulp-json-editor');
 var webpack = require('webpack');
 var webpackGulp = require('webpack-stream');
+var sourcemaps = require("gulp-sourcemaps");
 var fs = require("fs");
 var path = require("path");
 var vsce = require("vsce");
 var File = require("vinyl");
-function fromLocal(extensionPath) {
+var util_1 = require("./util");
+function fromLocal(extensionPath, sourceMappingURLBase) {
     var result = es.through();
     vsce.listFiles({ cwd: extensionPath, packageManager: vsce.PackageManager.Yarn }).then(function (fileNames) {
         var files = fileNames
@@ -52,11 +54,19 @@ function fromLocal(extensionPath) {
                 data.stat = data.stat || {};
                 data.base = extensionPath;
                 this.emit('data', data);
+            }))
+                .pipe(sourcemaps.init())
+                .pipe(Boolean(sourceMappingURLBase) ? util_1.stripSourceMappingURL() : es.through())
+                .pipe(sourcemaps.write('.', {
+                sourceMappingURLPrefix: sourceMappingURLBase && sourceMappingURLBase + "/dist",
+                addComment: !!sourceMappingURLBase,
+                includeContent: !!sourceMappingURLBase,
+                sourceRoot: '../src',
             }));
             es.merge(webpackStream, patchFilesStream)
                 // .pipe(es.through(function (data) {
                 // 	// debug
-                // 	console.log('out', data.path, data.base, data.contents.length);
+                // 	console.log('out', data.path, data.contents.length);
                 // 	this.emit('data', data);
                 // }))
                 .pipe(result);
