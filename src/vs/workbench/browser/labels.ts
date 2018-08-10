@@ -191,7 +191,7 @@ export class ResourceLabel extends IconLabel {
 			iconLabelOptions.title = this.options.title;
 		} else if (resource && resource.scheme !== Schemas.data /* do not accidentally inline Data URIs */) {
 			if (!this.computedPathLabel) {
-				this.computedPathLabel = this.uriDisplayService.getLabel(resource, true);
+				this.computedPathLabel = this.uriDisplayService.getLabel(resource);
 			}
 
 			iconLabelOptions.title = this.computedPathLabel;

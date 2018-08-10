@@ -5,11 +5,12 @@
 
 'use strict';
 
-import { IMenubarService, IMenubarData } from 'vs/platform/menubar/common/menubar';
+import { IMenubarService, IMenubarData, IMenubarKeybinding } from 'vs/platform/menubar/common/menubar';
 import { Menubar } from 'vs/code/electron-main/menubar';
 import { ILogService } from 'vs/platform/log/common/log';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
+import { isMacintosh, isWindows } from 'vs/base/common/platform';
 
 export class MenubarService implements IMenubarService {
 	_serviceBrand: any;
@@ -21,14 +22,16 @@ export class MenubarService implements IMenubarService {
 		@ILogService private logService: ILogService
 	) {
 		// Install Menu
-		this._menubar = this.instantiationService.createInstance(Menubar);
+		if (isMacintosh && isWindows) {
+			this._menubar = this.instantiationService.createInstance(Menubar);
+		}
 	}
 
-	updateMenubar(windowId: number, menus: IMenubarData): TPromise<void> {
+	updateMenubar(windowId: number, menus: IMenubarData, additionalKeybindings?: Array<IMenubarKeybinding>): TPromise<void> {
 		this.logService.trace('menubarService#updateMenubar', windowId);
 
 		if (this._menubar) {
-			this._menubar.updateMenu(menus, windowId);
+			this._menubar.updateMenu(menus, windowId, additionalKeybindings);
 		}
 
 		return TPromise.as(null);

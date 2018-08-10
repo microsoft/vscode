@@ -500,6 +500,12 @@ export class CodeWindow implements ICodeWindow {
 		});
 	}
 
+	addTabbedWindow(window: ICodeWindow): void {
+		if (isMacintosh) {
+			this._win.addTabbedWindow(window.win);
+		}
+	}
+
 	load(config: IWindowConfiguration, isReload?: boolean, disableExtensions?: boolean): void {
 
 		// If this is the first time the window is loaded, we associate the paths
@@ -610,10 +616,6 @@ export class CodeWindow implements ICodeWindow {
 		}
 		windowConfiguration.highContrast = isWindows && autoDetectHighContrast && systemPreferences.isInvertedColorScheme();
 		windowConfiguration.accessibilitySupport = app.isAccessibilitySupportEnabled();
-
-		// Theme
-		windowConfiguration.baseTheme = this.getBaseTheme();
-		windowConfiguration.backgroundColor = this.getBackgroundColor();
 
 		// Title style related
 		windowConfiguration.maximized = this._win.isMaximized();

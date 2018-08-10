@@ -405,6 +405,7 @@ function escapeSpecialChars(query: string): string {
 function remoteSettingToISetting(remoteSetting: IRemoteSetting): IExtensionSetting {
 	return {
 		description: remoteSetting.description.split('\n'),
+		descriptionIsMarkdown: false,
 		descriptionRanges: null,
 		key: remoteSetting.key,
 		keyRange: null,

@@ -12,7 +12,7 @@ import { dispose } from 'vs/base/common/lifecycle';
 import { assign } from 'vs/base/common/objects';
 import { chain } from 'vs/base/common/event';
 import { isPromiseCanceledError, create as createError } from 'vs/base/common/errors';
-import { PagedModel, IPagedModel, IPager } from 'vs/base/common/paging';
+import { PagedModel, IPagedModel, IPager, DelayedPagedModel } from 'vs/base/common/paging';
 import { SortBy, SortOrder, IQueryOptions, LocalExtensionType, IExtensionTipsService, EnablementState, IExtensionRecommendation, IExtensionManagementServerService, ExtensionRecommendationSource, IExtensionManagementServer } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { areSameExtensions } from 'vs/platform/extensionManagement/common/extensionManagementUtil';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
@@ -111,7 +111,10 @@ export class ExtensionsListView extends ViewletPanel {
 	}
 
 	async show(query: string): Promise<IPagedModel<IExtension>> {
-		const model = await this.query(query);
+		const model = await this.query(query).catch(e => {
+			console.warn('Error querying extensions gallery', e);
+			return new PagedModel([]);
+		});
 		this.setModel(model);
 		return model;
 	}
@@ -560,7 +563,7 @@ export class ExtensionsListView extends ViewletPanel {
 
 	private setModel(model: IPagedModel<IExtension>) {
 		if (this.list) {
-			this.list.model = model;
+			this.list.model = new DelayedPagedModel(model);
 			this.list.scrollTop = 0;
 			const count = this.count();
 
@@ -798,7 +801,8 @@ export class WorkspaceRecommendedExtensionsView extends ExtensionsListView {
 	}
 
 	async show(query: string): Promise<IPagedModel<IExtension>> {
-		let model = await ((query && query.trim() !== '@recommended') ? this.showEmptyModel() : super.show(this.recommendedExtensionsQuery));
+		let shouldShowEmptyView = query && query.trim() !== '@recommended' && query.trim() !== '@recommended:workspace';
+		let model = await (shouldShowEmptyView ? this.showEmptyModel() : super.show(this.recommendedExtensionsQuery));
 		this.setExpanded(model.length > 0);
 		return model;
 	}

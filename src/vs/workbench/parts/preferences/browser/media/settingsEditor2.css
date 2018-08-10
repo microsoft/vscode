@@ -17,6 +17,7 @@
 .settings-editor > .settings-header {
 	box-sizing: border-box;
 	margin: auto;
+	overflow: hidden;
 }
 
 .settings-editor > .settings-header > .settings-preview-header {
@@ -25,6 +26,7 @@
 
 .settings-editor > .settings-header > .settings-preview-header .settings-preview-label {
 	opacity: .7;
+	white-space: nowrap;
 }
 
 .settings-editor > .settings-header > .settings-preview-header > .settings-preview-warning {
@@ -56,9 +58,10 @@
 }
 
 .settings-editor > .settings-header > .settings-header-controls {
-	height: 29px;
+	height: 32px;
 	display: flex;
 	border-bottom: solid 1px;
+	margin-top: 10px;
 }
 
 .settings-editor > .settings-header > .settings-header-controls .settings-tabs-widget .action-label {
@@ -106,14 +109,6 @@
 	background-size: 16px;
 }
 
-.vs .settings-editor > .settings-header > .settings-header-controls .settings-header-controls-right .toolbar-toggle-more {
-	background-image: url('ellipsis.svg');
-}
-
-.vs-dark .settings-editor > .settings-header > .settings-header-controls .settings-header-controls-right .toolbar-toggle-more {
-	background-image: url('ellipsis-inverse.svg');
-}
-
 .settings-editor > .settings-header > .settings-header-controls .settings-tabs-widget > .monaco-action-bar .action-item {
 	padding: 0px; /* padding must be on action-label because it has the bottom-border, because that's where the .checked class is */
 }
@@ -122,7 +117,7 @@
 	text-transform: none;
 	font-size: 13px;
 
-	padding-bottom: 4px;
+	padding-bottom: 7px;
 	padding-top: 7px;
 	padding-left: 8px;
 	padding-right: 8px;
@@ -132,40 +127,40 @@
 	display: flex;
 	margin: auto;
 	max-width: 1000px;
-	justify-content: space-between;
 }
 
-.settings-editor > .settings-body .settings-tree-container .monaco-tree::before {
-	outline: none !important;
+.settings-editor.search-mode > .settings-body .settings-tree-container .monaco-tree-wrapper,
+.settings-editor.search-mode > .settings-body > .settings-tree-container .setting-measure-container {
+	width: calc(100% - 11px);
+	margin-left: 0px;
 }
 
 .settings-editor > .settings-body .settings-tree-container .scrollbar.vertical{
 	position: fixed !important;
 }
 
+.settings-editor.narrow > .settings-body .settings-tree-container .monaco-tree-wrapper,
+.settings-editor.narrow > .settings-body > .settings-tree-container .setting-measure-container {
+	width: calc(100% - 11px);
+	margin-left: 0px;
+}
+
 .settings-editor > .settings-body .settings-tree-container .monaco-tree-wrapper,
 .settings-editor > .settings-body > .settings-tree-container .setting-measure-container {
-	/** Match header padding, leave room for scrollbar on the outside */
-	width: calc(100% - 11px);
+	/** 11px for scrollbar + 208px for TOC margin */
+	width: calc(100% - 219px);
+	margin-left: 208px;
 }
-
 
 .settings-editor > .settings-body .settings-toc-container {
+	position: absolute;
 	width: 160px;
-	margin-top: 5px;
+	margin-top: 16px;
 	padding-left: 5px;
-}
-
-.settings-editor > .settings-body .settings-toc-container.hidden {
-	display: none;
 }
 
 .settings-editor.search-mode .settings-toc-container {
 	display: none;
-}
-
-.settings-editor.search-mode > .settings-body .settings-tree-container {
-	max-width: 1100px;
 }
 
 .settings-editor.narrow > .settings-body .settings-toc-container {
@@ -176,11 +171,22 @@
 	display: none;
 }
 
+.settings-editor > .settings-body .settings-toc-container .monaco-tree-row .content {
+	display: flex;
+}
+
 .settings-editor > .settings-body .settings-toc-container .monaco-tree-row .settings-toc-entry {
 	overflow: hidden;
 	text-overflow: ellipsis;
 	line-height: 22px;
 	opacity: 0.9;
+	flex-shrink: 1;
+}
+
+.settings-editor > .settings-body .settings-toc-container .monaco-tree-row .settings-toc-count {
+	line-height: 22px;
+	opacity: 0.7;
+	margin-left: 3px;
 }
 
 .settings-editor > .settings-body .settings-toc-container .monaco-tree-row.has-children > .content:before {
@@ -202,17 +208,16 @@
 
 .settings-editor > .settings-body .settings-tree-container {
 	flex: 1;
-	max-width: 792px;
 	margin-right: 1px; /* So the item doesn't blend into the edge of the view container  */
-	margin-top: 8px;
+	margin-top: 14px;
 	border-spacing: 0;
 	border-collapse: separate;
 	position: relative;
 }
 
 .settings-editor > .settings-body > .settings-tree-container .setting-item {
-	padding-top: 11px;
-	padding-bottom: 15px;
+	padding-top: 12px;
+	padding-bottom: 18px;
 	box-sizing: border-box;
 	cursor: default;
 	white-space: normal;
@@ -242,7 +247,7 @@
 
 .settings-editor > .settings-body > .settings-tree-container .setting-item .setting-item-label,
 .settings-editor > .settings-body > .settings-tree-container .setting-item .setting-item-category {
-	font-weight: bold;
+	font-weight: 600;
 }
 
 .settings-editor > .settings-body > .settings-tree-container .setting-item .setting-item-category {
@@ -254,13 +259,22 @@
 	overflow: hidden;
 	text-overflow: ellipsis;
 	height: 18px;
+	display: -webkit-box;
+	-webkit-line-clamp: 1;
+	-webkit-box-orient: vertical;
+	transform: translate3d(0px, 0px, 0px);
 }
 
-.settings-editor > .settings-body > .settings-tree-container .setting-item .setting-item-description * {
+.settings-editor > .settings-body > .settings-tree-container .setting-item .setting-item-description-markdown * {
 	margin: 0px;
 }
 
-.settings-editor > .settings-body > .settings-tree-container .setting-item .setting-item-description code {
+.settings-editor > .settings-body > .settings-tree-container .setting-item .setting-item-description-markdown a:focus {
+	outline: 1px solid -webkit-focus-ring-color;
+	outline-offset: -1px;
+}
+
+.settings-editor > .settings-body > .settings-tree-container .setting-item .setting-item-description-markdown code {
 	line-height: 15px; /** For some reason, this is needed, otherwise <code> will take up 20px height */
 	font-family: Menlo, Monaco, Consolas, "Droid Sans Mono", "Courier New", monospace, "Droid Sans Fallback";
 }
@@ -273,6 +287,16 @@
 .settings-editor > .settings-body > .settings-tree-container .setting-item.is-expanded .setting-item-description,
 .settings-editor > .settings-body > .settings-tree-container .setting-item.setting-measure-helper .setting-item-description {
 	height: initial;
+	-webkit-line-clamp: initial;
+}
+
+.settings-editor > .settings-body > .settings-tree-container .setting-item .setting-item-enumDescription {
+	display: none;
+}
+
+.settings-editor > .settings-body > .settings-tree-container .setting-item.is-expanded .setting-item-enumDescription,
+.settings-editor > .settings-body > .settings-tree-container .setting-item.setting-measure-helper .setting-item-enumDescription {
+	display: block;
 }
 
 .settings-editor > .settings-body > .settings-tree-container .setting-item-bool .setting-item-value-description {
@@ -280,27 +304,28 @@
 }
 
 .settings-editor > .settings-body > .settings-tree-container .setting-item-bool .setting-value-checkbox {
-	height: 16px;
-	width: 16px;
+	height: 18px;
+	width: 18px;
 	border: 1px solid transparent;
 	border-radius: 3px;
-	margin-right: 4px;
+	margin-right: 9px;
 	margin-left: 0px;
-	margin-top: 2px;
+	margin-top: 4px;
 	padding: 0px;
-	background-size: 14px !important;
+	background-size: 16px !important;
 }
 
 .vs .settings-editor > .settings-body > .settings-tree-container .setting-item-bool .setting-value-checkbox.checked {
 	background: url('check.svg') center center no-repeat;
 }
 
-.vs-dark .settings-editor > .settings-body > .settings-tree-container .setting-item-bool .setting-value-checkbox.checked {
+.vs-dark .settings-editor > .settings-body > .settings-tree-container .setting-item-bool .setting-value-checkbox.checked,
+.hc-black .settings-editor > .settings-body > .settings-tree-container .setting-item-bool .setting-value-checkbox.checked {
 	background: url('check-inverse.svg') center center no-repeat;
 }
 
 .settings-editor > .settings-body > .settings-tree-container .setting-item .setting-item-value {
-	margin-top: 7px;
+	margin-top: 9px;
 	display: flex;
 }
 
@@ -308,14 +333,17 @@
 	min-width: 200px;
 }
 
+.settings-editor > .settings-body > .settings-tree-container .setting-item.setting-item-text .setting-item-control {
+	width: 500px;
+}
+
 .settings-editor > .settings-body > .settings-tree-container .setting-item.setting-item-enum .setting-item-value > .setting-item-control,
 .settings-editor > .settings-body > .settings-tree-container .setting-item.setting-item-text .setting-item-value > .setting-item-control {
-	flex: 1;
 	min-width: initial;
 }
 
 .settings-editor > .settings-body > .settings-tree-container .setting-item.setting-item-enum .setting-item-value > .setting-item-control > select {
-	width: 100%;
+	width: 320px;
 }
 
 .settings-editor > .settings-body > .settings-tree-container .setting-item .setting-item-value .edit-in-settings-button,
@@ -354,7 +382,7 @@
 
 .settings-editor > .settings-body > .settings-tree-container .settings-group-title-label {
 	margin: 0px;
-	font-weight: bold;
+	font-weight: 600;
 }
 
 .settings-editor > .settings-body > .settings-tree-container .settings-group-level-1 {
@@ -363,7 +391,7 @@
 }
 
 .settings-editor > .settings-body > .settings-tree-container .settings-group-level-2 {
-	padding-top: 27px;
+	padding-top: 32px;
 	font-size: 20px;
 }
 

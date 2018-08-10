@@ -11,7 +11,7 @@ import { TPromise } from 'vs/base/common/winjs.base';
 import { localize } from 'vs/nls';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
-import { IFileMatch, IFolderQuery, IPatternInfo, IQueryOptions, ISearchConfiguration, ISearchQuery, ISearchService, QueryType, ISearchProgressItem } from 'vs/platform/search/common/search';
+import { IFolderQuery, IPatternInfo, IQueryOptions, ISearchConfiguration, ISearchQuery, ISearchService, QueryType, ISearchProgressItem } from 'vs/platform/search/common/search';
 import { IStatusbarService } from 'vs/platform/statusbar/common/statusbar';
 import { IWorkspaceContextService, WorkbenchState } from 'vs/platform/workspace/common/workspace';
 import { extHostNamedCustomer } from 'vs/workbench/api/electron-browser/extHostCustomers';
@@ -165,36 +165,36 @@ export class MainThreadWorkspace implements MainThreadWorkspaceShape {
 		return search;
 	}
 
-	$startTextSearch(pattern: IPatternInfo, options: IQueryOptions, requestId: number): TPromise<void, IFileMatch> {
+	$startTextSearch(pattern: IPatternInfo, options: IQueryOptions, requestId: number): TPromise<void> {
 		const workspace = this._contextService.getWorkspace();
 		const folders = workspace.folders.map(folder => folder.uri);
 
 		const queryBuilder = this._instantiationService.createInstance(QueryBuilder);
 		const query = queryBuilder.text(pattern, folders, options);
 
-		return new TPromise((resolve, reject) => {
-			const onProgress = (p: ISearchProgressItem) => {
-				if (p.lineMatches) {
-					this._proxy.$handleTextSearchResult(p, requestId);
+		const onProgress = (p: ISearchProgressItem) => {
+			if (p.lineMatches) {
+				this._proxy.$handleTextSearchResult(p, requestId);
+			}
+		};
+
+		const search = this._searchService.search(query, onProgress).then(
+			() => {
+				delete this._activeSearches[requestId];
+				return null;
+			},
+			err => {
+				delete this._activeSearches[requestId];
+				if (!isPromiseCanceledError(err)) {
+					return TPromise.wrapError(err);
 				}
-			};
 
-			const search = this._searchService.search(query, onProgress).then(
-				() => {
-					delete this._activeSearches[requestId];
-					resolve(null);
-				},
-				err => {
-					delete this._activeSearches[requestId];
-					if (!isPromiseCanceledError(err)) {
-						reject(TPromise.wrapError(err));
-					}
+				return undefined;
+			});
 
-					return undefined;
-				});
+		this._activeSearches[requestId] = search;
 
-			this._activeSearches[requestId] = search;
-		});
+		return search;
 	}
 
 	$cancelSearch(requestId: number): Thenable<boolean> {

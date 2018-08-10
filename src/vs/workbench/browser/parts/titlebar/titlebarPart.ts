@@ -24,14 +24,14 @@ import * as nls from 'vs/nls';
 import { EditorInput, toResource, Verbosity } from 'vs/workbench/common/editor';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { IWorkspaceContextService, WorkbenchState } from 'vs/platform/workspace/common/workspace';
-import { IThemeService } from 'vs/platform/theme/common/themeService';
+import { IThemeService, registerThemingParticipant, ITheme, ICssStyleCollector } from 'vs/platform/theme/common/themeService';
 import { TITLE_BAR_ACTIVE_BACKGROUND, TITLE_BAR_ACTIVE_FOREGROUND, TITLE_BAR_INACTIVE_FOREGROUND, TITLE_BAR_INACTIVE_BACKGROUND, TITLE_BAR_BORDER } from 'vs/workbench/common/theme';
 import { isMacintosh, isWindows, isLinux } from 'vs/base/common/platform';
 import URI from 'vs/base/common/uri';
 import { Color } from 'vs/base/common/color';
 import { trim } from 'vs/base/common/strings';
 import { addDisposableListener, EventType, EventHelper, Dimension } from 'vs/base/browser/dom';
-import { MenubarPart } from 'vs/workbench/browser/parts/menubar/menubarPart';
+import { MenubarControl } from 'vs/workbench/browser/parts/titlebar/menubarControl';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { template, getBaseLabel } from 'vs/base/common/labels';
 import { IUriDisplayService } from 'vs/platform/uriDisplay/common/uriDisplay';
@@ -52,8 +52,9 @@ export class TitlebarPart extends Part implements ITitleService {
 	private windowControls: Builder;
 	private maxRestoreControl: Builder;
 	private appIcon: Builder;
-	private menubarPart: MenubarPart;
+	private menubarPart: MenubarControl;
 	private menubar: Builder;
+	private resizer: Builder;
 
 	private pendingTitle: string;
 	private representedFileName: string;
@@ -269,21 +270,13 @@ export class TitlebarPart extends Part implements ITitleService {
 		// App Icon (Windows/Linux)
 		if (!isMacintosh) {
 			this.appIcon = $(this.titleContainer).div({ class: 'window-appicon' });
-
-			if (isWindows) {
-				this.appIcon.on(EventType.DBLCLICK, e => {
-					EventHelper.stop(e, true);
-
-					this.windowService.closeWindow().then(null, errors.onUnexpectedError);
-				});
-			}
 		}
 
 		// Menubar: the menubar part which is responsible for populating both the custom and native menubars
-		this.menubarPart = this.instantiationService.createInstance(MenubarPart, 'workbench.parts.menubar');
+		this.menubarPart = this.instantiationService.createInstance(MenubarControl, 'workbench.parts.titlebar.menubar');
 		this.menubar = $(this.titleContainer).div({
-			'class': ['part', 'menubar'],
-			id: 'workbench.parts.menubar',
+			'class': ['menubar'],
+			id: 'workbench.parts.titlebar.menubar',
 			role: 'menubar'
 		});
 
@@ -302,11 +295,13 @@ export class TitlebarPart extends Part implements ITitleService {
 		}
 
 		// Maximize/Restore on doubleclick
-		this.title.on(EventType.DBLCLICK, (e) => {
-			EventHelper.stop(e);
+		if (isMacintosh) {
+			this.titleContainer.on(EventType.DBLCLICK, (e) => {
+				EventHelper.stop(e);
 
-			this.onTitleDoubleclick();
-		});
+				this.onTitleDoubleclick();
+			});
+		}
 
 		// Context menu on title
 		this.title.on([EventType.CONTEXT_MENU, EventType.MOUSE_DOWN], (e: MouseEvent) => {
@@ -322,12 +317,12 @@ export class TitlebarPart extends Part implements ITitleService {
 			this.windowControls = $(this.titleContainer).div({ class: 'window-controls-container' });
 
 			// Minimize
-			$(this.windowControls).div({ class: 'window-icon window-minimize' }).on(EventType.CLICK, () => {
+			$($(this.windowControls).div({ class: 'window-icon-bg' })).div({ class: 'window-icon window-minimize' }).on(EventType.CLICK, () => {
 				this.windowService.minimizeWindow().then(null, errors.onUnexpectedError);
 			});
 
 			// Restore
-			this.maxRestoreControl = $(this.windowControls).div({ class: 'window-icon window-max-restore' }).on(EventType.CLICK, () => {
+			this.maxRestoreControl = $($(this.windowControls).div({ class: 'window-icon-bg' })).div({ class: 'window-icon window-max-restore' }).on(EventType.CLICK, () => {
 				this.windowService.isMaximized().then((maximized) => {
 					if (maximized) {
 						return this.windowService.unmaximizeWindow();
@@ -338,16 +333,16 @@ export class TitlebarPart extends Part implements ITitleService {
 			});
 
 			// Close
-			$(this.windowControls).div({ class: 'window-icon window-close' }).on(EventType.CLICK, () => {
+			$($(this.windowControls).div({ class: 'window-icon-bg window-close-bg' })).div({ class: 'window-icon window-close' }).on(EventType.CLICK, () => {
 				this.windowService.closeWindow().then(null, errors.onUnexpectedError);
 			});
+
+			// Resizer
+			this.resizer = $(this.titleContainer).div({ class: 'resizer' });
 
 			const isMaximized = this.windowService.getConfiguration().maximized ? true : false;
 			this.onDidChangeMaximized(isMaximized);
 			this.windowService.onDidChangeMaximize(this.onDidChangeMaximized, this);
-
-			// Resizer
-			$(this.titleContainer).div({ class: 'resizer' });
 		}
 
 		// Since the title area is used to drag the window, we do not want to steal focus from the
@@ -365,16 +360,22 @@ export class TitlebarPart extends Part implements ITitleService {
 	}
 
 	private onDidChangeMaximized(maximized: boolean) {
-		if (!this.maxRestoreControl) {
-			return;
+		if (this.maxRestoreControl) {
+			if (maximized) {
+				this.maxRestoreControl.removeClass('window-maximize');
+				this.maxRestoreControl.addClass('window-unmaximize');
+			} else {
+				this.maxRestoreControl.removeClass('window-unmaximize');
+				this.maxRestoreControl.addClass('window-maximize');
+			}
 		}
 
-		if (maximized) {
-			this.maxRestoreControl.removeClass('window-maximize');
-			this.maxRestoreControl.addClass('window-unmaximize');
-		} else {
-			this.maxRestoreControl.removeClass('window-unmaximize');
-			this.maxRestoreControl.addClass('window-maximize');
+		if (this.resizer) {
+			if (maximized) {
+				this.resizer.hide();
+			} else {
+				this.resizer.show();
+			}
 		}
 	}
 
@@ -383,6 +384,12 @@ export class TitlebarPart extends Part implements ITitleService {
 
 		// Part container
 		if (this.titleContainer) {
+			if (this.isInactive) {
+				this.titleContainer.addClass('inactive');
+			} else {
+				this.titleContainer.removeClass('inactive');
+			}
+
 			const titleBackground = this.getColor(this.isInactive ? TITLE_BAR_INACTIVE_BACKGROUND : TITLE_BAR_ACTIVE_BACKGROUND);
 			this.titleContainer.style('background-color', titleBackground);
 			if (Color.fromHex(titleBackground).isLighter()) {
@@ -555,3 +562,23 @@ class ShowItemInFolderAction extends Action {
 		return this.windowsService.showItemInFolder(this.path);
 	}
 }
+
+registerThemingParticipant((theme: ITheme, collector: ICssStyleCollector) => {
+	const titlebarActiveFg = theme.getColor(TITLE_BAR_ACTIVE_FOREGROUND);
+	if (titlebarActiveFg) {
+		collector.addRule(`
+		.monaco-workbench > .part.titlebar > .window-controls-container .window-icon {
+			background-color: ${titlebarActiveFg};
+		}
+		`);
+	}
+
+	const titlebarInactiveFg = theme.getColor(TITLE_BAR_INACTIVE_FOREGROUND);
+	if (titlebarInactiveFg) {
+		collector.addRule(`
+		.monaco-workbench > .part.titlebar.inactive > .window-controls-container .window-icon {
+				background-color: ${titlebarInactiveFg};
+			}
+		`);
+	}
+});

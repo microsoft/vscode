@@ -23,6 +23,7 @@ import { IEditorGroupsService, IEditorGroup, GroupDirection, GroupLocation, Grou
 import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { CommandsRegistry } from 'vs/platform/commands/common/commands';
+import { MenuRegistry, MenuId } from 'vs/platform/actions/common/actions';
 
 export const CLOSE_SAVED_EDITORS_COMMAND_ID = 'workbench.action.closeUnmodifiedEditors';
 export const CLOSE_EDITORS_IN_GROUP_COMMAND_ID = 'workbench.action.closeEditorsInGroup';
@@ -262,6 +263,14 @@ function registerDiffEditorCommands(): void {
 				});
 			}
 		}
+	});
+
+	MenuRegistry.appendMenuItem(MenuId.CommandPalette, {
+		command: {
+			id: TOGGLE_DIFF_INLINE_MODE,
+			title: nls.localize('toggleInlineView', "Compare: Toggle Inline View")
+		},
+		when: ContextKeyExpr.has('textCompareEditorActive')
 	});
 }
 

@@ -11,7 +11,7 @@ import MarkdownFoldingProvider from '../features/foldingProvider';
 import { InMemoryDocument } from './inMemoryDocument';
 import { createNewMarkdownEngine } from './engine';
 
-const testFileName = vscode.Uri.parse('test.md');
+const testFileName = vscode.Uri.file('test.md');
 
 suite('markdown.FoldingProvider', () => {
 	test('Should not return anything for empty document', async () => {
@@ -76,6 +76,31 @@ y`);
 		const firstFold = folds[0];
 		assert.strictEqual(firstFold.start, 1);
 		assert.strictEqual(firstFold.end, 2);
+	});
+
+	test('Should fold nested <!-- #region --> markers', async () => {
+		const folds = await getFoldsForDocument(`a
+<!-- #region -->
+b
+<!-- #region hello!-->
+b.a
+<!-- #endregion -->
+b
+<!-- #region: foo! -->
+b.b
+<!-- #endregion: foo -->
+b
+<!-- #endregion -->
+a`);
+		assert.strictEqual(folds.length, 3);
+		const [outer, first, second] = folds.sort((a, b) => a.start - b.start);
+
+		assert.strictEqual(outer.start, 1);
+		assert.strictEqual(outer.end, 11);
+		assert.strictEqual(first.start, 3);
+		assert.strictEqual(first.end, 5);
+		assert.strictEqual(second.start, 7);
+		assert.strictEqual(second.end, 9);
 	});
 
 });

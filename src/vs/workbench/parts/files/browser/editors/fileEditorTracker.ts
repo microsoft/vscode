@@ -4,10 +4,9 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import { TPromise } from 'vs/base/common/winjs.base';
 import { IWorkbenchContribution } from 'vs/workbench/common/contributions';
 import URI from 'vs/base/common/uri';
-import * as paths from 'vs/base/common/paths';
+import * as resources from 'vs/base/common/resources';
 import { IEditorViewState } from 'vs/editor/common/editorCommon';
 import { toResource, SideBySideEditorInput, IWorkbenchEditorConfiguration } from 'vs/workbench/common/editor';
 import { ITextFileService, ITextFileEditorModel } from 'vs/workbench/services/textfile/common/textfiles';
@@ -27,7 +26,7 @@ import { IWindowService } from 'vs/platform/windows/common/windows';
 import { BINARY_FILE_EDITOR_ID } from 'vs/workbench/parts/files/common/files';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IEditorGroupsService, IEditorGroup } from 'vs/workbench/services/group/common/editorGroupsService';
-import { ResourceQueue } from 'vs/base/common/async';
+import { ResourceQueue, timeout } from 'vs/base/common/async';
 import { onUnexpectedError } from 'vs/base/common/errors';
 
 export class FileEditorTracker extends Disposable implements IWorkbenchContribution {
@@ -149,7 +148,7 @@ export class FileEditorTracker extends Disposable implements IWorkbenchContribut
 				// Do NOT close any opened editor that matches the resource path (either equal or being parent) of the
 				// resource we move to (movedTo). Otherwise we would close a resource that has been renamed to the same
 				// path but different casing.
-				if (movedTo && paths.isEqualOrParent(resource.fsPath, movedTo.fsPath, !isLinux /* ignorecase */) && resource.fsPath.indexOf(movedTo.fsPath) === 0) {
+				if (movedTo && resources.isEqualOrParent(resource, movedTo, resources.hasToIgnoreCase(resource)) && resource.path.indexOf(movedTo.path) === 0) {
 					return;
 				}
 
@@ -157,7 +156,7 @@ export class FileEditorTracker extends Disposable implements IWorkbenchContribut
 				if (arg1 instanceof FileChangesEvent) {
 					matches = arg1.contains(resource, FileChangeType.DELETED);
 				} else {
-					matches = paths.isEqualOrParent(resource.fsPath, arg1.fsPath, !isLinux /* ignorecase */);
+					matches = resources.isEqualOrParent(resource, arg1, resources.hasToIgnoreCase(resource));
 				}
 
 				if (!matches) {
@@ -170,14 +169,14 @@ export class FileEditorTracker extends Disposable implements IWorkbenchContribut
 				// file is really gone and not just a faulty file event.
 				// This only applies to external file events, so we need to check for the isExternal
 				// flag.
-				let checkExists: TPromise<boolean>;
+				let checkExists: Thenable<boolean>;
 				if (isExternal) {
-					checkExists = TPromise.timeout(100).then(() => this.fileService.existsFile(resource));
+					checkExists = timeout(100).then(() => this.fileService.existsFile(resource));
 				} else {
-					checkExists = TPromise.as(false);
+					checkExists = Promise.resolve(false);
 				}
 
-				checkExists.done(exists => {
+				checkExists.then(exists => {
 					if (!exists && !editor.isDisposed()) {
 						editor.dispose();
 					} else if (this.environmentService.verbose) {
@@ -224,13 +223,13 @@ export class FileEditorTracker extends Disposable implements IWorkbenchContribut
 					const resource = input.getResource();
 
 					// Update Editor if file (or any parent of the input) got renamed or moved
-					if (paths.isEqualOrParent(resource.fsPath, oldResource.fsPath, !isLinux /* ignorecase */)) {
+					if (resources.isEqualOrParent(resource, oldResource, resources.hasToIgnoreCase(resource))) {
 						let reopenFileResource: URI;
 						if (oldResource.toString() === resource.toString()) {
 							reopenFileResource = newResource; // file got moved
 						} else {
 							const index = this.getIndexOfPath(resource.path, oldResource.path);
-							reopenFileResource = newResource.with({ path: paths.join(newResource.path, resource.path.substr(index + oldResource.path.length + 1)) }); // parent folder got moved
+							reopenFileResource = resources.joinPath(newResource, resource.path.substr(index + oldResource.path.length + 1)); // parent folder got moved
 						}
 
 						// Reopen

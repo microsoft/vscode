@@ -4,12 +4,16 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as path from 'path';
-import uri from 'vs/base/common/uri';
+import { getPathFromAmdModule } from 'vs/base/common/amd';
 
 export interface IProductConfiguration {
 	nameShort: string;
 	nameLong: string;
 	applicationName: string;
+	win32AppId: string;
+	win32x64AppId: string;
+	win32UserAppId: string;
+	win32x64UserAppId: string;
 	win32AppUserModelId: string;
 	win32MutexName: string;
 	darwinBundleIdentifier: string;
@@ -86,7 +90,7 @@ export interface ISurveyData {
 	userProbability: number;
 }
 
-const rootPath = path.dirname(uri.parse(require.toUrl('')).fsPath);
+const rootPath = path.dirname(getPathFromAmdModule(require, ''));
 const productJsonPath = path.join(rootPath, 'product.json');
 const product = require.__$__nodeRequire(productJsonPath) as IProductConfiguration;
 

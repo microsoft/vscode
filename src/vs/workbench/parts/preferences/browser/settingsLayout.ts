@@ -45,7 +45,7 @@ export const tocData: ITOCEntry = {
 				},
 				{
 					id: 'editor/format',
-					label: localize('format', "Format"),
+					label: localize('formatting', "Formatting"),
 					settings: ['editor.format*']
 				},
 				{

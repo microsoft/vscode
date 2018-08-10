@@ -276,7 +276,7 @@ export class FileIndexSearchEngine {
 		});
 	}
 
-	private getSearchOptionsForFolder(fq: IFolderQuery<URI>): vscode.FileSearchOptions {
+	private getSearchOptionsForFolder(fq: IFolderQuery<URI>): vscode.FileIndexOptions {
 		const includes = resolvePatternsForProvider(this.config.includePattern, fq.includePattern);
 		const excludes = resolvePatternsForProvider(this.config.excludePattern, fq.excludePattern);
 
@@ -416,7 +416,7 @@ export class FileIndexSearchManager {
 				sortedSearch.then(complete => {
 					this.sendAsBatches(complete.results, onBatch, FileIndexSearchManager.BATCH_SIZE);
 					c(complete);
-				}, e, onBatch);
+				}, e);
 			}, () => {
 				sortedSearch.cancel();
 			});

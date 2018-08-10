@@ -101,17 +101,19 @@ export abstract class TitleControl extends Themable {
 			if (!value && this.breadcrumbsControl) {
 				this.breadcrumbsControl.dispose();
 				this.breadcrumbsControl = undefined;
-				this.group.relayout();
+				this.handleBreadcrumbsEnablementChange();
 			} else if (value && !this.breadcrumbsControl) {
 				this.breadcrumbsControl = this.instantiationService.createInstance(BreadcrumbsControl, container, options, this.group);
 				this.breadcrumbsControl.update();
-				this.group.relayout();
+				this.handleBreadcrumbsEnablementChange();
 			}
 		});
 		if (config.value) {
 			this.breadcrumbsControl = this.instantiationService.createInstance(BreadcrumbsControl, container, options, this.group);
 		}
 	}
+
+	protected abstract handleBreadcrumbsEnablementChange(): void;
 
 	protected createEditorActionsToolBar(container: HTMLElement): void {
 		const context = { groupId: this.group.id } as IEditorCommandsContext;

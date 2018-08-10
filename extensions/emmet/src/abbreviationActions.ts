@@ -498,6 +498,12 @@ export function isValidLocationForEmmetAbbreviation(document: vscode.TextDocumen
 			i--;
 			continue;
 		}
+		// Fix for https://github.com/Microsoft/vscode/issues/55411
+		// A space is not a valid character right after < in a tag name.
+		if (/\s/.test(char) && textToBackTrack[i] === startAngle) {
+			i--;
+			continue;
+		}
 		if (char !== startAngle && char !== endAngle) {
 			continue;
 		}

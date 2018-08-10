@@ -311,7 +311,7 @@ export class ExtensionTipsService extends Disposable implements IExtensionTipsSe
 			.then(content => <IExtensionsConfigContent>json.parse(content.value), err => null);
 	}
 
-	private validateExtensions(contents: IExtensionsConfigContent[]): TPromise<{ invalidExtensions: string[], message: string }> {
+	private async validateExtensions(contents: IExtensionsConfigContent[]): TPromise<{ invalidExtensions: string[], message: string }> {
 		const extensionsContent: IExtensionsConfigContent = {
 			recommendations: distinct(flatten(contents.map(content => content.recommendations || []))),
 			unwantedRecommendations: distinct(flatten(contents.map(content => content.unwantedRecommendations || [])))
@@ -339,27 +339,24 @@ export class ExtensionTipsService extends Disposable implements IExtensionTipsSe
 
 		const filteredWanted = regexFilter(extensionsContent.recommendations || []).map(x => x.toLowerCase());
 
-		if (!filteredWanted.length) {
-			return TPromise.as({ invalidExtensions, message });
-		}
+		if (filteredWanted.length) {
+			try {
+				let validRecommendations = (await this._galleryService.query({ names: filteredWanted })).firstPage
+					.map(extension => extension.identifier.id.toLowerCase());
 
-		return this._galleryService.query({ names: filteredWanted }).then(pager => {
-			let page = pager.firstPage;
-			let validRecommendations = page.map(extension => {
-				return extension.identifier.id.toLowerCase();
-			});
-
-			if (validRecommendations.length !== filteredWanted.length) {
-				filteredWanted.forEach(element => {
-					if (validRecommendations.indexOf(element.toLowerCase()) === -1) {
-						invalidExtensions.push(element.toLowerCase());
-						message += `${element} (not found in marketplace)\n`;
-					}
-				});
+				if (validRecommendations.length !== filteredWanted.length) {
+					filteredWanted.forEach(element => {
+						if (validRecommendations.indexOf(element.toLowerCase()) === -1) {
+							invalidExtensions.push(element.toLowerCase());
+							message += `${element} (not found in marketplace)\n`;
+						}
+					});
+				}
+			} catch (e) {
+				console.warn('Error querying extensions gallery', e);
 			}
-
-			return TPromise.as({ invalidExtensions, message });
-		});
+		}
+		return { invalidExtensions, message };
 	}
 
 	private isExtensionAllowedToBeRecommended(id: string): boolean {
@@ -676,8 +673,7 @@ export class ExtensionTipsService extends Disposable implements IExtensionTipsSe
 									});
 							}
 						}, {
-							label: choiceNever,
-							isSecondary: true,
+							label: localize('dontShowAgainExtension', "Don't Show Again for '.{0}' files", fileExtension),
 							run: () => {
 								fileExtensionSuggestionIgnoreList.push(fileExtension);
 								this.storageService.store(

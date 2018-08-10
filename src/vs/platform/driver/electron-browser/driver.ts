@@ -207,7 +207,7 @@ class WindowDriver implements IWindowDriver {
 			return TPromise.wrapError(new Error('Xterm not found'));
 		}
 
-		xterm._core.send(text);
+		xterm._core.handler(text);
 
 		return TPromise.as(null);
 	}

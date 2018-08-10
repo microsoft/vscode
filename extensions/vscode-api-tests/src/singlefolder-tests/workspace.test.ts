@@ -520,6 +520,16 @@ suite('workspace-namespace', () => {
 		assert.equal(vscode.workspace.asRelativePath(results[0].uri), '10linefile.ts');
 	});
 
+	test('findTextInFiles, cancellation', async () => {
+		const results: vscode.TextSearchResult[] = [];
+		const cancellation = new vscode.CancellationTokenSource();
+		cancellation.cancel();
+
+		await vscode.workspace.findTextInFiles({ pattern: 'foo' }, result => {
+			results.push(result);
+		}, cancellation.token);
+	});
+
 	test('applyEdit', () => {
 
 		return vscode.workspace.openTextDocument(vscode.Uri.parse('untitled:' + join(vscode.workspace.rootPath || '', './new2.txt'))).then(doc => {

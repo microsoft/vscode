@@ -31,12 +31,13 @@ export class Menubar {
 	private static readonly MAX_MENU_RECENT_ENTRIES = 10;
 	private isQuitting: boolean;
 	private appMenuInstalled: boolean;
+	private closedLastWindow: boolean;
 
 	private menuUpdater: RunOnceScheduler;
 
 	private nativeTabMenuItems: Electron.MenuItem[];
 
-	private menubarMenus: IMenubarData = {};
+	private menubarMenus: IMenubarData;
 
 	private keybindings: { [commandId: string]: IMenubarKeybinding };
 
@@ -54,6 +55,8 @@ export class Menubar {
 
 		this.keybindings = Object.create(null);
 
+		this.closedLastWindow = false;
+
 		this.install();
 
 		this.registerListeners();
@@ -67,7 +70,7 @@ export class Menubar {
 		});
 
 		// // Listen to some events from window service to update menu
-		// this.historyMainService.onRecentlyOpenedChange(() => this.updateMenu());
+		this.historyMainService.onRecentlyOpenedChange(() => this.scheduleUpdateMenu());
 		this.windowsMainService.onWindowsCountChanged(e => this.onWindowsCountChanged(e));
 		// this.windowsMainService.onActiveWindowChanged(() => this.updateWorkspaceMenuItems());
 		// this.windowsMainService.onWindowReady(() => this.updateWorkspaceMenuItems());
@@ -112,8 +115,14 @@ export class Menubar {
 		return enableNativeTabs;
 	}
 
-	updateMenu(menus: IMenubarData, windowId: number) {
+	updateMenu(menus: IMenubarData, windowId: number, additionalKeybindings?: Array<IMenubarKeybinding>) {
 		this.menubarMenus = menus;
+		if (additionalKeybindings) {
+			additionalKeybindings.forEach(keybinding => {
+				this.keybindings[keybinding.id] = keybinding;
+			});
+		}
+
 		this.scheduleUpdateMenu();
 	}
 
@@ -143,9 +152,9 @@ export class Menubar {
 			return;
 		}
 
-
 		// Update menu if window count goes from N > 0 or 0 > N to update menu item enablement
 		if ((e.oldCount === 0 && e.newCount > 0) || (e.oldCount > 0 && e.newCount === 0)) {
+			this.closedLastWindow = e.newCount === 0;
 			this.scheduleUpdateMenu();
 		}
 
@@ -272,7 +281,7 @@ export class Menubar {
 
 		// Mac: Window
 		let macWindowMenuItem: Electron.MenuItem;
-		if (isMacintosh) {
+		if (this.shouldDrawMenu('Window')) {
 			const windowMenu = new Menu();
 			macWindowMenuItem = new MenuItem({ label: this.mnemonicLabel(nls.localize('mWindow', "Window")), submenu: windowMenu, role: 'window' });
 			this.setMacWindowMenu(windowMenu);
@@ -310,7 +319,11 @@ export class Menubar {
 			menubar.append(helpMenuItem);
 		}
 
-		Menu.setApplicationMenu(menubar);
+		if (menubar.items && menubar.items.length > 0) {
+			Menu.setApplicationMenu(menubar);
+		} else {
+			Menu.setApplicationMenu(null);
+		}
 	}
 
 	private setMacApplicationMenu(macApplicationMenu: Electron.Menu): void {
@@ -370,14 +383,22 @@ export class Menubar {
 		switch (menuId) {
 			case 'File':
 			case 'Help':
-				return true;
+				if (isMacintosh) {
+					return (this.windowsMainService.getWindowCount() === 0 && this.closedLastWindow) || (!!this.menubarMenus && !!this.menubarMenus[menuId]);
+				}
+
+			case 'Window':
+				if (isMacintosh) {
+					return (this.windowsMainService.getWindowCount() === 0 && this.closedLastWindow) || !!this.menubarMenus;
+				}
+
 			default:
-				return this.windowsMainService.getWindowCount() > 0 && !!this.menubarMenus[menuId];
+				return this.windowsMainService.getWindowCount() > 0 && (!!this.menubarMenus && !!this.menubarMenus[menuId]);
 		}
 	}
 
 	private shouldFallback(menuId: string): boolean {
-		return this.shouldDrawMenu(menuId) && (this.windowsMainService.getWindowCount() === 0);
+		return this.shouldDrawMenu(menuId) && (this.windowsMainService.getWindowCount() === 0 && this.closedLastWindow && isMacintosh);
 	}
 
 	private setFallbackMenuById(menu: Electron.Menu, menuId: string): void {
@@ -391,11 +412,16 @@ export class Menubar {
 
 				const openWorkspace = new MenuItem(this.likeAction('workbench.action.openWorkspace', { label: this.mnemonicLabel(nls.localize({ key: 'miOpenWorkspace', comment: ['&& denotes a mnemonic'] }, "Open Wor&&kspace...")), click: (menuItem, win, event) => this.windowsMainService.pickWorkspaceAndOpen({ forceNewWindow: this.isOptionClick(event), telemetryExtraData: { from: telemetryFrom } }) }));
 
+				const openRecentMenu = new Menu();
+				this.setFallbackMenuById(openRecentMenu, 'Recent');
+				const openRecent = new MenuItem({ label: this.mnemonicLabel(nls.localize({ key: 'miOpenRecent', comment: ['&& denotes a mnemonic'] }, "Open &&Recent")), submenu: openRecentMenu });
+
 				menu.append(newFile);
 				menu.append(newWindow);
 				menu.append(__separator__());
 				menu.append(open);
 				menu.append(openWorkspace);
+				menu.append(openRecent);
 
 				break;
 
@@ -457,16 +483,12 @@ export class Menubar {
 					});
 				}
 
-				const openProcessExplorer = new MenuItem({ label: this.mnemonicLabel(nls.localize({ key: 'miOpenProcessExplorerer', comment: ['&& denotes a mnemonic'] }, "Open &&Process Explorer")), click: () => this.runActionInRenderer('workbench.action.openProcessExplorer') });
-
 				if (twitterItem) { menu.append(twitterItem); }
 				if (featureRequestsItem) { menu.append(featureRequestsItem); }
 				if (reportIssuesItem) { menu.append(reportIssuesItem); }
-				if (twitterItem || featureRequestsItem || reportIssuesItem) { menu.append(__separator__()); }
+				if ((twitterItem || featureRequestsItem || reportIssuesItem) && (licenseItem || privacyStatementItem)) { menu.append(__separator__()); }
 				if (licenseItem) { menu.append(licenseItem); }
 				if (privacyStatementItem) { menu.append(privacyStatementItem); }
-				if (licenseItem || privacyStatementItem) { menu.append(__separator__()); }
-				menu.append(openProcessExplorer);
 
 				break;
 		}
@@ -484,11 +506,15 @@ export class Menubar {
 			} else if (isMenubarMenuItemAction(item)) {
 				if (item.id === 'workbench.action.openRecent') {
 					this.insertRecentMenuItems(menu);
+				} else if (item.id === 'workbench.action.showAboutDialog') {
+					this.insertCheckForUpdatesItems(menu);
 				}
 
 				// Store the keybinding
 				if (item.keybinding) {
 					this.keybindings[item.id] = item.keybinding;
+				} else if (this.keybindings[item.id]) {
+					this.keybindings[item.id] = undefined;
 				}
 
 				const menuItem = this.createMenuItem(item.label, item.id, item.enabled, item.checked);
@@ -498,8 +524,16 @@ export class Menubar {
 	}
 
 	private setMenuById(menu: Electron.Menu, menuId: string): void {
-		if (this.menubarMenus[menuId]) {
+		if (this.menubarMenus && this.menubarMenus[menuId]) {
 			this.setMenu(menu, this.menubarMenus[menuId].items);
+		}
+	}
+
+	private insertCheckForUpdatesItems(menu: Electron.Menu) {
+		const updateItems = this.getUpdateMenuItems();
+		if (updateItems.length) {
+			updateItems.forEach(i => menu.append(i));
+			menu.append(__separator__());
 		}
 	}
 
@@ -573,6 +607,7 @@ export class Menubar {
 		if (this.currentEnableNativeTabs) {
 			const hasMultipleWindows = this.windowsMainService.getWindowCount() > 1;
 
+			this.nativeTabMenuItems.push(this.createMenuItem(nls.localize('mNewTab', "New Tab"), 'workbench.action.newWindowTab'));
 			this.nativeTabMenuItems.push(this.createMenuItem(nls.localize('mShowPreviousTab', "Show Previous Tab"), 'workbench.action.showPreviousWindowTab', hasMultipleWindows));
 			this.nativeTabMenuItems.push(this.createMenuItem(nls.localize('mShowNextTab', "Show Next Tab"), 'workbench.action.showNextWindowTab', hasMultipleWindows));
 			this.nativeTabMenuItems.push(this.createMenuItem(nls.localize('mMoveTabToNewWindow', "Move Tab to New Window"), 'workbench.action.moveWindowTabToNewWindow', hasMultipleWindows));

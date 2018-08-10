@@ -15,11 +15,15 @@ import { getTempFile } from './temp';
  * file systems.
  */
 export class ResourceMap<T> {
-	private readonly _map = new Map<string, T>();
+	private readonly _map = new Map<string, { resource: vscode.Uri, value: T }>();
 
 	constructor(
-		private readonly _normalizePath?: (resource: vscode.Uri) => string | null
+		private readonly _normalizePath: (resource: vscode.Uri) => string | null = (resource) => resource.fsPath
 	) { }
+
+	public get size() {
+		return this._map.size;
+	}
 
 	public has(resource: vscode.Uri): boolean {
 		const file = this.toKey(resource);
@@ -28,13 +32,23 @@ export class ResourceMap<T> {
 
 	public get(resource: vscode.Uri): T | undefined {
 		const file = this.toKey(resource);
-		return file ? this._map.get(file) : undefined;
+		if (!file) {
+			return undefined;
+		}
+		const entry = this._map.get(file);
+		return entry ? entry.value : undefined;
 	}
 
 	public set(resource: vscode.Uri, value: T) {
 		const file = this.toKey(resource);
-		if (file) {
-			this._map.set(file, value);
+		if (!file) {
+			return;
+		}
+		const entry = this._map.get(file);
+		if (entry) {
+			entry.value = value;
+		} else {
+			this._map.set(file, { resource, value });
 		}
 	}
 
@@ -45,20 +59,20 @@ export class ResourceMap<T> {
 		}
 	}
 
-	public clear() {
+	public clear(): void {
 		this._map.clear();
 	}
 
 	public get values(): Iterable<T> {
+		return Array.from(this._map.values()).map(x => x.value);
+	}
+
+	public get entries(): Iterable<{ resource: vscode.Uri, value: T }> {
 		return this._map.values();
 	}
 
-	public get entries() {
-		return this._map.entries();
-	}
-
 	private toKey(resource: vscode.Uri): string | null {
-		const key = this._normalizePath ? this._normalizePath(resource) : resource.fsPath;
+		const key = this._normalizePath(resource);
 		if (!key) {
 			return key;
 		}

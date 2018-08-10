@@ -7,6 +7,7 @@
 import { TPromise } from 'vs/base/common/winjs.base';
 import { IDisposable, combinedDisposable } from 'vs/base/common/lifecycle';
 import { Event, Emitter } from 'vs/base/common/event';
+import { isThenable } from 'vs/base/common/async';
 
 export interface ITelemetryData {
 	from?: string;
@@ -225,7 +226,7 @@ export class ActionRunner implements IActionRunner {
 	protected runAction(action: IAction, context?: any): TPromise<any> {
 		const res = context ? action.run(context) : action.run();
 
-		if (TPromise.is(res)) {
+		if (isThenable(res)) {
 			return res;
 		}
 
