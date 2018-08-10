@@ -223,7 +223,7 @@ export const IQuickInputService = createDecorator<IQuickInputService>('quickInpu
 
 export type Omit<T, K extends keyof T> = Pick<T, Exclude<keyof T, K>>;
 
-export type QuickPickInput<T> = TPromise<(T | IQuickPickSeparator)[]> | (T | IQuickPickSeparator)[];
+export type QuickPickInput<T = IQuickPickItem> = T | IQuickPickSeparator;
 
 export interface IQuickInputService {
 
@@ -232,9 +232,9 @@ export interface IQuickInputService {
 	/**
 	 * Opens the quick input box for selecting items and returns a promise with the user selected item(s) if any.
 	 */
-	pick<T extends IQuickPickItem>(picks: QuickPickInput<T>, options?: IPickOptions<T> & { canPickMany: true }, token?: CancellationToken): TPromise<T[]>;
-	pick<T extends IQuickPickItem>(picks: QuickPickInput<T>, options?: IPickOptions<T> & { canPickMany: false }, token?: CancellationToken): TPromise<T>;
-	pick<T extends IQuickPickItem>(picks: QuickPickInput<T>, options?: Omit<IPickOptions<T>, 'canPickMany'>, token?: CancellationToken): TPromise<T>;
+	pick<T extends IQuickPickItem>(picks: TPromise<QuickPickInput<T>[]> | QuickPickInput<T>[], options?: IPickOptions<T> & { canPickMany: true }, token?: CancellationToken): TPromise<T[]>;
+	pick<T extends IQuickPickItem>(picks: TPromise<QuickPickInput<T>[]> | QuickPickInput<T>[], options?: IPickOptions<T> & { canPickMany: false }, token?: CancellationToken): TPromise<T>;
+	pick<T extends IQuickPickItem>(picks: TPromise<QuickPickInput<T>[]> | QuickPickInput<T>[], options?: Omit<IPickOptions<T>, 'canPickMany'>, token?: CancellationToken): TPromise<T>;
 
 	/**
 	 * Opens the quick input box for text input and returns a promise with the user typed value if any.

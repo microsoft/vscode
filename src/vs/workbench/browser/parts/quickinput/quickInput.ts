@@ -1009,7 +1009,7 @@ export class QuickInputService extends Component implements IQuickInputService {
 		this.updateStyles();
 	}
 
-	pick<T extends IQuickPickItem, O extends IPickOptions<T>>(picks: QuickPickInput<T>, options: O = <O>{}, token: CancellationToken = CancellationToken.None): TPromise<O extends { canPickMany: true } ? T[] : T> {
+	pick<T extends IQuickPickItem, O extends IPickOptions<T>>(picks: TPromise<QuickPickInput<T>[]> | QuickPickInput<T>[], options: O = <O>{}, token: CancellationToken = CancellationToken.None): TPromise<O extends { canPickMany: true } ? T[] : T> {
 		return new TPromise<O extends { canPickMany: true } ? T[] : T>((doResolve, reject) => {
 			let resolve = (result: any) => {
 				resolve = doResolve;
