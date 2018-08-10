@@ -112,10 +112,6 @@ export class SettingsEditor2 extends BaseEditor {
 
 		this._register(configurationService.onDidChangeConfiguration(e => {
 			this.onConfigUpdate();
-
-			if (e.affectsConfiguration('workbench.settings.tocVisible')) {
-				this.updateTOCVisible();
-			}
 		}));
 	}
 
@@ -360,13 +356,6 @@ export class SettingsEditor2 extends BaseEditor {
 		this._register(this.tocTree.onDidBlur(() => {
 			this.tocRowFocused.set(false);
 		}));
-
-		this.updateTOCVisible();
-	}
-
-	private updateTOCVisible(): void {
-		const visible = !!this.configurationService.getValue('workbench.settings.tocVisible');
-		DOM.toggleClass(this.tocTreeContainer, 'hidden', !visible);
 	}
 
 	private createSettingsTree(parent: HTMLElement): void {

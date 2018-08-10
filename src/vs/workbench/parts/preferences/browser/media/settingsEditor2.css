@@ -155,10 +155,6 @@
 	padding-left: 5px;
 }
 
-.settings-editor > .settings-body .settings-toc-container.hidden {
-	display: none;
-}
-
 .settings-editor.search-mode .settings-toc-container {
 	display: none;
 }
