@@ -47,7 +47,7 @@
     "v8-inspect-profiler": "^0.0.8",
     "vscode-chokidar": "^1.6.2",
     "vscode-debugprotocol": "1.31.0",
-    "vscode-nsfw": "bpasero/nsfw#electron-3.0.x",
+    "vscode-nsfw": "bpasero/vscode-nsfw#electron-3.0.x",
     "vscode-ripgrep": "^1.0.1",
     "vscode-textmate": "Microsoft/vscode-textmate#electron-3.0.x",
     "vscode-xterm": "3.7.0-beta3",
