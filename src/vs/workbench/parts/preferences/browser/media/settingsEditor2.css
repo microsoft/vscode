@@ -139,6 +139,10 @@
 	outline: none !important;
 }
 
+.settings-editor > .settings-body .settings-tree-container .scrollbar.vertical{
+	position: fixed !important;
+}
+
 .settings-editor > .settings-body .settings-tree-container .monaco-tree-wrapper,
 .settings-editor > .settings-body > .settings-tree-container .setting-measure-container {
 	/** Match header padding, leave room for scrollbar on the outside */

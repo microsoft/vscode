@@ -53,6 +53,7 @@ export class SettingsEditor2 extends BaseEditor {
 
 	private rootElement: HTMLElement;
 	private headerContainer: HTMLElement;
+	private bodyContainer: HTMLElement;
 	private searchWidget: SearchWidget;
 	private settingsTargetsWidget: SettingsTargetsWidget;
 	private toolbar: ToolBar;
@@ -128,6 +129,7 @@ export class SettingsEditor2 extends BaseEditor {
 
 		this.createHeader(this.rootElement);
 		this.createBody(this.rootElement);
+
 	}
 
 	setInput(input: SettingsEditor2Input, options: EditorOptions, token: CancellationToken): Thenable<void> {
@@ -271,14 +273,22 @@ export class SettingsEditor2 extends BaseEditor {
 	}
 
 	private createBody(parent: HTMLElement): void {
-		const bodyContainer = DOM.append(parent, $('.settings-body'));
+		this.bodyContainer = DOM.append(parent, $('.settings-body'));
 
-		this.createTOC(bodyContainer);
-		this.createSettingsTree(bodyContainer);
-
+		this.createTOC(this.bodyContainer);
+		this.createSettingsTree(this.bodyContainer);
+		this.positionScrollbar();
 		if (this.environmentService.appQuality !== 'stable') {
-			this.createFeedbackButton(bodyContainer);
+			this.createFeedbackButton(this.bodyContainer);
 		}
+	}
+
+	private positionScrollbar(): void {
+		let settingsScrollbar = this.bodyContainer.querySelector('.settings-editor > .settings-body .settings-tree-container .scrollbar.vertical') as HTMLElement
+		console.log(settingsScrollbar)
+		setTimeout(() => {
+			settingsScrollbar.style.top = `${this.bodyContainer.offsetTop}px`;
+		}, 0)
 	}
 
 	private createTOC(parent: HTMLElement): void {
