@@ -1077,6 +1077,8 @@ export class SuggestWidget implements IContentWidget, IVirtualDelegate<ICompleti
 		this.suggestionSupportsAutoAccept = null;
 		this.currentSuggestionDetails = null;
 		this.focusedItem = null;
+		this.element.onmouseenter = null;
+		this.element.onmouseleave = null;
 		this.element = null;
 		this.messageElement = null;
 		this.listElement = null;
