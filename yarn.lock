@@ -3890,7 +3890,7 @@ node.extend@~1.1.2:
   dependencies:
     is "^3.1.0"
 
-nodegit-promise@~4.0.0:
+nodegit-promise@^4.0.0:
   version "4.0.0"
   resolved "https://registry.yarnpkg.com/nodegit-promise/-/nodegit-promise-4.0.0.tgz#5722b184f2df7327161064a791d2e842c9167b34"
   dependencies:
@@ -4005,7 +4005,7 @@ object-assign@^3.0.0:
   version "3.0.0"
   resolved "https://registry.yarnpkg.com/object-assign/-/object-assign-3.0.0.tgz#9bedd5ca0897949bca47e7ff408062d549f587f2"
 
-object-assign@^4.0.0, object-assign@^4.0.1, object-assign@^4.1.0:
+object-assign@^4.0.0, object-assign@^4.0.1, object-assign@^4.1.0, object-assign@^4.1.1:
   version "4.1.1"
   resolved "https://registry.yarnpkg.com/object-assign/-/object-assign-4.1.1.tgz#2109adc7965887cfc05cbbd442cac8bfbb360863"
 
@@ -4614,11 +4614,12 @@ progress@^1.1.8:
   version "1.1.8"
   resolved "https://registry.yarnpkg.com/progress/-/progress-1.1.8.tgz#e260c78f6161cdd9b0e56cc3e0a85de17c7a57be"
 
-promisify-node@^0.3.0:
-  version "0.3.0"
-  resolved "https://registry.yarnpkg.com/promisify-node/-/promisify-node-0.3.0.tgz#b4b55acf90faa7d2b8b90ca396899086c03060cf"
+promisify-node@^0.5.0:
+  version "0.5.0"
+  resolved "https://registry.yarnpkg.com/promisify-node/-/promisify-node-0.5.0.tgz#b7115a9d5cd241e939c96e260acda24938d25720"
   dependencies:
-    nodegit-promise "~4.0.0"
+    nodegit-promise "^4.0.0"
+    object-assign "^4.1.1"
 
 proto-list@~1.2.1:
   version "1.2.4"
@@ -6097,15 +6098,15 @@ vscode-nls-dev@3.0.7:
     xml2js "^0.4.19"
     yargs "^10.1.1"
 
-vscode-nsfw@bpasero/nsfw#electron-3.0.x:
+vscode-nsfw@bpasero/vscode-nsfw#electron-3.0.x:
   version "1.0.16"
-  resolved "https://codeload.github.com/bpasero/nsfw/tar.gz/b2df5c087cdaa654b416a700ccd2fc9bcbc92f0f"
+  resolved "https://codeload.github.com/bpasero/vscode-nsfw/tar.gz/2c0ff39a2f5157fee04e407014026123e4bd3295"
   dependencies:
     fs-extra "^0.26.5"
     lodash.isinteger "^4.0.4"
     lodash.isundefined "^3.0.1"
     nan "^2.10.0"
-    promisify-node "^0.3.0"
+    promisify-node "^0.5.0"
 
 vscode-ripgrep@^1.0.1:
   version "1.0.1"
