@@ -52,6 +52,7 @@ export abstract class SettingsTreeElement {
 
 export class SettingsTreeGroupElement extends SettingsTreeElement {
 	children: (SettingsTreeGroupElement | SettingsTreeSettingElement)[];
+	count?: number;
 	label: string;
 	level: number;
 	isFirstGroup: boolean;
@@ -91,6 +92,22 @@ export class SettingsTreeSettingElement extends SettingsTreeElement {
 	overriddenScopeList: string[];
 	description: string;
 	valueType: 'enum' | 'string' | 'integer' | 'number' | 'boolean' | 'exclude' | 'complex';
+
+	matchesAllTags(tagFilters?: Set<string>): boolean {
+		if (!tagFilters || !tagFilters.size) {
+			return true;
+		}
+
+		if (this.tags) {
+			let hasFilteredTag = true;
+			tagFilters.forEach(tag => {
+				hasFilteredTag = hasFilteredTag && this.tags.has(tag);
+			});
+			return hasFilteredTag;
+		} else {
+			return false;
+		}
+	}
 }
 
 export interface ITOCEntry {
@@ -174,7 +191,7 @@ function sanitizeId(id: string): string {
 	return id.replace(/[\.\/]/, '_');
 }
 
-function createSettingsTreeSettingElement(setting: ISetting, parent: any, settingsTarget: SettingsTarget, configurationService: IConfigurationService): SettingsTreeSettingElement {
+function createSettingsTreeSettingElement(setting: ISetting, parent: SearchResultModel | SettingsTreeGroupElement, settingsTarget: SettingsTarget, configurationService: IConfigurationService): SettingsTreeSettingElement {
 	const element = new SettingsTreeSettingElement();
 	element.id = sanitizeId(parent.id + '_' + setting.key);
 	element.parent = parent;
@@ -1287,25 +1304,22 @@ export class SettingsTreeFilter implements IFilter {
 	) { }
 
 	isVisible(tree: ITree, element: SettingsTreeElement): boolean {
+		// Filter during search
 		if (this.viewState.filterToCategory && element instanceof SettingsTreeSettingElement) {
 			if (!this.settingContainedInGroup(element.setting, this.viewState.filterToCategory)) {
 				return false;
 			}
 		}
 
-		if (element instanceof SettingsTreeSettingElement && this.viewState.tagFilters && this.viewState.tagFilters.size) {
-			if (element.tags) {
-				let hasFilteredTag = true;
-				this.viewState.tagFilters.forEach(tag => {
-					hasFilteredTag = hasFilteredTag && element.tags.has(tag);
-				});
-				return hasFilteredTag;
-			} else {
-				return false;
-			}
+		if (element instanceof SettingsTreeSettingElement && this.viewState.tagFilters) {
+			return element.matchesAllTags(this.viewState.tagFilters);
 		}
 
-		if (element instanceof SettingsTreeGroupElement && this.viewState.tagFilters && this.viewState.tagFilters.size) {
+		if (element instanceof SettingsTreeGroupElement) {
+			if (typeof element.count === 'number') {
+				return element.count > 0;
+			}
+
 			return element.children.some(child => this.isVisible(tree, child));
 		}
 
@@ -1419,15 +1433,15 @@ export class SearchResultModel {
 		return this.rawSearchResults;
 	}
 
-	setResult(type: SearchResultIdx, result: ISearchResult): void {
+	setResult(order: SearchResultIdx, result: ISearchResult): void {
 		this.cachedUniqueSearchResults = null;
 		this.rawSearchResults = this.rawSearchResults || [];
 		if (!result) {
-			delete this.rawSearchResults[type];
+			delete this.rawSearchResults[order];
 			return;
 		}
 
-		this.rawSearchResults[type] = result;
+		this.rawSearchResults[order] = result;
 		this.updateChildren();
 	}
 
