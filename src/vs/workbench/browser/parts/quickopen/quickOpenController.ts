@@ -57,6 +57,7 @@ import { IEditorService, ACTIVE_GROUP, SIDE_GROUP } from 'vs/workbench/services/
 import { IEditorGroupsService } from 'vs/workbench/services/group/common/editorGroupsService';
 import { IUriDisplayService } from 'vs/platform/uriDisplay/common/uriDisplay';
 import { isThenable, timeout } from 'vs/base/common/async';
+import { IQuickInputService, IQuickPickItem } from 'vs/platform/quickinput/common/quickInput';
 
 const HELP_PREFIX = '?';
 
@@ -1251,7 +1252,9 @@ export class RemoveFromEditorHistoryAction extends Action {
 	constructor(
 		id: string,
 		label: string,
-		@IQuickOpenService private quickOpenService: IQuickOpenService,
+		@IQuickInputService private quickInputService: IQuickInputService,
+		@IModelService private modelService: IModelService,
+		@IModeService private modeService: IModeService,
 		@IInstantiationService private instantiationService: IInstantiationService,
 		@IHistoryService private historyService: IHistoryService
 	) {
@@ -1259,7 +1262,7 @@ export class RemoveFromEditorHistoryAction extends Action {
 	}
 
 	run(): TPromise<any> {
-		interface IHistoryPickEntry extends IFilePickOpenEntry {
+		interface IHistoryPickEntry extends IQuickPickItem {
 			input: IEditorInput | IResourceInput;
 		}
 
@@ -1269,13 +1272,13 @@ export class RemoveFromEditorHistoryAction extends Action {
 
 			return <IHistoryPickEntry>{
 				input: h,
-				resource: entry.getResource(),
+				iconClasses: getIconClasses(this.modelService, this.modeService, entry.getResource()),
 				label: entry.getLabel(),
 				description: entry.getDescription()
 			};
 		});
 
-		return this.quickOpenService.pick(picks, { placeHolder: nls.localize('pickHistory', "Select an editor entry to remove from history"), autoFocus: { autoFocusFirstEntry: true }, matchOnDescription: true }).then(pick => {
+		return this.quickInputService.pick(picks, { placeHolder: nls.localize('pickHistory', "Select an editor entry to remove from history"), matchOnDescription: true }).then(pick => {
 			if (pick) {
 				this.historyService.remove(pick.input);
 			}
