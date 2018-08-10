@@ -25,7 +25,6 @@ import { ICommandService } from 'vs/platform/commands/common/commands';
 import { IDebugConfigurationProvider, ICompound, IDebugConfiguration, IConfig, IGlobalConfig, IConfigurationManager, ILaunch, IAdapterExecutable, IDebugAdapterProvider, IDebugAdapter, ITerminalSettings, ITerminalLauncher } from 'vs/workbench/parts/debug/common/debug';
 import { Debugger } from 'vs/workbench/parts/debug/node/debugger';
 import { IEditorService, ACTIVE_GROUP, SIDE_GROUP } from 'vs/workbench/services/editor/common/editorService';
-import { IQuickOpenService } from 'vs/platform/quickOpen/common/quickOpen';
 import { isCodeEditor } from 'vs/editor/browser/editorBrowser';
 import { launchSchemaId } from 'vs/workbench/services/configuration/common/configuration';
 import { IPreferencesService } from 'vs/workbench/services/preferences/common/preferences';
@@ -33,6 +32,7 @@ import { TerminalLauncher } from 'vs/workbench/parts/debug/electron-browser/term
 import { Registry } from 'vs/platform/registry/common/platform';
 import { IJSONContributionRegistry, Extensions as JSONExtensions } from 'vs/platform/jsonschemas/common/jsonContributionRegistry';
 import { launchSchema, debuggersExtPoint, breakpointsExtPoint } from 'vs/workbench/parts/debug/common/debugSchemas';
+import { IQuickInputService } from 'vs/platform/quickinput/common/quickInput';
 
 const jsonRegistry = Registry.as<IJSONContributionRegistry>(JSONExtensions.JSONContribution);
 jsonRegistry.registerSchema(launchSchemaId, launchSchema);
@@ -57,7 +57,7 @@ export class ConfigurationManager implements IConfigurationManager {
 		@IWorkspaceContextService private contextService: IWorkspaceContextService,
 		@IEditorService private editorService: IEditorService,
 		@IConfigurationService private configurationService: IConfigurationService,
-		@IQuickOpenService private quickOpenService: IQuickOpenService,
+		@IQuickInputService private quickInputService: IQuickInputService,
 		@IInstantiationService private instantiationService: IInstantiationService,
 		@ICommandService private commandService: ICommandService,
 		@IStorageService private storageService: IStorageService,
@@ -347,10 +347,11 @@ export class ConfigurationManager implements IConfigurationManager {
 			}
 
 			candidates = candidates.sort((first, second) => first.label.localeCompare(second.label));
-			return this.quickOpenService.pick([...candidates, { label: 'More...', separator: { border: true } }], { placeHolder: nls.localize('selectDebug', "Select Environment") })
+			const picks = candidates.map(c => ({ label: c.label, debugger: c }));
+			return this.quickInputService.pick<(typeof picks)[0]>([...picks, { type: 'separator', border: true }, { label: 'More...', debugger: undefined }], { placeHolder: nls.localize('selectDebug', "Select Environment") })
 				.then(picked => {
-					if (picked instanceof Debugger) {
-						return picked;
+					if (picked.debugger) {
+						return picked.debugger;
 					}
 					if (picked) {
 						this.commandService.executeCommand('debug.installAdditionalDebuggers');
