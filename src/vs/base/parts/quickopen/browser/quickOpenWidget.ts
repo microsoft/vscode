@@ -6,7 +6,6 @@
 
 import 'vs/css!./quickopen';
 import * as nls from 'vs/nls';
-import { TPromise } from 'vs/base/common/winjs.base';
 import * as platform from 'vs/base/common/platform';
 import * as types from 'vs/base/common/types';
 import * as errors from 'vs/base/common/errors';
@@ -980,11 +979,8 @@ export class QuickOpenWidget extends Disposable implements IModelProvider {
 		}
 
 		this.isLoosingFocus = true;
-		TPromise.timeout(0).then(() => {
-			if (!this.isLoosingFocus) {
-				return;
-			}
-			if (this.isDisposed) {
+		setTimeout(() => {
+			if (!this.isLoosingFocus || this.isDisposed) {
 				return;
 			}
 
@@ -992,7 +988,7 @@ export class QuickOpenWidget extends Disposable implements IModelProvider {
 			if (!veto) {
 				this.hide(HideReason.FOCUS_LOST);
 			}
-		});
+		}, 0);
 	}
 
 	dispose(): void {

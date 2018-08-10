@@ -56,7 +56,7 @@ import { Dimension, addClass } from 'vs/base/browser/dom';
 import { IEditorService, ACTIVE_GROUP, SIDE_GROUP } from 'vs/workbench/services/editor/common/editorService';
 import { IEditorGroupsService } from 'vs/workbench/services/group/common/editorGroupsService';
 import { IUriDisplayService } from 'vs/platform/uriDisplay/common/uriDisplay';
-import { isThenable } from 'vs/base/common/async';
+import { isThenable, timeout } from 'vs/base/common/async';
 
 const HELP_PREFIX = '?';
 
@@ -394,11 +394,11 @@ export class QuickOpenController extends Component implements IQuickOpenService 
 			});
 
 			// Progress if task takes a long time
-			TPromise.timeout(800).then(() => {
+			setTimeout(() => {
 				if (!picksPromiseDone && this.currentPickerToken === currentPickerToken) {
 					this.pickOpenWidget.getProgressBar().infinite().show();
 				}
-			});
+			}, 800);
 
 			// Show picker empty if resolving takes a while
 			if (!picksPromiseDone) {
@@ -670,11 +670,11 @@ export class QuickOpenController extends Component implements IQuickOpenService 
 		this.previousActiveHandlerDescriptor = handlerDescriptor;
 
 		// Progress if task takes a long time
-		TPromise.timeout(instantProgress ? 0 : 800).then(() => {
+		setTimeout(() => {
 			if (!resultPromiseDone && currentResultToken === this.currentResultToken) {
 				this.quickOpenWidget.getProgressBar().infinite().show();
 			}
-		});
+		}, instantProgress ? 0 : 800);
 
 		// Promise done handling
 		resultPromise.done(() => {
@@ -709,7 +709,14 @@ export class QuickOpenController extends Component implements IQuickOpenService 
 			const previousInput = this.quickOpenWidget.getInput();
 			const wasShowingHistory = previousInput && previousInput.entries && previousInput.entries.some(e => e instanceof EditorHistoryEntry || e instanceof EditorHistoryEntryGroup);
 			if (wasShowingHistory || matchingHistoryEntries.length > 0) {
-				(resolvedHandler.hasShortResponseTime() ? TPromise.timeout(QuickOpenController.MAX_SHORT_RESPONSE_TIME) : TPromise.as(undefined)).then(() => {
+				let responseDelay: Thenable<void>;
+				if (resolvedHandler.hasShortResponseTime()) {
+					responseDelay = timeout(QuickOpenController.MAX_SHORT_RESPONSE_TIME);
+				} else {
+					responseDelay = Promise.resolve(void 0);
+				}
+
+				responseDelay.then(() => {
 					if (this.currentResultToken === currentResultToken && !inputSet) {
 						this.quickOpenWidget.setInput(quickOpenModel, { autoFocusFirstEntry: true });
 						inputSet = true;

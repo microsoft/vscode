@@ -999,7 +999,7 @@ export class ChangeModeAction extends Action {
 			};
 		});
 
-		TPromise.timeout(50 /* quick open is sensitive to being opened so soon after another */).done(() => {
+		setTimeout(() => {
 			this.quickInputService.pick(picks, { placeHolder: nls.localize('pickLanguageToConfigure', "Select Language Mode to Associate with '{0}'", extension || basename) }).done(language => {
 				if (language) {
 					const fileAssociationsConfig = this.configurationService.inspect(FILES_ASSOCIATIONS_CONFIG);
@@ -1027,8 +1027,8 @@ export class ChangeModeAction extends Action {
 
 					this.configurationService.updateValue(FILES_ASSOCIATIONS_CONFIG, currentAssociations, target);
 				}
-			});
-		});
+			}, error => errors.onUnexpectedError(error));
+		}, 50 /* quick open is sensitive to being opened so soon after another */);
 	}
 }
 
