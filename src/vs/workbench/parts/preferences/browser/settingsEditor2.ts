@@ -606,7 +606,8 @@ export class SettingsEditor2 extends BaseEditor {
 			this.settingsTreeModel.update(resolvedSettingsRoot);
 			return this.refreshTree();
 		} else {
-			this.settingsTreeModel = this.instantiationService.createInstance(SettingsTreeModel, this.viewState, resolvedSettingsRoot);
+			this.settingsTreeModel = this.instantiationService.createInstance(SettingsTreeModel, this.viewState);
+			this.settingsTreeModel.update(resolvedSettingsRoot);
 			this.settingsTree.setInput(this.settingsTreeModel.root);
 
 			this.tocTreeModel.settingsTreeRoot = this.settingsTreeModel.root as SettingsTreeGroupElement;
@@ -688,7 +689,7 @@ export class SettingsEditor2 extends BaseEditor {
 			collapseAll(this.tocTree);
 
 			if (this.searchResultModel) {
-				return this.settingsTree.setInput(this.searchResultModel);
+				return this.settingsTree.setInput(this.searchResultModel.root);
 			} else {
 				return this.settingsTree.setInput(this.settingsTreeModel.root);
 			}
@@ -780,7 +781,7 @@ export class SettingsEditor2 extends BaseEditor {
 					this.searchResultModel.setResult(type, result);
 					this.tocTreeModel.currentSearchModel = this.searchResultModel;
 					this.toggleSearchMode();
-					this.settingsTree.setInput(this.searchResultModel);
+					this.settingsTree.setInput(this.searchResultModel.root);
 				} else {
 					this.searchResultModel.setResult(type, result);
 				}

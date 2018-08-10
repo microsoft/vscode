@@ -47,11 +47,11 @@ export const ONLINE_SERVICES_SETTING_TAG = 'usesOnlineServices';
 
 export abstract class SettingsTreeElement {
 	id: string;
-	parent: any; // SearchResultModel or group element... TODO search should be more similar to the normal case
+	parent: SettingsTreeGroupElement;
 }
 
 export class SettingsTreeGroupElement extends SettingsTreeElement {
-	children: (SettingsTreeGroupElement | SettingsTreeSettingElement)[];
+	children: (SettingsTreeGroupElement | SettingsTreeSettingElement | SettingsTreeNewExtensionsElement)[];
 	count?: number;
 	label: string;
 	level: number;
@@ -118,17 +118,15 @@ export interface ITOCEntry {
 }
 
 export class SettingsTreeModel {
-	private _root: SettingsTreeGroupElement;
+	protected _root: SettingsTreeGroupElement;
 	private _treeElementsById = new Map<string, SettingsTreeElement>();
 	private _treeElementsBySettingName = new Map<string, SettingsTreeElement>();
+	private _tocRoot: ITOCEntry;
 
 	constructor(
 		private _viewState: ISettingsEditorViewState,
-		private _tocRoot: ITOCEntry,
 		@IConfigurationService private _configurationService: IConfigurationService
-	) {
-		this.update(this._tocRoot);
-	}
+	) { }
 
 	get root(): SettingsTreeGroupElement {
 		return this._root;
@@ -136,7 +134,9 @@ export class SettingsTreeModel {
 
 	update(newTocRoot = this._tocRoot): void {
 		const newRoot = this.createSettingsTreeGroupElement(newTocRoot);
-		(<SettingsTreeGroupElement>newRoot.children[0]).isFirstGroup = true;
+		if (newRoot.children[0] instanceof SettingsTreeGroupElement) {
+			(<SettingsTreeGroupElement>newRoot.children[0]).isFirstGroup = true; // TODO
+		}
 
 		if (this._root) {
 			this._root.children = newRoot.children;
@@ -165,6 +165,8 @@ export class SettingsTreeModel {
 		} else if (tocEntry.settings) {
 			element.children = tocEntry.settings.map(s => this.createSettingsTreeSettingElement(<ISetting>s, element))
 				.filter(el => el.setting.deprecationMessage ? el.isConfigured : true);
+		} else {
+			element.children = [];
 		}
 
 		this._treeElementsById.set(element.id, element);
@@ -191,7 +193,7 @@ function sanitizeId(id: string): string {
 	return id.replace(/[\.\/]/, '_');
 }
 
-function createSettingsTreeSettingElement(setting: ISetting, parent: SearchResultModel | SettingsTreeGroupElement, settingsTarget: SettingsTarget, configurationService: IConfigurationService): SettingsTreeSettingElement {
+function createSettingsTreeSettingElement(setting: ISetting, parent: SettingsTreeGroupElement, settingsTarget: SettingsTarget, configurationService: IConfigurationService): SettingsTreeSettingElement {
 	const element = new SettingsTreeSettingElement();
 	element.id = sanitizeId(parent.id + '_' + setting.key);
 	element.parent = parent;
@@ -385,10 +387,6 @@ export class SettingsDataSource implements IDataSource {
 	}
 
 	hasChildren(tree: ITree, element: SettingsTreeElement): boolean {
-		if (element instanceof SearchResultModel) {
-			return true;
-		}
-
 		if (element instanceof SettingsTreeGroupElement) {
 			return true;
 		}
@@ -401,9 +399,7 @@ export class SettingsDataSource implements IDataSource {
 	}
 
 	private _getChildren(element: SettingsTreeElement): SettingsTreeElement[] {
-		if (element instanceof SearchResultModel) {
-			return element.getChildren();
-		} else if (element instanceof SettingsTreeGroupElement) {
+		if (element instanceof SettingsTreeGroupElement) {
 			return element.children;
 		} else {
 			// No children...
@@ -553,7 +549,7 @@ export class SettingsRenderer implements ITreeRenderer {
 
 	public static readonly MAX_ENUM_DESCRIPTIONS = 10;
 
-	private static readonly CONTROL_CLASS = 'setting-control-focus-target';
+	public static readonly CONTROL_CLASS = 'setting-control-focus-target';
 	public static readonly CONTROL_SELECTOR = '.' + SettingsRenderer.CONTROL_CLASS;
 
 	private readonly _onDidChangeSetting: Emitter<ISettingChangeEvent> = new Emitter<ISettingChangeEvent>();
@@ -1386,21 +1382,19 @@ export enum SearchResultIdx {
 	NewExtensions = 2
 }
 
-export class SearchResultModel {
+export class SearchResultModel extends SettingsTreeModel {
 	private rawSearchResults: ISearchResult[];
 	private cachedUniqueSearchResults: ISearchResult[];
 	private newExtensionSearchResults: ISearchResult;
-	private children: (SettingsTreeSettingElement | SettingsTreeNewExtensionsElement)[];
 
 	readonly id = 'searchResultModel';
 
 	constructor(
-		private _viewState: ISettingsEditorViewState,
-		@IConfigurationService private _configurationService: IConfigurationService
-	) { }
-
-	getChildren(): (SettingsTreeSettingElement | SettingsTreeNewExtensionsElement)[] {
-		return this.children;
+		viewState: ISettingsEditorViewState,
+		@IConfigurationService configurationService: IConfigurationService
+	) {
+		super(viewState, configurationService);
+		this.update({ id: 'searchResultModel', label: '' });
 	}
 
 	getUniqueResults(): ISearchResult[] {
@@ -1446,20 +1440,22 @@ export class SearchResultModel {
 	}
 
 	updateChildren(): void {
-		this.children = this.getFlatSettings()
-			.map(s => createSettingsTreeSettingElement(s, this, this._viewState.settingsTarget, this._configurationService))
-			.filter(el => el.setting.deprecationMessage ? el.isConfigured : true);
+		this.update({
+			id: 'searchResultModel',
+			label: 'searchResultModel',
+			settings: this.getFlatSettings()
+		});
 
 		if (this.newExtensionSearchResults) {
 			const newExtElement = new SettingsTreeNewExtensionsElement();
-			newExtElement.parent = this;
+			newExtElement.parent = this._root;
 			newExtElement.id = 'newExtensions';
 			const resultExtensionIds = this.newExtensionSearchResults.filterMatches
 				.map(result => (<IExtensionSetting>result.setting))
 				.filter(setting => setting.extensionName && setting.extensionPublisher)
 				.map(setting => `${setting.extensionPublisher}.${setting.extensionName}`);
 			newExtElement.extensionIds = arrays.distinct(resultExtensionIds);
-			this.children.push(newExtElement);
+			this._root.children.push(newExtElement);
 		}
 	}
 
