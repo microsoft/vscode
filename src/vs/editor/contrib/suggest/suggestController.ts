@@ -110,7 +110,7 @@ export class SuggestController implements IEditorContribution {
 			this._widget.showSuggestions(e.completionModel, index, e.isFrozen, e.auto);
 		}));
 		this._toDispose.push(this._model.onDidCancel(e => {
-			if (this._widget && !this._widget.isDetailsFocused() && !e.retrigger) {
+			if (this._widget && !e.retrigger) {
 				this._widget.hideWidget();
 			}
 		}));
@@ -230,6 +230,9 @@ export class SuggestController implements IEditorContribution {
 
 		if (!suggestion.command) {
 			// done
+			if (this._widget) {
+				this._widget.unfocusWidget();
+			}
 			this._model.cancel();
 
 		} else if (suggestion.command.id === TriggerSuggestAction.id) {

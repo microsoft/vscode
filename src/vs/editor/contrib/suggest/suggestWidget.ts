@@ -205,7 +205,6 @@ class SuggestionDetails {
 	private disposables: IDisposable[];
 	private renderDisposeable: IDisposable;
 	private borderWidth: number = 1;
-	private _isFocused: boolean;
 
 	constructor(
 		container: HTMLElement,
@@ -288,17 +287,11 @@ class SuggestionDetails {
 			e.stopPropagation();
 			this.widget.toggleDetails();
 		};
-		this.el.onmouseenter = () => this._isFocused = true;
-		this.el.onmouseleave = () => this._isFocused = false;
 
 		this.body.scrollTop = 0;
 		this.scrollbar.scanDomNode();
 
 		this.ariaLabel = strings.format('{0}\n{1}\n{2}', item.suggestion.label || '', item.suggestion.detail || '', item.suggestion.documentation || '');
-	}
-
-	isFocused(): boolean {
-		return this._isFocused;
 	}
 
 	getAriaLabel(): string {
@@ -412,6 +405,7 @@ export class SuggestWidget implements IContentWidget, IVirtualDelegate<ICompleti
 	private expandSuggestionDocs: boolean = false;
 
 	private firstFocusInCurrentList: boolean = false;
+	private _isFocused: boolean;
 
 	constructor(
 		private editor: ICodeEditor,
@@ -467,6 +461,14 @@ export class SuggestWidget implements IContentWidget, IVirtualDelegate<ICompleti
 			this.list.onFocusChange(e => this.onListFocus(e)),
 			this.editor.onDidChangeCursorSelection(() => this.onCursorSelectionChanged())
 		];
+		this.element.onmouseenter = () => this._isFocused = true;
+		this.element.onmouseleave = () => {
+			this._isFocused = false;
+			// no hide widget on mouse leave if details is hidden
+			if (this.details.element.style.display !== 'none') {
+				this.hideWidget();
+			}
+		};
 
 		this.suggestWidgetVisible = SuggestContext.Visible.bindTo(contextKeyService);
 		this.suggestWidgetMultipleSuggestions = SuggestContext.MultipleSuggestions.bindTo(contextKeyService);
@@ -916,10 +918,6 @@ export class SuggestWidget implements IContentWidget, IVirtualDelegate<ICompleti
 		this._ariaAlert(this.details.getAriaLabel());
 	}
 
-	isDetailsFocused(): boolean {
-		return this.details.isFocused();
-	}
-
 	private show(): void {
 		const newHeight = this.updateListHeight();
 		if (newHeight !== this.listHeight) {
@@ -942,9 +940,15 @@ export class SuggestWidget implements IContentWidget, IVirtualDelegate<ICompleti
 	}
 
 	hideWidget(): void {
-		clearTimeout(this.loadingTimeout);
-		this.setState(State.Hidden);
-		this.onDidHideEmitter.fire(this);
+		if (!this._isFocused) {
+			clearTimeout(this.loadingTimeout);
+			this.setState(State.Hidden);
+			this.onDidHideEmitter.fire(this);
+		}
+	}
+
+	unfocusWidget() {
+		this._isFocused = false;
 	}
 
 	getPosition(): IContentWidgetPosition {
