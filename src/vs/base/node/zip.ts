@@ -86,7 +86,7 @@ function extractEntry(stream: Readable, fileName: string, mode: number, targetPa
 		stream.pipe(istream);
 	}, () => {
 		if (istream) {
-			istream.close();
+			istream.destroy();
 		}
 	}));
 }

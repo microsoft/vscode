@@ -3140,7 +3140,9 @@ declare module "fs" {
     }
 
     export class ReadStream extends stream.Readable {
-        close(): void;
+        // ### BEGIN VSCODE MODIFICATION ###
+        // close(): void; // this method does not exist officially and should never be called. Use destroy() instead. See also https://github.com/nodejs/node/issues/2006
+        // ### BEGIN VSCODE MODIFICATION ###
         destroy(): void;
         bytesRead: number;
         path: string | Buffer;
@@ -3172,7 +3174,9 @@ declare module "fs" {
     }
 
     export class WriteStream extends stream.Writable {
-        close(): void;
+        // ### BEGIN VSCODE MODIFICATION ###
+        // close(): void; // this method does not exist officially and should never be called. Use destroy() instead. See also https://github.com/nodejs/node/issues/2006
+        // ### BEGIN VSCODE MODIFICATION ###
         bytesWritten: number;
         path: string | Buffer;
 
