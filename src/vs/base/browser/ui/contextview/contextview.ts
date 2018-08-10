@@ -173,6 +173,11 @@ export class ContextView {
 	}
 
 	private doLayout(): void {
+		// Check that we still have a delegate - this.delegate.layout may have hidden
+		if (!this.isVisible()) {
+			return;
+		}
+
 		// Get anchor
 		let anchor = this.delegate.getAnchor();
 
