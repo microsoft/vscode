@@ -126,9 +126,9 @@ export class WorkbenchThemeService implements IWorkbenchThemeService {
 		if (persistedThemeData) {
 			themeData = ColorThemeData.fromStorageData(persistedThemeData);
 		}
-		if (!themeData) {
-			let isLightTheme = (Array.prototype.indexOf.call(document.body.classList, 'vs') >= 0);
-			themeData = ColorThemeData.createUnloadedTheme(isLightTheme ? VS_LIGHT_THEME : VS_DARK_THEME);
+		let containerBaseTheme = this.getBaseThemeFromContainer();
+		if (!themeData || themeData && themeData.baseTheme !== containerBaseTheme) {
+			themeData = ColorThemeData.createUnloadedTheme(containerBaseTheme);
 		}
 		themeData.setCustomColors(this.colorCustomizations);
 		themeData.setCustomTokenColors(this.tokenColorCustomizations);
@@ -439,6 +439,18 @@ export class WorkbenchThemeService implements IWorkbenchThemeService {
 			this._configurationWriter = this.instantiationService.createInstance(ConfigurationWriter);
 		}
 		return this._configurationWriter;
+	}
+
+	private getBaseThemeFromContainer() {
+		if (this.container) {
+			for (let i = this.container.classList.length - 1; i >= 0; i--) {
+				const item = document.body.classList.item(i);
+				if (item === VS_LIGHT_THEME || item === VS_DARK_THEME || item === VS_HC_THEME) {
+					return item;
+				}
+			}
+		}
+		return VS_DARK_THEME;
 	}
 }
 
