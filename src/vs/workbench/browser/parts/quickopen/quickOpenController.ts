@@ -120,19 +120,19 @@ export class QuickOpenController extends Component implements IQuickOpenService 
 	}
 
 	accept(): void {
-		if (this.quickOpenWidget.isVisible()) {
+		if (this.quickOpenWidget && this.quickOpenWidget.isVisible()) {
 			this.quickOpenWidget.accept();
 		}
 	}
 
 	focus(): void {
-		if (this.quickOpenWidget.isVisible()) {
+		if (this.quickOpenWidget && this.quickOpenWidget.isVisible()) {
 			this.quickOpenWidget.focus();
 		}
 	}
 
 	close(): void {
-		if (this.quickOpenWidget.isVisible()) {
+		if (this.quickOpenWidget && this.quickOpenWidget.isVisible()) {
 			this.quickOpenWidget.hide(HideReason.CANCELED);
 		}
 	}
