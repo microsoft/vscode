@@ -10,6 +10,30 @@ let fs = require('fs');
 let https = require('https');
 let url = require('url');
 
+// list of languagesIs not shipped with VSCode. The information is used to associate an icon with a langauge association
+let nonBuiltInLanguages = { // { fileNames, extensions }
+	"r": { extensions: ['r', 'rhistory', 'rprofile', 'rt'] },
+	"argdown": { extensions: ['ad', 'adown', 'argdown', 'argdn'] },
+	"elm": { extensions: ['elm'] },
+	"ocaml": { extensions: ['ml', 'mli'] },
+	"nunjucks": { extensions: ['nunjucks', 'nunjs', 'nunj', 'nj', 'njk', 'tmpl', 'tpl'] },
+	"mustache": { extensions: ['mustache', 'mst', 'mu', 'stache'] },
+	"erb": { extensions: ['erb', 'rhtml', 'html.erb'] },
+	"terraform": { extensions: ['tf', 'tfvars', 'hcl'] },
+	"vue": { extensions: ['vue'] },
+	"sass": { extensions: ['sass'] },
+	"puppet": { extensions: ['puppet'] },
+	"kotlin": { extensions: ['kt'] },
+	"jinja": { extensions: ['jinja'] },
+	"haxe": { extensions: ['hx'] },
+	"haskell": { extensions: ['hs'] },
+	"gradle": { extensions: ['gradle'] },
+	"elixir": { extensions: ['ex'] },
+	"haml": { extensions: ['haml'] },
+	"stylus": { extensions: ['styl'] },
+	"vala": { extensions: ['vala'] }
+}
+
 function getCommitSha(repoId, repoPath) {
 	let commitInfo = 'https://api.github.com/repos/' + repoId + '/commits?path=' + repoPath;
 	return download(commitInfo).then(function (content) {
@@ -34,7 +58,7 @@ function download(source) {
 	}
 	return new Promise((c, e) => {
 		let _url = url.parse(source);
-		let options = { host: _url.host, port: _url.port, path: _url.path, headers: { 'User-Agent': 'NodeJS' }};
+		let options = { host: _url.host, port: _url.port, path: _url.path, headers: { 'User-Agent': 'NodeJS' } };
 		let content = '';
 		https.get(options, function (response) {
 			response.on('data', function (data) {
@@ -50,7 +74,7 @@ function download(source) {
 
 function readFile(fileName) {
 	return new Promise((c, e) => {
-		fs.readFile(fileName, function(err, data) {
+		fs.readFile(fileName, function (err, data) {
 			if (err) {
 				e(err);
 			} else {
@@ -67,12 +91,12 @@ function downloadBinary(source, dest) {
 
 	return new Promise((c, e) => {
 		https.get(source, function (response) {
-			switch(response.statusCode) {
+			switch (response.statusCode) {
 				case 200:
 					let file = fs.createWriteStream(dest);
-					response.on('data', function(chunk){
+					response.on('data', function (chunk) {
 						file.write(chunk);
-					}).on('end', function(){
+					}).on('end', function () {
 						file.end();
 						c(null);
 					}).on('error', function (err) {
@@ -107,7 +131,7 @@ function copyFile(fileName, dest) {
 		rd.on("error", handleError);
 		let wr = fs.createWriteStream(dest);
 		wr.on("error", handleError);
-		wr.on("close", function() {
+		wr.on("close", function () {
 			if (!cbCalled) {
 				c();
 				cbCalled = true;
@@ -119,7 +143,7 @@ function copyFile(fileName, dest) {
 
 function darkenColor(color) {
 	let res = '#';
-	for (let i = 1; i < 7; i+=2) {
+	for (let i = 1; i < 7; i += 2) {
 		let newVal = Math.round(parseInt('0x' + color.substr(i, 2), 16) * 0.9);
 		let hex = newVal.toString(16);
 		if (hex.length == 1) {
@@ -133,7 +157,7 @@ function darkenColor(color) {
 function getLanguageMappings() {
 	let langMappings = {};
 	let allExtensions = fs.readdirSync('..');
-	for (let i= 0; i < allExtensions.length; i++) {
+	for (let i = 0; i < allExtensions.length; i++) {
 		let dirPath = path.join('..', allExtensions[i], 'package.json');
 		if (fs.existsSync(dirPath)) {
 			let content = fs.readFileSync(dirPath).toString();
@@ -158,13 +182,16 @@ function getLanguageMappings() {
 			}
 		}
 	}
+	for (let languageId in nonBuiltInLanguages) {
+		langMappings[languageId] = nonBuiltInLanguages[languageId];
+	}
 	return langMappings;
 }
 
 //let font = 'https://raw.githubusercontent.com/jesseweed/seti-ui/master/styles/_fonts/seti/seti.woff';
 let font = '../../../seti-ui/styles/_fonts/seti/seti.woff';
 
-exports.copyFont = function() {
+exports.copyFont = function () {
 	return downloadBinary(font, './icons/seti.woff');
 };
 
@@ -234,7 +261,7 @@ exports.update = function () {
 				size: "150%"
 			}],
 			iconDefinitions: iconDefinitions,
-		//	folder: "_folder",
+			//	folder: "_folder",
 			file: "_default",
 			fileExtensions: ext2Def,
 			fileNames: fileName2Def,
@@ -304,16 +331,18 @@ exports.update = function () {
 				}
 				if (preferredDef) {
 					lang2Def[lang] = preferredDef;
-					for (let i2 = 0; i2 < exts.length; i2++) {
-						// remove the extension association, unless it is different from the preferred
-						if (ext2Def[exts[i2]] === preferredDef) {
-							delete ext2Def[exts[i2]];
+					if (!nonBuiltInLanguages[lang]) {
+						for (let i2 = 0; i2 < exts.length; i2++) {
+							// remove the extension association, unless it is different from the preferred
+							if (ext2Def[exts[i2]] === preferredDef) {
+								delete ext2Def[exts[i2]];
+							}
 						}
-					}
-					for (let i2 = 0; i2 < fileNames.length; i2++) {
-						// remove the fileName association, unless it is different from the preferred
-						if (fileName2Def[fileNames[i2]] === preferredDef) {
-							delete fileName2Def[fileNames[i2]];
+						for (let i2 = 0; i2 < fileNames.length; i2++) {
+							// remove the fileName association, unless it is different from the preferred
+							if (fileName2Def[fileNames[i2]] === preferredDef) {
+								delete fileName2Def[fileNames[i2]];
+							}
 						}
 					}
 				}
@@ -323,7 +352,7 @@ exports.update = function () {
 			return download(colorsFile).then(function (content) {
 				let regex3 = /(@[\w-]+):\s*(#[0-9a-z]+)/g;
 				while ((match = regex3.exec(content)) !== null) {
-					colorId2Value[match[1]] =  match[2];
+					colorId2Value[match[1]] = match[2];
 				}
 				return getCommitSha('jesseweed/seti-ui', 'styles/_fonts/seti.less').then(function (info) {
 					try {
