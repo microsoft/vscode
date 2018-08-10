@@ -6100,7 +6100,7 @@ vscode-nls-dev@3.0.7:
 
 vscode-nsfw@bpasero/vscode-nsfw#electron-3.0.x:
   version "1.0.16"
-  resolved "https://codeload.github.com/bpasero/vscode-nsfw/tar.gz/2c0ff39a2f5157fee04e407014026123e4bd3295"
+  resolved "https://codeload.github.com/bpasero/vscode-nsfw/tar.gz/001f1644b86725e967fd60aebe14b4a56a09cf71"
   dependencies:
     fs-extra "^0.26.5"
     lodash.isinteger "^4.0.4"
