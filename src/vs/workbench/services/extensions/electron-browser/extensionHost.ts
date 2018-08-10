@@ -36,6 +36,7 @@ import { getScopes } from 'vs/platform/configuration/common/configurationRegistr
 import { ILogService } from 'vs/platform/log/common/log';
 import { INotificationService, Severity } from 'vs/platform/notification/common/notification';
 import { getPathFromAmdModule } from 'vs/base/common/amd';
+import { timeout } from 'vs/base/common/async';
 
 export class ExtensionHostProcessWorker {
 
@@ -505,7 +506,7 @@ export class ExtensionHostProcessWorker {
 				}
 			});
 
-			event.veto(TPromise.timeout(100 /* wait a bit for IPC to get delivered */).then(() => false));
+			event.veto(TPromise.wrap(timeout(100 /* wait a bit for IPC to get delivered */)).then(() => false));
 		}
 	}
 }
