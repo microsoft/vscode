@@ -144,7 +144,7 @@ export class SettingsEditor2 extends BaseEditor {
 		this.layoutTrees(dimension);
 
 		let innerWidth = dimension.width - 24 * 2; // 24px padding on left and right
-		let monacoWidth = (innerWidth > 1000 ? 1000 : innerWidth - 10);
+		let monacoWidth = (innerWidth > 1000 ? 1000 : innerWidth) - 10;
 		this.searchWidget.layout({ height: 20, width: monacoWidth });
 
 		DOM.toggleClass(this.rootElement, 'narrow', dimension.width < 600);
