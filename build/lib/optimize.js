@@ -20,6 +20,7 @@ var util = require("./util");
 var gulpUtil = require("gulp-util");
 var flatmap = require("gulp-flatmap");
 var pump = require("pump");
+var i18n_1 = require("./i18n");
 var REPO_ROOT_PATH = path.join(__dirname, '../..');
 function log(prefix, message) {
     gulpUtil.log(gulpUtil.colors.cyan('[' + prefix + ']'), message);
@@ -164,6 +165,10 @@ function optimizeTask(opts) {
             addComment: true,
             includeContent: true
         }))
+            .pipe(opts.languages && opts.languages.length ? i18n_1.processNlsFiles({
+            fileHeader: bundledFileHeader,
+            languages: opts.languages
+        }) : es.through())
             .pipe(gulp.dest(out));
     };
 }
