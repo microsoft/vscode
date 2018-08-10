@@ -22,7 +22,7 @@ import { IWorkspaceConfigurationService } from 'vs/workbench/services/configurat
 import { IWindowsService, IWindowService, IWindowSettings, IPath, IOpenFileRequest, IWindowsConfiguration, IAddFoldersRequest, IRunActionInWindowRequest } from 'vs/platform/windows/common/windows';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 import { ITitleService } from 'vs/workbench/services/title/common/titleService';
-import { IWorkbenchThemeService, VS_HC_THEME, VS_DARK_THEME } from 'vs/workbench/services/themes/common/workbenchThemeService';
+import { IWorkbenchThemeService, VS_HC_THEME } from 'vs/workbench/services/themes/common/workbenchThemeService';
 import * as browser from 'vs/base/browser/browser';
 import { ICommandService } from 'vs/platform/commands/common/commands';
 import { IResourceInput } from 'vs/platform/editor/common/editor';
@@ -203,7 +203,7 @@ export class ElectronWindow extends Themable {
 			const windowConfig = this.configurationService.getValue<IWindowSettings>('window');
 			if (windowConfig && windowConfig.autoDetectHighContrast) {
 				this.lifecycleService.when(LifecyclePhase.Running).then(() => {
-					this.themeService.setColorTheme(VS_DARK_THEME, null);
+					this.themeService.restoreColorTheme();
 				});
 			}
 		});

@@ -301,6 +301,17 @@ export class WorkbenchThemeService implements IWorkbenchThemeService {
 		});
 	}
 
+	public restoreColorTheme() {
+		let colorThemeSetting = this.configurationService.getValue<string>(COLOR_THEME_SETTING);
+		if (colorThemeSetting !== this.currentColorTheme.settingsId) {
+			this.colorThemeStore.findThemeDataBySettingsId(colorThemeSetting, null).then(theme => {
+				if (theme) {
+					this.setColorTheme(theme.id, null);
+				}
+			});
+		}
+	}
+
 	private updateDynamicCSSRules(themeData: ITheme) {
 		let cssRules: string[] = [];
 		let hasRule: { [rule: string]: boolean } = {};
