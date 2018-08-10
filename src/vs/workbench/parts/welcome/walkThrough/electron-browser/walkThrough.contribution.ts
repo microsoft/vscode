@@ -14,7 +14,7 @@ import { Registry } from 'vs/platform/registry/common/platform';
 import { Extensions as EditorInputExtensions, IEditorInputFactoryRegistry } from 'vs/workbench/common/editor';
 import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
 import { IWorkbenchActionRegistry, Extensions } from 'vs/workbench/common/actions';
-import { SyncActionDescriptor } from 'vs/platform/actions/common/actions';
+import { SyncActionDescriptor, MenuRegistry, MenuId } from 'vs/platform/actions/common/actions';
 import { IWorkbenchContributionsRegistry, Extensions as WorkbenchExtensions } from 'vs/workbench/common/contributions';
 import { IEditorRegistry, Extensions as EditorExtensions, EditorDescriptor } from 'vs/workbench/browser/editor';
 import { LifecyclePhase } from 'vs/platform/lifecycle/common/lifecycle';
@@ -48,3 +48,12 @@ KeybindingsRegistry.registerCommandAndKeybindingRule(WalkThroughArrowDown);
 KeybindingsRegistry.registerCommandAndKeybindingRule(WalkThroughPageUp);
 
 KeybindingsRegistry.registerCommandAndKeybindingRule(WalkThroughPageDown);
+
+MenuRegistry.appendMenuItem(MenuId.MenubarHelpMenu, {
+	group: '1_welcome',
+	command: {
+		id: 'workbench.action.showInteractivePlayground',
+		title: localize({ key: 'miInteractivePlayground', comment: ['&& denotes a mnemonic'] }, "&&Interactive Playground")
+	},
+	order: 2
+});

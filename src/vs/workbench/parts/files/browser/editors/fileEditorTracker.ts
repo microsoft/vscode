@@ -4,7 +4,6 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import { TPromise } from 'vs/base/common/winjs.base';
 import { IWorkbenchContribution } from 'vs/workbench/common/contributions';
 import URI from 'vs/base/common/uri';
 import * as resources from 'vs/base/common/resources';
@@ -27,7 +26,7 @@ import { IWindowService } from 'vs/platform/windows/common/windows';
 import { BINARY_FILE_EDITOR_ID } from 'vs/workbench/parts/files/common/files';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IEditorGroupsService, IEditorGroup } from 'vs/workbench/services/group/common/editorGroupsService';
-import { ResourceQueue } from 'vs/base/common/async';
+import { ResourceQueue, timeout } from 'vs/base/common/async';
 import { onUnexpectedError } from 'vs/base/common/errors';
 
 export class FileEditorTracker extends Disposable implements IWorkbenchContribution {
@@ -170,14 +169,14 @@ export class FileEditorTracker extends Disposable implements IWorkbenchContribut
 				// file is really gone and not just a faulty file event.
 				// This only applies to external file events, so we need to check for the isExternal
 				// flag.
-				let checkExists: TPromise<boolean>;
+				let checkExists: Thenable<boolean>;
 				if (isExternal) {
-					checkExists = TPromise.timeout(100).then(() => this.fileService.existsFile(resource));
+					checkExists = timeout(100).then(() => this.fileService.existsFile(resource));
 				} else {
-					checkExists = TPromise.as(false);
+					checkExists = Promise.resolve(false);
 				}
 
-				checkExists.done(exists => {
+				checkExists.then(exists => {
 					if (!exists && !editor.isDisposed()) {
 						editor.dispose();
 					} else if (this.environmentService.verbose) {

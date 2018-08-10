@@ -14,7 +14,7 @@ import { SyncActionDescriptor, MenuId, MenuRegistry } from 'vs/platform/actions/
 import { IWorkbenchActionRegistry, Extensions as WorkbenchExtensions } from 'vs/workbench/common/actions';
 import { IPanelService } from 'vs/workbench/services/panel/common/panelService';
 import { IPartService, Parts, Position } from 'vs/workbench/services/part/common/partService';
-import { ActivityAction } from 'vs/workbench/browser/parts/compositebar/compositeBarActions';
+import { ActivityAction } from 'vs/workbench/browser/parts/compositeBarActions';
 import { IActivity } from 'vs/workbench/common/activity';
 
 export class ClosePanelAction extends Action {

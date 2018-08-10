@@ -56,6 +56,7 @@ import { Dimension, addClass } from 'vs/base/browser/dom';
 import { IEditorService, ACTIVE_GROUP, SIDE_GROUP } from 'vs/workbench/services/editor/common/editorService';
 import { IEditorGroupsService } from 'vs/workbench/services/group/common/editorGroupsService';
 import { IUriDisplayService } from 'vs/platform/uriDisplay/common/uriDisplay';
+import { isThenable, timeout } from 'vs/base/common/async';
 
 const HELP_PREFIX = '?';
 
@@ -157,7 +158,7 @@ export class QuickOpenController extends Component implements IQuickOpenService 
 		let arrayPromise: TPromise<string[] | IPickOpenEntry[]>;
 		if (Array.isArray(arg1)) {
 			arrayPromise = TPromise.as(arg1);
-		} else if (TPromise.is(arg1)) {
+		} else if (isThenable(arg1)) {
 			arrayPromise = arg1;
 		} else {
 			throw new Error('illegal input');
@@ -393,11 +394,11 @@ export class QuickOpenController extends Component implements IQuickOpenService 
 			});
 
 			// Progress if task takes a long time
-			TPromise.timeout(800).then(() => {
+			setTimeout(() => {
 				if (!picksPromiseDone && this.currentPickerToken === currentPickerToken) {
 					this.pickOpenWidget.getProgressBar().infinite().show();
 				}
-			});
+			}, 800);
 
 			// Show picker empty if resolving takes a while
 			if (!picksPromiseDone) {
@@ -669,11 +670,11 @@ export class QuickOpenController extends Component implements IQuickOpenService 
 		this.previousActiveHandlerDescriptor = handlerDescriptor;
 
 		// Progress if task takes a long time
-		TPromise.timeout(instantProgress ? 0 : 800).then(() => {
+		setTimeout(() => {
 			if (!resultPromiseDone && currentResultToken === this.currentResultToken) {
 				this.quickOpenWidget.getProgressBar().infinite().show();
 			}
-		});
+		}, instantProgress ? 0 : 800);
 
 		// Promise done handling
 		resultPromise.done(() => {
@@ -708,7 +709,14 @@ export class QuickOpenController extends Component implements IQuickOpenService 
 			const previousInput = this.quickOpenWidget.getInput();
 			const wasShowingHistory = previousInput && previousInput.entries && previousInput.entries.some(e => e instanceof EditorHistoryEntry || e instanceof EditorHistoryEntryGroup);
 			if (wasShowingHistory || matchingHistoryEntries.length > 0) {
-				(resolvedHandler.hasShortResponseTime() ? TPromise.timeout(QuickOpenController.MAX_SHORT_RESPONSE_TIME) : TPromise.as(undefined)).then(() => {
+				let responseDelay: Thenable<void>;
+				if (resolvedHandler.hasShortResponseTime()) {
+					responseDelay = timeout(QuickOpenController.MAX_SHORT_RESPONSE_TIME);
+				} else {
+					responseDelay = Promise.resolve(void 0);
+				}
+
+				responseDelay.then(() => {
 					if (this.currentResultToken === currentResultToken && !inputSet) {
 						this.quickOpenWidget.setInput(quickOpenModel, { autoFocusFirstEntry: true });
 						inputSet = true;
@@ -1074,7 +1082,17 @@ class EditorHistoryHandler {
 		// Massage search for scoring
 		const query = prepareQuery(searchValue);
 
-		const history = this.historyService.getHistory()
+		// Just return all if we are not searching
+		const history = this.historyService.getHistory();
+		if (!query.value) {
+			return history.map(input => this.instantiationService.createInstance(EditorHistoryEntry, input));
+		}
+
+		// Otherwise filter by search value and sort by score. Include matches on description
+		// in case the user is explicitly including path separators.
+		const accessor = query.containsPathSeparator ? MatchOnDescription : DoNotMatchOnDescription;
+		return history
+
 			// For now, only support to match on inputs that provide resource information
 			.filter(input => {
 				let resource: URI;
@@ -1088,17 +1106,8 @@ class EditorHistoryHandler {
 			})
 
 			// Conver to quick open entries
-			.map(input => this.instantiationService.createInstance(EditorHistoryEntry, input));
+			.map(input => this.instantiationService.createInstance(EditorHistoryEntry, input))
 
-		// Just return all if we are not searching
-		if (!query.value) {
-			return history;
-		}
-
-		// Otherwise filter by search value and sort by score. Include matches on description
-		// in case the user is explicitly including path separators.
-		const accessor = query.containsPathSeparator ? MatchOnDescription : DoNotMatchOnDescription;
-		return history
 			// Make sure the search value is matching
 			.filter(e => {
 				const itemScore = scoreItem(e, query, false, accessor, this.scorerCache);

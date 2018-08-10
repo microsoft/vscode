@@ -25,6 +25,10 @@ export class TOCTreeModel {
 	private _currentSearchModel: SearchResultModel;
 	private _settingsTreeRoot: SettingsTreeGroupElement;
 
+	constructor(private viewState: ISettingsEditorViewState) {
+
+	}
+
 	public set settingsTreeRoot(value: SettingsTreeGroupElement) {
 		this._settingsTreeRoot = value;
 		this.update();
@@ -44,7 +48,7 @@ export class TOCTreeModel {
 	}
 
 	private updateGroupCount(group: SettingsTreeGroupElement): void {
-		(<any>group).count = this._currentSearchModel ?
+		group.count = this._currentSearchModel ?
 			this.getSearchResultChildrenCount(group) :
 			undefined;
 
@@ -64,7 +68,7 @@ export class TOCTreeModel {
 	private groupContainsSetting(group: SettingsTreeGroupElement, setting: ISetting): boolean {
 		return group.children.some(child => {
 			if (child instanceof SettingsTreeSettingElement) {
-				return child.setting.key === setting.key;
+				return child.setting.key === setting.key && child.matchesAllTags(this.viewState.tagFilters);
 			} else if (child instanceof SettingsTreeGroupElement) {
 				return this.groupContainsSetting(child, setting);
 			} else {
@@ -77,11 +81,6 @@ export class TOCTreeModel {
 export type TOCTreeElement = SettingsTreeGroupElement | TOCTreeModel;
 
 export class TOCDataSource implements IDataSource {
-	constructor(
-		@IConfigurationService private configService: IConfigurationService
-	) {
-	}
-
 	getId(tree: ITree, element: SettingsTreeGroupElement): string {
 		return element.id;
 	}
@@ -96,14 +95,6 @@ export class TOCDataSource implements IDataSource {
 	}
 
 	private _getChildren(element: TOCTreeElement): SettingsTreeElement[] {
-		// TODO@roblou hack. Clean up or remove this option
-		if (this.configService.getValue('workbench.settings.settingsSearchTocBehavior') === 'filter') {
-			const children = element.children as SettingsTreeElement[]; // TS????
-			return children.filter(group => {
-				return (<any>group).count !== 0;
-			});
-		}
-
 		return element.children;
 	}
 
@@ -136,7 +127,7 @@ export class TOCRenderer implements IRenderer {
 	}
 
 	renderElement(tree: ITree, element: SettingsTreeGroupElement, templateId: string, template: ITOCEntryTemplate): void {
-		const count = (<any>element).count;
+		const count = element.count;
 		const label = element.label;
 
 		DOM.toggleClass(template.labelElement, 'no-results', count === 0);

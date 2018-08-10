@@ -25,7 +25,7 @@ import { IInstantiationService } from 'vs/platform/instantiation/common/instanti
 import { IModeService } from 'vs/editor/common/services/modeService';
 import { IModelService } from 'vs/editor/common/services/modelService';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { RunOnceScheduler } from 'vs/base/common/async';
+import { RunOnceScheduler, timeout } from 'vs/base/common/async';
 import { ITextBufferFactory } from 'vs/editor/common/model';
 import { IHashService } from 'vs/workbench/services/hash/common/hashService';
 import { createTextBufferFactory } from 'vs/editor/common/model/textModel';
@@ -153,13 +153,13 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 		}
 
 		if (fileEventImpactsModel && this.inOrphanMode !== newInOrphanModeGuess) {
-			let checkOrphanedPromise: TPromise<boolean>;
+			let checkOrphanedPromise: Thenable<boolean>;
 			if (newInOrphanModeGuess) {
 				// We have received reports of users seeing delete events even though the file still
 				// exists (network shares issue: https://github.com/Microsoft/vscode/issues/13665).
 				// Since we do not want to mark the model as orphaned, we have to check if the
 				// file is really gone and not just a faulty file event.
-				checkOrphanedPromise = TPromise.timeout(100).then(() => {
+				checkOrphanedPromise = timeout(100).then(() => {
 					if (this.disposed) {
 						return true;
 					}
@@ -167,10 +167,10 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 					return this.fileService.existsFile(this.resource).then(exists => !exists);
 				});
 			} else {
-				checkOrphanedPromise = TPromise.as(false);
+				checkOrphanedPromise = Promise.resolve(false);
 			}
 
-			checkOrphanedPromise.done(newInOrphanModeValidated => {
+			checkOrphanedPromise.then(newInOrphanModeValidated => {
 				if (this.inOrphanMode !== newInOrphanModeValidated && !this.disposed) {
 					this.setOrphaned(newInOrphanModeValidated);
 				}
