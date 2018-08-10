@@ -2,7 +2,7 @@
 [
 {
 	"name": "chromium",
-	"version": "61.0.3163.100",
+	"version": "66.0.3359.181",
 	"repositoryURL": "http://www.chromium.org/Home",
 	"licenseDetail": [
 		"BSD License",
@@ -38,20 +38,20 @@
 },
 {
 	"name": "libchromiumcontent",
-	"version": "61.0.3163.100",
+	"version": "66.0.3359.181",
 	"license": "MIT",
 	"repositoryURL": "https://github.com/electron/libchromiumcontent",
 	"isProd": true
 },
 {
 	"name": "nodejs",
-	"version": "8.9.3",
+	"version": "10.2.0",
 	"repositoryURL": "https://github.com/nodejs/node",
 	"isProd": true
 },
 {
 	"name": "electron",
-	"version": "2.0.5",
+	"version": "3.0.0-beta.4",
 	"license": "MIT",
 	"repositoryURL": "https://github.com/electron/electron",
 	"isProd": true
