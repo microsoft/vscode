@@ -57,7 +57,6 @@ import { IJSONSchema } from 'vs/base/common/jsonSchema';
 import { IStatusbarItem, IStatusbarRegistry, Extensions as StatusbarExtensions, StatusbarItemDescriptor, StatusbarAlignment } from 'vs/workbench/browser/parts/statusbar/statusbar';
 import { IQuickOpenRegistry, Extensions as QuickOpenExtensions, QuickOpenHandlerDescriptor } from 'vs/workbench/browser/quickopen';
 
-import { IQuickOpenService, IPickOpenEntry, IPickOpenAction, IPickOpenItem } from 'vs/platform/quickOpen/common/quickOpen';
 import { IPanelService } from 'vs/workbench/services/panel/common/panelService';
 import Constants from 'vs/workbench/parts/markers/electron-browser/constants';
 import { IPartService } from 'vs/workbench/services/part/common/partService';
@@ -90,7 +89,7 @@ import { QuickOpenActionContributor } from '../browser/quickOpen';
 
 import { Themable, STATUS_BAR_FOREGROUND, STATUS_BAR_NO_FOLDER_FOREGROUND } from 'vs/workbench/common/theme';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
-import { IQuickInputService } from 'vs/platform/quickinput/common/quickInput';
+import { IQuickInputService, IQuickPickItem, QuickPickInput } from 'vs/platform/quickinput/common/quickInput';
 
 let tasksCategory = nls.localize('tasksCategory', "Tasks");
 
@@ -425,7 +424,7 @@ class TaskMap {
 	}
 }
 
-interface TaskQuickPickEntry extends IPickOpenEntry {
+interface TaskQuickPickEntry extends IQuickPickItem {
 	task: Task;
 }
 
@@ -475,7 +474,6 @@ class TaskService implements ITaskService {
 		@ILifecycleService lifecycleService: ILifecycleService,
 		@IModelService private modelService: IModelService,
 		@IExtensionService private extensionService: IExtensionService,
-		@IQuickOpenService private quickOpenService: IQuickOpenService,
 		@IQuickInputService private quickInputService: IQuickInputService,
 		@IConfigurationResolverService private configurationResolverService: IConfigurationResolverService,
 		@ITerminalService private terminalService: ITerminalService,
@@ -873,12 +871,12 @@ class TaskService implements ITaskService {
 	}
 
 	private attachProblemMatcher(task: ContributedTask | CustomTask): TPromise<Task> {
-		interface ProblemMatcherPickEntry extends IPickOpenEntry {
+		interface ProblemMatcherPickEntry extends IQuickPickItem {
 			matcher: NamedProblemMatcher;
 			never?: boolean;
 			learnMore?: boolean;
 		}
-		let entries: ProblemMatcherPickEntry[] = [];
+		let entries: QuickPickInput<ProblemMatcherPickEntry>[] = [];
 		for (let key of ProblemMatcherRegistry.keys()) {
 			let matcher = ProblemMatcherRegistry.get(key);
 			if (matcher.deprecated) {
@@ -896,15 +894,14 @@ class TaskService implements ITaskService {
 		}
 		if (entries.length > 0) {
 			entries = entries.sort((a, b) => a.label.localeCompare(b.label));
-			entries[0].separator = { border: true, label: nls.localize('TaskService.associate', 'associate') };
+			entries.unshift({ type: 'separator', border: true, label: nls.localize('TaskService.associate', 'associate') });
 			entries.unshift(
 				{ label: nls.localize('TaskService.attachProblemMatcher.continueWithout', 'Continue without scanning the task output'), matcher: undefined },
 				{ label: nls.localize('TaskService.attachProblemMatcher.never', 'Never scan the task output'), matcher: undefined, never: true },
 				{ label: nls.localize('TaskService.attachProblemMatcher.learnMoreAbout', 'Learn more about scanning the task output'), matcher: undefined, learnMore: true }
 			);
-			return this.quickOpenService.pick(entries, {
+			return this.quickInputService.pick(entries, {
 				placeHolder: nls.localize('selectProblemMatcher', 'Select for which kind of errors and warnings to scan the task output'),
-				autoFocus: { autoFocusFirstEntry: true }
 			}).then((selected) => {
 				if (selected) {
 					if (selected.learnMore) {
@@ -1807,32 +1804,13 @@ class TaskService implements ITaskService {
 			}
 			return { label: task._label, description, task };
 		};
-		let taskService = this;
-		let action = new class extends Action implements IPickOpenAction {
-			constructor() {
-				super('configureAction', 'Configure Task', 'quick-open-task-configure', true);
+		function fillEntries(entries: QuickPickInput<TaskQuickPickEntry>[], tasks: Task[], groupLabel: string, withBorder: boolean = false): void {
+			if (tasks.length) {
+				entries.push({ type: 'separator', label: groupLabel, border: withBorder });
 			}
-			public run(item: IPickOpenItem): TPromise<boolean> {
-				let task: Task = item.getPayload();
-				taskService.quickOpenService.close();
-				if (ContributedTask.is(task)) {
-					taskService.customize(task, undefined, true);
-				} else if (CustomTask.is(task)) {
-					taskService.openConfig(task);
-				}
-				return TPromise.as(false);
-			}
-		};
-		function fillEntries(entries: TaskQuickPickEntry[], tasks: Task[], groupLabel: string, withBorder: boolean = false): void {
-			let first = true;
 			for (let task of tasks) {
 				let entry: TaskQuickPickEntry = TaskQuickPickEntry(task);
-				if (first) {
-					first = false;
-					entry.separator = { label: groupLabel, border: withBorder };
-				}
-				entry.action = action;
-				entry.payload = task;
+				entry.buttons = [{ iconClass: 'quick-open-task-configure', tooltip: nls.localize('configureTask', "Configure Task") }];
 				entries.push(entry);
 			}
 		}
@@ -1896,12 +1874,24 @@ class TaskService implements ITaskService {
 				return tasks.then((tasks) => this.createTaskQuickPickEntries(tasks, group, sort));
 			}
 		};
-		return this.quickOpenService.pick(_createEntries().then((entries) => {
+		return this.quickInputService.pick(_createEntries().then((entries) => {
 			if (entries.length === 0 && defaultEntry) {
 				entries.push(defaultEntry);
 			}
 			return entries;
-		}), { placeHolder, autoFocus: { autoFocusFirstEntry: true }, matchOnDescription: true }).then(entry => entry ? entry.task : undefined);
+		}), {
+				placeHolder,
+				matchOnDescription: true,
+				onDidTriggerItemButton: context => {
+					let task = context.item.task;
+					this.quickInputService.cancel();
+					if (ContributedTask.is(task)) {
+						this.customize(task, undefined, true);
+					} else if (CustomTask.is(task)) {
+						this.openConfig(task);
+					}
+				}
+			}).then(entry => entry ? entry.task : undefined);
 	}
 
 	private showIgnoredFoldersMessage(): TPromise<void> {
@@ -2254,8 +2244,8 @@ class TaskService implements ITaskService {
 			}
 		};
 
-		function isTaskEntry(value: IPickOpenEntry): value is IPickOpenEntry & { task: Task } {
-			let candidate: IPickOpenEntry & { task: Task } = value as any;
+		function isTaskEntry(value: IQuickPickItem): value is IQuickPickItem & { task: Task } {
+			let candidate: IQuickPickItem & { task: Task } = value as any;
 			return candidate && !!candidate.task;
 		}
 
@@ -2267,8 +2257,8 @@ class TaskService implements ITaskService {
 		let openLabel = nls.localize('TaskService.openJsonFile', 'Open tasks.json file');
 		let entries = TPromise.join(stats).then((stats) => {
 			return taskPromise.then((taskMap) => {
-				type EntryType = (IPickOpenEntry & { task: Task; }) | (IPickOpenEntry & { folder: IWorkspaceFolder; });
-				let entries: EntryType[] = [];
+				type EntryType = (IQuickPickItem & { task: Task; }) | (IQuickPickItem & { folder: IWorkspaceFolder; });
+				let entries: QuickPickInput<EntryType>[] = [];
 				if (this.contextService.getWorkbenchState() === WorkbenchState.FOLDER) {
 					let tasks = taskMap.all();
 					let needsCreateOrOpen: boolean = true;
@@ -2283,7 +2273,10 @@ class TaskService implements ITaskService {
 					}
 					if (needsCreateOrOpen) {
 						let label = stats[0] !== void 0 ? openLabel : createLabel;
-						entries.push({ label, folder: this.contextService.getWorkspace().folders[0], separator: entries.length > 0 ? { border: true } : undefined });
+						if (entries.length) {
+							entries.push({ type: 'separator', border: true });
+						}
+						entries.push({ label, folder: this.contextService.getWorkspace().folders[0] });
 					}
 				} else {
 					let folders = this.contextService.getWorkspace().folders;
@@ -2295,14 +2288,14 @@ class TaskService implements ITaskService {
 							for (let i = 0; i < tasks.length; i++) {
 								let entry: EntryType = { label: tasks[i]._label, task: tasks[i], description: folder.name };
 								if (i === 0) {
-									entry.separator = { label: folder.name, border: index > 0 };
+									entries.push({ type: 'separator', label: folder.name, border: index > 0 });
 								}
 								entries.push(entry);
 							}
 						} else {
 							let label = stats[index] !== void 0 ? openLabel : createLabel;
 							let entry: EntryType = { label, folder: folder };
-							entry.separator = { label: folder.name, border: index > 0 };
+							entries.push({ type: 'separator', label: folder.name, border: index > 0 });
 							entries.push(entry);
 						}
 						index++;
@@ -2312,8 +2305,8 @@ class TaskService implements ITaskService {
 			});
 		});
 
-		this.quickOpenService.pick(entries,
-			{ placeHolder: nls.localize('TaskService.pickTask', 'Select a task to configure'), autoFocus: { autoFocusFirstEntry: true } }).
+		this.quickInputService.pick(entries,
+			{ placeHolder: nls.localize('TaskService.pickTask', 'Select a task to configure') }).
 			then((selection) => {
 				if (!selection) {
 					return;
