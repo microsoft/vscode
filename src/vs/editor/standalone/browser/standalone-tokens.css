@@ -211,14 +211,14 @@
 	}
 
 	/* contextmenu */
-	.monaco-editor.vs .monaco-menu .monaco-action-bar.vertical .action-item .action-label:focus,
-	.monaco-editor.vs-dark .monaco-menu .monaco-action-bar.vertical .action-item .action-label:focus {
+	.monaco-editor.vs .monaco-menu .monaco-action-bar.vertical .action-menu-item:focus .action-label,
+	.monaco-editor.vs-dark .monaco-menu .monaco-action-bar.vertical .action-menu-item:focus .action-label {
 		-ms-high-contrast-adjust: none;
 		color: highlighttext !important;
 		background-color: highlight !important;
 	}
-	.monaco-editor.vs .monaco-menu .monaco-action-bar.vertical .action-item .action-label:hover,
-	.monaco-editor.vs-dark .monaco-menu .monaco-action-bar.vertical .action-item .action-label:hover {
+	.monaco-editor.vs .monaco-menu .monaco-action-bar.vertical .action-menu-item:hover .action-label,
+	.monaco-editor.vs-dark .monaco-menu .monaco-action-bar.vertical .action-menu-item:hover .action-label {
 		-ms-high-contrast-adjust: none;
 		background: transparent !important;
 		border: 1px solid highlight;
