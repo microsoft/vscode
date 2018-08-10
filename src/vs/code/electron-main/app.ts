@@ -263,7 +263,7 @@ export class CodeApplication {
 		if (event === 'vscode:changeColorTheme' && typeof payload === 'string') {
 			let data = JSON.parse(payload);
 
-			this.stateService.setItem(CodeWindow.themeStorageKey, data.id);
+			this.stateService.setItem(CodeWindow.themeStorageKey, data.baseTheme);
 			this.stateService.setItem(CodeWindow.themeBackgroundStorageKey, data.background);
 		}
 	}
