@@ -7,7 +7,7 @@
 
 import 'vs/css!./quickInput';
 import { Component } from 'vs/workbench/common/component';
-import { IQuickInputService, IQuickPickItem, IPickOptions, IInputOptions, IQuickNavigateConfiguration, IQuickPick, IQuickInput, IQuickInputButton, IInputBox, IQuickPickItemButtonEvent } from 'vs/platform/quickinput/common/quickInput';
+import { IQuickInputService, IQuickPickItem, IPickOptions, IInputOptions, IQuickNavigateConfiguration, IQuickPick, IQuickInput, IQuickInputButton, IInputBox, IQuickPickItemButtonEvent, QuickPickInput, IQuickPickSeparator, IKeyMods } from 'vs/platform/quickinput/common/quickInput';
 import { IPartService } from 'vs/workbench/services/part/common/partService';
 import * as dom from 'vs/base/browser/dom';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
@@ -46,6 +46,8 @@ import { getIconClass } from 'vs/workbench/browser/parts/quickinput/quickInputUt
 
 const $ = dom.$;
 
+type Writeable<T> = { -readonly [P in keyof T]: T[P] };
+
 const backButton = {
 	iconPath: {
 		dark: URI.parse(require.toUrl('vs/workbench/browser/parts/quickinput/media/dark/arrow-left.svg')),
@@ -70,6 +72,7 @@ interface QuickInputUI {
 	onDidAccept: Event<void>;
 	onDidTriggerButton: Event<IQuickInputButton>;
 	ignoreFocusOut: boolean;
+	keyMods: Writeable<IKeyMods>;
 	show(controller: QuickInput): void;
 	setVisibilities(visibilities: Visibilities): void;
 	setEnabled(enabled: boolean): void;
@@ -298,7 +301,7 @@ class QuickPick<T extends IQuickPickItem> extends QuickInput implements IQuickPi
 	private _placeholder;
 	private onDidChangeValueEmitter = new Emitter<string>();
 	private onDidAcceptEmitter = new Emitter<string>();
-	private _items: T[] = [];
+	private _items: (T | IQuickPickSeparator)[] = [];
 	private itemsUpdated = false;
 	private _canSelectMany = false;
 	private _matchOnDescription = false;
@@ -352,7 +355,7 @@ class QuickPick<T extends IQuickPickItem> extends QuickInput implements IQuickPi
 		return this._items;
 	}
 
-	set items(items: T[]) {
+	set items(items: (T | IQuickPickSeparator)[]) {
 		this._items = items;
 		this.itemsUpdated = true;
 		this.update();
@@ -405,6 +408,10 @@ class QuickPick<T extends IQuickPickItem> extends QuickInput implements IQuickPi
 		this._selectedItems = selectedItems;
 		this.selectedItemsUpdated = true;
 		this.update();
+	}
+
+	get keyMods() {
+		return this.ui.keyMods;
 	}
 
 	onDidChangeSelection = this.onDidChangeSelectionEmitter.event;
@@ -950,6 +957,30 @@ export class QuickInputService extends Component implements IQuickInputService {
 					break;
 			}
 		}));
+		this._register(dom.addDisposableListener(container, dom.EventType.KEY_DOWN, (e: KeyboardEvent) => {
+			const event = new StandardKeyboardEvent(e);
+			switch (event.keyCode) {
+				case KeyCode.Ctrl:
+				case KeyCode.Meta:
+					this.ui.keyMods.ctrlCmd = true;
+					break;
+				case KeyCode.Alt:
+					this.ui.keyMods.alt = true;
+					break;
+			}
+		}));
+		this._register(dom.addDisposableListener(container, dom.EventType.KEY_UP, (e: KeyboardEvent) => {
+			const event = new StandardKeyboardEvent(e);
+			switch (event.keyCode) {
+				case KeyCode.Ctrl:
+				case KeyCode.Meta:
+					this.ui.keyMods.ctrlCmd = false;
+					break;
+				case KeyCode.Alt:
+					this.ui.keyMods.alt = false;
+					break;
+			}
+		}));
 
 		this._register(this.quickOpenService.onShow(() => this.hide(true)));
 
@@ -968,6 +999,7 @@ export class QuickInputService extends Component implements IQuickInputService {
 			onDidAccept: this.onDidAcceptEmitter.event,
 			onDidTriggerButton: this.onDidTriggerButtonEmitter.event,
 			ignoreFocusOut: false,
+			keyMods: { ctrlCmd: false, alt: false },
 			show: controller => this.show(controller),
 			hide: () => this.hide(),
 			setVisibilities: visibilities => this.setVisibilities(visibilities),
@@ -977,8 +1009,15 @@ export class QuickInputService extends Component implements IQuickInputService {
 		this.updateStyles();
 	}
 
-	pick<T extends IQuickPickItem, O extends IPickOptions<T>>(picks: TPromise<T[]> | T[], options: O = <O>{}, token: CancellationToken = CancellationToken.None): TPromise<O extends { canPickMany: true } ? T[] : T> {
-		return new TPromise<O extends { canPickMany: true } ? T[] : T>((resolve, reject) => {
+	pick<T extends IQuickPickItem, O extends IPickOptions<T>>(picks: QuickPickInput<T>, options: O = <O>{}, token: CancellationToken = CancellationToken.None): TPromise<O extends { canPickMany: true } ? T[] : T> {
+		return new TPromise<O extends { canPickMany: true } ? T[] : T>((doResolve, reject) => {
+			let resolve = (result: any) => {
+				resolve = doResolve;
+				if (options.onKeyMods) {
+					options.onKeyMods(input.keyMods);
+				}
+				doResolve(result);
+			};
 			if (token.isCancellationRequested) {
 				resolve(undefined);
 				return;
@@ -1045,7 +1084,7 @@ export class QuickInputService extends Component implements IQuickInputService {
 					input.busy = false;
 					input.items = items;
 					if (input.canSelectMany) {
-						input.selectedItems = items.filter(item => item.picked);
+						input.selectedItems = items.filter(item => item.type !== 'separator' && item.picked) as T[];
 					}
 					if (activeItem) {
 						input.activeItems = [activeItem];
@@ -1154,6 +1193,8 @@ export class QuickInputService extends Component implements IQuickInputService {
 		this.ui.list.matchOnDescription = false;
 		this.ui.list.matchOnDetail = false;
 		this.ui.ignoreFocusOut = false;
+		this.ui.keyMods.ctrlCmd = false;
+		this.ui.keyMods.alt = false;
 
 		const keybinding = this.keybindingService.lookupKeybinding(BackAction.ID);
 		backButton.tooltip = keybinding ? localize('quickInput.backWithKeybinding', "Back ({0})", keybinding.getLabel()) : localize('quickInput.back', "Back");
