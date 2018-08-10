@@ -130,8 +130,12 @@ gulp.task('extract-editor-esm', ['clean-editor-esm', 'clean-editor-distro', 'ext
 		ignores: [
 			'inlineEntryPoint:0.ts',
 			'inlineEntryPoint:1.ts',
+			'vs/loader.js',
 			'vs/nls.ts',
+			'vs/nls.build.js',
 			'vs/nls.d.ts',
+			'vs/css.js',
+			'vs/css.build.js',
 			'vs/css.d.ts',
 			'vs/base/worker/workerMain.ts',
 		],
