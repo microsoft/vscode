@@ -473,7 +473,7 @@ export class QuickInputList {
 					element.labelHighlights = undefined;
 					element.descriptionHighlights = undefined;
 					element.detailHighlights = undefined;
-					element.hidden = true;
+					element.hidden = !element.item.alwaysShow;
 				}
 				element.separator = undefined;
 			});
