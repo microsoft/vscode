@@ -39,24 +39,6 @@
 	margin-right: 7px;
 }
 
-.settings-editor > .settings-header > .search-container {
-	position: relative;
-}
-
-.settings-editor > .settings-header .search-container > .settings-search-input {
-	vertical-align: middle;
-}
-
-.settings-editor > .settings-header .search-container > .settings-search-input > .monaco-inputbox {
-	height: 30px;
-	width: 100%;
-}
-
-.settings-editor > .settings-header .search-container .settings-search-input > .monaco-inputbox .input {
-	font-size: 14px;
-	padding-left: 7px;
-}
-
 .settings-editor > .settings-header > .settings-header-controls {
 	height: 32px;
 	display: flex;
