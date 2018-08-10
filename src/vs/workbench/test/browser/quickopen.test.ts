@@ -22,10 +22,6 @@ export class TestQuickOpenService implements IQuickOpenService {
 		this.callback = callback;
 	}
 
-	pick(arg: any, options?: any, token?: any): Promise {
-		return TPromise.as(null);
-	}
-
 	accept(): void {
 	}
 
