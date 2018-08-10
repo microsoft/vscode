@@ -302,12 +302,6 @@ export class SettingsEditor2 extends BaseEditor {
 						this.settingsTree.reveal(lastElement, 0.9);
 						return true;
 					}
-				} else {
-					const controls = this.settingsTree.getHTMLElement().querySelectorAll(SettingsRenderer.CONTROL_SELECTOR);
-					const lastControl = controls && controls[controls.length];
-					if (lastControl) {
-						(<HTMLElement>lastControl).focus();
-					}
 				}
 
 				return false;
@@ -336,7 +330,7 @@ export class SettingsEditor2 extends BaseEditor {
 	}
 
 	private createTOC(parent: HTMLElement): void {
-		this.tocTreeModel = new TOCTreeModel();
+		this.tocTreeModel = new TOCTreeModel(this.viewState);
 		this.tocTreeContainer = DOM.append(parent, $('.settings-toc-container'));
 
 		const tocRenderer = this.instantiationService.createInstance(TOCRenderer);
@@ -673,20 +667,52 @@ export class SettingsEditor2 extends BaseEditor {
 				this.searchInProgress = null;
 			});
 		} else {
+			if (this.viewState.tagFilters && this.viewState.tagFilters.size) {
+				this.searchResultModel = this.createFilterModel();
+			} else {
+				this.searchResultModel = null;
+			}
+
 			this.localSearchDelayer.cancel();
 			this.remoteSearchThrottle.cancel();
 			if (this.searchInProgress && this.searchInProgress.cancel) {
 				this.searchInProgress.cancel();
 			}
 
-			this.searchResultModel = null;
-			this.tocTreeModel.currentSearchModel = null;
 			this.viewState.filterToCategory = null;
+			this.tocTreeModel.currentSearchModel = this.searchResultModel;
 			this.tocTree.refresh();
 			this.toggleSearchMode();
 			collapseAll(this.tocTree);
-			return this.settingsTree.setInput(this.settingsTreeModel.root);
+
+			if (this.searchResultModel) {
+				return this.settingsTree.setInput(this.searchResultModel);
+			} else {
+				return this.settingsTree.setInput(this.settingsTreeModel.root);
+			}
 		}
+	}
+
+	/**
+	 * Return a fake SearchResultModel which can hold a flat list of all settings, to be filtered (@modified etc)
+	 */
+	private createFilterModel(): SearchResultModel {
+		const filterModel = this.instantiationService.createInstance(SearchResultModel, this.viewState);
+
+		const fullResult: ISearchResult = {
+			filterMatches: []
+		};
+		for (let g of this.defaultSettingsEditorModel.settingsGroups.slice(1)) {
+			for (let sect of g.sections) {
+				for (let setting of sect.settings) {
+					fullResult.filterMatches.push({ setting, matches: [], score: 0 });
+				}
+			}
+		}
+
+		filterModel.setResult(0, fullResult);
+
+		return filterModel;
 	}
 
 	private reportFilteringUsed(query: string, results: ISearchResult[]): void {

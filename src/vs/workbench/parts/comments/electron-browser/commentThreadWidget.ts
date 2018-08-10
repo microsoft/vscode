@@ -25,7 +25,7 @@ import { IInstantiationService } from 'vs/platform/instantiation/common/instanti
 import { IModelService } from 'vs/editor/common/services/modelService';
 import { SimpleCommentEditor } from './simpleCommentEditor';
 import URI from 'vs/base/common/uri';
-import { transparent, editorForeground, textLinkActiveForeground, textLinkForeground, focusBorder, textBlockQuoteBackground, textBlockQuoteBorder, contrastBorder } from 'vs/platform/theme/common/colorRegistry';
+import { transparent, editorForeground, textLinkActiveForeground, textLinkForeground, focusBorder, textBlockQuoteBackground, textBlockQuoteBorder, contrastBorder, inputValidationErrorBorder, inputValidationErrorBackground } from 'vs/platform/theme/common/colorRegistry';
 import { IModeService } from 'vs/editor/common/services/modeService';
 import { IKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { KeyCode } from 'vs/base/common/keyCodes';
@@ -34,6 +34,8 @@ import { Range, IRange } from 'vs/editor/common/core/range';
 import { IPosition } from 'vs/editor/common/core/position';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
 import { MarkdownRenderer } from 'vs/editor/contrib/markdown/markdownRenderer';
+import { IMarginData } from 'vs/editor/browser/controller/mouseTarget';
+import { ModelDecorationOptions } from 'vs/editor/common/model/textModel';
 
 export const COMMENTEDITOR_DECORATION_KEY = 'commenteditordecoration';
 const EXPAND_ACTION_CLASS = 'expand-review-action octicon octicon-chevron-down';
@@ -45,9 +47,11 @@ export class CommentNode {
 	private _body: HTMLElement;
 	private _md: HTMLElement;
 	private _clearTimeout: any;
+
 	public get domNode(): HTMLElement {
 		return this._domNode;
 	}
+
 	constructor(
 		public comment: modes.Comment,
 		private markdownRenderer: MarkdownRenderer,
@@ -115,6 +119,7 @@ export class ReviewZoneWidget extends ZoneWidget {
 	private _localToDispose: IDisposable[];
 	private _markdownRenderer: MarkdownRenderer;
 	private _styleElement: HTMLStyleElement;
+	private _error: HTMLElement;
 
 	public get owner(): number {
 		return this._owner;
@@ -284,14 +289,13 @@ export class ReviewZoneWidget extends ZoneWidget {
 	}
 
 	protected _doLayout(heightInPixel: number, widthInPixel: number): void {
-		this._commentEditor.layout({ height: (this._commentEditor.hasWidgetFocus() ? 5 : 1) * 18, width: widthInPixel - 40 /* margin */ });
+		this._commentEditor.layout({ height: (this._commentEditor.hasWidgetFocus() ? 5 : 1) * 18, width: widthInPixel - 42 /* margin */ });
 	}
 
-	display(lineNumber: number) {
-		this._commentGlyph = new CommentGlyphWidget(`review_${lineNumber}`, this.editor, lineNumber, false, () => {
+	display(lineNumber: number, commentsOptions: ModelDecorationOptions) {
+		this._commentGlyph = new CommentGlyphWidget(this.editor, lineNumber, commentsOptions, () => {
 			this.toggleExpand();
 		});
-		this.editor.layoutContentWidget(this._commentGlyph);
 
 		this._localToDispose.push(this.editor.onMouseDown(e => this.onEditorMouseDown(e)));
 		this._localToDispose.push(this.editor.onMouseUp(e => this.onEditorMouseUp(e)));
@@ -300,7 +304,6 @@ export class ReviewZoneWidget extends ZoneWidget {
 			if (this.position) {
 				if (this.position.lineNumber !== this._commentGlyph.getPosition().position.lineNumber) {
 					this._commentGlyph.setLineNumber(this.position.lineNumber);
-					this.editor.layoutContentWidget(this._commentGlyph);
 				}
 			} else {
 				// Otherwise manually calculate position change :(
@@ -312,7 +315,6 @@ export class ReviewZoneWidget extends ZoneWidget {
 					}
 				}).reduce((prev, curr) => prev + curr, 0);
 				this._commentGlyph.setLineNumber(this._commentGlyph.getPosition().position.lineNumber + positionChange);
-				this.editor.layoutContentWidget(this._commentGlyph);
 			}
 		}));
 		var headHeight = Math.ceil(this.editor.getConfiguration().lineHeight * 1.2);
@@ -364,7 +366,14 @@ export class ReviewZoneWidget extends ZoneWidget {
 					this.dispose();
 				}
 			}
+
+			if (this._commentEditor.getModel().getValueLength() !== 0 && ev.keyCode === KeyCode.Enter && ev.ctrlKey) {
+				let lineNumber = this._commentGlyph.getPosition().position.lineNumber;
+				this.createComment(lineNumber);
+			}
 		}));
+
+		this._error = $('.validation-error.hidden').appendTo(this._commentForm).getHTMLElement();
 
 		const formActions = $('.form-actions').appendTo(this._commentForm).getHTMLElement();
 
@@ -382,36 +391,8 @@ export class ReviewZoneWidget extends ZoneWidget {
 		}));
 
 		button.onDidClick(async () => {
-			let newCommentThread;
-			if (this._commentThread.threadId) {
-				// reply
-				newCommentThread = await this.commentService.replyToCommentThread(
-					this._owner,
-					this.editor.getModel().uri,
-					new Range(lineNumber, 1, lineNumber, 1),
-					this._commentThread,
-					this._commentEditor.getValue()
-				);
-			} else {
-				newCommentThread = await this.commentService.createNewCommentThread(
-					this._owner,
-					this.editor.getModel().uri,
-					new Range(lineNumber, 1, lineNumber, 1),
-					this._commentEditor.getValue()
-				);
-
-				this.createReplyButton();
-				this.createParticipantsLabel();
-			}
-
-			this._commentEditor.setValue('');
-			if (dom.hasClass(this._commentForm, 'expand')) {
-				dom.removeClass(this._commentForm, 'expand');
-			}
-
-			if (newCommentThread) {
-				this.update(newCommentThread);
-			}
+			let lineNumber = this._commentGlyph.getPosition().position.lineNumber;
+			this.createComment(lineNumber);
 		});
 
 		this._resizeObserver = new MutationObserver(this._refresh.bind(this));
@@ -430,6 +411,52 @@ export class ReviewZoneWidget extends ZoneWidget {
 		// If there are no existing comments, place focus on the text area. This must be done after show, which also moves focus.
 		if (this._commentThread.reply && !this._commentThread.comments.length) {
 			this._commentEditor.focus();
+		}
+	}
+
+	private async createComment(lineNumber: number): Promise<void> {
+		try {
+			let newCommentThread;
+
+			if (this._commentThread.threadId) {
+				// reply
+				newCommentThread = await this.commentService.replyToCommentThread(
+					this._owner,
+					this.editor.getModel().uri,
+					new Range(lineNumber, 1, lineNumber, 1),
+					this._commentThread,
+					this._commentEditor.getValue()
+				);
+			} else {
+				newCommentThread = await this.commentService.createNewCommentThread(
+					this._owner,
+					this.editor.getModel().uri,
+					new Range(lineNumber, 1, lineNumber, 1),
+					this._commentEditor.getValue()
+				);
+
+				if (newCommentThread) {
+					this.createReplyButton();
+					this.createParticipantsLabel();
+				}
+			}
+
+			if (newCommentThread) {
+				this._commentEditor.setValue('');
+				if (dom.hasClass(this._commentForm, 'expand')) {
+					dom.removeClass(this._commentForm, 'expand');
+				}
+				this._commentEditor.getDomNode().style.outline = '';
+				this._error.textContent = '';
+				dom.addClass(this._error, 'hidden');
+				this.update(newCommentThread);
+			}
+		} catch (e) {
+			this._error.textContent = e.message
+				? nls.localize('commentCreationError', "Adding a comment failed: {0}.", e.message)
+				: nls.localize('commentCreationDefaultError', "Adding a comment failed. Please try again or report an issue with the extension if the problem persists.");
+			this._commentEditor.getDomNode().style.outline = `1px solid ${this.themeService.getTheme().getColor(inputValidationErrorBorder)}`;
+			dom.removeClass(this._error, 'hidden');
 		}
 	}
 
@@ -480,7 +507,7 @@ export class ReviewZoneWidget extends ZoneWidget {
 		if (model) {
 			let valueLength = model.getValueLength();
 			const hasExistingComments = this._commentThread.comments.length > 0;
-			let placeholder = valueLength > 0 ? '' : (hasExistingComments ? 'Reply...' : 'Type a new comment');
+			let placeholder = valueLength > 0 ? '' : (hasExistingComments ? 'Reply... (press Ctrl+Enter to submit)' : 'Type a new comment (press Ctrl+Enter to submit)');
 			const decorations = [{
 				range: {
 					startLineNumber: 0,
@@ -500,60 +527,71 @@ export class ReviewZoneWidget extends ZoneWidget {
 		}
 	}
 
-	private mouseDownInfo: { lineNumber: number, iconClicked: boolean };
+	private mouseDownInfo: { lineNumber: number };
 
 	private onEditorMouseDown(e: IEditorMouseEvent): void {
-		if (!e.event.leftButton) {
-			return;
-		}
+		this.mouseDownInfo = null;
 
-		let range = e.target.range;
+		const range = e.target.range;
+
 		if (!range) {
 			return;
 		}
 
-		let iconClicked = false;
-		switch (e.target.type) {
-			case MouseTargetType.GUTTER_GLYPH_MARGIN:
-				iconClicked = true;
-				break;
-			default:
-				return;
+		if (!e.event.leftButton) {
+			return;
 		}
 
-		this.mouseDownInfo = { lineNumber: range.startLineNumber, iconClicked };
+		if (e.target.type !== MouseTargetType.GUTTER_LINE_DECORATIONS) {
+			return;
+		}
+
+		const data = e.target.detail as IMarginData;
+		const gutterOffsetX = data.offsetX - data.glyphMarginWidth - data.lineNumbersWidth - data.glyphMarginLeft;
+
+		// don't collide with folding and git decorations
+		if (gutterOffsetX > 14) {
+			return;
+		}
+
+		this.mouseDownInfo = { lineNumber: range.startLineNumber };
 	}
 
 	private onEditorMouseUp(e: IEditorMouseEvent): void {
 		if (!this.mouseDownInfo) {
 			return;
 		}
-		let lineNumber = this.mouseDownInfo.lineNumber;
-		let iconClicked = this.mouseDownInfo.iconClicked;
 
-		let range = e.target.range;
+		const { lineNumber } = this.mouseDownInfo;
+		this.mouseDownInfo = null;
+
+		const range = e.target.range;
+
 		if (!range || range.startLineNumber !== lineNumber) {
 			return;
 		}
 
-		if (this.position && this.position.lineNumber !== lineNumber) {
+		if (e.target.type !== MouseTargetType.GUTTER_LINE_DECORATIONS) {
 			return;
 		}
 
-		if (!this.position && lineNumber !== this._commentThread.range.startLineNumber) {
+		if (!e.target.element) {
 			return;
 		}
 
-		if (iconClicked) {
-			if (e.target.type !== MouseTargetType.GUTTER_GLYPH_MARGIN) {
-				return;
+		if (this._commentGlyph && this._commentGlyph.getPosition().position.lineNumber !== lineNumber) {
+			return;
+		}
+
+		if (e.target.element.className.indexOf('comment-thread') >= 0) {
+			if (this._isCollapsed) {
+				this.show({ lineNumber: lineNumber, column: 1 }, 2);
+			} else {
+				this.hide();
+				if (this._commentThread === null) {
+					this.dispose();
+				}
 			}
-		}
-
-		if (this._isCollapsed) {
-			this.show({ lineNumber: lineNumber, column: 1 }, 2);
-		} else {
-			this.hide();
 		}
 	}
 
@@ -597,6 +635,16 @@ export class ReviewZoneWidget extends ZoneWidget {
 			content.push(`.monaco-editor .review-widget .body .comment-form .monaco-editor { outline: 1px solid ${hcBorder}; }`);
 		}
 
+		const errorBorder = theme.getColor(inputValidationErrorBorder);
+		if (errorBorder) {
+			content.push(`.monaco-editor .review-widget .body .comment-form .validation-error { border: 1px solid ${errorBorder}; }`);
+		}
+
+		const errorBackground = theme.getColor(inputValidationErrorBackground);
+		if (errorBackground) {
+			content.push(`.monaco-editor .review-widget .body .comment-form .validation-error { background: ${errorBackground}; }`);
+		}
+
 		this._styleElement.innerHTML = content.join('\n');
 
 		// Editor decorations should also be responsive to theme changes
@@ -622,7 +670,7 @@ export class ReviewZoneWidget extends ZoneWidget {
 		}
 
 		if (this._commentGlyph) {
-			this.editor.removeContentWidget(this._commentGlyph);
+			this._commentGlyph.dispose();
 			this._commentGlyph = null;
 		}
 

@@ -65,6 +65,7 @@ import { MenubarService } from 'vs/platform/menubar/electron-main/menubarService
 import { MenubarChannel } from 'vs/platform/menubar/common/menubarIpc';
 import { IUriDisplayService } from 'vs/platform/uriDisplay/common/uriDisplay';
 import { CodeMenu } from 'vs/code/electron-main/menus';
+import { RunOnceScheduler } from 'vs/base/common/async';
 
 export class CodeApplication {
 
@@ -529,7 +530,9 @@ export class CodeApplication {
 		this.historyMainService.onRecentlyOpenedChange(() => this.historyMainService.updateWindowsJumpList());
 
 		// Start shared process after a while
-		TPromise.timeout(3000).then(() => this.sharedProcess.spawn());
+		const sharedProcess = new RunOnceScheduler(() => this.sharedProcess.spawn(), 3000);
+		sharedProcess.schedule();
+		this.toDispose.push(sharedProcess);
 	}
 
 	private dispose(): void {

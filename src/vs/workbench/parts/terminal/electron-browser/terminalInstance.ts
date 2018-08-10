@@ -482,7 +482,7 @@ export class TerminalInstance implements ITerminalInstance {
 						label: nls.localize('yes', "Yes"),
 						run: () => {
 							this._configurationService.updateValue('terminal.integrated.rendererType', 'dom', ConfigurationTarget.USER).then(() => {
-								this._notificationService.info(nls.localize('terminal.rendererInAllNewTerminals', "The termnial is now using the fallback renderer."));
+								this._notificationService.info(nls.localize('terminal.rendererInAllNewTerminals', "The terminal is now using the fallback renderer."));
 							});
 						}
 					} as IPromptChoice,

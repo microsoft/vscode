@@ -6118,9 +6118,9 @@ vscode-textmate@Microsoft/vscode-textmate#electron-3.0.x:
   dependencies:
     oniguruma bpasero/node-oniguruma#nan-2.10.0
 
-vscode-xterm@3.7.0-beta3:
-  version "3.7.0-beta3"
-  resolved "https://registry.yarnpkg.com/vscode-xterm/-/vscode-xterm-3.7.0-beta3.tgz#2306f9650ee2f55637ba1804d10c5ffb9ef944f6"
+vscode-xterm@3.7.0-beta4:
+  version "3.7.0-beta4"
+  resolved "https://registry.yarnpkg.com/vscode-xterm/-/vscode-xterm-3.7.0-beta4.tgz#f980d66f94f09ae80e100715dae60715dcae1ac6"
 
 vso-node-api@^6.1.2-preview:
   version "6.1.2-preview"

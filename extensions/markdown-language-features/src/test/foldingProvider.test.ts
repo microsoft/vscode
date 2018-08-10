@@ -11,7 +11,7 @@ import MarkdownFoldingProvider from '../features/foldingProvider';
 import { InMemoryDocument } from './inMemoryDocument';
 import { createNewMarkdownEngine } from './engine';
 
-const testFileName = vscode.Uri.parse('test.md');
+const testFileName = vscode.Uri.file('test.md');
 
 suite('markdown.FoldingProvider', () => {
 	test('Should not return anything for empty document', async () => {

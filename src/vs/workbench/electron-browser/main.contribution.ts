@@ -635,7 +635,11 @@ configurationRegistry.registerConfiguration({
 		},
 		'workbench.settings.settingsSearchTocBehavior': {
 			'type': 'string',
-			'enum': ['hide', 'filter', 'show'],
+			'enum': ['hide', 'filter'],
+			'enumDescriptions': [
+				nls.localize('settingsSearchTocBehavior.hide', "Hide the Table of Contents while searching."),
+				nls.localize('settingsSearchTocBehavior.filter', "Filter the Table of Contents to just categories that have matching settings. Clicking a category will filter the results to that category."),
+			],
 			'description': nls.localize('settingsSearchTocBehavior', "Controls the behavior of the settings editor Table of Contents while searching."),
 			'default': 'filter',
 			'scope': ConfigurationScope.WINDOW
