@@ -25,7 +25,6 @@ export interface IQuickPickItem {
 
 export interface IQuickPickSeparator {
 	type: 'separator';
-	border?: boolean;
 	label?: string;
 }
 

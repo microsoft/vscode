@@ -759,7 +759,7 @@ export abstract class BaseOpenRecentAction extends Action {
 
 		let keyMods: IKeyMods;
 		const workspaceSeparator: IQuickPickSeparator = { type: 'separator', label: nls.localize('workspaces', "workspaces") };
-		const fileSeparator: IQuickPickSeparator = { type: 'separator', label: nls.localize('files', "files"), border: true };
+		const fileSeparator: IQuickPickSeparator = { type: 'separator', label: nls.localize('files', "files") };
 		const picks = [workspaceSeparator, ...workspacePicks, fileSeparator, ...filePicks];
 		this.quickInputService.pick(picks, {
 			contextKey: inRecentFilesPickerContextKey,

@@ -895,7 +895,7 @@ export class ChangeModeAction extends Action {
 		});
 
 		if (hasLanguageSupport) {
-			picks.unshift({ type: 'separator', border: true, label: nls.localize('languagesPicks', "languages (identifier)") });
+			picks.unshift({ type: 'separator', label: nls.localize('languagesPicks', "languages (identifier)") });
 		}
 
 		// Offer action to configure via settings
@@ -1079,7 +1079,7 @@ class ChangeIndentationAction extends Action {
 			};
 		});
 
-		picks.splice(3, 0, { type: 'separator', label: nls.localize('indentConvert', "convert file"), border: true });
+		picks.splice(3, 0, { type: 'separator', label: nls.localize('indentConvert', "convert file") });
 		picks.unshift({ type: 'separator', label: nls.localize('indentView', "change view") });
 
 		return this.quickInputService.pick(picks, { placeHolder: nls.localize('pickAction', "Select Action"), matchOnDetail: true }).then(action => action && action.run());
@@ -1231,7 +1231,7 @@ export class ChangeEncodingAction extends Action {
 
 					// If we have a guessed encoding, show it first unless it matches the configured encoding
 					if (guessedEncoding && configuredEncoding !== guessedEncoding && SUPPORTED_ENCODINGS[guessedEncoding]) {
-						picks.unshift({ type: 'separator', border: true });
+						picks.unshift({ type: 'separator' });
 						picks.unshift({ id: guessedEncoding, label: SUPPORTED_ENCODINGS[guessedEncoding].labelLong, description: nls.localize('guessedEncoding', "Guessed from content") });
 					}
 

@@ -152,7 +152,7 @@ class ListElementRenderer implements IRenderer<ListElement, IListElementTemplate
 		} else {
 			data.separator.style.display = 'none';
 		}
-		if (element.separator && element.separator.border) {
+		if (element.separator) {
 			dom.addClass(data.entry, 'quick-input-list-separator-border');
 		} else {
 			dom.removeClass(data.entry, 'quick-input-list-separator-border');

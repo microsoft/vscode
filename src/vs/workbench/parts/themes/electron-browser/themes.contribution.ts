@@ -51,8 +51,8 @@ export class SelectColorThemeAction extends Action {
 
 			const picks: QuickPickInput[] = [].concat(
 				toEntries(themes.filter(t => t.type === LIGHT), localize('themes.category.light', "light themes")),
-				toEntries(themes.filter(t => t.type === DARK), localize('themes.category.dark', "dark themes"), true),
-				toEntries(themes.filter(t => t.type === HIGH_CONTRAST), localize('themes.category.hc', "high contrast themes"), true),
+				toEntries(themes.filter(t => t.type === DARK), localize('themes.category.dark', "dark themes")),
+				toEntries(themes.filter(t => t.type === HIGH_CONTRAST), localize('themes.category.hc', "high contrast themes")),
 				configurationEntries(this.extensionGalleryService, localize('installColorThemes', "Install Additional Color Themes..."))
 			);
 
@@ -153,8 +153,7 @@ function configurationEntries(extensionGalleryService: IExtensionGalleryService,
 	if (extensionGalleryService.isEnabled()) {
 		return [
 			{
-				type: 'separator',
-				border: true
+				type: 'separator'
 			},
 			{
 				id: void 0,
@@ -173,12 +172,12 @@ function openExtensionViewlet(viewletService: IViewletService, query: string) {
 	});
 }
 
-function toEntries(themes: (IColorTheme | IFileIconTheme)[], label?: string, border = false) {
+function toEntries(themes: (IColorTheme | IFileIconTheme)[], label?: string) {
 	const toEntry = theme => <IQuickPickItem>{ id: theme.id, label: theme.label, description: theme.description };
 	const sorter = (t1: IQuickPickItem, t2: IQuickPickItem) => t1.label.localeCompare(t2.label);
 	let entries: QuickPickInput[] = themes.map(toEntry).sort(sorter);
-	if (entries.length > 0 && (label || border)) {
-		entries.unshift({ type: 'separator', label, border });
+	if (entries.length > 0 && label) {
+		entries.unshift({ type: 'separator', label });
 	}
 	return entries;
 }
