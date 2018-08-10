@@ -26,7 +26,7 @@ steps:
 
 - script: |
     set -e
-    ./scripts/test.sh --build --tfs "Unit Tests"
+    # ./scripts/test.sh --build --tfs "Unit Tests"
     APP_NAME="`ls $(agent.builddirectory)/VSCode-darwin | head -n 1`"
     # yarn smoketest -- --build "$(agent.builddirectory)/VSCode-darwin/$APP_NAME"
   name: test
