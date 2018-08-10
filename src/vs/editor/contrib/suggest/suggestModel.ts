@@ -85,7 +85,7 @@ export const enum State {
 
 export class SuggestModel implements IDisposable {
 
-	private readonly sticky = true; // for development purposes
+	private readonly sticky = false; // for development purposes only
 
 	private _editor: ICodeEditor;
 	private _toDispose: IDisposable[] = [];
