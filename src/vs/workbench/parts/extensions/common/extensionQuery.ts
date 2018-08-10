@@ -12,7 +12,7 @@ export class Query {
 		this.value = value.trim();
 	}
 
-	static autocompletions(query: string): string[] {
+	static suggestions(query: string): string[] {
 		const commands = ['installed', 'outdated', 'enabled', 'disabled', 'builtin', 'recommended', 'sort', 'category', 'tag', 'ext'];
 		const subcommands = {
 			'sort': ['installs', 'rating', 'name'],
