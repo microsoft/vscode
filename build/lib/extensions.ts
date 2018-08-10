@@ -64,7 +64,7 @@ export function fromLocal(extensionPath: string, sourceMappingURLBase?: string):
 				.pipe(sourcemaps.init())
 				.pipe(Boolean(sourceMappingURLBase) ? stripSourceMappingURL() : es.through())
 				.pipe(sourcemaps.write('.', {
-					sourceMappingURLPrefix: sourceMappingURLBase && `${sourceMappingURLBase}/dist`,
+					sourceMappingURLPrefix: sourceMappingURLBase && `${sourceMappingURLBase}/extensions/${path.basename(extensionPath)}/out`,
 					addComment: !!sourceMappingURLBase,
 					includeContent: !!sourceMappingURLBase,
 					sourceRoot: '../src',
