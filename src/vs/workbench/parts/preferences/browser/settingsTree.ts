@@ -1496,6 +1496,54 @@ class NonExpandableOrSelectableTree extends Tree {
 	public focusPrevious(count?: number, eventPayload?: any): void {
 		return;
 	}
+
+	public focusParent(eventPayload?: any): void {
+		return;
+	}
+
+	public focusFirstChild(eventPayload?: any): void {
+		return;
+	}
+
+	public focusFirst(eventPayload?: any, from?: any): void {
+		return;
+	}
+
+	public focusNth(index: number, eventPayload?: any): void {
+		return;
+	}
+
+	public focusLast(eventPayload?: any, from?: any): void {
+		return;
+	}
+
+	public focusNextPage(eventPayload?: any): void {
+		return;
+	}
+
+	public focusPreviousPage(eventPayload?: any): void {
+		return;
+	}
+
+	public select(element: any, eventPayload?: any): void {
+		return;
+	}
+
+	public selectRange(fromElement: any, toElement: any, eventPayload?: any): void {
+		return;
+	}
+
+	public selectAll(elements: any[], eventPayload?: any): void {
+		return;
+	}
+
+	public setSelection(elements: any[], eventPayload?: any): void {
+		return;
+	}
+
+	public toggleSelection(element: any, eventPayload?: any): void {
+		return;
+	}
 }
 
 export class SettingsTree extends NonExpandableOrSelectableTree {
@@ -1570,6 +1618,8 @@ export class SettingsTree extends NonExpandableOrSelectableTree {
 			listFocusForeground: foreground,
 			listHoverForeground: foreground,
 			listHoverBackground: editorBackground,
+			listHoverOutline: editorBackground,
+			listFocusOutline: editorBackground,
 			listInactiveSelectionBackground: editorBackground,
 			listInactiveSelectionForeground: foreground
 		}, colors => {
