@@ -35,7 +35,6 @@ import { IOpenerService } from 'vs/platform/opener/common/opener';
 import { TimeoutTimer, CancelablePromise, createCancelablePromise } from 'vs/base/common/async';
 import { CancellationToken } from 'vs/base/common/cancellation';
 
-const sticky = false; // for development purposes
 const expandSuggestionDocsByDefault = false;
 const maxSuggestionsToShow = 12;
 
@@ -456,7 +455,6 @@ export class SuggestWidget implements IContentWidget, IVirtualDelegate<ICompleti
 				listInactiveFocusOutline: activeContrastBorder
 			}),
 			themeService.onThemeChange(t => this.onThemeChange(t)),
-			editor.onDidBlurEditorText(() => this.onEditorBlur()),
 			editor.onDidLayoutChange(() => this.onEditorLayoutChange()),
 			this.list.onSelectionChange(e => this.onListSelection(e)),
 			this.list.onFocusChange(e => this.onListFocus(e)),
@@ -479,18 +477,6 @@ export class SuggestWidget implements IContentWidget, IVirtualDelegate<ICompleti
 		}
 
 		this.editor.layoutContentWidget(this);
-	}
-
-	private onEditorBlur(): void {
-		if (sticky) {
-			return;
-		}
-
-		this.editorBlurTimeout.cancelAndSet(() => {
-			if (!this.editor.hasTextFocus()) {
-				this.setState(State.Hidden);
-			}
-		}, 150);
 	}
 
 	private onEditorLayoutChange(): void {

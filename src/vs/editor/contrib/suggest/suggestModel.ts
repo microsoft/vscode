@@ -85,6 +85,8 @@ export const enum State {
 
 export class SuggestModel implements IDisposable {
 
+	private readonly sticky = false; // for development purposes only
+
 	private _editor: ICodeEditor;
 	private _toDispose: IDisposable[] = [];
 	private _quickSuggestDelay: number;
@@ -124,7 +126,9 @@ export class SuggestModel implements IDisposable {
 			this.cancel();
 		}));
 		this._toDispose.push(this._editor.onDidBlurEditorText(() => {
-			this.cancel();
+			if (!this.sticky) {
+				this.cancel();
+			}
 		}));
 		this._toDispose.push(this._editor.onDidChangeConfiguration(() => {
 			this._updateTriggerCharacters();
