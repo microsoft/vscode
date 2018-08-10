@@ -163,10 +163,10 @@ declare namespace monaco {
 		readonly fsPath: string;
 		with(change: {
 			scheme?: string;
-			authority?: string;
-			path?: string;
-			query?: string;
-			fragment?: string;
+			authority?: string | null;
+			path?: string | null;
+			query?: string | null;
+			fragment?: string | null;
 		}): Uri;
 		/**
 		 * Creates a new Uri from a string, e.g. `http://www.msft.com/some/path`,
@@ -199,7 +199,7 @@ declare namespace monaco {
 		 */
 		static file(path: string): Uri;
 		static from(components: {
-			scheme?: string;
+			scheme: string;
 			authority?: string;
 			path?: string;
 			query?: string;
