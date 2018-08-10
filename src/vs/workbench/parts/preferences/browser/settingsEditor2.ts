@@ -659,8 +659,9 @@ export class SettingsEditor2 extends BaseEditor {
 				return '';
 			});
 		}
+
 		query = query.trim();
-		if (query) {
+		if (query && query !== '@') {
 			return this.searchInProgress = TPromise.join([
 				this.localSearchDelayer.trigger(() => this.localFilterPreferences(query)),
 				this.remoteSearchThrottle.trigger(() => this.remoteSearchPreferences(query), 500)
