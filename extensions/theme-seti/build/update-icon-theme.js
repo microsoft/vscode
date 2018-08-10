@@ -172,13 +172,13 @@ exports.copyFont = function() {
 //let mappings = 'https://raw.githubusercontent.com/jesseweed/seti-ui/master/styles/components/icons/mapping.less';
 //let colors = 'https://raw.githubusercontent.com/jesseweed/seti-ui/master/styles/ui-variables.less';
 
-let fontMappings = '../../../seti-ui/styles/_fonts/seti.less';
-let mappings = '../../../seti-ui/styles/components/icons/mapping.less';
-let colors = '../../../seti-ui/styles/ui-variables.less';
+let fontMappingsFile = '../../../seti-ui/styles/_fonts/seti.less';
+let fileAssociationFile = '../../../seti-ui/styles/components/icons/mapping.less';
+let colorsFile = '../../../seti-ui/styles/ui-variables.less';
 
 exports.update = function () {
 
-	console.log('Reading from ' + fontMappings);
+	console.log('Reading from ' + fontMappingsFile);
 	let def2Content = {};
 	let ext2Def = {};
 	let fileName2Def = {};
@@ -256,15 +256,15 @@ exports.update = function () {
 
 	let match;
 
-	return download(fontMappings).then(function (content) {
+	return download(fontMappingsFile).then(function (content) {
 		let regex = /@([\w-]+):\s*'(\\E[0-9A-F]+)';/g;
 		let contents = {};
 		while ((match = regex.exec(content)) !== null) {
 			contents[match[1]] = match[2];
 		}
 
-		return download(mappings).then(function (content) {
-			let regex2 = /\.icon-(?:set|partial)\('([\w-\.]+)',\s*'([\w-]+)',\s*(@[\w-]+)\)/g;
+		return download(fileAssociationFile).then(function (content) {
+			let regex2 = /\.icon-(?:set|partial)\(['"]([\w-\.]+)['"],\s*['"]([\w-]+)['"],\s*(@[\w-]+)\)/g;
 			while ((match = regex2.exec(content)) !== null) {
 				let pattern = match[1];
 				let def = '_' + match[2];
@@ -320,7 +320,7 @@ exports.update = function () {
 			}
 
 
-			return download(colors).then(function (content) {
+			return download(colorsFile).then(function (content) {
 				let regex3 = /(@[\w-]+):\s*(#[0-9a-z]+)/g;
 				while ((match = regex3.exec(content)) !== null) {
 					colorId2Value[match[1]] =  match[2];
