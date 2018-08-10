@@ -38,8 +38,7 @@ import URI from 'vs/base/common/uri';
 import { SingleServerExtensionManagementServerService } from 'vs/workbench/services/extensions/node/extensionManagementServerService';
 import { Schemas } from 'vs/base/common/network';
 
-// TODO@Ben Electron 3.0.x native crash when running
-suite.skip('ExtensionsActions Test', () => {
+suite('ExtensionsActions Test', () => {
 
 	let instantiationService: TestInstantiationService;
 
@@ -61,7 +60,7 @@ suite.skip('ExtensionsActions Test', () => {
 		instantiationService.stub(IWindowService, TestWindowService);
 
 		instantiationService.stub(IWorkspaceContextService, new TestContextService());
-		instantiationService.stub(IConfigurationService, { onDidUpdateConfiguration: () => { }, onDidChangeConfiguration: () => { }, getConfiguration: () => ({}) });
+		instantiationService.stub(IConfigurationService, { onDidUpdateConfiguration: () => { }, onDidChangeConfiguration: () => { }, getConfiguration: () => ({}), getValue: () => void 0 });
 
 		instantiationService.stub(IExtensionGalleryService, ExtensionGalleryService);
 
