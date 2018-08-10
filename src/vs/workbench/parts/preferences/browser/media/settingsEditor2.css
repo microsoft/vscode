@@ -262,6 +262,7 @@
 	opacity: 0.9;
 }
 
+.settings-editor > .settings-body > .settings-tree-container .setting-item .setting-item-validation-message,
 .settings-editor > .settings-body > .settings-tree-container .setting-item .setting-item-description {
 	margin-top: 3px;
 	overflow: hidden;
@@ -306,6 +307,8 @@
 }
 
 .settings-editor > .settings-body > .settings-tree-container .setting-item.is-expanded .setting-item-description,
+.settings-editor > .settings-body > .settings-tree-container .setting-item.is-expanded .setting-item-validation-message,
+.settings-editor > .settings-body > .settings-tree-container .setting-item.setting-measure-helper .setting-item-validation-message,
 .settings-editor > .settings-body > .settings-tree-container .setting-item.setting-measure-helper .setting-item-description {
 	height: initial;
 	-webkit-line-clamp: initial;

@@ -31,7 +31,7 @@ import { IContextViewService } from 'vs/platform/contextview/browser/contextView
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IListService, WorkbenchTree, WorkbenchTreeController } from 'vs/platform/list/browser/listService';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
-import { editorBackground, focusBorder, foreground } from 'vs/platform/theme/common/colorRegistry';
+import { editorBackground, focusBorder, foreground, errorForeground } from 'vs/platform/theme/common/colorRegistry';
 import { attachButtonStyler, attachInputBoxStyler, attachSelectBoxStyler, attachStyler } from 'vs/platform/theme/common/styler';
 import { ICssStyleCollector, ITheme, IThemeService, registerThemingParticipant } from 'vs/platform/theme/common/themeService';
 import { SettingsTarget } from 'vs/workbench/parts/preferences/browser/preferencesWidgets';
@@ -474,6 +474,7 @@ interface ISettingItemTemplate<T = any> extends IDisposableTemplate {
 	labelElement: HTMLElement;
 	descriptionElement: HTMLElement;
 	controlElement: HTMLElement;
+	deprecationWarningElement: HTMLElement;
 	isConfiguredElement: HTMLElement;
 	otherOverridesElement: HTMLElement;
 }
@@ -714,6 +715,8 @@ export class SettingsRenderer implements ITreeRenderer {
 		const valueElement = DOM.append(container, $('.setting-item-value'));
 		const controlElement = DOM.append(valueElement, $('div.setting-item-control'));
 
+		const deprecationWarningElement = DOM.append(container, $('.setting-item-validation-message'));
+
 		const toDispose = [];
 		const template: ISettingItemTemplate = {
 			toDispose,
@@ -723,6 +726,7 @@ export class SettingsRenderer implements ITreeRenderer {
 			labelElement,
 			descriptionElement,
 			controlElement,
+			deprecationWarningElement,
 			isConfiguredElement,
 			otherOverridesElement
 		};
@@ -806,6 +810,8 @@ export class SettingsRenderer implements ITreeRenderer {
 		const controlElement = DOM.append(descriptionAndValueElement, $('.setting-item-bool-control'));
 		const descriptionElement = DOM.append(descriptionAndValueElement, $('.setting-item-description'));
 
+		const deprecationWarningElement = DOM.append(container, $('.setting-item-validation-message'));
+
 		const toDispose = [];
 		const checkbox = new Checkbox({ actionClassName: 'setting-value-checkbox', isChecked: true, title: '', inputActiveOptionBorder: null });
 		controlElement.appendChild(checkbox.domNode);
@@ -825,6 +831,7 @@ export class SettingsRenderer implements ITreeRenderer {
 			controlElement,
 			checkbox,
 			descriptionElement,
+			deprecationWarningElement,
 			isConfiguredElement,
 			otherOverridesElement
 		};
@@ -1068,6 +1075,7 @@ export class SettingsRenderer implements ITreeRenderer {
 
 	private renderValue(element: SettingsTreeSettingElement, isSelected: boolean, templateId: string, template: ISettingItemTemplate | ISettingBoolItemTemplate): IValueRenderResult {
 		const onChange = value => this._onDidChangeSetting.fire({ key: element.setting.key, value });
+		template.deprecationWarningElement.innerText = element.setting.deprecationMessage || '';
 
 		if (templateId === SETTINGS_ENUM_TEMPLATE_ID) {
 			return this.renderEnum(element, isSelected, <ISettingEnumItemTemplate>template, onChange);
@@ -1158,6 +1166,7 @@ export class SettingsRenderer implements ITreeRenderer {
 		template.onChange = null;
 		template.inputBox.value = dataElement.value;
 		template.inputBox.attachValidator(makeValidator(dataElement));
+		template.inputBox.validate(); // for some reason this is needed on text but not number. TODO: figure out why
 		template.onChange = value => onChange(value);
 		template.inputBox.inputElement.tabIndex = isSelected ? 0 : -1;
 
@@ -1227,8 +1236,8 @@ export class SettingsRenderer implements ITreeRenderer {
 
 function makeValidator(dataElement: SettingsTreeSettingElement): IInputValidator | null {
 	return value => {
-		let message = dataElement.setting.validator(value).join(' ');
-		return message ? { content: dataElement.setting.validator(value).join(' '), type: MessageType.ERROR } : null;
+		let message = dataElement.setting.validator(value);
+		return message ? { content: message, type: MessageType.ERROR } : null;
 	};
 }
 
@@ -1524,6 +1533,11 @@ export class SettingsTree extends NonExpandableTree {
 				// applying an opacity to the link color.
 				const fgWithOpacity = new Color(new RGBA(foregroundColor.rgba.r, foregroundColor.rgba.g, foregroundColor.rgba.b, .9));
 				collector.addRule(`.settings-editor > .settings-body > .settings-tree-container .setting-item .setting-item-description { color: ${fgWithOpacity}; }`);
+			}
+
+			const errorColor = theme.getColor(errorForeground);
+			if (errorColor) {
+				collector.addRule(`.settings-editor > .settings-body > .settings-tree-container .setting-item .setting-item-validation-message { color: ${errorColor}; }`);
 			}
 
 			const headerForegroundColor = theme.getColor(settingsHeaderForeground);

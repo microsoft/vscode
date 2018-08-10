@@ -951,7 +951,7 @@ class SettingsContentBuilder {
 	}
 }
 
-function createValidator(prop: IConfigurationPropertySchema): (value: string) => string[] {
+function createValidator(prop: IConfigurationPropertySchema): (value: any) => string {
 	let exclusiveMax: number | undefined;
 	let exclusiveMin: number | undefined;
 
@@ -973,14 +973,6 @@ function createValidator(prop: IConfigurationPropertySchema): (value: string) =>
 	}
 
 	type Validator<T> = { enabled: boolean, isValid: (value: T) => boolean; message: string };
-
-	let generalValidations: Validator<any>[] = [
-		{
-			enabled: prop.deprecationMessage !== undefined,
-			isValid: (value => false),
-			message: prop.deprecationMessage
-		}
-	].filter(validation => validation.enabled);
 
 	let numericValidations: Validator<number>[] = [
 		{
@@ -1038,8 +1030,6 @@ function createValidator(prop: IConfigurationPropertySchema): (value: string) =>
 	return value => {
 		let errors = [];
 
-		errors.push(...generalValidations.filter(validator => !validator.isValid(value)).map(validator => validator.message));
-
 		if (prop.type === 'number' || prop.type === 'integer') {
 			if (value === '' || isNaN(+value)) {
 				errors.push(nls.localize('validations.expectedNumeric', "Value must be a number."));
@@ -1049,10 +1039,12 @@ function createValidator(prop: IConfigurationPropertySchema): (value: string) =>
 		}
 
 		if (prop.type === 'string') {
-			errors.push(...stringValidations.filter(validator => !validator.isValid(value)).map(validator => validator.message));
+			errors.push(...stringValidations.filter(validator => !validator.isValid('' + value)).map(validator => validator.message));
 		}
-
-		return errors;
+		if (errors.length) {
+			return errors.join(' ');
+		}
+		return '';
 	};
 }
 

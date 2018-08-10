@@ -51,7 +51,7 @@ export interface ISetting {
 	enum?: string[];
 	enumDescriptions?: string[];
 	tags?: string[];
-	validator?: (value: string) => string[];
+	validator?: (value: any) => string;
 }
 
 export interface IExtensionSetting extends ISetting {
