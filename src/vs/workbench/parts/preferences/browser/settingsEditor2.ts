@@ -82,6 +82,8 @@ export class SettingsEditor2 extends BaseEditor {
 	private inSettingsEditorContextKey: IContextKey<boolean>;
 	private searchFocusContextKey: IContextKey<boolean>;
 
+	private scheduledRefreshTracker: DOM.IFocusTracker;
+
 	private tagRegex = /(^|\s)@tag:("([^"]*)"|[^"]\S*)/g;
 
 	/** Don't spam warnings */
@@ -149,7 +151,7 @@ export class SettingsEditor2 extends BaseEditor {
 
 		DOM.toggleClass(this.rootElement, 'narrow', dimension.width < 600);
 
-		this.delayRefreshOnLayout.trigger(() => this.refreshTreeAndMaintainFocus());
+		this.delayRefreshOnLayout.trigger(() => this.refreshTree());
 	}
 
 	focus(): void {
@@ -214,7 +216,7 @@ export class SettingsEditor2 extends BaseEditor {
 			this.toolbar.context = <ISettingsToolbarContext>{ target: this.settingsTargetsWidget.settingsTarget };
 
 			this.settingsTreeModel.update();
-			this.refreshTreeAndMaintainFocus();
+			this.refreshTree();
 		});
 
 		this.createHeaderControls(headerControlsContainer);
@@ -354,7 +356,7 @@ export class SettingsEditor2 extends BaseEditor {
 			const element = e.focus;
 			if (this.searchResultModel) {
 				this.viewState.filterToCategory = element;
-				this.refreshTreeAndMaintainFocus();
+				this.refreshTree();
 			}
 
 			if (element && (!e.payload || !e.payload.fromScroll)) {
@@ -464,7 +466,7 @@ export class SettingsEditor2 extends BaseEditor {
 		}
 
 		return this.configurationService.updateValue(key, value, overrides, configurationTarget)
-			.then(() => this.refreshTreeAndMaintainFocus())
+			.then(() => this.refreshTree())
 			.then(() => {
 				const reportModifiedProps = {
 					key,
@@ -561,6 +563,19 @@ export class SettingsEditor2 extends BaseEditor {
 		}
 	}
 
+	private scheduleRefresh(): void {
+		if (this.scheduledRefreshTracker) {
+			return;
+		}
+
+		this.scheduledRefreshTracker = DOM.trackFocus(<HTMLElement>document.activeElement);
+		this.scheduledRefreshTracker.onDidBlur(() => {
+			this.scheduledRefreshTracker.dispose();
+			this.scheduledRefreshTracker = null;
+			this.refreshTree();
+		});
+	}
+
 	private onConfigUpdate(): TPromise<void> {
 		const groups = this.defaultSettingsEditorModel.settingsGroups.slice(1); // Without commonlyUsed
 		const dividedGroups = collections.groupBy(groups, g => g.contributedByExtension ? 'extension' : 'core');
@@ -589,7 +604,7 @@ export class SettingsEditor2 extends BaseEditor {
 
 		if (this.settingsTreeModel) {
 			this.settingsTreeModel.update(resolvedSettingsRoot);
-			return this.refreshTreeAndMaintainFocus();
+			return this.refreshTree();
 		} else {
 			this.settingsTreeModel = this.instantiationService.createInstance(SettingsTreeModel, this.viewState, resolvedSettingsRoot);
 			this.settingsTree.setInput(this.settingsTreeModel.root);
@@ -605,37 +620,21 @@ export class SettingsEditor2 extends BaseEditor {
 		return TPromise.wrap(null);
 	}
 
-	private refreshTreeAndMaintainFocus(): TPromise<any> {
-		// Sort of a hack to maintain focus on the focused control across a refresh
-		const focusedRowItem = DOM.findParentWithClass(<HTMLElement>document.activeElement, 'setting-item');
-		const focusedRowId = focusedRowItem && focusedRowItem.id;
-		const selection = focusedRowId && document.activeElement.tagName.toLowerCase() === 'input' ?
-			(<HTMLInputElement>document.activeElement).selectionStart :
-			null;
+	private refreshTree(element?: SettingsTreeElement): TPromise<any> {
+		if (this.scheduledRefreshTracker) {
+			return TPromise.wrap(null);
+		}
+
+		if (document.activeElement.classList.contains(SettingsRenderer.CONTROL_CLASS)) {
+			this.scheduleRefresh();
+			return TPromise.wrap(null);
+		}
 
 		return this.settingsTree.refresh()
 			.then(() => {
-				if (focusedRowId) {
-					this.focusEditControlForRow(focusedRowId, selection);
-				}
-			})
-			.then(() => {
-				// TODO@roblou - hack
 				this.tocTreeModel.update();
-
 				return this.tocTree.refresh();
 			});
-	}
-
-	private focusEditControlForRow(id: string, selection?: number): void {
-		const rowSelector = `.setting-item#${id}`;
-		const inputElementToFocus: HTMLElement = this.settingsTreeContainer.querySelector(`${rowSelector} input, ${rowSelector} select, ${rowSelector} .monaco-custom-checkbox`);
-		if (inputElementToFocus) {
-			inputElementToFocus.focus();
-			if (typeof selection === 'number') {
-				(<HTMLInputElement>inputElementToFocus).setSelectionRange(selection, selection);
-			}
-		}
 	}
 
 	private onSearchInputChanged(): void {
@@ -788,7 +787,7 @@ export class SettingsEditor2 extends BaseEditor {
 				this.tocTreeModel.update();
 				expandAll(this.tocTree);
 
-				resolve(this.refreshTreeAndMaintainFocus());
+				resolve(this.refreshTree());
 			});
 		}, () => {
 			isCanceled = true;
