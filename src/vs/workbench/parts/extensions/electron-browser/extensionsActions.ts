@@ -1161,17 +1161,21 @@ export class CheckForUpdatesAction extends Action {
 	constructor(
 		id = UpdateAllAction.ID,
 		label = UpdateAllAction.LABEL,
+		@IExtensionsWorkbenchService private extensionsWorkbenchService: IExtensionsWorkbenchService,
 		@IViewletService private viewletService: IViewletService
 	) {
 		super(id, label, '', true);
 	}
 
 	run(): TPromise<any> {
-		return this.viewletService.openViewlet(VIEWLET_ID, true)
-			.then(viewlet => viewlet as IExtensionsViewlet)
-			.then(viewlet => {
-				viewlet.search('@outdated ');
-				viewlet.focus();
+		return this.extensionsWorkbenchService.checkForUpdates().then(
+			() => {
+				this.viewletService.openViewlet(VIEWLET_ID, true)
+					.then(viewlet => viewlet as IExtensionsViewlet)
+					.then(viewlet => {
+						viewlet.search('@outdated ');
+						viewlet.focus();
+					});
 			});
 	}
 }
@@ -1185,7 +1189,6 @@ export class ToggleAutoUpdateAction extends Action {
 		@IConfigurationService private configurationService: IConfigurationService
 	) {
 		super(id, label, '', true);
-		debugger;
 		this.updateEnablement();
 		configurationService.onDidChangeConfiguration(() => this.updateEnablement());
 	}
