@@ -9,7 +9,7 @@ import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { IMouseEvent } from 'vs/base/browser/mouseEvent';
 import { Button } from 'vs/base/browser/ui/button/button';
 import { Checkbox } from 'vs/base/browser/ui/checkbox/checkbox';
-import { InputBox, MessageType, IInputValidator } from 'vs/base/browser/ui/inputbox/inputBox';
+import { InputBox } from 'vs/base/browser/ui/inputbox/inputBox';
 import { SelectBox } from 'vs/base/browser/ui/selectBox/selectBox';
 import * as arrays from 'vs/base/common/arrays';
 import { Color, RGBA } from 'vs/base/common/color';
@@ -32,7 +32,7 @@ import { IContextViewService } from 'vs/platform/contextview/browser/contextView
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IListService, WorkbenchTreeController } from 'vs/platform/list/browser/listService';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
-import { editorBackground, focusBorder, foreground, errorForeground } from 'vs/platform/theme/common/colorRegistry';
+import { editorBackground, focusBorder, foreground, errorForeground, inputValidationErrorBackground, inputValidationErrorBorder } from 'vs/platform/theme/common/colorRegistry';
 import { attachButtonStyler, attachInputBoxStyler, attachSelectBoxStyler, attachStyler } from 'vs/platform/theme/common/styler';
 import { ICssStyleCollector, ITheme, IThemeService, registerThemingParticipant } from 'vs/platform/theme/common/themeService';
 import { SettingsTarget } from 'vs/workbench/parts/preferences/browser/preferencesWidgets';
@@ -504,6 +504,7 @@ interface ISettingBoolItemTemplate extends ISettingItemTemplate<boolean> {
 
 interface ISettingTextItemTemplate extends ISettingItemTemplate<string> {
 	inputBox: InputBox;
+	validationErrorMessageElement: HTMLElement;
 }
 
 type ISettingNumberItemTemplate = ISettingTextItemTemplate;
@@ -741,7 +742,7 @@ export class SettingsRenderer implements ITreeRenderer {
 		const valueElement = DOM.append(container, $('.setting-item-value'));
 		const controlElement = DOM.append(valueElement, $('div.setting-item-control'));
 
-		const deprecationWarningElement = DOM.append(container, $('.setting-item-validation-message'));
+		const deprecationWarningElement = DOM.append(container, $('.setting-item-deprecation-message'));
 
 		const toDispose = [];
 		const template: ISettingItemTemplate = {
@@ -780,6 +781,7 @@ export class SettingsRenderer implements ITreeRenderer {
 
 	private renderSettingTextTemplate(tree: ITree, container: HTMLElement, type = 'text'): ISettingTextItemTemplate {
 		const common = this.renderCommonTemplate(tree, container, 'text');
+		const validationErrorMessageElement = DOM.append(container, $('.setting-item-validation-message'));
 
 		const inputBox = new InputBox(common.controlElement, this.contextViewService);
 		common.toDispose.push(inputBox);
@@ -799,7 +801,8 @@ export class SettingsRenderer implements ITreeRenderer {
 
 		const template: ISettingTextItemTemplate = {
 			...common,
-			inputBox
+			inputBox,
+			validationErrorMessageElement
 		};
 
 		this.addSettingElementFocusHandler(template);
@@ -809,6 +812,7 @@ export class SettingsRenderer implements ITreeRenderer {
 
 	private renderSettingNumberTemplate(tree: ITree, container: HTMLElement): ISettingNumberItemTemplate {
 		const common = this.renderCommonTemplate(tree, container, 'number');
+		const validationErrorMessageElement = DOM.append(container, $('.setting-item-validation-message'));
 
 		const inputBox = new InputBox(common.controlElement, this.contextViewService);
 		common.toDispose.push(inputBox);
@@ -828,7 +832,8 @@ export class SettingsRenderer implements ITreeRenderer {
 
 		const template: ISettingNumberItemTemplate = {
 			...common,
-			inputBox
+			inputBox,
+			validationErrorMessageElement
 		};
 
 		this.addSettingElementFocusHandler(template);
@@ -850,7 +855,7 @@ export class SettingsRenderer implements ITreeRenderer {
 		const controlElement = DOM.append(descriptionAndValueElement, $('.setting-item-bool-control'));
 		const descriptionElement = DOM.append(descriptionAndValueElement, $('.setting-item-description'));
 
-		const deprecationWarningElement = DOM.append(container, $('.setting-item-validation-message'));
+		const deprecationWarningElement = DOM.append(container, $('.setting-item-deprecation-message'));
 
 		const toDispose = [];
 		const checkbox = new Checkbox({ actionClassName: 'setting-value-checkbox', isChecked: true, title: '', inputActiveOptionBorder: null });
@@ -1204,10 +1209,9 @@ export class SettingsRenderer implements ITreeRenderer {
 	private renderText(dataElement: SettingsTreeSettingElement, template: ISettingTextItemTemplate, onChange: (value: string) => void): void {
 		template.onChange = null;
 		template.inputBox.value = dataElement.value;
-		template.inputBox.attachValidator(makeValidator(dataElement));
-		template.inputBox.validate(); // for some reason this is needed on text but not number. TODO: figure out why
-		template.onChange = value => onChange(value);
+		template.onChange = value => { renderValidations(dataElement, template); onChange(value); };
 
+		renderValidations(dataElement, template);
 		// Setup and add ARIA attributes
 		// Create id and label for control/input element - parent is wrapper div
 		const id = (dataElement.displayCategory + '_' + dataElement.displayLabel).replace(/ /g, '_');
@@ -1229,13 +1233,13 @@ export class SettingsRenderer implements ITreeRenderer {
 
 
 	private renderNumber(dataElement: SettingsTreeSettingElement, template: ISettingTextItemTemplate, onChange: (value: number) => void): void {
-		template.onChange = null;
-		template.inputBox.value = dataElement.value;
-		template.inputBox.attachValidator(makeValidator(dataElement));
-		template.onChange = value => onChange(parseFn(value));
-
 		const parseFn = dataElement.valueType === 'integer' ? parseInt : parseFloat;
 
+		template.onChange = null;
+		template.inputBox.value = dataElement.value;
+		template.onChange = value => { renderValidations(dataElement, template); onChange(parseFn(value)); };
+
+		renderValidations(dataElement, template);
 		// Setup and add ARIA attributes
 		// Create id and label for control/input element - parent is wrapper div
 		const id = (dataElement.displayCategory + '_' + dataElement.displayLabel).replace(/ /g, '_');
@@ -1270,11 +1274,16 @@ export class SettingsRenderer implements ITreeRenderer {
 	}
 }
 
-function makeValidator(dataElement: SettingsTreeSettingElement): IInputValidator | null {
-	return value => {
-		let message = dataElement.setting.validator(value);
-		return message ? { content: message, type: MessageType.ERROR } : null;
-	};
+function renderValidations(dataElement: SettingsTreeSettingElement, template: ISettingTextItemTemplate) {
+	if (dataElement.setting.validator) {
+		let errMsg = dataElement.setting.validator(template.inputBox.value);
+		if (errMsg) {
+			DOM.addClass(template.containerElement, 'invalid-input');
+			template.validationErrorMessageElement.innerText = errMsg;
+			return;
+		}
+	}
+	DOM.removeClass(template.containerElement, 'invalid-input');
 }
 
 function cleanRenderedMarkdown(element: Node): void {
@@ -1573,7 +1582,18 @@ export class SettingsTree extends NonExpandableOrSelectableTree {
 
 			const errorColor = theme.getColor(errorForeground);
 			if (errorColor) {
-				collector.addRule(`.settings-editor > .settings-body > .settings-tree-container .setting-item .setting-item-validation-message { color: ${errorColor}; }`);
+				collector.addRule(`.settings-editor > .settings-body > .settings-tree-container .setting-item .setting-item-deprecation-message { color: ${errorColor}; }`);
+			}
+
+			const invalidInputBackground = theme.getColor(inputValidationErrorBackground);
+			if (invalidInputBackground) {
+				collector.addRule(`.settings-editor > .settings-body > .settings-tree-container .setting-item .setting-item-validation-message { background-color: ${invalidInputBackground}; }`);
+			}
+
+			const invalidInputBorder = theme.getColor(inputValidationErrorBorder);
+			if (invalidInputBorder) {
+				collector.addRule(`.settings-editor > .settings-body > .settings-tree-container .setting-item .setting-item-validation-message { border-style:solid; border-width: 1px; border-color: ${invalidInputBorder}; }`);
+				collector.addRule(`.settings-editor > .settings-body > .settings-tree-container .setting-item.invalid-input .setting-item-control .monaco-inputbox.idle { outline-width: 0; border-style:solid; border-width: 1px; border-color: ${invalidInputBorder}; }`);
 			}
 
 			const headerForegroundColor = theme.getColor(settingsHeaderForeground);

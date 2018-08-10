@@ -223,6 +223,10 @@
 	position: relative;
 }
 
+.settings-editor > .settings-body > .settings-tree-container .monaco-tree-row {
+	overflow: visible; /* so validation messages dont get clipped */
+}
+
 .settings-editor > .settings-body > .settings-tree-container .setting-item {
 	padding-top: 12px;
 	padding-bottom: 18px;
@@ -262,7 +266,7 @@
 	opacity: 0.9;
 }
 
-.settings-editor > .settings-body > .settings-tree-container .setting-item .setting-item-validation-message,
+.settings-editor > .settings-body > .settings-tree-container .setting-item .setting-item-deprecation-message,
 .settings-editor > .settings-body > .settings-tree-container .setting-item .setting-item-description {
 	margin-top: 3px;
 	overflow: hidden;
@@ -272,6 +276,31 @@
 	-webkit-line-clamp: 1;
 	-webkit-box-orient: vertical;
 	transform: translate3d(0px, 0px, 0px);
+}
+
+.settings-editor > .settings-body > .settings-tree-container .setting-item .setting-item-deprecation-message {
+	position: absolute;
+}
+
+.settings-editor > .settings-body > .settings-tree-container .setting-item .setting-item-validation-message {
+	display: none;
+}
+
+.settings-editor > .settings-body > .settings-tree-container .setting-item.invalid-input .setting-item-validation-message {
+	display: block;
+	position: absolute;
+	padding: 5px;
+	box-sizing: border-box;
+	margin-top: -1px;
+	z-index: 1;
+}
+
+.settings-editor > .settings-body > .settings-tree-container .setting-item.setting-item-text .setting-item-validation-message {
+	width: 500px;
+}
+
+.settings-editor > .settings-body > .settings-tree-container .setting-item.setting-item-number .setting-item-validation-message {
+	width: 200px;
 }
 
 .settings-editor > .settings-body > .settings-tree-container .setting-item .setting-item-description-markdown * {
@@ -294,8 +323,6 @@
 }
 
 .settings-editor > .settings-body > .settings-tree-container .setting-item.is-expanded .setting-item-description,
-.settings-editor > .settings-body > .settings-tree-container .setting-item.is-expanded .setting-item-validation-message,
-.settings-editor > .settings-body > .settings-tree-container .setting-item.setting-measure-helper .setting-item-validation-message,
 .settings-editor > .settings-body > .settings-tree-container .setting-item.setting-measure-helper .setting-item-description {
 	height: initial;
 	-webkit-line-clamp: initial;

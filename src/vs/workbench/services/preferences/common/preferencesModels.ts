@@ -555,12 +555,6 @@ export class DefaultSettings extends Disposable {
 			if (this.matchesScope(prop)) {
 				const value = prop.default;
 				const description = (prop.description || prop.markdownDescription || '').split('\n');
-				if (prop.deprecationMessage) {
-					description.push(
-						'',
-						prop.deprecationMessage,
-						nls.localize('deprecatedSetting.unstable', "This setting should not be used, and will be removed in a future release."));
-				}
 				const overrides = OVERRIDE_PROPERTY_PATTERN.test(key) ? this.parseOverrideSettings(prop.default) : [];
 				result.push({
 					key,
@@ -773,7 +767,7 @@ export class DefaultSettingsEditorModel extends AbstractSettingsModel implements
 	}
 
 	private copySetting(setting: ISetting): ISetting {
-		return <ISetting>{
+		return {
 			description: setting.description,
 			type: setting.type,
 			enum: setting.enum,
@@ -783,7 +777,12 @@ export class DefaultSettingsEditorModel extends AbstractSettingsModel implements
 			range: setting.range,
 			overrides: [],
 			overrideOf: setting.overrideOf,
-			tags: setting.tags
+			tags: setting.tags,
+			deprecationMessage: setting.deprecationMessage,
+			keyRange: undefined,
+			valueRange: undefined,
+			descriptionIsMarkdown: undefined,
+			descriptionRanges: undefined
 		};
 	}
 
@@ -910,8 +909,7 @@ class SettingsContentBuilder {
 
 		setting.descriptionRanges = [];
 		const descriptionPreValue = indent + '// ';
-		for (let line of setting.description) {
-			// Remove setting link tag
+		for (let line of (setting.deprecationMessage ? [setting.deprecationMessage] : setting.description)) {
 			line = fixSettingLink(line);
 
 			this._contentByLines.push(descriptionPreValue + line);
@@ -964,7 +962,7 @@ class SettingsContentBuilder {
 	}
 }
 
-function createValidator(prop: IConfigurationPropertySchema): (value: any) => string {
+function createValidator(prop: IConfigurationPropertySchema): ((value: any) => string) | null {
 	let exclusiveMax: number | undefined;
 	let exclusiveMin: number | undefined;
 
@@ -1039,6 +1037,9 @@ function createValidator(prop: IConfigurationPropertySchema): (value: any) => st
 			message: prop.patternErrorMessage || nls.localize('validations.regex', "Value must match regex `{0}`.", prop.pattern)
 		},
 	].filter(validation => validation.enabled);
+
+	if ((prop.type === 'number' || prop.type === 'integer') && numericValidations.length === 0) { return null; }
+	if (prop.type === 'string' && stringValidations.length === 0) { return null; }
 
 	return value => {
 		let errors = [];
