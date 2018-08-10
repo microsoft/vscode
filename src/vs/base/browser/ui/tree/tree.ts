@@ -200,6 +200,8 @@ export class Tree<T> implements IDisposable {
 
 			const [parentLocation] = tail2(location);
 			const parentListIndex = this.model.getListIndex(parentLocation);
+
+			this.view.reveal(parentListIndex);
 			this.view.setFocus([parentListIndex]);
 		}
 	}
@@ -224,7 +226,10 @@ export class Tree<T> implements IDisposable {
 			}
 
 			const [focusedIndex] = this.view.getFocus();
-			this.view.setFocus([focusedIndex + 1]);
+			const firstChildIndex = focusedIndex + 1;
+
+			this.view.reveal(firstChildIndex);
+			this.view.setFocus([firstChildIndex]);
 		}
 	}
 
