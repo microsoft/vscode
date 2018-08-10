@@ -1023,6 +1023,7 @@ export class QuickInputService extends Component implements IQuickInputService {
 				return;
 			}
 			const input = this.createQuickPick<T>();
+			let activeItem: T;
 			const disposables = [
 				input,
 				input.onDidAccept(() => {
@@ -1063,6 +1064,11 @@ export class QuickInputService extends Component implements IQuickInputService {
 						}
 					}
 				})),
+				input.onDidChangeValue(value => {
+					if (activeItem && !value && (input.activeItems.length !== 1 || input.activeItems[0] !== activeItem)) {
+						input.activeItems = [activeItem];
+					}
+				}),
 				token.onCancellationRequested(() => {
 					input.hide();
 				}),
@@ -1080,7 +1086,8 @@ export class QuickInputService extends Component implements IQuickInputService {
 			input.contextKey = options.contextKey;
 			input.busy = true;
 			TPromise.join([picks, options.activeItem])
-				.then(([items, activeItem]) => {
+				.then(([items, _activeItem]) => {
+					activeItem = _activeItem;
 					input.busy = false;
 					input.items = items;
 					if (input.canSelectMany) {
