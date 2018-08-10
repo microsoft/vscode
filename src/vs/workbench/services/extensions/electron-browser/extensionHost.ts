@@ -506,7 +506,7 @@ export class ExtensionHostProcessWorker {
 				}
 			});
 
-			event.veto(TPromise.wrap(timeout(100 /* wait a bit for IPC to get delivered */)).then(() => false));
+			event.veto(timeout(100 /* wait a bit for IPC to get delivered */).then(() => false));
 		}
 	}
 }
