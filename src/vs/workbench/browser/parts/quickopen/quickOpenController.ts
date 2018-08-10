@@ -56,6 +56,7 @@ import { Dimension, addClass } from 'vs/base/browser/dom';
 import { IEditorService, ACTIVE_GROUP, SIDE_GROUP } from 'vs/workbench/services/editor/common/editorService';
 import { IEditorGroupsService } from 'vs/workbench/services/group/common/editorGroupsService';
 import { IUriDisplayService } from 'vs/platform/uriDisplay/common/uriDisplay';
+import { isThenable } from 'vs/base/common/async';
 
 const HELP_PREFIX = '?';
 
@@ -157,7 +158,7 @@ export class QuickOpenController extends Component implements IQuickOpenService 
 		let arrayPromise: TPromise<string[] | IPickOpenEntry[]>;
 		if (Array.isArray(arg1)) {
 			arrayPromise = TPromise.as(arg1);
-		} else if (TPromise.is(arg1)) {
+		} else if (isThenable(arg1)) {
 			arrayPromise = arg1;
 		} else {
 			throw new Error('illegal input');
