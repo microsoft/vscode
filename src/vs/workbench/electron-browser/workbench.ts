@@ -1118,7 +1118,7 @@ export class Workbench extends Disposable implements IPartService {
 	get onEditorLayout(): Event<IDimension> { return this.editorPart.onDidLayout; }
 
 	isCreated(): boolean {
-		return this.workbenchCreated && this.workbenchStarted;
+		return !!(this.workbenchCreated && this.workbenchStarted);
 	}
 
 	hasFocus(part: Parts): boolean {

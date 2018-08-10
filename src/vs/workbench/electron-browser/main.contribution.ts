@@ -341,6 +341,131 @@ MenuRegistry.appendMenuItem(MenuId.MenubarAppearanceMenu, {
 	order: 3
 });
 
+// Help
+
+MenuRegistry.appendMenuItem(MenuId.MenubarHelpMenu, {
+	group: '1_welcome',
+	command: {
+		id: 'workbench.action.openDocumentationUrl',
+		title: nls.localize({ key: 'miDocumentation', comment: ['&& denotes a mnemonic'] }, "&&Documentation")
+	},
+	order: 3
+});
+
+MenuRegistry.appendMenuItem(MenuId.MenubarHelpMenu, {
+	group: '1_welcome',
+	command: {
+		id: 'update.showCurrentReleaseNotes',
+		title: nls.localize({ key: 'miReleaseNotes', comment: ['&& denotes a mnemonic'] }, "&&Release Notes")
+	},
+	order: 4
+});
+
+// Reference
+MenuRegistry.appendMenuItem(MenuId.MenubarHelpMenu, {
+	group: '2_reference',
+	command: {
+		id: 'workbench.action.keybindingsReference',
+		title: nls.localize({ key: 'miKeyboardShortcuts', comment: ['&& denotes a mnemonic'] }, "&&Keyboard Shortcuts Reference")
+	},
+	order: 1
+});
+
+MenuRegistry.appendMenuItem(MenuId.MenubarHelpMenu, {
+	group: '2_reference',
+	command: {
+		id: 'workbench.action.openIntroductoryVideosUrl',
+		title: nls.localize({ key: 'miIntroductoryVideos', comment: ['&& denotes a mnemonic'] }, "Introductory &&Videos")
+	},
+	order: 2
+});
+
+MenuRegistry.appendMenuItem(MenuId.MenubarHelpMenu, {
+	group: '2_reference',
+	command: {
+		id: 'workbench.action.openTipsAndTricksUrl',
+		title: nls.localize({ key: 'miTipsAndTricks', comment: ['&& denotes a mnemonic'] }, "&&Tips and Tricks")
+	},
+	order: 3
+});
+
+// Feedback
+MenuRegistry.appendMenuItem(MenuId.MenubarHelpMenu, {
+	group: '3_feedback',
+	command: {
+		id: 'workbench.action.openTwitterUrl',
+		title: nls.localize({ key: 'miTwitter', comment: ['&& denotes a mnemonic'] }, "&&Join us on Twitter")
+	},
+	order: 1
+});
+
+MenuRegistry.appendMenuItem(MenuId.MenubarHelpMenu, {
+	group: '3_feedback',
+	command: {
+		id: 'workbench.action.openRequestFeatureUrl',
+		title: nls.localize({ key: 'miUserVoice', comment: ['&& denotes a mnemonic'] }, "&&Search Feature Requests")
+	},
+	order: 2
+});
+
+MenuRegistry.appendMenuItem(MenuId.MenubarHelpMenu, {
+	group: '3_feedback',
+	command: {
+		id: 'workbench.action.openIssueReporter',
+		title: nls.localize({ key: 'miReportIssue', comment: ['&& denotes a mnemonic', 'Translate this to "Report Issue in English" in all languages please!'] }, "Report &&Issue")
+	},
+	order: 3
+});
+
+// Legal
+MenuRegistry.appendMenuItem(MenuId.MenubarHelpMenu, {
+	group: '4_legal',
+	command: {
+		id: 'workbench.action.openLicenseUrl',
+		title: nls.localize({ key: 'miLicense', comment: ['&& denotes a mnemonic'] }, "View &&License")
+	},
+	order: 1
+});
+
+MenuRegistry.appendMenuItem(MenuId.MenubarHelpMenu, {
+	group: '4_legal',
+	command: {
+		id: 'workbench.action.openPrivacyStatementUrl',
+		title: nls.localize({ key: 'miPrivacyStatement', comment: ['&& denotes a mnemonic'] }, "&&Privacy Statement")
+	},
+	order: 2
+});
+
+// Tools
+MenuRegistry.appendMenuItem(MenuId.MenubarHelpMenu, {
+	group: '5_tools',
+	command: {
+		id: 'workbench.action.toggleDevTools',
+		title: nls.localize({ key: 'miToggleDevTools', comment: ['&& denotes a mnemonic'] }, "&&Toggle Developer Tools")
+	},
+	order: 1
+});
+
+MenuRegistry.appendMenuItem(MenuId.MenubarHelpMenu, {
+	group: '5_tools',
+	command: {
+		id: 'workbench.action.openProcessExplorer',
+		title: nls.localize({ key: 'miOpenProcessExplorerer', comment: ['&& denotes a mnemonic'] }, "Open &&Process Explorer")
+	},
+	order: 2
+});
+
+// About
+if (!isMacintosh) {
+	MenuRegistry.appendMenuItem(MenuId.MenubarHelpMenu, {
+		group: 'z_about',
+		command: {
+			id: 'workbench.action.showAboutDialog',
+			title: nls.localize({ key: 'miAbout', comment: ['&& denotes a mnemonic'] }, "&&About")
+		},
+		order: 1
+	});
+}
 
 // Configuration: Workbench
 const configurationRegistry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration);
@@ -411,13 +536,13 @@ configurationRegistry.registerConfiguration({
 			'type': 'string',
 			'enum': ['left', 'right', 'first', 'last'],
 			'default': 'right',
-			'description': nls.localize({ comment: ['This is the description for a setting. Values surrounded by single quotes are not to be translated.'], key: 'editorOpenPositioning' }, "Controls where editors open. Select `left` or `right` to open editors to the left or right of the currently active one. Select `first` or `last` to open editors independently from the currently active one.")
+			'markdownDescription': nls.localize({ comment: ['This is the description for a setting. Values surrounded by single quotes are not to be translated.'], key: 'editorOpenPositioning' }, "Controls where editors open. Select `left` or `right` to open editors to the left or right of the currently active one. Select `first` or `last` to open editors independently from the currently active one.")
 		},
 		'workbench.editor.openSideBySideDirection': {
 			'type': 'string',
 			'enum': ['right', 'down'],
 			'default': 'right',
-			'description': nls.localize('sideBySideDirection', "Controls the default direction of editors that are opened side by side (e.g. from the explorer). By default, editors will open on the right hand side of the currently active one. If changed to `down`, the editors will open below the currently active one.")
+			'markdownDescription': nls.localize('sideBySideDirection', "Controls the default direction of editors that are opened side by side (e.g. from the explorer). By default, editors will open on the right hand side of the currently active one. If changed to `down`, the editors will open below the currently active one.")
 		},
 		'workbench.editor.closeEmptyGroups': {
 			'type': 'boolean',
@@ -510,7 +635,11 @@ configurationRegistry.registerConfiguration({
 		},
 		'workbench.settings.settingsSearchTocBehavior': {
 			'type': 'string',
-			'enum': ['hide', 'filter', 'show'],
+			'enum': ['hide', 'filter'],
+			'enumDescriptions': [
+				nls.localize('settingsSearchTocBehavior.hide', "Hide the Table of Contents while searching."),
+				nls.localize('settingsSearchTocBehavior.filter', "Filter the Table of Contents to just categories that have matching settings. Clicking a category will filter the results to that category."),
+			],
 			'description': nls.localize('settingsSearchTocBehavior', "Controls the behavior of the settings editor Table of Contents while searching."),
 			'default': 'filter',
 			'scope': ConfigurationScope.WINDOW
@@ -550,10 +679,10 @@ configurationRegistry.registerConfiguration({
 			],
 			'default': 'off',
 			'scope': ConfigurationScope.APPLICATION,
-			'description':
+			'markdownDescription':
 				isMacintosh ?
-					nls.localize('openFilesInNewWindowMac', "Controls whether files should open in a new window.\nNote that there can still be cases where this setting is ignored (e.g. when using the -new-window or -reuse-window command line option).") :
-					nls.localize('openFilesInNewWindow', "Controls whether files should open in a new window.\nNote that there can still be cases where this setting is ignored (e.g. when using the -new-window or -reuse-window command line option).")
+					nls.localize('openFilesInNewWindowMac', "Controls whether files should open in a new window. \nNote that there can still be cases where this setting is ignored (e.g. when using the `--new-window` or `--reuse-window` command line option).") :
+					nls.localize('openFilesInNewWindow', "Controls whether files should open in a new window.\nNote that there can still be cases where this setting is ignored (e.g. when using the `--new-window` or `--reuse-window` command line option).")
 		},
 		'window.openFoldersInNewWindow': {
 			'type': 'string',
@@ -565,7 +694,7 @@ configurationRegistry.registerConfiguration({
 			],
 			'default': 'default',
 			'scope': ConfigurationScope.APPLICATION,
-			'description': nls.localize('openFoldersInNewWindow', "Controls whether folders should open in a new window or replace the last active window.\nNote that there can still be cases where this setting is ignored (e.g. when using the -new-window or -reuse-window command line option).")
+			'markdownDescription': nls.localize('openFoldersInNewWindow', "Controls whether folders should open in a new window or replace the last active window.\nNote that there can still be cases where this setting is ignored (e.g. when using the `--new-window` or `--reuse-window` command line option).")
 		},
 		'window.openWithoutArgumentsInNewWindow': {
 			'type': 'string',
@@ -576,7 +705,7 @@ configurationRegistry.registerConfiguration({
 			],
 			'default': isMacintosh ? 'off' : 'on',
 			'scope': ConfigurationScope.APPLICATION,
-			'description': nls.localize('openWithoutArgumentsInNewWindow', "Controls whether a new empty window should open when starting a second instance without arguments or if the last running instance should get focus.\nNote that there can still be cases where this setting is ignored (e.g. when using the -new-window or -reuse-window command line option).")
+			'description': nls.localize('openWithoutArgumentsInNewWindow', "Controls whether a new empty window should open when starting a second instance without arguments or if the last running instance should get focus.\nNote that there can still be cases where this setting is ignored (e.g. when using the `--new-window` or `--reuse-window` command line option).")
 		},
 		'window.restoreWindows': {
 			'type': 'string',
@@ -605,7 +734,7 @@ configurationRegistry.registerConfiguration({
 		'window.title': {
 			'type': 'string',
 			'default': isMacintosh ? '${activeEditorShort}${separator}${rootName}' : '${dirty}${activeEditorShort}${separator}${rootName}${separator}${appName}',
-			'description': nls.localize({ comment: ['This is the description for a setting. Values surrounded by parenthesis are not to be translated.'], key: 'title' },
+			'markdownDescription': nls.localize({ comment: ['This is the description for a setting. Values surrounded by parenthesis are not to be translated.'], key: 'title' },
 				"Controls the window title based on the active editor. Variables are substituted based on the context:\n- `\${activeEditorShort}`: the file name (e.g. myFile.txt).\n- `\${activeEditorMedium}`: the path of the file relative to the workspace folder (e.g. myFolder/myFile.txt).\n- `\${activeEditorLong}`: the full path of the file (e.g. /Users/Development/myProject/myFolder/myFile.txt).\n- `\${folderName}`: name of the workspace folder the file is contained in (e.g. myFolder).\n- `\${folderPath}`: file path of the workspace folder the file is contained in (e.g. /Users/Development/myFolder).\n- `\${rootName}`: name of the workspace (e.g. myFolder or myWorkspace).\n- `\${rootPath}`: file path of the workspace (e.g. /Users/Development/myWorkspace).\n- `\${appName}`: e.g. VS Code.\n- `\${dirty}`: a dirty indicator if the active editor is dirty.\n- `\${separator}`: a conditional separator (\" - \") that only shows when surrounded by variables with values or static text.")
 		},
 		'window.newWindowDimensions': {
@@ -671,7 +800,7 @@ configurationRegistry.registerConfiguration({
 			'type': 'boolean',
 			'default': false,
 			'scope': ConfigurationScope.APPLICATION,
-			'description': nls.localize('window.smoothScrollingWorkaround', "Enable this workaround if scrolling is no longer smooth after restoring a minimized VS Code window. This is a workaround for an issue (https://github.com/Microsoft/vscode/issues/13612) where scrolling starts to lag on devices with precision trackpads like the Surface devices from Microsoft. Enabling this workaround can result in a little bit of layout flickering after restoring the window from minimized state but is otherwise harmless. Note: in order for this workaround to function, make sure to also set `#window.titleBarStyle#` to `native`."),
+			'markdownDescription': nls.localize('window.smoothScrollingWorkaround', "Enable this workaround if scrolling is no longer smooth after restoring a minimized VS Code window. This is a workaround for an issue (https://github.com/Microsoft/vscode/issues/13612) where scrolling starts to lag on devices with precision trackpads like the Surface devices from Microsoft. Enabling this workaround can result in a little bit of layout flickering after restoring the window from minimized state but is otherwise harmless. Note: in order for this workaround to function, make sure to also set `#window.titleBarStyle#` to `native`."),
 			'included': isWindows
 		},
 		'window.clickThroughInactive': {

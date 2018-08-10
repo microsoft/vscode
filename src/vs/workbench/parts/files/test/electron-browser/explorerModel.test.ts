@@ -18,7 +18,12 @@ function createStat(path: string, name: string, isFolder: boolean, hasChildren: 
 }
 
 function toResource(path) {
-	return URI.file(join('C:\\', path));
+	if (isWindows) {
+		return URI.file(join('C:\\', path));
+	} else {
+		return URI.file(join('/home/john', path));
+	}
+
 }
 
 suite('Files - View Model', () => {
