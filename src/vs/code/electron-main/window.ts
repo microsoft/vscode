@@ -347,7 +347,7 @@ export class CodeWindow implements ICodeWindow {
 
 		// Remember that we loaded
 		this._win.webContents.on('did-finish-load', () => {
-			this._readyState = ReadyState.LOADING;
+			this._readyState = ReadyState.READY;
 
 			// Associate properties from the load request if provided
 			if (this.pendingLoadConfig) {
