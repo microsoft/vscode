@@ -21,7 +21,7 @@ suite('PagedModel', () => {
 			getPage: pageIndex => TPromise.as([0, 1, 2, 3, 4].map(i => i + (pageIndex * 5)))
 		};
 
-		model = new PagedModel(pager, 0);
+		model = new PagedModel(pager);
 	});
 
 	test('isResolved', () => {

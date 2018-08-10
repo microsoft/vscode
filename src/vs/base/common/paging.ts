@@ -51,7 +51,7 @@ export class PagedModel<T> implements IPagedModel<T> {
 
 	get length(): number { return this.pager.total; }
 
-	constructor(arg: IPager<T> | T[], private pageTimeout: number = 500) {
+	constructor(arg: IPager<T> | T[]) {
 		this.pager = isArray(arg) ? singlePagePager<T>(arg) : arg;
 
 		this.pages = [{ isResolved: true, promise: null, promiseIndexes: new Set<number>(), elements: this.pager.firstPage.slice() }];
@@ -87,8 +87,7 @@ export class PagedModel<T> implements IPagedModel<T> {
 		}
 
 		if (!page.promise) {
-			page.promise = TPromise.timeout(this.pageTimeout)
-				.then(() => this.pager.getPage(pageIndex))
+			page.promise = this.pager.getPage(pageIndex)
 				.then(elements => {
 					page.elements = elements;
 					page.isResolved = true;
@@ -114,6 +113,26 @@ export class PagedModel<T> implements IPagedModel<T> {
 				page.promise.cancel();
 			}
 		});
+	}
+}
+
+export class DelayedPagedModel<T> implements IPagedModel<T> {
+
+	get length(): number { return this.model.length; }
+
+	constructor(private model: IPagedModel<T>, private timeout: number = 500) { }
+
+	isResolved(index: number): boolean {
+		return this.model.isResolved(index);
+	}
+
+	get(index: number): T {
+		return this.model.get(index);
+	}
+
+	resolve(index: number): TPromise<T> {
+		return TPromise.timeout(this.timeout)
+			.then(() => this.model.resolve(index));
 	}
 }
 
