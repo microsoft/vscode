@@ -259,7 +259,7 @@ suite('TreeModel2', function () {
 		assert.deepEqual(list[2].depth, 1);
 	});
 
-	test('expand', function () {
+	test.skip('expand', function () {
 		const list = [] as ITreeNode<number>[];
 		const model = new TreeModel<number>(toSpliceable(list));
 
