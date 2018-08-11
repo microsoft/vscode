@@ -9,7 +9,6 @@
 
 .settings-editor {
 	padding: 11px 24px 0px;
-	max-width: 1000px;
 	margin: auto;
 }
 
@@ -18,6 +17,7 @@
 	box-sizing: border-box;
 	margin: auto;
 	overflow: hidden;
+	max-width: 1000px;
 }
 
 .settings-editor > .settings-header > .settings-preview-header {
@@ -108,7 +108,8 @@
 .settings-editor > .settings-body {
 	display: flex;
 	margin: auto;
-	max-width: 1000px;
+	max-width: calc(100% - ((100% - 1000px) / 2));
+	margin-right: 0px;
 }
 
 .settings-editor.search-mode > .settings-body .settings-tree-container .monaco-tree-wrapper,
@@ -130,15 +131,15 @@
 .settings-editor > .settings-body .settings-tree-container .monaco-tree-wrapper,
 .settings-editor > .settings-body > .settings-tree-container .setting-measure-container {
 	/** 11px for scrollbar + 208px for TOC margin */
-	width: calc(100% - 219px);
-	margin-left: 208px;
+	width: 100%;
 }
 
 .settings-editor > .settings-body .settings-toc-container {
-	position: absolute;
+	/* position: absolute; */
 	width: 160px;
 	margin-top: 16px;
 	padding-left: 5px;
+	order: 0;
 }
 
 .settings-editor.search-mode .settings-toc-container {
@@ -195,6 +196,7 @@
 	border-spacing: 0;
 	border-collapse: separate;
 	position: relative;
+	order: 1;
 }
 
 .settings-editor > .settings-body > .settings-tree-container .setting-item {
