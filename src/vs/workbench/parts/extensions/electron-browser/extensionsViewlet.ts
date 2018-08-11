@@ -84,9 +84,9 @@ export class ExtensionsViewletViewsContribution implements IWorkbenchContributio
 		viewDescriptors.push(this.createEnabledExtensionsListViewDescriptor());
 		viewDescriptors.push(this.createDisabledExtensionsListViewDescriptor());
 		viewDescriptors.push(this.createSearchInstalledExtensionsListViewDescriptor());
-		viewDescriptors.push(this.createSearchBuiltInExtensionsListViewDescriptor());
-		viewDescriptors.push(this.createSearchBuiltInBasicsExtensionsListViewDescriptor());
-		viewDescriptors.push(this.createSearchBuiltInThemesExtensionsListViewDescriptor());
+		viewDescriptors.push(this.createBuiltInExtensionsListViewDescriptor());
+		viewDescriptors.push(this.createBuiltInBasicsExtensionsListViewDescriptor());
+		viewDescriptors.push(this.createBuiltInThemesExtensionsListViewDescriptor());
 		viewDescriptors.push(this.createDefaultRecommendedExtensionsListViewDescriptor());
 		viewDescriptors.push(this.createOtherRecommendedExtensionsListViewDescriptor());
 		viewDescriptors.push(this.createWorkspaceRecommendedExtensionsListViewDescriptor());
@@ -199,7 +199,7 @@ export class ExtensionsViewletViewsContribution implements IWorkbenchContributio
 		};
 	}
 
-	private createSearchBuiltInExtensionsListViewDescriptor(): IViewDescriptor {
+	private createBuiltInExtensionsListViewDescriptor(): IViewDescriptor {
 		return {
 			id: 'extensions.builtInExtensionsList',
 			name: localize('builtInExtensions', "Features"),
@@ -211,7 +211,7 @@ export class ExtensionsViewletViewsContribution implements IWorkbenchContributio
 		};
 	}
 
-	private createSearchBuiltInThemesExtensionsListViewDescriptor(): IViewDescriptor {
+	private createBuiltInThemesExtensionsListViewDescriptor(): IViewDescriptor {
 		return {
 			id: 'extensions.builtInThemesExtensionsList',
 			name: localize('builtInThemesExtensions', "Themes"),
@@ -223,7 +223,7 @@ export class ExtensionsViewletViewsContribution implements IWorkbenchContributio
 		};
 	}
 
-	private createSearchBuiltInBasicsExtensionsListViewDescriptor(): IViewDescriptor {
+	private createBuiltInBasicsExtensionsListViewDescriptor(): IViewDescriptor {
 		return {
 			id: 'extensions.builtInBasicsExtensionsList',
 			name: localize('builtInBasicsExtensions', "Programming Languages"),
