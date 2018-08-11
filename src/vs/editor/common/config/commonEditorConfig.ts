@@ -732,6 +732,14 @@ const editorConfiguration: IConfigurationNode = {
 			'default': false,
 			'markdownDescription': nls.localize('stablePeek', "Keep peek editors open even when double clicking their content or when hitting `Escape`.")
 		},
+		'editor.peekOnGoToDefinition': {
+			'type': 'boolean',
+			'default': true,
+			'markdownDescription': nls.localize(
+				'peekOnGoToDefinition',
+				"Controls whether the peek editor is opened when `#editor.action.goToDeclaration#` is performed. This also affects `#editor.action.openDeclarationToTheSide#` and `#editor.action.goToTypeDefinition#`."
+			)
+		},
 		'editor.dragAndDrop': {
 			'type': 'boolean',
 			'default': EDITOR_DEFAULTS.dragAndDrop,

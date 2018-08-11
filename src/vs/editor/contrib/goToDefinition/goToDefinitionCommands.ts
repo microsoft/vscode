@@ -27,6 +27,7 @@ import { INotificationService } from 'vs/platform/notification/common/notificati
 import { createCancelablePromise } from 'vs/base/common/async';
 import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { MenuRegistry, MenuId } from 'vs/platform/actions/common/actions';
+import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 
 export class DefinitionActionConfig {
 
@@ -53,12 +54,12 @@ export class DefinitionAction extends EditorAction {
 		const notificationService = accessor.get(INotificationService);
 		const editorService = accessor.get(ICodeEditorService);
 		const progressService = accessor.get(IProgressService);
+		const configurationService = accessor.get(IConfigurationService);
 
 		const model = editor.getModel();
 		const pos = editor.getPosition();
 
 		const definitionPromise = this._getDeclarationsAtPosition(model, pos).then(references => {
-
 			if (model.isDisposed() || editor.getModel() !== model) {
 				// new model, no more model
 				return;
@@ -100,7 +101,7 @@ export class DefinitionAction extends EditorAction {
 
 			} else {
 				// handle multile results
-				this._onResult(editorService, editor, new ReferencesModel(result));
+				this._onResult(editorService, editor, new ReferencesModel(result), configurationService.getValue('editor.peekOnGoToDefinition'));
 			}
 
 		}, (err) => {
@@ -126,8 +127,7 @@ export class DefinitionAction extends EditorAction {
 		return model.references.length > 1 && nls.localize('meta.title', " – {0} definitions", model.references.length);
 	}
 
-	private _onResult(editorService: ICodeEditorService, editor: ICodeEditor, model: ReferencesModel) {
-
+	private _onResult(editorService: ICodeEditorService, editor: ICodeEditor, model: ReferencesModel, peekOnGoToDefinition: boolean) {
 		const msg = model.getAriaMessage();
 		alert(msg);
 
@@ -136,13 +136,21 @@ export class DefinitionAction extends EditorAction {
 		} else {
 			let next = model.nearestReference(editor.getModel().uri, editor.getPosition());
 			this._openReference(editor, editorService, next, this._configuration.openToSide).then(editor => {
-				if (editor && model.references.length > 1) {
+				if (this._okToPeek(peekOnGoToDefinition) && editor && model.references.length > 1) {
 					this._openInPeek(editorService, editor, model);
 				} else {
 					model.dispose();
 				}
 			});
 		}
+	}
+
+	private _okToPeek(peekOnGoToDefinition: boolean): boolean {
+		const shouldCheckPeekSetting =
+			this instanceof GoToDefinitionAction ||
+			this instanceof OpenDefinitionToSideAction ||
+			this instanceof GoToTypeDefinitionAction;
+		return !shouldCheckPeekSetting || peekOnGoToDefinition;
 	}
 
 	private _openReference(editor: ICodeEditor, editorService: ICodeEditorService, reference: DefinitionLink, sideBySide: boolean): TPromise<ICodeEditor> {
