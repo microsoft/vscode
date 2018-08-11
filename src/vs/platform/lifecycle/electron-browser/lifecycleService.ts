@@ -83,7 +83,7 @@ export class LifecycleService implements ILifecycleService {
 	}
 
 	private onBeforeUnload(reason: ShutdownReason): TPromise<boolean> {
-		const vetos: (boolean | TPromise<boolean>)[] = [];
+		const vetos: (boolean | Thenable<boolean>)[] = [];
 
 		this._onWillShutdown.fire({
 			veto(value) {

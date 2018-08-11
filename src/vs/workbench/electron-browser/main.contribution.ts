@@ -644,12 +644,6 @@ configurationRegistry.registerConfiguration({
 			'default': 'filter',
 			'scope': ConfigurationScope.WINDOW
 		},
-		'workbench.settings.tocVisible': {
-			'type': 'boolean',
-			'description': nls.localize('settingsTocVisible', "Controls whether the settings editor Table of Contents is visible."),
-			'default': true,
-			'scope': ConfigurationScope.WINDOW
-		},
 		'workbench.enableExperiments': {
 			'type': 'boolean',
 			'description': nls.localize('workbench.enableExperiments', "Fetches experiments to run from a Microsoft online service."),

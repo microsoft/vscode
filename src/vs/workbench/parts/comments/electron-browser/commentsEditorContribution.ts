@@ -34,6 +34,7 @@ import { ModelDecorationOptions } from 'vs/editor/common/model/textModel';
 import { IModelDecorationOptions } from 'vs/editor/common/model';
 import { Color, RGBA } from 'vs/base/common/color';
 import { IMarginData } from 'vs/editor/browser/controller/mouseTarget';
+import { INotificationService } from 'vs/platform/notification/common/notification';
 
 export const ctxReviewPanelVisible = new RawContextKey<boolean>('reviewPanelVisible', false);
 
@@ -173,6 +174,7 @@ export class ReviewController implements IEditorContribution {
 		@IContextKeyService contextKeyService: IContextKeyService,
 		@IThemeService private themeService: IThemeService,
 		@ICommentService private commentService: ICommentService,
+		@INotificationService private notificationService: INotificationService,
 		@IInstantiationService private instantiationService: IInstantiationService,
 		@IModeService private modeService: IModeService,
 		@IModelService private modelService: IModelService,
@@ -373,6 +375,11 @@ export class ReviewController implements IEditorContribution {
 	}
 
 	private addComment(lineNumber: number) {
+		if (this._newCommentWidget !== null) {
+			this.notificationService.warn(`Please submit the comment at line ${this._newCommentWidget.position.lineNumber} before creating a new one.`);
+			return;
+		}
+
 		let newCommentInfo = this._commentingRangeDecorator.getMatchedCommentAction(lineNumber);
 		if (!newCommentInfo) {
 			return;
