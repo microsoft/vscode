@@ -97,10 +97,24 @@ function showPartsSplash(configuration) {
 		// ignore
 	}
 
+	// high contrast mode has been turned on, ignore stored colors and layouts
+	if (data && configuration.highContrast && data.baseTheme !== 'hc-black') {
+		data = void 0;
+	}
+
+	const style = document.createElement('style');
+	document.head.appendChild(style);
+
 	if (data) {
+		const { layoutInfo, colorInfo, baseTheme } = data;
+
+		// set the theme base id used by images and some styles
+		document.body.className = `monaco-shell ${baseTheme}`;
+		// stylesheet that defines foreground and background color
+		style.innerHTML = `.monaco-shell { background-color: ${colorInfo.editorBackground}; color: ${colorInfo.foreground}; }`;
+
 		const splash = document.createElement('div');
 		splash.id = data.id;
-		const { layoutInfo, colorInfo } = data;
 
 		// ensure there is enough space
 		layoutInfo.sideBarWidth = Math.min(layoutInfo.sideBarWidth, window.innerWidth - (layoutInfo.activityBarWidth + layoutInfo.editorPartMinWidth));
@@ -122,7 +136,11 @@ function showPartsSplash(configuration) {
 			`;
 		}
 		document.body.appendChild(splash);
+	} else {
+		document.body.className = `monaco-shell ${configuration.highContrast ? 'hc-black' : 'vs-dark'}`;
+		style.innerHTML = `.monaco-shell { background-color: ${configuration.highContrast ? '#000000' : '#1E1E1E'}; color: ${configuration.highContrast ? '#FFFFFF' : '#CCCCCC'}; }`;
 	}
+
 	perf.mark('didShowPartsSplash');
 }
 

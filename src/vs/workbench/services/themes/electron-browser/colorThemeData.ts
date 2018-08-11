@@ -189,9 +189,12 @@ export class ColorThemeData implements IColorTheme {
 		return objects.equals(this.colorMap, other.colorMap) && objects.equals(this.tokenColors, other.tokenColors);
 	}
 
+	get baseTheme(): string {
+		return this.id.split(' ')[0];
+	}
+
 	get type(): ThemeType {
-		let baseTheme = this.id.split(' ')[0];
-		switch (baseTheme) {
+		switch (this.baseTheme) {
 			case VS_LIGHT_THEME: return 'light';
 			case VS_HC_THEME: return 'hc';
 			default: return 'dark';

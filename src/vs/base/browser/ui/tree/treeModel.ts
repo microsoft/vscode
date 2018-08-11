@@ -39,13 +39,35 @@ function getVisibleCount<T>(nodes: IMutableTreeNode<T>[]): number {
 	return nodes.reduce(visibleCountReducer, 0);
 }
 
-function getVisibleNodes<T>(nodes: IMutableTreeNode<T>[], result: ITreeNode<T>[] = []): ITreeNode<T>[] {
-	for (const node of nodes) {
+/**
+ * Recursively updates the visibleCount of a subtree, while collecting
+ * all the visible nodes in an array.
+ */
+function updateVisibleCount<T>(node: IMutableTreeNode<T>): ITreeNode<T>[] {
+	const previousVisibleCount = node.visibleCount;
+	const result: ITreeNode<T>[] = [];
+
+	function _updateVisibleCount(node: IMutableTreeNode<T>): number {
 		result.push(node);
+		node.visibleCount = 1;
 
 		if (!node.collapsed) {
-			getVisibleNodes(node.children, result);
+			for (const child of node.children) {
+				node.visibleCount += _updateVisibleCount(child);
+			}
 		}
+
+		return node.visibleCount;
+	}
+
+	_updateVisibleCount(node);
+
+	const visibleCountDiff = result.length - previousVisibleCount;
+	node = node.parent;
+
+	while (node) {
+		node.visibleCount += visibleCountDiff;
+		node = node.parent;
 	}
 
 	return result;
@@ -108,6 +130,7 @@ export class TreeModel<T> {
 		visibleCount: 1
 	};
 
+	// TODO@joao can't we do without this?
 	private _onDidChangeCollapseState = new Emitter<ITreeNode<T>>();
 	readonly onDidChangeCollapseState: Event<ITreeNode<T>> = this._onDidChangeCollapseState.event;
 
@@ -165,29 +188,13 @@ export class TreeModel<T> {
 		node.collapsed = collapsed;
 
 		if (visible) {
-			this._onDidChangeCollapseState.fire(node);
+			const previousVisibleCount = node.visibleCount;
+			const toInsert = updateVisibleCount(node);
 
-			let visibleCountDiff: number;
-
-			if (collapsed) {
-				const deleteCount = getVisibleCount(node.children);
-
-				this.list.splice(listIndex + 1, deleteCount, []);
-				visibleCountDiff = -deleteCount;
-			} else {
-				const toInsert = getVisibleNodes(node.children);
-
-				this.list.splice(listIndex + 1, 0, toInsert);
-				visibleCountDiff = toInsert.length;
-			}
-
-			let mutableNode = node;
-
-			while (mutableNode) {
-				mutableNode.visibleCount += visibleCountDiff;
-				mutableNode = mutableNode.parent;
-			}
+			this.list.splice(listIndex + 1, previousVisibleCount - 1, toInsert.slice(1));
 		}
+
+		this._onDidChangeCollapseState.fire(node);
 
 		return true;
 	}

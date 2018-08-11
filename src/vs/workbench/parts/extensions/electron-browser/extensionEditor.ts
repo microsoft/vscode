@@ -9,11 +9,11 @@ import 'vs/css!./media/extensionEditor';
 import { localize } from 'vs/nls';
 import { TPromise, Promise } from 'vs/base/common/winjs.base';
 import { marked } from 'vs/base/common/marked/marked';
-import { always } from 'vs/base/common/async';
+import { createCancelablePromise, wireCancellationToken } from 'vs/base/common/async';
 import * as arrays from 'vs/base/common/arrays';
 import { OS } from 'vs/base/common/platform';
 import { Event, Emitter, once, chain } from 'vs/base/common/event';
-import Cache from 'vs/base/common/cache';
+import Cache, { CacheResult } from 'vs/base/common/cache';
 import { Action } from 'vs/base/common/actions';
 import { isPromiseCanceledError } from 'vs/base/common/errors';
 import { IDisposable, dispose, toDisposable } from 'vs/base/common/lifecycle';
@@ -290,10 +290,10 @@ export class ExtensionEditor extends BaseEditor {
 
 		this.transientDisposables = dispose(this.transientDisposables);
 
-		this.extensionReadme = new Cache(() => extension.getReadme());
-		this.extensionChangelog = new Cache(() => extension.getChangelog());
-		this.extensionManifest = new Cache(() => extension.getManifest());
-		this.extensionDependencies = new Cache(() => this.extensionsWorkbenchService.loadDependencies(extension));
+		this.extensionReadme = new Cache(() => createCancelablePromise(token => wireCancellationToken(token, extension.getReadme())));
+		this.extensionChangelog = new Cache(() => createCancelablePromise(token => wireCancellationToken(token, extension.getChangelog())));
+		this.extensionManifest = new Cache(() => createCancelablePromise(token => wireCancellationToken(token, extension.getManifest())));
+		this.extensionDependencies = new Cache(() => createCancelablePromise(token => wireCancellationToken(token, this.extensionsWorkbenchService.loadDependencies(extension))));
 
 		const onError = once(domEvent(this.icon, 'error'));
 		onError(() => this.icon.src = extension.iconUrlFallback, null, this.transientDisposables);
@@ -429,6 +429,7 @@ export class ExtensionEditor extends BaseEditor {
 			this.navbar.push(NavbarSection.Readme, localize('details', "Details"), localize('detailstooltip', "Extension details, rendered from the extension's 'README.md' file"));
 		}
 		this.extensionManifest.get()
+			.promise
 			.then(manifest => {
 				if (extension.extensionPack.length) {
 					this.navbar.push(NavbarSection.ExtensionPack, localize('extensionPack', "Extension Pack"), localize('extensionsPack', "Set of extensions that can be installed together"));
@@ -479,8 +480,8 @@ export class ExtensionEditor extends BaseEditor {
 		}
 	}
 
-	private openMarkdown(content: TPromise<string>, noContentCopy: string) {
-		return this.loadContents(() => content
+	private openMarkdown(cacheResult: CacheResult<string>, noContentCopy: string): void {
+		this.loadContents(() => cacheResult)
 			.then(marked.parse)
 			.then(renderBody)
 			.then(removeEmbeddedSVGs)
@@ -507,19 +508,19 @@ export class ExtensionEditor extends BaseEditor {
 			.then(null, () => {
 				const p = append(this.content, $('p.nocontent'));
 				p.textContent = noContentCopy;
-			}));
+			});
 	}
 
-	private openReadme() {
-		return this.openMarkdown(this.extensionReadme.get(), localize('noReadme', "No README available."));
+	private openReadme(): void {
+		this.openMarkdown(this.extensionReadme.get(), localize('noReadme', "No README available."));
 	}
 
-	private openChangelog() {
-		return this.openMarkdown(this.extensionChangelog.get(), localize('noChangelog', "No Changelog available."));
+	private openChangelog(): void {
+		this.openMarkdown(this.extensionChangelog.get(), localize('noChangelog', "No Changelog available."));
 	}
 
-	private openContributions() {
-		return this.loadContents(() => this.extensionManifest.get()
+	private openContributions(): void {
+		this.loadContents(() => this.extensionManifest.get())
 			.then(manifest => {
 				const content = $('div', { class: 'subcontent' });
 				const scrollableContent = new DomScrollableElement(content, {});
@@ -554,17 +555,17 @@ export class ExtensionEditor extends BaseEditor {
 				}
 			}, () => {
 				append(this.content, $('p.nocontent')).textContent = localize('noContributions', "No Contributions");
-			}));
+			});
 	}
 
-	private openDependencies(extension: IExtension) {
+	private openDependencies(extension: IExtension): void {
 		if (extension.dependencies.length === 0) {
 			append(this.content, $('p.nocontent')).textContent = localize('noDependencies', "No Dependencies");
 			return;
 		}
 
-		return this.loadContents(() => {
-			return this.extensionDependencies.get().then(extensionDependencies => {
+		this.loadContents(() => this.extensionDependencies.get())
+			.then(extensionDependencies => {
 				const content = $('div', { class: 'subcontent' });
 				const scrollableContent = new DomScrollableElement(content, {});
 				append(this.content, scrollableContent.getDomNode());
@@ -585,7 +586,6 @@ export class ExtensionEditor extends BaseEditor {
 				append(this.content, $('p.nocontent')).textContent = error;
 				this.notificationService.error(error);
 			});
-		});
 	}
 
 	private renderDependencies(container: HTMLElement, extensionDependencies: IExtensionDependencies): Tree {
@@ -617,26 +617,23 @@ export class ExtensionEditor extends BaseEditor {
 		return this.instantiationService.createInstance(ExtensionsTree, new ExtensionData(extensionDependencies), container);
 	}
 
-	private openExtensionPack(extension: IExtension) {
-		return this.loadContents(() => {
-			const content = $('div', { class: 'subcontent' });
-			const scrollableContent = new DomScrollableElement(content, {});
-			append(this.content, scrollableContent.getDomNode());
-			this.contentDisposables.push(scrollableContent);
+	private openExtensionPack(extension: IExtension): void {
+		const content = $('div', { class: 'subcontent' });
+		const scrollableContent = new DomScrollableElement(content, {});
+		append(this.content, scrollableContent.getDomNode());
+		this.contentDisposables.push(scrollableContent);
 
-			const dependenciesTree = this.renderExtensionPack(content, extension);
-			const layout = () => {
-				scrollableContent.scanDomNode();
-				const scrollDimensions = scrollableContent.getScrollDimensions();
-				dependenciesTree.layout(scrollDimensions.height);
-			};
-			const removeLayoutParticipant = arrays.insert(this.layoutParticipants, { layout });
-			this.contentDisposables.push(toDisposable(removeLayoutParticipant));
-
-			this.contentDisposables.push(dependenciesTree);
+		const dependenciesTree = this.renderExtensionPack(content, extension);
+		const layout = () => {
 			scrollableContent.scanDomNode();
-			return TPromise.as(null);
-		});
+			const scrollDimensions = scrollableContent.getScrollDimensions();
+			dependenciesTree.layout(scrollDimensions.height);
+		};
+		const removeLayoutParticipant = arrays.insert(this.layoutParticipants, { layout });
+		this.contentDisposables.push(toDisposable(removeLayoutParticipant));
+
+		this.contentDisposables.push(dependenciesTree);
+		scrollableContent.scanDomNode();
 	}
 
 	private renderExtensionPack(container: HTMLElement, extension: IExtension): Tree {
@@ -1073,13 +1070,16 @@ export class ExtensionEditor extends BaseEditor {
 		return this.keybindingService.resolveKeybinding(keyBinding)[0];
 	}
 
-	private loadContents(loadingTask: () => TPromise<any>): void {
+	private loadContents<T>(loadingTask: () => CacheResult<T>): Thenable<T> {
 		addClass(this.content, 'loading');
 
-		let promise = loadingTask();
-		promise = always(promise, () => removeClass(this.content, 'loading'));
+		const result = loadingTask();
+		const onDone = () => removeClass(this.content, 'loading');
+		result.promise.then(onDone, onDone);
 
-		this.contentDisposables.push(toDisposable(() => promise.cancel()));
+		this.contentDisposables.push(toDisposable(() => result.dispose()));
+
+		return result.promise;
 	}
 
 	layout(): void {

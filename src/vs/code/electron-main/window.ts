@@ -617,10 +617,6 @@ export class CodeWindow implements ICodeWindow {
 		windowConfiguration.highContrast = isWindows && autoDetectHighContrast && systemPreferences.isInvertedColorScheme();
 		windowConfiguration.accessibilitySupport = app.isAccessibilitySupportEnabled();
 
-		// Theme
-		windowConfiguration.baseTheme = this.getBaseTheme();
-		windowConfiguration.backgroundColor = this.getBackgroundColor();
-
 		// Title style related
 		windowConfiguration.maximized = this._win.isMaximized();
 		windowConfiguration.frameless = this.hasHiddenTitleBarStyle() && !isMacintosh;

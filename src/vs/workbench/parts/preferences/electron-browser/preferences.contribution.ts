@@ -35,6 +35,7 @@ import { LifecyclePhase } from 'vs/platform/lifecycle/common/lifecycle';
 import { PreferencesSearchService } from 'vs/workbench/parts/preferences/electron-browser/preferencesSearch';
 import { IPreferencesService } from 'vs/workbench/services/preferences/common/preferences';
 import { Command } from 'vs/editor/browser/editorExtensions';
+import { Context as SuggestContext } from 'vs/editor/contrib/suggest/suggest';
 
 registerSingleton(IPreferencesSearchService, PreferencesSearchService);
 
@@ -384,14 +385,14 @@ class FocusSettingsFileEditorCommand extends SettingsCommand {
 }
 const focusSettingsFileEditorCommand = new FocusSettingsFileEditorCommand({
 	id: SETTINGS_EDITOR_COMMAND_FOCUS_FILE,
-	precondition: CONTEXT_SETTINGS_SEARCH_FOCUS,
+	precondition: ContextKeyExpr.and(CONTEXT_SETTINGS_SEARCH_FOCUS, SuggestContext.Visible.toNegated()),
 	kbOpts: { primary: KeyCode.DownArrow, weight: KeybindingWeight.EditorContrib }
 });
 focusSettingsFileEditorCommand.register();
 
 const focusSettingsFromSearchCommand = new FocusSettingsFileEditorCommand({
 	id: SETTINGS_EDITOR_COMMAND_FOCUS_SETTINGS_FROM_SEARCH,
-	precondition: CONTEXT_SETTINGS_SEARCH_FOCUS,
+	precondition: ContextKeyExpr.and(CONTEXT_SETTINGS_SEARCH_FOCUS, SuggestContext.Visible.toNegated()),
 	kbOpts: { primary: KeyCode.DownArrow, weight: KeybindingWeight.WorkbenchContrib }
 });
 focusSettingsFromSearchCommand.register();

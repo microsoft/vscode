@@ -88,6 +88,8 @@ export class SuggestController implements IEditorContribution {
 	private _memory: SuggestMemories;
 	private _toDispose: IDisposable[] = [];
 
+	private readonly _sticky = false; // for development purposes only
+
 	constructor(
 		private _editor: ICodeEditor,
 		@ICommandService private readonly _commandService: ICommandService,
@@ -110,6 +112,11 @@ export class SuggestController implements IEditorContribution {
 		this._toDispose.push(this._model.onDidCancel(e => {
 			if (this._widget && !e.retrigger) {
 				this._widget.hideWidget();
+			}
+		}));
+		this._toDispose.push(this._editor.onDidBlurEditorText(() => {
+			if (!this._sticky) {
+				this._model.cancel();
 			}
 		}));
 

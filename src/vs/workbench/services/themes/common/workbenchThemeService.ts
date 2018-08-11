@@ -59,6 +59,7 @@ export interface IWorkbenchThemeService extends IThemeService {
 	getColorTheme(): IColorTheme;
 	getColorThemes(): TPromise<IColorTheme[]>;
 	onDidColorThemeChange: Event<IColorTheme>;
+	restoreColorTheme();
 
 	setFileIconTheme(iconThemeId: string, settingsTarget: ConfigurationTarget): TPromise<IFileIconTheme>;
 	getFileIconTheme(): IFileIconTheme;
