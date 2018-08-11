@@ -47,7 +47,7 @@
     "v8-inspect-profiler": "^0.0.8",
     "vscode-chokidar": "^1.6.2",
     "vscode-debugprotocol": "1.31.0",
-    "vscode-nsfw": "bpasero/vscode-nsfw#electron-3.0.x",
+    "vscode-nsfw": "Tyriar/vscode-nsfw#electron-3.0.x",
     "vscode-ripgrep": "^1.0.1",
     "vscode-textmate": "Microsoft/vscode-textmate#electron-3.0.x",
     "vscode-xterm": "3.7.0-beta4",
@@ -135,7 +135,7 @@
   },
   "optionalDependencies": {
     "windows-foreground-love": "0.1.0",
-    "windows-mutex": "^0.2.0",
-    "windows-process-tree": "0.2.2"
+    "windows-mutex": "Microsoft/vscode-windows-process-tree#electron-3.0.x",
+    "windows-process-tree": "Microsoft/vscode-windows-process-tree#electron-3.0.x"
   }
 }
