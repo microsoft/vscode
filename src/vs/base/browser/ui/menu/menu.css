@@ -164,3 +164,7 @@
 	background: none;
 	border: 1px dotted #f38518;
 }
+
+.hc-black .monaco-menu .monaco-action-bar.vertical .menu-item-check {
+	background-color: white;
+}
