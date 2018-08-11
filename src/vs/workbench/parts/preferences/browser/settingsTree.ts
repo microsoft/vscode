@@ -1240,11 +1240,17 @@ export class SettingsRenderer implements ITreeRenderer {
 
 
 	private renderNumber(dataElement: SettingsTreeSettingElement, template: ISettingTextItemTemplate, onChange: (value: number) => void): void {
-		const parseFn = (dataElement.valueType === 'integer' || dataElement.valueType === 'nullable-integer') ? parseInt : parseFloat;
+		const numParseFn = (dataElement.valueType === 'integer' || dataElement.valueType === 'nullable-integer')
+			? parseInt : parseFloat;
+
+		const nullNumParseFn = (dataElement.valueType === 'nullable-integer' || dataElement.valueType === 'nullable-number')
+			? (v => v === '' ? null : numParseFn(v)) : numParseFn;
 
 		template.onChange = null;
 		template.inputBox.value = dataElement.value;
-		template.onChange = value => { renderValidations(dataElement, template); onChange(parseFn(value)); };
+		template.onChange = value => {
+			renderValidations(dataElement, template); onChange(nullNumParseFn(value));
+		};
 
 		renderValidations(dataElement, template);
 		// Setup and add ARIA attributes
