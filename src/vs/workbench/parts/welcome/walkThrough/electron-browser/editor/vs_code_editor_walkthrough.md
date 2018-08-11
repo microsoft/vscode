@@ -24,9 +24,9 @@ Using multiple cursors allows you to edit multiple parts of the document at once
 That is the tip of the iceberg for multi-cursor editing. Have a look at the selection menu and our handy [keyboard reference guide](command:workbench.action.keybindingsReference) for additional actions.
 
 ```css
-#p1 {background-color: #ff0000;}   /* red */
-#p2 {background-color: #00ff00;}   /* green */
-#p3 {background-color: #0000ff;}   /* blue */
+#p1 {background-color: #ff0000;}                /* red in HEX format */
+#p2 {background-color: hsl(120, 100%, 50%);}    /* green in HSL format */
+#p3 {background-color: rgba(0, 4, 255, 0.733);} /* blue with alpha channel in RGBA format */
 ```
 
 > **CSS Tip:** you may have noticed in the example above we also provide color swatches inline for CSS, additionally if you hover over an element such as `#p1` we will show how this is represented in HTML.  These swatches also act as color pickers that allow you to easily change a color value.  A simple example of some language-specific editor features.
@@ -36,10 +36,10 @@ That is the tip of the iceberg for multi-cursor editing. Have a look at the sele
 Visual Studio Code comes with the powerful IntelliSense for JavaScript and TypeScript pre-installed. In the below example, position the text cursor in front of the error underline, right after the dot and press kb(editor.action.triggerSuggest) to invoke IntelliSense.  Notice how the suggestion comes from the Request API.
 
 ```js
-var express = require('express');
-var app = express();
+const express = require('express');
+const app = express();
 
-app.get('/', function (req, res) {
+app.get('/',  (req, res) => {
     res.send(`Hello ${req.}`);
 });
 
@@ -78,7 +78,7 @@ new Book("The Martian", "Andy Weir");
 /**
  * Represents a book.
  */
-function Book(title, author) {
+Book = (title, author) => {
 	this.title = title;
 	this.author = author;
 }
@@ -91,8 +91,8 @@ function Book(title, author) {
 Sometimes you want to refactor already written code into a separate function or constant to reuse it later. Select the lines you want to refactor out and press kb(editor.action.quickFix) or click the little light bulb and choose one of the respective `Extract to...` options. Try it by selecting the code inside the `if`-clause on line 3 or any other common code you want to refactor out.
 
 ```js
-function findFirstEvenNumber(arr) {
-    for (let i = 0; i < arr.length; i++) {
+findFirstEvenNumber = (arr) => {
+    for (const i in arr) {
         if (typeof arr[i] === 'number' && arr[i] % 2 === 0) {
             return arr[i];
         }
@@ -106,12 +106,12 @@ function findFirstEvenNumber(arr) {
 Keeping your code looking great is hard without a good formatter.  Luckily it's easy to format content, either for the entire document with kb(editor.action.formatDocument) or for the current selection with kb(editor.action.formatSelection).  Both of these options are also available through the right-click context menu.
 
 ```js
-var cars = ["Saab", "Volvo", "BMW"];
+const cars = ["🚗", "🚙", "🚕"];
 
-for (var i=0; i < cars.length; i++) {
+for (const i in cars){
 // Drive the car
-console.log(`This is the manufacturer [${cars[i]}])`);
-    }
+console.log(`This is the car ${cars[i]}`);
+}
 ```
 
 >**Tip:** Additional formatters are available in the [extension gallery](command:workbench.extensions.action.showPopularExtensions).  Formatting support can also be configured via [settings](command:workbench.action.openGlobalSettings) e.g. enabling `editor.formatOnSave`.
@@ -144,7 +144,7 @@ Errors and warnings are highlighted as you edit your code with squiggles.  In th
 Console.log(add(1, 1.5));
 
 
-function Add(a : Number, b : Number) : Int {
+Add = (a : Number, b : Number) : Int => {
     return a + b;
 }
 ```
@@ -192,4 +192,4 @@ Well if you have got this far then you will have touched on some of the editing 
 
 That's all for now,
 
-Happy Coding!
+Happy Coding! 🎉
