@@ -39,6 +39,7 @@ import { SettingsTarget } from 'vs/workbench/parts/preferences/browser/preferenc
 import { ITOCEntry } from 'vs/workbench/parts/preferences/browser/settingsLayout';
 import { ExcludeSettingWidget, IExcludeDataItem, settingsHeaderForeground, settingsNumberInputBackground, settingsNumberInputBorder, settingsNumberInputForeground, settingsSelectBackground, settingsSelectBorder, settingsSelectForeground, settingsTextInputBackground, settingsTextInputBorder, settingsTextInputForeground } from 'vs/workbench/parts/preferences/browser/settingsWidgets';
 import { IExtensionSetting, ISearchResult, ISetting, ISettingsGroup } from 'vs/workbench/services/preferences/common/preferences';
+import { isArray } from 'vs/base/common/types';
 
 const $ = DOM.$;
 
@@ -91,7 +92,7 @@ export class SettingsTreeSettingElement extends SettingsTreeElement {
 	tags?: Set<string>;
 	overriddenScopeList: string[];
 	description: string;
-	valueType: 'enum' | 'string' | 'integer' | 'number' | 'boolean' | 'exclude' | 'complex';
+	valueType: 'enum' | 'string' | 'integer' | 'number' | 'boolean' | 'exclude' | 'complex' | 'nullable-integer' | 'nullable-number';
 
 	matchesAllTags(tagFilters?: Set<string>): boolean {
 		if (!tagFilters || !tagFilters.size) {
@@ -245,6 +246,12 @@ function createSettingsTreeSettingElement(setting: ISetting, parent: SearchResul
 		element.valueType = 'number';
 	} else if (setting.type === 'boolean') {
 		element.valueType = 'boolean';
+	} else if (isArray(setting.type) && setting.type.indexOf('null') > -1 && setting.type.length === 2) {
+		if (setting.type.indexOf('number') > -1) {
+			element.valueType = 'nullable-integer';
+		} else if (setting.type.indexOf('number') > -1) {
+			element.valueType = 'nullable-number';
+		}
 	} else {
 		element.valueType = 'complex';
 	}
@@ -655,7 +662,7 @@ export class SettingsRenderer implements ITreeRenderer {
 				return SETTINGS_BOOL_TEMPLATE_ID;
 			}
 
-			if (element.valueType === 'integer' || element.valueType === 'number') {
+			if (element.valueType === 'integer' || element.valueType === 'number' || element.valueType === 'nullable-integer' || element.valueType === 'nullable-number') {
 				return SETTINGS_NUMBER_TEMPLATE_ID;
 			}
 
@@ -1233,7 +1240,7 @@ export class SettingsRenderer implements ITreeRenderer {
 
 
 	private renderNumber(dataElement: SettingsTreeSettingElement, template: ISettingTextItemTemplate, onChange: (value: number) => void): void {
-		const parseFn = dataElement.valueType === 'integer' ? parseInt : parseFloat;
+		const parseFn = (dataElement.valueType === 'integer' || dataElement.valueType === 'nullable-integer') ? parseInt : parseFloat;
 
 		template.onChange = null;
 		template.inputBox.value = dataElement.value;

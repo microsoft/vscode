@@ -1038,13 +1038,20 @@ function createValidator(prop: IConfigurationPropertySchema): ((value: any) => s
 		},
 	].filter(validation => validation.enabled);
 
-	if ((prop.type === 'number' || prop.type === 'integer') && numericValidations.length === 0) { return null; }
+	const type = Array.isArray(prop.type) ? prop.type : [prop.type];
+	const canBeType = (t: string) => type.indexOf(t) > -1;
+
+	const isNullable = canBeType('null');
+	const isNumeric = (canBeType('number') || canBeType('integer')) && (type.length === 1 || type.length === 2 && isNullable);
+
 	if (prop.type === 'string' && stringValidations.length === 0) { return null; }
 
 	return value => {
+		if (isNullable && value === '') { return ''; }
+
 		let errors = [];
 
-		if (prop.type === 'number' || prop.type === 'integer') {
+		if (isNumeric) {
 			if (value === '' || isNaN(+value)) {
 				errors.push(nls.localize('validations.expectedNumeric', "Value must be a number."));
 			} else {
