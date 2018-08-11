@@ -100,7 +100,7 @@ export class DefinitionAction extends EditorAction {
 				this._openReference(editor, editorService, current, false);
 
 			} else {
-				// handle multile results
+				// handle multiple results
 				this._onResult(editorService, editor, new ReferencesModel(result), configurationService.getValue('editor.peekOnGoToDefinition'));
 			}
 
