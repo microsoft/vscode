@@ -69,6 +69,68 @@ export class SettingsTreeSettingElement extends SettingsTreeElement {
 	description: string;
 	valueType: 'enum' | 'string' | 'integer' | 'number' | 'boolean' | 'exclude' | 'complex';
 
+	constructor(setting: ISetting, parent: SettingsTreeGroupElement, inspectResult: IInspectResult) {
+		super();
+		this.setting = setting;
+		this.parent = parent;
+		this.id = sanitizeId(parent.id + '_' + setting.key);
+
+		this.update(inspectResult);
+	}
+
+	update(inspectResult: IInspectResult): void {
+		const { isConfigured, inspected, targetSelector } = inspectResult;
+
+		const displayValue = isConfigured ? inspected[targetSelector] : inspected.default;
+		const overriddenScopeList = [];
+		if (targetSelector === 'user' && typeof inspected.workspace !== 'undefined') {
+			overriddenScopeList.push(localize('workspace', "Workspace"));
+		}
+
+		if (targetSelector === 'workspace' && typeof inspected.user !== 'undefined') {
+			overriddenScopeList.push(localize('user', "User"));
+		}
+
+		const displayKeyFormat = settingKeyToDisplayFormat(this.setting.key, this.parent.id);
+		this.displayLabel = displayKeyFormat.label;
+		this.displayCategory = displayKeyFormat.category;
+
+		this.value = displayValue;
+		this.scopeValue = isConfigured && inspected[targetSelector];
+		this.defaultValue = inspected.default;
+
+		this.isConfigured = isConfigured;
+		if (isConfigured || this.setting.tags) {
+			this.tags = new Set<string>();
+			if (isConfigured) {
+				this.tags.add(MODIFIED_SETTING_TAG);
+			}
+
+			if (this.setting.tags) {
+				this.setting.tags.forEach(tag => this.tags.add(tag));
+			}
+		}
+
+		this.overriddenScopeList = overriddenScopeList;
+		this.description = this.setting.description.join('\n');
+
+		if (this.setting.enum && (this.setting.type === 'string' || !this.setting.type)) {
+			this.valueType = 'enum';
+		} else if (this.setting.type === 'string') {
+			this.valueType = 'string';
+		} else if (isExcludeSetting(this.setting)) {
+			this.valueType = 'exclude';
+		} else if (this.setting.type === 'integer') {
+			this.valueType = 'integer';
+		} else if (this.setting.type === 'number') {
+			this.valueType = 'number';
+		} else if (this.setting.type === 'boolean') {
+			this.valueType = 'boolean';
+		} else {
+			this.valueType = 'complex';
+		}
+	}
+
 	matchesAllTags(tagFilters?: Set<string>): boolean {
 		if (!tagFilters || !tagFilters.size) {
 			return true;
@@ -89,7 +151,7 @@ export class SettingsTreeSettingElement extends SettingsTreeElement {
 export class SettingsTreeModel {
 	protected _root: SettingsTreeGroupElement;
 	private _treeElementsById = new Map<string, SettingsTreeElement>();
-	private _treeElementsBySettingName = new Map<string, SettingsTreeElement>();
+	private _treeElementsBySettingName = new Map<string, SettingsTreeSettingElement[]>();
 	private _tocRoot: ITOCEntry;
 
 	constructor(
@@ -102,6 +164,9 @@ export class SettingsTreeModel {
 	}
 
 	update(newTocRoot = this._tocRoot): void {
+		this._treeElementsById.clear();
+		this._treeElementsBySettingName.clear();
+
 		const newRoot = this.createSettingsTreeGroupElement(newTocRoot);
 		if (newRoot.children[0] instanceof SettingsTreeGroupElement) {
 			(<SettingsTreeGroupElement>newRoot.children[0]).isFirstGroup = true; // TODO
@@ -118,8 +183,19 @@ export class SettingsTreeModel {
 		return this._treeElementsById.get(id);
 	}
 
-	getElementByName(name: string): SettingsTreeElement {
+	getElementByName(name: string): SettingsTreeSettingElement[] {
 		return this._treeElementsBySettingName.get(name);
+	}
+
+	updateElementsByName(name: string): void {
+		if (!this._treeElementsBySettingName.has(name)) {
+			return;
+		}
+
+		this._treeElementsBySettingName.get(name).forEach(element => {
+			const inspectResult = inspectSetting(element.setting.key, this._viewState.settingsTarget, this._configurationService);
+			element.update(inspectResult);
+		});
 	}
 
 	private createSettingsTreeGroupElement(tocEntry: ITOCEntry, parent?: SettingsTreeGroupElement): SettingsTreeGroupElement {
@@ -151,9 +227,13 @@ export class SettingsTreeModel {
 	}
 
 	private createSettingsTreeSettingElement(setting: ISetting, parent: SettingsTreeGroupElement): SettingsTreeSettingElement {
-		const element = createSettingsTreeSettingElement(setting, parent, this._viewState.settingsTarget, this._configurationService);
+		const inspectResult = inspectSetting(setting.key, this._viewState.settingsTarget, this._configurationService);
+		const element = new SettingsTreeSettingElement(setting, parent, inspectResult);
 		this._treeElementsById.set(element.id, element);
-		this._treeElementsBySettingName.set(setting.key, element);
+
+		const nameElements = this._treeElementsBySettingName.get(setting.key) || [];
+		nameElements.push(element);
+		this._treeElementsBySettingName.set(setting.key, nameElements);
 		return element;
 	}
 }
@@ -236,67 +316,6 @@ function trimCategoryForGroup(category: string, groupId: string): string {
 export function isExcludeSetting(setting: ISetting): boolean {
 	return setting.key === 'files.exclude' ||
 		setting.key === 'search.exclude';
-}
-
-function createSettingsTreeSettingElement(setting: ISetting, parent: SettingsTreeGroupElement, settingsTarget: SettingsTarget, configurationService: IConfigurationService): SettingsTreeSettingElement {
-	const element = new SettingsTreeSettingElement();
-	element.id = sanitizeId(parent.id + '_' + setting.key);
-	element.parent = parent;
-
-	const inspectResult = inspectSetting(setting.key, settingsTarget, configurationService);
-	const { isConfigured, inspected, targetSelector } = inspectResult;
-
-	const displayValue = isConfigured ? inspected[targetSelector] : inspected.default;
-	const overriddenScopeList = [];
-	if (targetSelector === 'user' && typeof inspected.workspace !== 'undefined') {
-		overriddenScopeList.push(localize('workspace', "Workspace"));
-	}
-
-	if (targetSelector === 'workspace' && typeof inspected.user !== 'undefined') {
-		overriddenScopeList.push(localize('user', "User"));
-	}
-
-	const displayKeyFormat = settingKeyToDisplayFormat(setting.key, parent.id);
-	element.setting = setting;
-	element.displayLabel = displayKeyFormat.label;
-	element.displayCategory = displayKeyFormat.category;
-
-	element.value = displayValue;
-	element.scopeValue = isConfigured && inspected[targetSelector];
-	element.defaultValue = inspected.default;
-
-	element.isConfigured = isConfigured;
-	if (isConfigured || setting.tags) {
-		element.tags = new Set<string>();
-		if (isConfigured) {
-			element.tags.add(MODIFIED_SETTING_TAG);
-		}
-
-		if (setting.tags) {
-			setting.tags.forEach(tag => element.tags.add(tag));
-		}
-	}
-
-	element.overriddenScopeList = overriddenScopeList;
-	element.description = setting.description.join('\n');
-
-	if (setting.enum && (setting.type === 'string' || !setting.type)) {
-		element.valueType = 'enum';
-	} else if (setting.type === 'string') {
-		element.valueType = 'string';
-	} else if (isExcludeSetting(setting)) {
-		element.valueType = 'exclude';
-	} else if (setting.type === 'integer') {
-		element.valueType = 'integer';
-	} else if (setting.type === 'number') {
-		element.valueType = 'number';
-	} else if (setting.type === 'boolean') {
-		element.valueType = 'boolean';
-	} else {
-		element.valueType = 'complex';
-	}
-
-	return element;
 }
 
 export enum SearchResultIdx {

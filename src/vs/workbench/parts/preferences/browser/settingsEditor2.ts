@@ -71,7 +71,9 @@ export class SettingsEditor2 extends BaseEditor {
 	private localSearchDelayer: Delayer<void>;
 	private remoteSearchThrottle: ThrottledDelayer<void>;
 	private searchInProgress: TPromise<void>;
+
 	private delayRefreshOnLayout: Delayer<void>;
+	private lastLayedoutWidth: number;
 
 	private settingUpdateDelayer: Delayer<void>;
 	private pendingSettingUpdate: { key: string, value: any };
@@ -83,7 +85,7 @@ export class SettingsEditor2 extends BaseEditor {
 	private inSettingsEditorContextKey: IContextKey<boolean>;
 	private searchFocusContextKey: IContextKey<boolean>;
 
-	private scheduledRefreshTracker: DOM.IFocusTracker;
+	private scheduledRefreshes: Map<string, DOM.IFocusTracker>;
 
 	private tagRegex = /(^|\s)@tag:("([^"]*)"|[^"]\S*)/g;
 
@@ -115,8 +117,10 @@ export class SettingsEditor2 extends BaseEditor {
 		this.searchFocusContextKey = CONTEXT_SETTINGS_SEARCH_FOCUS.bindTo(contextKeyService);
 		this.tocRowFocused = CONTEXT_TOC_ROW_FOCUS.bindTo(contextKeyService);
 
+		this.scheduledRefreshes = new Map<string, DOM.IFocusTracker>();
+
 		this._register(configurationService.onDidChangeConfiguration(e => {
-			this.onConfigUpdate();
+			this.onConfigUpdate(e.affectedKeys);
 		}));
 	}
 
@@ -152,7 +156,11 @@ export class SettingsEditor2 extends BaseEditor {
 
 		DOM.toggleClass(this.rootElement, 'narrow', dimension.width < 600);
 
-		this.delayRefreshOnLayout.trigger(() => this.refreshTree());
+		// #56185
+		if (dimension.width !== this.lastLayedoutWidth) {
+			this.lastLayedoutWidth = dimension.width;
+			this.delayRefreshOnLayout.trigger(() => this.renderTree());
+		}
 	}
 
 	focus(): void {
@@ -217,7 +225,7 @@ export class SettingsEditor2 extends BaseEditor {
 			this.toolbar.context = <ISettingsToolbarContext>{ target: this.settingsTargetsWidget.settingsTarget };
 
 			this.settingsTreeModel.update();
-			this.refreshTree();
+			this.renderTree();
 		});
 
 		this.createHeaderControls(headerControlsContainer);
@@ -252,8 +260,12 @@ export class SettingsEditor2 extends BaseEditor {
 		this.toolbar.context = <ISettingsToolbarContext>{ target: this.settingsTargetsWidget.settingsTarget };
 	}
 
-	private revealSetting(settingName: string): void {
-		const element = this.settingsTreeModel.getElementByName(settingName);
+	private getElementsByKey(settingKey: string): SettingsTreeSettingElement[] | null {
+		return (this.searchResultModel || this.settingsTreeModel).getElementByName(settingKey);
+	}
+
+	private revealSetting(settingKey: string): void {
+		const element = this.getElementsByKey(settingKey);
 		if (element) {
 			this.settingsTree.reveal(element, .1);
 		}
@@ -357,7 +369,7 @@ export class SettingsEditor2 extends BaseEditor {
 			const element = e.focus;
 			if (this.searchResultModel) {
 				this.viewState.filterToCategory = element;
-				this.refreshTree();
+				this.renderTree();
 			}
 
 			if (element && (!e.payload || !e.payload.fromScroll)) {
@@ -467,7 +479,7 @@ export class SettingsEditor2 extends BaseEditor {
 		}
 
 		return this.configurationService.updateValue(key, value, overrides, configurationTarget)
-			.then(() => this.refreshTree())
+			.then(() => this.renderTree(key)) // to draw "Modified" TODO
 			.then(() => {
 				const reportModifiedProps = {
 					key,
@@ -564,20 +576,30 @@ export class SettingsEditor2 extends BaseEditor {
 		}
 	}
 
-	private scheduleRefresh(): void {
-		if (this.scheduledRefreshTracker) {
+	private scheduleRefresh(element: HTMLElement, key = ''): void {
+		if (key && this.scheduledRefreshes.has(key)) {
 			return;
 		}
 
-		this.scheduledRefreshTracker = DOM.trackFocus(<HTMLElement>document.activeElement);
-		this.scheduledRefreshTracker.onDidBlur(() => {
-			this.scheduledRefreshTracker.dispose();
-			this.scheduledRefreshTracker = null;
-			this.refreshTree();
+		if (!key) {
+			this.scheduledRefreshes.forEach(r => r.dispose());
+			this.scheduledRefreshes.clear();
+		}
+
+		const scheduledRefreshTracker = DOM.trackFocus(element);
+		this.scheduledRefreshes.set(key, scheduledRefreshTracker);
+		scheduledRefreshTracker.onDidBlur(() => {
+			scheduledRefreshTracker.dispose();
+			this.scheduledRefreshes.delete(key);
+			this.onConfigUpdate([key]);
 		});
 	}
 
-	private onConfigUpdate(): TPromise<void> {
+	private onConfigUpdate(keys?: string[]): TPromise<void> {
+		if (keys) {
+			return this.updateElementsByKey(keys);
+		}
+
 		const groups = this.defaultSettingsEditorModel.settingsGroups.slice(1); // Without commonlyUsed
 		const dividedGroups = collections.groupBy(groups, g => g.contributedByExtension ? 'extension' : 'core');
 		const settingsResult = resolveSettingsTree(tocData, dividedGroups.core);
@@ -605,7 +627,7 @@ export class SettingsEditor2 extends BaseEditor {
 
 		if (this.settingsTreeModel) {
 			this.settingsTreeModel.update(resolvedSettingsRoot);
-			return this.refreshTree();
+			return this.renderTree();
 		} else {
 			this.settingsTreeModel = this.instantiationService.createInstance(SettingsTreeModel, this.viewState);
 			this.settingsTreeModel.update(resolvedSettingsRoot);
@@ -622,21 +644,49 @@ export class SettingsEditor2 extends BaseEditor {
 		return TPromise.wrap(null);
 	}
 
-	private refreshTree(element?: SettingsTreeElement): TPromise<any> {
-		if (this.scheduledRefreshTracker) {
+	private updateElementsByKey(keys: string[]): TPromise<void> {
+		if (keys.length) {
+			keys.forEach(key => this.settingsTreeModel.updateElementsByName(key));
+			return TPromise.join(
+				keys.map(key => this.renderTree(key)))
+				.then(() => { });
+		} else {
+			return this.renderTree();
+		}
+	}
+
+	private renderTree(key?: string): TPromise<void> {
+		if (key && this.scheduledRefreshes.has(key)) {
 			return TPromise.wrap(null);
 		}
 
+		// If a setting control is currently focused, schedule a refresh for later
 		if (document.activeElement.classList.contains(SettingsRenderer.CONTROL_CLASS)) {
-			this.scheduleRefresh();
-			return TPromise.wrap(null);
+			// If a single setting is being refreshed, it's ok to refresh now if that is not the focused setting
+			if (key) {
+				const focusedKey = this.settingsTreeRenderer.getSettingKeyForDOMElement(<HTMLElement>document.activeElement);
+				if (focusedKey === key) {
+					this.scheduleRefresh(<HTMLElement>document.activeElement, key);
+					return TPromise.wrap(null);
+				}
+			} else {
+				this.scheduleRefresh(<HTMLElement>document.activeElement);
+				return TPromise.wrap(null);
+			}
 		}
 
-		return this.settingsTree.refresh()
-			.then(() => {
-				this.tocTreeModel.update();
-				return this.tocTree.refresh();
-			});
+		let refreshP: TPromise<any>;
+		const elements = key && this.getElementsByKey(key);
+		if (elements && elements.length) {
+			refreshP = TPromise.join(elements.map(e => this.settingsTree.refresh(e)));
+		} else {
+			refreshP = this.settingsTree.refresh();
+		}
+
+		return refreshP.then(() => {
+			this.tocTreeModel.update(); // ?
+			return this.tocTree.refresh();
+		}).then(() => { });
 	}
 
 	private onSearchInputChanged(): void {
@@ -790,7 +840,7 @@ export class SettingsEditor2 extends BaseEditor {
 				this.tocTreeModel.update();
 				expandAll(this.tocTree);
 
-				resolve(this.refreshTree());
+				resolve(this.renderTree());
 			});
 		}, () => {
 			isCanceled = true;

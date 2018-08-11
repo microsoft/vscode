@@ -27,10 +27,9 @@ import { Tree } from 'vs/base/parts/tree/browser/treeImpl';
 import { localize } from 'vs/nls';
 import { ICommandService } from 'vs/platform/commands/common/commands';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IContextViewService } from 'vs/platform/contextview/browser/contextView';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { IListService, WorkbenchTreeController } from 'vs/platform/list/browser/listService';
+import { WorkbenchTreeController } from 'vs/platform/list/browser/listService';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
 import { editorBackground, focusBorder, foreground } from 'vs/platform/theme/common/colorRegistry';
 import { attachButtonStyler, attachInputBoxStyler, attachSelectBoxStyler, attachStyler } from 'vs/platform/theme/common/styler';
@@ -258,6 +257,8 @@ export class SettingsRenderer implements ITreeRenderer {
 
 	public static readonly CONTROL_CLASS = 'setting-control-focus-target';
 	public static readonly CONTROL_SELECTOR = '.' + SettingsRenderer.CONTROL_CLASS;
+
+	private static readonly SETTING_KEY_ATTR = 'data-key';
 
 	private readonly _onDidChangeSetting: Emitter<ISettingChangeEvent> = new Emitter<ISettingChangeEvent>();
 	public readonly onDidChangeSetting: Event<ISettingChangeEvent> = this._onDidChangeSetting.event;
@@ -755,6 +756,15 @@ export class SettingsRenderer implements ITreeRenderer {
 		template.context = element;
 	}
 
+	public getSettingKeyForDOMElement(domElement: HTMLElement): string {
+		const parent = DOM.findParentWithClass(domElement, 'setting-item');
+		if (parent) {
+			return parent.getAttribute(SettingsRenderer.SETTING_KEY_ATTR);
+		}
+
+		return null;
+	}
+
 	private renderSettingElement(tree: ITree, element: SettingsTreeSettingElement, templateId: string, template: ISettingItemTemplate | ISettingBoolItemTemplate): void {
 		template.context = element;
 
@@ -762,7 +772,7 @@ export class SettingsRenderer implements ITreeRenderer {
 
 		DOM.toggleClass(template.containerElement, 'is-configured', element.isConfigured);
 		DOM.toggleClass(template.containerElement, 'is-expanded', true);
-		template.containerElement.id = element.id.replace(/\./g, '_');
+		template.containerElement.setAttribute(SettingsRenderer.SETTING_KEY_ATTR, element.setting.key);
 
 		const titleTooltip = setting.key;
 		template.categoryElement.textContent = element.displayCategory && (element.displayCategory + ': ');
@@ -1160,11 +1170,8 @@ export class SettingsTree extends NonExpandableOrSelectableTree {
 		container: HTMLElement,
 		viewState: ISettingsEditorViewState,
 		configuration: Partial<ITreeConfiguration>,
-		@IContextKeyService contextKeyService: IContextKeyService,
-		@IListService listService: IListService,
 		@IThemeService themeService: IThemeService,
-		@IInstantiationService instantiationService: IInstantiationService,
-		@IConfigurationService configurationService: IConfigurationService
+		@IInstantiationService instantiationService: IInstantiationService
 	) {
 		const treeClass = 'settings-editor-tree';
 
