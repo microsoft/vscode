@@ -165,6 +165,9 @@ export class ExtensionsListView extends ViewletPanel {
 			case 'rating': options = assign(options, { sortBy: SortBy.WeightedRating }); break;
 			case 'name': options = assign(options, { sortBy: SortBy.Title }); break;
 		}
+		if (!value || !value.trim()) {
+			options.sortBy = SortBy.InstallCount;
+		}
 
 		if (/@builtin/i.test(value)) {
 			const showThemesOnly = /@builtin:themes/i.test(value);
