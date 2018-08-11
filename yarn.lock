@@ -6091,8 +6091,8 @@ vscode-nls-dev@3.0.7:
     yargs "^10.1.1"
 
 vscode-nsfw@Tyriar/vscode-nsfw#electron-3.0.x:
-  version "1.0.17"
-  resolved "https://codeload.github.com/Tyriar/vscode-nsfw/tar.gz/96632032e363959e5f9012a638f2416ab6d59631"
+  version "1.0.18"
+  resolved "https://codeload.github.com/Tyriar/vscode-nsfw/tar.gz/f071e399efd0d6c1c8a6bf1f48407c2f32a63d1e"
   dependencies:
     fs-extra "^0.26.5"
     lodash.isinteger "^4.0.4"
