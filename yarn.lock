@@ -6163,8 +6163,8 @@ windows-mutex@Microsoft/node-windows-mutex#electron-3.0.x:
     nan "^2.10.0"
 
 windows-process-tree@Microsoft/vscode-windows-process-tree#electron-3.0.x:
-  version "0.2.3"
-  resolved "https://codeload.github.com/Microsoft/vscode-windows-process-tree/tar.gz/ccf467fde0fb45c36303193fbfc783e6197c87bb"
+  version "0.2.4"
+  resolved "https://codeload.github.com/Microsoft/vscode-windows-process-tree/tar.gz/11c2f63b412a152a7a40a1c7d2121c76503bbb42"
   dependencies:
     nan "^2.10.0"
 
