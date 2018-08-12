@@ -132,6 +132,10 @@
 .settings-editor > .settings-body > .settings-tree-container .setting-measure-container {
 	/** 11px for scrollbar + 208px for TOC margin */
 	width: 100%;
+	max-width: calc( 100% - (100% - 837px));
+}
+.settings-body .settings-tree-container .monaco-tree .shadow.top {
+	max-width: calc( 100% - (100% - 833px));
 }
 
 .settings-editor > .settings-body .settings-toc-container {
