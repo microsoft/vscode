@@ -66,6 +66,7 @@ import { MenubarChannel } from 'vs/platform/menubar/common/menubarIpc';
 import { IUriDisplayService } from 'vs/platform/uriDisplay/common/uriDisplay';
 import { CodeMenu } from 'vs/code/electron-main/menus';
 import { hasArgs } from 'vs/code/node/args';
+import { RunOnceScheduler } from 'vs/base/common/async';
 
 export class CodeApplication {
 
@@ -263,7 +264,7 @@ export class CodeApplication {
 		if (event === 'vscode:changeColorTheme' && typeof payload === 'string') {
 			let data = JSON.parse(payload);
 
-			this.stateService.setItem(CodeWindow.themeStorageKey, data.id);
+			this.stateService.setItem(CodeWindow.themeStorageKey, data.baseTheme);
 			this.stateService.setItem(CodeWindow.themeBackgroundStorageKey, data.background);
 		}
 	}
@@ -534,7 +535,9 @@ export class CodeApplication {
 		this.historyMainService.onRecentlyOpenedChange(() => this.historyMainService.updateWindowsJumpList());
 
 		// Start shared process after a while
-		TPromise.timeout(3000).then(() => this.sharedProcess.spawn());
+		const sharedProcess = new RunOnceScheduler(() => this.sharedProcess.spawn(), 3000);
+		sharedProcess.schedule();
+		this.toDispose.push(sharedProcess);
 	}
 
 	private dispose(): void {

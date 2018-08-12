@@ -8,7 +8,7 @@ import { tmpdir } from 'os';
 import * as path from 'path';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { distinct } from 'vs/base/common/arrays';
-import { getErrorMessage, isPromiseCanceledError } from 'vs/base/common/errors';
+import { getErrorMessage, isPromiseCanceledError, canceled } from 'vs/base/common/errors';
 import { StatisticType, IGalleryExtension, IExtensionGalleryService, IGalleryExtensionAsset, IQueryOptions, SortBy, SortOrder, IExtensionManifest, IExtensionIdentifier, IReportedExtension, InstallOperation, ITranslation } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { getGalleryExtensionId, getGalleryExtensionTelemetryData, adoptToGalleryExtensionId } from 'vs/platform/extensionManagement/common/extensionManagementUtil';
 import { assign, getOrDefault } from 'vs/base/common/objects';
@@ -24,6 +24,8 @@ import { readFile } from 'vs/base/node/pfs';
 import { writeFileAndFlushSync } from 'vs/base/node/extfs';
 import { generateUuid, isUUID } from 'vs/base/common/uuid';
 import { values } from 'vs/base/common/map';
+import { CancellationToken } from 'vs/base/common/cancellation';
+import { wireCancellationToken } from 'vs/base/common/async';
 
 interface IRawGalleryExtensionFile {
 	assetType: string;
@@ -425,13 +427,19 @@ export class ExtensionGalleryService implements IExtensionGalleryService {
 		return this.queryGallery(query).then(({ galleryExtensions, total }) => {
 			const extensions = galleryExtensions.map((e, index) => toExtension(e, this.extensionsGalleryUrl, index, query, options.source));
 			const pageSize = query.pageSize;
-			const getPage = (pageIndex: number) => {
+			const getPage = (pageIndex: number, ct: CancellationToken) => {
+				if (ct.isCancellationRequested) {
+					return TPromise.wrapError(canceled());
+				}
+
 				const nextPageQuery = query.withPage(pageIndex + 1);
-				return this.queryGallery(nextPageQuery)
+				const promise = this.queryGallery(nextPageQuery)
 					.then(({ galleryExtensions }) => galleryExtensions.map((e, index) => toExtension(e, this.extensionsGalleryUrl, index, nextPageQuery, options.source)));
+
+				return wireCancellationToken(ct, promise);
 			};
 
-			return { firstPage: extensions, total, pageSize, getPage };
+			return { firstPage: extensions, total, pageSize, getPage } as IPager<IGalleryExtension>;
 		});
 	}
 

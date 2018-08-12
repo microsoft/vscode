@@ -232,6 +232,7 @@ export class TextDiffEditor extends BaseTextEditor implements ITextDiffEditor {
 		const options: IDiffEditorOptions = super.getConfigurationOverrides();
 
 		options.readOnly = this.isReadOnly();
+		options.lineDecorationsWidth = '2ch';
 
 		return options;
 	}

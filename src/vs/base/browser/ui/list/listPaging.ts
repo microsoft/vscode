@@ -10,6 +10,7 @@ import { IVirtualDelegate, IRenderer, IListEvent, IListOpenEvent } from './list'
 import { List, IListStyles, IListOptions } from './listWidget';
 import { IPagedModel } from 'vs/base/common/paging';
 import { Event, mapEvent } from 'vs/base/common/event';
+import { CancellationTokenSource } from 'vs/base/common/cancellation';
 
 export interface IPagedRenderer<TElement, TTemplateData> extends IRenderer<TElement, TTemplateData> {
 	renderPlaceholder(index: number, templateData: TTemplateData): void;
@@ -43,11 +44,12 @@ class PagedRenderer<TElement, TTemplateData> implements IRenderer<number, ITempl
 			return this.renderer.renderElement(model.get(index), index, data.data);
 		}
 
-		const promise = model.resolve(index);
-		data.disposable = { dispose: () => promise.cancel() };
+		const cts = new CancellationTokenSource();
+		const promise = model.resolve(index, cts.token);
+		data.disposable = { dispose: () => cts.cancel() };
 
 		this.renderer.renderPlaceholder(index, data.data);
-		promise.done(entry => this.renderer.renderElement(entry, index, data.data));
+		promise.then(entry => this.renderer.renderElement(entry, index, data.data));
 	}
 
 	disposeElement(): void {

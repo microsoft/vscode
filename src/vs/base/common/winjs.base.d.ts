@@ -29,8 +29,6 @@ export class Promise<T = any> {
 	public static as<T, SomePromise extends PromiseLike<T>>(value: SomePromise): SomePromise;
 	public static as<T>(value: T): Promise<T>;
 
-	public static is(value: any): value is PromiseLike<any>;
-
 	public static timeout(delay: number): Promise<void>;
 
 	public static join<T1, T2>(promises: [T1 | PromiseLike<T1>, T2 | PromiseLike<T2>]): Promise<[T1, T2]>;

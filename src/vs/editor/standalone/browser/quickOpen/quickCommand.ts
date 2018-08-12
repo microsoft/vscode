@@ -50,7 +50,7 @@ export class EditorActionCommandEntry extends QuickOpenEntryGroup {
 		if (mode === Mode.OPEN) {
 
 			// Use a timeout to give the quick open widget a chance to close itself first
-			TPromise.timeout(50).done(() => {
+			setTimeout(() => {
 
 				// Some actions are enabled only when editor has focus
 				this.editor.focus();
@@ -61,7 +61,7 @@ export class EditorActionCommandEntry extends QuickOpenEntryGroup {
 				} catch (error) {
 					onUnexpectedError(error);
 				}
-			}, onUnexpectedError);
+			}, 50);
 
 			return true;
 		}

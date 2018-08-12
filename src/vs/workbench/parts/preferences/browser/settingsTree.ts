@@ -26,214 +26,21 @@ import { DefaultTreestyler } from 'vs/base/parts/tree/browser/treeDefaults';
 import { Tree } from 'vs/base/parts/tree/browser/treeImpl';
 import { localize } from 'vs/nls';
 import { ICommandService } from 'vs/platform/commands/common/commands';
-import { ConfigurationTarget, IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
+import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IContextViewService } from 'vs/platform/contextview/browser/contextView';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { IListService, WorkbenchTreeController } from 'vs/platform/list/browser/listService';
+import { WorkbenchTreeController } from 'vs/platform/list/browser/listService';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
 import { editorBackground, focusBorder, foreground } from 'vs/platform/theme/common/colorRegistry';
 import { attachButtonStyler, attachInputBoxStyler, attachSelectBoxStyler, attachStyler } from 'vs/platform/theme/common/styler';
 import { ICssStyleCollector, ITheme, IThemeService, registerThemingParticipant } from 'vs/platform/theme/common/themeService';
-import { SettingsTarget } from 'vs/workbench/parts/preferences/browser/preferencesWidgets';
 import { ITOCEntry } from 'vs/workbench/parts/preferences/browser/settingsLayout';
+import { ISettingsEditorViewState, isExcludeSetting, SettingsTreeElement, SettingsTreeGroupElement, SettingsTreeNewExtensionsElement, SettingsTreeSettingElement } from 'vs/workbench/parts/preferences/browser/settingsTreeModels';
 import { ExcludeSettingWidget, IExcludeDataItem, settingsHeaderForeground, settingsNumberInputBackground, settingsNumberInputBorder, settingsNumberInputForeground, settingsSelectBackground, settingsSelectBorder, settingsSelectForeground, settingsTextInputBackground, settingsTextInputBorder, settingsTextInputForeground } from 'vs/workbench/parts/preferences/browser/settingsWidgets';
-import { IExtensionSetting, ISearchResult, ISetting, ISettingsGroup } from 'vs/workbench/services/preferences/common/preferences';
+import { ISetting, ISettingsGroup } from 'vs/workbench/services/preferences/common/preferences';
 
 const $ = DOM.$;
 
-export const MODIFIED_SETTING_TAG = 'modified';
-export const ONLINE_SERVICES_SETTING_TAG = 'usesOnlineServices';
-
-export abstract class SettingsTreeElement {
-	id: string;
-	parent: any; // SearchResultModel or group element... TODO search should be more similar to the normal case
-}
-
-export class SettingsTreeGroupElement extends SettingsTreeElement {
-	children: (SettingsTreeGroupElement | SettingsTreeSettingElement)[];
-	label: string;
-	level: number;
-	isFirstGroup: boolean;
-}
-
-export class SettingsTreeNewExtensionsElement extends SettingsTreeElement {
-	extensionIds: string[];
-}
-
-export class SettingsTreeSettingElement extends SettingsTreeElement {
-	setting: ISetting;
-
-	displayCategory: string;
-	displayLabel: string;
-
-	/**
-	 * scopeValue || defaultValue, for rendering convenience.
-	 */
-	value: any;
-
-	/**
-	 * The value in the current settings scope.
-	 */
-	scopeValue: any;
-
-	/**
-	 * The default value
-	 */
-	defaultValue?: any;
-
-	/**
-	 * Whether the setting is configured in the selected scope.
-	 */
-	isConfigured: boolean;
-
-	tags?: Set<string>;
-	overriddenScopeList: string[];
-	description: string;
-	valueType: 'enum' | 'string' | 'integer' | 'number' | 'boolean' | 'exclude' | 'complex';
-}
-
-export interface ITOCEntry {
-	id: string;
-	label: string;
-	children?: ITOCEntry[];
-	settings?: (string | ISetting)[];
-}
-
-export class SettingsTreeModel {
-	private _root: SettingsTreeGroupElement;
-	private _treeElementsById = new Map<string, SettingsTreeElement>();
-	private _treeElementsBySettingName = new Map<string, SettingsTreeElement>();
-
-	constructor(
-		private _viewState: ISettingsEditorViewState,
-		private _tocRoot: ITOCEntry,
-		@IConfigurationService private _configurationService: IConfigurationService
-	) {
-		this.update(this._tocRoot);
-	}
-
-	get root(): SettingsTreeGroupElement {
-		return this._root;
-	}
-
-	update(newTocRoot = this._tocRoot): void {
-		const newRoot = this.createSettingsTreeGroupElement(newTocRoot);
-		(<SettingsTreeGroupElement>newRoot.children[0]).isFirstGroup = true;
-
-		if (this._root) {
-			this._root.children = newRoot.children;
-		} else {
-			this._root = newRoot;
-		}
-	}
-
-	getElementById(id: string): SettingsTreeElement {
-		return this._treeElementsById.get(id);
-	}
-
-	getElementByName(name: string): SettingsTreeElement {
-		return this._treeElementsBySettingName.get(name);
-	}
-
-	private createSettingsTreeGroupElement(tocEntry: ITOCEntry, parent?: SettingsTreeGroupElement): SettingsTreeGroupElement {
-		const element = new SettingsTreeGroupElement();
-		element.id = tocEntry.id;
-		element.label = tocEntry.label;
-		element.parent = parent;
-		element.level = this.getDepth(element);
-
-		if (tocEntry.children) {
-			element.children = tocEntry.children.map(child => this.createSettingsTreeGroupElement(child, element));
-		} else if (tocEntry.settings) {
-			element.children = tocEntry.settings.map(s => this.createSettingsTreeSettingElement(<ISetting>s, element))
-				.filter(el => el.setting.deprecationMessage ? el.isConfigured : true);
-		}
-
-		this._treeElementsById.set(element.id, element);
-		return element;
-	}
-
-	private getDepth(element: SettingsTreeElement): number {
-		if (element.parent) {
-			return 1 + this.getDepth(element.parent);
-		} else {
-			return 0;
-		}
-	}
-
-	private createSettingsTreeSettingElement(setting: ISetting, parent: SettingsTreeGroupElement): SettingsTreeSettingElement {
-		const element = createSettingsTreeSettingElement(setting, parent, this._viewState.settingsTarget, this._configurationService);
-		this._treeElementsById.set(element.id, element);
-		this._treeElementsBySettingName.set(setting.key, element);
-		return element;
-	}
-}
-
-function sanitizeId(id: string): string {
-	return id.replace(/[\.\/]/, '_');
-}
-
-function createSettingsTreeSettingElement(setting: ISetting, parent: any, settingsTarget: SettingsTarget, configurationService: IConfigurationService): SettingsTreeSettingElement {
-	const element = new SettingsTreeSettingElement();
-	element.id = sanitizeId(parent.id + '_' + setting.key);
-	element.parent = parent;
-
-	const inspectResult = inspectSetting(setting.key, settingsTarget, configurationService);
-	const { isConfigured, inspected, targetSelector } = inspectResult;
-
-	const displayValue = isConfigured ? inspected[targetSelector] : inspected.default;
-	const overriddenScopeList = [];
-	if (targetSelector === 'user' && typeof inspected.workspace !== 'undefined') {
-		overriddenScopeList.push(localize('workspace', "Workspace"));
-	}
-
-	if (targetSelector === 'workspace' && typeof inspected.user !== 'undefined') {
-		overriddenScopeList.push(localize('user', "User"));
-	}
-
-	const displayKeyFormat = settingKeyToDisplayFormat(setting.key, parent.id);
-	element.setting = setting;
-	element.displayLabel = displayKeyFormat.label;
-	element.displayCategory = displayKeyFormat.category;
-
-	element.value = displayValue;
-	element.scopeValue = isConfigured && inspected[targetSelector];
-	element.defaultValue = inspected.default;
-
-	element.isConfigured = isConfigured;
-	if (isConfigured || setting.tags) {
-		element.tags = new Set<string>();
-		if (isConfigured) {
-			element.tags.add(MODIFIED_SETTING_TAG);
-		}
-
-		if (setting.tags) {
-			setting.tags.forEach(tag => element.tags.add(tag));
-		}
-	}
-
-	element.overriddenScopeList = overriddenScopeList;
-	element.description = setting.description.join('\n');
-
-	if (setting.enum && (setting.type === 'string' || !setting.type)) {
-		element.valueType = 'enum';
-	} else if (setting.type === 'string') {
-		element.valueType = 'string';
-	} else if (isExcludeSetting(setting)) {
-		element.valueType = 'exclude';
-	} else if (setting.type === 'integer') {
-		element.valueType = 'integer';
-	} else if (setting.type === 'number') {
-		element.valueType = 'number';
-	} else if (setting.type === 'boolean') {
-		element.valueType = 'boolean';
-	} else {
-		element.valueType = 'complex';
-	}
-
-	return element;
-}
 
 function getExcludeDisplayValue(element: SettingsTreeSettingElement): IExcludeDataItem[] {
 	const data = element.isConfigured ?
@@ -252,23 +59,6 @@ function getExcludeDisplayValue(element: SettingsTreeSettingElement): IExcludeDa
 				sibling
 			};
 		});
-}
-
-interface IInspectResult {
-	isConfigured: boolean;
-	inspected: any;
-	targetSelector: string;
-}
-
-function inspectSetting(key: string, target: SettingsTarget, configurationService: IConfigurationService): IInspectResult {
-	const inspectOverrides = URI.isUri(target) ? { resource: target } : undefined;
-	const inspected = configurationService.inspect(key, inspectOverrides);
-	const targetSelector = target === ConfigurationTarget.USER ? 'user' :
-		target === ConfigurationTarget.WORKSPACE ? 'workspace' :
-			'workspaceFolder';
-	const isConfigured = typeof inspected[targetSelector] !== 'undefined';
-
-	return { isConfigured, inspected, targetSelector };
 }
 
 export function resolveSettingsTree(tocData: ITOCEntry, coreSettingsGroups: ISettingsGroup[]): { tree: ITOCEntry, leftoverSettings: Set<ISetting> } {
@@ -368,10 +158,6 @@ export class SettingsDataSource implements IDataSource {
 	}
 
 	hasChildren(tree: ITree, element: SettingsTreeElement): boolean {
-		if (element instanceof SearchResultModel) {
-			return true;
-		}
-
 		if (element instanceof SettingsTreeGroupElement) {
 			return true;
 		}
@@ -384,9 +170,7 @@ export class SettingsDataSource implements IDataSource {
 	}
 
 	private _getChildren(element: SettingsTreeElement): SettingsTreeElement[] {
-		if (element instanceof SearchResultModel) {
-			return element.getChildren();
-		} else if (element instanceof SettingsTreeGroupElement) {
+		if (element instanceof SettingsTreeGroupElement) {
 			return element.children;
 		} else {
 			// No children...
@@ -401,66 +185,6 @@ export class SettingsDataSource implements IDataSource {
 	shouldAutoexpand(): boolean {
 		return true;
 	}
-}
-
-export function settingKeyToDisplayFormat(key: string, groupId = ''): { category: string, label: string } {
-	const lastDotIdx = key.lastIndexOf('.');
-	let category = '';
-	if (lastDotIdx >= 0) {
-		category = key.substr(0, lastDotIdx);
-		key = key.substr(lastDotIdx + 1);
-	}
-
-	groupId = groupId.replace(/\//g, '.');
-	category = trimCategoryForGroup(category, groupId);
-	category = wordifyKey(category);
-
-	const label = wordifyKey(key);
-	return { category, label };
-}
-
-function wordifyKey(key: string): string {
-	return key
-		.replace(/\.([a-z])/g, (match, p1) => `.${p1.toUpperCase()}`)
-		.replace(/([a-z])([A-Z])/g, '$1 $2') // fooBar => foo Bar
-		.replace(/^[a-z]/g, match => match.toUpperCase()); // foo => Foo
-}
-
-function trimCategoryForGroup(category: string, groupId: string): string {
-	const doTrim = forward => {
-		const parts = groupId.split('.');
-		while (parts.length) {
-			const reg = new RegExp(`^${parts.join('\\.')}(\\.|$)`, 'i');
-			if (reg.test(category)) {
-				return category.replace(reg, '');
-			}
-
-			if (forward) {
-				parts.pop();
-			} else {
-				parts.shift();
-			}
-		}
-
-		return null;
-	};
-
-	let trimmed = doTrim(true);
-	if (trimmed === null) {
-		trimmed = doTrim(false);
-	}
-
-	if (trimmed === null) {
-		trimmed = category;
-	}
-
-	return trimmed;
-}
-
-export interface ISettingsEditorViewState {
-	settingsTarget: SettingsTarget;
-	tagFilters?: Set<string>;
-	filterToCategory?: SettingsTreeGroupElement;
 }
 
 interface IDisposableTemplate {
@@ -508,11 +232,6 @@ interface ISettingNewExtensionsTemplate extends IDisposableTemplate {
 	context?: SettingsTreeNewExtensionsElement;
 }
 
-function isExcludeSetting(setting: ISetting): boolean {
-	return setting.key === 'files.exclude' ||
-		setting.key === 'search.exclude';
-}
-
 interface IGroupTitleTemplate extends IDisposableTemplate {
 	context?: SettingsTreeGroupElement;
 	parent: HTMLElement;
@@ -536,8 +255,10 @@ export class SettingsRenderer implements ITreeRenderer {
 
 	public static readonly MAX_ENUM_DESCRIPTIONS = 10;
 
-	private static readonly CONTROL_CLASS = 'setting-control-focus-target';
+	public static readonly CONTROL_CLASS = 'setting-control-focus-target';
 	public static readonly CONTROL_SELECTOR = '.' + SettingsRenderer.CONTROL_CLASS;
+
+	private static readonly SETTING_KEY_ATTR = 'data-key';
 
 	private readonly _onDidChangeSetting: Emitter<ISettingChangeEvent> = new Emitter<ISettingChangeEvent>();
 	public readonly onDidChangeSetting: Event<ISettingChangeEvent> = this._onDidChangeSetting.event;
@@ -1035,6 +756,15 @@ export class SettingsRenderer implements ITreeRenderer {
 		template.context = element;
 	}
 
+	public getSettingKeyForDOMElement(domElement: HTMLElement): string {
+		const parent = DOM.findParentWithClass(domElement, 'setting-item');
+		if (parent) {
+			return parent.getAttribute(SettingsRenderer.SETTING_KEY_ATTR);
+		}
+
+		return null;
+	}
+
 	private renderSettingElement(tree: ITree, element: SettingsTreeSettingElement, templateId: string, template: ISettingItemTemplate | ISettingBoolItemTemplate): void {
 		template.context = element;
 
@@ -1042,7 +772,7 @@ export class SettingsRenderer implements ITreeRenderer {
 
 		DOM.toggleClass(template.containerElement, 'is-configured', element.isConfigured);
 		DOM.toggleClass(template.containerElement, 'is-expanded', true);
-		template.containerElement.id = element.id.replace(/\./g, '_');
+		template.containerElement.setAttribute(SettingsRenderer.SETTING_KEY_ATTR, element.setting.key);
 
 		const titleTooltip = setting.key;
 		template.categoryElement.textContent = element.displayCategory && (element.displayCategory + ': ');
@@ -1287,25 +1017,22 @@ export class SettingsTreeFilter implements IFilter {
 	) { }
 
 	isVisible(tree: ITree, element: SettingsTreeElement): boolean {
+		// Filter during search
 		if (this.viewState.filterToCategory && element instanceof SettingsTreeSettingElement) {
 			if (!this.settingContainedInGroup(element.setting, this.viewState.filterToCategory)) {
 				return false;
 			}
 		}
 
-		if (element instanceof SettingsTreeSettingElement && this.viewState.tagFilters && this.viewState.tagFilters.size) {
-			if (element.tags) {
-				let hasFilteredTag = true;
-				this.viewState.tagFilters.forEach(tag => {
-					hasFilteredTag = hasFilteredTag && element.tags.has(tag);
-				});
-				return hasFilteredTag;
-			} else {
-				return false;
-			}
+		if (element instanceof SettingsTreeSettingElement && this.viewState.tagFilters) {
+			return element.matchesAllTags(this.viewState.tagFilters);
 		}
 
-		if (element instanceof SettingsTreeGroupElement && this.viewState.tagFilters && this.viewState.tagFilters.size) {
+		if (element instanceof SettingsTreeGroupElement) {
+			if (typeof element.count === 'number') {
+				return element.count > 0;
+			}
+
 			return element.children.some(child => this.isVisible(tree, child));
 		}
 
@@ -1366,102 +1093,6 @@ export class SettingsAccessibilityProvider implements IAccessibilityProvider {
 	}
 }
 
-export enum SearchResultIdx {
-	Local = 0,
-	Remote = 1,
-	NewExtensions = 2
-}
-
-export class SearchResultModel {
-	private rawSearchResults: ISearchResult[];
-	private cachedUniqueSearchResults: ISearchResult[];
-	private newExtensionSearchResults: ISearchResult;
-	private children: (SettingsTreeSettingElement | SettingsTreeNewExtensionsElement)[];
-
-	readonly id = 'searchResultModel';
-
-	constructor(
-		private _viewState: ISettingsEditorViewState,
-		@IConfigurationService private _configurationService: IConfigurationService
-	) { }
-
-	getChildren(): (SettingsTreeSettingElement | SettingsTreeNewExtensionsElement)[] {
-		return this.children;
-	}
-
-	getUniqueResults(): ISearchResult[] {
-		if (this.cachedUniqueSearchResults) {
-			return this.cachedUniqueSearchResults;
-		}
-
-		if (!this.rawSearchResults) {
-			return [];
-		}
-
-		const localMatchKeys = new Set();
-		const localResult = objects.deepClone(this.rawSearchResults[SearchResultIdx.Local]);
-		if (localResult) {
-			localResult.filterMatches.forEach(m => localMatchKeys.add(m.setting.key));
-		}
-
-		const remoteResult = objects.deepClone(this.rawSearchResults[SearchResultIdx.Remote]);
-		if (remoteResult) {
-			remoteResult.filterMatches = remoteResult.filterMatches.filter(m => !localMatchKeys.has(m.setting.key));
-		}
-
-		this.newExtensionSearchResults = objects.deepClone(this.rawSearchResults[SearchResultIdx.NewExtensions]);
-
-		this.cachedUniqueSearchResults = [localResult, remoteResult];
-		return this.cachedUniqueSearchResults;
-	}
-
-	getRawResults(): ISearchResult[] {
-		return this.rawSearchResults;
-	}
-
-	setResult(type: SearchResultIdx, result: ISearchResult): void {
-		this.cachedUniqueSearchResults = null;
-		this.rawSearchResults = this.rawSearchResults || [];
-		if (!result) {
-			delete this.rawSearchResults[type];
-			return;
-		}
-
-		this.rawSearchResults[type] = result;
-		this.updateChildren();
-	}
-
-	updateChildren(): void {
-		this.children = this.getFlatSettings()
-			.map(s => createSettingsTreeSettingElement(s, this, this._viewState.settingsTarget, this._configurationService))
-			.filter(el => el.setting.deprecationMessage ? el.isConfigured : true);
-
-		if (this.newExtensionSearchResults) {
-			const newExtElement = new SettingsTreeNewExtensionsElement();
-			newExtElement.parent = this;
-			newExtElement.id = 'newExtensions';
-			const resultExtensionIds = this.newExtensionSearchResults.filterMatches
-				.map(result => (<IExtensionSetting>result.setting))
-				.filter(setting => setting.extensionName && setting.extensionPublisher)
-				.map(setting => `${setting.extensionPublisher}.${setting.extensionName}`);
-			newExtElement.extensionIds = arrays.distinct(resultExtensionIds);
-			this.children.push(newExtElement);
-		}
-	}
-
-	private getFlatSettings(): ISetting[] {
-		const flatSettings: ISetting[] = [];
-		this.getUniqueResults()
-			.filter(r => !!r)
-			.forEach(r => {
-				flatSettings.push(
-					...r.filterMatches.map(m => m.setting));
-			});
-
-		return flatSettings;
-	}
-}
-
 class NonExpandableOrSelectableTree extends Tree {
 	expand(): TPromise<any> {
 		return TPromise.wrap(null);
@@ -1482,6 +1113,54 @@ class NonExpandableOrSelectableTree extends Tree {
 	public focusPrevious(count?: number, eventPayload?: any): void {
 		return;
 	}
+
+	public focusParent(eventPayload?: any): void {
+		return;
+	}
+
+	public focusFirstChild(eventPayload?: any): void {
+		return;
+	}
+
+	public focusFirst(eventPayload?: any, from?: any): void {
+		return;
+	}
+
+	public focusNth(index: number, eventPayload?: any): void {
+		return;
+	}
+
+	public focusLast(eventPayload?: any, from?: any): void {
+		return;
+	}
+
+	public focusNextPage(eventPayload?: any): void {
+		return;
+	}
+
+	public focusPreviousPage(eventPayload?: any): void {
+		return;
+	}
+
+	public select(element: any, eventPayload?: any): void {
+		return;
+	}
+
+	public selectRange(fromElement: any, toElement: any, eventPayload?: any): void {
+		return;
+	}
+
+	public selectAll(elements: any[], eventPayload?: any): void {
+		return;
+	}
+
+	public setSelection(elements: any[], eventPayload?: any): void {
+		return;
+	}
+
+	public toggleSelection(element: any, eventPayload?: any): void {
+		return;
+	}
 }
 
 export class SettingsTree extends NonExpandableOrSelectableTree {
@@ -1491,11 +1170,8 @@ export class SettingsTree extends NonExpandableOrSelectableTree {
 		container: HTMLElement,
 		viewState: ISettingsEditorViewState,
 		configuration: Partial<ITreeConfiguration>,
-		@IContextKeyService contextKeyService: IContextKeyService,
-		@IListService listService: IListService,
 		@IThemeService themeService: IThemeService,
-		@IInstantiationService instantiationService: IInstantiationService,
-		@IConfigurationService configurationService: IConfigurationService
+		@IInstantiationService instantiationService: IInstantiationService
 	) {
 		const treeClass = 'settings-editor-tree';
 
@@ -1556,6 +1232,8 @@ export class SettingsTree extends NonExpandableOrSelectableTree {
 			listFocusForeground: foreground,
 			listHoverForeground: foreground,
 			listHoverBackground: editorBackground,
+			listHoverOutline: editorBackground,
+			listFocusOutline: editorBackground,
 			listInactiveSelectionBackground: editorBackground,
 			listInactiveSelectionForeground: foreground
 		}, colors => {

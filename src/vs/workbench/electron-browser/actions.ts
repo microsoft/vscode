@@ -9,7 +9,7 @@ import 'vs/css!./media/actions';
 
 import URI from 'vs/base/common/uri';
 import { TPromise } from 'vs/base/common/winjs.base';
-import { Action, IAction } from 'vs/base/common/actions';
+import { Action } from 'vs/base/common/actions';
 import { IWindowService, IWindowsService, MenuBarVisibility } from 'vs/platform/windows/common/windows';
 import * as nls from 'vs/nls';
 import product from 'vs/platform/node/product';
@@ -20,10 +20,8 @@ import { IEnvironmentService } from 'vs/platform/environment/common/environment'
 import { IConfigurationService, ConfigurationTarget } from 'vs/platform/configuration/common/configuration';
 import { IWorkspaceConfigurationService } from 'vs/workbench/services/configuration/common/configuration';
 import { isMacintosh, isLinux, language } from 'vs/base/common/platform';
-import { IQuickOpenService, IFilePickOpenEntry, ISeparator, IPickOpenAction, IPickOpenItem } from 'vs/platform/quickOpen/common/quickOpen';
 import * as browser from 'vs/base/browser/browser';
 import { IIntegrityService } from 'vs/platform/integrity/common/integrity';
-import { IEntryRunContext } from 'vs/base/parts/quickopen/common/quickOpen';
 import { ITimerService, IStartupMetrics } from 'vs/workbench/services/timer/common/timerService';
 import { IEditorGroupsService, GroupDirection, GroupLocation, IFindGroupScope } from 'vs/workbench/services/group/common/editorGroupsService';
 import { IPanelService } from 'vs/workbench/services/panel/common/panelService';
@@ -37,7 +35,6 @@ import { IViewlet } from 'vs/workbench/common/viewlet';
 import { IPanel } from 'vs/workbench/common/panel';
 import { IWorkspaceIdentifier, getWorkspaceLabel, ISingleFolderWorkspaceIdentifier, isSingleFolderWorkspaceIdentifier, isWorkspaceIdentifier } from 'vs/platform/workspaces/common/workspaces';
 import { FileKind } from 'vs/platform/files/common/files';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IExtensionService, ActivationTimes } from 'vs/workbench/services/extensions/common/extensions';
 import { getEntries } from 'vs/base/common/performance';
 import { IssueType } from 'vs/platform/issue/common/issue';
@@ -53,7 +50,7 @@ import { IUriDisplayService } from 'vs/platform/uriDisplay/common/uriDisplay';
 import { dirname } from 'vs/base/common/resources';
 import { IModelService } from 'vs/editor/common/services/modelService';
 import { IModeService } from 'vs/editor/common/services/modeService';
-import { IQuickInputService, IQuickPickItem, IQuickInputButton } from 'vs/platform/quickinput/common/quickInput';
+import { IQuickInputService, IQuickPickItem, IQuickInputButton, IQuickPickSeparator, IKeyMods } from 'vs/platform/quickinput/common/quickInput';
 import { getIconClasses } from 'vs/workbench/browser/labels';
 
 // --- actions
@@ -654,7 +651,6 @@ export class SwitchWindow extends BaseSwitchWindow {
 		@IKeybindingService keybindingService: IKeybindingService,
 		@IModelService modelService: IModelService,
 		@IModeService modeService: IModeService,
-		@IInstantiationService instantiationService: IInstantiationService
 	) {
 		super(id, label, windowsService, windowService, quickInputService, keybindingService, modelService, modeService);
 	}
@@ -678,7 +674,6 @@ export class QuickSwitchWindow extends BaseSwitchWindow {
 		@IKeybindingService keybindingService: IKeybindingService,
 		@IModelService modelService: IModelService,
 		@IModeService modeService: IModeService,
-		@IInstantiationService instantiationService: IInstantiationService
 	) {
 		super(id, label, windowsService, windowService, quickInputService, keybindingService, modelService, modeService);
 	}
@@ -692,16 +687,23 @@ export const inRecentFilesPickerContextKey = 'inRecentFilesPicker';
 
 export abstract class BaseOpenRecentAction extends Action {
 
+	private removeFromRecentlyOpened: IQuickInputButton = {
+		iconClass: 'action-remove-from-recently-opened',
+		tooltip: nls.localize('remove', "Remove from Recently Opened")
+	};
+
 	constructor(
 		id: string,
 		label: string,
 		private windowService: IWindowService,
-		private quickOpenService: IQuickOpenService,
+		private windowsService: IWindowsService,
+		private quickInputService: IQuickInputService,
 		private contextService: IWorkspaceContextService,
 		private environmentService: IEnvironmentService,
 		private uriDisplayService: IUriDisplayService,
 		private keybindingService: IKeybindingService,
-		private instantiationService: IInstantiationService
+		private modelService: IModelService,
+		private modeService: IModeService,
 	) {
 		super(id, label);
 	}
@@ -715,7 +717,7 @@ export abstract class BaseOpenRecentAction extends Action {
 
 	private openRecent(recentWorkspaces: (IWorkspaceIdentifier | ISingleFolderWorkspaceIdentifier)[], recentFiles: URI[]): void {
 
-		function toPick(workspace: IWorkspaceIdentifier | ISingleFolderWorkspaceIdentifier | URI, separator: ISeparator, fileKind: FileKind, environmentService: IEnvironmentService, uriDisplayService: IUriDisplayService, action: IAction): IFilePickOpenEntry {
+		const toPick = (workspace: IWorkspaceIdentifier | ISingleFolderWorkspaceIdentifier | URI, fileKind: FileKind, environmentService: IEnvironmentService, uriDisplayService: IUriDisplayService, buttons: IQuickInputButton[]) => {
 			let resource: URI;
 			let label: string;
 			let description: string;
@@ -734,63 +736,51 @@ export abstract class BaseOpenRecentAction extends Action {
 			}
 
 			return {
-				resource,
-				fileKind,
+				iconClasses: getIconClasses(this.modelService, this.modeService, resource, fileKind),
 				label,
 				description,
-				separator,
-				run: context => {
-					setTimeout(() => {
-						// Bug: somehow when not running this code in a timeout, it is not possible to use this picker
-						// with quick navigate keys (not able to trigger quick navigate once running it once).
-						runPick(resource, fileKind === FileKind.FILE, context);
-					});
-				},
-				action
+				buttons,
+				workspace,
+				resource,
+				fileKind,
 			};
-		}
-
-		const runPick = (resource: URI, isFile: boolean, context: IEntryRunContext) => {
-			const forceNewWindow = context.keymods.ctrlCmd;
-			this.windowService.openWindow([resource], { forceNewWindow, forceOpenWorkspaceAsFile: isFile });
 		};
 
-		const workspacePicks: IFilePickOpenEntry[] = recentWorkspaces.map((workspace, index) => toPick(workspace, index === 0 ? { label: nls.localize('workspaces', "workspaces") } : void 0, isSingleFolderWorkspaceIdentifier(workspace) ? FileKind.FOLDER : FileKind.ROOT_FOLDER, this.environmentService, this.uriDisplayService, !this.isQuickNavigate() ? this.instantiationService.createInstance(RemoveFromRecentlyOpened, workspace) : void 0));
-		const filePicks: IFilePickOpenEntry[] = recentFiles.map((p, index) => toPick(p, index === 0 ? { label: nls.localize('files', "files"), border: true } : void 0, FileKind.FILE, this.environmentService, this.uriDisplayService, !this.isQuickNavigate() ? this.instantiationService.createInstance(RemoveFromRecentlyOpened, p) : void 0));
+		const runPick = (resource: URI, isFile: boolean, keyMods: IKeyMods) => {
+			const forceNewWindow = keyMods.ctrlCmd;
+			return this.windowService.openWindow([resource], { forceNewWindow, forceOpenWorkspaceAsFile: isFile });
+		};
+
+		const workspacePicks = recentWorkspaces.map(workspace => toPick(workspace, isSingleFolderWorkspaceIdentifier(workspace) ? FileKind.FOLDER : FileKind.ROOT_FOLDER, this.environmentService, this.uriDisplayService, !this.isQuickNavigate() ? [this.removeFromRecentlyOpened] : void 0));
+		const filePicks = recentFiles.map(p => toPick(p, FileKind.FILE, this.environmentService, this.uriDisplayService, !this.isQuickNavigate() ? [this.removeFromRecentlyOpened] : void 0));
 
 		// focus second entry if the first recent workspace is the current workspace
 		let autoFocusSecondEntry: boolean = recentWorkspaces[0] && this.contextService.isCurrentWorkspace(recentWorkspaces[0]);
 
-		this.quickOpenService.pick([...workspacePicks, ...filePicks], {
+		let keyMods: IKeyMods;
+		const workspaceSeparator: IQuickPickSeparator = { type: 'separator', label: nls.localize('workspaces', "workspaces") };
+		const fileSeparator: IQuickPickSeparator = { type: 'separator', label: nls.localize('files', "files") };
+		const picks = [workspaceSeparator, ...workspacePicks, fileSeparator, ...filePicks];
+		this.quickInputService.pick(picks, {
 			contextKey: inRecentFilesPickerContextKey,
-			autoFocus: { autoFocusFirstEntry: !autoFocusSecondEntry, autoFocusSecondEntry: autoFocusSecondEntry },
+			activeItem: [...workspacePicks, ...filePicks][autoFocusSecondEntry ? 1 : 0],
 			placeHolder: isMacintosh ? nls.localize('openRecentPlaceHolderMac', "Select to open (hold Cmd-key to open in new window)") : nls.localize('openRecentPlaceHolder', "Select to open (hold Ctrl-key to open in new window)"),
 			matchOnDescription: true,
-			quickNavigateConfiguration: this.isQuickNavigate() ? { keybindings: this.keybindingService.lookupKeybindings(this.id) } : void 0
-		}).done(null, errors.onUnexpectedError);
-	}
-}
-
-class RemoveFromRecentlyOpened extends Action implements IPickOpenAction {
-
-	static readonly ID = 'workbench.action.removeFromRecentlyOpened';
-	static readonly LABEL = nls.localize('remove', "Remove from Recently Opened");
-
-	constructor(
-		private path: (IWorkspaceIdentifier | ISingleFolderWorkspaceIdentifier | URI),
-		@IWindowsService private windowsService: IWindowsService
-	) {
-		super(RemoveFromRecentlyOpened.ID, RemoveFromRecentlyOpened.LABEL);
-
-		this.class = 'action-remove-from-recently-opened';
-	}
-
-	run(item: IPickOpenItem): TPromise<boolean> {
-		return this.windowsService.removeFromRecentlyOpened([this.path]).then(() => {
-			item.remove();
-
-			return true;
-		});
+			onKeyMods: mods => keyMods = mods,
+			quickNavigate: this.isQuickNavigate() ? { keybindings: this.keybindingService.lookupKeybindings(this.id) } : void 0,
+			onDidTriggerItemButton: context => {
+				this.windowsService.removeFromRecentlyOpened([context.item.workspace]).then(() => {
+					context.removeItem();
+				}).then(null, errors.onUnexpectedError);
+			}
+		})
+			.then(pick => {
+				if (pick) {
+					return runPick(pick.resource, pick.fileKind === FileKind.FILE, keyMods);
+				}
+				return null;
+			})
+			.done(null, errors.onUnexpectedError);
 	}
 }
 
@@ -803,14 +793,16 @@ export class OpenRecentAction extends BaseOpenRecentAction {
 		id: string,
 		label: string,
 		@IWindowService windowService: IWindowService,
-		@IQuickOpenService quickOpenService: IQuickOpenService,
+		@IWindowsService windowsService: IWindowsService,
+		@IQuickInputService quickInputService: IQuickInputService,
 		@IWorkspaceContextService contextService: IWorkspaceContextService,
 		@IEnvironmentService environmentService: IEnvironmentService,
 		@IKeybindingService keybindingService: IKeybindingService,
-		@IInstantiationService instantiationService: IInstantiationService,
+		@IModelService modelService: IModelService,
+		@IModeService modeService: IModeService,
 		@IUriDisplayService uriDisplayService: IUriDisplayService
 	) {
-		super(id, label, windowService, quickOpenService, contextService, environmentService, uriDisplayService, keybindingService, instantiationService);
+		super(id, label, windowService, windowsService, quickInputService, contextService, environmentService, uriDisplayService, keybindingService, modelService, modeService);
 	}
 
 	protected isQuickNavigate(): boolean {
@@ -827,14 +819,16 @@ export class QuickOpenRecentAction extends BaseOpenRecentAction {
 		id: string,
 		label: string,
 		@IWindowService windowService: IWindowService,
-		@IQuickOpenService quickOpenService: IQuickOpenService,
+		@IWindowsService windowsService: IWindowsService,
+		@IQuickInputService quickInputService: IQuickInputService,
 		@IWorkspaceContextService contextService: IWorkspaceContextService,
 		@IEnvironmentService environmentService: IEnvironmentService,
 		@IKeybindingService keybindingService: IKeybindingService,
-		@IInstantiationService instantiationService: IInstantiationService,
+		@IModelService modelService: IModelService,
+		@IModeService modeService: IModeService,
 		@IUriDisplayService uriDisplayService: IUriDisplayService
 	) {
-		super(id, label, windowService, quickOpenService, contextService, environmentService, uriDisplayService, keybindingService, instantiationService);
+		super(id, label, windowService, windowsService, quickInputService, contextService, environmentService, uriDisplayService, keybindingService, modelService, modeService);
 	}
 
 	protected isQuickNavigate(): boolean {

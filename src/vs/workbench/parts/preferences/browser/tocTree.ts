@@ -14,7 +14,8 @@ import { IListService, WorkbenchTree, WorkbenchTreeController } from 'vs/platfor
 import { editorBackground, focusBorder } from 'vs/platform/theme/common/colorRegistry';
 import { attachStyler } from 'vs/platform/theme/common/styler';
 import { ICssStyleCollector, ITheme, IThemeService, registerThemingParticipant } from 'vs/platform/theme/common/themeService';
-import { ISettingsEditorViewState, SearchResultModel, SettingsAccessibilityProvider, SettingsTreeElement, SettingsTreeFilter, SettingsTreeGroupElement, SettingsTreeSettingElement } from 'vs/workbench/parts/preferences/browser/settingsTree';
+import { SettingsAccessibilityProvider, SettingsTreeFilter } from 'vs/workbench/parts/preferences/browser/settingsTree';
+import { ISettingsEditorViewState, SearchResultModel, SettingsTreeElement, SettingsTreeGroupElement, SettingsTreeSettingElement } from 'vs/workbench/parts/preferences/browser/settingsTreeModels';
 import { settingsHeaderForeground } from 'vs/workbench/parts/preferences/browser/settingsWidgets';
 import { ISetting } from 'vs/workbench/services/preferences/common/preferences';
 
@@ -24,6 +25,10 @@ export class TOCTreeModel {
 
 	private _currentSearchModel: SearchResultModel;
 	private _settingsTreeRoot: SettingsTreeGroupElement;
+
+	constructor(private viewState: ISettingsEditorViewState) {
+
+	}
 
 	public set settingsTreeRoot(value: SettingsTreeGroupElement) {
 		this._settingsTreeRoot = value;
@@ -44,7 +49,7 @@ export class TOCTreeModel {
 	}
 
 	private updateGroupCount(group: SettingsTreeGroupElement): void {
-		(<any>group).count = this._currentSearchModel ?
+		group.count = this._currentSearchModel ?
 			this.getSearchResultChildrenCount(group) :
 			undefined;
 
@@ -56,7 +61,7 @@ export class TOCTreeModel {
 	}
 
 	private getSearchResultChildrenCount(group: SettingsTreeGroupElement): number {
-		return this._currentSearchModel.getChildren().filter(child => {
+		return this._currentSearchModel.root.children.filter(child => {
 			return child instanceof SettingsTreeSettingElement && this.groupContainsSetting(group, child.setting);
 		}).length;
 	}
@@ -64,7 +69,7 @@ export class TOCTreeModel {
 	private groupContainsSetting(group: SettingsTreeGroupElement, setting: ISetting): boolean {
 		return group.children.some(child => {
 			if (child instanceof SettingsTreeSettingElement) {
-				return child.setting.key === setting.key;
+				return child.setting.key === setting.key && child.matchesAllTags(this.viewState.tagFilters);
 			} else if (child instanceof SettingsTreeGroupElement) {
 				return this.groupContainsSetting(child, setting);
 			} else {
@@ -77,11 +82,6 @@ export class TOCTreeModel {
 export type TOCTreeElement = SettingsTreeGroupElement | TOCTreeModel;
 
 export class TOCDataSource implements IDataSource {
-	constructor(
-		@IConfigurationService private configService: IConfigurationService
-	) {
-	}
-
 	getId(tree: ITree, element: SettingsTreeGroupElement): string {
 		return element.id;
 	}
@@ -96,14 +96,6 @@ export class TOCDataSource implements IDataSource {
 	}
 
 	private _getChildren(element: TOCTreeElement): SettingsTreeElement[] {
-		// TODO@roblou hack. Clean up or remove this option
-		if (this.configService.getValue('workbench.settings.settingsSearchTocBehavior') === 'filter') {
-			const children = element.children as SettingsTreeElement[]; // TS????
-			return children.filter(group => {
-				return (<any>group).count !== 0;
-			});
-		}
-
 		return element.children;
 	}
 
@@ -136,7 +128,7 @@ export class TOCRenderer implements IRenderer {
 	}
 
 	renderElement(tree: ITree, element: SettingsTreeGroupElement, templateId: string, template: ITOCEntryTemplate): void {
-		const count = (<any>element).count;
+		const count = element.count;
 		const label = element.label;
 
 		DOM.toggleClass(template.labelElement, 'no-results', count === 0);

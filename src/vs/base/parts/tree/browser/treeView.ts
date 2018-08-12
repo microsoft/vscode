@@ -25,7 +25,7 @@ import { KeyCode } from 'vs/base/common/keyCodes';
 import { Event, Emitter } from 'vs/base/common/event';
 import { DataTransfers } from 'vs/base/browser/dnd';
 import { DefaultTreestyler } from './treeDefaults';
-import { Delayer } from 'vs/base/common/async';
+import { Delayer, CancelablePromise, createCancelablePromise, wireCancellationToken } from 'vs/base/common/async';
 
 export interface IRow {
 	element: HTMLElement;
@@ -429,7 +429,7 @@ export class TreeView extends HeightMap {
 	private currentDropTarget: ViewItem;
 	private shouldInvalidateDropReaction: boolean;
 	private currentDropTargets: ViewItem[];
-	private currentDropPromise: WinJS.Promise;
+	private currentDropPromise: CancelablePromise<any>;
 	private dragAndDropScrollInterval: number;
 	private dragAndDropScrollTimeout: number;
 	private dragAndDropMouseY: number;
@@ -1530,9 +1530,11 @@ export class TreeView extends HeightMap {
 				}
 
 				if (reaction.autoExpand) {
-					this.currentDropPromise = WinJS.TPromise.timeout(500)
+					const promise = WinJS.TPromise.timeout(500)
 						.then(() => this.context.tree.expand(this.currentDropElement))
 						.then(() => this.shouldInvalidateDropReaction = true);
+
+					this.currentDropPromise = createCancelablePromise(token => wireCancellationToken(token, promise));
 				}
 			}
 		}
