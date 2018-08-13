@@ -111,10 +111,6 @@
 	visibility: visible;
 }
 
-.monaco-menu .monaco-action-bar.vertical .action-label.checked:after {
-	content: '  \2713';
-}
-
 /* Context Menu */
 
 .context-view.monaco-menu-container {
