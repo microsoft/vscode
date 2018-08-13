@@ -1017,6 +1017,14 @@ export class WindowsManager implements IWindowsMainService {
 			return this.parsePath(uri.fsPath, options);
 		}
 		if (isFile) {
+			if (options && options.gotoLineMode) {
+				const parsedPath = parseLineAndColumnAware(uri.path);
+				return {
+					fileUri: uri.with({ path: parsedPath.path }),
+					lineNumber: parsedPath.line,
+					columnNumber: parsedPath.column
+				};
+			}
 			return {
 				fileUri: uri
 			};
