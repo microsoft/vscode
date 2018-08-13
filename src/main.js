@@ -7,9 +7,6 @@
 const perf = require('./vs/base/common/performance');
 perf.mark('main:started');
 
-// Perf measurements
-global.perfStartTime = Date.now();
-
 Error.stackTraceLimit = 100; // increase number of stack frames (from 10, https://github.com/v8/v8/wiki/Stack-Trace-API)
 
 const fs = require('fs');
@@ -84,9 +81,8 @@ const app = require('electron').app;
 // TODO@Ben Electron 2.0.x: prevent localStorage migration from SQLite to LevelDB due to issues
 app.commandLine.appendSwitch('disable-mojo-local-storage');
 
-// TODO@Ben Electron 2.0.x: force srgb color profile (for https://github.com/Microsoft/vscode/issues/51791)
-// This also seems to fix: https://github.com/Microsoft/vscode/issues/48043
-app.commandLine.appendSwitch('force-color-profile', 'srgb');
+// Force pre-Chrome-60 color profile handling (for https://github.com/Microsoft/vscode/issues/51791)
+app.commandLine.appendSwitch('disable-features', 'ColorCorrectRendering');
 
 const minimist = require('minimist');
 const paths = require('./paths');

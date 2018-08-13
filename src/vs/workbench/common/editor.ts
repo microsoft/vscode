@@ -280,6 +280,11 @@ export interface IEditorInput extends IDisposable {
 	getResource(): URI;
 
 	/**
+	 * Unique type identifier for this inpput.
+	 */
+	getTypeId(): string;
+
+	/**
 	 * Returns the display name of this input.
 	 */
 	getName(): string;

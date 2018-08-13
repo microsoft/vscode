@@ -25,13 +25,6 @@ declare namespace monaco {
 		dispose(): void;
 	}
 
-	export enum Severity {
-		Ignore = 0,
-		Info = 1,
-		Warning = 2,
-		Error = 3,
-	}
-
 	export enum MarkerTag {
 		Unnecessary = 1,
 	}

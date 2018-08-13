@@ -271,7 +271,7 @@ export class HistoryMainService implements IHistoryMainService {
 					}
 				}
 			} else if (Array.isArray(storedRecents.workspaces)) {
-				// TODO legacy support can be removed at some point (6 month?)
+				// TODO@martin legacy support can be removed at some point (6 month?)
 				// format of 1.25 and before
 				for (const workspace of storedRecents.workspaces) {
 					if (typeof workspace === 'string') {

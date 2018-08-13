@@ -364,13 +364,18 @@ export class LoadedScriptsView extends TreeViewsViewletPanel {
 
 			clearTimeout(timeout);
 			timeout = setTimeout(() => {
-				this.tree.refresh(root, true);
+				if (this.tree) {
+					this.tree.refresh(root, true);
+				}
 			}, 300);
 		}));
 
 		this.disposables.push(this.debugService.onDidEndSession(session => {
+			clearTimeout(timeout);
 			root.remove(session.getId());
-			this.tree.refresh(root, false);
+			if (this.tree) {
+				this.tree.refresh(root, false);
+			}
 		}));
 	}
 

@@ -355,7 +355,7 @@ export class ShowStartupPerformance extends Action {
 
 			(<any>console).group('Raw Startup Timers (CSV)');
 			let value = `Name\tStart\n`;
-			let entries = getEntries('mark').slice(0).sort((a, b) => a.startTime - b.startTime);
+			let entries = getEntries('mark');
 			for (const entry of entries) {
 				value += `${entry.name}\t${entry.startTime}\n`;
 			}

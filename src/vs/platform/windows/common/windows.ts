@@ -14,7 +14,7 @@ import { ParsedArgs } from 'vs/platform/environment/common/environment';
 import { IWorkspaceIdentifier, IWorkspaceFolderCreationData, ISingleFolderWorkspaceIdentifier } from 'vs/platform/workspaces/common/workspaces';
 import { IRecentlyOpened } from 'vs/platform/history/common/history';
 import { ISerializableCommandAction } from 'vs/platform/actions/common/actions';
-import { PerformanceEntry } from 'vs/base/common/performance';
+import { ExportData } from 'vs/base/common/performance';
 import { LogLevel } from 'vs/platform/log/common/log';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import URI, { UriComponents } from 'vs/base/common/uri';
@@ -352,15 +352,13 @@ export interface IWindowConfiguration extends ParsedArgs {
 	fullscreen?: boolean;
 	maximized?: boolean;
 	highContrast?: boolean;
-	baseTheme?: string;
-	backgroundColor?: string;
 	frameless?: boolean;
 	accessibilitySupport?: boolean;
 
-	perfEntries: PerformanceEntry[];
 	perfStartTime?: number;
 	perfAppReady?: number;
 	perfWindowLoadTime?: number;
+	perfEntries: ExportData;
 
 	filesToOpen?: IPath[];
 	filesToCreate?: IPath[];

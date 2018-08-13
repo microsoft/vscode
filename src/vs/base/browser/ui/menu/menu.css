@@ -40,7 +40,7 @@
 	flex: 1 1 auto;
 	display: -ms-flexbox;
 	display: flex;
-	height: 2.6em;
+	height: 2em;
 	align-items: center;
 }
 
@@ -50,7 +50,7 @@
 	text-decoration: none;
 	padding: 0 1em;
 	background: none;
-	font-size: inherit;
+	font-size: 12px;
 	line-height: 1;
 }
 
@@ -61,7 +61,7 @@
 	flex: 2 1 auto;
 	padding: 0 1em;
 	text-align: right;
-	font-size: inherit;
+	font-size: 12px;
 	line-height: 1;
 }
 

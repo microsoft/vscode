@@ -26,14 +26,21 @@ export function basenameOrAuthority(resource: URI): string {
 }
 
 export function isEqualOrParent(resource: URI, candidate: URI, ignoreCase?: boolean): boolean {
-	if (resource.scheme === candidate.scheme && resource.authority === candidate.authority) {
+	if (resource.scheme === candidate.scheme) {
 		if (resource.scheme === Schemas.file) {
 			return paths.isEqualOrParent(resource.fsPath, candidate.fsPath, ignoreCase);
+		}
+		if (!isEqualAuthority(resource.authority, candidate.authority, ignoreCase)) {
+			return false;
 		}
 		return paths.isEqualOrParent(resource.path, candidate.path, ignoreCase, '/');
 	}
 
 	return false;
+}
+
+function isEqualAuthority(a1: string, a2: string, ignoreCase?: boolean) {
+	return a1 === a2 || ignoreCase && a1 && a2 && equalsIgnoreCase(a1, a2);
 }
 
 export function isEqual(first: URI, second: URI, ignoreCase?: boolean): boolean {

@@ -27,6 +27,7 @@ import { CodeActionAutoApply, CodeActionFilter, CodeActionKind } from './codeAct
 import { CodeActionContextMenu } from './codeActionWidget';
 import { LightBulbWidget } from './lightBulbWidget';
 import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
+import { onUnexpectedError } from 'vs/base/common/errors';
 
 function contextKeyForSupportedActions(kind: CodeActionKind) {
 	return ContextKeyExpr.regex(
@@ -98,7 +99,7 @@ export class QuickFixController implements IEditorContribution {
 				} else {
 					this._codeActionContextMenu.show(e.actions, e.position);
 				}
-			});
+			}).catch(onUnexpectedError);
 			return;
 		}
 

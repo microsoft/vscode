@@ -326,7 +326,7 @@ export class ReviewController implements IEditorContribution {
 	public onModelChanged(): void {
 		this.localToDispose = dispose(this.localToDispose);
 		if (this._newCommentWidget) {
-			// todo store view state.
+			// todo@peng store view state.
 			this._newCommentWidget.dispose();
 			this._newCommentWidget = null;
 		}
