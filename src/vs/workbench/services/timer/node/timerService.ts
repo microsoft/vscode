@@ -83,7 +83,7 @@ export class TimerService implements ITimerService {
 				ellapsedEditorRestore: perf.getDuration('willRestoreEditors', 'didRestoreEditors'),
 				ellapsedViewletRestore: perf.getDuration('willRestoreViewlet', 'didRestoreViewlet'),
 				ellapsedWorkbench: perf.getDuration('willStartWorkbench', 'didStartWorkbench'),
-				ellapsedWindowLoadToRequire: perf.getEntry('mark', 'willLoadWorkbenchMain').startTime - this.windowLoad,
+				ellapsedWindowLoadToRequire: perf.getDuration('main:loadWindow', 'willLoadWorkbenchMain'),
 				ellapsedTimersToTimersComputed: Date.now() - now,
 				ellapsedNlsGeneration: nlsTime
 			},
@@ -103,7 +103,7 @@ export class TimerService implements ITimerService {
 
 		if (initialStartup) {
 			this._startupMetrics.timers.ellapsedAppReady = perf.getDuration('main:started', 'main:appReady');
-			this._startupMetrics.timers.ellapsedWindowLoad = this.windowLoad - perf.getEntry('mark', 'main:appReady').startTime;
+			this._startupMetrics.timers.ellapsedWindowLoad = perf.getDuration('main:appReady', 'main:loadWindow');
 		}
 	}
 }
