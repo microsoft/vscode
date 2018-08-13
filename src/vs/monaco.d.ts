@@ -3795,6 +3795,14 @@ declare namespace monaco.editor {
 		 */
 		onDidBlurEditorWidget(listener: () => void): IDisposable;
 		/**
+		 * An event emitted after composition has started.
+		 */
+		onCompositionStart(listener: () => void): IDisposable;
+		/**
+		 * An event emitted after composition has ended.
+		 */
+		onCompositionEnd(listener: () => void): IDisposable;
+		/**
 		 * An event emitted on a "mouseup".
 		 * @event
 		 */
