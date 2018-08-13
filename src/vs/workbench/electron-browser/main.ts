@@ -54,6 +54,8 @@ gracefulFs.gracefulify(fs); // enable gracefulFs
 
 export function startup(configuration: IWindowConfiguration): TPromise<void> {
 
+	revive(configuration);
+
 	perf.importEntries(configuration.perfEntries);
 
 	// Ensure others can listen to zoom level changes
@@ -74,6 +76,22 @@ export function startup(configuration: IWindowConfiguration): TPromise<void> {
 
 	// Open workbench
 	return openWorkbench(configuration);
+}
+
+function revive(workbench: IWindowConfiguration) {
+	if (workbench.folderUri) {
+		workbench.folderUri = uri.revive(workbench.folderUri);
+	}
+	const filesToWaitPaths = workbench.filesToWait && workbench.filesToWait.paths;
+	[filesToWaitPaths, workbench.filesToOpen, workbench.filesToCreate, workbench.filesToDiff].forEach(paths => {
+		if (Array.isArray(paths)) {
+			paths.forEach(path => {
+				if (path.fileUri) {
+					path.fileUri = uri.revive(path.fileUri);
+				}
+			});
+		}
+	});
 }
 
 function openWorkbench(configuration: IWindowConfiguration): TPromise<void> {
@@ -117,8 +135,7 @@ function openWorkbench(configuration: IWindowConfiguration): TPromise<void> {
 }
 
 function createAndInitializeWorkspaceService(configuration: IWindowConfiguration, environmentService: EnvironmentService): TPromise<WorkspaceService> {
-	const folderUri = configuration.folderUri ? uri.revive(configuration.folderUri) : null;
-	return validateFolderUri(folderUri, configuration.verbose).then(validatedFolderUri => {
+	return validateFolderUri(configuration.folderUri, configuration.verbose).then(validatedFolderUri => {
 
 		const workspaceService = new WorkspaceService(environmentService);
 

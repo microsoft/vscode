@@ -19,6 +19,7 @@ const options: minimist.Opts = {
 		'user-data-dir',
 		'extensions-dir',
 		'folder-uri',
+		'file-uri',
 		'extensionDevelopmentPath',
 		'extensionTestsPath',
 		'install-extension',
@@ -145,7 +146,6 @@ export function parseArgs(args: string[]): ParsedArgs {
 
 const optionsHelp: { [name: string]: string; } = {
 	'-d, --diff <file> <file>': localize('diff', "Compare two files with each other."),
-	'--folder-uri <uri>': localize('folder uri', "Opens a window with given folder uri(s)"),
 	'-a, --add <dir>': localize('add', "Add folder(s) to the last active window."),
 	'-g, --goto <file:line[:character]>': localize('goto', "Open a file at the path on the specified line and character position."),
 	'-n, --new-window': localize('newWindow', "Force to open a new window."),
@@ -233,4 +233,31 @@ ${formatOptions(extensionsHelp, columns)}
 
 ${ localize('troubleshooting', "Troubleshooting")}:
 ${formatOptions(troubleshootingHelp, columns)}`;
+}
+
+/**
+ * Converts an argument into an array
+ * @param arg a argument value. Can be undefined, an entry or an array
+ */
+export function asArray(arg: string | string[] | undefined): string[] {
+	if (arg) {
+		if (Array.isArray(arg)) {
+			return arg;
+		}
+		return [arg];
+	}
+	return [];
+}
+
+/**
+ * Returns whether an argument is present.
+ */
+export function hasArgs(arg: string | string[] | undefined): boolean {
+	if (arg) {
+		if (Array.isArray(arg)) {
+			return !!arg.length;
+		}
+		return true;
+	}
+	return false;
 }

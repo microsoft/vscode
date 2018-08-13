@@ -715,13 +715,13 @@ export abstract class BaseOpenRecentAction extends Action {
 			.then(({ workspaces, files }) => this.openRecent(workspaces, files));
 	}
 
-	private openRecent(recentWorkspaces: (IWorkspaceIdentifier | ISingleFolderWorkspaceIdentifier)[], recentFiles: string[]): void {
+	private openRecent(recentWorkspaces: (IWorkspaceIdentifier | ISingleFolderWorkspaceIdentifier)[], recentFiles: URI[]): void {
 
-		const toPick = (workspace: IWorkspaceIdentifier | ISingleFolderWorkspaceIdentifier | string, fileKind: FileKind, environmentService: IEnvironmentService, uriDisplayService: IUriDisplayService, buttons: IQuickInputButton[]) => {
+		const toPick = (workspace: IWorkspaceIdentifier | ISingleFolderWorkspaceIdentifier | URI, fileKind: FileKind, environmentService: IEnvironmentService, uriDisplayService: IUriDisplayService, buttons: IQuickInputButton[]) => {
 			let resource: URI;
 			let label: string;
 			let description: string;
-			if (isSingleFolderWorkspaceIdentifier(workspace)) {
+			if (isSingleFolderWorkspaceIdentifier(workspace) && fileKind !== FileKind.FILE) {
 				resource = workspace;
 				label = getWorkspaceLabel(workspace, environmentService, uriDisplayService);
 				description = uriDisplayService.getLabel(dirname(resource));
@@ -730,7 +730,7 @@ export abstract class BaseOpenRecentAction extends Action {
 				label = getWorkspaceLabel(workspace, environmentService, uriDisplayService);
 				description = uriDisplayService.getLabel(dirname(resource));
 			} else {
-				resource = URI.file(workspace);
+				resource = workspace;
 				label = getBaseLabel(workspace);
 				description = uriDisplayService.getLabel(dirname(resource));
 			}

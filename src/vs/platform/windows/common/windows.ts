@@ -126,8 +126,8 @@ export interface IWindowsService {
 	saveAndEnterWorkspace(windowId: number, path: string): TPromise<IEnterWorkspaceResult>;
 	toggleFullScreen(windowId: number): TPromise<void>;
 	setRepresentedFilename(windowId: number, fileName: string): TPromise<void>;
-	addRecentlyOpened(files: string[]): TPromise<void>;
-	removeFromRecentlyOpened(paths: (IWorkspaceIdentifier | ISingleFolderWorkspaceIdentifier | string)[]): TPromise<void>;
+	addRecentlyOpened(files: URI[]): TPromise<void>;
+	removeFromRecentlyOpened(paths: (IWorkspaceIdentifier | ISingleFolderWorkspaceIdentifier | URI | string)[]): TPromise<void>;
 	clearRecentlyOpened(): TPromise<void>;
 	getRecentlyOpened(windowId: number): TPromise<IRecentlyOpened>;
 	focusWindow(windowId: number): TPromise<void>;
@@ -292,10 +292,25 @@ export enum ReadyState {
 	READY
 }
 
-export interface IPath {
+export interface IPath extends IPathData {
 
 	// the file path to open within a Code instance
-	filePath?: string;
+	fileUri?: URI;
+}
+
+export interface IPathsToWaitFor extends IPathsToWaitForData {
+	paths: IPath[];
+}
+
+export interface IPathsToWaitForData {
+	paths: IPathData[];
+	waitMarkerFilePath: string;
+}
+
+export interface IPathData {
+
+	// the file path to open within a Code instance
+	fileUri?: UriComponents;
 
 	// the line number in the file path to open
 	lineNumber?: number;
@@ -304,16 +319,11 @@ export interface IPath {
 	columnNumber?: number;
 }
 
-export interface IPathsToWaitFor {
-	paths: IPath[];
-	waitMarkerFilePath: string;
-}
-
 export interface IOpenFileRequest {
-	filesToOpen?: IPath[];
-	filesToCreate?: IPath[];
-	filesToDiff?: IPath[];
-	filesToWait?: IPathsToWaitFor;
+	filesToOpen?: IPathData[];
+	filesToCreate?: IPathData[];
+	filesToDiff?: IPathData[];
+	filesToWait?: IPathsToWaitForData;
 	termProgram?: string;
 }
 
@@ -321,7 +331,7 @@ export interface IAddFoldersRequest {
 	foldersToAdd: UriComponents[];
 }
 
-export interface IWindowConfiguration extends ParsedArgs, IOpenFileRequest {
+export interface IWindowConfiguration extends ParsedArgs {
 	machineId: string;
 	windowId: number;
 	logLevel: LogLevel;
@@ -345,7 +355,16 @@ export interface IWindowConfiguration extends ParsedArgs, IOpenFileRequest {
 	frameless?: boolean;
 	accessibilitySupport?: boolean;
 
+	perfStartTime?: number;
+	perfAppReady?: number;
+	perfWindowLoadTime?: number;
 	perfEntries: ExportData;
+
+	filesToOpen?: IPath[];
+	filesToCreate?: IPath[];
+	filesToDiff?: IPath[];
+	filesToWait?: IPathsToWaitFor;
+	termProgram?: string;
 }
 
 export interface IRunActionInWindowRequest {
