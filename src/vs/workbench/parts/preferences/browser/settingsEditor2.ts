@@ -662,17 +662,18 @@ export class SettingsEditor2 extends BaseEditor {
 		}
 
 		// If a setting control is currently focused, schedule a refresh for later
-		if (document.activeElement.classList.contains(SettingsRenderer.CONTROL_CLASS)) {
+		const focusedSetting = this.settingsTreeRenderer.getSettingDOMElementForDOMElement(<HTMLElement>document.activeElement);
+		if (focusedSetting) {
 			// If a single setting is being refreshed, it's ok to refresh now if that is not the focused setting
 			if (key) {
-				const focusedKey = this.settingsTreeRenderer.getSettingKeyForDOMElement(<HTMLElement>document.activeElement);
+				const focusedKey = focusedSetting.getAttribute(SettingsRenderer.SETTING_KEY_ATTR);
 				if (focusedKey === key) {
 					this.updateModifiedLabelForKey(key);
-					this.scheduleRefresh(<HTMLElement>document.activeElement, key);
+					this.scheduleRefresh(focusedSetting, key);
 					return TPromise.wrap(null);
 				}
 			} else {
-				this.scheduleRefresh(<HTMLElement>document.activeElement);
+				this.scheduleRefresh(focusedSetting);
 				return TPromise.wrap(null);
 			}
 		}

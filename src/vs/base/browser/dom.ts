@@ -920,7 +920,7 @@ class FocusTracker implements IFocusTracker {
 	private disposables: IDisposable[] = [];
 
 	constructor(element: HTMLElement | Window) {
-		let hasFocus = document.activeElement === element;
+		let hasFocus = isAncestor(document.activeElement, <HTMLElement>element);
 		let loosingFocus = false;
 
 		let onFocus = () => {

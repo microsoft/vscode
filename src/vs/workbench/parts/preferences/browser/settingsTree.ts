@@ -258,7 +258,7 @@ export class SettingsRenderer implements ITreeRenderer {
 	public static readonly CONTROL_CLASS = 'setting-control-focus-target';
 	public static readonly CONTROL_SELECTOR = '.' + SettingsRenderer.CONTROL_CLASS;
 
-	private static readonly SETTING_KEY_ATTR = 'data-key';
+	public static readonly SETTING_KEY_ATTR = 'data-key';
 
 	private readonly _onDidChangeSetting: Emitter<ISettingChangeEvent> = new Emitter<ISettingChangeEvent>();
 	public readonly onDidChangeSetting: Event<ISettingChangeEvent> = this._onDidChangeSetting.event;
@@ -758,10 +758,10 @@ export class SettingsRenderer implements ITreeRenderer {
 		template.context = element;
 	}
 
-	public getSettingKeyForDOMElement(domElement: HTMLElement): string {
+	public getSettingDOMElementForDOMElement(domElement: HTMLElement): HTMLElement {
 		const parent = DOM.findParentWithClass(domElement, 'setting-item');
 		if (parent) {
-			return parent.getAttribute(SettingsRenderer.SETTING_KEY_ATTR);
+			return parent;
 		}
 
 		return null;
