@@ -1435,10 +1435,12 @@ export class Workbench extends Disposable implements IPartService {
 	}
 
 	setMenubarVisibility(visibility: MenuBarVisibility, skipLayout: boolean): void {
-		this.menubarVisibility = visibility;
+		if (this.menubarVisibility !== visibility) {
+			this.menubarVisibility = visibility;
 
-		if (!skipLayout) {
-			this.workbenchLayout.layout();
+			if (!skipLayout) {
+				this.workbenchLayout.layout();
+			}
 		}
 	}
 
