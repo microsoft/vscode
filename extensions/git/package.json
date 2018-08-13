@@ -1207,8 +1207,6 @@
     "@types/mocha": "2.2.43",
     "@types/node": "7.0.43",
     "@types/which": "^1.0.28",
-    "mocha": "^3.2.0",
-    "webpack": "^4.16.5",
-    "webpack-cli": "^3.1.0"
+    "mocha": "^3.2.0"
   }
 }
