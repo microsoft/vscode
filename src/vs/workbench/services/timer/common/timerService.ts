@@ -128,6 +128,7 @@ export interface IStartupMetrics {
 		 * * Measured with the `main:loadWindow` and `willLoadWorkbenchMain` performance marks.
 		 * * This can be compared between insider and stable builds.
 		 * * It is mostly not our code running here and we can only observe what's happening.
+		 *
 		 */
 		ellapsedWindowLoadToRequire: number;
 
@@ -137,8 +138,8 @@ export interface IStartupMetrics {
 		 * * Happens in the renderer-process
 		 * * Measured with the `willLoadWorkbenchMain` and `didLoadWorkbenchMain` performance marks.
 		 * * This varies *a lot* when V8 cached data could be used or not
-		 * * This should be looked at with and without V8 cached data usage
-		 * * This is affected by the size of our code bundle (which usually grows about 5%)
+		 * * This should be looked at with and without V8 cached data usage and per electron/v8 version
+		 * * This is affected by the size of our code bundle (which  grows about 3-5% per release)
 		 */
 		ellapsedRequire: number;
 
