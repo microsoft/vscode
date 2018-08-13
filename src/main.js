@@ -7,9 +7,6 @@
 const perf = require('./vs/base/common/performance');
 perf.mark('main:started');
 
-// Perf measurements
-global.perfStartTime = Date.now();
-
 Error.stackTraceLimit = 100; // increase number of stack frames (from 10, https://github.com/v8/v8/wiki/Stack-Trace-API)
 
 const fs = require('fs');

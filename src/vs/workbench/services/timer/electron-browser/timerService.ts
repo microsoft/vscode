@@ -8,13 +8,9 @@ import { ITimerService, IStartupMetrics, IMemoryInfo } from 'vs/workbench/servic
 import { virtualMachineHint } from 'vs/base/node/id';
 import * as perf from 'vs/base/common/performance';
 import * as os from 'os';
-
-export interface IInitData {
-	start: number;
-	windowLoad: number;
-	isInitialStartup: boolean;
-	hasAccessibilitySupport: boolean;
-}
+import { getAccessibilitySupport } from 'vs/base/browser/browser';
+import { AccessibilitySupport } from 'vs/base/common/platform';
+import { IWindowConfiguration } from 'vs/platform/windows/common/windows';
 
 export class TimerService implements ITimerService {
 
@@ -23,7 +19,7 @@ export class TimerService implements ITimerService {
 	private _startupMetrics: IStartupMetrics;
 
 	constructor(
-		private readonly _initData: IInitData,
+		private readonly _configuration: IWindowConfiguration,
 		private readonly _isEmptyWorkbench: boolean
 	) {
 		//
@@ -38,8 +34,8 @@ export class TimerService implements ITimerService {
 
 	public _computeStartupMetrics(): void {
 		const now = Date.now();
-		const initialStartup = !!this._initData.isInitialStartup;
-		const start = initialStartup ? this._initData.start : this._initData.windowLoad;
+		const initialStartup = !!this._configuration.isInitialStartup;
+		const startMark = initialStartup ? 'main:started' : 'main:loadWindow';
 
 		let totalmem: number;
 		let freemem: number;
@@ -72,7 +68,7 @@ export class TimerService implements ITimerService {
 
 		this._startupMetrics = {
 			version: 1,
-			ellapsed: perf.getEntry('mark', 'didStartWorkbench').startTime - start,
+			ellapsed: perf.getDuration(startMark, 'didStartWorkbench'),
 			timers: {
 				ellapsedAppReady: initialStartup ? perf.getDuration('main:started', 'main:appReady') : undefined,
 				ellapsedNlsGeneration: perf.getDuration('nlsGeneration:start', 'nlsGeneration:end'),
@@ -83,7 +79,7 @@ export class TimerService implements ITimerService {
 				ellapsedEditorRestore: perf.getDuration('willRestoreEditors', 'didRestoreEditors'),
 				ellapsedViewletRestore: perf.getDuration('willRestoreViewlet', 'didRestoreViewlet'),
 				ellapsedWorkbench: perf.getDuration('willStartWorkbench', 'didStartWorkbench'),
-				ellapsedExtensionsReady: perf.getEntry('mark', 'didLoadExtensions').startTime - start,
+				ellapsedExtensionsReady: perf.getDuration(startMark, 'didLoadExtensions'),
 				ellapsedTimersToTimersComputed: Date.now() - now,
 			},
 			platform,
@@ -96,7 +92,7 @@ export class TimerService implements ITimerService {
 			loadavg,
 			initialStartup,
 			isVMLikelyhood,
-			hasAccessibilitySupport: !!this._initData.hasAccessibilitySupport,
+			hasAccessibilitySupport: getAccessibilitySupport() === AccessibilitySupport.Enabled,
 			emptyWorkbench: this._isEmptyWorkbench
 		};
 	}

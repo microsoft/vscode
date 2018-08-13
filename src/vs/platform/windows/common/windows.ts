@@ -346,9 +346,6 @@ export interface IWindowConfiguration extends ParsedArgs, IOpenFileRequest {
 	accessibilitySupport?: boolean;
 
 	perfEntries: PerformanceEntry[];
-	perfStartTime?: number;
-	perfAppReady?: number;
-	perfWindowLoadTime?: number;
 }
 
 export interface IRunActionInWindowRequest {

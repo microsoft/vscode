@@ -306,14 +306,6 @@ function main() {
 		});
 	}
 
-	// Perf Counters
-	window.MonacoEnvironment.timers = {
-		isInitialStartup: !!configuration.isInitialStartup,
-		hasAccessibilitySupport: !!configuration.accessibilitySupport,
-		start: configuration.perfStartTime,
-		windowLoad: configuration.perfWindowLoadTime
-	};
-
 	perf.mark('willLoadWorkbenchMain');
 	require([
 		'vs/workbench/workbench.main',
