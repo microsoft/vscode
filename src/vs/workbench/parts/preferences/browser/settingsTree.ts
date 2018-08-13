@@ -438,6 +438,7 @@ export class SettingsRenderer implements ITreeRenderer {
 		const categoryElement = DOM.append(titleElement, $('span.setting-item-category'));
 		const labelElement = DOM.append(titleElement, $('span.setting-item-label'));
 		const isConfiguredElement = DOM.append(titleElement, $('span.setting-item-is-configured-label'));
+		isConfiguredElement.textContent = localize('configured', "Modified");
 		const otherOverridesElement = DOM.append(titleElement, $('span.setting-item-overrides'));
 		const descriptionElement = DOM.append(container, $('.setting-item-description'));
 
@@ -544,6 +545,7 @@ export class SettingsRenderer implements ITreeRenderer {
 		const categoryElement = DOM.append(titleElement, $('span.setting-item-category'));
 		const labelElement = DOM.append(titleElement, $('span.setting-item-label'));
 		const isConfiguredElement = DOM.append(titleElement, $('span.setting-item-is-configured-label'));
+		isConfiguredElement.textContent = localize('configured', "Modified");
 		const otherOverridesElement = DOM.append(titleElement, $('span.setting-item-overrides'));
 
 		const descriptionAndValueElement = DOM.append(container, $('.setting-item-value-description'));
@@ -765,6 +767,10 @@ export class SettingsRenderer implements ITreeRenderer {
 		return null;
 	}
 
+	public getDOMElementsForSettingKey(treeContainer: HTMLElement, key: string): NodeListOf<HTMLElement> {
+		return treeContainer.querySelectorAll(`[${SettingsRenderer.SETTING_KEY_ATTR}="${key}"]`);
+	}
+
 	private renderSettingElement(tree: ITree, element: SettingsTreeSettingElement, templateId: string, template: ISettingItemTemplate | ISettingBoolItemTemplate): void {
 		template.context = element;
 
@@ -789,8 +795,6 @@ export class SettingsRenderer implements ITreeRenderer {
 		} else {
 			template.descriptionElement.innerText = element.description;
 		}
-
-		template.isConfiguredElement.textContent = element.isConfigured ? localize('configured', "Modified") : '';
 
 		if (element.overriddenScopeList.length) {
 			let otherOverridesLabel = element.isConfigured ?

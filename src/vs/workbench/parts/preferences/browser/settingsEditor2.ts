@@ -111,7 +111,7 @@ export class SettingsEditor2 extends BaseEditor {
 		this.viewState = { settingsTarget: ConfigurationTarget.USER };
 		this.delayRefreshOnLayout = new Delayer(100);
 
-		this.settingUpdateDelayer = new Delayer<void>(500);
+		this.settingUpdateDelayer = new Delayer<void>(200);
 
 		this.inSettingsEditorContextKey = CONTEXT_SETTINGS_EDITOR.bindTo(contextKeyService);
 		this.searchFocusContextKey = CONTEXT_SETTINGS_SEARCH_FOCUS.bindTo(contextKeyService);
@@ -657,6 +657,7 @@ export class SettingsEditor2 extends BaseEditor {
 
 	private renderTree(key?: string): TPromise<void> {
 		if (key && this.scheduledRefreshes.has(key)) {
+			this.updateModifiedLabelForKey(key);
 			return TPromise.wrap(null);
 		}
 
@@ -666,6 +667,7 @@ export class SettingsEditor2 extends BaseEditor {
 			if (key) {
 				const focusedKey = this.settingsTreeRenderer.getSettingKeyForDOMElement(<HTMLElement>document.activeElement);
 				if (focusedKey === key) {
+					this.updateModifiedLabelForKey(key);
 					this.scheduleRefresh(<HTMLElement>document.activeElement, key);
 					return TPromise.wrap(null);
 				}
@@ -684,9 +686,18 @@ export class SettingsEditor2 extends BaseEditor {
 		}
 
 		return refreshP.then(() => {
-			this.tocTreeModel.update(); // ?
+			this.tocTreeModel.update();
 			return this.tocTree.refresh();
 		}).then(() => { });
+	}
+
+	private updateModifiedLabelForKey(key: string): void {
+		const dataElements = this.getElementsByKey(key);
+		const isModified = dataElements && dataElements[0] && dataElements[0].isConfigured; // all elements are either configured or not
+		const elements = this.settingsTreeRenderer.getDOMElementsForSettingKey(this.settingsTree.getHTMLElement(), key);
+		if (elements && elements[0]) {
+			DOM.toggleClass(elements[0], 'is-configured', isModified);
+		}
 	}
 
 	private onSearchInputChanged(): void {
