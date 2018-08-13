@@ -260,9 +260,9 @@ function getNLSConfiguration(locale) {
 	// We have a built version so we have extracted nls file. Try to find
 	// the right file to use.
 
-	// Check if we have an English locale. If so fall to default since that is our
+	// Check if we have an English or English US locale. If so fall to default since that is our
 	// English translation (we don't ship *.nls.en.json files)
-	if (locale && (locale == 'en' || locale.startsWith('en-'))) {
+	if (locale && (locale === 'en' || locale === 'en-us')) {
 		return Promise.resolve({ locale: locale, availableLanguages: {} });
 	}
 
