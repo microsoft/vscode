@@ -52,6 +52,7 @@ import { ExtensionsInput } from 'vs/workbench/parts/extensions/common/extensions
 import product from 'vs/platform/node/product';
 import { ContextSubMenu } from 'vs/base/browser/contextmenu';
 import { IQuickPickItem, IQuickInputService } from 'vs/platform/quickinput/common/quickInput';
+import { CancellationToken } from 'vs/base/common/cancellation';
 
 const promptDownloadManually = (extension: IGalleryExtension, message: string, instantiationService: IInstantiationService, notificationService: INotificationService, openerService: IOpenerService) => {
 	const downloadUrl = `${product.extensionsGallery.serviceUrl}/publishers/${extension.publisher}/vsextensions/${extension.name}/${extension.version}/vspackage`;
@@ -1633,7 +1634,7 @@ export class InstallWorkspaceRecommendedExtensionsAction extends Action {
 					let installPromises = [];
 					let model = new PagedModel(pager);
 					for (let i = 0; i < pager.total; i++) {
-						installPromises.push(model.resolve(i).then(e => {
+						installPromises.push(model.resolve(i, CancellationToken.None).then(e => {
 							return this.install(e);
 						}));
 					}

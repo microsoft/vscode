@@ -11,6 +11,7 @@ import { TPromise } from 'vs/base/common/winjs.base';
 import { FileWriteOptions, FileSystemProviderCapabilities, IFileChange, IFileService, IFileSystemProvider, IStat, IWatchOptions, FileType, FileOverwriteOptions, FileDeleteOptions } from 'vs/platform/files/common/files';
 import { extHostNamedCustomer } from 'vs/workbench/api/electron-browser/extHostCustomers';
 import { ExtHostContext, ExtHostFileSystemShape, IExtHostContext, IFileChangeDto, MainContext, MainThreadFileSystemShape } from '../node/extHost.protocol';
+import { UriDisplayRules, IUriDisplayService } from 'vs/platform/uriDisplay/common/uriDisplay';
 
 @extHostNamedCustomer(MainContext.MainThreadFileSystem)
 export class MainThreadFileSystem implements MainThreadFileSystemShape {
@@ -20,7 +21,8 @@ export class MainThreadFileSystem implements MainThreadFileSystemShape {
 
 	constructor(
 		extHostContext: IExtHostContext,
-		@IFileService private readonly _fileService: IFileService
+		@IFileService private readonly _fileService: IFileService,
+		@IUriDisplayService private readonly _uriDisplayService: IUriDisplayService
 	) {
 		this._proxy = extHostContext.getProxy(ExtHostContext.ExtHostFileSystem);
 	}
@@ -37,6 +39,10 @@ export class MainThreadFileSystem implements MainThreadFileSystemShape {
 	$unregisterProvider(handle: number): void {
 		dispose(this._fileProvider.get(handle));
 		this._fileProvider.delete(handle);
+	}
+
+	$setUriFormatter(scheme: string, formatter: UriDisplayRules): void {
+		this._uriDisplayService.registerFormater(scheme, formatter);
 	}
 
 	$onFileSystemChange(handle: number, changes: IFileChangeDto[]): void {

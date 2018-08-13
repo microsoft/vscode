@@ -20,11 +20,11 @@ export interface IQuickPickItem {
 	iconClasses?: string[];
 	buttons?: IQuickInputButton[];
 	picked?: boolean;
+	alwaysShow?: boolean;
 }
 
 export interface IQuickPickSeparator {
 	type: 'separator';
-	border?: boolean;
 	label?: string;
 }
 

@@ -12,7 +12,7 @@ import { dispose } from 'vs/base/common/lifecycle';
 import { assign } from 'vs/base/common/objects';
 import { chain } from 'vs/base/common/event';
 import { isPromiseCanceledError, create as createError } from 'vs/base/common/errors';
-import { PagedModel, IPagedModel, IPager } from 'vs/base/common/paging';
+import { PagedModel, IPagedModel, IPager, DelayedPagedModel } from 'vs/base/common/paging';
 import { SortBy, SortOrder, IQueryOptions, LocalExtensionType, IExtensionTipsService, EnablementState, IExtensionRecommendation, IExtensionManagementServerService, ExtensionRecommendationSource, IExtensionManagementServer } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { areSameExtensions } from 'vs/platform/extensionManagement/common/extensionManagementUtil';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
@@ -563,7 +563,7 @@ export class ExtensionsListView extends ViewletPanel {
 
 	private setModel(model: IPagedModel<IExtension>) {
 		if (this.list) {
-			this.list.model = model;
+			this.list.model = new DelayedPagedModel(model);
 			this.list.scrollTop = 0;
 			const count = this.count();
 

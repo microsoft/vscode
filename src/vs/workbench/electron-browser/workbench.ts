@@ -493,7 +493,7 @@ export class Workbench extends Disposable implements IPartService {
 		// Listen to editor closing (if we run with --wait)
 		const filesToWait = this.workbenchParams.configuration.filesToWait;
 		if (filesToWait) {
-			const resourcesToWaitFor = filesToWait.paths.map(p => URI.file(p.filePath));
+			const resourcesToWaitFor = filesToWait.paths.map(p => p.fileUri);
 			const waitMarkerFile = URI.file(filesToWait.waitMarkerFilePath);
 			const listenerDispose = this.editorService.onDidCloseEditor(() => this.onEditorClosed(listenerDispose, resourcesToWaitFor, waitMarkerFile));
 
@@ -816,7 +816,7 @@ export class Workbench extends Disposable implements IPartService {
 		}
 
 		return paths.map(p => {
-			const resource = URI.file(p.filePath);
+			const resource = p.fileUri;
 			let input: IResourceInput | IUntitledResourceInput;
 			if (isNew) {
 				input = { filePath: resource.fsPath, options: { pinned: true } } as IUntitledResourceInput;

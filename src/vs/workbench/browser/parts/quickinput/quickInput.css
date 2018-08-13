@@ -113,10 +113,20 @@
 }
 
 .quick-input-list .quick-input-list-entry {
+	box-sizing: border-box;
 	overflow: hidden;
 	display: flex;
 	height: 100%;
 	padding: 0 6px;
+}
+
+.quick-input-list .quick-input-list-entry.quick-input-list-separator-border {
+	border-top-width: 1px;
+	border-top-style: solid;
+}
+
+.quick-input-list .monaco-list-row:first-child .quick-input-list-entry.quick-input-list-separator-border {
+	border-top-style: none;
 }
 
 .quick-input-list .quick-input-list-label {
@@ -177,12 +187,6 @@
 .quick-input-list .quick-input-list-entry.has-actions:hover .quick-input-list-separator,
 .quick-input-list .monaco-list-row.focused .quick-input-list-entry.has-actions .quick-input-list-separator {
 	margin-right: 0;
-}
-
-.quick-input-list .quick-input-list-separator-border {
-	border-top-width: 1px;
-	border-top-style: solid;
-	box-sizing: border-box;
 }
 
 .quick-input-list .quick-input-list-entry-action-bar {

@@ -190,7 +190,7 @@ CommandsRegistry.registerCommand(id, async accessor => {
 	const newGlobalPick = <IQuickPickItem>{ label: nls.localize('new.global', "New Global Snippets file...") };
 	if (existing.length > 0) {
 		existing.unshift({ type: 'separator', label: nls.localize('group.global', "Existing Snippets") });
-		existing.push({ type: 'separator', border: true, label: nls.localize('new.global.sep', "New Snippets") });
+		existing.push({ type: 'separator', label: nls.localize('new.global.sep', "New Snippets") });
 	} else {
 		existing.push({ type: 'separator', label: nls.localize('new.global.sep', "New Snippets") });
 	}

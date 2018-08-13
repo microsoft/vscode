@@ -894,7 +894,7 @@ class TaskService implements ITaskService {
 		}
 		if (entries.length > 0) {
 			entries = entries.sort((a, b) => a.label.localeCompare(b.label));
-			entries.unshift({ type: 'separator', border: true, label: nls.localize('TaskService.associate', 'associate') });
+			entries.unshift({ type: 'separator', label: nls.localize('TaskService.associate', 'associate') });
 			entries.unshift(
 				{ label: nls.localize('TaskService.attachProblemMatcher.continueWithout', 'Continue without scanning the task output'), matcher: undefined },
 				{ label: nls.localize('TaskService.attachProblemMatcher.never', 'Never scan the task output'), matcher: undefined, never: true },
@@ -1804,9 +1804,9 @@ class TaskService implements ITaskService {
 			}
 			return { label: task._label, description, task };
 		};
-		function fillEntries(entries: QuickPickInput<TaskQuickPickEntry>[], tasks: Task[], groupLabel: string, withBorder: boolean = false): void {
+		function fillEntries(entries: QuickPickInput<TaskQuickPickEntry>[], tasks: Task[], groupLabel: string): void {
 			if (tasks.length) {
-				entries.push({ type: 'separator', label: groupLabel, border: withBorder });
+				entries.push({ type: 'separator', label: groupLabel });
 			}
 			for (let task of tasks) {
 				let entry: TaskQuickPickEntry = TaskQuickPickEntry(task);
@@ -1848,13 +1848,11 @@ class TaskService implements ITaskService {
 					}
 				}
 				const sorter = this.createSorter();
-				let hasRecentlyUsed: boolean = recent.length > 0;
 				fillEntries(entries, recent, nls.localize('recentlyUsed', 'recently used tasks'));
 				configured = configured.sort((a, b) => sorter.compare(a, b));
-				let hasConfigured = configured.length > 0;
-				fillEntries(entries, configured, nls.localize('configured', 'configured tasks'), hasRecentlyUsed);
+				fillEntries(entries, configured, nls.localize('configured', 'configured tasks'));
 				detected = detected.sort((a, b) => sorter.compare(a, b));
-				fillEntries(entries, detected, nls.localize('detected', 'detected tasks'), hasRecentlyUsed || hasConfigured);
+				fillEntries(entries, detected, nls.localize('detected', 'detected tasks'));
 			}
 		} else {
 			if (sort) {
@@ -2274,7 +2272,7 @@ class TaskService implements ITaskService {
 					if (needsCreateOrOpen) {
 						let label = stats[0] !== void 0 ? openLabel : createLabel;
 						if (entries.length) {
-							entries.push({ type: 'separator', border: true });
+							entries.push({ type: 'separator' });
 						}
 						entries.push({ label, folder: this.contextService.getWorkspace().folders[0] });
 					}
@@ -2288,14 +2286,14 @@ class TaskService implements ITaskService {
 							for (let i = 0; i < tasks.length; i++) {
 								let entry: EntryType = { label: tasks[i]._label, task: tasks[i], description: folder.name };
 								if (i === 0) {
-									entries.push({ type: 'separator', label: folder.name, border: index > 0 });
+									entries.push({ type: 'separator', label: folder.name });
 								}
 								entries.push(entry);
 							}
 						} else {
 							let label = stats[index] !== void 0 ? openLabel : createLabel;
 							let entry: EntryType = { label, folder: folder };
-							entries.push({ type: 'separator', label: folder.name, border: index > 0 });
+							entries.push({ type: 'separator', label: folder.name });
 							entries.push(entry);
 						}
 						index++;

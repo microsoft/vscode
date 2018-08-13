@@ -80,15 +80,18 @@
 
 .monaco-shell .monaco-menu .monaco-action-bar.vertical .action-label:not(.separator),
 .monaco-shell .monaco-menu .monaco-action-bar.vertical .keybinding {
+	font-size: inherit;
 	padding: 0 1.5em;
 }
 
 .monaco-shell .monaco-menu .monaco-action-bar.vertical .action-label.separator {
+	font-size: inherit;
 	padding: 0.2em 0 0 0;
 	margin-bottom: 0.2em;
 }
 
 .monaco-shell .monaco-menu .monaco-action-bar.vertical .submenu-indicator {
+	font-size: inherit;
 	padding: 0 1em;
 }
 

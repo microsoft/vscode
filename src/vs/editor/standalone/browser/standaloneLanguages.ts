@@ -880,7 +880,6 @@ export function createMonacoLanguagesAPI(): typeof monaco.languages {
 		SymbolKind: modes.SymbolKind,
 		IndentAction: IndentAction,
 		SuggestTriggerKind: modes.SuggestTriggerKind,
-		CommentThreadCollapsibleState: modes.CommentThreadCollapsibleState,
 		FoldingRangeKind: modes.FoldingRangeKind
 	};
 }

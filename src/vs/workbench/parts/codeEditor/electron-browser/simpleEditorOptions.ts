@@ -3,9 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IEditorOptions } from 'vs/editor/common/config/editorOptions';
 import { ICodeEditorWidgetOptions } from 'vs/editor/browser/widget/codeEditorWidget';
-import { MenuPreventer } from 'vs/workbench/parts/codeEditor/electron-browser/menuPreventer';
+import { MenuPreventer } from 'vs/workbench/parts/codeEditor/browser/menuPreventer';
 import { SelectionClipboard } from 'vs/workbench/parts/codeEditor/electron-browser/selectionClipboard';
 import { ContextMenuController } from 'vs/editor/contrib/contextmenu/contextmenu';
 import { SuggestController } from 'vs/editor/contrib/suggest/suggestController';
@@ -23,30 +22,5 @@ export function getSimpleCodeEditorWidgetOptions(): ICodeEditorWidgetOptions {
 			SnippetController2,
 			TabCompletionController,
 		]
-	};
-}
-
-export function getSimpleEditorOptions(): IEditorOptions {
-	return {
-		wordWrap: 'on',
-		overviewRulerLanes: 0,
-		glyphMargin: false,
-		lineNumbers: 'off',
-		folding: false,
-		selectOnLineNumbers: false,
-		hideCursorInOverviewRuler: true,
-		selectionHighlight: false,
-		scrollbar: {
-			horizontal: 'hidden'
-		},
-		lineDecorationsWidth: 0,
-		overviewRulerBorder: false,
-		scrollBeyondLastLine: false,
-		renderLineHighlight: 'none',
-		fixedOverflowWidgets: true,
-		acceptSuggestionOnEnter: 'smart',
-		minimap: {
-			enabled: false
-		}
 	};
 }
