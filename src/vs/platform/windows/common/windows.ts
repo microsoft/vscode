@@ -292,20 +292,18 @@ export enum ReadyState {
 	READY
 }
 
-export interface IPath {
+export interface IPath extends IPathData {
 
 	// the file path to open within a Code instance
 	fileUri?: URI;
-
-	// the line number in the file path to open
-	lineNumber?: number;
-
-	// the column number in the file path to open
-	columnNumber?: number;
 }
 
-export interface IPathsToWaitFor {
+export interface IPathsToWaitFor extends IPathsToWaitForData {
 	paths: IPath[];
+}
+
+export interface IPathsToWaitForData {
+	paths: IPathData[];
 	waitMarkerFilePath: string;
 }
 
@@ -319,11 +317,6 @@ export interface IPathData {
 
 	// the column number in the file path to open
 	columnNumber?: number;
-}
-
-export interface IPathsToWaitForData {
-	paths: IPathData[];
-	waitMarkerFilePath: string;
 }
 
 export interface IOpenFileRequest {

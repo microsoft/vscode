@@ -12,7 +12,7 @@ import { IWindowsService, INativeOpenDialogOptions, IEnterWorkspaceResult, Crash
 import { IWorkspaceIdentifier, IWorkspaceFolderCreationData, ISingleFolderWorkspaceIdentifier, isWorkspaceIdentifier } from 'vs/platform/workspaces/common/workspaces';
 import { IRecentlyOpened } from 'vs/platform/history/common/history';
 import { ISerializableCommandAction } from 'vs/platform/actions/common/actions';
-import URI from 'vs/base/common/uri';
+import URI, { UriComponents } from 'vs/base/common/uri';
 import { ParsedArgs } from 'vs/platform/environment/common/environment';
 
 export interface IWindowsChannel extends IChannel {
@@ -40,8 +40,8 @@ export interface IWindowsChannel extends IChannel {
 	call(command: 'saveAndEnterWorkspace', arg: [number, string]): TPromise<IEnterWorkspaceResult>;
 	call(command: 'toggleFullScreen', arg: number): TPromise<void>;
 	call(command: 'setRepresentedFilename', arg: [number, string]): TPromise<void>;
-	call(command: 'addRecentlyOpened', arg: URI[]): TPromise<void>;
-	call(command: 'removeFromRecentlyOpened', arg: (IWorkspaceIdentifier | ISingleFolderWorkspaceIdentifier | URI)[]): TPromise<void>;
+	call(command: 'addRecentlyOpened', arg: UriComponents[]): TPromise<void>;
+	call(command: 'removeFromRecentlyOpened', arg: (IWorkspaceIdentifier | UriComponents | string)[]): TPromise<void>;
 	call(command: 'clearRecentlyOpened'): TPromise<void>;
 	call(command: 'getRecentlyOpened', arg: number): TPromise<IRecentlyOpened>;
 	call(command: 'newWindowTab'): TPromise<void>;
@@ -139,9 +139,9 @@ export class WindowsChannel implements IWindowsChannel {
 			case 'saveAndEnterWorkspace': return this.service.saveAndEnterWorkspace(arg[0], arg[1]);
 			case 'toggleFullScreen': return this.service.toggleFullScreen(arg);
 			case 'setRepresentedFilename': return this.service.setRepresentedFilename(arg[0], arg[1]);
-			case 'addRecentlyOpened': return this.service.addRecentlyOpened(arg);
+			case 'addRecentlyOpened': return this.service.addRecentlyOpened(arg.map(URI.revive));
 			case 'removeFromRecentlyOpened': {
-				let paths: (IWorkspaceIdentifier | ISingleFolderWorkspaceIdentifier | URI)[] = arg;
+				let paths: (IWorkspaceIdentifier | ISingleFolderWorkspaceIdentifier | URI | string)[] = arg;
 				if (Array.isArray(paths)) {
 					paths = paths.map(path => isWorkspaceIdentifier(path) ? path : URI.revive(path));
 				}

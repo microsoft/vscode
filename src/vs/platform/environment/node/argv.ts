@@ -236,3 +236,30 @@ ${formatOptions(extensionsHelp, columns)}
 ${ localize('troubleshooting', "Troubleshooting")}:
 ${formatOptions(troubleshootingHelp, columns)}`;
 }
+
+/**
+ * Converts an argument into an array
+ * @param arg a argument value. Can be undefined, an entry or an array
+ */
+export function asArray(arg: string | string[] | undefined): string[] {
+	if (arg) {
+		if (Array.isArray(arg)) {
+			return arg;
+		}
+		return [arg];
+	}
+	return [];
+}
+
+/**
+ * Returns whether an argument is present.
+ */
+export function hasArgs(arg: string | string[] | undefined): boolean {
+	if (arg) {
+		if (Array.isArray(arg)) {
+			return !!arg.length;
+		}
+		return true;
+	}
+	return false;
+}

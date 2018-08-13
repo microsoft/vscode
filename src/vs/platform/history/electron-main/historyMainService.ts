@@ -350,7 +350,7 @@ export class HistoryMainService implements IHistoryMainService {
 			for (let item of app.getJumpListSettings().removedItems) {
 				const args = item.args;
 				if (args) {
-					const match = /^--folderUri\s+"([^"]+)"$/.exec(args);
+					const match = /^--folder-uri\s+"([^"]+)"$/.exec(args);
 					if (match) {
 						if (args[0] === '-') {
 							toRemove.push(URI.parse(match[1]));
@@ -373,7 +373,7 @@ export class HistoryMainService implements IHistoryMainService {
 					let args;
 					if (isSingleFolderWorkspaceIdentifier(workspace)) {
 						description = nls.localize('folderDesc', "{0} {1}", getBaseLabel(workspace), this.uriDisplayService.getLabel(dirname(workspace)));
-						args = `--folderUri "${workspace.toString()}"`;
+						args = `--folder-uri "${workspace.toString()}"`;
 					} else {
 						description = nls.localize('codeWorkspace', "Code Workspace");
 						args = `"${workspace.configPath}"`;

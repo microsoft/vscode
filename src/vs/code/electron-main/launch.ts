@@ -20,7 +20,7 @@ import { IConfigurationService } from 'vs/platform/configuration/common/configur
 import URI, { UriComponents } from 'vs/base/common/uri';
 import { BrowserWindow } from 'electron';
 import { Event } from 'vs/base/common/event';
-import { hasArgs } from 'vs/code/node/args';
+import { hasArgs } from 'vs/platform/environment/node/argv';
 
 export const ID = 'launchService';
 export const ILaunchService = createDecorator<ILaunchService>(ID);

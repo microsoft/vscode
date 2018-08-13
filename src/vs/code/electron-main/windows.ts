@@ -14,7 +14,7 @@ import { IBackupMainService } from 'vs/platform/backup/common/backup';
 import { IEnvironmentService, ParsedArgs } from 'vs/platform/environment/common/environment';
 import { IStateService } from 'vs/platform/state/common/state';
 import { CodeWindow, defaultWindowState } from 'vs/code/electron-main/window';
-import { asArray, hasArgs } from 'vs/code/node/args';
+import { hasArgs, asArray } from 'vs/platform/environment/node/argv';
 import { ipcMain as ipc, screen, BrowserWindow, dialog, systemPreferences, app } from 'electron';
 import { IPathWithLineAndColumn, parseLineAndColumnAware } from 'vs/code/node/paths';
 import { ILifecycleService, UnloadReason, IWindowUnloadEvent } from 'vs/platform/lifecycle/electron-main/lifecycleMain';
@@ -423,7 +423,7 @@ export class WindowsManager implements IWindowsMainService {
 		// Make sure to pass focus to the most relevant of the windows if we open multiple
 		if (usedWindows.length > 1) {
 
-			let focusLastActive = this.windowsState.lastActiveWindow && !openConfig.forceEmpty && !hasArgs(openConfig.cli._) && !hasArgs(openConfig.cli['file-uri']) && !hasArgs(openConfig.cli['folder-uri']) && !hasArgs(openConfig.urisToOpen);
+			let focusLastActive = this.windowsState.lastActiveWindow && !openConfig.forceEmpty && !hasArgs(openConfig.cli._) && !hasArgs(openConfig.cli['file-uri']) && !hasArgs(openConfig.cli['folder-uri']) && !(openConfig.urisToOpen && openConfig.urisToOpen.length);
 			let focusLastOpened = true;
 			let focusLastWindow = true;
 
@@ -999,12 +999,12 @@ export class WindowsManager implements IWindowsMainService {
 		try {
 			let uri = URI.parse(arg);
 			if (!uri.scheme) {
-				console.log(`Invalid URI string, scheme missing: ${arg}`);
+				this.logService.error(`Invalid URI input string, scheme missing: ${arg}`);
 				return null;
 			}
 			return uri;
 		} catch (e) {
-			console.log(`Invalid URI string, scheme missing: ${e.message}`);
+			this.logService.error(`Invalid URI input string: ${arg}, ${e.message}`);
 		}
 		return null;
 	}

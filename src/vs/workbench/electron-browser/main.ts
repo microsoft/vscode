@@ -15,7 +15,7 @@ import * as errors from 'vs/base/common/errors';
 import * as comparer from 'vs/base/common/comparers';
 import * as platform from 'vs/base/common/platform';
 import * as paths from 'vs/base/common/paths';
-import uri, { UriComponents } from 'vs/base/common/uri';
+import uri from 'vs/base/common/uri';
 import * as strings from 'vs/base/common/strings';
 import { IWorkspaceContextService, Workspace, WorkbenchState } from 'vs/platform/workspace/common/workspace';
 import { WorkspaceService } from 'vs/workbench/services/configuration/node/configurationService';
@@ -81,27 +81,16 @@ function revive(workbench: IWindowConfiguration) {
 	if (workbench.folderUri) {
 		workbench.folderUri = uri.revive(workbench.folderUri);
 	}
-	function reviveFileUri(path: { fileUri?: UriComponents }) {
-		if (path.fileUri) {
-			path.fileUri = uri.revive(path.fileUri);
+	const filesToWaitPaths = workbench.filesToWait && workbench.filesToWait.paths;
+	[filesToWaitPaths, workbench.filesToOpen, workbench.filesToCreate, workbench.filesToDiff].forEach(paths => {
+		if (Array.isArray(paths)) {
+			paths.forEach(path => {
+				if (path.fileUri) {
+					path.fileUri = uri.revive(path.fileUri);
+				}
+			});
 		}
-	}
-	const filesToOpen = workbench.filesToOpen;
-	if (Array.isArray(filesToOpen)) {
-		filesToOpen.forEach(reviveFileUri);
-	}
-	const filesToCreate = workbench.filesToCreate;
-	if (Array.isArray(filesToCreate)) {
-		filesToCreate.forEach(reviveFileUri);
-	}
-	const filesToDiff = workbench.filesToDiff;
-	if (Array.isArray(filesToDiff)) {
-		filesToDiff.forEach(reviveFileUri);
-	}
-	const filesToWait = workbench.filesToWait;
-	if (filesToWait && Array.isArray(filesToWait.paths)) {
-		filesToWait.paths.forEach(reviveFileUri);
-	}
+	});
 }
 
 function openWorkbench(configuration: IWindowConfiguration): TPromise<void> {

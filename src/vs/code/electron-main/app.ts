@@ -65,7 +65,7 @@ import { MenubarService } from 'vs/platform/menubar/electron-main/menubarService
 import { MenubarChannel } from 'vs/platform/menubar/common/menubarIpc';
 import { IUriDisplayService } from 'vs/platform/uriDisplay/common/uriDisplay';
 import { CodeMenu } from 'vs/code/electron-main/menus';
-import { hasArgs } from 'vs/code/node/args';
+import { hasArgs } from 'vs/platform/environment/node/argv';
 import { RunOnceScheduler } from 'vs/base/common/async';
 
 export class CodeApplication {
