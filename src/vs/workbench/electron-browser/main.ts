@@ -54,6 +54,8 @@ gracefulFs.gracefulify(fs); // enable gracefulFs
 
 export function startup(configuration: IWindowConfiguration): TPromise<void> {
 
+	perf.importEntries(configuration.perfEntries);
+
 	// Ensure others can listen to zoom level changes
 	browser.setZoomFactor(webFrame.getZoomFactor());
 

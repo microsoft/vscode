@@ -220,7 +220,6 @@ function main() {
 
 	// Correctly inherit the parent's environment
 	assign(process.env, configuration.userEnv);
-	perf.importEntries(configuration.perfEntries);
 
 	showPartsSplash(configuration);
 
