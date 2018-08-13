@@ -66,7 +66,7 @@ export function fromLocal(extensionPath: string, sourceMappingURLBase?: string):
 					if (sourceMappingURLBase) {
 						const contents = (<Buffer>data.contents).toString('utf8');
 						data.contents = Buffer.from(contents.replace(/\n\/\/# sourceMappingURL=(.*)$/gm, function (_m, g1) {
-							return `\n//# sourceMappingURL=${sourceMappingURLBase}/extensions/${path.basename(extensionPath)}/out/${g1}`;
+							return `\n//# sourceMappingURL=${sourceMappingURLBase}/extensions/${path.basename(extensionPath)}/dist/${g1}`;
 						}), 'utf8');
 
 						if (/\.js\.map$/.test(data.path)) {
@@ -75,7 +75,6 @@ export function fromLocal(extensionPath: string, sourceMappingURLBase?: string):
 							}
 							fs.writeFileSync(data.path, data.contents);
 						}
-
 					}
 					this.emit('data', data);
 				}))

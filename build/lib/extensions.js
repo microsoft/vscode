@@ -60,7 +60,7 @@ function fromLocal(extensionPath, sourceMappingURLBase) {
                 if (sourceMappingURLBase) {
                     var contents = data.contents.toString('utf8');
                     data.contents = Buffer.from(contents.replace(/\n\/\/# sourceMappingURL=(.*)$/gm, function (_m, g1) {
-                        return "\n//# sourceMappingURL=" + sourceMappingURLBase + "/extensions/" + path.basename(extensionPath) + "/out/" + g1;
+                        return "\n//# sourceMappingURL=" + sourceMappingURLBase + "/extensions/" + path.basename(extensionPath) + "/dist/" + g1;
                     }), 'utf8');
                     if (/\.js\.map$/.test(data.path)) {
                         if (!fs.existsSync(path.dirname(data.path))) {
