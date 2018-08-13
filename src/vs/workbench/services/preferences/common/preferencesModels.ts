@@ -889,16 +889,16 @@ class SettingsContentBuilder {
 
 		this.pushSettingDescription(setting, indent);
 
-		let preValueConent = indent;
+		let preValueContent = indent;
 		const keyString = JSON.stringify(setting.key);
-		preValueConent += keyString;
-		setting.keyRange = { startLineNumber: this.lineCountWithOffset + 1, startColumn: preValueConent.indexOf(setting.key) + 1, endLineNumber: this.lineCountWithOffset + 1, endColumn: setting.key.length };
+		preValueContent += keyString;
+		setting.keyRange = { startLineNumber: this.lineCountWithOffset + 1, startColumn: preValueContent.indexOf(setting.key) + 1, endLineNumber: this.lineCountWithOffset + 1, endColumn: setting.key.length };
 
-		preValueConent += ': ';
+		preValueContent += ': ';
 		const valueStart = this.lineCountWithOffset + 1;
-		this.pushValue(setting, preValueConent, indent);
+		this.pushValue(setting, preValueContent, indent);
 
-		setting.valueRange = { startLineNumber: valueStart, startColumn: preValueConent.length + 1, endLineNumber: this.lineCountWithOffset, endColumn: this.lastLine.length + 1 };
+		setting.valueRange = { startLineNumber: valueStart, startColumn: preValueContent.length + 1, endLineNumber: this.lineCountWithOffset, endColumn: this.lastLine.length + 1 };
 		this._contentByLines[this._contentByLines.length - 1] += ',';
 		this._contentByLines.push('');
 		setting.range = { startLineNumber: settingStart, startColumn: 1, endLineNumber: this.lineCountWithOffset, endColumn: this.lastLine.length };
@@ -909,7 +909,7 @@ class SettingsContentBuilder {
 
 		setting.descriptionRanges = [];
 		const descriptionPreValue = indent + '// ';
-		for (let line of (setting.deprecationMessage ? [setting.deprecationMessage] : setting.description)) {
+		for (let line of (setting.deprecationMessage ? [setting.deprecationMessage, ...setting.description] : setting.description)) {
 			line = fixSettingLink(line);
 
 			this._contentByLines.push(descriptionPreValue + line);
