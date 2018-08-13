@@ -154,9 +154,7 @@ const optionsHelp: { [name: string]: string; } = {
 	'--locale <locale>': localize('locale', "The locale to use (e.g. en-US or zh-TW)."),
 	'--user-data-dir <dir>': localize('userDataDir', "Specifies the directory that user data is kept in. Can be used to open multiple distinct instances of Code."),
 	'-v, --version': localize('version', "Print version."),
-	'-h, --help': localize('help', "Print usage."),
-	'--folder-uri <uri>': localize('folder uri', "Opens a window with given folder uri(s)"),
-	'--file-uri <uri>': localize('file uri', "Opens a window with given file uri(s)")
+	'-h, --help': localize('help', "Print usage.")
 };
 
 const extensionsHelp: { [name: string]: string; } = {
