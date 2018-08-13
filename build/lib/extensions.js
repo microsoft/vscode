@@ -16,12 +16,10 @@ var buffer = require('gulp-buffer');
 var json = require('gulp-json-editor');
 var webpack = require('webpack');
 var webpackGulp = require('webpack-stream');
-var sourcemaps = require("gulp-sourcemaps");
 var fs = require("fs");
 var path = require("path");
 var vsce = require("vsce");
 var File = require("vinyl");
-var util_1 = require("./util");
 function fromLocal(extensionPath, sourceMappingURLBase) {
     var result = es.through();
     vsce.listFiles({ cwd: extensionPath, packageManager: vsce.PackageManager.Yarn }).then(function (fileNames) {
@@ -55,13 +53,21 @@ function fromLocal(extensionPath, sourceMappingURLBase) {
                 data.base = extensionPath;
                 this.emit('data', data);
             }))
-                .pipe(sourcemaps.init())
-                .pipe(Boolean(sourceMappingURLBase) ? util_1.stripSourceMappingURL() : es.through())
-                .pipe(sourcemaps.write('.', {
-                sourceMappingURLPrefix: sourceMappingURLBase && sourceMappingURLBase + "/dist",
-                addComment: !!sourceMappingURLBase,
-                includeContent: !!sourceMappingURLBase,
-                sourceRoot: '../src',
+                .pipe(es.through(function (data) {
+                // source map handling:
+                // * rewrite sourceMappingURL
+                // * save to disk so that upload-task picks this up
+                if (sourceMappingURLBase && /\.js\.map$/.test(data.path)) {
+                    var contents = data.contents.toString('utf8');
+                    data.contents = Buffer.from(contents.replace(/\n\/\/# sourceMappingURL=(.*)$/gm, function (_m, g1) {
+                        return sourceMappingURLBase + "/extensions/" + path.basename(extensionPath) + "/out/" + g1;
+                    }), 'utf8');
+                    if (!fs.existsSync(path.dirname(data.path))) {
+                        fs.mkdirSync(path.dirname(data.path));
+                    }
+                    fs.writeFileSync(data.path, data.contents);
+                }
+                this.emit('data', data);
             }));
             es.merge(webpackStream, patchFilesStream)
                 // .pipe(es.through(function (data) {

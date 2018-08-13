@@ -16,12 +16,10 @@ const buffer = require('gulp-buffer');
 const json = require('gulp-json-editor');
 const webpack = require('webpack');
 const webpackGulp = require('webpack-stream');
-import * as sourcemaps from 'gulp-sourcemaps';
 import * as fs from 'fs';
 import * as path from 'path';
 import * as vsce from 'vsce';
 import * as File from 'vinyl';
-import { stripSourceMappingURL } from './util';
 
 export function fromLocal(extensionPath: string, sourceMappingURLBase?: string): Stream {
 	let result = es.through();
@@ -61,14 +59,25 @@ export function fromLocal(extensionPath: string, sourceMappingURLBase?: string):
 					data.base = extensionPath;
 					this.emit('data', data);
 				}))
-				.pipe(sourcemaps.init())
-				.pipe(Boolean(sourceMappingURLBase) ? stripSourceMappingURL() : es.through())
-				.pipe(sourcemaps.write('.', {
-					sourceMappingURLPrefix: sourceMappingURLBase && `${sourceMappingURLBase}/extensions/${path.basename(extensionPath)}/out`,
-					addComment: !!sourceMappingURLBase,
-					includeContent: !!sourceMappingURLBase,
-					sourceRoot: '../src',
-				}));
+				.pipe(es.through(function (data: File) {
+					// source map handling:
+					// * rewrite sourceMappingURL
+					// * save to disk so that upload-task picks this up
+					if (sourceMappingURLBase && /\.js\.map$/.test(data.path)) {
+						const contents = (<Buffer>data.contents).toString('utf8');
+						data.contents = Buffer.from(contents.replace(/\n\/\/# sourceMappingURL=(.*)$/gm, function (_m, g1) {
+							return `${sourceMappingURLBase}/extensions/${path.basename(extensionPath)}/out/${g1}`;
+						}), 'utf8');
+
+						if (!fs.existsSync(path.dirname(data.path))) {
+							fs.mkdirSync(path.dirname(data.path));
+						}
+						fs.writeFileSync(data.path, data.contents);
+
+					}
+					this.emit('data', data);
+				}))
+				;
 
 			es.merge(webpackStream, patchFilesStream)
 				// .pipe(es.through(function (data) {
