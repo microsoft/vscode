@@ -1551,7 +1551,7 @@ export class CompareWithClipboardAction extends Action {
 				this.registrationDisposal = dispose(this.registrationDisposal);
 			};
 
-			return always(this.editorService.openEditor({ leftResource: URI.from({ scheme: CompareWithClipboardAction.SCHEME, path: resource.fsPath }), rightResource: resource, label: editorLabel }), cleanUp);
+			return always(this.editorService.openEditor({ leftResource: resource.with({ scheme: CompareWithClipboardAction.SCHEME }), rightResource: resource, label: editorLabel }), cleanUp);
 		}
 
 		return TPromise.as(true);
