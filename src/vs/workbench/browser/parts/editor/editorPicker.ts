@@ -117,7 +117,7 @@ export abstract class BaseEditorPicker extends QuickOpenHandler {
 
 		// Sorting
 		if (query.value) {
-			const groups = this.editorGroupService.getGroups(GroupsOrder.CREATION_TIME);
+			const groups = this.editorGroupService.getGroups(GroupsOrder.GRID_APPEARANCE);
 			entries.sort((e1, e2) => {
 				if (e1.group !== e2.group) {
 					return groups.indexOf(e1.group) - groups.indexOf(e2.group); // older groups first
@@ -206,7 +206,7 @@ export class AllEditorsPicker extends BaseEditorPicker {
 	protected getEditorEntries(): EditorPickerEntry[] {
 		const entries: EditorPickerEntry[] = [];
 
-		this.editorGroupService.getGroups(GroupsOrder.CREATION_TIME).forEach(group => {
+		this.editorGroupService.getGroups(GroupsOrder.GRID_APPEARANCE).forEach(group => {
 			group.editors.forEach(editor => {
 				entries.push(this.instantiationService.createInstance(EditorPickerEntry, editor, group));
 			});
