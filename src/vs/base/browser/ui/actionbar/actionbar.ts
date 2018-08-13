@@ -154,11 +154,14 @@ export class BaseActionItem implements IActionItem {
 		DOM.EventHelper.stop(event, true);
 
 		let context: any;
-		if (types.isUndefinedOrNull(this._context) || !types.isObject(this._context)) {
+		if (types.isUndefinedOrNull(this._context)) {
 			context = event;
 		} else {
 			context = this._context;
-			context.event = event;
+
+			if (types.isObject(context)) {
+				context.event = event;
+			}
 		}
 
 		this._actionRunner.run(this._action, context);
