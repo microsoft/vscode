@@ -63,16 +63,18 @@ export function fromLocal(extensionPath: string, sourceMappingURLBase?: string):
 					// source map handling:
 					// * rewrite sourceMappingURL
 					// * save to disk so that upload-task picks this up
-					if (sourceMappingURLBase && /\.js\.map$/.test(data.path)) {
+					if (sourceMappingURLBase) {
 						const contents = (<Buffer>data.contents).toString('utf8');
 						data.contents = Buffer.from(contents.replace(/\n\/\/# sourceMappingURL=(.*)$/gm, function (_m, g1) {
-							return `${sourceMappingURLBase}/extensions/${path.basename(extensionPath)}/out/${g1}`;
+							return `\n//# sourceMappingURL=${sourceMappingURLBase}/extensions/${path.basename(extensionPath)}/out/${g1}`;
 						}), 'utf8');
 
-						if (!fs.existsSync(path.dirname(data.path))) {
-							fs.mkdirSync(path.dirname(data.path));
+						if (/\.js\.map$/.test(data.path)) {
+							if (!fs.existsSync(path.dirname(data.path))) {
+								fs.mkdirSync(path.dirname(data.path));
+							}
+							fs.writeFileSync(data.path, data.contents);
 						}
-						fs.writeFileSync(data.path, data.contents);
 
 					}
 					this.emit('data', data);
