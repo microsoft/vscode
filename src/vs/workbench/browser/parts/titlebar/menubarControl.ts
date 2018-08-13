@@ -1119,6 +1119,10 @@ registerThemingParticipant((theme: ITheme, collector: ICssStyleCollector) => {
 			.monaco-shell .monaco-menu .monaco-action-bar.vertical .action-item {
 				color: ${menuFgColor};
 			}
+
+			.monaco-shell .monaco-menu .monaco-action-bar.vertical .action-item .action-menu-item .menu-item-check {
+				background-color: ${menuFgColor};
+			}
 		`);
 	}
 
@@ -1137,6 +1141,10 @@ registerThemingParticipant((theme: ITheme, collector: ICssStyleCollector) => {
 		.monaco-shell .monaco-menu .monaco-action-bar.vertical .action-item.focused {
 				color: ${selectedMenuItemFgColor};
 			}
+
+		.monaco-shell .monaco-menu .monaco-action-bar.vertical .action-item.focused .action-menu-item .menu-item-check {
+			background-color: ${selectedMenuItemFgColor};
+		}
 		`);
 	}
 
