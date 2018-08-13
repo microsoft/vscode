@@ -247,10 +247,12 @@ function createSettingsTreeSettingElement(setting: ISetting, parent: SearchResul
 	} else if (setting.type === 'boolean') {
 		element.valueType = 'boolean';
 	} else if (isArray(setting.type) && setting.type.indexOf('null') > -1 && setting.type.length === 2) {
-		if (setting.type.indexOf('number') > -1) {
+		if (setting.type.indexOf('integer') > -1) {
 			element.valueType = 'nullable-integer';
 		} else if (setting.type.indexOf('number') > -1) {
 			element.valueType = 'nullable-number';
+		} else {
+			element.valueType = 'complex';
 		}
 	} else {
 		element.valueType = 'complex';
