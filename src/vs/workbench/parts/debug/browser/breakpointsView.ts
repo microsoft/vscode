@@ -107,9 +107,9 @@ export class BreakpointsView extends ViewletPanel {
 
 			if (isMiddleClick) {
 				if (element instanceof Breakpoint) {
-					this.debugService.removeBreakpoints(element.getId());
+					this.debugService.removeBreakpoints(element.getId()).done(undefined, onUnexpectedError);
 				} else if (element instanceof FunctionBreakpoint) {
-					this.debugService.removeFunctionBreakpoints(element.getId());
+					this.debugService.removeFunctionBreakpoints(element.getId()).done(undefined, onUnexpectedError);
 				}
 				return;
 			}
