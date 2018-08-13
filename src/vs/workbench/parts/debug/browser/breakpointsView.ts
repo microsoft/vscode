@@ -91,17 +91,29 @@ export class BreakpointsView extends ViewletPanel {
 		this.disposables.push(this.list.onOpen(e => {
 			let isSingleClick = false;
 			let isDoubleClick = false;
+			let isMiddleClick = false;
 			let openToSide = false;
 
 			const browserEvent = e.browserEvent;
 			if (browserEvent instanceof MouseEvent) {
 				isSingleClick = browserEvent.detail === 1;
 				isDoubleClick = browserEvent.detail === 2;
+				isMiddleClick = browserEvent.button === 1;
 				openToSide = (browserEvent.ctrlKey || browserEvent.metaKey || browserEvent.altKey);
 			}
 
 			const focused = this.list.getFocusedElements();
 			const element = focused.length ? focused[0] : undefined;
+
+			if (isMiddleClick) {
+				if (element instanceof Breakpoint) {
+					this.debugService.removeBreakpoints(element.getId());
+				} else if (element instanceof FunctionBreakpoint) {
+					this.debugService.removeFunctionBreakpoints(element.getId());
+				}
+				return;
+			}
+
 			if (element instanceof Breakpoint) {
 				openBreakpointSource(element, openToSide, isSingleClick, this.debugService, this.editorService).done(undefined, onUnexpectedError);
 			}
