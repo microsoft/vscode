@@ -13,10 +13,11 @@ const _doubleSlashStart = /^\/\//;
 
 function _validateUri(ret: URI): void {
 
-	// // scheme, must be set
-	// if (!ret.scheme) {
-	// 	throw new Error('[UriError]: Scheme is missing.');
-	// }
+	// scheme, must be set
+	if (!ret.scheme) {
+		// throw new Error(`[UriError]: Scheme is missing: {scheme: "", authority: "${ret.authority}", path: "${ret.path}", query: "${ret.query}", fragment: "${ret.fragment}"}`);
+		console.warn(`[UriError]: Scheme is missing: {scheme: "", authority: "${ret.authority}", path: "${ret.path}", query: "${ret.query}", fragment: "${ret.fragment}"}`);
+	}
 
 	// scheme, https://tools.ietf.org/html/rfc3986#section-3.1
 	// ALPHA *( ALPHA / DIGIT / "+" / "-" / "." )

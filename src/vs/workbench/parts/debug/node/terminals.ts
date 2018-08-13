@@ -312,7 +312,7 @@ export function prepareCommand(args: DebugProtocol.RunInTerminalRequestArguments
 
 	// try to determine the shell type
 	shell = shell.trim().toLowerCase();
-	if (shell.indexOf('powershell') >= 0) {
+	if (shell.indexOf('powershell') >= 0 || shell.indexOf('pwsh') >= 0) {
 		shellType = ShellType.powershell;
 	} else if (shell.indexOf('cmd.exe') >= 0) {
 		shellType = ShellType.cmd;

@@ -107,7 +107,6 @@ export interface TaskFilterDTO {
 
 export interface TaskSystemInfoDTO {
 	scheme: string;
-	host: string;
-	port: number;
+	authority: string;
 	platform: string;
 }

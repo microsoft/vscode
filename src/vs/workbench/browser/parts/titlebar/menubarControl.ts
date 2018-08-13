@@ -489,19 +489,19 @@ export class MenubarControl extends Disposable {
 		return this.currentEnableMenuBarMnemonics ? label : label.replace(/&&(.)/g, '$1');
 	}
 
-	private createOpenRecentMenuAction(workspace: IWorkspaceIdentifier | ISingleFolderWorkspaceIdentifier | string, commandId: string, isFile: boolean): IAction {
+	private createOpenRecentMenuAction(workspace: IWorkspaceIdentifier | ISingleFolderWorkspaceIdentifier | URI, commandId: string, isFile: boolean): IAction {
 
 		let label: string;
 		let uri: URI;
 
-		if (isSingleFolderWorkspaceIdentifier(workspace)) {
+		if (isSingleFolderWorkspaceIdentifier(workspace) && !isFile) {
 			label = getWorkspaceLabel(workspace, this.environmentService, this.uriDisplayService, { verbose: true });
 			uri = workspace;
 		} else if (isWorkspaceIdentifier(workspace)) {
 			label = getWorkspaceLabel(workspace, this.environmentService, this.uriDisplayService, { verbose: true });
 			uri = URI.file(workspace.configPath);
 		} else {
-			uri = URI.file(workspace);
+			uri = workspace;
 			label = this.uriDisplayService.getLabel(uri);
 		}
 

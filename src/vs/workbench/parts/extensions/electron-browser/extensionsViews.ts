@@ -165,6 +165,9 @@ export class ExtensionsListView extends ViewletPanel {
 			case 'rating': options = assign(options, { sortBy: SortBy.WeightedRating }); break;
 			case 'name': options = assign(options, { sortBy: SortBy.Title }); break;
 		}
+		if (!value || !value.trim()) {
+			options.sortBy = SortBy.InstallCount;
+		}
 
 		if (/@builtin/i.test(value)) {
 			const showThemesOnly = /@builtin:themes/i.test(value);
@@ -218,9 +221,9 @@ export class ExtensionsListView extends ViewletPanel {
 			return new PagedModel(this.sortExtensions(result, options));
 		}
 
-		if (!value || ExtensionsListView.isInstalledExtensionsQuery(value)) {
+		if (/@installed/i.test(value)) {
 			// Show installed extensions
-			value = value ? value.replace(/@installed/g, '').replace(/@sort:(\w+)(-\w*)?/g, '').trim().toLowerCase() : '';
+			value = value.replace(/@installed/g, '').replace(/@sort:(\w+)(-\w*)?/g, '').trim().toLowerCase();
 
 			let result = await this.extensionsWorkbenchService.queryLocal();
 
@@ -623,23 +626,11 @@ export class ExtensionsListView extends ViewletPanel {
 	}
 
 	static isInstalledExtensionsQuery(query: string): boolean {
-		return /@installed/i.test(query);
+		return /@installed|@outdated|@enabled|@disabled/i.test(query);
 	}
 
 	static isGroupByServersExtensionsQuery(query: string): boolean {
 		return !!Query.parse(query).groupBy;
-	}
-
-	static isOutdatedExtensionsQuery(query: string): boolean {
-		return /@outdated/i.test(query);
-	}
-
-	static isDisabledExtensionsQuery(query: string): boolean {
-		return /@disabled/i.test(query);
-	}
-
-	static isEnabledExtensionsQuery(query: string): boolean {
-		return /@enabled/i.test(query);
 	}
 
 	static isRecommendedExtensionsQuery(query: string): boolean {
@@ -667,31 +658,12 @@ export class ExtensionsListView extends ViewletPanel {
 	}
 }
 
-export class InstalledExtensionsView extends ExtensionsListView {
-
-	public static isInstalledExtensionsQuery(query: string): boolean {
-		return ExtensionsListView.isInstalledExtensionsQuery(query)
-			|| ExtensionsListView.isOutdatedExtensionsQuery(query)
-			|| ExtensionsListView.isDisabledExtensionsQuery(query)
-			|| ExtensionsListView.isEnabledExtensionsQuery(query);
-	}
-
-	async show(query: string): Promise<IPagedModel<IExtension>> {
-		if (InstalledExtensionsView.isInstalledExtensionsQuery(query)) {
-			return super.show(query);
-		}
-		let searchInstalledQuery = '@installed';
-		searchInstalledQuery = query ? searchInstalledQuery + ' ' + query : searchInstalledQuery;
-		return super.show(searchInstalledQuery);
-	}
-}
-
 export class GroupByServerExtensionsView extends ExtensionsListView {
 
 	async show(query: string): Promise<IPagedModel<IExtension>> {
 		query = query.replace(/@group:server/g, '').trim();
 		query = query ? query : '@installed';
-		if (!InstalledExtensionsView.isInstalledExtensionsQuery(query) && !ExtensionsListView.isBuiltInExtensionsQuery(query)) {
+		if (!ExtensionsListView.isInstalledExtensionsQuery(query) && !ExtensionsListView.isBuiltInExtensionsQuery(query)) {
 			query = query += ' @installed';
 		}
 		return super.show(query.trim());
@@ -744,7 +716,15 @@ export class DefaultRecommendedExtensionsView extends ExtensionsListView {
 	}
 
 	async show(query: string): Promise<IPagedModel<IExtension>> {
-		return (query && query.trim() !== this.recommendedExtensionsQuery) ? this.showEmptyModel() : super.show(this.recommendedExtensionsQuery);
+		if (query && query.trim() !== this.recommendedExtensionsQuery) {
+			return this.showEmptyModel();
+		}
+		const model = await super.show(this.recommendedExtensionsQuery);
+		if (!this.extensionsWorkbenchService.local.some(e => e.type === LocalExtensionType.User)) {
+			// This is part of popular extensions view. Collapse if no installed extensions.
+			this.setExpanded(model.length > 0);
+		}
+		return model;
 	}
 
 }

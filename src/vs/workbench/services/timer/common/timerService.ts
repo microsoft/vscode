@@ -55,21 +55,152 @@ export interface IMemoryInfo {
 	}
 */
 export interface IStartupMetrics {
-	version: number;
+
+	/**
+	 * The version of these metrics.
+	 */
+	version: 1;
+
+	/**
+	 * The time it took to create the workbench.
+	 *
+	 * * Happens in the main-process *and* the renderer-process
+	 * * Measured with the *start* and `didStartWorkbench`-performance mark. The *start* is either the start of the
+	 * main process or the start of the renderer.
+	 * * This should be looked at carefully because times vary depending on
+	 *  * This being the first window, the only window, or a reloaded window
+	 *  * Cached data being present and used or not
+	 *  * The numbers and types of editors being restored
+	 *  * The numbers of windows being restored (when starting 'fresh')
+	 *  * The viewlet being restored (esp. when it's a contributed viewlet)
+	 */
 	ellapsed: number;
+
+	/**
+	 * If this started the main process and renderer or just a renderer (new or reloaded).
+	 */
+	initialStartup: boolean;
+
+	/**
+	 * No folder, no file, no workspace has been opened
+	 */
+	emptyWorkbench: boolean;
+
 	timers: {
+		/**
+		 * The time it took to receieve the [`ready`](https://electronjs.org/docs/api/app#event-ready)-event. Measured from the first line
+		 * of JavaScript code till receiving that event.
+		 *
+		 * * Happens in the main-process
+		 * * Measured with the `main:started` and `main:appReady` performance marks.
+		 * * This can be compared between insider and stable builds.
+		 * * This should be looked at per OS version and per electron version.
+		 * * This is often affected by AV software (and can change with AV software updates outside of our release-cycle).
+		 * * It is not our code running here and we can only observe what's happening.
+		 */
 		ellapsedAppReady?: number;
-		ellapsedWindowLoad?: number;
-		ellapsedWindowLoadToRequire: number;
-		ellapsedExtensions: number;
-		ellapsedExtensionsReady: number;
-		ellapsedRequire: number;
-		ellapsedViewletRestore: number;
-		ellapsedEditorRestore: number;
-		ellapsedWorkbench: number;
-		ellapsedTimersToTimersComputed: number;
+
+		/**
+		 * The time it took to generate NLS data.
+		 *
+		 * * Happens in the main-process
+		 * * Measured with the `nlsGeneration:start` and `nlsGeneration:end` performance marks.
+		 * * This only happens when a non-english locale is being used.
+		 * * It is our code running here and we should monitor this carefully for regressions.
+		 */
 		ellapsedNlsGeneration: number;
+
+		/**
+		 * The time it took to tell electron to open/restore a renderer (browser window).
+		 *
+		 * * Happens in the main-process
+		 * * Measured with the `main:appReady` and `main:loadWindow` performance marks.
+		 * * This can be compared between insider and stable builds.
+		 * * It is our code running here and we should monitor this carefully for regressions.
+		 */
+		ellapsedWindowLoad?: number;
+
+		/**
+		 * The time it took to create a new renderer (browser window) and to initialize that to the point
+		 * of load the main-bundle (`workbench.main.js`).
+		 *
+		 * * Happens in the main-process *and* the renderer-process
+		 * * Measured with the `main:loadWindow` and `willLoadWorkbenchMain` performance marks.
+		 * * This can be compared between insider and stable builds.
+		 * * It is mostly not our code running here and we can only observe what's happening.
+		 *
+		 */
+		ellapsedWindowLoadToRequire: number;
+
+		/**
+		 * The time it took to load the main-bundle of the workbench, e.g `workbench.main.js`.
+		 *
+		 * * Happens in the renderer-process
+		 * * Measured with the `willLoadWorkbenchMain` and `didLoadWorkbenchMain` performance marks.
+		 * * This varies *a lot* when V8 cached data could be used or not
+		 * * This should be looked at with and without V8 cached data usage and per electron/v8 version
+		 * * This is affected by the size of our code bundle (which  grows about 3-5% per release)
+		 */
+		ellapsedRequire: number;
+
+		/**
+		 * The time it took to read extensions' package.json-files *and* interpret them (invoking
+		 * the contribution points).
+		 *
+		 * * Happens in the renderer-process
+		 * * Measured with the `willLoadExtensions` and `didLoadExtensions` performance marks.
+		 * * Reading of package.json-files is avoided by caching them all in a single file (after the read,
+		 * until another extension is installed)
+		 * * Happens in parallel to other things, depends on async timing
+		 *
+		 * todo@joh/ramya this measures an artifical dealy we have added, see https://github.com/Microsoft/vscode/blob/2f07ddae8bf56e969e3f4ba1447258ebc999672f/src/vs/workbench/services/extensions/electron-browser/extensionService.ts#L311-L326
+		 */
+		ellapsedExtensions: number;
+
+		// the time from start till `didLoadExtensions`
+		// remove?
+		ellapsedExtensionsReady: number;
+
+		/**
+		 * The time it took to restore the viewlet.
+		 *
+		 * * Happens in the renderer-process
+		 * * Measured with the `willRestoreViewlet` and `didRestoreViewlet` performance marks.
+		 * * This should be looked at per viewlet-type/id.
+		 * * Happens in parallel to other things, depends on async timing
+		 */
+		ellapsedViewletRestore: number;
+
+		/**
+		 * The time it took to restore editors - that is text editor and complex editor likes the settings UI
+		 * or webviews (markdown preview).
+		 *
+		 * * Happens in the renderer-process
+		 * * Measured with the `willRestoreEditors` and `didRestoreEditors` performance marks.
+		 * * This should be looked at per editor and per editor type.
+		 * * Happens in parallel to other things, depends on async timing
+		 *
+		 * todo@joh/ramya We should probably measures each editor individually?
+		 */
+		ellapsedEditorRestore: number;
+
+		/**
+		 * The time it took to create the workbench.
+		 *
+		 * * Happens in the renderer-process
+		 * * Measured with the `willStartWorkbench` and `didStartWorkbench` performance marks.
+		 *
+		 * todo@joh/ramya Not sure if this is useful because this includes too much
+		 */
+		ellapsedWorkbench: number;
+
+		// the time it took to generate this object.
+		// remove?
+		ellapsedTimersToTimersComputed: number;
 	};
+
+	hasAccessibilitySupport: boolean;
+	isVMLikelyhood: number;
 	platform: string;
 	release: string;
 	arch: string;
@@ -77,21 +208,10 @@ export interface IStartupMetrics {
 	freemem: number;
 	meminfo: IMemoryInfo;
 	cpus: { count: number; speed: number; model: string; };
-	initialStartup: boolean;
-	hasAccessibilitySupport: boolean;
-	isVMLikelyhood: number;
-	emptyWorkbench: boolean;
 	loadavg: number[];
 }
 
-export interface IInitData {
-	start: number;
-	windowLoad: number;
-	isInitialStartup: boolean;
-	hasAccessibilitySupport: boolean;
-}
-
-export interface ITimerService extends IInitData {
+export interface ITimerService {
 	_serviceBrand: any;
 
 	readonly startupMetrics: IStartupMetrics;

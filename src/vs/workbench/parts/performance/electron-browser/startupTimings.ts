@@ -23,6 +23,55 @@ import { ILogService } from 'vs/platform/log/common/log';
 import { IPanelService } from 'vs/workbench/services/panel/common/panelService';
 import { IUpdateService } from 'vs/platform/update/common/update';
 
+/* __GDPR__FRAGMENT__
+	"IStartupReflections" : {
+		"isLatestVersion": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth" },
+		"didUseCachedData": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth" },
+		"windowKind": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth" },
+		"windowCount": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth" },
+		"viewletId": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth" },
+		"panelId": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth" },
+		"editorIds": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth" }
+	}
+*/
+interface IStartupReflections {
+	/**
+	 * This is the latest (stable/insider) version. Iff not we should ignore this
+	 * measurement.
+	 */
+	isLatestVersion: boolean;
+
+	/**
+	 * Whether we asked for and V8 accepted cached data.
+	 */
+	didUseCachedData: boolean;
+
+	/**
+	 * How/why the window was created. See https://github.com/Microsoft/vscode/blob/d1f57d871722f4d6ba63e4ef6f06287121ceb045/src/vs/platform/lifecycle/common/lifecycle.ts#L50
+	 */
+	windowKind: number;
+
+	/**
+	 * The total number of windows that have been restored/created
+	 */
+	windowCount: number;
+
+	/**
+	 * The active viewlet id or `undedined`
+	 */
+	viewletId: string;
+
+	/**
+	 * The active panel id or `undefined`
+	 */
+	panelId: string;
+
+	/**
+	 * The editor input types or `[]`
+	 */
+	editorIds: string[];
+}
+
 class StartupTimings implements IWorkbenchContribution {
 
 	constructor(
@@ -40,6 +89,7 @@ class StartupTimings implements IWorkbenchContribution {
 
 		this._reportVariedStartupTimes().then(undefined, onUnexpectedError);
 		this._reportStandardStartupTimes().then(undefined, onUnexpectedError);
+		this._reportStartupReflections().then(undefined, onUnexpectedError);
 	}
 
 	private async _reportVariedStartupTimes(): Promise<void> {
@@ -110,6 +160,48 @@ class StartupTimings implements IWorkbenchContribution {
 		this._logService.info('standard startup', this._timerService.startupMetrics);
 	}
 
+	private async _reportStartupReflections(): Promise<void> {
+		await Promise.all([
+			this._extensionService.whenInstalledExtensionsRegistered(),
+			this._lifecycleService.when(LifecyclePhase.Eventually)
+		]);
+
+		//todo@joh/ramya decide how to send this data, as single event merged with the timing or
+		// separate.
+
+		/* __GDPR__
+			"startupReflections" : {
+				"${include}": [
+					"${IStartupReflections}"
+				]
+			}
+		*/
+		this._telemetryService.publicLog('startupReflections', await this._createStartupReflections());
+	}
+
+	private async _createStartupReflections(): Promise<IStartupReflections> {
+
+		const isLatestVersion = Boolean(await this._updateService.isLatestVersion());
+		const didUseCachedData = this._didUseCachedData();
+
+		const windowKind = this._lifecycleService.startupKind;
+		const windowCount = await this._windowsService.getWindowCount();
+
+		const viewletId = this._viewletService.getActiveViewlet() ? this._viewletService.getActiveViewlet().getId() : undefined;
+		const editorIds = this._editorService.visibleEditors.map(input => input.getTypeId());
+		const panelId = this._panelService.getActivePanel() ? this._panelService.getActivePanel().getId() : undefined;
+
+		return {
+			isLatestVersion,
+			didUseCachedData,
+			windowKind,
+			windowCount,
+			viewletId,
+			panelId,
+			editorIds
+		};
+	}
+
 	private _didUseCachedData(): boolean {
 		// We surely don't use cached data when we don't tell the loader to do so
 		if (!Boolean((<any>global).require.getConfig().nodeCachedDataDir)) {
@@ -117,7 +209,7 @@ class StartupTimings implements IWorkbenchContribution {
 		}
 		// whenever cached data is produced or rejected a onNodeCachedData-callback is invoked. That callback
 		// stores data in the `MonacoEnvironment.onNodeCachedData` global. See:
-		// https://github.com/Microsoft/vscode/blob/master/src/vs/workbench/electron-browser/bootstrap/index.js#L219
+		// https://github.com/Microsoft/vscode/blob/efe424dfe76a492eab032343e2fa4cfe639939f0/src/vs/workbench/electron-browser/bootstrap/index.js#L299
 		if (!isFalsyOrEmpty(MonacoEnvironment.onNodeCachedData)) {
 			return false;
 		}

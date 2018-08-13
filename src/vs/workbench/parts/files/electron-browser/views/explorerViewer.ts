@@ -502,7 +502,7 @@ export class FileController extends WorkbenchTreeController implements IDisposab
 					sideBySide = tree.useAltAsMultipleSelectionModifier ? (event.ctrlKey || event.metaKey) : event.altKey;
 				}
 
-				this.openEditor(stat, { preserveFocus, sideBySide, pinned: isDoubleClick });
+				this.openEditor(stat, { preserveFocus, sideBySide, pinned: isDoubleClick || (event && event.middleButton) });
 			}
 		}
 

@@ -33,6 +33,7 @@ import { SyntaxRangeProvider, ID_SYNTAX_PROVIDER } from './syntaxRangeProvider';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { InitializingRangeProvider, ID_INIT_PROVIDER } from 'vs/editor/contrib/folding/intializingRangeProvider';
 import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
+import { onUnexpectedError } from 'vs/base/common/errors';
 
 export const ID = 'editor.contrib.folding';
 
@@ -166,7 +167,7 @@ export class FoldingController implements IEditorContribution {
 				if (foldingModel) {
 					foldingModel.applyMemento(state.collapsedRegions);
 				}
-			});
+			}).done(undefined, onUnexpectedError);
 		}
 	}
 
@@ -312,7 +313,7 @@ export class FoldingController implements IEditorContribution {
 					}
 				}
 			}
-		});
+		}).done(undefined, onUnexpectedError);
 
 	}
 
@@ -407,7 +408,7 @@ export class FoldingController implements IEditorContribution {
 					}
 				}
 			}
-		});
+		}).done(undefined, onUnexpectedError);
 	}
 
 	public reveal(position: IPosition): void {

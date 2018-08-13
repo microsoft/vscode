@@ -64,6 +64,10 @@ export const overviewRulerCommentingRangeForeground = registerColor('editorGutte
 class CommentingRangeDecoration {
 	private _decorationId: string;
 
+	get id(): string {
+		return this._decorationId;
+	}
+
 	constructor(private _editor: ICodeEditor, private _ownerId: number, private _range: IRange, private _reply: modes.Command, commentingOptions: ModelDecorationOptions) {
 		const startLineNumber = _range.startLineNumber;
 		const endLineNumber = _range.endLineNumber;
@@ -132,6 +136,9 @@ class CommentingRangeDecorator {
 				commentingRangeDecorations.push(new CommentingRangeDecoration(editor, info.owner, range, info.reply, this.commentingOptions));
 			});
 		}
+
+		let oldDecorations = this.commentingRangeDecorations.map(decoration => decoration.id);
+		editor.deltaDecorations(oldDecorations, []);
 
 		this.commentingRangeDecorations = commentingRangeDecorations;
 	}
@@ -326,7 +333,7 @@ export class ReviewController implements IEditorContribution {
 	public onModelChanged(): void {
 		this.localToDispose = dispose(this.localToDispose);
 		if (this._newCommentWidget) {
-			// todo store view state.
+			// todo@peng store view state.
 			this._newCommentWidget.dispose();
 			this._newCommentWidget = null;
 		}
@@ -495,6 +502,8 @@ export class ReviewController implements IEditorContribution {
 		this._commentWidgets.forEach(zone => {
 			zone.dispose();
 		});
+
+		this._commentWidgets = [];
 
 		this._commentInfos.forEach(info => {
 			info.threads.forEach(thread => {
