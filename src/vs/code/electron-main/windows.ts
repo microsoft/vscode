@@ -37,7 +37,8 @@ import { normalizeNFC } from 'vs/base/common/normalization';
 import URI from 'vs/base/common/uri';
 import { Queue } from 'vs/base/common/async';
 import { exists } from 'vs/base/node/pfs';
-import { getComparisonKey, isEqual, hasToIgnoreCase } from 'vs/base/common/resources';
+import { getComparisonKey, isEqual, hasToIgnoreCase, normalizePath } from 'vs/base/common/resources';
+import { endsWith } from 'vs/base/common/strings';
 
 enum WindowError {
 	UNRESPONSIVE,
@@ -1015,6 +1016,11 @@ export class WindowsManager implements IWindowsMainService {
 		}
 		if (uri.scheme === Schemas.file) {
 			return this.parsePath(uri.fsPath, options);
+		}
+		// normalize URI
+		uri = normalizePath(uri);
+		if (endsWith(uri.path, '/')) {
+			uri = uri.with({ path: uri.path.substr(0, uri.path.length - 1) });
 		}
 		if (isFile) {
 			if (options && options.gotoLineMode) {
