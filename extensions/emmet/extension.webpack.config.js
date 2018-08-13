@@ -27,5 +27,12 @@ module.exports = {
 		'vscode': 'commonjs vscode',
 	},
 	stats: 'errors-only',
-	devtool: 'source-map'
+	devtool: 'source-map',
+	module: {
+		rules: [{
+			test: /\.js$/,
+			use: ["source-map-loader"],
+			enforce: "pre"
+		}]
+	}
 };
