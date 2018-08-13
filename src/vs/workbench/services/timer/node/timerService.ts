@@ -4,29 +4,29 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import { ITimerService, IStartupMetrics, IInitData, IMemoryInfo } from 'vs/workbench/services/timer/common/timerService';
+import { ITimerService, IStartupMetrics, IMemoryInfo } from 'vs/workbench/services/timer/common/timerService';
 import { virtualMachineHint } from 'vs/base/node/id';
 import * as perf from 'vs/base/common/performance';
 import * as os from 'os';
+
+export interface IInitData {
+	start: number;
+	windowLoad: number;
+	isInitialStartup: boolean;
+	hasAccessibilitySupport: boolean;
+}
 
 export class TimerService implements ITimerService {
 
 	public _serviceBrand: any;
 
-	public readonly start: number;
-	public readonly windowLoad: number;
-
-	public readonly isInitialStartup: boolean;
-	public readonly hasAccessibilitySupport: boolean;
-
 	private _startupMetrics: IStartupMetrics;
 
-	constructor(initData: IInitData, private isEmptyWorkbench: boolean) {
-		this.start = initData.start;
-		this.windowLoad = initData.windowLoad;
-
-		this.isInitialStartup = initData.isInitialStartup;
-		this.hasAccessibilitySupport = initData.hasAccessibilitySupport;
+	constructor(
+		private readonly _initData: IInitData,
+		private readonly _isEmptyWorkbench: boolean
+	) {
+		//
 	}
 
 	get startupMetrics(): IStartupMetrics {
@@ -38,8 +38,8 @@ export class TimerService implements ITimerService {
 
 	public _computeStartupMetrics(): void {
 		const now = Date.now();
-		const initialStartup = !!this.isInitialStartup;
-		const start = initialStartup ? this.start : this.windowLoad;
+		const initialStartup = !!this._initData.isInitialStartup;
+		const start = initialStartup ? this._initData.start : this._initData.windowLoad;
 
 		let totalmem: number;
 		let freemem: number;
@@ -70,22 +70,21 @@ export class TimerService implements ITimerService {
 			// ignore, be on the safe side with these hardware method calls
 		}
 
-		let nlsStart = perf.getEntry('mark', 'nlsGeneration:start');
-		let nlsEnd = perf.getEntry('mark', 'nlsGeneration:end');
-		let nlsTime = nlsStart && nlsEnd ? nlsEnd.startTime - nlsStart.startTime : 0;
 		this._startupMetrics = {
 			version: 1,
 			ellapsed: perf.getEntry('mark', 'didStartWorkbench').startTime - start,
 			timers: {
-				ellapsedExtensions: perf.getDuration('willLoadExtensions', 'didLoadExtensions'),
-				ellapsedExtensionsReady: perf.getEntry('mark', 'didLoadExtensions').startTime - start,
+				ellapsedAppReady: initialStartup ? perf.getDuration('main:started', 'main:appReady') : undefined,
+				ellapsedNlsGeneration: perf.getDuration('nlsGeneration:start', 'nlsGeneration:end'),
+				ellapsedWindowLoad: initialStartup ? perf.getDuration('main:appReady', 'main:loadWindow') : undefined,
+				ellapsedWindowLoadToRequire: perf.getDuration('main:loadWindow', 'willLoadWorkbenchMain'),
 				ellapsedRequire: perf.getDuration('willLoadWorkbenchMain', 'didLoadWorkbenchMain'),
+				ellapsedExtensions: perf.getDuration('willLoadExtensions', 'didLoadExtensions'),
 				ellapsedEditorRestore: perf.getDuration('willRestoreEditors', 'didRestoreEditors'),
 				ellapsedViewletRestore: perf.getDuration('willRestoreViewlet', 'didRestoreViewlet'),
 				ellapsedWorkbench: perf.getDuration('willStartWorkbench', 'didStartWorkbench'),
-				ellapsedWindowLoadToRequire: perf.getDuration('main:loadWindow', 'willLoadWorkbenchMain'),
+				ellapsedExtensionsReady: perf.getEntry('mark', 'didLoadExtensions').startTime - start,
 				ellapsedTimersToTimersComputed: Date.now() - now,
-				ellapsedNlsGeneration: nlsTime
 			},
 			platform,
 			release,
@@ -97,13 +96,8 @@ export class TimerService implements ITimerService {
 			loadavg,
 			initialStartup,
 			isVMLikelyhood,
-			hasAccessibilitySupport: !!this.hasAccessibilitySupport,
-			emptyWorkbench: this.isEmptyWorkbench
+			hasAccessibilitySupport: !!this._initData.hasAccessibilitySupport,
+			emptyWorkbench: this._isEmptyWorkbench
 		};
-
-		if (initialStartup) {
-			this._startupMetrics.timers.ellapsedAppReady = perf.getDuration('main:started', 'main:appReady');
-			this._startupMetrics.timers.ellapsedWindowLoad = perf.getDuration('main:appReady', 'main:loadWindow');
-		}
 	}
 }

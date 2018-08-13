@@ -210,14 +210,7 @@ export interface IStartupMetrics {
 	loadavg: number[];
 }
 
-export interface IInitData {
-	start: number;
-	windowLoad: number;
-	isInitialStartup: boolean;
-	hasAccessibilitySupport: boolean;
-}
-
-export interface ITimerService extends IInitData {
+export interface ITimerService {
 	_serviceBrand: any;
 
 	readonly startupMetrics: IStartupMetrics;

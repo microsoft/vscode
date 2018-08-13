@@ -24,8 +24,7 @@ import { ServiceCollection } from 'vs/platform/instantiation/common/serviceColle
 import { realpath } from 'vs/base/node/pfs';
 import { EnvironmentService } from 'vs/platform/environment/node/environmentService';
 import * as gracefulFs from 'graceful-fs';
-import { IInitData } from 'vs/workbench/services/timer/common/timerService';
-import { TimerService } from 'vs/workbench/services/timer/node/timerService';
+import { TimerService, IInitData } from 'vs/workbench/services/timer/node/timerService';
 import { KeyboardMapperFactory } from 'vs/workbench/services/keybinding/electron-browser/keybindingService';
 import { IWindowConfiguration, IWindowsService } from 'vs/platform/windows/common/windows';
 import { WindowsChannelClient } from 'vs/platform/windows/common/windowsIpc';
