@@ -546,14 +546,6 @@ export class WindowsManager implements IWindowsMainService {
 				workspaceResolver: workspace => this.workspacesMainService.resolveWorkspaceSync(workspace.configPath)
 			});
 
-			// Special case: we started with --wait and we got back a folder to open. In this case
-			// we actually prefer to not open the folder but operate purely on the file.
-			if (typeof bestWindowOrFolder === 'string' && filesToWait) {
-				//TODO@Ben: #54483 This should not happen
-				console.error(`This should not happen`, bestWindowOrFolder, WindowsManager.WINDOWS);
-				bestWindowOrFolder = !openFilesInNewWindow ? this.getLastActiveWindow() : null;
-			}
-
 			// We found a window to open the files in
 			if (bestWindowOrFolder instanceof CodeWindow) {
 
@@ -579,13 +571,6 @@ export class WindowsManager implements IWindowsMainService {
 					filesToDiff = [];
 					filesToWait = void 0;
 				}
-			}
-
-			// We found a suitable folder to open: add it to foldersToOpen
-			else if (typeof bestWindowOrFolder === 'string') {
-				//TODO@Ben: #54483 Ben This should not happen
-				// foldersToOpen.push(bestWindowOrFolder);
-				console.error(`This should not happen`, bestWindowOrFolder, WindowsManager.WINDOWS);
 			}
 
 			// Finally, if no window or folder is found, just open the files in an empty window
