@@ -3,9 +3,12 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IExtensionManagementService, IExtensionManagementServerService, IExtensionManagementServer, localExtensionManagementServerLocation } from 'vs/platform/extensionManagement/common/extensionManagement';
+import { IExtensionManagementService, IExtensionManagementServerService, IExtensionManagementServer } from 'vs/platform/extensionManagement/common/extensionManagement';
 import URI from 'vs/base/common/uri';
 import { Schemas } from 'vs/base/common/network';
+import { localize } from 'vs/nls';
+
+const localExtensionManagementServerAuthority: string = 'vscode-local';
 
 export class ExtensionManagementServerService implements IExtensionManagementServerService {
 
@@ -16,14 +19,14 @@ export class ExtensionManagementServerService implements IExtensionManagementSer
 	constructor(
 		localExtensionManagementService: IExtensionManagementService
 	) {
-		this.extensionManagementServers = [{ extensionManagementService: localExtensionManagementService, location: localExtensionManagementServerLocation }];
+		this.extensionManagementServers = [{ extensionManagementService: localExtensionManagementService, authority: localExtensionManagementServerAuthority, label: localize('local', "Local") }];
 	}
 
 	getExtensionManagementServer(location: URI): IExtensionManagementServer {
 		return this.extensionManagementServers[0];
 	}
 
-	getDefaultExtensionManagementServer(): IExtensionManagementServer {
+	getLocalExtensionManagementServer(): IExtensionManagementServer {
 		return this.extensionManagementServers[0];
 	}
 }
@@ -41,11 +44,11 @@ export class SingleServerExtensionManagementServerService implements IExtensionM
 	}
 
 	getExtensionManagementServer(location: URI): IExtensionManagementServer {
-		location = location.scheme === Schemas.file ? URI.from({ scheme: Schemas.file }) : location;
-		return this.extensionManagementServers.filter(server => location.authority === server.location.authority)[0];
+		const authority = location.scheme === Schemas.file ? localExtensionManagementServerAuthority : location.authority;
+		return this.extensionManagementServers.filter(server => authority === server.authority)[0];
 	}
 
-	getDefaultExtensionManagementServer(): IExtensionManagementServer {
+	getLocalExtensionManagementServer(): IExtensionManagementServer {
 		return this.extensionManagementServers[0];
 	}
 }

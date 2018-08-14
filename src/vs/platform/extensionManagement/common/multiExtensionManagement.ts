@@ -7,7 +7,7 @@ import { TPromise } from 'vs/base/common/winjs.base';
 import { Event, EventMultiplexer } from 'vs/base/common/event';
 import {
 	IExtensionManagementService, ILocalExtension, IGalleryExtension, LocalExtensionType, InstallExtensionEvent, DidInstallExtensionEvent, IExtensionIdentifier, DidUninstallExtensionEvent, IReportedExtension, IGalleryMetadata,
-	IExtensionManagementServerService, IExtensionManagementServer, localExtensionManagementServerLocation
+	IExtensionManagementServerService, IExtensionManagementServer
 } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { flatten } from 'vs/base/common/arrays';
 
@@ -50,7 +50,7 @@ export class MulitExtensionManagementService implements IExtensionManagementServ
 	}
 
 	install(zipPath: string): TPromise<void> {
-		return this.extensionManagementServerService.getExtensionManagementServer(localExtensionManagementServerLocation).extensionManagementService.install(zipPath);
+		return this.extensionManagementServerService.getLocalExtensionManagementServer().extensionManagementService.install(zipPath);
 	}
 
 	installFromGallery(extension: IGalleryExtension): TPromise<void> {
@@ -58,7 +58,7 @@ export class MulitExtensionManagementService implements IExtensionManagementServ
 	}
 
 	getExtensionsReport(): TPromise<IReportedExtension[]> {
-		return this.extensionManagementServerService.getExtensionManagementServer(localExtensionManagementServerLocation).extensionManagementService.getExtensionsReport();
+		return this.extensionManagementServerService.getLocalExtensionManagementServer().extensionManagementService.getExtensionsReport();
 	}
 
 	private getServer(extension: ILocalExtension): IExtensionManagementServer {

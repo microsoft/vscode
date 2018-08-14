@@ -921,7 +921,7 @@ export class ExtensionsWorkbenchService implements IExtensionsWorkbenchService, 
 				const installed = this.installed.filter(e => e.id === extension.id)[0];
 				if (installed) {
 					const server = this.extensionManagementServerService.getExtensionManagementServer(local.location);
-					const existingLocal = installed.locals.filter(l => this.extensionManagementServerService.getExtensionManagementServer(l.location).location.toString() === server.location.toString())[0];
+					const existingLocal = installed.locals.filter(l => this.extensionManagementServerService.getExtensionManagementServer(l.location).authority === server.authority)[0];
 					if (existingLocal) {
 						const locals = [...installed.locals];
 						locals.splice(installed.locals.indexOf(existingLocal), 1, local);
