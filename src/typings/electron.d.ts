@@ -1,4 +1,4 @@
-// Type definitions for Electron 3.0.0-beta.4
+// Type definitions for Electron 3.0.0-beta.5
 // Project: http://electronjs.org/
 // Definitions by: The Electron Team <https://github.com/electron/electron>
 // Definitions: https://github.com/electron/electron-typescript-definitions
@@ -3910,7 +3910,7 @@ declare namespace Electron {
 		 * relative to the display nearest to window. If window is null, scaling will be
 		 * performed to the display nearest to rect.
 		 */
-		dipToScreenRect(window: BrowserWindow, rect: Rectangle): Rectangle;
+		dipToScreenRect(window: BrowserWindow | null, rect: Rectangle): Rectangle;
 		getAllDisplays(): Display[];
 		/**
 		 * The current absolute position of the mouse pointer.
@@ -3929,7 +3929,7 @@ declare namespace Electron {
 		 * relative to the display nearest to window. If window is null, scaling will be
 		 * performed to the display nearest to rect.
 		 */
-		screenToDipRect(window: BrowserWindow, rect: Rectangle): Rectangle;
+		screenToDipRect(window: BrowserWindow | null, rect: Rectangle): Rectangle;
 	}
 
 	interface ScrubberItem {
