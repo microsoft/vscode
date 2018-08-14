@@ -983,9 +983,16 @@ export function createValidator(prop: IConfigurationPropertySchema): ((value: an
 		patternRegex = new RegExp(prop.pattern);
 	}
 
+	const type = Array.isArray(prop.type) ? prop.type : [prop.type];
+	const canBeType = (t: string) => type.indexOf(t) > -1;
+
+	const isNullable = canBeType('null');
+	const isNumeric = (canBeType('number') || canBeType('integer')) && (type.length === 1 || type.length === 2 && isNullable);
+	const isIntegral = (canBeType('integer')) && (type.length === 1 || type.length === 2 && isNullable);
+
 	type Validator<T> = { enabled: boolean, isValid: (value: T) => boolean; message: string };
 
-	let numericValidations: Validator<number>[] = [
+	let numericValidations: Validator<number>[] = isNumeric ? [
 		{
 			enabled: exclusiveMax !== undefined && (prop.maximum === undefined || exclusiveMax <= prop.maximum),
 			isValid: (value => value < exclusiveMax),
@@ -1013,11 +1020,11 @@ export function createValidator(prop: IConfigurationPropertySchema): ((value: an
 			message: nls.localize('validations.multipleOf', "Value must be a multiple of {0}.", prop.multipleOf)
 		},
 		{
-			enabled: prop.type === 'integer',
-			isValid: (value => value % 1 === 0 && value.indexOf('.') === -1),
+			enabled: isIntegral,
+			isValid: (value => value % 1 === 0),
 			message: nls.localize('validations.expectedInteger', "Value must be an integer.")
 		},
-	].filter(validation => validation.enabled);
+	].filter(validation => validation.enabled) : [];
 
 	let stringValidations: Validator<string>[] = [
 		{
@@ -1036,12 +1043,6 @@ export function createValidator(prop: IConfigurationPropertySchema): ((value: an
 			message: prop.patternErrorMessage || nls.localize('validations.regex', "Value must match regex `{0}`.", prop.pattern)
 		},
 	].filter(validation => validation.enabled);
-
-	const type = Array.isArray(prop.type) ? prop.type : [prop.type];
-	const canBeType = (t: string) => type.indexOf(t) > -1;
-
-	const isNullable = canBeType('null');
-	const isNumeric = (canBeType('number') || canBeType('integer')) && (type.length === 1 || type.length === 2 && isNullable);
 
 	if (prop.type === 'string' && stringValidations.length === 0) { return null; }
 

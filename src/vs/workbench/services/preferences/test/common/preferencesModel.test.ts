@@ -17,15 +17,15 @@ suite('Preferences Model test', () => {
 		}
 
 		public accepts(input) {
-			assert(this.validator(input) === '', `Expected ${JSON.stringify(this.settings)} to accept ${input}. Got ${this.validator(input)}.`);
+			assert.equal(this.validator(input), '', `Expected ${JSON.stringify(this.settings)} to accept \`${input}\`. Got ${this.validator(input)}.`);
 		}
 
 		public rejects(input) {
-			assert(this.validator(input) !== '', `Expected ${JSON.stringify(this.settings)} to reject ${input}.`);
+			assert.notEqual(this.validator(input), '', `Expected ${JSON.stringify(this.settings)} to reject \`${input}\`.`);
 			return {
 				withMessage:
 					(message) => assert(this.validator(input).indexOf(message) > -1,
-						`Expected error of ${JSON.stringify(this.settings)} on ${input} to contain ${message}. Got ${this.validator(input)}.`)
+						`Expected error of ${JSON.stringify(this.settings)} on \`${input}\` to contain ${message}. Got ${this.validator(input)}.`)
 			};
 		}
 
@@ -165,23 +165,23 @@ suite('Preferences Model test', () => {
 
 	test('null is allowed only when expected', () => {
 		{
-			const nullableIntegers = new Tester({ multipleOf: 1, type: ['integer', 'null'] });
+			const nullableIntegers = new Tester({ type: ['integer', 'null'] });
 			nullableIntegers.accepts('2');
 			nullableIntegers.rejects('.5');
-			nullableIntegers.rejects('2.0');
+			nullableIntegers.accepts('2.0');
 			nullableIntegers.rejects('2j');
 			nullableIntegers.accepts('');
 		}
 		{
-			const nonnullableIntegers = new Tester({ multipleOf: 1, type: ['integer'] });
+			const nonnullableIntegers = new Tester({ type: ['integer'] });
 			nonnullableIntegers.accepts('2');
 			nonnullableIntegers.rejects('.5');
-			nonnullableIntegers.rejects('2.0');
+			nonnullableIntegers.accepts('2.0');
 			nonnullableIntegers.rejects('2j');
 			nonnullableIntegers.rejects('');
 		}
 		{
-			const nullableNumbers = new Tester({ multipleOf: 1, type: ['number', 'null'] });
+			const nullableNumbers = new Tester({ type: ['number', 'null'] });
 			nullableNumbers.accepts('2');
 			nullableNumbers.accepts('.5');
 			nullableNumbers.accepts('2.0');
@@ -189,7 +189,7 @@ suite('Preferences Model test', () => {
 			nullableNumbers.accepts('');
 		}
 		{
-			const nonnullableNumbers = new Tester({ multipleOf: 1, type: ['number'] });
+			const nonnullableNumbers = new Tester({ type: ['number'] });
 			nonnullableNumbers.accepts('2');
 			nonnullableNumbers.accepts('.5');
 			nonnullableNumbers.accepts('2.0');
@@ -223,7 +223,7 @@ suite('Preferences Model test', () => {
 
 	test('patterns work', () => {
 		{
-			const urls = new Tester({ pattern: '^(hello)*$' });
+			const urls = new Tester({ pattern: '^(hello)*$', type: 'string' });
 			urls.accepts('');
 			urls.rejects('hel');
 			urls.accepts('hello');
@@ -231,7 +231,7 @@ suite('Preferences Model test', () => {
 			urls.accepts('hellohello');
 		}
 		{
-			const urls = new Tester({ pattern: '^(hello)*$', patternErrorMessage: 'err: must be friendly' });
+			const urls = new Tester({ pattern: '^(hello)*$', type: 'string', patternErrorMessage: 'err: must be friendly' });
 			urls.accepts('');
 			urls.rejects('hel').withMessage('err: must be friendly');
 			urls.accepts('hello');
@@ -241,7 +241,7 @@ suite('Preferences Model test', () => {
 	});
 
 	test('custom error messages are shown', () => {
-		const withMessage = new Tester({ minLength: 1, maxLength: 0, errorMessage: 'always error!' });
+		const withMessage = new Tester({ minLength: 1, maxLength: 0, type: 'string', errorMessage: 'always error!' });
 		withMessage.rejects('').withMessage('always error!');
 		withMessage.rejects(' ').withMessage('always error!');
 		withMessage.rejects('1').withMessage('always error!');
