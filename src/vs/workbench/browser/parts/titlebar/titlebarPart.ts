@@ -35,6 +35,7 @@ import { MenubarControl } from 'vs/workbench/browser/parts/titlebar/menubarContr
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { template, getBaseLabel } from 'vs/base/common/labels';
 import { IUriDisplayService } from 'vs/platform/uriDisplay/common/uriDisplay';
+import { Event } from 'vs/base/common/event';
 
 export class TitlebarPart extends Part implements ITitleService {
 
@@ -132,6 +133,10 @@ export class TitlebarPart extends Part implements ITitleService {
 				this.title.style('visibility', null);
 			}
 		}
+	}
+
+	onMenubarVisibilityChange(): Event<boolean> {
+		return this.menubarPart.onVisibilityChange;
 	}
 
 	private onActiveEditorChange(): void {
