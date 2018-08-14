@@ -9,30 +9,26 @@ import { IConfigurationPropertySchema } from 'vs/platform/configuration/common/c
 
 
 suite('Preferences Model test', () => {
-
-
 	class Tester {
 		private validator: (value: any) => string;
 
-		constructor(settings: IConfigurationPropertySchema) {
+		constructor(private settings: IConfigurationPropertySchema) {
 			this.validator = createValidator(settings);
 		}
 
 		public accepts(input) {
-			assert(this.validator(input) === '');
+			assert(this.validator(input) === '', `Expected ${JSON.stringify(this.settings)} to accept ${input}. Got ${this.validator(input)}.`);
 		}
 
 		public rejects(input) {
-			assert(this.validator(input) !== '');
+			assert(this.validator(input) !== '', `Expected ${JSON.stringify(this.settings)} to reject ${input}.`);
+			return {
+				withMessage:
+					(message) => assert(this.validator(input).indexOf(message) > -1,
+						`Expected error of ${JSON.stringify(this.settings)} on ${input} to contain ${message}. Got ${this.validator(input)}.`)
+			};
 		}
 
-		public acceptsEmpty() {
-			this.accepts('');
-		}
-
-		public rejectsEmpty() {
-			this.rejects('');
-		}
 
 		public validatesNumeric() {
 			this.accepts('3');
@@ -46,12 +42,12 @@ suite('Preferences Model test', () => {
 
 		public validatesNullableNumeric() {
 			this.validatesNumeric();
-			this.acceptsEmpty();
+			this.accepts('');
 		}
 
 		public validatesNonNullableNumeric() {
 			this.validatesNumeric();
-			this.rejectsEmpty();
+			this.rejects('');
 		}
 
 		public validatesString() {
@@ -100,6 +96,154 @@ suite('Preferences Model test', () => {
 	});
 
 	test('exclusive min and min work together properly', () => {
+		{
+			const justMin = new Tester({ minimum: -5, type: 'number' });
+			justMin.validatesNonNullableNumeric();
+			justMin.rejects('-5.1');
+			justMin.accepts('-5.0');
+		}
+		{
+			const justEMin = new Tester({ exclusiveMinimum: -5, type: 'number' });
+			justEMin.validatesNonNullableNumeric();
+			justEMin.rejects('-5.1');
+			justEMin.rejects('-5.0');
+			justEMin.accepts('-4.999');
+		}
+		{
+			const bothNumeric = new Tester({ exclusiveMinimum: -5, minimum: -4, type: 'number' });
+			bothNumeric.validatesNonNullableNumeric();
+			bothNumeric.rejects('-5.1');
+			bothNumeric.rejects('-5.0');
+			bothNumeric.rejects('-4.999');
+			bothNumeric.accepts('-4');
+		}
+		{
+			const bothNumeric = new Tester({ exclusiveMinimum: -5, minimum: -6, type: 'number' });
+			bothNumeric.validatesNonNullableNumeric();
+			bothNumeric.rejects('-5.1');
+			bothNumeric.rejects('-5.0');
+			bothNumeric.accepts('-4.999');
+		}
+	});
 
+	test('multiple of works for both integers and fractions', () => {
+		{
+			const onlyEvens = new Tester({ multipleOf: 2, type: 'number' });
+			onlyEvens.accepts('2.0');
+			onlyEvens.accepts('2');
+			onlyEvens.accepts('-4');
+			onlyEvens.accepts('0');
+			onlyEvens.accepts('100');
+			onlyEvens.rejects('100.1');
+			onlyEvens.rejects('');
+			onlyEvens.rejects('we');
+		}
+		{
+			const hackyIntegers = new Tester({ multipleOf: 1, type: 'number' });
+			hackyIntegers.accepts('2.0');
+			hackyIntegers.rejects('.5');
+		}
+		{
+			const halfIntegers = new Tester({ multipleOf: 0.5, type: 'number' });
+			halfIntegers.accepts('0.5');
+			halfIntegers.accepts('1.5');
+			halfIntegers.rejects('1.51');
+		}
+	});
+
+	test('integer type correctly adds a validation', () => {
+		{
+			const integers = new Tester({ multipleOf: 1, type: 'integer' });
+			integers.accepts('02');
+			integers.accepts('2');
+			integers.accepts('20');
+			integers.rejects('.5');
+			integers.rejects('2j');
+			integers.rejects('');
+		}
+	});
+
+	test('null is allowed only when expected', () => {
+		{
+			const nullableIntegers = new Tester({ multipleOf: 1, type: ['integer', 'null'] });
+			nullableIntegers.accepts('2');
+			nullableIntegers.rejects('.5');
+			nullableIntegers.rejects('2.0');
+			nullableIntegers.rejects('2j');
+			nullableIntegers.accepts('');
+		}
+		{
+			const nonnullableIntegers = new Tester({ multipleOf: 1, type: ['integer'] });
+			nonnullableIntegers.accepts('2');
+			nonnullableIntegers.rejects('.5');
+			nonnullableIntegers.rejects('2.0');
+			nonnullableIntegers.rejects('2j');
+			nonnullableIntegers.rejects('');
+		}
+		{
+			const nullableNumbers = new Tester({ multipleOf: 1, type: ['number', 'null'] });
+			nullableNumbers.accepts('2');
+			nullableNumbers.accepts('.5');
+			nullableNumbers.accepts('2.0');
+			nullableNumbers.rejects('2j');
+			nullableNumbers.accepts('');
+		}
+		{
+			const nonnullableNumbers = new Tester({ multipleOf: 1, type: ['number'] });
+			nonnullableNumbers.accepts('2');
+			nonnullableNumbers.accepts('.5');
+			nonnullableNumbers.accepts('2.0');
+			nonnullableNumbers.rejects('2j');
+			nonnullableNumbers.rejects('');
+		}
+	});
+
+	test('string max min length work', () => {
+		{
+			const min = new Tester({ minLength: 4, type: 'string' });
+			min.rejects('123');
+			min.accepts('1234');
+			min.accepts('12345');
+		}
+		{
+			const max = new Tester({ maxLength: 6, type: 'string' });
+			max.accepts('12345');
+			max.accepts('123456');
+			max.rejects('1234567');
+		}
+		{
+			const minMax = new Tester({ minLength: 4, maxLength: 6, type: 'string' });
+			minMax.rejects('123');
+			minMax.accepts('1234');
+			minMax.accepts('12345');
+			minMax.accepts('123456');
+			minMax.rejects('1234567');
+		}
+	});
+
+	test('patterns work', () => {
+		{
+			const urls = new Tester({ pattern: '^(hello)*$' });
+			urls.accepts('');
+			urls.rejects('hel');
+			urls.accepts('hello');
+			urls.rejects('hellohel');
+			urls.accepts('hellohello');
+		}
+		{
+			const urls = new Tester({ pattern: '^(hello)*$', patternErrorMessage: 'err: must be friendly' });
+			urls.accepts('');
+			urls.rejects('hel').withMessage('err: must be friendly');
+			urls.accepts('hello');
+			urls.rejects('hellohel').withMessage('err: must be friendly');
+			urls.accepts('hellohello');
+		}
+	});
+
+	test('custom error messages are shown', () => {
+		const withMessage = new Tester({ minLength: 1, maxLength: 0, errorMessage: 'always error!' });
+		withMessage.rejects('').withMessage('always error!');
+		withMessage.rejects(' ').withMessage('always error!');
+		withMessage.rejects('1').withMessage('always error!');
 	});
 });

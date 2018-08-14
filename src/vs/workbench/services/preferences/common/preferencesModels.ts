@@ -987,27 +987,26 @@ export function createValidator(prop: IConfigurationPropertySchema): ((value: an
 
 	let numericValidations: Validator<number>[] = [
 		{
-			enabled: exclusiveMax !== undefined,
+			enabled: exclusiveMax !== undefined && (prop.maximum === undefined || exclusiveMax <= prop.maximum),
 			isValid: (value => value < exclusiveMax),
 			message: nls.localize('validations.exclusiveMax', "Value must be strictly less than {0}.", exclusiveMax)
 		},
 		{
-			enabled: exclusiveMin !== undefined,
+			enabled: exclusiveMin !== undefined && (prop.minimum === undefined || exclusiveMin >= prop.minimum),
 			isValid: (value => value > exclusiveMin),
 			message: nls.localize('validations.exclusiveMin', "Value must be strictly greater than {0}.", exclusiveMin)
 		},
 
 		{
-			enabled: prop.maximum !== undefined && exclusiveMax === undefined,
+			enabled: prop.maximum !== undefined && (exclusiveMax === undefined || exclusiveMax > prop.maximum),
 			isValid: (value => value <= prop.maximum),
 			message: nls.localize('validations.max', "Value must be less than or equal to {0}.", prop.maximum)
 		},
 		{
-			enabled: prop.minimum !== undefined && exclusiveMin === undefined,
+			enabled: prop.minimum !== undefined && (exclusiveMin === undefined || exclusiveMin < prop.minimum),
 			isValid: (value => value >= prop.minimum),
 			message: nls.localize('validations.min', "Value must be greater than or equal to {0}.", prop.minimum)
 		},
-
 		{
 			enabled: prop.multipleOf !== undefined,
 			isValid: (value => value % prop.multipleOf === 0),
@@ -1015,7 +1014,7 @@ export function createValidator(prop: IConfigurationPropertySchema): ((value: an
 		},
 		{
 			enabled: prop.type === 'integer',
-			isValid: (value => value % 1 === 0),
+			isValid: (value => value % 1 === 0 && value.indexOf('.') === -1),
 			message: nls.localize('validations.expectedInteger', "Value must be an integer.")
 		},
 	].filter(validation => validation.enabled);
@@ -1063,7 +1062,7 @@ export function createValidator(prop: IConfigurationPropertySchema): ((value: an
 			errors.push(...stringValidations.filter(validator => !validator.isValid('' + value)).map(validator => validator.message));
 		}
 		if (errors.length) {
-			return errors.join(' ');
+			return prop.errorMessage ? [prop.errorMessage, ...errors].join(' ') : errors.join(' ');
 		}
 		return '';
 	};
