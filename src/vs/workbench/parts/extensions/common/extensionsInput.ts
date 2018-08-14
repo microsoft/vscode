@@ -10,17 +10,14 @@ import { TPromise } from 'vs/base/common/winjs.base';
 import { EditorInput } from 'vs/workbench/common/editor';
 import { IExtension } from 'vs/workbench/parts/extensions/common/extensions';
 import URI from 'vs/base/common/uri';
-import { IExtensionManagementServerService, IExtensionManagementServer } from 'vs/platform/extensionManagement/common/extensionManagement';
 
 export class ExtensionsInput extends EditorInput {
 
 	static readonly ID = 'workbench.extensions.input2';
 	get extension(): IExtension { return this._extension; }
-	get servers(): IExtensionManagementServer[] { return this.extensionManagementServerService.extensionManagementServers; }
 
 	constructor(
 		private _extension: IExtension,
-		@IExtensionManagementServerService private extensionManagementServerService: IExtensionManagementServerService
 	) {
 		super();
 	}

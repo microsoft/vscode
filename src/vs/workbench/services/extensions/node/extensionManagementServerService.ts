@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IExtensionManagementService, IExtensionManagementServerService, IExtensionManagementServer } from 'vs/platform/extensionManagement/common/extensionManagement';
+import { IExtensionManagementService, IExtensionManagementServerService, IExtensionManagementServer, localExtensionManagementServerLocation } from 'vs/platform/extensionManagement/common/extensionManagement';
 import URI from 'vs/base/common/uri';
 import { Schemas } from 'vs/base/common/network';
 
@@ -16,7 +16,7 @@ export class ExtensionManagementServerService implements IExtensionManagementSer
 	constructor(
 		localExtensionManagementService: IExtensionManagementService
 	) {
-		this.extensionManagementServers = [{ extensionManagementService: localExtensionManagementService, location: URI.from({ scheme: Schemas.file }) }];
+		this.extensionManagementServers = [{ extensionManagementService: localExtensionManagementService, location: localExtensionManagementServerLocation }];
 	}
 
 	getExtensionManagementServer(location: URI): IExtensionManagementServer {
