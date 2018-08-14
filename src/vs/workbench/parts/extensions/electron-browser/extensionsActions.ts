@@ -1192,7 +1192,7 @@ export class CheckForUpdatesAction extends Action {
 				outdatedCount = extensions.filter((ext) => {
 					return ext.outdated === true;
 				}).length;
-				if (outdatedCount === 0) {
+				if (outdatedCount) {
 					this.onUpdateAvailable(outdatedCount);
 					this.viewletService.openViewlet(VIEWLET_ID, true)
 						.then(viewlet => viewlet as IExtensionsViewlet)
