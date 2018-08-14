@@ -249,7 +249,7 @@ export class ExtensionLinter {
 	private readPackageJsonInfo(folder: Uri, tree: JsonNode) {
 		const engine = tree && findNodeAtLocation(tree, ['engines', 'vscode']);
 		const repo = tree && findNodeAtLocation(tree, ['repository', 'url']);
-		const uri = parseUri(repo.value);
+		const uri = repo && parseUri(repo.value);
 		const info: PackageJsonInfo = {
 			isExtension: !!(engine && engine.type === 'string'),
 			hasHttpsRepository: !!(repo && repo.type === 'string' && repo.value && uri && uri.scheme.toLowerCase() === 'https')

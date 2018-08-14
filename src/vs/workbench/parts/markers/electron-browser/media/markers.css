@@ -72,6 +72,7 @@
 .markers-panel .markers-panel-container .message-box-container {
 	line-height: 22px;
 	padding-left: 20px;
+	height: 100%;
 }
 
 .markers-panel .markers-panel-container .message-box-container .messageAction {

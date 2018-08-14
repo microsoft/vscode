@@ -7,6 +7,7 @@
 import { Registry } from 'vs/platform/registry/common/platform';
 import { IInstantiationService, IConstructorSignature0 } from 'vs/platform/instantiation/common/instantiation';
 import { ILifecycleService, LifecyclePhase } from 'vs/platform/lifecycle/common/lifecycle';
+import { mark } from 'vs/base/common/performance';
 
 // --- Workbench Contribution Registry
 
@@ -89,12 +90,15 @@ export class WorkbenchContributionsRegistry implements IWorkbenchContributionsRe
 	}
 
 	private doInstantiateByPhase(instantiationService: IInstantiationService, phase: LifecyclePhase): void {
+		mark(`LifecyclePhase/${LifecyclePhase[phase]}/createContrib:start`);
 		const toBeInstantiated = this.toBeInstantiated.get(phase);
 		if (toBeInstantiated) {
 			while (toBeInstantiated.length > 0) {
-				instantiationService.createInstance(toBeInstantiated.shift());
+				const ctor = toBeInstantiated.shift();
+				instantiationService.createInstance(ctor);
 			}
 		}
+		mark(`LifecyclePhase/${LifecyclePhase[phase]}/createContrib:end`);
 	}
 }
 

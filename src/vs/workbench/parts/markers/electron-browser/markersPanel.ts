@@ -32,6 +32,8 @@ import { SimpleFileResourceDragAndDrop } from 'vs/workbench/browser/dnd';
 import { IStorageService } from 'vs/platform/storage/common/storage';
 import { Scope } from 'vs/workbench/common/memento';
 import { localize } from 'vs/nls';
+import { IKeyboardEvent } from 'vs/base/browser/keyboardEvent';
+import { KeyCode } from 'vs/base/common/keyCodes';
 
 export class MarkersPanel extends Panel {
 
@@ -307,6 +309,7 @@ export class MarkersPanel extends Panel {
 		dom.clearNode(this.messageBoxContainer);
 		const markersModel = this.markersWorkbenchService.markersModel;
 		if (markersModel.hasFilteredResources()) {
+			this.messageBoxContainer.style.display = 'none';
 			const { total, filtered } = markersModel.stats();
 			if (filtered === total) {
 				this.ariaLabelElement.setAttribute('aria-label', localize('No problems filtered', "Showing {0} problems", total));
@@ -315,6 +318,7 @@ export class MarkersPanel extends Panel {
 			}
 			this.messageBoxContainer.removeAttribute('tabIndex');
 		} else {
+			this.messageBoxContainer.style.display = 'block';
 			this.messageBoxContainer.setAttribute('tabIndex', '0');
 			if (markersModel.hasResources()) {
 				if (markersModel.filterOptions.filter) {
@@ -334,7 +338,13 @@ export class MarkersPanel extends Panel {
 		const link = dom.append(container, dom.$('a.messageAction'));
 		link.textContent = localize('disableFilesExclude', "Disable Files Exclude Filter.");
 		link.setAttribute('tabIndex', '0');
-		dom.addDisposableListener(link, dom.EventType.CLICK, () => this.filterInputActionItem.useFilesExclude = false);
+		dom.addStandardDisposableListener(link, dom.EventType.CLICK, () => this.filterInputActionItem.useFilesExclude = false);
+		dom.addStandardDisposableListener(link, dom.EventType.KEY_DOWN, (e: IKeyboardEvent) => {
+			if (e.equals(KeyCode.Enter) || e.equals(KeyCode.Space)) {
+				this.filterInputActionItem.useFilesExclude = false;
+				e.stopPropagation();
+			}
+		});
 		this.ariaLabelElement.setAttribute('aria-label', Messages.MARKERS_PANEL_NO_PROBLEMS_FILE_EXCLUSIONS_FILTER);
 	}
 
@@ -344,7 +354,13 @@ export class MarkersPanel extends Panel {
 		const link = dom.append(container, dom.$('a.messageAction'));
 		link.textContent = localize('clearFilter', "Clear Filter.");
 		link.setAttribute('tabIndex', '0');
-		dom.addDisposableListener(link, dom.EventType.CLICK, () => this.filterInputActionItem.clear());
+		dom.addStandardDisposableListener(link, dom.EventType.CLICK, () => this.filterInputActionItem.clear());
+		dom.addStandardDisposableListener(link, dom.EventType.KEY_DOWN, (e: IKeyboardEvent) => {
+			if (e.equals(KeyCode.Enter) || e.equals(KeyCode.Space)) {
+				this.filterInputActionItem.clear();
+				e.stopPropagation();
+			}
+		});
 		this.ariaLabelElement.setAttribute('aria-label', Messages.MARKERS_PANEL_NO_PROBLEMS_FILTERS);
 	}
 

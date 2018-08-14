@@ -35,7 +35,6 @@ export const Position = api.Position;
 export const Range = api.Range;
 export const Selection = api.Selection;
 export const SelectionDirection = api.SelectionDirection;
-export const Severity = api.Severity;
 export const MarkerSeverity = api.MarkerSeverity;
 export const MarkerTag = api.MarkerTag;
 export const Promise = api.Promise;

@@ -38,7 +38,14 @@ import { INotificationService, Severity } from 'vs/platform/notification/common/
 import { getPathFromAmdModule } from 'vs/base/common/amd';
 import { timeout } from 'vs/base/common/async';
 
-export class ExtensionHostProcessWorker {
+export interface IExtensionHostStarter {
+	readonly onCrashed: Event<[number, string]>;
+	start(): TPromise<IMessagePassingProtocol>;
+	getInspectPort(): number;
+	dispose(): void;
+}
+
+export class ExtensionHostProcessWorker implements IExtensionHostStarter {
 
 	private readonly _onCrashed: Emitter<[number, string]> = new Emitter<[number, string]>();
 	public readonly onCrashed: Event<[number, string]> = this._onCrashed.event;

@@ -6,7 +6,7 @@
 'use strict';
 
 import * as assert from 'assert';
-import { settingKeyToDisplayFormat } from 'vs/workbench/parts/preferences/browser/settingsTree';
+import { settingKeyToDisplayFormat } from 'vs/workbench/parts/preferences/browser/settingsTreeModels';
 
 suite('SettingsTree', () => {
 	test('settingKeyToDisplayFormat', () => {
@@ -20,7 +20,7 @@ suite('SettingsTree', () => {
 		assert.deepEqual(
 			settingKeyToDisplayFormat('foo.bar.etc'),
 			{
-				category: 'Foo.Bar',
+				category: 'Foo › Bar',
 				label: 'Etc'
 			});
 

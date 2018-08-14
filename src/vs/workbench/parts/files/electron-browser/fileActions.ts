@@ -1048,7 +1048,7 @@ export function incrementFileName(name: string, isFolder: boolean): string {
 	}
 
 	// 1.file.txt=>2.file.txt
-	let prefixFileRegex = RegExp('(\\d+)(' + separators + '.*)(\\..*)$');
+	let prefixFileRegex = RegExp('^(\\d+)(' + separators + '.*)(\\..*)$');
 	if (!isFolder && name.match(prefixFileRegex)) {
 		return name.replace(prefixFileRegex, (match, g1?, g2?, g3?) => {
 			let number = parseInt(g1);
@@ -1059,7 +1059,7 @@ export function incrementFileName(name: string, isFolder: boolean): string {
 	}
 
 	// 1.txt=>2.txt
-	let prefixFileNoNameRegex = RegExp('(\\d+)(\\..*)$');
+	let prefixFileNoNameRegex = RegExp('^(\\d+)(\\..*)$');
 	if (!isFolder && name.match(prefixFileNoNameRegex)) {
 		return name.replace(prefixFileNoNameRegex, (match, g1?, g2?) => {
 			let number = parseInt(g1);
@@ -1551,7 +1551,7 @@ export class CompareWithClipboardAction extends Action {
 				this.registrationDisposal = dispose(this.registrationDisposal);
 			};
 
-			return always(this.editorService.openEditor({ leftResource: URI.from({ scheme: CompareWithClipboardAction.SCHEME, path: resource.fsPath }), rightResource: resource, label: editorLabel }), cleanUp);
+			return always(this.editorService.openEditor({ leftResource: resource.with({ scheme: CompareWithClipboardAction.SCHEME }), rightResource: resource, label: editorLabel }), cleanUp);
 		}
 
 		return TPromise.as(true);

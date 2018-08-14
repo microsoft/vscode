@@ -31,7 +31,8 @@ let nonBuiltInLanguages = { // { fileNames, extensions }
 	"elixir": { extensions: ['ex'] },
 	"haml": { extensions: ['haml'] },
 	"stylus": { extensions: ['styl'] },
-	"vala": { extensions: ['vala'] }
+	"vala": { extensions: ['vala'] },
+	"todo": { fileNames: ['todo'] }
 }
 
 function getCommitSha(repoId, repoPath) {
