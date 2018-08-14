@@ -962,7 +962,7 @@ class SettingsContentBuilder {
 	}
 }
 
-function createValidator(prop: IConfigurationPropertySchema): ((value: any) => string) | null {
+export function createValidator(prop: IConfigurationPropertySchema): ((value: any) => string) | null {
 	let exclusiveMax: number | undefined;
 	let exclusiveMin: number | undefined;
 
