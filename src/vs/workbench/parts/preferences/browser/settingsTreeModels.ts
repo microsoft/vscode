@@ -11,6 +11,7 @@ import { ConfigurationTarget, IConfigurationService } from 'vs/platform/configur
 import { SettingsTarget } from 'vs/workbench/parts/preferences/browser/preferencesWidgets';
 import { ITOCEntry } from 'vs/workbench/parts/preferences/browser/settingsLayout';
 import { IExtensionSetting, ISearchResult, ISetting } from 'vs/workbench/services/preferences/common/preferences';
+import { isArray } from 'vs/base/common/types';
 
 export const MODIFIED_SETTING_TAG = 'modified';
 export const ONLINE_SERVICES_SETTING_TAG = 'usesOnlineServices';
@@ -67,7 +68,7 @@ export class SettingsTreeSettingElement extends SettingsTreeElement {
 	tags?: Set<string>;
 	overriddenScopeList: string[];
 	description: string;
-	valueType: 'enum' | 'string' | 'integer' | 'number' | 'boolean' | 'exclude' | 'complex';
+	valueType: 'enum' | 'string' | 'integer' | 'number' | 'boolean' | 'exclude' | 'complex' | 'nullable-integer' | 'nullable-number';
 
 	constructor(setting: ISetting, parent: SettingsTreeGroupElement, inspectResult: IInspectResult) {
 		super();
@@ -126,6 +127,14 @@ export class SettingsTreeSettingElement extends SettingsTreeElement {
 			this.valueType = 'number';
 		} else if (this.setting.type === 'boolean') {
 			this.valueType = 'boolean';
+		} else if (isArray(this.setting.type) && this.setting.type.indexOf('null') > -1 && this.setting.type.length === 2) {
+			if (this.setting.type.indexOf('integer') > -1) {
+				this.valueType = 'nullable-integer';
+			} else if (this.setting.type.indexOf('number') > -1) {
+				this.valueType = 'nullable-number';
+			} else {
+				this.valueType = 'complex';
+			}
 		} else {
 			this.valueType = 'complex';
 		}
