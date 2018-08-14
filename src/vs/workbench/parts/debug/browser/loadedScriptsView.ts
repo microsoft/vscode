@@ -38,22 +38,35 @@ const ROOT_FOLDER_TEMPLATE_ID = 'node';
 
 class BaseTreeItem {
 
+	private static SEQUENCE = 1;
+
 	private _id: string;
 	private _children: { [key: string]: BaseTreeItem; };
 	private _source: Source;
 
 	constructor(private _parent: BaseTreeItem, private _label: string) {
-		this._id = this._parent ? `${this._parent._id}/${this._label}` : this._label;
+		this._id = `${BaseTreeItem.SEQUENCE++}`;
 		this._children = {};
 	}
 
-	getLabel() {
+	getLabel(showRootFolder = true) {
 		const child = this.oneChild();
 		if (child) {
-			const sep = this instanceof RootFolderTreeItem ? ' • ' : '/';
+			const sep = (this instanceof RootFolderTreeItem && showRootFolder) ? ' • ' : '/';
 			return `${this._label}${sep}${child.getLabel()}`;
 		}
 		return this._label;
+	}
+
+	getHoverLabel(): string {
+		let label = this.getLabel(false);
+		if (this._parent) {
+			const parentLabel = this._parent.getHoverLabel();
+			if (parentLabel) {
+				return `${parentLabel}/${label}`;
+			}
+		}
+		return label;
 	}
 
 	getId(): string {
@@ -63,6 +76,19 @@ class BaseTreeItem {
 	getTemplateId(): string {
 		return SOURCE_TEMPLATE_ID;
 	}
+
+	/*
+	getParent(): BaseTreeItem {
+		if (this._parent) {
+			const child = this._parent.oneChild();
+			if (child) {
+				return this._parent.getParent();
+			}
+			return this._parent;
+		}
+		return undefined;
+	}
+	*/
 
 	getChildren(): TPromise<BaseTreeItem[]> {
 		const child = this.oneChild();
@@ -81,7 +107,7 @@ class BaseTreeItem {
 		return Object.keys(this._children).length > 0;
 	}
 
-	getSource() {
+	getSource(): Source {
 		const child = this.oneChild();
 		if (child) {
 			return child.getSource();
@@ -179,6 +205,10 @@ class SessionTreeItem extends BaseTreeItem {
 		super(parent, session.getName(true));
 		this._initialized = false;
 		this._session = session;
+	}
+
+	getHoverLabel(): string {
+		return undefined;
 	}
 
 	getTemplateId(): string {
@@ -473,17 +503,17 @@ class LoadedScriptsRenderer implements IRenderer {
 	}
 
 	private renderSession(session: SessionTreeItem, data: ISessionTemplateData): void {
-		data.session.title = 'session';
+		data.session.title = nls.localize('loadedScriptsSession', "Session");
 		data.session.textContent = session.getLabel();
 	}
 
 	private renderSource(source: BaseTreeItem, data: ISourceTemplateData): void {
-		data.source.title = 'source';
+		data.source.title = source.getHoverLabel();
 		data.source.textContent = source.getLabel();
 	}
 
 	private renderNode(node: BaseTreeItem, data: INodeTemplateData): void {
-		data.node.title = 'node';
+		data.node.title = node.getHoverLabel();
 		data.node.textContent = node.getLabel();
 	}
 }

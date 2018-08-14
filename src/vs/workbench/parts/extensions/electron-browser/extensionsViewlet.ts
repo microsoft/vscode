@@ -152,8 +152,8 @@ export class ExtensionsViewletViewsContribution implements IWorkbenchContributio
 
 	private createExtensionsViewDescriptorsForServer(server: IExtensionManagementServer): IViewDescriptor[] {
 		return [{
-			id: `server.extensionsList.${server.location.toString()}`,
-			name: server.location.authority,
+			id: `server.extensionsList.${server.authority}`,
+			name: server.label,
 			container: VIEW_CONTAINER,
 			ctor: GroupByServerExtensionsView,
 			when: ContextKeyExpr.has('groupByServersContext'),
@@ -449,7 +449,7 @@ export class ExtensionsViewlet extends ViewContainerViewlet implements IExtensio
 
 	protected createView(viewDescriptor: IViewDescriptor, options: IViewletViewOptions): ViewletPanel {
 		for (const extensionManagementServer of this.extensionManagementServerService.extensionManagementServers) {
-			if (viewDescriptor.id === `server.extensionsList.${extensionManagementServer.location.toString()}`) {
+			if (viewDescriptor.id === `server.extensionsList.${extensionManagementServer.authority}`) {
 				const servicesCollection: ServiceCollection = new ServiceCollection();
 				servicesCollection.set(IExtensionManagementServerService, new SingleServerExtensionManagementServerService(extensionManagementServer));
 				servicesCollection.set(IExtensionManagementService, extensionManagementServer.extensionManagementService);

@@ -50,15 +50,15 @@ export class MulitExtensionManagementService implements IExtensionManagementServ
 	}
 
 	install(zipPath: string): TPromise<void> {
-		return this.servers[0].extensionManagementService.install(zipPath);
+		return this.extensionManagementServerService.getLocalExtensionManagementServer().extensionManagementService.install(zipPath);
 	}
 
 	installFromGallery(extension: IGalleryExtension): TPromise<void> {
-		return TPromise.join(this.servers.map(server => server.extensionManagementService.installFromGallery(extension))).then(() => null);
+		return TPromise.join(this.servers.map(({ extensionManagementService }) => extensionManagementService.installFromGallery(extension))).then(() => null);
 	}
 
 	getExtensionsReport(): TPromise<IReportedExtension[]> {
-		return this.servers[0].extensionManagementService.getExtensionsReport();
+		return this.extensionManagementServerService.getLocalExtensionManagementServer().extensionManagementService.getExtensionsReport();
 	}
 
 	private getServer(extension: ILocalExtension): IExtensionManagementServer {
