@@ -20,6 +20,7 @@ import { IConfigurationService } from 'vs/platform/configuration/common/configur
 import URI, { UriComponents } from 'vs/base/common/uri';
 import { BrowserWindow } from 'electron';
 import { Event } from 'vs/base/common/event';
+import { hasArgs } from 'vs/platform/environment/node/argv';
 
 export const ID = 'launchService';
 export const ILaunchService = createDecorator<ILaunchService>(ID);
@@ -178,7 +179,7 @@ export class LaunchService implements ILaunchService {
 		}
 
 		// Start without file/folder arguments
-		else if (args._.length === 0 && (args['folder-uri'] || []).length === 0) {
+		else if (!hasArgs(args._) && !hasArgs(args['folder-uri']) && !hasArgs(args['file-uri'])) {
 			let openNewWindow = false;
 
 			// Force new window

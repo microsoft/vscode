@@ -12,7 +12,7 @@ import { IWindowsService, INativeOpenDialogOptions, IEnterWorkspaceResult, Crash
 import { IWorkspaceIdentifier, IWorkspaceFolderCreationData, ISingleFolderWorkspaceIdentifier, isWorkspaceIdentifier } from 'vs/platform/workspaces/common/workspaces';
 import { IRecentlyOpened } from 'vs/platform/history/common/history';
 import { ISerializableCommandAction } from 'vs/platform/actions/common/actions';
-import URI from 'vs/base/common/uri';
+import URI, { UriComponents } from 'vs/base/common/uri';
 import { ParsedArgs } from 'vs/platform/environment/common/environment';
 
 export interface IWindowsChannel extends IChannel {
@@ -40,8 +40,8 @@ export interface IWindowsChannel extends IChannel {
 	call(command: 'saveAndEnterWorkspace', arg: [number, string]): TPromise<IEnterWorkspaceResult>;
 	call(command: 'toggleFullScreen', arg: number): TPromise<void>;
 	call(command: 'setRepresentedFilename', arg: [number, string]): TPromise<void>;
-	call(command: 'addRecentlyOpened', arg: string[]): TPromise<void>;
-	call(command: 'removeFromRecentlyOpened', arg: (IWorkspaceIdentifier | ISingleFolderWorkspaceIdentifier | string)[]): TPromise<void>;
+	call(command: 'addRecentlyOpened', arg: UriComponents[]): TPromise<void>;
+	call(command: 'removeFromRecentlyOpened', arg: (IWorkspaceIdentifier | UriComponents | string)[]): TPromise<void>;
 	call(command: 'clearRecentlyOpened'): TPromise<void>;
 	call(command: 'getRecentlyOpened', arg: number): TPromise<IRecentlyOpened>;
 	call(command: 'newWindowTab'): TPromise<void>;
@@ -139,11 +139,11 @@ export class WindowsChannel implements IWindowsChannel {
 			case 'saveAndEnterWorkspace': return this.service.saveAndEnterWorkspace(arg[0], arg[1]);
 			case 'toggleFullScreen': return this.service.toggleFullScreen(arg);
 			case 'setRepresentedFilename': return this.service.setRepresentedFilename(arg[0], arg[1]);
-			case 'addRecentlyOpened': return this.service.addRecentlyOpened(arg);
+			case 'addRecentlyOpened': return this.service.addRecentlyOpened(arg.map(URI.revive));
 			case 'removeFromRecentlyOpened': {
-				let paths: (IWorkspaceIdentifier | ISingleFolderWorkspaceIdentifier | string)[] = arg;
+				let paths: (IWorkspaceIdentifier | ISingleFolderWorkspaceIdentifier | URI | string)[] = arg;
 				if (Array.isArray(paths)) {
-					paths = paths.map(path => isWorkspaceIdentifier(path) || typeof path === 'string' ? path : URI.revive(path));
+					paths = paths.map(path => isWorkspaceIdentifier(path) ? path : URI.revive(path));
 				}
 				return this.service.removeFromRecentlyOpened(paths);
 			}
@@ -262,11 +262,11 @@ export class WindowsChannelClient implements IWindowsService {
 		return this.channel.call('setRepresentedFilename', [windowId, fileName]);
 	}
 
-	addRecentlyOpened(files: string[]): TPromise<void> {
+	addRecentlyOpened(files: URI[]): TPromise<void> {
 		return this.channel.call('addRecentlyOpened', files);
 	}
 
-	removeFromRecentlyOpened(paths: (IWorkspaceIdentifier | ISingleFolderWorkspaceIdentifier | string)[]): TPromise<void> {
+	removeFromRecentlyOpened(paths: (IWorkspaceIdentifier | ISingleFolderWorkspaceIdentifier | URI)[]): TPromise<void> {
 		return this.channel.call('removeFromRecentlyOpened', paths);
 	}
 
@@ -278,6 +278,7 @@ export class WindowsChannelClient implements IWindowsService {
 		return this.channel.call('getRecentlyOpened', windowId)
 			.then(recentlyOpened => {
 				recentlyOpened.workspaces = recentlyOpened.workspaces.map(workspace => isWorkspaceIdentifier(workspace) ? workspace : URI.revive(workspace));
+				recentlyOpened.files = recentlyOpened.files.map(URI.revive);
 				return recentlyOpened;
 			});
 	}

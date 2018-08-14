@@ -122,17 +122,25 @@ gulp.task('clean-minified-editor', util.rimraf('out-editor-min'));
 gulp.task('minify-editor', ['clean-minified-editor', 'optimize-editor'], common.minifyTask('out-editor'));
 
 gulp.task('clean-editor-esm', util.rimraf('out-editor-esm'));
-gulp.task('extract-editor-esm', ['clean-editor-esm', 'clean-editor-distro'], function () {
-	standalone.createESMSourcesAndResources({
-		entryPoints: [
-			'vs/editor/editor.main',
-			'vs/editor/editor.worker'
-		],
+gulp.task('extract-editor-esm', ['clean-editor-esm', 'clean-editor-distro', 'extract-editor-src'], function () {
+	standalone.createESMSourcesAndResources2({
+		srcFolder: './out-editor-src',
 		outFolder: './out-editor-esm/src',
 		outResourcesFolder: './out-monaco-editor-core/esm',
-		redirects: {
-			'vs/base/browser/ui/octiconLabel/octiconLabel': 'vs/base/browser/ui/octiconLabel/octiconLabel.mock',
-			'vs/nls': 'vs/nls.mock',
+		ignores: [
+			'inlineEntryPoint:0.ts',
+			'inlineEntryPoint:1.ts',
+			'vs/loader.js',
+			'vs/nls.ts',
+			'vs/nls.build.js',
+			'vs/nls.d.ts',
+			'vs/css.js',
+			'vs/css.build.js',
+			'vs/css.d.ts',
+			'vs/base/worker/workerMain.ts',
+		],
+		renames: {
+			'vs/nls.mock.ts': 'vs/nls.ts'
 		}
 	});
 });

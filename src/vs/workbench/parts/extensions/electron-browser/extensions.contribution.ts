@@ -258,6 +258,15 @@ MenuRegistry.appendMenuItem(MenuId.MenubarPreferencesMenu, {
 	order: 2
 });
 
+MenuRegistry.appendMenuItem(MenuId.MenubarPreferencesMenu, {
+	group: '1_settings',
+	command: {
+		id: VIEWLET_ID,
+		title: localize({ key: 'miPreferencesExtensions', comment: ['&& denotes a mnemonic'] }, "&&Extensions")
+	},
+	order: 2
+});
+
 // View menu
 
 MenuRegistry.appendMenuItem(MenuId.MenubarViewMenu, {

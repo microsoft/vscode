@@ -216,6 +216,11 @@
 	font-style: italic;
 	opacity: 0.8;
 	margin-right: 7px;
+	display: none;
+}
+
+.settings-editor > .settings-body > .settings-tree-container .setting-item.is-configured .setting-item-title .setting-item-is-configured-label {
+	display: inline-block;
 }
 
 .settings-editor > .settings-body > .settings-tree-container .setting-item .setting-item-title .setting-item-overrides {

@@ -117,6 +117,10 @@
 	padding: 0 0.4em;
 }
 
+.monaco-editor .review-widget .body span {
+	white-space: pre;
+}
+
 .monaco-editor .review-widget .body .comment-body img {
 	max-width: 100%;
 }

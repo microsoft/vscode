@@ -71,7 +71,6 @@ import * as editorAPI from 'vs/editor/editor.api';
 	a = editorAPI.Range;
 	a = editorAPI.Selection;
 	a = editorAPI.SelectionDirection;
-	a = editorAPI.Severity;
 	a = editorAPI.MarkerSeverity;
 	a = editorAPI.MarkerTag;
 	a = editorAPI.Promise;

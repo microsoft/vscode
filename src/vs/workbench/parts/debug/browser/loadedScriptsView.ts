@@ -364,13 +364,18 @@ export class LoadedScriptsView extends TreeViewsViewletPanel {
 
 			clearTimeout(timeout);
 			timeout = setTimeout(() => {
-				this.tree.refresh(root, true);
+				if (this.tree) {
+					this.tree.refresh(root, true);
+				}
 			}, 300);
 		}));
 
 		this.disposables.push(this.debugService.onDidEndSession(session => {
+			clearTimeout(timeout);
 			root.remove(session.getId());
-			this.tree.refresh(root, false);
+			if (this.tree) {
+				this.tree.refresh(root, false);
+			}
 		}));
 	}
 
@@ -486,6 +491,22 @@ class LoadedScriptsRenderer implements IRenderer {
 class LoadedSciptsAccessibilityProvider implements IAccessibilityProvider {
 
 	public getAriaLabel(tree: ITree, element: any): string {
-		return nls.localize('implement me', "implement me");
+
+		if (element instanceof RootFolderTreeItem) {
+			return nls.localize('loadedScriptsRootFolderAriaLabel', "Workspace folder {0}, loaded script, debug", element.getLabel());
+		}
+
+		if (element instanceof SessionTreeItem) {
+			return nls.localize('loadedScriptsSessionAriaLabel', "Session {0}, loaded script, debug", element.getLabel());
+		}
+
+		if (element instanceof BaseTreeItem) {
+			if (element.hasChildren()) {
+				return nls.localize('loadedScriptsFolderAriaLabel', "Folder {0}, loaded script, debug", element.getLabel());
+			} else {
+				return nls.localize('loadedScriptsSourceAriaLabel', "{0}, loaded script, debug", element.getLabel());
+			}
+		}
+		return null;
 	}
 }

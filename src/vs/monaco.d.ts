@@ -25,13 +25,6 @@ declare namespace monaco {
 		dispose(): void;
 	}
 
-	export enum Severity {
-		Ignore = 0,
-		Info = 1,
-		Warning = 2,
-		Error = 3,
-	}
-
 	export enum MarkerTag {
 		Unnecessary = 1,
 	}
@@ -1058,7 +1051,7 @@ declare namespace monaco.editor {
 		/**
 		 * The initial model associated with this code editor.
 		 */
-		model?: ITextModel;
+		model?: ITextModel | null;
 		/**
 		 * The initial value of the auto created model in the editor.
 		 * To not create automatically a model, use `model: null`.
@@ -2197,7 +2190,7 @@ declare namespace monaco.editor {
 		/**
 		 * Gets the current model attached to this editor.
 		 */
-		getModel(): IEditorModel;
+		getModel(): IEditorModel | null;
 		/**
 		 * Sets the current model attached to this editor.
 		 * If the previous model was created by the editor via the value key in the options
@@ -2206,7 +2199,7 @@ declare namespace monaco.editor {
 		 * will not be destroyed.
 		 * It is safe to call setModel(null) to simply detach the current model from the editor.
 		 */
-		setModel(model: IEditorModel): void;
+		setModel(model: IEditorModel | null): void;
 	}
 
 	/**
@@ -3802,6 +3795,14 @@ declare namespace monaco.editor {
 		 */
 		onDidBlurEditorWidget(listener: () => void): IDisposable;
 		/**
+		 * An event emitted after composition has started.
+		 */
+		onCompositionStart(listener: () => void): IDisposable;
+		/**
+		 * An event emitted after composition has ended.
+		 */
+		onCompositionEnd(listener: () => void): IDisposable;
+		/**
 		 * An event emitted on a "mouseup".
 		 * @event
 		 */
@@ -5307,76 +5308,6 @@ declare namespace monaco.languages {
 		title: string;
 		tooltip?: string;
 		arguments?: any[];
-	}
-
-	export interface CommentInfo {
-		owner: number;
-		threads: CommentThread[];
-		commentingRanges?: IRange[];
-		reply?: Command;
-	}
-
-	export enum CommentThreadCollapsibleState {
-		/**
-		 * Determines an item is collapsed
-		 */
-		Collapsed = 0,
-		/**
-		 * Determines an item is expanded
-		 */
-		Expanded = 1
-	}
-
-	export interface CommentThread {
-		threadId: string;
-		resource: string;
-		range: IRange;
-		comments: Comment[];
-		collapsibleState?: CommentThreadCollapsibleState;
-		reply?: Command;
-	}
-
-	export interface NewCommentAction {
-		ranges: IRange[];
-		actions: Command[];
-	}
-
-	export interface Comment {
-		readonly commentId: string;
-		readonly body: IMarkdownString;
-		readonly userName: string;
-		readonly gravatar: string;
-		readonly command?: Command;
-	}
-
-	export interface CommentThreadChangedEvent {
-		readonly owner: number;
-		/**
-		 * Added comment threads.
-		 */
-		readonly added: CommentThread[];
-		/**
-		 * Removed comment threads.
-		 */
-		readonly removed: CommentThread[];
-		/**
-		 * Changed comment threads.
-		 */
-		readonly changed: CommentThread[];
-	}
-
-	export interface DocumentCommentProvider {
-		provideDocumentComments(resource: Uri, token: CancellationToken): Promise<CommentInfo>;
-		createNewCommentThread(resource: Uri, range: Range, text: string, token: CancellationToken): Promise<CommentThread>;
-		replyToCommentThread(resource: Uri, range: Range, thread: CommentThread, text: string, token: CancellationToken): Promise<CommentThread>;
-		onDidChangeCommentThreads(): IEvent<CommentThreadChangedEvent>;
-	}
-
-	export interface WorkspaceCommentProvider {
-		provideWorkspaceComments(token: CancellationToken): Promise<CommentThread[]>;
-		createNewCommentThread(resource: Uri, range: Range, text: string, token: CancellationToken): Promise<CommentThread>;
-		replyToCommentThread(resource: Uri, range: Range, thread: CommentThread, text: string, token: CancellationToken): Promise<CommentThread>;
-		onDidChangeCommentThreads(): IEvent<CommentThreadChangedEvent>;
 	}
 
 	export interface ICodeLensSymbol {
