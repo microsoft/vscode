@@ -451,7 +451,7 @@ gulp.task('vscode-translations-import', function () {
 
 // Sourcemaps
 
-gulp.task('upload-vscode-sourcemaps', ['minify-vscode'], () => {
+gulp.task('upload-vscode-sourcemaps', ['vscode-darwin-min', 'minify-vscode'], () => {
 	const vs = gulp.src('out-vscode-min/**/*.map', { base: 'out-vscode-min' })
 		.pipe(es.mapSync(f => {
 			f.path = `${f.base}/core/${f.relative}`;
