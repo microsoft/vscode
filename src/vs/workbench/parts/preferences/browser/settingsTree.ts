@@ -38,6 +38,7 @@ import { ITOCEntry } from 'vs/workbench/parts/preferences/browser/settingsLayout
 import { ISettingsEditorViewState, isExcludeSetting, SettingsTreeElement, SettingsTreeGroupElement, SettingsTreeNewExtensionsElement, SettingsTreeSettingElement } from 'vs/workbench/parts/preferences/browser/settingsTreeModels';
 import { ExcludeSettingWidget, IExcludeDataItem, settingsHeaderForeground, settingsNumberInputBackground, settingsNumberInputBorder, settingsNumberInputForeground, settingsSelectBackground, settingsSelectBorder, settingsSelectForeground, settingsTextInputBackground, settingsTextInputBorder, settingsTextInputForeground } from 'vs/workbench/parts/preferences/browser/settingsWidgets';
 import { ISetting, ISettingsGroup } from 'vs/workbench/services/preferences/common/preferences';
+import { alert as ariaAlert } from 'vs/base/browser/ui/aria/aria';
 
 const $ = DOM.$;
 
@@ -923,15 +924,14 @@ export class SettingsRenderer implements ITreeRenderer {
 	}
 
 	private renderText(dataElement: SettingsTreeSettingElement, template: ISettingTextItemTemplate, onChange: (value: string) => void): void {
+		const label = ' ' + dataElement.displayCategory + ' ' + dataElement.displayLabel + ' ' + template.isConfiguredElement.textContent;
 		template.onChange = null;
 		template.inputBox.value = dataElement.value;
-		template.onChange = value => { renderValidations(dataElement, template); onChange(value); };
+		template.onChange = value => { renderValidations(dataElement, template, false, label); onChange(value); };
 
-		renderValidations(dataElement, template);
 		// Setup and add ARIA attributes
 		// Create id and label for control/input element - parent is wrapper div
 		const id = (dataElement.displayCategory + '_' + dataElement.displayLabel).replace(/ /g, '_');
-		const label = ' ' + dataElement.displayCategory + ' ' + dataElement.displayLabel + ' ' + template.isConfiguredElement.textContent;
 
 		// We use the parent control div for the aria-labelledby target
 		// Does not appear you can use the direct label on the element itself within a tree
@@ -945,10 +945,12 @@ export class SettingsRenderer implements ITreeRenderer {
 		template.inputBox.inputElement.setAttribute('role', 'treeitem');
 		template.inputBox.inputElement.setAttribute('aria-labelledby', id + 'item ' + id);
 
+		renderValidations(dataElement, template, true, label);
 	}
 
 
 	private renderNumber(dataElement: SettingsTreeSettingElement, template: ISettingTextItemTemplate, onChange: (value: number) => void): void {
+		const label = ' ' + dataElement.displayCategory + ' ' + dataElement.displayLabel + ' number ' + template.isConfiguredElement.textContent;
 		const numParseFn = (dataElement.valueType === 'integer' || dataElement.valueType === 'nullable-integer')
 			? parseInt : parseFloat;
 
@@ -957,15 +959,11 @@ export class SettingsRenderer implements ITreeRenderer {
 
 		template.onChange = null;
 		template.inputBox.value = dataElement.value;
-		template.onChange = value => {
-			renderValidations(dataElement, template); onChange(nullNumParseFn(value));
-		};
+		template.onChange = value => { renderValidations(dataElement, template, false, label); onChange(nullNumParseFn(value)); };
 
-		renderValidations(dataElement, template);
 		// Setup and add ARIA attributes
 		// Create id and label for control/input element - parent is wrapper div
 		const id = (dataElement.displayCategory + '_' + dataElement.displayLabel).replace(/ /g, '_');
-		const label = ' ' + dataElement.displayCategory + ' ' + dataElement.displayLabel + ' number ' + template.isConfiguredElement.textContent;
 
 		// We use the parent control div for the aria-labelledby target
 		// Does not appear you can use the direct label on the element itself within a tree
@@ -979,6 +977,7 @@ export class SettingsRenderer implements ITreeRenderer {
 		template.inputBox.inputElement.setAttribute('role', 'treeitem');
 		template.inputBox.inputElement.setAttribute('aria-labelledby', id + 'item ' + id);
 
+		renderValidations(dataElement, template, true, label);
 	}
 
 	private renderExcludeSetting(dataElement: SettingsTreeSettingElement, template: ISettingExcludeItemTemplate): void {
@@ -996,13 +995,18 @@ export class SettingsRenderer implements ITreeRenderer {
 	}
 }
 
-function renderValidations(dataElement: SettingsTreeSettingElement, template: ISettingTextItemTemplate) {
+function renderValidations(dataElement: SettingsTreeSettingElement, template: ISettingTextItemTemplate, calledOnStartup: boolean, originalAriaLabel: string) {
 	if (dataElement.setting.validator) {
 		let errMsg = dataElement.setting.validator(template.inputBox.value);
 		if (errMsg) {
 			DOM.addClass(template.containerElement, 'invalid-input');
 			template.validationErrorMessageElement.innerText = errMsg;
+			let validationError = localize('validationError', "Validation Error.");
+			template.inputBox.inputElement.parentElement.setAttribute('aria-label', [originalAriaLabel, validationError, errMsg].join(' '));
+			if (!calledOnStartup) { ariaAlert(validationError + ' ' + errMsg); }
 			return;
+		} else {
+			template.inputBox.inputElement.parentElement.setAttribute('aria-label', originalAriaLabel);
 		}
 	}
 	DOM.removeClass(template.containerElement, 'invalid-input');
