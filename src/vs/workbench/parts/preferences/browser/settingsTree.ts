@@ -340,6 +340,7 @@ export class SettingsRenderer implements ITreeRenderer {
 	private measureSettingElementHeight(tree: ITree, element: SettingsTreeSettingElement): number {
 		const templateId = this.getTemplateId(tree, element);
 		const template: ISettingItemTemplate = this.measureTemplatesPool.get(templateId) || this.renderTemplate(tree, templateId, $('.setting-measure-helper')) as ISettingItemTemplate;
+		this.measureTemplatesPool.set(templateId, template);
 		this.renderElement(tree, element, templateId, template);
 
 		this.measureContainer.appendChild(template.containerElement);
