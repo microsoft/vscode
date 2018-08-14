@@ -21,8 +21,7 @@ steps:
     set -e
     VSCODE_MIXIN_PASSWORD="$(VSCODE_MIXIN_PASSWORD)" \
     AZURE_STORAGE_ACCESS_KEY="$(AZURE_STORAGE_ACCESS_KEY)" \
-    npm run gulp -- vscode-darwin-min
-    npm run gulp -- upload-vscode-sourcemaps
+    npm run gulp -- vscode-darwin-min upload-vscode-sourcemaps
   name: build
 
 - script: |
