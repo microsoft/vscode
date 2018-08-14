@@ -462,6 +462,11 @@ gulp.task('upload-vscode-sourcemaps', ['minify-vscode'], () => {
 	const extensionsDist = gulp.src('extensions/**/dist/**/*.map', { base: '.' });
 
 	return es.merge(vs, extensionsOut, extensionsDist)
+		.pipe(es.through(function (data) {
+			// debug
+			console.log('Uploading Sourcemap', data.relative);
+			this.emit('data', data);
+		}))
 		.pipe(azure.upload({
 			account: process.env.AZURE_STORAGE_ACCOUNT,
 			key: process.env.AZURE_STORAGE_ACCESS_KEY,
