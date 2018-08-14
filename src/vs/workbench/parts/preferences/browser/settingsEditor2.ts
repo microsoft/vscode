@@ -36,7 +36,7 @@ import { PreferencesEditor } from 'vs/workbench/parts/preferences/browser/prefer
 import { SettingsTarget, SettingsTargetsWidget } from 'vs/workbench/parts/preferences/browser/preferencesWidgets';
 import { commonlyUsedData, tocData } from 'vs/workbench/parts/preferences/browser/settingsLayout';
 import { resolveExtensionsSettings, resolveSettingsTree, SettingsRenderer, SettingsTree } from 'vs/workbench/parts/preferences/browser/settingsTree';
-import { ISettingsEditorViewState, MODIFIED_SETTING_TAG, ONLINE_SERVICES_SETTING_TAG, SearchResultIdx, SearchResultModel, SettingsTreeElement, SettingsTreeGroupElement, SettingsTreeModel, SettingsTreeSettingElement } from 'vs/workbench/parts/preferences/browser/settingsTreeModels';
+import { ISettingsEditorViewState, MODIFIED_SETTING_TAG, ONLINE_SERVICES_SETTING_TAG, SearchResultIdx, SearchResultModel, SettingsTreeGroupElement, SettingsTreeModel, SettingsTreeSettingElement } from 'vs/workbench/parts/preferences/browser/settingsTreeModels';
 import { TOCRenderer, TOCTree, TOCTreeModel } from 'vs/workbench/parts/preferences/browser/tocTree';
 import { CONTEXT_SETTINGS_EDITOR, CONTEXT_SETTINGS_SEARCH_FOCUS, CONTEXT_TOC_ROW_FOCUS, IPreferencesSearchService, ISearchProvider } from 'vs/workbench/parts/preferences/common/preferences';
 import { IEditorGroup } from 'vs/workbench/services/group/common/editorGroupsService';
@@ -272,20 +272,11 @@ export class SettingsEditor2 extends BaseEditor {
 		return this.currentSettingsModel.getElementByName(settingKey);
 	}
 
-	private revealSetting(settingKey: string): void {
-		const element = this.getElementsByKey(settingKey);
-		if (element) {
-			this.settingsTree.reveal(element, .1);
+	private revealSettingByKey(settingKey: string): void {
+		const elements = this.getElementsByKey(settingKey);
+		if (elements && elements[0]) {
+			this.settingsTree.reveal(elements[0]);
 		}
-	}
-
-	private revealSettingElement(element: SettingsTreeElement): void {
-		const top = this.settingsTree.getRelativeTop(element);
-		const clampedTop = Math.max(
-			Math.min(top, .9),
-			.1);
-
-		this.settingsTree.reveal(element, clampedTop);
 	}
 
 	private openSettingsFile(): TPromise<IEditor> {
@@ -406,8 +397,8 @@ export class SettingsEditor2 extends BaseEditor {
 				}
 			});
 		}));
-		this._register(this.settingsTreeRenderer.onDidClickSettingLink(settingName => this.revealSetting(settingName)));
-		this._register(this.settingsTreeRenderer.onDidFocusSetting(element => this.revealSettingElement(element)));
+		this._register(this.settingsTreeRenderer.onDidClickSettingLink(settingName => this.revealSettingByKey(settingName)));
+		this._register(this.settingsTreeRenderer.onDidFocusSetting(element => this.settingsTree.reveal(element)));
 
 		this.settingsTree = this._register(this.instantiationService.createInstance(SettingsTree,
 			this.settingsTreeContainer,
