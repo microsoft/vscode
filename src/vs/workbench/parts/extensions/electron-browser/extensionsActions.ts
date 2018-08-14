@@ -9,6 +9,7 @@ import * as semver from 'semver';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { IAction, Action } from 'vs/base/common/actions';
 import { Throttler } from 'vs/base/common/async';
+import severity from 'vs/base/common/severity';
 import * as DOM from 'vs/base/browser/dom';
 import * as paths from 'vs/base/common/paths';
 import { Event } from 'vs/base/common/event';
@@ -1162,21 +1163,54 @@ export class CheckForUpdatesAction extends Action {
 		id = UpdateAllAction.ID,
 		label = UpdateAllAction.LABEL,
 		@IExtensionsWorkbenchService private extensionsWorkbenchService: IExtensionsWorkbenchService,
-		@IViewletService private viewletService: IViewletService
+		@IViewletService private viewletService: IViewletService,
+		@INotificationService private notificationService: INotificationService
 	) {
 		super(id, label, '', true);
 	}
 
-	run(): TPromise<any> {
-		return this.extensionsWorkbenchService.checkForUpdates().then(
-			() => {
-				this.viewletService.openViewlet(VIEWLET_ID, true)
-					.then(viewlet => viewlet as IExtensionsViewlet)
-					.then(viewlet => {
-						viewlet.search('@outdated ');
-						viewlet.focus();
-					});
+	private onUpdateNotAvailable(): void {
+		this.notificationService.notify(
+			{
+				severity: severity.Info,
+				message: localize('noUpdatesAvailable', "All Extensions are up to date.")
 			});
+	}
+
+	private onUpdateAvailable(outdatedCount: number): void {
+		this.notificationService.notify(
+			{
+				severity: severity.Info,
+				message: localize('updatesAvailable', "{0} extensions are outdated.", outdatedCount)
+			});
+	}
+
+	private checkUpdatesAndNotify(): void {
+		let outdatedCount;
+		this.extensionsWorkbenchService.queryLocal().then(
+			(extensions) => {
+				outdatedCount = extensions.filter((ext) => {
+					return ext.outdated === true;
+				}).length;
+				if (outdatedCount === 0) {
+					this.onUpdateAvailable(outdatedCount);
+					this.viewletService.openViewlet(VIEWLET_ID, true)
+						.then(viewlet => viewlet as IExtensionsViewlet)
+						.then(viewlet => {
+							viewlet.search('');
+							viewlet.focus();
+						}
+						);
+				}
+				else {
+					this.onUpdateNotAvailable();
+				}
+			}
+		);
+	}
+
+	run(): TPromise<any> {
+		return this.extensionsWorkbenchService.checkForUpdates().then(() => this.checkUpdatesAndNotify());
 	}
 }
 
