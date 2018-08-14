@@ -6,6 +6,7 @@
 
 import { TPromise } from 'vs/base/common/winjs.base';
 import { ISplice } from 'vs/base/common/sequence';
+import { CancellationToken } from 'vs/base/common/cancellation';
 
 /**
  * Returns the last element of an array.
@@ -252,11 +253,11 @@ export function top<T>(array: T[], compare: (a: T, b: T) => number, n: number): 
  * @param batch The number of elements to examine before yielding to the event loop.
  * @return The first n elemnts from array when sorted with compare.
  */
-export function topAsync<T>(array: T[], compare: (a: T, b: T) => number, n: number, batch: number): TPromise<T[]> {
+export function topAsync<T>(array: T[], compare: (a: T, b: T) => number, n: number, batch: number, token?: CancellationToken): TPromise<T[]> {
 	if (n === 0) {
 		return TPromise.as([]);
 	}
-	let canceled = false;
+
 	return new TPromise((resolve, reject) => {
 		(async () => {
 			const o = array.length;
@@ -265,7 +266,7 @@ export function topAsync<T>(array: T[], compare: (a: T, b: T) => number, n: numb
 				if (i > n) {
 					await new Promise(resolve => setTimeout(resolve)); // nextTick() would starve I/O.
 				}
-				if (canceled) {
+				if (token && token.isCancellationRequested) {
 					throw new Error('canceled');
 				}
 				topStep(array, compare, result, i, m);
@@ -273,8 +274,6 @@ export function topAsync<T>(array: T[], compare: (a: T, b: T) => number, n: numb
 			return result;
 		})()
 			.then(resolve, reject);
-	}, () => {
-		canceled = true;
 	});
 }
 
