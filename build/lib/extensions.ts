@@ -40,8 +40,6 @@ export function fromLocal(extensionPath: string, sourceMappingURLBase?: string):
 		// and merge its output with the files stream. also rewrite the package.json
 		// file to a new entry point
 		if (fs.existsSync(path.join(extensionPath, 'extension.webpack.config.js'))) {
-			console.log(`Using Webpack for "${extensionPath}"`);
-
 			const packageJsonFilter = filter('package.json', { restore: true });
 
 			const patchFilesStream = filesStream
@@ -76,7 +74,6 @@ export function fromLocal(extensionPath: string, sourceMappingURLBase?: string):
 								fs.mkdirSync(path.dirname(data.path));
 							}
 							fs.writeFileSync(data.path, data.contents);
-							console.log(`Webpack source maps saved as "${data.path}"`);
 						}
 					}
 					this.emit('data', data);
