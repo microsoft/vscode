@@ -124,6 +124,10 @@ export class SettingsEditor2 extends BaseEditor {
 		}));
 	}
 
+	private get currentSettingsModel() {
+		return this.searchResultModel || this.settingsTreeModel;
+	}
+
 	createEditor(parent: HTMLElement): void {
 		parent.setAttribute('tabindex', '-1');
 		this.rootElement = DOM.append(parent, $('.settings-editor'));
@@ -261,7 +265,7 @@ export class SettingsEditor2 extends BaseEditor {
 	}
 
 	private getElementsByKey(settingKey: string): SettingsTreeSettingElement[] | null {
-		return (this.searchResultModel || this.settingsTreeModel).getElementByName(settingKey);
+		return this.currentSettingsModel.getElementByName(settingKey);
 	}
 
 	private revealSetting(settingKey: string): void {
@@ -646,7 +650,7 @@ export class SettingsEditor2 extends BaseEditor {
 
 	private updateElementsByKey(keys: string[]): TPromise<void> {
 		if (keys.length) {
-			keys.forEach(key => this.settingsTreeModel.updateElementsByName(key));
+			keys.forEach(key => this.currentSettingsModel.updateElementsByName(key));
 			return TPromise.join(
 				keys.map(key => this.renderTree(key)))
 				.then(() => { });
