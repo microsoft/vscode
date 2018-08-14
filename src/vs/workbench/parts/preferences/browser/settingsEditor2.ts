@@ -247,6 +247,10 @@ export class SettingsEditor2 extends BaseEditor {
 			this.instantiationService.createInstance(FilterByTagAction,
 				localize('filterModifiedLabel', "Show modified settings"),
 				MODIFIED_SETTING_TAG,
+				this),
+			this.instantiationService.createInstance(FilterByTagAction,
+				localize('filterNewLabel', "Show new settings"),
+				'new',
 				this)
 		];
 		if (this.environmentService.appQuality !== 'stable') {
