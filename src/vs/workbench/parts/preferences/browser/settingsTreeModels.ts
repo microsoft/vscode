@@ -277,7 +277,7 @@ export function settingKeyToDisplayFormat(key: string, groupId = ''): { category
 
 function wordifyKey(key: string): string {
 	return key
-		.replace(/\.([a-z])/g, (match, p1) => `.${p1.toUpperCase()}`)
+		.replace(/\.([a-z])/g, (match, p1) => ` › ${p1.toUpperCase()}`)
 		.replace(/([a-z])([A-Z])/g, '$1 $2') // fooBar => foo Bar
 		.replace(/^[a-z]/g, match => match.toUpperCase()); // foo => Foo
 }
