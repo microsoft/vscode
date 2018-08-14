@@ -115,7 +115,7 @@ export class SettingsTreeSettingElement extends SettingsTreeElement {
 		this.overriddenScopeList = overriddenScopeList;
 		this.description = this.setting.description.join('\n');
 
-		if (this.setting.enum && (this.setting.type === 'string' || !this.setting.type)) {
+		if (this.setting.enum && (!this.setting.type || settingTypeEnumRenderable(this.setting.type))) {
 			this.valueType = 'enum';
 		} else if (this.setting.type === 'string') {
 			this.valueType = 'string';
@@ -325,6 +325,12 @@ function trimCategoryForGroup(category: string, groupId: string): string {
 export function isExcludeSetting(setting: ISetting): boolean {
 	return setting.key === 'files.exclude' ||
 		setting.key === 'search.exclude';
+}
+
+function settingTypeEnumRenderable(_type: string | string[]) {
+	const enumRenderableSettingTypes = ['string', 'boolean', 'null', 'integer', 'number'];
+	let type = isArray(_type) ? _type : [_type];
+	return type.every(type => enumRenderableSettingTypes.indexOf(type) > -1);
 }
 
 export enum SearchResultIdx {
