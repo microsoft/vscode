@@ -45,13 +45,13 @@ export class OpenSettings2Action extends Action {
 	constructor(
 		id: string,
 		label: string,
-		@IPreferencesService private preferencesService2: IPreferencesService
+		@IPreferencesService private preferencesService: IPreferencesService
 	) {
 		super(id, label);
 	}
 
 	public run(event?: any): TPromise<any> {
-		return this.preferencesService2.openSettings2();
+		return this.preferencesService.openSettings(false);
 	}
 }
 
@@ -71,9 +71,8 @@ export class OpenSettingsAction extends Action {
 	}
 
 	public run(event?: any): TPromise<any> {
-		return this.configurationService.getValue('workbench.settings.editor') === 'json' ?
-			this.preferencesService.openSettings() :
-			this.preferencesService.openSettings2();
+		const jsonEditorPreferred = this.configurationService.getValue('workbench.settings.editor') === 'json';
+		return this.preferencesService.openSettings(jsonEditorPreferred);
 	}
 }
 
@@ -110,9 +109,8 @@ export class OpenGlobalSettingsAction extends Action {
 	}
 
 	public run(event?: any): TPromise<any> {
-		return this.configurationService.getValue('workbench.settings.editor') === 'json' ?
-			this.preferencesService.openGlobalSettings() :
-			this.preferencesService.openSettings2();
+		const jsonEditorPreferred = this.configurationService.getValue('workbench.settings.editor') === 'json';
+		return this.preferencesService.openGlobalSettings(jsonEditorPreferred);
 	}
 }
 
@@ -194,9 +192,8 @@ export class OpenWorkspaceSettingsAction extends Action {
 	}
 
 	public run(event?: any): TPromise<any> {
-		return this.configurationService.getValue('workbench.settings.editor') === 'json' ?
-			this.preferencesService.openWorkspaceSettings() :
-			this.preferencesService.openSettings2();
+		const jsonEditorPreferred = this.configurationService.getValue('workbench.settings.editor') === 'json';
+		return this.preferencesService.openWorkspaceSettings(jsonEditorPreferred);
 	}
 
 	public dispose(): void {
@@ -234,17 +231,15 @@ export class OpenFolderSettingsAction extends Action {
 	}
 
 	public run(): TPromise<any> {
-		if (this.configurationService.getValue('workbench.settings.editor') === 'json') {
-			return this.commandService.executeCommand<IWorkspaceFolder>(PICK_WORKSPACE_FOLDER_COMMAND_ID)
-				.then(workspaceFolder => {
-					if (workspaceFolder) {
-						return this.commandService.executeCommand(OPEN_FOLDER_SETTINGS_COMMAND, workspaceFolder.uri);
-					}
-					return null;
-				});
-		} else {
-			return this.preferencesService.openSettings2();
-		}
+		return this.commandService.executeCommand<IWorkspaceFolder>(PICK_WORKSPACE_FOLDER_COMMAND_ID)
+			.then(workspaceFolder => {
+				if (workspaceFolder) {
+					const jsonEditorPreferred = this.configurationService.getValue('workbench.settings.editor') === 'json';
+					return this.preferencesService.openFolderSettings(workspaceFolder.uri, jsonEditorPreferred);
+				}
+
+				return null;
+			});
 	}
 
 	public dispose(): void {

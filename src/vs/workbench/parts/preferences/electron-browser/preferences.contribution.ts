@@ -152,11 +152,17 @@ class KeybindingsEditorInputFactory implements IEditorInputFactory {
 class SettingsEditor2InputFactory implements IEditorInputFactory {
 
 	public serialize(editorInput: SettingsEditor2Input): string {
-		return JSON.stringify({});
+		const input = <DefaultPreferencesEditorInput>editorInput;
+
+		const serialized: ISerializedDefaultPreferencesEditorInput = { resource: input.getResource().toString() };
+
+		return JSON.stringify(serialized);
 	}
 
-	public deserialize(instantiationService: IInstantiationService, serializedEditorInput: string): EditorInput {
-		return instantiationService.createInstance(SettingsEditor2Input);
+	public deserialize(instantiationService: IInstantiationService, serializedEditorInput: string): SettingsEditor2Input {
+		const deserialized: ISerializedDefaultPreferencesEditorInput = JSON.parse(serializedEditorInput);
+
+		return instantiationService.createInstance(SettingsEditor2Input, URI.parse(deserialized.resource));
 	}
 }
 

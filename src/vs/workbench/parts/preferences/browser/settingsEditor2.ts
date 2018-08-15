@@ -43,6 +43,7 @@ import { IEditorGroup } from 'vs/workbench/services/group/common/editorGroupsSer
 import { IPreferencesService, ISearchResult, ISettingsEditorModel } from 'vs/workbench/services/preferences/common/preferences';
 import { SettingsEditor2Input } from 'vs/workbench/services/preferences/common/preferencesEditorInput';
 import { DefaultSettingsEditorModel } from 'vs/workbench/services/preferences/common/preferencesModels';
+import { ResourceEditorModel } from 'vs/workbench/common/editor/resourceEditorModel';
 
 const $ = DOM.$;
 
@@ -228,12 +229,15 @@ export class SettingsEditor2 extends BaseEditor {
 		const targetWidgetContainer = DOM.append(headerControlsContainer, $('.settings-target-container'));
 		this.settingsTargetsWidget = this._register(this.instantiationService.createInstance(SettingsTargetsWidget, targetWidgetContainer));
 		this.settingsTargetsWidget.settingsTarget = ConfigurationTarget.USER;
-		this.settingsTargetsWidget.onDidTargetChange(() => {
-			this.viewState.settingsTarget = this.settingsTargetsWidget.settingsTarget;
-			this.toolbar.context = <ISettingsToolbarContext>{ target: this.settingsTargetsWidget.settingsTarget };
-
-			this.settingsTreeModel.update();
-			this.renderTree();
+		this.settingsTargetsWidget.onDidTargetChange(target => {
+			this.viewState.settingsTarget = target;
+			if (target === ConfigurationTarget.USER) {
+				this.preferencesService.openGlobalSettings();
+			} else if (target === ConfigurationTarget.WORKSPACE) {
+				this.preferencesService.switchSettings(ConfigurationTarget.WORKSPACE, this.preferencesService.workspaceSettingsResource);
+			} else if (target instanceof URI) {
+				this.preferencesService.switchSettings(ConfigurationTarget.WORKSPACE_FOLDER, target);
+			}
 		});
 
 		this.createHeaderControls(headerControlsContainer);
@@ -480,7 +484,7 @@ export class SettingsEditor2 extends BaseEditor {
 		// Force a render afterwards because onDidConfigurationUpdate doesn't fire if the update doesn't result in an effective setting value change
 		const settingsTarget = this.settingsTargetsWidget.settingsTarget;
 		const resource = URI.isUri(settingsTarget) ? settingsTarget : undefined;
-		const configurationTarget = <ConfigurationTarget>(resource ? undefined : settingsTarget);
+		const configurationTarget = <ConfigurationTarget>(resource ? ConfigurationTarget.WORKSPACE_FOLDER : settingsTarget);
 		const overrides: IConfigurationOverrides = { resource };
 
 		// If the user is changing the value back to the default, do a 'reset' instead
@@ -567,13 +571,15 @@ export class SettingsEditor2 extends BaseEditor {
 	private render(token: CancellationToken): TPromise<any> {
 		if (this.input) {
 			return this.input.resolve()
-				.then((model: DefaultSettingsEditorModel) => {
+				.then(model => {
 					if (token.isCancellationRequested) {
 						return void 0;
 					}
 
-					this._register(model.onDidChangeGroups(() => this.onConfigUpdate()));
-					this.defaultSettingsEditorModel = model;
+					return this.preferencesService.createPreferencesEditorModel((<ResourceEditorModel>model).textEditorModel.uri);
+				}).then((defaultSettingsEditorModel: DefaultSettingsEditorModel) => {
+					this._register(defaultSettingsEditorModel.onDidChangeGroups(() => this.onConfigUpdate()));
+					this.defaultSettingsEditorModel = defaultSettingsEditorModel;
 					return this.onConfigUpdate();
 				});
 		}
@@ -945,11 +951,11 @@ class OpenSettingsAction extends Action {
 	private _run(context?: ISettingsToolbarContext): TPromise<any> {
 		const target = context && context.target;
 		if (target === ConfigurationTarget.USER) {
-			return this.preferencesService.openGlobalSettings();
+			return this.preferencesService.openGlobalSettings(true);
 		} else if (target === ConfigurationTarget.WORKSPACE) {
-			return this.preferencesService.openWorkspaceSettings();
+			return this.preferencesService.openWorkspaceSettings(true);
 		} else if (URI.isUri(target)) {
-			return this.preferencesService.openFolderSettings(target);
+			return this.preferencesService.openFolderSettings(target, true);
 		}
 
 		return TPromise.wrap(null);
