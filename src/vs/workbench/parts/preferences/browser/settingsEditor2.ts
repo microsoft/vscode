@@ -276,6 +276,14 @@ export class SettingsEditor2 extends BaseEditor {
 		const elements = this.getElementsByKey(settingKey);
 		if (elements && elements[0]) {
 			this.settingsTree.reveal(elements[0]);
+
+			const domElements = this.settingsTreeRenderer.getDOMElementsForSettingKey(this.settingsTree.getHTMLElement(), settingKey);
+			if (domElements && domElements[0]) {
+				const control = domElements[0].querySelector(SettingsRenderer.CONTROL_SELECTOR);
+				if (control) {
+					(<HTMLElement>control).focus();
+				}
+			}
 		}
 	}
 
