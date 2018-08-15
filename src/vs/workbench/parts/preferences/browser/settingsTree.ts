@@ -520,7 +520,7 @@ export class SettingsRenderer implements ITreeRenderer {
 		const common = this.renderCommonTemplate(tree, container, 'number');
 		const validationErrorMessageElement = DOM.append(container, $('.setting-item-validation-message'));
 
-		const inputBox = new InputBox(common.controlElement, this.contextViewService);
+		const inputBox = new InputBox(common.controlElement, this.contextViewService, { type: 'number' });
 		common.toDispose.push(inputBox);
 		common.toDispose.push(attachInputBoxStyler(inputBox, this.themeService, {
 			inputBackground: settingsNumberInputBackground,

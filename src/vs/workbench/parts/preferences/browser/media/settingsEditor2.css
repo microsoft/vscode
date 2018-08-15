@@ -278,6 +278,11 @@
 	width: 200px;
 }
 
+.settings-editor > .settings-body > .settings-tree-container .setting-item.setting-item-number input[type=number]::-webkit-inner-spin-button {
+	/* Hide arrow button that shows in type=number fields */
+	-webkit-appearance: none !important;
+}
+
 .settings-editor > .settings-body > .settings-tree-container .setting-item .setting-item-description-markdown * {
 	margin: 0px;
 }
