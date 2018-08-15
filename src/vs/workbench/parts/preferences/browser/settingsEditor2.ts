@@ -50,6 +50,7 @@ const $ = DOM.$;
 export class SettingsEditor2 extends BaseEditor {
 
 	public static readonly ID: string = 'workbench.editor.settings2';
+	private static NUM_INSTANCES: number = 0;
 
 	private static readonly SUGGESTIONS: string[] = [
 		'@modified', '@tag:usesOnlineServices', '@tag:new'
@@ -217,7 +218,7 @@ export class SettingsEditor2 extends BaseEditor {
 			provideResults: (query: string) => {
 				return SettingsEditor2.SUGGESTIONS.filter(tag => query.indexOf(tag) === -1).map(tag => tag + ' ');
 			}
-		}, searchBoxLabel, 'settingseditor:searchinput', {
+		}, searchBoxLabel, 'settingseditor:searchinput' + SettingsEditor2.NUM_INSTANCES++, {
 				placeholderText: searchBoxLabel,
 				focusContextKey: this.searchFocusContextKey,
 				// TODO: Aria-live
