@@ -1169,16 +1169,6 @@ export class CheckForUpdatesAction extends Action {
 		super(id, label, '', true);
 	}
 
-	private focusExtensionsViewlet() {
-		this.viewletService.openViewlet(VIEWLET_ID, true)
-			.then(viewlet => viewlet as IExtensionsViewlet)
-			.then(viewlet => {
-				viewlet.search('');
-				viewlet.focus();
-			}
-			);
-	}
-
 	private checkUpdatesAndNotify(): void {
 		this.extensionsWorkbenchService.queryLocal().then(
 			extensions => {
@@ -1187,7 +1177,9 @@ export class CheckForUpdatesAction extends Action {
 				if (outdatedCount > 0) {
 					msgAvailableExtensions = outdatedCount === 1 ? localize('updateAvailable', "An Extension update is available.")
 						: localize('updatesAvailable', "{0} extensions updates are available.", outdatedCount);
-					this.focusExtensionsViewlet();
+					this.viewletService.openViewlet(VIEWLET_ID, true)
+						.then(viewlet => viewlet as IExtensionsViewlet)
+						.then(viewlet => viewlet.search(''));
 				}
 				this.notificationService.notify({ severity: severity.Info, message: msgAvailableExtensions });
 			}
