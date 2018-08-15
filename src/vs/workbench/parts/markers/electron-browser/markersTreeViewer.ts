@@ -222,8 +222,7 @@ export class Renderer implements IRenderer {
 		dom.toggleClass(templateData.source.element, 'marker-source', !!marker.source);
 
 		templateData.actionBar.clear();
-		const resourceMarkers: ResourceMarkers = tree.getNavigator(element).parent();
-		const quickFixAction = this.instantiationService.createInstance(QuickFixAction, element, resourceMarkers);
+		const quickFixAction = this.instantiationService.createInstance(QuickFixAction, element);
 		templateData.actionBar.push([quickFixAction], { icon: true, label: false });
 
 		templateData.description.set(marker.message, element.messageMatches);

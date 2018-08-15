@@ -121,7 +121,8 @@ export class Marker extends NodeWithId {
 
 	constructor(
 		id: string,
-		readonly raw: IMarker
+		readonly raw: IMarker,
+		readonly resourceMarkers: ResourceMarkers
 	) {
 		super(id);
 	}
@@ -314,7 +315,7 @@ export class MarkersModel {
 		this.updateResource(resource);
 
 		rawMarkers.forEach((rawMarker, index) => {
-			const marker = new Marker(uri.toString() + index, rawMarker);
+			const marker = new Marker(uri.toString() + index, rawMarker, resource);
 			if (rawMarker.relatedInformation) {
 				const groupedByResource = groupBy(rawMarker.relatedInformation, MarkersModel._compareMarkersByUri);
 				groupedByResource.sort((a, b) => compareUris(a[0].resource, b[0].resource));
