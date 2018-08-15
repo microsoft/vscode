@@ -25,15 +25,20 @@ export function basenameOrAuthority(resource: URI): string {
 	return basename(resource) || resource.authority;
 }
 
-export function isEqualOrParent(resource: URI, candidate: URI, ignoreCase?: boolean): boolean {
-	if (resource.scheme === candidate.scheme) {
-		if (resource.scheme === Schemas.file) {
-			return paths.isEqualOrParent(resource.fsPath, candidate.fsPath, ignoreCase);
+/**
+ *
+ * @param base A uri which is "longer"
+ * @param parentCandidate A uri which is "shorter" then `base`
+ */
+export function isEqualOrParent(base: URI, parentCandidate: URI, ignoreCase?: boolean): boolean {
+	if (base.scheme === parentCandidate.scheme) {
+		if (base.scheme === Schemas.file) {
+			return paths.isEqualOrParent(base.fsPath, parentCandidate.fsPath, ignoreCase);
 		}
-		if (!isEqualAuthority(resource.authority, candidate.authority, ignoreCase)) {
+		if (!isEqualAuthority(base.authority, parentCandidate.authority, ignoreCase)) {
 			return false;
 		}
-		return paths.isEqualOrParent(resource.path, candidate.path, ignoreCase, '/');
+		return paths.isEqualOrParent(base.path, parentCandidate.path, ignoreCase, '/');
 	}
 
 	return false;
