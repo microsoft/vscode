@@ -697,9 +697,14 @@ export class SettingsEditor2 extends BaseEditor {
 		}
 
 		let refreshP: TPromise<any>;
-		const elements = key && this.getElementsByKey(key);
-		if (elements && elements.length) {
-			refreshP = TPromise.join(elements.map(e => this.settingsTree.refresh(e)));
+		if (key) {
+			const elements = this.getElementsByKey(key);
+			if (elements && elements.length) {
+				refreshP = TPromise.join(elements.map(e => this.settingsTree.refresh(e)));
+			} else {
+				// Refresh requested for a key that we don't know about
+				return TPromise.wrap(null);
+			}
 		} else {
 			refreshP = this.settingsTree.refresh();
 		}
