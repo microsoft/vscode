@@ -33,7 +33,7 @@ export class MainThreadLanguages implements MainThreadLanguagesShape {
 		return TPromise.as(this._modeService.getRegisteredModes());
 	}
 
-	$setLanguageById(resource: UriComponents, languageId: string): TPromise<void> {
+	$changeLanguage(resource: UriComponents, languageId: string): TPromise<void> {
 		const uri = URI.revive(resource);
 		let model = this._modelService.getModel(uri);
 		if (!model) {

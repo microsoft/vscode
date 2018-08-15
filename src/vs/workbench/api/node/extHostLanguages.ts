@@ -21,7 +21,7 @@ export class ExtHostLanguages {
 	getLanguages(): TPromise<string[]> {
 		return this._proxy.$getLanguages();
 	}
-	setLanguageById(documentUri: vscode.Uri, languageId: string): TPromise<void> {
-		return this._proxy.$setLanguageById(documentUri, languageId);
+	changeLanguage(documentUri: vscode.Uri, languageId: string): TPromise<void> {
+		return this._proxy.$changeLanguage(documentUri, languageId);
 	}
 }

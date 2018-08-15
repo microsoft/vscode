@@ -27,8 +27,6 @@ import { ExtHostContext, ExtHostEditorsShape, IExtHostContext, ITextDocumentShow
 import { MainThreadDocumentsAndEditors } from './mainThreadDocumentsAndEditors';
 import { MainThreadTextEditor } from './mainThreadEditor';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
-import { IModeService } from 'vs/editor/common/services/modeService';
-import { IModelService } from 'vs/editor/common/services/modelService';
 
 export class MainThreadTextEditors implements MainThreadTextEditorsShape {
 
@@ -45,8 +43,6 @@ export class MainThreadTextEditors implements MainThreadTextEditorsShape {
 	constructor(
 		documentsAndEditors: MainThreadDocumentsAndEditors,
 		extHostContext: IExtHostContext,
-		@IModelService private readonly _modelService: IModelService,
-		@IModeService private readonly _modeService: IModeService,
 		@ICodeEditorService private readonly _codeEditorService: ICodeEditorService,
 		@IBulkEditService private readonly _bulkEditService: IBulkEditService,
 		@IEditorService private readonly _editorService: IEditorService,
@@ -171,26 +167,6 @@ export class MainThreadTextEditors implements MainThreadTextEditorsShape {
 			return TPromise.wrapError(disposed(`TextEditor(${id})`));
 		}
 		this._documentsAndEditors.getEditor(id).setSelections(selections);
-		return TPromise.as(null);
-	}
-
-	$trySetLanguageById(id: string, languageId: string): TPromise<void> {
-		let mainThreadEditor = this._documentsAndEditors.getEditor(id);
-		if (!mainThreadEditor) {
-			return TPromise.wrapError(disposed(`TextEditor(${id})`));
-		}
-		let mode = this._modeService.getOrCreateModeByLanguageId(languageId);
-		this._modelService.setMode(mainThreadEditor.getModel(), mode);
-		return TPromise.as(null);
-	}
-
-	$trySetLanguageByName(id: string, languageName: string): TPromise<void> {
-		let mainThreadEditor = this._documentsAndEditors.getEditor(id);
-		if (!mainThreadEditor) {
-			return TPromise.wrapError(disposed(`TextEditor(${id})`));
-		}
-		let mode = this._modeService.getOrCreateModeByLanguageName(languageName);
-		this._modelService.setMode(mainThreadEditor.getModel(), mode);
 		return TPromise.as(null);
 	}
 
