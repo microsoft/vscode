@@ -50,6 +50,10 @@ export class SettingsEditor2 extends BaseEditor {
 
 	public static readonly ID: string = 'workbench.editor.settings2';
 
+	private static readonly SUGGESTIONS: string[] = [
+		'@modified', '@tag:usesOnlineServices', '@tag:new'
+	];
+
 	private defaultSettingsEditorModel: DefaultSettingsEditorModel;
 
 	private rootElement: HTMLElement;
@@ -210,7 +214,7 @@ export class SettingsEditor2 extends BaseEditor {
 		this.searchWidget = this._register(this.instantiationService.createInstance(SuggestEnabledInput, `${SettingsEditor2.ID}.searchbox`, searchContainer, {
 			triggerCharacters: ['@'],
 			provideResults: (query: string) => {
-				return ['@modified', '@tag:usesOnlineServices'].filter(tag => query.indexOf(tag) === -1).map(tag => tag + ' ');
+				return SettingsEditor2.SUGGESTIONS.filter(tag => query.indexOf(tag) === -1).map(tag => tag + ' ');
 			}
 		}, searchBoxLabel, 'settingseditor:searchinput', {
 				placeholderText: searchBoxLabel,
