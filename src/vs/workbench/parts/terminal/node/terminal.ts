@@ -59,11 +59,14 @@ if (platform.isLinux) {
 		}
 		readFile(file).then(b => {
 			const contents = b.toString();
-			if (contents.indexOf('NAME=Fedora') >= 0) {
+			if (/NAME="?Fedora"?/.test(contents)) {
 				isFedora = true;
+			} else if (/NAME="?Ubuntu"?/.test(contents)) {
+				isUbuntu = true;
 			}
 		});
 	});
 }
 
 export let isFedora = false;
+export let isUbuntu = false;
