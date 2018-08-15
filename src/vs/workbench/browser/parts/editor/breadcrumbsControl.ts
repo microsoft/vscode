@@ -295,7 +295,7 @@ export class BreadcrumbsControl {
 			getAnchor: () => {
 
 				let pickerHeight = 330;
-				let pickerWidth = Math.max(this._dimension.width * 0.38, dom.getTotalWidth(event.node));
+				let pickerWidth = Math.max(this._dimension.width / 2.59, dom.getTotalWidth(event.node));
 				let pickerArrowSize = 8;
 				let pickerArrowOffset: number;
 
