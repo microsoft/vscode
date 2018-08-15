@@ -37,7 +37,8 @@ import { normalizeNFC } from 'vs/base/common/normalization';
 import URI from 'vs/base/common/uri';
 import { Queue } from 'vs/base/common/async';
 import { exists } from 'vs/base/node/pfs';
-import { getComparisonKey, isEqual, hasToIgnoreCase } from 'vs/base/common/resources';
+import { getComparisonKey, isEqual, hasToIgnoreCase, normalizePath } from 'vs/base/common/resources';
+import { endsWith } from 'vs/base/common/strings';
 
 enum WindowError {
 	UNRESPONSIVE,
@@ -545,14 +546,6 @@ export class WindowsManager implements IWindowsMainService {
 				workspaceResolver: workspace => this.workspacesMainService.resolveWorkspaceSync(workspace.configPath)
 			});
 
-			// Special case: we started with --wait and we got back a folder to open. In this case
-			// we actually prefer to not open the folder but operate purely on the file.
-			if (typeof bestWindowOrFolder === 'string' && filesToWait) {
-				//TODO@Ben: #54483 This should not happen
-				console.error(`This should not happen`, bestWindowOrFolder, WindowsManager.WINDOWS);
-				bestWindowOrFolder = !openFilesInNewWindow ? this.getLastActiveWindow() : null;
-			}
-
 			// We found a window to open the files in
 			if (bestWindowOrFolder instanceof CodeWindow) {
 
@@ -578,13 +571,6 @@ export class WindowsManager implements IWindowsMainService {
 					filesToDiff = [];
 					filesToWait = void 0;
 				}
-			}
-
-			// We found a suitable folder to open: add it to foldersToOpen
-			else if (typeof bestWindowOrFolder === 'string') {
-				//TODO@Ben: #54483 Ben This should not happen
-				// foldersToOpen.push(bestWindowOrFolder);
-				console.error(`This should not happen`, bestWindowOrFolder, WindowsManager.WINDOWS);
 			}
 
 			// Finally, if no window or folder is found, just open the files in an empty window
@@ -1016,7 +1002,20 @@ export class WindowsManager implements IWindowsMainService {
 		if (uri.scheme === Schemas.file) {
 			return this.parsePath(uri.fsPath, options);
 		}
+		// normalize URI
+		uri = normalizePath(uri);
+		if (endsWith(uri.path, '/')) {
+			uri = uri.with({ path: uri.path.substr(0, uri.path.length - 1) });
+		}
 		if (isFile) {
+			if (options && options.gotoLineMode) {
+				const parsedPath = parseLineAndColumnAware(uri.path);
+				return {
+					fileUri: uri.with({ path: parsedPath.path }),
+					lineNumber: parsedPath.line,
+					columnNumber: parsedPath.column
+				};
+			}
 			return {
 				fileUri: uri
 			};

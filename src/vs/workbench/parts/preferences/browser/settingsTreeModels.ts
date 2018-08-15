@@ -11,6 +11,7 @@ import { ConfigurationTarget, IConfigurationService } from 'vs/platform/configur
 import { SettingsTarget } from 'vs/workbench/parts/preferences/browser/preferencesWidgets';
 import { ITOCEntry } from 'vs/workbench/parts/preferences/browser/settingsLayout';
 import { IExtensionSetting, ISearchResult, ISetting } from 'vs/workbench/services/preferences/common/preferences';
+import { isArray } from 'vs/base/common/types';
 
 export const MODIFIED_SETTING_TAG = 'modified';
 export const ONLINE_SERVICES_SETTING_TAG = 'usesOnlineServices';
@@ -67,7 +68,7 @@ export class SettingsTreeSettingElement extends SettingsTreeElement {
 	tags?: Set<string>;
 	overriddenScopeList: string[];
 	description: string;
-	valueType: 'enum' | 'string' | 'integer' | 'number' | 'boolean' | 'exclude' | 'complex';
+	valueType: 'enum' | 'string' | 'integer' | 'number' | 'boolean' | 'exclude' | 'complex' | 'nullable-integer' | 'nullable-number';
 
 	constructor(setting: ISetting, parent: SettingsTreeGroupElement, inspectResult: IInspectResult) {
 		super();
@@ -114,7 +115,7 @@ export class SettingsTreeSettingElement extends SettingsTreeElement {
 		this.overriddenScopeList = overriddenScopeList;
 		this.description = this.setting.description.join('\n');
 
-		if (this.setting.enum && (this.setting.type === 'string' || !this.setting.type)) {
+		if (this.setting.enum && (!this.setting.type || settingTypeEnumRenderable(this.setting.type))) {
 			this.valueType = 'enum';
 		} else if (this.setting.type === 'string') {
 			this.valueType = 'string';
@@ -126,6 +127,14 @@ export class SettingsTreeSettingElement extends SettingsTreeElement {
 			this.valueType = 'number';
 		} else if (this.setting.type === 'boolean') {
 			this.valueType = 'boolean';
+		} else if (isArray(this.setting.type) && this.setting.type.indexOf('null') > -1 && this.setting.type.length === 2) {
+			if (this.setting.type.indexOf('integer') > -1) {
+				this.valueType = 'nullable-integer';
+			} else if (this.setting.type.indexOf('number') > -1) {
+				this.valueType = 'nullable-number';
+			} else {
+				this.valueType = 'complex';
+			}
 		} else {
 			this.valueType = 'complex';
 		}
@@ -277,7 +286,7 @@ export function settingKeyToDisplayFormat(key: string, groupId = ''): { category
 
 function wordifyKey(key: string): string {
 	return key
-		.replace(/\.([a-z])/g, (match, p1) => `.${p1.toUpperCase()}`)
+		.replace(/\.([a-z])/g, (match, p1) => ` › ${p1.toUpperCase()}`)
 		.replace(/([a-z])([A-Z])/g, '$1 $2') // fooBar => foo Bar
 		.replace(/^[a-z]/g, match => match.toUpperCase()); // foo => Foo
 }
@@ -316,6 +325,12 @@ function trimCategoryForGroup(category: string, groupId: string): string {
 export function isExcludeSetting(setting: ISetting): boolean {
 	return setting.key === 'files.exclude' ||
 		setting.key === 'search.exclude';
+}
+
+function settingTypeEnumRenderable(_type: string | string[]) {
+	const enumRenderableSettingTypes = ['string', 'boolean', 'null', 'integer', 'number'];
+	let type = isArray(_type) ? _type : [_type];
+	return type.every(type => enumRenderableSettingTypes.indexOf(type) > -1);
 }
 
 export enum SearchResultIdx {

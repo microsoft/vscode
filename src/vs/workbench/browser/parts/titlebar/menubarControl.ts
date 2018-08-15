@@ -229,17 +229,23 @@ export class MenubarControl extends Disposable {
 			return;
 		}
 
+		const isVisible = this.isVisible;
+		const isOpen = this.isOpen;
+		const isFocused = this.isFocused;
+
+		this._focusState = value;
+
 		switch (value) {
 			case MenubarState.HIDDEN:
-				if (this.isVisible) {
+				if (isVisible) {
 					this.hideMenubar();
 				}
 
-				if (this.isOpen) {
+				if (isOpen) {
 					this.cleanupCustomMenu();
 				}
 
-				if (this.isFocused) {
+				if (isFocused) {
 					this.focusedMenu = null;
 
 					if (this.focusToReturn) {
@@ -251,15 +257,15 @@ export class MenubarControl extends Disposable {
 
 				break;
 			case MenubarState.VISIBLE:
-				if (!this.isVisible) {
+				if (!isVisible) {
 					this.showMenubar();
 				}
 
-				if (this.isOpen) {
+				if (isOpen) {
 					this.cleanupCustomMenu();
 				}
 
-				if (this.isFocused) {
+				if (isFocused) {
 					if (this.focusedMenu) {
 						this.customMenus[this.focusedMenu.index].buttonElement.blur();
 					}
@@ -274,11 +280,11 @@ export class MenubarControl extends Disposable {
 
 				break;
 			case MenubarState.FOCUSED:
-				if (!this.isVisible) {
+				if (!isVisible) {
 					this.showMenubar();
 				}
 
-				if (this.isOpen) {
+				if (isOpen) {
 					this.cleanupCustomMenu();
 				}
 
@@ -287,7 +293,7 @@ export class MenubarControl extends Disposable {
 				}
 				break;
 			case MenubarState.OPEN:
-				if (!this.isVisible) {
+				if (!isVisible) {
 					this.showMenubar();
 				}
 
@@ -338,7 +344,13 @@ export class MenubarControl extends Disposable {
 	}
 
 	private setUnfocusedState(): void {
-		this.focusState = this.currentMenubarVisibility === 'toggle' || this.currentMenubarVisibility === 'hidden' ? MenubarState.HIDDEN : MenubarState.VISIBLE;
+		if (this.currentMenubarVisibility === 'toggle' || this.currentMenubarVisibility === 'hidden') {
+			this.focusState = MenubarState.HIDDEN;
+		} else if (this.currentMenubarVisibility === 'default' && browser.isFullscreen()) {
+			this.focusState = MenubarState.HIDDEN;
+		} else {
+			this.focusState = MenubarState.VISIBLE;
+		}
 	}
 
 	private hideMenubar(): void {
@@ -1119,6 +1131,10 @@ registerThemingParticipant((theme: ITheme, collector: ICssStyleCollector) => {
 			.monaco-shell .monaco-menu .monaco-action-bar.vertical .action-item {
 				color: ${menuFgColor};
 			}
+
+			.monaco-shell .monaco-menu .monaco-action-bar.vertical .action-item .action-menu-item .menu-item-check {
+				background-color: ${menuFgColor};
+			}
 		`);
 	}
 
@@ -1137,6 +1153,10 @@ registerThemingParticipant((theme: ITheme, collector: ICssStyleCollector) => {
 		.monaco-shell .monaco-menu .monaco-action-bar.vertical .action-item.focused {
 				color: ${selectedMenuItemFgColor};
 			}
+
+		.monaco-shell .monaco-menu .monaco-action-bar.vertical .action-item.focused .action-menu-item .menu-item-check {
+			background-color: ${selectedMenuItemFgColor};
+		}
 		`);
 	}
 

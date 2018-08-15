@@ -93,7 +93,7 @@ class GitDecorationProvider implements DecorationProvider {
 
 	private static SubmoduleDecorationData: DecorationData = {
 		title: 'Submodule',
-		abbreviation: 'S',
+		letter: 'S',
 		color: new ThemeColor('gitDecoration.submoduleResourceForeground')
 	};
 

@@ -36,7 +36,7 @@ import { PreferencesEditor } from 'vs/workbench/parts/preferences/browser/prefer
 import { SettingsTarget, SettingsTargetsWidget } from 'vs/workbench/parts/preferences/browser/preferencesWidgets';
 import { commonlyUsedData, tocData } from 'vs/workbench/parts/preferences/browser/settingsLayout';
 import { resolveExtensionsSettings, resolveSettingsTree, SettingsRenderer, SettingsTree } from 'vs/workbench/parts/preferences/browser/settingsTree';
-import { ISettingsEditorViewState, MODIFIED_SETTING_TAG, ONLINE_SERVICES_SETTING_TAG, SearchResultIdx, SearchResultModel, SettingsTreeElement, SettingsTreeGroupElement, SettingsTreeModel, SettingsTreeSettingElement } from 'vs/workbench/parts/preferences/browser/settingsTreeModels';
+import { ISettingsEditorViewState, MODIFIED_SETTING_TAG, ONLINE_SERVICES_SETTING_TAG, SearchResultIdx, SearchResultModel, SettingsTreeGroupElement, SettingsTreeModel, SettingsTreeSettingElement } from 'vs/workbench/parts/preferences/browser/settingsTreeModels';
 import { TOCRenderer, TOCTree, TOCTreeModel } from 'vs/workbench/parts/preferences/browser/tocTree';
 import { CONTEXT_SETTINGS_EDITOR, CONTEXT_SETTINGS_SEARCH_FOCUS, CONTEXT_TOC_ROW_FOCUS, IPreferencesSearchService, ISearchProvider } from 'vs/workbench/parts/preferences/common/preferences';
 import { IEditorGroup } from 'vs/workbench/services/group/common/editorGroupsService';
@@ -49,6 +49,10 @@ const $ = DOM.$;
 export class SettingsEditor2 extends BaseEditor {
 
 	public static readonly ID: string = 'workbench.editor.settings2';
+
+	private static readonly SUGGESTIONS: string[] = [
+		'@modified', '@tag:usesOnlineServices', '@tag:new'
+	];
 
 	private defaultSettingsEditorModel: DefaultSettingsEditorModel;
 
@@ -111,7 +115,7 @@ export class SettingsEditor2 extends BaseEditor {
 		this.viewState = { settingsTarget: ConfigurationTarget.USER };
 		this.delayRefreshOnLayout = new Delayer(100);
 
-		this.settingUpdateDelayer = new Delayer<void>(500);
+		this.settingUpdateDelayer = new Delayer<void>(200);
 
 		this.inSettingsEditorContextKey = CONTEXT_SETTINGS_EDITOR.bindTo(contextKeyService);
 		this.searchFocusContextKey = CONTEXT_SETTINGS_SEARCH_FOCUS.bindTo(contextKeyService);
@@ -122,6 +126,10 @@ export class SettingsEditor2 extends BaseEditor {
 		this._register(configurationService.onDidChangeConfiguration(e => {
 			this.onConfigUpdate(e.affectedKeys);
 		}));
+	}
+
+	private get currentSettingsModel() {
+		return this.searchResultModel || this.settingsTreeModel;
 	}
 
 	createEditor(parent: HTMLElement): void {
@@ -206,7 +214,7 @@ export class SettingsEditor2 extends BaseEditor {
 		this.searchWidget = this._register(this.instantiationService.createInstance(SuggestEnabledInput, `${SettingsEditor2.ID}.searchbox`, searchContainer, {
 			triggerCharacters: ['@'],
 			provideResults: (query: string) => {
-				return ['@modified', '@tag:usesOnlineServices'].filter(tag => query.indexOf(tag) === -1).map(tag => tag + ' ');
+				return SettingsEditor2.SUGGESTIONS.filter(tag => query.indexOf(tag) === -1).map(tag => tag + ' ');
 			}
 		}, searchBoxLabel, 'settingseditor:searchinput', {
 				placeholderText: searchBoxLabel,
@@ -243,6 +251,10 @@ export class SettingsEditor2 extends BaseEditor {
 			this.instantiationService.createInstance(FilterByTagAction,
 				localize('filterModifiedLabel', "Show modified settings"),
 				MODIFIED_SETTING_TAG,
+				this),
+			this.instantiationService.createInstance(FilterByTagAction,
+				localize('filterNewLabel', "Show new settings"),
+				'new',
 				this)
 		];
 		if (this.environmentService.appQuality !== 'stable') {
@@ -261,23 +273,22 @@ export class SettingsEditor2 extends BaseEditor {
 	}
 
 	private getElementsByKey(settingKey: string): SettingsTreeSettingElement[] | null {
-		return (this.searchResultModel || this.settingsTreeModel).getElementByName(settingKey);
+		return this.currentSettingsModel.getElementByName(settingKey);
 	}
 
-	private revealSetting(settingKey: string): void {
-		const element = this.getElementsByKey(settingKey);
-		if (element) {
-			this.settingsTree.reveal(element, .1);
+	private revealSettingByKey(settingKey: string): void {
+		const elements = this.getElementsByKey(settingKey);
+		if (elements && elements[0]) {
+			this.settingsTree.reveal(elements[0]);
+
+			const domElements = this.settingsTreeRenderer.getDOMElementsForSettingKey(this.settingsTree.getHTMLElement(), settingKey);
+			if (domElements && domElements[0]) {
+				const control = domElements[0].querySelector(SettingsRenderer.CONTROL_SELECTOR);
+				if (control) {
+					(<HTMLElement>control).focus();
+				}
+			}
 		}
-	}
-
-	private revealSettingElement(element: SettingsTreeElement): void {
-		const top = this.settingsTree.getRelativeTop(element);
-		const clampedTop = Math.max(
-			Math.min(top, .9),
-			.1);
-
-		this.settingsTree.reveal(element, clampedTop);
 	}
 
 	private openSettingsFile(): TPromise<IEditor> {
@@ -398,8 +409,8 @@ export class SettingsEditor2 extends BaseEditor {
 				}
 			});
 		}));
-		this._register(this.settingsTreeRenderer.onDidClickSettingLink(settingName => this.revealSetting(settingName)));
-		this._register(this.settingsTreeRenderer.onDidFocusSetting(element => this.revealSettingElement(element)));
+		this._register(this.settingsTreeRenderer.onDidClickSettingLink(settingName => this.revealSettingByKey(settingName)));
+		this._register(this.settingsTreeRenderer.onDidFocusSetting(element => this.settingsTree.reveal(element)));
 
 		this.settingsTree = this._register(this.instantiationService.createInstance(SettingsTree,
 			this.settingsTreeContainer,
@@ -646,7 +657,7 @@ export class SettingsEditor2 extends BaseEditor {
 
 	private updateElementsByKey(keys: string[]): TPromise<void> {
 		if (keys.length) {
-			keys.forEach(key => this.settingsTreeModel.updateElementsByName(key));
+			keys.forEach(key => this.currentSettingsModel.updateElementsByName(key));
 			return TPromise.join(
 				keys.map(key => this.renderTree(key)))
 				.then(() => { });
@@ -657,20 +668,23 @@ export class SettingsEditor2 extends BaseEditor {
 
 	private renderTree(key?: string): TPromise<void> {
 		if (key && this.scheduledRefreshes.has(key)) {
+			this.updateModifiedLabelForKey(key);
 			return TPromise.wrap(null);
 		}
 
 		// If a setting control is currently focused, schedule a refresh for later
-		if (document.activeElement.classList.contains(SettingsRenderer.CONTROL_CLASS)) {
+		const focusedSetting = this.settingsTreeRenderer.getSettingDOMElementForDOMElement(<HTMLElement>document.activeElement);
+		if (focusedSetting) {
 			// If a single setting is being refreshed, it's ok to refresh now if that is not the focused setting
 			if (key) {
-				const focusedKey = this.settingsTreeRenderer.getSettingKeyForDOMElement(<HTMLElement>document.activeElement);
+				const focusedKey = focusedSetting.getAttribute(SettingsRenderer.SETTING_KEY_ATTR);
 				if (focusedKey === key) {
-					this.scheduleRefresh(<HTMLElement>document.activeElement, key);
+					this.updateModifiedLabelForKey(key);
+					this.scheduleRefresh(focusedSetting, key);
 					return TPromise.wrap(null);
 				}
 			} else {
-				this.scheduleRefresh(<HTMLElement>document.activeElement);
+				this.scheduleRefresh(focusedSetting);
 				return TPromise.wrap(null);
 			}
 		}
@@ -684,9 +698,18 @@ export class SettingsEditor2 extends BaseEditor {
 		}
 
 		return refreshP.then(() => {
-			this.tocTreeModel.update(); // ?
+			this.tocTreeModel.update();
 			return this.tocTree.refresh();
 		}).then(() => { });
+	}
+
+	private updateModifiedLabelForKey(key: string): void {
+		const dataElements = this.getElementsByKey(key);
+		const isModified = dataElements && dataElements[0] && dataElements[0].isConfigured; // all elements are either configured or not
+		const elements = this.settingsTreeRenderer.getDOMElementsForSettingKey(this.settingsTree.getHTMLElement(), key);
+		if (elements && elements[0]) {
+			DOM.toggleClass(elements[0], 'is-configured', isModified);
+		}
 	}
 
 	private onSearchInputChanged(): void {

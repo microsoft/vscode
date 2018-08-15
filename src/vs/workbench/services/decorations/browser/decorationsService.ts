@@ -141,25 +141,12 @@ class DecorationStyles {
 			labelClassName,
 			badgeClassName,
 			tooltip,
-			update: (source, insert) => {
+			update: (replace) => {
 				let newData = data.slice();
-				if (!source) {
-					// add -> just append
-					newData.push(insert);
-
-				} else {
-					// remove/replace -> require a walk
-					for (let i = 0; i < newData.length; i++) {
-						if (newData[i].source === source) {
-							if (!insert) {
-								// remove
-								newData.splice(i, 1);
-								i--;
-							} else {
-								// replace
-								newData[i] = insert;
-							}
-						}
+				for (let i = 0; i < newData.length; i++) {
+					if (newData[i].source === replace.source) {
+						// replace
+						newData[i] = replace;
 					}
 				}
 				return this.asDecoration(newData, onlyChildren);
@@ -434,7 +421,7 @@ export class FileDecorationsService implements IDecorationsService {
 			// result, maybe overwrite
 			let result = this._decorationStyles.asDecoration(data, containsChildren);
 			if (overwrite) {
-				return result.update(overwrite.source, overwrite);
+				return result.update(overwrite);
 			} else {
 				return result;
 			}

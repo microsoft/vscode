@@ -97,8 +97,18 @@
 	color: inherit;
 }
 
-.monaco-menu .monaco-action-bar.vertical .action-label.checked:after {
-	content: '  \2713';
+.monaco-menu .monaco-action-bar.vertical .menu-item-check {
+	position: absolute;
+	visibility: hidden;
+	background-color: #646465;
+	-webkit-mask: url('check.svg') no-repeat 50% 56%/15px 15px;
+	mask: url('check.svg') no-repeat 50% 56%/15px 15px;
+	width: 1em;
+	height: 100%;
+}
+
+.monaco-menu .monaco-action-bar.vertical .action-menu-item.checked .menu-item-check {
+	visibility: visible;
 }
 
 /* Context Menu */
@@ -149,4 +159,8 @@
 .hc-black .monaco-menu .monaco-action-bar.vertical .action-item.focused {
 	background: none;
 	border: 1px dotted #f38518;
+}
+
+.hc-black .monaco-menu .monaco-action-bar.vertical .menu-item-check {
+	background-color: white;
 }

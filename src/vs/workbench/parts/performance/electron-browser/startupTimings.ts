@@ -10,9 +10,8 @@ import { ILifecycleService, LifecyclePhase, StartupKind } from 'vs/platform/life
 import { IWindowsService } from 'vs/platform/windows/common/windows';
 import { IWorkbenchContributionsRegistry, IWorkbenchContribution, Extensions } from 'vs/workbench/common/contributions';
 import { Registry } from 'vs/platform/registry/common/platform';
-import { TPromise } from 'vs/base/common/winjs.base';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { ITimerService } from 'vs/workbench/services/timer/common/timerService';
+import { ITimerService, IStartupMetrics } from 'vs/workbench/services/timer/common/timerService';
 import { onUnexpectedError } from 'vs/base/common/errors';
 import { IViewletService } from 'vs/workbench/services/viewlet/browser/viewlet';
 import * as files from 'vs/workbench/parts/files/common/files';
@@ -72,6 +71,8 @@ interface IStartupReflections {
 	editorIds: string[];
 }
 
+type IStartupTimings = IStartupMetrics & IStartupReflections;
+
 class StartupTimings implements IWorkbenchContribution {
 
 	constructor(
@@ -89,22 +90,18 @@ class StartupTimings implements IWorkbenchContribution {
 
 		this._reportVariedStartupTimes().then(undefined, onUnexpectedError);
 		this._reportStandardStartupTimes().then(undefined, onUnexpectedError);
-		this._reportStartupReflections().then(undefined, onUnexpectedError);
 	}
 
 	private async _reportVariedStartupTimes(): Promise<void> {
-		await Promise.all([
-			this._extensionService.whenInstalledExtensionsRegistered(),
-			this._lifecycleService.when(LifecyclePhase.Eventually)
-		]);
 		/* __GDPR__
 			"startupTimeVaried" : {
 				"${include}": [
-					"${IStartupMetrics}"
+					"${IStartupMetrics}",
+					"${IStartupReflections}"
 				]
 			}
 		*/
-		this._telemetryService.publicLog('startupTimeVaried', this._timerService.startupMetrics);
+		this._telemetryService.publicLog('startupTimeVaried', await this._getStartupTimings());
 	}
 
 	private async _reportStandardStartupTimes(): Promise<void> {
@@ -135,7 +132,7 @@ class StartupTimings implements IWorkbenchContribution {
 			this._logService.info('no standard startup: panel is active');
 			return;
 		}
-		if (!this._didUseCachedData()) {
+		if (!_didUseCachedData()) {
 			this._logService.info('no standard startup: not using cached data');
 			return;
 		}
@@ -143,46 +140,29 @@ class StartupTimings implements IWorkbenchContribution {
 			this._logService.info('no standard startup: not running latest version');
 			return;
 		}
-		// wait only know so that can check the restored state as soon as possible
-		await TPromise.join([
-			this._extensionService.whenInstalledExtensionsRegistered(),
-			this._lifecycleService.when(LifecyclePhase.Eventually)
-		]);
 
 		/* __GDPR__
 		"startupTime" : {
 			"${include}": [
-				"${IStartupMetrics}"
+				"${IStartupMetrics}",
+				"${IStartupReflections}"
 			]
 		}
 		*/
-		this._telemetryService.publicLog('startupTime', this._timerService.startupMetrics);
-		this._logService.info('standard startup', this._timerService.startupMetrics);
+		const timings = await this._getStartupTimings();
+		this._telemetryService.publicLog('startupTime', timings);
+		this._logService.info('standard startup', timings);
 	}
 
-	private async _reportStartupReflections(): Promise<void> {
+	private async _getStartupTimings(): Promise<IStartupTimings> {
+
 		await Promise.all([
 			this._extensionService.whenInstalledExtensionsRegistered(),
 			this._lifecycleService.when(LifecyclePhase.Eventually)
 		]);
 
-		//todo@joh/ramya decide how to send this data, as single event merged with the timing or
-		// separate.
-
-		/* __GDPR__
-			"startupReflections" : {
-				"${include}": [
-					"${IStartupReflections}"
-				]
-			}
-		*/
-		this._telemetryService.publicLog('startupReflections', await this._createStartupReflections());
-	}
-
-	private async _createStartupReflections(): Promise<IStartupReflections> {
-
 		const isLatestVersion = Boolean(await this._updateService.isLatestVersion());
-		const didUseCachedData = this._didUseCachedData();
+		const didUseCachedData = _didUseCachedData();
 
 		const windowKind = this._lifecycleService.startupKind;
 		const windowCount = await this._windowsService.getWindowCount();
@@ -191,7 +171,7 @@ class StartupTimings implements IWorkbenchContribution {
 		const editorIds = this._editorService.visibleEditors.map(input => input.getTypeId());
 		const panelId = this._panelService.getActivePanel() ? this._panelService.getActivePanel().getId() : undefined;
 
-		return {
+		const reflections = {
 			isLatestVersion,
 			didUseCachedData,
 			windowKind,
@@ -200,25 +180,33 @@ class StartupTimings implements IWorkbenchContribution {
 			panelId,
 			editorIds
 		};
-	}
 
-	private _didUseCachedData(): boolean {
-		// We surely don't use cached data when we don't tell the loader to do so
-		if (!Boolean((<any>global).require.getConfig().nodeCachedDataDir)) {
-			return false;
-		}
-		// whenever cached data is produced or rejected a onNodeCachedData-callback is invoked. That callback
-		// stores data in the `MonacoEnvironment.onNodeCachedData` global. See:
-		// https://github.com/Microsoft/vscode/blob/efe424dfe76a492eab032343e2fa4cfe639939f0/src/vs/workbench/electron-browser/bootstrap/index.js#L299
-		if (!isFalsyOrEmpty(MonacoEnvironment.onNodeCachedData)) {
-			return false;
-		}
-		return true;
+		const metrics = this._timerService.startupMetrics;
+		return { ...reflections, ...metrics };
 	}
+}
+
+const registry = Registry.as<IWorkbenchContributionsRegistry>(Extensions.Workbench);
+registry.registerWorkbenchContribution(StartupTimings, LifecyclePhase.Running);
+
+
+//#region cached data logic
+
+function _didUseCachedData(): boolean {
+	// We surely don't use cached data when we don't tell the loader to do so
+	if (!Boolean((<any>global).require.getConfig().nodeCachedDataDir)) {
+		return false;
+	}
+	// whenever cached data is produced or rejected a onNodeCachedData-callback is invoked. That callback
+	// stores data in the `MonacoEnvironment.onNodeCachedData` global. See:
+	// https://github.com/Microsoft/vscode/blob/efe424dfe76a492eab032343e2fa4cfe639939f0/src/vs/workbench/electron-browser/bootstrap/index.js#L299
+	if (!isFalsyOrEmpty(MonacoEnvironment.onNodeCachedData)) {
+		return false;
+	}
+	return true;
 }
 
 declare type OnNodeCachedDataArgs = [{ errorCode: string, path: string, detail?: string }, { path: string, length: number }];
 declare const MonacoEnvironment: { onNodeCachedData: OnNodeCachedDataArgs[] };
 
-const registry = Registry.as<IWorkbenchContributionsRegistry>(Extensions.Workbench);
-registry.registerWorkbenchContribution(StartupTimings, LifecyclePhase.Running);
+//#endregion

@@ -20,7 +20,7 @@ suite('SettingsTree', () => {
 		assert.deepEqual(
 			settingKeyToDisplayFormat('foo.bar.etc'),
 			{
-				category: 'Foo.Bar',
+				category: 'Foo › Bar',
 				label: 'Etc'
 			});
 

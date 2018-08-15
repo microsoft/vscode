@@ -53,6 +53,7 @@ export interface ISetting {
 	enumDescriptions?: string[];
 	enumDescriptionsAreMarkdown?: boolean;
 	tags?: string[];
+	validator?: (value: any) => string;
 }
 
 export interface IExtensionSetting extends ISetting {
