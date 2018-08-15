@@ -241,6 +241,10 @@
 	opacity: 0.9;
 }
 
+.settings-editor > .settings-body > .settings-tree-container .setting-item .suggest-input-container {
+	width: 310px;
+}
+
 .settings-editor > .settings-body > .settings-tree-container .setting-item .setting-item-deprecation-message,
 .settings-editor > .settings-body > .settings-tree-container .setting-item .setting-item-description {
 	margin-top: 3px;

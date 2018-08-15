@@ -30,7 +30,7 @@ import { Range } from 'vs/editor/common/core/range';
 import { ITextModel } from 'vs/editor/common/model';
 import { IContextKey } from 'vs/platform/contextkey/common/contextkey';
 
-interface SuggestResultsProvider {
+export interface ISuggestResultsProvider {
 	/**
 	 * Provider function for suggestion results.
 	 *
@@ -54,7 +54,7 @@ interface SuggestResultsProvider {
 	sortKey?: (result: string) => string;
 }
 
-interface SuggestEnabledInputOptions {
+export interface ISuggestEnabledInputOptions {
 	/**
 	 * The text to show when no input is present.
 	 *
@@ -87,10 +87,10 @@ export class SuggestEnabledInput extends Component {
 	constructor(
 		id: string,
 		parent: HTMLElement,
-		suggestionProvider: SuggestResultsProvider,
+		suggestionProvider: ISuggestResultsProvider,
 		ariaLabel: string,
 		resourceHandle: string,
-		options: SuggestEnabledInputOptions,
+		options: ISuggestEnabledInputOptions,
 		@IThemeService themeService: IThemeService,
 		@IInstantiationService instantiationService: IInstantiationService,
 		@IModelService modelService: IModelService,
@@ -130,7 +130,8 @@ export class SuggestEnabledInput extends Component {
 			let content = this.getValue();
 			this.placeholderText.style.visibility = content ? 'hidden' : 'visible';
 			if (preexistingContent.trim() === content.trim()) { return; }
-			this._onInputDidChange.fire();
+			console.log(preexistingContent, content);
+			this._onInputDidChange.fire(content);
 			preexistingContent = content;
 		}));
 
@@ -164,6 +165,8 @@ export class SuggestEnabledInput extends Component {
 				};
 			}
 		}));
+
+		this.updateStyles();
 	}
 
 	public setValue(val: string) {
