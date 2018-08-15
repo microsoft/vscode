@@ -357,11 +357,11 @@ declare module 'vscode' {
 
 	//todo@joh -> make class
 	export interface DecorationData {
-		priority?: number;
-		title?: string;
-		bubble?: boolean;
-		abbreviation?: string; // letter, not optional
+		letter: string;
+		title: string;
 		color?: ThemeColor;
+		priority?: number;
+		bubble?: boolean;
 		source?: string; // hacky... we should remove it and use equality under the hood
 	}
 
