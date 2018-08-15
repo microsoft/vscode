@@ -129,6 +129,13 @@ function fsPath(uri: URI): string {
 	if (uri.authority && uri.path.length > 1 && uri.scheme === 'file') {
 		// unc path: file://shares/c$/far/boo
 		value = `//${uri.authority}${uri.path}`;
+	} else if (
+		isWindows
+		&& uri.path.charCodeAt(0) === CharCode.Slash
+		&& (uri.path.charCodeAt(1) >= CharCode.A && uri.path.charCodeAt(1) <= CharCode.Z || uri.path.charCodeAt(1) >= CharCode.a && uri.path.charCodeAt(1) <= CharCode.z)
+		&& uri.path.charCodeAt(2) === CharCode.Colon
+	) {
+		value = uri.path.substr(1);
 	} else {
 		// other path
 		value = uri.path;

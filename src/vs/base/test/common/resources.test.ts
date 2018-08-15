@@ -48,7 +48,7 @@ suite('Resources', () => {
 			assert.equal(dirname(URI.file('c:\\some\\file')).toString(), 'file:///c%3A/some');
 			assert.equal(dirname(URI.file('c:\\some\\file\\')).toString(), 'file:///c%3A/some');
 			assert.equal(dirname(URI.file('c:\\some')).toString(), 'file:///c%3A/');
-			assert.equal(dirname(URI.file('C:\\some')).toString(), 'file:///C%3A/');
+			assert.equal(dirname(URI.file('C:\\some')).toString(), 'file:///c%3A/');
 		} else {
 			assert.equal(dirname(URI.file('/some/file/test.txt')).toString(), 'file:///some/file');
 			assert.equal(dirname(URI.file('/some/file/')).toString(), 'file:///some');
@@ -216,7 +216,7 @@ suite('Resources', () => {
 		if (isWindows) {
 			assertMalformedFileUri('c:/foo/bar', 'file:///c%3A/foo/bar');
 			assertMalformedFileUri('c:\\foo\\bar', 'file:///c%3A/foo/bar');
-			assertMalformedFileUri('C:\\foo\\bar', 'file:///C%3A/foo/bar');
+			assertMalformedFileUri('C:\\foo\\bar', 'file:///c%3A/foo/bar');
 			assertMalformedFileUri('\\\\localhost\\c$\\devel\\test', 'file://localhost/c%24/devel/test');
 		}
 		assertMalformedFileUri('/foo/bar', 'file:///foo/bar');
