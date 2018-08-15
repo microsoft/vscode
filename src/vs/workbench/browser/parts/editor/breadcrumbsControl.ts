@@ -40,6 +40,7 @@ import { localize } from 'vs/nls';
 import { CommandsRegistry } from 'vs/platform/commands/common/commands';
 import { tail } from 'vs/base/common/arrays';
 import { WorkbenchListFocusContextKey } from 'vs/platform/list/browser/listService';
+import { ColorIdentifier } from 'vs/platform/theme/common/colorRegistry';
 
 class Item extends BreadcrumbsItem {
 
@@ -117,6 +118,7 @@ export interface IBreadcrumbsControlOptions {
 	showSymbolIcons: boolean;
 	showDecorationColors: boolean;
 	extraClasses: string[];
+	breadcrumbsBackground: ColorIdentifier;
 }
 
 export class BreadcrumbsControl {
@@ -167,7 +169,7 @@ export class BreadcrumbsControl {
 		this._widget.onDidSelectItem(this._onSelectEvent, this, this._disposables);
 		this._widget.onDidFocusItem(this._onFocusEvent, this, this._disposables);
 		this._widget.onDidChangeFocus(this._updateCkBreadcrumbsActive, this, this._disposables);
-		this._disposables.push(attachBreadcrumbsStyler(this._widget, this._themeService));
+		this._disposables.push(attachBreadcrumbsStyler(this._widget, this._themeService, { breadcrumbsBackground: _options.breadcrumbsBackground }));
 
 		this._ckBreadcrumbsVisible = BreadcrumbsControl.CK_BreadcrumbsVisible.bindTo(this._contextKeyService);
 		this._ckBreadcrumbsActive = BreadcrumbsControl.CK_BreadcrumbsActive.bindTo(this._contextKeyService);
