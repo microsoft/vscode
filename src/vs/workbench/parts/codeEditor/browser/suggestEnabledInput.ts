@@ -130,7 +130,6 @@ export class SuggestEnabledInput extends Component {
 			let content = this.getValue();
 			this.placeholderText.style.visibility = content ? 'hidden' : 'visible';
 			if (preexistingContent.trim() === content.trim()) { return; }
-			console.log(preexistingContent, content);
 			this._onInputDidChange.fire(content);
 			preexistingContent = content;
 		}));
