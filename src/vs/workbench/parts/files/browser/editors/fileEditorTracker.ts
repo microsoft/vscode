@@ -148,7 +148,7 @@ export class FileEditorTracker extends Disposable implements IWorkbenchContribut
 				// Do NOT close any opened editor that matches the resource path (either equal or being parent) of the
 				// resource we move to (movedTo). Otherwise we would close a resource that has been renamed to the same
 				// path but different casing.
-				if (movedTo && resources.isEqualOrParent(resource, movedTo, resources.hasToIgnoreCase(resource)) && resource.path.indexOf(movedTo.path) === 0) {
+				if (movedTo && resources.isEqualOrParent(resource, movedTo, resources.hasToIgnoreCase(resource))) {
 					return;
 				}
 
