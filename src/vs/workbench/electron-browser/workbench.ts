@@ -219,6 +219,7 @@ export class Workbench extends Disposable implements IPartService {
 	private sideBarHidden: boolean;
 	private statusBarHidden: boolean;
 	private activityBarHidden: boolean;
+	private menubarToggled: boolean;
 	private sideBarPosition: Position;
 	private panelPosition: Position;
 	private panelHidden: boolean;
@@ -529,6 +530,16 @@ export class Workbench extends Disposable implements IPartService {
 		if (hasCustomTitle) {
 			this._onTitleBarVisibilityChange.fire();
 			this.layout(); // handle title bar when fullscreen changes
+		}
+	}
+
+	private onMenubarToggled(visible: boolean) {
+		if (visible !== this.menubarToggled) {
+			this.menubarToggled = visible;
+
+			if (this.menubarVisibility === 'toggle' || (browser.isFullscreen() && this.menubarVisibility === 'default')) {
+				this.layout();
+			}
 		}
 	}
 
@@ -1004,6 +1015,12 @@ export class Workbench extends Disposable implements IPartService {
 		// Notification Handlers
 		this.createNotificationsHandlers();
 
+
+		// Menubar visibility changes
+		if ((isWindows || isLinux) && this.getCustomTitleBarStyle() === 'custom') {
+			this.titlebarPart.onMenubarVisibilityChange()(e => this.onMenubarToggled(e));
+		}
+
 		// Add Workbench to DOM
 		this.container.appendChild(this.workbench);
 	}
@@ -1160,7 +1177,19 @@ export class Workbench extends Disposable implements IPartService {
 	isVisible(part: Parts): boolean {
 		switch (part) {
 			case Parts.TITLEBAR_PART:
-				return this.getCustomTitleBarStyle() === 'custom' && (!browser.isFullscreen() || this.menubarVisibility === 'visible' || this.menubarVisibility === 'toggle');
+				if (this.getCustomTitleBarStyle() !== 'custom') {
+					return false;
+				} else if (!browser.isFullscreen()) {
+					return true;
+				} else if (isMacintosh) {
+					return false;
+				} else if (this.menubarVisibility === 'visible') {
+					return true;
+				} else if (this.menubarVisibility === 'toggle' || this.menubarVisibility === 'default') {
+					return this.menubarToggled;
+				}
+
+				return false;
 			case Parts.SIDEBAR_PART:
 				return !this.sideBarHidden;
 			case Parts.PANEL_PART:
