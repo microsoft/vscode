@@ -17,6 +17,7 @@ import { INotificationService } from 'vs/platform/notification/common/notificati
 import { formatPII } from 'vs/workbench/parts/debug/common/debugUtils';
 import { SocketDebugAdapter } from 'vs/workbench/parts/debug/node/debugAdapter';
 import { SessionState, DebugEvent, IRawSession, IDebugAdapter } from 'vs/workbench/parts/debug/common/debug';
+import { CancellationToken, CancellationTokenSource } from 'vs/base/common/cancellation';
 
 
 export interface SessionExitedEvent extends DebugEvent {
@@ -44,7 +45,7 @@ export class RawDebugSession implements IRawSession {
 	private startTime: number;
 	public disconnected: boolean;
 	private terminated: boolean;
-	private sentPromises: TPromise<DebugProtocol.Response>[];
+	private cancellationTokens: CancellationTokenSource[];
 	private _capabilities: DebugProtocol.Capabilities;
 	private allThreadsContinued: boolean;
 	private state: SessionState = SessionState.LAUNCH;
@@ -75,7 +76,7 @@ export class RawDebugSession implements IRawSession {
 		this.emittedStopped = false;
 		this.readyForBreakpoints = false;
 		this.allThreadsContinued = true;
-		this.sentPromises = [];
+		this.cancellationTokens = [];
 
 		this._onDidInitialize = new Emitter<DebugProtocol.InitializedEvent>();
 		this._onDidStop = new Emitter<DebugProtocol.StoppedEvent>();
@@ -182,7 +183,8 @@ export class RawDebugSession implements IRawSession {
 
 	private send<R extends DebugProtocol.Response>(command: string, args: any, cancelOnDisconnect = true): TPromise<R> {
 		return this.initServer().then(() => {
-			const promise = this.internalSend<R>(command, args).then(response => response, (errorResponse: DebugProtocol.ErrorResponse) => {
+			const cancellationSource = new CancellationTokenSource();
+			const promise = this.internalSend<R>(command, args, cancellationSource.token).then(response => response, (errorResponse: DebugProtocol.ErrorResponse) => {
 				const error = errorResponse && errorResponse.body ? errorResponse.body.error : null;
 				const errorMessage = errorResponse ? errorResponse.message : '';
 				const telemetryMessage = error ? formatPII(error.format, true, error.variables) : errorMessage;
@@ -217,16 +219,15 @@ export class RawDebugSession implements IRawSession {
 			});
 
 			if (cancelOnDisconnect) {
-				this.sentPromises.push(promise);
+				this.cancellationTokens.push(cancellationSource);
 			}
 			return promise;
 		});
 	}
 
-	private internalSend<R extends DebugProtocol.Response>(command: string, args: any): TPromise<R> {
-		let errorCallback: (error: Error) => void;
+	private internalSend<R extends DebugProtocol.Response>(command: string, args: any, cancelationToken: CancellationToken): TPromise<R> {
 		return new TPromise<R>((completeDispatch, errorDispatch) => {
-			errorCallback = errorDispatch;
+			cancelationToken.onCancellationRequested(() => errorDispatch(errors.canceled()));
 			this.debugAdapter.sendRequest(command, args, (result: R) => {
 				if (result.success) {
 					completeDispatch(result);
@@ -234,7 +235,7 @@ export class RawDebugSession implements IRawSession {
 					errorDispatch(result);
 				}
 			});
-		}, () => errorCallback(errors.canceled()));
+		});
 	}
 
 	private onDapEvent(event: DebugEvent): void {
@@ -495,8 +496,8 @@ export class RawDebugSession implements IRawSession {
 		// Cancel all sent promises on disconnect so debug trees are not left in a broken state #3666.
 		// Give a 1s timeout to give a chance for some promises to complete.
 		setTimeout(() => {
-			this.sentPromises.forEach(p => p && p.cancel());
-			this.sentPromises = [];
+			this.cancellationTokens.forEach(token => token.cancel());
+			this.cancellationTokens = [];
 		}, 1000);
 
 		if (this.debugAdapter && !this.disconnected) {
