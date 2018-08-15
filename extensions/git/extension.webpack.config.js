@@ -30,9 +30,13 @@ module.exports = {
 	},
 	externals: {
 		'vscode': 'commonjs vscode',
+		'vscode-nls': 'commonjs vscode-nls',
 	},
 	plugins: [
-		new CopyWebpackPlugin([{ from: './out/*.sh', to: '[name].sh' }])
+		new CopyWebpackPlugin([
+			{ from: './out/*.sh', to: '[name].sh' },
+			{ from: './out/nls.*.json', to: '[name].json' }
+		])
 	],
 	stats: 'errors-only',
 	devtool: 'source-map',
