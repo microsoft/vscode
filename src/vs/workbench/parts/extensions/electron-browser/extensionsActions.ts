@@ -1164,25 +1164,56 @@ export class CheckForUpdatesAction extends Action {
 		label = UpdateAllAction.LABEL,
 		@IExtensionsWorkbenchService private extensionsWorkbenchService: IExtensionsWorkbenchService,
 		@IViewletService private viewletService: IViewletService,
-		@INotificationService private notificationService: INotificationService
+		@INotificationService private notificationService: INotificationService,
+		@IInstantiationService private instantiationService: IInstantiationService
 	) {
 		super(id, label, '', true);
 	}
 
-	private onUpdateNotAvailable(): void {
-		this.notificationService.notify(
-			{
-				severity: severity.Info,
-				message: localize('noUpdatesAvailable', "All Extensions are up to date.")
-			});
+	private notifyUpdateAvailability(outdatedCount: number): void {
+		if (!outdatedCount) {
+			this.notificationService.notify(
+				{
+					severity: severity.Info,
+					message: localize('noUpdatesAvailable', "All Extensions are up to date.")
+				});
+		}
+		else {
+			let msgAvailableExtensions: string;
+			let lblUpdateExtensions: string;
+			if (outdatedCount === 1) {
+				msgAvailableExtensions = localize('updateAvailable', "An Extension update is available.");
+				lblUpdateExtensions = localize('updateExtension', "Update the Extension");
+			}
+			else {
+				msgAvailableExtensions = localize('updatesAvailable', "{0} extensions updates are available.", outdatedCount);
+				lblUpdateExtensions = localize('updateAllExtensions', "Update all Extensions");
+			}
+
+			this.notificationService.prompt(
+				severity.Info,
+				msgAvailableExtensions,
+				[{
+					label: lblUpdateExtensions,
+					run: () => {
+						const action = this.instantiationService.createInstance(UpdateAllAction, UpdateAllAction.ID, UpdateAllAction.LABEL);
+						action.run();
+						action.dispose();
+					}
+				}],
+				() => this.focusExtensionsViewlet()
+			);
+		}
 	}
 
-	private onUpdateAvailable(outdatedCount: number): void {
-		this.notificationService.notify(
-			{
-				severity: severity.Info,
-				message: localize('updatesAvailable', "{0} extensions are outdated.", outdatedCount)
-			});
+	private focusExtensionsViewlet() {
+		this.viewletService.openViewlet(VIEWLET_ID, true)
+			.then(viewlet => viewlet as IExtensionsViewlet)
+			.then(viewlet => {
+				viewlet.search('');
+				viewlet.focus();
+			}
+			);
 	}
 
 	private checkUpdatesAndNotify(): void {
@@ -1192,19 +1223,7 @@ export class CheckForUpdatesAction extends Action {
 				outdatedCount = extensions.filter((ext) => {
 					return ext.outdated === true;
 				}).length;
-				if (outdatedCount) {
-					this.onUpdateAvailable(outdatedCount);
-					this.viewletService.openViewlet(VIEWLET_ID, true)
-						.then(viewlet => viewlet as IExtensionsViewlet)
-						.then(viewlet => {
-							viewlet.search('');
-							viewlet.focus();
-						}
-						);
-				}
-				else {
-					this.onUpdateNotAvailable();
-				}
+				this.notifyUpdateAvailability(outdatedCount);
 			}
 		);
 	}
