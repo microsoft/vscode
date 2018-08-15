@@ -39,8 +39,7 @@ import { ISettingsEditorViewState, isExcludeSetting, SettingsTreeElement, Settin
 import { ExcludeSettingWidget, IExcludeDataItem, settingsHeaderForeground, settingsNumberInputBackground, settingsNumberInputBorder, settingsNumberInputForeground, settingsSelectBackground, settingsSelectBorder, settingsSelectForeground, settingsTextInputBackground, settingsTextInputBorder, settingsTextInputForeground } from 'vs/workbench/parts/preferences/browser/settingsWidgets';
 import { ISetting, ISettingsGroup } from 'vs/workbench/services/preferences/common/preferences';
 import { alert as ariaAlert } from 'vs/base/browser/ui/aria/aria';
-import { SuggestEnabledInput, ISuggestResultsProvider } from 'vs/workbench/parts/codeEditor/browser/suggestEnabledInput';
-import { ConsoleLogMainService } from 'vs/platform/log/common/log';
+import { ISuggestResultsProvider, SingleDelegateSuggest } from 'vs/workbench/parts/codeEditor/browser/suggestEnabledInput';
 
 const $ = DOM.$;
 
@@ -221,7 +220,7 @@ type ISettingNumberItemTemplate = ISettingTextItemTemplate;
 interface ISettingEnumItemTemplate extends ISettingItemTemplate<number> {
 	selectBox: SelectBox;
 	enumDescriptionElement: HTMLElement;
-	suggester: SuggestEnabledInput;
+	suggester: SingleDelegateSuggest;
 	suggestionProvider: ISuggestResultsProvider;
 }
 
@@ -613,8 +612,8 @@ export class SettingsRenderer implements ITreeRenderer {
 		this.numEnums++;
 		const common = this.renderCommonTemplate(tree, container, 'enum');
 		const suggestionProvider: ISuggestResultsProvider = { provideResults: () => [] };
-		const suggester = this.instantiationService.createInstance(SuggestEnabledInput, SETTINGS_ENUM_TEMPLATE_ID + '.suggest' + this.numEnums, container, suggestionProvider, 'aria', 'settingseditor2:' + this.numEnums, {});
-		suggester.layout({ width: 300, height: 20 });
+		const suggester = this.instantiationService.createInstance(SingleDelegateSuggest, SETTINGS_ENUM_TEMPLATE_ID + '.suggest' + this.numEnums, container, suggestionProvider, 'aria', 'settingseditor2:' + this.numEnums, {});
+		suggester.layout({ width: 250, height: 10 });
 
 		common.toDispose.push(suggester);
 
@@ -900,13 +899,30 @@ export class SettingsRenderer implements ITreeRenderer {
 
 	private renderEnum(dataElement: SettingsTreeSettingElement, template: ISettingEnumItemTemplate, onChange: (value: string) => void): void {
 		const displayOptions = getDisplayEnumOptions(dataElement.setting);
-		console.log('call to render made for', dataElement.id);
-		template.suggestionProvider.provideResults = () => displayOptions;
-		template.suggester.onInputDidChange(pick => {
-			const idx = dataElement.setting.enum.map(String).indexOf(pick);
-			template.selectBox.select(idx);
-			console.log(idx, dataElement.setting.enum.map(String), pick, dataElement.id);
-		}, this, template.toDispose);
+
+		template.suggestionProvider.provideResults = () => {
+			const enumDescriptions = dataElement.setting.enumDescriptions;
+			if (enumDescriptions) {
+				return displayOptions.map((_, index) => ({ value: displayOptions[index], detail: enumDescriptions[index] }));
+			} else {
+				return displayOptions;
+			}
+		};
+
+		template.suggester.setInputChangeHandler(pick => {
+			if (pick !== '') {
+				const idx = dataElement.setting.enum.map(String).indexOf(pick);
+				template.selectBox.select(idx);
+				onChange(dataElement.setting.enum[idx]);
+			}
+		});
+
+		template.suggester.setValue(String(dataElement.value));
+		template.controlElement.onclick = () => {
+			template.suggester.setValue('');
+			template.suggester.triggerSuggest();
+			return null;
+		};
 
 		template.selectBox.setOptions(displayOptions);
 
@@ -917,7 +933,7 @@ export class SettingsRenderer implements ITreeRenderer {
 		const idx = dataElement.setting.enum.indexOf(dataElement.value);
 		template.onChange = null;
 		template.selectBox.select(idx);
-		template.onChange = idx => onChange(dataElement.setting.enum[idx]);
+		// template.onChange = idx => onChange(dataElement.setting.enum[idx]);
 
 		if (template.controlElement.firstElementChild) {
 			// SelectBox needs to be treeitem to read correctly within tree

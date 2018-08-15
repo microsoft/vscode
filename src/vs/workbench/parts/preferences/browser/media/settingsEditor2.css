@@ -242,7 +242,14 @@
 }
 
 .settings-editor > .settings-body > .settings-tree-container .setting-item .suggest-input-container {
-	width: 310px;
+	position: relative;
+	top: -22px;
+	width: 260px;
+	padding: 0;
+}
+
+.settings-editor > .settings-body > .settings-tree-container .setting-item .suggest-input-container .suggest-widget .monaco-list .monaco-list-row .icon.keyword {
+	display: none;
 }
 
 .settings-editor > .settings-body > .settings-tree-container .setting-item .setting-item-deprecation-message,
@@ -357,6 +364,8 @@
 .settings-editor > .settings-body > .settings-tree-container .setting-item.setting-item-enum .setting-item-value > .setting-item-control,
 .settings-editor > .settings-body > .settings-tree-container .setting-item.setting-item-text .setting-item-value > .setting-item-control {
 	min-width: initial;
+	position: relative;
+	z-index: 2;
 }
 
 .settings-editor > .settings-body > .settings-tree-container .setting-item.setting-item-enum .setting-item-value > .setting-item-control > select {

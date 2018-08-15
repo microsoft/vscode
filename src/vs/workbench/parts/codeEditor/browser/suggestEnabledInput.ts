@@ -36,7 +36,7 @@ export interface ISuggestResultsProvider {
 	 *
 	 * @param query the full text of the input.
 	 */
-	provideResults: (query: string) => string[];
+	provideResults: (query: string) => (string | { value: string, detail: string })[];
 
 	/**
 	 * Trigger characters for this input. Suggestions will appear when one of these is typed,
@@ -154,11 +154,14 @@ export class SuggestEnabledInput extends Component {
 
 				return {
 					suggestions: suggestionProvider.provideResults(query).map(result => {
+						const label = typeof result === 'string' ? result : result.value;
+						const details = typeof result === 'string' ? undefined : result.detail;
 						return {
-							label: result,
-							insertText: result,
+							label,
+							insertText: label,
+							documentation: details,
 							overwriteBefore: alreadyTypedCount,
-							sortText: validatedSuggestProvider.sortKey(result),
+							sortText: validatedSuggestProvider.sortKey(label),
 							type: <modes.SuggestionType>'keyword'
 						};
 					})
@@ -199,6 +202,10 @@ export class SuggestEnabledInput extends Component {
 		}
 	}
 
+	public triggerSuggest() {
+		SuggestController.get(this.inputWidget).triggerSuggest();
+	}
+
 	public focus(): void {
 		this.inputWidget.focus();
 	}
@@ -215,6 +222,29 @@ export class SuggestEnabledInput extends Component {
 	dispose(): void {
 		this.disposables = dispose(this.disposables);
 		super.dispose();
+	}
+}
+
+export class SingleDelegateSuggest extends SuggestEnabledInput {
+
+	private handler: (input: string) => void = () => { };
+
+	constructor(id: string,
+		parent: HTMLElement,
+		suggestionProvider: ISuggestResultsProvider,
+		ariaLabel: string,
+		resourceHandle: string,
+		options: ISuggestEnabledInputOptions,
+		@IThemeService themeService: IThemeService,
+		@IInstantiationService instantiationService: IInstantiationService,
+		@IModelService modelService: IModelService) {
+		super(id, parent, suggestionProvider, ariaLabel, resourceHandle, options, themeService, instantiationService, modelService);
+
+		this.onInputDidChange(input => this.handler(input), this, this.toDispose);
+	}
+
+	public setInputChangeHandler(handler: (input: string) => void) {
+		this.handler = handler;
 	}
 }
 
