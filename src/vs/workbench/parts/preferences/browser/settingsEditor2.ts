@@ -123,7 +123,6 @@ export class SettingsEditor2 extends BaseEditor {
 		this._register(configurationService.onDidChangeConfiguration(e => {
 			this.onConfigUpdate(e.affectedKeys);
 		}));
-		SettingsEditor2.NUM_INSTANCES++;
 	}
 
 	private get currentSettingsModel() {
@@ -214,7 +213,7 @@ export class SettingsEditor2 extends BaseEditor {
 			provideResults: (query: string) => {
 				return ['@modified', '@tag:usesOnlineServices'].filter(tag => query.indexOf(tag) === -1).map(tag => tag + ' ');
 			}
-		}, searchBoxLabel, 'settingseditor:searchinput' + SettingsEditor2.NUM_INSTANCES, {
+		}, searchBoxLabel, 'settingseditor:searchinput' + SettingsEditor2.NUM_INSTANCES++, {
 				placeholderText: searchBoxLabel,
 				focusContextKey: this.searchFocusContextKey,
 				// TODO: Aria-live
