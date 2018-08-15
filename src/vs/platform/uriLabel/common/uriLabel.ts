@@ -14,21 +14,21 @@ import { isLinux, isWindows } from 'vs/base/common/platform';
 import { tildify, getPathLabel } from 'vs/base/common/labels';
 import { ltrim } from 'vs/base/common/strings';
 
-export interface IUriDisplayService {
+export interface IUriLabelService {
 	_serviceBrand: any;
 	getLabel(resource: URI, relative?: boolean): string;
-	registerFormater(schema: string, formater: UriDisplayRules): IDisposable;
-	onDidRegisterFormater: Event<{ scheme: string, formater: UriDisplayRules }>;
+	registerFormater(schema: string, formater: UriLabelRules): IDisposable;
+	onDidRegisterFormater: Event<{ scheme: string, formater: UriLabelRules }>;
 }
 
-export interface UriDisplayRules {
+export interface UriLabelRules {
 	label: string; // myLabel:/${path}
 	separator: '/' | '\\' | '';
 	tildify?: boolean;
 	normalizeDriveLetter?: boolean;
 }
 
-const URI_DISPLAY_SERVICE_ID = 'uriDisplay';
+const URI_LABEL_SERVICE_ID = 'uriLabel';
 const sepRegexp = /\//g;
 const labelMatchingRegexp = /\$\{scheme\}|\$\{authority\}|\$\{path\}/g;
 
@@ -36,11 +36,11 @@ function hasDriveLetter(path: string): boolean {
 	return isWindows && path && path[2] === ':';
 }
 
-export class UriDisplayService implements IUriDisplayService {
+export class UriLabelService implements IUriLabelService {
 	_serviceBrand: any;
 
-	private readonly formaters = new Map<string, UriDisplayRules>();
-	private readonly _onDidRegisterFormater = new Emitter<{ scheme: string, formater: UriDisplayRules }>();
+	private readonly formaters = new Map<string, UriLabelRules>();
+	private readonly _onDidRegisterFormater = new Emitter<{ scheme: string, formater: UriLabelRules }>();
 
 	constructor(
 		@IEnvironmentService private environmentService: IEnvironmentService,
@@ -48,7 +48,7 @@ export class UriDisplayService implements IUriDisplayService {
 	) { }
 
 
-	get onDidRegisterFormater(): Event<{ scheme: string, formater: UriDisplayRules }> {
+	get onDidRegisterFormater(): Event<{ scheme: string, formater: UriLabelRules }> {
 		return this._onDidRegisterFormater.event;
 	}
 
@@ -85,7 +85,7 @@ export class UriDisplayService implements IUriDisplayService {
 		return this.formatUri(resource, formater);
 	}
 
-	registerFormater(scheme: string, formater: UriDisplayRules): IDisposable {
+	registerFormater(scheme: string, formater: UriLabelRules): IDisposable {
 		this.formaters.set(scheme, formater);
 		this._onDidRegisterFormater.fire({ scheme, formater });
 
@@ -94,7 +94,7 @@ export class UriDisplayService implements IUriDisplayService {
 		};
 	}
 
-	private formatUri(resource: URI, formater: UriDisplayRules): string {
+	private formatUri(resource: URI, formater: UriLabelRules): string {
 		let label = formater.label.replace(labelMatchingRegexp, match => {
 			switch (match) {
 				case '${scheme}': return resource.scheme;
@@ -117,4 +117,4 @@ export class UriDisplayService implements IUriDisplayService {
 	}
 }
 
-export const IUriDisplayService = createDecorator<IUriDisplayService>(URI_DISPLAY_SERVICE_ID);
+export const IUriLabelService = createDecorator<IUriLabelService>(URI_LABEL_SERVICE_ID);

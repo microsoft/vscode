@@ -23,7 +23,7 @@ import { IConfigurationService } from 'vs/platform/configuration/common/configur
 import { IWorkspaceSymbolProvider, getWorkspaceSymbols, IWorkspaceSymbol } from 'vs/workbench/parts/search/common/search';
 import { basename } from 'vs/base/common/paths';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
-import { IUriDisplayService } from 'vs/platform/uriDisplay/common/uriDisplay';
+import { IUriLabelService } from 'vs/platform/uriLabel/common/uriLabel';
 
 class SymbolEntry extends EditorQuickOpenEntry {
 
@@ -34,7 +34,7 @@ class SymbolEntry extends EditorQuickOpenEntry {
 		private _provider: IWorkspaceSymbolProvider,
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
 		@IEditorService editorService: IEditorService,
-		@IUriDisplayService private _uriDisplayService: IUriDisplayService
+		@IUriLabelService private _uriLabelService: IUriLabelService
 	) {
 		super(editorService);
 	}
@@ -53,7 +53,7 @@ class SymbolEntry extends EditorQuickOpenEntry {
 			if (containerName) {
 				return `${containerName} — ${basename(this._bearing.location.uri.fsPath)}`;
 			} else {
-				return this._uriDisplayService.getLabel(this._bearing.location.uri, true);
+				return this._uriLabelService.getLabel(this._bearing.location.uri, true);
 			}
 		}
 		return containerName;

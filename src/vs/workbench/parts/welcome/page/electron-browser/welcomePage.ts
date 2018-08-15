@@ -40,7 +40,7 @@ import { getIdAndVersionFromLocalExtensionId } from 'vs/platform/extensionManage
 import { INotificationService, Severity } from 'vs/platform/notification/common/notification';
 import { TimeoutTimer } from 'vs/base/common/async';
 import { areSameExtensions } from 'vs/platform/extensionManagement/common/extensionManagementUtil';
-import { IUriDisplayService } from 'vs/platform/uriDisplay/common/uriDisplay';
+import { IUriLabelService } from 'vs/platform/uriLabel/common/uriLabel';
 
 used();
 
@@ -226,7 +226,7 @@ class WelcomePage {
 		@IWorkspaceContextService private contextService: IWorkspaceContextService,
 		@IConfigurationService private configurationService: IConfigurationService,
 		@IEnvironmentService private environmentService: IEnvironmentService,
-		@IUriDisplayService private uriDisplayService: IUriDisplayService,
+		@IUriLabelService private uriLabelService: IUriLabelService,
 		@INotificationService private notificationService: INotificationService,
 		@IExtensionEnablementService private extensionEnablementService: IExtensionEnablementService,
 		@IExtensionGalleryService private extensionGalleryService: IExtensionGalleryService,
@@ -283,9 +283,9 @@ class WelcomePage {
 				let resource: URI;
 				if (isSingleFolderWorkspaceIdentifier(workspace)) {
 					resource = workspace;
-					label = getWorkspaceLabel(workspace, this.environmentService, this.uriDisplayService);
+					label = getWorkspaceLabel(workspace, this.environmentService, this.uriLabelService);
 				} else if (isWorkspaceIdentifier(workspace)) {
-					label = getWorkspaceLabel(workspace, this.environmentService, this.uriDisplayService);
+					label = getWorkspaceLabel(workspace, this.environmentService, this.uriLabelService);
 					resource = URI.file(workspace.configPath);
 				} else {
 					label = getBaseLabel(workspace);
@@ -307,7 +307,7 @@ class WelcomePage {
 					}
 					parentFolderPath = tildify(parentFolder, this.environmentService.userHome);
 				} else {
-					parentFolderPath = this.uriDisplayService.getLabel(resource);
+					parentFolderPath = this.uriLabelService.getLabel(resource);
 				}
 
 

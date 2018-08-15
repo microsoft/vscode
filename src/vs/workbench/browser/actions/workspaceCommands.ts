@@ -22,7 +22,7 @@ import { FileKind, isParent } from 'vs/platform/files/common/files';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { isLinux } from 'vs/base/common/platform';
-import { IUriDisplayService } from 'vs/platform/uriDisplay/common/uriDisplay';
+import { IUriLabelService } from 'vs/platform/uriLabel/common/uriLabel';
 import { IQuickInputService, IPickOptions, IQuickPickItem } from 'vs/platform/quickinput/common/quickInput';
 import { getIconClasses } from 'vs/workbench/browser/labels';
 import { IModelService } from 'vs/editor/common/services/modelService';
@@ -163,7 +163,7 @@ CommandsRegistry.registerCommand({
 
 CommandsRegistry.registerCommand(PICK_WORKSPACE_FOLDER_COMMAND_ID, function (accessor, args?: [IPickOptions<IQuickPickItem>, CancellationToken]) {
 	const quickInputService = accessor.get(IQuickInputService);
-	const uriDisplayService = accessor.get(IUriDisplayService);
+	const uriLabelService = accessor.get(IUriLabelService);
 	const contextService = accessor.get(IWorkspaceContextService);
 	const modelService = accessor.get(IModelService);
 	const modeService = accessor.get(IModeService);
@@ -176,7 +176,7 @@ CommandsRegistry.registerCommand(PICK_WORKSPACE_FOLDER_COMMAND_ID, function (acc
 	const folderPicks = folders.map(folder => {
 		return {
 			label: folder.name,
-			description: uriDisplayService.getLabel(resources.dirname(folder.uri), true),
+			description: uriLabelService.getLabel(resources.dirname(folder.uri), true),
 			folder,
 			iconClasses: getIconClasses(modelService, modeService, folder.uri, FileKind.ROOT_FOLDER)
 		} as IQuickPickItem;

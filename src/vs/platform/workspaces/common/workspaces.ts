@@ -17,7 +17,7 @@ import { getBaseLabel } from 'vs/base/common/labels';
 import { IWorkspaceFolder } from 'vs/platform/workspace/common/workspace';
 import URI from 'vs/base/common/uri';
 import { Schemas } from 'vs/base/common/network';
-import { IUriDisplayService } from 'vs/platform/uriDisplay/common/uriDisplay';
+import { IUriLabelService } from 'vs/platform/uriLabel/common/uriLabel';
 
 export const IWorkspacesMainService = createDecorator<IWorkspacesMainService>('workspacesMainService');
 export const IWorkspacesService = createDecorator<IWorkspacesService>('workspacesService');
@@ -113,17 +113,17 @@ export interface IWorkspacesService {
 	createWorkspace(folders?: IWorkspaceFolderCreationData[]): TPromise<IWorkspaceIdentifier>;
 }
 
-export function getWorkspaceLabel(workspace: (IWorkspaceIdentifier | ISingleFolderWorkspaceIdentifier), environmentService: IEnvironmentService, uriDisplayService: IUriDisplayService, options?: { verbose: boolean }): string {
+export function getWorkspaceLabel(workspace: (IWorkspaceIdentifier | ISingleFolderWorkspaceIdentifier), environmentService: IEnvironmentService, uriLabelService: IUriLabelService, options?: { verbose: boolean }): string {
 
 	// Workspace: Single Folder
 	if (isSingleFolderWorkspaceIdentifier(workspace)) {
 		// Folder on disk
 		if (workspace.scheme === Schemas.file) {
-			return options && options.verbose ? uriDisplayService.getLabel(workspace) : getBaseLabel(workspace);
+			return options && options.verbose ? uriLabelService.getLabel(workspace) : getBaseLabel(workspace);
 		}
 
 		// Remote folder
-		return options && options.verbose ? uriDisplayService.getLabel(workspace) : `${getBaseLabel(workspace)} (${workspace.scheme})`;
+		return options && options.verbose ? uriLabelService.getLabel(workspace) : `${getBaseLabel(workspace)} (${workspace.scheme})`;
 	}
 
 	// Workspace: Untitled
@@ -135,7 +135,7 @@ export function getWorkspaceLabel(workspace: (IWorkspaceIdentifier | ISingleFold
 	const filename = basename(workspace.configPath);
 	const workspaceName = filename.substr(0, filename.length - WORKSPACE_EXTENSION.length - 1);
 	if (options && options.verbose) {
-		return localize('workspaceNameVerbose', "{0} (Workspace)", uriDisplayService.getLabel(URI.file(join(dirname(workspace.configPath), workspaceName))));
+		return localize('workspaceNameVerbose', "{0} (Workspace)", uriLabelService.getLabel(URI.file(join(dirname(workspace.configPath), workspaceName))));
 	}
 
 	return localize('workspaceName', "{0} (Workspace)", workspaceName);
