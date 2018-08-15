@@ -1160,50 +1160,13 @@ export class CheckForUpdatesAction extends Action {
 	static LABEL = localize('checkForUpdates', "Check for Extension Updates");
 
 	constructor(
-		id = UpdateAllAction.ID,
-		label = UpdateAllAction.LABEL,
+		id = CheckForUpdatesAction.ID,
+		label = CheckForUpdatesAction.LABEL,
 		@IExtensionsWorkbenchService private extensionsWorkbenchService: IExtensionsWorkbenchService,
 		@IViewletService private viewletService: IViewletService,
-		@INotificationService private notificationService: INotificationService,
-		@IInstantiationService private instantiationService: IInstantiationService
+		@INotificationService private notificationService: INotificationService
 	) {
 		super(id, label, '', true);
-	}
-
-	private notifyUpdateAvailability(outdatedCount: number): void {
-		if (!outdatedCount) {
-			this.notificationService.notify(
-				{
-					severity: severity.Info,
-					message: localize('noUpdatesAvailable', "All Extensions are up to date.")
-				});
-		}
-		else {
-			let msgAvailableExtensions: string;
-			let lblUpdateExtensions: string;
-			if (outdatedCount === 1) {
-				msgAvailableExtensions = localize('updateAvailable', "An Extension update is available.");
-				lblUpdateExtensions = localize('updateExtension', "Update the Extension");
-			}
-			else {
-				msgAvailableExtensions = localize('updatesAvailable', "{0} extensions updates are available.", outdatedCount);
-				lblUpdateExtensions = localize('updateAllExtensions', "Update all Extensions");
-			}
-
-			this.notificationService.prompt(
-				severity.Info,
-				msgAvailableExtensions,
-				[{
-					label: lblUpdateExtensions,
-					run: () => {
-						const action = this.instantiationService.createInstance(UpdateAllAction, UpdateAllAction.ID, UpdateAllAction.LABEL);
-						action.run();
-						action.dispose();
-					}
-				}],
-				() => this.focusExtensionsViewlet()
-			);
-		}
 	}
 
 	private focusExtensionsViewlet() {
@@ -1217,13 +1180,16 @@ export class CheckForUpdatesAction extends Action {
 	}
 
 	private checkUpdatesAndNotify(): void {
-		let outdatedCount;
 		this.extensionsWorkbenchService.queryLocal().then(
-			(extensions) => {
-				outdatedCount = extensions.filter((ext) => {
-					return ext.outdated === true;
-				}).length;
-				this.notifyUpdateAvailability(outdatedCount);
+			extensions => {
+				const outdatedCount = extensions.filter(ext => ext.outdated === true).length;
+				let msgAvailableExtensions = localize('noUpdatesAvailable', "All Extensions are up to date.");
+				if (outdatedCount > 0) {
+					msgAvailableExtensions = outdatedCount === 1 ? localize('updateAvailable', "An Extension update is available.")
+						: localize('updatesAvailable', "{0} extensions updates are available.", outdatedCount);
+					this.focusExtensionsViewlet();
+				}
+				this.notificationService.notify({ severity: severity.Info, message: msgAvailableExtensions });
 			}
 		);
 	}
