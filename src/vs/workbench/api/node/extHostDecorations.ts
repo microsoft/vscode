@@ -22,10 +22,10 @@ export class ExtHostDecorations implements ExtHostDecorationsShape {
 		this._proxy = mainContext.getProxy(MainContext.MainThreadDecorations);
 	}
 
-	registerDecorationProvider(provider: vscode.DecorationProvider, label: string): vscode.Disposable {
+	registerDecorationProvider(provider: vscode.DecorationProvider, extensionId: string): vscode.Disposable {
 		const handle = ExtHostDecorations._handlePool++;
 		this._provider.set(handle, provider);
-		this._proxy.$registerDecorationProvider(handle, label);
+		this._proxy.$registerDecorationProvider(handle, extensionId);
 
 		const listener = provider.onDidChangeDecorations(e => {
 			this._proxy.$onDidChange(handle, !e ? null : Array.isArray(e) ? e : [e]);
