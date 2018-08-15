@@ -11,7 +11,7 @@ import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { isEqual, basenameOrAuthority } from 'vs/base/common/resources';
 import { isLinux, isWindows } from 'vs/base/common/platform';
-import { tildify } from 'vs/base/common/labels';
+import { tildify, getPathLabel } from 'vs/base/common/labels';
 import { ltrim } from 'vs/base/common/strings';
 
 export interface IUriDisplayService {
@@ -58,7 +58,7 @@ export class UriDisplayService implements IUriDisplayService {
 		}
 		const formater = this.formaters.get(resource.scheme);
 		if (!formater) {
-			return resource.path;
+			return getPathLabel(resource.path, this.environmentService, relative ? this.contextService : undefined);
 		}
 
 		if (relative) {
