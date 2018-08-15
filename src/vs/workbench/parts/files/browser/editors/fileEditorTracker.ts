@@ -82,7 +82,7 @@ export class FileEditorTracker extends Disposable implements IWorkbenchContribut
 		if (configuration.workbench && configuration.workbench.editor && typeof configuration.workbench.editor.closeOnFileDelete === 'boolean') {
 			this.closeOnFileDelete = configuration.workbench.editor.closeOnFileDelete;
 		} else {
-			this.closeOnFileDelete = true; // default
+			this.closeOnFileDelete = false; // default
 		}
 	}
 
