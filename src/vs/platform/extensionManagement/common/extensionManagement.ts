@@ -320,13 +320,14 @@ export const IExtensionManagementServerService = createDecorator<IExtensionManag
 
 export interface IExtensionManagementServer {
 	extensionManagementService: IExtensionManagementService;
-	location: URI;
+	authority: string;
+	label: string;
 }
 
 export interface IExtensionManagementServerService {
 	_serviceBrand: any;
 	readonly extensionManagementServers: IExtensionManagementServer[];
-	getDefaultExtensionManagementServer(): IExtensionManagementServer;
+	getLocalExtensionManagementServer(): IExtensionManagementServer;
 	getExtensionManagementServer(location: URI): IExtensionManagementServer;
 }
 

@@ -492,12 +492,14 @@ const editorConfiguration: IConfigurationNode = {
 		'editor.parameterHints.enabled': {
 			'type': 'boolean',
 			'default': EDITOR_DEFAULTS.contribInfo.parameterHints.enabled,
-			'description': nls.localize('parameterHints.enabled', "Enables a pop-up that shows parameter documentation and type information as you type.")
+			'description': nls.localize('parameterHints.enabled', "Enables a pop-up that shows parameter documentation and type information as you type."),
+			'tags': ['new']
 		},
 		'editor.parameterHints.cycle': {
 			'type': 'boolean',
 			'default': EDITOR_DEFAULTS.contribInfo.parameterHints.cycle,
-			'description': nls.localize('parameterHints.cycle', "Controls whether the parameter hints menu cycles or closes when reaching the end of the list.")
+			'description': nls.localize('parameterHints.cycle', "Controls whether the parameter hints menu cycles or closes when reaching the end of the list."),
+			'tags': ['new']
 		},
 		'editor.autoClosingBrackets': {
 			'type': 'boolean',

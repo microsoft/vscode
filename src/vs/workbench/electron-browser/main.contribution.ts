@@ -644,6 +644,18 @@ configurationRegistry.registerConfiguration({
 			'default': 'filter',
 			'scope': ConfigurationScope.WINDOW
 		},
+		'workbench.settings.editor': {
+			'type': 'string',
+			'enum': ['ui', 'json'],
+			'enumDescriptions': [
+				nls.localize('settings.editor.json', "Use the JSON file editor."),
+				nls.localize('settings.editor.ui', "Use the settings UI editor."),
+			],
+			'description': nls.localize('settings.editor.desc', "Determines which settings editor to use by default."),
+			'default': 'ui',
+			'scope': ConfigurationScope.WINDOW,
+			'tags': ['new']
+		},
 		'workbench.enableExperiments': {
 			'type': 'boolean',
 			'description': nls.localize('workbench.enableExperiments', "Fetches experiments to run from a Microsoft online service."),

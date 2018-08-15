@@ -46,32 +46,32 @@ suite('WindowsFinder', () => {
 	test('New window without folder when no windows exist', () => {
 		assert.equal(findBestWindowOrFolderForFile(options()), null);
 		assert.equal(findBestWindowOrFolderForFile(options({
-			filePath: path.join(fixturesFolder, 'no_vscode_folder', 'file.txt')
+			fileUri: URI.file(path.join(fixturesFolder, 'no_vscode_folder', 'file.txt'))
 		})), null);
 		assert.equal(findBestWindowOrFolderForFile(options({
-			filePath: path.join(fixturesFolder, 'vscode_folder', 'file.txt'),
+			fileUri: URI.file(path.join(fixturesFolder, 'vscode_folder', 'file.txt')),
 			newWindow: true
 		})), null);
 		assert.equal(findBestWindowOrFolderForFile(options({
-			filePath: path.join(fixturesFolder, 'vscode_folder', 'file.txt'),
+			fileUri: URI.file(path.join(fixturesFolder, 'vscode_folder', 'file.txt')),
 			reuseWindow: true
 		})), null);
 		assert.equal(findBestWindowOrFolderForFile(options({
-			filePath: path.join(fixturesFolder, 'vscode_folder', 'file.txt'),
+			fileUri: URI.file(path.join(fixturesFolder, 'vscode_folder', 'file.txt')),
 			context: OpenContext.API
 		})), null);
 		assert.equal(findBestWindowOrFolderForFile(options({
-			filePath: path.join(fixturesFolder, 'vscode_folder', 'file.txt')
+			fileUri: URI.file(path.join(fixturesFolder, 'vscode_folder', 'file.txt'))
 		})), null);
 		assert.equal(findBestWindowOrFolderForFile(options({
-			filePath: path.join(fixturesFolder, 'vscode_folder', 'new_folder', 'new_file.txt')
+			fileUri: URI.file(path.join(fixturesFolder, 'vscode_folder', 'new_folder', 'new_file.txt'))
 		})), null);
 	});
 
 	test('New window without folder when windows exist', () => {
 		assert.equal(findBestWindowOrFolderForFile(options({
 			windows,
-			filePath: path.join(fixturesFolder, 'no_vscode_folder', 'file.txt'),
+			fileUri: URI.file(path.join(fixturesFolder, 'no_vscode_folder', 'file.txt')),
 			newWindow: true
 		})), null);
 	});
@@ -82,16 +82,16 @@ suite('WindowsFinder', () => {
 		})), lastActiveWindow);
 		assert.equal(findBestWindowOrFolderForFile(options({
 			windows,
-			filePath: path.join(fixturesFolder, 'no_vscode_folder2', 'file.txt')
+			fileUri: URI.file(path.join(fixturesFolder, 'no_vscode_folder2', 'file.txt'))
 		})), lastActiveWindow);
 		assert.equal(findBestWindowOrFolderForFile(options({
 			windows: [lastActiveWindow, noVscodeFolderWindow],
-			filePath: path.join(fixturesFolder, 'vscode_folder', 'file.txt'),
+			fileUri: URI.file(path.join(fixturesFolder, 'vscode_folder', 'file.txt')),
 			reuseWindow: true
 		})), lastActiveWindow);
 		assert.equal(findBestWindowOrFolderForFile(options({
 			windows,
-			filePath: path.join(fixturesFolder, 'no_vscode_folder', 'file.txt'),
+			fileUri: URI.file(path.join(fixturesFolder, 'no_vscode_folder', 'file.txt')),
 			context: OpenContext.API
 		})), lastActiveWindow);
 	});
@@ -99,16 +99,16 @@ suite('WindowsFinder', () => {
 	test('Existing window with folder', () => {
 		assert.equal(findBestWindowOrFolderForFile(options({
 			windows,
-			filePath: path.join(fixturesFolder, 'no_vscode_folder', 'file.txt')
+			fileUri: URI.file(path.join(fixturesFolder, 'no_vscode_folder', 'file.txt'))
 		})), noVscodeFolderWindow);
 		assert.equal(findBestWindowOrFolderForFile(options({
 			windows,
-			filePath: path.join(fixturesFolder, 'vscode_folder', 'file.txt')
+			fileUri: URI.file(path.join(fixturesFolder, 'vscode_folder', 'file.txt'))
 		})), vscodeFolderWindow);
 		const window: ISimpleWindow = { lastFocusTime: 1, openedFolderUri: URI.file(path.join(fixturesFolder, 'vscode_folder', 'nested_folder')) };
 		assert.equal(findBestWindowOrFolderForFile(options({
 			windows: [window],
-			filePath: path.join(fixturesFolder, 'vscode_folder', 'nested_folder', 'subfolder', 'file.txt')
+			fileUri: URI.file(path.join(fixturesFolder, 'vscode_folder', 'nested_folder', 'subfolder', 'file.txt'))
 		})), window);
 	});
 
@@ -117,7 +117,7 @@ suite('WindowsFinder', () => {
 		const nestedFolderWindow: ISimpleWindow = { lastFocusTime: 1, openedFolderUri: URI.file(path.join(fixturesFolder, 'no_vscode_folder', 'nested_folder')) };
 		assert.equal(findBestWindowOrFolderForFile(options({
 			windows: [window, nestedFolderWindow],
-			filePath: path.join(fixturesFolder, 'no_vscode_folder', 'nested_folder', 'subfolder', 'file.txt')
+			fileUri: URI.file(path.join(fixturesFolder, 'no_vscode_folder', 'nested_folder', 'subfolder', 'file.txt'))
 		})), nestedFolderWindow);
 	});
 
@@ -125,7 +125,7 @@ suite('WindowsFinder', () => {
 		const window: ISimpleWindow = { lastFocusTime: 1, openedWorkspace: testWorkspace };
 		assert.equal(findBestWindowOrFolderForFile(options({
 			windows: [window],
-			filePath: path.join(fixturesFolder, 'vscode_workspace_2_folder', 'nested_vscode_folder', 'subfolder', 'file.txt')
+			fileUri: URI.file(path.join(fixturesFolder, 'vscode_workspace_2_folder', 'nested_vscode_folder', 'subfolder', 'file.txt'))
 		})), window);
 	});
 });

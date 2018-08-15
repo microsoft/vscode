@@ -19,7 +19,8 @@ import { range } from 'vs/base/common/arrays';
 import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
 import { ITree } from 'vs/base/parts/tree/browser/tree';
 import { InEditorZenModeContext, NoEditorsVisibleContext, SingleEditorGroupsContext } from 'vs/workbench/common/editor';
-import { ISingleFolderWorkspaceIdentifier } from 'vs/platform/workspaces/common/workspaces';
+import { IWorkspaceIdentifier, ISingleFolderWorkspaceIdentifier } from 'vs/platform/workspaces/common/workspaces';
+import URI from 'vs/base/common/uri';
 
 // --- List Commands
 
@@ -550,7 +551,7 @@ export function registerCommands(): void {
 		win: { primary: void 0 }
 	});
 
-	CommandsRegistry.registerCommand('_workbench.removeFromRecentlyOpened', function (accessor: ServicesAccessor, path: string | ISingleFolderWorkspaceIdentifier) {
+	CommandsRegistry.registerCommand('_workbench.removeFromRecentlyOpened', function (accessor: ServicesAccessor, path: IWorkspaceIdentifier | ISingleFolderWorkspaceIdentifier | URI | string) {
 		const windowsService = accessor.get(IWindowsService);
 
 		return windowsService.removeFromRecentlyOpened([path]).then(() => void 0);

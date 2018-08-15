@@ -14,7 +14,8 @@ import { IListService, WorkbenchTree, WorkbenchTreeController } from 'vs/platfor
 import { editorBackground, focusBorder } from 'vs/platform/theme/common/colorRegistry';
 import { attachStyler } from 'vs/platform/theme/common/styler';
 import { ICssStyleCollector, ITheme, IThemeService, registerThemingParticipant } from 'vs/platform/theme/common/themeService';
-import { ISettingsEditorViewState, SearchResultModel, SettingsAccessibilityProvider, SettingsTreeElement, SettingsTreeFilter, SettingsTreeGroupElement, SettingsTreeSettingElement } from 'vs/workbench/parts/preferences/browser/settingsTree';
+import { SettingsAccessibilityProvider, SettingsTreeFilter } from 'vs/workbench/parts/preferences/browser/settingsTree';
+import { ISettingsEditorViewState, SearchResultModel, SettingsTreeElement, SettingsTreeGroupElement, SettingsTreeSettingElement } from 'vs/workbench/parts/preferences/browser/settingsTreeModels';
 import { settingsHeaderForeground } from 'vs/workbench/parts/preferences/browser/settingsWidgets';
 import { ISetting } from 'vs/workbench/services/preferences/common/preferences';
 
@@ -60,7 +61,7 @@ export class TOCTreeModel {
 	}
 
 	private getSearchResultChildrenCount(group: SettingsTreeGroupElement): number {
-		return this._currentSearchModel.getChildren().filter(child => {
+		return this._currentSearchModel.root.children.filter(child => {
 			return child instanceof SettingsTreeSettingElement && this.groupContainsSetting(group, child.setting);
 		}).length;
 	}

@@ -1529,7 +1529,8 @@
 		"elixir": "_elixir",
 		"haml": "_haml",
 		"stylus": "_stylus",
-		"vala": "_vala"
+		"vala": "_vala",
+		"todo": "_todo"
 	},
 	"light": {
 		"file": "_default_light",

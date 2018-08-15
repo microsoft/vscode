@@ -439,7 +439,7 @@ export interface IEditor {
 	/**
 	 * Gets the current model attached to this editor.
 	 */
-	getModel(): IEditorModel;
+	getModel(): IEditorModel | null;
 
 	/**
 	 * Sets the current model attached to this editor.
@@ -449,7 +449,7 @@ export interface IEditor {
 	 * will not be destroyed.
 	 * It is safe to call setModel(null) to simply detach the current model from the editor.
 	 */
-	setModel(model: IEditorModel): void;
+	setModel(model: IEditorModel | null): void;
 
 	/**
 	 * Change the decorations. All decorations added through this changeAccessor

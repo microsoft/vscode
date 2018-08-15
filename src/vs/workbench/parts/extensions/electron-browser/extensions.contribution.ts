@@ -45,8 +45,8 @@ import { ExtensionHostProfileService } from 'vs/workbench/parts/extensions/elect
 
 // Singletons
 registerSingleton(IExtensionGalleryService, ExtensionGalleryService);
-registerSingleton(IExtensionTipsService, ExtensionTipsService);
 registerSingleton(IExtensionsWorkbenchService, ExtensionsWorkbenchService);
+registerSingleton(IExtensionTipsService, ExtensionTipsService);
 registerSingleton(IExtensionHostProfileService, ExtensionHostProfileService);
 
 const workbenchRegistry = Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench);

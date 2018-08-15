@@ -220,7 +220,6 @@ function main() {
 
 	// Correctly inherit the parent's environment
 	assign(process.env, configuration.userEnv);
-	perf.importEntries(configuration.perfEntries);
 
 	showPartsSplash(configuration);
 
@@ -305,14 +304,6 @@ function main() {
 			nlsPlugin.setPseudoTranslation(nlsConfig.pseudo);
 		});
 	}
-
-	// Perf Counters
-	window.MonacoEnvironment.timers = {
-		isInitialStartup: !!configuration.isInitialStartup,
-		hasAccessibilitySupport: !!configuration.accessibilitySupport,
-		start: configuration.perfStartTime,
-		windowLoad: configuration.perfWindowLoadTime
-	};
 
 	perf.mark('willLoadWorkbenchMain');
 	require([

@@ -27,7 +27,7 @@ import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { IStorageService } from 'vs/platform/storage/common/storage';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { ExtensionHostProcessWorker } from 'vs/workbench/services/extensions/electron-browser/extensionHost';
+import { ExtensionHostProcessWorker, IExtensionHostStarter } from 'vs/workbench/services/extensions/electron-browser/extensionHost';
 import { IMessagePassingProtocol } from 'vs/base/parts/ipc/common/ipc';
 import { ExtHostCustomersRegistry } from 'vs/workbench/api/electron-browser/extHostCustomers';
 import { IWindowService } from 'vs/platform/windows/common/windows';
@@ -119,14 +119,14 @@ export class ExtensionHostProcessManager extends Disposable {
 	private readonly _extensionHostProcessFinishedActivateEvents: { [activationEvent: string]: boolean; };
 	private _extensionHostProcessRPCProtocol: RPCProtocol;
 	private readonly _extensionHostProcessCustomers: IDisposable[];
-	private readonly _extensionHostProcessWorker: ExtensionHostProcessWorker;
+	private readonly _extensionHostProcessWorker: IExtensionHostStarter;
 	/**
 	 * winjs believes a proxy is a promise because it has a `then` method, so wrap the result in an object.
 	 */
 	private _extensionHostProcessProxy: TPromise<{ value: ExtHostExtensionServiceShape; }>;
 
 	constructor(
-		extensionHostProcessWorker: ExtensionHostProcessWorker,
+		extensionHostProcessWorker: IExtensionHostStarter,
 		initialActivationEvents: string[],
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 		@IEnvironmentService private readonly _environmentService: IEnvironmentService,

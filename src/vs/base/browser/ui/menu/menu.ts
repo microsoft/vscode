@@ -117,6 +117,7 @@ class MenuActionItem extends BaseActionItem {
 
 	protected $e: Builder;
 	protected $label: Builder;
+	protected $check: Builder;
 	protected options: IActionItemOptions;
 	private cssClass: string;
 
@@ -141,6 +142,7 @@ class MenuActionItem extends BaseActionItem {
 			this.$e.attr({ role: 'menuitem' });
 		}
 
+		this.$check = $('span.menu-item-check').appendTo(this.$e);
 		this.$label = $('span.action-label').appendTo(this.$e);
 
 		if (this.options.label && this.options.keybinding) {
@@ -231,9 +233,9 @@ class MenuActionItem extends BaseActionItem {
 
 	public _updateChecked(): void {
 		if (this.getAction().checked) {
-			this.$label.addClass('checked');
+			this.$e.addClass('checked');
 		} else {
-			this.$label.removeClass('checked');
+			this.$e.removeClass('checked');
 		}
 	}
 }

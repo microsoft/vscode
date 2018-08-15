@@ -24,7 +24,7 @@ import { ICodeWindow, IWindowState, WindowMode } from 'vs/platform/windows/elect
 import { IWorkspaceIdentifier, IWorkspacesMainService } from 'vs/platform/workspaces/common/workspaces';
 import { IBackupMainService } from 'vs/platform/backup/common/backup';
 import { ISerializableCommandAction } from 'vs/platform/actions/common/actions';
-import { mark, exportEntries } from 'vs/base/common/performance';
+import * as perf from 'vs/base/common/performance';
 import { resolveMarketplaceHeaders } from 'vs/platform/extensionManagement/node/extensionGalleryService';
 
 export interface IWindowCreationOptions {
@@ -547,7 +547,7 @@ export class CodeWindow implements ICodeWindow {
 		}
 
 		// Load URL
-		mark('main:loadWindow');
+		perf.mark('main:loadWindow');
 		this._win.loadURL(this.getUrl(configuration));
 
 		// Make window visible if it did not open in N seconds because this indicates an error
@@ -621,10 +621,8 @@ export class CodeWindow implements ICodeWindow {
 		windowConfiguration.maximized = this._win.isMaximized();
 		windowConfiguration.frameless = this.hasHiddenTitleBarStyle() && !isMacintosh;
 
-		// Perf Counters
-		windowConfiguration.perfEntries = exportEntries();
-		windowConfiguration.perfStartTime = (<any>global).perfStartTime;
-		windowConfiguration.perfWindowLoadTime = Date.now();
+		// Dump Perf Counters
+		windowConfiguration.perfEntries = perf.exportEntries();
 
 		// Config (combination of process.argv and window configuration)
 		const environment = parseArgs(process.argv);

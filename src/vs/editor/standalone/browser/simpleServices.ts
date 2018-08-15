@@ -45,6 +45,7 @@ import { WorkspaceEdit, isResourceTextEdit, TextEdit } from 'vs/editor/common/mo
 import { IModelService } from 'vs/editor/common/services/modelService';
 import { EditOperation } from 'vs/editor/common/core/editOperation';
 import { localize } from 'vs/nls';
+import { IUriDisplayService, UriDisplayRules } from 'vs/platform/uriDisplay/common/uriDisplay';
 
 export class SimpleModel implements ITextEditorModel {
 
@@ -588,5 +589,23 @@ export class SimpleBulkEditService implements IBulkEditService {
 			selection: undefined,
 			ariaSummary: localize('summary', 'Made {0} edits in {1} files', totalEdits, totalFiles)
 		});
+	}
+}
+
+export class SimpleUriDisplayService implements IUriDisplayService {
+	_serviceBrand: any;
+
+	private readonly _onDidRegisterFormater: Emitter<{ scheme: string, formater: UriDisplayRules }> = new Emitter<{ scheme: string, formater: UriDisplayRules }>();
+	public readonly onDidRegisterFormater: Event<{ scheme: string, formater: UriDisplayRules }> = this._onDidRegisterFormater.event;
+
+	public getLabel(resource: URI, relative?: boolean): string {
+		if (resource.scheme === 'file') {
+			return resource.fsPath;
+		}
+		return resource.path;
+	}
+
+	public registerFormater(schema: string, formater: UriDisplayRules): IDisposable {
+		throw new Error('Not implemented');
 	}
 }
