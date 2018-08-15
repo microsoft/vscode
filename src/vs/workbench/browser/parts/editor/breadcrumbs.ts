@@ -57,8 +57,10 @@ registerSingleton(IBreadcrumbsService, BreadcrumbsService);
 export abstract class BreadcrumbsConfig<T> {
 
 	name: string;
-	value: T;
 	onDidChange: Event<T>;
+
+	abstract value(): T;
+	abstract value(value: T): Thenable<void>;
 	abstract dispose(): void;
 
 	private constructor() {
@@ -83,16 +85,19 @@ export abstract class BreadcrumbsConfig<T> {
 					}
 				});
 
-				return {
-					name,
-					get value() {
-						return value;
-					},
-					set value(newValue: T) {
-						service.updateValue(name, newValue);
-						value = newValue;
-					},
-					onDidChange: onDidChange.event,
+				return new class implements BreadcrumbsConfig<T>{
+					readonly name = name;
+					readonly onDidChange = onDidChange.event;
+					value(): T;
+					value(value: T): Thenable<void>;
+					value(newValue?: T): any {
+						if (arguments.length === 0) {
+							return value;
+						} else {
+							value = newValue;
+							return service.updateValue(name, newValue);
+						}
+					}
 					dispose(): void {
 						listener.dispose();
 						onDidChange.dispose();

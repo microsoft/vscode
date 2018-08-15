@@ -108,7 +108,7 @@ export abstract class TitleControl extends Themable {
 				this.handleBreadcrumbsEnablementChange();
 			}
 		}));
-		if (config.value) {
+		if (config.value()) {
 			this.breadcrumbsControl = this.instantiationService.createInstance(BreadcrumbsControl, container, options, this.group);
 		}
 	}

@@ -270,7 +270,7 @@ export class BreadcrumbsControl {
 			return;
 		}
 
-		if (this._cfUseQuickPick.value) {
+		if (this._cfUseQuickPick.value()) {
 			// using quick pick
 			this._widget.setFocused(undefined);
 			this._widget.setSelection(undefined);
@@ -383,8 +383,8 @@ MenuRegistry.appendMenuItem(MenuId.MenubarViewMenu, {
 });
 CommandsRegistry.registerCommand('breadcrumbs.toggle', accessor => {
 	let config = accessor.get(IConfigurationService);
-	let value = BreadcrumbsConfig.IsEnabled.bindTo(config).value;
-	BreadcrumbsConfig.IsEnabled.bindTo(config).value = !value;
+	let value = BreadcrumbsConfig.IsEnabled.bindTo(config).value();
+	BreadcrumbsConfig.IsEnabled.bindTo(config).value(!value);
 });
 
 MenuRegistry.appendMenuItem(MenuId.CommandPalette, {
