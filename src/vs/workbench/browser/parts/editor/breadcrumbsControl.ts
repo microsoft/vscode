@@ -137,6 +137,7 @@ export class BreadcrumbsControl {
 
 	readonly domNode: HTMLDivElement;
 	private readonly _widget: BreadcrumbsWidget;
+	private _dimension: dom.Dimension;
 
 	private _disposables = new Array<IDisposable>();
 	private _breadcrumbsDisposables = new Array<IDisposable>();
@@ -187,6 +188,7 @@ export class BreadcrumbsControl {
 	}
 
 	layout(dim: dom.Dimension): void {
+		this._dimension = dim;
 		this._widget.layout(dim);
 	}
 
@@ -288,10 +290,10 @@ export class BreadcrumbsControl {
 
 				return combinedDisposable([listener, picker]);
 			},
-			getAnchor() {
+			getAnchor: () => {
 
 				let pickerHeight = 330;
-				let pickerWidth = Math.max(220, dom.getTotalWidth(event.node));
+				let pickerWidth = Math.max(this._dimension.width * 0.38, dom.getTotalWidth(event.node));
 				let pickerArrowSize = 8;
 				let pickerArrowOffset: number;
 
