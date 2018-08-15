@@ -357,8 +357,8 @@ declare module 'vscode' {
 
 	//todo@joh -> make class
 	export interface DecorationData {
-		letter: string;
-		title: string;
+		letter?: string;
+		title?: string;
 		color?: ThemeColor;
 		priority?: number;
 		bubble?: boolean;

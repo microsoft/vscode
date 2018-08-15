@@ -53,8 +53,8 @@ export class ExtHostDecorations implements ExtHostDecorationsShape {
 			}
 			const { provider, extensionId } = this._provider.get(handle);
 			return asWinJsPromise(token => provider.provideDecoration(URI.revive(uri), token)).then(data => {
-				if (!data.letter || data.letter.length !== 1) {
-					console.warn(`INVALID decoration from extension '${extensionId}'. The 'letter' must be set and be one character`);
+				if (data.letter && data.letter.length !== 1) {
+					console.warn(`INVALID decoration from extension '${extensionId}'. The 'letter' must be set and be one character, not '${data.letter}'.`);
 				}
 				result[id] = data && <DecorationData>[data.priority, data.bubble, data.title, data.letter, data.color, data.source];
 			}, err => {
