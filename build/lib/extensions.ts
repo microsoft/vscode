@@ -52,7 +52,10 @@ export function fromLocal(extensionPath: string, sourceMappingURLBase?: string):
 				}))
 				.pipe(packageJsonFilter.restore);
 
-			const webpackConfig = require(path.join(extensionPath, 'extension.webpack.config.js'));
+			const webpackConfig = {
+				...require(path.join(extensionPath, 'extension.webpack.config.js')),
+				...{ mode: 'production', stats: 'errors-only' }
+			};
 			const webpackStream = webpackGulp(webpackConfig, webpack)
 				.pipe(es.through(function (data) {
 					data.stat = data.stat || {};
