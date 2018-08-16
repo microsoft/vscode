@@ -24,7 +24,6 @@ import { ServiceCollection } from 'vs/platform/instantiation/common/serviceColle
 import { realpath } from 'vs/base/node/pfs';
 import { EnvironmentService } from 'vs/platform/environment/node/environmentService';
 import * as gracefulFs from 'graceful-fs';
-import { TimerService } from 'vs/workbench/services/timer/electron-browser/timerService';
 import { KeyboardMapperFactory } from 'vs/workbench/services/keybinding/electron-browser/keybindingService';
 import { IWindowConfiguration, IWindowsService } from 'vs/platform/windows/common/windows';
 import { WindowsChannelClient } from 'vs/platform/windows/common/windowsIpc';
@@ -105,7 +104,6 @@ function openWorkbench(configuration: IWindowConfiguration): TPromise<void> {
 	// Since the configuration service is one of the core services that is used in so many places, we initialize it
 	// right before startup of the workbench shell to have its data ready for consumers
 	return createAndInitializeWorkspaceService(configuration, environmentService).then(workspaceService => {
-		const timerService = new TimerService(configuration, workspaceService.getWorkbenchState() === WorkbenchState.EMPTY);
 		const storageService = createStorageService(workspaceService, environmentService);
 
 		return domContentLoaded().then(() => {
@@ -117,7 +115,6 @@ function openWorkbench(configuration: IWindowConfiguration): TPromise<void> {
 				configurationService: workspaceService,
 				environmentService,
 				logService,
-				timerService,
 				storageService
 			}, mainServices, mainProcessClient, configuration);
 			shell.open();

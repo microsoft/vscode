@@ -5,12 +5,11 @@
 
 'use strict';
 
-import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
 import { ILifecycleService, LifecyclePhase } from 'vs/platform/lifecycle/common/lifecycle';
 import { IWindowsService } from 'vs/platform/windows/common/windows';
 import { IWorkbenchContributionsRegistry, IWorkbenchContribution, Extensions } from 'vs/workbench/common/contributions';
 import { Registry } from 'vs/platform/registry/common/platform';
-import { ITimerService } from 'vs/workbench/services/timer/common/timerService';
+import { ITimerService } from 'vs/workbench/services/timer/electron-browser/timerService';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { nfcall } from 'vs/base/common/async';
 import { appendFile } from 'fs';
@@ -22,7 +21,6 @@ class StartupTimingsAppender implements IWorkbenchContribution {
 		@ITimerService timerService: ITimerService,
 		@IWindowsService windowsService: IWindowsService,
 		@ILifecycleService lifecycleService: ILifecycleService,
-		@IExtensionService extensionService: IExtensionService,
 		@IEnvironmentService environmentService: IEnvironmentService,
 	) {
 
@@ -33,9 +31,9 @@ class StartupTimingsAppender implements IWorkbenchContribution {
 
 		Promise.all([
 			lifecycleService.when(LifecyclePhase.Eventually),
-			extensionService.whenInstalledExtensionsRegistered()
-		]).then(() => {
-			const { startupMetrics } = timerService;
+			timerService.startupMetrics
+		]).then(([, startupMetrics]) => {
+
 			return nfcall(appendFile, appendTo, `${product.nameShort}\t${product.commit || '0000000'}\t${Date.now()}\t${startupMetrics.ellapsed}\n`);
 		}).then(() => {
 			windowsService.quit();

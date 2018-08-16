@@ -22,7 +22,7 @@ import { IWorkspaceConfigurationService } from 'vs/workbench/services/configurat
 import { isMacintosh, isLinux, language } from 'vs/base/common/platform';
 import * as browser from 'vs/base/browser/browser';
 import { IIntegrityService } from 'vs/platform/integrity/common/integrity';
-import { ITimerService, IStartupMetrics } from 'vs/workbench/services/timer/common/timerService';
+import { ITimerService, IStartupMetrics } from 'vs/workbench/services/timer/electron-browser/timerService';
 import { IEditorGroupsService, GroupDirection, GroupLocation, IFindGroupScope } from 'vs/workbench/services/group/common/editorGroupsService';
 import { IPanelService } from 'vs/workbench/services/panel/common/panelService';
 import { IPartService, Parts, Position as PartPosition } from 'vs/workbench/services/part/common/partService';
@@ -305,17 +305,15 @@ export class ShowStartupPerformance extends Action {
 		super(id, label);
 	}
 
-	async run(): TPromise<boolean> {
+	run(): TPromise<boolean> {
 
 		// Show dev tools
 		this.windowService.openDevTools();
 
 		Promise.all([
 			timeout(1000), // needed to print a table
-			this.extensionService.whenInstalledExtensionsRegistered()
-		]).then(() => {
-
-			const metrics: IStartupMetrics = this.timerService.startupMetrics;
+			this.timerService.startupMetrics
+		]).then(([, metrics]) => {
 
 			console.group('Startup Performance Measurement');
 			console.log(`OS: ${metrics.platform} (${metrics.release})`);
@@ -333,7 +331,7 @@ export class ShowStartupPerformance extends Action {
 				nodeModuleLoadTime = nodeModuleTimes.duration;
 			}
 
-			console.table(this.getStartupMetricsTable(nodeModuleLoadTime));
+			console.table(this.getStartupMetricsTable(metrics, nodeModuleLoadTime));
 
 			if (this.environmentService.performance) {
 				const data = this.analyzeLoaderStats();
@@ -371,9 +369,8 @@ export class ShowStartupPerformance extends Action {
 		return TPromise.as(true);
 	}
 
-	private getStartupMetricsTable(nodeModuleLoadTime?: number): any[] {
+	private getStartupMetricsTable(metrics: IStartupMetrics, nodeModuleLoadTime?: number): any[] {
 		const table: any[] = [];
-		const metrics: IStartupMetrics = this.timerService.startupMetrics;
 
 		if (metrics.initialStartup) {
 			table.push({ Topic: '[main] start => app.isReady', 'Took (ms)': metrics.timers.ellapsedAppReady });
@@ -913,8 +910,11 @@ export class ReportPerformanceIssueAction extends Action {
 	}
 
 	run(appendix?: string): TPromise<boolean> {
-		this.integrityService.isPure().then(res => {
-			const issueUrl = this.generatePerformanceIssueUrl(product.reportIssueUrl, pkg.name, pkg.version, product.commit, product.date, res.isPure, appendix);
+		Promise.all([
+			this.timerService.startupMetrics,
+			this.integrityService.isPure()
+		]).then(([metrics, integrity]) => {
+			const issueUrl = this.generatePerformanceIssueUrl(metrics, product.reportIssueUrl, pkg.name, pkg.version, product.commit, product.date, integrity.isPure, appendix);
 
 			window.open(issueUrl);
 		});
@@ -922,7 +922,7 @@ export class ReportPerformanceIssueAction extends Action {
 		return TPromise.wrap(true);
 	}
 
-	private generatePerformanceIssueUrl(baseUrl: string, name: string, version: string, commit: string, date: string, isPure: boolean, appendix?: string): string {
+	private generatePerformanceIssueUrl(metrics: IStartupMetrics, baseUrl: string, name: string, version: string, commit: string, date: string, isPure: boolean, appendix?: string): string {
 
 		if (!appendix) {
 			appendix = `Additional Steps to Reproduce (if any):
@@ -936,7 +936,6 @@ export class ReportPerformanceIssueAction extends Action {
 			nodeModuleLoadTime = this.computeNodeModulesLoadTime();
 		}
 
-		const metrics: IStartupMetrics = this.timerService.startupMetrics;
 
 		const osVersion = `${os.type()} ${os.arch()} ${os.release()}`;
 		const queryStringPrefix = baseUrl.indexOf('?') === -1 ? '?' : '&';
@@ -953,7 +952,7 @@ export class ReportPerformanceIssueAction extends Action {
 - Empty Workspace: <code>${metrics.emptyWorkbench ? 'yes' : 'no'}</code>
 - Timings:
 
-${this.generatePerformanceTable(nodeModuleLoadTime)}
+${this.generatePerformanceTable(metrics, nodeModuleLoadTime)}
 
 ---
 
@@ -979,20 +978,19 @@ ${appendix}`
 		return Math.round(total);
 	}
 
-	private generatePerformanceTable(nodeModuleLoadTime?: number): string {
+	private generatePerformanceTable(metrics: IStartupMetrics, nodeModuleLoadTime?: number): string {
 		let tableHeader = `|Component|Task|Time (ms)|
 |---|---|---|`;
 
-		const table = this.getStartupMetricsTable(nodeModuleLoadTime).map(e => {
+		const table = this.getStartupMetricsTable(metrics, nodeModuleLoadTime).map(e => {
 			return `|${e.component}|${e.task}|${e.time}|`;
 		}).join('\n');
 
 		return `${tableHeader}\n${table}`;
 	}
 
-	private getStartupMetricsTable(nodeModuleLoadTime?: number): { component: string, task: string; time: number; }[] {
+	private getStartupMetricsTable(metrics: IStartupMetrics, nodeModuleLoadTime?: number): { component: string, task: string; time: number; }[] {
 		const table: any[] = [];
-		const metrics: IStartupMetrics = this.timerService.startupMetrics;
 
 		if (metrics.initialStartup) {
 			table.push({ component: 'main', task: 'start => app.isReady', time: metrics.timers.ellapsedAppReady });

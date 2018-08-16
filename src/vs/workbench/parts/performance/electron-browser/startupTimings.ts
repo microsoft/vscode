@@ -11,7 +11,7 @@ import { IWindowsService } from 'vs/platform/windows/common/windows';
 import { IWorkbenchContributionsRegistry, IWorkbenchContribution, Extensions } from 'vs/workbench/common/contributions';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { ITimerService, IStartupMetrics } from 'vs/workbench/services/timer/common/timerService';
+import { ITimerService, IStartupMetrics } from 'vs/workbench/services/timer/electron-browser/timerService';
 import { onUnexpectedError } from 'vs/base/common/errors';
 import { IViewletService } from 'vs/workbench/services/viewlet/browser/viewlet';
 import * as files from 'vs/workbench/parts/files/common/files';
@@ -181,7 +181,7 @@ class StartupTimings implements IWorkbenchContribution {
 			editorIds
 		};
 
-		const metrics = this._timerService.startupMetrics;
+		const metrics = await this._timerService.startupMetrics;
 		return { ...reflections, ...metrics };
 	}
 }
