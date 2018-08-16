@@ -356,7 +356,6 @@ export interface IActionBarOptions {
 	actionRunner?: IActionRunner;
 	ariaLabel?: string;
 	animated?: boolean;
-	isMenu?: boolean;
 }
 
 let defaultOptions: IActionBarOptions = {
