@@ -11,8 +11,7 @@
 		],
 		"strict": true,
 		"experimentalDecorators": true,
-		"noUnusedLocals": true,
-		"sourceMap": true
+		"noUnusedLocals": true
 	},
 	"include": [
 		"src/**/*"

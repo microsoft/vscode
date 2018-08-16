@@ -6,7 +6,6 @@
 		],
 		"module": "commonjs",
 		"outDir": "./out",
-		"sourceMap": true,
 		"noUnusedLocals": true,
 		"strictNullChecks": true
 	},

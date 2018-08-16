@@ -31,7 +31,12 @@ module.exports = {
 			exclude: /node_modules/,
 			use: [{
 				loader: 'ts-loader',
-				options: { transpileOnly: true }
+				options: {
+					transpileOnly: true,
+					compilerOptions: {
+						"sourceMap": true,
+					}
+				}
 			}]
 		}]
 	},
