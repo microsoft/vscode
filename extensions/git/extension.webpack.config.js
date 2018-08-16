@@ -9,28 +9,36 @@ const path = require('path');
 const CopyWebpackPlugin = require('copy-webpack-plugin');
 
 module.exports = {
-	mode: 'production',
-	// mode: 'none',
+	// mode: 'production',
+	// stats: 'errors-only',
+	mode: 'none',
 	context: __dirname,
 	target: 'node',
 	node: {
 		__dirname: false
 	},
-	resolve: {
-		mainFields: ['main']
-	},
 	entry: {
-		main: './out/main.js',
-		['askpass-main']: './out/askpass-main.js'
+		main: './src/main.ts',
+		['askpass-main']: './src/askpass-main.ts'
+	},
+	resolve: {
+		mainFields: ['main'],
+		extensions: [".ts", ".js"]
+	},
+	module: {
+		rules: [{
+			test: /\.ts$/,
+			exclude: /node_modules/,
+			use: [{
+				loader: 'ts-loader',
+				options: { transpileOnly: true }
+			}]
+		}]
 	},
 	output: {
 		filename: '[name].js',
 		path: path.join(__dirname, 'dist'),
 		libraryTarget: "commonjs"
-	},
-	externals: {
-		'vscode': 'commonjs vscode',
-		'vscode-nls': 'commonjs vscode-nls',
 	},
 	plugins: [
 		new CopyWebpackPlugin([
@@ -38,13 +46,15 @@ module.exports = {
 			{ from: './out/nls.*.json', to: '[name].json' }
 		])
 	],
-	stats: 'errors-only',
 	devtool: 'source-map',
-	module: {
-		rules: [{
-			test: /\.js$/,
-			use: ["source-map-loader"],
-			enforce: "pre"
-		}]
-	}
+	externals: {
+		'vscode': 'commonjs vscode',
+		"byline": 'commonjs byline',
+		"file-type": 'commonjs file-type',
+		"iconv-lite": 'commonjs iconv-lite',
+		"jschardet": 'commonjs jschardet',
+		"vscode-extension-telemetry": 'commonjs vscode-extension-telemetry',
+		"vscode-nls": 'commonjs vscode-nls',
+		"which": 'commonjs which',
+	},
 };

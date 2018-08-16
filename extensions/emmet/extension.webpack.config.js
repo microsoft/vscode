@@ -8,31 +8,40 @@
 const path = require('path');
 
 module.exports = {
-	mode: 'production',
-	// mode: 'none',
+	// mode: 'production',
+	// stats: 'errors-only',
+	mode: 'none',
 	context: __dirname,
 	target: 'node',
-	resolve: {
-		mainFields: ['main']
-	},
 	entry: {
-		extension: './out/extension.js',
+		extension: './src/extension.ts',
+	},
+	resolve: {
+		mainFields: ['main'],
+		extensions: [".ts", ".js"]
+	},
+	module: {
+		rules: [{
+			test: /\.ts$/,
+			exclude: /node_modules/,
+			use: [{
+				loader: 'ts-loader',
+				options: { transpileOnly: true }
+			}]
+		}]
 	},
 	output: {
 		filename: '[name].js',
 		path: path.join(__dirname, 'dist'),
 		libraryTarget: "commonjs",
 	},
+	devtool: 'source-map',
 	externals: {
 		'vscode': 'commonjs vscode',
+		'@emmetio/css-parser': 'commonjs @emmetio/css-parser',
+		'@emmetio/html-matcher': 'commonjs @emmetio/html-matcher',
+		'@emmetio/math-expression': 'commonjs @emmetio/math-expression',
+		'image-size': 'commonjs image-size',
+		'vscode-emmet-helper': 'commonjs vscode-emmet-helper',
 	},
-	stats: 'errors-only',
-	devtool: 'source-map',
-	module: {
-		rules: [{
-			test: /\.js$/,
-			use: ["source-map-loader"],
-			enforce: "pre"
-		}]
-	}
 };
