@@ -261,6 +261,7 @@ export class Renderer implements IRenderer {
 		} else if (templateId === Renderer.MARKER_TEMPLATE_ID) {
 			(<IMarkerTemplateData>templateData).description.dispose();
 			(<IMarkerTemplateData>templateData).source.dispose();
+			(<IMarkerTemplateData>templateData).actionBar.dispose();
 		} else if (templateId === Renderer.RELATED_INFO_TEMPLATE_ID) {
 			(<IRelatedInformationTemplateData>templateData).description.dispose();
 			(<IRelatedInformationTemplateData>templateData).resourceLabel.dispose();
