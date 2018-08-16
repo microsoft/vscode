@@ -1,0 +1,36 @@
+#compdef code
+
+local arguments
+
+arguments=(
+	'(-d --diff)'{-d,--diff}'[compare two files with each other]:file to compare:_files:file to compare with:_files'
+	\*{-a,--add}'[add specified directory to the last active window.]:directory:_directories'
+	'(-g --goto)'{-g,--goto}'[open a file at the path on the specified line and column position]:file\:line[\:column]:_files -r \:'
+	'(-n --new-window -r --reuse-window)'{-n,--new-window}'[open a new window]'
+	'(-n --new-window -r --reuse-window)'{-r,--reuse-window}'[open a file or directory in the last active window]'
+	'(-w --wait)'{-w,--wait}'[wait for the files to be closed before returning]'
+	'--locale=[specify the locale to use]:locale (e.g. en-US or zh-TW):(de en en-US es fr it ja ko ru zh-CN zh-TW bg hu pt-br tr bg hu pt-br tr)'
+	'--user-data-dir[specify the directory that user data is in]:directory:_directories'
+	'(- *)'{-v,--version}'[print version]'
+	'(- *)'{-h,--help}'[print usage]'
+	'--extensions-dir[specify the root path for extensions]:root path:_directories'
+	'--list-extensions[list the installed extensions]'
+	'--show-versions[show versions of installed extensions, when using --list-extension]'
+	'--install-extension[specify extension to install]:id or path:_files -g "*.vsix(-.)"'
+	'--uninstall-extension[specify extension to uninstall]:id or path:_files -g "*.vsix(-.)"'
+	'--enable-proposed-api[enable proposed api features for specified extension]:extension id'
+	'--verbose[print verbose output (implies --wait)]'
+	'--log[specify log level to use]:level [info]:(critical error warn info debug trace off)'
+	'(-s --status)'{-s,--status}'[print process usage and diagnostics information]'
+	'(-p --performance)'{-p,--performance}'[start with the "Developer: Startup Performance" command enabled]'
+	'--prof-startup[run CPU profiler during startup]'
+	'--disable-extensions[disable all installed extensions]'
+	'--inspect-extensions[allow debugging and profiling of extensions]'
+	'--inspect-brk-extensions[allow debugging and profiling of extensions with the extension host being paused after start]'
+	'--disable-gpu[disable GPU hardware acceleration]'
+	'--upload-logs[uploads logs from current session to a secure endpoint]:confirm:(iConfirmLogsUpload)'
+	'--max-memory=[specify max memory size for a window]:size (Mbytes)'
+	'*:filename:_files'
+)
+
+_arguments -s -S $arguments
