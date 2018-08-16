@@ -45,10 +45,8 @@ export class SimpleBreadcrumbsItem extends BreadcrumbsItem {
 export interface IBreadcrumbsWidgetStyles {
 	breadcrumbsBackground?: Color;
 	breadcrumbsForeground?: Color;
-	breadcrumbsHoverBackground?: Color;
 	breadcrumbsHoverForeground?: Color;
 	breadcrumbsFocusForeground?: Color;
-	breadcrumbsFocusAndSelectionBackground?: Color;
 	breadcrumbsFocusAndSelectionForeground?: Color;
 }
 
@@ -135,14 +133,8 @@ export class BreadcrumbsWidget {
 		if (style.breadcrumbsFocusForeground) {
 			content += `.monaco-breadcrumbs .monaco-breadcrumb-item.focused { color: ${style.breadcrumbsFocusForeground}}\n`;
 		}
-		if (style.breadcrumbsFocusAndSelectionBackground) {
-			content += `.monaco-breadcrumbs .monaco-breadcrumb-item.focused.selected { background-color: ${style.breadcrumbsFocusAndSelectionBackground}}\n`;
-		}
 		if (style.breadcrumbsFocusAndSelectionForeground) {
 			content += `.monaco-breadcrumbs .monaco-breadcrumb-item.focused.selected { color: ${style.breadcrumbsFocusAndSelectionForeground}}\n`;
-		}
-		if (style.breadcrumbsHoverBackground) {
-			content += `.monaco-breadcrumbs .monaco-breadcrumb-item:hover:not(.focused):not(.selected) { background-color: ${style.breadcrumbsHoverBackground}}\n`;
 		}
 		if (style.breadcrumbsHoverForeground) {
 			content += `.monaco-breadcrumbs .monaco-breadcrumb-item:hover:not(.focused):not(.selected) { color: ${style.breadcrumbsHoverForeground}}\n`;

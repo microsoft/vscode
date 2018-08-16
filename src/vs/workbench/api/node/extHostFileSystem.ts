@@ -15,7 +15,7 @@ import { values } from 'vs/base/common/map';
 import { Range, FileChangeType } from 'vs/workbench/api/node/extHostTypes';
 import { ExtHostLanguageFeatures } from 'vs/workbench/api/node/extHostLanguageFeatures';
 import { Schemas } from 'vs/base/common/network';
-import { UriDisplayRules } from 'vs/platform/uriDisplay/common/uriDisplay';
+import { UriLabelRules } from 'vs/platform/uriLabel/common/uriLabel';
 
 class FsLinkProvider implements vscode.DocumentLinkProvider {
 
@@ -142,7 +142,7 @@ export class ExtHostFileSystem implements ExtHostFileSystemShape {
 		});
 	}
 
-	setUriFormatter(scheme: string, formatter: UriDisplayRules): void {
+	setUriFormatter(scheme: string, formatter: UriLabelRules): void {
 		this._proxy.$setUriFormatter(scheme, formatter);
 	}
 

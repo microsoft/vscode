@@ -82,7 +82,7 @@ export class PreferencesContribution implements IWorkbenchContribution {
 
 		// Global User Settings File
 		if (isEqual(resource, URI.file(this.environmentService.appSettingsPath), !isLinux)) {
-			return { override: this.preferencesService.openGlobalSettings(options, group) };
+			return { override: this.preferencesService.openGlobalSettings(true, options, group) };
 		}
 
 		// Single Folder Workspace Settings File
@@ -90,7 +90,7 @@ export class PreferencesContribution implements IWorkbenchContribution {
 		if (state === WorkbenchState.FOLDER) {
 			const folders = this.workspaceService.getWorkspace().folders;
 			if (isEqual(resource, folders[0].toResource(FOLDER_SETTINGS_PATH), hasToIgnoreCase(resource))) {
-				return { override: this.preferencesService.openWorkspaceSettings(options, group) };
+				return { override: this.preferencesService.openWorkspaceSettings(true, options, group) };
 			}
 		}
 
@@ -99,7 +99,7 @@ export class PreferencesContribution implements IWorkbenchContribution {
 			const folders = this.workspaceService.getWorkspace().folders;
 			for (let i = 0; i < folders.length; i++) {
 				if (isEqual(resource, folders[i].toResource(FOLDER_SETTINGS_PATH), hasToIgnoreCase(resource))) {
-					return { override: this.preferencesService.openFolderSettings(folders[i].uri, options, group) };
+					return { override: this.preferencesService.openFolderSettings(folders[i].uri, true, options, group) };
 				}
 			}
 		}

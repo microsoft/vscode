@@ -187,6 +187,9 @@ export default class URI implements UriComponents {
 	 * with URIs that represent files on disk (`file` scheme).
 	 */
 	get fsPath(): string {
+		// if (this.scheme !== 'file') {
+		// 	console.warn(`[UriError] calling fsPath with scheme ${this.scheme}`);
+		// }
 		return _makeFsPath(this);
 	}
 

@@ -11,7 +11,7 @@
 .suggest-input-container .monaco-editor,
 .suggest-input-container .mtk1 {
 	/* allow the embedded monaco to be styled from the outer context */
-	background-color: inherit;
+	background-color: transparent;
 	color: inherit;
 }
 

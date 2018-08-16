@@ -24,7 +24,7 @@
   },
   "devDependencies": {
     "@types/minimatch": "^3.0.3",
-    "@types/node": "7.0.43"
+    "@types/node": "^8.10.25"
   },
   "main": "./out/main",
   "activationEvents": [
@@ -235,7 +235,9 @@
           "description": "%config.npm.fetchOnlinePackageInfo%",
           "default": true,
           "scope": "window",
-          "tags": ["usesOnlineServices"]
+          "tags": [
+            "usesOnlineServices"
+          ]
         }
       }
     },

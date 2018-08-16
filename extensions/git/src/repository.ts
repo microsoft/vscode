@@ -259,10 +259,10 @@ export class Resource implements SourceControlResourceState {
 
 	get resourceDecoration(): DecorationData {
 		const title = this.tooltip;
-		const abbreviation = this.letter;
+		const letter = this.letter;
 		const color = this.color;
 		const priority = this.priority;
-		return { bubble: true, source: 'git.resource', title, abbreviation, color, priority };
+		return { bubble: true, source: 'git.resource', title, letter, color, priority };
 	}
 
 	constructor(

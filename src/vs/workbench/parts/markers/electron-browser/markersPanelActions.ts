@@ -30,7 +30,7 @@ import { localize } from 'vs/nls';
 import { Checkbox } from 'vs/base/browser/ui/checkbox/checkbox';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { ContextScopedHistoryInputBox } from 'vs/platform/widget/browser/contextScopedHistoryWidget';
-import { Marker, ResourceMarkers } from 'vs/workbench/parts/markers/electron-browser/markersModel';
+import { Marker } from 'vs/workbench/parts/markers/electron-browser/markersModel';
 import { applyCodeAction } from 'vs/editor/contrib/codeAction/codeActionCommands';
 import { IBulkEditService } from 'vs/editor/browser/services/bulkEditService';
 import { ICommandService } from 'vs/platform/commands/common/commands';
@@ -282,17 +282,16 @@ export class QuickFixAction extends Action {
 
 	constructor(
 		readonly marker: Marker,
-		readonly resourceMarkers: ResourceMarkers,
 		@IBulkEditService private bulkEditService: IBulkEditService,
 		@ICommandService private commandService: ICommandService,
 		@IEditorService private editorService: IEditorService
 	) {
 		super(QuickFixAction.ID, Messages.MARKERS_PANEL_ACTION_TOOLTIP_QUICKFIX, 'markers-panel-action-quickfix', false);
-		resourceMarkers.hasFixes(marker).then(hasFixes => this.enabled = hasFixes);
+		marker.resourceMarkers.hasFixes(marker).then(hasFixes => this.enabled = hasFixes);
 	}
 
 	async getQuickFixActions(): Promise<IAction[]> {
-		const codeActions = await this.resourceMarkers.getFixes(this.marker);
+		const codeActions = await this.marker.resourceMarkers.getFixes(this.marker);
 		return codeActions.map(codeAction => new Action(
 			codeAction.command ? codeAction.command.id : codeAction.title,
 			codeAction.title,

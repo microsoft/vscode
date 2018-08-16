@@ -30,7 +30,7 @@ import { IEnvironmentService } from 'vs/platform/environment/common/environment'
 import { RunOnceScheduler } from 'vs/base/common/async';
 import { MENUBAR_SELECTION_FOREGROUND, MENUBAR_SELECTION_BACKGROUND, MENUBAR_SELECTION_BORDER, TITLE_BAR_ACTIVE_FOREGROUND, TITLE_BAR_INACTIVE_FOREGROUND, MENU_BACKGROUND, MENU_FOREGROUND, MENU_SELECTION_BACKGROUND, MENU_SELECTION_FOREGROUND, MENU_SELECTION_BORDER } from 'vs/workbench/common/theme';
 import URI from 'vs/base/common/uri';
-import { IUriDisplayService } from 'vs/platform/uriDisplay/common/uriDisplay';
+import { IUriLabelService } from 'vs/platform/uriLabel/common/uriLabel';
 import { foreground } from 'vs/platform/theme/common/colorRegistry';
 import { IUpdateService, StateType } from 'vs/platform/update/common/update';
 
@@ -121,7 +121,7 @@ export class MenubarControl extends Disposable {
 		@IKeybindingService private keybindingService: IKeybindingService,
 		@IConfigurationService private configurationService: IConfigurationService,
 		@IEnvironmentService private environmentService: IEnvironmentService,
-		@IUriDisplayService private uriDisplayService: IUriDisplayService,
+		@IUriLabelService private uriLabelService: IUriLabelService,
 		@IUpdateService private updateService: IUpdateService
 	) {
 
@@ -229,17 +229,23 @@ export class MenubarControl extends Disposable {
 			return;
 		}
 
+		const isVisible = this.isVisible;
+		const isOpen = this.isOpen;
+		const isFocused = this.isFocused;
+
+		this._focusState = value;
+
 		switch (value) {
 			case MenubarState.HIDDEN:
-				if (this.isVisible) {
+				if (isVisible) {
 					this.hideMenubar();
 				}
 
-				if (this.isOpen) {
+				if (isOpen) {
 					this.cleanupCustomMenu();
 				}
 
-				if (this.isFocused) {
+				if (isFocused) {
 					this.focusedMenu = null;
 
 					if (this.focusToReturn) {
@@ -251,15 +257,15 @@ export class MenubarControl extends Disposable {
 
 				break;
 			case MenubarState.VISIBLE:
-				if (!this.isVisible) {
+				if (!isVisible) {
 					this.showMenubar();
 				}
 
-				if (this.isOpen) {
+				if (isOpen) {
 					this.cleanupCustomMenu();
 				}
 
-				if (this.isFocused) {
+				if (isFocused) {
 					if (this.focusedMenu) {
 						this.customMenus[this.focusedMenu.index].buttonElement.blur();
 					}
@@ -274,11 +280,11 @@ export class MenubarControl extends Disposable {
 
 				break;
 			case MenubarState.FOCUSED:
-				if (!this.isVisible) {
+				if (!isVisible) {
 					this.showMenubar();
 				}
 
-				if (this.isOpen) {
+				if (isOpen) {
 					this.cleanupCustomMenu();
 				}
 
@@ -287,7 +293,7 @@ export class MenubarControl extends Disposable {
 				}
 				break;
 			case MenubarState.OPEN:
-				if (!this.isVisible) {
+				if (!isVisible) {
 					this.showMenubar();
 				}
 
@@ -338,7 +344,13 @@ export class MenubarControl extends Disposable {
 	}
 
 	private setUnfocusedState(): void {
-		this.focusState = this.currentMenubarVisibility === 'toggle' || this.currentMenubarVisibility === 'hidden' ? MenubarState.HIDDEN : MenubarState.VISIBLE;
+		if (this.currentMenubarVisibility === 'toggle' || this.currentMenubarVisibility === 'hidden') {
+			this.focusState = MenubarState.HIDDEN;
+		} else if (this.currentMenubarVisibility === 'default' && browser.isFullscreen()) {
+			this.focusState = MenubarState.HIDDEN;
+		} else {
+			this.focusState = MenubarState.VISIBLE;
+		}
 	}
 
 	private hideMenubar(): void {
@@ -495,14 +507,14 @@ export class MenubarControl extends Disposable {
 		let uri: URI;
 
 		if (isSingleFolderWorkspaceIdentifier(workspace) && !isFile) {
-			label = getWorkspaceLabel(workspace, this.environmentService, this.uriDisplayService, { verbose: true });
+			label = getWorkspaceLabel(workspace, this.environmentService, this.uriLabelService, { verbose: true });
 			uri = workspace;
 		} else if (isWorkspaceIdentifier(workspace)) {
-			label = getWorkspaceLabel(workspace, this.environmentService, this.uriDisplayService, { verbose: true });
+			label = getWorkspaceLabel(workspace, this.environmentService, this.uriLabelService, { verbose: true });
 			uri = URI.file(workspace.configPath);
 		} else {
 			uri = workspace;
-			label = this.uriDisplayService.getLabel(uri);
+			label = this.uriLabelService.getLabel(uri);
 		}
 
 		return new Action(commandId, label, undefined, undefined, (event) => {

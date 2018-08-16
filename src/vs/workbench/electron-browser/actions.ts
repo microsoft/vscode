@@ -46,7 +46,7 @@ import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { Context } from 'vs/platform/contextkey/browser/contextKeyService';
 import { IWorkbenchIssueService } from 'vs/workbench/services/issue/common/issue';
 import { INotificationService } from 'vs/platform/notification/common/notification';
-import { IUriDisplayService } from 'vs/platform/uriDisplay/common/uriDisplay';
+import { IUriLabelService } from 'vs/platform/uriLabel/common/uriLabel';
 import { dirname } from 'vs/base/common/resources';
 import { IModelService } from 'vs/editor/common/services/modelService';
 import { IModeService } from 'vs/editor/common/services/modeService';
@@ -700,7 +700,7 @@ export abstract class BaseOpenRecentAction extends Action {
 		private quickInputService: IQuickInputService,
 		private contextService: IWorkspaceContextService,
 		private environmentService: IEnvironmentService,
-		private uriDisplayService: IUriDisplayService,
+		private uriLabelService: IUriLabelService,
 		private keybindingService: IKeybindingService,
 		private modelService: IModelService,
 		private modeService: IModeService,
@@ -717,22 +717,22 @@ export abstract class BaseOpenRecentAction extends Action {
 
 	private openRecent(recentWorkspaces: (IWorkspaceIdentifier | ISingleFolderWorkspaceIdentifier)[], recentFiles: URI[]): void {
 
-		const toPick = (workspace: IWorkspaceIdentifier | ISingleFolderWorkspaceIdentifier | URI, fileKind: FileKind, environmentService: IEnvironmentService, uriDisplayService: IUriDisplayService, buttons: IQuickInputButton[]) => {
+		const toPick = (workspace: IWorkspaceIdentifier | ISingleFolderWorkspaceIdentifier | URI, fileKind: FileKind, environmentService: IEnvironmentService, uriLabelService: IUriLabelService, buttons: IQuickInputButton[]) => {
 			let resource: URI;
 			let label: string;
 			let description: string;
 			if (isSingleFolderWorkspaceIdentifier(workspace) && fileKind !== FileKind.FILE) {
 				resource = workspace;
-				label = getWorkspaceLabel(workspace, environmentService, uriDisplayService);
-				description = uriDisplayService.getLabel(dirname(resource));
+				label = getWorkspaceLabel(workspace, environmentService, uriLabelService);
+				description = uriLabelService.getLabel(dirname(resource));
 			} else if (isWorkspaceIdentifier(workspace)) {
 				resource = URI.file(workspace.configPath);
-				label = getWorkspaceLabel(workspace, environmentService, uriDisplayService);
-				description = uriDisplayService.getLabel(dirname(resource));
+				label = getWorkspaceLabel(workspace, environmentService, uriLabelService);
+				description = uriLabelService.getLabel(dirname(resource));
 			} else {
 				resource = workspace;
 				label = getBaseLabel(workspace);
-				description = uriDisplayService.getLabel(dirname(resource));
+				description = uriLabelService.getLabel(dirname(resource));
 			}
 
 			return {
@@ -751,8 +751,8 @@ export abstract class BaseOpenRecentAction extends Action {
 			return this.windowService.openWindow([resource], { forceNewWindow, forceOpenWorkspaceAsFile: isFile });
 		};
 
-		const workspacePicks = recentWorkspaces.map(workspace => toPick(workspace, isSingleFolderWorkspaceIdentifier(workspace) ? FileKind.FOLDER : FileKind.ROOT_FOLDER, this.environmentService, this.uriDisplayService, !this.isQuickNavigate() ? [this.removeFromRecentlyOpened] : void 0));
-		const filePicks = recentFiles.map(p => toPick(p, FileKind.FILE, this.environmentService, this.uriDisplayService, !this.isQuickNavigate() ? [this.removeFromRecentlyOpened] : void 0));
+		const workspacePicks = recentWorkspaces.map(workspace => toPick(workspace, isSingleFolderWorkspaceIdentifier(workspace) ? FileKind.FOLDER : FileKind.ROOT_FOLDER, this.environmentService, this.uriLabelService, !this.isQuickNavigate() ? [this.removeFromRecentlyOpened] : void 0));
+		const filePicks = recentFiles.map(p => toPick(p, FileKind.FILE, this.environmentService, this.uriLabelService, !this.isQuickNavigate() ? [this.removeFromRecentlyOpened] : void 0));
 
 		// focus second entry if the first recent workspace is the current workspace
 		let autoFocusSecondEntry: boolean = recentWorkspaces[0] && this.contextService.isCurrentWorkspace(recentWorkspaces[0]);
@@ -800,9 +800,9 @@ export class OpenRecentAction extends BaseOpenRecentAction {
 		@IKeybindingService keybindingService: IKeybindingService,
 		@IModelService modelService: IModelService,
 		@IModeService modeService: IModeService,
-		@IUriDisplayService uriDisplayService: IUriDisplayService
+		@IUriLabelService uriLabelService: IUriLabelService
 	) {
-		super(id, label, windowService, windowsService, quickInputService, contextService, environmentService, uriDisplayService, keybindingService, modelService, modeService);
+		super(id, label, windowService, windowsService, quickInputService, contextService, environmentService, uriLabelService, keybindingService, modelService, modeService);
 	}
 
 	protected isQuickNavigate(): boolean {
@@ -826,9 +826,9 @@ export class QuickOpenRecentAction extends BaseOpenRecentAction {
 		@IKeybindingService keybindingService: IKeybindingService,
 		@IModelService modelService: IModelService,
 		@IModeService modeService: IModeService,
-		@IUriDisplayService uriDisplayService: IUriDisplayService
+		@IUriLabelService uriLabelService: IUriLabelService
 	) {
-		super(id, label, windowService, windowsService, quickInputService, contextService, environmentService, uriDisplayService, keybindingService, modelService, modeService);
+		super(id, label, windowService, windowsService, quickInputService, contextService, environmentService, uriLabelService, keybindingService, modelService, modeService);
 	}
 
 	protected isQuickNavigate(): boolean {
