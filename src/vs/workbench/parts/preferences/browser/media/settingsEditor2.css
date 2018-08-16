@@ -295,6 +295,11 @@
 	visibility: hidden;
 }
 
+.settings-editor.search-mode > .settings-body > .settings-tree-container .setting-measure-container.measure-bool-description .setting-item-description {
+	/* Allocate space for the checkbox control */
+	margin-left: 27px;
+}
+
 .settings-editor > .settings-body > .settings-tree-container .setting-item .setting-item-enumDescription {
 	display: none;
 }

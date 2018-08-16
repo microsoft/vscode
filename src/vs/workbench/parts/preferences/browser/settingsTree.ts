@@ -274,8 +274,9 @@ export class SettingsRenderer implements ITreeRenderer {
 	private readonly _onDidFocusSetting: Emitter<SettingsTreeSettingElement> = new Emitter<SettingsTreeSettingElement>();
 	public readonly onDidFocusSetting: Event<SettingsTreeSettingElement> = this._onDidFocusSetting.event;
 
-	private measureContainer: HTMLElement;
-	private measureTemplatesPool = new Map<string, ISettingItemTemplate>();
+	private descriptionMeasureContainer: HTMLElement;
+	private longestSingleLineDescription = 0;
+
 	private rowHeightCache = new Map<string, number>();
 	private lastRenderedWidth: number;
 
@@ -287,7 +288,11 @@ export class SettingsRenderer implements ITreeRenderer {
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@ICommandService private readonly commandService: ICommandService,
 	) {
-		this.measureContainer = DOM.append(_measureContainer, $('.setting-measure-container.monaco-tree-row'));
+		this.descriptionMeasureContainer = $('.setting-item-description');
+		DOM.append(_measureContainer,
+			$('.setting-measure-container.monaco-tree-row', undefined,
+				$('.setting-item', undefined,
+					this.descriptionMeasureContainer)));
 	}
 
 	updateWidth(width: number): void {
@@ -338,19 +343,44 @@ export class SettingsRenderer implements ITreeRenderer {
 	}
 
 	private measureSettingElementHeight(tree: ITree, element: SettingsTreeSettingElement): number {
-		const templateId = this.getTemplateId(tree, element);
-		const template: ISettingItemTemplate = this.measureTemplatesPool.get(templateId) || this.renderTemplate(tree, templateId, $('.setting-measure-helper')) as ISettingItemTemplate;
-		this.measureTemplatesPool.set(templateId, template);
-		this.renderElement(tree, element, templateId, template);
+		let heightExcludingDescription = 88;
 
-		this.measureContainer.appendChild(template.containerElement);
-		const height = this.measureContainer.offsetHeight;
-		this.measureContainer.removeChild(this.measureContainer.firstChild);
-		return height;
+		if (element.valueType === 'boolean') {
+			heightExcludingDescription = 60;
+		}
+
+		return heightExcludingDescription + this.measureSettingDescription(element);
+	}
+
+	private measureSettingDescription(element: SettingsTreeSettingElement): number {
+		if (element.description.length < this.longestSingleLineDescription * .8) {
+			// Most setting descriptions are one short line, so try to avoid measuring them.
+			// If the description is less than 80% of the longest single line description, assume this will also render to be one line.
+			return 18;
+		}
+
+		const boolMeasureClass = 'measure-bool-description';
+		if (element.valueType === 'boolean') {
+			this.descriptionMeasureContainer.classList.add(boolMeasureClass);
+		} else if (this.descriptionMeasureContainer.classList.contains(boolMeasureClass)) {
+			this.descriptionMeasureContainer.classList.remove(boolMeasureClass);
+		}
+
+		// Remove markdown links and setting links
+		const measureText = element.description
+			.replace(/\[(.*)\]\(.*\)/g, '$1')
+			.replace(/`#(.*)#`/g, '$1');
+
+		this.descriptionMeasureContainer.innerText = measureText;
+		const h = this.descriptionMeasureContainer.offsetHeight;
+		if (h < 20 && measureText.length > this.longestSingleLineDescription) {
+			this.longestSingleLineDescription = measureText.length;
+		}
+
+		return h;
 	}
 
 	getTemplateId(tree: ITree, element: SettingsTreeElement): string {
-
 		if (element instanceof SettingsTreeGroupElement) {
 			return SETTINGS_GROUP_ELEMENT_TEMPLATE_ID;
 		}
