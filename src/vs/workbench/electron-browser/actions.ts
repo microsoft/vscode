@@ -52,6 +52,7 @@ import { IModelService } from 'vs/editor/common/services/modelService';
 import { IModeService } from 'vs/editor/common/services/modeService';
 import { IQuickInputService, IQuickPickItem, IQuickInputButton, IQuickPickSeparator, IKeyMods } from 'vs/platform/quickinput/common/quickInput';
 import { getIconClasses } from 'vs/workbench/browser/labels';
+import { timeout } from 'vs/base/common/async';
 
 // --- actions
 
@@ -304,15 +305,19 @@ export class ShowStartupPerformance extends Action {
 		super(id, label);
 	}
 
-	run(): TPromise<boolean> {
+	async run(): TPromise<boolean> {
 
 		// Show dev tools
 		this.windowService.openDevTools();
 
-		// Print to console
-		setTimeout(() => {
-			(<any>console).group('Startup Performance Measurement');
+		Promise.all([
+			timeout(1000), // needed to print a table
+			this.extensionService.whenInstalledExtensionsRegistered()
+		]).then(() => {
+
 			const metrics: IStartupMetrics = this.timerService.startupMetrics;
+
+			console.group('Startup Performance Measurement');
 			console.log(`OS: ${metrics.platform} (${metrics.release})`);
 			console.log(`CPUs: ${metrics.cpus.model} (${metrics.cpus.count} x ${metrics.cpus.speed})`);
 			console.log(`Memory (System): ${(metrics.totalmem / (1024 * 1024 * 1024)).toFixed(2)}GB (${(metrics.freemem / (1024 * 1024 * 1024)).toFixed(2)}GB free)`);
@@ -328,20 +333,20 @@ export class ShowStartupPerformance extends Action {
 				nodeModuleLoadTime = nodeModuleTimes.duration;
 			}
 
-			(<any>console).table(this.getStartupMetricsTable(nodeModuleLoadTime));
+			console.table(this.getStartupMetricsTable(nodeModuleLoadTime));
 
 			if (this.environmentService.performance) {
 				const data = this.analyzeLoaderStats();
 				for (let type in data) {
-					(<any>console).groupCollapsed(`Loader: ${type}`);
-					(<any>console).table(data[type]);
-					(<any>console).groupEnd();
+					console.groupCollapsed(`Loader: ${type}`);
+					console.table(data[type]);
+					console.groupEnd();
 				}
 			}
 
-			(<any>console).groupEnd();
+			console.groupEnd();
 
-			(<any>console).group('Extension Activation Stats');
+			console.group('Extension Activation Stats');
 			let extensionsActivationTimes: { [id: string]: ActivationTimes; } = {};
 			let extensionsStatus = this.extensionService.getExtensionsStatus();
 			for (let id in extensionsStatus) {
@@ -350,18 +355,18 @@ export class ShowStartupPerformance extends Action {
 					extensionsActivationTimes[id] = status.activationTimes;
 				}
 			}
-			(<any>console).table(extensionsActivationTimes);
-			(<any>console).groupEnd();
+			console.table(extensionsActivationTimes);
+			console.groupEnd();
 
-			(<any>console).group('Raw Startup Timers (CSV)');
+			console.group('Raw Startup Timers (CSV)');
 			let value = `Name\tStart\n`;
 			let entries = getEntries('mark');
 			for (const entry of entries) {
 				value += `${entry.name}\t${entry.startTime}\n`;
 			}
 			console.log(value);
-			(<any>console).groupEnd();
-		}, 1000);
+			console.groupEnd();
+		});
 
 		return TPromise.as(true);
 	}
@@ -376,14 +381,14 @@ export class ShowStartupPerformance extends Action {
 			table.push({ Topic: '[main] app.isReady => window.loadUrl()', 'Took (ms)': metrics.timers.ellapsedWindowLoad });
 		}
 
-		table.push({ Topic: '[renderer] window.loadUrl() => begin to require(workbench.main.js)', 'Took (ms)': metrics.timers.ellapsedWindowLoadToRequire });
+		table.push({ Topic: '[main->renderer] window.loadUrl() => begin to require(workbench.main.js)', 'Took (ms)': metrics.timers.ellapsedWindowLoadToRequire });
 		table.push({ Topic: '[renderer] require(workbench.main.js)', 'Took (ms)': metrics.timers.ellapsedRequire });
 
 		if (nodeModuleLoadTime) {
 			table.push({ Topic: '[renderer] -> of which require() node_modules', 'Took (ms)': nodeModuleLoadTime });
 		}
 
-		table.push({ Topic: '[renderer] create extension host => extensions onReady()', 'Took (ms)': metrics.timers.ellapsedExtensions });
+		table.push({ Topic: '[renderer] register extensions & spawn extension host', 'Took (ms)': metrics.timers.ellapsedExtensions });
 		table.push({ Topic: '[renderer] restore viewlet', 'Took (ms)': metrics.timers.ellapsedViewletRestore });
 		table.push({ Topic: '[renderer] restore editor view state', 'Took (ms)': metrics.timers.ellapsedEditorRestore });
 		table.push({ Topic: '[renderer] overall workbench load', 'Took (ms)': metrics.timers.ellapsedWorkbench });
