@@ -468,8 +468,9 @@ export class SettingsRenderer implements ITreeRenderer {
 		DOM.addClass(container, 'setting-item');
 		DOM.addClass(container, 'setting-item-' + typeClass);
 		const titleElement = DOM.append(container, $('.setting-item-title'));
-		const categoryElement = DOM.append(titleElement, $('span.setting-item-category'));
-		const labelElement = DOM.append(titleElement, $('span.setting-item-label'));
+		const labelCategoryContainer = DOM.append(titleElement, $('.setting-item-cat-label-container'));
+		const categoryElement = DOM.append(labelCategoryContainer, $('span.setting-item-category'));
+		const labelElement = DOM.append(labelCategoryContainer, $('span.setting-item-label'));
 		const isConfiguredElement = DOM.append(titleElement, $('span.setting-item-is-configured-label'));
 		isConfiguredElement.textContent = localize('configured', "Modified");
 		const otherOverridesElement = DOM.append(titleElement, $('span.setting-item-overrides'));
@@ -1138,11 +1139,7 @@ export class SettingsTreeController extends WorkbenchTreeController {
 			return true;
 		}
 
-		// Without this, clicking on the setting description causes the tree to lose focus. I don't know why.
-		// The superclass does not always call it because of DND which is not used here.
-		eventish.preventDefault();
-
-		return super.onLeftClick(tree, element, eventish, origin);
+		return false;
 	}
 }
 
