@@ -191,7 +191,7 @@
 	max-height: 500px;
 	border-radius: 3px;
 	border: 0px;
-	padding: 6px 12px;
+	padding: 6px 0 6px 12px;
 }
 
 .monaco-editor .review-widget .body .comment-form .form-actions {
