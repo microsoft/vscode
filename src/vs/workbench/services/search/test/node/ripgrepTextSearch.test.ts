@@ -157,7 +157,7 @@ suite('RipgrepParser', () => {
 
 	test('Parses chunks broken in the middle of a multibyte character', () => {
 		const text = getFileLine('foo/bar') + '\n' + getMatchLine(0, ['before漢', 'match', 'after']) + '\n';
-		const buf = new Buffer(text);
+		const buf = Buffer.from(text);
 
 		// Split the buffer at every possible position - it should still be parsed correctly
 		for (let i = 0; i < buf.length; i++) {
