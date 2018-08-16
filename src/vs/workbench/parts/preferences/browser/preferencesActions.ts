@@ -90,7 +90,7 @@ export class OpenSettingsJsonAction extends Action {
 	}
 
 	public run(event?: any): TPromise<any> {
-		return this.preferencesService.openSettings();
+		return this.preferencesService.openSettings(true);
 	}
 }
 
