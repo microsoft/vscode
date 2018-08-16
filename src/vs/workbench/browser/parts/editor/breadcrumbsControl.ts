@@ -294,7 +294,7 @@ export class BreadcrumbsControl {
 			getAnchor: () => {
 
 				let pickerHeight = 330;
-				let pickerWidth = Math.max(window.innerWidth / 4.17, dom.getTotalWidth(event.node));
+				let pickerWidth = window.innerWidth / 4.17;
 				let pickerArrowSize = 8;
 				let pickerArrowOffset: number;
 
@@ -305,7 +305,12 @@ export class BreadcrumbsControl {
 					x = window.innerWidth - pickerWidth;
 				}
 				if (event.payload instanceof StandardMouseEvent) {
-					pickerArrowOffset = event.payload.posx - x - pickerArrowSize;
+					let maxPickerArrowOffset = pickerWidth - 2 * pickerArrowSize;
+					pickerArrowOffset = event.payload.posx - x;
+					if (pickerArrowOffset > maxPickerArrowOffset) {
+						x += pickerArrowOffset - maxPickerArrowOffset;
+						pickerArrowOffset = maxPickerArrowOffset;
+					}
 				} else {
 					pickerArrowOffset = (data.left + (data.width * .3)) - x;
 				}
