@@ -15,6 +15,7 @@ import { addDisposableListener, EventType, addClass, EventHelper, removeClass, t
 import { IEditorPartOptions, EDITOR_TITLE_HEIGHT } from 'vs/workbench/browser/parts/editor/editor';
 import { IAction } from 'vs/base/common/actions';
 import { CLOSE_EDITOR_COMMAND_ID } from 'vs/workbench/browser/parts/editor/editorCommands';
+import { editorBackground } from 'vs/platform/theme/common/colorRegistry';
 
 export class NoTabsTitleControl extends TitleControl {
 	private titleContainer: HTMLElement;
@@ -40,7 +41,7 @@ export class NoTabsTitleControl extends TitleControl {
 		this._register(this.editorLabel.onClick(e => this.onTitleLabelClick(e)));
 
 		// Breadcrumbs
-		this.createBreadcrumbsControl(labelContainer, { showFileIcons: false, showSymbolIcons: true, showDecorationColors: false, extraClasses: ['no-tabs-breadcrumbs'] });
+		this.createBreadcrumbsControl(labelContainer, { showFileIcons: false, showSymbolIcons: true, showDecorationColors: false, extraClasses: ['no-tabs-breadcrumbs'], breadcrumbsBackground: editorBackground });
 
 		// Right Actions Container
 		const actionsContainer = document.createElement('div');

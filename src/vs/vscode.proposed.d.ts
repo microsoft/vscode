@@ -3,9 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-// This is the place for API experiments and proposal.
-
-import { QuickPickItem } from 'vscode';
+// This is the place for API experiments and proposals.
 
 declare module 'vscode' {
 
@@ -359,11 +357,11 @@ declare module 'vscode' {
 
 	//todo@joh -> make class
 	export interface DecorationData {
-		priority?: number;
+		letter?: string;
 		title?: string;
-		bubble?: boolean;
-		abbreviation?: string; // letter, not optional
 		color?: ThemeColor;
+		priority?: number;
+		bubble?: boolean;
 		source?: string; // hacky... we should remove it and use equality under the hood
 	}
 

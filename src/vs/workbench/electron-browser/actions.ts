@@ -22,7 +22,7 @@ import { IWorkspaceConfigurationService } from 'vs/workbench/services/configurat
 import { isMacintosh, isLinux, language } from 'vs/base/common/platform';
 import * as browser from 'vs/base/browser/browser';
 import { IIntegrityService } from 'vs/platform/integrity/common/integrity';
-import { ITimerService, IStartupMetrics } from 'vs/workbench/services/timer/common/timerService';
+import { ITimerService, IStartupMetrics } from 'vs/workbench/services/timer/electron-browser/timerService';
 import { IEditorGroupsService, GroupDirection, GroupLocation, IFindGroupScope } from 'vs/workbench/services/group/common/editorGroupsService';
 import { IPanelService } from 'vs/workbench/services/panel/common/panelService';
 import { IPartService, Parts, Position as PartPosition } from 'vs/workbench/services/part/common/partService';
@@ -46,12 +46,13 @@ import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { Context } from 'vs/platform/contextkey/browser/contextKeyService';
 import { IWorkbenchIssueService } from 'vs/workbench/services/issue/common/issue';
 import { INotificationService } from 'vs/platform/notification/common/notification';
-import { IUriDisplayService } from 'vs/platform/uriDisplay/common/uriDisplay';
+import { IUriLabelService } from 'vs/platform/uriLabel/common/uriLabel';
 import { dirname } from 'vs/base/common/resources';
 import { IModelService } from 'vs/editor/common/services/modelService';
 import { IModeService } from 'vs/editor/common/services/modeService';
 import { IQuickInputService, IQuickPickItem, IQuickInputButton, IQuickPickSeparator, IKeyMods } from 'vs/platform/quickinput/common/quickInput';
 import { getIconClasses } from 'vs/workbench/browser/labels';
+import { timeout } from 'vs/base/common/async';
 
 // --- actions
 
@@ -309,16 +310,20 @@ export class ShowStartupPerformance extends Action {
 		// Show dev tools
 		this.windowService.openDevTools();
 
-		// Print to console
-		setTimeout(() => {
-			(<any>console).group('Startup Performance Measurement');
-			const metrics: IStartupMetrics = this.timerService.startupMetrics;
+		Promise.all([
+			timeout(1000), // needed to print a table
+			this.timerService.startupMetrics
+		]).then(([, metrics]) => {
+
+			console.group('Startup Performance Measurement');
 			console.log(`OS: ${metrics.platform} (${metrics.release})`);
 			console.log(`CPUs: ${metrics.cpus.model} (${metrics.cpus.count} x ${metrics.cpus.speed})`);
 			console.log(`Memory (System): ${(metrics.totalmem / (1024 * 1024 * 1024)).toFixed(2)}GB (${(metrics.freemem / (1024 * 1024 * 1024)).toFixed(2)}GB free)`);
 			console.log(`Memory (Process): ${(metrics.meminfo.workingSetSize / 1024).toFixed(2)}MB working set (${(metrics.meminfo.peakWorkingSetSize / 1024).toFixed(2)}MB peak, ${(metrics.meminfo.privateBytes / 1024).toFixed(2)}MB private, ${(metrics.meminfo.sharedBytes / 1024).toFixed(2)}MB shared)`);
 			console.log(`VM (likelyhood): ${metrics.isVMLikelyhood}%`);
+
 			console.log(`Initial Startup: ${metrics.initialStartup}`);
+			console.log(`Has ${metrics.windowCount - 1} other windows`);
 			console.log(`Screen Reader Active: ${metrics.hasAccessibilitySupport}`);
 			console.log(`Empty Workspace: ${metrics.emptyWorkbench}`);
 
@@ -328,20 +333,20 @@ export class ShowStartupPerformance extends Action {
 				nodeModuleLoadTime = nodeModuleTimes.duration;
 			}
 
-			(<any>console).table(this.getStartupMetricsTable(nodeModuleLoadTime));
+			console.table(this.getStartupMetricsTable(metrics, nodeModuleLoadTime));
 
 			if (this.environmentService.performance) {
 				const data = this.analyzeLoaderStats();
 				for (let type in data) {
-					(<any>console).groupCollapsed(`Loader: ${type}`);
-					(<any>console).table(data[type]);
-					(<any>console).groupEnd();
+					console.groupCollapsed(`Loader: ${type}`);
+					console.table(data[type]);
+					console.groupEnd();
 				}
 			}
 
-			(<any>console).groupEnd();
+			console.groupEnd();
 
-			(<any>console).group('Extension Activation Stats');
+			console.group('Extension Activation Stats');
 			let extensionsActivationTimes: { [id: string]: ActivationTimes; } = {};
 			let extensionsStatus = this.extensionService.getExtensionsStatus();
 			for (let id in extensionsStatus) {
@@ -350,46 +355,43 @@ export class ShowStartupPerformance extends Action {
 					extensionsActivationTimes[id] = status.activationTimes;
 				}
 			}
-			(<any>console).table(extensionsActivationTimes);
-			(<any>console).groupEnd();
+			console.table(extensionsActivationTimes);
+			console.groupEnd();
 
-			(<any>console).group('Raw Startup Timers (CSV)');
+			console.group('Raw Startup Timers (CSV)');
 			let value = `Name\tStart\n`;
 			let entries = getEntries('mark');
 			for (const entry of entries) {
 				value += `${entry.name}\t${entry.startTime}\n`;
 			}
 			console.log(value);
-			(<any>console).groupEnd();
-		}, 1000);
+			console.groupEnd();
+		});
 
 		return TPromise.as(true);
 	}
 
-	private getStartupMetricsTable(nodeModuleLoadTime?: number): any[] {
-		const table: any[] = [];
-		const metrics: IStartupMetrics = this.timerService.startupMetrics;
+	private getStartupMetricsTable(metrics: IStartupMetrics, nodeModuleLoadTime?: number): any {
+		const table = Object.create(null);
 
-		if (metrics.initialStartup) {
-			table.push({ Topic: '[main] start => app.isReady', 'Took (ms)': metrics.timers.ellapsedAppReady });
-			table.push({ Topic: '[main] nls:start => nls:end', 'Took (ms)': metrics.timers.ellapsedNlsGeneration });
-			table.push({ Topic: '[main] app.isReady => window.loadUrl()', 'Took (ms)': metrics.timers.ellapsedWindowLoad });
-		}
+		table['start => app.isReady'] = { Process: '[main]', 'Took (ms)': metrics.timers.ellapsedAppReady, Meta: metrics.initialStartup };
+		table['nls:start => nls:end'] = { Process: '[main]', 'Took (ms)': metrics.timers.ellapsedNlsGeneration, Meta: metrics.initialStartup };
+		table['app.isReady => window.loadUrl()'] = { Process: '[main]', 'Took (ms)': metrics.timers.ellapsedWindowLoad, Meta: metrics.initialStartup };
 
-		table.push({ Topic: '[renderer] window.loadUrl() => begin to require(workbench.main.js)', 'Took (ms)': metrics.timers.ellapsedWindowLoadToRequire });
-		table.push({ Topic: '[renderer] require(workbench.main.js)', 'Took (ms)': metrics.timers.ellapsedRequire });
+		table['window.loadUrl() => begin to require(workbench.main.js)'] = { Process: '[main->renderer]', 'Took (ms)': metrics.timers.ellapsedWindowLoadToRequire };
+		table['require(workbench.main.js)'] = { Process: '[renderer]', 'Took (ms)': metrics.timers.ellapsedRequire, Meta: metrics.didUseCachedData ? 'did use cached data' : 'did NOT use cached data' };
 
 		if (nodeModuleLoadTime) {
-			table.push({ Topic: '[renderer] -> of which require() node_modules', 'Took (ms)': nodeModuleLoadTime });
+			table['[renderer] -> of which require() node_modules'] = { Process: '[renderer]', 'Took(ms)': nodeModuleLoadTime };
 		}
 
-		table.push({ Topic: '[renderer] create extension host => extensions onReady()', 'Took (ms)': metrics.timers.ellapsedExtensions });
-		table.push({ Topic: '[renderer] restore viewlet', 'Took (ms)': metrics.timers.ellapsedViewletRestore });
-		table.push({ Topic: '[renderer] restore editor view state', 'Took (ms)': metrics.timers.ellapsedEditorRestore });
-		table.push({ Topic: '[renderer] overall workbench load', 'Took (ms)': metrics.timers.ellapsedWorkbench });
-		table.push({ Topic: '------------------------------------------------------' });
-		table.push({ Topic: '[main, renderer] start => extensions ready', 'Took (ms)': metrics.timers.ellapsedExtensionsReady });
-		table.push({ Topic: '[main, renderer] start => workbench ready', 'Took (ms)': metrics.ellapsed });
+		table['register extensions & spawn extension host'] = { Process: '[renderer]', 'Took (ms)': metrics.timers.ellapsedExtensions };
+		table['restore viewlet'] = { Process: '[renderer]', 'Took (ms)': metrics.timers.ellapsedViewletRestore, Meta: metrics.viewletId };
+		table['restore editor view state'] = { Process: '[renderer]', 'Took (ms)': metrics.timers.ellapsedEditorRestore, Meta: metrics.editorIds.join(', ') };
+		table['overall workbench load'] = { Process: '[renderer]', 'Took (ms)': metrics.timers.ellapsedWorkbench };
+
+		table['workbench ready'] = { Process: '[main, renderer]', 'Took (ms)': metrics.ellapsed };
+		table['extensions registered'] = { Process: '[renderer]', 'Took (ms)': metrics.timers.ellapsedExtensionsReady };
 
 		return table;
 	}
@@ -700,7 +702,7 @@ export abstract class BaseOpenRecentAction extends Action {
 		private quickInputService: IQuickInputService,
 		private contextService: IWorkspaceContextService,
 		private environmentService: IEnvironmentService,
-		private uriDisplayService: IUriDisplayService,
+		private uriLabelService: IUriLabelService,
 		private keybindingService: IKeybindingService,
 		private modelService: IModelService,
 		private modeService: IModeService,
@@ -717,22 +719,22 @@ export abstract class BaseOpenRecentAction extends Action {
 
 	private openRecent(recentWorkspaces: (IWorkspaceIdentifier | ISingleFolderWorkspaceIdentifier)[], recentFiles: URI[]): void {
 
-		const toPick = (workspace: IWorkspaceIdentifier | ISingleFolderWorkspaceIdentifier | URI, fileKind: FileKind, environmentService: IEnvironmentService, uriDisplayService: IUriDisplayService, buttons: IQuickInputButton[]) => {
+		const toPick = (workspace: IWorkspaceIdentifier | ISingleFolderWorkspaceIdentifier | URI, fileKind: FileKind, environmentService: IEnvironmentService, uriLabelService: IUriLabelService, buttons: IQuickInputButton[]) => {
 			let resource: URI;
 			let label: string;
 			let description: string;
 			if (isSingleFolderWorkspaceIdentifier(workspace) && fileKind !== FileKind.FILE) {
 				resource = workspace;
-				label = getWorkspaceLabel(workspace, environmentService, uriDisplayService);
-				description = uriDisplayService.getLabel(dirname(resource));
+				label = getWorkspaceLabel(workspace, environmentService, uriLabelService);
+				description = uriLabelService.getLabel(dirname(resource));
 			} else if (isWorkspaceIdentifier(workspace)) {
 				resource = URI.file(workspace.configPath);
-				label = getWorkspaceLabel(workspace, environmentService, uriDisplayService);
-				description = uriDisplayService.getLabel(dirname(resource));
+				label = getWorkspaceLabel(workspace, environmentService, uriLabelService);
+				description = uriLabelService.getLabel(dirname(resource));
 			} else {
 				resource = workspace;
 				label = getBaseLabel(workspace);
-				description = uriDisplayService.getLabel(dirname(resource));
+				description = uriLabelService.getLabel(dirname(resource));
 			}
 
 			return {
@@ -751,8 +753,8 @@ export abstract class BaseOpenRecentAction extends Action {
 			return this.windowService.openWindow([resource], { forceNewWindow, forceOpenWorkspaceAsFile: isFile });
 		};
 
-		const workspacePicks = recentWorkspaces.map(workspace => toPick(workspace, isSingleFolderWorkspaceIdentifier(workspace) ? FileKind.FOLDER : FileKind.ROOT_FOLDER, this.environmentService, this.uriDisplayService, !this.isQuickNavigate() ? [this.removeFromRecentlyOpened] : void 0));
-		const filePicks = recentFiles.map(p => toPick(p, FileKind.FILE, this.environmentService, this.uriDisplayService, !this.isQuickNavigate() ? [this.removeFromRecentlyOpened] : void 0));
+		const workspacePicks = recentWorkspaces.map(workspace => toPick(workspace, isSingleFolderWorkspaceIdentifier(workspace) ? FileKind.FOLDER : FileKind.ROOT_FOLDER, this.environmentService, this.uriLabelService, !this.isQuickNavigate() ? [this.removeFromRecentlyOpened] : void 0));
+		const filePicks = recentFiles.map(p => toPick(p, FileKind.FILE, this.environmentService, this.uriLabelService, !this.isQuickNavigate() ? [this.removeFromRecentlyOpened] : void 0));
 
 		// focus second entry if the first recent workspace is the current workspace
 		let autoFocusSecondEntry: boolean = recentWorkspaces[0] && this.contextService.isCurrentWorkspace(recentWorkspaces[0]);
@@ -800,9 +802,9 @@ export class OpenRecentAction extends BaseOpenRecentAction {
 		@IKeybindingService keybindingService: IKeybindingService,
 		@IModelService modelService: IModelService,
 		@IModeService modeService: IModeService,
-		@IUriDisplayService uriDisplayService: IUriDisplayService
+		@IUriLabelService uriLabelService: IUriLabelService
 	) {
-		super(id, label, windowService, windowsService, quickInputService, contextService, environmentService, uriDisplayService, keybindingService, modelService, modeService);
+		super(id, label, windowService, windowsService, quickInputService, contextService, environmentService, uriLabelService, keybindingService, modelService, modeService);
 	}
 
 	protected isQuickNavigate(): boolean {
@@ -826,9 +828,9 @@ export class QuickOpenRecentAction extends BaseOpenRecentAction {
 		@IKeybindingService keybindingService: IKeybindingService,
 		@IModelService modelService: IModelService,
 		@IModeService modeService: IModeService,
-		@IUriDisplayService uriDisplayService: IUriDisplayService
+		@IUriLabelService uriLabelService: IUriLabelService
 	) {
-		super(id, label, windowService, windowsService, quickInputService, contextService, environmentService, uriDisplayService, keybindingService, modelService, modeService);
+		super(id, label, windowService, windowsService, quickInputService, contextService, environmentService, uriLabelService, keybindingService, modelService, modeService);
 	}
 
 	protected isQuickNavigate(): boolean {
@@ -908,8 +910,11 @@ export class ReportPerformanceIssueAction extends Action {
 	}
 
 	run(appendix?: string): TPromise<boolean> {
-		this.integrityService.isPure().then(res => {
-			const issueUrl = this.generatePerformanceIssueUrl(product.reportIssueUrl, pkg.name, pkg.version, product.commit, product.date, res.isPure, appendix);
+		Promise.all([
+			this.timerService.startupMetrics,
+			this.integrityService.isPure()
+		]).then(([metrics, integrity]) => {
+			const issueUrl = this.generatePerformanceIssueUrl(metrics, product.reportIssueUrl, pkg.name, pkg.version, product.commit, product.date, integrity.isPure, appendix);
 
 			window.open(issueUrl);
 		});
@@ -917,7 +922,7 @@ export class ReportPerformanceIssueAction extends Action {
 		return TPromise.wrap(true);
 	}
 
-	private generatePerformanceIssueUrl(baseUrl: string, name: string, version: string, commit: string, date: string, isPure: boolean, appendix?: string): string {
+	private generatePerformanceIssueUrl(metrics: IStartupMetrics, baseUrl: string, name: string, version: string, commit: string, date: string, isPure: boolean, appendix?: string): string {
 
 		if (!appendix) {
 			appendix = `Additional Steps to Reproduce (if any):
@@ -931,7 +936,6 @@ export class ReportPerformanceIssueAction extends Action {
 			nodeModuleLoadTime = this.computeNodeModulesLoadTime();
 		}
 
-		const metrics: IStartupMetrics = this.timerService.startupMetrics;
 
 		const osVersion = `${os.type()} ${os.arch()} ${os.release()}`;
 		const queryStringPrefix = baseUrl.indexOf('?') === -1 ? '?' : '&';
@@ -948,7 +952,7 @@ export class ReportPerformanceIssueAction extends Action {
 - Empty Workspace: <code>${metrics.emptyWorkbench ? 'yes' : 'no'}</code>
 - Timings:
 
-${this.generatePerformanceTable(nodeModuleLoadTime)}
+${this.generatePerformanceTable(metrics, nodeModuleLoadTime)}
 
 ---
 
@@ -974,20 +978,19 @@ ${appendix}`
 		return Math.round(total);
 	}
 
-	private generatePerformanceTable(nodeModuleLoadTime?: number): string {
+	private generatePerformanceTable(metrics: IStartupMetrics, nodeModuleLoadTime?: number): string {
 		let tableHeader = `|Component|Task|Time (ms)|
 |---|---|---|`;
 
-		const table = this.getStartupMetricsTable(nodeModuleLoadTime).map(e => {
+		const table = this.getStartupMetricsTable(metrics, nodeModuleLoadTime).map(e => {
 			return `|${e.component}|${e.task}|${e.time}|`;
 		}).join('\n');
 
 		return `${tableHeader}\n${table}`;
 	}
 
-	private getStartupMetricsTable(nodeModuleLoadTime?: number): { component: string, task: string; time: number; }[] {
+	private getStartupMetricsTable(metrics: IStartupMetrics, nodeModuleLoadTime?: number): { component: string, task: string; time: number; }[] {
 		const table: any[] = [];
-		const metrics: IStartupMetrics = this.timerService.startupMetrics;
 
 		if (metrics.initialStartup) {
 			table.push({ component: 'main', task: 'start => app.isReady', time: metrics.timers.ellapsedAppReady });

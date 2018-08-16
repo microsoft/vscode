@@ -9,7 +9,7 @@ import URI from 'vs/base/common/uri';
 import { localize } from 'vs/nls';
 import { ConfigurationTarget, IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { SettingsTarget } from 'vs/workbench/parts/preferences/browser/preferencesWidgets';
-import { ITOCEntry } from 'vs/workbench/parts/preferences/browser/settingsLayout';
+import { ITOCEntry, knownAcronyms } from 'vs/workbench/parts/preferences/browser/settingsLayout';
 import { IExtensionSetting, ISearchResult, ISetting } from 'vs/workbench/services/preferences/common/preferences';
 import { isArray } from 'vs/base/common/types';
 
@@ -288,7 +288,12 @@ function wordifyKey(key: string): string {
 	return key
 		.replace(/\.([a-z])/g, (match, p1) => ` › ${p1.toUpperCase()}`)
 		.replace(/([a-z])([A-Z])/g, '$1 $2') // fooBar => foo Bar
-		.replace(/^[a-z]/g, match => match.toUpperCase()); // foo => Foo
+		.replace(/^[a-z]/g, match => match.toUpperCase()) // foo => Foo
+		.replace(/\b\w+\b/g, match => {
+			return knownAcronyms.has(match.toLowerCase()) ?
+				match.toUpperCase() :
+				match;
+		});
 }
 
 function trimCategoryForGroup(category: string, groupId: string): string {

@@ -43,12 +43,18 @@ import { IEditorGroup } from 'vs/workbench/services/group/common/editorGroupsSer
 import { IPreferencesService, ISearchResult, ISettingsEditorModel } from 'vs/workbench/services/preferences/common/preferences';
 import { SettingsEditor2Input } from 'vs/workbench/services/preferences/common/preferencesEditorInput';
 import { DefaultSettingsEditorModel } from 'vs/workbench/services/preferences/common/preferencesModels';
+import { ResourceEditorModel } from 'vs/workbench/common/editor/resourceEditorModel';
 
 const $ = DOM.$;
 
 export class SettingsEditor2 extends BaseEditor {
 
 	public static readonly ID: string = 'workbench.editor.settings2';
+	private static NUM_INSTANCES: number = 0;
+
+	private static readonly SUGGESTIONS: string[] = [
+		'@modified', '@tag:usesOnlineServices', '@tag:new'
+	];
 
 	private defaultSettingsEditorModel: DefaultSettingsEditorModel;
 
@@ -106,8 +112,8 @@ export class SettingsEditor2 extends BaseEditor {
 	) {
 		super(SettingsEditor2.ID, telemetryService, themeService);
 		this.delayedFilterLogging = new Delayer<void>(1000);
-		this.localSearchDelayer = new Delayer(100);
-		this.remoteSearchThrottle = new ThrottledDelayer(200);
+		this.localSearchDelayer = new Delayer(300);
+		this.remoteSearchThrottle = new ThrottledDelayer(400);
 		this.viewState = { settingsTarget: ConfigurationTarget.USER };
 		this.delayRefreshOnLayout = new Delayer(100);
 
@@ -210,9 +216,9 @@ export class SettingsEditor2 extends BaseEditor {
 		this.searchWidget = this._register(this.instantiationService.createInstance(SuggestEnabledInput, `${SettingsEditor2.ID}.searchbox`, searchContainer, {
 			triggerCharacters: ['@'],
 			provideResults: (query: string) => {
-				return ['@modified', '@tag:usesOnlineServices'].filter(tag => query.indexOf(tag) === -1).map(tag => tag + ' ');
+				return SettingsEditor2.SUGGESTIONS.filter(tag => query.indexOf(tag) === -1).map(tag => tag + ' ');
 			}
-		}, searchBoxLabel, 'settingseditor:searchinput', {
+		}, searchBoxLabel, 'settingseditor:searchinput' + SettingsEditor2.NUM_INSTANCES++, {
 				placeholderText: searchBoxLabel,
 				focusContextKey: this.searchFocusContextKey,
 				// TODO: Aria-live
@@ -224,12 +230,15 @@ export class SettingsEditor2 extends BaseEditor {
 		const targetWidgetContainer = DOM.append(headerControlsContainer, $('.settings-target-container'));
 		this.settingsTargetsWidget = this._register(this.instantiationService.createInstance(SettingsTargetsWidget, targetWidgetContainer));
 		this.settingsTargetsWidget.settingsTarget = ConfigurationTarget.USER;
-		this.settingsTargetsWidget.onDidTargetChange(() => {
-			this.viewState.settingsTarget = this.settingsTargetsWidget.settingsTarget;
-			this.toolbar.context = <ISettingsToolbarContext>{ target: this.settingsTargetsWidget.settingsTarget };
-
-			this.settingsTreeModel.update();
-			this.renderTree();
+		this.settingsTargetsWidget.onDidTargetChange(target => {
+			this.viewState.settingsTarget = target;
+			if (target === ConfigurationTarget.USER) {
+				this.preferencesService.openGlobalSettings();
+			} else if (target === ConfigurationTarget.WORKSPACE) {
+				this.preferencesService.switchSettings(ConfigurationTarget.WORKSPACE, this.preferencesService.workspaceSettingsResource);
+			} else if (target instanceof URI) {
+				this.preferencesService.switchSettings(ConfigurationTarget.WORKSPACE_FOLDER, target);
+			}
 		});
 
 		this.createHeaderControls(headerControlsContainer);
@@ -276,6 +285,14 @@ export class SettingsEditor2 extends BaseEditor {
 		const elements = this.getElementsByKey(settingKey);
 		if (elements && elements[0]) {
 			this.settingsTree.reveal(elements[0]);
+
+			const domElements = this.settingsTreeRenderer.getDOMElementsForSettingKey(this.settingsTree.getHTMLElement(), settingKey);
+			if (domElements && domElements[0]) {
+				const control = domElements[0].querySelector(SettingsRenderer.CONTROL_SELECTOR);
+				if (control) {
+					(<HTMLElement>control).focus();
+				}
+			}
 		}
 	}
 
@@ -468,7 +485,7 @@ export class SettingsEditor2 extends BaseEditor {
 		// Force a render afterwards because onDidConfigurationUpdate doesn't fire if the update doesn't result in an effective setting value change
 		const settingsTarget = this.settingsTargetsWidget.settingsTarget;
 		const resource = URI.isUri(settingsTarget) ? settingsTarget : undefined;
-		const configurationTarget = <ConfigurationTarget>(resource ? undefined : settingsTarget);
+		const configurationTarget = <ConfigurationTarget>(resource ? ConfigurationTarget.WORKSPACE_FOLDER : settingsTarget);
 		const overrides: IConfigurationOverrides = { resource };
 
 		// If the user is changing the value back to the default, do a 'reset' instead
@@ -555,13 +572,15 @@ export class SettingsEditor2 extends BaseEditor {
 	private render(token: CancellationToken): TPromise<any> {
 		if (this.input) {
 			return this.input.resolve()
-				.then((model: DefaultSettingsEditorModel) => {
+				.then(model => {
 					if (token.isCancellationRequested) {
 						return void 0;
 					}
 
-					this._register(model.onDidChangeGroups(() => this.onConfigUpdate()));
-					this.defaultSettingsEditorModel = model;
+					return this.preferencesService.createPreferencesEditorModel((<ResourceEditorModel>model).textEditorModel.uri);
+				}).then((defaultSettingsEditorModel: DefaultSettingsEditorModel) => {
+					this._register(defaultSettingsEditorModel.onDidChangeGroups(() => this.onConfigUpdate()));
+					this.defaultSettingsEditorModel = defaultSettingsEditorModel;
 					return this.onConfigUpdate();
 				});
 		}
@@ -678,9 +697,14 @@ export class SettingsEditor2 extends BaseEditor {
 		}
 
 		let refreshP: TPromise<any>;
-		const elements = key && this.getElementsByKey(key);
-		if (elements && elements.length) {
-			refreshP = TPromise.join(elements.map(e => this.settingsTree.refresh(e)));
+		if (key) {
+			const elements = this.getElementsByKey(key);
+			if (elements && elements.length) {
+				refreshP = TPromise.join(elements.map(e => this.settingsTree.refresh(e)));
+			} else {
+				// Refresh requested for a key that we don't know about
+				return TPromise.wrap(null);
+			}
 		} else {
 			refreshP = this.settingsTree.refresh();
 		}
@@ -883,7 +907,7 @@ export class SettingsEditor2 extends BaseEditor {
 	}
 
 	private layoutTrees(dimension: DOM.Dimension): void {
-		const listHeight = dimension.height - (DOM.getDomNodePagePosition(this.headerContainer).height + 11 /*padding*/);
+		const listHeight = dimension.height - (95 + 11 /* header height + padding*/);
 		const settingsTreeHeight = listHeight - 14;
 		this.settingsTreeContainer.style.height = `${settingsTreeHeight}px`;
 		this.settingsTree.layout(settingsTreeHeight, 800);
@@ -933,11 +957,11 @@ class OpenSettingsAction extends Action {
 	private _run(context?: ISettingsToolbarContext): TPromise<any> {
 		const target = context && context.target;
 		if (target === ConfigurationTarget.USER) {
-			return this.preferencesService.openGlobalSettings();
+			return this.preferencesService.openGlobalSettings(true);
 		} else if (target === ConfigurationTarget.WORKSPACE) {
-			return this.preferencesService.openWorkspaceSettings();
+			return this.preferencesService.openWorkspaceSettings(true);
 		} else if (URI.isUri(target)) {
-			return this.preferencesService.openFolderSettings(target);
+			return this.preferencesService.openFolderSettings(target, true);
 		}
 
 		return TPromise.wrap(null);

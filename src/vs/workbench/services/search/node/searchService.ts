@@ -207,12 +207,15 @@ export class SearchService extends Disposable implements ISearchService {
 			}
 		});
 
-		if (diskSearchQueries.length) {
-			const diskSearchQuery = {
+		const diskSearchExtraFileResources = query.extraFileResources && query.extraFileResources.filter(res => res.scheme === 'file');
+
+		if (diskSearchQueries.length || diskSearchExtraFileResources) {
+			const diskSearchQuery: ISearchQuery = {
 				...query,
 				...{
 					folderQueries: diskSearchQueries
-				}
+				},
+				extraFileResources: diskSearchExtraFileResources
 			};
 
 			searchPs.push(this.diskSearch.search(diskSearchQuery, onProviderProgress));

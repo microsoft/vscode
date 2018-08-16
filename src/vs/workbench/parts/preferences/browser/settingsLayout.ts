@@ -197,3 +197,16 @@ export const tocData: ITOCEntry = {
 		}
 	]
 };
+
+export const knownAcronyms = new Set();
+[
+	'css',
+	'html',
+	'scss',
+	'less',
+	'json',
+	'js',
+	'ts',
+	'ie',
+	'id',
+].forEach(str => knownAcronyms.add(str));

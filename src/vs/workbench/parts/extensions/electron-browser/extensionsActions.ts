@@ -8,6 +8,7 @@ import { localize } from 'vs/nls';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { IAction, Action } from 'vs/base/common/actions';
 import { Throttler } from 'vs/base/common/async';
+import severity from 'vs/base/common/severity';
 import * as DOM from 'vs/base/browser/dom';
 import * as paths from 'vs/base/common/paths';
 import { Event } from 'vs/base/common/event';
@@ -756,18 +757,37 @@ export class DisableAction extends Action {
 export class CheckForUpdatesAction extends Action {
 
 	static readonly ID = 'workbench.extensions.action.checkForUpdates';
-	static LABEL = localize('checkForUpdates', "Check for Updates");
+	static LABEL = localize('checkForUpdates', "Check for Extension Updates");
 
 	constructor(
-		id = UpdateAllAction.ID,
-		label = UpdateAllAction.LABEL,
-		@IExtensionsWorkbenchService private extensionsWorkbenchService: IExtensionsWorkbenchService
+		id = CheckForUpdatesAction.ID,
+		label = CheckForUpdatesAction.LABEL,
+		@IExtensionsWorkbenchService private extensionsWorkbenchService: IExtensionsWorkbenchService,
+		@IViewletService private viewletService: IViewletService,
+		@INotificationService private notificationService: INotificationService
 	) {
 		super(id, label, '', true);
 	}
 
+	private checkUpdatesAndNotify(): void {
+		this.extensionsWorkbenchService.queryLocal().then(
+			extensions => {
+				const outdatedCount = extensions.filter(ext => ext.outdated === true).length;
+				let msgAvailableExtensions = localize('noUpdatesAvailable', "All Extensions are up to date.");
+				if (outdatedCount > 0) {
+					msgAvailableExtensions = outdatedCount === 1 ? localize('updateAvailable', "An Extension update is available.")
+						: localize('updatesAvailable', "{0} extensions updates are available.", outdatedCount);
+					this.viewletService.openViewlet(VIEWLET_ID, true)
+						.then(viewlet => viewlet as IExtensionsViewlet)
+						.then(viewlet => viewlet.search(''));
+				}
+				this.notificationService.notify({ severity: severity.Info, message: msgAvailableExtensions });
+			}
+		);
+	}
+
 	run(): TPromise<any> {
-		return this.extensionsWorkbenchService.checkForUpdates();
+		return this.extensionsWorkbenchService.checkForUpdates().then(() => this.checkUpdatesAndNotify());
 	}
 }
 

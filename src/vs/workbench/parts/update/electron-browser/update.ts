@@ -263,13 +263,12 @@ export class WinUserSetupContribution implements IWorkbenchContribution {
 			}
 
 			const handle = this.notificationService.prompt(
-				severity.Warning,
-				nls.localize('usersetupsystem', "You are running the system-wide installation of {0}, while having the user-wide distribution installed as well. Make sure you're running the {0} version you expect.", product.nameShort),
+				severity.Info,
+				nls.localize('usersetupsystem', "You are running the system-wide installation of {0}, while having the user-wide distribution installed as well.", product.nameShort),
 				[
 					{ label: nls.localize('ok', "OK"), run: () => null },
 					{
-						label: nls.localize('neveragain', "Don't Show Again"),
-						isSecondary: true,
+						label: nls.localize('okneveragain', "OK, Don't Show Again"),
 						run: () => {
 							neverShowAgain.action.run(handle);
 							neverShowAgain.action.dispose();

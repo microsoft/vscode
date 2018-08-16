@@ -22,7 +22,7 @@ import { RunOnceScheduler } from 'vs/base/common/async';
 import { getComparisonKey, isEqual as areResourcesEqual, hasToIgnoreCase, dirname } from 'vs/base/common/resources';
 import URI, { UriComponents } from 'vs/base/common/uri';
 import { Schemas } from 'vs/base/common/network';
-import { IUriDisplayService } from 'vs/platform/uriDisplay/common/uriDisplay';
+import { IUriLabelService } from 'vs/platform/uriLabel/common/uriLabel';
 
 interface ISerializedRecentlyOpened {
 	workspaces2: (IWorkspaceIdentifier | string)[]; // IWorkspaceIdentifier or URI.toString()
@@ -53,7 +53,7 @@ export class HistoryMainService implements IHistoryMainService {
 		@ILogService private logService: ILogService,
 		@IWorkspacesMainService private workspacesMainService: IWorkspacesMainService,
 		@IEnvironmentService private environmentService: IEnvironmentService,
-		@IUriDisplayService private uriDisplayService: IUriDisplayService
+		@IUriLabelService private uriLabelService: IUriLabelService
 	) {
 		this.macOSRecentDocumentsUpdater = new RunOnceScheduler(() => this.updateMacOSRecentDocuments(), 800);
 
@@ -368,11 +368,11 @@ export class HistoryMainService implements IHistoryMainService {
 				type: 'custom',
 				name: nls.localize('recentFolders', "Recent Workspaces"),
 				items: this.getRecentlyOpened().workspaces.slice(0, 7 /* limit number of entries here */).map(workspace => {
-					const title = getWorkspaceLabel(workspace, this.environmentService, this.uriDisplayService);
+					const title = getWorkspaceLabel(workspace, this.environmentService, this.uriLabelService);
 					let description;
 					let args;
 					if (isSingleFolderWorkspaceIdentifier(workspace)) {
-						description = nls.localize('folderDesc', "{0} {1}", getBaseLabel(workspace), this.uriDisplayService.getLabel(dirname(workspace)));
+						description = nls.localize('folderDesc', "{0} {1}", getBaseLabel(workspace), this.uriLabelService.getLabel(dirname(workspace)));
 						args = `--folder-uri "${workspace.toString()}"`;
 					} else {
 						description = nls.localize('codeWorkspace', "Code Workspace");

@@ -10,7 +10,7 @@ import { IAction, ActionRunner } from 'vs/base/common/actions';
 import * as dom from 'vs/base/browser/dom';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { IEditorGroupsService, IEditorGroup, GroupChangeKind } from 'vs/workbench/services/group/common/editorGroupsService';
+import { IEditorGroupsService, IEditorGroup, GroupChangeKind, GroupsOrder } from 'vs/workbench/services/group/common/editorGroupsService';
 import { IConfigurationService, IConfigurationChangeEvent } from 'vs/platform/configuration/common/configuration';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { IEditorInput } from 'vs/workbench/common/editor';
@@ -326,7 +326,7 @@ export class OpenEditorsView extends ViewletPanel {
 
 	private get elements(): (IEditorGroup | OpenEditor)[] {
 		const result: (IEditorGroup | OpenEditor)[] = [];
-		this.editorGroupService.groups.forEach(g => {
+		this.editorGroupService.getGroups(GroupsOrder.GRID_APPEARANCE).forEach(g => {
 			if (this.showGroups) {
 				result.push(g);
 			}
@@ -342,7 +342,7 @@ export class OpenEditorsView extends ViewletPanel {
 			return index;
 		}
 
-		for (let g of this.editorGroupService.groups) {
+		for (let g of this.editorGroupService.getGroups(GroupsOrder.GRID_APPEARANCE)) {
 			if (g.id === group.id) {
 				return index + (!!editor ? 1 : 0);
 			} else {

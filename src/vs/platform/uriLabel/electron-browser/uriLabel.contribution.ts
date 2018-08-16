@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { IWorkbenchContribution, IWorkbenchContributionsRegistry, Extensions as WorkbenchExtensions } from 'vs/workbench/common/contributions';
-import { IUriDisplayService } from 'vs/platform/uriDisplay/common/uriDisplay';
+import { IUriLabelService } from 'vs/platform/uriLabel/common/uriLabel';
 import { ipcRenderer as ipc } from 'electron';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { LifecyclePhase } from 'vs/platform/lifecycle/common/lifecycle';
@@ -13,13 +13,13 @@ import { LifecyclePhase } from 'vs/platform/lifecycle/common/lifecycle';
  * Uri display registration needs to be shared from renderer to main.
  * Since there will be another instance of the uri display service running on main.
  */
-class UriDisplayRegistrationContribution implements IWorkbenchContribution {
+class UriLabelRegistrationContribution implements IWorkbenchContribution {
 
-	constructor(@IUriDisplayService uriDisplayService: IUriDisplayService) {
-		uriDisplayService.onDidRegisterFormater(data => {
-			ipc.send('vscode:uriDisplayRegisterFormater', data);
+	constructor(@IUriLabelService uriLabelService: IUriLabelService) {
+		uriLabelService.onDidRegisterFormater(data => {
+			ipc.send('vscode:uriLabelRegisterFormater', data);
 		});
 	}
 }
 
-Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench).registerWorkbenchContribution(UriDisplayRegistrationContribution, LifecyclePhase.Starting);
+Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench).registerWorkbenchContribution(UriLabelRegistrationContribution, LifecyclePhase.Starting);

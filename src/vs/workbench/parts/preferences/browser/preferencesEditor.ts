@@ -120,7 +120,7 @@ export class PreferencesEditor extends BaseEditor {
 		});
 		openSettings2Button.label = nls.localize('openSettings2Label', "new settings editor");
 		openSettings2Button.element.classList.add('open-settings2-button');
-		this._register(openSettings2Button.onDidClick(() => this.preferencesService.openSettings2()));
+		this._register(openSettings2Button.onDidClick(() => this.preferencesService.openSettings(false)));
 
 		this.searchWidget = this._register(this.instantiationService.createInstance(SearchWidget, this.headerContainer, {
 			ariaLabel: nls.localize('SearchSettingsWidget.AriaLabel', "Search settings"),
@@ -263,11 +263,11 @@ export class PreferencesEditor extends BaseEditor {
 		const promise = this.input && this.input.isDirty() ? this.input.save() : TPromise.as(true);
 		promise.done(value => {
 			if (target === ConfigurationTarget.USER) {
-				this.preferencesService.switchSettings(ConfigurationTarget.USER, this.preferencesService.userSettingsResource);
+				this.preferencesService.switchSettings(ConfigurationTarget.USER, this.preferencesService.userSettingsResource, true);
 			} else if (target === ConfigurationTarget.WORKSPACE) {
-				this.preferencesService.switchSettings(ConfigurationTarget.WORKSPACE, this.preferencesService.workspaceSettingsResource);
+				this.preferencesService.switchSettings(ConfigurationTarget.WORKSPACE, this.preferencesService.workspaceSettingsResource, true);
 			} else if (target instanceof URI) {
-				this.preferencesService.switchSettings(ConfigurationTarget.WORKSPACE_FOLDER, target);
+				this.preferencesService.switchSettings(ConfigurationTarget.WORKSPACE_FOLDER, target, true);
 			}
 		});
 	}

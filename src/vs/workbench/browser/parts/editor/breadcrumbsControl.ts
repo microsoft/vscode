@@ -22,7 +22,7 @@ import { IConfigurationService } from 'vs/platform/configuration/common/configur
 import { ContextKeyExpr, IContextKey, IContextKeyService, RawContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { IContextViewService } from 'vs/platform/contextview/browser/contextView';
 import { FileKind, IFileService } from 'vs/platform/files/common/files';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
+import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { KeybindingsRegistry, KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { IQuickOpenService } from 'vs/platform/quickOpen/common/quickOpen';
 import { attachBreadcrumbsStyler } from 'vs/platform/theme/common/styler';
@@ -40,6 +40,8 @@ import { localize } from 'vs/nls';
 import { CommandsRegistry } from 'vs/platform/commands/common/commands';
 import { tail } from 'vs/base/common/arrays';
 import { WorkbenchListFocusContextKey } from 'vs/platform/list/browser/listService';
+import { ColorIdentifier } from 'vs/platform/theme/common/colorRegistry';
+import { timeout } from 'vs/base/common/async';
 
 class Item extends BreadcrumbsItem {
 
@@ -117,6 +119,7 @@ export interface IBreadcrumbsControlOptions {
 	showSymbolIcons: boolean;
 	showDecorationColors: boolean;
 	extraClasses: string[];
+	breadcrumbsBackground: ColorIdentifier;
 }
 
 export class BreadcrumbsControl {
@@ -166,7 +169,7 @@ export class BreadcrumbsControl {
 		this._widget.onDidSelectItem(this._onSelectEvent, this, this._disposables);
 		this._widget.onDidFocusItem(this._onFocusEvent, this, this._disposables);
 		this._widget.onDidChangeFocus(this._updateCkBreadcrumbsActive, this, this._disposables);
-		this._disposables.push(attachBreadcrumbsStyler(this._widget, this._themeService));
+		this._disposables.push(attachBreadcrumbsStyler(this._widget, this._themeService, { breadcrumbsBackground: _options.breadcrumbsBackground }));
 
 		this._ckBreadcrumbsVisible = BreadcrumbsControl.CK_BreadcrumbsVisible.bindTo(this._contextKeyService);
 		this._ckBreadcrumbsActive = BreadcrumbsControl.CK_BreadcrumbsActive.bindTo(this._contextKeyService);
@@ -266,7 +269,7 @@ export class BreadcrumbsControl {
 			return;
 		}
 
-		if (this._cfUseQuickPick.value) {
+		if (this._cfUseQuickPick.value()) {
 			// using quick pick
 			this._widget.setFocused(undefined);
 			this._widget.setSelection(undefined);
@@ -288,10 +291,10 @@ export class BreadcrumbsControl {
 
 				return combinedDisposable([listener, picker]);
 			},
-			getAnchor() {
+			getAnchor: () => {
 
 				let pickerHeight = 330;
-				let pickerWidth = Math.max(220, dom.getTotalWidth(event.node));
+				let pickerWidth = window.innerWidth / 4.17;
 				let pickerArrowSize = 8;
 				let pickerArrowOffset: number;
 
@@ -302,7 +305,12 @@ export class BreadcrumbsControl {
 					x = window.innerWidth - pickerWidth;
 				}
 				if (event.payload instanceof StandardMouseEvent) {
-					pickerArrowOffset = event.payload.posx - x - pickerArrowSize;
+					let maxPickerArrowOffset = pickerWidth - 2 * pickerArrowSize;
+					pickerArrowOffset = event.payload.posx - x;
+					if (pickerArrowOffset > maxPickerArrowOffset) {
+						x += pickerArrowOffset - maxPickerArrowOffset;
+						pickerArrowOffset = maxPickerArrowOffset;
+					}
 				} else {
 					pickerArrowOffset = (data.left + (data.width * .3)) - x;
 				}
@@ -362,6 +370,7 @@ export class BreadcrumbsControl {
 
 //#region commands
 
+// toggle command
 MenuRegistry.appendMenuItem(MenuId.CommandPalette, {
 	command: {
 		id: 'breadcrumbs.toggle',
@@ -379,10 +388,31 @@ MenuRegistry.appendMenuItem(MenuId.MenubarViewMenu, {
 });
 CommandsRegistry.registerCommand('breadcrumbs.toggle', accessor => {
 	let config = accessor.get(IConfigurationService);
-	let value = BreadcrumbsConfig.IsEnabled.bindTo(config).value;
-	BreadcrumbsConfig.IsEnabled.bindTo(config).value = !value;
+	let value = BreadcrumbsConfig.IsEnabled.bindTo(config).value();
+	BreadcrumbsConfig.IsEnabled.bindTo(config).value(!value);
 });
 
+// focus/focus-and-select
+async function focusAndSelectHandler(accessor: ServicesAccessor, select: boolean): Promise<void> {
+	const groups = accessor.get(IEditorGroupsService);
+	const breadcrumbs = accessor.get(IBreadcrumbsService);
+	const config = accessor.get(IConfigurationService);
+	// check if enabled and iff not enable
+	const isEnabled = BreadcrumbsConfig.IsEnabled.bindTo(config);
+	if (!isEnabled.value()) {
+		await isEnabled.value(true);
+		await timeout(50); // hacky - the widget might not be ready yet...
+	}
+	// find widget and focus/select
+	const widget = breadcrumbs.getWidget(groups.activeGroup.id);
+	if (widget) {
+		const item = tail(widget.getItems());
+		widget.setFocused(item);
+		if (select) {
+			widget.setSelection(item, BreadcrumbsControl.Payload_Pick);
+		}
+	}
+}
 MenuRegistry.appendMenuItem(MenuId.CommandPalette, {
 	command: {
 		id: 'breadcrumbs.focusAndSelect',
@@ -394,34 +424,18 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 	id: 'breadcrumbs.focusAndSelect',
 	weight: KeybindingWeight.WorkbenchContrib,
 	primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.US_DOT,
-	when: BreadcrumbsControl.CK_BreadcrumbsVisible,
-	handler(accessor) {
-		const groups = accessor.get(IEditorGroupsService);
-		const breadcrumbs = accessor.get(IBreadcrumbsService);
-		const widget = breadcrumbs.getWidget(groups.activeGroup.id);
-		if (widget) {
-			const item = tail(widget.getItems());
-			widget.setFocused(item);
-			widget.setSelection(item, BreadcrumbsControl.Payload_Pick);
-		}
-	}
+	when: undefined,
+	handler: accessor => focusAndSelectHandler(accessor, true)
 });
 KeybindingsRegistry.registerCommandAndKeybindingRule({
 	id: 'breadcrumbs.focus',
 	weight: KeybindingWeight.WorkbenchContrib,
 	primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.US_SEMICOLON,
-	when: BreadcrumbsControl.CK_BreadcrumbsVisible,
-	handler(accessor) {
-		const groups = accessor.get(IEditorGroupsService);
-		const breadcrumbs = accessor.get(IBreadcrumbsService);
-		const widget = breadcrumbs.getWidget(groups.activeGroup.id);
-		if (widget) {
-			const item = tail(widget.getItems());
-			widget.setFocused(item);
-		}
-	}
+	when: undefined,
+	handler: accessor => focusAndSelectHandler(accessor, false)
 });
 
+// navigation
 KeybindingsRegistry.registerCommandAndKeybindingRule({
 	id: 'breadcrumbs.focusNext',
 	weight: KeybindingWeight.WorkbenchContrib,

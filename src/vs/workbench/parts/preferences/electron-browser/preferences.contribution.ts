@@ -152,11 +152,17 @@ class KeybindingsEditorInputFactory implements IEditorInputFactory {
 class SettingsEditor2InputFactory implements IEditorInputFactory {
 
 	public serialize(editorInput: SettingsEditor2Input): string {
-		return JSON.stringify({});
+		const input = <DefaultPreferencesEditorInput>editorInput;
+
+		const serialized: ISerializedDefaultPreferencesEditorInput = { resource: input.getResource().toString() };
+
+		return JSON.stringify(serialized);
 	}
 
-	public deserialize(instantiationService: IInstantiationService, serializedEditorInput: string): EditorInput {
-		return instantiationService.createInstance(SettingsEditor2Input);
+	public deserialize(instantiationService: IInstantiationService, serializedEditorInput: string): SettingsEditor2Input {
+		const deserialized: ISerializedDefaultPreferencesEditorInput = JSON.parse(serializedEditorInput);
+
+		return instantiationService.createInstance(SettingsEditor2Input, URI.parse(deserialized.resource));
 	}
 }
 
@@ -193,9 +199,10 @@ const category = nls.localize('preferences', "Preferences");
 const registry = Registry.as<IWorkbenchActionRegistry>(Extensions.WorkbenchActions);
 registry.registerWorkbenchAction(new SyncActionDescriptor(OpenRawDefaultSettingsAction, OpenRawDefaultSettingsAction.ID, OpenRawDefaultSettingsAction.LABEL), 'Preferences: Open Raw Default Settings', category);
 registry.registerWorkbenchAction(new SyncActionDescriptor(OpenSettingsAction, OpenSettingsAction.ID, OpenSettingsAction.LABEL, { primary: KeyMod.CtrlCmd | KeyCode.US_COMMA }), 'Preferences: Open Settings', category);
-registry.registerWorkbenchAction(new SyncActionDescriptor(OpenSettingsJsonAction, OpenSettingsJsonAction.ID, OpenSettingsJsonAction.LABEL, { primary: KeyMod.CtrlCmd | KeyCode.US_COMMA }), 'Preferences: Open Settings (JSON)', category);
-registry.registerWorkbenchAction(new SyncActionDescriptor(OpenSettings2Action, OpenSettings2Action.ID, OpenSettings2Action.LABEL, { primary: KeyMod.CtrlCmd | KeyCode.US_COMMA }), 'Preferences: Open Settings (UI)', category);
+registry.registerWorkbenchAction(new SyncActionDescriptor(OpenSettingsJsonAction, OpenSettingsJsonAction.ID, OpenSettingsJsonAction.LABEL), 'Preferences: Open Settings (JSON)', category);
+registry.registerWorkbenchAction(new SyncActionDescriptor(OpenSettings2Action, OpenSettings2Action.ID, OpenSettings2Action.LABEL), 'Preferences: Open Settings (UI)', category);
 registry.registerWorkbenchAction(new SyncActionDescriptor(OpenGlobalSettingsAction, OpenGlobalSettingsAction.ID, OpenGlobalSettingsAction.LABEL), 'Preferences: Open User Settings', category);
+
 registry.registerWorkbenchAction(new SyncActionDescriptor(OpenGlobalKeybindingsAction, OpenGlobalKeybindingsAction.ID, OpenGlobalKeybindingsAction.LABEL, { primary: KeyChord(KeyMod.CtrlCmd | KeyCode.KEY_K, KeyMod.CtrlCmd | KeyCode.KEY_S) }), 'Preferences: Open Keyboard Shortcuts', category);
 registry.registerWorkbenchAction(new SyncActionDescriptor(OpenDefaultKeybindingsFileAction, OpenDefaultKeybindingsFileAction.ID, OpenDefaultKeybindingsFileAction.LABEL), 'Preferences: Open Default Keyboard Shortcuts File', category);
 registry.registerWorkbenchAction(new SyncActionDescriptor(OpenGlobalKeybindingsFileAction, OpenGlobalKeybindingsFileAction.ID, OpenGlobalKeybindingsFileAction.LABEL, { primary: null }), 'Preferences: Open Keyboard Shortcuts File', category);

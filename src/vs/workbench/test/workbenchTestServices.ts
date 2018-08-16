@@ -75,7 +75,7 @@ import { IDecorationRenderOptions } from 'vs/editor/common/editorCommon';
 import { EditorGroup } from 'vs/workbench/common/editor/editorGroup';
 import { Dimension } from 'vs/base/browser/dom';
 import { ILogService, LogLevel } from 'vs/platform/log/common/log';
-import { IUriDisplayService, UriDisplayService } from 'vs/platform/uriDisplay/common/uriDisplay';
+import { IUriLabelService, UriLabelService } from 'vs/platform/uriLabel/common/uriLabel';
 
 export function createFileInput(instantiationService: IInstantiationService, resource: URI): FileEditorInput {
 	return instantiationService.createInstance(FileEditorInput, resource, void 0);
@@ -271,7 +271,7 @@ export function workbenchInstantiationService(): IInstantiationService {
 	instantiationService.stub(IHashService, new TestHashService());
 	instantiationService.stub(ILogService, new TestLogService());
 	instantiationService.stub(IEditorGroupsService, new TestEditorGroupsService([new TestEditorGroup(0)]));
-	instantiationService.stub(IUriDisplayService, new UriDisplayService(TestEnvironmentService, workspaceContextService));
+	instantiationService.stub(IUriLabelService, new UriLabelService(TestEnvironmentService, workspaceContextService));
 	const editorService = new TestEditorService();
 	instantiationService.stub(IEditorService, editorService);
 	instantiationService.stub(ICodeEditorService, new TestCodeEditorService());
