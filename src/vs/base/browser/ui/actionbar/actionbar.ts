@@ -356,7 +356,6 @@ export interface IActionBarOptions {
 	actionRunner?: IActionRunner;
 	ariaLabel?: string;
 	animated?: boolean;
-	isMenu?: boolean;
 }
 
 let defaultOptions: IActionBarOptions = {
@@ -377,12 +376,12 @@ export class ActionBar implements IActionRunner {
 
 	// Items
 	public items: IActionItem[];
-	private focusedItem: number;
+	protected focusedItem: number;
 	private focusTracker: DOM.IFocusTracker;
 
 	// Elements
 	public domNode: HTMLElement;
-	private actionsList: HTMLElement;
+	protected actionsList: HTMLElement;
 
 	private toDispose: lifecycle.IDisposable[];
 
@@ -490,46 +489,10 @@ export class ActionBar implements IActionRunner {
 
 		this.actionsList = document.createElement('ul');
 		this.actionsList.className = 'actions-container';
-		if (this.options.isMenu) {
-			this.actionsList.setAttribute('role', 'menu');
-		} else {
-			this.actionsList.setAttribute('role', 'toolbar');
-		}
+		this.actionsList.setAttribute('role', 'toolbar');
+
 		if (this.options.ariaLabel) {
 			this.actionsList.setAttribute('aria-label', this.options.ariaLabel);
-		}
-
-		if (this.options.isMenu) {
-			this.domNode.tabIndex = 0;
-
-			$(this.domNode).on(DOM.EventType.MOUSE_OUT, (e) => {
-				let relatedTarget = (e as MouseEvent).relatedTarget as HTMLElement;
-				if (!DOM.isAncestor(relatedTarget, this.domNode)) {
-					this.focusedItem = undefined;
-					this.updateFocus();
-					e.stopPropagation();
-				}
-			});
-
-			$(this.actionsList).on(DOM.EventType.MOUSE_OVER, (e) => {
-				let target = e.target as HTMLElement;
-				if (!target || !DOM.isAncestor(target, this.actionsList) || target === this.actionsList) {
-					return;
-				}
-
-				while (target.parentElement !== this.actionsList) {
-					target = target.parentElement;
-				}
-
-				if (DOM.hasClass(target, 'action-item')) {
-					const lastFocusedItem = this.focusedItem;
-					this.setFocusedItem(target);
-
-					if (lastFocusedItem !== this.focusedItem) {
-						this.updateFocus();
-					}
-				}
-			});
 		}
 
 		this.domNode.appendChild(this.actionsList);
@@ -558,16 +521,6 @@ export class ActionBar implements IActionRunner {
 			this.actionsList.setAttribute('aria-label', label);
 		} else {
 			this.actionsList.removeAttribute('aria-label');
-		}
-	}
-
-	private setFocusedItem(element: HTMLElement): void {
-		for (let i = 0; i < this.actionsList.children.length; i++) {
-			let elem = this.actionsList.children[i];
-			if (element === elem) {
-				this.focusedItem = i;
-				break;
-			}
 		}
 	}
 
@@ -739,7 +692,7 @@ export class ActionBar implements IActionRunner {
 		this.updateFocus(true);
 	}
 
-	private updateFocus(fromRight?: boolean): void {
+	protected updateFocus(fromRight?: boolean): void {
 		if (typeof this.focusedItem === 'undefined') {
 			this.domNode.focus();
 		}

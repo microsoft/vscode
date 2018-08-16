@@ -7,12 +7,10 @@
 
 import 'vs/css!./menu';
 import * as nls from 'vs/nls';
-import { IDisposable } from 'vs/base/common/lifecycle';
 import { IActionRunner, IAction, Action } from 'vs/base/common/actions';
 import { ActionBar, IActionItemProvider, ActionsOrientation, Separator, ActionItem, IActionItemOptions, BaseActionItem } from 'vs/base/browser/ui/actionbar/actionbar';
 import { ResolvedKeybinding, KeyCode } from 'vs/base/common/keyCodes';
-import { Event } from 'vs/base/common/event';
-import { addClass, EventType, EventHelper, EventLike, removeTabIndexAndUpdateFocus, isAncestor } from 'vs/base/browser/dom';
+import { addClass, EventType, EventHelper, EventLike, removeTabIndexAndUpdateFocus, isAncestor, hasClass } from 'vs/base/browser/dom';
 import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { $, Builder } from 'vs/base/browser/builder';
 import { RunOnceScheduler } from 'vs/base/common/async';
@@ -37,34 +35,72 @@ interface ISubMenuData {
 	submenu?: Menu;
 }
 
-export class Menu {
-
-	private actionBar: ActionBar;
-	private listener: IDisposable;
+export class Menu extends ActionBar {
 
 	constructor(container: HTMLElement, actions: IAction[], options: IMenuOptions = {}) {
 		addClass(container, 'monaco-menu-container');
 		container.setAttribute('role', 'presentation');
-
 		let menuContainer = document.createElement('div');
 		addClass(menuContainer, 'monaco-menu');
 		menuContainer.setAttribute('role', 'presentation');
 		container.appendChild(menuContainer);
 
-		let parentData: ISubMenuData = {
-			parent: this
-		};
-
-		this.actionBar = new ActionBar(menuContainer, {
+		super(menuContainer, {
 			orientation: ActionsOrientation.VERTICAL,
 			actionItemProvider: action => this.doGetActionItem(action, options, parentData),
 			context: options.context,
 			actionRunner: options.actionRunner,
-			isMenu: true,
 			ariaLabel: options.ariaLabel
 		});
 
-		this.actionBar.push(actions, { icon: true, label: true, isMenu: true });
+		this.actionsList.setAttribute('role', 'menu');
+
+		this.domNode.tabIndex = 0;
+
+		$(this.domNode).on(EventType.MOUSE_OUT, (e) => {
+			let relatedTarget = (e as MouseEvent).relatedTarget as HTMLElement;
+			if (!isAncestor(relatedTarget, this.domNode)) {
+				this.focusedItem = undefined;
+				this.updateFocus();
+				e.stopPropagation();
+			}
+		});
+
+		$(this.actionsList).on(EventType.MOUSE_OVER, (e) => {
+			let target = e.target as HTMLElement;
+			if (!target || !isAncestor(target, this.actionsList) || target === this.actionsList) {
+				return;
+			}
+
+			while (target.parentElement !== this.actionsList) {
+				target = target.parentElement;
+			}
+
+			if (hasClass(target, 'action-item')) {
+				const lastFocusedItem = this.focusedItem;
+				this.setFocusedItem(target);
+
+				if (lastFocusedItem !== this.focusedItem) {
+					this.updateFocus();
+				}
+			}
+		});
+
+		let parentData: ISubMenuData = {
+			parent: this
+		};
+
+		this.push(actions, { icon: true, label: true, isMenu: true });
+	}
+
+	private setFocusedItem(element: HTMLElement): void {
+		for (let i = 0; i < this.actionsList.children.length; i++) {
+			let elem = this.actionsList.children[i];
+			if (element === elem) {
+				this.focusedItem = i;
+				break;
+			}
+		}
 	}
 
 	private doGetActionItem(action: IAction, options: IMenuOptions, parentData: ISubMenuData): BaseActionItem {
@@ -85,30 +121,8 @@ export class Menu {
 		}
 	}
 
-	public get onDidCancel(): Event<void> {
-		return this.actionBar.onDidCancel;
-	}
-
-	public get onDidBlur(): Event<void> {
-		return this.actionBar.onDidBlur;
-	}
-
 	public focus(selectFirst = true) {
-		if (this.actionBar) {
-			this.actionBar.focus(selectFirst);
-		}
-	}
-
-	public dispose() {
-		if (this.actionBar) {
-			this.actionBar.dispose();
-			this.actionBar = null;
-		}
-
-		if (this.listener) {
-			this.listener.dispose();
-			this.listener = null;
-		}
+		super.focus(selectFirst);
 	}
 }
 
