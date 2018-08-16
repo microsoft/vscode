@@ -486,8 +486,8 @@ export function getClientArea(element: HTMLElement): Dimension {
 		return new Dimension(window.innerWidth, window.innerHeight);
 	}
 
-	// Try with document.body.clientWidth / document.body.clientHeigh
-	if (document.body && document.body.clientWidth && document.body.clientWidth) {
+	// Try with document.body.clientWidth / document.body.clientHeight
+	if (document.body && document.body.clientWidth && document.body.clientHeight) {
 		return new Dimension(document.body.clientWidth, document.body.clientHeight);
 	}
 
