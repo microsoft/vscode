@@ -168,7 +168,7 @@
 	display: block;
 	width: 100%;
 	resize: vertical;
-	border-radius: 3px;
+	border-radius: 0;
 	box-sizing: border-box;
 	padding: 6px 12px;
 	font-weight: 600;
