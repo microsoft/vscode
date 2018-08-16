@@ -8,6 +8,7 @@ import { onUnexpectedError } from 'vs/base/common/errors';
 import { once as onceFn } from 'vs/base/common/functional';
 import { combinedDisposable, Disposable, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
 import { LinkedList } from 'vs/base/common/linkedList';
+import { TPromise } from 'vs/base/common/winjs.base';
 
 /**
  * To an event a function with one or zero parameters
@@ -294,8 +295,8 @@ export function fromPromise<T =any>(promise: Thenable<T>): Event<T> {
 	return emitter.event;
 }
 
-export function toPromise<T>(event: Event<T>): Promise<T> {
-	return new Promise(complete => {
+export function toPromise<T>(event: Event<T>): Thenable<T> {
+	return new TPromise(complete => {
 		const sub = event(e => {
 			sub.dispose();
 			complete(e);
