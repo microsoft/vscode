@@ -7,14 +7,14 @@
 import {
 	createConnection, IConnection, TextDocuments, InitializeParams, InitializeResult, ServerCapabilities, ConfigurationRequest, WorkspaceFolder
 } from 'vscode-languageserver';
-
+import URI from 'vscode-uri';
 import { TextDocument, CompletionList } from 'vscode-languageserver-types';
 
 import { getCSSLanguageService, getSCSSLanguageService, getLESSLanguageService, LanguageSettings, LanguageService, Stylesheet } from 'vscode-css-languageservice';
 import { getLanguageModelCache } from './languageModelCache';
-import { formatError, runSafe } from './utils/runner';
-import URI from 'vscode-uri';
 import { getPathCompletionParticipant } from './pathCompletion';
+import { formatError, runSafe } from './utils/runner';
+import { getDocumentContext } from './utils/documentContext';
 
 export interface Settings {
 	css: LanguageSettings;
@@ -258,8 +258,9 @@ connection.onDocumentLinks((documentLinkParams, token) => {
 	return runSafe(() => {
 		const document = documents.get(documentLinkParams.textDocument.uri);
 		if (document) {
+			const documentContext = getDocumentContext(document.uri, workspaceFolders);
 			const stylesheet = stylesheets.get(document);
-			return getLanguageService(document).findDocumentLinks(document, stylesheet);
+			return getLanguageService(document).findDocumentLinks(document, stylesheet, documentContext);
 		}
 		return [];
 	}, [], `Error while computing document links for ${documentLinkParams.textDocument.uri}`, token);
