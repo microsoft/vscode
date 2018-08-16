@@ -112,8 +112,8 @@ export class SettingsEditor2 extends BaseEditor {
 	) {
 		super(SettingsEditor2.ID, telemetryService, themeService);
 		this.delayedFilterLogging = new Delayer<void>(1000);
-		this.localSearchDelayer = new Delayer(100);
-		this.remoteSearchThrottle = new ThrottledDelayer(200);
+		this.localSearchDelayer = new Delayer(300);
+		this.remoteSearchThrottle = new ThrottledDelayer(400);
 		this.viewState = { settingsTarget: ConfigurationTarget.USER };
 		this.delayRefreshOnLayout = new Delayer(100);
 
