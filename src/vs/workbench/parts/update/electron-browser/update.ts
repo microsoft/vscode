@@ -249,6 +249,10 @@ export class WinUserSetupContribution implements IWorkbenchContribution {
 		@IOpenerService private openerService: IOpenerService,
 		@IUpdateService private updateService: IUpdateService
 	) {
+		if (!environmentService.isBuilt) {
+			return;
+		}
+
 		const neverShowAgain = new NeverShowAgain(WinUserSetupContribution.KEY_BOTH, this.storageService);
 
 		if (!neverShowAgain.shouldShow()) {
