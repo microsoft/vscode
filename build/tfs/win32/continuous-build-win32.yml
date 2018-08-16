@@ -23,7 +23,7 @@ steps:
 - powershell: |
     . build/tfs/win32/exec.ps1
     $ErrorActionPreference = "Stop"
-    exec { yarn check-monaco-editor-compilation }
+    exec { yarn monaco-compile-check }
   displayName: Run Monaco Editor Checks
 - powershell: |
     . build/tfs/win32/exec.ps1

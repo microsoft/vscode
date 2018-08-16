@@ -15,7 +15,7 @@ steps:
     yarn gulp hygiene
   displayName: Run Hygiene Checks
 - script: |
-    yarn check-monaco-editor-compilation
+    yarn monaco-compile-check
   displayName: Run Monaco Editor Checks
 - script: |
     yarn compile
