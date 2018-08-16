@@ -244,13 +244,6 @@
 .settings-editor > .settings-body > .settings-tree-container .setting-item .setting-item-deprecation-message,
 .settings-editor > .settings-body > .settings-tree-container .setting-item .setting-item-description {
 	margin-top: 3px;
-	overflow: hidden;
-	text-overflow: ellipsis;
-	height: 18px;
-	display: -webkit-box;
-	-webkit-line-clamp: 1;
-	-webkit-box-orient: vertical;
-	transform: translate3d(0px, 0px, 0px);
 }
 
 .settings-editor > .settings-body > .settings-tree-container .setting-item .setting-item-deprecation-message {
@@ -302,17 +295,11 @@
 	visibility: hidden;
 }
 
-.settings-editor > .settings-body > .settings-tree-container .setting-item.is-expanded .setting-item-description,
-.settings-editor > .settings-body > .settings-tree-container .setting-item.setting-measure-helper .setting-item-description {
-	height: initial;
-	-webkit-line-clamp: initial;
-}
-
 .settings-editor > .settings-body > .settings-tree-container .setting-item .setting-item-enumDescription {
 	display: none;
 }
 
-.settings-editor > .settings-body > .settings-tree-container .setting-item.is-expanded .setting-item-enumDescription,
+.settings-editor > .settings-body > .settings-tree-container .setting-item .setting-item-enumDescription,
 .settings-editor > .settings-body > .settings-tree-container .setting-item.setting-measure-helper .setting-item-enumDescription {
 	display: block;
 }
