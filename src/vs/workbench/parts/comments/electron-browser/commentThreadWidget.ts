@@ -356,7 +356,7 @@ export class ReviewZoneWidget extends ZoneWidget {
 				}
 			}
 
-			if (this._commentEditor.getModel().getValueLength() !== 0 && ev.keyCode === KeyCode.Enter && ev.ctrlKey) {
+			if (this._commentEditor.getModel().getValueLength() !== 0 && ev.keyCode === KeyCode.Enter && (ev.ctrlKey || ev.metaKey)) {
 				let lineNumber = this._commentGlyph.getPosition().position.lineNumber;
 				this.createComment(lineNumber);
 			}
