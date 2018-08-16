@@ -10,10 +10,16 @@ import * as perf from 'vs/base/common/performance';
 import * as os from 'os';
 import { getAccessibilitySupport } from 'vs/base/browser/browser';
 import { AccessibilitySupport } from 'vs/base/common/platform';
-import { IWindowService } from 'vs/platform/windows/common/windows';
+import { IWindowService, IWindowsService } from 'vs/platform/windows/common/windows';
 import { IWorkspaceContextService, WorkbenchState } from 'vs/platform/workspace/common/workspace';
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
+import { isFalsyOrEmpty } from 'vs/base/common/arrays';
+import { IUpdateService } from 'vs/platform/update/common/update';
+import { ILifecycleService } from 'vs/platform/lifecycle/common/lifecycle';
+import { IViewletService } from 'vs/workbench/services/viewlet/browser/viewlet';
+import { IPanelService } from 'vs/workbench/services/panel/common/panelService';
+import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 
 
 /* __GDPR__FRAGMENT__
@@ -35,6 +41,13 @@ export interface IMemoryInfo {
 	"IStartupMetrics" : {
 		"version" : { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth" },
 		"ellapsed" : { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "isMeasurement": true },
+		"isLatestVersion": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth" },
+		"didUseCachedData": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth" },
+		"windowKind": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth" },
+		"windowCount": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth" },
+		"viewletId": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth" },
+		"panelId": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth" },
+		"editorIds": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth" }
 		"timers.ellapsedAppReady" : { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "isMeasurement": true },
 		"timers.ellapsedWindowLoad" : { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "isMeasurement": true },
 		"timers.ellapsedWindowLoadToRequire" : { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "isMeasurement": true },
@@ -67,7 +80,53 @@ export interface IStartupMetrics {
 	/**
 	 * The version of these metrics.
 	 */
-	version: 1;
+	version: 2;
+
+	/**
+	 * If this started the main process and renderer or just a renderer (new or reloaded).
+	 */
+	initialStartup: boolean;
+
+	/**
+	 * No folder, no file, no workspace has been opened
+	 */
+	emptyWorkbench: boolean;
+
+	/**
+	 * This is the latest (stable/insider) version. Iff not we should ignore this
+	 * measurement.
+	 */
+	isLatestVersion: boolean;
+
+	/**
+	 * Whether we asked for and V8 accepted cached data.
+	 */
+	didUseCachedData: boolean;
+
+	/**
+	 * How/why the window was created. See https://github.com/Microsoft/vscode/blob/d1f57d871722f4d6ba63e4ef6f06287121ceb045/src/vs/platform/lifecycle/common/lifecycle.ts#L50
+	 */
+	windowKind: number;
+
+	/**
+	 * The total number of windows that have been restored/created
+	 */
+	windowCount: number;
+
+	/**
+	 * The active viewlet id or `undedined`
+	 */
+	viewletId: string;
+
+	/**
+	 * The active panel id or `undefined`
+	 */
+	panelId: string;
+
+	/**
+	 * The editor input types or `[]`
+	 */
+	editorIds: string[];
 
 	/**
 	 * The time it took to create the workbench.
@@ -85,15 +144,8 @@ export interface IStartupMetrics {
 	ellapsed: number;
 
 	/**
-	 * If this started the main process and renderer or just a renderer (new or reloaded).
+	 * Individual timers...
 	 */
-	initialStartup: boolean;
-
-	/**
-	 * No folder, no file, no workspace has been opened
-	 */
-	emptyWorkbench: boolean;
-
 	timers: {
 		/**
 		 * The time it took to receieve the [`ready`](https://electronjs.org/docs/api/app#event-ready)-event. Measured from the first line
@@ -231,17 +283,22 @@ class TimerService implements ITimerService {
 	readonly startupMetrics: Promise<IStartupMetrics>;
 
 	constructor(
+		@IWindowsService private readonly _windowsService: IWindowsService,
 		@IWindowService private readonly _windowService: IWindowService,
+		@ILifecycleService private readonly _lifecycleService: ILifecycleService,
 		@IWorkspaceContextService private readonly _contextService: IWorkspaceContextService,
 		@IExtensionService private readonly _extensionService: IExtensionService,
+		@IUpdateService private readonly _updateService: IUpdateService,
+		@IViewletService private readonly _viewletService: IViewletService,
+		@IPanelService private readonly _panelService: IPanelService,
+		@IEditorService private readonly _editorService: IEditorService,
 	) {
-
 		this.startupMetrics = Promise
 			.resolve(this._extensionService.whenInstalledExtensionsRegistered())
 			.then(() => this._computeStartupMetrics());
 	}
 
-	private _computeStartupMetrics(): IStartupMetrics {
+	private async _computeStartupMetrics(): Promise<IStartupMetrics> {
 		const now = Date.now();
 		const initialStartup = !!this._windowService.getConfiguration().isInitialStartup;
 		const startMark = initialStartup ? 'main:started' : 'main:loadWindow';
@@ -276,8 +333,19 @@ class TimerService implements ITimerService {
 		}
 
 		return {
-			version: 1,
+			version: 2,
 			ellapsed: perf.getDuration(startMark, 'didStartWorkbench'),
+
+			// reflections
+			isLatestVersion: Boolean(await this._updateService.isLatestVersion()),
+			didUseCachedData: didUseCachedData(),
+			windowKind: this._lifecycleService.startupKind,
+			windowCount: await this._windowsService.getWindowCount(),
+			viewletId: this._viewletService.getActiveViewlet() ? this._viewletService.getActiveViewlet().getId() : undefined,
+			editorIds: this._editorService.visibleEditors.map(input => input.getTypeId()),
+			panelId: this._panelService.getActivePanel() ? this._panelService.getActivePanel().getId() : undefined,
+
+			// timers
 			timers: {
 				ellapsedAppReady: initialStartup ? perf.getDuration('main:started', 'main:appReady') : undefined,
 				ellapsedNlsGeneration: perf.getDuration('nlsGeneration:start', 'nlsGeneration:end'),
@@ -291,6 +359,8 @@ class TimerService implements ITimerService {
 				ellapsedExtensionsReady: perf.getDuration(startMark, 'didLoadExtensions'),
 				ellapsedTimersToTimersComputed: Date.now() - now,
 			},
+
+			// system info
 			platform,
 			release,
 			arch,
@@ -307,7 +377,27 @@ class TimerService implements ITimerService {
 	}
 }
 
-
 export const ITimerService = createDecorator<ITimerService>('timerService');
 
 registerSingleton(ITimerService, TimerService);
+
+//#region cached data logic
+
+export function didUseCachedData(): boolean {
+	// We surely don't use cached data when we don't tell the loader to do so
+	if (!Boolean((<any>global).require.getConfig().nodeCachedDataDir)) {
+		return false;
+	}
+	// whenever cached data is produced or rejected a onNodeCachedData-callback is invoked. That callback
+	// stores data in the `MonacoEnvironment.onNodeCachedData` global. See:
+	// https://github.com/Microsoft/vscode/blob/efe424dfe76a492eab032343e2fa4cfe639939f0/src/vs/workbench/electron-browser/bootstrap/index.js#L299
+	if (!isFalsyOrEmpty(MonacoEnvironment.onNodeCachedData)) {
+		return false;
+	}
+	return true;
+}
+
+declare type OnNodeCachedDataArgs = [{ errorCode: string, path: string, detail?: string }, { path: string, length: number }];
+declare const MonacoEnvironment: { onNodeCachedData: OnNodeCachedDataArgs[] };
+
+//#endregion
