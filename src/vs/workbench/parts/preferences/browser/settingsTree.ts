@@ -343,7 +343,7 @@ export class SettingsRenderer implements ITreeRenderer {
 	}
 
 	private measureSettingElementHeight(tree: ITree, element: SettingsTreeSettingElement): number {
-		let heightExcludingDescription = 88;
+		let heightExcludingDescription = 86;
 
 		if (element.valueType === 'boolean') {
 			heightExcludingDescription = 60;
