@@ -101,7 +101,7 @@ export class DefinitionAction extends EditorAction {
 
 			} else {
 				// handle multiple results
-				this._onResult(editorService, editor, new ReferencesModel(result), configurationService.getValue('editor.peekOnGoToDefinition'));
+				this._onResult(editorService, configurationService, editor, new ReferencesModel(result));
 			}
 
 		}, (err) => {
@@ -127,7 +127,11 @@ export class DefinitionAction extends EditorAction {
 		return model.references.length > 1 && nls.localize('meta.title', " – {0} definitions", model.references.length);
 	}
 
-	private _onResult(editorService: ICodeEditorService, editor: ICodeEditor, model: ReferencesModel, peekOnGoToDefinition: boolean) {
+	protected _shouldPeek(_configurationService: IConfigurationService): boolean {
+		return true;
+	}
+
+	private _onResult(editorService: ICodeEditorService, configurationService: IConfigurationService, editor: ICodeEditor, model: ReferencesModel) {
 		const msg = model.getAriaMessage();
 		alert(msg);
 
@@ -136,21 +140,13 @@ export class DefinitionAction extends EditorAction {
 		} else {
 			let next = model.nearestReference(editor.getModel().uri, editor.getPosition());
 			this._openReference(editor, editorService, next, this._configuration.openToSide).then(editor => {
-				if (this._okToPeek(peekOnGoToDefinition) && editor && model.references.length > 1) {
+				if (this._shouldPeek(configurationService) && editor && model.references.length > 1) {
 					this._openInPeek(editorService, editor, model);
 				} else {
 					model.dispose();
 				}
 			});
 		}
-	}
-
-	private _okToPeek(peekOnGoToDefinition: boolean): boolean {
-		const shouldCheckPeekSetting =
-			this instanceof GoToDefinitionAction ||
-			this instanceof OpenDefinitionToSideAction ||
-			this instanceof GoToTypeDefinitionAction;
-		return !shouldCheckPeekSetting || peekOnGoToDefinition;
 	}
 
 	private _openReference(editor: ICodeEditor, editorService: ICodeEditorService, reference: DefinitionLink, sideBySide: boolean): TPromise<ICodeEditor> {
@@ -210,6 +206,10 @@ export class GoToDefinitionAction extends DefinitionAction {
 			}
 		});
 	}
+
+	protected _shouldPeek(configurationService: IConfigurationService): boolean {
+		return configurationService.getValue('editor.peekOnGoToDefinition');
+	}
 }
 
 export class OpenDefinitionToSideAction extends DefinitionAction {
@@ -230,6 +230,10 @@ export class OpenDefinitionToSideAction extends DefinitionAction {
 				weight: KeybindingWeight.EditorContrib
 			}
 		});
+	}
+
+	protected _shouldPeek(configurationService: IConfigurationService): boolean {
+		return configurationService.getValue('editor.peekOnOpenDefinitionToSide');
 	}
 }
 
@@ -353,6 +357,10 @@ export class GoToTypeDefinitionAction extends TypeDefinitionAction {
 				order: 1.4
 			}
 		});
+	}
+
+	protected _shouldPeek(configurationService: IConfigurationService): boolean {
+		return configurationService.getValue('editor.peekOnGoToTypeDefinition');
 	}
 }
 
