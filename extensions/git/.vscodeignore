@@ -3,5 +3,3 @@ test/**
 out/**
 tsconfig.json
 build/**
-node_modules/**
-!node_modules/vscode-nls/**

@@ -1,5 +1,4 @@
 test/**
 src/**
 out/**
-node_modules/**
 tsconfig.json
