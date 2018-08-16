@@ -321,7 +321,9 @@ export class ShowStartupPerformance extends Action {
 			console.log(`Memory (System): ${(metrics.totalmem / (1024 * 1024 * 1024)).toFixed(2)}GB (${(metrics.freemem / (1024 * 1024 * 1024)).toFixed(2)}GB free)`);
 			console.log(`Memory (Process): ${(metrics.meminfo.workingSetSize / 1024).toFixed(2)}MB working set (${(metrics.meminfo.peakWorkingSetSize / 1024).toFixed(2)}MB peak, ${(metrics.meminfo.privateBytes / 1024).toFixed(2)}MB private, ${(metrics.meminfo.sharedBytes / 1024).toFixed(2)}MB shared)`);
 			console.log(`VM (likelyhood): ${metrics.isVMLikelyhood}%`);
+
 			console.log(`Initial Startup: ${metrics.initialStartup}`);
+			console.log(`Has ${metrics.windowCount - 1} other windows`);
 			console.log(`Screen Reader Active: ${metrics.hasAccessibilitySupport}`);
 			console.log(`Empty Workspace: ${metrics.emptyWorkbench}`);
 
@@ -369,29 +371,27 @@ export class ShowStartupPerformance extends Action {
 		return TPromise.as(true);
 	}
 
-	private getStartupMetricsTable(metrics: IStartupMetrics, nodeModuleLoadTime?: number): any[] {
-		const table: any[] = [];
+	private getStartupMetricsTable(metrics: IStartupMetrics, nodeModuleLoadTime?: number): any {
+		const table = Object.create(null);
 
-		if (metrics.initialStartup) {
-			table.push({ Topic: '[main] start => app.isReady', 'Took (ms)': metrics.timers.ellapsedAppReady });
-			table.push({ Topic: '[main] nls:start => nls:end', 'Took (ms)': metrics.timers.ellapsedNlsGeneration });
-			table.push({ Topic: '[main] app.isReady => window.loadUrl()', 'Took (ms)': metrics.timers.ellapsedWindowLoad });
-		}
+		table['start => app.isReady'] = { Process: '[main]', 'Took (ms)': metrics.timers.ellapsedAppReady, Meta: metrics.initialStartup };
+		table['nls:start => nls:end'] = { Process: '[main]', 'Took (ms)': metrics.timers.ellapsedNlsGeneration, Meta: metrics.initialStartup };
+		table['app.isReady => window.loadUrl()'] = { Process: '[main]', 'Took (ms)': metrics.timers.ellapsedWindowLoad, Meta: metrics.initialStartup };
 
-		table.push({ Topic: '[main->renderer] window.loadUrl() => begin to require(workbench.main.js)', 'Took (ms)': metrics.timers.ellapsedWindowLoadToRequire });
-		table.push({ Topic: '[renderer] require(workbench.main.js)', 'Took (ms)': metrics.timers.ellapsedRequire });
+		table['window.loadUrl() => begin to require(workbench.main.js)'] = { Process: '[main->renderer]', 'Took (ms)': metrics.timers.ellapsedWindowLoadToRequire };
+		table['require(workbench.main.js)'] = { Process: '[renderer]', 'Took (ms)': metrics.timers.ellapsedRequire, Meta: metrics.didUseCachedData ? 'did use cached data' : 'did NOT use cached data' };
 
 		if (nodeModuleLoadTime) {
-			table.push({ Topic: '[renderer] -> of which require() node_modules', 'Took (ms)': nodeModuleLoadTime });
+			table['[renderer] -> of which require() node_modules'] = { Process: '[renderer]', 'Took(ms)': nodeModuleLoadTime };
 		}
 
-		table.push({ Topic: '[renderer] register extensions & spawn extension host', 'Took (ms)': metrics.timers.ellapsedExtensions });
-		table.push({ Topic: '[renderer] restore viewlet', 'Took (ms)': metrics.timers.ellapsedViewletRestore });
-		table.push({ Topic: '[renderer] restore editor view state', 'Took (ms)': metrics.timers.ellapsedEditorRestore });
-		table.push({ Topic: '[renderer] overall workbench load', 'Took (ms)': metrics.timers.ellapsedWorkbench });
-		table.push({ Topic: '------------------------------------------------------' });
-		table.push({ Topic: '[main, renderer] start => extensions ready', 'Took (ms)': metrics.timers.ellapsedExtensionsReady });
-		table.push({ Topic: '[main, renderer] start => workbench ready', 'Took (ms)': metrics.ellapsed });
+		table['register extensions & spawn extension host'] = { Process: '[renderer]', 'Took (ms)': metrics.timers.ellapsedExtensions };
+		table['restore viewlet'] = { Process: '[renderer]', 'Took (ms)': metrics.timers.ellapsedViewletRestore, Meta: metrics.viewletId };
+		table['restore editor view state'] = { Process: '[renderer]', 'Took (ms)': metrics.timers.ellapsedEditorRestore, Meta: metrics.editorIds.join(', ') };
+		table['overall workbench load'] = { Process: '[renderer]', 'Took (ms)': metrics.timers.ellapsedWorkbench };
+
+		table['workbench ready'] = { Process: '[main, renderer]', 'Took (ms)': metrics.ellapsed };
+		table['extensions registered'] = { Process: '[renderer]', 'Took (ms)': metrics.timers.ellapsedExtensionsReady };
 
 		return table;
 	}
