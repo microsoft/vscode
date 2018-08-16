@@ -60,7 +60,7 @@ export class JSONValidationExtensionPoint {
 					if (strings.startsWith(uri, './')) {
 						try {
 							const colorThemeLocation = resources.joinPath(extensionLocation, uri);
-							if (colorThemeLocation.path.indexOf(extensionLocation.path) !== 0) {
+							if (!resources.isEqualOrParent(colorThemeLocation, extensionLocation, resources.hasToIgnoreCase(colorThemeLocation))) {
 								collector.warn(nls.localize('invalid.path.1', "Expected `contributes.{0}.url` ({1}) to be included inside extension's folder ({2}). This might make the extension non-portable.", configurationExtPoint.name, location, extensionLocation.path));
 							}
 						} catch (e) {

@@ -27,6 +27,7 @@
 	background-image: url(./collapsed.svg);
 	opacity: .7;
 	width: 16px;
+	min-width: 16px;
 	height: 16px;
 	display: inline-block;
 	background-size: 16px;

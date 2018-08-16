@@ -76,7 +76,7 @@ namespace schema {
 
 		const extensionLocation = extension.description.extensionLocation;
 		const snippetLocation = resources.joinPath(extensionLocation, snippet.path);
-		if (!resources.isEqualOrParent(snippetLocation, extensionLocation)) {
+		if (!resources.isEqualOrParent(snippetLocation, extensionLocation, resources.hasToIgnoreCase(snippetLocation))) {
 			extension.collector.error(localize(
 				'invalid.path.1',
 				"Expected `contributes.{0}.path` ({1}) to be included inside extension's folder ({2}). This might make the extension non-portable.",

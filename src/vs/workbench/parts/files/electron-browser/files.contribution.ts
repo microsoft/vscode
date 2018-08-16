@@ -34,7 +34,7 @@ import { DataUriEditorInput } from 'vs/workbench/common/editor/dataUriEditorInpu
 import { LifecyclePhase } from 'vs/platform/lifecycle/common/lifecycle';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IEditorGroupsService } from 'vs/workbench/services/group/common/editorGroupsService';
-import { IUriDisplayService } from 'vs/platform/uriDisplay/common/uriDisplay';
+import { IUriLabelService } from 'vs/platform/uriLabel/common/uriLabel';
 import { Schemas } from 'vs/base/common/network';
 import { nativeSep } from 'vs/base/common/paths';
 
@@ -53,10 +53,10 @@ export class OpenExplorerViewletAction extends ToggleViewletAction {
 	}
 }
 
-class FileUriDisplayContribution implements IWorkbenchContribution {
+class FileUriLabelContribution implements IWorkbenchContribution {
 
-	constructor(@IUriDisplayService uriDisplayService: IUriDisplayService) {
-		uriDisplayService.registerFormater(Schemas.file, {
+	constructor(@IUriLabelService uriLabelService: IUriLabelService) {
+		uriLabelService.registerFormater(Schemas.file, {
 			label: '${path}',
 			separator: nativeSep,
 			tildify: !platform.isWindows,
@@ -172,7 +172,7 @@ Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench).regi
 Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench).registerWorkbenchContribution(DirtyFilesTracker, LifecyclePhase.Starting);
 
 // Register uri display for file uris
-Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench).registerWorkbenchContribution(FileUriDisplayContribution, LifecyclePhase.Starting);
+Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench).registerWorkbenchContribution(FileUriLabelContribution, LifecyclePhase.Starting);
 
 
 // Configuration

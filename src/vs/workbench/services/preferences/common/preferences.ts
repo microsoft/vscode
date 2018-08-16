@@ -152,12 +152,11 @@ export interface IPreferencesService {
 	createPreferencesEditorModel<T>(uri: URI): TPromise<IPreferencesEditorModel<T>>;
 
 	openRawDefaultSettings(): TPromise<IEditor>;
-	openSettings(): TPromise<IEditor>;
-	openSettings2(): TPromise<IEditor>;
-	openGlobalSettings(options?: IEditorOptions, group?: IEditorGroup): TPromise<IEditor>;
-	openWorkspaceSettings(options?: IEditorOptions, group?: IEditorGroup): TPromise<IEditor>;
-	openFolderSettings(folder: URI, options?: IEditorOptions, group?: IEditorGroup): TPromise<IEditor>;
-	switchSettings(target: ConfigurationTarget, resource: URI): TPromise<void>;
+	openSettings(jsonEditor?: boolean): TPromise<IEditor>;
+	openGlobalSettings(jsonEditor?: boolean, options?: IEditorOptions, group?: IEditorGroup): TPromise<IEditor>;
+	openWorkspaceSettings(jsonEditor?: boolean, options?: IEditorOptions, group?: IEditorGroup): TPromise<IEditor>;
+	openFolderSettings(folder: URI, jsonEditor?: boolean, options?: IEditorOptions, group?: IEditorGroup): TPromise<IEditor>;
+	switchSettings(target: ConfigurationTarget, resource: URI, jsonEditor?: boolean): TPromise<void>;
 	openGlobalKeybindingSettings(textual: boolean): TPromise<void>;
 	openDefaultKeybindingsFile(): TPromise<IEditor>;
 
