@@ -51,6 +51,7 @@ import { ExtensionsInput } from 'vs/workbench/parts/extensions/common/extensions
 import product from 'vs/platform/node/product';
 import { IQuickPickItem, IQuickInputService } from 'vs/platform/quickinput/common/quickInput';
 import { CancellationToken } from 'vs/base/common/cancellation';
+import { clipboard } from 'electron';
 
 const promptDownloadManually = (extension: IGalleryExtension, message: string, instantiationService: IInstantiationService, notificationService: INotificationService, openerService: IOpenerService) => {
 	const downloadUrl = `${product.extensionsGallery.serviceUrl}/publishers/${extension.publisher}/vsextensions/${extension.name}/${extension.version}/vspackage`;
@@ -439,6 +440,7 @@ export class ManageExtensionAction extends Action {
 			this.instantiationService.createInstance(DisableForWorkspaceAction, DisableForWorkspaceAction.LABEL)
 		]);
 		groups.push([this.instantiationService.createInstance(UninstallAction)]);
+		groups.push([this.instantiationService.createInstance(ExtensionInfoAction, ExtensionInfoAction.LABEL)]);
 		return groups;
 	}
 
@@ -469,6 +471,35 @@ export class ManageExtensionAction extends Action {
 	dispose(): void {
 		super.dispose();
 		this.disposables = dispose(this.disposables);
+	}
+}
+
+export class ExtensionInfoAction extends Action implements IExtensionAction {
+	static readonly ID = 'extensions.extensionInfo';
+	static LABEL = localize('extensionInfoAction', "Copy Extension information");
+
+	private _extension: IExtension;
+
+	get extension(): IExtension { return this._extension; }
+	set extension(extension: IExtension) { this._extension = extension; }
+
+	constructor(label: string) {
+		super(ExtensionInfoAction.ID, label);
+	}
+
+	run(): TPromise<any> {
+		const { description, version, publisherDisplayName, id } = this.extension;
+
+		const localizedExtension = localize('extensionInfoId', 'Extension') + ': ' + id;
+		const localizedDescription = localize('extensionInfoDescription', 'Description') + ': ' + description;
+		const localizedVersion = localize('extensionInfoVersion', 'Version') + ': ' + version;
+		const localizedPublisher = localize('extensionInfoPublisher', 'Publisher') + ': ' + publisherDisplayName;
+		const localizedVSMarketplaceLink = localize('extensionInfoVSMarketplaceLink', 'VS Marketplace Link') + ': https://marketplace.visualstudio.com/items?itemName=' + id;
+
+		const clipboardStr = `${localizedExtension}\n${localizedDescription}\n${localizedVersion}\n${localizedPublisher}\n${localizedVSMarketplaceLink}`;
+
+		clipboard.writeText(clipboardStr);
+		return TPromise.wrap(null);
 	}
 }
 
