@@ -117,6 +117,7 @@ export class ReviewZoneWidget extends ZoneWidget {
 	private _commentGlyph: CommentGlyphWidget;
 	private _owner: number;
 	private _localToDispose: IDisposable[];
+	private _globalToDispose: IDisposable[];
 	private _markdownRenderer: MarkdownRenderer;
 	private _styleElement: HTMLStyleElement;
 	private _error: HTMLElement;
@@ -145,11 +146,17 @@ export class ReviewZoneWidget extends ZoneWidget {
 		this._owner = owner;
 		this._commentThread = commentThread;
 		this._isCollapsed = commentThread.collapsibleState !== modes.CommentThreadCollapsibleState.Expanded;
+		this._globalToDispose = [];
 		this._localToDispose = [];
 		this.create();
 
 		this._styleElement = dom.createStyleSheet(this.domNode);
-		this.themeService.onThemeChange(this._applyTheme, this);
+		this._globalToDispose.push(this.themeService.onThemeChange(this._applyTheme, this));
+		this._globalToDispose.push(this.editor.onDidChangeConfiguration(e => {
+			if (e.fontInfo) {
+				this._applyTheme(this.themeService.getTheme());
+			}
+		}));
 		this._applyTheme(this.themeService.getTheme());
 
 		this._markdownRenderer = new MarkdownRenderer(editor, this.modeService, this.openerService);
@@ -627,6 +634,13 @@ export class ReviewZoneWidget extends ZoneWidget {
 			content.push(`.monaco-editor .review-widget .body .comment-form .validation-error { background: ${errorBackground}; }`);
 		}
 
+		const fontInfo = this.editor.getConfiguration().fontInfo;
+		content.push(`.monaco-editor .review-widget .body code {
+			font-family: ${fontInfo.fontFamily};
+			font-size: ${fontInfo.fontSize}px;
+			font-weight: ${fontInfo.fontWeight};
+		}`);
+
 		this._styleElement.innerHTML = content.join('\n');
 
 		// Editor decorations should also be responsive to theme changes
@@ -656,6 +670,7 @@ export class ReviewZoneWidget extends ZoneWidget {
 			this._commentGlyph = null;
 		}
 
+		this._globalToDispose.forEach(global => global.dispose());
 		this._localToDispose.forEach(local => local.dispose());
 		this._onDidClose.fire();
 	}
