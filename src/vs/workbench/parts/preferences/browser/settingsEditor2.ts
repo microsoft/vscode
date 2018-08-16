@@ -300,11 +300,11 @@ export class SettingsEditor2 extends BaseEditor {
 		const currentSettingsTarget = this.settingsTargetsWidget.settingsTarget;
 
 		if (currentSettingsTarget === ConfigurationTarget.USER) {
-			return this.preferencesService.openGlobalSettings();
+			return this.preferencesService.openGlobalSettings(true);
 		} else if (currentSettingsTarget === ConfigurationTarget.WORKSPACE) {
-			return this.preferencesService.openWorkspaceSettings();
+			return this.preferencesService.openWorkspaceSettings(true);
 		} else {
-			return this.preferencesService.openFolderSettings(currentSettingsTarget);
+			return this.preferencesService.openFolderSettings(currentSettingsTarget, true);
 		}
 	}
 
