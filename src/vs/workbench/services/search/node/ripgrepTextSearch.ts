@@ -507,6 +507,7 @@ function getRgArgs(config: IRawSearch) {
 	}
 
 	args.push('--no-config');
+	args.push('--no-ignore-global');
 
 	// Folder to search
 	args.push('--');
