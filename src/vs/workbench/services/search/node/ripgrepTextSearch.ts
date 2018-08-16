@@ -149,10 +149,15 @@ export class RipgrepEngine {
  * "failed" when a fatal error was produced.
  */
 export function rgErrorMsgForDisplay(msg: string): string | undefined {
-	const firstLine = msg.split('\n')[0].trim();
+	const lines = msg.trim().split('\n');
+	const firstLine = lines[0].trim();
 
 	if (strings.startsWith(firstLine, 'Error parsing regex')) {
 		return firstLine;
+	}
+
+	if (strings.startsWith(firstLine, 'regex parse error')) {
+		return strings.uppercaseFirstLetter(lines[lines.length - 1].trim());
 	}
 
 	if (strings.startsWith(firstLine, 'error parsing glob') ||
