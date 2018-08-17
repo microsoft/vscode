@@ -44,6 +44,12 @@ function prepareDebPackage(arch) {
 		const icon = gulp.src('resources/linux/code.png', { base: '.' })
 			.pipe(rename('usr/share/pixmaps/' + product.applicationName + '.png'));
 
+		const bash_completion = gulp.src('resources/completions/bash/code')
+			.pipe(rename('usr/share/bash-completion/completions/code'));
+
+		const zsh_completion = gulp.src('resources/completions/zsh/_code')
+			.pipe(rename('usr/share/zsh/vendor-completions/_code'));
+
 		const code = gulp.src(binaryDir + '/**/*', { base: binaryDir })
 			.pipe(rename(function (p) { p.dirname = 'usr/share/' + product.applicationName + '/' + p.dirname; }));
 
@@ -78,7 +84,7 @@ function prepareDebPackage(arch) {
 			.pipe(replace('@@UPDATEURL@@', product.updateUrl || '@@UPDATEURL@@'))
 			.pipe(rename('DEBIAN/postinst'));
 
-		const all = es.merge(control, postinst, postrm, prerm, desktop, appdata, icon, code);
+		const all = es.merge(control, postinst, postrm, prerm, desktop, appdata, icon, bash_completion, zsh_completion, code);
 
 		return all.pipe(vfs.dest(destination));
 	};
@@ -122,6 +128,12 @@ function prepareRpmPackage(arch) {
 		const icon = gulp.src('resources/linux/code.png', { base: '.' })
 			.pipe(rename('BUILD/usr/share/pixmaps/' + product.applicationName + '.png'));
 
+		const bash_completion = gulp.src('resources/completions/bash/code')
+			.pipe(rename('BUILD/usr/share/bash-completion/completions/code'));
+
+		const zsh_completion = gulp.src('resources/completions/zsh/_code')
+			.pipe(rename('BUILD/usr/share/zsh/site-functions/_code'));
+
 		const code = gulp.src(binaryDir + '/**/*', { base: binaryDir })
 			.pipe(rename(function (p) { p.dirname = 'BUILD/usr/share/' + product.applicationName + '/' + p.dirname; }));
 
@@ -142,7 +154,7 @@ function prepareRpmPackage(arch) {
 		const specIcon = gulp.src('resources/linux/rpm/code.xpm', { base: '.' })
 			.pipe(rename('SOURCES/' + product.applicationName + '.xpm'));
 
-		const all = es.merge(code, desktop, appdata, icon, spec, specIcon);
+		const all = es.merge(code, desktop, appdata, icon, bash_completion, zsh_completion, spec, specIcon);
 
 		return all.pipe(vfs.dest(getRpmBuildPath(rpmArch)));
 	};
