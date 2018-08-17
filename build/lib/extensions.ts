@@ -14,28 +14,88 @@ const rename = require('gulp-rename');
 const util = require('gulp-util');
 const buffer = require('gulp-buffer');
 const json = require('gulp-json-editor');
+const webpack = require('webpack');
+const webpackGulp = require('webpack-stream');
 import * as fs from 'fs';
 import * as path from 'path';
 import * as vsce from 'vsce';
 import * as File from 'vinyl';
 
-export function fromLocal(extensionPath: string): Stream {
-	const result = es.through();
+export function fromLocal(extensionPath: string, sourceMappingURLBase?: string): Stream {
+	let result = es.through();
 
-	vsce.listFiles({ cwd: extensionPath, packageManager: vsce.PackageManager.Yarn })
-		.then(fileNames => {
-			const files = fileNames
-				.map(fileName => path.join(extensionPath, fileName))
-				.map(filePath => new File({
-					path: filePath,
-					stat: fs.statSync(filePath),
-					base: extensionPath,
-					contents: fs.createReadStream(filePath) as any
-				}));
+	vsce.listFiles({ cwd: extensionPath, packageManager: vsce.PackageManager.Yarn }).then(fileNames => {
+		const files = fileNames
+			.map(fileName => path.join(extensionPath, fileName))
+			.map(filePath => new File({
+				path: filePath,
+				stat: fs.statSync(filePath),
+				base: extensionPath,
+				contents: fs.createReadStream(filePath) as any
+			}));
 
-			es.readArray(files).pipe(result);
-		})
-		.catch(err => result.emit('error', err));
+		const filesStream = es.readArray(files);
+
+		// check for a webpack configuration file, then invoke webpack
+		// and merge its output with the files stream. also rewrite the package.json
+		// file to a new entry point
+		if (fs.existsSync(path.join(extensionPath, 'extension.webpack.config.js'))) {
+			const packageJsonFilter = filter('package.json', { restore: true });
+
+			const patchFilesStream = filesStream
+				.pipe(packageJsonFilter)
+				.pipe(buffer())
+				.pipe(json(data => {
+					// hardcoded entry point directory!
+					data.main = data.main.replace('/out/', /dist/);
+					return data;
+				}))
+				.pipe(packageJsonFilter.restore);
+
+			const webpackConfig = {
+				...require(path.join(extensionPath, 'extension.webpack.config.js')),
+				...{ mode: 'production', stats: 'errors-only' }
+			};
+			const webpackStream = webpackGulp(webpackConfig, webpack)
+				.pipe(es.through(function (data) {
+					data.stat = data.stat || {};
+					data.base = extensionPath;
+					this.emit('data', data);
+				}))
+				.pipe(es.through(function (data: File) {
+					// source map handling:
+					// * rewrite sourceMappingURL
+					// * save to disk so that upload-task picks this up
+					if (sourceMappingURLBase) {
+						const contents = (<Buffer>data.contents).toString('utf8');
+						data.contents = Buffer.from(contents.replace(/\n\/\/# sourceMappingURL=(.*)$/gm, function (_m, g1) {
+							return `\n//# sourceMappingURL=${sourceMappingURLBase}/extensions/${path.basename(extensionPath)}/dist/${g1}`;
+						}), 'utf8');
+
+						if (/\.js\.map$/.test(data.path)) {
+							if (!fs.existsSync(path.dirname(data.path))) {
+								fs.mkdirSync(path.dirname(data.path));
+							}
+							fs.writeFileSync(data.path, data.contents);
+						}
+					}
+					this.emit('data', data);
+				}))
+				;
+
+			es.merge(webpackStream, patchFilesStream)
+				// .pipe(es.through(function (data) {
+				// 	// debug
+				// 	console.log('out', data.path, data.contents.length);
+				// 	this.emit('data', data);
+				// }))
+				.pipe(result);
+
+		} else {
+			filesStream.pipe(result);
+		}
+
+	}).catch(err => result.emit('error', err));
 
 	return result;
 }
