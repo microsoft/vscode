@@ -42,8 +42,8 @@ export class SettingsTreeNewExtensionsElement extends SettingsTreeElement {
 export class SettingsTreeSettingElement extends SettingsTreeElement {
 	setting: ISetting;
 
-	displayCategory: string;
-	displayLabel: string;
+	_displayCategory: string;
+	_displayLabel: string;
 
 	/**
 	 * scopeValue || defaultValue, for rendering convenience.
@@ -79,6 +79,28 @@ export class SettingsTreeSettingElement extends SettingsTreeElement {
 		this.update(inspectResult);
 	}
 
+	get displayCategory(): string {
+		if (!this._displayCategory) {
+			this.initLabel();
+		}
+
+		return this._displayCategory;
+	}
+
+	get displayLabel(): string {
+		if (!this._displayLabel) {
+			this.initLabel();
+		}
+
+		return this._displayLabel;
+	}
+
+	private initLabel(): void {
+		const displayKeyFormat = settingKeyToDisplayFormat(this.setting.key, this.parent.id);
+		this._displayLabel = displayKeyFormat.label;
+		this._displayCategory = displayKeyFormat.category;
+	}
+
 	update(inspectResult: IInspectResult): void {
 		const { isConfigured, inspected, targetSelector } = inspectResult;
 
@@ -91,10 +113,6 @@ export class SettingsTreeSettingElement extends SettingsTreeElement {
 		if (targetSelector === 'workspace' && typeof inspected.user !== 'undefined') {
 			overriddenScopeList.push(localize('user', "User"));
 		}
-
-		const displayKeyFormat = settingKeyToDisplayFormat(this.setting.key, this.parent.id);
-		this.displayLabel = displayKeyFormat.label;
-		this.displayCategory = displayKeyFormat.category;
 
 		this.value = displayValue;
 		this.scopeValue = isConfigured && inspected[targetSelector];
