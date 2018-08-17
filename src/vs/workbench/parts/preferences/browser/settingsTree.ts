@@ -201,7 +201,6 @@ interface ISettingItemTemplate<T = any> extends IDisposableTemplate {
 	descriptionElement: HTMLElement;
 	controlElement: HTMLElement;
 	deprecationWarningElement: HTMLElement;
-	isConfiguredElement: HTMLElement;
 	otherOverridesElement: HTMLElement;
 }
 
@@ -471,8 +470,6 @@ export class SettingsRenderer implements ITreeRenderer {
 		const labelCategoryContainer = DOM.append(titleElement, $('.setting-item-cat-label-container'));
 		const categoryElement = DOM.append(labelCategoryContainer, $('span.setting-item-category'));
 		const labelElement = DOM.append(labelCategoryContainer, $('span.setting-item-label'));
-		const isConfiguredElement = DOM.append(titleElement, $('span.setting-item-is-configured-label'));
-		isConfiguredElement.textContent = localize('configured', "Modified");
 		const otherOverridesElement = DOM.append(titleElement, $('span.setting-item-overrides'));
 		const descriptionElement = DOM.append(container, $('.setting-item-description'));
 
@@ -491,7 +488,6 @@ export class SettingsRenderer implements ITreeRenderer {
 			descriptionElement,
 			controlElement,
 			deprecationWarningElement,
-			isConfiguredElement,
 			otherOverridesElement
 		};
 
@@ -585,8 +581,6 @@ export class SettingsRenderer implements ITreeRenderer {
 		const titleElement = DOM.append(container, $('.setting-item-title'));
 		const categoryElement = DOM.append(titleElement, $('span.setting-item-category'));
 		const labelElement = DOM.append(titleElement, $('span.setting-item-label'));
-		const isConfiguredElement = DOM.append(titleElement, $('span.setting-item-is-configured-label'));
-		isConfiguredElement.textContent = localize('configured', "Modified");
 		const otherOverridesElement = DOM.append(titleElement, $('span.setting-item-overrides'));
 
 		const descriptionAndValueElement = DOM.append(container, $('.setting-item-value-description'));
@@ -616,7 +610,6 @@ export class SettingsRenderer implements ITreeRenderer {
 			checkbox,
 			descriptionElement,
 			deprecationWarningElement,
-			isConfiguredElement,
 			otherOverridesElement
 		};
 
@@ -900,7 +893,8 @@ export class SettingsRenderer implements ITreeRenderer {
 		// Setup and add ARIA attributes
 		// Create id and label for control/input element - parent is wrapper div
 		const id = (dataElement.displayCategory + '_' + dataElement.displayLabel).replace(/ /g, '_');
-		const label = ' ' + dataElement.displayCategory + ' ' + dataElement.displayLabel + ' checkbox ' + (dataElement.value ? 'checked ' : 'unchecked ') + template.isConfiguredElement.textContent;
+		const modifiedText = dataElement.isConfigured ? 'Modified' : '';
+		const label = ' ' + dataElement.displayCategory + ' ' + dataElement.displayLabel + ' checkbox ' + (dataElement.value ? 'checked ' : 'unchecked ') + modifiedText;
 
 		// We use the parent control div for the aria-labelledby target
 		// Does not appear you can use the direct label on the element itself within a tree
@@ -920,7 +914,8 @@ export class SettingsRenderer implements ITreeRenderer {
 		const displayOptions = getDisplayEnumOptions(dataElement.setting);
 		template.selectBox.setOptions(displayOptions);
 
-		const label = ' ' + dataElement.displayCategory + ' ' + dataElement.displayLabel + ' combobox ' + template.isConfiguredElement.textContent;
+		const modifiedText = dataElement.isConfigured ? 'Modified' : '';
+		const label = ' ' + dataElement.displayCategory + ' ' + dataElement.displayLabel + ' combobox ' + modifiedText;
 
 		template.selectBox.setAriaLabel(label);
 
@@ -956,7 +951,8 @@ export class SettingsRenderer implements ITreeRenderer {
 	}
 
 	private renderText(dataElement: SettingsTreeSettingElement, template: ISettingTextItemTemplate, onChange: (value: string) => void): void {
-		const label = ' ' + dataElement.displayCategory + ' ' + dataElement.displayLabel + ' ' + template.isConfiguredElement.textContent;
+		const modifiedText = dataElement.isConfigured ? 'Modified' : '';
+		const label = ' ' + dataElement.displayCategory + ' ' + dataElement.displayLabel + ' ' + modifiedText;
 		template.onChange = null;
 		template.inputBox.value = dataElement.value;
 		template.onChange = value => { renderValidations(dataElement, template, false, label); onChange(value); };
@@ -982,7 +978,8 @@ export class SettingsRenderer implements ITreeRenderer {
 
 
 	private renderNumber(dataElement: SettingsTreeSettingElement, template: ISettingTextItemTemplate, onChange: (value: number) => void): void {
-		const label = ' ' + dataElement.displayCategory + ' ' + dataElement.displayLabel + ' number ' + template.isConfiguredElement.textContent;
+		const modifiedText = dataElement.isConfigured ? 'Modified' : '';
+		const label = ' ' + dataElement.displayCategory + ' ' + dataElement.displayLabel + ' number ' + modifiedText;
 		const numParseFn = (dataElement.valueType === 'integer' || dataElement.valueType === 'nullable-integer')
 			? parseInt : parseFloat;
 

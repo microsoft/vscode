@@ -212,15 +212,18 @@
 	text-overflow: ellipsis;
 }
 
-.settings-editor > .settings-body > .settings-tree-container .setting-item .setting-item-title .setting-item-is-configured-label {
-	font-style: italic;
-	opacity: 0.8;
-	margin-right: 7px;
-	display: none;
+.settings-editor > .settings-body > .settings-tree-container .setting-item.is-configured::after {
+	display: block;
+	content: ' ';
+	position: absolute;
+	width: 2px;
+	left: 0px;
+	top: 15px;
+	bottom: 16px;
 }
 
-.settings-editor > .settings-body > .settings-tree-container .setting-item.is-configured .setting-item-title .setting-item-is-configured-label {
-	display: inline-block;
+.settings-editor > .settings-body > .settings-tree-container .setting-item-bool.setting-item.is-configured::after {
+	bottom: 23px;
 }
 
 .settings-editor > .settings-body > .settings-tree-container .setting-item .setting-item-title .setting-item-overrides {
