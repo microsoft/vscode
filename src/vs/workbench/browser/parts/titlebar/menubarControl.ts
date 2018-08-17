@@ -362,6 +362,7 @@ export class MenubarControl extends Disposable {
 		}
 
 		this.mnemonicsInUse = false;
+		this.updateMnemonicVisibility(false);
 	}
 
 	private hideMenubar(): void {
@@ -391,16 +392,20 @@ export class MenubarControl extends Disposable {
 			}
 		}
 
-		if (this.currentEnableMenuBarMnemonics && this.customMenus) {
-			this.customMenus.forEach(customMenu => {
-				if (customMenu.titleElement.children.length) {
-					let child = customMenu.titleElement.children.item(0) as HTMLElement;
-					if (child) {
-						child.style.textDecoration = modifierKeyStatus.altKey || this.mnemonicsInUse ? 'underline' : null;
-					}
-				}
-			});
+		if (this.currentEnableMenuBarMnemonics && this.customMenus && !this.isOpen) {
+			this.updateMnemonicVisibility(modifierKeyStatus.altKey || this.mnemonicsInUse);
 		}
+	}
+
+	private updateMnemonicVisibility(visible: boolean): void {
+		this.customMenus.forEach(customMenu => {
+			if (customMenu.titleElement.children.length) {
+				let child = customMenu.titleElement.children.item(0) as HTMLElement;
+				if (child) {
+					child.style.textDecoration = visible ? 'underline' : null;
+				}
+			}
+		});
 	}
 
 	private onRecentlyOpenedChange(): void {

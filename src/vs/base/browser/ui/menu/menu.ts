@@ -68,6 +68,7 @@ export class Menu extends ActionBar {
 			this.menuDisposables.push(addDisposableListener(menuContainer, EventType.KEY_DOWN, (e) => {
 				const key = KeyCodeUtils.fromString(e.key);
 				if (this.mnemonics.has(key)) {
+					EventHelper.stop(e, true);
 					const actions = this.mnemonics.get(key);
 
 					if (actions.length === 1) {
@@ -212,7 +213,7 @@ class MenuActionItem extends BaseActionItem {
 	protected $e: Builder;
 	protected $label: Builder;
 	protected $check: Builder;
-	protected options: IActionItemOptions;
+	protected options: IMenuItemOptions;
 	protected mnemonic: KeyCode;
 	private cssClass: string;
 
@@ -226,7 +227,7 @@ class MenuActionItem extends BaseActionItem {
 		this.cssClass = '';
 
 		// Set mnemonic
-		if (this.options.label) {
+		if (this.options.label && options.enableMnemonics) {
 			let label = this.getAction().label;
 			if (label) {
 				let matches = MenuActionItem.MNEMONIC_REGEX.exec(label);
@@ -279,7 +280,6 @@ class MenuActionItem extends BaseActionItem {
 
 					let ariaLabel = label.replace(MenuActionItem.MNEMONIC_REGEX, mnemonic);
 
-					// this.$e.getHTMLElement().accessKey = mnemonic.toLocaleLowerCase();
 					this.mnemonic = KeyCodeUtils.fromString(mnemonic.toLocaleLowerCase());
 
 					this.$label.attr('aria-label', ariaLabel);
@@ -287,7 +287,11 @@ class MenuActionItem extends BaseActionItem {
 					this.$label.attr('aria-label', label);
 				}
 
-				label = label.replace(MenuActionItem.MNEMONIC_REGEX, '$1\u0332');
+				if (this.options.enableMnemonics) {
+					label = label.replace(MenuActionItem.MNEMONIC_REGEX, '$1\u0332');
+				} else {
+					label = label.replace(MenuActionItem.MNEMONIC_REGEX, '$1');
+				}
 			}
 
 			this.$label.text(label);
@@ -367,7 +371,7 @@ class SubmenuActionItem extends MenuActionItem {
 		private parentData: ISubMenuData,
 		private submenuOptions?: IMenuOptions
 	) {
-		super(action, action, { label: true, isMenu: true });
+		super(action, action, submenuOptions);
 
 		this.showScheduler = new RunOnceScheduler(() => {
 			if (this.mouseOver) {
