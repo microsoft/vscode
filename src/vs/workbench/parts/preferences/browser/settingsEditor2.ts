@@ -147,8 +147,10 @@ export class SettingsEditor2 extends BaseEditor {
 		this.inSettingsEditorContextKey.set(true);
 		return super.setInput(input, options, token)
 			.then(() => new Promise(process.nextTick)) // Force setInput to be async
+			.then(() => this.render(token))
 			.then(() => {
-				return this.render(token);
+				// Init TOC selection
+				this.updateTreeScrollSync();
 			});
 	}
 
