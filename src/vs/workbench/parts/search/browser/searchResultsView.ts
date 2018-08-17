@@ -36,7 +36,10 @@ export class SearchDataSource implements IDataSource {
 	private includeFolderMatch: boolean;
 	private listener: IDisposable;
 
-	constructor(@IWorkspaceContextService private contextService: IWorkspaceContextService) {
+	constructor(
+		@IWorkspaceContextService private contextService: IWorkspaceContextService,
+		@IConfigurationService private configurationService: IConfigurationService,
+	) {
 		this.updateIncludeFolderMatch();
 		this.listener = this.contextService.onDidChangeWorkbenchState(() => this.updateIncludeFolderMatch());
 	}
@@ -103,6 +106,14 @@ export class SearchDataSource implements IDataSource {
 		if (numChildren <= 0) {
 			return false;
 		}
+
+		const collapseOption = this.configurationService.getValue('search.collapseResults');
+		if (collapseOption === 'alwaysCollapse') {
+			return false;
+		} else if (collapseOption === 'alwaysExpand') {
+			return true;
+		}
+
 		return numChildren < SearchDataSource.AUTOEXPAND_CHILD_LIMIT || element instanceof FolderMatch;
 	}
 

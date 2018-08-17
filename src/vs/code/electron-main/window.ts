@@ -140,7 +140,11 @@ export class CodeWindow implements ICodeWindow {
 			show: !isFullscreenOrMaximized,
 			title: product.nameLong,
 			webPreferences: {
-				'backgroundThrottling': false, // by default if Code is in the background, intervals and timeouts get throttled,
+				// By default if Code is in the background, intervals and timeouts get throttled, so we
+				// want to enforce that Code stays in the foreground. This triggers a disable_hidden_
+				// flag that Electron provides via patch:
+				// https://github.com/electron/libchromiumcontent/blob/master/patches/common/chromium/disable_hidden.patch
+				'backgroundThrottling': false,
 				disableBlinkFeatures: 'Auxclick' // disable auxclick events (see https://developers.google.com/web/updates/2016/10/auxclick)
 			}
 		};

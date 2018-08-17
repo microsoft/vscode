@@ -89,7 +89,7 @@ const tasks = compilations.map(function (tsconfigFile) {
 				.pipe(tsFilter)
 				.pipe(util.loadSourcemaps())
 				.pipe(compilation())
-				.pipe(build ? nlsDev.rewriteLocalizeCalls() : es.through())
+				.pipe(build ? nlsDev.rewriteLocalizeCalls({ keepFilenames: true }) : es.through())
 				.pipe(build ? util.stripSourceMappingURL() : es.through())
 				.pipe(sourcemaps.write('.', {
 					sourceMappingURL: !build ? null : f => `${baseUrl}/${f.relative}.map`,
