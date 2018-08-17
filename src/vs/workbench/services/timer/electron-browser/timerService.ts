@@ -55,6 +55,7 @@ export interface IMemoryInfo {
 		"timers.ellapsedExtensionsReady" : { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "isMeasurement": true },
 		"timers.ellapsedRequire" : { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "isMeasurement": true },
 		"timers.ellapsedViewletRestore" : { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "isMeasurement": true },
+		"timers.ellapsedPanelRestore" : { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "isMeasurement": true },
 		"timers.ellapsedEditorRestore" : { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "isMeasurement": true },
 		"timers.ellapsedWorkbench" : { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "isMeasurement": true },
 		"timers.ellapsedTimersToTimersComputed" : { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "isMeasurement": true },
@@ -232,6 +233,16 @@ export interface IStartupMetrics {
 		ellapsedViewletRestore: number;
 
 		/**
+		 * The time it took to restore the panel.
+		 *
+		 * * Happens in the renderer-process
+		 * * Measured with the `willRestorePanel` and `didRestorePanel` performance marks.
+		 * * This should be looked at per panel-type/id.
+		 * * Happens in parallel to other things, depends on async timing
+		 */
+		ellapsedPanelRestore: number;
+
+		/**
 		 * The time it took to restore editors - that is text editor and complex editor likes the settings UI
 		 * or webviews (markdown preview).
 		 *
@@ -355,6 +366,7 @@ class TimerService implements ITimerService {
 				ellapsedExtensions: perf.getDuration('willLoadExtensions', 'didLoadExtensions'),
 				ellapsedEditorRestore: perf.getDuration('willRestoreEditors', 'didRestoreEditors'),
 				ellapsedViewletRestore: perf.getDuration('willRestoreViewlet', 'didRestoreViewlet'),
+				ellapsedPanelRestore: perf.getDuration('willRestorePanel', 'didRestorePanel'),
 				ellapsedWorkbench: perf.getDuration('willStartWorkbench', 'didStartWorkbench'),
 				ellapsedExtensionsReady: perf.getDuration(startMark, 'didLoadExtensions'),
 				ellapsedTimersToTimersComputed: Date.now() - now,
