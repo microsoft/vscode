@@ -39,6 +39,10 @@
 	margin-right: 7px;
 }
 
+.vs .settings-editor > .settings-header > .search-container > .suggest-input-container {
+	border: 1px solid #ddd;
+}
+
 .settings-editor > .settings-header > .settings-header-controls {
 	height: 32px;
 	display: flex;
