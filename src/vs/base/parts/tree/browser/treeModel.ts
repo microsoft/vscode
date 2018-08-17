@@ -975,8 +975,6 @@ export class TreeModel {
 			return WinJS.TPromise.as(null);
 		}
 
-		console.log('REFRESH', element, recursive);
-
 		var eventData: IRefreshEvent = { item: item, recursive: recursive };
 		this._onRefresh.fire(eventData);
 		return item.refresh(recursive).then(() => {
@@ -990,8 +988,6 @@ export class TreeModel {
 		if (!item) {
 			return WinJS.TPromise.as(false);
 		}
-
-		console.log('EXPAND', element);
 
 		return item.expand();
 	}
