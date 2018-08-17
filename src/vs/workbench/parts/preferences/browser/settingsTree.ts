@@ -647,6 +647,7 @@ export class SettingsRenderer implements ITreeRenderer {
 		common.toDispose.push(suggester);
 
 		const selectionViewer = common.controlElement.appendChild($('.enum-selection-viewer'));
+		const downArrow = common.controlElement.appendChild($('.octicon.octicon-triangle-down'));
 		selectionViewer.setAttribute('tabindex', '0');
 
 
@@ -669,7 +670,7 @@ export class SettingsRenderer implements ITreeRenderer {
 			selectionViewer.focus();
 		}, null, common.toDispose);
 
-		selectionViewer.onclick = () => {
+		downArrow.onclick = selectionViewer.onclick = () => {
 			template.suggester.setValue('');
 			template.suggester.triggerSuggest();
 			this.expandedSuggester = template;
