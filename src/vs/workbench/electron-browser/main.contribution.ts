@@ -653,8 +653,7 @@ configurationRegistry.registerConfiguration({
 			],
 			'description': nls.localize('settings.editor.desc', "Determines which settings editor to use by default."),
 			'default': 'ui',
-			'scope': ConfigurationScope.WINDOW,
-			'tags': ['new']
+			'scope': ConfigurationScope.WINDOW
 		},
 		'workbench.enableExperiments': {
 			'type': 'boolean',

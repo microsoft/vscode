@@ -53,7 +53,7 @@ export class SettingsEditor2 extends BaseEditor {
 	private static NUM_INSTANCES: number = 0;
 
 	private static readonly SUGGESTIONS: string[] = [
-		'@modified', '@tag:usesOnlineServices', '@tag:new'
+		'@modified', '@tag:usesOnlineServices'
 	];
 
 	private defaultSettingsEditorModel: DefaultSettingsEditorModel;
@@ -256,10 +256,6 @@ export class SettingsEditor2 extends BaseEditor {
 			this.instantiationService.createInstance(FilterByTagAction,
 				localize('filterModifiedLabel', "Show modified settings"),
 				MODIFIED_SETTING_TAG,
-				this),
-			this.instantiationService.createInstance(FilterByTagAction,
-				localize('filterNewLabel', "Show new settings"),
-				'new',
 				this)
 		];
 		if (this.environmentService.appQuality !== 'stable') {
