@@ -74,6 +74,7 @@ export class ViewLineOptions {
 	public readonly renderControlCharacters: boolean;
 	public readonly spaceWidth: number;
 	public readonly useMonospaceOptimizations: boolean;
+	public readonly canUseHalfwidthRightwardsArrow: boolean;
 	public readonly lineHeight: number;
 	public readonly stopRenderingLineAfter: number;
 	public readonly fontLigatures: boolean;
@@ -87,6 +88,7 @@ export class ViewLineOptions {
 			config.editor.fontInfo.isMonospace
 			&& !config.editor.viewInfo.disableMonospaceOptimizations
 		);
+		this.canUseHalfwidthRightwardsArrow = config.editor.fontInfo.canUseHalfwidthRightwardsArrow;
 		this.lineHeight = config.editor.lineHeight;
 		this.stopRenderingLineAfter = config.editor.viewInfo.stopRenderingLineAfter;
 		this.fontLigatures = config.editor.viewInfo.fontLigatures;
@@ -99,6 +101,7 @@ export class ViewLineOptions {
 			&& this.renderControlCharacters === other.renderControlCharacters
 			&& this.spaceWidth === other.spaceWidth
 			&& this.useMonospaceOptimizations === other.useMonospaceOptimizations
+			&& this.canUseHalfwidthRightwardsArrow === other.canUseHalfwidthRightwardsArrow
 			&& this.lineHeight === other.lineHeight
 			&& this.stopRenderingLineAfter === other.stopRenderingLineAfter
 			&& this.fontLigatures === other.fontLigatures
@@ -190,6 +193,7 @@ export class ViewLine implements IVisibleLine {
 
 		let renderLineInput = new RenderLineInput(
 			options.useMonospaceOptimizations,
+			options.canUseHalfwidthRightwardsArrow,
 			lineData.content,
 			lineData.continuesWithWrappedLine,
 			lineData.isBasicASCII,

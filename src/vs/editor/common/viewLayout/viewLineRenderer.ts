@@ -35,6 +35,7 @@ class LinePart {
 export class RenderLineInput {
 
 	public readonly useMonospaceOptimizations: boolean;
+	public readonly canUseHalfwidthRightwardsArrow: boolean;
 	public readonly lineContent: string;
 	public readonly continuesWithWrappedLine: boolean;
 	public readonly isBasicASCII: boolean;
@@ -51,6 +52,7 @@ export class RenderLineInput {
 
 	constructor(
 		useMonospaceOptimizations: boolean,
+		canUseHalfwidthRightwardsArrow: boolean,
 		lineContent: string,
 		continuesWithWrappedLine: boolean,
 		isBasicASCII: boolean,
@@ -66,6 +68,7 @@ export class RenderLineInput {
 		fontLigatures: boolean
 	) {
 		this.useMonospaceOptimizations = useMonospaceOptimizations;
+		this.canUseHalfwidthRightwardsArrow = canUseHalfwidthRightwardsArrow;
 		this.lineContent = lineContent;
 		this.continuesWithWrappedLine = continuesWithWrappedLine;
 		this.isBasicASCII = isBasicASCII;
@@ -90,6 +93,7 @@ export class RenderLineInput {
 	public equals(other: RenderLineInput): boolean {
 		return (
 			this.useMonospaceOptimizations === other.useMonospaceOptimizations
+			&& this.canUseHalfwidthRightwardsArrow === other.canUseHalfwidthRightwardsArrow
 			&& this.lineContent === other.lineContent
 			&& this.continuesWithWrappedLine === other.continuesWithWrappedLine
 			&& this.isBasicASCII === other.isBasicASCII
@@ -303,6 +307,7 @@ export function renderViewLine2(input: RenderLineInput): RenderLineOutput2 {
 class ResolvedRenderLineInput {
 	constructor(
 		public readonly fontIsMonospace: boolean,
+		public readonly canUseHalfwidthRightwardsArrow: boolean,
 		public readonly lineContent: string,
 		public readonly len: number,
 		public readonly isOverflowing: boolean,
@@ -358,6 +363,7 @@ function resolveRenderLineInput(input: RenderLineInput): ResolvedRenderLineInput
 
 	return new ResolvedRenderLineInput(
 		useMonospaceOptimizations,
+		input.canUseHalfwidthRightwardsArrow,
 		lineContent,
 		len,
 		isOverflowing,
@@ -613,6 +619,7 @@ function _applyInlineDecorations(lineContent: string, len: number, tokens: LineP
  */
 function _renderLine(input: ResolvedRenderLineInput, sb: IStringBuilder): RenderLineOutput {
 	const fontIsMonospace = input.fontIsMonospace;
+	const canUseHalfwidthRightwardsArrow = input.canUseHalfwidthRightwardsArrow;
 	const containsForeignElements = input.containsForeignElements;
 	const lineContent = input.lineContent;
 	const len = input.len;
@@ -688,7 +695,7 @@ function _renderLine(input: ResolvedRenderLineInput, sb: IStringBuilder): Render
 					tabsCharDelta += insertSpacesCount - 1;
 					charOffsetInPart += insertSpacesCount - 1;
 					if (insertSpacesCount > 0) {
-						if (insertSpacesCount > 1) {
+						if (!canUseHalfwidthRightwardsArrow || insertSpacesCount > 1) {
 							sb.write1(0x2192); // RIGHTWARDS ARROW
 						} else {
 							sb.write1(0xffeb); // HALFWIDTH RIGHTWARDS ARROW
