@@ -88,7 +88,7 @@ export class TOCDataSource implements IDataSource {
 
 	hasChildren(tree: ITree, element: TOCTreeElement): boolean {
 		return element instanceof TOCTreeModel ||
-			(element instanceof SettingsTreeGroupElement && element.children && element.children.every(child => child instanceof SettingsTreeGroupElement));
+			(element instanceof SettingsTreeGroupElement && element.children && element.children.some(child => child instanceof SettingsTreeGroupElement));
 	}
 
 	getChildren(tree: ITree, element: TOCTreeElement): TPromise<SettingsTreeElement[]> {
@@ -96,7 +96,8 @@ export class TOCDataSource implements IDataSource {
 	}
 
 	private _getChildren(element: TOCTreeElement): SettingsTreeElement[] {
-		return element.children;
+		return (<SettingsTreeElement[]>element.children)
+			.filter(child => child instanceof SettingsTreeGroupElement);
 	}
 
 	getParent(tree: ITree, element: TOCTreeElement): TPromise<any> {

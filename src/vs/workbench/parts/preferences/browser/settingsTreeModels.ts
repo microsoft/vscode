@@ -214,13 +214,16 @@ export class SettingsTreeModel {
 		element.parent = parent;
 		element.level = this.getDepth(element);
 
-		if (tocEntry.children) {
-			element.children = tocEntry.children.map(child => this.createSettingsTreeGroupElement(child, element));
-		} else if (tocEntry.settings) {
-			element.children = tocEntry.settings.map(s => this.createSettingsTreeSettingElement(<ISetting>s, element))
+		element.children = [];
+		if (tocEntry.settings) {
+			const settingChildren = tocEntry.settings.map(s => this.createSettingsTreeSettingElement(<ISetting>s, element))
 				.filter(el => el.setting.deprecationMessage ? el.isConfigured : true);
-		} else {
-			element.children = [];
+			element.children.push(...settingChildren);
+		}
+
+		if (tocEntry.children) {
+			const groupChildren = tocEntry.children.map(child => this.createSettingsTreeGroupElement(child, element));
+			element.children.push(...groupChildren);
 		}
 
 		this._treeElementsById.set(element.id, element);
