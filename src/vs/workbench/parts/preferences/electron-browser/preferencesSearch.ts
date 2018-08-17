@@ -176,11 +176,7 @@ class RemoteSearchProvider implements ISearchProvider {
 	}
 
 	searchModel(preferencesModel: ISettingsEditorModel, token?: CancellationToken): TPromise<ISearchResult> {
-		return this._remoteSearchP.then(result => {
-			return new Promise<any>(r => {
-				setTimeout(() => r(result), 2000);
-			});
-		}).then(remoteResult => {
+		return this._remoteSearchP.then(remoteResult => {
 			if (!remoteResult) {
 				return null;
 			}

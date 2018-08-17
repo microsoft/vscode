@@ -10,7 +10,7 @@ import { ToolBar } from 'vs/base/browser/ui/toolbar/toolbar';
 import { Action } from 'vs/base/common/actions';
 import * as arrays from 'vs/base/common/arrays';
 import { Delayer, ThrottledDelayer } from 'vs/base/common/async';
-import { CancellationToken } from 'vs/base/common/cancellation';
+import { CancellationToken, CancellationTokenSource } from 'vs/base/common/cancellation';
 import * as collections from 'vs/base/common/collections';
 import { getErrorMessage, isPromiseCanceledError } from 'vs/base/common/errors';
 import URI from 'vs/base/common/uri';
@@ -76,7 +76,7 @@ export class SettingsEditor2 extends BaseEditor {
 	private delayedFilterLogging: Delayer<void>;
 	private localSearchDelayer: Delayer<void>;
 	private remoteSearchThrottle: ThrottledDelayer<void>;
-	private searchInProgress: TPromise<void>;
+	private searchCancelToken: CancellationTokenSource;
 
 	private delayRefreshOnLayout: Delayer<void>;
 	private lastLayedoutWidth: number;
@@ -749,11 +749,15 @@ export class SettingsEditor2 extends BaseEditor {
 
 		query = query.trim();
 		if (query && query !== '@') {
-			return this.searchInProgress = TPromise.join([
-				this.localSearchDelayer.trigger(() => this.localFilterPreferences(query)),
-				this.remoteSearchThrottle.trigger(() => this.remoteSearchPreferences(query), 500)
+			this.searchCancelToken = new CancellationTokenSource();
+			return TPromise.join([
+				this.localSearchDelayer.trigger(() => this.localFilterPreferences(query, this.searchCancelToken.token)),
+				this.remoteSearchThrottle.trigger(() => this.remoteSearchPreferences(query, this.searchCancelToken.token), 500)
 			]).then(() => {
-				this.searchInProgress = null;
+				if (this.searchCancelToken) {
+					this.searchCancelToken.dispose();
+					this.searchCancelToken = null;
+				}
 			});
 		} else {
 			if (this.viewState.tagFilters && this.viewState.tagFilters.size) {
@@ -764,8 +768,10 @@ export class SettingsEditor2 extends BaseEditor {
 
 			this.localSearchDelayer.cancel();
 			this.remoteSearchThrottle.cancel();
-			if (this.searchInProgress && this.searchInProgress.cancel) {
-				this.searchInProgress.cancel();
+			if (this.searchCancelToken) {
+				this.searchCancelToken.cancel();
+				this.searchCancelToken.dispose();
+				this.searchCancelToken = null;
 			}
 
 			this.viewState.filterToCategory = null;
@@ -843,47 +849,42 @@ export class SettingsEditor2 extends BaseEditor {
 		this.telemetryService.publicLog('settingsEditor.filter', data);
 	}
 
-	private localFilterPreferences(query: string): TPromise<void> {
+	private localFilterPreferences(query: string, token?: CancellationToken): TPromise<void> {
 		const localSearchProvider = this.preferencesSearchService.getLocalSearchProvider(query);
-		return this.filterOrSearchPreferences(query, SearchResultIdx.Local, localSearchProvider);
+		return this.filterOrSearchPreferences(query, SearchResultIdx.Local, localSearchProvider, token);
 	}
 
-	private remoteSearchPreferences(query: string): TPromise<void> {
+	private remoteSearchPreferences(query: string, token?: CancellationToken): TPromise<void> {
 		const remoteSearchProvider = this.preferencesSearchService.getRemoteSearchProvider(query);
-		return this.filterOrSearchPreferences(query, SearchResultIdx.Remote, remoteSearchProvider);
+		return this.filterOrSearchPreferences(query, SearchResultIdx.Remote, remoteSearchProvider, token);
 	}
 
-	private filterOrSearchPreferences(query: string, type: SearchResultIdx, searchProvider: ISearchProvider): TPromise<void> {
-		let isCanceled = false;
-		return new TPromise(resolve => {
-			return this._filterOrSearchPreferencesModel(query, this.defaultSettingsEditorModel, searchProvider).then(result => {
-				if (isCanceled) {
-					// Handle cancellation like this because cancellation is lost inside the search provider due to async/await
-					return null;
-				}
+	private filterOrSearchPreferences(query: string, type: SearchResultIdx, searchProvider: ISearchProvider, token?: CancellationToken): TPromise<void> {
+		return this._filterOrSearchPreferencesModel(query, this.defaultSettingsEditorModel, searchProvider, token).then(result => {
+			if (token && token.isCancellationRequested) {
+				// Handle cancellation like this because cancellation is lost inside the search provider due to async/await
+				return null;
+			}
 
-				if (!this.searchResultModel) {
-					this.searchResultModel = this.instantiationService.createInstance(SearchResultModel, this.viewState);
-					this.searchResultModel.setResult(type, result);
-					this.tocTreeModel.currentSearchModel = this.searchResultModel;
-					this.toggleSearchMode();
-					this.settingsTree.setInput(this.searchResultModel.root);
-				} else {
-					this.searchResultModel.setResult(type, result);
-				}
+			if (!this.searchResultModel) {
+				this.searchResultModel = this.instantiationService.createInstance(SearchResultModel, this.viewState);
+				this.searchResultModel.setResult(type, result);
+				this.tocTreeModel.currentSearchModel = this.searchResultModel;
+				this.toggleSearchMode();
+				this.settingsTree.setInput(this.searchResultModel.root);
+			} else {
+				this.searchResultModel.setResult(type, result);
+			}
 
-				this.tocTreeModel.update();
-				expandAll(this.tocTree);
+			this.tocTreeModel.update();
+			expandAll(this.tocTree);
 
-				resolve(this.renderTree());
-			});
-		}, () => {
-			isCanceled = true;
+			return this.renderTree();
 		});
 	}
 
-	private _filterOrSearchPreferencesModel(filter: string, model: ISettingsEditorModel, provider: ISearchProvider): TPromise<ISearchResult> {
-		const searchP = provider ? provider.searchModel(model) : TPromise.wrap(null);
+	private _filterOrSearchPreferencesModel(filter: string, model: ISettingsEditorModel, provider: ISearchProvider, token?: CancellationToken): TPromise<ISearchResult> {
+		const searchP = provider ? provider.searchModel(model, token) : TPromise.wrap(null);
 		return searchP
 			.then<ISearchResult>(null, err => {
 				if (isPromiseCanceledError(err)) {
