@@ -742,7 +742,7 @@ export class DefaultConfigurationExportHelper {
 		const processProperty = (name: string, prop: IConfigurationPropertySchema) => {
 			const propDetails: IExportedConfigurationNode = {
 				name,
-				description: prop.description,
+				description: prop.description || prop.markdownDescription || '',
 				default: prop.default,
 				type: prop.type
 			};
@@ -751,8 +751,8 @@ export class DefaultConfigurationExportHelper {
 				propDetails.enum = prop.enum;
 			}
 
-			if (prop.enumDescriptions) {
-				propDetails.enumDescriptions = prop.enumDescriptions;
+			if (prop.enumDescriptions || prop.markdownEnumDescriptions) {
+				propDetails.enumDescriptions = prop.enumDescriptions || prop.markdownEnumDescriptions;
 			}
 
 			settings.push(propDetails);
