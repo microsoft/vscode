@@ -29,6 +29,7 @@ export interface IExtensionContext {
 	asAbsolutePath(relativePath: string): string;
 	logger: ExtHostLogger;
 	readonly logDirectory: string;
+	readonly logPath: string;
 }
 
 /**

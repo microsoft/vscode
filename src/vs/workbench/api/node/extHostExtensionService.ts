@@ -366,9 +366,11 @@ export class ExtHostExtensionService implements ExtHostExtensionServiceShape {
 					return that._extHostLogService.getExtLogger(extensionDescription.id);
 				},
 				get logDirectory() {
+					console.warn(`this PROPOSED API has been RENAMED to 'logPath'`);
 					checkProposedApiEnabled(extensionDescription);
 					return that._extHostLogService.getLogDirectory(extensionDescription.id);
-				}
+				},
+				logPath: that._extHostLogService.getLogDirectory(extensionDescription.id)
 			});
 		});
 	}
