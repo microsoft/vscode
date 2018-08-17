@@ -361,6 +361,10 @@ export class ExtHostExtensionService implements ExtHostExtensionServiceShape {
 				get extensionPath() { return extensionDescription.extensionLocation.fsPath; },
 				storagePath: this._storagePath.value(extensionDescription),
 				asAbsolutePath: (relativePath: string) => { return join(extensionDescription.extensionLocation.fsPath, relativePath); },
+				get logger() {
+					checkProposedApiEnabled(extensionDescription);
+					return that._extHostLogService.getExtLogger(extensionDescription.id);
+				},
 				get logDirectory() {
 					console.warn(`this PROPOSED API has been RENAMED to 'logPath'`);
 					checkProposedApiEnabled(extensionDescription);

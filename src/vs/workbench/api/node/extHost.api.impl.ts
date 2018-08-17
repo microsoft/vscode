@@ -227,10 +227,7 @@ export function createApiFactory(
 			get language() { return platform.language; },
 			get appName() { return product.nameLong; },
 			get appRoot() { return initData.environment.appRoot; },
-			get logLevel() {
-				checkProposedApiEnabled(extension);
-				return extHostLogService.getLevel();
-			}
+			get logLevel() { return extHostLogService.getLevel(); }
 		});
 
 		// namespace: extensions
