@@ -303,8 +303,14 @@ export class WinUserSetupContribution implements IWorkbenchContribution {
 
 		const handle = this.notificationService.prompt(
 			severity.Info,
-			nls.localize('usersetup', "We recommend switching to our new User Setup distribution of {0} for Windows! Click [here]({1}) to learn more.", product.nameShort, WinUserSetupContribution.READ_MORE),
+			nls.localize('usersetup', "We recommend switching to our new User Setup distribution of {0} for Windows!", product.nameShort),
 			[
+				{
+					label: nls.localize('learnMore', "Learn More"),
+					run: () => {
+						return this.openerService.open(URI.parse(WinUserSetupContribution.READ_MORE));
+					}
+				},
 				{
 					label: nls.localize('downloadnow', "Download"),
 					run: () => {
@@ -317,7 +323,6 @@ export class WinUserSetupContribution implements IWorkbenchContribution {
 				},
 				{
 					label: nls.localize('neveragain', "Don't Show Again"),
-					isSecondary: true,
 					run: () => {
 						neverShowAgain.action.run(handle);
 						neverShowAgain.action.dispose();
