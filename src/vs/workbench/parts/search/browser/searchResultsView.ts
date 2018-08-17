@@ -107,9 +107,11 @@ export class SearchDataSource implements IDataSource {
 			return false;
 		}
 
-		const collapseOption = this.configurationService.getValue('search.collapseAllResults');
+		const collapseOption = this.configurationService.getValue('search.collapseResults');
 		if (collapseOption === 'alwaysCollapse') {
 			return false;
+		} else if (collapseOption === 'alwaysExpand') {
+			return true;
 		}
 
 		return numChildren < SearchDataSource.AUTOEXPAND_CHILD_LIMIT || element instanceof FolderMatch;
