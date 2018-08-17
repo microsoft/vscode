@@ -27,7 +27,7 @@ import { Tree } from 'vs/base/parts/tree/browser/treeImpl';
 import { localize } from 'vs/nls';
 import { ICommandService } from 'vs/platform/commands/common/commands';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { IContextViewService } from 'vs/platform/contextview/browser/contextView';
+import { IContextViewService, IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { WorkbenchTreeController } from 'vs/platform/list/browser/listService';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
@@ -39,6 +39,9 @@ import { ISettingsEditorViewState, isExcludeSetting, SettingsTreeElement, Settin
 import { ExcludeSettingWidget, IExcludeDataItem, settingsHeaderForeground, settingsNumberInputBackground, settingsNumberInputBorder, settingsNumberInputForeground, settingsSelectBackground, settingsSelectBorder, settingsSelectForeground, settingsTextInputBackground, settingsTextInputBorder, settingsTextInputForeground } from 'vs/workbench/parts/preferences/browser/settingsWidgets';
 import { ISetting, ISettingsGroup } from 'vs/workbench/services/preferences/common/preferences';
 import { alert as ariaAlert } from 'vs/base/browser/ui/aria/aria';
+import { ToolBar } from 'vs/base/browser/ui/toolbar/toolbar';
+import { Action, IAction } from 'vs/base/common/actions';
+import { IClipboardService } from 'vs/platform/clipboard/common/clipboardService';
 
 const $ = DOM.$;
 
@@ -218,6 +221,7 @@ interface ISettingItemTemplate<T = any> extends IDisposableTemplate {
 	controlElement: HTMLElement;
 	deprecationWarningElement: HTMLElement;
 	otherOverridesElement: HTMLElement;
+	toolbar: ToolBar;
 }
 
 interface ISettingBoolItemTemplate extends ISettingItemTemplate<boolean> {
@@ -295,6 +299,8 @@ export class SettingsRenderer implements ITreeRenderer {
 	private rowHeightCache = new Map<string, number>();
 	private lastRenderedWidth: number;
 
+	private settingActions: IAction[];
+
 	constructor(
 		_measureContainer: HTMLElement,
 		@IThemeService private themeService: IThemeService,
@@ -302,12 +308,24 @@ export class SettingsRenderer implements ITreeRenderer {
 		@IOpenerService private readonly openerService: IOpenerService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@ICommandService private readonly commandService: ICommandService,
+		@IContextMenuService private contextMenuService: IContextMenuService
 	) {
 		this.descriptionMeasureContainer = $('.setting-item-description');
 		DOM.append(_measureContainer,
 			$('.setting-measure-container.monaco-tree-row', undefined,
 				$('.setting-item', undefined,
 					this.descriptionMeasureContainer)));
+
+		this.settingActions = [
+			this.instantiationService.createInstance(CopySettingIdAction),
+			new Action('settings.resetSetting', localize('resetSettingLabel', "Reset Setting"), undefined, undefined, (context: SettingsTreeSettingElement) => {
+				if (context) {
+					this._onDidChangeSetting.fire({ key: context.setting.key, value: undefined });
+				}
+
+				return TPromise.wrap(null);
+			})
+		];
 	}
 
 	updateWidth(width: number): void {
@@ -495,6 +513,11 @@ export class SettingsRenderer implements ITreeRenderer {
 		const deprecationWarningElement = DOM.append(container, $('.setting-item-deprecation-message'));
 
 		const toDispose = [];
+
+		const toolbar = new ToolBar(container, this.contextMenuService, {});
+		toolbar.setActions([], this.settingActions)();
+		toDispose.push(toolbar);
+
 		const template: ISettingItemTemplate = {
 			toDispose,
 
@@ -504,7 +527,8 @@ export class SettingsRenderer implements ITreeRenderer {
 			descriptionElement,
 			controlElement,
 			deprecationWarningElement,
-			otherOverridesElement
+			otherOverridesElement,
+			toolbar
 		};
 
 		// Prevent clicks from being handled by list
@@ -616,6 +640,10 @@ export class SettingsRenderer implements ITreeRenderer {
 		}));
 		checkbox.domNode.classList.add(SettingsRenderer.CONTROL_CLASS);
 
+		const toolbar = new ToolBar(container, this.contextMenuService, {});
+		toolbar.setActions([], this.settingActions)();
+		toDispose.push(toolbar);
+
 		const template: ISettingBoolItemTemplate = {
 			toDispose,
 
@@ -626,7 +654,8 @@ export class SettingsRenderer implements ITreeRenderer {
 			checkbox,
 			descriptionElement,
 			deprecationWarningElement,
-			otherOverridesElement
+			otherOverridesElement,
+			toolbar
 		};
 
 		this.addSettingElementFocusHandler(template);
@@ -826,6 +855,7 @@ export class SettingsRenderer implements ITreeRenderer {
 
 	private renderSettingElement(tree: ITree, element: SettingsTreeSettingElement, templateId: string, template: ISettingItemTemplate | ISettingBoolItemTemplate): void {
 		template.context = element;
+		template.toolbar.context = element;
 
 		const setting = element.setting;
 
@@ -1271,7 +1301,7 @@ export class SettingsTree extends NonExpandableOrSelectableTree {
 			ariaLabel: localize('treeAriaLabel', "Settings"),
 			showLoading: false,
 			indentPixels: 0,
-			twistiePixels: 0,
+			twistiePixels: 20, // Actually for gear button
 		};
 
 		super(container,
@@ -1337,5 +1367,24 @@ export class SettingsTree extends NonExpandableOrSelectableTree {
 		}, colors => {
 			this.style(colors);
 		}));
+	}
+}
+
+class CopySettingIdAction extends Action {
+	static readonly ID = 'settings.copySettingId';
+	static readonly LABEL = localize('copySettingIdLabel', "Copy Setting ID");
+
+	constructor(
+		@IClipboardService private clipboardService: IClipboardService
+	) {
+		super(CopySettingIdAction.ID, CopySettingIdAction.LABEL);
+	}
+
+	run(context: SettingsTreeSettingElement): TPromise<void> {
+		if (context) {
+			this.clipboardService.writeText(context.setting.key);
+		}
+
+		return TPromise.as(null);
 	}
 }

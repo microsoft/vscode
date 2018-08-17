@@ -493,7 +493,7 @@ export class SettingsEditor2 extends BaseEditor {
 		}
 
 		return this.configurationService.updateValue(key, value, overrides, configurationTarget)
-			.then(() => this.renderTree(key)) // to draw "Modified" TODO
+			.then(() => this.renderTree(key))
 			.then(() => {
 				const reportModifiedProps = {
 					key,
