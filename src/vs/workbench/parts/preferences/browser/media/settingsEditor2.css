@@ -133,13 +133,25 @@
 	/** 11px for scrollbar + 208px for TOC margin */
 	width: 100%;
 	max-width: calc( 100% - (100% - 837px));
+	padding-left: 160px;
 }
+
+.settings-editor.narrow > .settings-body .settings-tree-container .monaco-tree-wrapper,
+.settings-editor-narrow > .settings-body > .settings-tree-container .setting-measure-container{
+	padding-left: 0px;
+}
+
+.settings-body .settings-tree-container {
+	/* makes the scrollbar itself also scrollable */
+	margin-right: -23px;
+}
+
 .settings-body .settings-tree-container .monaco-tree .shadow.top {
-	max-width: calc( 100% - (100% - 833px));
+	max-width: calc( 100% - (100% - 1000px));
 }
 
 .settings-editor > .settings-body .settings-toc-container {
-	/* position: absolute; */
+	position: absolute;
 	width: 160px;
 	margin-top: 16px;
 	padding-left: 5px;
