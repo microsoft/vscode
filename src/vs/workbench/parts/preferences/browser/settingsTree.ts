@@ -833,7 +833,7 @@ export class SettingsRenderer implements ITreeRenderer {
 		DOM.toggleClass(template.containerElement, 'is-expanded', true);
 		template.containerElement.setAttribute(SettingsRenderer.SETTING_KEY_ATTR, element.setting.key);
 
-		const titleTooltip = setting.key;
+		const titleTooltip = setting.key + (element.isConfigured ? ' - Modified' : '');
 		template.categoryElement.textContent = element.displayCategory && (element.displayCategory + ': ');
 		template.categoryElement.title = titleTooltip;
 
