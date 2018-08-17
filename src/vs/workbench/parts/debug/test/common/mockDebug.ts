@@ -7,7 +7,10 @@ import uri from 'vs/base/common/uri';
 import { Event, Emitter } from 'vs/base/common/event';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { IWorkspaceFolder } from 'vs/platform/workspace/common/workspace';
-import { ILaunch, IDebugService, State, DebugEvent, ISession, IConfigurationManager, IStackFrame, IBreakpointData, IBreakpointUpdateData, IConfig, IModel, IViewModel, IRawSession, IBreakpoint, LoadedSourceEvent } from 'vs/workbench/parts/debug/common/debug';
+import { Position } from 'vs/editor/common/core/position';
+import { ILaunch, IDebugService, State, DebugEvent, ISession, IConfigurationManager, IStackFrame, IBreakpointData, IBreakpointUpdateData, IConfig, IModel, IViewModel, IRawSession, IBreakpoint, LoadedSourceEvent, SessionState, IThread, IRawModelUpdate } from 'vs/workbench/parts/debug/common/debug';
+import { Source } from 'vs/workbench/parts/debug/common/debugSource';
+import { ISuggestion } from 'vs/editor/common/modes';
 
 export class MockDebugService implements IDebugService {
 	public _serviceBrand: any;
@@ -114,7 +117,49 @@ export class MockDebugService implements IDebugService {
 	public sourceIsNotAvailable(uri: uri): void { }
 }
 
-export class MockSession implements IRawSession {
+export class MockSession implements ISession {
+	configuration: IConfig = { type: 'mock', request: 'launch' };
+	raw: IRawSession = new MockRawSession();
+	state = SessionState.LAUNCH;
+
+	getName(includeRoot: boolean): string {
+		return 'mockname';
+	}
+
+	getSourceForUri(modelUri: uri): Source {
+		return null;
+	}
+
+	getThread(threadId: number): IThread {
+		return null;
+	}
+
+	getAllThreads(): ReadonlyArray<IThread> {
+		return [];
+	}
+
+	getSource(raw: DebugProtocol.Source): Source {
+		return undefined;
+	}
+
+	getLoadedSources(): TPromise<Source[]> {
+		return TPromise.as([]);
+	}
+
+	completions(frameId: number, text: string, position: Position, overwriteBefore: number): TPromise<ISuggestion[]> {
+		return TPromise.as([]);
+	}
+
+	clearThreads(removeThreads: boolean, reference?: number): void { }
+
+	rawUpdate(data: IRawModelUpdate): void { }
+
+	getId(): string {
+		return 'mock';
+	}
+}
+
+export class MockRawSession implements IRawSession {
 
 	public readyForBreakpoints = true;
 	public emittedStopped = true;

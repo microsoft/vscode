@@ -28,7 +28,7 @@ import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
 import * as debug from 'vs/workbench/parts/debug/common/debug';
 import { RawDebugSession } from 'vs/workbench/parts/debug/electron-browser/rawDebugSession';
-import { Model, ExceptionBreakpoint, FunctionBreakpoint, Breakpoint, Expression, RawObjectReplElement, ExpressionContainer, Session, Thread } from 'vs/workbench/parts/debug/common/debugModel';
+import { Model, ExceptionBreakpoint, FunctionBreakpoint, Breakpoint, Expression, RawObjectReplElement, ExpressionContainer, Thread } from 'vs/workbench/parts/debug/common/debugModel';
 import { ViewModel } from 'vs/workbench/parts/debug/common/debugViewModel';
 import * as debugactions from 'vs/workbench/parts/debug/browser/debugActions';
 import { ConfigurationManager } from 'vs/workbench/parts/debug/electron-browser/debugConfigurationManager';
@@ -55,6 +55,7 @@ import { normalizeDriveLetter } from 'vs/base/common/labels';
 import { RunOnceScheduler } from 'vs/base/common/async';
 import product from 'vs/platform/node/product';
 import { deepClone, equals } from 'vs/base/common/objects';
+import { Session } from 'vs/workbench/parts/debug/electron-browser/debugSession';
 
 const DEBUG_BREAKPOINTS_KEY = 'debug.breakpoint';
 const DEBUG_BREAKPOINTS_ACTIVATED_KEY = 'debug.breakpointactivated';
@@ -895,7 +896,8 @@ export class DebugService implements debug.IDebugService {
 
 			const raw = this.instantiationService.createInstance(RawDebugSession, sessionId, configuration.resolved.debugServer, dbg, customTelemetryService, root);
 			if (!session) {
-				session = this.model.addSession(configuration, raw);
+				session = new Session(configuration, raw);
+				this.model.addSession(session);
 				this.allSessions.set(session.getId(), session);
 			} else {
 				session.raw = raw;

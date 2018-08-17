@@ -146,16 +146,20 @@ export enum SessionState {
 }
 
 export interface ISession extends ITreeElement {
-	getName(includeRoot: boolean): string;
 	readonly configuration: IConfig;
 	readonly raw: IRawSession;
 	readonly state: SessionState;
+
+	getName(includeRoot: boolean): string;
 	getSourceForUri(modelUri: uri): Source;
 	getThread(threadId: number): IThread;
 	getAllThreads(): ReadonlyArray<IThread>;
 	getSource(raw: DebugProtocol.Source): Source;
 	getLoadedSources(): TPromise<Source[]>;
 	completions(frameId: number, text: string, position: Position, overwriteBefore: number): TPromise<ISuggestion[]>;
+	clearThreads(removeThreads: boolean, reference?: number): void;
+
+	rawUpdate(data: IRawModelUpdate): void;
 }
 
 export interface IThread extends ITreeElement {
