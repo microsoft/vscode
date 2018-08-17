@@ -291,7 +291,7 @@ class TimerService implements ITimerService {
 
 	_serviceBrand: any;
 
-	readonly startupMetrics: Promise<IStartupMetrics>;
+	private _startupMetrics: Promise<IStartupMetrics>;
 
 	constructor(
 		@IWindowsService private readonly _windowsService: IWindowsService,
@@ -304,12 +304,19 @@ class TimerService implements ITimerService {
 		@IPanelService private readonly _panelService: IPanelService,
 		@IEditorService private readonly _editorService: IEditorService,
 	) {
-		this.startupMetrics = Promise
-			.resolve(this._extensionService.whenInstalledExtensionsRegistered())
-			.then(() => this._computeStartupMetrics());
+	}
+
+	get startupMetrics(): Promise<IStartupMetrics> {
+		if (!this._startupMetrics) {
+			this._startupMetrics = Promise
+				.resolve(this._extensionService.whenInstalledExtensionsRegistered())
+				.then(() => this._computeStartupMetrics());
+		}
+		return this._startupMetrics;
 	}
 
 	private async _computeStartupMetrics(): Promise<IStartupMetrics> {
+
 		const now = Date.now();
 		const initialStartup = !!this._windowService.getConfiguration().isInitialStartup;
 		const startMark = initialStartup ? 'main:started' : 'main:loadWindow';
