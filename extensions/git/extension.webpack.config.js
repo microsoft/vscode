@@ -5,45 +5,16 @@
 
 'use strict';
 
-const path = require('path');
+const sharedConfig = require('../shared.webpack.config');
 const CopyWebpackPlugin = require('copy-webpack-plugin');
 
-module.exports = {
-	// mode: 'production',
-	// stats: 'errors-only',
-	mode: 'none',
-	context: __dirname,
-	target: 'node',
+const myConfig = {
 	node: {
-		__dirname: false
+		__dirname: false // leave the __dirname-behaviour intact
 	},
 	entry: {
 		main: './src/main.ts',
 		['askpass-main']: './src/askpass-main.ts'
-	},
-	resolve: {
-		mainFields: ['main'],
-		extensions: [".ts", ".js"]
-	},
-	module: {
-		rules: [{
-			test: /\.ts$/,
-			exclude: /node_modules/,
-			use: [{
-				loader: 'ts-loader',
-				options: {
-					transpileOnly: true,
-					compilerOptions: {
-						"sourceMap": true,
-					}
-				}
-			}]
-		}]
-	},
-	output: {
-		filename: '[name].js',
-		path: path.join(__dirname, 'dist'),
-		libraryTarget: "commonjs"
 	},
 	plugins: [
 		new CopyWebpackPlugin([
@@ -51,9 +22,8 @@ module.exports = {
 			{ from: './out/nls.*.json', to: '[name].json' }
 		])
 	],
-	devtool: 'source-map',
 	externals: {
-		'vscode': 'commonjs vscode',
+		'vscode': 'commonjs vscode', // ignored because it doesn't exist
 		"byline": 'commonjs byline',
 		"file-type": 'commonjs file-type',
 		"iconv-lite": 'commonjs iconv-lite',
@@ -63,3 +33,5 @@ module.exports = {
 		"which": 'commonjs which',
 	},
 };
+
+module.exports = { ...sharedConfig(__dirname), ...myConfig };

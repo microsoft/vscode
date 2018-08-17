@@ -5,44 +5,14 @@
 
 'use strict';
 
-const path = require('path');
+const sharedConfig = require('../shared.webpack.config');
 
-module.exports = {
-	// mode: 'production',
-	// stats: 'errors-only',
-	mode: 'none',
-	context: __dirname,
-	target: 'node',
+const myConfig = {
 	entry: {
 		extension: './src/extension.ts',
 	},
-	resolve: {
-		mainFields: ['main'],
-		extensions: [".ts", ".js"]
-	},
-	module: {
-		rules: [{
-			test: /\.ts$/,
-			exclude: /node_modules/,
-			use: [{
-				loader: 'ts-loader',
-				options: {
-					transpileOnly: true,
-					compilerOptions: {
-						"sourceMap": true,
-					}
-				}
-			}]
-		}]
-	},
-	output: {
-		filename: '[name].js',
-		path: path.join(__dirname, 'dist'),
-		libraryTarget: "commonjs",
-	},
-	devtool: 'source-map',
 	externals: {
-		'vscode': 'commonjs vscode',
+		'vscode': 'commonjs vscode', // ignored because it doesn't exist
 		'@emmetio/css-parser': 'commonjs @emmetio/css-parser',
 		'@emmetio/html-matcher': 'commonjs @emmetio/html-matcher',
 		'@emmetio/math-expression': 'commonjs @emmetio/math-expression',
@@ -50,3 +20,5 @@ module.exports = {
 		'vscode-emmet-helper': 'commonjs vscode-emmet-helper',
 	},
 };
+
+module.exports = { ...sharedConfig(__dirname), ...myConfig };
