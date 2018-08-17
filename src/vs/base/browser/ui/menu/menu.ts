@@ -7,6 +7,7 @@
 
 import 'vs/css!./menu';
 import * as nls from 'vs/nls';
+import * as strings from 'vs/base/common/strings';
 import { IActionRunner, IAction, Action } from 'vs/base/common/actions';
 import { ActionBar, IActionItemProvider, ActionsOrientation, Separator, ActionItem, IActionItemOptions, BaseActionItem } from 'vs/base/browser/ui/actionbar/actionbar';
 import { ResolvedKeybinding, KeyCode, KeyCodeUtils } from 'vs/base/common/keyCodes';
@@ -208,6 +209,7 @@ interface IMenuItemOptions extends IActionItemOptions {
 
 class MenuActionItem extends BaseActionItem {
 	static MNEMONIC_REGEX: RegExp = /&&(.)/g;
+	static ESCAPED_MNEMONIC_REGEX: RegExp = /&amp;&amp;(.)/g;
 
 	public container: HTMLElement;
 	protected $e: Builder;
@@ -288,13 +290,13 @@ class MenuActionItem extends BaseActionItem {
 				}
 
 				if (this.options.enableMnemonics) {
-					label = label.replace(MenuActionItem.MNEMONIC_REGEX, '$1\u0332');
+					label = strings.escape(label).replace(MenuActionItem.ESCAPED_MNEMONIC_REGEX, '<u>$1</u>');
 				} else {
-					label = label.replace(MenuActionItem.MNEMONIC_REGEX, '$1');
+					label = strings.escape(label).replace(MenuActionItem.ESCAPED_MNEMONIC_REGEX, '$1');
 				}
 			}
 
-			this.$label.text(label);
+			this.$label.innerHtml(label);
 		}
 	}
 

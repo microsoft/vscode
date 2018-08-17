@@ -144,7 +144,7 @@ export class MenubarControl extends Disposable {
 			this.topLevelMenus['Preferences'] = this._register(this.menuService.createMenu(MenuId.MenubarPreferencesMenu, this.contextKeyService));
 		}
 
-		this.menuUpdater = this._register(new RunOnceScheduler(() => this.doSetupMenubar(), 100));
+		this.menuUpdater = this._register(new RunOnceScheduler(() => this.doSetupMenubar(), 200));
 
 		this.actionRunner = this._register(new ActionRunner());
 		this._register(this.actionRunner.onDidBeforeRun(() => {
@@ -806,6 +806,14 @@ export class MenubarControl extends Disposable {
 				if (!this.mnemonics.has(key)) {
 					return;
 				}
+
+				// Prevent conflicts with keybindings
+				const standardKeyboardEvent = new StandardKeyboardEvent(e);
+				const resolvedResult = this.keybindingService.softDispatch(standardKeyboardEvent, standardKeyboardEvent.target);
+				if (resolvedResult) {
+					return;
+				}
+
 				this.mnemonicsInUse = true;
 
 				const menuIndex = this.mnemonics.get(key);
