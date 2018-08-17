@@ -6,49 +6,31 @@ steps:
   inputs:
     versionSpec: "1.3.2"
 - powershell: |
-    . build/tfs/win32/exec.ps1
-    $ErrorActionPreference = "Stop"
-    exec { yarn }
+    yarn
   displayName: Install Dependencies
 - powershell: |
-    . build/tfs/win32/exec.ps1
-    $ErrorActionPreference = "Stop"
-    exec { yarn gulp electron }
+    yarn gulp electron
   displayName: Download Electron
 - powershell: |
-    . build/tfs/win32/exec.ps1
-    $ErrorActionPreference = "Stop"
-    exec { yarn gulp hygiene }
+    yarn gulp hygiene
   displayName: Run Hygiene Checks
 - powershell: |
-    . build/tfs/win32/exec.ps1
-    $ErrorActionPreference = "Stop"
-    exec { yarn monaco-compile-check }
+    yarn monaco-compile-check
   displayName: Run Monaco Editor Checks
 - powershell: |
-    . build/tfs/win32/exec.ps1
-    $ErrorActionPreference = "Stop"
-    exec { yarn compile }
+    yarn compile
   displayName: Compile Sources
 - powershell: |
-    . build/tfs/win32/exec.ps1
-    $ErrorActionPreference = "Stop"
-    exec { yarn download-builtin-extensions }
+    yarn download-builtin-extensions
   displayName: Download Built-in Extensions
 - powershell: |
-    . build/tfs/win32/exec.ps1
-    $ErrorActionPreference = "Stop"
-    exec { .\scripts\test.bat --tfs "Unit Tests" }
+    .\scripts\test.bat --tfs "Unit Tests"
   displayName: Run Unit Tests
 - powershell: |
-    . build/tfs/win32/exec.ps1
-    $ErrorActionPreference = "Stop"
-    exec { .\scripts\test-integration.bat --tfs "Integration Tests" }
+    .\scripts\test-integration.bat --tfs "Integration Tests"
   displayName: Run Integration Tests
 - powershell: |
-    . build/tfs/win32/exec.ps1
-    $ErrorActionPreference = "Stop"
-    exec { yarn smoketest --screenshots "$(Build.ArtifactStagingDirectory)\artifacts" --log "$(Build.ArtifactStagingDirectory)\artifacts\smoketest.log" }
+    yarn smoketest --screenshots "$(Build.ArtifactStagingDirectory)\artifacts" --log "$(Build.ArtifactStagingDirectory)\artifacts\smoketest.log"
   displayName: Run Smoke Tests
   continueOnError: true
 - task: PublishBuildArtifacts@1
