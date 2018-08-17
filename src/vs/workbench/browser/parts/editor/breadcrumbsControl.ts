@@ -140,7 +140,6 @@ export class BreadcrumbsControl {
 
 	readonly domNode: HTMLDivElement;
 	private readonly _widget: BreadcrumbsWidget;
-	private _dimension: dom.Dimension;
 
 	private _disposables = new Array<IDisposable>();
 	private _breadcrumbsDisposables = new Array<IDisposable>();
@@ -191,7 +190,6 @@ export class BreadcrumbsControl {
 	}
 
 	layout(dim: dom.Dimension): void {
-		this._dimension = dim;
 		this._widget.layout(dim);
 	}
 
@@ -294,20 +292,25 @@ export class BreadcrumbsControl {
 				return combinedDisposable([listener, picker]);
 			},
 			getAnchor: () => {
-
+				let maxInnerWidth = window.innerWidth - 8 /*a little less the the full widget*/;
 				let pickerHeight = 330;
-				let pickerWidth = Math.max(this._dimension.width / 2.59, dom.getTotalWidth(event.node));
+				let pickerWidth = Math.min(maxInnerWidth, Math.max(240, maxInnerWidth / 4.17));
 				let pickerArrowSize = 8;
 				let pickerArrowOffset: number;
 
 				let data = dom.getDomNodePagePosition(event.node.firstChild as HTMLElement);
 				let y = data.top + data.height - pickerArrowSize;
 				let x = data.left;
-				if (x + pickerWidth >= window.innerWidth) {
-					x = window.innerWidth - pickerWidth;
+				if (x + pickerWidth >= maxInnerWidth) {
+					x = maxInnerWidth - pickerWidth;
 				}
 				if (event.payload instanceof StandardMouseEvent) {
-					pickerArrowOffset = event.payload.posx - x - pickerArrowSize;
+					let maxPickerArrowOffset = pickerWidth - 2 * pickerArrowSize;
+					pickerArrowOffset = event.payload.posx - x;
+					if (pickerArrowOffset > maxPickerArrowOffset) {
+						x = Math.min(maxInnerWidth - pickerWidth, x + pickerArrowOffset - maxPickerArrowOffset);
+						pickerArrowOffset = maxPickerArrowOffset;
+					}
 				} else {
 					pickerArrowOffset = (data.left + (data.width * .3)) - x;
 				}

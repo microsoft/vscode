@@ -25,6 +25,7 @@ export class ContextMenuHandler {
 
 	private $el: Builder;
 	private menuContainerElement: HTMLElement;
+	private focusToReturn: HTMLElement;
 
 	constructor(element: HTMLElement, contextViewService: IContextViewService, telemetryService: ITelemetryService, notificationService: INotificationService) {
 		this.setContainer(element);
@@ -52,6 +53,8 @@ export class ContextMenuHandler {
 			if (!actions.length) {
 				return; // Don't render an empty context menu
 			}
+
+			this.focusToReturn = document.activeElement as HTMLElement;
 
 			this.contextViewService.showContextView({
 				getAnchor: () => delegate.getAnchor(),
@@ -110,6 +113,11 @@ export class ContextMenuHandler {
 		}
 
 		this.contextViewService.hideContextView(false);
+
+		// Restore focus here
+		if (this.focusToReturn) {
+			this.focusToReturn.focus();
+		}
 	}
 
 	private onDidActionRun(e: IRunEvent): void {

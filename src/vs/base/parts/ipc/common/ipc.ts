@@ -375,7 +375,7 @@ export class ChannelClient implements IChannelClient, IDisposable {
 		if (this.state === State.Idle) {
 			return TPromise.as(null);
 		} else {
-			return toPromise(this.onDidInitialize);
+			return TPromise.wrap(toPromise(this.onDidInitialize));
 		}
 	}
 

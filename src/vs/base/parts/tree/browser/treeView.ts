@@ -59,10 +59,19 @@ export class RowCache implements Lifecycle.IDisposable {
 			var row = document.createElement('div');
 			row.appendChild(content);
 
+			let templateData: any = null;
+
+			try {
+				templateData = this.context.renderer.renderTemplate(this.context.tree, templateId, content);
+			} catch (err) {
+				console.error('Tree usage error: exception while rendering template');
+				console.error(err);
+			}
+
 			result = {
 				element: row,
 				templateId: templateId,
-				templateData: this.context.renderer.renderTemplate(this.context.tree, templateId, content)
+				templateData
 			};
 		}
 
@@ -260,7 +269,12 @@ export class ViewItem implements IViewItem {
 				this.element.style.width = 'fit-content';
 			}
 
-			this.context.renderer.renderElement(this.context.tree, this.model.getElement(), this.templateId, this.row.templateData);
+			try {
+				this.context.renderer.renderElement(this.context.tree, this.model.getElement(), this.templateId, this.row.templateData);
+			} catch (err) {
+				console.error('Tree usage error: exception while rendering element');
+				console.error(err);
+			}
 
 			if (this.context.horizontalScrolling) {
 				this.width = DOM.getContentWidth(this.element) + paddingLeft;

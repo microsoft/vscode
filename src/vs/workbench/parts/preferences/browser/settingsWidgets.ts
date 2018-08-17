@@ -9,6 +9,7 @@ import { ActionBar } from 'vs/base/browser/ui/actionbar/actionbar';
 import { Button } from 'vs/base/browser/ui/button/button';
 import { InputBox } from 'vs/base/browser/ui/inputbox/inputBox';
 import { IAction } from 'vs/base/common/actions';
+import { Color, RGBA } from 'vs/base/common/color';
 import { Emitter, Event } from 'vs/base/common/event';
 import { KeyCode } from 'vs/base/common/keyCodes';
 import { Disposable, dispose, IDisposable } from 'vs/base/common/lifecycle';
@@ -21,7 +22,11 @@ import { ICssStyleCollector, ITheme, IThemeService, registerThemingParticipant }
 
 const $ = DOM.$;
 export const settingsHeaderForeground = registerColor('settings.headerForeground', { light: '#444444', dark: '#e7e7e7', hc: '#ffffff' }, localize('headerForeground', "(For settings editor preview) The foreground color for a section header or active title."));
-export const modifiedItemForeground = registerColor('settings.modifiedItemForeground', { light: '#018101', dark: '#73C991', hc: '#73C991' }, localize('modifiedItemForeground', "(For settings editor preview) The foreground color for a the modified setting indicator."));
+export const modifiedItemIndicator = registerColor('settings.modifiedItemIndicator', {
+	light: new Color(new RGBA(102, 175, 224)),
+	dark: new Color(new RGBA(12, 125, 157)),
+	hc: new Color(new RGBA(0, 73, 122))
+}, localize('modifiedItemForeground', "(For settings editor preview) The color of the modified setting indicator."));
 
 // Enum control colors
 export const settingsSelectBackground = registerColor('settings.dropdownBackground', { dark: selectBackground, light: selectBackground, hc: selectBackground }, localize('settingsDropdownBackground', "(For settings editor preview) Settings editor dropdown background."));
@@ -44,11 +49,6 @@ export const settingsNumberInputForeground = registerColor('settings.numberInput
 export const settingsNumberInputBorder = registerColor('settings.numberInputBorder', { dark: inputBorder, light: inputBorder, hc: inputBorder }, localize('numberInputBoxBorder', "(For settings editor preview) Settings editor number input box border."));
 
 registerThemingParticipant((theme: ITheme, collector: ICssStyleCollector) => {
-	const modifiedItemForegroundColor = theme.getColor(modifiedItemForeground);
-	if (modifiedItemForegroundColor) {
-		collector.addRule(`.settings-editor > .settings-body > .settings-tree-container .setting-item.is-configured .setting-item-is-configured-label { color: ${modifiedItemForegroundColor}; }`);
-	}
-
 	const checkboxBackgroundColor = theme.getColor(settingsCheckboxBackground);
 	if (checkboxBackgroundColor) {
 		collector.addRule(`.settings-editor > .settings-body > .settings-tree-container .setting-item-bool .setting-value-checkbox { background-color: ${checkboxBackgroundColor} !important; }`);
@@ -109,6 +109,11 @@ registerThemingParticipant((theme: ITheme, collector: ICssStyleCollector) => {
 	const codeTextForegroundColor = theme.getColor(textPreformatForeground);
 	if (codeTextForegroundColor) {
 		collector.addRule(`.settings-editor > .settings-body > .settings-tree-container .setting-item .setting-item-description-markdown code { color: ${codeTextForegroundColor} }`);
+	}
+
+	const modifiedItemIndicatorColor = theme.getColor(modifiedItemIndicator);
+	if (modifiedItemIndicatorColor) {
+		collector.addRule(`.settings-editor > .settings-body > .settings-tree-container .setting-item.is-configured::after { background-color: ${modifiedItemIndicatorColor}; }`);
 	}
 });
 

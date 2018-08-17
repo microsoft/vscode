@@ -20,11 +20,11 @@ import { localize } from 'vs/nls';
 import { FileKind, IFileService, IFileStat } from 'vs/platform/files/common/files';
 import { IInstantiationService, IConstructorSignature1 } from 'vs/platform/instantiation/common/instantiation';
 import { HighlightingWorkbenchTree, IHighlightingTreeConfiguration, IHighlightingRenderer } from 'vs/platform/list/browser/listService';
-import { IThemeService, DARK } from 'vs/platform/theme/common/themeService';
+import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { FileLabel } from 'vs/workbench/browser/labels';
 import { BreadcrumbElement, FileElement } from 'vs/workbench/browser/parts/editor/breadcrumbsModel';
 import { onUnexpectedError } from 'vs/base/common/errors';
-import { breadcrumbsPickerBackground } from 'vs/platform/theme/common/colorRegistry';
+import { breadcrumbsPickerBackground, widgetShadow } from 'vs/platform/theme/common/colorRegistry';
 import { FuzzyScore, createMatches, fuzzyScore } from 'vs/base/common/filters';
 import { IWorkspaceContextService, IWorkspace, IWorkspaceFolder } from 'vs/platform/workspace/common/workspace';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
@@ -71,7 +71,7 @@ export abstract class BreadcrumbsPicker {
 		this._treeContainer = document.createElement('div');
 		this._treeContainer.style.background = color.toString();
 		this._treeContainer.style.paddingTop = '2px';
-		this._treeContainer.style.boxShadow = `0px 5px 8px ${(theme.type === DARK ? color.darken(.6) : color.darken(.2))}`;
+		this._treeContainer.style.boxShadow = `0px 5px 8px ${this._themeService.getTheme().getColor(widgetShadow)}`;
 		this._domNode.appendChild(this._treeContainer);
 
 		const treeConifg = this._completeTreeConfiguration({ dataSource: undefined, renderer: undefined });

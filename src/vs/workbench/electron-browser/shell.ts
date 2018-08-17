@@ -63,7 +63,6 @@ import { DefaultURITransformer } from 'vs/base/common/uriIpc';
 import { IExtensionManagementChannel, ExtensionManagementChannelClient } from 'vs/platform/extensionManagement/common/extensionManagementIpc';
 import { IExtensionManagementService, IExtensionEnablementService, IExtensionManagementServerService } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { ExtensionEnablementService } from 'vs/platform/extensionManagement/common/extensionEnablementService';
-import { ITimerService } from 'vs/workbench/services/timer/common/timerService';
 import { BareFontInfo } from 'vs/editor/common/config/fontInfo';
 import { restoreFontInfo, readFontInfo, saveFontInfo } from 'vs/editor/browser/config/configuration';
 import * as browser from 'vs/base/browser/browser';
@@ -106,7 +105,6 @@ export interface ICoreServices {
 	configurationService: IConfigurationService;
 	environmentService: IEnvironmentService;
 	logService: ILogService;
-	timerService: ITimerService;
 	storageService: IStorageService;
 }
 
@@ -123,7 +121,6 @@ export class WorkbenchShell extends Disposable {
 	private telemetryService: ITelemetryService;
 	private extensionService: ExtensionService;
 	private broadcastService: IBroadcastService;
-	private timerService: ITimerService;
 	private themeService: WorkbenchThemeService;
 	private lifecycleService: LifecycleService;
 	private mainProcessServices: ServiceCollection;
@@ -147,7 +144,6 @@ export class WorkbenchShell extends Disposable {
 		this.configurationService = coreServices.configurationService;
 		this.environmentService = coreServices.environmentService;
 		this.logService = coreServices.logService;
-		this.timerService = coreServices.timerService;
 		this.storageService = coreServices.storageService;
 
 		this.mainProcessServices = mainProcessServices;
@@ -320,7 +316,6 @@ export class WorkbenchShell extends Disposable {
 		serviceCollection.set(IEnvironmentService, this.environmentService);
 		serviceCollection.set(ILogService, this._register(this.logService));
 
-		serviceCollection.set(ITimerService, this.timerService);
 		serviceCollection.set(IStorageService, this.storageService);
 		this.mainProcessServices.forEach((serviceIdentifier, serviceInstance) => {
 			serviceCollection.set(serviceIdentifier, serviceInstance);

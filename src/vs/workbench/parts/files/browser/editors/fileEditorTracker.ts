@@ -218,9 +218,9 @@ export class FileEditorTracker extends Disposable implements IWorkbenchContribut
 
 	private handleMovedFileInOpenedEditors(oldResource: URI, newResource: URI): void {
 		this.editorGroupService.groups.forEach(group => {
-			group.editors.forEach(input => {
-				if (input instanceof FileEditorInput) {
-					const resource = input.getResource();
+			group.editors.forEach(editor => {
+				if (editor instanceof FileEditorInput) {
+					const resource = editor.getResource();
 
 					// Update Editor if file (or any parent of the input) got renamed or moved
 					if (resources.isEqualOrParent(resource, oldResource, resources.hasToIgnoreCase(resource))) {
@@ -232,17 +232,19 @@ export class FileEditorTracker extends Disposable implements IWorkbenchContribut
 							reopenFileResource = resources.joinPath(newResource, resource.path.substr(index + oldResource.path.length + 1)); // parent folder got moved
 						}
 
-						// Reopen
-						this.editorService.openEditor({
-							resource: reopenFileResource,
-							options: {
-								preserveFocus: true,
-								pinned: group.isPinned(input),
-								index: group.getIndexOfEditor(input),
-								inactive: !group.isActive(input),
-								viewState: this.getViewStateFor(oldResource, group)
-							}
-						}, group);
+						this.editorService.replaceEditors([{
+							editor: { resource },
+							replacement: {
+								resource: reopenFileResource,
+								options: {
+									preserveFocus: true,
+									pinned: group.isPinned(editor),
+									index: group.getIndexOfEditor(editor),
+									inactive: !group.isActive(editor),
+									viewState: this.getViewStateFor(oldResource, group)
+								}
+							},
+						}], group);
 					}
 				}
 			});

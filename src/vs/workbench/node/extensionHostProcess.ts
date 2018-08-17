@@ -114,6 +114,10 @@ function connectToRenderer(protocol: IMessagePassingProtocol): Promise<IRenderer
 				onUnexpectedError(err);
 			});
 
+			process.on('SIGPIPE', () => {
+				onUnexpectedError(new Error('Unexpected SIGPIPE'));
+			});
+
 			// Kill oneself if one's parent dies. Much drama.
 			setInterval(function () {
 				try {

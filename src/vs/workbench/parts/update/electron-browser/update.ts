@@ -249,6 +249,10 @@ export class WinUserSetupContribution implements IWorkbenchContribution {
 		@IOpenerService private openerService: IOpenerService,
 		@IUpdateService private updateService: IUpdateService
 	) {
+		if (!environmentService.isBuilt) {
+			return;
+		}
+
 		const neverShowAgain = new NeverShowAgain(WinUserSetupContribution.KEY_BOTH, this.storageService);
 
 		if (!neverShowAgain.shouldShow()) {
@@ -263,13 +267,12 @@ export class WinUserSetupContribution implements IWorkbenchContribution {
 			}
 
 			const handle = this.notificationService.prompt(
-				severity.Warning,
-				nls.localize('usersetupsystem', "You are running the system-wide installation of {0}, while having the user-wide distribution installed as well. Make sure you're running the {0} version you expect.", product.nameShort),
+				severity.Info,
+				nls.localize('usersetupsystem', "You are running the system-wide installation of {0}, while having the user-wide distribution installed as well.", product.nameShort),
 				[
 					{ label: nls.localize('ok', "OK"), run: () => null },
 					{
-						label: nls.localize('neveragain', "Don't Show Again"),
-						isSecondary: true,
+						label: nls.localize('okneveragain', "OK, Don't Show Again"),
 						run: () => {
 							neverShowAgain.action.run(handle);
 							neverShowAgain.action.dispose();
@@ -300,8 +303,14 @@ export class WinUserSetupContribution implements IWorkbenchContribution {
 
 		const handle = this.notificationService.prompt(
 			severity.Info,
-			nls.localize('usersetup', "We recommend switching to our new User Setup distribution of {0} for Windows! Click [here]({1}) to learn more.", product.nameShort, WinUserSetupContribution.READ_MORE),
+			nls.localize('usersetup', "We recommend switching to our new User Setup distribution of {0} for Windows!", product.nameShort),
 			[
+				{
+					label: nls.localize('learnMore', "Learn More"),
+					run: () => {
+						return this.openerService.open(URI.parse(WinUserSetupContribution.READ_MORE));
+					}
+				},
 				{
 					label: nls.localize('downloadnow', "Download"),
 					run: () => {
@@ -314,7 +323,6 @@ export class WinUserSetupContribution implements IWorkbenchContribution {
 				},
 				{
 					label: nls.localize('neveragain', "Don't Show Again"),
-					isSecondary: true,
 					run: () => {
 						neverShowAgain.action.run(handle);
 						neverShowAgain.action.dispose();

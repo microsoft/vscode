@@ -42,10 +42,7 @@
     "onCommand:typescript.goToProjectConfig",
     "onCommand:typescript.openTsServerLog",
     "onCommand:workbench.action.tasks.runTask",
-    "workspaceContains:**/tsconfig.json",
-    "workspaceContains:**/jsconfig.json",
-    "workspaceContains:**/tsconfig.*.json",
-    "workspaceContains:**/jsconfig.*.json"
+    "onLanguage:jsonc"
   ],
   "main": "./out/extension",
   "contributes": {

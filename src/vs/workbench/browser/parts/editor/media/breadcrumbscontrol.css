@@ -7,10 +7,6 @@
 	display: none;
 }
 
-.monaco-workbench>.part.editor>.content .editor-group-container:not(.active) .breadcrumbs-control {
-	opacity: .8;
-}
-
 .monaco-workbench>.part.editor>.content .editor-group-container .breadcrumbs-control .monaco-breadcrumb-item.selected .monaco-icon-label,
 .monaco-workbench>.part.editor>.content .editor-group-container .breadcrumbs-control .monaco-breadcrumb-item.focused .monaco-icon-label {
 	text-decoration-line: underline;
