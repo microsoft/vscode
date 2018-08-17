@@ -661,6 +661,7 @@ export class CodeMenu {
 		// Views
 		const explorer = this.createMenuItem(nls.localize({ key: 'miViewExplorer', comment: ['&& denotes a mnemonic'] }, "&&Explorer"), 'workbench.view.explorer');
 		const search = this.createMenuItem(nls.localize({ key: 'miViewSearch', comment: ['&& denotes a mnemonic'] }, "&&Search"), 'workbench.view.search');
+		const referenceSearch = this.createMenuItem(nls.localize({ key: 'miViewReferenceSearch', comment: ['&& denotes a mnemonic'] }, "&&References"), 'workbench.view.referenceSearch');
 		const scm = this.createMenuItem(nls.localize({ key: 'miViewSCM', comment: ['&& denotes a mnemonic'] }, "S&&CM"), 'workbench.view.scm');
 		const debug = this.createMenuItem(nls.localize({ key: 'miViewDebug', comment: ['&& denotes a mnemonic'] }, "&&Debug"), 'workbench.view.debug');
 		const extensions = this.createMenuItem(nls.localize({ key: 'miViewExtensions', comment: ['&& denotes a mnemonic'] }, "E&&xtensions"), 'workbench.view.extensions');
@@ -786,6 +787,7 @@ export class CodeMenu {
 			__separator__(),
 			explorer,
 			search,
+			referenceSearch,
 			scm,
 			debug,
 			extensions,

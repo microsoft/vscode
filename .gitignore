@@ -18,3 +18,4 @@ coverage/
 test_data/
 test-results/
 yarn-error.log
+.vs/

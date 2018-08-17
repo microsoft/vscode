@@ -85,6 +85,7 @@ export class MenuId {
 	static readonly ViewItemContext = new MenuId();
 	static readonly TouchBarContext = new MenuId();
 	static readonly SearchContext = new MenuId();
+	static readonly ReferenceSearchContext = new MenuId();
 	static readonly MenubarFileMenu = new MenuId();
 	static readonly MenubarEditMenu = new MenuId();
 	static readonly MenubarRecentMenu = new MenuId();

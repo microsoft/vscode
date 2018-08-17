@@ -1,0 +1,433 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+.vs .panel .referenceSearch-view .monaco-inputbox {
+	border: 1px solid #ddd;
+}
+
+.referenceSearch-view .referenceSearch-widgets-container {
+	margin: 0px 9px 0 2px;
+	padding-top: 6px;
+}
+
+.referenceSearch-view .referenceSearch-widget .toggle-replace-button {
+	position: absolute;
+	top: 0;
+	left: 0;
+	width: 16px;
+	height: 100%;
+	box-sizing: border-box;
+	background-position: center center;
+	background-repeat: no-repeat;
+	cursor: pointer;
+}
+
+.referenceSearch-view .referenceSearch-widget .referenceSearch-container,
+.referenceSearch-view .referenceSearch-widget .replace-container {
+	margin-left: 17px;
+}
+
+.referenceSearch-view .referenceSearch-widget .input-box,
+.referenceSearch-view .referenceSearch-widget .input-box .monaco-inputbox {
+	height: 25px;
+}
+
+.referenceSearch-view .referenceSearch-widget .monaco-findInput {
+	display: inline-block;
+	vertical-align: middle;
+}
+
+.referenceSearch-view .referenceSearch-widget .replace-container {
+	margin-top: 6px;
+	position: relative;
+	display: inline-flex;
+}
+
+.referenceSearch-view .referenceSearch-widget .replace-container.disabled {
+	display: none;
+}
+
+.referenceSearch-view .referenceSearch-widget .replace-container .monaco-action-bar {
+	margin-left: 3px;
+}
+
+.referenceSearch-view .referenceSearch-widget .replace-container .monaco-action-bar {
+	height: 25px;
+}
+
+.referenceSearch-view .referenceSearch-widget .replace-container .monaco-action-bar .action-item .icon {
+	background-repeat: no-repeat;
+	width: 20px;
+	height: 25px;
+}
+
+.referenceSearch-view .query-clear {
+	width: 20px;
+	height: 20px;
+	position: absolute;
+	top: 3px;
+	right: 3px;
+	cursor: pointer;
+}
+
+.referenceSearch-view .query-details {
+	min-height: 1em;
+	position: relative;
+	margin: 0 0 0 17px;
+}
+
+.referenceSearch-view .query-details .more {
+	position: absolute;
+	margin-right: 0.3em;
+	right: 0;
+	cursor: pointer;
+	width: 16px;
+	height: 13px;
+	z-index: 2; /* Force it above the referenceSearch results message, which has a negative top margin */
+}
+
+.hc-black .monaco-workbench .referenceSearch-view .query-details .more,
+.vs-dark .monaco-workbench .referenceSearch-view .query-details .more {
+	background: url('ellipsis-inverse.svg') top center no-repeat;
+}
+
+.vs .monaco-workbench .referenceSearch-view .query-details .more {
+	background: url('ellipsis.svg') top center no-repeat;
+}
+
+.referenceSearch-view .query-details .file-types {
+	display: none;
+}
+
+.referenceSearch-view .query-details .file-types > .monaco-inputbox {
+	width: 100%;
+	height: 25px;
+}
+
+.referenceSearch-view .query-details.more .file-types {
+	display: inherit;
+}
+
+.referenceSearch-view .query-details.more .file-types:last-child {
+	padding-bottom: 10px;
+}
+
+.referenceSearch-view .query-details .referenceSearch-pattern-info {
+	width: 16px;
+	height: 16px;
+}
+
+.referenceSearch-view .query-details .referenceSearch-configure-exclusions {
+	width: 16px;
+	height: 16px;
+}
+
+.monaco-action-bar .action-label.referenceSearch-configure-exclusions {
+	margin-right: 2px;
+}
+
+.vs-dark .monaco-workbench .referenceSearch-configure-exclusions,
+.hc-black .monaco-workbench .referenceSearch-configure-exclusions {
+	background: url('configure-inverse.svg') center center no-repeat;
+	opacity: .7;
+}
+
+.vs .monaco-workbench .referenceSearch-configure-exclusions {
+	background: url('configure.svg') center center no-repeat;
+	opacity: 0.7;
+}
+
+.referenceSearch-view .query-details.more h4 {
+	text-overflow: ellipsis;
+	overflow: hidden;
+	white-space: nowrap;
+	padding: 4px 0 0;
+	margin: 0;
+	font-size: 11px;
+	font-weight: normal;
+}
+
+.referenceSearch-view .messages {
+	margin-top: -5px;
+	cursor: default;
+}
+
+.referenceSearch-view .message {
+	padding-left: 22px;
+	padding-right: 22px;
+	padding-top: 0px;
+}
+
+.referenceSearch-view .message p:first-child {
+	margin-top: 0px;
+	margin-bottom: 0px;
+	padding-bottom: 4px;
+	user-select: text;
+}
+
+.referenceSearch-view > .results > .monaco-tree .sub-content {
+	overflow: hidden;
+}
+
+.referenceSearch-view .foldermatch,
+.referenceSearch-view .filematch {
+	display: flex;
+	position: relative;
+	line-height: 22px;
+	padding: 0;
+}
+
+.referenceSearch-view:not(.wide) .foldermatch .monaco-icon-label,
+.referenceSearch-view:not(.wide) .filematch .monaco-icon-label {
+	flex: 1;
+}
+
+.referenceSearch-view:not(.wide) .monaco-tree .monaco-tree-row:hover:not(.highlighted) .foldermatch .monaco-icon-label,
+.referenceSearch-view:not(.wide) .monaco-tree .monaco-tree-row.focused .foldermatch .monaco-icon-label,
+.referenceSearch-view:not(.wide) .monaco-tree .monaco-tree-row:hover:not(.highlighted) .filematch .monaco-icon-label,
+.referenceSearch-view:not(.wide) .monaco-tree .monaco-tree-row.focused .filematch .monaco-icon-label {
+	flex: 1;
+}
+
+.referenceSearch-view .foldermatch .directory,
+.referenceSearch-view .filematch .directory {
+	opacity: 0.7;
+	font-size: 0.9em;
+	margin-left: 0.8em;
+}
+
+.referenceSearch-view.wide .foldermatch .badge,
+.referenceSearch-view.wide .filematch .badge {
+	margin-left: 10px;
+}
+
+.referenceSearch-view .linematch {
+	position: relative;
+	line-height: 22px;
+	display: flex;
+}
+
+.referenceSearch-view .linematch > .match {
+	flex: 1;
+	overflow: hidden;
+	text-overflow: ellipsis;
+}
+
+.referenceSearch-view .linematch.changedOrRemoved {
+	font-style: italic;
+}
+
+.referenceSearch-view .query-clear {
+	background: url("action-query-clear.svg") center center no-repeat;
+}
+
+.referenceSearch-view .monaco-tree .monaco-tree-row .monaco-action-bar {
+	line-height: 1em;
+	display: none;
+	padding: 0 0.8em 0 0.4em;
+}
+
+.referenceSearch-view .monaco-tree .monaco-tree-row .monaco-action-bar .action-item {
+	margin: 0;
+}
+
+.referenceSearch-view .monaco-tree .monaco-tree-row.focused .monaco-action-bar {
+	width: 0; /* in order to support a11y with keyboard, we use width: 0 to hide the actions, which still allows to "Tab" into the actions */
+	display: block;
+}
+
+.referenceSearch-view .monaco-tree .monaco-tree-row:hover:not(.highlighted) .monaco-action-bar,
+.referenceSearch-view .monaco-tree .monaco-tree-row.focused .monaco-action-bar {
+	width: inherit;
+	display: block;
+}
+
+.referenceSearch-view .monaco-tree .monaco-tree-row .monaco-action-bar .action-label {
+	margin-right: 0.2em;
+	margin-top: 4px;
+	background-repeat: no-repeat;
+	width: 16px;
+	height: 16px;
+}
+
+.referenceSearch-view .action-remove {
+	background: url("action-remove.svg") center center no-repeat;
+}
+
+.referenceSearch-view .action-replace {
+	background-image: url('replace.svg');
+}
+
+.referenceSearch-view .action-replace-all {
+	background: url('replace-all.svg') center center no-repeat;
+}
+
+.hc-black .referenceSearch-view .action-replace,
+.vs-dark .referenceSearch-view .action-replace {
+	background-image: url('replace-inverse.svg');
+}
+
+.hc-black .referenceSearch-view .action-replace-all,
+.vs-dark .referenceSearch-view .action-replace-all {
+	background: url('replace-all-inverse.svg') center center no-repeat;
+}
+
+.referenceSearch-view .label {
+	font-style: italic;
+}
+
+.referenceSearch-view .monaco-count-badge {
+	margin-right: 12px;
+}
+
+.referenceSearch-view:not(.wide) > .results > .monaco-tree .monaco-tree-row:hover .content .filematch .monaco-count-badge,
+.referenceSearch-view:not(.wide) > .results > .monaco-tree .monaco-tree-row:hover .content .foldermatch .monaco-count-badge,
+.referenceSearch-view:not(.wide) > .results > .monaco-tree .monaco-tree-row:hover .content .linematch .monaco-count-badge,
+.referenceSearch-view:not(.wide) > .results > .monaco-tree .monaco-tree-row.focused .content .filematch .monaco-count-badge,
+.referenceSearch-view:not(.wide) > .results > .monaco-tree .monaco-tree-row.focused .content .foldermatch .monaco-count-badge,
+.referenceSearch-view:not(.wide) > .results > .monaco-tree .monaco-tree-row.focused .content .linematch .monaco-count-badge {
+	display: none;
+}
+
+.referenceSearch-view.wide > .results > .monaco-tree .monaco-tree-row:hover .content .filematch .badge,
+.referenceSearch-view.wide > .results > .monaco-tree .monaco-tree-row:hover .content .foldermatch .badge,
+.referenceSearch-view.wide > .results > .monaco-tree .monaco-tree-row:hover .content .linematch .badge,
+.referenceSearch-view.wide > .results > .monaco-tree .monaco-tree-row.focused .content .filematch .badge,
+.referenceSearch-view.wide > .results > .monaco-tree .monaco-tree-row.focused .content .foldermatch .badge,
+.referenceSearch-view.wide > .results > .monaco-tree .monaco-tree-row.focused .content .linematch .badge {
+	flex: 1;
+}
+
+.referenceSearch-view .focused .monaco-tree-row.selected:not(.highlighted) > .content.actions .action-remove,
+.vs-dark .monaco-workbench .referenceSearch-view .focused .monaco-tree-row.selected:not(.highlighted) > .content.actions .action-remove {
+	background: url("action-remove-focus.svg") center center no-repeat;
+}
+
+.monaco-workbench .referenceSearch-action.refresh {
+	background: url('Refresh.svg') center center no-repeat;
+}
+
+.vs-dark .monaco-workbench .referenceSearch-action.refresh,
+.hc-black .monaco-workbench .referenceSearch-action.refresh {
+	background: url('Refresh_inverse.svg') center center no-repeat;
+}
+
+.monaco-workbench .referenceSearch-action.collapse {
+	background: url('CollapseAll.svg') center center no-repeat;
+}
+
+.vs-dark .monaco-workbench .referenceSearch-action.collapse,
+.hc-black .monaco-workbench .referenceSearch-action.collapse {
+	background: url('CollapseAll_inverse.svg') center center no-repeat;
+}
+
+.monaco-workbench .referenceSearch-action.clear-reference-search-results {
+	background: url('clear-reference-search-results.svg') center center no-repeat;
+}
+
+.vs-dark .monaco-workbench .referenceSearch-action.clear-reference-search-results,
+.hc-black .monaco-workbench .referenceSearch-action.clear-reference-search-results {
+	background: url('clear-reference-search-results-dark.svg') center center no-repeat;
+}
+
+.monaco-workbench .referenceSearch-action.cancel-referenceSearch {
+	background: url('stop.svg') center center no-repeat;
+}
+
+.vs-dark .monaco-workbench .referenceSearch-action.cancel-referenceSearch,
+.hc-black .monaco-workbench .referenceSearch-action.cancel-referenceSearch {
+	background: url('stop-inverse.svg') center center no-repeat;
+}
+
+.vs .monaco-workbench .referenceSearch-view .query-details .file-types .controls > .monaco-custom-checkbox.pattern {
+	background: url('pattern.svg') center center no-repeat;
+}
+
+.vs-dark .monaco-workbench .referenceSearch-view .query-details .file-types .controls > .monaco-custom-checkbox.pattern,
+.hc-black .monaco-workbench .referenceSearch-view .query-details .file-types .controls > .monaco-custom-checkbox.pattern {
+	background: url('pattern-dark.svg') center center no-repeat;
+}
+
+.vs .monaco-workbench .referenceSearch-view .query-details .file-types .controls>.monaco-custom-checkbox.useExcludesAndIgnoreFiles {
+	background: url('excludeSettings.svg') center center no-repeat;
+}
+
+.vs-dark .monaco-workbench .referenceSearch-view .query-details .file-types .controls>.monaco-custom-checkbox.useExcludesAndIgnoreFiles,
+.hc-black .monaco-workbench .referenceSearch-view .query-details .file-types .controls>.monaco-custom-checkbox.useExcludesAndIgnoreFiles {
+	background: url('excludeSettings-dark.svg') center center no-repeat;
+}
+
+.referenceSearch-view .replace.findInFileMatch {
+	text-decoration: line-through;
+}
+
+.referenceSearch-view .findInFileMatch,
+.referenceSearch-view .replaceMatch {
+	white-space: pre;
+}
+
+.hc-black .monaco-workbench .referenceSearch-view .replaceMatch,
+.hc-black .monaco-workbench .referenceSearch-view .findInFileMatch {
+	background: none !important;
+	box-sizing: border-box;
+}
+
+.monaco-workbench .referenceSearch-view a.prominent {
+	text-decoration: underline;
+}
+
+/* Theming */
+
+.vs .referenceSearch-view .referenceSearch-widget .toggle-replace-button:hover {
+	background-color: rgba(0, 0, 0, 0.1) !important;
+}
+
+.vs-dark .referenceSearch-view .referenceSearch-widget .toggle-replace-button:hover {
+	background-color: rgba(255, 255, 255, 0.1) !important;
+}
+
+.vs .referenceSearch-view .referenceSearch-widget .toggle-replace-button.collapse {
+	background-image: url('expando-collapsed.svg');
+}
+
+.vs .referenceSearch-view .referenceSearch-widget .toggle-replace-button.expand {
+	background-image: url('expando-expanded.svg');
+}
+
+.vs-dark .referenceSearch-view .query-clear {
+	background: url("action-query-clear-dark.svg") center center no-repeat;
+}
+
+.vs-dark .referenceSearch-view .action-remove,
+.hc-black .referenceSearch-view .action-remove {
+	background: url("action-remove-dark.svg") center center no-repeat;
+}
+
+.vs-dark .referenceSearch-view .message {
+	opacity: .5;
+}
+
+.vs-dark .referenceSearch-view .foldermatch,
+.vs-dark .referenceSearch-view .filematch {
+	padding: 0;
+}
+
+.vs-dark .referenceSearch-view .referenceSearch-widget .toggle-replace-button.expand,
+.hc-black .referenceSearch-view .referenceSearch-widget .toggle-replace-button.expand {
+	background-image: url('expando-expanded-dark.svg');
+}
+
+.vs-dark .referenceSearch-view .referenceSearch-widget .toggle-replace-button.collapse,
+.hc-black .referenceSearch-view .referenceSearch-widget .toggle-replace-button.collapse {
+	background-image: url('expando-collapsed-dark.svg');
+}
+
+/* High Contrast Theming */
+
+.hc-black .monaco-workbench .referenceSearch-view .foldermatch,
+.hc-black .monaco-workbench .referenceSearch-view .filematch,
+.hc-black .monaco-workbench .referenceSearch-view .linematch {
+	line-height: 20px;
+}

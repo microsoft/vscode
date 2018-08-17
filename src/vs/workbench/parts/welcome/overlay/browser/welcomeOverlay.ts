@@ -49,6 +49,12 @@ const keys: Key[] = [
 		command: 'workbench.view.search'
 	},
 	{
+		id: 'referenceSearch',
+		arrow: '&larr;',
+		label: localize('welcomeOverlay.referenceSearch', "Search for references across files"),
+		command: 'workbench.view.referenceSearch'
+	},
+	{
 		id: 'git',
 		arrow: '&larr;',
 		label: localize('welcomeOverlay.git', "Source code management"),
