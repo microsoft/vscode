@@ -382,7 +382,7 @@ export class ShowStartupPerformance extends Action {
 		table['require(workbench.main.js)'] = { Process: '[renderer]', 'Took (ms)': metrics.timers.ellapsedRequire, Meta: metrics.didUseCachedData ? 'did use cached data' : 'did NOT use cached data' };
 
 		if (nodeModuleLoadTime) {
-			table['[renderer] -> of which require() node_modules'] = { Process: '[renderer]', 'Took(ms)': nodeModuleLoadTime };
+			table['of which require() node_modules'] = { Process: '[renderer]', 'Took (ms)': nodeModuleLoadTime };
 		}
 
 		table['register extensions & spawn extension host'] = { Process: '[renderer]', 'Took (ms)': metrics.timers.ellapsedExtensions };
