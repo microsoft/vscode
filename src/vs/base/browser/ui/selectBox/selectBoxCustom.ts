@@ -393,7 +393,10 @@ export class SelectBoxList implements ISelectBoxDelegate, IVirtualDelegate<ISele
 		}
 
 		// Set drop-down position above/below from required height and margins
-		this.layoutSelectDropDown(true);
+		// If pre-layout cannot ship at least one option do not show
+		if (!this.layoutSelectDropDown(true)) {
+			return;
+		}
 
 		this._isVisible = true;
 		this.cloneElementFont(this.selectElement, this.selectDropDownContainer);
@@ -406,7 +409,7 @@ export class SelectBoxList implements ISelectBoxDelegate, IVirtualDelegate<ISele
 				dom.toggleClass(this.selectDropDownContainer, 'visible', false);
 				dom.toggleClass(this.selectElement, 'synthetic-focus', false);
 			},
-			anchorPosition: this._dropDownPosition
+			anchorPosition: this._dropDownPosition,
 		});
 
 		// Track initial selection the case user escape, blur
@@ -423,6 +426,8 @@ export class SelectBoxList implements ISelectBoxDelegate, IVirtualDelegate<ISele
 		if (focusSelect) {
 			this.selectElement.focus();
 		}
+
+		console.debug('call hideContextview ');
 		this.contextViewProvider.hideContextView();
 	}
 
@@ -443,22 +448,48 @@ export class SelectBoxList implements ISelectBoxDelegate, IVirtualDelegate<ISele
 		};
 	}
 
-	private layoutSelectDropDown(preLayoutPosition?: boolean) {
+	private layoutSelectDropDown(preLayoutPosition?: boolean): boolean {
 
 		// Layout ContextView drop down select list and container
 		// Have to manage our vertical overflow, sizing, position below or above
 		// Position has to be determined and set prior to contextView instantiation
 
+		console.debug('Layout ' + preLayoutPosition);
 		if (this.selectList) {
 
 			const selectPosition = dom.getDomNodePagePosition(this.selectElement);
 			const styles = getComputedStyle(this.selectElement);
 			const verticalPadding = parseFloat(styles.getPropertyValue('--dropdown-padding-top')) + parseFloat(styles.getPropertyValue('--dropdown-padding-bottom'));
-			let maxSelectDropDownHeight = 0;
-			maxSelectDropDownHeight = (window.innerHeight - selectPosition.top - selectPosition.height - this.selectBoxOptions.minBottomMargin);
+			let maxSelectDropDownHeightBelow = 0;
+			maxSelectDropDownHeightBelow = (window.innerHeight - selectPosition.top - selectPosition.height - this.selectBoxOptions.minBottomMargin);
+			const maxSelectDropDownHeightAbove = (selectPosition.top - SelectBoxList.DEFAULT_DROPDOWN_MINIMUM_TOP_MARGIN);
 
 			this.selectList.layout();
 			let listHeight = this.selectList.contentHeight;
+			const minRequiredDropDownHeight = listHeight + verticalPadding;
+
+			if ((maxSelectDropDownHeightBelow + maxSelectDropDownHeightAbove) < this.getHeight() + verticalPadding) {
+				// If at least one option cannot be shown, don't open the drop-down or hide/remove if open
+				if (this._isVisible) {
+					// We must be doing a re-layout, hide if we don't fit
+
+					// Approach 1: ContextView.hide - fails when ContextView.doLayout called
+					this.hideSelectDropDown(true);
+					// Above approach will work whether minimal change in ContextView.layout
+					// See following code block
+
+					// Approach 2: CSS hide triggers this.selectList.onDidBlur which destroys ContextView
+					// as long as blur occurs after ContextView.layout, hide/remove call succeeds
+					// I don't think this can be guaranteed, but I have not seen it fail
+					// dom.toggleClass(this.selectDropDownContainer, 'visible', false);
+
+					// Approach 3: Focus back on parent select, causes immediate blur
+					// and hide before layout returns, always fails
+					// This would also be the failure mode for approach 2
+					// this.selectElement.focus();
+				}
+				return false;
+			}
 
 			// If we are only doing pre-layout check/adjust position only
 			// Calculate vertical space available, flip up if insufficient
@@ -466,8 +497,8 @@ export class SelectBoxList implements ISelectBoxDelegate, IVirtualDelegate<ISele
 			if (preLayoutPosition) {
 
 				// Always show complete list items - never more than Max available vertical height
-				if (listHeight + verticalPadding > maxSelectDropDownHeight) {
-					const maxVisibleOptions = ((Math.floor((maxSelectDropDownHeight - verticalPadding) / this.getHeight())));
+				if (listHeight + verticalPadding > maxSelectDropDownHeightBelow) {
+					const maxVisibleOptions = ((Math.floor((maxSelectDropDownHeightBelow - verticalPadding) / this.getHeight())));
 
 					// Check if we can at least show min items otherwise flip above
 					if (maxVisibleOptions < SelectBoxList.DEFAULT_MINIMUM_VISIBLE_OPTIONS) {
@@ -477,7 +508,7 @@ export class SelectBoxList implements ISelectBoxDelegate, IVirtualDelegate<ISele
 					}
 				}
 				// Do full layout on showSelectDropDown only
-				return;
+				return true;
 			}
 
 			// Make visible to enable measurements
@@ -487,14 +518,14 @@ export class SelectBoxList implements ISelectBoxDelegate, IVirtualDelegate<ISele
 			// Use position to check above or below available space
 			if (this._dropDownPosition === AnchorPosition.BELOW) {
 				// Set container height to max from select bottom to margin (default/minBottomMargin)
-				if (listHeight + verticalPadding > maxSelectDropDownHeight) {
-					listHeight = ((Math.floor((maxSelectDropDownHeight - verticalPadding) / this.getHeight())) * this.getHeight());
+				if (listHeight + verticalPadding > maxSelectDropDownHeightBelow) {
+					listHeight = ((Math.floor((maxSelectDropDownHeightBelow - verticalPadding) / this.getHeight())) * this.getHeight());
 				}
 			} else {
 				// Set container height to max from select top to margin (default/minTopMargin)
-				maxSelectDropDownHeight = (selectPosition.top - SelectBoxList.DEFAULT_DROPDOWN_MINIMUM_TOP_MARGIN);
-				if (listHeight + verticalPadding > maxSelectDropDownHeight) {
-					listHeight = ((Math.floor((maxSelectDropDownHeight - SelectBoxList.DEFAULT_DROPDOWN_MINIMUM_TOP_MARGIN) / this.getHeight())) * this.getHeight());
+				maxSelectDropDownHeightBelow = (selectPosition.top - SelectBoxList.DEFAULT_DROPDOWN_MINIMUM_TOP_MARGIN);
+				if (listHeight + verticalPadding > maxSelectDropDownHeightBelow) {
+					listHeight = ((Math.floor((maxSelectDropDownHeightBelow - SelectBoxList.DEFAULT_DROPDOWN_MINIMUM_TOP_MARGIN) / this.getHeight())) * this.getHeight());
 				}
 			}
 
@@ -523,6 +554,7 @@ export class SelectBoxList implements ISelectBoxDelegate, IVirtualDelegate<ISele
 			dom.toggleClass(this.selectElement, 'synthetic-focus', true);
 			dom.toggleClass(this.selectDropDownContainer, 'synthetic-focus', true);
 		}
+		return true;
 	}
 
 	private setWidthControlElement(container: HTMLElement): number {
@@ -635,6 +667,7 @@ export class SelectBoxList implements ISelectBoxDelegate, IVirtualDelegate<ISele
 	// List Exit - passive - implicit no selection change, hide drop-down
 	private onListBlur(): void {
 
+		console.debug('OnListBlur');
 		if (this.selected !== this._currentSelection) {
 			// Reset selected to current if no change
 			this.select(this._currentSelection);
