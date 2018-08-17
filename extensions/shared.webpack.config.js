@@ -12,32 +12,17 @@ const path = require('path');
  * returns a good default configuation for extensions that
  * want to do webpack
  */
-module.exports = function (extensionDir) {
-	return {
+module.exports = function (extensionDir, useTsLoader = true) {
+	let config = {
 		context: extensionDir,
 		mode: 'none', // this leaves the source code as close as possible to the original (when packaging we set this to 'production')
 		target: 'node', // extensions run in a node context
 		resolve: {
 			mainFields: ['main'], // prefer the main-entry of package.json files
-			extensions: [".ts", ".js"] // support ts-files and js-files
+			extensions: [".js"]
 		},
 		module: {
-			rules: [{
-				// configure TypeScript loader:
-				// * only transpile because we have a separate compilation pipeline
-				// * enable sources maps for end-to-end source maps
-				test: /\.ts$/,
-				exclude: /node_modules/,
-				use: [{
-					loader: 'ts-loader',
-					options: {
-						transpileOnly: true,
-						compilerOptions: {
-							"sourceMap": true,
-						}
-					}
-				}]
-			}]
+			rules: []
 		},
 		output: {
 			// all output goes into `dist`.
@@ -49,4 +34,26 @@ module.exports = function (extensionDir) {
 		// yes, really source maps
 		devtool: 'source-map'
 	};
+
+	if (useTsLoader) {
+		config.resolve.extensions = [".ts", ".js"]; // support ts-files and js-files
+		config.module.rules = [{
+			// configure TypeScript loader:
+			// * only transpile because we have a separate compilation pipeline
+			// * enable sources maps for end-to-end source maps
+			test: /\.ts$/,
+			exclude: /node_modules/,
+			use: [{
+				loader: 'ts-loader',
+				options: {
+					transpileOnly: true,
+					compilerOptions: {
+						"sourceMap": true,
+					}
+				}
+			}]
+		}];
+	}
+
+	return config;
 };
