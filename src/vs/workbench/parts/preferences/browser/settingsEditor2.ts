@@ -854,7 +854,12 @@ export class SettingsEditor2 extends BaseEditor {
 
 	private remoteSearchPreferences(query: string, token?: CancellationToken): TPromise<void> {
 		const remoteSearchProvider = this.preferencesSearchService.getRemoteSearchProvider(query);
-		return this.filterOrSearchPreferences(query, SearchResultIdx.Remote, remoteSearchProvider, token);
+		const newExtSearchProvider = this.preferencesSearchService.getRemoteSearchProvider(query, true);
+
+		return TPromise.join([
+			this.filterOrSearchPreferences(query, SearchResultIdx.Remote, remoteSearchProvider, token),
+			this.filterOrSearchPreferences(query, SearchResultIdx.NewExtensions, newExtSearchProvider, token)
+		]).then(() => { });
 	}
 
 	private filterOrSearchPreferences(query: string, type: SearchResultIdx, searchProvider: ISearchProvider, token?: CancellationToken): TPromise<void> {
