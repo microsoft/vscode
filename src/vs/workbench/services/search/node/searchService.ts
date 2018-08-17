@@ -27,6 +27,7 @@ import { IUntitledEditorService } from 'vs/workbench/services/untitled/common/un
 import { IRawSearch, IRawSearchService, ISerializedFileMatch, ISerializedSearchComplete, ISerializedSearchProgressItem, isSerializedSearchComplete, isSerializedSearchSuccess, ITelemetryEvent } from './search';
 import { ISearchChannel, SearchChannelClient } from './searchIpc';
 import { getPathFromAmdModule } from 'vs/base/common/amd';
+import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 
 export class SearchService extends Disposable implements ISearchService {
 	public _serviceBrand: any;
@@ -39,6 +40,7 @@ export class SearchService extends Disposable implements ISearchService {
 	constructor(
 		@IModelService private modelService: IModelService,
 		@IUntitledEditorService private untitledEditorService: IUntitledEditorService,
+		@IEditorService private editorService: IEditorService,
 		@IEnvironmentService environmentService: IEnvironmentService,
 		@ITelemetryService private telemetryService: ITelemetryService,
 		@IConfigurationService private configurationService: IConfigurationService,
@@ -232,6 +234,10 @@ export class SearchService extends Disposable implements ISearchService {
 			models.forEach((model) => {
 				let resource = model.uri;
 				if (!resource) {
+					return;
+				}
+
+				if (!this.editorService.isOpen({ resource })) {
 					return;
 				}
 
