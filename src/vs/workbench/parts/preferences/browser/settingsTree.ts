@@ -131,12 +131,23 @@ function getMatchingSettings(allSettings: Set<ISetting>, pattern: string): ISett
 	return result.sort((a, b) => a.key.localeCompare(b.key));
 }
 
-function settingMatches(s: ISetting, pattern: string): boolean {
+const settingPatternCache = new Map<string, RegExp>();
+
+function createSettingMatchRegExp(pattern: string): RegExp {
 	pattern = escapeRegExpCharacters(pattern)
 		.replace(/\\\*/g, '.*');
 
-	const regexp = new RegExp(`^${pattern}`, 'i');
-	return regexp.test(s.key);
+	return new RegExp(`^${pattern}`, 'i');
+}
+
+function settingMatches(s: ISetting, pattern: string): boolean {
+	let regExp = settingPatternCache.get(pattern);
+	if (!regExp) {
+		regExp = createSettingMatchRegExp(pattern);
+		settingPatternCache.set(pattern, regExp);
+	}
+
+	return regExp.test(s.key);
 }
 
 function getFlatSettings(settingsGroups: ISettingsGroup[]) {
