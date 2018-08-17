@@ -76,6 +76,9 @@ export class SuggestEnabledInput extends Component {
 	private _onEnter = new Emitter<void>();
 	readonly onEnter: Event<void> = this._onEnter.event;
 
+	private _onEsc = new Emitter<void>();
+	readonly onEsc: Event<void> = this._onEsc.event;
+
 	private _onInputDidChange = new Emitter<string>();
 	readonly onInputDidChange: Event<string> = this._onInputDidChange.event;
 
@@ -123,6 +126,7 @@ export class SuggestEnabledInput extends Component {
 
 		const onKeyDownMonaco = chain(this.inputWidget.onKeyDown);
 		onKeyDownMonaco.filter(e => e.keyCode === KeyCode.Enter).on(e => { e.preventDefault(); this._onEnter.fire(); }, this, this.disposables);
+		onKeyDownMonaco.filter(e => e.keyCode === KeyCode.Escape).on(() => this._onEsc.fire(), this, this.disposables);
 		onKeyDownMonaco.filter(e => e.keyCode === KeyCode.DownArrow && (isMacintosh ? e.metaKey : e.ctrlKey)).on(() => this._onShouldFocusResults.fire(), this, this.disposables);
 
 		let preexistingContent = this.getValue();

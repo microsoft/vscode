@@ -256,7 +256,7 @@
 
 .settings-editor > .settings-body > .settings-tree-container .setting-item .suggest-input-container {
 	position: relative;
-	top: -22px;
+	top: -24px;
 	width: 260px;
 	padding: 0;
 }
@@ -380,8 +380,9 @@
 	z-index: 2;
 }
 
-.settings-editor > .settings-body > .settings-tree-container .setting-item.setting-item-enum .setting-item-value > .setting-item-control > select {
+.settings-editor > .settings-body > .settings-tree-container .setting-item.setting-item-enum .setting-item-value > .setting-item-control > .enum-selection-viewer {
 	width: 320px;
+	padding: 2px;
 }
 
 .settings-editor > .settings-body > .settings-tree-container .setting-item .setting-item-value .edit-in-settings-button,
