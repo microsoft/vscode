@@ -360,6 +360,10 @@ export class Item {
 		}
 
 		var result = this.lock.run(this, () => {
+			if (this.isExpanded()) {
+				return WinJS.TPromise.as(false);
+			}
+
 			var eventData: IItemExpandEvent = { item: this };
 			var result: WinJS.Promise;
 			this._onExpand.fire(eventData);
@@ -971,6 +975,8 @@ export class TreeModel {
 			return WinJS.TPromise.as(null);
 		}
 
+		console.log('REFRESH', element, recursive);
+
 		var eventData: IRefreshEvent = { item: item, recursive: recursive };
 		this._onRefresh.fire(eventData);
 		return item.refresh(recursive).then(() => {
@@ -984,6 +990,8 @@ export class TreeModel {
 		if (!item) {
 			return WinJS.TPromise.as(false);
 		}
+
+		console.log('EXPAND', element);
 
 		return item.expand();
 	}
