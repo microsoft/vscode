@@ -360,7 +360,7 @@ export class Item {
 		}
 
 		var result = this.lock.run(this, () => {
-			if (this.isExpanded()) {
+			if (this.isExpanded() || !this.doesHaveChildren) {
 				return WinJS.TPromise.as(false);
 			}
 
