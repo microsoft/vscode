@@ -228,15 +228,12 @@ export class FeedbackDropdown extends Dropdown {
 			})
 			.appendTo($contactUsContainer);
 
-		$('div').append($('a').attr('target', '_blank').attr('href', '#').text(nls.localize("request a missing feature", "Request a missing feature")).attr('tabindex', '0'))
-			.on('click', event => {
-				dom.EventHelper.stop(event);
-				if(!!this.requestFeatureLink){
-					shell.openExternal(this.requestFeatureLink);
-				}
-				this.hide();
-			})
+		if(!!this.requestFeatureLink){
+			$('div').append($('a').attr('target', '_blank').attr('href', this.requestFeatureLink).text(nls.localize("request a missing feature", "Request a missing feature")).attr('tabindex', '0'))
+			.on('click', event => { this.hide(); })
 			.appendTo($contactUsContainer);
+		}
+
 
 		this.remainingCharacterCount = $('span.char-counter').text(this.getCharCountText(0));
 
