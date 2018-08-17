@@ -483,6 +483,16 @@ class SubmenuActionItem extends MenuActionItem {
 
 
 			this.parentData.submenu = new Menu(this.submenuContainer.getHTMLElement(), this.submenuActions, this.submenuOptions);
+
+			this.parentData.submenu.onDidCancel(() => {
+				this.parentData.parent.focus();
+				this.parentData.submenu.dispose();
+				this.parentData.submenu = null;
+
+				this.submenuContainer.dispose();
+				this.submenuContainer = null;
+			});
+
 			this.parentData.submenu.focus(selectFirstItem);
 
 			this.mysubmenu = this.parentData.submenu;

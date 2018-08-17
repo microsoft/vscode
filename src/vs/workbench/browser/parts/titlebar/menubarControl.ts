@@ -979,6 +979,8 @@ export class MenubarControl extends Disposable {
 
 	private cleanupCustomMenu(): void {
 		if (this.focusedMenu) {
+			// Remove focus from the menus first
+			this.customMenus[this.focusedMenu.index].buttonElement.focus();
 
 			if (this.focusedMenu.holder) {
 				DOM.removeClass(this.focusedMenu.holder.parentElement, 'open');
