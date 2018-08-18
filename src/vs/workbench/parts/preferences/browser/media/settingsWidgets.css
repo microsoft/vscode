@@ -26,7 +26,7 @@
 	white-space: pre;
 }
 
-.settings-editor > .settings-body > .settings-tree-container .setting-item.setting-item-exclude .monaco-action-bar {
+.settings-editor > .settings-body > .settings-tree-container .setting-item.setting-item-exclude .setting-exclude-row .monaco-action-bar {
 	display: none;
 	position: absolute;
 	right: 0px;

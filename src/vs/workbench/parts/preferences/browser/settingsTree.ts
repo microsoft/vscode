@@ -1444,7 +1444,7 @@ class CopySettingAsJSONAction extends Action {
 
 	run(context: SettingsTreeSettingElement): TPromise<void> {
 		if (context) {
-			const jsonResult = `"${context.setting.key}": ${JSON.stringify(context.value)}`;
+			const jsonResult = `"${context.setting.key}": ${JSON.stringify(context.value, undefined, '  ')}`;
 			this.clipboardService.writeText(jsonResult);
 		}
 
