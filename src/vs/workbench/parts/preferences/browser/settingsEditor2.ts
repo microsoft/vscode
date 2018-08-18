@@ -113,7 +113,7 @@ export class SettingsEditor2 extends BaseEditor {
 		super(SettingsEditor2.ID, telemetryService, themeService);
 		this.delayedFilterLogging = new Delayer<void>(1000);
 		this.localSearchDelayer = new Delayer(300);
-		this.remoteSearchThrottle = new ThrottledDelayer(400);
+		this.remoteSearchThrottle = new ThrottledDelayer(200);
 		this.viewState = { settingsTarget: ConfigurationTarget.USER };
 		this.delayRefreshOnLayout = new Delayer(100);
 
@@ -768,17 +768,7 @@ export class SettingsEditor2 extends BaseEditor {
 		query = query.trim();
 		if (query && query !== '@') {
 			query = this.parseSettingFromJSON(query) || query;
-
-			this.searchInProgress = new CancellationTokenSource();
-			return TPromise.join([
-				this.localSearchDelayer.trigger(() => this.searchInProgress ? this.localFilterPreferences(query, this.searchInProgress.token) : TPromise.wrap(null)),
-				this.remoteSearchThrottle.trigger(() => this.searchInProgress ? this.remoteSearchPreferences(query, this.searchInProgress.token) : TPromise.wrap(null), 500)
-			]).then(() => {
-				if (this.searchInProgress) {
-					this.searchInProgress.dispose();
-					this.searchInProgress = null;
-				}
-			});
+			return this.triggerFilterPreferences(query);
 		} else {
 			if (this.viewState.tagFilters && this.viewState.tagFilters.size) {
 				this.searchResultModel = this.createFilterModel();
@@ -869,7 +859,32 @@ export class SettingsEditor2 extends BaseEditor {
 		this.telemetryService.publicLog('settingsEditor.filter', data);
 	}
 
-	private localFilterPreferences(query: string, token?: CancellationToken): TPromise<void> {
+	private triggerFilterPreferences(query: string): TPromise<void> {
+		if (this.searchInProgress) {
+			this.searchInProgress.cancel();
+			this.searchInProgress = null;
+		}
+
+		// Trigger the local search. If it didn't find an exact match, trigger the remote search.
+		const searchInProgress = this.searchInProgress = new CancellationTokenSource();
+		return this.localSearchDelayer.trigger(() => {
+			if (searchInProgress && !searchInProgress.token.isCancellationRequested) {
+				return this.localFilterPreferences(query).then(result => {
+					if (!result.exactMatch) {
+						this.remoteSearchThrottle.trigger(() => {
+							return searchInProgress && !searchInProgress.token.isCancellationRequested ?
+								this.remoteSearchPreferences(query, this.searchInProgress.token) :
+								TPromise.wrap(null);
+						});
+					}
+				});
+			} else {
+				return TPromise.wrap(null);
+			}
+		});
+	}
+
+	private localFilterPreferences(query: string, token?: CancellationToken): TPromise<ISearchResult> {
 		const localSearchProvider = this.preferencesSearchService.getLocalSearchProvider(query);
 		return this.filterOrSearchPreferences(query, SearchResultIdx.Local, localSearchProvider, token);
 	}
@@ -884,7 +899,7 @@ export class SettingsEditor2 extends BaseEditor {
 		]).then(() => { });
 	}
 
-	private filterOrSearchPreferences(query: string, type: SearchResultIdx, searchProvider: ISearchProvider, token?: CancellationToken): TPromise<void> {
+	private filterOrSearchPreferences(query: string, type: SearchResultIdx, searchProvider: ISearchProvider, token?: CancellationToken): TPromise<ISearchResult> {
 		return this._filterOrSearchPreferencesModel(query, this.defaultSettingsEditorModel, searchProvider, token).then(result => {
 			if (token && token.isCancellationRequested) {
 				// Handle cancellation like this because cancellation is lost inside the search provider due to async/await
@@ -905,7 +920,7 @@ export class SettingsEditor2 extends BaseEditor {
 			this.tocTree.setSelection([]);
 			expandAll(this.tocTree);
 
-			return this.renderTree();
+			return this.renderTree().then(() => result);
 		});
 	}
 

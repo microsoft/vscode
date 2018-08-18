@@ -400,7 +400,9 @@ export class SearchResultModel extends SettingsTreeModel {
 			remoteResult.filterMatches = remoteResult.filterMatches.filter(m => !localMatchKeys.has(m.setting.key));
 		}
 
-		this.newExtensionSearchResults = objects.deepClone(this.rawSearchResults[SearchResultIdx.NewExtensions]);
+		if (remoteResult) {
+			this.newExtensionSearchResults = objects.deepClone(this.rawSearchResults[SearchResultIdx.NewExtensions]);
+		}
 
 		this.cachedUniqueSearchResults = [localResult, remoteResult];
 		return this.cachedUniqueSearchResults;
