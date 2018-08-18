@@ -40,7 +40,7 @@ import { editorBackground, errorForeground, focusBorder, foreground, inputValida
 import { attachButtonStyler, attachInputBoxStyler, attachSelectBoxStyler, attachStyler } from 'vs/platform/theme/common/styler';
 import { ICssStyleCollector, ITheme, IThemeService, registerThemingParticipant } from 'vs/platform/theme/common/themeService';
 import { ITOCEntry } from 'vs/workbench/parts/preferences/browser/settingsLayout';
-import { ISettingsEditorViewState, isExcludeSetting, SettingsTreeElement, SettingsTreeGroupElement, SettingsTreeNewExtensionsElement, SettingsTreeSettingElement } from 'vs/workbench/parts/preferences/browser/settingsTreeModels';
+import { ISettingsEditorViewState, isExcludeSetting, SettingsTreeElement, SettingsTreeGroupElement, SettingsTreeNewExtensionsElement, SettingsTreeSettingElement, settingKeyToDisplayFormat } from 'vs/workbench/parts/preferences/browser/settingsTreeModels';
 import { ExcludeSettingWidget, IExcludeDataItem, settingsHeaderForeground, settingsNumberInputBackground, settingsNumberInputBorder, settingsNumberInputForeground, settingsSelectBackground, settingsSelectBorder, settingsSelectForeground, settingsTextInputBackground, settingsTextInputBorder, settingsTextInputForeground } from 'vs/workbench/parts/preferences/browser/settingsWidgets';
 import { ISetting, ISettingsGroup } from 'vs/workbench/services/preferences/common/preferences';
 
@@ -1138,7 +1138,11 @@ function cleanRenderedMarkdown(element: Node): void {
 }
 
 function fixSettingLinks(text: string): string {
-	return text.replace(/`#([^#]*)#`/g, (match, settingName) => `[\`${settingName}\`](#${settingName})`);
+	return text.replace(/`#([^#]*)#`/g, (match, settingName) => {
+		const targetDisplayFormat = settingKeyToDisplayFormat(settingName);
+		const targetName = `${targetDisplayFormat.category}: ${targetDisplayFormat.label}`;
+		return `[${targetName}](#${settingName})`;
+	});
 }
 
 function getDisplayEnumOptions(setting: ISetting): string[] {
