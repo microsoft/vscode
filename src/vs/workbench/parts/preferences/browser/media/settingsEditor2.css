@@ -389,6 +389,7 @@
 	position: absolute;
 	top: 3px;
 	right: 8px;
+	transform: scale(0.5,1);
 }
 
 .settings-editor > .settings-body > .settings-tree-container .setting-item .setting-item-value .edit-in-settings-button,
