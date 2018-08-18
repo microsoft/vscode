@@ -186,6 +186,23 @@ export class SettingsEditor2 extends BaseEditor {
 		}
 	}
 
+	showContextMenu(): void {
+		const settingDOMElement = this.settingsTreeRenderer.getSettingDOMElementForDOMElement(<HTMLElement>document.activeElement);
+		if (!settingDOMElement) {
+			return;
+		}
+
+		const focusedKey = this.settingsTreeRenderer.getKeyForDOMElementInSetting(settingDOMElement);
+		if (!focusedKey) {
+			return;
+		}
+
+		const elements = this.currentSettingsModel.getElementsByName(focusedKey);
+		if (elements && elements[0]) {
+			this.settingsTreeRenderer.showContextMenu(elements[0], settingDOMElement);
+		}
+	}
+
 	focusSearch(): void {
 		this.searchWidget.focus();
 	}
@@ -275,12 +292,8 @@ export class SettingsEditor2 extends BaseEditor {
 		this.toolbar.context = <ISettingsToolbarContext>{ target: this.settingsTargetsWidget.settingsTarget };
 	}
 
-	private getElementsByKey(settingKey: string): SettingsTreeSettingElement[] | null {
-		return this.currentSettingsModel.getElementByName(settingKey);
-	}
-
 	private revealSettingByKey(settingKey: string): void {
-		const elements = this.getElementsByKey(settingKey);
+		const elements = this.currentSettingsModel.getElementsByName(settingKey);
 		if (elements && elements[0]) {
 			this.settingsTree.reveal(elements[0]);
 
@@ -413,7 +426,9 @@ export class SettingsEditor2 extends BaseEditor {
 			});
 		}));
 		this._register(this.settingsTreeRenderer.onDidClickSettingLink(settingName => this.revealSettingByKey(settingName)));
-		this._register(this.settingsTreeRenderer.onDidFocusSetting(element => this.settingsTree.reveal(element)));
+		this._register(this.settingsTreeRenderer.onDidFocusSetting(element => {
+			this.settingsTree.reveal(element);
+		}));
 
 		this.settingsTree = this._register(this.instantiationService.createInstance(SettingsTree,
 			this.settingsTreeContainer,
@@ -696,7 +711,7 @@ export class SettingsEditor2 extends BaseEditor {
 
 		let refreshP: TPromise<any>;
 		if (key) {
-			const elements = this.getElementsByKey(key);
+			const elements = this.currentSettingsModel.getElementsByName(key);
 			if (elements && elements.length) {
 				refreshP = TPromise.join(elements.map(e => this.settingsTree.refresh(e)));
 			} else {
@@ -714,7 +729,7 @@ export class SettingsEditor2 extends BaseEditor {
 	}
 
 	private updateModifiedLabelForKey(key: string): void {
-		const dataElements = this.getElementsByKey(key);
+		const dataElements = this.currentSettingsModel.getElementsByName(key);
 		const isModified = dataElements && dataElements[0] && dataElements[0].isConfigured; // all elements are either configured or not
 		const elements = this.settingsTreeRenderer.getDOMElementsForSettingKey(this.settingsTree.getHTMLElement(), key);
 		if (elements && elements[0]) {

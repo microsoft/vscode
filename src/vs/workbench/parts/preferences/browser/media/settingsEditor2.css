@@ -160,6 +160,10 @@
 	display: flex;
 }
 
+.settings-editor > .settings-body .settings-tree-container .monaco-tree-row .setting-item.focused .monaco-toolbar {
+	display: flex;
+}
+
 .settings-editor > .settings-body .settings-tree-container .monaco-toolbar .toolbar-toggle-more {
 	display: block;
 	width: 22px;

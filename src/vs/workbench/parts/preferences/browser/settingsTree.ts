@@ -7,10 +7,13 @@ import * as DOM from 'vs/base/browser/dom';
 import { renderMarkdown } from 'vs/base/browser/htmlContentRenderer';
 import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { IMouseEvent } from 'vs/base/browser/mouseEvent';
+import { alert as ariaAlert } from 'vs/base/browser/ui/aria/aria';
 import { Button } from 'vs/base/browser/ui/button/button';
 import { Checkbox } from 'vs/base/browser/ui/checkbox/checkbox';
 import { InputBox } from 'vs/base/browser/ui/inputbox/inputBox';
 import { SelectBox } from 'vs/base/browser/ui/selectBox/selectBox';
+import { ToolBar } from 'vs/base/browser/ui/toolbar/toolbar';
+import { Action, IAction } from 'vs/base/common/actions';
 import * as arrays from 'vs/base/common/arrays';
 import { Color, RGBA } from 'vs/base/common/color';
 import { onUnexpectedError } from 'vs/base/common/errors';
@@ -25,23 +28,20 @@ import { IAccessibilityProvider, IDataSource, IFilter, IRenderer as ITreeRendere
 import { DefaultTreestyler } from 'vs/base/parts/tree/browser/treeDefaults';
 import { Tree } from 'vs/base/parts/tree/browser/treeImpl';
 import { localize } from 'vs/nls';
+import { IClipboardService } from 'vs/platform/clipboard/common/clipboardService';
 import { ICommandService } from 'vs/platform/commands/common/commands';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { IContextViewService, IContextMenuService } from 'vs/platform/contextview/browser/contextView';
+import { IContextMenuService, IContextViewService } from 'vs/platform/contextview/browser/contextView';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { WorkbenchTreeController } from 'vs/platform/list/browser/listService';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
-import { editorBackground, focusBorder, foreground, errorForeground, inputValidationErrorBackground, inputValidationErrorBorder } from 'vs/platform/theme/common/colorRegistry';
+import { editorBackground, errorForeground, focusBorder, foreground, inputValidationErrorBackground, inputValidationErrorBorder } from 'vs/platform/theme/common/colorRegistry';
 import { attachButtonStyler, attachInputBoxStyler, attachSelectBoxStyler, attachStyler } from 'vs/platform/theme/common/styler';
 import { ICssStyleCollector, ITheme, IThemeService, registerThemingParticipant } from 'vs/platform/theme/common/themeService';
 import { ITOCEntry } from 'vs/workbench/parts/preferences/browser/settingsLayout';
 import { ISettingsEditorViewState, isExcludeSetting, SettingsTreeElement, SettingsTreeGroupElement, SettingsTreeNewExtensionsElement, SettingsTreeSettingElement } from 'vs/workbench/parts/preferences/browser/settingsTreeModels';
 import { ExcludeSettingWidget, IExcludeDataItem, settingsHeaderForeground, settingsNumberInputBackground, settingsNumberInputBorder, settingsNumberInputForeground, settingsSelectBackground, settingsSelectBorder, settingsSelectForeground, settingsTextInputBackground, settingsTextInputBorder, settingsTextInputForeground } from 'vs/workbench/parts/preferences/browser/settingsWidgets';
 import { ISetting, ISettingsGroup } from 'vs/workbench/services/preferences/common/preferences';
-import { alert as ariaAlert } from 'vs/base/browser/ui/aria/aria';
-import { ToolBar } from 'vs/base/browser/ui/toolbar/toolbar';
-import { Action, IAction } from 'vs/base/common/actions';
-import { IClipboardService } from 'vs/platform/clipboard/common/clipboardService';
 
 const $ = DOM.$;
 
@@ -328,6 +328,17 @@ export class SettingsRenderer implements ITreeRenderer {
 		];
 	}
 
+	showContextMenu(element: SettingsTreeSettingElement, settingDOMElement: HTMLElement): void {
+		const toolbarElement: HTMLElement = settingDOMElement.querySelector('.toolbar-toggle-more');
+		if (toolbarElement) {
+			this.contextMenuService.showContextMenu({
+				getActions: () => TPromise.wrap(this.settingActions),
+				getAnchor: () => toolbarElement,
+				getActionsContext: () => element
+			});
+		}
+	}
+
 	updateWidth(width: number): void {
 		if (this.lastRenderedWidth !== width) {
 			this.rowHeightCache = new Map<string, number>();
@@ -514,9 +525,7 @@ export class SettingsRenderer implements ITreeRenderer {
 
 		const toDispose = [];
 
-		const toolbar = new ToolBar(container, this.contextMenuService, {});
-		toolbar.setActions([], this.settingActions)();
-		toDispose.push(toolbar);
+		const toolbar = this.renderSettingToolbar(container);
 
 		const template: ISettingItemTemplate = {
 			toDispose,
@@ -545,11 +554,21 @@ export class SettingsRenderer implements ITreeRenderer {
 	}
 
 	private addSettingElementFocusHandler(template: ISettingItemTemplate): void {
-		template.toDispose.push(DOM.addDisposableListener(template.containerElement, 'focus', e => {
+		const focusTracker = DOM.trackFocus(template.containerElement);
+		template.toDispose.push(focusTracker);
+		focusTracker.onDidBlur(() => {
+			if (template.containerElement.classList.contains('focused')) {
+				template.containerElement.classList.remove('focused');
+			}
+		});
+
+		focusTracker.onDidFocus(() => {
+			template.containerElement.classList.add('focused');
+
 			if (template.context) {
 				this._onDidFocusSetting.fire(template.context);
 			}
-		}, true));
+		});
 	}
 
 	private renderSettingTextTemplate(tree: ITree, container: HTMLElement, type = 'text'): ISettingTextItemTemplate {
@@ -614,6 +633,17 @@ export class SettingsRenderer implements ITreeRenderer {
 		return template;
 	}
 
+	private renderSettingToolbar(container: HTMLElement): ToolBar {
+		const toolbar = new ToolBar(container, this.contextMenuService, {});
+		toolbar.setActions([], this.settingActions)();
+		const button = container.querySelector('.toolbar-toggle-more');
+		if (button) {
+			(<HTMLElement>button).tabIndex = -1;
+		}
+
+		return toolbar;
+	}
+
 	private renderSettingBoolTemplate(tree: ITree, container: HTMLElement): ISettingBoolItemTemplate {
 		DOM.addClass(container, 'setting-item');
 		DOM.addClass(container, 'setting-item-bool');
@@ -639,9 +669,7 @@ export class SettingsRenderer implements ITreeRenderer {
 			}
 		}));
 		checkbox.domNode.classList.add(SettingsRenderer.CONTROL_CLASS);
-
-		const toolbar = new ToolBar(container, this.contextMenuService, {});
-		toolbar.setActions([], this.settingActions)();
+		const toolbar = this.renderSettingToolbar(container);
 		toDispose.push(toolbar);
 
 		const template: ISettingBoolItemTemplate = {
@@ -851,6 +879,11 @@ export class SettingsRenderer implements ITreeRenderer {
 
 	public getDOMElementsForSettingKey(treeContainer: HTMLElement, key: string): NodeListOf<HTMLElement> {
 		return treeContainer.querySelectorAll(`[${SettingsRenderer.SETTING_KEY_ATTR}="${key}"]`);
+	}
+
+	public getKeyForDOMElementInSetting(element: HTMLElement): string {
+		const settingElement = this.getSettingDOMElementForDOMElement(element);
+		return settingElement && settingElement.getAttribute(SettingsRenderer.SETTING_KEY_ATTR);
 	}
 
 	private renderSettingElement(tree: ITree, element: SettingsTreeSettingElement, templateId: string, template: ISettingItemTemplate | ISettingBoolItemTemplate): void {

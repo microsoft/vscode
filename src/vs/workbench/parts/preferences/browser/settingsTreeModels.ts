@@ -210,7 +210,7 @@ export class SettingsTreeModel {
 		return this._treeElementsById.get(id);
 	}
 
-	getElementByName(name: string): SettingsTreeSettingElement[] {
+	getElementsByName(name: string): SettingsTreeSettingElement[] {
 		return this._treeElementsBySettingName.get(name);
 	}
 
