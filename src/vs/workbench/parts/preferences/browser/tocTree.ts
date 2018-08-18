@@ -5,7 +5,7 @@
 
 import * as DOM from 'vs/base/browser/dom';
 import { TPromise } from 'vs/base/common/winjs.base';
-import { IDataSource, IRenderer, ITree, ITreeConfiguration } from 'vs/base/parts/tree/browser/tree';
+import { IDataSource, IRenderer, ITree, ITreeConfiguration, ITreeOptions } from 'vs/base/parts/tree/browser/tree';
 import { DefaultTreestyler, OpenMode } from 'vs/base/parts/tree/browser/treeDefaults';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
@@ -18,6 +18,7 @@ import { SettingsAccessibilityProvider, SettingsTreeFilter } from 'vs/workbench/
 import { ISettingsEditorViewState, SearchResultModel, SettingsTreeElement, SettingsTreeGroupElement, SettingsTreeSettingElement } from 'vs/workbench/parts/preferences/browser/settingsTreeModels';
 import { settingsHeaderForeground } from 'vs/workbench/parts/preferences/browser/settingsWidgets';
 import { ISetting } from 'vs/workbench/services/preferences/common/preferences';
+import { ScrollbarVisibility } from 'vs/base/common/scrollable';
 
 const $ = DOM.$;
 
@@ -174,9 +175,10 @@ export class TOCTree extends WorkbenchTree {
 			...configuration
 		};
 
-		const options = {
+		const options: ITreeOptions = {
 			showLoading: false,
-			twistiePixels: 15
+			twistiePixels: 15,
+			horizontalScrollMode: ScrollbarVisibility.Hidden
 		};
 
 		super(container,
