@@ -76,7 +76,7 @@ export class SettingsEditor2 extends BaseEditor {
 	private delayedFilterLogging: Delayer<void>;
 	private localSearchDelayer: Delayer<void>;
 	private remoteSearchThrottle: ThrottledDelayer<void>;
-	private searchCancelToken: CancellationTokenSource;
+	private searchInProgress: CancellationTokenSource;
 
 	private delayRefreshOnLayout: Delayer<void>;
 	private lastLayedoutWidth: number;
@@ -747,6 +747,11 @@ export class SettingsEditor2 extends BaseEditor {
 		});
 	}
 
+	private parseSettingFromJSON(query: string): string {
+		const match = query.match(/"([a-zA-Z.]+)": /);
+		return match && match[1];
+	}
+
 	private triggerSearch(query: string): TPromise<void> {
 		this.viewState.tagFilters = new Set<string>();
 		if (query) {
@@ -762,14 +767,16 @@ export class SettingsEditor2 extends BaseEditor {
 
 		query = query.trim();
 		if (query && query !== '@') {
-			this.searchCancelToken = new CancellationTokenSource();
+			query = this.parseSettingFromJSON(query) || query;
+
+			this.searchInProgress = new CancellationTokenSource();
 			return TPromise.join([
-				this.localSearchDelayer.trigger(() => this.localFilterPreferences(query, this.searchCancelToken.token)),
-				this.remoteSearchThrottle.trigger(() => this.remoteSearchPreferences(query, this.searchCancelToken.token), 500)
+				this.localSearchDelayer.trigger(() => this.searchInProgress ? this.localFilterPreferences(query, this.searchInProgress.token) : TPromise.wrap(null)),
+				this.remoteSearchThrottle.trigger(() => this.searchInProgress ? this.remoteSearchPreferences(query, this.searchInProgress.token) : TPromise.wrap(null), 500)
 			]).then(() => {
-				if (this.searchCancelToken) {
-					this.searchCancelToken.dispose();
-					this.searchCancelToken = null;
+				if (this.searchInProgress) {
+					this.searchInProgress.dispose();
+					this.searchInProgress = null;
 				}
 			});
 		} else {
@@ -781,10 +788,10 @@ export class SettingsEditor2 extends BaseEditor {
 
 			this.localSearchDelayer.cancel();
 			this.remoteSearchThrottle.cancel();
-			if (this.searchCancelToken) {
-				this.searchCancelToken.cancel();
-				this.searchCancelToken.dispose();
-				this.searchCancelToken = null;
+			if (this.searchInProgress) {
+				this.searchInProgress.cancel();
+				this.searchInProgress.dispose();
+				this.searchInProgress = null;
 			}
 
 			this.viewState.filterToCategory = null;

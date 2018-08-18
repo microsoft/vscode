@@ -49,15 +49,21 @@ export class TOCTreeModel {
 	}
 
 	private updateGroupCount(group: SettingsTreeGroupElement): void {
-		group.count = this._currentSearchModel ?
-			this.getSearchResultChildrenCount(group) :
-			undefined;
-
 		group.children.forEach(child => {
 			if (child instanceof SettingsTreeGroupElement) {
 				this.updateGroupCount(child);
 			}
 		});
+
+		if (this._currentSearchModel) {
+			const childCount = group.children
+				.filter(child => child instanceof SettingsTreeGroupElement)
+				.reduce((acc, cur) => acc + (<SettingsTreeGroupElement>cur).count, 0);
+
+			group.count = childCount + this.getSearchResultChildrenCount(group);
+		} else {
+			group.count = undefined;
+		}
 	}
 
 	private getSearchResultChildrenCount(group: SettingsTreeGroupElement): number {
@@ -70,8 +76,6 @@ export class TOCTreeModel {
 		return group.children.some(child => {
 			if (child instanceof SettingsTreeSettingElement) {
 				return child.setting.key === setting.key && child.matchesAllTags(this.viewState.tagFilters);
-			} else if (child instanceof SettingsTreeGroupElement) {
-				return this.groupContainsSetting(child, setting);
 			} else {
 				return false;
 			}

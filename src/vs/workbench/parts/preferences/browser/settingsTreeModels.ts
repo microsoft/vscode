@@ -429,7 +429,7 @@ export class SearchResultModel extends SettingsTreeModel {
 			settings: this.getFlatSettings()
 		});
 
-		if (this.newExtensionSearchResults) {
+		if (this.newExtensionSearchResults && this.newExtensionSearchResults.filterMatches.length) {
 			const newExtElement = new SettingsTreeNewExtensionsElement();
 			newExtElement.parent = this._root;
 			newExtElement.id = 'newExtensions';
