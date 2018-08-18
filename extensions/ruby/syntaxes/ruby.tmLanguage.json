@@ -1206,9 +1206,6 @@
 					"endCaptures": {
 						"0": {
 							"name": "punctuation.section.embedded.end.ruby"
-						},
-						"1": {
-							"name": "source.ruby"
 						}
 					},
 					"name": "meta.embedded.line.ruby",
