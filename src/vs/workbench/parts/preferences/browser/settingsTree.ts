@@ -1188,6 +1188,12 @@ export class SettingsTreeFilter implements IFilter {
 			return element.children.some(child => this.isVisible(tree, child));
 		}
 
+		if (element instanceof SettingsTreeNewExtensionsElement) {
+			if ((this.viewState.tagFilters && this.viewState.tagFilters.size) || this.viewState.filterToCategory) {
+				return false;
+			}
+		}
+
 		return true;
 	}
 

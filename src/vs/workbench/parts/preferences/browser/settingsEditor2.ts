@@ -898,10 +898,11 @@ export class SettingsEditor2 extends BaseEditor {
 				this.toggleSearchMode();
 				this.settingsTree.setInput(this.searchResultModel.root);
 			} else {
+				this.tocTreeModel.update();
 				this.searchResultModel.setResult(type, result);
 			}
 
-			this.tocTreeModel.update();
+			this.tocTree.setSelection([]);
 			expandAll(this.tocTree);
 
 			return this.renderTree();
