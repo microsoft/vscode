@@ -60,7 +60,10 @@ export class SettingsEditor2 extends BaseEditor {
 
 	private rootElement: HTMLElement;
 	private headerContainer: HTMLElement;
+
+  private bodyContainer: HTMLElement;
 	private searchWidget: SuggestEnabledInput;
+
 	private settingsTargetsWidget: SettingsTargetsWidget;
 	private toolbar: ToolBar;
 
@@ -307,10 +310,10 @@ export class SettingsEditor2 extends BaseEditor {
 	}
 
 	private createBody(parent: HTMLElement): void {
-		const bodyContainer = DOM.append(parent, $('.settings-body'));
+		this.bodyContainer = DOM.append(parent, $('.settings-body'));
 
 		this.createFocusSink(
-			bodyContainer,
+			this.bodyContainer,
 			e => {
 				if (DOM.findParentWithClass(e.relatedTarget, 'settings-editor-tree')) {
 					if (this.settingsTree.getScrollPosition() > 0) {
@@ -329,10 +332,10 @@ export class SettingsEditor2 extends BaseEditor {
 			},
 			'settings list focus helper');
 
-		this.createSettingsTree(bodyContainer);
-
+		this.createSettingsTree(this.bodyContainer);
+		this.positionScrollbar();
 		this.createFocusSink(
-			bodyContainer,
+			this.bodyContainer,
 			e => {
 				if (DOM.findParentWithClass(e.relatedTarget, 'settings-editor-tree')) {
 					if (this.settingsTree.getScrollPosition() < 1) {
@@ -347,11 +350,19 @@ export class SettingsEditor2 extends BaseEditor {
 			'settings list focus helper'
 		);
 
-		this.createTOC(bodyContainer);
+		this.createTOC(this.bodyContainer);
 
 		if (this.environmentService.appQuality !== 'stable') {
-			this.createFeedbackButton(bodyContainer);
+			this.createFeedbackButton(this.bodyContainer);
 		}
+	}
+
+	private positionScrollbar(): void {
+		let settingsScrollbar = this.bodyContainer.querySelector('.settings-editor > .settings-body .settings-tree-container .scrollbar.vertical') as HTMLElement
+		console.log(settingsScrollbar)
+		setTimeout(() => {
+			settingsScrollbar.style.top = `${this.bodyContainer.offsetTop}px`;
+		}, 0)
 	}
 
 	private createFocusSink(container: HTMLElement, callback: (e: any) => boolean, label: string): HTMLElement {
