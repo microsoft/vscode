@@ -7,6 +7,7 @@ import * as DOM from 'vs/base/browser/dom';
 import { renderMarkdown } from 'vs/base/browser/htmlContentRenderer';
 import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { IMouseEvent } from 'vs/base/browser/mouseEvent';
+import { Separator } from 'vs/base/browser/ui/actionbar/actionbar';
 import { alert as ariaAlert } from 'vs/base/browser/ui/aria/aria';
 import { Button } from 'vs/base/browser/ui/button/button';
 import { Checkbox } from 'vs/base/browser/ui/checkbox/checkbox';
@@ -317,7 +318,10 @@ export class SettingsRenderer implements ITreeRenderer {
 					this.descriptionMeasureContainer)));
 
 		this.settingActions = [
+			this.instantiationService.createInstance(CopySettingNameAction),
 			this.instantiationService.createInstance(CopySettingIdAction),
+			this.instantiationService.createInstance(CopySettingAsJSONAction),
+			new Separator(),
 			new Action('settings.resetSetting', localize('resetSettingLabel', "Reset Setting"), undefined, undefined, (context: SettingsTreeSettingElement) => {
 				if (context) {
 					this._onDidChangeSetting.fire({ key: context.setting.key, value: undefined });
@@ -1416,6 +1420,46 @@ class CopySettingIdAction extends Action {
 	run(context: SettingsTreeSettingElement): TPromise<void> {
 		if (context) {
 			this.clipboardService.writeText(context.setting.key);
+		}
+
+		return TPromise.as(null);
+	}
+}
+
+class CopySettingAsJSONAction extends Action {
+	static readonly ID = 'settings.copySettingAsJSON';
+	static readonly LABEL = localize('copySettingAsJSONLabel', "Copy Setting as JSON");
+
+	constructor(
+		@IClipboardService private clipboardService: IClipboardService
+	) {
+		super(CopySettingAsJSONAction.ID, CopySettingAsJSONAction.LABEL);
+	}
+
+	run(context: SettingsTreeSettingElement): TPromise<void> {
+		if (context) {
+			const jsonResult = `"${context.setting.key}": ${JSON.stringify(context.value)}`;
+			this.clipboardService.writeText(jsonResult);
+		}
+
+		return TPromise.as(null);
+	}
+}
+
+class CopySettingNameAction extends Action {
+	static readonly ID = 'settings.copySettingName';
+	static readonly LABEL = localize('copySettingNameLabel', "Copy Setting Name");
+
+	constructor(
+		@IClipboardService private clipboardService: IClipboardService
+	) {
+		super(CopySettingNameAction.ID, CopySettingNameAction.LABEL);
+	}
+
+	run(context: SettingsTreeSettingElement): TPromise<void> {
+		if (context) {
+			const name = `${context.displayCategory}: ${context.displayLabel}`;
+			this.clipboardService.writeText(name);
 		}
 
 		return TPromise.as(null);
