@@ -437,4 +437,13 @@
 		// signal ready
 		ipcRenderer.sendToHost('webview-ready', process.pid);
 	});
+
+	window.matchMedia("print").addListener(function (mql) {
+		if (mql.matches) {
+			var obj = document.getElementsByTagName("iframe")[0];
+			obj.style.height = obj.contentWindow.document.body.scrollHeight + 'px';
+		}
+	});
+
+	//TODO: Reset to normal when no longer printing
 }());
