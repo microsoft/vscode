@@ -4,8 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Event, filterEvent, mapEvent, fromNodeEventEmitter } from 'vs/base/common/event';
-import { IPCServer, ClientConnectionEvent } from 'vs/base/parts/ipc/common/ipc';
-import { Protocol } from 'vs/base/parts/ipc/common/ipc.electron';
+import { IPCServer, ClientConnectionEvent } from 'vs/base/parts/ipc/node/ipc';
+import { Protocol } from 'vs/base/parts/ipc/node/ipc.electron';
 import { ipcMain } from 'electron';
 
 interface WebContents extends Electron.WebContents {

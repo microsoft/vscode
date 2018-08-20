@@ -4,8 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { fromNodeEventEmitter } from 'vs/base/common/event';
-import { IPCClient } from 'vs/base/parts/ipc/common/ipc';
-import { Protocol } from 'vs/base/parts/ipc/common/ipc.electron';
+import { IPCClient } from 'vs/base/parts/ipc/node/ipc';
+import { Protocol } from 'vs/base/parts/ipc/node/ipc.electron';
 import { ipcRenderer } from 'electron';
 
 export class Client extends IPCClient {

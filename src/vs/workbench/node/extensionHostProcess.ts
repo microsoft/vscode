@@ -8,7 +8,7 @@
 import { onUnexpectedError } from 'vs/base/common/errors';
 import { ExtensionHostMain, exit } from 'vs/workbench/node/extensionHostMain';
 import { IInitData } from 'vs/workbench/api/node/extHost.protocol';
-import { IMessagePassingProtocol } from 'vs/base/parts/ipc/common/ipc';
+import { IMessagePassingProtocol } from 'vs/base/parts/ipc/node/ipc';
 import { Protocol } from 'vs/base/parts/ipc/node/ipc.net';
 import { createConnection } from 'net';
 import { Event, filterEvent } from 'vs/base/common/event';

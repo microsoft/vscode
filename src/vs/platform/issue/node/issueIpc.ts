@@ -6,8 +6,8 @@
 'use strict';
 
 import { TPromise } from 'vs/base/common/winjs.base';
-import { IChannel } from 'vs/base/parts/ipc/common/ipc';
-import { IIssueService, IssueReporterData, ProcessExplorerData } from './issue';
+import { IChannel } from 'vs/base/parts/ipc/node/ipc';
+import { IIssueService, IssueReporterData, ProcessExplorerData } from '../common/issue';
 import { Event } from 'vs/base/common/event';
 
 export interface IIssueChannel extends IChannel {
