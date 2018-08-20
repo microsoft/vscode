@@ -16,7 +16,7 @@ export function setupTerminalMenu() {
 		group: '4_panels',
 		command: {
 			id: TERMINAL_COMMAND_ID.TOGGLE,
-			title: nls.localize({ key: 'miToggleIntegratedTerminal', comment: ['&& denotes a mnemonic'] }, "&&Integrated Terminal")
+			title: nls.localize({ key: 'miToggleIntegratedTerminal', comment: ['&& denotes a mnemonic'] }, "&&Terminal")
 		},
 		order: 3
 	});
