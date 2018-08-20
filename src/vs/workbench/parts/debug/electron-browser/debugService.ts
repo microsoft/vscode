@@ -75,7 +75,6 @@ export class DebugService implements IDebugService {
 	private debugState: IContextKey<string>;
 	private inDebugMode: IContextKey<boolean>;
 	private breakpointsToSendOnResourceSaved: Set<string>;
-	private firstSessionStart: boolean;
 	private skipRunningTask: boolean;
 	private previousState: State;
 
@@ -117,7 +116,6 @@ export class DebugService implements IDebugService {
 			this.loadExceptionBreakpoints(), this.loadWatchExpressions());
 		this.toDispose.push(this.model);
 		this.viewModel = new ViewModel(contextKeyService);
-		this.firstSessionStart = true;
 
 		this.registerListeners();
 	}
@@ -646,16 +644,16 @@ export class DebugService implements IDebugService {
 					this._onDidNewSession.fire(session);
 
 					const internalConsoleOptions = resolved.internalConsoleOptions || this.configurationService.getValue<IDebugConfiguration>('debug').internalConsoleOptions;
-					if (internalConsoleOptions === 'openOnSessionStart' || (this.firstSessionStart && internalConsoleOptions === 'openOnFirstSessionStart')) {
+					if (internalConsoleOptions === 'openOnSessionStart' || (this.viewModel.firstSessionStart && internalConsoleOptions === 'openOnFirstSessionStart')) {
 						this.panelService.openPanel(REPL_ID, false).done(undefined, errors.onUnexpectedError);
 					}
 
 					const openDebug = this.configurationService.getValue<IDebugConfiguration>('debug').openDebug;
 					// Open debug viewlet based on the visibility of the side bar and openDebug setting
-					if (openDebug === 'openOnSessionStart' || (openDebug === 'openOnFirstSessionStart' && this.firstSessionStart)) {
+					if (openDebug === 'openOnSessionStart' || (openDebug === 'openOnFirstSessionStart' && this.viewModel.firstSessionStart)) {
 						this.viewletService.openViewlet(VIEWLET_ID);
 					}
-					this.firstSessionStart = false;
+					this.viewModel.firstSessionStart = false;
 
 					this.debugType.set(resolved.type);
 					if (this.model.getSessions().length > 1) {
