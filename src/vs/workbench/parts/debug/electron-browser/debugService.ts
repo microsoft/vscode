@@ -143,20 +143,10 @@ export class DebugService implements IDebugService {
 		}
 
 		if (broadcast.channel === EXTENSION_ATTACH_BROADCAST_CHANNEL) {
-			const initialAttach = session.configuration.request === 'launch';
-
 			session.configuration.request = 'attach';
 			session.configuration.port = broadcast.payload.port;
-			// Do not end process on initial attach (since the request is still 'launch')
-			if (initialAttach) {
-				const dbgr = this.configurationManager.getDebugger(session.configuration.type);
-				session.initialize(dbgr).then(() => (<RawDebugSession>session.raw).attach(session.configuration));
-			} else {
-				if (session.raw) {
-					session.raw.disconnect().done(undefined, errors.onUnexpectedError);
-				}
-				this.doCreateSession(session.root, { resolved: session.configuration, unresolved: session.unresolvedConfiguration }, session.getId());
-			}
+			const dbgr = this.configurationManager.getDebugger(session.configuration.type);
+			session.initialize(dbgr).then(() => (<RawDebugSession>session.raw).attach(session.configuration));
 
 			return;
 		}
@@ -914,14 +904,15 @@ export class DebugService implements IDebugService {
 			// Do not run preLaunch and postDebug tasks for automatic restarts
 			this.skipRunningTask = !!restartData;
 
+			if (equalsIgnoreCase(session.configuration.type, 'extensionHost') && session.root) {
+				return this.broadcastService.broadcast({
+					channel: EXTENSION_RELOAD_BROADCAST_CHANNEL,
+					payload: [session.root.uri.fsPath]
+				});
+			}
+
 			// If the restart is automatic disconnect, otherwise send the terminate signal #55064
 			return (!!restartData ? session.raw.disconnect(true) : session.raw.terminate(true)).then(() => {
-				if (equalsIgnoreCase(session.configuration.type, 'extensionHost') && session.root) {
-					return this.broadcastService.broadcast({
-						channel: EXTENSION_RELOAD_BROADCAST_CHANNEL,
-						payload: [session.root.uri.fsPath]
-					});
-				}
 
 				return new TPromise<void>((c, e) => {
 					setTimeout(() => {
