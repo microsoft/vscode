@@ -755,14 +755,9 @@ export class SettingsRenderer implements ITreeRenderer {
 		}, null, common.toDispose);
 
 		downArrow.onmousedown = selectionViewer.onmousedown = e => {
-			if (this.expandedSuggester === template) {
-				selectionViewer.focus();
-				this.expandedSuggester = null;
-			} else {
-				template.suggester.setValue('');
-				template.suggester.triggerSuggest();
-				this.expandedSuggester = template;
-			}
+			template.suggester.setValue('');
+			template.suggester.triggerSuggest();
+			this.expandedSuggester = template;
 			e.preventDefault();
 			e.stopPropagation();
 		};
