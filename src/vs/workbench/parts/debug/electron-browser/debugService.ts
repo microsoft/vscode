@@ -76,6 +76,7 @@ export class DebugService implements IDebugService {
 	private inDebugMode: IContextKey<boolean>;
 	private breakpointsToSendOnResourceSaved: Set<string>;
 	private skipRunningTask: boolean;
+	private initializing = false;
 	private previousState: State;
 
 	constructor(
@@ -307,6 +308,9 @@ export class DebugService implements IDebugService {
 		const focusedSession = this.viewModel.focusedSession;
 		if (focusedSession) {
 			return focusedSession.state;
+		}
+		if (this.initializing) {
+			return State.Initializing;
 		}
 
 		return State.Inactive;
@@ -581,6 +585,8 @@ export class DebugService implements IDebugService {
 	}
 
 	private createSession(launch: ILaunch, config: IConfig, unresolvedConfig: IConfig, sessionId: string): TPromise<void> {
+		this.initializing = true;
+		this.onStateChange();
 		return this.textFileService.saveAll().then(() =>
 			this.substituteVariables(launch, config).then(resolvedConfig => {
 
@@ -621,7 +627,10 @@ export class DebugService implements IDebugService {
 
 				return launch && launch.openConfigFile(false).then(editor => void 0);
 			})
-		);
+		).then(() => {
+			this.initializing = false;
+			this.onStateChange();
+		});
 	}
 
 	private doCreateSession(root: IWorkspaceFolder, configuration: { resolved: IConfig, unresolved: IConfig }, sessionId: string): TPromise<any> {
