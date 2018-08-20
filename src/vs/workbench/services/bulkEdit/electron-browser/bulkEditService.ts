@@ -180,6 +180,9 @@ class BulkEditModel implements IDisposable {
 				if (!model || !model.textEditorModel) {
 					throw new Error(`Cannot load file ${key}`);
 				}
+				if (model.isReadonly) {
+					throw new Error(localize('editorIsReadonly', "Cannot edit a read-only editor."));
+				}
 
 				let task: ModelEditTask;
 				if (this._editor && this._editor.getModel().uri.toString() === model.textEditorModel.uri.toString()) {
