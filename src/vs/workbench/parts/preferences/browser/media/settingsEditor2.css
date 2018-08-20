@@ -443,6 +443,10 @@
 	transform: scale(0.5,1);
 }
 
+.settings-editor > .settings-body > .settings-tree-container .setting-item.setting-item-enum .suggest-widget .details > .monaco-scrollable-element > .body > .header > .close {
+	display: none;
+}
+
 .settings-editor > .settings-body > .settings-tree-container .setting-item .setting-item-value .edit-in-settings-button,
 .settings-editor > .settings-body > .settings-tree-container .setting-item .setting-item-value .edit-in-settings-button:hover,
 .settings-editor > .settings-body > .settings-tree-container .setting-item .setting-item-value .edit-in-settings-button:active {
