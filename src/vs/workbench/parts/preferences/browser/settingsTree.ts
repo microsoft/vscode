@@ -344,12 +344,18 @@ export class SettingsRenderer implements ITreeRenderer {
 		}
 	}
 
+	private forceRedrawHack = 0; // the actual width is fixed, toggle this in order to force redraws for the suggest dropdown to properly flow
 	updateWidth(width: number): void {
 		if (this.lastRenderedWidth !== width) {
 			this.rowHeightCache = new Map<string, number>();
 		}
 
 		this.lastRenderedWidth = width;
+
+		if (this.expandedSuggester) {
+			this.forceRedrawHack = +!this.forceRedrawHack; // toggle between 1 and 0.
+			this.expandedSuggester.suggester.layout({ width: this.ENUM_BACKING_MONACO_WIDTH + this.forceRedrawHack, height: 10 });
+		}
 	}
 
 	getHeight(tree: ITree, element: SettingsTreeElement): number {
@@ -715,12 +721,13 @@ export class SettingsRenderer implements ITreeRenderer {
 
 	private numEnums = 0;
 	private expandedSuggester: ISettingEnumItemTemplate = null;
+	private readonly ENUM_BACKING_MONACO_WIDTH = 250; // allow room for typing to filter
 	private renderSettingEnumTemplate(tree: ITree, container: HTMLElement): ISettingEnumItemTemplate {
 		this.numEnums++;
 		const common = this.renderCommonTemplate(tree, container, 'enum');
 		const suggestionProvider: ISuggestResultsProvider = { provideResults: () => [] };
 		const suggester = this.instantiationService.createInstance(SingleDelegateSuggest, SETTINGS_ENUM_TEMPLATE_ID + '.suggest' + this.numEnums, container, suggestionProvider, 'aria', 'settingseditor2:' + this.numEnums, {});
-		suggester.layout({ width: 250, height: 10 });
+		suggester.layout({ width: this.ENUM_BACKING_MONACO_WIDTH, height: 10 });
 		common.toDispose.push(suggester);
 
 		const selectionViewer = common.controlElement.appendChild($('.enum-selection-viewer'));
