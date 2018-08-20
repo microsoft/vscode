@@ -5,10 +5,11 @@
 
 'use strict';
 
-const sharedConfig = require('../shared.webpack.config');
+const withDefaults = require('../shared.webpack.config');
 const CopyWebpackPlugin = require('copy-webpack-plugin');
 
 const myConfig = {
+	context: __dirname,
 	node: {
 		__dirname: false // leave the __dirname-behaviour intact
 	},
@@ -18,12 +19,10 @@ const myConfig = {
 	},
 	plugins: [
 		new CopyWebpackPlugin([
-			{ from: './out/*.sh', to: '[name].sh' },
-			{ from: './out/nls.*.json', to: '[name].json' }
+			{ from: './out/*.sh', to: '[name].sh' }
 		])
 	],
 	externals: {
-		'vscode': 'commonjs vscode', // ignored because it doesn't exist
 		"byline": 'commonjs byline',
 		"file-type": 'commonjs file-type',
 		"iconv-lite": 'commonjs iconv-lite',
@@ -34,4 +33,4 @@ const myConfig = {
 	},
 };
 
-module.exports = { ...sharedConfig(__dirname), ...myConfig };
+module.exports = withDefaults(myConfig);

@@ -102,6 +102,7 @@
     "istanbul": "^0.3.17",
     "jsdom-no-contextify": "^3.1.0",
     "lazy.js": "^0.4.2",
+    "merge-options": "^1.0.1",
     "mime": "^1.4.1",
     "minimatch": "^2.0.10",
     "mkdirp": "^0.5.0",
