@@ -223,10 +223,6 @@
 	cursor: pointer;
 }
 
-.monaco-editor .review-widget .head .review-title .filename:empty::after {
-	content: "Start discussion";
-}
-
 .monaco-editor .review-widget .head .review-title .dirname:not(:empty) {
 	font-size: 0.9em;
 	margin-left: 0.5em;
