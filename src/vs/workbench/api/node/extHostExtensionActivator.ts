@@ -26,7 +26,6 @@ export interface IExtensionContext {
 	extensionPath: string;
 	storagePath: string;
 	asAbsolutePath(relativePath: string): string;
-	readonly logDirectory: string;
 	readonly logPath: string;
 }
 

@@ -434,16 +434,6 @@ declare module 'vscode' {
 		Off = 7
 	}
 
-	export interface ExtensionContext {
-
-		/**
-		 * Path where an extension can write log files.
-		 *
-		 * Extensions must create this directory before writing to it. The parent directory will always exist.
-		 */
-		readonly logDirectory: string;
-	}
-
 	export namespace env {
 		/**
 		 * Current logging level.
