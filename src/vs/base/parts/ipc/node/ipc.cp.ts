@@ -13,11 +13,16 @@ import { createQueuedSender } from 'vs/base/node/processes';
 import { ChannelServer as IPCServer, ChannelClient as IPCClient, IChannelClient, IChannel } from 'vs/base/parts/ipc/common/ipc';
 import { isRemoteConsoleLog, log } from 'vs/base/node/console';
 
+/**
+ * This implementation doesn't perform well since it uses base64 encoding for buffers.
+ * We should move all implementations to use named ipc.net, so we stop depending on cp.fork.
+ */
+
 export class Server extends IPCServer {
 	constructor() {
 		super({
-			send: r => { try { process.send(r); } catch (e) { /* not much to do */ } },
-			onMessage: fromNodeEventEmitter(process, 'message', msg => msg)
+			send: r => { try { process.send(r.toString('base64')); } catch (e) { /* not much to do */ } },
+			onMessage: fromNodeEventEmitter(process, 'message', msg => Buffer.from(msg, 'base64'))
 		});
 
 		process.once('disconnect', () => this.dispose());
@@ -185,7 +190,7 @@ export class Client implements IChannelClient, IDisposable {
 
 			this.child = fork(this.modulePath, args, forkOpts);
 
-			const onMessageEmitter = new Emitter<any>();
+			const onMessageEmitter = new Emitter<Buffer>();
 			const onRawMessage = fromNodeEventEmitter(this.child, 'message', msg => msg);
 
 			onRawMessage(msg => {
@@ -197,11 +202,11 @@ export class Client implements IChannelClient, IDisposable {
 				}
 
 				// Anything else goes to the outside
-				onMessageEmitter.fire(msg);
+				onMessageEmitter.fire(Buffer.from(msg, 'base64'));
 			});
 
 			const sender = this.options.useQueue ? createQueuedSender(this.child) : this.child;
-			const send = r => this.child && this.child.connected && sender.send(r);
+			const send = (r: Buffer) => this.child && this.child.connected && sender.send(r.toString('base64'));
 			const onMessage = onMessageEmitter.event;
 			const protocol = { send, onMessage };
 

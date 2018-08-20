@@ -37,6 +37,7 @@ import { ILogService } from 'vs/platform/log/common/log';
 import { INotificationService, Severity } from 'vs/platform/notification/common/notification';
 import { getPathFromAmdModule } from 'vs/base/common/amd';
 import { timeout } from 'vs/base/common/async';
+import { isMessageOfType, MessageType, createMessageOfType } from 'vs/workbench/common/extensionHostProtocol';
 
 export interface IExtensionHostStarter {
 	readonly onCrashed: Event<[number, string]>;
@@ -340,13 +341,13 @@ export class ExtensionHostProcessWorker implements IExtensionHostStarter {
 
 				const disposable = protocol.onMessage(msg => {
 
-					if (msg === 'ready') {
+					if (isMessageOfType(msg, MessageType.Ready)) {
 						// 1) Extension Host is ready to receive messages, initialize it
-						this._createExtHostInitData().then(data => protocol.send(JSON.stringify(data)));
+						this._createExtHostInitData().then(data => protocol.send(Buffer.from(JSON.stringify(data))));
 						return;
 					}
 
-					if (msg === 'initialized') {
+					if (isMessageOfType(msg, MessageType.Initialized)) {
 						// 2) Extension Host is initialized
 
 						clearTimeout(handle);
@@ -470,9 +471,7 @@ export class ExtensionHostProcessWorker implements IExtensionHostStarter {
 
 			// Send the extension host a request to terminate itself
 			// (graceful termination)
-			protocol.send({
-				type: '__$terminate'
-			});
+			protocol.send(createMessageOfType(MessageType.Terminate));
 
 			// Give the extension host 60s, after which we will
 			// try to kill the process and release any resources

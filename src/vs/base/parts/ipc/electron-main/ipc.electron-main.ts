@@ -17,8 +17,8 @@ interface IIPCEvent {
 	message: string;
 }
 
-function createScopedOnMessageEvent(senderId: number): Event<any> {
-	const onMessage = fromNodeEventEmitter<IIPCEvent>(ipcMain, 'ipc:message', (event, message) => ({ event, message }));
+function createScopedOnMessageEvent(senderId: number): Event<string> {
+	const onMessage = fromNodeEventEmitter<IIPCEvent>(ipcMain, 'ipc:message', (event, message: string) => ({ event, message }));
 	const onMessageFromSender = filterEvent(onMessage, ({ event }) => event.sender.getId() === senderId);
 	return mapEvent(onMessageFromSender, ({ message }) => message);
 }

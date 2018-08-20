@@ -11,7 +11,7 @@ import { ipcRenderer } from 'electron';
 export class Client extends IPCClient {
 
 	private static createProtocol(): Protocol {
-		const onMessage = fromNodeEventEmitter<string>(ipcRenderer, 'ipc:message', (_, message) => message);
+		const onMessage = fromNodeEventEmitter<string>(ipcRenderer, 'ipc:message', (_, message: string) => message);
 		ipcRenderer.send('ipc:hello');
 		return new Protocol(ipcRenderer, onMessage);
 	}

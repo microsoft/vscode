@@ -159,12 +159,12 @@ export class RPCProtocol implements IRPCProtocol {
 		}
 	}
 
-	private _receiveOneMessage(rawmsg: string): void {
+	private _receiveOneMessage(rawmsg: Buffer): void {
 		if (this._isDisposed) {
 			return;
 		}
 
-		let msg = <RPCMessage>JSON.parse(rawmsg);
+		let msg = <RPCMessage>JSON.parse(rawmsg.toString());
 		if (this._uriTransformer) {
 			msg = transformIncomingURIs(msg, this._uriTransformer);
 		}
@@ -196,10 +196,10 @@ export class RPCProtocol implements IRPCProtocol {
 			if (this._uriTransformer) {
 				r = transformOutgoingURIs(r, this._uriTransformer);
 			}
-			this._multiplexor.send(MessageFactory.replyOK(callId, r));
+			this._multiplexor.send(Buffer.from(MessageFactory.replyOK(callId, r)));
 		}, (err) => {
 			delete this._invokedHandlers[callId];
-			this._multiplexor.send(MessageFactory.replyErr(callId, err));
+			this._multiplexor.send(Buffer.from(MessageFactory.replyErr(callId, err)));
 		});
 	}
 
@@ -268,14 +268,14 @@ export class RPCProtocol implements IRPCProtocol {
 
 		const callId = String(++this._lastMessageId);
 		const result = new LazyPromise(() => {
-			this._multiplexor.send(MessageFactory.cancel(callId));
+			this._multiplexor.send(Buffer.from(MessageFactory.cancel(callId)));
 		});
 
 		this._pendingRPCReplies[callId] = result;
 		if (this._uriTransformer) {
 			args = transformOutgoingURIs(args, this._uriTransformer);
 		}
-		this._multiplexor.send(MessageFactory.request(callId, proxyId, methodName, args));
+		this._multiplexor.send(Buffer.from(MessageFactory.request(callId, proxyId, methodName, args)));
 		return result;
 	}
 }
@@ -290,28 +290,41 @@ class RPCMultiplexer {
 	private readonly _protocol: IMessagePassingProtocol;
 	private readonly _sendAccumulatedBound: () => void;
 
-	private _messagesToSend: string[];
+	private _messagesToSend: Buffer[];
 
-	constructor(protocol: IMessagePassingProtocol, onMessage: (msg: string) => void) {
+	constructor(protocol: IMessagePassingProtocol, onMessage: (msg: Buffer) => void) {
 		this._protocol = protocol;
 		this._sendAccumulatedBound = this._sendAccumulated.bind(this);
 
 		this._messagesToSend = [];
 
 		this._protocol.onMessage(data => {
-			for (let i = 0, len = data.length; i < len; i++) {
-				onMessage(data[i]);
+			let i = 0;
+
+			while (i < data.length) {
+				const size = data.readUInt32BE(i);
+				onMessage(data.slice(i + 4, i + 4 + size));
+				i += 4 + size;
 			}
 		});
 	}
 
 	private _sendAccumulated(): void {
-		const tmp = this._messagesToSend;
+		const size = this._messagesToSend.reduce((r, b) => r + 4 + b.byteLength, 0);
+		const buffer = new Buffer(size);
+		let i = 0;
+
+		for (const msg of this._messagesToSend) {
+			buffer.writeUInt32BE(msg.byteLength, i);
+			msg.copy(buffer, i + 4);
+			i += 4 + msg.byteLength;
+		}
+
 		this._messagesToSend = [];
-		this._protocol.send(tmp);
+		this._protocol.send(buffer);
 	}
 
-	public send(msg: string): void {
+	public send(msg: Buffer): void {
 		if (this._messagesToSend.length === 0) {
 			process.nextTick(this._sendAccumulatedBound);
 		}
