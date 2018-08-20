@@ -743,16 +743,21 @@ export class SettingsRenderer implements ITreeRenderer {
 		};
 
 		suggester.onEsc(() => {
-			this.expandedSuggester = null;
 			selectionViewer.focus();
+			this.expandedSuggester = null;
 		}, null, common.toDispose);
 
 		downArrow.onmousedown = selectionViewer.onmousedown = e => {
-			template.suggester.setValue('');
-			template.suggester.triggerSuggest();
+			if (this.expandedSuggester === template) {
+				selectionViewer.focus();
+				this.expandedSuggester = null;
+			} else {
+				template.suggester.setValue('');
+				template.suggester.triggerSuggest();
+				this.expandedSuggester = template;
+			}
 			e.preventDefault();
 			e.stopPropagation();
-			this.expandedSuggester = template;
 		};
 
 		const template: ISettingEnumItemTemplate = {
