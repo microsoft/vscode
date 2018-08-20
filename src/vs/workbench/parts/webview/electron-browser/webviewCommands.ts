@@ -10,6 +10,7 @@ import * as nls from 'vs/nls';
 import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { BaseWebviewEditor } from './baseWebviewEditor';
+import { writeFile } from 'fs';
 
 export class ShowWebViewEditorFindWidgetCommand extends Command {
 	public static readonly ID = 'editor.action.webvieweditor.showFind';
@@ -65,6 +66,45 @@ export class OpenWebviewDeveloperToolsAction extends Action {
 			}
 		}
 		return null;
+	}
+}
+
+export class PrintToPDFAction extends Action {
+	static readonly ID = 'workbench.action.webview.printToPDF';
+	static readonly LABEL = nls.localize('print2PDF', "Print To PDF");
+
+	public constructor(
+		id: string,
+		label: string
+	) {
+		super(id, label);
+	}
+
+	public run(): TPromise<any> {
+		const elements = document.querySelectorAll('webview.ready');
+		const out = this;
+		for (let i = 0; i < elements.length; i++) {
+			try {
+				const wv = (elements.item(i) as Electron.WebviewTag)
+				wv.printToPDF({
+					marginsType: 0,
+					printBackground: true
+				}, (er, dt) => {
+					//TODO: Need to ask user where to store file. At least make it OS-Unspecific
+					writeFile(out.getUserHome() + '\\document.pdf', dt, (err) => {
+						if (err) throw err;
+						console.log('The file has been saved!');
+					});
+				});
+			} catch (e) {
+				console.error(e);
+			}
+		}
+		return null;
+	}
+
+	public getUserHome() {
+		return process.env[(process.platform == 'win32') ? 'USERPROFILE' : 'HOME'];
 	}
 }
 
