@@ -43,7 +43,7 @@ import { areSameExtensions, getGalleryExtensionIdFromLocal } from 'vs/platform/e
 import Severity from 'vs/base/common/severity';
 import URI from 'vs/base/common/uri';
 import { IDownloadService } from 'vs/platform/download/common/download';
-import { DownloadService } from 'vs/platform/download/node/download';
+import { DownloadService } from 'vs/platform/download/node/downloadService';
 
 const notFound = (id: string) => localize('notFound', "Extension '{0}' not found.", id);
 const notInstalled = (id: string) => localize('notInstalled', "Extension '{0}' is not installed.", id);
