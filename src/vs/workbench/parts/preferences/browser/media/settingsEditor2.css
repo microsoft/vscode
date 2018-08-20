@@ -304,7 +304,7 @@
 .settings-editor > .settings-body > .settings-tree-container .setting-item .suggest-input-container {
 	position: relative;
 	top: -24px;
-	width: 260px;
+	width: 100px;
 	padding: 0;
 }
 
@@ -418,18 +418,22 @@
 
 .settings-editor > .settings-body > .settings-tree-container .setting-item.setting-item-text .setting-item-control {
 	width: 500px;
+	min-width: initial;
+	position: relative;
 }
 
-.settings-editor > .settings-body > .settings-tree-container .setting-item.setting-item-enum .setting-item-value > .setting-item-control,
-.settings-editor > .settings-body > .settings-tree-container .setting-item.setting-item-text .setting-item-value > .setting-item-control {
+.settings-editor > .settings-body > .settings-tree-container .setting-item.setting-item-enum .setting-item-value > .setting-item-control {
 	min-width: initial;
+	width: 100%;
+	max-width: 320px;
 	position: relative;
 	z-index: 2;
 }
 
 .settings-editor > .settings-body > .settings-tree-container .setting-item.setting-item-enum .setting-item-value > .setting-item-control > .enum-selection-viewer {
-	width: 320px;
-	padding: 2px;
+	padding: 2px 20px 2px 2px;
+	overflow: hidden;
+	text-overflow: ellipsis;
 }
 
 .settings-editor > .settings-body > .settings-tree-container .setting-item.setting-item-enum .octicon-triangle-down {
@@ -503,4 +507,5 @@
 	margin-bottom: 15px;
 	padding: 10px;
 	border-radius: 5px;
+	z-index: 10;
 }
