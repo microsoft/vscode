@@ -46,7 +46,7 @@ function isEqualAuthority(a1: string, a2: string, ignoreCase?: boolean) {
 	return a1 === a2 || ignoreCase && a1 && a2 && equalsIgnoreCase(a1, a2);
 }
 
-export function isEqual(first: URI, second: URI, ignoreCase?: boolean): boolean {
+export function isEqual(first: URI, second: URI, ignoreCase = hasToIgnoreCase(first)): boolean {
 	const identityEquals = (first === second);
 	if (identityEquals) {
 		return true;

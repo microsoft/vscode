@@ -19,7 +19,7 @@ import { IHistoryMainService, IRecentlyOpened } from 'vs/platform/history/common
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { isEqual } from 'vs/base/common/paths';
 import { RunOnceScheduler } from 'vs/base/common/async';
-import { getComparisonKey, isEqual as areResourcesEqual, hasToIgnoreCase, dirname } from 'vs/base/common/resources';
+import { getComparisonKey, isEqual as areResourcesEqual, dirname } from 'vs/base/common/resources';
 import URI, { UriComponents } from 'vs/base/common/uri';
 import { Schemas } from 'vs/base/common/network';
 import { IUriLabelService } from 'vs/platform/uriLabel/common/uriLabel';
@@ -129,11 +129,11 @@ export class HistoryMainService implements IHistoryMainService {
 					return isWorkspaceIdentifier(workspace) && isEqual(pathToRemove.configPath, workspace.configPath, !isLinux /* ignorecase */);
 				}
 				if (isSingleFolderWorkspaceIdentifier(pathToRemove)) {
-					return isSingleFolderWorkspaceIdentifier(workspace) && areResourcesEqual(pathToRemove, workspace, hasToIgnoreCase(pathToRemove));
+					return isSingleFolderWorkspaceIdentifier(workspace) && areResourcesEqual(pathToRemove, workspace);
 				}
 				if (typeof pathToRemove === 'string') {
 					if (isSingleFolderWorkspaceIdentifier(workspace)) {
-						return workspace.scheme === Schemas.file && areResourcesEqual(URI.file(pathToRemove), workspace, hasToIgnoreCase(workspace));
+						return workspace.scheme === Schemas.file && areResourcesEqual(URI.file(pathToRemove), workspace);
 					}
 					if (isWorkspaceIdentifier(workspace)) {
 						return isEqual(pathToRemove, workspace.configPath, !isLinux /* ignorecase */);
@@ -149,7 +149,7 @@ export class HistoryMainService implements IHistoryMainService {
 			// Remove file
 			const pathToRemoveURI = pathToRemove instanceof URI ? pathToRemove : typeof pathToRemove === 'string' ? URI.file(pathToRemove) : null;
 			if (pathToRemoveURI) {
-				index = arrays.firstIndex(mru.files, file => areResourcesEqual(file, pathToRemoveURI, hasToIgnoreCase(pathToRemoveURI)));
+				index = arrays.firstIndex(mru.files, file => areResourcesEqual(file, pathToRemoveURI));
 			}
 			if (index >= 0) {
 				mru.files.splice(index, 1);
