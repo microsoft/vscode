@@ -348,7 +348,7 @@ export class FolderMatch extends Disposable {
 	private _unDisposedFileMatches: ResourceMap<FileMatch>;
 	private _replacingAll: boolean = false;
 
-	constructor(private _resource: URI, private _id: string, private _index: number, private _query: ISearchQuery, private _parent: SearchResult, private _searchModel: SearchModel, @IReplaceService private replaceService: IReplaceService,
+	constructor(private _resource: URI | null, private _id: string, private _index: number, private _query: ISearchQuery, private _parent: SearchResult, private _searchModel: SearchModel, @IReplaceService private replaceService: IReplaceService,
 		@IInstantiationService private instantiationService: IInstantiationService) {
 		super();
 		this._fileMatches = new ResourceMap<FileMatch>();
@@ -371,7 +371,7 @@ export class FolderMatch extends Disposable {
 		return this._id;
 	}
 
-	public resource(): URI {
+	public resource(): URI | null {
 		return this._resource;
 	}
 
@@ -387,8 +387,8 @@ export class FolderMatch extends Disposable {
 		return this._parent;
 	}
 
-	public hasRoot(): boolean {
-		return this._resource.fsPath !== '';
+	public hasResource(): boolean {
+		return !!this._resource;
 	}
 
 	public add(raw: IFileMatch[], silent: boolean): void {
@@ -525,6 +525,7 @@ export class SearchResult extends Disposable {
 	public readonly onChange: Event<IChangeEvent> = this._onChange.event;
 
 	private _folderMatches: FolderMatch[] = [];
+	private _otherFilesMatch: FolderMatch;
 	private _folderMatchesMap: TernarySearchTree<FolderMatch> = TernarySearchTree.forPaths<FolderMatch>();
 	private _showHighlights: boolean;
 
@@ -539,17 +540,19 @@ export class SearchResult extends Disposable {
 	public set query(query: ISearchQuery) {
 		// When updating the query we could change the roots, so ensure we clean up the old roots first.
 		this.clear();
-		const otherFiles = URI.parse('');
-		this._folderMatches = (query.folderQueries || []).map((fq) => fq.folder).concat([otherFiles]).map((resource, index) => {
-			const id = resource.toString() || 'otherFiles';
-			const folderMatch = this.instantiationService.createInstance(FolderMatch, resource, id, index, query, this, this._searchModel);
-			const disposable = folderMatch.onChange((event) => this._onChange.fire(event));
-			folderMatch.onDispose(() => disposable.dispose());
-			return folderMatch;
-		});
-		// otherFiles is the fallback for missing values in the TrieMap. So we do not insert it.
-		this._folderMatches.slice(0, this.folderMatches.length - 1)
-			.forEach(fm => this._folderMatchesMap.set(fm.resource().fsPath, fm));
+		this._folderMatches = (query.folderQueries || [])
+			.map(fq => fq.folder)
+			.map((resource, index) => this.createFolderMatch(resource, resource.toString(), index, query));
+		this._folderMatches.forEach(fm => this._folderMatchesMap.set(fm.resource().fsPath, fm));
+
+		this._otherFilesMatch = this.createFolderMatch(null, 'otherFiles', this._folderMatches.length + 1, query);
+	}
+
+	private createFolderMatch(resource: URI | null, id: string, index: number, query: ISearchQuery): FolderMatch {
+		const folderMatch = this.instantiationService.createInstance(FolderMatch, resource, id, index, query, this, this._searchModel);
+		const disposable = folderMatch.onChange((event) => this._onChange.fire(event));
+		folderMatch.onDispose(() => disposable.dispose());
+		return folderMatch;
 	}
 
 	public get searchModel(): SearchModel {
@@ -558,27 +561,34 @@ export class SearchResult extends Disposable {
 
 	public add(allRaw: IFileMatch[], silent: boolean = false): void {
 		// Split up raw into a list per folder so we can do a batch add per folder.
-		let rawPerFolder = new ResourceMap<IFileMatch[]>();
+		const rawPerFolder = new ResourceMap<IFileMatch[]>();
+		const otherFileMatches: IFileMatch[] = [];
 		this._folderMatches.forEach((folderMatch) => rawPerFolder.set(folderMatch.resource(), []));
 		allRaw.forEach(rawFileMatch => {
 			let folderMatch = this.getFolderMatch(rawFileMatch.resource);
-			if (folderMatch) {
+			if (folderMatch.resource()) {
 				rawPerFolder.get(folderMatch.resource()).push(rawFileMatch);
+			} else {
+				otherFileMatches.push(rawFileMatch);
 			}
 		});
+
 		rawPerFolder.forEach((raw) => {
 			if (!raw.length) {
 				return;
 			}
-			let folderMatch = this.getFolderMatch(raw[0].resource);
+
+			const folderMatch = this.getFolderMatch(raw[0].resource);
 			if (folderMatch) {
 				folderMatch.add(raw, silent);
 			}
 		});
+
+		this.otherFiles.add(otherFileMatches, silent);
 	}
 
 	public clear(): void {
-		this._folderMatches.forEach((folderMatch) => folderMatch.clear());
+		this.folderMatches().forEach((folderMatch) => folderMatch.clear());
 		this.disposeMatches();
 	}
 
@@ -615,19 +625,21 @@ export class SearchResult extends Disposable {
 	}
 
 	public folderMatches(): FolderMatch[] {
-		return this._folderMatches.concat();
+		return this._otherFilesMatch ?
+			this._folderMatches.concat(this._otherFilesMatch) :
+			this._folderMatches.concat();
 	}
 
 	public matches(): FileMatch[] {
 		let matches: FileMatch[][] = [];
-		this._folderMatches.forEach((folderMatch) => {
+		this.folderMatches().forEach((folderMatch) => {
 			matches.push(folderMatch.matches());
 		});
 		return [].concat(...matches);
 	}
 
 	public isEmpty(): boolean {
-		return this._folderMatches.every((folderMatch) => folderMatch.isEmpty());
+		return this.folderMatches().every((folderMatch) => folderMatch.isEmpty());
 	}
 
 	public fileCount(): number {
@@ -674,18 +686,19 @@ export class SearchResult extends Disposable {
 	}
 
 	private get otherFiles(): FolderMatch {
-		return this._folderMatches[this._folderMatches.length - 1];
+		return this._otherFilesMatch;
 	}
 
 	private set replacingAll(running: boolean) {
-		this._folderMatches.forEach((folderMatch) => {
+		this.folderMatches().forEach((folderMatch) => {
 			folderMatch.replacingAll = running;
 		});
 	}
 
 	private disposeMatches(): void {
-		this._folderMatches.forEach(folderMatch => folderMatch.dispose());
+		this.folderMatches().forEach(folderMatch => folderMatch.dispose());
 		this._folderMatches = [];
+		this._otherFilesMatch = null;
 		this._folderMatchesMap = TernarySearchTree.forPaths<FolderMatch>();
 		this._rangeHighlightDecorations.removeHighlightRange();
 	}

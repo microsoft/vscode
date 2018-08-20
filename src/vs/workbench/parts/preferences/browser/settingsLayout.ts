@@ -27,6 +27,7 @@ export const tocData: ITOCEntry = {
 		{
 			id: 'editor',
 			label: localize('textEditor', "Text Editor"),
+			settings: ['editor.*'],
 			children: [
 				{
 					id: 'editor/cursor',
@@ -67,17 +68,13 @@ export const tocData: ITOCEntry = {
 					id: 'editor/files',
 					label: localize('files', "Files"),
 					settings: ['files.*']
-				},
-				{
-					id: 'editor/editor',
-					label: localize('textEditor', "Text Editor"),
-					settings: ['editor.*']
 				}
 			]
 		},
 		{
 			id: 'workbench',
 			label: localize('workbench', "Workbench"),
+			settings: ['workbench.*'],
 			children: [
 				{
 					id: 'workbench/appearance',
@@ -103,27 +100,18 @@ export const tocData: ITOCEntry = {
 					id: 'workbench/zenmode',
 					label: localize('zenMode', "Zen Mode"),
 					settings: ['zenmode.*']
-				},
-				{
-					id: 'workbench/workbench',
-					label: localize('workbench', "Workbench"),
-					settings: ['workbench.*']
 				}
 			]
 		},
 		{
 			id: 'window',
 			label: localize('window', "Window"),
+			settings: ['window.*'],
 			children: [
 				{
 					id: 'window/newWindow',
 					label: localize('newWindow', "New Window"),
 					settings: ['window.*newwindow*']
-				},
-				{
-					id: 'window/window',
-					label: localize('window', "Window"),
-					settings: ['window.*']
 				}
 			]
 		},

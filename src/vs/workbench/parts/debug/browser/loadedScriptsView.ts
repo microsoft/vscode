@@ -371,16 +371,18 @@ export class LoadedScriptsView extends TreeViewsViewletPanel {
 
 		let timeout: number;
 
-		this.disposables.push(this.debugService.onDidLoadedSource(event => {
-			const sessionRoot = root.add(event.session);
-			sessionRoot.addPath(event.source);
+		this.disposables.push(this.debugService.onDidNewSession(session => {
+			this.disposables.push(session.onDidLoadedSource(event => {
+				const sessionRoot = root.add(session);
+				sessionRoot.addPath(event.source);
 
-			clearTimeout(timeout);
-			timeout = setTimeout(() => {
-				if (this.tree) {
-					this.tree.refresh(root, true);
-				}
-			}, 300);
+				clearTimeout(timeout);
+				timeout = setTimeout(() => {
+					if (this.tree) {
+						this.tree.refresh(root, true);
+					}
+				}, 300);
+			}));
 		}));
 
 		this.disposables.push(this.debugService.onDidEndSession(session => {

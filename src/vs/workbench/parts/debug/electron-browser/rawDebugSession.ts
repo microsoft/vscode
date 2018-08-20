@@ -16,9 +16,8 @@ import { IWorkspaceFolder } from 'vs/platform/workspace/common/workspace';
 import { INotificationService } from 'vs/platform/notification/common/notification';
 import { formatPII } from 'vs/workbench/parts/debug/common/debugUtils';
 import { SocketDebugAdapter } from 'vs/workbench/parts/debug/node/debugAdapter';
-import { SessionState, DebugEvent, IRawSession, IDebugAdapter } from 'vs/workbench/parts/debug/common/debug';
+import { DebugEvent, IRawSession, IDebugAdapter } from 'vs/workbench/parts/debug/common/debug';
 import { CancellationToken, CancellationTokenSource } from 'vs/base/common/cancellation';
-
 
 export interface SessionExitedEvent extends DebugEvent {
 	body: {
@@ -48,7 +47,7 @@ export class RawDebugSession implements IRawSession {
 	private cancellationTokens: CancellationTokenSource[];
 	private _capabilities: DebugProtocol.Capabilities;
 	private allThreadsContinued: boolean;
-	private state: SessionState = SessionState.LAUNCH;
+	private isAttached: boolean;
 
 	private readonly _onDidInitialize: Emitter<DebugProtocol.InitializedEvent>;
 	private readonly _onDidStop: Emitter<DebugProtocol.StoppedEvent>;
@@ -64,11 +63,11 @@ export class RawDebugSession implements IRawSession {
 	private readonly _onDidEvent: Emitter<DebugProtocol.Event>;
 
 	constructor(
-		private id: string,
+		private sessionId: string,
 		private debugServerPort: number,
 		private _debugger: Debugger,
 		public customTelemetryService: ITelemetryService,
-		public root: IWorkspaceFolder,
+		private root: IWorkspaceFolder,
 		@INotificationService private notificationService: INotificationService,
 		@ITelemetryService private telemetryService: ITelemetryService,
 		@IOutputService private outputService: IOutputService
@@ -90,10 +89,6 @@ export class RawDebugSession implements IRawSession {
 		this._onDidLoadedSource = new Emitter<DebugProtocol.LoadedSourceEvent>();
 		this._onDidCustomEvent = new Emitter<DebugEvent>();
 		this._onDidEvent = new Emitter<DebugProtocol.Event>();
-	}
-
-	public getId(): string {
-		return this.id;
 	}
 
 	public get onDidInitialize(): Event<DebugProtocol.InitializedEvent> {
@@ -239,7 +234,7 @@ export class RawDebugSession implements IRawSession {
 	}
 
 	private onDapEvent(event: DebugEvent): void {
-		event.sessionId = this.id;
+		event.sessionId = this.sessionId;
 
 		if (event.event === 'loadedSource') {	// most frequent comes first
 			this._onDidLoadedSource.fire(<DebugProtocol.LoadedSourceEvent>event);
@@ -293,7 +288,7 @@ export class RawDebugSession implements IRawSession {
 	}
 
 	public attach(args: DebugProtocol.AttachRequestArguments): TPromise<DebugProtocol.AttachResponse> {
-		this.state = SessionState.ATTACH;
+		this.isAttached = true;
 		return this.send('attach', args).then(response => this.readCapabilities(response));
 	}
 
@@ -352,7 +347,7 @@ export class RawDebugSession implements IRawSession {
 	}
 
 	public terminate(restart = false): TPromise<DebugProtocol.TerminateResponse> {
-		if (this.capabilities.supportsTerminateRequest && !this.terminated && this.state === SessionState.LAUNCH) {
+		if (this.capabilities.supportsTerminateRequest && !this.terminated && !this.isAttached) {
 			this.terminated = true;
 			return this.send('terminate', { restart });
 		}
@@ -516,12 +511,11 @@ export class RawDebugSession implements IRawSession {
 			this.cachedInitServerP = null;
 		}
 
-		this._onDidExitAdapter.fire({ sessionId: this.getId() });
+		this._onDidExitAdapter.fire({ sessionId: this.sessionId });
 		this.disconnected = true;
 		if (!this.debugAdapter || this.debugAdapter instanceof SocketDebugAdapter) {
 			return TPromise.as(null);
 		}
-
 
 		return this.debugAdapter.stopSession();
 	}
@@ -537,6 +531,6 @@ export class RawDebugSession implements IRawSession {
 		if (!this.disconnected) {
 			this.notificationService.error(nls.localize('debugAdapterCrash', "Debug adapter process has terminated unexpectedly"));
 		}
-		this._onDidExitAdapter.fire({ sessionId: this.getId() });
+		this._onDidExitAdapter.fire({ sessionId: this.sessionId });
 	}
 }
