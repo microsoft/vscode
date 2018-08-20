@@ -30,7 +30,7 @@ export function basenameOrAuthority(resource: URI): string {
  * @param base A uri which is "longer"
  * @param parentCandidate A uri which is "shorter" then `base`
  */
-export function isEqualOrParent(base: URI, parentCandidate: URI, ignoreCase?: boolean): boolean {
+export function isEqualOrParent(base: URI, parentCandidate: URI, ignoreCase = hasToIgnoreCase(base)): boolean {
 	if (base.scheme === parentCandidate.scheme) {
 		if (base.scheme === Schemas.file) {
 			return paths.isEqualOrParent(fsPath(base), fsPath(parentCandidate), ignoreCase);
