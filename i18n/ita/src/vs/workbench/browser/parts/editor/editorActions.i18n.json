@@ -17,6 +17,7 @@
 	"focusNextGroup": "Sposta stato attivo sul gruppo successivo",
 	"openToSide": "Apri lateralmente",
 	"closeEditor": "Chiudi editor",
+	"closeOneEditor": "Chiudi",
 	"revertAndCloseActiveEditor": "Ripristina e chiudi editor",
 	"closeEditorsToTheLeft": "Chiudi editor a sinistra",
 	"closeAllEditors": "Chiudi tutti gli editor",

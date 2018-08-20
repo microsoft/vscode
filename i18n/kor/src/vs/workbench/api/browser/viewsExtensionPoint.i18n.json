@@ -13,9 +13,12 @@
 	"vscode.extension.contributes.view.name": "사용자가 읽을 수 있는 뷰 이름입니다. 표시됩니다.",
 	"vscode.extension.contributes.view.when": "이 보기를 표시하기 위해 true여야 하는 조건입니다.",
 	"vscode.extension.contributes.views": "뷰를 에디터에 적용합니다.",
-	"views.explorer": "탐색기 뷰",
-	"views.debug": "디버그 보기",
-	"locationId.invalid": "`{0}`은(는) 유효한 뷰 위치가 아닙니다.",
+	"views.explorer": "뷰를 작업 막대의 탐색기 컨테이너에 기여합니다.",
+	"views.debug": "뷰를 작업 막대의 디버그 컨테이너에 기여합니다.",
+	"views.scm": "뷰를 작업 막대의 SCM 컨테이너에 적용합니다.",
+	"views.test": "뷰를 작업 막대의 테스트 컨테이너에 적용합니다.",
+	"views.contributed": "뷰를 기여된 뷰 컨테이너에 기여합니다.",
+	"ViewContainerDoesnotExist": "뷰 컨테이너 '{0}'이(가) 없으므로 이 컨테이너에 등록된 모든 뷰가 '탐색기'에 추가됩니다.",
 	"duplicateView1": "위치 '{1}'에서 동일한 ID '{0}'(으)로된 여러 개의 보기를 등록할 수 없습니다.",
 	"duplicateView2": "ID `{0}`이(가) 포함된 뷰가 위치 `{1}`에 이미 등록되어 있습니다."
 }

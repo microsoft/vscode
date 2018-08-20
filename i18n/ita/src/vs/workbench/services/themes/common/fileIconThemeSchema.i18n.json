@@ -21,7 +21,7 @@
 	"schema.languageId": "ID della definizione di icona per l'associazione.",
 	"schema.fonts": "Tipi di carattere usati nelle definizioni di icona.",
 	"schema.id": "ID del tipo di carattere.",
-	"schema.src": "Posizioni del tipo di carattere.",
+	"schema.src": "Percorso del tipo di carattere.",
 	"schema.font-path": "Percorso del tipo di carattere, relativo al file del tema dell'icona corrente.",
 	"schema.font-format": "Formato del tipo di carattere.",
 	"schema.font-weight": "Spessore del carattere.",

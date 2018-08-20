@@ -1,6 +1,8 @@
 {
 	"name": "ruby",
-	"version": "0.2.1",
+	"displayName": "%displayName%",
+	"description": "%description%",
+	"version": "1.0.0",
 	"publisher": "vscode",
 	"engines": { "vscode": "*" },
 	"scripts": {
@@ -12,7 +14,7 @@
 			"extensions": [ ".rb", ".rbx", ".rjs", ".gemspec", ".rake", ".ru", ".erb" ],
 			"filenames": [ "rakefile", "gemfile", "guardfile", "podfile", "capfile" ],
 			"aliases": [ "Ruby", "rb" ],
-			"firstLine": "^#!/.*\\bruby\\b",
+			"firstLine": "^#!\\s*/.*\\bruby\\b",
 			"configuration": "./language-configuration.json"
 		}],
 		"grammars": [{

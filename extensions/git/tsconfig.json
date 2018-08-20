@@ -10,7 +10,8 @@
 			"./node_modules/@types"
 		],
 		"strict": true,
-		"experimentalDecorators": true
+		"experimentalDecorators": true,
+		"noUnusedLocals": true
 	},
 	"include": [
 		"src/**/*"

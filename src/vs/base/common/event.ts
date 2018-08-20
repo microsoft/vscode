@@ -4,26 +4,24 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import { IDisposable, toDisposable, combinedDisposable, empty as EmptyDisposable } from 'vs/base/common/lifecycle';
-import { TPromise } from 'vs/base/common/winjs.base';
-import { once as onceFn } from 'vs/base/common/functional';
 import { onUnexpectedError } from 'vs/base/common/errors';
+import { once as onceFn } from 'vs/base/common/functional';
+import { combinedDisposable, Disposable, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
 import { LinkedList } from 'vs/base/common/linkedList';
+import { TPromise } from 'vs/base/common/winjs.base';
 
 /**
  * To an event a function with one or zero parameters
  * can be subscribed. The event is the subscriber function itself.
  */
-interface Event<T> {
+export interface Event<T> {
 	(listener: (e: T) => any, thisArgs?: any, disposables?: IDisposable[]): IDisposable;
 }
 
-namespace Event {
+export namespace Event {
 	const _disposable = { dispose() { } };
 	export const None: Event<any> = function () { return _disposable; };
 }
-
-export default Event;
 
 type Listener = [Function, any] | Function;
 
@@ -60,9 +58,9 @@ export class Emitter<T> {
 	private static readonly _noop = function () { };
 
 	private _event: Event<T>;
-	private _listeners: LinkedList<Listener>;
-	private _deliveryQueue: [Listener, T][];
 	private _disposed: boolean;
+	private _deliveryQueue: [Listener, T][];
+	protected _listeners: LinkedList<Listener>;
 
 	constructor(private _options?: EmitterOptions) {
 
@@ -161,9 +159,55 @@ export class Emitter<T> {
 	}
 }
 
+export interface IWaitUntil {
+	waitUntil(thenable: Thenable<any>): void;
+}
+
+export class AsyncEmitter<T extends IWaitUntil> extends Emitter<T> {
+
+	private _asyncDeliveryQueue: [Listener, T, Thenable<any>[]][];
+
+	async fireAsync(eventFn: (thenables: Thenable<any>[], listener: Function) => T): Promise<void> {
+		if (!this._listeners) {
+			return;
+		}
+
+		// put all [listener,event]-pairs into delivery queue
+		// then emit all event. an inner/nested event might be
+		// the driver of this
+		if (!this._asyncDeliveryQueue) {
+			this._asyncDeliveryQueue = [];
+		}
+
+		for (let iter = this._listeners.iterator(), e = iter.next(); !e.done; e = iter.next()) {
+			let thenables: Thenable<void>[] = [];
+			this._asyncDeliveryQueue.push([e.value, eventFn(thenables, typeof e.value === 'function' ? e.value : e.value[0]), thenables]);
+		}
+
+		while (this._asyncDeliveryQueue.length > 0) {
+			const [listener, event, thenables] = this._asyncDeliveryQueue.shift();
+			try {
+				if (typeof listener === 'function') {
+					listener.call(undefined, event);
+				} else {
+					listener[0].call(listener[1], event);
+				}
+			} catch (e) {
+				onUnexpectedError(e);
+				continue;
+			}
+
+			// freeze thenables-collection to enforce sync-calls to
+			// wait until and then wait for all thenables to resolve
+			Object.freeze(thenables);
+			await Promise.all(thenables);
+		}
+	}
+}
+
 export class EventMultiplexer<T> implements IDisposable {
 
-	private emitter: Emitter<T>;
+	private readonly emitter: Emitter<T>;
 	private hasListeners = false;
 	private events: { event: Event<T>; listener: IDisposable; }[] = [];
 
@@ -233,7 +277,7 @@ export function fromCallback<T>(fn: (handler: (e: T) => void) => IDisposable): E
 	return emitter.event;
 }
 
-export function fromPromise<T =any>(promise: TPromise<T>): Event<T> {
+export function fromPromise<T =any>(promise: Thenable<T>): Event<T> {
 	const emitter = new Emitter<T>();
 	let shouldEmit = false;
 
@@ -251,7 +295,7 @@ export function fromPromise<T =any>(promise: TPromise<T>): Event<T> {
 	return emitter.event;
 }
 
-export function toPromise<T>(event: Event<T>): TPromise<T> {
+export function toPromise<T>(event: Event<T>): Thenable<T> {
 	return new TPromise(complete => {
 		const sub = event(e => {
 			sub.dispose();
@@ -281,7 +325,7 @@ export function debounceEvent<I, O>(event: Event<I>, merger: (last: O, event: I)
 
 	let subscription: IDisposable;
 	let output: O = undefined;
-	let handle: number = undefined;
+	let handle: any = undefined;
 	let numDebouncedCalls = 0;
 
 	const emitter = new Emitter<O>({
@@ -367,7 +411,9 @@ export interface IChainableEvent<T> {
 	map<O>(fn: (i: T) => O): IChainableEvent<O>;
 	forEach(fn: (i: T) => void): IChainableEvent<T>;
 	filter(fn: (e: T) => boolean): IChainableEvent<T>;
+	latch(): IChainableEvent<T>;
 	on(listener: (e: T) => any, thisArgs?: any, disposables?: IDisposable[]): IDisposable;
+	once(listener: (e: T) => any, thisArgs?: any, disposables?: IDisposable[]): IDisposable;
 }
 
 export function mapEvent<I, O>(event: Event<I>, map: (i: I) => O): Event<O> {
@@ -378,6 +424,8 @@ export function forEach<I>(event: Event<I>, each: (i: I) => void): Event<I> {
 	return (listener, thisArgs = null, disposables?) => event(i => { each(i); listener.call(thisArgs, i); }, null, disposables);
 }
 
+export function filterEvent<T>(event: Event<T>, filter: (e: T) => boolean): Event<T>;
+export function filterEvent<T, R>(event: Event<T | R>, filter: (e: T | R) => e is R): Event<R>;
 export function filterEvent<T>(event: Event<T>, filter: (e: T) => boolean): Event<T> {
 	return (listener, thisArgs = null, disposables?) => event(e => filter(e) && listener.call(thisArgs, e), null, disposables);
 }
@@ -400,8 +448,16 @@ class ChainableEvent<T> implements IChainableEvent<T> {
 		return new ChainableEvent(filterEvent(this._event, fn));
 	}
 
+	latch(): IChainableEvent<T> {
+		return new ChainableEvent(latch(this._event));
+	}
+
 	on(listener: (e: T) => any, thisArgs: any, disposables: IDisposable[]) {
 		return this._event(listener, thisArgs, disposables);
+	}
+
+	once(listener: (e: T) => any, thisArgs: any, disposables: IDisposable[]) {
+		return once(this._event)(listener, thisArgs, disposables);
 	}
 }
 
@@ -510,7 +566,7 @@ export class Relay<T> implements IDisposable {
 	private emitter = new Emitter<T>();
 	readonly event: Event<T> = this.emitter.event;
 
-	private disposable: IDisposable = EmptyDisposable;
+	private disposable: IDisposable = Disposable.None;
 
 	set input(event: Event<T>) {
 		this.disposable.dispose();
@@ -535,4 +591,16 @@ export function fromNodeEventEmitter<T>(emitter: NodeEventEmitter, eventName: st
 	const result = new Emitter<T>({ onFirstListenerAdd, onLastListenerRemove });
 
 	return result.event;
+}
+
+export function latch<T>(event: Event<T>): Event<T> {
+	let firstCall = true;
+	let cache: T;
+
+	return filterEvent(event, value => {
+		let shouldEmit = firstCall || value !== cache;
+		firstCall = false;
+		cache = value;
+		return shouldEmit;
+	});
 }

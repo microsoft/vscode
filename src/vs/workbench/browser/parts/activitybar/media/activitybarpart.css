@@ -19,7 +19,7 @@
 	background-color: inherit;
 }
 
-.monaco-workbench > .activitybar [tabindex="0"]:focus {
+.monaco-workbench > .activitybar .action-item:focus {
 	outline: 0 !important; /* activity bar indicates focus custom */
 }
 

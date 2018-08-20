@@ -29,6 +29,7 @@ import { WindowsNativeResolvedKeybinding } from 'vs/workbench/services/keybindin
 import { themeColorFromId, ThemeColor } from 'vs/platform/theme/common/themeService';
 import { overviewRulerInfo, overviewRulerError } from 'vs/editor/common/view/editorColorRegistry';
 import { IModelDeltaDecoration, ITextModel, TrackedRangeStickiness, OverviewRulerLane } from 'vs/editor/common/model';
+import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
 
 const NLS_LAUNCH_MESSAGE = nls.localize('defineKeybinding.start', "Define Keybinding");
 const NLS_KB_LAYOUT_ERROR_MESSAGE = nls.localize('defineKeybinding.kbLayoutErrorMessage', "You won't be able to produce this key combination under your current keyboard layout.");
@@ -48,7 +49,7 @@ export class DefineKeybindingController extends Disposable implements editorComm
 
 	constructor(
 		private _editor: ICodeEditor,
-		@IInstantiationService private _instantiationService: IInstantiationService
+		@IInstantiationService private readonly _instantiationService: IInstantiationService
 	) {
 		super();
 
@@ -125,7 +126,7 @@ export class KeybindingWidgetRenderer extends Disposable {
 
 	constructor(
 		private _editor: ICodeEditor,
-		@IInstantiationService private _instantiationService: IInstantiationService
+		@IInstantiationService private readonly _instantiationService: IInstantiationService
 	) {
 		super();
 		this._launchWidget = this._register(this._instantiationService.createInstance(FloatingClickWidget, this._editor, NLS_LAUNCH_MESSAGE, DefineKeybindingCommand.ID));
@@ -171,7 +172,7 @@ export class KeybindingEditorDecorationsRenderer extends Disposable {
 
 	constructor(
 		private _editor: ICodeEditor,
-		@IKeybindingService private _keybindingService: IKeybindingService,
+		@IKeybindingService private readonly _keybindingService: IKeybindingService,
 	) {
 		super();
 
@@ -364,8 +365,9 @@ class DefineKeybindingCommand extends EditorCommand {
 			id: DefineKeybindingCommand.ID,
 			precondition: ContextKeyExpr.and(EditorContextKeys.writable, EditorContextKeys.languageId.isEqualTo('jsonc')),
 			kbOpts: {
-				kbExpr: EditorContextKeys.textFocus,
-				primary: KeyChord(KeyMod.CtrlCmd | KeyCode.KEY_K, KeyMod.CtrlCmd | KeyCode.KEY_K)
+				kbExpr: EditorContextKeys.editorTextFocus,
+				primary: KeyChord(KeyMod.CtrlCmd | KeyCode.KEY_K, KeyMod.CtrlCmd | KeyCode.KEY_K),
+				weight: KeybindingWeight.EditorContrib
 			}
 		});
 	}

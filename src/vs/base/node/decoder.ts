@@ -5,7 +5,7 @@
 
 'use strict';
 
-import sd = require('string_decoder');
+import * as sd from 'string_decoder';
 import { CharCode } from 'vs/base/common/charCode';
 
 /**
@@ -25,7 +25,7 @@ export class LineDecoder {
 		this.remaining = null;
 	}
 
-	public write(buffer: NodeBuffer): string[] {
+	public write(buffer: Buffer): string[] {
 		let result: string[] = [];
 		let value = this.remaining
 			? this.remaining + this.stringDecoder.write(buffer)

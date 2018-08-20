@@ -8,12 +8,14 @@
 	],
 	"openLogsFolder": "Abrir Pasta de Logs",
 	"showLogs": "Exibir Logs...",
+	"rendererProcess": "Janela ({0})",
 	"emptyWindow": "Janela",
 	"extensionHost": "Host de Extensão",
 	"sharedProcess": "Compartilhado",
 	"mainProcess": "Principal",
+	"selectProcess": "Selecione o Log para o processo",
 	"openLogFile": "Abrir Arquivo de Log...",
-	"setLogLevel": "Definir Nível de Log",
+	"setLogLevel": "Definir Nível de Log...",
 	"trace": "Rastreamento",
 	"debug": "Depurar",
 	"info": "Informações",
@@ -22,5 +24,7 @@
 	"critical": "Crítico",
 	"off": "Desligado",
 	"selectLogLevel": "Selecione o nível de log",
-	"default": "Valor padrão"
+	"default and current": "Padrão & Atual",
+	"default": "Valor padrão",
+	"current": "Atual"
 }

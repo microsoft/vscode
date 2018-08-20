@@ -15,20 +15,30 @@
 
 .monaco-workbench .panel.integrated-terminal .terminal-outer-container {
 	height: 100%;
-	padding-left: 20px; /*Don't use right padding in case xterm.js misbehaves*/
-	padding-bottom: 2px;
 	width: 100%;
 	box-sizing: border-box;
+	overflow: hidden;
+}
+
+.monaco-workbench .panel.integrated-terminal .terminal-tab {
+	height: 100%;
 }
 
 .monaco-workbench .panel.integrated-terminal .terminal-wrapper {
 	display: none;
+	margin: 0 10px;
 }
 .monaco-workbench .panel.integrated-terminal .terminal-wrapper.active {
 	display: block;
 	position: absolute;
 	bottom: 2px; /* Matches padding-bottom on .terminal-outer-container */
 	top: 0;
+}
+.monaco-workbench .panel.integrated-terminal .monaco-split-view2.horizontal .split-view-view:first-child .terminal-wrapper {
+	margin-left: 20px;
+}
+.monaco-workbench .panel.integrated-terminal .monaco-split-view2.horizontal .split-view-view:last-child .terminal-wrapper {
+	margin-right: 20px;
 }
 
 .monaco-workbench .panel.integrated-terminal .xterm a:not(.xterm-invalid-link) {
@@ -41,6 +51,9 @@
 }
 
 .monaco-workbench .panel.integrated-terminal .xterm-viewport {
+	margin-right: -10px;
+}
+.monaco-workbench .panel.integrated-terminal .monaco-split-view2.horizontal .split-view-view:last-child .xterm-viewport {
 	margin-right: -20px;
 }
 
@@ -58,6 +71,22 @@
 	font-variant-ligatures: none;
 }
 
+.monaco-workbench .panel.integrated-terminal .split-view-view {
+	/* Make relative as terminal absolute positioning needs it deeper in the tree */
+	position: relative;
+	box-sizing: border-box;
+}
+
+/* border-color is set by theme key terminal.border */
+.monaco-workbench .panel.integrated-terminal .monaco-split-view2.horizontal .split-view-view:not(:first-child) {
+	border-left-width: 1px;
+	border-left-style: solid;
+}
+.monaco-workbench .panel.integrated-terminal .monaco-split-view2.vertical .split-view-view:not(:first-child) {
+	border-top-width: 1px;
+	border-top-style: solid;
+}
+
 .monaco-workbench .panel.integrated-terminal.enable-ligatures {
 	font-variant-ligatures: normal;
 }
@@ -67,9 +96,9 @@
 	font-weight: normal !important;
 }
 
-.monaco-workbench .panel.integrated-terminal .xterm a.active {
-	cursor: pointer;
-	text-decoration: underline;
+/* Use the default cursor when alt is active to help with clicking to move cursor */
+.monaco-workbench .panel.integrated-terminal .terminal-outer-container.alt-active .xterm {
+	cursor: default;
 }
 
 .monaco-workbench .panel.integrated-terminal .xterm {
@@ -77,6 +106,11 @@
 	bottom: 0;
 	left: 0;
 	user-select: none;
+}
+.monaco-workbench .panel.integrated-terminal .monaco-split-view2.vertical .split-view-view:not(:last-child) .xterm {
+	/* When vertical and NOT the bottom terminal, align to the top instead to prevent the output jumping around erratically */
+	top: 0;
+	bottom: auto;
 }
 
 .monaco-workbench .panel.integrated-terminal .xterm:focus {
@@ -88,12 +122,18 @@
 .hc-black .monaco-workbench .panel.integrated-terminal .xterm:focus::before {
 	display: block;
 	content: "";
-	border: 2px solid #f38518;
+	border: 1px solid;
 	position: absolute;
 	left: -5px;
 	top: 0;
 	right: -5px;
 	bottom: 0;
+	z-index: 10;
+}
+
+.hc-black .monaco-workbench .panel.integrated-terminal .monaco-split-view2.horizontal .split-view-view:not(:only-child) .xterm.focus::before,
+.hc-black .monaco-workbench .panel.integrated-terminal .monaco-split-view2.horizontal .split-view-view:not(:only-child) .xterm:focus::before {
+	right: 0;
 }
 
 .monaco-workbench .panel.integrated-terminal .xterm .xterm-helpers {
@@ -106,17 +146,19 @@
 	opacity: 0 !important;
 }
 
-/* Terminal actions */
-
 /* Light theme */
 .monaco-workbench .terminal-action.kill { background: url('kill.svg') center center no-repeat; }
 .monaco-workbench .terminal-action.new { background: url('new.svg') center center no-repeat; }
+.monaco-workbench .terminal-action.split { background: url('split.svg') center center no-repeat; }
+.monaco-workbench .panel.right .terminal-action.split { background: url('split-horizontal.svg') center center no-repeat; }
 /* Dark theme / HC theme */
 .vs-dark .monaco-workbench .terminal-action.kill, .hc-black .monaco-workbench .terminal-action.kill { background: url('kill-inverse.svg') center center no-repeat; }
 .vs-dark .monaco-workbench .terminal-action.new, .hc-black .monaco-workbench .terminal-action.new { background: url('new-inverse.svg') center center no-repeat; }
+.vs-dark .monaco-workbench .terminal-action.split, .hc-black .monaco-workbench .terminal-action.split { background: url('split-inverse.svg') center center no-repeat; }
+.vs-dark .monaco-workbench .panel.right .terminal-action.split, .hc-black .monaco-workbench .panel.right .terminal-action.split { background: url('split-horizontal-inverse.svg') center center no-repeat; }
 
-.vs-dark .monaco-workbench.mac .panel.integrated-terminal .terminal:not(.enable-mouse-events),
-.hc-black .monaco-workbench.mac .panel.integrated-terminal .terminal:not(.enable-mouse-events) {
+.vs-dark .monaco-workbench.mac .panel.integrated-terminal .terminal-outer-container:not(.alt-active) .terminal:not(.enable-mouse-events),
+.hc-black .monaco-workbench.mac .panel.integrated-terminal .terminal-outer-container:not(.alt-active) .terminal:not(.enable-mouse-events) {
 	cursor: -webkit-image-set(url('data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAABAAAAAQCAQAAAC1+jfqAAAAL0lEQVQoz2NgCD3x//9/BhBYBWdhgFVAiVW4JBFKGIa4AqD0//9D3pt4I4tAdAMAHTQ/j5Zom30AAAAASUVORK5CYII=') 1x, url('data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAACAAAAAgCAQAAADZc7J/AAAAz0lEQVRIx2NgYGBY/R8I/vx5eelX3n82IJ9FxGf6tksvf/8FiTMQAcAGQMDvSwu09abffY8QYSAScNk45G198eX//yev73/4///701eh//kZSARckrNBRvz//+8+6ZohwCzjGNjdgQxkAg7B9WADeBjIBqtJCbhRA0YNoIkBSNmaPEMoNmA0FkYNoFKhapJ6FGyAH3nauaSmPfwI0v/3OukVi0CIZ+F25KrtYcx/CTIy0e+rC7R1Z4KMICVTQQ14feVXIbR695u14+Ir4gwAAD49E54wc1kWAAAAAElFTkSuQmCC') 2x) 5 8, text;
 }
 

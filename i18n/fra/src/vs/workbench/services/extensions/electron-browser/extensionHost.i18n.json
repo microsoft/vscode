@@ -8,5 +8,6 @@
 	],
 	"extensionHostProcess.startupFailDebug": "L'hôte d'extension n'a pas démarré en moins de 10 secondes. Il est peut-être arrêté à la première ligne et a besoin d'un débogueur pour continuer.",
 	"extensionHostProcess.startupFail": "L'hôte d'extension n'a pas démarré en moins de 10 secondes. Il existe peut-être un problème.",
+	"reloadWindow": "Recharger la fenêtre",
 	"extensionHostProcess.error": "Erreur de l'hôte d'extension : {0}"
 }

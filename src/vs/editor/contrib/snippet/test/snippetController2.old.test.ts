@@ -18,7 +18,7 @@ class TestSnippetController extends SnippetController2 {
 
 	constructor(
 		editor: ICodeEditor,
-		@IContextKeyService private _contextKeyService: IContextKeyService
+		@IContextKeyService private readonly _contextKeyService: IContextKeyService
 	) {
 		super(editor, new NullLogService(), _contextKeyService);
 	}

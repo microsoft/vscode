@@ -30,7 +30,6 @@
 	"changes": "更改",
 	"commitMessageCountdown": "当前行剩余 {0} 个字符",
 	"commitMessageWarning": "当前行比 {1} 超出 {0} 个字符",
-	"ok": "确定",
 	"neveragain": "不再显示",
 	"huge": "Git 存储库“{0}”中存在大量活动更改，将仅启用部分 Git 功能。"
 }

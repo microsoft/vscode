@@ -12,6 +12,9 @@
 	"recommendedExtensions": "Empfohlen",
 	"otherRecommendedExtensions": "Weitere Empfehlungen",
 	"workspaceRecommendedExtensions": "Arbeitsbereich-Empfehlungen",
+	"builtInExtensions": "Features",
+	"builtInThemesExtensions": "Designs",
+	"builtInBasicsExtensions": "Programmiersprachen",
 	"searchExtensions": "Nach Erweiterungen im Marketplace suchen",
 	"sort by installs": "Sortieren nach: Installationsanzahl",
 	"sort by rating": "Sortieren nach: Bewertung",
@@ -19,5 +22,6 @@
 	"suggestProxyError": "Marketplace hat \"ECONNREFUSED\" zurückgegeben. Überprüfen Sie die Einstellung \"http.proxy\".",
 	"extensions": "Erweiterungen",
 	"outdatedExtensions": "{0} veraltete Erweiterungen",
+	"malicious warning": "\"{0}\" wurde als problematisch gemeldet und wurde daher deinstalliert.",
 	"reloadNow": "Jetzt erneut laden"
 }

@@ -11,6 +11,5 @@
 	"TerminalTaskSystem.terminalName": "Tarefa - {0}",
 	"closeTerminal": "Pressione qualquer tecla para fechar o terminal.",
 	"reuseTerminal": "Terminal será reutilizado pelas tarefas, pressione qualquer tecla para fechar.",
-	"TerminalTaskSystem": "Não é possível executar um comando shell em uma unidade UNC.",
 	"unkownProblemMatcher": "Problem matcher {0} não pode ser resolvido. O matcher será ignorado"
 }

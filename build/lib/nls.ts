@@ -131,7 +131,7 @@ module nls {
 
 	export function fileFrom(file: File, contents: string, path: string = file.path) {
 		return new File({
-			contents: new Buffer(contents),
+			contents: Buffer.from(contents),
 			base: file.base,
 			cwd: file.cwd,
 			path: path

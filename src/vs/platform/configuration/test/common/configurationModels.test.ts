@@ -199,6 +199,17 @@ suite('ConfigurationModel', () => {
 		assert.deepEqual(result.keys, ['a.b', 'f']);
 	});
 
+	test('merge overrides when frozen', () => {
+		let model1 = new ConfigurationModel({ 'a': { 'b': 1 }, 'f': 1 }, ['a.b', 'f'], [{ identifiers: ['c'], contents: { 'a': { 'd': 1 } } }]).freeze();
+		let model2 = new ConfigurationModel({ 'a': { 'b': 2 } }, ['a.b'], [{ identifiers: ['c'], contents: { 'a': { 'e': 2 } } }]).freeze();
+		let result = new ConfigurationModel().merge(model1, model2);
+
+		assert.deepEqual(result.contents, { 'a': { 'b': 2 }, 'f': 1 });
+		assert.deepEqual(result.overrides, [{ identifiers: ['c'], contents: { 'a': { 'd': 1, 'e': 2 } } }]);
+		assert.deepEqual(result.override('c').contents, { 'a': { 'b': 2, 'd': 1, 'e': 2 }, 'f': 1 });
+		assert.deepEqual(result.keys, ['a.b', 'f']);
+	});
+
 	test('Test contents while getting an existing property', () => {
 		let testObject = new ConfigurationModel({ 'a': 1 });
 		assert.deepEqual(testObject.getValue('a'), 1);
@@ -349,24 +360,6 @@ suite('CustomConfigurationModel', () => {
 		});
 		assert.equal(true, new DefaultConfigurationModel().getValue('a'));
 	});
-
-	test('Test registering the language property', () => {
-		Registry.as<IConfigurationRegistry>(Extensions.Configuration).registerConfiguration({
-			'id': '[a]',
-			'order': 1,
-			'title': 'a',
-			'type': 'object',
-			'properties': {
-				'[a]': {
-					'description': 'a',
-					'type': 'boolean',
-					'default': false,
-				}
-			}
-		});
-		assert.equal(undefined, new DefaultConfigurationModel().getValue('[a]'));
-	});
-
 });
 
 suite('ConfigurationChangeEvent', () => {

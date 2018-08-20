@@ -459,7 +459,7 @@ class MonarchTokenizer implements modes.ITokenizationSupport {
 				continue;
 			}
 			let rule: monarchCommon.IRule = rules[idx];
-			if (monarchCommon.isIAction(rule.action) && rule.action.nextEmbedded !== '@pop') {
+			if (!monarchCommon.isIAction(rule.action) || rule.action.nextEmbedded !== '@pop') {
 				continue;
 			}
 			hasEmbeddedPopRule = true;
@@ -824,9 +824,9 @@ function findBracket(lexer: monarchCommon.ILexer, matched: string) {
 	}
 	matched = monarchCommon.fixCase(lexer, matched);
 
-	var brackets = lexer.brackets;
-	for (var i = 0; i < brackets.length; i++) {
-		var bracket = brackets[i];
+	let brackets = lexer.brackets;
+	for (let i = 0; i < brackets.length; i++) {
+		let bracket = brackets[i];
 		if (bracket.open === matched) {
 			return { token: bracket.token, bracketType: monarchCommon.MonarchBracket.Open };
 		}

@@ -8,6 +8,5 @@
 	],
 	"errorInvalidTaskConfiguration": "Impossible d’écrire dans le fichier de configuration de l’espace de travail. Veuillez ouvrir le fichier pour y corriger les erreurs/avertissements et essayez à nouveau.",
 	"errorWorkspaceConfigurationFileDirty": "Impossible d’écrire dans le fichier de configuration de l’espace de travail, car le fichier a été modifié. Veuillez, s’il vous plaît, l'enregistrez et réessayez.",
-	"openWorkspaceConfigurationFile": "Ouvrir le Fichier de Configuration d’espace de travail",
-	"close": "Fermer"
+	"openWorkspaceConfigurationFile": "Ouvrir la Configuration de l’espace de travail"
 }

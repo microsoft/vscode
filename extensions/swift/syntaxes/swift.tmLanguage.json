@@ -5,12 +5,8 @@
 		"Once accepted there, we are happy to receive an update request."
 	],
 	"version": "https://github.com/freebroccolo/atom-language-swift/commit/fb7c93e0174dea69c8685c00deeb53d480d1d202",
-	"scopeName": "source.swift",
-	"fileTypes": [
-		"swift"
-	],
 	"name": "Swift",
-	"firstLineMatch": "^#!\\s*/.*\\bswift",
+	"scopeName": "source.swift",
 	"patterns": [
 		{
 			"name": "keyword.others.swift",

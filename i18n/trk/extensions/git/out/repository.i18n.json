@@ -30,7 +30,6 @@
 	"changes": "Değişiklikler",
 	"commitMessageCountdown": "geçerli satırda {0} karakter kaldı",
 	"commitMessageWarning": "geçerli satırda {1} üzerinde {0} karakter",
-	"ok": "Tamam",
 	"neveragain": "Tekrar Gösterme",
 	"huge": "'{0}' yolundaki git deposunda çok fazla aktif değişikliklik var, Git özelliklerinin yalnızca bir alt kümesi etkinleştirilecektir."
 }

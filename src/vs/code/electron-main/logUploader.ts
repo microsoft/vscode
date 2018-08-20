@@ -37,7 +37,7 @@ export async function uploadLogs(
 	channel: ILaunchChannel,
 	requestService: IRequestService,
 	environmentService: IEnvironmentService
-): TPromise<any> {
+): Promise<any> {
 	const endpoint = Endpoint.getFromProduct();
 	if (!endpoint) {
 		console.error(localize('invalidEndpoint', 'Invalid log uploader endpoint'));
@@ -75,14 +75,14 @@ async function postLogs(
 	endpoint: Endpoint,
 	outZip: string,
 	requestService: IRequestService
-): TPromise<PostResult> {
+): Promise<PostResult> {
 	const dotter = setInterval(() => console.log('.'), 5000);
 	let result: IRequestContext;
 	try {
 		result = await requestService.request({
 			url: endpoint.url,
 			type: 'POST',
-			data: new Buffer(fs.readFileSync(outZip)).toString('base64'),
+			data: Buffer.from(fs.readFileSync(outZip)).toString('base64'),
 			headers: {
 				'Content-Type': 'application/zip'
 			}

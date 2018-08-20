@@ -5,46 +5,9 @@
 		"Once accepted there, we are happy to receive an update request."
 	],
 	"version": "https://github.com/textmate/ruby.tmbundle/commit/74713556df10fbc7b1f9e99013ab1e34cd836f56",
-	"comment": "\n\tTODO: unresolved issues\n\n\ttext:\n\t\"p <<end\n\tprint me!\n\tend\"\n\tsymptoms:\n\tnot recognized as a heredoc\n\tsolution:\n\tthere is no way to distinguish perfectly between the << operator and the start\n\tof a heredoc. Currently, we require assignment to recognize a heredoc. More\n\trefinement is possible.\n\t• Heredocs with indented terminators (<<-) are always distinguishable, however.\n\t• Nested heredocs are not really supportable at present\n\n\ttext:\n\tprint <<-'THERE' \n\tThis is single quoted. \n\tThe above used #{Time.now} \n\tTHERE \n\tsymtoms:\n\tFrom Programming Ruby p306; should be a non-interpolated heredoc.\n\t\n    text:\n    val?(a):p(b)\n    val?'a':'b'\n    symptoms:\n    ':p' is recognized as a symbol.. its 2 things ':' and 'p'.\n    :'b' has same problem.\n    solution:\n    ternary operator rule, precedence stuff, symbol rule.\n    but also consider 'a.b?(:c)' ??\n",
-	"fileTypes": [
-		"rb",
-		"rbx",
-		"rjs",
-		"Rakefile",
-		"rake",
-		"cgi",
-		"fcgi",
-		"gemspec",
-		"irbrc",
-		"Capfile",
-		"ru",
-		"prawn",
-		"Cheffile",
-		"Guardfile",
-		"Hobofile",
-		"Vagrantfile",
-		".vagrantplugins",
-		"Appraisals",
-		"Rantfile",
-		"Berksfile",
-		"Berksfile.lock",
-		"Thorfile",
-		"Puppetfile",
-		"arb",
-		"Dangerfile",
-		"Brewfile",
-		"Fastfile",
-		"Appfile",
-		"Deliverfile",
-		"Matchfile",
-		"Scanfile",
-		"Snapfile",
-		"Gymfile",
-		"jb"
-	],
-	"firstLineMatch": "(?x)\n# Hashbang\n^\\#!.*(?:\\s|\\/)\n(?:ruby[\\.\\d]*|macruby|rake|jruby|rbx|ruby_executable_hooks)\n(?:$|\\s)\n|\n# Modeline\n(?i:\n    # Emacs\n    -\\*-(?:\\s*(?=[^:;\\s]+\\s*-\\*-)|(?:.*?[;\\s]|(?<=-\\*-))mode\\s*:\\s*)\n    ruby\n    (?=[\\s;]|(?<![-*])-\\*-).*?-\\*-\n  |\n    # Vim\n    (?:(?:\\s|^)vi(?:m[<=>]?\\d+|m)?|\\sex)\n    (?=:(?=\\s*set?\\s[^\\n:]+:)|:(?!\\s*set?\\s))\n    (?:(?:\\s|\\s*:\\s*)\\w*(?:\\s*=(?:[^\\n\\\\\\s]|\\\\.)*)?)*\n    [\\s:]\n    (?:filetype|ft|syntax)\\s*=\n    ruby\n    (?=\\s|:|$)\n)",
-	"keyEquivalent": "^~R",
 	"name": "Ruby",
+	"scopeName": "source.ruby",
+	"comment": "\n\tTODO: unresolved issues\n\n\ttext:\n\t\"p <<end\n\tprint me!\n\tend\"\n\tsymptoms:\n\tnot recognized as a heredoc\n\tsolution:\n\tthere is no way to distinguish perfectly between the << operator and the start\n\tof a heredoc. Currently, we require assignment to recognize a heredoc. More\n\trefinement is possible.\n\t• Heredocs with indented terminators (<<-) are always distinguishable, however.\n\t• Nested heredocs are not really supportable at present\n\n\ttext:\n\tprint <<-'THERE' \n\tThis is single quoted. \n\tThe above used #{Time.now} \n\tTHERE \n\tsymtoms:\n\tFrom Programming Ruby p306; should be a non-interpolated heredoc.\n\t\n    text:\n    val?(a):p(b)\n    val?'a':'b'\n    symptoms:\n    ':p' is recognized as a symbol.. its 2 things ':' and 'p'.\n    :'b' has same problem.\n    solution:\n    ternary operator rule, precedence stuff, symbol rule.\n    but also consider 'a.b?(:c)' ??\n",
 	"patterns": [
 		{
 			"captures": {
@@ -2808,7 +2771,5 @@
 				}
 			]
 		}
-	},
-	"scopeName": "source.ruby",
-	"uuid": "E00B62AC-6B1C-11D9-9B1F-000D93589AF6"
+	}
 }

@@ -3,7 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as fs from 'fs';
 import * as path from 'path';
 
 import * as nls from 'vscode-nls';
@@ -250,9 +249,10 @@ export class ExtensionLinter {
 	private readPackageJsonInfo(folder: Uri, tree: JsonNode) {
 		const engine = tree && findNodeAtLocation(tree, ['engines', 'vscode']);
 		const repo = tree && findNodeAtLocation(tree, ['repository', 'url']);
+		const uri = repo && parseUri(repo.value);
 		const info: PackageJsonInfo = {
 			isExtension: !!(engine && engine.type === 'string'),
-			hasHttpsRepository: !!(repo && repo.type === 'string' && repo.value && parseUri(repo.value).scheme.toLowerCase() === 'https')
+			hasHttpsRepository: !!(repo && repo.type === 'string' && repo.value && uri && uri.scheme.toLowerCase() === 'https')
 		};
 		const str = folder.toString();
 		const oldInfo = this.folderToPackageJsonInfo[str];
@@ -264,13 +264,16 @@ export class ExtensionLinter {
 	}
 
 	private async loadPackageJson(folder: Uri) {
-		const file = folder.with({ path: path.posix.join(folder.path, 'package.json') });
-		const exists = await fileExists(file.fsPath);
-		if (!exists) {
+		if (folder.scheme === 'git') { // #36236
 			return undefined;
 		}
-		const document = await workspace.openTextDocument(file);
-		return parseTree(document.getText());
+		const file = folder.with({ path: path.posix.join(folder.path, 'package.json') });
+		try {
+			const document = await workspace.openTextDocument(file);
+			return parseTree(document.getText());
+		} catch (err) {
+			return undefined;
+		}
 	}
 
 	private packageJsonChanged(folder: Uri) {
@@ -286,6 +289,9 @@ export class ExtensionLinter {
 
 	private addDiagnostics(diagnostics: Diagnostic[], document: TextDocument, begin: number, end: number, src: string, context: Context, info: PackageJsonInfo) {
 		const uri = parseUri(src);
+		if (!uri) {
+			return;
+		}
 		const scheme = uri.scheme.toLowerCase();
 
 		if (scheme && scheme !== 'https' && scheme !== 'data') {
@@ -338,20 +344,6 @@ function endsWith(haystack: string, needle: string): boolean {
 	}
 }
 
-function fileExists(path: string): Promise<boolean> {
-	return new Promise((resolve, reject) => {
-		fs.lstat(path, (err, stats) => {
-			if (!err) {
-				resolve(true);
-			} else if (err.code === 'ENOENT') {
-				resolve(false);
-			} else {
-				reject(err);
-			}
-		});
-	});
-}
-
 function parseUri(src: string) {
 	try {
 		return Uri.parse(src);
@@ -359,7 +351,7 @@ function parseUri(src: string) {
 		try {
 			return Uri.parse(encodeURI(src));
 		} catch (err) {
-			return Uri.parse('');
+			return null;
 		}
 	}
 }

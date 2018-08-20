@@ -16,12 +16,14 @@ export class OneCursor {
 	public viewState: SingleCursorState;
 
 	private _selTrackedRange: string;
+	private _trackSelection: boolean;
 
 	constructor(context: CursorContext) {
 		this.modelState = null;
 		this.viewState = null;
 
 		this._selTrackedRange = null;
+		this._trackSelection = true;
 
 		this._setState(
 			context,
@@ -31,6 +33,28 @@ export class OneCursor {
 	}
 
 	public dispose(context: CursorContext): void {
+		this._removeTrackedRange(context);
+	}
+
+	public startTrackingSelection(context: CursorContext): void {
+		this._trackSelection = true;
+		this._updateTrackedRange(context);
+	}
+
+	public stopTrackingSelection(context: CursorContext): void {
+		this._trackSelection = false;
+		this._removeTrackedRange(context);
+	}
+
+	private _updateTrackedRange(context: CursorContext): void {
+		if (!this._trackSelection) {
+			// don't track the selection
+			return;
+		}
+		this._selTrackedRange = context.model._setTrackedRange(this._selTrackedRange, this.modelState.selection, TrackedRangeStickiness.AlwaysGrowsWhenTypingAtEdges);
+	}
+
+	private _removeTrackedRange(context: CursorContext): void {
 		this._selTrackedRange = context.model._setTrackedRange(this._selTrackedRange, null, TrackedRangeStickiness.AlwaysGrowsWhenTypingAtEdges);
 	}
 
@@ -93,14 +117,9 @@ export class OneCursor {
 			viewState = new SingleCursorState(viewSelectionStart, modelState.selectionStartLeftoverVisibleColumns, viewPosition, modelState.leftoverVisibleColumns);
 		}
 
-		if (this.modelState && this.viewState && this.modelState.equals(modelState) && this.viewState.equals(viewState)) {
-			// No-op, early return
-			return;
-		}
-
 		this.modelState = modelState;
 		this.viewState = viewState;
 
-		this._selTrackedRange = context.model._setTrackedRange(this._selTrackedRange, this.modelState.selection, TrackedRangeStickiness.AlwaysGrowsWhenTypingAtEdges);
+		this._updateTrackedRange(context);
 	}
 }

@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { TPromise } from 'vs/base/common/winjs.base';
-import { ISettingsEditorModel, ISetting, ISettingsGroup, IWorkbenchSettingsConfiguration, IFilterMetadata, IPreferencesSearchService, ISearchResult, ISearchProvider, IGroupFilter, ISettingMatcher, IScoredResults, ISettingMatch, IRemoteSetting, IExtensionSetting } from 'vs/workbench/parts/preferences/common/preferences';
+import { ISettingsEditorModel, ISetting, ISettingsGroup, IFilterMetadata, ISearchResult, IGroupFilter, ISettingMatcher, IScoredResults, ISettingMatch, IRemoteSetting, IExtensionSetting } from 'vs/workbench/services/preferences/common/preferences';
 import { IRange } from 'vs/editor/common/core/range';
 import { distinct, top } from 'vs/base/common/arrays';
 import * as strings from 'vs/base/common/strings';
@@ -20,6 +20,9 @@ import { asJson } from 'vs/base/node/request';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { IExtensionManagementService, LocalExtensionType, ILocalExtension, IExtensionEnablementService } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { ILogService } from 'vs/platform/log/common/log';
+import { IPreferencesSearchService, ISearchProvider, IWorkbenchSettingsConfiguration } from 'vs/workbench/parts/preferences/common/preferences';
+import { CancellationToken } from 'vs/base/common/cancellation';
+import { canceled } from 'vs/base/common/errors';
 
 export interface IEndpointDetails {
 	urlBase: string;
@@ -42,8 +45,11 @@ export class PreferencesSearchService extends Disposable implements IPreferences
 
 		// This request goes to the shared process but results won't change during a window's lifetime, so cache the results.
 		this._installedExtensions = this.extensionManagementService.getInstalled(LocalExtensionType.User).then(exts => {
-			// Filter to enabled extensions
-			return exts.filter(ext => this.extensionEnablementService.isEnabled(ext.identifier));
+			// Filter to enabled extensions that have settings
+			return exts
+				.filter(ext => this.extensionEnablementService.isEnabled(ext))
+				.filter(ext => ext.manifest && ext.manifest.contributes && ext.manifest.contributes.configuration)
+				.filter(ext => !!ext.identifier.uuid);
 		});
 	}
 
@@ -86,36 +92,53 @@ export class PreferencesSearchService extends Disposable implements IPreferences
 }
 
 export class LocalSearchProvider implements ISearchProvider {
-	private _filter: string;
+	static readonly EXACT_MATCH_SCORE = 10000;
+	static readonly START_SCORE = 1000;
 
-	constructor(filter: string) {
-		this._filter = filter;
+	constructor(private _filter: string) {
+		// Remove " and : which are likely to be copypasted as part of a setting name.
+		// Leave other special characters which the user might want to search for.
+		this._filter = this._filter
+			.replace(/[":]/g, ' ')
+			.replace(/  /g, ' ')
+			.trim();
 	}
 
-	searchModel(preferencesModel: ISettingsEditorModel): TPromise<ISearchResult> {
+	searchModel(preferencesModel: ISettingsEditorModel, token?: CancellationToken): TPromise<ISearchResult> {
 		if (!this._filter) {
 			return TPromise.wrap(null);
 		}
 
-		let score = 1000; // Sort is not stable
+		let orderedScore = LocalSearchProvider.START_SCORE; // Sort is not stable
 		const settingMatcher = (setting: ISetting) => {
 			const matches = new SettingMatches(this._filter, setting, true, true, (filter, setting) => preferencesModel.findValueMatches(filter, setting)).matches;
+			const score = this._filter === setting.key ?
+				LocalSearchProvider.EXACT_MATCH_SCORE :
+				orderedScore--;
+
 			return matches && matches.length ?
 				{
 					matches,
-					score: score--
+					score
 				} :
 				null;
 		};
 
 		const filterMatches = preferencesModel.filterSettings(this._filter, this.getGroupFilter(this._filter), settingMatcher);
-		return TPromise.wrap({
-			filterMatches
-		});
+		if (filterMatches[0] && filterMatches[0].score === LocalSearchProvider.EXACT_MATCH_SCORE) {
+			return TPromise.wrap({
+				filterMatches: filterMatches.slice(0, 1),
+				exactMatch: true
+			});
+		} else {
+			return TPromise.wrap({
+				filterMatches
+			});
+		}
 	}
 
 	private getGroupFilter(filter: string): IGroupFilter {
-		const regex = strings.createRegExp(this._filter, false, { global: true });
+		const regex = strings.createRegExp(filter, false, { global: true });
 		return (group: ISettingsGroup) => {
 			return regex.test(group.title);
 		};
@@ -132,6 +155,7 @@ interface IBingRequestDetails {
 	url: string;
 	body?: string;
 	hasMoreFilters?: boolean;
+	extensions?: ILocalExtension[];
 }
 
 class RemoteSearchProvider implements ISearchProvider {
@@ -147,14 +171,18 @@ class RemoteSearchProvider implements ISearchProvider {
 		@ILogService private logService: ILogService
 	) {
 		this._remoteSearchP = this.options.filter ?
-			this.getSettingsForFilter(this.options.filter) :
+			TPromise.wrap(this.getSettingsForFilter(this.options.filter)) :
 			TPromise.wrap(null);
 	}
 
-	searchModel(preferencesModel: ISettingsEditorModel): TPromise<ISearchResult> {
+	searchModel(preferencesModel: ISettingsEditorModel, token?: CancellationToken): TPromise<ISearchResult> {
 		return this._remoteSearchP.then(remoteResult => {
 			if (!remoteResult) {
 				return null;
+			}
+
+			if (token && token.isCancellationRequested) {
+				throw canceled();
 			}
 
 			const resultKeys = Object.keys(remoteResult.scoredResults);
@@ -188,7 +216,7 @@ class RemoteSearchProvider implements ISearchProvider {
 		});
 	}
 
-	private async getSettingsForFilter(filter: string): TPromise<IFilterMetadata> {
+	private async getSettingsForFilter(filter: string): Promise<IFilterMetadata> {
 		const allRequestDetails: IBingRequestDetails[] = [];
 
 		// Only send MAX_REQUESTS requests in total just to keep it sane
@@ -280,7 +308,8 @@ class RemoteSearchProvider implements ISearchProvider {
 				duration,
 				timestamp,
 				scoredResults,
-				context: result['@odata.context']
+				context: result['@odata.context'],
+				extensions: details.extensions
 			};
 		});
 	}
@@ -299,7 +328,7 @@ class RemoteSearchProvider implements ISearchProvider {
 		};
 	}
 
-	private async prepareRequest(query: string, filterPage = 0): TPromise<IBingRequestDetails> {
+	private async prepareRequest(query: string, filterPage = 0): Promise<IBingRequestDetails> {
 		const verbatimQuery = query;
 		query = escapeSpecialChars(query);
 		const boost = 10;
@@ -315,9 +344,10 @@ class RemoteSearchProvider implements ISearchProvider {
 			url += `${API_VERSION}&${QUERY_TYPE}`;
 		}
 
+		const extensions = await this.installedExtensions;
 		const filters = this.options.newExtensionsOnly ?
 			[`diminish eq 'latest'`] :
-			await this.getVersionFilters(this.environmentService.settingsSearchBuildId);
+			this.getVersionFilters(extensions, this.environmentService.settingsSearchBuildId);
 
 		const filterStr = filters
 			.slice(filterPage * RemoteSearchProvider.MAX_REQUEST_FILTERS, (filterPage + 1) * RemoteSearchProvider.MAX_REQUEST_FILTERS)
@@ -333,23 +363,22 @@ class RemoteSearchProvider implements ISearchProvider {
 		return {
 			url,
 			body,
-			hasMoreFilters
+			hasMoreFilters,
+			extensions
 		};
 	}
 
-	private getVersionFilters(buildNumber?: number): TPromise<string[]> {
-		return this.installedExtensions.then(exts => {
-			// Only search extensions that contribute settings
-			const filters = exts
-				.filter(ext => ext.manifest.contributes && ext.manifest.contributes.configuration)
-				.map(ext => this.getExtensionFilter(ext));
+	private getVersionFilters(exts: ILocalExtension[], buildNumber?: number): string[] {
+		// Only search extensions that contribute settings
+		const filters = exts
+			.filter(ext => ext.manifest.contributes && ext.manifest.contributes.configuration)
+			.map(ext => this.getExtensionFilter(ext));
 
-			if (buildNumber) {
-				filters.push(`(packageid eq 'core' and startbuildno le '${buildNumber}' and endbuildno ge '${buildNumber}')`);
-			}
+		if (buildNumber) {
+			filters.push(`(packageid eq 'core' and startbuildno le '${buildNumber}' and endbuildno ge '${buildNumber}')`);
+		}
 
-			return filters;
-		});
+		return filters;
 	}
 
 	private getExtensionFilter(ext: ILocalExtension): string {
@@ -382,6 +411,7 @@ function escapeSpecialChars(query: string): string {
 function remoteSettingToISetting(remoteSetting: IRemoteSetting): IExtensionSetting {
 	return {
 		description: remoteSetting.description.split('\n'),
+		descriptionIsMarkdown: false,
 		descriptionRanges: null,
 		key: remoteSetting.key,
 		keyRange: null,

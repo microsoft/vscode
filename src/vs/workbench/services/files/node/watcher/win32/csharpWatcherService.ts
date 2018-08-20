@@ -5,14 +5,14 @@
 
 'use strict';
 
-import cp = require('child_process');
+import * as cp from 'child_process';
 
 import { FileChangeType } from 'vs/platform/files/common/files';
-import decoder = require('vs/base/node/decoder');
-import glob = require('vs/base/common/glob');
-import uri from 'vs/base/common/uri';
+import * as decoder from 'vs/base/node/decoder';
+import * as glob from 'vs/base/common/glob';
 
 import { IRawFileChange } from 'vs/workbench/services/files/node/watcher/common';
+import { getPathFromAmdModule } from 'vs/base/common/amd';
 
 export class OutOfProcessWin32FolderWatcher {
 
@@ -41,12 +41,12 @@ export class OutOfProcessWin32FolderWatcher {
 			args.push('-verbose');
 		}
 
-		this.handle = cp.spawn(uri.parse(require.toUrl('vs/workbench/services/files/node/watcher/win32/CodeHelper.exe')).fsPath, args);
+		this.handle = cp.spawn(getPathFromAmdModule(require, 'vs/workbench/services/files/node/watcher/win32/CodeHelper.exe'), args);
 
 		const stdoutLineDecoder = new decoder.LineDecoder();
 
 		// Events over stdout
-		this.handle.stdout.on('data', (data: NodeBuffer) => {
+		this.handle.stdout.on('data', (data: Buffer) => {
 
 			// Collect raw events from output
 			const rawEvents: IRawFileChange[] = [];
@@ -86,13 +86,13 @@ export class OutOfProcessWin32FolderWatcher {
 
 		// Errors
 		this.handle.on('error', (error: Error) => this.onError(error));
-		this.handle.stderr.on('data', (data: NodeBuffer) => this.onError(data));
+		this.handle.stderr.on('data', (data: Buffer) => this.onError(data));
 
 		// Exit
 		this.handle.on('exit', (code: number, signal: string) => this.onExit(code, signal));
 	}
 
-	private onError(error: Error | NodeBuffer): void {
+	private onError(error: Error | Buffer): void {
 		this.errorCallback('[FileWatcher] process error: ' + error.toString());
 	}
 

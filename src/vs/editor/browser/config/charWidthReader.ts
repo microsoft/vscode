@@ -29,11 +29,7 @@ export class CharWidthRequest {
 	}
 }
 
-interface ICharWidthReader {
-	read(): void;
-}
-
-class DomCharWidthReader implements ICharWidthReader {
+class DomCharWidthReader {
 
 	private readonly _bareFontInfo: BareFontInfo;
 	private readonly _requests: CharWidthRequest[];

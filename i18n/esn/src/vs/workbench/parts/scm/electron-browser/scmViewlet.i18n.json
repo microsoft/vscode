@@ -11,5 +11,6 @@
 	"installAdditionalSCMProviders": "Instalar proveedores  adicionales de SCM...",
 	"no open repo": "No hay proveedores de control de código fuente activos.",
 	"source control": "Control de código fuente",
-	"viewletTitle": "{0}: {1}"
+	"viewletTitle": "{0}: {1}",
+	"hideView": "Ocultar"
 }

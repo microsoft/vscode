@@ -71,3 +71,33 @@ export class EditorState {
 		return this._equals(new EditorState(editor, this.flags));
 	}
 }
+
+export class StableEditorScrollState {
+
+	public static capture(editor: ICodeEditor): StableEditorScrollState {
+		let visiblePosition: Position = null;
+		let visiblePositionScrollDelta = 0;
+		if (editor.getScrollTop() !== 0) {
+			const visibleRanges = editor.getVisibleRanges();
+			if (visibleRanges.length > 0) {
+				visiblePosition = visibleRanges[0].getStartPosition();
+				const visiblePositionScrollTop = editor.getTopForPosition(visiblePosition.lineNumber, visiblePosition.column);
+				visiblePositionScrollDelta = editor.getScrollTop() - visiblePositionScrollTop;
+			}
+		}
+		return new StableEditorScrollState(visiblePosition, visiblePositionScrollDelta);
+	}
+
+	constructor(
+		private readonly _visiblePosition: Position,
+		private readonly _visiblePositionScrollDelta: number
+	) {
+	}
+
+	public restore(editor: ICodeEditor): void {
+		if (this._visiblePosition) {
+			const visiblePositionScrollTop = editor.getTopForPosition(this._visiblePosition.lineNumber, this._visiblePosition.column);
+			editor.setScrollTop(visiblePositionScrollTop + this._visiblePositionScrollDelta);
+		}
+	}
+}

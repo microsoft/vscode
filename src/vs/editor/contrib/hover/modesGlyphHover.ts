@@ -5,11 +5,12 @@
 'use strict';
 
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
-import { HoverOperation, IHoverComputer } from './hoverOperation';
+import { HoverOperation, IHoverComputer, HoverStartMode } from './hoverOperation';
 import { GlyphHoverWidget } from './hoverWidgets';
 import { $ } from 'vs/base/browser/dom';
 import { MarkdownRenderer } from 'vs/editor/contrib/markdown/markdownRenderer';
 import { IMarkdownString, isEmptyMarkdownString } from 'vs/base/common/htmlContent';
+import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 
 export interface IHoverMessage {
 	value: IMarkdownString;
@@ -91,6 +92,7 @@ export class ModesGlyphHoverWidget extends GlyphHoverWidget {
 	private _markdownRenderer: MarkdownRenderer;
 	private _computer: MarginComputer;
 	private _hoverOperation: HoverOperation<IHoverMessage[]>;
+	private _renderDisposeables: IDisposable[];
 
 	constructor(editor: ICodeEditor, markdownRenderer: MarkdownRenderer) {
 		super(ModesGlyphHoverWidget.ID, editor);
@@ -110,6 +112,7 @@ export class ModesGlyphHoverWidget extends GlyphHoverWidget {
 	}
 
 	public dispose(): void {
+		this._renderDisposeables = dispose(this._renderDisposeables);
 		this._hoverOperation.cancel();
 		super.dispose();
 	}
@@ -120,7 +123,7 @@ export class ModesGlyphHoverWidget extends GlyphHoverWidget {
 			// we need to recompute the displayed text
 			this._hoverOperation.cancel();
 			this._computer.clearResult();
-			this._hoverOperation.start();
+			this._hoverOperation.start(HoverStartMode.Delayed);
 		}
 	}
 
@@ -136,7 +139,7 @@ export class ModesGlyphHoverWidget extends GlyphHoverWidget {
 
 		this._lastLineNumber = lineNumber;
 		this._computer.setLineNumber(lineNumber);
-		this._hoverOperation.start();
+		this._hoverOperation.start(HoverStartMode.Delayed);
 	}
 
 	public hide(): void {
@@ -156,12 +159,15 @@ export class ModesGlyphHoverWidget extends GlyphHoverWidget {
 	}
 
 	private _renderMessages(lineNumber: number, messages: IHoverMessage[]): void {
+		dispose(this._renderDisposeables);
+		this._renderDisposeables = [];
 
 		const fragment = document.createDocumentFragment();
 
 		messages.forEach((msg) => {
 			const renderedContents = this._markdownRenderer.render(msg.value);
-			fragment.appendChild($('div.hover-row', null, renderedContents));
+			this._renderDisposeables.push(renderedContents);
+			fragment.appendChild($('div.hover-row', null, renderedContents.element));
 		});
 
 		this.updateContents(fragment);

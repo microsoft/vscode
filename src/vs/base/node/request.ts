@@ -7,8 +7,8 @@
 
 import { TPromise } from 'vs/base/common/winjs.base';
 import { isBoolean, isNumber } from 'vs/base/common/types';
-import https = require('https');
-import http = require('http');
+import * as https from 'https';
+import * as http from 'http';
 import { Stream } from 'stream';
 import { parse as parseUrl } from 'url';
 import { createWriteStream } from 'fs';
@@ -49,7 +49,7 @@ export interface IRequestFunction {
 	(options: IRequestOptions): TPromise<IRequestContext>;
 }
 
-async function getNodeRequest(options: IRequestOptions): TPromise<IRawRequestFunction> {
+async function getNodeRequest(options: IRequestOptions): Promise<IRawRequestFunction> {
 	const endpoint = parseUrl(options.url);
 	const module = endpoint.protocol === 'https:' ? await import('https') : await import('http');
 	return module.request;
@@ -60,7 +60,7 @@ export function request(options: IRequestOptions): TPromise<IRequestContext> {
 
 	const rawRequestPromise = options.getRawRequest
 		? TPromise.as(options.getRawRequest(options))
-		: getNodeRequest(options);
+		: TPromise.wrap(getNodeRequest(options));
 
 	return rawRequestPromise.then(rawRequest => {
 
@@ -96,7 +96,7 @@ export function request(options: IRequestOptions): TPromise<IRequestContext> {
 						stream = stream.pipe(createGunzip());
 					}
 
-					c({ res, stream });
+					c({ res, stream } as IRequestContext);
 				}
 			});
 

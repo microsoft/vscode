@@ -27,8 +27,6 @@
 	"welcomePage.installExtensionPacks": "Ferramentas e linguagens",
 	"welcomePage.installExtensionPacksDescription": "Instalar o suporte para {0} e {1}",
 	"welcomePage.moreExtensions": "mais",
-	"welcomePage.installKeymapDescription": "Instalar atalhos de teclado",
-	"welcomePage.installKeymapExtension": "Instalar os atalhos de teclado de {0} e {1}",
 	"welcomePage.others": "outros",
 	"welcomePage.colorTheme": "Tema de cores",
 	"welcomePage.colorThemeDescription": "Fazer o editor e seu código parecer do jeito que você gosta",

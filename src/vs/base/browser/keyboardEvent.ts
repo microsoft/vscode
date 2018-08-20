@@ -9,149 +9,160 @@ import { KeyCode, KeyCodeUtils, KeyMod, SimpleKeybinding } from 'vs/base/common/
 import * as platform from 'vs/base/common/platform';
 import * as browser from 'vs/base/browser/browser';
 
-let KEY_CODE_MAP: { [keyCode: number]: KeyCode } = {};
+let KEY_CODE_MAP: { [keyCode: number]: KeyCode } = new Array(230);
+let INVERSE_KEY_CODE_MAP: KeyCode[] = new Array(KeyCode.MAX_VALUE);
+
 (function () {
-	KEY_CODE_MAP[3] = KeyCode.PauseBreak; // VK_CANCEL 0x03 Control-break processing
-	KEY_CODE_MAP[8] = KeyCode.Backspace;
-	KEY_CODE_MAP[9] = KeyCode.Tab;
-	KEY_CODE_MAP[13] = KeyCode.Enter;
-	KEY_CODE_MAP[16] = KeyCode.Shift;
-	KEY_CODE_MAP[17] = KeyCode.Ctrl;
-	KEY_CODE_MAP[18] = KeyCode.Alt;
-	KEY_CODE_MAP[19] = KeyCode.PauseBreak;
-	KEY_CODE_MAP[20] = KeyCode.CapsLock;
-	KEY_CODE_MAP[27] = KeyCode.Escape;
-	KEY_CODE_MAP[32] = KeyCode.Space;
-	KEY_CODE_MAP[33] = KeyCode.PageUp;
-	KEY_CODE_MAP[34] = KeyCode.PageDown;
-	KEY_CODE_MAP[35] = KeyCode.End;
-	KEY_CODE_MAP[36] = KeyCode.Home;
-	KEY_CODE_MAP[37] = KeyCode.LeftArrow;
-	KEY_CODE_MAP[38] = KeyCode.UpArrow;
-	KEY_CODE_MAP[39] = KeyCode.RightArrow;
-	KEY_CODE_MAP[40] = KeyCode.DownArrow;
-	KEY_CODE_MAP[45] = KeyCode.Insert;
-	KEY_CODE_MAP[46] = KeyCode.Delete;
+	for (let i = 0; i < INVERSE_KEY_CODE_MAP.length; i++) {
+		INVERSE_KEY_CODE_MAP[i] = -1;
+	}
 
-	KEY_CODE_MAP[48] = KeyCode.KEY_0;
-	KEY_CODE_MAP[49] = KeyCode.KEY_1;
-	KEY_CODE_MAP[50] = KeyCode.KEY_2;
-	KEY_CODE_MAP[51] = KeyCode.KEY_3;
-	KEY_CODE_MAP[52] = KeyCode.KEY_4;
-	KEY_CODE_MAP[53] = KeyCode.KEY_5;
-	KEY_CODE_MAP[54] = KeyCode.KEY_6;
-	KEY_CODE_MAP[55] = KeyCode.KEY_7;
-	KEY_CODE_MAP[56] = KeyCode.KEY_8;
-	KEY_CODE_MAP[57] = KeyCode.KEY_9;
+	function define(code: number, keyCode: KeyCode): void {
+		KEY_CODE_MAP[code] = keyCode;
+		INVERSE_KEY_CODE_MAP[keyCode] = code;
+	}
 
-	KEY_CODE_MAP[65] = KeyCode.KEY_A;
-	KEY_CODE_MAP[66] = KeyCode.KEY_B;
-	KEY_CODE_MAP[67] = KeyCode.KEY_C;
-	KEY_CODE_MAP[68] = KeyCode.KEY_D;
-	KEY_CODE_MAP[69] = KeyCode.KEY_E;
-	KEY_CODE_MAP[70] = KeyCode.KEY_F;
-	KEY_CODE_MAP[71] = KeyCode.KEY_G;
-	KEY_CODE_MAP[72] = KeyCode.KEY_H;
-	KEY_CODE_MAP[73] = KeyCode.KEY_I;
-	KEY_CODE_MAP[74] = KeyCode.KEY_J;
-	KEY_CODE_MAP[75] = KeyCode.KEY_K;
-	KEY_CODE_MAP[76] = KeyCode.KEY_L;
-	KEY_CODE_MAP[77] = KeyCode.KEY_M;
-	KEY_CODE_MAP[78] = KeyCode.KEY_N;
-	KEY_CODE_MAP[79] = KeyCode.KEY_O;
-	KEY_CODE_MAP[80] = KeyCode.KEY_P;
-	KEY_CODE_MAP[81] = KeyCode.KEY_Q;
-	KEY_CODE_MAP[82] = KeyCode.KEY_R;
-	KEY_CODE_MAP[83] = KeyCode.KEY_S;
-	KEY_CODE_MAP[84] = KeyCode.KEY_T;
-	KEY_CODE_MAP[85] = KeyCode.KEY_U;
-	KEY_CODE_MAP[86] = KeyCode.KEY_V;
-	KEY_CODE_MAP[87] = KeyCode.KEY_W;
-	KEY_CODE_MAP[88] = KeyCode.KEY_X;
-	KEY_CODE_MAP[89] = KeyCode.KEY_Y;
-	KEY_CODE_MAP[90] = KeyCode.KEY_Z;
+	define(3, KeyCode.PauseBreak); // VK_CANCEL 0x03 Control-break processing
+	define(8, KeyCode.Backspace);
+	define(9, KeyCode.Tab);
+	define(13, KeyCode.Enter);
+	define(16, KeyCode.Shift);
+	define(17, KeyCode.Ctrl);
+	define(18, KeyCode.Alt);
+	define(19, KeyCode.PauseBreak);
+	define(20, KeyCode.CapsLock);
+	define(27, KeyCode.Escape);
+	define(32, KeyCode.Space);
+	define(33, KeyCode.PageUp);
+	define(34, KeyCode.PageDown);
+	define(35, KeyCode.End);
+	define(36, KeyCode.Home);
+	define(37, KeyCode.LeftArrow);
+	define(38, KeyCode.UpArrow);
+	define(39, KeyCode.RightArrow);
+	define(40, KeyCode.DownArrow);
+	define(45, KeyCode.Insert);
+	define(46, KeyCode.Delete);
 
-	KEY_CODE_MAP[93] = KeyCode.ContextMenu;
+	define(48, KeyCode.KEY_0);
+	define(49, KeyCode.KEY_1);
+	define(50, KeyCode.KEY_2);
+	define(51, KeyCode.KEY_3);
+	define(52, KeyCode.KEY_4);
+	define(53, KeyCode.KEY_5);
+	define(54, KeyCode.KEY_6);
+	define(55, KeyCode.KEY_7);
+	define(56, KeyCode.KEY_8);
+	define(57, KeyCode.KEY_9);
 
-	KEY_CODE_MAP[96] = KeyCode.NUMPAD_0;
-	KEY_CODE_MAP[97] = KeyCode.NUMPAD_1;
-	KEY_CODE_MAP[98] = KeyCode.NUMPAD_2;
-	KEY_CODE_MAP[99] = KeyCode.NUMPAD_3;
-	KEY_CODE_MAP[100] = KeyCode.NUMPAD_4;
-	KEY_CODE_MAP[101] = KeyCode.NUMPAD_5;
-	KEY_CODE_MAP[102] = KeyCode.NUMPAD_6;
-	KEY_CODE_MAP[103] = KeyCode.NUMPAD_7;
-	KEY_CODE_MAP[104] = KeyCode.NUMPAD_8;
-	KEY_CODE_MAP[105] = KeyCode.NUMPAD_9;
-	KEY_CODE_MAP[106] = KeyCode.NUMPAD_MULTIPLY;
-	KEY_CODE_MAP[107] = KeyCode.NUMPAD_ADD;
-	KEY_CODE_MAP[108] = KeyCode.NUMPAD_SEPARATOR;
-	KEY_CODE_MAP[109] = KeyCode.NUMPAD_SUBTRACT;
-	KEY_CODE_MAP[110] = KeyCode.NUMPAD_DECIMAL;
-	KEY_CODE_MAP[111] = KeyCode.NUMPAD_DIVIDE;
+	define(65, KeyCode.KEY_A);
+	define(66, KeyCode.KEY_B);
+	define(67, KeyCode.KEY_C);
+	define(68, KeyCode.KEY_D);
+	define(69, KeyCode.KEY_E);
+	define(70, KeyCode.KEY_F);
+	define(71, KeyCode.KEY_G);
+	define(72, KeyCode.KEY_H);
+	define(73, KeyCode.KEY_I);
+	define(74, KeyCode.KEY_J);
+	define(75, KeyCode.KEY_K);
+	define(76, KeyCode.KEY_L);
+	define(77, KeyCode.KEY_M);
+	define(78, KeyCode.KEY_N);
+	define(79, KeyCode.KEY_O);
+	define(80, KeyCode.KEY_P);
+	define(81, KeyCode.KEY_Q);
+	define(82, KeyCode.KEY_R);
+	define(83, KeyCode.KEY_S);
+	define(84, KeyCode.KEY_T);
+	define(85, KeyCode.KEY_U);
+	define(86, KeyCode.KEY_V);
+	define(87, KeyCode.KEY_W);
+	define(88, KeyCode.KEY_X);
+	define(89, KeyCode.KEY_Y);
+	define(90, KeyCode.KEY_Z);
 
-	KEY_CODE_MAP[112] = KeyCode.F1;
-	KEY_CODE_MAP[113] = KeyCode.F2;
-	KEY_CODE_MAP[114] = KeyCode.F3;
-	KEY_CODE_MAP[115] = KeyCode.F4;
-	KEY_CODE_MAP[116] = KeyCode.F5;
-	KEY_CODE_MAP[117] = KeyCode.F6;
-	KEY_CODE_MAP[118] = KeyCode.F7;
-	KEY_CODE_MAP[119] = KeyCode.F8;
-	KEY_CODE_MAP[120] = KeyCode.F9;
-	KEY_CODE_MAP[121] = KeyCode.F10;
-	KEY_CODE_MAP[122] = KeyCode.F11;
-	KEY_CODE_MAP[123] = KeyCode.F12;
-	KEY_CODE_MAP[124] = KeyCode.F13;
-	KEY_CODE_MAP[125] = KeyCode.F14;
-	KEY_CODE_MAP[126] = KeyCode.F15;
-	KEY_CODE_MAP[127] = KeyCode.F16;
-	KEY_CODE_MAP[128] = KeyCode.F17;
-	KEY_CODE_MAP[129] = KeyCode.F18;
-	KEY_CODE_MAP[130] = KeyCode.F19;
+	define(93, KeyCode.ContextMenu);
 
-	KEY_CODE_MAP[144] = KeyCode.NumLock;
-	KEY_CODE_MAP[145] = KeyCode.ScrollLock;
+	define(96, KeyCode.NUMPAD_0);
+	define(97, KeyCode.NUMPAD_1);
+	define(98, KeyCode.NUMPAD_2);
+	define(99, KeyCode.NUMPAD_3);
+	define(100, KeyCode.NUMPAD_4);
+	define(101, KeyCode.NUMPAD_5);
+	define(102, KeyCode.NUMPAD_6);
+	define(103, KeyCode.NUMPAD_7);
+	define(104, KeyCode.NUMPAD_8);
+	define(105, KeyCode.NUMPAD_9);
+	define(106, KeyCode.NUMPAD_MULTIPLY);
+	define(107, KeyCode.NUMPAD_ADD);
+	define(108, KeyCode.NUMPAD_SEPARATOR);
+	define(109, KeyCode.NUMPAD_SUBTRACT);
+	define(110, KeyCode.NUMPAD_DECIMAL);
+	define(111, KeyCode.NUMPAD_DIVIDE);
 
-	KEY_CODE_MAP[186] = KeyCode.US_SEMICOLON;
-	KEY_CODE_MAP[187] = KeyCode.US_EQUAL;
-	KEY_CODE_MAP[188] = KeyCode.US_COMMA;
-	KEY_CODE_MAP[189] = KeyCode.US_MINUS;
-	KEY_CODE_MAP[190] = KeyCode.US_DOT;
-	KEY_CODE_MAP[191] = KeyCode.US_SLASH;
-	KEY_CODE_MAP[192] = KeyCode.US_BACKTICK;
-	KEY_CODE_MAP[193] = KeyCode.ABNT_C1;
-	KEY_CODE_MAP[194] = KeyCode.ABNT_C2;
-	KEY_CODE_MAP[219] = KeyCode.US_OPEN_SQUARE_BRACKET;
-	KEY_CODE_MAP[220] = KeyCode.US_BACKSLASH;
-	KEY_CODE_MAP[221] = KeyCode.US_CLOSE_SQUARE_BRACKET;
-	KEY_CODE_MAP[222] = KeyCode.US_QUOTE;
-	KEY_CODE_MAP[223] = KeyCode.OEM_8;
+	define(112, KeyCode.F1);
+	define(113, KeyCode.F2);
+	define(114, KeyCode.F3);
+	define(115, KeyCode.F4);
+	define(116, KeyCode.F5);
+	define(117, KeyCode.F6);
+	define(118, KeyCode.F7);
+	define(119, KeyCode.F8);
+	define(120, KeyCode.F9);
+	define(121, KeyCode.F10);
+	define(122, KeyCode.F11);
+	define(123, KeyCode.F12);
+	define(124, KeyCode.F13);
+	define(125, KeyCode.F14);
+	define(126, KeyCode.F15);
+	define(127, KeyCode.F16);
+	define(128, KeyCode.F17);
+	define(129, KeyCode.F18);
+	define(130, KeyCode.F19);
 
-	KEY_CODE_MAP[226] = KeyCode.OEM_102;
+	define(144, KeyCode.NumLock);
+	define(145, KeyCode.ScrollLock);
+
+	define(186, KeyCode.US_SEMICOLON);
+	define(187, KeyCode.US_EQUAL);
+	define(188, KeyCode.US_COMMA);
+	define(189, KeyCode.US_MINUS);
+	define(190, KeyCode.US_DOT);
+	define(191, KeyCode.US_SLASH);
+	define(192, KeyCode.US_BACKTICK);
+	define(193, KeyCode.ABNT_C1);
+	define(194, KeyCode.ABNT_C2);
+	define(219, KeyCode.US_OPEN_SQUARE_BRACKET);
+	define(220, KeyCode.US_BACKSLASH);
+	define(221, KeyCode.US_CLOSE_SQUARE_BRACKET);
+	define(222, KeyCode.US_QUOTE);
+	define(223, KeyCode.OEM_8);
+
+	define(226, KeyCode.OEM_102);
 
 	/**
 	 * https://lists.w3.org/Archives/Public/www-dom/2010JulSep/att-0182/keyCode-spec.html
 	 * If an Input Method Editor is processing key input and the event is keydown, return 229.
 	 */
-	KEY_CODE_MAP[229] = KeyCode.KEY_IN_COMPOSITION;
+	define(229, KeyCode.KEY_IN_COMPOSITION);
 
 	if (browser.isIE) {
-		KEY_CODE_MAP[91] = KeyCode.Meta;
+		define(91, KeyCode.Meta);
 	} else if (browser.isFirefox) {
-		KEY_CODE_MAP[59] = KeyCode.US_SEMICOLON;
-		KEY_CODE_MAP[107] = KeyCode.US_EQUAL;
-		KEY_CODE_MAP[109] = KeyCode.US_MINUS;
+		define(59, KeyCode.US_SEMICOLON);
+		define(107, KeyCode.US_EQUAL);
+		define(109, KeyCode.US_MINUS);
 		if (platform.isMacintosh) {
-			KEY_CODE_MAP[224] = KeyCode.Meta;
+			define(224, KeyCode.Meta);
 		}
 	} else if (browser.isWebKit) {
-		KEY_CODE_MAP[91] = KeyCode.Meta;
+		define(91, KeyCode.Meta);
 		if (platform.isMacintosh) {
 			// the two meta keys in the Mac have different key codes (91 and 93)
-			KEY_CODE_MAP[93] = KeyCode.Meta;
+			define(93, KeyCode.Meta);
 		} else {
-			KEY_CODE_MAP[92] = KeyCode.Meta;
+			define(92, KeyCode.Meta);
 		}
 	}
 })();
@@ -163,6 +174,10 @@ function extractKeyCode(e: KeyboardEvent): KeyCode {
 		return KeyCodeUtils.fromString(char);
 	}
 	return KEY_CODE_MAP[e.keyCode] || KeyCode.Unknown;
+}
+
+export function getCodeForKeyCode(keyCode: KeyCode): number {
+	return INVERSE_KEY_CODE_MAP[keyCode];
 }
 
 export interface IKeyboardEvent {

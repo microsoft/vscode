@@ -11,5 +11,6 @@
 	"installAdditionalSCMProviders": "安装其他源代码管理提供程序...",
 	"no open repo": "没有活动的源代码管理提供程序。",
 	"source control": "源代码管理",
-	"viewletTitle": "{0}: {1}"
+	"viewletTitle": "{0}: {1}",
+	"hideView": "隐藏"
 }

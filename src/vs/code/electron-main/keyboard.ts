@@ -8,7 +8,7 @@
 import * as nativeKeymap from 'native-keymap';
 import { IDisposable } from 'vs/base/common/lifecycle';
 import { IStateService } from 'vs/platform/state/common/state';
-import Event, { Emitter, once } from 'vs/base/common/event';
+import { Event, Emitter, once } from 'vs/base/common/event';
 import { ConfigWatcher } from 'vs/base/node/config';
 import { IUserFriendlyKeybinding } from 'vs/platform/keybinding/common/keybinding';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
@@ -20,7 +20,7 @@ export class KeyboardLayoutMonitor {
 
 	public static readonly INSTANCE = new KeyboardLayoutMonitor();
 
-	private _emitter: Emitter<void>;
+	private readonly _emitter: Emitter<void>;
 	private _registered: boolean;
 
 	private constructor() {

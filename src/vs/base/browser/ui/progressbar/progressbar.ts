@@ -6,11 +6,9 @@
 'use strict';
 
 import 'vs/css!./progressbar';
-import { TPromise, ValueCallback } from 'vs/base/common/winjs.base';
-import assert = require('vs/base/common/assert');
+import * as assert from 'vs/base/common/assert';
 import { Builder, $ } from 'vs/base/browser/builder';
-import DOM = require('vs/base/browser/dom');
-import { IDisposable, dispose } from 'vs/base/common/lifecycle';
+import { Disposable } from 'vs/base/common/lifecycle';
 import { Color } from 'vs/base/common/color';
 import { mixin } from 'vs/base/common/objects';
 
@@ -18,7 +16,7 @@ const css_done = 'done';
 const css_active = 'active';
 const css_infinite = 'infinite';
 const css_discrete = 'discrete';
-const css_progress_container = 'progress-container';
+const css_progress_container = 'monaco-progress-container';
 const css_progress_bit = 'progress-bit';
 
 export interface IProgressBarOptions extends IProgressBarStyles {
@@ -35,44 +33,31 @@ const defaultOpts = {
 /**
  * A progress bar with support for infinite or discrete progress.
  */
-export class ProgressBar {
+export class ProgressBar extends Disposable {
 	private options: IProgressBarOptions;
-	private toUnbind: IDisposable[];
 	private workedVal: number;
 	private element: Builder;
 	private bit: HTMLElement;
 	private totalWork: number;
-	private animationStopToken: ValueCallback;
 	private progressBarBackground: Color;
 
-	constructor(builder: Builder, options?: IProgressBarOptions) {
+	constructor(container: HTMLElement, options?: IProgressBarOptions) {
+		super();
+
 		this.options = options || Object.create(null);
 		mixin(this.options, defaultOpts, false);
 
-		this.toUnbind = [];
 		this.workedVal = 0;
 
 		this.progressBarBackground = this.options.progressBarBackground;
 
-		this.create(builder);
+		this.create(container);
 	}
 
-	private create(parent: Builder): void {
-		parent.div({ 'class': css_progress_container }, (builder) => {
+	private create(container: HTMLElement): void {
+		$(container).div({ 'class': css_progress_container }, builder => {
 			this.element = builder.clone();
-
-			builder.div({ 'class': css_progress_bit }).on([DOM.EventType.ANIMATION_START, DOM.EventType.ANIMATION_END, DOM.EventType.ANIMATION_ITERATION], (e: Event) => {
-				switch (e.type) {
-					case DOM.EventType.ANIMATION_ITERATION:
-						if (this.animationStopToken) {
-							this.animationStopToken(null);
-						}
-						break;
-				}
-
-			}, this.toUnbind);
-
-			this.bit = builder.getHTMLElement();
+			this.bit = builder.div({ 'class': css_progress_bit }).getHTMLElement();
 		});
 
 		this.applyStyles();
@@ -92,14 +77,14 @@ export class ProgressBar {
 	/**
 	 * Indicates to the progress bar that all work is done.
 	 */
-	public done(): ProgressBar {
+	done(): ProgressBar {
 		return this.doDone(true);
 	}
 
 	/**
 	 * Stops the progressbar from showing any progress instantly without fading out.
 	 */
-	public stop(): ProgressBar {
+	stop(): ProgressBar {
 		return this.doDone(false);
 	}
 
@@ -111,7 +96,7 @@ export class ProgressBar {
 			this.bit.style.width = 'inherit';
 
 			if (delayed) {
-				TPromise.timeout(200).then(() => this.off());
+				setTimeout(200, () => this.off());
 			} else {
 				this.off();
 			}
@@ -121,7 +106,7 @@ export class ProgressBar {
 		else {
 			this.bit.style.opacity = '0';
 			if (delayed) {
-				TPromise.timeout(200).then(() => this.off());
+				setTimeout(200, () => this.off());
 			} else {
 				this.off();
 			}
@@ -133,7 +118,7 @@ export class ProgressBar {
 	/**
 	 * Use this mode to indicate progress that has no total number of work units.
 	 */
-	public infinite(): ProgressBar {
+	infinite(): ProgressBar {
 		this.bit.style.width = '2%';
 		this.bit.style.opacity = '1';
 
@@ -149,7 +134,7 @@ export class ProgressBar {
 	 * Tells the progress bar the total number of work. Use in combination with workedVal() to let
 	 * the progress bar show the actual progress based on the work that is done.
 	 */
-	public total(value: number): ProgressBar {
+	total(value: number): ProgressBar {
 		this.workedVal = 0;
 		this.totalWork = value;
 
@@ -159,21 +144,36 @@ export class ProgressBar {
 	/**
 	 * Finds out if this progress bar is configured with total work
 	 */
-	public hasTotal(): boolean {
+	hasTotal(): boolean {
 		return !isNaN(this.totalWork);
 	}
 
 	/**
-	 * Tells the progress bar that an amount of work has been completed.
+	 * Tells the progress bar that an increment of work has been completed.
 	 */
-	public worked(value: number): ProgressBar {
-		assert.ok(!isNaN(this.totalWork), 'Total work not set');
-
+	worked(value: number): ProgressBar {
 		value = Number(value);
 		assert.ok(!isNaN(value), 'Value is not a number');
 		value = Math.max(1, value);
 
-		this.workedVal += value;
+		return this.doSetWorked(this.workedVal + value);
+	}
+
+	/**
+	 * Tells the progress bar the total amount of work that has been completed.
+	 */
+	setWorked(value: number): ProgressBar {
+		value = Number(value);
+		assert.ok(!isNaN(value), 'Value is not a number');
+		value = Math.max(1, value);
+
+		return this.doSetWorked(value);
+	}
+
+	private doSetWorked(value: number): ProgressBar {
+		assert.ok(!isNaN(this.totalWork), 'Total work not set');
+
+		this.workedVal = value;
 		this.workedVal = Math.min(this.totalWork, this.workedVal);
 
 		if (this.element.hasClass(css_infinite)) {
@@ -197,14 +197,23 @@ export class ProgressBar {
 		return this;
 	}
 
-	/**
-	 * Returns the builder this progress bar is building in.
-	 */
-	public getContainer(): Builder {
-		return $(this.element);
+	getContainer(): HTMLElement {
+		return this.element.getHTMLElement();
 	}
 
-	public style(styles: IProgressBarStyles): void {
+	show(delay?: number): void {
+		if (typeof delay === 'number') {
+			this.element.showDelayed(delay);
+		} else {
+			this.element.show();
+		}
+	}
+
+	hide(): void {
+		this.element.hide();
+	}
+
+	style(styles: IProgressBarStyles): void {
 		this.progressBarBackground = styles.progressBarBackground;
 
 		this.applyStyles();
@@ -216,9 +225,5 @@ export class ProgressBar {
 
 			this.bit.style.backgroundColor = background;
 		}
-	}
-
-	public dispose(): void {
-		this.toUnbind = dispose(this.toUnbind);
 	}
 }

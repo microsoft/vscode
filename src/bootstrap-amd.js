@@ -18,8 +18,8 @@ function uriFromPath(_path) {
 }
 
 function readFile(file) {
-	return new Promise(function(resolve, reject) {
-		fs.readFile(file, 'utf8', function(err, data) {
+	return new Promise(function (resolve, reject) {
+		fs.readFile(file, 'utf8', function (err, data) {
 			if (err) {
 				reject(err);
 				return;
@@ -29,13 +29,15 @@ function readFile(file) {
 	});
 }
 
+const writeFile = (file, content) => new Promise((c, e) => fs.writeFile(file, content, 'utf8', err => err ? e(err) : c()));
+
 var rawNlsConfig = process.env['VSCODE_NLS_CONFIG'];
 var nlsConfig = rawNlsConfig ? JSON.parse(rawNlsConfig) : { availableLanguages: {} };
 
 // We have a special location of the nls files. They come from a language pack
 if (nlsConfig._resolvedLanguagePackCoreLocation) {
 	let bundles = Object.create(null);
-	nlsConfig.loadBundle = function(bundle, language, cb) {
+	nlsConfig.loadBundle = function (bundle, language, cb) {
 		let result = bundles[bundle];
 		if (result) {
 			cb(undefined, result);
@@ -46,8 +48,15 @@ if (nlsConfig._resolvedLanguagePackCoreLocation) {
 			let json = JSON.parse(content);
 			bundles[bundle] = json;
 			cb(undefined, json);
-		})
-		.catch(cb);
+		}).catch((error) => {
+			try {
+				if (nlsConfig._corruptedFile) {
+					writeFile(nlsConfig._corruptedFile, 'corrupted').catch(function (error) { console.error(error); });
+				}
+			} finally {
+				cb(error, undefined);
+			}
+		});
 	};
 }
 
@@ -60,16 +69,24 @@ loader.config({
 	nodeCachedDataDir: process.env['VSCODE_NODE_CACHED_DATA_DIR_' + process.pid]
 });
 
+if (process.env['ELECTRON_RUN_AS_NODE'] || process.versions.electron) {
+	// running in Electron
+	loader.define('fs', ['original-fs'], function (originalFS) { return originalFS; }); // replace the patched electron fs with the original node fs for all AMD code
+}
+
 if (nlsConfig.pseudo) {
 	loader(['vs/nls'], function (nlsPlugin) {
 		nlsPlugin.setPseudoTranslation(nlsConfig.pseudo);
 	});
 }
 
-exports.bootstrap = function (entrypoint) {
+exports.bootstrap = function (entrypoint, onLoad, onError) {
 	if (!entrypoint) {
 		return;
 	}
 
-	loader([entrypoint], function () { }, function (err) { console.error(err); });
+	onLoad = onLoad || function () { };
+	onError = onError || function (err) { console.error(err); };
+
+	loader([entrypoint], onLoad, onError);
 };

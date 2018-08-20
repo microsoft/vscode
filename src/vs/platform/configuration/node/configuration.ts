@@ -7,14 +7,14 @@ import { Disposable } from 'vs/base/common/lifecycle';
 import { onUnexpectedError } from 'vs/base/common/errors';
 import { ConfigurationModelParser, ConfigurationModel } from 'vs/platform/configuration/common/configurationModels';
 import { ConfigWatcher } from 'vs/base/node/config';
-import Event, { Emitter } from 'vs/base/common/event';
+import { Event, Emitter } from 'vs/base/common/event';
 import { TPromise } from 'vs/base/common/winjs.base';
 
 export class UserConfiguration extends Disposable {
 
 	private userConfigModelWatcher: ConfigWatcher<ConfigurationModelParser>;
 
-	private _onDidChangeConfiguration: Emitter<ConfigurationModel> = this._register(new Emitter<ConfigurationModel>());
+	private readonly _onDidChangeConfiguration: Emitter<ConfigurationModel> = this._register(new Emitter<ConfigurationModel>());
 	readonly onDidChangeConfiguration: Event<ConfigurationModel> = this._onDidChangeConfiguration.event;
 
 	constructor(settingsPath: string) {

@@ -25,5 +25,6 @@
 	"peekViewEditorBackground": "A betekintőablak szerkesztőablakának háttérszíne.",
 	"peekViewEditorGutterBackground": "A betekintőablak szerkesztőablakában található margó háttérszíne.",
 	"peekViewResultsMatchHighlight": "Kiemelt keresési eredmények színe a betekintőablak eredménylistájában.",
-	"peekViewEditorMatchHighlight": "Kiemelt keresési eredmények színe a betekintőablak szerkesztőablakában."
+	"peekViewEditorMatchHighlight": "Kiemelt keresési eredmények színe a betekintőablak szerkesztőablakában.",
+	"peekViewEditorMatchHighlightBorder": "Kiemelt keresési eredmények keretszíne a betekintőablak szerkesztőablakában."
 }

@@ -35,7 +35,7 @@ suite('Search Actions', () => {
 		counter = 0;
 	});
 
-	test('get next element to focus after removing a match when it has next sibling match', function () {
+	test('get next element to focus after removing a match when it has next sibling file', function () {
 		let fileMatch1 = aFileMatch();
 		let fileMatch2 = aFileMatch();
 		let data = [fileMatch1, aMatch(fileMatch1), aMatch(fileMatch1), fileMatch2, aMatch(fileMatch2), aMatch(fileMatch2)];
@@ -45,7 +45,7 @@ suite('Search Actions', () => {
 
 		let actual = testObject.getElementToFocusAfterRemoved(tree, target);
 
-		assert.equal(data[3], actual);
+		assert.equal(data[4], actual);
 	});
 
 	test('get next element to focus after removing a match when it does not have next sibling match', function () {

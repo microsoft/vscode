@@ -11,5 +11,6 @@
 	"vscode.extension.contributes.grammars.scopeName": "Nome do escopo Textmate usado pelo arquivo tmLanguage.",
 	"vscode.extension.contributes.grammars.path": "Caminho para o arquivo tmLanguage. O caminho é relativo a pasta da extensão e geralmente começa com './syntaxes/'.",
 	"vscode.extension.contributes.grammars.embeddedLanguages": "Um mapeamento no nome do escopo para o Id da linguagem se esta gramática contenha linguagens embutidas.",
+	"vscode.extension.contributes.grammars.tokenTypes": "Um mapa do nome do escopo para tipos de token.",
 	"vscode.extension.contributes.grammars.injectTo": "Lista de nomes de escopos de linguagem aos quais esta gramática é injetada."
 }

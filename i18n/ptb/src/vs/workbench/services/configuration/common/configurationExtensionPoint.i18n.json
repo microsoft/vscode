@@ -21,6 +21,7 @@
 	"workspaceConfig.name.description": "Um nome opcional para a pasta. ",
 	"workspaceConfig.uri.description": "URI da pasta",
 	"workspaceConfig.settings.description": "Configurações de espaço de trabalho",
+	"workspaceConfig.launch.description": "Configurações de inicialização do espaço de trabalho",
 	"workspaceConfig.extensions.description": "Extensões para o espaço de trabalho",
 	"unknownWorkspaceProperty": "Propriedade de configuração do espaço de trabalho desconhecida"
 }

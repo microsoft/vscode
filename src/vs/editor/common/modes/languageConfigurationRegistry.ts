@@ -9,11 +9,11 @@ import { BracketElectricCharacterSupport, IElectricAction } from 'vs/editor/comm
 import { IOnEnterSupportOptions, OnEnterSupport } from 'vs/editor/common/modes/supports/onEnter';
 import { IndentRulesSupport, IndentConsts } from 'vs/editor/common/modes/supports/indentRules';
 import { RichEditBrackets } from 'vs/editor/common/modes/supports/richEditBrackets';
-import Event, { Emitter } from 'vs/base/common/event';
+import { Event, Emitter } from 'vs/base/common/event';
 import { ITextModel } from 'vs/editor/common/model';
 import { onUnexpectedError } from 'vs/base/common/errors';
 import * as strings from 'vs/base/common/strings';
-import { IDisposable } from 'vs/base/common/lifecycle';
+import { IDisposable, toDisposable } from 'vs/base/common/lifecycle';
 import { DEFAULT_WORD_REGEXP, ensureValidWordDefinition } from 'vs/editor/common/model/wordHelper';
 import { createScopedLineTokens } from 'vs/editor/common/modes/supports';
 import { LineTokens } from 'vs/editor/common/core/lineTokens';
@@ -177,8 +177,8 @@ export class LanguageConfigurationRegistryImpl {
 
 	private _entries: RichEditSupport[];
 
-	private _onDidChange: Emitter<LanguageConfigurationChangeEvent> = new Emitter<LanguageConfigurationChangeEvent>();
-	public onDidChange: Event<LanguageConfigurationChangeEvent> = this._onDidChange.event;
+	private readonly _onDidChange: Emitter<LanguageConfigurationChangeEvent> = new Emitter<LanguageConfigurationChangeEvent>();
+	public readonly onDidChange: Event<LanguageConfigurationChangeEvent> = this._onDidChange.event;
 
 	constructor() {
 		this._entries = [];
@@ -189,14 +189,12 @@ export class LanguageConfigurationRegistryImpl {
 		let current = new RichEditSupport(languageIdentifier, previous, configuration);
 		this._entries[languageIdentifier.id] = current;
 		this._onDidChange.fire({ languageIdentifier });
-		return {
-			dispose: () => {
-				if (this._entries[languageIdentifier.id] === current) {
-					this._entries[languageIdentifier.id] = previous;
-					this._onDidChange.fire({ languageIdentifier });
-				}
+		return toDisposable(() => {
+			if (this._entries[languageIdentifier.id] === current) {
+				this._entries[languageIdentifier.id] = previous;
+				this._onDidChange.fire({ languageIdentifier });
 			}
-		};
+		});
 	}
 
 	private _getRichEditSupport(languageId: LanguageId): RichEditSupport {

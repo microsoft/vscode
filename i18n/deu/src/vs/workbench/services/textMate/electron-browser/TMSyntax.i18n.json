@@ -11,6 +11,7 @@
 	"invalid.path.0": "Expected string in `contributes.{0}.path`. Provided value: {1}",
 	"invalid.injectTo": "Ungültiger Wert in \"contributes.{0}.injectTo\". Es muss sich um ein Array von Sprachbereichsnamen handeln. Bereitgestellter Wert: {1}",
 	"invalid.embeddedLanguages": "Ungültiger Wert in \"contributes.{0}.embeddedLanguages\". Muss eine Objektzuordnung von Bereichsname zu Sprache sein. Angegebener Wert: {1}",
+	"invalid.tokenTypes": "Ungültiger Wert in \"contributes.{0}.tokenTypes\". Muss eine Objektzuordnung von Bereichsname zu Tokentyp sein. Angegebener Wert: {1}",
 	"invalid.path.1": "Es wurde erwartet, dass \"contributes.{0}.path\" ({1}) im Ordner ({2}) der Erweiterung enthalten ist. Dies führt ggf. dazu, dass die Erweiterung nicht portierbar ist.",
 	"no-tm-grammar": "Keine TM-Grammatik für diese Sprache registriert."
 }

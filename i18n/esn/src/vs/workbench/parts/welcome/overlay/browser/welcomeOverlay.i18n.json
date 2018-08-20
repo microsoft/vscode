@@ -13,6 +13,7 @@
 	"welcomeOverlay.extensions": "Administrar extensiones",
 	"welcomeOverlay.problems": "Ver errores y advertencias",
 	"welcomeOverlay.commandPalette": "Buscar y ejecutar todos los comandos",
+	"welcomeOverlay.notifications": "Mostrar notificaciones",
 	"welcomeOverlay": "Información general de la interfaz de usuario",
 	"hideWelcomeOverlay": "Ocultar información general de la interfaz",
 	"help": "Ayuda"

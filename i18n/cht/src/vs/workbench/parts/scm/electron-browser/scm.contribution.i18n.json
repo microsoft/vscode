@@ -12,5 +12,6 @@
 	"view": "檢視",
 	"scmConfigurationTitle": "原始碼管理 (SCM)",
 	"alwaysShowProviders": "是否總是顯示原始檔控制提供者區段",
-	"diffDecorations": "控制差異裝飾於編輯器中"
+	"diffDecorations": "控制差異裝飾於編輯器中",
+	"diffGutterWidth": "控制邊框中差異裝飾的寬度 (px) (增加和修改)。"
 }

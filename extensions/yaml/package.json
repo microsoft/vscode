@@ -1,29 +1,45 @@
 {
 	"name": "yaml",
-	"version": "0.1.0",
+	"displayName": "%displayName%",
+	"description": "%description%",
+	"version": "1.0.0",
 	"publisher": "vscode",
-	"engines": { "vscode": "*" },
+	"engines": {
+		"vscode": "*"
+	},
 	"scripts": {
-		"update-grammar": "node ../../build/npm/update-grammar.js textmate/yaml.tmbundle Syntaxes/YAML.tmLanguage ./syntaxes/yaml.json"
+		"update-grammar": "node ../../build/npm/update-grammar.js textmate/yaml.tmbundle Syntaxes/YAML.tmLanguage ./syntaxes/yaml.tmLanguage.json"
 	},
 	"contributes": {
-		"languages": [{
-			"id": "yaml",
-			"aliases": ["YAML", "yaml"],
-			"extensions": [".eyaml", ".eyml", ".yaml", ".yml"],
-			"filenames": [ "yarn.lock" ],
-			"firstLine": "^#cloud-config",
-			"configuration": "./language-configuration.json"
-		}],
-		"grammars": [{
-			"language": "yaml",
-			"scopeName": "source.yaml",
-			"path": "./syntaxes/yaml.json"
-		}],
+		"languages": [
+			{
+				"id": "yaml",
+				"aliases": [
+					"YAML",
+					"yaml"
+				],
+				"extensions": [
+					".yml",
+					".eyaml",
+					".eyml",
+					".yaml"
+				],
+				"firstLine": "^#cloud-config",
+				"configuration": "./language-configuration.json"
+			}
+		],
+		"grammars": [
+			{
+				"language": "yaml",
+				"scopeName": "source.yaml",
+				"path": "./syntaxes/yaml.tmLanguage.json"
+			}
+		],
 		"configurationDefaults": {
 			"[yaml]": {
 				"editor.insertSpaces": true,
-				"editor.tabSize": 2
+				"editor.tabSize": 2,
+				"editor.autoIndent": false
 			}
 		}
 	}

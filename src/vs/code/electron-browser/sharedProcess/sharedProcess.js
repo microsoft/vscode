@@ -53,6 +53,8 @@ function readFile(file) {
 	});
 }
 
+const writeFile = (file, content) => new Promise((c, e) => fs.writeFile(file, content, 'utf8', err => err ? e(err) : c()));
+
 function main() {
 	const args = parseURLQueryArgs();
 	const configuration = JSON.parse(args['config'] || '{}') || {};
@@ -69,10 +71,10 @@ function main() {
 		const NODE_MODULES_ASAR_PATH = NODE_MODULES_PATH + '.asar';
 
 		const originalResolveLookupPaths = Module._resolveLookupPaths;
-		Module._resolveLookupPaths = function (request, parent) {
-			const result = originalResolveLookupPaths(request, parent);
+		Module._resolveLookupPaths = function (request, parent, newReturn) {
+			const result = originalResolveLookupPaths(request, parent, newReturn);
 
-			const paths = result[1];
+			const paths = newReturn ? result : result[1];
 			for (let i = 0, len = paths.length; i < len; i++) {
 				if (paths[i] === NODE_MODULES_PATH) {
 					paths.splice(i, 0, NODE_MODULES_ASAR_PATH);
@@ -111,8 +113,15 @@ function main() {
 				let json = JSON.parse(content);
 				bundles[bundle] = json;
 				cb(undefined, json);
-			})
-				.catch(cb);
+			}).catch((error) => {
+				try {
+					if (nlsConfig._corruptedFile) {
+						writeFile(nlsConfig._corruptedFile, 'corrupted').catch(function (error) { console.error(error); });
+					}
+				} finally {
+					cb(error, undefined);
+				}
+			});
 		};
 	}
 
@@ -131,6 +140,8 @@ function main() {
 	// In the bundled version the nls plugin is packaged with the loader so the NLS Plugins
 	// loads as soon as the loader loads. To be able to have pseudo translation
 	createScript(rootUrl + '/vs/loader.js', function () {
+		var define = global.define;
+		global.define = undefined;
 		define('fs', ['original-fs'], function (originalFS) { return originalFS; }); // replace the patched electron fs with the original node fs for all AMD code
 
 		window.MonacoEnvironment = {};

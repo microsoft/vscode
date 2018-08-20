@@ -8,7 +8,6 @@
 	],
 	"terminal.integrated.chooseWindowsShellInfo": "カスタマイズ ボタンを選択して、既定のターミナル シェルを変更できます。",
 	"customize": "カスタマイズする",
-	"cancel": "キャンセル",
 	"never again": "今後は表示しない",
 	"terminal.integrated.chooseWindowsShell": "優先するターミナル シェルを選択します。これは後で設定から変更できます",
 	"terminalService.terminalCloseConfirmationSingular": "アクティブなターミナル セッションが 1 つあります。中止しますか?",

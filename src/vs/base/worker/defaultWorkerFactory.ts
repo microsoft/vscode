@@ -7,21 +7,23 @@
 import { globals } from 'vs/base/common/platform';
 import { logOnceWebWorkerWarning, IWorker, IWorkerCallback, IWorkerFactory } from 'vs/base/common/worker/simpleWorker';
 
-// Option for hosts to overwrite the worker script url (used in the standalone editor)
-const getCrossOriginWorkerScriptUrl: (workerId: string, label: string) => string = environment('getWorkerUrl', null);
-
-function environment(name: string, fallback: any = false): any {
-	if (globals.MonacoEnvironment && globals.MonacoEnvironment.hasOwnProperty(name)) {
-		return globals.MonacoEnvironment[name];
+function getWorker(workerId: string, label: string): Worker {
+	// Option for hosts to overwrite the worker script (used in the standalone editor)
+	if (globals.MonacoEnvironment) {
+		if (typeof globals.MonacoEnvironment.getWorker === 'function') {
+			return globals.MonacoEnvironment.getWorker(workerId, label);
+		}
+		if (typeof globals.MonacoEnvironment.getWorkerUrl === 'function') {
+			return new Worker(globals.MonacoEnvironment.getWorkerUrl(workerId, label));
+		}
 	}
-
-	return fallback;
+	// ESM-comment-begin
+	if (typeof require === 'function') {
+		return new Worker(require.toUrl('./' + workerId) + '#' + label);
+	}
+	// ESM-comment-end
+	throw new Error(`You must define a function MonacoEnvironment.getWorkerUrl or MonacoEnvironment.getWorker`);
 }
-
-function defaultGetWorkerUrl(workerId: string, label: string): string {
-	return require.toUrl('./' + workerId) + '#' + label;
-}
-var getWorkerUrl = getCrossOriginWorkerScriptUrl || defaultGetWorkerUrl;
 
 /**
  * A worker that uses HTML5 web workers so that is has
@@ -34,7 +36,7 @@ class WebWorker implements IWorker {
 
 	constructor(moduleId: string, id: number, label: string, onMessageCallback: IWorkerCallback, onErrorCallback: (err: any) => void) {
 		this.id = id;
-		this.worker = new Worker(getWorkerUrl('workerMain.js', label));
+		this.worker = getWorker('workerMain.js', label);
 		this.postMessage(moduleId);
 		this.worker.onmessage = function (ev: any) {
 			onMessageCallback(ev.data);

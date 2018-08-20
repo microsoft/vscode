@@ -7,7 +7,7 @@
 
 import { deepEqual, equal } from 'assert';
 import { WinTerminalService, LinuxTerminalService, MacTerminalService } from 'vs/workbench/parts/execution/electron-browser/terminalService';
-import { DEFAULT_TERMINAL_WINDOWS, DEFAULT_TERMINAL_LINUX_READY, DEFAULT_TERMINAL_OSX } from 'vs/workbench/parts/execution/electron-browser/terminal';
+import { getDefaultTerminalWindows, getDefaultTerminalLinuxReady, DEFAULT_TERMINAL_OSX } from 'vs/workbench/parts/execution/electron-browser/terminal';
 
 suite('Execution - TerminalService', () => {
 	let mockOnExit: Function;
@@ -61,7 +61,7 @@ suite('Execution - TerminalService', () => {
 		let mockSpawner = {
 			spawn: (command: any, args: any, opts: any) => {
 				// assert
-				equal(args[args.length - 1], DEFAULT_TERMINAL_WINDOWS, 'terminal should equal expected');
+				equal(args[args.length - 1], getDefaultTerminalWindows(), 'terminal should equal expected');
 				done();
 				return {
 					on: (evt: any) => evt
@@ -197,7 +197,7 @@ suite('Execution - TerminalService', () => {
 	});
 
 	test(`LinuxTerminalService - uses default terminal when configuration.terminal.external.linuxExec is undefined`, done => {
-		DEFAULT_TERMINAL_LINUX_READY.then(defaultTerminalLinux => {
+		getDefaultTerminalLinuxReady().then(defaultTerminalLinux => {
 			let testCwd = 'path/to/workspace';
 			let mockSpawner = {
 				spawn: (command: any, args: any, opts: any) => {

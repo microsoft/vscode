@@ -11,6 +11,6 @@
 	"TerminalTaskSystem.terminalName": "Attività - {0}",
 	"closeTerminal": "Premere un tasto qualsiasi per chiudere il terminale.",
 	"reuseTerminal": "Terminale verrà riutilizzato dalle attività, premere un tasto qualsiasi per chiuderlo.",
-	"TerminalTaskSystem": "Non è possibile eseguire un comando della shell su un'unità UNC.",
+	"TerminalTaskSystem": "Non è possibile eseguire un comando della shell su un'unità UNC con cmd.exe.",
 	"unkownProblemMatcher": "Il matcher problemi {0} non può essere risolto. il matcher verrà ignorato"
 }

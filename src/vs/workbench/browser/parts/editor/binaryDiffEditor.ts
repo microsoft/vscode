@@ -5,7 +5,7 @@
 
 'use strict';
 
-import nls = require('vs/nls');
+import * as nls from 'vs/nls';
 import { BINARY_DIFF_EDITOR_ID } from 'vs/workbench/common/editor';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
@@ -18,7 +18,7 @@ import { BaseBinaryResourceEditor } from 'vs/workbench/browser/parts/editor/bina
  */
 export class BinaryResourceDiffEditor extends SideBySideEditor {
 
-	public static readonly ID = BINARY_DIFF_EDITOR_ID;
+	static readonly ID = BINARY_DIFF_EDITOR_ID;
 
 	constructor(
 		@ITelemetryService telemetryService: ITelemetryService,
@@ -28,7 +28,7 @@ export class BinaryResourceDiffEditor extends SideBySideEditor {
 		super(telemetryService, instantiationService, themeService);
 	}
 
-	public getMetadata(): string {
+	getMetadata(): string {
 		const master = this.masterEditor;
 		const details = this.detailsEditor;
 

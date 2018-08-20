@@ -7,7 +7,7 @@
 
 import * as assert from 'assert';
 import { Range } from 'vs/editor/common/core/range';
-import { EndOfLineSequence, IIdentifiedSingleEditOperation } from 'vs/editor/common/model';
+import { EndOfLineSequence, IIdentifiedSingleEditOperation, EndOfLinePreference } from 'vs/editor/common/model';
 import { TextModel } from 'vs/editor/common/model/textModel';
 import { MirrorTextModel } from 'vs/editor/common/model/mirrorTextModel';
 import { assertSyncedModels, testApplyEditsWithSyncedModels } from 'vs/editor/test/common/model/editableTextModelTestUtils';
@@ -998,7 +998,7 @@ suite('EditorModel - EditableTextModel.applyEdits', () => {
 			assertMirrorModels();
 
 		}, (model) => {
-			var isFirstTime = true;
+			let isFirstTime = true;
 			model.onDidChangeRawContent(() => {
 				if (!isFirstTime) {
 					return;
@@ -1026,7 +1026,7 @@ suite('EditorModel - EditableTextModel.applyEdits', () => {
 			assertMirrorModels();
 
 		}, (model) => {
-			var isFirstTime = true;
+			let isFirstTime = true;
 			model.onDidChangeContent((e: IModelContentChangedEvent) => {
 				if (!isFirstTime) {
 					return;
@@ -1068,5 +1068,49 @@ suite('EditorModel - EditableTextModel.applyEdits', () => {
 
 		model.dispose();
 		mirrorModel2.dispose();
+	});
+
+	test('issue #47733: Undo mangles unicode characters', () => {
+		let model = createEditableTextModelFromString('\'👁\'');
+
+		model.applyEdits([
+			{ range: new Range(1, 1, 1, 1), text: '"' },
+			{ range: new Range(1, 2, 1, 2), text: '"' },
+		]);
+
+		assert.equal(model.getValue(EndOfLinePreference.LF), '"\'"👁\'');
+
+		assert.deepEqual(model.validateRange(new Range(1, 3, 1, 4)), new Range(1, 3, 1, 4));
+
+		model.applyEdits([
+			{ range: new Range(1, 1, 1, 2), text: null },
+			{ range: new Range(1, 3, 1, 4), text: null },
+		]);
+
+		assert.equal(model.getValue(EndOfLinePreference.LF), '\'👁\'');
+
+		model.dispose();
+	});
+
+	test('issue #48741: Broken undo stack with move lines up with multiple cursors', () => {
+		let model = createEditableTextModelFromString([
+			'line1',
+			'line2',
+			'line3',
+			'',
+		].join('\n'));
+
+		const undoEdits = model.applyEdits([
+			{ range: new Range(4, 1, 4, 1), text: 'line3', },
+			{ range: new Range(3, 1, 3, 6), text: null, },
+			{ range: new Range(2, 1, 3, 1), text: null, },
+			{ range: new Range(3, 6, 3, 6), text: '\nline2' }
+		]);
+
+		model.applyEdits(undoEdits);
+
+		assert.deepEqual(model.getValue(), 'line1\nline2\nline3\n');
+
+		model.dispose();
 	});
 });

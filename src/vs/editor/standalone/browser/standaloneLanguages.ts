@@ -24,6 +24,7 @@ import { IMarkerData } from 'vs/platform/markers/common/markers';
 import { Token, TokenizationResult, TokenizationResult2 } from 'vs/editor/common/core/token';
 import { IStandaloneThemeService } from 'vs/editor/standalone/common/standaloneThemeService';
 import * as model from 'vs/editor/common/model';
+import { IMarkdownString } from 'vs/base/common/htmlContent';
 
 /**
  * Register information about a new language.
@@ -39,6 +40,11 @@ export function getLanguages(): ILanguageExtensionPoint[] {
 	let result: ILanguageExtensionPoint[] = [];
 	result = result.concat(ModesRegistry.getLanguages());
 	return result;
+}
+
+export function getEncodedLanguageId(languageId: string): number {
+	let lid = StaticServices.modeService.get().getLanguageIdentifier(languageId);
+	return lid && lid.id;
 }
 
 /**
@@ -66,6 +72,31 @@ export function setLanguageConfiguration(languageId: string, configuration: Lang
 		throw new Error(`Cannot set configuration for unknown language ${languageId}`);
 	}
 	return LanguageConfigurationRegistry.register(languageIdentifier, configuration);
+}
+
+/**
+ * @internal
+ */
+export class EncodedTokenizationSupport2Adapter implements modes.ITokenizationSupport {
+
+	private readonly _actual: EncodedTokensProvider;
+
+	constructor(actual: EncodedTokensProvider) {
+		this._actual = actual;
+	}
+
+	public getInitialState(): modes.IState {
+		return this._actual.getInitialState();
+	}
+
+	public tokenize(line: string, state: modes.IState, offsetDelta: number): TokenizationResult {
+		throw new Error('Not supported!');
+	}
+
+	public tokenize2(line: string, state: modes.IState): TokenizationResult2 {
+		let result = this._actual.tokenizeEncoded(line, state);
+		return new TokenizationResult2(result.tokens, result.endState);
+	}
 }
 
 /**
@@ -203,6 +234,38 @@ export interface ILineTokens {
 }
 
 /**
+ * The result of a line tokenization.
+ */
+export interface IEncodedLineTokens {
+	/**
+	 * The tokens on the line in a binary, encoded format. Each token occupies two array indices. For token i:
+	 *  - at offset 2*i => startIndex
+	 *  - at offset 2*i + 1 => metadata
+	 * Meta data is in binary format:
+	 * - -------------------------------------------
+	 *     3322 2222 2222 1111 1111 1100 0000 0000
+	 *     1098 7654 3210 9876 5432 1098 7654 3210
+	 * - -------------------------------------------
+	 *     bbbb bbbb bfff ffff ffFF FTTT LLLL LLLL
+	 * - -------------------------------------------
+	 *  - L = EncodedLanguageId (8 bits): Use `getEncodedLanguageId` to get the encoded ID of a language.
+	 *  - T = StandardTokenType (3 bits): Other = 0, Comment = 1, String = 2, RegEx = 4.
+	 *  - F = FontStyle (3 bits): None = 0, Italic = 1, Bold = 2, Underline = 4.
+	 *  - f = foreground ColorId (9 bits)
+	 *  - b = background ColorId (9 bits)
+	 *  - The color value for each colorId is defined in IStandaloneThemeData.customTokenColors:
+	 * e.g colorId = 1 is stored in IStandaloneThemeData.customTokenColors[1]. Color id = 0 means no color,
+	 * id = 1 is for the default foreground color, id = 2 for the default background.
+	 */
+	tokens: Uint32Array;
+	/**
+	 * The tokenization end state.
+	 * A pointer will be held to this and the object should not be modified by the tokenizer after the pointer is returned.
+	 */
+	endState: modes.IState;
+}
+
+/**
  * A "manual" provider of tokens.
  */
 export interface TokensProvider {
@@ -217,16 +280,39 @@ export interface TokensProvider {
 }
 
 /**
+ * A "manual" provider of tokens, returning tokens in a binary form.
+ */
+export interface EncodedTokensProvider {
+	/**
+	 * The initial state of a language. Will be the state passed in to tokenize the first line.
+	 */
+	getInitialState(): modes.IState;
+	/**
+	 * Tokenize a line given the state at the beginning of the line.
+	 */
+	tokenizeEncoded(line: string, state: modes.IState): IEncodedLineTokens;
+}
+
+function isEncodedTokensProvider(provider: TokensProvider | EncodedTokensProvider): provider is EncodedTokensProvider {
+	return provider['tokenizeEncoded'];
+}
+/**
  * Set the tokens provider for a language (manual implementation).
  */
-export function setTokensProvider(languageId: string, provider: TokensProvider): IDisposable {
+export function setTokensProvider(languageId: string, provider: TokensProvider | EncodedTokensProvider): IDisposable {
 	let languageIdentifier = StaticServices.modeService.get().getLanguageIdentifier(languageId);
 	if (!languageIdentifier) {
 		throw new Error(`Cannot set tokens provider for unknown language ${languageId}`);
 	}
-	let adapter = new TokenizationSupport2Adapter(StaticServices.standaloneThemeService.get(), languageIdentifier, provider);
+	let adapter: modes.ITokenizationSupport;
+	if (isEncodedTokensProvider(provider)) {
+		adapter = new EncodedTokenizationSupport2Adapter(provider);
+	} else {
+		adapter = new TokenizationSupport2Adapter(StaticServices.standaloneThemeService.get(), languageIdentifier, provider);
+	}
 	return modes.TokenizationRegistry.register(languageId, adapter);
 }
+
 
 /**
  * Set the tokens provider for a language (monarch implementation).
@@ -390,6 +476,13 @@ export function registerColorProvider(languageId: string, provider: modes.Docume
 }
 
 /**
+ * Register a folding range provider
+ */
+export function registerFoldingRangeProvider(languageId: string, provider: modes.FoldingRangeProvider): IDisposable {
+	return modes.FoldingRangeProviderRegistry.register(languageId, provider);
+}
+
+/**
  * Contains additional diagnostic information about the context in which
  * a [code action](#CodeActionProvider.provideCodeActions) is run.
  */
@@ -486,7 +579,7 @@ export interface CompletionItem {
 	/**
 	 * A human-readable string that represents a doc-comment.
 	 */
-	documentation?: string;
+	documentation?: string | IMarkdownString;
 	/**
 	 * A command that should be run upon acceptance of this item.
 	 */
@@ -520,6 +613,12 @@ export interface CompletionItem {
 	 */
 	range?: Range;
 	/**
+	 * An optional set of characters that when pressed while this completion is active will accept it first and
+	 * then type that character. *Note* that all commit characters should have `length=1` and that superfluous
+	 * characters will be ignored.
+	 */
+	commitCharacters?: string[];
+	/**
 	 * @deprecated **Deprecated** in favor of `CompletionItem.insertText` and `CompletionItem.range`.
 	 *
 	 * ~~An [edit](#TextEdit) which is applied to a document when selecting
@@ -536,12 +635,6 @@ export interface CompletionItem {
 	 * nor with themselves.
 	 */
 	additionalTextEdits?: model.ISingleEditOperation[];
-	/**
-	 * An optional set of characters that when pressed while this completion is active will accept it first and
-	 * then type that character. *Note* that all commit characters should have `length=1` and that superfluous
-	 * characters will be ignored.
-	 */
-	commitCharacters?: string[];
 }
 /**
  * Represents a collection of [completion items](#CompletionItem) to be presented
@@ -756,6 +849,7 @@ export function createMonacoLanguagesAPI(): typeof monaco.languages {
 		register: register,
 		getLanguages: getLanguages,
 		onLanguage: onLanguage,
+		getEncodedLanguageId: getEncodedLanguageId,
 
 		// provider methods
 		setLanguageConfiguration: setLanguageConfiguration,
@@ -778,12 +872,14 @@ export function createMonacoLanguagesAPI(): typeof monaco.languages {
 		registerOnTypeFormattingEditProvider: registerOnTypeFormattingEditProvider,
 		registerLinkProvider: registerLinkProvider,
 		registerColorProvider: registerColorProvider,
+		registerFoldingRangeProvider: registerFoldingRangeProvider,
 
 		// enums
 		DocumentHighlightKind: modes.DocumentHighlightKind,
 		CompletionItemKind: CompletionItemKind,
 		SymbolKind: modes.SymbolKind,
 		IndentAction: IndentAction,
-		SuggestTriggerKind: modes.SuggestTriggerKind
+		SuggestTriggerKind: modes.SuggestTriggerKind,
+		FoldingRangeKind: modes.FoldingRangeKind
 	};
 }

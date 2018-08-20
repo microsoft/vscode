@@ -5,14 +5,8 @@
 		"Once accepted there, we are happy to receive an update request."
 	],
 	"version": "https://github.com/textmate/groovy.tmbundle/commit/85d8f7c97ae473ccb9473f6c8d27e4ec957f4be1",
-	"fileTypes": [
-		"groovy",
-		"gvy"
-	],
-	"foldingStartMarker": "(\\{\\s*$|^\\s*// \\{\\{\\{)",
-	"foldingStopMarker": "^\\s*(\\}|// \\}\\}\\}$)",
-	"keyEquivalent": "^~G",
 	"name": "Groovy",
+	"scopeName": "source.groovy",
 	"patterns": [
 		{
 			"captures": {
@@ -1385,7 +1379,5 @@
 				}
 			]
 		}
-	},
-	"scopeName": "source.groovy",
-	"uuid": "B3A64888-EBBB-4436-8D9E-F1169C5D7613"
+	}
 }

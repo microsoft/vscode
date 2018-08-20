@@ -6,13 +6,14 @@
 
 import { IStringDictionary, INumberDictionary } from 'vs/base/common/collections';
 import URI from 'vs/base/common/uri';
-import Event, { Emitter } from 'vs/base/common/event';
+import { Event, Emitter } from 'vs/base/common/event';
 import { IDisposable } from 'vs/base/common/lifecycle';
 
 import { IModelService } from 'vs/editor/common/services/modelService';
 
-import { ILineMatcher, createLineMatcher, ProblemMatcher, ProblemMatch, ApplyToKind, WatchingPattern, getResource } from 'vs/platform/markers/common/problemMatcher';
-import { IMarkerService, IMarkerData } from 'vs/platform/markers/common/markers';
+import { ILineMatcher, createLineMatcher, ProblemMatcher, ProblemMatch, ApplyToKind, WatchingPattern, getResource } from 'vs/workbench/parts/tasks/common/problemMatcher';
+import { IMarkerService, IMarkerData, MarkerSeverity } from 'vs/platform/markers/common/markers';
+import { generateUuid } from 'vs/base/common/uuid';
 
 export enum ProblemCollectorEventKind {
 	BackgroundProcessingBegins = 'backgroundProcessingBegins',
@@ -38,6 +39,7 @@ export class AbstractProblemCollector implements IDisposable {
 	private matchers: INumberDictionary<ILineMatcher[]>;
 	private activeMatcher: ILineMatcher;
 	private _numberOfMatches: number;
+	private _maxMarkerSeverity: MarkerSeverity;
 	private buffer: string[];
 	private bufferLength: number;
 	private openModels: IStringDictionary<boolean>;
@@ -72,6 +74,7 @@ export class AbstractProblemCollector implements IDisposable {
 		this.buffer = [];
 		this.activeMatcher = null;
 		this._numberOfMatches = 0;
+		this._maxMarkerSeverity = undefined;
 		this.openModels = Object.create(null);
 		this.modelListeners = [];
 		this.applyToByOwner = new Map<string, ApplyToKind>();
@@ -109,12 +112,16 @@ export class AbstractProblemCollector implements IDisposable {
 		return this._numberOfMatches;
 	}
 
+	public get maxMarkerSeverity(): MarkerSeverity {
+		return this._maxMarkerSeverity;
+	}
+
 	protected tryFindMarker(line: string): ProblemMatch {
 		let result: ProblemMatch = null;
 		if (this.activeMatcher) {
 			result = this.activeMatcher.next(line);
 			if (result) {
-				this._numberOfMatches++;
+				this.captureMatch(result);
 				return result;
 			}
 			this.clearBuffer();
@@ -169,7 +176,7 @@ export class AbstractProblemCollector implements IDisposable {
 				let matcher = candidates[i];
 				let result = matcher.handle(this.buffer, startIndex);
 				if (result.match) {
-					this._numberOfMatches++;
+					this.captureMatch(result.match);
 					if (result.continue) {
 						this.activeMatcher = matcher;
 					}
@@ -178,6 +185,13 @@ export class AbstractProblemCollector implements IDisposable {
 			}
 		}
 		return null;
+	}
+
+	private captureMatch(match: ProblemMatch): void {
+		this._numberOfMatches++;
+		if (this._maxMarkerSeverity === void 0 || match.marker.severity > this._maxMarkerSeverity) {
+			this._maxMarkerSeverity = match.marker.severity;
+		}
 	}
 
 	private clearBuffer(): void {
@@ -299,6 +313,8 @@ export class AbstractProblemCollector implements IDisposable {
 	}
 
 	protected cleanMarkerCaches(): void {
+		this._numberOfMatches = 0;
+		this._maxMarkerSeverity = undefined;
 		this.markers.clear();
 		this.deliveredMarkers.clear();
 	}
@@ -353,16 +369,20 @@ export class StartStopProblemCollector extends AbstractProblemCollector implemen
 	}
 }
 
-interface OwnedWatchingPattern {
-	problemMatcher: ProblemMatcher;
-	pattern: WatchingPattern;
+interface BackgroundPatterns {
+	key: string;
+	matcher: ProblemMatcher;
+	begin: WatchingPattern;
+	end: WatchingPattern;
 }
 
 export class WatchingProblemCollector extends AbstractProblemCollector implements IProblemMatcher {
 
 	private problemMatchers: ProblemMatcher[];
-	private watchingBeginsPatterns: OwnedWatchingPattern[];
-	private watchingEndsPatterns: OwnedWatchingPattern[];
+	private backgroundPatterns: BackgroundPatterns[];
+
+	// workaround for https://github.com/Microsoft/vscode/issues/44018
+	private _activeBackgroundMatchers: Set<string>;
 
 	// Current State
 	private currentOwner: string;
@@ -372,23 +392,29 @@ export class WatchingProblemCollector extends AbstractProblemCollector implement
 		super(problemMatchers, markerService, modelService);
 		this.problemMatchers = problemMatchers;
 		this.resetCurrentResource();
-		this.watchingBeginsPatterns = [];
-		this.watchingEndsPatterns = [];
+		this.backgroundPatterns = [];
+		this._activeBackgroundMatchers = new Set<string>();
 		this.problemMatchers.forEach(matcher => {
 			if (matcher.watching) {
-				this.watchingBeginsPatterns.push({ problemMatcher: matcher, pattern: matcher.watching.beginsPattern });
-				this.watchingEndsPatterns.push({ problemMatcher: matcher, pattern: matcher.watching.endsPattern });
+				const key: string = generateUuid();
+				this.backgroundPatterns.push({
+					key,
+					matcher: matcher,
+					begin: matcher.watching.beginsPattern,
+					end: matcher.watching.endsPattern
+				});
 			}
 		});
 	}
 
 	public aboutToStart(): void {
-		this.problemMatchers.forEach(matcher => {
-			if (matcher.watching && matcher.watching.activeOnStart) {
+		for (let background of this.backgroundPatterns) {
+			if (background.matcher.watching && background.matcher.watching.activeOnStart) {
+				this._activeBackgroundMatchers.add(background.key);
 				this._onDidStateChange.fire(ProblemCollectorEvent.create(ProblemCollectorEventKind.BackgroundProcessingBegins));
-				this.recordResourcesToClean(matcher.owner);
+				this.recordResourcesToClean(background.matcher.owner);
 			}
-		});
+		}
 	}
 
 	public processLine(line: string): void {
@@ -420,18 +446,22 @@ export class WatchingProblemCollector extends AbstractProblemCollector implement
 
 	private tryBegin(line: string): boolean {
 		let result = false;
-		for (let i = 0; i < this.watchingBeginsPatterns.length; i++) {
-			let beginMatcher = this.watchingBeginsPatterns[i];
-			let matches = beginMatcher.pattern.regexp.exec(line);
+		for (let i = 0; i < this.backgroundPatterns.length; i++) {
+			let background = this.backgroundPatterns[i];
+			let matches = background.begin.regexp.exec(line);
 			if (matches) {
+				if (this._activeBackgroundMatchers.has(background.key)) {
+					continue;
+				}
+				this._activeBackgroundMatchers.add(background.key);
 				result = true;
 				this._onDidStateChange.fire(ProblemCollectorEvent.create(ProblemCollectorEventKind.BackgroundProcessingBegins));
 				this.cleanMarkerCaches();
 				this.resetCurrentResource();
-				let owner = beginMatcher.problemMatcher.owner;
-				let file = matches[beginMatcher.pattern.file];
+				let owner = background.matcher.owner;
+				let file = matches[background.begin.file];
 				if (file) {
-					let resource = getResource(file, beginMatcher.problemMatcher);
+					let resource = getResource(file, background.matcher);
 					this.recordResourceToClean(owner, resource);
 				} else {
 					this.recordResourcesToClean(owner);
@@ -443,16 +473,19 @@ export class WatchingProblemCollector extends AbstractProblemCollector implement
 
 	private tryFinish(line: string): boolean {
 		let result = false;
-		for (let i = 0; i < this.watchingEndsPatterns.length; i++) {
-			let endMatcher = this.watchingEndsPatterns[i];
-			let matches = endMatcher.pattern.regexp.exec(line);
+		for (let i = 0; i < this.backgroundPatterns.length; i++) {
+			let background = this.backgroundPatterns[i];
+			let matches = background.end.regexp.exec(line);
 			if (matches) {
-				this._onDidStateChange.fire(ProblemCollectorEvent.create(ProblemCollectorEventKind.BackgroundProcessingEnds));
-				result = true;
-				let owner = endMatcher.problemMatcher.owner;
-				this.resetCurrentResource();
-				this.cleanMarkers(owner);
-				this.cleanMarkerCaches();
+				if (this._activeBackgroundMatchers.has(background.key)) {
+					this._activeBackgroundMatchers.delete(background.key);
+					this.resetCurrentResource();
+					this._onDidStateChange.fire(ProblemCollectorEvent.create(ProblemCollectorEventKind.BackgroundProcessingEnds));
+					result = true;
+					let owner = background.matcher.owner;
+					this.cleanMarkers(owner);
+					this.cleanMarkerCaches();
+				}
 			}
 		}
 		return result;

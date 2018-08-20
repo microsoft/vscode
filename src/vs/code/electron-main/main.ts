@@ -5,6 +5,7 @@
 
 'use strict';
 
+import 'vs/code/electron-main/contributions';
 import { app, dialog } from 'electron';
 import { assign } from 'vs/base/common/objects';
 import * as platform from 'vs/base/common/platform';
@@ -33,8 +34,8 @@ import { ConfigurationService } from 'vs/platform/configuration/node/configurati
 import { IRequestService } from 'vs/platform/request/node/request';
 import { RequestService } from 'vs/platform/request/electron-main/requestService';
 import { IURLService } from 'vs/platform/url/common/url';
-import { URLService } from 'vs/platform/url/electron-main/urlService';
-import * as fs from 'original-fs';
+import { URLService } from 'vs/platform/url/common/urlService';
+import * as fs from 'fs';
 import { CodeApplication } from 'vs/code/electron-main/app';
 import { HistoryMainService } from 'vs/platform/history/electron-main/historyMainService';
 import { IHistoryMainService } from 'vs/platform/history/common/history';
@@ -46,8 +47,10 @@ import { createSpdLogService } from 'vs/platform/log/node/spdlogService';
 import { printDiagnostics } from 'vs/code/electron-main/diagnostics';
 import { BufferLogService } from 'vs/platform/log/common/bufferLog';
 import { uploadLogs } from 'vs/code/electron-main/logUploader';
-import { IChoiceService } from 'vs/platform/message/common/message';
-import { ChoiceCliService } from 'vs/platform/message/node/messageCli';
+import { setUnexpectedErrorHandler } from 'vs/base/common/errors';
+import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
+import { CommandLineDialogService } from 'vs/platform/dialogs/node/dialogService';
+import { IUriLabelService, UriLabelService } from 'vs/platform/uriLabel/common/uriLabel';
 
 function createServices(args: ParsedArgs, bufferLogService: BufferLogService): IInstantiationService {
 	const services = new ServiceCollection();
@@ -55,6 +58,7 @@ function createServices(args: ParsedArgs, bufferLogService: BufferLogService): I
 	const environmentService = new EnvironmentService(args, process.execPath);
 	const consoleLogService = new ConsoleLogMainService(getLogLevel(environmentService));
 	const logService = new MultiplexLogService([consoleLogService, bufferLogService]);
+	const uriLabelService = new UriLabelService(environmentService, undefined);
 
 	process.once('exit', () => logService.dispose());
 
@@ -62,6 +66,7 @@ function createServices(args: ParsedArgs, bufferLogService: BufferLogService): I
 	setTimeout(() => cleanupOlderLogs(environmentService).then(null, err => console.error(err)), 10000);
 
 	services.set(IEnvironmentService, environmentService);
+	services.set(IUriLabelService, uriLabelService);
 	services.set(ILogService, logService);
 	services.set(IWorkspacesMainService, new SyncDescriptor(WorkspacesMainService));
 	services.set(IHistoryMainService, new SyncDescriptor(HistoryMainService));
@@ -69,9 +74,9 @@ function createServices(args: ParsedArgs, bufferLogService: BufferLogService): I
 	services.set(IStateService, new SyncDescriptor(StateService));
 	services.set(IConfigurationService, new SyncDescriptor(ConfigurationService));
 	services.set(IRequestService, new SyncDescriptor(RequestService));
-	services.set(IURLService, new SyncDescriptor(URLService, args['open-url'] ? args._urls : []));
+	services.set(IURLService, new SyncDescriptor(URLService));
 	services.set(IBackupMainService, new SyncDescriptor(BackupMainService));
-	services.set(IChoiceService, new SyncDescriptor(ChoiceCliService));
+	services.set(IDialogService, new SyncDescriptor(CommandLineDialogService));
 
 	return new InstantiationService(services, true);
 }
@@ -79,7 +84,7 @@ function createServices(args: ParsedArgs, bufferLogService: BufferLogService): I
 /**
  * Cleans up older logs, while keeping the 10 most recent ones.
 */
-async function cleanupOlderLogs(environmentService: EnvironmentService): TPromise<void> {
+async function cleanupOlderLogs(environmentService: EnvironmentService): Promise<void> {
 	const currentLog = path.basename(environmentService.logsPath);
 	const logsRoot = path.dirname(environmentService.logsPath);
 	const children = await readdir(logsRoot);
@@ -289,8 +294,12 @@ function quit(accessor: ServicesAccessor, reason?: ExpectedError | Error): void 
 }
 
 function main() {
-	let args: ParsedArgs;
 
+	// Set the error handler early enough so that we are not getting the
+	// default electron error dialog popping up
+	setUnexpectedErrorHandler(err => console.error(err));
+
+	let args: ParsedArgs;
 	try {
 		args = parseMainProcessArgv(process.argv);
 		args = validatePaths(args);
@@ -317,6 +326,11 @@ function main() {
 			VSCODE_NLS_CONFIG: process.env['VSCODE_NLS_CONFIG'],
 			VSCODE_LOGS: process.env['VSCODE_LOGS']
 		};
+
+		if (process.env['VSCODE_PORTABLE']) {
+			instanceEnv['VSCODE_PORTABLE'] = process.env['VSCODE_PORTABLE'];
+		}
+
 		assign(process.env, instanceEnv);
 
 		// Startup

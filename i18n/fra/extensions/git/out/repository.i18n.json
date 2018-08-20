@@ -30,7 +30,6 @@
 	"changes": "Modifications",
 	"commitMessageCountdown": "{0} caractères restants sur la ligne actuelle",
 	"commitMessageWarning": "{0} caractères sur {1} sur la ligne actuelle",
-	"ok": "OK",
 	"neveragain": "Ne plus afficher",
 	"huge": "Le dépôt Git dans '{0}' a trop de modifications actives, seul un sous-ensemble de fonctionnalités Git sera activé."
 }

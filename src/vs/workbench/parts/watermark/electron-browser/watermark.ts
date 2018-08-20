@@ -21,12 +21,12 @@ import { OpenRecentAction } from 'vs/workbench/electron-browser/actions';
 import { GlobalNewUntitledFileAction } from 'vs/workbench/parts/files/electron-browser/fileActions';
 import { OpenFolderAction, OpenFileFolderAction, OpenFileAction } from 'vs/workbench/browser/actions/workspaceActions';
 import { ShowAllCommandsAction } from 'vs/workbench/parts/quickopen/browser/commandsHandler';
-import { Parts, IPartService, Dimension } from 'vs/workbench/services/part/common/partService';
+import { Parts, IPartService, IDimension } from 'vs/workbench/services/part/common/partService';
 import { StartAction } from 'vs/workbench/parts/debug/browser/debugActions';
 import { FindInFilesActionId } from 'vs/workbench/parts/search/common/constants';
-import { ToggleTerminalAction } from 'vs/workbench/parts/terminal/electron-browser/terminalActions';
 import { escape } from 'vs/base/common/strings';
 import { QUICKOPEN_ACTION_ID } from 'vs/workbench/browser/parts/quickopen/quickopen';
+import { TERMINAL_COMMAND_ID } from 'vs/workbench/parts/terminal/common/terminalCommands';
 
 interface WatermarkEntry {
 	text: string;
@@ -68,7 +68,7 @@ const newUntitledFile: WatermarkEntry = {
 const newUntitledFileMacOnly: WatermarkEntry = assign({ mac: true }, newUntitledFile);
 const toggleTerminal: WatermarkEntry = {
 	text: nls.localize({ key: 'watermark.toggleTerminal', comment: ['toggle is a verb here'] }, "Toggle Terminal"),
-	ids: [ToggleTerminalAction.ID]
+	ids: [TERMINAL_COMMAND_ID.TOGGLE]
 };
 
 const findInFiles: WatermarkEntry = {
@@ -179,7 +179,7 @@ export class WatermarkContribution implements IWorkbenchContribution {
 		update();
 		this.watermark.build(container.firstElementChild as HTMLElement, 0);
 		this.toDispose.push(this.keybindingService.onDidUpdateKeybindings(update));
-		this.toDispose.push(this.partService.onEditorLayout(({ height }: Dimension) => {
+		this.toDispose.push(this.partService.onEditorLayout(({ height }: IDimension) => {
 			container.classList[height <= 478 ? 'add' : 'remove']('max-height-478px');
 		}));
 	}

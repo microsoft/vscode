@@ -10,6 +10,8 @@
 	"change": "{0}/{1} değişiklik",
 	"show previous change": "Önceki Değişikliği Göster",
 	"show next change": "Sonraki Değişikliği Göster",
+	"move to previous change": "Önceki Değişikliğe Git",
+	"move to next change": "Sonraki Değişikliğe Git",
 	"editorGutterModifiedBackground": "Değiştirilen satırlar için düzenleyici oluğu arka plan rengi.",
 	"editorGutterAddedBackground": "Eklenen satırlar için düzenleyici oluğu arka plan rengi.",
 	"editorGutterDeletedBackground": "Silinen satırlar için düzenleyici oluğu arka plan rengi.",

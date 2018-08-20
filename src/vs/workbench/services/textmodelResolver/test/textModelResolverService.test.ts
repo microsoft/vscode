@@ -56,7 +56,7 @@ suite('Workbench - TextModelResolverService', () => {
 		accessor.untitledEditorService.revertAll();
 	});
 
-	test('resolve resource', function (done) {
+	test('resolve resource', function () {
 		const dispose = accessor.textModelResolverService.registerTextModelContentProvider('test', {
 			provideTextContent: function (resource: URI): TPromise<ITextModel> {
 				if (resource.scheme === 'test') {
@@ -72,7 +72,7 @@ suite('Workbench - TextModelResolverService', () => {
 		let resource = URI.from({ scheme: 'test', authority: null, path: 'thePath' });
 		let input: ResourceEditorInput = instantiationService.createInstance(ResourceEditorInput, 'The Name', 'The Description', resource);
 
-		input.resolve().then(model => {
+		return input.resolve().then(model => {
 			assert.ok(model);
 			assert.equal(snapshotToString((model as ResourceEditorModel).createSnapshot()), 'Hello Test');
 
@@ -85,7 +85,6 @@ suite('Workbench - TextModelResolverService', () => {
 			assert.equal(disposed, true);
 
 			dispose.dispose();
-			done();
 		});
 	});
 
@@ -134,12 +133,12 @@ suite('Workbench - TextModelResolverService', () => {
 		let waitForIt = new TPromise(c => resolveModel = c);
 
 		const disposable = accessor.textModelResolverService.registerTextModelContentProvider('test', {
-			provideTextContent: async (resource: URI): TPromise<ITextModel> => {
-				await waitForIt;
-
-				let modelContent = 'Hello Test';
-				let mode = accessor.modeService.getOrCreateMode('json');
-				return accessor.modelService.createModel(modelContent, mode, resource);
+			provideTextContent: (resource: URI): TPromise<ITextModel> => {
+				return waitForIt.then(_ => {
+					let modelContent = 'Hello Test';
+					let mode = accessor.modeService.getOrCreateMode('json');
+					return accessor.modelService.createModel(modelContent, mode, resource);
+				});
 			}
 		});
 

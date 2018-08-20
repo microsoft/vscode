@@ -5,7 +5,7 @@
 
 'use strict';
 
-import Event, { Emitter } from 'vs/base/common/event';
+import { Event, Emitter } from 'vs/base/common/event';
 import { IDisposable } from 'vs/base/common/lifecycle';
 
 export interface CancellationToken {
@@ -45,7 +45,7 @@ class MutableToken implements CancellationToken {
 			this._isCancelled = true;
 			if (this._emitter) {
 				this._emitter.fire(undefined);
-				this._emitter = undefined;
+				this.dispose();
 			}
 		}
 	}
@@ -62,6 +62,13 @@ class MutableToken implements CancellationToken {
 			this._emitter = new Emitter<any>();
 		}
 		return this._emitter.event;
+	}
+
+	public dispose(): void {
+		if (this._emitter) {
+			this._emitter.dispose();
+			this._emitter = undefined;
+		}
 	}
 }
 
@@ -92,6 +99,13 @@ export class CancellationTokenSource {
 	}
 
 	dispose(): void {
-		this.cancel();
+		if (!this._token) {
+			// ensure to initialize with an empty token if we had none
+			this._token = CancellationToken.None;
+
+		} else if (this._token instanceof MutableToken) {
+			// actually dispose
+			this._token.dispose();
+		}
 	}
 }

@@ -9,13 +9,14 @@ import 'vs/css!./dropdown';
 import { Builder, $ } from 'vs/base/browser/builder';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { Gesture, EventType as GestureEventType } from 'vs/base/browser/touch';
-import { ActionRunner, IAction } from 'vs/base/common/actions';
-import { IActionItem } from 'vs/base/browser/ui/actionbar/actionbar';
+import { ActionRunner, IAction, IActionRunner } from 'vs/base/common/actions';
+import { BaseActionItem, IActionItemProvider } from 'vs/base/browser/ui/actionbar/actionbar';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
-import { IContextViewProvider } from 'vs/base/browser/ui/contextview/contextview';
+import { IContextViewProvider, IAnchor } from 'vs/base/browser/ui/contextview/contextview';
 import { IMenuOptions } from 'vs/base/browser/ui/menu/menu';
 import { ResolvedKeybinding } from 'vs/base/common/keyCodes';
-import { EventHelper, EventType } from 'vs/base/browser/dom';
+import { EventHelper, EventType, removeClass, addClass } from 'vs/base/browser/dom';
+import { IContextMenuDelegate } from 'vs/base/browser/contextmenu';
 
 export interface ILabelRenderer {
 	(container: HTMLElement): IDisposable;
@@ -27,18 +28,18 @@ export interface IBaseDropdownOptions {
 }
 
 export class BaseDropdown extends ActionRunner {
-	private _toDispose: IDisposable[];
+	private _toDispose: IDisposable[] = [];
+
 	private $el: Builder;
 	private $boxContainer: Builder;
 	private $label: Builder;
 	private $contents: Builder;
+	private visible: boolean;
 
 	constructor(container: HTMLElement, options: IBaseDropdownOptions) {
 		super();
 
-		this._toDispose = [];
-
-		this.$el = $('.dropdown').appendTo(container);
+		this.$el = $('.monaco-dropdown').appendTo(container);
 
 		this.$label = $('.dropdown-label');
 
@@ -57,11 +58,14 @@ export class BaseDropdown extends ActionRunner {
 				return; // prevent multiple clicks to open multiple context menus (https://github.com/Microsoft/vscode/issues/41363)
 			}
 
-			this.show();
+			if (this.visible) {
+				this.hide();
+			} else {
+				this.show();
+			}
 		}).appendTo(this.$el);
 
-		let cleanupFn = labelRenderer(this.$label.getHTMLElement());
-
+		const cleanupFn = labelRenderer(this.$label.getHTMLElement());
 		if (cleanupFn) {
 			this._toDispose.push(cleanupFn);
 		}
@@ -69,35 +73,35 @@ export class BaseDropdown extends ActionRunner {
 		Gesture.addTarget(this.$label.getHTMLElement());
 	}
 
-	public get toDispose(): IDisposable[] {
+	get toDispose(): IDisposable[] {
 		return this._toDispose;
 	}
 
-	public get element(): Builder {
-		return this.$el;
+	get element(): HTMLElement {
+		return this.$el.getHTMLElement();
 	}
 
-	public get label(): Builder {
-		return this.$label;
+	get label(): HTMLElement {
+		return this.$label.getHTMLElement();
 	}
 
-	public set tooltip(tooltip: string) {
+	set tooltip(tooltip: string) {
 		this.$label.title(tooltip);
 	}
 
-	public show(): void {
-		// noop
+	show(): void {
+		this.visible = true;
 	}
 
-	public hide(): void {
-		// noop
+	hide(): void {
+		this.visible = false;
 	}
 
 	protected onEvent(e: Event, activeElement: HTMLElement): void {
 		this.hide();
 	}
 
-	public dispose(): void {
+	dispose(): void {
 		super.dispose();
 		this.hide();
 
@@ -133,11 +137,13 @@ export class Dropdown extends BaseDropdown {
 		this.contextViewProvider = options.contextViewProvider;
 	}
 
-	public show(): void {
-		this.element.addClass('active');
+	show(): void {
+		super.show();
+
+		addClass(this.element, 'active');
 
 		this.contextViewProvider.showContextView({
-			getAnchor: () => this.element.getHTMLElement(),
+			getAnchor: () => this.getAnchor(),
 
 			render: (container) => {
 				return this.renderContents(container);
@@ -147,13 +153,21 @@ export class Dropdown extends BaseDropdown {
 				this.onEvent(e, activeElement);
 			},
 
-			onHide: () => {
-				this.element.removeClass('active');
-			}
+			onHide: () => this.onHide()
 		});
 	}
 
-	public hide(): void {
+	protected getAnchor(): HTMLElement | IAnchor {
+		return this.element;
+	}
+
+	protected onHide(): void {
+		removeClass(this.element, 'active');
+	}
+
+	hide(): void {
+		super.hide();
+
 		if (this.contextViewProvider) {
 			this.contextViewProvider.hideContextView();
 		}
@@ -162,16 +176,6 @@ export class Dropdown extends BaseDropdown {
 	protected renderContents(container: HTMLElement): IDisposable {
 		return null;
 	}
-}
-
-export interface IContextMenuDelegate {
-	getAnchor(): HTMLElement | { x: number; y: number; };
-	getActions(): TPromise<IAction[]>;
-	getActionItem?(action: IAction): IActionItem;
-	getActionsContext?(): any;
-	getKeyBinding?(action: IAction): ResolvedKeybinding;
-	getMenuClassName?(): string;
-	onHide?(didCancel: boolean): void;
 }
 
 export interface IContextMenuProvider {
@@ -205,11 +209,11 @@ export class DropdownMenu extends BaseDropdown {
 		this.menuClassName = options.menuClassName || '';
 	}
 
-	public set menuOptions(options: IMenuOptions) {
+	set menuOptions(options: IMenuOptions) {
 		this._menuOptions = options;
 	}
 
-	public get menuOptions(): IMenuOptions {
+	get menuOptions(): IMenuOptions {
 		return this._menuOptions;
 	}
 
@@ -225,21 +229,108 @@ export class DropdownMenu extends BaseDropdown {
 		this._actions = actions;
 	}
 
-	public show(): void {
-		this.element.addClass('active');
+	show(): void {
+		super.show();
+
+		addClass(this.element, 'active');
 
 		this._contextMenuProvider.showContextMenu({
-			getAnchor: () => this.element.getHTMLElement(),
+			getAnchor: () => this.element,
 			getActions: () => TPromise.as(this.actions),
 			getActionsContext: () => this.menuOptions ? this.menuOptions.context : null,
 			getActionItem: (action) => this.menuOptions && this.menuOptions.actionItemProvider ? this.menuOptions.actionItemProvider(action) : null,
 			getKeyBinding: (action: IAction) => this.menuOptions && this.menuOptions.getKeyBinding ? this.menuOptions.getKeyBinding(action) : null,
 			getMenuClassName: () => this.menuClassName,
-			onHide: () => this.element.removeClass('active')
+			onHide: () => this.onHide(),
+			actionRunner: this.menuOptions ? this.menuOptions.actionRunner : null
 		});
 	}
 
-	public hide(): void {
-		// noop
+	hide(): void {
+		super.hide();
+	}
+
+	private onHide(): void {
+		this.hide();
+		removeClass(this.element, 'active');
+	}
+}
+
+export class DropdownMenuActionItem extends BaseActionItem {
+	private menuActionsOrProvider: any;
+	private dropdownMenu: DropdownMenu;
+	private contextMenuProvider: IContextMenuProvider;
+	private actionItemProvider: IActionItemProvider;
+	private keybindings: (action: IAction) => ResolvedKeybinding;
+	private clazz: string;
+
+	constructor(action: IAction, menuActions: IAction[], contextMenuProvider: IContextMenuProvider, actionItemProvider: IActionItemProvider, actionRunner: IActionRunner, keybindings: (action: IAction) => ResolvedKeybinding, clazz: string);
+	constructor(action: IAction, actionProvider: IActionProvider, contextMenuProvider: IContextMenuProvider, actionItemProvider: IActionItemProvider, actionRunner: IActionRunner, keybindings: (action: IAction) => ResolvedKeybinding, clazz: string);
+	constructor(action: IAction, menuActionsOrProvider: any, contextMenuProvider: IContextMenuProvider, actionItemProvider: IActionItemProvider, actionRunner: IActionRunner, keybindings: (action: IAction) => ResolvedKeybinding, clazz: string) {
+		super(null, action);
+
+		this.menuActionsOrProvider = menuActionsOrProvider;
+		this.contextMenuProvider = contextMenuProvider;
+		this.actionItemProvider = actionItemProvider;
+		this.actionRunner = actionRunner;
+		this.keybindings = keybindings;
+		this.clazz = clazz;
+	}
+
+	render(container: HTMLElement): void {
+		const labelRenderer: ILabelRenderer = (el: HTMLElement): IDisposable => {
+			this.builder = $('a.action-label').attr({
+				tabIndex: '0',
+				role: 'button',
+				'aria-haspopup': 'true',
+				title: this._action.label || '',
+				class: this.clazz
+			});
+
+			this.builder.appendTo(el);
+
+			return null;
+		};
+
+		const options: IDropdownMenuOptions = {
+			contextMenuProvider: this.contextMenuProvider,
+			labelRenderer: labelRenderer
+		};
+
+		// Render the DropdownMenu around a simple action to toggle it
+		if (Array.isArray(this.menuActionsOrProvider)) {
+			options.actions = this.menuActionsOrProvider;
+		} else {
+			options.actionProvider = this.menuActionsOrProvider;
+		}
+
+		this.dropdownMenu = new DropdownMenu(container, options);
+
+		this.dropdownMenu.menuOptions = {
+			actionItemProvider: this.actionItemProvider,
+			actionRunner: this.actionRunner,
+			getKeyBinding: this.keybindings,
+			context: this._context
+		};
+	}
+
+	setActionContext(newContext: any): void {
+		super.setActionContext(newContext);
+
+		if (this.dropdownMenu) {
+			this.dropdownMenu.menuOptions.context = newContext;
+		}
+	}
+
+	show(): void {
+		if (this.dropdownMenu) {
+			this.dropdownMenu.show();
+		}
+	}
+
+	dispose(): void {
+		this.dropdownMenu.dispose();
+
+		super.dispose();
 	}
 }

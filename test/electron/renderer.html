@@ -11,7 +11,10 @@
 	<script src="../../node_modules/mocha/mocha.js"></script>
 
 	<script>
-		mocha.setup('tdd');
+		mocha.setup({
+			ui: 'tdd',
+			timeout: 5000
+		});
 		require('./renderer');
 	</script>
 </body>

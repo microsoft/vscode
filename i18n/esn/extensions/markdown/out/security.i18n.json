@@ -15,5 +15,6 @@
 	"moreInfo.title": "Más información",
 	"enableSecurityWarning.title": "Habilitar advertencias de seguridad de vista previa en este espacio de trabajo",
 	"disableSecurityWarning.title": "Deshabilitar advertencias de seguridad de vista previa en este espacio de trabajo",
+	"toggleSecurityWarning.description": "No afecta el nivel de seguridad de contenido",
 	"preview.showPreviewSecuritySelector.title": "Seleccione configuración de seguridad para las previsualizaciones de Markdown en esta área de trabajo"
 }

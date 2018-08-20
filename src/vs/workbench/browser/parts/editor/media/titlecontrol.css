@@ -5,31 +5,31 @@
 
 /* Editor Label */
 
-.monaco-workbench > .part.editor > .content > .one-editor-silo > .container > .title .title-label,
-.monaco-workbench > .part.editor > .content > .one-editor-silo > .container > .title .tabs-container > .tab .tab-label {
+.monaco-workbench > .part.editor > .content .editor-group-container > .title .title-label,
+.monaco-workbench > .part.editor > .content .editor-group-container > .title .tabs-container > .tab .tab-label {
 	white-space: nowrap;
 	flex: 1;
 }
 
-.monaco-workbench > .part.editor > .content > .one-editor-silo > .container > .title .title-label a,
-.monaco-workbench > .part.editor > .content > .one-editor-silo > .container > .title .tabs-container > .tab .tab-label a {
+.monaco-workbench > .part.editor > .content .editor-group-container > .title .title-label a,
+.monaco-workbench > .part.editor > .content .editor-group-container > .title .tabs-container > .tab .tab-label a {
 	text-decoration: none;
 	font-size: 13px;
 }
 
-.monaco-workbench > .part.editor > .content > .one-editor-silo > .container > .title .monaco-icon-label::before,
-.monaco-workbench > .part.editor > .content > .one-editor-silo > .container > .title .tabs-container > .tab .monaco-icon-label::before,
-.monaco-workbench > .part.editor > .content > .one-editor-silo > .container > .title .title-label a,
-.monaco-workbench > .part.editor > .content > .one-editor-silo > .container > .title .tabs-container > .tab .tab-label a,
-.monaco-workbench > .part.editor > .content > .one-editor-silo > .container > .title .title-label span,
-.monaco-workbench > .part.editor > .content > .one-editor-silo > .container > .title .tabs-container > .tab .tab-label span {
+.monaco-workbench > .part.editor > .content .editor-group-container > .title .monaco-icon-label::before,
+.monaco-workbench > .part.editor > .content .editor-group-container > .title .tabs-container > .tab .monaco-icon-label::before,
+.monaco-workbench > .part.editor > .content .editor-group-container > .title .title-label a,
+.monaco-workbench > .part.editor > .content .editor-group-container > .title .tabs-container > .tab .tab-label a,
+.monaco-workbench > .part.editor > .content .editor-group-container > .title .title-label h2,
+.monaco-workbench > .part.editor > .content .editor-group-container > .title .tabs-container > .tab .tab-label span {
 	cursor: pointer;
 }
 
 /* Title Actions */
 
-.monaco-workbench > .part.editor > .content > .one-editor-silo > .container > .title .title-actions .action-label,
-.monaco-workbench > .part.editor > .content > .one-editor-silo > .container > .title .editor-actions .action-label {
+.monaco-workbench > .part.editor > .content .editor-group-container > .title .title-actions .action-label,
+.monaco-workbench > .part.editor > .content .editor-group-container > .title .editor-actions .action-label {
 	display: block;
 	height: 35px;
 	line-height: 35px;
@@ -39,69 +39,38 @@
 	background-repeat: no-repeat;
 }
 
-.hc-black .monaco-workbench > .part.editor > .content > .one-editor-silo > .container > .title .title-actions .action-label,
-.hc-black .monaco-workbench > .part.editor > .content > .one-editor-silo > .container > .title .editor-actions .action-label {
+.hc-black .monaco-workbench > .part.editor > .content .editor-group-container > .title .title-actions .action-label,
+.hc-black .monaco-workbench > .part.editor > .content .editor-group-container > .title .editor-actions .action-label {
 	line-height: initial;
 }
 
-.monaco-workbench > .part.editor > .content > .one-editor-silo > .container > .title .editor-actions .action-label .label,
-.monaco-workbench > .part.editor > .content > .one-editor-silo > .container > .title .title-actions .action-label .label {
+.monaco-workbench > .part.editor > .content .editor-group-container > .title .editor-actions .action-label .label,
+.monaco-workbench > .part.editor > .content .editor-group-container > .title .title-actions .action-label .label {
 	display: none;
 }
 
 /* Drag Cursor */
-.monaco-workbench > .part.editor > .content.multiple-groups > .one-editor-silo > .container > .title,
-.monaco-workbench > .part.editor > .content.multiple-groups > .one-editor-silo > .container > .title.tabs .scrollbar .slider,
-.monaco-workbench > .part.editor > .content.multiple-groups > .one-editor-silo > .container > .title .monaco-icon-label::before,
-.monaco-workbench > .part.editor > .content.multiple-groups > .one-editor-silo > .container > .title .title-label a,
-.monaco-workbench > .part.editor > .content.multiple-groups > .one-editor-silo > .container > .title .title-label span {
+.monaco-workbench > .part.editor > .content .editor-group-container > .title {
 	cursor: -webkit-grab;
-}
-
-#monaco-workbench-editor-move-overlay,
-.monaco-workbench > .part.editor > .content.multiple-groups > .one-editor-silo.drag,
-.monaco-workbench > .part.editor > .content.multiple-groups > .one-editor-silo.drag > .container > .title,
-.monaco-workbench > .part.editor > .content.multiple-groups > .one-editor-silo.drag > .container > .title.tabs .scrollbar .slider,
-.monaco-workbench > .part.editor > .content.multiple-groups > .one-editor-silo.drag > .container > .title .monaco-icon-label::before,
-.monaco-workbench > .part.editor > .content.multiple-groups > .one-editor-silo.drag > .container > .title .title-label a,
-.monaco-workbench > .part.editor > .content.multiple-groups > .one-editor-silo.drag > .container > .title .title-label span {
-	cursor: -webkit-grabbing;
 }
 
 /* Actions */
 
-.monaco-workbench .close-editor-action {
+.monaco-workbench > .part.editor > .content .editor-group-container > .title .close-editor-action {
 	background: url('close.svg') center center no-repeat;
 }
 
-.vs-dark .monaco-workbench .close-editor-action,
-.hc-black .monaco-workbench .close-editor-action {
+.vs-dark .monaco-workbench > .part.editor > .content .editor-group-container > .title .close-editor-action,
+.hc-black .monaco-workbench > .part.editor > .content .editor-group-container > .title .close-editor-action {
 	background: url('close-inverse.svg') center center no-repeat;
 }
 
-.monaco-workbench > .part.editor > .content.vertical-layout > .one-editor-silo > .container > .title .split-editor-action {
-	background: url('split-editor-vertical.svg') center center no-repeat;
-}
+/* Drag and Drop Feedback */
 
-.vs-dark .monaco-workbench > .part.editor > .content.vertical-layout > .one-editor-silo > .container > .title .split-editor-action,
-.hc-black .monaco-workbench > .part.editor > .content.vertical-layout > .one-editor-silo > .container > .title .split-editor-action {
-	background: url('split-editor-vertical-inverse.svg') center center no-repeat;
-}
-
-.monaco-workbench > .part.editor > .content.horizontal-layout > .one-editor-silo > .container > .title .split-editor-action {
-	background: url('split-editor-horizontal.svg') center center no-repeat;
-}
-
-.vs-dark .monaco-workbench > .part.editor > .content.horizontal-layout > .one-editor-silo > .container > .title .split-editor-action,
-.hc-black .monaco-workbench > .part.editor > .content.horizontal-layout > .one-editor-silo > .container > .title .split-editor-action {
-	background: url('split-editor-horizontal-inverse.svg') center center no-repeat;
-}
-
-.monaco-workbench .show-group-editors-action {
-	background: url('stackview.svg') center center no-repeat;
-}
-
-.vs-dark .monaco-workbench .show-group-editors-action,
-.hc-black .monaco-workbench .show-group-editors-action {
-	background: url('stackview-inverse.svg') center center no-repeat;
+.monaco-editor-group-drag-image {
+	display: inline-block;
+	padding: 1px 7px;
+	border-radius: 10px;
+	font-size: 12px;
+	position: absolute;
 }

@@ -8,6 +8,6 @@
 	],
 	"unknownDep": "Extensão '{1}' falhou ao ativar. Motivo: dependência desconhecida '{0}'.",
 	"failedDep1": "Extensão '{1}' falhou ao ativar. Motivo: a dependência '{0}' falhou ao ativar.",
-	"failedDep2": "Extensão '{0}' falhou ao ativar. Motivo: mais de 10 níveis de dependências (provavelmente um laço de dependência).",
-	"activationError": "Ativação da extensão `{0}` falhou: {1}."
+	"failedDep2": "Extensão '{0}' falhou ao ativar. Motivo: mais de 10 níveis de dependências (provavelmente um círculo de dependência).",
+	"activationError": "Ativação da extensão '{0}' falhou: {1}."
 }

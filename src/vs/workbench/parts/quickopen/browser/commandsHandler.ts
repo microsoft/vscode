@@ -6,35 +6,33 @@
 'use strict';
 
 import { TPromise } from 'vs/base/common/winjs.base';
-import nls = require('vs/nls');
-import arrays = require('vs/base/common/arrays');
-import types = require('vs/base/common/types');
+import * as nls from 'vs/nls';
+import * as arrays from 'vs/base/common/arrays';
+import * as types from 'vs/base/common/types';
 import { language, LANGUAGE_DEFAULT } from 'vs/base/common/platform';
 import { Action } from 'vs/base/common/actions';
-import { toErrorMessage } from 'vs/base/common/errorMessage';
 import { Mode, IEntryRunContext, IAutoFocus, IModel, IQuickNavigateConfiguration } from 'vs/base/parts/quickopen/common/quickOpen';
 import { QuickOpenEntryGroup, IHighlight, QuickOpenModel, QuickOpenEntry } from 'vs/base/parts/quickopen/browser/quickOpenModel';
 import { IMenuService, MenuId, MenuItemAction } from 'vs/platform/actions/common/actions';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { QuickOpenHandler, IWorkbenchQuickOpenConfiguration } from 'vs/workbench/browser/quickopen';
-import { IEditorAction, IEditor } from 'vs/editor/common/editorCommon';
+import { IEditorAction } from 'vs/editor/common/editorCommon';
 import { matchesWords, matchesPrefix, matchesContiguousSubString, or } from 'vs/base/common/filters';
-import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
-import { IMessageService, Severity, IMessageWithAction } from 'vs/platform/message/common/message';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { IQuickOpenService } from 'vs/platform/quickOpen/common/quickOpen';
-import { registerEditorAction, EditorAction } from 'vs/editor/browser/editorExtensions';
+import { registerEditorAction, EditorAction, IEditorCommandMenuOptions } from 'vs/editor/browser/editorExtensions';
 import { IStorageService } from 'vs/platform/storage/common/storage';
 import { ILifecycleService } from 'vs/platform/lifecycle/common/lifecycle';
 import { once } from 'vs/base/common/event';
 import { LRUCache } from 'vs/base/common/map';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { ResolvedKeybinding } from 'vs/base/common/keyCodes';
-import { IEditorGroupService } from 'vs/workbench/services/group/common/groupService';
+import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { isPromiseCanceledError } from 'vs/base/common/errors';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
+import { INotificationService } from 'vs/platform/notification/common/notification';
 
 export const ALL_COMMANDS_PREFIX = '>';
 
@@ -60,7 +58,7 @@ function resolveCommandHistory(configurationService: IConfigurationService): num
 
 class CommandsHistory {
 
-	public static readonly DEFAULT_COMMANDS_HISTORY_LENGTH = 50;
+	static readonly DEFAULT_COMMANDS_HISTORY_LENGTH = 50;
 
 	private static readonly PREF_KEY_CACHE = 'commandPalette.mru.cache';
 	private static readonly PREF_KEY_COUNTER = 'commandPalette.mru.counter';
@@ -122,20 +120,20 @@ class CommandsHistory {
 		this.storageService.store(CommandsHistory.PREF_KEY_COUNTER, commandCounter);
 	}
 
-	public push(commandId: string): void {
+	push(commandId: string): void {
 		// set counter to command
 		commandHistory.set(commandId, commandCounter++);
 	}
 
-	public peek(commandId: string): number {
+	peek(commandId: string): number {
 		return commandHistory.peek(commandId);
 	}
 }
 
 export class ShowAllCommandsAction extends Action {
 
-	public static readonly ID = 'workbench.action.showCommands';
-	public static readonly LABEL = nls.localize('showTriggerActions', "Show All Commands");
+	static readonly ID = 'workbench.action.showCommands';
+	static readonly LABEL = nls.localize('showTriggerActions', "Show All Commands");
 
 	constructor(
 		id: string,
@@ -146,7 +144,7 @@ export class ShowAllCommandsAction extends Action {
 		super(id, label);
 	}
 
-	public run(context?: any): TPromise<void> {
+	run(context?: any): TPromise<void> {
 		const config = <IWorkbenchQuickOpenConfiguration>this.configurationService.getValue();
 		const restoreInput = config.workbench && config.workbench.commandPalette && config.workbench.commandPalette.preserveInput === true;
 
@@ -164,8 +162,8 @@ export class ShowAllCommandsAction extends Action {
 
 export class ClearCommandHistoryAction extends Action {
 
-	public static readonly ID = 'workbench.action.clearCommandHistory';
-	public static readonly LABEL = nls.localize('clearCommandHistory', "Clear Command History");
+	static readonly ID = 'workbench.action.clearCommandHistory';
+	static readonly LABEL = nls.localize('clearCommandHistory', "Clear Command History");
 
 	constructor(
 		id: string,
@@ -175,7 +173,7 @@ export class ClearCommandHistoryAction extends Action {
 		super(id, label);
 	}
 
-	public run(context?: any): TPromise<void> {
+	run(context?: any): TPromise<void> {
 		const commandHistoryLength = resolveCommandHistory(this.configurationService);
 		if (commandHistoryLength > 0) {
 			commandHistory = new LRUCache<string, number>(commandHistoryLength);
@@ -195,11 +193,13 @@ class CommandPaletteEditorAction extends EditorAction {
 			alias: 'Command Palette',
 			precondition: null,
 			menuOpts: {
-			}
+				group: 'z_commands',
+				order: 1
+			} as IEditorCommandMenuOptions
 		});
 	}
 
-	public run(accessor: ServicesAccessor, editor: ICodeEditor): TPromise<void> {
+	run(accessor: ServicesAccessor, editor: ICodeEditor): TPromise<void> {
 		const quickOpenService = accessor.get(IQuickOpenService);
 
 		// Show with prefix
@@ -222,7 +222,7 @@ abstract class BaseCommandEntry extends QuickOpenEntryGroup {
 		alias: string,
 		highlights: { label: IHighlight[], alias: IHighlight[] },
 		private onBeforeRun: (commandId: string) => void,
-		@IMessageService protected messageService: IMessageService,
+		@INotificationService private notificationService: INotificationService,
 		@ITelemetryService protected telemetryService: ITelemetryService
 	) {
 		super();
@@ -239,35 +239,35 @@ abstract class BaseCommandEntry extends QuickOpenEntryGroup {
 		this.setHighlights(highlights.label, null, highlights.alias);
 	}
 
-	public getCommandId(): string {
+	getCommandId(): string {
 		return this.commandId;
 	}
 
-	public getLabel(): string {
+	getLabel(): string {
 		return this.label;
 	}
 
-	public getSortLabel(): string {
+	getSortLabel(): string {
 		return this.labelLowercase;
 	}
 
-	public getDescription(): string {
+	getDescription(): string {
 		return this.description;
 	}
 
-	public setDescription(description: string): void {
+	setDescription(description: string): void {
 		this.description = description;
 	}
 
-	public getKeybinding(): ResolvedKeybinding {
+	getKeybinding(): ResolvedKeybinding {
 		return this.keybinding;
 	}
 
-	public getDetail(): string {
+	getDetail(): string {
 		return this.alias;
 	}
 
-	public getAriaLabel(): string {
+	getAriaLabel(): string {
 		if (this.keybindingAriaLabel) {
 			return nls.localize('entryAriaLabelWithKey', "{0}, {1}, commands", this.getLabel(), this.keybindingAriaLabel);
 		}
@@ -275,22 +275,7 @@ abstract class BaseCommandEntry extends QuickOpenEntryGroup {
 		return nls.localize('entryAriaLabel', "{0}, commands", this.getLabel());
 	}
 
-	private onError(error?: Error): void;
-	private onError(messagesWithAction?: IMessageWithAction): void;
-	private onError(arg1?: any): void {
-		if (isPromiseCanceledError(arg1)) {
-			return;
-		}
-
-		const messagesWithAction: IMessageWithAction = arg1;
-		if (messagesWithAction && typeof messagesWithAction.message === 'string' && Array.isArray(messagesWithAction.actions)) {
-			this.messageService.show(Severity.Error, messagesWithAction);
-		} else {
-			this.messageService.show(Severity.Error, !arg1 ? nls.localize('canNotRun', "Command '{0}' can not be run from here.", this.label) : toErrorMessage(arg1));
-		}
-	}
-
-	public run(mode: Mode, context: IEntryRunContext): boolean {
+	run(mode: Mode, context: IEntryRunContext): boolean {
 		if (mode === Mode.OPEN) {
 			this.runAction(this.getAction());
 
@@ -308,7 +293,7 @@ abstract class BaseCommandEntry extends QuickOpenEntryGroup {
 		this.onBeforeRun(this.commandId);
 
 		// Use a timeout to give the quick open widget a chance to close itself first
-		TPromise.timeout(50).done(() => {
+		setTimeout(() => {
 			if (action && (!(action instanceof Action) || action.enabled)) {
 				try {
 					/* __GDPR__
@@ -327,9 +312,17 @@ abstract class BaseCommandEntry extends QuickOpenEntryGroup {
 					this.onError(error);
 				}
 			} else {
-				this.messageService.show(Severity.Info, nls.localize('actionNotEnabled', "Command '{0}' is not enabled in the current context.", this.getLabel()));
+				this.notificationService.info(nls.localize('actionNotEnabled', "Command '{0}' is not enabled in the current context.", this.getLabel()));
 			}
-		}, err => this.onError(err));
+		}, 50);
+	}
+
+	private onError(error?: Error): void {
+		if (isPromiseCanceledError(error)) {
+			return;
+		}
+
+		this.notificationService.error(error || nls.localize('canNotRun', "Command '{0}' resulted in an error.", this.label));
 	}
 }
 
@@ -343,10 +336,10 @@ class EditorActionCommandEntry extends BaseCommandEntry {
 		highlights: { label: IHighlight[], alias: IHighlight[] },
 		private action: IEditorAction,
 		onBeforeRun: (commandId: string) => void,
-		@IMessageService messageService: IMessageService,
+		@INotificationService notificationService: INotificationService,
 		@ITelemetryService telemetryService: ITelemetryService
 	) {
-		super(commandId, keybinding, label, meta, highlights, onBeforeRun, messageService, telemetryService);
+		super(commandId, keybinding, label, meta, highlights, onBeforeRun, notificationService, telemetryService);
 	}
 
 	protected getAction(): Action | IEditorAction {
@@ -364,10 +357,10 @@ class ActionCommandEntry extends BaseCommandEntry {
 		highlights: { label: IHighlight[], alias: IHighlight[] },
 		private action: Action,
 		onBeforeRun: (commandId: string) => void,
-		@IMessageService messageService: IMessageService,
+		@INotificationService notificationService: INotificationService,
 		@ITelemetryService telemetryService: ITelemetryService
 	) {
-		super(commandId, keybinding, label, alias, highlights, onBeforeRun, messageService, telemetryService);
+		super(commandId, keybinding, label, alias, highlights, onBeforeRun, notificationService, telemetryService);
 	}
 
 	protected getAction(): Action | IEditorAction {
@@ -379,15 +372,14 @@ const wordFilter = or(matchesPrefix, matchesWords, matchesContiguousSubString);
 
 export class CommandsHandler extends QuickOpenHandler {
 
-	public static readonly ID = 'workbench.picker.commands';
+	static readonly ID = 'workbench.picker.commands';
 
 	private lastSearchValue: string;
 	private commandHistoryEnabled: boolean;
 	private commandsHistory: CommandsHistory;
 
 	constructor(
-		@IWorkbenchEditorService private editorService: IWorkbenchEditorService,
-		@IEditorGroupService private editorGroupService: IEditorGroupService,
+		@IEditorService private editorService: IEditorService,
 		@IInstantiationService private instantiationService: IInstantiationService,
 		@IKeybindingService private keybindingService: IKeybindingService,
 		@IMenuService private menuService: IMenuService,
@@ -405,27 +397,22 @@ export class CommandsHandler extends QuickOpenHandler {
 		this.commandHistoryEnabled = resolveCommandHistory(this.configurationService) > 0;
 	}
 
-	public getResults(searchValue: string): TPromise<QuickOpenModel> {
+	getResults(searchValue: string): TPromise<QuickOpenModel> {
 		searchValue = searchValue.trim();
 		this.lastSearchValue = searchValue;
 
 		// Editor Actions
-		const activeEditor = this.editorService.getActiveEditor();
-		const activeEditorControl = activeEditor ? activeEditor.getControl() : null;
-
+		const activeTextEditorWidget = this.editorService.activeTextEditorWidget;
 		let editorActions: IEditorAction[] = [];
-		if (activeEditorControl) {
-			const editor = <IEditor>activeEditorControl;
-			if (types.isFunction(editor.getSupportedActions)) {
-				editorActions = editor.getSupportedActions();
-			}
+		if (activeTextEditorWidget && types.isFunction(activeTextEditorWidget.getSupportedActions)) {
+			editorActions = activeTextEditorWidget.getSupportedActions();
 		}
 
 		const editorEntries = this.editorActionsToEntries(editorActions, searchValue);
 
 		// Other Actions
-		const menu = this.editorGroupService.invokeWithinEditorContext(accessor => this.menuService.createMenu(MenuId.CommandPalette, accessor.get(IContextKeyService)));
-		const menuActions = menu.getActions().reduce((r, [, actions]) => [...r, ...actions], <MenuItemAction[]>[]);
+		const menu = this.editorService.invokeWithinEditorContext(accessor => this.menuService.createMenu(MenuId.CommandPalette, accessor.get(IContextKeyService)));
+		const menuActions = menu.getActions().reduce((r, [, actions]) => [...r, ...actions], <MenuItemAction[]>[]).filter(action => action instanceof MenuItemAction) as MenuItemAction[];
 		const commandEntries = this.menuItemActionsToEntries(menuActions, searchValue);
 
 		// Concat
@@ -553,7 +540,7 @@ export class CommandsHandler extends QuickOpenHandler {
 		return entries;
 	}
 
-	public getAutoFocus(searchValue: string, context: { model: IModel<QuickOpenEntry>, quickNavigateConfiguration?: IQuickNavigateConfiguration }): IAutoFocus {
+	getAutoFocus(searchValue: string, context: { model: IModel<QuickOpenEntry>, quickNavigateConfiguration?: IQuickNavigateConfiguration }): IAutoFocus {
 		let autoFocusPrefixMatch = searchValue.trim();
 
 		if (autoFocusPrefixMatch && this.commandHistoryEnabled) {
@@ -569,11 +556,11 @@ export class CommandsHandler extends QuickOpenHandler {
 		};
 	}
 
-	public getEmptyLabel(searchString: string): string {
+	getEmptyLabel(searchString: string): string {
 		return nls.localize('noCommandsMatching', "No commands matching");
 	}
 
-	public onClose(canceled: boolean): void {
+	onClose(canceled: boolean): void {
 		if (canceled) {
 			lastCommandPaletteInput = void 0; // clear last input when user canceled quick open
 		}

@@ -10,6 +10,8 @@
 	"change": "{0} von {1} Änderung",
 	"show previous change": "Vorherige Änderung anzeigen",
 	"show next change": "Nächste Änderung anzeigen",
+	"move to previous change": "Zur vorherigen Änderung",
+	"move to next change": "Zur nächsten Änderung",
 	"editorGutterModifiedBackground": "Hintergrundfarbe für die Editor-Leiste für Zeilen, die geändert wurden.",
 	"editorGutterAddedBackground": "Hintergrundfarbe für die Editor-Leiste für Zeilen, die hinzugefügt wurden.",
 	"editorGutterDeletedBackground": "Hintergrundfarbe für die Editor-Leiste für Zeilen, die gelöscht wurden.",

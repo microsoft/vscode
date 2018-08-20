@@ -10,6 +10,6 @@
 	"installVSIX": "從 VSIX 安裝...",
 	"installFromVSIX": "從 VSIX 安裝",
 	"installButton": "安裝(&&I)",
-	"InstallVSIXAction.success": "已成功安裝延伸模組。請重新啟動以啟用。",
+	"InstallVSIXAction.success": "已成功安裝擴充功能。請重新載入以啟用。",
 	"InstallVSIXAction.reloadNow": "立即重新載入"
 }

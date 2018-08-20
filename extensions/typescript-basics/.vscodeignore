@@ -1,0 +1,4 @@
+build/**
+src/**
+test/**
+tsconfig.json

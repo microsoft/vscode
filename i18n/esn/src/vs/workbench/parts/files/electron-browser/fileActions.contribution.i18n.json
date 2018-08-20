@@ -29,7 +29,7 @@
 	"compareSelected": "Comparar seleccionados",
 	"close": "Cerrar",
 	"closeOthers": "Cerrar otros",
-	"closeUnmodified": "Cerrar los que no se han modificado",
+	"closeSaved": "Cerrar guardados",
 	"closeAll": "Cerrar todo",
 	"deleteFile": "Eliminar permanentemente"
 }

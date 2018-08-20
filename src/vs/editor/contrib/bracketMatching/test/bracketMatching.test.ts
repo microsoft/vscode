@@ -144,4 +144,57 @@ suite('bracket matching', () => {
 		model.dispose();
 		mode.dispose();
 	});
+
+	test('issue #45369: Select to Bracket with multicursor', () => {
+		let mode = new BracketMode();
+		let model = TextModel.createFromString('{  }   {   }   { }', undefined, mode.getLanguageIdentifier());
+
+		withTestCodeEditor(null, { model: model }, (editor, cursor) => {
+			let bracketMatchingController = editor.registerAndInstantiateContribution<BracketMatchingController>(BracketMatchingController);
+
+			// cursors inside brackets become selections of the entire bracket contents
+			editor.setSelections([
+				new Selection(1, 3, 1, 3),
+				new Selection(1, 10, 1, 10),
+				new Selection(1, 17, 1, 17)
+			]);
+			bracketMatchingController.selectToBracket();
+			assert.deepEqual(editor.getSelections(), [
+				new Selection(1, 1, 1, 5),
+				new Selection(1, 8, 1, 13),
+				new Selection(1, 16, 1, 19)
+			]);
+
+			// cursors to the left of bracket pairs become selections of the entire pair
+			editor.setSelections([
+				new Selection(1, 1, 1, 1),
+				new Selection(1, 6, 1, 6),
+				new Selection(1, 14, 1, 14)
+			]);
+			bracketMatchingController.selectToBracket();
+			assert.deepEqual(editor.getSelections(), [
+				new Selection(1, 1, 1, 5),
+				new Selection(1, 8, 1, 13),
+				new Selection(1, 16, 1, 19)
+			]);
+
+			// cursors just right of a bracket pair become selections of the entire pair
+			editor.setSelections([
+				new Selection(1, 5, 1, 5),
+				new Selection(1, 13, 1, 13),
+				new Selection(1, 19, 1, 19)
+			]);
+			bracketMatchingController.selectToBracket();
+			assert.deepEqual(editor.getSelections(), [
+				new Selection(1, 1, 1, 5),
+				new Selection(1, 8, 1, 13),
+				new Selection(1, 16, 1, 19)
+			]);
+
+			bracketMatchingController.dispose();
+		});
+
+		model.dispose();
+		mode.dispose();
+	});
 });

@@ -81,7 +81,7 @@ export abstract class Parser {
 	}
 
 	protected static merge<T>(destination: T, source: T, overwrite: boolean): void {
-		Object.keys(source).forEach((key: keyof T) => {
+		Object.keys(source).forEach((key: string) => {
 			let destValue = destination[key];
 			let sourceValue = source[key];
 			if (Types.isUndefined(sourceValue)) {

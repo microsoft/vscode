@@ -9,5 +9,6 @@
 	"toggleOutput": "Activer/désactiver la sortie",
 	"clearOutput": "Effacer la sortie",
 	"toggleOutputScrollLock": "Activer/désactiver l'arrêt du défilement de la sortie",
-	"switchToOutput.label": "Passer à la sortie"
+	"switchToOutput.label": "Passer à la sortie",
+	"openInLogViewer": "Ouvrir le fichier de log"
 }

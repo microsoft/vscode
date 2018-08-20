@@ -11,5 +11,6 @@
 	"installAdditionalSCMProviders": "その他の SCM プロバイダーをインストール...",
 	"no open repo": "有効なソース管理プロバイダーがありません。",
 	"source control": "ソース管理",
-	"viewletTitle": "{0}: {1}"
+	"viewletTitle": "{0}: {1}",
+	"hideView": "非表示"
 }

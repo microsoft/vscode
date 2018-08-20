@@ -8,5 +8,6 @@
 	],
 	"extensionHostProcess.startupFailDebug": "O host de extensão não iniciou em 10 segundos, ele pode ser interrompido na primeira linha e precisa de um depurador para continuar.",
 	"extensionHostProcess.startupFail": "Host de extensão não começou em 10 segundos, isso pode ser um problema.",
+	"reloadWindow": "Recarregar Janela",
 	"extensionHostProcess.error": "Erro do host de extensão: {0}"
 }

@@ -13,9 +13,12 @@
 	"vscode.extension.contributes.view.name": "ビューの判読できる名前。表示されます",
 	"vscode.extension.contributes.view.when": "このビューを表示するために満たす必要がある条件",
 	"vscode.extension.contributes.views": "ビューをエディターに提供します",
-	"views.explorer": "エクスプローラー ビュー",
-	"views.debug": "デバッグ ビュー",
-	"locationId.invalid": "`{0}` は有効なビューの場所ではありません",
+	"views.explorer": "アクション バーのエクスプローラー コンテナにビューを提供します",
+	"views.debug": "アクション バーのデバッグ コンテナにビューを提供します",
+	"views.scm": "アクション バーのSCM コンテナにビューを提供します",
+	"views.test": "アクション バーのテスト コンテナにビューを提供します",
+	"views.contributed": "コントリビューション　ビュー コンテナにビューを提供します",
+	"ViewContainerDoesnotExist": "ビュー コンテナ '{0}' が存在しません。このコンテナに登録されているすべてのビューは 'エクスプローラー' に追加されます。",
 	"duplicateView1": "location `{1}` で同じ id `{0}` を使用する複数のビューを登録できません",
 	"duplicateView2": "location `{1}` で id `{0}` のビューが既に登録されています"
 }

@@ -12,6 +12,8 @@ import { registerEditorAction, IActionOptions, EditorAction, ServicesAccessor } 
 import { BlockCommentCommand } from './blockCommentCommand';
 import { LineCommentCommand, Type } from './lineCommentCommand';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
+import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
+import { MenuId } from 'vs/platform/actions/common/actions';
 
 abstract class CommentLineAction extends EditorAction {
 
@@ -28,11 +30,11 @@ abstract class CommentLineAction extends EditorAction {
 			return;
 		}
 
-		var commands: ICommand[] = [];
-		var selections = editor.getSelections();
-		var opts = model.getOptions();
+		let commands: ICommand[] = [];
+		let selections = editor.getSelections();
+		let opts = model.getOptions();
 
-		for (var i = 0; i < selections.length; i++) {
+		for (let i = 0; i < selections.length; i++) {
 			commands.push(new LineCommentCommand(selections[i], opts.tabSize, this._type));
 		}
 
@@ -51,8 +53,15 @@ class ToggleCommentLineAction extends CommentLineAction {
 			alias: 'Toggle Line Comment',
 			precondition: EditorContextKeys.writable,
 			kbOpts: {
-				kbExpr: EditorContextKeys.textFocus,
-				primary: KeyMod.CtrlCmd | KeyCode.US_SLASH
+				kbExpr: EditorContextKeys.editorTextFocus,
+				primary: KeyMod.CtrlCmd | KeyCode.US_SLASH,
+				weight: KeybindingWeight.EditorContrib
+			},
+			menubarOpts: {
+				menuId: MenuId.MenubarEditMenu,
+				group: '5_insert',
+				title: nls.localize({ key: 'miToggleLineComment', comment: ['&& denotes a mnemonic'] }, "&&Toggle Line Comment"),
+				order: 1
 			}
 		});
 	}
@@ -66,8 +75,9 @@ class AddLineCommentAction extends CommentLineAction {
 			alias: 'Add Line Comment',
 			precondition: EditorContextKeys.writable,
 			kbOpts: {
-				kbExpr: EditorContextKeys.textFocus,
-				primary: KeyChord(KeyMod.CtrlCmd | KeyCode.KEY_K, KeyMod.CtrlCmd | KeyCode.KEY_C)
+				kbExpr: EditorContextKeys.editorTextFocus,
+				primary: KeyChord(KeyMod.CtrlCmd | KeyCode.KEY_K, KeyMod.CtrlCmd | KeyCode.KEY_C),
+				weight: KeybindingWeight.EditorContrib
 			}
 		});
 	}
@@ -81,8 +91,9 @@ class RemoveLineCommentAction extends CommentLineAction {
 			alias: 'Remove Line Comment',
 			precondition: EditorContextKeys.writable,
 			kbOpts: {
-				kbExpr: EditorContextKeys.textFocus,
-				primary: KeyChord(KeyMod.CtrlCmd | KeyCode.KEY_K, KeyMod.CtrlCmd | KeyCode.KEY_U)
+				kbExpr: EditorContextKeys.editorTextFocus,
+				primary: KeyChord(KeyMod.CtrlCmd | KeyCode.KEY_K, KeyMod.CtrlCmd | KeyCode.KEY_U),
+				weight: KeybindingWeight.EditorContrib
 			}
 		});
 	}
@@ -97,18 +108,25 @@ class BlockCommentAction extends EditorAction {
 			alias: 'Toggle Block Comment',
 			precondition: EditorContextKeys.writable,
 			kbOpts: {
-				kbExpr: EditorContextKeys.textFocus,
+				kbExpr: EditorContextKeys.editorTextFocus,
 				primary: KeyMod.Shift | KeyMod.Alt | KeyCode.KEY_A,
-				linux: { primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KEY_A }
+				linux: { primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KEY_A },
+				weight: KeybindingWeight.EditorContrib
+			},
+			menubarOpts: {
+				menuId: MenuId.MenubarEditMenu,
+				group: '5_insert',
+				title: nls.localize({ key: 'miToggleBlockComment', comment: ['&& denotes a mnemonic'] }, "Toggle &&Block Comment"),
+				order: 2
 			}
 		});
 	}
 
 	public run(accessor: ServicesAccessor, editor: ICodeEditor): void {
-		var commands: ICommand[] = [];
-		var selections = editor.getSelections();
+		let commands: ICommand[] = [];
+		let selections = editor.getSelections();
 
-		for (var i = 0; i < selections.length; i++) {
+		for (let i = 0; i < selections.length; i++) {
 			commands.push(new BlockCommentCommand(selections[i]));
 		}
 

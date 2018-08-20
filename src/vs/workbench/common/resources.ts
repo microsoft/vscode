@@ -6,11 +6,9 @@
 'use strict';
 
 import URI from 'vs/base/common/uri';
-import paths = require('vs/base/common/paths');
-import { basename } from 'vs/base/common/paths';
+import * as paths from 'vs/base/common/paths';
 import { RawContextKey, IContextKeyService, IContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { IModeService } from 'vs/editor/common/services/modeService';
-import { IFileService } from 'vs/platform/files/common/files';
 
 export class ResourceContextKey implements IContextKey<URI> {
 
@@ -20,7 +18,6 @@ export class ResourceContextKey implements IContextKey<URI> {
 	static Resource = new RawContextKey<URI>('resource', undefined);
 	static Extension = new RawContextKey<string>('resourceExtname', undefined);
 	static HasResource = new RawContextKey<boolean>('resourceSet', false);
-	static IsFile = new RawContextKey<boolean>('resourceIsFile', false);
 
 	private _resourceKey: IContextKey<URI>;
 	private _schemeKey: IContextKey<string>;
@@ -28,12 +25,10 @@ export class ResourceContextKey implements IContextKey<URI> {
 	private _langIdKey: IContextKey<string>;
 	private _extensionKey: IContextKey<string>;
 	private _hasResource: IContextKey<boolean>;
-	private _isFile: IContextKey<boolean>;
 
 	constructor(
 		@IContextKeyService contextKeyService: IContextKeyService,
-		@IModeService private _modeService: IModeService,
-		@IFileService private _fileService: IFileService
+		@IModeService private readonly _modeService: IModeService
 	) {
 		this._schemeKey = ResourceContextKey.Scheme.bindTo(contextKeyService);
 		this._filenameKey = ResourceContextKey.Filename.bindTo(contextKeyService);
@@ -41,17 +36,15 @@ export class ResourceContextKey implements IContextKey<URI> {
 		this._resourceKey = ResourceContextKey.Resource.bindTo(contextKeyService);
 		this._extensionKey = ResourceContextKey.Extension.bindTo(contextKeyService);
 		this._hasResource = ResourceContextKey.HasResource.bindTo(contextKeyService);
-		this._isFile = ResourceContextKey.IsFile.bindTo(contextKeyService);
 	}
 
 	set(value: URI) {
 		this._resourceKey.set(value);
 		this._schemeKey.set(value && value.scheme);
-		this._filenameKey.set(value && basename(value.fsPath));
+		this._filenameKey.set(value && paths.basename(value.fsPath));
 		this._langIdKey.set(value && this._modeService.getModeIdByFilenameOrFirstLine(value.fsPath));
 		this._extensionKey.set(value && paths.extname(value.fsPath));
 		this._hasResource.set(!!value);
-		this._isFile.set(value && this._fileService.canHandleResource(value));
 	}
 
 	reset(): void {
@@ -61,10 +54,9 @@ export class ResourceContextKey implements IContextKey<URI> {
 		this._langIdKey.reset();
 		this._extensionKey.reset();
 		this._hasResource.reset();
-		this._isFile.reset();
 	}
 
-	public get(): URI {
+	get(): URI {
 		return this._resourceKey.get();
 	}
 }

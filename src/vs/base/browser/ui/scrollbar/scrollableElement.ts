@@ -18,7 +18,7 @@ import { Widget } from 'vs/base/browser/ui/widget';
 import { TimeoutTimer } from 'vs/base/common/async';
 import { FastDomNode, createFastDomNode } from 'vs/base/browser/fastDomNode';
 import { ScrollbarHost } from 'vs/base/browser/ui/scrollbar/abstractScrollbar';
-import Event, { Emitter } from 'vs/base/common/event';
+import { Event, Emitter } from 'vs/base/common/event';
 
 const HIDE_TIMEOUT = 500;
 const SCROLL_WHEEL_SENSITIVITY = 50;
@@ -163,8 +163,10 @@ export abstract class AbstractScrollableElement extends Widget {
 	private readonly _hideTimeout: TimeoutTimer;
 	private _shouldRender: boolean;
 
+	private _revealOnScroll: boolean;
+
 	private readonly _onScroll = this._register(new Emitter<ScrollEvent>());
-	public onScroll: Event<ScrollEvent> = this._onScroll.event;
+	public readonly onScroll: Event<ScrollEvent> = this._onScroll.event;
 
 	protected constructor(element: HTMLElement, options: ScrollableElementCreationOptions, scrollable?: Scrollable) {
 		super();
@@ -221,6 +223,8 @@ export abstract class AbstractScrollableElement extends Widget {
 		this._mouseIsOver = false;
 
 		this._shouldRender = true;
+
+		this._revealOnScroll = true;
 	}
 
 	public dispose(): void {
@@ -286,6 +290,10 @@ export abstract class AbstractScrollableElement extends Widget {
 		}
 	}
 
+	public setRevealOnScroll(value: boolean) {
+		this._revealOnScroll = value;
+	}
+
 	// -------------------- mouse wheel scrolling --------------------
 
 	private _setListeningToMouseWheel(shouldListen: boolean): void {
@@ -330,20 +338,10 @@ export abstract class AbstractScrollableElement extends Widget {
 
 			// Convert vertical scrolling to horizontal if shift is held, this
 			// is handled at a higher level on Mac
-			const shiftConvert = !Platform.isMacintosh && e.browserEvent.shiftKey;
+			const shiftConvert = !Platform.isMacintosh && e.browserEvent && e.browserEvent.shiftKey;
 			if ((this._options.scrollYToX || shiftConvert) && !deltaX) {
 				deltaX = deltaY;
 				deltaY = 0;
-			}
-
-			if (Platform.isMacintosh) {
-				// Give preference to vertical scrolling
-				if (deltaY && Math.abs(deltaX) < 0.2) {
-					deltaX = 0;
-				}
-				if (Math.abs(deltaY) > Math.abs(deltaX) * 0.5) {
-					deltaX = 0;
-				}
 			}
 
 			const futureScrollPosition = this._scrollable.getFutureScrollPosition();
@@ -392,7 +390,9 @@ export abstract class AbstractScrollableElement extends Widget {
 			this._shouldRender = true;
 		}
 
-		this._reveal();
+		if (this._revealOnScroll) {
+			this._reveal();
+		}
 
 		if (!this._options.lazyRender) {
 			this._render();

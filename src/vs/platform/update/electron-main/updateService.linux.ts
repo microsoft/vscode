@@ -5,10 +5,11 @@
 
 'use strict';
 
+import product from 'vs/platform/node/product';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { ILifecycleService } from 'vs/platform/lifecycle/electron-main/lifecycleMain';
 import { IRequestService } from 'vs/platform/request/node/request';
-import { State, IUpdate, AvailableForDownload } from 'vs/platform/update/common/update';
+import { State, IUpdate, AvailableForDownload, UpdateType } from 'vs/platform/update/common/update';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { ILogService } from 'vs/platform/log/common/log';
@@ -21,30 +22,27 @@ export class LinuxUpdateService extends AbstractUpdateService {
 
 	_serviceBrand: any;
 
-	private url: string | undefined;
-
 	constructor(
 		@ILifecycleService lifecycleService: ILifecycleService,
 		@IConfigurationService configurationService: IConfigurationService,
 		@ITelemetryService private telemetryService: ITelemetryService,
 		@IEnvironmentService environmentService: IEnvironmentService,
-		@IRequestService private requestService: IRequestService,
+		@IRequestService requestService: IRequestService,
 		@ILogService logService: ILogService
 	) {
-		super(lifecycleService, configurationService, environmentService, logService);
+		super(lifecycleService, configurationService, environmentService, requestService, logService);
 	}
 
-	protected setUpdateFeedUrl(quality: string): boolean {
-		this.url = createUpdateURL(`linux-${process.arch}`, quality);
-		return true;
+	protected buildUpdateFeedUrl(quality: string): string {
+		return createUpdateURL(`linux-${process.arch}`, quality);
 	}
 
-	protected doCheckForUpdates(explicit: boolean): void {
+	protected doCheckForUpdates(context: any): void {
 		if (!this.url) {
 			return;
 		}
 
-		this.setState(State.CheckingForUpdates(explicit));
+		this.setState(State.CheckingForUpdates(context));
 
 		this.requestService.request({ url: this.url })
 			.then<IUpdate>(asJson)
@@ -52,12 +50,12 @@ export class LinuxUpdateService extends AbstractUpdateService {
 				if (!update || !update.url || !update.version || !update.productVersion) {
 					/* __GDPR__
 							"update:notAvailable" : {
-								"explicit" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
+								"explicit" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true }
 							}
 						*/
-					this.telemetryService.publicLog('update:notAvailable', { explicit });
+					this.telemetryService.publicLog('update:notAvailable', { explicit: !!context });
 
-					this.setState(State.Idle);
+					this.setState(State.Idle(UpdateType.Archive));
 				} else {
 					this.setState(State.AvailableForDownload(update));
 				}
@@ -67,18 +65,24 @@ export class LinuxUpdateService extends AbstractUpdateService {
 
 				/* __GDPR__
 					"update:notAvailable" : {
-					"explicit" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
+						"explicit" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true }
 					}
 					*/
-				this.telemetryService.publicLog('update:notAvailable', { explicit });
-				this.setState(State.Idle);
+				this.telemetryService.publicLog('update:notAvailable', { explicit: !!context });
+				this.setState(State.Idle(UpdateType.Archive));
 			});
 	}
 
 	protected doDownloadUpdate(state: AvailableForDownload): TPromise<void> {
-		shell.openExternal(state.update.url);
-		this.setState(State.Idle);
+		// Use the download URL if available as we don't currently detect the package type that was
+		// installed and the website download page is more useful than the tarball generally.
+		if (product.downloadUrl && product.downloadUrl.length > 0) {
+			shell.openExternal(product.downloadUrl);
+		} else {
+			shell.openExternal(state.update.url);
+		}
 
+		this.setState(State.Idle(UpdateType.Archive));
 		return TPromise.as(null);
 	}
 }

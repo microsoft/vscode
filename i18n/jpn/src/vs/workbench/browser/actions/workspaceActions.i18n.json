@@ -15,5 +15,5 @@
 	"saveWorkspace": "ワークスペースを保存",
 	"openWorkspaceAction": "ワークスペースを開く...",
 	"openWorkspaceConfigFile": "ワークスペースの構成ファイルを開く",
-	"openFolderAsWorkspaceInNewWindow": "新しいウィンドウでワークスペースとしてフォルダーを開く"
+	"duplicateWorkspaceInNewWindow": "新しいウィンドウでワークスペースを複製"
 }

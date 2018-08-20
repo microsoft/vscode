@@ -7,15 +7,17 @@
 
 import { TPromise } from 'vs/base/common/winjs.base';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
-import Event from 'vs/base/common/event';
+import { Event, latch, anyEvent } from 'vs/base/common/event';
 import { ITelemetryData } from 'vs/platform/telemetry/common/telemetry';
 import { IProcessEnvironment } from 'vs/base/common/platform';
 import { ParsedArgs } from 'vs/platform/environment/common/environment';
-import { IWorkspaceIdentifier, IWorkspaceFolderCreationData } from 'vs/platform/workspaces/common/workspaces';
+import { IWorkspaceIdentifier, IWorkspaceFolderCreationData, ISingleFolderWorkspaceIdentifier } from 'vs/platform/workspaces/common/workspaces';
 import { IRecentlyOpened } from 'vs/platform/history/common/history';
-import { ICommandAction } from 'vs/platform/actions/common/actions';
-import { PerformanceEntry } from 'vs/base/common/performance';
+import { ISerializableCommandAction } from 'vs/platform/actions/common/actions';
+import { ExportData } from 'vs/base/common/performance';
 import { LogLevel } from 'vs/platform/log/common/log';
+import { IDisposable, dispose } from 'vs/base/common/lifecycle';
+import URI, { UriComponents } from 'vs/base/common/uri';
 
 export const IWindowsService = createDecorator<IWindowsService>('windowsService');
 
@@ -91,6 +93,10 @@ export interface OpenDialogOptions {
 	message?: string;
 }
 
+export interface IDevToolsOptions {
+	mode: 'right' | 'bottom' | 'undocked' | 'detach';
+}
+
 export interface IWindowsService {
 
 	_serviceBrand: any;
@@ -98,6 +104,9 @@ export interface IWindowsService {
 	onWindowOpen: Event<number>;
 	onWindowFocus: Event<number>;
 	onWindowBlur: Event<number>;
+	onWindowMaximize: Event<number>;
+	onWindowUnmaximize: Event<number>;
+	onRecentlyOpenedChange: Event<void>;
 
 	// Dialogs
 	pickFileFolderAndOpen(options: INativeOpenDialogOptions): TPromise<void>;
@@ -108,16 +117,17 @@ export interface IWindowsService {
 	showSaveDialog(windowId: number, options: SaveDialogOptions): TPromise<string>;
 	showOpenDialog(windowId: number, options: OpenDialogOptions): TPromise<string[]>;
 
-	reloadWindow(windowId: number): TPromise<void>;
-	openDevTools(windowId: number): TPromise<void>;
+	reloadWindow(windowId: number, args?: ParsedArgs): TPromise<void>;
+	openDevTools(windowId: number, options?: IDevToolsOptions): TPromise<void>;
 	toggleDevTools(windowId: number): TPromise<void>;
 	closeWorkspace(windowId: number): TPromise<void>;
+	enterWorkspace(windowId: number, path: string): TPromise<IEnterWorkspaceResult>;
 	createAndEnterWorkspace(windowId: number, folders?: IWorkspaceFolderCreationData[], path?: string): TPromise<IEnterWorkspaceResult>;
 	saveAndEnterWorkspace(windowId: number, path: string): TPromise<IEnterWorkspaceResult>;
 	toggleFullScreen(windowId: number): TPromise<void>;
 	setRepresentedFilename(windowId: number, fileName: string): TPromise<void>;
-	addRecentlyOpened(files: string[]): TPromise<void>;
-	removeFromRecentlyOpened(paths: string[]): TPromise<void>;
+	addRecentlyOpened(files: URI[]): TPromise<void>;
+	removeFromRecentlyOpened(paths: (IWorkspaceIdentifier | ISingleFolderWorkspaceIdentifier | URI | string)[]): TPromise<void>;
 	clearRecentlyOpened(): TPromise<void>;
 	getRecentlyOpened(windowId: number): TPromise<IRecentlyOpened>;
 	focusWindow(windowId: number): TPromise<void>;
@@ -126,12 +136,14 @@ export interface IWindowsService {
 	isMaximized(windowId: number): TPromise<boolean>;
 	maximizeWindow(windowId: number): TPromise<void>;
 	unmaximizeWindow(windowId: number): TPromise<void>;
+	minimizeWindow(windowId: number): TPromise<void>;
 	onWindowTitleDoubleClick(windowId: number): TPromise<void>;
 	setDocumentEdited(windowId: number, flag: boolean): TPromise<void>;
 	quit(): TPromise<void>;
 	relaunch(options: { addArgs?: string[], removeArgs?: string[] }): TPromise<void>;
 
 	// macOS Native Tabs
+	newWindowTab(): TPromise<void>;
 	showPreviousWindowTab(): TPromise<void>;
 	showNextWindowTab(): TPromise<void>;
 	moveWindowTabToNewWindow(): TPromise<void>;
@@ -139,20 +151,21 @@ export interface IWindowsService {
 	toggleWindowTabsBar(): TPromise<void>;
 
 	// macOS TouchBar
-	updateTouchBar(windowId: number, items: ICommandAction[][]): TPromise<void>;
+	updateTouchBar(windowId: number, items: ISerializableCommandAction[][]): TPromise<void>;
 
 	// Shared process
 	whenSharedProcessReady(): TPromise<void>;
 	toggleSharedProcess(): TPromise<void>;
 
 	// Global methods
-	openWindow(paths: string[], options?: { forceNewWindow?: boolean, forceReuseWindow?: boolean, forceOpenWorkspaceAsFile?: boolean; }): TPromise<void>;
+	openWindow(windowId: number, paths: URI[], options?: { forceNewWindow?: boolean, forceReuseWindow?: boolean, forceOpenWorkspaceAsFile?: boolean, args?: ParsedArgs }): TPromise<void>;
 	openNewWindow(): TPromise<void>;
 	showWindow(windowId: number): TPromise<void>;
-	getWindows(): TPromise<{ id: number; workspace?: IWorkspaceIdentifier; folderPath?: string; title: string; filename?: string; }[]>;
+	getWindows(): TPromise<{ id: number; workspace?: IWorkspaceIdentifier; folderUri?: ISingleFolderWorkspaceIdentifier; title: string; filename?: string; }[]>;
 	getWindowCount(): TPromise<number>;
 	log(severity: string, ...messages: string[]): TPromise<void>;
 	showItemInFolder(path: string): TPromise<void>;
+	getActiveWindowId(): TPromise<number | undefined>;
 
 	// This needs to be handled from browser process to prevent
 	// foreground ordering issues on Windows
@@ -160,6 +173,8 @@ export interface IWindowsService {
 
 	// TODO: this is a bit backwards
 	startCrashReporter(config: CrashReporterStartOptions): TPromise<void>;
+
+	openAboutDialog(): TPromise<void>;
 }
 
 export const IWindowService = createDecorator<IWindowService>('windowService');
@@ -174,6 +189,7 @@ export interface IWindowService {
 	_serviceBrand: any;
 
 	onDidChangeFocus: Event<boolean>;
+	onDidChangeMaximize: Event<boolean>;
 
 	getConfiguration(): IWindowConfiguration;
 	getCurrentWindowId(): number;
@@ -181,11 +197,12 @@ export interface IWindowService {
 	pickFileAndOpen(options: INativeOpenDialogOptions): TPromise<void>;
 	pickFolderAndOpen(options: INativeOpenDialogOptions): TPromise<void>;
 	pickWorkspaceAndOpen(options: INativeOpenDialogOptions): TPromise<void>;
-	reloadWindow(): TPromise<void>;
-	openDevTools(): TPromise<void>;
+	reloadWindow(args?: ParsedArgs): TPromise<void>;
+	openDevTools(options?: IDevToolsOptions): TPromise<void>;
 	toggleDevTools(): TPromise<void>;
 	closeWorkspace(): TPromise<void>;
-	updateTouchBar(items: ICommandAction[][]): TPromise<void>;
+	updateTouchBar(items: ISerializableCommandAction[][]): TPromise<void>;
+	enterWorkspace(path: string): TPromise<IEnterWorkspaceResult>;
 	createAndEnterWorkspace(folders?: IWorkspaceFolderCreationData[], path?: string): TPromise<IEnterWorkspaceResult>;
 	saveAndEnterWorkspace(path: string): TPromise<IEnterWorkspaceResult>;
 	toggleFullScreen(): TPromise<void>;
@@ -193,8 +210,13 @@ export interface IWindowService {
 	getRecentlyOpened(): TPromise<IRecentlyOpened>;
 	focusWindow(): TPromise<void>;
 	closeWindow(): TPromise<void>;
+	openWindow(paths: URI[], options?: { forceNewWindow?: boolean, forceReuseWindow?: boolean, forceOpenWorkspaceAsFile?: boolean, args?: ParsedArgs }): TPromise<void>;
 	isFocused(): TPromise<boolean>;
 	setDocumentEdited(flag: boolean): TPromise<void>;
+	isMaximized(): TPromise<boolean>;
+	maximizeWindow(): TPromise<void>;
+	unmaximizeWindow(): TPromise<void>;
+	minimizeWindow(): TPromise<void>;
 	onWindowTitleDoubleClick(): TPromise<void>;
 	show(): TPromise<void>;
 	showMessageBox(options: MessageBoxOptions): TPromise<IMessageBoxResult>;
@@ -211,6 +233,7 @@ export interface IWindowsConfiguration {
 export interface IWindowSettings {
 	openFilesInNewWindow: 'on' | 'off' | 'default';
 	openFoldersInNewWindow: 'on' | 'off' | 'default';
+	openWithoutArgumentsInNewWindow: 'on' | 'off';
 	restoreWindows: 'all' | 'folders' | 'one' | 'none';
 	restoreFullscreen: boolean;
 	zoomLevel: number;
@@ -221,6 +244,8 @@ export interface IWindowSettings {
 	nativeTabs: boolean;
 	enableMenuBarMnemonics: boolean;
 	closeWhenEmpty: boolean;
+	smoothScrollingWorkaround: boolean;
+	clickThroughInactive: boolean;
 }
 
 export enum OpenContext {
@@ -267,10 +292,25 @@ export enum ReadyState {
 	READY
 }
 
-export interface IPath {
+export interface IPath extends IPathData {
 
 	// the file path to open within a Code instance
-	filePath?: string;
+	fileUri?: URI;
+}
+
+export interface IPathsToWaitFor extends IPathsToWaitForData {
+	paths: IPath[];
+}
+
+export interface IPathsToWaitForData {
+	paths: IPathData[];
+	waitMarkerFilePath: string;
+}
+
+export interface IPathData {
+
+	// the file path to open within a Code instance
+	fileUri?: UriComponents;
 
 	// the line number in the file path to open
 	lineNumber?: number;
@@ -279,23 +319,19 @@ export interface IPath {
 	columnNumber?: number;
 }
 
-export interface IPathsToWaitFor {
-	paths: IPath[];
-	waitMarkerFilePath: string;
-}
-
 export interface IOpenFileRequest {
-	filesToOpen?: IPath[];
-	filesToCreate?: IPath[];
-	filesToDiff?: IPath[];
-	filesToWait?: IPathsToWaitFor;
+	filesToOpen?: IPathData[];
+	filesToCreate?: IPathData[];
+	filesToDiff?: IPathData[];
+	filesToWait?: IPathsToWaitForData;
+	termProgram?: string;
 }
 
 export interface IAddFoldersRequest {
-	foldersToAdd: IPath[];
+	foldersToAdd: UriComponents[];
 }
 
-export interface IWindowConfiguration extends ParsedArgs, IOpenFileRequest {
+export interface IWindowConfiguration extends ParsedArgs {
 	machineId: string;
 	windowId: number;
 	logLevel: LogLevel;
@@ -310,22 +346,63 @@ export interface IWindowConfiguration extends ParsedArgs, IOpenFileRequest {
 	backupPath?: string;
 
 	workspace?: IWorkspaceIdentifier;
-	folderPath?: string;
+	folderUri?: ISingleFolderWorkspaceIdentifier;
 
 	zoomLevel?: number;
 	fullscreen?: boolean;
+	maximized?: boolean;
 	highContrast?: boolean;
-	baseTheme?: string;
-	backgroundColor?: string;
+	frameless?: boolean;
 	accessibilitySupport?: boolean;
 
-	perfEntries: PerformanceEntry[];
 	perfStartTime?: number;
 	perfAppReady?: number;
 	perfWindowLoadTime?: number;
+	perfEntries: ExportData;
+
+	filesToOpen?: IPath[];
+	filesToCreate?: IPath[];
+	filesToDiff?: IPath[];
+	filesToWait?: IPathsToWaitFor;
+	termProgram?: string;
 }
 
 export interface IRunActionInWindowRequest {
 	id: string;
 	from: 'menu' | 'touchbar' | 'mouse';
+}
+
+export class ActiveWindowManager implements IDisposable {
+
+	private disposables: IDisposable[] = [];
+	private firstActiveWindowIdPromise: TPromise<any> | null;
+	private _activeWindowId: number | undefined;
+
+	constructor(@IWindowsService windowsService: IWindowsService) {
+		const onActiveWindowChange = latch(anyEvent(windowsService.onWindowOpen, windowsService.onWindowFocus));
+		onActiveWindowChange(this.setActiveWindow, this, this.disposables);
+
+		this.firstActiveWindowIdPromise = windowsService.getActiveWindowId()
+			.then(id => (typeof this._activeWindowId === 'undefined') && this.setActiveWindow(id));
+	}
+
+	private setActiveWindow(windowId: number) {
+		if (this.firstActiveWindowIdPromise) {
+			this.firstActiveWindowIdPromise = null;
+		}
+
+		this._activeWindowId = windowId;
+	}
+
+	getActiveClientId(): TPromise<string> {
+		if (this.firstActiveWindowIdPromise) {
+			return this.firstActiveWindowIdPromise;
+		}
+
+		return TPromise.as(`window:${this._activeWindowId}`);
+	}
+
+	dispose() {
+		this.disposables = dispose(this.disposables);
+	}
 }

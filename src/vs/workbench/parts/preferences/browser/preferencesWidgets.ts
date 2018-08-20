@@ -5,19 +5,19 @@
 
 import { localize } from 'vs/nls';
 import URI from 'vs/base/common/uri';
-import { Dimension, $ } from 'vs/base/browser/builder';
+import { $ } from 'vs/base/browser/builder';
 import * as DOM from 'vs/base/browser/dom';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { Disposable, IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { Widget } from 'vs/base/browser/ui/widget';
-import Event, { Emitter } from 'vs/base/common/event';
+import { Event, Emitter } from 'vs/base/common/event';
 import { IKeyboardEvent, StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { KeyCode } from 'vs/base/common/keyCodes';
 import { ICodeEditor, IOverlayWidget, IOverlayWidgetPosition, OverlayWidgetPositionPreference, IViewZone, IEditorMouseEvent, MouseTargetType } from 'vs/editor/browser/editorBrowser';
 import { InputBox, IInputOptions } from 'vs/base/browser/ui/inputbox/inputBox';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IContextViewService, IContextMenuService } from 'vs/platform/contextview/browser/contextView';
-import { ISettingsGroup } from 'vs/workbench/parts/preferences/common/preferences';
+import { ISettingsGroup } from 'vs/workbench/services/preferences/common/preferences';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { IWorkspaceContextService, WorkbenchState, IWorkspaceFolder } from 'vs/platform/workspace/common/workspace';
 import { IAction, Action } from 'vs/base/common/actions';
@@ -25,9 +25,9 @@ import { attachInputBoxStyler, attachStylerCallback } from 'vs/platform/theme/co
 import { IThemeService, registerThemingParticipant, ITheme, ICssStyleCollector } from 'vs/platform/theme/common/themeService';
 import { Position } from 'vs/editor/common/core/position';
 import { ICursorPositionChangedEvent } from 'vs/editor/common/controller/cursorEvents';
-import { buttonBackground, buttonForeground, badgeForeground, badgeBackground, contrastBorder, errorForeground, focusBorder, activeContrastBorder } from 'vs/platform/theme/common/colorRegistry';
+import { buttonBackground, buttonForeground, badgeForeground, badgeBackground, contrastBorder, errorForeground, focusBorder, activeContrastBorder, editorBackground, editorForeground } from 'vs/platform/theme/common/colorRegistry';
 import { IContextKey } from 'vs/platform/contextkey/common/contextkey';
-import { Separator, ActionBar, ActionsOrientation, BaseActionItem } from 'vs/base/browser/ui/actionbar/actionbar';
+import { ActionBar, ActionsOrientation, BaseActionItem } from 'vs/base/browser/ui/actionbar/actionbar';
 import { MarkdownString } from 'vs/base/common/htmlContent';
 import { ConfigurationTarget } from 'vs/platform/configuration/common/configuration';
 import { IMarginData } from 'vs/editor/browser/controller/mouseTarget';
@@ -102,7 +102,7 @@ export class SettingsHeaderWidget extends Widget implements IViewZone {
 export class DefaultSettingsHeaderWidget extends SettingsHeaderWidget {
 
 	private _onClick = this._register(new Emitter<void>());
-	public onClick: Event<void> = this._onClick.event;
+	public readonly onClick: Event<void> = this._onClick.event;
 
 	protected create() {
 		super.create();
@@ -130,7 +130,7 @@ export class SettingsGroupTitleWidget extends Widget implements IViewZone {
 	private title: HTMLElement;
 
 	private _onToggled = this._register(new Emitter<boolean>());
-	public onToggled: Event<boolean> = this._onToggled.event;
+	public readonly onToggled: Event<boolean> = this._onToggled.event;
 
 	private previousPosition: Position;
 
@@ -324,7 +324,7 @@ export class FolderSettingsActionItem extends BaseActionItem {
 		this.labelElement = DOM.$('.action-title');
 		this.detailsElement = DOM.$('.action-details');
 		this.dropDownElement = DOM.$('.dropdown-icon.octicon.octicon-triangle-down.hide');
-		this.anchorElement = DOM.$('a.action-label', {
+		this.anchorElement = DOM.$('a.action-label.folder-settings', {
 			role: 'button',
 			'aria-haspopup': 'true',
 			'tabindex': '0'
@@ -420,7 +420,6 @@ export class FolderSettingsActionItem extends BaseActionItem {
 		const actions: IAction[] = [];
 		const workspaceFolders = this.contextService.getWorkspace().folders;
 		if (this.contextService.getWorkbenchState() === WorkbenchState.WORKSPACE && workspaceFolders.length > 0) {
-			actions.push(new Separator());
 			actions.push(...workspaceFolders.map((folder, index) => {
 				const folderCount = this._folderSettingCounts.get(folder.uri.toString());
 				return <IAction>{
@@ -461,7 +460,7 @@ export class SettingsTargetsWidget extends Widget {
 
 	private _settingsTarget: SettingsTarget;
 
-	private _onDidTargetChange: Emitter<SettingsTarget> = new Emitter<SettingsTarget>();
+	private readonly _onDidTargetChange: Emitter<SettingsTarget> = new Emitter<SettingsTarget>();
 	public readonly onDidTargetChange: Event<SettingsTarget> = this._onDidTargetChange.event;
 
 	constructor(
@@ -562,6 +561,8 @@ export class SettingsTargetsWidget extends Widget {
 export interface SearchOptions extends IInputOptions {
 	focusKey?: IContextKey<boolean>;
 	showResultCount?: boolean;
+	ariaLive?: string;
+	ariaLabelledBy?: string;
 }
 
 export class SearchWidget extends Widget {
@@ -573,10 +574,10 @@ export class SearchWidget extends Widget {
 	private inputBox: InputBox;
 	private controlsDiv: HTMLElement;
 
-	private _onDidChange: Emitter<string> = this._register(new Emitter<string>());
+	private readonly _onDidChange: Emitter<string> = this._register(new Emitter<string>());
 	public readonly onDidChange: Event<string> = this._onDidChange.event;
 
-	private _onFocus: Emitter<void> = this._register(new Emitter<void>());
+	private readonly _onFocus: Emitter<void> = this._register(new Emitter<void>());
 	public readonly onFocus: Event<void> = this._onFocus.event;
 
 	constructor(parent: HTMLElement, protected options: SearchOptions,
@@ -609,7 +610,10 @@ export class SearchWidget extends Widget {
 			}));
 		}
 
-		this.inputBox.inputElement.setAttribute('aria-live', 'assertive');
+		this.inputBox.inputElement.setAttribute('aria-live', this.options.ariaLive || 'off');
+		if (this.options.ariaLabelledBy) {
+			this.inputBox.inputElement.setAttribute('aria-labelledBy', this.options.ariaLabelledBy);
+		}
 		const focusTracker = this._register(DOM.trackFocus(this.inputBox.inputElement));
 		this._register(focusTracker.onDidFocus(() => this._onFocus.fire()));
 
@@ -634,7 +638,8 @@ export class SearchWidget extends Widget {
 	}
 
 	public showMessage(message: string, count: number): void {
-		if (this.countElement) {
+		// Avoid setting the aria-label unnecessarily, the screenreader will read the count every time it's set, since it's aria-live:assertive. #50968
+		if (this.countElement && message !== this.countElement.textContent) {
 			this.countElement.textContent = message;
 			this.inputBox.inputElement.setAttribute('aria-label', message);
 			DOM.toggleClass(this.countElement, 'no-results', count === 0);
@@ -649,7 +654,7 @@ export class SearchWidget extends Widget {
 		this.countElement.style.color = color ? color.toString() : null;
 	}
 
-	public layout(dimension: Dimension) {
+	public layout(dimension: DOM.Dimension) {
 		if (dimension.width < 400) {
 			if (this.countElement) {
 				DOM.addClass(this.countElement, 'hide');
@@ -705,8 +710,8 @@ export class FloatingClickWidget extends Widget implements IOverlayWidget {
 
 	private _domNode: HTMLElement;
 
-	private _onClick: Emitter<void> = this._register(new Emitter<void>());
-	public onClick: Event<void> = this._onClick.event;
+	private readonly _onClick: Emitter<void> = this._register(new Emitter<void>());
+	public readonly onClick: Event<void> = this._onClick.event;
 
 	constructor(
 		private editor: ICodeEditor,
@@ -727,9 +732,14 @@ export class FloatingClickWidget extends Widget implements IOverlayWidget {
 
 	public render() {
 		this._domNode = DOM.$('.floating-click-widget');
-		this._register(attachStylerCallback(this.themeService, { buttonBackground, buttonForeground }, colors => {
-			this._domNode.style.backgroundColor = colors.buttonBackground;
-			this._domNode.style.color = colors.buttonForeground;
+		this._register(attachStylerCallback(this.themeService, { buttonBackground, buttonForeground, editorBackground, editorForeground, contrastBorder }, colors => {
+			this._domNode.style.backgroundColor = colors.buttonBackground ? colors.buttonBackground.toString() : colors.editorBackground.toString();
+			this._domNode.style.color = colors.buttonForeground ? colors.buttonForeground.toString() : colors.editorForeground.toString();
+
+			const borderColor = colors.contrastBorder ? colors.contrastBorder.toString() : null;
+			this._domNode.style.borderWidth = borderColor ? '1px' : null;
+			this._domNode.style.borderStyle = borderColor ? 'solid' : null;
+			this._domNode.style.borderColor = borderColor;
 		}));
 
 		DOM.append(this._domNode, DOM.$('')).textContent = this.label;
@@ -766,7 +776,7 @@ export class EditPreferenceWidget<T> extends Disposable {
 
 	private _editPreferenceDecoration: string[];
 
-	private _onClick: Emitter<IEditorMouseEvent> = new Emitter<IEditorMouseEvent>();
+	private readonly _onClick: Emitter<IEditorMouseEvent> = new Emitter<IEditorMouseEvent>();
 	public get onClick(): Event<IEditorMouseEvent> { return this._onClick.event; }
 
 	constructor(private editor: ICodeEditor
@@ -883,7 +893,7 @@ registerThemingParticipant((theme: ITheme, collector: ICssStyleCollector) => {
 				outline-style: solid;
 				border-bottom: none;
 				padding-bottom: 0;
-				outline-offset: 3px;
+				outline-offset: 2px;
 			}
 
 			.settings-tabs-widget > .monaco-action-bar .action-item .action-label:not(.checked):hover {

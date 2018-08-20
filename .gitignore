@@ -3,9 +3,13 @@ npm-debug.log
 Thumbs.db
 node_modules/
 .build/
+extensions/**/dist/
 out/
 out-build/
 out-editor/
+out-editor-src/
+out-editor-build/
+out-editor-esm/
 out-editor-min/
 out-monaco-editor-core/
 out-vscode/
@@ -13,4 +17,5 @@ out-vscode-min/
 build/node_modules
 coverage/
 test_data/
+test-results/
 yarn-error.log

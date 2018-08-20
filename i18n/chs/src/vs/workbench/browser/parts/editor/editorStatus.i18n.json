@@ -17,7 +17,7 @@
 	"screenReaderDetectedExtra": "如果你没有使用屏幕阅读器，请将设置中的“editor.accessibilitySupport”改为“off”。",
 	"disableTabMode": "禁用辅助功能模式",
 	"gotoLine": "转到行",
-	"indentation": "缩进",
+	"selectIndentation": "选择缩进",
 	"selectEncoding": "选择编码",
 	"selectEOL": "选择行尾序列",
 	"selectLanguageMode": "选择语言模式",

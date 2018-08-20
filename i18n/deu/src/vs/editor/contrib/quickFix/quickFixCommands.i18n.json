@@ -8,5 +8,6 @@
 	],
 	"quickFixWithKb": "Korrekturen anzeigen ({0})",
 	"quickFix": "Korrekturen anzeigen",
-	"quickfix.trigger.label": "Schnelle Problembehebung"
+	"quickfix.trigger.label": "Schnelle Problembehebung",
+	"refactor.label": "Umgestalten"
 }

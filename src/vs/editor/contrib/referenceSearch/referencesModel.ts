@@ -5,8 +5,8 @@
 'use strict';
 
 import { localize } from 'vs/nls';
-import Event, { Emitter } from 'vs/base/common/event';
-import { basename, dirname } from 'vs/base/common/paths';
+import { Event, Emitter } from 'vs/base/common/event';
+import { basename } from 'vs/base/common/paths';
 import { IDisposable, dispose, IReference } from 'vs/base/common/lifecycle';
 import * as strings from 'vs/base/common/strings';
 import URI from 'vs/base/common/uri';
@@ -44,14 +44,6 @@ export class OneReference {
 
 	public get uri(): URI {
 		return this._parent.uri;
-	}
-
-	public get name(): string {
-		return this._parent.name;
-	}
-
-	public get directory(): string {
-		return this._parent.directory;
 	}
 
 	public get range(): IRange {
@@ -133,14 +125,6 @@ export class FileReferences implements IDisposable {
 
 	public get uri(): URI {
 		return this._uri;
-	}
-
-	public get name(): string {
-		return basename(this.uri.fsPath);
-	}
-
-	public get directory(): string {
-		return dirname(this.uri.fsPath);
 	}
 
 	public get preview(): FilePreview {
@@ -253,20 +237,32 @@ export class ReferencesModel implements IDisposable {
 		}
 	}
 
-	public nextReference(reference: OneReference): OneReference {
+	public nextOrPreviousReference(reference: OneReference, next: boolean): OneReference {
 
-		var idx = reference.parent.children.indexOf(reference),
-			len = reference.parent.children.length,
-			totalLength = reference.parent.parent.groups.length;
+		let { parent } = reference;
 
-		if (idx + 1 < len || totalLength === 1) {
-			return reference.parent.children[(idx + 1) % len];
+		let idx = parent.children.indexOf(reference);
+		let childCount = parent.children.length;
+		let groupCount = parent.parent.groups.length;
+
+		if (groupCount === 1 || next && idx + 1 < childCount || !next && idx > 0) {
+			// cycling within one file
+			if (next) {
+				idx = (idx + 1) % childCount;
+			} else {
+				idx = (idx + childCount - 1) % childCount;
+			}
+			return parent.children[idx];
 		}
 
-		idx = reference.parent.parent.groups.indexOf(reference.parent);
-		idx = (idx + 1) % totalLength;
-
-		return reference.parent.parent.groups[idx].children[0];
+		idx = parent.parent.groups.indexOf(parent);
+		if (next) {
+			idx = (idx + 1) % groupCount;
+			return parent.parent.groups[idx].children[0];
+		} else {
+			idx = (idx + groupCount - 1) % groupCount;
+			return parent.parent.groups[idx].children[parent.parent.groups[idx].children.length - 1];
+		}
 	}
 
 	public nearestReference(resource: URI, position: Position): OneReference {

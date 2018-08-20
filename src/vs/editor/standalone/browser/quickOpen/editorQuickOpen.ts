@@ -14,7 +14,7 @@ import { registerEditorContribution, IActionOptions, EditorAction } from 'vs/edi
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { Range } from 'vs/editor/common/core/range';
 import { ModelDecorationOptions } from 'vs/editor/common/model/textModel';
-import { IModelDecorationsChangeAccessor, IModelDeltaDecoration } from 'vs/editor/common/model';
+import { IModelDeltaDecoration } from 'vs/editor/common/model';
 
 export interface IQuickOpenControllerOpts {
 	inputAriaLabel: string;
@@ -100,31 +100,27 @@ export class QuickOpenController implements editorCommon.IEditorContribution, ID
 	});
 
 	public decorateLine(range: Range, editor: ICodeEditor): void {
-		editor.changeDecorations((changeAccessor: IModelDecorationsChangeAccessor) => {
-			const oldDecorations: string[] = [];
-			if (this.rangeHighlightDecorationId) {
-				oldDecorations.push(this.rangeHighlightDecorationId);
-				this.rangeHighlightDecorationId = null;
+		const oldDecorations: string[] = [];
+		if (this.rangeHighlightDecorationId) {
+			oldDecorations.push(this.rangeHighlightDecorationId);
+			this.rangeHighlightDecorationId = null;
+		}
+
+		const newDecorations: IModelDeltaDecoration[] = [
+			{
+				range: range,
+				options: QuickOpenController._RANGE_HIGHLIGHT_DECORATION
 			}
+		];
 
-			const newDecorations: IModelDeltaDecoration[] = [
-				{
-					range: range,
-					options: QuickOpenController._RANGE_HIGHLIGHT_DECORATION
-				}
-			];
-
-			const decorations = changeAccessor.deltaDecorations(oldDecorations, newDecorations);
-			this.rangeHighlightDecorationId = decorations[0];
-		});
+		const decorations = editor.deltaDecorations(oldDecorations, newDecorations);
+		this.rangeHighlightDecorationId = decorations[0];
 	}
 
 	public clearDecorations(): void {
 		if (this.rangeHighlightDecorationId) {
-			this.editor.changeDecorations((changeAccessor: IModelDecorationsChangeAccessor) => {
-				changeAccessor.deltaDecorations([this.rangeHighlightDecorationId], []);
-				this.rangeHighlightDecorationId = null;
-			});
+			this.editor.deltaDecorations([this.rangeHighlightDecorationId], []);
+			this.rangeHighlightDecorationId = null;
 		}
 	}
 }

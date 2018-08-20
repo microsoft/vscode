@@ -11,10 +11,9 @@ import * as arrays from 'vs/base/common/arrays';
 import { WalkThroughInput } from 'vs/workbench/parts/welcome/walkThrough/node/walkThroughInput';
 import { IWorkbenchContribution } from 'vs/workbench/common/contributions';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
-import { Position } from 'vs/platform/editor/common/editor';
+import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { onUnexpectedError, isPromiseCanceledError } from 'vs/base/common/errors';
-import { IWindowService, IWindowsService } from 'vs/platform/windows/common/windows';
+import { IWindowService } from 'vs/platform/windows/common/windows';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { IConfigurationService, ConfigurationTarget } from 'vs/platform/configuration/common/configuration';
@@ -24,9 +23,8 @@ import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { Schemas } from 'vs/base/common/network';
 import { IBackupFileService } from 'vs/workbench/services/backup/common/backup';
-import { IMessageService, Severity, CloseAction } from 'vs/platform/message/common/message';
 import { getInstalledExtensions, IExtensionStatus, onExtensionChanged, isKeymapExtension } from 'vs/workbench/parts/extensions/electron-browser/extensionsUtils';
-import { IExtensionEnablementService, IExtensionManagementService, IExtensionGalleryService, IExtensionTipsService, EnablementState } from 'vs/platform/extensionManagement/common/extensionManagement';
+import { IExtensionEnablementService, IExtensionManagementService, IExtensionGalleryService, IExtensionTipsService, EnablementState, LocalExtensionType } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { used } from 'vs/workbench/parts/welcome/page/electron-browser/vs_code_welcome_page';
 import { ILifecycleService, StartupKind } from 'vs/platform/lifecycle/common/lifecycle';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
@@ -36,9 +34,13 @@ import { registerColor, focusBorder, textLinkForeground, textLinkActiveForegroun
 import { getExtraColor } from 'vs/workbench/parts/welcome/walkThrough/node/walkThroughUtils';
 import { IExtensionsWorkbenchService } from 'vs/workbench/parts/extensions/common/extensions';
 import { IStorageService } from 'vs/platform/storage/common/storage';
-import { IWorkspaceIdentifier, getWorkspaceLabel, ISingleFolderWorkspaceIdentifier, isSingleFolderWorkspaceIdentifier } from 'vs/platform/workspaces/common/workspaces';
+import { IWorkspaceIdentifier, getWorkspaceLabel, ISingleFolderWorkspaceIdentifier, isSingleFolderWorkspaceIdentifier, isWorkspaceIdentifier } from 'vs/platform/workspaces/common/workspaces';
 import { IEditorInputFactory, EditorInput } from 'vs/workbench/common/editor';
 import { getIdAndVersionFromLocalExtensionId } from 'vs/platform/extensionManagement/node/extensionManagementUtil';
+import { INotificationService, Severity } from 'vs/platform/notification/common/notification';
+import { TimeoutTimer } from 'vs/base/common/async';
+import { areSameExtensions } from 'vs/platform/extensionManagement/common/extensionManagementUtil';
+import { IUriLabelService } from 'vs/platform/uriLabel/common/uriLabel';
 
 used();
 
@@ -51,7 +53,7 @@ export class WelcomePageContribution implements IWorkbenchContribution {
 	constructor(
 		@IInstantiationService instantiationService: IInstantiationService,
 		@IConfigurationService configurationService: IConfigurationService,
-		@IWorkbenchEditorService editorService: IWorkbenchEditorService,
+		@IEditorService editorService: IEditorService,
 		@IBackupFileService backupFileService: IBackupFileService,
 		@ITelemetryService telemetryService: ITelemetryService,
 		@ILifecycleService lifecycleService: ILifecycleService,
@@ -60,8 +62,8 @@ export class WelcomePageContribution implements IWorkbenchContribution {
 		const enabled = isWelcomePageEnabled(configurationService);
 		if (enabled && lifecycleService.startupKind !== StartupKind.ReloadedWindow) {
 			backupFileService.hasBackups().then(hasBackups => {
-				const activeInput = editorService.getActiveEditorInput();
-				if (!activeInput && !hasBackups) {
+				const activeEditor = editorService.activeEditor;
+				if (!activeEditor && !hasBackups) {
 					return instantiationService.createInstance(WelcomePage)
 						.openEditor();
 				}
@@ -117,7 +119,7 @@ const extensionPacks: ExtensionSuggestion[] = [
 	// { name: localize('welcomePage.go', "Go"), id: 'lukehoban.go' },
 	{ name: localize('welcomePage.php', "PHP"), id: 'felixfbecker.php-pack' },
 	{ name: localize('welcomePage.azure', "Azure"), title: localize('welcomePage.showAzureExtensions', "Show Azure extensions"), id: 'workbench.extensions.action.showAzureExtensions', isCommand: true },
-	{ name: localize('welcomePage.docker', "Docker"), id: 'PeterJausovec.vscode-docker' },
+	{ name: localize('welcomePage.docker', "Docker"), id: 'peterjausovec.vscode-docker' },
 ];
 
 const keymapExtensions: ExtensionSuggestion[] = [
@@ -151,7 +153,6 @@ interface Strings {
 			"${WelcomePageInstalled-2}",
 			"${WelcomePageInstalled-3}",
 			"${WelcomePageInstalled-4}",
-			"${WelcomePageInstalled-5}",
 			"${WelcomePageInstalled-6}"
 		]
 	}
@@ -188,7 +189,6 @@ const extensionPackStrings: Strings = {
 			"${WelcomePageInstalled-2}",
 			"${WelcomePageInstalled-3}",
 			"${WelcomePageInstalled-4}",
-			"${WelcomePageInstalled-5}",
 			"${WelcomePageInstalled-6}"
 		]
 	}
@@ -220,14 +220,14 @@ class WelcomePage {
 	readonly editorInput: WalkThroughInput;
 
 	constructor(
-		@IWorkbenchEditorService private editorService: IWorkbenchEditorService,
+		@IEditorService private editorService: IEditorService,
 		@IInstantiationService private instantiationService: IInstantiationService,
 		@IWindowService private windowService: IWindowService,
-		@IWindowsService private windowsService: IWindowsService,
 		@IWorkspaceContextService private contextService: IWorkspaceContextService,
 		@IConfigurationService private configurationService: IConfigurationService,
 		@IEnvironmentService private environmentService: IEnvironmentService,
-		@IMessageService private messageService: IMessageService,
+		@IUriLabelService private uriLabelService: IUriLabelService,
+		@INotificationService private notificationService: INotificationService,
 		@IExtensionEnablementService private extensionEnablementService: IExtensionEnablementService,
 		@IExtensionGalleryService private extensionGalleryService: IExtensionGalleryService,
 		@IExtensionManagementService private extensionManagementService: IExtensionManagementService,
@@ -255,10 +255,10 @@ class WelcomePage {
 	}
 
 	public openEditor() {
-		return this.editorService.openEditor(this.editorInput, { pinned: true }, Position.ONE);
+		return this.editorService.openEditor(this.editorInput, { pinned: false });
 	}
 
-	private onReady(container: HTMLElement, recentlyOpened: TPromise<{ files: string[]; workspaces: (IWorkspaceIdentifier | ISingleFolderWorkspaceIdentifier)[]; }>, installedExtensions: TPromise<IExtensionStatus[]>): void {
+	private onReady(container: HTMLElement, recentlyOpened: TPromise<{ files: URI[]; workspaces: (IWorkspaceIdentifier | ISingleFolderWorkspaceIdentifier)[]; }>, installedExtensions: TPromise<IExtensionStatus[]>): void {
 		const enabled = isWelcomePageEnabled(this.configurationService);
 		const showOnStartup = <HTMLInputElement>container.querySelector('#showOnStartup');
 		if (enabled) {
@@ -280,33 +280,40 @@ class WelcomePage {
 			const before = ul.firstElementChild;
 			workspaces.slice(0, 5).forEach(workspace => {
 				let label: string;
-				let parent: string;
-				let wsPath: string;
+				let resource: URI;
 				if (isSingleFolderWorkspaceIdentifier(workspace)) {
-					label = getBaseLabel(workspace);
-					parent = path.dirname(workspace);
-					wsPath = workspace;
+					resource = workspace;
+					label = getWorkspaceLabel(workspace, this.environmentService, this.uriLabelService);
+				} else if (isWorkspaceIdentifier(workspace)) {
+					label = getWorkspaceLabel(workspace, this.environmentService, this.uriLabelService);
+					resource = URI.file(workspace.configPath);
 				} else {
-					label = getWorkspaceLabel(workspace, this.environmentService);
-					parent = path.dirname(workspace.configPath);
-					wsPath = workspace.configPath;
+					label = getBaseLabel(workspace);
+					resource = URI.file(workspace);
 				}
 
 				const li = document.createElement('li');
 
 				const a = document.createElement('a');
 				let name = label;
-				let parentFolder = parent;
-				if (!name && parentFolder) {
-					const tmp = name;
-					name = parentFolder;
-					parentFolder = tmp;
+				let parentFolderPath: string;
+
+				if (resource.scheme === Schemas.file) {
+					let parentFolder = path.dirname(resource.fsPath);
+					if (!name && parentFolder) {
+						const tmp = name;
+						name = parentFolder;
+						parentFolder = tmp;
+					}
+					parentFolderPath = tildify(parentFolder, this.environmentService.userHome);
+				} else {
+					parentFolderPath = this.uriLabelService.getLabel(resource);
 				}
-				const tildifiedParentFolder = tildify(parentFolder, this.environmentService.userHome);
+
 
 				a.innerText = name;
 				a.title = label;
-				a.setAttribute('aria-label', localize('welcomePage.openFolderWithPath', "Open folder {0} with path {1}", name, tildifiedParentFolder));
+				a.setAttribute('aria-label', localize('welcomePage.openFolderWithPath', "Open folder {0} with path {1}", name, parentFolderPath));
 				a.href = 'javascript:void(0)';
 				a.addEventListener('click', e => {
 					/* __GDPR__
@@ -319,7 +326,7 @@ class WelcomePage {
 						id: 'openRecentFolder',
 						from: telemetryFrom
 					});
-					this.windowsService.openWindow([wsPath], { forceNewWindow: e.ctrlKey || e.metaKey });
+					this.windowService.openWindow([resource], { forceNewWindow: e.ctrlKey || e.metaKey });
 					e.preventDefault();
 					e.stopPropagation();
 				});
@@ -328,7 +335,7 @@ class WelcomePage {
 				const span = document.createElement('span');
 				span.classList.add('path');
 				span.classList.add('detail');
-				span.innerText = tildifiedParentFolder;
+				span.innerText = parentFolderPath;
 				span.title = label;
 				li.appendChild(span);
 
@@ -413,37 +420,37 @@ class WelcomePage {
 					extensionId: extensionSuggestion.id,
 					outcome: 'already_enabled',
 				});
-				this.messageService.show(Severity.Info, strings.alreadyInstalled.replace('{0}', extensionSuggestion.name));
+				this.notificationService.info(strings.alreadyInstalled.replace('{0}', extensionSuggestion.name));
 				return;
 			}
-			const foundAndInstalled = installedExtension ? TPromise.as(installedExtension.identifier) : this.extensionGalleryService.query({ names: [extensionSuggestion.id], source: telemetryFrom })
+			const foundAndInstalled = installedExtension ? TPromise.as(installedExtension.local) : this.extensionGalleryService.query({ names: [extensionSuggestion.id], source: telemetryFrom })
 				.then(result => {
 					const [extension] = result.firstPage;
 					if (!extension) {
 						return null;
 					}
 					return this.extensionManagementService.installFromGallery(extension)
-						.then(() => {
+						.then(() => this.extensionManagementService.getInstalled(LocalExtensionType.User))
+						.then(installed => {
+							const local = installed.filter(i => areSameExtensions(extension.identifier, i.galleryIdentifier))[0];
 							// TODO: Do this as part of the install to avoid multiple events.
-							return this.extensionEnablementService.setEnablement(extension.identifier, EnablementState.Disabled);
-						}).then(() => {
-							return extension.identifier;
+							return this.extensionEnablementService.setEnablement(local, EnablementState.Disabled).then(() => local);
 						});
 				});
-			this.messageService.show(Severity.Info, {
-				message: strings.reloadAfterInstall.replace('{0}', extensionSuggestion.name),
-				actions: [
-					new Action('ok', localize('ok', "OK"), null, true, () => {
-						const messageDelay = TPromise.timeout(300);
-						messageDelay.then(() => {
-							this.messageService.show(Severity.Info, {
-								message: strings.installing.replace('{0}', extensionSuggestion.name),
-								actions: [CloseAction]
-							});
-						});
+
+			this.notificationService.prompt(
+				Severity.Info,
+				strings.reloadAfterInstall.replace('{0}', extensionSuggestion.name),
+				[{
+					label: localize('ok', "OK"),
+					run: () => {
+						const messageDelay = new TimeoutTimer();
+						messageDelay.cancelAndSet(() => {
+							this.notificationService.info(strings.installing.replace('{0}', extensionSuggestion.name));
+						}, 300);
 						TPromise.join(extensionSuggestion.isKeymap ? extensions.filter(extension => isKeymapExtension(this.tipsService, extension) && extension.globallyEnabled)
 							.map(extension => {
-								return this.extensionEnablementService.setEnablement(extension.identifier, EnablementState.Disabled);
+								return this.extensionEnablementService.setEnablement(extension.local, EnablementState.Disabled);
 							}) : []).then(() => {
 								return foundAndInstalled.then(foundExtension => {
 									messageDelay.cancel();
@@ -477,7 +484,7 @@ class WelcomePage {
 											extensionId: extensionSuggestion.id,
 											outcome: 'not_found',
 										});
-										this.messageService.show(Severity.Error, strings.extensionNotFound.replace('{0}', extensionSuggestion.name).replace('{1}', extensionSuggestion.id));
+										this.notificationService.error(strings.extensionNotFound.replace('{0}', extensionSuggestion.name).replace('{1}', extensionSuggestion.id));
 										return undefined;
 									}
 								});
@@ -487,7 +494,7 @@ class WelcomePage {
 										"from" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
 										"extensionId": { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
 										"outcome": { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
-										"error": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth" }
+										"error": { "classification": "CallstackOrException", "purpose": "PerformanceAndHealth" }
 									}
 								*/
 								this.telemetryService.publicLog(strings.installedEvent, {
@@ -496,11 +503,12 @@ class WelcomePage {
 									outcome: isPromiseCanceledError(err) ? 'canceled' : 'error',
 									error: String(err),
 								});
-								this.messageService.show(Severity.Error, err);
+								this.notificationService.error(err);
 							});
-						return TPromise.as(true);
-					}),
-					new Action('details', localize('details', "Details"), null, true, () => {
+					}
+				}, {
+					label: localize('details', "Details"),
+					run: () => {
 						/* __GDPR__FRAGMENT__
 							"WelcomePageDetails-1" : {
 								"from" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
@@ -514,32 +522,16 @@ class WelcomePage {
 						this.extensionsWorkbenchService.queryGallery({ names: [extensionSuggestion.id] })
 							.then(result => this.extensionsWorkbenchService.open(result.firstPage[0]))
 							.then(null, onUnexpectedError);
-						return TPromise.as(false);
-					}),
-					new Action('cancel', localize('cancel', "Cancel"), null, true, () => {
-						/* __GDPR__FRAGMENT__
-							"WelcomePageInstalled-5" : {
-								"from" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
-								"extensionId": { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
-								"outcome": { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
-							}
-						*/
-						this.telemetryService.publicLog(strings.installedEvent, {
-							from: telemetryFrom,
-							extensionId: extensionSuggestion.id,
-							outcome: 'user_canceled',
-						});
-						return TPromise.as(true);
-					})
-				]
-			});
+					}
+				}]
+			);
 		}).then(null, err => {
 			/* __GDPR__FRAGMENT__
 				"WelcomePageInstalled-6" : {
 					"from" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
 					"extensionId": { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
 					"outcome": { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
-					"error": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth" }
+					"error": { "classification": "CallstackOrException", "purpose": "PerformanceAndHealth" }
 				}
 			*/
 			this.telemetryService.publicLog(strings.installedEvent, {
@@ -548,7 +540,7 @@ class WelcomePage {
 				outcome: isPromiseCanceledError(err) ? 'canceled' : 'error',
 				error: String(err),
 			});
-			this.messageService.show(Severity.Error, err);
+			this.notificationService.error(err);
 		});
 	}
 
@@ -599,8 +591,8 @@ export class WelcomeInputFactory implements IEditorInputFactory {
 
 // theming
 
-const buttonBackground = registerColor('welcomePage.buttonBackground', { dark: null, light: null, hc: null }, localize('welcomePage.buttonBackground', 'Background color for the buttons on the Welcome page.'));
-const buttonHoverBackground = registerColor('welcomePage.buttonHoverBackground', { dark: null, light: null, hc: null }, localize('welcomePage.buttonHoverBackground', 'Hover background color for the buttons on the Welcome page.'));
+export const buttonBackground = registerColor('welcomePage.buttonBackground', { dark: null, light: null, hc: null }, localize('welcomePage.buttonBackground', 'Background color for the buttons on the Welcome page.'));
+export const buttonHoverBackground = registerColor('welcomePage.buttonHoverBackground', { dark: null, light: null, hc: null }, localize('welcomePage.buttonHoverBackground', 'Hover background color for the buttons on the Welcome page.'));
 
 registerThemingParticipant((theme, collector) => {
 	const foregroundColor = theme.getColor(foreground);

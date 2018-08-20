@@ -8,5 +8,6 @@
 	],
 	"addFolderToWorkspace": "작업 영역에 폴더 추가...",
 	"add": "추가(&&A)",
-	"addFolderToWorkspaceTitle": "작업 영역에 폴더 추가"
+	"addFolderToWorkspaceTitle": "작업 영역에 폴더 추가",
+	"workspaceFolderPickerPlaceholder": "작업 영역 폴더 선택"
 }

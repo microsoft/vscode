@@ -9,7 +9,7 @@
 	"callstackSection": "호출 스택 섹션",
 	"debugStopped": "{0}에서 일시 중지됨",
 	"callStackAriaLabel": "호출 스택 디버그",
-	"process": "프로세스",
+	"session": "세션",
 	"paused": "일시 중지됨",
 	"running": "실행 중",
 	"thread": "스레드",

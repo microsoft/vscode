@@ -4,16 +4,15 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { TPromise } from 'vs/base/common/winjs.base';
-import { Dimension, Builder } from 'vs/base/browser/builder';
 import { IAction, IActionRunner, ActionRunner } from 'vs/base/common/actions';
 import { IActionItem } from 'vs/base/browser/ui/actionbar/actionbar';
 import { Component } from 'vs/workbench/common/component';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { IComposite } from 'vs/workbench/common/composite';
-import { IEditorControl } from 'vs/platform/editor/common/editor';
-import Event, { Emitter } from 'vs/base/common/event';
+import { IComposite, ICompositeControl } from 'vs/workbench/common/composite';
+import { Event, Emitter } from 'vs/base/common/event';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { IConstructorSignature0, IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
+import { trackFocus, Dimension } from 'vs/base/browser/dom';
 
 /**
  * Composites are layed out in the sidebar and panel part of the workbench. At a time only one composite
@@ -26,12 +25,26 @@ import { IConstructorSignature0, IInstantiationService } from 'vs/platform/insta
  * layout and focus call, but only one create and dispose call.
  */
 export abstract class Composite extends Component implements IComposite {
-	private _onTitleAreaUpdate: Emitter<void>;
 
-	private visible: boolean;
-	private parent: Builder;
+	private readonly _onTitleAreaUpdate: Emitter<void> = this._register(new Emitter<void>());
+	get onTitleAreaUpdate(): Event<void> { return this._onTitleAreaUpdate.event; }
+
+	private _onDidFocus: Emitter<void>;
+	get onDidFocus(): Event<void> {
+		if (!this._onDidFocus) {
+			this._onDidFocus = this._register(new Emitter<void>());
+
+			const focusTracker = this._register(trackFocus(this.getContainer()));
+			this._register(focusTracker.onDidFocus(() => this._onDidFocus.fire()));
+		}
+
+		return this._onDidFocus.event;
+	}
 
 	protected actionRunner: IActionRunner;
+
+	private visible: boolean;
+	private parent: HTMLElement;
 
 	/**
 	 * Create a new composite with the given ID and context.
@@ -44,19 +57,14 @@ export abstract class Composite extends Component implements IComposite {
 		super(id, themeService);
 
 		this.visible = false;
-		this._onTitleAreaUpdate = new Emitter<void>();
 	}
 
-	public getTitle(): string {
+	getTitle(): string {
 		return null;
 	}
 
 	protected get telemetryService(): ITelemetryService {
 		return this._telemetryService;
-	}
-
-	public get onTitleAreaUpdate(): Event<void> {
-		return this._onTitleAreaUpdate.event;
 	}
 
 	/**
@@ -68,20 +76,20 @@ export abstract class Composite extends Component implements IComposite {
 	 * Note that DOM-dependent calculations should be performed from the setVisible()
 	 * call. Only then the composite will be part of the DOM.
 	 */
-	public create(parent: Builder): TPromise<void> {
+	create(parent: HTMLElement): TPromise<void> {
 		this.parent = parent;
 
 		return TPromise.as(null);
 	}
 
-	public updateStyles(): void {
+	updateStyles(): void {
 		super.updateStyles();
 	}
 
 	/**
 	 * Returns the container this composite is being build in.
 	 */
-	public getContainer(): Builder {
+	getContainer(): HTMLElement {
 		return this.parent;
 	}
 
@@ -97,7 +105,7 @@ export abstract class Composite extends Component implements IComposite {
 	 * to do a long running operation from this call. Typically this operation should be
 	 * fast though because setVisible might be called many times during a session.
 	 */
-	public setVisible(visible: boolean): TPromise<void> {
+	setVisible(visible: boolean): TPromise<void> {
 		this.visible = visible;
 
 		return TPromise.as(null);
@@ -106,19 +114,19 @@ export abstract class Composite extends Component implements IComposite {
 	/**
 	 * Called when this composite should receive keyboard focus.
 	 */
-	public focus(): void {
+	focus(): void {
 		// Subclasses can implement
 	}
 
 	/**
 	 * Layout the contents of this composite using the provided dimensions.
 	 */
-	public abstract layout(dimension: Dimension): void;
+	abstract layout(dimension: Dimension): void;
 
 	/**
 	 * Returns an array of actions to show in the action bar of the composite.
 	 */
-	public getActions(): IAction[] {
+	getActions(): IAction[] {
 		return [];
 	}
 
@@ -126,14 +134,14 @@ export abstract class Composite extends Component implements IComposite {
 	 * Returns an array of actions to show in the action bar of the composite
 	 * in a less prominent way then action from getActions.
 	 */
-	public getSecondaryActions(): IAction[] {
+	getSecondaryActions(): IAction[] {
 		return [];
 	}
 
 	/**
 	 * Returns an array of actions to show in the context menu of the composite
 	 */
-	public getContextMenuActions(): IAction[] {
+	getContextMenuActions(): IAction[] {
 		return [];
 	}
 
@@ -143,7 +151,7 @@ export abstract class Composite extends Component implements IComposite {
 	 * of an action. Returns null to indicate that the action is not rendered through
 	 * an action item.
 	 */
-	public getActionItem(action: IAction): IActionItem {
+	getActionItem(action: IAction): IActionItem {
 		return null;
 	}
 
@@ -151,7 +159,7 @@ export abstract class Composite extends Component implements IComposite {
 	 * Returns the instance of IActionRunner to use with this composite for the
 	 * composite tool bar.
 	 */
-	public getActionRunner(): IActionRunner {
+	getActionRunner(): IActionRunner {
 		if (!this.actionRunner) {
 			this.actionRunner = new ActionRunner();
 		}
@@ -172,21 +180,15 @@ export abstract class Composite extends Component implements IComposite {
 	/**
 	 * Returns true if this composite is currently visible and false otherwise.
 	 */
-	public isVisible(): boolean {
+	isVisible(): boolean {
 		return this.visible;
 	}
 
 	/**
 	 * Returns the underlying composite control or null if it is not accessible.
 	 */
-	public getControl(): IEditorControl {
+	getControl(): ICompositeControl {
 		return null;
-	}
-
-	public dispose(): void {
-		this._onTitleAreaUpdate.dispose();
-
-		super.dispose();
 	}
 }
 
@@ -194,11 +196,12 @@ export abstract class Composite extends Component implements IComposite {
  * A composite descriptor is a leightweight descriptor of a composite in the workbench.
  */
 export abstract class CompositeDescriptor<T extends Composite> {
-	public id: string;
-	public name: string;
-	public cssClass: string;
-	public order: number;
-	public keybindingId: string;
+	id: string;
+	name: string;
+	cssClass: string;
+	order: number;
+	keybindingId: string;
+	enabled: boolean;
 
 	private ctor: IConstructorSignature0<T>;
 
@@ -208,20 +211,21 @@ export abstract class CompositeDescriptor<T extends Composite> {
 		this.name = name;
 		this.cssClass = cssClass;
 		this.order = order;
+		this.enabled = true;
 		this.keybindingId = keybindingId;
 	}
 
-	public instantiate(instantiationService: IInstantiationService): T {
+	instantiate(instantiationService: IInstantiationService): T {
 		return instantiationService.createInstance(this.ctor);
 	}
 }
 
 export abstract class CompositeRegistry<T extends Composite> {
-	private composites: CompositeDescriptor<T>[];
 
-	constructor() {
-		this.composites = [];
-	}
+	private readonly _onDidRegister: Emitter<CompositeDescriptor<T>> = new Emitter<CompositeDescriptor<T>>();
+	get onDidRegister(): Event<CompositeDescriptor<T>> { return this._onDidRegister.event; }
+
+	private composites: CompositeDescriptor<T>[] = [];
 
 	protected registerComposite(descriptor: CompositeDescriptor<T>): void {
 		if (this.compositeById(descriptor.id) !== null) {
@@ -229,9 +233,10 @@ export abstract class CompositeRegistry<T extends Composite> {
 		}
 
 		this.composites.push(descriptor);
+		this._onDidRegister.fire(descriptor);
 	}
 
-	public getComposite(id: string): CompositeDescriptor<T> {
+	getComposite(id: string): CompositeDescriptor<T> {
 		return this.compositeById(id);
 	}
 

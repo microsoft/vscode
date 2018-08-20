@@ -8,12 +8,14 @@
 	],
 	"openLogsFolder": "Naplómappa megnyitása",
 	"showLogs": "Naplók megjelenítése...",
+	"rendererProcess": "Ablak ({0})",
 	"emptyWindow": "Ablak",
 	"extensionHost": "Kiegészítő gazdafolyamata",
 	"sharedProcess": "Megosztott",
 	"mainProcess": "Elsődleges",
+	"selectProcess": "Válasszon folyamatnaplót!",
 	"openLogFile": "Naplófájl megnyitása...",
-	"setLogLevel": "Naplózási szint beállítása",
+	"setLogLevel": "Naplózási szint beállítása...",
 	"trace": "Nyomkövetés",
 	"debug": "Hibakeresés",
 	"info": "Információ",
@@ -22,5 +24,7 @@
 	"critical": "Kritikus",
 	"off": "Kikapcsolva",
 	"selectLogLevel": "Naplózási szint beállítása",
-	"default": "Alapértelmezett"
+	"default and current": "Alapértelmezett & jelenlegi",
+	"default": "Alapértelmezett",
+	"current": "Aktuális"
 }

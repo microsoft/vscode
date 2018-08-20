@@ -4,16 +4,16 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import nls = require('vs/nls');
+import * as nls from 'vs/nls';
 import * as errors from 'vs/base/common/errors';
-import env = require('vs/base/common/platform');
-import DOM = require('vs/base/browser/dom');
+import * as env from 'vs/base/common/platform';
+import * as DOM from 'vs/base/browser/dom';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { IAction } from 'vs/base/common/actions';
 import { Button } from 'vs/base/browser/ui/button/button';
 import { $, Builder } from 'vs/base/browser/builder';
 import { IActionItem } from 'vs/base/browser/ui/actionbar/actionbar';
-import { IViewletViewOptions, IViewOptions, ViewsViewletPanel } from 'vs/workbench/browser/parts/views/viewsViewlet';
+import { IViewletViewOptions } from 'vs/workbench/browser/parts/views/viewsViewlet';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { OpenFolderAction, OpenFileFolderAction, AddRootFolderAction } from 'vs/workbench/browser/actions/workspaceActions';
 import { attachButtonStyler } from 'vs/platform/theme/common/styler';
@@ -21,10 +21,15 @@ import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 import { IWorkspaceContextService, WorkbenchState } from 'vs/platform/workspace/common/workspace';
+import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
+import { ViewletPanel, IViewletPanelOptions } from 'vs/workbench/browser/parts/views/panelViewlet';
+import { ResourcesDropHandler, DragAndDropObserver } from 'vs/workbench/browser/dnd';
+import { listDropBackground } from 'vs/platform/theme/common/colorRegistry';
+import { SIDE_BAR_BACKGROUND } from 'vs/workbench/common/theme';
 
-export class EmptyView extends ViewsViewletPanel {
+export class EmptyView extends ViewletPanel {
 
-	public static ID: string = 'workbench.explorer.emptyView';
+	public static readonly ID: string = 'workbench.explorer.emptyView';
 	public static readonly NAME = nls.localize('noWorkspace', "No Folder Opened");
 
 	private button: Button;
@@ -37,9 +42,10 @@ export class EmptyView extends ViewsViewletPanel {
 		@IInstantiationService private instantiationService: IInstantiationService,
 		@IKeybindingService keybindingService: IKeybindingService,
 		@IContextMenuService contextMenuService: IContextMenuService,
-		@IWorkspaceContextService private contextService: IWorkspaceContextService
+		@IWorkspaceContextService private contextService: IWorkspaceContextService,
+		@IConfigurationService configurationService: IConfigurationService
 	) {
-		super({ ...(options as IViewOptions), ariaHeaderLabel: nls.localize('explorerSection', "Files Explorer Section") }, keybindingService, contextMenuService);
+		super({ ...(options as IViewletPanelOptions), ariaHeaderLabel: nls.localize('explorerSection', "Files Explorer Section") }, keybindingService, contextMenuService, configurationService);
 		this.contextService.onDidChangeWorkbenchState(() => this.setLabels());
 	}
 
@@ -52,9 +58,9 @@ export class EmptyView extends ViewsViewletPanel {
 
 		this.messageDiv = $('p').appendTo($('div.section').appendTo(container));
 
-		let section = $('div.section').appendTo(container);
+		const section = $('div.section').appendTo(container);
 
-		this.button = new Button(section);
+		this.button = new Button(section.getHTMLElement());
 		attachButtonStyler(this.button, this.themeService);
 
 		this.disposables.push(this.button.onDidClick(() => {
@@ -67,6 +73,27 @@ export class EmptyView extends ViewsViewletPanel {
 				errors.onUnexpectedError(err);
 			});
 		}));
+
+		this.disposables.push(new DragAndDropObserver(container, {
+			onDrop: e => {
+				container.style.backgroundColor = this.themeService.getTheme().getColor(SIDE_BAR_BACKGROUND).toString();
+				const dropHandler = this.instantiationService.createInstance(ResourcesDropHandler, { allowWorkspaceOpen: true });
+				dropHandler.handleDrop(e, () => undefined, targetGroup => undefined);
+			},
+			onDragEnter: (e) => {
+				container.style.backgroundColor = this.themeService.getTheme().getColor(listDropBackground).toString();
+			},
+			onDragEnd: () => {
+				container.style.backgroundColor = this.themeService.getTheme().getColor(SIDE_BAR_BACKGROUND).toString();
+			},
+			onDragLeave: () => {
+				container.style.backgroundColor = this.themeService.getTheme().getColor(SIDE_BAR_BACKGROUND).toString();
+			},
+			onDragOver: e => {
+				e.dataTransfer.dropEffect = 'copy';
+			}
+		}));
+
 		this.setLabels();
 	}
 
@@ -82,16 +109,12 @@ export class EmptyView extends ViewsViewletPanel {
 			if (this.button) {
 				this.button.label = nls.localize('openFolder', "Open Folder");
 			}
-			this.titleDiv.text(this.name);
+			this.titleDiv.text(this.title);
 		}
 	}
 
 	layoutBody(size: number): void {
 		// no-op
-	}
-
-	public create(): TPromise<void> {
-		return TPromise.as(null);
 	}
 
 	public setVisible(visible: boolean): TPromise<void> {
@@ -100,7 +123,7 @@ export class EmptyView extends ViewsViewletPanel {
 
 	public focusBody(): void {
 		if (this.button) {
-			this.button.getElement().focus();
+			this.button.element.focus();
 		}
 	}
 

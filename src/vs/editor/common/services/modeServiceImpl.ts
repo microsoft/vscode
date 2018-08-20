@@ -5,12 +5,13 @@
 'use strict';
 
 import { onUnexpectedError } from 'vs/base/common/errors';
-import Event, { Emitter } from 'vs/base/common/event';
+import { Event, Emitter } from 'vs/base/common/event';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { IMode, LanguageId, LanguageIdentifier } from 'vs/editor/common/modes';
 import { FrankensteinMode } from 'vs/editor/common/modes/abstractMode';
 import { LanguagesRegistry } from 'vs/editor/common/services/languagesRegistry';
 import { IModeService } from 'vs/editor/common/services/modeService';
+import URI from 'vs/base/common/uri';
 
 export class ModeServiceImpl implements IModeService {
 	public _serviceBrand: any;
@@ -87,7 +88,7 @@ export class ModeServiceImpl implements IModeService {
 		return this._registry.getLanguageIdentifier(modeId);
 	}
 
-	public getConfigurationFiles(modeId: string): string[] {
+	public getConfigurationFiles(modeId: string): URI[] {
 		return this._registry.getConfigurationFiles(modeId);
 	}
 

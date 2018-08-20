@@ -4,29 +4,26 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import nls = require('vs/nls');
+import * as nls from 'vs/nls';
 import { TPromise } from 'vs/base/common/winjs.base';
-import { Builder, $ } from 'vs/base/browser/builder';
 import URI from 'vs/base/common/uri';
 import { ThrottledDelayer, Delayer } from 'vs/base/common/async';
-import errors = require('vs/base/common/errors');
-import paths = require('vs/base/common/paths');
-import resources = require('vs/base/common/resources');
-import glob = require('vs/base/common/glob');
+import * as errors from 'vs/base/common/errors';
+import * as paths from 'vs/base/common/paths';
+import * as resources from 'vs/base/common/resources';
+import * as glob from 'vs/base/common/glob';
 import { Action, IAction } from 'vs/base/common/actions';
 import { memoize } from 'vs/base/common/decorators';
-import { IFilesConfiguration, ExplorerFolderContext, FilesExplorerFocusedContext, ExplorerFocusedContext, SortOrderConfiguration, SortOrder, IExplorerView, ExplorerRootContext } from 'vs/workbench/parts/files/common/files';
+import { IFilesConfiguration, ExplorerFolderContext, FilesExplorerFocusedContext, ExplorerFocusedContext, SortOrderConfiguration, SortOrder, IExplorerView, ExplorerRootContext, ExplorerResourceReadonlyContext } from 'vs/workbench/parts/files/common/files';
 import { FileOperation, FileOperationEvent, IResolveFileOptions, FileChangeType, FileChangesEvent, IFileService, FILES_EXCLUDE_CONFIG } from 'vs/platform/files/common/files';
 import { RefreshViewExplorerAction, NewFolderAction, NewFileAction } from 'vs/workbench/parts/files/electron-browser/fileActions';
 import { FileDragAndDrop, FileFilter, FileSorter, FileController, FileRenderer, FileDataSource, FileViewletState, FileAccessibilityProvider } from 'vs/workbench/parts/files/electron-browser/views/explorerViewer';
 import { toResource } from 'vs/workbench/common/editor';
 import { DiffEditorInput } from 'vs/workbench/common/editor/diffEditorInput';
-import { IEditorGroupService } from 'vs/workbench/services/group/common/groupService';
 import * as DOM from 'vs/base/browser/dom';
 import { CollapseAction } from 'vs/workbench/browser/viewlet';
-import { IViewletViewOptions, IViewOptions, TreeViewsViewletPanel, FileIconThemableWorkbenchTree } from 'vs/workbench/browser/parts/views/viewsViewlet';
-import { FileStat, Model } from 'vs/workbench/parts/files/common/explorerModel';
-import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
+import { TreeViewsViewletPanel, FileIconThemableWorkbenchTree, IViewletViewOptions } from 'vs/workbench/browser/parts/views/viewsViewlet';
+import { ExplorerItem, Model } from 'vs/workbench/parts/files/common/explorerModel';
 import { IPartService } from 'vs/workbench/services/part/common/partService';
 import { ExplorerDecorationsProvider } from 'vs/workbench/parts/files/electron-browser/views/explorerDecorationsProvider';
 import { IWorkspaceContextService, WorkbenchState, IWorkspaceFolder } from 'vs/platform/workspace/common/workspace';
@@ -35,13 +32,17 @@ import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IProgressService } from 'vs/platform/progress/common/progress';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
-import { IMessageService, Severity } from 'vs/platform/message/common/message';
 import { IContextKeyService, IContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { ResourceContextKey } from 'vs/workbench/common/resources';
 import { ResourceGlobMatcher } from 'vs/workbench/electron-browser/resources';
 import { isLinux } from 'vs/base/common/platform';
 import { IDecorationsService } from 'vs/workbench/services/decorations/browser/decorations';
 import { WorkbenchTree } from 'vs/platform/list/browser/listService';
+import { DelayedDragHandler } from 'vs/base/browser/dnd';
+import { Schemas } from 'vs/base/common/network';
+import { INotificationService } from 'vs/platform/notification/common/notification';
+import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
+import { IViewletPanelOptions } from 'vs/workbench/browser/parts/views/panelViewlet';
 
 export interface IExplorerViewOptions extends IViewletViewOptions {
 	viewletState: FileViewletState;
@@ -49,7 +50,7 @@ export interface IExplorerViewOptions extends IViewletViewOptions {
 
 export class ExplorerView extends TreeViewsViewletPanel implements IExplorerView {
 
-	public static ID: string = 'workbench.explorer.fileView';
+	public static readonly ID: string = 'workbench.explorer.fileView';
 	private static readonly EXPLORER_FILE_CHANGES_REACT_DELAY = 500; // delay in ms to react to file changes to give our internal events a chance to react first
 	private static readonly EXPLORER_FILE_CHANGES_REFRESH_DELAY = 100; // delay in ms to refresh the explorer from disk file changes
 
@@ -66,6 +67,7 @@ export class ExplorerView extends TreeViewsViewletPanel implements IExplorerView
 
 	private resourceContext: ResourceContextKey;
 	private folderContext: IContextKey<boolean>;
+	private readonlyContext: IContextKey<boolean>;
 	private rootContext: IContextKey<boolean>;
 
 	private fileEventsFilter: ResourceGlobMatcher;
@@ -74,24 +76,27 @@ export class ExplorerView extends TreeViewsViewletPanel implements IExplorerView
 	private autoReveal: boolean;
 	private sortOrder: SortOrder;
 	private settings: object;
+	private treeContainer: HTMLElement;
+	private dragHandler: DelayedDragHandler;
+	private decorationProvider: ExplorerDecorationsProvider;
+	private isDisposed: boolean;
 
 	constructor(
 		options: IExplorerViewOptions,
-		@IMessageService private messageService: IMessageService,
+		@INotificationService private notificationService: INotificationService,
 		@IContextMenuService contextMenuService: IContextMenuService,
 		@IInstantiationService private instantiationService: IInstantiationService,
-		@IEditorGroupService private editorGroupService: IEditorGroupService,
 		@IWorkspaceContextService private contextService: IWorkspaceContextService,
 		@IProgressService private progressService: IProgressService,
-		@IWorkbenchEditorService private editorService: IWorkbenchEditorService,
+		@IEditorService private editorService: IEditorService,
 		@IFileService private fileService: IFileService,
 		@IPartService private partService: IPartService,
 		@IKeybindingService keybindingService: IKeybindingService,
 		@IContextKeyService contextKeyService: IContextKeyService,
-		@IConfigurationService private configurationService: IConfigurationService,
+		@IConfigurationService configurationService: IConfigurationService,
 		@IDecorationsService decorationService: IDecorationsService
 	) {
-		super({ ...(options as IViewOptions), ariaHeaderLabel: nls.localize('explorerSection', "Files Explorer Section") }, keybindingService, contextMenuService);
+		super({ ...(options as IViewletPanelOptions), ariaHeaderLabel: nls.localize('explorerSection', "Files Explorer Section") }, keybindingService, contextMenuService, configurationService);
 
 		this.settings = options.viewletSettings;
 		this.viewletState = options.viewletState;
@@ -101,6 +106,7 @@ export class ExplorerView extends TreeViewsViewletPanel implements IExplorerView
 
 		this.resourceContext = instantiationService.createInstance(ResourceContextKey);
 		this.folderContext = ExplorerFolderContext.bindTo(contextKeyService);
+		this.readonlyContext = ExplorerResourceReadonlyContext.bindTo(contextKeyService);
 		this.rootContext = ExplorerRootContext.bindTo(contextKeyService);
 
 		this.fileEventsFilter = instantiationService.createInstance(
@@ -109,7 +115,9 @@ export class ExplorerView extends TreeViewsViewletPanel implements IExplorerView
 			(event: IConfigurationChangeEvent) => event.affectsConfiguration(FILES_EXCLUDE_CONFIG)
 		);
 
-		decorationService.registerDecorationsProvider(new ExplorerDecorationsProvider(this.model, contextService));
+		this.decorationProvider = new ExplorerDecorationsProvider(this.model, contextService);
+		decorationService.registerDecorationsProvider(this.decorationProvider);
+		this.disposables.push(this.decorationProvider);
 	}
 
 	private getFileEventsExcludes(root?: URI): glob.IExpression {
@@ -121,6 +129,9 @@ export class ExplorerView extends TreeViewsViewletPanel implements IExplorerView
 
 	protected renderHeader(container: HTMLElement): void {
 		super.renderHeader(container);
+
+		// Expand on drag over
+		this.dragHandler = new DelayedDragHandler(container, () => this.setExpanded(true));
 
 		const titleElement = container.querySelector('.title') as HTMLElement;
 		const setHeader = () => {
@@ -150,11 +161,34 @@ export class ExplorerView extends TreeViewsViewletPanel implements IExplorerView
 		// noop
 	}
 
-	public renderBody(container: HTMLElement): void {
-		this.treeContainer = super.renderViewTree(container);
-		DOM.addClass(this.treeContainer, 'explorer-folders-view');
+	public render(): void {
 
-		this.tree = this.createViewer($(this.treeContainer));
+		super.render();
+
+		// Update configuration
+		const configuration = this.configurationService.getValue<IFilesConfiguration>();
+		this.onConfigurationUpdated(configuration);
+
+		// Load and Fill Viewer
+		let targetsToExpand = [];
+		if (this.settings[ExplorerView.MEMENTO_EXPANDED_FOLDER_RESOURCES]) {
+			targetsToExpand = this.settings[ExplorerView.MEMENTO_EXPANDED_FOLDER_RESOURCES].map((e: string) => URI.parse(e));
+		}
+		this.doRefresh(targetsToExpand).then(() => {
+
+			// When the explorer viewer is loaded, listen to changes to the editor input
+			this.disposables.push(this.editorService.onDidActiveEditorChange(() => this.revealActiveFile()));
+
+			// Also handle configuration updates
+			this.disposables.push(this.configurationService.onDidChangeConfiguration(e => this.onConfigurationUpdated(this.configurationService.getValue<IFilesConfiguration>(), e)));
+
+			this.revealActiveFile();
+		});
+	}
+
+	public renderBody(container: HTMLElement): void {
+		this.treeContainer = DOM.append(container, DOM.$('.explorer-folders-view'));
+		this.tree = this.createViewer(this.treeContainer);
 
 		if (this.toolbar) {
 			this.toolbar.setActions(this.getActions(), this.getSecondaryActions())();
@@ -162,6 +196,14 @@ export class ExplorerView extends TreeViewsViewletPanel implements IExplorerView
 
 		this.disposables.push(this.contextService.onDidChangeWorkspaceFolders(e => this.refreshFromEvent(e.added)));
 		this.disposables.push(this.contextService.onDidChangeWorkbenchState(e => this.refreshFromEvent()));
+		this.disposables.push(this.fileService.onDidChangeFileSystemProviderRegistrations(() => this.refreshFromEvent()));
+	}
+
+	layoutBody(size: number): void {
+		if (this.treeContainer) {
+			this.treeContainer.style.height = size + 'px';
+		}
+		super.layoutBody(size);
 	}
 
 	public getActions(): IAction[] {
@@ -173,29 +215,6 @@ export class ExplorerView extends TreeViewsViewletPanel implements IExplorerView
 		actions.push(this.instantiationService.createInstance(CollapseAction, this.getViewer(), true, 'explorer-action collapse-explorer'));
 
 		return actions;
-	}
-
-	public create(): TPromise<void> {
-
-		// Update configuration
-		const configuration = this.configurationService.getValue<IFilesConfiguration>();
-		this.onConfigurationUpdated(configuration);
-
-		// Load and Fill Viewer
-		let targetsToExpand = [];
-		if (this.settings[ExplorerView.MEMENTO_EXPANDED_FOLDER_RESOURCES]) {
-			targetsToExpand = this.settings[ExplorerView.MEMENTO_EXPANDED_FOLDER_RESOURCES].map((e: string) => URI.parse(e));
-		}
-		return this.doRefresh(targetsToExpand).then(() => {
-
-			// When the explorer viewer is loaded, listen to changes to the editor input
-			this.disposables.push(this.editorGroupService.onEditorsChanged(() => this.revealActiveFile()));
-
-			// Also handle configuration updates
-			this.disposables.push(this.configurationService.onDidChangeConfiguration(e => this.onConfigurationUpdated(this.configurationService.getValue<IFilesConfiguration>(), e)));
-
-			this.revealActiveFile();
-		});
 	}
 
 	private revealActiveFile(): void {
@@ -214,7 +233,7 @@ export class ExplorerView extends TreeViewsViewletPanel implements IExplorerView
 			this.settings[ExplorerView.MEMENTO_LAST_ACTIVE_FILE_RESOURCE] = activeFile.toString();
 
 			// Select file if input is inside workspace
-			if (this.isVisible() && this.contextService.isInsideWorkspace(activeFile)) {
+			if (this.isVisible() && !this.isDisposed && this.contextService.isInsideWorkspace(activeFile)) {
 				const selection = this.hasSingleSelection(activeFile);
 				if (!selection) {
 					this.select(activeFile).done(null, errors.onUnexpectedError);
@@ -225,8 +244,8 @@ export class ExplorerView extends TreeViewsViewletPanel implements IExplorerView
 		}
 
 		// Handle closed or untitled file (convince explorer to not reopen any file when getting visible)
-		const activeInput = this.editorService.getActiveEditorInput();
-		if (!activeInput || toResource(activeInput, { supportSideBySide: true, filter: 'untitled' })) {
+		const activeInput = this.editorService.activeEditor;
+		if (!activeInput || toResource(activeInput, { supportSideBySide: true, filter: Schemas.untitled })) {
 			this.settings[ExplorerView.MEMENTO_LAST_ACTIVE_FILE_RESOURCE] = void 0;
 			clearFocus = true;
 		}
@@ -286,7 +305,7 @@ export class ExplorerView extends TreeViewsViewletPanel implements IExplorerView
 			}
 
 			// Pass Focus to Viewer
-			this.explorerViewer.DOMFocus();
+			this.explorerViewer.domFocus();
 			keepFocus = true;
 		}
 
@@ -335,7 +354,7 @@ export class ExplorerView extends TreeViewsViewletPanel implements IExplorerView
 				}
 
 				if (lastActiveFileResource && this.isCreated && this.model.findClosest(lastActiveFileResource)) {
-					this.editorService.openEditor({ resource: lastActiveFileResource, options: { revealIfVisible: true } }).done(null, errors.onUnexpectedError);
+					this.editorService.openEditor({ resource: lastActiveFileResource, options: { revealIfVisible: true } });
 
 					return refreshPromise;
 				}
@@ -351,14 +370,14 @@ export class ExplorerView extends TreeViewsViewletPanel implements IExplorerView
 	}
 
 	private openFocusedElement(preserveFocus?: boolean): void {
-		const stat: FileStat = this.explorerViewer.getFocus();
+		const stat: ExplorerItem = this.explorerViewer.getFocus();
 		if (stat && !stat.isDirectory) {
-			this.editorService.openEditor({ resource: stat.resource, options: { preserveFocus, revealIfVisible: true } }).done(null, errors.onUnexpectedError);
+			this.editorService.openEditor({ resource: stat.resource, options: { preserveFocus, revealIfVisible: true } });
 		}
 	}
 
 	private getActiveFile(): URI {
-		const input = this.editorService.getActiveEditorInput();
+		const input = this.editorService.activeEditor;
 
 		// ignore diff editor inputs (helps to get out of diffing when returning to explorer)
 		if (input instanceof DiffEditorInput) {
@@ -381,7 +400,7 @@ export class ExplorerView extends TreeViewsViewletPanel implements IExplorerView
 		return model;
 	}
 
-	public createViewer(container: Builder): WorkbenchTree {
+	private createViewer(container: HTMLElement): WorkbenchTree {
 		const dataSource = this.instantiationService.createInstance(FileDataSource);
 		const renderer = this.instantiationService.createInstance(FileRenderer, this.viewletState);
 		const controller = this.instantiationService.createInstance(FileController);
@@ -393,7 +412,7 @@ export class ExplorerView extends TreeViewsViewletPanel implements IExplorerView
 		const dnd = this.instantiationService.createInstance(FileDragAndDrop);
 		const accessibilityProvider = this.instantiationService.createInstance(FileAccessibilityProvider);
 
-		this.explorerViewer = this.instantiationService.createInstance(FileIconThemableWorkbenchTree, container.getHTMLElement(), {
+		this.explorerViewer = this.instantiationService.createInstance(FileIconThemableWorkbenchTree, container, {
 			dataSource,
 			renderer,
 			controller,
@@ -415,11 +434,12 @@ export class ExplorerView extends TreeViewsViewletPanel implements IExplorerView
 		this.disposables.push(this.fileService.onFileChanges(e => this.onFileChanges(e)));
 
 		// Update resource context based on focused element
-		this.disposables.push(this.explorerViewer.onDidChangeFocus((e: { focus: FileStat }) => {
+		this.disposables.push(this.explorerViewer.onDidChangeFocus((e: { focus: ExplorerItem }) => {
 			const isSingleFolder = this.contextService.getWorkbenchState() === WorkbenchState.FOLDER;
 			const resource = e.focus ? e.focus.resource : isSingleFolder ? this.contextService.getWorkspace().folders[0].uri : undefined;
 			this.resourceContext.set(resource);
 			this.folderContext.set((isSingleFolder && !e.focus) || e.focus && e.focus.isDirectory);
+			this.readonlyContext.set(e.focus && e.focus.isReadonly);
 			this.rootContext.set(!e.focus || (e.focus && e.focus.isRoot));
 		}));
 
@@ -428,7 +448,7 @@ export class ExplorerView extends TreeViewsViewletPanel implements IExplorerView
 			if (event && event.payload && event.payload.origin === 'keyboard') {
 				const element = this.tree.getSelection();
 
-				if (Array.isArray(element) && element[0] instanceof FileStat) {
+				if (Array.isArray(element) && element[0] instanceof ExplorerItem) {
 					if (element[0].isDirectory) {
 						this.explorerViewer.toggleExpansion(element[0]);
 					}
@@ -439,6 +459,10 @@ export class ExplorerView extends TreeViewsViewletPanel implements IExplorerView
 		}));
 
 		return this.explorerViewer;
+	}
+
+	getViewer(): WorkbenchTree {
+		return this.tree;
 	}
 
 	public getOptimalWidth(): number {
@@ -454,7 +478,7 @@ export class ExplorerView extends TreeViewsViewletPanel implements IExplorerView
 		}
 
 		// Add
-		if (e.operation === FileOperation.CREATE || e.operation === FileOperation.IMPORT || e.operation === FileOperation.COPY) {
+		if (e.operation === FileOperation.CREATE || e.operation === FileOperation.COPY) {
 			const addedElement = e.target;
 			const parentResource = resources.dirname(addedElement.resource);
 			const parents = this.model.findAll(parentResource);
@@ -466,11 +490,11 @@ export class ExplorerView extends TreeViewsViewletPanel implements IExplorerView
 					// We have to check if the parent is resolved #29177
 					(p.isDirectoryResolved ? TPromise.as(null) : this.fileService.resolveFile(p.resource)).then(stat => {
 						if (stat) {
-							const modelStat = FileStat.create(stat, p.root);
-							FileStat.mergeLocalWithDisk(modelStat, p);
+							const modelStat = ExplorerItem.create(stat, p.root);
+							ExplorerItem.mergeLocalWithDisk(modelStat, p);
 						}
 
-						const childElement = FileStat.create(addedElement, p.root);
+						const childElement = ExplorerItem.create(addedElement, p.root);
 						p.removeChild(childElement); // make sure to remove any previous version of the file if any
 						p.addChild(childElement);
 						// Refresh the Parent (View)
@@ -496,15 +520,18 @@ export class ExplorerView extends TreeViewsViewletPanel implements IExplorerView
 
 			// Only update focus if renamed/moved element is selected
 			let restoreFocus = false;
-			const focus: FileStat = this.explorerViewer.getFocus();
+			const focus: ExplorerItem = this.explorerViewer.getFocus();
 			if (focus && focus.resource && focus.resource.toString() === oldResource.toString()) {
 				restoreFocus = true;
 			}
 
+			let isExpanded = false;
 			// Handle Rename
 			if (oldParentResource && newParentResource && oldParentResource.toString() === newParentResource.toString()) {
 				const modelElements = this.model.findAll(oldResource);
 				modelElements.forEach(modelElement => {
+					//Check if element is expanded
+					isExpanded = this.explorerViewer.isExpanded(modelElement);
 					// Rename File (Model)
 					modelElement.rename(newElement);
 
@@ -514,6 +541,10 @@ export class ExplorerView extends TreeViewsViewletPanel implements IExplorerView
 						// Select in Viewer if set
 						if (restoreFocus) {
 							this.explorerViewer.setFocus(modelElement);
+						}
+						//Expand the element again
+						if (isExpanded) {
+							this.explorerViewer.expand(modelElement);
 						}
 					}, errors.onUnexpectedError);
 				});
@@ -556,7 +587,7 @@ export class ExplorerView extends TreeViewsViewletPanel implements IExplorerView
 
 						// Ensure viewer has keyboard focus if event originates from viewer
 						if (restoreFocus) {
-							this.explorerViewer.DOMFocus();
+							this.explorerViewer.domFocus();
 						}
 					}, errors.onUnexpectedError);
 				}
@@ -587,24 +618,21 @@ export class ExplorerView extends TreeViewsViewletPanel implements IExplorerView
 	}
 
 	private shouldRefreshFromEvent(e: FileChangesEvent): boolean {
-
-		// Filter to the ones we care
-		e = this.filterFileEvents(e);
-
 		if (!this.isCreated) {
 			return false;
 		}
 
-		if (e.gotAdded()) {
-			const added = e.getAdded();
+		// Filter to the ones we care
+		e = this.filterToViewRelevantEvents(e);
+
+		// Handle added files/folders
+		const added = e.getAdded();
+		if (added.length) {
 
 			// Check added: Refresh if added file/folder is not part of resolved root and parent is part of it
 			const ignoredPaths: { [resource: string]: boolean } = <{ [resource: string]: boolean }>{};
 			for (let i = 0; i < added.length; i++) {
 				const change = added[i];
-				if (!this.contextService.isInsideWorkspace(change.resource)) {
-					continue; // out of workspace file
-				}
 
 				// Find parent
 				const parent = resources.dirname(change.resource);
@@ -627,15 +655,13 @@ export class ExplorerView extends TreeViewsViewletPanel implements IExplorerView
 			}
 		}
 
-		if (e.gotDeleted()) {
-			const deleted = e.getDeleted();
+		// Handle deleted files/folders
+		const deleted = e.getDeleted();
+		if (deleted.length) {
 
 			// Check deleted: Refresh if deleted file/folder part of resolved root
 			for (let j = 0; j < deleted.length; j++) {
 				const del = deleted[j];
-				if (!this.contextService.isInsideWorkspace(del.resource)) {
-					continue; // out of workspace file
-				}
 
 				if (this.model.findClosest(del.resource)) {
 					return true;
@@ -643,15 +669,13 @@ export class ExplorerView extends TreeViewsViewletPanel implements IExplorerView
 			}
 		}
 
-		if (this.sortOrder === SortOrderConfiguration.MODIFIED && e.gotUpdated()) {
+		// Handle updated files/folders if we sort by modified
+		if (this.sortOrder === SortOrderConfiguration.MODIFIED) {
 			const updated = e.getUpdated();
 
 			// Check updated: Refresh if updated file/folder part of resolved root
 			for (let j = 0; j < updated.length; j++) {
 				const upd = updated[j];
-				if (!this.contextService.isInsideWorkspace(upd.resource)) {
-					continue; // out of workspace file
-				}
 
 				if (this.model.findClosest(upd.resource)) {
 					return true;
@@ -662,8 +686,12 @@ export class ExplorerView extends TreeViewsViewletPanel implements IExplorerView
 		return false;
 	}
 
-	private filterFileEvents(e: FileChangesEvent): FileChangesEvent {
+	private filterToViewRelevantEvents(e: FileChangesEvent): FileChangesEvent {
 		return new FileChangesEvent(e.changes.filter(change => {
+			if (change.type === FileChangeType.UPDATED && this.sortOrder !== SortOrderConfiguration.MODIFIED) {
+				return false; // we only are about updated if we sort by modified time
+			}
+
 			if (!this.contextService.isInsideWorkspace(change.resource)) {
 				return false; // exclude changes for resources outside of workspace
 			}
@@ -677,7 +705,7 @@ export class ExplorerView extends TreeViewsViewletPanel implements IExplorerView
 	}
 
 	private refreshFromEvent(newRoots: IWorkspaceFolder[] = []): void {
-		if (this.isVisible()) {
+		if (this.isVisible() && !this.isDisposed) {
 			this.explorerRefreshDelayer.trigger(() => {
 				if (!this.explorerViewer.getHighlight()) {
 					return this.doRefresh(newRoots.map(r => r.uri)).then(() => {
@@ -705,7 +733,7 @@ export class ExplorerView extends TreeViewsViewletPanel implements IExplorerView
 		}
 
 		// Focus
-		this.explorerViewer.DOMFocus();
+		this.explorerViewer.domFocus();
 
 		// Find resource to focus from active editor input if set
 		let resourceToFocus: URI;
@@ -714,7 +742,7 @@ export class ExplorerView extends TreeViewsViewletPanel implements IExplorerView
 			if (!resourceToFocus) {
 				const selection = this.explorerViewer.getSelection();
 				if (selection && selection.length === 1) {
-					resourceToFocus = (<FileStat>selection[0]).resource;
+					resourceToFocus = (<ExplorerItem>selection[0]).resource;
 				}
 			}
 		}
@@ -758,25 +786,28 @@ export class ExplorerView extends TreeViewsViewletPanel implements IExplorerView
 			});
 		}
 
-		const promise = this.resolveRoots(targetsToResolve, targetsToExpand);
+		const promise = this.resolveRoots(targetsToResolve, targetsToExpand).then(result => {
+			this.decorationProvider.changed(targetsToResolve.map(t => t.root.resource));
+			return result;
+		});
 		this.progressService.showWhile(promise, this.partService.isCreated() ? 800 : 3200 /* less ugly initial startup */);
 
 		return promise;
 	}
 
-	private resolveRoots(targetsToResolve: { root: FileStat, resource: URI, options: { resolveTo: any[] } }[], targetsToExpand: URI[]): TPromise<any> {
+	private resolveRoots(targetsToResolve: { root: ExplorerItem, resource: URI, options: { resolveTo: any[] } }[], targetsToExpand: URI[]): TPromise<any> {
 
 		// Display roots only when multi folder workspace
 		const input = this.contextService.getWorkbenchState() === WorkbenchState.FOLDER ? this.model.roots[0] : this.model;
-		const errorFileStat = (resource: URI, root: FileStat) => FileStat.create({
+		const errorFileStat = (resource: URI, root: ExplorerItem) => ExplorerItem.create({
 			resource: resource,
 			name: paths.basename(resource.fsPath),
 			mtime: 0,
 			etag: undefined,
 			isDirectory: true
-		}, root);
+		}, root, undefined, true);
 
-		const setInputAndExpand = (input: FileStat | Model, statsToExpand: FileStat[]) => {
+		const setInputAndExpand = (input: ExplorerItem | Model, statsToExpand: ExplorerItem[]) => {
 			// Make sure to expand all folders that where expanded in the previous session
 			// Special case: we are switching to multi workspace view, thus expand all the roots (they might just be added)
 			if (input === this.model && statsToExpand.every(fs => fs && !fs.isRoot)) {
@@ -791,8 +822,8 @@ export class ExplorerView extends TreeViewsViewletPanel implements IExplorerView
 			return this.fileService.resolveFiles(targetsToResolve).then(results => {
 				// Convert to model
 				const modelStats = results.map((result, index) => {
-					if (result.success) {
-						return FileStat.create(result.stat, targetsToResolve[index].root, targetsToResolve[index].options.resolveTo);
+					if (result.success && result.stat.isDirectory) {
+						return ExplorerItem.create(result.stat, targetsToResolve[index].root, targetsToResolve[index].options.resolveTo);
 					}
 
 					return errorFileStat(targetsToResolve[index].resource, targetsToResolve[index].root);
@@ -800,11 +831,11 @@ export class ExplorerView extends TreeViewsViewletPanel implements IExplorerView
 				// Subsequent refresh: Merge stat into our local model and refresh tree
 				modelStats.forEach((modelStat, index) => {
 					if (index < this.model.roots.length) {
-						FileStat.mergeLocalWithDisk(modelStat, this.model.roots[index]);
+						ExplorerItem.mergeLocalWithDisk(modelStat, this.model.roots[index]);
 					}
 				});
 
-				const statsToExpand: FileStat[] = this.explorerViewer.getExpandedElements().concat(targetsToExpand.map(expand => this.model.findClosest(expand)));
+				const statsToExpand: ExplorerItem[] = this.explorerViewer.getExpandedElements().concat(targetsToExpand.map(expand => this.model.findClosest(expand)));
 				if (input === this.explorerViewer.getInput()) {
 					return this.explorerViewer.refresh().then(() => this.explorerViewer.expandAll(statsToExpand));
 				}
@@ -814,18 +845,18 @@ export class ExplorerView extends TreeViewsViewletPanel implements IExplorerView
 		}
 
 		// There is a remote root, resolve the roots sequantally
-		let statsToExpand: FileStat[] = [];
+		let statsToExpand: ExplorerItem[] = [];
 		let delayer = new Delayer(100);
 		let delayerPromise: TPromise;
 		return TPromise.join(targetsToResolve.map((target, index) => this.fileService.resolveFile(target.resource, target.options)
-			.then(result => FileStat.create(result, target.root, target.options.resolveTo), err => errorFileStat(target.resource, target.root))
+			.then(result => result.isDirectory ? ExplorerItem.create(result, target.root, target.options.resolveTo) : errorFileStat(target.resource, target.root), () => errorFileStat(target.resource, target.root))
 			.then(modelStat => {
 				// Subsequent refresh: Merge stat into our local model and refresh tree
 				if (index < this.model.roots.length) {
-					FileStat.mergeLocalWithDisk(modelStat, this.model.roots[index]);
+					ExplorerItem.mergeLocalWithDisk(modelStat, this.model.roots[index]);
 				}
 
-				let toExpand: FileStat[] = this.explorerViewer.getExpandedElements().concat(targetsToExpand.map(target => this.model.findClosest(target)));
+				let toExpand: ExplorerItem[] = this.explorerViewer.getExpandedElements().concat(targetsToExpand.map(target => this.model.findClosest(target)));
 				if (input === this.explorerViewer.getInput()) {
 					statsToExpand = statsToExpand.concat(toExpand);
 					if (!delayer.isTriggered()) {
@@ -845,7 +876,7 @@ export class ExplorerView extends TreeViewsViewletPanel implements IExplorerView
 	/**
 	 * Given a stat, fills an array of path that make all folders below the stat that are resolved directories.
 	 */
-	private getResolvedDirectories(stat: FileStat, resolvedDirectories: URI[]): void {
+	private getResolvedDirectories(stat: ExplorerItem, resolvedDirectories: URI[]): void {
 		if (stat.isDirectoryResolved) {
 			if (!stat.isRoot) {
 
@@ -862,10 +893,9 @@ export class ExplorerView extends TreeViewsViewletPanel implements IExplorerView
 			}
 
 			// Recurse into children
-			for (let i = 0; i < stat.children.length; i++) {
-				const child = stat.children[i];
+			stat.getChildrenArray().forEach(child => {
 				this.getResolvedDirectories(child, resolvedDirectories);
-			}
+			});
 		}
 	}
 
@@ -904,24 +934,24 @@ export class ExplorerView extends TreeViewsViewletPanel implements IExplorerView
 
 			// Convert to model
 			const root = this.model.roots.filter(r => r.resource.toString() === rootUri.toString()).pop();
-			const modelStat = FileStat.create(stat, root, options.resolveTo);
+			const modelStat = ExplorerItem.create(stat, root, options.resolveTo);
 			// Update Input with disk Stat
-			FileStat.mergeLocalWithDisk(modelStat, root);
+			ExplorerItem.mergeLocalWithDisk(modelStat, root);
 
 			// Select and Reveal
 			return this.explorerViewer.refresh(root).then(() => this.doSelect(root.find(resource), reveal));
 
-		}, e => { this.messageService.show(Severity.Error, e); });
+		}, e => { this.notificationService.error(e); });
 	}
 
-	private hasSingleSelection(resource: URI): FileStat {
-		const currentSelection: FileStat[] = this.explorerViewer.getSelection();
+	private hasSingleSelection(resource: URI): ExplorerItem {
+		const currentSelection: ExplorerItem[] = this.explorerViewer.getSelection();
 		return currentSelection.length === 1 && currentSelection[0].resource.toString() === resource.toString()
 			? currentSelection[0]
 			: undefined;
 	}
 
-	private doSelect(fileStat: FileStat, reveal: boolean): TPromise<void> {
+	private doSelect(fileStat: ExplorerItem, reveal: boolean): TPromise<void> {
 		if (!fileStat) {
 			return TPromise.as(null);
 		}
@@ -952,13 +982,20 @@ export class ExplorerView extends TreeViewsViewletPanel implements IExplorerView
 		});
 	}
 
+	private reveal(element: any, relativeTop?: number): TPromise<void> {
+		if (!this.tree) {
+			return TPromise.as(null); // return early if viewlet has not yet been created
+		}
+		return this.tree.reveal(element, relativeTop);
+	}
+
 	public shutdown(): void {
 
 		// Keep list of expanded folders to restore on next load
 		if (this.isCreated) {
 			const expanded = this.explorerViewer.getExpandedElements()
-				.filter(e => e instanceof FileStat)
-				.map((e: FileStat) => e.resource.toString());
+				.filter(e => e instanceof ExplorerItem)
+				.map((e: ExplorerItem) => e.resource.toString());
 
 			if (expanded.length) {
 				this.settings[ExplorerView.MEMENTO_EXPANDED_FOLDER_RESOURCES] = expanded;
@@ -973,5 +1010,13 @@ export class ExplorerView extends TreeViewsViewletPanel implements IExplorerView
 		}
 
 		super.shutdown();
+	}
+
+	dispose(): void {
+		this.isDisposed = true;
+		if (this.dragHandler) {
+			this.dragHandler.dispose();
+		}
+		super.dispose();
 	}
 }

@@ -3,16 +3,15 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { SpectronApplication } from '../../spectron/application';
+'use strict';
+
+import { Code } from '../../vscode/code';
 
 export abstract class Viewlet {
 
-	constructor(protected spectron: SpectronApplication) {
-		// noop
-	}
+	constructor(protected code: Code) { }
 
-	public async getTitle(): Promise<string> {
-		return this.spectron.client.waitForText('.monaco-workbench-container .part.sidebar > .title > .title-label > span');
+	async waitForTitle(fn: (title: string) => boolean): Promise<void> {
+		await this.code.waitForTextContent('.monaco-workbench .part.sidebar > .title > .title-label > h2', undefined, fn);
 	}
-
 }

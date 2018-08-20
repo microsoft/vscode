@@ -6,16 +6,14 @@
 'use strict';
 
 import * as fs from 'fs';
-import gracefulFs = require('graceful-fs');
+import * as gracefulFs from 'graceful-fs';
 gracefulFs.gracefulify(fs);
 
 import { onUnexpectedError } from 'vs/base/common/errors';
 import * as strings from 'vs/base/common/strings';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { LineMatch, FileMatch } from '../search';
-import * as baseMime from 'vs/base/common/mime';
-import { UTF16le, UTF16be, UTF8, UTF8_with_bom, encodingExists, decode, bomLength } from 'vs/base/node/encoding';
-import { detectMimeAndEncodingFromBuffer } from 'vs/base/node/mime';
+import { UTF16le, UTF16be, UTF8, UTF8_with_bom, encodingExists, decode, bomLength, detectEncodingFromBuffer } from 'vs/base/node/encoding';
 
 import { ISearchWorker, ISearchWorkerSearchArgs, ISearchWorkerSearchResult } from './searchWorkerIpc';
 
@@ -169,7 +167,7 @@ export class SearchWorkerEngine {
 					return resolve(null);
 				}
 
-				const buffer = new Buffer(options.bufferLength);
+				const buffer = Buffer.allocUnsafe(options.bufferLength);
 				let line = '';
 				let lineNumber = 0;
 				let lastBufferHadTrailingCR = false;
@@ -179,8 +177,8 @@ export class SearchWorkerEngine {
 						return clb(null); // return early if canceled or limit reached
 					}
 
-					fs.read(fd, buffer, 0, buffer.length, null, (error: Error, bytesRead: number, buffer: NodeBuffer) => {
-						const decodeBuffer = (buffer: NodeBuffer, start: number, end: number): string => {
+					fs.read(fd, buffer, 0, buffer.length, null, (error: Error, bytesRead: number, buffer: Buffer) => {
+						const decodeBuffer = (buffer: Buffer, start: number, end: number): string => {
 							if (options.encoding === UTF8 || options.encoding === UTF8_with_bom) {
 								return buffer.toString(undefined, start, end); // much faster to use built in toString() when encoding is default
 							}
@@ -208,13 +206,13 @@ export class SearchWorkerEngine {
 
 						// Detect encoding and mime when this is the beginning of the file
 						if (isFirstRead) {
-							const mimeAndEncoding = detectMimeAndEncodingFromBuffer({ buffer, bytesRead }, false);
-							if (mimeAndEncoding.mimes[mimeAndEncoding.mimes.length - 1] !== baseMime.MIME_TEXT) {
+							const detected = detectEncodingFromBuffer({ buffer, bytesRead }, false);
+							if (detected.seemsBinary) {
 								return clb(null); // skip files that seem binary
 							}
 
 							// Check for BOM offset
-							switch (mimeAndEncoding.encoding) {
+							switch (detected.encoding) {
 								case UTF8:
 									pos = i = bomLength(UTF8);
 									options.encoding = UTF8;

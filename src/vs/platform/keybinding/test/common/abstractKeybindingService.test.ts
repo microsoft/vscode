@@ -14,12 +14,12 @@ import { ICommandService } from 'vs/platform/commands/common/commands';
 import { KeybindingResolver } from 'vs/platform/keybinding/common/keybindingResolver';
 import { IContext, ContextKeyExpr, IContextKeyService, IContextKeyServiceTarget } from 'vs/platform/contextkey/common/contextkey';
 import { IStatusbarService } from 'vs/platform/statusbar/common/statusbar';
-import { IMessageService } from 'vs/platform/message/common/message';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { ResolvedKeybindingItem } from 'vs/platform/keybinding/common/resolvedKeybindingItem';
 import { OS } from 'vs/base/common/platform';
 import { IKeyboardEvent } from 'vs/platform/keybinding/common/keybinding';
 import { NullTelemetryService } from 'vs/platform/telemetry/common/telemetryUtils';
+import { INotificationService, NoOpNotification, INotification, IPromptChoice } from 'vs/platform/notification/common/notification';
 
 function createContext(ctx: any) {
 	return {
@@ -38,15 +38,19 @@ suite('AbstractKeybindingService', () => {
 			resolver: KeybindingResolver,
 			contextKeyService: IContextKeyService,
 			commandService: ICommandService,
-			messageService: IMessageService,
+			notificationService: INotificationService,
 			statusService?: IStatusbarService
 		) {
-			super(contextKeyService, commandService, NullTelemetryService, messageService, statusService);
+			super(contextKeyService, commandService, NullTelemetryService, notificationService, statusService);
 			this._resolver = resolver;
 		}
 
 		protected _getResolver(): KeybindingResolver {
 			return this._resolver;
+		}
+
+		protected _documentHasFocus(): boolean {
+			return true;
 		}
 
 		public resolveKeybinding(kb: Keybinding): ResolvedKeybinding[] {
@@ -121,17 +125,26 @@ suite('AbstractKeybindingService', () => {
 				}
 			};
 
-			let messageService: IMessageService = {
+			let notificationService: INotificationService = {
 				_serviceBrand: undefined,
-				hideAll: undefined,
-				confirm: undefined,
-				confirmWithCheckbox: undefined,
-				show: (sev: Severity, message: any): () => void => {
-					showMessageCalls.push({
-						sev: sev,
-						message: message
-					});
-					return null;
+				notify: (notification: INotification) => {
+					showMessageCalls.push({ sev: notification.severity, message: notification.message });
+					return new NoOpNotification();
+				},
+				info: (message: any) => {
+					showMessageCalls.push({ sev: Severity.Info, message });
+					return new NoOpNotification();
+				},
+				warn: (message: any) => {
+					showMessageCalls.push({ sev: Severity.Warning, message });
+					return new NoOpNotification();
+				},
+				error: (message: any) => {
+					showMessageCalls.push({ sev: Severity.Error, message });
+					return new NoOpNotification();
+				},
+				prompt(severity: Severity, message: string, choices: IPromptChoice[], onCancel?: () => void) {
+					throw new Error('not implemented');
 				}
 			};
 
@@ -150,7 +163,7 @@ suite('AbstractKeybindingService', () => {
 
 			let resolver = new KeybindingResolver(items, []);
 
-			return new TestKeybindingService(resolver, contextKeyService, commandService, messageService, statusbarService);
+			return new TestKeybindingService(resolver, contextKeyService, commandService, notificationService, statusbarService);
 		};
 	});
 
@@ -221,7 +234,7 @@ suite('AbstractKeybindingService', () => {
 		assert.equal(shouldPreventDefault, true);
 		assert.deepEqual(executeCommandCalls, [{
 			commandId: 'simpleCommand',
-			args: [{}]
+			args: [null]
 		}]);
 		assert.deepEqual(showMessageCalls, []);
 		assert.deepEqual(statusMessageCalls, []);
@@ -290,7 +303,7 @@ suite('AbstractKeybindingService', () => {
 		assert.equal(shouldPreventDefault, true);
 		assert.deepEqual(executeCommandCalls, [{
 			commandId: 'simpleCommand',
-			args: [{}]
+			args: [null]
 		}]);
 		assert.deepEqual(showMessageCalls, []);
 		assert.deepEqual(statusMessageCalls, []);
@@ -321,7 +334,7 @@ suite('AbstractKeybindingService', () => {
 		assert.equal(shouldPreventDefault, true);
 		assert.deepEqual(executeCommandCalls, [{
 			commandId: 'chordCommand',
-			args: [{}]
+			args: [null]
 		}]);
 		assert.deepEqual(showMessageCalls, []);
 		assert.deepEqual(statusMessageCalls, []);
@@ -350,7 +363,7 @@ suite('AbstractKeybindingService', () => {
 		assert.equal(shouldPreventDefault, true);
 		assert.deepEqual(executeCommandCalls, [{
 			commandId: 'simpleCommand',
-			args: [{}]
+			args: [null]
 		}]);
 		assert.deepEqual(showMessageCalls, []);
 		assert.deepEqual(statusMessageCalls, []);
@@ -368,7 +381,7 @@ suite('AbstractKeybindingService', () => {
 		assert.equal(shouldPreventDefault, true);
 		assert.deepEqual(executeCommandCalls, [{
 			commandId: 'simpleCommand',
-			args: [{}]
+			args: [null]
 		}]);
 		assert.deepEqual(showMessageCalls, []);
 		assert.deepEqual(statusMessageCalls, []);
@@ -408,7 +421,7 @@ suite('AbstractKeybindingService', () => {
 		assert.equal(shouldPreventDefault, false);
 		assert.deepEqual(executeCommandCalls, [{
 			commandId: 'simpleCommand',
-			args: [{}]
+			args: [null]
 		}]);
 		assert.deepEqual(showMessageCalls, []);
 		assert.deepEqual(statusMessageCalls, []);

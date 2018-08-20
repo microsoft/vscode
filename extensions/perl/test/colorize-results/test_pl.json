@@ -278,9 +278,9 @@
 		"c": "#",
 		"t": "source.perl comment.line.number-sign.perl punctuation.definition.comment.perl",
 		"r": {
-			"dark_plus": "comment: #608B4E",
+			"dark_plus": "comment: #6A9955",
 			"light_plus": "comment: #008000",
-			"dark_vs": "comment: #608B4E",
+			"dark_vs": "comment: #6A9955",
 			"light_vs": "comment: #008000",
 			"hc_black": "comment: #7CA668"
 		}
@@ -289,9 +289,9 @@
 		"c": " Check for that =.",
 		"t": "source.perl comment.line.number-sign.perl",
 		"r": {
-			"dark_plus": "comment: #608B4E",
+			"dark_plus": "comment: #6A9955",
 			"light_plus": "comment: #008000",
-			"dark_vs": "comment: #608B4E",
+			"dark_vs": "comment: #6A9955",
 			"light_vs": "comment: #008000",
 			"hc_black": "comment: #7CA668"
 		}
@@ -389,7 +389,7 @@
 		"t": "source.perl string.regexp.find.perl constant.character.escape.perl",
 		"r": {
 			"dark_plus": "constant.character.escape: #D7BA7D",
-			"light_plus": "constant.character.escape: #A31515",
+			"light_plus": "constant.character.escape: #FF0000",
 			"dark_vs": "string.regexp: #D16969",
 			"light_vs": "string.regexp: #811F3F",
 			"hc_black": "constant.character: #569CD6"
@@ -411,7 +411,7 @@
 		"t": "source.perl string.regexp.find.perl constant.character.escape.perl",
 		"r": {
 			"dark_plus": "constant.character.escape: #D7BA7D",
-			"light_plus": "constant.character.escape: #A31515",
+			"light_plus": "constant.character.escape: #FF0000",
 			"dark_vs": "string.regexp: #D16969",
 			"light_vs": "string.regexp: #811F3F",
 			"hc_black": "constant.character: #569CD6"
@@ -433,7 +433,7 @@
 		"t": "source.perl string.regexp.find.perl constant.character.escape.perl",
 		"r": {
 			"dark_plus": "constant.character.escape: #D7BA7D",
-			"light_plus": "constant.character.escape: #A31515",
+			"light_plus": "constant.character.escape: #FF0000",
 			"dark_vs": "string.regexp: #D16969",
 			"light_vs": "string.regexp: #811F3F",
 			"hc_black": "constant.character: #569CD6"
@@ -455,7 +455,7 @@
 		"t": "source.perl string.regexp.find.perl constant.character.escape.perl",
 		"r": {
 			"dark_plus": "constant.character.escape: #D7BA7D",
-			"light_plus": "constant.character.escape: #A31515",
+			"light_plus": "constant.character.escape: #FF0000",
 			"dark_vs": "string.regexp: #D16969",
 			"light_vs": "string.regexp: #811F3F",
 			"hc_black": "constant.character: #569CD6"
@@ -477,7 +477,7 @@
 		"t": "source.perl string.regexp.find.perl constant.character.escape.perl",
 		"r": {
 			"dark_plus": "constant.character.escape: #D7BA7D",
-			"light_plus": "constant.character.escape: #A31515",
+			"light_plus": "constant.character.escape: #FF0000",
 			"dark_vs": "string.regexp: #D16969",
 			"light_vs": "string.regexp: #811F3F",
 			"hc_black": "constant.character: #569CD6"
@@ -675,7 +675,7 @@
 		"t": "source.perl string.quoted.double.perl constant.character.escape.perl",
 		"r": {
 			"dark_plus": "constant.character.escape: #D7BA7D",
-			"light_plus": "constant.character.escape: #A31515",
+			"light_plus": "constant.character.escape: #FF0000",
 			"dark_vs": "string: #CE9178",
 			"light_vs": "string: #A31515",
 			"hc_black": "constant.character: #569CD6"
@@ -950,7 +950,7 @@
 		"t": "source.perl string.quoted.double.perl constant.character.escape.perl",
 		"r": {
 			"dark_plus": "constant.character.escape: #D7BA7D",
-			"light_plus": "constant.character.escape: #A31515",
+			"light_plus": "constant.character.escape: #FF0000",
 			"dark_vs": "string: #CE9178",
 			"light_vs": "string: #A31515",
 			"hc_black": "constant.character: #569CD6"
@@ -1015,9 +1015,9 @@
 		"c": "#",
 		"t": "source.perl comment.line.number-sign.perl punctuation.definition.comment.perl",
 		"r": {
-			"dark_plus": "comment: #608B4E",
+			"dark_plus": "comment: #6A9955",
 			"light_plus": "comment: #008000",
-			"dark_vs": "comment: #608B4E",
+			"dark_vs": "comment: #6A9955",
 			"light_vs": "comment: #008000",
 			"hc_black": "comment: #7CA668"
 		}
@@ -1026,9 +1026,9 @@
 		"c": "#",
 		"t": "source.perl comment.line.number-sign.perl punctuation.definition.comment.perl",
 		"r": {
-			"dark_plus": "comment: #608B4E",
+			"dark_plus": "comment: #6A9955",
 			"light_plus": "comment: #008000",
-			"dark_vs": "comment: #608B4E",
+			"dark_vs": "comment: #6A9955",
 			"light_vs": "comment: #008000",
 			"hc_black": "comment: #7CA668"
 		}
@@ -1037,9 +1037,9 @@
 		"c": " This function opens and reads one file, and calls",
 		"t": "source.perl comment.line.number-sign.perl",
 		"r": {
-			"dark_plus": "comment: #608B4E",
+			"dark_plus": "comment: #6A9955",
 			"light_plus": "comment: #008000",
-			"dark_vs": "comment: #608B4E",
+			"dark_vs": "comment: #6A9955",
 			"light_vs": "comment: #008000",
 			"hc_black": "comment: #7CA668"
 		}
@@ -1048,9 +1048,9 @@
 		"c": "#",
 		"t": "source.perl comment.line.number-sign.perl punctuation.definition.comment.perl",
 		"r": {
-			"dark_plus": "comment: #608B4E",
+			"dark_plus": "comment: #6A9955",
 			"light_plus": "comment: #008000",
-			"dark_vs": "comment: #608B4E",
+			"dark_vs": "comment: #6A9955",
 			"light_vs": "comment: #008000",
 			"hc_black": "comment: #7CA668"
 		}
@@ -1059,9 +1059,9 @@
 		"c": " check_line to analyze each line.  Call it with the",
 		"t": "source.perl comment.line.number-sign.perl",
 		"r": {
-			"dark_plus": "comment: #608B4E",
+			"dark_plus": "comment: #6A9955",
 			"light_plus": "comment: #008000",
-			"dark_vs": "comment: #608B4E",
+			"dark_vs": "comment: #6A9955",
 			"light_vs": "comment: #008000",
 			"hc_black": "comment: #7CA668"
 		}
@@ -1070,9 +1070,9 @@
 		"c": "#",
 		"t": "source.perl comment.line.number-sign.perl punctuation.definition.comment.perl",
 		"r": {
-			"dark_plus": "comment: #608B4E",
+			"dark_plus": "comment: #6A9955",
 			"light_plus": "comment: #008000",
-			"dark_vs": "comment: #608B4E",
+			"dark_vs": "comment: #6A9955",
 			"light_vs": "comment: #008000",
 			"hc_black": "comment: #7CA668"
 		}
@@ -1081,9 +1081,9 @@
 		"c": " file name.",
 		"t": "source.perl comment.line.number-sign.perl",
 		"r": {
-			"dark_plus": "comment: #608B4E",
+			"dark_plus": "comment: #6A9955",
 			"light_plus": "comment: #008000",
-			"dark_vs": "comment: #608B4E",
+			"dark_vs": "comment: #6A9955",
 			"light_vs": "comment: #008000",
 			"hc_black": "comment: #7CA668"
 		}
@@ -1092,9 +1092,9 @@
 		"c": "#",
 		"t": "source.perl comment.line.number-sign.perl punctuation.definition.comment.perl",
 		"r": {
-			"dark_plus": "comment: #608B4E",
+			"dark_plus": "comment: #6A9955",
 			"light_plus": "comment: #008000",
-			"dark_vs": "comment: #608B4E",
+			"dark_vs": "comment: #6A9955",
 			"light_vs": "comment: #008000",
 			"hc_black": "comment: #7CA668"
 		}
@@ -1445,7 +1445,7 @@
 		"t": "source.perl string.quoted.double.perl constant.character.escape.perl",
 		"r": {
 			"dark_plus": "constant.character.escape: #D7BA7D",
-			"light_plus": "constant.character.escape: #A31515",
+			"light_plus": "constant.character.escape: #FF0000",
 			"dark_vs": "string: #CE9178",
 			"light_vs": "string: #A31515",
 			"hc_black": "constant.character: #569CD6"
@@ -1939,9 +1939,9 @@
 		"c": "#",
 		"t": "source.perl comment.line.number-sign.perl punctuation.definition.comment.perl",
 		"r": {
-			"dark_plus": "comment: #608B4E",
+			"dark_plus": "comment: #6A9955",
 			"light_plus": "comment: #008000",
-			"dark_vs": "comment: #608B4E",
+			"dark_vs": "comment: #6A9955",
 			"light_vs": "comment: #008000",
 			"hc_black": "comment: #7CA668"
 		}
@@ -1950,9 +1950,9 @@
 		"c": "#",
 		"t": "source.perl comment.line.number-sign.perl punctuation.definition.comment.perl",
 		"r": {
-			"dark_plus": "comment: #608B4E",
+			"dark_plus": "comment: #6A9955",
 			"light_plus": "comment: #008000",
-			"dark_vs": "comment: #608B4E",
+			"dark_vs": "comment: #6A9955",
 			"light_vs": "comment: #008000",
 			"hc_black": "comment: #7CA668"
 		}
@@ -1961,9 +1961,9 @@
 		"c": " Go through the argument list and check each file",
 		"t": "source.perl comment.line.number-sign.perl",
 		"r": {
-			"dark_plus": "comment: #608B4E",
+			"dark_plus": "comment: #6A9955",
 			"light_plus": "comment: #008000",
-			"dark_vs": "comment: #608B4E",
+			"dark_vs": "comment: #6A9955",
 			"light_vs": "comment: #008000",
 			"hc_black": "comment: #7CA668"
 		}
@@ -1972,9 +1972,9 @@
 		"c": "#",
 		"t": "source.perl comment.line.number-sign.perl punctuation.definition.comment.perl",
 		"r": {
-			"dark_plus": "comment: #608B4E",
+			"dark_plus": "comment: #6A9955",
 			"light_plus": "comment: #008000",
-			"dark_vs": "comment: #608B4E",
+			"dark_vs": "comment: #6A9955",
 			"light_vs": "comment: #008000",
 			"hc_black": "comment: #7CA668"
 		}
@@ -2281,7 +2281,7 @@
 		"t": "source.perl string.quoted.double.perl constant.character.escape.perl",
 		"r": {
 			"dark_plus": "constant.character.escape: #D7BA7D",
-			"light_plus": "constant.character.escape: #A31515",
+			"light_plus": "constant.character.escape: #FF0000",
 			"dark_vs": "string: #CE9178",
 			"light_vs": "string: #A31515",
 			"hc_black": "constant.character: #569CD6"

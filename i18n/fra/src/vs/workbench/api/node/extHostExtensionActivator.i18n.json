@@ -8,6 +8,6 @@
 	],
 	"unknownDep": "Échec de l'activation de l'extension '{1}'. Raison : dépendance '{0}' inconnue.",
 	"failedDep1": "Échec de l'activation de l'extension '{1}'. Raison : échec de l'activation de la dépendance '{0}'.",
-	"failedDep2": "Échec de l'activation de l'extension '{0}'. Raison : plus de 10 niveaux de dépendances (probablement une boucle de dépendance).",
-	"activationError": "Échec de l'activation de l'extension '{0}' : {1}."
+	"failedDep2": "Échec de l'activation de l'extension '{0}'. Raison : plus de 10 niveaux de dépendances (probablement une boucle de dépendance).",
+	"activationError": "L'activation de l'extension '{0}' a échoué: {1}. "
 }

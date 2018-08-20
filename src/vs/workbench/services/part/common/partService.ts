@@ -6,7 +6,8 @@
 
 import { TPromise } from 'vs/base/common/winjs.base';
 import { createDecorator, ServiceIdentifier } from 'vs/platform/instantiation/common/instantiation';
-import Event from 'vs/base/common/event';
+import { Event } from 'vs/base/common/event';
+import { MenuBarVisibility } from 'vs/platform/windows/common/windows';
 
 export enum Parts {
 	ACTIVITYBAR_PART,
@@ -14,7 +15,8 @@ export enum Parts {
 	PANEL_PART,
 	EDITOR_PART,
 	STATUSBAR_PART,
-	TITLEBAR_PART
+	TITLEBAR_PART,
+	MENUBAR_PART
 }
 
 export enum Position {
@@ -28,7 +30,7 @@ export interface ILayoutOptions {
 	source?: Parts;
 }
 
-export interface Dimension {
+export interface IDimension {
 	readonly width: number;
 	readonly height: number;
 }
@@ -46,12 +48,7 @@ export interface IPartService {
 	/**
 	 * Emits when the editor part's layout changes.
 	 */
-	onEditorLayout: Event<Dimension>;
-
-	/**
-	 * Asks the part service to layout all parts.
-	 */
-	layout(options?: ILayoutOptions): void;
+	onEditorLayout: Event<IDimension>;
 
 	/**
 	 * Asks the part service to if all parts have been created.
@@ -110,6 +107,11 @@ export interface IPartService {
 	getSideBarPosition(): Position;
 
 	/**
+	 * Gets the current menubar visibility.
+	 */
+	getMenubarVisibility(): MenuBarVisibility;
+
+	/**
 	 * Gets the current panel position. Note that the panel can be hidden too.
 	 */
 	getPanelPosition(): Position;
@@ -128,6 +130,16 @@ export interface IPartService {
 	 * Toggles the workbench in and out of zen mode - parts get hidden and window goes fullscreen.
 	 */
 	toggleZenMode(): void;
+
+	/**
+	 * Returns whether the centered editor layout is active.
+	 */
+	isEditorLayoutCentered(): boolean;
+
+	/**
+	 * Sets the workbench in and out of centered editor layout.
+	 */
+	centerEditorLayout(active: boolean): void;
 
 	/**
 	 * Resizes currently focused part on main access

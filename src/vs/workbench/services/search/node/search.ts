@@ -5,10 +5,11 @@
 
 'use strict';
 
-import { PPromise, TPromise } from 'vs/base/common/winjs.base';
+import { TPromise } from 'vs/base/common/winjs.base';
 import { IExpression } from 'vs/base/common/glob';
 import { IProgress, ILineMatch, IPatternInfo, ISearchStats } from 'vs/platform/search/common/search';
 import { ITelemetryData } from 'vs/platform/telemetry/common/telemetry';
+import { Event } from 'vs/base/common/event';
 
 export interface IFolderSearch {
 	folder: string;
@@ -41,10 +42,10 @@ export interface ITelemetryEvent {
 }
 
 export interface IRawSearchService {
-	fileSearch(search: IRawSearch): PPromise<ISerializedSearchComplete, ISerializedSearchProgressItem>;
-	textSearch(search: IRawSearch): PPromise<ISerializedSearchComplete, ISerializedSearchProgressItem>;
+	fileSearch(search: IRawSearch): Event<ISerializedSearchProgressItem | ISerializedSearchComplete>;
+	textSearch(search: IRawSearch): Event<ISerializedSearchProgressItem | ISerializedSearchComplete>;
 	clearCache(cacheKey: string): TPromise<void>;
-	fetchTelemetry(): PPromise<void, ITelemetryEvent>;
+	readonly onTelemetry: Event<ITelemetryEvent>;
 }
 
 export interface IRawFileMatch {
@@ -55,13 +56,38 @@ export interface IRawFileMatch {
 }
 
 export interface ISearchEngine<T> {
-	search: (onResult: (matches: T) => void, onProgress: (progress: IProgress) => void, done: (error: Error, complete: ISerializedSearchComplete) => void) => void;
+	search: (onResult: (matches: T) => void, onProgress: (progress: IProgress) => void, done: (error: Error, complete: ISerializedSearchSuccess) => void) => void;
 	cancel: () => void;
 }
 
-export interface ISerializedSearchComplete {
+export interface ISerializedSearchSuccess {
+	type: 'success';
 	limitHit: boolean;
 	stats: ISearchStats;
+}
+
+export interface ISerializedSearchError {
+	type: 'error';
+	error: {
+		message: string,
+		stack: string
+	};
+}
+
+export type ISerializedSearchComplete = ISerializedSearchSuccess | ISerializedSearchError;
+
+export function isSerializedSearchComplete(arg: ISerializedSearchProgressItem | ISerializedSearchComplete): arg is ISerializedSearchComplete {
+	if ((arg as any).type === 'error') {
+		return true;
+	} else if ((arg as any).type === 'success') {
+		return true;
+	} else {
+		return false;
+	}
+}
+
+export function isSerializedSearchSuccess(arg: ISerializedSearchComplete): arg is ISerializedSearchSuccess {
+	return arg.type === 'success';
 }
 
 export interface ISerializedFileMatch {

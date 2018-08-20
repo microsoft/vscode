@@ -11,6 +11,6 @@
 	"TerminalTaskSystem.terminalName": "Görev - {0}",
 	"closeTerminal": "Terminali kapatmak için lütfen bir tuşa basın.",
 	"reuseTerminal": "Terminal görevler tarafından tekrar kullanılacak, kapatmak için herhangi bir tuşa basın.",
-	"TerminalTaskSystem": "UNC sürücüsünde kabuk komutu yürütülemez.",
+	"TerminalTaskSystem": "cmd.exe kullanarak UNC sürücüsünde kabuk komutu yürütülemiyor.",
 	"unkownProblemMatcher": "{0} sorun eşleştirici çözümlenemiyor. Eşleştirici yok sayılacaktır."
 }

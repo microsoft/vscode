@@ -17,7 +17,7 @@
 	"screenReaderDetectedExtra": "화면 읽기 프로그램을 사용하지 않는 경우 `editor.accessibilitySupport` 설정을 \"off\"로 변경하세요.",
 	"disableTabMode": "접근성 모드 사용 안 함",
 	"gotoLine": "줄 이동",
-	"indentation": "들여쓰기",
+	"selectIndentation": "들여쓰기 선택",
 	"selectEncoding": "인코딩 선택",
 	"selectEOL": "줄 시퀀스의 끝 선택",
 	"selectLanguageMode": "언어 모드 선택",

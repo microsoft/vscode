@@ -3,15 +3,12 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-'use strict';
-
 import 'vs/css!./media/resourceviewer';
-import nls = require('vs/nls');
-import mimes = require('vs/base/common/mime');
+import * as nls from 'vs/nls';
+import * as mimes from 'vs/base/common/mime';
 import URI from 'vs/base/common/uri';
-import paths = require('vs/base/common/paths');
-import { Builder, $, Dimension } from 'vs/base/browser/builder';
-import DOM = require('vs/base/browser/dom');
+import { Builder, $ } from 'vs/base/browser/builder';
+import * as DOM from 'vs/base/browser/dom';
 import { DomScrollableElement } from 'vs/base/browser/ui/scrollbar/scrollableElement';
 import { LRUCache } from 'vs/base/common/map';
 import { Schemas } from 'vs/base/common/network';
@@ -19,89 +16,31 @@ import { clamp } from 'vs/base/common/numbers';
 import { Themable } from 'vs/workbench/common/theme';
 import { IStatusbarItem, StatusbarItemDescriptor, IStatusbarRegistry, Extensions, StatusbarAlignment } from 'vs/workbench/browser/parts/statusbar/statusbar';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
-import { } from 'vs/platform/workspace/common/workspace';
 import { IDisposable } from 'vs/base/common/lifecycle';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { Action } from 'vs/base/common/actions';
-import { IEditorGroupService } from 'vs/workbench/services/group/common/groupService';
+import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { memoize } from 'vs/base/common/decorators';
 import * as platform from 'vs/base/common/platform';
-
-interface MapExtToMediaMimes {
-	[index: string]: string;
-}
-
-// Known media mimes that we can handle
-const mapExtToMediaMimes: MapExtToMediaMimes = {
-	'.bmp': 'image/bmp',
-	'.gif': 'image/gif',
-	'.jpg': 'image/jpg',
-	'.jpeg': 'image/jpg',
-	'.jpe': 'image/jpg',
-	'.png': 'image/png',
-	'.tiff': 'image/tiff',
-	'.tif': 'image/tiff',
-	'.ico': 'image/x-icon',
-	'.tga': 'image/x-tga',
-	'.psd': 'image/vnd.adobe.photoshop',
-	'.webp': 'image/webp',
-	'.mid': 'audio/midi',
-	'.midi': 'audio/midi',
-	'.mp4a': 'audio/mp4',
-	'.mpga': 'audio/mpeg',
-	'.mp2': 'audio/mpeg',
-	'.mp2a': 'audio/mpeg',
-	'.mp3': 'audio/mpeg',
-	'.m2a': 'audio/mpeg',
-	'.m3a': 'audio/mpeg',
-	'.oga': 'audio/ogg',
-	'.ogg': 'audio/ogg',
-	'.spx': 'audio/ogg',
-	'.aac': 'audio/x-aac',
-	'.wav': 'audio/x-wav',
-	'.wma': 'audio/x-ms-wma',
-	'.mp4': 'video/mp4',
-	'.mp4v': 'video/mp4',
-	'.mpg4': 'video/mp4',
-	'.mpeg': 'video/mpeg',
-	'.mpg': 'video/mpeg',
-	'.mpe': 'video/mpeg',
-	'.m1v': 'video/mpeg',
-	'.m2v': 'video/mpeg',
-	'.ogv': 'video/ogg',
-	'.qt': 'video/quicktime',
-	'.mov': 'video/quicktime',
-	'.webm': 'video/webm',
-	'.mkv': 'video/x-matroska',
-	'.mk3d': 'video/x-matroska',
-	'.mks': 'video/x-matroska',
-	'.wmv': 'video/x-ms-wmv',
-	'.flv': 'video/x-flv',
-	'.avi': 'video/x-msvideo',
-	'.movie': 'video/x-sgi-movie'
-};
+import { IFileService } from 'vs/platform/files/common/files';
 
 export interface IResourceDescriptor {
-	resource: URI;
-	name: string;
-	size: number;
-	etag: string;
-	mime: string;
-}
-
-enum ScaleDirection {
-	IN, OUT,
+	readonly resource: URI;
+	readonly name: string;
+	readonly size: number;
+	readonly etag: string;
+	readonly mime: string;
 }
 
 class BinarySize {
-	public static readonly KB = 1024;
-	public static readonly MB = BinarySize.KB * BinarySize.KB;
-	public static readonly GB = BinarySize.MB * BinarySize.KB;
-	public static readonly TB = BinarySize.GB * BinarySize.KB;
+	static readonly KB = 1024;
+	static readonly MB = BinarySize.KB * BinarySize.KB;
+	static readonly GB = BinarySize.MB * BinarySize.KB;
+	static readonly TB = BinarySize.GB * BinarySize.KB;
 
-	public static formatSize(size: number): string {
+	static formatSize(size: number): string {
 		if (size < BinarySize.KB) {
 			return nls.localize('sizeB', "{0}B", size);
 		}
@@ -123,7 +62,7 @@ class BinarySize {
 }
 
 export interface ResourceViewerContext {
-	layout(dimension: Dimension);
+	layout(dimension: DOM.Dimension): void;
 }
 
 /**
@@ -131,38 +70,44 @@ export interface ResourceViewerContext {
  * progress of the binary resource.
  */
 export class ResourceViewer {
-	public static show(
+
+	private static readonly MAX_OPEN_INTERNAL_SIZE = BinarySize.MB * 200; // max size until we offer an action to open internally
+
+	static show(
 		descriptor: IResourceDescriptor,
-		container: Builder,
+		fileService: IFileService,
+		container: HTMLElement,
 		scrollbar: DomScrollableElement,
-		openExternal: (uri: URI) => void,
+		openInternalClb: (uri: URI) => void,
+		openExternalClb: (uri: URI) => void,
 		metadataClb: (meta: string) => void
-	): ResourceViewerContext {
+	): ResourceViewerContext | null {
+
 		// Ensure CSS class
 		$(container).setClass('monaco-resource-viewer');
 
+		// Images
 		if (ResourceViewer.isImageResource(descriptor)) {
-			return ImageView.create(container, descriptor, scrollbar, openExternal, metadataClb);
+			return ImageView.create(container, descriptor, fileService, scrollbar, openExternalClb, metadataClb);
 		}
 
-		GenericBinaryFileView.create(container, metadataClb, descriptor, scrollbar);
+		// Large Files
+		if (descriptor.size > ResourceViewer.MAX_OPEN_INTERNAL_SIZE) {
+			FileTooLargeFileView.create(container, descriptor, scrollbar, metadataClb);
+		}
+
+		// Seemingly Binary Files
+		else {
+			FileSeemsBinaryFileView.create(container, descriptor, scrollbar, openInternalClb, metadataClb);
+		}
+
 		return null;
 	}
 
 	private static isImageResource(descriptor: IResourceDescriptor) {
-		const mime = ResourceViewer.getMime(descriptor);
-		return mime.indexOf('image/') >= 0;
-	}
+		const mime = getMime(descriptor);
 
-	private static getMime(descriptor: IResourceDescriptor): string {
-		let mime = descriptor.mime;
-		if (!mime && descriptor.resource.scheme === Schemas.file) {
-			const ext = paths.extname(descriptor.resource.toString());
-			if (ext) {
-				mime = mapExtToMediaMimes[ext.toLowerCase()];
-			}
-		}
-		return mime || mimes.MIME_BINARY;
+		return mime.indexOf('image/') >= 0;
 	}
 }
 
@@ -170,18 +115,20 @@ class ImageView {
 	private static readonly MAX_IMAGE_SIZE = BinarySize.MB; // showing images inline is memory intense, so we have a limit
 	private static readonly BASE64_MARKER = 'base64,';
 
-	public static create(
-		container: Builder,
+	static create(
+		container: HTMLElement,
 		descriptor: IResourceDescriptor,
+		fileService: IFileService,
 		scrollbar: DomScrollableElement,
-		openExternal: (uri: URI) => void,
+		openExternalClb: (uri: URI) => void,
 		metadataClb: (meta: string) => void
 	): ResourceViewerContext | null {
 		if (ImageView.shouldShowImageInline(descriptor)) {
-			return InlineImageView.create(container, descriptor, scrollbar, metadataClb);
+			return InlineImageView.create(container, descriptor, fileService, scrollbar, metadataClb);
 		}
 
-		LargeImageView.create(container, descriptor, openExternal);
+		LargeImageView.create(container, descriptor, openExternalClb);
+
 		return null;
 	}
 
@@ -206,44 +153,82 @@ class ImageView {
 }
 
 class LargeImageView {
-	public static create(
-		container: Builder,
+	static create(
+		container: HTMLElement,
 		descriptor: IResourceDescriptor,
-		openExternal: (uri: URI) => void
+		openExternalClb: (uri: URI) => void
 	) {
+		const size = BinarySize.formatSize(descriptor.size);
+
 		const imageContainer = $(container)
 			.empty()
 			.p({
-				text: nls.localize('largeImageError', "The file size of the image is too large (>1MB) to display in the editor. ")
+				text: nls.localize('largeImageError', "The image is not displayed in the editor because it is too large ({0}).", size)
 			});
 
 		if (descriptor.resource.scheme !== Schemas.data) {
 			imageContainer.append($('a', {
 				role: 'button',
-				class: 'open-external',
+				class: 'embedded-link',
 				text: nls.localize('resourceOpenExternalButton', "Open image using external program?")
 			}).on(DOM.EventType.CLICK, (e) => {
-				openExternal(descriptor.resource);
+				openExternalClb(descriptor.resource);
 			}));
 		}
 	}
 }
 
-class GenericBinaryFileView {
-	public static create(
-		container: Builder,
-		metadataClb: (meta: string) => void,
+class FileTooLargeFileView {
+	static create(
+		container: HTMLElement,
 		descriptor: IResourceDescriptor,
-		scrollbar: DomScrollableElement
+		scrollbar: DomScrollableElement,
+		metadataClb: (meta: string) => void
 	) {
+		const size = BinarySize.formatSize(descriptor.size);
+
 		$(container)
 			.empty()
 			.span({
-				text: nls.localize('nativeBinaryError', "The file will not be displayed in the editor because it is either binary, very large or uses an unsupported text encoding.")
+				text: nls.localize('nativeFileTooLargeError', "The file is not displayed in the editor because it is too large ({0}).", size)
 			});
+
+		if (metadataClb) {
+			metadataClb(size);
+		}
+
+		scrollbar.scanDomNode();
+	}
+}
+
+class FileSeemsBinaryFileView {
+	static create(
+		container: HTMLElement,
+		descriptor: IResourceDescriptor,
+		scrollbar: DomScrollableElement,
+		openInternalClb: (uri: URI) => void,
+		metadataClb: (meta: string) => void
+	) {
+		const binaryContainer = $(container)
+			.empty()
+			.p({
+				text: nls.localize('nativeBinaryError', "The file is not displayed in the editor because it is either binary or uses an unsupported text encoding.")
+			});
+
+		if (descriptor.resource.scheme !== Schemas.data) {
+			binaryContainer.append($('a', {
+				role: 'button',
+				class: 'embedded-link',
+				text: nls.localize('openAsText', "Do you want to open it anyway?")
+			}).on(DOM.EventType.CLICK, (e) => {
+				openInternalClb(descriptor.resource);
+			}));
+		}
+
 		if (metadataClb) {
 			metadataClb(BinarySize.formatSize(descriptor.size));
 		}
+
 		scrollbar.scanDomNode();
 	}
 }
@@ -251,29 +236,32 @@ class GenericBinaryFileView {
 type Scale = number | 'fit';
 
 class ZoomStatusbarItem extends Themable implements IStatusbarItem {
+
+	static instance: ZoomStatusbarItem;
+
 	showTimeout: number;
-	public static instance: ZoomStatusbarItem;
 
 	private statusBarItem: HTMLElement;
-
 	private onSelectScale?: (scale: Scale) => void;
 
 	constructor(
 		@IContextMenuService private contextMenuService: IContextMenuService,
-		@IEditorGroupService editorGroupService: IEditorGroupService,
+		@IEditorService editorService: IEditorService,
 		@IThemeService themeService: IThemeService
 	) {
 		super(themeService);
+
 		ZoomStatusbarItem.instance = this;
-		this.toUnbind.push(editorGroupService.onEditorsChanged(() => this.onEditorsChanged()));
+
+		this._register(editorService.onDidActiveEditorChange(() => this.onActiveEditorChanged()));
 	}
 
-	private onEditorsChanged(): void {
+	private onActiveEditorChanged(): void {
 		this.hide();
-		this.onSelectScale = undefined;
+		this.onSelectScale = void 0;
 	}
 
-	public show(scale: Scale, onSelectScale: (scale: number) => void) {
+	show(scale: Scale, onSelectScale: (scale: number) => void) {
 		clearTimeout(this.showTimeout);
 		this.showTimeout = setTimeout(() => {
 			this.onSelectScale = onSelectScale;
@@ -282,11 +270,11 @@ class ZoomStatusbarItem extends Themable implements IStatusbarItem {
 		}, 0);
 	}
 
-	public hide() {
+	hide() {
 		this.statusBarItem.style.display = 'none';
 	}
 
-	public render(container: HTMLElement): IDisposable {
+	render(container: HTMLElement): IDisposable {
 		if (!this.statusBarItem && container) {
 			this.statusBarItem = $(container).a()
 				.addClass('.zoom-statusbar-item')
@@ -299,6 +287,7 @@ class ZoomStatusbarItem extends Themable implements IStatusbarItem {
 				.getHTMLElement();
 			this.statusBarItem.style.display = 'none';
 		}
+
 		return this;
 	}
 
@@ -310,10 +299,11 @@ class ZoomStatusbarItem extends Themable implements IStatusbarItem {
 	private get zoomActions(): Action[] {
 		const scales: Scale[] = [10, 5, 2, 1, 0.5, 0.2, 'fit'];
 		return scales.map(scale =>
-			new Action('zoom.' + scale, ZoomStatusbarItem.zoomLabel(scale), undefined, undefined, () => {
+			new Action(`zoom.${scale}`, ZoomStatusbarItem.zoomLabel(scale), void 0, void 0, () => {
 				if (this.onSelectScale) {
 					this.onSelectScale(scale);
 				}
+
 				return null;
 			}));
 	}
@@ -326,7 +316,7 @@ class ZoomStatusbarItem extends Themable implements IStatusbarItem {
 }
 
 Registry.as<IStatusbarRegistry>(Extensions.Statusbar).registerStatusbarItem(
-	new StatusbarItemDescriptor(ZoomStatusbarItem, StatusbarAlignment.RIGHT, 101)
+	new StatusbarItemDescriptor(ZoomStatusbarItem, StatusbarAlignment.RIGHT, 101 /* to the left of editor status (100) */)
 );
 
 interface ImageState {
@@ -367,31 +357,26 @@ class InlineImageView {
 	private static readonly PIXELATION_THRESHOLD = 3;
 
 	/**
-	 * Chrome is caching images very aggressively and so we use the ETag information to find out if
-	 * we need to bypass the cache or not. We could always bypass the cache everytime we show the image
-	 * however that has very bad impact on memory consumption because each time the image gets shown,
-	 * memory grows (see also https://github.com/electron/electron/issues/6275)
-	 */
-	private static IMAGE_RESOURCE_ETAG_CACHE = new LRUCache<string, { etag: string, src: string }>(100);
-
-	/**
 	 * Store the scale and position of an image so it can be restored when changing editor tabs
 	 */
 	private static readonly imageStateCache = new LRUCache<string, ImageState>(100);
 
-	public static create(
-		container: Builder,
+	static create(
+		container: HTMLElement,
 		descriptor: IResourceDescriptor,
+		fileService: IFileService,
 		scrollbar: DomScrollableElement,
 		metadataClb: (meta: string) => void
 	) {
 		const context = {
-			layout(dimension: Dimension) { }
+			layout(dimension: DOM.Dimension) { }
 		};
 
 		const cacheKey = descriptor.resource.toString();
 
-		let scaleDirection = ScaleDirection.IN;
+		let ctrlPressed = false;
+		let altPressed = false;
+
 		const initialState: ImageState = InlineImageView.imageStateCache.get(cacheKey) || { scale: 'fit', offsetX: 0, offsetY: 0 };
 		let scale = initialState.scale;
 		let img: Builder | null = null;
@@ -455,9 +440,10 @@ class InlineImageView {
 				if (!img) {
 					return;
 				}
+				ctrlPressed = e.ctrlKey;
+				altPressed = e.altKey;
 
-				if (platform.isMacintosh ? e.altKey : e.ctrlKey) {
-					scaleDirection = ScaleDirection.OUT;
+				if (platform.isMacintosh ? altPressed : ctrlPressed) {
 					c.removeClass('zoom-in').addClass('zoom-out');
 				}
 			})
@@ -466,8 +452,10 @@ class InlineImageView {
 					return;
 				}
 
-				if (!(platform.isMacintosh ? e.altKey : e.ctrlKey)) {
-					scaleDirection = ScaleDirection.IN;
+				ctrlPressed = e.ctrlKey;
+				altPressed = e.altKey;
+
+				if (!(platform.isMacintosh ? altPressed : ctrlPressed)) {
 					c.removeClass('zoom-out').addClass('zoom-in');
 				}
 			})
@@ -485,7 +473,7 @@ class InlineImageView {
 					firstZoom();
 				}
 
-				if (scaleDirection === ScaleDirection.IN) {
+				if (!(platform.isMacintosh ? altPressed : ctrlPressed)) { // zoom in
 					let i = 0;
 					for (; i < InlineImageView.zoomLevels.length; ++i) {
 						if (InlineImageView.zoomLevels[i] > scale) {
@@ -507,8 +495,9 @@ class InlineImageView {
 				if (!img) {
 					return;
 				}
-				// pinching is reported as scroll wheel + ctrl
-				if (!e.ctrlKey) {
+
+				const isScrollWhellKeyPressed = platform.isMacintosh ? altPressed : ctrlPressed;
+				if (!isScrollWhellKeyPressed && !e.ctrlKey) { // pinching is reported as scroll wheel + ctrl
 					return;
 				}
 
@@ -519,8 +508,12 @@ class InlineImageView {
 					firstZoom();
 				}
 
-				// scrolling up, pinching out should increase the scale
-				const delta = e.deltaY < 0 ? 1 : -1;
+				let delta = e.deltaY < 0 ? 1 : -1;
+
+				// Pinching should increase the scale
+				if (e.ctrlKey && !isScrollWhellKeyPressed) {
+					delta *= -1;
+				}
 				updateScale(scale as number * (1 - delta * InlineImageView.SCALE_PINCH_FACTOR));
 			})
 			.on(DOM.EventType.SCROLL, () => {
@@ -538,7 +531,7 @@ class InlineImageView {
 		$(container)
 			.empty()
 			.addClass('image', 'zoom-in')
-			.img({ src: InlineImageView.imageSrc(descriptor) })
+			.img({})
 			.style('visibility', 'hidden')
 			.addClass('scale-to-fit')
 			.on(DOM.EventType.LOAD, (e, i) => {
@@ -556,29 +549,33 @@ class InlineImageView {
 				}
 			});
 
+		InlineImageView.imageSrc(descriptor, fileService).then(dataUri => {
+			const imgs = container.getElementsByTagName('img');
+			if (imgs.length) {
+				imgs[0].src = dataUri;
+			}
+		});
+
 		return context;
 	}
 
-	private static imageSrc(descriptor: IResourceDescriptor): string {
+	private static imageSrc(descriptor: IResourceDescriptor, fileService: IFileService): TPromise<string> {
 		if (descriptor.resource.scheme === Schemas.data) {
-			return descriptor.resource.toString(true /* skip encoding */);
+			return TPromise.as(descriptor.resource.toString(true /* skip encoding */));
 		}
 
-		const src = descriptor.resource.toString();
+		return fileService.resolveContent(descriptor.resource, { encoding: 'base64' }).then(data => {
+			const mime = getMime(descriptor);
 
-		let cached = InlineImageView.IMAGE_RESOURCE_ETAG_CACHE.get(src);
-		if (!cached) {
-			cached = { etag: descriptor.etag, src };
-			InlineImageView.IMAGE_RESOURCE_ETAG_CACHE.set(src, cached);
-		}
-
-		if (cached.etag !== descriptor.etag) {
-			cached.etag = descriptor.etag;
-			cached.src = `${src}?${Date.now()}`; // bypass cache with this trick
-		}
-
-		return cached.src;
+			return `data:${mime};base64,${data.value}`;
+		});
 	}
 }
 
-
+function getMime(descriptor: IResourceDescriptor) {
+	let mime = descriptor.mime;
+	if (!mime && descriptor.resource.scheme !== Schemas.data) {
+		mime = mimes.getMediaMime(descriptor.resource.toString());
+	}
+	return mime || mimes.MIME_BINARY;
+}

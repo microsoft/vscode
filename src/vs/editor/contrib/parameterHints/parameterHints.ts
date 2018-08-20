@@ -15,7 +15,7 @@ import { registerEditorAction, registerEditorContribution, ServicesAccessor, Edi
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { ParameterHintsWidget } from './parameterHintsWidget';
 import { Context } from 'vs/editor/contrib/parameterHints/provideSignatureHelp';
-import { KeybindingsRegistry } from 'vs/platform/keybinding/common/keybindingsRegistry';
+import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
 
 class ParameterHintsController implements IEditorContribution {
 
@@ -67,8 +67,9 @@ export class TriggerParameterHintsAction extends EditorAction {
 			alias: 'Trigger Parameter Hints',
 			precondition: EditorContextKeys.hasSignatureHelpProvider,
 			kbOpts: {
-				kbExpr: EditorContextKeys.textFocus,
-				primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.Space
+				kbExpr: EditorContextKeys.editorTextFocus,
+				primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.Space,
+				weight: KeybindingWeight.EditorContrib
 			}
 		});
 	}
@@ -84,7 +85,7 @@ export class TriggerParameterHintsAction extends EditorAction {
 registerEditorContribution(ParameterHintsController);
 registerEditorAction(TriggerParameterHintsAction);
 
-const weight = KeybindingsRegistry.WEIGHT.editorContrib(75);
+const weight = KeybindingWeight.EditorContrib + 75;
 
 const ParameterHintsCommand = EditorCommand.bindToContribution<ParameterHintsController>(ParameterHintsController.get);
 
@@ -94,7 +95,7 @@ registerEditorCommand(new ParameterHintsCommand({
 	handler: x => x.cancel(),
 	kbOpts: {
 		weight: weight,
-		kbExpr: EditorContextKeys.textFocus,
+		kbExpr: EditorContextKeys.editorTextFocus,
 		primary: KeyCode.Escape,
 		secondary: [KeyMod.Shift | KeyCode.Escape]
 	}
@@ -105,7 +106,7 @@ registerEditorCommand(new ParameterHintsCommand({
 	handler: x => x.previous(),
 	kbOpts: {
 		weight: weight,
-		kbExpr: EditorContextKeys.textFocus,
+		kbExpr: EditorContextKeys.editorTextFocus,
 		primary: KeyCode.UpArrow,
 		secondary: [KeyMod.Alt | KeyCode.UpArrow],
 		mac: { primary: KeyCode.UpArrow, secondary: [KeyMod.Alt | KeyCode.UpArrow, KeyMod.WinCtrl | KeyCode.KEY_P] }
@@ -117,7 +118,7 @@ registerEditorCommand(new ParameterHintsCommand({
 	handler: x => x.next(),
 	kbOpts: {
 		weight: weight,
-		kbExpr: EditorContextKeys.textFocus,
+		kbExpr: EditorContextKeys.editorTextFocus,
 		primary: KeyCode.DownArrow,
 		secondary: [KeyMod.Alt | KeyCode.DownArrow],
 		mac: { primary: KeyCode.DownArrow, secondary: [KeyMod.Alt | KeyCode.DownArrow, KeyMod.WinCtrl | KeyCode.KEY_N] }

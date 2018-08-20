@@ -5,12 +5,12 @@
 
 'use strict';
 
-import fs = require('fs');
+import * as fs from 'fs';
 
 import { TPromise } from 'vs/base/common/winjs.base';
 
 export interface ReadResult {
-	buffer: NodeBuffer;
+	buffer: Buffer;
 	bytesRead: number;
 }
 
@@ -24,7 +24,7 @@ export function readExactlyByFile(file: string, totalBytes: number): TPromise<Re
 				return error(err);
 			}
 
-			function end(err: Error, resultBuffer: NodeBuffer, bytesRead: number): void {
+			function end(err: Error, resultBuffer: Buffer, bytesRead: number): void {
 				fs.close(fd, closeError => {
 					if (closeError) {
 						return error(closeError);
@@ -38,7 +38,7 @@ export function readExactlyByFile(file: string, totalBytes: number): TPromise<Re
 				});
 			}
 
-			const buffer = new Buffer(totalBytes);
+			const buffer = Buffer.allocUnsafe(totalBytes);
 			let offset = 0;
 
 			function readChunk(): void {
@@ -96,7 +96,7 @@ export function readToMatchingString(file: string, matchingString: string, chunk
 				});
 			}
 
-			let buffer = new Buffer(maximumBytesToRead);
+			let buffer = Buffer.allocUnsafe(maximumBytesToRead);
 			let offset = 0;
 
 			function readChunk(): void {

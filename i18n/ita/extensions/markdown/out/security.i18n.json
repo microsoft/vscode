@@ -15,5 +15,6 @@
 	"moreInfo.title": "Altre informazioni",
 	"enableSecurityWarning.title": "Abilita anteprima degli avvisi di protezione in questa area di lavoro",
 	"disableSecurityWarning.title": "Disabilita anteprima degli avvisi di protezione in questa area di lavoro",
+	"toggleSecurityWarning.description": "Non influisce sul livello di sicurezza del contenuto",
 	"preview.showPreviewSecuritySelector.title": "Seleziona impostazioni di protezione per le anteprime Markdown in questa area di lavoro"
 }

@@ -3,8 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-'use strict';
-
 import * as assert from 'assert';
 import { Platform } from 'vs/base/common/platform';
 import { TerminalLinkHandler, LineColumnInfo } from 'vs/workbench/parts/terminal/electron-browser/terminalLinkHandler';
@@ -22,8 +20,8 @@ class TestTerminalLinkHandler extends TerminalLinkHandler {
 }
 
 class TestXterm {
-	public setHypertextLinkHandler() { }
-	public setHypertextValidationCallback() { }
+	public webLinksInit() { }
+	public registerLinkMatcher() { }
 }
 
 interface LinkFormatInfo {
@@ -35,7 +33,7 @@ interface LinkFormatInfo {
 suite('Workbench - TerminalLinkHandler', () => {
 	suite('localLinkRegex', () => {
 		test('Windows', () => {
-			const terminalLinkHandler = new TestTerminalLinkHandler(new TestXterm(), Platform.Windows, null, null, null, null);
+			const terminalLinkHandler = new TestTerminalLinkHandler(new TestXterm(), Platform.Windows, null, null, null, null, null);
 			function testLink(link: string, linkUrl: string, lineNo?: string, columnNo?: string) {
 				assert.equal(terminalLinkHandler.extractLinkUrl(link), linkUrl);
 				assert.equal(terminalLinkHandler.extractLinkUrl(`:${link}:`), linkUrl);
@@ -105,7 +103,7 @@ suite('Workbench - TerminalLinkHandler', () => {
 		});
 
 		test('Linux', () => {
-			const terminalLinkHandler = new TestTerminalLinkHandler(new TestXterm(), Platform.Linux, null, null, null, null);
+			const terminalLinkHandler = new TestTerminalLinkHandler(new TestXterm(), Platform.Linux, null, null, null, null, null);
 			function testLink(link: string, linkUrl: string, lineNo?: string, columnNo?: string) {
 				assert.equal(terminalLinkHandler.extractLinkUrl(link), linkUrl);
 				assert.equal(terminalLinkHandler.extractLinkUrl(`:${link}:`), linkUrl);
@@ -169,7 +167,7 @@ suite('Workbench - TerminalLinkHandler', () => {
 
 	suite('preprocessPath', () => {
 		test('Windows', () => {
-			const linkHandler = new TestTerminalLinkHandler(new TestXterm(), Platform.Windows, 'C:\\base', null, null, null);
+			const linkHandler = new TestTerminalLinkHandler(new TestXterm(), Platform.Windows, 'C:\\base', null, null, null, null);
 
 			let stub = sinon.stub(path, 'join', function (arg1: string, arg2: string) {
 				return arg1 + '\\' + arg2;
@@ -182,7 +180,7 @@ suite('Workbench - TerminalLinkHandler', () => {
 		});
 
 		test('Linux', () => {
-			const linkHandler = new TestTerminalLinkHandler(new TestXterm(), Platform.Linux, '/base', null, null, null);
+			const linkHandler = new TestTerminalLinkHandler(new TestXterm(), Platform.Linux, '/base', null, null, null, null);
 
 			let stub = sinon.stub(path, 'join', function (arg1: string, arg2: string) {
 				return arg1 + '/' + arg2;
@@ -195,7 +193,7 @@ suite('Workbench - TerminalLinkHandler', () => {
 		});
 
 		test('No Workspace', () => {
-			const linkHandler = new TestTerminalLinkHandler(new TestXterm(), Platform.Linux, null, null, null, null);
+			const linkHandler = new TestTerminalLinkHandler(new TestXterm(), Platform.Linux, null, null, null, null, null);
 
 			assert.equal(linkHandler.preprocessPath('./src/file1'), null);
 			assert.equal(linkHandler.preprocessPath('src/file2'), null);

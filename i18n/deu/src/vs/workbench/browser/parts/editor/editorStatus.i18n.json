@@ -17,7 +17,7 @@
 	"screenReaderDetectedExtra": "Wenn Sie keine Sprachausgabe verwenden, ändern Sie die Einstellung \"editor.accessibilitySupport\" in \"Aus\".",
 	"disableTabMode": "Barrierefreiheitsmodus deaktivieren",
 	"gotoLine": "Gehe zu Zeile",
-	"indentation": "Einzug",
+	"selectIndentation": "Einzug auswählen",
 	"selectEncoding": "Codierung auswählen",
 	"selectEOL": "Zeilenendesequenz auswählen",
 	"selectLanguageMode": "Sprachmodus auswählen",

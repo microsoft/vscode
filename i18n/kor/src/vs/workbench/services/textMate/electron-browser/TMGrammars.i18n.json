@@ -11,5 +11,6 @@
 	"vscode.extension.contributes.grammars.scopeName": "tmLanguage 파일에 사용되는 Textmate 범위 이름입니다.",
 	"vscode.extension.contributes.grammars.path": "tmLanguage 파일의 경로입니다. 확장 폴더의 상대 경로이며 일반적으로 './syntaxes/'로 시작합니다.",
 	"vscode.extension.contributes.grammars.embeddedLanguages": "이 문법에 포함된 언어가 있는 경우 언어 ID에 대한 범위 이름의 맵입니다.",
+	"vscode.extension.contributes.grammars.tokenTypes": "토큰 형식에 대한 범위 이름의 맵입니다.",
 	"vscode.extension.contributes.grammars.injectTo": "이 문법이 삽입되는 언어 범위 이름 목록입니다."
 }

@@ -15,5 +15,6 @@
 	"developer": "Sviluppatore",
 	"extensionsConfigurationTitle": "Estensioni",
 	"extensionsAutoUpdate": "Aggiorna automaticamente le estensioni",
-	"extensionsIgnoreRecommendations": "Se impostato a true, le notifiche delle raccomandazioni dell'estensione non verranno più mostrate."
+	"extensionsIgnoreRecommendations": "Se impostato a true, le notifiche delle raccomandazioni dell'estensione non verranno più mostrate.",
+	"extensionsShowRecommendationsOnlyOnDemand": "Se impostato su true, le raccomandazioni non verranno recuperate o modificate a meno che non sia specificamente richiesto dall'utente."
 }

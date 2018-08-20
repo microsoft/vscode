@@ -99,6 +99,7 @@
 	line-height: 17px;
 	min-height: 34px;
 	margin-top: -1px;
+	word-wrap: break-word;
 }
 
 /* Action bar support */

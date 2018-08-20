@@ -16,6 +16,8 @@ import { registerEditorAction, IActionOptions, EditorAction, ICommandKeybindings
 import { CopyOptions } from 'vs/editor/browser/controller/textAreaInput';
 import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
+import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
+import { MenuId } from 'vs/platform/actions/common/actions';
 
 const CLIPBOARD_CONTEXT_MENU_GROUP = '9_cutcopypaste';
 
@@ -42,7 +44,7 @@ abstract class ExecCommandAction extends EditorAction {
 	public runCommand(accessor: ServicesAccessor, args: any): void {
 		let focusedEditor = accessor.get(ICodeEditorService).getFocusedCodeEditor();
 		// Only if editor text focus (i.e. not if editor has widget focus).
-		if (focusedEditor && focusedEditor.isFocused()) {
+		if (focusedEditor && focusedEditor.hasTextFocus()) {
 			focusedEditor.trigger('keyboard', this.id, args);
 			return;
 		}
@@ -60,9 +62,10 @@ class ExecCommandCutAction extends ExecCommandAction {
 
 	constructor() {
 		let kbOpts: ICommandKeybindingsOptions = {
-			kbExpr: EditorContextKeys.textFocus,
+			kbExpr: EditorContextKeys.textInputFocus,
 			primary: KeyMod.CtrlCmd | KeyCode.KEY_X,
-			win: { primary: KeyMod.CtrlCmd | KeyCode.KEY_X, secondary: [KeyMod.Shift | KeyCode.Delete] }
+			win: { primary: KeyMod.CtrlCmd | KeyCode.KEY_X, secondary: [KeyMod.Shift | KeyCode.Delete] },
+			weight: KeybindingWeight.EditorContrib
 		};
 		// Do not bind cut keybindings in the browser,
 		// since browsers do that for us and it avoids security prompts
@@ -77,6 +80,12 @@ class ExecCommandCutAction extends ExecCommandAction {
 			kbOpts: kbOpts,
 			menuOpts: {
 				group: CLIPBOARD_CONTEXT_MENU_GROUP,
+				order: 1
+			},
+			menubarOpts: {
+				menuId: MenuId.MenubarEditMenu,
+				group: '2_ccp',
+				title: nls.localize({ key: 'miCut', comment: ['&& denotes a mnemonic'] }, "Cu&&t"),
 				order: 1
 			}
 		});
@@ -97,9 +106,10 @@ class ExecCommandCopyAction extends ExecCommandAction {
 
 	constructor() {
 		let kbOpts: ICommandKeybindingsOptions = {
-			kbExpr: EditorContextKeys.textFocus,
+			kbExpr: EditorContextKeys.textInputFocus,
 			primary: KeyMod.CtrlCmd | KeyCode.KEY_C,
-			win: { primary: KeyMod.CtrlCmd | KeyCode.KEY_C, secondary: [KeyMod.CtrlCmd | KeyCode.Insert] }
+			win: { primary: KeyMod.CtrlCmd | KeyCode.KEY_C, secondary: [KeyMod.CtrlCmd | KeyCode.Insert] },
+			weight: KeybindingWeight.EditorContrib
 		};
 		// Do not bind copy keybindings in the browser,
 		// since browsers do that for us and it avoids security prompts
@@ -115,6 +125,12 @@ class ExecCommandCopyAction extends ExecCommandAction {
 			kbOpts: kbOpts,
 			menuOpts: {
 				group: CLIPBOARD_CONTEXT_MENU_GROUP,
+				order: 2
+			},
+			menubarOpts: {
+				menuId: MenuId.MenubarEditMenu,
+				group: '2_ccp',
+				title: nls.localize({ key: 'miCopy', comment: ['&& denotes a mnemonic'] }, "&&Copy"),
 				order: 2
 			}
 		});
@@ -135,9 +151,10 @@ class ExecCommandPasteAction extends ExecCommandAction {
 
 	constructor() {
 		let kbOpts: ICommandKeybindingsOptions = {
-			kbExpr: EditorContextKeys.textFocus,
+			kbExpr: EditorContextKeys.textInputFocus,
 			primary: KeyMod.CtrlCmd | KeyCode.KEY_V,
-			win: { primary: KeyMod.CtrlCmd | KeyCode.KEY_V, secondary: [KeyMod.Shift | KeyCode.Insert] }
+			win: { primary: KeyMod.CtrlCmd | KeyCode.KEY_V, secondary: [KeyMod.Shift | KeyCode.Insert] },
+			weight: KeybindingWeight.EditorContrib
 		};
 		// Do not bind paste keybindings in the browser,
 		// since browsers do that for us and it avoids security prompts
@@ -154,6 +171,12 @@ class ExecCommandPasteAction extends ExecCommandAction {
 			menuOpts: {
 				group: CLIPBOARD_CONTEXT_MENU_GROUP,
 				order: 3
+			},
+			menubarOpts: {
+				menuId: MenuId.MenubarEditMenu,
+				group: '2_ccp',
+				title: nls.localize({ key: 'miPaste', comment: ['&& denotes a mnemonic'] }, "&&Paste"),
+				order: 3
 			}
 		});
 	}
@@ -168,8 +191,9 @@ class ExecCommandCopyWithSyntaxHighlightingAction extends ExecCommandAction {
 			alias: 'Copy With Syntax Highlighting',
 			precondition: null,
 			kbOpts: {
-				kbExpr: EditorContextKeys.textFocus,
-				primary: null
+				kbExpr: EditorContextKeys.textInputFocus,
+				primary: null,
+				weight: KeybindingWeight.EditorContrib
 			}
 		});
 	}

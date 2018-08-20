@@ -40,7 +40,8 @@
 			"name": "Comments: Documentation",
 			"scope": [
 				"comment.documentation",
-				"comment.block.documentation"
+				"comment.block.documentation",
+				"comment.block.documentation punctuation.definition.comment "
 			],
 			"settings": {
 				"foreground": "#448C27"
@@ -494,6 +495,7 @@
 		"editor.background": "#F5F5F5",
 		"editorWhitespace.foreground": "#AAAAAA",
 		"editor.lineHighlightBackground": "#E4F6D4",
+		"editorLineNumber.activeForeground": "#9769dc",
 		"editor.selectionBackground": "#C9D0D9",
 		"panel.background": "#F5F5F5",
 		"sideBar.background": "#F2F2F2",
@@ -518,7 +520,6 @@
 		"activityBarBadge.background": "#705697",
 		"titleBar.activeBackground": "#c4b7d7",
 		"button.background": "#705697",
-		"notification.background": "#442e66",
 		"editorGroup.dropBackground": "#C9D0D988",
 		"inputValidation.infoBorder": "#4ec1e5",
 		"inputValidation.infoBackground": "#f2fcff",
@@ -528,6 +529,7 @@
 		"inputValidation.errorBorder": "#f1897f",
 		"errorForeground": "#f1897f",
 		"badge.background": "#705697AA",
-		"progressBar.background": "#705697"
+		"progressBar.background": "#705697",
+		"walkThrough.embeddedEditorBackground": "#00000014"
 	}
 }

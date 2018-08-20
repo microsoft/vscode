@@ -16,7 +16,9 @@ export class ExtensionsInput extends EditorInput {
 	static readonly ID = 'workbench.extensions.input2';
 	get extension(): IExtension { return this._extension; }
 
-	constructor(private _extension: IExtension) {
+	constructor(
+		private _extension: IExtension,
+	) {
 		super();
 	}
 
@@ -39,7 +41,7 @@ export class ExtensionsInput extends EditorInput {
 		return this.extension === otherExtensionInput.extension;
 	}
 
-	resolve(refresh?: boolean): TPromise<any> {
+	resolve(): TPromise<any> {
 		return TPromise.as(null);
 	}
 

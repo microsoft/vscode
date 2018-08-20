@@ -8,6 +8,8 @@ import { createDecorator } from 'vs/platform/instantiation/common/instantiation'
 export interface ParsedArgs {
 	[arg: string]: any;
 	_: string[];
+	'folder-uri'?: string | string[];
+	'file-uri'?: string | string[];
 	_urls?: string[];
 	help?: boolean;
 	version?: boolean;
@@ -25,10 +27,10 @@ export interface ParsedArgs {
 	performance?: boolean;
 	'prof-startup'?: string;
 	'prof-startup-prefix'?: string;
+	'prof-append-timers'?: string;
 	verbose?: boolean;
 	log?: string;
 	logExtensionHostCommunication?: boolean;
-	'disable-extensions'?: boolean;
 	'extensions-dir'?: string;
 	extensionDevelopmentPath?: string;
 	extensionTestsPath?: string;
@@ -37,6 +39,8 @@ export interface ParsedArgs {
 	debugId?: string;
 	debugSearch?: string;
 	debugBrkSearch?: string;
+	'disable-extensions'?: boolean;
+	'disable-extension'?: string | string[];
 	'list-extensions'?: boolean;
 	'show-versions'?: boolean;
 	'install-extension'?: string | string[];
@@ -53,9 +57,12 @@ export interface ParsedArgs {
 	'disable-updates'?: string;
 	'disable-crash-reporter'?: string;
 	'skip-add-to-recently-opened'?: boolean;
+	'max-memory'?: number;
 	'file-write'?: boolean;
 	'file-chmod'?: boolean;
 	'upload-logs'?: string;
+	'driver'?: string;
+	'driver-verbose'?: boolean;
 }
 
 export const IEnvironmentService = createDecorator<IEnvironmentService>('environmentService');
@@ -96,7 +103,7 @@ export interface IEnvironmentService {
 	workspacesHome: string;
 
 	isExtensionDevelopment: boolean;
-	disableExtensions: boolean;
+	disableExtensions: boolean | string[];
 	extensionsPath: string;
 	extensionDevelopmentPath: string;
 	extensionTestsPath: string;
@@ -113,6 +120,7 @@ export interface IEnvironmentService {
 	performance: boolean;
 
 	// logging
+	log: string;
 	logsPath: string;
 	verbose: boolean;
 
@@ -129,4 +137,7 @@ export interface IEnvironmentService {
 	installSourcePath: string;
 	disableUpdates: boolean;
 	disableCrashReporter: boolean;
+
+	driverHandle: string;
+	driverVerbose: boolean;
 }

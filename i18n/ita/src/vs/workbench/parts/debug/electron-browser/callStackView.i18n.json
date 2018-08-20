@@ -9,7 +9,7 @@
 	"callstackSection": "Sezione Stack di chiamate",
 	"debugStopped": "In pausa su {0}",
 	"callStackAriaLabel": "Stack di chiamate di debug",
-	"process": "Processo",
+	"session": "Sessione",
 	"paused": "In pausa",
 	"running": "In esecuzione",
 	"thread": "Thread",

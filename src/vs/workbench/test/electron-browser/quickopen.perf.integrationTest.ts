@@ -9,24 +9,23 @@ import 'vs/workbench/parts/search/electron-browser/search.contribution'; // load
 import * as assert from 'assert';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { createSyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
-import { IEditorGroupService } from 'vs/workbench/services/group/common/groupService';
+import { IEditorGroupsService } from 'vs/workbench/services/group/common/editorGroupsService';
 import { ISearchService } from 'vs/platform/search/common/search';
 import { ITelemetryService, ITelemetryInfo } from 'vs/platform/telemetry/common/telemetry';
-import { IExperimentService, IExperiments } from 'vs/platform/telemetry/common/experiments';
 import { IUntitledEditorService, UntitledEditorService } from 'vs/workbench/services/untitled/common/untitledEditorService';
-import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
+import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import * as minimist from 'minimist';
 import * as path from 'path';
 import { IQuickOpenRegistry, Extensions } from 'vs/workbench/browser/quickopen';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { SearchService } from 'vs/workbench/services/search/node/searchService';
 import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
-import { TestEnvironmentService, TestEditorService, TestEditorGroupService, TestContextService } from 'vs/workbench/test/workbenchTestServices';
+import { TestEnvironmentService, TestContextService, TestEditorService, TestEditorGroupsService } from 'vs/workbench/test/workbenchTestServices';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { TPromise } from 'vs/base/common/winjs.base';
 import URI from 'vs/base/common/uri';
 import { InstantiationService } from 'vs/platform/instantiation/common/instantiationService';
-import { SimpleConfigurationService } from 'vs/editor/standalone/browser/simpleServices';
+import { TestConfigurationService } from 'vs/platform/configuration/test/common/testConfigurationService';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { ModelServiceImpl } from 'vs/editor/common/services/modelServiceImpl';
 import { IModelService } from 'vs/editor/common/services/modelService';
@@ -68,16 +67,14 @@ suite.skip('QuickOpen performance (integration)', () => {
 		const testWorkspacePath = testWorkspaceArg ? path.resolve(testWorkspaceArg) : __dirname;
 
 		const telemetryService = new TestTelemetryService();
-		const experimentService = new TestExperimentService();
-		const configurationService = new SimpleConfigurationService();
+		const configurationService = new TestConfigurationService();
 		const instantiationService = new InstantiationService(new ServiceCollection(
 			[ITelemetryService, telemetryService],
-			[IExperimentService, experimentService],
 			[IConfigurationService, configurationService],
 			[IModelService, new ModelServiceImpl(null, configurationService)],
 			[IWorkspaceContextService, new TestContextService(testWorkspace(URI.file(testWorkspacePath)))],
-			[IWorkbenchEditorService, new TestEditorService()],
-			[IEditorGroupService, new TestEditorGroupService()],
+			[IEditorService, new TestEditorService()],
+			[IEditorGroupsService, new TestEditorGroupsService()],
 			[IEnvironmentService, TestEnvironmentService],
 			[IUntitledEditorService, createSyncDescriptor(UntitledEditorService)],
 			[ISearchService, createSyncDescriptor(SearchService)]
@@ -177,14 +174,5 @@ class TestTelemetryService implements ITelemetryService {
 			sessionId: 'someValue.sessionId',
 			machineId: 'someValue.machineId'
 		});
-	}
-}
-
-class TestExperimentService implements IExperimentService {
-
-	_serviceBrand: any;
-
-	getExperiments(): IExperiments {
-		return {};
 	}
 }

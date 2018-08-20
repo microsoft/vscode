@@ -5,7 +5,7 @@
 
 'use strict';
 
-import Event, { Emitter } from 'vs/base/common/event';
+import { Event, Emitter } from 'vs/base/common/event';
 
 export interface ISplice<T> {
 	readonly start: number;

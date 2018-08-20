@@ -25,5 +25,6 @@
 	"peekViewEditorBackground": "Color de fondo del editor de vista de inspección.",
 	"peekViewEditorGutterBackground": "Color de fondo del margen en el editor de vista de inspección.",
 	"peekViewResultsMatchHighlight": "Buscar coincidencia con el color de resaltado de la lista de resultados de vista de inspección.",
-	"peekViewEditorMatchHighlight": "Buscar coincidencia del color de resultado del editor de vista de inspección."
+	"peekViewEditorMatchHighlight": "Buscar coincidencia del color de resultado del editor de vista de inspección.",
+	"peekViewEditorMatchHighlightBorder": "Hacer coincidir el borde resaltado en el editor de vista previa."
 }

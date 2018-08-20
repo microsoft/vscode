@@ -10,14 +10,14 @@ import { ICommandService } from 'vs/platform/commands/common/commands';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
-import { CodeEditor } from 'vs/editor/browser/codeEditor';
+import { CodeEditorWidget } from 'vs/editor/browser/widget/codeEditorWidget';
 import { IConfigurationChangedEvent, IEditorOptions, IDiffEditorOptions } from 'vs/editor/common/config/editorOptions';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { DiffEditorWidget } from 'vs/editor/browser/widget/diffEditorWidget';
 import { IEditorWorkerService } from 'vs/editor/common/services/editorWorkerService';
-import { IMessageService } from 'vs/platform/message/common/message';
+import { INotificationService } from 'vs/platform/notification/common/notification';
 
-export class EmbeddedCodeEditorWidget extends CodeEditor {
+export class EmbeddedCodeEditorWidget extends CodeEditorWidget {
 
 	private _parentEditor: ICodeEditor;
 	private _overwriteOptions: IEditorOptions;
@@ -30,9 +30,10 @@ export class EmbeddedCodeEditorWidget extends CodeEditor {
 		@ICodeEditorService codeEditorService: ICodeEditorService,
 		@ICommandService commandService: ICommandService,
 		@IContextKeyService contextKeyService: IContextKeyService,
-		@IThemeService themeService: IThemeService
+		@IThemeService themeService: IThemeService,
+		@INotificationService notificationService: INotificationService
 	) {
-		super(domElement, parentEditor.getRawConfiguration(), instantiationService, codeEditorService, commandService, contextKeyService, themeService);
+		super(domElement, parentEditor.getRawConfiguration(), {}, instantiationService, codeEditorService, commandService, contextKeyService, themeService, notificationService);
 
 		this._parentEditor = parentEditor;
 		this._overwriteOptions = options;
@@ -72,9 +73,9 @@ export class EmbeddedDiffEditorWidget extends DiffEditorWidget {
 		@IInstantiationService instantiationService: IInstantiationService,
 		@ICodeEditorService codeEditorService: ICodeEditorService,
 		@IThemeService themeService: IThemeService,
-		@IMessageService messageService: IMessageService
+		@INotificationService notificationService: INotificationService
 	) {
-		super(domElement, parentEditor.getRawConfiguration(), editorWorkerService, contextKeyService, instantiationService, codeEditorService, themeService, messageService);
+		super(domElement, parentEditor.getRawConfiguration(), editorWorkerService, contextKeyService, instantiationService, codeEditorService, themeService, notificationService);
 
 		this._parentEditor = parentEditor;
 		this._overwriteOptions = options;

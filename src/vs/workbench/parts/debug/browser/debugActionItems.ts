@@ -4,7 +4,6 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as nls from 'vs/nls';
-import * as lifecycle from 'vs/base/common/lifecycle';
 import * as errors from 'vs/base/common/errors';
 import { IAction, IActionRunner } from 'vs/base/common/actions';
 import { KeyCode } from 'vs/base/common/keyCodes';
@@ -21,6 +20,7 @@ import { SIDE_BAR_BACKGROUND } from 'vs/workbench/common/theme';
 import { selectBorder } from 'vs/platform/theme/common/colorRegistry';
 import { IContextViewService } from 'vs/platform/contextview/browser/contextView';
 import { IWorkspaceContextService, WorkbenchState } from 'vs/platform/workspace/common/workspace';
+import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 
 const $ = dom.$;
 
@@ -33,7 +33,7 @@ export class StartDebugActionItem implements IActionItem {
 	private start: HTMLElement;
 	private selectBox: SelectBox;
 	private options: { label: string, handler: (() => boolean) }[];
-	private toDispose: lifecycle.IDisposable[];
+	private toDispose: IDisposable[];
 	private selected: number;
 
 	constructor(
@@ -47,7 +47,8 @@ export class StartDebugActionItem implements IActionItem {
 		@IContextViewService contextViewService: IContextViewService,
 	) {
 		this.toDispose = [];
-		this.selectBox = new SelectBox([], -1, contextViewService);
+		this.selectBox = new SelectBox([], -1, contextViewService, null, { ariaLabel: nls.localize('debugLaunchConfigurations', 'Debug Launch Configurations') });
+		this.toDispose.push(this.selectBox);
 		this.toDispose.push(attachSelectBoxStyler(this.selectBox, themeService, {
 			selectBackground: SIDE_BAR_BACKGROUND
 		}));
@@ -61,14 +62,6 @@ export class StartDebugActionItem implements IActionItem {
 				this.updateOptions();
 			}
 		}));
-		this.toDispose.push(this.selectBox.onDidSelect(e => {
-			if (this.options[e.index].handler()) {
-				this.selected = e.index;
-			} else {
-				// Some select options should not remain selected https://github.com/Microsoft/vscode/issues/31526
-				this.selectBox.select(this.selected);
-			}
-		}));
 		this.toDispose.push(this.debugService.getConfigurationManager().onDidSelectConfiguration(() => {
 			this.updateOptions();
 		}));
@@ -79,6 +72,7 @@ export class StartDebugActionItem implements IActionItem {
 		dom.addClass(container, 'start-debug-action-item');
 		this.start = dom.append(container, $('.icon'));
 		this.start.title = this.action.label;
+		this.start.setAttribute('role', 'button');
 		this.start.tabIndex = 0;
 
 		this.toDispose.push(dom.addDisposableListener(this.start, dom.EventType.CLICK, () => {
@@ -106,6 +100,15 @@ export class StartDebugActionItem implements IActionItem {
 			if (event.equals(KeyCode.RightArrow)) {
 				this.selectBox.focus();
 				event.stopPropagation();
+			}
+		}));
+		this.toDispose.push(this.selectBox.onDidSelect(e => {
+			const shouldBeSelected = this.options[e.index].handler();
+			if (shouldBeSelected) {
+				this.selected = e.index;
+			} else {
+				// Some select options should not remain selected https://github.com/Microsoft/vscode/issues/31526
+				this.selectBox.select(this.selected);
 			}
 		}));
 
@@ -147,7 +150,7 @@ export class StartDebugActionItem implements IActionItem {
 	}
 
 	public dispose(): void {
-		this.toDispose = lifecycle.dispose(this.toDispose);
+		this.toDispose = dispose(this.toDispose);
 	}
 
 	private updateOptions(): void {
@@ -156,9 +159,9 @@ export class StartDebugActionItem implements IActionItem {
 		const manager = this.debugService.getConfigurationManager();
 		const launches = manager.getLaunches();
 		const inWorkspace = this.contextService.getWorkbenchState() === WorkbenchState.WORKSPACE;
-		manager.getLaunches().forEach(launch =>
+		launches.forEach(launch =>
 			launch.getConfigurationNames().forEach(name => {
-				if (name === manager.selectedName && launch === manager.selectedLaunch) {
+				if (name === manager.selectedConfiguration.name && launch === manager.selectedConfiguration.launch) {
 					this.selected = this.options.length;
 				}
 				const label = inWorkspace ? `${name} (${launch.name})` : name;
@@ -185,21 +188,21 @@ export class StartDebugActionItem implements IActionItem {
 	}
 }
 
-export class FocusProcessActionItem extends SelectActionItem {
+export class FocusSessionActionItem extends SelectActionItem {
 	constructor(
 		action: IAction,
 		@IDebugService private debugService: IDebugService,
 		@IThemeService themeService: IThemeService,
 		@IContextViewService contextViewService: IContextViewService
 	) {
-		super(null, action, [], -1, contextViewService);
+		super(null, action, [], -1, contextViewService, { ariaLabel: nls.localize('debugSession', 'Debug Session') });
 
 		this.toDispose.push(attachSelectBoxStyler(this.selectBox, themeService));
 
 		this.debugService.getViewModel().onDidFocusStackFrame(() => {
-			const process = this.debugService.getViewModel().focusedProcess;
-			if (process) {
-				const index = this.debugService.getModel().getProcesses().indexOf(process);
+			const session = this.debugService.getViewModel().focusedSession;
+			if (session) {
+				const index = this.debugService.getModel().getSessions().indexOf(session);
 				this.select(index);
 			}
 		});
@@ -209,10 +212,10 @@ export class FocusProcessActionItem extends SelectActionItem {
 	}
 
 	private update() {
-		const process = this.debugService.getViewModel().focusedProcess;
-		const processes = this.debugService.getModel().getProcesses();
+		const session = this.debugService.getViewModel().focusedSession;
+		const sessions = this.debugService.getModel().getSessions();
 		const showRootName = this.debugService.getConfigurationManager().getLaunches().length > 1;
-		const names = processes.map(p => p.getName(showRootName));
-		this.setOptions(names, process ? processes.indexOf(process) : undefined);
+		const names = sessions.map(s => s.getName(showRootName));
+		this.setOptions(names, session ? sessions.indexOf(session) : undefined);
 	}
 }

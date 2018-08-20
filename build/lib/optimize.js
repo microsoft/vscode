@@ -17,10 +17,10 @@ var concat = require("gulp-concat");
 var VinylFile = require("vinyl");
 var bundle = require("./bundle");
 var util = require("./util");
-var i18n = require("./i18n");
 var gulpUtil = require("gulp-util");
 var flatmap = require("gulp-flatmap");
 var pump = require("pump");
+var i18n_1 = require("./i18n");
 var REPO_ROOT_PATH = path.join(__dirname, '../..');
 function log(prefix, message) {
     gulpUtil.log(gulpUtil.colors.cyan('[' + prefix + ']'), message);
@@ -38,26 +38,26 @@ function loaderConfig(emptyPaths) {
 }
 exports.loaderConfig = loaderConfig;
 var IS_OUR_COPYRIGHT_REGEXP = /Copyright \(C\) Microsoft Corporation/i;
-function loader(bundledFileHeader, bundleLoader) {
+function loader(src, bundledFileHeader, bundleLoader) {
     var sources = [
-        'out-build/vs/loader.js'
+        src + "/vs/loader.js"
     ];
     if (bundleLoader) {
         sources = sources.concat([
-            'out-build/vs/css.js',
-            'out-build/vs/nls.js'
+            src + "/vs/css.js",
+            src + "/vs/nls.js"
         ]);
     }
     var isFirst = true;
     return (gulp
-        .src(sources, { base: 'out-build' })
+        .src(sources, { base: "" + src })
         .pipe(es.through(function (data) {
         if (isFirst) {
             isFirst = false;
             this.emit('data', new VinylFile({
                 path: 'fake',
                 base: '',
-                contents: new Buffer(bundledFileHeader)
+                contents: Buffer.from(bundledFileHeader)
             }));
             this.emit('data', data);
         }
@@ -72,7 +72,7 @@ function loader(bundledFileHeader, bundleLoader) {
         return f;
     })));
 }
-function toConcatStream(bundledFileHeader, sources, dest) {
+function toConcatStream(src, bundledFileHeader, sources, dest) {
     var useSourcemaps = /\.js$/.test(dest) && !/\.nls\.js$/.test(dest);
     // If a bundle ends up including in any of the sources our copyright, then
     // insert a fake source at the beginning of each bundle with our copyright
@@ -92,23 +92,24 @@ function toConcatStream(bundledFileHeader, sources, dest) {
     }
     var treatedSources = sources.map(function (source) {
         var root = source.path ? REPO_ROOT_PATH.replace(/\\/g, '/') : '';
-        var base = source.path ? root + '/out-build' : '';
+        var base = source.path ? root + ("/" + src) : '';
         return new VinylFile({
             path: source.path ? root + '/' + source.path.replace(/\\/g, '/') : 'fake',
             base: base,
-            contents: new Buffer(source.contents)
+            contents: Buffer.from(source.contents)
         });
     });
     return es.readArray(treatedSources)
         .pipe(useSourcemaps ? util.loadSourcemaps() : es.through())
         .pipe(concat(dest));
 }
-function toBundleStream(bundledFileHeader, bundles) {
+function toBundleStream(src, bundledFileHeader, bundles) {
     return es.merge(bundles.map(function (bundle) {
-        return toConcatStream(bundledFileHeader, bundle.sources, bundle.dest);
+        return toConcatStream(src, bundledFileHeader, bundle.sources, bundle.dest);
     }));
 }
 function optimizeTask(opts) {
+    var src = opts.src;
     var entryPoints = opts.entryPoints;
     var otherSources = opts.otherSources;
     var resources = opts.resources;
@@ -124,7 +125,7 @@ function optimizeTask(opts) {
             if (err) {
                 return bundlesStream.emit('error', JSON.stringify(err));
             }
-            toBundleStream(bundledFileHeader, result.files).pipe(bundlesStream);
+            toBundleStream(src, bundledFileHeader, result.files).pipe(bundlesStream);
             // Remove css inlined resources
             var filteredResources = resources.slice();
             result.cssInlinedResources.forEach(function (resource) {
@@ -133,22 +134,22 @@ function optimizeTask(opts) {
                 }
                 filteredResources.push('!' + resource);
             });
-            gulp.src(filteredResources, { base: 'out-build' }).pipe(resourcesStream);
+            gulp.src(filteredResources, { base: "" + src }).pipe(resourcesStream);
             var bundleInfoArray = [];
             if (opts.bundleInfo) {
                 bundleInfoArray.push(new VinylFile({
                     path: 'bundleInfo.json',
                     base: '.',
-                    contents: new Buffer(JSON.stringify(result.bundleData, null, '\t'))
+                    contents: Buffer.from(JSON.stringify(result.bundleData, null, '\t'))
                 }));
             }
             es.readArray(bundleInfoArray).pipe(bundleInfoStream);
         });
         var otherSourcesStream = es.through();
         var otherSourcesStreamArr = [];
-        gulp.src(otherSources, { base: 'out-build' })
+        gulp.src(otherSources, { base: "" + src })
             .pipe(es.through(function (data) {
-            otherSourcesStreamArr.push(toConcatStream(bundledFileHeader, [data], data.relative));
+            otherSourcesStreamArr.push(toConcatStream(src, bundledFileHeader, [data], data.relative));
         }, function () {
             if (!otherSourcesStreamArr.length) {
                 setTimeout(function () { otherSourcesStream.emit('end'); }, 0);
@@ -157,17 +158,17 @@ function optimizeTask(opts) {
                 es.merge(otherSourcesStreamArr).pipe(otherSourcesStream);
             }
         }));
-        var result = es.merge(loader(bundledFileHeader, bundleLoader), bundlesStream, otherSourcesStream, resourcesStream, bundleInfoStream);
+        var result = es.merge(loader(src, bundledFileHeader, bundleLoader), bundlesStream, otherSourcesStream, resourcesStream, bundleInfoStream);
         return result
             .pipe(sourcemaps.write('./', {
             sourceRoot: null,
             addComment: true,
             includeContent: true
         }))
-            .pipe(i18n.processNlsFiles({
+            .pipe(opts.languages && opts.languages.length ? i18n_1.processNlsFiles({
             fileHeader: bundledFileHeader,
             languages: opts.languages
-        }))
+        }) : es.through())
             .pipe(gulp.dest(out));
     };
 }

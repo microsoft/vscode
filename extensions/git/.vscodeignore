@@ -1,4 +1,5 @@
 src/**
 test/**
-out/test/**
+out/**
 tsconfig.json
+build/**

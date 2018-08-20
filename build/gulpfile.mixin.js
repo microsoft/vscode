@@ -14,6 +14,7 @@ const util = require('./lib/util');
 const remote = require('gulp-remote-src');
 const zip = require('gulp-vinyl-zip');
 const assign = require('object-assign');
+
 const pkg = require('../package.json');
 
 gulp.task('mixin', function () {

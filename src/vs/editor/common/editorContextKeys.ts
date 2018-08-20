@@ -10,11 +10,16 @@ export namespace EditorContextKeys {
 	/**
 	 * A context key that is set when the editor's text has focus (cursor is blinking).
 	 */
-	export const textFocus = new RawContextKey<boolean>('editorTextFocus', false);
+	export const editorTextFocus = new RawContextKey<boolean>('editorTextFocus', false);
 	/**
 	 * A context key that is set when the editor's text or an editor's widget has focus.
 	 */
 	export const focus = new RawContextKey<boolean>('editorFocus', false);
+
+	/**
+	 * A context key that is set when any editor input has focus (regular editor, repl input...).
+	 */
+	export const textInputFocus = new RawContextKey<boolean>('textInputFocus', false);
 
 	export const readOnly = new RawContextKey<boolean>('editorReadonly', false);
 	export const writable: ContextKeyExpr = readOnly.toNegated();
@@ -25,6 +30,8 @@ export namespace EditorContextKeys {
 	export const tabMovesFocus = new RawContextKey<boolean>('editorTabMovesFocus', false);
 	export const tabDoesNotMoveFocus: ContextKeyExpr = tabMovesFocus.toNegated();
 	export const isInEmbeddedEditor = new RawContextKey<boolean>('isInEmbeddedEditor', undefined);
+	export const canUndo = new RawContextKey<boolean>('canUndo', false);
+	export const canRedo = new RawContextKey<boolean>('canRedo', false);
 
 	// -- mode context keys
 	export const languageId = new RawContextKey<string>('editorLangId', undefined);

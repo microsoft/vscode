@@ -9,5 +9,6 @@
 	"toggleOutput": "Alternar Saída",
 	"clearOutput": "Limpar saída",
 	"toggleOutputScrollLock": "Alternar Scroll Lock de Saída",
-	"switchToOutput.label": "Mudar para Saída"
+	"switchToOutput.label": "Mudar para Saída",
+	"openInLogViewer": "Abrir Arquivo de Log"
 }

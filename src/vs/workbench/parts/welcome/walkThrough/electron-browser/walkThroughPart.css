@@ -8,7 +8,6 @@
 	padding: 10px 20px;
 	line-height: 22px;
 	user-select: initial;
-	-webkit-user-select: initial;
 }
 
 .monaco-workbench > .part.editor > .content .walkThroughContent img {

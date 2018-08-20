@@ -161,7 +161,7 @@ function registerCompletionProviders(context: vscode.ExtensionContext) {
 			completionProvidersMapping.delete(language);
 		}
 
-		const provider = vscode.languages.registerCompletionItemProvider(language, completionProvider, ...LANGUAGE_MODES[includedLanguages[language]]);
+		const provider = vscode.languages.registerCompletionItemProvider([{ language, scheme: 'file' }, { language, scheme: 'untitled' }], completionProvider, ...LANGUAGE_MODES[includedLanguages[language]]);
 		context.subscriptions.push(provider);
 
 		languageMappingForCompletionProviders.set(language, includedLanguages[language]);
@@ -170,7 +170,7 @@ function registerCompletionProviders(context: vscode.ExtensionContext) {
 
 	Object.keys(LANGUAGE_MODES).forEach(language => {
 		if (!languageMappingForCompletionProviders.has(language)) {
-			const provider = vscode.languages.registerCompletionItemProvider(language, completionProvider, ...LANGUAGE_MODES[language]);
+			const provider = vscode.languages.registerCompletionItemProvider([{ language, scheme: 'file' }, { language, scheme: 'untitled' }], completionProvider, ...LANGUAGE_MODES[language]);
 			context.subscriptions.push(provider);
 
 			languageMappingForCompletionProviders.set(language, language);

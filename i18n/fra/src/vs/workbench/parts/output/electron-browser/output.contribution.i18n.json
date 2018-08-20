@@ -9,5 +9,6 @@
 	"output": "Sortie",
 	"logViewer": "Visualiseur de journal",
 	"viewCategory": "Affichage",
-	"clearOutput.label": "Effacer la sortie"
+	"clearOutput.label": "Effacer la sortie",
+	"openActiveLogOutputFile": "Affichage: Ouvrir le fichier de log de sortie actif"
 }

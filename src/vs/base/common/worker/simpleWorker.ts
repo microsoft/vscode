@@ -91,7 +91,7 @@ class SimpleWorkerProtocol {
 			c: null,
 			e: null
 		};
-		let result = new TPromise<any>((c, e, p) => {
+		let result = new TPromise<any>((c, e) => {
 			reply.c = c;
 			reply.e = e;
 		}, () => {
@@ -116,7 +116,7 @@ class SimpleWorkerProtocol {
 		} catch (e) {
 			// nothing
 		}
-		if (!message.vsWorker) {
+		if (!message || !message.vsWorker) {
 			return;
 		}
 		if (this._workerId !== -1 && message.vsWorker !== this._workerId) {
@@ -163,6 +163,10 @@ class SimpleWorkerProtocol {
 				err: undefined
 			});
 		}, (e) => {
+			if (e.detail instanceof Error) {
+				// Loading errors have a detail property that points to the actual error
+				e.detail = transformErrorForSerialization(e.detail);
+			}
 			this._send({
 				vsWorker: this._workerId,
 				seq: req,
@@ -220,16 +224,15 @@ export class SimpleWorkerClient<T> extends Disposable {
 
 		// Gather loader configuration
 		let loaderConfiguration: any = null;
-		let globalRequire = (<any>self).require;
-		if (typeof globalRequire.getConfig === 'function') {
+		if (typeof (<any>self).require !== 'undefined' && typeof (<any>self).require.getConfig === 'function') {
 			// Get the configuration from the Monaco AMD Loader
-			loaderConfiguration = globalRequire.getConfig();
+			loaderConfiguration = (<any>self).require.getConfig();
 		} else if (typeof (<any>self).requirejs !== 'undefined') {
 			// Get the configuration from requirejs
 			loaderConfiguration = (<any>self).requirejs.s.contexts._.config;
 		}
 
-		this._lazyProxy = new TPromise<T>((c, e, p) => {
+		this._lazyProxy = new TPromise<T>((c, e) => {
 			lazyProxyFulfill = c;
 			lazyProxyReject = e;
 		}, () => { /* no cancel */ });
@@ -270,7 +273,7 @@ export class SimpleWorkerClient<T> extends Disposable {
 	}
 
 	private _request(method: string, args: any[]): TPromise<any> {
-		return new TPromise<any>((c, e, p) => {
+		return new TPromise<any>((c, e) => {
 			this._onModuleLoaded.then(() => {
 				this._protocol.sendMessage(method, args).then(c, e);
 			}, e);
@@ -287,6 +290,7 @@ export class SimpleWorkerClient<T> extends Disposable {
 
 export interface IRequestHandler {
 	_requestHandlerBrand: any;
+	[prop: string]: any;
 }
 
 /**
@@ -294,10 +298,11 @@ export interface IRequestHandler {
  */
 export class SimpleWorkerServer {
 
-	private _protocol: SimpleWorkerProtocol;
 	private _requestHandler: IRequestHandler;
+	private _protocol: SimpleWorkerProtocol;
 
-	constructor(postSerializedMessage: (msg: string) => void) {
+	constructor(postSerializedMessage: (msg: string) => void, requestHandler: IRequestHandler) {
+		this._requestHandler = requestHandler;
 		this._protocol = new SimpleWorkerProtocol({
 			sendMessage: (msg: string): void => {
 				postSerializedMessage(msg);
@@ -329,6 +334,17 @@ export class SimpleWorkerServer {
 	private initialize(workerId: number, moduleId: string, loaderConfig: any): TPromise<any> {
 		this._protocol.setWorkerId(workerId);
 
+		if (this._requestHandler) {
+			// static request handler
+			let methods: string[] = [];
+			for (let prop in this._requestHandler) {
+				if (typeof this._requestHandler[prop] === 'function') {
+					methods.push(prop);
+				}
+			}
+			return TPromise.as(methods);
+		}
+
 		if (loaderConfig) {
 			// Remove 'baseUrl', handling it is beyond scope for now
 			if (typeof loaderConfig.baseUrl !== 'undefined') {
@@ -339,13 +355,6 @@ export class SimpleWorkerServer {
 					delete loaderConfig.paths['vs'];
 				}
 			}
-			let nlsConfig = loaderConfig['vs/nls'];
-			// We need to have pseudo translation
-			if (nlsConfig && nlsConfig.pseudo) {
-				require(['vs/nls'], function (nlsPlugin) {
-					nlsPlugin.setPseudoTranslation(nlsConfig.pseudo);
-				});
-			}
 
 			// Since this is in a web worker, enable catching errors
 			loaderConfig.catchError = true;
@@ -354,7 +363,7 @@ export class SimpleWorkerServer {
 
 		let cc: ValueCallback;
 		let ee: ErrorCallback;
-		let r = new TPromise<any>((c, e, p) => {
+		let r = new TPromise<any>((c, e) => {
 			cc = c;
 			ee = e;
 		});
@@ -382,5 +391,5 @@ export class SimpleWorkerServer {
  * Called on the worker side
  */
 export function create(postMessage: (msg: string) => void): SimpleWorkerServer {
-	return new SimpleWorkerServer(postMessage);
+	return new SimpleWorkerServer(postMessage, null);
 }

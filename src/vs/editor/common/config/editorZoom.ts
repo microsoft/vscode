@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import Event, { Emitter } from 'vs/base/common/event';
+import { Event, Emitter } from 'vs/base/common/event';
 
 export interface IEditorZoom {
 	onDidChangeZoomLevel: Event<number>;
@@ -16,15 +16,15 @@ export const EditorZoom: IEditorZoom = new class implements IEditorZoom {
 
 	private _zoomLevel: number = 0;
 
-	private _onDidChangeZoomLevel: Emitter<number> = new Emitter<number>();
-	public onDidChangeZoomLevel: Event<number> = this._onDidChangeZoomLevel.event;
+	private readonly _onDidChangeZoomLevel: Emitter<number> = new Emitter<number>();
+	public readonly onDidChangeZoomLevel: Event<number> = this._onDidChangeZoomLevel.event;
 
 	public getZoomLevel(): number {
 		return this._zoomLevel;
 	}
 
 	public setZoomLevel(zoomLevel: number): void {
-		zoomLevel = Math.min(Math.max(-9, zoomLevel), 9);
+		zoomLevel = Math.min(Math.max(-5, zoomLevel), 20);
 		if (this._zoomLevel === zoomLevel) {
 			return;
 		}

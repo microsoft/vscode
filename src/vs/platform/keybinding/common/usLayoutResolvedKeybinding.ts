@@ -21,8 +21,7 @@ export class USLayoutResolvedKeybinding extends ResolvedKeybinding {
 		super();
 		this._os = OS;
 		if (actual === null) {
-			this._firstPart = null;
-			this._chordPart = null;
+			throw new Error(`Invalid USLayoutResolvedKeybinding`);
 		} else if (actual.type === KeybindingType.Chord) {
 			this._firstPart = actual.firstPart;
 			this._chordPart = actual.chordPart;

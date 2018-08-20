@@ -10,6 +10,8 @@
 	"change": "{0} из {1} изменения",
 	"show previous change": "Показать предыдущее изменение",
 	"show next change": "Показать следующее изменение",
+	"move to previous change": "Перейти к предыдущему изменению",
+	"move to next change": "Перейти к следующему изменению",
 	"editorGutterModifiedBackground": "Цвет фона полей редактора для измененных строк.",
 	"editorGutterAddedBackground": "Цвет фона полей редактора для добавленных строк.",
 	"editorGutterDeletedBackground": "Цвет фона полей редактора для удаленных строк.",

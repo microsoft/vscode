@@ -5,15 +5,16 @@
 
 'use strict';
 
-import Event, { Emitter } from 'vs/base/common/event';
+import { Event, Emitter } from 'vs/base/common/event';
 import { Throttler } from 'vs/base/common/async';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { ILifecycleService } from 'vs/platform/lifecycle/electron-main/lifecycleMain';
 import product from 'vs/platform/node/product';
 import { TPromise } from 'vs/base/common/winjs.base';
-import { IUpdateService, State, StateType, AvailableForDownload } from 'vs/platform/update/common/update';
+import { IUpdateService, State, StateType, AvailableForDownload, UpdateType } from 'vs/platform/update/common/update';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { ILogService } from 'vs/platform/log/common/log';
+import { IRequestService } from 'vs/platform/request/node/request';
 
 export function createUpdateURL(platform: string, quality: string): string {
 	return `${product.updateUrl}/api/update/${platform}/${quality}/${product.commit}`;
@@ -22,6 +23,8 @@ export function createUpdateURL(platform: string, quality: string): string {
 export abstract class AbstractUpdateService implements IUpdateService {
 
 	_serviceBrand: any;
+
+	protected readonly url: string | undefined;
 
 	private _state: State = State.Uninitialized;
 	private throttler: Throttler = new Throttler();
@@ -43,7 +46,8 @@ export abstract class AbstractUpdateService implements IUpdateService {
 		@ILifecycleService private lifecycleService: ILifecycleService,
 		@IConfigurationService protected configurationService: IConfigurationService,
 		@IEnvironmentService private environmentService: IEnvironmentService,
-		@ILogService protected logService: ILogService
+		@IRequestService protected requestService: IRequestService,
+		@ILogService protected logService: ILogService,
 	) {
 		if (this.environmentService.disableUpdates) {
 			this.logService.info('update#ctor - updates are disabled');
@@ -62,12 +66,13 @@ export abstract class AbstractUpdateService implements IUpdateService {
 			return;
 		}
 
-		if (!this.setUpdateFeedUrl(quality)) {
+		this.url = this.buildUpdateFeedUrl(quality);
+		if (!this.url) {
 			this.logService.info('update#ctor - updates are disabled');
 			return;
 		}
 
-		this.setState({ type: StateType.Idle });
+		this.setState(State.Idle(this.getUpdateType()));
 
 		// Start checking for updates after 30 seconds
 		this.scheduleCheckForUpdates(30 * 1000)
@@ -81,7 +86,7 @@ export abstract class AbstractUpdateService implements IUpdateService {
 
 	private scheduleCheckForUpdates(delay = 60 * 60 * 1000): TPromise<void> {
 		return TPromise.timeout(delay)
-			.then(() => this.checkForUpdates())
+			.then(() => this.checkForUpdates(null))
 			.then(update => {
 				if (update) {
 					// Update found, no need to check more
@@ -93,14 +98,14 @@ export abstract class AbstractUpdateService implements IUpdateService {
 			});
 	}
 
-	checkForUpdates(explicit = false): TPromise<void> {
+	checkForUpdates(context: any): TPromise<void> {
 		this.logService.trace('update#checkForUpdates, state = ', this.state.type);
 
 		if (this.state.type !== StateType.Idle) {
 			return TPromise.as(null);
 		}
 
-		return this.throttler.queue(() => TPromise.as(this.doCheckForUpdates(explicit)));
+		return this.throttler.queue(() => TPromise.as(this.doCheckForUpdates(context)));
 	}
 
 	downloadUpdate(): TPromise<void> {
@@ -153,10 +158,29 @@ export abstract class AbstractUpdateService implements IUpdateService {
 		return TPromise.as(null);
 	}
 
+	isLatestVersion(): TPromise<boolean | undefined> {
+		if (!this.url) {
+			return TPromise.as(undefined);
+		}
+		return this.requestService.request({ url: this.url }).then(context => {
+			// The update server replies with 204 (No Content) when no
+			// update is available - that's all we want to know.
+			if (context.res.statusCode === 204) {
+				return true;
+			} else {
+				return false;
+			}
+		});
+	}
+
+	protected getUpdateType(): UpdateType {
+		return UpdateType.Archive;
+	}
+
 	protected doQuitAndInstall(): void {
 		// noop
 	}
 
-	protected abstract setUpdateFeedUrl(quality: string): boolean;
-	protected abstract doCheckForUpdates(explicit: boolean): void;
+	protected abstract buildUpdateFeedUrl(quality: string): string | undefined;
+	protected abstract doCheckForUpdates(context: any): void;
 }

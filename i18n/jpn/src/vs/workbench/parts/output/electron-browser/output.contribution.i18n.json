@@ -9,5 +9,6 @@
 	"output": "出力",
 	"logViewer": "ログ ビューアー",
 	"viewCategory": "表示",
-	"clearOutput.label": "出力のクリア"
+	"clearOutput.label": "出力のクリア",
+	"openActiveLogOutputFile": "表示: アクティブなログ出力ファイルを開く"
 }

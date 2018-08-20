@@ -49,7 +49,7 @@ export class InstantiationService implements IInstantiationService {
 				get: <T>(id: ServiceIdentifier<T>, isOptional?: typeof optional) => {
 					const result = this._getOrCreateServiceInstance(id);
 					if (!result && isOptional !== optional) {
-						throw new Error(`[invokeFunction] unkown service '${id}'`);
+						throw new Error(`[invokeFunction] unknown service '${id}'`);
 					}
 					return result;
 				}

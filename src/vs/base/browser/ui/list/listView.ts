@@ -7,12 +7,12 @@ import { getOrDefault } from 'vs/base/common/objects';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { Gesture, EventType as TouchEventType, GestureEvent } from 'vs/base/browser/touch';
 import * as DOM from 'vs/base/browser/dom';
-import Event, { mapEvent, filterEvent } from 'vs/base/common/event';
+import { Event, mapEvent, filterEvent } from 'vs/base/common/event';
 import { domEvent } from 'vs/base/browser/event';
 import { ScrollableElement } from 'vs/base/browser/ui/scrollbar/scrollableElement';
 import { ScrollEvent, ScrollbarVisibility } from 'vs/base/common/scrollable';
 import { RangeMap, IRange, relativeComplement, intersect, shift } from './rangeMap';
-import { IDelegate, IRenderer, IListMouseEvent, IListTouchEvent, IListGestureEvent } from './list';
+import { IVirtualDelegate, IRenderer, IListMouseEvent, IListTouchEvent, IListGestureEvent } from './list';
 import { RowCache, IRow } from './rowCache';
 import { isWindows } from 'vs/base/common/platform';
 import * as browser from 'vs/base/browser/browser';
@@ -27,15 +27,6 @@ function canUseTranslate3d(): boolean {
 
 	if (browser.getZoomLevel() !== 0) {
 		return false;
-	}
-
-	// see https://github.com/Microsoft/vscode/issues/24483
-	if (browser.isChromev56) {
-		const pixelRatio = browser.getPixelRatio();
-		if (Math.floor(pixelRatio) !== pixelRatio) {
-			// Not an integer
-			return false;
-		}
 	}
 
 	return true;
@@ -81,7 +72,7 @@ export class ListView<T> implements ISpliceable<T>, IDisposable {
 
 	constructor(
 		container: HTMLElement,
-		private delegate: IDelegate<T>,
+		private virtualDelegate: IVirtualDelegate<T>,
 		renderers: IRenderer<T, any>[],
 		options: IListViewOptions = DefaultOptions
 	) {
@@ -115,10 +106,15 @@ export class ListView<T> implements ISpliceable<T>, IDisposable {
 		this._domNode.appendChild(this.scrollableElement.getDomNode());
 		container.appendChild(this._domNode);
 
-		this.disposables = [this.rangeMap, this.gesture, this.scrollableElement];
+		this.disposables = [this.rangeMap, this.gesture, this.scrollableElement, this.cache];
 
 		this.scrollableElement.onScroll(this.onScroll, this, this.disposables);
 		domEvent(this.rowsContainer, TouchEventType.Change)(this.onTouchChange, this, this.disposables);
+
+		// Prevent the monaco-scrollable-element from scrolling
+		// https://github.com/Microsoft/vscode/issues/44181
+		domEvent(this.scrollableElement.getDomNode(), 'scroll')
+			(e => (e.target as HTMLElement).scrollTop = 0, null, this.disposables);
 
 		const onDragOver = mapEvent(domEvent(this.rowsContainer, 'dragover'), e => new DragMouseEvent(e));
 		onDragOver(this.onDragOver, this, this.disposables);
@@ -150,7 +146,7 @@ export class ListView<T> implements ISpliceable<T>, IDisposable {
 		const removeRange = intersect(previousRenderRange, deleteRange);
 
 		for (let i = removeRange.start; i < removeRange.end; i++) {
-			this.removeItemFromDOM(this.items[i]);
+			this.removeItemFromDOM(i);
 		}
 
 		const previousRestRange: IRange = { start: start + deleteCount, end: this.items.length };
@@ -160,8 +156,8 @@ export class ListView<T> implements ISpliceable<T>, IDisposable {
 		const inserted = elements.map<IItem<T>>(element => ({
 			id: String(this.itemId++),
 			element,
-			size: this.delegate.getHeight(element),
-			templateId: this.delegate.getTemplateId(element),
+			size: this.virtualDelegate.getHeight(element),
+			templateId: this.virtualDelegate.getTemplateId(element),
 			row: null
 		}));
 
@@ -183,19 +179,20 @@ export class ListView<T> implements ISpliceable<T>, IDisposable {
 			const removeRange = removeRanges[r];
 
 			for (let i = removeRange.start; i < removeRange.end; i++) {
-				this.removeItemFromDOM(this.items[i]);
+				this.removeItemFromDOM(i);
 			}
 		}
 
 		const unrenderedRestRanges = previousUnrenderedRestRanges.map(r => shift(r, delta));
 		const elementsRange = { start, end: start + elements.length };
 		const insertRanges = [elementsRange, ...unrenderedRestRanges].map(r => intersect(renderRange, r));
+		const beforeElement = this.getNextToLastElement(insertRanges);
 
 		for (let r = 0; r < insertRanges.length; r++) {
 			const insertRange = insertRanges[r];
 
 			for (let i = insertRange.start; i < insertRange.end; i++) {
-				this.insertItemInDOM(this.items[i], i);
+				this.insertItemInDOM(i, beforeElement);
 			}
 		}
 
@@ -254,16 +251,17 @@ export class ListView<T> implements ISpliceable<T>, IDisposable {
 
 		const rangesToInsert = relativeComplement(renderRange, previousRenderRange);
 		const rangesToRemove = relativeComplement(previousRenderRange, renderRange);
+		const beforeElement = this.getNextToLastElement(rangesToInsert);
 
 		for (const range of rangesToInsert) {
 			for (let i = range.start; i < range.end; i++) {
-				this.insertItemInDOM(this.items[i], i);
+				this.insertItemInDOM(i, beforeElement);
 			}
 		}
 
 		for (const range of rangesToRemove) {
 			for (let i = range.start; i < range.end; i++) {
-				this.removeItemFromDOM(this.items[i], );
+				this.removeItemFromDOM(i);
 			}
 		}
 
@@ -281,28 +279,44 @@ export class ListView<T> implements ISpliceable<T>, IDisposable {
 
 	// DOM operations
 
-	private insertItemInDOM(item: IItem<T>, index: number): void {
+	private insertItemInDOM(index: number, beforeElement: HTMLElement | null): void {
+		const item = this.items[index];
+
 		if (!item.row) {
 			item.row = this.cache.alloc(item.templateId);
 		}
 
 		if (!item.row.domNode.parentElement) {
-			this.rowsContainer.appendChild(item.row.domNode);
+			if (beforeElement) {
+				this.rowsContainer.insertBefore(item.row.domNode, beforeElement);
+			} else {
+				this.rowsContainer.appendChild(item.row.domNode);
+			}
 		}
 
-		const renderer = this.renderers.get(item.templateId);
-		item.row.domNode.style.top = `${this.elementTop(index)}px`;
 		item.row.domNode.style.height = `${item.size}px`;
-		item.row.domNode.setAttribute('data-index', `${index}`);
+		this.updateItemInDOM(item, index);
+
+		const renderer = this.renderers.get(item.templateId);
 		renderer.renderElement(item.element, index, item.row.templateData);
 	}
 
 	private updateItemInDOM(item: IItem<T>, index: number): void {
 		item.row.domNode.style.top = `${this.elementTop(index)}px`;
 		item.row.domNode.setAttribute('data-index', `${index}`);
+		item.row.domNode.setAttribute('data-last-element', index === this.length - 1 ? 'true' : 'false');
+		item.row.domNode.setAttribute('aria-setsize', `${this.length}`);
+		item.row.domNode.setAttribute('aria-posinset', `${index + 1}`);
 	}
 
-	private removeItemFromDOM(item: IItem<T>): void {
+	private removeItemFromDOM(index: number): void {
+		const item = this.items[index];
+		const renderer = this.renderers.get(item.templateId);
+
+		if (renderer.disposeElement) {
+			renderer.disposeElement(item.element, index, item.row.templateData);
+		}
+
 		this.cache.release(item.row);
 		item.row = null;
 	}
@@ -343,24 +357,32 @@ export class ListView<T> implements ISpliceable<T>, IDisposable {
 
 	private toMouseEvent(browserEvent: MouseEvent): IListMouseEvent<T> {
 		const index = this.getItemIndexFromEventTarget(browserEvent.target);
-		const element = index < 0 ? undefined : this.items[index].element;
+		const item = index < 0 ? undefined : this.items[index];
+		const element = item && item.element;
 		return { browserEvent, index, element };
 	}
 
 	private toTouchEvent(browserEvent: TouchEvent): IListTouchEvent<T> {
 		const index = this.getItemIndexFromEventTarget(browserEvent.target);
-		const element = index < 0 ? undefined : this.items[index].element;
+		const item = index < 0 ? undefined : this.items[index];
+		const element = item && item.element;
 		return { browserEvent, index, element };
 	}
 
 	private toGestureEvent(browserEvent: GestureEvent): IListGestureEvent<T> {
 		const index = this.getItemIndexFromEventTarget(browserEvent.initialTarget);
-		const element = index < 0 ? undefined : this.items[index].element;
+		const item = index < 0 ? undefined : this.items[index];
+		const element = item && item.element;
 		return { browserEvent, index, element };
 	}
 
 	private onScroll(e: ScrollEvent): void {
-		this.render(e.scrollTop, e.height);
+		try {
+			this.render(e.scrollTop, e.height);
+		} catch (err) {
+			console.log('Got bad scroll event:', e);
+			throw err;
+		}
 	}
 
 	private onTouchChange(event: GestureEvent): void {
@@ -450,10 +472,40 @@ export class ListView<T> implements ISpliceable<T>, IDisposable {
 		};
 	}
 
+	private getNextToLastElement(ranges: IRange[]): HTMLElement | null {
+		const lastRange = ranges[ranges.length - 1];
+
+		if (!lastRange) {
+			return null;
+		}
+
+		const nextToLastItem = this.items[lastRange.end];
+
+		if (!nextToLastItem) {
+			return null;
+		}
+
+		if (!nextToLastItem.row) {
+			return null;
+		}
+
+		return nextToLastItem.row.domNode;
+	}
+
 	// Dispose
 
 	dispose() {
-		this.items = null;
+		if (this.items) {
+			for (const item of this.items) {
+				if (item.row) {
+					const renderer = this.renderers.get(item.row.templateId);
+					renderer.disposeTemplate(item.row.templateData);
+					item.row = null;
+				}
+			}
+
+			this.items = null;
+		}
 
 		if (this._domNode && this._domNode.parentElement) {
 			this._domNode.parentNode.removeChild(this._domNode);

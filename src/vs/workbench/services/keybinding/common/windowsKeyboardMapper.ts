@@ -86,6 +86,9 @@ export class WindowsNativeResolvedKeybinding extends ResolvedKeybinding {
 
 	constructor(mapper: WindowsKeyboardMapper, firstPart: SimpleKeybinding, chordPart: SimpleKeybinding) {
 		super();
+		if (!firstPart) {
+			throw new Error(`Invalid WindowsNativeResolvedKeybinding firstPart`);
+		}
 		this._mapper = mapper;
 		this._firstPart = firstPart;
 		this._chordPart = chordPart;

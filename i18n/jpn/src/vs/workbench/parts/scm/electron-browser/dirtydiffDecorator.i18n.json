@@ -10,6 +10,8 @@
 	"change": "{1} 個のうち {0} 個の変更 ",
 	"show previous change": "前の変更箇所を表示",
 	"show next change": "次の変更箇所を表示",
+	"move to previous change": "前の変更箇所に移動",
+	"move to next change": "次の変更箇所に移動",
 	"editorGutterModifiedBackground": "編集された行を示すエディター余白の背景色。",
 	"editorGutterAddedBackground": "追加された行を示すエディター余白の背景色。",
 	"editorGutterDeletedBackground": "削除された行を示すエディター余白の背景色。",

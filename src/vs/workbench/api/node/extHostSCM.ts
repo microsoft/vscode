@@ -4,13 +4,13 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import URI from 'vs/base/common/uri';
+import URI, { UriComponents } from 'vs/base/common/uri';
 import { TPromise } from 'vs/base/common/winjs.base';
-import Event, { Emitter, once } from 'vs/base/common/event';
+import { Event, Emitter, once } from 'vs/base/common/event';
 import { debounce } from 'vs/base/common/decorators';
 import { dispose, IDisposable } from 'vs/base/common/lifecycle';
 import { asWinJsPromise } from 'vs/base/common/async';
-import { IExtensionDescription } from 'vs/platform/extensions/common/extensions';
+import { IExtensionDescription } from 'vs/workbench/services/extensions/common/extensions';
 import { ExtHostCommands } from 'vs/workbench/api/node/extHostCommands';
 import { MainContext, MainThreadSCMShape, SCMRawResource, SCMRawResourceSplice, SCMRawResourceSplices, IMainContext, ExtHostSCMShape } from './extHost.protocol';
 import { sortedDiff } from 'vs/base/common/arrays';
@@ -237,14 +237,14 @@ class ExtHostSourceControlResourceGroup implements vscode.SourceControlResourceG
 		return this._resourceStatesMap.get(handle);
 	}
 
-	async $executeResourceCommand(handle: number): TPromise<void> {
+	$executeResourceCommand(handle: number): TPromise<void> {
 		const command = this._resourceStatesCommandsMap.get(handle);
 
 		if (!command) {
-			return;
+			return TPromise.as(null);
 		}
 
-		await this._commands.executeCommand(command.command, ...command.arguments);
+		return asWinJsPromise(_ => this._commands.executeCommand(command.command, ...command.arguments));
 	}
 
 	_takeResourceStateSnapshot(): SCMRawResourceSplice[] {
@@ -256,7 +256,7 @@ class ExtHostSourceControlResourceGroup implements vscode.SourceControlResourceG
 				const handle = this._resourceHandlePool++;
 				this._resourceStatesMap.set(handle, r);
 
-				const sourceUri = r.resourceUri.toString();
+				const sourceUri = r.resourceUri;
 				const iconPath = getIconPath(r.decorations);
 				const lightIconPath = r.decorations && getIconPath(r.decorations.light) || iconPath;
 				const darkIconPath = r.decorations && getIconPath(r.decorations.dark) || iconPath;
@@ -282,7 +282,7 @@ class ExtHostSourceControlResourceGroup implements vscode.SourceControlResourceG
 				const letter = r.decorations && r.decorations.letter || undefined;
 				const color = r.decorations && r.decorations.color || undefined;
 
-				const rawResource = [handle, sourceUri, icons, tooltip, strikeThrough, faded, source, letter, color] as SCMRawResource;
+				const rawResource = [handle, <UriComponents>sourceUri, icons, tooltip, strikeThrough, faded, source, letter, color] as SCMRawResource;
 
 				return { rawResource, handle };
 			});
@@ -395,6 +395,15 @@ class ExtHostSourceControl implements vscode.SourceControl {
 		this._proxy.$updateSourceControl(this.handle, { statusBarCommands: internal });
 	}
 
+	private _selected: boolean = false;
+
+	get selected(): boolean {
+		return this._selected;
+	}
+
+	private _onDidChangeSelection = new Emitter<boolean>();
+	readonly onDidChangeSelection = this._onDidChangeSelection.event;
+
 	private handle: number = ExtHostSourceControl._handlePool++;
 
 	constructor(
@@ -406,7 +415,7 @@ class ExtHostSourceControl implements vscode.SourceControl {
 		private _rootUri?: vscode.Uri
 	) {
 		this._inputBox = new ExtHostSCMInputBox(_extension, this._proxy, this.handle);
-		this._proxy.$registerSourceControl(this.handle, _id, _label, _rootUri && _rootUri.toString());
+		this._proxy.$registerSourceControl(this.handle, _id, _label, _rootUri);
 	}
 
 	private updatedResourceGroups = new Set<ExtHostSourceControlResourceGroup>();
@@ -454,6 +463,11 @@ class ExtHostSourceControl implements vscode.SourceControl {
 		return this._groups.get(handle);
 	}
 
+	setSelectionState(selected: boolean): void {
+		this._selected = selected;
+		this._onDidChangeSelection.fire(selected);
+	}
+
 	dispose(): void {
 		this._groups.forEach(group => group.dispose());
 		this._proxy.$unregisterSourceControl(this.handle);
@@ -470,6 +484,8 @@ export class ExtHostSCM implements ExtHostSCMShape {
 
 	private _onDidChangeActiveProvider = new Emitter<vscode.SourceControl>();
 	get onDidChangeActiveProvider(): Event<vscode.SourceControl> { return this._onDidChangeActiveProvider.event; }
+
+	private _selectedSourceControlHandles = new Set<number>();
 
 	constructor(
 		mainContext: IMainContext,
@@ -542,8 +558,9 @@ export class ExtHostSCM implements ExtHostSCMShape {
 		return inputBox;
 	}
 
-	$provideOriginalResource(sourceControlHandle: number, uriString: string): TPromise<string> {
-		this.logService.trace('ExtHostSCM#$provideOriginalResource', sourceControlHandle, uriString);
+	$provideOriginalResource(sourceControlHandle: number, uriComponents: UriComponents): TPromise<UriComponents> {
+		const uri = URI.revive(uriComponents);
+		this.logService.trace('ExtHostSCM#$provideOriginalResource', sourceControlHandle, uri.toString());
 
 		const sourceControl = this._sourceControls.get(sourceControlHandle);
 
@@ -551,8 +568,7 @@ export class ExtHostSCM implements ExtHostSCMShape {
 			return TPromise.as(null);
 		}
 
-		return asWinJsPromise(token => sourceControl.quickDiffProvider.provideOriginalResource(URI.parse(uriString), token))
-			.then(result => result && result.toString());
+		return asWinJsPromise(token => sourceControl.quickDiffProvider.provideOriginalResource(uri, token));
 	}
 
 	$onInputBoxValueChange(sourceControlHandle: number, value: string): TPromise<void> {
@@ -568,25 +584,25 @@ export class ExtHostSCM implements ExtHostSCMShape {
 		return TPromise.as(null);
 	}
 
-	async $executeResourceCommand(sourceControlHandle: number, groupHandle: number, handle: number): TPromise<void> {
+	$executeResourceCommand(sourceControlHandle: number, groupHandle: number, handle: number): TPromise<void> {
 		this.logService.trace('ExtHostSCM#$executeResourceCommand', sourceControlHandle, groupHandle, handle);
 
 		const sourceControl = this._sourceControls.get(sourceControlHandle);
 
 		if (!sourceControl) {
-			return;
+			return TPromise.as(null);
 		}
 
 		const group = sourceControl.getResourceGroup(groupHandle);
 
 		if (!group) {
-			return;
+			return TPromise.as(null);
 		}
 
-		await group.$executeResourceCommand(handle);
+		return group.$executeResourceCommand(handle);
 	}
 
-	async $validateInput(sourceControlHandle: number, value: string, cursorPosition: number): TPromise<[string, number] | undefined> {
+	$validateInput(sourceControlHandle: number, value: string, cursorPosition: number): TPromise<[string, number] | undefined> {
 		this.logService.trace('ExtHostSCM#$validateInput', sourceControlHandle);
 
 		const sourceControl = this._sourceControls.get(sourceControlHandle);
@@ -599,12 +615,49 @@ export class ExtHostSCM implements ExtHostSCMShape {
 			return TPromise.as(undefined);
 		}
 
-		const result = await sourceControl.inputBox.validateInput(value, cursorPosition);
+		return asWinJsPromise(_ => Promise.resolve(sourceControl.inputBox.validateInput(value, cursorPosition))).then(result => {
+			if (!result) {
+				return TPromise.as(undefined);
+			}
 
-		if (!result) {
-			return TPromise.as(undefined);
+			return TPromise.as<[string, number]>([result.message, result.type]);
+		});
+	}
+
+	$setSelectedSourceControls(selectedSourceControlHandles: number[]): TPromise<void> {
+		this.logService.trace('ExtHostSCM#$setSelectedSourceControls', selectedSourceControlHandles);
+
+		const set = new Set<number>();
+
+		for (const handle of selectedSourceControlHandles) {
+			set.add(handle);
 		}
 
-		return [result.message, result.type];
+		set.forEach(handle => {
+			if (!this._selectedSourceControlHandles.has(handle)) {
+				const sourceControl = this._sourceControls.get(handle);
+
+				if (!sourceControl) {
+					return;
+				}
+
+				sourceControl.setSelectionState(true);
+			}
+		});
+
+		this._selectedSourceControlHandles.forEach(handle => {
+			if (!set.has(handle)) {
+				const sourceControl = this._sourceControls.get(handle);
+
+				if (!sourceControl) {
+					return;
+				}
+
+				sourceControl.setSelectionState(false);
+			}
+		});
+
+		this._selectedSourceControlHandles = set;
+		return TPromise.as(null);
 	}
 }

@@ -16,6 +16,7 @@ import { repeat, pad } from 'vs/base/common/strings';
 import { isWindows } from 'vs/base/common/platform';
 import { app } from 'electron';
 import { basename } from 'path';
+import URI from 'vs/base/common/uri';
 
 export interface VersionInfo {
 	vscodeVersion: string;
@@ -29,6 +30,7 @@ export interface SystemInfo {
 	VM: string;
 	'Screen Reader': string;
 	'Process Argv': string;
+	'GPU Status': Electron.GPUFeatureStatus;
 }
 
 export interface ProcessInfo {
@@ -38,52 +40,87 @@ export interface ProcessInfo {
 	name: string;
 }
 
-export interface DiagnosticInfo {
-	systemInfo?: SystemInfo;
-	processInfo?: ProcessInfo[];
+export interface PerformanceInfo {
+	processInfo?: string;
 	workspaceInfo?: string;
 }
 
-export function buildDiagnostics(info: IMainProcessInfo): Promise<DiagnosticInfo> {
+export function getPerformanceInfo(info: IMainProcessInfo): Promise<PerformanceInfo> {
 	return listProcesses(info.mainPID).then(rootProcess => {
 		const workspaceInfoMessages = [];
 
 		// Workspace Stats
-		if (info.windows.some(window => window.folders && window.folders.length > 0)) {
+		const workspaceStatPromises = [];
+		if (info.windows.some(window => window.folderURIs && window.folderURIs.length > 0)) {
 			info.windows.forEach(window => {
-				if (window.folders.length === 0) {
+				if (window.folderURIs.length === 0) {
 					return;
 				}
 
 				workspaceInfoMessages.push(`|  Window (${window.title})`);
 
-				window.folders.forEach(folder => {
-					try {
-						const stats = collectWorkspaceStats(folder, ['node_modules', '.git']);
-						let countMessage = `${stats.fileCount} files`;
-						if (stats.maxFilesReached) {
-							countMessage = `more than ${countMessage}`;
-						}
-						workspaceInfoMessages.push(`|    Folder (${basename(folder)}): ${countMessage}`);
-						workspaceInfoMessages.push(formatWorkspaceStats(stats));
+				window.folderURIs.forEach(uriComponents => {
+					const folderUri = URI.revive(uriComponents);
+					if (folderUri.scheme === 'file') {
+						const folder = folderUri.fsPath;
+						workspaceStatPromises.push(collectWorkspaceStats(folder, ['node_modules', '.git']).then(async stats => {
 
-						const launchConfigs = collectLaunchConfigs(folder);
-						if (launchConfigs.length > 0) {
-							workspaceInfoMessages.push(formatLaunchConfigs(launchConfigs));
-						}
-					} catch (error) {
-						workspaceInfoMessages.push(`|      Error: Unable to collect workpsace stats for folder ${folder} (${error.toString()})`);
+							let countMessage = `${stats.fileCount} files`;
+							if (stats.maxFilesReached) {
+								countMessage = `more than ${countMessage}`;
+							}
+							workspaceInfoMessages.push(`|    Folder (${basename(folder)}): ${countMessage}`);
+							workspaceInfoMessages.push(formatWorkspaceStats(stats));
+
+							const launchConfigs = await collectLaunchConfigs(folder);
+							if (launchConfigs.length > 0) {
+								workspaceInfoMessages.push(formatLaunchConfigs(launchConfigs));
+							}
+						}));
+					} else {
+						workspaceInfoMessages.push(`|    Folder (${folderUri.toString()}): RPerformance stats not available.`);
 					}
 				});
 			});
 		}
 
-		return {
-			systemInfo: getSystemInfo(info),
-			processInfo: getProcessList(info, rootProcess),
-			workspaceInfo: workspaceInfoMessages.join('\n')
-		};
+		return Promise.all(workspaceStatPromises).then(() => {
+			return {
+				processInfo: formatProcessList(info, rootProcess),
+				workspaceInfo: workspaceInfoMessages.join('\n')
+			};
+		}).catch(error => {
+			return {
+				processInfo: formatProcessList(info, rootProcess),
+				workspaceInfo: `Unable to calculate workspace stats: ${error}`
+			};
+		});
 	});
+}
+
+export function getSystemInfo(info: IMainProcessInfo): SystemInfo {
+	const MB = 1024 * 1024;
+	const GB = 1024 * MB;
+
+	const systemInfo: SystemInfo = {
+		'Memory (System)': `${(os.totalmem() / GB).toFixed(2)}GB (${(os.freemem() / GB).toFixed(2)}GB free)`,
+		VM: `${Math.round((virtualMachineHint.value() * 100))}%`,
+		'Screen Reader': `${app.isAccessibilitySupportEnabled() ? 'yes' : 'no'}`,
+		'Process Argv': `${info.mainArguments.join(' ')}`,
+		'GPU Status': app.getGPUFeatureStatus()
+	};
+
+	const cpus = os.cpus();
+	if (cpus && cpus.length > 0) {
+		systemInfo.CPUs = `${cpus[0].model} (${cpus.length} x ${cpus[0].speed})`;
+	}
+
+	if (!isWindows) {
+		systemInfo['Load (avg)'] = `${os.loadavg().map(l => Math.round(l)).join(', ')}`;
+	}
+
+
+	return systemInfo;
 }
 
 export function printDiagnostics(info: IMainProcessInfo): Promise<any> {
@@ -98,38 +135,48 @@ export function printDiagnostics(info: IMainProcessInfo): Promise<any> {
 		console.log(formatProcessList(info, rootProcess));
 
 		// Workspace Stats
-		if (info.windows.some(window => window.folders && window.folders.length > 0)) {
+		const workspaceStatPromises = [];
+		if (info.windows.some(window => window.folderURIs && window.folderURIs.length > 0)) {
 			console.log('');
 			console.log('Workspace Stats: ');
 			info.windows.forEach(window => {
-				if (window.folders.length === 0) {
+				if (window.folderURIs.length === 0) {
 					return;
 				}
 
 				console.log(`|  Window (${window.title})`);
 
-				window.folders.forEach(folder => {
-					try {
-						const stats = collectWorkspaceStats(folder, ['node_modules', '.git']);
-						let countMessage = `${stats.fileCount} files`;
-						if (stats.maxFilesReached) {
-							countMessage = `more than ${countMessage}`;
-						}
-						console.log(`|    Folder (${basename(folder)}): ${countMessage}`);
-						console.log(formatWorkspaceStats(stats));
+				window.folderURIs.forEach(uriComponents => {
+					const folderUri = URI.revive(uriComponents);
+					if (folderUri.scheme === 'file') {
+						const folder = folderUri.fsPath;
+						workspaceStatPromises.push(collectWorkspaceStats(folder, ['node_modules', '.git']).then(async stats => {
+							let countMessage = `${stats.fileCount} files`;
+							if (stats.maxFilesReached) {
+								countMessage = `more than ${countMessage}`;
+							}
+							console.log(`|    Folder (${basename(folder)}): ${countMessage}`);
+							console.log(formatWorkspaceStats(stats));
 
-						const launchConfigs = collectLaunchConfigs(folder);
-						if (launchConfigs.length > 0) {
-							console.log(formatLaunchConfigs(launchConfigs));
-						}
-					} catch (error) {
-						console.log(`|      Error: Unable to collect workpsace stats for folder ${folder} (${error.toString()})`);
+							await collectLaunchConfigs(folder).then(launchConfigs => {
+								if (launchConfigs.length > 0) {
+									console.log(formatLaunchConfigs(launchConfigs));
+								}
+							});
+						}).catch(error => {
+							console.log(`|      Error: Unable to collect workspace stats for folder ${folder} (${error.toString()})`);
+						}));
+					} else {
+						console.log(`|    Folder (${folderUri.toString()}): Workspace stats not available.`);
 					}
 				});
 			});
 		}
-		console.log('');
-		console.log('');
+
+		return Promise.all(workspaceStatPromises).then(() => {
+			console.log('');
+			console.log('');
+		});
 	});
 }
 
@@ -186,74 +233,14 @@ function formatLaunchConfigs(configs: WorkspaceStatItem[]): string {
 	return output.join('\n');
 }
 
-function getSystemInfo(info: IMainProcessInfo): SystemInfo {
-	const MB = 1024 * 1024;
-	const GB = 1024 * MB;
-
-	const systemInfo: SystemInfo = {
-		'Memory (System)': `${(os.totalmem() / GB).toFixed(2)}GB (${(os.freemem() / GB).toFixed(2)}GB free)`,
-		VM: `${Math.round((virtualMachineHint.value() * 100))}%`,
-		'Screen Reader': `${app.isAccessibilitySupportEnabled() ? 'yes' : 'no'}`,
-		'Process Argv': `${info.mainArguments.join(' ')}`
-	};
-
-	const cpus = os.cpus();
-	if (cpus && cpus.length > 0) {
-		systemInfo.CPUs = `${cpus[0].model} (${cpus.length} x ${cpus[0].speed})`;
-	}
-
-	if (!isWindows) {
-		systemInfo['Load (avg)'] = `${os.loadavg().map(l => Math.round(l)).join(', ')}`;
-	}
-
-
-	return systemInfo;
+function expandGPUFeatures(): string {
+	const gpuFeatures = app.getGPUFeatureStatus();
+	const longestFeatureName = Math.max(...Object.keys(gpuFeatures).map(feature => feature.length));
+	// Make columns aligned by adding spaces after feature name
+	return Object.keys(gpuFeatures).map(feature => `${feature}:  ${repeat(' ', longestFeatureName - feature.length)}  ${gpuFeatures[feature]}`).join('\n                  ');
 }
 
-function getProcessList(info: IMainProcessInfo, rootProcess: ProcessItem): ProcessInfo[] {
-	const mapPidToWindowTitle = new Map<number, string>();
-	info.windows.forEach(window => mapPidToWindowTitle.set(window.pid, window.title));
-
-	const processes: ProcessInfo[] = [];
-
-	if (rootProcess) {
-		getProcessItem(mapPidToWindowTitle, processes, rootProcess, 0);
-	}
-
-	return processes;
-}
-
-function getProcessItem(mapPidToWindowTitle: Map<number, string>, processes: ProcessInfo[], item: ProcessItem, indent: number): void {
-	const isRoot = (indent === 0);
-
-	const MB = 1024 * 1024;
-
-	// Format name with indent
-	let name: string;
-	if (isRoot) {
-		name = `${product.applicationName} main`;
-	} else {
-		name = `${repeat('--', indent)} ${item.name}`;
-
-		if (item.name === 'window') {
-			name = `${name} (${mapPidToWindowTitle.get(item.pid)})`;
-		}
-	}
-	const memory = process.platform === 'win32' ? item.mem : (os.totalmem() * (item.mem / 100));
-	processes.push({
-		cpu: Number(item.load.toFixed(0)),
-		memory: Number((memory / MB).toFixed(0)),
-		pid: Number((item.pid).toFixed(0)),
-		name
-	});
-
-	// Recurse into children if any
-	if (Array.isArray(item.children)) {
-		item.children.forEach(child => getProcessItem(mapPidToWindowTitle, processes, child, indent + 1));
-	}
-}
-
-function formatEnvironment(info: IMainProcessInfo): string {
+export function formatEnvironment(info: IMainProcessInfo): string {
 	const MB = 1024 * 1024;
 	const GB = 1024 * MB;
 
@@ -271,6 +258,7 @@ function formatEnvironment(info: IMainProcessInfo): string {
 	output.push(`VM:               ${Math.round((virtualMachineHint.value() * 100))}%`);
 	output.push(`Screen Reader:    ${app.isAccessibilitySupportEnabled() ? 'yes' : 'no'}`);
 	output.push(`Process Argv:     ${info.mainArguments.join(' ')}`);
+	output.push(`GPU Status:       ${expandGPUFeatures()}`);
 
 	return output.join('\n');
 }

@@ -34,7 +34,6 @@
 	"welcomePage.installedExtensionPack": "Le support {0} est déjà installé.",
 	"ok": "OK",
 	"details": "Détails",
-	"cancel": "Annuler",
 	"welcomePage.buttonBackground": "Couleur d'arrière-plan des boutons de la page d'accueil.",
 	"welcomePage.buttonHoverBackground": "Couleur d'arrière-plan du pointage des boutons de la page d'accueil."
 }

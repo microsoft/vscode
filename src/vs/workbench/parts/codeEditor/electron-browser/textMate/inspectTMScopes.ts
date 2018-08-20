@@ -24,10 +24,9 @@ import { CharCode } from 'vs/base/common/charCode';
 import { findMatchingThemeRule } from 'vs/workbench/services/textMate/electron-browser/TMHelper';
 import { IWorkbenchThemeService } from 'vs/workbench/services/themes/common/workbenchThemeService';
 import { Color } from 'vs/base/common/color';
-import { IMessageService } from 'vs/platform/message/common/message';
-import Severity from 'vs/base/common/severity';
 import { registerThemingParticipant, HIGH_CONTRAST } from 'vs/platform/theme/common/themeService';
 import { editorHoverBackground, editorHoverBorder } from 'vs/platform/theme/common/colorRegistry';
+import { INotificationService } from 'vs/platform/notification/common/notification';
 
 class InspectTMScopesController extends Disposable implements IEditorContribution {
 
@@ -41,7 +40,7 @@ class InspectTMScopesController extends Disposable implements IEditorContributio
 	private _textMateService: ITextMateService;
 	private _themeService: IWorkbenchThemeService;
 	private _modeService: IModeService;
-	private _messageService: IMessageService;
+	private _notificationService: INotificationService;
 	private _widget: InspectTMScopesWidget;
 
 	constructor(
@@ -49,14 +48,14 @@ class InspectTMScopesController extends Disposable implements IEditorContributio
 		@ITextMateService textMateService: ITextMateService,
 		@IModeService modeService: IModeService,
 		@IWorkbenchThemeService themeService: IWorkbenchThemeService,
-		@IMessageService messageService: IMessageService,
+		@INotificationService notificationService: INotificationService
 	) {
 		super();
 		this._editor = editor;
 		this._textMateService = textMateService;
 		this._themeService = themeService;
 		this._modeService = modeService;
-		this._messageService = messageService;
+		this._notificationService = notificationService;
 		this._widget = null;
 
 		this._register(this._editor.onDidChangeModel((e) => this.stop()));
@@ -80,7 +79,7 @@ class InspectTMScopesController extends Disposable implements IEditorContributio
 		if (!this._editor.getModel()) {
 			return;
 		}
-		this._widget = new InspectTMScopesWidget(this._editor, this._textMateService, this._modeService, this._themeService, this._messageService);
+		this._widget = new InspectTMScopesWidget(this._editor, this._textMateService, this._modeService, this._themeService, this._notificationService);
 	}
 
 	public stop(): void {
@@ -179,7 +178,7 @@ class InspectTMScopesWidget extends Disposable implements IContentWidget {
 	private readonly _editor: ICodeEditor;
 	private readonly _modeService: IModeService;
 	private readonly _themeService: IWorkbenchThemeService;
-	private readonly _messageService: IMessageService;
+	private readonly _notificationService: INotificationService;
 	private readonly _model: ITextModel;
 	private readonly _domNode: HTMLElement;
 	private readonly _grammar: TPromise<IGrammar>;
@@ -189,14 +188,14 @@ class InspectTMScopesWidget extends Disposable implements IContentWidget {
 		textMateService: ITextMateService,
 		modeService: IModeService,
 		themeService: IWorkbenchThemeService,
-		messageService: IMessageService
+		notificationService: INotificationService
 	) {
 		super();
 		this._isDisposed = false;
 		this._editor = editor;
 		this._modeService = modeService;
 		this._themeService = themeService;
-		this._messageService = messageService;
+		this._notificationService = notificationService;
 		this._model = this._editor.getModel();
 		this._domNode = document.createElement('div');
 		this._domNode.className = 'tm-inspect-widget';
@@ -222,7 +221,7 @@ class InspectTMScopesWidget extends Disposable implements IContentWidget {
 		this._grammar.then(
 			(grammar) => this._compute(grammar, position),
 			(err) => {
-				this._messageService.show(Severity.Warning, err);
+				this._notificationService.warn(err);
 				setTimeout(() => {
 					InspectTMScopesController.get(this._editor).stop();
 				});
@@ -273,7 +272,7 @@ class InspectTMScopesWidget extends Disposable implements IContentWidget {
 
 		let theme = this._themeService.getColorTheme();
 		result += `<hr class="tm-metadata-separator"/>`;
-		let matchingRule = findMatchingThemeRule(theme, data.tokens1[token1Index].scopes);
+		let matchingRule = findMatchingThemeRule(theme, data.tokens1[token1Index].scopes, false);
 		if (matchingRule) {
 			result += `<code class="tm-theme-selector">${matchingRule.rawSelector}\n${JSON.stringify(matchingRule.settings, null, '\t')}</code>`;
 		} else {

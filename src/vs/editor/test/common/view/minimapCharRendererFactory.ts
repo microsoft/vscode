@@ -27,7 +27,7 @@ export class MinimapCharRendererFactory {
 		let newLength = charData.length / 2;
 		let result = new Uint8ClampedArray(newLength);
 		let sourceOffset = 0;
-		for (var i = 0; i < newLength; i++) {
+		for (let i = 0; i < newLength; i++) {
 			let color = charData[sourceOffset];
 			let alpha = charData[sourceOffset + 1];
 			let newColor = Math.round((color * alpha) / 255);

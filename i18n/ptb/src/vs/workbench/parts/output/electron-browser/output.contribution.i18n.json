@@ -9,5 +9,6 @@
 	"output": "Saída",
 	"logViewer": "Visualizador do Log",
 	"viewCategory": "Exibir",
-	"clearOutput.label": "Limpar saída"
+	"clearOutput.label": "Limpar saída",
+	"openActiveLogOutputFile": "Exibir: Abrir Arquivo de Saída de Log Ativo"
 }

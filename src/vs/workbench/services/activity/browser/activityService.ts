@@ -21,7 +21,7 @@ export class ActivityService implements IActivityService {
 		@IPanelService private panelService: IPanelService
 	) { }
 
-	public showActivity(compositeOrActionId: string, badge: IBadge, clazz?: string, priority?: number): IDisposable {
+	showActivity(compositeOrActionId: string, badge: IBadge, clazz?: string, priority?: number): IDisposable {
 		if (this.panelService.getPanels().filter(p => p.id === compositeOrActionId).length) {
 			return this.panelPart.showActivity(compositeOrActionId, badge, clazz);
 		}

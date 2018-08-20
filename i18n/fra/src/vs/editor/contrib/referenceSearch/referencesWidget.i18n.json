@@ -25,5 +25,6 @@
 	"peekViewEditorBackground": "Couleur d'arrière-plan de l'éditeur d'affichage d'aperçu.",
 	"peekViewEditorGutterBackground": "Couleur d'arrière-plan de la bordure de l'éditeur d'affichage d'aperçu.",
 	"peekViewResultsMatchHighlight": "Couleur de mise en surbrillance d'une correspondance dans la liste des résultats de l'affichage d'aperçu.",
-	"peekViewEditorMatchHighlight": "Couleur de mise en surbrillance d'une correspondance dans l'éditeur de l'affichage d'aperçu."
+	"peekViewEditorMatchHighlight": "Couleur de mise en surbrillance d'une correspondance dans l'éditeur de l'affichage d'aperçu.",
+	"peekViewEditorMatchHighlightBorder": "Bordure de mise en surbrillance d'une correspondance dans l'éditeur de l'affichage d'aperçu."
 }

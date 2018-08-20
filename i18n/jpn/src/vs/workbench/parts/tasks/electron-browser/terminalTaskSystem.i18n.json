@@ -11,6 +11,6 @@
 	"TerminalTaskSystem.terminalName": "タスク - {0}",
 	"closeTerminal": "任意のキーを押してターミナルを終了します。",
 	"reuseTerminal": "ターミナルはタスクで再利用されます、閉じるには任意のキーを押してください。",
-	"TerminalTaskSystem": "UNC ドライブでシェル コマンドを実行できません。",
+	"TerminalTaskSystem": "cmd.exe を使用して UNC ドライブ上でシェル コマンドを実行できません。",
 	"unkownProblemMatcher": "問題マッチャー {0} は解決できませんでした。マッチャーは無視されます"
 }

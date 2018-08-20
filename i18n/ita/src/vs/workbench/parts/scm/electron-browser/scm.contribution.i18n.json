@@ -12,5 +12,6 @@
 	"view": "Visualizza",
 	"scmConfigurationTitle": "Gestione controllo servizi",
 	"alwaysShowProviders": "Mostrare sempre la sezione Provider di controllo del codice sorgente.",
-	"diffDecorations": "Controlla decorazioni diff nell'editor"
+	"diffDecorations": "Controlla decorazioni diff nell'editor",
+	"diffGutterWidth": "Controlla la larghezza (px) delle decorazioni diff nella barra di navigazione (aggiunte e modificate)."
 }

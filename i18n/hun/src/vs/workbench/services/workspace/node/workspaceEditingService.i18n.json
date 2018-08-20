@@ -8,6 +8,5 @@
 	],
 	"errorInvalidTaskConfiguration": "Nem sikerült írni a munkaterület konfigurációs fájljába. Nyissa meg a fájlt, javítsa a benne található hibákat és figyelmeztetéseket, majd próbálja újra!",
 	"errorWorkspaceConfigurationFileDirty": "Nem sikerült írni a munkaterület konfigurációs fájljába, mert módosítva lett. Mentse, majd próbálja újra!",
-	"openWorkspaceConfigurationFile": "Munkaterület konfigurációs fájljának megnyitása",
-	"close": "Bezárás"
+	"openWorkspaceConfigurationFile": "Munkaterület-konfiguráció megnyitása"
 }

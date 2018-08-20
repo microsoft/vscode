@@ -9,38 +9,100 @@
 	touch-action: none;
 }
 
+.monaco-sash.disabled {
+	pointer-events: none;
+}
+
 .monaco-sash.vertical {
 	cursor: ew-resize;
-	height: 100%;
 	top: 0;
+	width: 4px;
+	height: 100%;
+}
+
+.monaco-sash.mac.vertical {
+	cursor: col-resize;
+}
+
+.monaco-sash.vertical.minimum {
+	cursor: e-resize;
+}
+
+.monaco-sash.vertical.maximum {
+	cursor: w-resize;
 }
 
 .monaco-sash.horizontal {
 	cursor: ns-resize;
-	width: 100%;
 	left: 0;
+	width: 100%;
+	height: 4px;
+}
+
+.monaco-sash.mac.horizontal {
+	cursor: row-resize;
+}
+
+.monaco-sash.horizontal.minimum {
+	cursor: s-resize;
+}
+
+.monaco-sash.horizontal.maximum {
+	cursor: n-resize;
+}
+
+.monaco-sash:not(.disabled).orthogonal-start::before,
+.monaco-sash:not(.disabled).orthogonal-end::after {
+	content: ' ';
+	height: 8px;
+	width: 8px;
+	z-index: 100;
+	display: block;
+	cursor: all-scroll;
+	position: absolute;
+}
+
+.monaco-sash.orthogonal-start.vertical::before {
+	left: -2px;
+	top: -4px;
+}
+
+.monaco-sash.orthogonal-end.vertical::after {
+	left: -2px;
+	bottom: -4px;
+}
+
+.monaco-sash.orthogonal-start.horizontal::before {
+	top: -2px;
+	left: -4px;
+}
+
+.monaco-sash.orthogonal-end.horizontal::after {
+	top: -2px;
+	right: -4px;
 }
 
 .monaco-sash.disabled {
 	cursor: default !important;
 }
 
-.vertical-cursor-container {
-	cursor: ew-resize;
+/** Touch **/
+
+.monaco-sash.touch.vertical {
+	width: 20px;
 }
 
-.horizontal-cursor-container {
-	cursor: ns-resize;
+.monaco-sash.touch.horizontal {
+	height: 20px;
 }
 
-/** Custom Mac Cursor */
+/** Debug **/
 
-.monaco-sash.mac.vertical,
-.vertical-cursor-container-mac {
-	cursor: col-resize;
+.monaco-sash.debug:not(.disabled) {
+	background: cyan;
 }
 
-.monaco-sash.mac.horizontal,
-.horizontal-cursor-container-mac {
-	cursor: row-resize;
+.monaco-sash.debug:not(.disabled).orthogonal-start::before,
+.monaco-sash.debug:not(.disabled).orthogonal-end::after {
+	background: red;
 }

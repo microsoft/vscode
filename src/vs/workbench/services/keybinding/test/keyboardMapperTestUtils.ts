@@ -12,6 +12,7 @@ import { TPromise } from 'vs/base/common/winjs.base';
 import { readFile, writeFile } from 'vs/base/node/pfs';
 import { IKeyboardEvent } from 'vs/platform/keybinding/common/keybinding';
 import { ScanCodeBinding } from 'vs/workbench/services/keybinding/common/scanCode';
+import { getPathFromAmdModule } from 'vs/base/common/amd';
 
 export interface IResolvedKeybinding {
 	label: string;
@@ -51,7 +52,7 @@ export function assertResolveUserBinding(mapper: IKeyboardMapper, firstPart: Sim
 }
 
 export function readRawMapping<T>(file: string): TPromise<T> {
-	return readFile(require.toUrl(`vs/workbench/services/keybinding/test/${file}.js`)).then((buff) => {
+	return readFile(getPathFromAmdModule(require, `vs/workbench/services/keybinding/test/${file}.js`)).then((buff) => {
 		let contents = buff.toString();
 		let func = new Function('define', contents);
 		let rawMappings: T = null;
@@ -62,20 +63,16 @@ export function readRawMapping<T>(file: string): TPromise<T> {
 	});
 }
 
-export function assertMapping(writeFileIfDifferent: boolean, mapper: IKeyboardMapper, file: string, done: (err?: any) => void): void {
-	const filePath = require.toUrl(`vs/workbench/services/keybinding/test/${file}`);
+export function assertMapping(writeFileIfDifferent: boolean, mapper: IKeyboardMapper, file: string): TPromise<void> {
+	const filePath = getPathFromAmdModule(require, `vs/workbench/services/keybinding/test/${file}`);
 
-	readFile(filePath).then((buff) => {
+	return readFile(filePath).then((buff) => {
 		let expected = buff.toString();
 		const actual = mapper.dumpDebugInfo();
 		if (actual !== expected && writeFileIfDifferent) {
 			writeFile(filePath, actual);
 		}
-		try {
-			assert.deepEqual(actual, expected);
-		} catch (err) {
-			return done(err);
-		}
-		done();
-	}, done);
+
+		assert.deepEqual(actual.split(/\r\n|\n/), expected.split(/\r\n|\n/));
+	});
 }

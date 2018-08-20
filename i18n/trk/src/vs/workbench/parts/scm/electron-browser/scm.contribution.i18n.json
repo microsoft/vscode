@@ -12,5 +12,6 @@
 	"view": "Görüntüle",
 	"scmConfigurationTitle": "SCM",
 	"alwaysShowProviders": "Kaynak Kontrolü Sağlayıcısı bölümünün her zaman gösterilip gösterilmeyeceği.",
-	"diffDecorations": "Düzenleyicideki farklar(diff) dekoratörlerini denetler."
+	"diffDecorations": "Düzenleyicideki farklar(diff) dekoratörlerini denetler.",
+	"diffGutterWidth": "Oluktaki farklar(diff) dekoratörlerinin (eklendi & düzenlendi) genişliğini(px) denetler."
 }

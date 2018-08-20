@@ -9,7 +9,7 @@
 	"callstackSection": "Раздел стека вызовов",
 	"debugStopped": "Приостановлено на {0}",
 	"callStackAriaLabel": "Отладка стека вызовов",
-	"process": "Процесс",
+	"session": "Сеанс",
 	"paused": "Приостановлено",
 	"running": "Работает",
 	"thread": "Поток",

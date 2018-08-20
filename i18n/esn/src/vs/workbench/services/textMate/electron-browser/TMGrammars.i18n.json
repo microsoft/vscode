@@ -11,5 +11,6 @@
 	"vscode.extension.contributes.grammars.scopeName": "Nombre del ámbito de TextMate que usa el archivo tmLanguage.",
 	"vscode.extension.contributes.grammars.path": "Ruta de acceso del archivo tmLanguage. La ruta es relativa a la carpeta de extensión y normalmente empieza por \"./syntaxes/\".",
 	"vscode.extension.contributes.grammars.embeddedLanguages": "Asignación de un nombre de ámbito al identificador de lenguaje si esta gramática contiene lenguajes incrustados.",
+	"vscode.extension.contributes.grammars.tokenTypes": "Asignación de nombre de ámbito a tipos de token.",
 	"vscode.extension.contributes.grammars.injectTo": "Lista de nombres de ámbito de lenguaje al que se inyecta esta gramática."
 }

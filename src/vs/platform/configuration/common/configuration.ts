@@ -7,12 +7,12 @@ import { TPromise } from 'vs/base/common/winjs.base';
 import * as objects from 'vs/base/common/objects';
 import * as types from 'vs/base/common/types';
 import URI from 'vs/base/common/uri';
-import Event from 'vs/base/common/event';
+import { Event } from 'vs/base/common/event';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { IWorkspaceFolder } from 'vs/platform/workspace/common/workspace';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { IConfigurationRegistry, Extensions, OVERRIDE_PROPERTY_PATTERN } from 'vs/platform/configuration/common/configurationRegistry';
-import { StrictResourceMap } from 'vs/base/common/map';
+import { ResourceMap } from 'vs/base/common/map';
 
 export const IConfigurationService = createDecorator<IConfigurationService>('configurationService');
 
@@ -47,7 +47,7 @@ export interface IConfigurationChangeEvent {
 
 	// Following data is used for Extension host configuration event
 	changedConfiguration: IConfigurationModel;
-	changedConfigurationByResource: StrictResourceMap<IConfigurationModel>;
+	changedConfigurationByResource: ResourceMap<IConfigurationModel>;
 }
 
 export interface IConfigurationService {
@@ -112,6 +112,7 @@ export interface IConfigurationData {
 	user: IConfigurationModel;
 	workspace: IConfigurationModel;
 	folders: { [folder: string]: IConfigurationModel };
+	isComplete: boolean;
 }
 
 export function compare(from: IConfigurationModel, to: IConfigurationModel): { added: string[], removed: string[], updated: string[] } {

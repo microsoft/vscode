@@ -13,6 +13,7 @@
 	"welcomeOverlay.extensions": "Kiterjesztések kezelése",
 	"welcomeOverlay.problems": "Hibák és figyelmeztetések megtekintése",
 	"welcomeOverlay.commandPalette": "Összes parancs megkeresése és futtatása",
+	"welcomeOverlay.notifications": "Értesítések megjelenítése",
 	"welcomeOverlay": "Felhasználói felület áttekintése",
 	"hideWelcomeOverlay": "Felület áttekintésének elrejtése",
 	"help": "Segítség"

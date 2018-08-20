@@ -13,5 +13,6 @@
 	"indentUsingTabs": "Imposta rientro con tabulazioni",
 	"indentUsingSpaces": "Imposta rientro con spazi",
 	"detectIndentation": "Rileva rientro dal contenuto",
-	"editor.reindentlines": "Imposta nuovo rientro per righe"
+	"editor.reindentlines": "Imposta nuovo rientro per righe",
+	"editor.reindentselectedlines": "Re-Indenta le Linee Selezionate"
 }

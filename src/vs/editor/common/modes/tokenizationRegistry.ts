@@ -4,8 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import { IDisposable } from 'vs/base/common/lifecycle';
-import Event, { Emitter } from 'vs/base/common/event';
+import { IDisposable, toDisposable } from 'vs/base/common/lifecycle';
+import { Event, Emitter } from 'vs/base/common/event';
 import { ColorId, ITokenizationRegistry, ITokenizationSupport, ITokenizationSupportChangedEvent } from 'vs/editor/common/modes';
 import { Color } from 'vs/base/common/color';
 
@@ -13,8 +13,8 @@ export class TokenizationRegistryImpl implements ITokenizationRegistry {
 
 	private _map: { [language: string]: ITokenizationSupport };
 
-	private _onDidChange: Emitter<ITokenizationSupportChangedEvent> = new Emitter<ITokenizationSupportChangedEvent>();
-	public onDidChange: Event<ITokenizationSupportChangedEvent> = this._onDidChange.event;
+	private readonly _onDidChange: Emitter<ITokenizationSupportChangedEvent> = new Emitter<ITokenizationSupportChangedEvent>();
+	public readonly onDidChange: Event<ITokenizationSupportChangedEvent> = this._onDidChange.event;
 
 	private _colorMap: Color[];
 
@@ -33,15 +33,13 @@ export class TokenizationRegistryImpl implements ITokenizationRegistry {
 	public register(language: string, support: ITokenizationSupport): IDisposable {
 		this._map[language] = support;
 		this.fire([language]);
-		return {
-			dispose: () => {
-				if (this._map[language] !== support) {
-					return;
-				}
-				delete this._map[language];
-				this.fire([language]);
+		return toDisposable(() => {
+			if (this._map[language] !== support) {
+				return;
 			}
-		};
+			delete this._map[language];
+			this.fire([language]);
+		});
 	}
 
 	public get(language: string): ITokenizationSupport {

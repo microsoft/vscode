@@ -6,12 +6,10 @@
 
 import { DiffChange } from 'vs/base/common/diff/diffChange';
 
-
 function createStringSequence(a: string): ISequence {
-
 	return {
 		getLength() { return a.length; },
-		getElementHash(pos: number) { return a[pos]; }
+		getElementAtIndex(pos: number) { return a.charCodeAt(pos); }
 	};
 }
 
@@ -22,7 +20,7 @@ export function stringDiff(original: string, modified: string, pretty: boolean):
 
 export interface ISequence {
 	getLength(): number;
-	getElementHash(index: number): string;
+	getElementAtIndex(index: number): number | string;
 }
 
 export interface IDiffChange {
@@ -211,8 +209,6 @@ class DiffChangeHelper {
 
 }
 
-const hasOwnProperty = Object.prototype.hasOwnProperty;
-
 /**
  * An implementation of the difference algorithm described in
  * "An O(ND) Difference Algorithm and its variations" by Eugene W. Myers
@@ -223,8 +219,6 @@ export class LcsDiff {
 	private ModifiedSequence: ISequence;
 	private ContinueProcessingPredicate: IContinueProcessingPredicate;
 
-	private m_originalIds: number[];
-	private m_modifiedIds: number[];
 	private m_forwardHistory: number[][];
 	private m_reverseHistory: number[][];
 
@@ -235,63 +229,21 @@ export class LcsDiff {
 		this.OriginalSequence = originalSequence;
 		this.ModifiedSequence = newSequence;
 		this.ContinueProcessingPredicate = continueProcessingPredicate;
-		this.m_originalIds = [];
-		this.m_modifiedIds = [];
 
 		this.m_forwardHistory = [];
 		this.m_reverseHistory = [];
-
-		this.ComputeUniqueIdentifiers();
-	}
-
-	private ComputeUniqueIdentifiers(): void {
-		let originalSequenceLength = this.OriginalSequence.getLength();
-		let modifiedSequenceLength = this.ModifiedSequence.getLength();
-		this.m_originalIds = new Array<number>(originalSequenceLength);
-		this.m_modifiedIds = new Array<number>(modifiedSequenceLength);
-
-		// Create a new hash table for unique elements from the original
-		// sequence.
-		let hashTable: { [key: string]: number; } = {};
-		let currentUniqueId = 1;
-		let i: number;
-
-		// Fill up the hash table for unique elements
-		for (i = 0; i < originalSequenceLength; i++) {
-			let originalElementHash = this.OriginalSequence.getElementHash(i);
-			if (!hasOwnProperty.call(hashTable, originalElementHash)) {
-				// No entry in the hashtable so this is a new unique element.
-				// Assign the element a new unique identifier and add it to the
-				// hash table
-				this.m_originalIds[i] = currentUniqueId++;
-				hashTable[originalElementHash] = this.m_originalIds[i];
-			} else {
-				this.m_originalIds[i] = hashTable[originalElementHash];
-			}
-		}
-
-		// Now match up modified elements
-		for (i = 0; i < modifiedSequenceLength; i++) {
-			let modifiedElementHash = this.ModifiedSequence.getElementHash(i);
-			if (!hasOwnProperty.call(hashTable, modifiedElementHash)) {
-				this.m_modifiedIds[i] = currentUniqueId++;
-				hashTable[modifiedElementHash] = this.m_modifiedIds[i];
-			} else {
-				this.m_modifiedIds[i] = hashTable[modifiedElementHash];
-			}
-		}
 	}
 
 	private ElementsAreEqual(originalIndex: number, newIndex: number): boolean {
-		return this.m_originalIds[originalIndex] === this.m_modifiedIds[newIndex];
+		return (this.OriginalSequence.getElementAtIndex(originalIndex) === this.ModifiedSequence.getElementAtIndex(newIndex));
 	}
 
 	private OriginalElementsAreEqual(index1: number, index2: number): boolean {
-		return this.m_originalIds[index1] === this.m_originalIds[index2];
+		return (this.OriginalSequence.getElementAtIndex(index1) === this.OriginalSequence.getElementAtIndex(index2));
 	}
 
 	private ModifiedElementsAreEqual(index1: number, index2: number): boolean {
-		return this.m_modifiedIds[index1] === this.m_modifiedIds[index2];
+		return (this.ModifiedSequence.getElementAtIndex(index1) === this.ModifiedSequence.getElementAtIndex(index2));
 	}
 
 	public ComputeDiff(pretty: boolean): IDiffChange[] {
@@ -891,7 +843,8 @@ export class LcsDiff {
 		if (index <= 0 || index >= this.OriginalSequence.getLength() - 1) {
 			return true;
 		}
-		return /^\s*$/.test(this.OriginalSequence.getElementHash(index));
+		const element = this.OriginalSequence.getElementAtIndex(index);
+		return (typeof element === 'string' && /^\s*$/.test(element));
 	}
 
 	private _OriginalRegionIsBoundary(originalStart: number, originalLength: number): boolean {
@@ -911,7 +864,8 @@ export class LcsDiff {
 		if (index <= 0 || index >= this.ModifiedSequence.getLength() - 1) {
 			return true;
 		}
-		return /^\s*$/.test(this.ModifiedSequence.getElementHash(index));
+		const element = this.ModifiedSequence.getElementAtIndex(index);
+		return (typeof element === 'string' && /^\s*$/.test(element));
 	}
 
 	private _ModifiedRegionIsBoundary(modifiedStart: number, modifiedLength: number): boolean {

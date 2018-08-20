@@ -13,6 +13,7 @@
 	"welcomeOverlay.extensions": "拡張機能の管理",
 	"welcomeOverlay.problems": "エラーおよび警告の表示",
 	"welcomeOverlay.commandPalette": "すべてのコマンドの検索と実行",
+	"welcomeOverlay.notifications": "通知を表示",
 	"welcomeOverlay": "ユーザー インターフェイスの概要",
 	"hideWelcomeOverlay": "インターフェイスの概要を非表示にします",
 	"help": "ヘルプ"

@@ -3,16 +3,12 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { SpectronApplication } from '../../spectron/application';
+import { Application } from '../../application';
 
 export function setup() {
 	describe('Explorer', () => {
-		before(function () {
-			this.app.suiteName = 'Explorer';
-		});
-
 		it('quick open search produces correct result', async function () {
-			const app = this.app as SpectronApplication;
+			const app = this.app as Application;
 			const expectedNames = [
 				'.eslintrc.json',
 				'tasks.json',
@@ -25,11 +21,11 @@ export function setup() {
 
 			await app.workbench.quickopen.openQuickOpen('.js');
 			await app.workbench.quickopen.waitForQuickOpenElements(names => expectedNames.every(n => names.some(m => n === m)));
-			await app.client.keys(['Escape', 'NULL']);
+			await app.code.dispatchKeybinding('escape');
 		});
 
 		it('quick open respects fuzzy matching', async function () {
-			const app = this.app as SpectronApplication;
+			const app = this.app as Application;
 			const expectedNames = [
 				'tasks.json',
 				'app.js',
@@ -38,7 +34,7 @@ export function setup() {
 
 			await app.workbench.quickopen.openQuickOpen('a.s');
 			await app.workbench.quickopen.waitForQuickOpenElements(names => expectedNames.every(n => names.some(m => n === m)));
-			await app.client.keys(['Escape', 'NULL']);
+			await app.code.dispatchKeybinding('escape');
 		});
 	});
 }

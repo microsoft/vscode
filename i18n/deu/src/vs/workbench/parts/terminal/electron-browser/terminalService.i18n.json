@@ -8,7 +8,7 @@
 	],
 	"terminal.integrated.chooseWindowsShellInfo": "Sie können die Standardterminalshell über die Schaltfläche \"Anpassen\" ändern.",
 	"customize": "Anpassen",
-	"cancel": "Abbrechen",
+	"never again": "Nicht mehr anzeigen",
 	"terminal.integrated.chooseWindowsShell": "Wählen Sie Ihre bevorzugte Terminalshell. Sie können diese später in Ihren Einstellungen ändern.",
 	"terminalService.terminalCloseConfirmationSingular": "Eine aktive Terminalsitzung ist vorhanden. Möchten Sie sie beenden?",
 	"terminalService.terminalCloseConfirmationPlural": "{0} aktive Terminalsitzungen sind vorhanden. Möchten Sie sie beenden?"

@@ -115,7 +115,7 @@ suite('Workbench - OutputWorker', () => {
 		line = toOSPath(' at C:\\Users\\someone\\AppData\\Local\\Temp\\_monacodata_9888\\workspaces\\mankala\\Game.ts] in');
 		result = OutputLinkComputer.detectLinks(line, 1, patternsSlash, contextService);
 		assert.equal(result.length, 1);
-		assert.equal(result[0].url, contextService.toResource('/Game.ts').toString());
+		assert.equal(result[0].url, contextService.toResource('/Game.ts]').toString());
 
 		// Example: C:\Users\someone\AppData\Local\Temp\_monacodata_9888\workspaces\express\server.js on line 8
 		line = toOSPath('C:\\Users\\someone\\AppData\\Local\\Temp\\_monacodata_9888\\workspaces\\mankala\\Game.ts on line 8');
@@ -385,6 +385,20 @@ suite('Workbench - OutputWorker', () => {
 		assert.equal(result[0].range.startColumn, 1);
 		assert.equal(result[0].range.endColumn, 106);
 
+		// Example: C:\\Users\\someone\\AppData\\Local\\Temp\\_monacodata_9888\\workspaces\\mankala\\lib\\something\\Features Special.ts (45,18): error.
+		line = toOSPath('C:\\Users\\someone\\AppData\\Local\\Temp\\_monacodata_9888\\workspaces\\mankala\\lib\\something\\Features Special.ts (45,18): error');
+		result = OutputLinkComputer.detectLinks(line, 1, patternsSlash, contextService);
+		assert.equal(result.length, 1);
+		assert.equal(result[0].url, contextService.toResource('/lib/something/Features Special.ts').toString() + '#45,18');
+		assert.equal(result[0].range.startColumn, 1);
+		assert.equal(result[0].range.endColumn, 114);
+
+		result = OutputLinkComputer.detectLinks(line, 1, patternsBackSlash, contextService);
+		assert.equal(result.length, 1);
+		assert.equal(result[0].url, contextService.toResource('/lib/something/Features Special.ts').toString() + '#45,18');
+		assert.equal(result[0].range.startColumn, 1);
+		assert.equal(result[0].range.endColumn, 114);
+
 		// Example: at C:\\Users\\someone\\AppData\\Local\\Temp\\_monacodata_9888\\workspaces\\mankala\\Game.ts.
 		line = toOSPath(' at C:\\Users\\someone\\AppData\\Local\\Temp\\_monacodata_9888\\workspaces\\mankala\\Game.ts. in');
 		result = OutputLinkComputer.detectLinks(line, 1, patternsSlash, contextService);
@@ -415,8 +429,8 @@ suite('Workbench - OutputWorker', () => {
 		line = toOSPath(' at \'C:\\Users\\someone\\AppData\\Local\\Temp\\_monacodata_9888\\workspaces\\mankala\\Game.ts\' in');
 		result = OutputLinkComputer.detectLinks(line, 1, patternsSlash, contextService);
 		assert.equal(result.length, 1);
-		assert.equal(result[0].url, contextService.toResource('/Game.ts').toString());
+		assert.equal(result[0].url, contextService.toResource('/Game.ts\'').toString());
 		assert.equal(result[0].range.startColumn, 6);
-		assert.equal(result[0].range.endColumn, 85);
+		assert.equal(result[0].range.endColumn, 86);
 	});
 });

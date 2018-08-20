@@ -9,5 +9,6 @@
 	"output": "输出",
 	"logViewer": "日志查看器",
 	"viewCategory": "查看",
-	"clearOutput.label": "清除输出"
+	"clearOutput.label": "清除输出",
+	"openActiveLogOutputFile": "查看: 打开活动日志输出文件"
 }

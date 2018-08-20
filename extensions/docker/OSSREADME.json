@@ -4,5 +4,5 @@
 	"version": "0.0.0",
 	"license": "Apache2",
 	"repositoryURL": "https://github.com/moby/moby",
-	"description": "The file syntaxes/Dockerfile.tmLanguage was included from https://github.com/moby/moby/blob/master/contrib/syntax/textmate/Docker.tmbundle/Syntaxes/Dockerfile.tmLanguage."
+	"description": "The file syntaxes/docker.tmLanguage was included from https://github.com/moby/moby/blob/master/contrib/syntax/textmate/Docker.tmbundle/Syntaxes/Dockerfile.tmLanguage."
 }]

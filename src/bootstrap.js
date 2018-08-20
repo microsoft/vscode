@@ -11,10 +11,10 @@
 	const NODE_MODULES_ASAR_PATH = NODE_MODULES_PATH + '.asar';
 
 	const originalResolveLookupPaths = Module._resolveLookupPaths;
-	Module._resolveLookupPaths = function (request, parent) {
-		const result = originalResolveLookupPaths(request, parent);
+	Module._resolveLookupPaths = function (request, parent, newReturn) {
+		const result = originalResolveLookupPaths(request, parent, newReturn);
 
-		const paths = result[1];
+		const paths = newReturn ? result : result[1];
 		for (let i = 0, len = paths.length; i < len; i++) {
 			if (paths[i] === NODE_MODULES_PATH) {
 				paths.splice(i, 0, NODE_MODULES_ASAR_PATH);
@@ -76,9 +76,9 @@ if (!!process.send && process.env.PIPE_LOGGING === 'true') {
 			res = JSON.stringify(argsArray, function (key, value) {
 
 				// Objects get special treatment to prevent circles
-				if (value && Object.prototype.toString.call(value) === '[object Object]') {
+				if (isObject(value) || Array.isArray(value)) {
 					if (seen.indexOf(value) !== -1) {
-						return Object.create(null); // prevent circular references!
+						return '[Circular]';
 					}
 
 					seen.push(value);
@@ -103,6 +103,14 @@ if (!!process.send && process.env.PIPE_LOGGING === 'true') {
 		} catch (error) {
 			// Can happen if the parent channel is closed meanwhile
 		}
+	}
+
+	function isObject(obj) {
+		return typeof obj === 'object'
+			&& obj !== null
+			&& !Array.isArray(obj)
+			&& !(obj instanceof RegExp)
+			&& !(obj instanceof Date);
 	}
 
 	// Pass console logging to the outside so that we have it in the main side if told so

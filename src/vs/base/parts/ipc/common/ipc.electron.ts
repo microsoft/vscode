@@ -5,7 +5,7 @@
 
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { IMessagePassingProtocol } from 'vs/base/parts/ipc/common/ipc';
-import Event, { Emitter } from 'vs/base/common/event';
+import { Event, Emitter } from 'vs/base/common/event';
 
 export interface Sender {
 	send(channel: string, ...args: any[]): void;

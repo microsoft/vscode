@@ -8,12 +8,13 @@
 import * as assert from 'assert';
 import * as path from 'path';
 import * as os from 'os';
-import URI from 'vs/base/common/uri';
 import { extract } from 'vs/base/node/zip';
 import { generateUuid } from 'vs/base/common/uuid';
 import { rimraf, exists } from 'vs/base/node/pfs';
+import { NullLogService } from 'vs/platform/log/common/log';
+import { getPathFromAmdModule } from 'vs/base/common/amd';
 
-const fixtures = URI.parse(require.toUrl('./fixtures')).fsPath;
+const fixtures = getPathFromAmdModule(require, './fixtures');
 
 suite('Zip', () => {
 
@@ -21,7 +22,7 @@ suite('Zip', () => {
 		const fixture = path.join(fixtures, 'extract.zip');
 		const target = path.join(os.tmpdir(), generateUuid());
 
-		return extract(fixture, target)
+		return extract(fixture, target, {}, new NullLogService())
 			.then(() => exists(path.join(target, 'extension')))
 			.then(exists => assert(exists))
 			.then(() => rimraf(target));

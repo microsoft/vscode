@@ -30,7 +30,6 @@
 	"changes": "Módosítások",
 	"commitMessageCountdown": "{0} karakter maradt az aktuális sorban",
 	"commitMessageWarning": " {0} karakterrel több, mint {1} az aktuális sorban",
-	"ok": "OK",
 	"neveragain": "Ne jelenítse meg újra",
 	"huge": "A(z) '{0}' forráskódtárban túl sok aktív módosítás van. A Git-funkciók csak egy része lesz engedélyezve."
 }

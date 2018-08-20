@@ -25,5 +25,6 @@
 	"peekViewEditorBackground": "速览视图编辑器背景颜色。",
 	"peekViewEditorGutterBackground": "速览视图编辑器中导航线的背景颜色。",
 	"peekViewResultsMatchHighlight": "在速览视图结果列表中匹配突出显示颜色。",
-	"peekViewEditorMatchHighlight": "在速览视图编辑器中匹配突出显示颜色。"
+	"peekViewEditorMatchHighlight": "在速览视图编辑器中匹配突出显示颜色。",
+	"peekViewEditorMatchHighlightBorder": "在速览视图编辑器中匹配项的突出显示边框。"
 }

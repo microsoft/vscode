@@ -34,7 +34,6 @@
 	"welcomePage.installedExtensionPack": "Поддержка {0} уже установлена",
 	"ok": "ОК",
 	"details": "Подробности",
-	"cancel": "Отмена",
 	"welcomePage.buttonBackground": "Цвет фона кнопок на странице приветствия.",
 	"welcomePage.buttonHoverBackground": "Цвет фона при наведении указателя для кнопок на странице приветствия."
 }

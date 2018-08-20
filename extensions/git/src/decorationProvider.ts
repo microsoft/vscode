@@ -10,8 +10,8 @@ import * as path from 'path';
 import { Repository, GitResourceGroup, Status } from './repository';
 import { Model } from './model';
 import { debounce } from './decorators';
-import { filterEvent, dispose, anyEvent, mapEvent, fireEvent } from './util';
-import { Submodule, GitErrorCodes } from './git';
+import { filterEvent, dispose, anyEvent, fireEvent } from './util';
+import { GitErrorCodes } from './git';
 
 type Callback = { resolve: (status: boolean) => void, reject: (err: any) => void };
 
@@ -93,7 +93,7 @@ class GitDecorationProvider implements DecorationProvider {
 
 	private static SubmoduleDecorationData: DecorationData = {
 		title: 'Submodule',
-		abbreviation: 'S',
+		letter: 'S',
 		color: new ThemeColor('gitDecoration.submoduleResourceForeground')
 	};
 

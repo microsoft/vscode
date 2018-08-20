@@ -10,22 +10,20 @@ import URI from 'vs/base/common/uri';
 import * as network from 'vs/base/common/network';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { IReplaceService } from 'vs/workbench/parts/search/common/replace';
-import { IEditorService } from 'vs/platform/editor/common/editor';
-import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
+import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IModelService } from 'vs/editor/common/services/modelService';
 import { IModeService } from 'vs/editor/common/services/modeService';
 import { Match, FileMatch, FileMatchOrMatch, ISearchWorkbenchService } from 'vs/workbench/parts/search/common/searchModel';
-import { BulkEdit } from 'vs/editor/browser/services/bulkEdit';
 import { IProgressRunner } from 'vs/platform/progress/common/progress';
-import { IDiffEditor } from 'vs/editor/browser/editorBrowser';
 import { ITextModelService, ITextModelContentProvider } from 'vs/editor/common/services/resolverService';
 import { IWorkbenchContribution } from 'vs/workbench/common/contributions';
 import { ScrollType } from 'vs/editor/common/editorCommon';
 import { ITextModel } from 'vs/editor/common/model';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { IFileService } from 'vs/platform/files/common/files';
 import { ResourceTextEdit } from 'vs/editor/common/modes';
 import { createTextBufferFactoryFromSnapshot } from 'vs/editor/common/model/textModel';
+import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
+import { IBulkEditService } from 'vs/editor/browser/services/bulkEditService';
 
 const REPLACE_PREVIEW = 'replacePreview';
 
@@ -94,22 +92,22 @@ export class ReplaceService implements IReplaceService {
 	public _serviceBrand: any;
 
 	constructor(
-		@IFileService private fileService: IFileService,
-		@IEditorService private editorService: IWorkbenchEditorService,
-		@ITextModelService private textModelResolverService: ITextModelService
-	) {
-	}
+		@ITextFileService private textFileService: ITextFileService,
+		@IEditorService private editorService: IEditorService,
+		@ITextModelService private textModelResolverService: ITextModelService,
+		@IBulkEditService private bulkEditorService: IBulkEditService
+	) { }
 
 	public replace(match: Match): TPromise<any>;
 	public replace(files: FileMatch[], progress?: IProgressRunner): TPromise<any>;
 	public replace(match: FileMatchOrMatch, progress?: IProgressRunner, resource?: URI): TPromise<any>;
 	public replace(arg: any, progress: IProgressRunner = null, resource: URI = null): TPromise<any> {
 
-		let bulkEdit = new BulkEdit(null, progress, this.textModelResolverService, this.fileService);
+		const edits: ResourceTextEdit[] = [];
 
 		if (arg instanceof Match) {
 			let match = <Match>arg;
-			bulkEdit.add([this.createEdit(match, match.replaceString, resource)]);
+			edits.push(this.createEdit(match, match.replaceString, resource));
 		}
 
 		if (arg instanceof FileMatch) {
@@ -120,14 +118,13 @@ export class ReplaceService implements IReplaceService {
 			arg.forEach(element => {
 				let fileMatch = <FileMatch>element;
 				if (fileMatch.count() > 0) {
-					fileMatch.matches().forEach(match => {
-						bulkEdit.add([this.createEdit(match, match.replaceString, resource)]);
-					});
+					edits.push(...fileMatch.matches().map(match => this.createEdit(match, match.replaceString, resource)));
 				}
 			});
 		}
 
-		return bulkEdit.perform();
+		return this.bulkEditorService.apply({ edits }, { progress }).then(() => this.textFileService.saveAll(edits.map(e => e.resource)));
+
 	}
 
 	public openReplacePreview(element: FileMatchOrMatch, preserveFocus?: boolean, sideBySide?: boolean, pinned?: boolean): TPromise<any> {
@@ -144,7 +141,7 @@ export class ReplaceService implements IReplaceService {
 			}
 		}).then(editor => {
 			this.updateReplacePreview(fileMatch).then(() => {
-				let editorControl = (<IDiffEditor>editor.getControl());
+				let editorControl = editor.getControl();
 				if (element instanceof Match) {
 					editorControl.revealLineInCenter(element.range().startLineNumber, ScrollType.Immediate);
 				}

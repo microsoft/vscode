@@ -4,8 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import Formatter = require('vs/base/common/jsonFormatter');
-import assert = require('assert');
+import * as Formatter from 'vs/base/common/jsonFormatter';
+import * as assert from 'assert';
 
 suite('JSON - formatter', () => {
 

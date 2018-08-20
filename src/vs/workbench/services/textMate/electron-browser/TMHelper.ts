@@ -7,11 +7,11 @@
 
 import { IColorTheme, ITokenColorizationSetting } from 'vs/workbench/services/themes/common/workbenchThemeService';
 
-export function findMatchingThemeRule(theme: IColorTheme, scopes: string[]): ThemeRule {
+export function findMatchingThemeRule(theme: IColorTheme, scopes: string[], onlyColorRules: boolean = true): ThemeRule {
 	for (let i = scopes.length - 1; i >= 0; i--) {
 		let parentScopes = scopes.slice(0, i);
 		let scope = scopes[i];
-		let r = findMatchingThemeRule2(theme, scope, parentScopes);
+		let r = findMatchingThemeRule2(theme, scope, parentScopes, onlyColorRules);
 		if (r) {
 			return r;
 		}
@@ -19,13 +19,13 @@ export function findMatchingThemeRule(theme: IColorTheme, scopes: string[]): The
 	return null;
 }
 
-function findMatchingThemeRule2(theme: IColorTheme, scope: string, parentScopes: string[]): ThemeRule {
+function findMatchingThemeRule2(theme: IColorTheme, scope: string, parentScopes: string[], onlyColorRules: boolean): ThemeRule {
 	let result: ThemeRule = null;
 
 	// Loop backwards, to ensure the last most specific rule wins
 	for (let i = theme.tokenColors.length - 1; i >= 0; i--) {
 		let rule = theme.tokenColors[i];
-		if (!rule.settings.foreground) {
+		if (onlyColorRules && !rule.settings.foreground) {
 			continue;
 		}
 

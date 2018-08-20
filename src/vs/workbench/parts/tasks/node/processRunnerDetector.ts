@@ -4,15 +4,15 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import nls = require('vs/nls');
+import * as nls from 'vs/nls';
 import * as Objects from 'vs/base/common/objects';
 import * as Paths from 'vs/base/common/paths';
 import { TPromise } from 'vs/base/common/winjs.base';
-import Strings = require('vs/base/common/strings');
-import Collections = require('vs/base/common/collections');
+import * as Strings from 'vs/base/common/strings';
+import * as Collections from 'vs/base/common/collections';
 
 import { CommandOptions, Source, ErrorData } from 'vs/base/common/processes';
-import { LineProcess } from 'vs/base/node/processes';
+import { LineProcess, LineData } from 'vs/base/node/processes';
 
 import { IFileService } from 'vs/platform/files/common/files';
 
@@ -170,14 +170,15 @@ export class ProcessRunnerDetector {
 	}
 
 	public detect(list: boolean = false, detectSpecific?: string): TPromise<DetectorResult> {
-		if (this.taskConfiguration && this.taskConfiguration.command && ProcessRunnerDetector.supports(this.taskConfiguration.command)) {
-			let config = ProcessRunnerDetector.detectorConfig(this.taskConfiguration.command);
+		let commandExecutable = TaskConfig.CommandString.value(this.taskConfiguration.command);
+		if (this.taskConfiguration && this.taskConfiguration.command && ProcessRunnerDetector.supports(commandExecutable)) {
+			let config = ProcessRunnerDetector.detectorConfig(commandExecutable);
 			let args = (this.taskConfiguration.args || []).concat(config.arg);
 			let options: CommandOptions = this.taskConfiguration.options ? this.resolveCommandOptions(this._workspaceRoot, this.taskConfiguration.options) : { cwd: this._cwd };
 			let isShellCommand = !!this.taskConfiguration.isShellCommand;
 			return this.runDetection(
-				new LineProcess(this.taskConfiguration.command, this.configurationResolverService.resolve(this._workspaceRoot, args), isShellCommand, options),
-				this.taskConfiguration.command, isShellCommand, config.matcher, ProcessRunnerDetector.DefaultProblemMatchers, list);
+				new LineProcess(commandExecutable, this.configurationResolverService.resolve(this._workspaceRoot, args.map(a => TaskConfig.CommandString.value(a))), isShellCommand, options),
+				commandExecutable, isShellCommand, config.matcher, ProcessRunnerDetector.DefaultProblemMatchers, list);
 		} else {
 			if (detectSpecific) {
 				let detectorPromise: TPromise<DetectorResult>;
@@ -268,7 +269,20 @@ export class ProcessRunnerDetector {
 	private runDetection(process: LineProcess, command: string, isShellCommand: boolean, matcher: TaskDetectorMatcher, problemMatchers: string[], list: boolean): TPromise<DetectorResult> {
 		let tasks: string[] = [];
 		matcher.init();
-		return process.start().then((success) => {
+
+		const onProgress = (progress: LineData) => {
+			if (progress.source === Source.stderr) {
+				this._stderr.push(progress.line);
+				return;
+			}
+			let line = Strings.removeAnsiEscapeCodes(progress.line);
+			let matches = matcher.match(tasks, line);
+			if (matches && matches.length > 0) {
+				tasks.push(matches[1]);
+			}
+		};
+
+		return process.start(onProgress).then((success) => {
 			if (tasks.length === 0) {
 				if (success.cmdCode !== 0) {
 					if (command === 'gulp') {
@@ -304,16 +318,6 @@ export class ProcessRunnerDetector {
 				this._stderr.push(nls.localize('TaskSystemDetector.noProgram', 'Program {0} was not found. Message is {1}', command, error.message));
 			}
 			return { config: null, stdout: this._stdout, stderr: this._stderr };
-		}, (progress) => {
-			if (progress.source === Source.stderr) {
-				this._stderr.push(progress.line);
-				return;
-			}
-			let line = Strings.removeAnsiEscapeCodes(progress.line);
-			let matches = matcher.match(tasks, line);
-			if (matches && matches.length > 0) {
-				tasks.push(matches[1]);
-			}
 		});
 	}
 

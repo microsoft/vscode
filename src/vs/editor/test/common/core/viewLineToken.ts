@@ -92,6 +92,10 @@ export class ViewLineTokens implements IViewLineTokens {
 	public getInlineStyle(tokenIndex: number, colorMap: string[]): string {
 		return this._actual[tokenIndex].getInlineStyle(colorMap);
 	}
+
+	public findTokenIndexAtOffset(offset: number): number {
+		throw new Error('Not implemented');
+	}
 }
 
 export class ViewLineTokenFactory {
