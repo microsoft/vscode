@@ -17,7 +17,10 @@ export interface IExtensionManagementChannel extends IChannel {
 	listen(event: 'onDidInstallExtension'): Event<DidInstallExtensionEvent>;
 	listen(event: 'onUninstallExtension'): Event<IExtensionIdentifier>;
 	listen(event: 'onDidUninstallExtension'): Event<DidUninstallExtensionEvent>;
-	call(command: 'install', args: [string]): TPromise<void>;
+
+	call(command: 'zip', args: [ILocalExtension]): TPromise<URI>;
+	call(command: 'unzip', args: [URI]): TPromise<void>;
+	call(command: 'install', args: [URI]): TPromise<void>;
 	call(command: 'installFromGallery', args: [IGalleryExtension]): TPromise<void>;
 	call(command: 'uninstall', args: [ILocalExtension, boolean]): TPromise<void>;
 	call(command: 'reinstallFromGallery', args: [ILocalExtension]): TPromise<void>;
@@ -53,7 +56,9 @@ export class ExtensionManagementChannel implements IExtensionManagementChannel {
 
 	call(command: string, args?: any): TPromise<any> {
 		switch (command) {
-			case 'install': return this.service.install(args[0]);
+			case 'zip': return this.service.zip(this._transform(args[0]));
+			case 'unzip': return this.service.unzip(URI.revive(args[0]));
+			case 'install': return this.service.install(URI.revive(args[0]));
 			case 'installFromGallery': return this.service.installFromGallery(args[0]);
 			case 'uninstall': return this.service.uninstall(this._transform(args[0]), args[1]);
 			case 'reinstallFromGallery': return this.service.reinstallFromGallery(this._transform(args[0]));
@@ -81,8 +86,16 @@ export class ExtensionManagementChannelClient implements IExtensionManagementSer
 	get onUninstallExtension(): Event<IExtensionIdentifier> { return this.channel.listen('onUninstallExtension'); }
 	get onDidUninstallExtension(): Event<DidUninstallExtensionEvent> { return this.channel.listen('onDidUninstallExtension'); }
 
-	install(zipPath: string): TPromise<void> {
-		return this.channel.call('install', [zipPath]);
+	zip(extension: ILocalExtension): TPromise<URI> {
+		return this.channel.call('zip', [extension]).then(result => URI.revive(this.uriTransformer.transformIncoming(result)));
+	}
+
+	unzip(zipLocation: URI): TPromise<void> {
+		return this.channel.call('unzip', [zipLocation]);
+	}
+
+	install(vsix: URI): TPromise<void> {
+		return this.channel.call('install', [vsix]);
 	}
 
 	installFromGallery(extension: IGalleryExtension): TPromise<void> {

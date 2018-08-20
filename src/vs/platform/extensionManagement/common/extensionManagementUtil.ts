@@ -5,7 +5,7 @@
 
 'use strict';
 
-import { ILocalExtension, IGalleryExtension, EXTENSION_IDENTIFIER_REGEX, IExtensionIdentifier, IReportedExtension } from 'vs/platform/extensionManagement/common/extensionManagement';
+import { ILocalExtension, IGalleryExtension, EXTENSION_IDENTIFIER_REGEX, IExtensionIdentifier, IReportedExtension, IExtensionManifest } from 'vs/platform/extensionManagement/common/extensionManagement';
 
 export function areSameExtensions(a: IExtensionIdentifier, b: IExtensionIdentifier): boolean {
 	if (a.uuid && b.uuid) {
@@ -117,4 +117,28 @@ export function getMaliciousExtensionsSet(report: IReportedExtension[]): Set<str
 	}
 
 	return result;
+}
+
+export function isWorkspaceExtension(manifest: IExtensionManifest): boolean {
+	if (manifest.main) {
+		const extensionId = getGalleryExtensionId(manifest.publisher, manifest.name);
+		return [
+			'vscode.extension-editing',
+			'vscode.configuration-editing',
+			'vscode.search-rg',
+			'vscode.css-language-features',
+			'vscode.git',
+			'vscode.grunt',
+			'vscode.gulp',
+			'vscode.html-language-features',
+			'vscode.json-language-features',
+			'vscode.markdown-language-features',
+			'vscode.npm',
+			'vscode.php-language-features',
+			'vscode.typescript-language-features',
+			'ms-python.python',
+			'eg2.tslint'
+		].indexOf(extensionId) !== -1;
+	}
+	return false;
 }

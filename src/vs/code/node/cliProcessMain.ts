@@ -41,6 +41,9 @@ import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
 import { CommandLineDialogService } from 'vs/platform/dialogs/node/dialogService';
 import { areSameExtensions, getGalleryExtensionIdFromLocal } from 'vs/platform/extensionManagement/common/extensionManagementUtil';
 import Severity from 'vs/base/common/severity';
+import URI from 'vs/base/common/uri';
+import { IDownloadService } from 'vs/platform/download/common/download';
+import { DownloadService } from 'vs/platform/download/node/download';
 
 const notFound = (id: string) => localize('notFound', "Extension '{0}' not found.", id);
 const notInstalled = (id: string) => localize('notInstalled', "Extension '{0}' is not installed.", id);
@@ -101,7 +104,7 @@ class Main {
 			.map(id => () => {
 				const extension = path.isAbsolute(id) ? id : path.join(process.cwd(), id);
 
-				return this.extensionManagementService.install(extension).then(() => {
+				return this.extensionManagementService.install(URI.file(extension)).then(() => {
 					console.log(localize('successVsixInstall', "Extension '{0}' was successfully installed!", getBaseLabel(extension)));
 				}, error => {
 					if (isPromiseCanceledError(error)) {
@@ -240,6 +243,7 @@ export function main(argv: ParsedArgs): TPromise<void> {
 			services.set(IExtensionManagementService, new SyncDescriptor(ExtensionManagementService));
 			services.set(IExtensionGalleryService, new SyncDescriptor(ExtensionGalleryService));
 			services.set(IDialogService, new SyncDescriptor(CommandLineDialogService));
+			services.set(IDownloadService, new SyncDescriptor(DownloadService));
 
 			const appenders: AppInsightsAppender[] = [];
 			if (isBuilt && !extensionDevelopmentPath && !envService.args['disable-telemetry'] && product.enableTelemetry) {

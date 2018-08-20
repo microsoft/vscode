@@ -7,12 +7,13 @@
 
 import * as nls from 'vs/nls';
 import * as path from 'path';
+import * as glob from 'glob';
 import * as pfs from 'vs/base/node/pfs';
 import * as errors from 'vs/base/common/errors';
 import { assign } from 'vs/base/common/objects';
 import { toDisposable, Disposable } from 'vs/base/common/lifecycle';
 import { flatten } from 'vs/base/common/arrays';
-import { extract, buffer, ExtractError } from 'vs/base/node/zip';
+import { extract, buffer, ExtractError, zip, IFile } from 'vs/base/node/zip';
 import { TPromise, ValueCallback, ErrorCallback } from 'vs/base/common/winjs.base';
 import {
 	IExtensionManagementService, IExtensionGalleryService, ILocalExtension,
@@ -41,6 +42,9 @@ import { toErrorMessage } from 'vs/base/common/errorMessage';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { isEngineValid } from 'vs/platform/extensions/node/extensionValidator';
 import { getPathFromAmdModule } from 'vs/base/common/amd';
+import { tmpdir } from 'os';
+import { generateUuid } from 'vs/base/common/uuid';
+import { IDownloadService } from 'vs/platform/download/common/download';
 
 const SystemExtensionsRoot = path.normalize(path.join(getPathFromAmdModule(require, ''), '..', 'extensions'));
 const ERROR_SCANNING_SYS_EXTENSIONS = 'scanningSystem';
@@ -136,6 +140,7 @@ export class ExtensionManagementService extends Disposable implements IExtension
 		@IDialogService private dialogService: IDialogService,
 		@IExtensionGalleryService private galleryService: IExtensionGalleryService,
 		@ILogService private logService: ILogService,
+		@IDownloadService private downloadService: IDownloadService,
 		@ITelemetryService private telemetryService: ITelemetryService,
 	) {
 		super();
@@ -153,8 +158,32 @@ export class ExtensionManagementService extends Disposable implements IExtension
 		}));
 	}
 
-	install(zipPath: string): TPromise<void> {
-		zipPath = path.resolve(zipPath);
+	zip(extension: ILocalExtension): TPromise<URI> {
+		return this.collectFiles(extension)
+			.then(files => zip(path.join(tmpdir(), generateUuid()), files))
+			.then(path => URI.file(path));
+	}
+
+	unzip(zipLocation: URI): TPromise<void> {
+		const downloadedLocation = path.join(tmpdir(), generateUuid());
+		return this.downloadService.download(zipLocation, downloadedLocation).then(() => this.install(URI.file(downloadedLocation)));
+	}
+
+	private collectFiles(extension: ILocalExtension): TPromise<IFile[]> {
+		return new TPromise((c, e) => {
+			glob('**', { cwd: extension.location.fsPath, nodir: true, dot: true }, (err: Error, files: string[]) => {
+				if (err) {
+					e(err);
+				} else {
+					c(files.map(f => f.replace(/\\/g, '/'))
+						.map(f => (<IFile>{ path: `extension/${f}`, localPath: path.join(extension.location.fsPath, f) })));
+				}
+			});
+		});
+	}
+
+	install(vsix: URI): TPromise<void> {
+		const zipPath = path.resolve(vsix.fsPath);
 
 		return validateLocalExtension(zipPath)
 			.then(manifest => {

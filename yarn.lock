@@ -8241,7 +8241,7 @@ yauzl@^2.2.1, yauzl@^2.3.1, yauzl@^2.9.1:
     buffer-crc32 "~0.2.3"
     fd-slicer "~1.0.1"
 
-yazl@^2.2.1, yazl@^2.2.2:
+yazl@^2.2.1, yazl@^2.2.2, yazl@^2.4.3:
   version "2.4.3"
   resolved "https://registry.yarnpkg.com/yazl/-/yazl-2.4.3.tgz#ec26e5cc87d5601b9df8432dbdd3cd2e5173a071"
   dependencies:

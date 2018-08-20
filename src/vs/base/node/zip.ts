@@ -11,6 +11,7 @@ import { nfcall, ninvoke, SimpleThrottler } from 'vs/base/common/async';
 import { mkdirp, rimraf } from 'vs/base/node/pfs';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { open as _openZip, Entry, ZipFile } from 'yauzl';
+import * as yazl from 'yazl';
 import { ILogService } from 'vs/platform/log/common/log';
 
 export interface IExtractOptions {
@@ -149,6 +150,27 @@ function extractZip(zipfile: ZipFile, targetPath: string, options: IOptions, log
 function openZip(zipFile: string, lazy: boolean = false): TPromise<ZipFile> {
 	return nfcall<ZipFile>(_openZip, zipFile, lazy ? { lazyEntries: true } : void 0)
 		.then(null, err => TPromise.wrapError(toExtractError(err)));
+}
+
+export interface IFile {
+	path: string;
+	contents?: Buffer | string;
+	localPath?: string;
+}
+
+export function zip(zipPath: string, files: IFile[]): TPromise<string> {
+	return new TPromise<string>((c, e) => {
+		const zip = new yazl.ZipFile();
+		files.forEach(f => f.contents ? zip.addBuffer(typeof f.contents === 'string' ? new Buffer(f.contents, 'utf8') : f.contents, f.path) : zip.addFile(f.localPath, f.path));
+		zip.end();
+
+		const zipStream = createWriteStream(zipPath);
+		zip.outputStream.pipe(zipStream);
+
+		zip.outputStream.once('error', e);
+		zipStream.once('error', e);
+		zipStream.once('finish', () => c(zipPath));
+	});
 }
 
 export function extract(zipPath: string, targetPath: string, options: IExtractOptions = {}, logService: ILogService): TPromise<void> {
