@@ -286,7 +286,14 @@ export class SettingsEditor2 extends BaseEditor {
 					this));
 			actions.push(new Separator());
 		}
-		actions.push(this.instantiationService.createInstance(OpenSettingsAction));
+		actions.push(new Action('settings.openSettingsJson', localize('openSettingsJsonLabel', "Open settings.json"), undefined, undefined, () => {
+			return this.openSettingsFile().then(editor => {
+				const currentSearch = this.searchWidget.getValue();
+				if (editor instanceof PreferencesEditor && currentSearch) {
+					editor.focusSearch(currentSearch);
+				}
+			});
+		}));
 
 		this.toolbar.setActions([], actions)();
 		this.toolbar.context = <ISettingsToolbarContext>{ target: this.settingsTargetsWidget.settingsTarget };
@@ -978,36 +985,6 @@ export class SettingsEditor2 extends BaseEditor {
 
 interface ISettingsToolbarContext {
 	target: SettingsTarget;
-}
-
-class OpenSettingsAction extends Action {
-	static readonly ID = 'settings.openSettingsJson';
-	static readonly LABEL = localize('openSettingsJsonLabel', "Open settings.json");
-
-	constructor(
-		@IPreferencesService private readonly preferencesService: IPreferencesService,
-	) {
-		super(OpenSettingsAction.ID, OpenSettingsAction.LABEL, 'open-settings-json');
-	}
-
-
-	run(context?: ISettingsToolbarContext): TPromise<void> {
-		return this._run(context)
-			.then(() => { });
-	}
-
-	private _run(context?: ISettingsToolbarContext): TPromise<any> {
-		const target = context && context.target;
-		if (target === ConfigurationTarget.USER) {
-			return this.preferencesService.openGlobalSettings(true);
-		} else if (target === ConfigurationTarget.WORKSPACE) {
-			return this.preferencesService.openWorkspaceSettings(true);
-		} else if (URI.isUri(target)) {
-			return this.preferencesService.openFolderSettings(target, true);
-		}
-
-		return TPromise.wrap(null);
-	}
 }
 
 class FilterByTagAction extends Action {
