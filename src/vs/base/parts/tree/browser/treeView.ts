@@ -1315,13 +1315,13 @@ export class TreeView extends HeightMap {
 
 		this.didJustPressContextMenuKey = event.keyCode === KeyCode.ContextMenu || (event.shiftKey && event.keyCode === KeyCode.F10);
 
+		if (event.target && event.target.tagName && event.target.tagName.toLowerCase() === 'input') {
+			return; // Ignore event if target is a form input field (avoids browser specific issues)
+		}
+
 		if (this.didJustPressContextMenuKey) {
 			event.preventDefault();
 			event.stopPropagation();
-		}
-
-		if (event.target && event.target.tagName && event.target.tagName.toLowerCase() === 'input') {
-			return; // Ignore event if target is a form input field (avoids browser specific issues)
 		}
 
 		this.context.controller.onKeyDown(this.context.tree, event);
