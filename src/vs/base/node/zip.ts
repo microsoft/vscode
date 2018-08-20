@@ -101,7 +101,6 @@ function extractEntry(stream: Readable, fileName: string, mode: number, targetPa
 }
 
 function extractZip(zipfile: ZipFile, targetPath: string, options: IOptions, logService: ILogService): CancelablePromise<void> {
-	let isCanceled = false;
 	let last = createCancelablePromise(() => Promise.resolve(null));
 	let extractedEntriesCount = 0;
 
@@ -109,7 +108,6 @@ function extractZip(zipfile: ZipFile, targetPath: string, options: IOptions, log
 
 		once(token.onCancellationRequested)(() => {
 			logService.debug(targetPath, 'Cancelled.');
-			isCanceled = true;
 			last.cancel();
 			zipfile.close();
 		});
@@ -128,7 +126,7 @@ function extractZip(zipfile: ZipFile, targetPath: string, options: IOptions, log
 
 			zipfile.once('error', e);
 			zipfile.once('close', () => last.then(() => {
-				if (isCanceled || zipfile.entryCount === extractedEntriesCount) {
+				if (token.isCancellationRequested || zipfile.entryCount === extractedEntriesCount) {
 					c(null);
 				} else {
 					e(new ExtractError('Incomplete', new Error(nls.localize('incompleteExtract', "Incomplete. Found {0} of {1} entries", extractedEntriesCount, zipfile.entryCount))));
@@ -137,12 +135,12 @@ function extractZip(zipfile: ZipFile, targetPath: string, options: IOptions, log
 			zipfile.readEntry();
 			zipfile.on('entry', (entry: Entry) => {
 
-				if (isCanceled) {
+				if (token.isCancellationRequested) {
 					return;
 				}
 
 				if (!options.sourcePathRegex.test(entry.fileName)) {
-					readNextEntry(CancellationToken.None);
+					readNextEntry(token);
 					return;
 				}
 
