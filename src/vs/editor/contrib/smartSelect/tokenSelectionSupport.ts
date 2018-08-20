@@ -9,7 +9,7 @@ import { TPromise } from 'vs/base/common/winjs.base';
 import { Range } from 'vs/editor/common/core/range';
 import { ITextModel } from 'vs/editor/common/model';
 import { IModelService } from 'vs/editor/common/services/modelService';
-import { Node, build, find } from './tokenTree';
+import { Node, NodeList, Block, build } from './tokenTree';
 import { Position } from 'vs/editor/common/core/position';
 
 /**
@@ -54,7 +54,7 @@ export class TokenSelectionSupport {
 		let node: Node;
 		let lastRange: Range;
 
-		node = find(tree, position);
+		node = this._find(tree, position);
 		let ranges: Range[] = [];
 		while (node) {
 			if (!lastRange || !Range.equalsRange(lastRange, node.range)) {
@@ -65,6 +65,30 @@ export class TokenSelectionSupport {
 		}
 		ranges = ranges.reverse();
 		return ranges;
+	}
+
+	private _find(node: Node, position: Position): Node {
+		if (node instanceof NodeList && !node.hasChildren) {
+			return null;
+		}
+
+		if (!Range.containsPosition(node.range, position)) {
+			return null;
+		}
+
+		let result: Node;
+
+		if (node instanceof NodeList) {
+			if (node.hasChildren) {
+				for (let i = 0, len = node.children.length; i < len && !result; i++) {
+					result = this._find(node.children[i], position);
+				}
+			}
+		} else if (node instanceof Block) {
+			result = this._find(node.elements, position);
+		}
+
+		return result || node;
 	}
 
 }
