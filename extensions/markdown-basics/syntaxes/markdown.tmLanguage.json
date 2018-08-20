@@ -4,7 +4,7 @@
 		"If you want to provide a fix or improvement, please create a pull request against the original repository.",
 		"Once accepted there, we are happy to receive an update request."
 	],
-	"version": "https://github.com/microsoft/vscode-markdown-tm-grammar/commit/4504240cdb13a4640f64fc98a0adb858226a879e",
+	"version": "https://github.com/microsoft/vscode-markdown-tm-grammar/commit/826a9c47f16a3d567c3691636fd19f189f65fca5",
 	"name": "Markdown",
 	"scopeName": "text.html.markdown",
 	"patterns": [
@@ -164,6 +164,9 @@
 				},
 				{
 					"include": "#fenced_code_block_dart"
+				},
+				{
+					"include": "#fenced_code_block_handlebars"
 				},
 				{
 					"include": "#fenced_code_block_unknown"
@@ -1685,6 +1688,39 @@
 						}
 					]
 				},
+				"fenced_code_block_handlebars": {
+					"begin": "(^|\\G)(\\s*)(`{3,}|~{3,})\\s*(?i:(handlebars|hbs)(\\s+[^`~]*)?$)",
+					"name": "markup.fenced_code.block.markdown",
+					"end": "(^|\\G)(\\2|\\s{0,3})(\\3)\\s*$",
+					"beginCaptures": {
+						"3": {
+							"name": "punctuation.definition.markdown"
+						},
+						"5": {
+							"name": "fenced_code.block.language"
+						},
+						"6": {
+							"name": "fenced_code.block.language.attributes"
+						}
+					},
+					"endCaptures": {
+						"3": {
+							"name": "punctuation.definition.markdown"
+						}
+					},
+					"patterns": [
+						{
+							"begin": "(^|\\G)(\\s*)(.*)",
+							"while": "(^|\\G)(?!\\s*([`~]{3,})\\s*$)",
+							"contentName": "meta.embedded.block.handlebars",
+							"patterns": [
+								{
+									"include": "text.html.handlebars"
+								}
+							]
+						}
+					]
+				},
 				"fenced_code_block_unknown": {
 					"begin": "(^|\\G)(\\s*)(`{3,}|~{3,})\\s*(?=([^`~]*)?$)",
 					"beginCaptures": {
@@ -1994,7 +2030,7 @@
 					"while": "(^|\\G)([ ]{4}|\\t)"
 				},
 				"separator": {
-					"match": "(^|\\G)[ ]{0,3}([\\*\\-\\_])([ ]{0,2}\\2){2,}[ \\t]*$\\n?",
+					"match": "(^|\\G)[ ]{0,3}([*-_])([ ]{0,2}\\2){2,}[ \\t]*$\\n?",
 					"name": "meta.separator.markdown"
 				}
 			}
