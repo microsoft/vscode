@@ -51,11 +51,6 @@ export interface IPartService {
 	onEditorLayout: Event<IDimension>;
 
 	/**
-	 * Asks the part service to layout all parts.
-	 */
-	layout(options?: ILayoutOptions): void;
-
-	/**
 	 * Asks the part service to if all parts have been created.
 	 */
 	isCreated(): boolean;

@@ -399,8 +399,6 @@ export class TestPartService implements IPartService {
 		return this._onEditorLayout.event;
 	}
 
-	public layout(): void { }
-
 	public isCreated(): boolean {
 		return true;
 	}
