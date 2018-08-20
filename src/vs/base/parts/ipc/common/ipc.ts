@@ -35,13 +35,9 @@ export enum ResponseType {
 	EventFire = 204
 }
 
-function isResponse(msg: { type: RequestType | ResponseType }): boolean {
-	return msg.type >= 200 && msg.type < 300;
-}
-
 type IRawInitializeResponse = { type: ResponseType.Initialize };
 type IRawPromiseSuccessResponse = { type: ResponseType.PromiseSuccess; id: number; data: any };
-type IRawPromiseErrorResponse = { type: ResponseType.PromiseError; id: number; data: any };
+type IRawPromiseErrorResponse = { type: ResponseType.PromiseError; id: number; data: { message: string, name: string, stack: string[] | undefined } };
 type IRawPromiseErrorObjResponse = { type: ResponseType.PromiseErrorObj; id: number; data: any };
 type IRawEventFireResponse = { type: ResponseType.EventFire; id: number; data: any };
 type IRawResponse = IRawInitializeResponse | IRawPromiseSuccessResponse | IRawPromiseErrorResponse | IRawPromiseErrorObjResponse | IRawEventFireResponse;
@@ -106,6 +102,55 @@ export interface IClientRouter {
  */
 export interface IRoutingChannelClient {
 	getChannel<T extends IChannel>(channelName: string, router: IClientRouter): T;
+}
+
+enum BodyType {
+	Undefined,
+	String,
+	Buffer,
+	Object
+}
+
+const empty = new Buffer(0);
+
+function serializeBody(body: any): { buffer: Buffer, type: BodyType } {
+	if (typeof body === 'undefined') {
+		return { buffer: empty, type: BodyType.Undefined };
+	} else if (typeof body === 'string') {
+		return { buffer: Buffer.from(body), type: BodyType.String };
+	} else if (Buffer.isBuffer(body)) {
+		return { buffer: body, type: BodyType.Buffer };
+	} else {
+		return { buffer: Buffer.from(JSON.stringify(body)), type: BodyType.Object };
+	}
+}
+
+function serialize(header: any, body: any = undefined): Buffer {
+	const headerSizeBuffer = new Buffer(4);
+	const { buffer: bodyBuffer, type: bodyType } = serializeBody(body);
+	const headerBuffer = Buffer.from(JSON.stringify([header, bodyType]));
+	headerSizeBuffer.writeUInt32BE(headerBuffer.byteLength, 0);
+
+	return Buffer.concat([headerSizeBuffer, headerBuffer, bodyBuffer]);
+}
+
+function deserializeBody(bodyBuffer: Buffer, bodyType: BodyType): any {
+	switch (bodyType) {
+		case BodyType.Undefined: return undefined;
+		case BodyType.String: return bodyBuffer.toString();
+		case BodyType.Buffer: return bodyBuffer;
+		case BodyType.Object: return JSON.parse(bodyBuffer.toString());
+	}
+}
+
+function deserialize(buffer: Buffer): { header: any, body: any } {
+	const headerSize = buffer.readUInt32BE(0);
+	const headerBuffer = buffer.slice(4, 4 + headerSize);
+	const bodyBuffer = buffer.slice(4 + headerSize);
+	const [header, bodyType] = JSON.parse(headerBuffer.toString());
+	const body = deserializeBody(bodyBuffer, bodyType);
+
+	return { header, body };
 }
 
 export class ChannelServer implements IChannelServer, IDisposable {
@@ -177,7 +222,24 @@ export class ChannelServer implements IChannelServer, IDisposable {
 	}
 
 	private onRawMessage(message: Buffer): void {
-		this.onRequest(JSON.parse(message.toString()));
+		const { header, body } = deserialize(message);
+		const type: RequestType = header[0];
+		let request: IRawRequest;
+
+		switch (type) {
+			case RequestType.Promise:
+			case RequestType.EventListen:
+				request = { type: header[0], id: header[1], channelName: header[2], name: header[3], arg: body };
+				break;
+			case RequestType.PromiseCancel:
+			case RequestType.EventDispose:
+				request = { type: header[0], id: header[1] };
+				break;
+			default:
+				return;
+		}
+
+		this.onRequest(request);
 	}
 
 	private onRequest(request: IRawRequest): void {
@@ -198,7 +260,21 @@ export class ChannelServer implements IChannelServer, IDisposable {
 	}
 
 	private sendResponse(response: IRawResponse) {
-		this.sendRawMessage(Buffer.from(JSON.stringify(response)));
+		let buffer: Buffer;
+
+		switch (response.type) {
+			case ResponseType.Initialize:
+				buffer = serialize([response.type]);
+				break;
+			case ResponseType.PromiseSuccess:
+			case ResponseType.PromiseError:
+			case ResponseType.EventFire:
+			case ResponseType.PromiseErrorObj:
+				buffer = serialize([response.type, response.id], response.data);
+				break;
+		}
+
+		this.sendRawMessage(buffer);
 	}
 
 	private sendRawMessage(message: Buffer) {
@@ -356,14 +432,28 @@ export class ChannelClient implements IChannelClient, IDisposable {
 	}
 
 	private onRawMessage(message: Buffer): void {
-		this.onResponse(JSON.parse(message.toString()));
+		const { header, body } = deserialize(message);
+		const type: ResponseType = header[0];
+		let response: IRawResponse;
+
+		switch (type) {
+			case ResponseType.Initialize:
+				response = { type: header[0] };
+				break;
+			case ResponseType.PromiseSuccess:
+			case ResponseType.PromiseError:
+			case ResponseType.EventFire:
+			case ResponseType.PromiseErrorObj:
+				response = { type: header[0], id: header[1], data: body };
+				break;
+			default:
+				return;
+		}
+
+		this.onResponse(response);
 	}
 
 	private onResponse(response: IRawResponse): void {
-		if (!isResponse(response)) {
-			return;
-		}
-
 		if (response.type === ResponseType.Initialize) {
 			this.state = State.Idle;
 			this._onDidInitialize.fire();
@@ -379,7 +469,20 @@ export class ChannelClient implements IChannelClient, IDisposable {
 	}
 
 	private sendRequest(request: IRawRequest) {
-		this.sendRawMessage(Buffer.from(JSON.stringify(request)));
+		let buffer: Buffer;
+
+		switch (request.type) {
+			case RequestType.Promise:
+			case RequestType.EventListen:
+				buffer = serialize([request.type, request.id, request.channelName, request.name], request.arg);
+				break;
+			case RequestType.PromiseCancel:
+			case RequestType.EventDispose:
+				buffer = serialize([request.type, request.id]);
+				break;
+		}
+
+		this.sendRawMessage(buffer);
 	}
 
 	private sendRawMessage(message: Buffer) {
