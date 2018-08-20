@@ -8,6 +8,7 @@ require('events').EventEmitter.defaultMaxListeners = 100;
 
 const gulp = require('gulp');
 const path = require('path');
+const fs = require('fs');
 const tsb = require('gulp-tsb');
 const es = require('event-stream');
 const filter = require('gulp-filter');
@@ -74,6 +75,7 @@ const tasks = compilations.map(function (tsconfigFile) {
 		tsOptions.base = path.dirname(absolutePath);
 
 		const compilation = tsb.create(tsOptions, null, null, err => reporter(err.toString()));
+		const nlsOption = fs.existsSync(path.join(root, 'extension.webpack.config.js')) ? { keepFilenames: true } : undefined;
 
 		return function () {
 			const input = es.through();
@@ -89,7 +91,7 @@ const tasks = compilations.map(function (tsconfigFile) {
 				.pipe(tsFilter)
 				.pipe(util.loadSourcemaps())
 				.pipe(compilation())
-				.pipe(build ? nlsDev.rewriteLocalizeCalls({ keepFilenames: true }) : es.through())
+				.pipe(build ? nlsDev.rewriteLocalizeCalls(nlsOption) : es.through())
 				.pipe(build ? util.stripSourceMappingURL() : es.through())
 				.pipe(sourcemaps.write('.', {
 					sourceMappingURL: !build ? null : f => `${baseUrl}/${f.relative}.map`,
