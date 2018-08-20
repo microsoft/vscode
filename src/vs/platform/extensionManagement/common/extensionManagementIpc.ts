@@ -87,15 +87,15 @@ export class ExtensionManagementChannelClient implements IExtensionManagementSer
 	get onDidUninstallExtension(): Event<DidUninstallExtensionEvent> { return this.channel.listen('onDidUninstallExtension'); }
 
 	zip(extension: ILocalExtension): TPromise<URI> {
-		return this.channel.call('zip', [extension]).then(result => URI.revive(this.uriTransformer.transformIncoming(result)));
+		return this.channel.call('zip', [this._transformOutgoing(extension)]).then(result => URI.revive(this.uriTransformer.transformIncoming(result)));
 	}
 
 	unzip(zipLocation: URI): TPromise<void> {
-		return this.channel.call('unzip', [zipLocation]);
+		return this.channel.call('unzip', [this.uriTransformer.transformOutgoing(zipLocation)]);
 	}
 
 	install(vsix: URI): TPromise<void> {
-		return this.channel.call('install', [vsix]);
+		return this.channel.call('install', [this.uriTransformer.transformOutgoing(vsix)]);
 	}
 
 	installFromGallery(extension: IGalleryExtension): TPromise<void> {

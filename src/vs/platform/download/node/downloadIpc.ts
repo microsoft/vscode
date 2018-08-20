@@ -14,6 +14,7 @@ import { Event, Emitter, buffer } from 'vs/base/common/event';
 import { IDownloadService } from 'vs/platform/download/common/download';
 import { mkdirp } from 'vs/base/node/pfs';
 import { onUnexpectedError } from 'vs/base/common/errors';
+import { IURITransformer } from 'vs/base/common/uriIpc';
 
 export type UploadResponse = Buffer | Error | undefined;
 
@@ -75,7 +76,7 @@ export class DownloadServiceChannel implements IDownloadServiceChannel {
 
 	listen(event: string, arg?: any): Event<any> {
 		switch (event) {
-			case 'upload': return buffer(upload(arg));
+			case 'upload': return buffer(upload(URI.revive(arg)));
 		}
 		return undefined;
 	}
@@ -89,9 +90,10 @@ export class DownloadServiceChannelClient implements IDownloadService {
 
 	_serviceBrand: any;
 
-	constructor(private channel: IDownloadServiceChannel) { }
+	constructor(private channel: IDownloadServiceChannel, private uriTransformer: IURITransformer) { }
 
 	download(from: URI, to: string): TPromise<void> {
+		from = this.uriTransformer.transformOutgoing(from);
 		const dirName = path.dirname(to);
 		let out: fs.WriteStream;
 		return new TPromise((c, e) => {

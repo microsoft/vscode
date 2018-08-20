@@ -45,6 +45,7 @@ import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { IDownloadService } from 'vs/platform/download/common/download';
 import { DownloadServiceChannelClient } from 'vs/platform/download/node/downloadIpc';
+import { DefaultURITransformer } from 'vs/base/common/uriIpc';
 
 export interface ISharedProcessConfiguration {
 	readonly machineId: string;
@@ -91,7 +92,7 @@ function main(server: Server, initData: ISharedProcessInitData, configuration: I
 	services.set(IDialogService, new DialogChannelClient(dialogChannel));
 
 	const downloadChannel = server.getChannel('download', { routeCall: route, routeEvent: route });
-	services.set(IDownloadService, new DownloadServiceChannelClient(downloadChannel));
+	services.set(IDownloadService, new DownloadServiceChannelClient(downloadChannel, DefaultURITransformer));
 
 	const instantiationService = new InstantiationService(services);
 

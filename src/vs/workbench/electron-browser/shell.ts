@@ -339,7 +339,7 @@ export class WorkbenchShell extends Disposable {
 
 		sharedProcess
 			.done(client => {
-				client.registerChannel('download', instantiationService.createInstance(DownloadServiceChannel));
+				client.registerChannel('download', new DownloadServiceChannel());
 				client.registerChannel('dialog', instantiationService.createInstance(DialogChannel));
 			});
 
