@@ -175,8 +175,6 @@ export class ReviewZoneWidget extends ZoneWidget {
 			this.show({ lineNumber: this._commentThread.range.startLineNumber, column: 1 }, 2);
 		}
 
-		this._bodyElement.focus();
-
 		if (commentId) {
 			let height = this.editor.getLayoutInfo().height;
 			let matchedNode = this._commentElements.filter(commentNode => commentNode.comment.commentId === commentId);
@@ -185,7 +183,6 @@ export class ReviewZoneWidget extends ZoneWidget {
 				const commentCoords = dom.getDomNodePagePosition(matchedNode[0].domNode);
 
 				this.editor.setScrollTop(this.editor.getTopForLineNumber(this._commentThread.range.startLineNumber) - height / 2 + commentCoords.top - commentThreadCoords.top);
-				matchedNode[0].focus();
 				return;
 			}
 		}

@@ -232,7 +232,6 @@ export class CommentsPanel extends Panel {
 				const control = editor.getControl();
 				if (threadToReveal && isCodeEditor(control)) {
 					const controller = ReviewController.get(control);
-					console.log(commentToReveal.command);
 					controller.revealCommentThread(threadToReveal, commentToReveal.commentId);
 				}
 				setCommentsForFile = null;
