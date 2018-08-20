@@ -180,7 +180,7 @@ class BulkEditModel implements IDisposable {
 				if (!model || !model.textEditorModel) {
 					throw new Error(`Cannot load file ${key}`);
 				}
-				if (model.isReadonly) {
+				if (model.isReadonly()) {
 					throw new Error(localize('editorIsReadonly', "Cannot edit a read-only editor."));
 				}
 
