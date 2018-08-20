@@ -458,6 +458,7 @@ export class SuggestWidget implements IContentWidget, IVirtualDelegate<ICompleti
 			editor.onDidLayoutChange(() => this.onEditorLayoutChange()),
 			this.list.onSelectionChange(e => this.onListSelection(e)),
 			this.list.onFocusChange(e => this.onListFocus(e)),
+			this.list.onMouseOver(e => this.list.setFocus([e.index])),
 			this.editor.onDidChangeCursorSelection(() => this.onCursorSelectionChanged())
 		];
 
