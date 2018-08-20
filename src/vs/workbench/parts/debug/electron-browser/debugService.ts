@@ -606,9 +606,13 @@ export class DebugService implements IDebugService {
 				}
 
 				const workspace = launch ? launch.workspace : undefined;
-				return this.runTask(sessionId, workspace, resolvedConfig.preLaunchTask, resolvedConfig, unresolvedConfig,
-					() => this.doCreateSession(workspace, { resolved: resolvedConfig, unresolved: unresolvedConfig }, sessionId)
-				);
+				return this.runTask(sessionId, workspace, resolvedConfig.preLaunchTask, resolvedConfig, unresolvedConfig).then(success => {
+					if (!success) {
+						return undefined;
+					}
+
+					return this.doCreateSession(workspace, { resolved: resolvedConfig, unresolved: unresolvedConfig }, sessionId);
+				});
 			}, err => {
 				if (err && err.message) {
 					return this.showError(err.message);
@@ -798,7 +802,7 @@ export class DebugService implements IDebugService {
 		});
 	}
 
-	private runTask(sessionId: string, root: IWorkspaceFolder, taskId: string | TaskIdentifier, config: IConfig, unresolvedConfig: IConfig, onSuccess: () => TPromise<any>): TPromise<any> {
+	private runTask(sessionId: string, root: IWorkspaceFolder, taskId: string | TaskIdentifier, config: IConfig, unresolvedConfig: IConfig): TPromise<boolean> {
 		const debugAnywayAction = new Action('debug.debugAnyway', nls.localize('debugAnyway', "Debug Anyway"), undefined, true, () => {
 			return this.doCreateSession(root, { resolved: config, unresolved: unresolvedConfig }, sessionId);
 		});
@@ -808,7 +812,7 @@ export class DebugService implements IDebugService {
 			const successExitCode = taskSummary && taskSummary.exitCode === 0;
 			const failureExitCode = taskSummary && taskSummary.exitCode !== undefined && taskSummary.exitCode !== 0;
 			if (successExitCode || (errorCount === 0 && !failureExitCode)) {
-				return onSuccess();
+				return true;
 			}
 
 			const message = errorCount > 1 ? nls.localize('preLaunchTaskErrors', "Build errors have been detected during preLaunchTask '{0}'.", config.preLaunchTask) :
@@ -819,9 +823,9 @@ export class DebugService implements IDebugService {
 				return this.panelService.openPanel(Constants.MARKERS_PANEL_ID).then(() => undefined);
 			});
 
-			return this.showError(message, [debugAnywayAction, showErrorsAction]);
+			return this.showError(message, [debugAnywayAction, showErrorsAction]).then(() => false);
 		}, (err: TaskError) => {
-			return this.showError(err.message, [debugAnywayAction, this.taskService.configureAction()]);
+			return this.showError(err.message, [debugAnywayAction, this.taskService.configureAction()]).then(() => false);
 		});
 	}
 
@@ -894,9 +898,9 @@ export class DebugService implements IDebugService {
 		return this.textFileService.saveAll().then(() => {
 			const unresolvedConfiguration = (<Session>session).unresolvedConfiguration;
 			if (session.raw.capabilities.supportsRestartRequest) {
-				return this.runTask(session.getId(), session.root, session.configuration.postDebugTask, session.configuration, unresolvedConfiguration,
-					() => this.runTask(session.getId(), session.root, session.configuration.preLaunchTask, session.configuration, unresolvedConfiguration,
-						() => session.raw.custom('restart', null)));
+				return this.runTask(session.getId(), session.root, session.configuration.postDebugTask, session.configuration, unresolvedConfiguration)
+					.then(success => success ? this.runTask(session.getId(), session.root, session.configuration.preLaunchTask, session.configuration, unresolvedConfiguration)
+						.then(success => success ? session.raw.custom('restart', null) : undefined) : TPromise.as(<any>undefined));
 			}
 
 			const focusedSession = this.viewModel.focusedSession;
