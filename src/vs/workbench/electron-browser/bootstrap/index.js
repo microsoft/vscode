@@ -3,8 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-// Warning: Do not use the `let` declarator in this file, it breaks our minification
-
 'use strict';
 
 /*global window,document,define*/
