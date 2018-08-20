@@ -721,7 +721,7 @@ export class SettingsRenderer implements ITreeRenderer {
 
 	private numEnums = 0;
 	private expandedSuggester: ISettingEnumItemTemplate = null;
-	private readonly ENUM_BACKING_MONACO_WIDTH = 250; // allow room for typing to filter
+	private readonly ENUM_BACKING_MONACO_WIDTH = 100; // allow room for typing to filter
 	private renderSettingEnumTemplate(tree: ITree, container: HTMLElement): ISettingEnumItemTemplate {
 		this.numEnums++;
 		const common = this.renderCommonTemplate(tree, container, 'enum');
