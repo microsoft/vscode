@@ -4,7 +4,7 @@
 		"If you want to provide a fix or improvement, please create a pull request against the original repository.",
 		"Once accepted there, we are happy to receive an update request."
 	],
-	"version": "https://github.com/microsoft/vscode-markdown-tm-grammar/commit/082f5ac70a35e7a0979c8450729d216b59789ad6",
+	"version": "https://github.com/microsoft/vscode-markdown-tm-grammar/commit/935f7a6d1da73e16231be18c545d7991d3698075",
 	"name": "Markdown",
 	"scopeName": "text.html.markdown",
 	"patterns": [
@@ -189,7 +189,7 @@
 					"begin": "(^|\\G)[ ]{0,3}(>) ?",
 					"captures": {
 						"2": {
-							"name": "beginning.punctuation.definition.quote.markdown"
+							"name": "punctuation.definition.quote.begin.markdown"
 						}
 					},
 					"name": "markup.quote.markdown",
@@ -1973,7 +1973,7 @@
 							"begin": "(^|\\G)([ ]{0,3})([*+-])([ ]{1,3}|\\t)",
 							"beginCaptures": {
 								"3": {
-									"name": "beginning.punctuation.definition.list.markdown"
+									"name": "punctuation.definition.list.begin.markdown"
 								}
 							},
 							"comment": "Currently does not support un-indented second lines.",
@@ -1992,7 +1992,7 @@
 							"begin": "(^|\\G)([ ]{0,3})([0-9]+\\.)([ ]{1,3}|\\t)",
 							"beginCaptures": {
 								"3": {
-									"name": "beginning.punctuation.definition.list.markdown"
+									"name": "punctuation.definition.list.begin.markdown"
 								}
 							},
 							"name": "markup.list.numbered.markdown",
