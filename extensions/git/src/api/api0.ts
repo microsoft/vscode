@@ -12,7 +12,9 @@ import { Api } from './api';
 @Api('0.1.0')
 export class ApiImpl implements GitExtension.API {
 
-	constructor(model: Model) {
-		// console.log(model);
+	get gitPath(): string {
+		return this._model.git.path;
 	}
+
+	constructor(private _model: Model) { }
 }

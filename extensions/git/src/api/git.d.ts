@@ -6,8 +6,9 @@
 import { Uri, SourceControlInputBox } from 'vscode';
 
 declare module GitExtension {
-	export interface API {
 
+	export interface API {
+		readonly gitPath: string;
 	}
 
 	//#region Deprecated API
