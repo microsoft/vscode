@@ -47,7 +47,7 @@ export interface IMemoryInfo {
 		"windowCount": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth" },
 		"viewletId": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth" },
 		"panelId": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth" },
-		"editorIds": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth" }
+		"editorIds": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth" },
 		"timers.ellapsedAppReady" : { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "isMeasurement": true },
 		"timers.ellapsedWindowLoad" : { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "isMeasurement": true },
 		"timers.ellapsedWindowLoadToRequire" : { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "isMeasurement": true },
