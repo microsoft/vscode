@@ -107,7 +107,7 @@ export class MulitExtensionManagementService implements IExtensionManagementServ
 	}
 
 	private async syncExtensions(): Promise<void> {
-		this.localServer.extensionManagementService.getInstalled()
+		this.localServer.extensionManagementService.getInstalled(LocalExtensionType.User)
 			.then(async localExtensions => {
 				const workspaceExtensions = localExtensions.filter(e => isWorkspaceExtension(e.manifest));
 				const extensionsToSync: Map<IExtensionManagementServer, ILocalExtension[]> = await this.getExtensionsToSync(workspaceExtensions);
@@ -133,7 +133,7 @@ export class MulitExtensionManagementService implements IExtensionManagementServ
 	private async getExtensionsToSync(workspaceExtensions: ILocalExtension[]): Promise<Map<IExtensionManagementServer, ILocalExtension[]>> {
 		const extensionsToSync: Map<IExtensionManagementServer, ILocalExtension[]> = new Map<IExtensionManagementServer, ILocalExtension[]>();
 		for (const server of this.otherServers) {
-			const extensions = await server.extensionManagementService.getInstalled();
+			const extensions = await server.extensionManagementService.getInstalled(LocalExtensionType.User);
 			const groupedByVersionId: Map<string, ILocalExtension> = extensions.reduce((groupedById, extension) => groupedById.set(`${extension.galleryIdentifier.id}-${extension.manifest.version}`, extension), new Map<string, ILocalExtension>());
 			const toSync = workspaceExtensions.filter(e => !groupedByVersionId.has(`${e.galleryIdentifier.id}-${e.manifest.version}`));
 			if (toSync.length) {
