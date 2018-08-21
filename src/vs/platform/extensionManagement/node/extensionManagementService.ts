@@ -7,7 +7,6 @@
 
 import * as nls from 'vs/nls';
 import * as path from 'path';
-import * as glob from 'glob';
 import * as pfs from 'vs/base/node/pfs';
 import * as errors from 'vs/base/common/errors';
 import { assign } from 'vs/base/common/objects';
@@ -160,7 +159,7 @@ export class ExtensionManagementService extends Disposable implements IExtension
 	}
 
 	zip(extension: ILocalExtension): TPromise<URI> {
-		return this.collectFiles(extension)
+		return TPromise.wrap(this.collectFiles(extension))
 			.then(files => zip(path.join(tmpdir(), generateUuid()), files))
 			.then(path => URI.file(path));
 	}
@@ -173,17 +172,30 @@ export class ExtensionManagementService extends Disposable implements IExtension
 		return this.downloadService.download(zipLocation, downloadedLocation).then(() => this.install(URI.file(downloadedLocation), type));
 	}
 
-	private collectFiles(extension: ILocalExtension): TPromise<IFile[]> {
-		return new TPromise((c, e) => {
-			glob('**', { cwd: extension.location.fsPath, nodir: true, dot: true }, (err: Error, files: string[]) => {
-				if (err) {
-					e(err);
-				} else {
-					c(files.map(f => f.replace(/\\/g, '/'))
-						.map(f => (<IFile>{ path: `extension/${f}`, localPath: path.join(extension.location.fsPath, f) })));
+	private collectFiles(extension: ILocalExtension): Promise<IFile[]> {
+
+		const collectFilesFromDirectory = async (dir): Promise<string[]> => {
+			let entries = await pfs.readdir(dir);
+			entries = entries.map(e => path.join(dir, e));
+			const stats = await Promise.all(entries.map(e => pfs.stat(e)));
+			let promise: Promise<string[]> = Promise.resolve([]);
+			stats.forEach((stat, index) => {
+				const entry = entries[index];
+				if (stat.isFile()) {
+					promise = promise.then(result => ([...result, entry]));
+				}
+				if (stat.isDirectory()) {
+					promise = promise
+						.then(result => collectFilesFromDirectory(entry)
+							.then(files => ([...result, ...files])));
 				}
 			});
-		});
+			return promise;
+		};
+
+		return collectFilesFromDirectory(extension.location.fsPath)
+			.then(files => files.map(f => (<IFile>{ path: `extension/${path.relative(extension.location.fsPath, f)}`, localPath: f })));
+
 	}
 
 	install(vsix: URI, type: LocalExtensionType = LocalExtensionType.User): TPromise<IExtensionIdentifier> {
