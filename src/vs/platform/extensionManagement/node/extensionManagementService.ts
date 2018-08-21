@@ -44,6 +44,7 @@ import { tmpdir } from 'os';
 import { generateUuid } from 'vs/base/common/uuid';
 import { IDownloadService } from 'vs/platform/download/common/download';
 import { optional } from 'vs/platform/instantiation/common/instantiation';
+import { Schemas } from 'vs/base/common/network';
 
 const ERROR_SCANNING_SYS_EXTENSIONS = 'scanningSystem';
 const ERROR_SCANNING_USER_EXTENSIONS = 'scanningUser';
@@ -165,11 +166,7 @@ export class ExtensionManagementService extends Disposable implements IExtension
 	}
 
 	unzip(zipLocation: URI, type: LocalExtensionType): TPromise<IExtensionIdentifier> {
-		if (!this.downloadService) {
-			throw new Error('Download service is not available');
-		}
-		const downloadedLocation = path.join(tmpdir(), generateUuid());
-		return this.downloadService.download(zipLocation, downloadedLocation).then(() => this.install(URI.file(downloadedLocation), type));
+		return this.install(zipLocation, type);
 	}
 
 	private collectFiles(extension: ILocalExtension): Promise<IFile[]> {
@@ -199,36 +196,50 @@ export class ExtensionManagementService extends Disposable implements IExtension
 	}
 
 	install(vsix: URI, type: LocalExtensionType = LocalExtensionType.User): TPromise<IExtensionIdentifier> {
-		const zipPath = path.resolve(vsix.fsPath);
+		return this.downloadVsix(vsix)
+			.then(downloadLocation => {
+				const zipPath = path.resolve(downloadLocation.fsPath);
 
-		return validateLocalExtension(zipPath)
-			.then(manifest => {
-				const identifier = { id: getLocalExtensionIdFromManifest(manifest) };
-				if (manifest.engines && manifest.engines.vscode && !isEngineValid(manifest.engines.vscode)) {
-					return TPromise.wrapError<IExtensionIdentifier>(new Error(nls.localize('incompatible', "Unable to install Extension '{0}' as it is not compatible with Code '{1}'.", identifier.id, pkg.version)));
-				}
-				return this.removeIfExists(identifier.id)
-					.then(
-						() => this.checkOutdated(manifest)
-							.then(validated => {
-								if (validated) {
-									this.logService.info('Installing the extension:', identifier.id);
-									this._onInstallExtension.fire({ identifier, zipPath });
-									return this.getMetadata(getGalleryExtensionId(manifest.publisher, manifest.name))
-										.then(
-											metadata => this.installFromZipPath(identifier, zipPath, metadata, type),
-											error => this.installFromZipPath(identifier, zipPath, null, type))
-										.then(
-											() => { this.logService.info('Successfully installed the extension:', identifier.id); return identifier; },
-											e => {
-												this.logService.error('Failed to install the extension:', identifier.id, e.message);
-												return TPromise.wrapError(e);
-											});
-								}
-								return null;
-							}),
-						e => TPromise.wrapError(new Error(nls.localize('restartCode', "Please restart Code before reinstalling {0}.", manifest.displayName || manifest.name))));
+				return validateLocalExtension(zipPath)
+					.then(manifest => {
+						const identifier = { id: getLocalExtensionIdFromManifest(manifest) };
+						if (manifest.engines && manifest.engines.vscode && !isEngineValid(manifest.engines.vscode)) {
+							return TPromise.wrapError<IExtensionIdentifier>(new Error(nls.localize('incompatible', "Unable to install Extension '{0}' as it is not compatible with Code '{1}'.", identifier.id, pkg.version)));
+						}
+						return this.removeIfExists(identifier.id)
+							.then(
+								() => this.checkOutdated(manifest)
+									.then(validated => {
+										if (validated) {
+											this.logService.info('Installing the extension:', identifier.id);
+											this._onInstallExtension.fire({ identifier, zipPath });
+											return this.getMetadata(getGalleryExtensionId(manifest.publisher, manifest.name))
+												.then(
+													metadata => this.installFromZipPath(identifier, zipPath, metadata, type),
+													error => this.installFromZipPath(identifier, zipPath, null, type))
+												.then(
+													() => { this.logService.info('Successfully installed the extension:', identifier.id); return identifier; },
+													e => {
+														this.logService.error('Failed to install the extension:', identifier.id, e.message);
+														return TPromise.wrapError(e);
+													});
+										}
+										return null;
+									}),
+								e => TPromise.wrapError(new Error(nls.localize('restartCode', "Please restart Code before reinstalling {0}.", manifest.displayName || manifest.name))));
+					});
 			});
+	}
+
+	private downloadVsix(vsix: URI): TPromise<URI> {
+		if (vsix.scheme === Schemas.file) {
+			return TPromise.as(vsix);
+		}
+		if (!this.downloadService) {
+			throw new Error('Download service is not available');
+		}
+		const downloadedLocation = path.join(tmpdir(), generateUuid());
+		return this.downloadService.download(vsix, downloadedLocation).then(() => URI.file(downloadedLocation));
 	}
 
 	private removeIfExists(id: string): TPromise<void> {
@@ -374,7 +385,7 @@ export class ExtensionManagementService extends Disposable implements IExtension
 				compatible => {
 					if (compatible) {
 						this.logService.trace('Started downloading extension:', extension.name);
-						return this.galleryService.download(extension, operation)
+						return this.galleryService.download(compatible, operation)
 							.then(
 								zipPath => {
 									this.logService.info('Downloaded extension:', extension.name, zipPath);

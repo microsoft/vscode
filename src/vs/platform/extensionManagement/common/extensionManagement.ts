@@ -255,7 +255,8 @@ export interface IReportedExtension {
 }
 
 export enum InstallOperation {
-	Install = 1,
+	None = 0,
+	Install,
 	Update
 }
 
@@ -276,6 +277,7 @@ export interface IExtensionGalleryService {
 	loadCompatibleVersion(extension: IGalleryExtension): TPromise<IGalleryExtension>;
 	loadAllDependencies(dependencies: IExtensionIdentifier[]): TPromise<IGalleryExtension[]>;
 	getExtensionsReport(): TPromise<IReportedExtension[]>;
+	getExtension(id: IExtensionIdentifier, version?: string): TPromise<IGalleryExtension>;
 }
 
 export interface InstallExtensionEvent {

@@ -3,7 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { localize } from 'vs/nls';
 import { tmpdir } from 'os';
 import * as path from 'path';
 import { TPromise } from 'vs/base/common/winjs.base';
@@ -280,8 +279,7 @@ function getIsPreview(flags: string): boolean {
 	return flags.indexOf('preview') !== -1;
 }
 
-function toExtension(galleryExtension: IRawGalleryExtension, extensionsGalleryUrl: string, index: number, query: Query, querySource?: string): IGalleryExtension {
-	const [version] = galleryExtension.versions;
+function toExtension(galleryExtension: IRawGalleryExtension, version: IRawGalleryExtensionVersion, index: number, query: Query, querySource?: string): IGalleryExtension {
 	const assets = {
 		manifest: getVersionAsset(version, AssetType.Manifest),
 		readme: getVersionAsset(version, AssetType.Details),
@@ -364,6 +362,31 @@ export class ExtensionGalleryService implements IExtensionGalleryService {
 		return !!this.extensionsGalleryUrl;
 	}
 
+	getExtension({ id, uuid }: IExtensionIdentifier, version?: string): TPromise<IGalleryExtension> {
+		let query = new Query()
+			.withFlags(Flags.IncludeAssetUri, Flags.IncludeStatistics, Flags.IncludeFiles, Flags.IncludeVersionProperties)
+			.withPage(1, 1)
+			.withFilter(FilterType.Target, 'Microsoft.VisualStudio.Code')
+			.withFilter(FilterType.ExcludeWithFlags, flagsToString(Flags.Unpublished));
+
+		if (uuid) {
+			query = query.withFilter(FilterType.ExtensionId, uuid);
+		} else {
+			query = query.withFilter(FilterType.ExtensionName, id);
+		}
+
+		return this.queryGallery(query).then(({ galleryExtensions }) => {
+			if (galleryExtensions.length) {
+				const galleryExtension = galleryExtensions[0];
+				const versionAsset = version ? galleryExtension.versions.filter(v => v.version === version)[0] : galleryExtension.versions[0];
+				if (versionAsset) {
+					return toExtension(galleryExtension, versionAsset, 0, query);
+				}
+			}
+			return null;
+		});
+	}
+
 	query(options: IQueryOptions = {}): TPromise<IPager<IGalleryExtension>> {
 		if (!this.isEnabled()) {
 			return TPromise.wrapError<IPager<IGalleryExtension>>(new Error('No extension gallery service configured.'));
@@ -425,7 +448,7 @@ export class ExtensionGalleryService implements IExtensionGalleryService {
 		}
 
 		return this.queryGallery(query).then(({ galleryExtensions, total }) => {
-			const extensions = galleryExtensions.map((e, index) => toExtension(e, this.extensionsGalleryUrl, index, query, options.source));
+			const extensions = galleryExtensions.map((e, index) => toExtension(e, e.versions[0], index, query, options.source));
 			const pageSize = query.pageSize;
 			const getPage = (pageIndex: number, ct: CancellationToken) => {
 				if (ct.isCancellationRequested) {
@@ -434,7 +457,7 @@ export class ExtensionGalleryService implements IExtensionGalleryService {
 
 				const nextPageQuery = query.withPage(pageIndex + 1);
 				const promise = this.queryGallery(nextPageQuery)
-					.then(({ galleryExtensions }) => galleryExtensions.map((e, index) => toExtension(e, this.extensionsGalleryUrl, index, nextPageQuery, options.source)));
+					.then(({ galleryExtensions }) => galleryExtensions.map((e, index) => toExtension(e, e.versions[0], index, nextPageQuery, options.source)));
 
 				return wireCancellationToken(ct, promise);
 			};
@@ -493,35 +516,29 @@ export class ExtensionGalleryService implements IExtensionGalleryService {
 	}
 
 	download(extension: IGalleryExtension, operation: InstallOperation): TPromise<string> {
-		return this.loadCompatibleVersion(extension)
-			.then(extension => {
-				if (!extension) {
-					return TPromise.wrapError(new Error(localize('notCompatibleDownload', "Unable to download because the extension compatible with current version '{0}' of VS Code is not found.", pkg.version)));
-				}
-				const zipPath = path.join(tmpdir(), generateUuid());
-				const data = getGalleryExtensionTelemetryData(extension);
-				const startTime = new Date().getTime();
-				/* __GDPR__
-					"galleryService:downloadVSIX" : {
-						"duration": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "isMeasurement": true },
-						"${include}": [
-							"${GalleryExtensionTelemetryData}"
-						]
-					}
-				*/
-				const log = (duration: number) => this.telemetryService.publicLog('galleryService:downloadVSIX', assign(data, { duration }));
+		const zipPath = path.join(tmpdir(), generateUuid());
+		const data = getGalleryExtensionTelemetryData(extension);
+		const startTime = new Date().getTime();
+		/* __GDPR__
+			"galleryService:downloadVSIX" : {
+				"duration": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "isMeasurement": true },
+				"${include}": [
+					"${GalleryExtensionTelemetryData}"
+				]
+			}
+		*/
+		const log = (duration: number) => this.telemetryService.publicLog('galleryService:downloadVSIX', assign(data, { duration }));
 
-				const operationParam = operation === InstallOperation.Install ? 'install' : operation === InstallOperation.Update ? 'update' : '';
-				const downloadAsset = operationParam ? {
-					uri: `${extension.assets.download.uri}&${operationParam}=true`,
-					fallbackUri: `${extension.assets.download.fallbackUri}?${operationParam}=true`
-				} : extension.assets.download;
+		const operationParam = operation === InstallOperation.Install ? 'install' : operation === InstallOperation.Update ? 'update' : '';
+		const downloadAsset = operationParam ? {
+			uri: `${extension.assets.download.uri}&${operationParam}=true`,
+			fallbackUri: `${extension.assets.download.fallbackUri}?${operationParam}=true`
+		} : extension.assets.download;
 
-				return this.getAsset(downloadAsset)
-					.then(context => download(zipPath, context))
-					.then(() => log(new Date().getTime() - startTime))
-					.then(() => zipPath);
-			});
+		return this.getAsset(downloadAsset)
+			.then(context => download(zipPath, context))
+			.then(() => log(new Date().getTime() - startTime))
+			.then(() => zipPath);
 	}
 
 	getReadme(extension: IGalleryExtension): TPromise<string> {
@@ -609,7 +626,7 @@ export class ExtensionGalleryService implements IExtensionGalleryService {
 			for (let index = 0; index < result.galleryExtensions.length; index++) {
 				const rawExtension = result.galleryExtensions[index];
 				if (ids.indexOf(rawExtension.extensionId) === -1) {
-					dependencies.push(toExtension(rawExtension, this.extensionsGalleryUrl, index, query, 'dependencies'));
+					dependencies.push(toExtension(rawExtension, rawExtension.versions[0], index, query, 'dependencies'));
 					ids.push(rawExtension.extensionId);
 				}
 			}

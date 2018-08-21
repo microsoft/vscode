@@ -139,7 +139,9 @@ export function isWorkspaceExtension(manifest: IExtensionManifest): boolean {
 			'ms-vscode.node-debug',
 			'ms-vscode.node-debug2',
 			'ms-python.python',
-			'eg2.tslint'
+			'eg2.tslint',
+			'dbaeumer.vscode-eslint',
+			'eamodio.gitlens'
 		].indexOf(extensionId) !== -1;
 	}
 	return false;

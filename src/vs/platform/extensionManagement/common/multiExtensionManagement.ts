@@ -7,7 +7,7 @@ import { TPromise } from 'vs/base/common/winjs.base';
 import { Event, EventMultiplexer } from 'vs/base/common/event';
 import {
 	IExtensionManagementService, ILocalExtension, IGalleryExtension, LocalExtensionType, InstallExtensionEvent, DidInstallExtensionEvent, IExtensionIdentifier, DidUninstallExtensionEvent, IReportedExtension, IGalleryMetadata,
-	IExtensionManagementServerService, IExtensionManagementServer
+	IExtensionManagementServerService, IExtensionManagementServer, IExtensionGalleryService, InstallOperation
 } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { flatten } from 'vs/base/common/arrays';
 import { isWorkspaceExtension, areSameExtensions } from 'vs/platform/extensionManagement/common/extensionManagementUtil';
@@ -35,7 +35,8 @@ export class MulitExtensionManagementService implements IExtensionManagementServ
 		@IExtensionManagementServerService private extensionManagementServerService: IExtensionManagementServerService,
 		@INotificationService private notificationService: INotificationService,
 		@IWindowService private windowService: IWindowService,
-		@ILogService private logService: ILogService
+		@ILogService private logService: ILogService,
+		@IExtensionGalleryService private extensionGalleryService: IExtensionGalleryService
 	) {
 		this.servers = this.extensionManagementServerService.extensionManagementServers;
 		this.localServer = this.extensionManagementServerService.getLocalExtensionManagementServer();
@@ -145,28 +146,37 @@ export class MulitExtensionManagementService implements IExtensionManagementServ
 
 	private async doSyncExtensions(extensionsToSync: Map<IExtensionManagementServer, ILocalExtension[]>): Promise<void> {
 		const ids: string[] = [];
-		const vsixResolvers: TPromise<URI>[] = [];
+		const zipLocationResolvers: TPromise<{ location: URI, vsix: boolean }>[] = [];
 
 		extensionsToSync.forEach(extensions => {
 			for (const extension of extensions) {
 				if (ids.indexOf(extension.galleryIdentifier.id) === -1) {
 					ids.push(extension.galleryIdentifier.id);
-					vsixResolvers.push(this.localServer.extensionManagementService.zip(extension));
+					zipLocationResolvers.push(this.downloadFromGallery(extension).then(location => location ? { location, vsix: true } : this.localServer.extensionManagementService.zip(extension).then(location => ({ location, vsix: false }))));
 				}
 			}
 		});
 
-		const vsixs = await TPromise.join(vsixResolvers);
+		const zipLocations = await TPromise.join(zipLocationResolvers);
 		const promises: Promise<any>[] = [];
 		extensionsToSync.forEach((extensions, server) => {
 			let promise: Promise<any> = Promise.resolve();
 			extensions.forEach(extension => {
 				const index = ids.indexOf(extension.galleryIdentifier.id);
-				promise = promise.then(() => server.extensionManagementService.unzip(vsixs[index], extension.type));
+				const { location, vsix } = zipLocations[index];
+				promise = promise.then(() => vsix ? server.extensionManagementService.install(location) : server.extensionManagementService.unzip(location, extension.type));
 			});
 			promises.push(promise);
 		});
 
 		await Promise.all(promises);
+	}
+
+	private downloadFromGallery(extension: ILocalExtension): TPromise<URI> {
+		if (this.extensionGalleryService.isEnabled()) {
+			return this.extensionGalleryService.getExtension(extension.galleryIdentifier, extension.manifest.version)
+				.then(galleryExtension => galleryExtension ? this.extensionGalleryService.download(galleryExtension, InstallOperation.None).then(location => URI.file(location)) : null);
+		}
+		return TPromise.as(null);
 	}
 }
