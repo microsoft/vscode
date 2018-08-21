@@ -6,7 +6,6 @@
 'use strict';
 
 const path = require('path');
-const CopyWebpackPlugin = require('copy-webpack-plugin');
 const merge = require('merge-options');
 
 module.exports = function withDefaults(extConfig) {
@@ -39,9 +38,6 @@ module.exports = function withDefaults(extConfig) {
 				}]
 			}]
 		},
-		plugins: [
-			new CopyWebpackPlugin([{ from: './out/nls.*.json', to: '[name].json' }]) // copy nls files
-		],
 		externals: {
 			'vscode': 'commonjs vscode', // ignored because it doesn't exist
 		},
@@ -54,7 +50,7 @@ module.exports = function withDefaults(extConfig) {
 		},
 		// yes, really source maps
 		devtool: 'source-map'
-	}
+	};
 
 	return merge(defaultConfig, extConfig);
-}
+};

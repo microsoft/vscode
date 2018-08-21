@@ -19,7 +19,8 @@ const myConfig = {
 	},
 	plugins: [
 		new CopyWebpackPlugin([
-			{ from: './out/*.sh', to: '[name].sh' }
+			{ from: './out/*.sh', to: '[name].sh' },
+			{ from: './out/nls.*.json', to: '[name].json' }
 		])
 	],
 	externals: {
