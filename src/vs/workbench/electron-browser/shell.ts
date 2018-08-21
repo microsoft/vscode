@@ -95,6 +95,7 @@ import { OpenerService } from 'vs/editor/browser/services/openerService';
 import { SearchHistoryService } from 'vs/workbench/services/search/node/searchHistoryService';
 import { MulitExtensionManagementService } from 'vs/platform/extensionManagement/common/multiExtensionManagement';
 import { ExtensionManagementServerService } from 'vs/workbench/services/extensions/node/extensionManagementServerService';
+import { DownloadServiceChannel } from 'vs/platform/download/node/downloadIpc';
 import { DefaultURITransformer } from 'vs/base/common/uriIpc';
 
 /**
@@ -335,7 +336,10 @@ export class WorkbenchShell extends Disposable {
 			.then(() => connectNet(this.environmentService.sharedIPCHandle, `window:${this.configuration.windowId}`));
 
 		sharedProcess
-			.done(client => client.registerChannel('dialog', instantiationService.createInstance(DialogChannel)));
+			.done(client => {
+				client.registerChannel('download', new DownloadServiceChannel());
+				client.registerChannel('dialog', instantiationService.createInstance(DialogChannel));
+			});
 
 		// Warm up font cache information before building up too many dom elements
 		restoreFontInfo(this.storageService);

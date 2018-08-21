@@ -672,7 +672,7 @@ export class ExtensionsWorkbenchService implements IExtensionsWorkbenchService, 
 				location: ProgressLocation.Extensions,
 				title: nls.localize('installingVSIXExtension', 'Installing extension from VSIX...'),
 				source: `${extension}`
-			}, () => this.extensionService.install(extension).then(() => null));
+			}, () => this.extensionService.install(URI.file(extension)).then(() => null));
 		}
 
 		if (!(extension instanceof Extension)) {

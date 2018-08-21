@@ -7,12 +7,13 @@
 
 import * as nls from 'vs/nls';
 import * as path from 'path';
+import * as glob from 'glob';
 import * as pfs from 'vs/base/node/pfs';
 import * as errors from 'vs/base/common/errors';
 import { assign } from 'vs/base/common/objects';
 import { toDisposable, Disposable } from 'vs/base/common/lifecycle';
 import { flatten } from 'vs/base/common/arrays';
-import { extract, buffer, ExtractError } from 'vs/base/node/zip';
+import { extract, buffer, ExtractError, zip, IFile } from 'vs/base/node/zip';
 import { TPromise, ValueCallback, ErrorCallback } from 'vs/base/common/winjs.base';
 import {
 	IExtensionManagementService, IExtensionGalleryService, ILocalExtension,
@@ -40,9 +41,11 @@ import { ExtensionsLifecycle } from 'vs/platform/extensionManagement/node/extens
 import { toErrorMessage } from 'vs/base/common/errorMessage';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { isEngineValid } from 'vs/platform/extensions/node/extensionValidator';
-import { getPathFromAmdModule } from 'vs/base/common/amd';
+import { tmpdir } from 'os';
+import { generateUuid } from 'vs/base/common/uuid';
+import { IDownloadService } from 'vs/platform/download/common/download';
+import { optional } from 'vs/platform/instantiation/common/instantiation';
 
-const SystemExtensionsRoot = path.normalize(path.join(getPathFromAmdModule(require, ''), '..', 'extensions'));
 const ERROR_SCANNING_SYS_EXTENSIONS = 'scanningSystem';
 const ERROR_SCANNING_USER_EXTENSIONS = 'scanningUser';
 const INSTALL_ERROR_UNSET_UNINSTALLED = 'unsetUninstalled';
@@ -109,6 +112,7 @@ export class ExtensionManagementService extends Disposable implements IExtension
 
 	_serviceBrand: any;
 
+	private systemExtensionsPath: string;
 	private extensionsPath: string;
 	private uninstalledPath: string;
 	private uninstalledFileLimiter: Limiter<void>;
@@ -136,9 +140,11 @@ export class ExtensionManagementService extends Disposable implements IExtension
 		@IDialogService private dialogService: IDialogService,
 		@IExtensionGalleryService private galleryService: IExtensionGalleryService,
 		@ILogService private logService: ILogService,
+		@optional(IDownloadService) private downloadService: IDownloadService,
 		@ITelemetryService private telemetryService: ITelemetryService,
 	) {
 		super();
+		this.systemExtensionsPath = environmentService.builtinExtensionsPath;
 		this.extensionsPath = environmentService.extensionsPath;
 		this.uninstalledPath = path.join(this.extensionsPath, '.obsolete');
 		this.uninstalledFileLimiter = new Limiter(1);
@@ -153,14 +159,41 @@ export class ExtensionManagementService extends Disposable implements IExtension
 		}));
 	}
 
-	install(zipPath: string): TPromise<void> {
-		zipPath = path.resolve(zipPath);
+	zip(extension: ILocalExtension): TPromise<URI> {
+		return this.collectFiles(extension)
+			.then(files => zip(path.join(tmpdir(), generateUuid()), files))
+			.then(path => URI.file(path));
+	}
+
+	unzip(zipLocation: URI, type: LocalExtensionType): TPromise<IExtensionIdentifier> {
+		if (!this.downloadService) {
+			throw new Error('Download service is not available');
+		}
+		const downloadedLocation = path.join(tmpdir(), generateUuid());
+		return this.downloadService.download(zipLocation, downloadedLocation).then(() => this.install(URI.file(downloadedLocation), type));
+	}
+
+	private collectFiles(extension: ILocalExtension): TPromise<IFile[]> {
+		return new TPromise((c, e) => {
+			glob('**', { cwd: extension.location.fsPath, nodir: true, dot: true }, (err: Error, files: string[]) => {
+				if (err) {
+					e(err);
+				} else {
+					c(files.map(f => f.replace(/\\/g, '/'))
+						.map(f => (<IFile>{ path: `extension/${f}`, localPath: path.join(extension.location.fsPath, f) })));
+				}
+			});
+		});
+	}
+
+	install(vsix: URI, type: LocalExtensionType = LocalExtensionType.User): TPromise<IExtensionIdentifier> {
+		const zipPath = path.resolve(vsix.fsPath);
 
 		return validateLocalExtension(zipPath)
 			.then(manifest => {
 				const identifier = { id: getLocalExtensionIdFromManifest(manifest) };
 				if (manifest.engines && manifest.engines.vscode && !isEngineValid(manifest.engines.vscode)) {
-					return TPromise.wrapError<void>(new Error(nls.localize('incompatible', "Unable to install Extension '{0}' as it is not compatible with Code '{1}'.", identifier.id, pkg.version)));
+					return TPromise.wrapError<IExtensionIdentifier>(new Error(nls.localize('incompatible', "Unable to install Extension '{0}' as it is not compatible with Code '{1}'.", identifier.id, pkg.version)));
 				}
 				return this.removeIfExists(identifier.id)
 					.then(
@@ -171,10 +204,10 @@ export class ExtensionManagementService extends Disposable implements IExtension
 									this._onInstallExtension.fire({ identifier, zipPath });
 									return this.getMetadata(getGalleryExtensionId(manifest.publisher, manifest.name))
 										.then(
-											metadata => this.installFromZipPath(identifier, zipPath, metadata, manifest),
-											error => this.installFromZipPath(identifier, zipPath, null, manifest))
+											metadata => this.installFromZipPath(identifier, zipPath, metadata, type),
+											error => this.installFromZipPath(identifier, zipPath, null, type))
 										.then(
-											() => { this.logService.info('Successfully installed the extension:', identifier.id); },
+											() => { this.logService.info('Successfully installed the extension:', identifier.id); return identifier; },
 											e => {
 												this.logService.error('Failed to install the extension:', identifier.id, e.message);
 												return TPromise.wrapError(e);
@@ -215,11 +248,11 @@ export class ExtensionManagementService extends Disposable implements IExtension
 			});
 	}
 
-	private installFromZipPath(identifier: IExtensionIdentifier, zipPath: string, metadata: IGalleryMetadata, manifest: IExtensionManifest): TPromise<ILocalExtension> {
+	private installFromZipPath(identifier: IExtensionIdentifier, zipPath: string, metadata: IGalleryMetadata, type: LocalExtensionType): TPromise<ILocalExtension> {
 		return this.toNonCancellablePromise(this.getInstalled()
 			.then(installed => {
 				const operation = this.getOperation({ id: getIdFromLocalExtensionId(identifier.id), uuid: identifier.uuid }, installed);
-				return this.installExtension({ zipPath, id: identifier.id, metadata })
+				return this.installExtension({ zipPath, id: identifier.id, metadata }, type)
 					.then(local => this.installDependenciesAndPackExtensions(local, null).then(() => local, error => this.uninstall(local, true).then(() => TPromise.wrapError(error), () => TPromise.wrapError(error))))
 					.then(
 						local => { this._onDidInstallExtension.fire({ identifier, zipPath, local, operation }); return local; },
@@ -251,7 +284,7 @@ export class ExtensionManagementService extends Disposable implements IExtension
 						const existingExtension = installed.filter(i => areSameExtensions(i.galleryIdentifier, extension.identifier))[0];
 						operation = existingExtension ? InstallOperation.Update : InstallOperation.Install;
 						return this.downloadInstallableExtension(extension, operation)
-							.then(installableExtension => this.installExtension(installableExtension).then(local => always(pfs.rimraf(installableExtension.zipPath), () => null).then(() => local)))
+							.then(installableExtension => this.installExtension(installableExtension, LocalExtensionType.User).then(local => always(pfs.rimraf(installableExtension.zipPath), () => null).then(() => local)))
 							.then(local => this.installDependenciesAndPackExtensions(local, existingExtension)
 								.then(() => local, error => this.uninstall(local, true).then(() => TPromise.wrapError(error), () => TPromise.wrapError(error))));
 					})
@@ -347,14 +380,14 @@ export class ExtensionManagementService extends Disposable implements IExtension
 				error => TPromise.wrapError<InstallableExtension>(new ExtensionManagementError(this.joinErrors(error).message, INSTALL_ERROR_GALLERY)));
 	}
 
-	private installExtension(installableExtension: InstallableExtension): TPromise<ILocalExtension> {
+	private installExtension(installableExtension: InstallableExtension, type: LocalExtensionType): TPromise<ILocalExtension> {
 		return this.unsetUninstalledAndGetLocal(installableExtension.id)
 			.then(
 				local => {
 					if (local) {
 						return local;
 					}
-					return this.extractAndInstall(installableExtension);
+					return this.extractAndInstall(installableExtension, type);
 				},
 				e => {
 					if (isMacintosh) {
@@ -381,14 +414,15 @@ export class ExtensionManagementService extends Disposable implements IExtension
 			});
 	}
 
-	private extractAndInstall({ zipPath, id, metadata }: InstallableExtension): TPromise<ILocalExtension> {
-		const tempPath = path.join(this.extensionsPath, `.${id}`);
-		const extensionPath = path.join(this.extensionsPath, id);
+	private extractAndInstall({ zipPath, id, metadata }: InstallableExtension, type: LocalExtensionType): TPromise<ILocalExtension> {
+		const location = type === LocalExtensionType.User ? this.extensionsPath : this.systemExtensionsPath;
+		const tempPath = path.join(location, `.${id}`);
+		const extensionPath = path.join(location, id);
 		return pfs.rimraf(extensionPath)
 			.then(() => this.extractAndRename(id, zipPath, tempPath, extensionPath), e => TPromise.wrapError(new ExtensionManagementError(nls.localize('errorDeleting', "Unable to delete the existing folder '{0}' while installing the extension '{1}'. Please delete the folder manually and try again", extensionPath, id), INSTALL_ERROR_DELETING)))
 			.then(() => {
 				this.logService.info('Installation completed.', id);
-				return this.scanExtension(id, this.extensionsPath, LocalExtensionType.User);
+				return this.scanExtension(id, location, type);
 			})
 			.then(local => {
 				if (metadata) {
@@ -720,7 +754,7 @@ export class ExtensionManagementService extends Disposable implements IExtension
 
 	private scanSystemExtensions(): TPromise<ILocalExtension[]> {
 		this.logService.trace('Started scanning system extensions');
-		return this.scanExtensions(SystemExtensionsRoot, LocalExtensionType.System)
+		return this.scanExtensions(this.systemExtensionsPath, LocalExtensionType.System)
 			.then(result => {
 				this.logService.info('Scanned system extensions:', result.length);
 				return result;

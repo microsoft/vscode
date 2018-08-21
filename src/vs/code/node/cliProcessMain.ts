@@ -41,6 +41,7 @@ import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
 import { CommandLineDialogService } from 'vs/platform/dialogs/node/dialogService';
 import { areSameExtensions, getGalleryExtensionIdFromLocal } from 'vs/platform/extensionManagement/common/extensionManagementUtil';
 import Severity from 'vs/base/common/severity';
+import URI from 'vs/base/common/uri';
 
 const notFound = (id: string) => localize('notFound', "Extension '{0}' not found.", id);
 const notInstalled = (id: string) => localize('notInstalled', "Extension '{0}' is not installed.", id);
@@ -101,7 +102,7 @@ class Main {
 			.map(id => () => {
 				const extension = path.isAbsolute(id) ? id : path.join(process.cwd(), id);
 
-				return this.extensionManagementService.install(extension).then(() => {
+				return this.extensionManagementService.install(URI.file(extension)).then(() => {
 					console.log(localize('successVsixInstall', "Extension '{0}' was successfully installed!", getBaseLabel(extension)));
 				}, error => {
 					if (isPromiseCanceledError(error)) {

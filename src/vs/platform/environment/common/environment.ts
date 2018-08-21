@@ -32,6 +32,7 @@ export interface ParsedArgs {
 	log?: string;
 	logExtensionHostCommunication?: boolean;
 	'extensions-dir'?: string;
+	'builtin-extensions-dir'?: string;
 	extensionDevelopmentPath?: string;
 	extensionTestsPath?: string;
 	debugPluginHost?: string;
@@ -104,6 +105,7 @@ export interface IEnvironmentService {
 
 	isExtensionDevelopment: boolean;
 	disableExtensions: boolean | string[];
+	builtinExtensionsPath: string;
 	extensionsPath: string;
 	extensionDevelopmentPath: string;
 	extensionTestsPath: string;
