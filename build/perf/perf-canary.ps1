@@ -25,20 +25,19 @@ if (Test-Path -Path $appdir) {
     Exit 0
 }
 else {
+    # create foler, download, and unzip
+    # * Expand-Archive breaks executable bits
     New-Item -ItemType Directory -Force -Path $appdir | Out-Null
+    $zipfile = "$PSScriptRoot/$($data.version).zip";
+    Invoke-WebRequest -Uri $data.url -OutFile $zipfile
+    if ($IsWindows) {
+        Expand-Archive -Path $zipfile -Force -DestinationPath $appdir
+    }
+    else {
+        unzip -q $zipfile -d $appdir
+    }
+    Remove-Item -Path $zipfile
 }
-
-# download and unzip
-# * Expand-Archive breaks executable bits
-$zipfile = "$PSScriptRoot/$($data.version).zip";
-Invoke-WebRequest -Uri $data.url -OutFile $zipfile
-if ($IsWindows) {
-    Expand-Archive -Path $zipfile -Force -DestinationPath $appdir
-}
-else {
-    unzip -q $zipfile -d $appdir
-}
-Remove-Item -Path $zipfile
 
 # lauch, read timer, and repeat
 $currentTry = 1;
@@ -48,6 +47,9 @@ $timers = "$PSScriptRoot/startupInfo.txt"
 while ($true) {
     if ($IsMacOS) {
         open "$appdir/$app" -W --args --prof-append-timers $timers
+    }
+    elseif($IsWindows) {
+        Start-Process -FilePath "$appdir/Code.exe" -ArgumentList "--prof-append-timers $timers" -Wait
     }
     else {
         Exit 100;
