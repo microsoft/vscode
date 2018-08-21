@@ -102,6 +102,7 @@
     "istanbul": "^0.3.17",
     "jsdom-no-contextify": "^3.1.0",
     "lazy.js": "^0.4.2",
+    "merge-options": "^1.0.1",
     "mime": "^1.4.1",
     "minimatch": "^2.0.10",
     "mkdirp": "^0.5.0",
@@ -125,7 +126,7 @@
     "vinyl": "^0.4.5",
     "vinyl-fs": "^2.4.3",
     "vsce": "1.33.2",
-    "vscode-nls-dev": "3.1.0",
+    "vscode-nls-dev": "3.2.1",
     "webpack": "^4.16.5",
     "webpack-cli": "^3.1.0",
     "webpack-stream": "^5.1.1"

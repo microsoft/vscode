@@ -350,7 +350,7 @@ export class ConfigurationManager implements IConfigurationManager {
 			const picks = candidates.map(c => ({ label: c.label, debugger: c }));
 			return this.quickInputService.pick<(typeof picks)[0]>([...picks, { type: 'separator' }, { label: 'More...', debugger: undefined }], { placeHolder: nls.localize('selectDebug', "Select Environment") })
 				.then(picked => {
-					if (picked.debugger) {
+					if (picked && picked.debugger) {
 						return picked.debugger;
 					}
 					if (picked) {

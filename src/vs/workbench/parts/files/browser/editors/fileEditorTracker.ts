@@ -148,7 +148,7 @@ export class FileEditorTracker extends Disposable implements IWorkbenchContribut
 				// Do NOT close any opened editor that matches the resource path (either equal or being parent) of the
 				// resource we move to (movedTo). Otherwise we would close a resource that has been renamed to the same
 				// path but different casing.
-				if (movedTo && resources.isEqualOrParent(resource, movedTo, resources.hasToIgnoreCase(resource))) {
+				if (movedTo && resources.isEqualOrParent(resource, movedTo)) {
 					return;
 				}
 
@@ -156,7 +156,7 @@ export class FileEditorTracker extends Disposable implements IWorkbenchContribut
 				if (arg1 instanceof FileChangesEvent) {
 					matches = arg1.contains(resource, FileChangeType.DELETED);
 				} else {
-					matches = resources.isEqualOrParent(resource, arg1, resources.hasToIgnoreCase(resource));
+					matches = resources.isEqualOrParent(resource, arg1);
 				}
 
 				if (!matches) {
@@ -223,7 +223,7 @@ export class FileEditorTracker extends Disposable implements IWorkbenchContribut
 					const resource = editor.getResource();
 
 					// Update Editor if file (or any parent of the input) got renamed or moved
-					if (resources.isEqualOrParent(resource, oldResource, resources.hasToIgnoreCase(resource))) {
+					if (resources.isEqualOrParent(resource, oldResource)) {
 						let reopenFileResource: URI;
 						if (oldResource.toString() === resource.toString()) {
 							reopenFileResource = newResource; // file got moved

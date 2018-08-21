@@ -36,7 +36,7 @@ import { IBulkEditService } from 'vs/editor/browser/services/bulkEditService';
 import { ICommandService } from 'vs/platform/commands/common/commands';
 import { IEditorService, ACTIVE_GROUP } from 'vs/workbench/services/editor/common/editorService';
 import { IModelService } from 'vs/editor/common/services/modelService';
-import { isEqual, hasToIgnoreCase } from 'vs/base/common/resources';
+import { isEqual } from 'vs/base/common/resources';
 
 export class ToggleMarkersPanelAction extends TogglePanelAction {
 
@@ -297,7 +297,7 @@ export class QuickFixAction extends Action {
 			this.update();
 		} else {
 			modelService.onModelAdded(model => {
-				if (isEqual(model.uri, marker.resource, hasToIgnoreCase(model.uri))) {
+				if (isEqual(model.uri, marker.resource)) {
 					this.update();
 				}
 			}, this, this.disposables);

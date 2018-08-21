@@ -10,7 +10,7 @@ import * as paths from 'vs/base/common/paths';
 import { OpenContext } from 'vs/platform/windows/common/windows';
 import { IWorkspaceIdentifier, IResolvedWorkspace, ISingleFolderWorkspaceIdentifier, isSingleFolderWorkspaceIdentifier, isWorkspaceIdentifier } from 'vs/platform/workspaces/common/workspaces';
 import URI from 'vs/base/common/uri';
-import { hasToIgnoreCase, isEqual, isEqualOrParent } from 'vs/base/common/resources';
+import { isEqual, isEqualOrParent } from 'vs/base/common/resources';
 
 export interface ISimpleWindow {
 	openedWorkspace?: IWorkspaceIdentifier;
@@ -49,13 +49,13 @@ function findWindowOnFilePath<W extends ISimpleWindow>(windows: W[], fileUri: UR
 	for (let i = 0; i < workspaceWindows.length; i++) {
 		const window = workspaceWindows[i];
 		const resolvedWorkspace = workspaceResolver(window.openedWorkspace);
-		if (resolvedWorkspace && resolvedWorkspace.folders.some(folder => isEqualOrParent(fileUri, folder.uri, hasToIgnoreCase(fileUri)))) {
+		if (resolvedWorkspace && resolvedWorkspace.folders.some(folder => isEqualOrParent(fileUri, folder.uri))) {
 			return window;
 		}
 	}
 
 	// Then go with single folder windows that are parent of the provided file path
-	const singleFolderWindowsOnFilePath = windows.filter(window => window.openedFolderUri && isEqualOrParent(fileUri, window.openedFolderUri, hasToIgnoreCase(fileUri)));
+	const singleFolderWindowsOnFilePath = windows.filter(window => window.openedFolderUri && isEqualOrParent(fileUri, window.openedFolderUri));
 	if (singleFolderWindowsOnFilePath.length) {
 		return singleFolderWindowsOnFilePath.sort((a, b) => -(a.openedFolderUri.path.length - b.openedFolderUri.path.length))[0];
 	}
@@ -74,7 +74,7 @@ export function findWindowOnWorkspace<W extends ISimpleWindow>(windows: W[], wor
 		for (const window of windows) {
 			// match on folder
 			if (isSingleFolderWorkspaceIdentifier(workspace)) {
-				if (window.openedFolderUri && isEqual(window.openedFolderUri, workspace, hasToIgnoreCase(window.openedFolderUri))) {
+				if (window.openedFolderUri && isEqual(window.openedFolderUri, workspace)) {
 					return window;
 				}
 			}
@@ -111,7 +111,7 @@ export function findWindowOnWorkspaceOrFolderUri<W extends ISimpleWindow>(window
 		}
 
 		// check for folder path
-		if (window.openedFolderUri && isEqual(window.openedFolderUri, uri, hasToIgnoreCase(uri))) {
+		if (window.openedFolderUri && isEqual(window.openedFolderUri, uri)) {
 			return window;
 		}
 	}

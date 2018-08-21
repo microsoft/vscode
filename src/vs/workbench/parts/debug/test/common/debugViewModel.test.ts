@@ -5,7 +5,7 @@
 
 import * as assert from 'assert';
 import { ViewModel } from 'vs/workbench/parts/debug/common/debugViewModel';
-import { StackFrame, Expression, Thread, Session } from 'vs/workbench/parts/debug/common/debugModel';
+import { StackFrame, Expression, Thread } from 'vs/workbench/parts/debug/common/debugModel';
 import { MockSession } from 'vs/workbench/parts/debug/test/common/mockDebug';
 import { MockContextKeyService } from 'vs/platform/keybinding/test/common/mockKeybindingService';
 
@@ -23,8 +23,7 @@ suite('Debug - View Model', () => {
 	test('focused stack frame', () => {
 		assert.equal(model.focusedStackFrame, null);
 		assert.equal(model.focusedThread, null);
-		const mockSession = new MockSession();
-		const session = new Session({ resolved: { name: 'mockSession', type: 'node', request: 'launch' }, unresolved: undefined }, mockSession);
+		const session = new MockSession();
 		const thread = new Thread(session, 'myThread', 1);
 		const frame = new StackFrame(thread, 1, null, 'app.js', 'normal', { startColumn: 1, startLineNumber: 1, endColumn: undefined, endLineNumber: undefined }, 0);
 		model.setFocus(frame, thread, session, false);
