@@ -518,9 +518,12 @@ class FunctionBreakpointInputRenderer implements IRenderer<IFunctionBreakpoint, 
 			}
 		}));
 		toDispose.push(dom.addDisposableListener(inputBox.inputElement, 'blur', () => {
-			if (!template.breakpoint.name) {
-				wrapUp(true);
-			}
+			// Need to react with a timeout on the blur event due to possible concurent splices #56443
+			setTimeout(() => {
+				if (!template.breakpoint.name) {
+					wrapUp(true);
+				}
+			});
 		}));
 
 		template.inputBox = inputBox;
