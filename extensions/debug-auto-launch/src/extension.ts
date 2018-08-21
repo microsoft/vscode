@@ -7,8 +7,6 @@
 
 import * as vscode from 'vscode';
 import * as nls from 'vscode-nls';
-import { basename } from 'path';
-import { pollProcesses, attachToProcess } from './nodeProcessTree';
 
 const localize = nls.loadMessageBundle();
 const ON_TEXT = localize('status.text.auto.attach.on', "Auto Attach: On");
@@ -17,9 +15,8 @@ const OFF_TEXT = localize('status.text.auto.attach.off', "Auto Attach: Off");
 const TOGGLE_COMMAND = 'extension.node-debug.toggleAutoAttach';
 
 let currentState: string;
-let autoAttacher: vscode.Disposable | undefined;
+let autoAttachStarted = false;
 let statusItem: vscode.StatusBarItem | undefined = undefined;
-
 
 export function activate(context: vscode.ExtensionContext): void {
 
@@ -85,9 +82,9 @@ function updateAutoAttachInStatus(context: vscode.ExtensionContext) {
 				statusItem.hide();
 				statusItem.text = OFF_TEXT;
 			}
-			if (autoAttacher) {
-				autoAttacher.dispose();
-				autoAttacher = undefined;
+			if (autoAttachStarted) {
+				autoAttachStarted = false;
+				vscode.commands.executeCommand('extension.node-debug.stopAutoAttach');
 			}
 
 		} else {	// 'on' or 'off'
@@ -106,27 +103,18 @@ function updateAutoAttachInStatus(context: vscode.ExtensionContext) {
 
 			if (newState === 'off') {
 				statusItem.text = OFF_TEXT;
-				if (autoAttacher) {
-					autoAttacher.dispose();
-					autoAttacher = undefined;
+				if (autoAttachStarted) {
+					autoAttachStarted = false;
+					vscode.commands.executeCommand('extension.node-debug.stopAutoAttach');
 				}
+
 			} else if (newState === 'on') {
 				statusItem.text = ON_TEXT;
 				const vscode_pid = process.env['VSCODE_PID'];
 				const rootPid = vscode_pid ? parseInt(vscode_pid) : 0;
-				autoAttacher = startAutoAttach(rootPid);
+				vscode.commands.executeCommand('extension.node-debug.startAutoAttach', rootPid);
+				autoAttachStarted = true;
 			}
 		}
 	}
-}
-
-function startAutoAttach(rootPid: number): vscode.Disposable {
-
-	return pollProcesses(rootPid, true, (pid, cmdPath, args) => {
-		const cmdName = basename(cmdPath, '.exe');
-		if (cmdName === 'node') {
-			const name = localize('process.with.pid.label', "Process {0}", pid);
-			attachToProcess(undefined, name, pid, args);
-		}
-	});
 }
