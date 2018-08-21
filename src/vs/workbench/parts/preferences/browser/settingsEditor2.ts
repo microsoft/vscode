@@ -44,7 +44,7 @@ import { IPreferencesService, ISearchResult, ISettingsEditorModel } from 'vs/wor
 import { SettingsEditor2Input } from 'vs/workbench/services/preferences/common/preferencesEditorInput';
 import { DefaultSettingsEditorModel } from 'vs/workbench/services/preferences/common/preferencesModels';
 import { ResourceEditorModel } from 'vs/workbench/common/editor/resourceEditorModel';
-import { badgeBackground, contrastBorder, badgeForeground, errorForeground } from 'vs/platform/theme/common/colorRegistry';
+import { badgeBackground, contrastBorder, badgeForeground, editorForeground } from 'vs/platform/theme/common/colorRegistry';
 
 const $ = DOM.$;
 
@@ -347,8 +347,8 @@ export class SettingsEditor2 extends BaseEditor {
 
 		this.noResultsMessage = DOM.append(bodyContainer, $('.no-results'));
 		this.noResultsMessage.innerText = localize('noResults', "No Settings Found");
-		this._register(attachStylerCallback(this.themeService, { errorForeground }, colors => {
-			this.noResultsMessage.style.color = colors.errorForeground ? colors.errorForeground.toString() : null;
+		this._register(attachStylerCallback(this.themeService, { editorForeground }, colors => {
+			this.noResultsMessage.style.color = colors.editorForeground ? colors.editorForeground.toString() : null;
 		}));
 
 		this.createFocusSink(
