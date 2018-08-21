@@ -493,9 +493,9 @@ electron-download@^4.1.0:
     semver "^5.3.0"
     sumchecker "^2.0.1"
 
-electron@3.0.0-beta.5:
-  version "3.0.0-beta.5"
-  resolved "https://registry.yarnpkg.com/electron/-/electron-3.0.0-beta.5.tgz#06e92b611d3099a03194da34a87133d34ff32851"
+electron@3.0.0-beta.6:
+  version "3.0.0-beta.6"
+  resolved "https://registry.yarnpkg.com/electron/-/electron-3.0.0-beta.6.tgz#5b983c830d0f16c71cf1403951e8c25bab58b9ce"
   dependencies:
     "@types/node" "^8.0.24"
     electron-download "^4.1.0"
