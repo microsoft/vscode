@@ -5,10 +5,11 @@
 
 'use strict';
 
-import { Model } from './model';
-import { Repository as ModelRepository } from './repository';
+import { Model } from '../model';
+import { Repository as ModelRepository } from '../repository';
 import { Uri, SourceControlInputBox } from 'vscode';
-import { GitExtension } from './api';
+import { GitExtension } from './git';
+import { getAPI } from './api';
 
 class InputBoxImpl implements GitExtension.InputBox {
 	set value(value: string) { this.inputBox.value = value; }
@@ -31,12 +32,14 @@ export function createGitExtension(model?: Model): GitExtension {
 	if (!model) {
 		return {
 			getGitPath() { throw new Error('Git model not found'); },
-			getRepositories() { throw new Error('Git model not found'); }
+			getRepositories() { throw new Error('Git model not found'); },
+			getAPI() { throw new Error('Git model not found'); }
 		};
 	}
 
 	return {
 		async getGitPath() { return model.git.path; },
-		async getRepositories() { return model.repositories.map(repository => new RepositoryImpl(repository)); }
+		async getRepositories() { return model.repositories.map(repository => new RepositoryImpl(repository)); },
+		getAPI(range: string) { return getAPI(model, range); }
 	};
 }

@@ -10,9 +10,6 @@ declare module GitExtension {
 
 	}
 
-	// export const availableVersions: string[];
-	// export function getAPI(version: string): API;
-
 	//#region Deprecated API
 	export interface InputBox {
 		value: string;
@@ -28,4 +25,6 @@ declare module GitExtension {
 export interface GitExtension {
 	getRepositories(): Promise<GitExtension.Repository[]>;
 	getGitPath(): Promise<string>;
+	// export const availableVersions: string[];
+	getAPI(range: string): GitExtension.API;
 }
