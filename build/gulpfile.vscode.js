@@ -29,7 +29,6 @@ const packageJson = require('../package.json');
 const product = require('../product.json');
 const crypto = require('crypto');
 const i18n = require('./lib/i18n');
-const glob = require('glob');
 const deps = require('./dependencies');
 const getElectronVersion = require('./lib/electron').getElectronVersion;
 const createAsar = require('./lib/asar').createAsar;
@@ -44,15 +43,6 @@ const nodeModules = ['electron', 'original-fs']
 	.concat(baseModules);
 
 // Build
-const builtInExtensions = require('./builtInExtensions.json');
-
-const excludedExtensions = [
-	'vscode-api-tests',
-	'vscode-colorize-tests',
-	'ms-vscode.node-debug',
-	'ms-vscode.node-debug2',
-];
-
 const vscodeEntryPoints = _.flatten([
 	buildfile.entrypoint('vs/workbench/workbench.main'),
 	buildfile.base,
@@ -227,33 +217,15 @@ function packageTask(platform, arch, opts) {
 		]);
 
 		const src = gulp.src(out + '/**', { base: '.' })
-			.pipe(rename(function (path) { path.dirname = path.dirname.replace(new RegExp('^' + out), 'out'); }));
-
-		const root = path.resolve(path.join(__dirname, '..'));
-		const localExtensionDescriptions = glob.sync('extensions/*/package.json')
-			.map(manifestPath => {
-				const extensionPath = path.dirname(path.join(root, manifestPath));
-				const extensionName = path.basename(extensionPath);
-				return { name: extensionName, path: extensionPath };
-			})
-			.filter(({ name }) => excludedExtensions.indexOf(name) === -1)
-			.filter(({ name }) => builtInExtensions.every(b => b.name !== name));
-
-		const localExtensions = es.merge(...localExtensionDescriptions.map(extension => {
-			return ext.fromLocal(extension.path, sourceMappingURLBase)
-				.pipe(rename(p => p.dirname = `extensions/${extension.name}/${p.dirname}`));
-		}));
-
-		const localExtensionDependencies = gulp.src('extensions/node_modules/**', { base: '.' });
-
-		const marketplaceExtensions = es.merge(...builtInExtensions.map(extension => {
-			return ext.fromMarketplace(extension.name, extension.version)
-				.pipe(rename(p => p.dirname = `extensions/${extension.name}/${p.dirname}`));
-		}));
-
-		const sources = es.merge(src, localExtensions, localExtensionDependencies, marketplaceExtensions)
+			.pipe(rename(function (path) { path.dirname = path.dirname.replace(new RegExp('^' + out), 'out'); }))
 			.pipe(util.setExecutableBit(['**/*.sh']))
 			.pipe(filter(['**', '!**/*.js.map']));
+
+		const root = path.resolve(path.join(__dirname, '..'));
+
+		const sources = es.merge(src, ext.packageExtensionsStream({
+			sourceMappingURLBase: sourceMappingURLBase
+		}));
 
 		let version = packageJson.version;
 		// @ts-ignore JSON checking: quality is optional
