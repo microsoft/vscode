@@ -102,8 +102,11 @@ export class MenubarControl extends Disposable {
 	private recentlyOpened: IRecentlyOpened;
 	private updatePending: boolean;
 	private _focusState: MenubarState;
+
+	// Input-related
 	private _mnemonicsInUse: boolean;
 	private openedViaKeyboard: boolean;
+	private awaitingAltRelease: boolean;
 	private mnemonics: Map<KeyCode, number>;
 
 	private _onVisibilityChange: Emitter<boolean>;
@@ -379,18 +382,33 @@ export class MenubarControl extends Disposable {
 			return;
 		}
 
+		// Alt key pressed while menu is focused. This should return focus away from the menubar
+		if (this.isFocused && modifierKeyStatus.lastKeyPressed === 'alt' && modifierKeyStatus.altKey) {
+			this.setUnfocusedState();
+			this.mnemonicsInUse = false;
+			this.awaitingAltRelease = true;
+		}
+
+		// Clean alt key press and release
 		if (allModifiersReleased && modifierKeyStatus.lastKeyPressed === 'alt' && modifierKeyStatus.lastKeyReleased === 'alt') {
-			if (!this.isFocused) {
-				this.mnemonicsInUse = true;
-				this.focusedMenu = { index: 0 };
-				this.focusState = MenubarState.FOCUSED;
-			} else if (!this.isOpen) {
-				this.setUnfocusedState();
+			if (!this.awaitingAltRelease) {
+				if (!this.isFocused) {
+					this.mnemonicsInUse = true;
+					this.focusedMenu = { index: 0 };
+					this.focusState = MenubarState.FOCUSED;
+				} else if (!this.isOpen) {
+					this.setUnfocusedState();
+				}
 			}
 		}
 
+		// Alt key released
+		if (allModifiersReleased && modifierKeyStatus.lastKeyReleased === 'alt') {
+			this.awaitingAltRelease = false;
+		}
+
 		if (this.currentEnableMenuBarMnemonics && this.customMenus && !this.isOpen) {
-			this.updateMnemonicVisibility(modifierKeyStatus.altKey || this.mnemonicsInUse);
+			this.updateMnemonicVisibility((!this.awaitingAltRelease && modifierKeyStatus.altKey) || this.mnemonicsInUse);
 		}
 	}
 
