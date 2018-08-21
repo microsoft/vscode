@@ -366,6 +366,29 @@ suite('FileSearchEngine', () => {
 		});
 	});
 
+	test('Files: *.*.* basename with dot', function (done: () => void) {
+		this.timeout(testTimeout);
+		let engine = new FileSearchEngine({
+			folderQueries: ROOT_FOLDER_QUERY,
+			filePattern: 'reasonftw.*',
+			excludePattern: { '**/*.bs.js': { 'when': '$(basename).re' } }
+		});
+
+		let count = 0;
+		let res: IRawFileMatch;
+		engine.search((result) => {
+			if (result) {
+				count++;
+			}
+			res = result;
+		}, () => { }, (error) => {
+			assert.ok(!error);
+			assert.equal(count, 1);
+			assert.strictEqual(path.basename(res.relativePath), 'reasonftw.re');
+			done();
+		});
+	});
+
 	test('Files: *.* exclude folder without wildcard', function (done: () => void) {
 		this.timeout(testTimeout);
 		let engine = new FileSearchEngine({

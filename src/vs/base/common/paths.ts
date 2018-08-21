@@ -57,10 +57,11 @@ export function basename(path: string): string {
 
 /**
  * @returns `.far` from `boo.far` or the empty string.
+ * Also allows complex extension names, like `.test.js` from `foo.test.js`.
  */
 export function extname(path: string): string {
 	path = basename(path);
-	const idx = ~path.lastIndexOf('.');
+	const idx = ~path.indexOf('.');
 	return idx ? path.substring(~idx) : '';
 }
 

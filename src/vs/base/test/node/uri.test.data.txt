@@ -1761,6 +1761,8 @@
 /users/foo/src/vs/workbench/services/search/test/node/fixtures/examples/small.js
 /users/foo/src/vs/workbench/services/search/test/node/fixtures/site.css
 /users/foo/src/vs/workbench/services/search/test/node/fixtures/site.less
+/users/foo/src/vs/workbench/services/search/test/node/fixtures/reasonftw.re
+/users/foo/src/vs/workbench/services/search/test/node/fixtures/reasonftw.bs.js
 /users/foo/src/vs/workbench/services/search/node
 /users/foo/src/vs/workbench/services/search/node/fileSearch.ts
 /users/foo/src/vs/workbench/services/search/node/searchIpc.ts
