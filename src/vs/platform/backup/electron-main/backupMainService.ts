@@ -121,7 +121,7 @@ export class BackupMainService implements IBackupMainService {
 	}
 
 	public registerFolderBackupSync(folderUri: URI): string {
-		if (!this.folderWorkspaces.some(uri => areResourcesEquals(folderUri, uri, hasToIgnoreCase(folderUri)))) {
+		if (!this.folderWorkspaces.some(uri => areResourcesEquals(folderUri, uri))) {
 			this.folderWorkspaces.push(folderUri);
 			this.saveSync();
 		}
@@ -129,7 +129,7 @@ export class BackupMainService implements IBackupMainService {
 	}
 
 	public unregisterFolderBackupSync(folderUri: URI): void {
-		let index = arrays.firstIndex(this.folderWorkspaces, uri => areResourcesEquals(folderUri, uri, hasToIgnoreCase(folderUri)));
+		let index = arrays.firstIndex(this.folderWorkspaces, uri => areResourcesEquals(folderUri, uri));
 		if (index !== -1) {
 			this.folderWorkspaces.splice(index, 1);
 			this.saveSync();

@@ -51,7 +51,8 @@
     "vscode-textmate": "^4.0.1",
     "vscode-xterm": "3.7.0-beta4",
     "winreg": "^1.2.4",
-    "yauzl": "^2.9.1"
+    "yauzl": "^2.9.1",
+    "yazl": "^2.4.3"
   },
   "devDependencies": {
     "7zip": "0.0.6",
@@ -59,6 +60,7 @@
     "@types/minimist": "1.2.0",
     "@types/mocha": "2.2.39",
     "@types/sinon": "1.16.34",
+    "@types/webpack": "^4.4.10",
     "asar": "^0.14.0",
     "chromium-pickle-js": "^0.2.0",
     "clean-css": "3.4.6",
@@ -102,6 +104,7 @@
     "istanbul": "^0.3.17",
     "jsdom-no-contextify": "^3.1.0",
     "lazy.js": "^0.4.2",
+    "merge-options": "^1.0.1",
     "mime": "^1.4.1",
     "minimatch": "^2.0.10",
     "mkdirp": "^0.5.0",
@@ -125,7 +128,7 @@
     "vinyl": "^0.4.5",
     "vinyl-fs": "^2.4.3",
     "vsce": "1.33.2",
-    "vscode-nls-dev": "3.1.0",
+    "vscode-nls-dev": "3.2.1",
     "webpack": "^4.16.5",
     "webpack-cli": "^3.1.0",
     "webpack-stream": "^5.1.1"

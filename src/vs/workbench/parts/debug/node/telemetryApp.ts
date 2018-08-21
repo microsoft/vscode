@@ -5,7 +5,7 @@
 
 import { Server } from 'vs/base/parts/ipc/node/ipc.cp';
 import { AppInsightsAppender } from 'vs/platform/telemetry/node/appInsightsAppender';
-import { TelemetryAppenderChannel } from 'vs/platform/telemetry/common/telemetryIpc';
+import { TelemetryAppenderChannel } from 'vs/platform/telemetry/node/telemetryIpc';
 
 const appender = new AppInsightsAppender(process.argv[2], JSON.parse(process.argv[3]), process.argv[4]);
 process.once('exit', () => appender.dispose());

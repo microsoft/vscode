@@ -313,7 +313,7 @@ export class TextMateService implements ITextMateService {
 		}
 
 		const grammarLocation = resources.joinPath(extensionLocation, syntax.path);
-		if (!resources.isEqualOrParent(grammarLocation, extensionLocation, resources.hasToIgnoreCase(grammarLocation))) {
+		if (!resources.isEqualOrParent(grammarLocation, extensionLocation)) {
 			collector.warn(nls.localize('invalid.path.1', "Expected `contributes.{0}.path` ({1}) to be included inside extension's folder ({2}). This might make the extension non-portable.", grammarsExtPoint.name, grammarLocation.path, extensionLocation.path));
 		}
 

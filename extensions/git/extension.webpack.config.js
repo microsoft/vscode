@@ -3,18 +3,22 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+//@ts-check
+
 'use strict';
 
-const sharedConfig = require('../shared.webpack.config');
+const withDefaults = require('../shared.webpack.config');
 const CopyWebpackPlugin = require('copy-webpack-plugin');
 
-const myConfig = {
+
+module.exports = withDefaults({
+	context: __dirname,
 	node: {
 		__dirname: false // leave the __dirname-behaviour intact
 	},
 	entry: {
-		main: './out/main.js',
-		['askpass-main']: './out/askpass-main.js'
+		main: './src/main.ts',
+		['askpass-main']: './src/askpass-main.ts'
 	},
 	plugins: [
 		new CopyWebpackPlugin([
@@ -23,7 +27,6 @@ const myConfig = {
 		])
 	],
 	externals: {
-		'vscode': 'commonjs vscode', // ignored because it doesn't exist
 		"byline": 'commonjs byline',
 		"file-type": 'commonjs file-type',
 		"iconv-lite": 'commonjs iconv-lite',
@@ -32,6 +35,4 @@ const myConfig = {
 		"vscode-nls": 'commonjs vscode-nls',
 		"which": 'commonjs which',
 	},
-};
-
-module.exports = { ...sharedConfig(__dirname, false), ...myConfig };
+});

@@ -355,6 +355,7 @@ export default class TypeScriptServiceClient extends Disposable implements IType
 		}
 	}
 
+	private token: number = 0;
 	private startService(resendModels: boolean = false): Promise<ForkedTsServerProcess> {
 		let currentVersion = this.versionPicker.currentVersion;
 
@@ -372,6 +373,7 @@ export default class TypeScriptServiceClient extends Disposable implements IType
 		this.requestQueue = new RequestQueue();
 		this.callbacks = new CallbackMap();
 		this.lastError = null;
+		let mytoken = ++this.token;
 
 		return this.servicePromise = new Promise<ForkedTsServerProcess>(async (resolve, reject) => {
 			try {
@@ -380,76 +382,83 @@ export default class TypeScriptServiceClient extends Disposable implements IType
 				const tsServerForkOptions: electron.IForkOptions = {
 					execArgv: debugPort ? [`--inspect=${debugPort}`] : [] // [`--debug-brk=5859`]
 				};
-				electron.fork(currentVersion.tsServerPath, tsServerForkArgs, tsServerForkOptions, this.logger, (err: any, childProcess: cp.ChildProcess | null) => {
-					if (err || !childProcess) {
-						this.lastError = err;
-						this.error('Starting TSServer failed with error.', err);
-						vscode.window.showErrorMessage(localize('serverCouldNotBeStarted', 'TypeScript language server couldn\'t be started. Error message is: {0}', err.message || err));
-						/* __GDPR__
-							"error" : {
-								"${include}": [
-									"${TypeScriptCommonProperties}"
-								]
-							}
-						*/
-						this.logTelemetry('error');
-						this.resetClientVersion();
+				const childProcess = electron.fork(currentVersion.tsServerPath, tsServerForkArgs, tsServerForkOptions, this.logger);
+				childProcess.once('error', (err: Error) => {
+					this.lastError = err;
+					this.error('Starting TSServer failed with error.', err);
+					vscode.window.showErrorMessage(localize('serverCouldNotBeStarted', 'TypeScript language server couldn\'t be started. Error message is: {0}', err.message || err));
+					/* __GDPR__
+						"error" : {
+							"${include}": [
+								"${TypeScriptCommonProperties}"
+							]
+						}
+					*/
+					this.logTelemetry('error');
+					this.resetClientVersion();
+					return;
+				});
+
+				this.info('Started TSServer');
+				const handle = new ForkedTsServerProcess(childProcess);
+				this.lastStart = Date.now();
+
+				handle.onError((err: Error) => {
+					if (this.token !== mytoken) {
+						// this is coming from an old process
 						return;
 					}
-
-					this.info('Started TSServer');
-					const handle = new ForkedTsServerProcess(childProcess);
-					this.lastStart = Date.now();
-
-					handle.onError((err: Error) => {
-						this.lastError = err;
-						this.error('TSServer errored with error.', err);
-						if (this.tsServerLogFile) {
-							this.error(`TSServer log file: ${this.tsServerLogFile}`);
+					this.lastError = err;
+					this.error('TSServer errored with error.', err);
+					if (this.tsServerLogFile) {
+						this.error(`TSServer log file: ${this.tsServerLogFile}`);
+					}
+					/* __GDPR__
+						"tsserver.error" : {
+							"${include}": [
+								"${TypeScriptCommonProperties}"
+							]
 						}
+					*/
+					this.logTelemetry('tsserver.error');
+					this.serviceExited(false);
+				});
+				handle.onExit((code: any) => {
+					if (this.token !== mytoken) {
+						// this is coming from an old process
+						return;
+					}
+					if (code === null || typeof code === 'undefined') {
+						this.info('TSServer exited');
+					} else {
+						this.error(`TSServer exited with code: ${code}`);
 						/* __GDPR__
-							"tsserver.error" : {
+							"tsserver.exitWithCode" : {
+								"code" : { "classification": "CallstackOrException", "purpose": "PerformanceAndHealth" },
 								"${include}": [
 									"${TypeScriptCommonProperties}"
 								]
 							}
 						*/
-						this.logTelemetry('tsserver.error');
-						this.serviceExited(false);
-					});
-					handle.onExit((code: any) => {
-						if (code === null || typeof code === 'undefined') {
-							this.info('TSServer exited');
-						} else {
-							this.error(`TSServer exited with code: ${code}`);
-							/* __GDPR__
-								"tsserver.exitWithCode" : {
-									"code" : { "classification": "CallstackOrException", "purpose": "PerformanceAndHealth" },
-									"${include}": [
-										"${TypeScriptCommonProperties}"
-									]
-								}
-							*/
-							this.logTelemetry('tsserver.exitWithCode', { code: code });
-						}
+						this.logTelemetry('tsserver.exitWithCode', { code: code });
+					}
 
-						if (this.tsServerLogFile) {
-							this.info(`TSServer log file: ${this.tsServerLogFile}`);
-						}
-						this.serviceExited(!this.isRestarting);
-						this.isRestarting = false;
-					});
-
-					handle.createReader(
-						msg => { this.dispatchMessage(msg); },
-						error => { this.error('ReaderError', error); });
-
-					this._onReady!.resolve();
-					resolve(handle);
-					this._onTsServerStarted.fire(currentVersion.version);
-
-					this.serviceStarted(resendModels);
+					if (this.tsServerLogFile) {
+						this.info(`TSServer log file: ${this.tsServerLogFile}`);
+					}
+					this.serviceExited(!this.isRestarting);
+					this.isRestarting = false;
 				});
+
+				handle.createReader(
+					msg => { this.dispatchMessage(msg); },
+					error => { this.error('ReaderError', error); });
+
+				this._onReady!.resolve();
+				resolve(handle);
+				this._onTsServerStarted.fire(currentVersion.version);
+
+				this.serviceStarted(resendModels);
 			} catch (error) {
 				reject(error);
 			}

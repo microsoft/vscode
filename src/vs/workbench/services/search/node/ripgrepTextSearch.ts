@@ -61,18 +61,17 @@ export class RipgrepEngine {
 		}
 
 		const cwd = platform.isWindows ? 'c:/' : '/';
-		process.nextTick(() => { // Allow caller to register progress callback
-			const escapedArgs = rgArgs.args
-				.map(arg => arg.match(/^-/) ? arg : `'${arg}'`)
-				.join(' ');
+		const escapedArgs = rgArgs.args
+			.map(arg => arg.match(/^-/) ? arg : `'${arg}'`)
+			.join(' ');
 
-			let rgCmd = `rg ${escapedArgs}\n - cwd: ${cwd}`;
-			if (rgArgs.siblingClauses) {
-				rgCmd += `\n - Sibling clauses: ${JSON.stringify(rgArgs.siblingClauses)}`;
-			}
+		let rgCmd = `rg ${escapedArgs}\n - cwd: ${cwd}`;
+		if (rgArgs.siblingClauses) {
+			rgCmd += `\n - Sibling clauses: ${JSON.stringify(rgArgs.siblingClauses)}`;
+		}
 
-			onMessage({ message: rgCmd });
-		});
+		onMessage({ message: rgCmd });
+
 		this.rgProc = cp.spawn(rgDiskPath, rgArgs.args, { cwd });
 		process.once('exit', this.killRgProcFn);
 

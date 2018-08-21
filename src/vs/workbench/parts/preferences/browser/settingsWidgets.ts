@@ -208,33 +208,8 @@ export class ExcludeSettingWidget extends Disposable {
 		DOM.append(container, this.renderAddButton());
 		this.renderList();
 
-		this._register(DOM.addDisposableListener(this.listElement, 'click', (e: MouseEvent) => {
-			if (!e.target) {
-				return;
-			}
-
-			const element = DOM.findParentWithClass((<any>e.target), 'setting-exclude-row');
-			if (!element) {
-				return;
-			}
-
-			const targetIdxStr = element.getAttribute('data-index');
-			if (!targetIdxStr) {
-				return;
-			}
-
-			const targetIdx = parseInt(targetIdxStr);
-
-			if (this.model.getSelected() === targetIdx) {
-				return;
-			}
-
-			this.model.select(targetIdx);
-			this.renderList();
-			e.preventDefault();
-			e.stopPropagation();
-		}));
-
+		this._register(DOM.addDisposableListener(this.listElement, DOM.EventType.CLICK, e => this.onListClick(e)));
+		this._register(DOM.addDisposableListener(this.listElement, DOM.EventType.DBLCLICK, e => this.onListDoubleClick(e)));
 
 		this._register(DOM.addStandardDisposableListener(this.listElement, 'keydown', (e: KeyboardEvent) => {
 			if (e.keyCode === KeyCode.UpArrow) {
@@ -254,6 +229,61 @@ export class ExcludeSettingWidget extends Disposable {
 	setValue(excludeData: IExcludeDataItem[]): void {
 		this.model.setValue(excludeData);
 		this.renderList();
+	}
+
+	private onListClick(e: MouseEvent): void {
+		const targetIdx = this.getClickedItemIndex(e);
+		if (targetIdx < 0) {
+			return;
+		}
+
+		if (this.model.getSelected() === targetIdx) {
+			return;
+		}
+
+		this.model.select(targetIdx);
+		this.renderList();
+		e.preventDefault();
+		e.stopPropagation();
+	}
+
+	private onListDoubleClick(e: MouseEvent): void {
+		const targetIdx = this.getClickedItemIndex(e);
+		if (targetIdx < 0) {
+			return;
+		}
+
+		const item = this.model.items[targetIdx];
+		if (item) {
+			this.editSetting(item.pattern);
+			e.preventDefault();
+			e.stopPropagation();
+		}
+	}
+
+	private getClickedItemIndex(e: MouseEvent): number {
+		if (!e.target) {
+			return -1;
+		}
+
+		const actionbar = DOM.findParentWithClass(<any>e.target, 'monaco-action-bar');
+		if (actionbar) {
+			// Don't handle doubleclicks inside the action bar
+			return -1;
+		}
+
+		const element = DOM.findParentWithClass((<any>e.target), 'setting-exclude-row');
+		if (!element) {
+			return -1;
+		}
+
+		const targetIdxStr = element.getAttribute('data-index');
+		if (!targetIdxStr) {
+			return -1;
+		}
+
+		const targetIdx = parseInt(targetIdxStr);
+		return targetIdx;
 	}
 
 	private renderList(): void {
@@ -290,10 +320,14 @@ export class ExcludeSettingWidget extends Disposable {
 			id: 'workbench.action.editExcludeItem',
 			tooltip: localize('editExcludeItem', "Edit Exclude Item"),
 			run: () => {
-				this.model.setEditKey(key);
-				this.renderList();
+				this.editSetting(key);
 			}
 		};
+	}
+
+	private editSetting(key: string): void {
+		this.model.setEditKey(key);
+		this.renderList();
 	}
 
 	private renderItem(item: IExcludeViewItem, idx: number, listFocused: boolean): HTMLElement {

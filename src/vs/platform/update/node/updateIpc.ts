@@ -6,10 +6,10 @@
 'use strict';
 
 import { TPromise } from 'vs/base/common/winjs.base';
-import { IChannel } from 'vs/base/parts/ipc/common/ipc';
+import { IChannel } from 'vs/base/parts/ipc/node/ipc';
 import { Event, Emitter } from 'vs/base/common/event';
 import { onUnexpectedError } from 'vs/base/common/errors';
-import { IUpdateService, State } from './update';
+import { IUpdateService, State } from 'vs/platform/update/common/update';
 
 export interface IUpdateChannel extends IChannel {
 	listen(event: 'onStateChange'): Event<State>;

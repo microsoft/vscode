@@ -5,7 +5,7 @@
 'use strict';
 
 import * as path from 'path';
-import { CancellationTokenSource } from 'vs/base/common/cancellation';
+import { CancellationTokenSource, CancellationToken } from 'vs/base/common/cancellation';
 import { toErrorMessage } from 'vs/base/common/errorMessage';
 import * as glob from 'vs/base/common/glob';
 import * as resources from 'vs/base/common/resources';
@@ -80,8 +80,15 @@ export class ExtHostSearch implements ExtHostSearchShape {
 		const provider = this._fileSearchProvider.get(handle);
 		const query = reviveQuery(rawQuery);
 		if (provider) {
-			return this._fileSearchManager.fileSearch(query, provider, batch => {
-				this._proxy.$handleFileMatch(handle, session, batch.map(p => p.resource));
+			let cancelSource = new CancellationTokenSource();
+			return new TPromise((c, e) => {
+				this._fileSearchManager.fileSearch(query, provider, batch => {
+					this._proxy.$handleFileMatch(handle, session, batch.map(p => p.resource));
+				}, cancelSource.token).then(c, e);
+			}, () => {
+				// TODO IPC promise cancellation #53526
+				cancelSource.cancel();
+				cancelSource.dispose();
 			});
 		} else {
 			const indexProvider = this._fileIndexProvider.get(handle);
@@ -645,27 +652,19 @@ class FileSearchManager {
 
 	private static readonly BATCH_SIZE = 512;
 
-	fileSearch(config: ISearchQuery, provider: vscode.FileSearchProvider, onBatch: (matches: IFileMatch[]) => void): TPromise<ISearchCompleteStats> {
-		let searchP: TPromise;
-		return new TPromise<ISearchCompleteStats>((c, e) => {
-			const engine = new FileSearchEngine(config, provider);
+	fileSearch(config: ISearchQuery, provider: vscode.FileSearchProvider, onBatch: (matches: IFileMatch[]) => void, token: CancellationToken): TPromise<ISearchCompleteStats> {
+		const engine = new FileSearchEngine(config, provider);
 
-			const onInternalResult = (batch: IInternalFileMatch[]) => {
-				onBatch(batch.map(m => this.rawMatchToSearchItem(m)));
-			};
+		const onInternalResult = (batch: IInternalFileMatch[]) => {
+			onBatch(batch.map(m => this.rawMatchToSearchItem(m)));
+		};
 
-			searchP = this.doSearch(engine, FileSearchManager.BATCH_SIZE, onInternalResult).then(
-				result => {
-					c({
-						limitHit: result.limitHit
-					});
-				},
-				e);
-		}, () => {
-			if (searchP) {
-				searchP.cancel();
-			}
-		});
+		return this.doSearch(engine, FileSearchManager.BATCH_SIZE, onInternalResult, token).then(
+			result => {
+				return {
+					limitHit: result.limitHit
+				};
+			});
 	}
 
 	private rawMatchToSearchItem(match: IInternalFileMatch): IFileMatch {
@@ -681,34 +680,34 @@ class FileSearchManager {
 		}
 	}
 
-	private doSearch(engine: FileSearchEngine, batchSize: number, onResultBatch: (matches: IInternalFileMatch[]) => void): TPromise<IInternalSearchComplete> {
-		return new TPromise((c, e) => {
-			const _onResult = match => {
-				if (match) {
-					batch.push(match);
-					if (batchSize > 0 && batch.length >= batchSize) {
-						onResultBatch(batch);
-						batch = [];
-					}
-				}
-			};
-
-			let batch: IInternalFileMatch[] = [];
-			engine.search(_onResult).then(result => {
-				if (batch.length) {
-					onResultBatch(batch);
-				}
-
-				c(result);
-			}, error => {
-				if (batch.length) {
-					onResultBatch(batch);
-				}
-
-				e(error);
-			});
-		}, () => {
+	private doSearch(engine: FileSearchEngine, batchSize: number, onResultBatch: (matches: IInternalFileMatch[]) => void, token: CancellationToken): TPromise<IInternalSearchComplete> {
+		token.onCancellationRequested(() => {
 			engine.cancel();
+		});
+
+		const _onResult = match => {
+			if (match) {
+				batch.push(match);
+				if (batchSize > 0 && batch.length >= batchSize) {
+					onResultBatch(batch);
+					batch = [];
+				}
+			}
+		};
+
+		let batch: IInternalFileMatch[] = [];
+		return engine.search(_onResult).then(result => {
+			if (batch.length) {
+				onResultBatch(batch);
+			}
+
+			return result;
+		}, error => {
+			if (batch.length) {
+				onResultBatch(batch);
+			}
+
+			return TPromise.wrapError(error);
 		});
 	}
 }

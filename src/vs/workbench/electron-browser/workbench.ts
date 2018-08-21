@@ -103,7 +103,7 @@ import { NotificationsAlerts } from 'vs/workbench/browser/parts/notifications/no
 import { NotificationsStatus } from 'vs/workbench/browser/parts/notifications/notificationsStatus';
 import { registerNotificationCommands } from 'vs/workbench/browser/parts/notifications/notificationsCommands';
 import { NotificationsToasts } from 'vs/workbench/browser/parts/notifications/notificationsToasts';
-import { IPCClient } from 'vs/base/parts/ipc/common/ipc';
+import { IPCClient } from 'vs/base/parts/ipc/node/ipc';
 import { registerWindowDriver } from 'vs/platform/driver/electron-browser/driver';
 import { IPreferencesService } from 'vs/workbench/services/preferences/common/preferences';
 import { PreferencesService } from 'vs/workbench/services/preferences/browser/preferencesService';

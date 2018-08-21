@@ -28,6 +28,10 @@ var fs = require("fs");
 var path = require("path");
 var vsce = require("vsce");
 var File = require("vinyl");
+var glob = require("glob");
+var gulp = require("gulp");
+var util2 = require("./util");
+var root = path.resolve(path.join(__dirname, '..', '..'));
 function fromLocal(extensionPath, sourceMappingURLBase) {
     var result = es.through();
     vsce.listFiles({ cwd: extensionPath, packageManager: vsce.PackageManager.Yarn }).then(function (fileNames) {
@@ -175,3 +179,49 @@ function fromMarketplace(extensionName, version) {
     }));
 }
 exports.fromMarketplace = fromMarketplace;
+var excludedExtensions = [
+    'vscode-api-tests',
+    'vscode-colorize-tests',
+    'ms-vscode.node-debug',
+    'ms-vscode.node-debug2',
+];
+var builtInExtensions = require('../builtInExtensions.json');
+function packageExtensionsStream(opts) {
+    opts = opts || {};
+    var localExtensionDescriptions = glob.sync('extensions/*/package.json')
+        .map(function (manifestPath) {
+        var extensionPath = path.dirname(path.join(root, manifestPath));
+        var extensionName = path.basename(extensionPath);
+        return { name: extensionName, path: extensionPath };
+    })
+        .filter(function (_a) {
+        var name = _a.name;
+        return excludedExtensions.indexOf(name) === -1;
+    })
+        .filter(function (_a) {
+        var name = _a.name;
+        return opts.desiredExtensions ? opts.desiredExtensions.indexOf(name) >= 0 : true;
+    })
+        .filter(function (_a) {
+        var name = _a.name;
+        return builtInExtensions.every(function (b) { return b.name !== name; });
+    });
+    var localExtensions = es.merge.apply(es, localExtensionDescriptions.map(function (extension) {
+        return fromLocal(extension.path, opts.sourceMappingURLBase)
+            .pipe(rename(function (p) { return p.dirname = "extensions/" + extension.name + "/" + p.dirname; }));
+    }));
+    var localExtensionDependencies = gulp.src('extensions/node_modules/**', { base: '.' });
+    var marketplaceExtensions = es.merge.apply(es, builtInExtensions
+        .filter(function (_a) {
+        var name = _a.name;
+        return opts.desiredExtensions ? opts.desiredExtensions.indexOf(name) >= 0 : true;
+    })
+        .map(function (extension) {
+        return fromMarketplace(extension.name, extension.version)
+            .pipe(rename(function (p) { return p.dirname = "extensions/" + extension.name + "/" + p.dirname; }));
+    }));
+    return es.merge(localExtensions, localExtensionDependencies, marketplaceExtensions)
+        .pipe(util2.setExecutableBit(['**/*.sh']))
+        .pipe(filter(['**', '!**/*.js.map']));
+}
+exports.packageExtensionsStream = packageExtensionsStream;

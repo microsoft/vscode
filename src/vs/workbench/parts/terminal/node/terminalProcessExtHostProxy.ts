@@ -7,6 +7,7 @@ import { ITerminalChildProcess } from 'vs/workbench/parts/terminal/node/terminal
 import { Event, Emitter } from 'vs/base/common/event';
 import { ITerminalService, ITerminalProcessExtHostProxy, IShellLaunchConfig } from 'vs/workbench/parts/terminal/common/terminal';
 import { IDisposable } from 'vs/base/common/lifecycle';
+import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
 
 export class TerminalProcessExtHostProxy implements ITerminalChildProcess, ITerminalProcessExtHostProxy {
 	private _disposables: IDisposable[] = [];
@@ -32,10 +33,15 @@ export class TerminalProcessExtHostProxy implements ITerminalChildProcess, ITerm
 		shellLaunchConfig: IShellLaunchConfig,
 		cols: number,
 		rows: number,
-		@ITerminalService private _terminalService: ITerminalService
+		@ITerminalService private _terminalService: ITerminalService,
+		@IExtensionService private readonly _extensionService: IExtensionService
 	) {
-		// TODO: Return TPromise<boolean> indicating success? Teardown if failure?
-		this._terminalService.requestExtHostProcess(this, shellLaunchConfig, cols, rows);
+		this._extensionService.whenInstalledExtensionsRegistered().then(() => {
+			// TODO: MainThreadTerminalService is not ready at this point, fix this
+			setTimeout(() => {
+				this._terminalService.requestExtHostProcess(this, shellLaunchConfig, cols, rows);
+			}, 0);
+		});
 	}
 
 	public dispose(): void {

@@ -79,7 +79,11 @@ export class TerminalProcess implements ITerminalChildProcess, IDisposable {
 	}
 
 	private _setupTitlePolling() {
-		this._sendProcessTitle();
+		// Send initial timeout async to give event listeners a chance to init
+		setTimeout(() => {
+			this._sendProcessTitle();
+		}, 0);
+		// Setup polling
 		setInterval(() => {
 			if (this._currentTitle !== this._ptyProcess.process) {
 				this._sendProcessTitle();

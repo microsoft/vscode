@@ -11,7 +11,7 @@ import { join, sep } from 'path';
 import * as arrays from 'vs/base/common/arrays';
 import { CancelablePromise, createCancelablePromise, toWinJsPromise } from 'vs/base/common/async';
 import { CancellationToken } from 'vs/base/common/cancellation';
-import { canceled } from 'vs/base/common/errors';
+import { canceled, isPromiseCanceledError } from 'vs/base/common/errors';
 import { Emitter, Event } from 'vs/base/common/event';
 import * as objects from 'vs/base/common/objects';
 import * as strings from 'vs/base/common/strings';
@@ -47,9 +47,16 @@ export class SearchService implements IRawSearchService {
 		const emitter = new Emitter<ISerializedSearchProgressItem | ISerializedSearchComplete>({
 			onFirstListenerDidAdd: () => {
 				promise = createCancelablePromise(token => {
-					return this.doFileSearch(FileSearchEngine, config, p => emitter.fire(p), token, batchSize)
-						.then(c => emitter.fire(c), err => emitter.fire({ type: 'error', error: { message: err.message, stack: err.stack } }));
+					return this.doFileSearch(FileSearchEngine, config, p => emitter.fire(p), token, batchSize);
 				});
+
+				promise.then(
+					c => emitter.fire(c),
+					err => {
+						if (!isPromiseCanceledError(err)) {
+							emitter.fire({ type: 'error', error: { message: err.message, stack: err.stack } });
+						}
+					});
 			},
 			onLastListenerRemove: () => {
 				promise.cancel();
@@ -60,14 +67,21 @@ export class SearchService implements IRawSearchService {
 	}
 
 	public textSearch(config: IRawSearch): Event<ISerializedSearchProgressItem | ISerializedSearchComplete> {
-		let promise: CancelablePromise<void>;
+		let promise: CancelablePromise<ISerializedSearchComplete>;
 
 		const emitter = new Emitter<ISerializedSearchProgressItem | ISerializedSearchComplete>({
 			onFirstListenerDidAdd: () => {
 				promise = createCancelablePromise(token => {
-					return (config.useRipgrep ? this.ripgrepTextSearch(config, p => emitter.fire(p), token) : this.legacyTextSearch(config, p => emitter.fire(p), token))
-						.then(c => emitter.fire(c), err => emitter.fire({ type: 'error', error: { message: err.message, stack: err.stack } }));
+					return (config.useRipgrep ? this.ripgrepTextSearch(config, p => emitter.fire(p), token) : this.legacyTextSearch(config, p => emitter.fire(p), token));
 				});
+
+				promise.then(
+					c => emitter.fire(c),
+					err => {
+						if (!isPromiseCanceledError(err)) {
+							emitter.fire({ type: 'error', error: { message: err.message, stack: err.stack } });
+						}
+					});
 			},
 			onLastListenerRemove: () => {
 				promise.cancel();
@@ -143,13 +157,11 @@ export class SearchService implements IRawSearchService {
 			}
 
 			return new TPromise<ISerializedSearchSuccess>((c, e) => {
-				process.nextTick(() => { // allow caller to register progress callback first
-					sortedSearch.then(([result, rawMatches]) => {
-						const serializedMatches = rawMatches.map(rawMatch => this.rawMatchToSearchItem(rawMatch));
-						this.sendProgress(serializedMatches, progressCallback, batchSize);
-						c(result);
-					}, e);
-				});
+				sortedSearch.then(([result, rawMatches]) => {
+					const serializedMatches = rawMatches.map(rawMatch => this.rawMatchToSearchItem(rawMatch));
+					this.sendProgress(serializedMatches, progressCallback, batchSize);
+					c(result);
+				}, e);
 			});
 		}
 
@@ -402,9 +414,7 @@ export class SearchService implements IRawSearchService {
 					}
 				}
 			}, (progress) => {
-				process.nextTick(() => {
-					progressCallback(progress);
-				});
+				progressCallback(progress);
 			}, (error, stats) => {
 				if (batch.length) {
 					progressCallback(batch);

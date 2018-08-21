@@ -69,6 +69,10 @@ export class SimpleModel implements ITextEditorModel {
 		return this.model;
 	}
 
+	public isReadonly(): boolean {
+		return false;
+	}
+
 	public dispose(): void {
 		this._onDispose.fire();
 	}

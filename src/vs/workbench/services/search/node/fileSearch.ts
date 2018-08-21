@@ -211,17 +211,15 @@ export class FileWalker {
 			cmd = ripgrep.cmd;
 			noSiblingsClauses = !Object.keys(ripgrep.siblingClauses).length;
 
-			process.nextTick(() => {
-				const escapedArgs = ripgrep.rgArgs.args
-					.map(arg => arg.match(/^-/) ? arg : `'${arg}'`)
-					.join(' ');
+			const escapedArgs = ripgrep.rgArgs.args
+				.map(arg => arg.match(/^-/) ? arg : `'${arg}'`)
+				.join(' ');
 
-				let rgCmd = `rg ${escapedArgs}\n - cwd: ${ripgrep.cwd}`;
-				if (ripgrep.rgArgs.siblingClauses) {
-					rgCmd += `\n - Sibling clauses: ${JSON.stringify(ripgrep.rgArgs.siblingClauses)}`;
-				}
-				onMessage({ message: rgCmd });
-			});
+			let rgCmd = `rg ${escapedArgs}\n - cwd: ${ripgrep.cwd}`;
+			if (ripgrep.rgArgs.siblingClauses) {
+				rgCmd += `\n - Sibling clauses: ${JSON.stringify(ripgrep.rgArgs.siblingClauses)}`;
+			}
+			onMessage({ message: rgCmd });
 		} else {
 			cmd = this.spawnFindCmd(folderQuery);
 		}

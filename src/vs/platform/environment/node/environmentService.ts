@@ -133,6 +133,16 @@ export class EnvironmentService implements IEnvironmentService {
 	get installSourcePath(): string { return path.join(this.userDataPath, 'installSource'); }
 
 	@memoize
+	get builtinExtensionsPath(): string {
+		const fromArgs = parsePathArg(this._args['builtin-extensions-dir'], process);
+		if (fromArgs) {
+			return fromArgs;
+		} else {
+			return path.normalize(path.join(getPathFromAmdModule(require, ''), '..', 'extensions'));
+		}
+	}
+
+	@memoize
 	get extensionsPath(): string {
 		const fromArgs = parsePathArg(this._args['extensions-dir'], process);
 
