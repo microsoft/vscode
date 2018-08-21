@@ -596,7 +596,7 @@ function parsedExpression(expression: IExpression, options: IGlobOptions): Parse
 					basename = paths.basename(path);
 				}
 				if (!name) {
-					name = basename.substr(0, basename.length - paths.extname(path).length);
+					name = basename.substr(0, basename.indexOf('.'));
 				}
 			}
 			const result = parsedPattern(path, basename, name, hasSibling);
