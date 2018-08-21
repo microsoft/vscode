@@ -65,7 +65,6 @@ export class WebviewEditorInput extends EditorInput {
 	private _group?: GroupIdentifier;
 	private _scrollYPercentage: number = 0;
 	private _state: any;
-	private _webviewState: string | undefined;
 
 	private _revived: boolean = false;
 
@@ -194,7 +193,7 @@ export class WebviewEditorInput extends EditorInput {
 	}
 
 	public get webviewState() {
-		return this._webviewState;
+		return this._state.state;
 	}
 
 	public get options(): WebviewInputOptions {
@@ -266,7 +265,7 @@ export class WebviewEditorInput extends EditorInput {
 		}, null, this._webviewDisposables);
 
 		this._webview.onDidUpdateState(newState => {
-			this._webviewState = newState;
+			this._state.state = newState;
 		}, null, this._webviewDisposables);
 	}
 
