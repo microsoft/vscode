@@ -1,8 +1,21 @@
 param (
 	[string]$OutDir = $PSScriptRoot,
 	[string]$UpdateServer = "https://vscode-update.azurewebsites.net/api/update",
+	[string]$Slackbot,
 	[int]$Target = 2000
 )
+
+function Write-Slack {
+	param([string]$Message, [string]$Url)
+	if (!$Slackbot) {
+		Write-Host $Message
+	}
+ else {
+		$params = @{"text" = $Message; }
+		Invoke-WebRequest -Uri $Url -Method POST -Body ($params|ConvertTo-Json) -ContentType "application/json"
+	}
+}
+
 
 if ($IsMacOS) {
 	$uri = "$UpdateServer/darwin/insider/unknown"
@@ -20,8 +33,8 @@ $data = ConvertFrom-Json -InputObject $request.Content
 
 $appdir = "$OutDir/versions/$($data.version)"
 if (Test-Path -Path $appdir) {
-	Write-Host "🌴 Nothing new, nothing to do..."
-	Exit 0
+	Write-Host "Nothing new, nothing to do..."
+	# Exit 0
 }
 else {
 	# create foler, download, and unzip
@@ -54,17 +67,17 @@ while ($true) {
 	else {
 		Exit 100;
 	}
-	(Get-Content -Tail 1 $timers) -match '^\d+'
+	(Get-Content -Tail 1 $timers) -match '^\d+' | Out-Null
 	$durLast = [convert]::ToInt32($Matches[0], 10);
 	if ($durLast -lt $Target) {
-		Write-Host "👍 good - last startup took $($durLast)ms, tried $currentTry times"
+		Write-Slack -Message "SUCCESS - last startup took $($durLast)ms, tried $currentTry times" -Url $Slackbot
 		Exit 0
 	}
 	if ($1 -gt $maxTry) {
-		Write-Host "💥 FAILURE - could not start within $($Target)ms, tried $maxTry-times!"
+		Write-Slack -Message "FAILURE - could not start within $($Target)ms, tried $maxTry-times!" -Url $Slackbot
 		Exit 1
 	}
-	Write-Host "🐌 too slow... took $($durLast)ms, target is $($Target)ms"
+	Write-Slack -Message "too slow... took $($durLast)ms, target is $($Target)ms" -Url $Slackbot
 	Start-Sleep -s (Get-Random -Minimum 2 -Maximum 10)
 	$currentTry += 1;
 }
