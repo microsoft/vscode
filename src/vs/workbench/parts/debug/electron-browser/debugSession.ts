@@ -52,7 +52,6 @@ export class Session implements ISession {
 		@IDebugService private debugService: IDebugService,
 		@ITelemetryService private telemetryService: ITelemetryService,
 	) {
-		this.model.addSession(this);
 		this.state = State.Initializing;
 	}
 
@@ -227,8 +226,9 @@ export class Session implements ISession {
 	initialize(dbgr: Debugger): TPromise<void> {
 		if (this._raw) {
 			// If there was already a connection make sure to remove old listeners
-			this.rawListeners = dispose(this.rawListeners);
+			this.dispose();
 		}
+
 		return dbgr.getCustomTelemetryService().then(customTelemetryService => {
 			this._raw = this.instantiationService.createInstance(RawDebugSession, this.id, this._configuration.resolved.debugServer, dbgr, customTelemetryService, this.root);
 			this.registerListeners();
@@ -245,6 +245,7 @@ export class Session implements ISession {
 				supportsRunInTerminalRequest: true, // #10574
 				locale: platform.locale
 			}).then(() => {
+				this.model.addSession(this);
 				this.state = State.Running;
 				this.model.setExceptionBreakpoints(this._raw.capabilities.exceptionBreakpointFilters);
 			});
