@@ -136,6 +136,8 @@ export function isWorkspaceExtension(manifest: IExtensionManifest): boolean {
 			'vscode.npm',
 			'vscode.php-language-features',
 			'vscode.typescript-language-features',
+			'ms-vscode.node-debug',
+			'ms-vscode.node-debug2',
 			'ms-python.python',
 			'eg2.tslint'
 		].indexOf(extensionId) !== -1;
