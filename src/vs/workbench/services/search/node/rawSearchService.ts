@@ -11,7 +11,7 @@ import { join, sep } from 'path';
 import * as arrays from 'vs/base/common/arrays';
 import { CancelablePromise, createCancelablePromise, toWinJsPromise } from 'vs/base/common/async';
 import { CancellationToken } from 'vs/base/common/cancellation';
-import { canceled } from 'vs/base/common/errors';
+import { canceled, isPromiseCanceledError } from 'vs/base/common/errors';
 import { Emitter, Event } from 'vs/base/common/event';
 import * as objects from 'vs/base/common/objects';
 import * as strings from 'vs/base/common/strings';
@@ -47,9 +47,16 @@ export class SearchService implements IRawSearchService {
 		const emitter = new Emitter<ISerializedSearchProgressItem | ISerializedSearchComplete>({
 			onFirstListenerDidAdd: () => {
 				promise = createCancelablePromise(token => {
-					return this.doFileSearch(FileSearchEngine, config, p => emitter.fire(p), token, batchSize)
-						.then(c => emitter.fire(c), err => emitter.fire({ type: 'error', error: { message: err.message, stack: err.stack } }));
+					return this.doFileSearch(FileSearchEngine, config, p => emitter.fire(p), token, batchSize);
 				});
+
+				promise.then(
+					c => emitter.fire(c),
+					err => {
+						if (!isPromiseCanceledError(err)) {
+							emitter.fire({ type: 'error', error: { message: err.message, stack: err.stack } });
+						}
+					});
 			},
 			onLastListenerRemove: () => {
 				promise.cancel();
