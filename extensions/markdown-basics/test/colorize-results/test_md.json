@@ -1211,12 +1211,12 @@
 	},
 	{
 		"c": "*",
-		"t": "text.html.markdown markup.list.unnumbered.markdown beginning.punctuation.definition.list.markdown",
+		"t": "text.html.markdown markup.list.unnumbered.markdown punctuation.definition.list.begin.markdown",
 		"r": {
-			"dark_plus": "beginning.punctuation.definition.list.markdown: #6796E6",
-			"light_plus": "beginning.punctuation.definition.list.markdown: #0451A5",
-			"dark_vs": "beginning.punctuation.definition.list.markdown: #6796E6",
-			"light_vs": "beginning.punctuation.definition.list.markdown: #0451A5",
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
 			"hc_black": "default: #FFFFFF"
 		}
 	},
@@ -1244,12 +1244,12 @@
 	},
 	{
 		"c": "-",
-		"t": "text.html.markdown markup.list.unnumbered.markdown beginning.punctuation.definition.list.markdown",
+		"t": "text.html.markdown markup.list.unnumbered.markdown punctuation.definition.list.begin.markdown",
 		"r": {
-			"dark_plus": "beginning.punctuation.definition.list.markdown: #6796E6",
-			"light_plus": "beginning.punctuation.definition.list.markdown: #0451A5",
-			"dark_vs": "beginning.punctuation.definition.list.markdown: #6796E6",
-			"light_vs": "beginning.punctuation.definition.list.markdown: #0451A5",
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
 			"hc_black": "default: #FFFFFF"
 		}
 	},
@@ -1277,12 +1277,12 @@
 	},
 	{
 		"c": "+",
-		"t": "text.html.markdown markup.list.unnumbered.markdown beginning.punctuation.definition.list.markdown",
+		"t": "text.html.markdown markup.list.unnumbered.markdown punctuation.definition.list.begin.markdown",
 		"r": {
-			"dark_plus": "beginning.punctuation.definition.list.markdown: #6796E6",
-			"light_plus": "beginning.punctuation.definition.list.markdown: #0451A5",
-			"dark_vs": "beginning.punctuation.definition.list.markdown: #6796E6",
-			"light_vs": "beginning.punctuation.definition.list.markdown: #0451A5",
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
 			"hc_black": "default: #FFFFFF"
 		}
 	},
@@ -1321,12 +1321,12 @@
 	},
 	{
 		"c": "+",
-		"t": "text.html.markdown markup.list.unnumbered.markdown markup.list.unnumbered.markdown beginning.punctuation.definition.list.markdown",
+		"t": "text.html.markdown markup.list.unnumbered.markdown markup.list.unnumbered.markdown punctuation.definition.list.begin.markdown",
 		"r": {
-			"dark_plus": "beginning.punctuation.definition.list.markdown: #6796E6",
-			"light_plus": "beginning.punctuation.definition.list.markdown: #0451A5",
-			"dark_vs": "beginning.punctuation.definition.list.markdown: #6796E6",
-			"light_vs": "beginning.punctuation.definition.list.markdown: #0451A5",
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
 			"hc_black": "default: #FFFFFF"
 		}
 	},
@@ -1596,12 +1596,12 @@
 	},
 	{
 		"c": ">",
-		"t": "text.html.markdown markup.quote.markdown beginning.punctuation.definition.quote.markdown",
+		"t": "text.html.markdown markup.quote.markdown punctuation.definition.quote.begin.markdown",
 		"r": {
-			"dark_plus": "beginning.punctuation.definition.quote.markdown: #6A9955",
-			"light_plus": "beginning.punctuation.definition.quote.markdown: #0451A5",
-			"dark_vs": "beginning.punctuation.definition.quote.markdown: #6A9955",
-			"light_vs": "beginning.punctuation.definition.quote.markdown: #0451A5",
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
 			"hc_black": "default: #FFFFFF"
 		}
 	},
@@ -1629,23 +1629,23 @@
 	},
 	{
 		"c": ">",
-		"t": "text.html.markdown markup.quote.markdown beginning.punctuation.definition.quote.markdown",
+		"t": "text.html.markdown markup.quote.markdown punctuation.definition.quote.begin.markdown",
 		"r": {
-			"dark_plus": "beginning.punctuation.definition.quote.markdown: #6A9955",
-			"light_plus": "beginning.punctuation.definition.quote.markdown: #0451A5",
-			"dark_vs": "beginning.punctuation.definition.quote.markdown: #6A9955",
-			"light_vs": "beginning.punctuation.definition.quote.markdown: #0451A5",
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
 			"hc_black": "default: #FFFFFF"
 		}
 	},
 	{
 		"c": ">",
-		"t": "text.html.markdown markup.quote.markdown markup.quote.markdown beginning.punctuation.definition.quote.markdown",
+		"t": "text.html.markdown markup.quote.markdown markup.quote.markdown punctuation.definition.quote.begin.markdown",
 		"r": {
-			"dark_plus": "beginning.punctuation.definition.quote.markdown: #6A9955",
-			"light_plus": "beginning.punctuation.definition.quote.markdown: #0451A5",
-			"dark_vs": "beginning.punctuation.definition.quote.markdown: #6A9955",
-			"light_vs": "beginning.punctuation.definition.quote.markdown: #0451A5",
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
 			"hc_black": "default: #FFFFFF"
 		}
 	},
@@ -1673,12 +1673,12 @@
 	},
 	{
 		"c": "1.",
-		"t": "text.html.markdown markup.list.numbered.markdown beginning.punctuation.definition.list.markdown",
+		"t": "text.html.markdown markup.list.numbered.markdown punctuation.definition.list.begin.markdown",
 		"r": {
-			"dark_plus": "beginning.punctuation.definition.list.markdown: #6796E6",
-			"light_plus": "beginning.punctuation.definition.list.markdown: #0451A5",
-			"dark_vs": "beginning.punctuation.definition.list.markdown: #6796E6",
-			"light_vs": "beginning.punctuation.definition.list.markdown: #0451A5",
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
 			"hc_black": "default: #FFFFFF"
 		}
 	},
@@ -1717,12 +1717,12 @@
 	},
 	{
 		"c": ">",
-		"t": "text.html.markdown markup.list.numbered.markdown markup.quote.markdown beginning.punctuation.definition.quote.markdown",
+		"t": "text.html.markdown markup.list.numbered.markdown markup.quote.markdown punctuation.definition.quote.begin.markdown",
 		"r": {
-			"dark_plus": "beginning.punctuation.definition.quote.markdown: #6A9955",
-			"light_plus": "beginning.punctuation.definition.quote.markdown: #0451A5",
-			"dark_vs": "beginning.punctuation.definition.quote.markdown: #6A9955",
-			"light_vs": "beginning.punctuation.definition.quote.markdown: #0451A5",
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
 			"hc_black": "default: #FFFFFF"
 		}
 	},
@@ -1750,12 +1750,12 @@
 	},
 	{
 		"c": "2.",
-		"t": "text.html.markdown markup.list.numbered.markdown beginning.punctuation.definition.list.markdown",
+		"t": "text.html.markdown markup.list.numbered.markdown punctuation.definition.list.begin.markdown",
 		"r": {
-			"dark_plus": "beginning.punctuation.definition.list.markdown: #6796E6",
-			"light_plus": "beginning.punctuation.definition.list.markdown: #0451A5",
-			"dark_vs": "beginning.punctuation.definition.list.markdown: #6796E6",
-			"light_vs": "beginning.punctuation.definition.list.markdown: #0451A5",
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
 			"hc_black": "default: #FFFFFF"
 		}
 	},
@@ -1783,12 +1783,12 @@
 	},
 	{
 		"c": "3.",
-		"t": "text.html.markdown markup.list.numbered.markdown beginning.punctuation.definition.list.markdown",
+		"t": "text.html.markdown markup.list.numbered.markdown punctuation.definition.list.begin.markdown",
 		"r": {
-			"dark_plus": "beginning.punctuation.definition.list.markdown: #6796E6",
-			"light_plus": "beginning.punctuation.definition.list.markdown: #0451A5",
-			"dark_vs": "beginning.punctuation.definition.list.markdown: #6796E6",
-			"light_vs": "beginning.punctuation.definition.list.markdown: #0451A5",
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
 			"hc_black": "default: #FFFFFF"
 		}
 	},
@@ -2245,12 +2245,12 @@
 	},
 	{
 		"c": "*",
-		"t": "text.html.markdown markup.list.unnumbered.markdown beginning.punctuation.definition.list.markdown",
+		"t": "text.html.markdown markup.list.unnumbered.markdown punctuation.definition.list.begin.markdown",
 		"r": {
-			"dark_plus": "beginning.punctuation.definition.list.markdown: #6796E6",
-			"light_plus": "beginning.punctuation.definition.list.markdown: #0451A5",
-			"dark_vs": "beginning.punctuation.definition.list.markdown: #6796E6",
-			"light_vs": "beginning.punctuation.definition.list.markdown: #0451A5",
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
 			"hc_black": "default: #FFFFFF"
 		}
 	},
@@ -2278,12 +2278,12 @@
 	},
 	{
 		"c": "*",
-		"t": "text.html.markdown markup.list.unnumbered.markdown beginning.punctuation.definition.list.markdown",
+		"t": "text.html.markdown markup.list.unnumbered.markdown punctuation.definition.list.begin.markdown",
 		"r": {
-			"dark_plus": "beginning.punctuation.definition.list.markdown: #6796E6",
-			"light_plus": "beginning.punctuation.definition.list.markdown: #0451A5",
-			"dark_vs": "beginning.punctuation.definition.list.markdown: #6796E6",
-			"light_vs": "beginning.punctuation.definition.list.markdown: #0451A5",
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
 			"hc_black": "default: #FFFFFF"
 		}
 	},
@@ -2421,12 +2421,12 @@
 	},
 	{
 		"c": "*",
-		"t": "text.html.markdown markup.list.unnumbered.markdown beginning.punctuation.definition.list.markdown",
+		"t": "text.html.markdown markup.list.unnumbered.markdown punctuation.definition.list.begin.markdown",
 		"r": {
-			"dark_plus": "beginning.punctuation.definition.list.markdown: #6796E6",
-			"light_plus": "beginning.punctuation.definition.list.markdown: #0451A5",
-			"dark_vs": "beginning.punctuation.definition.list.markdown: #6796E6",
-			"light_vs": "beginning.punctuation.definition.list.markdown: #0451A5",
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
 			"hc_black": "default: #FFFFFF"
 		}
 	},
@@ -2454,12 +2454,12 @@
 	},
 	{
 		"c": "*",
-		"t": "text.html.markdown markup.list.unnumbered.markdown beginning.punctuation.definition.list.markdown",
+		"t": "text.html.markdown markup.list.unnumbered.markdown punctuation.definition.list.begin.markdown",
 		"r": {
-			"dark_plus": "beginning.punctuation.definition.list.markdown: #6796E6",
-			"light_plus": "beginning.punctuation.definition.list.markdown: #0451A5",
-			"dark_vs": "beginning.punctuation.definition.list.markdown: #6796E6",
-			"light_vs": "beginning.punctuation.definition.list.markdown: #0451A5",
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
 			"hc_black": "default: #FFFFFF"
 		}
 	},

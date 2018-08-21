@@ -34,7 +34,7 @@ class StartupTimingsAppender implements IWorkbenchContribution {
 			timerService.startupMetrics
 		]).then(([, startupMetrics]) => {
 
-			return nfcall(appendFile, appendTo, `${product.nameShort}\t${product.commit || '0000000'}\t${Date.now()}\t${startupMetrics.ellapsed}\n`);
+			return nfcall(appendFile, appendTo, `${startupMetrics.ellapsed}\t${product.nameLong}\t${product.commit || '0000000'}\n`);
 		}).then(() => {
 			windowsService.quit();
 		}).catch(err => {

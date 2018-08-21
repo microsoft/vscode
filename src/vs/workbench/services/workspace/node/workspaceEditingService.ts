@@ -26,7 +26,7 @@ import { BackupFileService } from 'vs/workbench/services/backup/node/backupFileS
 import { ICommandService } from 'vs/platform/commands/common/commands';
 import { distinct } from 'vs/base/common/arrays';
 import { isLinux } from 'vs/base/common/platform';
-import { isEqual, hasToIgnoreCase } from 'vs/base/common/resources';
+import { isEqual } from 'vs/base/common/resources';
 import { INotificationService, Severity } from 'vs/platform/notification/common/notification';
 
 export class WorkspaceEditingService implements IWorkspaceEditingService {
@@ -138,7 +138,7 @@ export class WorkspaceEditingService implements IWorkspaceEditingService {
 	private includesSingleFolderWorkspace(folders: URI[]): boolean {
 		if (this.contextService.getWorkbenchState() === WorkbenchState.FOLDER) {
 			const workspaceFolder = this.contextService.getWorkspace().folders[0];
-			return (folders.some(folder => isEqual(folder, workspaceFolder.uri, hasToIgnoreCase(folder))));
+			return (folders.some(folder => isEqual(folder, workspaceFolder.uri)));
 		}
 
 		return false;
