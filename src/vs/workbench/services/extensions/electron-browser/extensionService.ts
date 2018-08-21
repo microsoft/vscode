@@ -552,6 +552,17 @@ export class ExtensionService extends Disposable implements IExtensionService {
 
 				const enableProposedApiFor: string | string[] = this._environmentService.args['enable-proposed-api'] || [];
 
+				const notFound = (id: string) => nls.localize('notFound', "Extension \`{0}\` cannot use PROPOSED API as it cannot be found", id);
+
+				if (enableProposedApiFor.length) {
+					let allProposed = (enableProposedApiFor instanceof Array ? enableProposedApiFor : [enableProposedApiFor]);
+					allProposed.forEach(id => {
+						if (!allExtensions.some(description => description.id === id)) {
+							console.error(notFound(id));
+						}
+					});
+				}
+
 				const enableProposedApiForAll = !this._environmentService.isBuilt ||
 					(!!this._environmentService.extensionDevelopmentPath && product.nameLong.indexOf('Insiders') >= 0) ||
 					(enableProposedApiFor.length === 0 && 'enable-proposed-api' in this._environmentService.args);
