@@ -45,6 +45,7 @@ import { getPathFromAmdModule } from 'vs/base/common/amd';
 import { tmpdir } from 'os';
 import { generateUuid } from 'vs/base/common/uuid';
 import { IDownloadService } from 'vs/platform/download/common/download';
+import { optional } from 'vs/platform/instantiation/common/instantiation';
 
 const SystemExtensionsRoot = path.normalize(path.join(getPathFromAmdModule(require, ''), '..', 'extensions'));
 const ERROR_SCANNING_SYS_EXTENSIONS = 'scanningSystem';
@@ -140,7 +141,7 @@ export class ExtensionManagementService extends Disposable implements IExtension
 		@IDialogService private dialogService: IDialogService,
 		@IExtensionGalleryService private galleryService: IExtensionGalleryService,
 		@ILogService private logService: ILogService,
-		@IDownloadService private downloadService: IDownloadService,
+		@optional(IDownloadService) private downloadService: IDownloadService,
 		@ITelemetryService private telemetryService: ITelemetryService,
 	) {
 		super();
@@ -165,6 +166,9 @@ export class ExtensionManagementService extends Disposable implements IExtension
 	}
 
 	unzip(zipLocation: URI): TPromise<void> {
+		if (!this.downloadService) {
+			throw new Error('Download service is not available');
+		}
 		const downloadedLocation = path.join(tmpdir(), generateUuid());
 		return this.downloadService.download(zipLocation, downloadedLocation).then(() => this.install(URI.file(downloadedLocation)));
 	}

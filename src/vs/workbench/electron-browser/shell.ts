@@ -97,8 +97,6 @@ import { SearchHistoryService } from 'vs/workbench/services/search/node/searchHi
 import { MulitExtensionManagementService } from 'vs/platform/extensionManagement/common/multiExtensionManagement';
 import { ExtensionManagementServerService } from 'vs/workbench/services/extensions/node/extensionManagementServerService';
 import { DownloadServiceChannel } from 'vs/platform/download/node/downloadIpc';
-import { IDownloadService } from 'vs/platform/download/common/download';
-import { DownloadService } from 'vs/platform/download/node/downloadService';
 
 /**
  * Services that we require for the Shell
@@ -391,7 +389,6 @@ export class WorkbenchShell extends Disposable {
 		serviceCollection.set(IExtensionEnablementService, extensionEnablementService);
 
 		serviceCollection.set(IRequestService, new SyncDescriptor(RequestService));
-		serviceCollection.set(IDownloadService, new SyncDescriptor(DownloadService));
 
 		this.extensionService = instantiationService.createInstance(ExtensionService);
 		serviceCollection.set(IExtensionService, this.extensionService);
