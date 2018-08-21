@@ -620,6 +620,17 @@ configurationRegistry.registerConfiguration({
 			enum: ['sidebar', 'panel'],
 			default: 'sidebar',
 			description: nls.localize('search.location', "Controls whether the search will be shown as a view in the sidebar or as a panel in the panel area for more horizontal space."),
+		},
+		'search.collapseResults': {
+			type: 'string',
+			enum: ['auto', 'alwaysCollapse', 'alwaysExpand'],
+			enumDescriptions: [
+				'Files with less than 10 results are expanded. Others are collapsed.',
+				'',
+				''
+			],
+			default: 'auto',
+			description: nls.localize('search.collapseAllResults', "Controls whether the search results will be collapsed or expanded."),
 		}
 	}
 });

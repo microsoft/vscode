@@ -33,7 +33,7 @@ import { INotificationService } from 'vs/platform/notification/common/notificati
 import { isLinux } from 'vs/base/common/platform';
 import { IDisposable, toDisposable } from 'vs/base/common/lifecycle';
 import { ILogService } from 'vs/platform/log/common/log';
-import { isEqual, isEqualOrParent, hasToIgnoreCase } from 'vs/base/common/resources';
+import { isEqual, isEqualOrParent } from 'vs/base/common/resources';
 
 /**
  * The text file editor model listens to changes to its underlying code editor model and saves these changes through the file service back to the disk.
@@ -357,7 +357,7 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 			if (settingsType) {
 				/* __GDPR__
 					"settingsRead" : {
-						"settingsType": { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
+						"settingsType": { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
 					}
 				*/
 				this.telemetryService.publicLog('settingsRead', { settingsType }); // Do not log read to user settings.json and .vscode folder as a fileGet event as it ruins our JSON usage data
@@ -719,7 +719,7 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 				if (settingsType) {
 					/* __GDPR__
 						"settingsWritten" : {
-							"settingsType": { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
+							"settingsType": { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
 						}
 					*/
 					this.telemetryService.publicLog('settingsWritten', { settingsType }); // Do not log write to user settings.json and .vscode folder as a filePUT event as it ruins our JSON usage data
@@ -795,14 +795,14 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 		}
 
 		// Check for snippets
-		if (isEqualOrParent(this.resource, URI.file(path.join(this.environmentService.appSettingsHome, 'snippets')), hasToIgnoreCase(this.resource))) {
+		if (isEqualOrParent(this.resource, URI.file(path.join(this.environmentService.appSettingsHome, 'snippets')))) {
 			return 'snippets';
 		}
 
 		// Check for workspace settings file
 		const folders = this.contextService.getWorkspace().folders;
 		for (let i = 0; i < folders.length; i++) {
-			if (isEqualOrParent(this.resource, folders[i].toResource('.vscode'), hasToIgnoreCase(this.resource))) {
+			if (isEqualOrParent(this.resource, folders[i].toResource('.vscode'))) {
 				const filename = path.basename(this.resource.fsPath);
 				if (TextFileEditorModel.WHITELIST_WORKSPACE_JSON.indexOf(filename) > -1) {
 					return `.vscode/${filename}`;

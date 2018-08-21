@@ -292,23 +292,23 @@ export class BreadcrumbsControl {
 				return combinedDisposable([listener, picker]);
 			},
 			getAnchor: () => {
-
+				let maxInnerWidth = window.innerWidth - 8 /*a little less the the full widget*/;
 				let pickerHeight = 330;
-				let pickerWidth = window.innerWidth / 4.17;
+				let pickerWidth = Math.min(maxInnerWidth, Math.max(240, maxInnerWidth / 4.17));
 				let pickerArrowSize = 8;
 				let pickerArrowOffset: number;
 
 				let data = dom.getDomNodePagePosition(event.node.firstChild as HTMLElement);
 				let y = data.top + data.height - pickerArrowSize;
 				let x = data.left;
-				if (x + pickerWidth >= window.innerWidth) {
-					x = window.innerWidth - pickerWidth;
+				if (x + pickerWidth >= maxInnerWidth) {
+					x = maxInnerWidth - pickerWidth;
 				}
 				if (event.payload instanceof StandardMouseEvent) {
 					let maxPickerArrowOffset = pickerWidth - 2 * pickerArrowSize;
 					pickerArrowOffset = event.payload.posx - x;
 					if (pickerArrowOffset > maxPickerArrowOffset) {
-						x += pickerArrowOffset - maxPickerArrowOffset;
+						x = Math.min(maxInnerWidth - pickerWidth, x + pickerArrowOffset - maxPickerArrowOffset);
 						pickerArrowOffset = maxPickerArrowOffset;
 					}
 				} else {

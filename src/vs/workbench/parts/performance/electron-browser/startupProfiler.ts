@@ -12,7 +12,7 @@ import { ILifecycleService, LifecyclePhase } from 'vs/platform/lifecycle/common/
 import { IWindowsService } from 'vs/platform/windows/common/windows';
 import { IWorkbenchContributionsRegistry, IWorkbenchContribution, Extensions } from 'vs/workbench/common/contributions';
 import { Registry } from 'vs/platform/registry/common/platform';
-import { ReportPerformanceIssueAction } from 'vs/workbench/electron-browser/actions';
+
 import { TPromise } from 'vs/base/common/winjs.base';
 import { join, dirname } from 'path';
 import { localize } from 'vs/nls';
@@ -20,6 +20,7 @@ import { readdir, del, readFile } from 'vs/base/node/pfs';
 import { basename } from 'vs/base/common/paths';
 import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
 import { timeout } from 'vs/base/common/async';
+import { ReportPerformanceIssueAction } from 'vs/workbench/parts/performance/electron-browser/actions';
 
 class StartupProfiler implements IWorkbenchContribution {
 

@@ -100,6 +100,7 @@ export class Colorizer {
 		const containsRTL = ViewLineRenderingData.containsRTL(line, isBasicASCII, mightContainRTL);
 		let renderResult = renderViewLine(new RenderLineInput(
 			false,
+			true,
 			line,
 			false,
 			isBasicASCII,
@@ -153,6 +154,7 @@ function _fakeColorize(lines: string[], tabSize: number): string {
 		const containsRTL = ViewLineRenderingData.containsRTL(line, isBasicASCII, /* check for RTL */true);
 		let renderResult = renderViewLine(new RenderLineInput(
 			false,
+			true,
 			line,
 			false,
 			isBasicASCII,
@@ -188,6 +190,7 @@ function _actualColorize(lines: string[], tabSize: number, tokenizationSupport: 
 		const containsRTL = ViewLineRenderingData.containsRTL(line, isBasicASCII, /* check for RTL */true);
 		let renderResult = renderViewLine(new RenderLineInput(
 			false,
+			true,
 			line,
 			false,
 			isBasicASCII,

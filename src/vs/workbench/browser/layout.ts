@@ -70,7 +70,6 @@ export class WorkbenchLayout extends Disposable implements IVerticalSashLayoutPr
 	private _panelHeight: number;
 	private _panelWidth: number;
 
-	// Take parts as an object bag since instatation service does not have typings for constructors with 9+ arguments
 	constructor(
 		private parent: HTMLElement,
 		private workbenchContainer: HTMLElement,
@@ -704,7 +703,6 @@ export class WorkbenchLayout extends Disposable implements IVerticalSashLayoutPr
 		return this.panelMaximized;
 	}
 
-	// change part size along the main axis
 	resizePart(part: Parts, sizeChange: number): void {
 		const panelPosition = this.partService.getPanelPosition();
 		const sizeChangePxWidth = this.workbenchSize.width * (sizeChange / 100);

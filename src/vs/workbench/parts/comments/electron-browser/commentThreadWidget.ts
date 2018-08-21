@@ -99,9 +99,7 @@ export class CommentNode {
 let INMEM_MODEL_ID = 0;
 export class ReviewZoneWidget extends ZoneWidget {
 	private _headElement: HTMLElement;
-	protected _primaryHeading: HTMLElement;
-	protected _secondaryHeading: HTMLElement;
-	protected _metaHeading: HTMLElement;
+	protected _headingLabel: HTMLElement;
 	protected _actionbarWidget: ActionBar;
 	private _bodyElement: HTMLElement;
 	private _commentEditor: ICodeEditor;
@@ -117,6 +115,7 @@ export class ReviewZoneWidget extends ZoneWidget {
 	private _commentGlyph: CommentGlyphWidget;
 	private _owner: number;
 	private _localToDispose: IDisposable[];
+	private _globalToDispose: IDisposable[];
 	private _markdownRenderer: MarkdownRenderer;
 	private _styleElement: HTMLStyleElement;
 	private _error: HTMLElement;
@@ -145,11 +144,17 @@ export class ReviewZoneWidget extends ZoneWidget {
 		this._owner = owner;
 		this._commentThread = commentThread;
 		this._isCollapsed = commentThread.collapsibleState !== modes.CommentThreadCollapsibleState.Expanded;
+		this._globalToDispose = [];
 		this._localToDispose = [];
 		this.create();
 
 		this._styleElement = dom.createStyleSheet(this.domNode);
-		this.themeService.onThemeChange(this._applyTheme, this);
+		this._globalToDispose.push(this.themeService.onThemeChange(this._applyTheme, this));
+		this._globalToDispose.push(this.editor.onDidChangeConfiguration(e => {
+			if (e.fontInfo) {
+				this._applyTheme(this.themeService.getTheme());
+			}
+		}));
 		this._applyTheme(this.themeService.getTheme());
 
 		this._markdownRenderer = new MarkdownRenderer(editor, this.modeService, this.openerService);
@@ -168,8 +173,6 @@ export class ReviewZoneWidget extends ZoneWidget {
 			this.show({ lineNumber: this._commentThread.range.startLineNumber, column: 1 }, 2);
 		}
 
-		this._bodyElement.focus();
-
 		if (commentId) {
 			let height = this.editor.getLayoutInfo().height;
 			let matchedNode = this._commentElements.filter(commentNode => commentNode.comment.commentId === commentId);
@@ -178,7 +181,6 @@ export class ReviewZoneWidget extends ZoneWidget {
 				const commentCoords = dom.getDomNodePagePosition(matchedNode[0].domNode);
 
 				this.editor.setScrollTop(this.editor.getTopForLineNumber(this._commentThread.range.startLineNumber) - height / 2 + commentCoords.top - commentThreadCoords.top);
-				matchedNode[0].focus();
 				return;
 			}
 		}
@@ -201,13 +203,8 @@ export class ReviewZoneWidget extends ZoneWidget {
 			appendTo(this._headElement).
 			getHTMLElement();
 
-		this._primaryHeading = $('span.filename').appendTo(titleElement).getHTMLElement();
-		this._secondaryHeading = $('span.dirname').appendTo(titleElement).getHTMLElement();
-		this._metaHeading = $('span.meta').appendTo(titleElement).getHTMLElement();
-
-		if (this._commentThread.comments.length) {
-			this.createParticipantsLabel();
-		}
+		this._headingLabel = $('span.filename').appendTo(titleElement).getHTMLElement();
+		this.createThreadLabel();
 
 		const actionsContainer = $('.review-actions').appendTo(this._headElement);
 		this._actionbarWidget = new ActionBar(actionsContainer.getHTMLElement(), {});
@@ -284,8 +281,7 @@ export class ReviewZoneWidget extends ZoneWidget {
 
 		this._commentThread = commentThread;
 		this._commentElements = newCommentNodeList;
-		let secondaryHeading = this._commentThread.comments.filter(arrays.uniqueFilter(comment => comment.userName)).map(comment => `@${comment.userName}`).join(', ');
-		$(this._secondaryHeading).safeInnerHtml(secondaryHeading);
+		this.createThreadLabel();
 	}
 
 	protected _doLayout(heightInPixel: number, widthInPixel: number): void {
@@ -349,7 +345,7 @@ export class ReviewZoneWidget extends ZoneWidget {
 				}
 			}
 
-			if (this._commentEditor.getModel().getValueLength() !== 0 && ev.keyCode === KeyCode.Enter && ev.ctrlKey) {
+			if (this._commentEditor.getModel().getValueLength() !== 0 && ev.keyCode === KeyCode.Enter && (ev.ctrlKey || ev.metaKey)) {
 				let lineNumber = this._commentGlyph.getPosition().position.lineNumber;
 				this.createComment(lineNumber);
 			}
@@ -419,7 +415,6 @@ export class ReviewZoneWidget extends ZoneWidget {
 
 				if (newCommentThread) {
 					this.createReplyButton();
-					this.createParticipantsLabel();
 				}
 			}
 
@@ -442,20 +437,23 @@ export class ReviewZoneWidget extends ZoneWidget {
 		}
 	}
 
-	createParticipantsLabel() {
-		const primaryHeading = 'Participants:';
-		$(this._primaryHeading).safeInnerHtml(primaryHeading);
-		this._primaryHeading.setAttribute('aria-label', primaryHeading);
+	private createThreadLabel() {
+		let label: string;
+		if (this._commentThread.comments.length) {
+			const participantsList = this._commentThread.comments.filter(arrays.uniqueFilter(comment => comment.userName)).map(comment => `@${comment.userName}`).join(', ');
+			label = nls.localize('commentThreadParticipants', "Participants: {0}", participantsList);
+		} else {
+			label = nls.localize('startThread', "Start discussion");
+		}
 
-		const secondaryHeading = this._commentThread.comments.filter(arrays.uniqueFilter(comment => comment.userName)).map(comment => `@${comment.userName}`).join(', ');
-		$(this._secondaryHeading).safeInnerHtml(secondaryHeading);
-		this._secondaryHeading.setAttribute('aria-label', secondaryHeading);
+		$(this._headingLabel).safeInnerHtml(label);
+		this._headingLabel.setAttribute('aria-label', label);
 	}
 
-	createReplyButton() {
+	private createReplyButton() {
 		this._reviewThreadReplyButton = <HTMLButtonElement>$('button.review-thread-reply-button').appendTo(this._commentForm).getHTMLElement();
-		this._reviewThreadReplyButton.title = 'Reply...';
-		this._reviewThreadReplyButton.textContent = 'Reply...';
+		this._reviewThreadReplyButton.title = nls.localize('reply', "Reply...");
+		this._reviewThreadReplyButton.textContent = nls.localize('reply', "Reply...");
 		// bind click/escape actions for reviewThreadReplyButton and textArea
 		this._reviewThreadReplyButton.onclick = () => {
 			if (!dom.hasClass(this._commentForm, 'expand')) {
@@ -489,7 +487,11 @@ export class ReviewZoneWidget extends ZoneWidget {
 		if (model) {
 			let valueLength = model.getValueLength();
 			const hasExistingComments = this._commentThread.comments.length > 0;
-			let placeholder = valueLength > 0 ? '' : (hasExistingComments ? 'Reply... (press Ctrl+Enter to submit)' : 'Type a new comment (press Ctrl+Enter to submit)');
+			let placeholder = valueLength > 0
+				? ''
+				: (hasExistingComments
+					? nls.localize('replytoCommentThread', "Reply... (press Ctrl+Enter to submit)")
+					: nls.localize('createCommentThread', "Type a new comment (press Ctrl+Enter to submit)"));
 			const decorations = [{
 				range: {
 					startLineNumber: 0,
@@ -627,6 +629,13 @@ export class ReviewZoneWidget extends ZoneWidget {
 			content.push(`.monaco-editor .review-widget .body .comment-form .validation-error { background: ${errorBackground}; }`);
 		}
 
+		const fontInfo = this.editor.getConfiguration().fontInfo;
+		content.push(`.monaco-editor .review-widget .body code {
+			font-family: ${fontInfo.fontFamily};
+			font-size: ${fontInfo.fontSize}px;
+			font-weight: ${fontInfo.fontWeight};
+		}`);
+
 		this._styleElement.innerHTML = content.join('\n');
 
 		// Editor decorations should also be responsive to theme changes
@@ -656,6 +665,7 @@ export class ReviewZoneWidget extends ZoneWidget {
 			this._commentGlyph = null;
 		}
 
+		this._globalToDispose.forEach(global => global.dispose());
 		this._localToDispose.forEach(local => local.dispose());
 		this._onDidClose.fire();
 	}

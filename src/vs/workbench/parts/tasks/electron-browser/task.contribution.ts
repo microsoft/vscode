@@ -2419,8 +2419,8 @@ class TaskService implements ITaskService {
 	}
 }
 
-MenuRegistry.appendMenuItem(MenuId.MenubarTasksMenu, {
-	group: '1_run',
+MenuRegistry.appendMenuItem(MenuId.MenubarTerminalMenu, {
+	group: '2_run',
 	command: {
 		id: 'workbench.action.tasks.runTask',
 		title: nls.localize({ key: 'miRunTask', comment: ['&& denotes a mnemonic'] }, "&&Run Task...")
@@ -2428,8 +2428,8 @@ MenuRegistry.appendMenuItem(MenuId.MenubarTasksMenu, {
 	order: 1
 });
 
-MenuRegistry.appendMenuItem(MenuId.MenubarTasksMenu, {
-	group: '1_run',
+MenuRegistry.appendMenuItem(MenuId.MenubarTerminalMenu, {
+	group: '2_run',
 	command: {
 		id: 'workbench.action.tasks.build',
 		title: nls.localize({ key: 'miBuildTask', comment: ['&& denotes a mnemonic'] }, "Run &&Build Task...")
@@ -2438,8 +2438,8 @@ MenuRegistry.appendMenuItem(MenuId.MenubarTasksMenu, {
 });
 
 // Manage Tasks
-MenuRegistry.appendMenuItem(MenuId.MenubarTasksMenu, {
-	group: '2_manage',
+MenuRegistry.appendMenuItem(MenuId.MenubarTerminalMenu, {
+	group: '3_manage',
 	command: {
 		precondition: TASK_RUNNING_STATE,
 		id: 'workbench.action.tasks.showTasks',
@@ -2448,8 +2448,8 @@ MenuRegistry.appendMenuItem(MenuId.MenubarTasksMenu, {
 	order: 1
 });
 
-MenuRegistry.appendMenuItem(MenuId.MenubarTasksMenu, {
-	group: '2_manage',
+MenuRegistry.appendMenuItem(MenuId.MenubarTerminalMenu, {
+	group: '3_manage',
 	command: {
 		precondition: TASK_RUNNING_STATE,
 		id: 'workbench.action.tasks.restartTask',
@@ -2458,8 +2458,8 @@ MenuRegistry.appendMenuItem(MenuId.MenubarTasksMenu, {
 	order: 2
 });
 
-MenuRegistry.appendMenuItem(MenuId.MenubarTasksMenu, {
-	group: '2_manage',
+MenuRegistry.appendMenuItem(MenuId.MenubarTerminalMenu, {
+	group: '3_manage',
 	command: {
 		precondition: TASK_RUNNING_STATE,
 		id: 'workbench.action.tasks.terminate',
@@ -2469,8 +2469,8 @@ MenuRegistry.appendMenuItem(MenuId.MenubarTasksMenu, {
 });
 
 // Configure Tasks
-MenuRegistry.appendMenuItem(MenuId.MenubarTasksMenu, {
-	group: '3_configure',
+MenuRegistry.appendMenuItem(MenuId.MenubarTerminalMenu, {
+	group: '4_configure',
 	command: {
 		id: 'workbench.action.tasks.configureTaskRunner',
 		title: nls.localize({ key: 'miConfigureTask', comment: ['&& denotes a mnemonic'] }, "&&Configure Tasks...")
@@ -2478,8 +2478,8 @@ MenuRegistry.appendMenuItem(MenuId.MenubarTasksMenu, {
 	order: 1
 });
 
-MenuRegistry.appendMenuItem(MenuId.MenubarTasksMenu, {
-	group: '3_configure',
+MenuRegistry.appendMenuItem(MenuId.MenubarTerminalMenu, {
+	group: '4_configure',
 	command: {
 		id: 'workbench.action.tasks.configureDefaultBuildTask',
 		title: nls.localize({ key: 'miConfigureBuildTask', comment: ['&& denotes a mnemonic'] }, "Configure De&&fault Build Task...")

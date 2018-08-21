@@ -150,7 +150,7 @@ export class TestContextService implements IWorkspaceContextService {
 
 	public isInsideWorkspace(resource: URI): boolean {
 		if (resource && this.workspace) {
-			return resources.isEqualOrParent(resource, this.workspace.folders[0].uri, resources.hasToIgnoreCase(resource));
+			return resources.isEqualOrParent(resource, this.workspace.folders[0].uri);
 		}
 
 		return false;
@@ -161,7 +161,7 @@ export class TestContextService implements IWorkspaceContextService {
 	}
 
 	public isCurrentWorkspace(workspaceIdentifier: ISingleFolderWorkspaceIdentifier | IWorkspaceIdentifier): boolean {
-		return isSingleFolderWorkspaceIdentifier(workspaceIdentifier) && resources.isEqual(this.workspace.folders[0].uri, workspaceIdentifier, resources.hasToIgnoreCase(workspaceIdentifier));
+		return isSingleFolderWorkspaceIdentifier(workspaceIdentifier) && resources.isEqual(this.workspace.folders[0].uri, workspaceIdentifier);
 	}
 }
 
@@ -398,8 +398,6 @@ export class TestPartService implements IPartService {
 	public get onEditorLayout(): Event<IDimension> {
 		return this._onEditorLayout.event;
 	}
-
-	public layout(): void { }
 
 	public isCreated(): boolean {
 		return true;

@@ -10,6 +10,7 @@ import { join } from 'vs/base/common/paths';
 import { ISettingsEditorModel, ISearchResult } from 'vs/workbench/services/preferences/common/preferences';
 import { IEditor } from 'vs/workbench/common/editor';
 import { IKeybindingItemEntry } from 'vs/workbench/services/preferences/common/keybindingsEditorModel';
+import { CancellationToken } from 'vs/base/common/cancellation';
 
 export interface IWorkbenchSettingsConfiguration {
 	workbench: {
@@ -40,7 +41,7 @@ export interface IPreferencesSearchService {
 }
 
 export interface ISearchProvider {
-	searchModel(preferencesModel: ISettingsEditorModel): TPromise<ISearchResult>;
+	searchModel(preferencesModel: ISettingsEditorModel, token?: CancellationToken): TPromise<ISearchResult>;
 }
 
 export interface IKeybindingsEditor extends IEditor {
@@ -74,6 +75,7 @@ export const SETTINGS_EDITOR_COMMAND_FOCUS_FILE = 'settings.action.focusSettings
 export const SETTINGS_EDITOR_COMMAND_EDIT_FOCUSED_SETTING = 'settings.action.editFocusedSetting';
 export const SETTINGS_EDITOR_COMMAND_FOCUS_SETTINGS_FROM_SEARCH = 'settings.action.focusSettingsFromSearch';
 export const SETTINGS_EDITOR_COMMAND_FOCUS_SETTINGS_LIST = 'settings.action.focusSettingsList';
+export const SETTINGS_EDITOR_COMMAND_SHOW_CONTEXT_MENU = 'settings.action.showContextMenu';
 
 export const KEYBINDINGS_EDITOR_COMMAND_SEARCH = 'keybindings.editor.searchKeybindings';
 export const KEYBINDINGS_EDITOR_COMMAND_CLEAR_SEARCH_RESULTS = 'keybindings.editor.clearSearchResults';

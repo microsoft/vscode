@@ -4,7 +4,7 @@
 		"If you want to provide a fix or improvement, please create a pull request against the original repository.",
 		"Once accepted there, we are happy to receive an update request."
 	],
-	"version": "https://github.com/microsoft/vscode-markdown-tm-grammar/commit/4504240cdb13a4640f64fc98a0adb858226a879e",
+	"version": "https://github.com/microsoft/vscode-markdown-tm-grammar/commit/935f7a6d1da73e16231be18c545d7991d3698075",
 	"name": "Markdown",
 	"scopeName": "text.html.markdown",
 	"patterns": [
@@ -166,6 +166,9 @@
 					"include": "#fenced_code_block_dart"
 				},
 				{
+					"include": "#fenced_code_block_handlebars"
+				},
+				{
 					"include": "#fenced_code_block_unknown"
 				},
 				{
@@ -186,7 +189,7 @@
 					"begin": "(^|\\G)[ ]{0,3}(>) ?",
 					"captures": {
 						"2": {
-							"name": "beginning.punctuation.definition.quote.markdown"
+							"name": "punctuation.definition.quote.begin.markdown"
 						}
 					},
 					"name": "markup.quote.markdown",
@@ -1685,6 +1688,39 @@
 						}
 					]
 				},
+				"fenced_code_block_handlebars": {
+					"begin": "(^|\\G)(\\s*)(`{3,}|~{3,})\\s*(?i:(handlebars|hbs)(\\s+[^`~]*)?$)",
+					"name": "markup.fenced_code.block.markdown",
+					"end": "(^|\\G)(\\2|\\s{0,3})(\\3)\\s*$",
+					"beginCaptures": {
+						"3": {
+							"name": "punctuation.definition.markdown"
+						},
+						"5": {
+							"name": "fenced_code.block.language"
+						},
+						"6": {
+							"name": "fenced_code.block.language.attributes"
+						}
+					},
+					"endCaptures": {
+						"3": {
+							"name": "punctuation.definition.markdown"
+						}
+					},
+					"patterns": [
+						{
+							"begin": "(^|\\G)(\\s*)(.*)",
+							"while": "(^|\\G)(?!\\s*([`~]{3,})\\s*$)",
+							"contentName": "meta.embedded.block.handlebars",
+							"patterns": [
+								{
+									"include": "text.html.handlebars"
+								}
+							]
+						}
+					]
+				},
 				"fenced_code_block_unknown": {
 					"begin": "(^|\\G)(\\s*)(`{3,}|~{3,})\\s*(?=([^`~]*)?$)",
 					"beginCaptures": {
@@ -1937,7 +1973,7 @@
 							"begin": "(^|\\G)([ ]{0,3})([*+-])([ ]{1,3}|\\t)",
 							"beginCaptures": {
 								"3": {
-									"name": "beginning.punctuation.definition.list.markdown"
+									"name": "punctuation.definition.list.begin.markdown"
 								}
 							},
 							"comment": "Currently does not support un-indented second lines.",
@@ -1956,7 +1992,7 @@
 							"begin": "(^|\\G)([ ]{0,3})([0-9]+\\.)([ ]{1,3}|\\t)",
 							"beginCaptures": {
 								"3": {
-									"name": "beginning.punctuation.definition.list.markdown"
+									"name": "punctuation.definition.list.begin.markdown"
 								}
 							},
 							"name": "markup.list.numbered.markdown",
@@ -1994,7 +2030,7 @@
 					"while": "(^|\\G)([ ]{4}|\\t)"
 				},
 				"separator": {
-					"match": "(^|\\G)[ ]{0,3}([\\*\\-\\_])([ ]{0,2}\\2){2,}[ \\t]*$\\n?",
+					"match": "(^|\\G)[ ]{0,3}([*-_])([ ]{0,2}\\2){2,}[ \\t]*$\\n?",
 					"name": "meta.separator.markdown"
 				}
 			}
@@ -2058,7 +2094,7 @@
 					"name": "meta.other.valid-ampersand.markdown"
 				},
 				"bold": {
-					"begin": "(?x)\n ((?<!\\w)\\*\\*\\b|\\b__)(?=\\S)                # Open\n (?=\n   (\n     <[^>]*+>              # HTML tags\n     | (?<raw>`+)([^`]|(?!(?<!`)\\k<raw>(?!`))`)*+\\k<raw>\n                       # Raw\n     | \\\\[\\\\`*_{}\\[\\]()#.!+\\->]?+      # Escapes\n     | \\[\n     (\n         (?<square>          # Named group\n           [^\\[\\]\\\\]        # Match most chars\n           | \\\\.            # Escaped chars\n           | \\[ \\g<square>*+ \\]    # Nested brackets\n         )*+\n       \\]\n       (\n         (              # Reference Link\n           [ ]?          # Optional space\n           \\[[^\\]]*+\\]        # Ref name\n         )\n         | (              # Inline Link\n           \\(            # Opening paren\n             [ \\t]*+        # Optional whitespace\n             <?(.*?)>?      # URL\n             [ \\t]*+        # Optional whitespace\n             (          # Optional Title\n               (?<title>['\"])\n               (.*?)\n               \\k<title>\n             )?\n           \\)\n         )\n       )\n     )\n     | (?!(?<=\\S)\\1).            # Everything besides\n                       # style closer\n   )++\n   (?<=\\S)(?=__\\b|\\*\\*)\\1                # Close\n )\n",
+					"begin": "(?x)\n (\\*\\*(?=\\w)|(?<!\\w)\\*\\*|(?<!\\w)\\b__)(?=\\S)                # Open\n (?=\n   (\n     <[^>]*+>              # HTML tags\n     | (?<raw>`+)([^`]|(?!(?<!`)\\k<raw>(?!`))`)*+\\k<raw>\n                       # Raw\n     | \\\\[\\\\`*_{}\\[\\]()#.!+\\->]?+      # Escapes\n     | \\[\n     (\n         (?<square>          # Named group\n           [^\\[\\]\\\\]        # Match most chars\n           | \\\\.            # Escaped chars\n           | \\[ \\g<square>*+ \\]    # Nested brackets\n         )*+\n       \\]\n       (\n         (              # Reference Link\n           [ ]?          # Optional space\n           \\[[^\\]]*+\\]        # Ref name\n         )\n         | (              # Inline Link\n           \\(            # Opening paren\n             [ \\t]*+        # Optional whitespace\n             <?(.*?)>?      # URL\n             [ \\t]*+        # Optional whitespace\n             (          # Optional Title\n               (?<title>['\"])\n               (.*?)\n               \\k<title>\n             )?\n           \\)\n         )\n       )\n     )\n     | (?!(?<=\\S)\\1).            # Everything besides\n                       # style closer\n   )++\n   (?<=\\S)(?=__\\b|\\*\\*)\\1                # Close\n )\n",
 					"captures": {
 						"1": {
 							"name": "punctuation.definition.bold.markdown"
@@ -2200,7 +2236,7 @@
 					"name": "meta.image.reference.markdown"
 				},
 				"italic": {
-					"begin": "(?x) (\\*\\b|\\b_)(?=\\S)                # Open\n  (?=\n    (\n      <[^>]*+>              # HTML tags\n      | (?<raw>`+)([^`]|(?!(?<!`)\\k<raw>(?!`))`)*+\\k<raw>\n                        # Raw\n      | \\\\[\\\\`*_{}\\[\\]()#.!+\\->]?+      # Escapes\n      | \\[\n      (\n          (?<square>          # Named group\n            [^\\[\\]\\\\]        # Match most chars\n            | \\\\.            # Escaped chars\n            | \\[ \\g<square>*+ \\]    # Nested brackets\n          )*+\n        \\]\n        (\n          (              # Reference Link\n            [ ]?          # Optional space\n            \\[[^\\]]*+\\]        # Ref name\n          )\n          | (              # Inline Link\n            \\(            # Opening paren\n              [ \\t]*+        # Optional whtiespace\n              <?(.*?)>?      # URL\n              [ \\t]*+        # Optional whtiespace\n              (          # Optional Title\n                (?<title>['\"])\n                (.*?)\n                \\k<title>\n              )?\n            \\)\n          )\n        )\n      )\n      | \\1\\1                # Must be bold closer\n      | (?!(?<=\\S)\\1).            # Everything besides\n                        # style closer\n    )++\n    (?<=\\S)(?=_\\b|\\*)\\1                # Close\n  )\n",
+					"begin": "(?x) (\\*(?=\\w)|(?<!\\w)\\*|(?<!\\w)\\b_)(?=\\S)                # Open\n  (?=\n    (\n      <[^>]*+>              # HTML tags\n      | (?<raw>`+)([^`]|(?!(?<!`)\\k<raw>(?!`))`)*+\\k<raw>\n                        # Raw\n      | \\\\[\\\\`*_{}\\[\\]()#.!+\\->]?+      # Escapes\n      | \\[\n      (\n          (?<square>          # Named group\n            [^\\[\\]\\\\]        # Match most chars\n            | \\\\.            # Escaped chars\n            | \\[ \\g<square>*+ \\]    # Nested brackets\n          )*+\n        \\]\n        (\n          (              # Reference Link\n            [ ]?          # Optional space\n            \\[[^\\]]*+\\]        # Ref name\n          )\n          | (              # Inline Link\n            \\(            # Opening paren\n              [ \\t]*+        # Optional whtiespace\n              <?(.*?)>?      # URL\n              [ \\t]*+        # Optional whtiespace\n              (          # Optional Title\n                (?<title>['\"])\n                (.*?)\n                \\k<title>\n              )?\n            \\)\n          )\n        )\n      )\n      | \\1\\1                # Must be bold closer\n      | (?!(?<=\\S)\\1).            # Everything besides\n                        # style closer\n    )++\n    (?<=\\S)(?=_\\b|\\*)\\1                # Close\n  )\n",
 					"captures": {
 						"1": {
 							"name": "punctuation.definition.italic.markdown"

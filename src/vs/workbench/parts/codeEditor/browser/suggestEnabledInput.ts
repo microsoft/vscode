@@ -186,9 +186,9 @@ export class SuggestEnabledInput extends Component {
 		this.placeholderText.style.color = this.getColor(inputPlaceholderForeground);
 
 		const inputBorderColor = this.getColor(inputBorder);
-		this.stylingContainer.style.borderWidth = inputBorderColor ? '1px' : null;
-		this.stylingContainer.style.borderStyle = inputBorderColor ? 'solid' : null;
-		this.stylingContainer.style.borderColor = inputBorderColor;
+		this.stylingContainer.style.borderWidth = '1px';
+		this.stylingContainer.style.borderStyle = 'solid';
+		this.stylingContainer.style.borderColor = inputBorderColor || 'transparent';
 
 		let cursor = this.stylingContainer.getElementsByClassName('cursor')[0] as HTMLDivElement;
 		if (cursor) {

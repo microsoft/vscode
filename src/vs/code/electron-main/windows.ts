@@ -37,7 +37,7 @@ import { normalizeNFC } from 'vs/base/common/normalization';
 import URI from 'vs/base/common/uri';
 import { Queue } from 'vs/base/common/async';
 import { exists } from 'vs/base/node/pfs';
-import { getComparisonKey, isEqual, hasToIgnoreCase, normalizePath } from 'vs/base/common/resources';
+import { getComparisonKey, isEqual, normalizePath } from 'vs/base/common/resources';
 import { endsWith } from 'vs/base/common/strings';
 
 enum WindowError {
@@ -328,7 +328,7 @@ export class WindowsManager implements IWindowsMainService {
 		else if (!win.isExtensionDevelopmentHost && (!!win.openedWorkspace || !!win.openedFolderUri)) {
 			this.windowsState.openedWindows.forEach(o => {
 				const sameWorkspace = win.openedWorkspace && o.workspace && o.workspace.id === win.openedWorkspace.id;
-				const sameFolder = win.openedFolderUri && o.folderUri && isEqual(o.folderUri, win.openedFolderUri, hasToIgnoreCase(o.folderUri));
+				const sameFolder = win.openedFolderUri && o.folderUri && isEqual(o.folderUri, win.openedFolderUri);
 
 				if (sameWorkspace || sameFolder) {
 					o.uiState = state.uiState;
@@ -444,7 +444,7 @@ export class WindowsManager implements IWindowsMainService {
 					const usedWindow = usedWindows[i];
 					if (
 						(usedWindow.openedWorkspace && workspacesToRestore.some(workspace => workspace.id === usedWindow.openedWorkspace.id)) || 							// skip over restored workspace
-						(usedWindow.openedFolderUri && foldersToRestore.some(folder => isEqual(folder, usedWindow.openedFolderUri, hasToIgnoreCase(folder)))) ||	// skip over restored folder
+						(usedWindow.openedFolderUri && foldersToRestore.some(folder => isEqual(folder, usedWindow.openedFolderUri))) ||	// skip over restored folder
 						(usedWindow.backupPath && emptyToRestore.some(empty => empty === basename(usedWindow.backupPath)))													// skip over restored empty window
 					) {
 						continue;
@@ -660,7 +660,7 @@ export class WindowsManager implements IWindowsMainService {
 			// Open remaining ones
 			allFoldersToOpen.forEach(folderToOpen => {
 
-				if (windowsOnFolderPath.some(win => isEqual(win.openedFolderUri, folderToOpen, hasToIgnoreCase(win.openedFolderUri)))) {
+				if (windowsOnFolderPath.some(win => isEqual(win.openedFolderUri, folderToOpen))) {
 					return; // ignore folders that are already open
 				}
 
@@ -1324,7 +1324,7 @@ export class WindowsManager implements IWindowsMainService {
 
 			// Known Folder - load from stored settings
 			if (configuration.folderUri) {
-				const stateForFolder = this.windowsState.openedWindows.filter(o => o.folderUri && isEqual(o.folderUri, configuration.folderUri, hasToIgnoreCase(o.folderUri))).map(o => o.uiState);
+				const stateForFolder = this.windowsState.openedWindows.filter(o => o.folderUri && isEqual(o.folderUri, configuration.folderUri)).map(o => o.uiState);
 				if (stateForFolder.length) {
 					return stateForFolder[0];
 				}

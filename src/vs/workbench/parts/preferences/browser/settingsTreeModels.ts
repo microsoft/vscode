@@ -42,8 +42,8 @@ export class SettingsTreeNewExtensionsElement extends SettingsTreeElement {
 export class SettingsTreeSettingElement extends SettingsTreeElement {
 	setting: ISetting;
 
-	displayCategory: string;
-	displayLabel: string;
+	_displayCategory: string;
+	_displayLabel: string;
 
 	/**
 	 * scopeValue || defaultValue, for rendering convenience.
@@ -79,6 +79,28 @@ export class SettingsTreeSettingElement extends SettingsTreeElement {
 		this.update(inspectResult);
 	}
 
+	get displayCategory(): string {
+		if (!this._displayCategory) {
+			this.initLabel();
+		}
+
+		return this._displayCategory;
+	}
+
+	get displayLabel(): string {
+		if (!this._displayLabel) {
+			this.initLabel();
+		}
+
+		return this._displayLabel;
+	}
+
+	private initLabel(): void {
+		const displayKeyFormat = settingKeyToDisplayFormat(this.setting.key, this.parent.id);
+		this._displayLabel = displayKeyFormat.label;
+		this._displayCategory = displayKeyFormat.category;
+	}
+
 	update(inspectResult: IInspectResult): void {
 		const { isConfigured, inspected, targetSelector } = inspectResult;
 
@@ -91,10 +113,6 @@ export class SettingsTreeSettingElement extends SettingsTreeElement {
 		if (targetSelector === 'workspace' && typeof inspected.user !== 'undefined') {
 			overriddenScopeList.push(localize('user', "User"));
 		}
-
-		const displayKeyFormat = settingKeyToDisplayFormat(this.setting.key, this.parent.id);
-		this.displayLabel = displayKeyFormat.label;
-		this.displayCategory = displayKeyFormat.category;
 
 		this.value = displayValue;
 		this.scopeValue = isConfigured && inspected[targetSelector];
@@ -192,7 +210,7 @@ export class SettingsTreeModel {
 		return this._treeElementsById.get(id);
 	}
 
-	getElementByName(name: string): SettingsTreeSettingElement[] {
+	getElementsByName(name: string): SettingsTreeSettingElement[] {
 		return this._treeElementsBySettingName.get(name);
 	}
 
@@ -214,13 +232,16 @@ export class SettingsTreeModel {
 		element.parent = parent;
 		element.level = this.getDepth(element);
 
-		if (tocEntry.children) {
-			element.children = tocEntry.children.map(child => this.createSettingsTreeGroupElement(child, element));
-		} else if (tocEntry.settings) {
-			element.children = tocEntry.settings.map(s => this.createSettingsTreeSettingElement(<ISetting>s, element))
+		element.children = [];
+		if (tocEntry.settings) {
+			const settingChildren = tocEntry.settings.map(s => this.createSettingsTreeSettingElement(<ISetting>s, element))
 				.filter(el => el.setting.deprecationMessage ? el.isConfigured : true);
-		} else {
-			element.children = [];
+			element.children.push(...settingChildren);
+		}
+
+		if (tocEntry.children) {
+			const groupChildren = tocEntry.children.map(child => this.createSettingsTreeGroupElement(child, element));
+			element.children.push(...groupChildren);
 		}
 
 		this._treeElementsById.set(element.id, element);
@@ -379,7 +400,9 @@ export class SearchResultModel extends SettingsTreeModel {
 			remoteResult.filterMatches = remoteResult.filterMatches.filter(m => !localMatchKeys.has(m.setting.key));
 		}
 
-		this.newExtensionSearchResults = objects.deepClone(this.rawSearchResults[SearchResultIdx.NewExtensions]);
+		if (remoteResult) {
+			this.newExtensionSearchResults = objects.deepClone(this.rawSearchResults[SearchResultIdx.NewExtensions]);
+		}
 
 		this.cachedUniqueSearchResults = [localResult, remoteResult];
 		return this.cachedUniqueSearchResults;
@@ -408,7 +431,7 @@ export class SearchResultModel extends SettingsTreeModel {
 			settings: this.getFlatSettings()
 		});
 
-		if (this.newExtensionSearchResults) {
+		if (this.newExtensionSearchResults && this.newExtensionSearchResults.filterMatches.length) {
 			const newExtElement = new SettingsTreeNewExtensionsElement();
 			newExtElement.parent = this._root;
 			newExtElement.id = 'newExtensions';

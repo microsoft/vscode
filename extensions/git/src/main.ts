@@ -77,7 +77,7 @@ export async function activate(context: ExtensionContext): Promise<API> {
 	commands.registerCommand('git.showOutput', () => outputChannel.show());
 	disposables.push(outputChannel);
 
-	const { name, version, aiKey } = require(context.asAbsolutePath('./package.json')) as { name: string, version: string, aiKey: string };
+	const { name, version, aiKey } = require('../package.json') as { name: string, version: string, aiKey: string };
 	const telemetryReporter = new TelemetryReporter(name, version, aiKey);
 	deactivateTasks.push(() => telemetryReporter.dispose());
 
