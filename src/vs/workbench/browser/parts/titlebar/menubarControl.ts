@@ -403,7 +403,7 @@ export class MenubarControl extends Disposable {
 		}
 
 		// Alt key released
-		if (allModifiersReleased && modifierKeyStatus.lastKeyReleased === 'alt') {
+		if (!modifierKeyStatus.altKey && modifierKeyStatus.lastKeyReleased === 'alt') {
 			this.awaitingAltRelease = false;
 		}
 
