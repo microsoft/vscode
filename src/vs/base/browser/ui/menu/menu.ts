@@ -7,13 +7,15 @@
 
 import 'vs/css!./menu';
 import * as nls from 'vs/nls';
+import * as strings from 'vs/base/common/strings';
 import { IActionRunner, IAction, Action } from 'vs/base/common/actions';
 import { ActionBar, IActionItemProvider, ActionsOrientation, Separator, ActionItem, IActionItemOptions, BaseActionItem } from 'vs/base/browser/ui/actionbar/actionbar';
-import { ResolvedKeybinding, KeyCode } from 'vs/base/common/keyCodes';
-import { addClass, EventType, EventHelper, EventLike, removeTabIndexAndUpdateFocus, isAncestor, hasClass } from 'vs/base/browser/dom';
+import { ResolvedKeybinding, KeyCode, KeyCodeUtils } from 'vs/base/common/keyCodes';
+import { addClass, EventType, EventHelper, EventLike, removeTabIndexAndUpdateFocus, isAncestor, hasClass, addDisposableListener } from 'vs/base/browser/dom';
 import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { $, Builder } from 'vs/base/browser/builder';
 import { RunOnceScheduler } from 'vs/base/common/async';
+import { IDisposable } from 'vs/base/common/lifecycle';
 
 export interface IMenuOptions {
 	context?: any;
@@ -21,6 +23,7 @@ export interface IMenuOptions {
 	actionRunner?: IActionRunner;
 	getKeyBinding?: (action: IAction) => ResolvedKeybinding;
 	ariaLabel?: string;
+	enableMnemonics?: boolean;
 }
 
 
@@ -36,8 +39,11 @@ interface ISubMenuData {
 }
 
 export class Menu extends ActionBar {
+	private mnemonics: Map<KeyCode, Array<MenuActionItem>>;
+	private menuDisposables: IDisposable[];
 
 	constructor(container: HTMLElement, actions: IAction[], options: IMenuOptions = {}) {
+
 		addClass(container, 'monaco-menu-container');
 		container.setAttribute('role', 'presentation');
 		let menuContainer = document.createElement('div');
@@ -56,6 +62,34 @@ export class Menu extends ActionBar {
 		this.actionsList.setAttribute('role', 'menu');
 
 		this.domNode.tabIndex = 0;
+
+		this.menuDisposables = [];
+
+		if (options.enableMnemonics) {
+			this.menuDisposables.push(addDisposableListener(menuContainer, EventType.KEY_DOWN, (e) => {
+				const key = KeyCodeUtils.fromString(e.key);
+				if (this.mnemonics.has(key)) {
+					EventHelper.stop(e, true);
+					const actions = this.mnemonics.get(key);
+
+					if (actions.length === 1) {
+						if (actions[0] instanceof SubmenuActionItem) {
+							this.focusItemByElement(actions[0].container);
+						}
+
+						actions[0].onClick(event);
+					}
+
+					if (actions.length > 1) {
+						const action = actions.shift();
+						this.focusItemByElement(action.container);
+
+						actions.push(action);
+						this.mnemonics.set(key, actions);
+					}
+				}
+			}));
+		}
 
 		$(this.domNode).on(EventType.MOUSE_OUT, (e) => {
 			let relatedTarget = (e as MouseEvent).relatedTarget as HTMLElement;
@@ -90,7 +124,18 @@ export class Menu extends ActionBar {
 			parent: this
 		};
 
+		this.mnemonics = new Map<KeyCode, Array<MenuActionItem>>();
+
 		this.push(actions, { icon: true, label: true, isMenu: true });
+	}
+
+	private focusItemByElement(element: HTMLElement) {
+		const lastFocusedItem = this.focusedItem;
+		this.setFocusedItem(element);
+
+		if (lastFocusedItem !== this.focusedItem) {
+			this.updateFocus();
+		}
 	}
 
 	private setFocusedItem(element: HTMLElement): void {
@@ -107,9 +152,25 @@ export class Menu extends ActionBar {
 		if (action instanceof Separator) {
 			return new ActionItem(options.context, action, { icon: true });
 		} else if (action instanceof SubmenuAction) {
-			return new SubmenuActionItem(action, action.entries, parentData, options);
+			const menuActionItem = new SubmenuActionItem(action, action.entries, parentData, options);
+
+			if (options.enableMnemonics) {
+				const mnemonic = menuActionItem.getMnemonic();
+				if (mnemonic && menuActionItem.isEnabled()) {
+					let actionItems = [];
+					if (this.mnemonics.has(mnemonic)) {
+						actionItems = this.mnemonics.get(mnemonic);
+					}
+
+					actionItems.push(menuActionItem);
+
+					this.mnemonics.set(mnemonic, actionItems);
+				}
+			}
+
+			return menuActionItem;
 		} else {
-			const menuItemOptions: IActionItemOptions = {};
+			const menuItemOptions: IMenuItemOptions = { enableMnemonics: options.enableMnemonics };
 			if (options.getKeyBinding) {
 				const keybinding = options.getKeyBinding(action);
 				if (keybinding) {
@@ -117,7 +178,23 @@ export class Menu extends ActionBar {
 				}
 			}
 
-			return new MenuActionItem(options.context, action, menuItemOptions);
+			const menuActionItem = new MenuActionItem(options.context, action, menuItemOptions);
+
+			if (options.enableMnemonics) {
+				const mnemonic = menuActionItem.getMnemonic();
+				if (mnemonic && menuActionItem.isEnabled()) {
+					let actionItems = [];
+					if (this.mnemonics.has(mnemonic)) {
+						actionItems = this.mnemonics.get(mnemonic);
+					}
+
+					actionItems.push(menuActionItem);
+
+					this.mnemonics.set(mnemonic, actionItems);
+				}
+			}
+
+			return menuActionItem;
 		}
 	}
 
@@ -126,16 +203,23 @@ export class Menu extends ActionBar {
 	}
 }
 
+interface IMenuItemOptions extends IActionItemOptions {
+	enableMnemonics?: boolean;
+}
+
 class MenuActionItem extends BaseActionItem {
 	static MNEMONIC_REGEX: RegExp = /&&(.)/g;
+	static ESCAPED_MNEMONIC_REGEX: RegExp = /&amp;&amp;(.)/g;
 
+	public container: HTMLElement;
 	protected $e: Builder;
 	protected $label: Builder;
 	protected $check: Builder;
-	protected options: IActionItemOptions;
+	protected options: IMenuItemOptions;
+	protected mnemonic: KeyCode;
 	private cssClass: string;
 
-	constructor(ctx: any, action: IAction, options: IActionItemOptions = {}) {
+	constructor(ctx: any, action: IAction, options: IMenuItemOptions = {}) {
 		options.isMenu = true;
 		super(action, action, options);
 
@@ -143,10 +227,23 @@ class MenuActionItem extends BaseActionItem {
 		this.options.icon = options.icon !== undefined ? options.icon : false;
 		this.options.label = options.label !== undefined ? options.label : true;
 		this.cssClass = '';
+
+		// Set mnemonic
+		if (this.options.label && options.enableMnemonics) {
+			let label = this.getAction().label;
+			if (label) {
+				let matches = MenuActionItem.MNEMONIC_REGEX.exec(label);
+				if (matches && matches.length === 2) {
+					this.mnemonic = KeyCodeUtils.fromString(matches[1].toLocaleLowerCase());
+				}
+			}
+		}
 	}
 
-	public render(container: HTMLElement): void {
+	render(container: HTMLElement): void {
 		super.render(container);
+
+		this.container = container;
 
 		this.$e = $('a.action-menu-item').appendTo(this.builder);
 		if (this._action.id === Separator.ID) {
@@ -170,12 +267,12 @@ class MenuActionItem extends BaseActionItem {
 		this._updateChecked();
 	}
 
-	public focus(): void {
+	focus(): void {
 		super.focus();
 		this.$e.domFocus();
 	}
 
-	public _updateLabel(): void {
+	_updateLabel(): void {
 		if (this.options.label) {
 			let label = this.getAction().label;
 			if (label) {
@@ -185,20 +282,25 @@ class MenuActionItem extends BaseActionItem {
 
 					let ariaLabel = label.replace(MenuActionItem.MNEMONIC_REGEX, mnemonic);
 
-					this.$e.getHTMLElement().accessKey = mnemonic.toLocaleLowerCase();
+					this.mnemonic = KeyCodeUtils.fromString(mnemonic.toLocaleLowerCase());
+
 					this.$label.attr('aria-label', ariaLabel);
 				} else {
 					this.$label.attr('aria-label', label);
 				}
 
-				label = label.replace(MenuActionItem.MNEMONIC_REGEX, '$1\u0332');
+				if (this.options.enableMnemonics) {
+					label = strings.escape(label).replace(MenuActionItem.ESCAPED_MNEMONIC_REGEX, '<u>$1</u>');
+				} else {
+					label = strings.escape(label).replace(MenuActionItem.ESCAPED_MNEMONIC_REGEX, '$1');
+				}
 			}
 
-			this.$label.text(label);
+			this.$label.innerHtml(label);
 		}
 	}
 
-	public _updateTooltip(): void {
+	_updateTooltip(): void {
 		let title: string = null;
 
 		if (this.getAction().tooltip) {
@@ -217,7 +319,7 @@ class MenuActionItem extends BaseActionItem {
 		}
 	}
 
-	public _updateClass(): void {
+	_updateClass(): void {
 		if (this.cssClass) {
 			this.$e.removeClass(this.cssClass);
 		}
@@ -233,7 +335,7 @@ class MenuActionItem extends BaseActionItem {
 		}
 	}
 
-	public _updateEnabled(): void {
+	_updateEnabled(): void {
 		if (this.getAction().enabled) {
 			this.builder.removeClass('disabled');
 			this.$e.removeClass('disabled');
@@ -245,12 +347,16 @@ class MenuActionItem extends BaseActionItem {
 		}
 	}
 
-	public _updateChecked(): void {
+	_updateChecked(): void {
 		if (this.getAction().checked) {
 			this.$e.addClass('checked');
 		} else {
 			this.$e.removeClass('checked');
 		}
+	}
+
+	getMnemonic(): KeyCode {
+		return this.mnemonic;
 	}
 }
 
@@ -267,7 +373,7 @@ class SubmenuActionItem extends MenuActionItem {
 		private parentData: ISubMenuData,
 		private submenuOptions?: IMenuOptions
 	) {
-		super(action, action, { label: true, isMenu: true });
+		super(action, action, submenuOptions);
 
 		this.showScheduler = new RunOnceScheduler(() => {
 			if (this.mouseOver) {
@@ -284,7 +390,7 @@ class SubmenuActionItem extends MenuActionItem {
 		}, 750);
 	}
 
-	public render(container: HTMLElement): void {
+	render(container: HTMLElement): void {
 		super.render(container);
 
 		this.$e.addClass('monaco-submenu-item');
@@ -326,10 +432,11 @@ class SubmenuActionItem extends MenuActionItem {
 		});
 	}
 
-	public onClick(e: EventLike) {
+	onClick(e: EventLike) {
 		// stop clicking from trying to run an action
 		EventHelper.stop(e, true);
 
+		this.cleanupExistingSubmenu(false);
 		this.createSubmenu(false);
 	}
 
@@ -376,6 +483,16 @@ class SubmenuActionItem extends MenuActionItem {
 
 
 			this.parentData.submenu = new Menu(this.submenuContainer.getHTMLElement(), this.submenuActions, this.submenuOptions);
+
+			this.parentData.submenu.onDidCancel(() => {
+				this.parentData.parent.focus();
+				this.parentData.submenu.dispose();
+				this.parentData.submenu = null;
+
+				this.submenuContainer.dispose();
+				this.submenuContainer = null;
+			});
+
 			this.parentData.submenu.focus(selectFirstItem);
 
 			this.mysubmenu = this.parentData.submenu;
@@ -384,7 +501,7 @@ class SubmenuActionItem extends MenuActionItem {
 		}
 	}
 
-	public dispose() {
+	dispose() {
 		super.dispose();
 
 		this.hideScheduler.dispose();

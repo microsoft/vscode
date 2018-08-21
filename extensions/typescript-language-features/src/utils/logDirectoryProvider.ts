@@ -28,11 +28,11 @@ export default class LogDirectoryProvider {
 	@memoize
 	private logDirectory(): string | undefined {
 		try {
-			const path = this.context.logDirectory;
+			const path = this.context.logPath;
 			if (!fs.existsSync(path)) {
 				fs.mkdirSync(path);
 			}
-			return this.context.logDirectory;
+			return this.context.logPath;
 		} catch {
 			return undefined;
 		}

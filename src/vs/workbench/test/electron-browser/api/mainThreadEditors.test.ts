@@ -79,6 +79,7 @@ suite('MainThreadEditors', () => {
 				const textEditorModel: ITextEditorModel = new class extends mock<ITextEditorModel>() {
 					textEditorModel = modelService.getModel(resource);
 				};
+				textEditorModel.isReadonly = () => false;
 				return TPromise.as(new ImmortalReference(textEditorModel));
 			}
 		};

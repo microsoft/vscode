@@ -4102,6 +4102,7 @@ declare namespace monaco.editor {
 		readonly isMonospace: boolean;
 		readonly typicalHalfwidthCharacterWidth: number;
 		readonly typicalFullwidthCharacterWidth: number;
+		readonly canUseHalfwidthRightwardsArrow: boolean;
 		readonly spaceWidth: number;
 		readonly maxDigitWidth: number;
 	}

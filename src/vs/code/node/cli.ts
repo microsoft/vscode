@@ -87,18 +87,17 @@ export async function main(argv: string[]): Promise<any> {
 
 			// Write source to target
 			const data = fs.readFileSync(source);
-			try {
+			if (isWindows) {
+				// On Windows we use a different strategy of saving the file
+				// by first truncating the file and then writing with r+ mode.
+				// This helps to save hidden files on Windows
+				// (see https://github.com/Microsoft/vscode/issues/931) and
+				// prevent removing alternate data streams
+				// (see https://github.com/Microsoft/vscode/issues/6363)
+				fs.truncateSync(target, 0);
+				writeFileAndFlushSync(target, data, { flag: 'r+' });
+			} else {
 				writeFileAndFlushSync(target, data);
-			} catch (error) {
-				// On Windows and if the file exists with an EPERM error, we try a different strategy of saving the file
-				// by first truncating the file and then writing with r+ mode. This helps to save hidden files on Windows
-				// (see https://github.com/Microsoft/vscode/issues/931)
-				if (isWindows && error.code === 'EPERM') {
-					fs.truncateSync(target, 0);
-					writeFileAndFlushSync(target, data, { flag: 'r+' });
-				} else {
-					throw error;
-				}
 			}
 
 			// Restore previous mode as needed
