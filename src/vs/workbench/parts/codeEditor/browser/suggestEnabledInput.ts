@@ -172,7 +172,7 @@ export class SuggestEnabledInput extends Component {
 			}
 		}));
 
-		this.updateStyles();
+		setImmediate(() => SuggestController.get(this.inputWidget).setDefaultDocsOrientation('vertical'));
 	}
 
 	public setValue(val: string) {

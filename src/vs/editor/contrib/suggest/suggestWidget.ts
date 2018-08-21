@@ -351,6 +351,10 @@ export interface ISelectedSuggestion {
 	model: CompletionModel;
 }
 
+export interface ISuggestWidgetOptions {
+	preferredOrientation?: 'horizontal' | 'vertical';
+}
+
 export class SuggestWidget implements IContentWidget, IVirtualDelegate<ICompletionItem>, IDisposable {
 
 	private static readonly ID: string = 'editor.widget.suggestWidget';
@@ -408,6 +412,7 @@ export class SuggestWidget implements IContentWidget, IVirtualDelegate<ICompleti
 
 	constructor(
 		private editor: ICodeEditor,
+		private options: ISuggestWidgetOptions,
 		@ITelemetryService private telemetryService: ITelemetryService,
 		@IContextKeyService contextKeyService: IContextKeyService,
 		@IThemeService themeService: IThemeService,
@@ -1010,7 +1015,9 @@ export class SuggestWidget implements IContentWidget, IVirtualDelegate<ICompleti
 		}
 
 		let matches = this.element.style.maxWidth.match(/(\d+)px/);
-		if (!matches || Number(matches[1]) < this.maxWidgetWidth) {
+
+		if ((!matches || Number(matches[1]) < this.maxWidgetWidth) && this.options.preferredOrientation !== 'horizontal' ||
+			this.options.preferredOrientation === 'vertical') {
 			addClass(this.element, 'docs-below');
 			removeClass(this.element, 'docs-side');
 		} else if (canExpandCompletionItem(this.focusedItem)) {

@@ -447,6 +447,13 @@
 	display: none;
 }
 
+.settings-editor > .settings-body > .settings-tree-container .setting-item.setting-item-enum .suggest-widget {
+	width: 320px;
+}
+.settings-editor > .settings-body > .settings-tree-container .setting-item.setting-item-enum .suggest-widget.docs-side {
+	width: 640px;
+}
+
 .settings-editor > .settings-body > .settings-tree-container .setting-item .setting-item-value .edit-in-settings-button,
 .settings-editor > .settings-body > .settings-tree-container .setting-item .setting-item-value .edit-in-settings-button:hover,
 .settings-editor > .settings-body > .settings-tree-container .setting-item .setting-item-value .edit-in-settings-button:active {
