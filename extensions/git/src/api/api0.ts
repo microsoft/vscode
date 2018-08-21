@@ -8,12 +8,40 @@
 import { Model } from '../model';
 import { GitExtension } from './git';
 import { Api } from './api';
+import { Event, SourceControlInputBox, Uri } from 'vscode';
+import { mapEvent } from '../util';
+import { Repository } from '../repository';
+
+class ApiInputBox implements GitExtension.InputBox {
+	set value(value: string) { this._inputBox.value = value; }
+	get value(): string { return this._inputBox.value; }
+	constructor(private _inputBox: SourceControlInputBox) { }
+}
+
+export class ApiRepository implements GitExtension.Repository {
+
+	readonly rootUri: Uri;
+	readonly inputBox: GitExtension.InputBox;
+
+	constructor(_repository: Repository) {
+		this.rootUri = Uri.file(_repository.root);
+		this.inputBox = new ApiInputBox(_repository.inputBox);
+	}
+}
 
 @Api('0.1.0')
 export class ApiImpl implements GitExtension.API {
 
 	get gitPath(): string {
 		return this._model.git.path;
+	}
+
+	get onDidOpenRepository(): Event<GitExtension.Repository> {
+		return mapEvent(this._model.onDidOpenRepository, r => new ApiRepository(r));
+	}
+
+	get onDidCloseRepository(): Event<GitExtension.Repository> {
+		return mapEvent(this._model.onDidCloseRepository, r => new ApiRepository(r));
 	}
 
 	constructor(private _model: Model) { }

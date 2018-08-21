@@ -3,15 +3,16 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Uri, SourceControlInputBox } from 'vscode';
+import { Uri, SourceControlInputBox, Event } from 'vscode';
 
 declare module GitExtension {
 
 	export interface API {
 		readonly gitPath: string;
+		readonly onDidOpenRepository: Event<Repository>;
+		readonly onDidCloseRepository: Event<Repository>;
 	}
 
-	//#region Deprecated API
 	export interface InputBox {
 		value: string;
 	}
@@ -20,7 +21,6 @@ declare module GitExtension {
 		readonly rootUri: Uri;
 		readonly inputBox: InputBox;
 	}
-	//#endregion
 }
 
 export interface GitExtension {

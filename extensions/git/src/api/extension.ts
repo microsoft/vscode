@@ -6,27 +6,9 @@
 'use strict';
 
 import { Model } from '../model';
-import { Repository as ModelRepository } from '../repository';
-import { Uri, SourceControlInputBox } from 'vscode';
 import { GitExtension } from './git';
 import { getAPI, deprecated } from './api';
-
-class InputBoxImpl implements GitExtension.InputBox {
-	set value(value: string) { this.inputBox.value = value; }
-	get value(): string { return this.inputBox.value; }
-	constructor(private inputBox: SourceControlInputBox) { }
-}
-
-class RepositoryImpl implements GitExtension.Repository {
-
-	readonly rootUri: Uri;
-	readonly inputBox: GitExtension.InputBox;
-
-	constructor(repository: ModelRepository) {
-		this.rootUri = Uri.file(repository.root);
-		this.inputBox = new InputBoxImpl(repository.inputBox);
-	}
-}
+import { ApiRepository } from './api0';
 
 class NoModelGitExtension implements GitExtension {
 
@@ -56,7 +38,7 @@ class GitExtensionImpl implements GitExtension {
 
 	@deprecated
 	async getRepositories(): Promise<GitExtension.Repository[]> {
-		return this._model.repositories.map(repository => new RepositoryImpl(repository));
+		return this._model.repositories.map(repository => new ApiRepository(repository));
 	}
 
 	getAPI(range: string): GitExtension.API {
