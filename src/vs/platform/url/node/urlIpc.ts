@@ -6,11 +6,11 @@
 'use strict';
 
 import { TPromise } from 'vs/base/common/winjs.base';
-import { IChannel } from 'vs/base/parts/ipc/common/ipc';
-import { IURLHandler, IURLService } from './url';
+import { IChannel } from 'vs/base/parts/ipc/node/ipc';
 import URI from 'vs/base/common/uri';
 import { IDisposable } from 'vs/base/common/lifecycle';
 import { Event } from 'vs/base/common/event';
+import { IURLService, IURLHandler } from 'vs/platform/url/common/url';
 
 export interface IURLServiceChannel extends IChannel {
 	call(command: 'open', url: string): TPromise<boolean>;

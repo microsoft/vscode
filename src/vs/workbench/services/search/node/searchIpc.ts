@@ -6,7 +6,7 @@
 'use strict';
 
 import { TPromise } from 'vs/base/common/winjs.base';
-import { IChannel } from 'vs/base/parts/ipc/common/ipc';
+import { IChannel } from 'vs/base/parts/ipc/node/ipc';
 import { IRawSearchService, IRawSearch, ISerializedSearchComplete, ISerializedSearchProgressItem, ITelemetryEvent } from './search';
 import { Event } from 'vs/base/common/event';
 
