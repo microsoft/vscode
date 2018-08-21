@@ -41,13 +41,11 @@ import { ExtensionsLifecycle } from 'vs/platform/extensionManagement/node/extens
 import { toErrorMessage } from 'vs/base/common/errorMessage';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { isEngineValid } from 'vs/platform/extensions/node/extensionValidator';
-import { getPathFromAmdModule } from 'vs/base/common/amd';
 import { tmpdir } from 'os';
 import { generateUuid } from 'vs/base/common/uuid';
 import { IDownloadService } from 'vs/platform/download/common/download';
 import { optional } from 'vs/platform/instantiation/common/instantiation';
 
-const SystemExtensionsRoot = path.normalize(path.join(getPathFromAmdModule(require, ''), '..', 'extensions'));
 const ERROR_SCANNING_SYS_EXTENSIONS = 'scanningSystem';
 const ERROR_SCANNING_USER_EXTENSIONS = 'scanningUser';
 const INSTALL_ERROR_UNSET_UNINSTALLED = 'unsetUninstalled';
@@ -114,6 +112,7 @@ export class ExtensionManagementService extends Disposable implements IExtension
 
 	_serviceBrand: any;
 
+	private systemExtensionsPath: string;
 	private extensionsPath: string;
 	private uninstalledPath: string;
 	private uninstalledFileLimiter: Limiter<void>;
@@ -145,6 +144,7 @@ export class ExtensionManagementService extends Disposable implements IExtension
 		@ITelemetryService private telemetryService: ITelemetryService,
 	) {
 		super();
+		this.systemExtensionsPath = environmentService.builtinExtensionsPath;
 		this.extensionsPath = environmentService.extensionsPath;
 		this.uninstalledPath = path.join(this.extensionsPath, '.obsolete');
 		this.uninstalledFileLimiter = new Limiter(1);
@@ -753,7 +753,7 @@ export class ExtensionManagementService extends Disposable implements IExtension
 
 	private scanSystemExtensions(): TPromise<ILocalExtension[]> {
 		this.logService.trace('Started scanning system extensions');
-		return this.scanExtensions(SystemExtensionsRoot, LocalExtensionType.System)
+		return this.scanExtensions(this.systemExtensionsPath, LocalExtensionType.System)
 			.then(result => {
 				this.logService.info('Scanned system extensions:', result.length);
 				return result;
