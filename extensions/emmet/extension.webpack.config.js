@@ -3,11 +3,13 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+//@ts-check
+
 'use strict';
 
 const withDefaults = require('../shared.webpack.config');
 
-const myConfig = {
+module.exports = withDefaults({
 	context: __dirname,
 	entry: {
 		extension: './src/extension.ts',
@@ -19,6 +21,4 @@ const myConfig = {
 		'image-size': 'commonjs image-size',
 		'vscode-emmet-helper': 'commonjs vscode-emmet-helper',
 	},
-};
-
-module.exports = withDefaults(myConfig);
+});
