@@ -115,4 +115,8 @@ suite('TokenSelectionSupport', () => {
 				// new Range(3, 19, 3, 20)
 			]);
 	});
+
+	test('empty file', () => {
+		assertGetRangesToPosition([''], 1, 1, []);
+	});
 });

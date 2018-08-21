@@ -33,58 +33,27 @@ export class Node {
 			this.end.column
 		);
 	}
-
-	parent: Node;
 }
 
 export class NodeList extends Node {
 
-	children: Node[];
-
 	get start(): Position {
-		return this.hasChildren
-			? this.children[0].start
-			: this.parent.start;
+		return this.children[0].start;
 	}
 
 	get end(): Position {
-		return this.hasChildren
-			? this.children[this.children.length - 1].end
-			: this.parent.end;
+		return this.children[this.children.length - 1].end;
 	}
 
-	get hasChildren() {
-		return this.children && this.children.length > 0;
-	}
-
-	get isEmpty() {
-		return !this.hasChildren && !this.parent;
-	}
-
-	public append(node: Node): boolean {
-		if (!node) {
-			return false;
+	constructor(public children: Node[]) {
+		super();
+		if (!children || children.length === 0) {
+			throw new Error('NodeList must have children');
 		}
-		node.parent = this;
-		if (!this.children) {
-			this.children = [];
-		}
-		if (node instanceof NodeList) {
-			if (node.children) {
-				this.children.push.apply(this.children, node.children);
-			}
-		} else {
-			this.children.push(node);
-		}
-		return true;
 	}
 }
 
 export class Block extends Node {
-
-	open: Node;
-	close: Node;
-	elements: NodeList;
 
 	get start(): Position {
 		return this.open.start;
@@ -94,10 +63,8 @@ export class Block extends Node {
 		return this.close.end;
 	}
 
-	constructor() {
+	constructor(public open: Node, public elements: NodeList, public close: Node) {
 		super();
-		this.elements = new NodeList();
-		this.elements.parent = this;
 	}
 }
 
@@ -120,6 +87,10 @@ function newNode(token: Token): Node {
 	node.start = token.range.getStartPosition();
 	node.end = token.range.getEndPosition();
 	return node;
+}
+
+function newNodeList(children: Node[]): NodeList {
+	return children.length > 0 ? new NodeList(children) : null;
 }
 
 class RawToken {
@@ -295,11 +266,12 @@ class TokenTreeBuilder {
 	}
 
 	public build(): Node {
-		let node = new NodeList();
-		while (node.append(this._line() || this._any())) {
-			// accept all
+		const children = [];
+		let child;
+		while (child = (this._line() || this._any())) {
+			children.push(child);
 		}
-		return node;
+		return newNodeList(children);
 	}
 
 	private _accept(condt: (info: Token) => boolean): boolean {
@@ -328,7 +300,6 @@ class TokenTreeBuilder {
 	}
 
 	private _line(): Node {
-		let node = new NodeList();
 		let lineNumber: number;
 
 		// capture current linenumber
@@ -337,19 +308,15 @@ class TokenTreeBuilder {
 			return false;
 		});
 
+		const children = [];
+		let child;
 		while (this._peek(info => info.range.startLineNumber === lineNumber)
-			&& node.append(this._token() || this._block())) {
-
+			&& (child = this._token() || this._block())) {
 			// all children that started on this line
+			children.push(child);
 		}
 
-		if (!node.children || node.children.length === 0) {
-			return null;
-		} else if (node.children.length === 1) {
-			return node.children[0];
-		} else {
-			return node;
-		}
+		return newNodeList(children);
 	}
 
 	private _token(): Node {
@@ -372,22 +339,21 @@ class TokenTreeBuilder {
 			return null;
 		}
 
-		let bracket = new Block();
-		bracket.open = newNode(this._currentToken);
-		while (bracket.elements.append(this._line())) {
+		const open = newNode(this._currentToken);
+		const children = [];
+		let child;
+		while (child = this._line()) {
 			// inside brackets
+			children.push(child);
 		}
 
 		if (!this._accept(token => token.bracket === TokenTreeBracket.Close && token.bracketType === bracketType)) {
 			// missing closing bracket -> return just a node list
-			let nodelist = new NodeList();
-			nodelist.append(bracket.open);
-			nodelist.append(bracket.elements);
-			return nodelist;
+			return new NodeList([open, ...children]);
 		}
 
-		bracket.close = newNode(this._currentToken);
-		return bracket;
+		const close = newNode(this._currentToken);
+		return new Block(open, newNodeList(children), close);
 	}
 
 	private _any(): Node {
@@ -410,7 +376,7 @@ export function build(model: ITextModel): Node {
 }
 
 export function find(node: Node, position: Position): Node {
-	if (node instanceof NodeList && node.isEmpty) {
+	if (!node) {
 		return null;
 	}
 
@@ -421,12 +387,9 @@ export function find(node: Node, position: Position): Node {
 	let result: Node;
 
 	if (node instanceof NodeList) {
-		if (node.hasChildren) {
-			for (let i = 0, len = node.children.length; i < len && !result; i++) {
-				result = find(node.children[i], position);
-			}
+		for (let i = 0, len = node.children.length; i < len && !result; i++) {
+			result = find(node.children[i], position);
 		}
-
 	} else if (node instanceof Block) {
 		result = find(node.open, position) || find(node.elements, position) || find(node.close, position);
 	}

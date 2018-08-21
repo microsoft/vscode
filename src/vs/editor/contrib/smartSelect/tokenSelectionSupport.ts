@@ -9,7 +9,7 @@ import { TPromise } from 'vs/base/common/winjs.base';
 import { Range } from 'vs/editor/common/core/range';
 import { ITextModel } from 'vs/editor/common/model';
 import { IModelService } from 'vs/editor/common/services/modelService';
-import { Node, build, find } from './tokenTree';
+import { Node, NodeList, Block, build } from './tokenTree';
 import { Position } from 'vs/editor/common/core/position';
 
 /**
@@ -49,22 +49,34 @@ export class TokenSelectionSupport {
 	}
 
 	private _doGetRangesToPosition(model: ITextModel, position: Position): Range[] {
-
 		let tree = build(model);
-		let node: Node;
-		let lastRange: Range;
+		return tree ? this._collectRanges(tree, position) : [];
+	}
 
-		node = find(tree, position);
+	private _collectRanges(node: Node, position: Position): Range[] {
 		let ranges: Range[] = [];
-		while (node) {
-			if (!lastRange || !Range.equalsRange(lastRange, node.range)) {
-				ranges.push(node.range);
-			}
-			lastRange = node.range;
-			node = node.parent;
-		}
-		ranges = ranges.reverse();
+		this._collectRangesIter(node, position, ranges, null);
 		return ranges;
 	}
 
+	private _collectRangesIter(node: Node, position: Position, ranges: Range[], lastRange: Range): boolean {
+		if (!Range.containsPosition(node.range, position)) {
+			return false;
+		}
+
+		if (!lastRange || !Range.equalsRange(lastRange, node.range)) {
+			lastRange = node.range;
+			ranges.push(lastRange);
+		}
+
+		if (node instanceof NodeList) {
+			for (let i = 0, len = node.children.length, found = false; i < len && !found; i++) {
+				found = this._collectRangesIter(node.children[i], position, ranges, lastRange);
+			}
+		} else if (node instanceof Block && node.elements) {
+			this._collectRangesIter(node.elements, position, ranges, lastRange);
+		}
+
+		return true;
+	}
 }
