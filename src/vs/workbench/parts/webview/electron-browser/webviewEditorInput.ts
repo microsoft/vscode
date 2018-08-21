@@ -18,7 +18,6 @@ import { WebviewElement } from './webviewElement';
 export class WebviewEditorInput extends EditorInput {
 	private static handlePool = 0;
 
-
 	private static _styleElement?: HTMLStyleElement;
 
 	private static _icons = new Map<number, { light: URI, dark: URI }>();
@@ -75,6 +74,7 @@ export class WebviewEditorInput extends EditorInput {
 
 	constructor(
 		public readonly viewType: string,
+		id: number | undefined,
 		name: string,
 		options: WebviewInputOptions,
 		state: any,
@@ -84,7 +84,14 @@ export class WebviewEditorInput extends EditorInput {
 		@IPartService private readonly _partService: IPartService,
 	) {
 		super();
-		this._id = WebviewEditorInput.handlePool++;
+
+		if (typeof id === 'number') {
+			this._id = id;
+			WebviewEditorInput.handlePool = Math.max(id, WebviewEditorInput.handlePool) + 1;
+		} else {
+			this._id = WebviewEditorInput.handlePool++;
+		}
+
 		this._name = name;
 		this._options = options;
 		this._events = events;
@@ -154,7 +161,7 @@ export class WebviewEditorInput extends EditorInput {
 	}
 
 	public matches(other: IEditorInput): boolean {
-		return other && other === this;
+		return other === this || (other instanceof WebviewEditorInput && other._id === this._id);
 	}
 
 	public get group(): GroupIdentifier | undefined {
