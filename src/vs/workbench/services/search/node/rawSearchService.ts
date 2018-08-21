@@ -67,14 +67,21 @@ export class SearchService implements IRawSearchService {
 	}
 
 	public textSearch(config: IRawSearch): Event<ISerializedSearchProgressItem | ISerializedSearchComplete> {
-		let promise: CancelablePromise<void>;
+		let promise: CancelablePromise<ISerializedSearchComplete>;
 
 		const emitter = new Emitter<ISerializedSearchProgressItem | ISerializedSearchComplete>({
 			onFirstListenerDidAdd: () => {
 				promise = createCancelablePromise(token => {
-					return (config.useRipgrep ? this.ripgrepTextSearch(config, p => emitter.fire(p), token) : this.legacyTextSearch(config, p => emitter.fire(p), token))
-						.then(c => emitter.fire(c), err => emitter.fire({ type: 'error', error: { message: err.message, stack: err.stack } }));
+					return (config.useRipgrep ? this.ripgrepTextSearch(config, p => emitter.fire(p), token) : this.legacyTextSearch(config, p => emitter.fire(p), token));
 				});
+
+				promise.then(
+					c => emitter.fire(c),
+					err => {
+						if (!isPromiseCanceledError(err)) {
+							emitter.fire({ type: 'error', error: { message: err.message, stack: err.stack } });
+						}
+					});
 			},
 			onLastListenerRemove: () => {
 				promise.cancel();
