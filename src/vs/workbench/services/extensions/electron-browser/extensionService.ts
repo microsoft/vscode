@@ -551,16 +551,14 @@ export class ExtensionService extends Disposable implements IExtensionService {
 
 				const enableProposedApiFor: string | string[] = this._environmentService.args['enable-proposed-api'] || [];
 
-				const notFound = (id: string) => nls.localize('notFound', " Can not enable proposed API: Extension '{0}' not found.", id);
-				const useId = nls.localize('useId', "Make sure you use the full extension ID, including the publisher, eg: {0}", 'ms-vscode.csharp');
+				const notFound = (id: string) => nls.localize('notFound', "Extension `${id}` cannot use PROPOSED API as it cannot be found", id);
 
 				if (enableProposedApiFor.length) {
-					let allProposed = (enableProposedApiFor instanceof Array ? enableProposedApiFor : [enableProposedApiFor]).map(id => id.toLowerCase());
-					let allInstalled = allExtensions.map(description => description.id.toLowerCase());
+					let allProposed = (enableProposedApiFor instanceof Array ? enableProposedApiFor : [enableProposedApiFor]);
+					let allInstalled = allExtensions.map(description => description.id);
 					allProposed.forEach(id => {
 						if (allInstalled.indexOf(id) === -1) {
-							console.warn(notFound);
-							this._notificationService.warn(`${notFound(id)}\n ${useId}`);
+							console.error(notFound);
 						}
 					});
 				}
