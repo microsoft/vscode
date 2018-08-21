@@ -150,13 +150,11 @@ export class SearchService implements IRawSearchService {
 			}
 
 			return new TPromise<ISerializedSearchSuccess>((c, e) => {
-				process.nextTick(() => { // allow caller to register progress callback first
-					sortedSearch.then(([result, rawMatches]) => {
-						const serializedMatches = rawMatches.map(rawMatch => this.rawMatchToSearchItem(rawMatch));
-						this.sendProgress(serializedMatches, progressCallback, batchSize);
-						c(result);
-					}, e);
-				});
+				sortedSearch.then(([result, rawMatches]) => {
+					const serializedMatches = rawMatches.map(rawMatch => this.rawMatchToSearchItem(rawMatch));
+					this.sendProgress(serializedMatches, progressCallback, batchSize);
+					c(result);
+				}, e);
 			});
 		}
 
@@ -409,9 +407,7 @@ export class SearchService implements IRawSearchService {
 					}
 				}
 			}, (progress) => {
-				process.nextTick(() => {
-					progressCallback(progress);
-				});
+				progressCallback(progress);
 			}, (error, stats) => {
 				if (batch.length) {
 					progressCallback(batch);
