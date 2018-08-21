@@ -75,8 +75,8 @@ export class DebugService implements IDebugService {
 	private debugState: IContextKey<string>;
 	private inDebugMode: IContextKey<boolean>;
 	private breakpointsToSendOnResourceSaved: Set<string>;
-	private firstSessionStart: boolean;
 	private skipRunningTask: boolean;
+	private initializing = false;
 	private previousState: State;
 
 	constructor(
@@ -117,7 +117,6 @@ export class DebugService implements IDebugService {
 			this.loadExceptionBreakpoints(), this.loadWatchExpressions());
 		this.toDispose.push(this.model);
 		this.viewModel = new ViewModel(contextKeyService);
-		this.firstSessionStart = true;
 
 		this.registerListeners();
 	}
@@ -143,20 +142,10 @@ export class DebugService implements IDebugService {
 		}
 
 		if (broadcast.channel === EXTENSION_ATTACH_BROADCAST_CHANNEL) {
-			const initialAttach = session.configuration.request === 'launch';
-
 			session.configuration.request = 'attach';
 			session.configuration.port = broadcast.payload.port;
-			// Do not end process on initial attach (since the request is still 'launch')
-			if (initialAttach) {
-				const dbgr = this.configurationManager.getDebugger(session.configuration.type);
-				session.initialize(dbgr).then(() => (<RawDebugSession>session.raw).attach(session.configuration));
-			} else {
-				if (session.raw) {
-					session.raw.disconnect().done(undefined, errors.onUnexpectedError);
-				}
-				this.doCreateSession(session.root, { resolved: session.configuration, unresolved: session.unresolvedConfiguration }, session.getId());
-			}
+			const dbgr = this.configurationManager.getDebugger(session.configuration.type);
+			session.initialize(dbgr).then(() => (<RawDebugSession>session.raw).attach(session.configuration));
 
 			return;
 		}
@@ -319,6 +308,9 @@ export class DebugService implements IDebugService {
 		const focusedSession = this.viewModel.focusedSession;
 		if (focusedSession) {
 			return focusedSession.state;
+		}
+		if (this.initializing) {
+			return State.Initializing;
 		}
 
 		return State.Inactive;
@@ -593,6 +585,8 @@ export class DebugService implements IDebugService {
 	}
 
 	private createSession(launch: ILaunch, config: IConfig, unresolvedConfig: IConfig, sessionId: string): TPromise<void> {
+		this.initializing = true;
+		this.onStateChange();
 		return this.textFileService.saveAll().then(() =>
 			this.substituteVariables(launch, config).then(resolvedConfig => {
 
@@ -616,9 +610,13 @@ export class DebugService implements IDebugService {
 				}
 
 				const workspace = launch ? launch.workspace : undefined;
-				return this.runTask(sessionId, workspace, resolvedConfig.preLaunchTask, resolvedConfig, unresolvedConfig,
-					() => this.doCreateSession(workspace, { resolved: resolvedConfig, unresolved: unresolvedConfig }, sessionId)
-				);
+				return this.runTask(sessionId, workspace, resolvedConfig.preLaunchTask, resolvedConfig, unresolvedConfig).then(success => {
+					if (!success) {
+						return undefined;
+					}
+
+					return this.doCreateSession(workspace, { resolved: resolvedConfig, unresolved: unresolvedConfig }, sessionId);
+				});
 			}, err => {
 				if (err && err.message) {
 					return this.showError(err.message);
@@ -629,7 +627,10 @@ export class DebugService implements IDebugService {
 
 				return launch && launch.openConfigFile(false).then(editor => void 0);
 			})
-		);
+		).then(() => {
+			this.initializing = false;
+			this.onStateChange();
+		});
 	}
 
 	private doCreateSession(root: IWorkspaceFolder, configuration: { resolved: IConfig, unresolved: IConfig }, sessionId: string): TPromise<any> {
@@ -652,16 +653,16 @@ export class DebugService implements IDebugService {
 					this._onDidNewSession.fire(session);
 
 					const internalConsoleOptions = resolved.internalConsoleOptions || this.configurationService.getValue<IDebugConfiguration>('debug').internalConsoleOptions;
-					if (internalConsoleOptions === 'openOnSessionStart' || (this.firstSessionStart && internalConsoleOptions === 'openOnFirstSessionStart')) {
+					if (internalConsoleOptions === 'openOnSessionStart' || (this.viewModel.firstSessionStart && internalConsoleOptions === 'openOnFirstSessionStart')) {
 						this.panelService.openPanel(REPL_ID, false).done(undefined, errors.onUnexpectedError);
 					}
 
 					const openDebug = this.configurationService.getValue<IDebugConfiguration>('debug').openDebug;
 					// Open debug viewlet based on the visibility of the side bar and openDebug setting
-					if (openDebug === 'openOnSessionStart' || (openDebug === 'openOnFirstSessionStart' && this.firstSessionStart)) {
+					if (openDebug === 'openOnSessionStart' || (openDebug === 'openOnFirstSessionStart' && this.viewModel.firstSessionStart)) {
 						this.viewletService.openViewlet(VIEWLET_ID);
 					}
-					this.firstSessionStart = false;
+					this.viewModel.firstSessionStart = false;
 
 					this.debugType.set(resolved.type);
 					if (this.model.getSessions().length > 1) {
@@ -808,7 +809,7 @@ export class DebugService implements IDebugService {
 		});
 	}
 
-	private runTask(sessionId: string, root: IWorkspaceFolder, taskId: string | TaskIdentifier, config: IConfig, unresolvedConfig: IConfig, onSuccess: () => TPromise<any>): TPromise<any> {
+	private runTask(sessionId: string, root: IWorkspaceFolder, taskId: string | TaskIdentifier, config: IConfig, unresolvedConfig: IConfig): TPromise<boolean> {
 		const debugAnywayAction = new Action('debug.debugAnyway', nls.localize('debugAnyway', "Debug Anyway"), undefined, true, () => {
 			return this.doCreateSession(root, { resolved: config, unresolved: unresolvedConfig }, sessionId);
 		});
@@ -818,7 +819,7 @@ export class DebugService implements IDebugService {
 			const successExitCode = taskSummary && taskSummary.exitCode === 0;
 			const failureExitCode = taskSummary && taskSummary.exitCode !== undefined && taskSummary.exitCode !== 0;
 			if (successExitCode || (errorCount === 0 && !failureExitCode)) {
-				return onSuccess();
+				return true;
 			}
 
 			const message = errorCount > 1 ? nls.localize('preLaunchTaskErrors', "Build errors have been detected during preLaunchTask '{0}'.", config.preLaunchTask) :
@@ -829,9 +830,9 @@ export class DebugService implements IDebugService {
 				return this.panelService.openPanel(Constants.MARKERS_PANEL_ID).then(() => undefined);
 			});
 
-			return this.showError(message, [debugAnywayAction, showErrorsAction]);
+			return this.showError(message, [debugAnywayAction, showErrorsAction]).then(() => false);
 		}, (err: TaskError) => {
-			return this.showError(err.message, [debugAnywayAction, this.taskService.configureAction()]);
+			return this.showError(err.message, [debugAnywayAction, this.taskService.configureAction()]).then(() => false);
 		});
 	}
 
@@ -904,9 +905,9 @@ export class DebugService implements IDebugService {
 		return this.textFileService.saveAll().then(() => {
 			const unresolvedConfiguration = (<Session>session).unresolvedConfiguration;
 			if (session.raw.capabilities.supportsRestartRequest) {
-				return this.runTask(session.getId(), session.root, session.configuration.postDebugTask, session.configuration, unresolvedConfiguration,
-					() => this.runTask(session.getId(), session.root, session.configuration.preLaunchTask, session.configuration, unresolvedConfiguration,
-						() => session.raw.custom('restart', null)));
+				return this.runTask(session.getId(), session.root, session.configuration.postDebugTask, session.configuration, unresolvedConfiguration)
+					.then(success => success ? this.runTask(session.getId(), session.root, session.configuration.preLaunchTask, session.configuration, unresolvedConfiguration)
+						.then(success => success ? session.raw.custom('restart', null) : undefined) : TPromise.as(<any>undefined));
 			}
 
 			const focusedSession = this.viewModel.focusedSession;
@@ -914,14 +915,15 @@ export class DebugService implements IDebugService {
 			// Do not run preLaunch and postDebug tasks for automatic restarts
 			this.skipRunningTask = !!restartData;
 
+			if (equalsIgnoreCase(session.configuration.type, 'extensionHost') && session.root) {
+				return this.broadcastService.broadcast({
+					channel: EXTENSION_RELOAD_BROADCAST_CHANNEL,
+					payload: [session.root.uri.fsPath]
+				});
+			}
+
 			// If the restart is automatic disconnect, otherwise send the terminate signal #55064
 			return (!!restartData ? session.raw.disconnect(true) : session.raw.terminate(true)).then(() => {
-				if (equalsIgnoreCase(session.configuration.type, 'extensionHost') && session.root) {
-					return this.broadcastService.broadcast({
-						channel: EXTENSION_RELOAD_BROADCAST_CHANNEL,
-						payload: [session.root.uri.fsPath]
-					});
-				}
 
 				return new TPromise<void>((c, e) => {
 					setTimeout(() => {

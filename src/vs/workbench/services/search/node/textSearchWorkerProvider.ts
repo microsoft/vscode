@@ -7,7 +7,7 @@
 
 import * as os from 'os';
 
-import * as ipc from 'vs/base/parts/ipc/common/ipc';
+import * as ipc from 'vs/base/parts/ipc/node/ipc';
 import { Client } from 'vs/base/parts/ipc/node/ipc.cp';
 
 import { ISearchWorker, ISearchWorkerChannel, SearchWorkerChannelClient } from './worker/searchWorkerIpc';

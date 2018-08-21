@@ -225,11 +225,11 @@ export class Session implements ISession {
 	}
 
 	initialize(dbgr: Debugger): TPromise<void> {
+		if (this._raw) {
+			// If there was already a connection make sure to remove old listeners
+			this.rawListeners = dispose(this.rawListeners);
+		}
 		return dbgr.getCustomTelemetryService().then(customTelemetryService => {
-			if (this._raw) {
-				// If there was already a connection make sure to remove old listeners
-				dispose(this.rawListeners);
-			}
 			this._raw = this.instantiationService.createInstance(RawDebugSession, this.id, this._configuration.resolved.debugServer, dbgr, customTelemetryService, this.root);
 			this.registerListeners();
 

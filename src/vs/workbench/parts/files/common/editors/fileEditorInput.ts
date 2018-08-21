@@ -175,7 +175,7 @@ export class FileEditorInput extends EditorInput implements IFileEditorInput {
 
 	@memoize
 	private get longTitle(): string {
-		return this.uriLabelService.getLabel(this.resource, true);
+		return this.uriLabelService.getLabel(this.resource);
 	}
 
 	getTitle(verbosity: Verbosity): string {

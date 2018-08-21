@@ -20,6 +20,11 @@ import * as fs from 'fs';
 import * as path from 'path';
 import * as vsce from 'vsce';
 import * as File from 'vinyl';
+import * as glob from 'glob';
+import * as gulp from 'gulp';
+import * as util2 from './util';
+
+const root = path.resolve(path.join(__dirname, '..', '..'));
 
 export function fromLocal(extensionPath: string, sourceMappingURLBase?: string): Stream {
 	let result = es.through();
@@ -190,4 +195,55 @@ export function fromMarketplace(extensionName: string, version: string): Stream 
 						.pipe(packageJsonFilter.restore);
 				}));
 		}));
+}
+
+interface IPackageExtensionsOptions {
+	/**
+	 * Set to undefined to package all of them.
+	 */
+	desiredExtensions?: string[];
+	sourceMappingURLBase?: string;
+}
+
+const excludedExtensions = [
+	'vscode-api-tests',
+	'vscode-colorize-tests',
+	'ms-vscode.node-debug',
+	'ms-vscode.node-debug2',
+];
+
+const builtInExtensions: { name: string, version: string, repo: string; }[] = require('../builtInExtensions.json');
+
+export function packageExtensionsStream(opts?: IPackageExtensionsOptions): NodeJS.ReadWriteStream {
+	opts = opts || {};
+
+	const localExtensionDescriptions = (<string[]>glob.sync('extensions/*/package.json'))
+		.map(manifestPath => {
+			const extensionPath = path.dirname(path.join(root, manifestPath));
+			const extensionName = path.basename(extensionPath);
+			return { name: extensionName, path: extensionPath };
+		})
+		.filter(({ name }) => excludedExtensions.indexOf(name) === -1)
+		.filter(({ name }) => opts.desiredExtensions ? opts.desiredExtensions.indexOf(name) >= 0 : true)
+		.filter(({ name }) => builtInExtensions.every(b => b.name !== name));
+
+	const localExtensions = es.merge(...localExtensionDescriptions.map(extension => {
+		return fromLocal(extension.path, opts.sourceMappingURLBase)
+			.pipe(rename(p => p.dirname = `extensions/${extension.name}/${p.dirname}`));
+	}));
+
+	const localExtensionDependencies = gulp.src('extensions/node_modules/**', { base: '.' });
+
+	const marketplaceExtensions = es.merge(
+		...builtInExtensions
+			.filter(({ name }) => opts.desiredExtensions ? opts.desiredExtensions.indexOf(name) >= 0 : true)
+			.map(extension => {
+				return fromMarketplace(extension.name, extension.version)
+					.pipe(rename(p => p.dirname = `extensions/${extension.name}/${p.dirname}`));
+			})
+	);
+
+	return es.merge(localExtensions, localExtensionDependencies, marketplaceExtensions)
+		.pipe(util2.setExecutableBit(['**/*.sh']))
+		.pipe(filter(['**', '!**/*.js.map']));
 }
