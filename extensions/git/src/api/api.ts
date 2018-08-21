@@ -41,3 +41,15 @@ export function Api(version: string): Function {
 		apis.set(version, ctor);
 	};
 }
+
+export function deprecated(target: any, key: string, descriptor: any): void {
+	if (typeof descriptor.value !== 'function') {
+		throw new Error('not supported');
+	}
+
+	const fn = descriptor.value;
+	descriptor.value = function () {
+		console.warn(`Git extension API method '${key}' is deprecated.`);
+		return fn.apply(this, arguments);
+	};
+}
