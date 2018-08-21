@@ -39,8 +39,21 @@
 	margin-right: 7px;
 }
 
+.settings-editor > .settings-header > .search-container {
+	position: relative;
+}
+
 .vs .settings-editor > .settings-header > .search-container > .suggest-input-container {
 	border: 1px solid #ddd;
+}
+
+.settings-editor > .settings-header > .search-container > .settings-count-widget {
+	margin: 6px 0px;
+	padding: 0px 8px;
+	border-radius: 2px;
+	position: absolute;
+	right: 10px;
+	top: 0;
 }
 
 .settings-editor > .settings-header > .settings-header-controls {
@@ -113,6 +126,11 @@
 	display: flex;
 	margin: auto;
 	max-width: 1000px;
+}
+
+.settings-editor > .settings-body > .no-results {
+	margin-top: 20px;
+	display: none;
 }
 
 .settings-editor.search-mode > .settings-body .settings-tree-container .monaco-tree-wrapper,
