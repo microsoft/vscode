@@ -19,8 +19,8 @@ export interface IExtensionManagementChannel extends IChannel {
 	listen(event: 'onDidUninstallExtension'): Event<DidUninstallExtensionEvent>;
 
 	call(command: 'zip', args: [ILocalExtension]): TPromise<URI>;
-	call(command: 'unzip', args: [URI]): TPromise<void>;
-	call(command: 'install', args: [URI]): TPromise<void>;
+	call(command: 'unzip', args: [URI, LocalExtensionType]): TPromise<IExtensionIdentifier>;
+	call(command: 'install', args: [URI]): TPromise<IExtensionIdentifier>;
 	call(command: 'installFromGallery', args: [IGalleryExtension]): TPromise<void>;
 	call(command: 'uninstall', args: [ILocalExtension, boolean]): TPromise<void>;
 	call(command: 'reinstallFromGallery', args: [ILocalExtension]): TPromise<void>;
@@ -57,7 +57,7 @@ export class ExtensionManagementChannel implements IExtensionManagementChannel {
 	call(command: string, args?: any): TPromise<any> {
 		switch (command) {
 			case 'zip': return this.service.zip(this._transform(args[0]));
-			case 'unzip': return this.service.unzip(URI.revive(args[0]));
+			case 'unzip': return this.service.unzip(URI.revive(args[0]), args[1]);
 			case 'install': return this.service.install(URI.revive(args[0]));
 			case 'installFromGallery': return this.service.installFromGallery(args[0]);
 			case 'uninstall': return this.service.uninstall(this._transform(args[0]), args[1]);
@@ -90,11 +90,11 @@ export class ExtensionManagementChannelClient implements IExtensionManagementSer
 		return this.channel.call('zip', [this._transformOutgoing(extension)]).then(result => URI.revive(this.uriTransformer.transformIncoming(result)));
 	}
 
-	unzip(zipLocation: URI): TPromise<void> {
-		return this.channel.call('unzip', [this.uriTransformer.transformOutgoing(zipLocation)]);
+	unzip(zipLocation: URI, type: LocalExtensionType): TPromise<IExtensionIdentifier> {
+		return this.channel.call('unzip', [this.uriTransformer.transformOutgoing(zipLocation), type]);
 	}
 
-	install(vsix: URI): TPromise<void> {
+	install(vsix: URI): TPromise<IExtensionIdentifier> {
 		return this.channel.call('install', [this.uriTransformer.transformOutgoing(vsix)]);
 	}
 

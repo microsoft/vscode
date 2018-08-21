@@ -307,8 +307,8 @@ export interface IExtensionManagementService {
 	onDidUninstallExtension: Event<DidUninstallExtensionEvent>;
 
 	zip(extension: ILocalExtension): TPromise<URI>;
-	unzip(zipLocation: URI): TPromise<void>;
-	install(vsix: URI): TPromise<void>;
+	unzip(zipLocation: URI, type: LocalExtensionType): TPromise<IExtensionIdentifier>;
+	install(vsix: URI): TPromise<IExtensionIdentifier>;
 	installFromGallery(extension: IGalleryExtension): TPromise<void>;
 	uninstall(extension: ILocalExtension, force?: boolean): TPromise<void>;
 	reinstallFromGallery(extension: ILocalExtension): TPromise<void>;

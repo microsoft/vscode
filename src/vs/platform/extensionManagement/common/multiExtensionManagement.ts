@@ -10,12 +10,13 @@ import {
 	IExtensionManagementServerService, IExtensionManagementServer
 } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { flatten } from 'vs/base/common/arrays';
-import { isWorkspaceExtension } from 'vs/platform/extensionManagement/common/extensionManagementUtil';
+import { isWorkspaceExtension, areSameExtensions } from 'vs/platform/extensionManagement/common/extensionManagementUtil';
 import URI from 'vs/base/common/uri';
 import { INotificationService, Severity } from 'vs/platform/notification/common/notification';
 import { localize } from 'vs/nls';
 import { IWindowService } from 'vs/platform/windows/common/windows';
 import { Action } from 'vs/base/common/actions';
+import { ILogService } from 'vs/platform/log/common/log';
 
 export class MulitExtensionManagementService implements IExtensionManagementService {
 
@@ -27,13 +28,18 @@ export class MulitExtensionManagementService implements IExtensionManagementServ
 	onDidUninstallExtension: Event<DidUninstallExtensionEvent>;
 
 	private readonly servers: IExtensionManagementServer[];
+	private readonly localServer: IExtensionManagementServer;
+	private readonly otherServers: IExtensionManagementServer[];
 
 	constructor(
 		@IExtensionManagementServerService private extensionManagementServerService: IExtensionManagementServerService,
 		@INotificationService private notificationService: INotificationService,
-		@IWindowService private windowService: IWindowService
+		@IWindowService private windowService: IWindowService,
+		@ILogService private logService: ILogService
 	) {
 		this.servers = this.extensionManagementServerService.extensionManagementServers;
+		this.localServer = this.extensionManagementServerService.getLocalExtensionManagementServer();
+		this.otherServers = this.servers.filter(s => s !== this.localServer);
 		this.onInstallExtension = this.servers.reduce((emitter: EventMultiplexer<InstallExtensionEvent>, server) => { emitter.add(server.extensionManagementService.onInstallExtension); return emitter; }, new EventMultiplexer<InstallExtensionEvent>()).event;
 		this.onDidInstallExtension = this.servers.reduce((emitter: EventMultiplexer<DidInstallExtensionEvent>, server) => { emitter.add(server.extensionManagementService.onDidInstallExtension); return emitter; }, new EventMultiplexer<DidInstallExtensionEvent>()).event;
 		this.onUninstallExtension = this.servers.reduce((emitter: EventMultiplexer<IExtensionIdentifier>, server) => { emitter.add(server.extensionManagementService.onUninstallExtension); return emitter; }, new EventMultiplexer<IExtensionIdentifier>()).event;
@@ -62,16 +68,34 @@ export class MulitExtensionManagementService implements IExtensionManagementServ
 		throw new Error('Not Supported');
 	}
 
-	unzip(zipLocation: URI): TPromise<void> {
-		return TPromise.join(this.servers.map(({ extensionManagementService }) => extensionManagementService.unzip(zipLocation))).then(() => null);
+	unzip(zipLocation: URI, type: LocalExtensionType): TPromise<IExtensionIdentifier> {
+		return TPromise.join(this.servers.map(({ extensionManagementService }) => extensionManagementService.unzip(zipLocation, type))).then(() => null);
 	}
 
-	install(vsix: URI): TPromise<void> {
-		return TPromise.join(this.servers.map(({ extensionManagementService }) => extensionManagementService.install(vsix))).then(() => null);
+	install(vsix: URI): TPromise<IExtensionIdentifier> {
+		return this.localServer.extensionManagementService.install(vsix)
+			.then(extensionIdentifer => this.localServer.extensionManagementService.getInstalled(LocalExtensionType.User)
+				.then(installed => {
+					const extension = installed.filter(i => areSameExtensions(i.identifier, extensionIdentifer))[0];
+					if (extension && isWorkspaceExtension(extension.manifest)) {
+						return TPromise.join(this.otherServers.map(server => server.extensionManagementService.install(vsix)))
+							.then(() => extensionIdentifer);
+					}
+					return extensionIdentifer;
+				}));
 	}
 
-	installFromGallery(extension: IGalleryExtension): TPromise<void> {
-		return TPromise.join(this.servers.map(({ extensionManagementService }) => extensionManagementService.installFromGallery(extension))).then(() => null);
+	installFromGallery(gallery: IGalleryExtension): TPromise<void> {
+		return this.localServer.extensionManagementService.installFromGallery(gallery)
+			.then(() => this.localServer.extensionManagementService.getInstalled(LocalExtensionType.User))
+			.then(installed => {
+				const extension = installed.filter(i => areSameExtensions(i.galleryIdentifier, gallery.identifier))[0];
+				if (extension && isWorkspaceExtension(extension.manifest)) {
+					return TPromise.join(this.otherServers.map(server => server.extensionManagementService.installFromGallery(gallery)))
+						.then(() => null);
+				}
+				return null;
+			});
 	}
 
 	getExtensionsReport(): TPromise<IReportedExtension[]> {
@@ -83,51 +107,35 @@ export class MulitExtensionManagementService implements IExtensionManagementServ
 	}
 
 	private async syncExtensions(): Promise<void> {
-		const localServer = this.extensionManagementServerService.getLocalExtensionManagementServer();
-		localServer.extensionManagementService.getInstalled()
+		this.localServer.extensionManagementService.getInstalled()
 			.then(async localExtensions => {
 				const workspaceExtensions = localExtensions.filter(e => isWorkspaceExtension(e.manifest));
-				const otherServers = this.servers.filter(s => s !== localServer);
-
-				const extensionsToSync: Map<IExtensionManagementServer, ILocalExtension[]> = await this.getExtensionsToSync(workspaceExtensions, otherServers);
-
+				const extensionsToSync: Map<IExtensionManagementServer, ILocalExtension[]> = await this.getExtensionsToSync(workspaceExtensions);
 				if (extensionsToSync.size > 0) {
-					const handler = this.notificationService.notify({ severity: Severity.Info, message: localize('synchronising', "Synchronizing workspace extensions...") });
+					const handler = this.notificationService.notify({ severity: Severity.Info, message: localize('synchronising', "Synchronising workspace extensions...") });
 					handler.progress.infinite();
-					const promises: TPromise<any>[] = [];
-					const vsixById: Map<string, TPromise<URI>> = new Map<string, TPromise<URI>>();
-					extensionsToSync.forEach((extensions, server) => {
-						for (const extension of extensions) {
-							let vsix = vsixById.get(extension.galleryIdentifier.id);
-							if (!vsix) {
-								vsix = localServer.extensionManagementService.zip(extension);
-								vsixById.set(extension.galleryIdentifier.id, vsix);
-								promises.push(vsix);
-							}
-							promises.push(vsix.then(location => server.extensionManagementService.unzip(location)));
-						}
-					});
-					TPromise.join(promises).then(() => {
+					this.doSyncExtensions(extensionsToSync).then(() => {
 						handler.progress.done();
-						handler.updateMessage(localize('Synchronize.finished', "Finished synchronizing workspace extensions. Please reload now."));
+						handler.updateMessage(localize('Synchronize.finished', "Finished synchronising workspace extensions. Please reload now."));
 						handler.updateActions({
 							primary: [
 								new Action('Synchronize.reloadNow', localize('Synchronize.reloadNow', "Reload Now"), null, true, () => this.windowService.reloadWindow())
 							]
 						});
+					}, error => {
+						handler.progress.done();
+						handler.updateMessage(error);
 					});
 				}
-			}, err => {
-				console.log(err);
-			});
+			}, err => this.logService.error('Error while Synchronisation', err));
 	}
 
-	private async getExtensionsToSync(workspaceExtensions: ILocalExtension[], servers: IExtensionManagementServer[]): Promise<Map<IExtensionManagementServer, ILocalExtension[]>> {
+	private async getExtensionsToSync(workspaceExtensions: ILocalExtension[]): Promise<Map<IExtensionManagementServer, ILocalExtension[]>> {
 		const extensionsToSync: Map<IExtensionManagementServer, ILocalExtension[]> = new Map<IExtensionManagementServer, ILocalExtension[]>();
-		for (const server of servers) {
+		for (const server of this.otherServers) {
 			const extensions = await server.extensionManagementService.getInstalled();
-			const groupedById = this.groupById(extensions);
-			const toSync = workspaceExtensions.filter(e => !groupedById.has(e.galleryIdentifier.id));
+			const groupedByVersionId: Map<string, ILocalExtension> = extensions.reduce((groupedById, extension) => groupedById.set(`${extension.galleryIdentifier.id}-${extension.manifest.version}`, extension), new Map<string, ILocalExtension>());
+			const toSync = workspaceExtensions.filter(e => !groupedByVersionId.has(`${e.galleryIdentifier.id}-${e.manifest.version}`));
 			if (toSync.length) {
 				extensionsToSync.set(server, toSync);
 			}
@@ -135,11 +143,30 @@ export class MulitExtensionManagementService implements IExtensionManagementServ
 		return extensionsToSync;
 	}
 
-	private groupById(extensions: ILocalExtension[]): Map<string, ILocalExtension> {
-		const result: Map<string, ILocalExtension> = new Map<string, ILocalExtension>();
-		for (const extension of extensions) {
-			result.set(extension.galleryIdentifier.id, extension);
-		}
-		return result;
+	private async doSyncExtensions(extensionsToSync: Map<IExtensionManagementServer, ILocalExtension[]>): Promise<void> {
+		const ids: string[] = [];
+		const vsixResolvers: TPromise<URI>[] = [];
+
+		extensionsToSync.forEach(extensions => {
+			for (const extension of extensions) {
+				if (ids.indexOf(extension.galleryIdentifier.id) === -1) {
+					ids.push(extension.galleryIdentifier.id);
+					vsixResolvers.push(this.localServer.extensionManagementService.zip(extension));
+				}
+			}
+		});
+
+		const vsixs = await TPromise.join(vsixResolvers);
+		const promises: Promise<any>[] = [];
+		extensionsToSync.forEach((extensions, server) => {
+			let promise: Promise<any> = Promise.resolve();
+			extensions.forEach(extension => {
+				const index = ids.indexOf(extension.galleryIdentifier.id);
+				promise = promise.then(() => server.extensionManagementService.unzip(vsixs[index], extension.type));
+			});
+			promises.push(promise);
+		});
+
+		await Promise.all(promises);
 	}
 }
