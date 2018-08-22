@@ -259,13 +259,13 @@ function getSchemaId(schema: JSONSchemaSettings, rootPath?: string) {
 }
 
 function getPackageInfo(context: ExtensionContext): IPackageInfo | undefined {
-	let extensionPackage = require(context.asAbsolutePath('./package.json'));
-	if (extensionPackage) {
-		return {
-			name: extensionPackage.name,
-			version: extensionPackage.version,
-			aiKey: extensionPackage.aiKey
-		};
-	}
+	// let extensionPackage = require(context.asAbsolutePath('./package.json'));
+	// if (extensionPackage) {
+	// 	return {
+	// 		name: extensionPackage.name,
+	// 		version: extensionPackage.version,
+	// 		aiKey: extensionPackage.aiKey
+	// 	};
+	// }
 	return void 0;
 }
