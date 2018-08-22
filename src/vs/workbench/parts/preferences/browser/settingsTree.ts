@@ -347,12 +347,13 @@ export class SettingsRenderer implements ITreeRenderer {
 		if (this.lastRenderedWidth !== width) {
 			this.rowHeightCache = new Map<string, number>();
 		}
+		this.longestSingleLineDescription = 0;
 
 		this.lastRenderedWidth = width;
 	}
 
 	getHeight(tree: ITree, element: SettingsTreeElement): number {
-		if (this.rowHeightCache.has(element.id)) {
+		if (this.rowHeightCache.has(element.id) && !(element instanceof SettingsTreeSettingElement && isExcludeSetting(element.setting))) {
 			return this.rowHeightCache.get(element.id);
 		}
 
