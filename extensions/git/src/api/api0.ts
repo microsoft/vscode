@@ -44,5 +44,9 @@ export class ApiImpl implements GitExtension.API {
 		return mapEvent(this._model.onDidCloseRepository, r => new ApiRepository(r));
 	}
 
+	get repositories(): GitExtension.Repository[] {
+		return this._model.repositories.map(r => new ApiRepository(r));
+	}
+
 	constructor(private _model: Model) { }
 }

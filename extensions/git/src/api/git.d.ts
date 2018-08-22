@@ -9,6 +9,7 @@ declare module GitExtension {
 
 	export interface API {
 		readonly gitPath: string;
+		readonly repositories: Repository[];
 		readonly onDidOpenRepository: Event<Repository>;
 		readonly onDidCloseRepository: Event<Repository>;
 	}
@@ -24,8 +25,27 @@ declare module GitExtension {
 }
 
 export interface GitExtension {
-	getRepositories(): Promise<GitExtension.Repository[]>;
-	getGitPath(): Promise<string>;
-	// export const availableVersions: string[];
+
+	/**
+	 * Returns the latest available API compatible with the
+	 * provided version range.
+	 *
+	 * @param range Semver version range for API compatibility.
+	 * @returns API instance
+	 */
 	getAPI(range: string): GitExtension.API;
+
+	/**
+	 * Returns the collection of active repositories.
+	 *
+	 * @deprecated Use `API.repositories` instead.
+	 */
+	getRepositories(): Promise<GitExtension.Repository[]>;
+
+	/**
+	 * Returns the path to the current git executable.
+	 *
+	 * @deprecated Use `API.gitPath` instead.
+	 */
+	getGitPath(): Promise<string>;
 }
