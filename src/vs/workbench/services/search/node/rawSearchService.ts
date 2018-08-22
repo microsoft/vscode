@@ -11,7 +11,7 @@ import { join, sep } from 'path';
 import * as arrays from 'vs/base/common/arrays';
 import { CancelablePromise, createCancelablePromise, toWinJsPromise } from 'vs/base/common/async';
 import { CancellationToken } from 'vs/base/common/cancellation';
-import { canceled, isPromiseCanceledError } from 'vs/base/common/errors';
+import { canceled } from 'vs/base/common/errors';
 import { Emitter, Event } from 'vs/base/common/event';
 import * as objects from 'vs/base/common/objects';
 import { StopWatch } from 'vs/base/common/stopwatch';
@@ -50,11 +50,7 @@ export class SearchService implements IRawSearchService {
 
 				promise.then(
 					c => emitter.fire(c),
-					err => {
-						if (!isPromiseCanceledError(err)) {
-							emitter.fire({ type: 'error', error: { message: err.message, stack: err.stack } });
-						}
-					});
+					err => emitter.fire({ type: 'error', error: { message: err.message, stack: err.stack } }));
 			},
 			onLastListenerRemove: () => {
 				promise.cancel();
@@ -75,11 +71,7 @@ export class SearchService implements IRawSearchService {
 
 				promise.then(
 					c => emitter.fire(c),
-					err => {
-						if (!isPromiseCanceledError(err)) {
-							emitter.fire({ type: 'error', error: { message: err.message, stack: err.stack } });
-						}
-					});
+					err => emitter.fire({ type: 'error', error: { message: err.message, stack: err.stack } }));
 			},
 			onLastListenerRemove: () => {
 				promise.cancel();
