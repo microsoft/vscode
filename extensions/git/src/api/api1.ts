@@ -7,7 +7,7 @@
 
 import { Model } from '../model';
 import { Repository as BaseRepository } from '../repository';
-import { InputBox, Git, API, Repository } from './git';
+import { InputBox, Git, API, Repository, Remote } from './git';
 import { Event, SourceControlInputBox, Uri } from 'vscode';
 import { mapEvent } from '../util';
 
@@ -21,11 +21,11 @@ export class ApiRepository implements Repository {
 
 	readonly rootUri: Uri = Uri.file(this._repository.root);
 	readonly inputBox: InputBox = new ApiInputBox(this._repository.inputBox);
+	get remotes(): Remote[] { return [...this._repository.remotes]; }
 
 	readonly onDidRunGitStatus: Event<void> = this._repository.onDidRunGitStatus;
 
-	constructor(private _repository: BaseRepository) {
-	}
+	constructor(private _repository: BaseRepository) { }
 
 	status(): Promise<void> {
 		return this._repository.status();
