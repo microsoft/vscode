@@ -338,6 +338,7 @@ export class MenubarControl extends Disposable {
 			} else {
 				DOM.addClass(this.container, 'inactive');
 				this.setUnfocusedState();
+				this.awaitingAltRelease = false;
 			}
 		}
 	}
@@ -661,8 +662,8 @@ export class MenubarControl extends Disposable {
 
 			// Create the top level menu button element
 			if (firstTimeSetup) {
-				const buttonElement = $('div.menubar-menu-button', { 'role': 'menu', 'tabindex': 0, 'aria-label': this.topLevelTitles[menuTitle].replace(/&&(.)/g, '$1') });
-				const titleElement = $('div.menubar-menu-title', { 'aria-hidden': true });
+				const buttonElement = $('div.menubar-menu-button', { 'role': 'menuitem', 'tabindex': 0, 'aria-label': this.topLevelTitles[menuTitle].replace(/&&(.)/g, '$1'), 'aria-haspopup': true });
+				const titleElement = $('div.menubar-menu-title', { 'aria-hidden': true, 'tab-index': -1 });
 
 				buttonElement.appendChild(titleElement);
 				this.container.appendChild(buttonElement);
@@ -675,14 +676,20 @@ export class MenubarControl extends Disposable {
 			}
 
 			// Update the button label to reflect mnemonics
-			let displayTitle = this.topLevelTitles[menuTitle].replace(/&&(.)/g, this.currentEnableMenuBarMnemonics ? '<mnemonic>$1</mnemonic>' : '$1');
+			let displayTitle = this.topLevelTitles[menuTitle].replace(/&&(.)/g, this.currentEnableMenuBarMnemonics ? '<mnemonic aria-hidden="true">$1</mnemonic>' : '$1');
 			this.customMenus[menuIndex].titleElement.innerHTML = displayTitle;
 
 			// Register mnemonics
-			if (firstTimeSetup) {
-				let mnemonic = (/&&(.)/g).exec(this.topLevelTitles[menuTitle]);
-				if (mnemonic && mnemonic[1]) {
+			let mnemonic = (/&&(.)/g).exec(this.topLevelTitles[menuTitle]);
+			if (mnemonic && mnemonic[1]) {
+				if (firstTimeSetup) {
 					this.registerMnemonic(menuIndex, mnemonic[1]);
+				}
+
+				if (this.currentEnableMenuBarMnemonics) {
+					this.customMenus[menuIndex].buttonElement.setAttribute('aria-keyshortcuts', 'Alt+' + mnemonic[1].toLocaleLowerCase());
+				} else {
+					this.customMenus[menuIndex].buttonElement.removeAttribute('aria-keyshortcuts');
 				}
 			}
 
@@ -847,7 +854,7 @@ export class MenubarControl extends Disposable {
 			}
 		} else {
 			this.focusedMenu = { index: menuIndex };
-			this.openedViaKeyboard = clicked;
+			this.openedViaKeyboard = !clicked;
 			this.focusState = MenubarState.OPEN;
 		}
 	}
@@ -1023,7 +1030,8 @@ export class MenubarControl extends Disposable {
 		let menuOptions: IMenuOptions = {
 			getKeyBinding: (action) => this.keybindingService.lookupKeybinding(action.id),
 			actionRunner: this.actionRunner,
-			enableMnemonics: this.mnemonicsInUse
+			enableMnemonics: this.mnemonicsInUse,
+			ariaLabel: customMenu.buttonElement.attributes['aria-label'].value
 		};
 
 		let menuWidget = this._register(new Menu(menuHolder, customMenu.actions, menuOptions));
