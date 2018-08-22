@@ -19,7 +19,7 @@ import { IInstantiationService } from 'vs/platform/instantiation/common/instanti
 import { mnemonicMenuLabel as baseMnemonicLabel, unmnemonicLabel } from 'vs/base/common/labels';
 import { IWindowsMainService, IWindowsCountChangedEvent } from 'vs/platform/windows/electron-main/windows';
 import { IHistoryMainService } from 'vs/platform/history/common/history';
-import { IWorkspaceIdentifier, getWorkspaceLabel, ISingleFolderWorkspaceIdentifier, isSingleFolderWorkspaceIdentifier, isWorkspaceIdentifier } from 'vs/platform/workspaces/common/workspaces';
+import { IWorkspaceIdentifier, ISingleFolderWorkspaceIdentifier, isSingleFolderWorkspaceIdentifier, isWorkspaceIdentifier } from 'vs/platform/workspaces/common/workspaces';
 import { IMenubarData, IMenubarKeybinding, MenubarMenuItem, isMenubarMenuItemSeparator, isMenubarMenuItemSubmenu, isMenubarMenuItemAction } from 'vs/platform/menubar/common/menubar';
 import URI from 'vs/base/common/uri';
 import { IUriLabelService } from 'vs/platform/uriLabel/common/uriLabel';
@@ -563,10 +563,10 @@ export class Menubar {
 		let label: string;
 		let uri: URI;
 		if (isSingleFolderWorkspaceIdentifier(workspaceOrFile) && !isFile) {
-			label = unmnemonicLabel(getWorkspaceLabel(workspaceOrFile, this.environmentService, this.uriLabelService, { verbose: true }));
+			label = unmnemonicLabel(this.uriLabelService.getWorkspaceLabel(workspaceOrFile, { verbose: true }));
 			uri = workspaceOrFile;
 		} else if (isWorkspaceIdentifier(workspaceOrFile)) {
-			label = getWorkspaceLabel(workspaceOrFile, this.environmentService, this.uriLabelService, { verbose: true });
+			label = this.uriLabelService.getWorkspaceLabel(workspaceOrFile, { verbose: true });
 			uri = URI.file(workspaceOrFile.configPath);
 		} else {
 			label = unmnemonicLabel(this.uriLabelService.getLabel(workspaceOrFile));

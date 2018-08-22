@@ -22,7 +22,7 @@ import { mnemonicMenuLabel as baseMnemonicLabel, unmnemonicLabel } from 'vs/base
 import { KeybindingsResolver } from 'vs/code/electron-main/keyboard';
 import { IWindowsMainService, IWindowsCountChangedEvent } from 'vs/platform/windows/electron-main/windows';
 import { IHistoryMainService } from 'vs/platform/history/common/history';
-import { IWorkspaceIdentifier, getWorkspaceLabel, ISingleFolderWorkspaceIdentifier, isSingleFolderWorkspaceIdentifier, isWorkspaceIdentifier } from 'vs/platform/workspaces/common/workspaces';
+import { IWorkspaceIdentifier, ISingleFolderWorkspaceIdentifier, isSingleFolderWorkspaceIdentifier, isWorkspaceIdentifier } from 'vs/platform/workspaces/common/workspaces';
 import URI from 'vs/base/common/uri';
 import { IUriLabelService } from 'vs/platform/uriLabel/common/uriLabel';
 
@@ -491,10 +491,10 @@ export class CodeMenu {
 		let label: string;
 		let uri: URI;
 		if (isSingleFolderWorkspaceIdentifier(workspace)) {
-			label = unmnemonicLabel(getWorkspaceLabel(workspace, this.environmentService, this.uriLabelService, { verbose: true }));
+			label = unmnemonicLabel(this.uriLabelService.getWorkspaceLabel(workspace, { verbose: true }));
 			uri = workspace;
 		} else if (isWorkspaceIdentifier(workspace)) {
-			label = getWorkspaceLabel(workspace, this.environmentService, this.uriLabelService, { verbose: true });
+			label = this.uriLabelService.getWorkspaceLabel(workspace, { verbose: true });
 			uri = URI.file(workspace.configPath);
 		} else {
 			uri = URI.file(workspace);

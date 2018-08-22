@@ -25,8 +25,7 @@ import { Event, Emitter } from 'vs/base/common/event';
 import { IDisposable, Disposable, dispose } from 'vs/base/common/lifecycle';
 import { domEvent } from 'vs/base/browser/event';
 import { IRecentlyOpened } from 'vs/platform/history/common/history';
-import { IWorkspaceIdentifier, getWorkspaceLabel, ISingleFolderWorkspaceIdentifier, isSingleFolderWorkspaceIdentifier, isWorkspaceIdentifier } from 'vs/platform/workspaces/common/workspaces';
-import { IEnvironmentService } from 'vs/platform/environment/common/environment';
+import { IWorkspaceIdentifier, ISingleFolderWorkspaceIdentifier, isSingleFolderWorkspaceIdentifier, isWorkspaceIdentifier } from 'vs/platform/workspaces/common/workspaces';
 import { RunOnceScheduler } from 'vs/base/common/async';
 import { MENUBAR_SELECTION_FOREGROUND, MENUBAR_SELECTION_BACKGROUND, MENUBAR_SELECTION_BORDER, TITLE_BAR_ACTIVE_FOREGROUND, TITLE_BAR_INACTIVE_FOREGROUND, MENU_BACKGROUND, MENU_FOREGROUND, MENU_SELECTION_BACKGROUND, MENU_SELECTION_FOREGROUND, MENU_SELECTION_BORDER } from 'vs/workbench/common/theme';
 import URI from 'vs/base/common/uri';
@@ -122,7 +121,6 @@ export class MenubarControl extends Disposable {
 		@IContextKeyService private contextKeyService: IContextKeyService,
 		@IKeybindingService private keybindingService: IKeybindingService,
 		@IConfigurationService private configurationService: IConfigurationService,
-		@IEnvironmentService private environmentService: IEnvironmentService,
 		@IUriLabelService private uriLabelService: IUriLabelService,
 		@IUpdateService private updateService: IUpdateService
 	) {
@@ -533,10 +531,10 @@ export class MenubarControl extends Disposable {
 		let uri: URI;
 
 		if (isSingleFolderWorkspaceIdentifier(workspace) && !isFile) {
-			label = getWorkspaceLabel(workspace, this.environmentService, this.uriLabelService, { verbose: true });
+			label = this.uriLabelService.getWorkspaceLabel(workspace, { verbose: true });
 			uri = workspace;
 		} else if (isWorkspaceIdentifier(workspace)) {
-			label = getWorkspaceLabel(workspace, this.environmentService, this.uriLabelService, { verbose: true });
+			label = this.uriLabelService.getWorkspaceLabel(workspace, { verbose: true });
 			uri = URI.file(workspace.configPath);
 		} else {
 			uri = workspace;

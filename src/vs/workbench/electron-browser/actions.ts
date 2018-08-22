@@ -29,7 +29,7 @@ import { webFrame, shell } from 'electron';
 import { getBaseLabel } from 'vs/base/common/labels';
 import { IViewlet } from 'vs/workbench/common/viewlet';
 import { IPanel } from 'vs/workbench/common/panel';
-import { IWorkspaceIdentifier, getWorkspaceLabel, ISingleFolderWorkspaceIdentifier, isSingleFolderWorkspaceIdentifier, isWorkspaceIdentifier } from 'vs/platform/workspaces/common/workspaces';
+import { IWorkspaceIdentifier, ISingleFolderWorkspaceIdentifier, isSingleFolderWorkspaceIdentifier, isWorkspaceIdentifier } from 'vs/platform/workspaces/common/workspaces';
 import { FileKind } from 'vs/platform/files/common/files';
 import { IssueType } from 'vs/platform/issue/common/issue';
 import { domEvent } from 'vs/base/browser/event';
@@ -441,11 +441,11 @@ export abstract class BaseOpenRecentAction extends Action {
 			let description: string;
 			if (isSingleFolderWorkspaceIdentifier(workspace) && fileKind !== FileKind.FILE) {
 				resource = workspace;
-				label = getWorkspaceLabel(workspace, environmentService, uriLabelService);
+				label = uriLabelService.getWorkspaceLabel(workspace);
 				description = uriLabelService.getLabel(dirname(resource));
 			} else if (isWorkspaceIdentifier(workspace)) {
 				resource = URI.file(workspace.configPath);
-				label = getWorkspaceLabel(workspace, environmentService, uriLabelService);
+				label = uriLabelService.getWorkspaceLabel(workspace);
 				description = uriLabelService.getLabel(dirname(resource));
 			} else {
 				resource = workspace;
