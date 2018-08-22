@@ -23,7 +23,7 @@ import { ITextModel } from 'vs/editor/common/model';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { Event, Emitter } from 'vs/base/common/event';
 import { DataUri } from 'vs/workbench/common/resources';
-import { IUriDisplayService } from 'vs/platform/uriDisplay/common/uriDisplay';
+import { IUriLabelService } from 'vs/platform/uriLabel/common/uriLabel';
 
 export interface IResourceLabel {
 	name: string;
@@ -56,7 +56,7 @@ export class ResourceLabel extends IconLabel {
 		@IModelService private modelService: IModelService,
 		@IDecorationsService protected decorationsService: IDecorationsService,
 		@IThemeService private themeService: IThemeService,
-		@IUriDisplayService protected uriDisplayService: IUriDisplayService
+		@IUriLabelService protected uriLabelService: IUriLabelService
 	) {
 		super(container, options);
 
@@ -191,7 +191,7 @@ export class ResourceLabel extends IconLabel {
 			iconLabelOptions.title = this.options.title;
 		} else if (resource && resource.scheme !== Schemas.data /* do not accidentally inline Data URIs */) {
 			if (!this.computedPathLabel) {
-				this.computedPathLabel = this.uriDisplayService.getLabel(resource);
+				this.computedPathLabel = this.uriLabelService.getLabel(resource);
 			}
 
 			iconLabelOptions.title = this.computedPathLabel;
@@ -274,9 +274,9 @@ export class FileLabel extends ResourceLabel {
 		@IDecorationsService decorationsService: IDecorationsService,
 		@IThemeService themeService: IThemeService,
 		@IUntitledEditorService private untitledEditorService: IUntitledEditorService,
-		@IUriDisplayService uriDisplayService: IUriDisplayService
+		@IUriLabelService uriLabelService: IUriLabelService
 	) {
-		super(container, options, extensionService, configurationService, modeService, modelService, decorationsService, themeService, uriDisplayService);
+		super(container, options, extensionService, configurationService, modeService, modelService, decorationsService, themeService, uriLabelService);
 	}
 
 	setFile(resource: uri, options?: IFileLabelOptions): void {
@@ -298,7 +298,7 @@ export class FileLabel extends ResourceLabel {
 		let description: string;
 		const hidePath = (options && options.hidePath) || (resource.scheme === Schemas.untitled && !this.untitledEditorService.hasAssociatedFilePath(resource));
 		if (!hidePath) {
-			description = this.uriDisplayService.getLabel(resources.dirname(resource), true);
+			description = this.uriLabelService.getLabel(resources.dirname(resource), true);
 		}
 
 		this.setLabel({ resource, name, description }, options);

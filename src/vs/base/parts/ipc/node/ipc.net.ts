@@ -8,7 +8,7 @@
 import { Socket, Server as NetServer, createConnection, createServer } from 'net';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { Event, Emitter, once, mapEvent, fromNodeEventEmitter } from 'vs/base/common/event';
-import { IMessagePassingProtocol, ClientConnectionEvent, IPCServer, IPCClient } from 'vs/base/parts/ipc/common/ipc';
+import { IMessagePassingProtocol, ClientConnectionEvent, IPCServer, IPCClient } from 'vs/base/parts/ipc/node/ipc';
 import { join } from 'path';
 import { tmpdir } from 'os';
 import { generateUuid } from 'vs/base/common/uuid';
@@ -25,9 +25,17 @@ export function generateRandomPipeName(): string {
 	}
 }
 
+/**
+ * A message has the following format:
+ *
+ * 		[bodyLen|message]
+ * 		[header^|data^^^]
+ * 		[u32be^^|buffer^]
+ */
+
 export class Protocol implements IDisposable, IMessagePassingProtocol {
 
-	private static readonly _headerLen = 5;
+	private static readonly _headerLen = 4;
 
 	private _isDisposed: boolean;
 	private _chunks: Buffer[];
@@ -37,8 +45,8 @@ export class Protocol implements IDisposable, IMessagePassingProtocol {
 	private _socketEndListener: () => void;
 	private _socketCloseListener: () => void;
 
-	private _onMessage = new Emitter<any>();
-	readonly onMessage: Event<any> = this._onMessage.event;
+	private _onMessage = new Emitter<Buffer>();
+	readonly onMessage: Event<Buffer> = this._onMessage.event;
 
 	private _onClose = new Emitter<void>();
 	readonly onClose: Event<void> = this._onClose.event;
@@ -51,7 +59,6 @@ export class Protocol implements IDisposable, IMessagePassingProtocol {
 
 		const state = {
 			readHead: true,
-			bodyIsJson: false,
 			bodyLen: -1,
 		};
 
@@ -68,8 +75,7 @@ export class Protocol implements IDisposable, IMessagePassingProtocol {
 					if (totalLength >= Protocol._headerLen) {
 						const all = Buffer.concat(this._chunks);
 
-						state.bodyIsJson = all.readInt8(0) === 1;
-						state.bodyLen = all.readInt32BE(1);
+						state.bodyLen = all.readUInt32BE(0);
 						state.readHead = false;
 
 						const rest = all.slice(Protocol._headerLen);
@@ -87,21 +93,17 @@ export class Protocol implements IDisposable, IMessagePassingProtocol {
 					if (totalLength >= state.bodyLen) {
 
 						const all = Buffer.concat(this._chunks);
-						let message = all.toString('utf8', 0, state.bodyLen);
-						if (state.bodyIsJson) {
-							message = JSON.parse(message);
-						}
+						const buffer = all.slice(0, state.bodyLen);
 
-						// ensure the public getBuffer returns a valid value if invoked from the event listeners
+						// ensure the getBuffer returns a valid value if invoked from the event listeners
 						const rest = all.slice(state.bodyLen);
 						totalLength = rest.length;
 						this._chunks = [rest];
 
-						state.bodyIsJson = false;
 						state.bodyLen = -1;
 						state.readHead = true;
 
-						this._onMessage.fire(message);
+						this._onMessage.fire(buffer);
 
 						if (this._isDisposed) {
 							// check if an event listener lead to our disposal
@@ -145,7 +147,7 @@ export class Protocol implements IDisposable, IMessagePassingProtocol {
 		_socket.once('close', this._socketCloseListener);
 	}
 
-	public dispose(): void {
+	dispose(): void {
 		this._isDisposed = true;
 		this._firstChunkTimer.dispose();
 		this._socket.removeListener('data', this._socketDataListener);
@@ -153,30 +155,18 @@ export class Protocol implements IDisposable, IMessagePassingProtocol {
 		this._socket.removeListener('close', this._socketCloseListener);
 	}
 
-	public end(): void {
+	end(): void {
 		this._socket.end();
 	}
 
-	public getBuffer(): Buffer {
+	getBuffer(): Buffer {
 		return Buffer.concat(this._chunks);
 	}
 
-	public send(message: any): void {
-
-		// [bodyIsJson|bodyLen|message]
-		// |^header^^^^^^^^^^^|^data^^]
-
+	send(buffer: Buffer): void {
 		const header = Buffer.alloc(Protocol._headerLen);
-
-		// ensure string
-		if (typeof message !== 'string') {
-			message = JSON.stringify(message);
-			header.writeInt8(1, 0, true);
-		}
-		const data = Buffer.from(message);
-		header.writeInt32BE(data.length, 1, true);
-
-		this._writeSoon(header, data);
+		header.writeUInt32BE(buffer.length, 0, true);
+		this._writeSoon(header, buffer);
 	}
 
 	private _writeBuffer = new class {
@@ -241,7 +231,7 @@ export class Server extends IPCServer {
 
 export class Client extends IPCClient {
 
-	public static fromSocket(socket: Socket, id: string): Client {
+	static fromSocket(socket: Socket, id: string): Client {
 		return new Client(new Protocol(socket), id);
 	}
 

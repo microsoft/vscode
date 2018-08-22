@@ -13,14 +13,14 @@
   "dependencies": {
     "jsonc-parser": "^2.0.1",
     "request-light": "^0.2.3",
-    "vscode-json-languageservice": "^3.1.4",
-    "vscode-languageserver": "^4.4.0",
+    "vscode-json-languageservice": "^3.1.5",
+    "vscode-languageserver": "^4.4.2",
     "vscode-nls": "^3.2.4",
     "vscode-uri": "^1.0.5"
   },
   "devDependencies": {
     "@types/mocha": "2.2.33",
-    "@types/node": "7.0.43"
+    "@types/node": "^8.10.25"
   },
   "scripts": {
     "prepublishOnly": "npm run clean && npm run test",

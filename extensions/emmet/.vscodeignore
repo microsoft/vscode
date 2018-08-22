@@ -1,3 +1,4 @@
 test/**
 src/**
+out/**
 tsconfig.json

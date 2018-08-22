@@ -23,18 +23,20 @@ import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { attachInputBoxStyler, attachStylerCallback, attachCheckboxStyler } from 'vs/platform/theme/common/styler';
 import { IMarkersWorkbenchService } from 'vs/workbench/parts/markers/electron-browser/markers';
 import { Event, Emitter } from 'vs/base/common/event';
-import { IDisposable } from 'vs/base/common/lifecycle';
+import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { BaseActionItem, ActionItem } from 'vs/base/browser/ui/actionbar/actionbar';
 import { badgeBackground, contrastBorder } from 'vs/platform/theme/common/colorRegistry';
 import { localize } from 'vs/nls';
 import { Checkbox } from 'vs/base/browser/ui/checkbox/checkbox';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { ContextScopedHistoryInputBox } from 'vs/platform/widget/browser/contextScopedHistoryWidget';
-import { Marker, ResourceMarkers } from 'vs/workbench/parts/markers/electron-browser/markersModel';
+import { Marker } from 'vs/workbench/parts/markers/electron-browser/markersModel';
 import { applyCodeAction } from 'vs/editor/contrib/codeAction/codeActionCommands';
 import { IBulkEditService } from 'vs/editor/browser/services/bulkEditService';
 import { ICommandService } from 'vs/platform/commands/common/commands';
 import { IEditorService, ACTIVE_GROUP } from 'vs/workbench/services/editor/common/editorService';
+import { IModelService } from 'vs/editor/common/services/modelService';
+import { isEqual } from 'vs/base/common/resources';
 
 export class ToggleMarkersPanelAction extends TogglePanelAction {
 
@@ -280,19 +282,38 @@ export class QuickFixAction extends Action {
 
 	public static readonly ID: string = 'workbench.actions.problems.quickfix';
 
+	private updated: boolean = false;
+	private disposables: IDisposable[] = [];
+
 	constructor(
 		readonly marker: Marker,
-		readonly resourceMarkers: ResourceMarkers,
 		@IBulkEditService private bulkEditService: IBulkEditService,
 		@ICommandService private commandService: ICommandService,
-		@IEditorService private editorService: IEditorService
+		@IEditorService private editorService: IEditorService,
+		@IModelService modelService: IModelService
 	) {
 		super(QuickFixAction.ID, Messages.MARKERS_PANEL_ACTION_TOOLTIP_QUICKFIX, 'markers-panel-action-quickfix', false);
-		resourceMarkers.hasFixes(marker).then(hasFixes => this.enabled = hasFixes);
+		if (modelService.getModel(this.marker.resourceMarkers.uri)) {
+			this.update();
+		} else {
+			modelService.onModelAdded(model => {
+				if (isEqual(model.uri, marker.resource)) {
+					this.update();
+				}
+			}, this, this.disposables);
+		}
+
+	}
+
+	private update(): void {
+		if (!this.updated) {
+			this.marker.resourceMarkers.hasFixes(this.marker).then(hasFixes => this.enabled = hasFixes);
+			this.updated = true;
+		}
 	}
 
 	async getQuickFixActions(): Promise<IAction[]> {
-		const codeActions = await this.resourceMarkers.getFixes(this.marker);
+		const codeActions = await this.marker.resourceMarkers.getFixes(this.marker);
 		return codeActions.map(codeAction => new Action(
 			codeAction.command ? codeAction.command.id : codeAction.title,
 			codeAction.title,
@@ -315,6 +336,11 @@ export class QuickFixAction extends Action {
 				revealIfVisible: true
 			},
 		}, ACTIVE_GROUP).then(() => null);
+	}
+
+	dispose(): void {
+		dispose(this.disposables);
+		super.dispose();
 	}
 }
 

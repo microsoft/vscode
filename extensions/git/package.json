@@ -885,7 +885,7 @@
             "string",
             "null"
           ],
-          "description": "%config.path%",
+          "markdownDescription": "%config.path%",
           "default": null,
           "scope": "application"
         },
@@ -956,7 +956,7 @@
             "%config.checkoutType.tags%",
             "%config.checkoutType.remote%"
           ],
-          "description": "%config.checkoutType%",
+          "markdownDescription": "%config.checkoutType%",
           "default": "all"
         },
         "git.ignoreLegacyWarning": {
@@ -1205,7 +1205,7 @@
     "@types/byline": "4.2.31",
     "@types/file-type": "^5.2.1",
     "@types/mocha": "2.2.43",
-    "@types/node": "7.0.43",
+    "@types/node": "^8.10.25",
     "@types/which": "^1.0.28",
     "mocha": "^3.2.0"
   }

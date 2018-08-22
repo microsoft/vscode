@@ -18,7 +18,7 @@ import { Event, Emitter } from 'vs/base/common/event';
 import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
 import { telemetryURIDescriptor } from 'vs/platform/telemetry/common/telemetryUtils';
 import { IHashService } from 'vs/workbench/services/hash/common/hashService';
-import { IUriDisplayService } from 'vs/platform/uriDisplay/common/uriDisplay';
+import { IUriLabelService } from 'vs/platform/uriLabel/common/uriLabel';
 
 /**
  * An editor input to be used for untitled text buffers.
@@ -46,7 +46,7 @@ export class UntitledEditorInput extends EditorInput implements IEncodingSupport
 		@IInstantiationService private instantiationService: IInstantiationService,
 		@ITextFileService private textFileService: ITextFileService,
 		@IHashService private hashService: IHashService,
-		@IUriDisplayService private uriDisplayService: IUriDisplayService
+		@IUriLabelService private uriLabelService: IUriLabelService
 	) {
 		super();
 
@@ -79,17 +79,17 @@ export class UntitledEditorInput extends EditorInput implements IEncodingSupport
 
 	@memoize
 	private get shortDescription(): string {
-		return paths.basename(this.uriDisplayService.getLabel(resources.dirname(this.resource)));
+		return paths.basename(this.uriLabelService.getLabel(resources.dirname(this.resource)));
 	}
 
 	@memoize
 	private get mediumDescription(): string {
-		return this.uriDisplayService.getLabel(resources.dirname(this.resource), true);
+		return this.uriLabelService.getLabel(resources.dirname(this.resource), true);
 	}
 
 	@memoize
 	private get longDescription(): string {
-		return this.uriDisplayService.getLabel(resources.dirname(this.resource));
+		return this.uriLabelService.getLabel(resources.dirname(this.resource));
 	}
 
 	getDescription(verbosity: Verbosity = Verbosity.MEDIUM): string {
@@ -121,12 +121,12 @@ export class UntitledEditorInput extends EditorInput implements IEncodingSupport
 
 	@memoize
 	private get mediumTitle(): string {
-		return this.uriDisplayService.getLabel(this.resource, true);
+		return this.uriLabelService.getLabel(this.resource, true);
 	}
 
 	@memoize
 	private get longTitle(): string {
-		return this.uriDisplayService.getLabel(this.resource);
+		return this.uriLabelService.getLabel(this.resource);
 	}
 
 	getTitle(verbosity: Verbosity): string {

@@ -10,7 +10,7 @@ import * as objects from 'vs/base/common/objects';
 import * as nls from 'vs/nls';
 import URI from 'vs/base/common/uri';
 import { IStateService } from 'vs/platform/state/common/state';
-import { shell, screen, BrowserWindow, systemPreferences, app, TouchBar, nativeImage } from 'electron';
+import { screen, BrowserWindow, systemPreferences, app, TouchBar, nativeImage } from 'electron';
 import { TPromise, TValueCallback } from 'vs/base/common/winjs.base';
 import { IEnvironmentService, ParsedArgs } from 'vs/platform/environment/common/environment';
 import { ILogService } from 'vs/platform/log/common/log';
@@ -24,7 +24,7 @@ import { ICodeWindow, IWindowState, WindowMode } from 'vs/platform/windows/elect
 import { IWorkspaceIdentifier, IWorkspacesMainService } from 'vs/platform/workspaces/common/workspaces';
 import { IBackupMainService } from 'vs/platform/backup/common/backup';
 import { ISerializableCommandAction } from 'vs/platform/actions/common/actions';
-import { mark, exportEntries } from 'vs/base/common/performance';
+import * as perf from 'vs/base/common/performance';
 import { resolveMarketplaceHeaders } from 'vs/platform/extensionManagement/node/extensionGalleryService';
 
 export interface IWindowCreationOptions {
@@ -140,7 +140,11 @@ export class CodeWindow implements ICodeWindow {
 			show: !isFullscreenOrMaximized,
 			title: product.nameLong,
 			webPreferences: {
-				'backgroundThrottling': false, // by default if Code is in the background, intervals and timeouts get throttled,
+				// By default if Code is in the background, intervals and timeouts get throttled, so we
+				// want to enforce that Code stays in the foreground. This triggers a disable_hidden_
+				// flag that Electron provides via patch:
+				// https://github.com/electron/libchromiumcontent/blob/master/patches/common/chromium/disable_hidden.patch
+				'backgroundThrottling': false,
 				disableBlinkFeatures: 'Auxclick' // disable auxclick events (see https://developers.google.com/web/updates/2016/10/auxclick)
 			}
 		};
@@ -371,13 +375,6 @@ export class CodeWindow implements ICodeWindow {
 		// App commands support
 		this.registerNavigationListenerOn('app-command', 'browser-backward', 'browser-forward', false);
 
-		// Handle code that wants to open links
-		this._win.webContents.on('new-window', (event: Event, url: string) => {
-			event.preventDefault();
-
-			shell.openExternal(url);
-		});
-
 		// Window Focus
 		this._win.on('focus', () => {
 			this._lastFocusTime = Date.now();
@@ -413,16 +410,6 @@ export class CodeWindow implements ICodeWindow {
 		this._win.webContents.on('did-fail-load', (event: Electron.Event, errorCode: number, errorDescription: string, validatedURL: string, isMainFrame: boolean) => {
 			this.logService.warn('[electron event]: fail to load, ', errorDescription);
 		});
-
-		// Prevent any kind of navigation triggered by the user!
-		// But do not touch this in dev version because it will prevent "Reload" from dev tools
-		if (this.environmentService.isBuilt) {
-			this._win.webContents.on('will-navigate', (event: Event) => {
-				if (event) {
-					event.preventDefault();
-				}
-			});
-		}
 
 		// Handle configuration changes
 		this.toDispose.push(this.configurationService.onDidChangeConfiguration(e => this.onConfigurationUpdated()));
@@ -547,7 +534,7 @@ export class CodeWindow implements ICodeWindow {
 		}
 
 		// Load URL
-		mark('main:loadWindow');
+		perf.mark('main:loadWindow');
 		this._win.loadURL(this.getUrl(configuration));
 
 		// Make window visible if it did not open in N seconds because this indicates an error
@@ -617,18 +604,12 @@ export class CodeWindow implements ICodeWindow {
 		windowConfiguration.highContrast = isWindows && autoDetectHighContrast && systemPreferences.isInvertedColorScheme();
 		windowConfiguration.accessibilitySupport = app.isAccessibilitySupportEnabled();
 
-		// Theme
-		windowConfiguration.baseTheme = this.getBaseTheme();
-		windowConfiguration.backgroundColor = this.getBackgroundColor();
-
 		// Title style related
 		windowConfiguration.maximized = this._win.isMaximized();
 		windowConfiguration.frameless = this.hasHiddenTitleBarStyle() && !isMacintosh;
 
-		// Perf Counters
-		windowConfiguration.perfEntries = exportEntries();
-		windowConfiguration.perfStartTime = (<any>global).perfStartTime;
-		windowConfiguration.perfWindowLoadTime = Date.now();
+		// Dump Perf Counters
+		windowConfiguration.perfEntries = perf.exportEntries();
 
 		// Config (combination of process.argv and window configuration)
 		const environment = parseArgs(process.argv);

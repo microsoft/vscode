@@ -38,55 +38,13 @@ const ROOT_FOLDER_TEMPLATE_ID = 'node';
 
 class BaseTreeItem {
 
-	private _id: string;
+	private _showedMoreThanOne: boolean;
 	private _children: { [key: string]: BaseTreeItem; };
 	private _source: Source;
 
 	constructor(private _parent: BaseTreeItem, private _label: string) {
-		this._id = this._parent ? `${this._parent._id}/${this._label}` : this._label;
 		this._children = {};
-	}
-
-	getLabel() {
-		const child = this.oneChild();
-		if (child) {
-			const sep = this instanceof RootFolderTreeItem ? ' • ' : '/';
-			return `${this._label}${sep}${child.getLabel()}`;
-		}
-		return this._label;
-	}
-
-	getId(): string {
-		return this._id;
-	}
-
-	getTemplateId(): string {
-		return SOURCE_TEMPLATE_ID;
-	}
-
-	getChildren(): TPromise<BaseTreeItem[]> {
-		const child = this.oneChild();
-		if (child) {
-			return child.getChildren();
-		}
-		const array = Object.keys(this._children).map(key => this._children[key]);
-		return TPromise.as(array.sort((a, b) => this.compare(a, b)));
-	}
-
-	hasChildren(): boolean {
-		const child = this.oneChild();
-		if (child) {
-			return child.hasChildren();
-		}
-		return Object.keys(this._children).length > 0;
-	}
-
-	getSource() {
-		const child = this.oneChild();
-		if (child) {
-			return child.getSource();
-		}
-		return this._source;
+		this._showedMoreThanOne = false;
 	}
 
 	setSource(session: ISession, source: Source): void {
@@ -106,6 +64,78 @@ class BaseTreeItem {
 		delete this._children[key];
 	}
 
+	getTemplateId(): string {
+		return SOURCE_TEMPLATE_ID;
+	}
+
+	// a dynamic ID based on the parent chain; required for reparenting (see #55448)
+	getId(): string {
+		const parent = this.getParent();
+		return parent ? `${parent.getId()}/${this._label}` : this._label;
+	}
+
+	// skips intermediate single-child nodes
+	getParent(): BaseTreeItem {
+		if (this._parent) {
+			const child = this._parent.oneChild();
+			if (child) {
+				return this._parent.getParent();
+			}
+			return this._parent;
+		}
+		return undefined;
+	}
+
+	// skips intermediate single-child nodes
+	hasChildren(): boolean {
+		const child = this.oneChild();
+		if (child) {
+			return child.hasChildren();
+		}
+		return Object.keys(this._children).length > 0;
+	}
+
+	// skips intermediate single-child nodes
+	getChildren(): TPromise<BaseTreeItem[]> {
+		const child = this.oneChild();
+		if (child) {
+			return child.getChildren();
+		}
+		const array = Object.keys(this._children).map(key => this._children[key]);
+		return TPromise.as(array.sort((a, b) => this.compare(a, b)));
+	}
+
+	// skips intermediate single-child nodes
+	getLabel(separateRootFolder = true) {
+		const child = this.oneChild();
+		if (child) {
+			const sep = (this instanceof RootFolderTreeItem && separateRootFolder) ? ' • ' : '/';
+			return `${this._label}${sep}${child.getLabel()}`;
+		}
+		return this._label;
+	}
+
+	// skips intermediate single-child nodes
+	getHoverLabel(): string {
+		let label = this.getLabel(false);
+		if (this._parent) {
+			const parentLabel = this._parent.getHoverLabel();
+			if (parentLabel) {
+				return `${parentLabel}/${label}`;
+			}
+		}
+		return label;
+	}
+
+	// skips intermediate single-child nodes
+	getSource(): Source {
+		const child = this.oneChild();
+		if (child) {
+			return child.getSource();
+		}
+		return this._source;
+	}
+
 	protected compare(a: BaseTreeItem, b: BaseTreeItem): number {
 		if (a._label && b._label) {
 			return a._label.localeCompare(b._label);
@@ -114,10 +144,14 @@ class BaseTreeItem {
 	}
 
 	private oneChild(): BaseTreeItem {
-		if (SMART && !(this instanceof RootTreeItem)) {
+		if (SMART && !this._showedMoreThanOne) {
 			const keys = Object.keys(this._children);
 			if (keys.length === 1) {
 				return this._children[keys[0]];
+			}
+			// if a node had more than one child once, it will never be skipped again
+			if (keys.length > 1) {
+				this._showedMoreThanOne = true;
 			}
 		}
 		return undefined;
@@ -137,29 +171,10 @@ class RootFolderTreeItem extends BaseTreeItem {
 
 class RootTreeItem extends BaseTreeItem {
 
-	private _showedMoreThanOne: boolean;
-
 	constructor(private _debugModel: IModel, private _environmentService: IEnvironmentService, private _contextService: IWorkspaceContextService) {
 		super(undefined, 'Root');
-		this._showedMoreThanOne = false;
 		this._debugModel.getSessions().forEach(session => {
 			this.add(session);
-		});
-	}
-
-	hasChildren(): boolean {
-		return true;
-	}
-
-	getChildren(): TPromise<BaseTreeItem[]> {
-		return super.getChildren().then(children => {
-			const size = children.length;
-			if (!this._showedMoreThanOne && size === 1) {
-				// skip session if there is only one
-				return children[0].getChildren();
-			}
-			this._showedMoreThanOne = size > 1;
-			return children;
 		});
 	}
 
@@ -179,6 +194,10 @@ class SessionTreeItem extends BaseTreeItem {
 		super(parent, session.getName(true));
 		this._initialized = false;
 		this._session = session;
+	}
+
+	getHoverLabel(): string {
+		return undefined;
 	}
 
 	getTemplateId(): string {
@@ -211,9 +230,6 @@ class SessionTreeItem extends BaseTreeItem {
 		return super.compare(a, b);
 	}
 
-	/**
-	 * Return an ordinal number for folders
-	 */
 	private category(item: BaseTreeItem): number {
 
 		// workspace scripts come at the beginning in "folder" order
@@ -270,9 +286,6 @@ class SessionTreeItem extends BaseTreeItem {
 
 		let x: BaseTreeItem = this;
 		path.split(/[\/\\]/).forEach((segment, i) => {
-			if (segment.length === 0) {	// macOS or unix path
-				segment = '/';
-			}
 			if (i === 0 && folder) {
 				x = x.createIfNeeded(folder.name, parent => new RootFolderTreeItem(parent, folder));
 			} else if (i === 0 && url) {
@@ -358,19 +371,26 @@ export class LoadedScriptsView extends TreeViewsViewletPanel {
 
 		let timeout: number;
 
-		this.disposables.push(this.debugService.onDidLoadedSource(event => {
-			const sessionRoot = root.add(event.session);
-			sessionRoot.addPath(event.source);
+		this.disposables.push(this.debugService.onDidNewSession(session => {
+			this.disposables.push(session.onDidLoadedSource(event => {
+				const sessionRoot = root.add(session);
+				sessionRoot.addPath(event.source);
 
-			clearTimeout(timeout);
-			timeout = setTimeout(() => {
-				this.tree.refresh(root, true);
-			}, 300);
+				clearTimeout(timeout);
+				timeout = setTimeout(() => {
+					if (this.tree) {
+						this.tree.refresh(root, true);
+					}
+				}, 300);
+			}));
 		}));
 
 		this.disposables.push(this.debugService.onDidEndSession(session => {
+			clearTimeout(timeout);
 			root.remove(session.getId());
-			this.tree.refresh(root, false);
+			if (this.tree) {
+				this.tree.refresh(root, false);
+			}
 		}));
 	}
 
@@ -404,7 +424,7 @@ class LoadedScriptsDataSource implements IDataSource {
 	}
 
 	getParent(tree: ITree, element: any): TPromise<any> {
-		return TPromise.as(null);
+		return element.getParent();
 	}
 
 	shouldAutoexpand?(tree: ITree, element: any): boolean {
@@ -468,17 +488,17 @@ class LoadedScriptsRenderer implements IRenderer {
 	}
 
 	private renderSession(session: SessionTreeItem, data: ISessionTemplateData): void {
-		data.session.title = 'session';
+		data.session.title = nls.localize('loadedScriptsSession', "Session");
 		data.session.textContent = session.getLabel();
 	}
 
 	private renderSource(source: BaseTreeItem, data: ISourceTemplateData): void {
-		data.source.title = 'source';
+		data.source.title = source.getHoverLabel();
 		data.source.textContent = source.getLabel();
 	}
 
 	private renderNode(node: BaseTreeItem, data: INodeTemplateData): void {
-		data.node.title = 'node';
+		data.node.title = node.getHoverLabel();
 		data.node.textContent = node.getLabel();
 	}
 }
@@ -486,6 +506,22 @@ class LoadedScriptsRenderer implements IRenderer {
 class LoadedSciptsAccessibilityProvider implements IAccessibilityProvider {
 
 	public getAriaLabel(tree: ITree, element: any): string {
-		return nls.localize('implement me', "implement me");
+
+		if (element instanceof RootFolderTreeItem) {
+			return nls.localize('loadedScriptsRootFolderAriaLabel', "Workspace folder {0}, loaded script, debug", element.getLabel());
+		}
+
+		if (element instanceof SessionTreeItem) {
+			return nls.localize('loadedScriptsSessionAriaLabel', "Session {0}, loaded script, debug", element.getLabel());
+		}
+
+		if (element instanceof BaseTreeItem) {
+			if (element.hasChildren()) {
+				return nls.localize('loadedScriptsFolderAriaLabel', "Folder {0}, loaded script, debug", element.getLabel());
+			} else {
+				return nls.localize('loadedScriptsSourceAriaLabel', "{0}, loaded script, debug", element.getLabel());
+			}
+		}
+		return null;
 	}
 }

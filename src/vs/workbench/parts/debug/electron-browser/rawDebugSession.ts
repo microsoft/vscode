@@ -16,8 +16,8 @@ import { IWorkspaceFolder } from 'vs/platform/workspace/common/workspace';
 import { INotificationService } from 'vs/platform/notification/common/notification';
 import { formatPII } from 'vs/workbench/parts/debug/common/debugUtils';
 import { SocketDebugAdapter } from 'vs/workbench/parts/debug/node/debugAdapter';
-import { SessionState, DebugEvent, IRawSession, IDebugAdapter } from 'vs/workbench/parts/debug/common/debug';
-
+import { DebugEvent, IRawSession, IDebugAdapter } from 'vs/workbench/parts/debug/common/debug';
+import { CancellationToken, CancellationTokenSource } from 'vs/base/common/cancellation';
 
 export interface SessionExitedEvent extends DebugEvent {
 	body: {
@@ -44,10 +44,10 @@ export class RawDebugSession implements IRawSession {
 	private startTime: number;
 	public disconnected: boolean;
 	private terminated: boolean;
-	private sentPromises: TPromise<DebugProtocol.Response>[];
+	private cancellationTokens: CancellationTokenSource[];
 	private _capabilities: DebugProtocol.Capabilities;
 	private allThreadsContinued: boolean;
-	private state: SessionState = SessionState.LAUNCH;
+	private isAttached: boolean;
 
 	private readonly _onDidInitialize: Emitter<DebugProtocol.InitializedEvent>;
 	private readonly _onDidStop: Emitter<DebugProtocol.StoppedEvent>;
@@ -63,11 +63,11 @@ export class RawDebugSession implements IRawSession {
 	private readonly _onDidEvent: Emitter<DebugProtocol.Event>;
 
 	constructor(
-		private id: string,
+		private sessionId: string,
 		private debugServerPort: number,
 		private _debugger: Debugger,
 		public customTelemetryService: ITelemetryService,
-		public root: IWorkspaceFolder,
+		private root: IWorkspaceFolder,
 		@INotificationService private notificationService: INotificationService,
 		@ITelemetryService private telemetryService: ITelemetryService,
 		@IOutputService private outputService: IOutputService
@@ -75,7 +75,7 @@ export class RawDebugSession implements IRawSession {
 		this.emittedStopped = false;
 		this.readyForBreakpoints = false;
 		this.allThreadsContinued = true;
-		this.sentPromises = [];
+		this.cancellationTokens = [];
 
 		this._onDidInitialize = new Emitter<DebugProtocol.InitializedEvent>();
 		this._onDidStop = new Emitter<DebugProtocol.StoppedEvent>();
@@ -89,10 +89,6 @@ export class RawDebugSession implements IRawSession {
 		this._onDidLoadedSource = new Emitter<DebugProtocol.LoadedSourceEvent>();
 		this._onDidCustomEvent = new Emitter<DebugEvent>();
 		this._onDidEvent = new Emitter<DebugProtocol.Event>();
-	}
-
-	public getId(): string {
-		return this.id;
 	}
 
 	public get onDidInitialize(): Event<DebugProtocol.InitializedEvent> {
@@ -182,7 +178,8 @@ export class RawDebugSession implements IRawSession {
 
 	private send<R extends DebugProtocol.Response>(command: string, args: any, cancelOnDisconnect = true): TPromise<R> {
 		return this.initServer().then(() => {
-			const promise = this.internalSend<R>(command, args).then(response => response, (errorResponse: DebugProtocol.ErrorResponse) => {
+			const cancellationSource = new CancellationTokenSource();
+			const promise = this.internalSend<R>(command, args, cancellationSource.token).then(response => response, (errorResponse: DebugProtocol.ErrorResponse) => {
 				const error = errorResponse && errorResponse.body ? errorResponse.body.error : null;
 				const errorMessage = errorResponse ? errorResponse.message : '';
 				const telemetryMessage = error ? formatPII(error.format, true, error.variables) : errorMessage;
@@ -217,16 +214,15 @@ export class RawDebugSession implements IRawSession {
 			});
 
 			if (cancelOnDisconnect) {
-				this.sentPromises.push(promise);
+				this.cancellationTokens.push(cancellationSource);
 			}
 			return promise;
 		});
 	}
 
-	private internalSend<R extends DebugProtocol.Response>(command: string, args: any): TPromise<R> {
-		let errorCallback: (error: Error) => void;
+	private internalSend<R extends DebugProtocol.Response>(command: string, args: any, cancelationToken: CancellationToken): TPromise<R> {
 		return new TPromise<R>((completeDispatch, errorDispatch) => {
-			errorCallback = errorDispatch;
+			cancelationToken.onCancellationRequested(() => errorDispatch(errors.canceled()));
 			this.debugAdapter.sendRequest(command, args, (result: R) => {
 				if (result.success) {
 					completeDispatch(result);
@@ -234,11 +230,11 @@ export class RawDebugSession implements IRawSession {
 					errorDispatch(result);
 				}
 			});
-		}, () => errorCallback(errors.canceled()));
+		});
 	}
 
 	private onDapEvent(event: DebugEvent): void {
-		event.sessionId = this.id;
+		event.sessionId = this.sessionId;
 
 		if (event.event === 'loadedSource') {	// most frequent comes first
 			this._onDidLoadedSource.fire(<DebugProtocol.LoadedSourceEvent>event);
@@ -292,7 +288,7 @@ export class RawDebugSession implements IRawSession {
 	}
 
 	public attach(args: DebugProtocol.AttachRequestArguments): TPromise<DebugProtocol.AttachResponse> {
-		this.state = SessionState.ATTACH;
+		this.isAttached = true;
 		return this.send('attach', args).then(response => this.readCapabilities(response));
 	}
 
@@ -351,7 +347,7 @@ export class RawDebugSession implements IRawSession {
 	}
 
 	public terminate(restart = false): TPromise<DebugProtocol.TerminateResponse> {
-		if (this.capabilities.supportsTerminateRequest && !this.terminated && this.state === SessionState.LAUNCH) {
+		if (this.capabilities.supportsTerminateRequest && !this.terminated && !this.isAttached) {
 			this.terminated = true;
 			return this.send('terminate', { restart });
 		}
@@ -495,8 +491,8 @@ export class RawDebugSession implements IRawSession {
 		// Cancel all sent promises on disconnect so debug trees are not left in a broken state #3666.
 		// Give a 1s timeout to give a chance for some promises to complete.
 		setTimeout(() => {
-			this.sentPromises.forEach(p => p && p.cancel());
-			this.sentPromises = [];
+			this.cancellationTokens.forEach(token => token.cancel());
+			this.cancellationTokens = [];
 		}, 1000);
 
 		if (this.debugAdapter && !this.disconnected) {
@@ -515,12 +511,11 @@ export class RawDebugSession implements IRawSession {
 			this.cachedInitServerP = null;
 		}
 
-		this._onDidExitAdapter.fire({ sessionId: this.getId() });
+		this._onDidExitAdapter.fire({ sessionId: this.sessionId });
 		this.disconnected = true;
 		if (!this.debugAdapter || this.debugAdapter instanceof SocketDebugAdapter) {
 			return TPromise.as(null);
 		}
-
 
 		return this.debugAdapter.stopSession();
 	}
@@ -536,6 +531,6 @@ export class RawDebugSession implements IRawSession {
 		if (!this.disconnected) {
 			this.notificationService.error(nls.localize('debugAdapterCrash', "Debug adapter process has terminated unexpectedly"));
 		}
-		this._onDidExitAdapter.fire({ sessionId: this.getId() });
+		this._onDidExitAdapter.fire({ sessionId: this.sessionId });
 	}
 }

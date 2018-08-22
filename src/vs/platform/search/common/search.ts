@@ -155,40 +155,50 @@ export interface ISearchProgressItem extends IFileMatch, IProgress {
 
 export interface ISearchCompleteStats {
 	limitHit?: boolean;
-	stats?: ISearchStats;
+	stats?: IFileSearchStats;
 }
 
 export interface ISearchComplete extends ISearchCompleteStats {
 	results: IFileMatch[];
 }
 
-export interface ISearchStats {
+export interface IFileSearchStats {
 	fromCache: boolean;
+	detailStats: ISearchEngineStats | ICachedSearchStats | IFileSearchProviderStats | IFileIndexProviderStats;
+
 	resultCount: number;
-	unsortedResultTime?: number;
-	sortedResultTime?: number;
+	type: 'fileIndexProver' | 'fileSearchProvider' | 'searchProcess';
+	sortingTime?: number;
 }
 
-export interface ICachedSearchStats extends ISearchStats {
-	cacheLookupStartTime: number;
-	cacheFilterStartTime: number;
-	cacheLookupResultTime: number;
+export interface ICachedSearchStats {
+	cacheWasResolved: boolean;
+	cacheLookupTime: number;
+	cacheFilterTime: number;
 	cacheEntryCount: number;
-	joined?: ISearchStats;
 }
 
-export interface IUncachedSearchStats extends ISearchStats {
+export interface ISearchEngineStats {
 	traversal: string;
-	errors: string[];
-	fileWalkStartTime: number;
-	fileWalkResultTime: number;
+	fileWalkTime: number;
 	directoriesWalked: number;
 	filesWalked: number;
-	cmdForkStartTime?: number;
-	cmdForkResultTime?: number;
+	cmdTime: number;
 	cmdResultCount?: number;
 }
 
+export interface IFileSearchProviderStats {
+	providerTime: number;
+	postProcessTime: number;
+}
+
+export interface IFileIndexProviderStats {
+	providerTime: number;
+	providerResultCount: number;
+	fileWalkTime: number;
+	directoriesWalked: number;
+	filesWalked: number;
+}
 
 // ---- very simple implementation of the search model --------------------
 

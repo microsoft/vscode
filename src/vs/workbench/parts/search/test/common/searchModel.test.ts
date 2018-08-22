@@ -16,7 +16,7 @@ import { ModelServiceImpl } from 'vs/editor/common/services/modelServiceImpl';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { TestConfigurationService } from 'vs/platform/configuration/test/common/testConfigurationService';
 import { TestInstantiationService } from 'vs/platform/instantiation/test/common/instantiationServiceMock';
-import { IFileMatch, IFolderQuery, ILineMatch, ISearchComplete, ISearchProgressItem, ISearchQuery, ISearchService, IUncachedSearchStats } from 'vs/platform/search/common/search';
+import { IFileMatch, IFileSearchStats, IFolderQuery, ILineMatch, ISearchComplete, ISearchProgressItem, ISearchQuery, ISearchService } from 'vs/platform/search/common/search';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { NullTelemetryService } from 'vs/platform/telemetry/common/telemetryUtils';
 import { SearchModel } from 'vs/workbench/parts/search/common/searchModel';
@@ -47,15 +47,18 @@ suite('SearchModel', () => {
 	let instantiationService: TestInstantiationService;
 	let restoreStubs: sinon.SinonStub[];
 
-	const testSearchStats: IUncachedSearchStats = {
+	const testSearchStats: IFileSearchStats = {
 		fromCache: false,
-		resultCount: 4,
-		traversal: 'node',
-		errors: [],
-		fileWalkStartTime: 0,
-		fileWalkResultTime: 1,
-		directoriesWalked: 2,
-		filesWalked: 3
+		resultCount: 1,
+		type: 'searchProcess',
+		detailStats: {
+			traversal: 'node',
+			fileWalkTime: 0,
+			cmdTime: 0,
+			cmdResultCount: 0,
+			directoriesWalked: 2,
+			filesWalked: 3
+		}
 	};
 
 	const folderQueries: IFolderQuery[] = [

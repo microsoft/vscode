@@ -6,10 +6,8 @@
 'use strict';
 
 import 'vs/css!./progressbar';
-import { TPromise, ValueCallback } from 'vs/base/common/winjs.base';
 import * as assert from 'vs/base/common/assert';
 import { Builder, $ } from 'vs/base/browser/builder';
-import * as DOM from 'vs/base/browser/dom';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { Color } from 'vs/base/common/color';
 import { mixin } from 'vs/base/common/objects';
@@ -41,7 +39,6 @@ export class ProgressBar extends Disposable {
 	private element: Builder;
 	private bit: HTMLElement;
 	private totalWork: number;
-	private animationStopToken: ValueCallback;
 	private progressBarBackground: Color;
 
 	constructor(container: HTMLElement, options?: IProgressBarOptions) {
@@ -60,19 +57,7 @@ export class ProgressBar extends Disposable {
 	private create(container: HTMLElement): void {
 		$(container).div({ 'class': css_progress_container }, builder => {
 			this.element = builder.clone();
-
-			builder.div({ 'class': css_progress_bit }).on([DOM.EventType.ANIMATION_START, DOM.EventType.ANIMATION_END, DOM.EventType.ANIMATION_ITERATION], (e: Event) => {
-				switch (e.type) {
-					case DOM.EventType.ANIMATION_ITERATION:
-						if (this.animationStopToken) {
-							this.animationStopToken(null);
-						}
-						break;
-				}
-
-			}, this.toDispose);
-
-			this.bit = builder.getHTMLElement();
+			this.bit = builder.div({ 'class': css_progress_bit }).getHTMLElement();
 		});
 
 		this.applyStyles();
@@ -111,7 +96,7 @@ export class ProgressBar extends Disposable {
 			this.bit.style.width = 'inherit';
 
 			if (delayed) {
-				TPromise.timeout(200).then(() => this.off());
+				setTimeout(200, () => this.off());
 			} else {
 				this.off();
 			}
@@ -121,7 +106,7 @@ export class ProgressBar extends Disposable {
 		else {
 			this.bit.style.opacity = '0';
 			if (delayed) {
-				TPromise.timeout(200).then(() => this.off());
+				setTimeout(200, () => this.off());
 			} else {
 				this.off();
 			}

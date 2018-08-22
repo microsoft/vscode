@@ -22,7 +22,7 @@ import * as gulpUtil from 'gulp-util';
 import * as flatmap from 'gulp-flatmap';
 import * as pump from 'pump';
 import * as sm from 'source-map';
-import { Language } from './i18n';
+import { processNlsFiles, Language } from './i18n';
 
 const REPO_ROOT_PATH = path.join(__dirname, '../..');
 
@@ -239,6 +239,10 @@ export function optimizeTask(opts: IOptimizeTaskOpts): () => NodeJS.ReadWriteStr
 				addComment: true,
 				includeContent: true
 			}))
+			.pipe(opts.languages && opts.languages.length ? processNlsFiles({
+				fileHeader: bundledFileHeader,
+				languages: opts.languages
+			}) : es.through())
 			.pipe(gulp.dest(out));
 	};
 }

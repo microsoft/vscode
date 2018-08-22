@@ -7,10 +7,14 @@ import * as DOM from 'vs/base/browser/dom';
 import { renderMarkdown } from 'vs/base/browser/htmlContentRenderer';
 import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { IMouseEvent } from 'vs/base/browser/mouseEvent';
+import { Separator } from 'vs/base/browser/ui/actionbar/actionbar';
+import { alert as ariaAlert } from 'vs/base/browser/ui/aria/aria';
 import { Button } from 'vs/base/browser/ui/button/button';
 import { Checkbox } from 'vs/base/browser/ui/checkbox/checkbox';
 import { InputBox } from 'vs/base/browser/ui/inputbox/inputBox';
 import { SelectBox } from 'vs/base/browser/ui/selectBox/selectBox';
+import { ToolBar } from 'vs/base/browser/ui/toolbar/toolbar';
+import { Action, IAction } from 'vs/base/common/actions';
 import * as arrays from 'vs/base/common/arrays';
 import { Color, RGBA } from 'vs/base/common/color';
 import { onUnexpectedError } from 'vs/base/common/errors';
@@ -23,216 +27,24 @@ import URI from 'vs/base/common/uri';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { IAccessibilityProvider, IDataSource, IFilter, IRenderer as ITreeRenderer, ITree, ITreeConfiguration } from 'vs/base/parts/tree/browser/tree';
 import { DefaultTreestyler } from 'vs/base/parts/tree/browser/treeDefaults';
+import { Tree } from 'vs/base/parts/tree/browser/treeImpl';
 import { localize } from 'vs/nls';
+import { IClipboardService } from 'vs/platform/clipboard/common/clipboardService';
 import { ICommandService } from 'vs/platform/commands/common/commands';
-import { ConfigurationTarget, IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
-import { IContextViewService } from 'vs/platform/contextview/browser/contextView';
+import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
+import { IContextMenuService, IContextViewService } from 'vs/platform/contextview/browser/contextView';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { IListService, WorkbenchTree, WorkbenchTreeController } from 'vs/platform/list/browser/listService';
+import { WorkbenchTreeController } from 'vs/platform/list/browser/listService';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
-import { editorBackground, focusBorder, foreground } from 'vs/platform/theme/common/colorRegistry';
+import { editorBackground, errorForeground, focusBorder, foreground, inputValidationErrorBackground, inputValidationErrorBorder } from 'vs/platform/theme/common/colorRegistry';
 import { attachButtonStyler, attachInputBoxStyler, attachSelectBoxStyler, attachStyler } from 'vs/platform/theme/common/styler';
 import { ICssStyleCollector, ITheme, IThemeService, registerThemingParticipant } from 'vs/platform/theme/common/themeService';
-import { SettingsTarget } from 'vs/workbench/parts/preferences/browser/preferencesWidgets';
 import { ITOCEntry } from 'vs/workbench/parts/preferences/browser/settingsLayout';
-import { ExcludeSettingWidget, IExcludeDataItem, settingItemInactiveSelectionBorder, settingsHeaderForeground, settingsNumberInputBackground, settingsNumberInputBorder, settingsNumberInputForeground, settingsSelectBackground, settingsSelectBorder, settingsSelectForeground, settingsTextInputBackground, settingsTextInputBorder, settingsTextInputForeground } from 'vs/workbench/parts/preferences/browser/settingsWidgets';
-import { IExtensionSetting, ISearchResult, ISetting, ISettingsGroup } from 'vs/workbench/services/preferences/common/preferences';
+import { ISettingsEditorViewState, isExcludeSetting, SettingsTreeElement, SettingsTreeGroupElement, SettingsTreeNewExtensionsElement, SettingsTreeSettingElement, settingKeyToDisplayFormat } from 'vs/workbench/parts/preferences/browser/settingsTreeModels';
+import { ExcludeSettingWidget, IExcludeDataItem, settingsHeaderForeground, settingsNumberInputBackground, settingsNumberInputBorder, settingsNumberInputForeground, settingsSelectBackground, settingsSelectBorder, settingsSelectForeground, settingsTextInputBackground, settingsTextInputBorder, settingsTextInputForeground } from 'vs/workbench/parts/preferences/browser/settingsWidgets';
+import { ISetting, ISettingsGroup } from 'vs/workbench/services/preferences/common/preferences';
 
 const $ = DOM.$;
-
-export const MODIFIED_SETTING_TAG = 'modified';
-export const ONLINE_SERVICES_SETTING_TAG = 'usesOnlineServices';
-
-export abstract class SettingsTreeElement {
-	id: string;
-	parent: any; // SearchResultModel or group element... TODO search should be more similar to the normal case
-}
-
-export class SettingsTreeGroupElement extends SettingsTreeElement {
-	children: (SettingsTreeGroupElement | SettingsTreeSettingElement)[];
-	label: string;
-	level: number;
-	isFirstGroup: boolean;
-}
-
-export class SettingsTreeNewExtensionsElement extends SettingsTreeElement {
-	extensionIds: string[];
-}
-
-export class SettingsTreeSettingElement extends SettingsTreeElement {
-	setting: ISetting;
-
-	displayCategory: string;
-	displayLabel: string;
-
-	/**
-	 * scopeValue || defaultValue, for rendering convenience.
-	 */
-	value: any;
-
-	/**
-	 * The value in the current settings scope.
-	 */
-	scopeValue: any;
-
-	/**
-	 * The default value
-	 */
-	defaultValue?: any;
-
-	/**
-	 * Whether the setting is configured in the selected scope.
-	 */
-	isConfigured: boolean;
-
-	tags?: Set<string>;
-	overriddenScopeList: string[];
-	description: string;
-	valueType: 'enum' | 'string' | 'integer' | 'number' | 'boolean' | 'exclude' | 'complex';
-}
-
-export interface ITOCEntry {
-	id: string;
-	label: string;
-	children?: ITOCEntry[];
-	settings?: (string | ISetting)[];
-}
-
-export class SettingsTreeModel {
-	private _root: SettingsTreeGroupElement;
-	private _treeElementsById = new Map<string, SettingsTreeElement>();
-	private _treeElementsBySettingName = new Map<string, SettingsTreeElement>();
-
-	constructor(
-		private _viewState: ISettingsEditorViewState,
-		private _tocRoot: ITOCEntry,
-		@IConfigurationService private _configurationService: IConfigurationService
-	) {
-		this.update(this._tocRoot);
-	}
-
-	get root(): SettingsTreeGroupElement {
-		return this._root;
-	}
-
-	update(newTocRoot = this._tocRoot): void {
-		const newRoot = this.createSettingsTreeGroupElement(newTocRoot);
-		(<SettingsTreeGroupElement>newRoot.children[0]).isFirstGroup = true;
-
-		if (this._root) {
-			this._root.children = newRoot.children;
-		} else {
-			this._root = newRoot;
-		}
-	}
-
-	getElementById(id: string): SettingsTreeElement {
-		return this._treeElementsById.get(id);
-	}
-
-	getElementByName(name: string): SettingsTreeElement {
-		return this._treeElementsBySettingName.get(name);
-	}
-
-	private createSettingsTreeGroupElement(tocEntry: ITOCEntry, parent?: SettingsTreeGroupElement): SettingsTreeGroupElement {
-		const element = new SettingsTreeGroupElement();
-		element.id = tocEntry.id;
-		element.label = tocEntry.label;
-		element.parent = parent;
-		element.level = this.getDepth(element);
-
-		if (tocEntry.children) {
-			element.children = tocEntry.children.map(child => this.createSettingsTreeGroupElement(child, element));
-		} else if (tocEntry.settings) {
-			element.children = tocEntry.settings.map(s => this.createSettingsTreeSettingElement(<ISetting>s, element))
-				.filter(el => el.setting.deprecationMessage ? el.isConfigured : true);
-		}
-
-		this._treeElementsById.set(element.id, element);
-		return element;
-	}
-
-	private getDepth(element: SettingsTreeElement): number {
-		if (element.parent) {
-			return 1 + this.getDepth(element.parent);
-		} else {
-			return 0;
-		}
-	}
-
-	private createSettingsTreeSettingElement(setting: ISetting, parent: SettingsTreeGroupElement): SettingsTreeSettingElement {
-		const element = createSettingsTreeSettingElement(setting, parent, this._viewState.settingsTarget, this._configurationService);
-		this._treeElementsById.set(element.id, element);
-		this._treeElementsBySettingName.set(setting.key, element);
-		return element;
-	}
-}
-
-function sanitizeId(id: string): string {
-	return id.replace(/[\.\/]/, '_');
-}
-
-function createSettingsTreeSettingElement(setting: ISetting, parent: any, settingsTarget: SettingsTarget, configurationService: IConfigurationService): SettingsTreeSettingElement {
-	const element = new SettingsTreeSettingElement();
-	element.id = sanitizeId(parent.id + '_' + setting.key);
-	element.parent = parent;
-
-	const inspectResult = inspectSetting(setting.key, settingsTarget, configurationService);
-	const { isConfigured, inspected, targetSelector } = inspectResult;
-
-	const displayValue = isConfigured ? inspected[targetSelector] : inspected.default;
-	const overriddenScopeList = [];
-	if (targetSelector === 'user' && typeof inspected.workspace !== 'undefined') {
-		overriddenScopeList.push(localize('workspace', "Workspace"));
-	}
-
-	if (targetSelector === 'workspace' && typeof inspected.user !== 'undefined') {
-		overriddenScopeList.push(localize('user', "User"));
-	}
-
-	const displayKeyFormat = settingKeyToDisplayFormat(setting.key, parent.id);
-	element.setting = setting;
-	element.displayLabel = displayKeyFormat.label;
-	element.displayCategory = displayKeyFormat.category;
-
-	element.value = displayValue;
-	element.scopeValue = isConfigured && inspected[targetSelector];
-	element.defaultValue = inspected.default;
-
-	element.isConfigured = isConfigured;
-	if (isConfigured || setting.tags) {
-		element.tags = new Set<string>();
-		if (isConfigured) {
-			element.tags.add(MODIFIED_SETTING_TAG);
-		}
-
-		if (setting.tags) {
-			setting.tags.forEach(tag => element.tags.add(tag));
-		}
-	}
-
-	element.overriddenScopeList = overriddenScopeList;
-	element.description = setting.description.join('\n');
-
-	if (setting.enum && (setting.type === 'string' || !setting.type)) {
-		element.valueType = 'enum';
-	} else if (setting.type === 'string') {
-		element.valueType = 'string';
-	} else if (isExcludeSetting(setting)) {
-		element.valueType = 'exclude';
-	} else if (setting.type === 'integer') {
-		element.valueType = 'integer';
-	} else if (setting.type === 'number') {
-		element.valueType = 'number';
-	} else if (setting.type === 'boolean') {
-		element.valueType = 'boolean';
-	} else {
-		element.valueType = 'complex';
-	}
-
-	return element;
-}
 
 function getExcludeDisplayValue(element: SettingsTreeSettingElement): IExcludeDataItem[] {
 	const data = element.isConfigured ?
@@ -251,23 +63,6 @@ function getExcludeDisplayValue(element: SettingsTreeSettingElement): IExcludeDa
 				sibling
 			};
 		});
-}
-
-interface IInspectResult {
-	isConfigured: boolean;
-	inspected: any;
-	targetSelector: string;
-}
-
-function inspectSetting(key: string, target: SettingsTarget, configurationService: IConfigurationService): IInspectResult {
-	const inspectOverrides = URI.isUri(target) ? { resource: target } : undefined;
-	const inspected = configurationService.inspect(key, inspectOverrides);
-	const targetSelector = target === ConfigurationTarget.USER ? 'user' :
-		target === ConfigurationTarget.WORKSPACE ? 'workspace' :
-			'workspaceFolder';
-	const isConfigured = typeof inspected[targetSelector] !== 'undefined';
-
-	return { isConfigured, inspected, targetSelector };
 }
 
 export function resolveSettingsTree(tocData: ITOCEntry, coreSettingsGroups: ISettingsGroup[]): { tree: ITOCEntry, leftoverSettings: Set<ISetting> } {
@@ -302,23 +97,28 @@ export function resolveExtensionsSettings(groups: ISettingsGroup[]): ITOCEntry {
 }
 
 function _resolveSettingsTree(tocData: ITOCEntry, allSettings: Set<ISetting>): ITOCEntry {
-	if (tocData.settings) {
-		return <ITOCEntry>{
-			id: tocData.id,
-			label: tocData.label,
-			settings: arrays.flatten(tocData.settings.map(pattern => getMatchingSettings(allSettings, <string>pattern)))
-		};
-	} else if (tocData.children) {
-		return <ITOCEntry>{
-			id: tocData.id,
-			label: tocData.label,
-			children: tocData.children
-				.map(child => _resolveSettingsTree(child, allSettings))
-				.filter(child => (child.children && child.children.length) || (child.settings && child.settings.length))
-		};
+	let children: ITOCEntry[];
+	if (tocData.children) {
+		children = tocData.children
+			.map(child => _resolveSettingsTree(child, allSettings))
+			.filter(child => (child.children && child.children.length) || (child.settings && child.settings.length));
 	}
 
-	return null;
+	let settings: ISetting[];
+	if (tocData.settings) {
+		settings = arrays.flatten(tocData.settings.map(pattern => getMatchingSettings(allSettings, <string>pattern)));
+	}
+
+	if (!children && !settings) {
+		return null;
+	}
+
+	return {
+		id: tocData.id,
+		label: tocData.label,
+		children,
+		settings
+	};
 }
 
 function getMatchingSettings(allSettings: Set<ISetting>, pattern: string): ISetting[] {
@@ -335,12 +135,23 @@ function getMatchingSettings(allSettings: Set<ISetting>, pattern: string): ISett
 	return result.sort((a, b) => a.key.localeCompare(b.key));
 }
 
-function settingMatches(s: ISetting, pattern: string): boolean {
+const settingPatternCache = new Map<string, RegExp>();
+
+function createSettingMatchRegExp(pattern: string): RegExp {
 	pattern = escapeRegExpCharacters(pattern)
 		.replace(/\\\*/g, '.*');
 
-	const regexp = new RegExp(`^${pattern}`, 'i');
-	return regexp.test(s.key);
+	return new RegExp(`^${pattern}`, 'i');
+}
+
+function settingMatches(s: ISetting, pattern: string): boolean {
+	let regExp = settingPatternCache.get(pattern);
+	if (!regExp) {
+		regExp = createSettingMatchRegExp(pattern);
+		settingPatternCache.set(pattern, regExp);
+	}
+
+	return regExp.test(s.key);
 }
 
 function getFlatSettings(settingsGroups: ISettingsGroup[]) {
@@ -367,10 +178,6 @@ export class SettingsDataSource implements IDataSource {
 	}
 
 	hasChildren(tree: ITree, element: SettingsTreeElement): boolean {
-		if (element instanceof SearchResultModel) {
-			return true;
-		}
-
 		if (element instanceof SettingsTreeGroupElement) {
 			return true;
 		}
@@ -383,9 +190,7 @@ export class SettingsDataSource implements IDataSource {
 	}
 
 	private _getChildren(element: SettingsTreeElement): SettingsTreeElement[] {
-		if (element instanceof SearchResultModel) {
-			return element.getChildren();
-		} else if (element instanceof SettingsTreeGroupElement) {
+		if (element instanceof SettingsTreeGroupElement) {
 			return element.children;
 		} else {
 			// No children...
@@ -402,66 +207,6 @@ export class SettingsDataSource implements IDataSource {
 	}
 }
 
-export function settingKeyToDisplayFormat(key: string, groupId = ''): { category: string, label: string } {
-	const lastDotIdx = key.lastIndexOf('.');
-	let category = '';
-	if (lastDotIdx >= 0) {
-		category = key.substr(0, lastDotIdx);
-		key = key.substr(lastDotIdx + 1);
-	}
-
-	groupId = groupId.replace(/\//g, '.');
-	category = trimCategoryForGroup(category, groupId);
-	category = wordifyKey(category);
-
-	const label = wordifyKey(key);
-	return { category, label };
-}
-
-function wordifyKey(key: string): string {
-	return key
-		.replace(/\.([a-z])/g, (match, p1) => `.${p1.toUpperCase()}`)
-		.replace(/([a-z])([A-Z])/g, '$1 $2') // fooBar => foo Bar
-		.replace(/^[a-z]/g, match => match.toUpperCase()); // foo => Foo
-}
-
-function trimCategoryForGroup(category: string, groupId: string): string {
-	const doTrim = forward => {
-		const parts = groupId.split('.');
-		while (parts.length) {
-			const reg = new RegExp(`^${parts.join('\\.')}(\\.|$)`, 'i');
-			if (reg.test(category)) {
-				return category.replace(reg, '');
-			}
-
-			if (forward) {
-				parts.pop();
-			} else {
-				parts.shift();
-			}
-		}
-
-		return null;
-	};
-
-	let trimmed = doTrim(true);
-	if (trimmed === null) {
-		trimmed = doTrim(false);
-	}
-
-	if (trimmed === null) {
-		trimmed = category;
-	}
-
-	return trimmed;
-}
-
-export interface ISettingsEditorViewState {
-	settingsTarget: SettingsTarget;
-	tagFilters?: Set<string>;
-	filterToCategory?: SettingsTreeGroupElement;
-}
-
 interface IDisposableTemplate {
 	toDispose: IDisposable[];
 }
@@ -469,13 +214,15 @@ interface IDisposableTemplate {
 interface ISettingItemTemplate<T = any> extends IDisposableTemplate {
 	onChange?: (value: T) => void;
 
+	context?: SettingsTreeSettingElement;
 	containerElement: HTMLElement;
 	categoryElement: HTMLElement;
 	labelElement: HTMLElement;
 	descriptionElement: HTMLElement;
 	controlElement: HTMLElement;
-	isConfiguredElement: HTMLElement;
+	deprecationWarningElement: HTMLElement;
 	otherOverridesElement: HTMLElement;
+	toolbar: ToolBar;
 }
 
 interface ISettingBoolItemTemplate extends ISettingItemTemplate<boolean> {
@@ -484,6 +231,7 @@ interface ISettingBoolItemTemplate extends ISettingItemTemplate<boolean> {
 
 interface ISettingTextItemTemplate extends ISettingItemTemplate<string> {
 	inputBox: InputBox;
+	validationErrorMessageElement: HTMLElement;
 }
 
 type ISettingNumberItemTemplate = ISettingTextItemTemplate;
@@ -499,7 +247,6 @@ interface ISettingComplexItemTemplate extends ISettingItemTemplate<void> {
 
 interface ISettingExcludeItemTemplate extends ISettingItemTemplate<void> {
 	excludeWidget: ExcludeSettingWidget;
-	context?: SettingsTreeSettingElement;
 }
 
 interface ISettingNewExtensionsTemplate extends IDisposableTemplate {
@@ -507,18 +254,9 @@ interface ISettingNewExtensionsTemplate extends IDisposableTemplate {
 	context?: SettingsTreeNewExtensionsElement;
 }
 
-function isExcludeSetting(setting: ISetting): boolean {
-	return setting.key === 'files.exclude' ||
-		setting.key === 'search.exclude';
-}
-
 interface IGroupTitleTemplate extends IDisposableTemplate {
 	context?: SettingsTreeGroupElement;
 	parent: HTMLElement;
-}
-
-interface IValueRenderResult {
-	overflows?: boolean;
 }
 
 const SETTINGS_TEXT_TEMPLATE_ID = 'settings.text.template';
@@ -537,9 +275,12 @@ export interface ISettingChangeEvent {
 
 export class SettingsRenderer implements ITreeRenderer {
 
-	private static readonly SETTING_ROW_HEIGHT = 104;
-	private static readonly SETTING_BOOL_ROW_HEIGHT = 73;
 	public static readonly MAX_ENUM_DESCRIPTIONS = 10;
+
+	public static readonly CONTROL_CLASS = 'setting-control-focus-target';
+	public static readonly CONTROL_SELECTOR = '.' + SettingsRenderer.CONTROL_CLASS;
+
+	public static readonly SETTING_KEY_ATTR = 'data-key';
 
 	private readonly _onDidChangeSetting: Emitter<ISettingChangeEvent> = new Emitter<ISettingChangeEvent>();
 	public readonly onDidChangeSetting: Event<ISettingChangeEvent> = this._onDidChangeSetting.event;
@@ -550,7 +291,16 @@ export class SettingsRenderer implements ITreeRenderer {
 	private readonly _onDidClickSettingLink: Emitter<string> = new Emitter<string>();
 	public readonly onDidClickSettingLink: Event<string> = this._onDidClickSettingLink.event;
 
-	private measureContainer: HTMLElement;
+	private readonly _onDidFocusSetting: Emitter<SettingsTreeSettingElement> = new Emitter<SettingsTreeSettingElement>();
+	public readonly onDidFocusSetting: Event<SettingsTreeSettingElement> = this._onDidFocusSetting.event;
+
+	private descriptionMeasureContainer: HTMLElement;
+	private longestSingleLineDescription = 0;
+
+	private rowHeightCache = new Map<string, number>();
+	private lastRenderedWidth: number;
+
+	private settingActions: IAction[];
 
 	constructor(
 		_measureContainer: HTMLElement,
@@ -559,11 +309,60 @@ export class SettingsRenderer implements ITreeRenderer {
 		@IOpenerService private readonly openerService: IOpenerService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@ICommandService private readonly commandService: ICommandService,
+		@IContextMenuService private contextMenuService: IContextMenuService
 	) {
-		this.measureContainer = DOM.append(_measureContainer, $('.setting-measure-container.monaco-tree-row'));
+		this.descriptionMeasureContainer = $('.setting-item-description');
+		DOM.append(_measureContainer,
+			$('.setting-measure-container.monaco-tree-row', undefined,
+				$('.setting-item', undefined,
+					this.descriptionMeasureContainer)));
+
+		this.settingActions = [
+			this.instantiationService.createInstance(CopySettingNameAction),
+			this.instantiationService.createInstance(CopySettingIdAction),
+			this.instantiationService.createInstance(CopySettingAsJSONAction),
+			new Separator(),
+			new Action('settings.resetSetting', localize('resetSettingLabel', "Reset Setting"), undefined, undefined, (context: SettingsTreeSettingElement) => {
+				if (context) {
+					this._onDidChangeSetting.fire({ key: context.setting.key, value: undefined });
+				}
+
+				return TPromise.wrap(null);
+			})
+		];
+	}
+
+	showContextMenu(element: SettingsTreeSettingElement, settingDOMElement: HTMLElement): void {
+		const toolbarElement: HTMLElement = settingDOMElement.querySelector('.toolbar-toggle-more');
+		if (toolbarElement) {
+			this.contextMenuService.showContextMenu({
+				getActions: () => TPromise.wrap(this.settingActions),
+				getAnchor: () => toolbarElement,
+				getActionsContext: () => element
+			});
+		}
+	}
+
+	updateWidth(width: number): void {
+		if (this.lastRenderedWidth !== width) {
+			this.rowHeightCache = new Map<string, number>();
+		}
+		this.longestSingleLineDescription = 0;
+
+		this.lastRenderedWidth = width;
 	}
 
 	getHeight(tree: ITree, element: SettingsTreeElement): number {
+		if (this.rowHeightCache.has(element.id) && !(element instanceof SettingsTreeSettingElement && isExcludeSetting(element.setting))) {
+			return this.rowHeightCache.get(element.id);
+		}
+
+		const h = this._getHeight(tree, element);
+		this.rowHeightCache.set(element.id, h);
+		return h;
+	}
+
+	_getHeight(tree: ITree, element: SettingsTreeElement): number {
 		if (element instanceof SettingsTreeGroupElement) {
 			if (element.isFirstGroup) {
 				return 31;
@@ -573,13 +372,10 @@ export class SettingsRenderer implements ITreeRenderer {
 		}
 
 		if (element instanceof SettingsTreeSettingElement) {
-			const isSelected = this.elementIsSelected(tree, element);
-			if (isSelected) {
-				return this.measureSettingElementHeight(tree, element);
-			} else if (isExcludeSetting(element.setting)) {
+			if (isExcludeSetting(element.setting)) {
 				return this._getExcludeSettingHeight(element);
 			} else {
-				return this._getUnexpandedSettingHeight(element);
+				return this.measureSettingElementHeight(tree, element);
 			}
 		}
 
@@ -592,31 +388,48 @@ export class SettingsRenderer implements ITreeRenderer {
 
 	_getExcludeSettingHeight(element: SettingsTreeSettingElement): number {
 		const displayValue = getExcludeDisplayValue(element);
-		return (displayValue.length + 1) * 22 + 80;
-	}
-
-	_getUnexpandedSettingHeight(element: SettingsTreeSettingElement): number {
-		if (element.valueType === 'boolean') {
-			return SettingsRenderer.SETTING_BOOL_ROW_HEIGHT;
-		} else {
-			return SettingsRenderer.SETTING_ROW_HEIGHT;
-		}
+		return (displayValue.length + 1) * 22 + 66 + this.measureSettingDescription(element);
 	}
 
 	private measureSettingElementHeight(tree: ITree, element: SettingsTreeSettingElement): number {
-		const measureHelper = DOM.append(this.measureContainer, $('.setting-measure-helper'));
+		let heightExcludingDescription = 86;
 
-		const templateId = this.getTemplateId(tree, element);
-		const template = this.renderTemplate(tree, templateId, measureHelper);
-		this.renderElement(tree, element, templateId, template);
+		if (element.valueType === 'boolean') {
+			heightExcludingDescription = 60;
+		}
 
-		const height = this.measureContainer.offsetHeight;
-		this.measureContainer.removeChild(this.measureContainer.firstChild);
-		return Math.max(height, this._getUnexpandedSettingHeight(element));
+		return heightExcludingDescription + this.measureSettingDescription(element);
+	}
+
+	private measureSettingDescription(element: SettingsTreeSettingElement): number {
+		if (element.description.length < this.longestSingleLineDescription * .8) {
+			// Most setting descriptions are one short line, so try to avoid measuring them.
+			// If the description is less than 80% of the longest single line description, assume this will also render to be one line.
+			return 18;
+		}
+
+		const boolMeasureClass = 'measure-bool-description';
+		if (element.valueType === 'boolean') {
+			this.descriptionMeasureContainer.classList.add(boolMeasureClass);
+		} else if (this.descriptionMeasureContainer.classList.contains(boolMeasureClass)) {
+			this.descriptionMeasureContainer.classList.remove(boolMeasureClass);
+		}
+
+		// Remove markdown links and setting links
+		const measureText = element.description
+			.replace(/\[(.*)\]\(.*\)/g, '$1')
+			.replace(/`#(.*)#`/g, '$1');
+
+		this.descriptionMeasureContainer.innerText = measureText;
+		const h = this.descriptionMeasureContainer.offsetHeight;
+		if (h < 20 && measureText.length > this.longestSingleLineDescription) {
+			this.longestSingleLineDescription = measureText.length;
+		}
+
+		return h;
 	}
 
 	getTemplateId(tree: ITree, element: SettingsTreeElement): string {
-
 		if (element instanceof SettingsTreeGroupElement) {
 			return SETTINGS_GROUP_ELEMENT_TEMPLATE_ID;
 		}
@@ -626,7 +439,7 @@ export class SettingsRenderer implements ITreeRenderer {
 				return SETTINGS_BOOL_TEMPLATE_ID;
 			}
 
-			if (element.valueType === 'integer' || element.valueType === 'number') {
+			if (element.valueType === 'integer' || element.valueType === 'number' || element.valueType === 'nullable-integer' || element.valueType === 'nullable-number') {
 				return SETTINGS_NUMBER_TEMPLATE_ID;
 			}
 
@@ -703,18 +516,22 @@ export class SettingsRenderer implements ITreeRenderer {
 	private renderCommonTemplate(tree: ITree, container: HTMLElement, typeClass: string): ISettingItemTemplate {
 		DOM.addClass(container, 'setting-item');
 		DOM.addClass(container, 'setting-item-' + typeClass);
-
 		const titleElement = DOM.append(container, $('.setting-item-title'));
-		const categoryElement = DOM.append(titleElement, $('span.setting-item-category'));
-		const labelElement = DOM.append(titleElement, $('span.setting-item-label'));
-		const isConfiguredElement = DOM.append(titleElement, $('span.setting-item-is-configured-label'));
+		const labelCategoryContainer = DOM.append(titleElement, $('.setting-item-cat-label-container'));
+		const categoryElement = DOM.append(labelCategoryContainer, $('span.setting-item-category'));
+		const labelElement = DOM.append(labelCategoryContainer, $('span.setting-item-label'));
 		const otherOverridesElement = DOM.append(titleElement, $('span.setting-item-overrides'));
 		const descriptionElement = DOM.append(container, $('.setting-item-description'));
 
 		const valueElement = DOM.append(container, $('.setting-item-value'));
 		const controlElement = DOM.append(valueElement, $('div.setting-item-control'));
 
+		const deprecationWarningElement = DOM.append(container, $('.setting-item-deprecation-message'));
+
 		const toDispose = [];
+
+		const toolbar = this.renderSettingToolbar(container);
+
 		const template: ISettingItemTemplate = {
 			toDispose,
 
@@ -723,8 +540,9 @@ export class SettingsRenderer implements ITreeRenderer {
 			labelElement,
 			descriptionElement,
 			controlElement,
-			isConfiguredElement,
-			otherOverridesElement
+			deprecationWarningElement,
+			otherOverridesElement,
+			toolbar
 		};
 
 		// Prevent clicks from being handled by list
@@ -740,8 +558,27 @@ export class SettingsRenderer implements ITreeRenderer {
 		return template;
 	}
 
+	private addSettingElementFocusHandler(template: ISettingItemTemplate): void {
+		const focusTracker = DOM.trackFocus(template.containerElement);
+		template.toDispose.push(focusTracker);
+		focusTracker.onDidBlur(() => {
+			if (template.containerElement.classList.contains('focused')) {
+				template.containerElement.classList.remove('focused');
+			}
+		});
+
+		focusTracker.onDidFocus(() => {
+			template.containerElement.classList.add('focused');
+
+			if (template.context) {
+				this._onDidFocusSetting.fire(template.context);
+			}
+		});
+	}
+
 	private renderSettingTextTemplate(tree: ITree, container: HTMLElement, type = 'text'): ISettingTextItemTemplate {
 		const common = this.renderCommonTemplate(tree, container, 'text');
+		const validationErrorMessageElement = DOM.append(container, $('.setting-item-validation-message'));
 
 		const inputBox = new InputBox(common.controlElement, this.contextViewService);
 		common.toDispose.push(inputBox);
@@ -757,19 +594,24 @@ export class SettingsRenderer implements ITreeRenderer {
 				}
 			}));
 		common.toDispose.push(inputBox);
+		inputBox.inputElement.classList.add(SettingsRenderer.CONTROL_CLASS);
 
 		const template: ISettingTextItemTemplate = {
 			...common,
-			inputBox
+			inputBox,
+			validationErrorMessageElement
 		};
+
+		this.addSettingElementFocusHandler(template);
 
 		return template;
 	}
 
 	private renderSettingNumberTemplate(tree: ITree, container: HTMLElement): ISettingNumberItemTemplate {
 		const common = this.renderCommonTemplate(tree, container, 'number');
+		const validationErrorMessageElement = DOM.append(container, $('.setting-item-validation-message'));
 
-		const inputBox = new InputBox(common.controlElement, this.contextViewService);
+		const inputBox = new InputBox(common.controlElement, this.contextViewService, { type: 'number' });
 		common.toDispose.push(inputBox);
 		common.toDispose.push(attachInputBoxStyler(inputBox, this.themeService, {
 			inputBackground: settingsNumberInputBackground,
@@ -783,13 +625,28 @@ export class SettingsRenderer implements ITreeRenderer {
 				}
 			}));
 		common.toDispose.push(inputBox);
+		inputBox.inputElement.classList.add(SettingsRenderer.CONTROL_CLASS);
 
 		const template: ISettingNumberItemTemplate = {
 			...common,
-			inputBox
+			inputBox,
+			validationErrorMessageElement
 		};
 
+		this.addSettingElementFocusHandler(template);
+
 		return template;
+	}
+
+	private renderSettingToolbar(container: HTMLElement): ToolBar {
+		const toolbar = new ToolBar(container, this.contextMenuService, {});
+		toolbar.setActions([], this.settingActions)();
+		const button = container.querySelector('.toolbar-toggle-more');
+		if (button) {
+			(<HTMLElement>button).tabIndex = -1;
+		}
+
+		return toolbar;
 	}
 
 	private renderSettingBoolTemplate(tree: ITree, container: HTMLElement): ISettingBoolItemTemplate {
@@ -799,12 +656,13 @@ export class SettingsRenderer implements ITreeRenderer {
 		const titleElement = DOM.append(container, $('.setting-item-title'));
 		const categoryElement = DOM.append(titleElement, $('span.setting-item-category'));
 		const labelElement = DOM.append(titleElement, $('span.setting-item-label'));
-		const isConfiguredElement = DOM.append(titleElement, $('span.setting-item-is-configured-label'));
 		const otherOverridesElement = DOM.append(titleElement, $('span.setting-item-overrides'));
 
 		const descriptionAndValueElement = DOM.append(container, $('.setting-item-value-description'));
 		const controlElement = DOM.append(descriptionAndValueElement, $('.setting-item-bool-control'));
 		const descriptionElement = DOM.append(descriptionAndValueElement, $('.setting-item-description'));
+
+		const deprecationWarningElement = DOM.append(container, $('.setting-item-deprecation-message'));
 
 		const toDispose = [];
 		const checkbox = new Checkbox({ actionClassName: 'setting-value-checkbox', isChecked: true, title: '', inputActiveOptionBorder: null });
@@ -815,6 +673,9 @@ export class SettingsRenderer implements ITreeRenderer {
 				template.onChange(checkbox.checked);
 			}
 		}));
+		checkbox.domNode.classList.add(SettingsRenderer.CONTROL_CLASS);
+		const toolbar = this.renderSettingToolbar(container);
+		toDispose.push(toolbar);
 
 		const template: ISettingBoolItemTemplate = {
 			toDispose,
@@ -825,9 +686,12 @@ export class SettingsRenderer implements ITreeRenderer {
 			controlElement,
 			checkbox,
 			descriptionElement,
-			isConfiguredElement,
-			otherOverridesElement
+			deprecationWarningElement,
+			otherOverridesElement,
+			toolbar
 		};
+
+		this.addSettingElementFocusHandler(template);
 
 		// Prevent clicks from being handled by list
 		toDispose.push(DOM.addDisposableListener(controlElement, 'mousedown', (e: IMouseEvent) => e.stopPropagation()));
@@ -853,6 +717,10 @@ export class SettingsRenderer implements ITreeRenderer {
 			selectBorder: settingsSelectBorder
 		}));
 		selectBox.render(common.controlElement);
+		const selectElement = common.controlElement.querySelector('select');
+		if (selectElement) {
+			selectElement.classList.add(SettingsRenderer.CONTROL_CLASS);
+		}
 
 		common.toDispose.push(
 			selectBox.onDidSelect(e => {
@@ -869,6 +737,8 @@ export class SettingsRenderer implements ITreeRenderer {
 			enumDescriptionElement
 		};
 
+		this.addSettingElementFocusHandler(template);
+
 		return template;
 	}
 
@@ -876,12 +746,15 @@ export class SettingsRenderer implements ITreeRenderer {
 		const common = this.renderCommonTemplate(tree, container, 'exclude');
 
 		const excludeWidget = this.instantiationService.createInstance(ExcludeSettingWidget, common.controlElement);
+		excludeWidget.domNode.classList.add(SettingsRenderer.CONTROL_CLASS);
 		common.toDispose.push(excludeWidget);
 
 		const template: ISettingExcludeItemTemplate = {
 			...common,
 			excludeWidget
 		};
+
+		this.addSettingElementFocusHandler(template);
 
 		common.toDispose.push(excludeWidget.onDidChangeExclude(e => {
 			if (template.context) {
@@ -942,6 +815,8 @@ export class SettingsRenderer implements ITreeRenderer {
 			button: openSettingsButton
 		};
 
+		this.addSettingElementFocusHandler(template);
+
 		return template;
 	}
 
@@ -965,6 +840,8 @@ export class SettingsRenderer implements ITreeRenderer {
 			button,
 			toDispose
 		};
+
+		// this.addSettingElementFocusHandler(template);
 
 		return template;
 	}
@@ -992,46 +869,53 @@ export class SettingsRenderer implements ITreeRenderer {
 		}
 	}
 
-	private elementIsSelected(tree: ITree, element: SettingsTreeElement): boolean {
-		const selection = tree.getSelection();
-		const selectedElement: SettingsTreeElement = selection && selection[0];
-		return selectedElement && selectedElement.id === element.id;
-	}
-
 	private renderNewExtensionsElement(element: SettingsTreeNewExtensionsElement, template: ISettingNewExtensionsTemplate): void {
 		template.context = element;
 	}
 
+	public getSettingDOMElementForDOMElement(domElement: HTMLElement): HTMLElement {
+		const parent = DOM.findParentWithClass(domElement, 'setting-item');
+		if (parent) {
+			return parent;
+		}
+
+		return null;
+	}
+
+	public getDOMElementsForSettingKey(treeContainer: HTMLElement, key: string): NodeListOf<HTMLElement> {
+		return treeContainer.querySelectorAll(`[${SettingsRenderer.SETTING_KEY_ATTR}="${key}"]`);
+	}
+
+	public getKeyForDOMElementInSetting(element: HTMLElement): string {
+		const settingElement = this.getSettingDOMElementForDOMElement(element);
+		return settingElement && settingElement.getAttribute(SettingsRenderer.SETTING_KEY_ATTR);
+	}
+
 	private renderSettingElement(tree: ITree, element: SettingsTreeSettingElement, templateId: string, template: ISettingItemTemplate | ISettingBoolItemTemplate): void {
-		const isSelected = !!this.elementIsSelected(tree, element);
+		template.context = element;
+		template.toolbar.context = element;
+
 		const setting = element.setting;
 
 		DOM.toggleClass(template.containerElement, 'is-configured', element.isConfigured);
-		DOM.toggleClass(template.containerElement, 'is-expanded', isSelected);
-		template.containerElement.id = element.id.replace(/\./g, '_');
+		DOM.toggleClass(template.containerElement, 'is-expanded', true);
+		template.containerElement.setAttribute(SettingsRenderer.SETTING_KEY_ATTR, element.setting.key);
 
-		const titleTooltip = setting.key;
+		const titleTooltip = setting.key + (element.isConfigured ? ' - Modified' : '');
 		template.categoryElement.textContent = element.displayCategory && (element.displayCategory + ': ');
 		template.categoryElement.title = titleTooltip;
 
 		template.labelElement.textContent = element.displayLabel;
 		template.labelElement.title = titleTooltip;
 
-		const renderedDescription = this.renderDescriptionMarkdown(element.description, template.toDispose);
+		this.renderValue(element, templateId, <ISettingItemTemplate>template);
 		template.descriptionElement.innerHTML = '';
-		template.descriptionElement.appendChild(renderedDescription);
-		(<any>renderedDescription.querySelectorAll('a')).forEach(aElement => {
-			aElement.tabIndex = isSelected ? 0 : -1;
-		});
-
-		const result = this.renderValue(element, isSelected, templateId, <ISettingItemTemplate>template);
-
-		const firstLineOverflows = renderedDescription.firstElementChild && renderedDescription.firstElementChild.clientHeight > 18;
-		const hasExtraLines = renderedDescription.childElementCount > 1;
-		const needsManualOverflowIndicator = (hasExtraLines || result.overflows) && !firstLineOverflows && !isSelected;
-		DOM.toggleClass(template.descriptionElement, 'setting-item-description-artificial-overflow', needsManualOverflowIndicator);
-
-		template.isConfiguredElement.textContent = element.isConfigured ? localize('configured', "Modified") : '';
+		if (element.setting.descriptionIsMarkdown) {
+			const renderedDescription = this.renderDescriptionMarkdown(element.description, template.toDispose);
+			template.descriptionElement.appendChild(renderedDescription);
+		} else {
+			template.descriptionElement.innerText = element.description;
+		}
 
 		if (element.overriddenScopeList.length) {
 			let otherOverridesLabel = element.isConfigured ?
@@ -1066,37 +950,35 @@ export class SettingsRenderer implements ITreeRenderer {
 		return renderedMarkdown;
 	}
 
-	private renderValue(element: SettingsTreeSettingElement, isSelected: boolean, templateId: string, template: ISettingItemTemplate | ISettingBoolItemTemplate): IValueRenderResult {
+	private renderValue(element: SettingsTreeSettingElement, templateId: string, template: ISettingItemTemplate | ISettingBoolItemTemplate): void {
 		const onChange = value => this._onDidChangeSetting.fire({ key: element.setting.key, value });
+		template.deprecationWarningElement.innerText = element.setting.deprecationMessage || '';
 
 		if (templateId === SETTINGS_ENUM_TEMPLATE_ID) {
-			return this.renderEnum(element, isSelected, <ISettingEnumItemTemplate>template, onChange);
+			this.renderEnum(element, <ISettingEnumItemTemplate>template, onChange);
 		} else if (templateId === SETTINGS_TEXT_TEMPLATE_ID) {
-			this.renderText(element, isSelected, <ISettingTextItemTemplate>template, onChange);
+			this.renderText(element, <ISettingTextItemTemplate>template, onChange);
 		} else if (templateId === SETTINGS_NUMBER_TEMPLATE_ID) {
-			this.renderNumber(element, isSelected, <ISettingTextItemTemplate>template, onChange);
+			this.renderNumber(element, <ISettingTextItemTemplate>template, onChange);
 		} else if (templateId === SETTINGS_BOOL_TEMPLATE_ID) {
-			this.renderBool(element, isSelected, <ISettingBoolItemTemplate>template, onChange);
+			this.renderBool(element, <ISettingBoolItemTemplate>template, onChange);
 		} else if (templateId === SETTINGS_EXCLUDE_TEMPLATE_ID) {
-			this.renderExcludeSetting(element, isSelected, <ISettingExcludeItemTemplate>template);
+			this.renderExcludeSetting(element, <ISettingExcludeItemTemplate>template);
 		} else if (templateId === SETTINGS_COMPLEX_TEMPLATE_ID) {
-			this.renderComplexSetting(element, isSelected, <ISettingComplexItemTemplate>template);
+			this.renderComplexSetting(element, <ISettingComplexItemTemplate>template);
 		}
-
-		return { overflows: false };
 	}
 
-	private renderBool(dataElement: SettingsTreeSettingElement, isSelected: boolean, template: ISettingBoolItemTemplate, onChange: (value: boolean) => void): void {
+	private renderBool(dataElement: SettingsTreeSettingElement, template: ISettingBoolItemTemplate, onChange: (value: boolean) => void): void {
 		template.onChange = null;
 		template.checkbox.checked = dataElement.value;
 		template.onChange = onChange;
 
-		template.checkbox.domNode.tabIndex = isSelected ? 0 : -1;
-
 		// Setup and add ARIA attributes
 		// Create id and label for control/input element - parent is wrapper div
 		const id = (dataElement.displayCategory + '_' + dataElement.displayLabel).replace(/ /g, '_');
-		const label = ' ' + dataElement.displayCategory + ' ' + dataElement.displayLabel + ' checkbox ' + (dataElement.value ? 'checked ' : 'unchecked ') + template.isConfiguredElement.textContent;
+		const modifiedText = dataElement.isConfigured ? 'Modified' : '';
+		const label = ' ' + dataElement.displayCategory + ' ' + dataElement.displayLabel + ' checkbox ' + (dataElement.value ? 'checked ' : 'unchecked ') + modifiedText;
 
 		// We use the parent control div for the aria-labelledby target
 		// Does not appear you can use the direct label on the element itself within a tree
@@ -1112,11 +994,12 @@ export class SettingsRenderer implements ITreeRenderer {
 
 	}
 
-	private renderEnum(dataElement: SettingsTreeSettingElement, isSelected: boolean, template: ISettingEnumItemTemplate, onChange: (value: string) => void): IValueRenderResult {
+	private renderEnum(dataElement: SettingsTreeSettingElement, template: ISettingEnumItemTemplate, onChange: (value: string) => void): void {
 		const displayOptions = getDisplayEnumOptions(dataElement.setting);
 		template.selectBox.setOptions(displayOptions);
 
-		const label = ' ' + dataElement.displayCategory + ' ' + dataElement.displayLabel + ' combobox ' + template.isConfiguredElement.textContent;
+		const modifiedText = dataElement.isConfigured ? 'Modified' : '';
+		const label = ' ' + dataElement.displayCategory + ' ' + dataElement.displayLabel + ' combobox ' + modifiedText;
 
 		template.selectBox.setAriaLabel(label);
 
@@ -1126,44 +1009,41 @@ export class SettingsRenderer implements ITreeRenderer {
 		template.onChange = idx => onChange(dataElement.setting.enum[idx]);
 
 		if (template.controlElement.firstElementChild) {
-			template.controlElement.firstElementChild.setAttribute('tabindex', isSelected ? '0' : '-1');
 			// SelectBox needs to be treeitem to read correctly within tree
 			template.controlElement.firstElementChild.setAttribute('role', 'treeitem');
 		}
 
 		template.enumDescriptionElement.innerHTML = '';
-		if (dataElement.setting.enumDescriptions && dataElement.setting.enum && dataElement.setting.enum.length < SettingsRenderer.MAX_ENUM_DESCRIPTIONS) {
-			if (isSelected) {
-				let enumDescriptionText = '\n' + dataElement.setting.enumDescriptions
-					.map((desc, i) => {
-						const displayEnum = escapeInvisibleChars(dataElement.setting.enum[i]);
-						return desc ?
-							` - \`${displayEnum}\`: ${desc}` :
-							` - \`${dataElement.setting.enum[i]}\``;
-					})
-					.filter(desc => !!desc)
-					.join('\n');
+		// if (dataElement.setting.enumDescriptions && dataElement.setting.enum && dataElement.setting.enum.length < SettingsRenderer.MAX_ENUM_DESCRIPTIONS) {
+		// 	if (isSelected) {
+		// 		let enumDescriptionText = '\n' + dataElement.setting.enumDescriptions
+		// 			.map((desc, i) => {
+		// 				const displayEnum = escapeInvisibleChars(dataElement.setting.enum[i]);
+		// 				return desc ?
+		// 					` - \`${displayEnum}\`: ${desc}` :
+		// 					` - \`${dataElement.setting.enum[i]}\``;
+		// 			})
+		// 			.filter(desc => !!desc)
+		// 			.join('\n');
 
-				const renderedMarkdown = this.renderDescriptionMarkdown(fixSettingLinks(enumDescriptionText), template.toDispose);
-				template.enumDescriptionElement.appendChild(renderedMarkdown);
-			}
+		// 		const renderedMarkdown = this.renderDescriptionMarkdown(fixSettingLinks(enumDescriptionText), template.toDispose);
+		// 		template.enumDescriptionElement.appendChild(renderedMarkdown);
+		// 	}
 
-			return { overflows: true };
-		}
-
-		return { overflows: false };
+		// 	return { overflows: true };
+		// }
 	}
 
-	private renderText(dataElement: SettingsTreeSettingElement, isSelected: boolean, template: ISettingTextItemTemplate, onChange: (value: string) => void): void {
+	private renderText(dataElement: SettingsTreeSettingElement, template: ISettingTextItemTemplate, onChange: (value: string) => void): void {
+		const modifiedText = dataElement.isConfigured ? 'Modified' : '';
+		const label = ' ' + dataElement.displayCategory + ' ' + dataElement.displayLabel + ' ' + modifiedText;
 		template.onChange = null;
 		template.inputBox.value = dataElement.value;
-		template.onChange = value => onChange(value);
-		template.inputBox.inputElement.tabIndex = isSelected ? 0 : -1;
+		template.onChange = value => { renderValidations(dataElement, template, false, label); onChange(value); };
 
 		// Setup and add ARIA attributes
 		// Create id and label for control/input element - parent is wrapper div
 		const id = (dataElement.displayCategory + '_' + dataElement.displayLabel).replace(/ /g, '_');
-		const label = ' ' + dataElement.displayCategory + ' ' + dataElement.displayLabel + ' ' + template.isConfiguredElement.textContent;
 
 		// We use the parent control div for the aria-labelledby target
 		// Does not appear you can use the direct label on the element itself within a tree
@@ -1177,21 +1057,26 @@ export class SettingsRenderer implements ITreeRenderer {
 		template.inputBox.inputElement.setAttribute('role', 'treeitem');
 		template.inputBox.inputElement.setAttribute('aria-labelledby', id + 'item ' + id);
 
+		renderValidations(dataElement, template, true, label);
 	}
 
 
-	private renderNumber(dataElement: SettingsTreeSettingElement, isSelected: boolean, template: ISettingTextItemTemplate, onChange: (value: number) => void): void {
+	private renderNumber(dataElement: SettingsTreeSettingElement, template: ISettingTextItemTemplate, onChange: (value: number) => void): void {
+		const modifiedText = dataElement.isConfigured ? 'Modified' : '';
+		const label = ' ' + dataElement.displayCategory + ' ' + dataElement.displayLabel + ' number ' + modifiedText;
+		const numParseFn = (dataElement.valueType === 'integer' || dataElement.valueType === 'nullable-integer')
+			? parseInt : parseFloat;
+
+		const nullNumParseFn = (dataElement.valueType === 'nullable-integer' || dataElement.valueType === 'nullable-number')
+			? (v => v === '' ? null : numParseFn(v)) : numParseFn;
+
 		template.onChange = null;
 		template.inputBox.value = dataElement.value;
-		template.onChange = value => onChange(parseFn(value));
-		template.inputBox.inputElement.tabIndex = isSelected ? 0 : -1;
-
-		const parseFn = dataElement.valueType === 'integer' ? parseInt : parseFloat;
+		template.onChange = value => { renderValidations(dataElement, template, false, label); onChange(nullNumParseFn(value)); };
 
 		// Setup and add ARIA attributes
 		// Create id and label for control/input element - parent is wrapper div
 		const id = (dataElement.displayCategory + '_' + dataElement.displayLabel).replace(/ /g, '_');
-		const label = ' ' + dataElement.displayCategory + ' ' + dataElement.displayLabel + ' number ' + template.isConfiguredElement.textContent;
 
 		// We use the parent control div for the aria-labelledby target
 		// Does not appear you can use the direct label on the element itself within a tree
@@ -1205,22 +1090,39 @@ export class SettingsRenderer implements ITreeRenderer {
 		template.inputBox.inputElement.setAttribute('role', 'treeitem');
 		template.inputBox.inputElement.setAttribute('aria-labelledby', id + 'item ' + id);
 
+		renderValidations(dataElement, template, true, label);
 	}
 
-	private renderExcludeSetting(dataElement: SettingsTreeSettingElement, isSelected: boolean, template: ISettingExcludeItemTemplate): void {
+	private renderExcludeSetting(dataElement: SettingsTreeSettingElement, template: ISettingExcludeItemTemplate): void {
 		const value = getExcludeDisplayValue(dataElement);
 		template.excludeWidget.setValue(value);
 		template.context = dataElement;
 	}
 
-	private renderComplexSetting(dataElement: SettingsTreeSettingElement, isSelected: boolean, template: ISettingComplexItemTemplate): void {
-		template.button.element.tabIndex = isSelected ? 0 : -1;
+	private renderComplexSetting(dataElement: SettingsTreeSettingElement, template: ISettingComplexItemTemplate): void {
 		template.onChange = () => this._onDidOpenSettings.fire(dataElement.setting.key);
 	}
 
 	disposeTemplate(tree: ITree, templateId: string, template: IDisposableTemplate): void {
 		dispose(template.toDispose);
 	}
+}
+
+function renderValidations(dataElement: SettingsTreeSettingElement, template: ISettingTextItemTemplate, calledOnStartup: boolean, originalAriaLabel: string) {
+	if (dataElement.setting.validator) {
+		let errMsg = dataElement.setting.validator(template.inputBox.value);
+		if (errMsg) {
+			DOM.addClass(template.containerElement, 'invalid-input');
+			template.validationErrorMessageElement.innerText = errMsg;
+			let validationError = localize('validationError', "Validation Error.");
+			template.inputBox.inputElement.parentElement.setAttribute('aria-label', [originalAriaLabel, validationError, errMsg].join(' '));
+			if (!calledOnStartup) { ariaAlert(validationError + ' ' + errMsg); }
+			return;
+		} else {
+			template.inputBox.inputElement.parentElement.setAttribute('aria-label', originalAriaLabel);
+		}
+	}
+	DOM.removeClass(template.containerElement, 'invalid-input');
 }
 
 function cleanRenderedMarkdown(element: Node): void {
@@ -1237,7 +1139,11 @@ function cleanRenderedMarkdown(element: Node): void {
 }
 
 function fixSettingLinks(text: string): string {
-	return text.replace(/`#([^#]*)#`/g, (match, settingName) => `[\`${settingName}\`](#${settingName})`);
+	return text.replace(/`#([^#]*)#`/g, (match, settingName) => {
+		const targetDisplayFormat = settingKeyToDisplayFormat(settingName);
+		const targetName = `${targetDisplayFormat.category}: ${targetDisplayFormat.label}`;
+		return `[${targetName}](#${settingName})`;
+	});
 }
 
 function getDisplayEnumOptions(setting: ISetting): string[] {
@@ -1268,26 +1174,29 @@ export class SettingsTreeFilter implements IFilter {
 	) { }
 
 	isVisible(tree: ITree, element: SettingsTreeElement): boolean {
+		// Filter during search
 		if (this.viewState.filterToCategory && element instanceof SettingsTreeSettingElement) {
 			if (!this.settingContainedInGroup(element.setting, this.viewState.filterToCategory)) {
 				return false;
 			}
 		}
 
-		if (element instanceof SettingsTreeSettingElement && this.viewState.tagFilters && this.viewState.tagFilters.size) {
-			if (element.tags) {
-				let hasFilteredTag = true;
-				this.viewState.tagFilters.forEach(tag => {
-					hasFilteredTag = hasFilteredTag && element.tags.has(tag);
-				});
-				return hasFilteredTag;
-			} else {
-				return false;
-			}
+		if (element instanceof SettingsTreeSettingElement && this.viewState.tagFilters) {
+			return element.matchesAllTags(this.viewState.tagFilters);
 		}
 
-		if (element instanceof SettingsTreeGroupElement && this.viewState.tagFilters && this.viewState.tagFilters.size) {
+		if (element instanceof SettingsTreeGroupElement) {
+			if (typeof element.count === 'number') {
+				return element.count > 0;
+			}
+
 			return element.children.some(child => this.isVisible(tree, child));
+		}
+
+		if (element instanceof SettingsTreeNewExtensionsElement) {
+			if ((this.viewState.tagFilters && this.viewState.tagFilters.size) || this.viewState.filterToCategory) {
+				return false;
+			}
 		}
 
 		return true;
@@ -1321,11 +1230,7 @@ export class SettingsTreeController extends WorkbenchTreeController {
 			return true;
 		}
 
-		// Without this, clicking on the setting description causes the tree to lose focus. I don't know why.
-		// The superclass does not always call it because of DND which is not used here.
-		eventish.preventDefault();
-
-		return super.onLeftClick(tree, element, eventish, origin);
+		return false;
 	}
 }
 
@@ -1347,103 +1252,7 @@ export class SettingsAccessibilityProvider implements IAccessibilityProvider {
 	}
 }
 
-export enum SearchResultIdx {
-	Local = 0,
-	Remote = 1,
-	NewExtensions = 2
-}
-
-export class SearchResultModel {
-	private rawSearchResults: ISearchResult[];
-	private cachedUniqueSearchResults: ISearchResult[];
-	private newExtensionSearchResults: ISearchResult;
-	private children: (SettingsTreeSettingElement | SettingsTreeNewExtensionsElement)[];
-
-	readonly id = 'searchResultModel';
-
-	constructor(
-		private _viewState: ISettingsEditorViewState,
-		@IConfigurationService private _configurationService: IConfigurationService
-	) { }
-
-	getChildren(): (SettingsTreeSettingElement | SettingsTreeNewExtensionsElement)[] {
-		return this.children;
-	}
-
-	getUniqueResults(): ISearchResult[] {
-		if (this.cachedUniqueSearchResults) {
-			return this.cachedUniqueSearchResults;
-		}
-
-		if (!this.rawSearchResults) {
-			return [];
-		}
-
-		const localMatchKeys = new Set();
-		const localResult = objects.deepClone(this.rawSearchResults[SearchResultIdx.Local]);
-		if (localResult) {
-			localResult.filterMatches.forEach(m => localMatchKeys.add(m.setting.key));
-		}
-
-		const remoteResult = objects.deepClone(this.rawSearchResults[SearchResultIdx.Remote]);
-		if (remoteResult) {
-			remoteResult.filterMatches = remoteResult.filterMatches.filter(m => !localMatchKeys.has(m.setting.key));
-		}
-
-		this.newExtensionSearchResults = objects.deepClone(this.rawSearchResults[SearchResultIdx.NewExtensions]);
-
-		this.cachedUniqueSearchResults = [localResult, remoteResult];
-		return this.cachedUniqueSearchResults;
-	}
-
-	getRawResults(): ISearchResult[] {
-		return this.rawSearchResults;
-	}
-
-	setResult(type: SearchResultIdx, result: ISearchResult): void {
-		this.cachedUniqueSearchResults = null;
-		this.rawSearchResults = this.rawSearchResults || [];
-		if (!result) {
-			delete this.rawSearchResults[type];
-			return;
-		}
-
-		this.rawSearchResults[type] = result;
-		this.updateChildren();
-	}
-
-	updateChildren(): void {
-		this.children = this.getFlatSettings()
-			.map(s => createSettingsTreeSettingElement(s, this, this._viewState.settingsTarget, this._configurationService))
-			.filter(el => el.setting.deprecationMessage ? el.isConfigured : true);
-
-		if (this.newExtensionSearchResults) {
-			const newExtElement = new SettingsTreeNewExtensionsElement();
-			newExtElement.parent = this;
-			newExtElement.id = 'newExtensions';
-			const resultExtensionIds = this.newExtensionSearchResults.filterMatches
-				.map(result => (<IExtensionSetting>result.setting))
-				.filter(setting => setting.extensionName && setting.extensionPublisher)
-				.map(setting => `${setting.extensionPublisher}.${setting.extensionName}`);
-			newExtElement.extensionIds = arrays.distinct(resultExtensionIds);
-			this.children.push(newExtElement);
-		}
-	}
-
-	private getFlatSettings(): ISetting[] {
-		const flatSettings: ISetting[] = [];
-		this.getUniqueResults()
-			.filter(r => !!r)
-			.forEach(r => {
-				flatSettings.push(
-					...r.filterMatches.map(m => m.setting));
-			});
-
-		return flatSettings;
-	}
-}
-
-class NonExpandableTree extends WorkbenchTree {
+class NonExpandableOrSelectableTree extends Tree {
 	expand(): TPromise<any> {
 		return TPromise.wrap(null);
 	}
@@ -1451,18 +1260,77 @@ class NonExpandableTree extends WorkbenchTree {
 	collapse(): TPromise<any> {
 		return TPromise.wrap(null);
 	}
+
+	public setFocus(element?: any, eventPayload?: any): void {
+		return;
+	}
+
+	public focusNext(count?: number, eventPayload?: any): void {
+		return;
+	}
+
+	public focusPrevious(count?: number, eventPayload?: any): void {
+		return;
+	}
+
+	public focusParent(eventPayload?: any): void {
+		return;
+	}
+
+	public focusFirstChild(eventPayload?: any): void {
+		return;
+	}
+
+	public focusFirst(eventPayload?: any, from?: any): void {
+		return;
+	}
+
+	public focusNth(index: number, eventPayload?: any): void {
+		return;
+	}
+
+	public focusLast(eventPayload?: any, from?: any): void {
+		return;
+	}
+
+	public focusNextPage(eventPayload?: any): void {
+		return;
+	}
+
+	public focusPreviousPage(eventPayload?: any): void {
+		return;
+	}
+
+	public select(element: any, eventPayload?: any): void {
+		return;
+	}
+
+	public selectRange(fromElement: any, toElement: any, eventPayload?: any): void {
+		return;
+	}
+
+	public selectAll(elements: any[], eventPayload?: any): void {
+		return;
+	}
+
+	public setSelection(elements: any[], eventPayload?: any): void {
+		return;
+	}
+
+	public toggleSelection(element: any, eventPayload?: any): void {
+		return;
+	}
 }
 
-export class SettingsTree extends NonExpandableTree {
+export class SettingsTree extends NonExpandableOrSelectableTree {
+	protected disposables: IDisposable[];
+
 	constructor(
 		container: HTMLElement,
 		viewState: ISettingsEditorViewState,
 		configuration: Partial<ITreeConfiguration>,
-		@IContextKeyService contextKeyService: IContextKeyService,
-		@IListService listService: IListService,
 		@IThemeService themeService: IThemeService,
-		@IInstantiationService instantiationService: IInstantiationService,
-		@IConfigurationService configurationService: IConfigurationService
+		@IInstantiationService instantiationService: IInstantiationService
 	) {
 		const treeClass = 'settings-editor-tree';
 
@@ -1481,32 +1349,21 @@ export class SettingsTree extends NonExpandableTree {
 			ariaLabel: localize('treeAriaLabel', "Settings"),
 			showLoading: false,
 			indentPixels: 0,
-			twistiePixels: 0,
+			twistiePixels: 20, // Actually for gear button
 		};
 
 		super(container,
 			fullConfiguration,
-			options,
-			contextKeyService,
-			listService,
-			themeService,
-			instantiationService,
-			configurationService);
+			options);
 
+		this.disposables = [];
 		this.disposables.push(controller);
 
 		this.disposables.push(registerThemingParticipant((theme: ITheme, collector: ICssStyleCollector) => {
 			const activeBorderColor = theme.getColor(focusBorder);
 			if (activeBorderColor) {
-				collector.addRule(`.settings-editor > .settings-body > .settings-tree-container .monaco-tree:focus .monaco-tree-row.focused {outline: solid 1px ${activeBorderColor}; outline-offset: -1px; }`);
-
 				// TODO@rob - why isn't this applied when added to the stylesheet from tocTree.ts? Seems like a chromium glitch.
 				collector.addRule(`.settings-editor > .settings-body > .settings-toc-container .monaco-tree:focus .monaco-tree-row.focused {outline: solid 1px ${activeBorderColor}; outline-offset: -1px;  }`);
-			}
-
-			const inactiveBorderColor = theme.getColor(settingItemInactiveSelectionBorder);
-			if (inactiveBorderColor) {
-				collector.addRule(`.settings-editor > .settings-body > .settings-tree-container .monaco-tree .monaco-tree-row.focused {outline: solid 1px ${inactiveBorderColor}; outline-offset: -1px; }`);
 			}
 
 			const foregroundColor = theme.getColor(foreground);
@@ -1517,9 +1374,26 @@ export class SettingsTree extends NonExpandableTree {
 				collector.addRule(`.settings-editor > .settings-body > .settings-tree-container .setting-item .setting-item-description { color: ${fgWithOpacity}; }`);
 			}
 
+			const errorColor = theme.getColor(errorForeground);
+			if (errorColor) {
+				collector.addRule(`.settings-editor > .settings-body > .settings-tree-container .setting-item .setting-item-deprecation-message { color: ${errorColor}; }`);
+			}
+
+			const invalidInputBackground = theme.getColor(inputValidationErrorBackground);
+			if (invalidInputBackground) {
+				collector.addRule(`.settings-editor > .settings-body > .settings-tree-container .setting-item .setting-item-validation-message { background-color: ${invalidInputBackground}; }`);
+			}
+
+			const invalidInputBorder = theme.getColor(inputValidationErrorBorder);
+			if (invalidInputBorder) {
+				collector.addRule(`.settings-editor > .settings-body > .settings-tree-container .setting-item .setting-item-validation-message { border-style:solid; border-width: 1px; border-color: ${invalidInputBorder}; }`);
+				collector.addRule(`.settings-editor > .settings-body > .settings-tree-container .setting-item.invalid-input .setting-item-control .monaco-inputbox.idle { outline-width: 0; border-style:solid; border-width: 1px; border-color: ${invalidInputBorder}; }`);
+			}
+
 			const headerForegroundColor = theme.getColor(settingsHeaderForeground);
 			if (headerForegroundColor) {
-				collector.addRule(`.settings-editor > .settings-body > .settings-tree-container .settings-group-title-label { color: ${headerForegroundColor} };`);
+				collector.addRule(`.settings-editor > .settings-body > .settings-tree-container .settings-group-title-label { color: ${headerForegroundColor}; }`);
+				collector.addRule(`.settings-editor > .settings-body > .settings-tree-container .setting-item-label { color: ${headerForegroundColor}; }`);
 			}
 		}));
 
@@ -1534,55 +1408,71 @@ export class SettingsTree extends NonExpandableTree {
 			listFocusForeground: foreground,
 			listHoverForeground: foreground,
 			listHoverBackground: editorBackground,
+			listHoverOutline: editorBackground,
+			listFocusOutline: editorBackground,
 			listInactiveSelectionBackground: editorBackground,
 			listInactiveSelectionForeground: foreground
 		}, colors => {
 			this.style(colors);
 		}));
 	}
+}
 
-	public setFocus(element?: any, eventPayload?: any): void {
-		if (element instanceof SettingsTreeGroupElement) {
-			const nav = this.getNavigator(element, false);
-			do {
-				element = nav.next();
-			} while (element instanceof SettingsTreeGroupElement);
-		}
+class CopySettingIdAction extends Action {
+	static readonly ID = 'settings.copySettingId';
+	static readonly LABEL = localize('copySettingIdLabel', "Copy Setting ID");
 
-		super.setFocus(element, eventPayload);
+	constructor(
+		@IClipboardService private clipboardService: IClipboardService
+	) {
+		super(CopySettingIdAction.ID, CopySettingIdAction.LABEL);
 	}
 
-	public focusNext(count?: number, eventPayload?: any): void {
-		const focus = this.getFocus();
-		if (!focus) {
-			return super.focusFirst();
+	run(context: SettingsTreeSettingElement): TPromise<void> {
+		if (context) {
+			this.clipboardService.writeText(context.setting.key);
 		}
 
-		const nav = this.getNavigator(focus, false);
-		let current;
-		do {
-			current = nav.next();
-		} while (current instanceof SettingsTreeGroupElement);
+		return TPromise.as(null);
+	}
+}
 
-		if (current) {
-			this.setFocus(current, eventPayload);
-		}
+class CopySettingAsJSONAction extends Action {
+	static readonly ID = 'settings.copySettingAsJSON';
+	static readonly LABEL = localize('copySettingAsJSONLabel', "Copy Setting as JSON");
+
+	constructor(
+		@IClipboardService private clipboardService: IClipboardService
+	) {
+		super(CopySettingAsJSONAction.ID, CopySettingAsJSONAction.LABEL);
 	}
 
-	public focusPrevious(count?: number, eventPayload?: any): void {
-		const focus = this.getFocus();
-		if (!focus) {
-			return super.focusFirst();
+	run(context: SettingsTreeSettingElement): TPromise<void> {
+		if (context) {
+			const jsonResult = `"${context.setting.key}": ${JSON.stringify(context.value, undefined, '  ')}`;
+			this.clipboardService.writeText(jsonResult);
 		}
 
-		const nav = this.getNavigator(focus, false);
-		let current;
-		do {
-			current = nav.previous();
-		} while (current instanceof SettingsTreeGroupElement);
+		return TPromise.as(null);
+	}
+}
 
-		if (current) {
-			this.setFocus(current, eventPayload);
+class CopySettingNameAction extends Action {
+	static readonly ID = 'settings.copySettingName';
+	static readonly LABEL = localize('copySettingNameLabel', "Copy Setting Name");
+
+	constructor(
+		@IClipboardService private clipboardService: IClipboardService
+	) {
+		super(CopySettingNameAction.ID, CopySettingNameAction.LABEL);
+	}
+
+	run(context: SettingsTreeSettingElement): TPromise<void> {
+		if (context) {
+			const name = `${context.displayCategory}: ${context.displayLabel}`;
+			this.clipboardService.writeText(name);
 		}
+
+		return TPromise.as(null);
 	}
 }

@@ -103,7 +103,7 @@ import { NotificationsAlerts } from 'vs/workbench/browser/parts/notifications/no
 import { NotificationsStatus } from 'vs/workbench/browser/parts/notifications/notificationsStatus';
 import { registerNotificationCommands } from 'vs/workbench/browser/parts/notifications/notificationsCommands';
 import { NotificationsToasts } from 'vs/workbench/browser/parts/notifications/notificationsToasts';
-import { IPCClient } from 'vs/base/parts/ipc/common/ipc';
+import { IPCClient } from 'vs/base/parts/ipc/node/ipc';
 import { registerWindowDriver } from 'vs/platform/driver/electron-browser/driver';
 import { IPreferencesService } from 'vs/workbench/services/preferences/common/preferences';
 import { PreferencesService } from 'vs/workbench/services/preferences/browser/preferencesService';
@@ -116,7 +116,7 @@ import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { TelemetryService } from 'vs/platform/telemetry/common/telemetryService';
 import { WorkbenchThemeService } from 'vs/workbench/services/themes/electron-browser/workbenchThemeService';
 import { IWorkbenchThemeService } from 'vs/workbench/services/themes/common/workbenchThemeService';
-import { IUriDisplayService, UriDisplayService } from 'vs/platform/uriDisplay/common/uriDisplay';
+import { IUriLabelService, UriLabelService } from 'vs/platform/uriLabel/common/uriLabel';
 
 interface WorkbenchParams {
 	configuration: IWindowConfiguration;
@@ -219,6 +219,7 @@ export class Workbench extends Disposable implements IPartService {
 	private sideBarHidden: boolean;
 	private statusBarHidden: boolean;
 	private activityBarHidden: boolean;
+	private menubarToggled: boolean;
 	private sideBarPosition: Position;
 	private panelPosition: Position;
 	private panelHidden: boolean;
@@ -336,9 +337,9 @@ export class Workbench extends Disposable implements IPartService {
 		serviceCollection.set(IClipboardService, new ClipboardService());
 
 		// Uri Display
-		const uriDisplayService = new UriDisplayService(this.environmentService, this.contextService);
-		serviceCollection.set(IUriDisplayService, uriDisplayService);
-		this.configurationService.acquireUriDisplayService(uriDisplayService);
+		const uriLabelService = new UriLabelService(this.environmentService, this.contextService);
+		serviceCollection.set(IUriLabelService, uriLabelService);
+		this.configurationService.acquireUriLabelService(uriLabelService);
 
 		// Status bar
 		this.statusbarPart = this.instantiationService.createInstance(StatusbarPart, Identifiers.STATUSBAR_PART);
@@ -493,7 +494,7 @@ export class Workbench extends Disposable implements IPartService {
 		// Listen to editor closing (if we run with --wait)
 		const filesToWait = this.workbenchParams.configuration.filesToWait;
 		if (filesToWait) {
-			const resourcesToWaitFor = filesToWait.paths.map(p => URI.file(p.filePath));
+			const resourcesToWaitFor = filesToWait.paths.map(p => p.fileUri);
 			const waitMarkerFile = URI.file(filesToWait.waitMarkerFilePath);
 			const listenerDispose = this.editorService.onDidCloseEditor(() => this.onEditorClosed(listenerDispose, resourcesToWaitFor, waitMarkerFile));
 
@@ -529,6 +530,16 @@ export class Workbench extends Disposable implements IPartService {
 		if (hasCustomTitle) {
 			this._onTitleBarVisibilityChange.fire();
 			this.layout(); // handle title bar when fullscreen changes
+		}
+	}
+
+	private onMenubarToggled(visible: boolean) {
+		if (visible !== this.menubarToggled) {
+			this.menubarToggled = visible;
+
+			if (this.menubarVisibility === 'toggle' || (browser.isFullscreen() && this.menubarVisibility === 'default')) {
+				this.layout();
+			}
 		}
 	}
 
@@ -719,12 +730,10 @@ export class Workbench extends Disposable implements IPartService {
 		const panelRegistry = Registry.as<PanelRegistry>(PanelExtensions.Panels);
 		const panelId = this.storageService.get(PanelPart.activePanelSettingsKey, StorageScope.WORKSPACE, panelRegistry.getDefaultPanelId());
 		if (!this.panelHidden && !!panelId) {
+			perf.mark('willRestorePanel');
 			const isPanelToRestoreEnabled = !!this.panelPart.getPanels().filter(p => p.id === panelId).length;
-			if (isPanelToRestoreEnabled) {
-				restorePromises.push(this.panelPart.openPanel(panelId, false));
-			} else {
-				restorePromises.push(this.panelPart.openPanel(panelRegistry.getDefaultPanelId(), false));
-			}
+			const panelIdToRestore = isPanelToRestoreEnabled ? panelId : panelRegistry.getDefaultPanelId();
+			restorePromises.push(this.panelPart.openPanel(panelIdToRestore, false).then(() => perf.mark('didRestorePanel')));
 		}
 
 		// Restore Zen Mode if active
@@ -816,7 +825,7 @@ export class Workbench extends Disposable implements IPartService {
 		}
 
 		return paths.map(p => {
-			const resource = URI.file(p.filePath);
+			const resource = p.fileUri;
 			let input: IResourceInput | IUntitledResourceInput;
 			if (isNew) {
 				input = { filePath: resource.fsPath, options: { pinned: true } } as IUntitledResourceInput;
@@ -1004,6 +1013,12 @@ export class Workbench extends Disposable implements IPartService {
 		// Notification Handlers
 		this.createNotificationsHandlers();
 
+
+		// Menubar visibility changes
+		if ((isWindows || isLinux) && this.getCustomTitleBarStyle() === 'custom') {
+			this.titlebarPart.onMenubarVisibilityChange()(e => this.onMenubarToggled(e));
+		}
+
 		// Add Workbench to DOM
 		this.container.appendChild(this.workbench);
 	}
@@ -1118,7 +1133,7 @@ export class Workbench extends Disposable implements IPartService {
 	get onEditorLayout(): Event<IDimension> { return this.editorPart.onDidLayout; }
 
 	isCreated(): boolean {
-		return this.workbenchCreated && this.workbenchStarted;
+		return !!(this.workbenchCreated && this.workbenchStarted);
 	}
 
 	hasFocus(part: Parts): boolean {
@@ -1160,7 +1175,19 @@ export class Workbench extends Disposable implements IPartService {
 	isVisible(part: Parts): boolean {
 		switch (part) {
 			case Parts.TITLEBAR_PART:
-				return this.getCustomTitleBarStyle() === 'custom' && (!browser.isFullscreen() || this.menubarVisibility === 'visible' || this.menubarVisibility === 'toggle');
+				if (this.getCustomTitleBarStyle() !== 'custom') {
+					return false;
+				} else if (!browser.isFullscreen()) {
+					return true;
+				} else if (isMacintosh) {
+					return false;
+				} else if (this.menubarVisibility === 'visible') {
+					return true;
+				} else if (this.menubarVisibility === 'toggle' || this.menubarVisibility === 'default') {
+					return this.menubarToggled;
+				}
+
+				return false;
 			case Parts.SIDEBAR_PART:
 				return !this.sideBarHidden;
 			case Parts.PANEL_PART:
@@ -1435,10 +1462,12 @@ export class Workbench extends Disposable implements IPartService {
 	}
 
 	setMenubarVisibility(visibility: MenuBarVisibility, skipLayout: boolean): void {
-		this.menubarVisibility = visibility;
+		if (this.menubarVisibility !== visibility) {
+			this.menubarVisibility = visibility;
 
-		if (!skipLayout) {
-			this.workbenchLayout.layout();
+			if (!skipLayout) {
+				this.workbenchLayout.layout();
+			}
 		}
 	}
 

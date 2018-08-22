@@ -338,7 +338,7 @@ export class FileServiceBasedFolderConfiguration extends AbstractFolderConfigura
 				return paths.normalize(relative(this.folderConfigurationPath.fsPath, resource.fsPath));
 			}
 		} else {
-			if (resources.isEqualOrParent(resource, this.folderConfigurationPath, resources.hasToIgnoreCase(resource))) {
+			if (resources.isEqualOrParent(resource, this.folderConfigurationPath)) {
 				return paths.normalize(relative(this.folderConfigurationPath.path, resource.path));
 			}
 		}

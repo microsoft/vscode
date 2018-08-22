@@ -211,7 +211,10 @@ export class Tree implements _.ITree {
 
 	public getFirstVisibleElement(): any {
 		return this.view.getFirstVisibleElement();
+	}
 
+	public getLastVisibleElement(): any {
+		return this.view.getLastVisibleElement();
 	}
 
 	public getScrollPosition(): number {

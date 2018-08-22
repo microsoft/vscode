@@ -177,8 +177,8 @@ export class SearchWorkerEngine {
 						return clb(null); // return early if canceled or limit reached
 					}
 
-					fs.read(fd, buffer, 0, buffer.length, null, (error: Error, bytesRead: number, buffer: NodeBuffer) => {
-						const decodeBuffer = (buffer: NodeBuffer, start: number, end: number): string => {
+					fs.read(fd, buffer, 0, buffer.length, null, (error: Error, bytesRead: number, buffer: Buffer) => {
+						const decodeBuffer = (buffer: Buffer, start: number, end: number): string => {
 							if (options.encoding === UTF8 || options.encoding === UTF8_with_bom) {
 								return buffer.toString(undefined, start, end); // much faster to use built in toString() when encoding is default
 							}

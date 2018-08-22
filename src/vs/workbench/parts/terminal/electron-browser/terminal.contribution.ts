@@ -75,12 +75,12 @@ configurationRegistry.registerConfiguration({
 	type: 'object',
 	properties: {
 		'terminal.integrated.shell.linux': {
-			description: nls.localize('terminal.integrated.shell.linux', "The path of the shell that the terminal uses on Linux. [Read more about configuring the shell](https://code.visualstudio.com/docs/editor/integrated-terminal#_configuration)."),
+			markdownDescription: nls.localize('terminal.integrated.shell.linux', "The path of the shell that the terminal uses on Linux. [Read more about configuring the shell](https://code.visualstudio.com/docs/editor/integrated-terminal#_configuration)."),
 			type: 'string',
 			default: getTerminalDefaultShellUnixLike()
 		},
 		'terminal.integrated.shellArgs.linux': {
-			description: nls.localize('terminal.integrated.shellArgs.linux', "The command line arguments to use when on the Linux terminal. [Read more about configuring the shell](https://code.visualstudio.com/docs/editor/integrated-terminal#_configuration)."),
+			markdownDescription: nls.localize('terminal.integrated.shellArgs.linux', "The command line arguments to use when on the Linux terminal. [Read more about configuring the shell](https://code.visualstudio.com/docs/editor/integrated-terminal#_configuration)."),
 			type: 'array',
 			items: {
 				type: 'string'
@@ -88,12 +88,12 @@ configurationRegistry.registerConfiguration({
 			default: []
 		},
 		'terminal.integrated.shell.osx': {
-			description: nls.localize('terminal.integrated.shell.osx', "The path of the shell that the terminal uses on macOS. [Read more about configuring the shell](https://code.visualstudio.com/docs/editor/integrated-terminal#_configuration)."),
+			markdownDescription: nls.localize('terminal.integrated.shell.osx', "The path of the shell that the terminal uses on macOS. [Read more about configuring the shell](https://code.visualstudio.com/docs/editor/integrated-terminal#_configuration)."),
 			type: 'string',
 			default: getTerminalDefaultShellUnixLike()
 		},
 		'terminal.integrated.shellArgs.osx': {
-			description: nls.localize('terminal.integrated.shellArgs.osx', "The command line arguments to use when on the macOS terminal. [Read more about configuring the shell](https://code.visualstudio.com/docs/editor/integrated-terminal#_configuration)."),
+			markdownDescription: nls.localize('terminal.integrated.shellArgs.osx', "The command line arguments to use when on the macOS terminal. [Read more about configuring the shell](https://code.visualstudio.com/docs/editor/integrated-terminal#_configuration)."),
 			type: 'array',
 			items: {
 				type: 'string'
@@ -104,12 +104,12 @@ configurationRegistry.registerConfiguration({
 			default: ['-l']
 		},
 		'terminal.integrated.shell.windows': {
-			description: nls.localize('terminal.integrated.shell.windows', "The path of the shell that the terminal uses on Windows. [Read more about configuring the shell](https://code.visualstudio.com/docs/editor/integrated-terminal#_configuration)."),
+			markdownDescription: nls.localize('terminal.integrated.shell.windows', "The path of the shell that the terminal uses on Windows. [Read more about configuring the shell](https://code.visualstudio.com/docs/editor/integrated-terminal#_configuration)."),
 			type: 'string',
 			default: getTerminalDefaultShellWindows()
 		},
 		'terminal.integrated.shellArgs.windows': {
-			description: nls.localize('terminal.integrated.shellArgs.windows', "The command line arguments to use when on the Windows terminal. [Read more about configuring the shell](https://code.visualstudio.com/docs/editor/integrated-terminal#_configuration)."),
+			markdownDescription: nls.localize('terminal.integrated.shellArgs.windows', "The command line arguments to use when on the Windows terminal. [Read more about configuring the shell](https://code.visualstudio.com/docs/editor/integrated-terminal#_configuration)."),
 			type: 'array',
 			items: {
 				type: 'string'
@@ -137,7 +137,7 @@ configurationRegistry.registerConfiguration({
 			default: true
 		},
 		'terminal.integrated.fontFamily': {
-			description: nls.localize('terminal.integrated.fontFamily', "Controls the font family of the terminal, this defaults to `#editor.fontFamily#`'s value."),
+			markdownDescription: nls.localize('terminal.integrated.fontFamily', "Controls the font family of the terminal, this defaults to `#editor.fontFamily#`'s value."),
 			type: 'string'
 		},
 		// TODO: Support font ligatures
@@ -189,7 +189,7 @@ configurationRegistry.registerConfiguration({
 			default: 1000
 		},
 		'terminal.integrated.setLocaleVariables': {
-			description: nls.localize('terminal.integrated.setLocaleVariables', "Controls whether locale variables are set at startup of the terminal, this defaults to `true` on macOS, `false` on other platforms."),
+			markdownDescription: nls.localize('terminal.integrated.setLocaleVariables', "Controls whether locale variables are set at startup of the terminal, this defaults to `true` on macOS, `false` on other platforms."),
 			type: 'boolean',
 			default: platform.isMacintosh
 		},
@@ -329,7 +329,7 @@ configurationRegistry.registerConfiguration({
 			].sort()
 		},
 		'terminal.integrated.env.osx': {
-			description: nls.localize('terminal.integrated.env.osx', "Object with environment variables that will be added to the VS Code process to be used by the terminal on macOS. Set to `null` to delete the environment variable."),
+			markdownDescription: nls.localize('terminal.integrated.env.osx', "Object with environment variables that will be added to the VS Code process to be used by the terminal on macOS. Set to `null` to delete the environment variable."),
 			type: 'object',
 			additionalProperties: {
 				type: ['string', 'null']
@@ -337,7 +337,7 @@ configurationRegistry.registerConfiguration({
 			default: {}
 		},
 		'terminal.integrated.env.linux': {
-			description: nls.localize('terminal.integrated.env.linux', "Object with environment variables that will be added to the VS Code process to be used by the terminal on Linux. Set to `null` to delete the environment variable."),
+			markdownDescription: nls.localize('terminal.integrated.env.linux', "Object with environment variables that will be added to the VS Code process to be used by the terminal on Linux. Set to `null` to delete the environment variable."),
 			type: 'object',
 			additionalProperties: {
 				type: ['string', 'null']
@@ -345,7 +345,7 @@ configurationRegistry.registerConfiguration({
 			default: {}
 		},
 		'terminal.integrated.env.windows': {
-			description: nls.localize('terminal.integrated.env.windows', "Object with environment variables that will be added to the VS Code process to be used by the terminal on Windows. Set to `null` to delete the environment variable."),
+			markdownDescription: nls.localize('terminal.integrated.env.windows', "Object with environment variables that will be added to the VS Code process to be used by the terminal on Windows. Set to `null` to delete the environment variable."),
 			type: 'object',
 			additionalProperties: {
 				type: ['string', 'null']

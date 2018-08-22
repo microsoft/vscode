@@ -40,7 +40,7 @@ import { WorkbenchTree, WorkbenchTreeController } from 'vs/platform/list/browser
 import { RawContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { Location } from 'vs/editor/common/modes';
 import { ClickBehavior } from 'vs/base/parts/tree/browser/treeDefaults';
-import { IUriDisplayService } from 'vs/platform/uriDisplay/common/uriDisplay';
+import { IUriLabelService } from 'vs/platform/uriLabel/common/uriLabel';
 import { dirname, basenameOrAuthority } from 'vs/base/common/resources';
 import { getBaseLabel } from 'vs/base/common/labels';
 
@@ -300,7 +300,7 @@ class FileReferencesTemplate {
 
 	constructor(
 		container: HTMLElement,
-		@IUriDisplayService private readonly _uriDisplay: IUriDisplayService,
+		@IUriLabelService private readonly _uriLabel: IUriLabelService,
 		@IThemeService themeService: IThemeService,
 	) {
 		const parent = document.createElement('div');
@@ -319,7 +319,7 @@ class FileReferencesTemplate {
 
 	set(element: FileReferences) {
 		let parent = dirname(element.uri);
-		this.file.setValue(getBaseLabel(element.uri), parent ? this._uriDisplay.getLabel(parent, true) : undefined, { title: this._uriDisplay.getLabel(element.uri) });
+		this.file.setValue(getBaseLabel(element.uri), parent ? this._uriLabel.getLabel(parent, true) : undefined, { title: this._uriLabel.getLabel(element.uri) });
 		const len = element.children.length;
 		this.badge.setCount(len);
 		if (element.failure) {
@@ -368,7 +368,7 @@ class Renderer implements tree.IRenderer {
 
 	constructor(
 		@IThemeService private readonly _themeService: IThemeService,
-		@IUriDisplayService private readonly _uriDisplay: IUriDisplayService,
+		@IUriLabelService private readonly _uriLabel: IUriLabelService,
 	) {
 		//
 	}
@@ -388,7 +388,7 @@ class Renderer implements tree.IRenderer {
 
 	renderTemplate(tree: tree.ITree, templateId: string, container: HTMLElement) {
 		if (templateId === Renderer._ids.FileReferences) {
-			return new FileReferencesTemplate(container, this._uriDisplay, this._themeService);
+			return new FileReferencesTemplate(container, this._uriLabel, this._themeService);
 		} else if (templateId === Renderer._ids.OneReference) {
 			return new OneReferenceTemplate(container);
 		}
@@ -532,7 +532,7 @@ export class ReferenceWidget extends PeekViewWidget {
 		@IThemeService themeService: IThemeService,
 		@ITextModelService private _textModelResolverService: ITextModelService,
 		@IInstantiationService private _instantiationService: IInstantiationService,
-		@IUriDisplayService private _uriDisplay: IUriDisplayService
+		@IUriLabelService private _uriLabel: IUriLabelService
 	) {
 		super(editor, { showFrame: false, showArrow: true, isResizeable: true, isAccessible: true });
 
@@ -778,7 +778,7 @@ export class ReferenceWidget extends PeekViewWidget {
 
 		// Update widget header
 		if (reference.uri.scheme !== Schemas.inMemory) {
-			this.setTitle(basenameOrAuthority(reference.uri), this._uriDisplay.getLabel(dirname(reference.uri), false));
+			this.setTitle(basenameOrAuthority(reference.uri), this._uriLabel.getLabel(dirname(reference.uri), false));
 		} else {
 			this.setTitle(nls.localize('peekView.alternateTitle', "References"));
 		}

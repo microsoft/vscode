@@ -14,6 +14,7 @@ import { LineTokens, IViewLineTokens } from 'vs/editor/common/core/lineTokens';
 import * as strings from 'vs/base/common/strings';
 import { IStandaloneThemeService } from 'vs/editor/standalone/common/standaloneThemeService';
 import { ViewLineRenderingData } from 'vs/editor/common/viewModel/viewModel';
+import { timeout } from 'vs/base/common/async';
 
 export interface IColorizerOptions {
 	tabSize?: number;
@@ -85,7 +86,7 @@ export class Colorizer {
 		}
 
 		// wait 500ms for mode to load, then give up
-		return TPromise.any([this._tokenizationSupportChangedPromise(language), TPromise.timeout(500)]).then(_ => {
+		return TPromise.any([this._tokenizationSupportChangedPromise(language), timeout(500)]).then(_ => {
 			let tokenizationSupport = TokenizationRegistry.get(language);
 			if (tokenizationSupport) {
 				return _colorize(lines, options.tabSize, tokenizationSupport);
@@ -99,6 +100,7 @@ export class Colorizer {
 		const containsRTL = ViewLineRenderingData.containsRTL(line, isBasicASCII, mightContainRTL);
 		let renderResult = renderViewLine(new RenderLineInput(
 			false,
+			true,
 			line,
 			false,
 			isBasicASCII,
@@ -152,6 +154,7 @@ function _fakeColorize(lines: string[], tabSize: number): string {
 		const containsRTL = ViewLineRenderingData.containsRTL(line, isBasicASCII, /* check for RTL */true);
 		let renderResult = renderViewLine(new RenderLineInput(
 			false,
+			true,
 			line,
 			false,
 			isBasicASCII,
@@ -187,6 +190,7 @@ function _actualColorize(lines: string[], tabSize: number, tokenizationSupport: 
 		const containsRTL = ViewLineRenderingData.containsRTL(line, isBasicASCII, /* check for RTL */true);
 		let renderResult = renderViewLine(new RenderLineInput(
 			false,
+			true,
 			line,
 			false,
 			isBasicASCII,

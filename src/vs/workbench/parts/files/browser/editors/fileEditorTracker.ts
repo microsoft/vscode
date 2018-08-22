@@ -4,7 +4,6 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import { TPromise } from 'vs/base/common/winjs.base';
 import { IWorkbenchContribution } from 'vs/workbench/common/contributions';
 import URI from 'vs/base/common/uri';
 import * as resources from 'vs/base/common/resources';
@@ -27,7 +26,7 @@ import { IWindowService } from 'vs/platform/windows/common/windows';
 import { BINARY_FILE_EDITOR_ID } from 'vs/workbench/parts/files/common/files';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IEditorGroupsService, IEditorGroup } from 'vs/workbench/services/group/common/editorGroupsService';
-import { ResourceQueue } from 'vs/base/common/async';
+import { ResourceQueue, timeout } from 'vs/base/common/async';
 import { onUnexpectedError } from 'vs/base/common/errors';
 
 export class FileEditorTracker extends Disposable implements IWorkbenchContribution {
@@ -83,7 +82,7 @@ export class FileEditorTracker extends Disposable implements IWorkbenchContribut
 		if (configuration.workbench && configuration.workbench.editor && typeof configuration.workbench.editor.closeOnFileDelete === 'boolean') {
 			this.closeOnFileDelete = configuration.workbench.editor.closeOnFileDelete;
 		} else {
-			this.closeOnFileDelete = true; // default
+			this.closeOnFileDelete = false; // default
 		}
 	}
 
@@ -149,7 +148,7 @@ export class FileEditorTracker extends Disposable implements IWorkbenchContribut
 				// Do NOT close any opened editor that matches the resource path (either equal or being parent) of the
 				// resource we move to (movedTo). Otherwise we would close a resource that has been renamed to the same
 				// path but different casing.
-				if (movedTo && resources.isEqualOrParent(resource, movedTo, resources.hasToIgnoreCase(resource)) && resource.path.indexOf(movedTo.path) === 0) {
+				if (movedTo && resources.isEqualOrParent(resource, movedTo)) {
 					return;
 				}
 
@@ -157,7 +156,7 @@ export class FileEditorTracker extends Disposable implements IWorkbenchContribut
 				if (arg1 instanceof FileChangesEvent) {
 					matches = arg1.contains(resource, FileChangeType.DELETED);
 				} else {
-					matches = resources.isEqualOrParent(resource, arg1, resources.hasToIgnoreCase(resource));
+					matches = resources.isEqualOrParent(resource, arg1);
 				}
 
 				if (!matches) {
@@ -170,14 +169,14 @@ export class FileEditorTracker extends Disposable implements IWorkbenchContribut
 				// file is really gone and not just a faulty file event.
 				// This only applies to external file events, so we need to check for the isExternal
 				// flag.
-				let checkExists: TPromise<boolean>;
+				let checkExists: Thenable<boolean>;
 				if (isExternal) {
-					checkExists = TPromise.timeout(100).then(() => this.fileService.existsFile(resource));
+					checkExists = timeout(100).then(() => this.fileService.existsFile(resource));
 				} else {
-					checkExists = TPromise.as(false);
+					checkExists = Promise.resolve(false);
 				}
 
-				checkExists.done(exists => {
+				checkExists.then(exists => {
 					if (!exists && !editor.isDisposed()) {
 						editor.dispose();
 					} else if (this.environmentService.verbose) {
@@ -219,12 +218,12 @@ export class FileEditorTracker extends Disposable implements IWorkbenchContribut
 
 	private handleMovedFileInOpenedEditors(oldResource: URI, newResource: URI): void {
 		this.editorGroupService.groups.forEach(group => {
-			group.editors.forEach(input => {
-				if (input instanceof FileEditorInput) {
-					const resource = input.getResource();
+			group.editors.forEach(editor => {
+				if (editor instanceof FileEditorInput) {
+					const resource = editor.getResource();
 
 					// Update Editor if file (or any parent of the input) got renamed or moved
-					if (resources.isEqualOrParent(resource, oldResource, resources.hasToIgnoreCase(resource))) {
+					if (resources.isEqualOrParent(resource, oldResource)) {
 						let reopenFileResource: URI;
 						if (oldResource.toString() === resource.toString()) {
 							reopenFileResource = newResource; // file got moved
@@ -233,17 +232,19 @@ export class FileEditorTracker extends Disposable implements IWorkbenchContribut
 							reopenFileResource = resources.joinPath(newResource, resource.path.substr(index + oldResource.path.length + 1)); // parent folder got moved
 						}
 
-						// Reopen
-						this.editorService.openEditor({
-							resource: reopenFileResource,
-							options: {
-								preserveFocus: true,
-								pinned: group.isPinned(input),
-								index: group.getIndexOfEditor(input),
-								inactive: !group.isActive(input),
-								viewState: this.getViewStateFor(oldResource, group)
-							}
-						}, group);
+						this.editorService.replaceEditors([{
+							editor: { resource },
+							replacement: {
+								resource: reopenFileResource,
+								options: {
+									preserveFocus: true,
+									pinned: group.isPinned(editor),
+									index: group.getIndexOfEditor(editor),
+									inactive: !group.isActive(editor),
+									viewState: this.getViewStateFor(oldResource, group)
+								}
+							},
+						}], group);
 					}
 				}
 			});

@@ -25,7 +25,7 @@ import { IInstantiationService } from 'vs/platform/instantiation/common/instanti
 import { IModeService } from 'vs/editor/common/services/modeService';
 import { IModelService } from 'vs/editor/common/services/modelService';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { RunOnceScheduler } from 'vs/base/common/async';
+import { RunOnceScheduler, timeout } from 'vs/base/common/async';
 import { ITextBufferFactory } from 'vs/editor/common/model';
 import { IHashService } from 'vs/workbench/services/hash/common/hashService';
 import { createTextBufferFactory } from 'vs/editor/common/model/textModel';
@@ -33,7 +33,7 @@ import { INotificationService } from 'vs/platform/notification/common/notificati
 import { isLinux } from 'vs/base/common/platform';
 import { IDisposable, toDisposable } from 'vs/base/common/lifecycle';
 import { ILogService } from 'vs/platform/log/common/log';
-import { isEqual, isEqualOrParent, hasToIgnoreCase } from 'vs/base/common/resources';
+import { isEqual, isEqualOrParent } from 'vs/base/common/resources';
 
 /**
  * The text file editor model listens to changes to its underlying code editor model and saves these changes through the file service back to the disk.
@@ -153,13 +153,13 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 		}
 
 		if (fileEventImpactsModel && this.inOrphanMode !== newInOrphanModeGuess) {
-			let checkOrphanedPromise: TPromise<boolean>;
+			let checkOrphanedPromise: Thenable<boolean>;
 			if (newInOrphanModeGuess) {
 				// We have received reports of users seeing delete events even though the file still
 				// exists (network shares issue: https://github.com/Microsoft/vscode/issues/13665).
 				// Since we do not want to mark the model as orphaned, we have to check if the
 				// file is really gone and not just a faulty file event.
-				checkOrphanedPromise = TPromise.timeout(100).then(() => {
+				checkOrphanedPromise = timeout(100).then(() => {
 					if (this.disposed) {
 						return true;
 					}
@@ -167,10 +167,10 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 					return this.fileService.existsFile(this.resource).then(exists => !exists);
 				});
 			} else {
-				checkOrphanedPromise = TPromise.as(false);
+				checkOrphanedPromise = Promise.resolve(false);
 			}
 
-			checkOrphanedPromise.done(newInOrphanModeValidated => {
+			checkOrphanedPromise.then(newInOrphanModeValidated => {
 				if (this.inOrphanMode !== newInOrphanModeValidated && !this.disposed) {
 					this.setOrphaned(newInOrphanModeValidated);
 				}
@@ -357,7 +357,7 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 			if (settingsType) {
 				/* __GDPR__
 					"settingsRead" : {
-						"settingsType": { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
+						"settingsType": { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
 					}
 				*/
 				this.telemetryService.publicLog('settingsRead', { settingsType }); // Do not log read to user settings.json and .vscode folder as a fileGet event as it ruins our JSON usage data
@@ -719,7 +719,7 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 				if (settingsType) {
 					/* __GDPR__
 						"settingsWritten" : {
-							"settingsType": { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
+							"settingsType": { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
 						}
 					*/
 					this.telemetryService.publicLog('settingsWritten', { settingsType }); // Do not log write to user settings.json and .vscode folder as a filePUT event as it ruins our JSON usage data
@@ -795,14 +795,14 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 		}
 
 		// Check for snippets
-		if (isEqualOrParent(this.resource, URI.file(path.join(this.environmentService.appSettingsHome, 'snippets')), hasToIgnoreCase(this.resource))) {
+		if (isEqualOrParent(this.resource, URI.file(path.join(this.environmentService.appSettingsHome, 'snippets')))) {
 			return 'snippets';
 		}
 
 		// Check for workspace settings file
 		const folders = this.contextService.getWorkspace().folders;
 		for (let i = 0; i < folders.length; i++) {
-			if (isEqualOrParent(this.resource, folders[i].toResource('.vscode'), hasToIgnoreCase(this.resource))) {
+			if (isEqualOrParent(this.resource, folders[i].toResource('.vscode'))) {
 				const filename = path.basename(this.resource.fsPath);
 				if (TextFileEditorModel.WHITELIST_WORKSPACE_JSON.indexOf(filename) > -1) {
 					return `.vscode/${filename}`;

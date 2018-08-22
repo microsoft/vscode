@@ -21,6 +21,8 @@ import { Disposable } from 'vs/base/common/lifecycle';
 import { IExtensionManagementService, LocalExtensionType, ILocalExtension, IExtensionEnablementService } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { ILogService } from 'vs/platform/log/common/log';
 import { IPreferencesSearchService, ISearchProvider, IWorkbenchSettingsConfiguration } from 'vs/workbench/parts/preferences/common/preferences';
+import { CancellationToken } from 'vs/base/common/cancellation';
+import { canceled } from 'vs/base/common/errors';
 
 export interface IEndpointDetails {
 	urlBase: string;
@@ -102,7 +104,7 @@ export class LocalSearchProvider implements ISearchProvider {
 			.trim();
 	}
 
-	searchModel(preferencesModel: ISettingsEditorModel): TPromise<ISearchResult> {
+	searchModel(preferencesModel: ISettingsEditorModel, token?: CancellationToken): TPromise<ISearchResult> {
 		if (!this._filter) {
 			return TPromise.wrap(null);
 		}
@@ -173,10 +175,14 @@ class RemoteSearchProvider implements ISearchProvider {
 			TPromise.wrap(null);
 	}
 
-	searchModel(preferencesModel: ISettingsEditorModel): TPromise<ISearchResult> {
+	searchModel(preferencesModel: ISettingsEditorModel, token?: CancellationToken): TPromise<ISearchResult> {
 		return this._remoteSearchP.then(remoteResult => {
 			if (!remoteResult) {
 				return null;
+			}
+
+			if (token && token.isCancellationRequested) {
+				throw canceled();
 			}
 
 			const resultKeys = Object.keys(remoteResult.scoredResults);
@@ -405,6 +411,7 @@ function escapeSpecialChars(query: string): string {
 function remoteSettingToISetting(remoteSetting: IRemoteSetting): IExtensionSetting {
 	return {
 		description: remoteSetting.description.split('\n'),
+		descriptionIsMarkdown: false,
 		descriptionRanges: null,
 		key: remoteSetting.key,
 		keyRange: null,

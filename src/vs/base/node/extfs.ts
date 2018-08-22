@@ -15,6 +15,7 @@ import * as uuid from 'vs/base/common/uuid';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { encode, encodeStream } from 'vs/base/node/encoding';
 import * as flow from 'vs/base/node/flow';
+import { CancellationToken } from 'vs/base/common/cancellation';
 
 const loop = flow.loop;
 
@@ -129,7 +130,7 @@ function doCopyFile(source: string, target: string, mode: number, callback: (err
 	reader.pipe(writer);
 }
 
-export function mkdirp(path: string, mode?: number): TPromise<boolean> {
+export function mkdirp(path: string, mode?: number, token?: CancellationToken): TPromise<boolean> {
 	const mkdir = () => {
 		return nfcall(fs.mkdir, path, mode).then(null, (mkdirErr: NodeJS.ErrnoException) => {
 
@@ -159,6 +160,11 @@ export function mkdirp(path: string, mode?: number): TPromise<boolean> {
 
 	// recursively mkdir
 	return mkdir().then(null, (err: NodeJS.ErrnoException) => {
+
+		// Respect cancellation
+		if (token && token.isCancellationRequested) {
+			return TPromise.as(false);
+		}
 
 		// ENOENT: a parent folder does not exist yet, continue
 		// to create the parent folder and then try again.
@@ -365,7 +371,7 @@ export interface IWriteFileOptions {
 }
 
 let canFlush = true;
-export function writeFileAndFlush(path: string, data: string | NodeBuffer | NodeJS.ReadableStream, options: IWriteFileOptions, callback: (error?: Error) => void): void {
+export function writeFileAndFlush(path: string, data: string | Buffer | NodeJS.ReadableStream, options: IWriteFileOptions, callback: (error?: Error) => void): void {
 	options = ensureOptions(options);
 
 	if (typeof data === 'string' || Buffer.isBuffer(data)) {
@@ -466,7 +472,7 @@ function doWriteFileStreamAndFlush(path: string, reader: NodeJS.ReadableStream, 
 // not in some cache.
 //
 // See https://github.com/nodejs/node/blob/v5.10.0/lib/fs.js#L1194
-function doWriteFileAndFlush(path: string, data: string | NodeBuffer, options: IWriteFileOptions, callback: (error?: Error) => void): void {
+function doWriteFileAndFlush(path: string, data: string | Buffer, options: IWriteFileOptions, callback: (error?: Error) => void): void {
 	if (options.encoding) {
 		data = encode(data, options.encoding.charset, { addBOM: options.encoding.addBOM });
 	}
@@ -503,7 +509,7 @@ function doWriteFileAndFlush(path: string, data: string | NodeBuffer, options: I
 	});
 }
 
-export function writeFileAndFlushSync(path: string, data: string | NodeBuffer, options?: IWriteFileOptions): void {
+export function writeFileAndFlushSync(path: string, data: string | Buffer, options?: IWriteFileOptions): void {
 	options = ensureOptions(options);
 
 	if (options.encoding) {

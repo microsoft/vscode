@@ -944,7 +944,7 @@ export class DiffEditorWidget extends Disposable implements editorBrowser.IDiffE
 		clonedOptions.folding = false;
 		clonedOptions.codeLens = false;
 		clonedOptions.fixedOverflowWidgets = true;
-		clonedOptions.lineDecorationsWidth = '2ch';
+		// clonedOptions.lineDecorationsWidth = '2ch';
 		if (!clonedOptions.minimap) {
 			clonedOptions.minimap = {};
 		}
@@ -1982,6 +1982,7 @@ class InlineViewZonesComputer extends ViewZonesComputer {
 		const containsRTL = ViewLineRenderingData.containsRTL(lineContent, isBasicASCII, originalModel.mightContainRTL());
 		const output = renderViewLine(new RenderLineInput(
 			(config.fontInfo.isMonospace && !config.viewInfo.disableMonospaceOptimizations),
+			config.fontInfo.canUseHalfwidthRightwardsArrow,
 			lineContent,
 			false,
 			isBasicASCII,

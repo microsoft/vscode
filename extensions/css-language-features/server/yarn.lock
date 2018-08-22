@@ -6,9 +6,9 @@
   version "2.2.33"
   resolved "https://registry.yarnpkg.com/@types/mocha/-/mocha-2.2.33.tgz#d79a0061ec270379f4d9e225f4096fb436669def"
 
-"@types/node@7.0.43":
-  version "7.0.43"
-  resolved "https://registry.yarnpkg.com/@types/node/-/node-7.0.43.tgz#a187e08495a075f200ca946079c914e1a5fe962c"
+"@types/node@^8.10.25":
+  version "8.10.25"
+  resolved "https://registry.yarnpkg.com/@types/node/-/node-8.10.25.tgz#801fe4e39372cef18f268db880a5fbfcf71adc7e"
 
 ansi-regex@^3.0.0:
   version "3.0.0"
@@ -194,11 +194,11 @@ supports-color@5.4.0:
   dependencies:
     has-flag "^3.0.0"
 
-vscode-css-languageservice@^3.0.10-next.2:
-  version "3.0.10-next.2"
-  resolved "https://registry.yarnpkg.com/vscode-css-languageservice/-/vscode-css-languageservice-3.0.10-next.2.tgz#b703af89be433507836178efd7f88bb0669fc4e8"
+vscode-css-languageservice@^3.0.10-next.3:
+  version "3.0.10-next.3"
+  resolved "https://registry.yarnpkg.com/vscode-css-languageservice/-/vscode-css-languageservice-3.0.10-next.3.tgz#d663f03b8a9bf11222bd2cd39e9aa05e1a58c58d"
   dependencies:
-    vscode-languageserver-types "^3.10.0"
+    vscode-languageserver-types "^3.10.1"
     vscode-nls "^3.2.4"
 
 vscode-jsonrpc@^3.6.2:
@@ -215,6 +215,10 @@ vscode-languageserver-protocol@^3.10.0:
 vscode-languageserver-types@^3.10.0:
   version "3.10.0"
   resolved "https://registry.yarnpkg.com/vscode-languageserver-types/-/vscode-languageserver-types-3.10.0.tgz#944e5308f3b36a3f372c766f1a344e903ec9c389"
+
+vscode-languageserver-types@^3.10.1:
+  version "3.10.1"
+  resolved "https://registry.yarnpkg.com/vscode-languageserver-types/-/vscode-languageserver-types-3.10.1.tgz#d5d5f44f688a3b2aa9857dc53cb9cacca73fe35a"
 
 vscode-languageserver@^4.4.0:
   version "4.4.0"

@@ -61,18 +61,17 @@ export class RipgrepEngine {
 		}
 
 		const cwd = platform.isWindows ? 'c:/' : '/';
-		process.nextTick(() => { // Allow caller to register progress callback
-			const escapedArgs = rgArgs.args
-				.map(arg => arg.match(/^-/) ? arg : `'${arg}'`)
-				.join(' ');
+		const escapedArgs = rgArgs.args
+			.map(arg => arg.match(/^-/) ? arg : `'${arg}'`)
+			.join(' ');
 
-			let rgCmd = `rg ${escapedArgs}\n - cwd: ${cwd}`;
-			if (rgArgs.siblingClauses) {
-				rgCmd += `\n - Sibling clauses: ${JSON.stringify(rgArgs.siblingClauses)}`;
-			}
+		let rgCmd = `rg ${escapedArgs}\n - cwd: ${cwd}`;
+		if (rgArgs.siblingClauses) {
+			rgCmd += `\n - Sibling clauses: ${JSON.stringify(rgArgs.siblingClauses)}`;
+		}
 
-			onMessage({ message: rgCmd });
-		});
+		onMessage({ message: rgCmd });
+
 		this.rgProc = cp.spawn(rgDiskPath, rgArgs.args, { cwd });
 		process.once('exit', this.killRgProcFn);
 
@@ -149,10 +148,15 @@ export class RipgrepEngine {
  * "failed" when a fatal error was produced.
  */
 export function rgErrorMsgForDisplay(msg: string): string | undefined {
-	const firstLine = msg.split('\n')[0].trim();
+	const lines = msg.trim().split('\n');
+	const firstLine = lines[0].trim();
 
 	if (strings.startsWith(firstLine, 'Error parsing regex')) {
 		return firstLine;
+	}
+
+	if (strings.startsWith(firstLine, 'regex parse error')) {
+		return strings.uppercaseFirstLetter(lines[lines.length - 1].trim());
 	}
 
 	if (strings.startsWith(firstLine, 'error parsing glob') ||
@@ -502,6 +506,7 @@ function getRgArgs(config: IRawSearch) {
 	}
 
 	args.push('--no-config');
+	args.push('--no-ignore-global');
 
 	// Folder to search
 	args.push('--');

@@ -9,6 +9,7 @@ import { ActionBar } from 'vs/base/browser/ui/actionbar/actionbar';
 import { Button } from 'vs/base/browser/ui/button/button';
 import { InputBox } from 'vs/base/browser/ui/inputbox/inputBox';
 import { IAction } from 'vs/base/common/actions';
+import { Color, RGBA } from 'vs/base/common/color';
 import { Emitter, Event } from 'vs/base/common/event';
 import { KeyCode } from 'vs/base/common/keyCodes';
 import { Disposable, dispose, IDisposable } from 'vs/base/common/lifecycle';
@@ -21,8 +22,11 @@ import { ICssStyleCollector, ITheme, IThemeService, registerThemingParticipant }
 
 const $ = DOM.$;
 export const settingsHeaderForeground = registerColor('settings.headerForeground', { light: '#444444', dark: '#e7e7e7', hc: '#ffffff' }, localize('headerForeground', "(For settings editor preview) The foreground color for a section header or active title."));
-export const modifiedItemForeground = registerColor('settings.modifiedItemForeground', { light: '#018101', dark: '#73C991', hc: '#73C991' }, localize('modifiedItemForeground', "(For settings editor preview) The foreground color for a the modified setting indicator."));
-export const settingItemInactiveSelectionBorder = registerColor('settings.inactiveSelectedItemBorder', { dark: '#3F3F46', light: '#CCCEDB', hc: null }, localize('settingItemInactiveSelectionBorder', "(For settings editor preview) The color of the selected setting row border, when the settings list does not have focus."));
+export const modifiedItemIndicator = registerColor('settings.modifiedItemIndicator', {
+	light: new Color(new RGBA(102, 175, 224)),
+	dark: new Color(new RGBA(12, 125, 157)),
+	hc: new Color(new RGBA(0, 73, 122))
+}, localize('modifiedItemForeground', "(For settings editor preview) The color of the modified setting indicator."));
 
 // Enum control colors
 export const settingsSelectBackground = registerColor('settings.dropdownBackground', { dark: selectBackground, light: selectBackground, hc: selectBackground }, localize('settingsDropdownBackground', "(For settings editor preview) Settings editor dropdown background."));
@@ -45,11 +49,6 @@ export const settingsNumberInputForeground = registerColor('settings.numberInput
 export const settingsNumberInputBorder = registerColor('settings.numberInputBorder', { dark: inputBorder, light: inputBorder, hc: inputBorder }, localize('numberInputBoxBorder', "(For settings editor preview) Settings editor number input box border."));
 
 registerThemingParticipant((theme: ITheme, collector: ICssStyleCollector) => {
-	const modifiedItemForegroundColor = theme.getColor(modifiedItemForeground);
-	if (modifiedItemForegroundColor) {
-		collector.addRule(`.settings-editor > .settings-body > .settings-tree-container .setting-item.is-configured .setting-item-is-configured-label { color: ${modifiedItemForegroundColor}; }`);
-	}
-
 	const checkboxBackgroundColor = theme.getColor(settingsCheckboxBackground);
 	if (checkboxBackgroundColor) {
 		collector.addRule(`.settings-editor > .settings-body > .settings-tree-container .setting-item-bool .setting-value-checkbox { background-color: ${checkboxBackgroundColor} !important; }`);
@@ -110,6 +109,11 @@ registerThemingParticipant((theme: ITheme, collector: ICssStyleCollector) => {
 	const codeTextForegroundColor = theme.getColor(textPreformatForeground);
 	if (codeTextForegroundColor) {
 		collector.addRule(`.settings-editor > .settings-body > .settings-tree-container .setting-item .setting-item-description-markdown code { color: ${codeTextForegroundColor} }`);
+	}
+
+	const modifiedItemIndicatorColor = theme.getColor(modifiedItemIndicator);
+	if (modifiedItemIndicatorColor) {
+		collector.addRule(`.settings-editor > .settings-body > .settings-tree-container .setting-item.is-configured::after { background-color: ${modifiedItemIndicatorColor}; }`);
 	}
 });
 
@@ -188,6 +192,10 @@ export class ExcludeSettingWidget extends Disposable {
 	private readonly _onDidChangeExclude: Emitter<IExcludeChangeEvent> = new Emitter<IExcludeChangeEvent>();
 	public readonly onDidChangeExclude: Event<IExcludeChangeEvent> = this._onDidChangeExclude.event;
 
+	get domNode(): HTMLElement {
+		return this.listElement;
+	}
+
 	constructor(
 		private container: HTMLElement,
 		@IThemeService private themeService: IThemeService,
@@ -200,33 +208,8 @@ export class ExcludeSettingWidget extends Disposable {
 		DOM.append(container, this.renderAddButton());
 		this.renderList();
 
-		this._register(DOM.addDisposableListener(this.listElement, 'click', (e: MouseEvent) => {
-			if (!e.target) {
-				return;
-			}
-
-			const element = DOM.findParentWithClass((<any>e.target), 'setting-exclude-row');
-			if (!element) {
-				return;
-			}
-
-			const targetIdxStr = element.getAttribute('data-index');
-			if (!targetIdxStr) {
-				return;
-			}
-
-			const targetIdx = parseInt(targetIdxStr);
-
-			if (this.model.getSelected() === targetIdx) {
-				return;
-			}
-
-			this.model.select(targetIdx);
-			this.renderList();
-			e.preventDefault();
-			e.stopPropagation();
-		}));
-
+		this._register(DOM.addDisposableListener(this.listElement, DOM.EventType.CLICK, e => this.onListClick(e)));
+		this._register(DOM.addDisposableListener(this.listElement, DOM.EventType.DBLCLICK, e => this.onListDoubleClick(e)));
 
 		this._register(DOM.addStandardDisposableListener(this.listElement, 'keydown', (e: KeyboardEvent) => {
 			if (e.keyCode === KeyCode.UpArrow) {
@@ -246,6 +229,61 @@ export class ExcludeSettingWidget extends Disposable {
 	setValue(excludeData: IExcludeDataItem[]): void {
 		this.model.setValue(excludeData);
 		this.renderList();
+	}
+
+	private onListClick(e: MouseEvent): void {
+		const targetIdx = this.getClickedItemIndex(e);
+		if (targetIdx < 0) {
+			return;
+		}
+
+		if (this.model.getSelected() === targetIdx) {
+			return;
+		}
+
+		this.model.select(targetIdx);
+		this.renderList();
+		e.preventDefault();
+		e.stopPropagation();
+	}
+
+	private onListDoubleClick(e: MouseEvent): void {
+		const targetIdx = this.getClickedItemIndex(e);
+		if (targetIdx < 0) {
+			return;
+		}
+
+		const item = this.model.items[targetIdx];
+		if (item) {
+			this.editSetting(item.pattern);
+			e.preventDefault();
+			e.stopPropagation();
+		}
+	}
+
+	private getClickedItemIndex(e: MouseEvent): number {
+		if (!e.target) {
+			return -1;
+		}
+
+		const actionbar = DOM.findParentWithClass(<any>e.target, 'monaco-action-bar');
+		if (actionbar) {
+			// Don't handle doubleclicks inside the action bar
+			return -1;
+		}
+
+		const element = DOM.findParentWithClass((<any>e.target), 'setting-exclude-row');
+		if (!element) {
+			return -1;
+		}
+
+		const targetIdxStr = element.getAttribute('data-index');
+		if (!targetIdxStr) {
+			return -1;
+		}
+
+		const targetIdx = parseInt(targetIdxStr);
+		return targetIdx;
 	}
 
 	private renderList(): void {
@@ -282,10 +320,14 @@ export class ExcludeSettingWidget extends Disposable {
 			id: 'workbench.action.editExcludeItem',
 			tooltip: localize('editExcludeItem', "Edit Exclude Item"),
 			run: () => {
-				this.model.setEditKey(key);
-				this.renderList();
+				this.editSetting(key);
 			}
 		};
+	}
+
+	private editSetting(key: string): void {
+		this.model.setEditKey(key);
+		this.renderList();
 	}
 
 	private renderItem(item: IExcludeViewItem, idx: number, listFocused: boolean): HTMLElement {

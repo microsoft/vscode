@@ -31,10 +31,11 @@ import URI from 'vs/base/common/uri';
 import { Color } from 'vs/base/common/color';
 import { trim } from 'vs/base/common/strings';
 import { addDisposableListener, EventType, EventHelper, Dimension } from 'vs/base/browser/dom';
-import { MenubarPart } from 'vs/workbench/browser/parts/menubar/menubarPart';
+import { MenubarControl } from 'vs/workbench/browser/parts/titlebar/menubarControl';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { template, getBaseLabel } from 'vs/base/common/labels';
-import { IUriDisplayService } from 'vs/platform/uriDisplay/common/uriDisplay';
+import { IUriLabelService } from 'vs/platform/uriLabel/common/uriLabel';
+import { Event } from 'vs/base/common/event';
 
 export class TitlebarPart extends Part implements ITitleService {
 
@@ -52,7 +53,7 @@ export class TitlebarPart extends Part implements ITitleService {
 	private windowControls: Builder;
 	private maxRestoreControl: Builder;
 	private appIcon: Builder;
-	private menubarPart: MenubarPart;
+	private menubarPart: MenubarControl;
 	private menubar: Builder;
 	private resizer: Builder;
 
@@ -83,7 +84,7 @@ export class TitlebarPart extends Part implements ITitleService {
 		@IWorkspaceContextService private contextService: IWorkspaceContextService,
 		@IInstantiationService private instantiationService: IInstantiationService,
 		@IThemeService themeService: IThemeService,
-		@IUriDisplayService private uriDisplayService: IUriDisplayService
+		@IUriLabelService private uriLabelService: IUriLabelService
 	) {
 		super(id, { hasTitle: false }, themeService);
 
@@ -132,6 +133,10 @@ export class TitlebarPart extends Part implements ITitleService {
 				this.title.style('visibility', null);
 			}
 		}
+	}
+
+	onMenubarVisibilityChange(): Event<boolean> {
+		return this.menubarPart.onVisibilityChange;
 	}
 
 	private onActiveEditorChange(): void {
@@ -239,9 +244,9 @@ export class TitlebarPart extends Part implements ITitleService {
 		const activeEditorMedium = editor ? editor.getTitle(Verbosity.MEDIUM) : activeEditorShort;
 		const activeEditorLong = editor ? editor.getTitle(Verbosity.LONG) : activeEditorMedium;
 		const rootName = workspace.name;
-		const rootPath = root ? this.uriDisplayService.getLabel(root) : '';
+		const rootPath = root ? this.uriLabelService.getLabel(root) : '';
 		const folderName = folder ? folder.name : '';
-		const folderPath = folder ? this.uriDisplayService.getLabel(folder.uri) : '';
+		const folderPath = folder ? this.uriLabelService.getLabel(folder.uri) : '';
 		const dirty = editor && editor.isDirty() ? TitlebarPart.TITLE_DIRTY : '';
 		const appName = this.environmentService.appNameLong;
 		const separator = TitlebarPart.TITLE_SEPARATOR;
@@ -273,10 +278,10 @@ export class TitlebarPart extends Part implements ITitleService {
 		}
 
 		// Menubar: the menubar part which is responsible for populating both the custom and native menubars
-		this.menubarPart = this.instantiationService.createInstance(MenubarPart, 'workbench.parts.menubar');
+		this.menubarPart = this.instantiationService.createInstance(MenubarControl, 'workbench.parts.titlebar.menubar');
 		this.menubar = $(this.titleContainer).div({
-			'class': ['part', 'menubar'],
-			id: 'workbench.parts.menubar',
+			'class': ['menubar'],
+			id: 'workbench.parts.titlebar.menubar',
 			role: 'menubar'
 		});
 

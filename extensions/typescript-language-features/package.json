@@ -42,10 +42,7 @@
     "onCommand:typescript.goToProjectConfig",
     "onCommand:typescript.openTsServerLog",
     "onCommand:workbench.action.tasks.runTask",
-    "workspaceContains:**/tsconfig.json",
-    "workspaceContains:**/jsconfig.json",
-    "workspaceContains:**/tsconfig.*.json",
-    "workspaceContains:**/jsconfig.*.json"
+    "onLanguage:jsonc"
   ],
   "main": "./out/extension",
   "contributes": {
@@ -367,7 +364,7 @@
         "javascript.implicitProjectConfig.experimentalDecorators": {
           "type": "boolean",
           "default": false,
-          "description": "%javascript.implicitProjectConfig.experimentalDecorators%",
+          "markdownDescription": "%javascript.implicitProjectConfig.experimentalDecorators%",
           "scope": "window"
         },
         "javascript.nameSuggestions": {
@@ -425,7 +422,7 @@
             null
           ],
           "default": null,
-          "description": "%typescript.locale%",
+          "markdownDescription": "%typescript.locale%",
           "scope": "window"
         },
         "javascript.suggestionActions.enabled": {
@@ -448,7 +445,7 @@
             "double"
           ],
           "default": "auto",
-          "description": "%typescript.preferences.quoteStyle%",
+          "markdownDescription": "%typescript.preferences.quoteStyle%",
           "scope": "resource"
         },
         "typescript.preferences.quoteStyle": {
@@ -459,7 +456,7 @@
             "double"
           ],
           "default": "auto",
-          "description": "%typescript.preferences.quoteStyle%",
+          "markdownDescription": "%typescript.preferences.quoteStyle%",
           "scope": "resource"
         },
         "javascript.preferences.importModuleSpecifier": {
@@ -469,7 +466,7 @@
             "relative",
             "non-relative"
           ],
-          "enumDescriptions": [
+          "markdownEnumDescriptions": [
             "%typescript.preferences.importModuleSpecifier.auto%",
             "%typescript.preferences.importModuleSpecifier.relative%",
             "%typescript.preferences.importModuleSpecifier.nonRelative%"

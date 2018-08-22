@@ -364,6 +364,10 @@ export interface IDataSource {
 	/**
 	 * Returns the unique identifier of the given element.
 	 * No more than one element may use a given identifier.
+	 *
+	 * You should not attempt to "move" an element to a different
+	 * parent by keeping its ID. The idea here is to have tree location
+	 * related IDs (eg. full file path, in the Explorer example).
 	 */
 	getId(tree: ITree, element: any): string;
 

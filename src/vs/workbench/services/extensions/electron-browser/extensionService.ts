@@ -27,8 +27,8 @@ import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { IStorageService } from 'vs/platform/storage/common/storage';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { ExtensionHostProcessWorker } from 'vs/workbench/services/extensions/electron-browser/extensionHost';
-import { IMessagePassingProtocol } from 'vs/base/parts/ipc/common/ipc';
+import { ExtensionHostProcessWorker, IExtensionHostStarter } from 'vs/workbench/services/extensions/electron-browser/extensionHost';
+import { IMessagePassingProtocol } from 'vs/base/parts/ipc/node/ipc';
 import { ExtHostCustomersRegistry } from 'vs/workbench/api/electron-browser/extHostCustomers';
 import { IWindowService } from 'vs/platform/windows/common/windows';
 import { IDisposable, Disposable } from 'vs/base/common/lifecycle';
@@ -119,14 +119,14 @@ export class ExtensionHostProcessManager extends Disposable {
 	private readonly _extensionHostProcessFinishedActivateEvents: { [activationEvent: string]: boolean; };
 	private _extensionHostProcessRPCProtocol: RPCProtocol;
 	private readonly _extensionHostProcessCustomers: IDisposable[];
-	private readonly _extensionHostProcessWorker: ExtensionHostProcessWorker;
+	private readonly _extensionHostProcessWorker: IExtensionHostStarter;
 	/**
 	 * winjs believes a proxy is a promise because it has a `then` method, so wrap the result in an object.
 	 */
 	private _extensionHostProcessProxy: TPromise<{ value: ExtHostExtensionServiceShape; }>;
 
 	constructor(
-		extensionHostProcessWorker: ExtensionHostProcessWorker,
+		extensionHostProcessWorker: IExtensionHostStarter,
 		initialActivationEvents: string[],
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 		@IEnvironmentService private readonly _environmentService: IEnvironmentService,
@@ -551,6 +551,17 @@ export class ExtensionService extends Disposable implements IExtensionService {
 				const userMigratedSystemExtensions: IExtensionIdentifier[] = [{ id: BetterMergeId }];
 
 				const enableProposedApiFor: string | string[] = this._environmentService.args['enable-proposed-api'] || [];
+
+				const notFound = (id: string) => nls.localize('notFound', "Extension \`{0}\` cannot use PROPOSED API as it cannot be found", id);
+
+				if (enableProposedApiFor.length) {
+					let allProposed = (enableProposedApiFor instanceof Array ? enableProposedApiFor : [enableProposedApiFor]);
+					allProposed.forEach(id => {
+						if (!allExtensions.some(description => description.id === id)) {
+							console.error(notFound(id));
+						}
+					});
+				}
 
 				const enableProposedApiForAll = !this._environmentService.isBuilt ||
 					(!!this._environmentService.extensionDevelopmentPath && product.nameLong.indexOf('Insiders') >= 0) ||

@@ -31,7 +31,7 @@ import { IndentUsingSpaces, IndentUsingTabs, DetectIndentation, IndentationToSpa
 import { BaseBinaryResourceEditor } from 'vs/workbench/browser/parts/editor/binaryEditor';
 import { BinaryResourceDiffEditor } from 'vs/workbench/browser/parts/editor/binaryDiffEditor';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
-import { IQuickOpenService, IPickOpenEntry, IFilePickOpenEntry } from 'vs/platform/quickOpen/common/quickOpen';
+import { IQuickOpenService } from 'vs/platform/quickOpen/common/quickOpen';
 import { IWorkspaceConfigurationService } from 'vs/workbench/services/configuration/common/configuration';
 import { SUPPORTED_ENCODINGS, IFileService, FILES_ASSOCIATIONS_CONFIG } from 'vs/platform/files/common/files';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
@@ -58,7 +58,8 @@ import { Schemas } from 'vs/base/common/network';
 import { IAnchor } from 'vs/base/browser/ui/contextview/contextview';
 import { Themable } from 'vs/workbench/common/theme';
 import { IPreferencesService } from 'vs/workbench/services/preferences/common/preferences';
-import { IQuickInputService, IQuickPickItem } from 'vs/platform/quickinput/common/quickInput';
+import { IQuickInputService, IQuickPickItem, QuickPickInput } from 'vs/platform/quickinput/common/quickInput';
+import { getIconClasses } from 'vs/workbench/browser/labels';
 
 class SideBySideEditorEncodingSupport implements IEncodingSupport {
 	constructor(private master: IEncodingSupport, private details: IEncodingSupport) { }
@@ -834,7 +835,6 @@ export class ChangeModeAction extends Action {
 		@IModelService private modelService: IModelService,
 		@IEditorService private editorService: IEditorService,
 		@IWorkspaceConfigurationService private configurationService: IWorkspaceConfigurationService,
-		@IQuickOpenService private quickOpenService: IQuickOpenService,
 		@IQuickInputService private quickInputService: IQuickInputService,
 		@IPreferencesService private preferencesService: IPreferencesService,
 		@IInstantiationService private instantiationService: IInstantiationService,
@@ -867,7 +867,7 @@ export class ChangeModeAction extends Action {
 
 		// All languages are valid picks
 		const languages = this.modeService.getRegisteredLanguageNames();
-		const picks: IPickOpenEntry[] = languages.sort().map((lang, index) => {
+		const picks: QuickPickInput[] = languages.sort().map((lang, index) => {
 			let description: string;
 			if (currentModeId === lang) {
 				description = nls.localize('languageDescription', "({0}) - Configured Language", this.modeService.getModeIdForLanguageName(lang.toLowerCase()));
@@ -887,20 +887,20 @@ export class ChangeModeAction extends Action {
 				}
 			}
 
-			return <IFilePickOpenEntry>{
+			return <IQuickPickItem>{
 				label: lang,
-				resource: fakeResource,
+				iconClasses: getIconClasses(this.modelService, this.modeService, fakeResource),
 				description
 			};
 		});
 
 		if (hasLanguageSupport) {
-			picks[0].separator = { border: true, label: nls.localize('languagesPicks', "languages (identifier)") };
+			picks.unshift({ type: 'separator', label: nls.localize('languagesPicks', "languages (identifier)") });
 		}
 
 		// Offer action to configure via settings
-		let configureModeAssociations: IPickOpenEntry;
-		let configureModeSettings: IPickOpenEntry;
+		let configureModeAssociations: IQuickPickItem;
+		let configureModeSettings: IQuickPickItem;
 		let galleryAction: Action;
 		if (hasLanguageSupport) {
 			const ext = paths.extname(resource.fsPath) || paths.basename(resource.fsPath);
@@ -917,7 +917,7 @@ export class ChangeModeAction extends Action {
 		}
 
 		// Offer to "Auto Detect"
-		const autoDetectMode: IPickOpenEntry = {
+		const autoDetectMode: IQuickPickItem = {
 			label: nls.localize('autoDetect', "Auto Detect")
 		};
 
@@ -925,7 +925,7 @@ export class ChangeModeAction extends Action {
 			picks.unshift(autoDetectMode);
 		}
 
-		return this.quickOpenService.pick(picks, { placeHolder: nls.localize('pickLanguage', "Select Language Mode"), matchOnDescription: true }).then(pick => {
+		return this.quickInputService.pick(picks, { placeHolder: nls.localize('pickLanguage', "Select Language Mode"), matchOnDescription: true }).then(pick => {
 			if (!pick) {
 				return;
 			}
@@ -999,7 +999,7 @@ export class ChangeModeAction extends Action {
 			};
 		});
 
-		TPromise.timeout(50 /* quick open is sensitive to being opened so soon after another */).done(() => {
+		setTimeout(() => {
 			this.quickInputService.pick(picks, { placeHolder: nls.localize('pickLanguageToConfigure', "Select Language Mode to Associate with '{0}'", extension || basename) }).done(language => {
 				if (language) {
 					const fileAssociationsConfig = this.configurationService.inspect(FILES_ASSOCIATIONS_CONFIG);
@@ -1027,8 +1027,8 @@ export class ChangeModeAction extends Action {
 
 					this.configurationService.updateValue(FILES_ASSOCIATIONS_CONFIG, currentAssociations, target);
 				}
-			});
-		});
+			}, error => errors.onUnexpectedError(error));
+		}, 50 /* quick open is sensitive to being opened so soon after another */);
 	}
 }
 
@@ -1045,7 +1045,6 @@ class ChangeIndentationAction extends Action {
 		actionId: string,
 		actionLabel: string,
 		@IEditorService private editorService: IEditorService,
-		@IQuickOpenService private quickOpenService: IQuickOpenService,
 		@IQuickInputService private quickInputService: IQuickInputService
 	) {
 		super(actionId, actionLabel);
@@ -1061,7 +1060,7 @@ class ChangeIndentationAction extends Action {
 			return this.quickInputService.pick([{ label: nls.localize('noWritableCodeEditor', "The active code editor is read-only.") }]);
 		}
 
-		const picks = [
+		const picks: QuickPickInput<IQuickPickItem & { run(): void }>[] = [
 			activeTextEditorWidget.getAction(IndentUsingSpaces.ID),
 			activeTextEditorWidget.getAction(IndentUsingTabs.ID),
 			activeTextEditorWidget.getAction(DetectIndentation.ID),
@@ -1080,10 +1079,10 @@ class ChangeIndentationAction extends Action {
 			};
 		});
 
-		(<IPickOpenEntry>picks[0]).separator = { label: nls.localize('indentView', "change view") };
-		(<IPickOpenEntry>picks[3]).separator = { label: nls.localize('indentConvert', "convert file"), border: true };
+		picks.splice(3, 0, { type: 'separator', label: nls.localize('indentConvert', "convert file") });
+		picks.unshift({ type: 'separator', label: nls.localize('indentView', "change view") });
 
-		return this.quickOpenService.pick(picks, { placeHolder: nls.localize('pickAction', "Select Action"), matchOnDetail: true }).then(action => action && action.run());
+		return this.quickInputService.pick(picks, { placeHolder: nls.localize('pickAction', "Select Action"), matchOnDetail: true }).then(action => action && action.run());
 	}
 }
 
@@ -1141,7 +1140,6 @@ export class ChangeEncodingAction extends Action {
 		actionId: string,
 		actionLabel: string,
 		@IEditorService private editorService: IEditorService,
-		@IQuickOpenService private quickOpenService: IQuickOpenService,
 		@IQuickInputService private quickInputService: IQuickInputService,
 		@ITextResourceConfigurationService private textResourceConfigurationService: ITextResourceConfigurationService,
 		@IFileService private fileService: IFileService
@@ -1204,7 +1202,7 @@ export class ChangeEncodingAction extends Action {
 					let aliasMatchIndex: number;
 
 					// All encodings are valid picks
-					const picks: IPickOpenEntry[] = Object.keys(SUPPORTED_ENCODINGS)
+					const picks: QuickPickInput[] = Object.keys(SUPPORTED_ENCODINGS)
 						.sort((k1, k2) => {
 							if (k1 === configuredEncoding) {
 								return -1;
@@ -1233,13 +1231,14 @@ export class ChangeEncodingAction extends Action {
 
 					// If we have a guessed encoding, show it first unless it matches the configured encoding
 					if (guessedEncoding && configuredEncoding !== guessedEncoding && SUPPORTED_ENCODINGS[guessedEncoding]) {
-						picks[0].separator = { border: true };
+						picks.unshift({ type: 'separator' });
 						picks.unshift({ id: guessedEncoding, label: SUPPORTED_ENCODINGS[guessedEncoding].labelLong, description: nls.localize('guessedEncoding', "Guessed from content") });
 					}
 
-					return this.quickOpenService.pick(picks, {
+					const items = picks.filter(p => p.type !== 'separator') as IQuickPickItem[];
+					return this.quickInputService.pick(picks, {
 						placeHolder: isReopenWithEncoding ? nls.localize('pickEncodingForReopen', "Select File Encoding to Reopen File") : nls.localize('pickEncodingForSave', "Select File Encoding to Save with"),
-						autoFocus: { autoFocusIndex: typeof directMatchIndex === 'number' ? directMatchIndex : typeof aliasMatchIndex === 'number' ? aliasMatchIndex : void 0 }
+						activeItem: items[typeof directMatchIndex === 'number' ? directMatchIndex : typeof aliasMatchIndex === 'number' ? aliasMatchIndex : -1]
 					}).then(encoding => {
 						if (encoding) {
 							activeControl = this.editorService.activeControl;

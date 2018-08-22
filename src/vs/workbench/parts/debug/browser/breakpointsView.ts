@@ -32,7 +32,7 @@ import { IConfigurationService } from 'vs/platform/configuration/common/configur
 import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
 import { IEditorService, SIDE_GROUP, ACTIVE_GROUP } from 'vs/workbench/services/editor/common/editorService';
 import { ViewletPanel, IViewletPanelOptions } from 'vs/workbench/browser/parts/views/panelViewlet';
-import { IUriDisplayService } from 'vs/platform/uriDisplay/common/uriDisplay';
+import { IUriLabelService } from 'vs/platform/uriLabel/common/uriLabel';
 
 const $ = dom.$;
 
@@ -91,17 +91,29 @@ export class BreakpointsView extends ViewletPanel {
 		this.disposables.push(this.list.onOpen(e => {
 			let isSingleClick = false;
 			let isDoubleClick = false;
+			let isMiddleClick = false;
 			let openToSide = false;
 
 			const browserEvent = e.browserEvent;
 			if (browserEvent instanceof MouseEvent) {
 				isSingleClick = browserEvent.detail === 1;
 				isDoubleClick = browserEvent.detail === 2;
+				isMiddleClick = browserEvent.button === 1;
 				openToSide = (browserEvent.ctrlKey || browserEvent.metaKey || browserEvent.altKey);
 			}
 
 			const focused = this.list.getFocusedElements();
 			const element = focused.length ? focused[0] : undefined;
+
+			if (isMiddleClick) {
+				if (element instanceof Breakpoint) {
+					this.debugService.removeBreakpoints(element.getId()).done(undefined, onUnexpectedError);
+				} else if (element instanceof FunctionBreakpoint) {
+					this.debugService.removeFunctionBreakpoints(element.getId()).done(undefined, onUnexpectedError);
+				}
+				return;
+			}
+
 			if (element instanceof Breakpoint) {
 				openBreakpointSource(element, openToSide, isSingleClick, this.debugService, this.editorService).done(undefined, onUnexpectedError);
 			}
@@ -284,7 +296,7 @@ class BreakpointsRenderer implements IRenderer<IBreakpoint, IBreakpointTemplateD
 
 	constructor(
 		@IDebugService private debugService: IDebugService,
-		@IUriDisplayService private uriDisplayService: IUriDisplayService,
+		@IUriLabelService private uriLabelService: IUriLabelService,
 		@ITextFileService private textFileService: ITextFileService
 	) {
 		// noop
@@ -328,7 +340,7 @@ class BreakpointsRenderer implements IRenderer<IBreakpoint, IBreakpointTemplateD
 		if (breakpoint.column) {
 			data.lineNumber.textContent += `:${breakpoint.column}`;
 		}
-		data.filePath.textContent = this.uriDisplayService.getLabel(resources.dirname(breakpoint.uri), true);
+		data.filePath.textContent = this.uriLabelService.getLabel(resources.dirname(breakpoint.uri), true);
 		data.checkbox.checked = breakpoint.enabled;
 
 		const { message, className } = getBreakpointMessageAndClassName(this.debugService, this.textFileService, breakpoint);
@@ -506,9 +518,12 @@ class FunctionBreakpointInputRenderer implements IRenderer<IFunctionBreakpoint, 
 			}
 		}));
 		toDispose.push(dom.addDisposableListener(inputBox.inputElement, 'blur', () => {
-			if (!template.breakpoint.name) {
-				wrapUp(true);
-			}
+			// Need to react with a timeout on the blur event due to possible concurent splices #56443
+			setTimeout(() => {
+				if (!template.breakpoint.name) {
+					wrapUp(true);
+				}
+			});
 		}));
 
 		template.inputBox = inputBox;

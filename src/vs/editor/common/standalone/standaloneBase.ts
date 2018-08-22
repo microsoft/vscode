@@ -18,12 +18,6 @@ import URI from 'vs/base/common/uri';
 // This is repeated here so it can be exported
 // because TS inlines const enums
 // --------------------------------------------
-export enum Severity {
-	Ignore = 0,
-	Info = 1,
-	Warning = 2,
-	Error = 3,
-}
 
 export enum MarkerTag {
 	Unnecessary = 1,
@@ -248,7 +242,6 @@ export function createMonacoBaseAPI(): typeof monaco {
 		Range: Range,
 		Selection: Selection,
 		SelectionDirection: SelectionDirection,
-		Severity: Severity,
 		MarkerSeverity: MarkerSeverity,
 		MarkerTag: MarkerTag,
 		Promise: TPromise,

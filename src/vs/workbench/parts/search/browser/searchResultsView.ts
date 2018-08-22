@@ -27,7 +27,7 @@ import { IContextMenuService } from 'vs/platform/contextview/browser/contextView
 import { IMenuService, MenuId, IMenu } from 'vs/platform/actions/common/actions';
 import { WorkbenchTreeController, WorkbenchTree } from 'vs/platform/list/browser/listService';
 import { fillInContextMenuActions } from 'vs/platform/actions/browser/menuItemActionItem';
-import { IUriDisplayService } from 'vs/platform/uriDisplay/common/uriDisplay';
+import { IUriLabelService } from 'vs/platform/uriLabel/common/uriLabel';
 
 export class SearchDataSource implements IDataSource {
 
@@ -36,7 +36,10 @@ export class SearchDataSource implements IDataSource {
 	private includeFolderMatch: boolean;
 	private listener: IDisposable;
 
-	constructor(@IWorkspaceContextService private contextService: IWorkspaceContextService) {
+	constructor(
+		@IWorkspaceContextService private contextService: IWorkspaceContextService,
+		@IConfigurationService private configurationService: IConfigurationService,
+	) {
 		this.updateIncludeFolderMatch();
 		this.listener = this.contextService.onDidChangeWorkbenchState(() => this.updateIncludeFolderMatch());
 	}
@@ -103,6 +106,14 @@ export class SearchDataSource implements IDataSource {
 		if (numChildren <= 0) {
 			return false;
 		}
+
+		const collapseOption = this.configurationService.getValue('search.collapseResults');
+		if (collapseOption === 'alwaysCollapse') {
+			return false;
+		} else if (collapseOption === 'alwaysExpand') {
+			return true;
+		}
+
 		return numChildren < SearchDataSource.AUTOEXPAND_CHILD_LIMIT || element instanceof FolderMatch;
 	}
 
@@ -235,7 +246,7 @@ export class SearchRenderer extends Disposable implements IRenderer {
 	}
 
 	private renderFolderMatch(tree: ITree, folderMatch: FolderMatch, templateData: IFolderMatchTemplate): void {
-		if (folderMatch.hasRoot()) {
+		if (folderMatch.hasResource()) {
 			const workspaceFolder = this.contextService.getWorkspaceFolder(folderMatch.resource());
 			if (workspaceFolder && resources.isEqual(workspaceFolder.uri, folderMatch.resource())) {
 				templateData.label.setFile(folderMatch.resource(), { fileKind: FileKind.ROOT_FOLDER, hidePath: true });
@@ -318,17 +329,19 @@ export class SearchRenderer extends Disposable implements IRenderer {
 export class SearchAccessibilityProvider implements IAccessibilityProvider {
 
 	constructor(
-		@IUriDisplayService private uriDisplayService: IUriDisplayService
+		@IUriLabelService private uriLabelService: IUriLabelService
 	) {
 	}
 
 	public getAriaLabel(tree: ITree, element: FileMatchOrMatch): string {
 		if (element instanceof FolderMatch) {
-			return nls.localize('folderMatchAriaLabel', "{0} matches in folder root {1}, Search result", element.count(), element.name());
+			return element.hasResource() ?
+				nls.localize('folderMatchAriaLabel', "{0} matches in folder root {1}, Search result", element.count(), element.name()) :
+				nls.localize('otherFilesAriaLabel', "{0} matches outside of the workspace, Search result", element.count());
 		}
 
 		if (element instanceof FileMatch) {
-			const path = this.uriDisplayService.getLabel(element.resource(), true) || element.resource().fsPath;
+			const path = this.uriLabelService.getLabel(element.resource(), true) || element.resource().fsPath;
 
 			return nls.localize('fileMatchAriaLabel', "{0} matches in file {1} of folder {2}, Search result", element.count(), element.name(), paths.dirname(path));
 		}

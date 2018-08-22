@@ -8,7 +8,7 @@ import * as paths from 'vs/base/common/paths';
 import URI from 'vs/base/common/uri';
 import { equalsIgnoreCase } from 'vs/base/common/strings';
 import { Schemas } from 'vs/base/common/network';
-import { isLinux } from 'vs/base/common/platform';
+import { isLinux, isWindows } from 'vs/base/common/platform';
 import { CharCode } from 'vs/base/common/charCode';
 
 export function getComparisonKey(resource: URI): string {
@@ -25,19 +25,28 @@ export function basenameOrAuthority(resource: URI): string {
 	return basename(resource) || resource.authority;
 }
 
-export function isEqualOrParent(resource: URI, candidate: URI, ignoreCase?: boolean): boolean {
-	if (resource.scheme === candidate.scheme && resource.authority === candidate.authority) {
-		if (resource.scheme === Schemas.file) {
-			return paths.isEqualOrParent(resource.path, candidate.path, ignoreCase);
+/**
+ * Tests wheter a `candidate` URI is a parent or equal of a given `base` URI.
+ * @param base A uri which is "longer"
+ * @param parentCandidate A uri which is "shorter" then `base`
+ */
+export function isEqualOrParent(base: URI, parentCandidate: URI, ignoreCase = hasToIgnoreCase(base)): boolean {
+	if (base.scheme === parentCandidate.scheme) {
+		if (base.scheme === Schemas.file) {
+			return paths.isEqualOrParent(fsPath(base), fsPath(parentCandidate), ignoreCase);
 		}
-
-		return paths.isEqualOrParent(resource.path, candidate.path, ignoreCase, '/');
+		if (isEqualAuthority(base.authority, parentCandidate.authority, ignoreCase)) {
+			return paths.isEqualOrParent(base.path, parentCandidate.path, ignoreCase, '/');
+		}
 	}
-
 	return false;
 }
 
-export function isEqual(first: URI, second: URI, ignoreCase?: boolean): boolean {
+function isEqualAuthority(a1: string, a2: string, ignoreCase?: boolean) {
+	return a1 === a2 || ignoreCase && a1 && a2 && equalsIgnoreCase(a1, a2);
+}
+
+export function isEqual(first: URI, second: URI, ignoreCase = hasToIgnoreCase(first)): boolean {
 	const identityEquals = (first === second);
 	if (identityEquals) {
 		return true;
@@ -82,7 +91,12 @@ export function dirname(resource: URI): URI {
  * @returns The resulting URI.
  */
 export function joinPath(resource: URI, pathFragment: string): URI {
-	const joinedPath = paths.join(resource.path || '/', pathFragment);
+	let joinedPath: string;
+	if (resource.scheme === Schemas.file) {
+		joinedPath = URI.file(paths.join(fsPath(resource), pathFragment)).path;
+	} else {
+		joinedPath = paths.join(resource.path, pathFragment);
+	}
 	return resource.with({
 		path: joinedPath
 	});
@@ -95,10 +109,41 @@ export function joinPath(resource: URI, pathFragment: string): URI {
  * @returns The URI with the normalized path.
  */
 export function normalizePath(resource: URI): URI {
-	const normalizedPath = paths.normalize(resource.path, false);
+	let normalizedPath: string;
+	if (resource.scheme === Schemas.file) {
+		normalizedPath = URI.file(paths.normalize(fsPath(resource))).path;
+	} else {
+		normalizedPath = paths.normalize(resource.path);
+	}
 	return resource.with({
 		path: normalizedPath
 	});
+}
+
+/**
+ * Returns the fsPath of an URI where the drive letter is not normalized.
+ * See #56403.
+ */
+function fsPath(uri: URI): string {
+	let value: string;
+	if (uri.authority && uri.path.length > 1 && uri.scheme === 'file') {
+		// unc path: file://shares/c$/far/boo
+		value = `//${uri.authority}${uri.path}`;
+	} else if (
+		isWindows
+		&& uri.path.charCodeAt(0) === CharCode.Slash
+		&& (uri.path.charCodeAt(1) >= CharCode.A && uri.path.charCodeAt(1) <= CharCode.Z || uri.path.charCodeAt(1) >= CharCode.a && uri.path.charCodeAt(1) <= CharCode.z)
+		&& uri.path.charCodeAt(2) === CharCode.Colon
+	) {
+		value = uri.path.substr(1);
+	} else {
+		// other path
+		value = uri.path;
+	}
+	if (isWindows) {
+		value = value.replace(/\//g, '\\');
+	}
+	return value;
 }
 
 /**
@@ -127,3 +172,18 @@ export function distinctParents<T>(items: T[], resourceAccessor: (item: T) => UR
 
 	return distinctParents;
 }
+
+/**
+ * Tests wheter the given URL is a file URI created by `URI.parse` instead of `URI.file`.
+ * Such URI have no scheme or scheme that consist of a single letter (windows drive letter)
+ * @param candidate The URI to test
+ * @returns A corrected, real file URI if the input seems to be malformed.
+ * Undefined is returned if the input URI looks fine.
+ */
+export function isMalformedFileUri(candidate: URI): URI | undefined {
+	if (!candidate.scheme || isWindows && candidate.scheme.match(/^[a-zA-Z]$/)) {
+		return URI.file((candidate.scheme ? candidate.scheme + ':' : '') + candidate.path);
+	}
+	return void 0;
+}
+

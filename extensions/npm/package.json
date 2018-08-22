@@ -24,7 +24,7 @@
   },
   "devDependencies": {
     "@types/minimatch": "^3.0.3",
-    "@types/node": "7.0.43"
+    "@types/node": "^8.10.25"
   },
   "main": "./out/main",
   "activationEvents": [
@@ -191,7 +191,7 @@
           "type": "boolean",
           "default": false,
           "scope": "resource",
-          "description": "%config.npm.runSilent%"
+          "markdownDescription": "%config.npm.runSilent%"
         },
         "npm.packageManager": {
           "scope": "resource",
@@ -226,7 +226,7 @@
             "open",
             "run"
           ],
-          "description": "%config.npm.scriptExplorerAction%",
+          "markdownDescription": "%config.npm.scriptExplorerAction%",
           "scope": "window",
           "default": "open"
         },
@@ -235,7 +235,9 @@
           "description": "%config.npm.fetchOnlinePackageInfo%",
           "default": true,
           "scope": "window",
-          "tags": ["usesOnlineServices"]
+          "tags": [
+            "usesOnlineServices"
+          ]
         }
       }
     },

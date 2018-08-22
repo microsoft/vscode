@@ -216,7 +216,7 @@ export class TextMateService implements ITextMateService {
 					loadGrammar: (scopeName: string) => {
 						const location = this._scopeRegistry.getGrammarLocation(scopeName);
 						if (!location) {
-							this._logService.info(`No grammar found for scope ${scopeName}`);
+							this._logService.trace(`No grammar found for scope ${scopeName}`);
 							return null;
 						}
 						return this._fileService.resolveContent(location, { encoding: 'utf8' }).then(content => {
@@ -313,7 +313,7 @@ export class TextMateService implements ITextMateService {
 		}
 
 		const grammarLocation = resources.joinPath(extensionLocation, syntax.path);
-		if (grammarLocation.path.indexOf(extensionLocation.path) !== 0) {
+		if (!resources.isEqualOrParent(grammarLocation, extensionLocation)) {
 			collector.warn(nls.localize('invalid.path.1', "Expected `contributes.{0}.path` ({1}) to be included inside extension's folder ({2}). This might make the extension non-portable.", grammarsExtPoint.name, grammarLocation.path, extensionLocation.path));
 		}
 

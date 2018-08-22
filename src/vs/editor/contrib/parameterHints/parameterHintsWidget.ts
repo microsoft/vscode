@@ -8,7 +8,6 @@
 import 'vs/css!./parameterHints';
 import * as nls from 'vs/nls';
 import { IDisposable, dispose, Disposable } from 'vs/base/common/lifecycle';
-import { TPromise } from 'vs/base/common/winjs.base';
 import * as dom from 'vs/base/browser/dom';
 import * as aria from 'vs/base/browser/ui/aria/aria';
 import { SignatureHelp, SignatureInformation, SignatureHelpProviderRegistry } from 'vs/editor/common/modes';
@@ -294,7 +293,7 @@ export class ParameterHintsWidget implements IContentWidget, IDisposable {
 
 		this.keyVisible.set(true);
 		this.visible = true;
-		TPromise.timeout(100).done(() => dom.addClass(this.element, 'visible'));
+		setTimeout(() => dom.addClass(this.element, 'visible'), 100);
 		this.editor.layoutContentWidget(this);
 	}
 

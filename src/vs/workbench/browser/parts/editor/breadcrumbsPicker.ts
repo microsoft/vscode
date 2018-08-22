@@ -9,10 +9,10 @@ import * as dom from 'vs/base/browser/dom';
 import { compareFileNames } from 'vs/base/common/comparers';
 import { Emitter, Event } from 'vs/base/common/event';
 import { dispose, IDisposable } from 'vs/base/common/lifecycle';
-import { dirname, isEqual } from 'vs/base/common/resources';
+import { dirname, isEqual, basename } from 'vs/base/common/resources';
 import URI from 'vs/base/common/uri';
 import { TPromise } from 'vs/base/common/winjs.base';
-import { IDataSource, IRenderer, ISelectionEvent, ISorter, ITree } from 'vs/base/parts/tree/browser/tree';
+import { IDataSource, IRenderer, ISelectionEvent, ISorter, ITree, IFilter } from 'vs/base/parts/tree/browser/tree';
 import 'vs/css!./media/breadcrumbscontrol';
 import { OutlineElement, OutlineModel, TreeElement } from 'vs/editor/contrib/documentSymbols/outlineModel';
 import { OutlineDataSource, OutlineItemComparator, OutlineRenderer } from 'vs/editor/contrib/documentSymbols/outlineTree';
@@ -20,14 +20,17 @@ import { localize } from 'vs/nls';
 import { FileKind, IFileService, IFileStat } from 'vs/platform/files/common/files';
 import { IInstantiationService, IConstructorSignature1 } from 'vs/platform/instantiation/common/instantiation';
 import { HighlightingWorkbenchTree, IHighlightingTreeConfiguration, IHighlightingRenderer } from 'vs/platform/list/browser/listService';
-import { IThemeService, DARK } from 'vs/platform/theme/common/themeService';
+import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { FileLabel } from 'vs/workbench/browser/labels';
 import { BreadcrumbElement, FileElement } from 'vs/workbench/browser/parts/editor/breadcrumbsModel';
 import { onUnexpectedError } from 'vs/base/common/errors';
-import { breadcrumbsPickerBackground } from 'vs/platform/theme/common/colorRegistry';
+import { breadcrumbsPickerBackground, widgetShadow } from 'vs/platform/theme/common/colorRegistry';
 import { FuzzyScore, createMatches, fuzzyScore } from 'vs/base/common/filters';
 import { IWorkspaceContextService, IWorkspace, IWorkspaceFolder } from 'vs/platform/workspace/common/workspace';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
+import { BreadcrumbsConfig } from 'vs/workbench/browser/parts/editor/breadcrumbs';
+import * as glob from 'vs/base/common/glob';
+import { } from 'vs/base/common/paths';
 
 export function createBreadcrumbsPicker(instantiationService: IInstantiationService, parent: HTMLElement, element: BreadcrumbElement): BreadcrumbsPicker {
 	let ctor: IConstructorSignature1<HTMLElement, BreadcrumbsPicker> = element instanceof FileElement ? BreadcrumbsFilePicker : BreadcrumbsOutlinePicker;
@@ -71,7 +74,7 @@ export abstract class BreadcrumbsPicker {
 		this._treeContainer = document.createElement('div');
 		this._treeContainer.style.background = color.toString();
 		this._treeContainer.style.paddingTop = '2px';
-		this._treeContainer.style.boxShadow = `0px 5px 8px ${(theme.type === DARK ? color.darken(.6) : color.darken(.2))}`;
+		this._treeContainer.style.boxShadow = `0px 5px 8px ${this._themeService.getTheme().getColor(widgetShadow)}`;
 		this._domNode.appendChild(this._treeContainer);
 
 		const treeConifg = this._completeTreeConfiguration({ dataSource: undefined, renderer: undefined });
@@ -203,6 +206,52 @@ export class FileDataSource implements IDataSource {
 	}
 }
 
+export class FileFilter implements IFilter {
+
+	private readonly _cachedExpressions = new Map<string, glob.ParsedExpression>();
+	private readonly _disposables: IDisposable[] = [];
+
+	constructor(
+		@IWorkspaceContextService private readonly _workspaceService: IWorkspaceContextService,
+		@IConfigurationService configService: IConfigurationService,
+	) {
+		const config = BreadcrumbsConfig.FileExcludes.bindTo(configService);
+		const update = () => {
+			_workspaceService.getWorkspace().folders.forEach(folder => {
+				const excludesConfig = config.getValue({ resource: folder.uri });
+				if (excludesConfig) {
+					this._cachedExpressions.set(folder.uri.toString(), glob.parse(excludesConfig));
+				}
+			});
+		};
+		update();
+		this._disposables.push(
+			config,
+			config.onDidChange(update),
+			_workspaceService.onDidChangeWorkspaceFolders(update)
+		);
+	}
+
+	dispose(): void {
+		dispose(this._disposables);
+	}
+
+	isVisible(tree: ITree, element: IWorkspaceFolder | IFileStat): boolean {
+		if (IWorkspaceFolder.isIWorkspaceFolder(element)) {
+			// not a file
+			return true;
+		}
+		const folder = this._workspaceService.getWorkspaceFolder(element.resource);
+		if (!folder || !this._cachedExpressions.has(folder.uri.toString())) {
+			// no folder or no filer
+			return true;
+		}
+
+		const expression = this._cachedExpressions.get(folder.uri.toString());
+		return !expression(element.resource.path.substr(folder.uri.path.length), basename(element.resource));
+	}
+}
+
 export class FileRenderer implements IRenderer, IHighlightingRenderer {
 
 	private readonly _scores = new Map<string, FuzzyScore>();
@@ -317,9 +366,13 @@ export class BreadcrumbsFilePicker extends BreadcrumbsPicker {
 
 	protected _completeTreeConfiguration(config: IHighlightingTreeConfiguration): IHighlightingTreeConfiguration {
 		// todo@joh reuse explorer implementations?
+		const filter = this._instantiationService.createInstance(FileFilter);
+		this._disposables.push(filter);
+
 		config.dataSource = this._instantiationService.createInstance(FileDataSource);
 		config.renderer = this._instantiationService.createInstance(FileRenderer);
 		config.sorter = new FileSorter();
+		config.filter = filter;
 		return config;
 	}
 

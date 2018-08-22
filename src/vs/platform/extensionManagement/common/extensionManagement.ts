@@ -255,7 +255,8 @@ export interface IReportedExtension {
 }
 
 export enum InstallOperation {
-	Install = 1,
+	None = 0,
+	Install,
 	Update
 }
 
@@ -276,6 +277,7 @@ export interface IExtensionGalleryService {
 	loadCompatibleVersion(extension: IGalleryExtension): TPromise<IGalleryExtension>;
 	loadAllDependencies(dependencies: IExtensionIdentifier[]): TPromise<IGalleryExtension[]>;
 	getExtensionsReport(): TPromise<IReportedExtension[]>;
+	getExtension(id: IExtensionIdentifier, version?: string): TPromise<IGalleryExtension>;
 }
 
 export interface InstallExtensionEvent {
@@ -306,7 +308,9 @@ export interface IExtensionManagementService {
 	onUninstallExtension: Event<IExtensionIdentifier>;
 	onDidUninstallExtension: Event<DidUninstallExtensionEvent>;
 
-	install(zipPath: string): TPromise<void>;
+	zip(extension: ILocalExtension): TPromise<URI>;
+	unzip(zipLocation: URI, type: LocalExtensionType): TPromise<IExtensionIdentifier>;
+	install(vsix: URI): TPromise<IExtensionIdentifier>;
 	installFromGallery(extension: IGalleryExtension): TPromise<void>;
 	uninstall(extension: ILocalExtension, force?: boolean): TPromise<void>;
 	reinstallFromGallery(extension: ILocalExtension): TPromise<void>;
@@ -320,13 +324,14 @@ export const IExtensionManagementServerService = createDecorator<IExtensionManag
 
 export interface IExtensionManagementServer {
 	extensionManagementService: IExtensionManagementService;
-	location: URI;
+	authority: string;
+	label: string;
 }
 
 export interface IExtensionManagementServerService {
 	_serviceBrand: any;
 	readonly extensionManagementServers: IExtensionManagementServer[];
-	getDefaultExtensionManagementServer(): IExtensionManagementServer;
+	getLocalExtensionManagementServer(): IExtensionManagementServer;
 	getExtensionManagementServer(location: URI): IExtensionManagementServer;
 }
 

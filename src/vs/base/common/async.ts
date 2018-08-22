@@ -408,8 +408,12 @@ export function timeout(n: number): CancelablePromise<void> {
 	});
 }
 
-function isWinJSPromise(candidate: any): candidate is TPromise {
-	return TPromise.is(candidate) && typeof (<TPromise>candidate).done === 'function';
+/**
+ *
+ * @returns `true` if candidate is a `WinJS.Promise`
+ */
+export function isWinJSPromise(candidate: any): candidate is TPromise {
+	return isThenable(candidate) && typeof (<TPromise>candidate).done === 'function';
 }
 
 /**

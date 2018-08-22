@@ -40,8 +40,8 @@ import { massageFolderPathForWorkspace } from 'vs/platform/workspaces/node/works
 import { UserConfiguration } from 'vs/platform/configuration/node/configuration';
 import { IJSONSchema, IJSONSchemaMap } from 'vs/base/common/jsonSchema';
 import { localize } from 'vs/nls';
-import { isEqual, hasToIgnoreCase } from 'vs/base/common/resources';
-import { IUriDisplayService } from 'vs/platform/uriDisplay/common/uriDisplay';
+import { isEqual } from 'vs/base/common/resources';
+import { IUriLabelService } from 'vs/platform/uriLabel/common/uriLabel';
 
 export class WorkspaceService extends Disposable implements IWorkspaceConfigurationService, IWorkspaceContextService {
 
@@ -69,7 +69,7 @@ export class WorkspaceService extends Disposable implements IWorkspaceConfigurat
 	public readonly onDidChangeWorkbenchState: Event<WorkbenchState> = this._onDidChangeWorkbenchState.event;
 
 	private fileService: IFileService;
-	private uriDisplayService: IUriDisplayService;
+	private uriLabelService: IUriLabelService;
 	private configurationEditingService: ConfigurationEditingService;
 	private jsonEditingService: JSONEditingService;
 
@@ -133,7 +133,7 @@ export class WorkspaceService extends Disposable implements IWorkspaceConfigurat
 	public isCurrentWorkspace(workspaceIdentifier: ISingleFolderWorkspaceIdentifier | IWorkspaceIdentifier): boolean {
 		switch (this.getWorkbenchState()) {
 			case WorkbenchState.FOLDER:
-				return isSingleFolderWorkspaceIdentifier(workspaceIdentifier) && isEqual(workspaceIdentifier, this.workspace.folders[0].uri, hasToIgnoreCase(workspaceIdentifier));
+				return isSingleFolderWorkspaceIdentifier(workspaceIdentifier) && isEqual(workspaceIdentifier, this.workspace.folders[0].uri);
 			case WorkbenchState.WORKSPACE:
 				return isWorkspaceIdentifier(workspaceIdentifier) && this.workspace.id === workspaceIdentifier.id;
 		}
@@ -319,8 +319,8 @@ export class WorkspaceService extends Disposable implements IWorkspaceConfigurat
 			});
 	}
 
-	acquireUriDisplayService(uriDisplayService: IUriDisplayService): void {
-		this.uriDisplayService = uriDisplayService;
+	acquireUriLabelService(uriLabelService: IUriLabelService): void {
+		this.uriLabelService = uriLabelService;
 	}
 
 	acquireInstantiationService(instantiationService: IInstantiationService): void {
@@ -346,7 +346,7 @@ export class WorkspaceService extends Disposable implements IWorkspaceConfigurat
 			.then(() => {
 				const workspaceFolders = toWorkspaceFolders(this.workspaceConfiguration.getFolders(), URI.file(dirname(workspaceConfigPath.fsPath)));
 				const workspaceId = workspaceIdentifier.id;
-				const workspaceName = getWorkspaceLabel({ id: workspaceId, configPath: workspaceConfigPath.fsPath }, this.environmentService, this.uriDisplayService);
+				const workspaceName = getWorkspaceLabel({ id: workspaceId, configPath: workspaceConfigPath.fsPath }, this.environmentService, this.uriLabelService);
 				return new Workspace(workspaceId, workspaceName, workspaceFolders, workspaceConfigPath);
 			});
 	}
@@ -369,11 +369,11 @@ export class WorkspaceService extends Disposable implements IWorkspaceConfigurat
 					}
 
 					const id = createHash('md5').update(folder.fsPath).update(ctime ? String(ctime) : '').digest('hex');
-					return new Workspace(id, getWorkspaceLabel(folder, this.environmentService, this.uriDisplayService), toWorkspaceFolders([{ path: folder.fsPath }]), null, ctime);
+					return new Workspace(id, getWorkspaceLabel(folder, this.environmentService, this.uriLabelService), toWorkspaceFolders([{ path: folder.fsPath }]), null, ctime);
 				});
 		} else {
 			const id = createHash('md5').update(folder.toString()).digest('hex');
-			return TPromise.as(new Workspace(id, getWorkspaceLabel(folder, this.environmentService, this.uriDisplayService), toWorkspaceFolders([{ uri: folder.toString() }]), null));
+			return TPromise.as(new Workspace(id, getWorkspaceLabel(folder, this.environmentService, this.uriLabelService), toWorkspaceFolders([{ uri: folder.toString() }]), null));
 		}
 	}
 
@@ -742,7 +742,7 @@ export class DefaultConfigurationExportHelper {
 		const processProperty = (name: string, prop: IConfigurationPropertySchema) => {
 			const propDetails: IExportedConfigurationNode = {
 				name,
-				description: prop.description,
+				description: prop.description || prop.markdownDescription || '',
 				default: prop.default,
 				type: prop.type
 			};
@@ -751,8 +751,8 @@ export class DefaultConfigurationExportHelper {
 				propDetails.enum = prop.enum;
 			}
 
-			if (prop.enumDescriptions) {
-				propDetails.enumDescriptions = prop.enumDescriptions;
+			if (prop.enumDescriptions || prop.markdownEnumDescriptions) {
+				propDetails.enumDescriptions = prop.enumDescriptions || prop.markdownEnumDescriptions;
 			}
 
 			settings.push(propDetails);

@@ -123,9 +123,6 @@ export class SuggestModel implements IDisposable {
 			this._updateTriggerCharacters();
 			this.cancel();
 		}));
-		this._toDispose.push(this._editor.onDidBlurEditorText(() => {
-			this.cancel();
-		}));
 		this._toDispose.push(this._editor.onDidChangeConfiguration(() => {
 			this._updateTriggerCharacters();
 			this._updateQuickSuggest();
@@ -137,8 +134,23 @@ export class SuggestModel implements IDisposable {
 		this._toDispose.push(this._editor.onDidChangeCursorSelection(e => {
 			this._onCursorChange(e);
 		}));
-		this._toDispose.push(this._editor.onDidChangeModelContent(e => {
+
+		let editorIsComposing = false;
+		this._toDispose.push(this._editor.onCompositionStart(() => {
+			editorIsComposing = true;
+		}));
+		this._toDispose.push(this._editor.onCompositionEnd(() => {
+			// refilter when composition ends
+			editorIsComposing = false;
 			this._refilterCompletionItems();
+		}));
+		this._toDispose.push(this._editor.onDidChangeModelContent(() => {
+			// only filter completions when the editor isn't
+			// composing a character, e.g. ¨ + u makes ü but just
+			// ¨ cannot be used for filtering
+			if (!editorIsComposing) {
+				this._refilterCompletionItems();
+			}
 		}));
 
 		this._updateTriggerCharacters();

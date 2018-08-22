@@ -10,7 +10,7 @@ import * as fs from 'fs';
 import { TPromise } from 'vs/base/common/winjs.base';
 
 export interface ReadResult {
-	buffer: NodeBuffer;
+	buffer: Buffer;
 	bytesRead: number;
 }
 
@@ -24,7 +24,7 @@ export function readExactlyByFile(file: string, totalBytes: number): TPromise<Re
 				return error(err);
 			}
 
-			function end(err: Error, resultBuffer: NodeBuffer, bytesRead: number): void {
+			function end(err: Error, resultBuffer: Buffer, bytesRead: number): void {
 				fs.close(fd, closeError => {
 					if (closeError) {
 						return error(closeError);
