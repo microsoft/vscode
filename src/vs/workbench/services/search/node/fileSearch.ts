@@ -6,28 +6,27 @@
 'use strict';
 
 import * as childProcess from 'child_process';
-import { StringDecoder, NodeStringDecoder } from 'string_decoder';
-import { toErrorMessage } from 'vs/base/common/errorMessage';
 import * as fs from 'fs';
 import * as path from 'path';
-import { isEqualOrParent } from 'vs/base/common/paths';
 import { Readable } from 'stream';
-import { TPromise } from 'vs/base/common/winjs.base';
-
-import * as objects from 'vs/base/common/objects';
+import { NodeStringDecoder, StringDecoder } from 'string_decoder';
 import * as arrays from 'vs/base/common/arrays';
+import { toErrorMessage } from 'vs/base/common/errorMessage';
+import * as glob from 'vs/base/common/glob';
+import * as normalization from 'vs/base/common/normalization';
+import * as objects from 'vs/base/common/objects';
+import { isEqualOrParent } from 'vs/base/common/paths';
 import * as platform from 'vs/base/common/platform';
 import * as strings from 'vs/base/common/strings';
-import * as normalization from 'vs/base/common/normalization';
 import * as types from 'vs/base/common/types';
-import * as glob from 'vs/base/common/glob';
-import { IProgress, IUncachedSearchStats } from 'vs/platform/search/common/search';
-
+import { TPromise } from 'vs/base/common/winjs.base';
 import * as extfs from 'vs/base/node/extfs';
 import * as flow from 'vs/base/node/flow';
-import { IRawFileMatch, IRawSearch, ISearchEngine, IFolderSearch, ISerializedSearchSuccess } from './search';
+import { IProgress, ISearchEngineStats } from 'vs/platform/search/common/search';
 import { spawnRipgrepCmd } from './ripgrepFileSearch';
 import { rgErrorMsgForDisplay } from './ripgrepTextSearch';
+import { IFolderSearch, IRawFileMatch, IRawSearch, ISearchEngine, ISearchEngineSuccess } from './search';
+import { StopWatch } from 'vs/base/common/stopwatch';
 
 enum Traversal {
 	Node = 1,
@@ -60,13 +59,12 @@ export class FileWalker {
 	private isLimitHit: boolean;
 	private resultCount: number;
 	private isCanceled: boolean;
-	private fileWalkStartTime: number;
+	private fileWalkSW: StopWatch;
 	private directoriesWalked: number;
 	private filesWalked: number;
 	private traversal: Traversal;
 	private errors: string[];
-	private cmdForkStartTime: number;
-	private cmdForkResultTime: number;
+	private cmdSW: StopWatch;
 	private cmdResultCount: number;
 
 	private folderExcludePatterns: Map<string, AbsoluteAndRelativeParsedExpression>;
@@ -120,7 +118,7 @@ export class FileWalker {
 	}
 
 	public walk(folderQueries: IFolderSearch[], extraFiles: string[], onResult: (result: IRawFileMatch) => void, onMessage: (message: IProgress) => void, done: (error: Error, isLimitHit: boolean) => void): void {
-		this.fileWalkStartTime = Date.now();
+		this.fileWalkSW = StopWatch.create();
 
 		// Support that the file pattern is a full path to a file that exists
 		if (this.isCanceled) {
@@ -160,7 +158,7 @@ export class FileWalker {
 
 		const isNodeTraversal = traverse === this.nodeJSTraversal;
 		if (!isNodeTraversal) {
-			this.cmdForkStartTime = Date.now();
+			this.cmdSW = StopWatch.create();
 		}
 
 		// For each root folder
@@ -225,6 +223,7 @@ export class FileWalker {
 		}
 
 		process.on('exit', killCmd);
+		this.cmdResultCount = 0;
 		this.collectStdout(cmd, 'utf8', useRipgrep, onMessage, (err: Error, stdout?: string, last?: boolean) => {
 			if (err) {
 				done(err);
@@ -360,7 +359,10 @@ export class FileWalker {
 		let onData = (err: Error, stdout?: string, last?: boolean) => {
 			if (err || last) {
 				onData = () => { };
-				this.cmdForkResultTime = Date.now();
+
+				if (this.cmdSW) {
+					this.cmdSW.stop();
+				}
 			}
 			cb(err, stdout, last);
 		};
@@ -508,18 +510,13 @@ export class FileWalker {
 		});
 	}
 
-	public getStats(): IUncachedSearchStats {
+	public getStats(): ISearchEngineStats {
 		return {
-			fromCache: false,
+			cmdTime: this.cmdSW.elapsed(),
+			fileWalkTime: this.fileWalkSW.elapsed(),
 			traversal: Traversal[this.traversal],
-			errors: this.errors,
-			fileWalkStartTime: this.fileWalkStartTime,
-			fileWalkResultTime: Date.now(),
 			directoriesWalked: this.directoriesWalked,
 			filesWalked: this.filesWalked,
-			resultCount: this.resultCount,
-			cmdForkStartTime: this.cmdForkStartTime,
-			cmdForkResultTime: this.cmdForkResultTime,
 			cmdResultCount: this.cmdResultCount
 		};
 	}
@@ -678,10 +675,9 @@ export class Engine implements ISearchEngine<IRawFileMatch> {
 		this.walker = new FileWalker(config);
 	}
 
-	public search(onResult: (result: IRawFileMatch) => void, onProgress: (progress: IProgress) => void, done: (error: Error, complete: ISerializedSearchSuccess) => void): void {
+	public search(onResult: (result: IRawFileMatch) => void, onProgress: (progress: IProgress) => void, done: (error: Error, complete: ISearchEngineSuccess) => void): void {
 		this.walker.walk(this.folderQueries, this.extraFiles, onResult, onProgress, (err: Error, isLimitHit: boolean) => {
 			done(err, {
-				type: 'success',
 				limitHit: isLimitHit,
 				stats: this.walker.getStats()
 			});
