@@ -347,6 +347,7 @@ export class SettingsRenderer implements ITreeRenderer {
 		if (this.lastRenderedWidth !== width) {
 			this.rowHeightCache = new Map<string, number>();
 		}
+		this.longestSingleLineDescription = 0;
 
 		this.lastRenderedWidth = width;
 	}
