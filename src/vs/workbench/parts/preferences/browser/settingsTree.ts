@@ -41,7 +41,7 @@ import { attachButtonStyler, attachInputBoxStyler, attachSelectBoxStyler, attach
 import { ICssStyleCollector, ITheme, IThemeService, registerThemingParticipant } from 'vs/platform/theme/common/themeService';
 import { ITOCEntry } from 'vs/workbench/parts/preferences/browser/settingsLayout';
 import { ISettingsEditorViewState, isExcludeSetting, SettingsTreeElement, SettingsTreeGroupElement, SettingsTreeNewExtensionsElement, SettingsTreeSettingElement, settingKeyToDisplayFormat } from 'vs/workbench/parts/preferences/browser/settingsTreeModels';
-import { ExcludeSettingWidget, IExcludeDataItem, settingsHeaderForeground, settingsNumberInputBackground, settingsNumberInputBorder, settingsNumberInputForeground, settingsSelectBackground, settingsSelectBorder, settingsSelectForeground, settingsTextInputBackground, settingsTextInputBorder, settingsTextInputForeground } from 'vs/workbench/parts/preferences/browser/settingsWidgets';
+import { ExcludeSettingWidget, IExcludeDataItem, settingsHeaderForeground, settingsNumberInputBackground, settingsNumberInputBorder, settingsNumberInputForeground, settingsSelectBackground, settingsSelectBorder, settingsSelectListBorder, settingsSelectForeground, settingsTextInputBackground, settingsTextInputBorder, settingsTextInputForeground } from 'vs/workbench/parts/preferences/browser/settingsWidgets';
 import { ISetting, ISettingsGroup } from 'vs/workbench/services/preferences/common/preferences';
 
 const $ = DOM.$;
@@ -706,15 +706,20 @@ export class SettingsRenderer implements ITreeRenderer {
 		return template;
 	}
 
+	public cancelSuggesters() {
+		this.contextViewService.hideContextView();
+	}
+
 	private renderSettingEnumTemplate(tree: ITree, container: HTMLElement): ISettingEnumItemTemplate {
 		const common = this.renderCommonTemplate(tree, container, 'enum');
 
-		const selectBox = new SelectBox([], undefined, this.contextViewService);
+		const selectBox = new SelectBox([], undefined, this.contextViewService, undefined, { hasDetails: true });
 		common.toDispose.push(selectBox);
 		common.toDispose.push(attachSelectBoxStyler(selectBox, this.themeService, {
 			selectBackground: settingsSelectBackground,
 			selectForeground: settingsSelectForeground,
-			selectBorder: settingsSelectBorder
+			selectBorder: settingsSelectBorder,
+			selectListBorder: settingsSelectListBorder
 		}));
 		selectBox.render(common.controlElement);
 		const selectElement = common.controlElement.querySelector('select');
@@ -997,6 +1002,7 @@ export class SettingsRenderer implements ITreeRenderer {
 	private renderEnum(dataElement: SettingsTreeSettingElement, template: ISettingEnumItemTemplate, onChange: (value: string) => void): void {
 		const displayOptions = getDisplayEnumOptions(dataElement.setting);
 		template.selectBox.setOptions(displayOptions);
+		template.selectBox.setDetailsProvider(index => dataElement.setting.enumDescriptions && dataElement.setting.enumDescriptions[index]);
 
 		const modifiedText = dataElement.isConfigured ? 'Modified' : '';
 		const label = ' ' + dataElement.displayCategory + ' ' + dataElement.displayLabel + ' combobox ' + modifiedText;
@@ -1014,24 +1020,6 @@ export class SettingsRenderer implements ITreeRenderer {
 		}
 
 		template.enumDescriptionElement.innerHTML = '';
-		// if (dataElement.setting.enumDescriptions && dataElement.setting.enum && dataElement.setting.enum.length < SettingsRenderer.MAX_ENUM_DESCRIPTIONS) {
-		// 	if (isSelected) {
-		// 		let enumDescriptionText = '\n' + dataElement.setting.enumDescriptions
-		// 			.map((desc, i) => {
-		// 				const displayEnum = escapeInvisibleChars(dataElement.setting.enum[i]);
-		// 				return desc ?
-		// 					` - \`${displayEnum}\`: ${desc}` :
-		// 					` - \`${dataElement.setting.enum[i]}\``;
-		// 			})
-		// 			.filter(desc => !!desc)
-		// 			.join('\n');
-
-		// 		const renderedMarkdown = this.renderDescriptionMarkdown(fixSettingLinks(enumDescriptionText), template.toDispose);
-		// 		template.enumDescriptionElement.appendChild(renderedMarkdown);
-		// 	}
-
-		// 	return { overflows: true };
-		// }
 	}
 
 	private renderText(dataElement: SettingsTreeSettingElement, template: ISettingTextItemTemplate, onChange: (value: string) => void): void {

@@ -16,6 +16,11 @@
 
 .monaco-select-box-dropdown-container {
 	display: none;
+	-webkit-box-sizing:	border-box;
+	-o-box-sizing:		border-box;
+	-moz-box-sizing:	border-box;
+	-ms-box-sizing:		border-box;
+	box-sizing:			border-box;
 }
 
 .monaco-select-box-dropdown-container.visible {
@@ -40,6 +45,10 @@
 	-moz-box-sizing:	border-box;
 	-ms-box-sizing:		border-box;
 	box-sizing:			border-box;
+}
+
+.monaco-select-box-dropdown-container > .select-box-details-pane {
+	padding: 5px;
 }
 
 .hc-black .monaco-select-box-dropdown-container > .select-box-dropdown-list-container {

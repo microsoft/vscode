@@ -24,6 +24,7 @@ export interface ISelectBoxDelegate {
 	setOptions(options: string[], selected?: number, disabled?: number): void;
 	select(index: number): void;
 	setAriaLabel(label: string);
+	setDetailsProvider(provider: (index: number) => string);
 	focus(): void;
 	blur(): void;
 	dispose(): void;
@@ -37,6 +38,7 @@ export interface ISelectBoxDelegate {
 export interface ISelectBoxOptions {
 	ariaLabel?: string;
 	minBottomMargin?: number;
+	hasDetails?: boolean;
 }
 
 export interface ISelectBoxStyles extends IListStyles {
@@ -44,6 +46,7 @@ export interface ISelectBoxStyles extends IListStyles {
 	selectListBackground?: Color;
 	selectForeground?: Color;
 	selectBorder?: Color;
+	selectListBorder?: Color;
 	focusBorder?: Color;
 }
 
@@ -68,7 +71,7 @@ export class SelectBox extends Widget implements ISelectBoxDelegate {
 		mixin(this.styles, defaultStyles, false);
 
 		// Instantiate select implementation based on platform
-		if (isMacintosh) {
+		if (isMacintosh && !(selectBoxOptions && selectBoxOptions.hasDetails)) {
 			this.selectBoxDelegate = new SelectBoxNative(options, selected, styles, selectBoxOptions);
 		} else {
 			this.selectBoxDelegate = new SelectBoxList(options, selected, contextViewProvider, styles, selectBoxOptions);
@@ -93,6 +96,10 @@ export class SelectBox extends Widget implements ISelectBoxDelegate {
 
 	public setAriaLabel(label: string): void {
 		this.selectBoxDelegate.setAriaLabel(label);
+	}
+
+	public setDetailsProvider(provider: (index: number) => string): void {
+		this.selectBoxDelegate.setDetailsProvider(provider);
 	}
 
 	public focus(): void {
