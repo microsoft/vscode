@@ -5,7 +5,7 @@
 
 'use strict';
 
-import { app, ipcMain as ipc, systemPreferences } from 'electron';
+import { app, ipcMain as ipc, systemPreferences, shell } from 'electron';
 import * as platform from 'vs/base/common/platform';
 import { WindowsManager } from 'vs/code/electron-main/windows';
 import { IWindowsService, OpenContext, ActiveWindowManager } from 'vs/platform/windows/common/windows';
@@ -136,6 +136,8 @@ export class CodeApplication {
 			return srcUri.startsWith(URI.file(this.environmentService.appRoot.toLowerCase()).toString());
 		};
 
+		// Security related measures (https://electronjs.org/docs/tutorial/security)
+		// DO NOT CHANGE without consulting the documentation
 		app.on('web-contents-created', (event: any, contents) => {
 			contents.on('will-attach-webview', (event: Electron.Event, webPreferences, params) => {
 				delete webPreferences.preload;
@@ -148,12 +150,20 @@ export class CodeApplication {
 
 				// Otherwise prevent loading
 				this.logService.error('webContents#web-contents-created: Prevented webview attach');
+
 				event.preventDefault();
 			});
 
 			contents.on('will-navigate', event => {
 				this.logService.error('webContents#will-navigate: Prevented webcontent navigation');
+
 				event.preventDefault();
+			});
+
+			contents.on('new-window', (event: Event, url: string) => {
+				event.preventDefault(); // prevent code that wants to open links
+
+				shell.openExternal(url);
 			});
 		});
 
