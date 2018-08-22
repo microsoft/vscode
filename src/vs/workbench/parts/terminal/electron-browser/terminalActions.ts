@@ -20,13 +20,14 @@ import { IQuickOpenService } from 'vs/platform/quickOpen/common/quickOpen';
 import { IQuickInputService, IPickOptions, IQuickPickItem } from 'vs/platform/quickinput/common/quickInput';
 import { ActionBarContributor } from 'vs/workbench/browser/actions';
 import { TerminalEntry } from 'vs/workbench/parts/terminal/browser/terminalQuickOpen';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
+import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { IContextViewService } from 'vs/platform/contextview/browser/contextView';
 import { ICommandService } from 'vs/platform/commands/common/commands';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { PICK_WORKSPACE_FOLDER_COMMAND_ID } from 'vs/workbench/browser/actions/workspaceCommands';
 import { INotificationService } from 'vs/platform/notification/common/notification';
 import { TERMINAL_COMMAND_ID } from 'vs/workbench/parts/terminal/common/terminalCommands';
+import { Command } from 'vs/editor/browser/editorExtensions';
 
 export const TERMINAL_PICKER_PREFIX = 'term ';
 
@@ -225,6 +226,65 @@ export class MoveToLineEndTerminalAction extends BaseSendTextTerminalAction {
 		// Send ctrl+E
 		super(id, label, String.fromCharCode('E'.charCodeAt(0) - 64), terminalService);
 	}
+}
+
+export class SendSequenceTerminalCommand extends Command {
+	public static readonly ID = TERMINAL_COMMAND_ID.SEND_SEQUENCE;
+	public static readonly LABEL = nls.localize('workbench.action.terminal.sendSequence', "Send Custom Sequence To Terminal");
+
+	public runCommand(accessor: ServicesAccessor, args: any): void {
+		const terminalInstance = accessor.get(ITerminalService).getActiveInstance();
+		if (!terminalInstance) {
+			return;
+		}
+		const text = args.text.split(' ');
+		var terminalText;
+		for (let i = 0; i < text.length; i++) {
+			terminalText = ' ' + prepareTerminaText(text[i]);
+			terminalInstance.sendText(terminalText, false);
+		}
+	}
+}
+
+function prepareTerminaText(text: string): string {
+	// Hexcodes and excape char
+	if (text.substring(0, 2).toLowerCase() === '\\x') {
+		// Valid hex with 2 digits
+		// var isOk  = /^\\x[0-9a-f]{2}$/i.test(text);
+		if (/^\\x[0-9a-f]{2}$/i.test(text)) {
+			return String.fromCharCode(parseInt(text.substring(2), 16));
+		}
+	}
+
+	// ctrl modifier with single char
+	if (text.indexOf('+') >= 0) {
+		const text1 = text.split('+');
+		if (text1[0].toLowerCase() === 'ctrl') {
+			if (text1[1].length === 1) {
+				return String.fromCharCode(text1[1].toUpperCase().charCodeAt(0) - 64);
+			}
+		}
+	}
+	// handle enter
+	if (text.toLowerCase() === 'enter') {
+		return '\n';
+	}
+
+	// Arrow keys
+	if (text.toLowerCase() === 'down') {
+		return String.fromCharCode(15);
+	}
+	if (text.toLowerCase() === 'up') {
+		return String.fromCharCode(16);
+	}
+	if (text.toLowerCase() === 'right') {
+		return String.fromCharCode(17);
+	}
+	if (text.toLowerCase() === 'left') {
+		return String.fromCharCode(18);
+	}
+
+	return text;
 }
 
 export class CreateNewTerminalAction extends Action {
