@@ -23,30 +23,7 @@ import { Registry } from 'vs/platform/registry/common/platform';
 import { IWorkbenchActionRegistry, Extensions } from 'vs/workbench/common/actions';
 import { SyncActionDescriptor } from 'vs/platform/actions/common/actions';
 import { forEach } from 'vs/base/common/collections';
-
-/* Copied from loader.ts */
-enum LoaderEventType {
-	LoaderAvailable = 1,
-
-	BeginLoadingScript = 10,
-	EndLoadingScriptOK = 11,
-	EndLoadingScriptError = 12,
-
-	BeginInvokeFactory = 21,
-	EndInvokeFactory = 22,
-
-	NodeBeginEvaluatingScript = 31,
-	NodeEndEvaluatingScript = 32,
-
-	NodeBeginNativeRequire = 33,
-	NodeEndNativeRequire = 34
-}
-
-interface ILoaderEvent {
-	type: LoaderEventType;
-	timestamp: number;
-	detail: string;
-}
+import { mergeSort } from 'vs/base/common/arrays';
 
 
 class Info {
@@ -75,6 +52,95 @@ class Info {
 	private constructor(readonly duration: number, readonly process: string, readonly info: string | boolean = '') { }
 }
 
+class LoaderStat {
+
+	static getLoaderStats() {
+
+		let seq = 1;
+		const amdLoad = new Map<string, LoaderStat>();
+		const amdInvoke = new Map<string, LoaderStat>();
+		const nodeRequire = new Map<string, LoaderStat>();
+		const nodeEval = new Map<string, LoaderStat>();
+
+		function mark(map: Map<string, LoaderStat>, stat: LoaderEvent) {
+			if (map.has(stat.detail)) {
+				// console.warn('BAD events, DOUBLE start', stat);
+				// map.delete(stat.detail);
+				return;
+			}
+			map.set(stat.detail, new LoaderStat(-stat.timestamp, seq++));
+		}
+
+		function diff(map: Map<string, LoaderStat>, stat: LoaderEvent) {
+			let obj = map.get(stat.detail);
+			if (!obj) {
+				// console.warn('BAD events, end WITHOUT start', stat);
+				// map.delete(stat.detail);
+				return;
+			}
+			if (obj.duration >= 0) {
+				// console.warn('BAD events, DOUBLE end', stat);
+				// map.delete(stat.detail);
+				return;
+			}
+			obj.duration = (obj.duration + stat.timestamp);
+		}
+
+		const stats = mergeSort(require.getStats().slice(0), (a, b) => a.timestamp - b.timestamp);
+
+		for (const stat of stats) {
+			switch (stat.type) {
+				case LoaderEventType.BeginLoadingScript:
+					mark(amdLoad, stat);
+					break;
+				case LoaderEventType.EndLoadingScriptOK:
+				case LoaderEventType.EndLoadingScriptError:
+					diff(amdLoad, stat);
+					break;
+
+				case LoaderEventType.BeginInvokeFactory:
+					mark(amdInvoke, stat);
+					break;
+				case LoaderEventType.EndInvokeFactory:
+					diff(amdInvoke, stat);
+					break;
+
+				case LoaderEventType.NodeBeginNativeRequire:
+					mark(nodeRequire, stat);
+					break;
+				case LoaderEventType.NodeEndNativeRequire:
+					diff(nodeRequire, stat);
+					break;
+
+				case LoaderEventType.NodeBeginEvaluatingScript:
+					mark(nodeEval, stat);
+					break;
+				case LoaderEventType.NodeEndEvaluatingScript:
+					diff(nodeEval, stat);
+					break;
+			}
+		}
+
+		function toObject(map: Map<string, any>): { [name: string]: any } {
+			const result = Object.create(null);
+			map.forEach((value, index) => result[index] = value);
+			return result;
+		}
+
+		let nodeRequireTotal = 0;
+		nodeRequire.forEach(value => nodeRequireTotal += value.duration);
+
+		return {
+			amdLoad: toObject(amdLoad),
+			amdInvoke: toObject(amdInvoke),
+			nodeRequire: toObject(nodeRequire),
+			nodeEval: toObject(nodeEval),
+			nodeRequireTotal
+		};
+	}
+
+	constructor(public duration: number, public seq: number) { }
+}
 
 export class ShowStartupPerformance extends Action {
 
@@ -114,19 +180,15 @@ export class ShowStartupPerformance extends Action {
 			console.log(`Screen Reader Active: ${metrics.hasAccessibilitySupport} `);
 			console.log(`Empty Workspace: ${metrics.emptyWorkbench} `);
 
-			let nodeModuleLoadTime: number;
-			if (this.environmentService.performance) {
-				const nodeModuleTimes = this.analyzeNodeModulesLoadTimes();
-				nodeModuleLoadTime = nodeModuleTimes.duration;
-			}
 
-			console.table(Info.getTimerInfo(metrics, nodeModuleLoadTime));
+			const loaderStats = this.environmentService.performance && LoaderStat.getLoaderStats();
 
-			if (this.environmentService.performance) {
-				const data = this.analyzeLoaderStats();
-				for (let type in data) {
-					console.groupCollapsed(`Loader: ${type} `);
-					console.table(data[type]);
+			console.table(Info.getTimerInfo(metrics, loaderStats && loaderStats.nodeRequireTotal));
+
+			if (loaderStats) {
+				for (const key in loaderStats) {
+					console.groupCollapsed(`Loader: ${key} `);
+					console.table(loaderStats[key]);
 					console.groupEnd();
 				}
 			}
@@ -156,151 +218,6 @@ export class ShowStartupPerformance extends Action {
 		});
 
 		return TPromise.as(true);
-	}
-
-	private analyzeNodeModulesLoadTimes(): { table: any[], duration: number } {
-		const stats = <ILoaderEvent[]>(<any>require).getStats();
-		const result = [];
-
-		let total = 0;
-
-		for (let i = 0, len = stats.length; i < len; i++) {
-			if (stats[i].type === LoaderEventType.NodeEndNativeRequire) {
-				if (stats[i - 1].type === LoaderEventType.NodeBeginNativeRequire && stats[i - 1].detail === stats[i].detail) {
-					const entry: any = {};
-					const dur = (stats[i].timestamp - stats[i - 1].timestamp);
-					entry['Event'] = 'nodeRequire ' + stats[i].detail;
-					entry['Took (ms)'] = dur.toFixed(2);
-					total += dur;
-					entry['Start (ms)'] = '**' + stats[i - 1].timestamp.toFixed(2);
-					entry['End (ms)'] = '**' + stats[i - 1].timestamp.toFixed(2);
-					result.push(entry);
-				}
-			}
-		}
-
-		if (total > 0) {
-			result.push({ Event: '------------------------------------------------------' });
-
-			const entry: any = {};
-			entry['Event'] = '[renderer] total require() node_modules';
-			entry['Took (ms)'] = total.toFixed(2);
-			entry['Start (ms)'] = '**';
-			entry['End (ms)'] = '**';
-			result.push(entry);
-		}
-
-		return { table: result, duration: Math.round(total) };
-	}
-
-	private analyzeLoaderStats(): { [type: string]: any[] } {
-		const stats = <ILoaderEvent[]>(<any>require).getStats().slice(0).sort((a: ILoaderEvent, b: ILoaderEvent) => {
-			if (a.detail < b.detail) {
-				return -1;
-			} else if (a.detail > b.detail) {
-				return 1;
-			} else if (a.type < b.type) {
-				return -1;
-			} else if (a.type > b.type) {
-				return 1;
-			} else {
-				return 0;
-			}
-		});
-
-		class Tick {
-
-			readonly duration: number;
-			readonly detail: string;
-
-			constructor(private readonly start: ILoaderEvent, private readonly end: ILoaderEvent) {
-				console.assert(start.detail === end.detail);
-
-				this.duration = this.end.timestamp - this.start.timestamp;
-				this.detail = start.detail;
-			}
-
-			toTableObject() {
-				return {
-					['Path']: this.start.detail,
-					['Took (ms)']: this.duration.toFixed(2),
-					// ['Start (ms)']: this.start.timestamp,
-					// ['End (ms)']: this.end.timestamp
-				};
-			}
-
-			static compareUsingStartTimestamp(a: Tick, b: Tick): number {
-				if (a.start.timestamp < b.start.timestamp) {
-					return -1;
-				} else if (a.start.timestamp > b.start.timestamp) {
-					return 1;
-				} else {
-					return 0;
-				}
-			}
-		}
-
-		const ticks: { [type: number]: Tick[] } = {
-			[LoaderEventType.BeginLoadingScript]: [],
-			[LoaderEventType.BeginInvokeFactory]: [],
-			[LoaderEventType.NodeBeginEvaluatingScript]: [],
-			[LoaderEventType.NodeBeginNativeRequire]: [],
-		};
-
-		for (let i = 1; i < stats.length - 1; i++) {
-			const stat = stats[i];
-			const nextStat = stats[i + 1];
-
-			if (nextStat.type - stat.type > 2) {
-				//bad?!
-				break;
-			}
-
-			i += 1;
-			if (ticks[stat.type]) {
-				ticks[stat.type].push(new Tick(stat, nextStat));
-			}
-		}
-
-		ticks[LoaderEventType.BeginInvokeFactory].sort(Tick.compareUsingStartTimestamp);
-		ticks[LoaderEventType.BeginInvokeFactory].sort(Tick.compareUsingStartTimestamp);
-		ticks[LoaderEventType.NodeBeginEvaluatingScript].sort(Tick.compareUsingStartTimestamp);
-		ticks[LoaderEventType.NodeBeginNativeRequire].sort(Tick.compareUsingStartTimestamp);
-
-		const ret = {
-			'Load Script': ticks[LoaderEventType.BeginLoadingScript].map(t => t.toTableObject()),
-			'(Node) Load Script': ticks[LoaderEventType.NodeBeginNativeRequire].map(t => t.toTableObject()),
-			'Eval Script': ticks[LoaderEventType.BeginInvokeFactory].map(t => t.toTableObject()),
-			'(Node) Eval Script': ticks[LoaderEventType.NodeBeginEvaluatingScript].map(t => t.toTableObject()),
-		};
-
-		function total(ticks: Tick[]): number {
-			let sum = 0;
-			for (const tick of ticks) {
-				sum += tick.duration;
-			}
-			return sum;
-		}
-
-		// totals
-		ret['Load Script'].push({
-			['Path']: 'TOTAL TIME',
-			['Took (ms)']: total(ticks[LoaderEventType.BeginLoadingScript]).toFixed(2)
-		});
-		ret['Eval Script'].push({
-			['Path']: 'TOTAL TIME',
-			['Took (ms)']: total(ticks[LoaderEventType.BeginInvokeFactory]).toFixed(2)
-		});
-		ret['(Node) Load Script'].push({
-			['Path']: 'TOTAL TIME',
-			['Took (ms)']: total(ticks[LoaderEventType.NodeBeginNativeRequire]).toFixed(2)
-		});
-		ret['(Node) Eval Script'].push({
-			['Path']: 'TOTAL TIME',
-			['Took (ms)']: total(ticks[LoaderEventType.NodeBeginEvaluatingScript]).toFixed(2)
-		});
-
-		return ret;
 	}
 }
 
@@ -345,7 +262,7 @@ export class ReportPerformanceIssueAction extends Action {
 
 		let nodeModuleLoadTime: number;
 		if (this.environmentService.performance) {
-			nodeModuleLoadTime = this.computeNodeModulesLoadTime();
+			nodeModuleLoadTime = LoaderStat.getLoaderStats().nodeRequireTotal;
 		}
 
 
@@ -372,22 +289,6 @@ ${ this.generatePerformanceTable(metrics, nodeModuleLoadTime)}
 		);
 
 		return `${baseUrl} ${queryStringPrefix} body = ${body} `;
-	}
-
-	private computeNodeModulesLoadTime(): number {
-		const stats = <ILoaderEvent[]>(<any>require).getStats();
-		let total = 0;
-
-		for (let i = 0, len = stats.length; i < len; i++) {
-			if (stats[i].type === LoaderEventType.NodeEndNativeRequire) {
-				if (stats[i - 1].type === LoaderEventType.NodeBeginNativeRequire && stats[i - 1].detail === stats[i].detail) {
-					const dur = (stats[i].timestamp - stats[i - 1].timestamp);
-					total += dur;
-				}
-			}
-		}
-
-		return Math.round(total);
 	}
 
 	private generatePerformanceTable(metrics: IStartupMetrics, nodeModuleLoadTime?: number): string {
