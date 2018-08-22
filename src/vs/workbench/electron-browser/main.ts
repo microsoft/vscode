@@ -48,6 +48,7 @@ import { RelayURLService } from 'vs/platform/url/common/urlService';
 import { MenubarChannelClient } from 'vs/platform/menubar/node/menubarIpc';
 import { IMenubarService } from 'vs/platform/menubar/common/menubar';
 import { Schemas } from 'vs/base/common/network';
+import { IUriLabelService, UriLabelService } from 'vs/platform/uriLabel/common/uriLabel';
 
 gracefulFs.gracefulify(fs); // enable gracefulFs
 
@@ -98,13 +99,15 @@ function openWorkbench(configuration: IWindowConfiguration): TPromise<void> {
 	const mainServices = createMainProcessServices(mainProcessClient, configuration);
 
 	const environmentService = new EnvironmentService(configuration, configuration.execPath);
+	const uriLabelService = new UriLabelService(environmentService);
 	const logService = createLogService(mainProcessClient, configuration, environmentService);
 	logService.trace('openWorkbench configuration', JSON.stringify(configuration));
 
 	// Since the configuration service is one of the core services that is used in so many places, we initialize it
 	// right before startup of the workbench shell to have its data ready for consumers
-	return createAndInitializeWorkspaceService(configuration, environmentService).then(workspaceService => {
+	return createAndInitializeWorkspaceService(configuration, environmentService, uriLabelService).then(workspaceService => {
 		const storageService = createStorageService(workspaceService, environmentService);
+		uriLabelService.acquireContextService(workspaceService);
 
 		return domContentLoaded().then(() => {
 
@@ -115,7 +118,8 @@ function openWorkbench(configuration: IWindowConfiguration): TPromise<void> {
 				configurationService: workspaceService,
 				environmentService,
 				logService,
-				storageService
+				storageService,
+				uriLabelService
 			}, mainServices, mainProcessClient, configuration);
 			shell.open();
 
@@ -131,10 +135,10 @@ function openWorkbench(configuration: IWindowConfiguration): TPromise<void> {
 	});
 }
 
-function createAndInitializeWorkspaceService(configuration: IWindowConfiguration, environmentService: EnvironmentService): TPromise<WorkspaceService> {
+function createAndInitializeWorkspaceService(configuration: IWindowConfiguration, environmentService: EnvironmentService, uriLabelService: IUriLabelService): TPromise<WorkspaceService> {
 	return validateFolderUri(configuration.folderUri, configuration.verbose).then(validatedFolderUri => {
 
-		const workspaceService = new WorkspaceService(environmentService);
+		const workspaceService = new WorkspaceService(environmentService, uriLabelService);
 
 		return workspaceService.initialize(configuration.workspace || validatedFolderUri || configuration).then(() => workspaceService, error => workspaceService);
 	});

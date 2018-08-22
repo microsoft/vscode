@@ -58,7 +58,7 @@ function createServices(args: ParsedArgs, bufferLogService: BufferLogService): I
 	const environmentService = new EnvironmentService(args, process.execPath);
 	const consoleLogService = new ConsoleLogMainService(getLogLevel(environmentService));
 	const logService = new MultiplexLogService([consoleLogService, bufferLogService]);
-	const uriLabelService = new UriLabelService(environmentService, undefined);
+	const uriLabelService = new UriLabelService(environmentService);
 
 	process.once('exit', () => logService.dispose());
 

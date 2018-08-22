@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as assert from 'assert';
-import { IUriLabelService, UriLabelService } from 'vs/platform/uriLabel/common/uriLabel';
+import { UriLabelService } from 'vs/platform/uriLabel/common/uriLabel';
 import { TestEnvironmentService, TestContextService } from 'vs/workbench/test/workbenchTestServices';
 import { Schemas } from 'vs/base/common/network';
 import { TestWorkspace } from 'vs/platform/workspace/test/common/testWorkspace';
@@ -14,10 +14,11 @@ import { isWindows } from 'vs/base/common/platform';
 
 suite('URI Label', () => {
 
-	let uriLabelService: IUriLabelService;
+	let uriLabelService: UriLabelService;
 
 	setup(() => {
-		uriLabelService = new UriLabelService(TestEnvironmentService, new TestContextService());
+		uriLabelService = new UriLabelService(TestEnvironmentService);
+		uriLabelService.acquireContextService(new TestContextService());
 	});
 
 	test('file scheme', function () {

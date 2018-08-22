@@ -35,6 +35,7 @@ import { IJSONEditingService } from 'vs/workbench/services/configuration/common/
 import { JSONEditingService } from 'vs/workbench/services/configuration/node/jsonEditingService';
 import { IWorkspaceConfigurationService } from 'vs/workbench/services/configuration/common/configuration';
 import { IWindowConfiguration } from 'vs/platform/windows/common/windows';
+import { UriLabelService } from 'vs/platform/uriLabel/common/uriLabel';
 
 class SettingsTestEnvironmentService extends EnvironmentService {
 
@@ -86,7 +87,8 @@ suite('WorkspaceContextService - Folder', () => {
 				workspaceResource = folderDir;
 				const globalSettingsFile = path.join(parentDir, 'settings.json');
 				const environmentService = new SettingsTestEnvironmentService(parseArgs(process.argv), process.execPath, globalSettingsFile);
-				workspaceContextService = new WorkspaceService(environmentService);
+				const uriLabelService = new UriLabelService(environmentService);
+				workspaceContextService = new WorkspaceService(environmentService, uriLabelService);
 				return (<WorkspaceService>workspaceContextService).initialize(URI.file(folderDir));
 			});
 	});
@@ -143,7 +145,8 @@ suite('WorkspaceContextService - Workspace', () => {
 				parentResource = parentDir;
 
 				const environmentService = new SettingsTestEnvironmentService(parseArgs(process.argv), process.execPath, path.join(parentDir, 'settings.json'));
-				const workspaceService = new WorkspaceService(environmentService);
+				const uriLabelService = new UriLabelService(environmentService);
+				const workspaceService = new WorkspaceService(environmentService, uriLabelService);
 
 				const instantiationService = <TestInstantiationService>workbenchInstantiationService();
 				instantiationService.stub(IWorkspaceContextService, workspaceService);
@@ -406,7 +409,8 @@ suite('WorkspaceService - Initialization', () => {
 
 				const instantiationService = <TestInstantiationService>workbenchInstantiationService();
 				const environmentService = new SettingsTestEnvironmentService(parseArgs(process.argv), process.execPath, globalSettingsFile);
-				const workspaceService = new WorkspaceService(environmentService);
+				const uriLabelService = new UriLabelService(environmentService);
+				const workspaceService = new WorkspaceService(environmentService, uriLabelService);
 				instantiationService.stub(IWorkspaceContextService, workspaceService);
 				instantiationService.stub(IConfigurationService, workspaceService);
 				instantiationService.stub(IEnvironmentService, environmentService);
@@ -661,7 +665,8 @@ suite('WorkspaceConfigurationService - Folder', () => {
 
 				const instantiationService = <TestInstantiationService>workbenchInstantiationService();
 				const environmentService = new SettingsTestEnvironmentService(parseArgs(process.argv), process.execPath, globalSettingsFile);
-				const workspaceService = new WorkspaceService(environmentService);
+				const uriLabelService = new UriLabelService(environmentService);
+				const workspaceService = new WorkspaceService(environmentService, uriLabelService);
 				instantiationService.stub(IWorkspaceContextService, workspaceService);
 				instantiationService.stub(IConfigurationService, workspaceService);
 				instantiationService.stub(IEnvironmentService, environmentService);
@@ -936,7 +941,8 @@ suite('WorkspaceConfigurationService-Multiroot', () => {
 				parentResource = parentDir;
 
 				environmentService = new SettingsTestEnvironmentService(parseArgs(process.argv), process.execPath, path.join(parentDir, 'settings.json'));
-				const workspaceService = new WorkspaceService(environmentService);
+				const uriLabelService = new UriLabelService(environmentService);
+				const workspaceService = new WorkspaceService(environmentService, uriLabelService);
 
 				const instantiationService = <TestInstantiationService>workbenchInstantiationService();
 				instantiationService.stub(IWorkspaceContextService, workspaceService);

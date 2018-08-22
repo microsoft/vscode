@@ -13,10 +13,15 @@ import { isEqual, basenameOrAuthority } from 'vs/base/common/resources';
 import { isLinux, isWindows } from 'vs/base/common/platform';
 import { tildify, getPathLabel } from 'vs/base/common/labels';
 import { ltrim } from 'vs/base/common/strings';
+import { IWorkspaceIdentifier, ISingleFolderWorkspaceIdentifier, isSingleFolderWorkspaceIdentifier, WORKSPACE_EXTENSION } from 'vs/platform/workspaces/common/workspaces';
+import { localize } from 'vs/nls';
+import { isParent } from 'vs/platform/files/common/files';
+import { basename, dirname, join } from 'vs/base/common/paths';
 
 export interface IUriLabelService {
 	_serviceBrand: any;
 	getLabel(resource: URI, relative?: boolean, forceNoTildify?: boolean): string;
+	getWorkspaceLabel(workspace: (IWorkspaceIdentifier | ISingleFolderWorkspaceIdentifier), options?: { verbose: boolean }): string;
 	registerFormater(schema: string, formater: UriLabelRules): IDisposable;
 	onDidRegisterFormater: Event<{ scheme: string, formater: UriLabelRules }>;
 }
@@ -41,18 +46,21 @@ export class UriLabelService implements IUriLabelService {
 
 	private readonly formaters = new Map<string, UriLabelRules>();
 	private readonly _onDidRegisterFormater = new Emitter<{ scheme: string, formater: UriLabelRules }>();
+	private contextService: IWorkspaceContextService;
 
 	constructor(
 		@IEnvironmentService private environmentService: IEnvironmentService,
-		@IWorkspaceContextService private contextService: IWorkspaceContextService
 	) { }
-
 
 	get onDidRegisterFormater(): Event<{ scheme: string, formater: UriLabelRules }> {
 		return this._onDidRegisterFormater.event;
 	}
 
-	getLabel(resource: URI, relative: boolean, forceNoTildify?: boolean): string {
+	acquireContextService(contextService: IWorkspaceContextService): void {
+		this.contextService = contextService;
+	}
+
+	getLabel(resource: URI, relative?: boolean, forceNoTildify?: boolean): string {
 		if (!resource) {
 			return undefined;
 		}
@@ -83,6 +91,28 @@ export class UriLabelService implements IUriLabelService {
 		}
 
 		return this.formatUri(resource, formater, forceNoTildify);
+	}
+
+	getWorkspaceLabel(workspace: (IWorkspaceIdentifier | ISingleFolderWorkspaceIdentifier), options?: { verbose: boolean }): string {
+		// Workspace: Single Folder
+		if (isSingleFolderWorkspaceIdentifier(workspace)) {
+			// Folder on disk
+			return options && options.verbose ? this.getLabel(workspace) : basenameOrAuthority(workspace);
+		}
+
+		// Workspace: Untitled
+		if (isParent(workspace.configPath, this.environmentService.workspacesHome, !isLinux /* ignore case */)) {
+			return localize('untitledWorkspace', "Untitled (Workspace)");
+		}
+
+		// Workspace: Saved
+		const filename = basename(workspace.configPath);
+		const workspaceName = filename.substr(0, filename.length - WORKSPACE_EXTENSION.length - 1);
+		if (options && options.verbose) {
+			return localize('workspaceNameVerbose', "{0} (Workspace)", this.getLabel(URI.file(join(dirname(workspace.configPath), workspaceName))));
+		}
+
+		return localize('workspaceName', "{0} (Workspace)", workspaceName);
 	}
 
 	registerFormater(scheme: string, formater: UriLabelRules): IDisposable {

@@ -609,6 +609,10 @@ export class SimpleUriLabelService implements IUriLabelService {
 		return resource.path;
 	}
 
+	public getWorkspaceLabel(workspace: IWorkspaceIdentifier | URI, options?: { verbose: boolean; }): string {
+		throw new Error('Not implemented');
+	}
+
 	public registerFormater(schema: string, formater: UriLabelRules): IDisposable {
 		throw new Error('Not implemented');
 	}

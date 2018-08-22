@@ -21,7 +21,7 @@ import { Range } from 'vs/editor/common/core/range';
 import { Position } from 'vs/editor/common/core/position';
 import { IModelService } from 'vs/editor/common/services/modelService';
 import { EditOperation } from 'vs/editor/common/core/editOperation';
-import { TestFileService, TestEditorService, TestEditorGroupsService, TestEnvironmentService, TestContextService } from 'vs/workbench/test/workbenchTestServices';
+import { TestFileService, TestEditorService, TestEditorGroupsService, TestEnvironmentService } from 'vs/workbench/test/workbenchTestServices';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { ResourceTextEdit } from 'vs/editor/common/modes';
 import { BulkEditService } from 'vs/workbench/services/bulkEdit/electron-browser/bulkEditService';
@@ -84,7 +84,7 @@ suite('MainThreadEditors', () => {
 			}
 		};
 
-		const bulkEditService = new BulkEditService(new NullLogService(), modelService, new TestEditorService(), textModelService, new TestFileService(), textFileService, new UriLabelService(TestEnvironmentService, new TestContextService()));
+		const bulkEditService = new BulkEditService(new NullLogService(), modelService, new TestEditorService(), textModelService, new TestFileService(), textFileService, new UriLabelService(TestEnvironmentService));
 
 		const rpcProtocol = new TestRPCProtocol();
 		rpcProtocol.set(ExtHostContext.ExtHostDocuments, new class extends mock<ExtHostDocumentsShape>() {

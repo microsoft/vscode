@@ -116,7 +116,6 @@ import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { TelemetryService } from 'vs/platform/telemetry/common/telemetryService';
 import { WorkbenchThemeService } from 'vs/workbench/services/themes/electron-browser/workbenchThemeService';
 import { IWorkbenchThemeService } from 'vs/workbench/services/themes/common/workbenchThemeService';
-import { IUriLabelService, UriLabelService } from 'vs/platform/uriLabel/common/uriLabel';
 
 interface WorkbenchParams {
 	configuration: IWindowConfiguration;
@@ -335,11 +334,6 @@ export class Workbench extends Disposable implements IPartService {
 
 		// Clipboard
 		serviceCollection.set(IClipboardService, new ClipboardService());
-
-		// Uri Display
-		const uriLabelService = new UriLabelService(this.environmentService, this.contextService);
-		serviceCollection.set(IUriLabelService, uriLabelService);
-		this.configurationService.acquireUriLabelService(uriLabelService);
 
 		// Status bar
 		this.statusbarPart = this.instantiationService.createInstance(StatusbarPart, Identifiers.STATUSBAR_PART);

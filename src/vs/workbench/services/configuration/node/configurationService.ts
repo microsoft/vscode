@@ -26,7 +26,7 @@ import { IWorkspaceConfigurationService, FOLDER_CONFIG_FOLDER_NAME, defaultSetti
 import { Registry } from 'vs/platform/registry/common/platform';
 import { IConfigurationNode, IConfigurationRegistry, Extensions, IConfigurationPropertySchema, allSettings, windowSettings, resourceSettings, applicationSettings } from 'vs/platform/configuration/common/configurationRegistry';
 import { createHash } from 'crypto';
-import { getWorkspaceLabel, IWorkspaceIdentifier, isWorkspaceIdentifier, IStoredWorkspaceFolder, isStoredWorkspaceFolder, IWorkspaceFolderCreationData, ISingleFolderWorkspaceIdentifier, isSingleFolderWorkspaceIdentifier } from 'vs/platform/workspaces/common/workspaces';
+import { IWorkspaceIdentifier, isWorkspaceIdentifier, IStoredWorkspaceFolder, isStoredWorkspaceFolder, IWorkspaceFolderCreationData, ISingleFolderWorkspaceIdentifier, isSingleFolderWorkspaceIdentifier } from 'vs/platform/workspaces/common/workspaces';
 import { IWindowConfiguration } from 'vs/platform/windows/common/windows';
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
 import { ICommandService } from 'vs/platform/commands/common/commands';
@@ -69,11 +69,10 @@ export class WorkspaceService extends Disposable implements IWorkspaceConfigurat
 	public readonly onDidChangeWorkbenchState: Event<WorkbenchState> = this._onDidChangeWorkbenchState.event;
 
 	private fileService: IFileService;
-	private uriLabelService: IUriLabelService;
 	private configurationEditingService: ConfigurationEditingService;
 	private jsonEditingService: JSONEditingService;
 
-	constructor(private environmentService: IEnvironmentService, private workspaceSettingsRootFolder: string = FOLDER_CONFIG_FOLDER_NAME) {
+	constructor(private environmentService: IEnvironmentService, private uriLabelService: IUriLabelService, private workspaceSettingsRootFolder: string = FOLDER_CONFIG_FOLDER_NAME) {
 		super();
 
 		this.defaultConfiguration = new DefaultConfigurationModel();
@@ -319,10 +318,6 @@ export class WorkspaceService extends Disposable implements IWorkspaceConfigurat
 			});
 	}
 
-	acquireUriLabelService(uriLabelService: IUriLabelService): void {
-		this.uriLabelService = uriLabelService;
-	}
-
 	acquireInstantiationService(instantiationService: IInstantiationService): void {
 		this.configurationEditingService = instantiationService.createInstance(ConfigurationEditingService);
 		this.jsonEditingService = instantiationService.createInstance(JSONEditingService);
@@ -346,7 +341,7 @@ export class WorkspaceService extends Disposable implements IWorkspaceConfigurat
 			.then(() => {
 				const workspaceFolders = toWorkspaceFolders(this.workspaceConfiguration.getFolders(), URI.file(dirname(workspaceConfigPath.fsPath)));
 				const workspaceId = workspaceIdentifier.id;
-				const workspaceName = getWorkspaceLabel({ id: workspaceId, configPath: workspaceConfigPath.fsPath }, this.environmentService, this.uriLabelService);
+				const workspaceName = this.uriLabelService.getWorkspaceLabel({ id: workspaceId, configPath: workspaceConfigPath.fsPath });
 				return new Workspace(workspaceId, workspaceName, workspaceFolders, workspaceConfigPath);
 			});
 	}
@@ -369,11 +364,11 @@ export class WorkspaceService extends Disposable implements IWorkspaceConfigurat
 					}
 
 					const id = createHash('md5').update(folder.fsPath).update(ctime ? String(ctime) : '').digest('hex');
-					return new Workspace(id, getWorkspaceLabel(folder, this.environmentService, this.uriLabelService), toWorkspaceFolders([{ path: folder.fsPath }]), null, ctime);
+					return new Workspace(id, this.uriLabelService.getWorkspaceLabel(folder), toWorkspaceFolders([{ path: folder.fsPath }]), null, ctime);
 				});
 		} else {
 			const id = createHash('md5').update(folder.toString()).digest('hex');
-			return TPromise.as(new Workspace(id, getWorkspaceLabel(folder, this.environmentService, this.uriLabelService), toWorkspaceFolders([{ uri: folder.toString() }]), null));
+			return TPromise.as(new Workspace(id, this.uriLabelService.getWorkspaceLabel(folder), toWorkspaceFolders([{ uri: folder.toString() }]), null));
 		}
 	}
 

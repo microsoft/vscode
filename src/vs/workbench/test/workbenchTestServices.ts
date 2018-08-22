@@ -271,7 +271,7 @@ export function workbenchInstantiationService(): IInstantiationService {
 	instantiationService.stub(IHashService, new TestHashService());
 	instantiationService.stub(ILogService, new TestLogService());
 	instantiationService.stub(IEditorGroupsService, new TestEditorGroupsService([new TestEditorGroup(0)]));
-	instantiationService.stub(IUriLabelService, new UriLabelService(TestEnvironmentService, workspaceContextService));
+	instantiationService.stub(IUriLabelService, new UriLabelService(TestEnvironmentService));
 	const editorService = new TestEditorService();
 	instantiationService.stub(IEditorService, editorService);
 	instantiationService.stub(ICodeEditorService, new TestCodeEditorService());
