@@ -1468,7 +1468,7 @@ class CopySettingNameAction extends Action {
 
 	run(context: SettingsTreeSettingElement): TPromise<void> {
 		if (context) {
-			const name = `${context.displayCategory}: ${context.displayLabel}`;
+			const name = `${context.displayCategory || context.parent.label}: ${context.displayLabel}`;
 			this.clipboardService.writeText(name);
 		}
 
