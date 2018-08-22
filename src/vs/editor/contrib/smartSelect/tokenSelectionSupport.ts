@@ -70,13 +70,61 @@ export class TokenSelectionSupport {
 		}
 
 		if (node instanceof NodeList) {
-			for (let i = 0, len = node.children.length, found = false; i < len && !found; i++) {
-				found = this._collectRangesIter(node.children[i], position, ranges, lastRange);
+			const children = this._joinAdjacentBlocks(node.children);
+			for (let i = 0, len = children.length, found = false; i < len && !found; i++) {
+				found = this._collectRangesIter(children[i], position, ranges, lastRange);
 			}
 		} else if (node instanceof Block && node.elements) {
 			this._collectRangesIter(node.elements, position, ranges, lastRange);
 		}
 
 		return true;
+	}
+
+	private _joinAdjacentBlocks(nodes: Node[]): Node[] {
+		const result = [];
+		let buffer = [];
+		for (const node of nodes) {
+			const isLineWhichEndsWithBlock = node instanceof NodeList
+				&& node.children[node.children.length - 1] instanceof Block;
+			if (buffer.length === 0) {
+				if (isLineWhichEndsWithBlock) {
+					buffer.push(node);
+				} else {
+					result.push(node);
+				}
+			} else {
+				const isOnTheSameLine = node.start.lineNumber === buffer[buffer.length - 1].end.lineNumber;
+				if (isOnTheSameLine) {
+					buffer.push(node);
+				} else {
+					if (buffer.length > 1) {
+						result.push(new NodeList(buffer));
+					} else {
+						result.push(buffer[0]);
+					}
+					buffer = [];
+					if (isLineWhichEndsWithBlock) {
+						buffer.push(node);
+					} else {
+						result.push(node);
+					}
+				}
+			}
+		}
+
+		// already joined
+		if (buffer.length === nodes.length) {
+			return nodes;
+		}
+
+		if (buffer.length > 0) {
+			if (buffer.length > 1) {
+				result.push(new NodeList(buffer));
+			} else {
+				result.push(buffer[0]);
+			}
+		}
+		return result;
 	}
 }

@@ -119,4 +119,29 @@ suite('TokenSelectionSupport', () => {
 	test('empty file', () => {
 		assertGetRangesToPosition([''], 1, 1, []);
 	});
+
+	test('adjacent blocks', () => {
+
+		assertGetRangesToPosition([
+			'function a(bar, foo) {',
+			'\t// begin',
+			'\tif (bar) {',
+			'\t\treturn bar',
+			'\t} else if (foo) {',
+			'\t\treturn foo',
+			'\t} else {',
+			'\t\treturn null',
+			'\t}',
+			'\t// end',
+			'}'
+		], 5, 15, [
+				new Range(1, 1, 11, 2),
+				new Range(1, 22, 11, 2),
+				new Range(2, 1, 10, 8),
+				new Range(3, 1, 9, 3),
+				new Range(5, 3, 7, 3),
+				new Range(5, 12, 5, 17),
+				new Range(5, 13, 5, 16),
+			]);
+	});
 });
