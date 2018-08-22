@@ -10,7 +10,7 @@ import { IDisposable } from 'vs/base/common/lifecycle';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { GroupIdentifier } from 'vs/workbench/common/editor';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
+import { IConfigurationService, IConfigurationOverrides } from 'vs/platform/configuration/common/configuration';
 import { Emitter, Event } from 'vs/base/common/event';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { IConfigurationRegistry, Extensions } from 'vs/platform/configuration/common/configurationRegistry';
@@ -57,10 +57,10 @@ registerSingleton(IBreadcrumbsService, BreadcrumbsService);
 export abstract class BreadcrumbsConfig<T> {
 
 	name: string;
-	onDidChange: Event<T>;
+	onDidChange: Event<void>;
 
-	abstract value(): T;
-	abstract value(value: T): Thenable<void>;
+	abstract getValue(): T;
+	abstract updateValue(value: T): Thenable<void>;
 	abstract dispose(): void;
 
 	private constructor() {
@@ -75,28 +75,22 @@ export abstract class BreadcrumbsConfig<T> {
 	private static _stub<T>(name: string): { bindTo(service: IConfigurationService): BreadcrumbsConfig<T> } {
 		return {
 			bindTo(service) {
-				let value: T = service.getValue(name);
-				let onDidChange = new Emitter<T>();
+				let onDidChange = new Emitter<void>();
 
 				let listener = service.onDidChangeConfiguration(e => {
 					if (e.affectsConfiguration(name)) {
-						value = service.getValue(name);
-						onDidChange.fire(value);
+						onDidChange.fire(undefined);
 					}
 				});
 
 				return new class implements BreadcrumbsConfig<T>{
 					readonly name = name;
 					readonly onDidChange = onDidChange.event;
-					value(): T;
-					value(value: T): Thenable<void>;
-					value(newValue?: T): any {
-						if (arguments.length === 0) {
-							return value;
-						} else {
-							value = newValue;
-							return service.updateValue(name, newValue);
-						}
+					getValue(overrides?: IConfigurationOverrides): T {
+						return service.getValue(name, overrides);
+					}
+					updateValue(newValue: T, overrides?: IConfigurationOverrides): Thenable<void> {
+						return service.updateValue(name, newValue, overrides);
 					}
 					dispose(): void {
 						listener.dispose();

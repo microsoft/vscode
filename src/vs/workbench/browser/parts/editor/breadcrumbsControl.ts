@@ -270,7 +270,7 @@ export class BreadcrumbsControl {
 			return;
 		}
 
-		if (this._cfUseQuickPick.value()) {
+		if (this._cfUseQuickPick.getValue()) {
 			// using quick pick
 			this._widget.setFocused(undefined);
 			this._widget.setSelection(undefined);
@@ -389,8 +389,8 @@ MenuRegistry.appendMenuItem(MenuId.MenubarViewMenu, {
 });
 CommandsRegistry.registerCommand('breadcrumbs.toggle', accessor => {
 	let config = accessor.get(IConfigurationService);
-	let value = BreadcrumbsConfig.IsEnabled.bindTo(config).value();
-	BreadcrumbsConfig.IsEnabled.bindTo(config).value(!value);
+	let value = BreadcrumbsConfig.IsEnabled.bindTo(config).getValue();
+	BreadcrumbsConfig.IsEnabled.bindTo(config).updateValue(!value);
 });
 
 // focus/focus-and-select
@@ -400,8 +400,8 @@ async function focusAndSelectHandler(accessor: ServicesAccessor, select: boolean
 	const config = accessor.get(IConfigurationService);
 	// check if enabled and iff not enable
 	const isEnabled = BreadcrumbsConfig.IsEnabled.bindTo(config);
-	if (!isEnabled.value()) {
-		await isEnabled.value(true);
+	if (!isEnabled.getValue()) {
+		await isEnabled.updateValue(true);
 		await timeout(50); // hacky - the widget might not be ready yet...
 	}
 	// find widget and focus/select
