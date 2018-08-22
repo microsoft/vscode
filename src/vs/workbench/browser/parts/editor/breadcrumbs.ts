@@ -15,6 +15,7 @@ import { Emitter, Event } from 'vs/base/common/event';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { IConfigurationRegistry, Extensions } from 'vs/platform/configuration/common/configurationRegistry';
 import { localize } from 'vs/nls';
+import * as glob from 'vs/base/common/glob';
 
 export const IBreadcrumbsService = createDecorator<IBreadcrumbsService>('IEditorBreadcrumbsService');
 
@@ -59,8 +60,8 @@ export abstract class BreadcrumbsConfig<T> {
 	name: string;
 	onDidChange: Event<void>;
 
-	abstract getValue(): T;
-	abstract updateValue(value: T): Thenable<void>;
+	abstract getValue(overrides?: IConfigurationOverrides): T;
+	abstract updateValue(value: T, overrides?: IConfigurationOverrides): Thenable<void>;
 	abstract dispose(): void;
 
 	private constructor() {
@@ -71,6 +72,8 @@ export abstract class BreadcrumbsConfig<T> {
 	static UseQuickPick = BreadcrumbsConfig._stub<boolean>('breadcrumbs.useQuickPick');
 	static FilePath = BreadcrumbsConfig._stub<'on' | 'off' | 'last'>('breadcrumbs.filePath');
 	static SymbolPath = BreadcrumbsConfig._stub<'on' | 'off' | 'last'>('breadcrumbs.symbolPath');
+
+	static FileExcludes = BreadcrumbsConfig._stub<glob.IExpression>('files.exclude');
 
 	private static _stub<T>(name: string): { bindTo(service: IConfigurationService): BreadcrumbsConfig<T> } {
 		return {
