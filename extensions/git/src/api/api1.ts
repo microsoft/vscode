@@ -36,12 +36,11 @@ export class ApiGit implements Git {
 
 	constructor(private _model: Model) { }
 
-	exec(cwd: string, args: string[], options: SpawnOptions = {}): Promise<ExecResult<string>> {
-		return this._model.git.exec(cwd, args, options);
+	exec(args: string[], options: SpawnOptions): Promise<ExecResult<string>> {
+		return this._model.git.exec2(args, options);
 	}
 
-	spawn(cwd: string, args: string[], options: SpawnOptions = {}): cp.ChildProcess {
-		options = { cwd, ...options };
+	spawn(args: string[], options: SpawnOptions): cp.ChildProcess {
 		return this._model.git.spawn(args, options);
 	}
 }

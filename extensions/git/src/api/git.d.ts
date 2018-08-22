@@ -13,6 +13,7 @@ export interface ExecResult<T extends string | Buffer> {
 }
 
 export interface SpawnOptions extends cp.SpawnOptions {
+	readonly cwd: string;
 	readonly input?: string;
 	readonly encoding?: string;
 	readonly log?: boolean;
@@ -21,8 +22,8 @@ export interface SpawnOptions extends cp.SpawnOptions {
 
 export interface Git {
 	readonly path: string;
-	exec(cwd: string, args: string[], options?: SpawnOptions): Promise<ExecResult<string>>;
-	spawn(cwd: string, args: string[], options?: SpawnOptions): cp.ChildProcess;
+	exec(args: string[], options: SpawnOptions): Promise<ExecResult<string>>;
+	spawn(args: string[], options: SpawnOptions): cp.ChildProcess;
 }
 
 export interface API {

@@ -427,6 +427,10 @@ export class Git {
 		return await this._exec(args, options);
 	}
 
+	async exec2(args: string[], options: SpawnOptions = {}): Promise<IExecutionResult<string>> {
+		return await this._exec(args, options);
+	}
+
 	stream(cwd: string, args: string[], options: SpawnOptions = {}): cp.ChildProcess {
 		options = assign({ cwd }, options || {});
 		return this.spawn(args, options);
