@@ -49,9 +49,10 @@
     "vscode-nsfw": "Tyriar/vscode-nsfw#electron-3.0.x",
     "vscode-ripgrep": "1.1.0",
     "vscode-textmate": "Microsoft/vscode-textmate#electron-3.0.x",
-    "vscode-xterm": "3.7.0-beta4",
+    "vscode-xterm": "3.7.0-beta5",
     "winreg": "^1.2.4",
-    "yauzl": "^2.9.1"
+    "yauzl": "^2.9.1",
+    "yazl": "^2.4.3"
   },
   "devDependencies": {
     "7zip": "0.0.6",
@@ -59,6 +60,7 @@
     "@types/minimist": "1.2.0",
     "@types/mocha": "2.2.39",
     "@types/sinon": "1.16.34",
+    "@types/webpack": "^4.4.10",
     "asar": "^0.14.0",
     "chromium-pickle-js": "^0.2.0",
     "clean-css": "3.4.6",

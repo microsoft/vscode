@@ -5,7 +5,7 @@
 
 'use strict';
 
-import { getNextTickChannel } from 'vs/base/parts/ipc/common/ipc';
+import { getNextTickChannel } from 'vs/base/parts/ipc/node/ipc';
 import { Client } from 'vs/base/parts/ipc/node/ipc.cp';
 import { toFileChangesEvent, IRawFileChange } from 'vs/workbench/services/files/node/watcher/common';
 import { IWatcherChannel, WatcherChannelClient } from 'vs/workbench/services/files/node/watcher/unix/watcherIpc';

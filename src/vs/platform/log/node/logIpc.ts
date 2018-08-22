@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IChannel } from 'vs/base/parts/ipc/common/ipc';
+import { IChannel } from 'vs/base/parts/ipc/node/ipc';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { LogLevel, ILogService, DelegatedLogService } from 'vs/platform/log/common/log';
 import { Event, buffer } from 'vs/base/common/event';

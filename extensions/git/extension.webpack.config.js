@@ -3,12 +3,15 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+//@ts-check
+
 'use strict';
 
 const withDefaults = require('../shared.webpack.config');
 const CopyWebpackPlugin = require('copy-webpack-plugin');
 
-const myConfig = {
+
+module.exports = withDefaults({
 	context: __dirname,
 	node: {
 		__dirname: false // leave the __dirname-behaviour intact
@@ -19,7 +22,8 @@ const myConfig = {
 	},
 	plugins: [
 		new CopyWebpackPlugin([
-			{ from: './out/*.sh', to: '[name].sh' }
+			{ from: './out/*.sh', to: '[name].sh' },
+			{ from: './out/nls.*.json', to: '[name].json' }
 		])
 	],
 	externals: {
@@ -31,6 +35,4 @@ const myConfig = {
 		"vscode-nls": 'commonjs vscode-nls',
 		"which": 'commonjs which',
 	},
-};
-
-module.exports = withDefaults(myConfig);
+});

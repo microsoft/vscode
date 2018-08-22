@@ -6,8 +6,8 @@
 'use strict';
 
 import { TPromise } from 'vs/base/common/winjs.base';
-import { IChannel } from 'vs/base/parts/ipc/common/ipc';
-import { IExtensionManagementService, ILocalExtension, InstallExtensionEvent, DidInstallExtensionEvent, IGalleryExtension, LocalExtensionType, DidUninstallExtensionEvent, IExtensionIdentifier, IGalleryMetadata, IReportedExtension } from './extensionManagement';
+import { IChannel } from 'vs/base/parts/ipc/node/ipc';
+import { IExtensionManagementService, ILocalExtension, InstallExtensionEvent, DidInstallExtensionEvent, IGalleryExtension, LocalExtensionType, DidUninstallExtensionEvent, IExtensionIdentifier, IGalleryMetadata, IReportedExtension } from '../common/extensionManagement';
 import { Event, buffer, mapEvent } from 'vs/base/common/event';
 import URI from 'vs/base/common/uri';
 import { IURITransformer } from 'vs/base/common/uriIpc';
@@ -17,7 +17,10 @@ export interface IExtensionManagementChannel extends IChannel {
 	listen(event: 'onDidInstallExtension'): Event<DidInstallExtensionEvent>;
 	listen(event: 'onUninstallExtension'): Event<IExtensionIdentifier>;
 	listen(event: 'onDidUninstallExtension'): Event<DidUninstallExtensionEvent>;
-	call(command: 'install', args: [string]): TPromise<void>;
+
+	call(command: 'zip', args: [ILocalExtension]): TPromise<URI>;
+	call(command: 'unzip', args: [URI, LocalExtensionType]): TPromise<IExtensionIdentifier>;
+	call(command: 'install', args: [URI]): TPromise<IExtensionIdentifier>;
 	call(command: 'installFromGallery', args: [IGalleryExtension]): TPromise<void>;
 	call(command: 'uninstall', args: [ILocalExtension, boolean]): TPromise<void>;
 	call(command: 'reinstallFromGallery', args: [ILocalExtension]): TPromise<void>;
@@ -53,7 +56,9 @@ export class ExtensionManagementChannel implements IExtensionManagementChannel {
 
 	call(command: string, args?: any): TPromise<any> {
 		switch (command) {
-			case 'install': return this.service.install(args[0]);
+			case 'zip': return this.service.zip(this._transform(args[0]));
+			case 'unzip': return this.service.unzip(URI.revive(args[0]), args[1]);
+			case 'install': return this.service.install(URI.revive(args[0]));
 			case 'installFromGallery': return this.service.installFromGallery(args[0]);
 			case 'uninstall': return this.service.uninstall(this._transform(args[0]), args[1]);
 			case 'reinstallFromGallery': return this.service.reinstallFromGallery(this._transform(args[0]));
@@ -81,8 +86,16 @@ export class ExtensionManagementChannelClient implements IExtensionManagementSer
 	get onUninstallExtension(): Event<IExtensionIdentifier> { return this.channel.listen('onUninstallExtension'); }
 	get onDidUninstallExtension(): Event<DidUninstallExtensionEvent> { return this.channel.listen('onDidUninstallExtension'); }
 
-	install(zipPath: string): TPromise<void> {
-		return this.channel.call('install', [zipPath]);
+	zip(extension: ILocalExtension): TPromise<URI> {
+		return this.channel.call('zip', [this._transformOutgoing(extension)]).then(result => URI.revive(this.uriTransformer.transformIncoming(result)));
+	}
+
+	unzip(zipLocation: URI, type: LocalExtensionType): TPromise<IExtensionIdentifier> {
+		return this.channel.call('unzip', [this.uriTransformer.transformOutgoing(zipLocation), type]);
+	}
+
+	install(vsix: URI): TPromise<IExtensionIdentifier> {
+		return this.channel.call('install', [this.uriTransformer.transformOutgoing(vsix)]);
 	}
 
 	installFromGallery(extension: IGalleryExtension): TPromise<void> {

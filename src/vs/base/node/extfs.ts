@@ -15,6 +15,7 @@ import * as uuid from 'vs/base/common/uuid';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { encode, encodeStream } from 'vs/base/node/encoding';
 import * as flow from 'vs/base/node/flow';
+import { CancellationToken } from 'vs/base/common/cancellation';
 
 const loop = flow.loop;
 
@@ -129,7 +130,7 @@ function doCopyFile(source: string, target: string, mode: number, callback: (err
 	reader.pipe(writer);
 }
 
-export function mkdirp(path: string, mode?: number): TPromise<boolean> {
+export function mkdirp(path: string, mode?: number, token?: CancellationToken): TPromise<boolean> {
 	const mkdir = () => {
 		return nfcall(fs.mkdir, path, mode).then(null, (mkdirErr: NodeJS.ErrnoException) => {
 
@@ -159,6 +160,11 @@ export function mkdirp(path: string, mode?: number): TPromise<boolean> {
 
 	// recursively mkdir
 	return mkdir().then(null, (err: NodeJS.ErrnoException) => {
+
+		// Respect cancellation
+		if (token && token.isCancellationRequested) {
+			return TPromise.as(false);
+		}
 
 		// ENOENT: a parent folder does not exist yet, continue
 		// to create the parent folder and then try again.

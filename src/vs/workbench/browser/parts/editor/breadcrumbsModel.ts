@@ -176,7 +176,7 @@ export class EditorBreadcrumbsModel {
 				this._updateOutlineElements(this._getOutlineElements(model, this._editor.getPosition()));
 				this._outlineDisposables.push(this._editor.onDidChangeCursorPosition(_ => {
 					timeout.cancelAndSet(() => {
-						if (!buffer.isDisposed() && versionIdThen === buffer.getVersionId()) {
+						if (!buffer.isDisposed() && versionIdThen === buffer.getVersionId() && this._editor.getModel()) {
 							this._updateOutlineElements(this._getOutlineElements(model, this._editor.getPosition()));
 						}
 					}, 150);

@@ -7,8 +7,8 @@
 
 import { TPromise } from 'vs/base/common/winjs.base';
 import { IDisposable, toDisposable, combinedDisposable } from 'vs/base/common/lifecycle';
-import { IWindowDriver, IElement, WindowDriverChannel, WindowDriverRegistryChannelClient } from 'vs/platform/driver/common/driver';
-import { IPCClient } from 'vs/base/parts/ipc/common/ipc';
+import { IWindowDriver, IElement, WindowDriverChannel, WindowDriverRegistryChannelClient } from 'vs/platform/driver/node/driver';
+import { IPCClient } from 'vs/base/parts/ipc/node/ipc';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { getTopLeftOffset, getClientArea } from 'vs/base/browser/dom';
 import * as electron from 'electron';

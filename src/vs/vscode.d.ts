@@ -2515,7 +2515,7 @@ declare module 'vscode' {
 		 * @param name The name of the symbol.
 		 * @param kind The kind of the symbol.
 		 * @param containerName The name of the symbol containing the symbol.
-		 * @param location The the location of the symbol.
+		 * @param location The location of the symbol.
 		 */
 		constructor(name: string, kind: SymbolKind, containerName: string, location: Location);
 

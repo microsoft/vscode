@@ -7,7 +7,7 @@
 
 import { TPromise } from 'vs/base/common/winjs.base';
 import { IExpression } from 'vs/base/common/glob';
-import { IProgress, ILineMatch, IPatternInfo, ISearchStats } from 'vs/platform/search/common/search';
+import { IProgress, ILineMatch, IPatternInfo, IFileSearchStats, ISearchEngineStats } from 'vs/platform/search/common/search';
 import { ITelemetryData } from 'vs/platform/telemetry/common/telemetry';
 import { Event } from 'vs/base/common/event';
 
@@ -45,7 +45,6 @@ export interface IRawSearchService {
 	fileSearch(search: IRawSearch): Event<ISerializedSearchProgressItem | ISerializedSearchComplete>;
 	textSearch(search: IRawSearch): Event<ISerializedSearchProgressItem | ISerializedSearchComplete>;
 	clearCache(cacheKey: string): TPromise<void>;
-	readonly onTelemetry: Event<ITelemetryEvent>;
 }
 
 export interface IRawFileMatch {
@@ -56,14 +55,19 @@ export interface IRawFileMatch {
 }
 
 export interface ISearchEngine<T> {
-	search: (onResult: (matches: T) => void, onProgress: (progress: IProgress) => void, done: (error: Error, complete: ISerializedSearchSuccess) => void) => void;
+	search: (onResult: (matches: T) => void, onProgress: (progress: IProgress) => void, done: (error: Error, complete: ISearchEngineSuccess) => void) => void;
 	cancel: () => void;
 }
 
 export interface ISerializedSearchSuccess {
 	type: 'success';
 	limitHit: boolean;
-	stats: ISearchStats;
+	stats: IFileSearchStats;
+}
+
+export interface ISearchEngineSuccess {
+	limitHit: boolean;
+	stats: ISearchEngineStats;
 }
 
 export interface ISerializedSearchError {

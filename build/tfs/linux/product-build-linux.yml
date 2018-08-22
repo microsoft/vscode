@@ -5,7 +5,7 @@ steps:
 
 - task: geeklearningio.gl-vsts-tasks-yarn.yarn-installer-task.YarnInstaller@2
   inputs:
-    versionSpec: "1.3.2"
+    versionSpec: "1.9.4"
 
 - script: |
     set -e
