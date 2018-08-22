@@ -770,7 +770,7 @@ export class SettingsEditor2 extends BaseEditor {
 		const query = this.searchWidget.getValue().trim();
 		if (query === '') { this.countElement.style.display = 'none'; this.noResultsMessage.style.display = 'none'; }
 		this.delayedFilterLogging.cancel();
-		this.triggerSearch(query).then(() => {
+		this.triggerSearch(query.replace(/›/g, ' ')).then(() => {
 			if (query && this.searchResultModel) {
 				this.delayedFilterLogging.trigger(() => this.reportFilteringUsed(query, this.searchResultModel.getUniqueResults()));
 			}
