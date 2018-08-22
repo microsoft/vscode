@@ -115,4 +115,16 @@ suite('TokenSelectionSupport', () => {
 				// new Range(3, 19, 3, 20)
 			]);
 	});
+
+	test('non-empty block selection', () => {
+
+		assertGetRangesToPosition([
+			'0 + {',
+			'\t//',
+			'}'
+		], 3, 2, [
+				new Range(1, 1, 3, 2),
+				new Range(1, 5, 3, 2)
+			]);
+	});
 });
