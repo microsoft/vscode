@@ -15,7 +15,6 @@ import product from 'vs/platform/node/product';
 import * as dom from 'vs/base/browser/dom';
 import { ICommandService } from 'vs/platform/commands/common/commands';
 import * as errors from 'vs/base/common/errors';
-import { shell } from 'electron';
 import { IIntegrityService } from 'vs/platform/integrity/common/integrity';
 import { IThemeService, registerThemingParticipant, ITheme, ICssStyleCollector } from 'vs/platform/theme/common/themeService';
 import { attachButtonStyler, attachStylerCallback } from 'vs/platform/theme/common/styler';
@@ -218,6 +217,7 @@ export class FeedbackDropdown extends Dropdown {
 				const actionId = 'workbench.action.openIssueReporter';
 				this.commandService.executeCommand(actionId).done(null, errors.onUnexpectedError);
 				this.hide();
+
 				/* __GDPR__
 					"workbenchActionExecuted" : {
 						"id" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
@@ -228,10 +228,10 @@ export class FeedbackDropdown extends Dropdown {
 			})
 			.appendTo($contactUsContainer);
 
-		if(!!this.requestFeatureLink){
+		if (!!this.requestFeatureLink) {
 			$('div').append($('a').attr('target', '_blank').attr('href', this.requestFeatureLink).text(nls.localize("request a missing feature", "Request a missing feature")).attr('tabindex', '0'))
-			.on('click', event => { this.hide(); })
-			.appendTo($contactUsContainer);
+				.on('click', event => { this.hide(); })
+				.appendTo($contactUsContainer);
 		}
 
 
