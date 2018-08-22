@@ -7,11 +7,9 @@
 
 import { Model } from '../model';
 import { Repository as BaseRepository } from '../repository';
-import { InputBox, ExecResult, SpawnOptions, Git, API, Repository } from './git';
-import { Api } from './api';
+import { InputBox, Git, API, Repository } from './git';
 import { Event, SourceControlInputBox, Uri } from 'vscode';
 import { mapEvent } from '../util';
-import * as cp from 'child_process';
 
 class ApiInputBox implements InputBox {
 	set value(value: string) { this._inputBox.value = value; }
@@ -35,17 +33,8 @@ export class ApiGit implements Git {
 	get path(): string { return this._model.git.path; }
 
 	constructor(private _model: Model) { }
-
-	exec(args: string[], options: SpawnOptions): Promise<ExecResult<string>> {
-		return this._model.git.exec2(args, options);
-	}
-
-	spawn(args: string[], options: SpawnOptions): cp.ChildProcess {
-		return this._model.git.spawn(args, options);
-	}
 }
 
-@Api('1.0.0')
 export class ApiImpl implements API {
 
 	readonly git = new ApiGit(this._model);

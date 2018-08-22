@@ -1197,7 +1197,6 @@
     "file-type": "^7.2.0",
     "iconv-lite": "0.4.19",
     "jschardet": "^1.6.0",
-    "semver": "^5.5.1",
     "vscode-extension-telemetry": "0.0.18",
     "vscode-nls": "^3.2.4",
     "which": "^1.3.0"
