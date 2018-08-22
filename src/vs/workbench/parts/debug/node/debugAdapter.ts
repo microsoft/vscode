@@ -238,7 +238,7 @@ export class SocketDebugAdapter extends StreamDebugAdapter {
 	}
 
 	stopSession(): TPromise<void> {
-		if (this.socket !== null) {
+		if (this.socket) {
 			this.socket.end();
 			this.socket = undefined;
 		}
