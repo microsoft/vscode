@@ -273,7 +273,7 @@ describe('Test', () => {
 
 			const app = this.app as Application;
 			const raw = await app.capturePage();
-			const buffer = new Buffer(raw, 'base64');
+			const buffer = Buffer.from(raw, 'base64');
 
 			const name = this.currentTest.fullTitle().replace(/[^a-z0-9\-]/ig, '_');
 			const screenshotPath = path.join(screenshotsPath, `${name}.png`);

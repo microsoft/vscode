@@ -81,16 +81,16 @@ export class EditorBreadcrumbsModel {
 		let result: BreadcrumbElement[] = [];
 
 		// file path elements
-		if (this._cfgFilePath.value() === 'on') {
+		if (this._cfgFilePath.getValue() === 'on') {
 			result = result.concat(this._fileInfo.path);
-		} else if (this._cfgFilePath.value() === 'last' && this._fileInfo.path.length > 0) {
+		} else if (this._cfgFilePath.getValue() === 'last' && this._fileInfo.path.length > 0) {
 			result = result.concat(this._fileInfo.path.slice(-1));
 		}
 
 		// symbol path elements
-		if (this._cfgSymbolPath.value() === 'on') {
+		if (this._cfgSymbolPath.getValue() === 'on') {
 			result = result.concat(this._outlineElements);
-		} else if (this._cfgSymbolPath.value() === 'last' && this._outlineElements.length > 0) {
+		} else if (this._cfgSymbolPath.getValue() === 'last' && this._outlineElements.length > 0) {
 			result = result.concat(this._outlineElements.slice(-1));
 		}
 

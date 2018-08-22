@@ -311,7 +311,7 @@ class RPCMultiplexer {
 
 	private _sendAccumulated(): void {
 		const size = this._messagesToSend.reduce((r, b) => r + 4 + b.byteLength, 0);
-		const buffer = new Buffer(size);
+		const buffer = Buffer.allocUnsafe(size);
 		let i = 0;
 
 		for (const msg of this._messagesToSend) {

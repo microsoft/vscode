@@ -12,7 +12,7 @@ export enum MessageType {
 }
 
 export function createMessageOfType(type: MessageType): Buffer {
-	const result = new Buffer(1);
+	const result = Buffer.allocUnsafe(1);
 
 	switch (type) {
 		case MessageType.Initialized: result.writeUInt8(1, 0); break;

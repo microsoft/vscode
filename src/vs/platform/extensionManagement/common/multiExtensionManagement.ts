@@ -45,7 +45,10 @@ export class MulitExtensionManagementService implements IExtensionManagementServ
 		this.onDidInstallExtension = this.servers.reduce((emitter: EventMultiplexer<DidInstallExtensionEvent>, server) => { emitter.add(server.extensionManagementService.onDidInstallExtension); return emitter; }, new EventMultiplexer<DidInstallExtensionEvent>()).event;
 		this.onUninstallExtension = this.servers.reduce((emitter: EventMultiplexer<IExtensionIdentifier>, server) => { emitter.add(server.extensionManagementService.onUninstallExtension); return emitter; }, new EventMultiplexer<IExtensionIdentifier>()).event;
 		this.onDidUninstallExtension = this.servers.reduce((emitter: EventMultiplexer<DidUninstallExtensionEvent>, server) => { emitter.add(server.extensionManagementService.onDidUninstallExtension); return emitter; }, new EventMultiplexer<DidUninstallExtensionEvent>()).event;
-		this.syncExtensions();
+
+		if (this.otherServers.length) {
+			this.syncExtensions();
+		}
 	}
 
 	getInstalled(type?: LocalExtensionType): TPromise<ILocalExtension[]> {

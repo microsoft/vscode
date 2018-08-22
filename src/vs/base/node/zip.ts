@@ -177,7 +177,7 @@ export interface IFile {
 export function zip(zipPath: string, files: IFile[]): TPromise<string> {
 	return new TPromise<string>((c, e) => {
 		const zip = new yazl.ZipFile();
-		files.forEach(f => f.contents ? zip.addBuffer(typeof f.contents === 'string' ? new Buffer(f.contents, 'utf8') : f.contents, f.path) : zip.addFile(f.localPath, f.path));
+		files.forEach(f => f.contents ? zip.addBuffer(typeof f.contents === 'string' ? Buffer.from(f.contents, 'utf8') : f.contents, f.path) : zip.addFile(f.localPath, f.path));
 		zip.end();
 
 		const zipStream = createWriteStream(zipPath);

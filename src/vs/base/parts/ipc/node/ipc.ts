@@ -111,7 +111,7 @@ enum BodyType {
 	Object
 }
 
-const empty = new Buffer(0);
+const empty = Buffer.allocUnsafe(0);
 
 function serializeBody(body: any): { buffer: Buffer, type: BodyType } {
 	if (typeof body === 'undefined') {
@@ -126,7 +126,7 @@ function serializeBody(body: any): { buffer: Buffer, type: BodyType } {
 }
 
 function serialize(header: any, body: any = undefined): Buffer {
-	const headerSizeBuffer = new Buffer(4);
+	const headerSizeBuffer = Buffer.allocUnsafe(4);
 	const { buffer: bodyBuffer, type: bodyType } = serializeBody(body);
 	const headerBuffer = Buffer.from(JSON.stringify([header, bodyType]));
 	headerSizeBuffer.writeUInt32BE(headerBuffer.byteLength, 0);
