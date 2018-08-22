@@ -118,7 +118,7 @@ export class FileWalker {
 	}
 
 	public walk(folderQueries: IFolderSearch[], extraFiles: string[], onResult: (result: IRawFileMatch) => void, onMessage: (message: IProgress) => void, done: (error: Error, isLimitHit: boolean) => void): void {
-		this.fileWalkSW = StopWatch.create();
+		this.fileWalkSW = StopWatch.create(false);
 
 		// Support that the file pattern is a full path to a file that exists
 		if (this.isCanceled) {
@@ -158,7 +158,7 @@ export class FileWalker {
 
 		const isNodeTraversal = traverse === this.nodeJSTraversal;
 		if (!isNodeTraversal) {
-			this.cmdSW = StopWatch.create();
+			this.cmdSW = StopWatch.create(false);
 		}
 
 		// For each root folder
@@ -174,6 +174,7 @@ export class FileWalker {
 				}
 			});
 		}, (errors, result) => {
+			this.fileWalkSW.stop();
 			const err = errors ? errors.filter(e => !!e)[0] : null;
 			done(err, this.isLimitHit);
 		});

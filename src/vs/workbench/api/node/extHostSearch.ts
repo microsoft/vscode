@@ -12,11 +12,13 @@ import * as resources from 'vs/base/common/resources';
 import URI, { UriComponents } from 'vs/base/common/uri';
 import { TPromise } from 'vs/base/common/winjs.base';
 import * as extfs from 'vs/base/node/extfs';
-import { IFileMatch, IFolderQuery, IPatternInfo, IRawSearchQuery, ISearchCompleteStats, ISearchQuery } from 'vs/platform/search/common/search';
+import { IFileMatch, IFolderQuery, IPatternInfo, IRawSearchQuery, ISearchCompleteStats, ISearchQuery, IFileSearchProviderStats } from 'vs/platform/search/common/search';
 import * as vscode from 'vscode';
 import { ExtHostSearchShape, IMainContext, MainContext, MainThreadSearchShape } from './extHost.protocol';
 import { toDisposable } from 'vs/base/common/lifecycle';
 import { IInternalFileMatch, QueryGlobTester, resolvePatternsForProvider, IDirectoryTree, IDirectoryEntry, FileIndexSearchManager } from 'vs/workbench/api/node/extHostSearch.fileIndex';
+import { StopWatch } from 'vs/base/common/stopwatch';
+import { isPromiseCanceledError } from 'vs/base/common/errors';
 
 export interface ISchemeTransformer {
 	transformOutgoing(scheme: string): string;
@@ -84,7 +86,11 @@ export class ExtHostSearch implements ExtHostSearchShape {
 			return new TPromise((c, e) => {
 				this._fileSearchManager.fileSearch(query, provider, batch => {
 					this._proxy.$handleFileMatch(handle, session, batch.map(p => p.resource));
-				}, cancelSource.token).then(c, e);
+				}, cancelSource.token).then(c, err => {
+					if (!isPromiseCanceledError(err)) {
+						e(err);
+					}
+				});
 			}, () => {
 				// TODO IPC promise cancellation #53526
 				cancelSource.cancel();
@@ -95,6 +101,12 @@ export class ExtHostSearch implements ExtHostSearchShape {
 			if (indexProvider) {
 				return this._fileIndexSearchManager.fileSearch(query, indexProvider, batch => {
 					this._proxy.$handleFileMatch(handle, session, batch.map(p => p.resource));
+				}).then(null, err => {
+					if (!isPromiseCanceledError(err)) {
+						throw err;
+					}
+
+					return null;
 				});
 			} else {
 				throw new Error('something went wrong');
@@ -474,8 +486,11 @@ class FileSearchEngine {
 			// For each root folder
 			TPromise.join(folderQueries.map(fq => {
 				return this.searchInFolder(fq, onResult);
-			})).then(() => {
-				resolve({ limitHit: this.isLimitHit });
+			})).then(stats => {
+				resolve({
+					limitHit: this.isLimitHit,
+					stats: stats[0] // Only looking at single-folder workspace stats...
+				});
 			}, (errs: Error[]) => {
 				const errMsg = errs
 					.map(err => toErrorMessage(err))
@@ -486,7 +501,7 @@ class FileSearchEngine {
 		});
 	}
 
-	private searchInFolder(fq: IFolderQuery<URI>, onResult: (match: IInternalFileMatch) => void): TPromise<void> {
+	private searchInFolder(fq: IFolderQuery<URI>, onResult: (match: IInternalFileMatch) => void): TPromise<IFileSearchProviderStats> {
 		let cancellation = new CancellationTokenSource();
 		return new TPromise((resolve, reject) => {
 			const options = this.getSearchOptionsForFolder(fq);
@@ -495,10 +510,12 @@ class FileSearchEngine {
 			const queryTester = new QueryGlobTester(this.config, fq);
 			const noSiblingsClauses = !queryTester.hasSiblingExcludeClauses();
 
+			let providerSW: StopWatch;
 			new TPromise(_resolve => process.nextTick(_resolve))
 				.then(() => {
 					this.activeCancellationTokens.add(cancellation);
 
+					providerSW = StopWatch.create();
 					return this.provider.provideFileSearchResults(
 						{
 							pattern: this.config.filePattern || ''
@@ -507,8 +524,11 @@ class FileSearchEngine {
 						cancellation.token);
 				})
 				.then(results => {
+					const providerTime = providerSW.elapsed();
+					const postProcessSW = StopWatch.create();
+
 					if (this.isCanceled) {
-						return;
+						return null;
 					}
 
 					if (results) {
@@ -533,11 +553,14 @@ class FileSearchEngine {
 					}
 
 					this.matchDirectoryTree(tree, queryTester, onResult);
-					return null;
+					return <IFileSearchProviderStats>{
+						providerTime,
+						postProcessTime: postProcessSW.elapsed()
+					};
 				}).then(
-					() => {
+					stats => {
 						cancellation.dispose();
-						resolve(null);
+						resolve(stats);
 					},
 					err => {
 						cancellation.dispose();
@@ -646,6 +669,7 @@ class FileSearchEngine {
 
 interface IInternalSearchComplete {
 	limitHit: boolean;
+	stats?: IFileSearchProviderStats;
 }
 
 class FileSearchManager {
@@ -655,14 +679,22 @@ class FileSearchManager {
 	fileSearch(config: ISearchQuery, provider: vscode.FileSearchProvider, onBatch: (matches: IFileMatch[]) => void, token: CancellationToken): TPromise<ISearchCompleteStats> {
 		const engine = new FileSearchEngine(config, provider);
 
+		let resultCount = 0;
 		const onInternalResult = (batch: IInternalFileMatch[]) => {
+			resultCount += batch.length;
 			onBatch(batch.map(m => this.rawMatchToSearchItem(m)));
 		};
 
 		return this.doSearch(engine, FileSearchManager.BATCH_SIZE, onInternalResult, token).then(
 			result => {
-				return {
-					limitHit: result.limitHit
+				return <ISearchCompleteStats>{
+					limitHit: result.limitHit,
+					stats: {
+						fromCache: false,
+						type: 'fileSearchProvider',
+						resultCount,
+						detailStats: result.stats
+					}
 				};
 			});
 	}

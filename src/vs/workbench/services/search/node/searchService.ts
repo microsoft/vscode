@@ -11,6 +11,7 @@ import { Disposable, IDisposable, toDisposable } from 'vs/base/common/lifecycle'
 import { ResourceMap, values } from 'vs/base/common/map';
 import { Schemas } from 'vs/base/common/network';
 import * as objects from 'vs/base/common/objects';
+import { StopWatch } from 'vs/base/common/stopwatch';
 import * as strings from 'vs/base/common/strings';
 import uri from 'vs/base/common/uri';
 import { TPromise } from 'vs/base/common/winjs.base';
@@ -21,7 +22,7 @@ import { IModelService } from 'vs/editor/common/services/modelService';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IDebugParams, IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { ILogService } from 'vs/platform/log/common/log';
-import { FileMatch, IFileMatch, IFolderQuery, IProgress, ISearchComplete, ISearchConfiguration, ISearchProgressItem, ISearchQuery, ISearchResultProvider, ISearchService, LineMatch, pathIncludedInQuery, QueryType, SearchProviderType, ICachedSearchStats, ISearchEngineStats } from 'vs/platform/search/common/search';
+import { FileMatch, ICachedSearchStats, IFileMatch, IFolderQuery, IProgress, ISearchComplete, ISearchConfiguration, ISearchEngineStats, ISearchProgressItem, ISearchQuery, ISearchResultProvider, ISearchService, LineMatch, pathIncludedInQuery, QueryType, SearchProviderType } from 'vs/platform/search/common/search';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
@@ -120,8 +121,6 @@ export class SearchService extends Disposable implements ISearchService {
 				}
 			};
 
-			const startTime = Date.now();
-
 			const schemesInQuery = query.folderQueries.map(fq => fq.folder.scheme);
 			const providerActivations = schemesInQuery.map(scheme => this.extensionService.activateByEvent(`onSearch:${scheme}`));
 
@@ -148,7 +147,6 @@ export class SearchService extends Disposable implements ISearchService {
 				});
 
 			combinedPromise = providerPromise.then(value => {
-				this.logService.debug(`SearchService#search: ${Date.now() - startTime}ms`);
 				const values = [value];
 
 				const result: ISearchComplete = {
@@ -182,6 +180,8 @@ export class SearchService extends Disposable implements ISearchService {
 	}
 
 	private searchWithProviders(query: ISearchQuery, onProviderProgress: (progress: ISearchProgressItem) => void) {
+		const e2eSW = StopWatch.create(false);
+
 		const diskSearchQueries: IFolderQuery[] = [];
 		const searchPs: TPromise<ISearchComplete>[] = [];
 
@@ -221,10 +221,12 @@ export class SearchService extends Disposable implements ISearchService {
 		}
 
 		return TPromise.join(searchPs).then(completes => {
+			const endToEndTime = e2eSW.elapsed();
+			this.logService.trace(`SearchService#search: ${endToEndTime}ms`);
 			completes.forEach(complete => {
 				if (complete.stats) {
 					if (complete.stats.fromCache) {
-						const cacheStats: ICachedSearchStats = complete.stats.cacheOrSearchEngineStats as ICachedSearchStats;
+						const cacheStats: ICachedSearchStats = complete.stats.detailStats as ICachedSearchStats;
 
 						/* __GDPR__
 							"cachedSearchComplete" : {
@@ -241,9 +243,9 @@ export class SearchService extends Disposable implements ISearchService {
 						 */
 						this.telemetryService.publicLog('cachedSearchComplete', {
 							resultCount: complete.stats.resultCount,
-							workspaceFolderCount: complete.stats.workspaceFolderCount,
+							workspaceFolderCount: query.folderQueries.length,
 							type: complete.stats.type,
-							endToEndTime: complete.stats.endToEndTime,
+							endToEndTime: endToEndTime,
 							sortingTime: complete.stats.sortingTime,
 							cacheWasResolved: cacheStats.cacheWasResolved,
 							cacheLookupTime: cacheStats.cacheLookupTime,
@@ -251,7 +253,7 @@ export class SearchService extends Disposable implements ISearchService {
 							cacheEntryCount: cacheStats.cacheEntryCount
 						});
 					} else {
-						const searchEngineStats: ISearchEngineStats = complete.stats.cacheOrSearchEngineStats as ISearchEngineStats;
+						const searchEngineStats: ISearchEngineStats = complete.stats.detailStats as ISearchEngineStats;
 
 						/* __GDPR__
 							"searchComplete" : {
@@ -270,9 +272,9 @@ export class SearchService extends Disposable implements ISearchService {
 						 */
 						this.telemetryService.publicLog('searchComplete', {
 							resultCount: complete.stats.resultCount,
-							workspaceFolderCount: complete.stats.workspaceFolderCount,
+							workspaceFolderCount: query.folderQueries.length,
 							type: complete.stats.type,
-							endToEndTime: complete.stats.endToEndTime,
+							endToEndTime: endToEndTime,
 							sortingTime: complete.stats.sortingTime,
 							traversal: searchEngineStats.traversal,
 							fileWalkTime: searchEngineStats.fileWalkTime,

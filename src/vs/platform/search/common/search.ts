@@ -164,12 +164,10 @@ export interface ISearchComplete extends ISearchCompleteStats {
 
 export interface IFileSearchStats {
 	fromCache: boolean;
-	cacheOrSearchEngineStats: ISearchEngineStats | ICachedSearchStats;
+	detailStats: ISearchEngineStats | ICachedSearchStats | IFileSearchProviderStats | IFileIndexProviderStats;
 
 	resultCount: number;
-	workspaceFolderCount: number;
 	type: 'fileIndexProver' | 'fileSearchProvider' | 'searchProcess';
-	endToEndTime?: number;
 	sortingTime?: number;
 }
 
@@ -187,6 +185,19 @@ export interface ISearchEngineStats {
 	filesWalked: number;
 	cmdTime: number;
 	cmdResultCount?: number;
+}
+
+export interface IFileSearchProviderStats {
+	providerTime: number;
+	postProcessTime: number;
+}
+
+export interface IFileIndexProviderStats {
+	providerTime: number;
+	providerResultCount: number;
+	fileWalkTime: number;
+	directoriesWalked: number;
+	filesWalked: number;
 }
 
 // ---- very simple implementation of the search model --------------------

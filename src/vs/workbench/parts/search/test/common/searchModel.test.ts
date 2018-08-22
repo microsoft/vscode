@@ -51,8 +51,7 @@ suite('SearchModel', () => {
 		fromCache: false,
 		resultCount: 1,
 		type: 'searchProcess',
-		workspaceFolderCount: 1,
-		cacheOrSearchEngineStats: {
+		detailStats: {
 			traversal: 'node',
 			fileWalkTime: 0,
 			cmdTime: 0,

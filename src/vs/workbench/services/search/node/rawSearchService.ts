@@ -173,11 +173,10 @@ export class SearchService implements IRawSearchService {
 				limitHit: complete.limitHit,
 				type: 'success',
 				stats: {
-					cacheOrSearchEngineStats: complete.stats,
+					detailStats: complete.stats,
 					fromCache: false,
 					resultCount,
-					sortingTime: undefined,
-					workspaceFolderCount: config.folderQueries.length
+					sortingTime: undefined
 				}
 			};
 		});
@@ -229,7 +228,7 @@ export class SearchService implements IRawSearchService {
 		return toWinJsPromise<[ISerializedSearchSuccess, IRawFileMatch[]]>(
 			allResultsPromise.then(([result, results]) => {
 				const scorerCache: ScorerCache = cache ? cache.scorerCache : Object.create(null);
-				const sortSW = (typeof config.maxResults !== 'number' || config.maxResults > 0) && StopWatch.create();
+				const sortSW = (typeof config.maxResults !== 'number' || config.maxResults > 0) && StopWatch.create(false);
 				return this.sortResults(config, results, scorerCache, token)
 					.then<[ISerializedSearchSuccess, IRawFileMatch[]]>(sortedResults => {
 						// sortingTime: -1 indicates a "sorted" search that was not sorted, i.e. populating the cache when quickopen is opened.
@@ -239,7 +238,7 @@ export class SearchService implements IRawSearchService {
 						return [{
 							type: 'success',
 							stats: {
-								cacheOrSearchEngineStats: result.stats,
+								detailStats: result.stats,
 								sortingTime,
 								fromCache: false,
 								type: 'searchProcess',
@@ -270,16 +269,15 @@ export class SearchService implements IRawSearchService {
 		const cached = this.getResultsFromCache(cache, config.filePattern, progressCallback, token);
 		if (cached) {
 			return cached.then(([result, results, cacheStats]) => {
-				const sortSW = StopWatch.create();
+				const sortSW = StopWatch.create(false);
 				return this.sortResults(config, results, cache.scorerCache, token)
 					.then<[ISerializedSearchSuccess, IRawFileMatch[]]>(sortedResults => {
 						const sortingTime = sortSW.elapsed();
 						const stats: IFileSearchStats = {
 							fromCache: true,
-							cacheOrSearchEngineStats: cacheStats,
+							detailStats: cacheStats,
 							type: 'searchProcess',
 							resultCount: results.length,
-							workspaceFolderCount: config.folderQueries.length,
 							sortingTime
 						};
 
@@ -319,7 +317,7 @@ export class SearchService implements IRawSearchService {
 	}
 
 	private getResultsFromCache(cache: Cache, searchValue: string, progressCallback: IFileProgressCallback, token?: CancellationToken): TPromise<[ISearchEngineSuccess, IRawFileMatch[], ICachedSearchStats]> {
-		const cacheLookupSW = StopWatch.create();
+		const cacheLookupSW = StopWatch.create(false);
 
 		// Find cache entries by prefix of search value
 		const hasPathSep = searchValue.indexOf(sep) >= 0;
@@ -346,7 +344,7 @@ export class SearchService implements IRawSearchService {
 		}
 
 		const cacheLookupTime = cacheLookupSW.elapsed();
-		const cacheFilterSW = StopWatch.create();
+		const cacheFilterSW = StopWatch.create(false);
 
 		const listener = cachedRow.event(progressCallback);
 		if (token) {
