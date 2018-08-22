@@ -356,8 +356,10 @@ class MenuActionItem extends BaseActionItem {
 	_updateChecked(): void {
 		if (this.getAction().checked) {
 			this.$e.addClass('checked');
+			this.$e.attr({ 'role': 'menuitemcheckbox', 'aria-checked': true });
 		} else {
 			this.$e.removeClass('checked');
+			this.$e.attr({ 'role': 'menuitem', 'aria-checked': false });
 		}
 	}
 
