@@ -513,7 +513,7 @@ export class FileWalker {
 
 	public getStats(): ISearchEngineStats {
 		return {
-			cmdTime: this.cmdSW.elapsed(),
+			cmdTime: this.cmdSW && this.cmdSW.elapsed(),
 			fileWalkTime: this.fileWalkSW.elapsed(),
 			traversal: Traversal[this.traversal],
 			directoriesWalked: this.directoriesWalked,
