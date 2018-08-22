@@ -16,7 +16,7 @@ import { ltrim } from 'vs/base/common/strings';
 
 export interface IUriLabelService {
 	_serviceBrand: any;
-	getLabel(resource: URI, relative?: boolean): string;
+	getLabel(resource: URI, relative?: boolean, forceNoTildify?: boolean): string;
 	registerFormater(schema: string, formater: UriLabelRules): IDisposable;
 	onDidRegisterFormater: Event<{ scheme: string, formater: UriLabelRules }>;
 }
@@ -52,7 +52,7 @@ export class UriLabelService implements IUriLabelService {
 		return this._onDidRegisterFormater.event;
 	}
 
-	getLabel(resource: URI, relative: boolean): string {
+	getLabel(resource: URI, relative: boolean, forceNoTildify?: boolean): string {
 		if (!resource) {
 			return undefined;
 		}
@@ -68,8 +68,8 @@ export class UriLabelService implements IUriLabelService {
 				if (isEqual(baseResource.uri, resource, !isLinux)) {
 					relativeLabel = ''; // no label if resources are identical
 				} else {
-					const baseResourceLabel = this.formatUri(baseResource.uri, formater);
-					relativeLabel = ltrim(this.formatUri(resource, formater).substring(baseResourceLabel.length), formater.separator);
+					const baseResourceLabel = this.formatUri(baseResource.uri, formater, forceNoTildify);
+					relativeLabel = ltrim(this.formatUri(resource, formater, forceNoTildify).substring(baseResourceLabel.length), formater.separator);
 				}
 
 				const hasMultipleRoots = this.contextService.getWorkspace().folders.length > 1;
@@ -82,7 +82,7 @@ export class UriLabelService implements IUriLabelService {
 			}
 		}
 
-		return this.formatUri(resource, formater);
+		return this.formatUri(resource, formater, forceNoTildify);
 	}
 
 	registerFormater(scheme: string, formater: UriLabelRules): IDisposable {
@@ -94,7 +94,7 @@ export class UriLabelService implements IUriLabelService {
 		};
 	}
 
-	private formatUri(resource: URI, formater: UriLabelRules): string {
+	private formatUri(resource: URI, formater: UriLabelRules, forceNoTildify: boolean): string {
 		let label = formater.label.replace(labelMatchingRegexp, match => {
 			switch (match) {
 				case '${scheme}': return resource.scheme;
@@ -109,7 +109,7 @@ export class UriLabelService implements IUriLabelService {
 			label = label.charAt(1).toUpperCase() + label.substr(2);
 		}
 
-		if (formater.tildify) {
+		if (formater.tildify && !forceNoTildify) {
 			label = tildify(label, this.environmentService.userHome);
 		}
 
