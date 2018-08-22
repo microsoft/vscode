@@ -77,6 +77,8 @@ interface ITestRunner {
 
 export class ExtensionHostMain {
 
+	private static readonly WORKSPACE_CONTAINS_TIMEOUT = 5000;
+
 	private _isTerminating: boolean = false;
 	private _diskSearch: DiskSearch;
 	private _workspace: IWorkspaceData;
@@ -267,7 +269,7 @@ export class ExtensionHostMain {
 		}
 
 		if (!this._diskSearch) {
-			// Shut down this search process after 1s
+			// Shut down this search process after 1s of inactivity
 			this._diskSearch = new DiskSearch(false, 1000);
 		}
 
@@ -290,7 +292,17 @@ export class ExtensionHostMain {
 			ignoreSymlinks: !followSymlinks
 		};
 
-		const exists = await this._mainThreadWorkspace.$checkExists(query, this._searchRequestIdProvider.getNext());
+		const requestId = this._searchRequestIdProvider.getNext();
+		const searchP = this._mainThreadWorkspace.$checkExists(query, requestId);;
+
+		const timer = setTimeout(async () => {
+			await this._mainThreadWorkspace.$cancelSearch(requestId);
+			this._extensionService.activateById(extensionId, new ExtensionActivatedByEvent(true, `workspaceContainsTimeout`))
+				.then(null, err => console.error(err));
+		}, ExtensionHostMain.WORKSPACE_CONTAINS_TIMEOUT);
+
+		const exists = await searchP;
+		clearTimeout(timer);
 		if (exists) {
 			// a file was found matching one of the glob patterns
 			return (
