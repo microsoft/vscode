@@ -6,7 +6,7 @@
 'use strict';
 
 import { Model } from '../model';
-import { GitExtension } from './git';
+import { GitExtension, Repository, API } from './git';
 import { getAPI, deprecated } from './api';
 import { ApiRepository } from './api1';
 
@@ -18,11 +18,11 @@ class NoModelGitExtension implements GitExtension {
 	}
 
 	@deprecated
-	async getRepositories(): Promise<GitExtension.Repository[]> {
+	async getRepositories(): Promise<Repository[]> {
 		throw new Error('Git model not found');
 	}
 
-	getAPI(): GitExtension.API {
+	getAPI(): API {
 		throw new Error('Git model not found');
 	}
 }
@@ -37,11 +37,11 @@ class GitExtensionImpl implements GitExtension {
 	}
 
 	@deprecated
-	async getRepositories(): Promise<GitExtension.Repository[]> {
+	async getRepositories(): Promise<Repository[]> {
 		return this._model.repositories.map(repository => new ApiRepository(repository));
 	}
 
-	getAPI(range: string): GitExtension.API {
+	getAPI(range: string): API {
 		return getAPI(this._model, range);
 	}
 }

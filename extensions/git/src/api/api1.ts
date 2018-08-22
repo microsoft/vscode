@@ -6,57 +6,62 @@
 'use strict';
 
 import { Model } from '../model';
-import { GitExtension } from './git';
+import { Repository as BaseRepository } from '../repository';
+import { InputBox, ExecResult, SpawnOptions, Git, API, Repository } from './git';
 import { Api } from './api';
 import { Event, SourceControlInputBox, Uri } from 'vscode';
 import { mapEvent } from '../util';
-import { Repository } from '../repository';
 import * as cp from 'child_process';
 
-class ApiInputBox implements GitExtension.InputBox {
+class ApiInputBox implements InputBox {
 	set value(value: string) { this._inputBox.value = value; }
 	get value(): string { return this._inputBox.value; }
 	constructor(private _inputBox: SourceControlInputBox) { }
 }
 
-export class ApiRepository implements GitExtension.Repository {
+export class ApiRepository implements Repository {
 
 	readonly rootUri: Uri;
-	readonly inputBox: GitExtension.InputBox;
+	readonly inputBox: InputBox;
 
-	constructor(_repository: Repository) {
+	constructor(_repository: BaseRepository) {
 		this.rootUri = Uri.file(_repository.root);
 		this.inputBox = new ApiInputBox(_repository.inputBox);
 	}
 }
 
-@Api('1.0.0')
-export class ApiImpl implements GitExtension.API {
+export class ApiGit implements Git {
 
-	get gitPath(): string {
-		return this._model.git.path;
+	get path(): string { return this._model.git.path; }
+
+	constructor(private _model: Model) { }
+
+	exec(cwd: string, args: string[], options: SpawnOptions = {}): Promise<ExecResult<string>> {
+		return this._model.git.exec(cwd, args, options);
 	}
 
-	get onDidOpenRepository(): Event<GitExtension.Repository> {
+	spawn(cwd: string, args: string[], options: SpawnOptions = {}): cp.ChildProcess {
+		options = { cwd, ...options };
+		return this._model.git.spawn(args, options);
+	}
+}
+
+@Api('1.0.0')
+export class ApiImpl implements API {
+
+	readonly git = new ApiGit(this._model);
+
+	get onDidOpenRepository(): Event<Repository> {
 		return mapEvent(this._model.onDidOpenRepository, r => new ApiRepository(r));
 	}
 
-	get onDidCloseRepository(): Event<GitExtension.Repository> {
+	get onDidCloseRepository(): Event<Repository> {
 		return mapEvent(this._model.onDidCloseRepository, r => new ApiRepository(r));
 	}
 
-	get repositories(): GitExtension.Repository[] {
+	get repositories(): Repository[] {
 		return this._model.repositories.map(r => new ApiRepository(r));
 	}
 
 	constructor(private _model: Model) { }
-
-	exec(cwd: string, args: string[], options: GitExtension.SpawnOptions = {}): Promise<GitExtension.IExecResult<string>> {
-		return this._model.git.exec(cwd, args, options);
-	}
-
-	spawn(cwd: string, args: string[], options: GitExtension.SpawnOptions = {}): cp.ChildProcess {
-		options = { cwd, ...options };
-		return this._model.git.spawn(args, options);
-	}
 }

@@ -6,17 +6,17 @@
 'use strict';
 
 import { Model } from '../model';
-import { GitExtension } from './git';
+import { API } from './git';
 import * as semver from 'semver';
 
 interface ApiCtor {
-	new(model: Model): GitExtension.API;
+	new(model: Model): API;
 }
 
 const versions: string[] = [];
 const apis = new Map<string, ApiCtor>();
 
-export function getAPI(model: Model, range: string): GitExtension.API {
+export function getAPI(model: Model, range: string): API {
 	if (!range) {
 		throw new Error(`Please provide a Git extension API version range. Available versions: [${versions.join(', ')}]`);
 	}
