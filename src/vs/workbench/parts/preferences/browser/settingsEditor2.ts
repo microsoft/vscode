@@ -747,7 +747,7 @@ export class SettingsEditor2 extends BaseEditor {
 	private onSearchInputChanged(): void {
 		const query = this.searchWidget.getValue().trim();
 		this.delayedFilterLogging.cancel();
-		this.triggerSearch(query.replace(/ › /g, ' ')).then(() => {
+		this.triggerSearch(query.replace(/›/g, ' ')).then(() => {
 			if (query && this.searchResultModel) {
 				this.delayedFilterLogging.trigger(() => this.reportFilteringUsed(query, this.searchResultModel.getUniqueResults()));
 			}
