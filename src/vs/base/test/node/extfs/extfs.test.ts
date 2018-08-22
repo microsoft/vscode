@@ -15,8 +15,7 @@ import { isLinux, isWindows } from 'vs/base/common/platform';
 import * as uuid from 'vs/base/common/uuid';
 import * as extfs from 'vs/base/node/extfs';
 import { getPathFromAmdModule } from 'vs/base/common/amd';
-
-
+import { CancellationTokenSource } from 'vs/base/common/cancellation';
 
 const ignore = () => { };
 
@@ -560,6 +559,23 @@ suite('Extfs', () => {
 				assert.ok(!error);
 			}
 			assert.ok(realpath);
+
+			extfs.del(parentDir, os.tmpdir(), done, ignore);
+		});
+	});
+
+	test('mkdirp cancellation', (done) => {
+		const id = uuid.generateUuid();
+		const parentDir = path.join(os.tmpdir(), 'vsctests', id);
+		const newDir = path.join(parentDir, 'extfs', id);
+
+		const source = new CancellationTokenSource();
+
+		const mkdirpPromise = extfs.mkdirp(newDir, 493, source.token);
+		source.cancel();
+
+		return mkdirpPromise.then(res => {
+			assert.equal(res, false);
 
 			extfs.del(parentDir, os.tmpdir(), done, ignore);
 		});
