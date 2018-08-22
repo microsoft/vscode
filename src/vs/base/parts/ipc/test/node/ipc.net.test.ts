@@ -60,7 +60,7 @@ suite('IPC, Socket Protocol', () => {
 					assert.equal(data.readInt8(0), 123);
 					resolve(null);
 				});
-				const buffer = new Buffer(1);
+				const buffer = Buffer.allocUnsafe(1);
 				buffer.writeInt8(123, 0);
 				a.send(buffer);
 			});
