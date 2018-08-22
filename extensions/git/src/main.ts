@@ -7,6 +7,7 @@
 
 import * as nls from 'vscode-nls';
 const localize = nls.loadMessageBundle();
+
 import { ExtensionContext, workspace, window, Disposable, commands, Uri, OutputChannel } from 'vscode';
 import { findGit, Git, IGit } from './git';
 import { Model } from './model';
@@ -16,8 +17,11 @@ import { GitDecorations } from './decorationProvider';
 import { Askpass } from './askpass';
 import { toDisposable, filterEvent, eventToPromise } from './util';
 import TelemetryReporter from 'vscode-extension-telemetry';
-import { API, NoopAPIImpl, APIImpl } from './api';
+import { GitExtension } from './api/git';
 import { GitProtocolHandler } from './protocolHandler';
+import { createGitExtension } from './api/extension';
+
+import './api/api0';
 
 const deactivateTasks: { (): Promise<any>; }[] = [];
 
@@ -69,7 +73,7 @@ async function createModel(context: ExtensionContext, outputChannel: OutputChann
 	return model;
 }
 
-export async function activate(context: ExtensionContext): Promise<API> {
+export async function activate(context: ExtensionContext): Promise<GitExtension> {
 	const disposables: Disposable[] = [];
 	context.subscriptions.push(new Disposable(() => Disposable.from(...disposables).dispose()));
 
@@ -92,7 +96,7 @@ export async function activate(context: ExtensionContext): Promise<API> {
 
 	try {
 		const model = await createModel(context, outputChannel, telemetryReporter, disposables);
-		return new APIImpl(model);
+		return createGitExtension(model);
 	} catch (err) {
 		if (!/Git installation not found/.test(err.message || '')) {
 			throw err;
@@ -121,7 +125,7 @@ export async function activate(context: ExtensionContext): Promise<API> {
 			}
 		}
 
-		return new NoopAPIImpl();
+		return createGitExtension();
 	}
 }
 
