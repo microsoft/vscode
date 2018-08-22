@@ -285,7 +285,7 @@ export class DebugAdapter extends StreamDebugAdapter {
 			if (this.adapterExecutable.command === 'node' && this.outputService) {
 				if (Array.isArray(this.adapterExecutable.args) && this.adapterExecutable.args.length > 0) {
 					const child = cp.fork(this.adapterExecutable.args[0], this.adapterExecutable.args.slice(1), {
-						execArgv: [ '-e', 'delete process.env.ELECTRON_RUN_AS_NODE;require(process.argv[1])' ].concat(process.execArgv || []),
+						execArgv: ['-e', 'delete process.env.ELECTRON_RUN_AS_NODE;require(process.argv[1])'].concat(process.execArgv || []),
 						silent: true
 					});
 					if (!child.pid) {
