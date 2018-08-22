@@ -6721,7 +6721,7 @@ declare namespace Electron {
 		 * When this attribute is present the guest page will be allowed to open new
 		 * windows. Popups are disabled by default.
 		 */
-		allowpopups?: string;
+		// allowpopups?: string; ### VSCODE CHANGE (https://github.com/electron/electron/blob/master/docs/tutorial/security.md) ###
 		/**
 		 * When this attribute is present the webview container will automatically resize
 		 * within the bounds specified by the attributes minwidth, minheight, maxwidth, and
@@ -6748,7 +6748,7 @@ declare namespace Electron {
 		 * When this attribute is present the guest page will have web security disabled.
 		 * Web security is enabled by default.
 		 */
-		disablewebsecurity?: string;
+		// disablewebsecurity?: string; ### VSCODE CHANGE(https://github.com/electron/electron/blob/master/docs/tutorial/security.md) ###
 		/**
 		 * A list of strings which specifies the blink features to be enabled separated by
 		 * ,. The full list of supported feature strings can be found in the
@@ -8979,12 +8979,12 @@ declare namespace Electron {
 		 * websites by people), and set allowRunningInsecureContent to true if this options
 		 * has not been set by user. Default is true.
 		 */
-		webSecurity?: boolean;
+		// webSecurity?: boolean; ### VSCODE CHANGE (https://github.com/electron/electron/blob/master/docs/tutorial/security.md) ###
 		/**
 		 * Allow an https page to run JavaScript, CSS or plugins from http URLs. Default is
 		 * false.
 		 */
-		allowRunningInsecureContent?: boolean;
+		// allowRunningInsecureContent?: boolean; ### VSCODE CHANGE (https://github.com/electron/electron/blob/master/docs/tutorial/security.md) ###
 		/**
 		 * Enables image support. Default is true.
 		 */
@@ -9008,7 +9008,7 @@ declare namespace Electron {
 		/**
 		 * Enables Chromium's experimental features. Default is false.
 		 */
-		experimentalFeatures?: boolean;
+		// experimentalFeatures?: boolean; ### VSCODE CHANGE (https://github.com/electron/electron/blob/master/docs/tutorial/security.md) ###
 		/**
 		 * Enables Chromium's experimental canvas features. Default is false.
 		 */

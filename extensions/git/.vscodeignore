@@ -3,3 +3,8 @@ test/**
 out/**
 tsconfig.json
 build/**
+node_modules/byline/**
+node_modules/file-type/**
+node_modules/iconv-lite/**
+node_modules/jschardet/**
+node_modules/which/**

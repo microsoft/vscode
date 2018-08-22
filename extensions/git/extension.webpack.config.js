@@ -25,14 +25,5 @@ module.exports = withDefaults({
 			{ from: './out/*.sh', to: '[name].sh' },
 			{ from: './out/nls.*.json', to: '[name].json' }
 		])
-	],
-	externals: {
-		"byline": 'commonjs byline',
-		"file-type": 'commonjs file-type',
-		"iconv-lite": 'commonjs iconv-lite',
-		"jschardet": 'commonjs jschardet',
-		"vscode-extension-telemetry": 'commonjs vscode-extension-telemetry',
-		"vscode-nls": 'commonjs vscode-nls',
-		"which": 'commonjs which',
-	},
+	]
 });

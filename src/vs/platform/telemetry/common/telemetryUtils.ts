@@ -116,6 +116,8 @@ const configurationValueWhitelist = [
 	'editor.parameterHints.enabled',
 	'editor.parameterHints.cycle',
 	'editor.autoClosingBrackets',
+	'editor.autoClosingQuotes',
+	'editor.autoWrapping',
 	'editor.autoIndent',
 	'editor.formatOnType',
 	'editor.formatOnPaste',
