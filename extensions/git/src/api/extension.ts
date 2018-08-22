@@ -8,7 +8,7 @@
 import { Model } from '../model';
 import { GitExtension } from './git';
 import { getAPI, deprecated } from './api';
-import { ApiRepository } from './api0';
+import { ApiRepository } from './api1';
 
 class NoModelGitExtension implements GitExtension {
 

@@ -29,7 +29,7 @@ export class ApiRepository implements GitExtension.Repository {
 	}
 }
 
-@Api('0.1.0')
+@Api('1.0.0')
 export class ApiImpl implements GitExtension.API {
 
 	get gitPath(): string {

@@ -21,7 +21,7 @@ import { GitExtension } from './api/git';
 import { GitProtocolHandler } from './protocolHandler';
 import { createGitExtension } from './api/extension';
 
-import './api/api0';
+import './api/api1';
 
 const deactivateTasks: { (): Promise<any>; }[] = [];
 
