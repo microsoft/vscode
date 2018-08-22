@@ -11,6 +11,7 @@ import { Api } from './api';
 import { Event, SourceControlInputBox, Uri } from 'vscode';
 import { mapEvent } from '../util';
 import { Repository } from '../repository';
+import * as cp from 'child_process';
 
 class ApiInputBox implements GitExtension.InputBox {
 	set value(value: string) { this._inputBox.value = value; }
@@ -49,4 +50,13 @@ export class ApiImpl implements GitExtension.API {
 	}
 
 	constructor(private _model: Model) { }
+
+	exec(cwd: string, args: string[], options: GitExtension.SpawnOptions = {}): Promise<GitExtension.IExecResult<string>> {
+		return this._model.git.exec(cwd, args, options);
+	}
+
+	spawn(cwd: string, args: string[], options: GitExtension.SpawnOptions = {}): cp.ChildProcess {
+		options = { cwd, ...options };
+		return this._model.git.spawn(args, options);
+	}
 }

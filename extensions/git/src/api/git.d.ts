@@ -3,15 +3,32 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Uri, SourceControlInputBox, Event } from 'vscode';
+import { Uri, SourceControlInputBox, Event, CancellationToken } from 'vscode';
+import * as cp from 'child_process';
 
 declare module GitExtension {
+
+	export interface IExecResult<T extends string | Buffer> {
+		readonly exitCode: number;
+		readonly stdout: T;
+		readonly stderr: string;
+	}
+
+	export interface SpawnOptions extends cp.SpawnOptions {
+		readonly input?: string;
+		readonly encoding?: string;
+		readonly log?: boolean;
+		readonly cancellationToken?: CancellationToken;
+	}
 
 	export interface API {
 		readonly gitPath: string;
 		readonly repositories: Repository[];
 		readonly onDidOpenRepository: Event<Repository>;
 		readonly onDidCloseRepository: Event<Repository>;
+
+		exec(cwd: string, args: string[], options?: SpawnOptions): Promise<IExecResult<string>>;
+		spawn(cwd: string, args: string[], options?: SpawnOptions): cp.ChildProcess;
 	}
 
 	export interface InputBox {
