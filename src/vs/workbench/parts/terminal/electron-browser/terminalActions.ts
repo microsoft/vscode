@@ -250,7 +250,6 @@ function prepareTerminaText(text: string): string {
 	// Hexcodes and excape char
 	if (text.substring(0, 2).toLowerCase() === '\\x') {
 		// Valid hex with 2 digits
-		// var isOk  = /^\\x[0-9a-f]{2}$/i.test(text);
 		if (/^\\x[0-9a-f]{2}$/i.test(text)) {
 			return String.fromCharCode(parseInt(text.substring(2), 16));
 		}
