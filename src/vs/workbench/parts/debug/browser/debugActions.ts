@@ -113,7 +113,7 @@ export class ConfigureAction extends AbstractDebugAction {
 			configurationManager.selectConfiguration(configurationManager.getLaunches()[0]);
 		}
 
-		return configurationManager.selectedConfiguration.launch.openConfigFile(sideBySide);
+		return configurationManager.selectedConfiguration.launch.openConfigFile(sideBySide, false);
 	}
 }
 

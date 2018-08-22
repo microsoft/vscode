@@ -557,7 +557,7 @@ export class DebugService implements IDebugService {
 						}
 
 						if (launch && type) {
-							return launch.openConfigFile(false, type).done(undefined, errors.onUnexpectedError);
+							return launch.openConfigFile(false, true, type).done(undefined, errors.onUnexpectedError);
 						}
 					})
 				).then(() => undefined);
@@ -628,7 +628,7 @@ export class DebugService implements IDebugService {
 					return this.showError(nls.localize('noFolderWorkspaceDebugError', "The active file can not be debugged. Make sure it is saved on disk and that you have a debug extension installed for that file type."));
 				}
 
-				return launch && launch.openConfigFile(false).then(editor => void 0);
+				return launch && launch.openConfigFile(false, true).then(editor => void 0);
 			})
 		).then(() => {
 			this.initializing = false;
