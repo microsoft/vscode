@@ -12,7 +12,6 @@ import * as paths from 'vs/base/common/paths';
 import * as strings from 'vs/base/common/strings';
 import * as objects from 'vs/base/common/objects';
 import * as platform from 'vs/base/common/platform';
-import * as stdfork from 'vs/base/node/stdFork';
 import { Emitter, Event } from 'vs/base/common/event';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { ExtensionsChannelId } from 'vs/platform/extensionManagement/common/extensionManagement';
@@ -285,13 +284,15 @@ export class DebugAdapter extends StreamDebugAdapter {
 
 			if (this.adapterExecutable.command === 'node' && this.outputService) {
 				if (Array.isArray(this.adapterExecutable.args) && this.adapterExecutable.args.length > 0) {
-					stdfork.fork(this.adapterExecutable.args[0], this.adapterExecutable.args.slice(1), {}, (err, child) => {
-						if (err) {
-							e(new Error(nls.localize('unableToLaunchDebugAdapter', "Unable to launch debug adapter from '{0}'.", this.adapterExecutable.args[0])));
-						}
-						this.serverProcess = child;
-						c(null);
+					const child = cp.fork(this.adapterExecutable.args[0], this.adapterExecutable.args.slice(1), {
+						execArgv: ['-e', 'delete process.env.ELECTRON_RUN_AS_NODE;require(process.argv[1])'].concat(process.execArgv || []),
+						silent: true
 					});
+					if (!child.pid) {
+						e(new Error(nls.localize('unableToLaunchDebugAdapter', "Unable to launch debug adapter from '{0}'.", this.adapterExecutable.args[0])));
+					}
+					this.serverProcess = child;
+					c(null);
 				} else {
 					e(new Error(nls.localize('unableToLaunchDebugAdapterNoArgs', "Unable to launch debug adapter.")));
 				}
