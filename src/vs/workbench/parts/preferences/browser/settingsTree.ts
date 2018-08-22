@@ -352,7 +352,7 @@ export class SettingsRenderer implements ITreeRenderer {
 	}
 
 	getHeight(tree: ITree, element: SettingsTreeElement): number {
-		if (this.rowHeightCache.has(element.id)) {
+		if (this.rowHeightCache.has(element.id) && !(element instanceof SettingsTreeSettingElement && isExcludeSetting(element.setting))) {
 			return this.rowHeightCache.get(element.id);
 		}
 
