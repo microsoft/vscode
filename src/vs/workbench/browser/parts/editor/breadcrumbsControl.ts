@@ -21,7 +21,7 @@ import { OutlineElement, OutlineGroup, OutlineModel, TreeElement } from 'vs/edit
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { ContextKeyExpr, IContextKey, IContextKeyService, RawContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { IContextViewService } from 'vs/platform/contextview/browser/contextView';
-import { FileKind, IFileService } from 'vs/platform/files/common/files';
+import { FileKind, IFileService, IFileStat } from 'vs/platform/files/common/files';
 import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { KeybindingsRegistry, KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { IQuickOpenService } from 'vs/platform/quickOpen/common/quickOpen';
@@ -39,9 +39,10 @@ import { MenuRegistry, MenuId } from 'vs/platform/actions/common/actions';
 import { localize } from 'vs/nls';
 import { CommandsRegistry } from 'vs/platform/commands/common/commands';
 import { tail } from 'vs/base/common/arrays';
-import { WorkbenchListFocusContextKey } from 'vs/platform/list/browser/listService';
+import { WorkbenchListFocusContextKey, IListService } from 'vs/platform/list/browser/listService';
 import { ColorIdentifier } from 'vs/platform/theme/common/colorRegistry';
 import { timeout } from 'vs/base/common/async';
+import URI from 'vs/base/common/uri';
 
 class Item extends BreadcrumbsItem {
 
@@ -513,10 +514,26 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 	primary: KeyMod.CtrlCmd | KeyCode.Enter,
 	when: ContextKeyExpr.and(BreadcrumbsControl.CK_BreadcrumbsVisible, BreadcrumbsControl.CK_BreadcrumbsActive, WorkbenchListFocusContextKey),
 	handler(accessor) {
-		const groups = accessor.get(IEditorGroupsService);
-		const breadcrumbs = accessor.get(IBreadcrumbsService);
-		const widget = breadcrumbs.getWidget(groups.activeGroup.id);
-		widget.setSelection(widget.getFocused(), BreadcrumbsControl.Payload_RevealAside);
+		const editors = accessor.get(IEditorService);
+		const lists = accessor.get(IListService);
+		const element = <OutlineElement | IFileStat>lists.lastFocusedList.getFocus();
+		if (element instanceof OutlineElement) {
+			// open symbol in editor
+			return editors.openEditor({
+				resource: OutlineModel.get(element).textModel.uri,
+				options: { selection: Range.collapseToStart(element.symbol.selectionRange) }
+			}, SIDE_GROUP);
+
+		} else if (URI.isUri(element.resource)) {
+			// open file in editor
+			return editors.openEditor({
+				resource: element.resource,
+			}, SIDE_GROUP);
+
+		} else {
+			// ignore
+			return undefined;
+		}
 	}
 });
 //#endregion
