@@ -19,12 +19,16 @@ class ApiInputBox implements InputBox {
 
 export class ApiRepository implements Repository {
 
-	readonly rootUri: Uri;
-	readonly inputBox: InputBox;
+	readonly rootUri: Uri = Uri.file(this._repository.root);
+	readonly inputBox: InputBox = new ApiInputBox(this._repository.inputBox);
 
-	constructor(_repository: BaseRepository) {
-		this.rootUri = Uri.file(_repository.root);
-		this.inputBox = new ApiInputBox(_repository.inputBox);
+	readonly onDidRunGitStatus: Event<void> = this._repository.onDidRunGitStatus;
+
+	constructor(private _repository: BaseRepository) {
+	}
+
+	status(): Promise<void> {
+		return this._repository.status();
 	}
 }
 

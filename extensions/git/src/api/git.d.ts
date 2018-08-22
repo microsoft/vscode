@@ -10,13 +10,6 @@ export interface Git {
 	readonly path: string;
 }
 
-export interface API {
-	readonly git: Git;
-	readonly repositories: Repository[];
-	readonly onDidOpenRepository: Event<Repository>;
-	readonly onDidCloseRepository: Event<Repository>;
-}
-
 export interface InputBox {
 	value: string;
 }
@@ -24,6 +17,17 @@ export interface InputBox {
 export interface Repository {
 	readonly rootUri: Uri;
 	readonly inputBox: InputBox;
+
+	readonly onDidRunGitStatus: Event<void>;
+
+	status(): Promise<void>;
+}
+
+export interface API {
+	readonly git: Git;
+	readonly repositories: Repository[];
+	readonly onDidOpenRepository: Event<Repository>;
+	readonly onDidCloseRepository: Event<Repository>;
 }
 
 export interface GitExtension {
