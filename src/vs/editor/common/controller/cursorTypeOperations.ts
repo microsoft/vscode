@@ -532,7 +532,6 @@ export class TypeOperations {
 			const position = selection.getPosition();
 			const lineText = model.getLineContent(position.lineNumber);
 
-
 			// Do not auto-close ' or " after a word character
 			if (chIsQuote && position.column > 1) {
 				const wordSeparators = getMapForWordSeparators(config.wordSeparators);

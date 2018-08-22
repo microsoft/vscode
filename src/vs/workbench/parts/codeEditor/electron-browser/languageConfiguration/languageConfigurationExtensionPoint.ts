@@ -280,7 +280,6 @@ export class LanguageConfigurationFileHandler {
 			richEditConfig.autoCloseBefore = autoCloseBefore;
 		}
 
-
 		if (configuration.wordPattern) {
 			try {
 				let wordPattern = this._parseRegex(configuration.wordPattern);

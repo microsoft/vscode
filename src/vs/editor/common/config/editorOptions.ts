@@ -1718,7 +1718,7 @@ export class EditorOptionsValidator {
 		let autoClosingBrackets: EditorAutoClosingStrategy;
 		let autoClosingQuotes: EditorAutoClosingStrategy;
 		let autoWrapping: EditorAutoWrappingStrategy;
-		if (typeof (opts.autoClosingBrackets) === 'boolean' && opts.autoClosingBrackets === false) {
+		if (typeof opts.autoClosingBrackets === 'boolean' && opts.autoClosingBrackets === false) {
 			// backwards compatibility: disable all on boolean false
 			autoClosingBrackets = 'never';
 			autoClosingQuotes = 'never';

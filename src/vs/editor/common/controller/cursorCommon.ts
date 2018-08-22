@@ -20,7 +20,6 @@ import { IViewModel } from 'vs/editor/common/viewModel/viewModel';
 import { CursorChangeReason } from 'vs/editor/common/controller/cursorEvents';
 import { VerticalRevealType } from 'vs/editor/common/view/viewEvents';
 import { TextModelResolvedOptions, ITextModel } from 'vs/editor/common/model';
-import { CharacterPairSupport } from 'vs/editor/common/modes/supports/characterPair';
 
 export interface IColumnSelectData {
 	toViewLineNumber: number;
@@ -66,6 +65,10 @@ export interface ICursors {
 export interface CharacterMap {
 	[char: string]: string;
 }
+
+const autoCloseAlways = _ => true;
+const autoCloseNever = _ => false;
+const autoCloseBeforeWhitespace = (chr: string) => (chr === ' ' || chr === '\t');
 
 export class CursorConfiguration {
 	_cursorMoveConfigurationBrand: void;
@@ -138,8 +141,8 @@ export class CursorConfiguration {
 		this._electricChars = null;
 
 		this.shouldAutoCloseBefore = {
-			quote: CursorConfiguration._getShouldAutoclose(languageIdentifier, this.autoClosingQuotes),
-			bracket: CursorConfiguration._getShouldAutoclose(languageIdentifier, this.autoClosingBrackets)
+			quote: CursorConfiguration._getShouldAutoClose(languageIdentifier, this.autoClosingQuotes),
+			bracket: CursorConfiguration._getShouldAutoClose(languageIdentifier, this.autoClosingBrackets)
 		};
 
 		let autoClosingPairs = CursorConfiguration._getAutoClosingPairs(languageIdentifier);
@@ -193,20 +196,26 @@ export class CursorConfiguration {
 		}
 	}
 
-	private static _getShouldAutoclose(languageIdentifier: LanguageIdentifier, autoCloseConfig: EditorAutoClosingStrategy): (ch: string) => boolean {
-		let autoCloseBeforeSet = CursorConfiguration._getAutoCloseBeforeSet(languageIdentifier);
-		if (autoCloseConfig === 'beforeWhitespace') { return c => CharacterPairSupport.DEFAULT_AUTOCLOSE_BEFORE_WHITESPACE.indexOf(c) !== -1; }
-		if (autoCloseConfig === 'languageDefined') { return c => autoCloseBeforeSet.indexOf(c) !== -1; }
-		if (autoCloseConfig === 'always') { return c => true; }
-		return c => false;
+	private static _getShouldAutoClose(languageIdentifier: LanguageIdentifier, autoCloseConfig: EditorAutoClosingStrategy): (ch: string) => boolean {
+		switch (autoCloseConfig) {
+			case 'beforeWhitespace':
+				return autoCloseBeforeWhitespace;
+			case 'languageDefined':
+				return CursorConfiguration._getLanguageDefinedShouldAutoClose(languageIdentifier);
+			case 'always':
+				return autoCloseAlways;
+			case 'never':
+				return autoCloseNever;
+		}
 	}
 
-	private static _getAutoCloseBeforeSet(languageIdentifier: LanguageIdentifier): string {
+	private static _getLanguageDefinedShouldAutoClose(languageIdentifier: LanguageIdentifier): (ch: string) => boolean {
 		try {
-			return LanguageConfigurationRegistry.getAutoCloseBeforeSet(languageIdentifier.id);
+			const autoCloseBeforeSet = LanguageConfigurationRegistry.getAutoCloseBeforeSet(languageIdentifier.id);
+			return c => autoCloseBeforeSet.indexOf(c) !== -1;
 		} catch (e) {
 			onUnexpectedError(e);
-			return null;
+			return autoCloseNever;
 		}
 	}
 
