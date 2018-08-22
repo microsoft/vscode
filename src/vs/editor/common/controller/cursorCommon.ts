@@ -576,3 +576,7 @@ export class CursorColumns {
 		return column - 1 - (column - 1) % tabSize;
 	}
 }
+
+export function isQuote(ch: string): boolean {
+	return (ch === '\'' || ch === '"' || ch === '`');
+}

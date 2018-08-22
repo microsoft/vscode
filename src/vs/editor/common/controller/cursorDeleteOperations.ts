@@ -5,7 +5,7 @@
 'use strict';
 
 import { ReplaceCommand } from 'vs/editor/common/commands/replaceCommand';
-import { CursorColumns, CursorConfiguration, ICursorSimpleModel, EditOperationResult, EditOperationType } from 'vs/editor/common/controller/cursorCommon';
+import { CursorColumns, CursorConfiguration, ICursorSimpleModel, EditOperationResult, EditOperationType, isQuote } from 'vs/editor/common/controller/cursorCommon';
 import { Range } from 'vs/editor/common/core/range';
 import { Selection } from 'vs/editor/common/core/selection';
 import { MoveOperations } from 'vs/editor/common/controller/cursorMoveOperations';
@@ -68,7 +68,7 @@ export class DeleteOperations {
 				return false;
 			}
 
-			if (character === '\'' || character === '"' || character === '`') {
+			if (isQuote(character)) {
 				if (config.autoClosingQuotes === 'never') {
 					return false;
 				}
