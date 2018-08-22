@@ -69,7 +69,7 @@ export class DownloadServiceChannelClient implements IDownloadService {
 							out.end();
 							disposable.dispose();
 							c(null);
-						} else if (result instanceof Buffer) {
+						} else if (Buffer.isBuffer(result)) {
 							out.write(result);
 						} else if (typeof result === 'string') {
 							out.close();
