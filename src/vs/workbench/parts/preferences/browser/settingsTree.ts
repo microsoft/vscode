@@ -388,7 +388,7 @@ export class SettingsRenderer implements ITreeRenderer {
 
 	_getExcludeSettingHeight(element: SettingsTreeSettingElement): number {
 		const displayValue = getExcludeDisplayValue(element);
-		return (displayValue.length + 1) * 22 + 80;
+		return (displayValue.length + 1) * 22 + 66 + this.measureSettingDescription(element);
 	}
 
 	private measureSettingElementHeight(tree: ITree, element: SettingsTreeSettingElement): number {
