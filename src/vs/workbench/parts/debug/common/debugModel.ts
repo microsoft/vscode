@@ -194,7 +194,7 @@ export class ExpressionContainer implements IExpressionContainer {
 			return response && response.body && response.body.variables ? distinct(response.body.variables.filter(v => !!v && isString(v.name)), v => v.name).map(
 				v => new Variable(this.session, this, v.variablesReference, v.name, v.evaluateName, v.value, v.namedVariables, v.indexedVariables, v.presentationHint, v.type)
 			) : [];
-		}, (e: Error) => [new Variable(this.session, this, 0, null, e.message, '', 0, 0, { kind: 'virtual' }, null, false)]);
+		}, (e: Error) => [new Variable(this.session, this, 0, e.message, e.message, '', 0, 0, { kind: 'virtual' }, null, false)]);
 	}
 
 	// The adapter explicitly sents the children count of an expression only if there are lots of children which should be chunked.
