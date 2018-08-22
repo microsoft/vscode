@@ -2483,6 +2483,16 @@ declare namespace monaco.editor {
 	}
 
 	/**
+	 * Configuration options for auto closing quotes and brackets
+	 */
+	export type EditorAutoClosingStrategy = 'always' | 'languageDefined' | 'beforeWhitespace' | 'never';
+
+	/**
+	 * Configuration options for auto wrapping quotes and brackets
+	 */
+	export type EditorAutoWrappingStrategy = 'always' | 'quotes' | 'brackets' | 'never';
+
+	/**
 	 * Configuration options for editor minimap
 	 */
 	export interface IEditorMinimapOptions {
@@ -2855,10 +2865,20 @@ declare namespace monaco.editor {
 		 */
 		iconsInSuggestions?: boolean;
 		/**
-		 * Enable auto closing brackets.
-		 * Defaults to true.
+		 * Options for auto closing brackets.
+		 * Defaults to language defined behavior.
 		 */
-		autoClosingBrackets?: boolean;
+		autoClosingBrackets?: EditorAutoClosingStrategy;
+		/**
+		 * Options for auto closing quotes.
+		 * Defaults to language defined behavior.
+		 */
+		autoClosingQuotes?: EditorAutoClosingStrategy;
+		/**
+		 * Options for autowrapping.
+		 * Defaults to always allowing autowrapping.
+		 */
+		autoWrapping?: EditorAutoWrappingStrategy;
 		/**
 		 * Enable auto indentation adjustment.
 		 * Defaults to false.
@@ -3292,7 +3312,9 @@ declare namespace monaco.editor {
 		readonly multiCursorMergeOverlapping: boolean;
 		readonly showUnused: boolean;
 		readonly wordSeparators: string;
-		readonly autoClosingBrackets: boolean;
+		readonly autoClosingBrackets: EditorAutoClosingStrategy;
+		readonly autoClosingQuotes: EditorAutoClosingStrategy;
+		readonly autoWrapping: EditorAutoWrappingStrategy;
 		readonly autoIndent: boolean;
 		readonly useTabStops: boolean;
 		readonly tabFocusMode: boolean;
@@ -3431,6 +3453,8 @@ declare namespace monaco.editor {
 		readonly multiCursorMergeOverlapping: boolean;
 		readonly wordSeparators: boolean;
 		readonly autoClosingBrackets: boolean;
+		readonly autoClosingQuotes: boolean;
+		readonly autoWrapping: boolean;
 		readonly autoIndent: boolean;
 		readonly useTabStops: boolean;
 		readonly tabFocusMode: boolean;
@@ -4596,6 +4620,12 @@ declare namespace monaco.languages {
 		 * settings will be used.
 		 */
 		surroundingPairs?: IAutoClosingPair[];
+		/**
+		 * Defines what characters must be after the cursor for bracket or quote autoclosing to occur when using the \'languageDefined\' autoclosing setting.
+		 *
+		 * This is typically the set of characters which can not start an expression, such as whitespace, closing brackets, non-unary operators, etc.
+		 */
+		autoCloseBefore?: string;
 		/**
 		 * The language's folding rules.
 		 */
