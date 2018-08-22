@@ -230,6 +230,10 @@ export function createApiFactory(
 			get logLevel() {
 				checkProposedApiEnabled(extension);
 				return extHostLogService.getLevel();
+			},
+			get onDidChangeLogLevel() {
+				checkProposedApiEnabled(extension);
+				return extHostLogService.onDidChangeLogLevel;
 			}
 		});
 
