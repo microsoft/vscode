@@ -118,6 +118,7 @@ export class ExplorerView extends TreeViewsViewletPanel implements IExplorerView
 		this.decorationProvider = new ExplorerDecorationsProvider(this.model, contextService);
 		decorationService.registerDecorationsProvider(this.decorationProvider);
 		this.disposables.push(this.decorationProvider);
+		this.disposables.push(this.resourceContext);
 	}
 
 	private getFileEventsExcludes(root?: URI): glob.IExpression {
