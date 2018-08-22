@@ -174,6 +174,7 @@ export class SearchService implements IRawSearchService {
 				type: 'success',
 				stats: {
 					detailStats: complete.stats,
+					type: 'searchProcess',
 					fromCache: false,
 					resultCount,
 					sortingTime: undefined
