@@ -383,7 +383,10 @@ export class BreadcrumbsControl {
 			let model = OutlineModel.get(element);
 			this._editorService.openEditor({
 				resource: model.textModel.uri,
-				options: { selection: Range.collapseToStart(element.symbol.selectionRange) }
+				options: {
+					selection: Range.collapseToStart(element.symbol.selectionRange),
+					revealInCenterIfOutsideViewport: true
+				}
 			}, group);
 		}
 	}
