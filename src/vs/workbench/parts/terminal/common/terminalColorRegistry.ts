@@ -5,7 +5,7 @@
 
 import * as nls from 'vs/nls';
 
-import { registerColor, ColorIdentifier } from 'vs/platform/theme/common/colorRegistry';
+import { editorBackground, registerColor, ColorIdentifier } from 'vs/platform/theme/common/colorRegistry';
 
 /**
  * The color identifiers for the terminal's ansi colors. The index in the array corresponds to the index
@@ -13,7 +13,11 @@ import { registerColor, ColorIdentifier } from 'vs/platform/theme/common/colorRe
  */
 export const ansiColorIdentifiers: ColorIdentifier[] = [];
 
-export const TERMINAL_BACKGROUND_COLOR = registerColor('terminal.background', null, nls.localize('terminal.background', 'The background color of the terminal, this allows coloring the terminal differently to the panel.'));
+export const TERMINAL_BACKGROUND_COLOR = registerColor('terminal.background', {
+	dark: editorBackground,
+	light: editorBackground,
+	hc: editorBackground
+}, nls.localize('terminal.background', 'The background color of the terminal, this allows coloring the terminal differently to the panel.'));
 export const TERMINAL_FOREGROUND_COLOR = registerColor('terminal.foreground', {
 	light: '#333333',
 	dark: '#CCCCCC',
