@@ -122,6 +122,7 @@ export interface IExtensionManifest {
 	main?: string;
 	icon?: string;
 	categories?: string[];
+	keywords?: string[];
 	activationEvents?: string[];
 	extensionDependencies?: string[];
 	extensionPack?: string[];

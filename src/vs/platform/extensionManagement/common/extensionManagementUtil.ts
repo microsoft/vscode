@@ -6,6 +6,7 @@
 'use strict';
 
 import { ILocalExtension, IGalleryExtension, EXTENSION_IDENTIFIER_REGEX, IExtensionIdentifier, IReportedExtension, IExtensionManifest } from 'vs/platform/extensionManagement/common/extensionManagement';
+import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 
 export function areSameExtensions(a: IExtensionIdentifier, b: IExtensionIdentifier): boolean {
 	if (a.uuid && b.uuid) {
@@ -119,9 +120,22 @@ export function getMaliciousExtensionsSet(report: IReportedExtension[]): Set<str
 	return result;
 }
 
-export function isWorkspaceExtension(manifest: IExtensionManifest): boolean {
+export function isWorkspaceExtension(manifest: IExtensionManifest, configurationService: IConfigurationService): boolean {
+	const extensionId = getGalleryExtensionId(manifest.publisher, manifest.name);
+	const workspaceExtensions = configurationService.getValue<string[]>('_workbench.workspaceExtensions') || [];
+	if (workspaceExtensions.length) {
+		if (workspaceExtensions.indexOf(extensionId) !== -1) {
+			return true;
+		}
+		if (workspaceExtensions.indexOf(`-${extensionId}`) !== -1) {
+			return false;
+		}
+	}
+
 	if (manifest.main) {
-		const extensionId = getGalleryExtensionId(manifest.publisher, manifest.name);
+		if ((manifest.keywords || []).indexOf('capability_fs') !== -1) {
+			return true;
+		}
 		return [
 			'vscode.extension-editing',
 			'vscode.configuration-editing',

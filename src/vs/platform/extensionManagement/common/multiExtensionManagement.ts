@@ -18,6 +18,7 @@ import { IWindowService } from 'vs/platform/windows/common/windows';
 import { Action } from 'vs/base/common/actions';
 import { ILogService } from 'vs/platform/log/common/log';
 import { Disposable } from 'vs/base/common/lifecycle';
+import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 
 export class MulitExtensionManagementService extends Disposable implements IExtensionManagementService {
 
@@ -37,7 +38,8 @@ export class MulitExtensionManagementService extends Disposable implements IExte
 		@INotificationService private notificationService: INotificationService,
 		@IWindowService private windowService: IWindowService,
 		@ILogService private logService: ILogService,
-		@IExtensionGalleryService private extensionGalleryService: IExtensionGalleryService
+		@IExtensionGalleryService private extensionGalleryService: IExtensionGalleryService,
+		@IConfigurationService private configurationService: IConfigurationService
 	) {
 		super();
 		this.servers = this.extensionManagementServerService.extensionManagementServers;
@@ -84,7 +86,7 @@ export class MulitExtensionManagementService extends Disposable implements IExte
 			.then(extensionIdentifer => this.localServer.extensionManagementService.getInstalled(LocalExtensionType.User)
 				.then(installed => {
 					const extension = installed.filter(i => areSameExtensions(i.identifier, extensionIdentifer))[0];
-					if (extension && isWorkspaceExtension(extension.manifest)) {
+					if (this.otherServers.length && extension && isWorkspaceExtension(extension.manifest, this.configurationService)) {
 						return TPromise.join(this.otherServers.map(server => server.extensionManagementService.install(vsix)))
 							.then(() => extensionIdentifer);
 					}
@@ -98,7 +100,7 @@ export class MulitExtensionManagementService extends Disposable implements IExte
 		}
 		return this.extensionGalleryService.getManifest(gallery)
 			.then(manifest => {
-				const servers = isWorkspaceExtension(manifest) ? this.servers : [this.localServer];
+				const servers = isWorkspaceExtension(manifest, this.configurationService) ? this.servers : [this.localServer];
 				return TPromise.join(servers.map(server => server.extensionManagementService.installFromGallery(gallery)))
 					.then(() => null);
 			});
@@ -115,7 +117,7 @@ export class MulitExtensionManagementService extends Disposable implements IExte
 	private async syncExtensions(): Promise<void> {
 		this.localServer.extensionManagementService.getInstalled(LocalExtensionType.User)
 			.then(async localExtensions => {
-				const workspaceExtensions = localExtensions.filter(e => isWorkspaceExtension(e.manifest));
+				const workspaceExtensions = localExtensions.filter(e => isWorkspaceExtension(e.manifest, this.configurationService));
 				const extensionsToSync: Map<IExtensionManagementServer, ILocalExtension[]> = await this.getExtensionsToSync(workspaceExtensions);
 				if (extensionsToSync.size > 0) {
 					const handler = this.notificationService.notify({ severity: Severity.Info, message: localize('synchronising', "Synchronising workspace extensions...") });
