@@ -12,12 +12,13 @@ import { IPagedRenderer, PagedList } from 'vs/base/browser/ui/list/listPaging';
 import { DefaultStyleController, IListOptions, IMultipleSelectionController, IOpenController, isSelectionRangeChangeEvent, isSelectionSingleChangeEvent, List } from 'vs/base/browser/ui/list/listWidget';
 import { canceled, onUnexpectedError } from 'vs/base/common/errors';
 import { Emitter, Event } from 'vs/base/common/event';
+import { FuzzyScore } from 'vs/base/common/filters';
 import { KeyCode } from 'vs/base/common/keyCodes';
 import { combinedDisposable, Disposable, dispose, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
 import { ScrollbarVisibility } from 'vs/base/common/scrollable';
 import { isUndefinedOrNull } from 'vs/base/common/types';
 import { TPromise } from 'vs/base/common/winjs.base';
-import { IRenderer as ITreeRenderer, ITree, ITreeConfiguration, ITreeOptions } from 'vs/base/parts/tree/browser/tree';
+import { ITree, ITreeConfiguration, ITreeOptions } from 'vs/base/parts/tree/browser/tree';
 import { ClickBehavior, DefaultController, DefaultTreestyler, IControllerOptions, OpenMode } from 'vs/base/parts/tree/browser/treeDefaults';
 import { Tree } from 'vs/base/parts/tree/browser/treeImpl';
 import { localize } from 'vs/nls';
@@ -562,16 +563,13 @@ export class TreeResourceNavigator extends Disposable {
 	}
 }
 
-
-export interface IHighlightingRenderer extends ITreeRenderer {
-	/**
-	 * Update hightlights and return the best matching element
-	 */
-	updateHighlights(tree: ITree, pattern: string): any;
+export interface IHighlighter {
+	getHighlights(tree: ITree, element: any, pattern: string): FuzzyScore;
+	getHighlightsStorageKey?(element: any): any;
 }
 
 export interface IHighlightingTreeConfiguration extends ITreeConfiguration {
-	renderer: IHighlightingRenderer & ITreeRenderer;
+	highlighter: IHighlighter;
 }
 
 export class HighlightingTreeController extends WorkbenchTreeController {
@@ -607,7 +605,8 @@ export class HighlightingWorkbenchTree extends WorkbenchTree {
 	protected readonly inputContainer: HTMLElement;
 	protected readonly input: InputBox;
 
-	protected readonly renderer: IHighlightingRenderer;
+	protected readonly highlighter: IHighlighter;
+	protected readonly highlights: Map<any, FuzzyScore>;
 
 	constructor(
 		parent: HTMLElement,
@@ -635,7 +634,8 @@ export class HighlightingWorkbenchTree extends WorkbenchTree {
 		// create tree
 		treeConfiguration.controller = treeConfiguration.controller || instantiationService.createInstance(HighlightingTreeController, {}, () => this.onTypeInTree());
 		super(treeContainer, treeConfiguration, treeOptions, contextKeyService, listService, themeService, instantiationService, configurationService);
-		this.renderer = treeConfiguration.renderer;
+		this.highlighter = treeConfiguration.highlighter;
+		this.highlights = new Map<any, FuzzyScore>();
 
 		this.domNode = container;
 		addClass(this.domNode, 'inactive');
@@ -705,7 +705,19 @@ export class HighlightingWorkbenchTree extends WorkbenchTree {
 			this.lastSelection = [];
 		}
 
-		const topElement = this.renderer.updateHighlights(this, pattern);
+		let nav = this.getNavigator(undefined, false);
+		let topScore: FuzzyScore;
+		let topElement: any;
+		while (nav.next()) {
+			let element = nav.current();
+			let score = this.highlighter.getHighlights(this, element, pattern);
+			this.highlights.set(this._getHighlightsStorageKey(element), score);
+			element.foo = 1;
+			if (!topScore || score && topScore[0] < score[0]) {
+				topScore = score;
+				topElement = element;
+			}
+		}
 
 		this.refresh().then(() => {
 			if (topElement && pattern) {
@@ -715,8 +727,19 @@ export class HighlightingWorkbenchTree extends WorkbenchTree {
 				});
 			} else {
 				this.setSelection(defaultSelection, this);
+				this.highlights.clear();
 			}
 		}, onUnexpectedError);
+	}
+
+	getHighlights(element: any): FuzzyScore {
+		return this.highlights.get(this._getHighlightsStorageKey(element));
+	}
+
+	private _getHighlightsStorageKey(element: any): any {
+		return typeof this.highlighter.getHighlightsStorageKey === 'function'
+			? this.highlighter.getHighlightsStorageKey(element)
+			: element;
 	}
 }
 

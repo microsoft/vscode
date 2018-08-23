@@ -23,7 +23,7 @@ import { localize } from 'vs/nls';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { FileKind, IFileService, IFileStat } from 'vs/platform/files/common/files';
 import { IConstructorSignature1, IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { HighlightingWorkbenchTree, IHighlightingRenderer, IHighlightingTreeConfiguration } from 'vs/platform/list/browser/listService';
+import { HighlightingWorkbenchTree, IHighlighter, IHighlightingTreeConfiguration } from 'vs/platform/list/browser/listService';
 import { breadcrumbsPickerBackground, widgetShadow } from 'vs/platform/theme/common/colorRegistry';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { IWorkspace, IWorkspaceContextService, IWorkspaceFolder } from 'vs/platform/workspace/common/workspace';
@@ -79,7 +79,7 @@ export abstract class BreadcrumbsPicker {
 		this._treeContainer.style.boxShadow = `0px 5px 8px ${this._themeService.getTheme().getColor(widgetShadow)}`;
 		this._domNode.appendChild(this._treeContainer);
 
-		const treeConifg = this._completeTreeConfiguration({ dataSource: undefined, renderer: undefined });
+		const treeConifg = this._completeTreeConfiguration({ dataSource: undefined, renderer: undefined, highlighter: undefined });
 		this._tree = this._instantiationService.createInstance(
 			HighlightingWorkbenchTree,
 			this._treeContainer,
@@ -259,9 +259,16 @@ export class FileFilter implements IFilter {
 	}
 }
 
-export class FileRenderer implements IRenderer, IHighlightingRenderer {
+export class FileHighlighter implements IHighlighter {
+	getHighlightsStorageKey(element: IFileStat | IWorkspaceFolder): string {
+		return IWorkspaceFolder.isIWorkspaceFolder(element) ? element.uri.toString() : element.resource.toString();
+	}
+	getHighlights(tree: ITree, element: IFileStat | IWorkspaceFolder, pattern: string): FuzzyScore {
+		return fuzzyScore(pattern, element.name, undefined, true);
+	}
+}
 
-	private readonly _scores = new Map<string, FuzzyScore>();
+export class FileRenderer implements IRenderer {
 
 	constructor(
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
@@ -295,29 +302,13 @@ export class FileRenderer implements IRenderer, IHighlightingRenderer {
 			fileKind,
 			hidePath: true,
 			fileDecorations: fileDecorations,
-			matches: createMatches((this._scores.get(resource.toString()) || [, []])[1]),
+			matches: createMatches((tree as HighlightingWorkbenchTree).getHighlights(element)),
 			extraClasses: ['picker-item']
 		});
 	}
 
 	disposeTemplate(tree: ITree, templateId: string, templateData: FileLabel): void {
 		templateData.dispose();
-	}
-
-	updateHighlights(tree: ITree, pattern: string): any {
-		let nav = tree.getNavigator(undefined, false);
-		let topScore: FuzzyScore;
-		let topElement: any;
-		while (nav.next()) {
-			let element = nav.current() as IFileStat | IWorkspaceFolder;
-			let score = fuzzyScore(pattern, element.name, undefined, true);
-			this._scores.set(IWorkspaceFolder.isIWorkspaceFolder(element) ? element.uri.toString() : element.resource.toString(), score);
-			if (!topScore || score && topScore[0] < score[0]) {
-				topScore = score;
-				topElement = element;
-			}
-		}
-		return topElement;
 	}
 }
 
@@ -379,6 +370,7 @@ export class BreadcrumbsFilePicker extends BreadcrumbsPicker {
 		config.dataSource = this._instantiationService.createInstance(FileDataSource);
 		config.renderer = this._instantiationService.createInstance(FileRenderer);
 		config.sorter = new FileSorter();
+		config.highlighter = new FileHighlighter();
 		config.filter = filter;
 		return config;
 	}
@@ -393,11 +385,10 @@ export class BreadcrumbsFilePicker extends BreadcrumbsPicker {
 
 //#region - Symbols
 
-class HighlightingOutlineRenderer extends OutlineRenderer implements IHighlightingRenderer {
-
-	updateHighlights(tree: ITree, pattern: string): any {
-		let model = OutlineModel.get(tree.getInput());
-		return model.updateMatches(pattern);
+class OutlineHighlighter implements IHighlighter {
+	getHighlights(tree: ITree, element: OutlineElement, pattern: string): FuzzyScore {
+		OutlineModel.get(element).updateMatches(pattern);
+		return element.score;
 	}
 }
 
@@ -416,8 +407,9 @@ export class BreadcrumbsOutlinePicker extends BreadcrumbsPicker {
 
 	protected _completeTreeConfiguration(config: IHighlightingTreeConfiguration): IHighlightingTreeConfiguration {
 		config.dataSource = this._instantiationService.createInstance(OutlineDataSource);
-		config.renderer = this._instantiationService.createInstance(HighlightingOutlineRenderer);
+		config.renderer = this._instantiationService.createInstance(OutlineRenderer);
 		config.sorter = new OutlineItemComparator();
+		config.highlighter = new OutlineHighlighter();
 		return config;
 	}
 
