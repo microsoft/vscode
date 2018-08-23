@@ -45,7 +45,7 @@ import { WorkspaceEdit, isResourceTextEdit, TextEdit } from 'vs/editor/common/mo
 import { IModelService } from 'vs/editor/common/services/modelService';
 import { EditOperation } from 'vs/editor/common/core/editOperation';
 import { localize } from 'vs/nls';
-import { IUriLabelService, UriLabelRules } from 'vs/platform/uriLabel/common/uriLabel';
+import { ILabelService, UriLabelRules } from 'vs/platform/label/common/label';
 
 export class SimpleModel implements ITextEditorModel {
 
@@ -596,13 +596,13 @@ export class SimpleBulkEditService implements IBulkEditService {
 	}
 }
 
-export class SimpleUriLabelService implements IUriLabelService {
+export class SimpleUriLabelService implements ILabelService {
 	_serviceBrand: any;
 
 	private readonly _onDidRegisterFormater: Emitter<{ scheme: string, formater: UriLabelRules }> = new Emitter<{ scheme: string, formater: UriLabelRules }>();
 	public readonly onDidRegisterFormater: Event<{ scheme: string, formater: UriLabelRules }> = this._onDidRegisterFormater.event;
 
-	public getLabel(resource: URI, relative?: boolean): string {
+	public getUriLabel(resource: URI, relative?: boolean): string {
 		if (resource.scheme === 'file') {
 			return resource.fsPath;
 		}

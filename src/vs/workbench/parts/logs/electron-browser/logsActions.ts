@@ -16,7 +16,7 @@ import { ICommandService } from 'vs/platform/commands/common/commands';
 import URI from 'vs/base/common/uri';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { IQuickPickItem, IQuickInputService } from 'vs/platform/quickinput/common/quickInput';
-import { IUriLabelService } from 'vs/platform/uriLabel/common/uriLabel';
+import { ILabelService } from 'vs/platform/label/common/label';
 
 export class OpenLogsFolderAction extends Action {
 
@@ -44,13 +44,13 @@ export class ShowLogsAction extends Action {
 		@IQuickInputService private quickInputService: IQuickInputService,
 		@IOutputService private outputService: IOutputService,
 		@IWorkspaceContextService private contextService: IWorkspaceContextService,
-		@IUriLabelService private uriLabelService: IUriLabelService
+		@ILabelService private labelService: ILabelService
 	) {
 		super(id, label);
 	}
 
 	run(): TPromise<void> {
-		const workspaceName = this.uriLabelService.getWorkspaceLabel(this.contextService.getWorkspace());
+		const workspaceName = this.labelService.getWorkspaceLabel(this.contextService.getWorkspace());
 		const entries: IQuickPickItem[] = [
 			{ id: Constants.rendererLogChannelId, label: workspaceName ? nls.localize('rendererProcess', "Window ({0})", workspaceName) : nls.localize('emptyWindow', "Window") },
 			{ id: Constants.extHostLogChannelId, label: nls.localize('extensionHost', "Extension Host") },
@@ -79,13 +79,13 @@ export class OpenLogFileAction extends Action {
 		@ICommandService private commandService: ICommandService,
 		@IWindowService private windowService: IWindowService,
 		@IWorkspaceContextService private contextService: IWorkspaceContextService,
-		@IUriLabelService private uriLabelService: IUriLabelService
+		@ILabelService private labelService: ILabelService
 	) {
 		super(id, label);
 	}
 
 	run(): TPromise<void> {
-		const workspaceName = this.uriLabelService.getWorkspaceLabel(this.contextService.getWorkspace());
+		const workspaceName = this.labelService.getWorkspaceLabel(this.contextService.getWorkspace());
 		const entries: IQuickPickItem[] = [
 			{ id: URI.file(paths.join(this.environmentService.logsPath, `renderer${this.windowService.getCurrentWindowId()}.log`)).fsPath, label: workspaceName ? nls.localize('rendererProcess', "Window ({0})", workspaceName) : nls.localize('emptyWindow', "Window") },
 			{ id: URI.file(paths.join(this.environmentService.logsPath, `exthost${this.windowService.getCurrentWindowId()}.log`)).fsPath, label: nls.localize('extensionHost', "Extension Host") },

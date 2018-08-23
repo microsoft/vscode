@@ -29,7 +29,7 @@ import { IWorkspaceIdentifier, ISingleFolderWorkspaceIdentifier, isSingleFolderW
 import { RunOnceScheduler } from 'vs/base/common/async';
 import { MENUBAR_SELECTION_FOREGROUND, MENUBAR_SELECTION_BACKGROUND, MENUBAR_SELECTION_BORDER, TITLE_BAR_ACTIVE_FOREGROUND, TITLE_BAR_INACTIVE_FOREGROUND, MENU_BACKGROUND, MENU_FOREGROUND, MENU_SELECTION_BACKGROUND, MENU_SELECTION_FOREGROUND, MENU_SELECTION_BORDER } from 'vs/workbench/common/theme';
 import URI from 'vs/base/common/uri';
-import { IUriLabelService } from 'vs/platform/uriLabel/common/uriLabel';
+import { ILabelService } from 'vs/platform/label/common/label';
 import { foreground } from 'vs/platform/theme/common/colorRegistry';
 import { IUpdateService, StateType } from 'vs/platform/update/common/update';
 
@@ -121,7 +121,7 @@ export class MenubarControl extends Disposable {
 		@IContextKeyService private contextKeyService: IContextKeyService,
 		@IKeybindingService private keybindingService: IKeybindingService,
 		@IConfigurationService private configurationService: IConfigurationService,
-		@IUriLabelService private uriLabelService: IUriLabelService,
+		@ILabelService private labelService: ILabelService,
 		@IUpdateService private updateService: IUpdateService
 	) {
 
@@ -531,14 +531,14 @@ export class MenubarControl extends Disposable {
 		let uri: URI;
 
 		if (isSingleFolderWorkspaceIdentifier(workspace) && !isFile) {
-			label = this.uriLabelService.getWorkspaceLabel(workspace, { verbose: true });
+			label = this.labelService.getWorkspaceLabel(workspace, { verbose: true });
 			uri = workspace;
 		} else if (isWorkspaceIdentifier(workspace)) {
-			label = this.uriLabelService.getWorkspaceLabel(workspace, { verbose: true });
+			label = this.labelService.getWorkspaceLabel(workspace, { verbose: true });
 			uri = URI.file(workspace.configPath);
 		} else {
 			uri = workspace;
-			label = this.uriLabelService.getLabel(uri);
+			label = this.labelService.getUriLabel(uri);
 		}
 
 		return new Action(commandId, label, undefined, undefined, (event) => {

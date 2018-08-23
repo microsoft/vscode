@@ -18,9 +18,9 @@ import { localize } from 'vs/nls';
 import { isParent } from 'vs/platform/files/common/files';
 import { basename, dirname, join } from 'vs/base/common/paths';
 
-export interface IUriLabelService {
+export interface ILabelService {
 	_serviceBrand: any;
-	getLabel(resource: URI, relative?: boolean, forceNoTildify?: boolean): string;
+	getUriLabel(resource: URI, relative?: boolean, forceNoTildify?: boolean): string;
 	getWorkspaceLabel(workspace: (IWorkspaceIdentifier | ISingleFolderWorkspaceIdentifier | IWorkspace), options?: { verbose: boolean }): string;
 	registerFormater(schema: string, formater: UriLabelRules): IDisposable;
 	onDidRegisterFormater: Event<{ scheme: string, formater: UriLabelRules }>;
@@ -33,7 +33,7 @@ export interface UriLabelRules {
 	normalizeDriveLetter?: boolean;
 }
 
-const URI_LABEL_SERVICE_ID = 'uriLabel';
+const LABEL_SERVICE_ID = 'label';
 const sepRegexp = /\//g;
 const labelMatchingRegexp = /\$\{scheme\}|\$\{authority\}|\$\{path\}/g;
 
@@ -41,7 +41,7 @@ function hasDriveLetter(path: string): boolean {
 	return isWindows && path && path[2] === ':';
 }
 
-export class UriLabelService implements IUriLabelService {
+export class LabelService implements ILabelService {
 	_serviceBrand: any;
 
 	private readonly formaters = new Map<string, UriLabelRules>();
@@ -56,7 +56,7 @@ export class UriLabelService implements IUriLabelService {
 		return this._onDidRegisterFormater.event;
 	}
 
-	getLabel(resource: URI, relative?: boolean, forceNoTildify?: boolean): string {
+	getUriLabel(resource: URI, relative?: boolean, forceNoTildify?: boolean): string {
 		if (!resource) {
 			return undefined;
 		}
@@ -100,7 +100,7 @@ export class UriLabelService implements IUriLabelService {
 		// Workspace: Single Folder
 		if (isSingleFolderWorkspaceIdentifier(workspace)) {
 			// Folder on disk
-			return options && options.verbose ? this.getLabel(workspace) : basenameOrAuthority(workspace);
+			return options && options.verbose ? this.getUriLabel(workspace) : basenameOrAuthority(workspace);
 		}
 
 		// Workspace: Untitled
@@ -112,7 +112,7 @@ export class UriLabelService implements IUriLabelService {
 		const filename = basename(workspace.configPath);
 		const workspaceName = filename.substr(0, filename.length - WORKSPACE_EXTENSION.length - 1);
 		if (options && options.verbose) {
-			return localize('workspaceNameVerbose', "{0} (Workspace)", this.getLabel(URI.file(join(dirname(workspace.configPath), workspaceName))));
+			return localize('workspaceNameVerbose', "{0} (Workspace)", this.getUriLabel(URI.file(join(dirname(workspace.configPath), workspaceName))));
 		}
 
 		return localize('workspaceName', "{0} (Workspace)", workspaceName);
@@ -150,4 +150,4 @@ export class UriLabelService implements IUriLabelService {
 	}
 }
 
-export const IUriLabelService = createDecorator<IUriLabelService>(URI_LABEL_SERVICE_ID);
+export const ILabelService = createDecorator<ILabelService>(LABEL_SERVICE_ID);

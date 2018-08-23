@@ -38,7 +38,7 @@ import { INotificationService, Severity } from 'vs/platform/notification/common/
 import { getPathFromAmdModule } from 'vs/base/common/amd';
 import { timeout } from 'vs/base/common/async';
 import { isMessageOfType, MessageType, createMessageOfType } from 'vs/workbench/common/extensionHostProtocol';
-import { IUriLabelService } from 'vs/platform/uriLabel/common/uriLabel';
+import { ILabelService } from 'vs/platform/label/common/label';
 
 export interface IExtensionHostStarter {
 	readonly onCrashed: Event<[number, string]>;
@@ -83,7 +83,7 @@ export class ExtensionHostProcessWorker implements IExtensionHostStarter {
 		@ITelemetryService private readonly _telemetryService: ITelemetryService,
 		@ICrashReporterService private readonly _crashReporterService: ICrashReporterService,
 		@ILogService private readonly _logService: ILogService,
-		@IUriLabelService private readonly _uriLabelService: IUriLabelService
+		@ILabelService private readonly _labelService: ILabelService
 	) {
 		// handle extension host lifecycle a bit special when we know we are developing an extension that runs inside
 		this._isExtensionDevHost = this._environmentService.isExtensionDevelopment;
@@ -387,7 +387,7 @@ export class ExtensionHostProcessWorker implements IExtensionHostStarter {
 					configuration: workspace.configuration,
 					folders: workspace.folders,
 					id: workspace.id,
-					name: this._uriLabelService.getWorkspaceLabel(workspace)
+					name: this._labelService.getWorkspaceLabel(workspace)
 				},
 				extensions: extensionDescriptions,
 				// Send configurations scopes only in development mode.

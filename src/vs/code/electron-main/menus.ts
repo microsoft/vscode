@@ -24,7 +24,7 @@ import { IWindowsMainService, IWindowsCountChangedEvent } from 'vs/platform/wind
 import { IHistoryMainService } from 'vs/platform/history/common/history';
 import { IWorkspaceIdentifier, ISingleFolderWorkspaceIdentifier, isSingleFolderWorkspaceIdentifier, isWorkspaceIdentifier } from 'vs/platform/workspaces/common/workspaces';
 import URI from 'vs/base/common/uri';
-import { IUriLabelService } from 'vs/platform/uriLabel/common/uriLabel';
+import { ILabelService } from 'vs/platform/label/common/label';
 
 interface IMenuItemClickHandler {
 	inDevTools: (contents: Electron.WebContents) => void;
@@ -68,7 +68,7 @@ export class CodeMenu {
 		@IEnvironmentService private environmentService: IEnvironmentService,
 		@ITelemetryService private telemetryService: ITelemetryService,
 		@IHistoryMainService private historyMainService: IHistoryMainService,
-		@IUriLabelService private uriLabelService: IUriLabelService
+		@ILabelService private labelService: ILabelService
 	) {
 		this.nativeTabMenuItems = [];
 
@@ -491,14 +491,14 @@ export class CodeMenu {
 		let label: string;
 		let uri: URI;
 		if (isSingleFolderWorkspaceIdentifier(workspace)) {
-			label = unmnemonicLabel(this.uriLabelService.getWorkspaceLabel(workspace, { verbose: true }));
+			label = unmnemonicLabel(this.labelService.getWorkspaceLabel(workspace, { verbose: true }));
 			uri = workspace;
 		} else if (isWorkspaceIdentifier(workspace)) {
-			label = this.uriLabelService.getWorkspaceLabel(workspace, { verbose: true });
+			label = this.labelService.getWorkspaceLabel(workspace, { verbose: true });
 			uri = URI.file(workspace.configPath);
 		} else {
 			uri = URI.file(workspace);
-			label = unmnemonicLabel(this.uriLabelService.getLabel(uri));
+			label = unmnemonicLabel(this.labelService.getUriLabel(uri));
 		}
 
 		return new MenuItem(this.likeAction(commandId, {

@@ -34,7 +34,7 @@ import { addDisposableListener, EventType, EventHelper, Dimension } from 'vs/bas
 import { MenubarControl } from 'vs/workbench/browser/parts/titlebar/menubarControl';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { template, getBaseLabel } from 'vs/base/common/labels';
-import { IUriLabelService } from 'vs/platform/uriLabel/common/uriLabel';
+import { ILabelService } from 'vs/platform/label/common/label';
 import { Event } from 'vs/base/common/event';
 
 export class TitlebarPart extends Part implements ITitleService {
@@ -84,7 +84,7 @@ export class TitlebarPart extends Part implements ITitleService {
 		@IWorkspaceContextService private contextService: IWorkspaceContextService,
 		@IInstantiationService private instantiationService: IInstantiationService,
 		@IThemeService themeService: IThemeService,
-		@IUriLabelService private uriLabelService: IUriLabelService
+		@ILabelService private labelService: ILabelService
 	) {
 		super(id, { hasTitle: false }, themeService);
 
@@ -243,10 +243,10 @@ export class TitlebarPart extends Part implements ITitleService {
 		const activeEditorShort = editor ? editor.getTitle(Verbosity.SHORT) : '';
 		const activeEditorMedium = editor ? editor.getTitle(Verbosity.MEDIUM) : activeEditorShort;
 		const activeEditorLong = editor ? editor.getTitle(Verbosity.LONG) : activeEditorMedium;
-		const rootName = root ? this.uriLabelService.getWorkspaceLabel(root) : '';
-		const rootPath = root ? this.uriLabelService.getLabel(root) : '';
+		const rootName = root ? this.labelService.getWorkspaceLabel(root) : '';
+		const rootPath = root ? this.labelService.getUriLabel(root) : '';
 		const folderName = folder ? folder.name : '';
-		const folderPath = folder ? this.uriLabelService.getLabel(folder.uri) : '';
+		const folderPath = folder ? this.labelService.getUriLabel(folder.uri) : '';
 		const dirty = editor && editor.isDirty() ? TitlebarPart.TITLE_DIRTY : '';
 		const appName = this.environmentService.appNameLong;
 		const separator = TitlebarPart.TITLE_SEPARATOR;

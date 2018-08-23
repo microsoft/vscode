@@ -22,7 +22,7 @@ import { IHistoryMainService } from 'vs/platform/history/common/history';
 import { IWorkspaceIdentifier, ISingleFolderWorkspaceIdentifier, isSingleFolderWorkspaceIdentifier, isWorkspaceIdentifier } from 'vs/platform/workspaces/common/workspaces';
 import { IMenubarData, IMenubarKeybinding, MenubarMenuItem, isMenubarMenuItemSeparator, isMenubarMenuItemSubmenu, isMenubarMenuItemAction } from 'vs/platform/menubar/common/menubar';
 import URI from 'vs/base/common/uri';
-import { IUriLabelService } from 'vs/platform/uriLabel/common/uriLabel';
+import { ILabelService } from 'vs/platform/label/common/label';
 
 const telemetryFrom = 'menu';
 
@@ -49,7 +49,7 @@ export class Menubar {
 		@IEnvironmentService private environmentService: IEnvironmentService,
 		@ITelemetryService private telemetryService: ITelemetryService,
 		@IHistoryMainService private historyMainService: IHistoryMainService,
-		@IUriLabelService private uriLabelService: IUriLabelService
+		@ILabelService private labelService: ILabelService
 	) {
 		this.menuUpdater = new RunOnceScheduler(() => this.doUpdateMenu(), 0);
 
@@ -563,13 +563,13 @@ export class Menubar {
 		let label: string;
 		let uri: URI;
 		if (isSingleFolderWorkspaceIdentifier(workspaceOrFile) && !isFile) {
-			label = unmnemonicLabel(this.uriLabelService.getWorkspaceLabel(workspaceOrFile, { verbose: true }));
+			label = unmnemonicLabel(this.labelService.getWorkspaceLabel(workspaceOrFile, { verbose: true }));
 			uri = workspaceOrFile;
 		} else if (isWorkspaceIdentifier(workspaceOrFile)) {
-			label = this.uriLabelService.getWorkspaceLabel(workspaceOrFile, { verbose: true });
+			label = this.labelService.getWorkspaceLabel(workspaceOrFile, { verbose: true });
 			uri = URI.file(workspaceOrFile.configPath);
 		} else {
-			label = unmnemonicLabel(this.uriLabelService.getLabel(workspaceOrFile));
+			label = unmnemonicLabel(this.labelService.getUriLabel(workspaceOrFile));
 			uri = workspaceOrFile;
 		}
 

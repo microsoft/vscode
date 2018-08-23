@@ -23,7 +23,7 @@ import { CommandsRegistry } from 'vs/platform/commands/common/commands';
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
 import { areSameExtensions } from 'vs/platform/extensionManagement/common/extensionManagementUtil';
 import { IWindowService } from 'vs/platform/windows/common/windows';
-import { IUriLabelService } from 'vs/platform/uriLabel/common/uriLabel';
+import { ILabelService } from 'vs/platform/label/common/label';
 
 @extHostNamedCustomer(MainContext.MainThreadWorkspace)
 export class MainThreadWorkspace implements MainThreadWorkspaceShape {
@@ -41,7 +41,7 @@ export class MainThreadWorkspace implements MainThreadWorkspaceShape {
 		@IWorkspaceEditingService private readonly _workspaceEditingService: IWorkspaceEditingService,
 		@IStatusbarService private readonly _statusbarService: IStatusbarService,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
-		@IUriLabelService private readonly _uriLabelService: IUriLabelService
+		@ILabelService private readonly _labelService: ILabelService
 	) {
 		this._proxy = extHostContext.getProxy(ExtHostContext.ExtHostWorkspace);
 		this._contextService.onDidChangeWorkspaceFolders(this._onDidChangeWorkspace, this, this._toDispose);
@@ -106,7 +106,7 @@ export class MainThreadWorkspace implements MainThreadWorkspaceShape {
 			configuration: workspace.configuration,
 			folders: workspace.folders,
 			id: workspace.id,
-			name: this._uriLabelService.getWorkspaceLabel(workspace)
+			name: this._labelService.getWorkspaceLabel(workspace)
 		} : null);
 	}
 

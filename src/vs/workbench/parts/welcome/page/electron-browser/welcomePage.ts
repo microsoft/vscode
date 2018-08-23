@@ -39,7 +39,7 @@ import { getIdAndVersionFromLocalExtensionId } from 'vs/platform/extensionManage
 import { INotificationService, Severity } from 'vs/platform/notification/common/notification';
 import { TimeoutTimer } from 'vs/base/common/async';
 import { areSameExtensions } from 'vs/platform/extensionManagement/common/extensionManagementUtil';
-import { IUriLabelService } from 'vs/platform/uriLabel/common/uriLabel';
+import { ILabelService } from 'vs/platform/label/common/label';
 
 used();
 
@@ -223,7 +223,7 @@ class WelcomePage {
 		@IWorkspaceContextService private contextService: IWorkspaceContextService,
 		@IConfigurationService private configurationService: IConfigurationService,
 		@IEnvironmentService private environmentService: IEnvironmentService,
-		@IUriLabelService private uriLabelService: IUriLabelService,
+		@ILabelService private labelService: ILabelService,
 		@INotificationService private notificationService: INotificationService,
 		@IExtensionEnablementService private extensionEnablementService: IExtensionEnablementService,
 		@IExtensionGalleryService private extensionGalleryService: IExtensionGalleryService,
@@ -280,9 +280,9 @@ class WelcomePage {
 				let resource: URI;
 				if (isSingleFolderWorkspaceIdentifier(workspace)) {
 					resource = workspace;
-					label = this.uriLabelService.getWorkspaceLabel(workspace);
+					label = this.labelService.getWorkspaceLabel(workspace);
 				} else if (isWorkspaceIdentifier(workspace)) {
-					label = this.uriLabelService.getWorkspaceLabel(workspace);
+					label = this.labelService.getWorkspaceLabel(workspace);
 					resource = URI.file(workspace.configPath);
 				} else {
 					label = getBaseLabel(workspace);
@@ -304,7 +304,7 @@ class WelcomePage {
 					}
 					parentFolderPath = tildify(parentFolder, this.environmentService.userHome);
 				} else {
-					parentFolderPath = this.uriLabelService.getLabel(resource);
+					parentFolderPath = this.labelService.getUriLabel(resource);
 				}
 
 

@@ -63,7 +63,7 @@ import { serve as serveDriver } from 'vs/platform/driver/electron-main/driver';
 import { IMenubarService } from 'vs/platform/menubar/common/menubar';
 import { MenubarService } from 'vs/platform/menubar/electron-main/menubarService';
 import { MenubarChannel } from 'vs/platform/menubar/node/menubarIpc';
-import { IUriLabelService } from 'vs/platform/uriLabel/common/uriLabel';
+import { ILabelService } from 'vs/platform/label/common/label';
 import { CodeMenu } from 'vs/code/electron-main/menus';
 import { hasArgs } from 'vs/platform/environment/node/argv';
 import { RunOnceScheduler } from 'vs/base/common/async';
@@ -90,7 +90,7 @@ export class CodeApplication {
 		@IConfigurationService private configurationService: ConfigurationService,
 		@IStateService private stateService: IStateService,
 		@IHistoryMainService private historyMainService: IHistoryMainService,
-		@IUriLabelService private uriLabelService: IUriLabelService
+		@ILabelService private labelService: ILabelService
 	) {
 		this.toDispose = [mainIpcServer, configurationService];
 
@@ -228,8 +228,8 @@ export class CodeApplication {
 			}
 		});
 
-		ipc.on('vscode:uriLabelRegisterFormater', (event: any, { scheme, formater }) => {
-			this.uriLabelService.registerFormater(scheme, formater);
+		ipc.on('vscode:labelRegisterFormater', (event: any, { scheme, formater }) => {
+			this.labelService.registerFormater(scheme, formater);
 		});
 
 		// Keyboard layout changes

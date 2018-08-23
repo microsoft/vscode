@@ -15,7 +15,7 @@ import { values } from 'vs/base/common/map';
 import { Range, FileChangeType } from 'vs/workbench/api/node/extHostTypes';
 import { ExtHostLanguageFeatures } from 'vs/workbench/api/node/extHostLanguageFeatures';
 import { Schemas } from 'vs/base/common/network';
-import { UriLabelRules } from 'vs/platform/uriLabel/common/uriLabel';
+import { UriLabelRules } from 'vs/platform/label/common/label';
 
 class FsLinkProvider implements vscode.DocumentLinkProvider {
 
