@@ -19,6 +19,7 @@ import { domEvent } from 'vs/base/browser/event';
 import { ScrollbarVisibility } from 'vs/base/common/scrollable';
 import { ISelectBoxDelegate, ISelectBoxOptions, ISelectBoxStyles, ISelectData } from 'vs/base/browser/ui/selectBox/selectBox';
 import { isMacintosh } from 'vs/base/common/platform';
+import { renderMarkdown } from 'vs/base/browser/htmlContentRenderer';
 
 const $ = dom.$;
 
@@ -103,8 +104,9 @@ export class SelectBoxList implements ISelectBoxDelegate, IVirtualDelegate<ISele
 	private widthControlElement: HTMLElement;
 	private _currentSelection: number;
 	private _dropDownPosition: AnchorPosition;
-	private detailsProvider: (index: number) => string;
+	private detailsProvider: (index: number) => { details: string, isMarkdown: boolean };
 	private selectionDetailsPane: HTMLElement;
+
 
 	private _sticky: boolean = false; // for dev purposes only
 
@@ -290,7 +292,7 @@ export class SelectBoxList implements ISelectBoxDelegate, IVirtualDelegate<ISele
 		this.selectList.getHTMLElement().setAttribute('aria-label', this.selectBoxOptions.ariaLabel);
 	}
 
-	public setDetailsProvider(provider: (index: number) => string): void {
+	public setDetailsProvider(provider: (index: number) => { details: string, isMarkdown: boolean }): void {
 		this.detailsProvider = provider;
 	}
 
@@ -700,11 +702,47 @@ export class SelectBoxList implements ISelectBoxDelegate, IVirtualDelegate<ISele
 		this.hideSelectDropDown(false);
 	}
 
+
+	private renderDescriptionMarkdown(text: string): HTMLElement {
+		const cleanRenderedMarkdown = (element: Node) => {
+			for (let i = 0; i < element.childNodes.length; i++) {
+				const child = element.childNodes.item(i);
+
+				const tagName = (<Element>child).tagName && (<Element>child).tagName.toLowerCase();
+				if (tagName === 'img') {
+					element.removeChild(child);
+				} else {
+					cleanRenderedMarkdown(child);
+				}
+			}
+		};
+
+		const renderedMarkdown = renderMarkdown({ value: text }, {
+			actionHandler: this.selectBoxOptions.markdownActionHandler,
+			eventToIntercept: 'mousedown' // intercept `mousedown` because the widget disappears before a `click` can happen
+		});
+
+		renderedMarkdown.classList.add('select-box-description-markdown');
+		cleanRenderedMarkdown(renderedMarkdown);
+
+		return renderedMarkdown;
+	}
+
 	// List Focus Change - passive - update details pane with newly focused element's data
 	private onListFocus(e: IListEvent<ISelectOptionItem>) {
+		this.selectionDetailsPane.innerText = '';
 		const selectedIndex = e.indexes[0];
-		this.selectionDetailsPane.innerText = this.detailsProvider ? this.detailsProvider(selectedIndex) || '' : '';
-		this.selectionDetailsPane.style.display = this.selectionDetailsPane.innerText ? 'block' : 'none';
+		let description = this.detailsProvider ? this.detailsProvider(selectedIndex) : { details: '', isMarkdown: false };
+		if (description.details) {
+			if (description.isMarkdown) {
+				this.selectionDetailsPane.appendChild(this.renderDescriptionMarkdown(description.details));
+			} else {
+				this.selectionDetailsPane.innerText = description.details;
+			}
+			this.selectionDetailsPane.style.display = 'block';
+		} else {
+			this.selectionDetailsPane.style.display = 'none';
+		}
 	}
 
 	// List keyboard controller

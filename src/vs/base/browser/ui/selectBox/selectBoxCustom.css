@@ -23,6 +23,21 @@
 	box-sizing:			border-box;
 }
 
+.monaco-select-box-dropdown-container > .select-box-details-pane > .select-box-description-markdown * {
+	margin: 0;
+}
+
+.monaco-select-box-dropdown-container > .select-box-details-pane > .select-box-description-markdown a:focus {
+	outline: 1px solid -webkit-focus-ring-color;
+	outline-offset: -1px;
+}
+
+.monaco-select-box-dropdown-container > .select-box-details-pane > .select-box-description-markdown code {
+	line-height: 15px; /** For some reason, this is needed, otherwise <code> will take up 20px height */
+	font-family: Menlo, Monaco, Consolas, "Droid Sans Mono", "Courier New", monospace, "Droid Sans Fallback";
+}
+
+
 .monaco-select-box-dropdown-container.visible {
 	display: flex;
 	flex-direction: column;

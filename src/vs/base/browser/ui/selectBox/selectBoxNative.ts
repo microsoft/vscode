@@ -113,7 +113,7 @@ export class SelectBoxNative implements ISelectBoxDelegate {
 		this.selectElement.setAttribute('aria-label', label);
 	}
 
-	public setDetailsProvider(provider: (index: number) => string): void {
+	public setDetailsProvider(provider: any): void {
 		console.error('details are not available for native select boxes');
 	}
 

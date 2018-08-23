@@ -64,6 +64,8 @@ registerThemingParticipant((theme: ITheme, collector: ICssStyleCollector) => {
 	if (link) {
 		collector.addRule(`.settings-editor > .settings-body > .settings-tree-container .setting-item .setting-item-description-markdown a { color: ${link}; }`);
 		collector.addRule(`.settings-editor > .settings-body > .settings-tree-container .setting-item .setting-item-description-markdown a > code { color: ${link}; }`);
+		collector.addRule(`.monaco-select-box-dropdown-container > .select-box-details-pane > .select-box-description-markdown a { color: ${link}; }`);
+		collector.addRule(`.monaco-select-box-dropdown-container > .select-box-details-pane > .select-box-description-markdown a > code { color: ${link}; }`);
 	}
 
 	const headerForegroundColor = theme.getColor(settingsHeaderForeground);
@@ -110,6 +112,8 @@ registerThemingParticipant((theme: ITheme, collector: ICssStyleCollector) => {
 	const codeTextForegroundColor = theme.getColor(textPreformatForeground);
 	if (codeTextForegroundColor) {
 		collector.addRule(`.settings-editor > .settings-body > .settings-tree-container .setting-item .setting-item-description-markdown code { color: ${codeTextForegroundColor} }`);
+		collector.addRule(`.monaco-select-box-dropdown-container > .select-box-details-pane > .select-box-description-markdown code { color: ${codeTextForegroundColor} }`);
+
 	}
 
 	const modifiedItemIndicatorColor = theme.getColor(modifiedItemIndicator);

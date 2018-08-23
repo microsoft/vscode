@@ -14,6 +14,7 @@ import { IListStyles } from 'vs/base/browser/ui/list/listWidget';
 import { SelectBoxNative } from 'vs/base/browser/ui/selectBox/selectBoxNative';
 import { SelectBoxList } from 'vs/base/browser/ui/selectBox/selectBoxCustom';
 import { isMacintosh } from 'vs/base/common/platform';
+import { IContentActionHandler } from 'vs/base/browser/htmlContentRenderer';
 
 // Public SelectBox interface - Calls routed to appropriate select implementation class
 
@@ -24,7 +25,7 @@ export interface ISelectBoxDelegate {
 	setOptions(options: string[], selected?: number, disabled?: number): void;
 	select(index: number): void;
 	setAriaLabel(label: string);
-	setDetailsProvider(provider: (index: number) => string);
+	setDetailsProvider(provider: (index: number) => { details: string, isMarkdown: boolean });
 	focus(): void;
 	blur(): void;
 	dispose(): void;
@@ -39,6 +40,7 @@ export interface ISelectBoxOptions {
 	ariaLabel?: string;
 	minBottomMargin?: number;
 	hasDetails?: boolean;
+	markdownActionHandler?: IContentActionHandler;
 }
 
 export interface ISelectBoxStyles extends IListStyles {
@@ -98,7 +100,7 @@ export class SelectBox extends Widget implements ISelectBoxDelegate {
 		this.selectBoxDelegate.setAriaLabel(label);
 	}
 
-	public setDetailsProvider(provider: (index: number) => string): void {
+	public setDetailsProvider(provider: (index: number) => { details: string, isMarkdown: boolean }): void {
 		this.selectBoxDelegate.setDetailsProvider(provider);
 	}
 

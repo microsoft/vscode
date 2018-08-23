@@ -713,7 +713,19 @@ export class SettingsRenderer implements ITreeRenderer {
 	private renderSettingEnumTemplate(tree: ITree, container: HTMLElement): ISettingEnumItemTemplate {
 		const common = this.renderCommonTemplate(tree, container, 'enum');
 
-		const selectBox = new SelectBox([], undefined, this.contextViewService, undefined, { hasDetails: true });
+		const selectBox = new SelectBox([], undefined, this.contextViewService, undefined, {
+			hasDetails: true, markdownActionHandler: {
+				callback: (content: string) => {
+					if (startsWith(content, '#')) {
+						this._onDidClickSettingLink.fire(content.substr(1));
+					} else {
+						this.openerService.open(URI.parse(content)).then(void 0, onUnexpectedError);
+					}
+				},
+				disposeables: common.toDispose
+			}
+		});
+
 		common.toDispose.push(selectBox);
 		common.toDispose.push(attachSelectBoxStyler(selectBox, this.themeService, {
 			selectBackground: settingsSelectBackground,
@@ -1002,7 +1014,13 @@ export class SettingsRenderer implements ITreeRenderer {
 	private renderEnum(dataElement: SettingsTreeSettingElement, template: ISettingEnumItemTemplate, onChange: (value: string) => void): void {
 		const displayOptions = getDisplayEnumOptions(dataElement.setting);
 		template.selectBox.setOptions(displayOptions);
-		template.selectBox.setDetailsProvider(index => dataElement.setting.enumDescriptions && dataElement.setting.enumDescriptions[index]);
+		const descriptions = dataElement.setting.enumDescriptions;
+		const descriptionsAreMarkdown = dataElement.setting.descriptionIsMarkdown;
+		template.selectBox.setDetailsProvider(index =>
+			({
+				details: descriptions && descriptions[index] && (descriptionsAreMarkdown ? fixSettingLinks(descriptions[index]) : descriptions[index]),
+				isMarkdown: descriptionsAreMarkdown
+			}));
 
 		const modifiedText = dataElement.isConfigured ? 'Modified' : '';
 		const label = ' ' + dataElement.displayCategory + ' ' + dataElement.displayLabel + ' combobox ' + modifiedText;
@@ -1214,7 +1232,7 @@ export class SettingsTreeController extends WorkbenchTreeController {
 		const isLink = eventish.target.tagName.toLowerCase() === 'a' ||
 			eventish.target.parentElement.tagName.toLowerCase() === 'a'; // <code> inside <a>
 
-		if (isLink && DOM.findParentWithClass(eventish.target, 'setting-item-description-markdown', tree.getHTMLElement())) {
+		if (isLink && (DOM.findParentWithClass(eventish.target, 'setting-item-description-markdown', tree.getHTMLElement()) || DOM.findParentWithClass(eventish.target, 'select-box-description-markdown'))) {
 			return true;
 		}
 
