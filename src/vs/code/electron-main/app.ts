@@ -125,28 +125,21 @@ export class CodeApplication {
 			}
 		});
 
-		const isValidWebviewSource = (source: string): boolean => {
-			if (!source) {
-				return false;
-			}
-			if (source === 'data:text/html;charset=utf-8,%3C%21DOCTYPE%20html%3E%0D%0A%3Chtml%20lang%3D%22en%22%20style%3D%22width%3A%20100%25%3B%20height%3A%20100%25%22%3E%0D%0A%3Chead%3E%0D%0A%09%3Ctitle%3EVirtual%20Document%3C%2Ftitle%3E%0D%0A%3C%2Fhead%3E%0D%0A%3Cbody%20style%3D%22margin%3A%200%3B%20overflow%3A%20hidden%3B%20width%3A%20100%25%3B%20height%3A%20100%25%22%3E%0D%0A%3C%2Fbody%3E%0D%0A%3C%2Fhtml%3E') {
-				return true;
-			}
-			const srcUri: any = URI.parse(source.toLowerCase()).toString();
-			return srcUri.startsWith(URI.file(this.environmentService.appRoot.toLowerCase()).toString());
-		};
-
 		// Security related measures (https://electronjs.org/docs/tutorial/security)
 		// DO NOT CHANGE without consulting the documentation
 		app.on('web-contents-created', (event: any, contents) => {
 			contents.on('will-attach-webview', (event: Electron.Event, webPreferences, params) => {
+
+				// Ensure defaults
 				delete webPreferences.preload;
 				webPreferences.nodeIntegration = false;
 
 				// Verify URLs being loaded
-				if (isValidWebviewSource(params.src) && isValidWebviewSource(webPreferences.preloadURL)) {
+				if (this.isValidWebviewSource(params.src) && this.isValidWebviewSource(webPreferences.preloadURL)) {
 					return;
 				}
+
+				delete webPreferences.preloadUrl;
 
 				// Otherwise prevent loading
 				this.logService.error('webContents#web-contents-created: Prevented webview attach');
@@ -245,6 +238,20 @@ export class CodeApplication {
 				this.windowsMainService.sendToAll('vscode:keyboardLayoutChanged', false);
 			}
 		});
+	}
+
+	private isValidWebviewSource(source: string): boolean {
+		if (!source) {
+			return false;
+		}
+
+		if (source === 'data:text/html;charset=utf-8,%3C%21DOCTYPE%20html%3E%0D%0A%3Chtml%20lang%3D%22en%22%20style%3D%22width%3A%20100%25%3B%20height%3A%20100%25%22%3E%0D%0A%3Chead%3E%0D%0A%09%3Ctitle%3EVirtual%20Document%3C%2Ftitle%3E%0D%0A%3C%2Fhead%3E%0D%0A%3Cbody%20style%3D%22margin%3A%200%3B%20overflow%3A%20hidden%3B%20width%3A%20100%25%3B%20height%3A%20100%25%22%3E%0D%0A%3C%2Fbody%3E%0D%0A%3C%2Fhtml%3E') {
+			return true;
+		}
+
+		const srcUri: any = URI.parse(source.toLowerCase()).toString();
+
+		return srcUri.startsWith(URI.file(this.environmentService.appRoot.toLowerCase()).toString());
 	}
 
 	private onUnexpectedError(err: Error): void {
