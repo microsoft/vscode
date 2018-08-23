@@ -5,7 +5,7 @@
 
 'use strict';
 
-import { app, ipcMain as ipc, systemPreferences, shell } from 'electron';
+import { app, ipcMain as ipc, systemPreferences, shell, Event } from 'electron';
 import * as platform from 'vs/base/common/platform';
 import { WindowsManager } from 'vs/code/electron-main/windows';
 import { IWindowsService, OpenContext, ActiveWindowManager } from 'vs/platform/windows/common/windows';
@@ -194,15 +194,15 @@ export class CodeApplication {
 			this.windowsMainService.openNewWindow(OpenContext.DESKTOP); //macOS native tab "+" button
 		});
 
-		ipc.on('vscode:exit', (event: any, code: number) => {
+		ipc.on('vscode:exit', (event: Event, code: number) => {
 			this.logService.trace('IPC#vscode:exit', code);
 
 			this.dispose();
 			this.lifecycleService.kill(code);
 		});
 
-		ipc.on('vscode:fetchShellEnv', event => {
-			const webContents = event.sender.webContents;
+		ipc.on('vscode:fetchShellEnv', (event: Event) => {
+			const webContents = event.sender;
 			getShellEnvironment().then(shellEnv => {
 				if (!webContents.isDestroyed()) {
 					webContents.send('vscode:acceptShellEnv', shellEnv);
@@ -216,7 +216,7 @@ export class CodeApplication {
 			});
 		});
 
-		ipc.on('vscode:broadcast', (event: any, windowId: number, broadcast: { channel: string; payload: any; }) => {
+		ipc.on('vscode:broadcast', (event: Event, windowId: number, broadcast: { channel: string; payload: any; }) => {
 			if (this.windowsMainService && broadcast.channel && !isUndefinedOrNull(broadcast.payload)) {
 				this.logService.trace('IPC#vscode:broadcast', broadcast.channel, broadcast.payload);
 
@@ -230,6 +230,18 @@ export class CodeApplication {
 
 		ipc.on('vscode:labelRegisterFormater', (event: any, { scheme, formater }) => {
 			this.labelService.registerFormater(scheme, formater);
+		});
+
+		ipc.on('vscode:toggleDevTools', (event: Event) => {
+			event.sender.toggleDevTools();
+		});
+
+		ipc.on('vscode:openDevTools', (event: Event) => {
+			event.sender.openDevTools();
+		});
+
+		ipc.on('vscode:reloadWindow', (event: Event) => {
+			event.sender.reload();
 		});
 
 		// Keyboard layout changes

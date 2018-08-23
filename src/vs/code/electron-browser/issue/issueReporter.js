@@ -7,7 +7,7 @@
 
 const path = require('path');
 const fs = require('fs');
-const remote = require('electron').remote;
+const ipc = require('electron').ipcRenderer;
 
 function assign(destination, source) {
 	return Object.keys(source)
@@ -97,9 +97,9 @@ function main() {
 	window.addEventListener('keydown', function (e) {
 		const key = extractKey(e);
 		if (key === TOGGLE_DEV_TOOLS_KB) {
-			remote.getCurrentWebContents().toggleDevTools();
+			ipc.send('vscode:toggleDevTools');
 		} else if (key === RELOAD_KB) {
-			remote.getCurrentWindow().reload();
+			ipc.send('vscode:reloadWindow');
 		}
 	});
 

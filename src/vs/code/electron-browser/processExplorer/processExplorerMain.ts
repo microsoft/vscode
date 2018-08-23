@@ -198,7 +198,7 @@ export function startup(data: ProcessExplorerData): void {
 	applyZoom(data.zoomLevel);
 
 	// Map window process pids to titles, annotate process names with this when rendering to distinguish between them
-	ipcRenderer.on('windowsInfoResponse', (event, windows) => {
+	ipcRenderer.on('vscode:windowsInfoResponse', (event, windows) => {
 		mapPidToWindowTitle = new Map<number, string>();
 		windows.forEach(window => mapPidToWindowTitle.set(window.pid, window.title));
 	});
