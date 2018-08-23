@@ -404,7 +404,7 @@ export class SearchView extends Viewlet implements IViewlet, IPanel {
 		if (!isReplaceShown) {
 			this.storageService.store(SearchView.SHOW_REPLACE_STORAGE_KEY, false, StorageScope.WORKSPACE);
 		} else {
-			this.storageService.remove(SearchView.SHOW_REPLACE_STORAGE_KEY);
+			this.storageService.remove(SearchView.SHOW_REPLACE_STORAGE_KEY, StorageScope.WORKSPACE);
 		}
 	}
 
