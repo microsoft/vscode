@@ -90,7 +90,8 @@ export class BreadcrumbsWidget {
 			vertical: ScrollbarVisibility.Hidden,
 			horizontal: ScrollbarVisibility.Auto,
 			horizontalScrollbarSize: 3,
-			useShadows: false
+			useShadows: false,
+			scrollYToX: true
 		});
 		this._disposables.push(this._scrollable);
 		this._disposables.push(dom.addStandardDisposableListener(this._domNode, 'click', e => this._onClick(e)));
