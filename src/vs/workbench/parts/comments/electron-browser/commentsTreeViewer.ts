@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as dom from 'vs/base/browser/dom';
+import * as nls from 'vs/nls';
 import { renderMarkdown } from 'vs/base/browser/htmlContentRenderer';
 import { onUnexpectedError } from 'vs/base/common/errors';
 import { Disposable } from 'vs/base/common/lifecycle';
@@ -155,6 +156,14 @@ export class CommentsModelRenderer implements ITreeRenderer {
 				disposeables: templateData.disposables
 			}
 		});
+
+		const images = renderedComment.getElementsByTagName('img');
+		for (let i = 0; i < images.length; i++) {
+			const image = images[i];
+			const textDescription = dom.$('');
+			textDescription.textContent = image.alt ? nls.localize('imageWithLabel', "Image: {0}", image.alt) : nls.localize('image', "Image");
+			image.parentNode.replaceChild(textDescription, image);
+		}
 
 		templateData.commentText.appendChild(renderedComment);
 	}

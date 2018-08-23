@@ -16,7 +16,7 @@ import * as strings from 'vs/base/common/strings';
 import { TPromise } from 'vs/base/common/winjs.base';
 import * as encoding from 'vs/base/node/encoding';
 import * as extfs from 'vs/base/node/extfs';
-import { IProgress } from 'vs/platform/search/common/search';
+import { IProgress, ITextSearchStats } from 'vs/platform/search/common/search';
 import { rgPath } from 'vscode-ripgrep';
 import { FileMatch, IFolderSearch, IRawSearch, ISerializedFileMatch, LineMatch, ISerializedSearchSuccess } from './search';
 
@@ -50,7 +50,9 @@ export class RipgrepEngine {
 			done(null, {
 				type: 'success',
 				limitHit: false,
-				stats: null
+				stats: <ITextSearchStats>{
+					type: 'searchProcess'
+				}
 			});
 			return;
 		}
@@ -96,7 +98,9 @@ export class RipgrepEngine {
 			done(null, {
 				type: 'success',
 				limitHit: true,
-				stats: null
+				stats: {
+					type: 'searchProcess'
+				}
 			});
 		});
 

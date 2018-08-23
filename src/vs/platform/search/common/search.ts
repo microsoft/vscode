@@ -155,11 +155,15 @@ export interface ISearchProgressItem extends IFileMatch, IProgress {
 
 export interface ISearchCompleteStats {
 	limitHit?: boolean;
-	stats?: IFileSearchStats;
+	stats?: IFileSearchStats | ITextSearchStats;
 }
 
 export interface ISearchComplete extends ISearchCompleteStats {
 	results: IFileMatch[];
+}
+
+export interface ITextSearchStats {
+	type: 'textSearchProvider' | 'searchProcess';
 }
 
 export interface IFileSearchStats {

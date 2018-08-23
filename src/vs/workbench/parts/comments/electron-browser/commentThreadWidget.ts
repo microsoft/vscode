@@ -97,6 +97,7 @@ export class CommentNode {
 }
 
 let INMEM_MODEL_ID = 0;
+
 export class ReviewZoneWidget extends ZoneWidget {
 	private _headElement: HTMLElement;
 	protected _headingLabel: HTMLElement;
@@ -109,6 +110,7 @@ export class ReviewZoneWidget extends ZoneWidget {
 	private _reviewThreadReplyButton: HTMLElement;
 	private _resizeObserver: any;
 	private _onDidClose = new Emitter<ReviewZoneWidget>();
+	private _onDidCreateThread = new Emitter<ReviewZoneWidget>();
 	private _isCollapsed;
 	private _toggleAction: Action;
 	private _commentThread: modes.CommentThread;
@@ -162,6 +164,10 @@ export class ReviewZoneWidget extends ZoneWidget {
 
 	public get onDidClose(): Event<ReviewZoneWidget> {
 		return this._onDidClose.event;
+	}
+
+	public get onDidCreateThread(): Event<ReviewZoneWidget> {
+		return this._onDidCreateThread.event;
 	}
 
 	protected revealLine(lineNumber: number) {
@@ -395,9 +401,9 @@ export class ReviewZoneWidget extends ZoneWidget {
 	private async createComment(lineNumber: number): Promise<void> {
 		try {
 			let newCommentThread;
+			const isReply = this._commentThread.threadId !== null;
 
-			if (this._commentThread.threadId) {
-				// reply
+			if (isReply) {
 				newCommentThread = await this.commentService.replyToCommentThread(
 					this._owner,
 					this.editor.getModel().uri,
@@ -427,6 +433,10 @@ export class ReviewZoneWidget extends ZoneWidget {
 				this._error.textContent = '';
 				dom.addClass(this._error, 'hidden');
 				this.update(newCommentThread);
+
+				if (!isReply) {
+					this._onDidCreateThread.fire(this);
+				}
 			}
 		} catch (e) {
 			this._error.textContent = e.message

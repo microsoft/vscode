@@ -14,9 +14,17 @@ export interface InputBox {
 	value: string;
 }
 
+export interface Remote {
+	readonly name: string;
+	readonly fetchUrl?: string;
+	readonly pushUrl?: string;
+	readonly isReadOnly: boolean;
+}
+
 export interface Repository {
 	readonly rootUri: Uri;
 	readonly inputBox: InputBox;
+	readonly remotes: Remote[];
 
 	readonly onDidRunGitStatus: Event<void>;
 

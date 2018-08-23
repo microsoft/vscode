@@ -7,7 +7,7 @@
 
 import { TPromise } from 'vs/base/common/winjs.base';
 import { IExpression } from 'vs/base/common/glob';
-import { IProgress, ILineMatch, IPatternInfo, IFileSearchStats, ISearchEngineStats } from 'vs/platform/search/common/search';
+import { IProgress, ILineMatch, IPatternInfo, IFileSearchStats, ISearchEngineStats, ITextSearchStats } from 'vs/platform/search/common/search';
 import { ITelemetryData } from 'vs/platform/telemetry/common/telemetry';
 import { Event } from 'vs/base/common/event';
 
@@ -62,7 +62,7 @@ export interface ISearchEngine<T> {
 export interface ISerializedSearchSuccess {
 	type: 'success';
 	limitHit: boolean;
-	stats: IFileSearchStats;
+	stats: IFileSearchStats | ITextSearchStats;
 }
 
 export interface ISearchEngineSuccess {

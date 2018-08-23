@@ -230,6 +230,10 @@ export function createApiFactory(
 			get logLevel() {
 				checkProposedApiEnabled(extension);
 				return extHostLogService.getLevel();
+			},
+			get onDidChangeLogLevel() {
+				checkProposedApiEnabled(extension);
+				return extHostLogService.onDidChangeLogLevel;
 			}
 		});
 
@@ -436,9 +440,9 @@ export function createApiFactory(
 				}
 				return extHostTerminalService.createTerminal(<string>nameOrOptions, shellPath, shellArgs);
 			},
-			createTerminalRenderer(name: string): vscode.TerminalRenderer {
+			createTerminalRenderer: proposedApiFunction(extension, (name: string) => {
 				return extHostTerminalService.createTerminalRenderer(name);
-			},
+			}),
 			registerTreeDataProvider(viewId: string, treeDataProvider: vscode.TreeDataProvider<any>): vscode.Disposable {
 				return extHostTreeViews.registerTreeDataProvider(viewId, treeDataProvider);
 			},

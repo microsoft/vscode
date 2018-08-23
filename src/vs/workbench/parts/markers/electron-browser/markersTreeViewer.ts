@@ -22,6 +22,7 @@ import { IDisposable } from 'vs/base/common/lifecycle';
 import { ActionBar, IActionItemProvider } from 'vs/base/browser/ui/actionbar/actionbar';
 import { QuickFixAction } from 'vs/workbench/parts/markers/electron-browser/markersPanelActions';
 import { IUriLabelService } from 'vs/platform/uriLabel/common/uriLabel';
+import { dirname } from 'vs/base/common/resources';
 
 interface IResourceMarkersTemplateData {
 	resourceLabel: ResourceLabel;
@@ -208,7 +209,7 @@ export class Renderer implements IRenderer {
 		if (templateData.resourceLabel instanceof FileLabel) {
 			templateData.resourceLabel.setFile(element.uri, { matches: element.uriMatches });
 		} else {
-			templateData.resourceLabel.setLabel({ name: element.name, description: this.uriLabelService.getLabel(element.uri, true), resource: element.uri }, { matches: element.uriMatches });
+			templateData.resourceLabel.setLabel({ name: element.name, description: this.uriLabelService.getLabel(dirname(element.uri), true), resource: element.uri }, { matches: element.uriMatches });
 		}
 		(<IResourceMarkersTemplateData>templateData).count.setCount(element.filteredCount);
 	}
