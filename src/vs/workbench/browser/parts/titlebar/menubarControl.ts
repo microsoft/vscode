@@ -663,7 +663,7 @@ export class MenubarControl extends Disposable {
 			// Create the top level menu button element
 			if (firstTimeSetup) {
 				const buttonElement = $('div.menubar-menu-button', { 'role': 'menuitem', 'tabindex': 0, 'aria-label': this.topLevelTitles[menuTitle].replace(/&&(.)/g, '$1'), 'aria-haspopup': true });
-				const titleElement = $('div.menubar-menu-title', { 'aria-hidden': true, 'tab-index': -1 });
+				const titleElement = $('div.menubar-menu-title', { 'role': 'none', 'aria-hidden': true });
 
 				buttonElement.appendChild(titleElement);
 				this.container.appendChild(buttonElement);

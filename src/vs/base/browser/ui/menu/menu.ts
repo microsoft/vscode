@@ -244,7 +244,6 @@ class MenuActionItem extends BaseActionItem {
 		super.render(container);
 
 		this.container = container;
-		this.container.removeAttribute('role');
 
 		this.$e = $('a.action-menu-item').appendTo(this.builder);
 		if (this._action.id === Separator.ID) {
@@ -257,11 +256,11 @@ class MenuActionItem extends BaseActionItem {
 			}
 		}
 
-		this.$check = $('span.menu-item-check').appendTo(this.$e);
-		this.$label = $('span.action-label').appendTo(this.$e);
+		this.$check = $('span.menu-item-check').attr({ 'role': 'none' }).appendTo(this.$e);
+		this.$label = $('span.action-label').attr({ 'role': 'none' }).appendTo(this.$e);
 
 		if (this.options.label && this.options.keybinding) {
-			$('span.keybinding').text(this.options.keybinding).appendTo(this.$e);
+			$('span.keybinding').attr({ 'role': 'none' }).text(this.options.keybinding).appendTo(this.$e);
 		}
 
 		this._updateClass();
