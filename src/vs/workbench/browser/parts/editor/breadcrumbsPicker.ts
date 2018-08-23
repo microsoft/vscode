@@ -23,7 +23,7 @@ import { localize } from 'vs/nls';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { FileKind, IFileService, IFileStat } from 'vs/platform/files/common/files';
 import { IConstructorSignature1, IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { HighlightingWorkbenchTree, IHighlighter, IHighlightingTreeConfiguration } from 'vs/platform/list/browser/listService';
+import { HighlightingWorkbenchTree, IHighlighter, IHighlightingTreeConfiguration, IHighlightingTreeOptions } from 'vs/platform/list/browser/listService';
 import { breadcrumbsPickerBackground, widgetShadow } from 'vs/platform/theme/common/colorRegistry';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { IWorkspace, IWorkspaceContextService, IWorkspaceFolder } from 'vs/platform/workspace/common/workspace';
@@ -55,6 +55,7 @@ export abstract class BreadcrumbsPicker {
 		parent: HTMLElement,
 		@IInstantiationService protected readonly _instantiationService: IInstantiationService,
 		@IThemeService protected readonly _themeService: IThemeService,
+		@IConfigurationService private readonly _configurationService: IConfigurationService,
 	) {
 		this._domNode = document.createElement('div');
 		this._domNode.className = 'monaco-breadcrumbs-picker show-file-icons';
@@ -79,12 +80,15 @@ export abstract class BreadcrumbsPicker {
 		this._treeContainer.style.boxShadow = `0px 5px 8px ${this._themeService.getTheme().getColor(widgetShadow)}`;
 		this._domNode.appendChild(this._treeContainer);
 
+		const filterConfig = BreadcrumbsConfig.FilterOnType.bindTo(this._configurationService);
+		this._disposables.push(filterConfig);
+
 		const treeConifg = this._completeTreeConfiguration({ dataSource: undefined, renderer: undefined, highlighter: undefined });
 		this._tree = this._instantiationService.createInstance(
 			HighlightingWorkbenchTree,
 			this._treeContainer,
 			treeConifg,
-			{ useShadows: false },
+			<IHighlightingTreeOptions>{ useShadows: false, filterOnType: filterConfig.getValue() },
 			{ placeholder: localize('placeholder', "Find") }
 		);
 		this._disposables.push(this._tree.onDidChangeSelection(e => {
@@ -302,7 +306,7 @@ export class FileRenderer implements IRenderer {
 			fileKind,
 			hidePath: true,
 			fileDecorations: fileDecorations,
-			matches: createMatches((tree as HighlightingWorkbenchTree).getHighlights(element)),
+			matches: createMatches((tree as HighlightingWorkbenchTree).getHighlighterScore(element)),
 			extraClasses: ['picker-item']
 		});
 	}
@@ -335,9 +339,10 @@ export class BreadcrumbsFilePicker extends BreadcrumbsPicker {
 		parent: HTMLElement,
 		@IInstantiationService instantiationService: IInstantiationService,
 		@IThemeService themeService: IThemeService,
+		@IConfigurationService configService: IConfigurationService,
 		@IWorkspaceContextService private readonly _workspaceService: IWorkspaceContextService,
 	) {
-		super(parent, instantiationService, themeService);
+		super(parent, instantiationService, themeService, configService);
 	}
 
 	protected _getInput(input: BreadcrumbElement): any {

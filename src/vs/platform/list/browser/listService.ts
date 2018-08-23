@@ -18,7 +18,7 @@ import { combinedDisposable, Disposable, dispose, IDisposable, toDisposable } fr
 import { ScrollbarVisibility } from 'vs/base/common/scrollable';
 import { isUndefinedOrNull } from 'vs/base/common/types';
 import { TPromise } from 'vs/base/common/winjs.base';
-import { ITree, ITreeConfiguration, ITreeOptions } from 'vs/base/parts/tree/browser/tree';
+import { IFilter, ITree, ITreeConfiguration, ITreeOptions } from 'vs/base/parts/tree/browser/tree';
 import { ClickBehavior, DefaultController, DefaultTreestyler, IControllerOptions, OpenMode } from 'vs/base/parts/tree/browser/treeDefaults';
 import { Tree } from 'vs/base/parts/tree/browser/treeImpl';
 import { localize } from 'vs/nls';
@@ -572,6 +572,10 @@ export interface IHighlightingTreeConfiguration extends ITreeConfiguration {
 	highlighter: IHighlighter;
 }
 
+export interface IHighlightingTreeOptions extends ITreeOptions {
+	filterOnType?: boolean;
+}
+
 export class HighlightingTreeController extends WorkbenchTreeController {
 
 	constructor(
@@ -599,6 +603,41 @@ export class HighlightingTreeController extends WorkbenchTreeController {
 	}
 }
 
+class HightlightsFilter implements IFilter {
+
+	static add(config: ITreeConfiguration, options: IHighlightingTreeOptions): ITreeConfiguration {
+		let myFilter = new HightlightsFilter();
+		myFilter.enabled = options.filterOnType;
+		if (!config.filter) {
+			config.filter = myFilter;
+		} else {
+			let otherFilter = config.filter;
+			config.filter = {
+				isVisible(tree: ITree, element: any): boolean {
+					return myFilter.isVisible(tree, element) && otherFilter.isVisible(tree, element);
+				}
+			};
+		}
+		return config;
+	}
+
+	enabled: boolean = true;
+
+	isVisible(tree: ITree, element: any): boolean {
+		if (!this.enabled) {
+			return true;
+		}
+		let tree2 = (tree as HighlightingWorkbenchTree);
+		if (!tree2.isHighlighterScoring()) {
+			return true;
+		}
+		if (tree2.getHighlighterScore(element)) {
+			return true;
+		}
+		return false;
+	}
+}
+
 export class HighlightingWorkbenchTree extends WorkbenchTree {
 
 	protected readonly domNode: HTMLElement;
@@ -611,7 +650,7 @@ export class HighlightingWorkbenchTree extends WorkbenchTree {
 	constructor(
 		parent: HTMLElement,
 		treeConfiguration: IHighlightingTreeConfiguration,
-		treeOptions: ITreeOptions,
+		treeOptions: IHighlightingTreeOptions,
 		listOptions: IInputOptions,
 		@IContextKeyService contextKeyService: IContextKeyService,
 		@IContextViewService contextViewService: IContextViewService,
@@ -633,7 +672,7 @@ export class HighlightingWorkbenchTree extends WorkbenchTree {
 
 		// create tree
 		treeConfiguration.controller = treeConfiguration.controller || instantiationService.createInstance(HighlightingTreeController, {}, () => this.onTypeInTree());
-		super(treeContainer, treeConfiguration, treeOptions, contextKeyService, listService, themeService, instantiationService, configurationService);
+		super(treeContainer, HightlightsFilter.add(treeConfiguration, treeOptions), treeOptions, contextKeyService, listService, themeService, instantiationService, configurationService);
 		this.highlighter = treeConfiguration.highlighter;
 		this.highlights = new Map<any, FuzzyScore>();
 
@@ -705,34 +744,42 @@ export class HighlightingWorkbenchTree extends WorkbenchTree {
 			this.lastSelection = [];
 		}
 
-		let nav = this.getNavigator(undefined, false);
-		let topScore: FuzzyScore;
 		let topElement: any;
-		while (nav.next()) {
-			let element = nav.current();
-			let score = this.highlighter.getHighlights(this, element, pattern);
-			this.highlights.set(this._getHighlightsStorageKey(element), score);
-			element.foo = 1;
-			if (!topScore || score && topScore[0] < score[0]) {
-				topScore = score;
-				topElement = element;
+		if (pattern) {
+			let nav = this.getNavigator(undefined, false);
+			let topScore: FuzzyScore;
+			while (nav.next()) {
+				let element = nav.current();
+				let score = this.highlighter.getHighlights(this, element, pattern);
+				this.highlights.set(this._getHighlightsStorageKey(element), score);
+				element.foo = 1;
+				if (!topScore || score && topScore[0] < score[0]) {
+					topScore = score;
+					topElement = element;
+				}
 			}
+		} else {
+			// no pattern, clear highlights
+			this.highlights.clear();
 		}
 
 		this.refresh().then(() => {
-			if (topElement && pattern) {
+			if (topElement) {
 				this.reveal(topElement, .5).then(_ => {
 					this.setSelection([topElement], this);
 					this.setFocus(topElement, this);
 				});
 			} else {
 				this.setSelection(defaultSelection, this);
-				this.highlights.clear();
 			}
 		}, onUnexpectedError);
 	}
 
-	getHighlights(element: any): FuzzyScore {
+	isHighlighterScoring(): boolean {
+		return this.highlights.size > 0;
+	}
+
+	getHighlighterScore(element: any): FuzzyScore {
 		return this.highlights.get(this._getHighlightsStorageKey(element));
 	}
 
