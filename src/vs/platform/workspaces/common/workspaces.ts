@@ -9,7 +9,7 @@ import { createDecorator } from 'vs/platform/instantiation/common/instantiation'
 import { TPromise } from 'vs/base/common/winjs.base';
 import { localize } from 'vs/nls';
 import { Event } from 'vs/base/common/event';
-import { IWorkspaceFolder } from 'vs/platform/workspace/common/workspace';
+import { IWorkspaceFolder, IWorkspace } from 'vs/platform/workspace/common/workspace';
 import URI from 'vs/base/common/uri';
 
 export const IWorkspacesMainService = createDecorator<IWorkspacesMainService>('workspacesMainService');
@@ -114,4 +114,19 @@ export function isWorkspaceIdentifier(obj: any): obj is IWorkspaceIdentifier {
 	const workspaceIdentifier = obj as IWorkspaceIdentifier;
 
 	return workspaceIdentifier && typeof workspaceIdentifier.id === 'string' && typeof workspaceIdentifier.configPath === 'string';
+}
+
+export function toWorkspaceIdentifier(workspace: IWorkspace): IWorkspaceIdentifier | ISingleFolderWorkspaceIdentifier | undefined {
+	if (workspace.configuration) {
+		return {
+			configPath: workspace.configuration.fsPath,
+			id: workspace.id
+		};
+	}
+	if (workspace.folders.length === 1) {
+		return workspace.folders[0].uri;
+	}
+
+	// Empty workspace
+	return undefined;
 }
