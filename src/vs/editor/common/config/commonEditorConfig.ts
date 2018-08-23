@@ -522,7 +522,7 @@ const editorConfiguration: IConfigurationNode = {
 				'',
 			],
 			'default': EDITOR_DEFAULTS.autoClosingQuotes,
-			'description': nls.localize('autoClosingQuotes', "Controls whether the editor should automatically close quotes the user adds an opening quote.")
+			'description': nls.localize('autoClosingQuotes', "Controls whether the editor should automatically close quotes after the user adds an opening quote.")
 		},
 		'editor.autoWrapping': {
 			type: 'string',
