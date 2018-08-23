@@ -240,13 +240,13 @@ export class SendSequenceTerminalCommand extends Command {
 		const text = args.text.split(' ');
 		var terminalText;
 		for (let i = 0; i < text.length; i++) {
-			terminalText = ' ' + prepareTerminaText(text[i]);
+			terminalText = ' ' + prepareTerminalText(text[i]);
 			terminalInstance.sendText(terminalText, false);
 		}
 	}
 }
 
-function prepareTerminaText(text: string): string {
+function prepareTerminalText(text: string): string {
 	// Hexcodes and excape char
 	if (text.substring(0, 2).toLowerCase() === '\\x') {
 		// Valid hex with 2 digits
