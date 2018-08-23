@@ -41,7 +41,6 @@ import { UserConfiguration } from 'vs/platform/configuration/node/configuration'
 import { IJSONSchema, IJSONSchemaMap } from 'vs/base/common/jsonSchema';
 import { localize } from 'vs/nls';
 import { isEqual } from 'vs/base/common/resources';
-import { IUriLabelService } from 'vs/platform/uriLabel/common/uriLabel';
 
 export class WorkspaceService extends Disposable implements IWorkspaceConfigurationService, IWorkspaceContextService {
 
@@ -72,7 +71,7 @@ export class WorkspaceService extends Disposable implements IWorkspaceConfigurat
 	private configurationEditingService: ConfigurationEditingService;
 	private jsonEditingService: JSONEditingService;
 
-	constructor(private environmentService: IEnvironmentService, private uriLabelService: IUriLabelService, private workspaceSettingsRootFolder: string = FOLDER_CONFIG_FOLDER_NAME) {
+	constructor(private environmentService: IEnvironmentService, private workspaceSettingsRootFolder: string = FOLDER_CONFIG_FOLDER_NAME) {
 		super();
 
 		this.defaultConfiguration = new DefaultConfigurationModel();
@@ -341,8 +340,7 @@ export class WorkspaceService extends Disposable implements IWorkspaceConfigurat
 			.then(() => {
 				const workspaceFolders = toWorkspaceFolders(this.workspaceConfiguration.getFolders(), URI.file(dirname(workspaceConfigPath.fsPath)));
 				const workspaceId = workspaceIdentifier.id;
-				const workspaceName = this.uriLabelService.getWorkspaceLabel({ id: workspaceId, configPath: workspaceConfigPath.fsPath });
-				return new Workspace(workspaceId, workspaceName, workspaceFolders, workspaceConfigPath);
+				return new Workspace(workspaceId, workspaceFolders, workspaceConfigPath);
 			});
 	}
 
@@ -364,11 +362,11 @@ export class WorkspaceService extends Disposable implements IWorkspaceConfigurat
 					}
 
 					const id = createHash('md5').update(folder.fsPath).update(ctime ? String(ctime) : '').digest('hex');
-					return new Workspace(id, this.uriLabelService.getWorkspaceLabel(folder), toWorkspaceFolders([{ path: folder.fsPath }]), null, ctime);
+					return new Workspace(id, toWorkspaceFolders([{ path: folder.fsPath }]), null, ctime);
 				});
 		} else {
 			const id = createHash('md5').update(folder.toString()).digest('hex');
-			return TPromise.as(new Workspace(id, this.uriLabelService.getWorkspaceLabel(folder), toWorkspaceFolders([{ uri: folder.toString() }]), null));
+			return TPromise.as(new Workspace(id, toWorkspaceFolders([{ uri: folder.toString() }]), null));
 		}
 	}
 

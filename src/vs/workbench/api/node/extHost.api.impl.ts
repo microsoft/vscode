@@ -485,7 +485,7 @@ export function createApiFactory(
 				return extHostWorkspace.getWorkspaceFolders();
 			},
 			get name() {
-				return extHostWorkspace.workspace ? extHostWorkspace.workspace.name : undefined;
+				return extHostWorkspace.name;
 			},
 			set name(value) {
 				throw errors.readonly();

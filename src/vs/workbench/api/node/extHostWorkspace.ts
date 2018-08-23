@@ -107,14 +107,18 @@ class ExtHostWorkspaceImpl extends Workspace {
 	private readonly _workspaceFolders: vscode.WorkspaceFolder[] = [];
 	private readonly _structure = TernarySearchTree.forPaths<vscode.WorkspaceFolder>();
 
-	private constructor(id: string, name: string, folders: vscode.WorkspaceFolder[]) {
-		super(id, name, folders.map(f => new WorkspaceFolder(f)));
+	private constructor(id: string, private _name: string, folders: vscode.WorkspaceFolder[]) {
+		super(id, folders.map(f => new WorkspaceFolder(f)));
 
 		// setup the workspace folder data structure
 		folders.forEach(folder => {
 			this._workspaceFolders.push(folder);
 			this._structure.set(folder.uri.toString(), folder);
 		});
+	}
+
+	get name(): string {
+		return this._name;
 	}
 
 	get workspaceFolders(): vscode.WorkspaceFolder[] {
@@ -164,6 +168,10 @@ export class ExtHostWorkspace implements ExtHostWorkspaceShape {
 
 	get workspace(): Workspace {
 		return this._actualWorkspace;
+	}
+
+	get name(): string {
+		return this._actualWorkspace ? this._actualWorkspace.name : undefined;
 	}
 
 	private get _actualWorkspace(): ExtHostWorkspaceImpl {

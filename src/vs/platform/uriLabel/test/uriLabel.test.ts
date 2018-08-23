@@ -17,8 +17,7 @@ suite('URI Label', () => {
 	let uriLabelService: UriLabelService;
 
 	setup(() => {
-		uriLabelService = new UriLabelService(TestEnvironmentService);
-		uriLabelService.acquireContextService(new TestContextService());
+		uriLabelService = new UriLabelService(TestEnvironmentService, new TestContextService());
 	});
 
 	test('file scheme', function () {

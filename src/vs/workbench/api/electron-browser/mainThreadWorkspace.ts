@@ -23,6 +23,7 @@ import { CommandsRegistry } from 'vs/platform/commands/common/commands';
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
 import { areSameExtensions } from 'vs/platform/extensionManagement/common/extensionManagementUtil';
 import { IWindowService } from 'vs/platform/windows/common/windows';
+import { IUriLabelService } from 'vs/platform/uriLabel/common/uriLabel';
 
 @extHostNamedCustomer(MainContext.MainThreadWorkspace)
 export class MainThreadWorkspace implements MainThreadWorkspaceShape {
@@ -40,6 +41,7 @@ export class MainThreadWorkspace implements MainThreadWorkspaceShape {
 		@IWorkspaceEditingService private readonly _workspaceEditingService: IWorkspaceEditingService,
 		@IStatusbarService private readonly _statusbarService: IStatusbarService,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
+		@IUriLabelService private readonly _uriLabelService: IUriLabelService
 	) {
 		this._proxy = extHostContext.getProxy(ExtHostContext.ExtHostWorkspace);
 		this._contextService.onDidChangeWorkspaceFolders(this._onDidChangeWorkspace, this, this._toDispose);
@@ -99,7 +101,13 @@ export class MainThreadWorkspace implements MainThreadWorkspaceShape {
 	}
 
 	private _onDidChangeWorkspace(): void {
-		this._proxy.$acceptWorkspaceData(this._contextService.getWorkbenchState() === WorkbenchState.EMPTY ? null : this._contextService.getWorkspace());
+		const workspace = this._contextService.getWorkbenchState() === WorkbenchState.EMPTY ? null : this._contextService.getWorkspace();
+		this._proxy.$acceptWorkspaceData(workspace ? {
+			configuration: workspace.configuration,
+			folders: workspace.folders,
+			id: workspace.id,
+			name: this._uriLabelService.getWorkspaceLabel(workspace)
+		} : null);
 	}
 
 	// --- search ---

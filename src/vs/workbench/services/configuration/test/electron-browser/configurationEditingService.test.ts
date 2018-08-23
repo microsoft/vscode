@@ -39,7 +39,6 @@ import { INotificationService } from 'vs/platform/notification/common/notificati
 import { ICommandService } from 'vs/platform/commands/common/commands';
 import { CommandService } from 'vs/workbench/services/commands/common/commandService';
 import URI from 'vs/base/common/uri';
-import { UriLabelService } from 'vs/platform/uriLabel/common/uriLabel';
 
 class SettingsTestEnvironmentService extends EnvironmentService {
 
@@ -103,7 +102,7 @@ suite('ConfigurationEditingService', () => {
 		instantiationService = <TestInstantiationService>workbenchInstantiationService();
 		const environmentService = new SettingsTestEnvironmentService(parseArgs(process.argv), process.execPath, globalSettingsFile);
 		instantiationService.stub(IEnvironmentService, environmentService);
-		const workspaceService = new WorkspaceService(environmentService, new UriLabelService(environmentService));
+		const workspaceService = new WorkspaceService(environmentService);
 		instantiationService.stub(IWorkspaceContextService, workspaceService);
 		return workspaceService.initialize(noWorkspace ? {} as IWindowConfiguration : URI.file(workspaceDir)).then(() => {
 			instantiationService.stub(IConfigurationService, workspaceService);

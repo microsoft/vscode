@@ -109,7 +109,6 @@ export interface ICoreServices {
 	environmentService: IEnvironmentService;
 	logService: ILogService;
 	storageService: IStorageService;
-	uriLabelService: IUriLabelService;
 }
 
 /**
@@ -148,7 +147,6 @@ export class WorkbenchShell extends Disposable {
 		this.contextService = coreServices.contextService;
 		this.configurationService = coreServices.configurationService;
 		this.environmentService = coreServices.environmentService;
-		this.uriLabelService = coreServices.uriLabelService;
 		this.logService = coreServices.logService;
 		this.storageService = coreServices.storageService;
 

@@ -23,7 +23,7 @@ import { IMessagePassingProtocol } from 'vs/base/parts/ipc/node/ipc';
 import { generateRandomPipeName, Protocol } from 'vs/base/parts/ipc/node/ipc.net';
 import { createServer, Server, Socket } from 'net';
 import { Event, Emitter, debounceEvent, mapEvent, anyEvent, fromNodeEventEmitter } from 'vs/base/common/event';
-import { IInitData, IWorkspaceData, IConfigurationInitData } from 'vs/workbench/api/node/extHost.protocol';
+import { IInitData, IConfigurationInitData } from 'vs/workbench/api/node/extHost.protocol';
 import { IExtensionDescription } from 'vs/workbench/services/extensions/common/extensions';
 import { IWorkspaceConfigurationService } from 'vs/workbench/services/configuration/common/configuration';
 import { ICrashReporterService } from 'vs/workbench/services/crashReporter/electron-browser/crashReporterService';
@@ -38,6 +38,7 @@ import { INotificationService, Severity } from 'vs/platform/notification/common/
 import { getPathFromAmdModule } from 'vs/base/common/amd';
 import { timeout } from 'vs/base/common/async';
 import { isMessageOfType, MessageType, createMessageOfType } from 'vs/workbench/common/extensionHostProtocol';
+import { IUriLabelService } from 'vs/platform/uriLabel/common/uriLabel';
 
 export interface IExtensionHostStarter {
 	readonly onCrashed: Event<[number, string]>;
@@ -81,7 +82,8 @@ export class ExtensionHostProcessWorker implements IExtensionHostStarter {
 		@IWorkspaceConfigurationService private readonly _configurationService: IWorkspaceConfigurationService,
 		@ITelemetryService private readonly _telemetryService: ITelemetryService,
 		@ICrashReporterService private readonly _crashReporterService: ICrashReporterService,
-		@ILogService private readonly _logService: ILogService
+		@ILogService private readonly _logService: ILogService,
+		@IUriLabelService private readonly _uriLabelService: IUriLabelService
 	) {
 		// handle extension host lifecycle a bit special when we know we are developing an extension that runs inside
 		this._isExtensionDevHost = this._environmentService.isExtensionDevelopment;
@@ -371,6 +373,7 @@ export class ExtensionHostProcessWorker implements IExtensionHostStarter {
 	private _createExtHostInitData(): TPromise<IInitData> {
 		return TPromise.join([this._telemetryService.getTelemetryInfo(), this._extensions]).then(([telemetryInfo, extensionDescriptions]) => {
 			const configurationData: IConfigurationInitData = { ...this._configurationService.getConfigurationData(), configurationScopes: {} };
+			const workspace = this._contextService.getWorkspace();
 			const r: IInitData = {
 				parentPid: process.pid,
 				environment: {
@@ -380,7 +383,12 @@ export class ExtensionHostProcessWorker implements IExtensionHostStarter {
 					extensionDevelopmentPath: this._environmentService.extensionDevelopmentPath,
 					extensionTestsPath: this._environmentService.extensionTestsPath
 				},
-				workspace: this._contextService.getWorkbenchState() === WorkbenchState.EMPTY ? null : <IWorkspaceData>this._contextService.getWorkspace(),
+				workspace: this._contextService.getWorkbenchState() === WorkbenchState.EMPTY ? null : {
+					configuration: workspace.configuration,
+					folders: workspace.folders,
+					id: workspace.id,
+					name: this._uriLabelService.getWorkspaceLabel(workspace)
+				},
 				extensions: extensionDescriptions,
 				// Send configurations scopes only in development mode.
 				configuration: !this._environmentService.isBuilt || this._environmentService.isExtensionDevelopment ? { ...configurationData, configurationScopes: getScopes() } : configurationData,

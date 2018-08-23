@@ -7,13 +7,13 @@ import URI from 'vs/base/common/uri';
 import { IDisposable } from 'vs/base/common/lifecycle';
 import { Event, Emitter } from 'vs/base/common/event';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
-import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
+import { IWorkspaceContextService, IWorkspace } from 'vs/platform/workspace/common/workspace';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { isEqual, basenameOrAuthority } from 'vs/base/common/resources';
 import { isLinux, isWindows } from 'vs/base/common/platform';
 import { tildify, getPathLabel } from 'vs/base/common/labels';
 import { ltrim } from 'vs/base/common/strings';
-import { IWorkspaceIdentifier, ISingleFolderWorkspaceIdentifier, isSingleFolderWorkspaceIdentifier, WORKSPACE_EXTENSION } from 'vs/platform/workspaces/common/workspaces';
+import { IWorkspaceIdentifier, ISingleFolderWorkspaceIdentifier, isSingleFolderWorkspaceIdentifier, WORKSPACE_EXTENSION, toWorkspaceIdentifier, isWorkspaceIdentifier } from 'vs/platform/workspaces/common/workspaces';
 import { localize } from 'vs/nls';
 import { isParent } from 'vs/platform/files/common/files';
 import { basename, dirname, join } from 'vs/base/common/paths';
@@ -21,7 +21,7 @@ import { basename, dirname, join } from 'vs/base/common/paths';
 export interface IUriLabelService {
 	_serviceBrand: any;
 	getLabel(resource: URI, relative?: boolean, forceNoTildify?: boolean): string;
-	getWorkspaceLabel(workspace: (IWorkspaceIdentifier | ISingleFolderWorkspaceIdentifier), options?: { verbose: boolean }): string;
+	getWorkspaceLabel(workspace: (IWorkspaceIdentifier | ISingleFolderWorkspaceIdentifier | IWorkspace), options?: { verbose: boolean }): string;
 	registerFormater(schema: string, formater: UriLabelRules): IDisposable;
 	onDidRegisterFormater: Event<{ scheme: string, formater: UriLabelRules }>;
 }
@@ -46,18 +46,14 @@ export class UriLabelService implements IUriLabelService {
 
 	private readonly formaters = new Map<string, UriLabelRules>();
 	private readonly _onDidRegisterFormater = new Emitter<{ scheme: string, formater: UriLabelRules }>();
-	private contextService: IWorkspaceContextService;
 
 	constructor(
 		@IEnvironmentService private environmentService: IEnvironmentService,
+		@IWorkspaceContextService private contextService: IWorkspaceContextService
 	) { }
 
 	get onDidRegisterFormater(): Event<{ scheme: string, formater: UriLabelRules }> {
 		return this._onDidRegisterFormater.event;
-	}
-
-	acquireContextService(contextService: IWorkspaceContextService): void {
-		this.contextService = contextService;
 	}
 
 	getLabel(resource: URI, relative?: boolean, forceNoTildify?: boolean): string {
@@ -93,7 +89,14 @@ export class UriLabelService implements IUriLabelService {
 		return this.formatUri(resource, formater, forceNoTildify);
 	}
 
-	getWorkspaceLabel(workspace: (IWorkspaceIdentifier | ISingleFolderWorkspaceIdentifier), options?: { verbose: boolean }): string {
+	getWorkspaceLabel(workspace: (IWorkspaceIdentifier | ISingleFolderWorkspaceIdentifier | IWorkspace), options?: { verbose: boolean }): string {
+		if (!isWorkspaceIdentifier(workspace) && !isSingleFolderWorkspaceIdentifier(workspace)) {
+			workspace = toWorkspaceIdentifier(workspace);
+			if (!workspace) {
+				return '';
+			}
+		}
+
 		// Workspace: Single Folder
 		if (isSingleFolderWorkspaceIdentifier(workspace)) {
 			// Folder on disk
@@ -106,6 +109,7 @@ export class UriLabelService implements IUriLabelService {
 		}
 
 		// Workspace: Saved
+		console.log(workspace.configPath);
 		const filename = basename(workspace.configPath);
 		const workspaceName = filename.substr(0, filename.length - WORKSPACE_EXTENSION.length - 1);
 		if (options && options.verbose) {

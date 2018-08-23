@@ -508,7 +508,7 @@ export class SimpleWorkspaceContextService implements IWorkspaceContextService {
 
 	constructor() {
 		const resource = URI.from({ scheme: SimpleWorkspaceContextService.SCHEME, authority: 'model', path: '/' });
-		this.workspace = { id: '4064f6ec-cb38-4ad0-af64-ee6467e63c82', folders: [new WorkspaceFolder({ uri: resource, name: '', index: 0 })], name: resource.fsPath };
+		this.workspace = { id: '4064f6ec-cb38-4ad0-af64-ee6467e63c82', folders: [new WorkspaceFolder({ uri: resource, name: '', index: 0 })] };
 	}
 
 	public getWorkspace(): IWorkspace {
@@ -609,8 +609,8 @@ export class SimpleUriLabelService implements IUriLabelService {
 		return resource.path;
 	}
 
-	public getWorkspaceLabel(workspace: IWorkspaceIdentifier | URI, options?: { verbose: boolean; }): string {
-		throw new Error('Not implemented');
+	public getWorkspaceLabel(workspace: IWorkspaceIdentifier | URI | IWorkspace, options?: { verbose: boolean; }): string {
+		return '';
 	}
 
 	public registerFormater(schema: string, formater: UriLabelRules): IDisposable {

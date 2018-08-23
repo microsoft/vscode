@@ -103,7 +103,7 @@ export class EmptyView extends ViewletPanel {
 			if (this.button) {
 				this.button.label = nls.localize('addFolder', "Add Folder");
 			}
-			this.titleDiv.text(this.contextService.getWorkspace().name);
+			this.titleDiv.text(EmptyView.NAME);
 		} else {
 			this.messageDiv.text(nls.localize('noFolderHelp', "You have not yet opened a folder."));
 			if (this.button) {

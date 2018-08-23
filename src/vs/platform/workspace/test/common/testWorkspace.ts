@@ -13,7 +13,6 @@ export const TestWorkspace = testWorkspace(wsUri);
 export function testWorkspace(resource: URI): Workspace {
 	return new Workspace(
 		resource.toString(),
-		resource.fsPath,
 		toWorkspaceFolders([{ path: resource.fsPath }])
 	);
 }

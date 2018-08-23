@@ -16,7 +16,7 @@ import { FileKind } from 'vs/platform/files/common/files';
 
 suite('Breadcrumb Model', function () {
 
-	const workspaceService = new TestContextService(new Workspace('ffff', 'Test', [new WorkspaceFolder({ uri: URI.parse('foo:/bar/baz/ws'), name: 'ws', index: 0 })]));
+	const workspaceService = new TestContextService(new Workspace('ffff', [new WorkspaceFolder({ uri: URI.parse('foo:/bar/baz/ws'), name: 'ws', index: 0 })]));
 	const configService = new class extends TestConfigurationService {
 		getValue(...args: any[]) {
 			if (args[0] === 'breadcrumbs.filePath') {
