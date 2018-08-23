@@ -109,7 +109,6 @@ export class UriLabelService implements IUriLabelService {
 		}
 
 		// Workspace: Saved
-		console.log(workspace.configPath);
 		const filename = basename(workspace.configPath);
 		const workspaceName = filename.substr(0, filename.length - WORKSPACE_EXTENSION.length - 1);
 		if (options && options.verbose) {
