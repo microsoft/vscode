@@ -302,10 +302,10 @@ class TextSearchEngine {
 		this.activeCancellationTokens = new Set();
 	}
 
-	public search(onProgress: (matches: IFileMatch[]) => void): TPromise<{ limitHit: boolean }> {
+	public search(onProgress: (matches: IFileMatch[]) => void): TPromise<ISearchCompleteStats> {
 		const folderQueries = this.config.folderQueries;
 
-		return new TPromise<{ limitHit: boolean }>((resolve, reject) => {
+		return new TPromise<ISearchCompleteStats>((resolve, reject) => {
 			this.collector = new TextSearchResultsCollector(onProgress);
 
 			const onResult = (match: vscode.TextSearchResult, folderIdx: number) => {
@@ -329,7 +329,12 @@ class TextSearchEngine {
 				return this.searchInFolder(fq, r => onResult(r, i));
 			})).then(() => {
 				this.collector.flush();
-				resolve({ limitHit: this.isLimitHit });
+				resolve({
+					limitHit: this.isLimitHit,
+					stats: {
+						type: 'textSearchProvider'
+					}
+				});
 			}, (errs: Error[]) => {
 				const errMsg = errs
 					.map(err => toErrorMessage(err))

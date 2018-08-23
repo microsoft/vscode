@@ -12,7 +12,7 @@ import { TPromise } from 'vs/base/common/winjs.base';
 import URI from 'vs/base/common/uri';
 import { values, ResourceMap, TernarySearchTree } from 'vs/base/common/map';
 import { Event, Emitter, fromPromise, stopwatch, anyEvent } from 'vs/base/common/event';
-import { ISearchService, ISearchProgressItem, ISearchComplete, ISearchQuery, IPatternInfo, IFileMatch } from 'vs/platform/search/common/search';
+import { ISearchService, ISearchProgressItem, ISearchComplete, ISearchQuery, IPatternInfo, IFileMatch, ITextSearchStats } from 'vs/platform/search/common/search';
 import { ReplacePattern } from 'vs/platform/search/common/replace';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { Range } from 'vs/editor/common/core/range';
@@ -809,6 +809,9 @@ export class SearchModel extends Disposable {
 
 		const options: IPatternInfo = objects.assign({}, this._searchQuery.contentPattern);
 		delete options.pattern;
+
+		const stats = completed.stats as ITextSearchStats;
+
 		/* __GDPR__
 			"searchResultsShown" : {
 				"count" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
@@ -823,7 +826,8 @@ export class SearchModel extends Disposable {
 			fileCount: this._searchResult.fileCount(),
 			options,
 			duration,
-			useRipgrep: this._searchQuery.useRipgrep
+			useRipgrep: this._searchQuery.useRipgrep,
+			type: stats && stats.type
 		});
 		return completed;
 	}

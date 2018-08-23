@@ -22,7 +22,7 @@ import { IModelService } from 'vs/editor/common/services/modelService';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IDebugParams, IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { ILogService } from 'vs/platform/log/common/log';
-import { FileMatch, ICachedSearchStats, IFileMatch, IFolderQuery, IProgress, ISearchComplete, ISearchConfiguration, ISearchEngineStats, ISearchProgressItem, ISearchQuery, ISearchResultProvider, ISearchService, LineMatch, pathIncludedInQuery, QueryType, SearchProviderType } from 'vs/platform/search/common/search';
+import { FileMatch, ICachedSearchStats, IFileMatch, IFolderQuery, IProgress, ISearchComplete, ISearchConfiguration, ISearchEngineStats, ISearchProgressItem, ISearchQuery, ISearchResultProvider, ISearchService, LineMatch, pathIncludedInQuery, QueryType, SearchProviderType, IFileSearchStats } from 'vs/platform/search/common/search';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
@@ -224,70 +224,75 @@ export class SearchService extends Disposable implements ISearchService {
 			const endToEndTime = e2eSW.elapsed();
 			this.logService.trace(`SearchService#search: ${endToEndTime}ms`);
 			completes.forEach(complete => {
-				if (complete.stats) {
-					if (complete.stats.fromCache) {
-						const cacheStats: ICachedSearchStats = complete.stats.detailStats as ICachedSearchStats;
-
-						/* __GDPR__
-							"cachedSearchComplete" : {
-								"resultCount" : { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "isMeasurement": true  },
-								"workspaceFolderCount" : { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "isMeasurement": true  },
-								"type" : { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth" },
-								"endToEndTime" : { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "isMeasurement": true },
-								"sortingTime" : { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "isMeasurement": true },
-								"cacheWasResolved" : { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth" },
-								"cacheLookupTime" : { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "isMeasurement": true },
-								"cacheFilterTime" : { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "isMeasurement": true },
-								"cacheEntryCount" : { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "isMeasurement": true },
-							}
-						 */
-						this.telemetryService.publicLog('cachedSearchComplete', {
-							resultCount: complete.stats.resultCount,
-							workspaceFolderCount: query.folderQueries.length,
-							type: complete.stats.type,
-							endToEndTime: endToEndTime,
-							sortingTime: complete.stats.sortingTime,
-							cacheWasResolved: cacheStats.cacheWasResolved,
-							cacheLookupTime: cacheStats.cacheLookupTime,
-							cacheFilterTime: cacheStats.cacheFilterTime,
-							cacheEntryCount: cacheStats.cacheEntryCount
-						});
-					} else {
-						const searchEngineStats: ISearchEngineStats = complete.stats.detailStats as ISearchEngineStats;
-
-						/* __GDPR__
-							"searchComplete" : {
-								"resultCount" : { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "isMeasurement": true  },
-								"workspaceFolderCount" : { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "isMeasurement": true  },
-								"type" : { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth" },
-								"endToEndTime" : { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "isMeasurement": true },
-								"sortingTime" : { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "isMeasurement": true },
-								"traversal" : { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth" },
-								"fileWalkTime" : { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "isMeasurement": true },
-								"directoriesWalked" : { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "isMeasurement": true },
-								"filesWalked" : { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "isMeasurement": true },
-								"cmdTime" : { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "isMeasurement": true },
-								"cmdResultCount" : { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "isMeasurement": true }
-							}
-						 */
-						this.telemetryService.publicLog('searchComplete', {
-							resultCount: complete.stats.resultCount,
-							workspaceFolderCount: query.folderQueries.length,
-							type: complete.stats.type,
-							endToEndTime: endToEndTime,
-							sortingTime: complete.stats.sortingTime,
-							traversal: searchEngineStats.traversal,
-							fileWalkTime: searchEngineStats.fileWalkTime,
-							directoriesWalked: searchEngineStats.directoriesWalked,
-							filesWalked: searchEngineStats.filesWalked,
-							cmdTime: searchEngineStats.cmdTime,
-							cmdResultCount: searchEngineStats.cmdResultCount
-						});
-					}
-				}
+				this.sendTelemetry(query, endToEndTime, complete);
 			});
 			return completes;
 		});
+	}
+
+	private sendTelemetry(query: ISearchQuery, endToEndTime: number, complete: ISearchComplete): void {
+		if (query.type === QueryType.File && complete.stats) {
+			const fileSearchStats = complete.stats as IFileSearchStats;
+			if (fileSearchStats.fromCache) {
+				const cacheStats: ICachedSearchStats = fileSearchStats.detailStats as ICachedSearchStats;
+
+				/* __GDPR__
+					"cachedSearchComplete" : {
+						"resultCount" : { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "isMeasurement": true  },
+						"workspaceFolderCount" : { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "isMeasurement": true  },
+						"type" : { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth" },
+						"endToEndTime" : { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "isMeasurement": true },
+						"sortingTime" : { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "isMeasurement": true },
+						"cacheWasResolved" : { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth" },
+						"cacheLookupTime" : { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "isMeasurement": true },
+						"cacheFilterTime" : { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "isMeasurement": true },
+						"cacheEntryCount" : { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "isMeasurement": true },
+					}
+				 */
+				this.telemetryService.publicLog('cachedSearchComplete', {
+					resultCount: fileSearchStats.resultCount,
+					workspaceFolderCount: query.folderQueries.length,
+					type: fileSearchStats.type,
+					endToEndTime: endToEndTime,
+					sortingTime: fileSearchStats.sortingTime,
+					cacheWasResolved: cacheStats.cacheWasResolved,
+					cacheLookupTime: cacheStats.cacheLookupTime,
+					cacheFilterTime: cacheStats.cacheFilterTime,
+					cacheEntryCount: cacheStats.cacheEntryCount
+				});
+			} else {
+				const searchEngineStats: ISearchEngineStats = fileSearchStats.detailStats as ISearchEngineStats;
+
+				/* __GDPR__
+					"searchComplete" : {
+						"resultCount" : { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "isMeasurement": true  },
+						"workspaceFolderCount" : { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "isMeasurement": true  },
+						"type" : { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth" },
+						"endToEndTime" : { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "isMeasurement": true },
+						"sortingTime" : { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "isMeasurement": true },
+						"traversal" : { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth" },
+						"fileWalkTime" : { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "isMeasurement": true },
+						"directoriesWalked" : { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "isMeasurement": true },
+						"filesWalked" : { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "isMeasurement": true },
+						"cmdTime" : { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "isMeasurement": true },
+						"cmdResultCount" : { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "isMeasurement": true }
+					}
+				 */
+				this.telemetryService.publicLog('searchComplete', {
+					resultCount: fileSearchStats.resultCount,
+					workspaceFolderCount: query.folderQueries.length,
+					type: fileSearchStats.type,
+					endToEndTime: endToEndTime,
+					sortingTime: fileSearchStats.sortingTime,
+					traversal: searchEngineStats.traversal,
+					fileWalkTime: searchEngineStats.fileWalkTime,
+					directoriesWalked: searchEngineStats.directoriesWalked,
+					filesWalked: searchEngineStats.filesWalked,
+					cmdTime: searchEngineStats.cmdTime,
+					cmdResultCount: searchEngineStats.cmdResultCount
+				});
+			}
+		}
 	}
 
 	private getLocalResults(query: ISearchQuery): ResourceMap<IFileMatch> {

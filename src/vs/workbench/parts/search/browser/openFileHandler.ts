@@ -178,7 +178,7 @@ export class OpenFileHandler extends QuickOpenHandler {
 				results.push(this.instantiationService.createInstance(FileEntry, fileMatch.resource, label, description, iconClass));
 			}
 
-			return new FileQuickOpenModel(results, complete.stats);
+			return new FileQuickOpenModel(results, <IFileSearchStats>complete.stats);
 		});
 	}
 
