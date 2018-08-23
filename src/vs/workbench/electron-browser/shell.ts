@@ -98,6 +98,7 @@ import { ExtensionManagementServerService } from 'vs/workbench/services/extensio
 import { DownloadServiceChannel } from 'vs/platform/download/node/downloadIpc';
 import { DefaultURITransformer } from 'vs/base/common/uriIpc';
 import { ExtensionGalleryService } from 'vs/platform/extensionManagement/node/extensionGalleryService';
+import { IUriLabelService } from 'vs/platform/uriLabel/common/uriLabel';
 
 /**
  * Services that we require for the Shell
@@ -117,6 +118,7 @@ export interface ICoreServices {
 export class WorkbenchShell extends Disposable {
 	private storageService: IStorageService;
 	private environmentService: IEnvironmentService;
+	private uriLabelService: IUriLabelService;
 	private logService: ILogService;
 	private configurationService: IConfigurationService;
 	private contextService: IWorkspaceContextService;
@@ -316,6 +318,7 @@ export class WorkbenchShell extends Disposable {
 		serviceCollection.set(IWorkspaceContextService, this.contextService);
 		serviceCollection.set(IConfigurationService, this.configurationService);
 		serviceCollection.set(IEnvironmentService, this.environmentService);
+		serviceCollection.set(IUriLabelService, this.uriLabelService);
 		serviceCollection.set(ILogService, this._register(this.logService));
 
 		serviceCollection.set(IStorageService, this.storageService);

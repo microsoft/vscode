@@ -33,8 +33,7 @@ import { registerThemingParticipant } from 'vs/platform/theme/common/themeServic
 import { registerColor, focusBorder, textLinkForeground, textLinkActiveForeground, foreground, descriptionForeground, contrastBorder, activeContrastBorder } from 'vs/platform/theme/common/colorRegistry';
 import { getExtraColor } from 'vs/workbench/parts/welcome/walkThrough/node/walkThroughUtils';
 import { IExtensionsWorkbenchService } from 'vs/workbench/parts/extensions/common/extensions';
-import { IStorageService } from 'vs/platform/storage/common/storage';
-import { IWorkspaceIdentifier, getWorkspaceLabel, ISingleFolderWorkspaceIdentifier, isSingleFolderWorkspaceIdentifier, isWorkspaceIdentifier } from 'vs/platform/workspaces/common/workspaces';
+import { IWorkspaceIdentifier, ISingleFolderWorkspaceIdentifier, isSingleFolderWorkspaceIdentifier, isWorkspaceIdentifier } from 'vs/platform/workspaces/common/workspaces';
 import { IEditorInputFactory, EditorInput } from 'vs/workbench/common/editor';
 import { getIdAndVersionFromLocalExtensionId } from 'vs/platform/extensionManagement/node/extensionManagementUtil';
 import { INotificationService, Severity } from 'vs/platform/notification/common/notification';
@@ -55,9 +54,7 @@ export class WelcomePageContribution implements IWorkbenchContribution {
 		@IConfigurationService configurationService: IConfigurationService,
 		@IEditorService editorService: IEditorService,
 		@IBackupFileService backupFileService: IBackupFileService,
-		@ITelemetryService telemetryService: ITelemetryService,
 		@ILifecycleService lifecycleService: ILifecycleService,
-		@IStorageService storageService: IStorageService
 	) {
 		const enabled = isWelcomePageEnabled(configurationService);
 		if (enabled && lifecycleService.startupKind !== StartupKind.ReloadedWindow) {
@@ -283,9 +280,9 @@ class WelcomePage {
 				let resource: URI;
 				if (isSingleFolderWorkspaceIdentifier(workspace)) {
 					resource = workspace;
-					label = getWorkspaceLabel(workspace, this.environmentService, this.uriLabelService);
+					label = this.uriLabelService.getWorkspaceLabel(workspace);
 				} else if (isWorkspaceIdentifier(workspace)) {
-					label = getWorkspaceLabel(workspace, this.environmentService, this.uriLabelService);
+					label = this.uriLabelService.getWorkspaceLabel(workspace);
 					resource = URI.file(workspace.configPath);
 				} else {
 					label = getBaseLabel(workspace);
