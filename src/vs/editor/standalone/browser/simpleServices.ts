@@ -45,7 +45,7 @@ import { WorkspaceEdit, isResourceTextEdit, TextEdit } from 'vs/editor/common/mo
 import { IModelService } from 'vs/editor/common/services/modelService';
 import { EditOperation } from 'vs/editor/common/core/editOperation';
 import { localize } from 'vs/nls';
-import { ILabelService, UriLabelRules } from 'vs/platform/label/common/label';
+import { ILabelService, LabelRules } from 'vs/platform/label/common/label';
 
 export class SimpleModel implements ITextEditorModel {
 
@@ -599,8 +599,8 @@ export class SimpleBulkEditService implements IBulkEditService {
 export class SimpleUriLabelService implements ILabelService {
 	_serviceBrand: any;
 
-	private readonly _onDidRegisterFormater: Emitter<{ scheme: string, formater: UriLabelRules }> = new Emitter<{ scheme: string, formater: UriLabelRules }>();
-	public readonly onDidRegisterFormater: Event<{ scheme: string, formater: UriLabelRules }> = this._onDidRegisterFormater.event;
+	private readonly _onDidRegisterFormatter: Emitter<{ scheme: string, formatter: LabelRules }> = new Emitter<{ scheme: string, formatter: LabelRules }>();
+	public readonly onDidRegisterFormatter: Event<{ scheme: string, formatter: LabelRules }> = this._onDidRegisterFormatter.event;
 
 	public getUriLabel(resource: URI, relative?: boolean): string {
 		if (resource.scheme === 'file') {
@@ -613,7 +613,7 @@ export class SimpleUriLabelService implements ILabelService {
 		return '';
 	}
 
-	public registerFormater(schema: string, formater: UriLabelRules): IDisposable {
+	public registerFormatter(schema: string, formatter: LabelRules): IDisposable {
 		throw new Error('Not implemented');
 	}
 }

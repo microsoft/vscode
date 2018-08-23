@@ -16,7 +16,7 @@ import { LifecyclePhase } from 'vs/platform/lifecycle/common/lifecycle';
 class LabelRegistrationContribution implements IWorkbenchContribution {
 
 	constructor(@ILabelService labelService: ILabelService) {
-		labelService.onDidRegisterFormater(data => {
+		labelService.onDidRegisterFormatter(data => {
 			ipc.send('vscode:labelRegisterFormater', data);
 		});
 	}

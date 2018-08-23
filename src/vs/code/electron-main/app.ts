@@ -229,7 +229,7 @@ export class CodeApplication {
 		});
 
 		ipc.on('vscode:labelRegisterFormater', (event: any, { scheme, formater }) => {
-			this.labelService.registerFormater(scheme, formater);
+			this.labelService.registerFormatter(scheme, formater);
 		});
 
 		ipc.on('vscode:toggleDevTools', (event: Event) => {

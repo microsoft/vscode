@@ -22,15 +22,20 @@ export interface ILabelService {
 	_serviceBrand: any;
 	getUriLabel(resource: URI, relative?: boolean, forceNoTildify?: boolean): string;
 	getWorkspaceLabel(workspace: (IWorkspaceIdentifier | ISingleFolderWorkspaceIdentifier | IWorkspace), options?: { verbose: boolean }): string;
-	registerFormater(schema: string, formater: UriLabelRules): IDisposable;
-	onDidRegisterFormater: Event<{ scheme: string, formater: UriLabelRules }>;
+	registerFormatter(schema: string, formatter: LabelRules): IDisposable;
+	onDidRegisterFormatter: Event<{ scheme: string, formatter: LabelRules }>;
 }
 
-export interface UriLabelRules {
-	label: string; // myLabel:/${path}
-	separator: '/' | '\\' | '';
-	tildify?: boolean;
-	normalizeDriveLetter?: boolean;
+export interface LabelRules {
+	uri: {
+		label: string; // myLabel:/${path}
+		separator: '/' | '\\' | '';
+		tildify?: boolean;
+		normalizeDriveLetter?: boolean;
+	};
+	workspace?: {
+		suffix: string;
+	};
 }
 
 const LABEL_SERVICE_ID = 'label';
@@ -44,24 +49,24 @@ function hasDriveLetter(path: string): boolean {
 export class LabelService implements ILabelService {
 	_serviceBrand: any;
 
-	private readonly formaters = new Map<string, UriLabelRules>();
-	private readonly _onDidRegisterFormater = new Emitter<{ scheme: string, formater: UriLabelRules }>();
+	private readonly formatters = new Map<string, LabelRules>();
+	private readonly _onDidRegisterFormatter = new Emitter<{ scheme: string, formatter: LabelRules }>();
 
 	constructor(
 		@IEnvironmentService private environmentService: IEnvironmentService,
 		@IWorkspaceContextService private contextService: IWorkspaceContextService
 	) { }
 
-	get onDidRegisterFormater(): Event<{ scheme: string, formater: UriLabelRules }> {
-		return this._onDidRegisterFormater.event;
+	get onDidRegisterFormatter(): Event<{ scheme: string, formatter: LabelRules }> {
+		return this._onDidRegisterFormatter.event;
 	}
 
 	getUriLabel(resource: URI, relative?: boolean, forceNoTildify?: boolean): string {
 		if (!resource) {
 			return undefined;
 		}
-		const formater = this.formaters.get(resource.scheme);
-		if (!formater) {
+		const formatter = this.formatters.get(resource.scheme);
+		if (!formatter) {
 			return getPathLabel(resource.path, this.environmentService, relative ? this.contextService : undefined);
 		}
 
@@ -72,8 +77,8 @@ export class LabelService implements ILabelService {
 				if (isEqual(baseResource.uri, resource, !isLinux)) {
 					relativeLabel = ''; // no label if resources are identical
 				} else {
-					const baseResourceLabel = this.formatUri(baseResource.uri, formater, forceNoTildify);
-					relativeLabel = ltrim(this.formatUri(resource, formater, forceNoTildify).substring(baseResourceLabel.length), formater.separator);
+					const baseResourceLabel = this.formatUri(baseResource.uri, formatter, forceNoTildify);
+					relativeLabel = ltrim(this.formatUri(resource, formatter, forceNoTildify).substring(baseResourceLabel.length), formatter.uri.separator);
 				}
 
 				const hasMultipleRoots = this.contextService.getWorkspace().folders.length > 1;
@@ -86,7 +91,7 @@ export class LabelService implements ILabelService {
 			}
 		}
 
-		return this.formatUri(resource, formater, forceNoTildify);
+		return this.formatUri(resource, formatter, forceNoTildify);
 	}
 
 	getWorkspaceLabel(workspace: (IWorkspaceIdentifier | ISingleFolderWorkspaceIdentifier | IWorkspace), options?: { verbose: boolean }): string {
@@ -100,7 +105,9 @@ export class LabelService implements ILabelService {
 		// Workspace: Single Folder
 		if (isSingleFolderWorkspaceIdentifier(workspace)) {
 			// Folder on disk
-			return options && options.verbose ? this.getUriLabel(workspace) : basenameOrAuthority(workspace);
+			const formatter = this.formatters.get(workspace.scheme);
+			const label = options && options.verbose ? this.getUriLabel(workspace) : basenameOrAuthority(workspace);
+			return formatter && formatter.workspace && formatter.workspace.suffix ? `${label} (${formatter.workspace.suffix})` : label;
 		}
 
 		// Workspace: Untitled
@@ -118,17 +125,17 @@ export class LabelService implements ILabelService {
 		return localize('workspaceName', "{0} (Workspace)", workspaceName);
 	}
 
-	registerFormater(scheme: string, formater: UriLabelRules): IDisposable {
-		this.formaters.set(scheme, formater);
-		this._onDidRegisterFormater.fire({ scheme, formater });
+	registerFormatter(scheme: string, formatter: LabelRules): IDisposable {
+		this.formatters.set(scheme, formatter);
+		this._onDidRegisterFormatter.fire({ scheme, formatter });
 
 		return {
-			dispose: () => this.formaters.delete(scheme)
+			dispose: () => this.formatters.delete(scheme)
 		};
 	}
 
-	private formatUri(resource: URI, formater: UriLabelRules, forceNoTildify: boolean): string {
-		let label = formater.label.replace(labelMatchingRegexp, match => {
+	private formatUri(resource: URI, formatter: LabelRules, forceNoTildify: boolean): string {
+		let label = formatter.uri.label.replace(labelMatchingRegexp, match => {
 			switch (match) {
 				case '${scheme}': return resource.scheme;
 				case '${authority}': return resource.authority;
@@ -138,15 +145,15 @@ export class LabelService implements ILabelService {
 		});
 
 		// convert \c:\something => C:\something
-		if (formater.normalizeDriveLetter && hasDriveLetter(label)) {
+		if (formatter.uri.normalizeDriveLetter && hasDriveLetter(label)) {
 			label = label.charAt(1).toUpperCase() + label.substr(2);
 		}
 
-		if (formater.tildify && !forceNoTildify) {
+		if (formatter.uri.tildify && !forceNoTildify) {
 			label = tildify(label, this.environmentService.userHome);
 		}
 
-		return label.replace(sepRegexp, formater.separator);
+		return label.replace(sepRegexp, formatter.uri.separator);
 	}
 }
 

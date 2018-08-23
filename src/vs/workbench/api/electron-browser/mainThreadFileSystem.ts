@@ -11,7 +11,7 @@ import { TPromise } from 'vs/base/common/winjs.base';
 import { FileWriteOptions, FileSystemProviderCapabilities, IFileChange, IFileService, IFileSystemProvider, IStat, IWatchOptions, FileType, FileOverwriteOptions, FileDeleteOptions } from 'vs/platform/files/common/files';
 import { extHostNamedCustomer } from 'vs/workbench/api/electron-browser/extHostCustomers';
 import { ExtHostContext, ExtHostFileSystemShape, IExtHostContext, IFileChangeDto, MainContext, MainThreadFileSystemShape } from '../node/extHost.protocol';
-import { UriLabelRules, ILabelService } from 'vs/platform/label/common/label';
+import { LabelRules, ILabelService } from 'vs/platform/label/common/label';
 
 @extHostNamedCustomer(MainContext.MainThreadFileSystem)
 export class MainThreadFileSystem implements MainThreadFileSystemShape {
@@ -41,8 +41,8 @@ export class MainThreadFileSystem implements MainThreadFileSystemShape {
 		this._fileProvider.delete(handle);
 	}
 
-	$setUriFormatter(scheme: string, formatter: UriLabelRules): void {
-		this._labelService.registerFormater(scheme, formatter);
+	$setUriFormatter(scheme: string, formatter: LabelRules): void {
+		this._labelService.registerFormatter(scheme, formatter);
 	}
 
 	$onFileSystemChange(handle: number, changes: IFileChangeDto[]): void {

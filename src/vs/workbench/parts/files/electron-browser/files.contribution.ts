@@ -56,11 +56,13 @@ export class OpenExplorerViewletAction extends ToggleViewletAction {
 class FileUriLabelContribution implements IWorkbenchContribution {
 
 	constructor(@ILabelService labelService: ILabelService) {
-		labelService.registerFormater(Schemas.file, {
-			label: '${path}',
-			separator: nativeSep,
-			tildify: !platform.isWindows,
-			normalizeDriveLetter: platform.isWindows
+		labelService.registerFormatter(Schemas.file, {
+			uri: {
+				label: '${path}',
+				separator: nativeSep,
+				tildify: !platform.isWindows,
+				normalizeDriveLetter: platform.isWindows
+			}
 		});
 	}
 }

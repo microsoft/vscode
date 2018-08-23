@@ -21,11 +21,13 @@ suite('URI Label', () => {
 	});
 
 	test('file scheme', function () {
-		labelService.registerFormater(Schemas.file, {
-			label: '${path}',
-			separator: nativeSep,
-			tildify: !isWindows,
-			normalizeDriveLetter: isWindows
+		labelService.registerFormatter(Schemas.file, {
+			uri: {
+				label: '${path}',
+				separator: nativeSep,
+				tildify: !isWindows,
+				normalizeDriveLetter: isWindows
+			}
 		});
 
 		const uri1 = TestWorkspace.folders[0].uri.with({ path: TestWorkspace.folders[0].uri.path.concat('/a/b/c/d') });
@@ -37,11 +39,13 @@ suite('URI Label', () => {
 	});
 
 	test('custom scheme', function () {
-		labelService.registerFormater(Schemas.vscode, {
-			label: 'LABEL/${path}/${authority}/END',
-			separator: '/',
-			tildify: true,
-			normalizeDriveLetter: true
+		labelService.registerFormatter(Schemas.vscode, {
+			uri: {
+				label: 'LABEL/${path}/${authority}/END',
+				separator: '/',
+				tildify: true,
+				normalizeDriveLetter: true
+			}
 		});
 
 		const uri1 = URI.parse('vscode://microsoft.com/1/2/3/4/5');
