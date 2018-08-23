@@ -238,7 +238,7 @@ export class SendSequenceTerminalCommand extends Command {
 			return;
 		}
 		const text = args.text.split(' ');
-		var terminalText;
+		let terminalText;
 		for (let i = 0; i < text.length; i++) {
 			terminalText = ' ' + prepareTerminalText(text[i]);
 			terminalInstance.sendText(terminalText, false);
