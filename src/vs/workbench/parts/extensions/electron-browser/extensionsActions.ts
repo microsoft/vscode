@@ -18,7 +18,7 @@ import { IContextMenuService } from 'vs/platform/contextview/browser/contextView
 import { IDisposable, dispose, Disposable } from 'vs/base/common/lifecycle';
 import { IExtension, ExtensionState, IExtensionsWorkbenchService, VIEWLET_ID, IExtensionsViewlet, AutoUpdateConfigurationKey } from 'vs/workbench/parts/extensions/common/extensions';
 import { ExtensionsConfigurationInitialContent } from 'vs/workbench/parts/extensions/common/extensionsFileTemplate';
-import { LocalExtensionType, IExtensionEnablementService, IExtensionTipsService, EnablementState, ExtensionsLabel, IExtensionRecommendation, IGalleryExtension, IExtensionsConfigContent } from 'vs/platform/extensionManagement/common/extensionManagement';
+import { LocalExtensionType, IExtensionEnablementService, IExtensionTipsService, EnablementState, ExtensionsLabel, IExtensionRecommendation, IGalleryExtension, IExtensionsConfigContent, IExtensionManagementServerService } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { areSameExtensions } from 'vs/platform/extensionManagement/common/extensionManagementUtil';
 import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { ToggleViewletAction } from 'vs/workbench/browser/viewlet';
@@ -909,6 +909,7 @@ export class ReloadAction extends Action {
 		@IExtensionsWorkbenchService private extensionsWorkbenchService: IExtensionsWorkbenchService,
 		@IWindowService private windowService: IWindowService,
 		@IExtensionService private extensionService: IExtensionService,
+		@IExtensionManagementServerService private extensionManagementServerService: IExtensionManagementServerService,
 		@IExtensionEnablementService private extensionEnablementService: IExtensionEnablementService
 	) {
 		super('extensions.reload', localize('reloadAction', "Reload"), ReloadAction.DisabledClass, false);
@@ -961,7 +962,10 @@ export class ReloadAction extends Action {
 					return;
 				}
 			} else {
-				if (!isDisabled) {
+				const extensionServer = this.extensionManagementServerService.getExtensionManagementServer(installed.local.location);
+				const localServer = this.extensionManagementServerService.getLocalExtensionManagementServer();
+				// Only extension from local server requires reload if it is not running on the server
+				if (extensionServer && extensionServer.authority === localServer.authority && !isDisabled) {
 					// Requires reload to enable the extension
 					this.enabled = true;
 					this.tooltip = localize('postEnableTooltip', "Reload to activate");
