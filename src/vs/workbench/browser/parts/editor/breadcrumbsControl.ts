@@ -296,7 +296,7 @@ export class BreadcrumbsControl {
 					this._revealInEditor(event, data.target, this._getEditorGroup(data.payload && data.payload.originalEvent));
 				});
 				let focusListener = picker.onDidFocusElement(data => {
-					if (!(data.target instanceof OutlineElement)) {
+					if (!editor || !(data.target instanceof OutlineElement)) {
 						return;
 					}
 					if (!editorViewState) {
@@ -346,9 +346,11 @@ export class BreadcrumbsControl {
 				return { x, y };
 			},
 			onHide: (data) => {
-				editor.deltaDecorations(editorDecorations, []);
-				if (editorViewState) {
-					editor.restoreViewState(editorViewState);
+				if (editor) {
+					editor.deltaDecorations(editorDecorations, []);
+					if (editorViewState) {
+						editor.restoreViewState(editorViewState);
+					}
 				}
 				this._breadcrumbsPickerShowing = false;
 				this._updateCkBreadcrumbsActive();
