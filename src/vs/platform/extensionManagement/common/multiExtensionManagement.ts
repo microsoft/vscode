@@ -17,15 +17,16 @@ import { localize } from 'vs/nls';
 import { IWindowService } from 'vs/platform/windows/common/windows';
 import { Action } from 'vs/base/common/actions';
 import { ILogService } from 'vs/platform/log/common/log';
+import { Disposable } from 'vs/base/common/lifecycle';
 
-export class MulitExtensionManagementService implements IExtensionManagementService {
+export class MulitExtensionManagementService extends Disposable implements IExtensionManagementService {
 
 	_serviceBrand: any;
 
-	onInstallExtension: Event<InstallExtensionEvent>;
-	onDidInstallExtension: Event<DidInstallExtensionEvent>;
-	onUninstallExtension: Event<IExtensionIdentifier>;
-	onDidUninstallExtension: Event<DidUninstallExtensionEvent>;
+	readonly onInstallExtension: Event<InstallExtensionEvent>;
+	readonly onDidInstallExtension: Event<DidInstallExtensionEvent>;
+	readonly onUninstallExtension: Event<IExtensionIdentifier>;
+	readonly onDidUninstallExtension: Event<DidUninstallExtensionEvent>;
 
 	private readonly servers: IExtensionManagementServer[];
 	private readonly localServer: IExtensionManagementServer;
@@ -38,13 +39,15 @@ export class MulitExtensionManagementService implements IExtensionManagementServ
 		@ILogService private logService: ILogService,
 		@IExtensionGalleryService private extensionGalleryService: IExtensionGalleryService
 	) {
+		super();
 		this.servers = this.extensionManagementServerService.extensionManagementServers;
 		this.localServer = this.extensionManagementServerService.getLocalExtensionManagementServer();
 		this.otherServers = this.servers.filter(s => s !== this.localServer);
-		this.onInstallExtension = this.servers.reduce((emitter: EventMultiplexer<InstallExtensionEvent>, server) => { emitter.add(server.extensionManagementService.onInstallExtension); return emitter; }, new EventMultiplexer<InstallExtensionEvent>()).event;
-		this.onDidInstallExtension = this.servers.reduce((emitter: EventMultiplexer<DidInstallExtensionEvent>, server) => { emitter.add(server.extensionManagementService.onDidInstallExtension); return emitter; }, new EventMultiplexer<DidInstallExtensionEvent>()).event;
-		this.onUninstallExtension = this.servers.reduce((emitter: EventMultiplexer<IExtensionIdentifier>, server) => { emitter.add(server.extensionManagementService.onUninstallExtension); return emitter; }, new EventMultiplexer<IExtensionIdentifier>()).event;
-		this.onDidUninstallExtension = this.servers.reduce((emitter: EventMultiplexer<DidUninstallExtensionEvent>, server) => { emitter.add(server.extensionManagementService.onDidUninstallExtension); return emitter; }, new EventMultiplexer<DidUninstallExtensionEvent>()).event;
+
+		this.onInstallExtension = this._register(this.servers.reduce((emitter: EventMultiplexer<InstallExtensionEvent>, server) => { emitter.add(server.extensionManagementService.onInstallExtension); return emitter; }, new EventMultiplexer<InstallExtensionEvent>())).event;
+		this.onDidInstallExtension = this._register(this.servers.reduce((emitter: EventMultiplexer<DidInstallExtensionEvent>, server) => { emitter.add(server.extensionManagementService.onDidInstallExtension); return emitter; }, new EventMultiplexer<DidInstallExtensionEvent>())).event;
+		this.onUninstallExtension = this._register(this.servers.reduce((emitter: EventMultiplexer<IExtensionIdentifier>, server) => { emitter.add(server.extensionManagementService.onUninstallExtension); return emitter; }, new EventMultiplexer<IExtensionIdentifier>())).event;
+		this.onDidUninstallExtension = this._register(this.servers.reduce((emitter: EventMultiplexer<DidUninstallExtensionEvent>, server) => { emitter.add(server.extensionManagementService.onDidUninstallExtension); return emitter; }, new EventMultiplexer<DidUninstallExtensionEvent>())).event;
 
 		if (this.otherServers.length) {
 			this.syncExtensions();
@@ -90,15 +93,14 @@ export class MulitExtensionManagementService implements IExtensionManagementServ
 	}
 
 	installFromGallery(gallery: IGalleryExtension): TPromise<void> {
-		return this.localServer.extensionManagementService.installFromGallery(gallery)
-			.then(() => this.localServer.extensionManagementService.getInstalled(LocalExtensionType.User))
-			.then(installed => {
-				const extension = installed.filter(i => areSameExtensions(i.galleryIdentifier, gallery.identifier))[0];
-				if (extension && isWorkspaceExtension(extension.manifest)) {
-					return TPromise.join(this.otherServers.map(server => server.extensionManagementService.installFromGallery(gallery)))
-						.then(() => null);
-				}
-				return null;
+		if (this.otherServers.length === 0) {
+			return this.localServer.extensionManagementService.installFromGallery(gallery);
+		}
+		return this.extensionGalleryService.getManifest(gallery)
+			.then(manifest => {
+				const servers = isWorkspaceExtension(manifest) ? this.servers : [this.localServer];
+				return TPromise.join(servers.map(server => server.extensionManagementService.installFromGallery(gallery)))
+					.then(() => null);
 			});
 	}
 
@@ -155,7 +157,8 @@ export class MulitExtensionManagementService implements IExtensionManagementServ
 			for (const extension of extensions) {
 				if (ids.indexOf(extension.galleryIdentifier.id) === -1) {
 					ids.push(extension.galleryIdentifier.id);
-					zipLocationResolvers.push(this.downloadFromGallery(extension).then(location => location ? { location, vsix: true } : this.localServer.extensionManagementService.zip(extension).then(location => ({ location, vsix: false }))));
+					zipLocationResolvers.push(this.downloadFromGallery(extension)
+						.then(location => location ? { location, vsix: true } : this.localServer.extensionManagementService.zip(extension).then(location => ({ location, vsix: false }))));
 				}
 			}
 		});
