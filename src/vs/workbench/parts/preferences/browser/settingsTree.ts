@@ -673,6 +673,21 @@ export class SettingsRenderer implements ITreeRenderer {
 				template.onChange(checkbox.checked);
 			}
 		}));
+
+		// Need to listen for mouse clicks on description and toggle checkbox - use target ID for safety
+		// Also have to ignore embedded links - too buried to stop propagation
+		toDispose.push(DOM.addDisposableListener(descriptionElement, DOM.EventType.MOUSE_DOWN, (e) => {
+			const targetElement = <HTMLElement>e.toElement;
+			const targetId = descriptionElement.getAttribute('checkboxLabelTargetId');
+
+			// Make sure we are not a link and the target ID matches
+			// Toggle target checkbox
+			if (targetElement.tagName !== 'A' && targetId === template.checkbox.domNode.id) {
+				template.checkbox.checked = template.checkbox.checked ? false : true;
+			}
+			DOM.EventHelper.stop(e);
+		}));
+
 		checkbox.domNode.classList.add(SettingsRenderer.CONTROL_CLASS);
 		const toolbar = this.renderSettingToolbar(container);
 		toDispose.push(toolbar);
@@ -917,6 +932,10 @@ export class SettingsRenderer implements ITreeRenderer {
 			template.descriptionElement.innerText = element.description;
 		}
 
+		// Add checkbox target to description clickable and able to toggle checkbox
+		const checkbox_id = (element.displayCategory + '_' + element.displayLabel).replace(/ /g, '_') + '_Item';
+		template.descriptionElement.setAttribute('checkboxLabelTargetId', checkbox_id);
+
 		if (element.overriddenScopeList.length) {
 			let otherOverridesLabel = element.isConfigured ?
 				localize('alsoConfiguredIn', "Also modified in") :
@@ -988,9 +1007,9 @@ export class SettingsRenderer implements ITreeRenderer {
 		// Labels will not be read on descendent input elements of the parent treeitem
 		// unless defined as role=treeitem and indirect aria-labelledby approach
 		// TODO: Determine method to normally label input items with value read last
-		template.checkbox.domNode.setAttribute('id', id + 'item');
+		template.checkbox.domNode.setAttribute('id', id + '_Item');
 		template.checkbox.domNode.setAttribute('role', 'treeitem');
-		template.checkbox.domNode.setAttribute('aria-labelledby', id + 'item ' + id);
+		template.checkbox.domNode.setAttribute('aria-labelledby', id + '_Item ' + id);
 
 	}
 
