@@ -125,7 +125,7 @@ export interface IBreadcrumbsControlOptions {
 
 export class BreadcrumbsControl {
 
-	static HEIGHT = 25;
+	static HEIGHT = 22;
 
 	static readonly Payload_Reveal = {};
 	static readonly Payload_RevealAside = {};
