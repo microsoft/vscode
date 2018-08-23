@@ -9,40 +9,41 @@ import * as dom from 'vs/base/browser/dom';
 import { StandardMouseEvent } from 'vs/base/browser/mouseEvent';
 import { BreadcrumbsItem, BreadcrumbsWidget, IBreadcrumbsItemEvent } from 'vs/base/browser/ui/breadcrumbs/breadcrumbsWidget';
 import { IconLabel } from 'vs/base/browser/ui/iconLabel/iconLabel';
+import { tail } from 'vs/base/common/arrays';
+import { timeout } from 'vs/base/common/async';
 import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
 import { combinedDisposable, dispose, IDisposable } from 'vs/base/common/lifecycle';
 import { Schemas } from 'vs/base/common/network';
 import { isEqual } from 'vs/base/common/resources';
+import URI from 'vs/base/common/uri';
 import 'vs/css!./media/breadcrumbscontrol';
 import { ICodeEditor, isCodeEditor } from 'vs/editor/browser/editorBrowser';
 import { Range } from 'vs/editor/common/core/range';
+import { ICodeEditorViewState, ScrollType } from 'vs/editor/common/editorCommon';
 import { symbolKindToCssClass } from 'vs/editor/common/modes';
 import { OutlineElement, OutlineGroup, OutlineModel, TreeElement } from 'vs/editor/contrib/documentSymbols/outlineModel';
+import { localize } from 'vs/nls';
+import { MenuId, MenuRegistry } from 'vs/platform/actions/common/actions';
+import { CommandsRegistry } from 'vs/platform/commands/common/commands';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { ContextKeyExpr, IContextKey, IContextKeyService, RawContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { IContextViewService } from 'vs/platform/contextview/browser/contextView';
 import { FileKind, IFileService, IFileStat } from 'vs/platform/files/common/files';
 import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { KeybindingsRegistry, KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
+import { IListService, WorkbenchListFocusContextKey } from 'vs/platform/list/browser/listService';
 import { IQuickOpenService } from 'vs/platform/quickOpen/common/quickOpen';
+import { ColorIdentifier } from 'vs/platform/theme/common/colorRegistry';
 import { attachBreadcrumbsStyler } from 'vs/platform/theme/common/styler';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { FileLabel } from 'vs/workbench/browser/labels';
 import { BreadcrumbsConfig, IBreadcrumbsService } from 'vs/workbench/browser/parts/editor/breadcrumbs';
 import { BreadcrumbElement, EditorBreadcrumbsModel, FileElement } from 'vs/workbench/browser/parts/editor/breadcrumbsModel';
-import { createBreadcrumbsPicker, BreadcrumbsPicker } from 'vs/workbench/browser/parts/editor/breadcrumbsPicker';
+import { BreadcrumbsPicker, createBreadcrumbsPicker } from 'vs/workbench/browser/parts/editor/breadcrumbsPicker';
 import { EditorGroupView } from 'vs/workbench/browser/parts/editor/editorGroupView';
-import { IEditorService, SIDE_GROUP, SIDE_GROUP_TYPE, ACTIVE_GROUP_TYPE, ACTIVE_GROUP } from 'vs/workbench/services/editor/common/editorService';
+import { ACTIVE_GROUP, ACTIVE_GROUP_TYPE, IEditorService, SIDE_GROUP, SIDE_GROUP_TYPE } from 'vs/workbench/services/editor/common/editorService';
 import { IEditorGroupsService } from 'vs/workbench/services/group/common/editorGroupsService';
-import { MenuRegistry, MenuId } from 'vs/platform/actions/common/actions';
-import { localize } from 'vs/nls';
-import { CommandsRegistry } from 'vs/platform/commands/common/commands';
-import { tail } from 'vs/base/common/arrays';
-import { WorkbenchListFocusContextKey, IListService } from 'vs/platform/list/browser/listService';
-import { ColorIdentifier } from 'vs/platform/theme/common/colorRegistry';
-import { timeout } from 'vs/base/common/async';
-import URI from 'vs/base/common/uri';
 
 class Item extends BreadcrumbsItem {
 
@@ -280,17 +281,42 @@ export class BreadcrumbsControl {
 
 		// show picker
 		let picker: BreadcrumbsPicker;
+		let editor = this._editorGroup.activeControl.getControl() as ICodeEditor;
+		let editorDecorations: string[] = [];
+		let editorViewState: ICodeEditorViewState;
+
 		this._contextViewService.showContextView({
 			render: (parent: HTMLElement) => {
 				picker = createBreadcrumbsPicker(this._instantiationService, parent, element);
-				let listener = picker.onDidPickElement(data => {
+				let selectListener = picker.onDidPickElement(data => {
+					if (data.target) {
+						editorViewState = undefined;
+					}
 					this._contextViewService.hideContextView(this);
 					this._revealInEditor(event, data.target, this._getEditorGroup(data.payload && data.payload.originalEvent));
+				});
+				let focusListener = picker.onDidFocusElement(data => {
+					if (!(data.target instanceof OutlineElement)) {
+						return;
+					}
+					if (!editorViewState) {
+						editorViewState = editor.saveViewState();
+					}
+					const { symbol } = data.target;
+					editor.revealRangeInCenter(symbol.range, ScrollType.Smooth);
+					editorDecorations = editor.deltaDecorations(editorDecorations, [{
+						range: symbol.range,
+						options: {
+							className: 'rangeHighlight',
+							isWholeLine: true
+						}
+					}]);
+
 				});
 				this._breadcrumbsPickerShowing = true;
 				this._updateCkBreadcrumbsActive();
 
-				return combinedDisposable([listener, picker]);
+				return combinedDisposable([selectListener, focusListener, picker]);
 			},
 			getAnchor: () => {
 				let maxInnerWidth = window.innerWidth - 8 /*a little less the the full widget*/;
@@ -320,6 +346,10 @@ export class BreadcrumbsControl {
 				return { x, y };
 			},
 			onHide: (data) => {
+				editor.deltaDecorations(editorDecorations, []);
+				if (editorViewState) {
+					editor.restoreViewState(editorViewState);
+				}
 				this._breadcrumbsPickerShowing = false;
 				this._updateCkBreadcrumbsActive();
 				if (data === this) {
