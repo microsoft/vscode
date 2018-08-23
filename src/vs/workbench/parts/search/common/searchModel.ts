@@ -810,7 +810,7 @@ export class SearchModel extends Disposable {
 		const options: IPatternInfo = objects.assign({}, this._searchQuery.contentPattern);
 		delete options.pattern;
 
-		const stats = completed.stats as ITextSearchStats;
+		const stats = completed && completed.stats as ITextSearchStats;
 
 		/* __GDPR__
 			"searchResultsShown" : {
