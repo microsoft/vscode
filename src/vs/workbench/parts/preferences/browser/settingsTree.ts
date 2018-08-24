@@ -907,8 +907,6 @@ export class SettingsRenderer implements ITreeRenderer {
 	}
 
 	private renderSettingElement(tree: ITree, element: SettingsTreeSettingElement, templateId: string, template: ISettingItemTemplate | ISettingBoolItemTemplate): void {
-		console.warn('render setting elements start');
-
 		template.context = element;
 		template.toolbar.context = element;
 
@@ -950,18 +948,11 @@ export class SettingsRenderer implements ITreeRenderer {
 			template.otherOverridesElement.textContent = '';
 		}
 
-		console.warn('attribute fix');
-
-		console.warn('\n' + template.containerElement.parentElement.outerHTML + '\n\n');
-		// CDL fix attributes
-		// template.containerElement.parentElement.removeAttribute('role');
-		// template.containerElement.parentElement.removeAttribute('aria-level');
+		// Remove tree attributes - sometimes overridden by tree - should be managed there
+		template.containerElement.parentElement.removeAttribute('role');
+		template.containerElement.parentElement.removeAttribute('aria-level');
 		template.containerElement.parentElement.removeAttribute('aria-posinset');
 		template.containerElement.parentElement.removeAttribute('aria-setsize');
-		// template.containerElement.parentElement.setAttribute('role','test');
-		console.warn('after fix');
-		console.warn('\n' + template.containerElement.parentElement.outerHTML + '\n\n');
-		console.warn('render setting elements finish');
 	}
 
 	private renderDescriptionMarkdown(text: string, disposeables: IDisposable[]): HTMLElement {
@@ -1025,8 +1016,6 @@ export class SettingsRenderer implements ITreeRenderer {
 		// unless defined as role=treeitem and indirect aria-labelledby approach
 		// TODO: Determine method to normally label input items with value read last
 		template.checkbox.domNode.setAttribute('id', id + '_Item');
-		// template.checkbox.domNode.setAttribute('role', 'treeitem');
-		// template.checkbox.domNode.setAttribute('aria-labelledby', id + '_Item ' + id);
 		template.checkbox.domNode.setAttribute('aria-labelledby', id);
 	}
 
@@ -1089,7 +1078,7 @@ export class SettingsRenderer implements ITreeRenderer {
 		// Labels will not be read on descendent input elements of the parent treeitem
 		// unless defined as role=treeitem and indirect aria-labelledby approach
 		// TODO: Determine method to normally label input items with value read last
-		template.inputBox.inputElement.setAttribute('id', id + 'item');
+		template.inputBox.inputElement.setAttribute('id', id + '_Item');
 		template.inputBox.inputElement.setAttribute('role', 'textbox');
 		template.inputBox.inputElement.setAttribute('aria-labelledby', id);
 
@@ -1124,8 +1113,6 @@ export class SettingsRenderer implements ITreeRenderer {
 		// TODO: Determine method to normally label input items with value read last
 		template.inputBox.inputElement.setAttribute('id', id + '_Item');
 		template.inputBox.inputElement.setAttribute('role', 'textbox');
-		// template.inputBox.inputElement.setAttribute('aria-labelledby', id + '_Item ' + id);
-		// template.inputBox.inputElement.setAttribute('aria-labelledby', id + '_Item ');
 		template.inputBox.inputElement.setAttribute('aria-labelledby', id);
 
 		renderValidations(dataElement, template, true, label);
