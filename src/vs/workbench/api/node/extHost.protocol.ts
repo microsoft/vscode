@@ -47,7 +47,7 @@ export interface IEnvironment {
 	isExtensionDevelopmentDebug: boolean;
 	appRoot: string;
 	appSettingsHome: string;
-	extensionDevelopmentPath: string;
+	extensionDevelopmentLocationURI: URI;
 	extensionTestsPath: string;
 }
 

@@ -749,7 +749,7 @@ export class DebugService implements IDebugService {
 			if (equalsIgnoreCase(session.configuration.type, 'extensionhost') && session.state === State.Running && session.configuration.noDebug) {
 				this.broadcastService.broadcast({
 					channel: EXTENSION_CLOSE_EXTHOST_BROADCAST_CHANNEL,
-					payload: [session.root.uri.fsPath]
+					payload: [session.root.uri.toString()]
 				});
 			}
 
@@ -918,7 +918,7 @@ export class DebugService implements IDebugService {
 			if (equalsIgnoreCase(session.configuration.type, 'extensionHost') && session.root) {
 				return this.broadcastService.broadcast({
 					channel: EXTENSION_RELOAD_BROADCAST_CHANNEL,
-					payload: [session.root.uri.fsPath]
+					payload: [session.root.uri.toString()]
 				});
 			}
 

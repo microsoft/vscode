@@ -179,7 +179,7 @@ export class ExtensionTipsService extends Disposable implements IExtensionTipsSe
 	}
 
 	private isEnabled(): boolean {
-		return this._galleryService.isEnabled() && !this.environmentService.extensionDevelopmentPath;
+		return this._galleryService.isEnabled() && !this.environmentService.extensionDevelopmentLocationURI;
 	}
 
 	getAllRecommendationsWithReason(): { [id: string]: { reasonId: ExtensionRecommendationReason, reasonText: string }; } {

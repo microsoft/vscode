@@ -303,7 +303,7 @@ export class ExtensionHostMain {
 	}
 
 	private handleExtensionTests(): TPromise<void> {
-		if (!this._environment.extensionTestsPath || !this._environment.extensionDevelopmentPath) {
+		if (!this._environment.extensionTestsPath || !this._environment.extensionDevelopmentLocationURI) {
 			return TPromise.as(null);
 		}
 

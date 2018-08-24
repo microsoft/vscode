@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
+import URI from 'vs/base/common/uri';
 
 export interface ParsedArgs {
 	[arg: string]: any;
@@ -107,7 +108,7 @@ export interface IEnvironmentService {
 	disableExtensions: boolean | string[];
 	builtinExtensionsPath: string;
 	extensionsPath: string;
-	extensionDevelopmentPath: string;
+	extensionDevelopmentLocationURI: URI;
 	extensionTestsPath: string;
 
 	debugExtensionHost: IExtensionHostDebugParams;
