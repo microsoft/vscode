@@ -22,7 +22,6 @@ export interface RenderOptions {
 	className?: string;
 	inline?: boolean;
 	actionHandler?: IContentActionHandler;
-	eventToIntercept?: 'mousedown' | 'mouseup' | 'click' | 'dblclick';
 	codeBlockRenderer?: (modeId: string, value: string) => Thenable<string>;
 	codeBlockRenderCallback?: () => void;
 }
@@ -144,7 +143,7 @@ export function renderMarkdown(markdown: IMarkdownString, options: RenderOptions
 	}
 
 	if (options.actionHandler) {
-		options.actionHandler.disposeables.push(DOM.addStandardDisposableListener(element, options.eventToIntercept || 'click', event => {
+		options.actionHandler.disposeables.push(DOM.addStandardDisposableListener(element, 'click', event => {
 			let target = event.target;
 			if (target.tagName !== 'A') {
 				target = target.parentElement;

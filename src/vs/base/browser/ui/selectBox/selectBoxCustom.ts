@@ -718,8 +718,7 @@ export class SelectBoxList implements ISelectBoxDelegate, IVirtualDelegate<ISele
 		};
 
 		const renderedMarkdown = renderMarkdown({ value: text }, {
-			actionHandler: this.selectBoxOptions.markdownActionHandler,
-			eventToIntercept: 'mousedown' // intercept `mousedown` because the widget disappears before a `click` can happen
+			actionHandler: this.selectBoxOptions.markdownActionHandler
 		});
 
 		renderedMarkdown.classList.add('select-box-description-markdown');
