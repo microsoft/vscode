@@ -494,6 +494,7 @@ export class SettingsEditor2 extends BaseEditor {
 	}
 
 	private updateTreeScrollSync(): void {
+		this.settingsTreeRenderer.cancelSuggesters();
 		if (this.searchResultModel) {
 			return;
 		}
