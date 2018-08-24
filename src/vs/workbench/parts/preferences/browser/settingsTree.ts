@@ -794,38 +794,25 @@ export class SettingsRenderer implements ITreeRenderer {
 
 		common.toDispose.push(excludeWidget.onDidChangeExclude(e => {
 			if (template.context) {
-				const newValue = {
-					...template.context.scopeValue
-				};
+				let newValue = { ...template.context.scopeValue };
 
-				if (e.pattern) {
-					if (e.originalPattern in newValue) {
-						// editing something present in the value
-						if (e.pattern === e.originalPattern) {
-							// editing the when condition
-							newValue[e.pattern] = e.sibling ? { when: e.sibling } : true;
-						} else {
-							newValue[e.pattern] = newValue[e.originalPattern];
-							delete newValue[e.originalPattern];
-						}
-					} else if (e.originalPattern) {
-						// editing a default
+				// first delete the existing entry, if present
+				if (e.originalPattern) {
+					if (e.originalPattern in template.context.defaultValue) {
+						// delete a default by overriding it
 						newValue[e.originalPattern] = false;
-						newValue[e.pattern] = template.context.defaultValue[e.originalPattern];
-					} else if (e.pattern in newValue) {
-						// Adding back an explicity overridden default pattern
+					} else {
+						delete newValue[e.originalPattern];
+					}
+				}
+
+				// then add the new or updated entry, if present
+				if (e.pattern) {
+					if (e.pattern in template.context.defaultValue && !e.sibling) {
+						// add a default by deleting its override
 						delete newValue[e.pattern];
 					} else {
-						// adding a new pattern
-						newValue[e.pattern] = true;
-					}
-				} else {
-					if (e.originalPattern in newValue) {
-						// deleting a configured pattern
-						delete newValue[e.originalPattern];
-					} else if (e.originalPattern) {
-						// "deleting" a default by overriding it
-						newValue[e.originalPattern] = false;
+						newValue[e.pattern] = e.sibling ? { when: e.sibling } : true;
 					}
 				}
 
