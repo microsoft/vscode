@@ -8,6 +8,7 @@
 'use strict';
 
 const withDefaults = require('../shared.webpack.config');
+const CopyWebpackPlugin = require('copy-webpack-plugin');
 
 module.exports = withDefaults({
 	context: __dirname,
@@ -19,5 +20,10 @@ module.exports = withDefaults({
 	},
 	entry: {
 		extension: './src/extension.ts',
-	}
+	},
+	plugins: [
+		new CopyWebpackPlugin([
+			{ from: './out/nls.*.json', to: '[name].json' }
+		])
+	]
 });
