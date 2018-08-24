@@ -278,7 +278,7 @@ class MenuActionItem extends BaseActionItem {
 	_updateLabel(): void {
 		if (this.options.label) {
 			let label = this.getAction().label;
-			let mnemonic;
+			let mnemonic: string;
 			if (label) {
 				let matches = MenuActionItem.MNEMONIC_REGEX.exec(label);
 				if (matches && matches.length === 2) {
