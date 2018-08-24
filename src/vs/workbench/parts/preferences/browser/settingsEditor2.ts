@@ -774,8 +774,7 @@ export class SettingsEditor2 extends BaseEditor {
 				if (query && this.searchResultModel) {
 					this.delayedFilterLogging.trigger(() => this.reportFilteringUsed(query, this.searchResultModel.getUniqueResults()));
 				}
-			})
-			.then(() => this.renderResultCountMessages());
+			});
 	}
 
 	private parseSettingFromJSON(query: string): string {
@@ -822,9 +821,9 @@ export class SettingsEditor2 extends BaseEditor {
 			collapseAll(this.tocTree);
 
 			if (this.searchResultModel) {
-				return this.settingsTree.setInput(this.searchResultModel.root);
+				return this.settingsTree.setInput(this.searchResultModel.root).then(() => this.renderResultCountMessages());
 			} else {
-				return this.settingsTree.setInput(this.settingsTreeModel.root);
+				return this.settingsTree.setInput(this.settingsTreeModel.root).then(() => this.renderResultCountMessages());
 			}
 		}
 	}
@@ -908,7 +907,7 @@ export class SettingsEditor2 extends BaseEditor {
 								TPromise.wrap(null);
 						});
 					}
-				});
+				}).then(() => this.renderResultCountMessages());
 			} else {
 				return TPromise.wrap(null);
 			}
@@ -958,7 +957,7 @@ export class SettingsEditor2 extends BaseEditor {
 
 	private renderResultCountMessages() {
 		let count = countSettingGroupChildrenWithPredicate(this.settingsTree.getInput() as SettingsTreeGroupElement, element => element.matchesAllTags(this.viewState.tagFilters));
-
+		console.log('triggered');
 		switch (count) {
 			case 0: this.countElement.innerText = localize('noResults', "No Settings Found"); break;
 			case 1: this.countElement.innerText = localize('oneResult', "1 Setting Found"); break;
