@@ -96,8 +96,8 @@
 }
 
 .monaco-shell .monaco-menu .monaco-action-bar.vertical .submenu-indicator {
-	font-size: inherit;
-	padding: 0 1em;
+	font-size: 60%;
+	padding: 0 1.8em;
 }
 
 .monaco-shell .monaco-menu .action-item {
