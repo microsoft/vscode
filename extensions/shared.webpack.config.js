@@ -10,6 +10,7 @@
 
 const path = require('path');
 const merge = require('merge-options');
+const CopyWebpackPlugin = require('copy-webpack-plugin');
 
 
 module.exports = function withDefaults(/**@type WebpackConfig*/extConfig) {
@@ -29,7 +30,10 @@ module.exports = function withDefaults(/**@type WebpackConfig*/extConfig) {
 				use: [{
 					// vscode-nls-dev loader:
 					// * rewrite nls-calls
-					loader: 'vscode-nls-dev/lib/webpack-loader'
+					loader: 'vscode-nls-dev/lib/webpack-loader',
+					options: {
+						base: path.join(extConfig.context, 'src')
+					}
 				}, {
 					// configure TypeScript loader:
 					// * only transpile because we have a separate compilation pipeline
@@ -58,7 +62,12 @@ module.exports = function withDefaults(/**@type WebpackConfig*/extConfig) {
 			libraryTarget: "commonjs",
 		},
 		// yes, really source maps
-		devtool: 'source-map'
+		devtool: 'source-map',
+		plugins: [
+			new CopyWebpackPlugin([
+				{ from: './out/**/*', to: '.', ignore: ['*.js', '*.js.map'], flatten: true }
+			])
+		],
 	};
 
 	return merge(defaultConfig, extConfig);

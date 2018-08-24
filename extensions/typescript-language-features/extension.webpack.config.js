@@ -12,10 +12,12 @@ const withDefaults = require('../shared.webpack.config');
 module.exports = withDefaults({
 	context: __dirname,
 	node: {
-		__dirname: false // leave the __dirname-behaviour intact
+		__dirname: false,
+	},
+	resolve: {
+		mainFields: ['module', 'main']
 	},
 	entry: {
-		main: './src/main.ts',
-		['askpass-main']: './src/askpass-main.ts'
+		extension: './src/extension.ts',
 	}
 });
