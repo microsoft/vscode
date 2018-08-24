@@ -211,10 +211,10 @@ export class ViewItem implements IViewItem {
 		// ARIA
 		// console.warn(this.context.tree.getHTMLElement().getAttribute('role'));
 		// console.warn(this.context.tree.getHTMLElement().getAttribute('aria-label'));
-
-		if (this.context.tree.getHTMLElement().getAttribute('role') !== 'form') {
-			this.element.setAttribute('role', 'treeitem');
-		}
+		console.warn('row render ' + this.context.tree.getHTMLElement().getAttribute('role'));
+		// if (this.context.tree.getHTMLElement().getAttribute('role') !== 'form') {
+		this.element.setAttribute('role', 'treeitem');
+		// }
 
 		const accessibility = this.context.accessibilityProvider;
 		const ariaLabel = accessibility.getAriaLabel(this.context.tree, this.model.getElement());
@@ -222,13 +222,14 @@ export class ViewItem implements IViewItem {
 			this.element.setAttribute('aria-label', ariaLabel);
 		}
 
+		console.warn('tree label ' + this.element.getAttribute('aria-label'));
 		// note we should probably do this by an option
-		if (this.context.tree.getHTMLElement().getAttribute('role') !== 'form') {
-			if (accessibility.getPosInSet && accessibility.getSetSize) {
-				this.element.setAttribute('aria-setsize', accessibility.getSetSize());
-				this.element.setAttribute('aria-posinset', accessibility.getPosInSet(this.context.tree, this.model.getElement()));
-			}
+		// if (this.context.tree.getHTMLElement().getAttribute('role') !== 'form') {
+		if (accessibility.getPosInSet && accessibility.getSetSize) {
+			this.element.setAttribute('aria-setsize', accessibility.getSetSize());
+			this.element.setAttribute('aria-posinset', accessibility.getPosInSet(this.context.tree, this.model.getElement()));
 		}
+		// }
 
 		if (this.model.hasTrait('focused')) {
 			const base64Id = strings.safeBtoa(this.model.id);
@@ -246,9 +247,9 @@ export class ViewItem implements IViewItem {
 		}
 
 		// note we should probably do this by an option
-		if (this.context.tree.getHTMLElement().getAttribute('role') !== 'form') {
-			this.element.setAttribute('aria-level', String(this.model.getDepth()));
-		}
+		// if (this.context.tree.getHTMLElement().getAttribute('role') !== 'form') {
+		this.element.setAttribute('aria-level', String(this.model.getDepth()));
+		// }
 
 		if (this.context.options.paddingOnRow) {
 			this.element.style.paddingLeft = this.context.options.twistiePixels + ((this.model.getDepth() - 1) * this.context.options.indentPixels) + 'px';

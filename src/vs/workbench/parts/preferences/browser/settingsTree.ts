@@ -907,6 +907,8 @@ export class SettingsRenderer implements ITreeRenderer {
 	}
 
 	private renderSettingElement(tree: ITree, element: SettingsTreeSettingElement, templateId: string, template: ISettingItemTemplate | ISettingBoolItemTemplate): void {
+		console.warn('render setting elements start');
+
 		template.context = element;
 		template.toolbar.context = element;
 
@@ -947,6 +949,19 @@ export class SettingsRenderer implements ITreeRenderer {
 		} else {
 			template.otherOverridesElement.textContent = '';
 		}
+
+		console.warn('attribute fix');
+
+		console.warn('\n' + template.containerElement.parentElement.outerHTML + '\n\n');
+		// CDL fix attributes
+		// template.containerElement.parentElement.removeAttribute('role');
+		// template.containerElement.parentElement.removeAttribute('aria-level');
+		template.containerElement.parentElement.removeAttribute('aria-posinset');
+		template.containerElement.parentElement.removeAttribute('aria-setsize');
+		// template.containerElement.parentElement.setAttribute('role','test');
+		console.warn('after fix');
+		console.warn('\n' + template.containerElement.parentElement.outerHTML + '\n\n');
+		console.warn('render setting elements finish');
 	}
 
 	private renderDescriptionMarkdown(text: string, disposeables: IDisposable[]): HTMLElement {
