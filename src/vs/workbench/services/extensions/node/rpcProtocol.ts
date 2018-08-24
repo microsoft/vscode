@@ -94,7 +94,7 @@ export class RPCProtocol implements IRPCProtocol {
 	private _lastMessageId: number;
 	private readonly _invokedHandlers: { [req: string]: TPromise<any>; };
 	private readonly _pendingRPCReplies: { [msgId: string]: LazyPromise; };
-	private readonly _multiplexor: RPCMultiplexer;
+	private readonly _protocol: IMessagePassingProtocol;
 
 	constructor(protocol: IMessagePassingProtocol, transformer: IURITransformer = null) {
 		this._uriTransformer = transformer;
@@ -104,7 +104,8 @@ export class RPCProtocol implements IRPCProtocol {
 		this._lastMessageId = 0;
 		this._invokedHandlers = Object.create(null);
 		this._pendingRPCReplies = {};
-		this._multiplexor = new RPCMultiplexer(protocol, (msg) => this._receiveOneMessage(msg));
+		this._protocol = protocol;
+		this._protocol.onMessage((msg) => this._receiveOneMessage(msg));
 	}
 
 	public dispose(): void {
@@ -232,10 +233,10 @@ export class RPCProtocol implements IRPCProtocol {
 			if (this._uriTransformer) {
 				r = transformOutgoingURIs(r, this._uriTransformer);
 			}
-			this._multiplexor.send(MessageIO.serializeReplyOK(req, r));
+			this._protocol.send(MessageIO.serializeReplyOK(req, r));
 		}, (err) => {
 			delete this._invokedHandlers[callId];
-			this._multiplexor.send(MessageIO.serializeReplyErr(req, err));
+			this._protocol.send(MessageIO.serializeReplyErr(req, err));
 		});
 	}
 
@@ -307,66 +308,15 @@ export class RPCProtocol implements IRPCProtocol {
 		const nCallId = ++this._lastMessageId;
 		const callId = String(nCallId);
 		const result = new LazyPromise(() => {
-			this._multiplexor.send(MessageIO.serializeCancel(nCallId));
+			this._protocol.send(MessageIO.serializeCancel(nCallId));
 		});
 
 		this._pendingRPCReplies[callId] = result;
 		if (this._uriTransformer) {
 			args = transformOutgoingURIs(args, this._uriTransformer);
 		}
-		this._multiplexor.send(MessageIO.serializeRequest(nCallId, proxyId, methodName, args));
+		this._protocol.send(MessageIO.serializeRequest(nCallId, proxyId, methodName, args));
 		return result;
-	}
-}
-
-/**
- * Sends/Receives multiple messages in one go:
- *  - multiple messages to be sent from one stack get sent in bulk at `process.nextTick`.
- *  - each incoming message is handled in a separate `process.nextTick`.
- */
-class RPCMultiplexer {
-
-	private readonly _protocol: IMessagePassingProtocol;
-	private readonly _sendAccumulatedBound: () => void;
-
-	private _messagesToSend: Buffer[];
-
-	constructor(protocol: IMessagePassingProtocol, onMessage: (msg: Buffer) => void) {
-		this._protocol = protocol;
-		this._sendAccumulatedBound = this._sendAccumulated.bind(this);
-
-		this._messagesToSend = [];
-
-		this._protocol.onMessage(data => {
-			let i = 0;
-
-			while (i < data.length) {
-				const size = data.readUInt32LE(i);
-				onMessage(data.slice(i + 4, i + 4 + size));
-				i += 4 + size;
-			}
-		});
-	}
-
-	private _sendAccumulated(): void {
-		const size = this._messagesToSend.reduce((r, b) => r + b.byteLength, 0);
-		const buffer = Buffer.allocUnsafe(size);
-
-		let offset = 0;
-		for (const msg of this._messagesToSend) {
-			msg.copy(buffer, offset);
-			offset += msg.byteLength;
-		}
-
-		this._messagesToSend = [];
-		this._protocol.send(buffer);
-	}
-
-	public send(msg: Buffer): void {
-		if (this._messagesToSend.length === 0) {
-			process.nextTick(this._sendAccumulatedBound);
-		}
-		this._messagesToSend.push(msg);
 	}
 }
 
@@ -413,7 +363,6 @@ class MessageIO {
 		const argsByteLength = Buffer.byteLength(args);
 
 		let len = 0;
-		// len += 4; // msg length
 		len += 1; // msg type
 		len += 4; // req
 		len += 1; // rpcId length
@@ -423,10 +372,9 @@ class MessageIO {
 		len += 4; // arg length
 		len += argsByteLength;
 
-		let result = Buffer.allocUnsafe(len + 4);
+		let result = Buffer.allocUnsafe(len);
 		let offset = 0;
 
-		result.writeUInt32LE(len, offset, true); offset += 4;
 		result.writeUInt8(MessageType.RequestJSONArgs, offset, true); offset += 1;
 		result.writeUInt32LE(req, offset, true); offset += 4;
 		result.writeUInt8(rpcIdByteLength, offset, true); offset += 1;
@@ -458,7 +406,6 @@ class MessageIO {
 		const methodByteLength = Buffer.byteLength(method);
 
 		let len = 0;
-		// len += 4; // msg length
 		len += 1; // msg type
 		len += 4; // req
 		len += 1; // rpcId length
@@ -466,16 +413,15 @@ class MessageIO {
 		len += 1; // method length
 		len += methodByteLength;
 		len += 1; // arg count
-		for (let i = 0, len = args.length; i < len; i++) {
+		for (let i = 0, argsLen = args.length; i < argsLen; i++) {
 			len += 1; // arg type
 			len += 4; // buffer length
 			len += argsLengths[i];
 		}
 
-		let result = Buffer.allocUnsafe(len + 4);
+		let result = Buffer.allocUnsafe(len);
 		let offset = 0;
 
-		result.writeUInt32LE(len, offset, true); offset += 4;
 		result.writeUInt8(MessageType.RequestMixedArgs, offset, true); offset += 1;
 		result.writeUInt32LE(req, offset, true); offset += 4;
 		result.writeUInt8(rpcIdByteLength, offset, true); offset += 1;
@@ -483,7 +429,7 @@ class MessageIO {
 		result.writeUInt8(methodByteLength, offset, true); offset += 1;
 		result.write(method, offset, methodByteLength, 'utf8'); offset += methodByteLength;
 		result.writeUInt8(args.length, offset, true); offset += 1;
-		for (let i = 0, len = args.length; i < len; i++) {
+		for (let i = 0, argsLen = args.length; i < argsLen; i++) {
 			const arg = args[i];
 			if (typeof arg === 'string') {
 				result.writeUInt8(ArgType.ArgString, offset, true); offset += 1;
@@ -524,14 +470,12 @@ class MessageIO {
 
 	public static serializeCancel(req: number): Buffer {
 		let len = 0;
-		// len += 4; // msg length
 		len += 1; // msg type
 		len += 4; // req
 
-		let result = Buffer.allocUnsafe(len + 4);
+		let result = Buffer.allocUnsafe(len);
 		let offset = 0;
 
-		result.writeUInt32LE(len, offset, true); offset += 4;
 		result.writeUInt8(MessageType.Cancel, offset, true); offset += 1;
 		result.writeUInt32LE(req, offset, true); offset += 4;
 
@@ -550,14 +494,12 @@ class MessageIO {
 
 	private static _serializeReplyOKEmpty(req: number): Buffer {
 		let len = 0;
-		// len += 4; // msg length
 		len += 1; // msg type
 		len += 4; // req
 
-		let result = Buffer.allocUnsafe(len + 4);
+		let result = Buffer.allocUnsafe(len);
 		let offset = 0;
 
-		result.writeUInt32LE(len, offset, true); offset += 4;
 		result.writeUInt8(MessageType.ReplyOKEmpty, offset, true); offset += 1;
 		result.writeUInt32LE(req, offset, true); offset += 4;
 
@@ -566,16 +508,14 @@ class MessageIO {
 
 	private static _serializeReplyOKBuffer(req: number, res: Buffer): Buffer {
 		let len = 0;
-		// len += 4; // msg length
 		len += 1; // msg type
 		len += 4; // req
 		len += 4; // res length
 		len += res.byteLength;
 
-		let result = Buffer.allocUnsafe(len + 4);
+		let result = Buffer.allocUnsafe(len);
 		let offset = 0;
 
-		result.writeUInt32LE(len, offset, true); offset += 4;
 		result.writeUInt8(MessageType.ReplyOKBuffer, offset, true); offset += 1;
 		result.writeUInt32LE(req, offset, true); offset += 4;
 		result.writeUInt32LE(res.byteLength, offset, true); offset += 4;
@@ -594,16 +534,14 @@ class MessageIO {
 		const resByteLength = Buffer.byteLength(res);
 
 		let len = 0;
-		// len += 4; // msg length
 		len += 1; // msg type
 		len += 4; // req
 		len += 4; // res length
 		len += resByteLength;
 
-		let result = Buffer.allocUnsafe(len + 4);
+		let result = Buffer.allocUnsafe(len);
 		let offset = 0;
 
-		result.writeUInt32LE(len, offset, true); offset += 4;
 		result.writeUInt8(MessageType.ReplyOKJSON, offset, true); offset += 1;
 		result.writeUInt32LE(req, offset, true); offset += 4;
 		result.writeUInt32LE(resByteLength, offset, true); offset += 4;
@@ -622,7 +560,7 @@ class MessageIO {
 		if (err instanceof Error) {
 			return this._serializeReplyErrEror(req, err);
 		}
-		return this._serializeReplyErrEmpty(err);
+		return this._serializeReplyErrEmpty(req);
 	}
 
 	private static _serializeReplyErrEror(req: number, _err: Error): Buffer {
@@ -635,16 +573,13 @@ class MessageIO {
 		len += 4; // err length
 		len += errByteLength;
 
-		let result = Buffer.allocUnsafe(len + 4);
+		let result = Buffer.allocUnsafe(len);
 		let offset = 0;
 
-		result.writeUInt32LE(len, offset, true); offset += 4;
 		result.writeUInt8(MessageType.ReplyErrError, offset, true); offset += 1;
 		result.writeUInt32LE(req, offset, true); offset += 4;
 		result.writeUInt32LE(errByteLength, offset, true); offset += 4;
 		result.write(err, offset, errByteLength, 'utf8'); offset += errByteLength;
-
-		console.log(result);
 
 		return result;
 	}
@@ -660,10 +595,9 @@ class MessageIO {
 		len += 1; // msg type
 		len += 4; // req
 
-		let result = Buffer.allocUnsafe(len + 4);
+		let result = Buffer.allocUnsafe(len);
 		let offset = 0;
 
-		result.writeUInt32LE(len, offset, true); offset += 4;
 		result.writeUInt8(MessageType.ReplyErrEmpty, offset, true); offset += 1;
 		result.writeUInt32LE(req, offset, true); offset += 4;
 
