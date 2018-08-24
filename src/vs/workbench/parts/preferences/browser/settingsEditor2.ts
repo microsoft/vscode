@@ -956,7 +956,6 @@ export class SettingsEditor2 extends BaseEditor {
 
 	private renderResultCountMessages() {
 		let count = countSettingGroupChildrenWithPredicate(this.settingsTree.getInput() as SettingsTreeGroupElement, element => element.matchesAllTags(this.viewState.tagFilters));
-		console.log('triggered');
 		switch (count) {
 			case 0: this.countElement.innerText = localize('noResults', "No Settings Found"); break;
 			case 1: this.countElement.innerText = localize('oneResult', "1 Setting Found"); break;
