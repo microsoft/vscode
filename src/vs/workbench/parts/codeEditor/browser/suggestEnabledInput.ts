@@ -30,13 +30,13 @@ import { Range } from 'vs/editor/common/core/range';
 import { ITextModel } from 'vs/editor/common/model';
 import { IContextKey } from 'vs/platform/contextkey/common/contextkey';
 
-interface SuggestResultsProvider {
+export interface ISuggestResultsProvider {
 	/**
 	 * Provider function for suggestion results.
 	 *
 	 * @param query the full text of the input.
 	 */
-	provideResults: (query: string) => string[];
+	provideResults: (query: string) => (string | { value: string, detail: string })[];
 
 	/**
 	 * Trigger characters for this input. Suggestions will appear when one of these is typed,
@@ -54,7 +54,7 @@ interface SuggestResultsProvider {
 	sortKey?: (result: string) => string;
 }
 
-interface SuggestEnabledInputOptions {
+export interface ISuggestEnabledInputOptions {
 	/**
 	 * The text to show when no input is present.
 	 *
@@ -76,6 +76,9 @@ export class SuggestEnabledInput extends Component {
 	private _onEnter = new Emitter<void>();
 	readonly onEnter: Event<void> = this._onEnter.event;
 
+	private _onEsc = new Emitter<void>();
+	readonly onEsc: Event<void> = this._onEsc.event;
+
 	private _onInputDidChange = new Emitter<string>();
 	readonly onInputDidChange: Event<string> = this._onInputDidChange.event;
 
@@ -87,10 +90,10 @@ export class SuggestEnabledInput extends Component {
 	constructor(
 		id: string,
 		parent: HTMLElement,
-		suggestionProvider: SuggestResultsProvider,
+		suggestionProvider: ISuggestResultsProvider,
 		ariaLabel: string,
 		resourceHandle: string,
-		options: SuggestEnabledInputOptions,
+		options: ISuggestEnabledInputOptions,
 		@IThemeService themeService: IThemeService,
 		@IInstantiationService instantiationService: IInstantiationService,
 		@IModelService modelService: IModelService,
@@ -123,6 +126,7 @@ export class SuggestEnabledInput extends Component {
 
 		const onKeyDownMonaco = chain(this.inputWidget.onKeyDown);
 		onKeyDownMonaco.filter(e => e.keyCode === KeyCode.Enter).on(e => { e.preventDefault(); this._onEnter.fire(); }, this, this.disposables);
+		onKeyDownMonaco.filter(e => e.keyCode === KeyCode.Escape).on(() => this._onEsc.fire(), this, this.disposables);
 		onKeyDownMonaco.filter(e => e.keyCode === KeyCode.DownArrow && (isMacintosh ? e.metaKey : e.ctrlKey)).on(() => this._onShouldFocusResults.fire(), this, this.disposables);
 
 		let preexistingContent = this.getValue();
@@ -130,7 +134,7 @@ export class SuggestEnabledInput extends Component {
 			let content = this.getValue();
 			this.placeholderText.style.visibility = content ? 'hidden' : 'visible';
 			if (preexistingContent.trim() === content.trim()) { return; }
-			this._onInputDidChange.fire();
+			this._onInputDidChange.fire(content);
 			preexistingContent = content;
 		}));
 
@@ -153,17 +157,22 @@ export class SuggestEnabledInput extends Component {
 
 				return {
 					suggestions: suggestionProvider.provideResults(query).map(result => {
+						const label = typeof result === 'string' ? result : result.value;
+						const details = typeof result === 'string' ? undefined : result.detail;
 						return {
-							label: result,
-							insertText: result,
+							label,
+							insertText: label,
+							documentation: details,
 							overwriteBefore: alreadyTypedCount,
-							sortText: validatedSuggestProvider.sortKey(result),
+							sortText: validatedSuggestProvider.sortKey(label),
 							type: <modes.SuggestionType>'keyword'
 						};
 					})
 				};
 			}
 		}));
+
+		setImmediate(() => SuggestController.get(this.inputWidget).setDefaultDocsOrientation('vertical'));
 	}
 
 	public setValue(val: string) {
@@ -196,6 +205,10 @@ export class SuggestEnabledInput extends Component {
 		}
 	}
 
+	public triggerSuggest() {
+		SuggestController.get(this.inputWidget).triggerSuggest();
+	}
+
 	public focus(): void {
 		this.inputWidget.focus();
 	}
@@ -212,6 +225,29 @@ export class SuggestEnabledInput extends Component {
 	dispose(): void {
 		this.disposables = dispose(this.disposables);
 		super.dispose();
+	}
+}
+
+export class SingleDelegateSuggest extends SuggestEnabledInput {
+
+	private handler: (input: string) => void = () => { };
+
+	constructor(id: string,
+		parent: HTMLElement,
+		suggestionProvider: ISuggestResultsProvider,
+		ariaLabel: string,
+		resourceHandle: string,
+		options: ISuggestEnabledInputOptions,
+		@IThemeService themeService: IThemeService,
+		@IInstantiationService instantiationService: IInstantiationService,
+		@IModelService modelService: IModelService) {
+		super(id, parent, suggestionProvider, ariaLabel, resourceHandle, options, themeService, instantiationService, modelService);
+
+		this.onInputDidChange(input => this.handler(input), this, this.toDispose);
+	}
+
+	public setInputChangeHandler(handler: (input: string) => void) {
+		this.handler = handler;
 	}
 }
 

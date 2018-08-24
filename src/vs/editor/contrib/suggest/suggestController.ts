@@ -78,6 +78,7 @@ class AcceptOnCharacterOracle {
 export class SuggestController implements IEditorContribution {
 
 	private static readonly ID: string = 'editor.contrib.suggestController';
+	preferredOrientation: 'vertical' | 'horizontal';
 
 	public static get(editor: ICodeEditor): SuggestController {
 		return editor.getContribution<SuggestController>(SuggestController.ID);
@@ -133,7 +134,7 @@ export class SuggestController implements IEditorContribution {
 
 	private _createSuggestWidget(): void {
 
-		this._widget = this._instantiationService.createInstance(SuggestWidget, this._editor);
+		this._widget = this._instantiationService.createInstance(SuggestWidget, this._editor, { preferredOrientation: this.preferredOrientation });
 		this._toDispose.push(this._widget.onDidSelect(this._onDidSelectItem, this));
 
 		// Wire up logic to accept a suggestion on certain characters
@@ -179,6 +180,10 @@ export class SuggestController implements IEditorContribution {
 
 	getId(): string {
 		return SuggestController.ID;
+	}
+
+	setDefaultDocsOrientation(orientation: 'vertical' | 'horizontal') {
+		this.preferredOrientation = orientation;
 	}
 
 	dispose(): void {

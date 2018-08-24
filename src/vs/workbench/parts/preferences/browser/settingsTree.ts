@@ -12,7 +12,6 @@ import { alert as ariaAlert } from 'vs/base/browser/ui/aria/aria';
 import { Button } from 'vs/base/browser/ui/button/button';
 import { Checkbox } from 'vs/base/browser/ui/checkbox/checkbox';
 import { InputBox } from 'vs/base/browser/ui/inputbox/inputBox';
-import { SelectBox } from 'vs/base/browser/ui/selectBox/selectBox';
 import { ToolBar } from 'vs/base/browser/ui/toolbar/toolbar';
 import { Action, IAction } from 'vs/base/common/actions';
 import * as arrays from 'vs/base/common/arrays';
@@ -37,10 +36,11 @@ import { IInstantiationService } from 'vs/platform/instantiation/common/instanti
 import { WorkbenchTreeController } from 'vs/platform/list/browser/listService';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
 import { editorBackground, errorForeground, focusBorder, foreground, inputValidationErrorBackground, inputValidationErrorBorder } from 'vs/platform/theme/common/colorRegistry';
-import { attachButtonStyler, attachInputBoxStyler, attachSelectBoxStyler, attachStyler } from 'vs/platform/theme/common/styler';
+import { attachButtonStyler, attachInputBoxStyler, attachStyler } from 'vs/platform/theme/common/styler';
 import { ICssStyleCollector, ITheme, IThemeService, registerThemingParticipant } from 'vs/platform/theme/common/themeService';
+import { ISuggestResultsProvider, SingleDelegateSuggest } from 'vs/workbench/parts/codeEditor/browser/suggestEnabledInput';
 import { ITOCEntry } from 'vs/workbench/parts/preferences/browser/settingsLayout';
-import { ISettingsEditorViewState, isExcludeSetting, SettingsTreeElement, SettingsTreeGroupElement, SettingsTreeNewExtensionsElement, SettingsTreeSettingElement, settingKeyToDisplayFormat } from 'vs/workbench/parts/preferences/browser/settingsTreeModels';
+import { ISettingsEditorViewState, isExcludeSetting, settingKeyToDisplayFormat, SettingsTreeElement, SettingsTreeGroupElement, SettingsTreeNewExtensionsElement, SettingsTreeSettingElement } from 'vs/workbench/parts/preferences/browser/settingsTreeModels';
 import { ExcludeSettingWidget, IExcludeDataItem, settingsHeaderForeground, settingsNumberInputBackground, settingsNumberInputBorder, settingsNumberInputForeground, settingsSelectBackground, settingsSelectBorder, settingsSelectForeground, settingsTextInputBackground, settingsTextInputBorder, settingsTextInputForeground } from 'vs/workbench/parts/preferences/browser/settingsWidgets';
 import { ISetting, ISettingsGroup } from 'vs/workbench/services/preferences/common/preferences';
 
@@ -237,8 +237,9 @@ interface ISettingTextItemTemplate extends ISettingItemTemplate<string> {
 type ISettingNumberItemTemplate = ISettingTextItemTemplate;
 
 interface ISettingEnumItemTemplate extends ISettingItemTemplate<number> {
-	selectBox: SelectBox;
-	enumDescriptionElement: HTMLElement;
+	suggester: SingleDelegateSuggest;
+	selectionViewer: HTMLElement;
+	suggestionProvider: ISuggestResultsProvider;
 }
 
 interface ISettingComplexItemTemplate extends ISettingItemTemplate<void> {
@@ -343,6 +344,7 @@ export class SettingsRenderer implements ITreeRenderer {
 		}
 	}
 
+	private forceRedrawHack = 0; // the actual width is fixed, toggle this in order to force redraws for the suggest dropdown to properly flow
 	updateWidth(width: number): void {
 		if (this.lastRenderedWidth !== width) {
 			this.rowHeightCache = new Map<string, number>();
@@ -350,6 +352,11 @@ export class SettingsRenderer implements ITreeRenderer {
 		this.longestSingleLineDescription = 0;
 
 		this.lastRenderedWidth = width;
+
+		if (this.expandedSuggester) {
+			this.forceRedrawHack = +!this.forceRedrawHack; // toggle between 1 and 0.
+			this.expandedSuggester.suggester.layout({ width: this.ENUM_BACKING_MONACO_WIDTH + this.forceRedrawHack, height: 10 });
+		}
 	}
 
 	getHeight(tree: ITree, element: SettingsTreeElement): number {
@@ -721,35 +728,61 @@ export class SettingsRenderer implements ITreeRenderer {
 		return template;
 	}
 
-	private renderSettingEnumTemplate(tree: ITree, container: HTMLElement): ISettingEnumItemTemplate {
-		const common = this.renderCommonTemplate(tree, container, 'enum');
-
-		const selectBox = new SelectBox([], undefined, this.contextViewService);
-		common.toDispose.push(selectBox);
-		common.toDispose.push(attachSelectBoxStyler(selectBox, this.themeService, {
-			selectBackground: settingsSelectBackground,
-			selectForeground: settingsSelectForeground,
-			selectBorder: settingsSelectBorder
-		}));
-		selectBox.render(common.controlElement);
-		const selectElement = common.controlElement.querySelector('select');
-		if (selectElement) {
-			selectElement.classList.add(SettingsRenderer.CONTROL_CLASS);
+	public cancelSuggesters() {
+		if (this.expandedSuggester) {
+			this.expandedSuggester.selectionViewer.focus();
+			this.expandedSuggester = null;
 		}
+	}
 
-		common.toDispose.push(
-			selectBox.onDidSelect(e => {
-				if (template.onChange) {
-					template.onChange(e.index);
-				}
-			}));
+	private numEnums = 0;
+	private expandedSuggester: ISettingEnumItemTemplate = null;
+	private readonly ENUM_BACKING_MONACO_WIDTH = 100; // allow room for typing to filter
+	private renderSettingEnumTemplate(tree: ITree, container: HTMLElement): ISettingEnumItemTemplate {
+		this.numEnums++;
+		const common = this.renderCommonTemplate(tree, container, 'enum');
+		const suggestionProvider: ISuggestResultsProvider = { provideResults: () => [] };
+		const suggester = this.instantiationService.createInstance(SingleDelegateSuggest, SETTINGS_ENUM_TEMPLATE_ID + '.suggest' + this.numEnums, container, suggestionProvider, 'aria', 'settingseditor2:' + this.numEnums, {});
+		suggester.layout({ width: this.ENUM_BACKING_MONACO_WIDTH, height: 10 });
+		common.toDispose.push(suggester);
 
-		const enumDescriptionElement = common.containerElement.insertBefore($('.setting-item-enumDescription'), common.descriptionElement.nextSibling);
+		const selectionViewer = common.controlElement.appendChild($('.enum-selection-viewer'));
+		const downArrow = common.controlElement.appendChild($('.octicon.octicon-triangle-down'));
+		selectionViewer.setAttribute('tabindex', '0');
+
+
+		let monacoTextarea = container.getElementsByTagName('textarea')[0];
+		if (monacoTextarea) {
+			monacoTextarea.setAttribute('tabindex', '-1');
+		}
+		selectionViewer.onkeydown = e => {
+			if (e.code === 'Space' || e.code === 'Enter' || e.code === 'ArrowUp' || e.code === 'ArrowDown') {
+				template.suggester.setValue('');
+				template.suggester.triggerSuggest();
+				e.stopPropagation();
+				e.preventDefault();
+				this.expandedSuggester = template;
+			}
+		};
+
+		suggester.onEsc(() => {
+			selectionViewer.focus();
+			this.expandedSuggester = null;
+		}, null, common.toDispose);
+
+		downArrow.onmousedown = selectionViewer.onmousedown = e => {
+			template.suggester.setValue('');
+			template.suggester.triggerSuggest();
+			this.expandedSuggester = template;
+			e.preventDefault();
+			e.stopPropagation();
+		};
 
 		const template: ISettingEnumItemTemplate = {
 			...common,
-			selectBox,
-			enumDescriptionElement
+			suggester,
+			suggestionProvider,
+			selectionViewer
 		};
 
 		this.addSettingElementFocusHandler(template);
@@ -1015,42 +1048,33 @@ export class SettingsRenderer implements ITreeRenderer {
 
 	private renderEnum(dataElement: SettingsTreeSettingElement, template: ISettingEnumItemTemplate, onChange: (value: string) => void): void {
 		const displayOptions = getDisplayEnumOptions(dataElement.setting);
-		template.selectBox.setOptions(displayOptions);
+
+		template.suggestionProvider.provideResults = () => {
+			const enumDescriptions = dataElement.setting.enumDescriptions;
+			if (enumDescriptions) {
+				return displayOptions.map((_, index) => ({ value: displayOptions[index], detail: enumDescriptions[index] }));
+			} else {
+				return displayOptions;
+			}
+		};
+
+		template.suggester.setInputChangeHandler(pick => {
+			if (pick !== '') {
+				const idx = dataElement.setting.enum.map(String).map(escapeInvisibleChars).indexOf(pick);
+				if (idx > -1) {
+					template.selectionViewer.innerText = pick;
+					template.selectionViewer.focus();
+					onChange(dataElement.setting.enum[idx]);
+				}
+			}
+		});
+
+		template.selectionViewer.innerText = String(dataElement.value);
 
 		const modifiedText = dataElement.isConfigured ? 'Modified' : '';
 		const label = ' ' + dataElement.displayCategory + ' ' + dataElement.displayLabel + ' combobox ' + modifiedText;
 
-		template.selectBox.setAriaLabel(label);
-
-		const idx = dataElement.setting.enum.indexOf(dataElement.value);
-		template.onChange = null;
-		template.selectBox.select(idx);
-		template.onChange = idx => onChange(dataElement.setting.enum[idx]);
-
-		if (template.controlElement.firstElementChild) {
-			// SelectBox needs to be treeitem to read correctly within tree
-			template.controlElement.firstElementChild.setAttribute('role', 'treeitem');
-		}
-
-		template.enumDescriptionElement.innerHTML = '';
-		// if (dataElement.setting.enumDescriptions && dataElement.setting.enum && dataElement.setting.enum.length < SettingsRenderer.MAX_ENUM_DESCRIPTIONS) {
-		// 	if (isSelected) {
-		// 		let enumDescriptionText = '\n' + dataElement.setting.enumDescriptions
-		// 			.map((desc, i) => {
-		// 				const displayEnum = escapeInvisibleChars(dataElement.setting.enum[i]);
-		// 				return desc ?
-		// 					` - \`${displayEnum}\`: ${desc}` :
-		// 					` - \`${dataElement.setting.enum[i]}\``;
-		// 			})
-		// 			.filter(desc => !!desc)
-		// 			.join('\n');
-
-		// 		const renderedMarkdown = this.renderDescriptionMarkdown(fixSettingLinks(enumDescriptionText), template.toDispose);
-		// 		template.enumDescriptionElement.appendChild(renderedMarkdown);
-		// 	}
-
-		// 	return { overflows: true };
-		// }
+		template.selectionViewer.setAttribute('aria-label', label);
 	}
 
 	private renderText(dataElement: SettingsTreeSettingElement, template: ISettingTextItemTemplate, onChange: (value: string) => void): void {
@@ -1396,6 +1420,21 @@ export class SettingsTree extends NonExpandableOrSelectableTree {
 			const errorColor = theme.getColor(errorForeground);
 			if (errorColor) {
 				collector.addRule(`.settings-editor > .settings-body > .settings-tree-container .setting-item .setting-item-deprecation-message { color: ${errorColor}; }`);
+			}
+
+			const enumBackground = theme.getColor(settingsSelectBackground);
+			if (enumBackground) {
+				collector.addRule(`.settings-editor > .settings-body > .settings-tree-container .setting-item.setting-item-enum .setting-item-value > .setting-item-control > .enum-selection-viewer { background-color: ${enumBackground}}`);
+			}
+
+			const enumForeground = theme.getColor(settingsSelectForeground);
+			if (enumForeground) {
+				collector.addRule(`.settings-editor > .settings-body > .settings-tree-container .setting-item.setting-item-enum .setting-item-value > .setting-item-control > .enum-selection-viewer { color: ${enumForeground}}`);
+			}
+
+			const enumBorder = theme.getColor(settingsSelectBorder);
+			if (enumBorder) {
+				collector.addRule(`.settings-editor > .settings-body > .settings-tree-container .setting-item.setting-item-enum .setting-item-value > .setting-item-control > .enum-selection-viewer { border-style:solid; border-width: 1px; border-color: ${enumBorder}}`);
 			}
 
 			const invalidInputBackground = theme.getColor(inputValidationErrorBackground);
