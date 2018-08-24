@@ -957,12 +957,17 @@ export class ExtensionService extends Disposable implements IExtensionService {
 
 class RPCLogger implements IRPCProtocolLogger {
 
+	private _totalIncoming = 0;
+	private _totalOutgoing = 0;
+
 	logIncoming(msgLength: number, str: string, data?: any): void {
-		console.log('%c[Extension \u2192 Window]%c[len: ' + strings.pad(msgLength, 5, ' ') + ']', 'color: darkgreen', 'color: grey', str, data);
+		this._totalIncoming += msgLength;
+		console.log(`%c[Extension \u2192 Window]%c[${strings.pad(this._totalIncoming, 7, ' ')}]%c[len: ${strings.pad(msgLength, 5, ' ')}]`, 'color: darkgreen', 'color: grey', 'color: grey', str, data);
 	}
 
 	logOutgoing(msgLength: number, str: string, data?: any): void {
-		console.log('%c[Window \u2192 Extension]%c[len: ' + strings.pad(msgLength, 5, ' ') + ']', 'color: darkgreen', 'color: grey', str, data);
+		this._totalOutgoing += msgLength;
+		console.log(`%c[Window \u2192 Extension]%c[${strings.pad(this._totalOutgoing, 7, ' ')}]%c[len: ${strings.pad(msgLength, 5, ' ')}]`, 'color: darkgreen', 'color: grey', 'color: grey', str, data);
 	}
 }
 
