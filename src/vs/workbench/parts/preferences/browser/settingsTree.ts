@@ -48,7 +48,7 @@ const $ = DOM.$;
 
 function getExcludeDisplayValue(element: SettingsTreeSettingElement): IExcludeDataItem[] {
 	const data = element.isConfigured ?
-		objects.mixin({ ...element.scopeValue }, element.defaultValue, false) :
+		{ ...element.defaultValue, ...element.scopeValue } :
 		element.defaultValue;
 
 	return Object.keys(data)
@@ -801,12 +801,20 @@ export class SettingsRenderer implements ITreeRenderer {
 				if (e.pattern) {
 					if (e.originalPattern in newValue) {
 						// editing something present in the value
-						newValue[e.pattern] = newValue[e.originalPattern];
-						delete newValue[e.originalPattern];
+						if (e.pattern === e.originalPattern) {
+							// editing the when condition
+							newValue[e.pattern] = e.sibling ? { when: e.sibling } : true;
+						} else {
+							newValue[e.pattern] = newValue[e.originalPattern];
+							delete newValue[e.originalPattern];
+						}
 					} else if (e.originalPattern) {
 						// editing a default
 						newValue[e.originalPattern] = false;
 						newValue[e.pattern] = template.context.defaultValue[e.originalPattern];
+					} else if (e.pattern in newValue) {
+						// Adding back an explicity overridden default pattern
+						delete newValue[e.pattern];
 					} else {
 						// adding a new pattern
 						newValue[e.pattern] = true;
@@ -823,7 +831,7 @@ export class SettingsRenderer implements ITreeRenderer {
 
 				this._onDidChangeSetting.fire({
 					key: template.context.setting.key,
-					value: newValue
+					value: Object.keys(newValue).length === 0 ? undefined : newValue
 				});
 			}
 		}));
