@@ -471,7 +471,7 @@ class CompositeBarModel {
 			}
 			return changed;
 		} else {
-			const item = this.createCompositeBarItem(id, name, order, false, true);
+			const item = this.createCompositeBarItem(id, name, order, true, true);
 			if (isUndefinedOrNull(order)) {
 				this.items.push(item);
 			} else {
