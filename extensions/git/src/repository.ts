@@ -859,6 +859,14 @@ export class Repository implements Disposable {
 		}
 
 		await this.run(Operation.Sync, async () => {
+			const config = workspace.getConfiguration('git');
+			const fetchOnSync = config.get<'none' | 'currentRemote' | 'allRemotes'>('fetchOnSync');
+			if (fetchOnSync === 'currentRemote') {
+				await this.repository.fetch();
+			} else if (fetchOnSync === 'allRemotes') {
+				await this.repository.fetch(true);
+			}
+
 			await this.repository.pull(rebase, remoteName, pullBranch);
 
 			const remote = this.remotes.find(r => r.name === remoteName);

@@ -1045,6 +1045,21 @@
           "default": [],
           "scope": "window",
           "description": "%config.ignoredRepositories%"
+        },
+        "git.fetchOnSync": {
+          "type": "string",
+          "enum": [
+            "none",
+            "currentRemote",
+            "allRemotes"
+          ],
+          "enumDescriptions": [
+            "%config.fetchOnSync.none%",
+            "%config.fetchOnSync.currentRemote%",
+            "%config.fetchOnSync.allRemotes%"
+          ],
+          "description": "%config.fetchOnSync%",
+          "default": "none"
         }
       }
     },
