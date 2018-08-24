@@ -14,6 +14,42 @@ export interface InputBox {
 	value: string;
 }
 
+export const enum RefType {
+	Head,
+	RemoteHead,
+	Tag
+}
+
+export interface Ref {
+	readonly type: RefType;
+	readonly name?: string;
+	readonly commit?: string;
+	readonly remote?: string;
+}
+
+export interface UpstreamRef {
+	readonly remote: string;
+	readonly name: string;
+}
+
+export interface Branch extends Ref {
+	readonly upstream?: UpstreamRef;
+	readonly ahead?: number;
+	readonly behind?: number;
+}
+
+export interface Commit {
+	readonly hash: string;
+	readonly message: string;
+	readonly parents: string[];
+}
+
+export interface Submodule {
+	readonly name: string;
+	readonly path: string;
+	readonly url: string;
+}
+
 export interface Remote {
 	readonly name: string;
 	readonly fetchUrl?: string;
@@ -21,12 +57,19 @@ export interface Remote {
 	readonly isReadOnly: boolean;
 }
 
+export interface RepositoryState {
+	readonly HEAD: Branch | undefined;
+	readonly refs: Ref[];
+	readonly remotes: Remote[];
+	readonly submodules: Submodule[];
+	readonly rebaseCommit: Commit | undefined;
+	readonly onDidChange: Event<void>;
+}
+
 export interface Repository {
 	readonly rootUri: Uri;
 	readonly inputBox: InputBox;
-	readonly remotes: Remote[];
-
-	readonly onDidRunGitStatus: Event<void>;
+	readonly state: RepositoryState;
 
 	status(): Promise<void>;
 }

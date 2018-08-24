@@ -7,7 +7,7 @@
 
 import { Model } from '../model';
 import { Repository as BaseRepository } from '../repository';
-import { InputBox, Git, API, Repository, Remote } from './git';
+import { InputBox, Git, API, Repository, Remote, RepositoryState, Branch, Ref, Submodule, Commit } from './git';
 import { Event, SourceControlInputBox, Uri } from 'vscode';
 import { mapEvent } from '../util';
 
@@ -17,13 +17,24 @@ class ApiInputBox implements InputBox {
 	constructor(private _inputBox: SourceControlInputBox) { }
 }
 
+export class ApiRepositoryState implements RepositoryState {
+
+	get HEAD(): Branch | undefined { return this._repository.HEAD; }
+	get refs(): Ref[] { return [...this._repository.refs]; }
+	get remotes(): Remote[] { return [...this._repository.remotes]; }
+	get submodules(): Submodule[] { return [...this._repository.submodules]; }
+	get rebaseCommit(): Commit | undefined { return this._repository.rebaseCommit; }
+
+	readonly onDidChange: Event<void> = this._repository.onDidRunGitStatus;
+
+	constructor(private _repository: BaseRepository) { }
+}
+
 export class ApiRepository implements Repository {
 
 	readonly rootUri: Uri = Uri.file(this._repository.root);
 	readonly inputBox: InputBox = new ApiInputBox(this._repository.inputBox);
-	get remotes(): Remote[] { return [...this._repository.remotes]; }
-
-	readonly onDidRunGitStatus: Event<void> = this._repository.onDidRunGitStatus;
+	readonly state: RepositoryState = new ApiRepositoryState(this._repository);
 
 	constructor(private _repository: BaseRepository) { }
 

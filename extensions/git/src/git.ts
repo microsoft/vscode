@@ -16,6 +16,7 @@ import * as filetype from 'file-type';
 import { assign, groupBy, denodeify, IDisposable, toDisposable, dispose, mkdirp, readBytes, detectUnicodeEncoding, Encoding, onceEvent } from './util';
 import { CancellationToken } from 'vscode';
 import { detectEncoding } from './encoding';
+import { Ref, RefType, Branch, Remote } from './api/git';
 
 const readfile = denodeify<string, string | null, string>(fs.readFile);
 
@@ -31,40 +32,15 @@ export interface IFileStatus {
 	rename?: string;
 }
 
-export interface Remote {
-	name: string;
-	fetchUrl?: string;
-	pushUrl?: string;
-	isReadOnly: boolean;
-}
-
 export interface Stash {
 	index: number;
 	description: string;
 }
 
-export enum RefType {
-	Head,
-	RemoteHead,
-	Tag
-}
-
-export interface Ref {
-	type: RefType;
-	name?: string;
-	commit?: string;
-	remote?: string;
-}
-
-export interface UpstreamRef {
-	remote: string;
-	name: string;
-}
-
-export interface Branch extends Ref {
-	upstream?: UpstreamRef;
-	ahead?: number;
-	behind?: number;
+interface MutableRemote extends Remote {
+	fetchUrl?: string;
+	pushUrl?: string;
+	isReadOnly: boolean;
 }
 
 function parseVersion(raw: string): string {
@@ -1320,7 +1296,7 @@ export class Repository {
 	async getRemotes(): Promise<Remote[]> {
 		const result = await this.run(['remote', '--verbose']);
 		const lines = result.stdout.trim().split('\n').filter(l => !!l);
-		const remotes: Remote[] = [];
+		const remotes: MutableRemote[] = [];
 
 		for (const line of lines) {
 			const parts = line.split(/\s/);
