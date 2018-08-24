@@ -9,27 +9,27 @@ import { dispose, IDisposable } from 'vs/base/common/lifecycle';
 import URI, { UriComponents } from 'vs/base/common/uri';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { localize } from 'vs/nls';
+import { CommandsRegistry } from 'vs/platform/commands/common/commands';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
+import { areSameExtensions } from 'vs/platform/extensionManagement/common/extensionManagementUtil';
 import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
-import { IFolderQuery, IPatternInfo, IQueryOptions, ISearchConfiguration, ISearchQuery, ISearchService, QueryType, ISearchProgressItem } from 'vs/platform/search/common/search';
+import { ILabelService } from 'vs/platform/label/common/label';
+import { IFolderQuery, IPatternInfo, IQueryOptions, ISearchConfiguration, ISearchProgressItem, ISearchQuery, ISearchService, QueryType } from 'vs/platform/search/common/search';
 import { IStatusbarService } from 'vs/platform/statusbar/common/statusbar';
+import { IWindowService } from 'vs/platform/windows/common/windows';
 import { IWorkspaceContextService, WorkbenchState } from 'vs/platform/workspace/common/workspace';
 import { extHostNamedCustomer } from 'vs/workbench/api/electron-browser/extHostCustomers';
 import { QueryBuilder } from 'vs/workbench/parts/search/common/queryBuilder';
+import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
 import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
 import { IWorkspaceEditingService } from 'vs/workbench/services/workspace/common/workspaceEditing';
 import { ExtHostContext, ExtHostWorkspaceShape, IExtHostContext, MainContext, MainThreadWorkspaceShape } from '../node/extHost.protocol';
-import { CommandsRegistry } from 'vs/platform/commands/common/commands';
-import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
-import { areSameExtensions } from 'vs/platform/extensionManagement/common/extensionManagementUtil';
-import { IWindowService } from 'vs/platform/windows/common/windows';
-import { ILabelService } from 'vs/platform/label/common/label';
 
 @extHostNamedCustomer(MainContext.MainThreadWorkspace)
 export class MainThreadWorkspace implements MainThreadWorkspaceShape {
 
 	private readonly _toDispose: IDisposable[] = [];
-	private readonly _activeSearches: { [id: number]: TPromise<URI[]> } = Object.create(null);
+	private readonly _activeSearches: { [id: number]: TPromise<any> } = Object.create(null);
 	private readonly _proxy: ExtHostWorkspaceShape;
 
 	constructor(
@@ -190,6 +190,27 @@ export class MainThreadWorkspace implements MainThreadWorkspaceShape {
 			() => {
 				delete this._activeSearches[requestId];
 				return null;
+			},
+			err => {
+				delete this._activeSearches[requestId];
+				if (!isPromiseCanceledError(err)) {
+					return TPromise.wrapError(err);
+				}
+
+				return undefined;
+			});
+
+		this._activeSearches[requestId] = search;
+
+		return search;
+	}
+
+	$checkExists(query: ISearchQuery, requestId: number): TPromise<boolean> {
+		query.exists = true;
+		const search = this._searchService.search(query).then(
+			result => {
+				delete this._activeSearches[requestId];
+				return result.limitHit;
 			},
 			err => {
 				delete this._activeSearches[requestId];
