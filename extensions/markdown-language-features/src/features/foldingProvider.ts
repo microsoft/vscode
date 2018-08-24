@@ -56,6 +56,12 @@ export default class MarkdownFoldingProvider implements vscode.FoldingRangeProvi
 	private async getHeaderFoldingRanges(document: vscode.TextDocument) {
 		const tocProvider = new TableOfContentsProvider(this.engine, document);
 		const toc = await tocProvider.getToc();
-		return toc.map((entry) => new vscode.FoldingRange(entry.line, entry.location.range.end.line));
+		return toc.map(entry => {
+			let endLine = entry.location.range.end.line;
+			if (document.lineAt(endLine).isEmptyOrWhitespace && endLine >= entry.line + 1) {
+				endLine = endLine - 1;
+			}
+			return new vscode.FoldingRange(entry.line, endLine);
+		});
 	}
 }

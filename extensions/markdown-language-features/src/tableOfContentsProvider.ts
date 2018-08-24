@@ -65,14 +65,10 @@ export class TableOfContentsProvider {
 
 		// Get full range of section
 		return toc.map((entry, startIndex): TocEntry => {
-			const start = entry.line;
 			let end: number | undefined = undefined;
 			for (let i = startIndex + 1; i < toc.length; ++i) {
 				if (toc[i].level <= entry.level) {
 					end = toc[i].line - 1;
-					if (document.lineAt(end).isEmptyOrWhitespace && end >= start + 1) {
-						end = end - 1;
-					}
 					break;
 				}
 			}
