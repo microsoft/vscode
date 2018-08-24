@@ -350,6 +350,8 @@ export class ExtensionEditor extends BaseEditor {
 			this.name.onclick = null;
 			this.rating.onclick = null;
 			this.publisher.onclick = null;
+			this.license.onclick = null;
+			this.license.style.display = 'none';
 		}
 
 		if (extension.repository) {
