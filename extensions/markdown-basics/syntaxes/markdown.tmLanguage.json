@@ -4,7 +4,7 @@
 		"If you want to provide a fix or improvement, please create a pull request against the original repository.",
 		"Once accepted there, we are happy to receive an update request."
 	],
-	"version": "https://github.com/microsoft/vscode-markdown-tm-grammar/commit/3445afdd642f67052a21c0f86bf76b3deb45fd26",
+	"version": "https://github.com/microsoft/vscode-markdown-tm-grammar/commit/2544443db4402b3271b1b99bd9a1efb2c757c3d5",
 	"name": "Markdown",
 	"scopeName": "text.html.markdown",
 	"patterns": [
@@ -1948,7 +1948,7 @@
 							"name": "punctuation.definition.string.end.markdown"
 						}
 					},
-					"match": "(?x)\n  \\s*            # Leading whitespace\n  (\\[)(.+?)(\\])(:)    # Reference name\n  [ \\t]*          # Optional whitespace\n  (<?)(\\S+?)(>?)      # The url\n  [ \\t]*          # Optional whitespace\n  (?:\n      ((\\().+?(\\)))    # Match title in quotes…\n    | ((\").+?(\"))    # or in parens.\n  )?            # Title is optional\n  \\s*            # Optional whitespace\n  $\n",
+					"match": "(?x)\n  \\s*            # Leading whitespace\n  (\\[)([\\w ]+?)(\\])(:)    # Reference name\n  [ \\t]*          # Optional whitespace\n  (<?)(\\S+?)(>?)      # The url\n  [ \\t]*          # Optional whitespace\n  (?:\n      ((\\().+?(\\)))    # Match title in quotes…\n    | ((\").+?(\"))    # or in parens.\n  )?            # Title is optional\n  \\s*            # Optional whitespace\n  $\n",
 					"name": "meta.link.reference.def.markdown"
 				},
 				"list_paragraph": {
@@ -2085,6 +2085,9 @@
 				},
 				{
 					"include": "#link-ref-literal"
+				},
+				{
+					"include": "#link-ref-shortcut"
 				}
 			],
 			"repository": {
@@ -2151,6 +2154,9 @@
 						},
 						{
 							"include": "#link-ref"
+						},
+						{
+							"include": "#link-ref-shortcut"
 						}
 					]
 				},
@@ -2290,6 +2296,9 @@
 						},
 						{
 							"include": "#link-ref"
+						},
+						{
+							"include": "#link-ref-shortcut"
 						}
 					]
 				},
@@ -2415,6 +2424,21 @@
 					},
 					"match": "(\\[)((?<square>[^\\[\\]\\\\]|\\\\.|\\[\\g<square>*+\\])*+)(\\])[ ]?(\\[)(\\])",
 					"name": "meta.link.reference.literal.markdown"
+				},
+				"link-ref-shortcut": {
+					"captures": {
+						"1": {
+							"name": "punctuation.definition.string.begin.markdown"
+						},
+						"2": {
+							"name": "string.other.link.title.markdown"
+						},
+						"4": {
+							"name": "punctuation.definition.string.end.markdown"
+						}
+					},
+					"match": "(\\[)(\\S+?)(\\])",
+					"name": "meta.link.reference.markdown"
 				},
 				"raw": {
 					"captures": {
