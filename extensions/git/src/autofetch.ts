@@ -102,7 +102,7 @@ export class AutoFetcher {
 			}
 
 			try {
-				await this.repository.fetch();
+				await this.repository.fetchDefault();
 			} catch (err) {
 				if (err.gitErrorCode === GitErrorCodes.AuthenticationFailed) {
 					this.disable();

@@ -6,7 +6,7 @@
 'use strict';
 
 import { commands, Uri, Command, EventEmitter, Event, scm, SourceControl, SourceControlInputBox, SourceControlResourceGroup, SourceControlResourceState, SourceControlResourceDecorations, SourceControlInputBoxValidation, Disposable, ProgressLocation, window, workspace, WorkspaceEdit, ThemeColor, DecorationData, Memento, SourceControlInputBoxValidationType } from 'vscode';
-import { Repository as BaseRepository, Commit, GitErrorCodes, Stash, GitError, Submodule, DiffOptions } from './git';
+import { Repository as BaseRepository, Commit, GitErrorCodes, Stash, GitError, Submodule } from './git';
 import { anyEvent, filterEvent, eventToPromise, dispose, find, isDescendant, IDisposable, onceEvent, EmptyDisposable, debounceEvent } from './util';
 import { memoize, throttle, debounce } from './decorators';
 import { toGitUri } from './uri';
@@ -277,14 +277,20 @@ export class Resource implements SourceControlResourceState {
 
 export enum Operation {
 	Status = 'Status',
+	Config = 'Config',
 	Diff = 'Diff',
+	MergeBase = 'MergeBase',
 	Add = 'Add',
 	RevertFiles = 'RevertFiles',
 	Commit = 'Commit',
 	Clean = 'Clean',
 	Branch = 'Branch',
+	GetBranch = 'GetBranch',
+	SetBranchUpstream = 'SetBranchUpstream',
+	HashObject = 'HashObject',
 	Checkout = 'Checkout',
 	Reset = 'Reset',
+	Remote = 'Remote',
 	Fetch = 'Fetch',
 	Pull = 'Pull',
 	Push = 'Push',
@@ -650,13 +656,53 @@ export class Repository implements Disposable {
 		}
 	}
 
+	getConfigs(): Promise<{ key: string; value: string; }[]> {
+		return this.run(Operation.Config, () => this.repository.getConfigs('local'));
+	}
+
+	getConfig(key: string): Promise<string> {
+		return this.run(Operation.Config, () => this.repository.config('local', key));
+	}
+
+	setConfig(key: string, value: string): Promise<string> {
+		return this.run(Operation.Config, () => this.repository.config('local', key, value));
+	}
+
 	@throttle
 	async status(): Promise<void> {
 		await this.run(Operation.Status);
 	}
 
-	diff(path: string, options: DiffOptions = {}): Promise<string> {
-		return this.run(Operation.Diff, () => this.repository.diff(path, options));
+	diffWithHEAD(path: string): Promise<string> {
+		return this.run(Operation.Diff, () => this.repository.diffWithHEAD(path));
+	}
+
+	diffWith(ref: string, path: string): Promise<string> {
+		return this.run(Operation.Diff, () => this.repository.diffWith(ref, path));
+	}
+
+	diffIndexWithHEAD(path: string): Promise<string> {
+		return this.run(Operation.Diff, () => this.repository.diffIndexWithHEAD(path));
+	}
+
+	diffIndexWith(ref: string, path: string): Promise<string> {
+		return this.run(Operation.Diff, () => this.repository.diffIndexWith(ref, path));
+	}
+
+	diffBlobs(object1: string, object2: string): Promise<string> {
+		return this.run(Operation.Diff, () => this.repository.diffBlobs(object1, object2));
+	}
+
+	diffBetween(ref1: string, ref2: string, path: string): Promise<string> {
+		return this.run(Operation.Diff, () => this.repository.diffBetween(ref1, ref2, path));
+	}
+
+	getMergeBase(ref1: string, ref2: string): Promise<string> {
+		return this.run(Operation.MergeBase, () => this.repository.getMergeBase(ref1, ref2));
+	}
+
+	async hashObject(data: string): Promise<string> {
+		return this.run(Operation.HashObject, () => this.repository.hashObject(data));
 	}
 
 	async add(resources: Uri[]): Promise<void> {
@@ -746,7 +792,7 @@ export class Repository implements Disposable {
 		});
 	}
 
-	async branch(name: string): Promise<void> {
+	async branch(name: string, checkout: boolean, ref?: string): Promise<void> {
 		await this.run(Operation.Branch, () => this.repository.branch(name, true));
 	}
 
@@ -756,6 +802,14 @@ export class Repository implements Disposable {
 
 	async renameBranch(name: string): Promise<void> {
 		await this.run(Operation.RenameBranch, () => this.repository.renameBranch(name));
+	}
+
+	async getBranch(name: string): Promise<Branch> {
+		return await this.run(Operation.GetBranch, () => this.repository.getBranch(name));
+	}
+
+	async setBranchUpstream(name: string, upstream: string): Promise<void> {
+		await this.run(Operation.SetBranchUpstream, () => this.repository.setBranchUpstream(name, upstream));
 	}
 
 	async merge(ref: string): Promise<void> {
@@ -782,8 +836,20 @@ export class Repository implements Disposable {
 		await this.run(Operation.DeleteRef, () => this.repository.deleteRef(ref));
 	}
 
+	async addRemote(name: string, url: string): Promise<void> {
+		await this.run(Operation.Remote, () => this.repository.addRemote(name, url));
+	}
+
+	async removeRemote(name: string): Promise<void> {
+		await this.run(Operation.Remote, () => this.repository.removeRemote(name));
+	}
+
 	@throttle
-	async fetch(): Promise<void> {
+	async fetchDefault(): Promise<void> {
+		await this.run(Operation.Fetch, () => this.repository.fetch());
+	}
+
+	async fetch(remote?: string, ref?: string): Promise<void> {
 		await this.run(Operation.Fetch, () => this.repository.fetch());
 	}
 
@@ -801,7 +867,7 @@ export class Repository implements Disposable {
 	}
 
 	@throttle
-	async pull(head: Branch | undefined): Promise<void> {
+	async pull(head?: Branch): Promise<void> {
 		let remote: string | undefined;
 		let branch: string | undefined;
 

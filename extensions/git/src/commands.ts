@@ -1235,7 +1235,7 @@ export class CommandCenter {
 		}
 
 		const name = result.replace(/^\.|\/\.|\.\.|~|\^|:|\/$|\.lock$|\.lock\/|\\|\*|\s|^\s*$|\.$/g, '-');
-		await repository.branch(name);
+		await repository.branch(name, true);
 	}
 
 	@command('git.deleteBranch', { repository: true })
@@ -1355,7 +1355,7 @@ export class CommandCenter {
 			return;
 		}
 
-		await repository.fetch();
+		await repository.fetchDefault();
 	}
 
 	@command('git.pullFrom', { repository: true })
