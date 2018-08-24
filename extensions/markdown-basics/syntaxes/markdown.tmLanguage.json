@@ -4,7 +4,7 @@
 		"If you want to provide a fix or improvement, please create a pull request against the original repository.",
 		"Once accepted there, we are happy to receive an update request."
 	],
-	"version": "https://github.com/microsoft/vscode-markdown-tm-grammar/commit/2544443db4402b3271b1b99bd9a1efb2c757c3d5",
+	"version": "https://github.com/microsoft/vscode-markdown-tm-grammar/commit/5f5b3d7eaced763432867f8eb6d3d768f6cd2acc",
 	"name": "Markdown",
 	"scopeName": "text.html.markdown",
 	"patterns": [
@@ -1970,7 +1970,7 @@
 				"lists": {
 					"patterns": [
 						{
-							"begin": "(^|\\G)([ ]{0,3})([*+-])([ ]{1,3}|\\t)",
+							"begin": "(^|\\G)([ ]{0,3})([*+-])([ \\t])",
 							"beginCaptures": {
 								"3": {
 									"name": "punctuation.definition.list.begin.markdown"
@@ -1989,7 +1989,7 @@
 							"while": "((^|\\G)([ ]{2,4}|\\t))|(^[ \\t]*$)"
 						},
 						{
-							"begin": "(^|\\G)([ ]{0,3})([0-9]+\\.)([ ]{1,3}|\\t)",
+							"begin": "(^|\\G)([ ]{0,3})([0-9]+\\.)([ \\t])",
 							"beginCaptures": {
 								"3": {
 									"name": "punctuation.definition.list.begin.markdown"
