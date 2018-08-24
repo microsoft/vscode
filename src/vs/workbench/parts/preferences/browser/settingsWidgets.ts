@@ -403,9 +403,8 @@ export class ExcludeSettingWidget extends Disposable {
 					pattern,
 					sibling: siblingInput && siblingInput.value.trim()
 				});
-			} else {
-				this.renderList();
 			}
+			this.renderList();
 		};
 
 		const onKeydown = (e: StandardKeyboardEvent) => {
