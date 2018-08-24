@@ -318,17 +318,16 @@ export class SettingsRenderer implements ITreeRenderer {
 					this.descriptionMeasureContainer)));
 
 		this.settingActions = [
-			this.instantiationService.createInstance(CopySettingNameAction),
-			this.instantiationService.createInstance(CopySettingIdAction),
-			this.instantiationService.createInstance(CopySettingAsJSONAction),
-			new Separator(),
 			new Action('settings.resetSetting', localize('resetSettingLabel', "Reset Setting"), undefined, undefined, (context: SettingsTreeSettingElement) => {
 				if (context) {
 					this._onDidChangeSetting.fire({ key: context.setting.key, value: undefined });
 				}
 
 				return TPromise.wrap(null);
-			})
+			}),
+			new Separator(),
+			this.instantiationService.createInstance(CopySettingIdAction),
+			this.instantiationService.createInstance(CopySettingAsJSONAction),
 		];
 	}
 
@@ -1478,26 +1477,6 @@ class CopySettingAsJSONAction extends Action {
 		if (context) {
 			const jsonResult = `"${context.setting.key}": ${JSON.stringify(context.value, undefined, '  ')}`;
 			this.clipboardService.writeText(jsonResult);
-		}
-
-		return TPromise.as(null);
-	}
-}
-
-class CopySettingNameAction extends Action {
-	static readonly ID = 'settings.copySettingName';
-	static readonly LABEL = localize('copySettingNameLabel', "Copy Setting Name");
-
-	constructor(
-		@IClipboardService private clipboardService: IClipboardService
-	) {
-		super(CopySettingNameAction.ID, CopySettingNameAction.LABEL);
-	}
-
-	run(context: SettingsTreeSettingElement): TPromise<void> {
-		if (context) {
-			const name = `${context.displayCategory}: ${context.displayLabel}`;
-			this.clipboardService.writeText(name);
 		}
 
 		return TPromise.as(null);
