@@ -5,21 +5,21 @@
 
 'use strict';
 
-import 'vs/css!./snippetSession';
-import { getLeadingWhitespace } from 'vs/base/common/strings';
-import { ITextModel, TrackedRangeStickiness, IIdentifiedSingleEditOperation } from 'vs/editor/common/model';
-import { EditOperation } from 'vs/editor/common/core/editOperation';
-import { TextmateSnippet, Placeholder, Choice, Text, SnippetParser } from './snippetParser';
-import { Selection } from 'vs/editor/common/core/selection';
-import { Range } from 'vs/editor/common/core/range';
-import { IPosition } from 'vs/editor/common/core/position';
 import { groupBy } from 'vs/base/common/arrays';
 import { dispose } from 'vs/base/common/lifecycle';
-import { SelectionBasedVariableResolver, CompositeSnippetVariableResolver, ModelBasedVariableResolver, ClipboardBasedVariableResolver, TimeBasedVariableResolver } from './snippetVariables';
-import { ModelDecorationOptions } from 'vs/editor/common/model/textModel';
+import { getLeadingWhitespace } from 'vs/base/common/strings';
+import 'vs/css!./snippetSession';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
+import { EditOperation } from 'vs/editor/common/core/editOperation';
+import { IPosition } from 'vs/editor/common/core/position';
+import { Range } from 'vs/editor/common/core/range';
+import { Selection } from 'vs/editor/common/core/selection';
+import { IIdentifiedSingleEditOperation, ITextModel, TrackedRangeStickiness } from 'vs/editor/common/model';
+import { ModelDecorationOptions } from 'vs/editor/common/model/textModel';
 import { IClipboardService } from 'vs/platform/clipboard/common/clipboardService';
 import { optional } from 'vs/platform/instantiation/common/instantiation';
+import { Choice, Placeholder, SnippetParser, Text, TextmateSnippet } from './snippetParser';
+import { ClipboardBasedVariableResolver, CompositeSnippetVariableResolver, ModelBasedVariableResolver, SelectionBasedVariableResolver, TimeBasedVariableResolver } from './snippetVariables';
 
 export class OneSnippet {
 
@@ -271,7 +271,7 @@ export class OneSnippet {
 
 export class SnippetSession {
 
-	static adjustWhitespace2(model: ITextModel, position: IPosition, snippet: TextmateSnippet): void {
+	static adjustWhitespace(model: ITextModel, position: IPosition, snippet: TextmateSnippet): void {
 		const line = model.getLineContent(position.lineNumber);
 		const lineLeadingWhitespace = getLeadingWhitespace(line, 0, position.column - 1);
 
@@ -317,7 +317,7 @@ export class SnippetSession {
 		return selection;
 	}
 
-	static createEditsAndSnippets(editor: ICodeEditor, template: string, overwriteBefore: number, overwriteAfter: number, enforceFinalTabstop: boolean): { edits: IIdentifiedSingleEditOperation[], snippets: OneSnippet[] } {
+	static createEditsAndSnippets(editor: ICodeEditor, template: string, overwriteBefore: number, overwriteAfter: number, enforceFinalTabstop: boolean, adjustWhitespace: boolean): { edits: IIdentifiedSingleEditOperation[], snippets: OneSnippet[] } {
 
 		const model = editor.getModel();
 		const edits: IIdentifiedSingleEditOperation[] = [];
@@ -365,7 +365,9 @@ export class SnippetSession {
 			// adjust the template string to match the indentation and
 			// whitespace rules of this insert location (can be different for each cursor)
 			const start = snippetSelection.getStartPosition();
-			SnippetSession.adjustWhitespace2(model, start, snippet);
+			if (adjustWhitespace) {
+				SnippetSession.adjustWhitespace(model, start, snippet);
+			}
 
 			snippet.resolveVariables(new CompositeSnippetVariableResolver([
 				modelBasedVariableResolver,
@@ -392,13 +394,15 @@ export class SnippetSession {
 	private readonly _templateMerges: [number, number, string][] = [];
 	private readonly _overwriteBefore: number;
 	private readonly _overwriteAfter: number;
+	private readonly _adjustWhitespace: boolean;
 	private _snippets: OneSnippet[] = [];
 
-	constructor(editor: ICodeEditor, template: string, overwriteBefore: number = 0, overwriteAfter: number = 0) {
+	constructor(editor: ICodeEditor, template: string, overwriteBefore: number = 0, overwriteAfter: number = 0, adjustWhitespace: boolean = true) {
 		this._editor = editor;
 		this._template = template;
 		this._overwriteBefore = overwriteBefore;
 		this._overwriteAfter = overwriteAfter;
+		this._adjustWhitespace = adjustWhitespace;
 	}
 
 	dispose(): void {
@@ -414,7 +418,7 @@ export class SnippetSession {
 		const model = this._editor.getModel();
 
 		// make insert edit and start with first selections
-		const { edits, snippets } = SnippetSession.createEditsAndSnippets(this._editor, this._template, this._overwriteBefore, this._overwriteAfter, false);
+		const { edits, snippets } = SnippetSession.createEditsAndSnippets(this._editor, this._template, this._overwriteBefore, this._overwriteAfter, false, this._adjustWhitespace);
 		this._snippets = snippets;
 
 		const selections = model.pushEditOperations(this._editor.getSelections(), edits, undoEdits => {
@@ -428,9 +432,9 @@ export class SnippetSession {
 		this._editor.revealRange(selections[0]);
 	}
 
-	merge(template: string, overwriteBefore: number = 0, overwriteAfter: number = 0): void {
+	merge(template: string, overwriteBefore: number = 0, overwriteAfter: number = 0, adjustWhitespace: boolean = true): void {
 		this._templateMerges.push([this._snippets[0]._nestingLevel, this._snippets[0]._placeholderGroupsIdx, template]);
-		const { edits, snippets } = SnippetSession.createEditsAndSnippets(this._editor, template, overwriteBefore, overwriteAfter, true);
+		const { edits, snippets } = SnippetSession.createEditsAndSnippets(this._editor, template, overwriteBefore, overwriteAfter, true, adjustWhitespace);
 
 		this._editor.setSelections(this._editor.getModel().pushEditOperations(this._editor.getSelections(), edits, undoEdits => {
 
