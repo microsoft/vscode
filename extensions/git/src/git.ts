@@ -16,7 +16,7 @@ import * as filetype from 'file-type';
 import { assign, groupBy, denodeify, IDisposable, toDisposable, dispose, mkdirp, readBytes, detectUnicodeEncoding, Encoding, onceEvent } from './util';
 import { CancellationToken } from 'vscode';
 import { detectEncoding } from './encoding';
-import { Ref, RefType, Branch, Remote } from './api/git';
+import { Ref, RefType, Branch, Remote, GitErrorCodes } from './api/git';
 
 const readfile = denodeify<string, string | null, string>(fs.readFile);
 
@@ -284,37 +284,6 @@ export interface IGitOptions {
 	version: string;
 	env?: any;
 }
-
-export const GitErrorCodes = {
-	BadConfigFile: 'BadConfigFile',
-	AuthenticationFailed: 'AuthenticationFailed',
-	NoUserNameConfigured: 'NoUserNameConfigured',
-	NoUserEmailConfigured: 'NoUserEmailConfigured',
-	NoRemoteRepositorySpecified: 'NoRemoteRepositorySpecified',
-	NotAGitRepository: 'NotAGitRepository',
-	NotAtRepositoryRoot: 'NotAtRepositoryRoot',
-	Conflict: 'Conflict',
-	UnmergedChanges: 'UnmergedChanges',
-	PushRejected: 'PushRejected',
-	RemoteConnectionError: 'RemoteConnectionError',
-	DirtyWorkTree: 'DirtyWorkTree',
-	CantOpenResource: 'CantOpenResource',
-	GitNotFound: 'GitNotFound',
-	CantCreatePipe: 'CantCreatePipe',
-	CantAccessRemote: 'CantAccessRemote',
-	RepositoryNotFound: 'RepositoryNotFound',
-	RepositoryIsLocked: 'RepositoryIsLocked',
-	BranchNotFullyMerged: 'BranchNotFullyMerged',
-	NoRemoteReference: 'NoRemoteReference',
-	InvalidBranchName: 'InvalidBranchName',
-	BranchAlreadyExists: 'BranchAlreadyExists',
-	NoLocalChanges: 'NoLocalChanges',
-	NoStashFound: 'NoStashFound',
-	LocalChangesOverwritten: 'LocalChangesOverwritten',
-	NoUpstreamBranch: 'NoUpstreamBranch',
-	IsInSubmodule: 'IsInSubmodule',
-	WrongCase: 'WrongCase',
-};
 
 function getGitErrorCode(stderr: string): string | undefined {
 	if (/Another git process seems to be running in this repository|If no other git process is currently running/.test(stderr)) {

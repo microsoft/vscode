@@ -131,3 +131,34 @@ export interface GitExtension {
 	 */
 	getAPI(version: 1): API;
 }
+
+export const enum GitErrorCodes {
+	BadConfigFile = 'BadConfigFile',
+	AuthenticationFailed = 'AuthenticationFailed',
+	NoUserNameConfigured = 'NoUserNameConfigured',
+	NoUserEmailConfigured = 'NoUserEmailConfigured',
+	NoRemoteRepositorySpecified = 'NoRemoteRepositorySpecified',
+	NotAGitRepository = 'NotAGitRepository',
+	NotAtRepositoryRoot = 'NotAtRepositoryRoot',
+	Conflict = 'Conflict',
+	UnmergedChanges = 'UnmergedChanges',
+	PushRejected = 'PushRejected',
+	RemoteConnectionError = 'RemoteConnectionError',
+	DirtyWorkTree = 'DirtyWorkTree',
+	CantOpenResource = 'CantOpenResource',
+	GitNotFound = 'GitNotFound',
+	CantCreatePipe = 'CantCreatePipe',
+	CantAccessRemote = 'CantAccessRemote',
+	RepositoryNotFound = 'RepositoryNotFound',
+	RepositoryIsLocked = 'RepositoryIsLocked',
+	BranchNotFullyMerged = 'BranchNotFullyMerged',
+	NoRemoteReference = 'NoRemoteReference',
+	InvalidBranchName = 'InvalidBranchName',
+	BranchAlreadyExists = 'BranchAlreadyExists',
+	NoLocalChanges = 'NoLocalChanges',
+	NoStashFound = 'NoStashFound',
+	LocalChangesOverwritten = 'LocalChangesOverwritten',
+	NoUpstreamBranch = 'NoUpstreamBranch',
+	IsInSubmodule = 'IsInSubmodule',
+	WrongCase = 'WrongCase',
+}

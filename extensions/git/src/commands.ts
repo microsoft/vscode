@@ -6,7 +6,7 @@
 'use strict';
 
 import { Uri, commands, Disposable, window, workspace, QuickPickItem, OutputChannel, Range, WorkspaceEdit, Position, LineChange, SourceControlResourceState, TextDocumentShowOptions, ViewColumn, ProgressLocation, TextEditor, MessageOptions } from 'vscode';
-import { Git, GitErrorCodes } from './git';
+import { Git } from './git';
 import { Repository, Resource, Status, CommitOptions, ResourceGroupType } from './repository';
 import { Model } from './model';
 import { toGitUri, fromGitUri } from './uri';
@@ -17,7 +17,7 @@ import { lstat, Stats } from 'fs';
 import * as os from 'os';
 import TelemetryReporter from 'vscode-extension-telemetry';
 import * as nls from 'vscode-nls';
-import { Ref, RefType, Branch } from './api/git';
+import { Ref, RefType, Branch, GitErrorCodes } from './api/git';
 
 const localize = nls.loadMessageBundle();
 

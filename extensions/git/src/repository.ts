@@ -6,7 +6,7 @@
 'use strict';
 
 import { commands, Uri, Command, EventEmitter, Event, scm, SourceControl, SourceControlInputBox, SourceControlResourceGroup, SourceControlResourceState, SourceControlResourceDecorations, SourceControlInputBoxValidation, Disposable, ProgressLocation, window, workspace, WorkspaceEdit, ThemeColor, DecorationData, Memento, SourceControlInputBoxValidationType } from 'vscode';
-import { Repository as BaseRepository, Commit, GitErrorCodes, Stash, GitError, Submodule } from './git';
+import { Repository as BaseRepository, Commit, Stash, GitError, Submodule } from './git';
 import { anyEvent, filterEvent, eventToPromise, dispose, find, isDescendant, IDisposable, onceEvent, EmptyDisposable, debounceEvent } from './util';
 import { memoize, throttle, debounce } from './decorators';
 import { toGitUri } from './uri';
@@ -15,7 +15,7 @@ import * as path from 'path';
 import * as nls from 'vscode-nls';
 import * as fs from 'fs';
 import { StatusBarCommands } from './statusbar';
-import { Branch, Ref, Remote, RefType } from './api/git';
+import { Branch, Ref, Remote, RefType, GitErrorCodes } from './api/git';
 
 const timeout = (millis: number) => new Promise(c => setTimeout(c, millis));
 
