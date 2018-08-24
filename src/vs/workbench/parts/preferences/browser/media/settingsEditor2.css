@@ -281,17 +281,24 @@
 	text-overflow: ellipsis;
 }
 
-.settings-editor > .settings-body > .settings-tree-container .setting-item.is-configured::after {
+
+.settings-editor > .settings-body > .settings-tree-container .setting-item > .setting-item-modified-indicator {
+	display: none;
+}
+
+.settings-editor > .settings-body > .settings-tree-container .setting-item.is-configured > .setting-item-modified-indicator {
 	display: block;
 	content: ' ';
 	position: absolute;
-	width: 2px;
+	width: 6px;
+	border-left-width: 2px;
+	border-left-style: solid;
 	left: 0px;
 	top: 15px;
 	bottom: 16px;
 }
 
-.settings-editor > .settings-body > .settings-tree-container .setting-item-bool.setting-item.is-configured::after {
+.settings-editor > .settings-body > .settings-tree-container .setting-item-bool.is-configured > .setting-item-modified-indicator {
 	bottom: 23px;
 }
 
