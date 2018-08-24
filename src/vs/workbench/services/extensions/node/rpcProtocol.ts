@@ -320,8 +320,115 @@ export class RPCProtocol implements IRPCProtocol {
 	}
 }
 
+class MessageBuffer {
+
+	public static alloc(type: MessageType, req: number, messageSize: number): MessageBuffer {
+		let buff = Buffer.allocUnsafe(messageSize + 1 /* type */ + 4 /* req */);
+		let offset = 0;
+		buff.writeUInt8(type, offset, true); offset += 1;
+		buff.writeUInt32LE(req, offset, true); offset += 4;
+		return new MessageBuffer(buff, offset);
+	}
+
+	private _buff: Buffer;
+	private _offset: number;
+
+	public get buffer(): Buffer {
+		return this._buff;
+	}
+
+	private constructor(buff: Buffer, offset: number) {
+		this._buff = buff;
+		this._offset = offset;
+	}
+
+	public static sizeShortString(str: string, strByteLength: number): number {
+		return 1 /* string length */ + strByteLength /* actual string */;
+	}
+
+	public writeShortString(str: string, strByteLength: number): void {
+		this._buff.writeUInt8(strByteLength, this._offset, true); this._offset += 1;
+		this._buff.write(str, this._offset, strByteLength, 'utf8'); this._offset += strByteLength;
+	}
+
+	public readShortString(): string {
+		const strLength = this._buff.readUInt8(this._offset, true); this._offset += 1;
+		const str = this._buff.toString('utf8', this._offset, this._offset + strLength); this._offset += strLength;
+		return str;
+	}
+
+	public static sizeLongString(str: string, strByteLength: number): number {
+		return 4 /* string length */ + strByteLength /* actual string */;
+	}
+
+	public writeLongString(str: string, strByteLength: number): void {
+		this._buff.writeUInt32LE(strByteLength, this._offset, true); this._offset += 4;
+		this._buff.write(str, this._offset, strByteLength, 'utf8'); this._offset += strByteLength;
+	}
+
+	public readLongString(): string {
+		const strLength = this._buff.readUInt32LE(this._offset, true); this._offset += 4;
+		const str = this._buff.toString('utf8', this._offset, this._offset + strLength); this._offset += strLength;
+		return str;
+	}
+
+	public static sizeBuffer(buff: Buffer, buffByteLength: number): number {
+		return 4 /* buffer length */ + buffByteLength /* actual buffer */;
+	}
+
+	public writeBuffer(buff: Buffer, buffByteLength: number): void {
+		this._buff.writeUInt32LE(buffByteLength, this._offset, true); this._offset += 4;
+		buff.copy(this._buff, this._offset); this._offset += buffByteLength;
+	}
+
+	public readBuffer(): Buffer {
+		const buffLength = this._buff.readUInt32LE(this._offset, true); this._offset += 4;
+		const buff = this._buff.slice(this._offset, this._offset + buffLength); this._offset += buffLength;
+		return buff;
+	}
+
+	public static sizeMixedArray(arr: (string | Buffer)[], arrLengths: number[]): number {
+		let size = 0;
+		size += 1; // arr length
+		for (let i = 0, len = arr.length; i < len; i++) {
+			const el = arr[i];
+			const elLength = arrLengths[i];
+			size += 1; // arg type
+			if (typeof el === 'string') {
+				size += this.sizeLongString(el, elLength);
+			} else {
+				size += this.sizeBuffer(el, elLength);
+			}
+		}
+		return size;
+	}
+
+	public writeMixedArray(arr: (string | Buffer)[], arrLengths: number[]): void {
+		this._buff.writeUInt8(arr.length, this._offset, true); this._offset += 1;
+		for (let i = 0, len = arr.length; i < len; i++) {
+			const el = arr[i];
+			const elLength = arrLengths[i];
+			if (typeof el === 'string') {
+				this._buff.writeUInt8(ArgType.ArgString, this._offset, true); this._offset += 1;
+				this.writeLongString(el, elLength);
+			} else {
+				this._buff.writeUInt8(ArgType.ArgBuffer, this._offset, true); this._offset += 1;
+				this.writeBuffer(el, elLength);
+			}
+		}
+	}
+}
+
 class MessageIO {
-	private static arrayContainsBuffer(arr: any[]): boolean {
+	public static deserializeMessageType(buff: Buffer, offset: number): MessageType {
+		return buff[offset];
+	}
+
+	public static deserializeReq(buff: Buffer, offset: number): number {
+		return buff.readUInt32LE(offset, true);
+	}
+
+	private static _arrayContainsBuffer(arr: any[]): boolean {
 		for (let i = 0, len = arr.length; i < len; i++) {
 			if (Buffer.isBuffer(arr[i])) {
 				return true;
@@ -331,7 +438,7 @@ class MessageIO {
 	}
 
 	public static serializeRequest(req: number, rpcId: string, method: string, args: any[]): Buffer {
-		if (this.arrayContainsBuffer(args)) {
+		if (this._arrayContainsBuffer(args)) {
 			let massagedArgs: (string | Buffer)[] = new Array(args.length);
 			let argsLengths: number[] = new Array(args.length);
 			for (let i = 0, len = args.length; i < len; i++) {
@@ -341,7 +448,7 @@ class MessageIO {
 					argsLengths[i] = arg.byteLength;
 				} else {
 					massagedArgs[i] = JSON.stringify(arg);
-					argsLengths[i] = Buffer.byteLength(massagedArgs[i]);
+					argsLengths[i] = Buffer.byteLength(massagedArgs[i], 'utf8');
 				}
 			}
 			return this._requestMixedArgs(req, rpcId, method, massagedArgs, argsLengths);
@@ -349,42 +456,21 @@ class MessageIO {
 		return this._requestJSONArgs(req, rpcId, method, JSON.stringify(args));
 	}
 
-	public static deserializeMessageType(buff: Buffer, offset: number): MessageType {
-		return buff[offset];
-	}
-
-	public static deserializeReq(buff: Buffer, offset: number): number {
-		return buff.readUInt32LE(offset, true);
-	}
-
 	private static _requestJSONArgs(req: number, rpcId: string, method: string, args: string): Buffer {
-		const rpcIdByteLength = Buffer.byteLength(rpcId);
-		const methodByteLength = Buffer.byteLength(method);
-		const argsByteLength = Buffer.byteLength(args);
+		const rpcIdByteLength = Buffer.byteLength(rpcId, 'utf8');
+		const methodByteLength = Buffer.byteLength(method, 'utf8');
+		const argsByteLength = Buffer.byteLength(args, 'utf8');
 
 		let len = 0;
-		len += 1; // msg type
-		len += 4; // req
-		len += 1; // rpcId length
-		len += rpcIdByteLength;
-		len += 1; // method length
-		len += methodByteLength;
-		len += 4; // arg length
-		len += argsByteLength;
+		len += MessageBuffer.sizeShortString(rpcId, rpcIdByteLength);
+		len += MessageBuffer.sizeShortString(method, methodByteLength);
+		len += MessageBuffer.sizeLongString(args, argsByteLength);
 
-		let result = Buffer.allocUnsafe(len);
-		let offset = 0;
-
-		result.writeUInt8(MessageType.RequestJSONArgs, offset, true); offset += 1;
-		result.writeUInt32LE(req, offset, true); offset += 4;
-		result.writeUInt8(rpcIdByteLength, offset, true); offset += 1;
-		result.write(rpcId, offset, rpcIdByteLength, 'utf8'); offset += rpcIdByteLength;
-		result.writeUInt8(methodByteLength, offset, true); offset += 1;
-		result.write(method, offset, methodByteLength, 'utf8'); offset += methodByteLength;
-		result.writeUInt32LE(argsByteLength, offset, true); offset += 4;
-		result.write(args, offset, argsByteLength, 'utf8'); offset += argsByteLength;
-
-		return result;
+		let result = MessageBuffer.alloc(MessageType.RequestJSONArgs, req, len);
+		result.writeShortString(rpcId, rpcIdByteLength);
+		result.writeShortString(method, methodByteLength);
+		result.writeLongString(args, argsByteLength);
+		return result.buffer;
 	}
 
 	public static deserializeRequestJSONArgs(buff: Buffer, offset: number): { rpcId: string; method: string; args: any[]; } {
@@ -402,47 +488,19 @@ class MessageIO {
 	}
 
 	private static _requestMixedArgs(req: number, rpcId: string, method: string, args: (string | Buffer)[], argsLengths: number[]): Buffer {
-		const rpcIdByteLength = Buffer.byteLength(rpcId);
-		const methodByteLength = Buffer.byteLength(method);
+		const rpcIdByteLength = Buffer.byteLength(rpcId, 'utf8');
+		const methodByteLength = Buffer.byteLength(method, 'utf8');
 
 		let len = 0;
-		len += 1; // msg type
-		len += 4; // req
-		len += 1; // rpcId length
-		len += rpcIdByteLength;
-		len += 1; // method length
-		len += methodByteLength;
-		len += 1; // arg count
-		for (let i = 0, argsLen = args.length; i < argsLen; i++) {
-			len += 1; // arg type
-			len += 4; // buffer length
-			len += argsLengths[i];
-		}
+		len += MessageBuffer.sizeShortString(rpcId, rpcIdByteLength);
+		len += MessageBuffer.sizeShortString(method, methodByteLength);
+		len += MessageBuffer.sizeMixedArray(args, argsLengths);
 
-		let result = Buffer.allocUnsafe(len);
-		let offset = 0;
-
-		result.writeUInt8(MessageType.RequestMixedArgs, offset, true); offset += 1;
-		result.writeUInt32LE(req, offset, true); offset += 4;
-		result.writeUInt8(rpcIdByteLength, offset, true); offset += 1;
-		result.write(rpcId, offset, rpcIdByteLength, 'utf8'); offset += rpcIdByteLength;
-		result.writeUInt8(methodByteLength, offset, true); offset += 1;
-		result.write(method, offset, methodByteLength, 'utf8'); offset += methodByteLength;
-		result.writeUInt8(args.length, offset, true); offset += 1;
-		for (let i = 0, argsLen = args.length; i < argsLen; i++) {
-			const arg = args[i];
-			if (typeof arg === 'string') {
-				result.writeUInt8(ArgType.ArgString, offset, true); offset += 1;
-				result.writeUInt32LE(argsLengths[i], offset, true); offset += 4;
-				result.write(arg, offset, argsLengths[i], 'utf8'); offset += argsLengths[i];
-			} else {
-				result.writeUInt8(ArgType.ArgBuffer, offset, true); offset += 1;
-				result.writeUInt32LE(argsLengths[i], offset, true); offset += 4;
-				arg.copy(result, offset); offset += argsLengths[i];
-			}
-		}
-
-		return result;
+		let result = MessageBuffer.alloc(MessageType.RequestMixedArgs, req, len);
+		result.writeShortString(rpcId, rpcIdByteLength);
+		result.writeShortString(method, methodByteLength);
+		result.writeMixedArray(args, argsLengths);
+		return result.buffer;
 	}
 
 	public static deserializeRequestMixedArgs(buff: Buffer, offset: number): { rpcId: string; method: string; args: any[]; } {
@@ -469,17 +527,7 @@ class MessageIO {
 	}
 
 	public static serializeCancel(req: number): Buffer {
-		let len = 0;
-		len += 1; // msg type
-		len += 4; // req
-
-		let result = Buffer.allocUnsafe(len);
-		let offset = 0;
-
-		result.writeUInt8(MessageType.Cancel, offset, true); offset += 1;
-		result.writeUInt32LE(req, offset, true); offset += 4;
-
-		return result;
+		return MessageBuffer.alloc(MessageType.Cancel, req, 0).buffer;
 	}
 
 	public static serializeReplyOK(req: number, res: any): Buffer {
@@ -493,35 +541,18 @@ class MessageIO {
 	}
 
 	private static _serializeReplyOKEmpty(req: number): Buffer {
-		let len = 0;
-		len += 1; // msg type
-		len += 4; // req
-
-		let result = Buffer.allocUnsafe(len);
-		let offset = 0;
-
-		result.writeUInt8(MessageType.ReplyOKEmpty, offset, true); offset += 1;
-		result.writeUInt32LE(req, offset, true); offset += 4;
-
-		return result;
+		return MessageBuffer.alloc(MessageType.ReplyOKEmpty, req, 0).buffer;
 	}
 
 	private static _serializeReplyOKBuffer(req: number, res: Buffer): Buffer {
+		const resByteLength = res.byteLength;
+
 		let len = 0;
-		len += 1; // msg type
-		len += 4; // req
-		len += 4; // res length
-		len += res.byteLength;
+		len += MessageBuffer.sizeBuffer(res, resByteLength);
 
-		let result = Buffer.allocUnsafe(len);
-		let offset = 0;
-
-		result.writeUInt8(MessageType.ReplyOKBuffer, offset, true); offset += 1;
-		result.writeUInt32LE(req, offset, true); offset += 4;
-		result.writeUInt32LE(res.byteLength, offset, true); offset += 4;
-		res.copy(result, offset); offset += res.byteLength;
-
-		return result;
+		let result = MessageBuffer.alloc(MessageType.ReplyOKBuffer, req, len);
+		result.writeBuffer(res, resByteLength);
+		return result.buffer;
 	}
 
 	public static deserializeReplyOKBuffer(buff: Buffer, offset: number): Buffer {
@@ -531,23 +562,14 @@ class MessageIO {
 	}
 
 	private static _serializeReplyOKJSON(req: number, res: string): Buffer {
-		const resByteLength = Buffer.byteLength(res);
+		const resByteLength = Buffer.byteLength(res, 'utf8');
 
 		let len = 0;
-		len += 1; // msg type
-		len += 4; // req
-		len += 4; // res length
-		len += resByteLength;
+		len += MessageBuffer.sizeLongString(res, resByteLength);
 
-		let result = Buffer.allocUnsafe(len);
-		let offset = 0;
-
-		result.writeUInt8(MessageType.ReplyOKJSON, offset, true); offset += 1;
-		result.writeUInt32LE(req, offset, true); offset += 4;
-		result.writeUInt32LE(resByteLength, offset, true); offset += 4;
-		result.write(res, offset, resByteLength, 'utf8'); offset += resByteLength;
-
-		return result;
+		let result = MessageBuffer.alloc(MessageType.ReplyOKJSON, req, len);
+		result.writeLongString(res, resByteLength);
+		return result.buffer;
 	}
 
 	public static deserializeReplyOKJSON(buff: Buffer, offset: number): any {
@@ -565,23 +587,14 @@ class MessageIO {
 
 	private static _serializeReplyErrEror(req: number, _err: Error): Buffer {
 		const err = JSON.stringify(errors.transformErrorForSerialization(_err));
-		const errByteLength = Buffer.byteLength(err);
+		const errByteLength = Buffer.byteLength(err, 'utf8');
 
 		let len = 0;
-		len += 1; // msg type
-		len += 4; // req
-		len += 4; // err length
-		len += errByteLength;
+		len += MessageBuffer.sizeLongString(err, errByteLength);
 
-		let result = Buffer.allocUnsafe(len);
-		let offset = 0;
-
-		result.writeUInt8(MessageType.ReplyErrError, offset, true); offset += 1;
-		result.writeUInt32LE(req, offset, true); offset += 4;
-		result.writeUInt32LE(errByteLength, offset, true); offset += 4;
-		result.write(err, offset, errByteLength, 'utf8'); offset += errByteLength;
-
-		return result;
+		let result = MessageBuffer.alloc(MessageType.ReplyErrError, req, len);
+		result.writeLongString(err, errByteLength);
+		return result.buffer;
 	}
 
 	public static deserializeReplyErrError(buff: Buffer, offset: number): Error {
@@ -591,17 +604,7 @@ class MessageIO {
 	}
 
 	private static _serializeReplyErrEmpty(req: number): Buffer {
-		let len = 0;
-		len += 1; // msg type
-		len += 4; // req
-
-		let result = Buffer.allocUnsafe(len);
-		let offset = 0;
-
-		result.writeUInt8(MessageType.ReplyErrEmpty, offset, true); offset += 1;
-		result.writeUInt32LE(req, offset, true); offset += 4;
-
-		return result;
+		return MessageBuffer.alloc(MessageType.ReplyErrEmpty, req, 0).buffer;
 	}
 }
 
