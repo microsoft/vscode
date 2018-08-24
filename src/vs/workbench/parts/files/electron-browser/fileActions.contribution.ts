@@ -25,6 +25,7 @@ import { ResourceContextKey } from 'vs/workbench/common/resources';
 import { WorkbenchListDoubleSelection } from 'vs/platform/list/browser/listService';
 import URI from 'vs/base/common/uri';
 import { Schemas } from 'vs/base/common/network';
+import { FileDialogContext } from 'vs/platform/workbench/common/contextkeys';
 
 // Contribute Global Actions
 const category = nls.localize('filesCategory', "File");
@@ -425,7 +426,7 @@ MenuRegistry.appendMenuItem(MenuId.ExplorerContext, {
 		id: ADD_ROOT_FOLDER_COMMAND_ID,
 		title: ADD_ROOT_FOLDER_LABEL
 	},
-	when: ExplorerRootContext
+	when: ContextKeyExpr.and(ExplorerRootContext, FileDialogContext.isEqualTo('local'))
 });
 
 MenuRegistry.appendMenuItem(MenuId.ExplorerContext, {
@@ -505,7 +506,8 @@ MenuRegistry.appendMenuItem(MenuId.MenubarFileMenu, {
 		id: SAVE_FILE_AS_COMMAND_ID,
 		title: nls.localize({ key: 'miSaveAs', comment: ['&& denotes a mnemonic'] }, "Save &&As...")
 	},
-	order: 2
+	order: 2,
+	when: FileDialogContext.isEqualTo('local')
 });
 
 MenuRegistry.appendMenuItem(MenuId.MenubarFileMenu, {

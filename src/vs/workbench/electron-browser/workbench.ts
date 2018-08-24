@@ -93,7 +93,7 @@ import { IDecorationsService } from 'vs/workbench/services/decorations/browser/d
 import { ActivityService } from 'vs/workbench/services/activity/browser/activityService';
 import URI from 'vs/base/common/uri';
 import { IListService, ListService } from 'vs/platform/list/browser/listService';
-import { InputFocusedContext } from 'vs/platform/workbench/common/contextkeys';
+import { InputFocusedContext, IsMacContext, IsLinuxContext, IsWindowsContext } from 'vs/platform/workbench/common/contextkeys';
 import { IViewsService } from 'vs/workbench/common/views';
 import { ViewsService } from 'vs/workbench/browser/parts/views/views';
 import { INotificationService } from 'vs/platform/notification/common/notification';
@@ -613,9 +613,9 @@ export class Workbench extends Disposable implements IPartService {
 	private handleContextKeys(): void {
 		this.inZenMode = InEditorZenModeContext.bindTo(this.contextKeyService);
 
-		(new RawContextKey<boolean>('isMac', isMacintosh)).bindTo(this.contextKeyService);
-		(new RawContextKey<boolean>('isLinux', isLinux)).bindTo(this.contextKeyService);
-		(new RawContextKey<boolean>('isWindows', isWindows)).bindTo(this.contextKeyService);
+		IsMacContext.bindTo(this.contextKeyService);
+		IsLinuxContext.bindTo(this.contextKeyService);
+		IsWindowsContext.bindTo(this.contextKeyService);
 
 		const sidebarVisibleContextRaw = new RawContextKey<boolean>('sidebarVisible', false);
 		this.sideBarVisibleContext = sidebarVisibleContextRaw.bindTo(this.contextKeyService);
