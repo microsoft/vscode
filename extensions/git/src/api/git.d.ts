@@ -4,7 +4,6 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Uri, SourceControlInputBox, Event, CancellationToken } from 'vscode';
-import * as cp from 'child_process';
 
 export interface Git {
 	readonly path: string;
