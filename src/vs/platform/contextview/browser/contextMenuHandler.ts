@@ -6,8 +6,7 @@
 'use strict';
 
 import 'vs/css!./contextMenuHandler';
-import { $, Builder } from 'vs/base/browser/builder';
-import { combinedDisposable, IDisposable } from 'vs/base/common/lifecycle';
+import { combinedDisposable, IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { StandardMouseEvent } from 'vs/base/browser/mouseEvent';
 import { ActionRunner, IAction, IRunEvent } from 'vs/base/common/actions';
 import { Menu } from 'vs/base/browser/ui/menu/menu';
@@ -16,6 +15,7 @@ import { IContextViewService } from 'vs/platform/contextview/browser/contextView
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { INotificationService } from 'vs/platform/notification/common/notification';
 import { IContextMenuDelegate } from 'vs/base/browser/contextmenu';
+import { addDisposableListener } from 'vs/base/browser/dom';
 
 export class ContextMenuHandler {
 
@@ -23,7 +23,8 @@ export class ContextMenuHandler {
 	private notificationService: INotificationService;
 	private telemetryService: ITelemetryService;
 
-	private $el: Builder;
+	private $el: HTMLElement;
+	private $elDisposable: IDisposable;
 	private menuContainerElement: HTMLElement;
 	private focusToReturn: HTMLElement;
 
@@ -39,12 +40,12 @@ export class ContextMenuHandler {
 
 	public setContainer(container: HTMLElement): void {
 		if (this.$el) {
-			this.$el.off(['click', 'mousedown']);
+			this.$elDisposable = dispose(this.$elDisposable);
 			this.$el = null;
 		}
 		if (container) {
-			this.$el = $(container);
-			this.$el.on('mousedown', (e: Event) => this.onMouseDown(e as MouseEvent));
+			this.$el = container;
+			this.$elDisposable = addDisposableListener(this.$el, 'mousedown', (e) => this.onMouseDown(e as MouseEvent));
 		}
 	}
 

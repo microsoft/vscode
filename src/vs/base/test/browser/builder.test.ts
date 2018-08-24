@@ -5,7 +5,7 @@
 'use strict';
 
 import * as assert from 'assert';
-import { Builder, MultiBuilder, $, bindElement, withElement, setPropertyOnElement, getPropertyFromElement } from 'vs/base/browser/builder';
+import { Builder, MultiBuilder, $, _bindElement, _withElement, _setPropertyOnElement, _getPropertyFromElement } from 'vs/base/browser/builder';
 import * as Types from 'vs/base/common/types';
 import * as DomUtils from 'vs/base/browser/dom';
 import { IDisposable } from 'vs/base/common/lifecycle';
@@ -48,7 +48,7 @@ function select(builder: Builder, selector: string, offdom?: boolean): MultiBuil
 
 	let builders: Builder[] = [];
 	for (let i = 0; i < elements.length; i++) {
-		builders.push(withElement(<HTMLElement>elements.item(i), offdom));
+		builders.push(_withElement(<HTMLElement>elements.item(i), offdom));
 	}
 
 	return new MultiBuilder(builders);
@@ -75,17 +75,17 @@ suite('Builder', () => {
 		assert(element);
 
 		// Properties
-		setPropertyOnElement(element, 'foo', 'bar');
-		assert.strictEqual(getPropertyFromElement(element, 'foo'), 'bar');
+		_setPropertyOnElement(element, 'foo', 'bar');
+		assert.strictEqual(_getPropertyFromElement(element, 'foo'), 'bar');
 
-		setPropertyOnElement(element, 'foo', { foo: 'bar' });
-		assert.deepEqual(getPropertyFromElement(element, 'foo'), { foo: 'bar' });
+		_setPropertyOnElement(element, 'foo', { foo: 'bar' });
+		assert.deepEqual(_getPropertyFromElement(element, 'foo'), { foo: 'bar' });
 
-		setPropertyOnElement(element, 'bar', 'bar');
-		assert.strictEqual(getPropertyFromElement(element, 'bar'), 'bar');
+		_setPropertyOnElement(element, 'bar', 'bar');
+		assert.strictEqual(_getPropertyFromElement(element, 'bar'), 'bar');
 
-		setPropertyOnElement(element, 'bar', { foo: 'bar' });
-		assert.deepEqual(getPropertyFromElement(element, 'bar'), { foo: 'bar' });
+		_setPropertyOnElement(element, 'bar', { foo: 'bar' });
+		assert.deepEqual(_getPropertyFromElement(element, 'bar'), { foo: 'bar' });
 	});
 
 	test('Select', function () {
@@ -801,7 +801,7 @@ suite('Builder', () => {
 		let counter7 = 0;
 
 		b.div(function (div: Builder) {
-			bindElement(div.getHTMLElement(), 'Foo Bar');
+			_bindElement(div.getHTMLElement(), 'Foo Bar');
 			div.setProperty('Foo', 'Bar');
 			bindings.push(div.clone());
 
@@ -814,7 +814,7 @@ suite('Builder', () => {
 			inputs.push(div.clone());
 
 			div.p(function (p: Builder) {
-				bindElement(p.getHTMLElement(), 'Foo Bar');
+				_bindElement(p.getHTMLElement(), 'Foo Bar');
 				p.setProperty('Foo', 'Bar');
 				bindings.push(p.clone());
 
@@ -827,7 +827,7 @@ suite('Builder', () => {
 				inputs.push(p.clone());
 
 				p.ul(function (ul: Builder) {
-					bindElement(ul.getHTMLElement(), 'Foo Bar');
+					_bindElement(ul.getHTMLElement(), 'Foo Bar');
 					ul.setProperty('Foo', 'Bar');
 					bindings.push(ul.clone());
 
@@ -840,7 +840,7 @@ suite('Builder', () => {
 					inputs.push(ul.clone());
 
 					ul.li(function (li: Builder) {
-						bindElement(li.getHTMLElement(), 'Foo Bar');
+						_bindElement(li.getHTMLElement(), 'Foo Bar');
 						li.setProperty('Foo', 'Bar');
 						bindings.push(li.clone());
 
@@ -856,7 +856,7 @@ suite('Builder', () => {
 							id: 'builderspan',
 							innerHtml: 'Foo Bar'
 						}, function (span) {
-							bindElement(span.getHTMLElement(), 'Foo Bar');
+							_bindElement(span.getHTMLElement(), 'Foo Bar');
 							span.setProperty('Foo', 'Bar');
 							bindings.push(span.clone());
 
@@ -873,7 +873,7 @@ suite('Builder', () => {
 							id: 'builderimg',
 							src: '#'
 						}, function (img) {
-							bindElement(img.getHTMLElement(), 'Foo Bar');
+							_bindElement(img.getHTMLElement(), 'Foo Bar');
 							img.setProperty('Foo', 'Bar');
 							bindings.push(img.clone());
 
@@ -891,7 +891,7 @@ suite('Builder', () => {
 							href: '#',
 							innerHtml: 'Link'
 						}, function (a) {
-							bindElement(a.getHTMLElement(), 'Foo Bar');
+							_bindElement(a.getHTMLElement(), 'Foo Bar');
 							a.setProperty('Foo', 'Bar');
 							bindings.push(a.clone());
 
@@ -986,7 +986,7 @@ suite('Builder', () => {
 		let counter7 = 0;
 
 		b.div(function (div: Builder) {
-			bindElement(div.getHTMLElement(), 'Foo Bar');
+			_bindElement(div.getHTMLElement(), 'Foo Bar');
 			div.setProperty('Foo', 'Bar');
 			bindings.push(div.clone());
 
@@ -999,7 +999,7 @@ suite('Builder', () => {
 			inputs.push(div.clone());
 
 			div.p(function (p: Builder) {
-				bindElement(p.getHTMLElement(), 'Foo Bar');
+				_bindElement(p.getHTMLElement(), 'Foo Bar');
 				p.setProperty('Foo', 'Bar');
 				bindings.push(p.clone());
 
@@ -1012,7 +1012,7 @@ suite('Builder', () => {
 				inputs.push(p.clone());
 
 				p.ul(function (ul: Builder) {
-					bindElement(ul.getHTMLElement(), 'Foo Bar');
+					_bindElement(ul.getHTMLElement(), 'Foo Bar');
 					ul.setProperty('Foo', 'Bar');
 					bindings.push(ul.clone());
 
@@ -1025,7 +1025,7 @@ suite('Builder', () => {
 					inputs.push(ul.clone());
 
 					ul.li(function (li: Builder) {
-						bindElement(li.getHTMLElement(), 'Foo Bar');
+						_bindElement(li.getHTMLElement(), 'Foo Bar');
 						li.setProperty('Foo', 'Bar');
 						bindings.push(li.clone());
 
@@ -1041,7 +1041,7 @@ suite('Builder', () => {
 							id: 'builderspan',
 							innerHtml: 'Foo Bar'
 						}, function (span) {
-							bindElement(span.getHTMLElement(), 'Foo Bar');
+							_bindElement(span.getHTMLElement(), 'Foo Bar');
 							span.setProperty('Foo', 'Bar');
 							bindings.push(span.clone());
 
@@ -1058,7 +1058,7 @@ suite('Builder', () => {
 							id: 'builderimg',
 							src: '#'
 						}, function (img) {
-							bindElement(img.getHTMLElement(), 'Foo Bar');
+							_bindElement(img.getHTMLElement(), 'Foo Bar');
 							img.setProperty('Foo', 'Bar');
 							bindings.push(img.clone());
 
@@ -1076,7 +1076,7 @@ suite('Builder', () => {
 							href: '#',
 							innerHtml: 'Link'
 						}, function (a) {
-							bindElement(a.getHTMLElement(), 'Foo Bar');
+							_bindElement(a.getHTMLElement(), 'Foo Bar');
 							a.setProperty('Foo', 'Bar');
 							bindings.push(a.clone());
 

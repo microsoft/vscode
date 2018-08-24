@@ -16,8 +16,7 @@ import { IThemeService, registerThemingParticipant, ITheme, ICssStyleCollector }
 import { IWorkspaceContextService, WorkbenchState } from 'vs/platform/workspace/common/workspace';
 import { IWorkspaceConfigurationService } from 'vs/workbench/services/configuration/common/configuration';
 import { IConfigurationChangeEvent } from 'vs/platform/configuration/common/configuration';
-import { clearNode, EventHelper, addClass, removeClass } from 'vs/base/browser/dom';
-import { $ } from 'vs/base/browser/builder';
+import { clearNode, EventHelper, addClass, removeClass, addDisposableListener } from 'vs/base/browser/dom';
 import { localize } from 'vs/nls';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { Action } from 'vs/base/common/actions';
@@ -94,7 +93,7 @@ export class FeedbackStatusbarItem extends Themable implements IStatusbarItem {
 		super.updateStyles();
 
 		if (this.dropdown) {
-			$(this.dropdown.label).style('background-color', this.getColor(this.contextService.getWorkbenchState() !== WorkbenchState.EMPTY ? STATUS_BAR_FOREGROUND : STATUS_BAR_NO_FOLDER_FOREGROUND));
+			this.dropdown.label.style.backgroundColor = (this.getColor(this.contextService.getWorkbenchState() !== WorkbenchState.EMPTY ? STATUS_BAR_FOREGROUND : STATUS_BAR_NO_FOLDER_FOREGROUND));
 		}
 	}
 
@@ -102,21 +101,21 @@ export class FeedbackStatusbarItem extends Themable implements IStatusbarItem {
 		this.container = element;
 
 		// Prevent showing dropdown on anything but left click
-		$(this.container).on('mousedown', (e: MouseEvent) => {
+		this.toDispose.push(addDisposableListener(this.container, 'mousedown', (e: MouseEvent) => {
 			if (e.button !== 0) {
 				EventHelper.stop(e, true);
 			}
-		}, this.toDispose, true);
+		}, true));
 
 		// Offer context menu to hide status bar entry
-		$(this.container).on('contextmenu', e => {
+		this.toDispose.push(addDisposableListener(this.container, 'contextmenu', e => {
 			EventHelper.stop(e, true);
 
 			this.contextMenuService.showContextMenu({
 				getAnchor: () => this.container,
 				getActions: () => TPromise.as([this.hideAction])
 			});
-		}, this.toDispose);
+		}));
 
 		return this.update();
 	}
