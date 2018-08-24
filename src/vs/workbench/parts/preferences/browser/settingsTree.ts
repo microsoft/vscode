@@ -684,6 +684,7 @@ export class SettingsRenderer implements ITreeRenderer {
 			// Toggle target checkbox
 			if (targetElement.tagName.toLowerCase() !== 'a' && targetId === template.checkbox.domNode.id) {
 				template.checkbox.checked = template.checkbox.checked ? false : true;
+				template.onChange(checkbox.checked);
 			}
 			DOM.EventHelper.stop(e);
 		}));
