@@ -21,7 +21,6 @@ import { onUnexpectedError } from 'vs/base/common/errors';
 import { Emitter, Event } from 'vs/base/common/event';
 import { KeyCode } from 'vs/base/common/keyCodes';
 import { dispose, IDisposable } from 'vs/base/common/lifecycle';
-import * as objects from 'vs/base/common/objects';
 import { escapeRegExpCharacters, startsWith } from 'vs/base/common/strings';
 import URI from 'vs/base/common/uri';
 import { TPromise } from 'vs/base/common/winjs.base';
@@ -816,9 +815,21 @@ export class SettingsRenderer implements ITreeRenderer {
 					}
 				}
 
+				const sortKeys = (obj) => {
+					const keyArray = Object.keys(obj)
+						.map(key => ({ key, val: obj[key] }))
+						.sort((a, b) => a.key.localeCompare(b.key));
+
+					const retVal = {};
+					keyArray.forEach(pair => {
+						retVal[pair.key] = pair.val;
+					});
+					return retVal;
+				};
+
 				this._onDidChangeSetting.fire({
 					key: template.context.setting.key,
-					value: Object.keys(newValue).length === 0 ? undefined : newValue
+					value: Object.keys(newValue).length === 0 ? undefined : sortKeys(newValue)
 				});
 			}
 		}));
