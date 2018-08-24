@@ -678,11 +678,11 @@ export class SettingsRenderer implements ITreeRenderer {
 		// Also have to ignore embedded links - too buried to stop propagation
 		toDispose.push(DOM.addDisposableListener(descriptionElement, DOM.EventType.MOUSE_DOWN, (e) => {
 			const targetElement = <HTMLElement>e.toElement;
-			const targetId = descriptionElement.getAttribute('checkboxLabelTargetId');
+			const targetId = descriptionElement.getAttribute('checkbox-label-target-id');
 
 			// Make sure we are not a link and the target ID matches
 			// Toggle target checkbox
-			if (targetElement.tagName !== 'A' && targetId === template.checkbox.domNode.id) {
+			if (targetElement.tagName.toLowerCase() !== 'a' && targetId === template.checkbox.domNode.id) {
 				template.checkbox.checked = template.checkbox.checked ? false : true;
 			}
 			DOM.EventHelper.stop(e);
@@ -935,7 +935,7 @@ export class SettingsRenderer implements ITreeRenderer {
 		if (templateId === SETTINGS_BOOL_TEMPLATE_ID) {
 			// Add checkbox target to description clickable and able to toggle checkbox
 			const checkbox_id = (element.displayCategory + '_' + element.displayLabel).replace(/ /g, '_') + '_Item';
-			template.descriptionElement.setAttribute('checkboxLabelTargetId', checkbox_id);
+			template.descriptionElement.setAttribute('checkbox-label-target-id', checkbox_id);
 		}
 
 		if (element.overriddenScopeList.length) {
@@ -999,7 +999,7 @@ export class SettingsRenderer implements ITreeRenderer {
 		// Create id and label for control/input element - parent is wrapper div
 		const id = (dataElement.displayCategory + '_' + dataElement.displayLabel).replace(/ /g, '_');
 		const modifiedText = dataElement.isConfigured ? 'Modified' : '';
-		const label = dataElement.displayCategory + ' ' + dataElement.displayLabel + (dataElement.value ? 'checked ' : 'unchecked ') + modifiedText;
+		const label = dataElement.displayCategory + ' ' + dataElement.displayLabel + (dataElement.value ? ' checked ' : ' unchecked ') + modifiedText;
 
 		// We use the parent control div for the aria-labelledby target
 		// Does not appear you can use the direct label on the element itself within a tree
