@@ -741,7 +741,9 @@ export class SettingsEditor2 extends BaseEditor {
 			// If a single setting is being refreshed, it's ok to refresh now if that is not the focused setting
 			if (key) {
 				const focusedKey = focusedSetting.getAttribute(SettingsRenderer.SETTING_KEY_ATTR);
-				if (focusedKey === key) {
+				if (focusedKey === key &&
+					!DOM.hasClass(focusedSetting, 'setting-item-exclude')) { // update `exclude`s live, as they have a separate "submit edit" step built in before this
+
 					this.updateModifiedLabelForKey(key);
 					this.scheduleRefresh(focusedSetting, key);
 					return TPromise.wrap(null);
