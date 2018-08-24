@@ -231,6 +231,12 @@ export class SearchService extends Disposable implements ISearchService {
 	}
 
 	private sendTelemetry(query: ISearchQuery, endToEndTime: number, complete: ISearchComplete): void {
+		const fileSchemeOnly = query.folderQueries.every(fq => fq.folder.scheme === 'file');
+		const otherSchemeOnly = query.folderQueries.every(fq => fq.folder.scheme !== 'file');
+		const scheme = fileSchemeOnly ? 'file' :
+			otherSchemeOnly ? 'other' :
+				'mixed';
+
 		if (query.type === QueryType.File && complete.stats) {
 			const fileSearchStats = complete.stats as IFileSearchStats;
 			if (fileSearchStats.fromCache) {
@@ -247,6 +253,7 @@ export class SearchService extends Disposable implements ISearchService {
 						"cacheLookupTime" : { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "isMeasurement": true },
 						"cacheFilterTime" : { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "isMeasurement": true },
 						"cacheEntryCount" : { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "isMeasurement": true },
+						"scheme" : { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth" },
 					}
 				 */
 				this.telemetryService.publicLog('cachedSearchComplete', {
@@ -258,7 +265,8 @@ export class SearchService extends Disposable implements ISearchService {
 					cacheWasResolved: cacheStats.cacheWasResolved,
 					cacheLookupTime: cacheStats.cacheLookupTime,
 					cacheFilterTime: cacheStats.cacheFilterTime,
-					cacheEntryCount: cacheStats.cacheEntryCount
+					cacheEntryCount: cacheStats.cacheEntryCount,
+					scheme
 				});
 			} else {
 				const searchEngineStats: ISearchEngineStats = fileSearchStats.detailStats as ISearchEngineStats;
@@ -275,7 +283,8 @@ export class SearchService extends Disposable implements ISearchService {
 						"directoriesWalked" : { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "isMeasurement": true },
 						"filesWalked" : { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "isMeasurement": true },
 						"cmdTime" : { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "isMeasurement": true },
-						"cmdResultCount" : { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "isMeasurement": true }
+						"cmdResultCount" : { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "isMeasurement": true },
+						"scheme" : { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth" },
 					}
 				 */
 				this.telemetryService.publicLog('searchComplete', {
@@ -289,7 +298,8 @@ export class SearchService extends Disposable implements ISearchService {
 					directoriesWalked: searchEngineStats.directoriesWalked,
 					filesWalked: searchEngineStats.filesWalked,
 					cmdTime: searchEngineStats.cmdTime,
-					cmdResultCount: searchEngineStats.cmdResultCount
+					cmdResultCount: searchEngineStats.cmdResultCount,
+					scheme
 				});
 			}
 		}

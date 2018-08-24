@@ -812,13 +812,21 @@ export class SearchModel extends Disposable {
 
 		const stats = completed && completed.stats as ITextSearchStats;
 
+		const fileSchemeOnly = this._searchQuery.folderQueries.every(fq => fq.folder.scheme === 'file');
+		const otherSchemeOnly = this._searchQuery.folderQueries.every(fq => fq.folder.scheme !== 'file');
+		const scheme = fileSchemeOnly ? 'file' :
+			otherSchemeOnly ? 'other' :
+				'mixed';
+
 		/* __GDPR__
 			"searchResultsShown" : {
 				"count" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
 				"fileCount": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
 				"options": { "${inline}": [ "${IPatternInfo}" ] },
 				"duration": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "isMeasurement": true },
-				"useRipgrep": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true }
+				"useRipgrep": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
+				"type" : { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth" },
+				"scheme" : { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth" }
 			}
 		*/
 		this.telemetryService.publicLog('searchResultsShown', {
@@ -827,7 +835,8 @@ export class SearchModel extends Disposable {
 			options,
 			duration,
 			useRipgrep: this._searchQuery.useRipgrep,
-			type: stats && stats.type
+			type: stats && stats.type,
+			scheme
 		});
 		return completed;
 	}
