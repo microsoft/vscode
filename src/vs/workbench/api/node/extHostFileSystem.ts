@@ -159,16 +159,16 @@ export class ExtHostFileSystem implements ExtHostFileSystemShape {
 		return asWinJsPromise(() => this._fsProvider.get(handle).readDirectory(URI.revive(resource)));
 	}
 
-	$readFile(handle: number, resource: UriComponents): TPromise<string> {
+	$readFile(handle: number, resource: UriComponents): TPromise<Buffer> {
 		return asWinJsPromise(() => {
 			return this._fsProvider.get(handle).readFile(URI.revive(resource));
 		}).then(data => {
-			return Buffer.isBuffer(data) ? data.toString('base64') : Buffer.from(data.buffer, data.byteOffset, data.byteLength).toString('base64');
+			return Buffer.isBuffer(data) ? data : Buffer.from(data.buffer, data.byteOffset, data.byteLength);
 		});
 	}
 
-	$writeFile(handle: number, resource: UriComponents, base64Content: string, opts: files.FileWriteOptions): TPromise<void> {
-		return asWinJsPromise(() => this._fsProvider.get(handle).writeFile(URI.revive(resource), Buffer.from(base64Content, 'base64'), opts));
+	$writeFile(handle: number, resource: UriComponents, content: Buffer, opts: files.FileWriteOptions): TPromise<void> {
+		return asWinJsPromise(() => this._fsProvider.get(handle).writeFile(URI.revive(resource), content, opts));
 	}
 
 	$delete(handle: number, resource: UriComponents, opts: files.FileDeleteOptions): TPromise<void> {
