@@ -17,13 +17,13 @@
   ],
   "dependencies": {
     "jsonc-parser": "^2.0.1",
-    "semver": "4.3.6",
+    "semver": "5.5.1",
     "vscode-extension-telemetry": "0.0.18",
     "vscode-nls": "^3.2.4"
   },
   "devDependencies": {
     "@types/node": "8.0.33",
-    "@types/semver": "5.4.0",
+    "@types/semver": "^5.5.0",
     "vscode": "^1.1.10"
   },
   "scripts": {
@@ -71,7 +71,9 @@
           "default": false,
           "description": "%typescript.disableAutomaticTypeAcquisition%",
           "scope": "window",
-          "tags": ["usesOnlineServices"]
+          "tags": [
+            "usesOnlineServices"
+          ]
         },
         "typescript.npm": {
           "type": [
