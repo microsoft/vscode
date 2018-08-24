@@ -4,21 +4,21 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
+import { CancellationToken } from 'vs/base/common/cancellation';
+import { Color } from 'vs/base/common/color';
+import { Event } from 'vs/base/common/event';
 import { IMarkdownString } from 'vs/base/common/htmlContent';
 import { IDisposable } from 'vs/base/common/lifecycle';
-import URI from 'vs/base/common/uri';
-import { TokenizationResult, TokenizationResult2 } from 'vs/editor/common/core/token';
-import LanguageFeatureRegistry from 'vs/editor/common/modes/languageFeatureRegistry';
-import { CancellationToken } from 'vs/base/common/cancellation';
-import { Position } from 'vs/editor/common/core/position';
-import { Range, IRange } from 'vs/editor/common/core/range';
-import { Event } from 'vs/base/common/event';
-import { TokenizationRegistryImpl } from 'vs/editor/common/modes/tokenizationRegistry';
-import { Color } from 'vs/base/common/color';
-import { IMarkerData } from 'vs/platform/markers/common/markers';
-import * as model from 'vs/editor/common/model';
 import { isObject } from 'vs/base/common/types';
+import URI from 'vs/base/common/uri';
+import { Position } from 'vs/editor/common/core/position';
+import { IRange, Range } from 'vs/editor/common/core/range';
 import { Selection } from 'vs/editor/common/core/selection';
+import { TokenizationResult, TokenizationResult2 } from 'vs/editor/common/core/token';
+import * as model from 'vs/editor/common/model';
+import LanguageFeatureRegistry from 'vs/editor/common/modes/languageFeatureRegistry';
+import { TokenizationRegistryImpl } from 'vs/editor/common/modes/tokenizationRegistry';
+import { IMarkerData } from 'vs/platform/markers/common/markers';
 
 /**
  * Open ended enum at runtime
@@ -301,6 +301,7 @@ export interface ISuggestion {
 	additionalTextEdits?: model.ISingleEditOperation[];
 	command?: Command;
 	snippetType?: SnippetType;
+	noWhitespaceAdjust?: boolean;
 }
 
 /**
