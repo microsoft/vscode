@@ -85,8 +85,15 @@ function transformIncomingURIs(obj: any, transformer: IURITransformer): any {
 	return result;
 }
 
+export interface IRPCProtocolLogger {
+	logIncoming(msgLength: number, str: string, data?: any): void;
+	logOutgoing(msgLength: number, str: string, data?: any): void;
+}
+
 export class RPCProtocol implements IRPCProtocol {
 
+	private readonly _protocol: IMessagePassingProtocol;
+	private readonly _logger: IRPCProtocolLogger;
 	private readonly _uriTransformer: IURITransformer;
 	private _isDisposed: boolean;
 	private readonly _locals: { [id: string]: any; };
@@ -94,9 +101,10 @@ export class RPCProtocol implements IRPCProtocol {
 	private _lastMessageId: number;
 	private readonly _invokedHandlers: { [req: string]: TPromise<any>; };
 	private readonly _pendingRPCReplies: { [msgId: string]: LazyPromise; };
-	private readonly _protocol: IMessagePassingProtocol;
 
-	constructor(protocol: IMessagePassingProtocol, transformer: IURITransformer = null) {
+	constructor(protocol: IMessagePassingProtocol, logger: IRPCProtocolLogger = null, transformer: IURITransformer = null) {
+		this._protocol = protocol;
+		this._logger = logger;
 		this._uriTransformer = transformer;
 		this._isDisposed = false;
 		this._locals = Object.create(null);
@@ -104,7 +112,6 @@ export class RPCProtocol implements IRPCProtocol {
 		this._lastMessageId = 0;
 		this._invokedHandlers = Object.create(null);
 		this._pendingRPCReplies = {};
-		this._protocol = protocol;
 		this._protocol.onMessage((msg) => this._receiveOneMessage(msg));
 	}
 
@@ -165,6 +172,7 @@ export class RPCProtocol implements IRPCProtocol {
 			return;
 		}
 
+		const msgLength = rawmsg.length;
 		const buff = MessageBuffer.read(rawmsg, 0);
 		const messageType = <MessageType>buff.readUInt8();
 		const req = buff.readUInt32();
@@ -175,7 +183,7 @@ export class RPCProtocol implements IRPCProtocol {
 				if (this._uriTransformer) {
 					args = transformIncomingURIs(args, this._uriTransformer);
 				}
-				this._receiveRequest(req, rpcId, method, args);
+				this._receiveRequest(msgLength, req, rpcId, method, args);
 				break;
 			}
 			case MessageType.RequestMixedArgs: {
@@ -183,15 +191,15 @@ export class RPCProtocol implements IRPCProtocol {
 				if (this._uriTransformer) {
 					args = transformIncomingURIs(args, this._uriTransformer);
 				}
-				this._receiveRequest(req, rpcId, method, args);
+				this._receiveRequest(msgLength, req, rpcId, method, args);
 				break;
 			}
 			case MessageType.Cancel: {
-				this._receiveCancel(req);
+				this._receiveCancel(msgLength, req);
 				break;
 			}
 			case MessageType.ReplyOKEmpty: {
-				this._receiveReply(req, undefined);
+				this._receiveReply(msgLength, req, undefined);
 				break;
 			}
 			case MessageType.ReplyOKJSON: {
@@ -199,12 +207,12 @@ export class RPCProtocol implements IRPCProtocol {
 				if (this._uriTransformer) {
 					value = transformIncomingURIs(value, this._uriTransformer);
 				}
-				this._receiveReply(req, value);
+				this._receiveReply(msgLength, req, value);
 				break;
 			}
 			case MessageType.ReplyOKBuffer: {
 				let value = MessageIO.deserializeReplyOKBuffer(buff);
-				this._receiveReply(req, value);
+				this._receiveReply(msgLength, req, value);
 				break;
 			}
 			case MessageType.ReplyErrError: {
@@ -222,8 +230,10 @@ export class RPCProtocol implements IRPCProtocol {
 		}
 	}
 
-	private _receiveRequest(req: number, rpcId: string, method: string, args: any[]): void {
-		// console.log(`receiveRequest: ${req}, ${rpcId}.${method}`, args);
+	private _receiveRequest(msgLength: number, req: number, rpcId: string, method: string, args: any[]): void {
+		if (this._logger) {
+			this._logger.logIncoming(msgLength, `receiveRequest ${req}, ${rpcId}.${method}:`, args);
+		}
 		const callId = String(req);
 
 		this._invokedHandlers[callId] = this._invokeHandler(rpcId, method, args);
@@ -233,23 +243,35 @@ export class RPCProtocol implements IRPCProtocol {
 			if (this._uriTransformer) {
 				r = transformOutgoingURIs(r, this._uriTransformer);
 			}
-			this._protocol.send(MessageIO.serializeReplyOK(req, r));
+			const msg = MessageIO.serializeReplyOK(req, r);
+			if (this._logger) {
+				this._logger.logOutgoing(msg.byteLength, `replyOK ${req}:`, r);
+			}
+			this._protocol.send(msg);
 		}, (err) => {
 			delete this._invokedHandlers[callId];
-			this._protocol.send(MessageIO.serializeReplyErr(req, err));
+			const msg = MessageIO.serializeReplyErr(req, err);
+			if (this._logger) {
+				this._logger.logOutgoing(msg.byteLength, `replyErr ${req}:`, err);
+			}
+			this._protocol.send(msg);
 		});
 	}
 
-	private _receiveCancel(req: number): void {
-		// console.log(`receiveCancel: ${req}`);
+	private _receiveCancel(msgLength: number, req: number): void {
+		if (this._logger) {
+			this._logger.logIncoming(msgLength, `receiveCancel ${req}`);
+		}
 		const callId = String(req);
 		if (this._invokedHandlers[callId]) {
 			this._invokedHandlers[callId].cancel();
 		}
 	}
 
-	private _receiveReply(req: number, value: any): void {
-		// console.log(`receiveReply: ${req}`, value);
+	private _receiveReply(msgLength: number, req: number, value: any): void {
+		if (this._logger) {
+			this._logger.logIncoming(msgLength, `receiveReply ${req}:`, value);
+		}
 		const callId = String(req);
 		if (!this._pendingRPCReplies.hasOwnProperty(callId)) {
 			return;
@@ -305,17 +327,25 @@ export class RPCProtocol implements IRPCProtocol {
 			return TPromise.wrapError<any>(errors.canceled());
 		}
 
-		const nCallId = ++this._lastMessageId;
-		const callId = String(nCallId);
+		const req = ++this._lastMessageId;
+		const callId = String(req);
 		const result = new LazyPromise(() => {
-			this._protocol.send(MessageIO.serializeCancel(nCallId));
+			const msg = MessageIO.serializeCancel(req);
+			if (this._logger) {
+				this._logger.logOutgoing(msg.byteLength, `cancel ${req}`);
+			}
+			this._protocol.send(MessageIO.serializeCancel(req));
 		});
 
 		this._pendingRPCReplies[callId] = result;
 		if (this._uriTransformer) {
 			args = transformOutgoingURIs(args, this._uriTransformer);
 		}
-		this._protocol.send(MessageIO.serializeRequest(nCallId, proxyId, methodName, args));
+		const msg = MessageIO.serializeRequest(req, proxyId, methodName, args);
+		if (this._logger) {
+			this._logger.logOutgoing(msg.byteLength, `request ${req}: ${proxyId}.${methodName}:`, args);
+		}
+		this._protocol.send(msg);
 		return result;
 	}
 }
