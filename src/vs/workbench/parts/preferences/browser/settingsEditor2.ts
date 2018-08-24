@@ -488,11 +488,15 @@ export class SettingsEditor2 extends BaseEditor {
 		}));
 	}
 
-	private onDidChangeSetting(key: string, value: any): void {
-		if (!this.storageService.getBoolean('hasNotifiedOfSettingsAutosave', StorageScope.GLOBAL, false)) {
+	public notifyNoSaveNeeded(force: boolean = true) {
+		if (force || !this.storageService.getBoolean('hasNotifiedOfSettingsAutosave', StorageScope.GLOBAL, false)) {
 			this.storageService.store('hasNotifiedOfSettingsAutosave', true, StorageScope.GLOBAL);
 			this.notificationService.info(localize('settingsNoSaveNeeded', "Your changes are automatically saved as you edit."));
 		}
+	}
+
+	private onDidChangeSetting(key: string, value: any): void {
+		this.notifyNoSaveNeeded(false);
 
 		if (this.pendingSettingUpdate && this.pendingSettingUpdate.key !== key) {
 			this.updateChangedSetting(key, value);

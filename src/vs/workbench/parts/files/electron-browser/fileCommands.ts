@@ -42,6 +42,7 @@ import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
 import { IEditorService, SIDE_GROUP } from 'vs/workbench/services/editor/common/editorService';
 import { IEditorGroupsService } from 'vs/workbench/services/group/common/editorGroupsService';
 import { ILabelService } from 'vs/platform/label/common/label';
+import { SettingsEditor2 } from 'vs/workbench/parts/preferences/browser/settingsEditor2';
 
 // Commands
 
@@ -161,6 +162,11 @@ function save(
 
 		// Just save
 		return textFileService.save(resource, { force: true /* force a change to the file to trigger external watchers if any */ });
+	} else if (resource && resource.scheme === Schemas.vscode) {
+		const activeControl = editorService.activeControl;
+		if (activeControl instanceof SettingsEditor2) {
+			activeControl.notifyNoSaveNeeded();
+		}
 	}
 
 	return TPromise.as(false);
