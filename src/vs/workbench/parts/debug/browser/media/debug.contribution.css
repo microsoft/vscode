@@ -53,7 +53,7 @@
 }
 
 .debug-breakpoint,
-.monaco-editor .debug-breakpoint-column.debug-breakpoint-column::before {
+.monaco-editor .debug-breakpoint-column::before {
 	background: url('breakpoint.svg') center center no-repeat;
 }
 
@@ -90,11 +90,13 @@
 	background: url('breakpoint-log.svg') center center no-repeat;
 }
 
-.debug-breakpoint-log-disabled {
+.debug-breakpoint-log-disabled,
+.monaco-editor .debug-breakpoint-log-disabled-column::before {
 	background: url('breakpoint-log-disabled.svg') center center no-repeat;
 }
 
-.debug-breakpoint-log-unverified {
+.debug-breakpoint-log-unverified,
+.monaco-editor .debug-breakpoint-log-unverified-column::before {
 	background: url('breakpoint-log-unverified.svg') center center no-repeat;
 }
 
