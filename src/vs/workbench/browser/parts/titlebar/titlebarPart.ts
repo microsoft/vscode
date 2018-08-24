@@ -243,7 +243,7 @@ export class TitlebarPart extends Part implements ITitleService {
 		const activeEditorShort = editor ? editor.getTitle(Verbosity.SHORT) : '';
 		const activeEditorMedium = editor ? editor.getTitle(Verbosity.MEDIUM) : activeEditorShort;
 		const activeEditorLong = editor ? editor.getTitle(Verbosity.LONG) : activeEditorMedium;
-		const rootName = root ? this.labelService.getWorkspaceLabel(root) : '';
+		const rootName = root ? this.labelService.getWorkspaceLabel(workspace) : '';
 		const rootPath = root ? this.labelService.getUriLabel(root) : '';
 		const folderName = folder ? folder.name : '';
 		const folderPath = folder ? this.labelService.getUriLabel(folder.uri) : '';
