@@ -467,6 +467,8 @@ export class SettingsEditor2 extends BaseEditor {
 			}));
 		this.settingsTree.getHTMLElement().attributes.removeNamedItem('tabindex');
 
+		this.settingsTree.getHTMLElement().setAttribute('role', 'form');
+
 		this._register(this.settingsTree.onDidScroll(() => {
 			this.updateTreeScrollSync();
 		}));
