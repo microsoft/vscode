@@ -45,6 +45,8 @@ import { SettingsEditor2Input } from 'vs/workbench/services/preferences/common/p
 import { DefaultSettingsEditorModel } from 'vs/workbench/services/preferences/common/preferencesModels';
 import { ResourceEditorModel } from 'vs/workbench/common/editor/resourceEditorModel';
 import { badgeBackground, contrastBorder, badgeForeground, editorForeground } from 'vs/platform/theme/common/colorRegistry';
+import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
+import { INotificationService } from 'vs/platform/notification/common/notification';
 
 const $ = DOM.$;
 
@@ -111,7 +113,9 @@ export class SettingsEditor2 extends BaseEditor {
 		@ILogService private logService: ILogService,
 		@IEnvironmentService private environmentService: IEnvironmentService,
 		@IContextKeyService contextKeyService: IContextKeyService,
-		@IContextMenuService private contextMenuService: IContextMenuService
+		@IContextMenuService private contextMenuService: IContextMenuService,
+		@IStorageService private storageService: IStorageService,
+		@INotificationService private notificationService: INotificationService
 	) {
 		super(SettingsEditor2.ID, telemetryService, themeService);
 		this.delayedFilterLogging = new Delayer<void>(1000);
@@ -485,6 +489,11 @@ export class SettingsEditor2 extends BaseEditor {
 	}
 
 	private onDidChangeSetting(key: string, value: any): void {
+		if (!this.storageService.getBoolean('hasNotifiedOfSettingsAutosave', StorageScope.GLOBAL, false)) {
+			this.storageService.store('hasNotifiedOfSettingsAutosave', true, StorageScope.GLOBAL);
+			this.notificationService.info(localize('settingsNoSaveNeeded', "Your changes are automatically saved as you edit."));
+		}
+
 		if (this.pendingSettingUpdate && this.pendingSettingUpdate.key !== key) {
 			this.updateChangedSetting(key, value);
 		}
