@@ -6,7 +6,7 @@
 
 import 'vs/css!./media/review';
 import * as nls from 'vs/nls';
-import { $ } from 'vs/base/browser/builder';
+import { $ } from 'vs/base/browser/dom';
 import { findFirstInSorted } from 'vs/base/common/arrays';
 import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
@@ -48,7 +48,7 @@ export class ReviewViewZone implements IViewZone {
 		this.afterLineNumber = afterLineNumber;
 		this.callback = onDomNodeTop;
 
-		this.domNode = $('.review-viewzone').getHTMLElement();
+		this.domNode = $('.review-viewzone');
 	}
 
 	onDomNodeTop(top: number): void {

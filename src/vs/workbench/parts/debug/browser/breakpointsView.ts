@@ -29,7 +29,6 @@ import { IViewletViewOptions } from 'vs/workbench/browser/parts/views/viewsViewl
 import { attachInputBoxStyler } from 'vs/platform/theme/common/styler';
 import { isCodeEditor } from 'vs/editor/browser/editorBrowser';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
 import { IEditorService, SIDE_GROUP, ACTIVE_GROUP } from 'vs/workbench/services/editor/common/editorService';
 import { ViewletPanel, IViewletPanelOptions } from 'vs/workbench/browser/parts/views/panelViewlet';
 import { ILabelService } from 'vs/platform/label/common/label';
@@ -296,8 +295,7 @@ class BreakpointsRenderer implements IRenderer<IBreakpoint, IBreakpointTemplateD
 
 	constructor(
 		@IDebugService private debugService: IDebugService,
-		@ILabelService private labelService: ILabelService,
-		@ITextFileService private textFileService: ITextFileService
+		@ILabelService private labelService: ILabelService
 	) {
 		// noop
 	}
@@ -343,7 +341,7 @@ class BreakpointsRenderer implements IRenderer<IBreakpoint, IBreakpointTemplateD
 		data.filePath.textContent = this.labelService.getUriLabel(resources.dirname(breakpoint.uri), true);
 		data.checkbox.checked = breakpoint.enabled;
 
-		const { message, className } = getBreakpointMessageAndClassName(this.debugService, this.textFileService, breakpoint);
+		const { message, className } = getBreakpointMessageAndClassName(this.debugService, breakpoint);
 		data.icon.className = className + ' icon';
 		data.breakpoint.title = breakpoint.message || message || '';
 
@@ -413,8 +411,7 @@ class ExceptionBreakpointsRenderer implements IRenderer<IExceptionBreakpoint, IB
 class FunctionBreakpointsRenderer implements IRenderer<FunctionBreakpoint, IBaseBreakpointWithIconTemplateData> {
 
 	constructor(
-		@IDebugService private debugService: IDebugService,
-		@ITextFileService private textFileService: ITextFileService
+		@IDebugService private debugService: IDebugService
 	) {
 		// noop
 	}
@@ -447,7 +444,7 @@ class FunctionBreakpointsRenderer implements IRenderer<FunctionBreakpoint, IBase
 	renderElement(functionBreakpoint: FunctionBreakpoint, index: number, data: IBaseBreakpointWithIconTemplateData): void {
 		data.context = functionBreakpoint;
 		data.name.textContent = functionBreakpoint.name;
-		const { className, message } = getBreakpointMessageAndClassName(this.debugService, this.textFileService, functionBreakpoint);
+		const { className, message } = getBreakpointMessageAndClassName(this.debugService, functionBreakpoint);
 		data.icon.className = className + ' icon';
 		data.icon.title = message ? message : '';
 		data.checkbox.checked = functionBreakpoint.enabled;
@@ -577,7 +574,7 @@ export function openBreakpointSource(breakpoint: IBreakpoint, sideBySide: boolea
 	}, sideBySide ? SIDE_GROUP : ACTIVE_GROUP);
 }
 
-export function getBreakpointMessageAndClassName(debugService: IDebugService, textFileService: ITextFileService, breakpoint: IBreakpoint | FunctionBreakpoint): { message?: string, className: string } {
+export function getBreakpointMessageAndClassName(debugService: IDebugService, breakpoint: IBreakpoint | FunctionBreakpoint): { message?: string, className: string } {
 	const state = debugService.state;
 	const debugActive = state === State.Running || state === State.Stopped;
 
@@ -611,14 +608,6 @@ export function getBreakpointMessageAndClassName(debugService: IDebugService, te
 			className: 'debug-function-breakpoint',
 		};
 	}
-
-	if (debugActive && textFileService.isDirty(breakpoint.uri)) {
-		return {
-			className: 'debug-breakpoint-unverified',
-			message: appendMessage(nls.localize('breakpointDirtydHover', "Unverified breakpoint. File is modified, please restart debug session.")),
-		};
-	}
-
 
 	if (breakpoint.logMessage || breakpoint.condition || breakpoint.hitCondition) {
 		const messages = [];

@@ -7,14 +7,13 @@
 
 import 'vs/css!./button';
 import * as DOM from 'vs/base/browser/dom';
-import { Builder, $ } from 'vs/base/browser/builder';
 import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { KeyCode } from 'vs/base/common/keyCodes';
 import { Color } from 'vs/base/common/color';
 import { mixin } from 'vs/base/common/objects';
 import { Event as BaseEvent, Emitter } from 'vs/base/common/event';
 import { Disposable } from 'vs/base/common/lifecycle';
-import { Gesture, EventType } from 'vs/base/browser/touch';
+import { Gesture } from 'vs/base/browser/touch';
 
 export interface IButtonOptions extends IButtonStyles {
 	title?: boolean;
@@ -35,7 +34,7 @@ const defaultOptions: IButtonStyles = {
 
 export class Button extends Disposable {
 
-	private $el: Builder;
+	private $el: HTMLElement;
 	private options: IButtonOptions;
 
 	private buttonBackground: Color;
@@ -59,50 +58,52 @@ export class Button extends Disposable {
 		this.buttonForeground = this.options.buttonForeground;
 		this.buttonBorder = this.options.buttonBorder;
 
-		this.$el = this._register($('a.monaco-button').attr({
-			'tabIndex': '0',
-			'role': 'button'
-		}).appendTo(container));
+		this.$el = document.createElement('a');
+		DOM.addClass(this.$el, 'monaco-button');
+		this.$el.tabIndex = 0;
+		this.$el.setAttribute('role', 'button');
 
-		Gesture.addTarget(this.$el.getHTMLElement());
+		container.appendChild(this.$el);
 
-		this.$el.on([DOM.EventType.CLICK, EventType.Tap], e => {
+		Gesture.addTarget(this.$el);
+
+		this._register(DOM.addDisposableListener(this.$el, DOM.EventType.CLICK, e => {
 			if (!this.enabled) {
 				DOM.EventHelper.stop(e);
 				return;
 			}
 
 			this._onDidClick.fire(e);
-		});
+		}));
 
-		this.$el.on(DOM.EventType.KEY_DOWN, e => {
+		this._register(DOM.addDisposableListener(this.$el, DOM.EventType.KEY_DOWN, e => {
 			const event = new StandardKeyboardEvent(e as KeyboardEvent);
 			let eventHandled = false;
 			if (this.enabled && event.equals(KeyCode.Enter) || event.equals(KeyCode.Space)) {
 				this._onDidClick.fire(e);
 				eventHandled = true;
 			} else if (event.equals(KeyCode.Escape)) {
-				this.$el.domBlur();
+				this.$el.blur();
 				eventHandled = true;
 			}
 
 			if (eventHandled) {
 				DOM.EventHelper.stop(event, true);
 			}
-		});
+		}));
 
-		this.$el.on(DOM.EventType.MOUSE_OVER, e => {
-			if (!this.$el.hasClass('disabled')) {
+		this._register(DOM.addDisposableListener(this.$el, DOM.EventType.MOUSE_OVER, e => {
+			if (!DOM.hasClass(this.$el, 'disabled')) {
 				this.setHoverBackground();
 			}
-		});
+		}));
 
-		this.$el.on(DOM.EventType.MOUSE_OUT, e => {
+		this._register(DOM.addDisposableListener(this.$el, DOM.EventType.MOUSE_OUT, e => {
 			this.applyStyles(); // restore standard styles
-		});
+		}));
 
 		// Also set hover background when button is focused for feedback
-		this.focusTracker = this._register(DOM.trackFocus(this.$el.getHTMLElement()));
+		this.focusTracker = this._register(DOM.trackFocus(this.$el));
 		this._register(this.focusTracker.onDidFocus(() => this.setHoverBackground()));
 		this._register(this.focusTracker.onDidBlur(() => this.applyStyles())); // restore standard styles
 
@@ -112,7 +113,7 @@ export class Button extends Disposable {
 	private setHoverBackground(): void {
 		const hoverBackground = this.buttonHoverBackground ? this.buttonHoverBackground.toString() : null;
 		if (hoverBackground) {
-			this.$el.style('background-color', hoverBackground);
+			this.$el.style.backgroundColor = hoverBackground;
 		}
 	}
 
@@ -131,53 +132,51 @@ export class Button extends Disposable {
 			const foreground = this.buttonForeground ? this.buttonForeground.toString() : null;
 			const border = this.buttonBorder ? this.buttonBorder.toString() : null;
 
-			this.$el.style('color', foreground);
-			this.$el.style('background-color', background);
+			this.$el.style.color = foreground;
+			this.$el.style.backgroundColor = background;
 
-			this.$el.style('border-width', border ? '1px' : null);
-			this.$el.style('border-style', border ? 'solid' : null);
-			this.$el.style('border-color', border);
+			this.$el.style.borderWidth = border ? '1px' : null;
+			this.$el.style.borderStyle = border ? 'solid' : null;
+			this.$el.style.borderColor = border;
 		}
 	}
 
 	get element(): HTMLElement {
-		return this.$el.getHTMLElement();
+		return this.$el;
 	}
 
 	set label(value: string) {
-		if (!this.$el.hasClass('monaco-text-button')) {
-			this.$el.addClass('monaco-text-button');
+		if (!DOM.hasClass(this.$el, 'monaco-text-button')) {
+			DOM.addClass(this.$el, 'monaco-text-button');
 		}
-		this.$el.text(value);
+		this.$el.innerText = value;
 		if (this.options.title) {
-			this.$el.title(value);
+			this.$el.title = value;
 		}
 	}
 
 	set icon(iconClassName: string) {
-		this.$el.addClass(iconClassName);
+		DOM.addClass(this.$el, iconClassName);
 	}
 
 	set enabled(value: boolean) {
 		if (value) {
-			this.$el.removeClass('disabled');
-			this.$el.attr({
-				'aria-disabled': 'false',
-				'tabIndex': '0'
-			});
+			DOM.removeClass(this.$el, 'disabled');
+			this.$el.setAttribute('aria-disabled', String(false));
+			this.$el.tabIndex = 0;
 		} else {
-			this.$el.addClass('disabled');
-			this.$el.attr('aria-disabled', String(true));
-			DOM.removeTabIndexAndUpdateFocus(this.$el.getHTMLElement());
+			DOM.addClass(this.$el, 'disabled');
+			this.$el.setAttribute('aria-disabled', String(true));
+			DOM.removeTabIndexAndUpdateFocus(this.$el);
 		}
 	}
 
 	get enabled() {
-		return !this.$el.hasClass('disabled');
+		return !DOM.hasClass(this.$el, 'disabled');
 	}
 
 	focus(): void {
-		this.$el.domFocus();
+		this.$el.focus();
 	}
 }
 
@@ -201,7 +200,7 @@ export class ButtonGroup extends Disposable {
 
 			// Implement keyboard access in buttons if there are multiple
 			if (count > 1) {
-				$(button.element).on(DOM.EventType.KEY_DOWN, e => {
+				this._register(DOM.addDisposableListener(button.element, DOM.EventType.KEY_DOWN, e => {
 					const event = new StandardKeyboardEvent(e as KeyboardEvent);
 					let eventHandled = true;
 
@@ -219,7 +218,8 @@ export class ButtonGroup extends Disposable {
 						this._buttons[buttonIndexToFocus].focus();
 						DOM.EventHelper.stop(e, true);
 					}
-				}, this.toDispose);
+
+				}));
 			}
 		}
 	}

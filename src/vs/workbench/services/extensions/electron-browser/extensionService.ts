@@ -39,11 +39,12 @@ import { Event, Emitter } from 'vs/base/common/event';
 import { ExtensionHostProfiler } from 'vs/workbench/services/extensions/electron-browser/extensionHostProfiler';
 import product from 'vs/platform/node/product';
 import * as strings from 'vs/base/common/strings';
-import { RPCProtocol } from 'vs/workbench/services/extensions/node/rpcProtocol';
+import { RPCProtocol, IRPCProtocolLogger } from 'vs/workbench/services/extensions/node/rpcProtocol';
 import { INotificationService, Severity } from 'vs/platform/notification/common/notification';
 import { isFalsyOrEmpty } from 'vs/base/common/arrays';
 import { Schemas } from 'vs/base/common/network';
 import { getPathFromAmdModule } from 'vs/base/common/amd';
+import { isEqualOrParent } from 'vs/base/common/resources';
 
 let _SystemExtensionsRoot: string = null;
 function getSystemExtensionsRoot(): string {
@@ -179,11 +180,12 @@ export class ExtensionHostProcessManager extends Disposable {
 
 	private _createExtensionHostCustomers(protocol: IMessagePassingProtocol): ExtHostExtensionServiceShape {
 
+		let logger: IRPCProtocolLogger = null;
 		if (logExtensionHostCommunication || this._environmentService.logExtensionHostCommunication) {
-			protocol = asLoggingProtocol(protocol);
+			logger = new RPCLogger();
 		}
 
-		this._extensionHostProcessRPCProtocol = new RPCProtocol(protocol);
+		this._extensionHostProcessRPCProtocol = new RPCProtocol(protocol, logger);
 		const extHostContext: IExtHostContext = {
 			getProxy: <T>(identifier: ProxyIdentifier<T>): T => this._extensionHostProcessRPCProtocol.getProxy(identifier),
 			set: <T, R extends T>(identifier: ProxyIdentifier<T>, instance: R): R => this._extensionHostProcessRPCProtocol.set(identifier, instance),
@@ -564,11 +566,11 @@ export class ExtensionService extends Disposable implements IExtensionService {
 				}
 
 				const enableProposedApiForAll = !this._environmentService.isBuilt ||
-					(!!this._environmentService.extensionDevelopmentPath && product.nameLong.indexOf('Insiders') >= 0) ||
+					(!!this._environmentService.extensionDevelopmentLocationURI && product.nameLong.indexOf('Insiders') >= 0) ||
 					(enableProposedApiFor.length === 0 && 'enable-proposed-api' in this._environmentService.args);
 
 				for (const extension of allExtensions) {
-					const isExtensionUnderDevelopment = this._environmentService.isExtensionDevelopment && extension.extensionLocation.scheme === Schemas.file && extension.extensionLocation.fsPath.indexOf(this._environmentService.extensionDevelopmentPath) === 0;
+					const isExtensionUnderDevelopment = this._environmentService.isExtensionDevelopment && isEqualOrParent(extension.extensionLocation, this._environmentService.extensionDevelopmentLocationURI);
 					// Do not disable extensions under development
 					if (!isExtensionUnderDevelopment) {
 						if (disabledExtensions.some(disabled => areSameExtensions(disabled, extension))) {
@@ -861,13 +863,12 @@ export class ExtensionService extends Disposable implements IExtensionService {
 			);
 
 			// Always load developed extensions while extensions development
-			const developedExtensions = (
-				environmentService.isExtensionDevelopment
-					? ExtensionScanner.scanOneOrMultipleExtensions(
-						new ExtensionScannerInput(version, commit, locale, devMode, environmentService.extensionDevelopmentPath, false, true, translations), log
-					)
-					: TPromise.as([])
-			);
+			let developedExtensions = TPromise.as([]);
+			if (environmentService.isExtensionDevelopment && environmentService.extensionDevelopmentLocationURI.scheme === Schemas.file) {
+				developedExtensions = ExtensionScanner.scanOneOrMultipleExtensions(
+					new ExtensionScannerInput(version, commit, locale, devMode, environmentService.extensionDevelopmentLocationURI.fsPath, false, true, translations), log
+				);
+			}
 
 			return TPromise.join([finalBuiltinExtensions, userExtensions, developedExtensions]).then((extensionDescriptions: IExtensionDescription[][]) => {
 				const system = extensionDescriptions[0];
@@ -954,20 +955,20 @@ export class ExtensionService extends Disposable implements IExtensionService {
 	}
 }
 
-function asLoggingProtocol(protocol: IMessagePassingProtocol): IMessagePassingProtocol {
+class RPCLogger implements IRPCProtocolLogger {
 
-	protocol.onMessage(msg => {
-		console.log('%c[Extension \u2192 Window]%c[len: ' + strings.pad(msg.length, 5, ' ') + ']', 'color: darkgreen', 'color: grey', msg);
-	});
+	private _totalIncoming = 0;
+	private _totalOutgoing = 0;
 
-	return {
-		onMessage: protocol.onMessage,
+	logIncoming(msgLength: number, str: string, data?: any): void {
+		this._totalIncoming += msgLength;
+		console.log(`%c[Extension \u2192 Window]%c[${strings.pad(this._totalIncoming, 7, ' ')}]%c[len: ${strings.pad(msgLength, 5, ' ')}]`, 'color: darkgreen', 'color: grey', 'color: grey', str, data);
+	}
 
-		send(msg: any) {
-			protocol.send(msg);
-			console.log('%c[Window \u2192 Extension]%c[len: ' + strings.pad(msg.length, 5, ' ') + ']', 'color: darkgreen', 'color: grey', msg);
-		}
-	};
+	logOutgoing(msgLength: number, str: string, data?: any): void {
+		this._totalOutgoing += msgLength;
+		console.log(`%c[Window \u2192 Extension]%c[${strings.pad(this._totalOutgoing, 7, ' ')}]%c[len: ${strings.pad(msgLength, 5, ' ')}]`, 'color: darkgreen', 'color: grey', 'color: grey', str, data);
+	}
 }
 
 interface IExtensionCacheData {

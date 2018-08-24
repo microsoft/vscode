@@ -17,7 +17,7 @@ suite('Debug - Model', () => {
 	let rawSession: MockRawSession;
 
 	setup(() => {
-		model = new Model([], true, [], [], []);
+		model = new Model([], true, [], [], [], <any>{ isDirty: (e: any) => false });
 		rawSession = new MockRawSession();
 	});
 

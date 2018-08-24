@@ -343,7 +343,7 @@ export class SearchView extends Viewlet implements IViewlet, IPanel {
 		let searchHistory = history.search || this.viewletSettings['query.searchHistory'] || [];
 		let replaceHistory = history.replace || this.viewletSettings['query.replaceHistory'] || [];
 
-		this.searchWidget = this._register(this.instantiationService.createInstance(SearchWidget, builder, <ISearchWidgetOptions>{
+		this.searchWidget = this._register(this.instantiationService.createInstance(SearchWidget, builder.getHTMLElement(), <ISearchWidgetOptions>{
 			value: contentPattern,
 			isRegex: isRegex,
 			isCaseSensitive: isCaseSensitive,

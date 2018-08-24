@@ -1,7 +1,7 @@
 {
   "name": "code-oss-dev",
   "version": "1.27.0",
-  "distro": "a4155d9780fbbc94ead6cb3017dd0fc3806c57b8",
+  "distro": "4bd49e564426e4719c8f9f522a4d67d89de3fb26",
   "author": {
     "name": "Microsoft Corporation"
   },
@@ -128,7 +128,7 @@
     "vinyl": "^0.4.5",
     "vinyl-fs": "^2.4.3",
     "vsce": "1.33.2",
-    "vscode-nls-dev": "3.2.1",
+    "vscode-nls-dev": "3.2.2",
     "webpack": "^4.16.5",
     "webpack-cli": "^3.1.0",
     "webpack-stream": "^5.1.1"

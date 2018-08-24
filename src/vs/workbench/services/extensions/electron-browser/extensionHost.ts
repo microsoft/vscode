@@ -9,7 +9,7 @@ import * as nls from 'vs/nls';
 import { toErrorMessage } from 'vs/base/common/errorMessage';
 import * as objects from 'vs/base/common/objects';
 import { TPromise } from 'vs/base/common/winjs.base';
-import { isWindows, isLinux } from 'vs/base/common/platform';
+import { isWindows } from 'vs/base/common/platform';
 import { findFreePort } from 'vs/base/node/ports';
 import { ILifecycleService, ShutdownEvent } from 'vs/platform/lifecycle/common/lifecycle';
 import { IWindowsService, IWindowService } from 'vs/platform/windows/common/windows';
@@ -28,7 +28,7 @@ import { IExtensionDescription } from 'vs/workbench/services/extensions/common/e
 import { IWorkspaceConfigurationService } from 'vs/workbench/services/configuration/common/configuration';
 import { ICrashReporterService } from 'vs/workbench/services/crashReporter/electron-browser/crashReporterService';
 import { IBroadcastService, IBroadcast } from 'vs/platform/broadcast/electron-browser/broadcastService';
-import { isEqual } from 'vs/base/common/paths';
+import { isEqual } from 'vs/base/common/resources';
 import { EXTENSION_CLOSE_EXTHOST_BROADCAST_CHANNEL, EXTENSION_RELOAD_BROADCAST_CHANNEL, EXTENSION_ATTACH_BROADCAST_CHANNEL, EXTENSION_LOG_BROADCAST_CHANNEL, EXTENSION_TERMINATE_BROADCAST_CHANNEL } from 'vs/platform/extensions/common/extensionHost';
 import { IDisposable, dispose, toDisposable } from 'vs/base/common/lifecycle';
 import { IRemoteConsoleLog, log, parse } from 'vs/base/node/console';
@@ -39,6 +39,7 @@ import { getPathFromAmdModule } from 'vs/base/common/amd';
 import { timeout } from 'vs/base/common/async';
 import { isMessageOfType, MessageType, createMessageOfType } from 'vs/workbench/common/extensionHostProtocol';
 import { ILabelService } from 'vs/platform/label/common/label';
+import URI from 'vs/base/common/uri';
 
 export interface IExtensionHostStarter {
 	readonly onCrashed: Event<[number, string]>;
@@ -120,15 +121,15 @@ export class ExtensionHostProcessWorker implements IExtensionHostStarter {
 
 		// Close Ext Host Window Request
 		if (broadcast.channel === EXTENSION_CLOSE_EXTHOST_BROADCAST_CHANNEL && this._isExtensionDevHost) {
-			const extensionPaths = broadcast.payload as string[];
-			if (Array.isArray(extensionPaths) && extensionPaths.some(path => isEqual(this._environmentService.extensionDevelopmentPath, path, !isLinux))) {
+			const extensionLocations = broadcast.payload as string[];
+			if (Array.isArray(extensionLocations) && extensionLocations.some(uriString => isEqual(this._environmentService.extensionDevelopmentLocationURI, URI.parse(uriString)))) {
 				this._windowService.closeWindow();
 			}
 		}
 
 		if (broadcast.channel === EXTENSION_RELOAD_BROADCAST_CHANNEL && this._isExtensionDevHost) {
 			const extensionPaths = broadcast.payload as string[];
-			if (Array.isArray(extensionPaths) && extensionPaths.some(path => isEqual(this._environmentService.extensionDevelopmentPath, path, !isLinux))) {
+			if (Array.isArray(extensionPaths) && extensionPaths.some(uriString => isEqual(this._environmentService.extensionDevelopmentLocationURI, URI.parse(uriString)))) {
 				this._windowService.reloadWindow();
 			}
 		}
@@ -380,7 +381,7 @@ export class ExtensionHostProcessWorker implements IExtensionHostStarter {
 					isExtensionDevelopmentDebug: this._isExtensionDevDebug,
 					appRoot: this._environmentService.appRoot,
 					appSettingsHome: this._environmentService.appSettingsHome,
-					extensionDevelopmentPath: this._environmentService.extensionDevelopmentPath,
+					extensionDevelopmentLocationURI: this._environmentService.extensionDevelopmentLocationURI,
 					extensionTestsPath: this._environmentService.extensionTestsPath
 				},
 				workspace: this._contextService.getWorkbenchState() === WorkbenchState.EMPTY ? null : {

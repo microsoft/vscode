@@ -801,14 +801,21 @@ export class ExplorerView extends TreeViewsViewletPanel implements IExplorerView
 	private resolveRoots(targetsToResolve: { root: ExplorerItem, resource: URI, options: { resolveTo: any[] } }[], targetsToExpand: URI[]): TPromise<any> {
 
 		// Display roots only when multi folder workspace
-		const input = this.contextService.getWorkbenchState() === WorkbenchState.FOLDER ? this.model.roots[0] : this.model;
-		const errorFileStat = (resource: URI, root: ExplorerItem) => ExplorerItem.create({
-			resource: resource,
-			name: paths.basename(resource.fsPath),
-			mtime: 0,
-			etag: undefined,
-			isDirectory: true
-		}, root, undefined, true);
+		let input = this.contextService.getWorkbenchState() === WorkbenchState.FOLDER ? this.model.roots[0] : this.model;
+
+		const errorRoot = (resource: URI, root: ExplorerItem) => {
+			if (input === this.model.roots[0]) {
+				input = this.model;
+			}
+
+			return ExplorerItem.create({
+				resource: resource,
+				name: paths.basename(resource.fsPath),
+				mtime: 0,
+				etag: undefined,
+				isDirectory: true
+			}, root, undefined, true);
+		};
 
 		const setInputAndExpand = (input: ExplorerItem | Model, statsToExpand: ExplorerItem[]) => {
 			// Make sure to expand all folders that where expanded in the previous session
@@ -829,7 +836,7 @@ export class ExplorerView extends TreeViewsViewletPanel implements IExplorerView
 						return ExplorerItem.create(result.stat, targetsToResolve[index].root, targetsToResolve[index].options.resolveTo);
 					}
 
-					return errorFileStat(targetsToResolve[index].resource, targetsToResolve[index].root);
+					return errorRoot(targetsToResolve[index].resource, targetsToResolve[index].root);
 				});
 				// Subsequent refresh: Merge stat into our local model and refresh tree
 				modelStats.forEach((modelStat, index) => {
@@ -852,7 +859,7 @@ export class ExplorerView extends TreeViewsViewletPanel implements IExplorerView
 		let delayer = new Delayer(100);
 		let delayerPromise: TPromise;
 		return TPromise.join(targetsToResolve.map((target, index) => this.fileService.resolveFile(target.resource, target.options)
-			.then(result => result.isDirectory ? ExplorerItem.create(result, target.root, target.options.resolveTo) : errorFileStat(target.resource, target.root), () => errorFileStat(target.resource, target.root))
+			.then(result => result.isDirectory ? ExplorerItem.create(result, target.root, target.options.resolveTo) : errorRoot(target.resource, target.root), () => errorRoot(target.resource, target.root))
 			.then(modelStat => {
 				// Subsequent refresh: Merge stat into our local model and refresh tree
 				if (index < this.model.roots.length) {

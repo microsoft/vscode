@@ -24,6 +24,7 @@ import { Source } from 'vs/workbench/parts/debug/common/debugSource';
 import { commonSuffixLength } from 'vs/base/common/strings';
 import { sep } from 'vs/base/common/paths';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
+import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
 
 const MAX_REPL_LENGTH = 10000;
 
@@ -622,6 +623,7 @@ export class Breakpoint extends BaseBreakpoint implements IBreakpoint {
 		hitCondition: string,
 		logMessage: string,
 		private _adapterData: any,
+		private textFileService: ITextFileService,
 		id = generateUuid()
 	) {
 		super(enabled, hitCondition, condition, logMessage, id);
@@ -629,7 +631,16 @@ export class Breakpoint extends BaseBreakpoint implements IBreakpoint {
 
 	public get lineNumber(): number {
 		const data = this.getSessionData();
-		return data && typeof data.line === 'number' ? data.line : this._lineNumber;
+		return this.verified && data && typeof data.line === 'number' ? data.line : this._lineNumber;
+	}
+
+	public get verified(): boolean {
+		const data = this.getSessionData();
+		if (data) {
+			return data.verified && !this.textFileService.isDirty(this.uri);
+		}
+
+		return true;
 	}
 
 	public get column(): number {
@@ -640,7 +651,14 @@ export class Breakpoint extends BaseBreakpoint implements IBreakpoint {
 
 	public get message(): string {
 		const data = this.getSessionData();
-		return data ? data.message : undefined;
+		if (!data) {
+			return undefined;
+		}
+		if (this.textFileService.isDirty(this.uri)) {
+			return nls.localize('breakpointDirtydHover', "Unverified breakpoint. File is modified, please restart debug session.");
+		}
+
+		return data.message;
 	}
 
 	public get adapterData(): any {
@@ -695,7 +713,8 @@ export class FunctionBreakpoint extends BaseBreakpoint implements IFunctionBreak
 		hitCondition: string,
 		condition: string,
 		logMessage: string,
-		id = generateUuid()) {
+		id = generateUuid()
+	) {
 		super(enabled, hitCondition, condition, logMessage, id);
 	}
 
@@ -748,7 +767,8 @@ export class Model implements IModel {
 		private breakpointsActivated: boolean,
 		private functionBreakpoints: FunctionBreakpoint[],
 		private exceptionBreakpoints: ExceptionBreakpoint[],
-		private watchExpressions: Expression[]
+		private watchExpressions: Expression[],
+		private textFileService: ITextFileService
 	) {
 		this.sessions = [];
 		this.replElements = [];
@@ -886,7 +906,7 @@ export class Model implements IModel {
 	}
 
 	public addBreakpoints(uri: uri, rawData: IBreakpointData[], fireEvent = true): IBreakpoint[] {
-		const newBreakpoints = rawData.map(rawBp => new Breakpoint(uri, rawBp.lineNumber, rawBp.column, rawBp.enabled, rawBp.condition, rawBp.hitCondition, rawBp.logMessage, undefined, rawBp.id));
+		const newBreakpoints = rawData.map(rawBp => new Breakpoint(uri, rawBp.lineNumber, rawBp.column, rawBp.enabled, rawBp.condition, rawBp.hitCondition, rawBp.logMessage, undefined, this.textFileService, rawBp.id));
 		newBreakpoints.forEach(bp => bp.setSessionId(this.breakpointsSessionId));
 		this.breakpoints = this.breakpoints.concat(newBreakpoints);
 		this.breakpointsActivated = true;

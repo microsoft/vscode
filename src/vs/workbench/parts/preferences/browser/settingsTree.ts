@@ -41,7 +41,7 @@ import { attachButtonStyler, attachInputBoxStyler, attachSelectBoxStyler, attach
 import { ICssStyleCollector, ITheme, IThemeService, registerThemingParticipant } from 'vs/platform/theme/common/themeService';
 import { ITOCEntry } from 'vs/workbench/parts/preferences/browser/settingsLayout';
 import { ISettingsEditorViewState, isExcludeSetting, SettingsTreeElement, SettingsTreeGroupElement, SettingsTreeNewExtensionsElement, SettingsTreeSettingElement, settingKeyToDisplayFormat } from 'vs/workbench/parts/preferences/browser/settingsTreeModels';
-import { ExcludeSettingWidget, IExcludeDataItem, settingsHeaderForeground, settingsNumberInputBackground, settingsNumberInputBorder, settingsNumberInputForeground, settingsSelectBackground, settingsSelectBorder, settingsSelectForeground, settingsTextInputBackground, settingsTextInputBorder, settingsTextInputForeground } from 'vs/workbench/parts/preferences/browser/settingsWidgets';
+import { ExcludeSettingWidget, IExcludeDataItem, settingsHeaderForeground, settingsNumberInputBackground, settingsNumberInputBorder, settingsNumberInputForeground, settingsSelectBackground, settingsSelectBorder, settingsSelectListBorder, settingsSelectForeground, settingsTextInputBackground, settingsTextInputBorder, settingsTextInputForeground } from 'vs/workbench/parts/preferences/browser/settingsWidgets';
 import { ISetting, ISettingsGroup } from 'vs/workbench/services/preferences/common/preferences';
 
 const $ = DOM.$;
@@ -678,11 +678,11 @@ export class SettingsRenderer implements ITreeRenderer {
 		// Also have to ignore embedded links - too buried to stop propagation
 		toDispose.push(DOM.addDisposableListener(descriptionElement, DOM.EventType.MOUSE_DOWN, (e) => {
 			const targetElement = <HTMLElement>e.toElement;
-			const targetId = descriptionElement.getAttribute('checkboxLabelTargetId');
+			const targetId = descriptionElement.getAttribute('checkbox-label-target-id');
 
 			// Make sure we are not a link and the target ID matches
 			// Toggle target checkbox
-			if (targetElement.tagName !== 'A' && targetId === template.checkbox.domNode.id) {
+			if (targetElement.tagName.toLowerCase() !== 'a' && targetId === template.checkbox.domNode.id) {
 				template.checkbox.checked = template.checkbox.checked ? false : true;
 			}
 			DOM.EventHelper.stop(e);
@@ -721,15 +721,32 @@ export class SettingsRenderer implements ITreeRenderer {
 		return template;
 	}
 
+	public cancelSuggesters() {
+		this.contextViewService.hideContextView();
+	}
+
 	private renderSettingEnumTemplate(tree: ITree, container: HTMLElement): ISettingEnumItemTemplate {
 		const common = this.renderCommonTemplate(tree, container, 'enum');
 
-		const selectBox = new SelectBox([], undefined, this.contextViewService);
+		const selectBox = new SelectBox([], undefined, this.contextViewService, undefined, {
+			hasDetails: true, markdownActionHandler: {
+				callback: (content: string) => {
+					if (startsWith(content, '#')) {
+						this._onDidClickSettingLink.fire(content.substr(1));
+					} else {
+						this.openerService.open(URI.parse(content)).then(void 0, onUnexpectedError);
+					}
+				},
+				disposeables: common.toDispose
+			}
+		});
+
 		common.toDispose.push(selectBox);
 		common.toDispose.push(attachSelectBoxStyler(selectBox, this.themeService, {
 			selectBackground: settingsSelectBackground,
 			selectForeground: settingsSelectForeground,
-			selectBorder: settingsSelectBorder
+			selectBorder: settingsSelectBorder,
+			selectListBorder: settingsSelectListBorder
 		}));
 		selectBox.render(common.controlElement);
 		const selectElement = common.controlElement.querySelector('select');
@@ -932,9 +949,11 @@ export class SettingsRenderer implements ITreeRenderer {
 			template.descriptionElement.innerText = element.description;
 		}
 
-		// Add checkbox target to description clickable and able to toggle checkbox
-		const checkbox_id = (element.displayCategory + '_' + element.displayLabel).replace(/ /g, '_') + '_Item';
-		template.descriptionElement.setAttribute('checkboxLabelTargetId', checkbox_id);
+		if (templateId === SETTINGS_BOOL_TEMPLATE_ID) {
+			// Add checkbox target to description clickable and able to toggle checkbox
+			const checkbox_id = (element.displayCategory + '_' + element.displayLabel).replace(/ /g, '_') + '_Item';
+			template.descriptionElement.setAttribute('checkbox-label-target-id', checkbox_id);
+		}
 
 		if (element.overriddenScopeList.length) {
 			let otherOverridesLabel = element.isConfigured ?
@@ -1016,6 +1035,13 @@ export class SettingsRenderer implements ITreeRenderer {
 	private renderEnum(dataElement: SettingsTreeSettingElement, template: ISettingEnumItemTemplate, onChange: (value: string) => void): void {
 		const displayOptions = getDisplayEnumOptions(dataElement.setting);
 		template.selectBox.setOptions(displayOptions);
+		const descriptions = dataElement.setting.enumDescriptions;
+		const descriptionsAreMarkdown = dataElement.setting.descriptionIsMarkdown;
+		template.selectBox.setDetailsProvider(index =>
+			({
+				details: descriptions && descriptions[index] && (descriptionsAreMarkdown ? fixSettingLinks(descriptions[index]) : descriptions[index]),
+				isMarkdown: descriptionsAreMarkdown
+			}));
 
 		const modifiedText = dataElement.isConfigured ? 'Modified' : '';
 		const label = ' ' + dataElement.displayCategory + ' ' + dataElement.displayLabel + ' combobox ' + modifiedText;
@@ -1033,24 +1059,6 @@ export class SettingsRenderer implements ITreeRenderer {
 		}
 
 		template.enumDescriptionElement.innerHTML = '';
-		// if (dataElement.setting.enumDescriptions && dataElement.setting.enum && dataElement.setting.enum.length < SettingsRenderer.MAX_ENUM_DESCRIPTIONS) {
-		// 	if (isSelected) {
-		// 		let enumDescriptionText = '\n' + dataElement.setting.enumDescriptions
-		// 			.map((desc, i) => {
-		// 				const displayEnum = escapeInvisibleChars(dataElement.setting.enum[i]);
-		// 				return desc ?
-		// 					` - \`${displayEnum}\`: ${desc}` :
-		// 					` - \`${dataElement.setting.enum[i]}\``;
-		// 			})
-		// 			.filter(desc => !!desc)
-		// 			.join('\n');
-
-		// 		const renderedMarkdown = this.renderDescriptionMarkdown(fixSettingLinks(enumDescriptionText), template.toDispose);
-		// 		template.enumDescriptionElement.appendChild(renderedMarkdown);
-		// 	}
-
-		// 	return { overflows: true };
-		// }
 	}
 
 	private renderText(dataElement: SettingsTreeSettingElement, template: ISettingTextItemTemplate, onChange: (value: string) => void): void {
@@ -1245,7 +1253,7 @@ export class SettingsTreeController extends WorkbenchTreeController {
 		const isLink = eventish.target.tagName.toLowerCase() === 'a' ||
 			eventish.target.parentElement.tagName.toLowerCase() === 'a'; // <code> inside <a>
 
-		if (isLink && DOM.findParentWithClass(eventish.target, 'setting-item-description-markdown', tree.getHTMLElement())) {
+		if (isLink && (DOM.findParentWithClass(eventish.target, 'setting-item-description-markdown', tree.getHTMLElement()) || DOM.findParentWithClass(eventish.target, 'select-box-description-markdown'))) {
 			return true;
 		}
 
