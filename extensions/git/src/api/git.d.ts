@@ -56,21 +56,68 @@ export interface Remote {
 	readonly isReadOnly: boolean;
 }
 
+export interface Change {
+	// TODO
+}
+
 export interface RepositoryState {
 	readonly HEAD: Branch | undefined;
 	readonly refs: Ref[];
 	readonly remotes: Remote[];
 	readonly submodules: Submodule[];
 	readonly rebaseCommit: Commit | undefined;
+
+	readonly mergeChanges: Change[];
+	readonly indexChanges: Change[];
+	readonly workingTreeChanges: Change[];
+
 	readonly onDidChange: Event<void>;
 }
 
+export const enum ConfigScope {
+	System,
+	Global,
+	Local
+}
+
 export interface Repository {
+
 	readonly rootUri: Uri;
 	readonly inputBox: InputBox;
 	readonly state: RepositoryState;
 
+	getConfigs(scope: ConfigScope): Promise<{ key: string; value: string; }[]>;
+	getConfig(scope: ConfigScope, key: string): Promise<string>;
+	setConfig(scope: ConfigScope, key: string, value: string): Promise<string>;
+
+	show(ref: string, path: string): Promise<string>;
+	getCommit(ref: string): Promise<Commit>;
+	getObjectDetails(treeish: string, path: string): Promise<{ mode: string, object: string, size: number }>;
+
+	diffWithHEAD(path: string): Promise<string>;
+	diffWith(ref: string, path: string): Promise<string>;
+	diffIndexWithHEAD(path: string): Promise<string>;
+	diffIndexWith(ref: string, path: string): Promise<string>;
+	diffBlobs(object1: string, object2: string): Promise<string>;
+	diffBetween(ref1: string, ref2: string, path: string): Promise<string>;
+
+	hashObject(data: string): Promise<string>;
+
+	createBranch(name: string, checkout: boolean, ref?: string): Promise<void>;
+	deleteBranch(name: string): Promise<void>;
+	getBranch(name: string): Promise<Branch>;
+	setBranchUpstream(name: string, upstream: string): Promise<void>;
+
+	getMergeBase(ref1: string, ref2: string): Promise<string>;
+
 	status(): Promise<void>;
+	checkout(treeish: string): Promise<void>;
+
+	addRemote(name: string, url: string): Promise<void>;
+	removeRemote(name: string): Promise<void>;
+
+	fetch(remote?: string, ref?: string): Promise<void>;
+	pull(): Promise<void>;
 }
 
 export interface API {

@@ -654,10 +654,6 @@ export function parseLsFiles(raw: string): LsFilesElement[] {
 		.map(([, mode, object, stage, file]) => ({ mode, object, stage, file }));
 }
 
-export interface DiffOptions {
-	cached?: boolean;
-}
-
 export class Repository {
 
 	constructor(
@@ -828,10 +824,10 @@ export class Repository {
 		}
 	}
 
-	async diff(path: string, options: DiffOptions = {}): Promise<string> {
+	async diff(path: string, cached = false): Promise<string> {
 		const args = ['diff'];
 
-		if (options.cached) {
+		if (cached) {
 			args.push('--cached');
 		}
 
@@ -839,6 +835,20 @@ export class Repository {
 
 		const result = await this.run(args);
 		return result.stdout;
+	}
+
+	async diffBetween(ref1: string, ref2: string, path: string): Promise<string> {
+		const args = ['diff', `${ref1}...${ref2}`, '--', path];
+		const result = await this.run(args);
+
+		return result.stdout.trim();
+	}
+
+	async getMergeBase(ref1: string, ref2: string): Promise<string> {
+		const args = ['merge-base', ref1, ref2];
+		const result = await this.run(args);
+
+		return result.stdout.trim();
 	}
 
 	async add(paths: string[]): Promise<void> {
@@ -961,8 +971,13 @@ export class Repository {
 		throw commitErr;
 	}
 
-	async branch(name: string, checkout: boolean): Promise<void> {
+	async branch(name: string, checkout: boolean, ref?: string): Promise<void> {
 		const args = checkout ? ['checkout', '-q', '-b', name] : ['branch', '-q', name];
+
+		if (ref) {
+			args.push(ref);
+		}
+
 		await this.run(args);
 	}
 
@@ -973,6 +988,11 @@ export class Repository {
 
 	async renameBranch(name: string): Promise<void> {
 		const args = ['branch', '-m', name];
+		await this.run(args);
+	}
+
+	async setBranchUpstream(name: string, upstream: string): Promise<void> {
+		const args = ['branch', '--set-upstream-to', upstream, name];
 		await this.run(args);
 	}
 
@@ -1073,7 +1093,22 @@ export class Repository {
 		}
 	}
 
-	async fetch(): Promise<void> {
+	async addRemote(name: string, url: string): Promise<void> {
+		const args = ['remote', 'add', name, url];
+		await this.run(args);
+	}
+
+	async fetch(remote?: string, ref?: string): Promise<void> {
+		const args = ['fetch'];
+
+		if (remote) {
+			args.push(remote);
+
+			if (ref) {
+				args.push(ref);
+			}
+		}
+
 		try {
 			await this.run(['fetch']);
 		} catch (err) {

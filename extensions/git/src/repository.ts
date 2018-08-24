@@ -655,8 +655,8 @@ export class Repository implements Disposable {
 		await this.run(Operation.Status);
 	}
 
-	diff(path: string, options: DiffOptions = {}): Promise<string> {
-		return this.run(Operation.Diff, () => this.repository.diff(path, options));
+	diff(path: string, cached = false): Promise<string> {
+		return this.run(Operation.Diff, () => this.repository.diff(path, cached));
 	}
 
 	async add(resources: Uri[]): Promise<void> {
@@ -746,7 +746,7 @@ export class Repository implements Disposable {
 		});
 	}
 
-	async branch(name: string): Promise<void> {
+	async branch(name: string, checkout: boolean, ref?: string): Promise<void> {
 		await this.run(Operation.Branch, () => this.repository.branch(name, true));
 	}
 
@@ -783,7 +783,11 @@ export class Repository implements Disposable {
 	}
 
 	@throttle
-	async fetch(): Promise<void> {
+	async fetchDefault(): Promise<void> {
+		await this.run(Operation.Fetch, () => this.repository.fetch());
+	}
+
+	async fetch(remote?: string, ref?: string): Promise<void> {
 		await this.run(Operation.Fetch, () => this.repository.fetch());
 	}
 
