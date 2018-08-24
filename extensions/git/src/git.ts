@@ -682,7 +682,7 @@ export class Repository {
 		return this.git.spawn(args, options);
 	}
 
-	async config(scope: string, key: string, value: any, options: SpawnOptions): Promise<string> {
+	async config(scope: string, key: string, value: any = null, options: SpawnOptions = {}): Promise<string> {
 		const args = ['config'];
 
 		if (scope) {
@@ -697,6 +697,24 @@ export class Repository {
 
 		const result = await this.run(args, options);
 		return result.stdout;
+	}
+
+	async getConfigs(scope: string): Promise<{ key: string; value: string; }[]> {
+		const args = ['config'];
+
+		if (scope) {
+			args.push('--' + scope);
+		}
+
+		args.push('-l');
+
+		const result = await this.run(args);
+		const lines = result.stdout.trim().split(/\r|\r\n|\n/);
+
+		return lines.map(entry => {
+			const equalsIndex = entry.indexOf('=');
+			return { key: entry.substr(0, equalsIndex), value: entry.substr(equalsIndex + 1) };
+		});
 	}
 
 	async bufferString(object: string, encoding: string = 'utf8', autoGuessEncoding = false): Promise<string> {
@@ -837,6 +855,36 @@ export class Repository {
 		return result.stdout;
 	}
 
+	async diffWithHEAD(path: string): Promise<string> {
+		const args = ['diff', '--', path];
+		const result = await this.run(args);
+		return result.stdout;
+	}
+
+	async diffWith(ref: string, path: string): Promise<string> {
+		const args = ['diff', ref, '--', path];
+		const result = await this.run(args);
+		return result.stdout;
+	}
+
+	async diffIndexWithHEAD(path: string): Promise<string> {
+		const args = ['diff', '--cached', '--', path];
+		const result = await this.run(args);
+		return result.stdout;
+	}
+
+	async diffIndexWith(ref: string, path: string): Promise<string> {
+		const args = ['diff', '--cached', ref, '--', path];
+		const result = await this.run(args);
+		return result.stdout;
+	}
+
+	async diffBlobs(object1: string, object2: string): Promise<string> {
+		const args = ['diff', object1, object2];
+		const result = await this.run(args);
+		return result.stdout;
+	}
+
 	async diffBetween(ref1: string, ref2: string, path: string): Promise<string> {
 		const args = ['diff', `${ref1}...${ref2}`, '--', path];
 		const result = await this.run(args);
@@ -847,6 +895,13 @@ export class Repository {
 	async getMergeBase(ref1: string, ref2: string): Promise<string> {
 		const args = ['merge-base', ref1, ref2];
 		const result = await this.run(args);
+
+		return result.stdout.trim();
+	}
+
+	async hashObject(data: string): Promise<string> {
+		const args = ['hash-object', '-w', '--stdin'];
+		const result = await this.run(args, { input: data });
 
 		return result.stdout.trim();
 	}
@@ -1095,6 +1150,11 @@ export class Repository {
 
 	async addRemote(name: string, url: string): Promise<void> {
 		const args = ['remote', 'add', name, url];
+		await this.run(args);
+	}
+
+	async removeRemote(name: string): Promise<void> {
+		const args = ['remote', 'rm', name];
 		await this.run(args);
 	}
 

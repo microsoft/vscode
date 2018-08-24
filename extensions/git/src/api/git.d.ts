@@ -74,21 +74,15 @@ export interface RepositoryState {
 	readonly onDidChange: Event<void>;
 }
 
-export const enum ConfigScope {
-	System,
-	Global,
-	Local
-}
-
 export interface Repository {
 
 	readonly rootUri: Uri;
 	readonly inputBox: InputBox;
 	readonly state: RepositoryState;
 
-	getConfigs(scope: ConfigScope): Promise<{ key: string; value: string; }[]>;
-	getConfig(scope: ConfigScope, key: string): Promise<string>;
-	setConfig(scope: ConfigScope, key: string, value: string): Promise<string>;
+	getConfigs(): Promise<{ key: string; value: string; }[]>;
+	getConfig(key: string): Promise<string>;
+	setConfig(key: string, value: string): Promise<string>;
 
 	show(ref: string, path: string): Promise<string>;
 	getCommit(ref: string): Promise<Commit>;
