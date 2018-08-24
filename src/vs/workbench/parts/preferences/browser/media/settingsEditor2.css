@@ -363,6 +363,11 @@
 .settings-editor > .settings-body > .settings-tree-container .setting-item .setting-item-description-markdown a:focus {
 	outline: 1px solid -webkit-focus-ring-color;
 	outline-offset: -1px;
+	text-decoration: underline;
+}
+
+.settings-editor > .settings-body > .settings-tree-container .setting-item .setting-item-description-markdown a:hover {
+	text-decoration: underline;
 }
 
 .settings-editor > .settings-body > .settings-tree-container .setting-item .setting-item-description-markdown code {
