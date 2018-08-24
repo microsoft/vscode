@@ -36,7 +36,7 @@ import { PreferencesEditor } from 'vs/workbench/parts/preferences/browser/prefer
 import { SettingsTarget, SettingsTargetsWidget } from 'vs/workbench/parts/preferences/browser/preferencesWidgets';
 import { commonlyUsedData, tocData } from 'vs/workbench/parts/preferences/browser/settingsLayout';
 import { resolveExtensionsSettings, resolveSettingsTree, SettingsRenderer, SettingsTree } from 'vs/workbench/parts/preferences/browser/settingsTree';
-import { ISettingsEditorViewState, MODIFIED_SETTING_TAG, ONLINE_SERVICES_SETTING_TAG, SearchResultIdx, SearchResultModel, SettingsTreeGroupElement, SettingsTreeModel, SettingsTreeSettingElement } from 'vs/workbench/parts/preferences/browser/settingsTreeModels';
+import { ISettingsEditorViewState, MODIFIED_SETTING_TAG, ONLINE_SERVICES_SETTING_TAG, SearchResultIdx, SearchResultModel, SettingsTreeGroupElement, SettingsTreeModel, SettingsTreeSettingElement, countSettingGroupChildrenWithPredicate } from 'vs/workbench/parts/preferences/browser/settingsTreeModels';
 import { TOCRenderer, TOCTree, TOCTreeModel } from 'vs/workbench/parts/preferences/browser/tocTree';
 import { CONTEXT_SETTINGS_EDITOR, CONTEXT_SETTINGS_SEARCH_FOCUS, CONTEXT_TOC_ROW_FOCUS, IPreferencesSearchService, ISearchProvider } from 'vs/workbench/parts/preferences/common/preferences';
 import { IEditorGroup } from 'vs/workbench/services/group/common/editorGroupsService';
@@ -769,7 +769,6 @@ export class SettingsEditor2 extends BaseEditor {
 
 	private onSearchInputChanged(): void {
 		const query = this.searchWidget.getValue().trim();
-		if (query === '') { this.countElement.style.display = 'none'; this.noResultsMessage.style.display = 'none'; }
 		this.delayedFilterLogging.cancel();
 		this.triggerSearch(query.replace(/›/g, ' ')).then(() => {
 			if (query && this.searchResultModel) {
@@ -822,9 +821,9 @@ export class SettingsEditor2 extends BaseEditor {
 			collapseAll(this.tocTree);
 
 			if (this.searchResultModel) {
-				return this.settingsTree.setInput(this.searchResultModel.root);
+				return this.settingsTree.setInput(this.searchResultModel.root).then(() => this.renderResultCountMessages());
 			} else {
-				return this.settingsTree.setInput(this.settingsTreeModel.root);
+				return this.settingsTree.setInput(this.settingsTreeModel.root).then(() => this.renderResultCountMessages());
 			}
 		}
 	}
@@ -908,7 +907,7 @@ export class SettingsEditor2 extends BaseEditor {
 								TPromise.wrap(null);
 						});
 					}
-				});
+				}).then(() => this.renderResultCountMessages());
 			} else {
 				return TPromise.wrap(null);
 			}
@@ -945,12 +944,9 @@ export class SettingsEditor2 extends BaseEditor {
 				this.settingsTree.setInput(this.searchResultModel.root);
 			} else {
 				this.tocTreeModel.update();
-				expandAll(this.tocTree);
 				this.searchResultModel.setResult(type, result);
 			}
 
-			let count = this.searchResultModel.getUniqueResults().map(result => result ? result.filterMatches.length : 0).reduce((a, b) => a + b);
-			this.renderResultCountMessages(count);
 
 			this.tocTree.setSelection([]);
 			expandAll(this.tocTree);
@@ -959,7 +955,8 @@ export class SettingsEditor2 extends BaseEditor {
 		});
 	}
 
-	private renderResultCountMessages(count: number) {
+	private renderResultCountMessages() {
+		let count = countSettingGroupChildrenWithPredicate(this.settingsTree.getInput() as SettingsTreeGroupElement, element => element.matchesAllTags(this.viewState.tagFilters));
 		switch (count) {
 			case 0: this.countElement.innerText = localize('noResults', "No Settings Found"); break;
 			case 1: this.countElement.innerText = localize('oneResult', "1 Setting Found"); break;

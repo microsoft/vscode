@@ -175,6 +175,22 @@ export class SettingsTreeSettingElement extends SettingsTreeElement {
 	}
 }
 
+export function countSettingGroupChildrenWithPredicate(tree: SettingsTreeGroupElement, predicate: (setting: SettingsTreeSettingElement) => boolean): number {
+	const recursiveCounter: (root: SettingsTreeGroupElement | SettingsTreeSettingElement | SettingsTreeNewExtensionsElement) => number =
+		root => {
+			if (root instanceof SettingsTreeGroupElement) {
+				return root.children.map(child => recursiveCounter(child)).reduce((a, b) => a + b, 0);
+			} else if (root instanceof SettingsTreeSettingElement) {
+				return +predicate(root);
+			} else if (root instanceof SettingsTreeNewExtensionsElement) {
+				return 0;
+			}
+
+			throw new Error('Argument to settingsTreeChildrenCount should only have group, setting, or extension elements');
+		};
+	return recursiveCounter(tree);
+}
+
 export class SettingsTreeModel {
 	protected _root: SettingsTreeGroupElement;
 	private _treeElementsById = new Map<string, SettingsTreeElement>();
