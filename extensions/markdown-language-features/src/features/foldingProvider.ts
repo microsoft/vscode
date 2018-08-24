@@ -6,7 +6,7 @@
 import * as vscode from 'vscode';
 
 import { MarkdownEngine } from '../markdownEngine';
-import { TableOfContentsProvider } from '../tableOfContentsProvider';
+import { TableOfContentsProvider, TocEntry } from '../tableOfContentsProvider';
 import { Token } from 'markdown-it';
 
 const rangeLimit = 5000;
@@ -50,14 +50,14 @@ export default class MarkdownFoldingProvider implements vscode.FoldingRangeProvi
 		_: vscode.FoldingContext,
 		_token: vscode.CancellationToken
 	): Promise<vscode.FoldingRange[]> {
+		const [regions, sections] = await Promise.all([this.getRegions(document), this.getHeaderFoldingRanges(document)]);
+		return [...regions, ...sections].slice(0, rangeLimit);
+	}
+
+	private async getHeaderFoldingRanges(document: vscode.TextDocument) {
 		const tocProvider = new TableOfContentsProvider(this.engine, document);
-		let [regions, toc] = await Promise.all([this.getRegions(document), tocProvider.getToc()]);
-
-		if (toc.length > rangeLimit - regions.length) {
-			toc = toc.slice(0, rangeLimit - regions.length);
-		}
-
-		const foldingRanges = toc.map((entry, startIndex) => {
+		const toc = await tocProvider.getToc();
+		return toc.map((entry, startIndex) => {
 			const start = entry.line;
 			let end: number | undefined = undefined;
 			for (let i = startIndex + 1; i < toc.length; ++i) {
@@ -69,11 +69,7 @@ export default class MarkdownFoldingProvider implements vscode.FoldingRangeProvi
 					break;
 				}
 			}
-			return new vscode.FoldingRange(
-				start,
-				typeof end === 'number' ? end : document.lineCount - 1);
+			return new vscode.FoldingRange(start, typeof end === 'number' ? end : document.lineCount - 1);
 		});
-
-		return [...regions, ...foldingRanges];
 	}
 }
