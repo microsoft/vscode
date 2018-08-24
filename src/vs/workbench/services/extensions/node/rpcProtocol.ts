@@ -165,13 +165,13 @@ export class RPCProtocol implements IRPCProtocol {
 			return;
 		}
 
-		let offset = 0;
-		const messageType = MessageIO.deserializeMessageType(rawmsg, offset); offset += 1;
-		const req = MessageIO.deserializeReq(rawmsg, offset); offset += 4;
+		const buff = MessageBuffer.read(rawmsg, 0);
+		const messageType = <MessageType>buff.readUInt8();
+		const req = buff.readUInt32();
 
 		switch (messageType) {
 			case MessageType.RequestJSONArgs: {
-				let { rpcId, method, args } = MessageIO.deserializeRequestJSONArgs(rawmsg, offset);
+				let { rpcId, method, args } = MessageIO.deserializeRequestJSONArgs(buff);
 				if (this._uriTransformer) {
 					args = transformIncomingURIs(args, this._uriTransformer);
 				}
@@ -179,7 +179,7 @@ export class RPCProtocol implements IRPCProtocol {
 				break;
 			}
 			case MessageType.RequestMixedArgs: {
-				let { rpcId, method, args } = MessageIO.deserializeRequestMixedArgs(rawmsg, offset);
+				let { rpcId, method, args } = MessageIO.deserializeRequestMixedArgs(buff);
 				if (this._uriTransformer) {
 					args = transformIncomingURIs(args, this._uriTransformer);
 				}
@@ -195,7 +195,7 @@ export class RPCProtocol implements IRPCProtocol {
 				break;
 			}
 			case MessageType.ReplyOKJSON: {
-				let value = MessageIO.deserializeReplyOKJSON(rawmsg, offset);
+				let value = MessageIO.deserializeReplyOKJSON(buff);
 				if (this._uriTransformer) {
 					value = transformIncomingURIs(value, this._uriTransformer);
 				}
@@ -203,12 +203,12 @@ export class RPCProtocol implements IRPCProtocol {
 				break;
 			}
 			case MessageType.ReplyOKBuffer: {
-				let value = MessageIO.deserializeReplyOKBuffer(rawmsg, offset);
+				let value = MessageIO.deserializeReplyOKBuffer(buff);
 				this._receiveReply(req, value);
 				break;
 			}
 			case MessageType.ReplyErrError: {
-				let err = MessageIO.deserializeReplyErrError(rawmsg, offset);
+				let err = MessageIO.deserializeReplyErrError(buff);
 				if (this._uriTransformer) {
 					err = transformIncomingURIs(err, this._uriTransformer);
 				}
@@ -323,10 +323,13 @@ export class RPCProtocol implements IRPCProtocol {
 class MessageBuffer {
 
 	public static alloc(type: MessageType, req: number, messageSize: number): MessageBuffer {
-		let buff = Buffer.allocUnsafe(messageSize + 1 /* type */ + 4 /* req */);
-		let offset = 0;
-		buff.writeUInt8(type, offset, true); offset += 1;
-		buff.writeUInt32LE(req, offset, true); offset += 4;
+		let result = new MessageBuffer(Buffer.allocUnsafe(messageSize + 1 /* type */ + 4 /* req */), 0);
+		result.writeUInt8(type);
+		result.writeUInt32(req);
+		return result;
+	}
+
+	public static read(buff: Buffer, offset: number): MessageBuffer {
 		return new MessageBuffer(buff, offset);
 	}
 
@@ -340,6 +343,24 @@ class MessageBuffer {
 	private constructor(buff: Buffer, offset: number) {
 		this._buff = buff;
 		this._offset = offset;
+	}
+
+	public writeUInt8(n: number): void {
+		this._buff.writeUInt8(n, this._offset, true); this._offset += 1;
+	}
+
+	public readUInt8(): number {
+		const n = this._buff.readUInt8(this._offset, true); this._offset += 1;
+		return n;
+	}
+
+	public writeUInt32(n: number): void {
+		this._buff.writeUInt32BE(n, this._offset, true); this._offset += 4;
+	}
+
+	public readUInt32(): number {
+		const n = this._buff.readUInt32BE(this._offset, true); this._offset += 4;
+		return n;
 	}
 
 	public static sizeShortString(str: string, strByteLength: number): number {
@@ -409,24 +430,31 @@ class MessageBuffer {
 			const el = arr[i];
 			const elLength = arrLengths[i];
 			if (typeof el === 'string') {
-				this._buff.writeUInt8(ArgType.ArgString, this._offset, true); this._offset += 1;
+				this.writeUInt8(ArgType.String);
 				this.writeLongString(el, elLength);
 			} else {
-				this._buff.writeUInt8(ArgType.ArgBuffer, this._offset, true); this._offset += 1;
+				this.writeUInt8(ArgType.Buffer);
 				this.writeBuffer(el, elLength);
 			}
 		}
 	}
+
+	public readMixedArray(): (string | Buffer)[] {
+		const arrLen = this._buff.readUInt8(this._offset, true); this._offset += 1;
+		let arr: (string | Buffer)[] = new Array(arrLen);
+		for (let i = 0; i < arrLen; i++) {
+			const argType = <ArgType>this.readUInt8();
+			if (argType === ArgType.String) {
+				arr[i] = this.readLongString();
+			} else {
+				arr[i] = this.readBuffer();
+			}
+		}
+		return arr;
+	}
 }
 
 class MessageIO {
-	public static deserializeMessageType(buff: Buffer, offset: number): MessageType {
-		return buff[offset];
-	}
-
-	public static deserializeReq(buff: Buffer, offset: number): number {
-		return buff.readUInt32LE(offset, true);
-	}
 
 	private static _arrayContainsBuffer(arr: any[]): boolean {
 		for (let i = 0, len = arr.length; i < len; i++) {
@@ -473,13 +501,10 @@ class MessageIO {
 		return result.buffer;
 	}
 
-	public static deserializeRequestJSONArgs(buff: Buffer, offset: number): { rpcId: string; method: string; args: any[]; } {
-		const rpcIdByteLength = buff.readUInt8(offset, true); offset += 1;
-		const rpcId = buff.toString('utf8', offset, offset + rpcIdByteLength); offset += rpcIdByteLength;
-		const methodByteLength = buff.readUInt8(offset, true); offset += 1;
-		const method = buff.toString('utf8', offset, offset + methodByteLength); offset += methodByteLength;
-		const argsByteLength = buff.readUInt32LE(offset, true); offset += 4;
-		const args = buff.toString('utf8', offset, offset + argsByteLength); offset += argsByteLength;
+	public static deserializeRequestJSONArgs(buff: MessageBuffer): { rpcId: string; method: string; args: any[]; } {
+		const rpcId = buff.readShortString();
+		const method = buff.readShortString();
+		const args = buff.readLongString();
 		return {
 			rpcId: rpcId,
 			method: method,
@@ -503,20 +528,17 @@ class MessageIO {
 		return result.buffer;
 	}
 
-	public static deserializeRequestMixedArgs(buff: Buffer, offset: number): { rpcId: string; method: string; args: any[]; } {
-		const rpcIdByteLength = buff.readUInt8(offset, true); offset += 1;
-		const rpcId = buff.toString('utf8', offset, offset + rpcIdByteLength); offset += rpcIdByteLength;
-		const methodByteLength = buff.readUInt8(offset, true); offset += 1;
-		const method = buff.toString('utf8', offset, offset + methodByteLength); offset += methodByteLength;
-		const argsCount = buff.readUInt8(offset, true); offset += 1;
-		let args: any[] = new Array(argsCount);
-		for (let i = 0; i < argsCount; i++) {
-			const argType = buff.readUInt8(offset, true); offset += 1;
-			const argLength = buff.readUInt32LE(offset, true); offset += 4;
-			if (argType === ArgType.ArgString) {
-				args[i] = JSON.parse(buff.toString('utf8', offset, offset + argLength)); offset += argLength;
+	public static deserializeRequestMixedArgs(buff: MessageBuffer): { rpcId: string; method: string; args: any[]; } {
+		const rpcId = buff.readShortString();
+		const method = buff.readShortString();
+		const rawargs = buff.readMixedArray();
+		const args: any[] = new Array(rawargs.length);
+		for (let i = 0, len = rawargs.length; i < len; i++) {
+			const rawarg = rawargs[i];
+			if (typeof rawarg === 'string') {
+				args[i] = JSON.parse(rawarg);
 			} else {
-				args[i] = buff.slice(offset, offset + argLength); offset += argLength;
+				args[i] = rawarg;
 			}
 		}
 		return {
@@ -555,10 +577,8 @@ class MessageIO {
 		return result.buffer;
 	}
 
-	public static deserializeReplyOKBuffer(buff: Buffer, offset: number): Buffer {
-		const resByteLength = buff.readUInt32LE(offset, true); offset += 4;
-		const res = buff.slice(offset, offset + resByteLength); offset += resByteLength;
-		return res;
+	public static deserializeReplyOKBuffer(buff: MessageBuffer): Buffer {
+		return buff.readBuffer();
 	}
 
 	private static _serializeReplyOKJSON(req: number, res: string): Buffer {
@@ -572,9 +592,8 @@ class MessageIO {
 		return result.buffer;
 	}
 
-	public static deserializeReplyOKJSON(buff: Buffer, offset: number): any {
-		const resByteLength = buff.readUInt32LE(offset, true); offset += 4;
-		const res = buff.toString('utf8', offset, offset + resByteLength); offset += resByteLength;
+	public static deserializeReplyOKJSON(buff: MessageBuffer): any {
+		const res = buff.readLongString();
 		return JSON.parse(res);
 	}
 
@@ -597,9 +616,8 @@ class MessageIO {
 		return result.buffer;
 	}
 
-	public static deserializeReplyErrError(buff: Buffer, offset: number): Error {
-		const errByteLength = buff.readUInt32LE(offset, true); offset += 4;
-		const err = buff.toString('utf8', offset, offset + errByteLength); offset += errByteLength;
+	public static deserializeReplyErrError(buff: MessageBuffer): Error {
+		const err = buff.readLongString();
 		return JSON.parse(err);
 	}
 
@@ -620,6 +638,6 @@ const enum MessageType {
 }
 
 const enum ArgType {
-	ArgString = 1,
-	ArgBuffer = 2
+	String = 1,
+	Buffer = 2
 }
