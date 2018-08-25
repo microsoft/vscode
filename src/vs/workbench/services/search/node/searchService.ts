@@ -22,13 +22,14 @@ import { IModelService } from 'vs/editor/common/services/modelService';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IDebugParams, IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { ILogService } from 'vs/platform/log/common/log';
-import { FileMatch, ICachedSearchStats, IFileMatch, IFolderQuery, IProgress, ISearchComplete, ISearchConfiguration, ISearchEngineStats, ISearchProgressItem, ISearchQuery, ISearchResultProvider, ISearchService, LineMatch, pathIncludedInQuery, QueryType, SearchProviderType, IFileSearchStats } from 'vs/platform/search/common/search';
+import { FileMatch, ICachedSearchStats, IFileMatch, IFolderQuery, IProgress, ISearchComplete, ISearchConfiguration, ISearchEngineStats, ISearchProgressItem, ISearchQuery, ISearchResultProvider, ISearchService, pathIncludedInQuery, QueryType, SearchProviderType, IFileSearchStats, TextSearchResult } from 'vs/platform/search/common/search';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
 import { IUntitledEditorService } from 'vs/workbench/services/untitled/common/untitledEditorService';
 import { IRawSearch, IRawSearchService, ISerializedFileMatch, ISerializedSearchComplete, ISerializedSearchProgressItem, isSerializedSearchComplete, isSerializedSearchSuccess } from './search';
 import { ISearchChannel, SearchChannelClient } from './searchIpc';
+import { Range } from 'vs/editor/common/core/range';
 
 export class SearchService extends Disposable implements ISearchService {
 	public _serviceBrand: any;
@@ -346,7 +347,10 @@ export class SearchService extends Disposable implements ISearchService {
 					localResults.set(resource, fileMatch);
 
 					matches.forEach((match) => {
-						fileMatch.lineMatches.push(new LineMatch(model.getLineContent(match.range.startLineNumber), match.range.startLineNumber - 1, [[match.range.startColumn - 1, match.range.endColumn - match.range.startColumn]]));
+						fileMatch.matches.push(new TextSearchResult(
+							model.getLineContent(match.range.startLineNumber),
+							new Range(match.range.startLineNumber - 1, match.range.startColumn - 1, match.range.startLineNumber - 1, match.range.endColumn),
+							query.previewOptions));
 					});
 				} else {
 					localResults.set(resource, null);
@@ -458,7 +462,8 @@ export class DiskSearch implements ISearchResultProvider {
 			cacheKey: query.cacheKey,
 			useRipgrep: query.useRipgrep,
 			disregardIgnoreFiles: query.disregardIgnoreFiles,
-			ignoreSymlinks: query.ignoreSymlinks
+			ignoreSymlinks: query.ignoreSymlinks,
+			previewOptions: query.previewOptions
 		};
 
 		for (const q of existingFolders) {
@@ -536,10 +541,8 @@ export class DiskSearch implements ISearchResultProvider {
 
 	private static createFileMatch(data: ISerializedFileMatch): FileMatch {
 		let fileMatch = new FileMatch(uri.file(data.path));
-		if (data.lineMatches) {
-			for (let j = 0; j < data.lineMatches.length; j++) {
-				fileMatch.lineMatches.push(new LineMatch(data.lineMatches[j].preview, data.lineMatches[j].lineNumber, data.lineMatches[j].offsetAndLengths));
-			}
+		if (data.matches) {
+			fileMatch.matches.push(...data.matches); // TODO why
 		}
 		return fileMatch;
 	}

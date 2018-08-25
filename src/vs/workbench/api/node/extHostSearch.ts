@@ -5,20 +5,20 @@
 'use strict';
 
 import * as path from 'path';
-import { CancellationTokenSource, CancellationToken } from 'vs/base/common/cancellation';
+import { CancellationToken, CancellationTokenSource } from 'vs/base/common/cancellation';
 import { toErrorMessage } from 'vs/base/common/errorMessage';
+import { isPromiseCanceledError } from 'vs/base/common/errors';
 import * as glob from 'vs/base/common/glob';
+import { toDisposable } from 'vs/base/common/lifecycle';
 import * as resources from 'vs/base/common/resources';
+import { StopWatch } from 'vs/base/common/stopwatch';
 import URI, { UriComponents } from 'vs/base/common/uri';
 import { TPromise } from 'vs/base/common/winjs.base';
 import * as extfs from 'vs/base/node/extfs';
-import { IFileMatch, IFolderQuery, IPatternInfo, IRawSearchQuery, ISearchCompleteStats, ISearchQuery, IFileSearchProviderStats } from 'vs/platform/search/common/search';
+import { IFileMatch, IFileSearchProviderStats, IFolderQuery, IPatternInfo, IRawSearchQuery, ISearchCompleteStats, ISearchQuery, ITextSearchResult } from 'vs/platform/search/common/search';
+import { FileIndexSearchManager, IDirectoryEntry, IDirectoryTree, IInternalFileMatch, QueryGlobTester, resolvePatternsForProvider } from 'vs/workbench/api/node/extHostSearch.fileIndex';
 import * as vscode from 'vscode';
 import { ExtHostSearchShape, IMainContext, MainContext, MainThreadSearchShape } from './extHost.protocol';
-import { toDisposable } from 'vs/base/common/lifecycle';
-import { IInternalFileMatch, QueryGlobTester, resolvePatternsForProvider, IDirectoryTree, IDirectoryEntry, FileIndexSearchManager } from 'vs/workbench/api/node/extHostSearch.fileIndex';
-import { StopWatch } from 'vs/base/common/stopwatch';
-import { isPromiseCanceledError } from 'vs/base/common/errors';
 
 export interface ISchemeTransformer {
 	transformOutgoing(scheme: string): string;
@@ -172,22 +172,16 @@ class TextSearchResultsCollector {
 		if (!this._currentFileMatch) {
 			this._currentFileMatch = {
 				resource: data.uri,
-				lineMatches: []
+				matches: []
 			};
 		}
 
-		// TODO@roblou - line text is sent for every match
-		const matchRange = data.preview.match;
-		this._currentFileMatch.lineMatches.push({
-			lineNumber: data.range.start.line,
-			preview: data.preview.text,
-			offsetAndLengths: [[matchRange.start.character, matchRange.end.character - matchRange.start.character]]
-		});
+		this._currentFileMatch.matches.push(extensionResultToFrontendResult(data));
 	}
 
 	private pushToCollector(): void {
 		const size = this._currentFileMatch ?
-			this._currentFileMatch.lineMatches.reduce((acc, match) => acc + match.offsetAndLengths.length, 0) :
+			this._currentFileMatch.matches.length :
 			0;
 		this._batchedCollector.addItem(this._currentFileMatch, size);
 	}
@@ -200,6 +194,26 @@ class TextSearchResultsCollector {
 	private sendItems(items: IFileMatch[]): void {
 		this._onResult(items);
 	}
+}
+
+function extensionResultToFrontendResult(data: vscode.TextSearchResult): ITextSearchResult {
+	return {
+		preview: {
+			match: {
+				startLineNumber: data.preview.match.start.line,
+				startColumn: data.preview.match.start.character,
+				endLineNumber: data.preview.match.end.line,
+				endColumn: data.preview.match.end.character
+			},
+			text: data.preview.text
+		},
+		range: {
+			startLineNumber: data.range.start.line,
+			startColumn: data.range.start.character,
+			endLineNumber: data.range.end.line,
+			endColumn: data.range.end.character
+		}
+	};
 }
 
 /**
@@ -414,7 +428,8 @@ class TextSearchEngine {
 			followSymlinks: !this.config.ignoreSymlinks,
 			encoding: this.config.fileEncoding,
 			maxFileSize: this.config.maxFileSize,
-			maxResults: this.config.maxResults
+			maxResults: this.config.maxResults,
+			previewOptions: this.config.previewOptions
 		};
 	}
 }

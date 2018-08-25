@@ -108,6 +108,7 @@ export class SearchView extends Viewlet implements IViewlet, IPanel {
 	private readonly selectCurrentMatchEmitter: Emitter<string>;
 	private delayedRefresh: Delayer<void>;
 	private changedWhileHidden: boolean;
+	private isWide: boolean;
 
 	private searchWithoutFolderMessageBuilder: Builder;
 
@@ -826,8 +827,10 @@ export class SearchView extends Viewlet implements IViewlet, IPanel {
 		}
 
 		if (this.size.width >= SearchView.WIDE_VIEW_SIZE) {
+			this.isWide = true;
 			dom.addClass(this.getContainer(), SearchView.WIDE_CLASS_NAME);
 		} else {
+			this.isWide = false;
 			dom.removeClass(this.getContainer(), SearchView.WIDE_CLASS_NAME);
 		}
 
@@ -1081,7 +1084,12 @@ export class SearchView extends Viewlet implements IViewlet, IPanel {
 			disregardIgnoreFiles: !useExcludesAndIgnoreFiles,
 			disregardExcludeSettings: !useExcludesAndIgnoreFiles,
 			excludePattern,
-			includePattern
+			includePattern,
+			previewOptions: {
+				leadingChars: 5,
+				maxLines: 1,
+				totalChars: this.isWide ? 1000 : 100
+			}
 		};
 		const folderResources = this.contextService.getWorkspace().folders;
 

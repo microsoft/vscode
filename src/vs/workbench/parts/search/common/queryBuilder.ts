@@ -95,7 +95,8 @@ export class QueryBuilder {
 			useRipgrep,
 			disregardIgnoreFiles: options.disregardIgnoreFiles || !useIgnoreFiles,
 			disregardExcludeSettings: options.disregardExcludeSettings,
-			ignoreSymlinks
+			ignoreSymlinks,
+			previewOptions: options.previewOptions
 		};
 
 		// Filter extraFileResources against global include/exclude patterns - they are already expected to not belong to a workspace
