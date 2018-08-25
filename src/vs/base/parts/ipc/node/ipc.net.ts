@@ -164,7 +164,7 @@ export class Protocol implements IDisposable, IMessagePassingProtocol {
 	}
 
 	send(buffer: Buffer): void {
-		const header = Buffer.alloc(Protocol._headerLen);
+		const header = Buffer.allocUnsafe(Protocol._headerLen);
 		header.writeUInt32BE(buffer.length, 0, true);
 		this._writeSoon(header, buffer);
 	}

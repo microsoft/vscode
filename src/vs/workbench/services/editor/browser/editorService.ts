@@ -28,7 +28,7 @@ import { Disposable, IDisposable, dispose, toDisposable } from 'vs/base/common/l
 import { coalesce } from 'vs/base/common/arrays';
 import { isCodeEditor, isDiffEditor, ICodeEditor, IDiffEditor } from 'vs/editor/browser/editorBrowser';
 import { IEditorGroupView, IEditorOpeningEvent, EditorGroupsServiceImpl, EditorServiceImpl } from 'vs/workbench/browser/parts/editor/editor';
-import { IUriLabelService } from 'vs/platform/uriLabel/common/uriLabel';
+import { ILabelService } from 'vs/platform/label/common/label';
 
 type ICachedEditorInput = ResourceEditorInput | IFileEditorInput | DataUriEditorInput;
 
@@ -64,7 +64,7 @@ export class EditorService extends Disposable implements EditorServiceImpl {
 		@IEditorGroupsService private editorGroupService: EditorGroupsServiceImpl,
 		@IUntitledEditorService private untitledEditorService: IUntitledEditorService,
 		@IInstantiationService private instantiationService: IInstantiationService,
-		@IUriLabelService private uriLabelService: IUriLabelService,
+		@ILabelService private labelService: ILabelService,
 		@IFileService private fileService: IFileService,
 		@IConfigurationService private configurationService: IConfigurationService
 	) {
@@ -563,7 +563,7 @@ export class EditorService extends Disposable implements EditorServiceImpl {
 		}
 
 		// Otherwise: for diff labels prefer to see the path as part of the label
-		return this.uriLabelService.getLabel(res, true);
+		return this.labelService.getUriLabel(res, true);
 	}
 
 	//#endregion
@@ -584,7 +584,7 @@ export class DelegatingEditorService extends EditorService {
 		@IEditorGroupsService editorGroupService: EditorGroupsServiceImpl,
 		@IUntitledEditorService untitledEditorService: IUntitledEditorService,
 		@IInstantiationService instantiationService: IInstantiationService,
-		@IUriLabelService uriLabelService: IUriLabelService,
+		@ILabelService labelService: ILabelService,
 		@IFileService fileService: IFileService,
 		@IConfigurationService configurationService: IConfigurationService
 	) {
@@ -592,7 +592,7 @@ export class DelegatingEditorService extends EditorService {
 			editorGroupService,
 			untitledEditorService,
 			instantiationService,
-			uriLabelService,
+			labelService,
 			fileService,
 			configurationService
 		);

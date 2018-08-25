@@ -77,6 +77,12 @@ declare module 'vscode' {
 		followSymlinks: boolean;
 	}
 
+	export interface TextSearchPreviewOptions {
+		maxLines: number;
+		leadingChars: number;
+		totalChars: number;
+	}
+
 	/**
 	 * Options that apply to text search.
 	 */
@@ -86,10 +92,7 @@ declare module 'vscode' {
 		 */
 		maxResults: number;
 
-		/**
-		 *  TODO@roblou - total length? # of context lines? leading and trailing # of chars?
-		 */
-		previewOptions?: any;
+		previewOptions?: TextSearchPreviewOptions;
 
 		/**
 		 * Exclude files larger than `maxFileSize` in bytes.

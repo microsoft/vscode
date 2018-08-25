@@ -67,7 +67,7 @@ export class RipgrepTextSearchEngine {
 			});
 
 			let gotResult = false;
-			this.ripgrepParser = new RipgrepParser(MAX_TEXT_RESULTS, cwd);
+			this.ripgrepParser = new RipgrepParser(MAX_TEXT_RESULTS, cwd, options.previewOptions);
 			this.ripgrepParser.on('result', (match: vscode.TextSearchResult) => {
 				gotResult = true;
 				progress.report(match);
@@ -160,7 +160,7 @@ export class RipgrepParser extends EventEmitter {
 
 	private numResults = 0;
 
-	constructor(private maxResults: number, private rootFolder: string) {
+	constructor(private maxResults: number, private rootFolder: string, private previewOptions?: vscode.TextSearchPreviewOptions) {
 		super();
 		this.stringDecoder = new StringDecoder();
 	}
@@ -293,12 +293,22 @@ export class RipgrepParser extends EventEmitter {
 
 		lineMatches
 			.map(range => {
+				let trimmedPreview = preview;
+				let trimmedPreviewRange = range;
+				if (this.previewOptions) {
+					const previewStart = Math.max(range.start.character - this.previewOptions.leadingChars, 0);
+					trimmedPreview = preview.substr(previewStart, this.previewOptions.totalChars - previewStart);
+					if (previewStart > 0) {
+						trimmedPreviewRange = new vscode.Range(0, range.start.character - previewStart, 0, range.end.character - previewStart);
+					}
+				}
+
 				return <vscode.TextSearchResult>{
 					uri: vscode.Uri.file(path.join(this.rootFolder, this.currentFile)),
 					range,
 					preview: {
-						text: preview,
-						match: new vscode.Range(0, range.start.character, 0, range.end.character)
+						text: trimmedPreview,
+						match: trimmedPreviewRange || new vscode.Range(0, range.start.character, 0, range.end.character)
 					}
 				};
 			})

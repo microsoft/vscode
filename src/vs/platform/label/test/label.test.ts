@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as assert from 'assert';
-import { IUriLabelService, UriLabelService } from 'vs/platform/uriLabel/common/uriLabel';
+import { LabelService } from 'vs/platform/label/common/label';
 import { TestEnvironmentService, TestContextService } from 'vs/workbench/test/workbenchTestServices';
 import { Schemas } from 'vs/base/common/network';
 import { TestWorkspace } from 'vs/platform/workspace/test/common/testWorkspace';
@@ -14,37 +14,41 @@ import { isWindows } from 'vs/base/common/platform';
 
 suite('URI Label', () => {
 
-	let uriLabelService: IUriLabelService;
+	let labelService: LabelService;
 
 	setup(() => {
-		uriLabelService = new UriLabelService(TestEnvironmentService, new TestContextService());
+		labelService = new LabelService(TestEnvironmentService, new TestContextService());
 	});
 
 	test('file scheme', function () {
-		uriLabelService.registerFormater(Schemas.file, {
-			label: '${path}',
-			separator: nativeSep,
-			tildify: !isWindows,
-			normalizeDriveLetter: isWindows
+		labelService.registerFormatter(Schemas.file, {
+			uri: {
+				label: '${path}',
+				separator: nativeSep,
+				tildify: !isWindows,
+				normalizeDriveLetter: isWindows
+			}
 		});
 
 		const uri1 = TestWorkspace.folders[0].uri.with({ path: TestWorkspace.folders[0].uri.path.concat('/a/b/c/d') });
-		assert.equal(uriLabelService.getLabel(uri1, true), isWindows ? 'a\\b\\c\\d' : 'a/b/c/d');
-		assert.equal(uriLabelService.getLabel(uri1, false), isWindows ? 'C:\\testWorkspace\\a\\b\\c\\d' : '/testWorkspace/a/b/c/d');
+		assert.equal(labelService.getUriLabel(uri1, true), isWindows ? 'a\\b\\c\\d' : 'a/b/c/d');
+		assert.equal(labelService.getUriLabel(uri1, false), isWindows ? 'C:\\testWorkspace\\a\\b\\c\\d' : '/testWorkspace/a/b/c/d');
 
 		const uri2 = URI.file('c:\\1/2/3');
-		assert.equal(uriLabelService.getLabel(uri2, false), isWindows ? 'C:\\1\\2\\3' : '/c:\\1/2/3');
+		assert.equal(labelService.getUriLabel(uri2, false), isWindows ? 'C:\\1\\2\\3' : '/c:\\1/2/3');
 	});
 
 	test('custom scheme', function () {
-		uriLabelService.registerFormater(Schemas.vscode, {
-			label: 'LABEL/${path}/${authority}/END',
-			separator: '/',
-			tildify: true,
-			normalizeDriveLetter: true
+		labelService.registerFormatter(Schemas.vscode, {
+			uri: {
+				label: 'LABEL/${path}/${authority}/END',
+				separator: '/',
+				tildify: true,
+				normalizeDriveLetter: true
+			}
 		});
 
 		const uri1 = URI.parse('vscode://microsoft.com/1/2/3/4/5');
-		assert.equal(uriLabelService.getLabel(uri1, false), 'LABEL//1/2/3/4/5/microsoft.com/END');
+		assert.equal(labelService.getUriLabel(uri1, false), 'LABEL//1/2/3/4/5/microsoft.com/END');
 	});
 });

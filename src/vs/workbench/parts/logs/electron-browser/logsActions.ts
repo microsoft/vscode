@@ -16,6 +16,7 @@ import { ICommandService } from 'vs/platform/commands/common/commands';
 import URI from 'vs/base/common/uri';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { IQuickPickItem, IQuickInputService } from 'vs/platform/quickinput/common/quickInput';
+import { ILabelService } from 'vs/platform/label/common/label';
 
 export class OpenLogsFolderAction extends Action {
 
@@ -42,14 +43,16 @@ export class ShowLogsAction extends Action {
 	constructor(id: string, label: string,
 		@IQuickInputService private quickInputService: IQuickInputService,
 		@IOutputService private outputService: IOutputService,
-		@IWorkspaceContextService private contextService: IWorkspaceContextService
+		@IWorkspaceContextService private contextService: IWorkspaceContextService,
+		@ILabelService private labelService: ILabelService
 	) {
 		super(id, label);
 	}
 
 	run(): TPromise<void> {
+		const workspaceName = this.labelService.getWorkspaceLabel(this.contextService.getWorkspace());
 		const entries: IQuickPickItem[] = [
-			{ id: Constants.rendererLogChannelId, label: this.contextService.getWorkspace().name ? nls.localize('rendererProcess', "Window ({0})", this.contextService.getWorkspace().name) : nls.localize('emptyWindow', "Window") },
+			{ id: Constants.rendererLogChannelId, label: workspaceName ? nls.localize('rendererProcess', "Window ({0})", workspaceName) : nls.localize('emptyWindow', "Window") },
 			{ id: Constants.extHostLogChannelId, label: nls.localize('extensionHost', "Extension Host") },
 			{ id: Constants.sharedLogChannelId, label: nls.localize('sharedProcess', "Shared") },
 			{ id: Constants.mainLogChannelId, label: nls.localize('mainProcess', "Main") }
@@ -75,14 +78,16 @@ export class OpenLogFileAction extends Action {
 		@IEnvironmentService private environmentService: IEnvironmentService,
 		@ICommandService private commandService: ICommandService,
 		@IWindowService private windowService: IWindowService,
-		@IWorkspaceContextService private contextService: IWorkspaceContextService
+		@IWorkspaceContextService private contextService: IWorkspaceContextService,
+		@ILabelService private labelService: ILabelService
 	) {
 		super(id, label);
 	}
 
 	run(): TPromise<void> {
+		const workspaceName = this.labelService.getWorkspaceLabel(this.contextService.getWorkspace());
 		const entries: IQuickPickItem[] = [
-			{ id: URI.file(paths.join(this.environmentService.logsPath, `renderer${this.windowService.getCurrentWindowId()}.log`)).fsPath, label: this.contextService.getWorkspace().name ? nls.localize('rendererProcess', "Window ({0})", this.contextService.getWorkspace().name) : nls.localize('emptyWindow', "Window") },
+			{ id: URI.file(paths.join(this.environmentService.logsPath, `renderer${this.windowService.getCurrentWindowId()}.log`)).fsPath, label: workspaceName ? nls.localize('rendererProcess', "Window ({0})", workspaceName) : nls.localize('emptyWindow', "Window") },
 			{ id: URI.file(paths.join(this.environmentService.logsPath, `exthost${this.windowService.getCurrentWindowId()}.log`)).fsPath, label: nls.localize('extensionHost', "Extension Host") },
 			{ id: URI.file(paths.join(this.environmentService.logsPath, `sharedprocess.log`)).fsPath, label: nls.localize('sharedProcess', "Shared") },
 			{ id: URI.file(paths.join(this.environmentService.logsPath, `main.log`)).fsPath, label: nls.localize('mainProcess', "Main") },

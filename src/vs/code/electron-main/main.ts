@@ -5,7 +5,7 @@
 
 'use strict';
 
-import 'vs/code/electron-main/contributions';
+import 'vs/code/code.main';
 import { app, dialog } from 'electron';
 import { assign } from 'vs/base/common/objects';
 import * as platform from 'vs/base/common/platform';
@@ -50,7 +50,7 @@ import { uploadLogs } from 'vs/code/electron-main/logUploader';
 import { setUnexpectedErrorHandler } from 'vs/base/common/errors';
 import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
 import { CommandLineDialogService } from 'vs/platform/dialogs/node/dialogService';
-import { IUriLabelService, UriLabelService } from 'vs/platform/uriLabel/common/uriLabel';
+import { ILabelService, LabelService } from 'vs/platform/label/common/label';
 
 function createServices(args: ParsedArgs, bufferLogService: BufferLogService): IInstantiationService {
 	const services = new ServiceCollection();
@@ -58,7 +58,7 @@ function createServices(args: ParsedArgs, bufferLogService: BufferLogService): I
 	const environmentService = new EnvironmentService(args, process.execPath);
 	const consoleLogService = new ConsoleLogMainService(getLogLevel(environmentService));
 	const logService = new MultiplexLogService([consoleLogService, bufferLogService]);
-	const uriLabelService = new UriLabelService(environmentService, undefined);
+	const labelService = new LabelService(environmentService, undefined);
 
 	process.once('exit', () => logService.dispose());
 
@@ -66,7 +66,7 @@ function createServices(args: ParsedArgs, bufferLogService: BufferLogService): I
 	setTimeout(() => cleanupOlderLogs(environmentService).then(null, err => console.error(err)), 10000);
 
 	services.set(IEnvironmentService, environmentService);
-	services.set(IUriLabelService, uriLabelService);
+	services.set(ILabelService, labelService);
 	services.set(ILogService, logService);
 	services.set(IWorkspacesMainService, new SyncDescriptor(WorkspacesMainService));
 	services.set(IHistoryMainService, new SyncDescriptor(HistoryMainService));

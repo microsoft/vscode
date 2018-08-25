@@ -11,7 +11,7 @@ import { TPromise } from 'vs/base/common/winjs.base';
 import { FileWriteOptions, FileSystemProviderCapabilities, IFileChange, IFileService, IFileSystemProvider, IStat, IWatchOptions, FileType, FileOverwriteOptions, FileDeleteOptions } from 'vs/platform/files/common/files';
 import { extHostNamedCustomer } from 'vs/workbench/api/electron-browser/extHostCustomers';
 import { ExtHostContext, ExtHostFileSystemShape, IExtHostContext, IFileChangeDto, MainContext, MainThreadFileSystemShape } from '../node/extHost.protocol';
-import { UriLabelRules, IUriLabelService } from 'vs/platform/uriLabel/common/uriLabel';
+import { LabelRules, ILabelService } from 'vs/platform/label/common/label';
 
 @extHostNamedCustomer(MainContext.MainThreadFileSystem)
 export class MainThreadFileSystem implements MainThreadFileSystemShape {
@@ -22,7 +22,7 @@ export class MainThreadFileSystem implements MainThreadFileSystemShape {
 	constructor(
 		extHostContext: IExtHostContext,
 		@IFileService private readonly _fileService: IFileService,
-		@IUriLabelService private readonly _uriLabelService: IUriLabelService
+		@ILabelService private readonly _labelService: ILabelService
 	) {
 		this._proxy = extHostContext.getProxy(ExtHostContext.ExtHostFileSystem);
 	}
@@ -41,8 +41,8 @@ export class MainThreadFileSystem implements MainThreadFileSystemShape {
 		this._fileProvider.delete(handle);
 	}
 
-	$setUriFormatter(scheme: string, formatter: UriLabelRules): void {
-		this._uriLabelService.registerFormater(scheme, formatter);
+	$setUriFormatter(scheme: string, formatter: LabelRules): void {
+		this._labelService.registerFormatter(scheme, formatter);
 	}
 
 	$onFileSystemChange(handle: number, changes: IFileChangeDto[]): void {
@@ -99,15 +99,13 @@ class RemoteFileSystemProvider implements IFileSystemProvider {
 	}
 
 	readFile(resource: URI): TPromise<Uint8Array> {
-		return this._proxy.$readFile(this._handle, resource).then(encoded => {
-			return Buffer.from(encoded, 'base64');
-		});
+		return this._proxy.$readFile(this._handle, resource);
 	}
 
 	writeFile(resource: URI, content: Uint8Array, opts: FileWriteOptions): TPromise<void> {
 		let encoded = Buffer.isBuffer(content)
-			? content.toString('base64')
-			: Buffer.from(content.buffer, content.byteOffset, content.byteLength).toString('base64');
+			? content
+			: Buffer.from(content.buffer, content.byteOffset, content.byteLength);
 		return this._proxy.$writeFile(this._handle, resource, encoded, opts);
 	}
 

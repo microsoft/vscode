@@ -61,7 +61,7 @@ export class Menu extends ActionBar {
 
 		this.actionsList.setAttribute('role', 'menu');
 
-		this.domNode.tabIndex = 0;
+		this.actionsList.tabIndex = 0;
 
 		this.menuDisposables = [];
 
@@ -208,8 +208,8 @@ interface IMenuItemOptions extends IActionItemOptions {
 }
 
 class MenuActionItem extends BaseActionItem {
-	static MNEMONIC_REGEX: RegExp = /&&(.)/g;
-	static ESCAPED_MNEMONIC_REGEX: RegExp = /&amp;&amp;(.)/g;
+	static MNEMONIC_REGEX: RegExp = /&&(.)/;
+	static ESCAPED_MNEMONIC_REGEX: RegExp = /&amp;&amp;(.)/;
 
 	public container: HTMLElement;
 	protected $e: Builder;
@@ -251,13 +251,16 @@ class MenuActionItem extends BaseActionItem {
 			this.$e.attr({ role: 'presentation' });
 		} else {
 			this.$e.attr({ role: 'menuitem' });
+			if (this.mnemonic) {
+				this.$e.attr({ 'aria-keyshortcuts': this.mnemonic });
+			}
 		}
 
-		this.$check = $('span.menu-item-check').appendTo(this.$e);
-		this.$label = $('span.action-label').appendTo(this.$e);
+		this.$check = $('span.menu-item-check').attr({ 'role': 'none' }).appendTo(this.$e);
+		this.$label = $('span.action-label').attr({ 'role': 'none' }).appendTo(this.$e);
 
 		if (this.options.label && this.options.keybinding) {
-			$('span.keybinding').text(this.options.keybinding).appendTo(this.$e);
+			$('span.keybinding').attr({ 'role': 'none' }).text(this.options.keybinding).appendTo(this.$e);
 		}
 
 		this._updateClass();
@@ -275,10 +278,11 @@ class MenuActionItem extends BaseActionItem {
 	_updateLabel(): void {
 		if (this.options.label) {
 			let label = this.getAction().label;
+			let mnemonic: string;
 			if (label) {
 				let matches = MenuActionItem.MNEMONIC_REGEX.exec(label);
 				if (matches && matches.length === 2) {
-					let mnemonic = matches[1];
+					mnemonic = matches[1];
 
 					let ariaLabel = label.replace(MenuActionItem.MNEMONIC_REGEX, mnemonic);
 
@@ -289,8 +293,9 @@ class MenuActionItem extends BaseActionItem {
 					this.$label.attr('aria-label', label);
 				}
 
-				if (this.options.enableMnemonics) {
+				if (this.options.enableMnemonics && mnemonic) {
 					label = strings.escape(label).replace(MenuActionItem.ESCAPED_MNEMONIC_REGEX, '<u>$1</u>');
+					this.$e.attr({ 'aria-keyshortcuts': mnemonic.toLocaleLowerCase() });
 				} else {
 					label = strings.escape(label).replace(MenuActionItem.ESCAPED_MNEMONIC_REGEX, '$1');
 				}
@@ -350,8 +355,10 @@ class MenuActionItem extends BaseActionItem {
 	_updateChecked(): void {
 		if (this.getAction().checked) {
 			this.$e.addClass('checked');
+			this.$e.attr({ 'role': 'menuitemcheckbox', 'aria-checked': true });
 		} else {
 			this.$e.removeClass('checked');
+			this.$e.attr({ 'role': 'menuitem', 'aria-checked': false });
 		}
 	}
 
@@ -395,11 +402,11 @@ class SubmenuActionItem extends MenuActionItem {
 
 		this.$e.addClass('monaco-submenu-item');
 		this.$e.attr('aria-haspopup', 'true');
-		$('span.submenu-indicator').text('\u25B6').appendTo(this.$e);
+		$('span.submenu-indicator').attr('aria-hidden', 'true').text('\u25B6').appendTo(this.$e);
 
 		$(this.builder).on(EventType.KEY_UP, (e) => {
 			let event = new StandardKeyboardEvent(e as KeyboardEvent);
-			if (event.equals(KeyCode.RightArrow)) {
+			if (event.equals(KeyCode.RightArrow) || event.equals(KeyCode.Enter)) {
 				EventHelper.stop(e, true);
 
 				this.createSubmenu(true);
@@ -408,7 +415,7 @@ class SubmenuActionItem extends MenuActionItem {
 
 		$(this.builder).on(EventType.KEY_DOWN, (e) => {
 			let event = new StandardKeyboardEvent(e as KeyboardEvent);
-			if (event.equals(KeyCode.RightArrow)) {
+			if (event.equals(KeyCode.RightArrow) || event.equals(KeyCode.Enter)) {
 				EventHelper.stop(e, true);
 			}
 		});

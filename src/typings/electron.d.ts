@@ -106,7 +106,7 @@ declare namespace Electron {
 	const powerMonitor: PowerMonitor;
 	const powerSaveBlocker: PowerSaveBlocker;
 	const protocol: Protocol;
-	const remote: Remote;
+	// const remote: Remote; ### VSCODE CHANGE (we do not want to use remote)
 	const screen: Screen;
 	type session = Session;
 	const session: typeof Session;
@@ -3068,7 +3068,7 @@ declare namespace Electron {
 		 * event.returnValue. Note: Sending a synchronous message will block the whole
 		 * renderer process, unless you know what you are doing you should never use it.
 		 */
-		sendSync(channel: string, ...args: any[]): any;
+		// sendSync(channel: string, ...args: any[]): any; ### VSCODE CHANGE (we do not want to use sendSync)
 		/**
 		 * Sends a message to a window with windowid via channel.
 		 */

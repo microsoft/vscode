@@ -93,7 +93,7 @@ import { IDecorationsService } from 'vs/workbench/services/decorations/browser/d
 import { ActivityService } from 'vs/workbench/services/activity/browser/activityService';
 import URI from 'vs/base/common/uri';
 import { IListService, ListService } from 'vs/platform/list/browser/listService';
-import { InputFocusedContext } from 'vs/platform/workbench/common/contextkeys';
+import { InputFocusedContext, IsMacContext, IsLinuxContext, IsWindowsContext } from 'vs/platform/workbench/common/contextkeys';
 import { IViewsService } from 'vs/workbench/common/views';
 import { ViewsService } from 'vs/workbench/browser/parts/views/views';
 import { INotificationService } from 'vs/platform/notification/common/notification';
@@ -116,7 +116,7 @@ import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { TelemetryService } from 'vs/platform/telemetry/common/telemetryService';
 import { WorkbenchThemeService } from 'vs/workbench/services/themes/electron-browser/workbenchThemeService';
 import { IWorkbenchThemeService } from 'vs/workbench/services/themes/common/workbenchThemeService';
-import { IUriLabelService, UriLabelService } from 'vs/platform/uriLabel/common/uriLabel';
+import { LabelService, ILabelService } from 'vs/platform/label/common/label';
 
 interface WorkbenchParams {
 	configuration: IWindowConfiguration;
@@ -337,9 +337,8 @@ export class Workbench extends Disposable implements IPartService {
 		serviceCollection.set(IClipboardService, new ClipboardService());
 
 		// Uri Display
-		const uriLabelService = new UriLabelService(this.environmentService, this.contextService);
-		serviceCollection.set(IUriLabelService, uriLabelService);
-		this.configurationService.acquireUriLabelService(uriLabelService);
+		const labelService = new LabelService(this.environmentService, this.contextService);
+		serviceCollection.set(ILabelService, labelService);
 
 		// Status bar
 		this.statusbarPart = this.instantiationService.createInstance(StatusbarPart, Identifiers.STATUSBAR_PART);
@@ -538,6 +537,10 @@ export class Workbench extends Disposable implements IPartService {
 			this.menubarToggled = visible;
 
 			if (this.menubarVisibility === 'toggle' || (browser.isFullscreen() && this.menubarVisibility === 'default')) {
+				if (browser.isFullscreen() && this.menubarVisibility === 'default') {
+					this._onTitleBarVisibilityChange.fire();
+				}
+
 				this.layout();
 			}
 		}
@@ -610,9 +613,9 @@ export class Workbench extends Disposable implements IPartService {
 	private handleContextKeys(): void {
 		this.inZenMode = InEditorZenModeContext.bindTo(this.contextKeyService);
 
-		(new RawContextKey<boolean>('isMac', isMacintosh)).bindTo(this.contextKeyService);
-		(new RawContextKey<boolean>('isLinux', isLinux)).bindTo(this.contextKeyService);
-		(new RawContextKey<boolean>('isWindows', isWindows)).bindTo(this.contextKeyService);
+		IsMacContext.bindTo(this.contextKeyService);
+		IsLinuxContext.bindTo(this.contextKeyService);
+		IsWindowsContext.bindTo(this.contextKeyService);
 
 		const sidebarVisibleContextRaw = new RawContextKey<boolean>('sidebarVisible', false);
 		this.sideBarVisibleContext = sidebarVisibleContextRaw.bindTo(this.contextKeyService);

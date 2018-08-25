@@ -107,7 +107,8 @@ export class ResourceViewer {
 	private static isImageResource(descriptor: IResourceDescriptor) {
 		const mime = getMime(descriptor);
 
-		return mime.indexOf('image/') >= 0;
+		// Chrome does not support tiffs
+		return mime.indexOf('image/') >= 0 && mime !== 'image/tiff';
 	}
 }
 

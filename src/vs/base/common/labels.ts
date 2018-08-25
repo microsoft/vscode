@@ -23,7 +23,7 @@ export interface IUserHomeProvider {
 }
 
 /**
- * @deprecated use UriLabelService instead
+ * @deprecated use LabelService instead
  */
 export function getPathLabel(resource: URI | string, userHomeProvider: IUserHomeProvider, rootProvider?: IWorkspaceFolderProvider): string {
 	if (!resource) {

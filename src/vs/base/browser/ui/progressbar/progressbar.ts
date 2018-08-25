@@ -7,10 +7,11 @@
 
 import 'vs/css!./progressbar';
 import * as assert from 'vs/base/common/assert';
-import { Builder, $ } from 'vs/base/browser/builder';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { Color } from 'vs/base/common/color';
 import { mixin } from 'vs/base/common/objects';
+import { removeClasses, addClass, hasClass, addClasses, removeClass, hide, show } from 'vs/base/browser/dom';
+import { RunOnceScheduler } from 'vs/base/common/async';
 
 const css_done = 'done';
 const css_active = 'active';
@@ -36,10 +37,11 @@ const defaultOpts = {
 export class ProgressBar extends Disposable {
 	private options: IProgressBarOptions;
 	private workedVal: number;
-	private element: Builder;
+	private element: HTMLElement;
 	private bit: HTMLElement;
 	private totalWork: number;
 	private progressBarBackground: Color;
+	private showDelayedScheduler: RunOnceScheduler;
 
 	constructor(container: HTMLElement, options?: IProgressBarOptions) {
 		super();
@@ -51,14 +53,19 @@ export class ProgressBar extends Disposable {
 
 		this.progressBarBackground = this.options.progressBarBackground;
 
+		this._register(this.showDelayedScheduler = new RunOnceScheduler(() => show(this.element), 0));
+
 		this.create(container);
 	}
 
 	private create(container: HTMLElement): void {
-		$(container).div({ 'class': css_progress_container }, builder => {
-			this.element = builder.clone();
-			this.bit = builder.div({ 'class': css_progress_bit }).getHTMLElement();
-		});
+		this.element = document.createElement('div');
+		addClass(this.element, css_progress_container);
+		container.appendChild(this.element);
+
+		this.bit = document.createElement('div');
+		addClass(this.bit, css_progress_bit);
+		this.element.appendChild(this.bit);
 
 		this.applyStyles();
 	}
@@ -66,9 +73,7 @@ export class ProgressBar extends Disposable {
 	private off(): void {
 		this.bit.style.width = 'inherit';
 		this.bit.style.opacity = '1';
-		this.element.removeClass(css_active);
-		this.element.removeClass(css_infinite);
-		this.element.removeClass(css_discrete);
+		removeClasses(this.element, css_active, css_infinite, css_discrete);
 
 		this.workedVal = 0;
 		this.totalWork = undefined;
@@ -89,10 +94,10 @@ export class ProgressBar extends Disposable {
 	}
 
 	private doDone(delayed: boolean): ProgressBar {
-		this.element.addClass(css_done);
+		addClass(this.element, css_done);
 
 		// let it grow to 100% width and hide afterwards
-		if (!this.element.hasClass(css_infinite)) {
+		if (!hasClass(this.element, css_infinite)) {
 			this.bit.style.width = 'inherit';
 
 			if (delayed) {
@@ -122,10 +127,8 @@ export class ProgressBar extends Disposable {
 		this.bit.style.width = '2%';
 		this.bit.style.opacity = '1';
 
-		this.element.removeClass(css_discrete);
-		this.element.removeClass(css_done);
-		this.element.addClass(css_active);
-		this.element.addClass(css_infinite);
+		removeClasses(this.element, css_discrete, css_done);
+		addClasses(this.element, css_active, css_infinite);
 
 		return this;
 	}
@@ -176,20 +179,20 @@ export class ProgressBar extends Disposable {
 		this.workedVal = value;
 		this.workedVal = Math.min(this.totalWork, this.workedVal);
 
-		if (this.element.hasClass(css_infinite)) {
-			this.element.removeClass(css_infinite);
+		if (hasClass(this.element, css_infinite)) {
+			removeClass(this.element, css_infinite);
 		}
 
-		if (this.element.hasClass(css_done)) {
-			this.element.removeClass(css_done);
+		if (hasClass(this.element, css_done)) {
+			removeClass(this.element, css_done);
 		}
 
-		if (!this.element.hasClass(css_active)) {
-			this.element.addClass(css_active);
+		if (!hasClass(this.element, css_active)) {
+			addClass(this.element, css_active);
 		}
 
-		if (!this.element.hasClass(css_discrete)) {
-			this.element.addClass(css_discrete);
+		if (!hasClass(this.element, css_discrete)) {
+			addClass(this.element, css_discrete);
 		}
 
 		this.bit.style.width = 100 * (this.workedVal / this.totalWork) + '%';
@@ -198,19 +201,22 @@ export class ProgressBar extends Disposable {
 	}
 
 	getContainer(): HTMLElement {
-		return this.element.getHTMLElement();
+		return this.element;
 	}
 
 	show(delay?: number): void {
+		this.showDelayedScheduler.cancel();
+
 		if (typeof delay === 'number') {
-			this.element.showDelayed(delay);
+			this.showDelayedScheduler.schedule(delay);
 		} else {
-			this.element.show();
+			show(this.element);
 		}
 	}
 
 	hide(): void {
-		this.element.hide();
+		hide(this.element);
+		this.showDelayedScheduler.cancel();
 	}
 
 	style(styles: IProgressBarStyles): void {

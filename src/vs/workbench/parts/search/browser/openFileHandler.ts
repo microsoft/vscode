@@ -33,7 +33,7 @@ import { getOutOfWorkspaceEditorResources } from 'vs/workbench/parts/search/comm
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { prepareQuery, IPreparedQuery } from 'vs/base/parts/quickopen/common/quickOpenScorer';
 import { IFileService } from 'vs/platform/files/common/files';
-import { IUriLabelService } from 'vs/platform/uriLabel/common/uriLabel';
+import { ILabelService } from 'vs/platform/label/common/label';
 import { untildify } from 'vs/base/common/labels';
 
 export class FileQuickOpenModel extends QuickOpenModel {
@@ -127,7 +127,7 @@ export class OpenFileHandler extends QuickOpenHandler {
 		@ISearchService private searchService: ISearchService,
 		@IEnvironmentService private environmentService: IEnvironmentService,
 		@IFileService private fileService: IFileService,
-		@IUriLabelService private uriLabelService: IUriLabelService
+		@ILabelService private labelService: ILabelService
 	) {
 		super();
 
@@ -173,7 +173,7 @@ export class OpenFileHandler extends QuickOpenHandler {
 				const fileMatch = complete.results[i];
 
 				const label = paths.basename(fileMatch.resource.fsPath);
-				const description = this.uriLabelService.getLabel(resources.dirname(fileMatch.resource), true);
+				const description = this.labelService.getUriLabel(resources.dirname(fileMatch.resource), true);
 
 				results.push(this.instantiationService.createInstance(FileEntry, fileMatch.resource, label, description, iconClass));
 			}

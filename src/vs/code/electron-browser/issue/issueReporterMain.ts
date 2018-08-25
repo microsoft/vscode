@@ -6,7 +6,7 @@
 'use strict';
 
 import 'vs/css!./media/issueReporter';
-import { shell, ipcRenderer, webFrame, remote, clipboard } from 'electron';
+import { shell, ipcRenderer, webFrame, clipboard } from 'electron';
 import { localize } from 'vs/nls';
 import { $ } from 'vs/base/browser/dom';
 import * as collections from 'vs/base/common/collections';
@@ -91,7 +91,7 @@ export class IssueReporter extends Disposable {
 
 		this.previewButton = new Button(document.getElementById('issue-reporter'));
 
-		ipcRenderer.on('issuePerformanceInfoResponse', (event, info) => {
+		ipcRenderer.on('vscode:issuePerformanceInfoResponse', (event, info) => {
 			this.logService.trace('issueReporter: Received performance data');
 			this.issueReporterModel.update(info);
 			this.receivedPerformanceInfo = true;
@@ -102,7 +102,7 @@ export class IssueReporter extends Disposable {
 			this.updatePreviewButtonState();
 		});
 
-		ipcRenderer.on('issueSystemInfoResponse', (event, info) => {
+		ipcRenderer.on('vscode:issueSystemInfoResponse', (event, info) => {
 			this.logService.trace('issueReporter: Received system data');
 			this.issueReporterModel.update({ systemInfo: info });
 			this.receivedSystemInfo = true;
@@ -111,9 +111,9 @@ export class IssueReporter extends Disposable {
 			this.updatePreviewButtonState();
 		});
 
-		ipcRenderer.send('issueSystemInfoRequest');
+		ipcRenderer.send('vscode:issueSystemInfoRequest');
 		if (configuration.data.issueType === IssueType.PerformanceIssue) {
-			ipcRenderer.send('issuePerformanceInfoRequest');
+			ipcRenderer.send('vscode:issuePerformanceInfoRequest');
 		}
 		this.logService.trace('issueReporter: Sent data requests');
 
@@ -308,7 +308,7 @@ export class IssueReporter extends Disposable {
 			const issueType = parseInt((<HTMLInputElement>event.target).value);
 			this.issueReporterModel.update({ issueType: issueType });
 			if (issueType === IssueType.PerformanceIssue && !this.receivedPerformanceInfo) {
-				ipcRenderer.send('issuePerformanceInfoRequest');
+				ipcRenderer.send('vscode:issuePerformanceInfoRequest');
 			}
 			this.updatePreviewButtonState();
 			this.render();
@@ -384,14 +384,14 @@ export class IssueReporter extends Disposable {
 		this.previewButton.onDidClick(() => this.createIssue());
 
 		this.addEventListener('disableExtensions', 'click', () => {
-			ipcRenderer.send('workbenchCommand', 'workbench.action.reloadWindowWithExtensionsDisabled');
+			ipcRenderer.send('vscode:workbenchCommand', 'workbench.action.reloadWindowWithExtensionsDisabled');
 		});
 
 		this.addEventListener('disableExtensions', 'keydown', (e: KeyboardEvent) => {
 			e.stopPropagation();
 			if (e.keyCode === 13 || e.keyCode === 32) {
-				ipcRenderer.send('workbenchCommand', 'workbench.extensions.action.disableAll');
-				ipcRenderer.send('workbenchCommand', 'workbench.action.reloadWindow');
+				ipcRenderer.send('vscode:workbenchCommand', 'workbench.extensions.action.disableAll');
+				ipcRenderer.send('vscode:workbenchCommand', 'workbench.action.reloadWindow');
 			}
 		});
 
@@ -400,7 +400,7 @@ export class IssueReporter extends Disposable {
 			// Cmd/Ctrl+Enter previews issue and closes window
 			if (cmdOrCtrlKey && e.keyCode === 13) {
 				if (this.createIssue()) {
-					remote.getCurrentWindow().close();
+					ipcRenderer.send('vscode:closeIssueReporter');
 				}
 			}
 

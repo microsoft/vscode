@@ -14,11 +14,12 @@ import * as dom from 'vs/base/browser/dom';
 import * as arrays from 'vs/base/common/arrays';
 import { IContextViewProvider, AnchorPosition } from 'vs/base/browser/ui/contextview/contextview';
 import { List } from 'vs/base/browser/ui/list/listWidget';
-import { IVirtualDelegate, IRenderer } from 'vs/base/browser/ui/list/list';
+import { IVirtualDelegate, IRenderer, IListEvent } from 'vs/base/browser/ui/list/list';
 import { domEvent } from 'vs/base/browser/event';
 import { ScrollbarVisibility } from 'vs/base/common/scrollable';
 import { ISelectBoxDelegate, ISelectBoxOptions, ISelectBoxStyles, ISelectData } from 'vs/base/browser/ui/selectBox/selectBox';
 import { isMacintosh } from 'vs/base/common/platform';
+import { renderMarkdown } from 'vs/base/browser/htmlContentRenderer';
 
 const $ = dom.$;
 
@@ -103,6 +104,11 @@ export class SelectBoxList implements ISelectBoxDelegate, IVirtualDelegate<ISele
 	private widthControlElement: HTMLElement;
 	private _currentSelection: number;
 	private _dropDownPosition: AnchorPosition;
+	private detailsProvider: (index: number) => { details: string, isMarkdown: boolean };
+	private selectionDetailsPane: HTMLElement;
+
+
+	private _sticky: boolean = false; // for dev purposes only
 
 	constructor(options: string[], selected: number, contextViewProvider: IContextViewProvider, styles: ISelectBoxStyles, selectBoxOptions?: ISelectBoxOptions) {
 
@@ -153,6 +159,7 @@ export class SelectBoxList implements ISelectBoxDelegate, IVirtualDelegate<ISele
 		dom.addClass(this.selectDropDownContainer, 'monaco-select-box-dropdown-padding');
 		// Setup list for drop-down select
 		this.createSelectList(this.selectDropDownContainer);
+		this.selectionDetailsPane = dom.append(this.selectDropDownContainer, $('.select-box-details-pane'));
 
 		// Create span flex box item/div we can measure and control
 		let widthControlOuterDiv = dom.append(this.selectDropDownContainer, $('.select-box-dropdown-container-width-control'));
@@ -285,6 +292,10 @@ export class SelectBoxList implements ISelectBoxDelegate, IVirtualDelegate<ISele
 		this.selectList.getHTMLElement().setAttribute('aria-label', this.selectBoxOptions.ariaLabel);
 	}
 
+	public setDetailsProvider(provider: (index: number) => { details: string, isMarkdown: boolean }): void {
+		this.detailsProvider = provider;
+	}
+
 	public focus(): void {
 		if (this.selectElement) {
 			this.selectElement.focus();
@@ -318,6 +329,15 @@ export class SelectBoxList implements ISelectBoxDelegate, IVirtualDelegate<ISele
 
 		if (this.styles.listFocusForeground) {
 			content.push(`.monaco-select-box-dropdown-container > .select-box-dropdown-list-container .monaco-list .monaco-list-row.focused:not(:hover) { color: ${this.styles.listFocusForeground} !important; }`);
+		}
+
+		if (!this.styles.selectBorder.equals(this.styles.selectBackground)) {
+			content.push(`.monaco-select-box-dropdown-container { border: 1px solid ${this.styles.selectBorder} } `);
+			content.push(`.monaco-select-box-dropdown-container > .select-box-details-pane { border-top: 1px solid ${this.styles.selectBorder} } `);
+		}
+		else if (this.styles.selectListBorder) {
+			content.push(`.monaco-select-box-dropdown-container { border: 1px solid ${this.styles.selectListBorder} } `);
+			content.push(`.monaco-select-box-dropdown-container > .select-box-details-pane { border-top: 1px solid ${this.styles.selectListBorder} } `);
 		}
 
 		// Hover foreground - ignore for disabled options
@@ -370,6 +390,7 @@ export class SelectBoxList implements ISelectBoxDelegate, IVirtualDelegate<ISele
 
 			let listBackground = this.styles.selectListBackground ? this.styles.selectListBackground.toString() : background;
 			this.selectDropDownListContainer.style.backgroundColor = listBackground;
+			this.selectionDetailsPane.style.backgroundColor = listBackground;
 			const optionsBorder = this.styles.focusBorder ? this.styles.focusBorder.toString() : null;
 			this.selectDropDownContainer.style.outlineColor = optionsBorder;
 			this.selectDropDownContainer.style.outlineOffset = '-1px';
@@ -543,9 +564,6 @@ export class SelectBoxList implements ISelectBoxDelegate, IVirtualDelegate<ISele
 				this.selectList.reveal(this.selectList.getFocus()[0] || 0);
 			}
 
-			// Set final container height after adjustments
-			this.selectDropDownContainer.style.height = (listHeight + verticalPadding) + 'px';
-
 			// Determine optimal width - min(longest option), opt(parent select, excluding margins), max(ContextView controlled)
 			const selectWidth = this.selectElement.offsetWidth;
 			const selectMinWidth = this.setWidthControlElement(this.widthControlElement);
@@ -556,7 +574,6 @@ export class SelectBoxList implements ISelectBoxDelegate, IVirtualDelegate<ISele
 			// Maintain focus outline on parent select as well as list container - tabindex for focus
 			this.selectDropDownListContainer.setAttribute('tabindex', '0');
 			dom.toggleClass(this.selectElement, 'synthetic-focus', true);
-			dom.toggleClass(this.selectDropDownContainer, 'synthetic-focus', true);
 			return true;
 		} else {
 			return false;
@@ -626,7 +643,11 @@ export class SelectBoxList implements ISelectBoxDelegate, IVirtualDelegate<ISele
 			.filter(() => this.selectList.length > 0)
 			.on(e => this.onMouseUp(e), this, this.toDispose);
 
-		this.toDispose.push(this.selectList.onDidBlur(e => this.onListBlur()));
+		this.toDispose.push(
+			this.selectList.onDidBlur(e => this.onListBlur()),
+			this.selectList.onMouseOver(e => this.selectList.setFocus([e.index])),
+			this.selectList.onFocusChange(e => this.onListFocus(e))
+		);
 
 		this.selectList.getHTMLElement().setAttribute('aria-expanded', 'true');
 	}
@@ -672,13 +693,55 @@ export class SelectBoxList implements ISelectBoxDelegate, IVirtualDelegate<ISele
 
 	// List Exit - passive - implicit no selection change, hide drop-down
 	private onListBlur(): void {
-
+		if (this._sticky) { return; }
 		if (this.selected !== this._currentSelection) {
 			// Reset selected to current if no change
 			this.select(this._currentSelection);
 		}
 
 		this.hideSelectDropDown(false);
+	}
+
+
+	private renderDescriptionMarkdown(text: string): HTMLElement {
+		const cleanRenderedMarkdown = (element: Node) => {
+			for (let i = 0; i < element.childNodes.length; i++) {
+				const child = element.childNodes.item(i);
+
+				const tagName = (<Element>child).tagName && (<Element>child).tagName.toLowerCase();
+				if (tagName === 'img') {
+					element.removeChild(child);
+				} else {
+					cleanRenderedMarkdown(child);
+				}
+			}
+		};
+
+		const renderedMarkdown = renderMarkdown({ value: text }, {
+			actionHandler: this.selectBoxOptions.markdownActionHandler
+		});
+
+		renderedMarkdown.classList.add('select-box-description-markdown');
+		cleanRenderedMarkdown(renderedMarkdown);
+
+		return renderedMarkdown;
+	}
+
+	// List Focus Change - passive - update details pane with newly focused element's data
+	private onListFocus(e: IListEvent<ISelectOptionItem>) {
+		this.selectionDetailsPane.innerText = '';
+		const selectedIndex = e.indexes[0];
+		let description = this.detailsProvider ? this.detailsProvider(selectedIndex) : { details: '', isMarkdown: false };
+		if (description.details) {
+			if (description.isMarkdown) {
+				this.selectionDetailsPane.appendChild(this.renderDescriptionMarkdown(description.details));
+			} else {
+				this.selectionDetailsPane.innerText = description.details;
+			}
+			this.selectionDetailsPane.style.display = 'block';
+		} else {
+			this.selectionDetailsPane.style.display = 'none';
+		}
 	}
 
 	// List keyboard controller

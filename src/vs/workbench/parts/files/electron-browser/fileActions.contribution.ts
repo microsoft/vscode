@@ -25,6 +25,7 @@ import { ResourceContextKey } from 'vs/workbench/common/resources';
 import { WorkbenchListDoubleSelection } from 'vs/platform/list/browser/listService';
 import URI from 'vs/base/common/uri';
 import { Schemas } from 'vs/base/common/network';
+import { FileDialogContext } from 'vs/platform/workbench/common/contextkeys';
 
 // Contribute Global Actions
 const category = nls.localize('filesCategory', "File");
@@ -267,7 +268,7 @@ MenuRegistry.appendMenuItem(MenuId.OpenEditorsContext, {
 	group: '3_compare',
 	order: 20,
 	command: compareResourceCommand,
-	when: ContextKeyExpr.and(ResourceContextKey.IsFileSystemResource, ResourceSelectedForCompareContext, WorkbenchListDoubleSelection.toNegated())
+	when: ContextKeyExpr.and(ResourceContextKey.IsFileSystemResourceOrUntitled, ResourceSelectedForCompareContext, WorkbenchListDoubleSelection.toNegated())
 });
 
 const selectForCompareCommand = {
@@ -278,7 +279,7 @@ MenuRegistry.appendMenuItem(MenuId.OpenEditorsContext, {
 	group: '3_compare',
 	order: 30,
 	command: selectForCompareCommand,
-	when: ContextKeyExpr.and(ResourceContextKey.IsFileSystemResource, WorkbenchListDoubleSelection.toNegated())
+	when: ContextKeyExpr.and(ResourceContextKey.IsFileSystemResourceOrUntitled, WorkbenchListDoubleSelection.toNegated())
 });
 
 const compareSelectedCommand = {
@@ -289,7 +290,7 @@ MenuRegistry.appendMenuItem(MenuId.OpenEditorsContext, {
 	group: '3_compare',
 	order: 30,
 	command: compareSelectedCommand,
-	when: ContextKeyExpr.and(ResourceContextKey.IsFileSystemResource, WorkbenchListDoubleSelection)
+	when: ContextKeyExpr.and(ResourceContextKey.IsFileSystemResourceOrUntitled, WorkbenchListDoubleSelection)
 });
 
 MenuRegistry.appendMenuItem(MenuId.OpenEditorsContext, {
@@ -425,7 +426,7 @@ MenuRegistry.appendMenuItem(MenuId.ExplorerContext, {
 		id: ADD_ROOT_FOLDER_COMMAND_ID,
 		title: ADD_ROOT_FOLDER_LABEL
 	},
-	when: ExplorerRootContext
+	when: ContextKeyExpr.and(ExplorerRootContext, FileDialogContext.isEqualTo('local'))
 });
 
 MenuRegistry.appendMenuItem(MenuId.ExplorerContext, {
@@ -505,7 +506,8 @@ MenuRegistry.appendMenuItem(MenuId.MenubarFileMenu, {
 		id: SAVE_FILE_AS_COMMAND_ID,
 		title: nls.localize({ key: 'miSaveAs', comment: ['&& denotes a mnemonic'] }, "Save &&As...")
 	},
-	order: 2
+	order: 2,
+	when: FileDialogContext.isEqualTo('local')
 });
 
 MenuRegistry.appendMenuItem(MenuId.MenubarFileMenu, {

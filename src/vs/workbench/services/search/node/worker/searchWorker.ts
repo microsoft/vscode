@@ -7,15 +7,16 @@
 
 import * as fs from 'fs';
 import * as gracefulFs from 'graceful-fs';
-gracefulFs.gracefulify(fs);
-
 import { onUnexpectedError } from 'vs/base/common/errors';
 import * as strings from 'vs/base/common/strings';
 import { TPromise } from 'vs/base/common/winjs.base';
-import { LineMatch, FileMatch } from '../search';
-import { UTF16le, UTF16be, UTF8, UTF8_with_bom, encodingExists, decode, bomLength, detectEncodingFromBuffer } from 'vs/base/node/encoding';
-
+import { bomLength, decode, detectEncodingFromBuffer, encodingExists, UTF16be, UTF16le, UTF8, UTF8_with_bom } from 'vs/base/node/encoding';
+import { Range } from 'vs/editor/common/core/range';
+import { ITextSearchPreviewOptions, TextSearchResult } from 'vs/platform/search/common/search';
+import { FileMatch } from '../search';
 import { ISearchWorker, ISearchWorkerSearchArgs, ISearchWorkerSearchResult } from './searchWorkerIpc';
+
+gracefulFs.gracefulify(fs);
 
 interface ReadLinesOptions {
 	bufferLength: number;
@@ -95,7 +96,7 @@ export class SearchWorkerEngine {
 
 			// Search in the given path, and when it's finished, search in the next path in absolutePaths
 			const startSearchInFile = (absolutePath: string): TPromise<void> => {
-				return this.searchInFile(absolutePath, contentPattern, fileEncoding, args.maxResults && (args.maxResults - result.numMatches)).then(fileResult => {
+				return this.searchInFile(absolutePath, contentPattern, fileEncoding, args.maxResults && (args.maxResults - result.numMatches), args.previewOptions).then(fileResult => {
 					// Finish early if search is canceled
 					if (this.isCanceled) {
 						return;
@@ -124,13 +125,12 @@ export class SearchWorkerEngine {
 		this.isCanceled = true;
 	}
 
-	private searchInFile(absolutePath: string, contentPattern: RegExp, fileEncoding: string, maxResults?: number): TPromise<IFileSearchResult> {
+	private searchInFile(absolutePath: string, contentPattern: RegExp, fileEncoding: string, maxResults?: number, previewOptions?: ITextSearchPreviewOptions): TPromise<IFileSearchResult> {
 		let fileMatch: FileMatch = null;
 		let limitReached = false;
 		let numMatches = 0;
 
 		const perLineCallback = (line: string, lineNumber: number) => {
-			let lineMatch: LineMatch = null;
 			let match = contentPattern.exec(line);
 
 			// Record all matches into file result
@@ -139,12 +139,8 @@ export class SearchWorkerEngine {
 					fileMatch = new FileMatch(absolutePath);
 				}
 
-				if (lineMatch === null) {
-					lineMatch = new LineMatch(line, lineNumber);
-					fileMatch.addMatch(lineMatch);
-				}
-
-				lineMatch.addMatch(match.index, match[0].length);
+				const lineMatch = new TextSearchResult(line, new Range(lineNumber, match.index, lineNumber, match.index + match[0].length), previewOptions);
+				fileMatch.addMatch(lineMatch);
 
 				numMatches++;
 				if (maxResults && numMatches >= maxResults) {

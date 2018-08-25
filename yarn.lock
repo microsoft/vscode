@@ -7912,9 +7912,9 @@ vscode-fsevents@0.3.9:
   dependencies:
     nan "^2.10.0"
 
-vscode-nls-dev@3.2.1:
-  version "3.2.1"
-  resolved "https://registry.yarnpkg.com/vscode-nls-dev/-/vscode-nls-dev-3.2.1.tgz#8aa9537b67d1e6e7ea4c6c4f80043c46c8a725ea"
+vscode-nls-dev@3.2.2:
+  version "3.2.2"
+  resolved "https://registry.yarnpkg.com/vscode-nls-dev/-/vscode-nls-dev-3.2.2.tgz#5855c9b3e566dd00fd6108f9c2e1bd02c925c153"
   dependencies:
     clone "^2.1.1"
     event-stream "^3.3.4"

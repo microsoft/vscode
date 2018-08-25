@@ -25,12 +25,11 @@ import { Event, Emitter } from 'vs/base/common/event';
 import { IDisposable, Disposable, dispose } from 'vs/base/common/lifecycle';
 import { domEvent } from 'vs/base/browser/event';
 import { IRecentlyOpened } from 'vs/platform/history/common/history';
-import { IWorkspaceIdentifier, getWorkspaceLabel, ISingleFolderWorkspaceIdentifier, isSingleFolderWorkspaceIdentifier, isWorkspaceIdentifier } from 'vs/platform/workspaces/common/workspaces';
-import { IEnvironmentService } from 'vs/platform/environment/common/environment';
+import { IWorkspaceIdentifier, ISingleFolderWorkspaceIdentifier, isSingleFolderWorkspaceIdentifier, isWorkspaceIdentifier } from 'vs/platform/workspaces/common/workspaces';
 import { RunOnceScheduler } from 'vs/base/common/async';
 import { MENUBAR_SELECTION_FOREGROUND, MENUBAR_SELECTION_BACKGROUND, MENUBAR_SELECTION_BORDER, TITLE_BAR_ACTIVE_FOREGROUND, TITLE_BAR_INACTIVE_FOREGROUND, MENU_BACKGROUND, MENU_FOREGROUND, MENU_SELECTION_BACKGROUND, MENU_SELECTION_FOREGROUND, MENU_SELECTION_BORDER } from 'vs/workbench/common/theme';
 import URI from 'vs/base/common/uri';
-import { IUriLabelService } from 'vs/platform/uriLabel/common/uriLabel';
+import { ILabelService } from 'vs/platform/label/common/label';
 import { foreground } from 'vs/platform/theme/common/colorRegistry';
 import { IUpdateService, StateType } from 'vs/platform/update/common/update';
 
@@ -122,8 +121,7 @@ export class MenubarControl extends Disposable {
 		@IContextKeyService private contextKeyService: IContextKeyService,
 		@IKeybindingService private keybindingService: IKeybindingService,
 		@IConfigurationService private configurationService: IConfigurationService,
-		@IEnvironmentService private environmentService: IEnvironmentService,
-		@IUriLabelService private uriLabelService: IUriLabelService,
+		@ILabelService private labelService: ILabelService,
 		@IUpdateService private updateService: IUpdateService
 	) {
 
@@ -338,6 +336,7 @@ export class MenubarControl extends Disposable {
 			} else {
 				DOM.addClass(this.container, 'inactive');
 				this.setUnfocusedState();
+				this.awaitingAltRelease = false;
 			}
 		}
 	}
@@ -533,14 +532,14 @@ export class MenubarControl extends Disposable {
 		let uri: URI;
 
 		if (isSingleFolderWorkspaceIdentifier(workspace) && !isFile) {
-			label = getWorkspaceLabel(workspace, this.environmentService, this.uriLabelService, { verbose: true });
+			label = this.labelService.getWorkspaceLabel(workspace, { verbose: true });
 			uri = workspace;
 		} else if (isWorkspaceIdentifier(workspace)) {
-			label = getWorkspaceLabel(workspace, this.environmentService, this.uriLabelService, { verbose: true });
+			label = this.labelService.getWorkspaceLabel(workspace, { verbose: true });
 			uri = URI.file(workspace.configPath);
 		} else {
 			uri = workspace;
-			label = this.uriLabelService.getLabel(uri);
+			label = this.labelService.getUriLabel(uri);
 		}
 
 		return new Action(commandId, label, undefined, undefined, (event) => {
@@ -661,8 +660,8 @@ export class MenubarControl extends Disposable {
 
 			// Create the top level menu button element
 			if (firstTimeSetup) {
-				const buttonElement = $('div.menubar-menu-button', { 'role': 'menu', 'tabindex': 0, 'aria-label': this.topLevelTitles[menuTitle].replace(/&&(.)/g, '$1') });
-				const titleElement = $('div.menubar-menu-title', { 'aria-hidden': true });
+				const buttonElement = $('div.menubar-menu-button', { 'role': 'menuitem', 'tabindex': 0, 'aria-label': this.topLevelTitles[menuTitle].replace(/&&(.)/g, '$1'), 'aria-haspopup': true });
+				const titleElement = $('div.menubar-menu-title', { 'role': 'none', 'aria-hidden': true });
 
 				buttonElement.appendChild(titleElement);
 				this.container.appendChild(buttonElement);
@@ -675,14 +674,20 @@ export class MenubarControl extends Disposable {
 			}
 
 			// Update the button label to reflect mnemonics
-			let displayTitle = this.topLevelTitles[menuTitle].replace(/&&(.)/g, this.currentEnableMenuBarMnemonics ? '<mnemonic>$1</mnemonic>' : '$1');
+			let displayTitle = this.topLevelTitles[menuTitle].replace(/&&(.)/g, this.currentEnableMenuBarMnemonics ? '<mnemonic aria-hidden="true">$1</mnemonic>' : '$1');
 			this.customMenus[menuIndex].titleElement.innerHTML = displayTitle;
 
 			// Register mnemonics
-			if (firstTimeSetup) {
-				let mnemonic = (/&&(.)/g).exec(this.topLevelTitles[menuTitle]);
-				if (mnemonic && mnemonic[1]) {
+			let mnemonic = (/&&(.)/g).exec(this.topLevelTitles[menuTitle]);
+			if (mnemonic && mnemonic[1]) {
+				if (firstTimeSetup) {
 					this.registerMnemonic(menuIndex, mnemonic[1]);
+				}
+
+				if (this.currentEnableMenuBarMnemonics) {
+					this.customMenus[menuIndex].buttonElement.setAttribute('aria-keyshortcuts', 'Alt+' + mnemonic[1].toLocaleLowerCase());
+				} else {
+					this.customMenus[menuIndex].buttonElement.removeAttribute('aria-keyshortcuts');
 				}
 			}
 
@@ -847,7 +852,7 @@ export class MenubarControl extends Disposable {
 			}
 		} else {
 			this.focusedMenu = { index: menuIndex };
-			this.openedViaKeyboard = clicked;
+			this.openedViaKeyboard = !clicked;
 			this.focusState = MenubarState.OPEN;
 		}
 	}
@@ -1023,7 +1028,8 @@ export class MenubarControl extends Disposable {
 		let menuOptions: IMenuOptions = {
 			getKeyBinding: (action) => this.keybindingService.lookupKeybinding(action.id),
 			actionRunner: this.actionRunner,
-			enableMnemonics: this.mnemonicsInUse
+			enableMnemonics: this.mnemonicsInUse,
+			ariaLabel: customMenu.buttonElement.attributes['aria-label'].value
 		};
 
 		let menuWidget = this._register(new Menu(menuHolder, customMenu.actions, menuOptions));

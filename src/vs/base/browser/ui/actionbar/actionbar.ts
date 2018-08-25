@@ -694,7 +694,7 @@ export class ActionBar implements IActionRunner {
 
 	protected updateFocus(fromRight?: boolean): void {
 		if (typeof this.focusedItem === 'undefined') {
-			this.domNode.focus();
+			this.actionsList.focus();
 		}
 
 		for (let i = 0; i < this.items.length; i++) {
@@ -707,7 +707,7 @@ export class ActionBar implements IActionRunner {
 					if (actionItem.isEnabled() && types.isFunction(actionItem.focus)) {
 						actionItem.focus(fromRight);
 					} else {
-						this.domNode.focus();
+						this.actionsList.focus();
 					}
 				}
 			} else {
