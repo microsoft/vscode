@@ -118,7 +118,7 @@ registerThemingParticipant((theme: ITheme, collector: ICssStyleCollector) => {
 
 	const modifiedItemIndicatorColor = theme.getColor(modifiedItemIndicator);
 	if (modifiedItemIndicatorColor) {
-		collector.addRule(`.settings-editor > .settings-body > .settings-tree-container .setting-item.is-configured::after { background-color: ${modifiedItemIndicatorColor}; }`);
+		collector.addRule(`.settings-editor > .settings-body > .settings-tree-container .setting-item > .setting-item-modified-indicator { border-color: ${modifiedItemIndicatorColor}; }`);
 	}
 });
 
@@ -403,9 +403,8 @@ export class ExcludeSettingWidget extends Disposable {
 					pattern,
 					sibling: siblingInput && siblingInput.value.trim()
 				});
-			} else {
-				this.renderList();
 			}
+			this.renderList();
 		};
 
 		const onKeydown = (e: StandardKeyboardEvent) => {
