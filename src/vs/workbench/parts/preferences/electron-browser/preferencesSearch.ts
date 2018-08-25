@@ -160,8 +160,9 @@ interface IBingRequestDetails {
 
 class RemoteSearchProvider implements ISearchProvider {
 	// Must keep extension filter size under 8kb. 42 filters puts us there.
-	private static MAX_REQUEST_FILTERS = 42;
-	private static MAX_REQUESTS = 10;
+	private static readonly MAX_REQUEST_FILTERS = 42;
+	private static readonly MAX_REQUESTS = 10;
+	private static readonly NEW_EXTENSIONS_MIN_SCORE = 1;
 
 	private _remoteSearchP: TPromise<IFilterMetadata>;
 
@@ -190,7 +191,8 @@ class RemoteSearchProvider implements ISearchProvider {
 			const highScore = highScoreKey ? remoteResult.scoredResults[highScoreKey].score : 0;
 			const minScore = highScore / 5;
 			if (this.options.newExtensionsOnly) {
-				const passingScoreKeys = resultKeys.filter(k => remoteResult.scoredResults[k].score >= minScore);
+				const newExtsMinScore = Math.max(RemoteSearchProvider.NEW_EXTENSIONS_MIN_SCORE, minScore);
+				const passingScoreKeys = resultKeys.filter(k => remoteResult.scoredResults[k].score >= newExtsMinScore);
 				const filterMatches: ISettingMatch[] = passingScoreKeys.map(k => {
 					const remoteSetting = remoteResult.scoredResults[k];
 					const setting = remoteSettingToISetting(remoteSetting);
