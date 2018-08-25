@@ -510,7 +510,7 @@ suite('workspace-namespace', () => {
 		});
 	});
 
-	test('findTextInFiles', async () => {
+	test.skip('findTextInFiles', async () => {
 		const results: vscode.TextSearchResult[] = [];
 		await vscode.workspace.findTextInFiles({ pattern: 'foo' }, { include: '*.ts' }, result => {
 			results.push(result);
