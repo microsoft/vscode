@@ -398,6 +398,7 @@ export class ExtHostWorkspace implements ExtHostWorkspaceShape {
 			disregardExcludeSettings: options.exclude === null,
 			fileEncoding: options.encoding,
 			maxResults: options.maxResults,
+			previewOptions: options.previewOptions,
 
 			includePattern: options.include && globPatternToString(options.include),
 			excludePattern: options.exclude && globPatternToString(options.exclude)

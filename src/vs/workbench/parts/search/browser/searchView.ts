@@ -1086,9 +1086,9 @@ export class SearchView extends Viewlet implements IViewlet, IPanel {
 			excludePattern,
 			includePattern,
 			previewOptions: {
-				leadingChars: 5,
+				leadingChars: 20,
 				maxLines: 1,
-				totalChars: this.isWide ? 1000 : 100
+				totalChars: this.isWide ? 250 : 75
 			}
 		};
 		const folderResources = this.contextService.getWorkspace().folders;

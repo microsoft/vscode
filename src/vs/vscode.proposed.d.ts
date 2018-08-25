@@ -260,6 +260,8 @@ declare module 'vscode' {
 		 * See the vscode setting `"files.encoding"`
 		 */
 		encoding?: string;
+
+		previewOptions?: TextSearchPreviewOptions;
 	}
 
 	export namespace workspace {
