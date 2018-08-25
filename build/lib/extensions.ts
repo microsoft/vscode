@@ -41,11 +41,16 @@ export function fromLocal(extensionPath: string, sourceMappingURLBase?: string):
 
 		const filesStream = es.readArray(files);
 
-		// check for a webpack configuration file, then invoke webpack
+		// check for a webpack configuration files, then invoke webpack
 		// and merge its output with the files stream. also rewrite the package.json
 		// file to a new entry point
-		if (fs.existsSync(path.join(extensionPath, 'extension.webpack.config.js'))) {
-			const packageJsonFilter = filter('package.json', { restore: true });
+		const pattern = path.join(extensionPath, '/**/extension.webpack.config.js');
+		const webpackConfigLocations = (<string[]>glob.sync(pattern, { ignore: ['**/node_modules'] }));
+		if (webpackConfigLocations.length) {
+			//console.log('-----' + webpackConfigLocations.join(','));
+			//console.log('-----' + fileNames.join(','));
+
+			const packageJsonFilter = filter('**/package.json', { restore: true });
 
 			const patchFilesStream = filesStream
 				.pipe(packageJsonFilter)
@@ -57,38 +62,42 @@ export function fromLocal(extensionPath: string, sourceMappingURLBase?: string):
 				}))
 				.pipe(packageJsonFilter.restore);
 
-			const webpackConfig = {
-				...require(path.join(extensionPath, 'extension.webpack.config.js')),
-				...{ mode: 'production', stats: 'errors-only' }
-			};
-			const webpackStream = webpackGulp(webpackConfig, webpack)
-				.pipe(es.through(function (data) {
-					data.stat = data.stat || {};
-					data.base = extensionPath;
-					this.emit('data', data);
-				}))
-				.pipe(es.through(function (data: File) {
-					// source map handling:
-					// * rewrite sourceMappingURL
-					// * save to disk so that upload-task picks this up
-					if (sourceMappingURLBase) {
-						const contents = (<Buffer>data.contents).toString('utf8');
-						data.contents = Buffer.from(contents.replace(/\n\/\/# sourceMappingURL=(.*)$/gm, function (_m, g1) {
-							return `\n//# sourceMappingURL=${sourceMappingURLBase}/extensions/${path.basename(extensionPath)}/dist/${g1}`;
-						}), 'utf8');
+			const webpackStreams = webpackConfigLocations.map(webpackConfigPath => {
+				const webpackConfig = {
+					...require(webpackConfigPath),
+					...{ mode: 'production', stats: 'errors-only' }
+				};
+				let relativeOutputPath = path.relative(extensionPath, webpackConfig.output.path);
+				let webpackBaseDir = path.dirname(webpackConfigPath);
 
-						if (/\.js\.map$/.test(data.path)) {
-							if (!fs.existsSync(path.dirname(data.path))) {
-								fs.mkdirSync(path.dirname(data.path));
+				return webpackGulp(webpackConfig, webpack)
+					.pipe(es.through(function (data) {
+						data.stat = data.stat || {};
+						data.base = extensionPath;
+						this.emit('data', data);
+					}))
+					.pipe(es.through(function (data: File) {
+						// source map handling:
+						// * rewrite sourceMappingURL
+						// * save to disk so that upload-task picks this up
+						if (sourceMappingURLBase) {
+							const contents = (<Buffer>data.contents).toString('utf8');
+							data.contents = Buffer.from(contents.replace(/\n\/\/# sourceMappingURL=(.*)$/gm, function (_m, g1) {
+								return `\n//# sourceMappingURL=${sourceMappingURLBase}/extensions/${path.basename(extensionPath)}/${relativeOutputPath}/${g1}`;
+							}), 'utf8');
+
+							if (/\.js\.map$/.test(data.path)) {
+								if (!fs.existsSync(path.dirname(data.path))) {
+									fs.mkdirSync(path.dirname(data.path));
+								}
+								fs.writeFileSync(data.path, data.contents);
 							}
-							fs.writeFileSync(data.path, data.contents);
 						}
-					}
-					this.emit('data', data);
-				}))
-				;
+						this.emit('data', data);
+					}));
+			});
 
-			es.merge(webpackStream, patchFilesStream)
+			es.merge(...webpackStreams, patchFilesStream)
 				// .pipe(es.through(function (data) {
 				// 	// debug
 				// 	console.log('out', data.path, data.contents.length);
