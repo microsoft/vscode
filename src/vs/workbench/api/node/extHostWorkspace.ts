@@ -151,7 +151,7 @@ export class ExtHostWorkspace implements ExtHostWorkspaceShape {
 
 	readonly onDidChangeWorkspace: Event<vscode.WorkspaceFoldersChangeEvent> = this._onDidChangeWorkspace.event;
 
-	private readonly _activeSearchCallbacks = [];
+	private readonly _activeSearchCallbacks: ((match: IRawFileMatch2) => any)[] = [];
 
 	constructor(
 		mainContext: IMainContext,
@@ -410,14 +410,14 @@ export class ExtHostWorkspace implements ExtHostWorkspaceShape {
 				return;
 			}
 
-			p.lineMatches.forEach(lineMatch => {
-				lineMatch.offsetAndLengths.forEach(offsetAndLength => {
-					const range = new Range(lineMatch.lineNumber, offsetAndLength[0], lineMatch.lineNumber, offsetAndLength[0] + offsetAndLength[1]);
-					callback({
-						uri: URI.revive(p.resource),
-						preview: { text: lineMatch.preview, match: range },
-						range
-					});
+			p.matches.forEach(match => {
+				callback({
+					uri: URI.revive(p.resource),
+					preview: {
+						text: match.preview.text,
+						match: new Range(match.preview.match.startLineNumber, match.preview.match.startColumn, match.preview.match.endLineNumber, match.preview.match.endColumn)
+					},
+					range: new Range(match.range.startLineNumber, match.range.startColumn, match.range.endLineNumber, match.range.endColumn)
 				});
 			});
 		};
