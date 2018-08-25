@@ -673,7 +673,7 @@ export class TreeView extends HeightMap {
 	}
 
 	public getLastVisibleElement(): any {
-		const item = this.itemAtIndex(this.indexAt(this.lastRenderTop + this.lastRenderHeight));
+		const item = this.itemAtIndex(this.indexAt(this.lastRenderTop + this.lastRenderHeight - 1));
 		return item && item.model.getElement();
 	}
 

@@ -39,8 +39,8 @@ import { SuggestEnabledInput } from 'vs/workbench/parts/codeEditor/browser/sugge
 import { PreferencesEditor } from 'vs/workbench/parts/preferences/browser/preferencesEditor';
 import { SettingsTarget, SettingsTargetsWidget } from 'vs/workbench/parts/preferences/browser/preferencesWidgets';
 import { commonlyUsedData, tocData } from 'vs/workbench/parts/preferences/browser/settingsLayout';
-import { resolveExtensionsSettings, resolveSettingsTree, SettingsRenderer, SettingsTree } from 'vs/workbench/parts/preferences/browser/settingsTree';
-import { ISettingsEditorViewState, MODIFIED_SETTING_TAG, ONLINE_SERVICES_SETTING_TAG, SearchResultIdx, SearchResultModel, SettingsTreeGroupElement, SettingsTreeModel, SettingsTreeSettingElement, countSettingGroupChildrenWithPredicate } from 'vs/workbench/parts/preferences/browser/settingsTreeModels';
+import { resolveExtensionsSettings, resolveSettingsTree, SettingsRenderer, SettingsTree, SimplePagedDataSource, SettingsDataSource } from 'vs/workbench/parts/preferences/browser/settingsTree';
+import { ISettingsEditorViewState, MODIFIED_SETTING_TAG, ONLINE_SERVICES_SETTING_TAG, SearchResultIdx, SearchResultModel, SettingsTreeGroupElement, SettingsTreeModel, countSettingGroupChildrenWithPredicate, SettingsTreeSettingElement } from 'vs/workbench/parts/preferences/browser/settingsTreeModels';
 import { TOCRenderer, TOCTree, TOCTreeModel } from 'vs/workbench/parts/preferences/browser/tocTree';
 import { CONTEXT_SETTINGS_EDITOR, CONTEXT_SETTINGS_SEARCH_FOCUS, CONTEXT_TOC_ROW_FOCUS, IPreferencesSearchService, ISearchProvider } from 'vs/workbench/parts/preferences/common/preferences';
 import { IEditorGroup } from 'vs/workbench/services/group/common/editorGroupsService';
@@ -71,6 +71,7 @@ export class SettingsEditor2 extends BaseEditor {
 	private settingsTreeContainer: HTMLElement;
 	private settingsTree: Tree;
 	private settingsTreeRenderer: SettingsRenderer;
+	private settingsTreeDataSource: SimplePagedDataSource;
 	private tocTreeModel: TOCTreeModel;
 	private settingsTreeModel: SettingsTreeModel;
 	private noResultsMessage: HTMLElement;
@@ -426,14 +427,19 @@ export class SettingsEditor2 extends BaseEditor {
 			}));
 
 		this._register(this.tocTree.onDidChangeFocus(e => {
-			const element = e.focus;
+			const element: SettingsTreeGroupElement = e.focus;
 			if (this.searchResultModel) {
 				this.viewState.filterToCategory = element;
 				this.renderTree();
 			}
 
 			if (element && (!e.payload || !e.payload.fromScroll)) {
-				this.settingsTree.reveal(element, 0);
+				let refreshP = TPromise.wrap(null);
+				if (this.settingsTreeDataSource.pageTo(element.index)) {
+					refreshP = this.renderTree();
+				}
+
+				refreshP.then(() => this.settingsTree.reveal(element, 0));
 			}
 		}));
 
@@ -463,11 +469,15 @@ export class SettingsEditor2 extends BaseEditor {
 			this.settingsTree.reveal(element);
 		}));
 
+		this.settingsTreeDataSource = this.instantiationService.createInstance(SimplePagedDataSource,
+			this.instantiationService.createInstance(SettingsDataSource, this.viewState));
+
 		this.settingsTree = this._register(this.instantiationService.createInstance(SettingsTree,
 			this.settingsTreeContainer,
 			this.viewState,
 			{
-				renderer: this.settingsTreeRenderer
+				renderer: this.settingsTreeRenderer,
+				dataSource: this.settingsTreeDataSource
 			}));
 		this.settingsTree.getHTMLElement().attributes.removeNamedItem('tabindex');
 
@@ -516,6 +526,8 @@ export class SettingsEditor2 extends BaseEditor {
 			return;
 		}
 
+		this.updateTreePagingByScroll();
+
 		const elementToSync = this.settingsTree.getFirstVisibleElement();
 		const element = elementToSync instanceof SettingsTreeSettingElement ? elementToSync.parent :
 			elementToSync instanceof SettingsTreeGroupElement ? elementToSync :
@@ -533,6 +545,13 @@ export class SettingsEditor2 extends BaseEditor {
 
 			this.tocTree.setSelection([element]);
 			this.tocTree.setFocus(element, { fromScroll: true });
+		}
+	}
+
+	private updateTreePagingByScroll(): void {
+		const lastVisibleElement = this.settingsTree.getLastVisibleElement();
+		if (lastVisibleElement && this.settingsTreeDataSource.pageTo(lastVisibleElement.index)) {
+			this.renderTree();
 		}
 	}
 
