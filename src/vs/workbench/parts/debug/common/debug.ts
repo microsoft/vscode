@@ -405,6 +405,7 @@ export interface IConfig extends IEnvConfig {
 	// internals
 	__sessionId?: string;
 	__restart?: any;
+	__autoAttach?: boolean;
 	port?: number; // TODO
 }
 
