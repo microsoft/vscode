@@ -7,6 +7,7 @@
 
 import * as nls from 'vs/nls';
 import * as browser from 'vs/base/browser/browser';
+import * as strings from 'vs/base/common/strings';
 import { IMenubarMenu, IMenubarMenuItemAction, IMenubarMenuItemSubmenu, IMenubarKeybinding } from 'vs/platform/menubar/common/menubar';
 import { IMenuService, MenuId, IMenu, SubmenuItemAction } from 'vs/platform/actions/common/actions';
 import { IThemeService, registerThemingParticipant, ITheme, ICssStyleCollector } from 'vs/platform/theme/common/themeService';
@@ -17,7 +18,7 @@ import { Separator } from 'vs/base/browser/ui/actionbar/actionbar';
 import * as DOM from 'vs/base/browser/dom';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { isMacintosh } from 'vs/base/common/platform';
-import { Menu, IMenuOptions, SubmenuAction } from 'vs/base/browser/ui/menu/menu';
+import { Menu, IMenuOptions, SubmenuAction, MENU_MNEMONIC_REGEX, cleanMnemonic, MENU_ESCAPED_MNEMONIC_REGEX } from 'vs/base/browser/ui/menu/menu';
 import { KeyCode, KeyCodeUtils } from 'vs/base/common/keyCodes';
 import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { IConfigurationService, IConfigurationChangeEvent } from 'vs/platform/configuration/common/configuration';
@@ -523,7 +524,7 @@ export class MenubarControl extends Disposable {
 				break;
 		}
 
-		return this.currentEnableMenuBarMnemonics ? label : label.replace(/&&(.)/g, '$1');
+		return label;
 	}
 
 	private createOpenRecentMenuAction(workspace: IWorkspaceIdentifier | ISingleFolderWorkspaceIdentifier | URI, commandId: string, isFile: boolean): IAction {
@@ -657,10 +658,12 @@ export class MenubarControl extends Disposable {
 		for (let menuTitle of Object.keys(this.topLevelMenus)) {
 			const menu: IMenu = this.topLevelMenus[menuTitle];
 			let menuIndex = idx++;
+			const cleanMenuLabel = cleanMnemonic(this.topLevelTitles[menuTitle]);
 
 			// Create the top level menu button element
 			if (firstTimeSetup) {
-				const buttonElement = $('div.menubar-menu-button', { 'role': 'menuitem', 'tabindex': 0, 'aria-label': this.topLevelTitles[menuTitle].replace(/&&(.)/g, '$1'), 'aria-haspopup': true });
+
+				const buttonElement = $('div.menubar-menu-button', { 'role': 'menuitem', 'tabindex': 0, 'aria-label': cleanMenuLabel, 'aria-haspopup': true });
 				const titleElement = $('div.menubar-menu-title', { 'role': 'none', 'aria-hidden': true });
 
 				buttonElement.appendChild(titleElement);
@@ -674,18 +677,22 @@ export class MenubarControl extends Disposable {
 			}
 
 			// Update the button label to reflect mnemonics
-			let displayTitle = this.topLevelTitles[menuTitle].replace(/&&(.)/g, this.currentEnableMenuBarMnemonics ? '<mnemonic aria-hidden="true">$1</mnemonic>' : '$1');
-			this.customMenus[menuIndex].titleElement.innerHTML = displayTitle;
+			this.customMenus[menuIndex].titleElement.innerHTML = this.currentEnableMenuBarMnemonics ?
+				strings.escape(this.topLevelTitles[menuTitle]).replace(MENU_ESCAPED_MNEMONIC_REGEX, '<mnemonic aria-hidden="true">$1</mnemonic>') :
+				cleanMenuLabel;
+
+			let mnemonicMatches = MENU_MNEMONIC_REGEX.exec(this.topLevelTitles[menuTitle]);
 
 			// Register mnemonics
-			let mnemonic = (/&&(.)/g).exec(this.topLevelTitles[menuTitle]);
-			if (mnemonic && mnemonic[1]) {
+			if (mnemonicMatches) {
+				let mnemonic = !!mnemonicMatches[1] ? mnemonicMatches[1] : mnemonicMatches[2];
+
 				if (firstTimeSetup) {
-					this.registerMnemonic(menuIndex, mnemonic[1]);
+					this.registerMnemonic(menuIndex, mnemonic);
 				}
 
 				if (this.currentEnableMenuBarMnemonics) {
-					this.customMenus[menuIndex].buttonElement.setAttribute('aria-keyshortcuts', 'Alt+' + mnemonic[1].toLocaleLowerCase());
+					this.customMenus[menuIndex].buttonElement.setAttribute('aria-keyshortcuts', 'Alt+' + mnemonic.toLocaleLowerCase());
 				} else {
 					this.customMenus[menuIndex].buttonElement.removeAttribute('aria-keyshortcuts');
 				}
@@ -1028,7 +1035,7 @@ export class MenubarControl extends Disposable {
 		let menuOptions: IMenuOptions = {
 			getKeyBinding: (action) => this.keybindingService.lookupKeybinding(action.id),
 			actionRunner: this.actionRunner,
-			enableMnemonics: this.mnemonicsInUse,
+			enableMnemonics: this.mnemonicsInUse && this.currentEnableMenuBarMnemonics,
 			ariaLabel: customMenu.buttonElement.attributes['aria-label'].value
 		};
 

@@ -17,6 +17,9 @@ import { $, Builder } from 'vs/base/browser/builder';
 import { RunOnceScheduler } from 'vs/base/common/async';
 import { IDisposable } from 'vs/base/common/lifecycle';
 
+export const MENU_MNEMONIC_REGEX: RegExp = /\(&{1,2}(\w)\)|&{1,2}(\w)/;
+export const MENU_ESCAPED_MNEMONIC_REGEX: RegExp = /(?:&amp;){1,2}(\w)/;
+
 export interface IMenuOptions {
 	context?: any;
 	actionItemProvider?: IActionItemProvider;
@@ -208,9 +211,6 @@ interface IMenuItemOptions extends IActionItemOptions {
 }
 
 class MenuActionItem extends BaseActionItem {
-	static MNEMONIC_REGEX: RegExp = /&&(.)/;
-	static ESCAPED_MNEMONIC_REGEX: RegExp = /&amp;&amp;(.)/;
-
 	public container: HTMLElement;
 	protected $e: Builder;
 	protected $label: Builder;
@@ -232,9 +232,9 @@ class MenuActionItem extends BaseActionItem {
 		if (this.options.label && options.enableMnemonics) {
 			let label = this.getAction().label;
 			if (label) {
-				let matches = MenuActionItem.MNEMONIC_REGEX.exec(label);
-				if (matches && matches.length === 2) {
-					this.mnemonic = KeyCodeUtils.fromString(matches[1].toLocaleLowerCase());
+				let matches = MENU_MNEMONIC_REGEX.exec(label);
+				if (matches) {
+					this.mnemonic = KeyCodeUtils.fromString((!!matches[1] ? matches[1] : matches[2]).toLocaleLowerCase());
 				}
 			}
 		}
@@ -257,10 +257,10 @@ class MenuActionItem extends BaseActionItem {
 		}
 
 		this.$check = $('span.menu-item-check').attr({ 'role': 'none' }).appendTo(this.$e);
-		this.$label = $('span.action-label').attr({ 'role': 'none' }).appendTo(this.$e);
+		this.$label = $('span.action-label').appendTo(this.$e);
 
 		if (this.options.label && this.options.keybinding) {
-			$('span.keybinding').attr({ 'role': 'none' }).text(this.options.keybinding).appendTo(this.$e);
+			$('span.keybinding').text(this.options.keybinding).appendTo(this.$e);
 		}
 
 		this._updateClass();
@@ -278,30 +278,23 @@ class MenuActionItem extends BaseActionItem {
 	_updateLabel(): void {
 		if (this.options.label) {
 			let label = this.getAction().label;
-			let mnemonic: string;
 			if (label) {
-				let matches = MenuActionItem.MNEMONIC_REGEX.exec(label);
-				if (matches && matches.length === 2) {
-					mnemonic = matches[1];
-
-					let ariaLabel = label.replace(MenuActionItem.MNEMONIC_REGEX, mnemonic);
-
-					this.mnemonic = KeyCodeUtils.fromString(mnemonic.toLocaleLowerCase());
-
-					this.$label.attr('aria-label', ariaLabel);
-				} else {
-					this.$label.attr('aria-label', label);
+				const cleanLabel = cleanMnemonic(label);
+				if (!this.options.enableMnemonics) {
+					label = cleanLabel;
 				}
 
-				if (this.options.enableMnemonics && mnemonic) {
-					label = strings.escape(label).replace(MenuActionItem.ESCAPED_MNEMONIC_REGEX, '<u>$1</u>');
-					this.$e.attr({ 'aria-keyshortcuts': mnemonic.toLocaleLowerCase() });
-				} else {
-					label = strings.escape(label).replace(MenuActionItem.ESCAPED_MNEMONIC_REGEX, '$1');
+				this.$label.attr('aria-label', cleanLabel);
+
+				const matches = MENU_MNEMONIC_REGEX.exec(label);
+
+				if (matches) {
+					label = strings.escape(label).replace(MENU_ESCAPED_MNEMONIC_REGEX, '<u aria-hidden="true">$1</u>');
+					this.$e.attr({ 'aria-keyshortcuts': (!!matches[1] ? matches[1] : matches[2]).toLocaleLowerCase() });
 				}
 			}
 
-			this.$label.innerHtml(label);
+			this.$label.innerHtml(label.trim());
 		}
 	}
 
@@ -523,4 +516,17 @@ class SubmenuActionItem extends MenuActionItem {
 			this.submenuContainer = null;
 		}
 	}
+}
+
+export function cleanMnemonic(label: string): string {
+	const regex = MENU_MNEMONIC_REGEX;
+
+	const matches = regex.exec(label);
+	if (!matches) {
+		return label;
+	}
+
+	const mnemonicInText = matches[0].charAt(0) === '&';
+
+	return label.replace(regex, mnemonicInText ? '$2' : '').trim();
 }
