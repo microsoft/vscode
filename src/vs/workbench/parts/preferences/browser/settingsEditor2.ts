@@ -563,6 +563,8 @@ export class SettingsEditor2 extends BaseEditor {
 		const configurationTarget = <ConfigurationTarget>(resource ? ConfigurationTarget.WORKSPACE_FOLDER : settingsTarget);
 		const overrides: IConfigurationOverrides = { resource };
 
+		const isManualReset = value === undefined;
+
 		// If the user is changing the value back to the default, do a 'reset' instead
 		const inspected = this.configurationService.inspect(key, overrides);
 		if (inspected.default === value) {
@@ -570,7 +572,7 @@ export class SettingsEditor2 extends BaseEditor {
 		}
 
 		return this.configurationService.updateValue(key, value, overrides, configurationTarget)
-			.then(() => this.renderTree(key))
+			.then(() => this.renderTree(key, isManualReset))
 			.then(() => {
 				const reportModifiedProps = {
 					key,
@@ -748,15 +750,15 @@ export class SettingsEditor2 extends BaseEditor {
 		}
 	}
 
-	private renderTree(key?: string): TPromise<void> {
-		if (key && this.scheduledRefreshes.has(key)) {
+	private renderTree(key?: string, force = false): TPromise<void> {
+		if (!force && key && this.scheduledRefreshes.has(key)) {
 			this.updateModifiedLabelForKey(key);
 			return TPromise.wrap(null);
 		}
 
 		// If a setting control is currently focused, schedule a refresh for later
 		const focusedSetting = this.settingsTreeRenderer.getSettingDOMElementForDOMElement(<HTMLElement>document.activeElement);
-		if (focusedSetting) {
+		if (focusedSetting && !force) {
 			// If a single setting is being refreshed, it's ok to refresh now if that is not the focused setting
 			if (key) {
 				const focusedKey = focusedSetting.getAttribute(SettingsRenderer.SETTING_KEY_ATTR);
