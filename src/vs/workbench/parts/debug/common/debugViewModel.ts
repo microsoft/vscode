@@ -61,14 +61,14 @@ export class ViewModel implements IViewModel {
 	}
 
 	setFocus(stackFrame: IStackFrame, thread: IThread, session: ISession, explicit: boolean): void {
-		let shouldEmit = this._focusedSession !== session || this._focusedThread !== thread || this._focusedStackFrame !== stackFrame;
+		const shouldEmit = this._focusedSession !== session || this._focusedThread !== thread || this._focusedStackFrame !== stackFrame;
 
+		this._focusedStackFrame = stackFrame;
+		this._focusedThread = thread;
 		if (this._focusedSession !== session) {
 			this._focusedSession = session;
 			this._onDidFocusSession.fire(session);
 		}
-		this._focusedThread = thread;
-		this._focusedStackFrame = stackFrame;
 
 		this.loadedScriptsSupportedContextKey.set(session && session.raw.capabilities.supportsLoadedSourcesRequest);
 
