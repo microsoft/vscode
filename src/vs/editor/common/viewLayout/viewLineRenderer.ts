@@ -453,6 +453,7 @@ function _applyRenderWhitespace(lineContent: string, len: number, continuesWithW
 	let tokenIndex = 0;
 	let tokenType = tokens[tokenIndex].type;
 	let tokenEndIndex = tokens[tokenIndex].endIndex;
+	const tokensLength = tokens.length;
 
 	let firstNonWhitespaceIndex = strings.firstNonWhitespaceIndex(lineContent);
 	let lastNonWhitespaceIndex: number;
@@ -532,8 +533,10 @@ function _applyRenderWhitespace(lineContent: string, len: number, continuesWithW
 
 		if (charIndex === tokenEndIndex) {
 			tokenIndex++;
-			tokenType = tokens[tokenIndex].type;
-			tokenEndIndex = tokens[tokenIndex].endIndex;
+			if (tokenIndex < tokensLength) {
+				tokenType = tokens[tokenIndex].type;
+				tokenEndIndex = tokens[tokenIndex].endIndex;
+			}
 		}
 	}
 
