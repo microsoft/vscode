@@ -33,6 +33,7 @@ import URI from 'vs/base/common/uri';
 import { ILabelService } from 'vs/platform/label/common/label';
 import { foreground } from 'vs/platform/theme/common/colorRegistry';
 import { IUpdateService, StateType } from 'vs/platform/update/common/update';
+import { Gesture, EventType, GestureEvent } from 'vs/base/browser/touch';
 
 const $ = DOM.$;
 
@@ -753,6 +754,20 @@ export class MenubarControl extends Disposable {
 					}
 				}));
 
+				Gesture.addTarget(this.customMenus[menuIndex].buttonElement);
+				this._register(DOM.addDisposableListener(this.customMenus[menuIndex].buttonElement, EventType.Tap, (e: GestureEvent) => {
+					// Ignore this touch if the menu is touched
+					if (this.isOpen && this.focusedMenu.holder && DOM.isAncestor(e.initialTarget as HTMLElement, this.focusedMenu.holder)) {
+						return;
+					}
+
+					this.ignoreNextMouseUp = false;
+					this.onMenuTriggered(menuIndex, true);
+
+					e.preventDefault();
+					e.stopPropagation();
+				}));
+
 				this._register(DOM.addDisposableListener(this.customMenus[menuIndex].buttonElement, DOM.EventType.MOUSE_DOWN, (e) => {
 					if (!this.isOpen) {
 						// Open the menu with mouse down and ignore the following mouse up event
@@ -767,11 +782,9 @@ export class MenubarControl extends Disposable {
 				}));
 
 				this._register(DOM.addDisposableListener(this.customMenus[menuIndex].buttonElement, DOM.EventType.MOUSE_UP, (e) => {
-					console.log(this.ignoreNextMouseUp);
 					if (!this.ignoreNextMouseUp) {
 						this.onMenuTriggered(menuIndex, true);
 					} else {
-						console.log('ignored the mouse up');
 						this.ignoreNextMouseUp = false;
 					}
 
