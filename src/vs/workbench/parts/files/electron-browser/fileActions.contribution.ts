@@ -155,13 +155,14 @@ function appendSaveConflictEditorTitleAction(id: string, title: string, iconLoca
 
 // Menu registration - command palette
 
-function appendToCommandPalette(id: string, title: string, category: string): void {
+function appendToCommandPalette(id: string, title: string, category: string, when?: ContextKeyExpr): void {
 	MenuRegistry.appendMenuItem(MenuId.CommandPalette, {
 		command: {
 			id,
 			title,
 			category
-		}
+		},
+		when
 	});
 }
 appendToCommandPalette(COPY_PATH_COMMAND_ID, nls.localize('copyPathOfActive', "Copy Path of Active File"), category);
@@ -172,7 +173,7 @@ appendToCommandPalette(SAVE_FILES_COMMAND_ID, nls.localize('saveFiles', "Save Al
 appendToCommandPalette(REVERT_FILE_COMMAND_ID, nls.localize('revert', "Revert File"), category);
 appendToCommandPalette(COMPARE_WITH_SAVED_COMMAND_ID, nls.localize('compareActiveWithSaved', "Compare Active File with Saved"), category);
 appendToCommandPalette(REVEAL_IN_OS_COMMAND_ID, REVEAL_IN_OS_LABEL, category);
-appendToCommandPalette(SAVE_FILE_AS_COMMAND_ID, SAVE_FILE_AS_LABEL, category);
+appendToCommandPalette(SAVE_FILE_AS_COMMAND_ID, SAVE_FILE_AS_LABEL, category, FileDialogContext.isEqualTo('local'));
 appendToCommandPalette(CLOSE_EDITOR_COMMAND_ID, nls.localize('closeEditor', "Close Editor"), nls.localize('view', "View"));
 appendToCommandPalette(NEW_FILE_COMMAND_ID, NEW_FILE_LABEL, category);
 appendToCommandPalette(NEW_FOLDER_COMMAND_ID, NEW_FOLDER_LABEL, category);
