@@ -28,7 +28,7 @@ const configurationEntrySchema: IJSONSchema = {
 			type: 'object',
 			additionalProperties: {
 				anyOf: [
-					{ $ref: 'http://json-schema.org/draft-04/schema#' },
+					{ $ref: 'http://json-schema.org/draft-07/schema#' },
 					{
 						type: 'object',
 						properties: {
