@@ -429,7 +429,7 @@ export class ExtensionEditor extends BaseEditor {
 				if (extension.extensionPack.length) {
 					this.navbar.push(NavbarSection.ExtensionPack, localize('extensionPack', "Extension Pack"), localize('extensionsPack', "Set of extensions that can be installed together"));
 				}
-				if (manifest.contributes) {
+				if (manifest && manifest.contributes) {
 					this.navbar.push(NavbarSection.Contributions, localize('contributions', "Contributions"), localize('contributionstooltip', "Lists contributions to VS Code by this extension"));
 				}
 				if (extension.hasChangelog()) {

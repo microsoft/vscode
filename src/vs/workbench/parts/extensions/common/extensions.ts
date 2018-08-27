@@ -52,7 +52,7 @@ export interface IExtension {
 	extensionPack: string[];
 	telemetryData: any;
 	preview: boolean;
-	getManifest(): TPromise<IExtensionManifest>;
+	getManifest(): TPromise<IExtensionManifest | undefined>;
 	getReadme(): TPromise<string>;
 	hasReadme(): boolean;
 	getChangelog(): TPromise<string>;
