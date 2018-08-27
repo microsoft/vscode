@@ -10,7 +10,7 @@
   "bin": {
     "vscode-json-languageserver": "./bin/vscode-json-languageserver"
   },
-  "main": "./dist/jsonServerMain",
+  "main": "./out/jsonServerMain",
   "dependencies": {
     "jsonc-parser": "^2.0.1",
     "request-light": "^0.2.3",
