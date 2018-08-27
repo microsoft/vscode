@@ -59,7 +59,7 @@ suite('HTML Embedded Formatting', () => {
 	});
 
 	test('HTML & Scripts', function (): any {
-		assertFormat('<html><head><script></script></head></html>', '<html>\n\n<head>\n  <script></script>\n</head>\n\n</html>');
+		assertFormat('<html><head><script></script></head></html>', '<html>\n\n<head>\n  <script>\n  </script>\n</head>\n\n</html>');
 		assertFormat('<html><head><script>var x=1;</script></head></html>', '<html>\n\n<head>\n  <script>var x = 1;</script>\n</head>\n\n</html>');
 		assertFormat('<html><head><script>\nvar x=2;\n</script></head></html>', '<html>\n\n<head>\n  <script>\n    var x = 2;\n  </script>\n</head>\n\n</html>');
 		assertFormat('<html><head>\n  <script>\nvar x=3;\n</script></head></html>', '<html>\n\n<head>\n  <script>\n    var x = 3;\n  </script>\n</head>\n\n</html>');
@@ -109,7 +109,7 @@ suite('HTML Embedded Formatting', () => {
 	});
 
 	test('bug 36574', function (): any {
-		assertFormat('<script src="/js/main.js"> </script>', '<script src="/js/main.js"> </script>');
+		assertFormat('<script src="/js/main.js"> </script>', '<script src="/js/main.js">\n</script>');
 	});
 
 	test('bug 48049', function (): any {

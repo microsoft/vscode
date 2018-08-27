@@ -38,27 +38,27 @@ vscode-jsonrpc@^3.6.2:
   version "3.6.2"
   resolved "https://registry.yarnpkg.com/vscode-jsonrpc/-/vscode-jsonrpc-3.6.2.tgz#3b5eef691159a15556ecc500e9a8a0dd143470c8"
 
-vscode-languageclient@^5.1.0-next.4:
-  version "5.1.0-next.4"
-  resolved "https://registry.yarnpkg.com/vscode-languageclient/-/vscode-languageclient-5.1.0-next.4.tgz#2f96b4aa198c45f3e897b7f330c597a401ca95f2"
+vscode-languageclient@^5.1.0-next.6:
+  version "5.1.0-next.6"
+  resolved "https://registry.yarnpkg.com/vscode-languageclient/-/vscode-languageclient-5.1.0-next.6.tgz#b04f49f645a51e864d607e85a43d2b0d2f101d5d"
   dependencies:
     semver "^5.5.0"
-    vscode-languageserver-protocol "^3.12.0"
+    vscode-languageserver-protocol "^3.13.0-next.1"
 
-vscode-languageserver-protocol@^3.12.0:
-  version "3.12.0"
-  resolved "https://registry.yarnpkg.com/vscode-languageserver-protocol/-/vscode-languageserver-protocol-3.12.0.tgz#5b23501292abad88f0463b01e83ff98e64a37652"
+vscode-languageserver-protocol@^3.13.0-next.1:
+  version "3.13.0-next.1"
+  resolved "https://registry.yarnpkg.com/vscode-languageserver-protocol/-/vscode-languageserver-protocol-3.13.0-next.1.tgz#24d15aa5769e4b035f6ce38342685959e1eb454e"
   dependencies:
     vscode-jsonrpc "^3.6.2"
-    vscode-languageserver-types "^3.12.0"
+    vscode-languageserver-types "^3.13.0-next.1"
 
-vscode-languageserver-types@^3.12.0:
-  version "3.12.0"
-  resolved "https://registry.yarnpkg.com/vscode-languageserver-types/-/vscode-languageserver-types-3.12.0.tgz#f96051381b6a050b7175b37d6cb5d2f2eb64b944"
+vscode-languageserver-types@^3.13.0-next.1:
+  version "3.13.0-next.1"
+  resolved "https://registry.yarnpkg.com/vscode-languageserver-types/-/vscode-languageserver-types-3.13.0-next.1.tgz#dd91b78b13a2a6c7131e8291e3db3183cf566280"
 
-vscode-nls@^3.2.4:
-  version "3.2.4"
-  resolved "https://registry.yarnpkg.com/vscode-nls/-/vscode-nls-3.2.4.tgz#2166b4183c8aea884d20727f5449e62be69fd398"
+vscode-nls@^3.2.5:
+  version "3.2.5"
+  resolved "https://registry.yarnpkg.com/vscode-nls/-/vscode-nls-3.2.5.tgz#25520c1955108036dec607c85e00a522f247f1a4"
 
 zone.js@0.7.6:
   version "0.7.6"
