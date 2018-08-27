@@ -34,7 +34,7 @@ const defaultOptions: IButtonStyles = {
 
 export class Button extends Disposable {
 
-	private $el: HTMLElement;
+	private _element: HTMLElement;
 	private options: IButtonOptions;
 
 	private buttonBackground: Color;
@@ -58,16 +58,16 @@ export class Button extends Disposable {
 		this.buttonForeground = this.options.buttonForeground;
 		this.buttonBorder = this.options.buttonBorder;
 
-		this.$el = document.createElement('a');
-		DOM.addClass(this.$el, 'monaco-button');
-		this.$el.tabIndex = 0;
-		this.$el.setAttribute('role', 'button');
+		this._element = document.createElement('a');
+		DOM.addClass(this._element, 'monaco-button');
+		this._element.tabIndex = 0;
+		this._element.setAttribute('role', 'button');
 
-		container.appendChild(this.$el);
+		container.appendChild(this._element);
 
-		Gesture.addTarget(this.$el);
+		Gesture.addTarget(this._element);
 
-		this._register(DOM.addDisposableListener(this.$el, DOM.EventType.CLICK, e => {
+		this._register(DOM.addDisposableListener(this._element, DOM.EventType.CLICK, e => {
 			if (!this.enabled) {
 				DOM.EventHelper.stop(e);
 				return;
@@ -76,14 +76,14 @@ export class Button extends Disposable {
 			this._onDidClick.fire(e);
 		}));
 
-		this._register(DOM.addDisposableListener(this.$el, DOM.EventType.KEY_DOWN, e => {
+		this._register(DOM.addDisposableListener(this._element, DOM.EventType.KEY_DOWN, e => {
 			const event = new StandardKeyboardEvent(e as KeyboardEvent);
 			let eventHandled = false;
 			if (this.enabled && event.equals(KeyCode.Enter) || event.equals(KeyCode.Space)) {
 				this._onDidClick.fire(e);
 				eventHandled = true;
 			} else if (event.equals(KeyCode.Escape)) {
-				this.$el.blur();
+				this._element.blur();
 				eventHandled = true;
 			}
 
@@ -92,18 +92,18 @@ export class Button extends Disposable {
 			}
 		}));
 
-		this._register(DOM.addDisposableListener(this.$el, DOM.EventType.MOUSE_OVER, e => {
-			if (!DOM.hasClass(this.$el, 'disabled')) {
+		this._register(DOM.addDisposableListener(this._element, DOM.EventType.MOUSE_OVER, e => {
+			if (!DOM.hasClass(this._element, 'disabled')) {
 				this.setHoverBackground();
 			}
 		}));
 
-		this._register(DOM.addDisposableListener(this.$el, DOM.EventType.MOUSE_OUT, e => {
+		this._register(DOM.addDisposableListener(this._element, DOM.EventType.MOUSE_OUT, e => {
 			this.applyStyles(); // restore standard styles
 		}));
 
 		// Also set hover background when button is focused for feedback
-		this.focusTracker = this._register(DOM.trackFocus(this.$el));
+		this.focusTracker = this._register(DOM.trackFocus(this._element));
 		this._register(this.focusTracker.onDidFocus(() => this.setHoverBackground()));
 		this._register(this.focusTracker.onDidBlur(() => this.applyStyles())); // restore standard styles
 
@@ -113,7 +113,7 @@ export class Button extends Disposable {
 	private setHoverBackground(): void {
 		const hoverBackground = this.buttonHoverBackground ? this.buttonHoverBackground.toString() : null;
 		if (hoverBackground) {
-			this.$el.style.backgroundColor = hoverBackground;
+			this._element.style.backgroundColor = hoverBackground;
 		}
 	}
 
@@ -127,56 +127,56 @@ export class Button extends Disposable {
 	}
 
 	private applyStyles(): void {
-		if (this.$el) {
+		if (this._element) {
 			const background = this.buttonBackground ? this.buttonBackground.toString() : null;
 			const foreground = this.buttonForeground ? this.buttonForeground.toString() : null;
 			const border = this.buttonBorder ? this.buttonBorder.toString() : null;
 
-			this.$el.style.color = foreground;
-			this.$el.style.backgroundColor = background;
+			this._element.style.color = foreground;
+			this._element.style.backgroundColor = background;
 
-			this.$el.style.borderWidth = border ? '1px' : null;
-			this.$el.style.borderStyle = border ? 'solid' : null;
-			this.$el.style.borderColor = border;
+			this._element.style.borderWidth = border ? '1px' : null;
+			this._element.style.borderStyle = border ? 'solid' : null;
+			this._element.style.borderColor = border;
 		}
 	}
 
 	get element(): HTMLElement {
-		return this.$el;
+		return this._element;
 	}
 
 	set label(value: string) {
-		if (!DOM.hasClass(this.$el, 'monaco-text-button')) {
-			DOM.addClass(this.$el, 'monaco-text-button');
+		if (!DOM.hasClass(this._element, 'monaco-text-button')) {
+			DOM.addClass(this._element, 'monaco-text-button');
 		}
-		this.$el.innerText = value;
+		this._element.textContent = value;
 		if (this.options.title) {
-			this.$el.title = value;
+			this._element.title = value;
 		}
 	}
 
 	set icon(iconClassName: string) {
-		DOM.addClass(this.$el, iconClassName);
+		DOM.addClass(this._element, iconClassName);
 	}
 
 	set enabled(value: boolean) {
 		if (value) {
-			DOM.removeClass(this.$el, 'disabled');
-			this.$el.setAttribute('aria-disabled', String(false));
-			this.$el.tabIndex = 0;
+			DOM.removeClass(this._element, 'disabled');
+			this._element.setAttribute('aria-disabled', String(false));
+			this._element.tabIndex = 0;
 		} else {
-			DOM.addClass(this.$el, 'disabled');
-			this.$el.setAttribute('aria-disabled', String(true));
-			DOM.removeTabIndexAndUpdateFocus(this.$el);
+			DOM.addClass(this._element, 'disabled');
+			this._element.setAttribute('aria-disabled', String(true));
+			DOM.removeTabIndexAndUpdateFocus(this._element);
 		}
 	}
 
 	get enabled() {
-		return !DOM.hasClass(this.$el, 'disabled');
+		return !DOM.hasClass(this._element, 'disabled');
 	}
 
 	focus(): void {
-		this.$el.focus();
+		this._element.focus();
 	}
 }
 

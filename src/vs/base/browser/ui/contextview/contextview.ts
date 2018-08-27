@@ -7,7 +7,7 @@
 
 import 'vs/css!./contextview';
 import * as DOM from 'vs/base/browser/dom';
-import { IDisposable, dispose, toDisposable, combinedDisposable } from 'vs/base/common/lifecycle';
+import { IDisposable, dispose, toDisposable, combinedDisposable, Disposable } from 'vs/base/common/lifecycle';
 
 export interface IAnchor {
 	x: number;
@@ -95,55 +95,54 @@ export function layout(viewportSize: number, viewSize: number, anchor: ILayoutAn
 	}
 }
 
-export class ContextView {
+export class ContextView extends Disposable {
 
 	private static readonly BUBBLE_UP_EVENTS = ['click', 'keydown', 'focus', 'blur'];
 	private static readonly BUBBLE_DOWN_EVENTS = ['click'];
 
-	private $container: HTMLElement;
-	private $view: HTMLElement;
+	private container: HTMLElement;
+	private view: HTMLElement;
 	private delegate: IDelegate;
-	private toDispose: IDisposable[];
 	private toDisposeOnClean: IDisposable;
 	private toDisposeOnSetContainer: IDisposable;
 
 	constructor(container: HTMLElement) {
-		this.$view = DOM.$('.context-view');
+		super();
 
-		DOM.hide(this.$view);
+		this.view = DOM.$('.context-view');
+
+		DOM.hide(this.view);
 
 		this.setContainer(container);
 
-		this.toDispose = [toDisposable(() => {
-			this.setContainer(null);
-		})];
+		this._register(toDisposable(() => this.setContainer(null)));
 	}
 
 	public setContainer(container: HTMLElement): void {
-		if (this.$container) {
+		if (this.container) {
 			this.toDisposeOnSetContainer = dispose(this.toDisposeOnSetContainer);
-			this.$container.removeChild(this.$view);
-			this.$container = null;
+			this.container.removeChild(this.view);
+			this.container = null;
 		}
 		if (container) {
-			this.$container = container;
-			this.$container.appendChild(this.$view);
+			this.container = container;
+			this.container.appendChild(this.view);
 
-			const toDispose: IDisposable[] = [];
+			const toDisposeOnSetContainer: IDisposable[] = [];
 
 			ContextView.BUBBLE_UP_EVENTS.forEach(event => {
-				toDispose.push(DOM.addStandardDisposableListener(this.$container, event, (e: Event) => {
+				toDisposeOnSetContainer.push(DOM.addStandardDisposableListener(this.container, event, (e: Event) => {
 					this.onDOMEvent(e, <HTMLElement>document.activeElement, false);
 				}));
 			});
 
 			ContextView.BUBBLE_DOWN_EVENTS.forEach(event => {
-				toDispose.push(DOM.addStandardDisposableListener(this.$container, event, (e: Event) => {
+				toDisposeOnSetContainer.push(DOM.addStandardDisposableListener(this.container, event, (e: Event) => {
 					this.onDOMEvent(e, <HTMLElement>document.activeElement, true);
 				}, true));
 			});
 
-			this.toDisposeOnSetContainer = combinedDisposable(toDispose);
+			this.toDisposeOnSetContainer = combinedDisposable(toDisposeOnSetContainer);
 		}
 	}
 
@@ -153,14 +152,14 @@ export class ContextView {
 		}
 
 		// Show static box
-		DOM.clearNode(this.$view);
-		this.$view.className = 'context-view';
-		this.$view.style.top = '0px';
-		this.$view.style.left = '0px';
-		DOM.show(this.$view);
+		DOM.clearNode(this.view);
+		this.view.className = 'context-view';
+		this.view.style.top = '0px';
+		this.view.style.left = '0px';
+		DOM.show(this.view);
 
 		// Render content
-		this.toDisposeOnClean = delegate.render(this.$view);
+		this.toDisposeOnClean = delegate.render(this.view);
 
 		// Set active delegate
 		this.delegate = delegate;
@@ -219,8 +218,8 @@ export class ContextView {
 			};
 		}
 
-		const viewSizeWidth = DOM.getTotalWidth(this.$view);
-		const viewSizeHeight = DOM.getTotalHeight(this.$view);
+		const viewSizeWidth = DOM.getTotalWidth(this.view);
+		const viewSizeHeight = DOM.getTotalHeight(this.view);
 
 		const anchorPosition = this.delegate.anchorPosition || AnchorPosition.BELOW;
 		const anchorAlignment = this.delegate.anchorAlignment || AnchorAlignment.LEFT;
@@ -235,17 +234,17 @@ export class ContextView {
 			horizontalAnchor = { offset: around.left + around.width, size: 0, position: LayoutAnchorPosition.After };
 		}
 
-		const containerPosition = DOM.getDomNodePagePosition(this.$container);
+		const containerPosition = DOM.getDomNodePagePosition(this.container);
 		const top = layout(window.innerHeight, viewSizeHeight, verticalAnchor) - containerPosition.top;
 		const left = layout(window.innerWidth, viewSizeWidth, horizontalAnchor) - containerPosition.left;
 
-		DOM.removeClasses(this.$view, 'top', 'bottom', 'left', 'right');
-		DOM.addClass(this.$view, anchorPosition === AnchorPosition.BELOW ? 'bottom' : 'top');
-		DOM.addClass(this.$view, anchorAlignment === AnchorAlignment.LEFT ? 'left' : 'right');
+		DOM.removeClasses(this.view, 'top', 'bottom', 'left', 'right');
+		DOM.addClass(this.view, anchorPosition === AnchorPosition.BELOW ? 'bottom' : 'top');
+		DOM.addClass(this.view, anchorAlignment === AnchorAlignment.LEFT ? 'left' : 'right');
 
-		this.$view.style.top = `${top}px`;
-		this.$view.style.left = `${left}px`;
-		this.$view.style.width = 'initial';
+		this.view.style.top = `${top}px`;
+		this.view.style.left = `${left}px`;
+		this.view.style.width = 'initial';
 	}
 
 	public hide(data?: any): void {
@@ -260,7 +259,7 @@ export class ContextView {
 			this.toDisposeOnClean = null;
 		}
 
-		DOM.hide(this.$view);
+		DOM.hide(this.view);
 	}
 
 	private isVisible(): boolean {
@@ -271,7 +270,7 @@ export class ContextView {
 		if (this.delegate) {
 			if (this.delegate.onDOMEvent) {
 				this.delegate.onDOMEvent(e, <HTMLElement>document.activeElement);
-			} else if (onCapture && !DOM.isAncestor(<HTMLElement>e.target, this.$container)) {
+			} else if (onCapture && !DOM.isAncestor(<HTMLElement>e.target, this.container)) {
 				this.hide();
 			}
 		}
@@ -280,6 +279,6 @@ export class ContextView {
 	public dispose(): void {
 		this.hide();
 
-		this.toDispose = dispose(this.toDispose);
+		super.dispose();
 	}
 }

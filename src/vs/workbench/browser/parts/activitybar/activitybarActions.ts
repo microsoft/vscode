@@ -123,23 +123,23 @@ export class GlobalActivityActionItem extends ActivityActionItem {
 		// Context menus are triggered on mouse down so that an item can be picked
 		// and executed with releasing the mouse over it
 
-		this.callOnDispose.push(DOM.addDisposableListener(this.$container, DOM.EventType.MOUSE_DOWN, (e: MouseEvent) => {
+		this._register(DOM.addDisposableListener(this.container, DOM.EventType.MOUSE_DOWN, (e: MouseEvent) => {
 			DOM.EventHelper.stop(e, true);
 
 			const event = new StandardMouseEvent(e);
 			this.showContextMenu({ x: event.posx, y: event.posy });
 		}));
 
-		this.callOnDispose.push(DOM.addDisposableListener(this.$container, DOM.EventType.KEY_UP, (e: KeyboardEvent) => {
+		this._register(DOM.addDisposableListener(this.container, DOM.EventType.KEY_UP, (e: KeyboardEvent) => {
 			let event = new StandardKeyboardEvent(e);
 			if (event.equals(KeyCode.Enter) || event.equals(KeyCode.Space)) {
 				DOM.EventHelper.stop(e, true);
 
-				this.showContextMenu(this.$container);
+				this.showContextMenu(this.container);
 			}
 		}));
 
-		this.callOnDispose.push(DOM.addDisposableListener(this.$container, TouchEventType.Tap, (e: GestureEvent) => {
+		this._register(DOM.addDisposableListener(this.container, TouchEventType.Tap, (e: GestureEvent) => {
 			DOM.EventHelper.stop(e, true);
 
 			const event = new StandardMouseEvent(e);

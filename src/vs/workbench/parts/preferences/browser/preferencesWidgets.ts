@@ -317,7 +317,7 @@ export class FolderSettingsActionItem extends BaseActionItem {
 	}
 
 	public render(container: HTMLElement): void {
-		this.builder = container;
+		this.element = container;
 
 		this.container = container;
 		this.labelElement = DOM.$('.action-title');

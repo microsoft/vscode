@@ -199,17 +199,17 @@ export class MenuItemActionItem extends ActionItem {
 			}
 		};
 
-		this._callOnDispose.push(alternativeKeyEmitter.event(value => {
+		this._register(alternativeKeyEmitter.event(value => {
 			alternativeKeyDown = value;
 			updateAltState();
 		}));
 
-		this._callOnDispose.push(domEvent(container, 'mouseleave')(_ => {
+		this._register(domEvent(container, 'mouseleave')(_ => {
 			mouseOver = false;
 			updateAltState();
 		}));
 
-		this._callOnDispose.push(domEvent(container, 'mouseenter')(e => {
+		this._register(domEvent(container, 'mouseenter')(e => {
 			mouseOver = true;
 			updateAltState();
 		}));
@@ -217,12 +217,12 @@ export class MenuItemActionItem extends ActionItem {
 
 	_updateLabel(): void {
 		if (this.options.label) {
-			this.$e.textContent = this._commandAction.label;
+			this.label.textContent = this._commandAction.label;
 		}
 	}
 
 	_updateTooltip(): void {
-		const element = this.$e;
+		const element = this.label;
 		const keybinding = this._keybindingService.lookupKeybinding(this._commandAction.id);
 		const keybindingLabel = keybinding && keybinding.getLabel();
 
@@ -259,8 +259,8 @@ export class MenuItemActionItem extends ActionItem {
 				MenuItemActionItem.ICON_PATH_TO_CSS_RULES.set(iconPathMapKey, iconClass);
 			}
 
-			addClasses(this.$e, 'icon', iconClass);
-			this._itemClassDispose = toDisposable(() => removeClasses(this.$e, 'icon', iconClass));
+			addClasses(this.label, 'icon', iconClass);
+			this._itemClassDispose = toDisposable(() => removeClasses(this.label, 'icon', iconClass));
 		}
 	}
 
