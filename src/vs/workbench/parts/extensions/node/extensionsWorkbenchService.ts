@@ -33,7 +33,6 @@ import { ExtensionsInput } from 'vs/workbench/parts/extensions/common/extensions
 import product from 'vs/platform/node/product';
 import { ILogService } from 'vs/platform/log/common/log';
 import { IProgressService2, ProgressLocation } from 'vs/workbench/services/progress/common/progress';
-import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
 import { INotificationService } from 'vs/platform/notification/common/notification';
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
 import { groupBy } from 'vs/base/common/collections';
@@ -385,7 +384,6 @@ export class ExtensionsWorkbenchService implements IExtensionsWorkbenchService, 
 		@IExtensionGalleryService private galleryService: IExtensionGalleryService,
 		@IConfigurationService private configurationService: IConfigurationService,
 		@ITelemetryService private telemetryService: ITelemetryService,
-		@IDialogService private dialogService: IDialogService,
 		@INotificationService private notificationService: INotificationService,
 		@IURLService urlService: IURLService,
 		@IExtensionEnablementService private extensionEnablementService: IExtensionEnablementService,
@@ -751,32 +749,8 @@ export class ExtensionsWorkbenchService implements IExtensionsWorkbenchService, 
 			if (packedExtensions.length) {
 				return this.checkAndSetEnablement(extensions, packedExtensions, enablementState);
 			}
-			const dependencies = this.getExtensionsRecursively(extensions, this.local, enablementState, { dependencies: true, pack: false });
-			if (dependencies.length) {
-				return this.promptForDependenciesAndDisable(extensions, dependencies, enablementState);
-			} else {
-				return this.checkAndSetEnablement(extensions, [], enablementState);
-			}
+			return this.checkAndSetEnablement(extensions, [], enablementState);
 		}
-	}
-
-	private promptForDependenciesAndDisable(extensions: IExtension[], dependencies: IExtension[], enablementState: EnablementState): TPromise<void> {
-		const message = extensions.length > 1 ? nls.localize('disableDependeciesConfirmation', "Also disable the dependencies of the extensions?") : nls.localize('disableDependeciesSingleExtensionConfirmation', "Also disable the dependencies of the extension '{0}'?", extensions[0].displayName);
-		const buttons = [
-			nls.localize('yes', "Yes"),
-			nls.localize('cancel', "Cancel"),
-			nls.localize('no', "No"),
-		];
-		return this.dialogService.show(Severity.Info, message, buttons, { cancelId: 2 })
-			.then<void>(value => {
-				if (value === 0) {
-					return this.checkAndSetEnablement(extensions, dependencies, enablementState);
-				}
-				if (value === 2) {
-					return this.checkAndSetEnablement(extensions, [], enablementState);
-				}
-				return TPromise.as(null);
-			});
 	}
 
 	private checkAndSetEnablement(extensions: IExtension[], otherExtensions: IExtension[], enablementState: EnablementState): TPromise<any> {

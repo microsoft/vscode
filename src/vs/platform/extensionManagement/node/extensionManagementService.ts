@@ -536,7 +536,7 @@ export class ExtensionManagementService extends Disposable implements IExtension
 			.then(installed => {
 				const promises = installed
 					.filter(e => e.manifest.publisher === extension.manifest.publisher && e.manifest.name === extension.manifest.name)
-					.map(e => this.checkForDependenciesAndUninstall(e, installed, force));
+					.map(e => this.checkForDependenciesAndUninstall(e, installed));
 				return TPromise.join(promises).then(() => null, error => TPromise.wrapError(this.joinErrors(error)));
 			}));
 	}
@@ -593,49 +593,20 @@ export class ExtensionManagementService extends Disposable implements IExtension
 		}, new Error(''));
 	}
 
-	private checkForDependenciesAndUninstall(extension: ILocalExtension, installed: ILocalExtension[], force: boolean): TPromise<void> {
+	private checkForDependenciesAndUninstall(extension: ILocalExtension, installed: ILocalExtension[]): TPromise<void> {
 		return this.preUninstallExtension(extension)
 			.then(() => {
 				const packedExtensions = this.getAllPackExtensionsToUninstall(extension, installed);
 				if (packedExtensions.length) {
 					return this.uninstallExtensions(extension, packedExtensions, installed);
 				}
-				const dependencies = this.getDependenciesToUninstall(extension, installed);
-				if (dependencies.length) {
-					if (force) {
-						return this.uninstallExtensions(extension, dependencies, installed);
-					} else {
-						return this.promptForDependenciesAndUninstall(extension, dependencies, installed);
-					}
-				} else {
-					return this.uninstallExtensions(extension, [], installed);
-				}
+				return this.uninstallExtensions(extension, [], installed);
 			})
 			.then(() => this.postUninstallExtension(extension),
 				error => {
 					this.postUninstallExtension(extension, new ExtensionManagementError(error instanceof Error ? error.message : error, INSTALL_ERROR_LOCAL));
 					return TPromise.wrapError(error);
 				});
-	}
-
-	private promptForDependenciesAndUninstall(extension: ILocalExtension, dependencies: ILocalExtension[], installed: ILocalExtension[]): TPromise<void> {
-		const message = nls.localize('uninstallDependeciesConfirmation', "Also uninstall the dependencies of the extension '{0}'?", extension.manifest.displayName || extension.manifest.name);
-		const buttons = [
-			nls.localize('yes', "Yes"),
-			nls.localize('no', "No"),
-			nls.localize('cancel', "Cancel")
-		];
-		return this.dialogService.show(Severity.Info, message, buttons, { cancelId: 2 })
-			.then<void>(value => {
-				if (value === 0) {
-					return this.uninstallExtensions(extension, dependencies, installed);
-				}
-				if (value === 1) {
-					return this.uninstallExtensions(extension, [], installed);
-				}
-				this.logService.info('Cancelled uninstalling extension:', extension.identifier.id);
-				return TPromise.wrapError(errors.canceled());
-			}, error => TPromise.wrapError(errors.canceled()));
 	}
 
 	private uninstallExtensions(extension: ILocalExtension, otherExtensionsToUninstall: ILocalExtension[], installed: ILocalExtension[]): TPromise<void> {
@@ -660,38 +631,6 @@ export class ExtensionManagementService extends Disposable implements IExtension
 		}
 		return nls.localize('multipleDependentsError', "Cannot uninstall extension '{0}'. Extensions '{1}', '{2}' and others depend on this.",
 			extension.manifest.displayName || extension.manifest.name, dependents[0].manifest.displayName || dependents[0].manifest.name, dependents[1].manifest.displayName || dependents[1].manifest.name);
-	}
-
-	private getDependenciesToUninstall(extension: ILocalExtension, installed: ILocalExtension[]): ILocalExtension[] {
-		const dependencies = this.getAllDependenciesToUninstall(extension, installed).filter(e => e !== extension);
-
-		const dependenciesToUninstall = dependencies.slice(0);
-		for (let index = 0; index < dependencies.length; index++) {
-			const dep = dependencies[index];
-			const dependents = this.getDependents(dep, installed);
-			// Remove the dependency from the uninstall list if there is a dependent which will not be uninstalled.
-			if (dependents.some(e => e !== extension && dependencies.indexOf(e) === -1)) {
-				dependenciesToUninstall.splice(index - (dependencies.length - dependenciesToUninstall.length), 1);
-			}
-		}
-
-		return dependenciesToUninstall;
-	}
-
-	private getAllDependenciesToUninstall(extension: ILocalExtension, installed: ILocalExtension[], checked: ILocalExtension[] = []): ILocalExtension[] {
-		if (checked.indexOf(extension) !== -1) {
-			return [];
-		}
-		checked.push(extension);
-		if (!extension.manifest.extensionDependencies || extension.manifest.extensionDependencies.length === 0) {
-			return [];
-		}
-		const dependenciesToUninstall = installed.filter(i => extension.manifest.extensionDependencies.some(id => areSameExtensions({ id }, i.galleryIdentifier)));
-		const depsOfDeps = [];
-		for (const dep of dependenciesToUninstall) {
-			depsOfDeps.push(...this.getAllDependenciesToUninstall(dep, installed, checked));
-		}
-		return [...dependenciesToUninstall, ...depsOfDeps];
 	}
 
 	private getAllPackExtensionsToUninstall(extension: ILocalExtension, installed: ILocalExtension[], checked: ILocalExtension[] = []): ILocalExtension[] {
