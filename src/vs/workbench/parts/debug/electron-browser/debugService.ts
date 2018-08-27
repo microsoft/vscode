@@ -992,7 +992,7 @@ export class DebugService implements IDebugService {
 		return this.configurationManager;
 	}
 
-	private sendAllBreakpoints(session?: ISession): TPromise<any> {
+	sendAllBreakpoints(session?: ISession): TPromise<any> {
 		return TPromise.join(distinct(this.model.getBreakpoints(), bp => bp.uri.toString()).map(bp => this.sendBreakpoints(bp.uri, false, session)))
 			.then(() => this.sendFunctionBreakpoints(session))
 			// send exception breakpoints at the end since some debug adapters rely on the order

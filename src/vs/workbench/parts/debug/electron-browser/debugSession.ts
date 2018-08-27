@@ -268,7 +268,7 @@ export class Session implements ISession {
 			};
 
 			// Send all breakpoints
-			this.debugService.setBreakpointsActivated(true).then(sendConfigurationDone, sendConfigurationDone)
+			this.debugService.sendAllBreakpoints(this).then(sendConfigurationDone, sendConfigurationDone)
 				.done(() => this.fetchThreads(), errors.onUnexpectedError);
 		}));
 
