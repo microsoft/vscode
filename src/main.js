@@ -475,6 +475,7 @@ app.once('ready', function () {
 		// If that fails we fall back to English.
 		nlsConfiguration.then((nlsConfig) => {
 			let boot = (nlsConfig) => {
+				nlsConfig._languagePackSupport = true;
 				process.env['VSCODE_NLS_CONFIG'] = JSON.stringify(nlsConfig);
 				if (cachedDataDir) process.env['VSCODE_NODE_CACHED_DATA_DIR_' + process.pid] = cachedDataDir;
 				require('./bootstrap-amd').bootstrap('vs/code/electron-main/main');
