@@ -265,6 +265,10 @@ export function createApiFactory(
 			getLanguages(): TPromise<string[]> {
 				return extHostLanguages.getLanguages();
 			},
+			changeLanguage(document: vscode.TextDocument, languageId: string): TPromise<void> {
+				checkProposedApiEnabled(extension);
+				return extHostLanguages.changeLanguage(document.uri, languageId);
+			},
 			match(selector: vscode.DocumentSelector, document: vscode.TextDocument): number {
 				return score(typeConverters.LanguageSelector.from(selector), document.uri, document.languageId, true);
 			},
