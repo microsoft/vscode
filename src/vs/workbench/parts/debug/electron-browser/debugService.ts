@@ -154,7 +154,9 @@ export class DebugService implements IDebugService {
 		}
 
 		if (broadcast.channel === EXTENSION_TERMINATE_BROADCAST_CHANNEL) {
-			session.raw.terminate().done(undefined, errors.onUnexpectedError);
+			if (session.raw) {
+				session.raw.terminate().done(undefined, errors.onUnexpectedError);
+			}
 			return;
 		}
 
