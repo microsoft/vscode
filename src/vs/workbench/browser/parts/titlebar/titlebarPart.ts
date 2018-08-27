@@ -30,7 +30,7 @@ import { isMacintosh, isWindows, isLinux } from 'vs/base/common/platform';
 import URI from 'vs/base/common/uri';
 import { Color } from 'vs/base/common/color';
 import { trim } from 'vs/base/common/strings';
-import { addDisposableListener, EventType, EventHelper, Dimension } from 'vs/base/browser/dom';
+import { addDisposableListener, EventType, EventHelper, Dimension, isAncestor } from 'vs/base/browser/dom';
 import { MenubarControl } from 'vs/workbench/browser/parts/titlebar/menubarControl';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { template, getBaseLabel } from 'vs/base/common/labels';
@@ -352,7 +352,11 @@ export class TitlebarPart extends Part implements ITitleService {
 
 		// Since the title area is used to drag the window, we do not want to steal focus from the
 		// currently active element. So we restore focus after a timeout back to where it was.
-		this.titleContainer.on([EventType.MOUSE_DOWN], () => {
+		this.titleContainer.on([EventType.MOUSE_DOWN], (e) => {
+			if (e.target && isAncestor(e.target as HTMLElement, this.menubar.getHTMLElement())) {
+				return;
+			}
+
 			const active = document.activeElement;
 			setTimeout(() => {
 				if (active instanceof HTMLElement) {

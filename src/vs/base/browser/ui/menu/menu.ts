@@ -263,6 +263,11 @@ class MenuActionItem extends BaseActionItem {
 			$('span.keybinding').text(this.options.keybinding).appendTo(this.$e);
 		}
 
+		this._register(addDisposableListener(this.element, EventType.MOUSE_UP, e => {
+			EventHelper.stop(e, true);
+			this.onClick(e);
+		}));
+
 		this._updateClass();
 		this._updateLabel();
 		this._updateTooltip();

@@ -107,6 +107,7 @@ export class MenubarControl extends Disposable {
 	private _mnemonicsInUse: boolean;
 	private openedViaKeyboard: boolean;
 	private awaitingAltRelease: boolean;
+	private ignoreNextMouseUp: boolean;
 	private mnemonics: Map<KeyCode, number>;
 
 	private _onVisibilityChange: Emitter<boolean>;
@@ -361,6 +362,7 @@ export class MenubarControl extends Disposable {
 			this.focusState = MenubarState.VISIBLE;
 		}
 
+		this.ignoreNextMouseUp = false;
 		this.mnemonicsInUse = false;
 		this.updateMnemonicVisibility(false);
 	}
@@ -751,9 +753,33 @@ export class MenubarControl extends Disposable {
 					}
 				}));
 
-				this._register(DOM.addDisposableListener(this.customMenus[menuIndex].buttonElement, DOM.EventType.CLICK, (e) => {
-					this.onMenuTriggered(menuIndex, true);
+				this._register(DOM.addDisposableListener(this.customMenus[menuIndex].buttonElement, DOM.EventType.MOUSE_DOWN, (e) => {
+					if (!this.isOpen) {
+						// Open the menu with mouse down and ignore the following mouse up event
+						this.ignoreNextMouseUp = true;
+						this.onMenuTriggered(menuIndex, true);
+					} else {
+						this.ignoreNextMouseUp = false;
+					}
 
+					e.preventDefault();
+					e.stopPropagation();
+				}));
+
+				this._register(DOM.addDisposableListener(this.customMenus[menuIndex].buttonElement, DOM.EventType.MOUSE_UP, (e) => {
+					console.log(this.ignoreNextMouseUp);
+					if (!this.ignoreNextMouseUp) {
+						this.onMenuTriggered(menuIndex, true);
+					} else {
+						console.log('ignored the mouse up');
+						this.ignoreNextMouseUp = false;
+					}
+
+					e.preventDefault();
+					e.stopPropagation();
+				}));
+
+				this._register(DOM.addDisposableListener(this.customMenus[menuIndex].buttonElement, DOM.EventType.CLICK, (e) => {
 					e.preventDefault();
 					e.stopPropagation();
 				}));
