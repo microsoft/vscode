@@ -190,7 +190,7 @@ export interface IFileSearchStats {
 	detailStats: ISearchEngineStats | ICachedSearchStats | IFileSearchProviderStats | IFileIndexProviderStats;
 
 	resultCount: number;
-	type: 'fileIndexProver' | 'fileSearchProvider' | 'searchProcess';
+	type: 'fileIndexProvider' | 'fileSearchProvider' | 'searchProcess';
 	sortingTime?: number;
 }
 

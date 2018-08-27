@@ -450,7 +450,7 @@ export class FileIndexSearchManager {
 				return <ISearchCompleteStats>{
 					limitHit: complete.limitHit,
 					stats: {
-						type: 'fileIndexProver',
+						type: 'fileIndexProvider',
 						detailStats: complete.stats,
 						fromCache: false,
 						resultCount: complete.results.length
@@ -520,7 +520,7 @@ export class FileIndexSearchManager {
 								fromCache: false,
 								resultCount: sortedResults.length,
 								sortingTime,
-								type: 'fileIndexProver'
+								type: 'fileIndexProvider'
 							}
 						});
 					});
@@ -559,7 +559,7 @@ export class FileIndexSearchManager {
 								stats: {
 									fromCache: true,
 									detailStats: complete.stats,
-									type: 'fileIndexProver',
+									type: 'fileIndexProvider',
 									resultCount: sortedResults.length,
 									sortingTime: sortSW.elapsed()
 								}
