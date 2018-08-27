@@ -4,28 +4,31 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import { IModelService, shouldSynchronizeModel } from 'vs/editor/common/services/modelService';
-import { ITextModel } from 'vs/editor/common/model';
-import { IDisposable, dispose } from 'vs/base/common/lifecycle';
+import { Emitter, Event } from 'vs/base/common/event';
+import { dispose, IDisposable } from 'vs/base/common/lifecycle';
+import URI from 'vs/base/common/uri';
+import { ICodeEditor, isCodeEditor, isDiffEditor } from 'vs/editor/browser/editorBrowser';
+import { IBulkEditService } from 'vs/editor/browser/services/bulkEditService';
 import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
-import { Event, Emitter } from 'vs/base/common/event';
-import { ExtHostContext, ExtHostDocumentsAndEditorsShape, IModelAddedData, ITextEditorAddData, IDocumentsAndEditorsDelta, IExtHostContext, MainContext } from '../node/extHost.protocol';
-import { MainThreadTextEditor } from './mainThreadEditor';
-import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
-import { IEditorGroupsService } from 'vs/workbench/services/group/common/editorGroupsService';
-import { EditorViewColumn, editorGroupToViewColumn } from 'vs/workbench/api/shared/editor';
-import { IEditor } from 'vs/workbench/common/editor';
+import { IEditor } from 'vs/editor/common/editorCommon';
+import { ITextModel } from 'vs/editor/common/model';
+import { IModelService, shouldSynchronizeModel } from 'vs/editor/common/services/modelService';
+import { IModeService } from 'vs/editor/common/services/modeService';
+import { ITextModelService } from 'vs/editor/common/services/resolverService';
+import { IFileService } from 'vs/platform/files/common/files';
 import { extHostCustomer } from 'vs/workbench/api/electron-browser/extHostCustomers';
 import { MainThreadDocuments } from 'vs/workbench/api/electron-browser/mainThreadDocuments';
 import { MainThreadTextEditors } from 'vs/workbench/api/electron-browser/mainThreadEditors';
-import { IModeService } from 'vs/editor/common/services/modeService';
-import { IFileService } from 'vs/platform/files/common/files';
-import { ITextModelService } from 'vs/editor/common/services/resolverService';
-import { IUntitledEditorService } from 'vs/workbench/services/untitled/common/untitledEditorService';
+import { editorGroupToViewColumn, EditorViewColumn } from 'vs/workbench/api/shared/editor';
+import { BaseTextEditor } from 'vs/workbench/browser/parts/editor/textEditor';
+import { IEditor as IWorkbenchEditor } from 'vs/workbench/common/editor';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
-import { isDiffEditor, ICodeEditor } from 'vs/editor/browser/editorBrowser';
-import URI from 'vs/base/common/uri';
-import { IBulkEditService } from 'vs/editor/browser/services/bulkEditService';
+import { IEditorGroupsService } from 'vs/workbench/services/group/common/editorGroupsService';
+import { IPanelService } from 'vs/workbench/services/panel/common/panelService';
+import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
+import { IUntitledEditorService } from 'vs/workbench/services/untitled/common/untitledEditorService';
+import { ExtHostContext, ExtHostDocumentsAndEditorsShape, IDocumentsAndEditorsDelta, IExtHostContext, IModelAddedData, ITextEditorAddData, MainContext } from '../node/extHost.protocol';
+import { MainThreadTextEditor } from './mainThreadEditor';
 
 namespace mapset {
 
@@ -161,7 +164,8 @@ class MainThreadDocumentAndEditorStateComputer {
 		private readonly _onDidChangeState: (delta: DocumentAndEditorStateDelta) => void,
 		@IModelService private readonly _modelService: IModelService,
 		@ICodeEditorService private readonly _codeEditorService: ICodeEditorService,
-		@IEditorService private readonly _editorService: IEditorService
+		@IEditorService private readonly _editorService: IEditorService,
+		@IPanelService private readonly _panelService: IPanelService,
 	) {
 		this._modelService.onModelAdded(this._updateStateOnModelAdd, this, this._toDispose);
 		this._modelService.onModelRemoved(this._updateState, this, this._toDispose);
@@ -252,13 +256,21 @@ class MainThreadDocumentAndEditorStateComputer {
 		}
 
 		// active editor: if none of the previous editors had focus we try
-		// to match the active workbench editor with one of editor we have
-		// just computed
+		// to match output panels or the the active workbench editor with
+		// one of editor we have just computed
 		if (!activeEditor) {
-			let candidate = this._editorService.activeTextEditorWidget;
-			if (isDiffEditor(candidate)) {
-				candidate = candidate.getModifiedEditor();
+
+			let candidate: IEditor;
+			let panel = this._panelService.getActivePanel();
+			if (panel instanceof BaseTextEditor && isCodeEditor(panel.getControl())) {
+				candidate = panel.getControl();
+			} else {
+				candidate = this._editorService.activeTextEditorWidget;
+				if (isDiffEditor(candidate)) {
+					candidate = candidate.getModifiedEditor();
+				}
 			}
+
 			if (candidate) {
 				editors.forEach(snapshot => {
 					if (candidate === snapshot.editor) {
@@ -307,7 +319,8 @@ export class MainThreadDocumentsAndEditors {
 		@ITextModelService textModelResolverService: ITextModelService,
 		@IUntitledEditorService untitledEditorService: IUntitledEditorService,
 		@IEditorGroupsService private readonly _editorGroupService: IEditorGroupsService,
-		@IBulkEditService bulkEditService: IBulkEditService
+		@IBulkEditService bulkEditService: IBulkEditService,
+		@IPanelService panelService: IPanelService
 
 	) {
 		this._proxy = extHostContext.getProxy(ExtHostContext.ExtHostDocumentsAndEditors);
@@ -319,7 +332,7 @@ export class MainThreadDocumentsAndEditors {
 		extHostContext.set(MainContext.MainThreadTextEditors, mainThreadTextEditors);
 
 		// It is expected that the ctor of the state computer calls our `_onDelta`.
-		this._stateComputer = new MainThreadDocumentAndEditorStateComputer(delta => this._onDelta(delta), _modelService, codeEditorService, this._editorService);
+		this._stateComputer = new MainThreadDocumentAndEditorStateComputer(delta => this._onDelta(delta), _modelService, codeEditorService, this._editorService, panelService);
 
 		this._toDispose = [
 			mainThreadDocuments,
@@ -430,7 +443,7 @@ export class MainThreadDocumentsAndEditors {
 		return undefined;
 	}
 
-	findTextEditorIdFor(editor: IEditor): string {
+	findTextEditorIdFor(editor: IWorkbenchEditor): string {
 		for (let id in this._textEditors) {
 			if (this._textEditors[id].matches(editor)) {
 				return id;

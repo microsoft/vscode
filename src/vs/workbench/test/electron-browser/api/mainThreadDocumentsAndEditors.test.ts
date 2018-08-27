@@ -6,21 +6,22 @@
 'use strict';
 
 import * as assert from 'assert';
-import { MainThreadDocumentsAndEditors } from 'vs/workbench/api/electron-browser/mainThreadDocumentsAndEditors';
-import { SingleProxyRPCProtocol } from './testRPCProtocol';
-import { TestConfigurationService } from 'vs/platform/configuration/test/common/testConfigurationService';
+import { Event } from 'vs/base/common/event';
+import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
+import { ITextModel } from 'vs/editor/common/model';
 import { ModelServiceImpl } from 'vs/editor/common/services/modelServiceImpl';
 import { TestCodeEditorService } from 'vs/editor/test/browser/editorTestServices';
-import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
-import { ExtHostDocumentsAndEditorsShape, IDocumentsAndEditorsDelta } from 'vs/workbench/api/node/extHost.protocol';
 import { createTestCodeEditor, TestCodeEditor } from 'vs/editor/test/browser/testCodeEditor';
-import { mock } from 'vs/workbench/test/electron-browser/api/mock';
-import { TestEditorService, TestEditorGroupsService } from 'vs/workbench/test/workbenchTestServices';
-import { Event } from 'vs/base/common/event';
-import { ITextModel } from 'vs/editor/common/model';
-import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
-import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
+import { TestConfigurationService } from 'vs/platform/configuration/test/common/testConfigurationService';
 import { IFileService } from 'vs/platform/files/common/files';
+import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
+import { MainThreadDocumentsAndEditors } from 'vs/workbench/api/electron-browser/mainThreadDocumentsAndEditors';
+import { ExtHostDocumentsAndEditorsShape, IDocumentsAndEditorsDelta } from 'vs/workbench/api/node/extHost.protocol';
+import { IPanelService } from 'vs/workbench/services/panel/common/panelService';
+import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
+import { mock } from 'vs/workbench/test/electron-browser/api/mock';
+import { TestEditorGroupsService, TestEditorService } from 'vs/workbench/test/workbenchTestServices';
+import { SingleProxyRPCProtocol } from './testRPCProtocol';
 
 suite('MainThreadDocumentsAndEditors', () => {
 
@@ -74,7 +75,13 @@ suite('MainThreadDocumentsAndEditors', () => {
 			null,
 			null,
 			editorGroupService,
-			null
+			null,
+			new class extends mock<IPanelService>() implements IPanelService {
+				_serviceBrand: any;
+				getActivePanel() {
+					return null;
+				}
+			}
 		);
 		/* tslint:enable */
 	});
