@@ -879,6 +879,7 @@ export class QuickInputService extends Component implements IQuickInputService {
 
 		this.visibleCountContainer = dom.append(this.filterContainer, $('.quick-input-visible-count'));
 		this.visibleCountContainer.setAttribute('aria-live', 'polite');
+		this.visibleCountContainer.setAttribute('aria-atomic', 'true');
 		const visibleCount = new CountBadge(this.visibleCountContainer, { countFormat: localize({ key: 'quickInput.visibleCount', comment: ['This tells the user how many items are shown in a list of items to select from. The items can be anything. Currently not visible, but read by screen readers.'] }, "{0} Results") });
 
 		this.countContainer = dom.append(this.filterContainer, $('.quick-input-count'));

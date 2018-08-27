@@ -235,7 +235,8 @@ export class QuickOpenWidget extends Disposable implements IModelProvider {
 			// Result count for screen readers
 			this.resultCount = div.div({
 				'class': 'quick-open-result-count',
-				'aria-live': 'polite'
+				'aria-live': 'polite',
+				'aria-atomic': 'true'
 			}).clone();
 
 			// Tree
