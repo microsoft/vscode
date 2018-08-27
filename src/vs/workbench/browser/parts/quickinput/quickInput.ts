@@ -75,6 +75,7 @@ interface QuickInputUI {
 	keyMods: Writeable<IKeyMods>;
 	show(controller: QuickInput): void;
 	setVisibilities(visibilities: Visibilities): void;
+	setComboboxAccessibility(enabled: boolean): void;
 	setEnabled(enabled: boolean): void;
 	setContextKey(contextKey?: string): void;
 	hide(): void;
@@ -514,7 +515,7 @@ class QuickPick<T extends IQuickPickItem> extends QuickInput implements IQuickPi
 				this.registerQuickNavigation()
 			);
 		}
-		super.show();
+		super.show(); // TODO: Why have show() bubble up while update() trickles down? (Could move setComboboxAccessibility() here.)
 	}
 
 	private registerQuickNavigation() {
@@ -616,6 +617,7 @@ class QuickPick<T extends IQuickPickItem> extends QuickInput implements IQuickPi
 		}
 		this.ui.list.matchOnDescription = this.matchOnDescription;
 		this.ui.list.matchOnDetail = this.matchOnDetail;
+		this.ui.setComboboxAccessibility(true);
 		this.ui.setVisibilities(this.canSelectMany ? { title: !!this.title || !!this.step, checkAll: true, inputBox: true, visibleCount: true, count: true, ok: true, list: true } : { title: !!this.title || !!this.step, inputBox: true, visibleCount: true, list: true });
 	}
 }
@@ -754,6 +756,7 @@ export class QuickInputService extends Component implements IQuickInputService {
 	private static readonly ID = 'workbench.component.quickinput';
 	private static readonly MAX_WIDTH = 600; // Max total width of quick open widget
 
+	private idPrefix = 'quickInput_'; // Constant since there is still only one.
 	private layoutDimensions: dom.Dimension;
 	private titleBar: HTMLElement;
 	private filterContainer: HTMLElement;
@@ -762,6 +765,7 @@ export class QuickInputService extends Component implements IQuickInputService {
 	private okContainer: HTMLElement;
 	private ok: Button;
 	private ui: QuickInputUI;
+	private comboboxAccessibility = false;
 	private enabled = true;
 	private inQuickOpenWidgets: Record<string, boolean> = {};
 	private inQuickOpenContext: IContextKey<boolean>;
@@ -896,7 +900,7 @@ export class QuickInputService extends Component implements IQuickInputService {
 		dom.addClass(progressBar.getContainer(), 'quick-input-progress');
 		this._register(attachProgressBarStyler(progressBar, this.themeService));
 
-		const list = this._register(this.instantiationService.createInstance(QuickInputList, container));
+		const list = this._register(this.instantiationService.createInstance(QuickInputList, container, this.idPrefix + 'list'));
 		this._register(list.onChangedAllVisibleChecked(checked => {
 			checkAll.checked = checked;
 		}));
@@ -914,6 +918,11 @@ export class QuickInputService extends Component implements IQuickInputService {
 					list.clearFocus();
 				}
 			}, 0);
+		}));
+		this._register(list.onDidChangeFocus(() => {
+			if (this.comboboxAccessibility) {
+				this.ui.inputBox.setAttribute('aria-activedescendant', this.ui.list.getActiveDescendant());
+			}
 		}));
 
 		const focusTracker = dom.trackFocus(container);
@@ -1003,6 +1012,7 @@ export class QuickInputService extends Component implements IQuickInputService {
 			show: controller => this.show(controller),
 			hide: () => this.hide(),
 			setVisibilities: visibilities => this.setVisibilities(visibilities),
+			setComboboxAccessibility: enabled => this.setComboboxAccessibility(enabled),
 			setEnabled: enabled => this.setEnabled(enabled),
 			setContextKey: contextKey => this.setContextKey(contextKey),
 		};
@@ -1202,6 +1212,7 @@ export class QuickInputService extends Component implements IQuickInputService {
 		this.ui.ignoreFocusOut = false;
 		this.ui.keyMods.ctrlCmd = false;
 		this.ui.keyMods.alt = false;
+		this.setComboboxAccessibility(false);
 
 		const keybinding = this.keybindingService.lookupKeybinding(BackAction.ID);
 		backButton.tooltip = keybinding ? localize('quickInput.backWithKeybinding', "Back ({0})", keybinding.getLabel()) : localize('quickInput.back', "Back");
@@ -1225,6 +1236,23 @@ export class QuickInputService extends Component implements IQuickInputService {
 		this.ui.list.display(visibilities.list);
 		this.ui.container.classList[visibilities.checkAll ? 'add' : 'remove']('show-checkboxes');
 		this.updateLayout(); // TODO
+	}
+
+	private setComboboxAccessibility(enabled: boolean) {
+		if (enabled !== this.comboboxAccessibility) {
+			this.comboboxAccessibility = enabled;
+			if (this.comboboxAccessibility) {
+				this.ui.inputBox.setAttribute('role', 'combobox');
+				this.ui.inputBox.setAttribute('aria-haspopup', 'true');
+				this.ui.inputBox.setAttribute('aria-autocomplete', 'list');
+				this.ui.inputBox.setAttribute('aria-activedescendant', this.ui.list.getActiveDescendant());
+			} else {
+				this.ui.inputBox.removeAttribute('role');
+				this.ui.inputBox.removeAttribute('aria-haspopup');
+				this.ui.inputBox.removeAttribute('aria-autocomplete');
+				this.ui.inputBox.removeAttribute('aria-activedescendant');
+			}
+		}
 	}
 
 	private setEnabled(enabled: boolean) {
