@@ -275,7 +275,6 @@ export default class URI implements UriComponents {
 	good.scheme === 'file';
 	good.path === '/coding/c#/project1';
 	good.fragment === '';
-
 	const bad = URI.parse('file://' + '/coding/c#/project1');
 	bad.scheme === 'file';
 	bad.path === '/coding/c'; // path is now broken
