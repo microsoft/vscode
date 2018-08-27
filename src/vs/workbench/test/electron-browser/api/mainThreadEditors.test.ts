@@ -6,30 +6,29 @@
 'use strict';
 
 import * as assert from 'assert';
-import { Event } from 'vs/base/common/event';
-import { ImmortalReference, IReference } from 'vs/base/common/lifecycle';
-import URI from 'vs/base/common/uri';
-import { TPromise } from 'vs/base/common/winjs.base';
-import { EditOperation } from 'vs/editor/common/core/editOperation';
-import { Position } from 'vs/editor/common/core/position';
-import { Range } from 'vs/editor/common/core/range';
-import { ResourceTextEdit } from 'vs/editor/common/modes';
-import { IModelService } from 'vs/editor/common/services/modelService';
-import { ModelServiceImpl } from 'vs/editor/common/services/modelServiceImpl';
-import { ITextEditorModel, ITextModelService } from 'vs/editor/common/services/resolverService';
-import { TestCodeEditorService } from 'vs/editor/test/browser/editorTestServices';
-import { TestConfigurationService } from 'vs/platform/configuration/test/common/testConfigurationService';
-import { LabelService } from 'vs/platform/label/common/label';
-import { NullLogService } from 'vs/platform/log/common/log';
 import { MainThreadDocumentsAndEditors } from 'vs/workbench/api/electron-browser/mainThreadDocumentsAndEditors';
-import { MainThreadTextEditors } from 'vs/workbench/api/electron-browser/mainThreadEditors';
-import { ExtHostContext, ExtHostDocumentsAndEditorsShape, ExtHostDocumentsShape } from 'vs/workbench/api/node/extHost.protocol';
-import { BulkEditService } from 'vs/workbench/services/bulkEdit/electron-browser/bulkEditService';
-import { IPanelService } from 'vs/workbench/services/panel/common/panelService';
-import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
-import { mock } from 'vs/workbench/test/electron-browser/api/mock';
-import { TestContextService, TestEditorGroupsService, TestEditorService, TestEnvironmentService, TestFileService } from 'vs/workbench/test/workbenchTestServices';
 import { SingleProxyRPCProtocol, TestRPCProtocol } from './testRPCProtocol';
+import { TestConfigurationService } from 'vs/platform/configuration/test/common/testConfigurationService';
+import { ModelServiceImpl } from 'vs/editor/common/services/modelServiceImpl';
+import { TestCodeEditorService } from 'vs/editor/test/browser/editorTestServices';
+import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
+import { ExtHostDocumentsAndEditorsShape, ExtHostContext, ExtHostDocumentsShape } from 'vs/workbench/api/node/extHost.protocol';
+import { mock } from 'vs/workbench/test/electron-browser/api/mock';
+import { Event } from 'vs/base/common/event';
+import { MainThreadTextEditors } from 'vs/workbench/api/electron-browser/mainThreadEditors';
+import URI from 'vs/base/common/uri';
+import { Range } from 'vs/editor/common/core/range';
+import { Position } from 'vs/editor/common/core/position';
+import { IModelService } from 'vs/editor/common/services/modelService';
+import { EditOperation } from 'vs/editor/common/core/editOperation';
+import { TestFileService, TestEditorService, TestEditorGroupsService, TestEnvironmentService, TestContextService } from 'vs/workbench/test/workbenchTestServices';
+import { TPromise } from 'vs/base/common/winjs.base';
+import { ResourceTextEdit } from 'vs/editor/common/modes';
+import { BulkEditService } from 'vs/workbench/services/bulkEdit/electron-browser/bulkEditService';
+import { NullLogService } from 'vs/platform/log/common/log';
+import { ITextModelService, ITextEditorModel } from 'vs/editor/common/services/resolverService';
+import { IReference, ImmortalReference } from 'vs/base/common/lifecycle';
+import { LabelService } from 'vs/platform/label/common/label';
 
 suite('MainThreadEditors', () => {
 
@@ -109,12 +108,6 @@ suite('MainThreadEditors', () => {
 			null,
 			editorGroupService,
 			bulkEditService,
-			new class extends mock<IPanelService>() implements IPanelService {
-				_serviceBrand: any;
-				getActivePanel() {
-					return null;
-				}
-			}
 		);
 
 		editors = new MainThreadTextEditors(
