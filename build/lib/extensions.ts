@@ -47,10 +47,15 @@ export function fromLocal(extensionPath: string, sourceMappingURLBase?: string):
 		const pattern = path.join(extensionPath, '/**/extension.webpack.config.js');
 		const webpackConfigLocations = (<string[]>glob.sync(pattern, { ignore: ['**/node_modules'] }));
 		if (webpackConfigLocations.length) {
-			//console.log('-----' + webpackConfigLocations.join(','));
-			//console.log('-----' + fileNames.join(','));
 
-			const packageJsonFilter = filter('**/package.json', { restore: true });
+			const packageJsonFilter = filter(f => {
+				if (path.basename(f.path) === 'package.json') {
+					// only modify package.json's next to the webpack file.
+					// to be safe, use existsSync instead of path comparison.
+					return fs.existsSync(path.join(path.dirname(f.path), 'extension.webpack.config.js'));
+				}
+				return false;
+			}, { restore: true });
 
 			const patchFilesStream = filesStream
 				.pipe(packageJsonFilter)

@@ -50,9 +50,14 @@ function fromLocal(extensionPath, sourceMappingURLBase) {
         var pattern = path.join(extensionPath, '/**/extension.webpack.config.js');
         var webpackConfigLocations = glob.sync(pattern, { ignore: ['**/node_modules'] });
         if (webpackConfigLocations.length) {
-            //console.log('-----' + webpackConfigLocations.join(','));
-            //console.log('-----' + fileNames.join(','));
-            var packageJsonFilter = filter('**/package.json', { restore: true });
+            var packageJsonFilter = filter(function (f) {
+                if (path.basename(f.path) === 'package.json') {
+                    // only modify package.json's next to the webpack file.
+                    // to be safe, use existsSync instead of path comparison.
+                    return fs.existsSync(path.join(path.dirname(f.path), 'extension.webpack.config.js'));
+                }
+                return false;
+            }, { restore: true });
             var patchFilesStream = filesStream
                 .pipe(packageJsonFilter)
                 .pipe(buffer())
