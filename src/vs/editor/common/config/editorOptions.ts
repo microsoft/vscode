@@ -111,7 +111,7 @@ export type EditorAutoWrappingStrategy = 'always' | 'quotes' | 'brackets' | 'nev
 export interface IEditorMinimapOptions {
 	/**
 	 * Enable the rendering of the minimap.
-	 * Defaults to false.
+	 * Defaults to true.
 	 */
 	enabled?: boolean;
 	/**

@@ -2493,7 +2493,7 @@ declare namespace monaco.editor {
 	export interface IEditorMinimapOptions {
 		/**
 		 * Enable the rendering of the minimap.
-		 * Defaults to false.
+		 * Defaults to true.
 		 */
 		enabled?: boolean;
 		/**
