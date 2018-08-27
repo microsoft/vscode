@@ -10,7 +10,6 @@ import * as platform from 'vs/base/common/platform';
 import * as nls from 'vs/nls';
 import * as lifecycle from 'vs/base/common/lifecycle';
 import { TPromise } from 'vs/base/common/winjs.base';
-import { Builder, $ } from 'vs/base/browser/builder';
 import { SelectBox, ISelectBoxOptions } from 'vs/base/browser/ui/selectBox/selectBox';
 import { IAction, IActionRunner, Action, IActionChangeEvent, ActionRunner, IRunEvent } from 'vs/base/common/actions';
 import * as DOM from 'vs/base/browser/dom';
@@ -38,7 +37,7 @@ export interface IBaseActionItemOptions {
 
 export class BaseActionItem implements IActionItem {
 
-	public builder: Builder;
+	public builder: HTMLElement;
 	public _callOnDispose: lifecycle.IDisposable[];
 	public _context: any;
 	public _action: IAction;
@@ -106,7 +105,7 @@ export class BaseActionItem implements IActionItem {
 	}
 
 	public render(container: HTMLElement): void {
-		this.builder = $(container);
+		this.builder = container;
 		Gesture.addTarget(container);
 
 		const enableDragging = this.options && this.options.draggable;
@@ -114,20 +113,20 @@ export class BaseActionItem implements IActionItem {
 			container.draggable = true;
 		}
 
-		this.builder.on(EventType.Tap, e => this.onClick(e));
+		this._callOnDispose.push(DOM.addDisposableListener(this.builder, EventType.Tap, e => this.onClick(e)));
 
-		this.builder.on(DOM.EventType.MOUSE_DOWN, (e) => {
+		this._callOnDispose.push(DOM.addDisposableListener(this.builder, DOM.EventType.MOUSE_DOWN, e => {
 			if (!enableDragging) {
 				DOM.EventHelper.stop(e, true); // do not run when dragging is on because that would disable it
 			}
 
 			const mouseEvent = e as MouseEvent;
 			if (this._action.enabled && mouseEvent.button === 0) {
-				this.builder.addClass('active');
+				DOM.addClass(this.builder, 'active');
 			}
-		});
+		}));
 
-		this.builder.on(DOM.EventType.CLICK, (e) => {
+		this._callOnDispose.push(DOM.addDisposableListener(this.builder, DOM.EventType.CLICK, e => {
 			DOM.EventHelper.stop(e, true);
 			// See https://developer.mozilla.org/en-US/Add-ons/WebExtensions/Interact_with_the_clipboard
 			// > Writing to the clipboard
@@ -142,11 +141,13 @@ export class BaseActionItem implements IActionItem {
 			} else {
 				platform.setImmediate(() => this.onClick(e));
 			}
-		});
+		}));
 
-		this.builder.on([DOM.EventType.MOUSE_UP, DOM.EventType.MOUSE_OUT], (e) => {
-			DOM.EventHelper.stop(e);
-			this.builder.removeClass('active');
+		[DOM.EventType.MOUSE_UP, DOM.EventType.MOUSE_OUT].forEach(event => {
+			this._callOnDispose.push(DOM.addDisposableListener(this.builder, event, e => {
+				DOM.EventHelper.stop(e);
+				DOM.removeClass(this.builder, 'active');
+			}));
 		});
 	}
 
@@ -169,15 +170,15 @@ export class BaseActionItem implements IActionItem {
 
 	public focus(): void {
 		if (this.builder) {
-			this.builder.domFocus();
-			this.builder.addClass('focused');
+			this.builder.focus();
+			DOM.addClass(this.builder, 'focused');
 		}
 	}
 
 	public blur(): void {
 		if (this.builder) {
-			this.builder.domBlur();
-			this.builder.removeClass('focused');
+			this.builder.blur();
+			DOM.removeClass(this.builder, 'focused');
 		}
 	}
 
@@ -203,7 +204,7 @@ export class BaseActionItem implements IActionItem {
 
 	public dispose(): void {
 		if (this.builder) {
-			this.builder.destroy();
+			DOM.removeNode(this.builder);
 			this.builder = null;
 		}
 
@@ -232,7 +233,7 @@ export interface IActionItemOptions extends IBaseActionItemOptions {
 
 export class ActionItem extends BaseActionItem {
 
-	protected $e: Builder;
+	protected $e: HTMLElement;
 	protected options: IActionItemOptions;
 	private cssClass: string;
 
@@ -248,20 +249,20 @@ export class ActionItem extends BaseActionItem {
 	public render(container: HTMLElement): void {
 		super.render(container);
 
-		this.$e = $('a.action-label').appendTo(this.builder);
+		this.$e = DOM.append(this.builder, DOM.$('a.action-label'));
 		if (this._action.id === Separator.ID) {
 			// A separator is a presentation item
-			this.$e.attr({ role: 'presentation' });
+			this.$e.setAttribute('role', 'presentation');
 		} else {
 			if (this.options.isMenu) {
-				this.$e.attr({ role: 'menuitem' });
+				this.$e.setAttribute('role', 'menuitem');
 			} else {
-				this.$e.attr({ role: 'button' });
+				this.$e.setAttribute('role', 'button');
 			}
 		}
 
 		if (this.options.label && this.options.keybinding) {
-			$('span.keybinding').text(this.options.keybinding).appendTo(this.builder);
+			DOM.append(this.builder, DOM.$('span.keybinding')).textContent = this.options.keybinding;
 		}
 
 		this._updateClass();
@@ -273,12 +274,12 @@ export class ActionItem extends BaseActionItem {
 
 	public focus(): void {
 		super.focus();
-		this.$e.domFocus();
+		this.$e.focus();
 	}
 
 	public _updateLabel(): void {
 		if (this.options.label) {
-			this.$e.text(this.getAction().label);
+			this.$e.textContent = this.getAction().label;
 		}
 	}
 
@@ -297,43 +298,43 @@ export class ActionItem extends BaseActionItem {
 		}
 
 		if (title) {
-			this.$e.attr({ title: title });
+			this.$e.title = title;
 		}
 	}
 
 	public _updateClass(): void {
 		if (this.cssClass) {
-			this.$e.removeClass(this.cssClass);
+			DOM.removeClasses(this.$e, this.cssClass);
 		}
 		if (this.options.icon) {
 			this.cssClass = this.getAction().class;
-			this.$e.addClass('icon');
+			DOM.addClass(this.$e, 'icon');
 			if (this.cssClass) {
-				this.$e.addClass(this.cssClass);
+				DOM.addClasses(this.$e, this.cssClass);
 			}
 			this._updateEnabled();
 		} else {
-			this.$e.removeClass('icon');
+			DOM.removeClass(this.$e, 'icon');
 		}
 	}
 
 	public _updateEnabled(): void {
 		if (this.getAction().enabled) {
-			this.builder.removeClass('disabled');
-			this.$e.removeClass('disabled');
-			this.$e.attr({ tabindex: 0 });
+			DOM.removeClass(this.builder, 'disabled');
+			DOM.removeClass(this.$e, 'disabled');
+			this.$e.tabIndex = 0;
 		} else {
-			this.builder.addClass('disabled');
-			this.$e.addClass('disabled');
-			DOM.removeTabIndexAndUpdateFocus(this.$e.getHTMLElement());
+			DOM.addClass(this.builder, 'disabled');
+			DOM.addClass(this.$e, 'disabled');
+			DOM.removeTabIndexAndUpdateFocus(this.$e);
 		}
 	}
 
 	public _updateChecked(): void {
 		if (this.getAction().checked) {
-			this.$e.addClass('checked');
+			DOM.addClass(this.$e, 'checked');
 		} else {
-			this.$e.removeClass('checked');
+			DOM.removeClass(this.$e, 'checked');
 		}
 	}
 }
@@ -439,7 +440,7 @@ export class ActionBar implements IActionRunner {
 				break;
 		}
 
-		$(this.domNode).on(DOM.EventType.KEY_DOWN, (e) => {
+		this.toDispose.push(DOM.addDisposableListener(this.domNode, DOM.EventType.KEY_DOWN, e => {
 			let event = new StandardKeyboardEvent(e as KeyboardEvent);
 			let eventHandled = true;
 
@@ -459,9 +460,9 @@ export class ActionBar implements IActionRunner {
 				event.preventDefault();
 				event.stopPropagation();
 			}
-		});
+		}));
 
-		$(this.domNode).on(DOM.EventType.KEY_UP, (e) => {
+		this.toDispose.push(DOM.addDisposableListener(this.domNode, DOM.EventType.KEY_UP, e => {
 			let event = new StandardKeyboardEvent(e as KeyboardEvent);
 
 			// Run action on Enter/Space
@@ -475,7 +476,7 @@ export class ActionBar implements IActionRunner {
 			else if (event.equals(KeyCode.Tab) || event.equals(KeyMod.Shift | KeyCode.Tab)) {
 				this.updateFocusedItem();
 			}
-		});
+		}));
 
 		this.focusTracker = DOM.trackFocus(this.domNode);
 		this.toDispose.push(this.focusTracker.onDidBlur(() => {
@@ -570,10 +571,10 @@ export class ActionBar implements IActionRunner {
 			actionItemElement.setAttribute('role', 'presentation');
 
 			// Prevent native context menu on actions
-			$(actionItemElement).on(DOM.EventType.CONTEXT_MENU, (e: DOM.EventLike) => {
+			this.toDispose.push(DOM.addDisposableListener(actionItemElement, DOM.EventType.CONTEXT_MENU, (e: DOM.EventLike) => {
 				e.preventDefault();
 				e.stopPropagation();
-			});
+			}));
 
 			let item: IActionItem = null;
 
@@ -626,7 +627,7 @@ export class ActionBar implements IActionRunner {
 
 	public clear(): void {
 		this.items = lifecycle.dispose(this.items);
-		$(this.actionsList).empty();
+		DOM.clearNode(this.actionsList);
 	}
 
 	public length(): number {
@@ -756,7 +757,7 @@ export class ActionBar implements IActionRunner {
 
 		this.toDispose = lifecycle.dispose(this.toDispose);
 
-		$(this.getContainer()).destroy();
+		DOM.removeNode(this.getContainer());
 	}
 }
 

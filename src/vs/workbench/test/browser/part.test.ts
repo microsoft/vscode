@@ -6,13 +6,13 @@
 'use strict';
 
 import * as assert from 'assert';
-import { Builder, $ } from 'vs/base/browser/builder';
 import { Part } from 'vs/workbench/browser/part';
 import * as Types from 'vs/base/common/types';
 import { IStorageService } from 'vs/platform/storage/common/storage';
 import { StorageService, InMemoryLocalStorage } from 'vs/platform/storage/common/storageService';
 import { TestThemeService } from 'vs/platform/theme/test/common/testThemeService';
 import { TestWorkspace } from 'vs/platform/workspace/test/common/testWorkspace';
+import { append, $, hide } from 'vs/base/browser/dom';
 
 class MyPart extends Part {
 
@@ -42,21 +42,21 @@ class MyPart2 extends Part {
 	}
 
 	public createTitleArea(parent: HTMLElement): HTMLElement {
-		return $(parent).div(function (div) {
-			div.span({
-				id: 'myPart.title',
-				innerHtml: 'Title'
-			});
-		}).getHTMLElement();
+		const titleContainer = append(parent, $('div'));
+		const titleLabel = append(titleContainer, $('span'));
+		titleLabel.id = 'myPart.title';
+		titleLabel.innerHTML = 'Title';
+
+		return titleContainer;
 	}
 
 	public createContentArea(parent: HTMLElement): HTMLElement {
-		return $(parent).div(function (div) {
-			div.span({
-				id: 'myPart.content',
-				innerHtml: 'Content'
-			});
-		}).getHTMLElement();
+		const contentContainer = append(parent, $('div'));
+		const contentSpan = append(contentContainer, $('span'));
+		contentSpan.id = 'myPart.content';
+		contentSpan.innerHTML = 'Content';
+
+		return contentContainer;
 	}
 }
 
@@ -71,12 +71,12 @@ class MyPart3 extends Part {
 	}
 
 	public createContentArea(parent: HTMLElement): HTMLElement {
-		return $(parent).div(function (div) {
-			div.span({
-				id: 'myPart.content',
-				innerHtml: 'Content'
-			});
-		}).getHTMLElement();
+		const contentContainer = append(parent, $('div'));
+		const contentSpan = append(contentContainer, $('span'));
+		contentSpan.id = 'myPart.content';
+		contentSpan.innerHTML = 'Content';
+
+		return contentContainer;
 	}
 }
 
@@ -97,11 +97,12 @@ suite('Workbench parts', () => {
 	});
 
 	test('Creation', function () {
-		let b = new Builder(document.getElementById(fixtureId));
-		b.div().hide();
+		let b = document.createElement('div');
+		document.getElementById(fixtureId).appendChild(b);
+		hide(b);
 
-		let part = new MyPart(b.getHTMLElement());
-		part.create(b.getHTMLElement());
+		let part = new MyPart(b);
+		part.create(b);
 
 		assert.strictEqual(part.getId(), 'myPart');
 
@@ -114,7 +115,7 @@ suite('Workbench parts', () => {
 		part.shutdown();
 
 		// Re-Create to assert memento contents
-		part = new MyPart(b.getHTMLElement());
+		part = new MyPart(b);
 
 		memento = part.getMemento(storage);
 		assert(memento);
@@ -126,29 +127,31 @@ suite('Workbench parts', () => {
 		delete memento.bar;
 
 		part.shutdown();
-		part = new MyPart(b.getHTMLElement());
+		part = new MyPart(b);
 		memento = part.getMemento(storage);
 		assert(memento);
 		assert.strictEqual(Types.isEmptyObject(memento), true);
 	});
 
 	test('Part Layout with Title and Content', function () {
-		let b = new Builder(document.getElementById(fixtureId));
-		b.div().hide();
+		let b = document.createElement('div');
+		document.getElementById(fixtureId).appendChild(b);
+		hide(b);
 
 		let part = new MyPart2();
-		part.create(b.getHTMLElement());
+		part.create(b);
 
 		assert(document.getElementById('myPart.title'));
 		assert(document.getElementById('myPart.content'));
 	});
 
 	test('Part Layout with Content only', function () {
-		let b = new Builder(document.getElementById(fixtureId));
-		b.div().hide();
+		let b = document.createElement('div');
+		document.getElementById(fixtureId).appendChild(b);
+		hide(b);
 
 		let part = new MyPart3();
-		part.create(b.getHTMLElement());
+		part.create(b);
 
 		assert(!document.getElementById('myPart.title'));
 		assert(document.getElementById('myPart.content'));

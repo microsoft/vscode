@@ -109,7 +109,7 @@ class StatusBarActionItem extends ActionItem {
 
 	_updateLabel(): void {
 		if (this.options.label) {
-			this.$e.innerHtml(renderOcticons(this.getAction().label));
+			this.$e.innerHTML = renderOcticons(this.getAction().label);
 		}
 	}
 }

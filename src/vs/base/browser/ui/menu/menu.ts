@@ -11,7 +11,7 @@ import * as strings from 'vs/base/common/strings';
 import { IActionRunner, IAction, Action } from 'vs/base/common/actions';
 import { ActionBar, IActionItemProvider, ActionsOrientation, Separator, ActionItem, IActionItemOptions, BaseActionItem } from 'vs/base/browser/ui/actionbar/actionbar';
 import { ResolvedKeybinding, KeyCode, KeyCodeUtils } from 'vs/base/common/keyCodes';
-import { addClass, EventType, EventHelper, EventLike, removeTabIndexAndUpdateFocus, isAncestor, hasClass, addDisposableListener } from 'vs/base/browser/dom';
+import { addClass, EventType, EventHelper, EventLike, removeTabIndexAndUpdateFocus, isAncestor, hasClass, addDisposableListener, removeClass } from 'vs/base/browser/dom';
 import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { $, Builder } from 'vs/base/browser/builder';
 import { RunOnceScheduler } from 'vs/base/common/async';
@@ -335,11 +335,11 @@ class MenuActionItem extends BaseActionItem {
 
 	_updateEnabled(): void {
 		if (this.getAction().enabled) {
-			this.builder.removeClass('disabled');
+			removeClass(this.builder, 'disabled');
 			this.$e.removeClass('disabled');
 			this.$e.attr({ tabindex: 0 });
 		} else {
-			this.builder.addClass('disabled');
+			addClass(this.builder, 'disabled');
 			this.$e.addClass('disabled');
 			removeTabIndexAndUpdateFocus(this.$e.getHTMLElement());
 		}
@@ -383,7 +383,7 @@ class SubmenuActionItem extends MenuActionItem {
 		}, 250);
 
 		this.hideScheduler = new RunOnceScheduler(() => {
-			if ((!isAncestor(document.activeElement, this.builder.getHTMLElement()) && this.parentData.submenu === this.mysubmenu)) {
+			if ((!isAncestor(document.activeElement, this.builder) && this.parentData.submenu === this.mysubmenu)) {
 				this.parentData.parent.focus(false);
 				this.cleanupExistingSubmenu(true);
 			}
@@ -426,7 +426,7 @@ class SubmenuActionItem extends MenuActionItem {
 		});
 
 		$(this.builder).on(EventType.FOCUS_OUT, (e) => {
-			if (!isAncestor(document.activeElement, this.builder.getHTMLElement())) {
+			if (!isAncestor(document.activeElement, this.builder)) {
 				this.hideScheduler.schedule();
 			}
 		});

@@ -9,13 +9,13 @@ import { localize } from 'vs/nls';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { IMenu, MenuItemAction, IMenuActionOptions, ICommandAction, SubmenuItemAction } from 'vs/platform/actions/common/actions';
 import { IAction } from 'vs/base/common/actions';
-import { IDisposable, dispose } from 'vs/base/common/lifecycle';
+import { IDisposable, dispose, toDisposable } from 'vs/base/common/lifecycle';
 import { ActionItem, Separator } from 'vs/base/browser/ui/actionbar/actionbar';
 import { domEvent } from 'vs/base/browser/event';
 import { Emitter } from 'vs/base/common/event';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 import { IdGenerator } from 'vs/base/common/idGenerator';
-import { createCSSRule } from 'vs/base/browser/dom';
+import { createCSSRule, addClasses, removeClasses } from 'vs/base/browser/dom';
 import { INotificationService } from 'vs/platform/notification/common/notification';
 import { isWindows, isLinux } from 'vs/base/common/platform';
 
@@ -217,12 +217,12 @@ export class MenuItemActionItem extends ActionItem {
 
 	_updateLabel(): void {
 		if (this.options.label) {
-			this.$e.text(this._commandAction.label);
+			this.$e.textContent = this._commandAction.label;
 		}
 	}
 
 	_updateTooltip(): void {
-		const element = this.$e.getHTMLElement();
+		const element = this.$e;
 		const keybinding = this._keybindingService.lookupKeybinding(this._commandAction.id);
 		const keybindingLabel = keybinding && keybinding.getLabel();
 
@@ -259,8 +259,8 @@ export class MenuItemActionItem extends ActionItem {
 				MenuItemActionItem.ICON_PATH_TO_CSS_RULES.set(iconPathMapKey, iconClass);
 			}
 
-			this.$e.getHTMLElement().classList.add('icon', iconClass);
-			this._itemClassDispose = { dispose: () => this.$e.getHTMLElement().classList.remove('icon', iconClass) };
+			addClasses(this.$e, 'icon', iconClass);
+			this._itemClassDispose = toDisposable(() => removeClasses(this.$e, 'icon', iconClass));
 		}
 	}
 
