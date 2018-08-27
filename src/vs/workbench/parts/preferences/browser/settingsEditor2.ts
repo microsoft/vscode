@@ -179,7 +179,7 @@ export class SettingsEditor2 extends BaseEditor {
 		// #56185
 		if (dimension.width !== this.lastLayedoutWidth) {
 			this.lastLayedoutWidth = dimension.width;
-			this.delayRefreshOnLayout.trigger(() => this.renderTree());
+			this.delayRefreshOnLayout.trigger(() => this.renderTree(undefined, true));
 		}
 	}
 
