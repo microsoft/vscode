@@ -67,6 +67,10 @@ export class Session implements ISession {
 		return this._configuration.unresolved;
 	}
 
+	get capabilities(): DebugProtocol.Capabilities {
+		return this._raw ? this._raw.capabilities : Object.create(null);
+	}
+
 	getName(includeRoot: boolean): string {
 		return includeRoot && this.root ? `${this.configuration.name} (${resources.basenameOrAuthority(this.root.uri)})` : this.configuration.name;
 	}

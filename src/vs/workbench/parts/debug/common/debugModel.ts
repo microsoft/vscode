@@ -491,16 +491,15 @@ export class Thread implements IThread {
 	 * Returns exception info promise if the exception was thrown, otherwise null
 	 */
 	public get exceptionInfo(): TPromise<IExceptionInfo> {
-		const session = this.session.raw;
 		if (this.stoppedDetails && this.stoppedDetails.reason === 'exception') {
-			if (!session.capabilities.supportsExceptionInfoRequest) {
+			if (!this.session.capabilities.supportsExceptionInfoRequest) {
 				return TPromise.as({
 					description: this.stoppedDetails.text,
 					breakMode: null
 				});
 			}
 
-			return session.exceptionInfo({ threadId: this.threadId }).then(exception => {
+			return this.session.raw.exceptionInfo({ threadId: this.threadId }).then(exception => {
 				if (!exception) {
 					return null;
 				}
@@ -832,7 +831,7 @@ export class Model implements IModel {
 	}
 
 	public fetchCallStack(thread: Thread): TPromise<void> {
-		if (thread.session.raw.capabilities.supportsDelayedStackTraceLoading) {
+		if (thread.session.capabilities.supportsDelayedStackTraceLoading) {
 			// For improved performance load the first stack frame and then load the rest async.
 			return thread.fetchCallStack(1).then(() => {
 				if (!this.schedulers.has(thread.getId())) {

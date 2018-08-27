@@ -280,10 +280,10 @@ export class DebugActionsWidget extends Themable implements IWorkbenchContributi
 				return state === State.Running;
 			}
 			if (a.id === StepBackAction.ID) {
-				return session && session.raw.capabilities.supportsStepBack;
+				return session && session.capabilities.supportsStepBack;
 			}
 			if (a.id === ReverseContinueAction.ID) {
-				return session && session.raw.capabilities.supportsStepBack;
+				return session && session.capabilities.supportsStepBack;
 			}
 			if (a.id === DisconnectAction.ID) {
 				return attached;

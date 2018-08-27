@@ -913,7 +913,7 @@ export class DebugService implements IDebugService {
 	restartSession(session: ISession, restartData?: any): TPromise<any> {
 		return this.textFileService.saveAll().then(() => {
 			const unresolvedConfiguration = (<Session>session).unresolvedConfiguration;
-			if (session.raw.capabilities.supportsRestartRequest) {
+			if (session.capabilities.supportsRestartRequest) {
 				return this.runTask(session.getId(), session.root, session.configuration.postDebugTask, session.configuration, unresolvedConfiguration)
 					.then(success => success ? this.runTask(session.getId(), session.root, session.configuration.preLaunchTask, session.configuration, unresolvedConfiguration)
 						.then(success => success ? session.raw.custom('restart', null) : undefined) : TPromise.as(<any>undefined));
