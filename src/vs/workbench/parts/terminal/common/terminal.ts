@@ -446,11 +446,19 @@ export interface ITerminalInstance {
 	notifyFindWidgetFocusChanged(isFocused: boolean): void;
 
 	/**
-	 * Focuses the terminal instance.
+	 * Focuses the terminal instance if it's able to (xterm.js instance exists).
 	 *
 	 * @param focus Force focus even if there is a selection.
 	 */
 	focus(force?: boolean): void;
+
+	/**
+	 * Focuses the terminal instance when it's ready (the xterm.js instance is created). Use this
+	 * when the terminal is being shown.
+	 *
+	 * @param focus Force focus even if there is a selection.
+	 */
+	focusWhenReady(force?: boolean): Promise<void>;
 
 	/**
 	 * Focuses and pastes the contents of the clipboard into the terminal instance.

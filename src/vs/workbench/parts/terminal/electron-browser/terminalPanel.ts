@@ -178,7 +178,7 @@ export class TerminalPanel extends Panel {
 	public focus(): void {
 		const activeInstance = this._terminalService.getActiveInstance();
 		if (activeInstance) {
-			activeInstance.focus(true);
+			activeInstance.focusWhenReady(true);
 		}
 	}
 
