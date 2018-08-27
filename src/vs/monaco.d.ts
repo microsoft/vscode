@@ -181,7 +181,6 @@ declare namespace monaco {
 		good.scheme === 'file';
 		good.path === '/coding/c#/project1';
 		good.fragment === '';
-
 		const bad = Uri.parse('file://' + '/coding/c#/project1');
 		bad.scheme === 'file';
 		bad.path === '/coding/c'; // path is now broken
