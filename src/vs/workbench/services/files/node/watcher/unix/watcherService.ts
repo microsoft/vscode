@@ -44,7 +44,7 @@ export class FileWatcher {
 		const client = new Client(
 			getPathFromAmdModule(require, 'bootstrap'),
 			{
-				serverName: 'Watcher',
+				serverName: 'File Watcher (chokidar)',
 				args,
 				env: {
 					AMD_ENTRYPOINT: 'vs/workbench/services/files/node/watcher/unix/watcherApp',
