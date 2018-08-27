@@ -742,7 +742,7 @@ export class SettingsEditor2 extends BaseEditor {
 	}
 
 	private updateElementsByKey(keys: string[]): TPromise<void> {
-		if (keys.length) {
+		if (keys.length && this.currentSettingsModel) {
 			keys.forEach(key => this.currentSettingsModel.updateElementsByName(key));
 			return TPromise.join(
 				keys.map(key => this.renderTree(key)))
