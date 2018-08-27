@@ -15,6 +15,7 @@ import { values } from 'vs/base/common/map';
 import { Range, FileChangeType } from 'vs/workbench/api/node/extHostTypes';
 import { ExtHostLanguageFeatures } from 'vs/workbench/api/node/extHostLanguageFeatures';
 import { Schemas } from 'vs/base/common/network';
+import { LabelRules } from 'vs/platform/label/common/label';
 
 class FsLinkProvider implements vscode.DocumentLinkProvider {
 
@@ -141,44 +142,48 @@ export class ExtHostFileSystem implements ExtHostFileSystemShape {
 		});
 	}
 
+	setUriFormatter(scheme: string, formatter: LabelRules): void {
+		this._proxy.$setUriFormatter(scheme, formatter);
+	}
+
 	private static _asIStat(stat: vscode.FileStat): files.IStat {
 		const { type, ctime, mtime, size } = stat;
 		return { type, ctime, mtime, size };
 	}
 
-	$stat(handle: number, resource: UriComponents): TPromise<files.IStat, any> {
+	$stat(handle: number, resource: UriComponents): TPromise<files.IStat> {
 		return asWinJsPromise(() => this._fsProvider.get(handle).stat(URI.revive(resource))).then(ExtHostFileSystem._asIStat);
 	}
 
-	$readdir(handle: number, resource: UriComponents): TPromise<[string, files.FileType][], any> {
+	$readdir(handle: number, resource: UriComponents): TPromise<[string, files.FileType][]> {
 		return asWinJsPromise(() => this._fsProvider.get(handle).readDirectory(URI.revive(resource)));
 	}
 
-	$readFile(handle: number, resource: UriComponents): TPromise<string> {
+	$readFile(handle: number, resource: UriComponents): TPromise<Buffer> {
 		return asWinJsPromise(() => {
 			return this._fsProvider.get(handle).readFile(URI.revive(resource));
 		}).then(data => {
-			return Buffer.isBuffer(data) ? data.toString('base64') : Buffer.from(data.buffer, data.byteOffset, data.byteLength).toString('base64');
+			return Buffer.isBuffer(data) ? data : Buffer.from(data.buffer, data.byteOffset, data.byteLength);
 		});
 	}
 
-	$writeFile(handle: number, resource: UriComponents, base64Content: string, opts: files.FileWriteOptions): TPromise<void, any> {
-		return asWinJsPromise(() => this._fsProvider.get(handle).writeFile(URI.revive(resource), Buffer.from(base64Content, 'base64'), opts));
+	$writeFile(handle: number, resource: UriComponents, content: Buffer, opts: files.FileWriteOptions): TPromise<void> {
+		return asWinJsPromise(() => this._fsProvider.get(handle).writeFile(URI.revive(resource), content, opts));
 	}
 
-	$delete(handle: number, resource: UriComponents, opts: files.FileDeleteOptions): TPromise<void, any> {
+	$delete(handle: number, resource: UriComponents, opts: files.FileDeleteOptions): TPromise<void> {
 		return asWinJsPromise(() => this._fsProvider.get(handle).delete(URI.revive(resource), opts));
 	}
 
-	$rename(handle: number, oldUri: UriComponents, newUri: UriComponents, opts: files.FileOverwriteOptions): TPromise<void, any> {
+	$rename(handle: number, oldUri: UriComponents, newUri: UriComponents, opts: files.FileOverwriteOptions): TPromise<void> {
 		return asWinJsPromise(() => this._fsProvider.get(handle).rename(URI.revive(oldUri), URI.revive(newUri), opts));
 	}
 
-	$copy(handle: number, oldUri: UriComponents, newUri: UriComponents, opts: files.FileOverwriteOptions): TPromise<void, any> {
+	$copy(handle: number, oldUri: UriComponents, newUri: UriComponents, opts: files.FileOverwriteOptions): TPromise<void> {
 		return asWinJsPromise(() => this._fsProvider.get(handle).copy(URI.revive(oldUri), URI.revive(newUri), opts));
 	}
 
-	$mkdir(handle: number, resource: UriComponents): TPromise<void, any> {
+	$mkdir(handle: number, resource: UriComponents): TPromise<void> {
 		return asWinJsPromise(() => this._fsProvider.get(handle).createDirectory(URI.revive(resource)));
 	}
 

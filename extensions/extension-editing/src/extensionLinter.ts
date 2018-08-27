@@ -249,9 +249,10 @@ export class ExtensionLinter {
 	private readPackageJsonInfo(folder: Uri, tree: JsonNode) {
 		const engine = tree && findNodeAtLocation(tree, ['engines', 'vscode']);
 		const repo = tree && findNodeAtLocation(tree, ['repository', 'url']);
+		const uri = repo && parseUri(repo.value);
 		const info: PackageJsonInfo = {
 			isExtension: !!(engine && engine.type === 'string'),
-			hasHttpsRepository: !!(repo && repo.type === 'string' && repo.value && parseUri(repo.value).scheme.toLowerCase() === 'https')
+			hasHttpsRepository: !!(repo && repo.type === 'string' && repo.value && uri && uri.scheme.toLowerCase() === 'https')
 		};
 		const str = folder.toString();
 		const oldInfo = this.folderToPackageJsonInfo[str];
@@ -263,6 +264,9 @@ export class ExtensionLinter {
 	}
 
 	private async loadPackageJson(folder: Uri) {
+		if (folder.scheme === 'git') { // #36236
+			return undefined;
+		}
 		const file = folder.with({ path: path.posix.join(folder.path, 'package.json') });
 		try {
 			const document = await workspace.openTextDocument(file);
@@ -285,6 +289,9 @@ export class ExtensionLinter {
 
 	private addDiagnostics(diagnostics: Diagnostic[], document: TextDocument, begin: number, end: number, src: string, context: Context, info: PackageJsonInfo) {
 		const uri = parseUri(src);
+		if (!uri) {
+			return;
+		}
 		const scheme = uri.scheme.toLowerCase();
 
 		if (scheme && scheme !== 'https' && scheme !== 'data') {
@@ -344,7 +351,7 @@ function parseUri(src: string) {
 		try {
 			return Uri.parse(encodeURI(src));
 		} catch (err) {
-			return Uri.parse('');
+			return null;
 		}
 	}
 }

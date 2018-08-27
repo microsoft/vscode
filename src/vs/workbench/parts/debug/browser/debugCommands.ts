@@ -186,7 +186,7 @@ export function registerCommands(): void {
 			}
 			const launch = manager.getLaunches().filter(l => l.uri.toString() === launchUri).pop() || manager.selectedConfiguration.launch;
 
-			return launch.openConfigFile(false).done(({ editor, created }) => {
+			return launch.openConfigFile(false, false).done(({ editor, created }) => {
 				if (editor && !created) {
 					const codeEditor = <ICodeEditor>editor.getControl();
 					if (codeEditor) {

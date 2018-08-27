@@ -426,10 +426,10 @@ export class NotificationTemplateRenderer {
 
 	private renderSource(notification): void {
 		if (notification.expanded && notification.source) {
-			this.template.source.innerText = localize('notificationSource', "Source: {0}", notification.source);
+			this.template.source.textContent = localize('notificationSource', "Source: {0}", notification.source);
 			this.template.source.title = notification.source;
 		} else {
-			this.template.source.innerText = '';
+			this.template.source.textContent = '';
 			this.template.source.removeAttribute('title');
 		}
 	}

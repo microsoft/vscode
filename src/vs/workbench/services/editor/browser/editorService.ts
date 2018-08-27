@@ -13,11 +13,8 @@ import { DataUriEditorInput } from 'vs/workbench/common/editor/dataUriEditorInpu
 import { Registry } from 'vs/platform/registry/common/platform';
 import { ResourceMap } from 'vs/base/common/map';
 import { IUntitledEditorService } from 'vs/workbench/services/untitled/common/untitledEditorService';
-import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
-import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { IFileService } from 'vs/platform/files/common/files';
 import { Schemas } from 'vs/base/common/network';
-import { getPathLabel } from 'vs/base/common/labels';
 import { Event, once, Emitter } from 'vs/base/common/event';
 import URI from 'vs/base/common/uri';
 import { basename } from 'vs/base/common/paths';
@@ -31,6 +28,7 @@ import { Disposable, IDisposable, dispose, toDisposable } from 'vs/base/common/l
 import { coalesce } from 'vs/base/common/arrays';
 import { isCodeEditor, isDiffEditor, ICodeEditor, IDiffEditor } from 'vs/editor/browser/editorBrowser';
 import { IEditorGroupView, IEditorOpeningEvent, EditorGroupsServiceImpl, EditorServiceImpl } from 'vs/workbench/browser/parts/editor/editor';
+import { ILabelService } from 'vs/platform/label/common/label';
 
 type ICachedEditorInput = ResourceEditorInput | IFileEditorInput | DataUriEditorInput;
 
@@ -65,9 +63,8 @@ export class EditorService extends Disposable implements EditorServiceImpl {
 	constructor(
 		@IEditorGroupsService private editorGroupService: EditorGroupsServiceImpl,
 		@IUntitledEditorService private untitledEditorService: IUntitledEditorService,
-		@IWorkspaceContextService private workspaceContextService: IWorkspaceContextService,
 		@IInstantiationService private instantiationService: IInstantiationService,
-		@IEnvironmentService private environmentService: IEnvironmentService,
+		@ILabelService private labelService: ILabelService,
 		@IFileService private fileService: IFileService,
 		@IConfigurationService private configurationService: IConfigurationService
 	) {
@@ -489,7 +486,7 @@ export class EditorService extends Disposable implements EditorServiceImpl {
 		if (resourceDiffInput.leftResource && resourceDiffInput.rightResource) {
 			const leftInput = this.createInput({ resource: resourceDiffInput.leftResource }, options);
 			const rightInput = this.createInput({ resource: resourceDiffInput.rightResource }, options);
-			const label = resourceDiffInput.label || localize('compareLabels', "{0} ↔ {1}", this.toDiffLabel(leftInput, this.workspaceContextService, this.environmentService), this.toDiffLabel(rightInput, this.workspaceContextService, this.environmentService));
+			const label = resourceDiffInput.label || localize('compareLabels', "{0} ↔ {1}", this.toDiffLabel(leftInput), this.toDiffLabel(rightInput));
 
 			return new DiffEditorInput(label, resourceDiffInput.description, leftInput, rightInput);
 		}
@@ -557,7 +554,7 @@ export class EditorService extends Disposable implements EditorServiceImpl {
 		return input;
 	}
 
-	private toDiffLabel(input: EditorInput, context: IWorkspaceContextService, environment: IEnvironmentService): string {
+	private toDiffLabel(input: EditorInput): string {
 		const res = input.getResource();
 
 		// Do not try to extract any paths from simple untitled editors
@@ -566,7 +563,7 @@ export class EditorService extends Disposable implements EditorServiceImpl {
 		}
 
 		// Otherwise: for diff labels prefer to see the path as part of the label
-		return getPathLabel(res.fsPath, environment, context);
+		return this.labelService.getUriLabel(res, true);
 	}
 
 	//#endregion
@@ -586,18 +583,16 @@ export class DelegatingEditorService extends EditorService {
 	constructor(
 		@IEditorGroupsService editorGroupService: EditorGroupsServiceImpl,
 		@IUntitledEditorService untitledEditorService: IUntitledEditorService,
-		@IWorkspaceContextService workspaceContextService: IWorkspaceContextService,
 		@IInstantiationService instantiationService: IInstantiationService,
-		@IEnvironmentService environmentService: IEnvironmentService,
+		@ILabelService labelService: ILabelService,
 		@IFileService fileService: IFileService,
 		@IConfigurationService configurationService: IConfigurationService
 	) {
 		super(
 			editorGroupService,
 			untitledEditorService,
-			workspaceContextService,
 			instantiationService,
-			environmentService,
+			labelService,
 			fileService,
 			configurationService
 		);

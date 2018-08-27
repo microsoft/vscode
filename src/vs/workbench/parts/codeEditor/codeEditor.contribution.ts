@@ -6,8 +6,7 @@
 import './electron-browser/accessibility';
 import './electron-browser/inspectKeybindings';
 import './electron-browser/largeFileOptimizations';
-import './electron-browser/menubarRegistrations';
-import './electron-browser/menuPreventer';
+import './browser/menuPreventer';
 import './electron-browser/selectionClipboard';
 import './electron-browser/textMate/inspectTMScopes';
 import './electron-browser/toggleMinimap';

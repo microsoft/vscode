@@ -4,21 +4,21 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
+import { CancellationToken } from 'vs/base/common/cancellation';
+import { Color } from 'vs/base/common/color';
+import { Event } from 'vs/base/common/event';
 import { IMarkdownString } from 'vs/base/common/htmlContent';
 import { IDisposable } from 'vs/base/common/lifecycle';
-import URI from 'vs/base/common/uri';
-import { TokenizationResult, TokenizationResult2 } from 'vs/editor/common/core/token';
-import LanguageFeatureRegistry from 'vs/editor/common/modes/languageFeatureRegistry';
-import { CancellationToken } from 'vs/base/common/cancellation';
-import { Position } from 'vs/editor/common/core/position';
-import { Range, IRange } from 'vs/editor/common/core/range';
-import { Event } from 'vs/base/common/event';
-import { TokenizationRegistryImpl } from 'vs/editor/common/modes/tokenizationRegistry';
-import { Color } from 'vs/base/common/color';
-import { IMarkerData } from 'vs/platform/markers/common/markers';
-import * as model from 'vs/editor/common/model';
 import { isObject } from 'vs/base/common/types';
+import URI from 'vs/base/common/uri';
+import { Position } from 'vs/editor/common/core/position';
+import { IRange, Range } from 'vs/editor/common/core/range';
 import { Selection } from 'vs/editor/common/core/selection';
+import { TokenizationResult, TokenizationResult2 } from 'vs/editor/common/core/token';
+import * as model from 'vs/editor/common/model';
+import LanguageFeatureRegistry from 'vs/editor/common/modes/languageFeatureRegistry';
+import { TokenizationRegistryImpl } from 'vs/editor/common/modes/tokenizationRegistry';
+import { IMarkerData } from 'vs/platform/markers/common/markers';
 
 /**
  * Open ended enum at runtime
@@ -301,6 +301,7 @@ export interface ISuggestion {
 	additionalTextEdits?: model.ISingleEditOperation[];
 	command?: Command;
 	snippetType?: SnippetType;
+	noWhitespaceAdjust?: boolean;
 }
 
 /**
@@ -848,12 +849,12 @@ export interface FoldingRangeProvider {
 export interface FoldingRange {
 
 	/**
-	 * The zero-based start line of the range to fold. The folded area starts after the line's last character.
+	 * The one-based start line of the range to fold. The folded area starts after the line's last character.
 	 */
 	start: number;
 
 	/**
-	 * The zero-based end line of the range to fold. The folded area ends with the line's last character.
+	 * The one-based end line of the range to fold. The folded area ends with the line's last character.
 	 */
 	end: number;
 
@@ -938,6 +939,9 @@ export interface Command {
 	arguments?: any[];
 }
 
+/**
+ * @internal
+ */
 export interface CommentInfo {
 	owner: number;
 	threads: CommentThread[];
@@ -945,6 +949,9 @@ export interface CommentInfo {
 	reply?: Command;
 }
 
+/**
+ * @internal
+ */
 export enum CommentThreadCollapsibleState {
 	/**
 	 * Determines an item is collapsed
@@ -956,6 +963,9 @@ export enum CommentThreadCollapsibleState {
 	Expanded = 1
 }
 
+/**
+ * @internal
+ */
 export interface CommentThread {
 	threadId: string;
 	resource: string;
@@ -965,11 +975,17 @@ export interface CommentThread {
 	reply?: Command;
 }
 
+/**
+ * @internal
+ */
 export interface NewCommentAction {
 	ranges: IRange[];
 	actions: Command[];
 }
 
+/**
+ * @internal
+ */
 export interface Comment {
 	readonly commentId: string;
 	readonly body: IMarkdownString;
@@ -978,6 +994,9 @@ export interface Comment {
 	readonly command?: Command;
 }
 
+/**
+ * @internal
+ */
 export interface CommentThreadChangedEvent {
 	readonly owner: number;
 	/**
@@ -996,7 +1015,9 @@ export interface CommentThreadChangedEvent {
 	readonly changed: CommentThread[];
 }
 
-
+/**
+ * @internal
+ */
 export interface DocumentCommentProvider {
 	provideDocumentComments(resource: URI, token: CancellationToken): Promise<CommentInfo>;
 	createNewCommentThread(resource: URI, range: Range, text: string, token: CancellationToken): Promise<CommentThread>;
@@ -1004,7 +1025,9 @@ export interface DocumentCommentProvider {
 	onDidChangeCommentThreads(): Event<CommentThreadChangedEvent>;
 }
 
-
+/**
+ * @internal
+ */
 export interface WorkspaceCommentProvider {
 	provideWorkspaceComments(token: CancellationToken): Promise<CommentThread[]>;
 	createNewCommentThread(resource: URI, range: Range, text: string, token: CancellationToken): Promise<CommentThread>;

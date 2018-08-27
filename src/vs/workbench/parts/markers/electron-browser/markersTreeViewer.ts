@@ -19,9 +19,10 @@ import { IInstantiationService } from 'vs/platform/instantiation/common/instanti
 import { attachBadgeStyler } from 'vs/platform/theme/common/styler';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { IDisposable } from 'vs/base/common/lifecycle';
-import { getPathLabel } from 'vs/base/common/labels';
-import { IEnvironmentService } from 'vs/platform/environment/common/environment';
-import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
+import { ActionBar, IActionItemProvider } from 'vs/base/browser/ui/actionbar/actionbar';
+import { QuickFixAction } from 'vs/workbench/parts/markers/electron-browser/markersPanelActions';
+import { ILabelService } from 'vs/platform/label/common/label';
+import { dirname } from 'vs/base/common/resources';
 
 interface IResourceMarkersTemplateData {
 	resourceLabel: ResourceLabel;
@@ -31,7 +32,7 @@ interface IResourceMarkersTemplateData {
 
 interface IMarkerTemplateData {
 	icon: HTMLElement;
-	lightbulb: HTMLElement;
+	actionBar: ActionBar;
 	source: HighlightedLabel;
 	description: HighlightedLabel;
 	lnCol: HTMLElement;
@@ -96,10 +97,10 @@ export class Renderer implements IRenderer {
 	private static readonly RELATED_INFO_TEMPLATE_ID = 'related-info-template';
 
 	constructor(
+		private actionItemProvider: IActionItemProvider,
 		@IInstantiationService private instantiationService: IInstantiationService,
 		@IThemeService private themeService: IThemeService,
-		@IEnvironmentService private environmentService: IEnvironmentService,
-		@IWorkspaceContextService private contextService: IWorkspaceContextService
+		@ILabelService private labelService: ILabelService
 	) {
 	}
 
@@ -167,6 +168,9 @@ export class Renderer implements IRenderer {
 	private renderRelatedInfoTemplate(container: HTMLElement): IRelatedInformationTemplateData {
 		const data: IRelatedInformationTemplateData = Object.create(null);
 
+		dom.append(container, dom.$('.actions'));
+		dom.append(container, dom.$('.icon'));
+
 		data.resourceLabel = new HighlightedLabel(dom.append(container, dom.$('.related-info-resource')));
 		data.lnCol = dom.append(container, dom.$('span.marker-line'));
 
@@ -180,8 +184,9 @@ export class Renderer implements IRenderer {
 
 	private renderMarkerTemplate(container: HTMLElement): IMarkerTemplateData {
 		const data: IMarkerTemplateData = Object.create(null);
-		data.icon = dom.append(container, dom.$('.marker-icon'));
-		data.lightbulb = dom.append(container, dom.$('.icon.lightbulb'));
+		const actionsContainer = dom.append(container, dom.$('.actions'));
+		data.actionBar = new ActionBar(actionsContainer, { actionItemProvider: this.actionItemProvider });
+		data.icon = dom.append(container, dom.$('.icon'));
 		data.source = new HighlightedLabel(dom.append(container, dom.$('')));
 		data.description = new HighlightedLabel(dom.append(container, dom.$('.marker-description')));
 		data.lnCol = dom.append(container, dom.$('span.marker-line'));
@@ -204,7 +209,7 @@ export class Renderer implements IRenderer {
 		if (templateData.resourceLabel instanceof FileLabel) {
 			templateData.resourceLabel.setFile(element.uri, { matches: element.uriMatches });
 		} else {
-			templateData.resourceLabel.setLabel({ name: element.name, description: getPathLabel(element.uri, this.environmentService, this.contextService), resource: element.uri }, { matches: element.uriMatches });
+			templateData.resourceLabel.setLabel({ name: element.name, description: this.labelService.getUriLabel(dirname(element.uri), true), resource: element.uri }, { matches: element.uriMatches });
 		}
 		(<IResourceMarkersTemplateData>templateData).count.setCount(element.filteredCount);
 	}
@@ -213,25 +218,24 @@ export class Renderer implements IRenderer {
 		let marker = element.raw;
 
 		templateData.icon.className = 'icon ' + Renderer.iconClassNameFor(marker);
-		dom.removeClass(templateData.lightbulb, 'quick-fixes');
 
 		templateData.source.set(marker.source, element.sourceMatches);
 		dom.toggleClass(templateData.source.element, 'marker-source', !!marker.source);
+
+		templateData.actionBar.clear();
+		const quickFixAction = this.instantiationService.createInstance(QuickFixAction, element);
+		templateData.actionBar.push([quickFixAction], { icon: true, label: false });
 
 		templateData.description.set(marker.message, element.messageMatches);
 		templateData.description.element.title = marker.message;
 
 		templateData.lnCol.textContent = Messages.MARKERS_PANEL_AT_LINE_COL_NUMBER(marker.startLineNumber, marker.startColumn);
 
-		const parent = tree.getNavigator(element).parent();
-		if (parent instanceof ResourceMarkers) {
-			parent.hasFixes(element).then(hasFixes => dom.toggleClass(templateData.lightbulb, 'quick-fixes', hasFixes));
-		}
 	}
 
 	private renderRelatedInfoElement(tree: ITree, element: RelatedInformation, templateData: IRelatedInformationTemplateData) {
 		templateData.resourceLabel.set(paths.basename(element.raw.resource.fsPath), element.uriMatches);
-		templateData.resourceLabel.element.title = getPathLabel(element.raw.resource, this.environmentService, this.contextService);
+		templateData.resourceLabel.element.title = this.labelService.getUriLabel(element.raw.resource, true);
 		templateData.lnCol.textContent = Messages.MARKERS_PANEL_AT_LINE_COL_NUMBER(element.raw.startLineNumber, element.raw.startColumn);
 		templateData.description.set(element.raw.message, element.messageMatches);
 		templateData.description.element.title = element.raw.message;
@@ -258,6 +262,7 @@ export class Renderer implements IRenderer {
 		} else if (templateId === Renderer.MARKER_TEMPLATE_ID) {
 			(<IMarkerTemplateData>templateData).description.dispose();
 			(<IMarkerTemplateData>templateData).source.dispose();
+			(<IMarkerTemplateData>templateData).actionBar.dispose();
 		} else if (templateId === Renderer.RELATED_INFO_TEMPLATE_ID) {
 			(<IRelatedInformationTemplateData>templateData).description.dispose();
 			(<IRelatedInformationTemplateData>templateData).resourceLabel.dispose();
@@ -268,14 +273,13 @@ export class Renderer implements IRenderer {
 export class MarkersTreeAccessibilityProvider implements IAccessibilityProvider {
 
 	constructor(
-		@IWorkspaceContextService private contextService: IWorkspaceContextService,
-		@IEnvironmentService private environmentService: IEnvironmentService
+		@ILabelService private labelServie: ILabelService
 	) {
 	}
 
 	public getAriaLabel(tree: ITree, element: any): string {
 		if (element instanceof ResourceMarkers) {
-			const path = getPathLabel(element.uri, this.environmentService, this.contextService) || element.uri.fsPath;
+			const path = this.labelServie.getUriLabel(element.uri, true) || element.uri.fsPath;
 			return Messages.MARKERS_TREE_ARIA_LABEL_RESOURCE(element.filteredCount, element.name, paths.dirname(path));
 		}
 		if (element instanceof Marker) {

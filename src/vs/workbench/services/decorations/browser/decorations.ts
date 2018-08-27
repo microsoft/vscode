@@ -26,7 +26,7 @@ export interface IDecoration {
 	readonly tooltip: string;
 	readonly labelClassName: string;
 	readonly badgeClassName: string;
-	update(source?: string, data?: IDecorationData): IDecoration;
+	update(data: IDecorationData): IDecoration;
 }
 
 export interface IDecorationsProvider {

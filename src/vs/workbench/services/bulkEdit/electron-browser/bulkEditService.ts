@@ -6,7 +6,6 @@
 
 
 import { mergeSort } from 'vs/base/common/arrays';
-import { getPathLabel } from 'vs/base/common/labels';
 import { dispose, IDisposable, IReference } from 'vs/base/common/lifecycle';
 import URI from 'vs/base/common/uri';
 import { TPromise } from 'vs/base/common/winjs.base';
@@ -19,14 +18,13 @@ import { isResourceFileEdit, isResourceTextEdit, ResourceFileEdit, ResourceTextE
 import { IModelService } from 'vs/editor/common/services/modelService';
 import { ITextEditorModel, ITextModelService } from 'vs/editor/common/services/resolverService';
 import { localize } from 'vs/nls';
-import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { IFileService } from 'vs/platform/files/common/files';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { ILogService } from 'vs/platform/log/common/log';
 import { emptyProgressRunner, IProgress, IProgressRunner } from 'vs/platform/progress/common/progress';
-import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
+import { ILabelService } from 'vs/platform/label/common/label';
 
 abstract class Recording {
 
@@ -235,8 +233,7 @@ export class BulkEdit {
 		@ITextModelService private readonly _textModelService: ITextModelService,
 		@IFileService private readonly _fileService: IFileService,
 		@ITextFileService private readonly _textFileService: ITextFileService,
-		@IEnvironmentService private readonly _environmentService: IEnvironmentService,
-		@IWorkspaceContextService private readonly _contextService: IWorkspaceContextService
+		@ILabelService private readonly _uriLabelServie: ILabelService
 	) {
 		this._editor = editor;
 		this._progress = progress || emptyProgressRunner;
@@ -342,7 +339,7 @@ export class BulkEdit {
 
 		const conflicts = edits
 			.filter(edit => recording.hasChanged(edit.resource))
-			.map(edit => getPathLabel(edit.resource, this._environmentService, this._contextService));
+			.map(edit => this._uriLabelServie.getUriLabel(edit.resource, true));
 
 		recording.stop();
 
@@ -372,8 +369,7 @@ export class BulkEditService implements IBulkEditService {
 		@ITextModelService private readonly _textModelService: ITextModelService,
 		@IFileService private readonly _fileService: IFileService,
 		@ITextFileService private readonly _textFileService: ITextFileService,
-		@IEnvironmentService private readonly _environmentService: IEnvironmentService,
-		@IWorkspaceContextService private readonly _contextService: IWorkspaceContextService
+		@ILabelService private readonly _labelService: ILabelService
 	) {
 
 	}
@@ -404,7 +400,7 @@ export class BulkEditService implements IBulkEditService {
 			}
 		}
 
-		const bulkEdit = new BulkEdit(options.editor, options.progress, this._logService, this._textModelService, this._fileService, this._textFileService, this._environmentService, this._contextService);
+		const bulkEdit = new BulkEdit(options.editor, options.progress, this._logService, this._textModelService, this._fileService, this._textFileService, this._labelService);
 		bulkEdit.add(edits);
 
 		return TPromise.wrap(bulkEdit.perform().then(() => {

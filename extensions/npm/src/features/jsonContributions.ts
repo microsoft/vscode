@@ -164,3 +164,5 @@ export class JSONCompletionItemProvider implements CompletionItemProvider {
 		return nextToken === SyntaxKind.CloseBraceToken || nextToken === SyntaxKind.EOF;
 	}
 }
+
+export const xhrDisabled = () => Promise.reject({ responseText: 'Use of online resources is disabled.' });

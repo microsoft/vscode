@@ -8,7 +8,6 @@ import { TPromise } from 'vs/base/common/winjs.base';
 import * as errors from 'vs/base/common/errors';
 import * as nls from 'vs/nls';
 import * as paths from 'vs/base/common/paths';
-import * as labels from 'vs/base/common/labels';
 import * as objects from 'vs/base/common/objects';
 import { defaultGenerator } from 'vs/base/common/idGenerator';
 import URI from 'vs/base/common/uri';
@@ -26,7 +25,7 @@ import { EditorInput, IWorkbenchEditorConfiguration } from 'vs/workbench/common/
 import { IResourceInput } from 'vs/platform/editor/common/editor';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { IQueryOptions, ISearchService, ISearchStats, ISearchQuery, ISearchComplete } from 'vs/platform/search/common/search';
+import { IQueryOptions, ISearchService, IFileSearchStats, ISearchQuery, ISearchComplete } from 'vs/platform/search/common/search';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { IRange } from 'vs/editor/common/core/range';
@@ -34,10 +33,12 @@ import { getOutOfWorkspaceEditorResources } from 'vs/workbench/parts/search/comm
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { prepareQuery, IPreparedQuery } from 'vs/base/parts/quickopen/common/quickOpenScorer';
 import { IFileService } from 'vs/platform/files/common/files';
+import { ILabelService } from 'vs/platform/label/common/label';
+import { untildify } from 'vs/base/common/labels';
 
 export class FileQuickOpenModel extends QuickOpenModel {
 
-	constructor(entries: QuickOpenEntry[], public stats?: ISearchStats) {
+	constructor(entries: QuickOpenEntry[], public stats?: IFileSearchStats) {
 		super(entries);
 	}
 }
@@ -125,7 +126,8 @@ export class OpenFileHandler extends QuickOpenHandler {
 		@IWorkspaceContextService private contextService: IWorkspaceContextService,
 		@ISearchService private searchService: ISearchService,
 		@IEnvironmentService private environmentService: IEnvironmentService,
-		@IFileService private fileService: IFileService
+		@IFileService private fileService: IFileService,
+		@ILabelService private labelService: ILabelService
 	) {
 		super();
 
@@ -145,7 +147,7 @@ export class OpenFileHandler extends QuickOpenHandler {
 		}
 
 		// Untildify file pattern
-		query.value = labels.untildify(query.value, this.environmentService.userHome);
+		query.value = untildify(query.value, this.environmentService.userHome);
 
 		// Do find results
 		return this.doFindResults(query, this.cacheState.cacheKey, maxSortedResults);
@@ -171,12 +173,12 @@ export class OpenFileHandler extends QuickOpenHandler {
 				const fileMatch = complete.results[i];
 
 				const label = paths.basename(fileMatch.resource.fsPath);
-				const description = labels.getPathLabel(resources.dirname(fileMatch.resource), this.environmentService, this.contextService);
+				const description = this.labelService.getUriLabel(resources.dirname(fileMatch.resource), true);
 
 				results.push(this.instantiationService.createInstance(FileEntry, fileMatch.resource, label, description, iconClass));
 			}
 
-			return new FileQuickOpenModel(results, complete.stats);
+			return new FileQuickOpenModel(results, <IFileSearchStats>complete.stats);
 		});
 	}
 

@@ -45,6 +45,7 @@ import { WorkspaceEdit, isResourceTextEdit, TextEdit } from 'vs/editor/common/mo
 import { IModelService } from 'vs/editor/common/services/modelService';
 import { EditOperation } from 'vs/editor/common/core/editOperation';
 import { localize } from 'vs/nls';
+import { ILabelService, LabelRules } from 'vs/platform/label/common/label';
 
 export class SimpleModel implements ITextEditorModel {
 
@@ -66,6 +67,10 @@ export class SimpleModel implements ITextEditorModel {
 
 	public get textEditorModel(): ITextModel {
 		return this.model;
+	}
+
+	public isReadonly(): boolean {
+		return false;
 	}
 
 	public dispose(): void {
@@ -503,7 +508,7 @@ export class SimpleWorkspaceContextService implements IWorkspaceContextService {
 
 	constructor() {
 		const resource = URI.from({ scheme: SimpleWorkspaceContextService.SCHEME, authority: 'model', path: '/' });
-		this.workspace = { id: '4064f6ec-cb38-4ad0-af64-ee6467e63c82', folders: [new WorkspaceFolder({ uri: resource, name: '', index: 0 })], name: resource.fsPath };
+		this.workspace = { id: '4064f6ec-cb38-4ad0-af64-ee6467e63c82', folders: [new WorkspaceFolder({ uri: resource, name: '', index: 0 })] };
 	}
 
 	public getWorkspace(): IWorkspace {
@@ -588,5 +593,27 @@ export class SimpleBulkEditService implements IBulkEditService {
 			selection: undefined,
 			ariaSummary: localize('summary', 'Made {0} edits in {1} files', totalEdits, totalFiles)
 		});
+	}
+}
+
+export class SimpleUriLabelService implements ILabelService {
+	_serviceBrand: any;
+
+	private readonly _onDidRegisterFormatter: Emitter<{ scheme: string, formatter: LabelRules }> = new Emitter<{ scheme: string, formatter: LabelRules }>();
+	public readonly onDidRegisterFormatter: Event<{ scheme: string, formatter: LabelRules }> = this._onDidRegisterFormatter.event;
+
+	public getUriLabel(resource: URI, relative?: boolean): string {
+		if (resource.scheme === 'file') {
+			return resource.fsPath;
+		}
+		return resource.path;
+	}
+
+	public getWorkspaceLabel(workspace: IWorkspaceIdentifier | URI | IWorkspace, options?: { verbose: boolean; }): string {
+		return '';
+	}
+
+	public registerFormatter(schema: string, formatter: LabelRules): IDisposable {
+		throw new Error('Not implemented');
 	}
 }

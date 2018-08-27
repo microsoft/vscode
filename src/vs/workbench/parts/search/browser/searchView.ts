@@ -108,6 +108,7 @@ export class SearchView extends Viewlet implements IViewlet, IPanel {
 	private readonly selectCurrentMatchEmitter: Emitter<string>;
 	private delayedRefresh: Delayer<void>;
 	private changedWhileHidden: boolean;
+	private isWide: boolean;
 
 	private searchWithoutFolderMessageBuilder: Builder;
 
@@ -343,7 +344,7 @@ export class SearchView extends Viewlet implements IViewlet, IPanel {
 		let searchHistory = history.search || this.viewletSettings['query.searchHistory'] || [];
 		let replaceHistory = history.replace || this.viewletSettings['query.replaceHistory'] || [];
 
-		this.searchWidget = this._register(this.instantiationService.createInstance(SearchWidget, builder, <ISearchWidgetOptions>{
+		this.searchWidget = this._register(this.instantiationService.createInstance(SearchWidget, builder.getHTMLElement(), <ISearchWidgetOptions>{
 			value: contentPattern,
 			isRegex: isRegex,
 			isCaseSensitive: isCaseSensitive,
@@ -404,7 +405,7 @@ export class SearchView extends Viewlet implements IViewlet, IPanel {
 		if (!isReplaceShown) {
 			this.storageService.store(SearchView.SHOW_REPLACE_STORAGE_KEY, false, StorageScope.WORKSPACE);
 		} else {
-			this.storageService.remove(SearchView.SHOW_REPLACE_STORAGE_KEY);
+			this.storageService.remove(SearchView.SHOW_REPLACE_STORAGE_KEY, StorageScope.WORKSPACE);
 		}
 	}
 
@@ -826,8 +827,10 @@ export class SearchView extends Viewlet implements IViewlet, IPanel {
 		}
 
 		if (this.size.width >= SearchView.WIDE_VIEW_SIZE) {
+			this.isWide = true;
 			dom.addClass(this.getContainer(), SearchView.WIDE_CLASS_NAME);
 		} else {
+			this.isWide = false;
 			dom.removeClass(this.getContainer(), SearchView.WIDE_CLASS_NAME);
 		}
 
@@ -1069,7 +1072,6 @@ export class SearchView extends Viewlet implements IViewlet, IPanel {
 			isRegExp: isRegex,
 			isCaseSensitive: isCaseSensitive,
 			isWordMatch: isWholeWords,
-			wordSeparators: this.configurationService.getValue<ISearchConfiguration>().editor.wordSeparators,
 			isSmartCase: this.configurationService.getValue<ISearchConfiguration>().search.smartCase
 		};
 
@@ -1082,7 +1084,12 @@ export class SearchView extends Viewlet implements IViewlet, IPanel {
 			disregardIgnoreFiles: !useExcludesAndIgnoreFiles,
 			disregardExcludeSettings: !useExcludesAndIgnoreFiles,
 			excludePattern,
-			includePattern
+			includePattern,
+			previewOptions: {
+				leadingChars: 20,
+				maxLines: 1,
+				totalChars: this.isWide ? 250 : 75
+			}
 		};
 		const folderResources = this.contextService.getWorkspace().folders;
 

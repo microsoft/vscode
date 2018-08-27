@@ -4,13 +4,14 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import { posix, relative, join } from 'path';
+import { join, relative } from 'path';
 import { delta as arrayDelta } from 'vs/base/common/arrays';
 import { Emitter, Event } from 'vs/base/common/event';
 import { TernarySearchTree } from 'vs/base/common/map';
+import { Counter } from 'vs/base/common/numbers';
 import { normalize } from 'vs/base/common/paths';
 import { isLinux } from 'vs/base/common/platform';
-import { basenameOrAuthority, isEqual } from 'vs/base/common/resources';
+import { basenameOrAuthority, dirname, isEqual } from 'vs/base/common/resources';
 import { compare } from 'vs/base/common/strings';
 import URI from 'vs/base/common/uri';
 import { TPromise } from 'vs/base/common/winjs.base';
@@ -107,14 +108,18 @@ class ExtHostWorkspaceImpl extends Workspace {
 	private readonly _workspaceFolders: vscode.WorkspaceFolder[] = [];
 	private readonly _structure = TernarySearchTree.forPaths<vscode.WorkspaceFolder>();
 
-	private constructor(id: string, name: string, folders: vscode.WorkspaceFolder[]) {
-		super(id, name, folders.map(f => new WorkspaceFolder(f)));
+	private constructor(id: string, private _name: string, folders: vscode.WorkspaceFolder[]) {
+		super(id, folders.map(f => new WorkspaceFolder(f)));
 
 		// setup the workspace folder data structure
 		folders.forEach(folder => {
 			this._workspaceFolders.push(folder);
 			this._structure.set(folder.uri.toString(), folder);
 		});
+	}
+
+	get name(): string {
+		return this._name;
 	}
 
 	get workspaceFolders(): vscode.WorkspaceFolder[] {
@@ -124,7 +129,7 @@ class ExtHostWorkspaceImpl extends Workspace {
 	getWorkspaceFolder(uri: URI, resolveParent?: boolean): vscode.WorkspaceFolder {
 		if (resolveParent && this._structure.get(uri.toString())) {
 			// `uri` is a workspace folder so we check for its parent
-			uri = uri.with({ path: posix.dirname(uri.path) });
+			uri = dirname(uri);
 		}
 		return this._structure.findSubstr(uri.toString());
 	}
@@ -136,8 +141,6 @@ class ExtHostWorkspaceImpl extends Workspace {
 
 export class ExtHostWorkspace implements ExtHostWorkspaceShape {
 
-	private static _requestIdPool = 0;
-
 	private readonly _onDidChangeWorkspace = new Emitter<vscode.WorkspaceFoldersChangeEvent>();
 	private readonly _proxy: MainThreadWorkspaceShape;
 
@@ -148,12 +151,13 @@ export class ExtHostWorkspace implements ExtHostWorkspaceShape {
 
 	readonly onDidChangeWorkspace: Event<vscode.WorkspaceFoldersChangeEvent> = this._onDidChangeWorkspace.event;
 
-	private readonly _activeSearchCallbacks = [];
+	private readonly _activeSearchCallbacks: ((match: IRawFileMatch2) => any)[] = [];
 
 	constructor(
 		mainContext: IMainContext,
 		data: IWorkspaceData,
-		private _logService: ILogService
+		private _logService: ILogService,
+		private _requestIdProvider: Counter
 	) {
 		this._proxy = mainContext.getProxy(MainContext.MainThreadWorkspace);
 		this._messageService = mainContext.getProxy(MainContext.MainThreadMessageService);
@@ -164,6 +168,10 @@ export class ExtHostWorkspace implements ExtHostWorkspaceShape {
 
 	get workspace(): Workspace {
 		return this._actualWorkspace;
+	}
+
+	get name(): string {
+		return this._actualWorkspace ? this._actualWorkspace.name : undefined;
 	}
 
 	private get _actualWorkspace(): ExtHostWorkspaceImpl {
@@ -340,7 +348,7 @@ export class ExtHostWorkspace implements ExtHostWorkspaceShape {
 	findFiles(include: vscode.GlobPattern, exclude: vscode.GlobPattern, maxResults: number, extensionId: string, token?: vscode.CancellationToken): Thenable<vscode.Uri[]> {
 		this._logService.trace(`extHostWorkspace#findFiles: fileSearch, extension: ${extensionId}, entryPoint: findFiles`);
 
-		const requestId = ExtHostWorkspace._requestIdPool++;
+		const requestId = this._requestIdProvider.getNext();
 
 		let includePattern: string;
 		let includeFolder: string;
@@ -374,7 +382,7 @@ export class ExtHostWorkspace implements ExtHostWorkspaceShape {
 	findTextInFiles(query: vscode.TextSearchQuery, options: vscode.FindTextInFilesOptions, callback: (result: vscode.TextSearchResult) => void, extensionId: string, token?: vscode.CancellationToken) {
 		this._logService.trace(`extHostWorkspace#findTextInFiles: textSearch, extension: ${extensionId}, entryPoint: findTextInFiles`);
 
-		const requestId = ExtHostWorkspace._requestIdPool++;
+		const requestId = this._requestIdProvider.getNext();
 
 		const globPatternToString = (pattern: vscode.GlobPattern | string) => {
 			if (typeof pattern === 'string') {
@@ -390,26 +398,36 @@ export class ExtHostWorkspace implements ExtHostWorkspaceShape {
 			disregardExcludeSettings: options.exclude === null,
 			fileEncoding: options.encoding,
 			maxResults: options.maxResults,
+			previewOptions: options.previewOptions,
 
 			includePattern: options.include && globPatternToString(options.include),
 			excludePattern: options.exclude && globPatternToString(options.exclude)
 		};
 
+		let isCanceled = false;
+
 		this._activeSearchCallbacks[requestId] = p => {
-			p.lineMatches.forEach(lineMatch => {
-				lineMatch.offsetAndLengths.forEach(offsetAndLength => {
-					const range = new Range(lineMatch.lineNumber, offsetAndLength[0], lineMatch.lineNumber, offsetAndLength[0] + offsetAndLength[1]);
-					callback({
-						uri: URI.revive(p.resource),
-						preview: { text: lineMatch.preview, match: range },
-						range
-					});
+			if (isCanceled) {
+				return;
+			}
+
+			p.matches.forEach(match => {
+				callback({
+					uri: URI.revive(p.resource),
+					preview: {
+						text: match.preview.text,
+						match: new Range(match.preview.match.startLineNumber, match.preview.match.startColumn, match.preview.match.endLineNumber, match.preview.match.endColumn)
+					},
+					range: new Range(match.range.startLineNumber, match.range.startColumn, match.range.endLineNumber, match.range.endColumn)
 				});
 			});
 		};
 
 		if (token) {
-			token.onCancellationRequested(() => this._proxy.$cancelSearch(requestId));
+			token.onCancellationRequested(() => {
+				isCanceled = true;
+				this._proxy.$cancelSearch(requestId);
+			});
 		}
 
 		return this._proxy.$startTextSearch(query, queryOptions, requestId).then(

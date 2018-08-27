@@ -119,6 +119,7 @@ export class RichEditSupport {
 			onEnterRules: (prev ? current.onEnterRules || prev.onEnterRules : current.onEnterRules),
 			autoClosingPairs: (prev ? current.autoClosingPairs || prev.autoClosingPairs : current.autoClosingPairs),
 			surroundingPairs: (prev ? current.surroundingPairs || prev.surroundingPairs : current.surroundingPairs),
+			autoCloseBefore: (prev ? current.autoCloseBefore || prev.autoCloseBefore : current.autoCloseBefore),
 			folding: (prev ? current.folding || prev.folding : current.folding),
 			__electricCharacterSupport: (prev ? current.__electricCharacterSupport || prev.__electricCharacterSupport : current.__electricCharacterSupport),
 		};
@@ -267,6 +268,14 @@ export class LanguageConfigurationRegistryImpl {
 			return [];
 		}
 		return characterPairSupport.getAutoClosingPairs();
+	}
+
+	public getAutoCloseBeforeSet(languageId: LanguageId): string {
+		let characterPairSupport = this._getCharacterPairSupport(languageId);
+		if (!characterPairSupport) {
+			return CharacterPairSupport.DEFAULT_AUTOCLOSE_BEFORE_LANGUAGE_DEFINED;
+		}
+		return characterPairSupport.getAutoCloseBeforeSet();
 	}
 
 	public getSurroundingPairs(languageId: LanguageId): IAutoClosingPair[] {

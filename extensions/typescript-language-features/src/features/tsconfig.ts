@@ -4,11 +4,11 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as jsonc from 'jsonc-parser';
-import { dirname, join } from 'path';
+import { dirname, join, basename } from 'path';
 import * as vscode from 'vscode';
 import { flatten } from '../utils/arrays';
 
-function mapNode<R>(node: jsonc.Node | undefined, f: (x: jsonc.Node) => R): R[] {
+function mapChildren<R>(node: jsonc.Node | undefined, f: (x: jsonc.Node) => R): R[] {
 	return node && node.type === 'array' && node.children
 		? node.children.map(f)
 		: [];
@@ -33,19 +33,38 @@ class TsconfigLinkProvider implements vscode.DocumentLinkProvider {
 	}
 
 	private getExendsLink(document: vscode.TextDocument, root: jsonc.Node): vscode.DocumentLink | undefined {
-		return this.pathNodeToLink(document, jsonc.findNodeAtLocation(root, ['extends']));
+		const extendsNode = jsonc.findNodeAtLocation(root, ['extends']);
+		if (!this.isPathValue(extendsNode)) {
+			return undefined;
+		}
+
+		return new vscode.DocumentLink(
+			this.getRange(document, extendsNode),
+			basename(extendsNode.value).match('.json$')
+				? this.getFileTarget(document, extendsNode)
+				: vscode.Uri.file(join(dirname(document.uri.fsPath), extendsNode!.value + '.json')));
 	}
 
 	private getFilesLinks(document: vscode.TextDocument, root: jsonc.Node) {
-		return mapNode(
+		return mapChildren(
 			jsonc.findNodeAtLocation(root, ['files']),
-			node => this.pathNodeToLink(document, node));
+			child => this.pathNodeToLink(document, child));
 	}
 
 	private getReferencesLinks(document: vscode.TextDocument, root: jsonc.Node) {
-		return mapNode(
+		return mapChildren(
 			jsonc.findNodeAtLocation(root, ['references']),
-			child => this.pathNodeToLink(document, jsonc.findNodeAtLocation(child, ['path'])));
+			child => {
+				const pathNode = jsonc.findNodeAtLocation(child, ['path']);
+				if (!this.isPathValue(pathNode)) {
+					return undefined;
+				}
+
+				return new vscode.DocumentLink(this.getRange(document, pathNode),
+					basename(pathNode.value).match('.json$')
+						? this.getFileTarget(document, pathNode)
+						: this.getFolderTarget(document, pathNode));
+			});
 	}
 
 	private pathNodeToLink(
@@ -53,7 +72,7 @@ class TsconfigLinkProvider implements vscode.DocumentLinkProvider {
 		node: jsonc.Node | undefined
 	): vscode.DocumentLink | undefined {
 		return this.isPathValue(node)
-			? new vscode.DocumentLink(this.getRange(document, node), this.getTarget(document, node))
+			? new vscode.DocumentLink(this.getRange(document, node), this.getFileTarget(document, node))
 			: undefined;
 	}
 
@@ -61,11 +80,15 @@ class TsconfigLinkProvider implements vscode.DocumentLinkProvider {
 		return extendsNode
 			&& extendsNode.type === 'string'
 			&& extendsNode.value
-			&& !(extendsNode.value as string).includes('*');
+			&& !(extendsNode.value as string).includes('*'); // don't treat globs as links.
 	}
 
-	private getTarget(document: vscode.TextDocument, node: jsonc.Node): vscode.Uri {
+	private getFileTarget(document: vscode.TextDocument, node: jsonc.Node): vscode.Uri {
 		return vscode.Uri.file(join(dirname(document.uri.fsPath), node!.value));
+	}
+
+	private getFolderTarget(document: vscode.TextDocument, node: jsonc.Node): vscode.Uri {
+		return vscode.Uri.file(join(dirname(document.uri.fsPath), node!.value, 'tsconfig.json'));
 	}
 
 	private getRange(document: vscode.TextDocument, node: jsonc.Node) {

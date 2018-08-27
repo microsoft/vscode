@@ -3,6 +3,14 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
+var __assign = (this && this.__assign) || Object.assign || function(t) {
+    for (var s, i = 1, n = arguments.length; i < n; i++) {
+        s = arguments[i];
+        for (var p in s) if (Object.prototype.hasOwnProperty.call(s, p))
+            t[p] = s[p];
+    }
+    return t;
+};
 Object.defineProperty(exports, "__esModule", { value: true });
 var es = require("event-stream");
 var assign = require("object-assign");
@@ -14,14 +22,19 @@ var rename = require('gulp-rename');
 var util = require('gulp-util');
 var buffer = require('gulp-buffer');
 var json = require('gulp-json-editor');
+var webpack = require('webpack');
+var webpackGulp = require('webpack-stream');
 var fs = require("fs");
 var path = require("path");
 var vsce = require("vsce");
 var File = require("vinyl");
-function fromLocal(extensionPath) {
+var glob = require("glob");
+var gulp = require("gulp");
+var util2 = require("./util");
+var root = path.resolve(path.join(__dirname, '..', '..'));
+function fromLocal(extensionPath, sourceMappingURLBase) {
     var result = es.through();
-    vsce.listFiles({ cwd: extensionPath, packageManager: vsce.PackageManager.Yarn })
-        .then(function (fileNames) {
+    vsce.listFiles({ cwd: extensionPath, packageManager: vsce.PackageManager.Yarn }).then(function (fileNames) {
         var files = fileNames
             .map(function (fileName) { return path.join(extensionPath, fileName); })
             .map(function (filePath) { return new File({
@@ -30,9 +43,58 @@ function fromLocal(extensionPath) {
             base: extensionPath,
             contents: fs.createReadStream(filePath)
         }); });
-        es.readArray(files).pipe(result);
-    })
-        .catch(function (err) { return result.emit('error', err); });
+        var filesStream = es.readArray(files);
+        // check for a webpack configuration file, then invoke webpack
+        // and merge its output with the files stream. also rewrite the package.json
+        // file to a new entry point
+        if (fs.existsSync(path.join(extensionPath, 'extension.webpack.config.js'))) {
+            var packageJsonFilter = filter('package.json', { restore: true });
+            var patchFilesStream = filesStream
+                .pipe(packageJsonFilter)
+                .pipe(buffer())
+                .pipe(json(function (data) {
+                // hardcoded entry point directory!
+                data.main = data.main.replace('/out/', /dist/);
+                return data;
+            }))
+                .pipe(packageJsonFilter.restore);
+            var webpackConfig = __assign({}, require(path.join(extensionPath, 'extension.webpack.config.js')), { mode: 'production', stats: 'errors-only' });
+            var webpackStream = webpackGulp(webpackConfig, webpack)
+                .pipe(es.through(function (data) {
+                data.stat = data.stat || {};
+                data.base = extensionPath;
+                this.emit('data', data);
+            }))
+                .pipe(es.through(function (data) {
+                // source map handling:
+                // * rewrite sourceMappingURL
+                // * save to disk so that upload-task picks this up
+                if (sourceMappingURLBase) {
+                    var contents = data.contents.toString('utf8');
+                    data.contents = Buffer.from(contents.replace(/\n\/\/# sourceMappingURL=(.*)$/gm, function (_m, g1) {
+                        return "\n//# sourceMappingURL=" + sourceMappingURLBase + "/extensions/" + path.basename(extensionPath) + "/dist/" + g1;
+                    }), 'utf8');
+                    if (/\.js\.map$/.test(data.path)) {
+                        if (!fs.existsSync(path.dirname(data.path))) {
+                            fs.mkdirSync(path.dirname(data.path));
+                        }
+                        fs.writeFileSync(data.path, data.contents);
+                    }
+                }
+                this.emit('data', data);
+            }));
+            es.merge(webpackStream, patchFilesStream)
+                // .pipe(es.through(function (data) {
+                // 	// debug
+                // 	console.log('out', data.path, data.contents.length);
+                // 	this.emit('data', data);
+                // }))
+                .pipe(result);
+        }
+        else {
+            filesStream.pipe(result);
+        }
+    }).catch(function (err) { return result.emit('error', err); });
     return result;
 }
 exports.fromLocal = fromLocal;
@@ -117,3 +179,49 @@ function fromMarketplace(extensionName, version) {
     }));
 }
 exports.fromMarketplace = fromMarketplace;
+var excludedExtensions = [
+    'vscode-api-tests',
+    'vscode-colorize-tests',
+    'ms-vscode.node-debug',
+    'ms-vscode.node-debug2',
+];
+var builtInExtensions = require('../builtInExtensions.json');
+function packageExtensionsStream(opts) {
+    opts = opts || {};
+    var localExtensionDescriptions = glob.sync('extensions/*/package.json')
+        .map(function (manifestPath) {
+        var extensionPath = path.dirname(path.join(root, manifestPath));
+        var extensionName = path.basename(extensionPath);
+        return { name: extensionName, path: extensionPath };
+    })
+        .filter(function (_a) {
+        var name = _a.name;
+        return excludedExtensions.indexOf(name) === -1;
+    })
+        .filter(function (_a) {
+        var name = _a.name;
+        return opts.desiredExtensions ? opts.desiredExtensions.indexOf(name) >= 0 : true;
+    })
+        .filter(function (_a) {
+        var name = _a.name;
+        return builtInExtensions.every(function (b) { return b.name !== name; });
+    });
+    var localExtensions = es.merge.apply(es, localExtensionDescriptions.map(function (extension) {
+        return fromLocal(extension.path, opts.sourceMappingURLBase)
+            .pipe(rename(function (p) { return p.dirname = "extensions/" + extension.name + "/" + p.dirname; }));
+    }));
+    var localExtensionDependencies = gulp.src('extensions/node_modules/**', { base: '.' });
+    var marketplaceExtensions = es.merge.apply(es, builtInExtensions
+        .filter(function (_a) {
+        var name = _a.name;
+        return opts.desiredExtensions ? opts.desiredExtensions.indexOf(name) >= 0 : true;
+    })
+        .map(function (extension) {
+        return fromMarketplace(extension.name, extension.version)
+            .pipe(rename(function (p) { return p.dirname = "extensions/" + extension.name + "/" + p.dirname; }));
+    }));
+    return es.merge(localExtensions, localExtensionDependencies, marketplaceExtensions)
+        .pipe(util2.setExecutableBit(['**/*.sh']))
+        .pipe(filter(['**', '!**/*.js.map']));
+}
+exports.packageExtensionsStream = packageExtensionsStream;

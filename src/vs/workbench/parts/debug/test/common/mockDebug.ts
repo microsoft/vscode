@@ -4,19 +4,19 @@
  *--------------------------------------------------------------------------------------------*/
 
 import uri from 'vs/base/common/uri';
-import { Event, Emitter } from 'vs/base/common/event';
+import { Event } from 'vs/base/common/event';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { IWorkspaceFolder } from 'vs/platform/workspace/common/workspace';
-import { ILaunch, IDebugService, State, DebugEvent, ISession, IConfigurationManager, IStackFrame, IBreakpointData, IBreakpointUpdateData, IConfig, IModel, IViewModel, IRawSession, IBreakpoint } from 'vs/workbench/parts/debug/common/debug';
+import { Position } from 'vs/editor/common/core/position';
+import { ILaunch, IDebugService, State, DebugEvent, ISession, IConfigurationManager, IStackFrame, IBreakpointData, IBreakpointUpdateData, IConfig, IModel, IViewModel, IRawSession, IBreakpoint, LoadedSourceEvent, IThread, IRawModelUpdate } from 'vs/workbench/parts/debug/common/debug';
+import { Source } from 'vs/workbench/parts/debug/common/debugSource';
+import { ISuggestion } from 'vs/editor/common/modes';
 
 export class MockDebugService implements IDebugService {
+
 	public _serviceBrand: any;
 
 	public get state(): State {
-		return null;
-	}
-
-	public get onDidCustomEvent(): Event<DebugEvent> {
 		return null;
 	}
 
@@ -37,6 +37,10 @@ export class MockDebugService implements IDebugService {
 	}
 
 	public focusStackFrame(focusedStackFrame: IStackFrame): void {
+	}
+
+	sendAllBreakpoints(session?: ISession): TPromise<any> {
+		return TPromise.as(null);
 	}
 
 	public addBreakpoints(uri: uri, rawBreakpoints: IBreakpointData[]): TPromise<IBreakpoint[]> {
@@ -108,18 +112,74 @@ export class MockDebugService implements IDebugService {
 	public logToRepl(value: string): void { }
 
 	public sourceIsNotAvailable(uri: uri): void { }
+
+	public tryToAutoFocusStackFrame(thread: IThread): TPromise<any> {
+		return TPromise.as(null);
+	}
 }
 
-export class MockSession implements IRawSession {
+export class MockSession implements ISession {
+
+	configuration: IConfig = { type: 'mock', request: 'launch' };
+	raw: IRawSession = new MockRawSession();
+	state = State.Stopped;
+	root: IWorkspaceFolder;
+
+	getName(includeRoot: boolean): string {
+		return 'mockname';
+	}
+
+	getSourceForUri(modelUri: uri): Source {
+		return null;
+	}
+
+	getThread(threadId: number): IThread {
+		return null;
+	}
+
+	get onDidCustomEvent(): Event<DebugEvent> {
+		return null;
+	}
+
+	get onDidLoadedSource(): Event<LoadedSourceEvent> {
+		return null;
+	}
+
+	get onDidExitAdapter(): Event<void> {
+		return null;
+	}
+
+	getAllThreads(): ReadonlyArray<IThread> {
+		return [];
+	}
+
+	getSource(raw: DebugProtocol.Source): Source {
+		return undefined;
+	}
+
+	getLoadedSources(): TPromise<Source[]> {
+		return TPromise.as([]);
+	}
+
+	completions(frameId: number, text: string, position: Position, overwriteBefore: number): TPromise<ISuggestion[]> {
+		return TPromise.as([]);
+	}
+
+	clearThreads(removeThreads: boolean, reference?: number): void { }
+
+	rawUpdate(data: IRawModelUpdate): void { }
+
+	getId(): string {
+		return 'mock';
+	}
+
+	dispose(): void { }
+}
+
+export class MockRawSession implements IRawSession {
 
 	public readyForBreakpoints = true;
 	public emittedStopped = true;
-
-	public getId() {
-		return 'mockrawsession';
-	}
-
-	public root: IWorkspaceFolder;
 
 	public getLengthInSeconds(): number {
 		return 100;
@@ -167,26 +227,15 @@ export class MockSession implements IRawSession {
 		return {};
 	}
 
-	public get onDidEvent(): Event<DebugEvent> {
-		return null;
-	}
-
-	public get onDidInitialize(): Event<DebugProtocol.InitializedEvent> {
-		const emitter = new Emitter<DebugProtocol.InitializedEvent>();
-		return emitter.event;
-	}
-
-	public get onDidExitAdapter(): Event<{ sessionId: string }> {
-		const emitter = new Emitter<{ sessionId: string }>();
-		return emitter.event;
-	}
-
-
 	public custom(request: string, args: any): TPromise<DebugProtocol.Response> {
 		return TPromise.as(null);
 	}
 
 	public terminate(restart = false): TPromise<DebugProtocol.TerminateResponse> {
+		return TPromise.as(null);
+	}
+
+	public disconnect(restart?: boolean): TPromise<any> {
 		return TPromise.as(null);
 	}
 
@@ -218,7 +267,7 @@ export class MockSession implements IRawSession {
 		return TPromise.as(null);
 	}
 
-	public terminateThreads(args: DebugProtocol.TerminateThreadsArguments): TPromise<DebugProtocol.TerminateThreadsResponse, any> {
+	public terminateThreads(args: DebugProtocol.TerminateThreadsArguments): TPromise<DebugProtocol.TerminateThreadsResponse> {
 		return TPromise.as(null);
 	}
 
@@ -239,6 +288,10 @@ export class MockSession implements IRawSession {
 	}
 
 	public source(args: DebugProtocol.SourceArguments): TPromise<DebugProtocol.SourceResponse> {
+		return TPromise.as(null);
+	}
+
+	public loadedSources(args: DebugProtocol.LoadedSourcesArguments): TPromise<DebugProtocol.LoadedSourcesResponse> {
 		return TPromise.as(null);
 	}
 

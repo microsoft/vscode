@@ -232,7 +232,6 @@ export class CommentsPanel extends Panel {
 				const control = editor.getControl();
 				if (threadToReveal && isCodeEditor(control)) {
 					const controller = ReviewController.get(control);
-					console.log(commentToReveal.command);
 					controller.revealCommentThread(threadToReveal, commentToReveal.commentId);
 				}
 				setCommentsForFile = null;
@@ -262,7 +261,9 @@ export class CommentsPanel extends Panel {
 	}
 
 	private onCommentsUpdated(e: CommentThreadChangedEvent): void {
-		this.commentsModel.updateCommentThreads(e);
-		this.refresh();
+		const didUpdate = this.commentsModel.updateCommentThreads(e);
+		if (didUpdate) {
+			this.refresh();
+		}
 	}
 }

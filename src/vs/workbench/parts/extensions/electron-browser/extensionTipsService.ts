@@ -12,7 +12,7 @@ import { match } from 'vs/base/common/glob';
 import * as json from 'vs/base/common/json';
 import {
 	IExtensionManagementService, IExtensionGalleryService, IExtensionTipsService, ExtensionRecommendationReason, LocalExtensionType, EXTENSION_IDENTIFIER_PATTERN,
-	IExtensionsConfigContent, RecommendationChangeNotification, IExtensionRecommendation, ExtensionRecommendationSource, IExtensionManagementServerService, InstallOperation
+	IExtensionsConfigContent, RecommendationChangeNotification, IExtensionRecommendation, ExtensionRecommendationSource, InstallOperation
 } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { IModelService } from 'vs/editor/common/services/modelService';
 import { ITextModel } from 'vs/editor/common/model';
@@ -23,7 +23,7 @@ import { ShowRecommendedExtensionsAction, InstallWorkspaceRecommendedExtensionsA
 import Severity from 'vs/base/common/severity';
 import { IWorkspaceContextService, IWorkspaceFolder, IWorkspace, IWorkspaceFoldersChangeEvent, WorkbenchState } from 'vs/platform/workspace/common/workspace';
 import { IFileService } from 'vs/platform/files/common/files';
-import { IExtensionsConfiguration, ConfigurationKey, ShowRecommendationsOnlyOnDemandKey, IExtensionsViewlet } from 'vs/workbench/parts/extensions/common/extensions';
+import { IExtensionsConfiguration, ConfigurationKey, ShowRecommendationsOnlyOnDemandKey, IExtensionsViewlet, IExtensionsWorkbenchService } from 'vs/workbench/parts/extensions/common/extensions';
 import { IConfigurationService, ConfigurationTarget } from 'vs/platform/configuration/common/configuration';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import * as pfs from 'vs/base/node/pfs';
@@ -104,7 +104,7 @@ export class ExtensionTipsService extends Disposable implements IExtensionTipsSe
 		@IViewletService private viewletService: IViewletService,
 		@INotificationService private notificationService: INotificationService,
 		@IExtensionManagementService private extensionManagementService: IExtensionManagementService,
-		@IExtensionManagementServerService private extensionManagementServiceService: IExtensionManagementServerService,
+		@IExtensionsWorkbenchService private extensionWorkbenchService: IExtensionsWorkbenchService,
 		@IExperimentService private experimentService: IExperimentService,
 	) {
 		super();
@@ -179,7 +179,7 @@ export class ExtensionTipsService extends Disposable implements IExtensionTipsSe
 	}
 
 	private isEnabled(): boolean {
-		return this._galleryService.isEnabled() && !this.environmentService.extensionDevelopmentPath;
+		return this._galleryService.isEnabled() && !this.environmentService.extensionDevelopmentLocationURI;
 	}
 
 	getAllRecommendationsWithReason(): { [id: string]: { reasonId: ExtensionRecommendationReason, reasonText: string }; } {
@@ -311,7 +311,7 @@ export class ExtensionTipsService extends Disposable implements IExtensionTipsSe
 			.then(content => <IExtensionsConfigContent>json.parse(content.value), err => null);
 	}
 
-	private validateExtensions(contents: IExtensionsConfigContent[]): TPromise<{ invalidExtensions: string[], message: string }> {
+	private async validateExtensions(contents: IExtensionsConfigContent[]): TPromise<{ invalidExtensions: string[], message: string }> {
 		const extensionsContent: IExtensionsConfigContent = {
 			recommendations: distinct(flatten(contents.map(content => content.recommendations || []))),
 			unwantedRecommendations: distinct(flatten(contents.map(content => content.unwantedRecommendations || [])))
@@ -339,27 +339,24 @@ export class ExtensionTipsService extends Disposable implements IExtensionTipsSe
 
 		const filteredWanted = regexFilter(extensionsContent.recommendations || []).map(x => x.toLowerCase());
 
-		if (!filteredWanted.length) {
-			return TPromise.as({ invalidExtensions, message });
-		}
+		if (filteredWanted.length) {
+			try {
+				let validRecommendations = (await this._galleryService.query({ names: filteredWanted })).firstPage
+					.map(extension => extension.identifier.id.toLowerCase());
 
-		return this._galleryService.query({ names: filteredWanted }).then(pager => {
-			let page = pager.firstPage;
-			let validRecommendations = page.map(extension => {
-				return extension.identifier.id.toLowerCase();
-			});
-
-			if (validRecommendations.length !== filteredWanted.length) {
-				filteredWanted.forEach(element => {
-					if (validRecommendations.indexOf(element.toLowerCase()) === -1) {
-						invalidExtensions.push(element.toLowerCase());
-						message += `${element} (not found in marketplace)\n`;
-					}
-				});
+				if (validRecommendations.length !== filteredWanted.length) {
+					filteredWanted.forEach(element => {
+						if (validRecommendations.indexOf(element.toLowerCase()) === -1) {
+							invalidExtensions.push(element.toLowerCase());
+							message += `${element} (not found in marketplace)\n`;
+						}
+					});
+				}
+			} catch (e) {
+				console.warn('Error querying extensions gallery', e);
 			}
-
-			return TPromise.as({ invalidExtensions, message });
-		});
+		}
+		return { invalidExtensions, message };
 	}
 
 	private isExtensionAllowedToBeRecommended(id: string): boolean {
@@ -548,9 +545,8 @@ export class ExtensionTipsService extends Disposable implements IExtensionTipsSe
 			const importantRecommendationsIgnoreList = <string[]>JSON.parse(this.storageService.get('extensionsAssistant/importantRecommendationsIgnore', StorageScope.GLOBAL, '[]'));
 			recommendationsToSuggest = recommendationsToSuggest.filter(id => importantRecommendationsIgnoreList.indexOf(id) === -1 && this.isExtensionAllowedToBeRecommended(id));
 
-			const server = this.extensionManagementServiceService.getExtensionManagementServer(model.uri);
-			const importantTipsPromise = recommendationsToSuggest.length === 0 ? TPromise.as(null) : server.extensionManagementService.getInstalled(LocalExtensionType.User).then(local => {
-				const localExtensions = local.map(e => `${e.manifest.publisher.toLowerCase()}.${e.manifest.name.toLowerCase()}`);
+			const importantTipsPromise = recommendationsToSuggest.length === 0 ? TPromise.as(null) : this.extensionWorkbenchService.queryLocal().then(local => {
+				const localExtensions = local.map(e => e.id);
 				recommendationsToSuggest = recommendationsToSuggest.filter(id => localExtensions.every(local => local !== id.toLowerCase()));
 				if (!recommendationsToSuggest.length) {
 					return;
@@ -578,9 +574,7 @@ export class ExtensionTipsService extends Disposable implements IExtensionTipsSe
 							}
 							*/
 							this.telemetryService.publicLog('extensionRecommendations:popup', { userReaction: 'install', extensionId: name });
-
-							const installAction = this.instantiationService.createInstance(InstallRecommendedExtensionAction, id, server);
-							installAction.run().then(() => installAction.dispose());
+							this.instantiationService.createInstance(InstallRecommendedExtensionAction, id).run();
 						}
 					}, {
 						label: localize('showRecommendations', "Show Recommendations"),
@@ -676,8 +670,7 @@ export class ExtensionTipsService extends Disposable implements IExtensionTipsSe
 									});
 							}
 						}, {
-							label: choiceNever,
-							isSecondary: true,
+							label: localize('dontShowAgainExtension', "Don't Show Again for '.{0}' files", fileExtension),
 							run: () => {
 								fileExtensionSuggestionIgnoreList.push(fileExtension);
 								this.storageService.store(

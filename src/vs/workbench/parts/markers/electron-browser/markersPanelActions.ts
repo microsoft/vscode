@@ -10,7 +10,7 @@ import { Action, IAction } from 'vs/base/common/actions';
 import { HistoryInputBox } from 'vs/base/browser/ui/inputbox/inputBox';
 import { KeyCode } from 'vs/base/common/keyCodes';
 import { IKeyboardEvent } from 'vs/base/browser/keyboardEvent';
-import { IContextViewService } from 'vs/platform/contextview/browser/contextView';
+import { IContextViewService, IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 import { TogglePanelAction } from 'vs/workbench/browser/panel';
 import Messages from 'vs/workbench/parts/markers/electron-browser/messages';
 import Constants from 'vs/workbench/parts/markers/electron-browser/constants';
@@ -23,13 +23,20 @@ import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { attachInputBoxStyler, attachStylerCallback, attachCheckboxStyler } from 'vs/platform/theme/common/styler';
 import { IMarkersWorkbenchService } from 'vs/workbench/parts/markers/electron-browser/markers';
 import { Event, Emitter } from 'vs/base/common/event';
-import { IDisposable } from 'vs/base/common/lifecycle';
-import { BaseActionItem } from 'vs/base/browser/ui/actionbar/actionbar';
+import { IDisposable, dispose } from 'vs/base/common/lifecycle';
+import { BaseActionItem, ActionItem } from 'vs/base/browser/ui/actionbar/actionbar';
 import { badgeBackground, contrastBorder } from 'vs/platform/theme/common/colorRegistry';
 import { localize } from 'vs/nls';
 import { Checkbox } from 'vs/base/browser/ui/checkbox/checkbox';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { ContextScopedHistoryInputBox } from 'vs/platform/widget/browser/contextScopedHistoryWidget';
+import { Marker } from 'vs/workbench/parts/markers/electron-browser/markersModel';
+import { applyCodeAction } from 'vs/editor/contrib/codeAction/codeActionCommands';
+import { IBulkEditService } from 'vs/editor/browser/services/bulkEditService';
+import { ICommandService } from 'vs/platform/commands/common/commands';
+import { IEditorService, ACTIVE_GROUP } from 'vs/workbench/services/editor/common/editorService';
+import { IModelService } from 'vs/editor/common/services/modelService';
+import { isEqual } from 'vs/base/common/resources';
 
 export class ToggleMarkersPanelAction extends TogglePanelAction {
 
@@ -86,14 +93,12 @@ export interface IMarkersFilterActionItemOptions {
 
 export class MarkersFilterActionItem extends BaseActionItem {
 
-	private _toDispose: IDisposable[] = [];
-
 	private readonly _onDidChange: Emitter<void> = this._register(new Emitter<void>());
 	readonly onDidChange: Event<void> = this._onDidChange.event;
 
 	private delayedFilterUpdate: Delayer<void>;
 	private container: HTMLElement;
-	private element: HTMLElement;
+	private filterContainer: HTMLElement;
 	private filterInputBox: HistoryInputBox;
 	private controlsContainer: HTMLInputElement;
 	private filterBadge: HTMLInputElement;
@@ -116,7 +121,7 @@ export class MarkersFilterActionItem extends BaseActionItem {
 	render(container: HTMLElement): void {
 		this.container = container;
 		DOM.addClass(this.container, 'markers-panel-action-filter-container');
-		DOM.append(this.container, this.element);
+		DOM.append(this.container, this.filterContainer);
 		this.adjustInputBox();
 	}
 
@@ -150,9 +155,9 @@ export class MarkersFilterActionItem extends BaseActionItem {
 	}
 
 	private create(itemOptions: IMarkersFilterActionItemOptions): void {
-		this.element = DOM.$('.markers-panel-action-filter');
-		this.createInput(this.element, itemOptions);
-		this.createControls(this.element, itemOptions);
+		this.filterContainer = DOM.$('.markers-panel-action-filter');
+		this.createInput(this.filterContainer, itemOptions);
+		this.createControls(this.filterContainer, itemOptions);
 	}
 
 	private createInput(container: HTMLElement, itemOptions: IMarkersFilterActionItemOptions): void {
@@ -264,9 +269,89 @@ export class MarkersFilterActionItem extends BaseActionItem {
 		*/
 		this.telemetryService.publicLog('problems.filter', data);
 	}
+}
 
-	private _register<T extends IDisposable>(t: T): T {
-		this._toDispose.push(t);
-		return t;
+export class QuickFixAction extends Action {
+
+	public static readonly ID: string = 'workbench.actions.problems.quickfix';
+
+	private updated: boolean = false;
+	private disposables: IDisposable[] = [];
+
+	constructor(
+		readonly marker: Marker,
+		@IBulkEditService private bulkEditService: IBulkEditService,
+		@ICommandService private commandService: ICommandService,
+		@IEditorService private editorService: IEditorService,
+		@IModelService modelService: IModelService
+	) {
+		super(QuickFixAction.ID, Messages.MARKERS_PANEL_ACTION_TOOLTIP_QUICKFIX, 'markers-panel-action-quickfix', false);
+		if (modelService.getModel(this.marker.resourceMarkers.uri)) {
+			this.update();
+		} else {
+			modelService.onModelAdded(model => {
+				if (isEqual(model.uri, marker.resource)) {
+					this.update();
+				}
+			}, this, this.disposables);
+		}
+
 	}
+
+	private update(): void {
+		if (!this.updated) {
+			this.marker.resourceMarkers.hasFixes(this.marker).then(hasFixes => this.enabled = hasFixes);
+			this.updated = true;
+		}
+	}
+
+	async getQuickFixActions(): Promise<IAction[]> {
+		const codeActions = await this.marker.resourceMarkers.getFixes(this.marker);
+		return codeActions.map(codeAction => new Action(
+			codeAction.command ? codeAction.command.id : codeAction.title,
+			codeAction.title,
+			void 0,
+			true,
+			() => {
+				return this.openFileAtMarker(this.marker)
+					.then(() => applyCodeAction(codeAction, this.bulkEditService, this.commandService));
+			}));
+	}
+
+	public openFileAtMarker(element: Marker): TPromise<void> {
+		const { resource, selection } = { resource: element.resource, selection: element.range };
+		return this.editorService.openEditor({
+			resource,
+			options: {
+				selection,
+				preserveFocus: true,
+				pinned: false,
+				revealIfVisible: true
+			},
+		}, ACTIVE_GROUP).then(() => null);
+	}
+
+	dispose(): void {
+		dispose(this.disposables);
+		super.dispose();
+	}
+}
+
+export class QuickFixActionItem extends ActionItem {
+
+	constructor(action: QuickFixAction,
+		@IContextMenuService private contextMenuService: IContextMenuService
+	) {
+		super(null, action, { icon: true, label: false });
+	}
+
+	public onClick(event: DOM.EventLike): void {
+		DOM.EventHelper.stop(event, true);
+		const elementPosition = DOM.getDomNodePagePosition(this.element);
+		this.contextMenuService.showContextMenu({
+			getAnchor: () => ({ x: elementPosition.left + 10, y: elementPosition.top + elementPosition.height }),
+			getActions: () => TPromise.wrap((<QuickFixAction>this.getAction()).getQuickFixActions()),
+		});
+	}
+
 }

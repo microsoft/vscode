@@ -4,14 +4,14 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { fromNodeEventEmitter } from 'vs/base/common/event';
-import { IPCClient } from 'vs/base/parts/ipc/common/ipc';
-import { Protocol } from 'vs/base/parts/ipc/common/ipc.electron';
+import { IPCClient } from 'vs/base/parts/ipc/node/ipc';
+import { Protocol } from 'vs/base/parts/ipc/node/ipc.electron';
 import { ipcRenderer } from 'electron';
 
 export class Client extends IPCClient {
 
 	private static createProtocol(): Protocol {
-		const onMessage = fromNodeEventEmitter<string>(ipcRenderer, 'ipc:message', (_, message) => message);
+		const onMessage = fromNodeEventEmitter<string>(ipcRenderer, 'ipc:message', (_, message: string) => message);
 		ipcRenderer.send('ipc:hello');
 		return new Protocol(ipcRenderer, onMessage);
 	}

@@ -22,7 +22,8 @@ import { distinct } from 'vs/base/common/arrays';
 import { IEditorGroupsService, IEditorGroup, GroupDirection, GroupLocation, GroupsOrder, preferredSideBySideGroupDirection, EditorGroupLayout } from 'vs/workbench/services/group/common/editorGroupsService';
 import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { CommandsRegistry } from 'vs/platform/commands/common/commands';
+import { CommandsRegistry, ICommandHandler } from 'vs/platform/commands/common/commands';
+import { MenuRegistry, MenuId } from 'vs/platform/actions/common/actions';
 
 export const CLOSE_SAVED_EDITORS_COMMAND_ID = 'workbench.action.closeUnmodifiedEditors';
 export const CLOSE_EDITORS_IN_GROUP_COMMAND_ID = 'workbench.action.closeEditorsInGroup';
@@ -45,6 +46,8 @@ export const SPLIT_EDITOR_RIGHT = 'workbench.action.splitEditorRight';
 
 export const NAVIGATE_ALL_EDITORS_GROUP_PREFIX = 'edt ';
 export const NAVIGATE_IN_ACTIVE_GROUP_PREFIX = 'edt active ';
+
+export const OPEN_EDITOR_AT_INDEX_COMMAND_ID = 'workbench.action.openEditorAtIndex';
 
 export interface ActiveEditorMoveArguments {
 	to?: 'first' | 'last' | 'left' | 'right' | 'up' | 'down' | 'center' | 'position' | 'previous' | 'next';
@@ -224,7 +227,7 @@ function registerDiffEditorCommands(): void {
 		id: 'workbench.action.compareEditor.nextChange',
 		weight: KeybindingWeight.WorkbenchContrib,
 		when: TextCompareEditorVisibleContext,
-		primary: null,
+		primary: KeyMod.Alt | KeyCode.F5,
 		handler: accessor => navigateInDiffEditor(accessor, true)
 	});
 
@@ -232,7 +235,7 @@ function registerDiffEditorCommands(): void {
 		id: 'workbench.action.compareEditor.previousChange',
 		weight: KeybindingWeight.WorkbenchContrib,
 		when: TextCompareEditorVisibleContext,
-		primary: null,
+		primary: KeyMod.Alt | KeyMod.Shift | KeyCode.F5,
 		handler: accessor => navigateInDiffEditor(accessor, false)
 	});
 
@@ -263,9 +266,33 @@ function registerDiffEditorCommands(): void {
 			}
 		}
 	});
+
+	MenuRegistry.appendMenuItem(MenuId.CommandPalette, {
+		command: {
+			id: TOGGLE_DIFF_INLINE_MODE,
+			title: nls.localize('toggleInlineView', "Compare: Toggle Inline View")
+		},
+		when: ContextKeyExpr.has('textCompareEditorActive')
+	});
 }
 
 function registerOpenEditorAtIndexCommands(): void {
+	const openEditorAtIndex: ICommandHandler = (accessor: ServicesAccessor, editorIndex: number): void => {
+		const editorService = accessor.get(IEditorService);
+		const activeControl = editorService.activeControl;
+		if (activeControl) {
+			const editor = activeControl.group.getEditor(editorIndex);
+			if (editor) {
+				editorService.openEditor(editor);
+			}
+		}
+	};
+
+	// This command takes in the editor index number to open as an argument
+	CommandsRegistry.registerCommand({
+		id: OPEN_EDITOR_AT_INDEX_COMMAND_ID,
+		handler: openEditorAtIndex
+	});
 
 	// Keybindings to focus a specific index in the tab folder if tabs are enabled
 	for (let i = 0; i < 9; i++) {
@@ -273,24 +300,12 @@ function registerOpenEditorAtIndexCommands(): void {
 		const visibleIndex = i + 1;
 
 		KeybindingsRegistry.registerCommandAndKeybindingRule({
-			id: 'workbench.action.openEditorAtIndex' + visibleIndex,
+			id: OPEN_EDITOR_AT_INDEX_COMMAND_ID + visibleIndex,
 			weight: KeybindingWeight.WorkbenchContrib,
 			when: void 0,
 			primary: KeyMod.Alt | toKeyCode(visibleIndex),
 			mac: { primary: KeyMod.WinCtrl | toKeyCode(visibleIndex) },
-			handler: accessor => {
-				const editorService = accessor.get(IEditorService);
-
-				const activeControl = editorService.activeControl;
-				if (activeControl) {
-					const editor = activeControl.group.getEditor(editorIndex);
-					if (editor) {
-						return editorService.openEditor(editor).then(() => void 0);
-					}
-				}
-
-				return void 0;
-			}
+			handler: accessor => openEditorAtIndex(accessor, editorIndex)
 		});
 	}
 

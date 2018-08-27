@@ -293,7 +293,8 @@ export class TerminalInstance implements ITerminalInstance {
 			rightClickSelectsWord: config.rightClickBehavior === 'selectWord',
 			// TODO: Guess whether to use canvas or dom better
 			rendererType: config.rendererType === 'auto' ? 'canvas' : config.rendererType,
-			experimentalCharAtlas: config.experimentalTextureCachingStrategy
+			// TODO: Remove this once the setting is removed upstream
+			experimentalCharAtlas: 'dynamic'
 		});
 		if (this._shellLaunchConfig.initialText) {
 			this._xterm.writeln(this._shellLaunchConfig.initialText);
@@ -481,7 +482,7 @@ export class TerminalInstance implements ITerminalInstance {
 						label: nls.localize('yes', "Yes"),
 						run: () => {
 							this._configurationService.updateValue('terminal.integrated.rendererType', 'dom', ConfigurationTarget.USER).then(() => {
-								this._notificationService.info(nls.localize('terminal.rendererInAllNewTerminals', "All newly created terminals will use the non-GPU renderer."));
+								this._notificationService.info(nls.localize('terminal.rendererInAllNewTerminals', "The terminal is now using the fallback renderer."));
 							});
 						}
 					} as IPromptChoice,
@@ -712,8 +713,6 @@ export class TerminalInstance implements ITerminalInstance {
 		this._processManager = this._instantiationService.createInstance(TerminalProcessManager, this._id, this._configHelper);
 		this._processManager.onProcessReady(() => this._onProcessIdReady.fire(this));
 		this._processManager.onProcessExit(exitCode => this._onProcessExit(exitCode));
-		this._processManager.createProcess(this._shellLaunchConfig, this._cols, this._rows);
-
 		this._processManager.onProcessData(data => this._onData.fire(data));
 
 		if (this._shellLaunchConfig.name) {
@@ -733,6 +732,12 @@ export class TerminalInstance implements ITerminalInstance {
 				});
 			});
 		}
+
+		// Create the process asynchronously to allow the terminal's container
+		// to be created so dimensions are accurate
+		setTimeout(() => {
+			this._processManager.createProcess(this._shellLaunchConfig, this._cols, this._rows);
+		}, 0);
 	}
 
 	private _onProcessData(data: string): void {
@@ -884,6 +889,7 @@ export class TerminalInstance implements ITerminalInstance {
 		this._safeSetOption('macOptionIsMeta', config.macOptionIsMeta);
 		this._safeSetOption('macOptionClickForcesSelection', config.macOptionClickForcesSelection);
 		this._safeSetOption('rightClickSelectsWord', config.rightClickBehavior === 'selectWord');
+		this._safeSetOption('rendererType', config.rendererType === 'auto' ? 'canvas' : config.rendererType);
 	}
 
 	public updateAccessibilitySupport(): void {

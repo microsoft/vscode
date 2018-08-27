@@ -11,7 +11,7 @@ import { Event, Emitter, chain } from 'vs/base/common/event';
 import { domEvent } from 'vs/base/browser/event';
 import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { KeyCode } from 'vs/base/common/keyCodes';
-import { $, append, addClass, removeClass, toggleClass, trackFocus } from 'vs/base/browser/dom';
+import { $, append, addClass, removeClass, toggleClass, trackFocus, scheduleAtNextAnimationFrame } from 'vs/base/browser/dom';
 import { firstIndex } from 'vs/base/common/arrays';
 import { Color, RGBA } from 'vs/base/common/color';
 import { SplitView, IView } from './splitview';
@@ -386,7 +386,14 @@ export class PanelView implements IDisposable {
 
 	addPanel(panel: Panel, size: number, index = this.splitview.length): void {
 		const disposables: IDisposable[] = [];
-		panel.onDidChange(this.setupAnimation, this, disposables);
+		disposables.push(
+			// fix https://github.com/Microsoft/vscode/issues/37129 by delaying the listener
+			// for changes to animate them. lots of views cause a onDidChange during their
+			// initial creation and this causes the view to animate even though it shows
+			// for the first time. animation should only be used to indicate new elements
+			// are added or existing ones removed in a view that is already showing
+			scheduleAtNextAnimationFrame(() => panel.onDidChange(this.setupAnimation, this, disposables))
+		);
 
 		const panelItem = { panel, disposable: combinedDisposable(disposables) };
 		this.panelItems.splice(index, 0, panelItem);

@@ -95,7 +95,7 @@ export class ColorThemeStore {
 			}
 
 			const colorThemeLocation = resources.joinPath(extensionLocation, theme.path);
-			if (colorThemeLocation.path.indexOf(extensionLocation.path) !== 0) {
+			if (!resources.isEqualOrParent(colorThemeLocation, extensionLocation)) {
 				collector.warn(nls.localize('invalid.path.1', "Expected `contributes.{0}.path` ({1}) to be included inside extension's folder ({2}). This might make the extension non-portable.", themesExtPoint.name, colorThemeLocation.path, extensionLocation.path));
 			}
 

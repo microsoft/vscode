@@ -41,14 +41,19 @@ export interface ISetting {
 	value: any;
 	valueRange: IRange;
 	description: string[];
+	descriptionIsMarkdown: boolean;
 	descriptionRanges: IRange[];
 	overrides?: ISetting[];
 	overrideOf?: ISetting;
+	deprecationMessage?: string;
 
 	// TODO@roblou maybe need new type and new EditorModel for GUI editor instead of ISetting which is used for text settings editor
 	type?: string | string[];
 	enum?: string[];
 	enumDescriptions?: string[];
+	enumDescriptionsAreMarkdown?: boolean;
+	tags?: string[];
+	validator?: (value: any) => string;
 }
 
 export interface IExtensionSetting extends ISetting {
@@ -58,6 +63,7 @@ export interface IExtensionSetting extends ISetting {
 
 export interface ISearchResult {
 	filterMatches: ISettingMatch[];
+	exactMatch?: boolean;
 	metadata?: IFilterMetadata;
 }
 
@@ -74,6 +80,7 @@ export interface IFilterResult {
 	allGroups: ISettingsGroup[];
 	matches: IRange[];
 	metadata?: IStringDictionary<IFilterMetadata>;
+	exactMatch?: boolean;
 }
 
 export interface ISettingMatch {
@@ -145,12 +152,11 @@ export interface IPreferencesService {
 	createPreferencesEditorModel<T>(uri: URI): TPromise<IPreferencesEditorModel<T>>;
 
 	openRawDefaultSettings(): TPromise<IEditor>;
-	openSettings(): TPromise<IEditor>;
-	openSettings2(): TPromise<IEditor>;
-	openGlobalSettings(options?: IEditorOptions, group?: IEditorGroup): TPromise<IEditor>;
-	openWorkspaceSettings(options?: IEditorOptions, group?: IEditorGroup): TPromise<IEditor>;
-	openFolderSettings(folder: URI, options?: IEditorOptions, group?: IEditorGroup): TPromise<IEditor>;
-	switchSettings(target: ConfigurationTarget, resource: URI): TPromise<void>;
+	openSettings(jsonEditor?: boolean): TPromise<IEditor>;
+	openGlobalSettings(jsonEditor?: boolean, options?: IEditorOptions, group?: IEditorGroup): TPromise<IEditor>;
+	openWorkspaceSettings(jsonEditor?: boolean, options?: IEditorOptions, group?: IEditorGroup): TPromise<IEditor>;
+	openFolderSettings(folder: URI, jsonEditor?: boolean, options?: IEditorOptions, group?: IEditorGroup): TPromise<IEditor>;
+	switchSettings(target: ConfigurationTarget, resource: URI, jsonEditor?: boolean): TPromise<void>;
 	openGlobalKeybindingSettings(textual: boolean): TPromise<void>;
 	openDefaultKeybindingsFile(): TPromise<IEditor>;
 

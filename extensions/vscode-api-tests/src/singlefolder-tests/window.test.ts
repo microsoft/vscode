@@ -688,7 +688,7 @@ suite('window namespace tests', () => {
 			const renderer = window.createTerminalRenderer('foo');
 		});
 
-		test('Terminal.sendText should fire Termnial.onInput', (done) => {
+		test('Terminal.sendText should fire Terminal.onInput', (done) => {
 			const reg1 = window.onDidOpenTerminal(terminal => {
 				reg1.dispose();
 				const reg2 = renderer.onDidAcceptInput(data => {

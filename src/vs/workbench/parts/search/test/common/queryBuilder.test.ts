@@ -17,6 +17,7 @@ import { IWorkspaceContextService, toWorkspaceFolders, Workspace } from 'vs/plat
 import { ISearchPathsResult, QueryBuilder } from 'vs/workbench/parts/search/common/queryBuilder';
 import { TestContextService, TestEnvironmentService } from 'vs/workbench/test/workbenchTestServices';
 
+const DEFAULT_EDITOR_CONFIG = {};
 const DEFAULT_USER_CONFIG = { useRipgrep: true, useIgnoreFiles: true };
 const DEFAULT_QUERY_PROPS = { useRipgrep: true, disregardIgnoreFiles: false };
 
@@ -36,10 +37,11 @@ suite('QueryBuilder', () => {
 
 		mockConfigService = new TestConfigurationService();
 		mockConfigService.setUserConfiguration('search', DEFAULT_USER_CONFIG);
+		mockConfigService.setUserConfiguration('editor', DEFAULT_EDITOR_CONFIG);
 		instantiationService.stub(IConfigurationService, mockConfigService);
 
 		mockContextService = new TestContextService();
-		mockWorkspace = new Workspace('workspace', 'workspace', toWorkspaceFolders([{ path: ROOT_1_URI.fsPath }]));
+		mockWorkspace = new Workspace('workspace', toWorkspaceFolders([{ path: ROOT_1_URI.fsPath }]));
 		mockContextService.setWorkspace(mockWorkspace);
 
 		instantiationService.stub(IWorkspaceContextService, mockContextService);

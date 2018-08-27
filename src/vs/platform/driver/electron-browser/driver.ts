@@ -7,8 +7,8 @@
 
 import { TPromise } from 'vs/base/common/winjs.base';
 import { IDisposable, toDisposable, combinedDisposable } from 'vs/base/common/lifecycle';
-import { IWindowDriver, IElement, WindowDriverChannel, WindowDriverRegistryChannelClient } from 'vs/platform/driver/common/driver';
-import { IPCClient } from 'vs/base/parts/ipc/common/ipc';
+import { IWindowDriver, IElement, WindowDriverChannel, WindowDriverRegistryChannelClient } from 'vs/platform/driver/node/driver';
+import { IPCClient } from 'vs/base/parts/ipc/node/ipc';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { getTopLeftOffset, getClientArea } from 'vs/base/browser/dom';
 import * as electron from 'electron';
@@ -86,7 +86,7 @@ class WindowDriver implements IWindowDriver {
 	private _click(selector: string, clickCount: number, xoffset?: number, yoffset?: number): TPromise<void> {
 		return this._getElementXY(selector, xoffset, yoffset).then(({ x, y }) => {
 
-			const webContents = electron.remote.getCurrentWebContents();
+			const webContents: electron.WebContents = (electron as any).remote.getCurrentWebContents();
 			webContents.sendInputEvent({ type: 'mouseDown', x, y, button: 'left', clickCount } as any);
 
 			return TPromise.timeout(10).then(() => {
@@ -207,7 +207,7 @@ class WindowDriver implements IWindowDriver {
 			return TPromise.wrapError(new Error('Xterm not found'));
 		}
 
-		xterm._core.send(text);
+		xterm._core.handler(text);
 
 		return TPromise.as(null);
 	}

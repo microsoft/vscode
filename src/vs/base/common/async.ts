@@ -6,7 +6,7 @@
 'use strict';
 
 import * as errors from 'vs/base/common/errors';
-import { TPromise, ValueCallback, ErrorCallback, ProgressCallback } from 'vs/base/common/winjs.base';
+import { TPromise, ValueCallback, ErrorCallback } from 'vs/base/common/winjs.base';
 import { CancellationToken, CancellationTokenSource } from 'vs/base/common/cancellation';
 import { Disposable, IDisposable } from 'vs/base/common/lifecycle';
 import { Event, Emitter } from 'vs/base/common/event';
@@ -68,7 +68,7 @@ export function createCancelablePromise<T>(callback: (token: CancellationToken) 
 
 export function asWinJsPromise<T>(callback: (token: CancellationToken) => T | TPromise<T> | Thenable<T>): TPromise<T> {
 	let source = new CancellationTokenSource();
-	return new TPromise<T>((resolve, reject, progress) => {
+	return new TPromise<T>((resolve, reject) => {
 		let item = callback(source.token);
 		if (item instanceof TPromise) {
 			item.then(result => {
@@ -77,7 +77,7 @@ export function asWinJsPromise<T>(callback: (token: CancellationToken) => T | TP
 			}, err => {
 				source.dispose();
 				reject(err);
-			}, progress);
+			});
 		} else if (isThenable<T>(item)) {
 			item.then(result => {
 				source.dispose();
@@ -194,15 +194,15 @@ export class Throttler {
 					return result;
 				};
 
-				this.queuedPromise = new TPromise((c, e, p) => {
-					this.activePromise.then(onComplete, onComplete, p).done(c);
+				this.queuedPromise = new TPromise(c => {
+					this.activePromise.then(onComplete, onComplete).done(c);
 				}, () => {
 					this.activePromise.cancel();
 				});
 			}
 
-			return new TPromise((c, e, p) => {
-				this.queuedPromise.then(c, e, p);
+			return new TPromise((c, e) => {
+				this.queuedPromise.then(c, e);
 			}, () => {
 				// no-op
 			});
@@ -210,14 +210,14 @@ export class Throttler {
 
 		this.activePromise = promiseFactory();
 
-		return new TPromise((c, e, p) => {
+		return new TPromise((c, e) => {
 			this.activePromise.done((result: any) => {
 				this.activePromise = null;
 				c(result);
 			}, (err: any) => {
 				this.activePromise = null;
 				e(err);
-			}, p);
+			});
 		}, () => {
 			this.activePromise.cancel();
 		});
@@ -378,20 +378,18 @@ export class ShallowCancelThenPromise<T> extends TPromise<T> {
 	constructor(outer: TPromise<T>) {
 
 		let completeCallback: ValueCallback,
-			errorCallback: ErrorCallback,
-			progressCallback: ProgressCallback;
+			errorCallback: ErrorCallback;
 
-		super((c, e, p) => {
+		super((c, e) => {
 			completeCallback = c;
 			errorCallback = e;
-			progressCallback = p;
 		}, () => {
 			// cancel this promise but not the
 			// outer promise
 			errorCallback(errors.canceled());
 		});
 
-		outer.then(completeCallback, errorCallback, progressCallback);
+		outer.then(completeCallback, errorCallback);
 	}
 }
 
@@ -410,8 +408,12 @@ export function timeout(n: number): CancelablePromise<void> {
 	});
 }
 
-function isWinJSPromise(candidate: any): candidate is TPromise {
-	return TPromise.is(candidate) && typeof (<TPromise>candidate).done === 'function';
+/**
+ *
+ * @returns `true` if candidate is a `WinJS.Promise`
+ */
+export function isWinJSPromise(candidate: any): candidate is TPromise {
+	return isThenable(candidate) && typeof (<TPromise>candidate).done === 'function';
 }
 
 /**
@@ -425,7 +427,7 @@ export function always<T>(thenable: TPromise<T>, f: Function): TPromise<T>;
 export function always<T>(promise: Thenable<T>, f: Function): Thenable<T>;
 export function always<T>(winjsPromiseOrThenable: Thenable<T> | TPromise<T>, f: Function): TPromise<T> | Thenable<T> {
 	if (isWinJSPromise(winjsPromiseOrThenable)) {
-		return new TPromise<T>((c, e, p) => {
+		return new TPromise<T>((c, e) => {
 			winjsPromiseOrThenable.done((result) => {
 				try {
 					f(result);
@@ -440,8 +442,6 @@ export function always<T>(winjsPromiseOrThenable: Thenable<T> | TPromise<T>, f: 
 					errors.onUnexpectedError(e1);
 				}
 				e(err);
-			}, (progress) => {
-				p(progress);
 			});
 		}, () => {
 			winjsPromiseOrThenable.cancel();
@@ -534,7 +534,6 @@ interface ILimitedTaskFactory {
 	factory: ITask<TPromise>;
 	c: ValueCallback;
 	e: ErrorCallback;
-	p: ProgressCallback;
 }
 
 /**
@@ -563,14 +562,9 @@ export class Limiter<T> {
 	}
 
 	queue(promiseFactory: ITask<TPromise>): TPromise;
-	queue(promiseFactory: ITask<TPromise<T>>): TPromise<T> {
-		return new TPromise<T>((c, e, p) => {
-			this.outstandingPromises.push({
-				factory: promiseFactory,
-				c: c,
-				e: e,
-				p: p
-			});
+	queue(factory: ITask<TPromise<T>>): TPromise<T> {
+		return new TPromise<T>((c, e) => {
+			this.outstandingPromises.push({ factory, c, e });
 
 			this.consume();
 		});
@@ -582,7 +576,7 @@ export class Limiter<T> {
 			this.runningPromises++;
 
 			const promise = iLimitedTask.factory();
-			promise.done(iLimitedTask.c, iLimitedTask.e, iLimitedTask.p);
+			promise.done(iLimitedTask.c, iLimitedTask.e);
 			promise.done(() => this.consumed(), () => this.consumed());
 		}
 	}

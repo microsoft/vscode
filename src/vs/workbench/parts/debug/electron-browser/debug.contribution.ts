@@ -113,8 +113,8 @@ Registry.as<PanelRegistry>(PanelExtensions.Panels).setDefaultPanelId(REPL_ID);
 ViewsRegistry.registerViews([{ id: VARIABLES_VIEW_ID, name: nls.localize('variables', "Variables"), ctor: VariablesView, order: 10, weight: 40, container: VIEW_CONTAINER, canToggleVisibility: true }]);
 ViewsRegistry.registerViews([{ id: WATCH_VIEW_ID, name: nls.localize('watch', "Watch"), ctor: WatchExpressionsView, order: 20, weight: 10, container: VIEW_CONTAINER, canToggleVisibility: true }]);
 ViewsRegistry.registerViews([{ id: CALLSTACK_VIEW_ID, name: nls.localize('callStack', "Call Stack"), ctor: CallStackView, order: 30, weight: 30, container: VIEW_CONTAINER, canToggleVisibility: true }]);
-ViewsRegistry.registerViews([{ id: LOADED_SCRIPTS_VIEW_ID, name: nls.localize('loadedScripts', "Loaded Scripts"), ctor: LoadedScriptsView, order: 35, weight: 10, container: VIEW_CONTAINER, canToggleVisibility: true, when: CONTEXT_LOADED_SCRIPTS_SUPPORTED }]);
 ViewsRegistry.registerViews([{ id: BREAKPOINTS_VIEW_ID, name: nls.localize('breakpoints', "Breakpoints"), ctor: BreakpointsView, order: 40, weight: 20, container: VIEW_CONTAINER, canToggleVisibility: true }]);
+ViewsRegistry.registerViews([{ id: LOADED_SCRIPTS_VIEW_ID, name: nls.localize('loadedScripts', "Loaded Scripts"), ctor: LoadedScriptsView, order: 50, weight: 5, container: VIEW_CONTAINER, canToggleVisibility: true, collapsed: true, when: CONTEXT_LOADED_SCRIPTS_SUPPORTED }]);
 
 // register action to open viewlet
 const registry = Registry.as<IWorkbenchActionRegistry>(WorkbenchActionRegistryExtensions.WorkbenchActions);
@@ -178,39 +178,39 @@ configurationRegistry.registerConfiguration({
 	properties: {
 		'debug.allowBreakpointsEverywhere': {
 			type: 'boolean',
-			description: nls.localize({ comment: ['This is the description for a setting'], key: 'allowBreakpointsEverywhere' }, "Allows setting breakpoint in any file"),
+			description: nls.localize({ comment: ['This is the description for a setting'], key: 'allowBreakpointsEverywhere' }, "Allow setting breakpoints in any file."),
 			default: false
 		},
 		'debug.openExplorerOnEnd': {
 			type: 'boolean',
-			description: nls.localize({ comment: ['This is the description for a setting'], key: 'openExplorerOnEnd' }, "Automatically open explorer view on the end of a debug session"),
+			description: nls.localize({ comment: ['This is the description for a setting'], key: 'openExplorerOnEnd' }, "Automatically open the explorer view at the end of a debug session"),
 			default: false
 		},
 		'debug.inlineValues': {
 			type: 'boolean',
-			description: nls.localize({ comment: ['This is the description for a setting'], key: 'inlineValues' }, "Show variable values inline in editor while debugging"),
+			description: nls.localize({ comment: ['This is the description for a setting'], key: 'inlineValues' }, "Show variable values inline in editor while debugging."),
 			default: false
 		},
 		'debug.toolBarLocation': {
 			enum: ['floating', 'docked', 'hidden'],
-			description: nls.localize({ comment: ['This is the description for a setting'], key: 'toolBarLocation' }, "Controls the location of the debug toolbar. Either \"floating\" in all views, \"docked\" in the debug view, or \"hidden\""),
+			markdownDescription: nls.localize({ comment: ['This is the description for a setting'], key: 'toolBarLocation' }, "Controls the location of the debug toolbar. Either `floating` in all views, `docked` in the debug view, or `hidden`"),
 			default: 'floating'
 		},
 		'debug.showInStatusBar': {
 			enum: ['never', 'always', 'onFirstSessionStart'],
 			enumDescriptions: [nls.localize('never', "Never show debug in status bar"), nls.localize('always', "Always show debug in status bar"), nls.localize('onFirstSessionStart', "Show debug in status bar only after debug was started for the first time")],
-			description: nls.localize({ comment: ['This is the description for a setting'], key: 'showInStatusBar' }, "Controls when the debug status bar should be visible"),
+			description: nls.localize({ comment: ['This is the description for a setting'], key: 'showInStatusBar' }, "Controls when the debug status bar should be visible."),
 			default: 'onFirstSessionStart'
 		},
 		'debug.internalConsoleOptions': INTERNAL_CONSOLE_OPTIONS_SCHEMA,
 		'debug.openDebug': {
 			enum: ['neverOpen', 'openOnSessionStart', 'openOnFirstSessionStart', 'openOnDebugBreak'],
-			default: 'openOnFirstSessionStart',
-			description: nls.localize('openDebug', "Controls whether debug view should be open on debugging session start.")
+			default: 'openOnSessionStart',
+			description: nls.localize('openDebug', "Controls when the debug view should open.")
 		},
 		'debug.enableAllHovers': {
 			type: 'boolean',
-			description: nls.localize({ comment: ['This is the description for a setting'], key: 'enableAllHovers' }, "Controls if the non debug hovers should be enabled while debugging. If true the hover providers will be called to provide a hover. Regular hovers will not be shown even if this setting is true."),
+			description: nls.localize({ comment: ['This is the description for a setting'], key: 'enableAllHovers' }, "Controls whether the non-debug hovers should be enabled while debugging. When enabled the hover providers will be called to provide a hover. Regular hovers will not be shown even if this setting is enabled."),
 			default: false
 		},
 		'launch': {
@@ -358,40 +358,47 @@ MenuRegistry.appendMenuItem(MenuId.MenubarDebugMenu, {
 	order: 1
 });
 
-MenuRegistry.appendMenuItem(MenuId.MenubarDebugMenu, {
-	group: '4_new_breakpoint',
+MenuRegistry.appendMenuItem(MenuId.MenubarNewBreakpointMenu, {
+	group: '1_breakpoints',
 	command: {
 		id: TOGGLE_CONDITIONAL_BREAKPOINT_ID,
-		title: nls.localize({ key: 'miConditionalBreakpoint', comment: ['&& denotes a mnemonic'] }, "Toggle &&Conditional Breakpoint...")
+		title: nls.localize({ key: 'miConditionalBreakpoint', comment: ['&& denotes a mnemonic'] }, "&&Conditional Breakpoint...")
+	},
+	order: 1
+});
+
+MenuRegistry.appendMenuItem(MenuId.MenubarNewBreakpointMenu, {
+	group: '1_breakpoints',
+	command: {
+		id: TOGGLE_INLINE_BREAKPOINT_ID,
+		title: nls.localize({ key: 'miInlineBreakpoint', comment: ['&& denotes a mnemonic'] }, "Inline Breakp&&oint")
 	},
 	order: 2
 });
 
-MenuRegistry.appendMenuItem(MenuId.MenubarDebugMenu, {
-	group: '4_new_breakpoint',
+MenuRegistry.appendMenuItem(MenuId.MenubarNewBreakpointMenu, {
+	group: '1_breakpoints',
 	command: {
-		id: TOGGLE_INLINE_BREAKPOINT_ID,
-		title: nls.localize({ key: 'miInlineBreakpoint', comment: ['&& denotes a mnemonic'] }, "Toggle Inline Breakp&&oint")
+		id: AddFunctionBreakpointAction.ID,
+		title: nls.localize({ key: 'miFunctionBreakpoint', comment: ['&& denotes a mnemonic'] }, "&&Function Breakpoint...")
 	},
 	order: 3
 });
 
-MenuRegistry.appendMenuItem(MenuId.MenubarDebugMenu, {
-	group: '4_new_breakpoint',
+MenuRegistry.appendMenuItem(MenuId.MenubarNewBreakpointMenu, {
+	group: '1_breakpoints',
 	command: {
-		id: AddFunctionBreakpointAction.ID,
-		title: nls.localize({ key: 'miFunctionBreakpoint', comment: ['&& denotes a mnemonic'] }, "Toggle &&Function Breakpoint...")
+		id: TOGGLE_LOG_POINT_ID,
+		title: nls.localize({ key: 'miLogPoint', comment: ['&& denotes a mnemonic'] }, "&&Logpoint...")
 	},
 	order: 4
 });
 
 MenuRegistry.appendMenuItem(MenuId.MenubarDebugMenu, {
 	group: '4_new_breakpoint',
-	command: {
-		id: TOGGLE_LOG_POINT_ID,
-		title: nls.localize({ key: 'miLogPoint', comment: ['&& denotes a mnemonic'] }, "Toggle &&Logpoint...")
-	},
-	order: 5
+	title: nls.localize({ key: 'miNewBreakpoint', comment: ['&& denotes a mnemonic'] }, "&&New Breakpoint"),
+	submenu: MenuId.MenubarNewBreakpointMenu,
+	order: 2
 });
 
 // Modify Breakpoints
@@ -420,6 +427,16 @@ MenuRegistry.appendMenuItem(MenuId.MenubarDebugMenu, {
 		title: nls.localize({ key: 'miRemoveAllBreakpoints', comment: ['&& denotes a mnemonic'] }, "Remove &&All Breakpoints")
 	},
 	order: 3
+});
+
+// Install Debuggers
+MenuRegistry.appendMenuItem(MenuId.MenubarDebugMenu, {
+	group: 'z_install',
+	command: {
+		id: 'debug.installAdditionalDebuggers',
+		title: nls.localize({ key: 'miInstallAdditionalDebuggers', comment: ['&& denotes a mnemonic'] }, "&&Install Additional Debuggers...")
+	},
+	order: 1
 });
 
 // Touch Bar

@@ -1,7 +1,11 @@
 test/**
+.vscode/**
 client/tsconfig.json
 client/src/**
 server/bin
 server/tsconfig.json
 server/src/**
+server/test/**
 server/node_modules/@types/**
+**/node_modules/*/lib/esm/**
+**/node_modules/@types/**

@@ -4,8 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import { MarkedString, CompletionItemKind, CompletionItem, DocumentSelector, SnippetString } from 'vscode';
-import { IJSONContribution, ISuggestionsCollector } from './jsonContributions';
+import { MarkedString, CompletionItemKind, CompletionItem, DocumentSelector, SnippetString, workspace } from 'vscode';
+import { IJSONContribution, ISuggestionsCollector, xhrDisabled } from './jsonContributions';
 import { XHRRequest } from 'request-light';
 import { Location } from 'jsonc-parser';
 import { textToMarkedString } from './markedTextUtil';
@@ -25,11 +25,18 @@ export class BowerJSONContribution implements IJSONContribution {
 		'hui', 'bootstrap-languages', 'async', 'gulp', 'jquery-pjax', 'coffeescript', 'hammer.js', 'ace', 'leaflet', 'jquery-mobile', 'sweetalert', 'typeahead.js', 'soup', 'typehead.js',
 		'sails', 'codeigniter2'];
 
-	public constructor(private xhr: XHRRequest) {
+	private xhr: XHRRequest;
+
+	public constructor(xhr: XHRRequest) {
+		this.xhr = xhr;
 	}
 
 	public getDocumentSelector(): DocumentSelector {
 		return [{ language: 'json', scheme: '*', pattern: '**/bower.json' }, { language: 'json', scheme: '*', pattern: '**/.bower.json' }];
+	}
+
+	private onlineEnabled() {
+		return !!workspace.getConfiguration('npm').get('fetchOnlinePackageInfo');
 	}
 
 	public collectDefaultSuggestions(_resource: string, collector: ISuggestionsCollector): Thenable<any> {
@@ -50,7 +57,7 @@ export class BowerJSONContribution implements IJSONContribution {
 
 	public collectPropertySuggestions(_resource: string, location: Location, currentWord: string, addValue: boolean, isLast: boolean, collector: ISuggestionsCollector): Thenable<any> | null {
 		if ((location.matches(['dependencies']) || location.matches(['devDependencies']))) {
-			if (currentWord.length > 0) {
+			if (currentWord.length > 0 && this.onlineEnabled()) {
 				const queryUrl = 'https://registry.bower.io/packages/search/' + encodeURIComponent(currentWord);
 
 				return this.xhr({
@@ -144,6 +151,10 @@ export class BowerJSONContribution implements IJSONContribution {
 	}
 
 	private getInfo(pack: string): Thenable<string | undefined> {
+		if (!this.onlineEnabled()) {
+			return Promise.resolve(undefined);
+		}
+
 		const queryUrl = 'https://registry.bower.io/packages/' + encodeURIComponent(pack);
 
 		return this.xhr({

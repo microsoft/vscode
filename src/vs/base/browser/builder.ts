@@ -12,23 +12,9 @@ import * as assert from 'vs/base/common/assert';
 import * as DOM from 'vs/base/browser/dom';
 
 /**
- * Welcome to the monaco builder. The recommended way to use it is:
+ * !!! DO NOT USE. USE vs/base/browser/dom.$ INSTEAD !!!
  *
- * import Builder = require('vs/base/browser/builder');
- * let $ = Builder.$;
- * $(....).fn(...);
- *
- * See below for examples how to invoke the $():
- *
- * 	$()							- creates an offdom builder
- * 	$(builder)					- wraps the given builder
- * 	$(builder[])				- wraps the given builders into a multibuilder
- * 	$('div')					- creates a div
- * 	$('.big')					- creates a div with class `big`
- * 	$('#head')					- creates a div with id `head`
- * 	$('ul#head')				- creates an unordered list with id `head`
- * 	$('<a href="back"></a>')	- constructs a builder from the given HTML
- * 	$('a', { href: 'back'})		- constructs a builder, similarly to the Builder#element() call
+ * @deprecated !!! DO NOT USE. USE vs/base/browser/dom.$ INSTEAD !!!
  */
 export interface QuickBuilder {
 	(): Builder;
@@ -62,7 +48,9 @@ function hasData(element: any): boolean {
 }
 
 /**
- *  Wraps around the provided element to manipulate it and add more child elements.
+ * !!! DO NOT USE. USE vs/base/browser/dom.$ INSTEAD !!!
+ *
+ * @deprecated !!! DO NOT USE. USE vs/base/browser/dom.$ INSTEAD !!!
  */
 export class Builder implements IDisposable {
 	private currentElement: HTMLElement;
@@ -199,7 +187,7 @@ export class Builder implements IDisposable {
 		assert.ok(child, 'Need a child to append');
 
 		if (DOM.isHTMLElement(child)) {
-			child = withElement(child);
+			child = _withElement(child);
 		}
 
 		assert.ok(child instanceof Builder || child instanceof MultiBuilder, 'Need a child to append');
@@ -1018,7 +1006,7 @@ export class Builder implements IDisposable {
 	 *  Allows to store arbritary data into the current element.
 	 */
 	setProperty(key: string, value: any): Builder {
-		setPropertyOnElement(this.currentElement, key, value);
+		_setPropertyOnElement(this.currentElement, key, value);
 
 		return this;
 	}
@@ -1027,7 +1015,7 @@ export class Builder implements IDisposable {
 	 *  Allows to get arbritary data from the current element.
 	 */
 	getProperty(key: string, fallback?: any): any {
-		return getPropertyFromElement(this.currentElement, key, fallback);
+		return _getPropertyFromElement(this.currentElement, key, fallback);
 	}
 
 	/**
@@ -1047,7 +1035,7 @@ export class Builder implements IDisposable {
 	child(index = 0): Builder {
 		let children = this.currentElement.children;
 
-		return withElement(<HTMLElement>children.item(index));
+		return _withElement(<HTMLElement>children.item(index));
 	}
 
 	/**
@@ -1191,8 +1179,9 @@ export class Builder implements IDisposable {
 }
 
 /**
- *  The multi builder provides the same methods as the builder, but allows to call
- *  them on an array of builders.
+ * !!! DO NOT USE. USE vs/base/browser/dom.$ INSTEAD !!!
+ *
+ * @deprecated !!! DO NOT USE. USE vs/base/browser/dom.$ INSTEAD !!!
  */
 export class MultiBuilder extends Builder {
 
@@ -1215,7 +1204,7 @@ export class MultiBuilder extends Builder {
 		if (types.isArray(builders)) {
 			for (let i = 0; i < builders.length; i++) {
 				if (builders[i] instanceof HTMLElement) {
-					this.push(withElement(builders[i]));
+					this.push(_withElement(builders[i]));
 				} else {
 					this.push(builders[i]);
 				}
@@ -1302,7 +1291,7 @@ function withBuilder(builder: Builder, offdom?: boolean): Builder {
 	return new Builder(builder.getHTMLElement(), offdom);
 }
 
-export function withElement(element: HTMLElement, offdom?: boolean): Builder {
+export function _withElement(element: HTMLElement, offdom?: boolean): Builder {
 	return new Builder(element, offdom);
 }
 
@@ -1315,14 +1304,14 @@ function offDOM(): Builder {
 /**
  *  Allows to store arbritary data into element.
  */
-export function setPropertyOnElement(element: HTMLElement, key: string, value: any): void {
+export function _setPropertyOnElement(element: HTMLElement, key: string, value: any): void {
 	data(element)[key] = value;
 }
 
 /**
  *  Allows to get arbritary data from element.
  */
-export function getPropertyFromElement(element: HTMLElement, key: string, fallback?: any): any {
+export function _getPropertyFromElement(element: HTMLElement, key: string, fallback?: any): any {
 	if (hasData(element)) {
 		let value = data(element)[key];
 		if (!types.isUndefined(value)) {
@@ -1337,12 +1326,17 @@ export function getPropertyFromElement(element: HTMLElement, key: string, fallba
  *  Adds the provided object as property to the given element. Call getBinding()
  *  to retrieve it again.
  */
-export function bindElement(element: HTMLElement, object: any): void {
-	setPropertyOnElement(element, DATA_BINDING_ID, object);
+export function _bindElement(element: HTMLElement, object: any): void {
+	_setPropertyOnElement(element, DATA_BINDING_ID, object);
 }
 
 let SELECTOR_REGEX = /([\w\-]+)?(#([\w\-]+))?((.([\w\-]+))*)/;
 
+/**
+ * !!! DO NOT USE. USE vs/base/browser/dom.$ INSTEAD !!!
+ *
+ * @deprecated !!! DO NOT USE. USE vs/base/browser/dom.$ INSTEAD !!!
+ */
 export const $: QuickBuilder = function (arg?: any): Builder {
 
 	// Off-DOM use
@@ -1357,7 +1351,7 @@ export const $: QuickBuilder = function (arg?: any): Builder {
 
 	// Wrap the given element
 	if (DOM.isHTMLElement(arg) || arg === window) {
-		return withElement(arg);
+		return _withElement(arg);
 	}
 
 	// Wrap the given builders
@@ -1386,14 +1380,14 @@ export const $: QuickBuilder = function (arg?: any): Builder {
 				element = container.firstChild;
 				container.removeChild(element);
 
-				return withElement(<HTMLElement>element);
+				return _withElement(<HTMLElement>element);
 			}
 
 			let builders: Builder[] = [];
 			while (container.firstChild) {
 				element = container.firstChild;
 				container.removeChild(element);
-				builders.push(withElement(<HTMLElement>element));
+				builders.push(_withElement(<HTMLElement>element));
 			}
 
 			return new MultiBuilder(builders);

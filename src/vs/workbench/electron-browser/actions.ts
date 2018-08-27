@@ -13,34 +13,24 @@ import { Action } from 'vs/base/common/actions';
 import { IWindowService, IWindowsService, MenuBarVisibility } from 'vs/platform/windows/common/windows';
 import * as nls from 'vs/nls';
 import product from 'vs/platform/node/product';
-import pkg from 'vs/platform/node/package';
 import * as errors from 'vs/base/common/errors';
 import { IWorkspaceContextService, WorkbenchState } from 'vs/platform/workspace/common/workspace';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { IConfigurationService, ConfigurationTarget } from 'vs/platform/configuration/common/configuration';
 import { IWorkspaceConfigurationService } from 'vs/workbench/services/configuration/common/configuration';
-import * as paths from 'vs/base/common/paths';
 import { isMacintosh, isLinux, language } from 'vs/base/common/platform';
-import { IQuickOpenService, IFilePickOpenEntry, ISeparator, IPickOpenAction, IPickOpenItem } from 'vs/platform/quickOpen/common/quickOpen';
 import * as browser from 'vs/base/browser/browser';
-import { IIntegrityService } from 'vs/platform/integrity/common/integrity';
-import { IEntryRunContext } from 'vs/base/parts/quickopen/common/quickOpen';
-import { ITimerService, IStartupMetrics } from 'vs/workbench/services/timer/common/timerService';
 import { IEditorGroupsService, GroupDirection, GroupLocation, IFindGroupScope } from 'vs/workbench/services/group/common/editorGroupsService';
 import { IPanelService } from 'vs/workbench/services/panel/common/panelService';
 import { IPartService, Parts, Position as PartPosition } from 'vs/workbench/services/part/common/partService';
 import { IViewletService } from 'vs/workbench/services/viewlet/browser/viewlet';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
-import * as os from 'os';
 import { webFrame, shell } from 'electron';
-import { getPathLabel, getBaseLabel } from 'vs/base/common/labels';
+import { getBaseLabel } from 'vs/base/common/labels';
 import { IViewlet } from 'vs/workbench/common/viewlet';
 import { IPanel } from 'vs/workbench/common/panel';
-import { IWorkspaceIdentifier, getWorkspaceLabel, ISingleFolderWorkspaceIdentifier, isSingleFolderWorkspaceIdentifier, isWorkspaceIdentifier } from 'vs/platform/workspaces/common/workspaces';
+import { IWorkspaceIdentifier, ISingleFolderWorkspaceIdentifier, isSingleFolderWorkspaceIdentifier, isWorkspaceIdentifier } from 'vs/platform/workspaces/common/workspaces';
 import { FileKind } from 'vs/platform/files/common/files';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { IExtensionService, ActivationTimes } from 'vs/workbench/services/extensions/common/extensions';
-import { getEntries } from 'vs/base/common/performance';
 import { IssueType } from 'vs/platform/issue/common/issue';
 import { domEvent } from 'vs/base/browser/event';
 import { once } from 'vs/base/common/event';
@@ -50,6 +40,12 @@ import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { Context } from 'vs/platform/contextkey/browser/contextKeyService';
 import { IWorkbenchIssueService } from 'vs/workbench/services/issue/common/issue';
 import { INotificationService } from 'vs/platform/notification/common/notification';
+import { ILabelService } from 'vs/platform/label/common/label';
+import { dirname } from 'vs/base/common/resources';
+import { IModelService } from 'vs/editor/common/services/modelService';
+import { IModeService } from 'vs/editor/common/services/modeService';
+import { IQuickInputService, IQuickPickItem, IQuickInputButton, IQuickPickSeparator, IKeyMods } from 'vs/platform/quickinput/common/quickInput';
+import { getIconClasses } from 'vs/workbench/browser/labels';
 
 // --- actions
 
@@ -262,280 +258,6 @@ export class ZoomResetAction extends BaseZoomAction {
 	}
 }
 
-/* Copied from loader.ts */
-enum LoaderEventType {
-	LoaderAvailable = 1,
-
-	BeginLoadingScript = 10,
-	EndLoadingScriptOK = 11,
-	EndLoadingScriptError = 12,
-
-	BeginInvokeFactory = 21,
-	EndInvokeFactory = 22,
-
-	NodeBeginEvaluatingScript = 31,
-	NodeEndEvaluatingScript = 32,
-
-	NodeBeginNativeRequire = 33,
-	NodeEndNativeRequire = 34
-}
-
-interface ILoaderEvent {
-	type: LoaderEventType;
-	timestamp: number;
-	detail: string;
-}
-
-export class ShowStartupPerformance extends Action {
-
-	static readonly ID = 'workbench.action.appPerf';
-	static readonly LABEL = nls.localize('appPerf', "Startup Performance");
-
-	constructor(
-		id: string,
-		label: string,
-		@IWindowService private windowService: IWindowService,
-		@ITimerService private timerService: ITimerService,
-		@IEnvironmentService private environmentService: IEnvironmentService,
-		@IExtensionService private extensionService: IExtensionService
-	) {
-		super(id, label);
-	}
-
-	run(): TPromise<boolean> {
-
-		// Show dev tools
-		this.windowService.openDevTools();
-
-		// Print to console
-		setTimeout(() => {
-			(<any>console).group('Startup Performance Measurement');
-			const metrics: IStartupMetrics = this.timerService.startupMetrics;
-			console.log(`OS: ${metrics.platform} (${metrics.release})`);
-			console.log(`CPUs: ${metrics.cpus.model} (${metrics.cpus.count} x ${metrics.cpus.speed})`);
-			console.log(`Memory (System): ${(metrics.totalmem / (1024 * 1024 * 1024)).toFixed(2)}GB (${(metrics.freemem / (1024 * 1024 * 1024)).toFixed(2)}GB free)`);
-			console.log(`Memory (Process): ${(metrics.meminfo.workingSetSize / 1024).toFixed(2)}MB working set (${(metrics.meminfo.peakWorkingSetSize / 1024).toFixed(2)}MB peak, ${(metrics.meminfo.privateBytes / 1024).toFixed(2)}MB private, ${(metrics.meminfo.sharedBytes / 1024).toFixed(2)}MB shared)`);
-			console.log(`VM (likelyhood): ${metrics.isVMLikelyhood}%`);
-			console.log(`Initial Startup: ${metrics.initialStartup}`);
-			console.log(`Screen Reader Active: ${metrics.hasAccessibilitySupport}`);
-			console.log(`Empty Workspace: ${metrics.emptyWorkbench}`);
-
-			let nodeModuleLoadTime: number;
-			if (this.environmentService.performance) {
-				const nodeModuleTimes = this.analyzeNodeModulesLoadTimes();
-				nodeModuleLoadTime = nodeModuleTimes.duration;
-			}
-
-			(<any>console).table(this.getStartupMetricsTable(nodeModuleLoadTime));
-
-			if (this.environmentService.performance) {
-				const data = this.analyzeLoaderStats();
-				for (let type in data) {
-					(<any>console).groupCollapsed(`Loader: ${type}`);
-					(<any>console).table(data[type]);
-					(<any>console).groupEnd();
-				}
-			}
-
-			(<any>console).groupEnd();
-
-			(<any>console).group('Extension Activation Stats');
-			let extensionsActivationTimes: { [id: string]: ActivationTimes; } = {};
-			let extensionsStatus = this.extensionService.getExtensionsStatus();
-			for (let id in extensionsStatus) {
-				const status = extensionsStatus[id];
-				if (status.activationTimes) {
-					extensionsActivationTimes[id] = status.activationTimes;
-				}
-			}
-			(<any>console).table(extensionsActivationTimes);
-			(<any>console).groupEnd();
-
-			(<any>console).group('Raw Startup Timers (CSV)');
-			let value = `Name\tStart\n`;
-			let entries = getEntries('mark').slice(0).sort((a, b) => a.startTime - b.startTime);
-			for (const entry of entries) {
-				value += `${entry.name}\t${entry.startTime}\n`;
-			}
-			console.log(value);
-			(<any>console).groupEnd();
-		}, 1000);
-
-		return TPromise.as(true);
-	}
-
-	private getStartupMetricsTable(nodeModuleLoadTime?: number): any[] {
-		const table: any[] = [];
-		const metrics: IStartupMetrics = this.timerService.startupMetrics;
-
-		if (metrics.initialStartup) {
-			table.push({ Topic: '[main] start => app.isReady', 'Took (ms)': metrics.timers.ellapsedAppReady });
-			table.push({ Topic: '[main] nls:start => nls:end', 'Took (ms)': metrics.timers.ellapsedNlsGeneration });
-			table.push({ Topic: '[main] app.isReady => window.loadUrl()', 'Took (ms)': metrics.timers.ellapsedWindowLoad });
-		}
-
-		table.push({ Topic: '[renderer] window.loadUrl() => begin to require(workbench.main.js)', 'Took (ms)': metrics.timers.ellapsedWindowLoadToRequire });
-		table.push({ Topic: '[renderer] require(workbench.main.js)', 'Took (ms)': metrics.timers.ellapsedRequire });
-
-		if (nodeModuleLoadTime) {
-			table.push({ Topic: '[renderer] -> of which require() node_modules', 'Took (ms)': nodeModuleLoadTime });
-		}
-
-		table.push({ Topic: '[renderer] create extension host => extensions onReady()', 'Took (ms)': metrics.timers.ellapsedExtensions });
-		table.push({ Topic: '[renderer] restore viewlet', 'Took (ms)': metrics.timers.ellapsedViewletRestore });
-		table.push({ Topic: '[renderer] restore editor view state', 'Took (ms)': metrics.timers.ellapsedEditorRestore });
-		table.push({ Topic: '[renderer] overall workbench load', 'Took (ms)': metrics.timers.ellapsedWorkbench });
-		table.push({ Topic: '------------------------------------------------------' });
-		table.push({ Topic: '[main, renderer] start => extensions ready', 'Took (ms)': metrics.timers.ellapsedExtensionsReady });
-		table.push({ Topic: '[main, renderer] start => workbench ready', 'Took (ms)': metrics.ellapsed });
-
-		return table;
-	}
-
-	private analyzeNodeModulesLoadTimes(): { table: any[], duration: number } {
-		const stats = <ILoaderEvent[]>(<any>require).getStats();
-		const result = [];
-
-		let total = 0;
-
-		for (let i = 0, len = stats.length; i < len; i++) {
-			if (stats[i].type === LoaderEventType.NodeEndNativeRequire) {
-				if (stats[i - 1].type === LoaderEventType.NodeBeginNativeRequire && stats[i - 1].detail === stats[i].detail) {
-					const entry: any = {};
-					const dur = (stats[i].timestamp - stats[i - 1].timestamp);
-					entry['Event'] = 'nodeRequire ' + stats[i].detail;
-					entry['Took (ms)'] = dur.toFixed(2);
-					total += dur;
-					entry['Start (ms)'] = '**' + stats[i - 1].timestamp.toFixed(2);
-					entry['End (ms)'] = '**' + stats[i - 1].timestamp.toFixed(2);
-					result.push(entry);
-				}
-			}
-		}
-
-		if (total > 0) {
-			result.push({ Event: '------------------------------------------------------' });
-
-			const entry: any = {};
-			entry['Event'] = '[renderer] total require() node_modules';
-			entry['Took (ms)'] = total.toFixed(2);
-			entry['Start (ms)'] = '**';
-			entry['End (ms)'] = '**';
-			result.push(entry);
-		}
-
-		return { table: result, duration: Math.round(total) };
-	}
-
-	private analyzeLoaderStats(): { [type: string]: any[] } {
-		const stats = <ILoaderEvent[]>(<any>require).getStats().slice(0).sort((a: ILoaderEvent, b: ILoaderEvent) => {
-			if (a.detail < b.detail) {
-				return -1;
-			} else if (a.detail > b.detail) {
-				return 1;
-			} else if (a.type < b.type) {
-				return -1;
-			} else if (a.type > b.type) {
-				return 1;
-			} else {
-				return 0;
-			}
-		});
-
-		class Tick {
-
-			readonly duration: number;
-			readonly detail: string;
-
-			constructor(private readonly start: ILoaderEvent, private readonly end: ILoaderEvent) {
-				console.assert(start.detail === end.detail);
-
-				this.duration = this.end.timestamp - this.start.timestamp;
-				this.detail = start.detail;
-			}
-
-			toTableObject() {
-				return {
-					['Path']: this.start.detail,
-					['Took (ms)']: this.duration.toFixed(2),
-					// ['Start (ms)']: this.start.timestamp,
-					// ['End (ms)']: this.end.timestamp
-				};
-			}
-
-			static compareUsingStartTimestamp(a: Tick, b: Tick): number {
-				if (a.start.timestamp < b.start.timestamp) {
-					return -1;
-				} else if (a.start.timestamp > b.start.timestamp) {
-					return 1;
-				} else {
-					return 0;
-				}
-			}
-		}
-
-		const ticks: { [type: number]: Tick[] } = {
-			[LoaderEventType.BeginLoadingScript]: [],
-			[LoaderEventType.BeginInvokeFactory]: [],
-			[LoaderEventType.NodeBeginEvaluatingScript]: [],
-			[LoaderEventType.NodeBeginNativeRequire]: [],
-		};
-
-		for (let i = 1; i < stats.length - 1; i++) {
-			const stat = stats[i];
-			const nextStat = stats[i + 1];
-
-			if (nextStat.type - stat.type > 2) {
-				//bad?!
-				break;
-			}
-
-			i += 1;
-			ticks[stat.type].push(new Tick(stat, nextStat));
-		}
-
-		ticks[LoaderEventType.BeginInvokeFactory].sort(Tick.compareUsingStartTimestamp);
-		ticks[LoaderEventType.BeginInvokeFactory].sort(Tick.compareUsingStartTimestamp);
-		ticks[LoaderEventType.NodeBeginEvaluatingScript].sort(Tick.compareUsingStartTimestamp);
-		ticks[LoaderEventType.NodeBeginNativeRequire].sort(Tick.compareUsingStartTimestamp);
-
-		const ret = {
-			'Load Script': ticks[LoaderEventType.BeginLoadingScript].map(t => t.toTableObject()),
-			'(Node) Load Script': ticks[LoaderEventType.NodeBeginNativeRequire].map(t => t.toTableObject()),
-			'Eval Script': ticks[LoaderEventType.BeginInvokeFactory].map(t => t.toTableObject()),
-			'(Node) Eval Script': ticks[LoaderEventType.NodeBeginEvaluatingScript].map(t => t.toTableObject()),
-		};
-
-		function total(ticks: Tick[]): number {
-			let sum = 0;
-			for (const tick of ticks) {
-				sum += tick.duration;
-			}
-			return sum;
-		}
-
-		// totals
-		ret['Load Script'].push({
-			['Path']: 'TOTAL TIME',
-			['Took (ms)']: total(ticks[LoaderEventType.BeginLoadingScript]).toFixed(2)
-		});
-		ret['Eval Script'].push({
-			['Path']: 'TOTAL TIME',
-			['Took (ms)']: total(ticks[LoaderEventType.BeginInvokeFactory]).toFixed(2)
-		});
-		ret['(Node) Load Script'].push({
-			['Path']: 'TOTAL TIME',
-			['Took (ms)']: total(ticks[LoaderEventType.NodeBeginNativeRequire]).toFixed(2)
-		});
-		ret['(Node) Eval Script'].push({
-			['Path']: 'TOTAL TIME',
-			['Took (ms)']: total(ticks[LoaderEventType.NodeBeginEvaluatingScript]).toFixed(2)
-		});
-
-		return ret;
-	}
-}
-
 export class ReloadWindowAction extends Action {
 
 	static readonly ID = 'workbench.action.reloadWindow';
@@ -573,20 +295,24 @@ export class ReloadWindowWithExtensionsDisabledAction extends Action {
 }
 
 export abstract class BaseSwitchWindow extends Action {
-	private closeWindowAction: CloseWindowAction;
+
+	private closeWindowAction: IQuickInputButton = {
+		iconClass: 'action-remove-from-recently-opened',
+		tooltip: nls.localize('close', "Close Window")
+	};
 
 	constructor(
 		id: string,
 		label: string,
 		private windowsService: IWindowsService,
 		private windowService: IWindowService,
-		private quickOpenService: IQuickOpenService,
+		private quickInputService: IQuickInputService,
 		private keybindingService: IKeybindingService,
-		private instantiationService: IInstantiationService
+		private modelService: IModelService,
+		private modeService: IModeService,
 	) {
 		super(id, label);
 
-		this.closeWindowAction = this.instantiationService.createInstance(CloseWindowAction);
 	}
 
 	protected abstract isQuickNavigate(): boolean;
@@ -596,56 +322,35 @@ export abstract class BaseSwitchWindow extends Action {
 
 		return this.windowsService.getWindows().then(windows => {
 			const placeHolder = nls.localize('switchWindowPlaceHolder', "Select a window to switch to");
-			const picks = windows.map(win => ({
-				payload: win.id,
-				resource: win.filename ? URI.file(win.filename) : win.folderUri ? win.folderUri : win.workspace ? URI.file(win.workspace.configPath) : void 0,
-				fileKind: win.filename ? FileKind.FILE : win.workspace ? FileKind.ROOT_FOLDER : win.folderUri ? FileKind.FOLDER : FileKind.FILE,
-				label: win.title,
-				description: (currentWindowId === win.id) ? nls.localize('current', "Current Window") : void 0,
-				run: () => {
-					setTimeout(() => {
-						// Bug: somehow when not running this code in a timeout, it is not possible to use this picker
-						// with quick navigate keys (not able to trigger quick navigate once running it once).
-						this.windowsService.showWindow(win.id).done(null, errors.onUnexpectedError);
-					});
-				},
-				action: (!this.isQuickNavigate() && currentWindowId !== win.id) ? this.closeWindowAction : void 0
-			} as IFilePickOpenEntry));
-
-			this.quickOpenService.pick(picks, {
-				contextKey: 'inWindowsPicker',
-				autoFocus: { autoFocusFirstEntry: true },
-				placeHolder,
-				quickNavigateConfiguration: this.isQuickNavigate() ? { keybindings: this.keybindingService.lookupKeybindings(this.id) } : void 0
+			const picks = windows.map(win => {
+				const resource = win.filename ? URI.file(win.filename) : win.folderUri ? win.folderUri : win.workspace ? URI.file(win.workspace.configPath) : void 0;
+				const fileKind = win.filename ? FileKind.FILE : win.workspace ? FileKind.ROOT_FOLDER : win.folderUri ? FileKind.FOLDER : FileKind.FILE;
+				return {
+					payload: win.id,
+					label: win.title,
+					iconClasses: getIconClasses(this.modelService, this.modeService, resource, fileKind),
+					description: (currentWindowId === win.id) ? nls.localize('current', "Current Window") : void 0,
+					buttons: (!this.isQuickNavigate() && currentWindowId !== win.id) ? [this.closeWindowAction] : void 0
+				} as (IQuickPickItem & { payload: number });
 			});
-		});
-	}
 
-	dispose(): void {
-		super.dispose();
+			const autoFocusIndex = (picks.indexOf(picks.filter(pick => pick.payload === currentWindowId)[0]) + 1) % picks.length;
 
-		this.closeWindowAction.dispose();
-	}
-}
-
-class CloseWindowAction extends Action implements IPickOpenAction {
-
-	static readonly ID = 'workbench.action.closeWindow';
-	static readonly LABEL = nls.localize('close', "Close Window");
-
-	constructor(
-		@IWindowsService private windowsService: IWindowsService
-	) {
-		super(CloseWindowAction.ID, CloseWindowAction.LABEL);
-
-		this.class = 'action-remove-from-recently-opened';
-	}
-
-	run(item: IPickOpenItem): TPromise<boolean> {
-		return this.windowsService.closeWindow(item.getPayload()).then(() => {
-			item.remove();
-
-			return true;
+			return this.quickInputService.pick(picks, {
+				contextKey: 'inWindowsPicker',
+				activeItem: picks[autoFocusIndex],
+				placeHolder,
+				quickNavigate: this.isQuickNavigate() ? { keybindings: this.keybindingService.lookupKeybindings(this.id) } : void 0,
+				onDidTriggerItemButton: context => {
+					this.windowsService.closeWindow(context.item.payload).then(() => {
+						context.removeItem();
+					});
+				}
+			});
+		}).then(pick => {
+			if (pick) {
+				this.windowsService.showWindow(pick.payload).done(null, errors.onUnexpectedError);
+			}
 		});
 	}
 }
@@ -660,11 +365,12 @@ export class SwitchWindow extends BaseSwitchWindow {
 		label: string,
 		@IWindowsService windowsService: IWindowsService,
 		@IWindowService windowService: IWindowService,
-		@IQuickOpenService quickOpenService: IQuickOpenService,
+		@IQuickInputService quickInputService: IQuickInputService,
 		@IKeybindingService keybindingService: IKeybindingService,
-		@IInstantiationService instantiationService: IInstantiationService
+		@IModelService modelService: IModelService,
+		@IModeService modeService: IModeService,
 	) {
-		super(id, label, windowsService, windowService, quickOpenService, keybindingService, instantiationService);
+		super(id, label, windowsService, windowService, quickInputService, keybindingService, modelService, modeService);
 	}
 
 	protected isQuickNavigate(): boolean {
@@ -682,11 +388,12 @@ export class QuickSwitchWindow extends BaseSwitchWindow {
 		label: string,
 		@IWindowsService windowsService: IWindowsService,
 		@IWindowService windowService: IWindowService,
-		@IQuickOpenService quickOpenService: IQuickOpenService,
+		@IQuickInputService quickInputService: IQuickInputService,
 		@IKeybindingService keybindingService: IKeybindingService,
-		@IInstantiationService instantiationService: IInstantiationService
+		@IModelService modelService: IModelService,
+		@IModeService modeService: IModeService,
 	) {
-		super(id, label, windowsService, windowService, quickOpenService, keybindingService, instantiationService);
+		super(id, label, windowsService, windowService, quickInputService, keybindingService, modelService, modeService);
 	}
 
 	protected isQuickNavigate(): boolean {
@@ -697,21 +404,26 @@ export class QuickSwitchWindow extends BaseSwitchWindow {
 export const inRecentFilesPickerContextKey = 'inRecentFilesPicker';
 
 export abstract class BaseOpenRecentAction extends Action {
-	private removeAction: RemoveFromRecentlyOpened;
+
+	private removeFromRecentlyOpened: IQuickInputButton = {
+		iconClass: 'action-remove-from-recently-opened',
+		tooltip: nls.localize('remove', "Remove from Recently Opened")
+	};
 
 	constructor(
 		id: string,
 		label: string,
 		private windowService: IWindowService,
-		private quickOpenService: IQuickOpenService,
+		private windowsService: IWindowsService,
+		private quickInputService: IQuickInputService,
 		private contextService: IWorkspaceContextService,
 		private environmentService: IEnvironmentService,
+		private labelService: ILabelService,
 		private keybindingService: IKeybindingService,
-		instantiationService: IInstantiationService
+		private modelService: IModelService,
+		private modeService: IModeService,
 	) {
 		super(id, label);
-
-		this.removeAction = instantiationService.createInstance(RemoveFromRecentlyOpened);
 	}
 
 	protected abstract isQuickNavigate(): boolean;
@@ -721,89 +433,72 @@ export abstract class BaseOpenRecentAction extends Action {
 			.then(({ workspaces, files }) => this.openRecent(workspaces, files));
 	}
 
-	private openRecent(recentWorkspaces: (IWorkspaceIdentifier | ISingleFolderWorkspaceIdentifier)[], recentFiles: string[]): void {
+	private openRecent(recentWorkspaces: (IWorkspaceIdentifier | ISingleFolderWorkspaceIdentifier)[], recentFiles: URI[]): void {
 
-		function toPick(workspace: IWorkspaceIdentifier | ISingleFolderWorkspaceIdentifier | string, separator: ISeparator, fileKind: FileKind, environmentService: IEnvironmentService, removeAction?: RemoveFromRecentlyOpened): IFilePickOpenEntry {
+		const toPick = (workspace: IWorkspaceIdentifier | ISingleFolderWorkspaceIdentifier | URI, fileKind: FileKind, environmentService: IEnvironmentService, labelService: ILabelService, buttons: IQuickInputButton[]) => {
 			let resource: URI;
 			let label: string;
 			let description: string;
-			if (isSingleFolderWorkspaceIdentifier(workspace)) {
+			if (isSingleFolderWorkspaceIdentifier(workspace) && fileKind !== FileKind.FILE) {
 				resource = workspace;
-				label = getWorkspaceLabel(workspace, environmentService);
-				description = getPathLabel(resource.with({ path: paths.dirname(resource.path) }), environmentService);
+				label = labelService.getWorkspaceLabel(workspace);
+				description = labelService.getUriLabel(dirname(resource));
 			} else if (isWorkspaceIdentifier(workspace)) {
 				resource = URI.file(workspace.configPath);
-				label = getWorkspaceLabel(workspace, environmentService);
-				description = getPathLabel(paths.dirname(workspace.configPath), environmentService);
+				label = labelService.getWorkspaceLabel(workspace);
+				description = labelService.getUriLabel(dirname(resource));
 			} else {
-				resource = URI.file(workspace);
+				resource = workspace;
 				label = getBaseLabel(workspace);
-				description = getPathLabel(paths.dirname(workspace), environmentService);
+				description = labelService.getUriLabel(dirname(resource));
 			}
 
 			return {
-				resource,
-				fileKind,
+				iconClasses: getIconClasses(this.modelService, this.modeService, resource, fileKind),
 				label,
 				description,
-				separator,
-				run: context => {
-					setTimeout(() => {
-						// Bug: somehow when not running this code in a timeout, it is not possible to use this picker
-						// with quick navigate keys (not able to trigger quick navigate once running it once).
-						runPick(resource, fileKind === FileKind.FILE, context);
-					});
-				},
-				action: removeAction
+				buttons,
+				workspace,
+				resource,
+				fileKind,
 			};
-		}
-
-		const runPick = (resource: URI, isFile: boolean, context: IEntryRunContext) => {
-			const forceNewWindow = context.keymods.ctrlCmd;
-			this.windowService.openWindow([resource], { forceNewWindow, forceOpenWorkspaceAsFile: isFile });
 		};
 
-		const workspacePicks: IFilePickOpenEntry[] = recentWorkspaces.map((workspace, index) => toPick(workspace, index === 0 ? { label: nls.localize('workspaces', "workspaces") } : void 0, isSingleFolderWorkspaceIdentifier(workspace) ? FileKind.FOLDER : FileKind.ROOT_FOLDER, this.environmentService, !this.isQuickNavigate() ? this.removeAction : void 0));
-		const filePicks: IFilePickOpenEntry[] = recentFiles.map((p, index) => toPick(p, index === 0 ? { label: nls.localize('files', "files"), border: true } : void 0, FileKind.FILE, this.environmentService, !this.isQuickNavigate() ? this.removeAction : void 0));
+		const runPick = (resource: URI, isFile: boolean, keyMods: IKeyMods) => {
+			const forceNewWindow = keyMods.ctrlCmd;
+			return this.windowService.openWindow([resource], { forceNewWindow, forceOpenWorkspaceAsFile: isFile });
+		};
+
+		const workspacePicks = recentWorkspaces.map(workspace => toPick(workspace, isSingleFolderWorkspaceIdentifier(workspace) ? FileKind.FOLDER : FileKind.ROOT_FOLDER, this.environmentService, this.labelService, !this.isQuickNavigate() ? [this.removeFromRecentlyOpened] : void 0));
+		const filePicks = recentFiles.map(p => toPick(p, FileKind.FILE, this.environmentService, this.labelService, !this.isQuickNavigate() ? [this.removeFromRecentlyOpened] : void 0));
 
 		// focus second entry if the first recent workspace is the current workspace
 		let autoFocusSecondEntry: boolean = recentWorkspaces[0] && this.contextService.isCurrentWorkspace(recentWorkspaces[0]);
 
-		this.quickOpenService.pick([...workspacePicks, ...filePicks], {
+		let keyMods: IKeyMods;
+		const workspaceSeparator: IQuickPickSeparator = { type: 'separator', label: nls.localize('workspaces', "workspaces") };
+		const fileSeparator: IQuickPickSeparator = { type: 'separator', label: nls.localize('files', "files") };
+		const picks = [workspaceSeparator, ...workspacePicks, fileSeparator, ...filePicks];
+		this.quickInputService.pick(picks, {
 			contextKey: inRecentFilesPickerContextKey,
-			autoFocus: { autoFocusFirstEntry: !autoFocusSecondEntry, autoFocusSecondEntry: autoFocusSecondEntry },
+			activeItem: [...workspacePicks, ...filePicks][autoFocusSecondEntry ? 1 : 0],
 			placeHolder: isMacintosh ? nls.localize('openRecentPlaceHolderMac', "Select to open (hold Cmd-key to open in new window)") : nls.localize('openRecentPlaceHolder', "Select to open (hold Ctrl-key to open in new window)"),
 			matchOnDescription: true,
-			quickNavigateConfiguration: this.isQuickNavigate() ? { keybindings: this.keybindingService.lookupKeybindings(this.id) } : void 0
-		}).done(null, errors.onUnexpectedError);
-	}
-
-	dispose(): void {
-		super.dispose();
-
-		this.removeAction.dispose();
-	}
-}
-
-class RemoveFromRecentlyOpened extends Action implements IPickOpenAction {
-
-	static readonly ID = 'workbench.action.removeFromRecentlyOpened';
-	static readonly LABEL = nls.localize('remove', "Remove from Recently Opened");
-
-	constructor(
-		@IWindowsService private windowsService: IWindowsService
-	) {
-		super(RemoveFromRecentlyOpened.ID, RemoveFromRecentlyOpened.LABEL);
-
-		this.class = 'action-remove-from-recently-opened';
-	}
-
-	run(item: IPickOpenItem): TPromise<boolean> {
-		return this.windowsService.removeFromRecentlyOpened([item.getResource().fsPath]).then(() => {
-			item.remove();
-
-			return true;
-		});
+			onKeyMods: mods => keyMods = mods,
+			quickNavigate: this.isQuickNavigate() ? { keybindings: this.keybindingService.lookupKeybindings(this.id) } : void 0,
+			onDidTriggerItemButton: context => {
+				this.windowsService.removeFromRecentlyOpened([context.item.workspace]).then(() => {
+					context.removeItem();
+				}).then(null, errors.onUnexpectedError);
+			}
+		})
+			.then(pick => {
+				if (pick) {
+					return runPick(pick.resource, pick.fileKind === FileKind.FILE, keyMods);
+				}
+				return null;
+			})
+			.done(null, errors.onUnexpectedError);
 	}
 }
 
@@ -816,13 +511,16 @@ export class OpenRecentAction extends BaseOpenRecentAction {
 		id: string,
 		label: string,
 		@IWindowService windowService: IWindowService,
-		@IQuickOpenService quickOpenService: IQuickOpenService,
+		@IWindowsService windowsService: IWindowsService,
+		@IQuickInputService quickInputService: IQuickInputService,
 		@IWorkspaceContextService contextService: IWorkspaceContextService,
 		@IEnvironmentService environmentService: IEnvironmentService,
 		@IKeybindingService keybindingService: IKeybindingService,
-		@IInstantiationService instantiationService: IInstantiationService
+		@IModelService modelService: IModelService,
+		@IModeService modeService: IModeService,
+		@ILabelService labelService: ILabelService
 	) {
-		super(id, label, windowService, quickOpenService, contextService, environmentService, keybindingService, instantiationService);
+		super(id, label, windowService, windowsService, quickInputService, contextService, environmentService, labelService, keybindingService, modelService, modeService);
 	}
 
 	protected isQuickNavigate(): boolean {
@@ -839,13 +537,16 @@ export class QuickOpenRecentAction extends BaseOpenRecentAction {
 		id: string,
 		label: string,
 		@IWindowService windowService: IWindowService,
-		@IQuickOpenService quickOpenService: IQuickOpenService,
+		@IWindowsService windowsService: IWindowsService,
+		@IQuickInputService quickInputService: IQuickInputService,
 		@IWorkspaceContextService contextService: IWorkspaceContextService,
 		@IEnvironmentService environmentService: IEnvironmentService,
 		@IKeybindingService keybindingService: IKeybindingService,
-		@IInstantiationService instantiationService: IInstantiationService
+		@IModelService modelService: IModelService,
+		@IModeService modeService: IModeService,
+		@ILabelService labelService: ILabelService
 	) {
-		super(id, label, windowService, quickOpenService, contextService, environmentService, keybindingService, instantiationService);
+		super(id, label, windowService, windowsService, quickInputService, contextService, environmentService, labelService, keybindingService, modelService, modeService);
 	}
 
 	protected isQuickNavigate(): boolean {
@@ -908,126 +609,6 @@ export class ReportPerformanceIssueUsingReporterAction extends Action {
 	}
 }
 
-// NOTE: This is still used when running --prof-startup, which already opens a dialog, so the reporter is not used.
-export class ReportPerformanceIssueAction extends Action {
-
-	static readonly ID = 'workbench.action.reportPerformanceIssue';
-	static readonly LABEL = nls.localize('reportPerformanceIssue', "Report Performance Issue");
-
-	constructor(
-		id: string,
-		label: string,
-		@IIntegrityService private integrityService: IIntegrityService,
-		@IEnvironmentService private environmentService: IEnvironmentService,
-		@ITimerService private timerService: ITimerService
-	) {
-		super(id, label);
-	}
-
-	run(appendix?: string): TPromise<boolean> {
-		this.integrityService.isPure().then(res => {
-			const issueUrl = this.generatePerformanceIssueUrl(product.reportIssueUrl, pkg.name, pkg.version, product.commit, product.date, res.isPure, appendix);
-
-			window.open(issueUrl);
-		});
-
-		return TPromise.wrap(true);
-	}
-
-	private generatePerformanceIssueUrl(baseUrl: string, name: string, version: string, commit: string, date: string, isPure: boolean, appendix?: string): string {
-
-		if (!appendix) {
-			appendix = `Additional Steps to Reproduce (if any):
-
-1.
-2.`;
-		}
-
-		let nodeModuleLoadTime: number;
-		if (this.environmentService.performance) {
-			nodeModuleLoadTime = this.computeNodeModulesLoadTime();
-		}
-
-		const metrics: IStartupMetrics = this.timerService.startupMetrics;
-
-		const osVersion = `${os.type()} ${os.arch()} ${os.release()}`;
-		const queryStringPrefix = baseUrl.indexOf('?') === -1 ? '?' : '&';
-		const body = encodeURIComponent(
-			`- VSCode Version: <code>${name} ${version}${isPure ? '' : ' **[Unsupported]**'} (${product.commit || 'Commit unknown'}, ${product.date || 'Date unknown'})</code>
-- OS Version: <code>${osVersion}</code>
-- CPUs: <code>${metrics.cpus.model} (${metrics.cpus.count} x ${metrics.cpus.speed})</code>
-- Memory (System): <code>${(metrics.totalmem / (1024 * 1024 * 1024)).toFixed(2)}GB (${(metrics.freemem / (1024 * 1024 * 1024)).toFixed(2)}GB free)</code>
-- Memory (Process): <code>${(metrics.meminfo.workingSetSize / 1024).toFixed(2)}MB working set (${(metrics.meminfo.peakWorkingSetSize / 1024).toFixed(2)}MB peak, ${(metrics.meminfo.privateBytes / 1024).toFixed(2)}MB private, ${(metrics.meminfo.sharedBytes / 1024).toFixed(2)}MB shared)</code>
-- Load (avg): <code>${metrics.loadavg.map(l => Math.round(l)).join(', ')}</code>
-- VM: <code>${metrics.isVMLikelyhood}%</code>
-- Initial Startup: <code>${metrics.initialStartup ? 'yes' : 'no'}</code>
-- Screen Reader: <code>${metrics.hasAccessibilitySupport ? 'yes' : 'no'}</code>
-- Empty Workspace: <code>${metrics.emptyWorkbench ? 'yes' : 'no'}</code>
-- Timings:
-
-${this.generatePerformanceTable(nodeModuleLoadTime)}
-
----
-
-${appendix}`
-		);
-
-		return `${baseUrl}${queryStringPrefix}body=${body}`;
-	}
-
-	private computeNodeModulesLoadTime(): number {
-		const stats = <ILoaderEvent[]>(<any>require).getStats();
-		let total = 0;
-
-		for (let i = 0, len = stats.length; i < len; i++) {
-			if (stats[i].type === LoaderEventType.NodeEndNativeRequire) {
-				if (stats[i - 1].type === LoaderEventType.NodeBeginNativeRequire && stats[i - 1].detail === stats[i].detail) {
-					const dur = (stats[i].timestamp - stats[i - 1].timestamp);
-					total += dur;
-				}
-			}
-		}
-
-		return Math.round(total);
-	}
-
-	private generatePerformanceTable(nodeModuleLoadTime?: number): string {
-		let tableHeader = `|Component|Task|Time (ms)|
-|---|---|---|`;
-
-		const table = this.getStartupMetricsTable(nodeModuleLoadTime).map(e => {
-			return `|${e.component}|${e.task}|${e.time}|`;
-		}).join('\n');
-
-		return `${tableHeader}\n${table}`;
-	}
-
-	private getStartupMetricsTable(nodeModuleLoadTime?: number): { component: string, task: string; time: number; }[] {
-		const table: any[] = [];
-		const metrics: IStartupMetrics = this.timerService.startupMetrics;
-
-		if (metrics.initialStartup) {
-			table.push({ component: 'main', task: 'start => app.isReady', time: metrics.timers.ellapsedAppReady });
-			table.push({ component: 'main', task: 'app.isReady => window.loadUrl()', time: metrics.timers.ellapsedWindowLoad });
-		}
-
-		table.push({ component: 'renderer', task: 'window.loadUrl() => begin to require(workbench.main.js)', time: metrics.timers.ellapsedWindowLoadToRequire });
-		table.push({ component: 'renderer', task: 'require(workbench.main.js)', time: metrics.timers.ellapsedRequire });
-
-		if (nodeModuleLoadTime) {
-			table.push({ component: 'renderer', task: '-> of which require() node_modules', time: nodeModuleLoadTime });
-		}
-
-		table.push({ component: 'renderer', task: 'create extension host => extensions onReady()', time: metrics.timers.ellapsedExtensions });
-		table.push({ component: 'renderer', task: 'restore viewlet', time: metrics.timers.ellapsedViewletRestore });
-		table.push({ component: 'renderer', task: 'restore editor view state', time: metrics.timers.ellapsedEditorRestore });
-		table.push({ component: 'renderer', task: 'overall workbench load', time: metrics.timers.ellapsedWorkbench });
-		table.push({ component: 'main + renderer', task: 'start => extensions ready', time: metrics.timers.ellapsedExtensionsReady });
-		table.push({ component: 'main + renderer', task: 'start => workbench ready', time: metrics.ellapsed });
-
-		return table;
-	}
-}
 
 export class KeybindingsReferenceAction extends Action {
 
@@ -1458,6 +1039,24 @@ export class DecreaseViewSizeAction extends BaseResizeViewAction {
 	}
 }
 
+export class NewWindowTab extends Action {
+
+	static readonly ID = 'workbench.action.newWindowTab';
+	static readonly LABEL = nls.localize('newTab', "New Window Tab");
+
+	constructor(
+		id: string,
+		label: string,
+		@IWindowsService private windowsService: IWindowsService
+	) {
+		super(NewWindowTab.ID, NewWindowTab.LABEL);
+	}
+
+	run(): TPromise<boolean> {
+		return this.windowsService.newWindowTab().then(() => true);
+	}
+}
+
 export class ShowPreviousWindowTab extends Action {
 
 	static readonly ID = 'workbench.action.showPreviousWindowTab';
@@ -1643,25 +1242,6 @@ export class OpenPrivacyStatementUrlAction extends Action {
 		return TPromise.as(false);
 	}
 }
-
-export class ShowAccessibilityOptionsAction extends Action {
-
-	static readonly ID = 'workbench.action.showAccessibilityOptions';
-	static LABEL = nls.localize('accessibilityOptions', "Accessibility Options");
-
-	constructor(
-		id: string,
-		label: string,
-		@IWindowsService private windowsService: IWindowsService
-	) {
-		super(id, label);
-	}
-
-	run(): TPromise<void> {
-		return this.windowsService.openAccessibilityOptions();
-	}
-}
-
 
 export class ShowAboutDialogAction extends Action {
 

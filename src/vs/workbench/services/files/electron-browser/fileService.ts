@@ -607,22 +607,23 @@ export class FileService extends Disposable implements IFileService {
 				return addBomPromise.then(addBom => {
 
 					// 4.) set contents and resolve
-					return this.doSetContentsAndResolve(resource, absolutePath, value, addBom, encodingToWrite).then(void 0, error => {
-						if (!exists || error.code !== 'EPERM' || !isWindows) {
-							return TPromise.wrapError(error);
-						}
+					if (!exists || !isWindows) {
+						return this.doSetContentsAndResolve(resource, absolutePath, value, addBom, encodingToWrite);
+					}
 
-						// On Windows and if the file exists with an EPERM error, we try a different strategy of saving the file
-						// by first truncating the file and then writing with r+ mode. This helps to save hidden files on Windows
-						// (see https://github.com/Microsoft/vscode/issues/931)
+					// On Windows and if the file exists, we use a different strategy of saving the file
+					// by first truncating the file and then writing with r+ mode. This helps to save hidden files on Windows
+					// (see https://github.com/Microsoft/vscode/issues/931) and prevent removing alternate data streams
+					// (see https://github.com/Microsoft/vscode/issues/6363)
+					else {
 
-						// 5.) truncate
+						// 4.) truncate
 						return pfs.truncate(absolutePath, 0).then(() => {
 
-							// 6.) set contents (this time with r+ mode) and resolve again
+							// 5.) set contents (with r+ mode) and resolve
 							return this.doSetContentsAndResolve(resource, absolutePath, value, addBom, encodingToWrite, { flag: 'r+' });
 						});
-					});
+					}
 				});
 			});
 		}).then(null, error => {
@@ -1051,7 +1052,7 @@ export class FileService extends Disposable implements IFileService {
 		this.undeliveredRawFileChangesEvents.push(event);
 
 		if (this.environmentService.verbose) {
-			console.log('%c[node.js Watcher]%c', 'color: green', 'color: black', event.type === FileChangeType.ADDED ? '[ADDED]' : event.type === FileChangeType.DELETED ? '[DELETED]' : '[CHANGED]', event.path);
+			console.log('%c[File Watcher (node.js)]%c', 'color: blue', 'color: black', event.type === FileChangeType.ADDED ? '[ADDED]' : event.type === FileChangeType.DELETED ? '[DELETED]' : '[CHANGED]', event.path);
 		}
 
 		// handle emit through delayer to accommodate for bulk changes
@@ -1065,7 +1066,7 @@ export class FileService extends Disposable implements IFileService {
 			// Logging
 			if (this.environmentService.verbose) {
 				normalizedEvents.forEach(r => {
-					console.log('%c[node.js Watcher]%c >> normalized', 'color: green', 'color: black', r.type === FileChangeType.ADDED ? '[ADDED]' : r.type === FileChangeType.DELETED ? '[DELETED]' : '[CHANGED]', r.path);
+					console.log('%c[File Watcher (node.js)]%c >> normalized', 'color: blue', 'color: black', r.type === FileChangeType.ADDED ? '[ADDED]' : r.type === FileChangeType.DELETED ? '[DELETED]' : '[CHANGED]', r.path);
 				});
 			}
 

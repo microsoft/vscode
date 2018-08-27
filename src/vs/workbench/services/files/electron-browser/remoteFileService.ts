@@ -4,11 +4,11 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import { posix } from 'path';
 import { flatten, isFalsyOrEmpty } from 'vs/base/common/arrays';
 import { IDisposable, dispose, Disposable } from 'vs/base/common/lifecycle';
-import { TernarySearchTree, keys } from 'vs/base/common/map';
+import { TernarySearchTree } from 'vs/base/common/map';
 import { Schemas } from 'vs/base/common/network';
+import * as resources from 'vs/base/common/resources';
 import URI from 'vs/base/common/uri';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { IDecodeStreamOptions, toDecodeStream, encodeStream } from 'vs/base/node/encoding';
@@ -42,7 +42,7 @@ function toIFileStat(provider: IFileSystemProvider, tuple: [URI, IStat], recurse
 	const [resource, stat] = tuple;
 	const fileStat: IFileStat = {
 		resource,
-		name: posix.basename(resource.path),
+		name: resources.basename(resource),
 		isDirectory: (stat.type & FileType.Directory) !== 0,
 		isSymbolicLink: (stat.type & FileType.SymbolicLink) !== 0,
 		isReadonly: !!(provider.capabilities & FileSystemProviderCapabilities.Readonly),
@@ -58,7 +58,7 @@ function toIFileStat(provider: IFileSystemProvider, tuple: [URI, IStat], recurse
 				// resolve children if requested
 				return TPromise.join(entries.map(tuple => {
 					const [name, type] = tuple;
-					const childResource = resource.with({ path: posix.join(resource.path, name) });
+					const childResource = resources.joinPath(resource, name);
 					return toIFileStat(provider, [childResource, new TypeOnlyStat(type)], recurse);
 				})).then(children => {
 					fileStat.children = children;
@@ -161,12 +161,11 @@ class WorkspaceWatchLogic extends Disposable {
 export class RemoteFileService extends FileService {
 
 	private readonly _provider: Map<string, IFileSystemProvider>;
-	private readonly _lastKnownSchemes: string[];
 
 	constructor(
 		@IExtensionService private readonly _extensionService: IExtensionService,
-		@IStorageService private readonly _storageService: IStorageService,
-		@IEnvironmentService private readonly _environmentService: IEnvironmentService,
+		@IStorageService storageService: IStorageService,
+		@IEnvironmentService environmentService: IEnvironmentService,
 		@IConfigurationService configurationService: IConfigurationService,
 		@IWorkspaceContextService contextService: IWorkspaceContextService,
 		@ILifecycleService lifecycleService: ILifecycleService,
@@ -175,16 +174,15 @@ export class RemoteFileService extends FileService {
 	) {
 		super(
 			contextService,
-			_environmentService,
+			environmentService,
 			textResourceConfigurationService,
 			configurationService,
 			lifecycleService,
-			_storageService,
+			storageService,
 			notificationService
 		);
 
 		this._provider = new Map<string, IFileSystemProvider>();
-		this._lastKnownSchemes = JSON.parse(this._storageService.get('remote_schemes', undefined, '[]'));
 		this._register(new WorkspaceWatchLogic(this, configurationService, contextService));
 	}
 
@@ -195,7 +193,6 @@ export class RemoteFileService extends FileService {
 
 		this._provider.set(scheme, provider);
 		this._onDidChangeFileSystemProviderRegistrations.fire({ added: true, scheme, provider });
-		this._storageService.store('remote_schemes', JSON.stringify(keys(this._provider)));
 
 		const reg = provider.onDidChangeFile(changes => {
 			// forward change events
@@ -211,19 +208,7 @@ export class RemoteFileService extends FileService {
 	}
 
 	canHandleResource(resource: URI): boolean {
-		if (resource.scheme === Schemas.file || this._provider.has(resource.scheme)) {
-			return true;
-		}
-		// TODO@remote
-		// this needs to go, but this already went viral
-		// https://github.com/Microsoft/vscode/issues/48275
-		if (this._lastKnownSchemes.indexOf(resource.scheme) < 0) {
-			return false;
-		}
-		if (!this._environmentService.isBuilt) {
-			console.warn('[remote] cache information required for ' + resource.toString());
-		}
-		return true;
+		return resource.scheme === Schemas.file || this._provider.has(resource.scheme);
 	}
 
 	private _tryParseFileOperationResult(err: any): FileOperationResult {
@@ -261,7 +246,7 @@ export class RemoteFileService extends FileService {
 
 	private _withProvider(resource: URI): TPromise<IFileSystemProvider> {
 
-		if (!posix.isAbsolute(resource.path)) {
+		if (!resources.isAbsolutePath(resource)) {
 			throw new FileOperationError(
 				localize('invalidPath', "The path of resource '{0}' must be absolute", resource.toString(true)),
 				FileOperationResult.FILE_INVALID_PATH
@@ -282,7 +267,7 @@ export class RemoteFileService extends FileService {
 		});
 	}
 
-	existsFile(resource: URI): TPromise<boolean, any> {
+	existsFile(resource: URI): TPromise<boolean> {
 		if (resource.scheme === Schemas.file) {
 			return super.existsFile(resource);
 		} else {
@@ -290,7 +275,7 @@ export class RemoteFileService extends FileService {
 		}
 	}
 
-	resolveFile(resource: URI, options?: IResolveFileOptions): TPromise<IFileStat, any> {
+	resolveFile(resource: URI, options?: IResolveFileOptions): TPromise<IFileStat> {
 		if (resource.scheme === Schemas.file) {
 			return super.resolveFile(resource, options);
 		} else {
@@ -307,7 +292,7 @@ export class RemoteFileService extends FileService {
 		}
 	}
 
-	resolveFiles(toResolve: { resource: URI; options?: IResolveFileOptions; }[]): TPromise<IResolveFileResult[], any> {
+	resolveFiles(toResolve: { resource: URI; options?: IResolveFileOptions; }[]): TPromise<IResolveFileResult[]> {
 
 		// soft-groupBy, keep order, don't rearrange/merge groups
 		let groups: (typeof toResolve)[] = [];
@@ -320,7 +305,7 @@ export class RemoteFileService extends FileService {
 			group.push(request);
 		}
 
-		const promises: TPromise<IResolveFileResult[], any>[] = [];
+		const promises: TPromise<IResolveFileResult[]>[] = [];
 		for (const group of groups) {
 			if (group[0].resource.scheme === Schemas.file) {
 				promises.push(super.resolveFiles(group));
@@ -331,7 +316,7 @@ export class RemoteFileService extends FileService {
 		return TPromise.join(promises).then(data => flatten(data));
 	}
 
-	private _doResolveFiles(toResolve: { resource: URI; options?: IResolveFileOptions; }[]): TPromise<IResolveFileResult[], any> {
+	private _doResolveFiles(toResolve: { resource: URI; options?: IResolveFileOptions; }[]): TPromise<IResolveFileResult[]> {
 		return this._withProvider(toResolve[0].resource).then(provider => {
 			let result: IResolveFileResult[] = [];
 			let promises = toResolve.map((item, idx) => {
@@ -434,12 +419,12 @@ export class RemoteFileService extends FileService {
 				break; // we have hit a directory -> good
 			} catch (e) {
 				// ENOENT
-				basenames.push(posix.basename(directory.path));
-				directory = directory.with({ path: posix.dirname(directory.path) });
+				basenames.push(resources.basename(directory));
+				directory = resources.dirname(directory);
 			}
 		}
 		for (let i = basenames.length - 1; i >= 0; i--) {
-			directory = directory.with({ path: posix.join(directory.path, basenames[i]) });
+			directory = resources.joinPath(directory, basenames[i]);
 			await provider.mkdir(directory);
 		}
 	}
@@ -458,7 +443,7 @@ export class RemoteFileService extends FileService {
 
 			return this._withProvider(resource).then(RemoteFileService._throwIfFileSystemIsReadonly).then(provider => {
 
-				return RemoteFileService._mkdirp(provider, resource.with({ path: posix.dirname(resource.path) })).then(() => {
+				return RemoteFileService._mkdirp(provider, resources.dirname(resource)).then(() => {
 					const encoding = this.encoding.getWriteEncoding(resource);
 					return this._writeFile(provider, resource, new StringSnapshot(content), encoding, { create: true, overwrite: Boolean(options && options.overwrite) });
 				});
@@ -479,7 +464,7 @@ export class RemoteFileService extends FileService {
 			return super.updateContent(resource, value, options);
 		} else {
 			return this._withProvider(resource).then(RemoteFileService._throwIfFileSystemIsReadonly).then(provider => {
-				return RemoteFileService._mkdirp(provider, resource.with({ path: posix.dirname(resource.path) })).then(() => {
+				return RemoteFileService._mkdirp(provider, resources.dirname(resource)).then(() => {
 					const snapshot = typeof value === 'string' ? new StringSnapshot(value) : value;
 					return this._writeFile(provider, resource, snapshot, options && options.encoding, { create: true, overwrite: true });
 				});
@@ -532,12 +517,12 @@ export class RemoteFileService extends FileService {
 		}
 	}
 
-	createFolder(resource: URI): TPromise<IFileStat, any> {
+	createFolder(resource: URI): TPromise<IFileStat> {
 		if (resource.scheme === Schemas.file) {
 			return super.createFolder(resource);
 		} else {
 			return this._withProvider(resource).then(RemoteFileService._throwIfFileSystemIsReadonly).then(provider => {
-				return RemoteFileService._mkdirp(provider, resource.with({ path: posix.dirname(resource.path) })).then(() => {
+				return RemoteFileService._mkdirp(provider, resources.dirname(resource)).then(() => {
 					return provider.mkdir(resource).then(() => {
 						return this.resolveFile(resource);
 					});

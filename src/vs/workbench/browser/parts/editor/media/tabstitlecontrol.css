@@ -259,7 +259,7 @@
 
 .monaco-workbench > .part.editor > .content .editor-group-container > .title .tabs-breadcrumbs .breadcrumbs-control {
 	flex: 1 100%;
-	height: 25px;
+	height: 22px;
 	cursor: default;
 }
 
@@ -268,14 +268,13 @@
 }
 
 .monaco-workbench > .part.editor > .content .editor-group-container > .title .tabs-breadcrumbs  .breadcrumbs-control .monaco-breadcrumb-item {
-	max-width: 260px;
+	max-width: 80%;
+}
+
+.monaco-workbench > .part.editor > .content .editor-group-container > .title .tabs-breadcrumbs  .breadcrumbs-control .monaco-breadcrumb-item::before {
+	min-width: 16px;
 }
 
 .monaco-workbench > .part.editor > .content .editor-group-container > .title .tabs-breadcrumbs  .breadcrumbs-control .monaco-breadcrumb-item:last-child {
 	padding-right: 8px;
 }
-
-/* .monaco-workbench > .part.editor > .content .editor-group-container > .title .tabs-breadcrumbs  .breadcrumbs-control .monaco-breadcrumb-item:not(:last-child):not(:hover):not(.focused):not(.file) {
-	min-width: 33px;
-} */
-

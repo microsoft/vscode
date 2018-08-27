@@ -14,28 +14,93 @@ const rename = require('gulp-rename');
 const util = require('gulp-util');
 const buffer = require('gulp-buffer');
 const json = require('gulp-json-editor');
+const webpack = require('webpack');
+const webpackGulp = require('webpack-stream');
 import * as fs from 'fs';
 import * as path from 'path';
 import * as vsce from 'vsce';
 import * as File from 'vinyl';
+import * as glob from 'glob';
+import * as gulp from 'gulp';
+import * as util2 from './util';
 
-export function fromLocal(extensionPath: string): Stream {
-	const result = es.through();
+const root = path.resolve(path.join(__dirname, '..', '..'));
 
-	vsce.listFiles({ cwd: extensionPath, packageManager: vsce.PackageManager.Yarn })
-		.then(fileNames => {
-			const files = fileNames
-				.map(fileName => path.join(extensionPath, fileName))
-				.map(filePath => new File({
-					path: filePath,
-					stat: fs.statSync(filePath),
-					base: extensionPath,
-					contents: fs.createReadStream(filePath) as any
-				}));
+export function fromLocal(extensionPath: string, sourceMappingURLBase?: string): Stream {
+	let result = es.through();
 
-			es.readArray(files).pipe(result);
-		})
-		.catch(err => result.emit('error', err));
+	vsce.listFiles({ cwd: extensionPath, packageManager: vsce.PackageManager.Yarn }).then(fileNames => {
+		const files = fileNames
+			.map(fileName => path.join(extensionPath, fileName))
+			.map(filePath => new File({
+				path: filePath,
+				stat: fs.statSync(filePath),
+				base: extensionPath,
+				contents: fs.createReadStream(filePath) as any
+			}));
+
+		const filesStream = es.readArray(files);
+
+		// check for a webpack configuration file, then invoke webpack
+		// and merge its output with the files stream. also rewrite the package.json
+		// file to a new entry point
+		if (fs.existsSync(path.join(extensionPath, 'extension.webpack.config.js'))) {
+			const packageJsonFilter = filter('package.json', { restore: true });
+
+			const patchFilesStream = filesStream
+				.pipe(packageJsonFilter)
+				.pipe(buffer())
+				.pipe(json(data => {
+					// hardcoded entry point directory!
+					data.main = data.main.replace('/out/', /dist/);
+					return data;
+				}))
+				.pipe(packageJsonFilter.restore);
+
+			const webpackConfig = {
+				...require(path.join(extensionPath, 'extension.webpack.config.js')),
+				...{ mode: 'production', stats: 'errors-only' }
+			};
+			const webpackStream = webpackGulp(webpackConfig, webpack)
+				.pipe(es.through(function (data) {
+					data.stat = data.stat || {};
+					data.base = extensionPath;
+					this.emit('data', data);
+				}))
+				.pipe(es.through(function (data: File) {
+					// source map handling:
+					// * rewrite sourceMappingURL
+					// * save to disk so that upload-task picks this up
+					if (sourceMappingURLBase) {
+						const contents = (<Buffer>data.contents).toString('utf8');
+						data.contents = Buffer.from(contents.replace(/\n\/\/# sourceMappingURL=(.*)$/gm, function (_m, g1) {
+							return `\n//# sourceMappingURL=${sourceMappingURLBase}/extensions/${path.basename(extensionPath)}/dist/${g1}`;
+						}), 'utf8');
+
+						if (/\.js\.map$/.test(data.path)) {
+							if (!fs.existsSync(path.dirname(data.path))) {
+								fs.mkdirSync(path.dirname(data.path));
+							}
+							fs.writeFileSync(data.path, data.contents);
+						}
+					}
+					this.emit('data', data);
+				}))
+				;
+
+			es.merge(webpackStream, patchFilesStream)
+				// .pipe(es.through(function (data) {
+				// 	// debug
+				// 	console.log('out', data.path, data.contents.length);
+				// 	this.emit('data', data);
+				// }))
+				.pipe(result);
+
+		} else {
+			filesStream.pipe(result);
+		}
+
+	}).catch(err => result.emit('error', err));
 
 	return result;
 }
@@ -130,4 +195,55 @@ export function fromMarketplace(extensionName: string, version: string): Stream 
 						.pipe(packageJsonFilter.restore);
 				}));
 		}));
+}
+
+interface IPackageExtensionsOptions {
+	/**
+	 * Set to undefined to package all of them.
+	 */
+	desiredExtensions?: string[];
+	sourceMappingURLBase?: string;
+}
+
+const excludedExtensions = [
+	'vscode-api-tests',
+	'vscode-colorize-tests',
+	'ms-vscode.node-debug',
+	'ms-vscode.node-debug2',
+];
+
+const builtInExtensions: { name: string, version: string, repo: string; }[] = require('../builtInExtensions.json');
+
+export function packageExtensionsStream(opts?: IPackageExtensionsOptions): NodeJS.ReadWriteStream {
+	opts = opts || {};
+
+	const localExtensionDescriptions = (<string[]>glob.sync('extensions/*/package.json'))
+		.map(manifestPath => {
+			const extensionPath = path.dirname(path.join(root, manifestPath));
+			const extensionName = path.basename(extensionPath);
+			return { name: extensionName, path: extensionPath };
+		})
+		.filter(({ name }) => excludedExtensions.indexOf(name) === -1)
+		.filter(({ name }) => opts.desiredExtensions ? opts.desiredExtensions.indexOf(name) >= 0 : true)
+		.filter(({ name }) => builtInExtensions.every(b => b.name !== name));
+
+	const localExtensions = es.merge(...localExtensionDescriptions.map(extension => {
+		return fromLocal(extension.path, opts.sourceMappingURLBase)
+			.pipe(rename(p => p.dirname = `extensions/${extension.name}/${p.dirname}`));
+	}));
+
+	const localExtensionDependencies = gulp.src('extensions/node_modules/**', { base: '.' });
+
+	const marketplaceExtensions = es.merge(
+		...builtInExtensions
+			.filter(({ name }) => opts.desiredExtensions ? opts.desiredExtensions.indexOf(name) >= 0 : true)
+			.map(extension => {
+				return fromMarketplace(extension.name, extension.version)
+					.pipe(rename(p => p.dirname = `extensions/${extension.name}/${p.dirname}`));
+			})
+	);
+
+	return es.merge(localExtensions, localExtensionDependencies, marketplaceExtensions)
+		.pipe(util2.setExecutableBit(['**/*.sh']))
+		.pipe(filter(['**', '!**/*.js.map']));
 }

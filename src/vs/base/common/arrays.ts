@@ -4,15 +4,17 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import { TPromise } from 'vs/base/common/winjs.base';
+import { CancellationToken } from 'vs/base/common/cancellation';
+import { canceled } from 'vs/base/common/errors';
 import { ISplice } from 'vs/base/common/sequence';
+import { TPromise } from 'vs/base/common/winjs.base';
 
 /**
  * Returns the last element of an array.
  * @param array The array.
  * @param n Which element from the end (default is zero).
  */
-export function tail<T>(array: T[], n: number = 0): T {
+export function tail<T>(array: ArrayLike<T>, n: number = 0): T {
 	return array[array.length - (1 + n)];
 }
 
@@ -252,11 +254,11 @@ export function top<T>(array: T[], compare: (a: T, b: T) => number, n: number): 
  * @param batch The number of elements to examine before yielding to the event loop.
  * @return The first n elemnts from array when sorted with compare.
  */
-export function topAsync<T>(array: T[], compare: (a: T, b: T) => number, n: number, batch: number): TPromise<T[]> {
+export function topAsync<T>(array: T[], compare: (a: T, b: T) => number, n: number, batch: number, token?: CancellationToken): TPromise<T[]> {
 	if (n === 0) {
 		return TPromise.as([]);
 	}
-	let canceled = false;
+
 	return new TPromise((resolve, reject) => {
 		(async () => {
 			const o = array.length;
@@ -265,16 +267,14 @@ export function topAsync<T>(array: T[], compare: (a: T, b: T) => number, n: numb
 				if (i > n) {
 					await new Promise(resolve => setTimeout(resolve)); // nextTick() would starve I/O.
 				}
-				if (canceled) {
-					throw new Error('canceled');
+				if (token && token.isCancellationRequested) {
+					throw canceled();
 				}
 				topStep(array, compare, result, i, m);
 			}
 			return result;
 		})()
 			.then(resolve, reject);
-	}, () => {
-		canceled = true;
 	});
 }
 

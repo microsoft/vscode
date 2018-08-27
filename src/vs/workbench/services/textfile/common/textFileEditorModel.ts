@@ -25,7 +25,7 @@ import { IInstantiationService } from 'vs/platform/instantiation/common/instanti
 import { IModeService } from 'vs/editor/common/services/modeService';
 import { IModelService } from 'vs/editor/common/services/modelService';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { RunOnceScheduler } from 'vs/base/common/async';
+import { RunOnceScheduler, timeout } from 'vs/base/common/async';
 import { ITextBufferFactory } from 'vs/editor/common/model';
 import { IHashService } from 'vs/workbench/services/hash/common/hashService';
 import { createTextBufferFactory } from 'vs/editor/common/model/textModel';
@@ -33,7 +33,7 @@ import { INotificationService } from 'vs/platform/notification/common/notificati
 import { isLinux } from 'vs/base/common/platform';
 import { IDisposable, toDisposable } from 'vs/base/common/lifecycle';
 import { ILogService } from 'vs/platform/log/common/log';
-import { isEqual, isEqualOrParent, hasToIgnoreCase } from 'vs/base/common/resources';
+import { isEqual, isEqualOrParent } from 'vs/base/common/resources';
 
 /**
  * The text file editor model listens to changes to its underlying code editor model and saves these changes through the file service back to the disk.
@@ -42,6 +42,8 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 
 	static DEFAULT_CONTENT_CHANGE_BUFFER_DELAY = CONTENT_CHANGE_EVENT_BUFFER_DELAY;
 	static DEFAULT_ORPHANED_CHANGE_BUFFER_DELAY = 100;
+	static WHITELIST_JSON = ['package.json', 'package-lock.json', 'tsconfig.json', 'jsconfig.json', 'bower.json', '.eslintrc.json', 'tslint.json', 'composer.json'];
+	static WHITELIST_WORKSPACE_JSON = ['settings.json', 'extensions.json', 'tasks.json', 'launch.json'];
 
 	private static saveErrorHandler: ISaveErrorHandler;
 	static setSaveErrorHandler(handler: ISaveErrorHandler): void { TextFileEditorModel.saveErrorHandler = handler; }
@@ -151,13 +153,13 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 		}
 
 		if (fileEventImpactsModel && this.inOrphanMode !== newInOrphanModeGuess) {
-			let checkOrphanedPromise: TPromise<boolean>;
+			let checkOrphanedPromise: Thenable<boolean>;
 			if (newInOrphanModeGuess) {
 				// We have received reports of users seeing delete events even though the file still
 				// exists (network shares issue: https://github.com/Microsoft/vscode/issues/13665).
 				// Since we do not want to mark the model as orphaned, we have to check if the
 				// file is really gone and not just a faulty file event.
-				checkOrphanedPromise = TPromise.timeout(100).then(() => {
+				checkOrphanedPromise = timeout(100).then(() => {
 					if (this.disposed) {
 						return true;
 					}
@@ -165,10 +167,10 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 					return this.fileService.existsFile(this.resource).then(exists => !exists);
 				});
 			} else {
-				checkOrphanedPromise = TPromise.as(false);
+				checkOrphanedPromise = Promise.resolve(false);
 			}
 
-			checkOrphanedPromise.done(newInOrphanModeValidated => {
+			checkOrphanedPromise.then(newInOrphanModeValidated => {
 				if (this.inOrphanMode !== newInOrphanModeValidated && !this.disposed) {
 					this.setOrphaned(newInOrphanModeValidated);
 				}
@@ -350,28 +352,24 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 
 	private loadWithContent(content: IRawTextContent, options?: ILoadOptions, backup?: URI): TPromise<TextFileEditorModel> {
 		return this.doLoadWithContent(content, backup).then(model => {
-
 			// Telemetry: We log the fileGet telemetry event after the model has been loaded to ensure a good mimetype
-			if (this.isSettingsFile()) {
+			const settingsType = this.getTypeIfSettings();
+			if (settingsType) {
 				/* __GDPR__
-					"settingsRead" : {}
+					"settingsRead" : {
+						"settingsType": { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
+					}
 				*/
-				this.telemetryService.publicLog('settingsRead'); // Do not log read to user settings.json and .vscode folder as a fileGet event as it ruins our JSON usage data
+				this.telemetryService.publicLog('settingsRead', { settingsType }); // Do not log read to user settings.json and .vscode folder as a fileGet event as it ruins our JSON usage data
 			} else {
 				/* __GDPR__
 					"fileGet" : {
-						"mimeType" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
-						"ext": { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
-						"path": { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
-						"reason": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true }
+						"${include}": [
+							"${FileTelemetryData}"
+						]
 					}
 				*/
-				this.telemetryService.publicLog('fileGet', {
-					mimeType: guessMimeTypes(this.resource.fsPath).join(', '),
-					ext: path.extname(this.resource.fsPath),
-					path: this.hashService.createSHA1(this.resource.fsPath),
-					reason: options && options.reason ? options.reason : LoadReason.OTHER
-				});
+				this.telemetryService.publicLog('fileGet', this.getTelemetryData(options && options.reason ? options.reason : LoadReason.OTHER));
 			}
 
 			return model;
@@ -717,24 +715,23 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 				this.logService.trace(`doSave(${versionId}) - after updateContent()`, this.resource);
 
 				// Telemetry
-				if (this.isSettingsFile()) {
+				const settingsType = this.getTypeIfSettings();
+				if (settingsType) {
 					/* __GDPR__
-						"settingsWritten" : {}
+						"settingsWritten" : {
+							"settingsType": { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
+						}
 					*/
-					this.telemetryService.publicLog('settingsWritten'); // Do not log write to user settings.json and .vscode folder as a filePUT event as it ruins our JSON usage data
+					this.telemetryService.publicLog('settingsWritten', { settingsType }); // Do not log write to user settings.json and .vscode folder as a filePUT event as it ruins our JSON usage data
 				} else {
 					/* __GDPR__
 						"filePUT" : {
-							"mimeType" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
-							"ext": { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
-							"reason": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true }
+							"${include}": [
+								"${FileTelemetryData}"
+							]
 						}
 					*/
-					this.telemetryService.publicLog('filePUT', {
-						mimeType: guessMimeTypes(this.resource.fsPath).join(', '),
-						ext: path.extname(this.resource.fsPath),
-						reason: options.reason
-					});
+					this.telemetryService.publicLog('filePUT', this.getTelemetryData(options.reason));
 				}
 
 				// Update dirty state unless model has changed meanwhile
@@ -754,6 +751,10 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 				// Emit File Saved Event
 				this._onDidStateChange.fire(StateChange.SAVED);
 			}, error => {
+				if (!error) {
+					error = new Error('Unknown Save Error'); // TODO@remote we should never get null as error (https://github.com/Microsoft/vscode/issues/55051)
+				}
+
 				this.logService.error(`doSave(${versionId}) - exit - resulted in a save error: ${error.toString()}`, this.resource);
 
 				// Flag as error state in the model
@@ -773,20 +774,69 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 		}));
 	}
 
-	private isSettingsFile(): boolean {
+	private getTypeIfSettings(): string {
 		if (path.extname(this.resource.fsPath) !== '.json') {
-			return false;
+			return '';
 		}
 
 		// Check for global settings file
 		if (isEqual(this.resource, URI.file(this.environmentService.appSettingsPath), !isLinux)) {
-			return true;
+			return 'global-settings';
+		}
+
+		// Check for keybindings file
+		if (isEqual(this.resource, URI.file(this.environmentService.appKeybindingsPath), !isLinux)) {
+			return 'keybindings';
+		}
+
+		// Check for locale file
+		if (isEqual(this.resource, URI.file(path.join(this.environmentService.appSettingsHome, 'locale.json')), !isLinux)) {
+			return 'locale';
+		}
+
+		// Check for snippets
+		if (isEqualOrParent(this.resource, URI.file(path.join(this.environmentService.appSettingsHome, 'snippets')))) {
+			return 'snippets';
 		}
 
 		// Check for workspace settings file
-		return this.contextService.getWorkspace().folders.some(folder => {
-			return isEqualOrParent(this.resource, folder.toResource('.vscode'), hasToIgnoreCase(this.resource));
-		});
+		const folders = this.contextService.getWorkspace().folders;
+		for (let i = 0; i < folders.length; i++) {
+			if (isEqualOrParent(this.resource, folders[i].toResource('.vscode'))) {
+				const filename = path.basename(this.resource.fsPath);
+				if (TextFileEditorModel.WHITELIST_WORKSPACE_JSON.indexOf(filename) > -1) {
+					return `.vscode/${filename}`;
+				}
+			}
+		}
+
+		return '';
+	}
+
+	private getTelemetryData(reason: number): Object {
+		const ext = path.extname(this.resource.fsPath);
+		const fileName = path.basename(this.resource.fsPath);
+		const telemetryData = {
+			mimeType: guessMimeTypes(this.resource.fsPath).join(', '),
+			ext,
+			path: this.hashService.createSHA1(this.resource.fsPath),
+			reason
+		};
+
+		if (ext === '.json' && TextFileEditorModel.WHITELIST_JSON.indexOf(fileName) > -1) {
+			telemetryData['whitelistedjson'] = fileName;
+		}
+
+		/* __GDPR__FRAGMENT__
+			"FileTelemetryData" : {
+				"mimeType" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
+				"ext": { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
+				"path": { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
+				"reason": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
+				"whitelistedjson": { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
+			}
+		*/
+		return telemetryData;
 	}
 
 	private doTouch(versionId: number): TPromise<void> {

@@ -10,14 +10,19 @@ import { Delayer } from 'vs/base/common/async';
 import { deepClone, assign } from 'vs/base/common/objects';
 import { Emitter, fromNodeEventEmitter, Event } from 'vs/base/common/event';
 import { createQueuedSender } from 'vs/base/node/processes';
-import { ChannelServer as IPCServer, ChannelClient as IPCClient, IChannelClient, IChannel } from 'vs/base/parts/ipc/common/ipc';
+import { ChannelServer as IPCServer, ChannelClient as IPCClient, IChannelClient, IChannel } from 'vs/base/parts/ipc/node/ipc';
 import { isRemoteConsoleLog, log } from 'vs/base/node/console';
+
+/**
+ * This implementation doesn't perform well since it uses base64 encoding for buffers.
+ * We should move all implementations to use named ipc.net, so we stop depending on cp.fork.
+ */
 
 export class Server extends IPCServer {
 	constructor() {
 		super({
-			send: r => { try { process.send(r); } catch (e) { /* not much to do */ } },
-			onMessage: fromNodeEventEmitter(process, 'message', msg => msg)
+			send: r => { try { process.send(r.toString('base64')); } catch (e) { /* not much to do */ } },
+			onMessage: fromNodeEventEmitter(process, 'message', msg => Buffer.from(msg, 'base64'))
 		});
 
 		process.once('disconnect', () => this.dispose());
@@ -107,9 +112,8 @@ export class Client implements IChannelClient, IDisposable {
 		const channel = this.channels[channelName] || (this.channels[channelName] = this.client.getChannel(channelName));
 		const request: TPromise<void> = channel.call(name, arg);
 
-		// Progress doesn't propagate across 'then', we need to create a promise wrapper
-		const result = new TPromise<void>((c, e, p) => {
-			request.then(c, e, p).done(() => {
+		const result = new TPromise<void>((c, e) => {
+			request.then(c, e).done(() => {
 				if (!this.activeRequests) {
 					return;
 				}
@@ -186,7 +190,7 @@ export class Client implements IChannelClient, IDisposable {
 
 			this.child = fork(this.modulePath, args, forkOpts);
 
-			const onMessageEmitter = new Emitter<any>();
+			const onMessageEmitter = new Emitter<Buffer>();
 			const onRawMessage = fromNodeEventEmitter(this.child, 'message', msg => msg);
 
 			onRawMessage(msg => {
@@ -198,11 +202,11 @@ export class Client implements IChannelClient, IDisposable {
 				}
 
 				// Anything else goes to the outside
-				onMessageEmitter.fire(msg);
+				onMessageEmitter.fire(Buffer.from(msg, 'base64'));
 			});
 
 			const sender = this.options.useQueue ? createQueuedSender(this.child) : this.child;
-			const send = r => this.child && this.child.connected && sender.send(r);
+			const send = (r: Buffer) => this.child && this.child.connected && sender.send(r.toString('base64'));
 			const onMessage = onMessageEmitter.event;
 			const protocol = { send, onMessage };
 

@@ -356,11 +356,11 @@ export class WorkspaceStats implements IWorkbenchContribution {
 
 	private findFolder({ filesToOpen, filesToCreate, filesToDiff }: IWindowConfiguration): URI {
 		if (filesToOpen && filesToOpen.length) {
-			return this.parentURI(URI.file(filesToOpen[0].filePath));
+			return this.parentURI(filesToOpen[0].fileUri);
 		} else if (filesToCreate && filesToCreate.length) {
-			return this.parentURI(URI.file(filesToCreate[0].filePath));
+			return this.parentURI(filesToCreate[0].fileUri);
 		} else if (filesToDiff && filesToDiff.length) {
-			return this.parentURI(URI.file(filesToDiff[0].filePath));
+			return this.parentURI(filesToDiff[0].fileUri);
 		}
 		return undefined;
 	}

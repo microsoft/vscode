@@ -397,6 +397,14 @@ export interface ICodeEditor extends editorCommon.IEditor {
 	 */
 	onDidType(listener: (text: string) => void): IDisposable;
 	/**
+	 * An event emitted after composition has started.
+	 */
+	onCompositionStart(listener: () => void): IDisposable;
+	/**
+	 * An event emitted after composition has ended.
+	 */
+	onCompositionEnd(listener: () => void): IDisposable;
+	/**
 	 * An event emitted when editing failed because the editor is read-only.
 	 * @event
 	 * @internal

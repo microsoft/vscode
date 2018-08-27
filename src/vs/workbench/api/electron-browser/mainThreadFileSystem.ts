@@ -11,6 +11,7 @@ import { TPromise } from 'vs/base/common/winjs.base';
 import { FileWriteOptions, FileSystemProviderCapabilities, IFileChange, IFileService, IFileSystemProvider, IStat, IWatchOptions, FileType, FileOverwriteOptions, FileDeleteOptions } from 'vs/platform/files/common/files';
 import { extHostNamedCustomer } from 'vs/workbench/api/electron-browser/extHostCustomers';
 import { ExtHostContext, ExtHostFileSystemShape, IExtHostContext, IFileChangeDto, MainContext, MainThreadFileSystemShape } from '../node/extHost.protocol';
+import { LabelRules, ILabelService } from 'vs/platform/label/common/label';
 
 @extHostNamedCustomer(MainContext.MainThreadFileSystem)
 export class MainThreadFileSystem implements MainThreadFileSystemShape {
@@ -20,7 +21,8 @@ export class MainThreadFileSystem implements MainThreadFileSystemShape {
 
 	constructor(
 		extHostContext: IExtHostContext,
-		@IFileService private readonly _fileService: IFileService
+		@IFileService private readonly _fileService: IFileService,
+		@ILabelService private readonly _labelService: ILabelService
 	) {
 		this._proxy = extHostContext.getProxy(ExtHostContext.ExtHostFileSystem);
 	}
@@ -37,6 +39,10 @@ export class MainThreadFileSystem implements MainThreadFileSystemShape {
 	$unregisterProvider(handle: number): void {
 		dispose(this._fileProvider.get(handle));
 		this._fileProvider.delete(handle);
+	}
+
+	$setUriFormatter(scheme: string, formatter: LabelRules): void {
+		this._labelService.registerFormatter(scheme, formatter);
 	}
 
 	$onFileSystemChange(handle: number, changes: IFileChangeDto[]): void {
@@ -92,36 +98,34 @@ class RemoteFileSystemProvider implements IFileSystemProvider {
 		});
 	}
 
-	readFile(resource: URI): TPromise<Uint8Array, any> {
-		return this._proxy.$readFile(this._handle, resource).then(encoded => {
-			return Buffer.from(encoded, 'base64');
-		});
+	readFile(resource: URI): TPromise<Uint8Array> {
+		return this._proxy.$readFile(this._handle, resource);
 	}
 
-	writeFile(resource: URI, content: Uint8Array, opts: FileWriteOptions): TPromise<void, any> {
+	writeFile(resource: URI, content: Uint8Array, opts: FileWriteOptions): TPromise<void> {
 		let encoded = Buffer.isBuffer(content)
-			? content.toString('base64')
-			: Buffer.from(content.buffer, content.byteOffset, content.byteLength).toString('base64');
+			? content
+			: Buffer.from(content.buffer, content.byteOffset, content.byteLength);
 		return this._proxy.$writeFile(this._handle, resource, encoded, opts);
 	}
 
-	delete(resource: URI, opts: FileDeleteOptions): TPromise<void, any> {
+	delete(resource: URI, opts: FileDeleteOptions): TPromise<void> {
 		return this._proxy.$delete(this._handle, resource, opts);
 	}
 
-	mkdir(resource: URI): TPromise<void, any> {
+	mkdir(resource: URI): TPromise<void> {
 		return this._proxy.$mkdir(this._handle, resource);
 	}
 
-	readdir(resource: URI): TPromise<[string, FileType][], any> {
+	readdir(resource: URI): TPromise<[string, FileType][]> {
 		return this._proxy.$readdir(this._handle, resource);
 	}
 
-	rename(resource: URI, target: URI, opts: FileOverwriteOptions): TPromise<void, any> {
+	rename(resource: URI, target: URI, opts: FileOverwriteOptions): TPromise<void> {
 		return this._proxy.$rename(this._handle, resource, target, opts);
 	}
 
-	copy(resource: URI, target: URI, opts: FileOverwriteOptions): TPromise<void, any> {
+	copy(resource: URI, target: URI, opts: FileOverwriteOptions): TPromise<void> {
 		return this._proxy.$copy(this._handle, resource, target, opts);
 	}
 }

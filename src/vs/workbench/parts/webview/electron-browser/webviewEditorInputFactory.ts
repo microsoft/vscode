@@ -11,14 +11,12 @@ import URI from 'vs/base/common/uri';
 
 interface SerializedWebview {
 	readonly viewType: string;
+	readonly id: number;
 	readonly title: string;
 	readonly options: WebviewInputOptions;
-	/**
-	 * compatibility with previous versions
-	 */
-	readonly extensionFolderPath?: string;
 	readonly extensionLocation: string;
 	readonly state: any;
+	readonly iconPath: { light: string, dark: string } | undefined;
 }
 
 export class WebviewEditorInputFactory implements IEditorInputFactory {
@@ -44,27 +42,23 @@ export class WebviewEditorInputFactory implements IEditorInputFactory {
 
 		const data: SerializedWebview = {
 			viewType: input.viewType,
+			id: input.getId(),
 			title: input.getName(),
 			options: input.options,
 			extensionLocation: input.extensionLocation.toString(),
-			state: input.state
+			state: input.state,
+			iconPath: input.iconPath ? { light: input.iconPath.light.toString(), dark: input.iconPath.dark.toString(), } : undefined,
 		};
 		return JSON.stringify(data);
 	}
 
 	public deserialize(
-		instantiationService: IInstantiationService,
+		_instantiationService: IInstantiationService,
 		serializedEditorInput: string
 	): WebviewEditorInput {
 		const data: SerializedWebview = JSON.parse(serializedEditorInput);
-		let extensionLocation: URI;
-		if (typeof data.extensionLocation === 'string') {
-			extensionLocation = URI.parse(data.extensionLocation);
-		}
-		if (typeof data.extensionFolderPath === 'string') {
-			// compatibility with previous versions
-			extensionLocation = URI.file(data.extensionFolderPath);
-		}
-		return this._webviewService.reviveWebview(data.viewType, data.title, data.state, data.options, extensionLocation);
+		const extensionLocation = URI.parse(data.extensionLocation);
+		const iconPath = data.iconPath ? { light: URI.parse(data.iconPath.light), dark: URI.parse(data.iconPath.dark) } : undefined;
+		return this._webviewService.reviveWebview(data.viewType, data.id, data.title, iconPath, data.state, data.options, extensionLocation);
 	}
 }
