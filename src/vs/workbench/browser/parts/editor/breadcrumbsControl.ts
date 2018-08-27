@@ -120,7 +120,6 @@ export interface IBreadcrumbsControlOptions {
 	showFileIcons: boolean;
 	showSymbolIcons: boolean;
 	showDecorationColors: boolean;
-	extraClasses: string[];
 	breadcrumbsBackground: ColorIdentifier;
 }
 
@@ -164,7 +163,6 @@ export class BreadcrumbsControl {
 	) {
 		this.domNode = document.createElement('div');
 		dom.addClass(this.domNode, 'breadcrumbs-control');
-		dom.addClasses(this.domNode, ..._options.extraClasses);
 		dom.append(container, this.domNode);
 
 		this._widget = new BreadcrumbsWidget(this.domNode);
