@@ -368,13 +368,6 @@ ansi-wrap@0.1.0, ansi-wrap@^0.1.0:
   version "0.1.0"
   resolved "https://registry.yarnpkg.com/ansi-wrap/-/ansi-wrap-0.1.0.tgz#a82250ddb0015e9a27ca82e82ea603bbfa45efaf"
 
-anymatch@^1.3.0:
-  version "1.3.2"
-  resolved "https://registry.yarnpkg.com/anymatch/-/anymatch-1.3.2.tgz#553dcb8f91e3c889845dfdba34c77721b90b9d7a"
-  dependencies:
-    micromatch "^2.1.5"
-    normalize-path "^2.0.0"
-
 anymatch@^2.0.0:
   version "2.0.0"
   resolved "https://registry.yarnpkg.com/anymatch/-/anymatch-2.0.0.tgz#bcb24b4f37934d9aa7ac17b4adaf89e7c76ef2eb"
@@ -7887,11 +7880,17 @@ vsce@1.33.2:
     yauzl "^2.3.1"
     yazl "^2.2.2"
 
-vscode-chokidar@^1.6.2:
-  version "1.6.3"
-  resolved "https://registry.yarnpkg.com/vscode-chokidar/-/vscode-chokidar-1.6.3.tgz#69d760870549d53355b570789b514db914d16b9c"
+vscode-anymatch@^1.3.0:
+  version "1.3.2"
+  resolved "https://registry.yarnpkg.com/vscode-anymatch/-/vscode-anymatch-1.3.2.tgz#fff357422ea59cc4d12a074f347957f08d251003"
   dependencies:
-    anymatch "^1.3.0"
+    micromatch "^2.1.5"
+    normalize-path "^2.0.0"
+
+vscode-chokidar@1.6.4:
+  version "1.6.4"
+  resolved "https://registry.yarnpkg.com/vscode-chokidar/-/vscode-chokidar-1.6.4.tgz#03e5b5f755a1e73b4f15310e66f59b11673fbdd2"
+  dependencies:
     async-each "^1.0.0"
     glob-parent "^2.0.0"
     inherits "^2.0.1"
@@ -7899,6 +7898,7 @@ vscode-chokidar@^1.6.2:
     is-glob "^2.0.0"
     path-is-absolute "^1.0.0"
     readdirp "^2.0.0"
+    vscode-anymatch "^1.3.0"
   optionalDependencies:
     vscode-fsevents "0.3.9"
 

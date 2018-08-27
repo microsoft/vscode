@@ -1052,7 +1052,7 @@ export class FileService extends Disposable implements IFileService {
 		this.undeliveredRawFileChangesEvents.push(event);
 
 		if (this.environmentService.verbose) {
-			console.log('%c[node.js Watcher]%c', 'color: green', 'color: black', event.type === FileChangeType.ADDED ? '[ADDED]' : event.type === FileChangeType.DELETED ? '[DELETED]' : '[CHANGED]', event.path);
+			console.log('%c[File Watcher (node.js)]%c', 'color: blue', 'color: black', event.type === FileChangeType.ADDED ? '[ADDED]' : event.type === FileChangeType.DELETED ? '[DELETED]' : '[CHANGED]', event.path);
 		}
 
 		// handle emit through delayer to accommodate for bulk changes
@@ -1066,7 +1066,7 @@ export class FileService extends Disposable implements IFileService {
 			// Logging
 			if (this.environmentService.verbose) {
 				normalizedEvents.forEach(r => {
-					console.log('%c[node.js Watcher]%c >> normalized', 'color: green', 'color: black', r.type === FileChangeType.ADDED ? '[ADDED]' : r.type === FileChangeType.DELETED ? '[DELETED]' : '[CHANGED]', r.path);
+					console.log('%c[File Watcher (node.js)]%c >> normalized', 'color: blue', 'color: black', r.type === FileChangeType.ADDED ? '[ADDED]' : r.type === FileChangeType.DELETED ? '[DELETED]' : '[CHANGED]', r.path);
 				});
 			}
 

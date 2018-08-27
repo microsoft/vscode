@@ -54,7 +54,8 @@ class Extension implements IExtension {
 		private stateProvider: IExtensionStateProvider<ExtensionState>,
 		public locals: ILocalExtension[],
 		public gallery: IGalleryExtension,
-		private telemetryService: ITelemetryService
+		private telemetryService: ITelemetryService,
+		private logService: ILogService
 	) { }
 
 	get type(): LocalExtensionType {
@@ -210,8 +211,8 @@ class Extension implements IExtension {
 			if (this.gallery.assets.manifest) {
 				return this.galleryService.getManifest(this.gallery);
 			}
-			this.telemetryService.publicLog('extensions:NotFoundManifest', this.telemetryData);
-			return TPromise.wrapError<IExtensionManifest>(new Error('not available'));
+			this.logService.error(nls.localize('Manifest is not found', "Manifest is not found"), this.id);
+			return TPromise.as(undefined);
 		}
 
 		return TPromise.as(this.local.manifest);
@@ -441,7 +442,7 @@ export class ExtensionsWorkbenchService implements IExtensionsWorkbenchService, 
 						const locals = groupById[getGalleryExtensionIdFromLocal(local)];
 						locals.splice(locals.indexOf(local), 1);
 						locals.splice(0, 0, local);
-						const extension = installedById[local.identifier.id] || new Extension(this.galleryService, this.stateProvider, locals, null, this.telemetryService);
+						const extension = installedById[local.identifier.id] || new Extension(this.galleryService, this.stateProvider, locals, null, this.telemetryService, this.logService);
 						extension.locals = locals;
 						extension.enablementState = this.extensionEnablementService.getEnablementState(local);
 						return extension;
@@ -560,7 +561,7 @@ export class ExtensionsWorkbenchService implements IExtensionsWorkbenchService, 
 				this.syncLocalWithGalleryExtension(result, gallery);
 			}
 		} else {
-			result = new Extension(this.galleryService, this.stateProvider, [], gallery, this.telemetryService);
+			result = new Extension(this.galleryService, this.stateProvider, [], gallery, this.telemetryService, this.logService);
 		}
 
 		if (maliciousExtensionSet.has(result.id)) {
@@ -901,7 +902,7 @@ export class ExtensionsWorkbenchService implements IExtensionsWorkbenchService, 
 		let extension = this.installed.filter(e => areSameExtensions(e, gallery.identifier))[0];
 
 		if (!extension) {
-			extension = new Extension(this.galleryService, this.stateProvider, [], gallery, this.telemetryService);
+			extension = new Extension(this.galleryService, this.stateProvider, [], gallery, this.telemetryService, this.logService);
 		}
 
 		extension.gallery = gallery;
@@ -914,7 +915,7 @@ export class ExtensionsWorkbenchService implements IExtensionsWorkbenchService, 
 	private onDidInstallExtension(event: DidInstallExtensionEvent): void {
 		const { local, zipPath, error, gallery } = event;
 		const installingExtension = gallery ? this.installing.filter(e => areSameExtensions(e, gallery.identifier))[0] : null;
-		const extension: Extension = installingExtension ? installingExtension : zipPath ? new Extension(this.galleryService, this.stateProvider, [local], null, this.telemetryService) : null;
+		const extension: Extension = installingExtension ? installingExtension : zipPath ? new Extension(this.galleryService, this.stateProvider, [local], null, this.telemetryService, this.logService) : null;
 		if (extension) {
 			this.installing = installingExtension ? this.installing.filter(e => e !== installingExtension) : this.installing;
 			if (!error) {

@@ -87,10 +87,14 @@ export class NsfwWatcherService implements IWatcherService {
 					absolutePath = path.join(e.directory, e.oldFile);
 					if (!this._isPathIgnored(absolutePath, this._pathWatchers[request.basePath].ignored)) {
 						undeliveredFileEvents.push({ type: FileChangeType.DELETED, path: absolutePath });
+					} else if (this._verboseLogging) {
+						console.log(' >> ignored', absolutePath);
 					}
 					absolutePath = path.join(e.directory, e.newFile);
 					if (!this._isPathIgnored(absolutePath, this._pathWatchers[request.basePath].ignored)) {
 						undeliveredFileEvents.push({ type: FileChangeType.ADDED, path: absolutePath });
+					} else if (this._verboseLogging) {
+						console.log(' >> ignored', absolutePath);
 					}
 				} else {
 					absolutePath = path.join(e.directory, e.file);
@@ -99,6 +103,8 @@ export class NsfwWatcherService implements IWatcherService {
 							type: nsfwActionToRawChangeType[e.action],
 							path: absolutePath
 						});
+					} else if (this._verboseLogging) {
+						console.log(' >> ignored', absolutePath);
 					}
 				}
 			}

@@ -693,6 +693,10 @@ export class DebugService implements IDebugService {
 						launchJsonExists: root && !!this.configurationService.getValue<IGlobalConfig>('launch', { resource: root.uri })
 					});
 				}).then(() => session, (error: Error | string) => {
+					if (session) {
+						session.dispose();
+					}
+
 					if (errors.isPromiseCanceledError(error)) {
 						// Do not show 'canceled' error messages to the user #7906
 						return TPromise.as(null);
@@ -706,11 +710,6 @@ export class DebugService implements IDebugService {
 						}
 					*/
 					this.telemetryService.publicLog('debugMisconfiguration', { type: resolved ? resolved.type : undefined, error: errorMessage });
-					if (!raw.disconnected) {
-						raw.disconnect();
-					} else if (session) {
-						dispose(session);
-					}
 
 					// Show the repl if some error got logged there #5870
 					if (this.model.getReplElements().length > 0) {
@@ -724,6 +723,12 @@ export class DebugService implements IDebugService {
 					}
 					return undefined;
 				});
+		}).then(undefined, err => {
+			if (session) {
+				session.dispose();
+			}
+
+			return TPromise.wrapError(err);
 		});
 	}
 
@@ -987,7 +992,7 @@ export class DebugService implements IDebugService {
 		return this.configurationManager;
 	}
 
-	private sendAllBreakpoints(session?: ISession): TPromise<any> {
+	sendAllBreakpoints(session?: ISession): TPromise<any> {
 		return TPromise.join(distinct(this.model.getBreakpoints(), bp => bp.uri.toString()).map(bp => this.sendBreakpoints(bp.uri, false, session)))
 			.then(() => this.sendFunctionBreakpoints(session))
 			// send exception breakpoints at the end since some debug adapters rely on the order
