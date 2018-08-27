@@ -16,6 +16,8 @@
 	"html.format.wrapAttributes.force": "Wrap each attribute except first.",
 	"html.format.wrapAttributes.forcealign": "Wrap each attribute except first and keep aligned.",
 	"html.format.wrapAttributes.forcemultiline": "Wrap each attribute.",
+	"html.format.wrapAttributes.alignedmultiple": "Wrap when line length is exceeded, align attributes vertically.",
+	"html.format.wrapAttributesIndentSize.desc": "Attribute alignment size when using 'force-aligned' or 'aligned-multiple'. Use 'null' to use the editor indent size.",
 	"html.suggest.angular1.desc": "Controls whether the built-in HTML language support suggests Angular V1 tags and properties.",
 	"html.suggest.ionic.desc": "Controls whether the built-in HTML language support suggests Ionic tags, properties and values.",
 	"html.suggest.html5.desc": "Controls whether the built-in HTML language support suggests HTML5 tags, properties and values.",
