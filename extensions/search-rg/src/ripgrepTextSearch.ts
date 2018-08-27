@@ -11,7 +11,7 @@ import * as path from 'path';
 import { NodeStringDecoder, StringDecoder } from 'string_decoder';
 import * as vscode from 'vscode';
 import { rgPath } from './ripgrep';
-import { anchorGlob } from './utils';
+import { anchorGlob, createTextSearchResult } from './utils';
 
 // If vscode-ripgrep is in an .asar file, then the binary is unpacked.
 const rgDiskPath = rgPath.replace(/\bnode_modules\.asar\b/, 'node_modules.asar.unpacked');
@@ -289,29 +289,11 @@ export class RipgrepParser extends EventEmitter {
 		realTextParts.push(chunk);
 
 		// Get full real text line without color codes
-		const preview = realTextParts.join('');
+		const previewText = realTextParts.join('');
 
+		const uri = vscode.Uri.file(path.join(this.rootFolder, this.currentFile));
 		lineMatches
-			.map(range => {
-				let trimmedPreview = preview;
-				let trimmedPreviewRange = range;
-				if (this.previewOptions) {
-					const previewStart = Math.max(range.start.character - this.previewOptions.leadingChars, 0);
-					trimmedPreview = preview.substr(previewStart, this.previewOptions.totalChars - previewStart);
-					if (previewStart > 0) {
-						trimmedPreviewRange = new vscode.Range(0, range.start.character - previewStart, 0, range.end.character - previewStart);
-					}
-				}
-
-				return <vscode.TextSearchResult>{
-					uri: vscode.Uri.file(path.join(this.rootFolder, this.currentFile)),
-					range,
-					preview: {
-						text: trimmedPreview,
-						match: trimmedPreviewRange || new vscode.Range(0, range.start.character, 0, range.end.character)
-					}
-				};
-			})
+			.map(range => createTextSearchResult(uri, previewText, range, this.previewOptions))
 			.forEach(match => this.onResult(match));
 
 		if (hitLimit) {

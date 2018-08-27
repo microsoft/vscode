@@ -77,9 +77,23 @@ declare module 'vscode' {
 		followSymlinks: boolean;
 	}
 
+	/**
+	 * Options to specify the size of the result text preview.
+	 */
 	export interface TextSearchPreviewOptions {
+		/**
+		 * The maximum number of lines in the preview.
+		 */
 		maxLines: number;
+
+		/**
+		 * The maximum number of characters included before the start of the match.
+		 */
 		leadingChars: number;
+
+		/**
+		 * The maximum number of characters included per line.
+		 */
 		totalChars: number;
 	}
 
@@ -92,6 +106,9 @@ declare module 'vscode' {
 		 */
 		maxResults: number;
 
+		/**
+		 * Options to specify the size of the result text preview.
+		 */
 		previewOptions?: TextSearchPreviewOptions;
 
 		/**
@@ -131,6 +148,9 @@ declare module 'vscode' {
 	 */
 	export interface FileIndexOptions extends SearchOptions { }
 
+	/**
+	 * A preview of the text result.
+	 */
 	export interface TextSearchResultPreview {
 		/**
 		 * The matching line of text, or a portion of the matching line that contains the match.
@@ -159,7 +179,7 @@ declare module 'vscode' {
 		range: Range;
 
 		/**
-		 * A preview of the matching line
+		 * A preview of the text result.
 		 */
 		preview: TextSearchResultPreview;
 	}
@@ -260,6 +280,11 @@ declare module 'vscode' {
 		 * See the vscode setting `"files.encoding"`
 		 */
 		encoding?: string;
+
+		/**
+		 * Options to specify the size of the result text preview.
+		 */
+		previewOptions?: TextSearchPreviewOptions;
 	}
 
 	export namespace workspace {

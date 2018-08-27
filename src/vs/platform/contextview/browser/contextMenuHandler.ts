@@ -23,8 +23,8 @@ export class ContextMenuHandler {
 	private notificationService: INotificationService;
 	private telemetryService: ITelemetryService;
 
-	private $el: HTMLElement;
-	private $elDisposable: IDisposable;
+	private element: HTMLElement;
+	private elementDisposable: IDisposable;
 	private menuContainerElement: HTMLElement;
 	private focusToReturn: HTMLElement;
 
@@ -39,13 +39,13 @@ export class ContextMenuHandler {
 	}
 
 	public setContainer(container: HTMLElement): void {
-		if (this.$el) {
-			this.$elDisposable = dispose(this.$elDisposable);
-			this.$el = null;
+		if (this.element) {
+			this.elementDisposable = dispose(this.elementDisposable);
+			this.element = null;
 		}
 		if (container) {
-			this.$el = container;
-			this.$elDisposable = addDisposableListener(this.$el, 'mousedown', (e) => this.onMouseDown(e as MouseEvent));
+			this.element = container;
+			this.elementDisposable = addDisposableListener(this.element, 'mousedown', (e) => this.onMouseDown(e as MouseEvent));
 		}
 	}
 

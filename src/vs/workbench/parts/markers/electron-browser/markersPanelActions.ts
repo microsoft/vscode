@@ -93,14 +93,12 @@ export interface IMarkersFilterActionItemOptions {
 
 export class MarkersFilterActionItem extends BaseActionItem {
 
-	private _toDispose: IDisposable[] = [];
-
 	private readonly _onDidChange: Emitter<void> = this._register(new Emitter<void>());
 	readonly onDidChange: Event<void> = this._onDidChange.event;
 
 	private delayedFilterUpdate: Delayer<void>;
 	private container: HTMLElement;
-	private element: HTMLElement;
+	private filterContainer: HTMLElement;
 	private filterInputBox: HistoryInputBox;
 	private controlsContainer: HTMLInputElement;
 	private filterBadge: HTMLInputElement;
@@ -123,7 +121,7 @@ export class MarkersFilterActionItem extends BaseActionItem {
 	render(container: HTMLElement): void {
 		this.container = container;
 		DOM.addClass(this.container, 'markers-panel-action-filter-container');
-		DOM.append(this.container, this.element);
+		DOM.append(this.container, this.filterContainer);
 		this.adjustInputBox();
 	}
 
@@ -157,9 +155,9 @@ export class MarkersFilterActionItem extends BaseActionItem {
 	}
 
 	private create(itemOptions: IMarkersFilterActionItemOptions): void {
-		this.element = DOM.$('.markers-panel-action-filter');
-		this.createInput(this.element, itemOptions);
-		this.createControls(this.element, itemOptions);
+		this.filterContainer = DOM.$('.markers-panel-action-filter');
+		this.createInput(this.filterContainer, itemOptions);
+		this.createControls(this.filterContainer, itemOptions);
 	}
 
 	private createInput(container: HTMLElement, itemOptions: IMarkersFilterActionItemOptions): void {
@@ -271,11 +269,6 @@ export class MarkersFilterActionItem extends BaseActionItem {
 		*/
 		this.telemetryService.publicLog('problems.filter', data);
 	}
-
-	private _register<T extends IDisposable>(t: T): T {
-		this._toDispose.push(t);
-		return t;
-	}
 }
 
 export class QuickFixAction extends Action {
@@ -354,7 +347,7 @@ export class QuickFixActionItem extends ActionItem {
 
 	public onClick(event: DOM.EventLike): void {
 		DOM.EventHelper.stop(event, true);
-		const elementPosition = DOM.getDomNodePagePosition(this.builder.getHTMLElement());
+		const elementPosition = DOM.getDomNodePagePosition(this.element);
 		this.contextMenuService.showContextMenu({
 			getAnchor: () => ({ x: elementPosition.left + 10, y: elementPosition.top + elementPosition.height }),
 			getActions: () => TPromise.wrap((<QuickFixAction>this.getAction()).getQuickFixActions()),

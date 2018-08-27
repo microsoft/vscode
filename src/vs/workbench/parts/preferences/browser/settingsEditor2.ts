@@ -26,25 +26,27 @@ import { IEnvironmentService } from 'vs/platform/environment/common/environment'
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { WorkbenchTree } from 'vs/platform/list/browser/listService';
 import { ILogService } from 'vs/platform/log/common/log';
+import { INotificationService } from 'vs/platform/notification/common/notification';
+import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
+import { badgeBackground, badgeForeground, contrastBorder, editorForeground } from 'vs/platform/theme/common/colorRegistry';
 import { attachButtonStyler, attachStylerCallback } from 'vs/platform/theme/common/styler';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { BaseEditor } from 'vs/workbench/browser/parts/editor/baseEditor';
 import { EditorOptions, IEditor } from 'vs/workbench/common/editor';
+import { ResourceEditorModel } from 'vs/workbench/common/editor/resourceEditorModel';
 import { SuggestEnabledInput } from 'vs/workbench/parts/codeEditor/browser/suggestEnabledInput';
 import { PreferencesEditor } from 'vs/workbench/parts/preferences/browser/preferencesEditor';
 import { SettingsTarget, SettingsTargetsWidget } from 'vs/workbench/parts/preferences/browser/preferencesWidgets';
 import { commonlyUsedData, tocData } from 'vs/workbench/parts/preferences/browser/settingsLayout';
-import { resolveExtensionsSettings, resolveSettingsTree, SettingsRenderer, SettingsTree } from 'vs/workbench/parts/preferences/browser/settingsTree';
-import { ISettingsEditorViewState, MODIFIED_SETTING_TAG, ONLINE_SERVICES_SETTING_TAG, SearchResultIdx, SearchResultModel, SettingsTreeGroupElement, SettingsTreeModel, SettingsTreeSettingElement, countSettingGroupChildrenWithPredicate } from 'vs/workbench/parts/preferences/browser/settingsTreeModels';
+import { resolveExtensionsSettings, resolveSettingsTree, SettingsRenderer, SettingsTree, SimplePagedDataSource, SettingsDataSource } from 'vs/workbench/parts/preferences/browser/settingsTree';
+import { ISettingsEditorViewState, MODIFIED_SETTING_TAG, ONLINE_SERVICES_SETTING_TAG, SearchResultIdx, SearchResultModel, SettingsTreeGroupElement, SettingsTreeModel, countSettingGroupChildrenWithPredicate, SettingsTreeSettingElement } from 'vs/workbench/parts/preferences/browser/settingsTreeModels';
 import { TOCRenderer, TOCTree, TOCTreeModel } from 'vs/workbench/parts/preferences/browser/tocTree';
 import { CONTEXT_SETTINGS_EDITOR, CONTEXT_SETTINGS_SEARCH_FOCUS, CONTEXT_TOC_ROW_FOCUS, IPreferencesSearchService, ISearchProvider } from 'vs/workbench/parts/preferences/common/preferences';
 import { IEditorGroup } from 'vs/workbench/services/group/common/editorGroupsService';
 import { IPreferencesService, ISearchResult, ISettingsEditorModel } from 'vs/workbench/services/preferences/common/preferences';
 import { SettingsEditor2Input } from 'vs/workbench/services/preferences/common/preferencesEditorInput';
 import { DefaultSettingsEditorModel } from 'vs/workbench/services/preferences/common/preferencesModels';
-import { ResourceEditorModel } from 'vs/workbench/common/editor/resourceEditorModel';
-import { badgeBackground, contrastBorder, badgeForeground, editorForeground } from 'vs/platform/theme/common/colorRegistry';
 
 const $ = DOM.$;
 
@@ -69,6 +71,7 @@ export class SettingsEditor2 extends BaseEditor {
 	private settingsTreeContainer: HTMLElement;
 	private settingsTree: Tree;
 	private settingsTreeRenderer: SettingsRenderer;
+	private settingsTreeDataSource: SimplePagedDataSource;
 	private tocTreeModel: TOCTreeModel;
 	private settingsTreeModel: SettingsTreeModel;
 	private noResultsMessage: HTMLElement;
@@ -111,7 +114,9 @@ export class SettingsEditor2 extends BaseEditor {
 		@ILogService private logService: ILogService,
 		@IEnvironmentService private environmentService: IEnvironmentService,
 		@IContextKeyService contextKeyService: IContextKeyService,
-		@IContextMenuService private contextMenuService: IContextMenuService
+		@IContextMenuService private contextMenuService: IContextMenuService,
+		@IStorageService private storageService: IStorageService,
+		@INotificationService private notificationService: INotificationService
 	) {
 		super(SettingsEditor2.ID, telemetryService, themeService);
 		this.delayedFilterLogging = new Delayer<void>(1000);
@@ -422,14 +427,19 @@ export class SettingsEditor2 extends BaseEditor {
 			}));
 
 		this._register(this.tocTree.onDidChangeFocus(e => {
-			const element = e.focus;
+			const element: SettingsTreeGroupElement = e.focus;
 			if (this.searchResultModel) {
 				this.viewState.filterToCategory = element;
 				this.renderTree();
 			}
 
 			if (element && (!e.payload || !e.payload.fromScroll)) {
-				this.settingsTree.reveal(element, 0);
+				let refreshP = TPromise.wrap(null);
+				if (this.settingsTreeDataSource.pageTo(element.index)) {
+					refreshP = this.renderTree();
+				}
+
+				refreshP.then(() => this.settingsTree.reveal(element, 0));
 			}
 		}));
 
@@ -459,11 +469,15 @@ export class SettingsEditor2 extends BaseEditor {
 			this.settingsTree.reveal(element);
 		}));
 
+		this.settingsTreeDataSource = this.instantiationService.createInstance(SimplePagedDataSource,
+			this.instantiationService.createInstance(SettingsDataSource, this.viewState));
+
 		this.settingsTree = this._register(this.instantiationService.createInstance(SettingsTree,
 			this.settingsTreeContainer,
 			this.viewState,
 			{
-				renderer: this.settingsTreeRenderer
+				renderer: this.settingsTreeRenderer,
+				dataSource: this.settingsTreeDataSource
 			}));
 		this.settingsTree.getHTMLElement().attributes.removeNamedItem('tabindex');
 
@@ -484,7 +498,16 @@ export class SettingsEditor2 extends BaseEditor {
 		}));
 	}
 
+	public notifyNoSaveNeeded(force: boolean = true) {
+		if (force || !this.storageService.getBoolean('hasNotifiedOfSettingsAutosave', StorageScope.GLOBAL, false)) {
+			this.storageService.store('hasNotifiedOfSettingsAutosave', true, StorageScope.GLOBAL);
+			this.notificationService.info(localize('settingsNoSaveNeeded', "Your changes are automatically saved as you edit."));
+		}
+	}
+
 	private onDidChangeSetting(key: string, value: any): void {
+		this.notifyNoSaveNeeded(false);
+
 		if (this.pendingSettingUpdate && this.pendingSettingUpdate.key !== key) {
 			this.updateChangedSetting(key, value);
 		}
@@ -503,6 +526,8 @@ export class SettingsEditor2 extends BaseEditor {
 			return;
 		}
 
+		this.updateTreePagingByScroll();
+
 		const elementToSync = this.settingsTree.getFirstVisibleElement();
 		const element = elementToSync instanceof SettingsTreeSettingElement ? elementToSync.parent :
 			elementToSync instanceof SettingsTreeGroupElement ? elementToSync :
@@ -520,6 +545,13 @@ export class SettingsEditor2 extends BaseEditor {
 
 			this.tocTree.setSelection([element]);
 			this.tocTree.setFocus(element, { fromScroll: true });
+		}
+	}
+
+	private updateTreePagingByScroll(): void {
+		const lastVisibleElement = this.settingsTree.getLastVisibleElement();
+		if (lastVisibleElement && this.settingsTreeDataSource.pageTo(lastVisibleElement.index)) {
+			this.renderTree();
 		}
 	}
 
@@ -728,7 +760,9 @@ export class SettingsEditor2 extends BaseEditor {
 			// If a single setting is being refreshed, it's ok to refresh now if that is not the focused setting
 			if (key) {
 				const focusedKey = focusedSetting.getAttribute(SettingsRenderer.SETTING_KEY_ATTR);
-				if (focusedKey === key) {
+				if (focusedKey === key &&
+					!DOM.hasClass(focusedSetting, 'setting-item-exclude')) { // update `exclude`s live, as they have a separate "submit edit" step built in before this
+
 					this.updateModifiedLabelForKey(key);
 					this.scheduleRefresh(focusedSetting, key);
 					return TPromise.wrap(null);

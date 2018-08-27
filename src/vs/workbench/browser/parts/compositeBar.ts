@@ -14,13 +14,14 @@ import { IBadge } from 'vs/workbench/services/activity/common/activity';
 import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { ActionBar, ActionsOrientation, Separator } from 'vs/base/browser/ui/actionbar/actionbar';
-import { CompositeActionItem, CompositeOverflowActivityAction, ICompositeActivity, CompositeOverflowActivityActionItem, ActivityAction, ICompositeBar, ICompositeBarColors } from 'vs/workbench/browser/parts/compositeBarActions';
+import { CompositeActionItem, CompositeOverflowActivityAction, ICompositeActivity, CompositeOverflowActivityActionItem, ActivityAction, ICompositeBar, ICompositeBarColors, DraggedCompositeIdentifier } from 'vs/workbench/browser/parts/compositeBarActions';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { Dimension, $, addDisposableListener, EventType, EventHelper } from 'vs/base/browser/dom';
 import { StandardMouseEvent } from 'vs/base/browser/mouseEvent';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 import { Widget } from 'vs/base/browser/ui/widget';
 import { isUndefinedOrNull } from 'vs/base/common/types';
+import { LocalSelectionTransfer } from 'vs/workbench/browser/dnd';
 
 export interface ICompositeBarOptions {
 	icon: boolean;
@@ -50,6 +51,8 @@ export class CompositeBar extends Widget implements ICompositeBar {
 	private visibleComposites: string[];
 	private compositeSizeInBar: Map<string, number>;
 
+	private compositeTransfer: LocalSelectionTransfer<DraggedCompositeIdentifier>;
+
 	constructor(
 		private options: ICompositeBarOptions,
 		@IInstantiationService private instantiationService: IInstantiationService,
@@ -61,6 +64,7 @@ export class CompositeBar extends Widget implements ICompositeBar {
 		this.model = new CompositeBarModel(options, storageService);
 		this.visibleComposites = [];
 		this.compositeSizeInBar = new Map<string, number>();
+		this.compositeTransfer = LocalSelectionTransfer.getInstance<DraggedCompositeIdentifier>();
 	}
 
 	create(parent: HTMLElement): HTMLElement {
@@ -83,10 +87,11 @@ export class CompositeBar extends Widget implements ICompositeBar {
 
 		// Allow to drop at the end to move composites to the end
 		this._register(addDisposableListener(parent, EventType.DROP, (e: DragEvent) => {
-			const draggedCompositeId = CompositeActionItem.getDraggedCompositeId();
-			if (draggedCompositeId) {
+			if (this.compositeTransfer.hasData(DraggedCompositeIdentifier.prototype)) {
 				EventHelper.stop(e, true);
-				CompositeActionItem.clearDraggedComposite();
+
+				const draggedCompositeId = this.compositeTransfer.getData(DraggedCompositeIdentifier.prototype)[0].id;
+				this.compositeTransfer.clearData(DraggedCompositeIdentifier.prototype);
 
 				const targetItem = this.model.visibleItems[this.model.visibleItems.length - 1];
 				if (targetItem && targetItem.id !== draggedCompositeId) {

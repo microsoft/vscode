@@ -25,6 +25,11 @@ export interface ISettingsEditorViewState {
 export abstract class SettingsTreeElement {
 	id: string;
 	parent: SettingsTreeGroupElement;
+
+	/**
+	 * Index assigned in display order, used for paging.
+	 */
+	index: number;
 }
 
 export class SettingsTreeGroupElement extends SettingsTreeElement {
@@ -42,8 +47,8 @@ export class SettingsTreeNewExtensionsElement extends SettingsTreeElement {
 export class SettingsTreeSettingElement extends SettingsTreeElement {
 	setting: ISetting;
 
-	_displayCategory: string;
-	_displayLabel: string;
+	private _displayCategory: string;
+	private _displayLabel: string;
 
 	/**
 	 * scopeValue || defaultValue, for rendering convenience.
@@ -70,8 +75,9 @@ export class SettingsTreeSettingElement extends SettingsTreeElement {
 	description: string;
 	valueType: 'enum' | 'string' | 'integer' | 'number' | 'boolean' | 'exclude' | 'complex' | 'nullable-integer' | 'nullable-number';
 
-	constructor(setting: ISetting, parent: SettingsTreeGroupElement, inspectResult: IInspectResult) {
+	constructor(setting: ISetting, parent: SettingsTreeGroupElement, index: number, inspectResult: IInspectResult) {
 		super();
+		this.index = index;
 		this.setting = setting;
 		this.parent = parent;
 		this.id = sanitizeId(parent.id + '_' + setting.key);
@@ -193,7 +199,7 @@ export function countSettingGroupChildrenWithPredicate(tree: SettingsTreeGroupEl
 
 export class SettingsTreeModel {
 	protected _root: SettingsTreeGroupElement;
-	private _treeElementsById = new Map<string, SettingsTreeElement>();
+	protected _treeElementsById = new Map<string, SettingsTreeElement>();
 	private _treeElementsBySettingName = new Map<string, SettingsTreeSettingElement[]>();
 	private _tocRoot: ITOCEntry;
 
@@ -243,6 +249,8 @@ export class SettingsTreeModel {
 
 	private createSettingsTreeGroupElement(tocEntry: ITOCEntry, parent?: SettingsTreeGroupElement): SettingsTreeGroupElement {
 		const element = new SettingsTreeGroupElement();
+		const index = this._treeElementsById.size;
+		element.index = index;
 		element.id = tocEntry.id;
 		element.label = tocEntry.label;
 		element.parent = parent;
@@ -273,8 +281,9 @@ export class SettingsTreeModel {
 	}
 
 	private createSettingsTreeSettingElement(setting: ISetting, parent: SettingsTreeGroupElement): SettingsTreeSettingElement {
+		const index = this._treeElementsById.size;
 		const inspectResult = inspectSetting(setting.key, this._viewState.settingsTarget, this._configurationService);
-		const element = new SettingsTreeSettingElement(setting, parent, inspectResult);
+		const element = new SettingsTreeSettingElement(setting, parent, index, inspectResult);
 		this._treeElementsById.set(element.id, element);
 
 		const nameElements = this._treeElementsBySettingName.get(setting.key) || [];
@@ -449,8 +458,11 @@ export class SearchResultModel extends SettingsTreeModel {
 
 		if (this.newExtensionSearchResults && this.newExtensionSearchResults.filterMatches.length) {
 			const newExtElement = new SettingsTreeNewExtensionsElement();
+			newExtElement.index = this._treeElementsById.size;
 			newExtElement.parent = this._root;
 			newExtElement.id = 'newExtensions';
+			this._treeElementsById.set(newExtElement.id, newExtElement);
+
 			const resultExtensionIds = this.newExtensionSearchResults.filterMatches
 				.map(result => (<IExtensionSetting>result.setting))
 				.filter(setting => setting.extensionName && setting.extensionPublisher)

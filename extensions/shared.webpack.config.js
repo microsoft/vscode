@@ -36,11 +36,9 @@ module.exports = function withDefaults(/**@type WebpackConfig*/extConfig) {
 					}
 				}, {
 					// configure TypeScript loader:
-					// * only transpile because we have a separate compilation pipeline
 					// * enable sources maps for end-to-end source maps
 					loader: 'ts-loader',
 					options: {
-						transpileOnly: true,
 						compilerOptions: {
 							"sourceMap": true,
 						}

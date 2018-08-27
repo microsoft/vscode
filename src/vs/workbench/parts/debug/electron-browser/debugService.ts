@@ -717,7 +717,11 @@ export class DebugService implements IDebugService {
 						this.panelService.openPanel(REPL_ID, false).done(undefined, errors.onUnexpectedError);
 					}
 
-					this.showError(errorMessage, errors.isErrorWithActions(error) ? error.actions : []);
+					if (resolved && resolved.request === 'attach' && resolved.__autoAttach) {
+						// ignore attach timeouts in auto attach mode
+					} else {
+						this.showError(errorMessage, errors.isErrorWithActions(error) ? error.actions : []);
+					}
 					return undefined;
 				});
 		});
