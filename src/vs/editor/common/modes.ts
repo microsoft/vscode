@@ -244,7 +244,7 @@ export interface HoverProvider {
 	 * position will be merged by the editor. A hover can have a range which defaults
 	 * to the word range at the position when omitted.
 	 */
-	provideHover(model: model.ITextModel, position: Position, token: CancellationToken): Hover | Thenable<Hover>;
+	provideHover(model: model.ITextModel, position: Position, token: CancellationToken): Hover | undefined | null | Thenable<Hover | undefined | null>;
 }
 
 /**
