@@ -100,16 +100,19 @@ function stripQuotes(fullValue: string) {
  * Get a list of path suggestions. Folder suggestions are suffixed with a slash.
  */
 function providePaths(valueBeforeCursor: string, activeDocFsPath: string, root?: string): string[] {
-	if (startsWith(valueBeforeCursor, '/') && !root) {
-		return [];
-	}
-
 	const lastIndexOfSlash = valueBeforeCursor.lastIndexOf('/');
 	const valueBeforeLastSlash = valueBeforeCursor.slice(0, lastIndexOfSlash + 1);
 
-	const parentDir = startsWith(valueBeforeCursor, '/')
-		? path.resolve(root, '.' + valueBeforeLastSlash)
-		: path.resolve(activeDocFsPath, '..', valueBeforeLastSlash);
+	const startsWithSlash = startsWith(valueBeforeCursor, '/');
+	let parentDir: string;
+	if (startsWithSlash) {
+		if (!root) {
+			return [];
+		}
+		parentDir = path.resolve(root, '.' + valueBeforeLastSlash);
+	} else {
+		parentDir = path.resolve(activeDocFsPath, '..', valueBeforeLastSlash);
+	}
 
 	try {
 		return fs.readdirSync(parentDir).map(f => {
