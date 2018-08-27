@@ -46,6 +46,5 @@ export interface IModeService {
 	getMode(commaSeparatedMimetypesOrCommaSeparatedIds: string): IMode;
 	getOrCreateMode(commaSeparatedMimetypesOrCommaSeparatedIds: string): TPromise<IMode>;
 	getOrCreateModeByLanguageName(languageName: string): TPromise<IMode>;
-	getOrCreateModeByLanguageId(modeId: string): TPromise<IMode>;
 	getOrCreateModeByFilenameOrFirstLine(filename: string, firstLine?: string): TPromise<IMode>;
 }

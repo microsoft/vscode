@@ -5,12 +5,19 @@
 
 // This is the place for API experiments and proposal.
 
-import { QuickPickItem } from 'vscode';
 
 declare module 'vscode' {
 
 	export namespace window {
 		export function sampleFunction(): Thenable<any>;
+	}
+
+	export namespace languages {
+
+		/**
+		 *
+		 */
+		export function changeLanguage(document: TextDocument, languageId: string): Thenable<void>;
 	}
 
 	//#region Rob: search provider

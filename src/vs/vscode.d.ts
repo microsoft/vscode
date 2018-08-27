@@ -7375,8 +7375,6 @@ declare module 'vscode' {
 	 */
 	export namespace languages {
 
-		export function changeLanguage(document: TextDocument, languageId: string): Thenable<void>;
-
 		/**
 		 * Return the identifiers of all known languages.
 		 * @return Promise resolving to an array of identifier strings.
