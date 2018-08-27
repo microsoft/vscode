@@ -154,16 +154,11 @@ class DocumentAndEditorState {
 	}
 }
 
-const enum ActiveEditorOrder {
-	Editor, Panel
-}
-
 class MainThreadDocumentAndEditorStateComputer {
 
 	private _toDispose: IDisposable[] = [];
 	private _toDisposeOnEditorRemove = new Map<string, IDisposable>();
 	private _currentState: DocumentAndEditorState;
-	private _activeEditorOrder: ActiveEditorOrder = ActiveEditorOrder.Editor;
 
 	constructor(
 		private readonly _onDidChangeState: (delta: DocumentAndEditorStateDelta) => void,
@@ -178,10 +173,6 @@ class MainThreadDocumentAndEditorStateComputer {
 		this._codeEditorService.onCodeEditorAdd(this._onDidAddEditor, this, this._toDispose);
 		this._codeEditorService.onCodeEditorRemove(this._onDidRemoveEditor, this, this._toDispose);
 		this._codeEditorService.listCodeEditors().forEach(this._onDidAddEditor, this);
-
-		this._panelService.onDidPanelOpen(_ => this._activeEditorOrder = ActiveEditorOrder.Panel, undefined, this._toDispose);
-		this._panelService.onDidPanelClose(_ => this._activeEditorOrder = ActiveEditorOrder.Editor, undefined, this._toDispose);
-		this._editorService.onDidVisibleEditorsChange(_ => this._activeEditorOrder = ActiveEditorOrder.Editor, undefined, this._toDispose);
 
 		this._updateState();
 	}
@@ -270,10 +261,14 @@ class MainThreadDocumentAndEditorStateComputer {
 		if (!activeEditor) {
 
 			let candidate: IEditor;
-			if (this._activeEditorOrder === ActiveEditorOrder.Editor) {
-				candidate = this._getActiveEditorFromEditors() || this._getActiveEditorFromPanel();
+			let panel = this._panelService.getActivePanel();
+			if (panel instanceof BaseTextEditor && isCodeEditor(panel.getControl())) {
+				candidate = panel.getControl();
 			} else {
-				candidate = this._getActiveEditorFromPanel() || this._getActiveEditorFromEditors();
+				candidate = this._editorService.activeTextEditorWidget;
+				if (isDiffEditor(candidate)) {
+					candidate = candidate.getModifiedEditor();
+				}
 			}
 
 			if (candidate) {
@@ -292,23 +287,6 @@ class MainThreadDocumentAndEditorStateComputer {
 			this._currentState = newState;
 			this._onDidChangeState(delta);
 		}
-	}
-
-	private _getActiveEditorFromPanel(): IEditor {
-		let panel = this._panelService.getActivePanel();
-		if (panel instanceof BaseTextEditor && isCodeEditor(panel.getControl())) {
-			return panel.getControl();
-		} else {
-			return undefined;
-		}
-	}
-
-	private _getActiveEditorFromEditors(): IEditor {
-		let result = this._editorService.activeTextEditorWidget;
-		if (isDiffEditor(result)) {
-			result = result.getModifiedEditor();
-		}
-		return result;
 	}
 }
 
