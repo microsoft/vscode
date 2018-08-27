@@ -53,6 +53,21 @@ const configurationEntrySchema: IJSONSchema = {
 									type: 'string',
 								},
 								description: nls.localize('scope.enumDescriptions', 'Descriptions for enum values')
+							},
+							markdownEnumDescription: {
+								type: 'array',
+								items: {
+									type: 'string',
+								},
+								description: nls.localize('scope.markdownEnumDescription', 'Descriptions for enum values in the markdown format.')
+							},
+							markdownDescription: {
+								type: 'string',
+								description: nls.localize('scope.markdownDescription', 'The description in the markdown format.')
+							},
+							deprecationMessage: {
+								type: 'string',
+								description: nls.localize('scope.deprecationMessage', 'If set, the property is marked as deprecated and the given message is shown as as explanation.')
 							}
 						}
 					}
