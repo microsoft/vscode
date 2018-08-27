@@ -247,7 +247,7 @@ export class WorkspaceEditingService implements IWorkspaceEditingService {
 	}
 
 	private migrateWorkspaceSettings(toWorkspace: IWorkspaceIdentifier): TPromise<void> {
-		return this.doCopyWorkspaceSettings(toWorkspace, setting => !setting.notMultiRootAdopted && setting.scope === ConfigurationScope.WINDOW);
+		return this.doCopyWorkspaceSettings(toWorkspace, setting => setting.scope === ConfigurationScope.WINDOW);
 	}
 
 	copyWorkspaceSettings(toWorkspace: IWorkspaceIdentifier): TPromise<void> {

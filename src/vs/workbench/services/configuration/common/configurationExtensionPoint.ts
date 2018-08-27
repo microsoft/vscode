@@ -162,7 +162,6 @@ function validateProperties(configuration: IConfigurationNode, extension: IExten
 			} else {
 				propertyConfiguration.scope = ConfigurationScope.WINDOW;
 			}
-			propertyConfiguration.notMultiRootAdopted = !(extension.description.isBuiltin || (Array.isArray(extension.description.keywords) && extension.description.keywords.indexOf('multi-root ready') !== -1));
 		}
 	}
 	let subNodes = configuration.allOf;
