@@ -137,7 +137,8 @@ class GotoDefinitionWithMouseEditorContribution implements editorCommon.IEditorC
 					const { object: { textEditorModel } } = ref;
 					const { startLineNumber } = result.range;
 
-					if (textEditorModel.getLineMaxColumn(startLineNumber) === 0) {
+					if (startLineNumber < 1 || startLineNumber > textEditorModel.getLineCount()) {
+						// invalid range
 						ref.dispose();
 						return;
 					}
