@@ -428,6 +428,7 @@ export class CompositeActionItem extends ActivityActionItem {
 	constructor(
 		private compositeActivityAction: ActivityAction,
 		private toggleCompositePinnedAction: Action,
+		private contextMenuActionsProvider: () => Action[],
 		colors: ICompositeBarColors,
 		icon: boolean,
 		private compositeBar: ICompositeBar,
@@ -568,6 +569,12 @@ export class CompositeActionItem extends ActivityActionItem {
 			this.toggleCompositePinnedAction.checked = false;
 		} else {
 			this.toggleCompositePinnedAction.label = nls.localize('keep', "Keep");
+		}
+
+		const otherActions = this.contextMenuActionsProvider();
+		if (otherActions.length) {
+			actions.push(new Separator());
+			actions.push(...otherActions);
 		}
 
 		this.contextMenuService.showContextMenu({
