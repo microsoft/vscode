@@ -708,7 +708,7 @@
     ]
   },
   "dependencies": {
-    "vscode-languageclient": "^5.1.0-next.4",
+    "vscode-languageclient": "^5.1.0-next.6",
     "vscode-nls": "^3.2.4"
   },
   "devDependencies": {
