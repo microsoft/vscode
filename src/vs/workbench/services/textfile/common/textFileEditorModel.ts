@@ -357,7 +357,7 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 			if (settingsType) {
 				/* __GDPR__
 					"settingsRead" : {
-						"settingsType": { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
+						"settingsType": { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
 					}
 				*/
 				this.telemetryService.publicLog('settingsRead', { settingsType }); // Do not log read to user settings.json and .vscode folder as a fileGet event as it ruins our JSON usage data
@@ -719,7 +719,7 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 				if (settingsType) {
 					/* __GDPR__
 						"settingsWritten" : {
-							"settingsType": { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
+							"settingsType": { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
 						}
 					*/
 					this.telemetryService.publicLog('settingsWritten', { settingsType }); // Do not log write to user settings.json and .vscode folder as a filePUT event as it ruins our JSON usage data

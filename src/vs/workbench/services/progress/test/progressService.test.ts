@@ -40,6 +40,10 @@ class TestViewletService implements IViewletService {
 		return [];
 	}
 
+	public getAllViewlets(): ViewletDescriptor[] {
+		return [];
+	}
+
 	public getActiveViewlet(): IViewlet {
 		return activeViewlet;
 	}

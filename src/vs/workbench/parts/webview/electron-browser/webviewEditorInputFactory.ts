@@ -11,6 +11,7 @@ import URI from 'vs/base/common/uri';
 
 interface SerializedWebview {
 	readonly viewType: string;
+	readonly id: number;
 	readonly title: string;
 	readonly options: WebviewInputOptions;
 	readonly extensionLocation: string;
@@ -41,6 +42,7 @@ export class WebviewEditorInputFactory implements IEditorInputFactory {
 
 		const data: SerializedWebview = {
 			viewType: input.viewType,
+			id: input.getId(),
 			title: input.getName(),
 			options: input.options,
 			extensionLocation: input.extensionLocation.toString(),
@@ -57,6 +59,6 @@ export class WebviewEditorInputFactory implements IEditorInputFactory {
 		const data: SerializedWebview = JSON.parse(serializedEditorInput);
 		const extensionLocation = URI.parse(data.extensionLocation);
 		const iconPath = data.iconPath ? { light: URI.parse(data.iconPath.light), dark: URI.parse(data.iconPath.dark) } : undefined;
-		return this._webviewService.reviveWebview(data.viewType, data.title, iconPath, data.state, data.options, extensionLocation);
+		return this._webviewService.reviveWebview(data.viewType, data.id, data.title, iconPath, data.state, data.options, extensionLocation);
 	}
 }

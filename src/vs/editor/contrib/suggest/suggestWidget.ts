@@ -110,10 +110,12 @@ class Renderer implements IRenderer<ICompletionItem, ISuggestionTemplateData> {
 			const fontFamily = configuration.fontInfo.fontFamily;
 			const fontSize = configuration.contribInfo.suggestFontSize || configuration.fontInfo.fontSize;
 			const lineHeight = configuration.contribInfo.suggestLineHeight || configuration.fontInfo.lineHeight;
+			const fontWeight = configuration.fontInfo.fontWeight;
 			const fontSizePx = `${fontSize}px`;
 			const lineHeightPx = `${lineHeight}px`;
 
 			data.root.style.fontSize = fontSizePx;
+			data.root.style.fontWeight = fontWeight;
 			main.style.fontFamily = fontFamily;
 			main.style.lineHeight = lineHeightPx;
 			data.icon.style.height = lineHeightPx;
@@ -330,10 +332,12 @@ class SuggestionDetails {
 		const fontFamily = configuration.fontInfo.fontFamily;
 		const fontSize = configuration.contribInfo.suggestFontSize || configuration.fontInfo.fontSize;
 		const lineHeight = configuration.contribInfo.suggestLineHeight || configuration.fontInfo.lineHeight;
+		const fontWeight = configuration.fontInfo.fontWeight;
 		const fontSizePx = `${fontSize}px`;
 		const lineHeightPx = `${lineHeight}px`;
 
 		this.el.style.fontSize = fontSizePx;
+		this.el.style.fontWeight = fontWeight;
 		this.type.style.fontFamily = fontFamily;
 		this.close.style.height = lineHeightPx;
 		this.close.style.width = lineHeightPx;
@@ -700,18 +704,21 @@ export class SuggestWidget implements IContentWidget, IVirtualDelegate<ICompleti
 			this.completionModel = null;
 
 		} else {
-			const { stats } = this.completionModel;
-			stats['wasAutomaticallyTriggered'] = !!isAuto;
-			/* __GDPR__
-				"suggestWidget" : {
-					"wasAutomaticallyTriggered" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
-					"${include}": [
-						"${ICompletionStats}",
-						"${EditorTelemetryData}"
-					]
-				}
-			*/
-			this.telemetryService.publicLog('suggestWidget', { ...stats, ...this.editor.getTelemetryData() });
+
+			if (this.state !== State.Open) {
+				const { stats } = this.completionModel;
+				stats['wasAutomaticallyTriggered'] = !!isAuto;
+				/* __GDPR__
+					"suggestWidget" : {
+						"wasAutomaticallyTriggered" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
+						"${include}": [
+							"${ICompletionStats}",
+							"${EditorTelemetryData}"
+						]
+					}
+				*/
+				this.telemetryService.publicLog('suggestWidget', { ...stats, ...this.editor.getTelemetryData() });
+			}
 
 			this.list.splice(0, this.list.length, this.completionModel.items);
 

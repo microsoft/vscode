@@ -29,7 +29,7 @@ function uriFromPath(_path) {
 		pathName = '/' + pathName;
 	}
 
-	return encodeURI('file://' + pathName);
+	return encodeURI('file://' + pathName).replace(/#/g, '%23');
 }
 
 function initLoader(opts) {

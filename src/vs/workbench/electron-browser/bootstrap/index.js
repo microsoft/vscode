@@ -3,8 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-// Warning: Do not use the `let` declarator in this file, it breaks our minification
-
 'use strict';
 
 /*global window,document,define*/
@@ -15,7 +13,6 @@ perf.mark('renderer/started');
 const path = require('path');
 const fs = require('fs');
 const electron = require('electron');
-const remote = electron.remote;
 const ipc = electron.ipcRenderer;
 
 Error.stackTraceLimit = 100; // increase number of stack frames (from 10, https://github.com/v8/v8/wiki/Stack-Trace-API)
@@ -37,7 +34,7 @@ process.lazyEnv = new Promise(function (resolve) {
 
 function onError(error, enableDeveloperTools) {
 	if (enableDeveloperTools) {
-		remote.getCurrentWebContents().openDevTools();
+		ipc.send('vscode:openDevTools');
 	}
 
 	console.error('[uncaught exception]: ' + error);
@@ -67,7 +64,7 @@ function uriFromPath(_path) {
 		pathName = '/' + pathName;
 	}
 
-	return encodeURI('file://' + pathName);
+	return encodeURI('file://' + pathName).replace(/#/g, '%23');
 }
 
 function readFile(file) {
@@ -170,9 +167,9 @@ function registerListeners(enableDeveloperTools) {
 		listener = function (e) {
 			const key = extractKey(e);
 			if (key === TOGGLE_DEV_TOOLS_KB) {
-				remote.getCurrentWebContents().toggleDevTools();
+				ipc.send('vscode:toggleDevTools');
 			} else if (key === RELOAD_KB) {
-				remote.getCurrentWindow().reload();
+				ipc.send('vscode:reloadWindow');
 			}
 		};
 		window.addEventListener('keydown', listener);

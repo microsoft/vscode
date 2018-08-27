@@ -30,7 +30,7 @@ export class CodeActionContextMenu {
 
 	show(fixes: Thenable<CodeAction[]>, at: { x: number; y: number } | Position) {
 
-		const actions = fixes.then(value => {
+		const actions = fixes ? fixes.then(value => {
 			return value.map(action => {
 				return new Action(action.command ? action.command.id : action.title, action.title, undefined, true, () => {
 					return always(
@@ -41,10 +41,10 @@ export class CodeActionContextMenu {
 		}).then(actions => {
 			if (!this._editor.getDomNode()) {
 				// cancel when editor went off-dom
-				return TPromise.wrapError<any>(canceled());
+				return TPromise.wrapError<Action[]>(canceled());
 			}
 			return actions;
-		});
+		}) : TPromise.as([] as Action[]);
 
 		this._contextMenuService.showContextMenu({
 			getAnchor: () => {

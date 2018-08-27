@@ -11,11 +11,14 @@ import * as strings from 'vs/base/common/strings';
 import { IActionRunner, IAction, Action } from 'vs/base/common/actions';
 import { ActionBar, IActionItemProvider, ActionsOrientation, Separator, ActionItem, IActionItemOptions, BaseActionItem } from 'vs/base/browser/ui/actionbar/actionbar';
 import { ResolvedKeybinding, KeyCode, KeyCodeUtils } from 'vs/base/common/keyCodes';
-import { addClass, EventType, EventHelper, EventLike, removeTabIndexAndUpdateFocus, isAncestor, hasClass, addDisposableListener } from 'vs/base/browser/dom';
+import { addClass, EventType, EventHelper, EventLike, removeTabIndexAndUpdateFocus, isAncestor, hasClass, addDisposableListener, removeClass } from 'vs/base/browser/dom';
 import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { $, Builder } from 'vs/base/browser/builder';
 import { RunOnceScheduler } from 'vs/base/common/async';
 import { IDisposable } from 'vs/base/common/lifecycle';
+
+export const MENU_MNEMONIC_REGEX: RegExp = /\(&{1,2}(\w)\)|&{1,2}(\w)/;
+export const MENU_ESCAPED_MNEMONIC_REGEX: RegExp = /(?:&amp;){1,2}(\w)/;
 
 export interface IMenuOptions {
 	context?: any;
@@ -61,7 +64,7 @@ export class Menu extends ActionBar {
 
 		this.actionsList.setAttribute('role', 'menu');
 
-		this.domNode.tabIndex = 0;
+		this.actionsList.tabIndex = 0;
 
 		this.menuDisposables = [];
 
@@ -208,9 +211,6 @@ interface IMenuItemOptions extends IActionItemOptions {
 }
 
 class MenuActionItem extends BaseActionItem {
-	static MNEMONIC_REGEX: RegExp = /&&(.)/g;
-	static ESCAPED_MNEMONIC_REGEX: RegExp = /&amp;&amp;(.)/g;
-
 	public container: HTMLElement;
 	protected $e: Builder;
 	protected $label: Builder;
@@ -232,9 +232,9 @@ class MenuActionItem extends BaseActionItem {
 		if (this.options.label && options.enableMnemonics) {
 			let label = this.getAction().label;
 			if (label) {
-				let matches = MenuActionItem.MNEMONIC_REGEX.exec(label);
-				if (matches && matches.length === 2) {
-					this.mnemonic = KeyCodeUtils.fromString(matches[1].toLocaleLowerCase());
+				let matches = MENU_MNEMONIC_REGEX.exec(label);
+				if (matches) {
+					this.mnemonic = KeyCodeUtils.fromString((!!matches[1] ? matches[1] : matches[2]).toLocaleLowerCase());
 				}
 			}
 		}
@@ -245,15 +245,18 @@ class MenuActionItem extends BaseActionItem {
 
 		this.container = container;
 
-		this.$e = $('a.action-menu-item').appendTo(this.builder);
+		this.$e = $('a.action-menu-item').appendTo(this.element);
 		if (this._action.id === Separator.ID) {
 			// A separator is a presentation item
 			this.$e.attr({ role: 'presentation' });
 		} else {
 			this.$e.attr({ role: 'menuitem' });
+			if (this.mnemonic) {
+				this.$e.attr({ 'aria-keyshortcuts': this.mnemonic });
+			}
 		}
 
-		this.$check = $('span.menu-item-check').appendTo(this.$e);
+		this.$check = $('span.menu-item-check').attr({ 'role': 'none' }).appendTo(this.$e);
 		this.$label = $('span.action-label').appendTo(this.$e);
 
 		if (this.options.label && this.options.keybinding) {
@@ -276,27 +279,22 @@ class MenuActionItem extends BaseActionItem {
 		if (this.options.label) {
 			let label = this.getAction().label;
 			if (label) {
-				let matches = MenuActionItem.MNEMONIC_REGEX.exec(label);
-				if (matches && matches.length === 2) {
-					let mnemonic = matches[1];
-
-					let ariaLabel = label.replace(MenuActionItem.MNEMONIC_REGEX, mnemonic);
-
-					this.mnemonic = KeyCodeUtils.fromString(mnemonic.toLocaleLowerCase());
-
-					this.$label.attr('aria-label', ariaLabel);
-				} else {
-					this.$label.attr('aria-label', label);
+				const cleanLabel = cleanMnemonic(label);
+				if (!this.options.enableMnemonics) {
+					label = cleanLabel;
 				}
 
-				if (this.options.enableMnemonics) {
-					label = strings.escape(label).replace(MenuActionItem.ESCAPED_MNEMONIC_REGEX, '<u>$1</u>');
-				} else {
-					label = strings.escape(label).replace(MenuActionItem.ESCAPED_MNEMONIC_REGEX, '$1');
+				this.$label.attr('aria-label', cleanLabel);
+
+				const matches = MENU_MNEMONIC_REGEX.exec(label);
+
+				if (matches) {
+					label = strings.escape(label).replace(MENU_ESCAPED_MNEMONIC_REGEX, '<u aria-hidden="true">$1</u>');
+					this.$e.attr({ 'aria-keyshortcuts': (!!matches[1] ? matches[1] : matches[2]).toLocaleLowerCase() });
 				}
 			}
 
-			this.$label.innerHtml(label);
+			this.$label.innerHtml(label.trim());
 		}
 	}
 
@@ -337,11 +335,11 @@ class MenuActionItem extends BaseActionItem {
 
 	_updateEnabled(): void {
 		if (this.getAction().enabled) {
-			this.builder.removeClass('disabled');
+			removeClass(this.element, 'disabled');
 			this.$e.removeClass('disabled');
 			this.$e.attr({ tabindex: 0 });
 		} else {
-			this.builder.addClass('disabled');
+			addClass(this.element, 'disabled');
 			this.$e.addClass('disabled');
 			removeTabIndexAndUpdateFocus(this.$e.getHTMLElement());
 		}
@@ -350,8 +348,10 @@ class MenuActionItem extends BaseActionItem {
 	_updateChecked(): void {
 		if (this.getAction().checked) {
 			this.$e.addClass('checked');
+			this.$e.attr({ 'role': 'menuitemcheckbox', 'aria-checked': true });
 		} else {
 			this.$e.removeClass('checked');
+			this.$e.attr({ 'role': 'menuitem', 'aria-checked': false });
 		}
 	}
 
@@ -383,7 +383,7 @@ class SubmenuActionItem extends MenuActionItem {
 		}, 250);
 
 		this.hideScheduler = new RunOnceScheduler(() => {
-			if ((!isAncestor(document.activeElement, this.builder.getHTMLElement()) && this.parentData.submenu === this.mysubmenu)) {
+			if ((!isAncestor(document.activeElement, this.element) && this.parentData.submenu === this.mysubmenu)) {
 				this.parentData.parent.focus(false);
 				this.cleanupExistingSubmenu(true);
 			}
@@ -395,25 +395,25 @@ class SubmenuActionItem extends MenuActionItem {
 
 		this.$e.addClass('monaco-submenu-item');
 		this.$e.attr('aria-haspopup', 'true');
-		$('span.submenu-indicator').text('\u25B6').appendTo(this.$e);
+		$('span.submenu-indicator').attr('aria-hidden', 'true').text('\u25B6').appendTo(this.$e);
 
-		$(this.builder).on(EventType.KEY_UP, (e) => {
+		$(this.element).on(EventType.KEY_UP, (e) => {
 			let event = new StandardKeyboardEvent(e as KeyboardEvent);
-			if (event.equals(KeyCode.RightArrow)) {
+			if (event.equals(KeyCode.RightArrow) || event.equals(KeyCode.Enter)) {
 				EventHelper.stop(e, true);
 
 				this.createSubmenu(true);
 			}
 		});
 
-		$(this.builder).on(EventType.KEY_DOWN, (e) => {
+		$(this.element).on(EventType.KEY_DOWN, (e) => {
 			let event = new StandardKeyboardEvent(e as KeyboardEvent);
-			if (event.equals(KeyCode.RightArrow)) {
+			if (event.equals(KeyCode.RightArrow) || event.equals(KeyCode.Enter)) {
 				EventHelper.stop(e, true);
 			}
 		});
 
-		$(this.builder).on(EventType.MOUSE_OVER, (e) => {
+		$(this.element).on(EventType.MOUSE_OVER, (e) => {
 			if (!this.mouseOver) {
 				this.mouseOver = true;
 
@@ -421,12 +421,12 @@ class SubmenuActionItem extends MenuActionItem {
 			}
 		});
 
-		$(this.builder).on(EventType.MOUSE_LEAVE, (e) => {
+		$(this.element).on(EventType.MOUSE_LEAVE, (e) => {
 			this.mouseOver = false;
 		});
 
-		$(this.builder).on(EventType.FOCUS_OUT, (e) => {
-			if (!isAncestor(document.activeElement, this.builder.getHTMLElement())) {
+		$(this.element).on(EventType.FOCUS_OUT, (e) => {
+			if (!isAncestor(document.activeElement, this.element)) {
 				this.hideScheduler.schedule();
 			}
 		});
@@ -454,10 +454,10 @@ class SubmenuActionItem extends MenuActionItem {
 
 	private createSubmenu(selectFirstItem = true) {
 		if (!this.parentData.submenu) {
-			this.submenuContainer = $(this.builder).div({ class: 'monaco-submenu menubar-menu-items-holder context-view' });
+			this.submenuContainer = $(this.element).div({ class: 'monaco-submenu menubar-menu-items-holder context-view' });
 
 			$(this.submenuContainer).style({
-				'left': `${$(this.builder).getClientArea().width}px`
+				'left': `${$(this.element).getClientArea().width}px`
 			});
 
 			$(this.submenuContainer).on(EventType.KEY_UP, (e) => {
@@ -516,4 +516,17 @@ class SubmenuActionItem extends MenuActionItem {
 			this.submenuContainer = null;
 		}
 	}
+}
+
+export function cleanMnemonic(label: string): string {
+	const regex = MENU_MNEMONIC_REGEX;
+
+	const matches = regex.exec(label);
+	if (!matches) {
+		return label;
+	}
+
+	const mnemonicInText = matches[0].charAt(0) === '&';
+
+	return label.replace(regex, mnemonicInText ? '$2' : '').trim();
 }

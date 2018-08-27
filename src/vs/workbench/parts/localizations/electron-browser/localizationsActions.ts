@@ -13,7 +13,7 @@ import { join } from 'vs/base/common/paths';
 import URI from 'vs/base/common/uri';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { language } from 'vs/base/common/platform';
-import { IUriLabelService } from 'vs/platform/uriLabel/common/uriLabel';
+import { ILabelService } from 'vs/platform/label/common/label';
 
 export class ConfigureLocaleAction extends Action {
 	public static readonly ID = 'workbench.action.configureLocale';
@@ -32,7 +32,7 @@ export class ConfigureLocaleAction extends Action {
 		@IFileService private fileService: IFileService,
 		@IEnvironmentService private environmentService: IEnvironmentService,
 		@IEditorService private editorService: IEditorService,
-		@IUriLabelService private uriLabelService: IUriLabelService
+		@ILabelService private labelService: ILabelService
 	) {
 		super(id, label);
 	}
@@ -49,7 +49,7 @@ export class ConfigureLocaleAction extends Action {
 				resource: stat.resource
 			});
 		}, (error) => {
-			throw new Error(localize('fail.createSettings', "Unable to create '{0}' ({1}).", this.uriLabelService.getLabel(file, true), error));
+			throw new Error(localize('fail.createSettings', "Unable to create '{0}' ({1}).", this.labelService.getUriLabel(file, true), error));
 		});
 	}
 }

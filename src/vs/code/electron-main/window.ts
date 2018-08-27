@@ -10,7 +10,7 @@ import * as objects from 'vs/base/common/objects';
 import * as nls from 'vs/nls';
 import URI from 'vs/base/common/uri';
 import { IStateService } from 'vs/platform/state/common/state';
-import { shell, screen, BrowserWindow, systemPreferences, app, TouchBar, nativeImage } from 'electron';
+import { screen, BrowserWindow, systemPreferences, app, TouchBar, nativeImage } from 'electron';
 import { TPromise, TValueCallback } from 'vs/base/common/winjs.base';
 import { IEnvironmentService, ParsedArgs } from 'vs/platform/environment/common/environment';
 import { ILogService } from 'vs/platform/log/common/log';
@@ -375,13 +375,6 @@ export class CodeWindow implements ICodeWindow {
 		// App commands support
 		this.registerNavigationListenerOn('app-command', 'browser-backward', 'browser-forward', false);
 
-		// Handle code that wants to open links
-		this._win.webContents.on('new-window', (event: Event, url: string) => {
-			event.preventDefault();
-
-			shell.openExternal(url);
-		});
-
 		// Window Focus
 		this._win.on('focus', () => {
 			this._lastFocusTime = Date.now();
@@ -417,16 +410,6 @@ export class CodeWindow implements ICodeWindow {
 		this._win.webContents.on('did-fail-load', (event: Electron.Event, errorCode: number, errorDescription: string, validatedURL: string, isMainFrame: boolean) => {
 			this.logService.warn('[electron event]: fail to load, ', errorDescription);
 		});
-
-		// Prevent any kind of navigation triggered by the user!
-		// But do not touch this in dev version because it will prevent "Reload" from dev tools
-		if (this.environmentService.isBuilt) {
-			this._win.webContents.on('will-navigate', (event: Event) => {
-				if (event) {
-					event.preventDefault();
-				}
-			});
-		}
 
 		// Handle configuration changes
 		this.toDispose.push(this.configurationService.onDidChangeConfiguration(e => this.onConfigurationUpdated()));

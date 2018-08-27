@@ -244,7 +244,7 @@ export class WebviewEditor extends BaseWebviewEditor {
 			this._webview.initialScrollProgress = input.scrollYPercentage;
 		}
 
-		this._webview.state = input.state.state;
+		this._webview.state = input.webviewState;
 
 		this._content.setAttribute('aria-flowto', this._webviewContent.id);
 

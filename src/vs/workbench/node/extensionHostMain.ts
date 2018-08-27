@@ -15,16 +15,17 @@ import { ExtHostWorkspace } from 'vs/workbench/api/node/extHostWorkspace';
 import { IExtensionDescription } from 'vs/workbench/services/extensions/common/extensions';
 import { QueryType, ISearchQuery } from 'vs/platform/search/common/search';
 import { DiskSearch } from 'vs/workbench/services/search/node/searchService';
-import { IInitData, IEnvironment, IWorkspaceData, MainContext } from 'vs/workbench/api/node/extHost.protocol';
+import { IInitData, IEnvironment, IWorkspaceData, MainContext, MainThreadWorkspaceShape } from 'vs/workbench/api/node/extHost.protocol';
 import * as errors from 'vs/base/common/errors';
 import * as glob from 'vs/base/common/glob';
 import { ExtensionActivatedByEvent } from 'vs/workbench/api/node/extHostExtensionActivator';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
-import { IMessagePassingProtocol } from 'vs/base/parts/ipc/common/ipc';
+import { IMessagePassingProtocol } from 'vs/base/parts/ipc/node/ipc';
 import { RPCProtocol } from 'vs/workbench/services/extensions/node/rpcProtocol';
 import URI from 'vs/base/common/uri';
 import { ExtHostLogService } from 'vs/workbench/api/node/extHostLogService';
 import { timeout } from 'vs/base/common/async';
+import { Counter } from 'vs/base/common/numbers';
 
 const nativeExit = process.exit.bind(process);
 function patchProcess(allowExit: boolean) {
@@ -85,6 +86,9 @@ export class ExtensionHostMain {
 	private _extHostLogService: ExtHostLogService;
 	private disposables: IDisposable[] = [];
 
+	private _searchRequestIdProvider: Counter;
+	private _mainThreadWorkspace: MainThreadWorkspaceShape;
+
 	constructor(protocol: IMessagePassingProtocol, initData: IInitData) {
 		this._environment = initData.environment;
 
@@ -99,7 +103,9 @@ export class ExtensionHostMain {
 
 		this._extHostLogService = new ExtHostLogService(initData.windowId, initData.logLevel, initData.logsPath);
 		this.disposables.push(this._extHostLogService);
-		const extHostWorkspace = new ExtHostWorkspace(rpcProtocol, initData.workspace, this._extHostLogService);
+
+		this._searchRequestIdProvider = new Counter();
+		const extHostWorkspace = new ExtHostWorkspace(rpcProtocol, initData.workspace, this._extHostLogService, this._searchRequestIdProvider);
 
 		this._extHostLogService.info('extension host started');
 		this._extHostLogService.trace('initData', initData);
@@ -139,6 +145,8 @@ export class ExtensionHostMain {
 				mainThreadErrors.$onUnexpectedError(data);
 			}
 		});
+
+		this._mainThreadWorkspace = rpcProtocol.getProxy(MainContext.MainThreadWorkspace);
 	}
 
 	start(): TPromise<void> {
@@ -282,8 +290,8 @@ export class ExtensionHostMain {
 			ignoreSymlinks: !followSymlinks
 		};
 
-		const result = await this._diskSearch.search(query);
-		if (result.limitHit) {
+		const exists = await this._mainThreadWorkspace.$checkExists(query, this._searchRequestIdProvider.getNext());
+		if (exists) {
 			// a file was found matching one of the glob patterns
 			return (
 				this._extensionService.activateById(extensionId, new ExtensionActivatedByEvent(true, `workspaceContains:${globPatterns.join(',')}`))
@@ -295,7 +303,7 @@ export class ExtensionHostMain {
 	}
 
 	private handleExtensionTests(): TPromise<void> {
-		if (!this._environment.extensionTestsPath || !this._environment.extensionDevelopmentPath) {
+		if (!this._environment.extensionTestsPath || !this._environment.extensionDevelopmentLocationURI) {
 			return TPromise.as(null);
 		}
 

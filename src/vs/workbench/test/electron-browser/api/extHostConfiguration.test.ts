@@ -18,6 +18,7 @@ import { IWorkspaceFolder, WorkspaceFolder } from 'vs/platform/workspace/common/
 import { ConfigurationTarget } from 'vs/platform/configuration/common/configuration';
 import { NullLogService } from 'vs/platform/log/common/log';
 import { assign } from 'vs/base/common/objects';
+import { Counter } from 'vs/base/common/numbers';
 
 suite('ExtHostConfiguration', function () {
 
@@ -33,7 +34,7 @@ suite('ExtHostConfiguration', function () {
 		if (!shape) {
 			shape = new class extends mock<MainThreadConfigurationShape>() { };
 		}
-		return new ExtHostConfiguration(shape, new ExtHostWorkspace(new TestRPCProtocol(), null, new NullLogService()), createConfigurationData(contents));
+		return new ExtHostConfiguration(shape, new ExtHostWorkspace(new TestRPCProtocol(), null, new NullLogService(), new Counter()), createConfigurationData(contents));
 	}
 
 	function createConfigurationData(contents: any): IConfigurationInitData {
@@ -267,7 +268,7 @@ suite('ExtHostConfiguration', function () {
 	test('inspect in no workspace context', function () {
 		const testObject = new ExtHostConfiguration(
 			new class extends mock<MainThreadConfigurationShape>() { },
-			new ExtHostWorkspace(new TestRPCProtocol(), null, new NullLogService()),
+			new ExtHostWorkspace(new TestRPCProtocol(), null, new NullLogService(), new Counter()),
 			{
 				defaults: new ConfigurationModel({
 					'editor': {
@@ -314,7 +315,7 @@ suite('ExtHostConfiguration', function () {
 				'id': 'foo',
 				'folders': [aWorkspaceFolder(URI.file('foo'), 0)],
 				'name': 'foo'
-			}, new NullLogService()),
+			}, new NullLogService(), new Counter()),
 			{
 				defaults: new ConfigurationModel({
 					'editor': {
@@ -388,7 +389,7 @@ suite('ExtHostConfiguration', function () {
 				'id': 'foo',
 				'folders': [aWorkspaceFolder(firstRoot, 0), aWorkspaceFolder(secondRoot, 1)],
 				'name': 'foo'
-			}, new NullLogService()),
+			}, new NullLogService(), new Counter()),
 			{
 				defaults: new ConfigurationModel({
 					'editor': {
@@ -597,7 +598,7 @@ suite('ExtHostConfiguration', function () {
 				'id': 'foo',
 				'folders': [workspaceFolder],
 				'name': 'foo'
-			}, new NullLogService()),
+			}, new NullLogService(), new Counter()),
 			createConfigurationData({
 				'farboo': {
 					'config': false,

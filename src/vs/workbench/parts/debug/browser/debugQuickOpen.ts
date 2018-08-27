@@ -98,7 +98,7 @@ export class DebugQuickOpenHandler extends Quickopen.QuickOpenHandler {
 		const configManager = this.debugService.getConfigurationManager();
 		const launches = configManager.getLaunches();
 		for (let launch of launches) {
-			launch.getConfigurationNames().map(config => ({ config: config, highlights: Filters.matchesContiguousSubString(input, config) }))
+			launch.getConfigurationNames().map(config => ({ config: config, highlights: Filters.matchesFuzzy(input, config, true) }))
 				.filter(({ highlights }) => !!highlights)
 				.forEach(({ config, highlights }) => {
 					if (launch === configManager.selectedConfiguration.launch && config === configManager.selectedConfiguration.name) {
@@ -110,7 +110,7 @@ export class DebugQuickOpenHandler extends Quickopen.QuickOpenHandler {
 		launches.filter(l => !l.hidden).forEach((l, index) => {
 
 			const label = this.contextService.getWorkbenchState() === WorkbenchState.WORKSPACE ? nls.localize("addConfigTo", "Add Config ({0})...", l.name) : nls.localize('addConfiguration', "Add Configuration...");
-			const entry = new AddConfigEntry(label, l, this.commandService, this.contextService, Filters.matchesContiguousSubString(input, label));
+			const entry = new AddConfigEntry(label, l, this.commandService, this.contextService, Filters.matchesFuzzy(input, label, true));
 			if (index === 0) {
 				configurations.push(new Model.QuickOpenEntryGroup(entry, undefined, true));
 			} else {

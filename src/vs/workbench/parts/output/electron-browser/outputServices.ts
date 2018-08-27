@@ -288,7 +288,7 @@ class OutputChannelBackedByFile extends AbstractFileOutputChannel implements Out
 	}
 
 	private loadFile(): TPromise<string> {
-		return this.fileService.resolveContent(this.file, { position: this.startOffset })
+		return this.fileService.resolveContent(this.file, { position: this.startOffset, encoding: 'utf8' })
 			.then(content => this.appendedMessage ? content.value + this.appendedMessage : content.value);
 	}
 
@@ -374,7 +374,7 @@ class FileOutputChannel extends AbstractFileOutputChannel implements OutputChann
 	}
 
 	loadModel(): TPromise<ITextModel> {
-		return this.fileService.resolveContent(this.file, { position: this.startOffset })
+		return this.fileService.resolveContent(this.file, { position: this.startOffset, encoding: 'utf8' })
 			.then(content => {
 				this.endOffset = this.startOffset + Buffer.from(content.value).byteLength;
 				return this.createModel(content.value);
@@ -387,7 +387,7 @@ class FileOutputChannel extends AbstractFileOutputChannel implements OutputChann
 
 	protected updateModel(): void {
 		if (this.model) {
-			this.fileService.resolveContent(this.file, { position: this.endOffset })
+			this.fileService.resolveContent(this.file, { position: this.endOffset, encoding: 'utf8' })
 				.then(content => {
 					if (content.value) {
 						this.endOffset = this.endOffset + Buffer.from(content.value).byteLength;

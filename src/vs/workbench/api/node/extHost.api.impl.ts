@@ -227,7 +227,14 @@ export function createApiFactory(
 			get language() { return platform.language; },
 			get appName() { return product.nameLong; },
 			get appRoot() { return initData.environment.appRoot; },
-			get logLevel() { return extHostLogService.getLevel(); }
+			get logLevel() {
+				checkProposedApiEnabled(extension);
+				return extHostLogService.getLevel();
+			},
+			get onDidChangeLogLevel() {
+				checkProposedApiEnabled(extension);
+				return extHostLogService.onDidChangeLogLevel;
+			}
 		});
 
 		// namespace: extensions
@@ -433,9 +440,9 @@ export function createApiFactory(
 				}
 				return extHostTerminalService.createTerminal(<string>nameOrOptions, shellPath, shellArgs);
 			},
-			createTerminalRenderer(name: string): vscode.TerminalRenderer {
+			createTerminalRenderer: proposedApiFunction(extension, (name: string) => {
 				return extHostTerminalService.createTerminalRenderer(name);
-			},
+			}),
 			registerTreeDataProvider(viewId: string, treeDataProvider: vscode.TreeDataProvider<any>): vscode.Disposable {
 				return extHostTreeViews.registerTreeDataProvider(viewId, treeDataProvider);
 			},
@@ -478,7 +485,7 @@ export function createApiFactory(
 				return extHostWorkspace.getWorkspaceFolders();
 			},
 			get name() {
-				return extHostWorkspace.workspace ? extHostWorkspace.workspace.name : undefined;
+				return extHostWorkspace.name;
 			},
 			set name(value) {
 				throw errors.readonly();

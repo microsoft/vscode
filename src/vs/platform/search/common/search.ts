@@ -85,6 +85,7 @@ export interface ICommonQueryOptions<U> {
 	disregardExcludeSettings?: boolean;
 	ignoreSymlinks?: boolean;
 	maxFileSize?: number;
+	previewOptions?: ITextSearchPreviewOptions;
 }
 
 export interface IQueryOptions extends ICommonQueryOptions<uri> {
@@ -132,15 +133,33 @@ export interface IPatternInfo {
 
 export interface IFileMatch<U extends UriComponents = uri> {
 	resource?: U;
-	lineMatches?: ILineMatch[];
+	matches?: ITextSearchResult[];
 }
 
 export type IRawFileMatch2 = IFileMatch<UriComponents>;
 
-export interface ILineMatch {
-	preview: string;
-	lineNumber: number;
-	offsetAndLengths: number[][];
+export interface ITextSearchPreviewOptions {
+	maxLines: number;
+	leadingChars: number;
+	totalChars: number;
+}
+
+export interface ISearchRange {
+	readonly startLineNumber: number;
+	readonly startColumn: number;
+	readonly endLineNumber: number;
+	readonly endColumn: number;
+}
+
+export interface ITextSearchResultPreview {
+	text: string;
+	match: ISearchRange;
+}
+
+export interface ITextSearchResult {
+	uri?: uri;
+	range: ISearchRange;
+	preview: ITextSearchResultPreview;
 }
 
 export interface IProgress {
@@ -155,53 +174,96 @@ export interface ISearchProgressItem extends IFileMatch, IProgress {
 
 export interface ISearchCompleteStats {
 	limitHit?: boolean;
-	stats?: ISearchStats;
+	stats?: IFileSearchStats | ITextSearchStats;
 }
 
 export interface ISearchComplete extends ISearchCompleteStats {
 	results: IFileMatch[];
 }
 
-export interface ISearchStats {
+export interface ITextSearchStats {
+	type: 'textSearchProvider' | 'searchProcess';
+}
+
+export interface IFileSearchStats {
 	fromCache: boolean;
+	detailStats: ISearchEngineStats | ICachedSearchStats | IFileSearchProviderStats | IFileIndexProviderStats;
+
 	resultCount: number;
-	unsortedResultTime?: number;
-	sortedResultTime?: number;
+	type: 'fileIndexProver' | 'fileSearchProvider' | 'searchProcess';
+	sortingTime?: number;
 }
 
-export interface ICachedSearchStats extends ISearchStats {
-	cacheLookupStartTime: number;
-	cacheFilterStartTime: number;
-	cacheLookupResultTime: number;
+export interface ICachedSearchStats {
+	cacheWasResolved: boolean;
+	cacheLookupTime: number;
+	cacheFilterTime: number;
 	cacheEntryCount: number;
-	joined?: ISearchStats;
 }
 
-export interface IUncachedSearchStats extends ISearchStats {
+export interface ISearchEngineStats {
 	traversal: string;
-	errors: string[];
-	fileWalkStartTime: number;
-	fileWalkResultTime: number;
+	fileWalkTime: number;
 	directoriesWalked: number;
 	filesWalked: number;
-	cmdForkStartTime?: number;
-	cmdForkResultTime?: number;
+	cmdTime: number;
 	cmdResultCount?: number;
 }
 
+export interface IFileSearchProviderStats {
+	providerTime: number;
+	postProcessTime: number;
+}
 
-// ---- very simple implementation of the search model --------------------
+export interface IFileIndexProviderStats {
+	providerTime: number;
+	providerResultCount: number;
+	fileWalkTime: number;
+	directoriesWalked: number;
+	filesWalked: number;
+}
 
 export class FileMatch implements IFileMatch {
-	public lineMatches: LineMatch[] = [];
+	public matches: ITextSearchResult[] = [];
 	constructor(public resource: uri) {
 		// empty
 	}
 }
 
-export class LineMatch implements ILineMatch {
-	constructor(public preview: string, public lineNumber: number, public offsetAndLengths: number[][]) {
-		// empty
+export class TextSearchResult implements ITextSearchResult {
+	range: ISearchRange;
+	preview: ITextSearchResultPreview;
+
+	constructor(fullLine: string, range: ISearchRange, previewOptions?: ITextSearchPreviewOptions) {
+		this.range = range;
+		if (previewOptions) {
+			const previewStart = Math.max(range.startColumn - previewOptions.leadingChars, 0);
+			const previewEnd = Math.max(previewOptions.totalChars + previewStart, range.endColumn);
+
+			this.preview = {
+				text: fullLine.substring(previewStart, previewEnd),
+				match: new OneLineRange(0, range.startColumn - previewStart, range.endColumn - previewStart)
+			};
+		} else {
+			this.preview = {
+				text: fullLine,
+				match: new OneLineRange(0, range.startColumn, range.endColumn)
+			};
+		}
+	}
+}
+
+export class OneLineRange implements ISearchRange {
+	startLineNumber: number;
+	startColumn: number;
+	endLineNumber: number;
+	endColumn: number;
+
+	constructor(lineNumber: number, startColumn: number, endColumn: number) {
+		this.startLineNumber = lineNumber;
+		this.startColumn = startColumn;
+		this.endLineNumber = lineNumber;
+		this.endColumn = endColumn;
 	}
 }
 

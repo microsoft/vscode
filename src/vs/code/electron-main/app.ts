@@ -5,16 +5,16 @@
 
 'use strict';
 
-import { app, ipcMain as ipc, systemPreferences } from 'electron';
+import { app, ipcMain as ipc, systemPreferences, shell, Event } from 'electron';
 import * as platform from 'vs/base/common/platform';
 import { WindowsManager } from 'vs/code/electron-main/windows';
 import { IWindowsService, OpenContext, ActiveWindowManager } from 'vs/platform/windows/common/windows';
-import { WindowsChannel } from 'vs/platform/windows/common/windowsIpc';
+import { WindowsChannel } from 'vs/platform/windows/node/windowsIpc';
 import { WindowsService } from 'vs/platform/windows/electron-main/windowsService';
 import { ILifecycleService } from 'vs/platform/lifecycle/electron-main/lifecycleMain';
 import { getShellEnvironment } from 'vs/code/node/shellEnv';
 import { IUpdateService } from 'vs/platform/update/common/update';
-import { UpdateChannel } from 'vs/platform/update/common/updateIpc';
+import { UpdateChannel } from 'vs/platform/update/node/updateIpc';
 import { Server as ElectronIPCServer } from 'vs/base/parts/ipc/electron-main/ipc.electron-main';
 import { Server, connect, Client } from 'vs/base/parts/ipc/node/ipc.net';
 import { SharedProcess } from 'vs/code/electron-main/sharedProcess';
@@ -28,13 +28,13 @@ import { IStateService } from 'vs/platform/state/common/state';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IURLService } from 'vs/platform/url/common/url';
-import { URLHandlerChannelClient, URLServiceChannel } from 'vs/platform/url/common/urlIpc';
+import { URLHandlerChannelClient, URLServiceChannel } from 'vs/platform/url/node/urlIpc';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { NullTelemetryService, combinedAppender, LogAppender } from 'vs/platform/telemetry/common/telemetryUtils';
-import { ITelemetryAppenderChannel, TelemetryAppenderClient } from 'vs/platform/telemetry/common/telemetryIpc';
+import { ITelemetryAppenderChannel, TelemetryAppenderClient } from 'vs/platform/telemetry/node/telemetryIpc';
 import { TelemetryService, ITelemetryServiceConfig } from 'vs/platform/telemetry/common/telemetryService';
 import { resolveCommonProperties } from 'vs/platform/telemetry/node/commonProperties';
-import { getDelayedChannel } from 'vs/base/parts/ipc/common/ipc';
+import { getDelayedChannel } from 'vs/base/parts/ipc/node/ipc';
 import product from 'vs/platform/node/product';
 import pkg from 'vs/platform/node/package';
 import { ProxyAuthHandler } from './auth';
@@ -47,26 +47,27 @@ import { isUndefinedOrNull } from 'vs/base/common/types';
 import { CodeWindow } from 'vs/code/electron-main/window';
 import { KeyboardLayoutMonitor } from 'vs/code/electron-main/keyboard';
 import URI from 'vs/base/common/uri';
-import { WorkspacesChannel } from 'vs/platform/workspaces/common/workspacesIpc';
+import { WorkspacesChannel } from 'vs/platform/workspaces/node/workspacesIpc';
 import { IWorkspacesMainService } from 'vs/platform/workspaces/common/workspaces';
 import { getMachineId } from 'vs/base/node/id';
 import { Win32UpdateService } from 'vs/platform/update/electron-main/updateService.win32';
 import { LinuxUpdateService } from 'vs/platform/update/electron-main/updateService.linux';
 import { DarwinUpdateService } from 'vs/platform/update/electron-main/updateService.darwin';
 import { IIssueService } from 'vs/platform/issue/common/issue';
-import { IssueChannel } from 'vs/platform/issue/common/issueIpc';
+import { IssueChannel } from 'vs/platform/issue/node/issueIpc';
 import { IssueService } from 'vs/platform/issue/electron-main/issueService';
-import { LogLevelSetterChannel } from 'vs/platform/log/common/logIpc';
+import { LogLevelSetterChannel } from 'vs/platform/log/node/logIpc';
 import * as errors from 'vs/base/common/errors';
 import { ElectronURLListener } from 'vs/platform/url/electron-main/electronUrlListener';
 import { serve as serveDriver } from 'vs/platform/driver/electron-main/driver';
 import { IMenubarService } from 'vs/platform/menubar/common/menubar';
 import { MenubarService } from 'vs/platform/menubar/electron-main/menubarService';
-import { MenubarChannel } from 'vs/platform/menubar/common/menubarIpc';
-import { IUriLabelService } from 'vs/platform/uriLabel/common/uriLabel';
+import { MenubarChannel } from 'vs/platform/menubar/node/menubarIpc';
+import { ILabelService } from 'vs/platform/label/common/label';
 import { CodeMenu } from 'vs/code/electron-main/menus';
 import { hasArgs } from 'vs/platform/environment/node/argv';
 import { RunOnceScheduler } from 'vs/base/common/async';
+import { registerContextMenuListener } from 'vs/base/parts/contextmenu/electron-main/contextmenu';
 
 export class CodeApplication {
 
@@ -90,7 +91,7 @@ export class CodeApplication {
 		@IConfigurationService private configurationService: ConfigurationService,
 		@IStateService private stateService: IStateService,
 		@IHistoryMainService private historyMainService: IHistoryMainService,
-		@IUriLabelService private uriLabelService: IUriLabelService
+		@ILabelService private labelService: ILabelService
 	) {
 		this.toDispose = [mainIpcServer, configurationService];
 
@@ -103,6 +104,9 @@ export class CodeApplication {
 		errors.setUnexpectedErrorHandler(err => this.onUnexpectedError(err));
 		process.on('uncaughtException', err => this.onUnexpectedError(err));
 		process.on('unhandledRejection', (reason: any, promise: Promise<any>) => errors.onUnexpectedError(reason));
+
+		// Contextmenu via IPC support
+		registerContextMenuListener();
 
 		app.on('will-quit', () => {
 			this.logService.trace('App#will-quit: disposing resources');
@@ -125,35 +129,38 @@ export class CodeApplication {
 			}
 		});
 
-		const isValidWebviewSource = (source: string): boolean => {
-			if (!source) {
-				return false;
-			}
-			if (source === 'data:text/html;charset=utf-8,%3C%21DOCTYPE%20html%3E%0D%0A%3Chtml%20lang%3D%22en%22%20style%3D%22width%3A%20100%25%3B%20height%3A%20100%25%22%3E%0D%0A%3Chead%3E%0D%0A%09%3Ctitle%3EVirtual%20Document%3C%2Ftitle%3E%0D%0A%3C%2Fhead%3E%0D%0A%3Cbody%20style%3D%22margin%3A%200%3B%20overflow%3A%20hidden%3B%20width%3A%20100%25%3B%20height%3A%20100%25%22%3E%0D%0A%3C%2Fbody%3E%0D%0A%3C%2Fhtml%3E') {
-				return true;
-			}
-			const srcUri: any = URI.parse(source.toLowerCase()).toString();
-			return srcUri.startsWith(URI.file(this.environmentService.appRoot.toLowerCase()).toString());
-		};
-
+		// Security related measures (https://electronjs.org/docs/tutorial/security)
+		// DO NOT CHANGE without consulting the documentation
 		app.on('web-contents-created', (event: any, contents) => {
 			contents.on('will-attach-webview', (event: Electron.Event, webPreferences, params) => {
+
+				// Ensure defaults
 				delete webPreferences.preload;
 				webPreferences.nodeIntegration = false;
 
 				// Verify URLs being loaded
-				if (isValidWebviewSource(params.src) && isValidWebviewSource(webPreferences.preloadURL)) {
+				if (this.isValidWebviewSource(params.src) && this.isValidWebviewSource(webPreferences.preloadURL)) {
 					return;
 				}
 
+				delete webPreferences.preloadUrl;
+
 				// Otherwise prevent loading
 				this.logService.error('webContents#web-contents-created: Prevented webview attach');
+
 				event.preventDefault();
 			});
 
 			contents.on('will-navigate', event => {
 				this.logService.error('webContents#will-navigate: Prevented webcontent navigation');
+
 				event.preventDefault();
+			});
+
+			contents.on('new-window', (event: Event, url: string) => {
+				event.preventDefault(); // prevent code that wants to open links
+
+				shell.openExternal(url);
 			});
 		});
 
@@ -191,15 +198,15 @@ export class CodeApplication {
 			this.windowsMainService.openNewWindow(OpenContext.DESKTOP); //macOS native tab "+" button
 		});
 
-		ipc.on('vscode:exit', (event: any, code: number) => {
+		ipc.on('vscode:exit', (event: Event, code: number) => {
 			this.logService.trace('IPC#vscode:exit', code);
 
 			this.dispose();
 			this.lifecycleService.kill(code);
 		});
 
-		ipc.on('vscode:fetchShellEnv', event => {
-			const webContents = event.sender.webContents;
+		ipc.on('vscode:fetchShellEnv', (event: Event) => {
+			const webContents = event.sender;
 			getShellEnvironment().then(shellEnv => {
 				if (!webContents.isDestroyed()) {
 					webContents.send('vscode:acceptShellEnv', shellEnv);
@@ -213,7 +220,7 @@ export class CodeApplication {
 			});
 		});
 
-		ipc.on('vscode:broadcast', (event: any, windowId: number, broadcast: { channel: string; payload: any; }) => {
+		ipc.on('vscode:broadcast', (event: Event, windowId: number, broadcast: { channel: string; payload: any; }) => {
 			if (this.windowsMainService && broadcast.channel && !isUndefinedOrNull(broadcast.payload)) {
 				this.logService.trace('IPC#vscode:broadcast', broadcast.channel, broadcast.payload);
 
@@ -225,8 +232,20 @@ export class CodeApplication {
 			}
 		});
 
-		ipc.on('vscode:uriLabelRegisterFormater', (event: any, { scheme, formater }) => {
-			this.uriLabelService.registerFormater(scheme, formater);
+		ipc.on('vscode:labelRegisterFormater', (event: any, { scheme, formater }) => {
+			this.labelService.registerFormatter(scheme, formater);
+		});
+
+		ipc.on('vscode:toggleDevTools', (event: Event) => {
+			event.sender.toggleDevTools();
+		});
+
+		ipc.on('vscode:openDevTools', (event: Event) => {
+			event.sender.openDevTools();
+		});
+
+		ipc.on('vscode:reloadWindow', (event: Event) => {
+			event.sender.reload();
 		});
 
 		// Keyboard layout changes
@@ -235,6 +254,20 @@ export class CodeApplication {
 				this.windowsMainService.sendToAll('vscode:keyboardLayoutChanged', false);
 			}
 		});
+	}
+
+	private isValidWebviewSource(source: string): boolean {
+		if (!source) {
+			return false;
+		}
+
+		if (source === 'data:text/html;charset=utf-8,%3C%21DOCTYPE%20html%3E%0D%0A%3Chtml%20lang%3D%22en%22%20style%3D%22width%3A%20100%25%3B%20height%3A%20100%25%22%3E%0D%0A%3Chead%3E%0D%0A%09%3Ctitle%3EVirtual%20Document%3C%2Ftitle%3E%0D%0A%3C%2Fhead%3E%0D%0A%3Cbody%20style%3D%22margin%3A%200%3B%20overflow%3A%20hidden%3B%20width%3A%20100%25%3B%20height%3A%20100%25%22%3E%0D%0A%3C%2Fbody%3E%0D%0A%3C%2Fhtml%3E') {
+			return true;
+		}
+
+		const srcUri: any = URI.parse(source.toLowerCase()).toString();
+
+		return srcUri.startsWith(URI.file(this.environmentService.appRoot.toLowerCase()).toString());
 	}
 
 	private onUnexpectedError(err: Error): void {
@@ -290,7 +323,7 @@ export class CodeApplication {
 		// See: https://github.com/Microsoft/vscode/issues/35361#issuecomment-399794085
 		try {
 			if (platform.isMacintosh && this.configurationService.getValue<boolean>('window.nativeTabs') === true && !systemPreferences.getUserDefault('NSUseImprovedLayoutPass', 'boolean')) {
-				systemPreferences.registerDefaults({ NSUseImprovedLayoutPass: true });
+				systemPreferences.setUserDefault('NSUseImprovedLayoutPass', 'boolean', true as any);
 			}
 		} catch (error) {
 			this.logService.error(error);

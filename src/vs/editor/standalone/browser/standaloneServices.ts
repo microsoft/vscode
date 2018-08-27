@@ -44,7 +44,7 @@ import { INotificationService } from 'vs/platform/notification/common/notificati
 import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
 import { IListService, ListService } from 'vs/platform/list/browser/listService';
 import { IBulkEditService } from 'vs/editor/browser/services/bulkEditService';
-import { IUriLabelService } from 'vs/platform/uriLabel/common/uriLabel';
+import { ILabelService } from 'vs/platform/label/common/label';
 
 export interface IEditorOverrideServices {
 	[index: string]: any;
@@ -122,7 +122,7 @@ export module StaticServices {
 
 	export const contextService = define(IWorkspaceContextService, () => new SimpleWorkspaceContextService());
 
-	export const uriLabelService = define(IUriLabelService, () => new SimpleUriLabelService());
+	export const labelService = define(ILabelService, () => new SimpleUriLabelService());
 
 	export const telemetryService = define(ITelemetryService, () => new StandaloneTelemetryService());
 

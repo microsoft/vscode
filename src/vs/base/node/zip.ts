@@ -7,11 +7,14 @@ import * as nls from 'vs/nls';
 import * as path from 'path';
 import { createWriteStream, WriteStream } from 'fs';
 import { Readable } from 'stream';
-import { nfcall, ninvoke, SimpleThrottler } from 'vs/base/common/async';
+import { nfcall, ninvoke, SimpleThrottler, createCancelablePromise, CancelablePromise } from 'vs/base/common/async';
 import { mkdirp, rimraf } from 'vs/base/node/pfs';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { open as _openZip, Entry, ZipFile } from 'yauzl';
+import * as yazl from 'yazl';
 import { ILogService } from 'vs/platform/log/common/log';
+import { CancellationToken } from 'vs/base/common/cancellation';
+import { once } from 'vs/base/common/event';
 
 export interface IExtractOptions {
 	overwrite?: boolean;
@@ -69,7 +72,7 @@ function toExtractError(err: Error): ExtractError {
 	return new ExtractError(type, err);
 }
 
-function extractEntry(stream: Readable, fileName: string, mode: number, targetPath: string, options: IOptions): TPromise<void> {
+function extractEntry(stream: Readable, fileName: string, mode: number, targetPath: string, options: IOptions, token: CancellationToken): TPromise<void> {
 	const dirName = path.dirname(fileName);
 	const targetDirName = path.join(targetPath, dirName);
 	if (targetDirName.indexOf(targetPath) !== 0) {
@@ -78,77 +81,112 @@ function extractEntry(stream: Readable, fileName: string, mode: number, targetPa
 	const targetFileName = path.join(targetPath, fileName);
 
 	let istream: WriteStream;
-	return mkdirp(targetDirName).then(() => new TPromise((c, e) => {
+
+	once(token.onCancellationRequested)(() => {
+		if (istream) {
+			istream.close();
+		}
+	});
+
+	return mkdirp(targetDirName, void 0, token).then(() => new TPromise((c, e) => {
+		if (token.isCancellationRequested) {
+			return;
+		}
+
 		istream = createWriteStream(targetFileName, { mode });
 		istream.once('close', () => c(null));
 		istream.once('error', e);
 		stream.once('error', e);
 		stream.pipe(istream);
-	}, () => {
-		if (istream) {
-			istream.close();
-		}
 	}));
 }
 
-function extractZip(zipfile: ZipFile, targetPath: string, options: IOptions, logService: ILogService): TPromise<void> {
-	let isCanceled = false;
-	let last = TPromise.wrap<any>(null);
+function extractZip(zipfile: ZipFile, targetPath: string, options: IOptions, logService: ILogService): CancelablePromise<void> {
+	let last = createCancelablePromise(() => Promise.resolve(null));
 	let extractedEntriesCount = 0;
 
-	return new TPromise((c, e) => {
-		const throttler = new SimpleThrottler();
+	return createCancelablePromise(token => {
 
-		const readNextEntry = () => {
-			extractedEntriesCount++;
-			zipfile.readEntry();
-		};
-
-		zipfile.once('error', e);
-		zipfile.once('close', () => last.then(() => {
-			if (isCanceled || zipfile.entryCount === extractedEntriesCount) {
-				c(null);
-			} else {
-				e(new ExtractError('Incomplete', new Error(nls.localize('incompleteExtract', "Incomplete. Found {0} of {1} entries", extractedEntriesCount, zipfile.entryCount))));
-			}
-		}, e));
-		zipfile.readEntry();
-		zipfile.on('entry', (entry: Entry) => {
-
-			if (isCanceled) {
-				return;
-			}
-
-			if (!options.sourcePathRegex.test(entry.fileName)) {
-				readNextEntry();
-				return;
-			}
-
-			const fileName = entry.fileName.replace(options.sourcePathRegex, '');
-
-			// directory file names end with '/'
-			if (/\/$/.test(fileName)) {
-				const targetFileName = path.join(targetPath, fileName);
-				last = mkdirp(targetFileName).then(() => readNextEntry());
-				return;
-			}
-
-			const stream = ninvoke(zipfile, zipfile.openReadStream, entry);
-			const mode = modeFromEntry(entry);
-
-			last = throttler.queue(() => stream.then(stream => extractEntry(stream, fileName, mode, targetPath, options).then(() => readNextEntry())));
+		once(token.onCancellationRequested)(() => {
+			logService.debug(targetPath, 'Cancelled.');
+			last.cancel();
+			zipfile.close();
 		});
-	}, () => {
-		logService.debug(targetPath, 'Cancelled.');
-		isCanceled = true;
-		last.cancel();
-		zipfile.close();
-	}).then(null, err => TPromise.wrapError(toExtractError(err)));
+
+		return new TPromise((c, e) => {
+			const throttler = new SimpleThrottler();
+
+			const readNextEntry = (token: CancellationToken) => {
+				if (token.isCancellationRequested) {
+					return;
+				}
+
+				extractedEntriesCount++;
+				zipfile.readEntry();
+			};
+
+			zipfile.once('error', e);
+			zipfile.once('close', () => last.then(() => {
+				if (token.isCancellationRequested || zipfile.entryCount === extractedEntriesCount) {
+					c(null);
+				} else {
+					e(new ExtractError('Incomplete', new Error(nls.localize('incompleteExtract', "Incomplete. Found {0} of {1} entries", extractedEntriesCount, zipfile.entryCount))));
+				}
+			}, e));
+			zipfile.readEntry();
+			zipfile.on('entry', (entry: Entry) => {
+
+				if (token.isCancellationRequested) {
+					return;
+				}
+
+				if (!options.sourcePathRegex.test(entry.fileName)) {
+					readNextEntry(token);
+					return;
+				}
+
+				const fileName = entry.fileName.replace(options.sourcePathRegex, '');
+
+				// directory file names end with '/'
+				if (/\/$/.test(fileName)) {
+					const targetFileName = path.join(targetPath, fileName);
+					last = createCancelablePromise(token => mkdirp(targetFileName, void 0, token).then(() => readNextEntry(token)));
+					return;
+				}
+
+				const stream = ninvoke(zipfile, zipfile.openReadStream, entry);
+				const mode = modeFromEntry(entry);
+
+				last = createCancelablePromise(token => throttler.queue(() => stream.then(stream => extractEntry(stream, fileName, mode, targetPath, options, token).then(() => readNextEntry(token)))));
+			});
+		});
+	});
 }
 
 function openZip(zipFile: string, lazy: boolean = false): TPromise<ZipFile> {
 	return nfcall<ZipFile>(_openZip, zipFile, lazy ? { lazyEntries: true } : void 0)
 		.then(null, err => TPromise.wrapError(toExtractError(err)));
+}
+
+export interface IFile {
+	path: string;
+	contents?: Buffer | string;
+	localPath?: string;
+}
+
+export function zip(zipPath: string, files: IFile[]): TPromise<string> {
+	return new TPromise<string>((c, e) => {
+		const zip = new yazl.ZipFile();
+		files.forEach(f => f.contents ? zip.addBuffer(typeof f.contents === 'string' ? Buffer.from(f.contents, 'utf8') : f.contents, f.path) : zip.addFile(f.localPath, f.path));
+		zip.end();
+
+		const zipStream = createWriteStream(zipPath);
+		zip.outputStream.pipe(zipStream);
+
+		zip.outputStream.once('error', e);
+		zipStream.once('error', e);
+		zipStream.once('finish', () => c(zipPath));
+	});
 }
 
 export function extract(zipPath: string, targetPath: string, options: IExtractOptions = {}, logService: ILogService): TPromise<void> {

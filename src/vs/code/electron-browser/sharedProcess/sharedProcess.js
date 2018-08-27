@@ -38,12 +38,12 @@ function uriFromPath(_path) {
 		pathName = '/' + pathName;
 	}
 
-	return encodeURI('file://' + pathName);
+	return encodeURI('file://' + pathName).replace(/#/g, '%23');
 }
 
 function readFile(file) {
-	return new Promise(function(resolve, reject) {
-		fs.readFile(file, 'utf8', function(err, data) {
+	return new Promise(function (resolve, reject) {
+		fs.readFile(file, 'utf8', function (err, data) {
 			if (err) {
 				reject(err);
 				return;
@@ -102,7 +102,7 @@ function main() {
 
 	if (nlsConfig._resolvedLanguagePackCoreLocation) {
 		let bundles = Object.create(null);
-		nlsConfig.loadBundle = function(bundle, language, cb) {
+		nlsConfig.loadBundle = function (bundle, language, cb) {
 			let result = bundles[bundle];
 			if (result) {
 				cb(undefined, result);

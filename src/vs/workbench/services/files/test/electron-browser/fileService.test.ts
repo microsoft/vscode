@@ -37,7 +37,7 @@ suite('FileService', () => {
 		const sourceDir = getPathFromAmdModule(require, './fixtures/service');
 
 		return pfs.copy(sourceDir, testDir).then(() => {
-			service = new FileService(new TestContextService(new Workspace(testDir, testDir, toWorkspaceFolders([{ path: testDir }]))), TestEnvironmentService, new TestTextResourceConfigurationService(), new TestConfigurationService(), new TestLifecycleService(), new TestStorageService(), new TestNotificationService(), { disableWatcher: true });
+			service = new FileService(new TestContextService(new Workspace(testDir, toWorkspaceFolders([{ path: testDir }]))), TestEnvironmentService, new TestTextResourceConfigurationService(), new TestConfigurationService(), new TestLifecycleService(), new TestStorageService(), new TestNotificationService(), { disableWatcher: true });
 		});
 	});
 
@@ -853,7 +853,7 @@ suite('FileService', () => {
 			const textResourceConfigurationService = new TestTextResourceConfigurationService(configurationService);
 
 			const _service = new FileService(
-				new TestContextService(new Workspace(_testDir, _testDir, toWorkspaceFolders([{ path: _testDir }]))),
+				new TestContextService(new Workspace(_testDir, toWorkspaceFolders([{ path: _testDir }]))),
 				TestEnvironmentService,
 				textResourceConfigurationService,
 				configurationService,
@@ -898,7 +898,7 @@ suite('FileService', () => {
 			const textResourceConfigurationService = new TestTextResourceConfigurationService(configurationService);
 
 			const _service = new FileService(
-				new TestContextService(new Workspace(_testDir, _testDir, toWorkspaceFolders([{ path: _testDir }]))),
+				new TestContextService(new Workspace(_testDir, toWorkspaceFolders([{ path: _testDir }]))),
 				TestEnvironmentService,
 				textResourceConfigurationService,
 				configurationService,
@@ -932,7 +932,7 @@ suite('FileService', () => {
 		const resource = uri.file(path.join(testDir, 'index.html'));
 
 		const _service = new FileService(
-			new TestContextService(new Workspace(_testDir, _testDir, toWorkspaceFolders([{ path: _testDir }]))),
+			new TestContextService(new Workspace(_testDir, toWorkspaceFolders([{ path: _testDir }]))),
 			TestEnvironmentService,
 			new TestTextResourceConfigurationService(),
 			new TestConfigurationService(),

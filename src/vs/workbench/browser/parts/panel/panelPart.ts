@@ -281,7 +281,7 @@ export class PanelPart extends CompositePart<Panel> implements IPanelService {
 	}
 
 	private removeComposite(compositeId: string): void {
-		this.compositeBar.removeComposite(compositeId);
+		this.compositeBar.hideComposite(compositeId);
 		const compositeActions = this.compositeActions[compositeId];
 		if (compositeActions) {
 			compositeActions.activityAction.dispose();

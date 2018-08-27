@@ -336,6 +336,8 @@ export interface IWindowConfiguration extends ParsedArgs {
 	windowId: number;
 	logLevel: LogLevel;
 
+	mainPid: number;
+
 	appRoot: string;
 	execPath: string;
 	isInitialStartup?: boolean;

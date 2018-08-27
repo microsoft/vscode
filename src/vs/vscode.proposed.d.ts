@@ -78,6 +78,26 @@ declare module 'vscode' {
 	}
 
 	/**
+	 * Options to specify the size of the result text preview.
+	 */
+	export interface TextSearchPreviewOptions {
+		/**
+		 * The maximum number of lines in the preview.
+		 */
+		maxLines: number;
+
+		/**
+		 * The maximum number of characters included before the start of the match.
+		 */
+		leadingChars: number;
+
+		/**
+		 * The maximum number of characters included per line.
+		 */
+		totalChars: number;
+	}
+
+	/**
 	 * Options that apply to text search.
 	 */
 	export interface TextSearchOptions extends SearchOptions {
@@ -87,9 +107,9 @@ declare module 'vscode' {
 		maxResults: number;
 
 		/**
-		 *  TODO@roblou - total length? # of context lines? leading and trailing # of chars?
+		 * Options to specify the size of the result text preview.
 		 */
-		previewOptions?: any;
+		previewOptions?: TextSearchPreviewOptions;
 
 		/**
 		 * Exclude files larger than `maxFileSize` in bytes.
@@ -128,6 +148,9 @@ declare module 'vscode' {
 	 */
 	export interface FileIndexOptions extends SearchOptions { }
 
+	/**
+	 * A preview of the text result.
+	 */
 	export interface TextSearchResultPreview {
 		/**
 		 * The matching line of text, or a portion of the matching line that contains the match.
@@ -156,7 +179,7 @@ declare module 'vscode' {
 		range: Range;
 
 		/**
-		 * A preview of the matching line
+		 * A preview of the text result.
 		 */
 		preview: TextSearchResultPreview;
 	}
@@ -257,6 +280,11 @@ declare module 'vscode' {
 		 * See the vscode setting `"files.encoding"`
 		 */
 		encoding?: string;
+
+		/**
+		 * Options to specify the size of the result text preview.
+		 */
+		previewOptions?: TextSearchPreviewOptions;
 	}
 
 	export namespace workspace {
@@ -434,39 +462,16 @@ declare module 'vscode' {
 		Off = 7
 	}
 
-	/**
-	 * A logger for writing to an extension's log file, and accessing its dedicated log directory.
-	 */
-	export interface Logger {
-		trace(message: string, ...args: any[]): void;
-		debug(message: string, ...args: any[]): void;
-		info(message: string, ...args: any[]): void;
-		warn(message: string, ...args: any[]): void;
-		error(message: string | Error, ...args: any[]): void;
-		critical(message: string | Error, ...args: any[]): void;
-	}
-
-	export interface ExtensionContext {
-		/**
-		 * This extension's logger
-		 */
-		logger: Logger;
-
-		/**
-		 * Path where an extension can write log files.
-		 *
-		 * Extensions must create this directory before writing to it. The parent directory will always exist.
-		 */
-		readonly logDirectory: string;
-	}
-
 	export namespace env {
 		/**
 		 * Current logging level.
-		 *
-		 * @readonly
 		 */
 		export const logLevel: LogLevel;
+
+		/**
+		 * An [event](#Event) that fires when the log level has changed.
+		 */
+		export const onDidChangeLogLevel: Event<LogLevel>;
 	}
 
 	//#endregion

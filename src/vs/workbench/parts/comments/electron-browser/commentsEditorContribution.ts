@@ -6,7 +6,7 @@
 
 import 'vs/css!./media/review';
 import * as nls from 'vs/nls';
-import { $ } from 'vs/base/browser/builder';
+import { $ } from 'vs/base/browser/dom';
 import { findFirstInSorted } from 'vs/base/common/arrays';
 import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
@@ -24,7 +24,6 @@ import { KeybindingsRegistry, KeybindingWeight } from 'vs/platform/keybinding/co
 import { editorForeground, registerColor } from 'vs/platform/theme/common/colorRegistry';
 import { IThemeService, registerThemingParticipant } from 'vs/platform/theme/common/themeService';
 import { CommentThreadCollapsibleState } from 'vs/workbench/api/node/extHostTypes';
-import { ReviewModel } from 'vs/workbench/parts/comments/common/reviewModel';
 import { ReviewZoneWidget, COMMENTEDITOR_DECORATION_KEY } from 'vs/workbench/parts/comments/electron-browser/commentThreadWidget';
 import { ICommentService } from 'vs/workbench/parts/comments/electron-browser/commentService';
 import { IModelService } from 'vs/editor/common/services/modelService';
@@ -49,7 +48,7 @@ export class ReviewViewZone implements IViewZone {
 		this.afterLineNumber = afterLineNumber;
 		this.callback = onDomNodeTop;
 
-		this.domNode = $('.review-viewzone').getHTMLElement();
+		this.domNode = $('.review-viewzone');
 	}
 
 	onDomNodeTop(top: number): void {
@@ -169,7 +168,6 @@ export class ReviewController implements IEditorContribution {
 	private _commentWidgets: ReviewZoneWidget[];
 	private _reviewPanelVisible: IContextKey<boolean>;
 	private _commentInfos: modes.CommentInfo[];
-	private _reviewModel: ReviewModel;
 	// private _hasSetComments: boolean;
 	private _commentingRangeDecorator: CommentingRangeDecorator;
 	private mouseDownInfo: { lineNumber: number } | null = null;
@@ -197,27 +195,7 @@ export class ReviewController implements IEditorContribution {
 		// this._hasSetComments = false;
 
 		this._reviewPanelVisible = ctxReviewPanelVisible.bindTo(contextKeyService);
-		this._reviewModel = new ReviewModel();
 		this._commentingRangeDecorator = new CommentingRangeDecorator();
-
-		this._reviewModel.onDidChangeStyle(style => {
-			if (this._newCommentWidget) {
-				this._newCommentWidget.dispose();
-				this._newCommentWidget = null;
-			}
-
-			this._commentWidgets.forEach(zone => {
-				zone.dispose();
-			});
-
-			this._commentInfos.forEach(info => {
-				info.threads.forEach(thread => {
-					let zoneWidget = new ReviewZoneWidget(this.instantiationService, this.modeService, this.modelService, this.themeService, this.commentService, this.openerService, this.editor, info.owner, thread, {});
-					zoneWidget.display(thread.range.startLineNumber, this._commentingRangeDecorator.commentsOptions);
-					this._commentWidgets.push(zoneWidget);
-				});
-			});
-		});
 
 		this.globalToDispose.push(this.commentService.onDidDeleteDataProvider(e => {
 			// Remove new comment widget and glyph, refresh comments
@@ -352,6 +330,11 @@ export class ReviewController implements IEditorContribution {
 			if (!editorURI) {
 				return;
 			}
+
+			if (!this._commentInfos.some(info => info.owner === e.owner)) {
+				return;
+			}
+
 			let added = e.added.filter(thread => thread.resource.toString() === editorURI.toString());
 			let removed = e.removed.filter(thread => thread.resource.toString() === editorURI.toString());
 			let changed = e.changed.filter(thread => thread.resource.toString() === editorURI.toString());
@@ -409,9 +392,17 @@ export class ReviewController implements IEditorContribution {
 			collapsibleState: CommentThreadCollapsibleState.Expanded,
 		}, {});
 
-		this._newCommentWidget.onDidClose(e => {
+		this.localToDispose.push(this._newCommentWidget.onDidClose(e => {
 			this._newCommentWidget = null;
-		});
+		}));
+
+		this.localToDispose.push(this._newCommentWidget.onDidCreateThread(commentWidget => {
+			const thread = commentWidget.commentThread;
+			this._commentWidgets.push(commentWidget);
+			this._commentInfos.filter(info => info.owner === commentWidget.owner)[0].threads.push(thread);
+			this._newCommentWidget = null;
+		}));
+
 		this._newCommentWidget.display(lineNumber, this._commentingRangeDecorator.commentsOptions);
 	}
 

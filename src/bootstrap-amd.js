@@ -9,12 +9,11 @@ var loader = require('./vs/loader');
 
 function uriFromPath(_path) {
 	var pathName = path.resolve(_path).replace(/\\/g, '/');
-
 	if (pathName.length > 0 && pathName.charAt(0) !== '/') {
 		pathName = '/' + pathName;
 	}
 
-	return encodeURI('file://' + pathName);
+	return encodeURI('file://' + pathName).replace(/#/g, '%23');
 }
 
 function readFile(file) {

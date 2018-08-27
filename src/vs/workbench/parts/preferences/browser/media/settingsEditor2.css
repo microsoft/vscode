@@ -39,8 +39,21 @@
 	margin-right: 7px;
 }
 
+.settings-editor > .settings-header > .search-container {
+	position: relative;
+}
+
 .vs .settings-editor > .settings-header > .search-container > .suggest-input-container {
 	border: 1px solid #ddd;
+}
+
+.settings-editor > .settings-header > .search-container > .settings-count-widget {
+	margin: 6px 0px;
+	padding: 0px 8px;
+	border-radius: 2px;
+	position: absolute;
+	right: 10px;
+	top: 0;
 }
 
 .settings-editor > .settings-header > .settings-header-controls {
@@ -113,6 +126,11 @@
 	display: flex;
 	margin: auto;
 	max-width: 1000px;
+}
+
+.settings-editor > .settings-body > .no-results {
+	margin-top: 20px;
+	display: none;
 }
 
 .settings-editor.search-mode > .settings-body .settings-tree-container .monaco-tree-wrapper,
@@ -263,17 +281,24 @@
 	text-overflow: ellipsis;
 }
 
-.settings-editor > .settings-body > .settings-tree-container .setting-item.is-configured::after {
+
+.settings-editor > .settings-body > .settings-tree-container .setting-item > .setting-item-modified-indicator {
+	display: none;
+}
+
+.settings-editor > .settings-body > .settings-tree-container .setting-item.is-configured > .setting-item-modified-indicator {
 	display: block;
 	content: ' ';
 	position: absolute;
-	width: 2px;
+	width: 6px;
+	border-left-width: 2px;
+	border-left-style: solid;
 	left: 0px;
 	top: 15px;
 	bottom: 16px;
 }
 
-.settings-editor > .settings-body > .settings-tree-container .setting-item-bool.setting-item.is-configured::after {
+.settings-editor > .settings-body > .settings-tree-container .setting-item-bool.is-configured > .setting-item-modified-indicator {
 	bottom: 23px;
 }
 
@@ -345,6 +370,11 @@
 .settings-editor > .settings-body > .settings-tree-container .setting-item .setting-item-description-markdown a:focus {
 	outline: 1px solid -webkit-focus-ring-color;
 	outline-offset: -1px;
+	text-decoration: underline;
+}
+
+.settings-editor > .settings-body > .settings-tree-container .setting-item .setting-item-description-markdown a:hover {
+	text-decoration: underline;
 }
 
 .settings-editor > .settings-body > .settings-tree-container .setting-item .setting-item-description-markdown code {

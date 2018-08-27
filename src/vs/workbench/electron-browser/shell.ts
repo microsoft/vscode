@@ -19,7 +19,7 @@ import pkg from 'vs/platform/node/package';
 import { Workbench, IWorkbenchStartedInfo } from 'vs/workbench/electron-browser/workbench';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { NullTelemetryService, configurationTelemetry, combinedAppender, LogAppender } from 'vs/platform/telemetry/common/telemetryUtils';
-import { ITelemetryAppenderChannel, TelemetryAppenderClient } from 'vs/platform/telemetry/common/telemetryIpc';
+import { ITelemetryAppenderChannel, TelemetryAppenderClient } from 'vs/platform/telemetry/node/telemetryIpc';
 import { TelemetryService, ITelemetryServiceConfig } from 'vs/platform/telemetry/common/telemetryService';
 import ErrorTelemetry from 'vs/platform/telemetry/browser/errorTelemetry';
 import { ElectronWindow } from 'vs/workbench/electron-browser/window';
@@ -57,11 +57,10 @@ import { WorkbenchModeServiceImpl } from 'vs/workbench/services/mode/common/work
 import { IModeService } from 'vs/editor/common/services/modeService';
 import { IUntitledEditorService, UntitledEditorService } from 'vs/workbench/services/untitled/common/untitledEditorService';
 import { ICrashReporterService, NullCrashReporterService, CrashReporterService } from 'vs/workbench/services/crashReporter/electron-browser/crashReporterService';
-import { getDelayedChannel, IPCClient } from 'vs/base/parts/ipc/common/ipc';
+import { getDelayedChannel, IPCClient } from 'vs/base/parts/ipc/node/ipc';
 import { connect as connectNet } from 'vs/base/parts/ipc/node/ipc.net';
-import { DefaultURITransformer } from 'vs/base/common/uriIpc';
-import { IExtensionManagementChannel, ExtensionManagementChannelClient } from 'vs/platform/extensionManagement/common/extensionManagementIpc';
-import { IExtensionManagementService, IExtensionEnablementService, IExtensionManagementServerService } from 'vs/platform/extensionManagement/common/extensionManagement';
+import { IExtensionManagementChannel, ExtensionManagementChannelClient } from 'vs/platform/extensionManagement/node/extensionManagementIpc';
+import { IExtensionManagementService, IExtensionEnablementService, IExtensionManagementServerService, IExtensionGalleryService } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { ExtensionEnablementService } from 'vs/platform/extensionManagement/common/extensionEnablementService';
 import { BareFontInfo } from 'vs/editor/common/config/fontInfo';
 import { restoreFontInfo, readFontInfo, saveFontInfo } from 'vs/editor/browser/config/configuration';
@@ -81,7 +80,7 @@ import { ILogService } from 'vs/platform/log/common/log';
 import { WORKBENCH_BACKGROUND } from 'vs/workbench/common/theme';
 import { stat } from 'fs';
 import { join } from 'path';
-import { ILocalizationsChannel, LocalizationsChannelClient } from 'vs/platform/localizations/common/localizationsIpc';
+import { ILocalizationsChannel, LocalizationsChannelClient } from 'vs/platform/localizations/node/localizationsIpc';
 import { ILocalizationsService } from 'vs/platform/localizations/common/localizations';
 import { IWorkbenchIssueService } from 'vs/workbench/services/issue/common/issue';
 import { WorkbenchIssueService } from 'vs/workbench/services/issue/electron-browser/workbenchIssueService';
@@ -89,13 +88,17 @@ import { INotificationService } from 'vs/platform/notification/common/notificati
 import { NotificationService } from 'vs/workbench/services/notification/common/notificationService';
 import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
 import { DialogService } from 'vs/workbench/services/dialogs/electron-browser/dialogService';
-import { DialogChannel } from 'vs/platform/dialogs/common/dialogIpc';
+import { DialogChannel } from 'vs/platform/dialogs/node/dialogIpc';
 import { EventType, addDisposableListener, addClass } from 'vs/base/browser/dom';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
 import { OpenerService } from 'vs/editor/browser/services/openerService';
 import { SearchHistoryService } from 'vs/workbench/services/search/node/searchHistoryService';
 import { MulitExtensionManagementService } from 'vs/platform/extensionManagement/common/multiExtensionManagement';
 import { ExtensionManagementServerService } from 'vs/workbench/services/extensions/node/extensionManagementServerService';
+import { DownloadServiceChannel } from 'vs/platform/download/node/downloadIpc';
+import { DefaultURITransformer } from 'vs/base/common/uriIpc';
+import { ExtensionGalleryService } from 'vs/platform/extensionManagement/node/extensionGalleryService';
+import { ILabelService } from 'vs/platform/label/common/label';
 
 /**
  * Services that we require for the Shell
@@ -115,6 +118,7 @@ export interface ICoreServices {
 export class WorkbenchShell extends Disposable {
 	private storageService: IStorageService;
 	private environmentService: IEnvironmentService;
+	private labelService: ILabelService;
 	private logService: ILogService;
 	private configurationService: IConfigurationService;
 	private contextService: IWorkspaceContextService;
@@ -314,6 +318,7 @@ export class WorkbenchShell extends Disposable {
 		serviceCollection.set(IWorkspaceContextService, this.contextService);
 		serviceCollection.set(IConfigurationService, this.configurationService);
 		serviceCollection.set(IEnvironmentService, this.environmentService);
+		serviceCollection.set(ILabelService, this.labelService);
 		serviceCollection.set(ILogService, this._register(this.logService));
 
 		serviceCollection.set(IStorageService, this.storageService);
@@ -335,7 +340,10 @@ export class WorkbenchShell extends Disposable {
 			.then(() => connectNet(this.environmentService.sharedIPCHandle, `window:${this.configuration.windowId}`));
 
 		sharedProcess
-			.done(client => client.registerChannel('dialog', instantiationService.createInstance(DialogChannel)));
+			.done(client => {
+				client.registerChannel('download', new DownloadServiceChannel());
+				client.registerChannel('dialog', instantiationService.createInstance(DialogChannel));
+			});
 
 		// Warm up font cache information before building up too many dom elements
 		restoreFontInfo(this.storageService);
@@ -376,6 +384,9 @@ export class WorkbenchShell extends Disposable {
 		serviceCollection.set(ILifecycleService, lifecycleService);
 		this.lifecycleService = lifecycleService;
 
+		serviceCollection.set(IRequestService, new SyncDescriptor(RequestService));
+		serviceCollection.set(IExtensionGalleryService, new SyncDescriptor(ExtensionGalleryService));
+
 		const extensionManagementChannel = getDelayedChannel<IExtensionManagementChannel>(sharedProcess.then(c => c.getChannel('extensions')));
 		const extensionManagementChannelClient = new ExtensionManagementChannelClient(extensionManagementChannel, DefaultURITransformer);
 		serviceCollection.set(IExtensionManagementServerService, new SyncDescriptor(ExtensionManagementServerService, extensionManagementChannelClient));
@@ -384,7 +395,6 @@ export class WorkbenchShell extends Disposable {
 		const extensionEnablementService = this._register(instantiationService.createInstance(ExtensionEnablementService));
 		serviceCollection.set(IExtensionEnablementService, extensionEnablementService);
 
-		serviceCollection.set(IRequestService, new SyncDescriptor(RequestService));
 
 		this.extensionService = instantiationService.createInstance(ExtensionService);
 		serviceCollection.set(IExtensionService, this.extensionService);

@@ -5,7 +5,8 @@
 
 'use strict';
 
-import { ILocalExtension, IGalleryExtension, EXTENSION_IDENTIFIER_REGEX, IExtensionIdentifier, IReportedExtension } from 'vs/platform/extensionManagement/common/extensionManagement';
+import { ILocalExtension, IGalleryExtension, EXTENSION_IDENTIFIER_REGEX, IExtensionIdentifier, IReportedExtension, IExtensionManifest } from 'vs/platform/extensionManagement/common/extensionManagement';
+import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 
 export function areSameExtensions(a: IExtensionIdentifier, b: IExtensionIdentifier): boolean {
 	if (a.uuid && b.uuid) {
@@ -117,4 +118,48 @@ export function getMaliciousExtensionsSet(report: IReportedExtension[]): Set<str
 	}
 
 	return result;
+}
+
+const workspaceExtensions = new Set<string>();
+[
+	'vscode.extension-editing',
+	'vscode.configuration-editing',
+	'vscode.search-rg',
+	'vscode.css-language-features',
+	'vscode.git',
+	'vscode.grunt',
+	'vscode.gulp',
+	'vscode.html-language-features',
+	'vscode.json-language-features',
+	'vscode.markdown-language-features',
+	'vscode.npm',
+	'vscode.php-language-features',
+	'vscode.typescript-language-features',
+	'ms-vscode.node-debug',
+	'ms-vscode.node-debug2',
+	'ms-python.python',
+	'eg2.tslint',
+	'dbaeumer.vscode-eslint',
+	'eamodio.gitlens'
+].forEach(extension => workspaceExtensions.add(extension));
+
+export function isWorkspaceExtension(manifest: IExtensionManifest, configurationService: IConfigurationService): boolean {
+	const extensionId = getGalleryExtensionId(manifest.publisher, manifest.name);
+	const configuredWorkspaceExtensions = configurationService.getValue<string[]>('_workbench.workspaceExtensions') || [];
+	if (configuredWorkspaceExtensions.length) {
+		if (configuredWorkspaceExtensions.indexOf(extensionId) !== -1) {
+			return true;
+		}
+		if (configuredWorkspaceExtensions.indexOf(`-${extensionId}`) !== -1) {
+			return false;
+		}
+	}
+
+	if (manifest.main) {
+		if ((manifest.categories || []).indexOf('Workspace Extension') !== -1) {
+			return true;
+		}
+		return workspaceExtensions.has(extensionId);
+	}
+	return false;
 }

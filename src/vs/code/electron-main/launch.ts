@@ -6,7 +6,7 @@
 'use strict';
 
 import { TPromise } from 'vs/base/common/winjs.base';
-import { IChannel } from 'vs/base/parts/ipc/common/ipc';
+import { IChannel } from 'vs/base/parts/ipc/node/ipc';
 import { ILogService } from 'vs/platform/log/common/log';
 import { IURLService } from 'vs/platform/url/common/url';
 import { IProcessEnvironment, isMacintosh } from 'vs/base/common/platform';

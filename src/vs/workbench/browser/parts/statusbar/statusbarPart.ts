@@ -10,7 +10,6 @@ import * as nls from 'vs/nls';
 import { toErrorMessage } from 'vs/base/common/errorMessage';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { dispose, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
-import { $ } from 'vs/base/browser/builder';
 import { OcticonLabel } from 'vs/base/browser/ui/octiconLabel/octiconLabel';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { ICommandService } from 'vs/platform/commands/common/commands';
@@ -28,15 +27,15 @@ import { IWorkspaceContextService, WorkbenchState } from 'vs/platform/workspace/
 import { contrastBorder } from 'vs/platform/theme/common/colorRegistry';
 import { isThemeColor } from 'vs/editor/common/editorCommon';
 import { Color } from 'vs/base/common/color';
-import { addClass, EventHelper, createStyleSheet } from 'vs/base/browser/dom';
+import { addClass, EventHelper, createStyleSheet, addDisposableListener, removeNode } from 'vs/base/browser/dom';
 import { INotificationService } from 'vs/platform/notification/common/notification';
 
 export class StatusbarPart extends Part implements IStatusbarService {
 
 	_serviceBrand: any;
 
-	private static readonly PRIORITY_PROP = 'priority';
-	private static readonly ALIGNMENT_PROP = 'alignment';
+	private static readonly PRIORITY_PROP = 'statusbar-entry-priority';
+	private static readonly ALIGNMENT_PROP = 'statusbar-entry-alignment';
 
 	private statusItemsContainer: HTMLElement;
 	private statusMsgDispose: IDisposable;
@@ -71,7 +70,7 @@ export class StatusbarPart extends Part implements IStatusbarService {
 		let inserted = false;
 		for (let i = 0; i < neighbours.length; i++) {
 			const neighbour = neighbours[i];
-			const nPriority = $(neighbour).getProperty(StatusbarPart.PRIORITY_PROP);
+			const nPriority = Number(neighbour.getAttribute(StatusbarPart.PRIORITY_PROP));
 			if (
 				alignment === StatusbarAlignment.LEFT && nPriority < priority ||
 				alignment === StatusbarAlignment.RIGHT && nPriority > priority
@@ -87,7 +86,7 @@ export class StatusbarPart extends Part implements IStatusbarService {
 		}
 
 		return toDisposable(() => {
-			$(el).destroy();
+			removeNode(el);
 
 			if (toDispose) {
 				toDispose.dispose();
@@ -102,7 +101,7 @@ export class StatusbarPart extends Part implements IStatusbarService {
 		const children = container.children;
 		for (let i = 0; i < children.length; i++) {
 			const childElement = <HTMLElement>children.item(i);
-			if ($(childElement).getProperty(StatusbarPart.ALIGNMENT_PROP) === alignment) {
+			if (Number(childElement.getAttribute(StatusbarPart.ALIGNMENT_PROP)) === alignment) {
 				entries.push(childElement);
 			}
 		}
@@ -168,8 +167,8 @@ export class StatusbarPart extends Part implements IStatusbarService {
 			addClass(el, 'left');
 		}
 
-		$(el).setProperty(StatusbarPart.PRIORITY_PROP, priority);
-		$(el).setProperty(StatusbarPart.ALIGNMENT_PROP, alignment);
+		el.setAttribute(StatusbarPart.PRIORITY_PROP, String(priority));
+		el.setAttribute(StatusbarPart.ALIGNMENT_PROP, String(alignment));
 
 		return el;
 	}
@@ -242,7 +241,7 @@ class StatusBarEntryItem implements IStatusbarItem {
 		if (this.entry.command) {
 			textContainer = document.createElement('a');
 
-			$(textContainer).on('click', () => this.executeCommand(this.entry.command, this.entry.arguments), toDispose);
+			toDispose.push(addDisposableListener(textContainer, 'click', () => this.executeCommand(this.entry.command, this.entry.arguments)));
 		} else {
 			textContainer = document.createElement('span');
 		}
@@ -252,7 +251,7 @@ class StatusBarEntryItem implements IStatusbarItem {
 
 		// Tooltip
 		if (this.entry.tooltip) {
-			$(textContainer).title(this.entry.tooltip);
+			textContainer.title = this.entry.tooltip;
 		}
 
 		// Color
@@ -263,15 +262,15 @@ class StatusBarEntryItem implements IStatusbarItem {
 				color = (this.themeService.getTheme().getColor(colorId) || Color.transparent).toString();
 				toDispose.push(this.themeService.onThemeChange(theme => {
 					let colorValue = (this.themeService.getTheme().getColor(colorId) || Color.transparent).toString();
-					$(textContainer).color(colorValue);
+					textContainer.style.color = colorValue;
 				}));
 			}
-			$(textContainer).color(color);
+			textContainer.style.color = color;
 		}
 
 		// Context Menu
 		if (this.entry.extensionId) {
-			$(textContainer).on('contextmenu', e => {
+			toDispose.push(addDisposableListener(textContainer, 'contextmenu', e => {
 				EventHelper.stop(e, true);
 
 				this.contextMenuService.showContextMenu({
@@ -279,7 +278,7 @@ class StatusBarEntryItem implements IStatusbarItem {
 					getActionsContext: () => this.entry.extensionId,
 					getActions: () => TPromise.as([manageExtensionAction])
 				});
-			}, toDispose);
+			}));
 		}
 
 		el.appendChild(textContainer);

@@ -712,7 +712,7 @@ export class DirtyDiffController implements IEditorContribution {
 		const gutterOffsetX = data.offsetX - offsetLeftInGutter;
 
 		// TODO@joao TODO@alex TODO@martin this is such that we don't collide with folding
-		if (gutterOffsetX < 0 || gutterOffsetX > 10) {
+		if (gutterOffsetX < -3 || gutterOffsetX > 6) { // dirty diff decoration on hover is 9px wide
 			return;
 		}
 

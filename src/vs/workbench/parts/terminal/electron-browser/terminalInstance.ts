@@ -713,8 +713,6 @@ export class TerminalInstance implements ITerminalInstance {
 		this._processManager = this._instantiationService.createInstance(TerminalProcessManager, this._id, this._configHelper);
 		this._processManager.onProcessReady(() => this._onProcessIdReady.fire(this));
 		this._processManager.onProcessExit(exitCode => this._onProcessExit(exitCode));
-		this._processManager.createProcess(this._shellLaunchConfig, this._cols, this._rows);
-
 		this._processManager.onProcessData(data => this._onData.fire(data));
 
 		if (this._shellLaunchConfig.name) {
@@ -734,6 +732,12 @@ export class TerminalInstance implements ITerminalInstance {
 				});
 			});
 		}
+
+		// Create the process asynchronously to allow the terminal's container
+		// to be created so dimensions are accurate
+		setTimeout(() => {
+			this._processManager.createProcess(this._shellLaunchConfig, this._cols, this._rows);
+		}, 0);
 	}
 
 	private _onProcessData(data: string): void {

@@ -9,8 +9,11 @@ import URI from 'vs/base/common/uri';
 import * as paths from 'vs/base/common/paths';
 import { RawContextKey, IContextKeyService, IContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { IModeService } from 'vs/editor/common/services/modeService';
+import { IFileService } from 'vs/platform/files/common/files';
+import { Disposable } from 'vs/base/common/lifecycle';
+import { Schemas } from 'vs/base/common/network';
 
-export class ResourceContextKey implements IContextKey<URI> {
+export class ResourceContextKey extends Disposable implements IContextKey<URI> {
 
 	static Scheme = new RawContextKey<string>('resourceScheme', undefined);
 	static Filename = new RawContextKey<string>('resourceFilename', undefined);
@@ -18,6 +21,8 @@ export class ResourceContextKey implements IContextKey<URI> {
 	static Resource = new RawContextKey<URI>('resource', undefined);
 	static Extension = new RawContextKey<string>('resourceExtname', undefined);
 	static HasResource = new RawContextKey<boolean>('resourceSet', false);
+	static IsFileSystemResource = new RawContextKey<boolean>('isFileSystemResource', false);
+	static IsFileSystemResourceOrUntitled = new RawContextKey<boolean>('isFileSystemResourceOrUntitled', false);
 
 	private _resourceKey: IContextKey<URI>;
 	private _schemeKey: IContextKey<string>;
@@ -25,17 +30,30 @@ export class ResourceContextKey implements IContextKey<URI> {
 	private _langIdKey: IContextKey<string>;
 	private _extensionKey: IContextKey<string>;
 	private _hasResource: IContextKey<boolean>;
+	private _isfileSystemResource: IContextKey<boolean>;
+	private _isFileSystemResourceOrUntitled: IContextKey<boolean>;
 
 	constructor(
 		@IContextKeyService contextKeyService: IContextKeyService,
+		@IFileService private readonly _fileService: IFileService,
 		@IModeService private readonly _modeService: IModeService
 	) {
+		super();
+
 		this._schemeKey = ResourceContextKey.Scheme.bindTo(contextKeyService);
 		this._filenameKey = ResourceContextKey.Filename.bindTo(contextKeyService);
 		this._langIdKey = ResourceContextKey.LangId.bindTo(contextKeyService);
 		this._resourceKey = ResourceContextKey.Resource.bindTo(contextKeyService);
 		this._extensionKey = ResourceContextKey.Extension.bindTo(contextKeyService);
 		this._hasResource = ResourceContextKey.HasResource.bindTo(contextKeyService);
+		this._isfileSystemResource = ResourceContextKey.IsFileSystemResource.bindTo(contextKeyService);
+		this._isFileSystemResourceOrUntitled = ResourceContextKey.IsFileSystemResourceOrUntitled.bindTo(contextKeyService);
+
+		this._register(_fileService.onDidChangeFileSystemProviderRegistrations(() => {
+			const resource = this._resourceKey.get();
+			this._isfileSystemResource.set(resource && _fileService.canHandleResource(resource));
+			this._isFileSystemResourceOrUntitled.set(this._isfileSystemResource.get() || this._schemeKey.get() === Schemas.untitled);
+		}));
 	}
 
 	set(value: URI) {
@@ -45,6 +63,8 @@ export class ResourceContextKey implements IContextKey<URI> {
 		this._langIdKey.set(value && this._modeService.getModeIdByFilenameOrFirstLine(value.fsPath));
 		this._extensionKey.set(value && paths.extname(value.fsPath));
 		this._hasResource.set(!!value);
+		this._isfileSystemResource.set(value && this._fileService.canHandleResource(value));
+		this._isFileSystemResourceOrUntitled.set(this._isfileSystemResource.get() || this._schemeKey.get() === Schemas.untitled);
 	}
 
 	reset(): void {

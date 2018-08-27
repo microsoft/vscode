@@ -43,6 +43,25 @@
   version "1.16.34"
   resolved "https://registry.yarnpkg.com/@types/sinon/-/sinon-1.16.34.tgz#a9761fff33d0f7b3fe61875b577778a2576a9a03"
 
+"@types/tapable@*":
+  version "1.0.4"
+  resolved "https://registry.yarnpkg.com/@types/tapable/-/tapable-1.0.4.tgz#b4ffc7dc97b498c969b360a41eee247f82616370"
+
+"@types/uglify-js@*":
+  version "3.0.3"
+  resolved "https://registry.yarnpkg.com/@types/uglify-js/-/uglify-js-3.0.3.tgz#801a5ca1dc642861f47c46d14b700ed2d610840b"
+  dependencies:
+    source-map "^0.6.1"
+
+"@types/webpack@^4.4.10":
+  version "4.4.10"
+  resolved "https://registry.yarnpkg.com/@types/webpack/-/webpack-4.4.10.tgz#2ecf12589142bc531549140612815b7d8b076358"
+  dependencies:
+    "@types/node" "*"
+    "@types/tapable" "*"
+    "@types/uglify-js" "*"
+    source-map "^0.6.0"
+
 "@webassemblyjs/ast@1.5.13":
   version "1.5.13"
   resolved "https://registry.yarnpkg.com/@webassemblyjs/ast/-/ast-1.5.13.tgz#81155a570bd5803a30ec31436bc2c9c0ede38f25"
@@ -3909,7 +3928,7 @@ is-path-inside@^1.0.0:
   dependencies:
     path-is-inside "^1.0.1"
 
-is-plain-obj@^1.0.0:
+is-plain-obj@^1.0.0, is-plain-obj@^1.1:
   version "1.1.0"
   resolved "https://registry.yarnpkg.com/is-plain-obj/-/is-plain-obj-1.1.0.tgz#71a50c8429dfca773c92a390a4a03b39fcd51d3e"
 
@@ -4723,6 +4742,12 @@ meow@^3.1.0, meow@^3.3.0:
 merge-descriptors@1.0.1:
   version "1.0.1"
   resolved "https://registry.yarnpkg.com/merge-descriptors/-/merge-descriptors-1.0.1.tgz#b00aaa556dd8b44568150ec9d1b953f3f90cbb61"
+
+merge-options@^1.0.1:
+  version "1.0.1"
+  resolved "https://registry.yarnpkg.com/merge-options/-/merge-options-1.0.1.tgz#2a64b24457becd4e4dc608283247e94ce589aa32"
+  dependencies:
+    is-plain-obj "^1.1"
 
 merge-stream@^1.0.0:
   version "1.0.1"
@@ -6874,7 +6899,7 @@ source-map@0.4.x, source-map@^0.4.4:
   dependencies:
     amdefine ">=0.0.4"
 
-source-map@0.X, source-map@>=0.5.6, source-map@^0.6.1, source-map@~0.6.1:
+source-map@0.X, source-map@>=0.5.6, source-map@^0.6.0, source-map@^0.6.1, source-map@~0.6.1:
   version "0.6.1"
   resolved "https://registry.yarnpkg.com/source-map/-/source-map-0.6.1.tgz#74722af32e9614e9c287a8d0bbde48b5e2f1a263"
 
@@ -7880,9 +7905,9 @@ vscode-fsevents@0.3.8:
   dependencies:
     nan "^2.3.0"
 
-vscode-nls-dev@3.2.1:
-  version "3.2.1"
-  resolved "https://registry.yarnpkg.com/vscode-nls-dev/-/vscode-nls-dev-3.2.1.tgz#8aa9537b67d1e6e7ea4c6c4f80043c46c8a725ea"
+vscode-nls-dev@3.2.2:
+  version "3.2.2"
+  resolved "https://registry.yarnpkg.com/vscode-nls-dev/-/vscode-nls-dev-3.2.2.tgz#5855c9b3e566dd00fd6108f9c2e1bd02c925c153"
   dependencies:
     clone "^2.1.1"
     event-stream "^3.3.4"
@@ -7916,9 +7941,9 @@ vscode-textmate@^4.0.1:
   dependencies:
     oniguruma "^7.0.0"
 
-vscode-xterm@3.7.0-beta4:
-  version "3.7.0-beta4"
-  resolved "https://registry.yarnpkg.com/vscode-xterm/-/vscode-xterm-3.7.0-beta4.tgz#f980d66f94f09ae80e100715dae60715dcae1ac6"
+vscode-xterm@3.7.0-beta5:
+  version "3.7.0-beta5"
+  resolved "https://registry.yarnpkg.com/vscode-xterm/-/vscode-xterm-3.7.0-beta5.tgz#04c7564d1cc8d73b268f04046b3da050c6e59be7"
 
 vso-node-api@^6.1.2-preview:
   version "6.1.2-preview"
@@ -8241,7 +8266,7 @@ yauzl@^2.2.1, yauzl@^2.3.1, yauzl@^2.9.1:
     buffer-crc32 "~0.2.3"
     fd-slicer "~1.0.1"
 
-yazl@^2.2.1, yazl@^2.2.2:
+yazl@^2.2.1, yazl@^2.2.2, yazl@^2.4.3:
   version "2.4.3"
   resolved "https://registry.yarnpkg.com/yazl/-/yazl-2.4.3.tgz#ec26e5cc87d5601b9df8432dbdd3cd2e5173a071"
   dependencies:

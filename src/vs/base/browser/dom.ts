@@ -16,9 +16,15 @@ import { CharCode } from 'vs/base/common/charCode';
 import { Event, Emitter } from 'vs/base/common/event';
 import { domEvent } from 'vs/base/browser/event';
 
-export function clearNode(node: HTMLElement) {
+export function clearNode(node: HTMLElement): void {
 	while (node.firstChild) {
 		node.removeChild(node.firstChild);
+	}
+}
+
+export function removeNode(node: HTMLElement): void {
+	if (node.parentNode) {
+		node.parentNode.removeChild(node);
 	}
 }
 

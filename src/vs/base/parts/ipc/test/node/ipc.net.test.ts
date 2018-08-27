@@ -49,18 +49,20 @@ suite('IPC, Socket Protocol', () => {
 		return new TPromise(resolve => {
 			const sub = b.onMessage(data => {
 				sub.dispose();
-				assert.equal(data, 'foobarfarboo');
+				assert.equal(data.toString(), 'foobarfarboo');
 				resolve(null);
 			});
-			a.send('foobarfarboo');
+			a.send(Buffer.from('foobarfarboo'));
 		}).then(() => {
 			return new TPromise(resolve => {
 				const sub = b.onMessage(data => {
 					sub.dispose();
-					assert.equal(data, 123);
+					assert.equal(data.readInt8(0), 123);
 					resolve(null);
 				});
-				a.send(123);
+				const buffer = Buffer.allocUnsafe(1);
+				buffer.writeInt8(123, 0);
+				a.send(buffer);
 			});
 		});
 	});
@@ -78,11 +80,11 @@ suite('IPC, Socket Protocol', () => {
 			data: 'Hello World'.split('')
 		};
 
-		a.send(data);
+		a.send(Buffer.from(JSON.stringify(data)));
 
 		return new TPromise(resolve => {
 			b.onMessage(msg => {
-				assert.deepEqual(msg, data);
+				assert.deepEqual(JSON.parse(msg.toString()), data);
 				resolve(null);
 			});
 		});
@@ -100,7 +102,7 @@ suite('IPC, Socket Protocol', () => {
 		assert.equal(stream.listenerCount('end'), 2);
 
 		receiver1.onMessage((msg) => {
-			assert.equal(msg.value, 1);
+			assert.equal(JSON.parse(msg.toString()).value, 1);
 
 			let buffer = receiver1.getBuffer();
 			receiver1.dispose();
@@ -110,15 +112,15 @@ suite('IPC, Socket Protocol', () => {
 
 			const receiver2 = new Protocol(stream, buffer);
 			receiver2.onMessage((msg) => {
-				assert.equal(msg.value, 2);
+				assert.equal(JSON.parse(msg.toString()).value, 2);
 				resolve(void 0);
 			});
 		});
 
 		const msg1 = { value: 1 };
 		const msg2 = { value: 2 };
-		sender.send(msg1);
-		sender.send(msg2);
+		sender.send(Buffer.from(JSON.stringify(msg1)));
+		sender.send(Buffer.from(JSON.stringify(msg2)));
 
 		return result;
 	});

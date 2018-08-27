@@ -3,18 +3,20 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+//@ts-check
+/** @typedef {import('webpack').Configuration} WebpackConfig **/
+
 'use strict';
 
 const path = require('path');
+const merge = require('merge-options');
+const CopyWebpackPlugin = require('copy-webpack-plugin');
 
-/**
- * Function that must be invoked with __dirname and that
- * returns a good default configuation for extensions that
- * want to do webpack
- */
-module.exports = function (extensionDir) {
-	return {
-		context: extensionDir,
+
+module.exports = function withDefaults(/**@type WebpackConfig*/extConfig) {
+
+	/** @type WebpackConfig */
+	let defaultConfig = {
 		mode: 'none', // this leaves the source code as close as possible to the original (when packaging we set this to 'production')
 		target: 'node', // extensions run in a node context
 		resolve: {
@@ -28,14 +30,15 @@ module.exports = function (extensionDir) {
 				use: [{
 					// vscode-nls-dev loader:
 					// * rewrite nls-calls
-					loader: 'vscode-nls-dev/lib/webpack-loader'
+					loader: 'vscode-nls-dev/lib/webpack-loader',
+					options: {
+						base: path.join(extConfig.context, 'src')
+					}
 				}, {
 					// configure TypeScript loader:
-					// * only transpile because we have a separate compilation pipeline
 					// * enable sources maps for end-to-end source maps
 					loader: 'ts-loader',
 					options: {
-						transpileOnly: true,
 						compilerOptions: {
 							"sourceMap": true,
 						}
@@ -43,14 +46,27 @@ module.exports = function (extensionDir) {
 				}]
 			}]
 		},
+		externals: {
+			'vscode': 'commonjs vscode', // ignored because it doesn't exist
+
+			"vscode-extension-telemetry": 'commonjs vscode-extension-telemetry', // commonly used
+			"vscode-nls": 'commonjs vscode-nls',
+		},
 		output: {
 			// all output goes into `dist`.
 			// packaging depends on that and this must always be like it
 			filename: '[name].js',
-			path: path.join(extensionDir, 'dist'),
+			path: path.join(extConfig.context, 'dist'),
 			libraryTarget: "commonjs",
 		},
 		// yes, really source maps
-		devtool: 'source-map'
+		devtool: 'source-map',
+		plugins: [
+			new CopyWebpackPlugin([
+				{ from: './out/**/*', to: '.', ignore: ['*.js', '*.js.map'], flatten: true }
+			])
+		],
 	};
+
+	return merge(defaultConfig, extConfig);
 };
