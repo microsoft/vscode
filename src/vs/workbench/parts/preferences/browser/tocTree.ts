@@ -4,9 +4,10 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as DOM from 'vs/base/browser/dom';
+import { ScrollbarVisibility } from 'vs/base/common/scrollable';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { IDataSource, IRenderer, ITree, ITreeConfiguration, ITreeOptions } from 'vs/base/parts/tree/browser/tree';
-import { DefaultTreestyler, OpenMode } from 'vs/base/parts/tree/browser/treeDefaults';
+import { DefaultTreestyler } from 'vs/base/parts/tree/browser/treeDefaults';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
@@ -18,7 +19,6 @@ import { SettingsAccessibilityProvider, SettingsTreeFilter } from 'vs/workbench/
 import { ISettingsEditorViewState, SearchResultModel, SettingsTreeElement, SettingsTreeGroupElement, SettingsTreeSettingElement } from 'vs/workbench/parts/preferences/browser/settingsTreeModels';
 import { settingsHeaderForeground } from 'vs/workbench/parts/preferences/browser/settingsWidgets';
 import { ISetting } from 'vs/workbench/services/preferences/common/preferences';
-import { ScrollbarVisibility } from 'vs/base/common/scrollable';
 
 const $ = DOM.$;
 
@@ -166,7 +166,7 @@ export class TOCTree extends WorkbenchTree {
 		const treeClass = 'settings-toc-tree';
 
 		const fullConfiguration = <ITreeConfiguration>{
-			controller: instantiationService.createInstance(WorkbenchTreeController, { openMode: OpenMode.DOUBLE_CLICK }),
+			controller: instantiationService.createInstance(WorkbenchTreeController, {}),
 			filter: instantiationService.createInstance(SettingsTreeFilter, viewState),
 			styler: new DefaultTreestyler(DOM.createStyleSheet(container), treeClass),
 			dataSource: instantiationService.createInstance(TOCDataSource),

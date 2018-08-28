@@ -283,7 +283,7 @@ connection.onCodeAction((codeActionParams, token) => {
 		const document = documents.get(codeActionParams.textDocument.uri);
 		if (document) {
 			const stylesheet = stylesheets.get(document);
-			return getLanguageService(document).doCodeActions(document, codeActionParams.range, codeActionParams.context, stylesheet);
+			return getLanguageService(document).doCodeActions2(document, codeActionParams.range, codeActionParams.context, stylesheet);
 		}
 		return [];
 	}, [], `Error while computing code actions for ${codeActionParams.textDocument.uri}`, token);

@@ -129,6 +129,10 @@ export class MockSession implements ISession {
 		return 'mockname';
 	}
 
+	public get capabilities(): DebugProtocol.Capabilities {
+		return {};
+	}
+
 	getSourceForUri(modelUri: uri): Source {
 		return null;
 	}
@@ -221,10 +225,6 @@ export class MockRawSession implements IRawSession {
 
 	evaluate(args: DebugProtocol.EvaluateArguments): TPromise<DebugProtocol.EvaluateResponse> {
 		return TPromise.as(null);
-	}
-
-	public get capabilities(): DebugProtocol.Capabilities {
-		return {};
 	}
 
 	public custom(request: string, args: any): TPromise<DebugProtocol.Response> {

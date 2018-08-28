@@ -264,13 +264,13 @@
 
 .settings-editor > .settings-body > .settings-tree-container .monaco-tree-row {
 	overflow: visible; /* so validation messages dont get clipped */
+	cursor: default;
 }
 
 .settings-editor > .settings-body > .settings-tree-container .setting-item {
 	padding-top: 12px;
 	padding-bottom: 18px;
 	box-sizing: border-box;
-	cursor: default;
 	white-space: normal;
 	height: 100%;
 }
@@ -319,7 +319,6 @@
 .settings-editor > .settings-body > .settings-tree-container .setting-item .setting-item-category {
 	font-weight: 600;
 	user-select: text;
-	cursor: text;
 }
 
 .settings-editor > .settings-body > .settings-tree-container .setting-item .setting-item-category {
@@ -330,7 +329,6 @@
 .settings-editor > .settings-body > .settings-tree-container .setting-item .setting-item-description {
 	margin-top: 3px;
 	user-select: text;
-	cursor: text;
 }
 
 .settings-editor > .settings-body > .settings-tree-container .setting-item .setting-item-deprecation-message {

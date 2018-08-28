@@ -597,15 +597,17 @@ export class TerminalInstance implements ITerminalInstance {
 	}
 
 	public focus(force?: boolean): void {
-		this._xtermReadyPromise.then(() => {
-			if (!this._xterm) {
-				return;
-			}
-			const text = window.getSelection().toString();
-			if (!text || force) {
-				this._xterm.focus();
-			}
-		});
+		if (!this._xterm) {
+			return;
+		}
+		const text = window.getSelection().toString();
+		if (!text || force) {
+			this._xterm.focus();
+		}
+	}
+
+	public focusWhenReady(force?: boolean): Promise<void> {
+		return this._xtermReadyPromise.then(() => this.focus(force));
 	}
 
 	public paste(): void {

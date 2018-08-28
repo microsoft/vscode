@@ -98,7 +98,13 @@ export class TerminalProcess implements ITerminalChildProcess, IDisposable {
 			clearTimeout(this._closeTimeout);
 		}
 		this._closeTimeout = setTimeout(() => {
-			this._ptyProcess.kill();
+			// Attempt to kill the pty, it may have already been killed at this
+			// point but we want to make sure
+			try {
+				this._ptyProcess.kill();
+			} catch (ex) {
+				// Swallow, the pty has already been killed
+			}
 			this._onProcessExit.fire(this._exitCode);
 			this.dispose();
 		}, 250);

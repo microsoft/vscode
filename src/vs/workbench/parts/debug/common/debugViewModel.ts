@@ -70,7 +70,7 @@ export class ViewModel implements IViewModel {
 			this._onDidFocusSession.fire(session);
 		}
 
-		this.loadedScriptsSupportedContextKey.set(session && session.raw.capabilities.supportsLoadedSourcesRequest);
+		this.loadedScriptsSupportedContextKey.set(session && session.capabilities.supportsLoadedSourcesRequest);
 
 		if (shouldEmit) {
 			this._onDidFocusStackFrame.fire({ stackFrame, explicit });

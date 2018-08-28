@@ -154,7 +154,9 @@ export class DebugService implements IDebugService {
 		}
 
 		if (broadcast.channel === EXTENSION_TERMINATE_BROADCAST_CHANNEL) {
-			session.raw.terminate().done(undefined, errors.onUnexpectedError);
+			if (session.raw) {
+				session.raw.terminate().done(undefined, errors.onUnexpectedError);
+			}
 			return;
 		}
 
@@ -337,7 +339,7 @@ export class DebugService implements IDebugService {
 				session = stackFrame ? stackFrame.thread.session : thread.session;
 			} else {
 				const sessions = this.model.getSessions();
-				session = sessions.length ? sessions[0] : undefined;
+				session = first(sessions, s => s.state === State.Stopped, sessions.length ? sessions[0] : undefined);
 			}
 		}
 
@@ -346,7 +348,7 @@ export class DebugService implements IDebugService {
 				thread = stackFrame.thread;
 			} else {
 				const threads = session ? session.getAllThreads() : undefined;
-				thread = threads && threads.length ? threads[0] : undefined;
+				thread = threads ? first(threads, t => t.stopped, threads.length ? threads[0] : undefined) : undefined;
 			}
 		}
 
@@ -913,7 +915,7 @@ export class DebugService implements IDebugService {
 	restartSession(session: ISession, restartData?: any): TPromise<any> {
 		return this.textFileService.saveAll().then(() => {
 			const unresolvedConfiguration = (<Session>session).unresolvedConfiguration;
-			if (session.raw.capabilities.supportsRestartRequest) {
+			if (session.capabilities.supportsRestartRequest) {
 				return this.runTask(session.getId(), session.root, session.configuration.postDebugTask, session.configuration, unresolvedConfiguration)
 					.then(success => success ? this.runTask(session.getId(), session.root, session.configuration.preLaunchTask, session.configuration, unresolvedConfiguration)
 						.then(success => success ? session.raw.custom('restart', null) : undefined) : TPromise.as(<any>undefined));

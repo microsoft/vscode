@@ -39,8 +39,8 @@ import { SuggestEnabledInput } from 'vs/workbench/parts/codeEditor/browser/sugge
 import { PreferencesEditor } from 'vs/workbench/parts/preferences/browser/preferencesEditor';
 import { SettingsTarget, SettingsTargetsWidget } from 'vs/workbench/parts/preferences/browser/preferencesWidgets';
 import { commonlyUsedData, tocData } from 'vs/workbench/parts/preferences/browser/settingsLayout';
-import { resolveExtensionsSettings, resolveSettingsTree, SettingsRenderer, SettingsTree, SimplePagedDataSource, SettingsDataSource } from 'vs/workbench/parts/preferences/browser/settingsTree';
-import { ISettingsEditorViewState, MODIFIED_SETTING_TAG, ONLINE_SERVICES_SETTING_TAG, SearchResultIdx, SearchResultModel, SettingsTreeGroupElement, SettingsTreeModel, countSettingGroupChildrenWithPredicate, SettingsTreeSettingElement } from 'vs/workbench/parts/preferences/browser/settingsTreeModels';
+import { resolveExtensionsSettings, resolveSettingsTree, SettingsDataSource, SettingsRenderer, SettingsTree, SimplePagedDataSource } from 'vs/workbench/parts/preferences/browser/settingsTree';
+import { countSettingGroupChildrenWithPredicate, ISettingsEditorViewState, MODIFIED_SETTING_TAG, ONLINE_SERVICES_SETTING_TAG, SearchResultIdx, SearchResultModel, SettingsTreeGroupElement, SettingsTreeModel, SettingsTreeSettingElement } from 'vs/workbench/parts/preferences/browser/settingsTreeModels';
 import { TOCRenderer, TOCTree, TOCTreeModel } from 'vs/workbench/parts/preferences/browser/tocTree';
 import { CONTEXT_SETTINGS_EDITOR, CONTEXT_SETTINGS_SEARCH_FOCUS, CONTEXT_TOC_ROW_FOCUS, IPreferencesSearchService, ISearchProvider } from 'vs/workbench/parts/preferences/common/preferences';
 import { IEditorGroup } from 'vs/workbench/services/group/common/editorGroupsService';
@@ -179,7 +179,7 @@ export class SettingsEditor2 extends BaseEditor {
 		// #56185
 		if (dimension.width !== this.lastLayedoutWidth) {
 			this.lastLayedoutWidth = dimension.width;
-			this.delayRefreshOnLayout.trigger(() => this.renderTree());
+			this.delayRefreshOnLayout.trigger(() => this.renderTree(undefined, true));
 		}
 	}
 
@@ -481,6 +481,10 @@ export class SettingsEditor2 extends BaseEditor {
 			}));
 		this.settingsTree.getHTMLElement().attributes.removeNamedItem('tabindex');
 
+		// Have to redefine role of the tree widget to form for input elements
+		// TODO:CDL make this an option for tree
+		this.settingsTree.getHTMLElement().setAttribute('role', 'form');
+
 		this._register(this.settingsTree.onDidScroll(() => {
 			this.updateTreeScrollSync();
 		}));
@@ -543,6 +547,8 @@ export class SettingsEditor2 extends BaseEditor {
 				this.tocTree.reveal(element, elementTop);
 			}
 
+			this.tocTree.expand(element);
+
 			this.tocTree.setSelection([element]);
 			this.tocTree.setFocus(element, { fromScroll: true });
 		}
@@ -550,7 +556,7 @@ export class SettingsEditor2 extends BaseEditor {
 
 	private updateTreePagingByScroll(): void {
 		const lastVisibleElement = this.settingsTree.getLastVisibleElement();
-		if (lastVisibleElement && this.settingsTreeDataSource.pageTo(lastVisibleElement.index)) {
+		if (lastVisibleElement && this.settingsTreeDataSource.pageTo(lastVisibleElement.index, false)) {
 			this.renderTree();
 		}
 	}
@@ -563,6 +569,8 @@ export class SettingsEditor2 extends BaseEditor {
 		const configurationTarget = <ConfigurationTarget>(resource ? ConfigurationTarget.WORKSPACE_FOLDER : settingsTarget);
 		const overrides: IConfigurationOverrides = { resource };
 
+		const isManualReset = value === undefined;
+
 		// If the user is changing the value back to the default, do a 'reset' instead
 		const inspected = this.configurationService.inspect(key, overrides);
 		if (inspected.default === value) {
@@ -570,7 +578,7 @@ export class SettingsEditor2 extends BaseEditor {
 		}
 
 		return this.configurationService.updateValue(key, value, overrides, configurationTarget)
-			.then(() => this.renderTree(key))
+			.then(() => this.renderTree(key, isManualReset))
 			.then(() => {
 				const reportModifiedProps = {
 					key,
@@ -738,7 +746,7 @@ export class SettingsEditor2 extends BaseEditor {
 	}
 
 	private updateElementsByKey(keys: string[]): TPromise<void> {
-		if (keys.length) {
+		if (keys.length && this.currentSettingsModel) {
 			keys.forEach(key => this.currentSettingsModel.updateElementsByName(key));
 			return TPromise.join(
 				keys.map(key => this.renderTree(key)))
@@ -748,15 +756,15 @@ export class SettingsEditor2 extends BaseEditor {
 		}
 	}
 
-	private renderTree(key?: string): TPromise<void> {
-		if (key && this.scheduledRefreshes.has(key)) {
+	private renderTree(key?: string, force = false): TPromise<void> {
+		if (!force && key && this.scheduledRefreshes.has(key)) {
 			this.updateModifiedLabelForKey(key);
 			return TPromise.wrap(null);
 		}
 
 		// If a setting control is currently focused, schedule a refresh for later
 		const focusedSetting = this.settingsTreeRenderer.getSettingDOMElementForDOMElement(<HTMLElement>document.activeElement);
-		if (focusedSetting) {
+		if (focusedSetting && !force) {
 			// If a single setting is being refreshed, it's ok to refresh now if that is not the focused setting
 			if (key) {
 				const focusedKey = focusedSetting.getAttribute(SettingsRenderer.SETTING_KEY_ATTR);

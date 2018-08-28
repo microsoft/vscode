@@ -197,4 +197,5 @@ export const knownAcronyms = new Set();
 	'ts',
 	'ie',
 	'id',
+	'php',
 ].forEach(str => knownAcronyms.add(str));

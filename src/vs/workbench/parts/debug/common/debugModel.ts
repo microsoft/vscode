@@ -186,7 +186,7 @@ export class ExpressionContainer implements IExpressionContainer {
 	}
 
 	private fetchVariables(start: number, count: number, filter: 'indexed' | 'named'): TPromise<Variable[]> {
-		return this.session.raw.variables({
+		return this.session.raw ? this.session.raw.variables({
 			variablesReference: this.reference,
 			start,
 			count,
@@ -195,7 +195,7 @@ export class ExpressionContainer implements IExpressionContainer {
 			return response && response.body && response.body.variables ? distinct(response.body.variables.filter(v => !!v && isString(v.name)), v => v.name).map(
 				v => new Variable(this.session, this, v.variablesReference, v.name, v.evaluateName, v.value, v.namedVariables, v.indexedVariables, v.presentationHint, v.type)
 			) : [];
-		}, (e: Error) => [new Variable(this.session, this, 0, e.message, e.message, '', 0, 0, { kind: 'virtual' }, null, false)]);
+		}, (e: Error) => [new Variable(this.session, this, 0, e.message, e.message, '', 0, 0, { kind: 'virtual' }, null, false)]) : TPromise.as([]);
 	}
 
 	// The adapter explicitly sents the children count of an expression only if there are lots of children which should be chunked.
@@ -491,16 +491,15 @@ export class Thread implements IThread {
 	 * Returns exception info promise if the exception was thrown, otherwise null
 	 */
 	public get exceptionInfo(): TPromise<IExceptionInfo> {
-		const session = this.session.raw;
 		if (this.stoppedDetails && this.stoppedDetails.reason === 'exception') {
-			if (!session.capabilities.supportsExceptionInfoRequest) {
+			if (!this.session.capabilities.supportsExceptionInfoRequest) {
 				return TPromise.as({
 					description: this.stoppedDetails.text,
 					breakMode: null
 				});
 			}
 
-			return session.exceptionInfo({ threadId: this.threadId }).then(exception => {
+			return this.session.raw.exceptionInfo({ threadId: this.threadId }).then(exception => {
 				if (!exception) {
 					return null;
 				}
@@ -832,7 +831,7 @@ export class Model implements IModel {
 	}
 
 	public fetchCallStack(thread: Thread): TPromise<void> {
-		if (thread.session.raw.capabilities.supportsDelayedStackTraceLoading) {
+		if (thread.session.capabilities.supportsDelayedStackTraceLoading) {
 			// For improved performance load the first stack frame and then load the rest async.
 			return thread.fetchCallStack(1).then(() => {
 				if (!this.schedulers.has(thread.getId())) {

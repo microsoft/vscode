@@ -202,6 +202,7 @@ class ListElementDelegate implements IVirtualDelegate<ListElement> {
 
 export class QuickInputList {
 
+	readonly id: string;
 	private container: HTMLElement;
 	private list: WorkbenchList<ListElement>;
 	private inputElements: (IQuickPickItem | IQuickPickSeparator)[];
@@ -227,14 +228,17 @@ export class QuickInputList {
 
 	constructor(
 		private parent: HTMLElement,
+		id: string,
 		@IInstantiationService private instantiationService: IInstantiationService
 	) {
+		this.id = id;
 		this.container = dom.append(this.parent, $('.quick-input-list'));
 		const delegate = new ListElementDelegate();
 		this.list = this.instantiationService.createInstance(WorkbenchList, this.container, delegate, [new ListElementRenderer()], {
 			identityProvider: element => element.label,
 			multipleSelectionSupport: false
 		}) as WorkbenchList<ListElement>;
+		this.list.getHTMLElement().id = id;
 		this.disposables.push(this.list);
 		this.disposables.push(this.list.onKeyDown(e => {
 			const event = new StandardKeyboardEvent(e);
@@ -376,6 +380,10 @@ export class QuickInputList {
 		this.list.setFocus(items
 			.filter(item => this.elementsToIndexes.has(item))
 			.map(item => this.elementsToIndexes.get(item)));
+	}
+
+	getActiveDescendant() {
+		return this.list.getHTMLElement().getAttribute('aria-activedescendant');
 	}
 
 	getSelectedElements() {

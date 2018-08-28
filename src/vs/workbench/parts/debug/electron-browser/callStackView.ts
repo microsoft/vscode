@@ -289,7 +289,7 @@ class CallStackActionProvider implements IActionProvider {
 			actions.push(new Separator());
 			actions.push(new TerminateThreadAction(TerminateThreadAction.ID, TerminateThreadAction.LABEL, this.debugService, this.keybindingService));
 		} else if (element instanceof StackFrame) {
-			if (element.thread.session.raw.capabilities.supportsRestartFrame) {
+			if (element.thread.session.capabilities.supportsRestartFrame) {
 				actions.push(new RestartFrameAction(RestartFrameAction.ID, RestartFrameAction.LABEL, this.debugService, this.keybindingService));
 			}
 			actions.push(new CopyStackTraceAction(CopyStackTraceAction.ID, CopyStackTraceAction.LABEL));
@@ -337,7 +337,7 @@ class CallStackDataSource implements IDataSource {
 		}
 
 		return callStackPromise.then(() => {
-			if (callStack.length === 1 && thread.session.raw.capabilities.supportsDelayedStackTraceLoading) {
+			if (callStack.length === 1 && thread.session.capabilities.supportsDelayedStackTraceLoading) {
 				// To reduce flashing of the call stack view simply append the stale call stack
 				// once we have the correct data the tree will refresh and we will no longer display it.
 				callStack = callStack.concat(thread.getStaleCallStack().slice(1));

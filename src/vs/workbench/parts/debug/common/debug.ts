@@ -115,7 +115,6 @@ export interface IRawSession {
 	variables(args: DebugProtocol.VariablesArguments): TPromise<DebugProtocol.VariablesResponse>;
 	evaluate(args: DebugProtocol.EvaluateArguments): TPromise<DebugProtocol.EvaluateResponse>;
 
-	readonly capabilities: DebugProtocol.Capabilities;
 	disconnect(restart?: boolean): TPromise<any>;
 	terminate(restart?: boolean): TPromise<DebugProtocol.TerminateResponse>;
 	custom(request: string, args: any): TPromise<DebugProtocol.Response>;
@@ -142,6 +141,7 @@ export interface ISession extends ITreeElement, IDisposable {
 	readonly raw: IRawSession;
 	readonly state: State;
 	readonly root: IWorkspaceFolder;
+	readonly capabilities: DebugProtocol.Capabilities;
 
 	getName(includeRoot: boolean): string;
 	getSourceForUri(modelUri: uri): Source;

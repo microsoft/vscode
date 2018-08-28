@@ -75,7 +75,7 @@ export class CompositeBar extends Widget implements ICompositeBar {
 					return this.compositeOverflowActionItem;
 				}
 				const item = this.model.findItem(action.id);
-				return item && this.instantiationService.createInstance(CompositeActionItem, action, item.pinnedAction, this.options.colors, this.options.icon, this);
+				return item && this.instantiationService.createInstance(CompositeActionItem, action, item.pinnedAction, () => this.getContextMenuActions(), this.options.colors, this.options.icon, this);
 			},
 			orientation: this.options.orientation,
 			ariaLabel: nls.localize('activityBarAriaLabel', "Active View Switcher"),
@@ -388,6 +388,13 @@ export class CompositeBar extends Widget implements ICompositeBar {
 	private showContextMenu(e: MouseEvent): void {
 		EventHelper.stop(e, true);
 		const event = new StandardMouseEvent(e);
+		this.contextMenuService.showContextMenu({
+			getAnchor: () => { return { x: event.posx, y: event.posy }; },
+			getActions: () => TPromise.as(this.getContextMenuActions())
+		});
+	}
+
+	private getContextMenuActions(): IAction[] {
 		const actions: IAction[] = this.model.visibleItems
 			.map(({ id, name, activityAction }) => (<IAction>{
 				id,
@@ -407,10 +414,7 @@ export class CompositeBar extends Widget implements ICompositeBar {
 			actions.push(new Separator());
 			actions.push(...otherActions);
 		}
-		this.contextMenuService.showContextMenu({
-			getAnchor: () => { return { x: event.posx, y: event.posy }; },
-			getActions: () => TPromise.as(actions),
-		});
+		return actions;
 	}
 }
 

@@ -41,7 +41,9 @@ export class NoTabsTitleControl extends TitleControl {
 		this._register(this.editorLabel.onClick(e => this.onTitleLabelClick(e)));
 
 		// Breadcrumbs
-		this.createBreadcrumbsControl(labelContainer, { showFileIcons: false, showSymbolIcons: true, showDecorationColors: false, extraClasses: ['no-tabs-breadcrumbs'], breadcrumbsBackground: editorBackground });
+		this.createBreadcrumbsControl(labelContainer, { showFileIcons: false, showSymbolIcons: true, showDecorationColors: false, breadcrumbsBackground: editorBackground });
+		toggleClass(this.titleContainer, 'breadcrumbs', Boolean(this.breadcrumbsControl));
+		this.toDispose.push({ dispose: () => removeClass(this.titleContainer, 'breadcrumbs') }); // import to remove because the container is a shared dom node
 
 		// Right Actions Container
 		const actionsContainer = document.createElement('div');
@@ -151,6 +153,7 @@ export class NoTabsTitleControl extends TitleControl {
 	}
 
 	protected handleBreadcrumbsEnablementChange(): void {
+		toggleClass(this.titleContainer, 'breadcrumbs', Boolean(this.breadcrumbsControl));
 		this.redraw();
 	}
 

@@ -1378,7 +1378,8 @@ export class CommandCenter {
 		const remoteRefs = repository.refs;
 		const remoteRefsFiltered = remoteRefs.filter(r => (r.remote === remotePick.label));
 		const branchPicks = remoteRefsFiltered.map(r => ({ label: r.name })) as { label: string; description: string }[];
-		const branchPick = await window.showQuickPick(branchPicks, { placeHolder });
+		const branchPlaceHolder = localize('pick branch pull', "Pick a branch to pull from");
+		const branchPick = await window.showQuickPick(branchPicks, { placeHolder: branchPlaceHolder });
 
 		if (!branchPick) {
 			return;

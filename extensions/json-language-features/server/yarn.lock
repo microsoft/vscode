@@ -50,6 +50,10 @@ jsonc-parser@^2.0.1:
   version "2.0.1"
   resolved "https://registry.yarnpkg.com/jsonc-parser/-/jsonc-parser-2.0.1.tgz#9d23cd2709714fff508a1a6679d82135bee1ae60"
 
+jsonc-parser@^2.0.2:
+  version "2.0.2"
+  resolved "https://registry.yarnpkg.com/jsonc-parser/-/jsonc-parser-2.0.2.tgz#42fcf56d70852a043fadafde51ddb4a85649978d"
+
 ms@2.0.0:
   version "2.0.0"
   resolved "https://registry.yarnpkg.com/ms/-/ms-2.0.0.tgz#5608aeadfc00be6c2901df5f9861788de0d597c8"
@@ -62,14 +66,14 @@ request-light@^0.2.3:
     https-proxy-agent "^2.2.1"
     vscode-nls "^3.2.2"
 
-vscode-json-languageservice@^3.1.5:
-  version "3.1.5"
-  resolved "https://registry.yarnpkg.com/vscode-json-languageservice/-/vscode-json-languageservice-3.1.5.tgz#4ebac4cadcaedd55ea2d0716259b50a89955e00e"
+vscode-json-languageservice@^3.1.6:
+  version "3.1.6"
+  resolved "https://registry.yarnpkg.com/vscode-json-languageservice/-/vscode-json-languageservice-3.1.6.tgz#272e21eb9abcefe6c1ed38be141f0a76d5ddf0cd"
   dependencies:
     jsonc-parser "^2.0.1"
-    vscode-languageserver-types "^3.10.1"
+    vscode-languageserver-types "^3.12.0"
     vscode-nls "^3.2.4"
-    vscode-uri "^1.0.5"
+    vscode-uri "^1.0.6"
 
 vscode-jsonrpc@^3.6.2:
   version "3.6.2"
@@ -81,10 +85,6 @@ vscode-languageserver-protocol@^3.12.0:
   dependencies:
     vscode-jsonrpc "^3.6.2"
     vscode-languageserver-types "^3.12.0"
-
-vscode-languageserver-types@^3.10.1:
-  version "3.10.1"
-  resolved "https://registry.yarnpkg.com/vscode-languageserver-types/-/vscode-languageserver-types-3.10.1.tgz#d5d5f44f688a3b2aa9857dc53cb9cacca73fe35a"
 
 vscode-languageserver-types@^3.12.0:
   version "3.12.0"
@@ -101,6 +101,14 @@ vscode-nls@^3.2.2, vscode-nls@^3.2.4:
   version "3.2.4"
   resolved "https://registry.yarnpkg.com/vscode-nls/-/vscode-nls-3.2.4.tgz#2166b4183c8aea884d20727f5449e62be69fd398"
 
+vscode-nls@^3.2.5:
+  version "3.2.5"
+  resolved "https://registry.yarnpkg.com/vscode-nls/-/vscode-nls-3.2.5.tgz#25520c1955108036dec607c85e00a522f247f1a4"
+
 vscode-uri@^1.0.5:
   version "1.0.5"
   resolved "https://registry.yarnpkg.com/vscode-uri/-/vscode-uri-1.0.5.tgz#3b899a8ef71c37f3054d79bdbdda31c7bf36f20d"
+
+vscode-uri@^1.0.6:
+  version "1.0.6"
+  resolved "https://registry.yarnpkg.com/vscode-uri/-/vscode-uri-1.0.6.tgz#6b8f141b0bbc44ad7b07e94f82f168ac7608ad4d"
