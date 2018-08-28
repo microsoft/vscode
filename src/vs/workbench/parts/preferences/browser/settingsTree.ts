@@ -208,6 +208,7 @@ export class SettingsDataSource implements IDataSource {
 
 export class SimplePagedDataSource implements IDataSource {
 	private static readonly SETTINGS_PER_PAGE = 30;
+	private static readonly BUFFER = 5;
 
 	private loadedToIndex: number;
 
@@ -215,8 +216,10 @@ export class SimplePagedDataSource implements IDataSource {
 		this.loadedToIndex = SimplePagedDataSource.SETTINGS_PER_PAGE * 2;
 	}
 
-	pageTo(index: number): boolean {
-		if (index > this.loadedToIndex - SimplePagedDataSource.SETTINGS_PER_PAGE) {
+	pageTo(index: number, top = true): boolean {
+		const buffer = top ? SimplePagedDataSource.SETTINGS_PER_PAGE : SimplePagedDataSource.BUFFER;
+
+		if (index > this.loadedToIndex - buffer) {
 			this.loadedToIndex = (Math.ceil(index / SimplePagedDataSource.SETTINGS_PER_PAGE) + 1) * SimplePagedDataSource.SETTINGS_PER_PAGE;
 			return true;
 		} else {

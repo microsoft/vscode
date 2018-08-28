@@ -556,7 +556,7 @@ export class SettingsEditor2 extends BaseEditor {
 
 	private updateTreePagingByScroll(): void {
 		const lastVisibleElement = this.settingsTree.getLastVisibleElement();
-		if (lastVisibleElement && this.settingsTreeDataSource.pageTo(lastVisibleElement.index)) {
+		if (lastVisibleElement && this.settingsTreeDataSource.pageTo(lastVisibleElement.index, false)) {
 			this.renderTree();
 		}
 	}
