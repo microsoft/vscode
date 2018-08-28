@@ -678,7 +678,7 @@ export class SettingsRenderer implements ITreeRenderer {
 		// Also have to ignore embedded links - too buried to stop propagation
 		toDispose.push(DOM.addDisposableListener(descriptionElement, DOM.EventType.MOUSE_DOWN, (e) => {
 			const targetElement = <HTMLElement>e.toElement;
-			const targetId = descriptionElement.getAttribute('checkbox-label-target-id');
+			const targetId = descriptionElement.getAttribute('checkbox_label_target_id');
 
 			// Make sure we are not a link and the target ID matches
 			// Toggle target checkbox
@@ -932,10 +932,12 @@ export class SettingsRenderer implements ITreeRenderer {
 			template.descriptionElement.innerText = element.description;
 		}
 
+		const baseId = (element.displayCategory + '_' + element.displayLabel).replace(/ /g, '_').toLowerCase();
+		template.descriptionElement.id = baseId + '_setting_description';
+
 		if (templateId === SETTINGS_BOOL_TEMPLATE_ID) {
 			// Add checkbox target to description clickable and able to toggle checkbox
-			const checkbox_id = (element.displayCategory + '_' + element.displayLabel).replace(/ /g, '_') + '_Item';
-			template.descriptionElement.setAttribute('checkbox-label-target-id', checkbox_id);
+			template.descriptionElement.setAttribute('checkbox_label_target_id', baseId + '_setting_item');
 		}
 
 		if (element.overriddenScopeList.length) {
@@ -1003,20 +1005,20 @@ export class SettingsRenderer implements ITreeRenderer {
 
 		// Setup and add ARIA attributes
 		// Create id and label for control/input element - parent is wrapper div
-		const id = (dataElement.displayCategory + '_' + dataElement.displayLabel).replace(/ /g, '_');
+		const baseId = (dataElement.displayCategory + '_' + dataElement.displayLabel).replace(/ /g, '_').toLowerCase();
 		const modifiedText = dataElement.isConfigured ? 'Modified' : '';
-		const label = dataElement.displayCategory + ' ' + dataElement.displayLabel + (dataElement.value ? ' checked ' : ' unchecked ') + modifiedText;
+		const label = dataElement.displayCategory + ' ' + dataElement.displayLabel + ' ' + modifiedText;
 
 		// We use the parent control div for the aria-labelledby target
 		// Does not appear you can use the direct label on the element itself within a tree
-		template.checkbox.domNode.parentElement.setAttribute('id', id);
+		template.checkbox.domNode.parentElement.id = baseId + '_setting_label';
 		template.checkbox.domNode.parentElement.setAttribute('aria-label', label);
 
 		// Labels will not be read on descendent input elements of the parent treeitem
 		// unless defined as role=treeitem and indirect aria-labelledby approach
-		// TODO: Determine method to normally label input items with value read last
-		template.checkbox.domNode.setAttribute('id', id + '_Item');
-		template.checkbox.domNode.setAttribute('aria-labelledby', id);
+		template.checkbox.domNode.id = baseId + '_setting_item';
+		template.checkbox.domNode.setAttribute('aria-labelledby', baseId + '_setting_label');
+		template.checkbox.domNode.setAttribute('aria-describedby', baseId + '_setting_description');
 	}
 
 	private renderEnum(dataElement: SettingsTreeSettingElement, template: ISettingEnumItemTemplate, onChange: (value: string) => void): void {
@@ -1025,6 +1027,7 @@ export class SettingsRenderer implements ITreeRenderer {
 
 		const modifiedText = dataElement.isConfigured ? 'Modified' : '';
 		const label = dataElement.displayCategory + ' ' + dataElement.displayLabel + ' ' + modifiedText;
+		const baseId = (dataElement.displayCategory + '_' + dataElement.displayLabel).replace(/ /g, '_').toLowerCase();
 
 		template.selectBox.setAriaLabel(label);
 
@@ -1034,8 +1037,9 @@ export class SettingsRenderer implements ITreeRenderer {
 		template.onChange = idx => onChange(dataElement.setting.enum[idx]);
 
 		if (template.controlElement.firstElementChild) {
-			// SelectBox needs to be treeitem to read correctly within tree
+			// SelectBox needs to have treeitem changed to combobox to read correctly within tree
 			template.controlElement.firstElementChild.setAttribute('role', 'combobox');
+			template.controlElement.firstElementChild.setAttribute('aria-describedby', baseId + '_setting_description');
 		}
 
 		template.enumDescriptionElement.innerHTML = '';
@@ -1068,19 +1072,19 @@ export class SettingsRenderer implements ITreeRenderer {
 
 		// Setup and add ARIA attributes
 		// Create id and label for control/input element - parent is wrapper div
-		const id = (dataElement.displayCategory + '_' + dataElement.displayLabel).replace(/ /g, '_');
+		const baseId = (dataElement.displayCategory + '_' + dataElement.displayLabel).replace(/ /g, '_').toLowerCase();
 
 		// We use the parent control div for the aria-labelledby target
 		// Does not appear you can use the direct label on the element itself within a tree
-		template.inputBox.inputElement.parentElement.setAttribute('id', id);
+		template.inputBox.inputElement.parentElement.id = baseId + '_setting_label';
 		template.inputBox.inputElement.parentElement.setAttribute('aria-label', label);
 
 		// Labels will not be read on descendent input elements of the parent treeitem
 		// unless defined as role=treeitem and indirect aria-labelledby approach
-		// TODO: Determine method to normally label input items with value read last
-		template.inputBox.inputElement.setAttribute('id', id + '_Item');
+		template.inputBox.inputElement.id = baseId + '_setting_item';
 		template.inputBox.inputElement.setAttribute('role', 'textbox');
-		template.inputBox.inputElement.setAttribute('aria-labelledby', id);
+		template.inputBox.inputElement.setAttribute('aria-labelledby', baseId + '_setting_label');
+		template.inputBox.inputElement.setAttribute('aria-describedby', baseId + '_setting_description');
 
 		renderValidations(dataElement, template, true, label);
 	}
@@ -1101,19 +1105,19 @@ export class SettingsRenderer implements ITreeRenderer {
 
 		// Setup and add ARIA attributes
 		// Create id and label for control/input element - parent is wrapper div
-		const id = (dataElement.displayCategory + '_' + dataElement.displayLabel).replace(/ /g, '_');
+		const baseId = (dataElement.displayCategory + '_' + dataElement.displayLabel).replace(/ /g, '_').toLowerCase();
 
 		// We use the parent control div for the aria-labelledby target
 		// Does not appear you can use the direct label on the element itself within a tree
-		template.inputBox.inputElement.parentElement.setAttribute('id', id);
+		template.inputBox.inputElement.parentElement.id = baseId + '_setting_label';
 		template.inputBox.inputElement.parentElement.setAttribute('aria-label', label);
 
 		// Labels will not be read on descendent input elements of the parent treeitem
 		// unless defined as role=treeitem and indirect aria-labelledby approach
-		// TODO: Determine method to normally label input items with value read last
-		template.inputBox.inputElement.setAttribute('id', id + '_Item');
+		template.inputBox.inputElement.id = baseId + '_setting_item';
 		template.inputBox.inputElement.setAttribute('role', 'textbox');
-		template.inputBox.inputElement.setAttribute('aria-labelledby', id);
+		template.inputBox.inputElement.setAttribute('aria-labelledby', baseId + '_setting_label');
+		template.inputBox.inputElement.setAttribute('aria-describedby', baseId + '_setting_description');
 
 		renderValidations(dataElement, template, true, label);
 	}
