@@ -85,7 +85,7 @@ export class SettingsEditor2Input extends ResourceEditorInput {
 		@ITextModelService textModelResolverService: ITextModelService,
 		@IHashService hashService: IHashService
 	) {
-		super(nls.localize('settingsEditor2InputName', "Settings (Preview)"), '', defaultSettingsResource, textModelResolverService, hashService);
+		super(nls.localize('settingsEditor2InputName', "Settings"), '', defaultSettingsResource, textModelResolverService, hashService);
 	}
 
 	getTypeId(): string {

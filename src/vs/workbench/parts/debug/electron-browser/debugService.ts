@@ -339,7 +339,7 @@ export class DebugService implements IDebugService {
 				session = stackFrame ? stackFrame.thread.session : thread.session;
 			} else {
 				const sessions = this.model.getSessions();
-				session = first(sessions, s => s.state === State.Stopped, sessions.length ? sessions[0] : undefined);
+				session = sessions.length ? sessions[0] : undefined;
 			}
 		}
 
@@ -348,7 +348,7 @@ export class DebugService implements IDebugService {
 				thread = stackFrame.thread;
 			} else {
 				const threads = session ? session.getAllThreads() : undefined;
-				thread = threads ? first(threads, t => t.stopped, threads.length ? threads[0] : undefined) : undefined;
+				thread = threads && threads.length ? threads[0] : undefined;
 			}
 		}
 

@@ -651,8 +651,8 @@ configurationRegistry.registerConfiguration({
 			'type': 'string',
 			'enum': ['ui', 'json'],
 			'enumDescriptions': [
-				nls.localize('settings.editor.json', "Use the JSON file editor."),
 				nls.localize('settings.editor.ui', "Use the settings UI editor."),
+				nls.localize('settings.editor.json', "Use the JSON file editor."),
 			],
 			'description': nls.localize('settings.editor.desc', "Determines which settings editor to use by default."),
 			'default': 'ui',

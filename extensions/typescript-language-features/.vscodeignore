@@ -1,7 +1,8 @@
 build/**
 src/**
 test/**
-tsconfig.json
+out/**
 node_modules/jsonc-parser/**
 node_modules/semver/**
-
+tsconfig.json
+extension.webpack.config.js

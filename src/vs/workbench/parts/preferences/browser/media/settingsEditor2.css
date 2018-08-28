@@ -18,25 +18,7 @@
 	box-sizing: border-box;
 	margin: auto;
 	overflow: hidden;
-}
-
-.settings-editor > .settings-header > .settings-preview-header {
-	margin-bottom: 5px;
-}
-
-.settings-editor > .settings-header > .settings-preview-header .settings-preview-label {
-	opacity: .7;
-	white-space: nowrap;
-}
-
-.settings-editor > .settings-header > .settings-preview-header > .settings-preview-warning {
-	text-align: right;
-	text-transform: uppercase;
-	background: rgba(136, 136, 136, 0.2);
-	border-radius: 2px;
-	font-size: 0.8em;
-	padding: 0 3px;
-	margin-right: 7px;
+	padding-top: 3px;
 }
 
 .settings-editor > .settings-header > .search-container {
