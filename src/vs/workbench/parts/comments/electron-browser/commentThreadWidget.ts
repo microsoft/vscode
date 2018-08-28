@@ -14,6 +14,7 @@ import * as arrays from 'vs/base/common/arrays';
 import { Color } from 'vs/base/common/color';
 import { Emitter, Event } from 'vs/base/common/event';
 import { IDisposable } from 'vs/base/common/lifecycle';
+import * as platform from 'vs/base/common/platform';
 import { ICodeEditor, IEditorMouseEvent, MouseTargetType } from 'vs/editor/browser/editorBrowser';
 import * as modes from 'vs/editor/common/modes';
 import { peekViewBorder } from 'vs/editor/contrib/referenceSearch/referencesWidget';
@@ -497,11 +498,12 @@ export class ReviewZoneWidget extends ZoneWidget {
 		if (model) {
 			let valueLength = model.getValueLength();
 			const hasExistingComments = this._commentThread.comments.length > 0;
+			let keybinding = platform.isMacintosh ? 'Cmd+Enter' : 'Ctrl+Enter';
 			let placeholder = valueLength > 0
 				? ''
 				: (hasExistingComments
-					? nls.localize('replytoCommentThread', "Reply... (press Ctrl+Enter to submit)")
-					: nls.localize('createCommentThread', "Type a new comment (press Ctrl+Enter to submit)"));
+					? `Reply... (press ${keybinding} to submit)`
+					: `Type a new comment (press ${keybinding} to submit)`);
 			const decorations = [{
 				range: {
 					startLineNumber: 0,
