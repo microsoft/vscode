@@ -481,6 +481,10 @@ export class SettingsEditor2 extends BaseEditor {
 			}));
 		this.settingsTree.getHTMLElement().attributes.removeNamedItem('tabindex');
 
+		// Have to redefine role of the tree widget to form for input elements
+		// TODO:CDL make this an option for tree
+		this.settingsTree.getHTMLElement().setAttribute('role', 'form');
+
 		this._register(this.settingsTree.onDidScroll(() => {
 			this.updateTreeScrollSync();
 		}));
