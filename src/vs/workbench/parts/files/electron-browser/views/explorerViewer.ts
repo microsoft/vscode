@@ -871,12 +871,15 @@ export class FileDragAndDrop extends SimpleFileResourceDragAndDrop {
 					return true; // Can not move anything onto itself
 				}
 
-				if (!isCopy && resources.dirname(source.resource).toString() === target.resource.toString()) {
-					return true; // Can not move a file to the same parent unless we copy
-				}
+				// If we are not moving workspace root folders
+				if (!(source.isRoot && target instanceof ExplorerItem && target.isRoot)) {
+					if (!isCopy && resources.dirname(source.resource).toString() === target.resource.toString()) {
+						return true; // Can not move a file to the same parent unless we copy
+					}
 
-				if (resources.isEqualOrParent(target.resource, source.resource, !isLinux /* ignorecase */)) {
-					return true; // Can not move a parent folder into one of its children
+					if (resources.isEqualOrParent(target.resource, source.resource, !isLinux /* ignorecase */)) {
+						return true; // Can not move a parent folder into one of its children
+					}
 				}
 
 				return false;
