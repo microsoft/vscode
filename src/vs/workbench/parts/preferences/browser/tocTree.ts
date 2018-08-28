@@ -92,8 +92,16 @@ export class TOCDataSource implements IDataSource {
 	}
 
 	hasChildren(tree: ITree, element: TOCTreeElement): boolean {
-		return element instanceof TOCTreeModel ||
-			(element instanceof SettingsTreeGroupElement && element.children && element.children.some(child => child instanceof SettingsTreeGroupElement));
+		if (element instanceof TOCTreeModel) {
+			return true;
+		}
+
+		if (element instanceof SettingsTreeGroupElement) {
+			// Should have child which won't be filtered out (undefined or >0 count)
+			return element.children && element.children.some(child => child instanceof SettingsTreeGroupElement && child.count !== 0);
+		}
+
+		return false;
 	}
 
 	getChildren(tree: ITree, element: TOCTreeElement): TPromise<SettingsTreeElement[]> {
