@@ -273,9 +273,9 @@ export interface ITreeItem {
 
 	label?: string;
 
-	icon?: string;
+	icon?: UriComponents;
 
-	iconDark?: string;
+	iconDark?: UriComponents;
 
 	themeIcon?: ThemeIcon;
 
