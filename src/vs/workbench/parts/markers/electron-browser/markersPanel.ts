@@ -19,7 +19,7 @@ import { Marker, ResourceMarkers, RelatedInformation } from 'vs/workbench/parts/
 import { Controller } from 'vs/workbench/parts/markers/electron-browser/markersTreeController';
 import * as Viewer from 'vs/workbench/parts/markers/electron-browser/markersTreeViewer';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { CollapseAllAction, MarkersFilterActionItem, MarkersFilterAction, QuickFixAction, QuickFixActionItem } from 'vs/workbench/parts/markers/electron-browser/markersPanelActions';
+import { CollapseAllAction, MarkersFilterActionItem, MarkersFilterAction, QuickFixAction, QuickFixActionItem, IMarkersFilterActionChangeEvent } from 'vs/workbench/parts/markers/electron-browser/markersPanelActions';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import Messages from 'vs/workbench/parts/markers/electron-browser/messages';
 import { RangeHighlightDecorations } from 'vs/workbench/browser/parts/editor/rangeDecorations';
@@ -48,6 +48,7 @@ export class MarkersPanel extends Panel {
 
 	private actions: IAction[];
 	private collapseAllAction: IAction;
+	private filterAction: MarkersFilterAction;
 	private filterInputActionItem: MarkersFilterActionItem;
 
 	private treeContainer: HTMLElement;
@@ -100,7 +101,9 @@ export class MarkersPanel extends Panel {
 	public layout(dimension: dom.Dimension): void {
 		this.treeContainer.style.height = `${dimension.height}px`;
 		this.tree.layout(dimension.height, dimension.width);
-		this.filterInputActionItem.toggleLayout(dimension.width < 1200);
+		if (this.filterInputActionItem) {
+			this.filterInputActionItem.toggleLayout(dimension.width < 1200);
+		}
 	}
 
 	public focus(): void {
@@ -183,7 +186,7 @@ export class MarkersPanel extends Panel {
 
 	private updateFilter() {
 		this.autoExpanded = new Set<string>();
-		this.markersWorkbenchService.filter({ filterText: this.filterInputActionItem.getFilterText(), useFilesExclude: this.filterInputActionItem.useFilesExclude });
+		this.markersWorkbenchService.filter({ filterText: this.filterAction.filterText, useFilesExclude: this.filterAction.useFilesExclude });
 	}
 
 	private createMessageBox(parent: HTMLElement): void {
@@ -234,16 +237,19 @@ export class MarkersPanel extends Panel {
 
 	private createActions(): void {
 		this.collapseAllAction = this.instantiationService.createInstance(CollapseAllAction, this.tree, true);
-		const filterAction = this.instantiationService.createInstance(MarkersFilterAction);
-		this.filterInputActionItem = this.instantiationService.createInstance(MarkersFilterActionItem, { filterText: this.panelSettings['filter'] || '', filterHistory: this.panelSettings['filterHistory'] || [], useFilesExclude: !!this.panelSettings['useFilesExclude'] }, filterAction);
-		this.actions = [filterAction, this.collapseAllAction];
+		this.filterAction = this.instantiationService.createInstance(MarkersFilterAction, { filterText: this.panelSettings['filter'] || '', filterHistory: this.panelSettings['filterHistory'] || [], useFilesExclude: !!this.panelSettings['useFilesExclude'] });
+		this.actions = [this.filterAction, this.collapseAllAction];
 	}
 
 	private createListeners(): void {
 		this._register(this.markersWorkbenchService.onDidChange(resources => this.onDidChange(resources)));
 		this._register(this.editorService.onDidActiveEditorChange(this.onActiveEditorChanged, this));
 		this._register(this.tree.onDidChangeSelection(() => this.onSelected()));
-		this._register(this.filterInputActionItem.onDidChange(() => this.updateFilter()));
+		this._register(this.filterAction.onDidChange((event: IMarkersFilterActionChangeEvent) => {
+			if (event.filterText || event.useFilesExclude) {
+				this.updateFilter();
+			}
+		}));
 		this.actions.forEach(a => this._register(a));
 	}
 
@@ -338,10 +344,10 @@ export class MarkersPanel extends Panel {
 		const link = dom.append(container, dom.$('a.messageAction'));
 		link.textContent = localize('disableFilesExclude', "Disable Files Exclude Filter.");
 		link.setAttribute('tabIndex', '0');
-		dom.addStandardDisposableListener(link, dom.EventType.CLICK, () => this.filterInputActionItem.useFilesExclude = false);
+		dom.addStandardDisposableListener(link, dom.EventType.CLICK, () => this.filterAction.useFilesExclude = false);
 		dom.addStandardDisposableListener(link, dom.EventType.KEY_DOWN, (e: IKeyboardEvent) => {
 			if (e.equals(KeyCode.Enter) || e.equals(KeyCode.Space)) {
-				this.filterInputActionItem.useFilesExclude = false;
+				this.filterAction.useFilesExclude = false;
 				e.stopPropagation();
 			}
 		});
@@ -354,10 +360,10 @@ export class MarkersPanel extends Panel {
 		const link = dom.append(container, dom.$('a.messageAction'));
 		link.textContent = localize('clearFilter', "Clear Filter.");
 		link.setAttribute('tabIndex', '0');
-		dom.addStandardDisposableListener(link, dom.EventType.CLICK, () => this.filterInputActionItem.clear());
+		dom.addStandardDisposableListener(link, dom.EventType.CLICK, () => this.filterAction.filterText = '');
 		dom.addStandardDisposableListener(link, dom.EventType.KEY_DOWN, (e: IKeyboardEvent) => {
 			if (e.equals(KeyCode.Enter) || e.equals(KeyCode.Space)) {
-				this.filterInputActionItem.clear();
+				this.filterAction.filterText = '';
 				e.stopPropagation();
 			}
 		});
@@ -452,6 +458,7 @@ export class MarkersPanel extends Panel {
 
 	public getActionItem(action: IAction): IActionItem {
 		if (action.id === MarkersFilterAction.ID) {
+			this.filterInputActionItem = this.instantiationService.createInstance(MarkersFilterActionItem, this.filterAction);
 			return this.filterInputActionItem;
 		}
 		if (action.id === QuickFixAction.ID) {
@@ -462,9 +469,9 @@ export class MarkersPanel extends Panel {
 
 	public shutdown(): void {
 		// store memento
-		this.panelSettings['filter'] = this.filterInputActionItem.getFilterText();
-		this.panelSettings['filterHistory'] = this.filterInputActionItem.getFilterHistory();
-		this.panelSettings['useFilesExclude'] = this.filterInputActionItem.useFilesExclude;
+		this.panelSettings['filter'] = this.filterAction.filterText;
+		this.panelSettings['filterHistory'] = this.filterAction.filterHistory;
+		this.panelSettings['useFilesExclude'] = this.filterAction.useFilesExclude;
 
 		super.shutdown();
 	}
