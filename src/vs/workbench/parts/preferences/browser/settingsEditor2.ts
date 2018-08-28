@@ -5,7 +5,6 @@
 
 import * as DOM from 'vs/base/browser/dom';
 import { Separator } from 'vs/base/browser/ui/actionbar/actionbar';
-import { Button } from 'vs/base/browser/ui/button/button';
 import { ToolBar } from 'vs/base/browser/ui/toolbar/toolbar';
 import { Action } from 'vs/base/common/actions';
 import * as arrays from 'vs/base/common/arrays';
@@ -30,7 +29,7 @@ import { INotificationService } from 'vs/platform/notification/common/notificati
 import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { badgeBackground, badgeForeground, contrastBorder, editorForeground } from 'vs/platform/theme/common/colorRegistry';
-import { attachButtonStyler, attachStylerCallback } from 'vs/platform/theme/common/styler';
+import { attachStylerCallback } from 'vs/platform/theme/common/styler';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { BaseEditor } from 'vs/workbench/browser/parts/editor/baseEditor';
 import { EditorOptions, IEditor } from 'vs/workbench/common/editor';
@@ -387,10 +386,6 @@ export class SettingsEditor2 extends BaseEditor {
 		);
 
 		this.createTOC(bodyContainer);
-
-		if (this.environmentService.appQuality !== 'stable') {
-			this.createFeedbackButton(bodyContainer);
-		}
 	}
 
 	private createFocusSink(container: HTMLElement, callback: (e: any) => boolean, label: string): HTMLElement {
@@ -479,18 +474,6 @@ export class SettingsEditor2 extends BaseEditor {
 
 		this._register(this.settingsTree.onDidScroll(() => {
 			this.updateTreeScrollSync();
-		}));
-	}
-
-	private createFeedbackButton(parent: HTMLElement): void {
-		const feedbackButton = this._register(new Button(parent));
-		feedbackButton.label = localize('feedbackButtonLabel', "Provide Feedback");
-		feedbackButton.element.classList.add('settings-feedback-button');
-
-		this._register(attachButtonStyler(feedbackButton, this.themeService));
-		this._register(feedbackButton.onDidClick(() => {
-			// Github master issue
-			window.open('https://go.microsoft.com/fwlink/?linkid=2000807');
 		}));
 	}
 
