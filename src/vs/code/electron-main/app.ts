@@ -563,7 +563,7 @@ export class CodeApplication {
 		let createNativeMenu = true;
 		if (platform.isLinux) {
 			createNativeMenu = configurationService.getValue<string>('window.titleBarStyle') !== 'custom';
-		} else {
+		} else if (platform.isWindows) {
 			createNativeMenu = configurationService.getValue<string>('window.titleBarStyle') === 'native';
 		}
 
