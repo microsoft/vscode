@@ -65,13 +65,13 @@ export class TerminalProcessManager implements ITerminalProcessManager {
 		});
 	}
 
-	public dispose(immediate?: boolean): void {
+	public dispose(): void {
 		if (this._process) {
 			// If the process was still connected this dispose came from
 			// within VS Code, not the process, so mark the process as
 			// killed by the user.
 			this.processState = ProcessState.KILLED_BY_USER;
-			this._process.shutdown(immediate);
+			this._process.shutdown();
 			this._process = null;
 		}
 		this._disposables.forEach(d => d.dispose());

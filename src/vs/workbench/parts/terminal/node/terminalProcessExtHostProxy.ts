@@ -25,8 +25,8 @@ export class TerminalProcessExtHostProxy implements ITerminalChildProcess, ITerm
 	public get onInput(): Event<string> { return this._onInput.event; }
 	private readonly _onResize: Emitter<{ cols: number, rows: number }> = new Emitter<{ cols: number, rows: number }>();
 	public get onResize(): Event<{ cols: number, rows: number }> { return this._onResize.event; }
-	private readonly _onShutdown: Emitter<boolean> = new Emitter<boolean>();
-	public get onShutdown(): Event<boolean> { return this._onShutdown.event; }
+	private readonly _onShutdown: Emitter<void> = new Emitter<void>();
+	public get onShutdown(): Event<void> { return this._onShutdown.event; }
 
 	constructor(
 		public terminalId: number,
@@ -65,9 +65,8 @@ export class TerminalProcessExtHostProxy implements ITerminalChildProcess, ITerm
 		this._onProcessExit.fire(exitCode);
 		this.dispose();
 	}
-
-	public shutdown(immediate: boolean): void {
-		this._onShutdown.fire(immediate);
+	public shutdown(): void {
+		this._onShutdown.fire();
 	}
 
 	public input(data: string): void {

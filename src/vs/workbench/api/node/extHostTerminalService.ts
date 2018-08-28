@@ -415,8 +415,8 @@ export class ExtHostTerminalService implements ExtHostTerminalServiceShape {
 		}
 	}
 
-	public $acceptProcessShutdown(id: number, immediate: boolean): void {
-		this._terminalProcesses[id].shutdown(immediate);
+	public $acceptProcessShutdown(id: number): void {
+		this._terminalProcesses[id].shutdown();
 	}
 
 	private _onProcessExit(id: number, exitCode: number): void {

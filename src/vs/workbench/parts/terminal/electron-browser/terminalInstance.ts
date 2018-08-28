@@ -563,7 +563,7 @@ export class TerminalInstance implements ITerminalInstance {
 		this._terminalFocusContextKey.set(terminalFocused);
 	}
 
-	public dispose(isShuttingDown?: boolean): void {
+	public dispose(): void {
 		this._logService.trace(`terminalInstance#dispose (id: ${this.id})`);
 
 		this._windowsShellHelper = lifecycle.dispose(this._windowsShellHelper);
@@ -588,7 +588,7 @@ export class TerminalInstance implements ITerminalInstance {
 			this._xterm.dispose();
 			this._xterm = null;
 		}
-		this._processManager.dispose(isShuttingDown);
+		this._processManager = lifecycle.dispose(this._processManager);
 		if (!this._isDisposed) {
 			this._isDisposed = true;
 			this._onDisposed.fire(this);

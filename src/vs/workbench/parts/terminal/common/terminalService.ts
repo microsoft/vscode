@@ -113,7 +113,7 @@ export abstract class TerminalService implements ITerminalService {
 
 	private _onShutdown(): void {
 		// Dispose of all instances
-		this.terminalInstances.forEach(instance => instance.dispose(true));
+		this.terminalInstances.forEach(instance => instance.dispose());
 	}
 
 	public getTabLabels(): string[] {
