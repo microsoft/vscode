@@ -229,14 +229,6 @@ export class SettingsEditor2 extends BaseEditor {
 	private createHeader(parent: HTMLElement): void {
 		this.headerContainer = DOM.append(parent, $('.settings-header'));
 
-		const previewHeader = DOM.append(this.headerContainer, $('.settings-preview-header'));
-
-		const previewAlert = DOM.append(previewHeader, $('span.settings-preview-warning'));
-		previewAlert.textContent = localize('previewWarning', "Preview");
-
-		const previewTextLabel = DOM.append(previewHeader, $('span.settings-preview-label'));
-		previewTextLabel.textContent = localize('previewLabel', "This is a preview of our new settings editor");
-
 		const searchContainer = DOM.append(this.headerContainer, $('.search-container'));
 
 		let searchBoxLabel = localize('SearchSettings.AriaLabel', "Search settings");
@@ -1034,7 +1026,7 @@ export class SettingsEditor2 extends BaseEditor {
 	}
 
 	private layoutTrees(dimension: DOM.Dimension): void {
-		const listHeight = dimension.height - (97 + 11 /* header height + padding*/);
+		const listHeight = dimension.height - (76 + 11 /* header height + padding*/);
 		const settingsTreeHeight = listHeight - 14;
 		this.settingsTreeContainer.style.height = `${settingsTreeHeight}px`;
 		this.settingsTree.layout(settingsTreeHeight, 800);
