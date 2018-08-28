@@ -1106,12 +1106,12 @@ export class SettingsRenderer implements ITreeRenderer {
 	private renderEnum(dataElement: SettingsTreeSettingElement, template: ISettingEnumItemTemplate, onChange: (value: string) => void): void {
 		const displayOptions = getDisplayEnumOptions(dataElement.setting);
 		template.selectBox.setOptions(displayOptions);
-		const descriptions = dataElement.setting.enumDescriptions;
-		const descriptionsAreMarkdown = dataElement.setting.descriptionIsMarkdown;
+		const enumDescriptions = dataElement.setting.enumDescriptions;
+		const enumDescriptionsAreMarkdown = dataElement.setting.enumDescriptionsAreMarkdown;
 		template.selectBox.setDetailsProvider(index =>
 			({
-				details: descriptions && descriptions[index] && (descriptionsAreMarkdown ? fixSettingLinks(descriptions[index]) : descriptions[index]),
-				isMarkdown: descriptionsAreMarkdown
+				details: enumDescriptions && enumDescriptions[index] && (enumDescriptionsAreMarkdown ? fixSettingLinks(enumDescriptions[index], false) : enumDescriptions[index]),
+				isMarkdown: enumDescriptionsAreMarkdown
 			}));
 
 		const modifiedText = dataElement.isConfigured ? 'Modified' : '';
@@ -1236,11 +1236,13 @@ function cleanRenderedMarkdown(element: Node): void {
 	}
 }
 
-function fixSettingLinks(text: string): string {
-	return text.replace(/`#([^#]*)#`/g, (match, settingName) => {
-		const targetDisplayFormat = settingKeyToDisplayFormat(settingName);
+function fixSettingLinks(text: string, linkify = true): string {
+	return text.replace(/`#([^#]*)#`/g, (match, settingKey) => {
+		const targetDisplayFormat = settingKeyToDisplayFormat(settingKey);
 		const targetName = `${targetDisplayFormat.category}: ${targetDisplayFormat.label}`;
-		return `[${targetName}](#${settingName})`;
+		return linkify ?
+			`[${targetName}](#${settingKey})` :
+			`"${targetName}"`;
 	});
 }
 
