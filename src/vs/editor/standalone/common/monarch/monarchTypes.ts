@@ -121,11 +121,9 @@ export type IMonarchLanguageAction = IShortMonarchLanguageAction
 	| IExpandedMonarchLanguageAction[];
 
 /**
- * Brackets interface can be an object or shortened as an array, ie. ['{','}','delimiter.curly']
+ * This interface can be shortened as an array, ie. ['{','}','delimiter.curly']
  */
-export type IShortMonarchLanguageBracket = [string, string, string];
-
-export interface IExpandedMonarchLanguageBracket {
+export interface IMonarchLanguageBracket {
 	/**
 	 * open bracket
 	 */
@@ -139,5 +137,3 @@ export interface IExpandedMonarchLanguageBracket {
 	 */
 	token: string;
 }
-
-export type IMonarchLanguageBracket = IShortMonarchLanguageBracket | IExpandedMonarchLanguageBracket;
