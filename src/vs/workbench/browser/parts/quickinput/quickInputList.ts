@@ -145,6 +145,11 @@ class ListElementRenderer implements IRenderer<ListElement, IListElementTemplate
 		// Meta
 		data.detail.set(element.item.detail, detailHighlights);
 
+		// ARIA label
+		data.entry.setAttribute('aria-label', [element.item.label, element.item.description, element.item.detail]
+			.filter(s => !!s)
+			.join(', '));
+
 		// Separator
 		if (element.separator && element.separator.label) {
 			data.separator.textContent = element.separator.label;
