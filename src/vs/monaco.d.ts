@@ -5390,15 +5390,15 @@ declare namespace monaco.languages {
 		tokenPostfix?: string;
 	}
 
-	export type IShortMonarchLanguageRule1 = [RegExp, string | IMonarchLanguageAction];
-
-	export type IShortMonarchLanguageRule2 = [RegExp, string | IMonarchLanguageAction, string];
-
 	/**
 	 * A rule is either a regular expression and an action
 	 * 		shorthands: [reg,act] == { regex: reg, action: act}
 	 *		and       : [reg,act,nxt] == { regex: reg, action: act{ next: nxt }}
 	 */
+	export type IShortMonarchLanguageRule1 = [RegExp, IMonarchLanguageAction];
+
+	export type IShortMonarchLanguageRule2 = [RegExp, IMonarchLanguageAction, string];
+
 	export interface IExpandedMonarchLanguageRule {
 		/**
 		 * match tokens
@@ -5421,7 +5421,9 @@ declare namespace monaco.languages {
 	 * ... or a case statement with guards...
 	 * ... or a basic action with a token value.
 	 */
-	export interface IMonarchLanguageAction {
+	export type IShortMonarchLanguageAction = string;
+
+	export interface IExpandedMonarchLanguageAction {
 		/**
 		 * array of actions for each parenthesized match group
 		 */
@@ -5460,10 +5462,14 @@ declare namespace monaco.languages {
 		log?: string;
 	}
 
+	export type IMonarchLanguageAction = IShortMonarchLanguageAction | IExpandedMonarchLanguageAction | IShortMonarchLanguageAction[] | IExpandedMonarchLanguageAction[];
+
 	/**
-	 * This interface can be shortened as an array, ie. ['{','}','delimiter.curly']
+	 * Brackets interface can be an object or shortened as an array, ie. ['{','}','delimiter.curly']
 	 */
-	export interface IMonarchLanguageBracket {
+	export type IShortMonarchLanguageBracket = [string, string, string];
+
+	export interface IExpandedMonarchLanguageBracket {
 		/**
 		 * open bracket
 		 */
@@ -5477,6 +5483,8 @@ declare namespace monaco.languages {
 		 */
 		token: string;
 	}
+
+	export type IMonarchLanguageBracket = IShortMonarchLanguageBracket | IExpandedMonarchLanguageBracket;
 
 }
 
