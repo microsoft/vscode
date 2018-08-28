@@ -704,7 +704,7 @@ export class TerminalTaskSystem implements ITaskSystem {
 		// If we have no args and the command is a string then use the
 		// command to stay backwards compatible with the old command line
 		// model.
-		if ((!args) && Types.isString(command)) {
+		if ((!args || args.length === 0) && Types.isString(command)) {
 			return command;
 		}
 		let basename = path.parse(shellExecutable).name.toLowerCase();
