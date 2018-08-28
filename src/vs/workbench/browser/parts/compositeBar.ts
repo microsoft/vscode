@@ -142,8 +142,8 @@ export class CompositeBar extends Widget implements ICompositeBar {
 
 	hideComposite(id: string): void {
 		if (this.model.hide(id)) {
-			this.updateCompositeSwitcher();
 			this.resetActiveComposite(id);
+			this.updateCompositeSwitcher();
 		}
 	}
 
