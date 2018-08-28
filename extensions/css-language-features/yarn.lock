@@ -137,22 +137,22 @@ supports-color@5.4.0:
   dependencies:
     has-flag "^3.0.0"
 
-vscode-jsonrpc@^3.6.2:
-  version "3.6.2"
-  resolved "https://registry.yarnpkg.com/vscode-jsonrpc/-/vscode-jsonrpc-3.6.2.tgz#3b5eef691159a15556ecc500e9a8a0dd143470c8"
+vscode-jsonrpc@^3.7.0-next.1:
+  version "3.7.0-next.1"
+  resolved "https://registry.yarnpkg.com/vscode-jsonrpc/-/vscode-jsonrpc-3.7.0-next.1.tgz#e7521cd8135006ba8bf57ebcedbf5b03ce17b23e"
 
-vscode-languageclient@^5.1.0-next.6:
-  version "5.1.0-next.6"
-  resolved "https://registry.yarnpkg.com/vscode-languageclient/-/vscode-languageclient-5.1.0-next.6.tgz#b04f49f645a51e864d607e85a43d2b0d2f101d5d"
+vscode-languageclient@^5.1.0-next.9:
+  version "5.1.0-next.9"
+  resolved "https://registry.yarnpkg.com/vscode-languageclient/-/vscode-languageclient-5.1.0-next.9.tgz#fe56c523637c118f7b262952b889f760223ab75a"
   dependencies:
     semver "^5.5.0"
-    vscode-languageserver-protocol "^3.13.0-next.1"
+    vscode-languageserver-protocol "^3.13.0-next.2"
 
-vscode-languageserver-protocol@^3.13.0-next.1:
-  version "3.13.0-next.1"
-  resolved "https://registry.yarnpkg.com/vscode-languageserver-protocol/-/vscode-languageserver-protocol-3.13.0-next.1.tgz#24d15aa5769e4b035f6ce38342685959e1eb454e"
+vscode-languageserver-protocol@^3.13.0-next.2:
+  version "3.13.0-next.2"
+  resolved "https://registry.yarnpkg.com/vscode-languageserver-protocol/-/vscode-languageserver-protocol-3.13.0-next.2.tgz#7083e50d0d2096ba52de448082445b9c39081fdb"
   dependencies:
-    vscode-jsonrpc "^3.6.2"
+    vscode-jsonrpc "^3.7.0-next.1"
     vscode-languageserver-types "^3.13.0-next.1"
 
 vscode-languageserver-types@^3.13.0-next.1:

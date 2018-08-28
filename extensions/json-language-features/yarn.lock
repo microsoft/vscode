@@ -38,27 +38,27 @@ vscode-extension-telemetry@0.0.18:
   dependencies:
     applicationinsights "1.0.1"
 
-vscode-jsonrpc@^3.6.2:
-  version "3.6.2"
-  resolved "https://registry.yarnpkg.com/vscode-jsonrpc/-/vscode-jsonrpc-3.6.2.tgz#3b5eef691159a15556ecc500e9a8a0dd143470c8"
+vscode-jsonrpc@^3.7.0-next.1:
+  version "3.7.0-next.1"
+  resolved "https://registry.yarnpkg.com/vscode-jsonrpc/-/vscode-jsonrpc-3.7.0-next.1.tgz#e7521cd8135006ba8bf57ebcedbf5b03ce17b23e"
 
-vscode-languageclient@^5.1.0-next.5:
-  version "5.1.0-next.5"
-  resolved "https://registry.yarnpkg.com/vscode-languageclient/-/vscode-languageclient-5.1.0-next.5.tgz#bfe8750ea34eab6dbccbb12d0724c5a7d3fc1afd"
+vscode-languageclient@^5.1.0-next.9:
+  version "5.1.0-next.9"
+  resolved "https://registry.yarnpkg.com/vscode-languageclient/-/vscode-languageclient-5.1.0-next.9.tgz#fe56c523637c118f7b262952b889f760223ab75a"
   dependencies:
     semver "^5.5.0"
-    vscode-languageserver-protocol "^3.12.0"
+    vscode-languageserver-protocol "^3.13.0-next.2"
 
-vscode-languageserver-protocol@^3.12.0:
-  version "3.12.0"
-  resolved "https://registry.yarnpkg.com/vscode-languageserver-protocol/-/vscode-languageserver-protocol-3.12.0.tgz#5b23501292abad88f0463b01e83ff98e64a37652"
+vscode-languageserver-protocol@^3.13.0-next.2:
+  version "3.13.0-next.2"
+  resolved "https://registry.yarnpkg.com/vscode-languageserver-protocol/-/vscode-languageserver-protocol-3.13.0-next.2.tgz#7083e50d0d2096ba52de448082445b9c39081fdb"
   dependencies:
-    vscode-jsonrpc "^3.6.2"
-    vscode-languageserver-types "^3.12.0"
+    vscode-jsonrpc "^3.7.0-next.1"
+    vscode-languageserver-types "^3.13.0-next.1"
 
-vscode-languageserver-types@^3.12.0:
-  version "3.12.0"
-  resolved "https://registry.yarnpkg.com/vscode-languageserver-types/-/vscode-languageserver-types-3.12.0.tgz#f96051381b6a050b7175b37d6cb5d2f2eb64b944"
+vscode-languageserver-types@^3.13.0-next.1:
+  version "3.13.0-next.1"
+  resolved "https://registry.yarnpkg.com/vscode-languageserver-types/-/vscode-languageserver-types-3.13.0-next.1.tgz#dd91b78b13a2a6c7131e8291e3db3183cf566280"
 
 vscode-nls@^3.2.5:
   version "3.2.5"
