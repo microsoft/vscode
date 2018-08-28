@@ -67,6 +67,10 @@ export class CompositeBar extends Widget implements ICompositeBar {
 		this.compositeTransfer = LocalSelectionTransfer.getInstance<DraggedCompositeIdentifier>();
 	}
 
+	getComposites(): ICompositeBarItem[] {
+		return this.model.items;
+	}
+
 	create(parent: HTMLElement): HTMLElement {
 		const actionBarDiv = parent.appendChild($('.composite-bar'));
 		this.compositeSwitcherBar = this._register(new ActionBar(actionBarDiv, {
@@ -403,7 +407,7 @@ export class CompositeBar extends Widget implements ICompositeBar {
 		const actions: IAction[] = this.model.visibleItems
 			.map(({ id, name, activityAction }) => (<IAction>{
 				id,
-				label: name,
+				label: name || id,
 				checked: this.isPinned(id),
 				enabled: activityAction.enabled,
 				run: () => {
