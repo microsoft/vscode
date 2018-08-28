@@ -181,7 +181,7 @@ export class CodeWindow implements ICodeWindow {
 			if (isLinux) {
 				useCustomTitleStyle = windowConfig && windowConfig.titleBarStyle === 'custom';
 			} else {
-				useCustomTitleStyle = windowConfig && windowConfig.titleBarStyle !== 'native';
+				useCustomTitleStyle = !windowConfig || !windowConfig.titleBarStyle || windowConfig.titleBarStyle === 'custom'; // Default to custom on Windows
 			}
 		}
 
