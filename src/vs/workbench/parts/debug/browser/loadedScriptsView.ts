@@ -424,7 +424,7 @@ class LoadedScriptsDataSource implements IDataSource {
 	}
 
 	getParent(tree: ITree, element: any): TPromise<any> {
-		return element.getParent();
+		return TPromise.as(element.getParent());
 	}
 
 	shouldAutoexpand?(tree: ITree, element: any): boolean {
