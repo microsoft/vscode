@@ -370,8 +370,7 @@ export class LoadedScriptsView extends TreeViewsViewletPanel {
 		this.tree.setInput(root);
 
 		let timeout: number;
-
-		this.disposables.push(this.debugService.onDidNewSession(session => {
+		const registerLoadedSourceListener = (session: ISession) => {
 			this.disposables.push(session.onDidLoadedSource(event => {
 				const sessionRoot = root.add(session);
 				sessionRoot.addPath(event.source);
@@ -383,7 +382,10 @@ export class LoadedScriptsView extends TreeViewsViewletPanel {
 					}
 				}, 300);
 			}));
-		}));
+		};
+
+		this.disposables.push(this.debugService.onDidNewSession(registerLoadedSourceListener));
+		this.debugService.getModel().getSessions().forEach(registerLoadedSourceListener);
 
 		this.disposables.push(this.debugService.onDidEndSession(session => {
 			clearTimeout(timeout);
