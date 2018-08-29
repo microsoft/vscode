@@ -234,7 +234,7 @@ export class Session implements ISession {
 		}
 
 		return dbgr.getCustomTelemetryService().then(customTelemetryService => {
-			this._raw = this.instantiationService.createInstance(RawDebugSession, this.id, this._configuration.resolved.debugServer, dbgr, customTelemetryService, this.root);
+			this._raw = this.instantiationService.createInstance(RawDebugSession, this.id, this._configuration.resolved, dbgr, customTelemetryService, this.root);
 			this.registerListeners();
 
 			return this._raw.initialize({
