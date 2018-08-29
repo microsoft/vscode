@@ -858,6 +858,7 @@ export class SettingsEditor2 extends BaseEditor {
 			if (this.searchResultModel) {
 				// Added a filter model
 				this.tocTree.setSelection([]);
+				this.tocTree.setFocus(null);
 				expandAll(this.tocTree);
 				return this.settingsTree.setInput(this.searchResultModel.root).then(() => this.renderResultCountMessages());
 			} else {
@@ -988,6 +989,7 @@ export class SettingsEditor2 extends BaseEditor {
 			}
 
 			this.tocTree.setSelection([]);
+			this.tocTree.setFocus(null);
 			expandAll(this.tocTree);
 
 			return this.renderTree().then(() => result);
