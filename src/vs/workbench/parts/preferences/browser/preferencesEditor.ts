@@ -108,20 +108,6 @@ export class PreferencesEditor extends BaseEditor {
 		DOM.addClass(parent, 'preferences-editor');
 
 		this.headerContainer = DOM.append(parent, DOM.$('.preferences-header'));
-		const advertisement = DOM.append(this.headerContainer, DOM.$('.new-settings-ad'));
-		const advertisementLabel = DOM.append(advertisement, DOM.$('span.new-settings-ad-label'));
-		advertisementLabel.textContent = nls.localize('advertisementLabel', "Try a preview of our ") + ' ';
-		const openSettings2Button = this._register(new Button(advertisement, { title: true, buttonBackground: null, buttonHoverBackground: null }));
-		openSettings2Button.style({
-			buttonBackground: null,
-			buttonForeground: null,
-			buttonBorder: null,
-			buttonHoverBackground: null
-		});
-		openSettings2Button.label = nls.localize('openSettings2Label', "new settings editor");
-		openSettings2Button.element.classList.add('open-settings2-button');
-		this._register(openSettings2Button.onDidClick(() => this.preferencesService.openSettings(false)));
-
 		this.searchWidget = this._register(this.instantiationService.createInstance(SearchWidget, this.headerContainer, {
 			ariaLabel: nls.localize('SearchSettingsWidget.AriaLabel', "Search settings"),
 			placeholder: nls.localize('SearchSettingsWidget.Placeholder', "Search Settings"),
