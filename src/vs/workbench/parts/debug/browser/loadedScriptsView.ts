@@ -28,7 +28,6 @@ import { isWindows } from 'vs/base/common/platform';
 import URI from 'vs/base/common/uri';
 import { ltrim } from 'vs/base/common/strings';
 import { RunOnceScheduler } from 'vs/base/common/async';
-import { memoize } from 'vs/base/common/decorators';
 
 const SMART = true;
 
@@ -308,7 +307,6 @@ export class LoadedScriptsView extends TreeViewsViewletPanel {
 	private treeContainer: HTMLElement;
 	private loadedScriptsItemType: IContextKey<string>;
 	private settings: any;
-	private shouldRefreshRecursive;
 
 	constructor(
 		options: IViewletViewOptions,
@@ -325,16 +323,6 @@ export class LoadedScriptsView extends TreeViewsViewletPanel {
 		super({ ...(options as IViewletPanelOptions), ariaHeaderLabel: nls.localize('loadedScriptsSection', "Loaded Scripts Section") }, keybindingService, contextMenuService, configurationService);
 		this.settings = options.viewletSettings;
 		this.loadedScriptsItemType = CONTEXT_LOADED_SCRIPTS_ITEM_TYPE.bindTo(contextKeyService);
-	}
-
-	@memoize
-	private get treeRefreshScheduler(): RunOnceScheduler {
-		return new RunOnceScheduler(() => {
-			if (this.tree) {
-				this.tree.refresh(undefined, this.shouldRefreshRecursive);
-				this.shouldRefreshRecursive = false;
-			}
-		}, 300);
 	}
 
 	protected renderBody(container: HTMLElement): void {
@@ -378,6 +366,15 @@ export class LoadedScriptsView extends TreeViewsViewletPanel {
 			}
 		}));
 
+		let nextRefreshIsRecursive = false;
+		const refreshScheduler = new RunOnceScheduler(() => {
+			if (this.tree) {
+				this.tree.refresh(undefined, nextRefreshIsRecursive);
+				nextRefreshIsRecursive = false;
+			}
+		}, 300);
+		this.disposables.push(refreshScheduler);
+
 		const root = new RootTreeItem(this.debugService.getModel(), this.environmentService, this.contextService);
 		this.tree.setInput(root);
 
@@ -385,8 +382,8 @@ export class LoadedScriptsView extends TreeViewsViewletPanel {
 			this.disposables.push(session.onDidLoadedSource(event => {
 				const sessionRoot = root.add(session);
 				sessionRoot.addPath(event.source);
-				this.shouldRefreshRecursive = true;
-				this.treeRefreshScheduler.schedule();
+				nextRefreshIsRecursive = true;
+				refreshScheduler.schedule();
 			}));
 		};
 
@@ -395,7 +392,7 @@ export class LoadedScriptsView extends TreeViewsViewletPanel {
 
 		this.disposables.push(this.debugService.onDidEndSession(session => {
 			root.remove(session.getId());
-			this.treeRefreshScheduler.schedule();
+			refreshScheduler.schedule();
 		}));
 	}
 
@@ -412,8 +409,8 @@ export class LoadedScriptsView extends TreeViewsViewletPanel {
 	}
 
 	dispose(): void {
-		super.dispose();
 		this.tree = undefined;
+		super.dispose();
 	}
 }
 
