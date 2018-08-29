@@ -605,13 +605,7 @@ export class Menubar {
 		this.nativeTabMenuItems = [];
 		const nativeTabMenuItems: Electron.MenuItem[] = [];
 		if (this.currentEnableNativeTabs) {
-			const hasMultipleWindows = this.windowsMainService.getWindowCount() > 1;
-
 			this.nativeTabMenuItems.push(this.createMenuItem(nls.localize('mNewTab', "New Tab"), 'workbench.action.newWindowTab'));
-			this.nativeTabMenuItems.push(this.createMenuItem(nls.localize('mShowPreviousTab', "Show Previous Tab"), 'workbench.action.showPreviousWindowTab', hasMultipleWindows, false, 'selectPreviousTab:'));
-			this.nativeTabMenuItems.push(this.createMenuItem(nls.localize('mShowNextTab', "Show Next Tab"), 'workbench.action.showNextWindowTab', hasMultipleWindows, false, 'selectNextTab:'));
-			this.nativeTabMenuItems.push(this.createMenuItem(nls.localize('mMoveTabToNewWindow', "Move Tab to New Window"), 'workbench.action.moveWindowTabToNewWindow', hasMultipleWindows, false, 'moveTabToNewWindow:'));
-			this.nativeTabMenuItems.push(this.createMenuItem(nls.localize('mMergeAllWindows', "Merge All Windows"), 'workbench.action.mergeAllWindowTabs', hasMultipleWindows, false, 'mergeAllWindows:'));
 
 			nativeTabMenuItems.push(__separator__(), ...this.nativeTabMenuItems);
 		} else {
