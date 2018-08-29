@@ -432,7 +432,9 @@ export class Session implements ISession {
 
 	dispose(): void {
 		dispose(this.rawListeners);
+		this.model.clearThreads(this.getId(), true);
 		this.model.removeSession(this.getId());
+		this.fetchThreadsScheduler = undefined;
 		if (!this._raw.disconnected) {
 			this._raw.disconnect().done(undefined, errors.onUnexpectedError);
 		}
