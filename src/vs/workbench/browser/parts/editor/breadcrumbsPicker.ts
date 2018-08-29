@@ -12,6 +12,7 @@ import { Emitter, Event } from 'vs/base/common/event';
 import { createMatches, FuzzyScore, fuzzyScore } from 'vs/base/common/filters';
 import * as glob from 'vs/base/common/glob';
 import { dispose, IDisposable } from 'vs/base/common/lifecycle';
+import { join } from 'vs/base/common/paths';
 import { basename, dirname, isEqual } from 'vs/base/common/resources';
 import URI from 'vs/base/common/uri';
 import { TPromise } from 'vs/base/common/winjs.base';
@@ -240,9 +241,23 @@ export class FileFilter implements IFilter {
 		const update = () => {
 			_workspaceService.getWorkspace().folders.forEach(folder => {
 				const excludesConfig = config.getValue({ resource: folder.uri });
-				if (excludesConfig) {
-					this._cachedExpressions.set(folder.uri.toString(), glob.parse(excludesConfig));
+				if (!excludesConfig) {
+					return;
 				}
+				// adjust patterns to be absolute in case they aren't
+				// free floating (**/)
+				const adjustedConfig: glob.IExpression = {};
+				for (const pattern in excludesConfig) {
+					if (typeof excludesConfig[pattern] !== 'boolean') {
+						continue;
+					}
+					let patternAbs = pattern.indexOf('**/') !== 0
+						? join(folder.uri.path, pattern)
+						: pattern;
+
+					adjustedConfig[patternAbs] = excludesConfig[pattern];
+				}
+				this._cachedExpressions.set(folder.uri.toString(), glob.parse(adjustedConfig));
 			});
 		};
 		update();
@@ -269,7 +284,7 @@ export class FileFilter implements IFilter {
 		}
 
 		const expression = this._cachedExpressions.get(folder.uri.toString());
-		return !expression(element.resource.path.substr(folder.uri.path.length), basename(element.resource));
+		return !expression(element.resource.path, basename(element.resource));
 	}
 }
 
