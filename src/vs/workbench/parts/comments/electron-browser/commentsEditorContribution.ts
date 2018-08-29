@@ -483,7 +483,14 @@ export class ReviewController implements IEditorContribution {
 					extraEditorClassName: extraEditorClassName.join(' '),
 					lineDecorationsWidth: lineDecorationsWidth
 				});
-				this.editor.layout();
+
+				// we only update the lineDecorationsWidth property but keep the width of the whole editor.
+				const originalLayoutInfo = this.editor.getLayoutInfo();
+
+				this.editor.layout({
+					width: originalLayoutInfo.width,
+					height: originalLayoutInfo.height
+				});
 			}
 		}
 
