@@ -2485,7 +2485,7 @@ declare namespace monaco.editor {
 	/**
 	 * Configuration options for auto wrapping quotes and brackets
 	 */
-	export type EditorAutoSurroundStrategy = 'always' | 'quotes' | 'brackets' | 'never';
+	export type EditorAutoSurroundStrategy = 'languageDefined' | 'quotes' | 'brackets' | 'never';
 
 	/**
 	 * Configuration options for editor minimap
