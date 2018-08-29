@@ -1376,6 +1376,11 @@ declare module 'vscode' {
 		 * An [event](#Event) which fires upon cancellation.
 		 */
 		onCancellationRequested: Event<any>;
+
+		/**
+		 * Throws if this token has already been canceled.
+		 */
+		throwIfCancellationRequested();
 	}
 
 	/**

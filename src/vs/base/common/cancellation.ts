@@ -9,6 +9,14 @@ import { Event, Emitter } from 'vs/base/common/event';
 import { IDisposable } from 'vs/base/common/lifecycle';
 import { canceled, isPromiseCanceledError } from './errors';
 
+/**
+ * A cancellation token is passed to an asynchronous or long running
+ * operation to request cancellation, like cancelling a request
+ * for completion items because the user continued to type.
+ *
+ * To get an instance of a `CancellationToken` use a
+ * [CancellationTokenSource](#CancellationTokenSource).
+ */
 export interface CancellationToken {
 	/**
 	 * Checks whether this token has already been canceled.
