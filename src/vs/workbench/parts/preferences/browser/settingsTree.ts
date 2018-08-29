@@ -329,8 +329,6 @@ export interface ISettingChangeEvent {
 
 export class SettingsRenderer implements ITreeRenderer {
 
-	public static readonly MAX_ENUM_DESCRIPTIONS = 10;
-
 	public static readonly CONTROL_CLASS = 'setting-control-focus-target';
 	public static readonly CONTROL_SELECTOR = '.' + SettingsRenderer.CONTROL_CLASS;
 
@@ -1107,7 +1105,10 @@ export class SettingsRenderer implements ITreeRenderer {
 	}
 
 	private renderEnum(dataElement: SettingsTreeSettingElement, template: ISettingEnumItemTemplate, onChange: (value: string) => void): void {
-		const displayOptions = getDisplayEnumOptions(dataElement.setting);
+		const displayOptions = dataElement.setting.enum
+			.map(String)
+			.map(escapeInvisibleChars);
+
 		template.selectBox.setOptions(displayOptions);
 		const enumDescriptions = dataElement.setting.enumDescriptions;
 		const enumDescriptionsAreMarkdown = dataElement.setting.enumDescriptionsAreMarkdown;
@@ -1247,22 +1248,6 @@ function fixSettingLinks(text: string, linkify = true): string {
 			`[${targetName}](#${settingKey})` :
 			`"${targetName}"`;
 	});
-}
-
-function getDisplayEnumOptions(setting: ISetting): string[] {
-	if (setting.enum.length > SettingsRenderer.MAX_ENUM_DESCRIPTIONS && setting.enumDescriptions) {
-		return setting.enum
-			.map(escapeInvisibleChars)
-			.map((value, i) => {
-				return setting.enumDescriptions[i] ?
-					`${value}: ${setting.enumDescriptions[i]}` :
-					value;
-			});
-	}
-
-	return setting.enum
-		.map(String)
-		.map(escapeInvisibleChars);
 }
 
 function escapeInvisibleChars(enumValue: string): string {
