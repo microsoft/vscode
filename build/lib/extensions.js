@@ -69,7 +69,7 @@ function fromLocal(extensionPath, sourceMappingURLBase) {
                 .pipe(packageJsonFilter.restore);
             var webpackStreams = webpackConfigLocations.map(function (webpackConfigPath) {
                 var webpackDone = function (err, stats) {
-                    util.log("Bundled extension: " + util.colors.yellow(path.basename(extensionPath)) + "...");
+                    util.log("Bundled extension: " + util.colors.yellow(path.join(path.basename(extensionPath), path.relative(extensionPath, webpackConfigPath))) + "...");
                     if (err) {
                         result.emit('error', err);
                     }

@@ -71,7 +71,7 @@ export function fromLocal(extensionPath: string, sourceMappingURLBase?: string):
 			const webpackStreams = webpackConfigLocations.map(webpackConfigPath => {
 
 				const webpackDone = (err, stats) => {
-					util.log(`Bundled extension: ${util.colors.yellow(path.basename(extensionPath))}...`);
+					util.log(`Bundled extension: ${util.colors.yellow(path.join(path.basename(extensionPath), path.relative(extensionPath, webpackConfigPath)))}...`);
 					if (err) {
 						result.emit('error', err);
 					}
