@@ -4277,7 +4277,7 @@ suite('autoClosingPairs', () => {
 			],
 			languageIdentifier: mode.getLanguageIdentifier(),
 			editorOpts: {
-				autoWrapping: 'never'
+				autoSurround: 'never'
 			}
 		}, (model, cursor) => {
 
@@ -4297,7 +4297,7 @@ suite('autoClosingPairs', () => {
 			],
 			languageIdentifier: mode.getLanguageIdentifier(),
 			editorOpts: {
-				autoWrapping: 'quotes'
+				autoSurround: 'quotes'
 			}
 		}, (model, cursor) => {
 
@@ -4320,7 +4320,7 @@ suite('autoClosingPairs', () => {
 			],
 			languageIdentifier: mode.getLanguageIdentifier(),
 			editorOpts: {
-				autoWrapping: 'brackets'
+				autoSurround: 'brackets'
 			}
 		}, (model, cursor) => {
 

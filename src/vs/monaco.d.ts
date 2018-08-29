@@ -2485,7 +2485,7 @@ declare namespace monaco.editor {
 	/**
 	 * Configuration options for auto wrapping quotes and brackets
 	 */
-	export type EditorAutoWrappingStrategy = 'always' | 'quotes' | 'brackets' | 'never';
+	export type EditorAutoSurroundStrategy = 'always' | 'quotes' | 'brackets' | 'never';
 
 	/**
 	 * Configuration options for editor minimap
@@ -2870,10 +2870,10 @@ declare namespace monaco.editor {
 		 */
 		autoClosingQuotes?: EditorAutoClosingStrategy;
 		/**
-		 * Options for autowrapping.
-		 * Defaults to always allowing autowrapping.
+		 * Options for auto surrounding.
+		 * Defaults to always allowing auto surrounding.
 		 */
-		autoWrapping?: EditorAutoWrappingStrategy;
+		autoSurround?: EditorAutoSurroundStrategy;
 		/**
 		 * Enable auto indentation adjustment.
 		 * Defaults to false.
@@ -3309,7 +3309,7 @@ declare namespace monaco.editor {
 		readonly wordSeparators: string;
 		readonly autoClosingBrackets: EditorAutoClosingStrategy;
 		readonly autoClosingQuotes: EditorAutoClosingStrategy;
-		readonly autoWrapping: EditorAutoWrappingStrategy;
+		readonly autoSurround: EditorAutoSurroundStrategy;
 		readonly autoIndent: boolean;
 		readonly useTabStops: boolean;
 		readonly tabFocusMode: boolean;
@@ -3449,7 +3449,7 @@ declare namespace monaco.editor {
 		readonly wordSeparators: boolean;
 		readonly autoClosingBrackets: boolean;
 		readonly autoClosingQuotes: boolean;
-		readonly autoWrapping: boolean;
+		readonly autoSurround: boolean;
 		readonly autoIndent: boolean;
 		readonly useTabStops: boolean;
 		readonly tabFocusMode: boolean;

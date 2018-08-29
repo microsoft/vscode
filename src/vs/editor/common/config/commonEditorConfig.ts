@@ -524,17 +524,17 @@ const editorConfiguration: IConfigurationNode = {
 			'default': EDITOR_DEFAULTS.autoClosingQuotes,
 			'description': nls.localize('autoClosingQuotes', "Controls whether the editor should automatically close quotes after the user adds an opening quote.")
 		},
-		'editor.autoWrapping': {
+		'editor.autoSurround': {
 			type: 'string',
 			enum: ['always', 'brackets', 'quotes', 'never'],
 			enumDescriptions: [
 				'',
-				nls.localize('editor.autoWrapping.brackets', "Wrap with brackets but not quotes."),
-				nls.localize('editor.autoWrapping.quotes', "Wrap with quotes but not brackets."),
+				nls.localize('editor.autoSurround.brackets', "Surround with brackets but not quotes."),
+				nls.localize('editor.autoSurround.quotes', "Surround with quotes but not brackets."),
 				''
 			],
-			'default': EDITOR_DEFAULTS.autoWrapping,
-			'description': nls.localize('autoWrapping', "Controls whether the editor should automatically wrap selections.")
+			'default': EDITOR_DEFAULTS.autoSurround,
+			'description': nls.localize('autoSurround', "Controls whether the editor should automatically surround selections.")
 		},
 		'editor.formatOnType': {
 			'type': 'boolean',
