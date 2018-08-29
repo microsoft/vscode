@@ -60,7 +60,7 @@ export function listProcesses(rootPid: number): Promise<ProcessItem> {
 
 		function findName(cmd: string): string {
 
-			const SHARED_PROCESS_HINT = /--background-color=#ff0000/;
+			const SHARED_PROCESS_HINT = /--disable-blink-features=Auxclick/;
 			const WINDOWS_WATCHER_HINT = /\\watcher\\win32\\CodeHelper\.exe/;
 			const WINDOWS_CRASH_REPORTER = /--crashes-directory/;
 			const WINDOWS_PTY = /\\pipe\\winpty-control/;

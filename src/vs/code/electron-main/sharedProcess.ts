@@ -36,9 +36,9 @@ export class SharedProcess implements ISharedProcess {
 			webPreferences: {
 				images: false,
 				webaudio: false,
-				webgl: false
-			},
-			backgroundColor: '#ff0000' // do NOT change, allows us to identify this window as shared-process in the process explorer
+				webgl: false,
+				disableBlinkFeatures: 'Auxclick' // do NOT change, allows us to identify this window as shared-process in the process explorer
+			}
 		});
 		const config = assign({
 			appRoot: this.environmentService.appRoot,
