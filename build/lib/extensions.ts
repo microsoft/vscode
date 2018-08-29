@@ -67,21 +67,22 @@ export function fromLocal(extensionPath: string, sourceMappingURLBase?: string):
 				}))
 				.pipe(packageJsonFilter.restore);
 
-			const webpackDone = (err, stats) => {
-				if (err) {
-					result.emit('error', err);
-				}
-				const { compilation } = stats;
-				if (compilation.errors.length > 0) {
-					result.emit('error', compilation.errors.join('\n'));
-				}
-				if (compilation.warnings.length > 0) {
-					result.emit('error', compilation.warnings.join('\n'));
-				}
-			};
 
 			const webpackStreams = webpackConfigLocations.map(webpackConfigPath => {
-				util.log(`Bundling extension: ${util.colors.yellow(path.basename(extensionPath))}...`);
+
+				const webpackDone = (err, stats) => {
+					util.log(`Bundled extension: ${util.colors.yellow(path.basename(extensionPath))}...`);
+					if (err) {
+						result.emit('error', err);
+					}
+					const { compilation } = stats;
+					if (compilation.errors.length > 0) {
+						result.emit('error', compilation.errors.join('\n'));
+					}
+					if (compilation.warnings.length > 0) {
+						result.emit('error', compilation.warnings.join('\n'));
+					}
+				};
 
 				const webpackConfig = {
 					...require(webpackConfigPath),

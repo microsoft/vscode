@@ -67,23 +67,23 @@ function fromLocal(extensionPath, sourceMappingURLBase) {
                 return data;
             }))
                 .pipe(packageJsonFilter.restore);
-            var webpackDone_1 = function (err, stats) {
-                if (err) {
-                    result.emit('error', err);
-                }
-                var compilation = stats.compilation;
-                if (compilation.errors.length > 0) {
-                    result.emit('error', compilation.errors.join('\n'));
-                }
-                if (compilation.warnings.length > 0) {
-                    result.emit('error', compilation.warnings.join('\n'));
-                }
-            };
             var webpackStreams = webpackConfigLocations.map(function (webpackConfigPath) {
-                util.log("Bundling extension: " + util.colors.yellow(path.basename(extensionPath)) + "...");
+                var webpackDone = function (err, stats) {
+                    util.log("Bundled extension: " + util.colors.yellow(path.basename(extensionPath)) + "...");
+                    if (err) {
+                        result.emit('error', err);
+                    }
+                    var compilation = stats.compilation;
+                    if (compilation.errors.length > 0) {
+                        result.emit('error', compilation.errors.join('\n'));
+                    }
+                    if (compilation.warnings.length > 0) {
+                        result.emit('error', compilation.warnings.join('\n'));
+                    }
+                };
                 var webpackConfig = __assign({}, require(webpackConfigPath), { mode: 'production' });
                 var relativeOutputPath = path.relative(extensionPath, webpackConfig.output.path);
-                return webpackGulp(webpackConfig, webpack, webpackDone_1)
+                return webpackGulp(webpackConfig, webpack, webpackDone)
                     .pipe(es.through(function (data) {
                     data.stat = data.stat || {};
                     data.base = extensionPath;
