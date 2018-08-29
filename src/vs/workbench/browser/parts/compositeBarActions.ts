@@ -181,7 +181,7 @@ export class ActivityActionItem extends BaseActionItem {
 
 		// Make the container tab-able for keyboard navigation
 		this.container.tabIndex = 0;
-		this.container.setAttribute('role', 'button');
+		this.container.setAttribute('role', this.options.icon ? 'button' : 'tab');
 
 		// Try hard to prevent keyboard only focus feedback when using mouse
 		this._register(dom.addDisposableListener(this.container, dom.EventType.MOUSE_DOWN, () => {
