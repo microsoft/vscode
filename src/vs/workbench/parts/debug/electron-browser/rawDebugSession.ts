@@ -16,9 +16,8 @@ import { IWorkspaceFolder } from 'vs/platform/workspace/common/workspace';
 import { INotificationService } from 'vs/platform/notification/common/notification';
 import { formatPII } from 'vs/workbench/parts/debug/common/debugUtils';
 import { SocketDebugAdapter } from 'vs/workbench/parts/debug/node/debugAdapter';
-import { DebugEvent, IRawSession, IDebugAdapter, IConfig } from 'vs/workbench/parts/debug/common/debug';
+import { DebugEvent, IRawSession, IDebugAdapter } from 'vs/workbench/parts/debug/common/debug';
 import { CancellationToken, CancellationTokenSource } from 'vs/base/common/cancellation';
-import { equalsIgnoreCase } from 'vs/base/common/strings';
 
 export interface SessionExitedEvent extends DebugEvent {
 	body: {
@@ -48,8 +47,7 @@ export class RawDebugSession implements IRawSession {
 	private cancellationTokens: CancellationTokenSource[];
 	private _capabilities: DebugProtocol.Capabilities;
 	private allThreadsContinued: boolean;
-	private debugServerPort: number;
-	private isAttach: boolean;
+	private isAttached: boolean;
 
 	private readonly _onDidInitialize: Emitter<DebugProtocol.InitializedEvent>;
 	private readonly _onDidStop: Emitter<DebugProtocol.StoppedEvent>;
@@ -66,7 +64,7 @@ export class RawDebugSession implements IRawSession {
 
 	constructor(
 		private sessionId: string,
-		configuration: IConfig,
+		private debugServerPort: number,
 		private _debugger: Debugger,
 		public customTelemetryService: ITelemetryService,
 		private root: IWorkspaceFolder,
@@ -78,8 +76,6 @@ export class RawDebugSession implements IRawSession {
 		this.readyForBreakpoints = false;
 		this.allThreadsContinued = true;
 		this.cancellationTokens = [];
-		this.debugServerPort = configuration.debugServer;
-		this.isAttach = configuration.request === 'attach' || equalsIgnoreCase(configuration.type, 'extensionHost');
 
 		this._onDidInitialize = new Emitter<DebugProtocol.InitializedEvent>();
 		this._onDidStop = new Emitter<DebugProtocol.StoppedEvent>();
@@ -292,6 +288,7 @@ export class RawDebugSession implements IRawSession {
 	}
 
 	public attach(args: DebugProtocol.AttachRequestArguments): TPromise<DebugProtocol.AttachResponse> {
+		this.isAttached = true;
 		return this.send('attach', args).then(response => this.readCapabilities(response));
 	}
 
@@ -350,7 +347,7 @@ export class RawDebugSession implements IRawSession {
 	}
 
 	public terminate(restart = false): TPromise<DebugProtocol.TerminateResponse> {
-		if (this.capabilities.supportsTerminateRequest && !this.terminated && !this.isAttach) {
+		if (this.capabilities.supportsTerminateRequest && !this.terminated && !this.isAttached) {
 			this.terminated = true;
 			return this.send('terminate', { restart });
 		}
