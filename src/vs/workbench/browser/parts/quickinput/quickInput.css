@@ -98,6 +98,10 @@
 	margin: 0px 11px;
 }
 
+.quick-input-progress.monaco-progress-container {
+	position: relative;
+}
+
 .quick-input-progress.monaco-progress-container,
 .quick-input-progress.monaco-progress-container .progress-bit {
 	height: 2px;
