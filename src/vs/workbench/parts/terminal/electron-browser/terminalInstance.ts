@@ -588,7 +588,9 @@ export class TerminalInstance implements ITerminalInstance {
 			this._xterm.dispose();
 			this._xterm = null;
 		}
-		this._processManager.dispose(isShuttingDown);
+		if (this._processManager) {
+			this._processManager.dispose(isShuttingDown);
+		}
 		if (!this._isDisposed) {
 			this._isDisposed = true;
 			this._onDisposed.fire(this);
