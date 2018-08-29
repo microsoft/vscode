@@ -374,18 +374,6 @@ export class WebviewElement extends Disposable {
 			}
 
 			contents.setZoomFactor(factor);
-			if (!this._webview || !this._webview.parentElement) {
-				return;
-			}
-
-			const width = this._webview.parentElement.clientWidth;
-			const height = this._webview.parentElement.clientHeight;
-			contents.setSize({
-				normal: {
-					width: Math.floor(width * factor),
-					height: Math.floor(height * factor)
-				}
-			});
 		});
 	}
 
