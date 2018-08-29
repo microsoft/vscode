@@ -55,6 +55,12 @@ export interface IResourceInput extends IBaseResourceInput {
 	 * The encoding of the text input if known.
 	 */
 	encoding?: string;
+
+	/**
+	 * Hint to indicate that this input should be treated as a file
+	 * that opens in an editor capable of showing file content.
+	 */
+	isFile?: boolean;
 }
 
 export interface IEditorOptions {

@@ -454,7 +454,7 @@ export class EditorService extends Disposable implements EditorServiceImpl {
 
 	//#region createInput()
 
-	createInput(input: IEditorInputWithOptions | IEditorInput | IResourceEditor, options?: { forceFileInput: boolean }): EditorInput {
+	createInput(input: IEditorInputWithOptions | IEditorInput | IResourceEditor): EditorInput {
 
 		// Typed Editor Input Support (EditorInput)
 		if (input instanceof EditorInput) {
@@ -470,8 +470,8 @@ export class EditorService extends Disposable implements EditorServiceImpl {
 		// Side by Side Support
 		const resourceSideBySideInput = <IResourceSideBySideInput>input;
 		if (resourceSideBySideInput.masterResource && resourceSideBySideInput.detailResource) {
-			const masterInput = this.createInput({ resource: resourceSideBySideInput.masterResource }, options);
-			const detailInput = this.createInput({ resource: resourceSideBySideInput.detailResource }, options);
+			const masterInput = this.createInput({ resource: resourceSideBySideInput.masterResource });
+			const detailInput = this.createInput({ resource: resourceSideBySideInput.detailResource });
 
 			return new SideBySideEditorInput(
 				resourceSideBySideInput.label || masterInput.getName(),
@@ -484,8 +484,8 @@ export class EditorService extends Disposable implements EditorServiceImpl {
 		// Diff Editor Support
 		const resourceDiffInput = <IResourceDiffInput>input;
 		if (resourceDiffInput.leftResource && resourceDiffInput.rightResource) {
-			const leftInput = this.createInput({ resource: resourceDiffInput.leftResource }, options);
-			const rightInput = this.createInput({ resource: resourceDiffInput.rightResource }, options);
+			const leftInput = this.createInput({ resource: resourceDiffInput.leftResource });
+			const rightInput = this.createInput({ resource: resourceDiffInput.rightResource });
 			const label = resourceDiffInput.label || localize('compareLabels', "{0} ↔ {1}", this.toDiffLabel(leftInput), this.toDiffLabel(rightInput));
 
 			return new DiffEditorInput(label, resourceDiffInput.description, leftInput, rightInput);
@@ -510,13 +510,13 @@ export class EditorService extends Disposable implements EditorServiceImpl {
 				label = basename(resourceInput.resource.fsPath); // derive the label from the path (but not for data URIs)
 			}
 
-			return this.createOrGet(resourceInput.resource, this.instantiationService, label, resourceInput.description, resourceInput.encoding, options && options.forceFileInput) as EditorInput;
+			return this.createOrGet(resourceInput.resource, this.instantiationService, label, resourceInput.description, resourceInput.encoding, resourceInput.isFile) as EditorInput;
 		}
 
 		return null;
 	}
 
-	private createOrGet(resource: URI, instantiationService: IInstantiationService, label: string, description: string, encoding?: string, forceFileInput?: boolean): ICachedEditorInput {
+	private createOrGet(resource: URI, instantiationService: IInstantiationService, label: string, description: string, encoding?: string, isFile?: boolean): ICachedEditorInput {
 		if (EditorService.CACHE.has(resource)) {
 			const input = EditorService.CACHE.get(resource);
 			if (input instanceof ResourceEditorInput) {
@@ -532,7 +532,7 @@ export class EditorService extends Disposable implements EditorServiceImpl {
 		let input: ICachedEditorInput;
 
 		// File
-		if (this.fileService.canHandleResource(resource) || forceFileInput /* fix for https://github.com/Microsoft/vscode/issues/48275 */) {
+		if (isFile /* fix for https://github.com/Microsoft/vscode/issues/48275 */ || this.fileService.canHandleResource(resource)) {
 			input = this.fileInputFactory.createFileInput(resource, encoding, instantiationService);
 		}
 
