@@ -62,6 +62,9 @@ class FileUriLabelContribution implements IWorkbenchContribution {
 				separator: nativeSep,
 				tildify: !platform.isWindows,
 				normalizeDriveLetter: platform.isWindows
+			},
+			workspace: {
+				suffix: ''
 			}
 		});
 	}
