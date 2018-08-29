@@ -715,6 +715,7 @@ class InputBox extends QuickInput implements IInputBox {
 				}),
 				this.ui.onDidAccept(() => this.onDidAcceptEmitter.fire()),
 			);
+			this.valueSelectionUpdated = true;
 		}
 		super.show();
 	}
