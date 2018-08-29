@@ -652,7 +652,7 @@ export class SettingsEditor2 extends BaseEditor {
 		return TPromise.as(null);
 	}
 
-	private toggleSearchMode(): void {
+	private onSearchModeToggled(): void {
 		DOM.removeClass(this.rootElement, 'search-mode');
 		if (this.configurationService.getValue('workbench.settings.settingsSearchTocBehavior') === 'hide') {
 			DOM.toggleClass(this.rootElement, 'search-mode', !!this.searchResultModel);
@@ -847,12 +847,16 @@ export class SettingsEditor2 extends BaseEditor {
 			this.viewState.filterToCategory = null;
 			this.tocTreeModel.currentSearchModel = this.searchResultModel;
 			this.tocTree.refresh();
-			this.toggleSearchMode();
-			collapseAll(this.tocTree);
+			this.onSearchModeToggled();
 
 			if (this.searchResultModel) {
+				// Added a filter model
+				this.tocTree.setSelection([]);
+				expandAll(this.tocTree);
 				return this.settingsTree.setInput(this.searchResultModel.root).then(() => this.renderResultCountMessages());
 			} else {
+				// Leaving search mode
+				collapseAll(this.tocTree);
 				return this.settingsTree.setInput(this.settingsTreeModel.root).then(() => this.renderResultCountMessages());
 			}
 		}
@@ -970,13 +974,12 @@ export class SettingsEditor2 extends BaseEditor {
 				this.searchResultModel = this.instantiationService.createInstance(SearchResultModel, this.viewState);
 				this.searchResultModel.setResult(type, result);
 				this.tocTreeModel.currentSearchModel = this.searchResultModel;
-				this.toggleSearchMode();
+				this.onSearchModeToggled();
 				this.settingsTree.setInput(this.searchResultModel.root);
 			} else {
 				this.tocTreeModel.update();
 				this.searchResultModel.setResult(type, result);
 			}
-
 
 			this.tocTree.setSelection([]);
 			expandAll(this.tocTree);
