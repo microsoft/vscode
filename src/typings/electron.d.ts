@@ -1,4 +1,4 @@
-// Type definitions for Electron 3.0.0-beta.6
+// Type definitions for Electron 3.0.0-beta.8
 // Project: http://electronjs.org/
 // Definitions by: The Electron Team <https://github.com/electron/electron>
 // Definitions: https://github.com/electron/electron-typescript-definitions
@@ -4796,7 +4796,7 @@ declare namespace Electron {
 		/**
 		 * Sets the context menu for this icon.
 		 */
-		setContextMenu(menu: Menu): void;
+		setContextMenu(menu: Menu | null): void;
 		/**
 		 * Sets when the tray's icon background becomes highlighted (in blue). Note: You
 		 * can use highlightMode with a BrowserWindow by toggling between 'never' and
@@ -6043,10 +6043,6 @@ declare namespace Electron {
 		 */
 		setLayoutZoomLevelLimits(minimumLevel: number, maximumLevel: number): void;
 		/**
-		 * Set the size of the page. This is only supported for <webview> guest contents.
-		 */
-		setSize(options: SizeOptions): void;
-		/**
 		 * Overrides the user agent for this web page.
 		 */
 		setUserAgent(userAgent: string): void;
@@ -6737,14 +6733,6 @@ declare namespace Electron {
 		 */
 		disableblinkfeatures?: string;
 		/**
-		 * When this attribute is present the webview contents will be prevented from
-		 * resizing when the webview element itself is resized. This can be used in
-		 * combination with webContents.setSize to manually resize the webview contents in
-		 * reaction to a window size change. This can make resizing faster compared to
-		 * relying on the webview element bounds to automatically resize the contents.
-		 */
-		disableguestresize?: string;
-		/**
 		 * When this attribute is present the guest page will have web security disabled.
 		 * Web security is enabled by default.
 		 */
@@ -6755,15 +6743,6 @@ declare namespace Electron {
 		 * RuntimeEnabledFeatures.json5 file.
 		 */
 		enableblinkfeatures?: string;
-		/**
-		 * A value that links the webview to a specific webContents. When a webview first
-		 * loads a new webContents is created and this attribute is set to its instance
-		 * identifier. Setting this attribute on a new or existing webview connects it to
-		 * the existing webContents that currently renders in a different webview. The
-		 * existing webview will see the destroy event and will then create a new
-		 * webContents when a new url is loaded.
-		 */
-		guestinstance?: string;
 		/**
 		 * Sets the referrer URL for the guest page.
 		 */
@@ -8537,29 +8516,6 @@ declare namespace Electron {
 		args?: string[];
 	}
 
-	interface SizeOptions {
-		/**
-		 * true to make the webview container automatically resize within the bounds
-		 * specified by the attributes normal, min and max.
-		 */
-		enableAutoSize?: boolean;
-		/**
-		 * Normal size of the page. This can be used in combination with the attribute to
-		 * manually resize the webview guest contents.
-		 */
-		normal?: Size;
-		/**
-		 * Minimum size of the page. This can be used in combination with the attribute to
-		 * manually resize the webview guest contents.
-		 */
-		min?: Size;
-		/**
-		 * Maximium size of the page. This can be used in combination with the attribute to
-		 * manually resize the webview guest contents.
-		 */
-		max?: Size;
-	}
-
 	interface SourcesOptions {
 		/**
 		 * An array of Strings that lists the types of desktop sources to be captured,
@@ -9196,7 +9152,7 @@ declare namespace NodeJS {
 		// addListener(event: 'loaded', listener: Function): this;
 		// removeListener(event: 'loaded', listener: Function): this;
 		// ### END VSCODE MODIFICATION ###
-
+		
 		/**
 		 * Causes the main thread of the current process crash.
 		 */

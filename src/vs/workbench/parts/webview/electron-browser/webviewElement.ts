@@ -248,8 +248,6 @@ export class WebviewElement extends Disposable {
 		}
 
 		if (this._webview) {
-			this._webview.guestinstance = 'none';
-
 			if (this._webview.parentElement) {
 				this._webview.parentElement.removeChild(this._webview);
 			}
