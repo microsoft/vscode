@@ -55,7 +55,7 @@ import { ExtensionsWorkbenchService } from 'vs/workbench/parts/extensions/node/e
 import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
 import { SingleServerExtensionManagementServerService } from 'vs/workbench/services/extensions/node/extensionManagementServerService';
 import { Query } from 'vs/workbench/parts/extensions/common/extensionQuery';
-import { SuggestEnabledInput } from 'vs/workbench/parts/codeEditor/browser/suggestEnabledInput';
+import { SuggestEnabledInput, attachSuggestEnabledInputBoxStyler } from 'vs/workbench/parts/codeEditor/browser/suggestEnabledInput';
 
 interface SearchInputEvent extends Event {
 	target: HTMLInputElement;
@@ -323,6 +323,8 @@ export class ExtensionsViewlet extends ViewContainerViewlet implements IExtensio
 			provideResults: (query) => Query.suggestions(query)
 		}, placeholder, 'extensions:searchinput', { placeholderText: placeholder });
 
+		this.disposables.push(attachSuggestEnabledInputBoxStyler(this.searchBox, this.themeService));
+
 		this.disposables.push(this.searchBox);
 
 		const _searchChange = new Emitter<string>();
@@ -336,11 +338,6 @@ export class ExtensionsViewlet extends ViewContainerViewlet implements IExtensio
 
 		this.extensionsBox = append(this.root, $('.extensions'));
 		return super.create(this.extensionsBox);
-	}
-
-	public updateStyles(): void {
-		super.updateStyles();
-		this.searchBox.updateStyles();
 	}
 
 	setVisible(visible: boolean): TPromise<void> {

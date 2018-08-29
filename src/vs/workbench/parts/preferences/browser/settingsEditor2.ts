@@ -34,7 +34,7 @@ import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { BaseEditor } from 'vs/workbench/browser/parts/editor/baseEditor';
 import { EditorOptions, IEditor } from 'vs/workbench/common/editor';
 import { ResourceEditorModel } from 'vs/workbench/common/editor/resourceEditorModel';
-import { SuggestEnabledInput } from 'vs/workbench/parts/codeEditor/browser/suggestEnabledInput';
+import { SuggestEnabledInput, attachSuggestEnabledInputBoxStyler } from 'vs/workbench/parts/codeEditor/browser/suggestEnabledInput';
 import { PreferencesEditor } from 'vs/workbench/parts/preferences/browser/preferencesEditor';
 import { SettingsTarget, SettingsTargetsWidget } from 'vs/workbench/parts/preferences/browser/preferencesWidgets';
 import { commonlyUsedData, tocData } from 'vs/workbench/parts/preferences/browser/settingsLayout';
@@ -46,6 +46,7 @@ import { IEditorGroup } from 'vs/workbench/services/group/common/editorGroupsSer
 import { IPreferencesService, ISearchResult, ISettingsEditorModel } from 'vs/workbench/services/preferences/common/preferences';
 import { SettingsEditor2Input } from 'vs/workbench/services/preferences/common/preferencesEditorInput';
 import { DefaultSettingsEditorModel } from 'vs/workbench/services/preferences/common/preferencesModels';
+import { settingsTextInputBorder } from 'vs/workbench/parts/preferences/browser/settingsWidgets';
 
 const $ = DOM.$;
 
@@ -241,6 +242,10 @@ export class SettingsEditor2 extends BaseEditor {
 				focusContextKey: this.searchFocusContextKey,
 				// TODO: Aria-live
 			}));
+
+		this._register(attachSuggestEnabledInputBoxStyler(this.searchWidget, this.themeService, {
+			inputBorder: settingsTextInputBorder
+		}));
 
 		this.countElement = DOM.append(searchContainer, DOM.$('.settings-count-widget'));
 		this._register(attachStylerCallback(this.themeService, { badgeBackground, contrastBorder, badgeForeground }, colors => {
@@ -1019,11 +1024,6 @@ export class SettingsEditor2 extends BaseEditor {
 		this.tocTree.layout(tocTreeHeight, 175);
 
 		this.settingsTreeRenderer.updateWidth(dimension.width);
-	}
-
-	public updateStyles(): void {
-		super.updateStyles();
-		this.searchWidget.updateStyles();
 	}
 
 	setVisible(visible: boolean, group?: IEditorGroup): TPromise<void> {
