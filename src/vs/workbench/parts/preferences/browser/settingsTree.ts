@@ -932,7 +932,7 @@ export class SettingsRenderer implements ITreeRenderer {
 				this.commandService.executeCommand('workbench.extensions.action.showExtensionsWithIds', template.context.extensionIds);
 			}
 		}));
-		button.label = localize('newExtensionsButtonLabel', "Show other matching extensions");
+		button.label = localize('newExtensionsButtonLabel', "Show matching extensions");
 		button.element.classList.add('settings-new-extensions-button');
 		toDispose.push(attachButtonStyler(button, this.themeService));
 
