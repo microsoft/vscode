@@ -16,6 +16,8 @@ import { DARK, ITheme, IThemeService, LIGHT } from 'vs/platform/theme/common/the
 import { registerFileProtocol, WebviewProtocol } from 'vs/workbench/parts/webview/electron-browser/webviewProtocols';
 import { areWebviewInputOptionsEqual } from './webviewEditorService';
 import { WebviewFindWidget } from './webviewFindWidget';
+import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
+import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 
 export interface WebviewOptions {
 	readonly allowScripts?: boolean;
@@ -44,6 +46,7 @@ export class WebviewElement extends Disposable {
 		@IThemeService private readonly _themeService: IThemeService,
 		@IEnvironmentService private readonly _environmentService: IEnvironmentService,
 		@IFileService private readonly _fileService: IFileService,
+		@IKeybindingService private readonly _keybindingService: IKeybindingService
 	) {
 		super();
 		this._webview = document.createElement('webview');
@@ -122,6 +125,44 @@ export class WebviewElement extends Disposable {
 				});
 			}));
 		}
+
+		// Electron: workaround for https://github.com/electron/electron/issues/14258
+		// We have to detect keyboard events in the <webview> and dispatch them to our
+		// keybinding service because these events do not bubble to the parent window anymore.
+		let loaded = false;
+		this._register(addDisposableListener(this._webview, 'did-start-loading', () => {
+			if (loaded) {
+				return;
+			}
+			loaded = true;
+
+			const contents = this._webview.getWebContents();
+			if (!contents) {
+				return;
+			}
+
+			contents.on('before-input-event', (event, input) => {
+				if (input.type !== 'keyDown') {
+					return;
+				}
+
+				// Create a fake KeyboardEvent from the data provided
+				const emulatedKeyboardEvent = new KeyboardEvent('keydown', {
+					code: input.code,
+					key: input.key,
+					shiftKey: input.shift,
+					altKey: input.alt,
+					ctrlKey: input.control,
+					metaKey: input.meta,
+					repeat: input.isAutoRepeat
+				});
+
+				// Dispatch through our keybinding service
+				if (this._keybindingService.dispatchEvent(new StandardKeyboardEvent(emulatedKeyboardEvent), document.body)) {
+					event.preventDefault();
+				}
+			});
+		}));
 
 		this._register(addDisposableListener(this._webview, 'console-message', function (e: { level: number; message: string; line: number; sourceId: string; }) {
 			console.log(`[Embedded Page] ${e.message}`);
