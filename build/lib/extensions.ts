@@ -4,7 +4,14 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as es from 'event-stream';
+import * as fs from 'fs';
+import * as glob from 'glob';
+import * as gulp from 'gulp';
+import * as path from 'path';
 import { Stream } from 'stream';
+import * as File from 'vinyl';
+import * as vsce from 'vsce';
+import * as util2 from './util';
 import assign = require('object-assign');
 import remote = require('gulp-remote-src');
 const flatmap = require('gulp-flatmap');
@@ -16,13 +23,6 @@ const buffer = require('gulp-buffer');
 const json = require('gulp-json-editor');
 const webpack = require('webpack');
 const webpackGulp = require('webpack-stream');
-import * as fs from 'fs';
-import * as path from 'path';
-import * as vsce from 'vsce';
-import * as File from 'vinyl';
-import * as glob from 'glob';
-import * as gulp from 'gulp';
-import * as util2 from './util';
 
 const root = path.resolve(path.join(__dirname, '..', '..'));
 
@@ -67,15 +67,29 @@ export function fromLocal(extensionPath: string, sourceMappingURLBase?: string):
 				}))
 				.pipe(packageJsonFilter.restore);
 
+			const webpackDone = (err, stats) => {
+				if (err) {
+					result.emit('error', err);
+				}
+				const { compilation } = stats;
+				if (compilation.errors.length > 0) {
+					result.emit('error', compilation.errors.join('\n'));
+				}
+				if (compilation.warnings.length > 0) {
+					result.emit('error', compilation.warnings.join('\n'));
+				}
+			};
+
 			const webpackStreams = webpackConfigLocations.map(webpackConfigPath => {
+				util.log(`Bundling extension: ${util.colors.yellow(path.basename(extensionPath))}...`);
+
 				const webpackConfig = {
 					...require(webpackConfigPath),
-					...{ mode: 'production', stats: 'errors-only' }
+					...{ mode: 'production' }
 				};
 				let relativeOutputPath = path.relative(extensionPath, webpackConfig.output.path);
-				let webpackBaseDir = path.dirname(webpackConfigPath);
 
-				return webpackGulp(webpackConfig, webpack)
+				return webpackGulp(webpackConfig, webpack, webpackDone)
 					.pipe(es.through(function (data) {
 						data.stat = data.stat || {};
 						data.base = extensionPath;
