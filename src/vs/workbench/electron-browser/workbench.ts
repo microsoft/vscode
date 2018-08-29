@@ -793,7 +793,8 @@ export class Workbench extends Disposable implements IPartService {
 				return TPromise.as([<IResourceDiffInput>{
 					leftResource: filesToDiff[0].resource,
 					rightResource: filesToDiff[1].resource,
-					options: { pinned: true }
+					options: { pinned: true },
+					isFile: true
 				}]);
 			}
 

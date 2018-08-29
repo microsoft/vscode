@@ -470,8 +470,8 @@ export class EditorService extends Disposable implements EditorServiceImpl {
 		// Side by Side Support
 		const resourceSideBySideInput = <IResourceSideBySideInput>input;
 		if (resourceSideBySideInput.masterResource && resourceSideBySideInput.detailResource) {
-			const masterInput = this.createInput({ resource: resourceSideBySideInput.masterResource });
-			const detailInput = this.createInput({ resource: resourceSideBySideInput.detailResource });
+			const masterInput = this.createInput({ resource: resourceSideBySideInput.masterResource, isFile: resourceSideBySideInput.isFile });
+			const detailInput = this.createInput({ resource: resourceSideBySideInput.detailResource, isFile: resourceSideBySideInput.isFile });
 
 			return new SideBySideEditorInput(
 				resourceSideBySideInput.label || masterInput.getName(),
@@ -484,8 +484,8 @@ export class EditorService extends Disposable implements EditorServiceImpl {
 		// Diff Editor Support
 		const resourceDiffInput = <IResourceDiffInput>input;
 		if (resourceDiffInput.leftResource && resourceDiffInput.rightResource) {
-			const leftInput = this.createInput({ resource: resourceDiffInput.leftResource });
-			const rightInput = this.createInput({ resource: resourceDiffInput.rightResource });
+			const leftInput = this.createInput({ resource: resourceDiffInput.leftResource, isFile: resourceDiffInput.isFile });
+			const rightInput = this.createInput({ resource: resourceDiffInput.rightResource, isFile: resourceDiffInput.isFile });
 			const label = resourceDiffInput.label || localize('compareLabels', "{0} ↔ {1}", this.toDiffLabel(leftInput), this.toDiffLabel(rightInput));
 
 			return new DiffEditorInput(label, resourceDiffInput.description, leftInput, rightInput);
