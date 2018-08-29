@@ -12,5 +12,7 @@
 	"runToCursor": "Esegui fino al cursore",
 	"debugEvaluate": "Debug: Valuta",
 	"debugAddToWatch": "Debug: Aggiungi a espressione di controllo",
-	"showDebugHover": "Debug: Visualizza passaggio del mouse"
+	"showDebugHover": "Debug: Visualizza passaggio del mouse",
+	"goToNextBreakpoint": "Debug: Vai al punto di interruzione successivo",
+	"goToPreviousBreakpoint": "Debug: Vai al punto di interruzione precedente"
 }

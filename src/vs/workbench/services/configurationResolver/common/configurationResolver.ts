@@ -13,9 +13,20 @@ export const IConfigurationResolverService = createDecorator<IConfigurationResol
 export interface IConfigurationResolverService {
 	_serviceBrand: any;
 
-	resolve(root: IWorkspaceFolder, value: string): string;
-	resolve(root: IWorkspaceFolder, value: string[]): string[];
-	resolve(root: IWorkspaceFolder, value: IStringDictionary<string>): IStringDictionary<string>;
-	resolveAny<T>(root: IWorkspaceFolder, value: T, commandMapping?: IStringDictionary<string>): T;
-	executeCommandVariables(value: any, variables: IStringDictionary<string>): TPromise<IStringDictionary<string>>;
+	resolve(folder: IWorkspaceFolder, value: string): string;
+	resolve(folder: IWorkspaceFolder, value: string[]): string[];
+	resolve(folder: IWorkspaceFolder, value: IStringDictionary<string>): IStringDictionary<string>;
+
+	/**
+	 * Recursively resolves all variables in the given config and returns a copy of it with substituted values.
+	 * Command variables are only substituted if a "commandValueMapping" dictionary is given and if it contains an entry for the command.
+	 */
+	resolveAny(folder: IWorkspaceFolder, config: any, commandValueMapping?: IStringDictionary<string>): any;
+
+	/**
+	 * Recursively resolves all variables (including commands) in the given config and returns a copy of it with substituted values.
+	 * If a "variables" dictionary (with names -> command ids) is given,
+	 * command variables are first mapped through it before being resolved.
+	 */
+	resolveWithCommands(folder: IWorkspaceFolder, config: any, variables?: IStringDictionary<string>): TPromise<any>;
 }

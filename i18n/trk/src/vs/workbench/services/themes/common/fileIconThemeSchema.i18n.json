@@ -21,7 +21,7 @@
 	"schema.languageId": "İlişkilendirilecek simge tanımı ID'si.",
 	"schema.fonts": "Simge tanımlarında kullanılacak yazı tipleri.",
 	"schema.id": "Yazı tipinin ID'si.",
-	"schema.src": "Yazı tipinin konumları.",
+	"schema.src": "Yazı tipinin konumu.",
 	"schema.font-path": "Yazı tipi yolu, geçerli simge teması dosyasına göreli yol.",
 	"schema.font-format": "Yazı tipinin biçimi.",
 	"schema.font-weight": "Yazı tipinin kalınlığı.",

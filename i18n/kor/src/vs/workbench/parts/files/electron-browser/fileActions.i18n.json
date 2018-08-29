@@ -65,7 +65,6 @@
 	"emptyFileNameError": "파일 또는 폴더 이름을 입력해야 합니다.",
 	"fileNameStartsWithSlashError": "파일 또는 폴더 이름은 슬래시로 시작할 수 없습니다.",
 	"fileNameExistsError": "파일 또는 폴더 **{0}**이(가) 이 위치에 이미 있습니다. 다른 이름을 선택하세요.",
-	"fileUsedAsFolderError": "**{0}**은(는) 파일이며 하위 항목이 있을 수 없습니다.",
 	"invalidFileNameError": "**{0}**(이)라는 이름은 파일 또는 폴더 이름으로 올바르지 않습니다. 다른 이름을 선택하세요.",
 	"filePathTooLongError": "**{0}**(이)라는 이름을 사용하면 경로가 너무 길어집니다. 짧은 이름을 선택하세요.",
 	"compareWithClipboard": "클립보드와 활성 파일 비교",

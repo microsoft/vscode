@@ -18,9 +18,28 @@
   },
   "dependencies": {
     "jsonc-parser": "^1.0.0",
-    "vscode-nls": "^3.2.1"
+    "vscode-nls": "^3.2.4"
   },
   "contributes": {
+    "languages": [
+      {
+        "id": "jsonc",
+        "extensions": [
+          ".code-workspace",
+          "language-configuration.json",
+          "icon-theme.json",
+          "color-theme.json",
+          ".code-snippets"
+        ],
+        "filenames": [
+          "settings.json",
+          "launch.json",
+          "tasks.json",
+          "keybindings.json",
+          "extensions.json"
+        ]
+      }
+    ],
     "jsonValidation": [
       {
         "fileMatch": "vscode://defaultsettings/keybindings.json",
@@ -77,6 +96,6 @@
     ]
   },
   "devDependencies": {
-    "@types/node": "7.0.4"
+    "@types/node": "^8.10.25"
   }
 }

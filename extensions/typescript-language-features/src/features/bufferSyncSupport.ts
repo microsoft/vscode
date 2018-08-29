@@ -4,16 +4,19 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as fs from 'fs';
-import { CancellationTokenSource, Disposable, TextDocument, TextDocumentChangeEvent, TextDocumentContentChangeEvent, Uri, workspace } from 'vscode';
+import * as vscode from 'vscode';
 import * as Proto from '../protocol';
 import { ITypeScriptServiceClient } from '../typescriptService';
+import API from '../utils/api';
 import { Delayer } from '../utils/async';
-import { disposeAll } from '../utils/dispose';
+import { Disposable } from '../utils/dispose';
 import * as languageModeIds from '../utils/languageModeIds';
+import { ResourceMap } from '../utils/resourceMap';
+import * as typeConverters from '../utils/typeConverters';
 
-
-interface IDiagnosticRequestor {
-	requestDiagnostic(resource: Uri): void;
+enum BufferKind {
+	TypeScript = 1,
+	JavaScript = 2,
 }
 
 function mode2ScriptKind(mode: string): 'TS' | 'TSX' | 'JS' | 'JSX' | undefined {
@@ -29,9 +32,8 @@ function mode2ScriptKind(mode: string): 'TS' | 'TSX' | 'JS' | 'JSX' | undefined 
 class SyncedBuffer {
 
 	constructor(
-		private readonly document: TextDocument,
-		private readonly filepath: string,
-		private readonly diagnosticRequestor: IDiagnosticRequestor,
+		private readonly document: vscode.TextDocument,
+		public readonly filepath: string,
 		private readonly client: ITypeScriptServiceClient
 	) { }
 
@@ -41,18 +43,18 @@ class SyncedBuffer {
 			fileContent: this.document.getText(),
 		};
 
-		if (this.client.apiVersion.has203Features()) {
+		if (this.client.apiVersion.gte(API.v203)) {
 			const scriptKind = mode2ScriptKind(this.document.languageId);
 			if (scriptKind) {
 				args.scriptKindName = scriptKind;
 			}
 		}
 
-		if (this.client.apiVersion.has230Features()) {
+		if (this.client.apiVersion.gte(API.v230)) {
 			args.projectRootPath = this.client.getWorkspaceRootForResource(this.document.uri);
 		}
 
-		if (this.client.apiVersion.has240Features()) {
+		if (this.client.apiVersion.gte(API.v240)) {
 			const tsPluginsForDocument = this.client.plugins
 				.filter(x => x.languages.indexOf(this.document.languageId) >= 0);
 
@@ -61,129 +63,174 @@ class SyncedBuffer {
 			}
 		}
 
-		this.client.execute('open', args, false);
+		this.client.executeWithoutWaitingForResponse('open', args);
+	}
+
+	public get resource(): vscode.Uri {
+		return this.document.uri;
 	}
 
 	public get lineCount(): number {
 		return this.document.lineCount;
 	}
 
+	public get kind(): BufferKind {
+		switch (this.document.languageId) {
+			case languageModeIds.javascript:
+			case languageModeIds.javascriptreact:
+				return BufferKind.JavaScript;
+
+			case languageModeIds.typescript:
+			case languageModeIds.typescriptreact:
+			default:
+				return BufferKind.TypeScript;
+		}
+	}
+
 	public close(): void {
 		const args: Proto.FileRequestArgs = {
 			file: this.filepath
 		};
-		this.client.execute('close', args, false);
+		this.client.executeWithoutWaitingForResponse('close', args);
 	}
 
-	public onContentChanged(events: TextDocumentContentChangeEvent[]): void {
-		const filePath = this.client.normalizePath(this.document.uri);
-		if (!filePath) {
-			return;
-		}
-
+	public onContentChanged(events: vscode.TextDocumentContentChangeEvent[]): void {
 		for (const { range, text } of events) {
 			const args: Proto.ChangeRequestArgs = {
-				file: filePath,
-				line: range.start.line + 1,
-				offset: range.start.character + 1,
-				endLine: range.end.line + 1,
-				endOffset: range.end.character + 1,
-				insertString: text
+				insertString: text,
+				...typeConverters.Range.toFormattingRequestArgs(this.filepath, range)
 			};
-			this.client.execute('change', args, false);
+			this.client.executeWithoutWaitingForResponse('change', args);
 		}
-		this.diagnosticRequestor.requestDiagnostic(this.document.uri);
 	}
 }
 
-class SyncedBufferMap {
-	private readonly _map = new Map<string, SyncedBuffer>();
+class SyncedBufferMap extends ResourceMap<SyncedBuffer> {
 
-	constructor(
-		private readonly _normalizePath: (resource: Uri) => string | null
-	) { }
-
-	public has(resource: Uri): boolean {
-		const file = this._normalizePath(resource);
-		return !!file && this._map.has(file);
-	}
-
-	public get(resource: Uri): SyncedBuffer | undefined {
-		const file = this._normalizePath(resource);
-		return file ? this._map.get(file) : undefined;
-	}
-
-	public set(resource: Uri, buffer: SyncedBuffer) {
-		const file = this._normalizePath(resource);
-		if (file) {
-			this._map.set(file, buffer);
-		}
-	}
-
-	public delete(resource: Uri): void {
-		const file = this._normalizePath(resource);
-		if (file) {
-			this._map.delete(file);
-		}
+	public getForPath(filePath: string): SyncedBuffer | undefined {
+		return this.get(vscode.Uri.file(filePath));
 	}
 
 	public get allBuffers(): Iterable<SyncedBuffer> {
-		return this._map.values();
-	}
-
-	public get allResources(): Iterable<string> {
-		return this._map.keys();
+		return this.values;
 	}
 }
 
+class PendingDiagnostics extends ResourceMap<number> {
+	public getOrderedFileSet(): ResourceMap<void> {
+		const orderedResources = Array.from(this.entries)
+			.sort((a, b) => a.value - b.value)
+			.map(entry => entry.resource);
 
-export interface Diagnostics {
-	delete(resource: Uri): void;
+		const map = new ResourceMap<void>();
+		for (const resource of orderedResources) {
+			map.set(resource, void 0);
+		}
+		return map;
+	}
 }
 
-export default class BufferSyncSupport {
+class GetErrRequest {
+
+	public static executeGetErrRequest(
+		client: ITypeScriptServiceClient,
+		files: ResourceMap<void>,
+		onDone: () => void
+	) {
+		const token = new vscode.CancellationTokenSource();
+		return new GetErrRequest(client, files, token, onDone);
+	}
+
+	private _done: boolean = false;
+
+	private constructor(
+		client: ITypeScriptServiceClient,
+		public readonly files: ResourceMap<void>,
+		private readonly _token: vscode.CancellationTokenSource,
+		onDone: () => void
+	) {
+		const args: Proto.GeterrRequestArgs = {
+			delay: 0,
+			files: Array.from(files.entries)
+				.map(entry => client.normalizedPath(entry.resource))
+				.filter(x => !!x) as string[]
+		};
+
+		client.executeAsync('geterr', args, _token.token)
+			.then(undefined, () => { })
+			.then(() => {
+				if (this._done) {
+					return;
+				}
+				this._done = true;
+				onDone();
+			});
+	}
+
+	public cancel(): any {
+		if (!this._done) {
+			this._token.cancel();
+		}
+
+		this._token.dispose();
+	}
+}
+
+export default class BufferSyncSupport extends Disposable {
 
 	private readonly client: ITypeScriptServiceClient;
 
-	private _validate: boolean;
+	private _validateJavaScript: boolean = true;
+	private _validateTypeScript: boolean = true;
 	private readonly modeIds: Set<string>;
-	private readonly diagnostics: Diagnostics;
-	private readonly disposables: Disposable[] = [];
 	private readonly syncedBuffers: SyncedBufferMap;
-
-	private readonly pendingDiagnostics = new Map<string, number>();
+	private readonly pendingDiagnostics: PendingDiagnostics;
 	private readonly diagnosticDelayer: Delayer<any>;
-	private pendingGetErr: { request: Promise<any>, files: string[], token: CancellationTokenSource } | undefined;
+	private pendingGetErr: GetErrRequest | undefined;
+	private listening: boolean = false;
 
 	constructor(
 		client: ITypeScriptServiceClient,
-		modeIds: string[],
-		diagnostics: Diagnostics,
-		validate: boolean
+		modeIds: string[]
 	) {
+		super();
 		this.client = client;
 		this.modeIds = new Set<string>(modeIds);
-		this.diagnostics = diagnostics;
-		this._validate = validate;
 
 		this.diagnosticDelayer = new Delayer<any>(300);
 
-		this.syncedBuffers = new SyncedBufferMap(path => this.client.normalizePath(path));
+		const pathNormalizer = (path: vscode.Uri) => this.client.normalizedPath(path);
+		this.syncedBuffers = new SyncedBufferMap(pathNormalizer);
+		this.pendingDiagnostics = new PendingDiagnostics(pathNormalizer);
+
+		this.updateConfiguration();
+		vscode.workspace.onDidChangeConfiguration(this.updateConfiguration, this, this._disposables);
 	}
+
+	private readonly _onDelete = this._register(new vscode.EventEmitter<vscode.Uri>());
+	public readonly onDelete = this._onDelete.event;
 
 	public listen(): void {
-		workspace.onDidOpenTextDocument(this.onDidOpenTextDocument, this, this.disposables);
-		workspace.onDidCloseTextDocument(this.onDidCloseTextDocument, this, this.disposables);
-		workspace.onDidChangeTextDocument(this.onDidChangeTextDocument, this, this.disposables);
-		workspace.textDocuments.forEach(this.onDidOpenTextDocument, this);
+		if (this.listening) {
+			return;
+		}
+		this.listening = true;
+		vscode.workspace.onDidOpenTextDocument(this.openTextDocument, this, this._disposables);
+		vscode.workspace.onDidCloseTextDocument(this.onDidCloseTextDocument, this, this._disposables);
+		vscode.workspace.onDidChangeTextDocument(this.onDidChangeTextDocument, this, this._disposables);
+		vscode.workspace.textDocuments.forEach(this.openTextDocument, this);
 	}
 
-	public set validate(value: boolean) {
-		this._validate = value;
-	}
-
-	public handles(resource: Uri): boolean {
+	public handles(resource: vscode.Uri): boolean {
 		return this.syncedBuffers.has(resource);
+	}
+
+	public toResource(filePath: string): vscode.Uri {
+		const buffer = this.syncedBuffers.getForPath(filePath);
+		if (buffer) {
+			return buffer.resource;
+		}
+		return vscode.Uri.file(filePath);
 	}
 
 	public reOpenDocuments(): void {
@@ -192,16 +239,12 @@ export default class BufferSyncSupport {
 		}
 	}
 
-	public dispose(): void {
-		disposeAll(this.disposables);
-	}
-
-	private onDidOpenTextDocument(document: TextDocument): void {
+	public openTextDocument(document: vscode.TextDocument): void {
 		if (!this.modeIds.has(document.languageId)) {
 			return;
 		}
 		const resource = document.uri;
-		const filepath = this.client.normalizePath(resource);
+		const filepath = this.client.normalizedPath(resource);
 		if (!filepath) {
 			return;
 		}
@@ -210,117 +253,148 @@ export default class BufferSyncSupport {
 			return;
 		}
 
-		const syncedBuffer = new SyncedBuffer(document, filepath, this, this.client);
+		const syncedBuffer = new SyncedBuffer(document, filepath, this.client);
 		this.syncedBuffers.set(resource, syncedBuffer);
 		syncedBuffer.open();
-		this.requestDiagnostic(resource);
+		this.requestDiagnostic(syncedBuffer);
 	}
 
-	private onDidCloseTextDocument(document: TextDocument): void {
-		const resource = document.uri;
+	public closeResource(resource: vscode.Uri): void {
 		const syncedBuffer = this.syncedBuffers.get(resource);
 		if (!syncedBuffer) {
 			return;
 		}
-		this.diagnostics.delete(resource);
+		this.pendingDiagnostics.delete(resource);
 		this.syncedBuffers.delete(resource);
 		syncedBuffer.close();
 		if (!fs.existsSync(resource.fsPath)) {
+			this._onDelete.fire(resource);
 			this.requestAllDiagnostics();
 		}
 	}
 
-	private onDidChangeTextDocument(e: TextDocumentChangeEvent): void {
+	public interuptGetErr<R>(f: () => R): R {
+		// TODO: re-enable for 1.27 insiders
+		return f();
+		// if (!this.pendingGetErr) {
+		// 	return f();
+		// }
+
+		// this.pendingGetErr.cancel();
+		// this.pendingGetErr = undefined;
+		// const result = f();
+		// this.triggerDiagnostics();
+		// return result;
+	}
+
+	private onDidCloseTextDocument(document: vscode.TextDocument): void {
+		this.closeResource(document.uri);
+	}
+
+	private onDidChangeTextDocument(e: vscode.TextDocumentChangeEvent): void {
 		const syncedBuffer = this.syncedBuffers.get(e.document.uri);
-		if (syncedBuffer) {
-			syncedBuffer.onContentChanged(e.contentChanges);
-			if (this.pendingGetErr) {
-				this.pendingGetErr.token.cancel();
-				this.pendingGetErr = undefined;
-			}
+		if (!syncedBuffer) {
+			return;
+		}
+
+		syncedBuffer.onContentChanged(e.contentChanges);
+		const didTrigger = this.requestDiagnostic(syncedBuffer);
+
+		if (!didTrigger && this.pendingGetErr) {
+			// In this case we always want to re-trigger all diagnostics
+			this.pendingGetErr.cancel();
+			this.pendingGetErr = undefined;
+			this.triggerDiagnostics();
 		}
 	}
 
 	public requestAllDiagnostics() {
-		if (!this._validate) {
-			return;
+		for (const buffer of this.syncedBuffers.allBuffers) {
+			if (this.shouldValidate(buffer)) {
+				this.pendingDiagnostics.set(buffer.resource, Date.now());
+			}
 		}
-		for (const filePath of this.syncedBuffers.allResources) {
-			this.pendingDiagnostics.set(filePath, Date.now());
-		}
-		this.diagnosticDelayer.trigger(() => {
-			this.sendPendingDiagnostics();
-		}, 200);
+		this.triggerDiagnostics();
 	}
 
-	public requestDiagnostic(resource: Uri): void {
-		if (!this._validate) {
+	public getErr(resources: vscode.Uri[]): any {
+		const handledResources = resources.filter(resource => this.handles(resource));
+		if (!handledResources.length) {
 			return;
 		}
 
-		const file = this.client.normalizePath(resource);
-		if (!file) {
-			return;
+		for (const resource of handledResources) {
+			this.pendingDiagnostics.set(resource, Date.now());
 		}
 
-		this.pendingDiagnostics.set(file, Date.now());
-		const buffer = this.syncedBuffers.get(resource);
-		let delay = 300;
-		if (buffer) {
-			const lineCount = buffer.lineCount;
-			delay = Math.min(Math.max(Math.ceil(lineCount / 20), 300), 800);
-		}
+		this.triggerDiagnostics();
+	}
+
+	private triggerDiagnostics(delay: number = 200) {
 		this.diagnosticDelayer.trigger(() => {
 			this.sendPendingDiagnostics();
 		}, delay);
 	}
 
-	public hasPendingDiagnostics(resource: Uri): boolean {
-		const file = this.client.normalizePath(resource);
-		return !file || this.pendingDiagnostics.has(file);
+	private requestDiagnostic(buffer: SyncedBuffer): boolean {
+		if (!this.shouldValidate(buffer)) {
+			return false;
+		}
+
+		this.pendingDiagnostics.set(buffer.resource, Date.now());
+
+		const delay = Math.min(Math.max(Math.ceil(buffer.lineCount / 20), 300), 800);
+		this.triggerDiagnostics(delay);
+		return true;
+	}
+
+	public hasPendingDiagnostics(resource: vscode.Uri): boolean {
+		return this.pendingDiagnostics.has(resource);
 	}
 
 	private sendPendingDiagnostics(): void {
-		if (!this._validate) {
-			return;
-		}
-		const files = new Set(Array.from(this.pendingDiagnostics.entries())
-			.sort((a, b) => a[1] - b[1])
-			.map(entry => entry[0]));
+		const orderedFileSet = this.pendingDiagnostics.getOrderedFileSet();
 
 		// Add all open TS buffers to the geterr request. They might be visible
-		for (const file of this.syncedBuffers.allResources) {
-			if (!this.pendingDiagnostics.get(file)) {
-				files.add(file);
+		for (const buffer of this.syncedBuffers.values) {
+			orderedFileSet.set(buffer.resource, void 0);
+		}
+
+		if (orderedFileSet.size) {
+			if (this.pendingGetErr) {
+				this.pendingGetErr.cancel();
+
+				for (const file of this.pendingGetErr.files.entries) {
+					orderedFileSet.set(file.resource, void 0);
+				}
 			}
+
+			const getErr = this.pendingGetErr = GetErrRequest.executeGetErrRequest(this.client, orderedFileSet, () => {
+				if (this.pendingGetErr === getErr) {
+					this.pendingGetErr = undefined;
+				}
+			});
 		}
 
-		if (this.pendingGetErr) {
-			for (const file of this.pendingGetErr.files) {
-				files.add(file);
-			}
-		}
-
-		if (files.size) {
-			const fileList = Array.from(files);
-			const args: Proto.GeterrRequestArgs = {
-				delay: 0,
-				files: fileList
-			};
-			const token = new CancellationTokenSource();
-
-			const getErr = this.pendingGetErr = {
-				request: this.client.executeAsync('geterr', args, token.token)
-					.then(undefined, () => { })
-					.then(() => {
-						if (this.pendingGetErr === getErr) {
-							this.pendingGetErr = undefined;
-						}
-					}),
-				files: fileList,
-				token
-			};
-		}
 		this.pendingDiagnostics.clear();
+	}
+
+	private updateConfiguration() {
+		const jsConfig = vscode.workspace.getConfiguration('javascript', null);
+		const tsConfig = vscode.workspace.getConfiguration('typescript', null);
+
+		this._validateJavaScript = jsConfig.get<boolean>('validate.enable', true);
+		this._validateTypeScript = tsConfig.get<boolean>('validate.enable', true);
+	}
+
+	private shouldValidate(buffer: SyncedBuffer) {
+		switch (buffer.kind) {
+			case BufferKind.JavaScript:
+				return this._validateJavaScript;
+
+			case BufferKind.TypeScript:
+			default:
+				return this._validateTypeScript;
+		}
 	}
 }

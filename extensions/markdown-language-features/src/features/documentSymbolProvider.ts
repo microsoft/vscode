@@ -5,8 +5,13 @@
 
 import * as vscode from 'vscode';
 import { MarkdownEngine } from '../markdownEngine';
-import { TableOfContentsProvider } from '../tableOfContentsProvider';
+import { TableOfContentsProvider, SkinnyTextDocument, TocEntry } from '../tableOfContentsProvider';
 
+interface MarkdownSymbol {
+	readonly level: number;
+	readonly parent: MarkdownSymbol | undefined;
+	readonly children: vscode.DocumentSymbol[];
+}
 
 export default class MDDocumentSymbolProvider implements vscode.DocumentSymbolProvider {
 
@@ -14,10 +19,57 @@ export default class MDDocumentSymbolProvider implements vscode.DocumentSymbolPr
 		private readonly engine: MarkdownEngine
 	) { }
 
-	public async provideDocumentSymbols(document: vscode.TextDocument): Promise<vscode.SymbolInformation[]> {
+	public async provideDocumentSymbolInformation(document: SkinnyTextDocument): Promise<vscode.SymbolInformation[]> {
 		const toc = await new TableOfContentsProvider(this.engine, document).getToc();
-		return toc.map(entry => {
-			return new vscode.SymbolInformation('#'.repeat(entry.level) + ' ' + entry.text, vscode.SymbolKind.String, '', entry.location);
-		});
+		return toc.map(entry => this.toSymbolInformation(entry));
+	}
+
+	public async provideDocumentSymbols(document: SkinnyTextDocument): Promise<vscode.DocumentSymbol[]> {
+		const toc = await new TableOfContentsProvider(this.engine, document).getToc();
+		const root: MarkdownSymbol = {
+			level: -Infinity,
+			children: [],
+			parent: undefined
+		};
+		this.buildTree(root, toc);
+		return root.children;
+	}
+
+	private buildTree(parent: MarkdownSymbol, entries: TocEntry[]) {
+		if (!entries.length) {
+			return;
+		}
+
+		const entry = entries[0];
+		const symbol = this.toDocumentSymbol(entry);
+		symbol.children = [];
+
+		while (parent && entry.level <= parent.level) {
+			parent = parent.parent!;
+		}
+		parent.children.push(symbol);
+		this.buildTree({ level: entry.level, children: symbol.children, parent }, entries.slice(1));
+	}
+
+
+	private toSymbolInformation(entry: TocEntry): vscode.SymbolInformation {
+		return new vscode.SymbolInformation(
+			this.getSymbolName(entry),
+			vscode.SymbolKind.String,
+			'',
+			entry.location);
+	}
+
+	private toDocumentSymbol(entry: TocEntry) {
+		return new vscode.DocumentSymbol(
+			this.getSymbolName(entry),
+			'',
+			vscode.SymbolKind.String,
+			entry.location.range,
+			entry.location.range);
+	}
+
+	private getSymbolName(entry: TocEntry): string {
+		return '#'.repeat(entry.level) + ' ' + entry.text;
 	}
 }

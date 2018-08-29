@@ -19,7 +19,8 @@
 					".md",
 					".mdown",
 					".markdown",
-					".markdn"
+					".markdn",
+					".workbook"
 				],
 				"configuration": "./language-configuration.json"
 			}
@@ -57,7 +58,7 @@
 					"meta.embedded.block.dockerfile": "dockerfile",
 					"meta.embedded.block.go": "go",
 					"meta.embedded.block.groovy": "groovy",
-					"meta.embedded.block.jade": "jade",
+					"meta.embedded.block.pug": "jade",
 					"meta.embedded.block.javascript": "javascript",
 					"meta.embedded.block.json": "json",
 					"meta.embedded.block.less": "less",

@@ -12,5 +12,7 @@
 	"runToCursor": "執行至游標處",
 	"debugEvaluate": "偵錯: 評估",
 	"debugAddToWatch": "偵錯: 加入監看",
-	"showDebugHover": "偵錯: 動態顯示"
+	"showDebugHover": "偵錯: 動態顯示",
+	"goToNextBreakpoint": "偵錯: 移至下一個中斷點",
+	"goToPreviousBreakpoint": "偵錯: 移至上一個中斷點"
 }

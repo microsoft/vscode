@@ -267,7 +267,6 @@ export class TextAreaInput extends Disposable {
 			}
 
 			this._textAreaState = newState;
-			// console.log('==> DEDUCED INPUT: ' + JSON.stringify(typeInput));
 			if (this._nextCommand === ReadFromTextArea.Type) {
 				if (typeInput.text !== '') {
 					this._onType.fire(typeInput);

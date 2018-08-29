@@ -12,5 +12,7 @@
 	"runToCursor": "Exécuter jusqu'au curseur",
 	"debugEvaluate": "Déboguer : évaluer",
 	"debugAddToWatch": "Déboguer : ajouter à la fenêtre Espion",
-	"showDebugHover": "Déboguer : afficher par pointage"
+	"showDebugHover": "Déboguer : afficher par pointage",
+	"goToNextBreakpoint": "Débogage : Aller au prochain point d’arrêt",
+	"goToPreviousBreakpoint": "Débogage : Aller au point d’arrêt précédent"
 }

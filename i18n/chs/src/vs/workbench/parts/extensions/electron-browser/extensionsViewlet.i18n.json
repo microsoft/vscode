@@ -17,7 +17,7 @@
 	"builtInBasicsExtensions": "编程语言",
 	"searchExtensions": "在商店中搜索扩展",
 	"sort by installs": "排序依据: 安装计数",
-	"sort by rating": "排序依据: 分级",
+	"sort by rating": "排序依据: 评分",
 	"sort by name": "排序依据: 名称",
 	"suggestProxyError": "市场返回 \"ECONNREFUSED\"。请检查 \"http.proxy\" 设置。",
 	"extensions": "扩展",

@@ -6,6 +6,7 @@
 		"removeComments": false,
 		"preserveConstEnums": true,
 		"sourceMap": false,
+		"resolveJsonModule": true,
 		"experimentalDecorators": true,
 		// enable JavaScript type checking for the language service
 		// use the tsconfig.build.json for compiling wich disable JavaScript

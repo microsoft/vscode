@@ -14,6 +14,5 @@
 	"save": "&&Salvar",
 	"saveWorkspace": "Salvar o espaço de trabalho",
 	"openWorkspaceAction": "Abrir o Espaço de Trabalho...",
-	"openWorkspaceConfigFile": "Abrir o Arquivo de Configuração do Espaço de Trabalho",
-	"openFolderAsWorkspaceInNewWindow": "Abrir a pasta como espaço de trabalho em nova janela"
+	"openWorkspaceConfigFile": "Abrir o Arquivo de Configuração do Espaço de Trabalho"
 }

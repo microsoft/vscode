@@ -8,7 +8,7 @@ import 'vs/css!./findInput';
 
 import * as nls from 'vs/nls';
 import * as dom from 'vs/base/browser/dom';
-import { IMessage as InputBoxMessage, IInputValidator, InputBox, IInputBoxStyles } from 'vs/base/browser/ui/inputbox/inputBox';
+import { IMessage as InputBoxMessage, IInputValidator, IInputBoxStyles, HistoryInputBox } from 'vs/base/browser/ui/inputbox/inputBox';
 import { IContextViewProvider } from 'vs/base/browser/ui/contextview/contextview';
 import { Widget } from 'vs/base/browser/ui/widget';
 import { Event, Emitter } from 'vs/base/common/event';
@@ -28,6 +28,7 @@ export interface IFindInputOptions extends IFindInputStyles {
 	readonly appendCaseSensitiveLabel?: string;
 	readonly appendWholeWordsLabel?: string;
 	readonly appendRegexLabel?: string;
+	readonly history?: string[];
 }
 
 export interface IFindInputStyles extends IInputBoxStyles {
@@ -62,7 +63,7 @@ export class FindInput extends Widget {
 	private wholeWords: WholeWordsCheckbox;
 	private caseSensitive: CaseSensitiveCheckbox;
 	public domNode: HTMLElement;
-	public inputBox: InputBox;
+	public inputBox: HistoryInputBox;
 
 	private readonly _onDidOptionChange = this._register(new Emitter<boolean>());
 	public readonly onDidOptionChange: Event<boolean /* via keyboard */> = this._onDidOptionChange.event;
@@ -81,6 +82,9 @@ export class FindInput extends Widget {
 
 	private _onCaseSensitiveKeyDown = this._register(new Emitter<IKeyboardEvent>());
 	public readonly onCaseSensitiveKeyDown: Event<IKeyboardEvent> = this._onCaseSensitiveKeyDown.event;
+
+	private _onRegexKeyDown = this._register(new Emitter<IKeyboardEvent>());
+	public readonly onRegexKeyDown: Event<IKeyboardEvent> = this._onRegexKeyDown.event;
 
 	constructor(parent: HTMLElement, contextViewProvider: IContextViewProvider, options?: IFindInputOptions) {
 		super();
@@ -108,7 +112,7 @@ export class FindInput extends Widget {
 		this.domNode = null;
 		this.inputBox = null;
 
-		this.buildDomNode(options.appendCaseSensitiveLabel || '', options.appendWholeWordsLabel || '', options.appendRegexLabel || '');
+		this.buildDomNode(options.appendCaseSensitiveLabel || '', options.appendWholeWordsLabel || '', options.appendRegexLabel || '', options.history);
 
 		if (Boolean(parent)) {
 			parent.appendChild(this.domNode);
@@ -247,6 +251,10 @@ export class FindInput extends Widget {
 		this.caseSensitive.focus();
 	}
 
+	public focusOnRegex(): void {
+		this.regex.focus();
+	}
+
 	private _lastHighlightFindOptions: number = 0;
 	public highlightFindOptions(): void {
 		dom.removeClass(this.domNode, 'highlight-' + (this._lastHighlightFindOptions));
@@ -259,12 +267,12 @@ export class FindInput extends Widget {
 		this.inputBox.width = w;
 	}
 
-	private buildDomNode(appendCaseSensitiveLabel: string, appendWholeWordsLabel: string, appendRegexLabel: string): void {
+	private buildDomNode(appendCaseSensitiveLabel: string, appendWholeWordsLabel: string, appendRegexLabel: string, history: string[]): void {
 		this.domNode = document.createElement('div');
 		this.domNode.style.width = this.width + 'px';
 		dom.addClass(this.domNode, 'monaco-findInput');
 
-		this.inputBox = this._register(new InputBox(this.domNode, this.contextViewProvider, {
+		this.inputBox = this._register(new HistoryInputBox(this.domNode, this.contextViewProvider, {
 			placeholder: this.placeholder || '',
 			ariaLabel: this.label || '',
 			validationOptions: {
@@ -278,50 +286,56 @@ export class FindInput extends Widget {
 			inputValidationWarningBackground: this.inputValidationWarningBackground,
 			inputValidationWarningBorder: this.inputValidationWarningBorder,
 			inputValidationErrorBackground: this.inputValidationErrorBackground,
-			inputValidationErrorBorder: this.inputValidationErrorBorder
+			inputValidationErrorBorder: this.inputValidationErrorBorder,
+			history
 		}));
 
 		this.regex = this._register(new RegexCheckbox({
 			appendTitle: appendRegexLabel,
 			isChecked: false,
-			onChange: (viaKeyboard) => {
-				this._onDidOptionChange.fire(viaKeyboard);
-				if (!viaKeyboard) {
-					this.inputBox.focus();
-				}
-				this.setInputWidth();
-				this.validate();
-			},
 			inputActiveOptionBorder: this.inputActiveOptionBorder
 		}));
+		this._register(this.regex.onChange(viaKeyboard => {
+			this._onDidOptionChange.fire(viaKeyboard);
+			if (!viaKeyboard) {
+				this.inputBox.focus();
+			}
+			this.setInputWidth();
+			this.validate();
+		}));
+		this._register(this.regex.onKeyDown(e => {
+			this._onRegexKeyDown.fire(e);
+		}));
+
 		this.wholeWords = this._register(new WholeWordsCheckbox({
 			appendTitle: appendWholeWordsLabel,
 			isChecked: false,
-			onChange: (viaKeyboard) => {
-				this._onDidOptionChange.fire(viaKeyboard);
-				if (!viaKeyboard) {
-					this.inputBox.focus();
-				}
-				this.setInputWidth();
-				this.validate();
-			},
 			inputActiveOptionBorder: this.inputActiveOptionBorder
 		}));
+		this._register(this.wholeWords.onChange(viaKeyboard => {
+			this._onDidOptionChange.fire(viaKeyboard);
+			if (!viaKeyboard) {
+				this.inputBox.focus();
+			}
+			this.setInputWidth();
+			this.validate();
+		}));
+
 		this.caseSensitive = this._register(new CaseSensitiveCheckbox({
 			appendTitle: appendCaseSensitiveLabel,
 			isChecked: false,
-			onChange: (viaKeyboard) => {
-				this._onDidOptionChange.fire(viaKeyboard);
-				if (!viaKeyboard) {
-					this.inputBox.focus();
-				}
-				this.setInputWidth();
-				this.validate();
-			},
-			onKeyDown: (e) => {
-				this._onCaseSensitiveKeyDown.fire(e);
-			},
 			inputActiveOptionBorder: this.inputActiveOptionBorder
+		}));
+		this._register(this.caseSensitive.onChange(viaKeyboard => {
+			this._onDidOptionChange.fire(viaKeyboard);
+			if (!viaKeyboard) {
+				this.inputBox.focus();
+			}
+			this.setInputWidth();
+			this.validate();
+		}));
+		this._register(this.caseSensitive.onKeyDown(e => {
+			this._onCaseSensitiveKeyDown.fire(e);
 		}));
 
 		// Arrow-Key support to navigate between options

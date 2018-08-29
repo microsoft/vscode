@@ -14,7 +14,7 @@
 	"uninstallAction": "アンインストール",
 	"Uninstalling": "アンインストールしています",
 	"updateAction": "更新",
-	"updateTo": "{0} に更新します",
+	"updateTo": "{0} に更新",
 	"failedToUpdate": "'{0}' を更新できませんでした。",
 	"ManageExtensionAction.uninstallingTooltip": "アンインストールしています",
 	"enableForWorkspaceAction": "有効にする (ワークスペース)",

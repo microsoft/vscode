@@ -12,16 +12,12 @@ import * as paths from 'vs/base/common/paths';
 import * as strings from 'vs/base/common/strings';
 import * as objects from 'vs/base/common/objects';
 import * as platform from 'vs/base/common/platform';
-import * as stdfork from 'vs/base/node/stdFork';
 import { Emitter, Event } from 'vs/base/common/event';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { ExtensionsChannelId } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { IExtensionDescription } from 'vs/workbench/services/extensions/common/extensions';
 import { IOutputService } from 'vs/workbench/parts/output/common/output';
-import { IDebugAdapter, IAdapterExecutable, IDebuggerContribution, IPlatformSpecificAdapterContribution, IConfig } from 'vs/workbench/parts/debug/common/debug';
-import { IConfigurationResolverService } from 'vs/workbench/services/configurationResolver/common/configurationResolver';
-import { IWorkspaceFolder } from 'vs/platform/workspace/common/workspace';
-import { IStringDictionary } from 'vs/base/common/collections';
+import { IDebugAdapter, IAdapterExecutable, IDebuggerContribution, IPlatformSpecificAdapterContribution } from 'vs/workbench/parts/debug/common/debug';
 
 /**
  * Abstract implementation of the low level API for a debug adapter.
@@ -241,7 +237,7 @@ export class SocketDebugAdapter extends StreamDebugAdapter {
 	}
 
 	stopSession(): TPromise<void> {
-		if (this.socket !== null) {
+		if (this.socket) {
 			this.socket.end();
 			this.socket = undefined;
 		}
@@ -288,13 +284,15 @@ export class DebugAdapter extends StreamDebugAdapter {
 
 			if (this.adapterExecutable.command === 'node' && this.outputService) {
 				if (Array.isArray(this.adapterExecutable.args) && this.adapterExecutable.args.length > 0) {
-					stdfork.fork(this.adapterExecutable.args[0], this.adapterExecutable.args.slice(1), {}, (err, child) => {
-						if (err) {
-							e(new Error(nls.localize('unableToLaunchDebugAdapter', "Unable to launch debug adapter from '{0}'.", this.adapterExecutable.args[0])));
-						}
-						this.serverProcess = child;
-						c(null);
+					const child = cp.fork(this.adapterExecutable.args[0], this.adapterExecutable.args.slice(1), {
+						execArgv: ['-e', 'delete process.env.ELECTRON_RUN_AS_NODE;require(process.argv[1])'].concat(process.execArgv || []),
+						silent: true
 					});
+					if (!child.pid) {
+						e(new Error(nls.localize('unableToLaunchDebugAdapter', "Unable to launch debug adapter from '{0}'.", this.adapterExecutable.args[0])));
+					}
+					this.serverProcess = child;
+					c(null);
 				} else {
 					e(new Error(nls.localize('unableToLaunchDebugAdapterNoArgs', "Unable to launch debug adapter.")));
 				}
@@ -323,6 +321,10 @@ export class DebugAdapter extends StreamDebugAdapter {
 	}
 
 	stopSession(): TPromise<void> {
+
+		if (!this.serverProcess) {
+			return TPromise.as(null);
+		}
 
 		// when killing a process in windows its child
 		// processes are *not* killed but become root
@@ -399,7 +401,6 @@ export class DebugAdapter extends StreamDebugAdapter {
 				if (debuggers && debuggers.length > 0) {
 					debuggers.filter(dbg => strings.equalsIgnoreCase(dbg.type, debugType)).forEach(dbg => {
 						// extract relevant attributes and make then absolute where needed
-						// TODO@extensionLocation
 						const extractedDbg = DebugAdapter.extract(dbg, ed.extensionLocation.fsPath);
 
 						// merge
@@ -439,27 +440,5 @@ export class DebugAdapter extends StreamDebugAdapter {
 				args: args || []
 			};
 		}
-	}
-
-	static substituteVariables(workspaceFolder: IWorkspaceFolder, config: IConfig, resolverService: IConfigurationResolverService, commandValueMapping?: IStringDictionary<string>): IConfig {
-
-		const result = objects.deepClone(config) as IConfig;
-
-		// hoist platform specific attributes to top level
-		if (platform.isWindows && result.windows) {
-			Object.keys(result.windows).forEach(key => result[key] = result.windows[key]);
-		} else if (platform.isMacintosh && result.osx) {
-			Object.keys(result.osx).forEach(key => result[key] = result.osx[key]);
-		} else if (platform.isLinux && result.linux) {
-			Object.keys(result.linux).forEach(key => result[key] = result.linux[key]);
-		}
-
-		// delete all platform specific sections
-		delete result.windows;
-		delete result.osx;
-		delete result.linux;
-
-		// substitute all variables in string values
-		return resolverService.resolveAny(workspaceFolder, result, commandValueMapping);
 	}
 }

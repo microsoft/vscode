@@ -13,12 +13,12 @@
 	padding-left: 7px;
 }
 
-.monaco-workbench .debug-actions-widget .monaco-action-bar .action-item.select-container {
-	margin-right: 7px;
+.monaco-workbench .debug-actions-widget .monaco-action-bar .action-item {
+	height: 32px;
 }
 
-.monaco-workbench .debug-actions-widget .monaco-action-bar .action-item .monaco-select-box {
-	margin-top: 6px;
+.monaco-workbench .debug-actions-widget .monaco-action-bar .action-item.select-container {
+	margin-right: 7px;
 }
 
 .monaco-workbench .debug-actions-widget .drag-area {

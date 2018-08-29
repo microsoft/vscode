@@ -4,13 +4,11 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import { Schemas } from 'vs/base/common/network';
 import Severity from 'vs/base/common/severity';
 import URI from 'vs/base/common/uri';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { IConfigurationService, IConfigurationChangeEvent, IConfigurationOverrides, IConfigurationData } from 'vs/platform/configuration/common/configuration';
-import { ISingleFolderWorkspaceIdentifier, IWorkspaceIdentifier } from 'vs/platform/workspaces/common/workspaces';
-import { IEditor, IEditorInput, IEditorOptions, IEditorService, IResourceInput, Position } from 'vs/platform/editor/common/editor';
+import { IWorkspaceIdentifier, ISingleFolderWorkspaceIdentifier } from 'vs/platform/workspaces/common/workspaces';
 import { ICommandService, ICommand, ICommandEvent, ICommandHandler, CommandsRegistry } from 'vs/platform/commands/common/commands';
 import { AbstractKeybindingService } from 'vs/platform/keybinding/common/abstractKeybindingService';
 import { USLayoutResolvedKeybinding } from 'vs/platform/keybinding/common/usLayoutResolvedKeybinding';
@@ -26,7 +24,7 @@ import { IInstantiationService } from 'vs/platform/instantiation/common/instanti
 import { IProgressService, IProgressRunner } from 'vs/platform/progress/common/progress';
 import { ITextResourceConfigurationService } from 'vs/editor/common/services/resourceConfiguration';
 import { ITextModelService, ITextModelContentProvider, ITextEditorModel } from 'vs/editor/common/services/resolverService';
-import { IDisposable, IReference, ImmortalReference, combinedDisposable } from 'vs/base/common/lifecycle';
+import { IDisposable, IReference, ImmortalReference, combinedDisposable, toDisposable } from 'vs/base/common/lifecycle';
 import * as dom from 'vs/base/browser/dom';
 import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { KeybindingsRegistry, IKeybindingItem } from 'vs/platform/keybinding/common/keybindingsRegistry';
@@ -36,7 +34,7 @@ import { ITelemetryService, ITelemetryInfo } from 'vs/platform/telemetry/common/
 import { ResolvedKeybinding, Keybinding, createKeybinding, SimpleKeybinding } from 'vs/base/common/keyCodes';
 import { ResolvedKeybindingItem } from 'vs/platform/keybinding/common/resolvedKeybindingItem';
 import { OS } from 'vs/base/common/platform';
-import { IRange, Range } from 'vs/editor/common/core/range';
+import { Range } from 'vs/editor/common/core/range';
 import { ITextModel } from 'vs/editor/common/model';
 import { INotificationService, INotification, INotificationHandle, NoOpNotification, IPromptChoice } from 'vs/platform/notification/common/notification';
 import { IConfirmation, IConfirmationResult, IDialogService, IDialogOptions } from 'vs/platform/dialogs/common/dialogs';
@@ -47,34 +45,7 @@ import { WorkspaceEdit, isResourceTextEdit, TextEdit } from 'vs/editor/common/mo
 import { IModelService } from 'vs/editor/common/services/modelService';
 import { EditOperation } from 'vs/editor/common/core/editOperation';
 import { localize } from 'vs/nls';
-
-export class SimpleEditor implements IEditor {
-
-	public input: IEditorInput;
-	public options: IEditorOptions;
-	public position: Position;
-
-	public _widget: editorCommon.IEditor;
-
-	constructor(editor: editorCommon.IEditor) {
-		this._widget = editor;
-	}
-
-	public getId(): string { return 'editor'; }
-	public getControl(): editorCommon.IEditor { return this._widget; }
-	public focus(): void { this._widget.focus(); }
-	public isVisible(): boolean { return true; }
-
-	public withTypedEditor<T>(codeEditorCallback: (editor: ICodeEditor) => T, diffEditorCallback: (editor: IDiffEditor) => T): T {
-		if (isCodeEditor(this._widget)) {
-			// Single Editor
-			return codeEditorCallback(<ICodeEditor>this._widget);
-		} else {
-			// Diff Editor
-			return diffEditorCallback(<IDiffEditor>this._widget);
-		}
-	}
-}
+import { ILabelService, LabelRules } from 'vs/platform/label/common/label';
 
 export class SimpleModel implements ITextEditorModel {
 
@@ -98,6 +69,10 @@ export class SimpleModel implements ITextEditorModel {
 		return this.model;
 	}
 
+	public isReadonly(): boolean {
+		return false;
+	}
+
 	public dispose(): void {
 		this._onDispose.fire();
 	}
@@ -107,94 +82,29 @@ export interface IOpenEditorDelegate {
 	(url: string): boolean;
 }
 
-export class SimpleEditorService implements IEditorService {
-	public _serviceBrand: any;
-
-	private editor: SimpleEditor;
-	private openEditorDelegate: IOpenEditorDelegate;
-
-	constructor() {
-		this.openEditorDelegate = null;
-	}
-
-	public setEditor(editor: editorCommon.IEditor): void {
-		this.editor = new SimpleEditor(editor);
-	}
-
-	public setOpenEditorDelegate(openEditorDelegate: IOpenEditorDelegate): void {
-		this.openEditorDelegate = openEditorDelegate;
-	}
-
-	public openEditor(typedData: IResourceInput, sideBySide?: boolean): TPromise<IEditor> {
-		return TPromise.as(this.editor.withTypedEditor(
-			(editor) => this.doOpenEditor(editor, typedData),
-			(diffEditor) => (
-				this.doOpenEditor(diffEditor.getOriginalEditor(), typedData) ||
-				this.doOpenEditor(diffEditor.getModifiedEditor(), typedData)
-			)
-		));
-	}
-
-	private doOpenEditor(editor: ICodeEditor, data: IResourceInput): IEditor {
-		let model = this.findModel(editor, data);
-		if (!model) {
-			if (data.resource) {
-				if (this.openEditorDelegate) {
-					this.openEditorDelegate(data.resource.toString());
-					return null;
-				} else {
-					let schema = data.resource.scheme;
-					if (schema === Schemas.http || schema === Schemas.https) {
-						// This is a fully qualified http or https URL
-						dom.windowOpenNoOpener(data.resource.toString());
-						return this.editor;
-					}
-				}
-			}
-			return null;
-		}
-
-		let selection = <IRange>data.options.selection;
-		if (selection) {
-			if (typeof selection.endLineNumber === 'number' && typeof selection.endColumn === 'number') {
-				editor.setSelection(selection);
-				editor.revealRangeInCenter(selection, editorCommon.ScrollType.Immediate);
-			} else {
-				let pos = {
-					lineNumber: selection.startLineNumber,
-					column: selection.startColumn
-				};
-				editor.setPosition(pos);
-				editor.revealPositionInCenter(pos, editorCommon.ScrollType.Immediate);
-			}
-		}
-
-		return this.editor;
-	}
-
-	private findModel(editor: ICodeEditor, data: IResourceInput): ITextModel {
-		let model = editor.getModel();
-		if (model.uri.toString() !== data.resource.toString()) {
-			return null;
-		}
-
-		return model;
+function withTypedEditor<T>(widget: editorCommon.IEditor, codeEditorCallback: (editor: ICodeEditor) => T, diffEditorCallback: (editor: IDiffEditor) => T): T {
+	if (isCodeEditor(widget)) {
+		// Single Editor
+		return codeEditorCallback(<ICodeEditor>widget);
+	} else {
+		// Diff Editor
+		return diffEditorCallback(<IDiffEditor>widget);
 	}
 }
 
 export class SimpleEditorModelResolverService implements ITextModelService {
 	public _serviceBrand: any;
 
-	private editor: SimpleEditor;
+	private editor: editorCommon.IEditor;
 
 	public setEditor(editor: editorCommon.IEditor): void {
-		this.editor = new SimpleEditor(editor);
+		this.editor = editor;
 	}
 
 	public createModelReference(resource: URI): TPromise<IReference<ITextEditorModel>> {
 		let model: ITextModel;
 
-		model = this.editor.withTypedEditor(
+		model = withTypedEditor(this.editor,
 			(editor) => this.findModel(editor, resource),
 			(diffEditor) => this.findModel(diffEditor.getOriginalEditor(), resource) || this.findModel(diffEditor.getModifiedEditor(), resource)
 		);
@@ -325,11 +235,9 @@ export class StandaloneCommandService implements ICommandService {
 	public addCommand(command: ICommand): IDisposable {
 		const { id } = command;
 		this._dynamicCommands[id] = command;
-		return {
-			dispose: () => {
-				delete this._dynamicCommands[id];
-			}
-		};
+		return toDisposable(() => {
+			delete this._dynamicCommands[id];
+		});
 	}
 
 	public executeCommand<T>(id: string, ...args: any[]): TPromise<T> {
@@ -384,18 +292,16 @@ export class StandaloneKeybindingService extends AbstractKeybindingService {
 			weight2: 0
 		});
 
-		toDispose.push({
-			dispose: () => {
-				for (let i = 0; i < this._dynamicKeybindings.length; i++) {
-					let kb = this._dynamicKeybindings[i];
-					if (kb.command === commandId) {
-						this._dynamicKeybindings.splice(i, 1);
-						this.updateResolver({ source: KeybindingSource.Default });
-						return;
-					}
+		toDispose.push(toDisposable(() => {
+			for (let i = 0; i < this._dynamicKeybindings.length; i++) {
+				let kb = this._dynamicKeybindings[i];
+				if (kb.command === commandId) {
+					this._dynamicKeybindings.splice(i, 1);
+					this.updateResolver({ source: KeybindingSource.Default });
+					return;
 				}
 			}
-		});
+		}));
 
 		let commandService = this._commandService;
 		if (commandService instanceof StandaloneCommandService) {
@@ -602,7 +508,7 @@ export class SimpleWorkspaceContextService implements IWorkspaceContextService {
 
 	constructor() {
 		const resource = URI.from({ scheme: SimpleWorkspaceContextService.SCHEME, authority: 'model', path: '/' });
-		this.workspace = { id: '4064f6ec-cb38-4ad0-af64-ee6467e63c82', folders: [new WorkspaceFolder({ uri: resource, name: '', index: 0 })], name: resource.fsPath };
+		this.workspace = { id: '4064f6ec-cb38-4ad0-af64-ee6467e63c82', folders: [new WorkspaceFolder({ uri: resource, name: '', index: 0 })] };
 	}
 
 	public getWorkspace(): IWorkspace {
@@ -687,5 +593,27 @@ export class SimpleBulkEditService implements IBulkEditService {
 			selection: undefined,
 			ariaSummary: localize('summary', 'Made {0} edits in {1} files', totalEdits, totalFiles)
 		});
+	}
+}
+
+export class SimpleUriLabelService implements ILabelService {
+	_serviceBrand: any;
+
+	private readonly _onDidRegisterFormatter: Emitter<{ scheme: string, formatter: LabelRules }> = new Emitter<{ scheme: string, formatter: LabelRules }>();
+	public readonly onDidRegisterFormatter: Event<{ scheme: string, formatter: LabelRules }> = this._onDidRegisterFormatter.event;
+
+	public getUriLabel(resource: URI, relative?: boolean): string {
+		if (resource.scheme === 'file') {
+			return resource.fsPath;
+		}
+		return resource.path;
+	}
+
+	public getWorkspaceLabel(workspace: IWorkspaceIdentifier | URI | IWorkspace, options?: { verbose: boolean; }): string {
+		return '';
+	}
+
+	public registerFormatter(schema: string, formatter: LabelRules): IDisposable {
+		throw new Error('Not implemented');
 	}
 }

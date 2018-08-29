@@ -20,14 +20,8 @@ import { snapshotToString } from 'vs/platform/files/common/files';
 import { timeout } from 'vs/base/common/async';
 
 export class TestUntitledEditorService extends UntitledEditorService {
-
-	public get(resource: URI): UntitledEditorInput {
-		return super.get(resource);
-	}
-
-	public getAll(resources?: URI[]): UntitledEditorInput[] {
-		return super.getAll(resources);
-	}
+	get(resource: URI): UntitledEditorInput { return super.get(resource); }
+	getAll(resources?: URI[]): UntitledEditorInput[] { return super.getAll(resources); }
 }
 
 class ServiceAccessor {
@@ -38,7 +32,7 @@ class ServiceAccessor {
 	}
 }
 
-suite('Workbench - Untitled Editor', () => {
+suite('Workbench untitled editors', () => {
 
 	let instantiationService: IInstantiationService;
 	let accessor: ServiceAccessor;

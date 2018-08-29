@@ -7,22 +7,26 @@
   "engines": {
     "node": "*"
   },
+  "main": "./out/htmlServerMain",
   "dependencies": {
-    "vscode-css-languageservice": "^3.0.9-next.10",
-    "vscode-html-languageservice": "^2.1.3-next.3",
-    "vscode-languageserver": "^4.0.0",
-    "vscode-languageserver-protocol-foldingprovider": "^2.0.0-next.2",
-    "vscode-languageserver-types": "^3.6.1",
-    "vscode-nls": "^3.2.2",
-    "vscode-uri": "^1.0.3"
+    "vscode-css-languageservice": "^3.0.10",
+    "vscode-html-languageservice": "^2.1.7",
+    "vscode-languageserver": "^5.1.0-next.5",
+    "vscode-languageserver-types": "^3.10.0",
+    "vscode-nls": "^3.2.5",
+    "vscode-uri": "^1.0.6"
   },
   "devDependencies": {
     "@types/mocha": "2.2.33",
-    "@types/node": "7.0.43"
+    "@types/node": "^8.10.25",
+    "glob": "^7.1.2",
+    "mocha": "^5.2.0",
+    "mocha-junit-reporter": "^1.17.0",
+    "mocha-multi-reporters": "^1.1.7"
   },
   "scripts": {
-    "compile": "gulp compile-extension:html-language-features-server",
-    "watch": "gulp watch-extension:html-language-features-server",
+    "compile": "npx gulp compile-extension:html-language-features-server",
+    "watch": "npx gulp watch-extension:html-language-features-server",
     "install-service-next": "yarn add vscode-css-languageservice@next && yarn add vscode-html-languageservice@next",
     "install-service-local": "npm install ../../../../vscode-css-languageservice -f && npm install ../../../../vscode-html-languageservice -f",
     "install-server-next": "yarn add vscode-languageserver@next",

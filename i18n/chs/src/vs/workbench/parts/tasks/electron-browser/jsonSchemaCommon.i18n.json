@@ -24,7 +24,7 @@
 	"JsonSchema.tasks.watching.deprecation": "已弃用。改用 isBackground。",
 	"JsonSchema.tasks.watching": "已执行的任务是否保持活动状态，并且是否在监视文件系统。",
 	"JsonSchema.tasks.background": "已执行的任务是否保持活动状态并在后台运行。",
-	"JsonSchema.tasks.promptOnClose": "当 VS 代码与运行的任务一起关闭时是否提示用户。",
+	"JsonSchema.tasks.promptOnClose": "若 VS Code 关闭时有任务运行，是否提醒用户。",
 	"JsonSchema.tasks.build": "将此任务映射到代码的默认生成命令。",
 	"JsonSchema.tasks.test": "将此任务映射到代码的默认测试命令。",
 	"JsonSchema.tasks.matchers": "要使用的问题匹配程序。可以是字符串或问题匹配程序定义，或字符串和问题匹配程序数组。",

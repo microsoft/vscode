@@ -87,7 +87,7 @@ export interface IMarkerData {
 	endLineNumber: number;
 	endColumn: number;
 	relatedInformation?: IRelatedInformation[];
-	customTags?: MarkerTag[];
+	tags?: MarkerTag[];
 }
 
 export interface IResourceMarker {
@@ -107,7 +107,7 @@ export interface IMarker {
 	endLineNumber: number;
 	endColumn: number;
 	relatedInformation?: IRelatedInformation[];
-	customTags?: MarkerTag[];
+	tags?: MarkerTag[];
 }
 
 export interface MarkerStatistics {

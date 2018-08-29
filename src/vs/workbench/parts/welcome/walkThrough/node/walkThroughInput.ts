@@ -102,7 +102,7 @@ export class WalkThroughInput extends EditorInput {
 		return this.options.onReady;
 	}
 
-	resolve(refresh?: boolean): TPromise<WalkThroughModel> {
+	resolve(): TPromise<WalkThroughModel> {
 		if (!this.promise) {
 			this.promise = this.textModelResolverService.createModelReference(this.options.resource)
 				.then(ref => {

@@ -57,5 +57,7 @@
 	"workbench.action.terminal.scrollToPreviousCommand": "滚动到上一条命令",
 	"workbench.action.terminal.scrollToNextCommand": "滚动到下一条命令",
 	"workbench.action.terminal.selectToPreviousCommand": "选择上一条命令所有内容",
-	"workbench.action.terminal.selectToNextCommand": "选择下一条命令所有内容"
+	"workbench.action.terminal.selectToNextCommand": "选择下一条命令所有内容",
+	"workbench.action.terminal.selectToPreviousLine": "选择上一行的所有内容",
+	"workbench.action.terminal.selectToNextLine": "选择下一行的所有内容"
 }

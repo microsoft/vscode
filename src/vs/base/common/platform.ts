@@ -46,6 +46,8 @@ if (typeof process === 'object' && typeof process.nextTick === 'function' && typ
 	_isWindows = (process.platform === 'win32');
 	_isMacintosh = (process.platform === 'darwin');
 	_isLinux = (process.platform === 'linux');
+	_locale = LANGUAGE_DEFAULT;
+	_language = LANGUAGE_DEFAULT;
 	const rawNlsConfig = process.env['VSCODE_NLS_CONFIG'];
 	if (rawNlsConfig) {
 		try {

@@ -8,7 +8,7 @@
 import Uri from 'vs/base/common/uri';
 import * as errors from 'vs/base/common/errors';
 import { IBackupFileService } from 'vs/workbench/services/backup/common/backup';
-import { IDisposable, dispose } from 'vs/base/common/lifecycle';
+import { Disposable } from 'vs/base/common/lifecycle';
 import { ITextFileService, TextFileModelChangeEvent, StateChange } from 'vs/workbench/services/textfile/common/textfiles';
 import { IUntitledEditorService } from 'vs/workbench/services/untitled/common/untitledEditorService';
 import { IWorkbenchContribution } from 'vs/workbench/common/contributions';
@@ -17,12 +17,11 @@ import { IFilesConfiguration, AutoSaveConfiguration, CONTENT_CHANGE_EVENT_BUFFER
 
 const AUTO_SAVE_AFTER_DELAY_DISABLED_TIME = CONTENT_CHANGE_EVENT_BUFFER_DELAY + 500;
 
-export class BackupModelTracker implements IWorkbenchContribution {
+export class BackupModelTracker extends Disposable implements IWorkbenchContribution {
 
-	public _serviceBrand: any;
+	_serviceBrand: any;
 
 	private configuredAutoSaveAfterDelay: boolean;
-	private toDispose: IDisposable[];
 
 	constructor(
 		@IBackupFileService private backupFileService: IBackupFileService,
@@ -30,27 +29,24 @@ export class BackupModelTracker implements IWorkbenchContribution {
 		@IUntitledEditorService private untitledEditorService: IUntitledEditorService,
 		@IConfigurationService private configurationService: IConfigurationService
 	) {
-		this.toDispose = [];
+		super();
 
 		this.registerListeners();
 	}
 
 	private registerListeners() {
-		if (!this.backupFileService.backupEnabled) {
-			return;
-		}
 
 		// Listen for text file model changes
-		this.toDispose.push(this.textFileService.models.onModelContentChanged((e) => this.onTextFileModelChanged(e)));
-		this.toDispose.push(this.textFileService.models.onModelSaved((e) => this.discardBackup(e.resource)));
-		this.toDispose.push(this.textFileService.models.onModelDisposed((e) => this.discardBackup(e)));
+		this._register(this.textFileService.models.onModelContentChanged((e) => this.onTextFileModelChanged(e)));
+		this._register(this.textFileService.models.onModelSaved((e) => this.discardBackup(e.resource)));
+		this._register(this.textFileService.models.onModelDisposed((e) => this.discardBackup(e)));
 
 		// Listen for untitled model changes
-		this.toDispose.push(this.untitledEditorService.onDidChangeContent((e) => this.onUntitledModelChanged(e)));
-		this.toDispose.push(this.untitledEditorService.onDidDisposeModel((e) => this.discardBackup(e)));
+		this._register(this.untitledEditorService.onDidChangeContent((e) => this.onUntitledModelChanged(e)));
+		this._register(this.untitledEditorService.onDidDisposeModel((e) => this.discardBackup(e)));
 
 		// Listen to config changes
-		this.toDispose.push(this.configurationService.onDidChangeConfiguration(e => this.onConfigurationChange(this.configurationService.getValue<IFilesConfiguration>())));
+		this._register(this.configurationService.onDidChangeConfiguration(e => this.onConfigurationChange(this.configurationService.getValue<IFilesConfiguration>())));
 	}
 
 	private onConfigurationChange(configuration: IFilesConfiguration): void {
@@ -87,9 +83,5 @@ export class BackupModelTracker implements IWorkbenchContribution {
 
 	private discardBackup(resource: Uri): void {
 		this.backupFileService.discardResourceBackup(resource).done(null, errors.onUnexpectedError);
-	}
-
-	public dispose(): void {
-		this.toDispose = dispose(this.toDispose);
 	}
 }

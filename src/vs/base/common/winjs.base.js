@@ -1038,6 +1038,12 @@ _winjs("WinJS/Promise/_StateMachine", ["WinJS/Core/_Global","WinJS/Core/_BaseCor
             /// error function.
             /// </returns>
             /// </signature>
+            // BEGIN monaco change
+            if (this.then !== Promise_then) {
+                this.then(onComplete, onError, onProgress);
+                return;
+            }
+            // END monaco change
             return this._state.then(this, onComplete, onError, onProgress);
         },
 

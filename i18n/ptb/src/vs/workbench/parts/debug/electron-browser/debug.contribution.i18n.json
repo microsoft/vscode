@@ -21,7 +21,6 @@
 	"allowBreakpointsEverywhere": "Permite definir um ponto de interrupção em qualquer arquivo.",
 	"openExplorerOnEnd": "Automaticamente abre a visualização do explorador no final de uma sessão de depuração",
 	"inlineValues": "Mostrar valores de variáveis em linha no editor durante a depuração",
-	"hideActionBar": "Controlar se a barra de ação flutuante do depurador deve ser ocultada",
 	"never": "Nunca mostrar debug na barra de status",
 	"always": "Sempre mostrar depurar na barra de status",
 	"onFirstSessionStart": "Mostrar depurar na barra de status somente após a depuração ser iniciada pela primeira vez",

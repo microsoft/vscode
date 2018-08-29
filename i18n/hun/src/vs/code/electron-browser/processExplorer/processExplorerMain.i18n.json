@@ -11,5 +11,7 @@
 	"pid": "folyamatazonosító",
 	"name": "Név",
 	"killProcess": "Folyamat leállítása",
-	"forceKillProcess": "Folyamat kényszerített leállítása"
+	"forceKillProcess": "Folyamat kényszerített leállítása",
+	"copy": "Másolás",
+	"copyAll": "Összes másolása"
 }

@@ -41,7 +41,7 @@
 	"debugConsoleAction": "디버그 콘솔",
 	"unreadOutput": "디버그 콘솔의 새 출력",
 	"debugFocusConsole": "디버그 콘솔에 포커스",
-	"focusProcess": "프로세스에 포커스",
+	"focusSession": "세션에 포커스 설정",
 	"stepBackDebug": "뒤로 이동",
 	"reverseContinue": "반전"
 }

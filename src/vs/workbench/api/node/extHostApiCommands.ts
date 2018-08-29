@@ -10,30 +10,28 @@ import { IDisposable } from 'vs/base/common/lifecycle';
 import * as vscode from 'vscode';
 import * as typeConverters from 'vs/workbench/api/node/extHostTypeConverters';
 import * as types from 'vs/workbench/api/node/extHostTypes';
-import { IRawColorInfo } from 'vs/workbench/api/node/extHost.protocol';
-
+import { IRawColorInfo, WorkspaceEditDto } from 'vs/workbench/api/node/extHost.protocol';
 import { ISingleEditOperation } from 'vs/editor/common/model';
 import * as modes from 'vs/editor/common/modes';
+import * as search from 'vs/workbench/parts/search/common/search';
 import { ICommandHandlerDescription } from 'vs/platform/commands/common/commands';
 import { ExtHostCommands } from 'vs/workbench/api/node/extHostCommands';
-import { IWorkspaceSymbolProvider } from 'vs/workbench/parts/search/common/search';
 import { CustomCodeAction } from 'vs/workbench/api/node/extHostLanguageFeatures';
-import { ExtHostTask } from './extHostTask';
-import { ICommandsExecutor, PreviewHTMLAPICommand, OpenFolderAPICommand, DiffAPICommand, OpenAPICommand, RemoveFromRecentlyOpenedAPICommand } from './apiCommands';
+import { ICommandsExecutor, PreviewHTMLAPICommand, OpenFolderAPICommand, DiffAPICommand, OpenAPICommand, RemoveFromRecentlyOpenedAPICommand, SetEditorLayoutAPICommand } from './apiCommands';
+import { EditorGroupLayout } from 'vs/workbench/services/group/common/editorGroupsService';
+import { isFalsyOrEmpty } from 'vs/base/common/arrays';
 
 export class ExtHostApiCommands {
 
-	static register(commands: ExtHostCommands, workspace: ExtHostTask) {
-		return new ExtHostApiCommands(commands, workspace).registerCommands();
+	static register(commands: ExtHostCommands) {
+		return new ExtHostApiCommands(commands).registerCommands();
 	}
 
 	private _commands: ExtHostCommands;
-	private _tasks: ExtHostTask;
 	private _disposables: IDisposable[] = [];
 
-	private constructor(commands: ExtHostCommands, task: ExtHostTask) {
+	private constructor(commands: ExtHostCommands) {
 		this._commands = commands;
-		this._tasks = task;
 	}
 
 	registerCommands() {
@@ -176,11 +174,6 @@ export class ExtHostApiCommands {
 			],
 			returns: 'A promise that resolves to an array of DocumentLink-instances.'
 		});
-		this._register('vscode.executeTaskProvider', this._executeTaskProvider, {
-			description: 'Execute task provider',
-			args: [],
-			returns: 'An array of task handles'
-		});
 		this._register('vscode.executeDocumentColorProvider', this._executeDocumentColorProvider, {
 			description: 'Execute document color provider.',
 			args: [
@@ -258,6 +251,13 @@ export class ExtHostApiCommands {
 				{ name: 'path', description: 'Path to remove from recently opened.', constraint: (value: any) => typeof value === 'string' }
 			]
 		});
+
+		this._register(SetEditorLayoutAPICommand.ID, adjustHandler(SetEditorLayoutAPICommand.execute), {
+			description: 'Sets the editor layout. The layout is described as object with an initial (optional) orientation (0 = horizontal, 1 = vertical) and an array of editor groups within. Each editor group can have a size and another array of editor groups that will be laid out orthogonal to the orientation. If editor group sizes are provided, their sum must be 1 to be applied per row or column. Example for a 2x2 grid: `{ orientation: 0, groups: [{ groups: [{}, {}], size: 0.5 }, { groups: [{}, {}], size: 0.5 }] }`',
+			args: [
+				{ name: 'layout', description: 'The editor layout to set.', constraint: (value: EditorGroupLayout) => typeof value === 'object' && Array.isArray(value.groups) }
+			]
+		});
 	}
 
 	// --- command impl
@@ -274,11 +274,11 @@ export class ExtHostApiCommands {
 	 * @return A promise that resolves to an array of symbol information.
 	 */
 	private _executeWorkspaceSymbolProvider(query: string): Thenable<types.SymbolInformation[]> {
-		return this._commands.executeCommand<[IWorkspaceSymbolProvider, modes.SymbolInformation[]][]>('_executeWorkspaceSymbolProvider', { query }).then(value => {
+		return this._commands.executeCommand<[search.IWorkspaceSymbolProvider, search.IWorkspaceSymbol[]][]>('_executeWorkspaceSymbolProvider', { query }).then(value => {
 			const result: types.SymbolInformation[] = [];
 			if (Array.isArray(value)) {
 				for (let tuple of value) {
-					result.push(...tuple[1].map(typeConverters.SymbolInformation.to));
+					result.push(...tuple[1].map(typeConverters.WorkspaceSymbol.to));
 				}
 			}
 			return result;
@@ -345,7 +345,7 @@ export class ExtHostApiCommands {
 			position: position && typeConverters.Position.from(position),
 			newName
 		};
-		return this._commands.executeCommand<modes.WorkspaceEdit>('_executeDocumentRenameProvider', args).then(value => {
+		return this._commands.executeCommand<WorkspaceEditDto>('_executeDocumentRenameProvider', args).then(value => {
 			if (!value) {
 				return undefined;
 			}
@@ -412,15 +412,24 @@ export class ExtHostApiCommands {
 		});
 	}
 
-	private _executeDocumentSymbolProvider(resource: URI): Thenable<types.SymbolInformation[]> {
+	private _executeDocumentSymbolProvider(resource: URI): Thenable<vscode.SymbolInformation[]> {
 		const args = {
 			resource
 		};
-		return this._commands.executeCommand<modes.IOutline>('_executeDocumentSymbolProvider', args).then(value => {
-			if (value && Array.isArray(value.entries)) {
-				return value.entries.map(typeConverters.SymbolInformation.to);
+		return this._commands.executeCommand<modes.DocumentSymbol[]>('_executeDocumentSymbolProvider', args).then(value => {
+			if (isFalsyOrEmpty(value)) {
+				return undefined;
 			}
-			return undefined;
+			let result: vscode.SymbolInformation[] = [];
+			for (const symbol of value) {
+				result.push(new types.SymbolInformation(
+					symbol.name,
+					typeConverters.SymbolKind.to(symbol.kind),
+					symbol.containerName,
+					new types.Location(resource, typeConverters.Range.to(symbol.range))
+				));
+			}
+			return result;
 		});
 	}
 
@@ -493,10 +502,6 @@ export class ExtHostApiCommands {
 	private _executeDocumentLinkProvider(resource: URI): Thenable<vscode.DocumentLink[]> {
 		return this._commands.executeCommand<modes.ILink[]>('_executeLinkProvider', resource)
 			.then(tryMapWith(typeConverters.DocumentLink.to));
-	}
-
-	private _executeTaskProvider(): Thenable<vscode.Task[]> {
-		return this._tasks.fetchTasks();
 	}
 }
 

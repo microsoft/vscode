@@ -46,7 +46,7 @@ export class Memento {
 	 * provided, the scope will be global, Memento.Scope.WORKSPACE can be used to
 	 * scope the memento to the workspace.
 	 */
-	public getMemento(storageService: IStorageService, scope: Scope = Scope.GLOBAL): object {
+	getMemento(storageService: IStorageService, scope: Scope = Scope.GLOBAL): object {
 
 		// Scope by Workspace
 		if (scope === Scope.WORKSPACE) {
@@ -73,16 +73,18 @@ export class Memento {
 	 * Saves all data of the mementos that have been loaded to the local storage. This includes
 	 * global and workspace scope.
 	 */
-	public saveMemento(): void {
+	saveMemento(): void {
 
 		// Global
-		if (Memento.globalMementos[this.id]) {
-			Memento.globalMementos[this.id].save();
+		const globalMemento = Memento.globalMementos[this.id];
+		if (globalMemento) {
+			globalMemento.save();
 		}
 
 		// Workspace
-		if (Memento.workspaceMementos[this.id]) {
-			Memento.workspaceMementos[this.id].save();
+		const workspaceMemento = Memento.workspaceMementos[this.id];
+		if (workspaceMemento) {
+			workspaceMemento.save();
 		}
 	}
 }
@@ -98,7 +100,7 @@ class ScopedMemento {
 		this.mementoObj = this.loadMemento();
 	}
 
-	public getMemento(): object {
+	getMemento(): object {
 		return this.mementoObj;
 	}
 
@@ -112,7 +114,7 @@ class ScopedMemento {
 		return {};
 	}
 
-	public save(): void {
+	save(): void {
 		let storageScope = this.scope === Scope.GLOBAL ? StorageScope.GLOBAL : StorageScope.WORKSPACE;
 
 		if (!types.isEmptyObject(this.mementoObj)) {

@@ -5,18 +5,18 @@
 'use strict';
 
 import * as assert from 'assert';
-import * as path from 'path';
-import * as extfs from 'vs/base/node/extfs';
+import { isPromiseCanceledError } from 'vs/base/common/errors';
+import { dispose } from 'vs/base/common/lifecycle';
+import { joinPath } from 'vs/base/common/resources';
 import URI, { UriComponents } from 'vs/base/common/uri';
 import { TPromise } from 'vs/base/common/winjs.base';
-import { IRawFileMatch2, IRawSearchQuery, QueryType, ISearchQuery, IPatternInfo } from 'vs/platform/search/common/search';
+import * as extfs from 'vs/base/node/extfs';
+import { IFileMatch, IPatternInfo, IRawFileMatch2, IRawSearchQuery, ISearchCompleteStats, ISearchQuery, QueryType } from 'vs/platform/search/common/search';
 import { MainContext, MainThreadSearchShape } from 'vs/workbench/api/node/extHost.protocol';
 import { ExtHostSearch } from 'vs/workbench/api/node/extHostSearch';
+import { Range } from 'vs/workbench/api/node/extHostTypes';
 import { TestRPCProtocol } from 'vs/workbench/test/electron-browser/api/testRPCProtocol';
 import * as vscode from 'vscode';
-import { dispose } from 'vs/base/common/lifecycle';
-import { isPromiseCanceledError } from 'vs/base/common/errors';
-import { Range } from 'vs/workbench/api/node/extHostTypes';
 
 let rpcProtocol: TestRPCProtocol;
 let extHostSearch: ExtHostSearch;
@@ -28,19 +28,27 @@ class MockMainThreadSearch implements MainThreadSearchShape {
 
 	results: (UriComponents | IRawFileMatch2)[] = [];
 
-	$registerSearchProvider(handle: number, scheme: string): void {
+	$registerFileSearchProvider(handle: number, scheme: string): void {
+		this.lastHandle = handle;
+	}
+
+	$registerFileIndexProvider(handle: number, scheme: string): void {
+		this.lastHandle = handle;
+	}
+
+	$registerTextSearchProvider(handle: number, scheme: string): void {
 		this.lastHandle = handle;
 	}
 
 	$unregisterProvider(handle: number): void {
 	}
 
-	$handleFindMatch(handle: number, session: number, data: UriComponents | IRawFileMatch2[]): void {
-		if (Array.isArray(data)) {
-			this.results.push(...data);
-		} else {
-			this.results.push(data);
-		}
+	$handleFileMatch(handle: number, session: number, data: UriComponents[]): void {
+		this.results.push(...data);
+	}
+
+	$handleTextMatch(handle: number, session: number, data: IRawFileMatch2[]): void {
+		this.results.push(...data);
 	}
 
 	$handleTelemetry(eventName: string, data: any): void {
@@ -53,12 +61,18 @@ class MockMainThreadSearch implements MainThreadSearchShape {
 let mockExtfs: Partial<typeof extfs>;
 
 suite('ExtHostSearch', () => {
-	async function registerTestSearchProvider(provider: vscode.SearchProvider): TPromise<void> {
-		disposables.push(extHostSearch.registerSearchProvider('file', provider));
+	async function registerTestTextSearchProvider(provider: vscode.TextSearchProvider, scheme = 'file'): Promise<void> {
+		disposables.push(extHostSearch.registerTextSearchProvider(scheme, provider));
 		await rpcProtocol.sync();
 	}
 
-	async function runFileSearch(query: IRawSearchQuery, cancel = false): TPromise<URI[]> {
+	async function registerTestFileSearchProvider(provider: vscode.FileSearchProvider, scheme = 'file'): Promise<void> {
+		disposables.push(extHostSearch.registerFileSearchProvider(scheme, provider));
+		await rpcProtocol.sync();
+	}
+
+	async function runFileSearch(query: IRawSearchQuery, cancel = false): Promise<{ results: URI[]; stats: ISearchCompleteStats }> {
+		let stats: ISearchCompleteStats;
 		try {
 			const p = extHostSearch.$provideFileSearchResults(mockMainThreadSearch.lastHandle, 0, query);
 			if (cancel) {
@@ -66,7 +80,7 @@ suite('ExtHostSearch', () => {
 				p.cancel();
 			}
 
-			await p;
+			stats = await p;
 		} catch (err) {
 			if (!isPromiseCanceledError(err)) {
 				await rpcProtocol.sync();
@@ -75,10 +89,14 @@ suite('ExtHostSearch', () => {
 		}
 
 		await rpcProtocol.sync();
-		return (<UriComponents[]>mockMainThreadSearch.results).map(r => URI.revive(r));
+		return {
+			results: (<UriComponents[]>mockMainThreadSearch.results).map(r => URI.revive(r)),
+			stats
+		};
 	}
 
-	async function runTextSearch(pattern: IPatternInfo, query: IRawSearchQuery, cancel = false): TPromise<IRawFileMatch2[]> {
+	async function runTextSearch(pattern: IPatternInfo, query: IRawSearchQuery, cancel = false): Promise<{ results: IFileMatch[], stats: ISearchCompleteStats }> {
+		let stats: ISearchCompleteStats;
 		try {
 			const p = extHostSearch.$provideTextSearchResults(mockMainThreadSearch.lastHandle, 0, pattern, query);
 			if (cancel) {
@@ -86,7 +104,7 @@ suite('ExtHostSearch', () => {
 				p.cancel();
 			}
 
-			await p;
+			stats = await p;
 		} catch (err) {
 			if (!isPromiseCanceledError(err)) {
 				await rpcProtocol.sync();
@@ -95,7 +113,14 @@ suite('ExtHostSearch', () => {
 		}
 
 		await rpcProtocol.sync();
-		return <IRawFileMatch2[]>mockMainThreadSearch.results;
+		const results = (<IRawFileMatch2[]>mockMainThreadSearch.results).map(r => ({
+			...r,
+			...{
+				resource: URI.revive(r.resource)
+			}
+		}));
+
+		return { results, stats };
 	}
 
 	setup(() => {
@@ -114,14 +139,10 @@ suite('ExtHostSearch', () => {
 		return rpcProtocol.sync();
 	});
 
-	const rootFolderA = URI.file('/foo/bar');
+	const rootFolderA = URI.file('/foo/bar1');
 	const rootFolderB = URI.file('/foo/bar2');
-	// const rootFolderC = URI.file('/foo/bar3');
-
-	function makeAbsoluteURI(root: URI, relativePath: string): URI {
-		return URI.file(
-			path.join(root.fsPath, relativePath));
-	}
+	const fancyScheme = 'fancy';
+	const fancySchemeFolderA = URI.from({ scheme: fancyScheme, path: '/project/folder1' });
 
 	suite('File:', () => {
 
@@ -145,87 +166,58 @@ suite('ExtHostSearch', () => {
 		}
 
 		test('no results', async () => {
-			await registerTestSearchProvider({
-				provideFileSearchResults(options: vscode.FileSearchOptions, progress: vscode.Progress<string>, token: vscode.CancellationToken): Thenable<void> {
+			await registerTestFileSearchProvider({
+				provideFileSearchResults(query: vscode.FileSearchQuery, options: vscode.FileSearchOptions, token: vscode.CancellationToken): Thenable<URI[]> {
 					return TPromise.wrap(null);
 				}
 			});
 
-			const results = await runFileSearch(getSimpleQuery());
+			const { results, stats } = await runFileSearch(getSimpleQuery());
+			assert(!stats.limitHit);
 			assert(!results.length);
 		});
 
 		test('simple results', async () => {
 			const reportedResults = [
-				makeAbsoluteURI(rootFolderA, 'file1.ts'),
-				makeAbsoluteURI(rootFolderA, 'file2.ts'),
-				makeAbsoluteURI(rootFolderA, 'file3.ts')
+				joinPath(rootFolderA, 'file1.ts'),
+				joinPath(rootFolderA, 'file2.ts'),
+				joinPath(rootFolderA, 'file3.ts')
 			];
 
-			await registerTestSearchProvider({
-				provideFileSearchResults(options: vscode.FileSearchOptions, progress: vscode.Progress<string>, token: vscode.CancellationToken): Thenable<void> {
-					reportedResults.forEach(r => progress.report(path.basename(r.fsPath)));
-					return TPromise.wrap(null);
+			await registerTestFileSearchProvider({
+				provideFileSearchResults(query: vscode.FileSearchQuery, options: vscode.FileSearchOptions, token: vscode.CancellationToken): Thenable<URI[]> {
+					return TPromise.wrap(reportedResults);
 				}
 			});
 
-			const results = await runFileSearch(getSimpleQuery());
+			const { results, stats } = await runFileSearch(getSimpleQuery());
+			assert(!stats.limitHit);
 			assert.equal(results.length, 3);
 			compareURIs(results, reportedResults);
 		});
 
-		// Sibling clauses
-		// Extra files
-		// Max result count
-		// Absolute/relative logic
-		// Includes/excludes passed to provider correctly
-		// Provider misbehaves
-
 		test('Search canceled', async () => {
 			let cancelRequested = false;
-			await registerTestSearchProvider({
-				provideFileSearchResults(options: vscode.FileSearchOptions, progress: vscode.Progress<string>, token: vscode.CancellationToken): Thenable<void> {
+			await registerTestFileSearchProvider({
+				provideFileSearchResults(query: vscode.FileSearchQuery, options: vscode.FileSearchOptions, token: vscode.CancellationToken): Thenable<URI[]> {
 					return new TPromise((resolve, reject) => {
 						token.onCancellationRequested(() => {
 							cancelRequested = true;
-							progress.report('file1.ts');
 
-							resolve(null); // or reject or nothing?
+							resolve([joinPath(options.folder, 'file1.ts')]); // or reject or nothing?
 						});
 					});
 				}
 			});
 
-			const results = await runFileSearch(getSimpleQuery(), true);
+			const { results } = await runFileSearch(getSimpleQuery(), true);
 			assert(cancelRequested);
 			assert(!results.length);
 		});
 
-		test('provider fail', async () => {
-			const reportedResults = [
-				'file1.ts',
-				'file2.ts',
-				'file3.ts',
-			];
-
-			await registerTestSearchProvider({
-				provideFileSearchResults(options: vscode.FileSearchOptions, progress: vscode.Progress<string>, token: vscode.CancellationToken): Thenable<void> {
-					reportedResults.forEach(r => progress.report(r));
-					throw new Error('I broke');
-				}
-			});
-
-			try {
-				await runFileSearch(getSimpleQuery());
-				assert(false, 'Expected to fail');
-			} catch {
-				// Expected to throw
-			}
-		});
-
 		test('provider returns null', async () => {
-			await registerTestSearchProvider({
-				provideFileSearchResults(options: vscode.FileSearchOptions, progress: vscode.Progress<string>, token: vscode.CancellationToken): Thenable<void> {
+			await registerTestFileSearchProvider({
+				provideFileSearchResults(query: vscode.FileSearchQuery, options: vscode.FileSearchOptions, token: vscode.CancellationToken): Thenable<URI[]> {
 					return null;
 				}
 			});
@@ -239,8 +231,8 @@ suite('ExtHostSearch', () => {
 		});
 
 		test('all provider calls get global include/excludes', async () => {
-			await registerTestSearchProvider({
-				provideFileSearchResults(options: vscode.FileSearchOptions, progress: vscode.Progress<string>, token: vscode.CancellationToken): Thenable<void> {
+			await registerTestFileSearchProvider({
+				provideFileSearchResults(query: vscode.FileSearchQuery, options: vscode.FileSearchOptions, token: vscode.CancellationToken): Thenable<URI[]> {
 					assert(options.excludes.length === 2 && options.includes.length === 2, 'Missing global include/excludes');
 					return TPromise.wrap(null);
 				}
@@ -268,8 +260,8 @@ suite('ExtHostSearch', () => {
 		});
 
 		test('global/local include/excludes combined', async () => {
-			await registerTestSearchProvider({
-				provideFileSearchResults(options: vscode.FileSearchOptions, progress: vscode.Progress<string>, token: vscode.CancellationToken): Thenable<void> {
+			await registerTestFileSearchProvider({
+				provideFileSearchResults(query: vscode.FileSearchQuery, options: vscode.FileSearchOptions, token: vscode.CancellationToken): Thenable<URI[]> {
 					if (options.folder.toString() === rootFolderA.toString()) {
 						assert.deepEqual(options.includes.sort(), ['*.ts', 'foo']);
 						assert.deepEqual(options.excludes.sort(), ['*.js', 'bar']);
@@ -310,8 +302,8 @@ suite('ExtHostSearch', () => {
 		});
 
 		test('include/excludes resolved correctly', async () => {
-			await registerTestSearchProvider({
-				provideFileSearchResults(options: vscode.FileSearchOptions, progress: vscode.Progress<string>, token: vscode.CancellationToken): Thenable<void> {
+			await registerTestFileSearchProvider({
+				provideFileSearchResults(query: vscode.FileSearchQuery, options: vscode.FileSearchOptions, token: vscode.CancellationToken): Thenable<URI[]> {
 					assert.deepEqual(options.includes.sort(), ['*.jsx', '*.ts']);
 					assert.deepEqual(options.excludes.sort(), []);
 
@@ -353,10 +345,10 @@ suite('ExtHostSearch', () => {
 				'file1.js',
 			];
 
-			await registerTestSearchProvider({
-				provideFileSearchResults(options: vscode.FileSearchOptions, progress: vscode.Progress<string>, token: vscode.CancellationToken): Thenable<void> {
-					reportedResults.forEach(r => progress.report(r));
-					return TPromise.wrap(null);
+			await registerTestFileSearchProvider({
+				provideFileSearchResults(query: vscode.FileSearchQuery, options: vscode.FileSearchOptions, token: vscode.CancellationToken): Thenable<URI[]> {
+					return TPromise.wrap(reportedResults
+						.map(relativePath => joinPath(options.folder, relativePath)));
 				}
 			});
 
@@ -374,35 +366,34 @@ suite('ExtHostSearch', () => {
 				]
 			};
 
-			const results = await runFileSearch(query);
+			const { results } = await runFileSearch(query);
 			compareURIs(
 				results,
 				[
-					makeAbsoluteURI(rootFolderA, 'file1.ts')
+					joinPath(rootFolderA, 'file1.ts')
 				]);
 		});
 
 		test('multiroot sibling exclude clause', async () => {
 
-			await registerTestSearchProvider({
-				provideFileSearchResults(options: vscode.FileSearchOptions, progress: vscode.Progress<string>, token: vscode.CancellationToken): Thenable<void> {
-					let reportedResults;
+			await registerTestFileSearchProvider({
+				provideFileSearchResults(query: vscode.FileSearchQuery, options: vscode.FileSearchOptions, token: vscode.CancellationToken): Thenable<URI[]> {
+					let reportedResults: URI[];
 					if (options.folder.fsPath === rootFolderA.fsPath) {
 						reportedResults = [
 							'folder/fileA.scss',
 							'folder/fileA.css',
 							'folder/file2.css'
-						];
+						].map(relativePath => joinPath(rootFolderA, relativePath));
 					} else {
 						reportedResults = [
 							'fileB.ts',
 							'fileB.js',
 							'file3.js'
-						];
+						].map(relativePath => joinPath(rootFolderB, relativePath));
 					}
 
-					reportedResults.forEach(r => progress.report(r));
-					return TPromise.wrap(null);
+					return TPromise.wrap(reportedResults);
 				}
 			});
 
@@ -434,33 +425,32 @@ suite('ExtHostSearch', () => {
 				]
 			};
 
-			const results = await runFileSearch(query);
+			const { results } = await runFileSearch(query);
 			compareURIs(
 				results,
 				[
-					makeAbsoluteURI(rootFolderA, 'folder/fileA.scss'),
-					makeAbsoluteURI(rootFolderA, 'folder/file2.css'),
+					joinPath(rootFolderA, 'folder/fileA.scss'),
+					joinPath(rootFolderA, 'folder/file2.css'),
 
-					makeAbsoluteURI(rootFolderB, 'fileB.ts'),
-					makeAbsoluteURI(rootFolderB, 'fileB.js'),
-					makeAbsoluteURI(rootFolderB, 'file3.js'),
+					joinPath(rootFolderB, 'fileB.ts'),
+					joinPath(rootFolderB, 'fileB.js'),
+					joinPath(rootFolderB, 'file3.js'),
 				]);
 		});
 
-		test('max results = 1', async () => {
+		test.skip('max results = 1', async () => {
 			const reportedResults = [
-				makeAbsoluteURI(rootFolderA, 'file1.ts'),
-				makeAbsoluteURI(rootFolderA, 'file2.ts'),
-				makeAbsoluteURI(rootFolderA, 'file3.ts'),
+				joinPath(rootFolderA, 'file1.ts'),
+				joinPath(rootFolderA, 'file2.ts'),
+				joinPath(rootFolderA, 'file3.ts'),
 			];
 
 			let wasCanceled = false;
-			await registerTestSearchProvider({
-				provideFileSearchResults(options: vscode.FileSearchOptions, progress: vscode.Progress<string>, token: vscode.CancellationToken): Thenable<void> {
-					reportedResults.forEach(r => progress.report(path.basename(r.fsPath)));
+			await registerTestFileSearchProvider({
+				provideFileSearchResults(query: vscode.FileSearchQuery, options: vscode.FileSearchOptions, token: vscode.CancellationToken): Thenable<URI[]> {
 					token.onCancellationRequested(() => wasCanceled = true);
 
-					return TPromise.wrap(null);
+					return TPromise.wrap(reportedResults);
 				}
 			});
 
@@ -477,26 +467,26 @@ suite('ExtHostSearch', () => {
 				]
 			};
 
-			const results = await runFileSearch(query);
+			const { results, stats } = await runFileSearch(query);
+			assert(stats.limitHit, 'Expected to return limitHit');
 			assert.equal(results.length, 1);
 			compareURIs(results, reportedResults.slice(0, 1));
 			assert(wasCanceled, 'Expected to be canceled when hitting limit');
 		});
 
-		test('max results = 2', async () => {
+		test.skip('max results = 2', async () => {
 			const reportedResults = [
-				makeAbsoluteURI(rootFolderA, 'file1.ts'),
-				makeAbsoluteURI(rootFolderA, 'file2.ts'),
-				makeAbsoluteURI(rootFolderA, 'file3.ts'),
+				joinPath(rootFolderA, 'file1.ts'),
+				joinPath(rootFolderA, 'file2.ts'),
+				joinPath(rootFolderA, 'file3.ts'),
 			];
 
 			let wasCanceled = false;
-			await registerTestSearchProvider({
-				provideFileSearchResults(options: vscode.FileSearchOptions, progress: vscode.Progress<string>, token: vscode.CancellationToken): Thenable<void> {
-					reportedResults.forEach(r => progress.report(path.basename(r.fsPath)));
+			await registerTestFileSearchProvider({
+				provideFileSearchResults(query: vscode.FileSearchQuery, options: vscode.FileSearchOptions, token: vscode.CancellationToken): Thenable<URI[]> {
 					token.onCancellationRequested(() => wasCanceled = true);
 
-					return TPromise.wrap(null);
+					return TPromise.wrap(reportedResults);
 				}
 			});
 
@@ -513,28 +503,62 @@ suite('ExtHostSearch', () => {
 				]
 			};
 
-			const results = await runFileSearch(query);
+			const { results, stats } = await runFileSearch(query);
+			assert(stats.limitHit, 'Expected to return limitHit');
 			assert.equal(results.length, 2);
 			compareURIs(results, reportedResults.slice(0, 2));
 			assert(wasCanceled, 'Expected to be canceled when hitting limit');
 		});
 
+		test.skip('provider returns maxResults exactly', async () => {
+			const reportedResults = [
+				joinPath(rootFolderA, 'file1.ts'),
+				joinPath(rootFolderA, 'file2.ts'),
+			];
+
+			let wasCanceled = false;
+			await registerTestFileSearchProvider({
+				provideFileSearchResults(query: vscode.FileSearchQuery, options: vscode.FileSearchOptions, token: vscode.CancellationToken): Thenable<URI[]> {
+					token.onCancellationRequested(() => wasCanceled = true);
+
+					return TPromise.wrap(reportedResults);
+				}
+			});
+
+			const query: ISearchQuery = {
+				type: QueryType.File,
+
+				filePattern: '',
+				maxResults: 2,
+
+				folderQueries: [
+					{
+						folder: rootFolderA
+					}
+				]
+			};
+
+			const { results, stats } = await runFileSearch(query);
+			assert(!stats.limitHit, 'Expected not to return limitHit');
+			assert.equal(results.length, 2);
+			compareURIs(results, reportedResults);
+			assert(!wasCanceled, 'Expected not to be canceled when just reaching limit');
+		});
+
 		test('multiroot max results', async () => {
 			let cancels = 0;
-			await registerTestSearchProvider({
-				provideFileSearchResults(options: vscode.FileSearchOptions, progress: vscode.Progress<string>, token: vscode.CancellationToken): Thenable<void> {
+			await registerTestFileSearchProvider({
+				provideFileSearchResults(query: vscode.FileSearchQuery, options: vscode.FileSearchOptions, token: vscode.CancellationToken): Thenable<URI[]> {
 					token.onCancellationRequested(() => cancels++);
 
 					// Provice results async so it has a chance to invoke every provider
 					return new TPromise(r => process.nextTick(r))
 						.then(() => {
-							[
+							return [
 								'file1.ts',
 								'file2.ts',
 								'file3.ts',
-							].forEach(f => {
-								progress.report(f);
-							});
+							].map(relativePath => joinPath(options.folder, relativePath));
 						});
 				}
 			});
@@ -555,63 +579,38 @@ suite('ExtHostSearch', () => {
 				]
 			};
 
-			const results = await runFileSearch(query);
+			const { results } = await runFileSearch(query);
 			assert.equal(results.length, 2); // Don't care which 2 we got
 			assert.equal(cancels, 2, 'Expected all invocations to be canceled when hitting limit');
 		});
 
-		test('respects filePattern', async () => {
+		test('works with non-file schemes', async () => {
 			const reportedResults = [
-				makeAbsoluteURI(rootFolderA, 'file1.ts'),
-				makeAbsoluteURI(rootFolderA, 'file2.ts'),
-				makeAbsoluteURI(rootFolderA, 'file3.ts'),
+				joinPath(fancySchemeFolderA, 'file1.ts'),
+				joinPath(fancySchemeFolderA, 'file2.ts'),
+				joinPath(fancySchemeFolderA, 'file3.ts'),
+
 			];
 
-			await registerTestSearchProvider({
-				provideFileSearchResults(options: vscode.FileSearchOptions, progress: vscode.Progress<string>, token: vscode.CancellationToken): Thenable<void> {
-					reportedResults.forEach(r => progress.report(path.basename(r.fsPath)));
-					return TPromise.wrap(null);
+			await registerTestFileSearchProvider({
+				provideFileSearchResults(query: vscode.FileSearchQuery, options: vscode.FileSearchOptions, token: vscode.CancellationToken): Thenable<URI[]> {
+					return TPromise.wrap(reportedResults);
 				}
-			});
+			}, fancyScheme);
 
 			const query: ISearchQuery = {
 				type: QueryType.File,
-
-				filePattern: 'file3',
-
+				filePattern: '',
 				folderQueries: [
 					{
-						folder: rootFolderA
+						folder: fancySchemeFolderA
 					}
 				]
 			};
 
-			const results = await runFileSearch(query);
-			assert.equal(results.length, 1);
-			compareURIs(results, reportedResults.slice(2));
+			const { results } = await runFileSearch(query);
+			compareURIs(results, reportedResults);
 		});
-
-		// Mock fs?
-		// test('Returns result for absolute path', async () => {
-		// 	const queriedFile = makeFileResult(rootFolderA, 'file2.ts');
-		// 	const reportedResults = [
-		// 		makeFileResult(rootFolderA, 'file1.ts'),
-		// 		queriedFile,
-		// 		makeFileResult(rootFolderA, 'file3.ts'),
-		// 	];
-
-		// 	await registerTestSearchProvider({
-		// 		provideFileSearchResults(options: vscode.FileSearchOptions, progress: vscode.Progress<string>, token: vscode.CancellationToken): Thenable<void> {
-		// 			reportedResults.forEach(r => progress.report(r));
-		// 			return TPromise.wrap(null);
-		// 		}
-		// 	});
-
-		// 	const queriedFilePath = queriedFile.fsPath;
-		// 	const results = await runFileSearch(getSimpleQuery(queriedFilePath));
-		// 	assert.equal(results.length, 1);
-		// 	compareURIs(results, [queriedFile]);
-		// });
 	});
 
 	suite('Text:', () => {
@@ -623,11 +622,11 @@ suite('ExtHostSearch', () => {
 			};
 		}
 
-		function makeTextResult(relativePath: string): vscode.TextSearchResult {
+		function makeTextResult(baseFolder: URI, relativePath: string): vscode.TextSearchResult {
 			return {
 				preview: makePreview('foo'),
 				range: new Range(0, 0, 0, 3),
-				path: relativePath
+				uri: joinPath(baseFolder, relativePath)
 			};
 		}
 
@@ -647,17 +646,19 @@ suite('ExtHostSearch', () => {
 			};
 		}
 
-		function assertResults(actual: IRawFileMatch2[], expected: vscode.TextSearchResult[]) {
+		function assertResults(actual: IFileMatch[], expected: vscode.TextSearchResult[]) {
 			const actualTextSearchResults: vscode.TextSearchResult[] = [];
 			for (let fileMatch of actual) {
-				for (let lineMatch of fileMatch.lineMatches) {
-					for (let [offset, length] of lineMatch.offsetAndLengths) {
-						actualTextSearchResults.push({
-							preview: { text: lineMatch.preview, match: null },
-							range: new Range(lineMatch.lineNumber, offset, lineMatch.lineNumber, length + offset),
-							path: fileMatch.resource.relativePath
-						});
-					}
+				// Make relative
+				for (let lineMatch of fileMatch.matches) {
+					actualTextSearchResults.push({
+						preview: {
+							text: lineMatch.preview.text,
+							match: new Range(lineMatch.preview.match.startLineNumber, lineMatch.preview.match.startColumn, lineMatch.preview.match.endLineNumber, lineMatch.preview.match.endColumn)
+						},
+						range: new Range(lineMatch.range.startLineNumber, lineMatch.range.startColumn, lineMatch.range.endLineNumber, lineMatch.range.endColumn),
+						uri: fileMatch.resource
+					});
 				}
 			}
 
@@ -668,7 +669,7 @@ suite('ExtHostSearch', () => {
 				.map(r => ({
 					...r,
 					...{
-						uri: r.path.toString(),
+						uri: r.uri.toString(),
 						range: rangeToString(r.range),
 						preview: {
 							text: r.preview.text,
@@ -683,35 +684,37 @@ suite('ExtHostSearch', () => {
 		}
 
 		test('no results', async () => {
-			await registerTestSearchProvider({
+			await registerTestTextSearchProvider({
 				provideTextSearchResults(query: vscode.TextSearchQuery, options: vscode.TextSearchOptions, progress: vscode.Progress<vscode.TextSearchResult>, token: vscode.CancellationToken): Thenable<void> {
 					return TPromise.wrap(null);
 				}
 			});
 
-			const results = await runTextSearch(getPattern('foo'), getSimpleQuery());
+			const { results, stats } = await runTextSearch(getPattern('foo'), getSimpleQuery());
+			assert(!stats.limitHit);
 			assert(!results.length);
 		});
 
 		test('basic results', async () => {
 			const providedResults: vscode.TextSearchResult[] = [
-				makeTextResult('file1.ts'),
-				makeTextResult('file2.ts')
+				makeTextResult(rootFolderA, 'file1.ts'),
+				makeTextResult(rootFolderA, 'file2.ts')
 			];
 
-			await registerTestSearchProvider({
+			await registerTestTextSearchProvider({
 				provideTextSearchResults(query: vscode.TextSearchQuery, options: vscode.TextSearchOptions, progress: vscode.Progress<vscode.TextSearchResult>, token: vscode.CancellationToken): Thenable<void> {
 					providedResults.forEach(r => progress.report(r));
 					return TPromise.wrap(null);
 				}
 			});
 
-			const results = await runTextSearch(getPattern('foo'), getSimpleQuery());
+			const { results, stats } = await runTextSearch(getPattern('foo'), getSimpleQuery());
+			assert(!stats.limitHit);
 			assertResults(results, providedResults);
 		});
 
 		test('all provider calls get global include/excludes', async () => {
-			await registerTestSearchProvider({
+			await registerTestTextSearchProvider({
 				provideTextSearchResults(query: vscode.TextSearchQuery, options: vscode.TextSearchOptions, progress: vscode.Progress<vscode.TextSearchResult>, token: vscode.CancellationToken): Thenable<void> {
 					assert.equal(options.includes.length, 1);
 					assert.equal(options.excludes.length, 1);
@@ -740,7 +743,7 @@ suite('ExtHostSearch', () => {
 		});
 
 		test('global/local include/excludes combined', async () => {
-			await registerTestSearchProvider({
+			await registerTestTextSearchProvider({
 				provideTextSearchResults(query: vscode.TextSearchQuery, options: vscode.TextSearchOptions, progress: vscode.Progress<vscode.TextSearchResult>, token: vscode.CancellationToken): Thenable<void> {
 					if (options.folder.toString() === rootFolderA.toString()) {
 						assert.deepEqual(options.includes.sort(), ['*.ts', 'foo']);
@@ -781,7 +784,7 @@ suite('ExtHostSearch', () => {
 		});
 
 		test('include/excludes resolved correctly', async () => {
-			await registerTestSearchProvider({
+			await registerTestTextSearchProvider({
 				provideTextSearchResults(query: vscode.TextSearchQuery, options: vscode.TextSearchOptions, progress: vscode.Progress<vscode.TextSearchResult>, token: vscode.CancellationToken): Thenable<void> {
 					assert.deepEqual(options.includes.sort(), ['*.jsx', '*.ts']);
 					assert.deepEqual(options.excludes.sort(), []);
@@ -818,7 +821,7 @@ suite('ExtHostSearch', () => {
 		});
 
 		test('provider fail', async () => {
-			await registerTestSearchProvider({
+			await registerTestTextSearchProvider({
 				provideTextSearchResults(query: vscode.TextSearchQuery, options: vscode.TextSearchOptions, progress: vscode.Progress<vscode.TextSearchResult>, token: vscode.CancellationToken): Thenable<void> {
 					throw new Error('Provider fail');
 				}
@@ -845,11 +848,11 @@ suite('ExtHostSearch', () => {
 			};
 
 			const providedResults: vscode.TextSearchResult[] = [
-				makeTextResult('file1.js'),
-				makeTextResult('file1.ts')
+				makeTextResult(rootFolderA, 'file1.js'),
+				makeTextResult(rootFolderA, 'file1.ts')
 			];
 
-			await registerTestSearchProvider({
+			await registerTestTextSearchProvider({
 				provideTextSearchResults(query: vscode.TextSearchQuery, options: vscode.TextSearchOptions, progress: vscode.Progress<vscode.TextSearchResult>, token: vscode.CancellationToken): Thenable<void> {
 					providedResults.forEach(r => progress.report(r));
 					return TPromise.wrap(null);
@@ -870,13 +873,13 @@ suite('ExtHostSearch', () => {
 				]
 			};
 
-			const results = await runTextSearch(getPattern('foo'), query);
+			const { results } = await runTextSearch(getPattern('foo'), query);
 			assertResults(results, providedResults.slice(1));
 		});
 
 		test('multiroot sibling clause', async () => {
 			mockExtfs.readdir = (_path: string, callback: (error: Error, files: string[]) => void) => {
-				if (_path === makeAbsoluteURI(rootFolderA, 'folder').fsPath) {
+				if (_path === joinPath(rootFolderA, 'folder').fsPath) {
 					callback(null, [
 						'fileA.scss',
 						'fileA.css',
@@ -893,20 +896,20 @@ suite('ExtHostSearch', () => {
 				}
 			};
 
-			await registerTestSearchProvider({
+			await registerTestTextSearchProvider({
 				provideTextSearchResults(query: vscode.TextSearchQuery, options: vscode.TextSearchOptions, progress: vscode.Progress<vscode.TextSearchResult>, token: vscode.CancellationToken): Thenable<void> {
 					let reportedResults;
 					if (options.folder.fsPath === rootFolderA.fsPath) {
 						reportedResults = [
-							makeTextResult('folder/fileA.scss'),
-							makeTextResult('folder/fileA.css'),
-							makeTextResult('folder/file2.css')
+							makeTextResult(rootFolderA, 'folder/fileA.scss'),
+							makeTextResult(rootFolderA, 'folder/fileA.css'),
+							makeTextResult(rootFolderA, 'folder/file2.css')
 						];
 					} else {
 						reportedResults = [
-							makeTextResult('fileB.ts'),
-							makeTextResult('fileB.js'),
-							makeTextResult('file3.js')
+							makeTextResult(rootFolderB, 'fileB.ts'),
+							makeTextResult(rootFolderB, 'fileB.js'),
+							makeTextResult(rootFolderB, 'file3.js')
 						];
 					}
 
@@ -942,23 +945,52 @@ suite('ExtHostSearch', () => {
 				]
 			};
 
-			const results = await runTextSearch(getPattern('foo'), query);
+			const { results } = await runTextSearch(getPattern('foo'), query);
 			assertResults(results, [
-				makeTextResult('folder/fileA.scss'),
-				makeTextResult('folder/file2.css'),
-				makeTextResult('fileB.ts'),
-				makeTextResult('fileB.js'),
-				makeTextResult('file3.js')]);
+				makeTextResult(rootFolderA, 'folder/fileA.scss'),
+				makeTextResult(rootFolderA, 'folder/file2.css'),
+				makeTextResult(rootFolderB, 'fileB.ts'),
+				makeTextResult(rootFolderB, 'fileB.js'),
+				makeTextResult(rootFolderB, 'file3.js')]);
+		});
+
+		test('include pattern applied', async () => {
+			const providedResults: vscode.TextSearchResult[] = [
+				makeTextResult(rootFolderA, 'file1.js'),
+				makeTextResult(rootFolderA, 'file1.ts')
+			];
+
+			await registerTestTextSearchProvider({
+				provideTextSearchResults(query: vscode.TextSearchQuery, options: vscode.TextSearchOptions, progress: vscode.Progress<vscode.TextSearchResult>, token: vscode.CancellationToken): Thenable<void> {
+					providedResults.forEach(r => progress.report(r));
+					return TPromise.wrap(null);
+				}
+			});
+
+			const query: ISearchQuery = {
+				type: QueryType.Text,
+
+				includePattern: {
+					'*.ts': true
+				},
+
+				folderQueries: [
+					{ folder: rootFolderA }
+				]
+			};
+
+			const { results } = await runTextSearch(getPattern('foo'), query);
+			assertResults(results, providedResults.slice(1));
 		});
 
 		test('max results = 1', async () => {
 			const providedResults: vscode.TextSearchResult[] = [
-				makeTextResult('file1.ts'),
-				makeTextResult('file2.ts')
+				makeTextResult(rootFolderA, 'file1.ts'),
+				makeTextResult(rootFolderA, 'file2.ts')
 			];
 
 			let wasCanceled = false;
-			await registerTestSearchProvider({
+			await registerTestTextSearchProvider({
 				provideTextSearchResults(query: vscode.TextSearchQuery, options: vscode.TextSearchOptions, progress: vscode.Progress<vscode.TextSearchResult>, token: vscode.CancellationToken): Thenable<void> {
 					token.onCancellationRequested(() => wasCanceled = true);
 					providedResults.forEach(r => progress.report(r));
@@ -976,20 +1008,21 @@ suite('ExtHostSearch', () => {
 				]
 			};
 
-			const results = await runTextSearch(getPattern('foo'), query);
+			const { results, stats } = await runTextSearch(getPattern('foo'), query);
+			assert(stats.limitHit, 'Expected to return limitHit');
 			assertResults(results, providedResults.slice(0, 1));
 			assert(wasCanceled, 'Expected to be canceled');
 		});
 
 		test('max results = 2', async () => {
 			const providedResults: vscode.TextSearchResult[] = [
-				makeTextResult('file1.ts'),
-				makeTextResult('file2.ts'),
-				makeTextResult('file3.ts')
+				makeTextResult(rootFolderA, 'file1.ts'),
+				makeTextResult(rootFolderA, 'file2.ts'),
+				makeTextResult(rootFolderA, 'file3.ts')
 			];
 
 			let wasCanceled = false;
-			await registerTestSearchProvider({
+			await registerTestTextSearchProvider({
 				provideTextSearchResults(query: vscode.TextSearchQuery, options: vscode.TextSearchOptions, progress: vscode.Progress<vscode.TextSearchResult>, token: vscode.CancellationToken): Thenable<void> {
 					token.onCancellationRequested(() => wasCanceled = true);
 					providedResults.forEach(r => progress.report(r));
@@ -1007,14 +1040,46 @@ suite('ExtHostSearch', () => {
 				]
 			};
 
-			const results = await runTextSearch(getPattern('foo'), query);
+			const { results, stats } = await runTextSearch(getPattern('foo'), query);
+			assert(stats.limitHit, 'Expected to return limitHit');
 			assertResults(results, providedResults.slice(0, 2));
 			assert(wasCanceled, 'Expected to be canceled');
 		});
 
+		test('provider returns maxResults exactly', async () => {
+			const providedResults: vscode.TextSearchResult[] = [
+				makeTextResult(rootFolderA, 'file1.ts'),
+				makeTextResult(rootFolderA, 'file2.ts')
+			];
+
+			let wasCanceled = false;
+			await registerTestTextSearchProvider({
+				provideTextSearchResults(query: vscode.TextSearchQuery, options: vscode.TextSearchOptions, progress: vscode.Progress<vscode.TextSearchResult>, token: vscode.CancellationToken): Thenable<void> {
+					token.onCancellationRequested(() => wasCanceled = true);
+					providedResults.forEach(r => progress.report(r));
+					return TPromise.wrap(null);
+				}
+			});
+
+			const query: ISearchQuery = {
+				type: QueryType.Text,
+
+				maxResults: 2,
+
+				folderQueries: [
+					{ folder: rootFolderA }
+				]
+			};
+
+			const { results, stats } = await runTextSearch(getPattern('foo'), query);
+			assert(!stats.limitHit, 'Expected not to return limitHit');
+			assertResults(results, providedResults);
+			assert(!wasCanceled, 'Expected not to be canceled');
+		});
+
 		test('multiroot max results', async () => {
 			let cancels = 0;
-			await registerTestSearchProvider({
+			await registerTestTextSearchProvider({
 				provideTextSearchResults(query: vscode.TextSearchQuery, options: vscode.TextSearchOptions, progress: vscode.Progress<vscode.TextSearchResult>, token: vscode.CancellationToken): Thenable<void> {
 					token.onCancellationRequested(() => cancels++);
 					return new TPromise(r => process.nextTick(r))
@@ -1023,7 +1088,7 @@ suite('ExtHostSearch', () => {
 								'file1.ts',
 								'file2.ts',
 								'file3.ts',
-							].forEach(f => progress.report(makeTextResult(f)));
+							].forEach(f => progress.report(makeTextResult(options.folder, f)));
 						});
 				}
 			});
@@ -1039,9 +1104,35 @@ suite('ExtHostSearch', () => {
 				]
 			};
 
-			const results = await runTextSearch(getPattern('foo'), query);
+			const { results } = await runTextSearch(getPattern('foo'), query);
 			assert.equal(results.length, 2);
 			assert.equal(cancels, 2);
+		});
+
+		test('works with non-file schemes', async () => {
+			const providedResults: vscode.TextSearchResult[] = [
+				makeTextResult(fancySchemeFolderA, 'file1.ts'),
+				makeTextResult(fancySchemeFolderA, 'file2.ts'),
+				makeTextResult(fancySchemeFolderA, 'file3.ts')
+			];
+
+			await registerTestTextSearchProvider({
+				provideTextSearchResults(query: vscode.TextSearchQuery, options: vscode.TextSearchOptions, progress: vscode.Progress<vscode.TextSearchResult>, token: vscode.CancellationToken): Thenable<void> {
+					providedResults.forEach(r => progress.report(r));
+					return TPromise.wrap(null);
+				}
+			}, fancyScheme);
+
+			const query: ISearchQuery = {
+				type: QueryType.Text,
+
+				folderQueries: [
+					{ folder: fancySchemeFolderA }
+				]
+			};
+
+			const { results } = await runTextSearch(getPattern('foo'), query);
+			assertResults(results, providedResults);
 		});
 	});
 });

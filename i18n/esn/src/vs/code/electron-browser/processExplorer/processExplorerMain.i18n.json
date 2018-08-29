@@ -10,6 +10,8 @@
 	"memory": "Memoria (MB)",
 	"pid": "pid",
 	"name": "Nombre",
-	"killProcess": "Matar proceso",
-	"forceKillProcess": "Forzar matar proceso"
+	"killProcess": "Terminar proceso",
+	"forceKillProcess": "Forzar matar proceso",
+	"copy": "Copiar",
+	"copyAll": "Copiar todo"
 }

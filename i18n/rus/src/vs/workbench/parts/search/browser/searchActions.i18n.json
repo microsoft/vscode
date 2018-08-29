@@ -12,6 +12,8 @@
 	"previousSearchExcludePattern": "Показать предыдущий шаблон исключения из поиска",
 	"nextSearchTerm": "Показать следующее условие поиска",
 	"previousSearchTerm": "Показать предыдущее условие поиска",
+	"nextReplaceTerm": "Показать следующее условие поиска и замены",
+	"previousReplaceTerm": "Показать предыдущее условие поиска и замены",
 	"findInFiles": "Найти в файлах",
 	"replaceInFiles": "Заменить в файлах",
 	"RefreshAction.label": "Обновить",

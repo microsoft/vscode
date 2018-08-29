@@ -5,21 +5,20 @@
 
 'use strict';
 
-import { RunOnceScheduler, asWinJsPromise } from 'vs/base/common/async';
+import { CancelablePromise, createCancelablePromise, RunOnceScheduler } from 'vs/base/common/async';
 import { onUnexpectedError } from 'vs/base/common/errors';
-import { IDisposable, dispose } from 'vs/base/common/lifecycle';
-import { TPromise } from 'vs/base/common/winjs.base';
-import { ICommandService } from 'vs/platform/commands/common/commands';
-import * as editorCommon from 'vs/editor/common/editorCommon';
-import { CodeLensProviderRegistry, ICodeLensSymbol } from 'vs/editor/common/modes';
+import { dispose, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
+import { StableEditorScrollState } from 'vs/editor/browser/core/editorState';
 import * as editorBrowser from 'vs/editor/browser/editorBrowser';
 import { registerEditorContribution } from 'vs/editor/browser/editorExtensions';
-import { ICodeLensData, getCodeLensData } from './codelens';
 import { IConfigurationChangedEvent } from 'vs/editor/common/config/editorOptions';
-import { CodeLens, CodeLensHelper } from 'vs/editor/contrib/codelens/codelensWidget';
+import * as editorCommon from 'vs/editor/common/editorCommon';
 import { IModelDecorationsChangeAccessor } from 'vs/editor/common/model';
+import { CodeLensProviderRegistry, ICodeLensSymbol } from 'vs/editor/common/modes';
+import { CodeLens, CodeLensHelper } from 'vs/editor/contrib/codelens/codelensWidget';
+import { ICommandService } from 'vs/platform/commands/common/commands';
 import { INotificationService } from 'vs/platform/notification/common/notification';
-import { StableEditorScrollState } from 'vs/editor/browser/core/editorState';
+import { getCodeLensData, ICodeLensData } from './codelens';
 
 export class CodeLensContribution implements editorCommon.IEditorContribution {
 
@@ -30,9 +29,9 @@ export class CodeLensContribution implements editorCommon.IEditorContribution {
 	private _globalToDispose: IDisposable[];
 	private _localToDispose: IDisposable[];
 	private _lenses: CodeLens[];
-	private _currentFindCodeLensSymbolsPromise: TPromise<ICodeLensData[]>;
+	private _currentFindCodeLensSymbolsPromise: CancelablePromise<ICodeLensData[]>;
 	private _modelChangeCounter: number;
-	private _currentFindOccPromise: TPromise<any>;
+	private _currentResolveCodeLensSymbolsPromise: CancelablePromise<any>;
 	private _detectVisibleLenses: RunOnceScheduler;
 
 	constructor(
@@ -72,9 +71,9 @@ export class CodeLensContribution implements editorCommon.IEditorContribution {
 			this._currentFindCodeLensSymbolsPromise = null;
 			this._modelChangeCounter++;
 		}
-		if (this._currentFindOccPromise) {
-			this._currentFindOccPromise.cancel();
-			this._currentFindOccPromise = null;
+		if (this._currentResolveCodeLensSymbolsPromise) {
+			this._currentResolveCodeLensSymbolsPromise.cancel();
+			this._currentResolveCodeLensSymbolsPromise = null;
 		}
 		this._localToDispose = dispose(this._localToDispose);
 	}
@@ -117,7 +116,7 @@ export class CodeLensContribution implements editorCommon.IEditorContribution {
 				this._currentFindCodeLensSymbolsPromise.cancel();
 			}
 
-			this._currentFindCodeLensSymbolsPromise = getCodeLensData(model);
+			this._currentFindCodeLensSymbolsPromise = createCancelablePromise(token => getCodeLensData(model, token));
 
 			this._currentFindCodeLensSymbolsPromise.then((result) => {
 				if (counterValue === this._modelChangeCounter) { // only the last one wins
@@ -168,22 +167,20 @@ export class CodeLensContribution implements editorCommon.IEditorContribution {
 		this._localToDispose.push(this._editor.onDidLayoutChange(e => {
 			this._detectVisibleLenses.schedule();
 		}));
-		this._localToDispose.push({
-			dispose: () => {
-				if (this._editor.getModel()) {
-					const scrollState = StableEditorScrollState.capture(this._editor);
-					this._editor.changeDecorations((changeAccessor) => {
-						this._editor.changeViewZones((accessor) => {
-							this._disposeAllLenses(changeAccessor, accessor);
-						});
+		this._localToDispose.push(toDisposable(() => {
+			if (this._editor.getModel()) {
+				const scrollState = StableEditorScrollState.capture(this._editor);
+				this._editor.changeDecorations((changeAccessor) => {
+					this._editor.changeViewZones((accessor) => {
+						this._disposeAllLenses(changeAccessor, accessor);
 					});
-					scrollState.restore(this._editor);
-				} else {
-					// No accessors available
-					this._disposeAllLenses(null, null);
-				}
+				});
+				scrollState.restore(this._editor);
+			} else {
+				// No accessors available
+				this._disposeAllLenses(null, null);
 			}
-		});
+		}));
 
 		scheduler.schedule();
 	}
@@ -267,9 +264,9 @@ export class CodeLensContribution implements editorCommon.IEditorContribution {
 	}
 
 	private _onViewportChanged(): void {
-		if (this._currentFindOccPromise) {
-			this._currentFindOccPromise.cancel();
-			this._currentFindOccPromise = null;
+		if (this._currentResolveCodeLensSymbolsPromise) {
+			this._currentResolveCodeLensSymbolsPromise.cancel();
+			this._currentResolveCodeLensSymbolsPromise = null;
 		}
 
 		const model = this._editor.getModel();
@@ -291,28 +288,34 @@ export class CodeLensContribution implements editorCommon.IEditorContribution {
 			return;
 		}
 
-		const promises = toResolve.map((request, i) => {
+		this._currentResolveCodeLensSymbolsPromise = createCancelablePromise(token => {
 
-			const resolvedSymbols = new Array<ICodeLensSymbol>(request.length);
-			const promises = request.map((request, i) => {
-				if (typeof request.provider.resolveCodeLens === 'function') {
-					return asWinJsPromise((token) => {
-						return request.provider.resolveCodeLens(model, request.symbol, token);
-					}).then(symbol => {
-						resolvedSymbols[i] = symbol;
-					});
-				}
-				resolvedSymbols[i] = request.symbol;
-				return TPromise.as(void 0);
+			const promises = toResolve.map((request, i) => {
+
+				const resolvedSymbols = new Array<ICodeLensSymbol>(request.length);
+				const promises = request.map((request, i) => {
+					if (typeof request.provider.resolveCodeLens === 'function') {
+						return Promise.resolve(request.provider.resolveCodeLens(model, request.symbol, token)).then(symbol => {
+							resolvedSymbols[i] = symbol;
+						});
+					}
+					resolvedSymbols[i] = request.symbol;
+					return Promise.resolve(void 0);
+				});
+
+				return Promise.all(promises).then(() => {
+					lenses[i].updateCommands(resolvedSymbols);
+				});
 			});
 
-			return TPromise.join(promises).then(() => {
-				lenses[i].updateCommands(resolvedSymbols);
-			});
+			return Promise.all(promises);
 		});
 
-		this._currentFindOccPromise = TPromise.join(promises).then(() => {
-			this._currentFindOccPromise = null;
+		this._currentResolveCodeLensSymbolsPromise.then(() => {
+			this._currentResolveCodeLensSymbolsPromise = null;
+		}).catch(err => {
+			this._currentResolveCodeLensSymbolsPromise = null;
+			onUnexpectedError(err);
 		});
 	}
 }

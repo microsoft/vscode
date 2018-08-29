@@ -31,5 +31,5 @@
 	"search.followSymlinks": "Controla si debe seguir enlaces simbólicos durante la búsqueda.",
 	"search.smartCase": "Proporciona busquedas de mayúsculas y minúsculas si el patrón es todo en minúsculas, de lo contrario, busca en mayúsculas y minúsculas",
 	"search.globalFindClipboard": "Controla si la vista de búsqueda debe leer o modificar el portapapeles de búsqueda compartido en macOS",
-	"search.location": "Controla si la búsqueda se mostrará como una vista en la barra lateral o como un panel en el área del panel para un espacio más horizontal. La siguiente versión de la búsqueda en el panel tendrá un mejor diseño horizontal y esto ya no será una vista previa."
+	"search.location": "Controla si la búsqueda se muestra como una vista en la barra lateral o como un panel en el área de paneles para disponer de más espacio horizontal."
 }

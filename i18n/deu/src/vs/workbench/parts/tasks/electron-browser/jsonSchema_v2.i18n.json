@@ -28,6 +28,7 @@
 	"JsonSchema.tasks.group.none": "Weist die Aufgabe keiner Gruppe zu.",
 	"JsonSchema.tasks.group": "Definiert die Ausführungsgruppe, zu der diese Aufgabe gehört. Zum Hinzufügen der Aufgabe zur Buildgruppe wird \"build\" unterstützt und zum Hinzufügen zur Testgruppe \"test\".",
 	"JsonSchema.tasks.type": "Definiert, ob die Aufgabe als Prozess oder als Befehl innerhalb einer Shell ausgeführt wird.",
+	"JsonSchema.commandArray": "Der auszuführende Shell-Befehl. Arrayelemente werden mit einem Leerzeichen verknüpft.",
 	"JsonSchema.command.quotedString.value": "Der tatsächliche Sollwert",
 	"JsonSchema.tasks.quoting.escape": "Fügt mithilfe des Escapezeichens der Shell vor Zeichen Escapezeichen ein (z. B. `  bei PowerShell und \\ bei Bash).",
 	"JsonSchema.tasks.quoting.strong": "Setzt das Argument mithilfe des starken Anführungszeichens der Shell in Anführungszeichen (z. B. \" bei PowerShell und Bash).",

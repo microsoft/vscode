@@ -10,7 +10,7 @@ import * as dom from 'vs/base/browser/dom';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { ShowAllCommandsAction } from 'vs/workbench/parts/quickopen/browser/commandsHandler';
-import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
+import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { Parts, IPartService } from 'vs/workbench/services/part/common/partService';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { localize } from 'vs/nls';
@@ -28,7 +28,7 @@ import { Color } from 'vs/base/common/color';
 
 interface Key {
 	id: string;
-	arrow: string;
+	arrow?: string;
 	label: string;
 	command?: string;
 	arrowLast?: boolean;
@@ -77,6 +77,11 @@ const keys: Key[] = [
 		arrow: '&larrpl;',
 		label: localize('welcomeOverlay.problems', "View errors and warnings"),
 		command: 'workbench.actions.view.problems'
+	},
+	{
+		id: 'terminal',
+		label: localize('welcomeOverlay.terminal', "Toggle integrated terminal"),
+		command: 'workbench.action.terminal.toggleTerminal'
 	},
 	// {
 	// 	id: 'openfile',
@@ -154,7 +159,7 @@ class WelcomeOverlay {
 
 	constructor(
 		@IPartService private partService: IPartService,
-		@IWorkbenchEditorService private editorService: IWorkbenchEditorService,
+		@IEditorService private editorService: IEditorService,
 		@ICommandService private commandService: ICommandService,
 		@IContextKeyService private readonly _contextKeyService: IContextKeyService,
 		@IKeybindingService private keybindingService: IKeybindingService
@@ -178,11 +183,11 @@ class WelcomeOverlay {
 
 		$(this._overlay).div({ 'class': 'commandPalettePlaceholder' });
 
-		const editorOpen = !!this.editorService.getVisibleEditors().length;
+		const editorOpen = !!this.editorService.visibleEditors.length;
 		keys.filter(key => !('withEditor' in key) || key.withEditor === editorOpen)
 			.forEach(({ id, arrow, label, command, arrowLast }) => {
 				const div = $(this._overlay).div({ 'class': ['key', id] });
-				if (!arrowLast) {
+				if (arrow && !arrowLast) {
 					$(div).span({ 'class': 'arrow' }).innerHtml(arrow);
 				}
 				$(div).span({ 'class': 'label' }).text(label);
@@ -192,7 +197,7 @@ class WelcomeOverlay {
 						$(div).span({ 'class': 'shortcut' }).text(shortcut.getLabel());
 					}
 				}
-				if (arrowLast) {
+				if (arrow && arrowLast) {
 					$(div).span({ 'class': 'arrow' }).innerHtml(arrow);
 				}
 			});

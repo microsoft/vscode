@@ -9,7 +9,7 @@
 	"callstackSection": "Hívási verem szakasz",
 	"debugStopped": "Szüneteltetve a következő helyen: {0}",
 	"callStackAriaLabel": "Hibakeresési hívási verem",
-	"process": "Folyamat",
+	"session": "Munkamenet",
 	"paused": "Szüneteltetve",
 	"running": "Fut",
 	"thread": "Szál",

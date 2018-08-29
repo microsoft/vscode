@@ -22,11 +22,6 @@ export interface ITitleService {
 	setTitle(title: string): void;
 
 	/**
-	 * Set the represented file name to the title if any.
-	 */
-	setRepresentedFilename(path: string): void;
-
-	/**
 	 * Update some environmental title properties.
 	 */
 	updateProperties(properties: ITitleProperties): void;

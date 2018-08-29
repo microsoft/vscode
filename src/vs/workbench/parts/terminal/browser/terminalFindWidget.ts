@@ -16,18 +16,17 @@ export class TerminalFindWidget extends SimpleFindWidget {
 		@IContextKeyService private readonly _contextKeyService: IContextKeyService,
 		@ITerminalService private readonly _terminalService: ITerminalService
 	) {
-		super(_contextViewService);
+		super(_contextViewService, _contextKeyService);
 		this._findInputFocused = KEYBINDING_CONTEXT_TERMINAL_FIND_WIDGET_INPUT_FOCUSED.bindTo(this._contextKeyService);
 	}
 
 	public find(previous: boolean) {
-		let val = this.inputValue;
-		let instance = this._terminalService.getActiveInstance();
+		const instance = this._terminalService.getActiveInstance();
 		if (instance !== null) {
 			if (previous) {
-				instance.findPrevious(val);
+				instance.findPrevious(this.inputValue);
 			} else {
-				instance.findNext(val);
+				instance.findNext(this.inputValue);
 			}
 		}
 	}

@@ -9,6 +9,8 @@ import { IDecorationRenderOptions } from 'vs/editor/common/editorCommon';
 import { IModelDecorationOptions, ITextModel } from 'vs/editor/common/model';
 import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
 import { ICodeEditor, IDiffEditor } from 'vs/editor/browser/editorBrowser';
+import { IResourceInput } from 'vs/platform/editor/common/editor';
+import { TPromise } from 'vs/base/common/winjs.base';
 
 export abstract class AbstractCodeEditorService implements ICodeEditorService {
 
@@ -130,6 +132,9 @@ export abstract class AbstractCodeEditorService implements ICodeEditorService {
 	_removeWatcher(w: ModelTransientSettingWatcher): void {
 		delete this._transientWatchers[w.uri];
 	}
+
+	abstract getActiveCodeEditor(): ICodeEditor;
+	abstract openCodeEditor(input: IResourceInput, source: ICodeEditor, sideBySide?: boolean): TPromise<ICodeEditor>;
 }
 
 export class ModelTransientSettingWatcher {

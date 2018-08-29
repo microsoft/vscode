@@ -34,6 +34,11 @@ export interface IWorkspaceEditingService {
 	updateFolders(index: number, deleteCount?: number, foldersToAdd?: IWorkspaceFolderCreationData[], donotNotifyError?: boolean): TPromise<void>;
 
 	/**
+	 * enters the workspace with the provided path.
+	 */
+	enterWorkspace(path: string): TPromise<void>;
+
+	/**
 	 * creates a new workspace with the provided folders and opens it. if path is provided
 	 * the workspace will be saved into that location.
 	 */

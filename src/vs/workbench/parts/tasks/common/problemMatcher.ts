@@ -134,6 +134,7 @@ export interface ProblemMatcher {
 	pattern: ProblemPattern | ProblemPattern[];
 	severity?: Severity;
 	watching?: WatchingMatcher;
+	uriProvider?: (path: string) => URI;
 }
 
 export interface NamedProblemMatcher extends ProblemMatcher {
@@ -195,7 +196,11 @@ export function getResource(filename: string, matcher: ProblemMatcher): URI {
 	if (fullPath[0] !== '/') {
 		fullPath = '/' + fullPath;
 	}
-	return URI.parse('file://' + fullPath);
+	if (matcher.uriProvider !== void 0) {
+		return matcher.uriProvider(fullPath);
+	} else {
+		return URI.file(fullPath);
+	}
 }
 
 export interface ILineMatcher {

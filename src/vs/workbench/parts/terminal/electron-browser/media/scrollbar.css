@@ -24,6 +24,7 @@
 	background-color: inherit;
 }
 
+.monaco-workbench .panel.integrated-terminal .find-focused .xterm .xterm-viewport,
 .monaco-workbench .panel.integrated-terminal .xterm.focus .xterm-viewport,
 .monaco-workbench .panel.integrated-terminal .xterm:focus .xterm-viewport,
 .monaco-workbench .panel.integrated-terminal .xterm:hover .xterm-viewport {

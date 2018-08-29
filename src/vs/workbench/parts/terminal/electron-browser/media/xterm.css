@@ -163,3 +163,8 @@
 .xterm-cursor-pointer {
 	cursor: pointer !important;
 }
+
+.xterm.xterm-cursor-crosshair {
+	/* Column selection mode */
+	cursor: crosshair !important;
+}

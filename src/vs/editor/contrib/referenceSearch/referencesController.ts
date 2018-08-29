@@ -8,23 +8,20 @@ import * as nls from 'vs/nls';
 import { onUnexpectedError } from 'vs/base/common/errors';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { TPromise } from 'vs/base/common/winjs.base';
-import { IEditorService } from 'vs/platform/editor/common/editor';
-import { IInstantiationService, optional } from 'vs/platform/instantiation/common/instantiation';
+import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
+import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IContextKey, IContextKeyService, RawContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { IStorageService } from 'vs/platform/storage/common/storage';
 import * as editorCommon from 'vs/editor/common/editorCommon';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { ReferencesModel } from './referencesModel';
 import { ReferenceWidget, LayoutData } from './referencesWidget';
 import { Range } from 'vs/editor/common/core/range';
-import { ITextModelService } from 'vs/editor/common/services/resolverService';
-import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { Position } from 'vs/editor/common/core/position';
-import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { Location } from 'vs/editor/common/modes';
 import { INotificationService } from 'vs/platform/notification/common/notification';
+import { CancelablePromise } from 'vs/base/common/async';
 
 export const ctxReferenceSearchVisible = new RawContextKey<boolean>('referenceSearchVisible', false);
 
@@ -54,15 +51,11 @@ export abstract class ReferencesController implements editorCommon.IEditorContri
 		private _defaultTreeKeyboardSupport: boolean,
 		editor: ICodeEditor,
 		@IContextKeyService contextKeyService: IContextKeyService,
-		@IEditorService private readonly _editorService: IEditorService,
-		@ITextModelService private readonly _textModelResolverService: ITextModelService,
+		@ICodeEditorService private readonly _editorService: ICodeEditorService,
 		@INotificationService private readonly _notificationService: INotificationService,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
-		@IWorkspaceContextService private readonly _contextService: IWorkspaceContextService,
 		@IStorageService private readonly _storageService: IStorageService,
-		@IThemeService private readonly _themeService: IThemeService,
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
-		@optional(IEnvironmentService) private _environmentService: IEnvironmentService
 	) {
 		this._editor = editor;
 		this._referenceSearchVisible = ctxReferenceSearchVisible.bindTo(contextKeyService);
@@ -73,14 +66,16 @@ export abstract class ReferencesController implements editorCommon.IEditorContri
 	}
 
 	public dispose(): void {
-		if (this._widget) {
-			this._widget.dispose();
-			this._widget = null;
-		}
+		this._referenceSearchVisible.reset();
+		dispose(this._disposables);
+		dispose(this._widget);
+		dispose(this._model);
+		this._widget = null;
+		this._model = null;
 		this._editor = null;
 	}
 
-	public toggleWidget(range: Range, modelPromise: TPromise<ReferencesModel>, options: RequestOptions): void {
+	public toggleWidget(range: Range, modelPromise: CancelablePromise<ReferencesModel>, options: RequestOptions): void {
 
 		// close current widget and return early is position didn't change
 		let widgetPosition: Position;
@@ -103,7 +98,7 @@ export abstract class ReferencesController implements editorCommon.IEditorContri
 		}));
 		const storageKey = 'peekViewLayout';
 		const data = <LayoutData>JSON.parse(this._storageService.get(storageKey, undefined, '{}'));
-		this._widget = new ReferenceWidget(this._editor, this._defaultTreeKeyboardSupport, data, this._textModelResolverService, this._contextService, this._themeService, this._instantiationService, this._environmentService);
+		this._widget = this._instantiationService.createInstance(ReferenceWidget, this._editor, this._defaultTreeKeyboardSupport, data);
 		this._widget.setTitle(nls.localize('labelLoading', "Loading..."));
 		this._widget.show(range);
 		this._disposables.push(this._widget.onDidClose(() => {
@@ -189,16 +184,12 @@ export abstract class ReferencesController implements editorCommon.IEditorContri
 	}
 
 	public closeWidget(): void {
-		if (this._widget) {
-			this._widget.dispose();
-			this._widget = null;
-		}
+		dispose(this._widget);
+		this._widget = null;
 		this._referenceSearchVisible.reset();
 		this._disposables = dispose(this._disposables);
-		if (this._model) {
-			this._model.dispose();
-			this._model = null;
-		}
+		dispose(this._model);
+		this._model = null;
 		this._editor.focus();
 		this._requestIdPool += 1; // Cancel pending requests
 	}
@@ -209,13 +200,13 @@ export abstract class ReferencesController implements editorCommon.IEditorContri
 		this._ignoreModelChangeEvent = true;
 		const range = Range.lift(ref.range).collapseToStart();
 
-		return this._editorService.openEditor({
+		return this._editorService.openCodeEditor({
 			resource: ref.uri,
 			options: { selection: range }
-		}).then(openedEditor => {
+		}, this._editor).then(openedEditor => {
 			this._ignoreModelChangeEvent = false;
 
-			if (!openedEditor || openedEditor.getControl() !== this._editor) {
+			if (!openedEditor || openedEditor !== this._editor) {
 				// TODO@Alex TODO@Joh
 				// when opening the current reference we might end up
 				// in a different editor instance. that means we also have
@@ -238,10 +229,10 @@ export abstract class ReferencesController implements editorCommon.IEditorContri
 
 	public openReference(ref: Location, sideBySide: boolean): void {
 		const { uri, range } = ref;
-		this._editorService.openEditor({
+		this._editorService.openCodeEditor({
 			resource: uri,
 			options: { selection: range }
-		}, sideBySide);
+		}, this._editor, sideBySide);
 
 		// clear stage
 		if (!sideBySide) {

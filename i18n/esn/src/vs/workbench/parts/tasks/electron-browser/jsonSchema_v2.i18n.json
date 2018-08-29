@@ -28,6 +28,7 @@
 	"JsonSchema.tasks.group.none": "No asigna la tarea a ningún grupo",
 	"JsonSchema.tasks.group": "Define a qué grupo de ejecución pertenece esta tarea. Admite \"compilación\" para agregarla al grupo de compilación y \"prueba\" para agregarla al grupo de prueba.",
 	"JsonSchema.tasks.type": "Define si la tarea se ejecuta como un proceso o como un comando dentro de in shell. ",
+	"JsonSchema.commandArray": "El comando Shell que se ejecutará. Los elementos de la matriz se ensamblarán mediante un carácter de espacio",
 	"JsonSchema.command.quotedString.value": "El valor actual del comando",
 	"JsonSchema.tasks.quoting.escape": "Carácteres de escape usan el carácter de escape de la linea de comandos (ej.: ' en PowerShell y \\ en Bash)",
 	"JsonSchema.tasks.quoting.strong": "Cita el argumento usando el carácter de citación doble de la linea de comandos (ej.: \" en PowerShell y Bash) ",

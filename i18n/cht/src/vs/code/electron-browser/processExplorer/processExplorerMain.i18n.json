@@ -11,5 +11,7 @@
 	"pid": "pid",
 	"name": "名稱",
 	"killProcess": "關閉處理序",
-	"forceKillProcess": "強制關閉處理序"
+	"forceKillProcess": "強制關閉處理序",
+	"copy": "複製",
+	"copyAll": "全部複製"
 }

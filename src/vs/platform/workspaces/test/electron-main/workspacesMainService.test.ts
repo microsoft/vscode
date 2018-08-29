@@ -366,13 +366,21 @@ suite('WorkspacesMainService', () => {
 		assert.equal(0, untitled.length);
 
 		return createWorkspace([process.cwd(), os.tmpdir()]).then(untitledOne => {
+			assert.ok(fs.existsSync(untitledOne.configPath));
+
 			untitled = service.getUntitledWorkspacesSync();
 
 			assert.equal(1, untitled.length);
 			assert.equal(untitledOne.id, untitled[0].id);
 
 			return createWorkspace([os.tmpdir(), process.cwd()]).then(untitledTwo => {
+				assert.ok(fs.existsSync(untitledTwo.configPath));
+
 				untitled = service.getUntitledWorkspacesSync();
+
+				if (untitled.length === 1) {
+					assert.fail('Unexpected workspaces count, contents:\n' + fs.readFileSync(untitledTwo.configPath, 'utf8'));
+				}
 
 				assert.equal(2, untitled.length);
 

@@ -17,13 +17,12 @@
 	"issueTitleLabel": "標題",
 	"issueTitleRequired": "請輸入標題。",
 	"titleLengthValidation": "標題太長。",
-	"systemInfo": "我的系統資訊",
-	"sendData": "傳送我的資料",
-	"processes": "目前執行的程序",
-	"workspaceStats": "我的工作區統計資料",
-	"extensions": "我的擴充功能",
-	"searchedExtensions": "搜尋過的擴充功能",
-	"settingsSearchDetails": "設定值搜尋詳細資料",
 	"details": "請輸入詳細資料。",
-	"loadingData": "正在載入資料..."
+	"sendSystemInfo": "包含我的系統資訊 ({0})",
+	"show": "顯示",
+	"sendProcessInfo": "包含我目前正在執行的程序 ({0})",
+	"sendWorkspaceInfo": "包含我的工作區詮釋資料 ({0})",
+	"sendExtensions": "包含我已啟用擴充功能 ({0})",
+	"sendSearchedExtensions": "傳送已搜尋的擴充功能 ({0})",
+	"sendSettingsSearchDetails": "傳送設置搜尋詳細資料 ({0})"
 }

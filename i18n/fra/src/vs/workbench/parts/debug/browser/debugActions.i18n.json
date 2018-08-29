@@ -41,7 +41,7 @@
 	"debugConsoleAction": "Console de débogage",
 	"unreadOutput": "Nouvelle sortie dans la console de débogage",
 	"debugFocusConsole": "Focus sur la console de débogage",
-	"focusProcess": "Focus du processus",
+	"focusSession": "Focus Session",
 	"stepBackDebug": "Revenir en arrière",
 	"reverseContinue": "Inverser"
 }

@@ -29,6 +29,8 @@
 	"debuggers": "Depuradores ({0})",
 	"debugger name": "Nome",
 	"debugger type": "Tipo",
+	"view container id": "ID",
+	"view container location": "Onde",
 	"views": "Visualizações ({0})",
 	"view id": "ID",
 	"view name": "Nome",

@@ -913,6 +913,11 @@ export class Minimap extends ViewPart {
 							minimapCharRenderer.x1BlockRenderChar(target, dx, dy, tokenColor, backgroundColor, useLighterFont);
 						}
 						dx += charWidth;
+
+						if (dx > maxDx) {
+							// hit edge of minimap
+							return;
+						}
 					}
 				}
 			}

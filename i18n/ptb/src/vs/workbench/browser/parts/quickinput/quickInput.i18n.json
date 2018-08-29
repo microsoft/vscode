@@ -8,5 +8,6 @@
 	],
 	"inputModeEntryDescription": "{0} (Pressione 'Enter' para confirmar ou 'Esc' para cancelar)",
 	"inputModeEntry": "Pressione 'Enter' para confirmar o texto digitado ou 'Esc' para cancelar",
+	"quickInput.countSelected": "{0} Selecionado",
 	"ok": "OK"
 }

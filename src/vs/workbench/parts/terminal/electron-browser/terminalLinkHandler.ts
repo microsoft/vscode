@@ -14,7 +14,8 @@ import { TerminalWidgetManager } from 'vs/workbench/parts/terminal/browser/termi
 import { TPromise } from 'vs/base/common/winjs.base';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { ITerminalService } from 'vs/workbench/parts/terminal/common/terminal';
-import { IEditorService, ITextEditorSelection } from 'vs/platform/editor/common/editor';
+import { ITextEditorSelection } from 'vs/platform/editor/common/editor';
+import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 
 const pathPrefix = '(\\.\\.?|\\~)';
 const pathSeparatorClause = '\\/';
@@ -120,6 +121,7 @@ export class TerminalLinkHandler {
 	}
 
 	public dispose(): void {
+		this._xterm = null;
 		this._hoverDisposables = dispose(this._hoverDisposables);
 		this._mouseMoveDisposable = dispose(this._mouseMoveDisposable);
 	}
@@ -171,7 +173,7 @@ export class TerminalLinkHandler {
 	}
 
 	private _handleHypertextLink(url: string): void {
-		let uri = Uri.parse(url);
+		const uri = Uri.parse(url);
 		this._openerService.open(uri);
 	}
 

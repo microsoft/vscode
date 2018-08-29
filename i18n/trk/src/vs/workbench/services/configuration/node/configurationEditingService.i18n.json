@@ -11,6 +11,7 @@
 	"open": "Ayarları Aç",
 	"saveAndRetry": "Kaydet ve Yeniden Dene",
 	"errorUnknownKey": "{0} dosyasına, {1} kayıtlı bir yapılandırma olmadığı için yazılamıyor.",
+	"errorInvalidWorkspaceConfigurationApplication": "{0}, Çalışma Alanı Ayarları'na yazılamadı. Bu ayar, sadece Kullanıcı Ayarları'na yazılabilir.",
 	"errorInvalidFolderConfiguration": "{0}, klasör kaynak kapsamını desteklemediği için klasör ayarlarına yazılamıyor.",
 	"errorInvalidUserTarget": "{0}, global kapsamı desteklemediği için kullanıcı ayarlarına yazılamıyor.",
 	"errorInvalidWorkspaceTarget": "{0}, birden çok klasörlü çalışma alanında çalışma alanı kapsamını desteklemediği için Çalışma Alanı Ayarları'na yazılamıyor.",

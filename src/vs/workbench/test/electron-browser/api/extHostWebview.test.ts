@@ -11,7 +11,7 @@ import { ExtHostWebviews } from 'vs/workbench/api/node/extHostWebview';
 import { mock } from 'vs/workbench/test/electron-browser/api/mock';
 import * as vscode from 'vscode';
 import { SingleProxyRPCProtocol } from './testRPCProtocol';
-import { Position as EditorPosition } from 'vs/platform/editor/common/editor';
+import { EditorViewColumn } from 'vs/workbench/api/shared/editor';
 
 suite('ExtHostWebview', function () {
 
@@ -34,7 +34,7 @@ suite('ExtHostWebview', function () {
 
 		const serializerARegistration = extHostWebviews.registerWebviewPanelSerializer(viewType, serializerA);
 
-		await extHostWebviews.$deserializeWebviewPanel('x', viewType, 'title', {}, EditorPosition.ONE, {});
+		await extHostWebviews.$deserializeWebviewPanel('x', viewType, 'title', {}, 0 as EditorViewColumn, {});
 		assert.strictEqual(lastInvokedDeserializer, serializerA);
 
 		assert.throws(
@@ -45,7 +45,7 @@ suite('ExtHostWebview', function () {
 
 		extHostWebviews.registerWebviewPanelSerializer(viewType, serializerB);
 
-		await extHostWebviews.$deserializeWebviewPanel('x', viewType, 'title', {}, EditorPosition.ONE, {});
+		await extHostWebviews.$deserializeWebviewPanel('x', viewType, 'title', {}, 0 as EditorViewColumn, {});
 		assert.strictEqual(lastInvokedDeserializer, serializerB);
 	});
 });

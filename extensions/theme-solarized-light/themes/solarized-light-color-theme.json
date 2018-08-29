@@ -409,7 +409,6 @@
 		// Workbench: Editors
 		// "editorGroupHeader.noTabsBackground": "",
 		"editorGroup.border": "#DDD6C1",
-		"editorGroup.background": "#FFFBF2",
 		"editorGroup.dropBackground": "#DDD6C1AA",
 		"editorGroupHeader.tabsBackground": "#D9D2C2",
 
@@ -482,6 +481,9 @@
 		"terminal.ansiBrightBlue": "#839496",
 		"terminal.ansiBrightMagenta": "#6c71c4",
 		"terminal.ansiBrightCyan": "#93a1a1",
-		"terminal.ansiBrightWhite": "#eee8d5"
+		"terminal.ansiBrightWhite": "#eee8d5",
+
+		// Interactive Playground
+		"walkThrough.embeddedEditorBackground": "#00000014"
 	}
 }

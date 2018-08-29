@@ -65,7 +65,6 @@
 	"emptyFileNameError": "必須提供檔案或資料夾名稱。",
 	"fileNameStartsWithSlashError": "檔案或資料夾名稱不得以斜線開頭。",
 	"fileNameExistsError": "這個位置已存在檔案或資料夾 **{0}**。請選擇不同的名稱。",
-	"fileUsedAsFolderError": "**{0}** 是檔案且不得擁有任何子系。",
 	"invalidFileNameError": "名稱 **{0}** 不能作為檔案或資料夾名稱。請選擇不同的名稱。",
 	"filePathTooLongError": "名稱 **{0}** 導致路徑太長。請選擇較短的名稱。",
 	"compareWithClipboard": "比較使用中的檔案和剪貼簿的檔案",

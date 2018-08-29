@@ -21,7 +21,6 @@
 	"allowBreakpointsEverywhere": "Herhangi bir dosyada kesme noktası ayarlamaya izin verir",
 	"openExplorerOnEnd": "Bir hata ayıklama oturumunun sonunda otomatik olarak gezgin görünümünü açın",
 	"inlineValues": "Hata ayıklama sırasında değişken değerlerini düzenleyicide satır içinde göster",
-	"hideActionBar": "Dolaştırılabilir hata ayıklama eylem çubuğunun gizlenip gizlenmeyeceğini denetler",
 	"never": "Hata ayıklamayı durum çubuğunda asla gösterme",
 	"always": "Hata ayıklamayı durum çubuğunda her zaman göster",
 	"onFirstSessionStart": "Hata ayıklamayı sadece ilk kez başladıktan sonra durum çubuğunda göster",

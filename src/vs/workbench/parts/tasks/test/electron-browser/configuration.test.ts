@@ -85,7 +85,7 @@ class PresentationBuilder {
 	public result: Tasks.PresentationOptions;
 
 	constructor(public parent: CommandConfigurationBuilder) {
-		this.result = { echo: false, reveal: Tasks.RevealKind.Always, focus: false, panel: Tasks.PanelKind.Shared };
+		this.result = { echo: false, reveal: Tasks.RevealKind.Always, focus: false, panel: Tasks.PanelKind.Shared, showReuseMessage: true };
 	}
 
 	public echo(value: boolean): PresentationBuilder {
@@ -105,6 +105,11 @@ class PresentationBuilder {
 
 	public instance(value: Tasks.PanelKind): PresentationBuilder {
 		this.result.panel = value;
+		return this;
+	}
+
+	public showReuseMessage(value: boolean): PresentationBuilder {
+		this.result.showReuseMessage = value;
 		return this;
 	}
 
@@ -188,7 +193,8 @@ class CustomTaskBuilder {
 			command: this.commandBuilder.result,
 			isBackground: false,
 			promptOnClose: true,
-			problemMatchers: []
+			problemMatchers: [],
+			hasDefinedMatchers: false
 		};
 	}
 
@@ -350,7 +356,7 @@ class PatternBuilder {
 
 function testDefaultProblemMatcher(external: ExternalTaskRunnerConfiguration, resolved: number) {
 	let reporter = new ProblemReporter();
-	let result = parse(workspaceFolder, external, reporter);
+	let result = parse(workspaceFolder, Platform.platform, external, reporter);
 	assert.ok(!reporter.receivedMessage);
 	assert.strictEqual(result.custom.length, 1);
 	let task = result.custom[0];
@@ -361,7 +367,7 @@ function testDefaultProblemMatcher(external: ExternalTaskRunnerConfiguration, re
 function testConfiguration(external: ExternalTaskRunnerConfiguration, builder: ConfiguationBuilder): void {
 	builder.done();
 	let reporter = new ProblemReporter();
-	let result = parse(workspaceFolder, external, reporter);
+	let result = parse(workspaceFolder, Platform.platform, external, reporter);
 	if (reporter.receivedMessage) {
 		assert.ok(false, reporter.lastMessage);
 	}

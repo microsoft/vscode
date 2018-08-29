@@ -21,7 +21,7 @@
 	"schema.languageId": "ID de la définition d'icône de l'association.",
 	"schema.fonts": "Polices utilisées dans les définitions d'icônes.",
 	"schema.id": "ID de la police.",
-	"schema.src": "Emplacements de la police.",
+	"schema.src": "L’emplacement de la police.",
 	"schema.font-path": "Chemin de la police, par rapport au fichier de thème d'icône actuel.",
 	"schema.font-format": "Format de la police.",
 	"schema.font-weight": "Poids de la police.",

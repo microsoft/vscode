@@ -26,7 +26,7 @@ import { LifecyclePhase } from 'vs/platform/lifecycle/common/lifecycle';
 import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { ITextModelService } from 'vs/editor/common/services/resolverService';
 import URI from 'vs/base/common/uri';
-import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
+import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 
 // Register Service
 registerSingleton(IOutputService, OutputService);
@@ -182,8 +182,17 @@ registerAction({
 
 CommandsRegistry.registerCommand(COMMAND_OPEN_LOG_VIEWER, function (accessor: ServicesAccessor, file: URI) {
 	if (file) {
-		const editorService = accessor.get(IWorkbenchEditorService);
+		const editorService = accessor.get(IEditorService);
 		return editorService.openEditor(accessor.get(IInstantiationService).createInstance(LogViewerInput, file));
 	}
 	return null;
+});
+
+MenuRegistry.appendMenuItem(MenuId.MenubarViewMenu, {
+	group: '4_panels',
+	command: {
+		id: ToggleOutputAction.ID,
+		title: nls.localize({ key: 'miToggleOutput', comment: ['&& denotes a mnemonic'] }, "&&Output")
+	},
+	order: 1
 });

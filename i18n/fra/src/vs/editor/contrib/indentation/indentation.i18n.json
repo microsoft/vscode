@@ -13,5 +13,6 @@
 	"indentUsingTabs": "Mettre en retrait avec des tabulations",
 	"indentUsingSpaces": "Mettre en retrait avec des espaces",
 	"detectIndentation": "Détecter la mise en retrait à partir du contenu",
-	"editor.reindentlines": "Remettre en retrait les lignes"
+	"editor.reindentlines": "Remettre en retrait les lignes",
+	"editor.reindentselectedlines": "Réindenter les lignes sélectionnées"
 }

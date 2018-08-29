@@ -25,8 +25,6 @@
 	"uninstallDependeciesConfirmation": "Yalnızca '{0}' eklentisini mi yoksa bağımlılıklarını da kaldırmak ister misiniz?",
 	"uninstallOnly": "Sadece Eklenti",
 	"uninstallAll": "Tümünü Kaldır",
-	"uninstallConfirmation": "'{0}' eklentisini kaldırmak istediğinizden emin misiniz?",
-	"ok": "Tamam",
 	"singleDependentError": "'{0}' eklentisi kaldırılamıyor. '{1}' eklentisi buna bağlı.",
 	"twoDependentsError": "'{0}' eklentisi kaldırılamıyor. '{1}' ve '{2}' eklentileri buna bağlı.",
 	"multipleDependentsError": "'{0}' eklentisi kaldırılamıyor. '{1}, '{2}' eklentileri ve diğerleri buna bağlı.",

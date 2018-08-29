@@ -8,6 +8,9 @@
 	],
 	"terminal.integrated.a11yBlankLine": "Linha em branco",
 	"terminal.integrated.a11yPromptLabel": "Entrada do terminal",
+	"yes": "Sim",
+	"no": "Não",
+	"dontShowAgain": "Não mostrar novamente",
 	"terminal.integrated.copySelection.noSelection": "O terminal não tem nenhuma seleção para copiar",
 	"terminal.integrated.exitedWithCode": "O processo terminal encerrado com código de saída: {0}",
 	"terminal.integrated.waitOnExit": "Pressione qualquer tecla para fechar o terminal"

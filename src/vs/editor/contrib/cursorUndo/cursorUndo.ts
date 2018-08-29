@@ -4,13 +4,15 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
+import * as nls from 'vs/nls';
 import { Selection } from 'vs/editor/common/core/selection';
-import { registerEditorCommand, ServicesAccessor, EditorCommand, registerEditorContribution } from 'vs/editor/browser/editorExtensions';
+import { ServicesAccessor, registerEditorContribution, EditorAction, registerEditorAction } from 'vs/editor/browser/editorExtensions';
 import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { IEditorContribution, ScrollType } from 'vs/editor/common/editorCommon';
 import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
+import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
 
 class CursorState {
 	readonly selections: Selection[];
@@ -108,22 +110,25 @@ export class CursorUndoController extends Disposable implements IEditorContribut
 	}
 }
 
-export class CursorUndo extends EditorCommand {
+export class CursorUndo extends EditorAction {
 	constructor() {
 		super({
 			id: 'cursorUndo',
+			label: nls.localize('cursor.undo', "Soft Undo"),
+			alias: 'Soft Undo',
 			precondition: null,
 			kbOpts: {
 				kbExpr: EditorContextKeys.textInputFocus,
-				primary: KeyMod.CtrlCmd | KeyCode.KEY_U
+				primary: KeyMod.CtrlCmd | KeyCode.KEY_U,
+				weight: KeybindingWeight.EditorContrib
 			}
 		});
 	}
 
-	public runEditorCommand(accessor: ServicesAccessor, editor: ICodeEditor, args: any): void {
+	public run(accessor: ServicesAccessor, editor: ICodeEditor, args: any): void {
 		CursorUndoController.get(editor).cursorUndo();
 	}
 }
 
 registerEditorContribution(CursorUndoController);
-registerEditorCommand(new CursorUndo());
+registerEditorAction(CursorUndo);

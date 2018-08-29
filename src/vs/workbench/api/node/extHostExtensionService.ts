@@ -12,8 +12,8 @@ import { TPromise } from 'vs/base/common/winjs.base';
 import { ExtensionDescriptionRegistry } from 'vs/workbench/services/extensions/node/extensionDescriptionRegistry';
 import { IExtensionDescription } from 'vs/workbench/services/extensions/common/extensions';
 import { ExtHostStorage } from 'vs/workbench/api/node/extHostStorage';
-import { createApiFactory, initializeExtensionApi, checkProposedApiEnabled } from 'vs/workbench/api/node/extHost.api.impl';
-import { MainContext, MainThreadExtensionServiceShape, IWorkspaceData, IEnvironment, IInitData, ExtHostExtensionServiceShape, MainThreadTelemetryShape, IExtHostContext } from './extHost.protocol';
+import { createApiFactory, initializeExtensionApi } from 'vs/workbench/api/node/extHost.api.impl';
+import { MainContext, MainThreadExtensionServiceShape, IWorkspaceData, IEnvironment, IInitData, ExtHostExtensionServiceShape, MainThreadTelemetryShape, IMainContext } from './extHost.protocol';
 import { IExtensionMemento, ExtensionsActivator, ActivatedExtension, IExtensionAPI, IExtensionContext, EmptyExtension, IExtensionModule, ExtensionActivationTimesBuilder, ExtensionActivationTimes, ExtensionActivationReason, ExtensionActivatedByEvent } from 'vs/workbench/api/node/extHostExtensionActivator';
 import { ExtHostConfiguration } from 'vs/workbench/api/node/extHostConfiguration';
 import { ExtHostWorkspace } from 'vs/workbench/api/node/extHostWorkspace';
@@ -68,7 +68,7 @@ class ExtensionStoragePath {
 	private readonly _workspace: IWorkspaceData;
 	private readonly _environment: IEnvironment;
 
-	private readonly _ready: TPromise<string>;
+	private readonly _ready: Promise<string>;
 	private _value: string;
 
 	constructor(workspace: IWorkspaceData, environment: IEnvironment) {
@@ -77,7 +77,7 @@ class ExtensionStoragePath {
 		this._ready = this._getOrCreateWorkspaceStoragePath().then(value => this._value = value);
 	}
 
-	get whenReady(): TPromise<any> {
+	get whenReady(): Promise<any> {
 		return this._ready;
 	}
 
@@ -88,7 +88,7 @@ class ExtensionStoragePath {
 		return undefined;
 	}
 
-	private async _getOrCreateWorkspaceStoragePath(): TPromise<string> {
+	private async _getOrCreateWorkspaceStoragePath(): Promise<string> {
 		if (!this._workspace) {
 			return TPromise.as(undefined);
 		}
@@ -136,7 +136,7 @@ export class ExtHostExtensionService implements ExtHostExtensionServiceShape {
 	 * This class is constructed manually because it is a service, so it doesn't use any ctor injection
 	 */
 	constructor(initData: IInitData,
-		extHostContext: IExtHostContext,
+		extHostContext: IMainContext,
 		extHostWorkspace: ExtHostWorkspace,
 		extHostConfiguration: ExtHostConfiguration,
 		extHostLogService: ExtHostLogService
@@ -361,14 +361,7 @@ export class ExtHostExtensionService implements ExtHostExtensionServiceShape {
 				get extensionPath() { return extensionDescription.extensionLocation.fsPath; },
 				storagePath: this._storagePath.value(extensionDescription),
 				asAbsolutePath: (relativePath: string) => { return join(extensionDescription.extensionLocation.fsPath, relativePath); },
-				get logger() {
-					checkProposedApiEnabled(extensionDescription);
-					return that._extHostLogService.getExtLogger(extensionDescription.id);
-				},
-				get logDirectory() {
-					checkProposedApiEnabled(extensionDescription);
-					return that._extHostLogService.getLogDirectory(extensionDescription.id);
-				}
+				logPath: that._extHostLogService.getLogDirectory(extensionDescription.id)
 			});
 		});
 	}

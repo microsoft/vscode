@@ -7,7 +7,7 @@
 
 const path = require('path');
 const fs = require('fs');
-const remote = require('electron').remote;
+const ipc = require('electron').ipcRenderer;
 
 function assign(destination, source) {
 	return Object.keys(source)
@@ -30,7 +30,7 @@ function uriFromPath(_path) {
 		pathName = '/' + pathName;
 	}
 
-	return encodeURI('file://' + pathName);
+	return encodeURI('file://' + pathName).replace(/#/g, '%23');
 }
 
 function readFile(file) {
@@ -44,6 +44,8 @@ function readFile(file) {
 		});
 	});
 }
+
+const writeFile = (file, content) => new Promise((c, e) => fs.writeFile(file, content, 'utf8', err => err ? e(err) : c()));
 
 function main() {
 	const args = parseURLQueryArgs();
@@ -95,9 +97,9 @@ function main() {
 	window.addEventListener('keydown', function (e) {
 		const key = extractKey(e);
 		if (key === TOGGLE_DEV_TOOLS_KB) {
-			remote.getCurrentWebContents().toggleDevTools();
+			ipc.send('vscode:toggleDevTools');
 		} else if (key === RELOAD_KB) {
-			remote.getCurrentWindow().reload();
+			ipc.send('vscode:reloadWindow');
 		}
 	});
 
@@ -127,8 +129,15 @@ function main() {
 				let json = JSON.parse(content);
 				bundles[bundle] = json;
 				cb(undefined, json);
-			})
-			.catch(cb);
+			}).catch((error) => {
+				try {
+					if (nlsConfig._corruptedFile) {
+						writeFile(nlsConfig._corruptedFile, 'corrupted').catch(function (error) { console.error(error); });
+					}
+				} finally {
+					cb(error, undefined);
+				}
+			});
 		};
 	}
 

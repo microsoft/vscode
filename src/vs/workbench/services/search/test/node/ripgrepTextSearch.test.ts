@@ -5,15 +5,12 @@
 
 'use strict';
 
-import * as path from 'path';
 import * as assert from 'assert';
-
+import * as path from 'path';
 import * as arrays from 'vs/base/common/arrays';
 import * as platform from 'vs/base/common/platform';
-
-import { RipgrepParser, getAbsoluteGlob, fixDriveC } from 'vs/workbench/services/search/node/ripgrepTextSearch';
+import { fixDriveC, fixRegexEndingPattern, getAbsoluteGlob, RipgrepParser } from 'vs/workbench/services/search/node/ripgrepTextSearch';
 import { ISerializedFileMatch } from 'vs/workbench/services/search/node/search';
-
 
 suite('RipgrepParser', () => {
 	const rootFolder = '/workspace';
@@ -76,16 +73,40 @@ suite('RipgrepParser', () => {
 			<ISerializedFileMatch>{
 				numMatches: 2,
 				path: path.join(rootFolder, 'a.txt'),
-				lineMatches: [
+				matches: [
 					{
-						lineNumber: 0,
-						preview: 'beforematchafter',
-						offsetAndLengths: [[6, 5]]
+						preview: {
+							match: {
+								endColumn: 11,
+								endLineNumber: 0,
+								startColumn: 6,
+								startLineNumber: 0,
+							},
+							text: 'beforematchafter'
+						},
+						range: {
+							endColumn: 11,
+							endLineNumber: 0,
+							startColumn: 6,
+							startLineNumber: 0,
+						}
 					},
 					{
-						lineNumber: 1,
-						preview: 'beforematchafter',
-						offsetAndLengths: [[6, 5]]
+						preview: {
+							match: {
+								endColumn: 11,
+								endLineNumber: 0,
+								startColumn: 6,
+								startLineNumber: 0,
+							},
+							text: 'beforematchafter'
+						},
+						range: {
+							endColumn: 11,
+							endLineNumber: 1,
+							startColumn: 6,
+							startLineNumber: 1,
+						}
 					}
 				]
 			});
@@ -157,7 +178,7 @@ suite('RipgrepParser', () => {
 
 	test('Parses chunks broken in the middle of a multibyte character', () => {
 		const text = getFileLine('foo/bar') + '\n' + getMatchLine(0, ['before漢', 'match', 'after']) + '\n';
-		const buf = new Buffer(text);
+		const buf = Buffer.from(text);
 
 		// Split the buffer at every possible position - it should still be parsed correctly
 		for (let i = 0; i < buf.length; i++) {
@@ -168,13 +189,14 @@ suite('RipgrepParser', () => {
 
 			const results = parseInput(inputBufs);
 			assert.equal(results.length, 1);
-			assert.equal(results[0].lineMatches.length, 1);
-			assert.deepEqual(results[0].lineMatches[0].offsetAndLengths, [[7, 5]]);
+			assert.equal(results[0].matches.length, 1);
+			assert.equal(results[0].matches[0].range.startColumn, 7);
+			assert.equal(results[0].matches[0].range.endColumn, 12);
 		}
 	});
 });
 
-suite('RipgrepParser - etc', () => {
+suite('RipgrepTextSearch - etc', () => {
 	function testGetAbsGlob(params: string[]): void {
 		const [folder, glob, expectedResult] = params;
 		assert.equal(fixDriveC(getAbsoluteGlob(folder, glob)), expectedResult, JSON.stringify(params));
@@ -211,5 +233,21 @@ suite('RipgrepParser - etc', () => {
 			// absolute paths are not resolved further
 			['/', '/project/folder', '/project/folder'],
 		].forEach(testGetAbsGlob);
+	});
+
+	test('fixRegexEndingPattern', () => {
+		function testFixRegexEndingPattern([input, expectedResult]: string[]): void {
+			assert.equal(fixRegexEndingPattern(input), expectedResult);
+		}
+
+		[
+			['foo', 'foo'],
+			['', ''],
+			['^foo.*bar\\s+', '^foo.*bar\\s+'],
+			['foo$', 'foo\\r?$'],
+			['$', '\\r?$'],
+			['foo\\$', 'foo\\$'],
+			['foo\\\\$', 'foo\\\\\\r?$'],
+		].forEach(testFixRegexEndingPattern);
 	});
 });

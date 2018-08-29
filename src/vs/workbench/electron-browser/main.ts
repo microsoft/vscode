@@ -24,33 +24,38 @@ import { ServiceCollection } from 'vs/platform/instantiation/common/serviceColle
 import { realpath } from 'vs/base/node/pfs';
 import { EnvironmentService } from 'vs/platform/environment/node/environmentService';
 import * as gracefulFs from 'graceful-fs';
-import { IInitData } from 'vs/workbench/services/timer/common/timerService';
-import { TimerService } from 'vs/workbench/services/timer/node/timerService';
 import { KeyboardMapperFactory } from 'vs/workbench/services/keybinding/electron-browser/keybindingService';
 import { IWindowConfiguration, IWindowsService } from 'vs/platform/windows/common/windows';
-import { WindowsChannelClient } from 'vs/platform/windows/common/windowsIpc';
+import { WindowsChannelClient } from 'vs/platform/windows/node/windowsIpc';
 import { IStorageService } from 'vs/platform/storage/common/storage';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { StorageService, inMemoryLocalStorageInstance, IStorage } from 'vs/platform/storage/common/storageService';
 import { Client as ElectronIPCClient } from 'vs/base/parts/ipc/electron-browser/ipc.electron-browser';
 import { webFrame } from 'electron';
-import { UpdateChannelClient } from 'vs/platform/update/common/updateIpc';
+import { UpdateChannelClient } from 'vs/platform/update/node/updateIpc';
 import { IUpdateService } from 'vs/platform/update/common/update';
-import { URLHandlerChannel, URLServiceChannelClient } from 'vs/platform/url/common/urlIpc';
+import { URLHandlerChannel, URLServiceChannelClient } from 'vs/platform/url/node/urlIpc';
 import { IURLService } from 'vs/platform/url/common/url';
-import { WorkspacesChannelClient } from 'vs/platform/workspaces/common/workspacesIpc';
-import { IWorkspacesService } from 'vs/platform/workspaces/common/workspaces';
+import { WorkspacesChannelClient } from 'vs/platform/workspaces/node/workspacesIpc';
+import { IWorkspacesService, ISingleFolderWorkspaceIdentifier } from 'vs/platform/workspaces/common/workspaces';
 import { createSpdLogService } from 'vs/platform/log/node/spdlogService';
 import * as fs from 'fs';
 import { ConsoleLogService, MultiplexLogService, ILogService } from 'vs/platform/log/common/log';
-import { IssueChannelClient } from 'vs/platform/issue/common/issueIpc';
+import { IssueChannelClient } from 'vs/platform/issue/node/issueIpc';
 import { IIssueService } from 'vs/platform/issue/common/issue';
-import { LogLevelSetterChannelClient, FollowerLogService } from 'vs/platform/log/common/logIpc';
+import { LogLevelSetterChannelClient, FollowerLogService } from 'vs/platform/log/node/logIpc';
 import { RelayURLService } from 'vs/platform/url/common/urlService';
+import { MenubarChannelClient } from 'vs/platform/menubar/node/menubarIpc';
+import { IMenubarService } from 'vs/platform/menubar/common/menubar';
+import { Schemas } from 'vs/base/common/network';
 
 gracefulFs.gracefulify(fs); // enable gracefulFs
 
 export function startup(configuration: IWindowConfiguration): TPromise<void> {
+
+	revive(configuration);
+
+	perf.importEntries(configuration.perfEntries);
 
 	// Ensure others can listen to zoom level changes
 	browser.setZoomFactor(webFrame.getZoomFactor());
@@ -72,6 +77,22 @@ export function startup(configuration: IWindowConfiguration): TPromise<void> {
 	return openWorkbench(configuration);
 }
 
+function revive(workbench: IWindowConfiguration) {
+	if (workbench.folderUri) {
+		workbench.folderUri = uri.revive(workbench.folderUri);
+	}
+	const filesToWaitPaths = workbench.filesToWait && workbench.filesToWait.paths;
+	[filesToWaitPaths, workbench.filesToOpen, workbench.filesToCreate, workbench.filesToDiff].forEach(paths => {
+		if (Array.isArray(paths)) {
+			paths.forEach(path => {
+				if (path.fileUri) {
+					path.fileUri = uri.revive(path.fileUri);
+				}
+			});
+		}
+	});
+}
+
 function openWorkbench(configuration: IWindowConfiguration): TPromise<void> {
 	const mainProcessClient = new ElectronIPCClient(`window:${configuration.windowId}`);
 	const mainServices = createMainProcessServices(mainProcessClient, configuration);
@@ -83,7 +104,6 @@ function openWorkbench(configuration: IWindowConfiguration): TPromise<void> {
 	// Since the configuration service is one of the core services that is used in so many places, we initialize it
 	// right before startup of the workbench shell to have its data ready for consumers
 	return createAndInitializeWorkspaceService(configuration, environmentService).then(workspaceService => {
-		const timerService = new TimerService((<any>window).MonacoEnvironment.timers as IInitData, workspaceService.getWorkbenchState() === WorkbenchState.EMPTY);
 		const storageService = createStorageService(workspaceService, environmentService);
 
 		return domContentLoaded().then(() => {
@@ -95,7 +115,6 @@ function openWorkbench(configuration: IWindowConfiguration): TPromise<void> {
 				configurationService: workspaceService,
 				environmentService,
 				logService,
-				timerService,
 				storageService
 			}, mainServices, mainProcessClient, configuration);
 			shell.open();
@@ -113,22 +132,23 @@ function openWorkbench(configuration: IWindowConfiguration): TPromise<void> {
 }
 
 function createAndInitializeWorkspaceService(configuration: IWindowConfiguration, environmentService: EnvironmentService): TPromise<WorkspaceService> {
-	return validateSingleFolderPath(configuration).then(() => {
+	return validateFolderUri(configuration.folderUri, configuration.verbose).then(validatedFolderUri => {
+
 		const workspaceService = new WorkspaceService(environmentService);
 
-		return workspaceService.initialize(configuration.workspace || configuration.folderPath || configuration).then(() => workspaceService, error => workspaceService);
+		return workspaceService.initialize(configuration.workspace || validatedFolderUri || configuration).then(() => workspaceService, error => workspaceService);
 	});
 }
 
-function validateSingleFolderPath(configuration: IWindowConfiguration): TPromise<void> {
+function validateFolderUri(folderUri: ISingleFolderWorkspaceIdentifier, verbose: boolean): TPromise<uri> {
 
-	// Return early if we do not have a single folder path
-	if (!configuration.folderPath) {
-		return TPromise.as(void 0);
+	// Return early if we do not have a single folder uri or if it is a non file uri
+	if (!folderUri || folderUri.scheme !== Schemas.file) {
+		return TPromise.as(folderUri);
 	}
 
 	// Otherwise: use realpath to resolve symbolic links to the truth
-	return realpath(configuration.folderPath).then(realFolderPath => {
+	return realpath(folderUri.fsPath).then(realFolderPath => {
 
 		// For some weird reason, node adds a trailing slash to UNC paths
 		// we never ever want trailing slashes as our workspace path unless
@@ -138,19 +158,19 @@ function validateSingleFolderPath(configuration: IWindowConfiguration): TPromise
 			realFolderPath = strings.rtrim(realFolderPath, paths.nativeSep);
 		}
 
-		return realFolderPath;
+		return uri.file(realFolderPath);
 	}, error => {
-		if (configuration.verbose) {
+		if (verbose) {
 			errors.onUnexpectedError(error);
 		}
 
 		// Treat any error case as empty workbench case (no folder path)
 		return null;
 
-	}).then(realFolderPathOrNull => {
+	}).then(realFolderUriOrNull => {
 
 		// Update config with real path if we have one
-		configuration.folderPath = realFolderPathOrNull;
+		return realFolderUriOrNull;
 	});
 }
 
@@ -190,10 +210,7 @@ function createStorageService(workspaceService: IWorkspaceContextService, enviro
 	if (disableStorage) {
 		storage = inMemoryLocalStorageInstance;
 	} else {
-		// TODO@Ben remove me after a while
-		perf.mark('willAccessLocalStorage');
 		storage = window.localStorage;
-		perf.mark('didAccessLocalStorage');
 	}
 
 	return new StorageService(storage, storage, workspaceId, secondaryWorkspaceId);
@@ -226,6 +243,9 @@ function createMainProcessServices(mainProcessClient: ElectronIPCClient, configu
 
 	const issueChannel = mainProcessClient.getChannel('issue');
 	serviceCollection.set(IIssueService, new SyncDescriptor(IssueChannelClient, issueChannel));
+
+	const menubarChannel = mainProcessClient.getChannel('menubar');
+	serviceCollection.set(IMenubarService, new SyncDescriptor(MenubarChannelClient, menubarChannel));
 
 	const workspacesChannel = mainProcessClient.getChannel('workspaces');
 	serviceCollection.set(IWorkspacesService, new WorkspacesChannelClient(workspacesChannel));

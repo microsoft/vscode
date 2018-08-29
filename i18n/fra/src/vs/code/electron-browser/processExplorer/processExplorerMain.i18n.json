@@ -11,5 +11,7 @@
 	"pid": "pid",
 	"name": "Nom",
 	"killProcess": "Tuer le processus",
-	"forceKillProcess": "Forcer la suppression du processus"
+	"forceKillProcess": "Forcer la suppression du processus",
+	"copy": "Copier",
+	"copyAll": "Copier tout"
 }

@@ -20,7 +20,7 @@
 	"later": "Más tarde",
 	"updateAvailable": "Hay una actualización disponible: {0} {1}",
 	"installUpdate": "Instalar la actualización ",
-	"updateInstalling": "{0} {1} se está instalando en segundo plano, le avisaremos cuando sea completada",
+	"updateInstalling": "{0} {1} se está instalando en segundo plano; le avisaremos cuando esté hecho.",
 	"updateAvailableAfterRestart": "Reiniciar {0} para aplicar la última actualización.",
 	"updateNow": "Actualizar ahora",
 	"commandPalette": "Paleta de comandos...",

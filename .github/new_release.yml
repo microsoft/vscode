@@ -1,6 +1,6 @@
 {
     newReleaseLabel: 'new release',
     newReleaseColor: '006b75',
-    action: 'remove',
+    daysAfterRelease: 5,
     perform: true
 }

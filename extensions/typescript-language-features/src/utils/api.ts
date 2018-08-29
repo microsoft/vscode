@@ -7,11 +7,30 @@ import * as semver from 'semver';
 import * as nls from 'vscode-nls';
 const localize = nls.loadMessageBundle();
 
-import { memoize } from './memoize';
-
-
 export default class API {
-	public static readonly defaultVersion = new API('1.0.0', '1.0.0');
+	private static fromSimpleString(value: string): API {
+		return new API(value, value);
+	}
+
+	public static readonly defaultVersion = API.fromSimpleString('1.0.0');
+	public static readonly v203 = API.fromSimpleString('2.0.3');
+	public static readonly v206 = API.fromSimpleString('2.0.6');
+	public static readonly v208 = API.fromSimpleString('2.0.8');
+	public static readonly v213 = API.fromSimpleString('2.1.3');
+	public static readonly v220 = API.fromSimpleString('2.2.0');
+	public static readonly v222 = API.fromSimpleString('2.2.2');
+	public static readonly v230 = API.fromSimpleString('2.3.0');
+	public static readonly v234 = API.fromSimpleString('2.3.4');
+	public static readonly v240 = API.fromSimpleString('2.4.0');
+	public static readonly v250 = API.fromSimpleString('2.5.0');
+	public static readonly v260 = API.fromSimpleString('2.6.0');
+	public static readonly v270 = API.fromSimpleString('2.7.0');
+	public static readonly v280 = API.fromSimpleString('2.8.0');
+	public static readonly v290 = API.fromSimpleString('2.9.0');
+	public static readonly v291 = API.fromSimpleString('2.9.1');
+	public static readonly v292 = API.fromSimpleString('2.9.2');
+	public static readonly v300 = API.fromSimpleString('3.0.0');
+
 
 	public static fromVersionString(versionString: string): API {
 		let version = semver.valid(versionString);
@@ -32,78 +51,7 @@ export default class API {
 		private readonly version: string
 	) { }
 
-	@memoize
-	public has203Features(): boolean {
-		return semver.gte(this.version, '2.0.3');
-	}
-
-	@memoize
-	public has206Features(): boolean {
-		return semver.gte(this.version, '2.0.6');
-	}
-
-	@memoize
-	public has208Features(): boolean {
-		return semver.gte(this.version, '2.0.8');
-	}
-
-	@memoize
-	public has213Features(): boolean {
-		return semver.gte(this.version, '2.1.3');
-	}
-
-	@memoize
-	public has220Features(): boolean {
-		return semver.gte(this.version, '2.2.0');
-	}
-
-	@memoize
-	public has222Features(): boolean {
-		return semver.gte(this.version, '2.2.2');
-	}
-
-	@memoize
-	public has230Features(): boolean {
-		return semver.gte(this.version, '2.3.0');
-	}
-
-	@memoize
-	public has234Features(): boolean {
-		return semver.gte(this.version, '2.3.4');
-	}
-
-	@memoize
-	public has240Features(): boolean {
-		return semver.gte(this.version, '2.4.0');
-	}
-
-	@memoize
-	public has250Features(): boolean {
-		return semver.gte(this.version, '2.5.0');
-	}
-
-	@memoize
-	public has260Features(): boolean {
-		return semver.gte(this.version, '2.6.0');
-	}
-
-	@memoize
-	public has262Features(): boolean {
-		return semver.gte(this.version, '2.6.2');
-	}
-
-	@memoize
-	public has270Features(): boolean {
-		return semver.gte(this.version, '2.7.0');
-	}
-
-	@memoize
-	public has280Features(): boolean {
-		return semver.gte(this.version, '2.8.0');
-	}
-
-	@memoize
-	public has290Features(): boolean {
-		return semver.gte(this.version, '2.9.0');
+	public gte(other: API): boolean {
+		return semver.gte(this.version, other.version);
 	}
 }

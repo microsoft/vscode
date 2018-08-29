@@ -32,7 +32,7 @@ interface ISearchWithRange {
 
 export class OpenAnythingHandler extends QuickOpenHandler {
 
-	public static readonly ID = 'workbench.picker.anything';
+	static readonly ID = 'workbench.picker.anything';
 
 	private static readonly LINE_COLON_PATTERN = /[#|:|\(](\d*)([#|:|,](\d*))?\)?$/;
 
@@ -87,7 +87,7 @@ export class OpenAnythingHandler extends QuickOpenHandler {
 		});
 	}
 
-	public getResults(searchValue: string): TPromise<QuickOpenModel> {
+	getResults(searchValue: string): TPromise<QuickOpenModel> {
 		this.cancelPendingSearch();
 		this.isClosed = false; // Treat this call as the handler being in use
 
@@ -108,12 +108,12 @@ export class OpenAnythingHandler extends QuickOpenHandler {
 			const resultPromises: TPromise<QuickOpenModel | FileQuickOpenModel>[] = [];
 
 			// File Results
-			const filePromise = this.openFileHandler.getResults(query.value, OpenAnythingHandler.MAX_DISPLAYED_RESULTS);
+			const filePromise = this.openFileHandler.getResults(query.original, OpenAnythingHandler.MAX_DISPLAYED_RESULTS);
 			resultPromises.push(filePromise);
 
 			// Symbol Results (unless disabled or a range or absolute path is specified)
 			if (this.includeSymbols && !searchWithRange) {
-				resultPromises.push(this.openSymbolHandler.getResults(query.value));
+				resultPromises.push(this.openSymbolHandler.getResults(query.original));
 			}
 
 			// Join and sort unified
@@ -164,7 +164,7 @@ export class OpenAnythingHandler extends QuickOpenHandler {
 		return this.hasShortResponseTime() ? promiseFactory() : this.searchDelayer.trigger(promiseFactory, this.includeSymbols ? OpenAnythingHandler.SYMBOL_SEARCH_DELAY : OpenAnythingHandler.FILE_SEARCH_DELAY);
 	}
 
-	public hasShortResponseTime(): boolean {
+	hasShortResponseTime(): boolean {
 		if (!this.includeSymbols) {
 			return this.openFileHandler.hasShortResponseTime();
 		}
@@ -228,22 +228,22 @@ export class OpenAnythingHandler extends QuickOpenHandler {
 		return null;
 	}
 
-	public getGroupLabel(): string {
+	getGroupLabel(): string {
 		return this.includeSymbols ? nls.localize('fileAndTypeResults', "file and symbol results") : nls.localize('fileResults', "file results");
 	}
 
-	public getAutoFocus(searchValue: string): IAutoFocus {
+	getAutoFocus(searchValue: string): IAutoFocus {
 		return {
 			autoFocusFirstEntry: true
 		};
 	}
 
-	public onOpen(): void {
+	onOpen(): void {
 		this.openSymbolHandler.onOpen();
 		this.openFileHandler.onOpen();
 	}
 
-	public onClose(canceled: boolean): void {
+	onClose(canceled: boolean): void {
 		this.isClosed = true;
 
 		// Cancel any pending search

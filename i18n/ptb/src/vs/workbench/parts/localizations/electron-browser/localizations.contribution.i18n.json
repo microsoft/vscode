@@ -11,6 +11,7 @@
 	"no": "Não",
 	"neverAgain": "Não mostrar novamente",
 	"install": "Instalar",
+	"more information": "Mais Informações...",
 	"JsonSchema.locale": "O idioma da interface do usuário a ser usada.",
 	"vscode.extension.contributes.localizations": "Contribui localizações ao editor",
 	"vscode.extension.contributes.localizations.languageId": "Id do idioma em que as strings de exibição estão traduzidas.",

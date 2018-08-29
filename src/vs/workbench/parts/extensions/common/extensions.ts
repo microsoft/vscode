@@ -8,9 +8,12 @@ import { createDecorator } from 'vs/platform/instantiation/common/instantiation'
 import { Event } from 'vs/base/common/event';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { IPager } from 'vs/base/common/paging';
-import { IQueryOptions, IExtensionManifest, LocalExtensionType, EnablementState, ILocalExtension } from 'vs/platform/extensionManagement/common/extensionManagement';
+import { IQueryOptions, IExtensionManifest, LocalExtensionType, EnablementState, ILocalExtension, IGalleryExtension } from 'vs/platform/extensionManagement/common/extensionManagement';
+import { IViewContainersRegistry, ViewContainer, Extensions as ViewContainerExtensions } from 'vs/workbench/common/views';
+import { Registry } from 'vs/platform/registry/common/platform';
 
 export const VIEWLET_ID = 'workbench.view.extensions';
+export const VIEW_CONTAINER: ViewContainer = Registry.as<IViewContainersRegistry>(ViewContainerExtensions.ViewContainersRegistry).registerViewContainer(VIEWLET_ID);
 
 export interface IExtensionsViewlet extends IViewlet {
 	search(text: string): void;
@@ -36,7 +39,6 @@ export interface IExtension {
 	latestVersion: string;
 	description: string;
 	url: string;
-	downloadUrl: string;
 	repository: string;
 	iconUrl: string;
 	iconUrlFallback: string;
@@ -47,12 +49,17 @@ export interface IExtension {
 	outdated: boolean;
 	enablementState: EnablementState;
 	dependencies: string[];
+	extensionPack: string[];
 	telemetryData: any;
 	preview: boolean;
-	getManifest(): TPromise<IExtensionManifest>;
+	getManifest(): TPromise<IExtensionManifest | undefined>;
 	getReadme(): TPromise<string>;
+	hasReadme(): boolean;
 	getChangelog(): TPromise<string>;
+	hasChangelog(): boolean;
 	local?: ILocalExtension;
+	locals?: ILocalExtension[];
+	gallery?: IGalleryExtension;
 	isMalicious: boolean;
 }
 
@@ -70,7 +77,7 @@ export const IExtensionsWorkbenchService = createDecorator<IExtensionsWorkbenchS
 
 export interface IExtensionsWorkbenchService {
 	_serviceBrand: any;
-	onChange: Event<void>;
+	onChange: Event<IExtension | undefined>;
 	local: IExtension[];
 	queryLocal(): TPromise<IExtension[]>;
 	queryGallery(options?: IQueryOptions): TPromise<IPager<IExtension>>;
@@ -88,10 +95,14 @@ export interface IExtensionsWorkbenchService {
 
 export const ConfigurationKey = 'extensions';
 export const AutoUpdateConfigurationKey = 'extensions.autoUpdate';
+export const AutoCheckUpdatesConfigurationKey = 'extensions.autoCheckUpdates';
 export const ShowRecommendationsOnlyOnDemandKey = 'extensions.showRecommendationsOnlyOnDemand';
+export const CloseExtensionDetailsOnViewChangeKey = 'extensions.closeExtensionDetailsOnViewChange';
 
 export interface IExtensionsConfiguration {
 	autoUpdate: boolean;
+	autoCheckUpdates: boolean;
 	ignoreRecommendations: boolean;
 	showRecommendationsOnlyOnDemand: boolean;
+	closeExtensionDetailsOnViewChange: boolean;
 }

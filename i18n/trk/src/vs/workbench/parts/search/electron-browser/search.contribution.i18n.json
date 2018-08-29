@@ -30,5 +30,6 @@
 	"search.quickOpen.includeSymbols": "Dosya sonuçlarındaki bir global sembol aramasının sonuçlarının Hızlı Aç'a dahil edilip edilmeyeceğini yapılandırın.",
 	"search.followSymlinks": "Arama yaparken sembolik linklerin takip edilip edilmeyeceğini denetler.",
 	"search.smartCase": "Örüntü tamamen küçük harflerden oluşuyorsa büyük küçük harf duyarlılığı olmadan arar, diğer durumda ise büyük küçük harf duyarlılığı ile arar",
-	"search.globalFindClipboard": "macOS'de arama görünümünün paylaşılan panoyu okuyup okumamasını veya değiştirip değiştirmemesini denetler"
+	"search.globalFindClipboard": "macOS'de arama görünümünün paylaşılan panoyu okuyup okumamasını veya değiştirip değiştirmemesini denetler",
+	"search.location": "Aramanın kenar çubuğunda bir görünüm olarak mı yoksa daha fazla yatay boşluk için panel alanında bir panel olarak mı gösterileceğini denetler."
 }

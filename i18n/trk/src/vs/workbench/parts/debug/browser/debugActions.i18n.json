@@ -41,7 +41,7 @@
 	"debugConsoleAction": "Hata Ayıklama Konsolu",
 	"unreadOutput": "Hata Ayıklama Konsolunda Yeni Çıktı",
 	"debugFocusConsole": "Hata Ayıklama Konsoluna Odakla",
-	"focusProcess": "İşleme Odakla",
+	"focusSession": "Oturuma Odakla",
 	"stepBackDebug": "Geri Adım At",
 	"reverseContinue": "Tersine Çevir"
 }

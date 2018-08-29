@@ -3,44 +3,37 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { TPromise } from 'vs/base/common/winjs.base';
-import * as nls from 'vs/nls';
-import { Delayer } from 'vs/base/common/async';
-import * as arrays from 'vs/base/common/arrays';
-import * as strings from 'vs/base/common/strings';
-import { Disposable, IDisposable, dispose } from 'vs/base/common/lifecycle';
-import { Position } from 'vs/editor/common/core/position';
-import { IAction } from 'vs/base/common/actions';
-import { IJSONSchema } from 'vs/base/common/jsonSchema';
-import { Event, Emitter } from 'vs/base/common/event';
-import { Registry } from 'vs/platform/registry/common/platform';
-import * as editorCommon from 'vs/editor/common/editorCommon';
-import { Range, IRange } from 'vs/editor/common/core/range';
-import { IConfigurationRegistry, Extensions as ConfigurationExtensions, ConfigurationScope, IConfigurationPropertySchema } from 'vs/platform/configuration/common/configurationRegistry';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { IPreferencesService, ISettingsGroup, ISetting, IPreferencesEditorModel, IFilterResult, ISettingsEditorModel, IExtensionSetting, IScoredResults } from 'vs/workbench/services/preferences/common/preferences';
-import { SettingsEditorModel, DefaultSettingsEditorModel, WorkspaceConfigurationEditorModel } from 'vs/workbench/services/preferences/common/preferencesModels';
-import { ICodeEditor, IEditorMouseEvent, MouseTargetType } from 'vs/editor/browser/editorBrowser';
-import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
-import { SettingsGroupTitleWidget, EditPreferenceWidget, SettingsHeaderWidget, DefaultSettingsHeaderWidget, FloatingClickWidget } from 'vs/workbench/parts/preferences/browser/preferencesWidgets';
-import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { RangeHighlightDecorations } from 'vs/workbench/browser/parts/editor/rangeDecorations';
-import { ICursorPositionChangedEvent } from 'vs/editor/common/controller/cursorEvents';
-import { ModelDecorationOptions } from 'vs/editor/common/model/textModel';
-import { IWorkspaceContextService, WorkbenchState } from 'vs/platform/workspace/common/workspace';
-import { overrideIdentifierFromKey, IConfigurationService, ConfigurationTarget } from 'vs/platform/configuration/common/configuration';
-import { IEnvironmentService } from 'vs/platform/environment/common/environment';
-import { ITextModel, IModelDeltaDecoration, TrackedRangeStickiness } from 'vs/editor/common/model';
-import { CodeLensProviderRegistry, CodeLensProvider, ICodeLensSymbol } from 'vs/editor/common/modes';
-import { CancellationToken } from 'vs/base/common/cancellation';
-import { getDomNodePagePosition } from 'vs/base/browser/dom';
-import { IssueType, ISettingsSearchIssueReporterData, ISettingSearchResult } from 'vs/platform/issue/common/issue';
-import { ILocalExtension } from 'vs/platform/extensionManagement/common/extensionManagement';
-import { IWorkbenchIssueService } from 'vs/workbench/services/issue/common/issue';
-import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
-import { INotificationService } from 'vs/platform/notification/common/notification';
 import { ContextSubMenu } from 'vs/base/browser/contextmenu';
+import { getDomNodePagePosition } from 'vs/base/browser/dom';
+import { IAction } from 'vs/base/common/actions';
+import { Delayer } from 'vs/base/common/async';
+import { Emitter, Event } from 'vs/base/common/event';
+import { IJSONSchema } from 'vs/base/common/jsonSchema';
+import { Disposable, dispose, IDisposable } from 'vs/base/common/lifecycle';
+import { TPromise } from 'vs/base/common/winjs.base';
+import { ICodeEditor, IEditorMouseEvent, MouseTargetType } from 'vs/editor/browser/editorBrowser';
+import { ICursorPositionChangedEvent } from 'vs/editor/common/controller/cursorEvents';
+import { Position } from 'vs/editor/common/core/position';
+import { IRange, Range } from 'vs/editor/common/core/range';
+import * as editorCommon from 'vs/editor/common/editorCommon';
+import { IModelDeltaDecoration, ITextModel, TrackedRangeStickiness } from 'vs/editor/common/model';
+import { ModelDecorationOptions } from 'vs/editor/common/model/textModel';
+import * as nls from 'vs/nls';
+import { ConfigurationTarget, IConfigurationService, overrideIdentifierFromKey } from 'vs/platform/configuration/common/configuration';
+import { ConfigurationScope, Extensions as ConfigurationExtensions, IConfigurationPropertySchema, IConfigurationRegistry } from 'vs/platform/configuration/common/configurationRegistry';
+import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
+import { IEnvironmentService } from 'vs/platform/environment/common/environment';
+import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
+import { INotificationService } from 'vs/platform/notification/common/notification';
+import { Registry } from 'vs/platform/registry/common/platform';
+import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
+import { IWorkspaceContextService, WorkbenchState } from 'vs/platform/workspace/common/workspace';
+import { RangeHighlightDecorations } from 'vs/workbench/browser/parts/editor/rangeDecorations';
+import { DefaultSettingsHeaderWidget, EditPreferenceWidget, FloatingClickWidget, SettingsGroupTitleWidget, SettingsHeaderWidget } from 'vs/workbench/parts/preferences/browser/preferencesWidgets';
 import { IWorkbenchSettingsConfiguration } from 'vs/workbench/parts/preferences/common/preferences';
+import { IEditorService, SIDE_GROUP } from 'vs/workbench/services/editor/common/editorService';
+import { IFilterResult, IPreferencesEditorModel, IPreferencesService, IScoredResults, ISetting, ISettingsEditorModel, ISettingsGroup } from 'vs/workbench/services/preferences/common/preferences';
+import { DefaultSettingsEditorModel, SettingsEditorModel, WorkspaceConfigurationEditorModel } from 'vs/workbench/services/preferences/common/preferencesModels';
 
 export interface IPreferencesRenderer<T> extends IDisposable {
 	readonly preferencesModel: IPreferencesEditorModel<T>;
@@ -91,7 +84,6 @@ export class UserSettingsRenderer extends Disposable implements IPreferencesRend
 		this._register(this.editSettingActionRenderer.onUpdateSetting(({ key, value, source }) => this._updatePreference(key, value, source)));
 		this._register(this.editor.getModel().onDidChangeContent(() => this.modelChangeDelayer.trigger(() => this.onModelChanged())));
 
-		this.createHeader();
 	}
 
 	public getAssociatedPreferencesModel(): IPreferencesEditorModel<ISetting> {
@@ -101,6 +93,9 @@ export class UserSettingsRenderer extends Disposable implements IPreferencesRend
 	public setAssociatedPreferencesModel(associatedPreferencesModel: IPreferencesEditorModel<ISetting>): void {
 		this.associatedPreferencesModel = associatedPreferencesModel;
 		this.editSettingActionRenderer.associatedPreferencesModel = associatedPreferencesModel;
+
+		// Create header only in Settings editor mode
+		this.createHeader();
 	}
 
 	protected createHeader(): void {
@@ -240,10 +235,8 @@ export class DefaultSettingsRenderer extends Disposable implements IPreferencesR
 	private filteredMatchesRenderer: FilteredMatchesRenderer;
 	private hiddenAreasRenderer: HiddenAreasRenderer;
 	private editSettingActionRenderer: EditSettingRenderer;
-	private issueWidgetRenderer: IssueWidgetRenderer;
 	private feedbackWidgetRenderer: FeedbackWidgetRenderer;
 	private bracesHidingRenderer: BracesHidingRenderer;
-	private extensionCodelensRenderer: ExtensionCodelensRenderer;
 	private filterResult: IFilterResult;
 
 	private readonly _onUpdatePreference: Emitter<{ key: string, value: any, source: IIndexedSetting }> = new Emitter<{ key: string, value: any, source: IIndexedSetting }>();
@@ -266,11 +259,9 @@ export class DefaultSettingsRenderer extends Disposable implements IPreferencesR
 		this.settingsGroupTitleRenderer = this._register(instantiationService.createInstance(SettingsGroupTitleRenderer, editor));
 		this.filteredMatchesRenderer = this._register(instantiationService.createInstance(FilteredMatchesRenderer, editor));
 		this.editSettingActionRenderer = this._register(instantiationService.createInstance(EditSettingRenderer, editor, preferencesModel, this.settingHighlighter));
-		this.issueWidgetRenderer = this._register(instantiationService.createInstance(IssueWidgetRenderer, editor));
 		this.feedbackWidgetRenderer = this._register(instantiationService.createInstance(FeedbackWidgetRenderer, editor));
 		this.bracesHidingRenderer = this._register(instantiationService.createInstance(BracesHidingRenderer, editor, preferencesModel));
 		this.hiddenAreasRenderer = this._register(instantiationService.createInstance(HiddenAreasRenderer, editor, [this.settingsGroupTitleRenderer, this.filteredMatchesRenderer, this.bracesHidingRenderer]));
-		this.extensionCodelensRenderer = this._register(instantiationService.createInstance(ExtensionCodelensRenderer, editor));
 
 		this._register(this.editSettingActionRenderer.onUpdateSetting(e => this._onUpdatePreference.fire(e)));
 		this._register(this.settingsGroupTitleRenderer.onHiddenAreasChanged(() => this.hiddenAreasRenderer.render()));
@@ -289,7 +280,6 @@ export class DefaultSettingsRenderer extends Disposable implements IPreferencesR
 	public render() {
 		this.settingsGroupTitleRenderer.render(this.preferencesModel.settingsGroups);
 		this.editSettingActionRenderer.render(this.preferencesModel.settingsGroups, this._associatedPreferencesModel);
-		this.issueWidgetRenderer.render(null);
 		this.feedbackWidgetRenderer.render(null);
 		this.settingHighlighter.clear(true);
 		this.bracesHidingRenderer.render(null, this.preferencesModel.settingsGroups);
@@ -308,7 +298,6 @@ export class DefaultSettingsRenderer extends Disposable implements IPreferencesR
 			this.settingHighlighter.clear(true);
 			this.bracesHidingRenderer.render(filterResult, this.preferencesModel.settingsGroups);
 			this.editSettingActionRenderer.render(filterResult.filteredGroups, this._associatedPreferencesModel);
-			this.extensionCodelensRenderer.render(filterResult);
 		} else {
 			this.settingHighlighter.clear(true);
 			this.filteredMatchesRenderer.render(null, this.preferencesModel.settingsGroups);
@@ -318,7 +307,6 @@ export class DefaultSettingsRenderer extends Disposable implements IPreferencesR
 			this.settingsGroupTitleRenderer.showGroup(0);
 			this.bracesHidingRenderer.render(null, this.preferencesModel.settingsGroups);
 			this.editSettingActionRenderer.render(this.preferencesModel.settingsGroups, this._associatedPreferencesModel);
-			this.extensionCodelensRenderer.render(null);
 		}
 
 		this.hiddenAreasRenderer.render();
@@ -327,11 +315,9 @@ export class DefaultSettingsRenderer extends Disposable implements IPreferencesR
 	private renderIssueWidget(filterResult: IFilterResult): void {
 		const workbenchSettings = this.configurationService.getValue<IWorkbenchSettingsConfiguration>().workbench.settings;
 		if (workbenchSettings.enableNaturalLanguageSearchFeedback) {
-			this.issueWidgetRenderer.render(null);
 			this.feedbackWidgetRenderer.render(filterResult);
 		} else {
 			this.feedbackWidgetRenderer.render(null);
-			this.issueWidgetRenderer.render(filterResult);
 		}
 	}
 
@@ -592,11 +578,10 @@ export class FeedbackWidgetRenderer extends Disposable {
 
 	constructor(private editor: ICodeEditor,
 		@IInstantiationService private instantiationService: IInstantiationService,
-		@IWorkbenchEditorService private editorService: IWorkbenchEditorService,
+		@IEditorService private editorService: IEditorService,
 		@ITelemetryService private telemetryService: ITelemetryService,
 		@INotificationService private notificationService: INotificationService,
-		@IEnvironmentService private environmentService: IEnvironmentService,
-		@IConfigurationService private configurationService: IConfigurationService
+		@IEnvironmentService private environmentService: IEnvironmentService
 	) {
 		super();
 	}
@@ -652,7 +637,7 @@ export class FeedbackWidgetRenderer extends Disposable {
 			this.getScoreText(actualResults) + '\n\n' +
 			groupCountsText + '\n';
 
-		this.editorService.openEditor({ contents, language: 'jsonc' }, /*sideBySide=*/true).then(feedbackEditor => {
+		this.editorService.openEditor({ contents, language: 'jsonc' }, SIDE_GROUP).then(feedbackEditor => {
 			const sendFeedbackWidget = this._register(this.instantiationService.createInstance(FloatingClickWidget, feedbackEditor.getControl(), 'Send feedback', null));
 			sendFeedbackWidget.render();
 
@@ -679,173 +664,95 @@ export class FeedbackWidgetRenderer extends Disposable {
 	}
 
 	private sendFeedback(feedbackEditor: ICodeEditor, result: IFilterResult, scoredResults: IScoredResults): TPromise<void> {
-		const model = feedbackEditor.getModel();
-		const expectedQueryLines = model.getLinesContent()
-			.filter(line => !strings.startsWith(line, '//'));
+		// const model = feedbackEditor.getModel();
+		// const expectedQueryLines = model.getLinesContent()
+		// 	.filter(line => !strings.startsWith(line, '//'));
 
-		let expectedQuery: any;
-		try {
-			expectedQuery = JSON.parse(expectedQueryLines.join('\n'));
-		} catch (e) {
-			// invalid JSON
-			return TPromise.wrapError(new Error('Invalid JSON: ' + e.message));
-		}
+		// let expectedQuery: any;
+		// try {
+		// 	expectedQuery = JSON.parse(expectedQueryLines.join('\n'));
+		// } catch (e) {
+		// 	// invalid JSON
+		// 	return TPromise.wrapError(new Error('Invalid JSON: ' + e.message));
+		// }
 
-		const userComment = expectedQuery.comment === FeedbackWidgetRenderer.DEFAULT_COMMENT_TEXT ? undefined : expectedQuery.comment;
+		// const userComment = expectedQuery.comment === FeedbackWidgetRenderer.DEFAULT_COMMENT_TEXT ? undefined : expectedQuery.comment;
 
-		// validate alts
-		if (!this.validateAlts(expectedQuery.alts)) {
-			return TPromise.wrapError(new Error('alts must be an array of 2-element string arrays'));
-		}
+		// // validate alts
+		// if (!this.validateAlts(expectedQuery.alts)) {
+		// 	return TPromise.wrapError(new Error('alts must be an array of 2-element string arrays'));
+		// }
 
-		const altsAdded = expectedQuery.alts && expectedQuery.alts.length;
-		const alts = altsAdded ? expectedQuery.alts : undefined;
-		const workbenchSettings = this.configurationService.getValue<IWorkbenchSettingsConfiguration>().workbench.settings;
-		const autoIngest = workbenchSettings.naturalLanguageSearchAutoIngestFeedback;
+		// const altsAdded = expectedQuery.alts && expectedQuery.alts.length;
+		// const alts = altsAdded ? expectedQuery.alts : undefined;
+		// const workbenchSettings = this.configurationService.getValue<IWorkbenchSettingsConfiguration>().workbench.settings;
+		// const autoIngest = workbenchSettings.naturalLanguageSearchAutoIngestFeedback;
 
-		const nlpMetadata = result.metadata && result.metadata['nlpResult'];
-		const duration = nlpMetadata && nlpMetadata.duration;
-		const requestBody = nlpMetadata && nlpMetadata.requestBody;
+		// const nlpMetadata = result.metadata && result.metadata['nlpResult'];
+		// const duration = nlpMetadata && nlpMetadata.duration;
+		// const requestBody = nlpMetadata && nlpMetadata.requestBody;
 
-		const actualResultScores = {};
-		for (let key in scoredResults) {
-			actualResultScores[key] = {
-				score: scoredResults[key].score
-			};
-		}
+		// const actualResultScores = {};
+		// for (let key in scoredResults) {
+		// 	actualResultScores[key] = {
+		// 		score: scoredResults[key].score
+		// 	};
+		// }
 
-		/* __GDPR__
-			"settingsSearchResultFeedback" : {
-				"query" : { "classification": "CustomerContent", "purpose": "FeatureInsight" },
-				"requestBody" : { "classification": "CustomerContent", "purpose": "FeatureInsight" },
-				"userComment" : { "classification": "CustomerContent", "purpose": "FeatureInsight" },
-				"actualResults" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
-				"expectedResults" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
-				"duration" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
-				"buildNumber" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
-				"alts" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
-				"autoIngest" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true }
-			}
-		*/
-		return this.telemetryService.publicLog('settingsSearchResultFeedback', {
-			query: result.query,
-			requestBody,
-			userComment,
-			actualResults: actualResultScores,
-			expectedResults: expectedQuery.resultScores,
-			duration,
-			buildNumber: this.environmentService.settingsSearchBuildId,
-			alts,
-			autoIngest
-		});
+		// /* __GDPR__
+		// 	"settingsSearchResultFeedback" : {
+		// 		"query" : { "classification": "CustomerContent", "purpose": "FeatureInsight" },
+		// 		"requestBody" : { "classification": "CustomerContent", "purpose": "FeatureInsight" },
+		// 		"userComment" : { "classification": "CustomerContent", "purpose": "FeatureInsight" },
+		// 		"actualResults" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
+		// 		"expectedResults" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
+		// 		"duration" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
+		// 		"buildNumber" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
+		// 		"alts" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
+		// 		"autoIngest" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true }
+		// 	}
+		// */
+		// return this.telemetryService.publicLog('settingsSearchResultFeedback', {
+		// 	query: result.query,
+		// 	requestBody,
+		// 	userComment,
+		// 	actualResults: actualResultScores,
+		// 	expectedResults: expectedQuery.resultScores,
+		// 	duration,
+		// 	buildNumber: this.environmentService.settingsSearchBuildId,
+		// 	alts,
+		// 	autoIngest
+		// });
+
+		// TODO@roblou - reduce GDPR-relevant telemetry by removing this, but it's still helpful for personal use.
+		// Consider changing this to write to disk.
+		return TPromise.wrap(null);
 	}
 
-	private validateAlts(alts?: string[][]): boolean {
-		if (!alts) {
-			return true;
-		}
+	// private validateAlts(alts?: string[][]): boolean {
+	// 	if (!alts) {
+	// 		return true;
+	// 	}
 
-		if (!Array.isArray(alts)) {
-			return false;
-		}
+	// 	if (!Array.isArray(alts)) {
+	// 		return false;
+	// 	}
 
-		if (!alts.length) {
-			return true;
-		}
+	// 	if (!alts.length) {
+	// 		return true;
+	// 	}
 
-		if (!alts.every(altPair => Array.isArray(altPair) && altPair.length === 2 && typeof altPair[0] === 'string' && typeof altPair[1] === 'string')) {
-			return false;
-		}
+	// 	if (!alts.every(altPair => Array.isArray(altPair) && altPair.length === 2 && typeof altPair[0] === 'string' && typeof altPair[1] === 'string')) {
+	// 		return false;
+	// 	}
 
-		return true;
-	}
+	// 	return true;
+	// }
 
 	private disposeWidget(): void {
 		if (this._feedbackWidget) {
 			this._feedbackWidget.dispose();
 			this._feedbackWidget = null;
-		}
-	}
-
-	public dispose() {
-		this.disposeWidget();
-		super.dispose();
-	}
-}
-
-export class IssueWidgetRenderer extends Disposable {
-	private _issueWidget: FloatingClickWidget;
-	private _currentResult: IFilterResult;
-
-	constructor(private editor: ICodeEditor,
-		@IInstantiationService private instantiationService: IInstantiationService,
-		@IWorkbenchIssueService private issueService: IWorkbenchIssueService,
-		@IEnvironmentService private environmentService: IEnvironmentService
-	) {
-		super();
-	}
-
-	public render(result: IFilterResult): void {
-		this._currentResult = result;
-		if (result && result.metadata && this.environmentService.appQuality !== 'stable') {
-			this.showWidget();
-		} else if (this._issueWidget) {
-			this.disposeWidget();
-		}
-	}
-
-	private showWidget(): void {
-		if (!this._issueWidget) {
-			this._issueWidget = this._register(this.instantiationService.createInstance(FloatingClickWidget, this.editor, nls.localize('reportSettingsSearchIssue', "Report Issue"), null));
-			this._register(this._issueWidget.onClick(() => this.showIssueReporter()));
-			this._issueWidget.render();
-		}
-	}
-
-	private showIssueReporter(): TPromise<void> {
-		const nlpMetadata = this._currentResult.metadata['nlpResult'];
-		const results = nlpMetadata.scoredResults;
-
-		const enabledExtensions = nlpMetadata.extensions;
-		const issueResults = Object.keys(results)
-			.map(key => (<ISettingSearchResult>{
-				key: key.split('##')[1],
-				extensionId: results[key].packageId === 'core' ?
-					'core' :
-					this.getExtensionIdByGuid(enabledExtensions, results[key].packageId),
-				score: results[key].score
-			}))
-			.slice(0, 20);
-
-		const issueReporterData: Partial<ISettingsSearchIssueReporterData> = {
-			enabledExtensions,
-			issueType: IssueType.SettingsSearchIssue,
-			actualSearchResults: issueResults,
-			filterResultCount: this.getFilterResultCount(),
-			query: this._currentResult.query
-		};
-
-		return this.issueService.openReporter(issueReporterData);
-	}
-
-	private getFilterResultCount(): number {
-		const filterResultGroup = arrays.first(this._currentResult.filteredGroups, group => group.id === 'filterResult');
-		return filterResultGroup ?
-			filterResultGroup.sections[0].settings.length :
-			0;
-	}
-
-	private getExtensionIdByGuid(extensions: ILocalExtension[], guid: string): string {
-		const match = arrays.first(extensions, ext => ext.identifier.uuid === guid);
-
-		// identifier.id includes the version, not needed here
-		return match && `${match.manifest.publisher}.${match.manifest.name}`;
-	}
-
-	private disposeWidget(): void {
-		if (this._issueWidget) {
-			this._issueWidget.dispose();
-			this._issueWidget = null;
 		}
 	}
 
@@ -941,51 +848,6 @@ export class HighlightMatchesRenderer extends Disposable {
 	public dispose() {
 		this.decorationIds = this.editor.deltaDecorations(this.decorationIds, []);
 		super.dispose();
-	}
-}
-
-export class ExtensionCodelensRenderer extends Disposable implements CodeLensProvider {
-	private filterResult: IFilterResult;
-
-	constructor() {
-		super();
-		this._register(CodeLensProviderRegistry.register({ pattern: '**/settings.json' }, this));
-	}
-
-	public render(filterResult: IFilterResult): void {
-		this.filterResult = filterResult;
-	}
-
-	public provideCodeLenses(model: ITextModel, token: CancellationToken): ICodeLensSymbol[] {
-		if (!this.filterResult || !this.filterResult.filteredGroups) {
-			return [];
-		}
-
-		const newExtensionGroup = arrays.first(this.filterResult.filteredGroups, g => g.id === 'newExtensionsResult');
-		if (!newExtensionGroup) {
-			return [];
-		}
-
-		return newExtensionGroup.sections[0].settings
-			.filter((s: IExtensionSetting) => {
-				// Skip any non IExtensionSettings that somehow got in here
-				return s.extensionName && s.extensionPublisher;
-			})
-			.map((s: IExtensionSetting) => {
-				const extId = s.extensionPublisher + '.' + s.extensionName;
-				return <ICodeLensSymbol>{
-					command: {
-						title: nls.localize('newExtensionLabel', "Show Extension \"{0}\"", extId),
-						id: 'workbench.extensions.action.showExtensionsWithId',
-						arguments: [extId.toLowerCase()]
-					},
-					range: new Range(s.keyRange.startLineNumber, 1, s.keyRange.startLineNumber, 1)
-				};
-			});
-	}
-
-	public resolveCodeLens(model: ITextModel, codeLens: ICodeLensSymbol, token: CancellationToken): ICodeLensSymbol {
-		return codeLens;
 	}
 }
 

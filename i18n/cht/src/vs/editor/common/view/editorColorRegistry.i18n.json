@@ -32,6 +32,7 @@
 	"infoBorder": "編輯器內資訊提示線的邊框色彩",
 	"hintForeground": "編輯器內提示訊息的提示線前景色彩",
 	"hintBorder": "編輯器內提示訊息的提示線邊框色彩",
+	"unnecessaryForeground": "編輯器中不必要程式碼的前景色彩。",
 	"overviewRulerRangeHighlight": "概述反白範圍的尺規標記顏色。不能使用非透明的顏色來隱藏底層的樣式。",
 	"overviewRuleError": "錯誤的概觀尺規標記色彩。",
 	"overviewRuleWarning": "警示的概觀尺規標記色彩。",

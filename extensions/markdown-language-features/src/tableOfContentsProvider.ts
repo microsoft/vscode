@@ -4,34 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as vscode from 'vscode';
-
 import { MarkdownEngine } from './markdownEngine';
-
-export class Slug {
-	private static specialChars: any = { 'à': 'a', 'ä': 'a', 'ã': 'a', 'á': 'a', 'â': 'a', 'æ': 'a', 'å': 'a', 'ë': 'e', 'è': 'e', 'é': 'e', 'ê': 'e', 'î': 'i', 'ï': 'i', 'ì': 'i', 'í': 'i', 'ò': 'o', 'ó': 'o', 'ö': 'o', 'ô': 'o', 'ø': 'o', 'ù': 'o', 'ú': 'u', 'ü': 'u', 'û': 'u', 'ñ': 'n', 'ç': 'c', 'ß': 's', 'ÿ': 'y', 'œ': 'o', 'ŕ': 'r', 'ś': 's', 'ń': 'n', 'ṕ': 'p', 'ẃ': 'w', 'ǵ': 'g', 'ǹ': 'n', 'ḿ': 'm', 'ǘ': 'u', 'ẍ': 'x', 'ź': 'z', 'ḧ': 'h', '·': '-', '/': '-', '_': '-', ',': '-', ':': '-', ';': '-', 'З': '3', 'з': '3' };
-
-	public static fromHeading(heading: string): Slug {
-		const slugifiedHeading = encodeURI(heading.trim()
-			.toLowerCase()
-			.replace(/./g, c => Slug.specialChars[c] || c)
-			.replace(/[\]\[\!\'\#\$\%\&\'\(\)\*\+\,\.\/\:\;\<\=\>\?\@\\\^\_\{\|\}\~\`]/g, '')
-			.replace(/\s+/g, '-') // Replace whitespace with -
-			.replace(/[^\w\-]+/g, '') // Remove remaining non-word chars
-			.replace(/^\-+/, '') // Remove leading -
-			.replace(/\-+$/, '') // Remove trailing -
-		);
-
-		return new Slug(slugifiedHeading);
-	}
-
-	private constructor(
-		public readonly value: string
-	) { }
-
-	public equals(other: Slug): boolean {
-		return this.value === other.value;
-	}
-}
+import { Slug, githubSlugifier } from './slugify';
 
 export interface TocEntry {
 	readonly slug: Slug;
@@ -41,12 +15,19 @@ export interface TocEntry {
 	readonly location: vscode.Location;
 }
 
+export interface SkinnyTextDocument {
+	readonly uri: vscode.Uri;
+	readonly lineCount: number;
+	getText(): string;
+	lineAt(line: number): vscode.TextLine;
+}
+
 export class TableOfContentsProvider {
 	private toc?: TocEntry[];
 
 	public constructor(
 		private engine: MarkdownEngine,
-		private document: vscode.TextDocument
+		private document: SkinnyTextDocument
 	) { }
 
 	public async getToc(): Promise<TocEntry[]> {
@@ -62,11 +43,11 @@ export class TableOfContentsProvider {
 
 	public async lookup(fragment: string): Promise<TocEntry | undefined> {
 		const toc = await this.getToc();
-		const slug = Slug.fromHeading(fragment);
+		const slug = githubSlugifier.fromHeading(fragment);
 		return toc.find(entry => entry.slug.equals(slug));
 	}
 
-	private async buildToc(document: vscode.TextDocument): Promise<TocEntry[]> {
+	private async buildToc(document: SkinnyTextDocument): Promise<TocEntry[]> {
 		const toc: TocEntry[] = [];
 		const tokens = await this.engine.parse(document.uri, document.getText());
 
@@ -74,14 +55,32 @@ export class TableOfContentsProvider {
 			const lineNumber = heading.map[0];
 			const line = document.lineAt(lineNumber);
 			toc.push({
-				slug: Slug.fromHeading(line.text),
+				slug: githubSlugifier.fromHeading(line.text),
 				text: TableOfContentsProvider.getHeaderText(line.text),
 				level: TableOfContentsProvider.getHeaderLevel(heading.markup),
 				line: lineNumber,
 				location: new vscode.Location(document.uri, line.range)
 			});
 		}
-		return toc;
+
+		// Get full range of section
+		return toc.map((entry, startIndex): TocEntry => {
+			let end: number | undefined = undefined;
+			for (let i = startIndex + 1; i < toc.length; ++i) {
+				if (toc[i].level <= entry.level) {
+					end = toc[i].line - 1;
+					break;
+				}
+			}
+			const endLine = typeof end === 'number' ? end : document.lineCount - 1;
+			return {
+				...entry,
+				location: new vscode.Location(document.uri,
+					new vscode.Range(
+						entry.location.range.start,
+						new vscode.Position(endLine, document.lineAt(endLine).range.end.character)))
+			};
+		});
 	}
 
 	private static getHeaderLevel(markup: string): number {

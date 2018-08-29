@@ -6,7 +6,7 @@
 'use strict';
 
 import * as nls from 'vs/nls';
-import { illegalArgument } from 'vs/base/common/errors';
+import { illegalArgument, onUnexpectedError } from 'vs/base/common/errors';
 import { KeyMod, KeyCode } from 'vs/base/common/keyCodes';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { RawContextKey, IContextKey, IContextKeyService, ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
@@ -20,14 +20,16 @@ import RenameInputField from './renameInputField';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { asWinJsPromise } from 'vs/base/common/async';
 import { WorkspaceEdit, RenameProviderRegistry, RenameProvider, RenameLocation } from 'vs/editor/common/modes';
-import { Position } from 'vs/editor/common/core/position';
+import { Position, IPosition } from 'vs/editor/common/core/position';
 import { alert } from 'vs/base/browser/ui/aria/aria';
 import { Range } from 'vs/editor/common/core/range';
 import { MessageController } from 'vs/editor/contrib/message/messageController';
 import { EditorState, CodeEditorStateFlag } from 'vs/editor/browser/core/editorState';
-import { KeybindingsRegistry } from 'vs/platform/keybinding/common/keybindingsRegistry';
+import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { INotificationService } from 'vs/platform/notification/common/notification';
 import { IBulkEditService } from 'vs/editor/browser/services/bulkEditService';
+import URI from 'vs/base/common/uri';
+import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
 
 class RenameSkeleton {
 
@@ -44,7 +46,7 @@ class RenameSkeleton {
 		return this._provider.length > 0;
 	}
 
-	async resolveRenameLocation(): TPromise<RenameLocation> {
+	async resolveRenameLocation(): Promise<RenameLocation> {
 
 		let [provider] = this._provider;
 		let res: RenameLocation;
@@ -66,7 +68,7 @@ class RenameSkeleton {
 		return res;
 	}
 
-	async provideRenameEdits(newName: string, i: number = 0, rejects: string[] = [], position: Position = this.position): TPromise<WorkspaceEdit> {
+	async provideRenameEdits(newName: string, i: number = 0, rejects: string[] = [], position: Position = this.position): Promise<WorkspaceEdit> {
 
 		if (i >= this._provider.length) {
 			return {
@@ -86,7 +88,7 @@ class RenameSkeleton {
 	}
 }
 
-export async function rename(model: ITextModel, position: Position, newName: string): TPromise<WorkspaceEdit> {
+export async function rename(model: ITextModel, position: Position, newName: string): Promise<WorkspaceEdit> {
 	return new RenameSkeleton(model, position).provideRenameEdits(newName);
 }
 
@@ -125,10 +127,14 @@ class RenameController implements IEditorContribution {
 		return RenameController.ID;
 	}
 
-	public async run(): TPromise<void> {
+	public async run(): Promise<void> {
 
 		const position = this.editor.getPosition();
 		const skeleton = new RenameSkeleton(this.editor.getModel(), position);
+
+		if (!skeleton.hasProvider()) {
+			return undefined;
+		}
 
 		let loc: RenameLocation;
 		try {
@@ -166,7 +172,7 @@ class RenameController implements IEditorContribution {
 
 			const state = new EditorState(this.editor, CodeEditorStateFlag.Position | CodeEditorStateFlag.Value | CodeEditorStateFlag.Selection | CodeEditorStateFlag.Scroll);
 
-			const renameOperation = skeleton.provideRenameEdits(newNameOrFocusFlag, 0, [], Range.lift(loc.range).getStartPosition()).then(result => {
+			const renameOperation = TPromise.wrap(skeleton.provideRenameEdits(newNameOrFocusFlag, 0, [], Range.lift(loc.range).getStartPosition()).then(result => {
 				if (result.rejectReason) {
 					if (state.validate(this.editor)) {
 						MessageController.get(this.editor).showMessage(result.rejectReason, this.editor.getPosition());
@@ -177,9 +183,6 @@ class RenameController implements IEditorContribution {
 				}
 
 				return this._bulkEditService.apply(result, { editor: this.editor }).then(result => {
-					if (result.selection) {
-						this.editor.setSelection(result.selection);
-					}
 					// alert
 					if (result.ariaSummary) {
 						alert(nls.localize('aria', "Successfully renamed '{0}' to '{1}'. Summary: {2}", loc.text, newNameOrFocusFlag, result.ariaSummary));
@@ -189,7 +192,7 @@ class RenameController implements IEditorContribution {
 			}, err => {
 				this._notificationService.error(nls.localize('rename.failed', "Rename failed to execute."));
 				return TPromise.wrapError(err);
-			});
+			}));
 
 			this._progressService.showWhile(renameOperation, 250);
 			return renameOperation;
@@ -221,7 +224,8 @@ export class RenameAction extends EditorAction {
 			precondition: ContextKeyExpr.and(EditorContextKeys.writable, EditorContextKeys.hasRenameProvider),
 			kbOpts: {
 				kbExpr: EditorContextKeys.editorTextFocus,
-				primary: KeyCode.F2
+				primary: KeyCode.F2,
+				weight: KeybindingWeight.EditorContrib
 			},
 			menuOpts: {
 				group: '1_modification',
@@ -230,10 +234,27 @@ export class RenameAction extends EditorAction {
 		});
 	}
 
-	public run(accessor: ServicesAccessor, editor: ICodeEditor): TPromise<void> {
+	runCommand(accessor: ServicesAccessor, args: [URI, IPosition]): void | TPromise<void> {
+		const editorService = accessor.get(ICodeEditorService);
+		const [uri, pos] = args || [undefined, undefined];
+
+		if (URI.isUri(uri) && Position.isIPosition(pos)) {
+			return editorService.openCodeEditor({ resource: uri }, editorService.getActiveCodeEditor()).then(editor => {
+				editor.setPosition(pos);
+				editor.invokeWithinContext(accessor => {
+					this.reportTelemetry(accessor, editor);
+					return this.run(accessor, editor);
+				});
+			}, onUnexpectedError);
+		}
+
+		return super.runCommand(accessor, args);
+	}
+
+	run(accessor: ServicesAccessor, editor: ICodeEditor): TPromise<void> {
 		let controller = RenameController.get(editor);
 		if (controller) {
-			return controller.run();
+			return TPromise.wrap(controller.run());
 		}
 		return undefined;
 	}
@@ -249,7 +270,7 @@ registerEditorCommand(new RenameCommand({
 	precondition: CONTEXT_RENAME_INPUT_VISIBLE,
 	handler: x => x.acceptRenameInput(),
 	kbOpts: {
-		weight: KeybindingsRegistry.WEIGHT.editorContrib(99),
+		weight: KeybindingWeight.EditorContrib + 99,
 		kbExpr: EditorContextKeys.focus,
 		primary: KeyCode.Enter
 	}
@@ -260,7 +281,7 @@ registerEditorCommand(new RenameCommand({
 	precondition: CONTEXT_RENAME_INPUT_VISIBLE,
 	handler: x => x.cancelRenameInput(),
 	kbOpts: {
-		weight: KeybindingsRegistry.WEIGHT.editorContrib(99),
+		weight: KeybindingWeight.EditorContrib + 99,
 		kbExpr: EditorContextKeys.focus,
 		primary: KeyCode.Escape,
 		secondary: [KeyMod.Shift | KeyCode.Escape]

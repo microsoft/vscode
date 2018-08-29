@@ -12,15 +12,15 @@
 	"config.npm.runSilent": "Exécutez les commandes npm avec l'option `--silent`.",
 	"config.npm.packageManager": "Le gestionnaire de paquets utilisé pour exécuter des scripts.",
 	"config.npm.exclude": "Configurer les profils glob pour les dossiers qui doivent être exclus de la détection de script automatique.",
-	"config.npm.enableScriptExplorer": "Activez une vue Explorateur pour les scripts npm quand l'espace de travail contient un fichier 'package.json'.",
+	"config.npm.enableScriptExplorer": "Activez une vue Explorateur pour les scripts npm.",
+	"config.npm.scriptExplorerAction": "Action de clic par défaut utilisée dans l’explorateur de scripts :  'open' ou 'run', la valeur par défaut est 'open'.",
 	"npm.parseError": "Détection de tâche Npm : impossible d’analyser le fichier {0}",
 	"taskdef.script": "Le script npm à personnaliser.",
-	"taskdef.path": "Le chemin d’accès au dossier du fichier package.json qui fournit le script. Peut être oublié.",
+	"taskdef.path": "Chemin de dossier du fichier package.json qui fournit le script. Peut être ignoré.",
 	"view.name": "Scripts npm",
 	"command.refresh": "Actualiser",
 	"command.run": "Exécuter",
 	"command.debug": "Déboguer",
 	"command.openScript": "Ouvrir",
-	"npm.scriptInvalid": "Script '{0}' introuvable. Essayez d'actualiser la vue.",
-	"npm.noDebugOptions": "Impossible de lancer '{0}' pour le débogage, car les scripts n'ont pas d'option de débogage de nœud, par exemple, '--inspect-brk'."
+	"command.runInstall": "Exécuter Install"
 }

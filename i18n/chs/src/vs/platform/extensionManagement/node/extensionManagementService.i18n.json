@@ -25,8 +25,6 @@
 	"uninstallDependeciesConfirmation": "是仅卸载“{0}”还是与其依赖项一起卸载?",
 	"uninstallOnly": "仅此扩展",
 	"uninstallAll": "全部卸载",
-	"uninstallConfirmation": "是否确定要卸载“{0}”?",
-	"ok": "确定",
 	"singleDependentError": "无法卸载扩展程序“{0}”。扩展程序“{1}”依赖于此。",
 	"twoDependentsError": "无法卸载扩展程序“{0}”。扩展程序“{1}”、“{2}”依赖于此。",
 	"multipleDependentsError": "无法卸载扩展程序“{0}”。扩展程序“{1}”、“{2}”以及其他扩展程序都依赖于此。",

@@ -9,7 +9,6 @@
 	"callstackSection": "Seção de Pilha de Chamada",
 	"debugStopped": "Pausado em {0}",
 	"callStackAriaLabel": "Depurar a Pilha de Chamadas",
-	"process": "Processar",
 	"paused": "Em pausa",
 	"running": "Em execução",
 	"thread": "Thread",

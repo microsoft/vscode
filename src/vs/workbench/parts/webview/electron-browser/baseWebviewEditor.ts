@@ -56,18 +56,6 @@ export abstract class BaseWebviewEditor extends BaseEditor {
 		}
 	}
 
-	public showNextFindTerm() {
-		if (this._webview) {
-			this._webview.showNextFindTerm();
-		}
-	}
-
-	public showPreviousFindTerm() {
-		if (this._webview) {
-			this._webview.showPreviousFindTerm();
-		}
-	}
-
 	public get isWebviewEditor() {
 		return true;
 	}
@@ -87,6 +75,12 @@ export abstract class BaseWebviewEditor extends BaseEditor {
 	public focus(): void {
 		if (this._webview) {
 			this._webview.focus();
+		}
+	}
+
+	public selectAll(): void {
+		if (this._webview) {
+			this._webview.selectAll();
 		}
 	}
 }

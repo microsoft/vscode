@@ -41,7 +41,6 @@
 	"debugConsoleAction": "Console do Depurador",
 	"unreadOutput": "Nova Saída no Console de Depuração",
 	"debugFocusConsole": "Foco no Console de Depuração",
-	"focusProcess": "Foco no Processo",
 	"stepBackDebug": "Passo para trás",
 	"reverseContinue": "Reverter"
 }

@@ -32,6 +32,7 @@
 	"infoBorder": "Colore del bordo degli squiggle di informazione nell'editor",
 	"hintForeground": "Colore primo piano degli squiggle di suggerimento nell'editor.",
 	"hintBorder": "Colore del bordo degli squiggle di suggerimento nell'editor.",
+	"unnecessaryForeground": "Colore primo piano del codice non necessario nell'editor.",
 	"overviewRulerRangeHighlight": "Colore del marcatore righello panoramica per evidenziazione intervalli. Il colore non deve essere opaco per non nascondere decorazioni sottostanti.",
 	"overviewRuleError": "Colore del marcatore del righello delle annotazioni per gli errori.",
 	"overviewRuleWarning": "Colore del marcatore del righello delle annotazioni per gli avvisi.",

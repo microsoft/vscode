@@ -46,10 +46,10 @@ export class OpenDocumentLinkCommand implements Command {
 	}
 
 	private async tryOpen(path: string, args: OpenDocumentLinkArgs) {
-		if (vscode.window.activeTextEditor && isMarkdownFile(vscode.window.activeTextEditor.document) && vscode.window.activeTextEditor.document.uri.fsPath === path) {
+		const resource = vscode.Uri.file(path);
+		if (vscode.window.activeTextEditor && isMarkdownFile(vscode.window.activeTextEditor.document) && vscode.window.activeTextEditor.document.uri.fsPath === resource.fsPath) {
 			return this.tryRevealLine(vscode.window.activeTextEditor, args.fragment);
 		} else {
-			const resource = vscode.Uri.file(path);
 			return vscode.workspace.openTextDocument(resource)
 				.then(vscode.window.showTextDocument)
 				.then(editor => this.tryRevealLine(editor, args.fragment));
@@ -63,7 +63,7 @@ export class OpenDocumentLinkCommand implements Command {
 			if (entry) {
 				return editor.revealRange(new vscode.Range(entry.line, 0, entry.line, 0), vscode.TextEditorRevealType.AtTop);
 			}
-			const lineNumberFragment = fragment.match(/^L(\d+)$/);
+			const lineNumberFragment = fragment.match(/^L(\d+)$/i);
 			if (lineNumberFragment) {
 				const line = +lineNumberFragment[1] - 1;
 				if (!isNaN(line)) {

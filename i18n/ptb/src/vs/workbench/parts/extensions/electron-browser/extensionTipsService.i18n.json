@@ -8,7 +8,6 @@
 	],
 	"neverShowAgain": "Não mostrar novamente",
 	"searchMarketplace": "Pesquisar na Loja",
-	"showLanguagePackExtensions": "A loja possui extensões que podem ajudar na localização do VS Code para o local '{0}'",
 	"dynamicWorkspaceRecommendation": "Esta extensão pode interessá-lo porque é popular entre os usuários do repositório {0}.",
 	"exeBasedRecommendation": "Esta extensão é recomendada porque você tem {0} instalado.",
 	"fileBasedRecommendation": "Esta extensão é recomendada baseada nos arquivos que você abriu recentemente.",

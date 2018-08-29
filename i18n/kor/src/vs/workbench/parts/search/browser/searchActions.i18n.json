@@ -12,6 +12,8 @@
 	"previousSearchExcludePattern": "이전 검색 제외 패턴 표시",
 	"nextSearchTerm": "다음 검색어 표시",
 	"previousSearchTerm": "이전 검색어 표시",
+	"nextReplaceTerm": "다음 검색 대체어 표시",
+	"previousReplaceTerm": "이전 검색 대체어 표시",
 	"findInFiles": "파일에서 찾기",
 	"replaceInFiles": "파일에서 바꾸기",
 	"RefreshAction.label": "새로 고침",

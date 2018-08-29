@@ -46,7 +46,7 @@ export function createTextBufferFactory(text: string): model.ITextBufferFactory 
 }
 
 export function createTextBufferFactoryFromStream(stream: IStringStream, filter?: (chunk: string) => string): TPromise<model.ITextBufferFactory> {
-	return new TPromise<model.ITextBufferFactory>((c, e, p) => {
+	return new TPromise<model.ITextBufferFactory>((c, e) => {
 		let done = false;
 		let builder = createTextBufferBuilder();
 
@@ -898,6 +898,9 @@ export class TextModel extends Disposable implements model.ITextModel {
 	 * @param strict Do NOT allow a position inside a high-low surrogate pair
 	 */
 	private _isValidPosition(lineNumber: number, column: number, strict: boolean): boolean {
+		if (isNaN(lineNumber)) {
+			return false;
+		}
 
 		if (lineNumber < 1) {
 			return false;
@@ -905,6 +908,10 @@ export class TextModel extends Disposable implements model.ITextModel {
 
 		const lineCount = this._buffer.getLineCount();
 		if (lineNumber > lineCount) {
+			return false;
+		}
+
+		if (isNaN(column)) {
 			return false;
 		}
 
@@ -933,8 +940,8 @@ export class TextModel extends Disposable implements model.ITextModel {
 	 * @param strict Do NOT allow a position inside a high-low surrogate pair
 	 */
 	private _validatePosition(_lineNumber: number, _column: number, strict: boolean): Position {
-		const lineNumber = Math.floor(typeof _lineNumber === 'number' ? _lineNumber : 1);
-		const column = Math.floor(typeof _column === 'number' ? _column : 1);
+		const lineNumber = Math.floor((typeof _lineNumber === 'number' && !isNaN(_lineNumber)) ? _lineNumber : 1);
+		const column = Math.floor((typeof _column === 'number' && !isNaN(_column)) ? _column : 1);
 		const lineCount = this._buffer.getLineCount();
 
 		if (lineNumber < 1) {
@@ -1316,7 +1323,12 @@ export class TextModel extends Disposable implements model.ITextModel {
 			for (let i = 0, len = contentChanges.length; i < len; i++) {
 				const change = contentChanges[i];
 				const [eolCount, firstLineLength] = TextModel._eolCount(change.text);
-				this._tokens.applyEdits(change.range, eolCount, firstLineLength);
+				try {
+					this._tokens.applyEdits(change.range, eolCount, firstLineLength);
+				} catch (err) {
+					// emergency recovery => reset tokens
+					this._tokens = new ModelLinesTokens(this._tokens.languageIdentifier, this._tokens.tokenizationSupport);
+				}
 				this._onDidChangeDecorations.fire();
 				this._decorationsTree.acceptReplace(change.rangeOffset, change.rangeLength, change.text.length, change.forceMoveMarkers);
 
@@ -1409,6 +1421,10 @@ export class TextModel extends Disposable implements model.ITextModel {
 		}
 	}
 
+	public canUndo(): boolean {
+		return this._commandManager.canUndo();
+	}
+
 	private _redo(): Selection[] {
 		this._isRedoing = true;
 		let r = this._commandManager.redo();
@@ -1432,6 +1448,10 @@ export class TextModel extends Disposable implements model.ITextModel {
 			this._eventEmitter.endDeferredEmit();
 			this._onDidChangeDecorations.endDeferredEmit();
 		}
+	}
+
+	public canRedo(): boolean {
+		return this._commandManager.canRedo();
 	}
 
 	//#endregion
@@ -2505,10 +2525,10 @@ export class TextModel extends Disposable implements model.ITextModel {
 			const upLineNumber = lineNumber - distance;
 			const downLineNumber = lineNumber + distance;
 
-			if (upLineNumber < 1 || upLineNumber < minLineNumber) {
+			if (distance !== 0 && (upLineNumber < 1 || upLineNumber < minLineNumber)) {
 				goUp = false;
 			}
-			if (downLineNumber > lineCount || downLineNumber > maxLineNumber) {
+			if (distance !== 0 && (downLineNumber > lineCount || downLineNumber > maxLineNumber)) {
 				goDown = false;
 			}
 			if (distance > 50000) {

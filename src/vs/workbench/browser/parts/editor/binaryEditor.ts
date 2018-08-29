@@ -20,6 +20,7 @@ import { ResourceViewerContext, ResourceViewer } from 'vs/workbench/browser/part
 import URI from 'vs/base/common/uri';
 import { Dimension } from 'vs/base/browser/dom';
 import { IFileService } from 'vs/platform/files/common/files';
+import { CancellationToken } from 'vs/base/common/cancellation';
 
 export interface IOpenCallbacks {
 	openInternal: (input: EditorInput, options: EditorOptions) => void;
@@ -31,7 +32,8 @@ export interface IOpenCallbacks {
  */
 export abstract class BaseBinaryResourceEditor extends BaseEditor {
 
-	private readonly _onMetadataChanged: Emitter<void>;
+	private readonly _onMetadataChanged: Emitter<void> = this._register(new Emitter<void>());
+	get onMetadataChanged(): Event<void> { return this._onMetadataChanged.event; }
 
 	private callbacks: IOpenCallbacks;
 	private metadata: string;
@@ -48,17 +50,10 @@ export abstract class BaseBinaryResourceEditor extends BaseEditor {
 	) {
 		super(id, telemetryService, themeService);
 
-		this._onMetadataChanged = new Emitter<void>();
-		this.toUnbind.push(this._onMetadataChanged);
-
 		this.callbacks = callbacks;
 	}
 
-	public get onMetadataChanged(): Event<void> {
-		return this._onMetadataChanged.event;
-	}
-
-	public getTitle(): string {
+	getTitle(): string {
 		return this.input ? this.input.getName() : nls.localize('binaryEditor', "Binary Viewer");
 	}
 
@@ -72,30 +67,22 @@ export abstract class BaseBinaryResourceEditor extends BaseEditor {
 		this.binaryContainer.tabindex(0); // enable focus support from the editor part (do not remove)
 
 		// Custom Scrollbars
-		this.scrollbar = new DomScrollableElement(binaryContainerElement, { horizontal: ScrollbarVisibility.Auto, vertical: ScrollbarVisibility.Auto });
+		this.scrollbar = this._register(new DomScrollableElement(binaryContainerElement, { horizontal: ScrollbarVisibility.Auto, vertical: ScrollbarVisibility.Auto }));
 		parent.appendChild(this.scrollbar.getDomNode());
 	}
 
-	public setInput(input: EditorInput, options?: EditorOptions): TPromise<void> {
+	setInput(input: EditorInput, options: EditorOptions, token: CancellationToken): Thenable<void> {
+		return super.setInput(input, options, token).then(() => {
+			return input.resolve().then(model => {
 
-		// Return early for same input unless we force to open
-		const forceOpen = options && options.forceOpen;
-		if (!forceOpen && input.matches(this.input)) {
-			return TPromise.wrap<void>(null);
-		}
-
-		// Otherwise set input and resolve
-		return super.setInput(input, options).then(() => {
-			return input.resolve(true).then(model => {
+				// Check for cancellation
+				if (token.isCancellationRequested) {
+					return void 0;
+				}
 
 				// Assert Model instance
 				if (!(model instanceof BinaryEditorModel)) {
 					return TPromise.wrapError<void>(new Error('Unable to open file as binary'));
-				}
-
-				// Assert that the current input is still the one we expect. This prevents a race condition when loading takes long and another input was set meanwhile
-				if (!this.input || this.input !== input) {
-					return null;
 				}
 
 				// Render Input
@@ -109,25 +96,22 @@ export abstract class BaseBinaryResourceEditor extends BaseEditor {
 					meta => this.handleMetadataChanged(meta)
 				);
 
-				return TPromise.as<void>(null);
+				return void 0;
 			});
 		});
 	}
 
 	private handleMetadataChanged(meta: string): void {
 		this.metadata = meta;
+
 		this._onMetadataChanged.fire();
 	}
 
-	public getMetadata(): string {
+	getMetadata(): string {
 		return this.metadata;
 	}
 
-	public supportsCenteredLayout(): boolean {
-		return false;
-	}
-
-	public clearInput(): void {
+	clearInput(): void {
 
 		// Clear Meta
 		this.handleMetadataChanged(null);
@@ -138,7 +122,7 @@ export abstract class BaseBinaryResourceEditor extends BaseEditor {
 		super.clearInput();
 	}
 
-	public layout(dimension: Dimension): void {
+	layout(dimension: Dimension): void {
 
 		// Pass on to Binary Container
 		this.binaryContainer.size(dimension.width, dimension.height);
@@ -148,15 +132,14 @@ export abstract class BaseBinaryResourceEditor extends BaseEditor {
 		}
 	}
 
-	public focus(): void {
+	focus(): void {
 		this.binaryContainer.domFocus();
 	}
 
-	public dispose(): void {
+	dispose(): void {
 
 		// Destroy Container
 		this.binaryContainer.destroy();
-		this.scrollbar.dispose();
 
 		super.dispose();
 	}

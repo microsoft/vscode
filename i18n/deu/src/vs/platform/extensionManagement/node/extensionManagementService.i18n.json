@@ -25,8 +25,6 @@
 	"uninstallDependeciesConfirmation": "Möchten Sie nur \"{0}\" oder auch die zugehörigen Abhängigkeiten deinstallieren?",
 	"uninstallOnly": "Nur Erweiterung",
 	"uninstallAll": "Alle deinstallieren",
-	"uninstallConfirmation": "Möchten Sie \"{0}\" deinstallieren?",
-	"ok": "OK",
 	"singleDependentError": "Die Erweiterung \"{0}\" kann nicht deinstalliert werden. Die Erweiterung \"{1}\" hängt von dieser Erweiterung ab.",
 	"twoDependentsError": "Die Erweiterung \"{0}\" kann nicht deinstalliert werden. Die Erweiterungen \"{1}\" und \"{2}\" hängen von dieser Erweiterung ab.",
 	"multipleDependentsError": "Die Erweiterung \"{0}\" kann nicht deinstalliert werden. Die Erweiterungen \"{1}\" und \"{2}\" sowie weitere hängen von dieser Erweiterung ab.",

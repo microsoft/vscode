@@ -12,7 +12,6 @@
 	"vscode.extension.contributes.viewsContainers": "Nézetgyűjteményeket szolgáltat a szerkesztőhöz",
 	"views.container.activitybar": "Nézetgyűjteményeket szolgáltat a tevékenységsávra",
 	"test": "Teszt",
-	"proposed": "A 'viewsContainers' csak a fejlesztői változatban vagy az --enable-proposed-api {1} kapcsoló használata esetén érhető el.",
 	"requirearray": "a nézetgyűjteményeket tömbként kell megadni",
 	"requireidstring": "a(z) `{0}` tulajdonság kötelező és `string` típusúnak kell lennie. Csak alfanumerikus karaktereket, alulvonást és kötőjelet tartalmazhat.",
 	"requirestring": "a(z) `{0}` tulajdonság kötelező és `string` típusúnak kell lennie",

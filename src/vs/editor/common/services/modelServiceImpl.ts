@@ -28,6 +28,7 @@ import { overviewRulerWarning, overviewRulerError, overviewRulerInfo } from 'vs/
 import { ITextModel, IModelDeltaDecoration, IModelDecorationOptions, TrackedRangeStickiness, OverviewRulerLane, DefaultEndOfLine, ITextModelCreationOptions, EndOfLineSequence, IIdentifiedSingleEditOperation, ITextBufferFactory, ITextBuffer, EndOfLinePreference } from 'vs/editor/common/model';
 import { isFalsyOrEmpty } from 'vs/base/common/arrays';
 import { basename } from 'vs/base/common/paths';
+import { isThenable } from 'vs/base/common/async';
 
 function MODEL_ID(resource: URI): string {
 	return resource.toString();
@@ -85,9 +86,12 @@ class ModelMarkerHandler {
 
 		let ret = Range.lift(rawMarker);
 
-		if (rawMarker.severity === MarkerSeverity.Hint && Range.spansMultipleLines(ret)) {
-			// never render hints on multiple lines
-			ret = ret.setEndPosition(ret.startLineNumber, ret.startColumn);
+		if (rawMarker.severity === MarkerSeverity.Hint) {
+			// * never render hints on multiple lines
+			// * make enough space for three dots
+			if (Range.spansMultipleLines(ret) || ret.endColumn - ret.startColumn < 2) {
+				ret = ret.setEndPosition(ret.startLineNumber, ret.startColumn + 2);
+			}
 		}
 
 		ret = model.validateRange(ret);
@@ -131,7 +135,9 @@ class ModelMarkerHandler {
 
 		switch (marker.severity) {
 			case MarkerSeverity.Hint:
-				if (!marker.customTags || marker.customTags.indexOf(MarkerTag.Unnecessary) === -1) {
+				if (marker.tags && marker.tags.indexOf(MarkerTag.Unnecessary) >= 0) {
+					className = ClassName.EditorUnnecessaryDecoration;
+				} else {
 					className = ClassName.EditorHintDecoration;
 				}
 				zIndex = 0;
@@ -157,9 +163,9 @@ class ModelMarkerHandler {
 				break;
 		}
 
-		if (marker.customTags) {
-			if (marker.customTags.indexOf(MarkerTag.Unnecessary) !== -1) {
-				inlineClassName = ClassName.EditorUnnecessaryDecoration;
+		if (marker.tags) {
+			if (marker.tags.indexOf(MarkerTag.Unnecessary) !== -1) {
+				inlineClassName = ClassName.EditorUnnecessaryInlineDecoration;
 			}
 		}
 
@@ -271,6 +277,9 @@ export class ModelServiceImpl implements IModelService {
 			let parsedTabSize = parseInt(config.editor.tabSize, 10);
 			if (!isNaN(parsedTabSize)) {
 				tabSize = parsedTabSize;
+			}
+			if (tabSize < 1) {
+				tabSize = 1;
 			}
 		}
 
@@ -492,7 +501,7 @@ export class ModelServiceImpl implements IModelService {
 	public createModel(value: string | ITextBufferFactory, modeOrPromise: TPromise<IMode> | IMode, resource: URI, isForSimpleWidget: boolean = false): ITextModel {
 		let modelData: ModelData;
 
-		if (!modeOrPromise || TPromise.is(modeOrPromise)) {
+		if (!modeOrPromise || isThenable(modeOrPromise)) {
 			modelData = this._createModelData(value, PLAINTEXT_LANGUAGE_IDENTIFIER, resource, isForSimpleWidget);
 			this.setMode(modelData.model, modeOrPromise);
 		} else {
@@ -513,7 +522,7 @@ export class ModelServiceImpl implements IModelService {
 		if (!modeOrPromise) {
 			return;
 		}
-		if (TPromise.is(modeOrPromise)) {
+		if (isThenable(modeOrPromise)) {
 			modeOrPromise.then((mode) => {
 				if (!model.isDisposed()) {
 					model.setMode(mode.getLanguageIdentifier());

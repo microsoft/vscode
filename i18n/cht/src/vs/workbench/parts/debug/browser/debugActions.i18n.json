@@ -41,7 +41,7 @@
 	"debugConsoleAction": "偵錯主控台",
 	"unreadOutput": "偵錯主控台中的新輸出",
 	"debugFocusConsole": "焦點偵錯主控台",
-	"focusProcess": "焦點處理序",
+	"focusSession": "焦點工作階段",
 	"stepBackDebug": "倒退",
 	"reverseContinue": "反向"
 }

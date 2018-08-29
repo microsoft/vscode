@@ -65,7 +65,6 @@
 	"emptyFileNameError": "必须提供文件或文件夹名。",
 	"fileNameStartsWithSlashError": "文件或文件夹名称不能以斜线开头。",
 	"fileNameExistsError": "此位置已存在文件或文件夹 **{0}**。请选择其他名称。",
-	"fileUsedAsFolderError": "**{0}** 是一个文件，不能含有子项。",
 	"invalidFileNameError": "名称 **{0}** 作为文件或文件夹名无效。请选择其他名称。",
 	"filePathTooLongError": "名称 **{0}** 导致路径太长。请选择更短的名称。",
 	"compareWithClipboard": "比较活动文件与剪贴板",

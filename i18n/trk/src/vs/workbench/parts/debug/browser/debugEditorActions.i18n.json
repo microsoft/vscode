@@ -12,5 +12,7 @@
 	"runToCursor": "İmlece Kadar Çalıştır",
 	"debugEvaluate": "Hata Ayıklama: Değerlendir",
 	"debugAddToWatch": "Hata Ayıklama: İzlemeye Ekle",
-	"showDebugHover": "Hata Ayıklama: Bağlantı Vurgusunu Göster"
+	"showDebugHover": "Hata Ayıklama: Bağlantı Vurgusunu Göster",
+	"goToNextBreakpoint": "Hata Ayıklama: Sonraki Kesme Noktasına Git",
+	"goToPreviousBreakpoint": "Hata Ayıklama: Önceki Kesme Noktasına Git"
 }

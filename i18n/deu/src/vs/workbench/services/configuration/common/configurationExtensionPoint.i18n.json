@@ -16,6 +16,7 @@
 	"vscode.extension.contributes.configuration": "Trägt Konfigurationseigenschaften bei.",
 	"invalid.title": "configuration.title muss eine Zeichenfolge sein.",
 	"invalid.properties": "\"configuration.properties\" muss ein Objekt sein.",
+	"invalid.property": "\"configuration.property\" muss ein Objekt sein.",
 	"invalid.allOf": "\"configuration.allOf\" ist veraltet und sollte nicht mehr verwendet werden. Übergeben Sie stattdessen mehrere Konfigurationsabschnitte als Array an den Beitragspunkt \"configuration\".",
 	"workspaceConfig.folders.description": "Liste von Ordnern, die in den Arbeitsbereich geladen werden.",
 	"workspaceConfig.path.description": "Ein Dateipfad, z. B. \" /root/folderA\" oder \"./folderA\" bei einem relativen Pfad, der in Bezug auf den Speicherort der Arbeitsbereichsdatei  aufgelöst wird.",

@@ -3,8 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-'use strict';
-
 import { illegalArgument, onUnexpectedExternalError } from 'vs/base/common/errors';
 import URI from 'vs/base/common/uri';
 import { isFalsyOrEmpty } from 'vs/base/common/arrays';
@@ -14,8 +12,9 @@ import { ITextModel } from 'vs/editor/common/model';
 import { registerDefaultLanguageCommand, registerLanguageCommand } from 'vs/editor/browser/editorExtensions';
 import { DocumentFormattingEditProviderRegistry, DocumentRangeFormattingEditProviderRegistry, OnTypeFormattingEditProviderRegistry, FormattingOptions, TextEdit } from 'vs/editor/common/modes';
 import { IModelService } from 'vs/editor/common/services/modelService';
-import { asWinJsPromise, sequence } from 'vs/base/common/async';
+import { asWinJsPromise, first2 } from 'vs/base/common/async';
 import { Position } from 'vs/editor/common/core/position';
+import { CancellationToken } from 'vs/base/common/cancellation';
 
 export class NoProviderError extends Error {
 
@@ -28,46 +27,32 @@ export class NoProviderError extends Error {
 	}
 }
 
-export function getDocumentRangeFormattingEdits(model: ITextModel, range: Range, options: FormattingOptions): TPromise<TextEdit[], NoProviderError> {
+export function getDocumentRangeFormattingEdits(model: ITextModel, range: Range, options: FormattingOptions, token: CancellationToken): Promise<TextEdit[]> {
 
 	const providers = DocumentRangeFormattingEditProviderRegistry.ordered(model);
 
 	if (providers.length === 0) {
-		return TPromise.wrapError(new NoProviderError());
+		return Promise.reject(new NoProviderError());
 	}
 
-	let result: TextEdit[];
-	return sequence(providers.map(provider => {
-		return () => {
-			if (!isFalsyOrEmpty(result)) {
-				return undefined;
-			}
-			return asWinJsPromise(token => provider.provideDocumentRangeFormattingEdits(model, range, options, token)).then(value => {
-				result = value;
-			}, onUnexpectedExternalError);
-		};
-	})).then(() => result);
+	return first2(providers.map(provider => () => {
+		return Promise.resolve(provider.provideDocumentRangeFormattingEdits(model, range, options, token))
+			.then(undefined, onUnexpectedExternalError);
+	}), result => !isFalsyOrEmpty(result));
 }
 
-export function getDocumentFormattingEdits(model: ITextModel, options: FormattingOptions): TPromise<TextEdit[]> {
+export function getDocumentFormattingEdits(model: ITextModel, options: FormattingOptions, token: CancellationToken): Promise<TextEdit[]> {
 	const providers = DocumentFormattingEditProviderRegistry.ordered(model);
 
 	// try range formatters when no document formatter is registered
 	if (providers.length === 0) {
-		return getDocumentRangeFormattingEdits(model, model.getFullModelRange(), options);
+		return getDocumentRangeFormattingEdits(model, model.getFullModelRange(), options, token);
 	}
 
-	let result: TextEdit[];
-	return sequence(providers.map(provider => {
-		return () => {
-			if (!isFalsyOrEmpty(result)) {
-				return undefined;
-			}
-			return asWinJsPromise(token => provider.provideDocumentFormattingEdits(model, options, token)).then(value => {
-				result = value;
-			}, onUnexpectedExternalError);
-		};
-	})).then(() => result);
+	return first2(providers.map(provider => () => {
+		return Promise.resolve(provider.provideDocumentFormattingEdits(model, options, token))
+			.then(undefined, onUnexpectedExternalError);
+	}), result => !isFalsyOrEmpty(result));
 }
 
 export function getOnTypeFormattingEdits(model: ITextModel, position: Position, ch: string, options: FormattingOptions): TPromise<TextEdit[]> {
@@ -93,7 +78,7 @@ registerLanguageCommand('_executeFormatRangeProvider', function (accessor, args)
 	if (!model) {
 		throw illegalArgument('resource');
 	}
-	return getDocumentRangeFormattingEdits(model, Range.lift(range), options);
+	return getDocumentRangeFormattingEdits(model, Range.lift(range), options, CancellationToken.None);
 });
 
 registerLanguageCommand('_executeFormatDocumentProvider', function (accessor, args) {
@@ -106,7 +91,7 @@ registerLanguageCommand('_executeFormatDocumentProvider', function (accessor, ar
 		throw illegalArgument('resource');
 	}
 
-	return getDocumentFormattingEdits(model, options);
+	return getDocumentFormattingEdits(model, options, CancellationToken.None);
 });
 
 registerDefaultLanguageCommand('_executeFormatOnTypeProvider', function (model, position, args) {

@@ -7,15 +7,14 @@
 import {
 	createConnection, IConnection, TextDocuments, InitializeParams, InitializeResult, ServerCapabilities, ConfigurationRequest, WorkspaceFolder
 } from 'vscode-languageserver';
-
+import URI from 'vscode-uri';
 import { TextDocument, CompletionList } from 'vscode-languageserver-types';
 
 import { getCSSLanguageService, getSCSSLanguageService, getLESSLanguageService, LanguageSettings, LanguageService, Stylesheet } from 'vscode-css-languageservice';
 import { getLanguageModelCache } from './languageModelCache';
-import { formatError, runSafe } from './utils/runner';
-import URI from 'vscode-uri';
 import { getPathCompletionParticipant } from './pathCompletion';
-import { FoldingRangeServerCapabilities, FoldingRangeRequest } from 'vscode-languageserver-protocol-foldingprovider';
+import { formatError, runSafe } from './utils/runner';
+import { getDocumentContext } from './utils/documentContext';
 
 export interface Settings {
 	css: LanguageSettings;
@@ -24,7 +23,7 @@ export interface Settings {
 }
 
 // Create a connection for the server.
-let connection: IConnection = createConnection();
+const connection: IConnection = createConnection();
 
 console.log = connection.console.log.bind(connection.console);
 console.error = connection.console.error.bind(connection.console);
@@ -35,12 +34,12 @@ process.on('unhandledRejection', (e: any) => {
 
 // Create a simple text document manager. The text document manager
 // supports full document sync only
-let documents: TextDocuments = new TextDocuments();
+const documents: TextDocuments = new TextDocuments();
 // Make the text document manager listen on the connection
 // for open, change and close text document events
 documents.listen(connection);
 
-let stylesheets = getLanguageModelCache<Stylesheet>(10, 60, document => getLanguageService(document).parseStylesheet(document));
+const stylesheets = getLanguageModelCache<Stylesheet>(10, 60, document => getLanguageService(document).parseStylesheet(document));
 documents.onDidClose(e => {
 	stylesheets.onDocumentRemoved(e.document);
 });
@@ -64,7 +63,7 @@ connection.onInitialize((params: InitializeParams): InitializeResult => {
 	}
 
 	function getClientCapability<T>(name: string, def: T) {
-		let keys = name.split('.');
+		const keys = name.split('.');
 		let c: any = params.capabilities;
 		for (let i = 0; c && i < keys.length; i++) {
 			if (!c.hasOwnProperty(keys[i])) {
@@ -74,11 +73,11 @@ connection.onInitialize((params: InitializeParams): InitializeResult => {
 		}
 		return c;
 	}
-	let snippetSupport = !!getClientCapability('textDocument.completion.completionItem.snippetSupport', false);
+	const snippetSupport = !!getClientCapability('textDocument.completion.completionItem.snippetSupport', false);
 	scopedSettingsSupport = !!getClientCapability('workspace.configuration', false);
 	foldingRangeLimit = getClientCapability('textDocument.foldingRange.rangeLimit', Number.MAX_VALUE);
 
-	let capabilities: ServerCapabilities & FoldingRangeServerCapabilities = {
+	const capabilities: ServerCapabilities = {
 		// Tell the client that the server works in FULL text document sync mode
 		textDocumentSync: documents.syncKind,
 		completionProvider: snippetSupport ? { resolveProvider: false, triggerCharacters: ['/'] } : undefined,
@@ -87,6 +86,9 @@ connection.onInitialize((params: InitializeParams): InitializeResult => {
 		referencesProvider: true,
 		definitionProvider: true,
 		documentHighlightProvider: true,
+		documentLinkProvider: {
+			resolveProvider: false
+		},
 		codeActionProvider: true,
 		renameProvider: true,
 		colorProvider: {},
@@ -95,7 +97,7 @@ connection.onInitialize((params: InitializeParams): InitializeResult => {
 	return { capabilities };
 });
 
-let languageServices: { [id: string]: LanguageService } = {
+const languageServices: { [id: string]: LanguageService } = {
 	css: getCSSLanguageService(),
 	scss: getSCSSLanguageService(),
 	less: getLESSLanguageService()
@@ -119,7 +121,7 @@ function getDocumentSettings(textDocument: TextDocument): Thenable<LanguageSetti
 	if (scopedSettingsSupport) {
 		let promise = documentSettings[textDocument.uri];
 		if (!promise) {
-			let configRequestParam = { items: [{ scopeUri: textDocument.uri, section: textDocument.languageId }] };
+			const configRequestParam = { items: [{ scopeUri: textDocument.uri, section: textDocument.languageId }] };
 			promise = connection.sendRequest(ConfigurationRequest.type, configRequestParam).then(s => s[0]);
 			documentSettings[textDocument.uri] = promise;
 		}
@@ -134,7 +136,7 @@ connection.onDidChangeConfiguration(change => {
 });
 
 function updateConfiguration(settings: Settings) {
-	for (let languageId in languageServices) {
+	for (const languageId in languageServices) {
 		languageServices[languageId].configure((settings as any)[languageId]);
 	}
 	// reset all document settings
@@ -143,7 +145,7 @@ function updateConfiguration(settings: Settings) {
 	documents.all().forEach(triggerValidation);
 }
 
-let pendingValidationRequests: { [uri: string]: NodeJS.Timer } = {};
+const pendingValidationRequests: { [uri: string]: NodeJS.Timer } = {};
 const validationDelayMs = 500;
 
 // The content of a text document has changed. This event is emitted
@@ -159,7 +161,7 @@ documents.onDidClose(event => {
 });
 
 function cleanPendingValidation(textDocument: TextDocument): void {
-	let request = pendingValidationRequests[textDocument.uri];
+	const request = pendingValidationRequests[textDocument.uri];
 	if (request) {
 		clearTimeout(request);
 		delete pendingValidationRequests[textDocument.uri];
@@ -175,10 +177,10 @@ function triggerValidation(textDocument: TextDocument): void {
 }
 
 function validateTextDocument(textDocument: TextDocument): void {
-	let settingsPromise = getDocumentSettings(textDocument);
+	const settingsPromise = getDocumentSettings(textDocument);
 	settingsPromise.then(settings => {
-		let stylesheet = stylesheets.get(textDocument);
-		let diagnostics = getLanguageService(textDocument).doValidation(textDocument, stylesheet, settings);
+		const stylesheet = stylesheets.get(textDocument);
+		const diagnostics = getLanguageService(textDocument).doValidation(textDocument, stylesheet, settings);
 		// Send the computed diagnostics to VSCode.
 		connection.sendDiagnostics({ uri: textDocument.uri, diagnostics });
 	}, e => {
@@ -188,14 +190,17 @@ function validateTextDocument(textDocument: TextDocument): void {
 
 connection.onCompletion((textDocumentPosition, token) => {
 	return runSafe(() => {
-		let document = documents.get(textDocumentPosition.textDocument.uri);
+		const document = documents.get(textDocumentPosition.textDocument.uri);
+		if (!document) {
+			return null;
+		}
 		const cssLS = getLanguageService(document);
 		const pathCompletionList: CompletionList = {
 			isIncomplete: false,
 			items: []
 		};
 		cssLS.setCompletionParticipants([getPathCompletionParticipant(document, workspaceFolders, pathCompletionList)]);
-		const result = cssLS.doComplete(document, textDocumentPosition.position, stylesheets.get(document))!; /* TODO: remove ! once LS has null annotations */
+		const result = cssLS.doComplete(document, textDocumentPosition.position, stylesheets.get(document));
 		return {
 			isIncomplete: pathCompletionList.isIncomplete,
 			items: [...pathCompletionList.items, ...result.items]
@@ -205,57 +210,90 @@ connection.onCompletion((textDocumentPosition, token) => {
 
 connection.onHover((textDocumentPosition, token) => {
 	return runSafe(() => {
-		let document = documents.get(textDocumentPosition.textDocument.uri);
-		let styleSheet = stylesheets.get(document);
-		return getLanguageService(document).doHover(document, textDocumentPosition.position, styleSheet);
+		const document = documents.get(textDocumentPosition.textDocument.uri);
+		if (document) {
+			const styleSheet = stylesheets.get(document);
+			return getLanguageService(document).doHover(document, textDocumentPosition.position, styleSheet);
+		}
+		return null;
 	}, null, `Error while computing hover for ${textDocumentPosition.textDocument.uri}`, token);
 });
 
 connection.onDocumentSymbol((documentSymbolParams, token) => {
 	return runSafe(() => {
-		let document = documents.get(documentSymbolParams.textDocument.uri);
-		let stylesheet = stylesheets.get(document);
-		return getLanguageService(document).findDocumentSymbols(document, stylesheet);
+		const document = documents.get(documentSymbolParams.textDocument.uri);
+		if (document) {
+			const stylesheet = stylesheets.get(document);
+			return getLanguageService(document).findDocumentSymbols(document, stylesheet);
+		}
+		return [];
 	}, [], `Error while computing document symbols for ${documentSymbolParams.textDocument.uri}`, token);
 });
 
-connection.onDefinition((documentSymbolParams, token) => {
+connection.onDefinition((documentDefinitionParams, token) => {
 	return runSafe(() => {
-		let document = documents.get(documentSymbolParams.textDocument.uri);
-		let stylesheet = stylesheets.get(document);
-		return getLanguageService(document).findDefinition(document, documentSymbolParams.position, stylesheet);
-	}, null, `Error while computing definitions for ${documentSymbolParams.textDocument.uri}`, token);
+		const document = documents.get(documentDefinitionParams.textDocument.uri);
+		if (document) {
+
+			const stylesheet = stylesheets.get(document);
+			return getLanguageService(document).findDefinition(document, documentDefinitionParams.position, stylesheet);
+		}
+		return null;
+	}, null, `Error while computing definitions for ${documentDefinitionParams.textDocument.uri}`, token);
 });
 
-connection.onDocumentHighlight((documentSymbolParams, token) => {
+connection.onDocumentHighlight((documentHighlightParams, token) => {
 	return runSafe(() => {
-		let document = documents.get(documentSymbolParams.textDocument.uri);
-		let stylesheet = stylesheets.get(document);
-		return getLanguageService(document).findDocumentHighlights(document, documentSymbolParams.position, stylesheet);
-	}, [], `Error while computing document highlights for ${documentSymbolParams.textDocument.uri}`, token);
+		const document = documents.get(documentHighlightParams.textDocument.uri);
+		if (document) {
+			const stylesheet = stylesheets.get(document);
+			return getLanguageService(document).findDocumentHighlights(document, documentHighlightParams.position, stylesheet);
+		}
+		return [];
+	}, [], `Error while computing document highlights for ${documentHighlightParams.textDocument.uri}`, token);
 });
+
+
+connection.onDocumentLinks((documentLinkParams, token) => {
+	return runSafe(() => {
+		const document = documents.get(documentLinkParams.textDocument.uri);
+		if (document) {
+			const documentContext = getDocumentContext(document.uri, workspaceFolders);
+			const stylesheet = stylesheets.get(document);
+			return getLanguageService(document).findDocumentLinks(document, stylesheet, documentContext);
+		}
+		return [];
+	}, [], `Error while computing document links for ${documentLinkParams.textDocument.uri}`, token);
+});
+
 
 connection.onReferences((referenceParams, token) => {
 	return runSafe(() => {
-		let document = documents.get(referenceParams.textDocument.uri);
-		let stylesheet = stylesheets.get(document);
-		return getLanguageService(document).findReferences(document, referenceParams.position, stylesheet);
+		const document = documents.get(referenceParams.textDocument.uri);
+		if (document) {
+			const stylesheet = stylesheets.get(document);
+			return getLanguageService(document).findReferences(document, referenceParams.position, stylesheet);
+		}
+		return [];
 	}, [], `Error while computing references for ${referenceParams.textDocument.uri}`, token);
 });
 
 connection.onCodeAction((codeActionParams, token) => {
 	return runSafe(() => {
-		let document = documents.get(codeActionParams.textDocument.uri);
-		let stylesheet = stylesheets.get(document);
-		return getLanguageService(document).doCodeActions(document, codeActionParams.range, codeActionParams.context, stylesheet);
+		const document = documents.get(codeActionParams.textDocument.uri);
+		if (document) {
+			const stylesheet = stylesheets.get(document);
+			return getLanguageService(document).doCodeActions(document, codeActionParams.range, codeActionParams.context, stylesheet);
+		}
+		return [];
 	}, [], `Error while computing code actions for ${codeActionParams.textDocument.uri}`, token);
 });
 
 connection.onDocumentColor((params, token) => {
 	return runSafe(() => {
-		let document = documents.get(params.textDocument.uri);
+		const document = documents.get(params.textDocument.uri);
 		if (document) {
-			let stylesheet = stylesheets.get(document);
+			const stylesheet = stylesheets.get(document);
 			return getLanguageService(document).findDocumentColors(document, stylesheet);
 		}
 		return [];
@@ -264,9 +302,9 @@ connection.onDocumentColor((params, token) => {
 
 connection.onColorPresentation((params, token) => {
 	return runSafe(() => {
-		let document = documents.get(params.textDocument.uri);
+		const document = documents.get(params.textDocument.uri);
 		if (document) {
-			let stylesheet = stylesheets.get(document);
+			const stylesheet = stylesheets.get(document);
 			return getLanguageService(document).getColorPresentations(document, stylesheet, params.color, params.range);
 		}
 		return [];
@@ -275,16 +313,22 @@ connection.onColorPresentation((params, token) => {
 
 connection.onRenameRequest((renameParameters, token) => {
 	return runSafe(() => {
-		let document = documents.get(renameParameters.textDocument.uri);
-		let stylesheet = stylesheets.get(document);
-		return getLanguageService(document).doRename(document, renameParameters.position, renameParameters.newName, stylesheet);
+		const document = documents.get(renameParameters.textDocument.uri);
+		if (document) {
+			const stylesheet = stylesheets.get(document);
+			return getLanguageService(document).doRename(document, renameParameters.position, renameParameters.newName, stylesheet);
+		}
+		return null;
 	}, null, `Error while computing renames for ${renameParameters.textDocument.uri}`, token);
 });
 
-connection.onRequest(FoldingRangeRequest.type, (params, token) => {
+connection.onFoldingRanges((params, token) => {
 	return runSafe(() => {
-		let document = documents.get(params.textDocument.uri);
-		return getLanguageService(document).getFoldingRanges(document, { rangeLimit: foldingRangeLimit });
+		const document = documents.get(params.textDocument.uri);
+		if (document) {
+			return getLanguageService(document).getFoldingRanges(document, { rangeLimit: foldingRangeLimit });
+		}
+		return null;
 	}, null, `Error while computing folding ranges for ${params.textDocument.uri}`, token);
 });
 

@@ -5,11 +5,10 @@
 
 import * as vscode from 'vscode';
 import { Node, HtmlNode, Rule, Property, Stylesheet } from 'EmmetNode';
-import { getEmmetHelper, getNode, getInnerRange, getMappingForIncludedLanguages, parseDocument, validate, getEmmetConfiguration, isStyleSheet, getEmmetMode, parsePartialStylesheet, isStyleAttribute, getEmbeddedCssNodeIfAny } from './util';
+import { getEmmetHelper, getNode, getInnerRange, getMappingForIncludedLanguages, parseDocument, validate, getEmmetConfiguration, isStyleSheet, getEmmetMode, parsePartialStylesheet, isStyleAttribute, getEmbeddedCssNodeIfAny, isTemplateScript } from './util';
 
 const trimRegex = /[\u00a0]*[\d|#|\-|\*|\u2022]+\.?/;
-const hexColorRegex = /^#\d+$/;
-const allowedMimeTypesInScriptTag = ['text/html', 'text/plain', 'text/x-template', 'text/template'];
+const hexColorRegex = /^#[\d,a-f,A-F]{0,6}$/;
 const inlineElements = ['a', 'abbr', 'acronym', 'applet', 'b', 'basefont', 'bdo',
 	'big', 'br', 'button', 'cite', 'code', 'del', 'dfn', 'em', 'font', 'i',
 	'iframe', 'img', 'input', 'ins', 'kbd', 'label', 'map', 'object', 'q',
@@ -97,6 +96,7 @@ function doWrapping(individualLines: boolean, args: any) {
 			const preceedingWhiteSpace = otherMatches ? otherMatches[1] : '';
 			textToWrapInPreview = rangeToReplace.isSingleLine ? [textToReplace] : ['\n\t' + textToReplace.split('\n' + preceedingWhiteSpace).join('\n\t') + '\n'];
 		}
+		textToWrapInPreview = textToWrapInPreview.map(e => e.replace(/(\$\d)/g, '\\$1'));
 
 		return {
 			previewRange: rangeToReplace,
@@ -402,6 +402,9 @@ export function isValidLocationForEmmetAbbreviation(document: vscode.TextDocumen
 				&& abbreviation.indexOf(':') === -1) {
 				return hexColorRegex.test(abbreviation) || abbreviation === '!';
 			}
+			if (hexColorRegex.test(abbreviation) || abbreviation === '!') {
+				return false;
+			}
 		}
 
 		// If current node is a rule or at-rule, then perform additional checks to ensure
@@ -442,9 +445,7 @@ export function isValidLocationForEmmetAbbreviation(document: vscode.TextDocumen
 
 	if (currentHtmlNode) {
 		if (currentHtmlNode.name === 'script') {
-			return (currentHtmlNode.attributes
-				&& currentHtmlNode.attributes.some(x => x.name.toString() === 'type'
-					&& allowedMimeTypesInScriptTag.indexOf(x.value.toString()) > -1));
+			return isTemplateScript(currentHtmlNode);
 		}
 
 		const innerRange = getInnerRange(currentHtmlNode);
@@ -494,6 +495,12 @@ export function isValidLocationForEmmetAbbreviation(document: vscode.TextDocumen
 			continue;
 		}
 		if (char === question && textToBackTrack[i] === startAngle) {
+			i--;
+			continue;
+		}
+		// Fix for https://github.com/Microsoft/vscode/issues/55411
+		// A space is not a valid character right after < in a tag name.
+		if (/\s/.test(char) && textToBackTrack[i] === startAngle) {
 			i--;
 			continue;
 		}

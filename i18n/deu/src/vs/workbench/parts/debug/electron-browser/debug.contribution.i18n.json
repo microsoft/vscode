@@ -21,11 +21,12 @@
 	"allowBreakpointsEverywhere": "Ermöglicht das Festlegen von Haltepunkten für alle Dateien.",
 	"openExplorerOnEnd": "Hiermit wird am Ende einer Debugsitzung automatisch eine Explorer-Ansicht geöffnet.",
 	"inlineValues": "Variablenwerte beim Debuggen in Editor eingebunden anzeigen",
-	"hideActionBar": "Steuert, ob die unverankerte Debugaktionsleiste ausgeblendet werden soll",
+	"toolBarLocation": "Steuert die Position der Debugsymbolleiste. Mögliche Werte sind \"floating\" (schwebend in allen Ansichten), \"docked\" (verankert in der Debugansicht) oder \"hidden\" (ausgeblendet).",
 	"never": "Debuggen nie in Statusleiste anzeigen",
 	"always": "Debuggen immer in Statusleiste anzeigen",
 	"onFirstSessionStart": "Debuggen nur in Statusleiste anzeigen, nachdem das Debuggen erstmals gestartet wurde",
 	"showInStatusBar": "Steuert, wann die Debug-Statusleiste angezeigt werden soll",
 	"openDebug": "Steuert, ob das Debug-Menü beim Start der Debugsitzung offen ist.",
+	"enableAllHovers": "Legt fest, ob Nicht-Debughover beim Debuggen aktiviert sind. Bei \"true\" werden die Hoveranbieter aufgerufen, um einen Hover bereitstellen. Reguläre Hover werden auch bei der Einstellung \"true\" nicht angezeigt.",
 	"launch": "Startkonfiguration für globales Debuggen. Sollte als Alternative zu \"launch.json\" verwendet werden, das übergreifend von mehreren Arbeitsbereichen genutzt wird"
 }

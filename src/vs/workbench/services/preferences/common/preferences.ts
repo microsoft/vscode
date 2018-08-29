@@ -6,7 +6,8 @@
 import URI from 'vs/base/common/uri';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
-import { IEditor, Position, IEditorOptions } from 'vs/platform/editor/common/editor';
+import { IEditorOptions } from 'vs/platform/editor/common/editor';
+import { IEditor } from 'vs/workbench/common/editor';
 import { ITextModel } from 'vs/editor/common/model';
 import { IRange } from 'vs/editor/common/core/range';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
@@ -16,6 +17,7 @@ import { Event } from 'vs/base/common/event';
 import { IStringDictionary } from 'vs/base/common/collections';
 import { ILocalExtension } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { localize } from 'vs/nls';
+import { IEditorGroup } from 'vs/workbench/services/group/common/editorGroupsService';
 
 export interface ISettingsGroup {
 	id: string;
@@ -23,6 +25,7 @@ export interface ISettingsGroup {
 	title: string;
 	titleRange: IRange;
 	sections: ISettingsSection[];
+	contributedByExtension: boolean;
 }
 
 export interface ISettingsSection {
@@ -38,13 +41,19 @@ export interface ISetting {
 	value: any;
 	valueRange: IRange;
 	description: string[];
+	descriptionIsMarkdown: boolean;
 	descriptionRanges: IRange[];
 	overrides?: ISetting[];
 	overrideOf?: ISetting;
+	deprecationMessage?: string;
 
 	// TODO@roblou maybe need new type and new EditorModel for GUI editor instead of ISetting which is used for text settings editor
 	type?: string | string[];
 	enum?: string[];
+	enumDescriptions?: string[];
+	enumDescriptionsAreMarkdown?: boolean;
+	tags?: string[];
+	validator?: (value: any) => string;
 }
 
 export interface IExtensionSetting extends ISetting {
@@ -54,6 +63,7 @@ export interface IExtensionSetting extends ISetting {
 
 export interface ISearchResult {
 	filterMatches: ISettingMatch[];
+	exactMatch?: boolean;
 	metadata?: IFilterMetadata;
 }
 
@@ -70,6 +80,7 @@ export interface IFilterResult {
 	allGroups: ISettingsGroup[];
 	matches: IRange[];
 	metadata?: IStringDictionary<IFilterMetadata>;
+	exactMatch?: boolean;
 }
 
 export interface ISettingMatch {
@@ -140,15 +151,14 @@ export interface IPreferencesService {
 	resolveModel(uri: URI): TPromise<ITextModel>;
 	createPreferencesEditorModel<T>(uri: URI): TPromise<IPreferencesEditorModel<T>>;
 
-	openRawDefaultSettings(): TPromise<void>;
-	openRawUserSettings(): TPromise<void>;
-	openSettings(): TPromise<IEditor>;
-	openSettings2(): TPromise<IEditor>;
-	openGlobalSettings(options?: IEditorOptions, position?: Position): TPromise<IEditor>;
-	openWorkspaceSettings(options?: IEditorOptions, position?: Position): TPromise<IEditor>;
-	openFolderSettings(folder: URI, options?: IEditorOptions, position?: Position): TPromise<IEditor>;
-	switchSettings(target: ConfigurationTarget, resource: URI): TPromise<void>;
+	openRawDefaultSettings(): TPromise<IEditor>;
+	openSettings(jsonEditor?: boolean): TPromise<IEditor>;
+	openGlobalSettings(jsonEditor?: boolean, options?: IEditorOptions, group?: IEditorGroup): TPromise<IEditor>;
+	openWorkspaceSettings(jsonEditor?: boolean, options?: IEditorOptions, group?: IEditorGroup): TPromise<IEditor>;
+	openFolderSettings(folder: URI, jsonEditor?: boolean, options?: IEditorOptions, group?: IEditorGroup): TPromise<IEditor>;
+	switchSettings(target: ConfigurationTarget, resource: URI, jsonEditor?: boolean): TPromise<void>;
 	openGlobalKeybindingSettings(textual: boolean): TPromise<void>;
+	openDefaultKeybindingsFile(): TPromise<IEditor>;
 
 	configureSettingsForLanguage(language: string): void;
 }

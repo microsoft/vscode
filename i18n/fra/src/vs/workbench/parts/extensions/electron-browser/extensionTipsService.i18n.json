@@ -8,7 +8,6 @@
 	],
 	"neverShowAgain": "Ne plus afficher",
 	"searchMarketplace": "Rechercher dans le Marketplace",
-	"showLanguagePackExtensions": "Le Marketplace a des extensions qui peuvent aider à localiser VS Code en '{0}'",
 	"dynamicWorkspaceRecommendation": "Cette extension peut vous intéresser car elle est populaire parmi les utilisateurs du dépôt {0}.",
 	"exeBasedRecommendation": "Cette extension est recommandée parce que {0} est installé.",
 	"fileBasedRecommendation": "Cette extension est recommandée basé sur les fichiers que vous avez ouverts récemment.",

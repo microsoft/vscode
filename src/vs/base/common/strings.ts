@@ -333,11 +333,11 @@ export function compareIgnoreCase(a: string, b: string): number {
 	}
 }
 
-function isLowerAsciiLetter(code: number): boolean {
+export function isLowerAsciiLetter(code: number): boolean {
 	return code >= CharCode.a && code <= CharCode.z;
 }
 
-function isUpperAsciiLetter(code: number): boolean {
+export function isUpperAsciiLetter(code: number): boolean {
 	return code >= CharCode.A && code <= CharCode.Z;
 }
 
@@ -684,4 +684,8 @@ export function containsUppercaseCharacter(target: string, ignoreEscapedChars = 
 	}
 
 	return target.toLowerCase() !== target;
+}
+
+export function uppercaseFirstLetter(str: string): string {
+	return str.charAt(0).toUpperCase() + str.slice(1);
 }

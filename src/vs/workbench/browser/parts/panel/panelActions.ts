@@ -10,14 +10,15 @@ import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { KeyMod, KeyCode } from 'vs/base/common/keyCodes';
 import { Action } from 'vs/base/common/actions';
 import { Registry } from 'vs/platform/registry/common/platform';
-import { SyncActionDescriptor } from 'vs/platform/actions/common/actions';
+import { SyncActionDescriptor, MenuId, MenuRegistry } from 'vs/platform/actions/common/actions';
 import { IWorkbenchActionRegistry, Extensions as WorkbenchExtensions } from 'vs/workbench/common/actions';
 import { IPanelService } from 'vs/workbench/services/panel/common/panelService';
 import { IPartService, Parts, Position } from 'vs/workbench/services/part/common/partService';
-import { ActivityAction } from 'vs/workbench/browser/parts/compositebar/compositeBarActions';
+import { ActivityAction } from 'vs/workbench/browser/parts/compositeBarActions';
 import { IActivity } from 'vs/workbench/common/activity';
 
 export class ClosePanelAction extends Action {
+
 	static readonly ID = 'workbench.action.closePanel';
 	static LABEL = nls.localize('closePanel', "Close Panel");
 
@@ -29,12 +30,13 @@ export class ClosePanelAction extends Action {
 		super(id, name, 'hide-panel-action');
 	}
 
-	public run(): TPromise<any> {
+	run(): TPromise<any> {
 		return this.partService.setPanelHidden(true);
 	}
 }
 
 export class TogglePanelAction extends Action {
+
 	static readonly ID = 'workbench.action.togglePanel';
 	static LABEL = nls.localize('togglePanel', "Toggle Panel");
 
@@ -46,15 +48,15 @@ export class TogglePanelAction extends Action {
 		super(id, name, partService.isVisible(Parts.PANEL_PART) ? 'panel expanded' : 'panel');
 	}
 
-	public run(): TPromise<any> {
+	run(): TPromise<any> {
 		return this.partService.setPanelHidden(this.partService.isVisible(Parts.PANEL_PART));
 	}
 }
 
 class FocusPanelAction extends Action {
 
-	public static readonly ID = 'workbench.action.focusPanel';
-	public static readonly LABEL = nls.localize('focusPanel', "Focus into Panel");
+	static readonly ID = 'workbench.action.focusPanel';
+	static readonly LABEL = nls.localize('focusPanel', "Focus into Panel");
 
 	constructor(
 		id: string,
@@ -65,7 +67,7 @@ class FocusPanelAction extends Action {
 		super(id, label);
 	}
 
-	public run(): TPromise<any> {
+	run(): TPromise<any> {
 
 		// Show panel
 		if (!this.partService.isVisible(Parts.PANEL_PART)) {
@@ -83,10 +85,12 @@ class FocusPanelAction extends Action {
 
 export class TogglePanelPositionAction extends Action {
 
-	public static readonly ID = 'workbench.action.togglePanelPosition';
-	public static readonly LABEL = nls.localize('toggledPanelPosition', "Toggle Panel Position");
+	static readonly ID = 'workbench.action.togglePanelPosition';
+	static readonly LABEL = nls.localize('toggledPanelPosition', "Toggle Panel Position");
+
 	private static readonly MOVE_TO_RIGHT_LABEL = nls.localize('moveToRight', "Move to Right");
 	private static readonly MOVE_TO_BOTTOM_LABEL = nls.localize('moveToBottom', "Move to Bottom");
+
 	private toDispose: IDisposable[];
 
 	constructor(
@@ -106,12 +110,12 @@ export class TogglePanelPositionAction extends Action {
 		setClassAndLabel();
 	}
 
-	public run(): TPromise<any> {
+	run(): TPromise<any> {
 		const position = this.partService.getPanelPosition();
 		return this.partService.setPanelPosition(position === Position.BOTTOM ? Position.RIGHT : Position.BOTTOM);
 	}
 
-	public dispose(): void {
+	dispose(): void {
 		super.dispose();
 		this.toDispose = dispose(this.toDispose);
 	}
@@ -119,10 +123,12 @@ export class TogglePanelPositionAction extends Action {
 
 export class ToggleMaximizedPanelAction extends Action {
 
-	public static readonly ID = 'workbench.action.toggleMaximizedPanel';
-	public static readonly LABEL = nls.localize('toggleMaximizedPanel', "Toggle Maximized Panel");
+	static readonly ID = 'workbench.action.toggleMaximizedPanel';
+	static readonly LABEL = nls.localize('toggleMaximizedPanel', "Toggle Maximized Panel");
+
 	private static readonly MAXIMIZE_LABEL = nls.localize('maximizePanel', "Maximize Panel Size");
 	private static readonly RESTORE_LABEL = nls.localize('minimizePanel', "Restore Panel Size");
+
 	private toDispose: IDisposable[];
 
 	constructor(
@@ -139,13 +145,12 @@ export class ToggleMaximizedPanelAction extends Action {
 		}));
 	}
 
-	public run(): TPromise<any> {
-		// Show panel
+	run(): TPromise<any> {
 		return (!this.partService.isVisible(Parts.PANEL_PART) ? this.partService.setPanelHidden(false) : TPromise.as(null))
 			.then(() => this.partService.toggleMaximizedPanel());
 	}
 
-	public dispose(): void {
+	dispose(): void {
 		super.dispose();
 		this.toDispose = dispose(this.toDispose);
 	}
@@ -160,7 +165,7 @@ export class PanelActivityAction extends ActivityAction {
 		super(activity);
 	}
 
-	public run(event: any): TPromise<any> {
+	run(event: any): TPromise<any> {
 		return this.panelService.openPanel(this.activity.id, true).then(() => this.activate());
 	}
 }
@@ -172,3 +177,12 @@ actionRegistry.registerWorkbenchAction(new SyncActionDescriptor(ToggleMaximizedP
 actionRegistry.registerWorkbenchAction(new SyncActionDescriptor(ClosePanelAction, ClosePanelAction.ID, ClosePanelAction.LABEL), 'View: Close Panel', nls.localize('view', "View"));
 actionRegistry.registerWorkbenchAction(new SyncActionDescriptor(TogglePanelPositionAction, TogglePanelPositionAction.ID, TogglePanelPositionAction.LABEL), 'View: Toggle Panel Position', nls.localize('view', "View"));
 actionRegistry.registerWorkbenchAction(new SyncActionDescriptor(ToggleMaximizedPanelAction, ToggleMaximizedPanelAction.ID, undefined), 'View: Toggle Panel Position', nls.localize('view', "View"));
+
+MenuRegistry.appendMenuItem(MenuId.MenubarAppearanceMenu, {
+	group: '2_workbench_layout',
+	command: {
+		id: TogglePanelAction.ID,
+		title: nls.localize({ key: 'miTogglePanel', comment: ['&& denotes a mnemonic'] }, "Toggle &&Panel")
+	},
+	order: 5
+});

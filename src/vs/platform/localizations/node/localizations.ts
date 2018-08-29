@@ -8,7 +8,6 @@ import { createHash } from 'crypto';
 import { IExtensionManagementService, ILocalExtension, IExtensionIdentifier } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
-import { join } from 'vs/base/common/paths';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { Limiter } from 'vs/base/common/async';
 import { areSameExtensions, getGalleryExtensionIdFromLocal, getIdFromLocalExtensionId } from 'vs/platform/extensionManagement/common/extensionManagementUtil';
@@ -17,6 +16,8 @@ import { isValidLocalization, ILocalizationsService, LanguageType } from 'vs/pla
 import product from 'vs/platform/node/product';
 import { distinct, equals } from 'vs/base/common/arrays';
 import { Event, Emitter } from 'vs/base/common/event';
+import { Schemas } from 'vs/base/common/network';
+import { posix } from 'path';
 
 interface ILanguagePack {
 	hash: string;
@@ -27,7 +28,7 @@ interface ILanguagePack {
 	translations: { [id: string]: string };
 }
 
-const systemLanguages: string[] = ['de', 'en', 'en-US', 'es', 'fr', 'it', 'ja', 'ko', 'ru', 'zh-CN', 'zh-Hans', 'zh-TW', 'zh-Hant'];
+const systemLanguages: string[] = ['de', 'en', 'en-US', 'es', 'fr', 'it', 'ja', 'ko', 'ru', 'zh-CN', 'zh-TW'];
 if (product.quality !== 'stable') {
 	systemLanguages.push('hu');
 }
@@ -106,7 +107,7 @@ class LanguagePacksCache extends Disposable {
 		@ILogService private logService: ILogService
 	) {
 		super();
-		this.languagePacksFilePath = join(environmentService.userDataPath, 'languagepacks.json');
+		this.languagePacksFilePath = posix.join(environmentService.userDataPath, 'languagepacks.json');
 		this.languagePacksFileLimiter = new Limiter(1);
 	}
 
@@ -138,7 +139,7 @@ class LanguagePacksCache extends Disposable {
 	private createLanguagePacksFromExtension(languagePacks: { [language: string]: ILanguagePack }, extension: ILocalExtension): void {
 		const extensionIdentifier = { id: getGalleryExtensionIdFromLocal(extension), uuid: extension.identifier.uuid };
 		for (const localizationContribution of extension.manifest.contributes.localizations) {
-			if (isValidLocalization(localizationContribution)) {
+			if (extension.location.scheme === Schemas.file && isValidLocalization(localizationContribution)) {
 				let languagePack = languagePacks[localizationContribution.languageId];
 				if (!languagePack) {
 					languagePack = { hash: '', extensions: [], translations: {} };
@@ -151,7 +152,7 @@ class LanguagePacksCache extends Disposable {
 					languagePack.extensions.push({ extensionIdentifier, version: extension.manifest.version });
 				}
 				for (const translation of localizationContribution.translations) {
-					languagePack.translations[translation.id] = join(extension.path, translation.path);
+					languagePack.translations[translation.id] = posix.join(extension.location.fsPath, translation.path);
 				}
 			}
 		}

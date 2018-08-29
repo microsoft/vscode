@@ -9,7 +9,7 @@
 	"textFileEditor": "Editor de archivos de texto",
 	"createFile": "Crear archivo",
 	"relaunchWithIncreasedMemoryLimit": "Reiniciar con {0} MB",
-	"configureMemoryLimit": "Configurar el límite de memoria",
+	"configureMemoryLimit": "Configurar límite de memoria",
 	"fileEditorWithInputAriaLabel": "{0}. Editor de archivos de texto.",
 	"fileEditorAriaLabel": "Editor de archivos de texto."
 }

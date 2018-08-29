@@ -57,5 +57,7 @@
 	"workbench.action.terminal.scrollToPreviousCommand": "Desplácese al comando anterior",
 	"workbench.action.terminal.scrollToNextCommand": "Desplácese al siguiente comando",
 	"workbench.action.terminal.selectToPreviousCommand": "Seleccionar hasta el comando anterior",
-	"workbench.action.terminal.selectToNextCommand": "Seleccionar hasta el comando siguiente"
+	"workbench.action.terminal.selectToNextCommand": "Seleccionar hasta el comando siguiente",
+	"workbench.action.terminal.selectToPreviousLine": "Seleccione la línea anterior",
+	"workbench.action.terminal.selectToNextLine": "Seleccione la línea siguiente"
 }

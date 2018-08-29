@@ -17,13 +17,12 @@
 	"issueTitleLabel": "标题",
 	"issueTitleRequired": "请输入标题。",
 	"titleLengthValidation": "标题太长。",
-	"systemInfo": "我的系统信息",
-	"sendData": "发送我的数据",
-	"processes": "当前运行的进程",
-	"workspaceStats": "我的工作区数据",
-	"extensions": "我的扩展",
-	"searchedExtensions": "已搜索的扩展",
-	"settingsSearchDetails": "设置搜索的详细信息",
 	"details": "请输入详细信息。",
-	"loadingData": "正在加载数据..."
+	"sendSystemInfo": "包含系统信息 ({0})",
+	"show": "显示",
+	"sendProcessInfo": "包含当前运行中的进程 ({0})",
+	"sendWorkspaceInfo": "包含工作区元数据 ({0})",
+	"sendExtensions": "包含已启用的扩展 ({0})",
+	"sendSearchedExtensions": "发送已搜索的扩展 ({0})",
+	"sendSettingsSearchDetails": "发送设置搜索的详细信息 ({0})"
 }

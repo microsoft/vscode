@@ -19,7 +19,6 @@ import { getDocumentContext } from './utils/documentContext';
 import uri from 'vscode-uri';
 import { formatError, runSafe, runSafeAsync } from './utils/runner';
 
-import { FoldingRangeRequest, FoldingRangeServerCapabilities } from 'vscode-languageserver-protocol-foldingprovider';
 import { getFoldingRanges } from './modes/htmlFolding';
 
 namespace TagCloseRequest {
@@ -48,7 +47,7 @@ documents.listen(connection);
 
 let workspaceFolders: WorkspaceFolder[] = [];
 
-var languageModes: LanguageModes;
+let languageModes: LanguageModes;
 
 let clientSnippetSupport = false;
 let clientDynamicRegisterSupport = false;
@@ -56,7 +55,7 @@ let scopedSettingsSupport = false;
 let workspaceFoldersSupport = false;
 let foldingRangeLimit = Number.MAX_VALUE;
 
-var globalSettings: Settings = {};
+let globalSettings: Settings = {};
 let documentSettings: { [key: string]: Thenable<Settings> } = {};
 // remove document settings on close
 documents.onDidClose(e => {
@@ -67,8 +66,8 @@ function getDocumentSettings(textDocument: TextDocument, needsDocumentSettings: 
 	if (scopedSettingsSupport && needsDocumentSettings()) {
 		let promise = documentSettings[textDocument.uri];
 		if (!promise) {
-			let scopeUri = textDocument.uri;
-			let configRequestParam: ConfigurationParams = { items: [{ scopeUri, section: 'css' }, { scopeUri, section: 'html' }, { scopeUri, section: 'javascript' }] };
+			const scopeUri = textDocument.uri;
+			const configRequestParam: ConfigurationParams = { items: [{ scopeUri, section: 'css' }, { scopeUri, section: 'html' }, { scopeUri, section: 'javascript' }] };
 			promise = connection.sendRequest(ConfigurationRequest.type, configRequestParam).then(s => ({ css: s[0], html: s[1], javascript: s[2] }));
 			documentSettings[textDocument.uri] = promise;
 		}
@@ -80,7 +79,7 @@ function getDocumentSettings(textDocument: TextDocument, needsDocumentSettings: 
 // After the server has started the client sends an initialize request. The server receives
 // in the passed params the rootPath of the workspace plus the client capabilities
 connection.onInitialize((params: InitializeParams): InitializeResult => {
-	let initializationOptions = params.initializationOptions;
+	const initializationOptions = params.initializationOptions;
 
 	workspaceFolders = (<any>params).workspaceFolders;
 	if (!Array.isArray(workspaceFolders)) {
@@ -103,7 +102,7 @@ connection.onInitialize((params: InitializeParams): InitializeResult => {
 	});
 
 	function getClientCapability<T>(name: string, def: T) {
-		let keys = name.split('.');
+		const keys = name.split('.');
 		let c: any = params.capabilities;
 		for (let i = 0; c && i < keys.length; i++) {
 			if (!c.hasOwnProperty(keys[i])) {
@@ -119,7 +118,7 @@ connection.onInitialize((params: InitializeParams): InitializeResult => {
 	scopedSettingsSupport = getClientCapability('workspace.configuration', false);
 	workspaceFoldersSupport = getClientCapability('workspace.workspaceFolders', false);
 	foldingRangeLimit = getClientCapability('textDocument.foldingRange.rangeLimit', Number.MAX_VALUE);
-	let capabilities: ServerCapabilities & FoldingRangeServerCapabilities = {
+	const capabilities: ServerCapabilities = {
 		// Tell the client that the server works in FULL text document sync mode
 		textDocumentSync: documents.syncKind,
 		completionProvider: clientSnippetSupport ? { resolveProvider: true, triggerCharacters: ['.', ':', '<', '"', '=', '/'] } : undefined,
@@ -142,11 +141,11 @@ connection.onInitialized((p) => {
 		connection.client.register(DidChangeWorkspaceFoldersNotification.type);
 
 		connection.onNotification(DidChangeWorkspaceFoldersNotification.type, e => {
-			let toAdd = e.event.added;
-			let toRemove = e.event.removed;
-			let updatedFolders = [];
+			const toAdd = e.event.added;
+			const toRemove = e.event.removed;
+			const updatedFolders = [];
 			if (workspaceFolders) {
-				for (let folder of workspaceFolders) {
+				for (const folder of workspaceFolders) {
 					if (!toRemove.some(r => r.uri === folder.uri) && !toAdd.some(r => r.uri === folder.uri)) {
 						updatedFolders.push(folder);
 					}
@@ -168,10 +167,10 @@ connection.onDidChangeConfiguration((change) => {
 
 	// dynamically enable & disable the formatter
 	if (clientDynamicRegisterSupport) {
-		let enableFormatter = globalSettings && globalSettings.html && globalSettings.html.format && globalSettings.html.format.enable;
+		const enableFormatter = globalSettings && globalSettings.html && globalSettings.html.format && globalSettings.html.format.enable;
 		if (enableFormatter) {
 			if (!formatterRegistration) {
-				let documentSelector: DocumentSelector = [{ language: 'html' }, { language: 'handlebars' }]; // don't register razor, the formatter does more harm than good
+				const documentSelector: DocumentSelector = [{ language: 'html' }, { language: 'handlebars' }]; // don't register razor, the formatter does more harm than good
 				formatterRegistration = connection.client.register(DocumentRangeFormattingRequest.type, { documentSelector });
 			}
 		} else if (formatterRegistration) {
@@ -197,7 +196,7 @@ documents.onDidClose(event => {
 });
 
 function cleanPendingValidation(textDocument: TextDocument): void {
-	let request = pendingValidationRequests[textDocument.uri];
+	const request = pendingValidationRequests[textDocument.uri];
 	if (request) {
 		clearTimeout(request);
 		delete pendingValidationRequests[textDocument.uri];
@@ -213,7 +212,7 @@ function triggerValidation(textDocument: TextDocument): void {
 }
 
 function isValidationEnabled(languageId: string, settings: Settings = globalSettings) {
-	let validationSettings = settings && settings.html && settings.html.validate;
+	const validationSettings = settings && settings.html && settings.html.validate;
 	if (validationSettings) {
 		return languageId === 'css' && validationSettings.styles !== false || languageId === 'javascript' && validationSettings.scripts !== false;
 	}
@@ -222,19 +221,19 @@ function isValidationEnabled(languageId: string, settings: Settings = globalSett
 
 async function validateTextDocument(textDocument: TextDocument) {
 	try {
-		let version = textDocument.version;
-		let diagnostics: Diagnostic[] = [];
+		const version = textDocument.version;
+		const diagnostics: Diagnostic[] = [];
 		if (textDocument.languageId === 'html') {
-			let modes = languageModes.getAllModesInDocument(textDocument);
-			let settings = await getDocumentSettings(textDocument, () => modes.some(m => !!m.doValidation));
-			textDocument = documents.get(textDocument.uri);
-			if (textDocument && textDocument.version === version) { // check no new version has come in after in after the async op
+			const modes = languageModes.getAllModesInDocument(textDocument);
+			const settings = await getDocumentSettings(textDocument, () => modes.some(m => !!m.doValidation));
+			const latestTextDocument = documents.get(textDocument.uri);
+			if (latestTextDocument && latestTextDocument.version === version) { // check no new version has come in after in after the async op
 				modes.forEach(mode => {
 					if (mode.doValidation && isValidationEnabled(mode.getId(), settings)) {
-						pushAll(diagnostics, mode.doValidation(textDocument, settings));
+						pushAll(diagnostics, mode.doValidation(latestTextDocument, settings));
 					}
 				});
-				connection.sendDiagnostics({ uri: textDocument.uri, diagnostics });
+				connection.sendDiagnostics({ uri: latestTextDocument.uri, diagnostics });
 			}
 		}
 	} catch (e) {
@@ -245,6 +244,9 @@ async function validateTextDocument(textDocument: TextDocument) {
 connection.onCompletion(async (textDocumentPosition, token) => {
 	return runSafeAsync(async () => {
 		const document = documents.get(textDocumentPosition.textDocument.uri);
+		if (!document) {
+			return null;
+		}
 		const mode = languageModes.getModeAtPosition(document, textDocumentPosition.position);
 		if (!mode || !mode.doComplete) {
 			return { isIncomplete: true, items: [] };
@@ -260,8 +262,8 @@ connection.onCompletion(async (textDocumentPosition, token) => {
 			connection.telemetry.logEvent({ key: 'html.embbedded.complete', value: { languageId: mode.getId() } });
 		}
 
-		let settings = await getDocumentSettings(document, () => doComplete.length > 2);
-		let result = doComplete(document, textDocumentPosition.position, settings);
+		const settings = await getDocumentSettings(document, () => doComplete.length > 2);
+		const result = doComplete(document, textDocumentPosition.position, settings);
 		return result;
 
 	}, null, `Error while computing completions for ${textDocumentPosition.textDocument.uri}`, token);
@@ -269,10 +271,10 @@ connection.onCompletion(async (textDocumentPosition, token) => {
 
 connection.onCompletionResolve((item, token) => {
 	return runSafe(() => {
-		let data = item.data;
+		const data = item.data;
 		if (data && data.languageId && data.uri) {
-			let mode = languageModes.getMode(data.languageId);
-			let document = documents.get(data.uri);
+			const mode = languageModes.getMode(data.languageId);
+			const document = documents.get(data.uri);
 			if (mode && mode.doResolve && document) {
 				return mode.doResolve(document, item);
 			}
@@ -283,10 +285,12 @@ connection.onCompletionResolve((item, token) => {
 
 connection.onHover((textDocumentPosition, token) => {
 	return runSafe(() => {
-		let document = documents.get(textDocumentPosition.textDocument.uri);
-		let mode = languageModes.getModeAtPosition(document, textDocumentPosition.position);
-		if (mode && mode.doHover) {
-			return mode.doHover(document, textDocumentPosition.position);
+		const document = documents.get(textDocumentPosition.textDocument.uri);
+		if (document) {
+			const mode = languageModes.getModeAtPosition(document, textDocumentPosition.position);
+			if (mode && mode.doHover) {
+				return mode.doHover(document, textDocumentPosition.position);
+			}
 		}
 		return null;
 	}, null, `Error while computing hover for ${textDocumentPosition.textDocument.uri}`, token);
@@ -294,10 +298,12 @@ connection.onHover((textDocumentPosition, token) => {
 
 connection.onDocumentHighlight((documentHighlightParams, token) => {
 	return runSafe(() => {
-		let document = documents.get(documentHighlightParams.textDocument.uri);
-		let mode = languageModes.getModeAtPosition(document, documentHighlightParams.position);
-		if (mode && mode.findDocumentHighlight) {
-			return mode.findDocumentHighlight(document, documentHighlightParams.position);
+		const document = documents.get(documentHighlightParams.textDocument.uri);
+		if (document) {
+			const mode = languageModes.getModeAtPosition(document, documentHighlightParams.position);
+			if (mode && mode.findDocumentHighlight) {
+				return mode.findDocumentHighlight(document, documentHighlightParams.position);
+			}
 		}
 		return [];
 	}, [], `Error while computing document highlights for ${documentHighlightParams.textDocument.uri}`, token);
@@ -305,10 +311,12 @@ connection.onDocumentHighlight((documentHighlightParams, token) => {
 
 connection.onDefinition((definitionParams, token) => {
 	return runSafe(() => {
-		let document = documents.get(definitionParams.textDocument.uri);
-		let mode = languageModes.getModeAtPosition(document, definitionParams.position);
-		if (mode && mode.findDefinition) {
-			return mode.findDefinition(document, definitionParams.position);
+		const document = documents.get(definitionParams.textDocument.uri);
+		if (document) {
+			const mode = languageModes.getModeAtPosition(document, definitionParams.position);
+			if (mode && mode.findDefinition) {
+				return mode.findDefinition(document, definitionParams.position);
+			}
 		}
 		return [];
 	}, null, `Error while computing definitions for ${definitionParams.textDocument.uri}`, token);
@@ -316,10 +324,12 @@ connection.onDefinition((definitionParams, token) => {
 
 connection.onReferences((referenceParams, token) => {
 	return runSafe(() => {
-		let document = documents.get(referenceParams.textDocument.uri);
-		let mode = languageModes.getModeAtPosition(document, referenceParams.position);
-		if (mode && mode.findReferences) {
-			return mode.findReferences(document, referenceParams.position);
+		const document = documents.get(referenceParams.textDocument.uri);
+		if (document) {
+			const mode = languageModes.getModeAtPosition(document, referenceParams.position);
+			if (mode && mode.findReferences) {
+				return mode.findReferences(document, referenceParams.position);
+			}
 		}
 		return [];
 	}, [], `Error while computing references for ${referenceParams.textDocument.uri}`, token);
@@ -327,10 +337,12 @@ connection.onReferences((referenceParams, token) => {
 
 connection.onSignatureHelp((signatureHelpParms, token) => {
 	return runSafe(() => {
-		let document = documents.get(signatureHelpParms.textDocument.uri);
-		let mode = languageModes.getModeAtPosition(document, signatureHelpParms.position);
-		if (mode && mode.doSignatureHelp) {
-			return mode.doSignatureHelp(document, signatureHelpParms.position);
+		const document = documents.get(signatureHelpParms.textDocument.uri);
+		if (document) {
+			const mode = languageModes.getModeAtPosition(document, signatureHelpParms.position);
+			if (mode && mode.doSignatureHelp) {
+				return mode.doSignatureHelp(document, signatureHelpParms.position);
+			}
 		}
 		return null;
 	}, null, `Error while computing signature help for ${signatureHelpParms.textDocument.uri}`, token);
@@ -338,24 +350,27 @@ connection.onSignatureHelp((signatureHelpParms, token) => {
 
 connection.onDocumentRangeFormatting(async (formatParams, token) => {
 	return runSafeAsync(async () => {
-		let document = documents.get(formatParams.textDocument.uri);
-		let settings = await getDocumentSettings(document, () => true);
-		if (!settings) {
-			settings = globalSettings;
-		}
-		let unformattedTags: string = settings && settings.html && settings.html.format && settings.html.format.unformatted || '';
-		let enabledModes = { css: !unformattedTags.match(/\bstyle\b/), javascript: !unformattedTags.match(/\bscript\b/) };
+		const document = documents.get(formatParams.textDocument.uri);
+		if (document) {
+			let settings = await getDocumentSettings(document, () => true);
+			if (!settings) {
+				settings = globalSettings;
+			}
+			const unformattedTags: string = settings && settings.html && settings.html.format && settings.html.format.unformatted || '';
+			const enabledModes = { css: !unformattedTags.match(/\bstyle\b/), javascript: !unformattedTags.match(/\bscript\b/) };
 
-		return format(languageModes, document, formatParams.range, formatParams.options, settings, enabledModes);
+			return format(languageModes, document, formatParams.range, formatParams.options, settings, enabledModes);
+		}
+		return [];
 	}, [], `Error while formatting range for ${formatParams.textDocument.uri}`, token);
 });
 
 connection.onDocumentLinks((documentLinkParam, token) => {
 	return runSafe(() => {
-		let document = documents.get(documentLinkParam.textDocument.uri);
-		let links: DocumentLink[] = [];
+		const document = documents.get(documentLinkParam.textDocument.uri);
+		const links: DocumentLink[] = [];
 		if (document) {
-			let documentContext = getDocumentContext(document.uri, workspaceFolders);
+			const documentContext = getDocumentContext(document.uri, workspaceFolders);
 			languageModes.getAllModesInDocument(document).forEach(m => {
 				if (m.findDocumentLinks) {
 					pushAll(links, m.findDocumentLinks(document, documentContext));
@@ -368,21 +383,23 @@ connection.onDocumentLinks((documentLinkParam, token) => {
 
 connection.onDocumentSymbol((documentSymbolParms, token) => {
 	return runSafe(() => {
-		let document = documents.get(documentSymbolParms.textDocument.uri);
-		let symbols: SymbolInformation[] = [];
-		languageModes.getAllModesInDocument(document).forEach(m => {
-			if (m.findDocumentSymbols) {
-				pushAll(symbols, m.findDocumentSymbols(document));
-			}
-		});
+		const document = documents.get(documentSymbolParms.textDocument.uri);
+		const symbols: SymbolInformation[] = [];
+		if (document) {
+			languageModes.getAllModesInDocument(document).forEach(m => {
+				if (m.findDocumentSymbols) {
+					pushAll(symbols, m.findDocumentSymbols(document));
+				}
+			});
+		}
 		return symbols;
 	}, [], `Error while computing document symbols for ${documentSymbolParms.textDocument.uri}`, token);
 });
 
 connection.onRequest(DocumentColorRequest.type, (params, token) => {
 	return runSafe(() => {
-		let infos: ColorInformation[] = [];
-		let document = documents.get(params.textDocument.uri);
+		const infos: ColorInformation[] = [];
+		const document = documents.get(params.textDocument.uri);
 		if (document) {
 			languageModes.getAllModesInDocument(document).forEach(m => {
 				if (m.findDocumentColors) {
@@ -396,9 +413,9 @@ connection.onRequest(DocumentColorRequest.type, (params, token) => {
 
 connection.onRequest(ColorPresentationRequest.type, (params, token) => {
 	return runSafe(() => {
-		let document = documents.get(params.textDocument.uri);
+		const document = documents.get(params.textDocument.uri);
 		if (document) {
-			let mode = languageModes.getModeAtPosition(document, params.range.start);
+			const mode = languageModes.getModeAtPosition(document, params.range.start);
 			if (mode && mode.getColorPresentations) {
 				return mode.getColorPresentations(document, params.color, params.range);
 			}
@@ -409,11 +426,11 @@ connection.onRequest(ColorPresentationRequest.type, (params, token) => {
 
 connection.onRequest(TagCloseRequest.type, (params, token) => {
 	return runSafe(() => {
-		let document = documents.get(params.textDocument.uri);
+		const document = documents.get(params.textDocument.uri);
 		if (document) {
-			let pos = params.position;
+			const pos = params.position;
 			if (pos.character > 0) {
-				let mode = languageModes.getModeAtPosition(document, Position.create(pos.line, pos.character - 1));
+				const mode = languageModes.getModeAtPosition(document, Position.create(pos.line, pos.character - 1));
 				if (mode && mode.doAutoClose) {
 					return mode.doAutoClose(document, pos);
 				}
@@ -423,9 +440,9 @@ connection.onRequest(TagCloseRequest.type, (params, token) => {
 	}, null, `Error while computing tag close actions for ${params.textDocument.uri}`, token);
 });
 
-connection.onRequest(FoldingRangeRequest.type, (params, token) => {
+connection.onFoldingRanges((params, token) => {
 	return runSafe(() => {
-		let document = documents.get(params.textDocument.uri);
+		const document = documents.get(params.textDocument.uri);
 		if (document) {
 			return getFoldingRanges(languageModes, document, foldingRangeLimit, token);
 		}

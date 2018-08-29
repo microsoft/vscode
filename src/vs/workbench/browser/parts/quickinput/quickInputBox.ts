@@ -33,12 +33,6 @@ export class QuickInputBox {
 			ariaLabel: DEFAULT_INPUT_ARIA_LABEL
 		});
 		this.disposables.push(this.inputBox);
-
-		// ARIA
-		const inputElement = this.inputBox.inputElement;
-		inputElement.setAttribute('role', 'combobox');
-		inputElement.setAttribute('aria-haspopup', 'false');
-		inputElement.setAttribute('aria-autocomplete', 'list');
 	}
 
 	onKeyDown = (handler: (event: StandardKeyboardEvent) => void): IDisposable => {
@@ -67,8 +61,32 @@ export class QuickInputBox {
 		this.inputBox.setPlaceHolder(placeholder);
 	}
 
-	setPassword(isPassword: boolean): void {
-		this.inputBox.inputElement.type = isPassword ? 'password' : 'text';
+	get placeholder() {
+		return this.inputBox.inputElement.getAttribute('placeholder');
+	}
+
+	set placeholder(placeholder: string) {
+		this.inputBox.setPlaceHolder(placeholder);
+	}
+
+	get password() {
+		return this.inputBox.inputElement.type === 'password';
+	}
+
+	set password(password: boolean) {
+		this.inputBox.inputElement.type = password ? 'password' : 'text';
+	}
+
+	set enabled(enabled: boolean) {
+		this.inputBox.setEnabled(enabled);
+	}
+
+	setAttribute(name: string, value: string) {
+		this.inputBox.inputElement.setAttribute(name, value);
+	}
+
+	removeAttribute(name: string) {
+		this.inputBox.inputElement.removeAttribute(name);
 	}
 
 	showDecoration(decoration: Severity): void {

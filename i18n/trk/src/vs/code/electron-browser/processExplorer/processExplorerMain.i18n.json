@@ -11,5 +11,7 @@
 	"pid": "pid",
 	"name": "Adı",
 	"killProcess": "İşlemi Sonlandır",
-	"forceKillProcess": "İşlemi Sonlanmaya Zorla"
+	"forceKillProcess": "İşlemi Sonlanmaya Zorla",
+	"copy": "Kopyala",
+	"copyAll": "Tümünü Kopyala"
 }

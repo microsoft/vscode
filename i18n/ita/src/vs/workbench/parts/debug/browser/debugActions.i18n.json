@@ -41,7 +41,7 @@
 	"debugConsoleAction": "Console di debug",
 	"unreadOutput": "Nuovo output nella console di debug",
 	"debugFocusConsole": "Console di debug stato attivo",
-	"focusProcess": "Sposta stato attivo su processo",
+	"focusSession": "Sposta stato attivo su sessione",
 	"stepBackDebug": "Torna indietro",
 	"reverseContinue": "Inverti"
 }

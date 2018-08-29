@@ -10,7 +10,7 @@ import * as Platform from 'vs/platform/registry/common/platform';
 import { ViewletDescriptor, Extensions, Viewlet, ViewletRegistry } from 'vs/workbench/browser/viewlet';
 import * as Types from 'vs/base/common/types';
 
-suite('Workbench Viewlet', () => {
+suite('Viewlets', () => {
 
 	class TestViewlet extends Viewlet {
 

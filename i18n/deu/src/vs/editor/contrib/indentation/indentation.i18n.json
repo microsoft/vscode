@@ -13,5 +13,6 @@
 	"indentUsingTabs": "Einzug mithilfe von Tabstopps",
 	"indentUsingSpaces": "Einzug mithilfe von Leerzeichen",
 	"detectIndentation": "Einzug aus Inhalt erkennen",
-	"editor.reindentlines": "Neuen Einzug für Zeilen festlegen"
+	"editor.reindentlines": "Neuen Einzug für Zeilen festlegen",
+	"editor.reindentselectedlines": "Gewählte Zeilen zurückziehen"
 }

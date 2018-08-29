@@ -10,7 +10,6 @@ import { createDecorator } from 'vs/platform/instantiation/common/instantiation'
 
 export const IOpenerService = createDecorator<IOpenerService>('openerService');
 
-
 export interface IOpenerService {
 
 	_serviceBrand: any;

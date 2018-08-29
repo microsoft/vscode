@@ -5,10 +5,13 @@
 'use strict';
 
 import URI from 'vs/base/common/uri';
+import { isMalformedFileUri } from 'vs/base/common/resources';
 import * as vscode from 'vscode';
 import * as typeConverters from 'vs/workbench/api/node/extHostTypeConverters';
 import { CommandsRegistry, ICommandService, ICommandHandler } from 'vs/platform/commands/common/commands';
-import { Position as EditorPosition, ITextEditorOptions } from 'vs/platform/editor/common/editor';
+import { ITextEditorOptions } from 'vs/platform/editor/common/editor';
+import { EditorViewColumn } from 'vs/workbench/api/shared/editor';
+import { EditorGroupLayout } from 'vs/workbench/services/group/common/editorGroupsService';
 
 // -----------------------------------------------------------------
 // The following commands are registered on both sides separately.
@@ -46,8 +49,14 @@ export class OpenFolderAPICommand {
 		if (!uri) {
 			return executor.executeCommand('_files.pickFolderAndOpen', forceNewWindow);
 		}
+		let correctedUri = isMalformedFileUri(uri);
+		if (correctedUri) {
+			// workaround for #55916 and #55891, will be removed in 1.28
+			console.warn(`'vscode.openFolder' command invoked with an invalid URI (file:// scheme missing): '${uri}'. Converted to a 'file://' URI: ${correctedUri}`);
+			uri = correctedUri;
+		}
 
-		return executor.executeCommand('_files.windowOpen', [uri.fsPath], forceNewWindow);
+		return executor.executeCommand('_files.windowOpen', [uri], forceNewWindow);
 	}
 }
 CommandsRegistry.registerCommand(OpenFolderAPICommand.ID, adjustHandler(OpenFolderAPICommand.execute));
@@ -70,21 +79,21 @@ export class OpenAPICommand {
 	public static ID = 'vscode.open';
 	public static execute(executor: ICommandsExecutor, resource: URI, columnOrOptions?: vscode.ViewColumn | vscode.TextDocumentShowOptions): Thenable<any> {
 		let options: ITextEditorOptions;
-		let column: EditorPosition;
+		let position: EditorViewColumn;
 
 		if (columnOrOptions) {
 			if (typeof columnOrOptions === 'number') {
-				column = typeConverters.ViewColumn.from(columnOrOptions);
+				position = typeConverters.ViewColumn.from(columnOrOptions);
 			} else {
 				options = typeConverters.TextEditorOptions.from(columnOrOptions);
-				column = typeConverters.ViewColumn.from(columnOrOptions.viewColumn);
+				position = typeConverters.ViewColumn.from(columnOrOptions.viewColumn);
 			}
 		}
 
 		return executor.executeCommand('_workbench.open', [
 			resource,
 			options,
-			column
+			position
 		]);
 	}
 }
@@ -97,3 +106,11 @@ export class RemoveFromRecentlyOpenedAPICommand {
 	}
 }
 CommandsRegistry.registerCommand(RemoveFromRecentlyOpenedAPICommand.ID, adjustHandler(RemoveFromRecentlyOpenedAPICommand.execute));
+
+export class SetEditorLayoutAPICommand {
+	public static ID = 'vscode.setEditorLayout';
+	public static execute(executor: ICommandsExecutor, layout: EditorGroupLayout): Thenable<any> {
+		return executor.executeCommand('layoutEditorGroups', layout);
+	}
+}
+CommandsRegistry.registerCommand(SetEditorLayoutAPICommand.ID, adjustHandler(SetEditorLayoutAPICommand.execute));

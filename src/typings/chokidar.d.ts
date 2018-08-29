@@ -8,7 +8,7 @@ declare module 'vscode-chokidar' {
 	/**
 	 *  takes paths to be watched recursively and options
 	 */
-	export function watch(paths: string, options: IOptions): FSWatcher;
+	export function watch(paths: string | string[], options: IOptions): FSWatcher;
 
 	export interface IOptions {
 

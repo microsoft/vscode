@@ -1,0 +1,13 @@
+{
+  "name": "tree",
+  "version": "1.0.0",
+  "main": "index.js",
+  "license": "MIT",
+  "dependencies": {
+    "koa": "^2.5.1",
+    "koa-mount": "^3.0.0",
+    "koa-route": "^3.2.0",
+    "koa-static": "^5.0.0",
+    "mz": "^2.7.0"
+  }
+}

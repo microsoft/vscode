@@ -1,8 +1,8 @@
 {
   "name": "grunt",
   "publisher": "vscode",
-  "description": "Extension to add Grunt capabilities to VSCode.",
-  "displayName": "Grunt support for VSCode",
+  "description": "Extension to add Grunt capabilities to VS Code.",
+  "displayName": "Grunt support for VS Code",
   "version": "1.0.0",
   "icon": "images/grunt.png",
   "engines": {
@@ -16,10 +16,10 @@
     "watch": "gulp watch-extension:grunt"
   },
   "dependencies": {
-    "vscode-nls": "^3.2.1"
+    "vscode-nls": "^3.2.4"
   },
   "devDependencies": {
-    "@types/node": "7.0.43"
+    "@types/node": "^8.10.25"
   },
   "main": "./out/main",
   "activationEvents": [
@@ -46,7 +46,9 @@
     "taskDefinitions": [
       {
         "type": "grunt",
-        "required": ["task"],
+        "required": [
+          "task"
+        ],
         "properties": {
           "task": {
             "type": "string",

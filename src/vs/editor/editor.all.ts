@@ -42,3 +42,4 @@ import 'vs/editor/contrib/suggest/suggestController';
 import 'vs/editor/contrib/toggleTabFocusMode/toggleTabFocusMode';
 import 'vs/editor/contrib/wordHighlighter/wordHighlighter';
 import 'vs/editor/contrib/wordOperations/wordOperations';
+import 'vs/editor/contrib/wordPartOperations/wordPartOperations';

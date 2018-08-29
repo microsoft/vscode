@@ -65,7 +65,6 @@
 	"emptyFileNameError": "Meg kell adni egy fájl vagy mappa nevét.",
 	"fileNameStartsWithSlashError": "A fájlok és mappák neve nem kezdődhet perjellel.",
 	"fileNameExistsError": "Már létezik **{0}** nevű fájl vagy mappa ezen a helyszínen. Adjon meg egy másik nevet!",
-	"fileUsedAsFolderError": "A(z) **{0}** egy fájl, és nem rendelkezhet alelemekkel.",
 	"invalidFileNameError": "A(z) **{0}** név nem érvényes fájl- vagy mappanév. Adjon meg egy másik nevet!",
 	"filePathTooLongError": "A(z) **{0}** név egy olyan elérési utat eredményez, ami túl hosszú. Adjon meg egy másik nevet!",
 	"compareWithClipboard": "Aktív fájl összehasonlítása a vágólap tartalmával",

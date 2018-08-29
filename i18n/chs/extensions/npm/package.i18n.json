@@ -12,15 +12,15 @@
 	"config.npm.runSilent": "使用 \"--silent\" 选项运行 npm 命令。",
 	"config.npm.packageManager": "用于运行脚本的程序包管理器。",
 	"config.npm.exclude": "配置应从自动脚本检测中排除的文件夹的 glob 模式。",
-	"config.npm.enableScriptExplorer": "当工作区包含 \"package.json\" 文件时，启用 npm 脚本资源管理器视图。",
+	"config.npm.enableScriptExplorer": "在资源管理器中启用“npm 脚本”视图。",
+	"config.npm.scriptExplorerAction": "在脚本资源管理器中点击时进行的默认操作: \"open\" (打开) 或 \"run\" (运行)。默认值为 \"open\"。",
 	"npm.parseError": "Npm 任务检测: 无法分析文件 {0}",
 	"taskdef.script": "要自定义的 npm 脚本。",
 	"taskdef.path": "包含 package.json 文件的文件夹路径，其中 package.json 文件提供脚本。可以省略。",
-	"view.name": "Npm 脚本",
+	"view.name": "npm 脚本",
 	"command.refresh": "刷新",
 	"command.run": "运行",
 	"command.debug": "调试",
 	"command.openScript": "开放",
-	"npm.scriptInvalid": "找不到脚本“{0}”。请尝试刷新视图。",
-	"npm.noDebugOptions": "无法启动“{0}”并进行调试。脚本缺少 Node 调试选项，如 \"--inspect-brk\"。"
+	"command.runInstall": "运行 install"
 }

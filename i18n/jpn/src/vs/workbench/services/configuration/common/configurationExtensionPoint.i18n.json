@@ -16,6 +16,7 @@
 	"vscode.extension.contributes.configuration": "構成の設定を提供します。",
 	"invalid.title": "'configuration.title' は、文字列である必要があります",
 	"invalid.properties": "'configuration.properties' は、オブジェクトである必要があります",
+	"invalid.property": "'configuration.property' は、オブジェクトである必要があります",
 	"invalid.allOf": "'configuration.allOf' は非推奨で使用できなくなります。代わりに 'configuration' コントリビューション ポイントに複数の構成セクションを配列として渡します。",
 	"workspaceConfig.folders.description": "ワークスペースで読み込まれるフォルダーのリスト。",
 	"workspaceConfig.path.description": "ファイルパス。例: `/root/folderA` または `./folderA` のようなワークスペース ファイルの場所に対して解決される相対パス。",

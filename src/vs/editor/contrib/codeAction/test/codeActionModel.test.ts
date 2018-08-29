@@ -2,19 +2,23 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-'use strict';
 
 import * as assert from 'assert';
+import { dispose, IDisposable } from 'vs/base/common/lifecycle';
 import URI from 'vs/base/common/uri';
-import { TextModel } from 'vs/editor/common/model/textModel';
-import { createTestCodeEditor } from 'vs/editor/test/browser/testCodeEditor';
-import { MarkerService } from 'vs/platform/markers/common/markerService';
-import { CodeActionOracle } from 'vs/editor/contrib/codeAction/codeActionModel';
-import { CodeActionProviderRegistry, LanguageIdentifier } from 'vs/editor/common/modes';
-import { IDisposable } from 'vs/base/common/lifecycle';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { Selection } from 'vs/editor/common/core/selection';
+import { TextModel } from 'vs/editor/common/model/textModel';
+import { CodeActionProviderRegistry, LanguageIdentifier } from 'vs/editor/common/modes';
+import { CodeActionOracle } from 'vs/editor/contrib/codeAction/codeActionModel';
+import { createTestCodeEditor } from 'vs/editor/test/browser/testCodeEditor';
+import { MarkerService } from 'vs/platform/markers/common/markerService';
 
+const testProvider = {
+	provideCodeActions() {
+		return [{ id: 'test-command', title: 'test', arguments: [] }];
+	}
+};
 suite('CodeAction', () => {
 
 	const languageIdentifier = new LanguageIdentifier('foo-lang', 3);
@@ -22,14 +26,10 @@ suite('CodeAction', () => {
 	let model: TextModel;
 	let markerService: MarkerService;
 	let editor: ICodeEditor;
-	let reg: IDisposable;
+	let disposables: IDisposable[];
 
 	setup(() => {
-		reg = CodeActionProviderRegistry.register(languageIdentifier.language, {
-			provideCodeActions() {
-				return [{ id: 'test-command', title: 'test', arguments: [] }];
-			}
-		});
+		disposables = [];
 		markerService = new MarkerService();
 		model = TextModel.createFromString('foobar  foo bar\nfarboo far boo', undefined, languageIdentifier, uri);
 		editor = createTestCodeEditor({ model: model });
@@ -37,13 +37,15 @@ suite('CodeAction', () => {
 	});
 
 	teardown(() => {
-		reg.dispose();
+		dispose(disposables);
 		editor.dispose();
 		model.dispose();
 		markerService.dispose();
 	});
 
 	test('Orcale -> marker added', done => {
+		const reg = CodeActionProviderRegistry.register(languageIdentifier.language, testProvider);
+		disposables.push(reg);
 
 		const oracle = new CodeActionOracle(editor, markerService, e => {
 			assert.equal(e.trigger.type, 'auto');
@@ -68,6 +70,8 @@ suite('CodeAction', () => {
 	});
 
 	test('Orcale -> position changed', () => {
+		const reg = CodeActionProviderRegistry.register(languageIdentifier.language, testProvider);
+		disposables.push(reg);
 
 		markerService.changeOne('fake', uri, [{
 			startLineNumber: 1, startColumn: 1, endLineNumber: 1, endColumn: 6,
@@ -96,11 +100,12 @@ suite('CodeAction', () => {
 	});
 
 	test('Lightbulb is in the wrong place, #29933', async function () {
-		let reg = CodeActionProviderRegistry.register(languageIdentifier.language, {
-			provideCodeActions(doc, _range) {
+		const reg = CodeActionProviderRegistry.register(languageIdentifier.language, {
+			provideCodeActions(_doc, _range) {
 				return [];
 			}
 		});
+		disposables.push(reg);
 
 		editor.getModel().setValue('// @ts-check\n2\ncon\n');
 
@@ -146,9 +151,5 @@ suite('CodeAction', () => {
 
 		// 	oracle.trigger('manual');
 		// });
-
-
-		reg.dispose();
 	});
-
 });

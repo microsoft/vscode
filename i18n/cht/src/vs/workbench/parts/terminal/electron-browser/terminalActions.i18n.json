@@ -57,5 +57,7 @@
 	"workbench.action.terminal.scrollToPreviousCommand": "捲動至上一個命令",
 	"workbench.action.terminal.scrollToNextCommand": "捲動至下一個命令",
 	"workbench.action.terminal.selectToPreviousCommand": "選取上一個命令",
-	"workbench.action.terminal.selectToNextCommand": "選取下一個命令"
+	"workbench.action.terminal.selectToNextCommand": "選取下一個命令",
+	"workbench.action.terminal.selectToPreviousLine": "選擇上一行",
+	"workbench.action.terminal.selectToNextLine": "選擇下一行"
 }

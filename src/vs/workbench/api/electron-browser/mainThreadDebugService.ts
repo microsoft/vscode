@@ -29,14 +29,22 @@ export class MainThreadDebugService implements MainThreadDebugServiceShape, IDeb
 	private _debugAdapters: Map<number, ExtensionHostDebugAdapter>;
 	private _debugAdaptersHandleCounter = 1;
 
-
 	constructor(
 		extHostContext: IExtHostContext,
 		@IDebugService private debugService: IDebugService
 	) {
 		this._proxy = extHostContext.getProxy(ExtHostContext.ExtHostDebugService);
 		this._toDispose = [];
-		this._toDispose.push(debugService.onDidNewSession(proc => this._proxy.$acceptDebugSessionStarted(<DebugSessionUUID>proc.getId(), proc.configuration.type, proc.getName(false))));
+		this._toDispose.push(debugService.onDidNewSession(session => {
+			this._proxy.$acceptDebugSessionStarted(<DebugSessionUUID>session.getId(), session.configuration.type, session.getName(false));
+			this._toDispose.push(session.onDidCustomEvent(event => {
+				if (event && event.sessionId) {
+					if (process) {
+						this._proxy.$acceptDebugSessionCustomEvent(event.sessionId, session.configuration.type, session.configuration.name, event);
+					}
+				}
+			}));
+		}));
 		this._toDispose.push(debugService.onDidEndSession(proc => this._proxy.$acceptDebugSessionTerminated(<DebugSessionUUID>proc.getId(), proc.configuration.type, proc.getName(false))));
 		this._toDispose.push(debugService.getViewModel().onDidFocusSession(proc => {
 			if (proc) {
@@ -46,14 +54,6 @@ export class MainThreadDebugService implements MainThreadDebugServiceShape, IDeb
 			}
 		}));
 
-		this._toDispose.push(debugService.onDidCustomEvent(event => {
-			if (event && event.sessionId) {
-				const process = this.debugService.getModel().getSessions().filter(p => p.getId() === event.sessionId).pop();
-				if (process) {
-					this._proxy.$acceptDebugSessionCustomEvent(event.sessionId, process.configuration.type, process.configuration.name, event);
-				}
-			}
-		}));
 		this._debugAdapters = new Map<number, ExtensionHostDebugAdapter>();
 	}
 
@@ -69,7 +69,7 @@ export class MainThreadDebugService implements MainThreadDebugServiceShape, IDeb
 	}
 
 	substituteVariables(folder: IWorkspaceFolder, config: IConfig): TPromise<IConfig> {
-		return this._proxy.$substituteVariables(folder.uri, config);
+		return this._proxy.$substituteVariables(folder ? folder.uri : undefined, config);
 	}
 
 	runInTerminal(args: DebugProtocol.RunInTerminalRequestArguments, config: ITerminalSettings): TPromise<void> {
@@ -87,7 +87,8 @@ export class MainThreadDebugService implements MainThreadDebugServiceShape, IDeb
 
 			// set up a handler to send more
 			this._toDispose.push(this.debugService.getModel().onDidChangeBreakpoints(e => {
-				if (e) {
+				// Ignore session only breakpoint events since they should only reflect in the UI
+				if (e && !e.sessionOnly) {
 					const delta: IBreakpointsDeltaDto = {};
 					if (e.added) {
 						delta.added = this.convertToDto(e.added);

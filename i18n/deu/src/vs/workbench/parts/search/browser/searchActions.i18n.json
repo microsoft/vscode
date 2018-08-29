@@ -12,6 +12,8 @@
 	"previousSearchExcludePattern": "Vorheriges Suchausschlussmuster anzeigen",
 	"nextSearchTerm": "Nächsten Suchbegriff anzeigen",
 	"previousSearchTerm": "Vorherigen Suchbegriff anzeigen",
+	"nextReplaceTerm": "Nächsten Such-/Ersetzungsbegriff anzeigen",
+	"previousReplaceTerm": "Vorherigen Such-/Ersetzungsbegriff anzeigen ",
 	"findInFiles": "In Dateien suchen",
 	"replaceInFiles": "In Dateien ersetzen",
 	"RefreshAction.label": "Aktualisieren",

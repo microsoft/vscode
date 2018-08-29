@@ -4,21 +4,20 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as vscode from 'vscode';
-
-import { CommandManager } from './utils/commandManager';
-import TypeScriptServiceClientHost from './typeScriptServiceClientHost';
 import * as commands from './commands';
-
-import TypeScriptTaskProviderManager from './features/taskProvider';
+import { LanguageConfigurationManager } from './features/languageConfiguration';
+import TypeScriptTaskProviderManager from './features/task';
+import TypeScriptServiceClientHost from './typeScriptServiceClientHost';
+import { CommandManager } from './utils/commandManager';
+import * as fileSchemes from './utils/fileSchemes';
+import { standardLanguageDescriptions } from './utils/languageDescription';
+import { lazy, Lazy } from './utils/lazy';
+import LogDirectoryProvider from './utils/logDirectoryProvider';
+import ManagedFileContextManager from './utils/managedFileContext';
 import { getContributedTypeScriptServerPlugins, TypeScriptServerPlugin } from './utils/plugins';
 import * as ProjectStatus from './utils/projectStatus';
-import * as languageModeIds from './utils/languageModeIds';
-import * as languageConfigurations from './utils/languageConfigurations';
-import { standardLanguageDescriptions } from './utils/languageDescription';
-import ManagedFileContextManager from './utils/managedFileContext';
-import { lazy, Lazy } from './utils/lazy';
-import * as fileSchemes from './utils/fileSchemes';
-import LogDirectoryProvider from './utils/logDirectoryProvider';
+import { flatten } from './utils/arrays';
+
 
 export function activate(
 	context: vscode.ExtensionContext
@@ -32,9 +31,16 @@ export function activate(
 
 	registerCommands(commandManager, lazyClientHost);
 	context.subscriptions.push(new TypeScriptTaskProviderManager(lazyClientHost.map(x => x.serviceClient)));
-	context.subscriptions.push(vscode.languages.setLanguageConfiguration(languageModeIds.jsxTags, languageConfigurations.jsxTags));
+	context.subscriptions.push(new LanguageConfigurationManager());
 
-	const supportedLanguage = [].concat.apply([], standardLanguageDescriptions.map(x => x.modeIds).concat(plugins.map(x => x.languages)));
+	import('./features/tsconfig').then(module => {
+		context.subscriptions.push(module.register());
+	});
+
+	const supportedLanguage = flatten([
+		...standardLanguageDescriptions.map(x => x.modeIds),
+		...plugins.map(x => x.languages)
+	]);
 	function didOpenTextDocument(textDocument: vscode.TextDocument): boolean {
 		if (isSupportedDocument(supportedLanguage, textDocument)) {
 			openListener.dispose();
@@ -43,7 +49,7 @@ export function activate(
 			void lazyClientHost.value;
 
 			context.subscriptions.push(new ManagedFileContextManager(resource => {
-				return lazyClientHost.value.serviceClient.normalizePath(resource);
+				return lazyClientHost.value.serviceClient.toPath(resource);
 			}));
 			return true;
 		}
@@ -77,9 +83,7 @@ function createLazyClientHost(
 			context.subscriptions.push(
 				ProjectStatus.create(
 					clientHost.serviceClient,
-					clientHost.serviceClient.telemetryReporter,
-					path => new Promise<boolean>(resolve => setTimeout(() => resolve(clientHost.handles(path)), 750)),
-					context.workspaceState));
+					clientHost.serviceClient.telemetryReporter));
 		});
 
 		return clientHost;

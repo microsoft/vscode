@@ -16,6 +16,7 @@
 	"vscode.extension.contributes.configuration": "Yapılandırma ayarlarına ekleme yapar.",
 	"invalid.title": "'configuration.title' bir dize olmalıdır",
 	"invalid.properties": "'configuration.properties' bir nesne olmalıdır",
+	"invalid.property": "'configuration.property' bir nesne olmalıdır",
 	"invalid.allOf": "'configuration.allOf' kullanım dışıdır ve artık kullanılmamalıdır. Bunun yerine, birden çok yapılandırma bölümlerini bir dizi olarak 'configuration' ekleme noktasına geçirin.",
 	"workspaceConfig.folders.description": "Çalışma alanına yüklenecek klasörler listesi.",
 	"workspaceConfig.path.description": "Bir dosya yolu. ör. `/root/folderA` veya çalışma alanı dosyasının konumuna karşı çözümlenecek göreceli bir yol için `./folderA`.",

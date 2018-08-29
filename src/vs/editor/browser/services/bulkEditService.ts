@@ -8,7 +8,6 @@ import { createDecorator } from 'vs/platform/instantiation/common/instantiation'
 import { WorkspaceEdit } from 'vs/editor/common/modes';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { ICodeEditor } from '../editorBrowser';
-import { Selection } from 'vs/editor/common/core/selection';
 import { IProgressRunner } from 'vs/platform/progress/common/progress';
 
 export const IBulkEditService = createDecorator<IBulkEditService>('IWorkspaceEditService');
@@ -20,7 +19,6 @@ export interface IBulkEditOptions {
 }
 
 export interface IBulkEditResult {
-	selection: Selection;
 	ariaSummary: string;
 }
 

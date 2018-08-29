@@ -365,7 +365,6 @@
 		// Workbench: Editors
 		// "editorGroupHeader.noTabsBackground": "",
 		"editorGroup.border": "#2b2b4a",
-		"editorGroup.background": "#1c1c2a",
 		"editorGroup.dropBackground": "#25375daa",
 		"editorGroupHeader.tabsBackground": "#1c1c2a",
 

@@ -20,7 +20,7 @@
 	"later": "나중에",
 	"updateAvailable": "사용 가능한 업데이트가 있습니다. {0} {1}",
 	"installUpdate": "업데이트 설치",
-	"updateInstalling": "{0} {1}이(가) 백그라운드로 설치되고 있습니다. 완료되면 알려드리겠습니다.",
+	"updateInstalling": "{0} {1}이(가) 백그라운드에서 설치되고 있습니다. 설치가 끝나면 알려드리겠습니다.",
 	"updateAvailableAfterRestart": "최신 업데이트를 적용하려면 {0}을(를) 다시 시작하세요.",
 	"updateNow": "지금 업데이트",
 	"commandPalette": "명령 팔레트...",

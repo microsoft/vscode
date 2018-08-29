@@ -17,7 +17,8 @@
   "enableProposedApi": true,
   "main": "./client/out/htmlMain",
   "scripts": {
-    "compile": "gulp compile-extension:html-language-features-client & gulp compile-extension:html-language-features-server",
+    "compile": "gulp compile-extension:html-language-features-client compile-extension:html-language-features-server",
+    "watch": "gulp watch-extension:html-language-features-client watch-extension:html-language-features-server",
     "postinstall": "cd server && yarn install",
     "install-client-next": "yarn add vscode-languageclient@next"
   },
@@ -111,26 +112,37 @@
             "auto",
             "force",
             "force-aligned",
-            "force-expand-multiline"
+            "force-expand-multiline",
+            "aligned-multiple"
           ],
           "enumDescriptions": [
             "%html.format.wrapAttributes.auto%",
             "%html.format.wrapAttributes.force%",
             "%html.format.wrapAttributes.forcealign%",
-            "%html.format.wrapAttributes.forcemultiline%"
+            "%html.format.wrapAttributes.forcemultiline%",
+            "%html.format.wrapAttributes.alignedmultiple%"
           ],
           "description": "%html.format.wrapAttributes.desc%"
+        },
+        "html.format.wrapAttributesIndentSize": {
+          "type": [
+            "integer",
+            "null"
+          ],
+          "scope": "resource",
+          "default": null,
+          "description": "%html.format.wrapAttributesIndentSize.desc%"
         },
         "html.suggest.angular1": {
           "type": "boolean",
           "scope": "resource",
-          "default": true,
+          "default": false,
           "description": "%html.suggest.angular1.desc%"
         },
         "html.suggest.ionic": {
           "type": "boolean",
           "scope": "resource",
-          "default": true,
+          "default": false,
           "description": "%html.suggest.ionic.desc%"
         },
         "html.suggest.html5": {
@@ -172,12 +184,11 @@
     }
   },
   "dependencies": {
-    "vscode-extension-telemetry": "0.0.17",
-    "vscode-languageclient": "^4.0.0",
-    "vscode-languageserver-protocol-foldingprovider": "^2.0.0-next.2",
-    "vscode-nls": "^3.2.2"
+    "vscode-extension-telemetry": "0.0.18",
+    "vscode-languageclient": "^5.1.0-next.9",
+    "vscode-nls": "^3.2.5"
   },
   "devDependencies": {
-    "@types/node": "7.0.43"
+    "@types/node": "^8.10.25"
   }
 }

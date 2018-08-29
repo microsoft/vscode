@@ -57,5 +57,7 @@
 	"workbench.action.terminal.scrollToPreviousCommand": "前のコマンドにスクロール",
 	"workbench.action.terminal.scrollToNextCommand": "次のコマンドにスクロール",
 	"workbench.action.terminal.selectToPreviousCommand": "前のコマンドを選択",
-	"workbench.action.terminal.selectToNextCommand": "次のコマンドを選択"
+	"workbench.action.terminal.selectToNextCommand": "次のコマンドを選択",
+	"workbench.action.terminal.selectToPreviousLine": "前の行を選択",
+	"workbench.action.terminal.selectToNextLine": "次の行を選択"
 }

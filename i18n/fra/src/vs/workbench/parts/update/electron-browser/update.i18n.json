@@ -20,7 +20,7 @@
 	"later": "Plus tard",
 	"updateAvailable": "Il y a une mise à jour disponible : {0} {1}",
 	"installUpdate": "Installer la mise à jour",
-	"updateInstalling": "{0} {1} est en train d'être installé en arrière-plan, nous vous ferons savoir quand c’est fini.",
+	"updateInstalling": "{0} {1} est installé en tâche de fond ; Nous vous ferons savoir quand c’est fini.",
 	"updateAvailableAfterRestart": "Redémarrer {0} pour appliquer la dernière mise à jour.",
 	"updateNow": "Mettre à jour maintenant",
 	"commandPalette": "Palette de commandes...",

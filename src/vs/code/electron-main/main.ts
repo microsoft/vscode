@@ -5,7 +5,7 @@
 
 'use strict';
 
-import 'vs/code/electron-main/contributions';
+import 'vs/code/code.main';
 import { app, dialog } from 'electron';
 import { assign } from 'vs/base/common/objects';
 import * as platform from 'vs/base/common/platform';
@@ -35,7 +35,7 @@ import { IRequestService } from 'vs/platform/request/node/request';
 import { RequestService } from 'vs/platform/request/electron-main/requestService';
 import { IURLService } from 'vs/platform/url/common/url';
 import { URLService } from 'vs/platform/url/common/urlService';
-import * as fs from 'original-fs';
+import * as fs from 'fs';
 import { CodeApplication } from 'vs/code/electron-main/app';
 import { HistoryMainService } from 'vs/platform/history/electron-main/historyMainService';
 import { IHistoryMainService } from 'vs/platform/history/common/history';
@@ -50,6 +50,7 @@ import { uploadLogs } from 'vs/code/electron-main/logUploader';
 import { setUnexpectedErrorHandler } from 'vs/base/common/errors';
 import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
 import { CommandLineDialogService } from 'vs/platform/dialogs/node/dialogService';
+import { ILabelService, LabelService } from 'vs/platform/label/common/label';
 
 function createServices(args: ParsedArgs, bufferLogService: BufferLogService): IInstantiationService {
 	const services = new ServiceCollection();
@@ -57,6 +58,7 @@ function createServices(args: ParsedArgs, bufferLogService: BufferLogService): I
 	const environmentService = new EnvironmentService(args, process.execPath);
 	const consoleLogService = new ConsoleLogMainService(getLogLevel(environmentService));
 	const logService = new MultiplexLogService([consoleLogService, bufferLogService]);
+	const labelService = new LabelService(environmentService, undefined);
 
 	process.once('exit', () => logService.dispose());
 
@@ -64,6 +66,7 @@ function createServices(args: ParsedArgs, bufferLogService: BufferLogService): I
 	setTimeout(() => cleanupOlderLogs(environmentService).then(null, err => console.error(err)), 10000);
 
 	services.set(IEnvironmentService, environmentService);
+	services.set(ILabelService, labelService);
 	services.set(ILogService, logService);
 	services.set(IWorkspacesMainService, new SyncDescriptor(WorkspacesMainService));
 	services.set(IHistoryMainService, new SyncDescriptor(HistoryMainService));
@@ -81,7 +84,7 @@ function createServices(args: ParsedArgs, bufferLogService: BufferLogService): I
 /**
  * Cleans up older logs, while keeping the 10 most recent ones.
 */
-async function cleanupOlderLogs(environmentService: EnvironmentService): TPromise<void> {
+async function cleanupOlderLogs(environmentService: EnvironmentService): Promise<void> {
 	const currentLog = path.basename(environmentService.logsPath);
 	const logsRoot = path.dirname(environmentService.logsPath);
 	const children = await readdir(logsRoot);
@@ -323,6 +326,11 @@ function main() {
 			VSCODE_NLS_CONFIG: process.env['VSCODE_NLS_CONFIG'],
 			VSCODE_LOGS: process.env['VSCODE_LOGS']
 		};
+
+		if (process.env['VSCODE_PORTABLE']) {
+			instanceEnv['VSCODE_PORTABLE'] = process.env['VSCODE_PORTABLE'];
+		}
+
 		assign(process.env, instanceEnv);
 
 		// Startup

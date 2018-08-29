@@ -28,12 +28,12 @@ import { Event, Emitter } from 'vs/base/common/event';
 
 class MessageWidget {
 
-	lines: number = 0;
-	longestLineLength: number = 0;
+	private _lines: number = 0;
+	private _longestLineLength: number = 0;
 
 	private readonly _editor: ICodeEditor;
-	private readonly _messageBlock: HTMLSpanElement;
-	private readonly _relatedBlock: HTMLSpanElement;
+	private readonly _messageBlock: HTMLDivElement;
+	private readonly _relatedBlock: HTMLDivElement;
 	private readonly _scrollable: ScrollableElement;
 	private readonly _relatedDiagnostics = new WeakMap<HTMLElement, IRelatedInformation>();
 	private readonly _disposables: IDisposable[] = [];
@@ -46,7 +46,7 @@ class MessageWidget {
 		domNode.setAttribute('aria-live', 'assertive');
 		domNode.setAttribute('role', 'alert');
 
-		this._messageBlock = document.createElement('span');
+		this._messageBlock = document.createElement('div');
 		domNode.appendChild(this._messageBlock);
 
 		this._relatedBlock = document.createElement('div');
@@ -61,13 +61,17 @@ class MessageWidget {
 
 		this._scrollable = new ScrollableElement(domNode, {
 			horizontal: ScrollbarVisibility.Auto,
-			vertical: ScrollbarVisibility.Hidden,
+			vertical: ScrollbarVisibility.Auto,
 			useShadows: false,
-			horizontalScrollbarSize: 3
+			horizontalScrollbarSize: 3,
+			verticalScrollbarSize: 3
 		});
 		dom.addClass(this._scrollable.getDomNode(), 'block');
 		parent.appendChild(this._scrollable.getDomNode());
-		this._disposables.push(this._scrollable.onScroll(e => domNode.style.left = `-${e.scrollLeft}px`));
+		this._disposables.push(this._scrollable.onScroll(e => {
+			domNode.style.left = `-${e.scrollLeft}px`;
+			domNode.style.top = `-${e.scrollTop}px`;
+		}));
 		this._disposables.push(this._scrollable);
 	}
 
@@ -78,14 +82,14 @@ class MessageWidget {
 	update({ source, message, relatedInformation }: IMarker): void {
 
 		if (source) {
-			this.lines = 0;
-			this.longestLineLength = 0;
+			this._lines = 0;
+			this._longestLineLength = 0;
 			const indent = new Array(source.length + 3 + 1).join(' ');
 			const lines = message.split(/\r\n|\r|\n/g);
 			for (let i = 0; i < lines.length; i++) {
 				let line = lines[i];
-				this.lines += 1;
-				this.longestLineLength = Math.max(line.length, this.longestLineLength);
+				this._lines += 1;
+				this._longestLineLength = Math.max(line.length, this._longestLineLength);
 				if (i === 0) {
 					message = `[${source}] ${line}`;
 				} else {
@@ -93,15 +97,15 @@ class MessageWidget {
 				}
 			}
 		} else {
-			this.lines = 1;
-			this.longestLineLength = message.length;
+			this._lines = 1;
+			this._longestLineLength = message.length;
 		}
 
 		dom.clearNode(this._relatedBlock);
 
 		if (!isFalsyOrEmpty(relatedInformation)) {
 			this._relatedBlock.style.paddingTop = `${Math.floor(this._editor.getConfiguration().lineHeight * .66)}px`;
-			this.lines += 1;
+			this._lines += 1;
 
 			for (const related of relatedInformation) {
 
@@ -110,7 +114,7 @@ class MessageWidget {
 				let relatedResource = document.createElement('span');
 				dom.addClass(relatedResource, 'filename');
 				relatedResource.innerHTML = `${getBaseLabel(related.resource)}(${related.startLineNumber}, ${related.startColumn}): `;
-				relatedResource.title = getPathLabel(related.resource);
+				relatedResource.title = getPathLabel(related.resource, undefined);
 				this._relatedDiagnostics.set(relatedResource, related);
 
 				let relatedMessage = document.createElement('span');
@@ -120,19 +124,26 @@ class MessageWidget {
 				container.appendChild(relatedResource);
 				container.appendChild(relatedMessage);
 
-				this.lines += 1;
+				this._lines += 1;
 				this._relatedBlock.appendChild(container);
 			}
 		}
 
 		this._messageBlock.innerText = message;
 		this._editor.applyFontInfo(this._messageBlock);
-		const width = Math.floor(this._editor.getConfiguration().fontInfo.typicalFullwidthCharacterWidth * this.longestLineLength);
-		this._scrollable.setScrollDimensions({ scrollWidth: width });
+		const fontInfo = this._editor.getConfiguration().fontInfo;
+		const scrollWidth = Math.ceil(fontInfo.typicalFullwidthCharacterWidth * this._longestLineLength * 0.75);
+		const scrollHeight = fontInfo.lineHeight * this._lines;
+		this._scrollable.setScrollDimensions({ scrollWidth, scrollHeight });
 	}
 
 	layout(height: number, width: number): void {
-		this._scrollable.setScrollDimensions({ width });
+		this._scrollable.getDomNode().style.height = `${height}px`;
+		this._scrollable.setScrollDimensions({ width, height });
+	}
+
+	getHeightInLines(): number {
+		return Math.min(17, this._lines);
 	}
 }
 
@@ -259,7 +270,7 @@ export class MarkerNavigationWidget extends ZoneWidget {
 	}
 
 	private computeRequiredHeight() {
-		return 1 + this._message.lines;
+		return 1 + this._message.getHeightInLines();
 	}
 }
 

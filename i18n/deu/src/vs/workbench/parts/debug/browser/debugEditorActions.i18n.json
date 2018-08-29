@@ -12,5 +12,7 @@
 	"runToCursor": "Ausführen bis Cursor",
 	"debugEvaluate": "Debuggen: Auswerten",
 	"debugAddToWatch": "Debuggen: Zur Überwachung hinzufügen",
-	"showDebugHover": "Debuggen: Hover anzeigen"
+	"showDebugHover": "Debuggen: Hover anzeigen",
+	"goToNextBreakpoint": "Debuggen: Zum nächsten Haltepunkt wechseln",
+	"goToPreviousBreakpoint": "Debuggen: Zum vorherigen Haltepunkt wechseln"
 }

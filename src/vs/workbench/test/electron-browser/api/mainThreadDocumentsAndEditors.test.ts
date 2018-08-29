@@ -12,22 +12,21 @@ import { TestConfigurationService } from 'vs/platform/configuration/test/common/
 import { ModelServiceImpl } from 'vs/editor/common/services/modelServiceImpl';
 import { TestCodeEditorService } from 'vs/editor/test/browser/editorTestServices';
 import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
-import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { ExtHostDocumentsAndEditorsShape, IDocumentsAndEditorsDelta } from 'vs/workbench/api/node/extHost.protocol';
 import { createTestCodeEditor, TestCodeEditor } from 'vs/editor/test/browser/testCodeEditor';
 import { mock } from 'vs/workbench/test/electron-browser/api/mock';
-import { IEditorGroupService } from 'vs/workbench/services/group/common/groupService';
+import { TestEditorService, TestEditorGroupsService } from 'vs/workbench/test/workbenchTestServices';
 import { Event } from 'vs/base/common/event';
 import { ITextModel } from 'vs/editor/common/model';
 import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
 import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
+import { IFileService } from 'vs/platform/files/common/files';
 
 suite('MainThreadDocumentsAndEditors', () => {
 
 	let modelService: ModelServiceImpl;
 	let codeEditorService: TestCodeEditorService;
 	let textFileService: ITextFileService;
-	let workbenchEditorService: IWorkbenchEditorService;
 	let deltas: IDocumentsAndEditorsDelta[] = [];
 	const hugeModelString = new Array(2 + (50 * 1024 * 1024)).join('-');
 
@@ -54,13 +53,11 @@ suite('MainThreadDocumentsAndEditors', () => {
 				onModelDirty: Event.None,
 			};
 		};
-		workbenchEditorService = <IWorkbenchEditorService>{
-			getVisibleEditors() { return []; },
-			getActiveEditor() { return undefined; }
-		};
-		const editorGroupService = new class extends mock<IEditorGroupService>() {
-			onEditorsChanged = Event.None;
-			onEditorGroupMoved = Event.None;
+		const workbenchEditorService = new TestEditorService();
+		const editorGroupService = new TestEditorGroupsService();
+
+		const fileService = new class extends mock<IFileService>() {
+			onAfterOperation = Event.None;
 		};
 
 		/* tslint:disable */
@@ -73,7 +70,7 @@ suite('MainThreadDocumentsAndEditors', () => {
 			workbenchEditorService,
 			codeEditorService,
 			null,
-			null,
+			fileService,
 			null,
 			null,
 			editorGroupService,

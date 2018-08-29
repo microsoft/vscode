@@ -20,7 +20,7 @@
 	"later": "Später",
 	"updateAvailable": "Ein Update ist verfügbar: {0} {1}",
 	"installUpdate": "Update installieren",
-	"updateInstalling": "{0} {1} wird im Hintergrund installiert. Wir informieren Sie, wenn dies abgeschlossen ist.",
+	"updateInstalling": "{0} {1} wird im Hintergrund installiert. Wir informieren Sie, wenn der Vorgng abgeschlossen ist.",
 	"updateAvailableAfterRestart": "Starten Sie {0} neu, um das neueste Update zu installieren.",
 	"updateNow": "Jetzt aktualisieren",
 	"commandPalette": "Befehlspalette...",

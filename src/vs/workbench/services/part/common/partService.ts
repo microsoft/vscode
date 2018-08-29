@@ -7,6 +7,7 @@
 import { TPromise } from 'vs/base/common/winjs.base';
 import { createDecorator, ServiceIdentifier } from 'vs/platform/instantiation/common/instantiation';
 import { Event } from 'vs/base/common/event';
+import { MenuBarVisibility } from 'vs/platform/windows/common/windows';
 
 export enum Parts {
 	ACTIVITYBAR_PART,
@@ -14,7 +15,8 @@ export enum Parts {
 	PANEL_PART,
 	EDITOR_PART,
 	STATUSBAR_PART,
-	TITLEBAR_PART
+	TITLEBAR_PART,
+	MENUBAR_PART
 }
 
 export enum Position {
@@ -47,11 +49,6 @@ export interface IPartService {
 	 * Emits when the editor part's layout changes.
 	 */
 	onEditorLayout: Event<IDimension>;
-
-	/**
-	 * Asks the part service to layout all parts.
-	 */
-	layout(options?: ILayoutOptions): void;
 
 	/**
 	 * Asks the part service to if all parts have been created.
@@ -108,6 +105,11 @@ export interface IPartService {
 	 * Gets the current side bar position. Note that the sidebar can be hidden too.
 	 */
 	getSideBarPosition(): Position;
+
+	/**
+	 * Gets the current menubar visibility.
+	 */
+	getMenubarVisibility(): MenuBarVisibility;
 
 	/**
 	 * Gets the current panel position. Note that the panel can be hidden too.

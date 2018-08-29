@@ -4,12 +4,16 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as path from 'path';
-import uri from 'vs/base/common/uri';
+import { getPathFromAmdModule } from 'vs/base/common/amd';
 
 export interface IProductConfiguration {
 	nameShort: string;
 	nameLong: string;
 	applicationName: string;
+	win32AppId: string;
+	win32x64AppId: string;
+	win32UserAppId: string;
+	win32x64UserAppId: string;
 	win32AppUserModelId: string;
 	win32MutexName: string;
 	darwinBundleIdentifier: string;
@@ -18,9 +22,11 @@ export interface IProductConfiguration {
 	downloadUrl: string;
 	updateUrl?: string;
 	quality?: string;
+	target?: string;
 	commit?: string;
 	settingsSearchBuildId?: number;
 	settingsSearchUrl?: string;
+	experimentsUrl?: string;
 	date: string;
 	extensionsGallery: {
 		serviceUrl: string;
@@ -30,7 +36,7 @@ export interface IProductConfiguration {
 	};
 	extensionTips: { [id: string]: string; };
 	extensionImportantTips: { [id: string]: { name: string; pattern: string; }; };
-	exeBasedExtensionTips: { [id: string]: any; };
+	exeBasedExtensionTips: { [id: string]: { friendlyName: string, windowsPath?: string, recommendations: string[] }; };
 	extensionKeywords: { [extension: string]: string[]; };
 	extensionAllowedBadgeProviders: string[];
 	extensionAllowedProposedApi: string[];
@@ -73,6 +79,7 @@ export interface IProductConfiguration {
 		'darwin': string;
 	};
 	logUploaderUrl: string;
+	portable?: string;
 }
 
 export interface ISurveyData {
@@ -83,7 +90,7 @@ export interface ISurveyData {
 	userProbability: number;
 }
 
-const rootPath = path.dirname(uri.parse(require.toUrl('')).fsPath);
+const rootPath = path.dirname(getPathFromAmdModule(require, ''));
 const productJsonPath = path.join(rootPath, 'product.json');
 const product = require.__$__nodeRequire(productJsonPath) as IProductConfiguration;
 

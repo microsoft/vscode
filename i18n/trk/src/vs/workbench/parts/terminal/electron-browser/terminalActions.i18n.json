@@ -21,6 +21,7 @@
 	"workbench.action.terminal.newWorkspacePlaceholder": "Yeni terminal için geçerli çalışma dizinini seçin",
 	"workbench.action.terminal.newInActiveWorkspace": "(Aktif Çalışma Alanında) Yeni Entegre Terminal Oluştur",
 	"workbench.action.terminal.split": "Terminali Böl",
+	"workbench.action.terminal.splitInActiveWorkspace": "(Aktif Çalışma Alanında) Terminali Böl",
 	"workbench.action.terminal.focusPreviousPane": "Önceki Bölmeye Odakla",
 	"workbench.action.terminal.focusNextPane": "Sonraki Bölmeye Odakla",
 	"workbench.action.terminal.resizePaneLeft": "Bölmeyi Sola Doğru Yeniden Boyutlandır",
@@ -56,5 +57,7 @@
 	"workbench.action.terminal.scrollToPreviousCommand": "Önceki Komuta Kadar Kaydır",
 	"workbench.action.terminal.scrollToNextCommand": "Sonraki Komuta Kadar Kaydır",
 	"workbench.action.terminal.selectToPreviousCommand": "Önceki Komuta Kadar Seç",
-	"workbench.action.terminal.selectToNextCommand": "Sonraki Komuta Kadar Seç"
+	"workbench.action.terminal.selectToNextCommand": "Sonraki Komuta Kadar Seç",
+	"workbench.action.terminal.selectToPreviousLine": "Önceki Satıra Kadar Seç",
+	"workbench.action.terminal.selectToNextLine": "Sonraki Satıra Kadar Seç"
 }
