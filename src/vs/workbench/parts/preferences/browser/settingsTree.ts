@@ -1486,6 +1486,11 @@ export class SettingsTree extends NonExpandableOrSelectableTree {
 				collector.addRule(`.settings-editor > .settings-body > .settings-tree-container .settings-group-title-label { color: ${headerForegroundColor}; }`);
 				collector.addRule(`.settings-editor > .settings-body > .settings-tree-container .setting-item-label { color: ${headerForegroundColor}; }`);
 			}
+
+			const focusBorderColor = theme.getColor(focusBorder);
+			if (focusBorderColor) {
+				collector.addRule(`.settings-editor > .settings-body > .settings-tree-container .setting-item .setting-item-description-markdown a:focus { outline-color: ${focusBorderColor} }`);
+			}
 		}));
 
 		this.getHTMLElement().classList.add(treeClass);
