@@ -740,8 +740,15 @@ export class SettingsEditor2 extends BaseEditor {
 	}
 
 	private updateElementsByKey(keys: string[]): TPromise<void> {
-		if (keys.length && this.currentSettingsModel) {
-			keys.forEach(key => this.currentSettingsModel.updateElementsByName(key));
+		if (keys.length) {
+			if (this.searchResultModel) {
+				keys.forEach(key => this.searchResultModel.updateElementsByName(key));
+			}
+
+			if (this.settingsTreeModel) {
+				keys.forEach(key => this.settingsTreeModel.updateElementsByName(key));
+			}
+
 			return TPromise.join(
 				keys.map(key => this.renderTree(key)))
 				.then(() => { });
@@ -984,8 +991,8 @@ export class SettingsEditor2 extends BaseEditor {
 				this.onSearchModeToggled();
 				this.settingsTree.setInput(this.searchResultModel.root);
 			} else {
-				this.tocTreeModel.update();
 				this.searchResultModel.setResult(type, result);
+				this.tocTreeModel.update();
 			}
 
 			this.tocTree.setSelection([]);
