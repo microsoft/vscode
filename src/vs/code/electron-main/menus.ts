@@ -524,7 +524,7 @@ export class CodeMenu {
 		return event && ((!isMacintosh && (event.ctrlKey || event.shiftKey)) || (isMacintosh && (event.metaKey || event.altKey)));
 	}
 
-	private createRoleMenuItem(label: string, commandId: string, role: Electron.MenuItemRole): Electron.MenuItem {
+	private createRoleMenuItem(label: string, commandId: string, role: any): Electron.MenuItem {
 		const options: Electron.MenuItemConstructorOptions = {
 			label: this.mnemonicLabel(label),
 			role,
@@ -973,6 +973,11 @@ export class CodeMenu {
 		if (this.currentEnableNativeTabs) {
 			this.nativeTabMenuItems.push(this.createMenuItem(nls.localize('mNewTab', "New Tab"), 'workbench.action.newWindowTab'));
 
+			this.nativeTabMenuItems.push(this.createRoleMenuItem(nls.localize('mShowPreviousTab', "Show Previous Tab"), 'workbench.action.showPreviousWindowTab', 'selectPreviousTab'));
+			this.nativeTabMenuItems.push(this.createRoleMenuItem(nls.localize('mShowNextTab', "Show Next Tab"), 'workbench.action.showNextWindowTab', 'selectNextTab'));
+			this.nativeTabMenuItems.push(this.createRoleMenuItem(nls.localize('mMoveTabToNewWindow', "Move Tab to New Window"), 'workbench.action.moveWindowTabToNewWindow', 'moveTabToNewWindow'));
+			this.nativeTabMenuItems.push(this.createRoleMenuItem(nls.localize('mMergeAllWindows', "Merge All Windows"), 'workbench.action.mergeAllWindowTabs', 'mergeAllWindows'));
+
 			nativeTabMenuItems.push(__separator__(), ...this.nativeTabMenuItems);
 		} else {
 			this.nativeTabMenuItems = [];
@@ -1152,9 +1157,9 @@ export class CodeMenu {
 		}
 	}
 
-	private createMenuItem(label: string, commandId: string | string[], enabled?: boolean, checked?: boolean, role?: string): Electron.MenuItem;
-	private createMenuItem(label: string, click: () => void, enabled?: boolean, checked?: boolean, role?: string): Electron.MenuItem;
-	private createMenuItem(arg1: string, arg2: any, arg3?: boolean, arg4?: boolean, role?: string): Electron.MenuItem {
+	private createMenuItem(label: string, commandId: string | string[], enabled?: boolean, checked?: boolean): Electron.MenuItem;
+	private createMenuItem(label: string, click: () => void, enabled?: boolean, checked?: boolean): Electron.MenuItem;
+	private createMenuItem(arg1: string, arg2: any, arg3?: boolean, arg4?: boolean): Electron.MenuItem {
 		const label = this.mnemonicLabel(arg1);
 
 		const click: () => void = (typeof arg2 === 'function') ? arg2 : (menuItem: Electron.MenuItem, win: Electron.BrowserWindow, event: Electron.Event) => {
@@ -1172,8 +1177,7 @@ export class CodeMenu {
 		const options: Electron.MenuItemConstructorOptions = {
 			label,
 			click,
-			enabled,
-			role
+			enabled
 		};
 
 		if (checked) {
