@@ -213,10 +213,14 @@ export class SimplePagedDataSource implements IDataSource {
 	private loadedToIndex: number;
 
 	constructor(private realDataSource: IDataSource) {
+		this.reset();
+	}
+
+	reset(): void {
 		this.loadedToIndex = SimplePagedDataSource.SETTINGS_PER_PAGE * 2;
 	}
 
-	pageTo(index: number, top = true): boolean {
+	pageTo(index: number, top = false): boolean {
 		const buffer = top ? SimplePagedDataSource.SETTINGS_PER_PAGE : SimplePagedDataSource.BUFFER;
 
 		if (index > this.loadedToIndex - buffer) {

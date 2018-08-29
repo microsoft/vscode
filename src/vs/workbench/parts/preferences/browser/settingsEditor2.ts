@@ -427,7 +427,7 @@ export class SettingsEditor2 extends BaseEditor {
 
 			if (element && (!e.payload || !e.payload.fromScroll)) {
 				let refreshP = TPromise.wrap(null);
-				if (this.settingsTreeDataSource.pageTo(element.index)) {
+				if (this.settingsTreeDataSource.pageTo(element.index, true)) {
 					refreshP = this.renderTree();
 				}
 
@@ -536,7 +536,7 @@ export class SettingsEditor2 extends BaseEditor {
 
 	private updateTreePagingByScroll(): void {
 		const lastVisibleElement = this.settingsTree.getLastVisibleElement();
-		if (lastVisibleElement && this.settingsTreeDataSource.pageTo(lastVisibleElement.index, false)) {
+		if (lastVisibleElement && this.settingsTreeDataSource.pageTo(lastVisibleElement.index)) {
 			this.renderTree();
 		}
 	}
@@ -654,6 +654,12 @@ export class SettingsEditor2 extends BaseEditor {
 		DOM.removeClass(this.rootElement, 'search-mode');
 		if (this.configurationService.getValue('workbench.settings.settingsSearchTocBehavior') === 'hide') {
 			DOM.toggleClass(this.rootElement, 'search-mode', !!this.searchResultModel);
+		}
+
+		if (this.searchResultModel) {
+			this.settingsTreeDataSource.pageTo(Number.MAX_VALUE);
+		} else {
+			this.settingsTreeDataSource.reset();
 		}
 	}
 
