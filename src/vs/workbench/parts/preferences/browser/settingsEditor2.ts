@@ -159,6 +159,8 @@ export class SettingsEditor2 extends BaseEditor {
 			.then(() => {
 				// Init TOC selection
 				this.updateTreeScrollSync();
+
+				this.onSearchInputChanged();
 			});
 	}
 
