@@ -27,6 +27,8 @@ import { tildify } from 'vs/base/common/labels';
 import { isWindows } from 'vs/base/common/platform';
 import URI from 'vs/base/common/uri';
 import { ltrim } from 'vs/base/common/strings';
+import { RunOnceScheduler } from 'vs/base/common/async';
+import { memoize } from 'vs/base/common/decorators';
 
 const SMART = true;
 
@@ -306,7 +308,7 @@ export class LoadedScriptsView extends TreeViewsViewletPanel {
 	private treeContainer: HTMLElement;
 	private loadedScriptsItemType: IContextKey<string>;
 	private settings: any;
-
+	private shouldRefreshRecursive;
 
 	constructor(
 		options: IViewletViewOptions,
@@ -323,6 +325,16 @@ export class LoadedScriptsView extends TreeViewsViewletPanel {
 		super({ ...(options as IViewletPanelOptions), ariaHeaderLabel: nls.localize('loadedScriptsSection', "Loaded Scripts Section") }, keybindingService, contextMenuService, configurationService);
 		this.settings = options.viewletSettings;
 		this.loadedScriptsItemType = CONTEXT_LOADED_SCRIPTS_ITEM_TYPE.bindTo(contextKeyService);
+	}
+
+	@memoize
+	private get treeRefreshScheduler(): RunOnceScheduler {
+		return new RunOnceScheduler(() => {
+			if (this.tree) {
+				this.tree.refresh(undefined, this.shouldRefreshRecursive);
+				this.shouldRefreshRecursive = false;
+			}
+		}, 300);
 	}
 
 	protected renderBody(container: HTMLElement): void {
@@ -369,18 +381,12 @@ export class LoadedScriptsView extends TreeViewsViewletPanel {
 		const root = new RootTreeItem(this.debugService.getModel(), this.environmentService, this.contextService);
 		this.tree.setInput(root);
 
-		let timeout: number;
 		const registerLoadedSourceListener = (session: ISession) => {
 			this.disposables.push(session.onDidLoadedSource(event => {
 				const sessionRoot = root.add(session);
 				sessionRoot.addPath(event.source);
-
-				clearTimeout(timeout);
-				timeout = setTimeout(() => {
-					if (this.tree) {
-						this.tree.refresh(root, true);
-					}
-				}, 300);
+				this.shouldRefreshRecursive = true;
+				this.treeRefreshScheduler.schedule();
 			}));
 		};
 
@@ -388,11 +394,8 @@ export class LoadedScriptsView extends TreeViewsViewletPanel {
 		this.debugService.getModel().getSessions().forEach(registerLoadedSourceListener);
 
 		this.disposables.push(this.debugService.onDidEndSession(session => {
-			clearTimeout(timeout);
 			root.remove(session.getId());
-			if (this.tree) {
-				this.tree.refresh(root, false);
-			}
+			this.treeRefreshScheduler.schedule();
 		}));
 	}
 
@@ -406,6 +409,11 @@ export class LoadedScriptsView extends TreeViewsViewletPanel {
 	public shutdown(): void {
 		this.settings[LoadedScriptsView.MEMENTO] = !this.isExpanded();
 		super.shutdown();
+	}
+
+	dispose(): void {
+		super.dispose();
+		this.tree = undefined;
 	}
 }
 
