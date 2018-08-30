@@ -138,6 +138,8 @@
 .settings-editor > .settings-body > .settings-tree-container .setting-measure-container {
 	/* 20 from monaco-tree-wrapper + 20 from monaco-tree-row */
 	padding-left: 40px;
+	width: calc(100% - 241px);
+	border: 1px solid transparent;
 }
 
 .settings-editor > .settings-body .settings-tree-container .monaco-tree-rows {
@@ -367,7 +369,7 @@
 	visibility: hidden;
 }
 
-.settings-editor.search-mode > .settings-body > .settings-tree-container .setting-measure-container.measure-bool-description .setting-item-description {
+.settings-editor > .settings-body > .settings-tree-container .setting-measure-container .setting-item-description.measure-bool-description {
 	/* Allocate space for the checkbox control */
 	margin-left: 27px;
 }

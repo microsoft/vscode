@@ -470,10 +470,12 @@ export class SettingsRenderer implements ITreeRenderer {
 			this.descriptionMeasureContainer.classList.remove(boolMeasureClass);
 		}
 
-		// Remove markdown links and setting links
-		const measureText = element.description
-			.replace(/\[(.*)\]\(.*\)/g, '$1')
-			.replace(/`#(.*)#`/g, '$1');
+		// Remove markdown links, setting links, backticks
+		const measureText = element.setting.descriptionIsMarkdown ?
+			fixSettingLinks(element.description)
+				.replace(/\[(.*)\]\(.*\)/g, '$1')
+				.replace(/`([^`]*)`/g, '$1') :
+			element.description;
 
 		this.descriptionMeasureContainer.innerText = measureText;
 		const h = this.descriptionMeasureContainer.offsetHeight;
