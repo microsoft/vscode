@@ -822,7 +822,7 @@ export class MenubarControl extends Disposable {
 					this.focusNext();
 				} else if (event.equals(KeyCode.Escape) && this.isFocused && !this.isOpen) {
 					this.setUnfocusedState();
-				} else if (!event.ctrlKey && this.currentEnableMenuBarMnemonics && this.mnemonicsInUse && this.mnemonics.has(key)) {
+				} else if (!this.isOpen && !event.ctrlKey && this.currentEnableMenuBarMnemonics && this.mnemonicsInUse && this.mnemonics.has(key)) {
 					const menuIndex = this.mnemonics.get(key);
 					this.onMenuTriggered(menuIndex, false);
 				} else {
@@ -881,6 +881,7 @@ export class MenubarControl extends Disposable {
 				}
 
 				this.mnemonicsInUse = true;
+				this.updateMnemonicVisibility(true);
 
 				const menuIndex = this.mnemonics.get(key);
 				this.onMenuTriggered(menuIndex, false);
