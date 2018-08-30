@@ -528,7 +528,7 @@ const editorConfiguration: IConfigurationNode = {
 			type: 'string',
 			enum: ['languageDefined', 'brackets', 'quotes', 'never'],
 			enumDescriptions: [
-				'',
+				nls.localize('editor.autoSurround.languageDefined', "Use language configurations to determine when to automatically surround selections."),
 				nls.localize('editor.autoSurround.brackets', "Surround with brackets but not quotes."),
 				nls.localize('editor.autoSurround.quotes', "Surround with quotes but not brackets."),
 				''
