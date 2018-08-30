@@ -1300,14 +1300,18 @@ class ModifierKeyEmitter extends Emitter<IModifierKeyStatus> {
 		};
 
 		this._subscriptions.push(domEvent(document.body, 'keydown')(e => {
+			const event = new StandardKeyboardEvent(e);
+
 			if (e.altKey && !this._keyStatus.altKey) {
 				this._keyStatus.lastKeyPressed = 'alt';
 			} else if (e.ctrlKey && !this._keyStatus.ctrlKey) {
 				this._keyStatus.lastKeyPressed = 'ctrl';
 			} else if (e.shiftKey && !this._keyStatus.shiftKey) {
 				this._keyStatus.lastKeyPressed = 'shift';
-			} else {
+			} else if (event.keyCode !== KeyCode.Alt) {
 				this._keyStatus.lastKeyPressed = undefined;
+			} else {
+				return;
 			}
 
 			this._keyStatus.altKey = e.altKey;
