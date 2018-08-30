@@ -78,13 +78,22 @@ class BaseTreeItem {
 	// skips intermediate single-child nodes
 	getParent(): BaseTreeItem {
 		if (this._parent) {
-			const child = this._parent.oneChild();
-			if (child) {
+			if (this._parent.isSkipped()) {
 				return this._parent.getParent();
 			}
 			return this._parent;
 		}
 		return undefined;
+	}
+
+	isSkipped(): boolean {
+		if (this._parent) {
+			if (this._parent.oneChild()) {
+				return true;	// skipped if I'm the only child of my parents
+			}
+			return false;
+		}
+		return true;	// roots are never skipped
 	}
 
 	// skips intermediate single-child nodes
@@ -119,10 +128,11 @@ class BaseTreeItem {
 	// skips intermediate single-child nodes
 	getHoverLabel(): string {
 		let label = this.getLabel(false);
-		if (this._parent) {
-			const parentLabel = this._parent.getHoverLabel();
-			if (parentLabel) {
-				return `${parentLabel}/${label}`;
+		const parent = this.getParent();
+		if (parent) {
+			const hover = parent.getHoverLabel();
+			if (hover) {
+				return `${hover}/${label}`;
 			}
 		}
 		return label;
