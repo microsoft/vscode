@@ -23,11 +23,12 @@ export function createTextSearchResult(uri: vscode.Uri, fullText: string, range:
 	let preview: vscode.TextSearchResultPreview;
 	if (previewOptions) {
 		const previewStart = Math.max(range.start.character - previewOptions.leadingChars, 0);
-		const previewEnd = Math.max(previewOptions.totalChars + previewStart, range.end.character);
+		const previewEnd = previewOptions.totalChars + previewStart;
+		const endOfMatchRangeInPreview = Math.min(previewEnd, range.end.character - previewStart);
 
 		preview = {
 			text: fullText.substring(previewStart, previewEnd),
-			match: new vscode.Range(0, range.start.character - previewStart, 0, range.end.character - previewStart)
+			match: new vscode.Range(0, range.start.character - previewStart, 0, endOfMatchRangeInPreview)
 		};
 	} else {
 		preview = {

@@ -382,6 +382,10 @@ export class ExtHostWorkspace implements ExtHostWorkspaceShape {
 	findTextInFiles(query: vscode.TextSearchQuery, options: vscode.FindTextInFilesOptions, callback: (result: vscode.TextSearchResult) => void, extensionId: string, token?: vscode.CancellationToken) {
 		this._logService.trace(`extHostWorkspace#findTextInFiles: textSearch, extension: ${extensionId}, entryPoint: findTextInFiles`);
 
+		if (options.previewOptions && options.previewOptions.totalChars <= options.previewOptions.leadingChars) {
+			throw new Error('findTextInFiles: previewOptions.totalChars must be > previewOptions.leadingChars');
+		}
+
 		const requestId = this._requestIdProvider.getNext();
 
 		const globPatternToString = (pattern: vscode.GlobPattern | string) => {

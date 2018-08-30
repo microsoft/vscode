@@ -110,4 +110,23 @@ suite('search-rg', () => {
 				uri
 			});
 	});
+
+	test('truncating match', () => {
+		const previewOptions: vscode.TextSearchPreviewOptions = {
+			leadingChars: 4,
+			maxLines: 1,
+			totalChars: 5
+		};
+
+		assert.deepEqual(
+			createTextSearchResult(uri, 'foo bar', createOneLineRange(0, 4, 7), previewOptions),
+			<vscode.TextSearchResult>{
+				preview: {
+					text: 'foo b',
+					match: createOneLineRange(0, 4, 5)
+				},
+				range: createOneLineRange(0, 4, 7),
+				uri
+			});
+	});
 });
