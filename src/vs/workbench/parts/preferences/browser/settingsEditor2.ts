@@ -160,8 +160,22 @@ export class SettingsEditor2 extends BaseEditor {
 				// Init TOC selection
 				this.updateTreeScrollSync();
 
+				this.settingsTargetsWidget.settingsTarget = this.getSettingsTarget(input);
+
 				this.onSearchInputChanged();
 			});
+	}
+
+	private getSettingsTarget(input: SettingsEditor2Input): SettingsTarget {
+		if (input.folderUri) {
+			return input.folderUri;
+		}
+
+		if (input.configurationTarget === ConfigurationTarget.USER || input.configurationTarget === ConfigurationTarget.WORKSPACE) {
+			return input.configurationTarget;
+		}
+
+		return ConfigurationTarget.USER;
 	}
 
 	clearInput(): void {
